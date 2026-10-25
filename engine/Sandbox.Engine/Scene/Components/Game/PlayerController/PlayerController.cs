@@ -206,21 +206,24 @@ public sealed partial class PlayerController : Component, IScenePhysicsEvents, C
 		UpdateBody();
 
 		if ( IsProxy )
+		{
+			_stepGrounded = false;
 			return;
+		}
 
 		Mode.AddVelocity();
+		BeginStep();
 		Mode.PrePhysicsStep();
 	}
 
 	void IScenePhysicsEvents.PostPhysicsStep()
 	{
-		Velocity = Body.Velocity - GroundVelocity;
 		UpdateGroundVelocity();
-
-		RestoreStep();
 
 		Mode?.PostPhysicsStep();
 		CategorizeGround();
+		UpdateGroundVelocity();
+		Velocity = Body.Velocity - GroundVelocity;
 
 		ChooseBestMoveMode();
 	}
@@ -229,7 +232,7 @@ public sealed partial class PlayerController : Component, IScenePhysicsEvents, C
 
 	void UpdateGroundVelocity()
 	{
-		if ( GroundObject is null )
+		if ( GroundObject is null || Body.PhysicsBody is not { IsValid: true } body )
 		{
 			GroundVelocity = 0;
 			return;
@@ -237,15 +240,12 @@ public sealed partial class PlayerController : Component, IScenePhysicsEvents, C
 
 		if ( GroundComponent is Collider collider )
 		{
-			GroundVelocity = collider.GetVelocityAtPoint( WorldPosition );
+			GroundVelocity = collider.GetVelocityAtPoint( body.Position );
 		}
 
 		if ( GroundComponent is Rigidbody rigidbody )
 		{
-			var mass1 = BodyMass;
-			var mass2 = rigidbody.Mass;
-			var massFactor = mass2 / (mass1 + mass2);
-			GroundVelocity = rigidbody.GetVelocityAtPoint( WorldPosition ) * massFactor;
+			GroundVelocity = rigidbody.GetVelocityAtPoint( body.Position );
 		}
 	}
 
@@ -256,6 +256,8 @@ public sealed partial class PlayerController : Component, IScenePhysicsEvents, C
 	/// </summary>
 	public void Jump( Vector3 velocity )
 	{
+		Mode?.OnJump();
+		var jumpBoost = CalculateJumpBoost( velocity );
 		PreventGrounding( 0.2f );
 
 		var currentVel = Body.Velocity;
@@ -270,7 +272,27 @@ public sealed partial class PlayerController : Component, IScenePhysicsEvents, C
 
 		currentVel = currentVel.AddClamped( velocity, velocity.Length );
 
-		Body.Velocity = currentVel;
+		Body.Velocity = currentVel + jumpBoost;
+	}
+
+	Vector3 CalculateJumpBoost( Vector3 jumpVelocity )
+	{
+		if ( !EnableJumpBoost || JumpBoost <= 0 || RunSpeed <= 0 ) return Vector3.Zero;
+		if ( !IsOnGround || IsDucking || Mode is not MoveModeWalk ) return Vector3.Zero;
+		if ( jumpVelocity.Dot( UpDirection ) <= 0 ) return Vector3.Zero;
+
+		var wish = WithoutVertical( WishVelocity );
+		if ( wish.Length < RunSpeed * 0.95f ) return Vector3.Zero;
+
+		// Measure sprint speed along the slope, relative to the ground, so running uphill and riding a moving platform don't change eligibility.
+		var direction = wish.Normal;
+		var groundDirection = (direction - GroundNormal * direction.Dot( GroundNormal )).Normal;
+		var relativeVelocity = Body.Velocity - GroundVelocity;
+		if ( relativeVelocity.Dot( groundDirection ) < RunSpeed * 0.95f ) return Vector3.Zero;
+
+		var boostSpeed = RunSpeed * JumpBoost;
+		var remainingSpeed = RunSpeed + boostSpeed - WithoutVertical( relativeVelocity ).Length;
+		return direction * MathF.Max( 0, MathF.Min( boostSpeed, remainingSpeed ) );
 	}
 
 	void UpdateEyeTransform()

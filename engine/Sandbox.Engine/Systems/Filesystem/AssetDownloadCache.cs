@@ -123,37 +123,16 @@ static class AssetDownloadCache
 	}
 
 	/// <summary>
-	/// Given a file with a crc, create a unique cache filename for it
-	/// </summary>
-	internal static string CreateGameCacheFilename( string path, string crc )
-	{
-		return $"{path.ToLowerInvariant().Md5()}.{crc}.cache";
-	}
-
-	/// <summary>
-	/// Is this file in the game cache, core content or the download cache, without mounting it
-	/// </summary>
-	internal static bool IsCached( string path, ulong crc )
-	{
-		var gc = "/gamecache/" + CreateGameCacheFilename( path, crc.ToString( "x" ) );
-		return EngineFileSystem.Root.FileExists( gc ) || IsFileDownloaded( path, crc, out _ );
-	}
-
-	/// <summary>
 	/// <see cref="ResolveCached"/>'s answer for a file core content already has, so nothing needs mounting.
 	/// </summary>
 	internal static readonly string CoreContent = "core";
 
 	/// <summary>
-	/// Where a cached copy of this file is: the absolute path in the game or download cache,
+	/// Where a cached copy of this file is: the absolute path in the download cache,
 	/// <see cref="CoreContent"/>, or null when it has to be downloaded. Only reads, safe off the main thread.
 	/// </summary>
 	internal static string ResolveCached( string path, ulong crc )
 	{
-		var gc = "/gamecache/" + CreateGameCacheFilename( path, crc.ToString( "x" ) );
-		if ( EngineFileSystem.Root.FileExists( gc ) )
-			return EngineFileSystem.Root.GetFullPath( gc );
-
 		if ( !IsFileDownloaded( path, crc, out var wasCoreContent ) )
 			return null;
 

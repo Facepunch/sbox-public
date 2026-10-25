@@ -41,11 +41,8 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		AddHandler<ObjectRefreshMsgAck>( OnObjectRefreshAck );
 		AddHandler<ObjectDestroyMsg>( OnObjectDestroy );
 		AddHandler<ObjectDetachMsg>( OnObjectDetach );
-		AddHandler<ObjectRpcMsg>( OnObjectMessage );
 		AddHandler<ObjectNetworkTableMsg>( OnNetworkTableChanges );
 		AddHandler<SceneNetworkTableMsg>( OnNetworkTableChanges );
-		AddHandler<SceneRpcMsg>( OnSceneRpc );
-		AddHandler<StaticRpcMsg>( OnStaticRpc );
 		AddHandler<LoadSceneBeginMsg>( OnLoadSceneMsg );
 		AddHandler<LoadSceneSnapshotMsg>( OnLoadSceneSnapshotMsg );
 		AddHandler<LoadSceneRequestSnapshotMsg>( OnLoadSceneRequestSnapshotMsg );
@@ -55,6 +52,16 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	internal void OnHotload()
 	{
 		DeltaSnapshots.Reset();
+	}
+
+	internal override void OnRpcMessage( ByteStream data, Connection source )
+	{
+		Rpc.IncomingRpc( data, source );
+	}
+
+	internal override void AfterIncomingMessages()
+	{
+		DeltaSnapshots.FlushAcks();
 	}
 
 	/// <summary>
@@ -265,6 +272,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	private async Task OnLoadSceneSnapshotMsg( LoadSceneSnapshotMsg msg, Connection connection, Guid msgId )
 	{
 		NetworkDebugSystem.Current?.Record( NetworkDebugSystem.MessageType.Snapshot, msg );
+		Diagnostics.DevTools.NetworkLog.Message( Diagnostics.DevTools.NetworkLog.Kind.Snapshot, "SceneSnapshot", msg, false, connection );
 
 		await SetSnapshotAsync( msg.Snapshot );
 
@@ -765,11 +773,6 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 				no.RemoveConnection( client.Id );
 			}
 
-			foreach ( var system in Game.ActiveScene.GetSystems() )
-			{
-				system.LocalSnapshotState.RemoveConnection( client.Id );
-			}
-
 			if ( Networking.IsHost )
 			{
 				Platform.Chat.BroadcastPlayerLeave( client );
@@ -978,6 +981,11 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		return Game.ActiveScene is null ? null : Game.ActiveScene.Push();
 	}
 
+	/// <summary>
+	/// Allocation-free version of <see cref="Push"/>.
+	/// </summary>
+	internal ScenePushScope PushScope() => new( Game.ActiveScene );
+
 	private void OnObjectDestroyDescendant( ObjectDestroyDescendantMsg message, Connection source )
 	{
 		var scene = Game.ActiveScene;
@@ -1094,8 +1102,8 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			gameObject.PreserveFromHostSyncMembers( gameObjectJson );
 		}
 
-		using ( var _ = CallbackBatch.Batch() )
 		using ( BlobDataSerializer.LoadFromMemory( message.BlobData ) )
+		using ( var _ = CallbackBatch.Batch() )
 		{
 			gameObject?.Deserialize( gameObjectJson, new GameObject.DeserializeOptions
 			{
@@ -1173,8 +1181,8 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			component.PreserveFromHostSyncMembers( componentJson );
 		}
 
-		using ( CallbackBatch.Batch() )
 		using ( BlobDataSerializer.LoadFromMemory( message.BlobData ) )
+		using ( CallbackBatch.Batch() )
 		{
 			component?.DeserializeInternal( componentJson, true );
 			component?.PostDeserialize();
@@ -1297,8 +1305,8 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 		var go = new GameObject();
 
-		using ( CallbackBatch.Batch() )
 		using ( BlobDataSerializer.LoadFromMemory( message.BlobData ) )
+		using ( CallbackBatch.Batch() )
 		{
 			go.Deserialize( JsonNode.Parse( message.JsonData ).AsObject(), networkDeserializeOptionsCreate );
 			go.NetworkSpawnRemote( message );
@@ -1426,21 +1434,6 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		}
 
 		obj._net.OnNetworkDestroy();
-	}
-
-	private void OnObjectMessage( ObjectRpcMsg rpc, Connection source, Guid msgId )
-	{
-		Rpc.IncomingInstanceRpcMsg( rpc, source );
-	}
-
-	private void OnSceneRpc( SceneRpcMsg message, Connection source, Guid msgId )
-	{
-		Rpc.IncomingInstanceRpcMsg( message, source );
-	}
-
-	private void OnStaticRpc( StaticRpcMsg message, Connection source, Guid msgId )
-	{
-		Rpc.IncomingStaticRpcMsg( message, source );
 	}
 
 	/// <summary>
@@ -1661,31 +1654,4 @@ struct ObjectDetachMsg
 struct ObjectDestroyMsg
 {
 	public Guid Guid { get; set; }
-}
-
-[Expose]
-struct SceneRpcMsg
-{
-	public Guid Guid { get; set; }
-	public int MethodIdentity { get; set; }
-	public object[] Arguments { get; set; }
-	public int[] GenericArguments { get; set; }
-}
-
-[Expose]
-struct ObjectRpcMsg
-{
-	public Guid Guid { get; set; }
-	public Guid ComponentId { get; set; }
-	public int MethodIdentity { get; set; }
-	public object[] Arguments { get; set; }
-	public int[] GenericArguments { get; set; }
-}
-
-[Expose]
-struct StaticRpcMsg
-{
-	public int MethodIdentity { get; set; }
-	public object[] Arguments { get; set; }
-	public int[] GenericArguments { get; set; }
 }

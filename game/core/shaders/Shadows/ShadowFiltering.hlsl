@@ -80,6 +80,7 @@ static const float2 g_vPoissonDisk16[16] =
 };
 
 // Face normal of the shadow receiver, from the screen-space derivatives of its world position.
+// Prefer the camera-relative position: far from the origin the derivatives can round to 0 (no offset then).
 // Derivatives are only defined in uniform control flow, so compute this once per pixel *before* any
 // per-light loop or branch and pass it down: the clustered light loop diverges between the lanes of a
 // quad wherever neighbouring pixels land in different clusters, and a ddx taken in there is garbage.
@@ -87,7 +88,9 @@ static const float2 g_vPoissonDisk16[16] =
 float3 ComputeShadowReceiverNormal( float3 vPositionWs )
 {
 #if ( PROGRAM == VFX_PROGRAM_PS )
-    return normalize( cross( ddy( vPositionWs ), ddx( vPositionWs ) ) );
+    float3 vNormal = cross( ddy( vPositionWs ), ddx( vPositionWs ) );
+    float flLengthSq = dot( vNormal, vNormal );
+    return flLengthSq > 0.0f ? vNormal * rsqrt( flLengthSq ) : 0.0f;
 #else
     return 0.0f;
 #endif
@@ -132,7 +135,7 @@ float SampleShadowPCF_Poisson5( ShadowPCFInput i )
     float flShadow = 0.0;
     float flCompareDepth = saturate( i.ShadowPos.z + i.Bias );
 
-    [unroll]
+    [ForceUnroll]
     for ( int s = 0; s < 5; s++ )
     {
         float2 vOffset = mul( mRotation, g_vPoissonDisk5[s] ) * vFilterScale;
@@ -163,7 +166,7 @@ float SampleShadowPCF_Poisson12( ShadowPCFInput i )
     float flShadow = 0.0;
     float flCompareDepth = saturate( i.ShadowPos.z + i.Bias );
 
-    [unroll]
+    [ForceUnroll]
     for ( int s = 0; s < 12; s++ )
     {
         float2 vOffset = mul( mRotation, g_vPoissonDisk12[s] ) * vFilterScale;
@@ -194,7 +197,7 @@ float SampleShadowPCF_Poisson16( ShadowPCFInput i )
     float flShadow = 0.0;
     float flCompareDepth = saturate( i.ShadowPos.z + i.Bias );
 
-    [unroll]
+    [ForceUnroll]
     for ( int s = 0; s < 16; s++ )
     {
         float2 vOffset = mul( mRotation, g_vPoissonDisk16[s] ) * vFilterScale;
@@ -226,13 +229,13 @@ float SampleDirectionalShadowTent16( ShadowPCFInput i )
     float2 phase = frac( texelPosition );
     float visibility = 0.0;
     float totalWeight = 0.0;
-    [unroll]
+    [ForceUnroll]
     for ( int y = 0; y < 8; ++y )
     {
         float y0 = max( 0.0, 8.0 - abs( 2.0 * y - 7.0 - phase.y ) );
         float y1 = max( 0.0, 8.0 - abs( 2.0 * y - 6.0 - phase.y ) );
         float wy = y0 + y1;
-        [unroll]
+        [ForceUnroll]
         for ( int x = 0; x < 2; ++x )
         {
             float x0 = max( 0.0, 2.0 - abs( 2.0 * x - 1.0 - phase.x ) );

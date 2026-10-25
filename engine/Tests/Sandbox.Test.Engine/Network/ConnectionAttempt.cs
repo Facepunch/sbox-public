@@ -76,35 +76,6 @@ public class ConnectionAttemptTest
 	}
 
 	[DataTestMethod]
-	[DataRow( true )]
-	[DataRow( false )]
-	public void JoinFailureOnlyRequestsAModalWithoutACallerHandlingTheError( bool handlesFailure )
-	{
-		var previousGame = IGameInstanceDll.Current;
-		try
-		{
-			const string failure = "Steam could not join the lobby: Full.";
-			string reportedFailure = null;
-			var disconnects = 0;
-			var game = DispatchProxy.Create<IGameInstanceDll, DisconnectRecorder>();
-			((DisconnectRecorder)game).OnDisconnect = message =>
-			{
-				disconnects++;
-				Assert.AreEqual( handlesFailure ? failure : null, reportedFailure );
-				Assert.AreEqual( handlesFailure ? null : failure, message );
-			};
-			IGameInstanceDll.Current = game;
-			Action<string> onFailure = handlesFailure ? message => reportedFailure = message : null;
-
-			var method = typeof( Networking ).GetMethod( "ReportConnectionFailure", BindingFlags.NonPublic | BindingFlags.Static );
-			method.Invoke( null, [failure, onFailure] );
-
-			Assert.AreEqual( 1, disconnects );
-		}
-		finally { IGameInstanceDll.Current = previousGame; }
-	}
-
-	[DataTestMethod]
 	[DataRow( null )]
 	[DataRow( "Kicked from server.\n\nReason: Removed by host" )]
 	[DataRow( "Connection timed out" )]

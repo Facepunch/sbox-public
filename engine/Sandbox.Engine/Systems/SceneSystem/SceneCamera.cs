@@ -1,4 +1,7 @@
-﻿using Sandbox.Rendering;
+﻿using NativeEngine;
+using Sandbox.Engine;
+using Sandbox.Engine.Settings;
+using Sandbox.Rendering;
 using Sandbox.VR;
 
 namespace Sandbox;
@@ -15,6 +18,12 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	// the volumes. Tonemapping should hold the render state for this camera only.
 	internal ToneMapping ToneMapping = Graphics.IsAvailable ? new ToneMapping() : null;
 	internal VolumetricFog VolumetricFogImpl = null;
+	private readonly Lazy<Cmaa2Renderer> _cmaa2Renderer = new( () => new Cmaa2Renderer(), isThreadSafe: true );
+
+	/// <summary>
+	/// Last frame's depth chain, for the native renderer's occlusion culling.
+	/// </summary>
+	internal IDisposable OcclusionHistory;
 
 	/// <summary>
 	/// This is a c++ object with a ton of useful shit.
@@ -67,6 +76,11 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	/// Keep hidden! CommandBuffers only!!
 	/// </summary>
 	internal Action<Rendering.Stage, SceneCamera> OnRenderStageHook;
+
+	/// <summary>
+	/// Called after post-processing has completed, but before normal UI overlays.
+	/// </summary>
+	internal Action OnAfterPostProcess;
 
 	/// <summary>
 	/// Whether the camera component's post processing reads the depth-normals G-buffer.
@@ -145,6 +159,31 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	public CubemapFogController CubemapFog { get; init; } = new();
 
 	/// <summary>
+	/// Camera-local fog resolved from Fog components. Null preserves the legacy gradient and
+	/// cubemap fog. A disabled setup with full weight explicitly clears those fog layers.
+	/// CameraComponent refreshes this value during rendering setup; use its Fog components
+	/// for persistent settings or ViewSetup.Fog for an individual capture override.
+	/// </summary>
+	public FogSetup? Fog { get; set; }
+
+	/// <summary>
+	/// Choose this view's fog without changing the camera or world. Explicit capture settings
+	/// take precedence, including legacy gradient overrides authored before camera-local fog.
+	/// </summary>
+	internal FogSetup? ResolveFog( in ViewSetup setup )
+	{
+		if ( setup.Fog.HasValue )
+			return setup.Fog;
+
+		// ViewSetup.EnablePostprocessing controls fullscreen effects only. The camera's switch
+		// disables inherited camera fog, and explicit legacy captures keep their own fog settings.
+		if ( setup.GradientFog.HasValue || !EnablePostProcessing )
+			return null;
+
+		return Fog;
+	}
+
+	/// <summary>
 	/// Define the rotations for each of the 6 cube faces (right, left, up, down, front, back)
 	/// </summary>
 	internal static readonly Rotation[] CubeRotations =
@@ -186,6 +225,16 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 				// We may have a view queued to render with this
 				EngineLoop.DisposeAtFrameEnd( VolumetricFogImpl );
 				VolumetricFogImpl = null;
+			}
+
+			if ( _cmaa2Renderer.IsValueCreated )
+				EngineLoop.DisposeAtFrameEnd( _cmaa2Renderer.Value );
+
+			if ( OcclusionHistory != null )
+			{
+				// A view queued to render may still read it
+				EngineLoop.DisposeAtFrameEnd( OcclusionHistory );
+				OcclusionHistory = null;
 			}
 
 			// Release native CStrongHandle copies held by texture tracking
@@ -583,6 +632,9 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 
 	void IManagedCamera.OnRenderStage( Rendering.Stage renderStage )
 	{
+		if ( renderStage == Rendering.Stage.BeforePostProcess )
+			ApplyAntiAliasing();
+
 		switch ( renderStage )
 		{
 			case Rendering.Stage.AfterDepthPrepass:
@@ -599,6 +651,11 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 						OnRenderUIBeforePostProcess?.Invoke();
 					break;
 				}
+			case Rendering.Stage.UI:
+				{
+					OnRenderUI?.Invoke();
+					break;
+				}
 
 			case Rendering.Stage.AfterPostProcess:
 				{
@@ -606,22 +663,32 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 					break;
 				}
 
-			case Rendering.Stage.UI:
-				{
-					OnRenderUI?.Invoke();
-					break;
-				}
 		}
 
 		// new stuff is commandlist based, so is total thread safe
 		OnRenderStageHook?.InvokeWithWarning( renderStage, this );
 
-		// Editor viewports don't use the game UI render hook, so capture the selected camera after its UI stage.
+		if ( renderStage == Rendering.Stage.AfterPostProcess )
+			OnAfterPostProcess?.Invoke();
+
 		if ( renderStage == Rendering.Stage.AfterUI && IsRecordingCamera && Application.IsEditor && !Game.IsPlaying )
 		{
 			ScreenCaptureUtility.CaptureFrame();
 			ScreenCaptureUtility.DrawRecordingBorder();
 		}
+	}
+
+	void ApplyAntiAliasing()
+	{
+		if ( RenderSettings.Instance.AntiAliasMode == AntiAliasMode.Cmaa2
+			&& Graphics.ToolsVisMode == (int)SceneCameraDebugMode.Normal )
+		{
+			_cmaa2Renderer.Value.Render();
+			return;
+		}
+
+		if ( _cmaa2Renderer.IsValueCreated )
+			_cmaa2Renderer.Value.ReleaseResources();
 	}
 
 	/// <summary>
@@ -900,18 +967,31 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 		//
 		// Adds the views to the scene system
 		//
-		var setup = new CameraRenderer( "RenderToCubeTexture", _cameraId );
+		using var setup = new CameraRenderer( "RenderToCubeTexture", _cameraId );
 		setup.Configure( this, config );
 		setup.Native.EnableUI = false;
 
-		for ( int i = 0; i < CubeRotations.Length; i++ )
+		// All six faces share one scene submission and one bindless descriptor set.
+		// Join an existing frame bracket when the caller already has one open.
+		bool ownsBatch = !CSceneSystem.IsRenderingViews();
+		// Standalone captures preserve the main frame's performance stats.
+		if ( ownsBatch ) CSceneSystem.BeginRenderingViews( false );
+		try
 		{
-			// Override rotation for each face
-			setup.Native.CameraRotation = (Rotation * CubeRotations[i]).Angles();
-			setup.Native.RenderToCubeTexture( texture.native, i );
+			for ( int i = 0; i < CubeRotations.Length; i++ )
+			{
+				setup.Native.CameraRotation = (Rotation * CubeRotations[i]).Angles();
+				setup.Native.RenderToCubeTexture( texture.native, i );
+			}
 		}
-
-		setup.Dispose();
+		finally
+		{
+			if ( ownsBatch )
+			{
+				CSceneSystem.FinishRenderingViews();
+				CSceneSystem.WaitForRenderingToComplete();
+			}
+		}
 	}
 
 	private void RenderStereo( in ViewSetup config = default )

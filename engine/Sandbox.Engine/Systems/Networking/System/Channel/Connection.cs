@@ -24,7 +24,10 @@ public abstract partial class Connection : BytePack.ISerializer
 		return id == Guid.Empty ? null : Find( id );
 	}
 
-	internal abstract void InternalSend( byte[] data, NetFlags flags );
+	/// <summary>
+	/// Send one wire packet. A transport that sends it later than this call takes a reference to it, see <see cref="NetPacket"/>.
+	/// </summary>
+	internal abstract void InternalSend( NetPacket packet, NetFlags flags );
 	internal abstract void InternalRecv( NetworkSystem.MessageHandler handler );
 	internal abstract void InternalClose( int closeCode, string closeReason );
 
@@ -344,11 +347,13 @@ public abstract partial class Connection : BytePack.ISerializer
 	/// <summary>
 	/// Virtual override point — exists so <see cref="MockConnection"/> can intercept the raw
 	/// <see cref="ByteStream"/> for routing through the host before encoding happens.
-	/// All other code should prefer calling <see cref="Send"/> with already-encoded bytes.
+	/// All other code should prefer calling <see cref="Send(NetPacket, NetFlags)"/> with an already-encoded packet.
 	/// </summary>
 	internal virtual void SendStream( ByteStream stream, NetFlags flags = NetFlags.Reliable )
 	{
-		Send( Encode( stream ), flags );
+		var packet = EncodePacket( stream );
+		Send( packet, flags );
+		packet.Release();
 	}
 
 	/// <summary>
@@ -357,7 +362,18 @@ public abstract partial class Connection : BytePack.ISerializer
 	/// </summary>
 	internal const int MaxChunkSize = 128 * 1024; // ~quarter of Steam's k_cbMaxSteamNetworkingSocketsMessageSizeSend
 
-	internal virtual void Send( byte[] encoded, NetFlags flags )
+	internal void Send( NetPacket encoded, NetFlags flags )
+	{
+		byte[][] packets = null;
+		Send( encoded, flags, ref packets );
+	}
+
+	/// <summary>
+	/// Like <see cref="Send(NetPacket, NetFlags)"/>, but any chunks built for <paramref name="encoded"/> are kept in
+	/// <paramref name="packets"/> so a broadcast can hand the same ones to every recipient. The caller still owns
+	/// <paramref name="encoded"/>.
+	/// </summary>
+	internal virtual void Send( NetPacket encoded, NetFlags flags, ref byte[][] packets )
 	{
 		if ( sendsClosed )
 		{
@@ -365,7 +381,7 @@ public abstract partial class Connection : BytePack.ISerializer
 		}
 		if ( pendingSends.Count > 0 )
 		{
-			QueueSend( Task.FromResult( CreatePackets( encoded, flags ) ), flags );
+			QueueSend( Task.FromResult( packets ??= CreatePackets( encoded.Span, flags ) ), flags );
 			return;
 		}
 
@@ -377,14 +393,13 @@ public abstract partial class Connection : BytePack.ISerializer
 			return;
 		}
 
-		var chunks = (encoded.Length / (float)MaxChunkSize).CeilToInt();
+		packets ??= CreatePackets( encoded.Span, flags );
 
-		for ( var i = 0; i < chunks; i++ )
+		foreach ( var chunk in packets )
 		{
-			var offset = i * MaxChunkSize;
-			var length = Math.Min( MaxChunkSize, encoded.Length - offset );
-			var chunk = BuildChunkPacket( encoded, offset, length, i, chunks );
-			InternalSend( chunk, flags );
+			var packet = NetPacket.Wrap( chunk );
+			InternalSend( packet, flags );
+			packet.Release();
 		}
 	}
 

@@ -31,7 +31,7 @@ public sealed class ChromaticAberration : BasePostProcess<ChromaticAberration>
 		float scale = GetWeighted( x => x.Scale );
 		Vector3 offset = GetWeighted( x => x.Offset );
 
-		if ( scale <= 0f )
+		if ( scale <= 0f || offset == Vector3.Zero )
 			return;
 
 		Attributes.Set( "scale", scale );

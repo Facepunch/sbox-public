@@ -37,7 +37,6 @@ internal static class GitHubActions
 		["write-version"] = "Version",
 		["sign-binaries"] = "Sign binaries",
 		["nvpatch"] = "NvPatch",
-		["game-cache"] = "Game cache",
 		["upload-build-artifacts"] = "Upload build",
 		["upload-symbols"] = "Symbols",
 		["upload-docs"] = "Docs",

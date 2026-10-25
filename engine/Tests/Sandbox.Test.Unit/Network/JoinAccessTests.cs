@@ -126,4 +126,43 @@ public class JoinAccessTests
 		Assert.AreEqual( 0, access.Invited.Count );
 		Assert.AreEqual( 0, access.Admitted.Count );
 	}
+
+	[TestMethod]
+	public void NoPasswordLetsAnyoneIn()
+	{
+		var access = new JoinAccess();
+
+		Assert.IsFalse( access.HasPassword );
+		Assert.IsFalse( access.NeedsPassword( 1 ) );
+		Assert.IsTrue( access.CheckPassword( null ) );
+		Assert.IsTrue( access.CheckPassword( "anything" ) );
+	}
+
+	[TestMethod]
+	public void PasswordMustMatchExactly()
+	{
+		var access = new JoinAccess { Password = "hunter2" };
+
+		Assert.IsTrue( access.NeedsPassword( 1 ) );
+		Assert.IsTrue( access.CheckPassword( "hunter2" ) );
+		Assert.IsFalse( access.CheckPassword( "Hunter2" ) );
+		Assert.IsFalse( access.CheckPassword( "hunter" ) );
+		Assert.IsFalse( access.CheckPassword( "" ) );
+		Assert.IsFalse( access.CheckPassword( null ) );
+	}
+
+	[TestMethod]
+	public void InvitedAndAdmittedSkipThePassword()
+	{
+		var access = new JoinAccess { Password = "hunter2" };
+		access.Invite( 1 );
+		access.Admit( 2 );
+
+		Assert.IsFalse( access.NeedsPassword( 1 ) );
+		Assert.IsFalse( access.NeedsPassword( 2 ) );
+		Assert.IsTrue( access.NeedsPassword( 3 ) );
+
+		// An untrusted Steam Id is never let off
+		Assert.IsTrue( access.NeedsPassword( 0 ) );
+	}
 }

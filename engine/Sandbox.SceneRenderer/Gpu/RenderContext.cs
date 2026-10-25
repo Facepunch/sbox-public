@@ -518,9 +518,14 @@ internal sealed class RenderContext : IDisposable
 	public static int QueueMorph( SceneObject sceneObject, Model model, int modelMesh ) => RenderTools.QueueModelMeshMorph( sceneObject, model.native, modelMesh );
 
 	/// <summary>
-	/// Composite queued morphs before managed submission; native's end-of-frame update is too late (<c>GenerateCompositeMorphTextureAtlas</c>).
+	/// Record queued morphs into this setup context, before skinning, sharing the frame's descriptor set.
 	/// </summary>
-	public static void GenerateMorphs() => RenderTools.GenerateMorphs();
+	public void GenerateMorphs()
+	{
+		RenderTools.GenerateMorphs( context );
+		boundValid = false;
+		ResetMaterialBind();
+	}
 
 	/// <summary>
 	/// Where a queued morph is in the atlas, once generated: u offset, u range, v offset, v range, for the mesh's morph entry.
@@ -612,6 +617,7 @@ internal sealed class RenderContext : IDisposable
 			nativeAttributes.Clear( false, true );
 			nativeAttributes.SetParent( frame.nativeAttributes );
 			InstanceIds = frame.InstanceIds;
+			Occlusion = frame.Occlusion;
 		}
 
 		drawAttributes.Clear( false, false );
@@ -933,6 +939,17 @@ internal sealed class RenderContext : IDisposable
 	}
 
 	/// <summary>
+	/// <see cref="DrawModel"/> with only the instances the occlusion cull kept for <paramref name="phase"/>
+	/// (<c>RenderTools.DrawModelDrawCallIndirect</c>).
+	/// </summary>
+	public bool DrawModelCulled( Material material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int argsIndex, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false )
+	{
+		return RenderTools.DrawModelDrawCallIndirect( context, drawAttributes, material.native, shaderMode, mesh.Model.native, draw.Mesh, draw.DrawCall,
+			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, Occlusion.CulledIds.native, Occlusion.IdOffset( phase ) + firstInstance,
+			Occlusion.Args.native, (Occlusion.ArgOffset( phase ) + argsIndex) * OcclusionCuller.ArgsStride, materialBind );
+	}
+
+	/// <summary>
 	/// Shared shader/feature key for partial material rebinds (<c>RenderTools.GetMaterialSimilarityKey</c>).
 	/// </summary>
 	public static ulong SimilarityKey( Material material ) => RenderTools.GetMaterialSimilarityKey( material.native );
@@ -972,6 +989,11 @@ internal sealed class RenderContext : IDisposable
 	/// </summary>
 	public GpuBuffer<uint> InstanceIds { get; set; }
 
+	/// <summary>
+	/// This frame's occlusion cull, or null when not culling.
+	/// </summary>
+	public OcclusionCuller Occlusion { get; set; }
+
 	public void BufferBarrier( GpuBuffer buffer, RenderBarrierPipelineStageFlags_t srcStage, RenderBarrierAccessFlags_t srcAccess, RenderBarrierPipelineStageFlags_t dstStage, RenderBarrierAccessFlags_t dstAccess )
 	{
 		context.BufferBarrierTransition( buffer.native, srcStage, dstStage, srcAccess, dstAccess );
@@ -980,10 +1002,10 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Resolve depth and build min/max mips, as native's pipeline does (<see cref="SharedPasses.BuildDepthChain"/>).
 	/// </summary>
-	public void BuildDepthChain( Texture depth, bool multisampled, Texture chain, int width, int height )
+	public void BuildDepthChain( Texture depth, bool multisampled, Texture chain, int width, int height, DepthResolveMode resolve = DepthResolveMode.Sample0 )
 	{
 		Invalidate();
-		SharedPasses.BuildDepthChain( context, depth, chain, multisampled, width, height );
+		SharedPasses.BuildDepthChain( context, depth, chain, multisampled, width, height, resolve );
 		// Finish the producer's layout transition before graphics and compute sample the chain concurrently.
 		if ( AsyncCompute )
 		{
@@ -991,6 +1013,24 @@ internal sealed class RenderContext : IDisposable
 				RenderBarrierPipelineStageFlags_t.ComputeShaderBit, RenderImageLayout_t.RENDER_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 				RenderBarrierAccessFlags_t.ShaderWriteBit, RenderBarrierAccessFlags_t.ShaderReadBit );
 		}
+	}
+
+	/// <summary>
+	/// Zero an occlusion debug grid before the frame's first cull.
+	/// </summary>
+	public void ClearOcclusionDebug( Sandbox.Rendering.OcclusionDebugTarget debug )
+	{
+		Invalidate();
+		debug.Clear( context );
+	}
+
+	/// <summary>
+	/// Resolve an occlusion debug grid for the overlay after the late cull.
+	/// </summary>
+	public void ResolveOcclusionDebug( Sandbox.Rendering.OcclusionDebugTarget debug, Texture chain, bool frozen )
+	{
+		Invalidate();
+		debug.Resolve( context, chain, native: false, frozen );
 	}
 
 	static readonly StringToken SourceDepth = new( "SourceDepth" );

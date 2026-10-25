@@ -227,6 +227,7 @@ public class AppSystem
 
 		Engine.InputRouter.Shutdown();
 		Diagnostics.Logging.ClearListeners();
+		MenuUtility.ClearLoggers();
 
 		// Flush mount utility preview cache — holds strong refs to textures
 		Mounting.MountUtility.FlushCache();
@@ -363,6 +364,7 @@ public class AppSystem
 
 	protected void InitGame( AppSystemCreateInfo createInfo, string commandLine = null )
 	{
+		Bootstrap.StartStartupClock();
 		InstallRenderers();
 
 		commandLine ??= System.Environment.CommandLine;
@@ -401,6 +403,7 @@ public class AppSystem
 		}
 
 
+		Bootstrap.PrepareTypeLibraries();
 		startupWindow?.UpdateProgress( 0.02f, "Initializing Vulkan" );
 		if ( !NativeEngine.EngineGlobal.SourceEnginePreInit( commandLine, _appSystem ) )
 		{
@@ -421,7 +424,6 @@ public class AppSystem
 
 			// Show the startup image before services initialize, and overlap their work with pipeline-cache loading.
 			_appSystem.StartBackgroundSystems();
-			SdlGamepads.Initialize();
 		} );
 
 		if ( createInfo.Flags.HasFlag( AppSystemFlags.IsStandaloneGame ) )
@@ -434,6 +436,7 @@ public class AppSystem
 			throw new System.Exception( "SourceEngineInit returned false" );
 		}
 
+		Bootstrap.BeginResourceScan();
 		gameWindow?.InitializeRendering();
 		gameWindow?.UpdateStartupProgress( 0.5f, "Loading materials" );
 		Bootstrap.Init();

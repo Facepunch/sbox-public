@@ -115,31 +115,16 @@ internal class PostProcessLayers
 				entry.RanEarly = true;
 		}
 	}
-
-	/// <summary>
-	/// Whether a layer reads the depth-normals prepass's G-buffer (<see cref="BasePostProcess.NeedsDepthNormals"/>).
-	/// </summary>
-	public bool NeedsDepthNormals
-	{
-		get
-		{
-			foreach ( var list in Layers.Values )
-			{
-				foreach ( var entry in list )
-				{
-					if ( entry.NeedsDepthNormals ) return true;
-				}
-			}
-
-			return false;
-		}
-	}
 }
 
 internal record struct WeightedEffect
 {
 	public BasePostProcess Effect;
 	public float Weight;
+	/// <summary>
+	/// Structural camera or volume owner for camera effects; null for scene defaults or ordinary effects.
+	/// </summary>
+	public Component Owner;
 }
 
 /// <summary>

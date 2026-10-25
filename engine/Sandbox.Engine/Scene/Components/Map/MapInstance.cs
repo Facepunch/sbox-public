@@ -94,6 +94,14 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 		Transform.OnTransformChanged -= OnTransformChanged;
 
 		UnloadMap();
+		CancelLoading();
+	}
+
+	internal override void OnDestroyInternal()
+	{
+		SceneMap.OnMapUpdated -= OnMapUpdated;
+
+		base.OnDestroyInternal();
 	}
 
 	private void OnTransformChanged()
@@ -174,8 +182,9 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 		{
 			OnMapUnloaded?.InvokeWithWarning();
 			g_pWorldRendererMgr.ServiceWorldRequests();
-			SceneMap.OnMapUpdated -= OnMapUpdated;
 		}
+
+		SceneMap.OnMapUpdated -= OnMapUpdated;
 
 		IsLoaded = false;
 	}
@@ -395,7 +404,9 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 				GameObject.Flags &= ~GameObjectFlags.Loading;
 			}
 
-			SceneMap.OnMapUpdated += OnMapUpdated;
+			// static event, so never subscribe twice and never pin a destroyed component (and its scene)
+			SceneMap.OnMapUpdated -= OnMapUpdated;
+			if ( IsValid ) SceneMap.OnMapUpdated += OnMapUpdated;
 		}
 
 		tokenSources.Remove( tokenSource );
@@ -642,7 +653,9 @@ file class MapComponentMapLoader : SceneMapLoader
 
 	void CreateGradientFog( GameObject go, ObjectEntry kv )
 	{
+#pragma warning disable CS0618 // Retain legacy fog support for existing content.
 		var fog = go.Components.Create<GradientFog>();
+#pragma warning restore CS0618
 		fog.Enabled = kv.GetValue<bool>( "fogenabled" );
 		fog.Color = kv.GetValue<Color>( "fogcolor" ).WithAlpha( kv.GetValue<float>( "fogmaxopacity" ) );
 		fog.StartDistance = kv.GetValue<float>( "FogStart" );
@@ -654,7 +667,9 @@ file class MapComponentMapLoader : SceneMapLoader
 
 	void CreateCubemapFog( GameObject go, ObjectEntry kv )
 	{
+#pragma warning disable CS0618 // Retain legacy fog support for existing content.
 		var fog = go.Components.Create<CubemapFog>();
+#pragma warning restore CS0618
 		fog.Sky = kv.GetResource<Material>( "cubemapfogmaterial" );
 		fog.Blur = kv.GetValue<float>( "cubemapfoglodbiase" );
 		fog.StartDistance = kv.GetValue<float>( "cubemapfogstartdistance" );

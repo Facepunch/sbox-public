@@ -56,12 +56,15 @@ COMMON
 		float4 BlendSheetUV;
 		float2 Offset;
 		uint CameraFade;
+		int NormalTextureHandle;
+		float RefractionStrength;
 	};
 
 	StructuredBuffer<SpriteData> Sprites < Attribute( "Sprites" ); >;
 	StructuredBuffer<uint> SortLUT < Attribute( "SortLUT" ); >;
 	int IsSorted < Attribute( "IsSorted" ); >;
 	int CurrentBufferSize < Attribute( "SpriteCount" ); >;
+	float4 g_vFrameBufferCopyRectangle < Attribute( "FrameBufferCopyRectangle" ); Default4( 0.0, 0.0, 1.0, 1.0 ); >;
 
 	SpriteData GetSprite( uint index )
 	{
@@ -80,6 +83,9 @@ struct PixelInput
 	uint instanceID : TEXCOORD8;
 	float4 uv : TEXCOORD9;
 	float uvBlend : TEXCOORD10;
+	#if ( D_REFRACTION )
+		float4 refractionBasis : TEXCOORD12;
+	#endif
 };
 
 struct VS_INPUT
@@ -89,6 +95,8 @@ struct VS_INPUT
 
 VS
 {
+	DynamicCombo( D_REFRACTION, 0..1, Sys( ALL ) );
+
 	struct SpriteVertex
 	{
 		float4 position;
@@ -238,6 +246,16 @@ VS
 		o.vNormalWs = worldNormal;
 		o.uv = blendedUV;
 		o.uvBlend = blendAmount;
+
+		#if ( D_REFRACTION )
+		{
+			// Project the sprite's UV axes into screen space so distortion follows billboarding,
+			// particle roll, object alignment and velocity-facing rotation from the compute pass.
+			float3 tangentU = mul( g_matWorldToView, float4( NormalizeSafe( transform[0].xyz ), 0 ) ).xyz;
+			float3 tangentV = mul( g_matWorldToView, float4( NormalizeSafe( transform[1].xyz ), 0 ) ).xyz;
+			o.refractionBasis = float4( tangentU.xy * float2( 1, -1 ), tangentV.xy * float2( 1, -1 ) );
+		}
+		#endif
 		return o;
 	}
 }
@@ -271,8 +289,12 @@ PS
 	DynamicCombo( D_BLEND, 0..1, Sys( ALL ) );
 	DynamicCombo( D_OPAQUE, 0..1, Sys( ALL ) );
 	DynamicCombo( D_TEXT, 0..1, Sys( ALL ) );
+	DynamicCombo( D_REFRACTION, 0..1, Sys( ALL ) );
 
-	float g_FogStrength < Attribute( "g_FogStrength" ); >;
+	DynamicCombo( D_REFRACTION_TEST, 0..1, Sys( ALL ) );
+
+	Texture2D g_tFrameBufferCopyTexture < Attribute( "FrameBufferCopyTexture" ); SrgbRead( false ); >;
+
 
 	// Performs UV Flipping
 	float2 GetUV(SpriteData sprite, float2 inUV)
@@ -291,6 +313,28 @@ PS
 
 		return uv;
 	}
+
+	#if ( D_REFRACTION )
+	float2 ReadRefractionNormal( SpriteData sprite, PixelInput i, float2 uv )
+	{
+		Texture2D normalTexture = Bindless::GetTexture2D( sprite.NormalTextureHandle );
+		SamplerState normalSampler = Bindless::GetSampler( sprite.SamplerIndex );
+		float2 normal = normalTexture.Sample( normalSampler, uv ).rg * 2.0 - 1.0;
+		if ( i.uvBlend > 0.0 )
+		{
+			float2 nextNormal = normalTexture.Sample( normalSampler, i.uv.zw ).rg * 2.0 - 1.0;
+			normal = lerp( normal, nextNormal, i.uvBlend );
+		}
+
+		// UNORM8 cannot represent 0.5 exactly: both 127 and 128 encode a flat normal.
+		// Remove only that neutral quantization error, including on interpolated sheet frames.
+		if ( all( abs( normal ) <= (1.0 / 255.0 + 0.000001) ) ) normal = 0.0;
+
+		if ( (sprite.RenderFlags & FlipW) != 0 ) normal.x = -normal.x;
+		if ( (sprite.RenderFlags & FlipH) != 0 ) normal.y = -normal.y;
+		return normal;
+	}
+	#endif
 
 	// Helper function to unpack RGBA8 uint to float4
 	float4 UnpackTintColor(uint packedColor)
@@ -326,6 +370,16 @@ PS
 	float4 MainPs( PixelInput i ) : SV_Target0
 	{
 		SpriteData sprite = GetSprite(i.instanceID); 
+
+		#if ( S_MODE_DEPTH == 1 && D_REFRACTION_TEST )
+		// Ordinary sprites share this batch but must not contribute to the refraction mask.
+		if ( sprite.NormalTextureHandle == 0 ) discard;
+		#endif
+
+		bool isRefractive = false;
+		#if ( D_REFRACTION )
+		isRefractive = sprite.NormalTextureHandle != 0;
+		#endif
 
 		// Unpack fog strength and alpha cutoff
 		float fogStrength, alphaCutoff;
@@ -389,12 +443,17 @@ PS
 			col.rgb = lerp( col.rgb, overlayColor.rgb, overlayColor.a );
 		}
 	#if ( S_MODE_DEPTH == 1 )
+		// Keep continuous coverage in the quarter-resolution refraction mask, including
+		// neutral interior pixels, to avoid holes at normal-map transitions. The color pass
+		// independently leaves undistorted pixels alone instead of sampling this copy.
+		#if ( !D_REFRACTION_TEST )
 		OpaqueFadeDepth(col.a * tintColor.a , i.vPositionSs.xy );
+		#endif
 		return 1;
 	#else
 		// Cutoff on untinted alpha so tint opacity doesn't interact with the scissor threshold.
 		// No coverage adjustment: sprites only use alpha-to-coverage in depth mode.
-		if(col.a < alphaCutoff) discard;
+		if ( !isRefractive && col.a < alphaCutoff ) discard;
 	#endif
 
 		col.rgba *= tintColor;
@@ -419,6 +478,31 @@ PS
 			col.a *= clamp( ( dist - cameraFadeNear ) / ( cameraFadeFar - cameraFadeNear ), 0.0, 1.0 );
 		}
 
+		#if ( D_REFRACTION && S_MODE_DEPTH == 0 )
+		bool hasRefraction = false;
+		float3 refractedBackground = 0.0;
+		if ( isRefractive )
+		{
+			float2 refractionNormal = ReadRefractionNormal( sprite, i, uv );
+
+			// Positive normal Y points up in tangent space, while sprite UV V points down.
+			float2 offset = i.refractionBasis.xy * refractionNormal.x - i.refractionBasis.zw * refractionNormal.y;
+			offset *= sprite.RefractionStrength;
+			hasRefraction = any( offset != 0.0 );
+			if ( hasRefraction )
+			{
+				float2 screenUv = CalculateViewportUv( i.vPositionSs.xy ) + offset * g_vInvViewportSize;
+
+				// Copies can be larger than the viewport. Clamp to its texel centers, not the
+				// backing texture's edge, to avoid reading unused pixels in editor/split views.
+				float2 halfTexel = g_vInvViewportSize * 0.5;
+				screenUv = clamp( screenUv, halfTexel, 1.0 - halfTexel );
+				float2 copyUv = screenUv * g_vFrameBufferCopyRectangle.zw;
+				refractedBackground = g_tFrameBufferCopyTexture.SampleLevel( g_sBilinearClamp, copyUv, 0 ).rgb;
+			}
+		}
+		#endif
+
 		if(hasLighting)
 		{
 			FinalCombinerInput_t finalCombinerInput = {};
@@ -439,12 +523,25 @@ PS
 			col *= lighting;
 		}
 
-		if ( fogStrength > 0 ) 
+		if ( g_bFogEnabled )
 		{
-			float4 fogged = DoAtmospherics( i.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz, i.vPositionSs.xy, col, D_BLEND == 1 );
-			col.rgb = lerp( col.rgb, fogged.rgb, fogStrength );
+			float3 worldPosition = i.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz;
+
+			#if D_BLEND == 1
+				col.a *= Fog::Transmittance( worldPosition, i.vPositionSs.xy, fogStrength );
+			#else
+				col.rgb = Fog::Apply( worldPosition, i.vPositionSs.xy, col.rgb, fogStrength );
+			#endif
 		}
 
+		#if ( D_REFRACTION && S_MODE_DEPTH == 0 )
+		// Composite the ordinary sprite artwork over the displaced scene in this same draw.
+		// Alpha only fades the artwork; even fully transparent pixels retain their refraction.
+		// Light and fog the artwork above, never the already shaded scene-color sample.
+		if ( hasRefraction ) return float4( lerp( refractedBackground, col.rgb, col.a ), 1.0 );
+		#endif
+		// An undistorted pixel uses ordinary sprite blending. Re-copying scene color here
+		// would expose the quad through filtering, temporal history or intervening translucency.
 		return col;
 	}
 }

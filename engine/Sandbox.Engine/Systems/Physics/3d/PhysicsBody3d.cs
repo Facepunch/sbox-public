@@ -38,6 +38,14 @@ internal sealed partial class PhysicsBody3d : PhysicsBodyInternal, IHandle
 		}
 	}
 
+	internal PhysicsBody3d( PhysicsWorld3d world, in PhysicsBodySettings settings )
+	{
+		World = world;
+		_bodyType3d = settings.BodyType;
+		using var handle = IHandle.MakeNextHandle( this );
+		world.world.AddBody( settings );
+	}
+
 	/// <summary>
 	/// Position of this body in world coordinates.
 	/// </summary>
@@ -452,6 +460,11 @@ internal sealed partial class PhysicsBody3d : PhysicsBodyInternal, IHandle
 	internal override void ResetProxy()
 	{
 		native.ResetProxy();
+	}
+
+	internal override bool ContactRecycling
+	{
+		set => native.SetContactRecycling( value );
 	}
 
 	/// <summary>

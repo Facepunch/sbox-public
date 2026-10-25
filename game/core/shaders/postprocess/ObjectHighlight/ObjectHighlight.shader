@@ -114,13 +114,16 @@ PS
     RenderState( DepthWriteEnable, true );
     RenderState( DepthEnable, true );
 	RenderState( ColorWriteEnable0, RGBA );
-	
+
+	RenderState( CullMode, NONE );
+
 	RenderState( StencilEnable, true );
 	RenderState( StencilRef, 1 );
 
 	// Write to stencil if we're doing the inside pass
 #if D_OUTLINE_PASS == OUTLINE_INSIDE
 	RenderState( StencilPassOp, REPLACE );
+	RenderState( BackStencilPassOp, REPLACE );
 	RenderState( StencilFunc, ALWAYS );
 	RenderState( BackStencilFunc, ALWAYS );
 #else

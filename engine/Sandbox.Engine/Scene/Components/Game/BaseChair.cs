@@ -4,7 +4,7 @@ namespace Sandbox;
 
 [Expose]
 [Icon( "event_seat" ), Group( "Game" ), Title( "Chair" )]
-public partial class BaseChair : Component, Component.IPressable, ISitTarget
+public partial class BaseChair : Component, Component.IPressable, Component.IDamageable, ISitTarget
 {
 	[Expose]
 	public enum AnimatorSitPose
@@ -327,6 +327,18 @@ public partial class BaseChair : Component, Component.IPressable, ISitTarget
 			return default;
 
 		return new IPressable.Tooltip( TooltipTitle, TooltipIcon, TooltipDescription );
+	}
+
+	public virtual void OnDamage( in DamageInfo damage )
+	{
+		if ( !IsOccupied )
+			return;
+
+		if ( !damage.Tags.Has( "explosion" ) )
+			return;
+
+		// forward the damage to the player
+		GetOccupant()?.GetComponent<IDamageable>()?.OnDamage( damage );
 	}
 }
 

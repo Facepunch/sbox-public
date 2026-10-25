@@ -177,6 +177,9 @@ public sealed class TypeDescription : ISourceLineProvider
 
 	private bool _useClassNameWhenSerializing;
 
+	// Assembly.GetName() allocates and takes a global culture lock, which is far too slow to call per member.
+	static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Assembly, string> AssemblyNames = new();
+
 	static bool ShouldExposeMember( MemberInfo member, Internal.TypeLibrary lib, TypeDescription source )
 	{
 		// |               |  public  | protected | private |
@@ -232,7 +235,7 @@ public sealed class TypeDescription : ISourceLineProvider
 			if ( dt is not null && dt.IsDynamicAssembly ) return true;
 		}
 
-		var asmName = assembly.GetName().Name!;
+		var asmName = AssemblyNames.GetValue( assembly, static a => a.GetName().Name! );
 
 		//
 		// Keeping this around because we can't totally rely on the above. But the above is needed.

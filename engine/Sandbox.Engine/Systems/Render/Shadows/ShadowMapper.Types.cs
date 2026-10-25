@@ -77,9 +77,15 @@ internal struct ShadowLight
 internal struct ShadowViewInfo
 {
 	/// <summary>
-	/// Inverse of the view's reverse-Z world to projection, row-vector convention, absolute world space.
+	/// Inverse of the view's reverse-Z projection: clip space to camera-relative view space, row-vector convention.
+	/// Sun cascades are fit in view space so they don't pick up float error from where the camera is in the world.
 	/// </summary>
-	public System.Numerics.Matrix4x4 InverseViewProjection;
+	public System.Numerics.Matrix4x4 ProjectionToView;
+
+	/// <summary>
+	/// Turns view space directions into world space directions, row-vector convention. Rotation only.
+	/// </summary>
+	public System.Numerics.Matrix4x4 ViewToWorldRotation;
 
 	public Vector3 CameraPosition;
 

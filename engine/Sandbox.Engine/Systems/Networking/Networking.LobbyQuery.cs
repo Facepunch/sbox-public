@@ -111,6 +111,9 @@ public static partial class Networking
 					lobby.Data.Add( key, value );
 				}
 
+				// Steam's own flag, not a tag - same key as a lobby's
+				lobby.Data["pw"] = e.HasPassword ? "1" : "0";
+
 				list.Add( lobby );
 			}
 		}

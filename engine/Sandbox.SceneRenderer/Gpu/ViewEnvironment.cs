@@ -97,6 +97,11 @@ internal sealed class ViewEnvironment : IDisposable
 		public RenderView FogView { get; init; }
 
 		/// <summary>
+		/// Main-world sun used by analytic fog, independent of the skybox world's lights.
+		/// </summary>
+		public GPUDirectionalLight FogSun { get; init; }
+
+		/// <summary>
 		/// Main-world origin in skybox space (<c>mSkyboxToWorld</c>).
 		/// </summary>
 		public Vector3 Origin { get; init; }
@@ -130,6 +135,11 @@ internal sealed class ViewEnvironment : IDisposable
 		vr.WindStrengthFreqMulHighStrength = viewLighting.WindStrengthFreq;
 		SetupGradientFog( ref vr, viewLighting.GradientFog, scale, space.OffsetZ );
 		var fogCube = SetupCubemapFog( ref vr, viewLighting.CubemapFog, scale, space.OffsetZ );
+		// Match CameraRenderer.Configure and native Add3DSkyboxLayers without mutating world lighting.
+		context.SetConstants( FogConstants.BufferName, (view?.Fog ?? default( FogSetup )).ToConstants( scale, space.OffsetZ ) );
+		var fogSun = space.Lighting is null ? sun : space.FogSun;
+		attributes.Set( "FogSunColor", fogSun.Enabled ? (Vector3)fogSun.Color : Vector3.Zero );
+		attributes.Set( "FogSunDirection", -(Vector3)fogSun.Direction );
 
 		// Bind fog or opaque black. Skybox positions map into the main world's fog volume.
 		var skyboxFog = space.Fog is not null;

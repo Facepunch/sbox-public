@@ -42,7 +42,7 @@ public abstract partial class MoveMode : Component
 		if ( !Controller.IsOnGround ) wantsGravity = true;
 		if ( Controller.WithoutVertical( Controller.Velocity ).Length > 1 ) wantsGravity = true;
 		if ( Controller.GroundVelocity.Length > 1 ) wantsGravity = true;
-		if ( Controller.GroundIsDynamic ) wantsGravity = true;
+		if ( Controller.GroundUsesContactFriction ) wantsGravity = true;
 
 		body.Gravity = wantsGravity;
 
@@ -108,6 +108,13 @@ public abstract partial class MoveMode : Component
 	public virtual void OnModeEnd( MoveMode next )
 	{
 
+	}
+
+	/// <summary>
+	/// Called before a jump is applied, allowing the mode to release its attachment.
+	/// </summary>
+	public virtual void OnJump()
+	{
 	}
 
 	/// <summary>

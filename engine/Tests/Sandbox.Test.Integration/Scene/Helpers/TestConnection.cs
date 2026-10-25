@@ -35,8 +35,9 @@ internal sealed class TestConnection : Connection
 		}
 	}
 
-	internal override void InternalSend( byte[] data, NetFlags flags )
+	internal override void InternalSend( NetPacket packet, NetFlags flags )
 	{
+		var data = packet.Span;
 		if ( data[0] == FlagChunk )
 			throw new NotImplementedException( "TestConnection does not support chunked messages" );
 

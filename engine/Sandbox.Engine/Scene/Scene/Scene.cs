@@ -131,7 +131,7 @@ public partial class Scene : GameObject
 	/// </summary>
 	internal int ReloadHash => HashCode.Combine( PhysicsMode );
 
-	public PhysicsWorld PhysicsWorld => _physicsWorld ??= CreatePhysicsWorld();
+	public PhysicsWorld PhysicsWorld => _physicsWorld ??= _destroyed ? null : CreatePhysicsWorld();
 
 	/// <summary>
 	/// Creates the physics world for this scene, matching <see cref="PhysicsMode"/>.
@@ -406,6 +406,12 @@ public partial class Scene : GameObject
 	/// </summary>
 	internal void PreCameraRender()
 	{
+		// Prepare scene-owned rendering data before cameras copy it. Child views reuse the snapshot.
+		if ( ThreadSafe.IsMainThread )
+		{
+			Signal( GameObjectSystem.Stage.PrepareRender );
+		}
+
 		// We want to initialize all cameras (enabled & disabled) incase they're used to render manually
 		// we need to make sure the SceneCamera is created etc.
 		var cameras = RentSortedCameras();

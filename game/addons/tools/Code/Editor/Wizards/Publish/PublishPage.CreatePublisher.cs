@@ -1,4 +1,4 @@
-﻿namespace Editor.Wizards;
+namespace Editor.Wizards;
 
 partial class PublishWizard
 {

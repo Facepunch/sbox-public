@@ -26,6 +26,11 @@ public sealed partial class RenderSystem : IDisposable
 	readonly ShadowSystem shadows;
 	readonly VolumetricFog fog = new();
 
+	internal readonly OcclusionCuller Occlusion = new();
+	internal readonly OcclusionHistory OcclusionHistory = new();
+
+	internal bool OcclusionActive { get; private set; }
+
 	/// <summary>
 	/// Persistent camera fog and history.
 	/// </summary>
@@ -242,7 +247,7 @@ public sealed partial class RenderSystem : IDisposable
 		recorder ??= new FrameRecorder();
 		recorder.Plan( frame, ParallelRecording, Sandbox.Rendering.ManagedSceneRendering.AsyncCompute );
 
-		// The performance hub's frame plan, or SceneLab's plan overlay: frames drawn into a window show their plan, published with its times
+		// The dev tools's frame plan, or SceneLab's plan overlay: frames drawn into a window show their plan, published with its times
 		var plan = Sandbox.Rendering.ManagedFramePlan.Wanted && (IntPtr)output.SwapChain != IntPtr.Zero ? recorder.Snapshot( view.Name ) : null;
 
 		context.Begin();
@@ -302,6 +307,8 @@ public sealed partial class RenderSystem : IDisposable
 		stats.CollectMs = Stopwatch.GetElapsedTime( start, collected ).TotalMilliseconds;
 		stats.PrepareMs = Stopwatch.GetElapsedTime( collected, prepared ).TotalMilliseconds;
 		stats.DrawMs = Stopwatch.GetElapsedTime( prepared, drawn ).TotalMilliseconds;
+		if ( OcclusionActive )
+			stats.ObjectsOcclusionCulled = Occlusion.Culled;
 		Stats = stats;
 
 		if ( plan is not null )
@@ -323,6 +330,7 @@ public sealed partial class RenderSystem : IDisposable
 			Objects = stats.Objects,
 			ObjectsVisible = stats.ObjectsVisible,
 			ObjectsSizeCulled = stats.ObjectsSizeCulled,
+			ObjectsOcclusionCulled = stats.ObjectsOcclusionCulled,
 			Draws = stats.Draws,
 			DepthDraws = stats.DepthDraws,
 			TranslucentDraws = stats.TranslucentDraws,
@@ -373,6 +381,12 @@ public sealed partial class RenderSystem : IDisposable
 		transforms.Upload( context );
 		context.Attributes.Set( TransformBufferName, transforms.Current );
 		context.InstanceIds = transforms.InstanceIds;
+		context.Occlusion = null;
+		if ( OcclusionActive )
+		{
+			Occlusion.Upload( context, transforms.InstanceCount );
+			context.Occlusion = Occlusion;
+		}
 
 		for ( int i = 0; i < features.Count; i++ )
 			features[i].Setup( context, world, mainPass );
@@ -500,7 +514,17 @@ public sealed partial class RenderSystem : IDisposable
 	internal void Prepare( RenderWorld world, RenderView view )
 	{
 		transforms.Clear();
+
+		// Shadows, skyboxes and views without a prepass never cull
+		var wanted = Sandbox.Rendering.ManagedSceneRendering.Occlusion && DepthPrepass && !isSkybox;
+		Occlusion.Begin();
+		meshes.Occlusion = wanted ? Occlusion : null;
 		Prepare( world, mainPass, transforms );
+		meshes.Occlusion = null;
+		OcclusionActive = wanted && Occlusion.InstanceCount > 0;
+		OcclusionHistory.BeginFrame( OcclusionActive, view.Viewport );
+		Occlusion.Previous = OcclusionHistory.EarlyDepth;
+		Occlusion.RejectEarly = OcclusionHistory.RejectsEarly;
 
 		shadows.Prepare( world, mainPass, lightBinner, transforms, features.Count, Shadows, isSkybox );
 
@@ -535,6 +559,8 @@ public sealed partial class RenderSystem : IDisposable
 		frameBufferCopy = null;
 		transforms.Dispose();
 		environment.Dispose();
+		Occlusion.Dispose();
+		OcclusionHistory.Dispose();
 
 		foreach ( var feature in features )
 			feature.Dispose();

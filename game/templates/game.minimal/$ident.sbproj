@@ -8,6 +8,7 @@
   "HasAssets": true,
   "AssetsPath": "",
   "Resources": null,
+  "PublishUsedAssetsOnly": true,
   "MenuResources": "*",
   "HasCode": true,
   "CodePath": "/code/",

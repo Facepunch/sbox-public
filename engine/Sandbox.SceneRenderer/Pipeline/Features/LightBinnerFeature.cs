@@ -260,7 +260,7 @@ internal sealed partial class LightBinnerFeature : RenderFeature
 		context.BufferBarrier( decalExtraBuffer, RenderBarrierPipelineStageFlags_t.TransferBit, RenderBarrierAccessFlags_t.TransferWriteBit,
 			RenderBarrierPipelineStageFlags_t.FragmentShaderBit, RenderBarrierAccessFlags_t.ShaderReadBit );
 
-		// One thread per cluster - the dispatch divides by the shader's 8x8x8 group size
+		// One thread per cluster - the dispatch divides by the shader's 4x4x4 group size, which grouped culling relies on (64 threads = two mask words)
 		context.Dispatch( cullingShader, ClusterCountX, ClusterCountY, ClusterCountZ );
 
 		foreach ( var buffer in ClusterBuffers() )

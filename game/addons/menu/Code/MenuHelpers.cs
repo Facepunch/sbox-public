@@ -184,6 +184,9 @@ public static class MenuHelpers
 
 		if ( !string.IsNullOrEmpty( settings.ServerName ) ) LaunchArguments.ServerName = settings.ServerName;
 		LaunchArguments.Privacy = settings.Privacy;
+
+		// A party's copy of the setup leaves the password out - it's in the leader's own
+		LaunchArguments.Password = settings.Password ?? GameSetup.GetInitialSettings( package ).Password;
 		LaunchArguments.Map = null;
 
 		if ( !string.IsNullOrEmpty( settings.Map ) )
@@ -479,7 +482,7 @@ public static class MenuHelpers
 
 			foreach ( var lobby in lobbies ) // TODO - order by most attractive
 			{
-				if ( lobby.IsFull ) continue;
+				if ( lobby.IsFull || lobby.IsPasswordProtected ) continue;
 
 				if ( await MenuUtility.TryJoinLobby( lobby.LobbyId ) )
 					return;

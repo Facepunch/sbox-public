@@ -191,18 +191,22 @@ partial class SkinnedModelRenderer
 				else
 					boneWorld = worldUnscaled.ToWorld( part.Transform );
 
-				var body = new PhysicsBody( _physicsWorld )
+				var settings = new PhysicsBodySettings
 				{
-					Transform = boneWorld,
+					Position = boneWorld.Position,
+					Rotation = boneWorld.Rotation,
 					LinearDamping = part.LinearDamping,
 					AngularDamping = part.AngularDamping,
 					Mass = part.Mass,
-					OverrideMassCenter = part.OverrideMassCenter,
-					LocalMassCenter = part.MassCenterOverride,
-					BodyType = targetBones.HasBone( bone.Name ) ? PhysicsBodyType.Keyframed : PhysicsBodyType.Dynamic,
-					UseController = true,
-					EnableCollisionSounds = false,
+					MassCenter = part.MassCenterOverride,
+					BodyType = targetBones.HasBone( bone.Name ) ? PhysicsBodyType.Keyframed : PhysicsBodyType.Dynamic
 				};
+				if ( part.OverrideMassCenter )
+					settings.Flags |= PhysicsBodyCreationFlags.OverrideMassCenter;
+				var body = _physicsWorld.CreateBody( settings );
+				body.UseController = true;
+				body.EnableCollisionSounds = false;
+				using var mass = body._body.BatchMassUpdates();
 
 				boneToBody[bone.Index] = body;
 
@@ -215,13 +219,22 @@ partial class SkinnedModelRenderer
 				} );
 
 				foreach ( var sphere in part.Spheres )
-					body.AddSphereShape( sphere.Sphere ).Surface = sphere.Surface;
+				{
+					using var surface = body._body.UseShapeSurface( sphere.Surface );
+					body.AddSphereShape( sphere.Sphere );
+				}
 
 				foreach ( var capsule in part.Capsules )
-					body.AddCapsuleShape( capsule.Capsule.CenterA, capsule.Capsule.CenterB, capsule.Capsule.Radius ).Surface = capsule.Surface;
+				{
+					using var surface = body._body.UseShapeSurface( capsule.Surface );
+					body.AddCapsuleShape( capsule.Capsule.CenterA, capsule.Capsule.CenterB, capsule.Capsule.Radius );
+				}
 
 				foreach ( var hull in part.Hulls )
-					body.AddHullShape( Vector3.Zero, Rotation.Identity, hull.GetPoints().ToList() ).Surface = hull.Surface;
+				{
+					using var surface = body._body.UseShapeSurface( hull.Surface );
+					body.AddShape( hull, global::Transform.Zero );
+				}
 			}
 
 			var bodyToIndex = new Dictionary<PhysicsBody, int>( _bodies.Count );

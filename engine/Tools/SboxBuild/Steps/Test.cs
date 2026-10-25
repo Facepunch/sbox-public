@@ -58,6 +58,7 @@ internal partial class Test( bool noBuild = true, string filter = null )
 		new( "Sandbox.Test.Engine", NeedsEngine: true, ShardFilter: NotAllocationTests ),
 		new( "Sandbox.Test.Engine", NeedsEngine: true, Shard: "allocations", ShardFilter: AllocationTests, Isolated: true ),
 		new( "Sandbox.Test.Text", NeedsEngine: false ),
+		new( "Sandbox.Test.NetSim", NeedsEngine: true ),
 	];
 
 	/// <summary>

@@ -185,7 +185,7 @@ public partial class MapView : IHandle
 		if ( scene == null )
 			return;
 
-		using var sceneScope = scene.Push();
+		using var sceneScope = scene.PushScope();
 
 		{
 			GizmoInstance.Selection.Clear();
@@ -201,7 +201,7 @@ public partial class MapView : IHandle
 		var hash = GizmoInstance.Selection.GetHashCode();
 
 		// Draw gizmos
-		using ( GizmoInstance.Push() )
+		using ( GizmoInstance.PushScope() )
 		{
 			if ( GizmoInstance.Input.IsHovered )
 			{

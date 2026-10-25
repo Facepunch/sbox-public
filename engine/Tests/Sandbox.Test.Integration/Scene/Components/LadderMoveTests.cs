@@ -8,11 +8,10 @@ namespace SceneTests.Components;
 /// walk mode - the controller starts climbing (gravity off, velocity zeroed),
 /// ladders below the feet are ignored, the climb rotation faces the ladder from
 /// either side, and removing the ladder hands control back to walking. Climb
-/// movement itself reads Input.AnalogMove, which is silent headless, so actual
-/// up/down motion is out of scope.
+/// movement is driven headlessly through UpdateMove and WishVelocity.
 /// </summary>
 [TestClass]
-public class LadderMoveModeTest
+public partial class LadderMoveModeTest
 {
 	/// <summary>
 	/// Creates a large static floor whose top surface sits at z = 0.

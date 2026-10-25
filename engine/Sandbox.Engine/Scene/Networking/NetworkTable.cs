@@ -1,10 +1,18 @@
 using System.Collections;
+using System.Reflection;
 using Sandbox;
 
 namespace Sandbox.Network;
 
 internal class NetworkTable : IDisposable
 {
+	private readonly INetworkWakeable _wakeParent;
+
+	public NetworkTable( INetworkWakeable wakeParent = null )
+	{
+		_wakeParent = wakeParent;
+	}
+
 	/// <summary>
 	/// Internal flag set while reading changes. Useful when you want to force
 	/// something to be set when we otherwise wouldn't have permission to.
@@ -16,7 +24,7 @@ internal class NetworkTable : IDisposable
 	/// </summary>
 	internal static double ReadTime { get; private set; } = double.NaN;
 
-	public class Entry : INetworkProxy
+	public class Entry : INetworkProxy, INetworkWakeable
 	{
 		// We're making all of these fields because they're accessed on an extremely hot path.
 		// Being properties, the extra method call stacks up a lot when you have thousands and
@@ -24,6 +32,13 @@ internal class NetworkTable : IDisposable
 		public Type TargetType;
 		public string DebugName;
 		public bool NeedsQuery;
+
+		/// <summary>
+		/// Whether changes can only be found by querying this entry. Network containers wake their
+		/// object when they change, so they're only queried when capturing a snapshot.
+		/// </summary>
+		public bool IsPolled;
+
 		public Func<Connection, bool> ControlCondition = _ => true;
 		public Func<object> GetValue;
 		public Action<object> SetValue;
@@ -33,8 +48,11 @@ internal class NetworkTable : IDisposable
 		public bool IsReliableType;
 		public bool IsDirty;
 		public byte[] Serialized;
-		public bool Initialized;
+		public INetworkProperty InitializedProperty;
 		public int Slot;
+		public ListHasher ListHasher;
+		public TypedAccess Typed;
+		private INetworkWakeable _parent;
 
 		bool INetworkProxy.IsProxy => !HasControl( Connection.Local );
 
@@ -55,8 +73,13 @@ internal class NetworkTable : IDisposable
 			return HasControl( Connection.Local );
 		}
 
-		internal void Init( int slot )
+		internal void Init( int slot, INetworkWakeable parent )
 		{
+			_parent = parent;
+			Slot = slot;
+			var explicitQuery = NeedsQuery;
+			IsPolled = explicitQuery;
+
 			if ( TargetType is null ) return;
 
 			var isListType = TargetType.IsAssignableTo( typeof( IList ) );
@@ -66,7 +89,56 @@ internal class NetworkTable : IDisposable
 			IsReliableType = !IsDeltaSnapshotType && TargetType.IsAssignableTo( typeof( INetworkReliable ) );
 			IsSerializerType = TargetType.IsAssignableTo( typeof( INetworkSerializer ) );
 			NeedsQuery |= (isListType || isDictionaryType || IsSerializerType);
-			Slot = slot;
+
+			if ( !explicitQuery && NeedsQuery )
+				IsPolled = !TargetType.IsAssignableTo( typeof( INetworkProperty ) );
+
+			var elementType = TargetType.IsArray ? TargetType.GetElementType()
+				: TargetType.IsGenericType && TargetType.GetGenericTypeDefinition() == typeof( List<> ) ? TargetType.GetGenericArguments()[0]
+				: null;
+
+			if ( elementType is { IsValueType: true } )
+				ListHasher = (ListHasher)Activator.CreateInstance( typeof( ListHasher<> ).MakeGenericType( elementType ) );
+		}
+
+		void INetworkWakeable.MarkDirty()
+		{
+			_parent?.MarkDirty();
+		}
+	}
+
+	/// <summary>
+	/// Hashes lists and arrays of value types without boxing every element.
+	/// </summary>
+	internal abstract class ListHasher
+	{
+		public abstract bool TryHash( object value, out int hash );
+	}
+
+	internal sealed class ListHasher<T> : ListHasher
+	{
+		public override bool TryHash( object value, out int hash )
+		{
+			ReadOnlySpan<T> items;
+
+			if ( value is List<T> list )
+				items = global::System.Runtime.InteropServices.CollectionsMarshal.AsSpan( list );
+			else if ( value is T[] array )
+				items = array;
+			else
+			{
+				hash = default;
+				return false;
+			}
+
+			HashCode hc = default;
+			hc.Add( items.Length );
+
+			foreach ( var item in items )
+				hc.Add( item );
+
+			hash = hc.ToHashCode();
+			return true;
 		}
 	}
 
@@ -74,6 +146,9 @@ internal class NetworkTable : IDisposable
 	private readonly List<Entry> _reliableEntries = [];
 	private readonly List<Entry> _snapshotEntries = [];
 	private readonly List<Entry> _queryEntries = [];
+	private int _pollEntryCount;
+
+	public bool IsEmpty => _entries.Count == 0;
 
 	/// <summary>
 	/// Do we have any pending changes for entries we control?
@@ -104,6 +179,7 @@ internal class NetworkTable : IDisposable
 		_reliableEntries.Clear();
 		_snapshotEntries.Clear();
 		_queryEntries.Clear();
+		_pollEntryCount = 0;
 		_entries.Clear();
 	}
 
@@ -113,6 +189,9 @@ internal class NetworkTable : IDisposable
 	/// <param name="slot"></param>
 	public void Unregister( int slot )
 	{
+		if ( _entries.TryGetValue( slot, out var existing ) && existing.IsPolled )
+			_pollEntryCount--;
+
 		_snapshotEntries.RemoveAll( e => e.Slot == slot );
 		_reliableEntries.RemoveAll( e => e.Slot == slot );
 		_queryEntries.RemoveAll( e => e.Slot == slot );
@@ -128,10 +207,11 @@ internal class NetworkTable : IDisposable
 		if ( !_entries.TryAdd( slot, entry ) )
 			return;
 
+		entry.Init( slot, _wakeParent );
+
 		var value = GetValue( slot );
 		UpdateSlotHash( slot, value );
 
-		entry.Init( slot );
 		entry.IsDirty = true;
 
 		if ( entry.IsReliableType )
@@ -140,7 +220,12 @@ internal class NetworkTable : IDisposable
 			_snapshotEntries.Add( entry );
 
 		if ( entry.NeedsQuery )
+		{
 			_queryEntries.Add( entry );
+
+			if ( entry.IsPolled )
+				_pollEntryCount++;
+		}
 	}
 
 	/// <summary>
@@ -170,43 +255,146 @@ internal class NetworkTable : IDisposable
 	/// <summary>
 	/// Update the hash for a specific entry.
 	/// </summary>
-	private void UpdateSlotHash( Entry entry, object value )
+	private bool UpdateSlotHash( Entry entry, object value )
 	{
-		if ( value is INetworkProperty property && !entry.Initialized )
+		if ( value is INetworkProperty property && !ReferenceEquals( entry.InitializedProperty, property ) )
 		{
 			property.Init( entry.Slot, entry );
-			entry.Initialized = true;
+			entry.InitializedProperty = property;
+		}
+		else if ( value is not INetworkProperty )
+		{
+			entry.InitializedProperty = null;
 		}
 
 		if ( value is INetworkSerializer serializer )
 		{
 			if ( !serializer.HasChanges )
-				return;
+				return false;
 
 			entry.Serialized = null;
 			entry.IsDirty = true;
-			return;
+			return true;
 		}
 
-		var hashValue = ToHashCode( value );
+		if ( entry.ListHasher is null || !entry.ListHasher.TryHash( value, out var hash ) )
+			hash = ToHashCode( value );
 
+		return SetHash( entry, hash );
+	}
+
+	private static bool SetHash( Entry entry, int hashValue )
+	{
 		if ( entry.HashCodeValue == hashValue )
-			return;
+			return false;
 
 		entry.HashCodeValue = hashValue;
 		entry.Serialized = null;
 		entry.IsDirty = true;
+		return true;
 	}
 
 	/// <summary>
 	/// Update the hash for a specific slot id.
 	/// </summary>
-	public void UpdateSlotHash( int slot, object value )
+	public bool UpdateSlotHash( int slot, object value )
 	{
 		if ( !_entries.TryGetValue( slot, out var v ) )
-			return;
+			return false;
 
-		UpdateSlotHash( v, value );
+		return UpdateSlotHash( v, value );
+	}
+
+	/// <summary>
+	/// Update the hash for a specific slot id without boxing plain value types.
+	/// </summary>
+	public bool UpdateSlotHash<T>( int slot, T value )
+	{
+		if ( !PlainValue<T>.IsPlain )
+		{
+			return UpdateSlotHash( slot, (object)value );
+		}
+
+		if ( !_entries.TryGetValue( slot, out var v ) )
+			return false;
+
+		// Same hash as ToHashCode gives the boxed value
+		return SetHash( v, HashCode.Combine( value ) );
+	}
+
+	/// <summary>
+	/// Reads and writes an entry's value as its own type, so plain values aren't boxed on every update.
+	/// </summary>
+	internal abstract class TypedAccess
+	{
+		public abstract void Read( Entry entry, ref ByteStream bs );
+		public abstract void Write( ref ByteStream bs );
+
+		/// <summary>
+		/// For an instance property of a plain value type with a getter and a setter, otherwise null.
+		/// </summary>
+		public static TypedAccess Create( object instance, PropertyInfo property )
+		{
+			if ( property.GetMethod is not { IsStatic: false } || property.SetMethod is not { IsStatic: false } )
+				return null;
+
+			var type = property.PropertyType;
+			if ( !IsPlain( type ) )
+				return null;
+
+			if ( !Factories.TryGetValue( type, out var factory ) )
+			{
+				factory = typeof( TypedAccess ).GetMethod( nameof( CreateTyped ), BindingFlags.NonPublic | BindingFlags.Static )
+					.MakeGenericMethod( type )
+					.CreateDelegate<Func<object, PropertyInfo, TypedAccess>>();
+
+				Factories.AddOrUpdate( type, factory );
+			}
+
+			return factory( instance, property );
+		}
+
+		// Weak, so game types it was made for don't outlive a hotload
+		[SkipHotload] static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Type, Func<object, PropertyInfo, TypedAccess>> Factories = new();
+
+		static TypedAccess CreateTyped<T>( object instance, PropertyInfo property ) => new TypedAccess<T>( instance, property );
+	}
+
+	sealed class TypedAccess<T> : TypedAccess
+	{
+		readonly Func<T> _get;
+		readonly Action<T> _set;
+
+		public TypedAccess( object instance, PropertyInfo property )
+		{
+			_get = property.GetMethod.CreateDelegate<Func<T>>( instance );
+			_set = property.SetMethod.CreateDelegate<Action<T>>( instance );
+		}
+
+		public override void Read( Entry entry, ref ByteStream bs )
+		{
+			var value = Game.TypeLibrary.FromBytes<T>( ref bs );
+			if ( EqualityComparer<T>.Default.Equals( _get(), value ) )
+				return;
+
+			// Same hash as ToHashCode gives the boxed value
+			SetHash( entry, HashCode.Combine( value ) );
+			_set( value );
+		}
+
+		public override void Write( ref ByteStream bs ) => Game.TypeLibrary.ToBytes( _get(), ref bs );
+	}
+
+	// A value type that's hashed and compared as itself, not a network property, serializer or collection
+	static bool IsPlain( Type type ) => type.IsValueType
+		&& !type.IsAssignableTo( typeof( INetworkProperty ) )
+		&& !type.IsAssignableTo( typeof( INetworkSerializer ) )
+		&& !type.IsAssignableTo( typeof( IList ) )
+		&& !type.IsAssignableTo( typeof( IDictionary ) );
+
+	private static class PlainValue<T>
+	{
+		public static readonly bool IsPlain = NetworkTable.IsPlain( typeof( T ) );
 	}
 
 	private static int ToHashCode( object value )
@@ -255,7 +443,6 @@ internal class NetworkTable : IDisposable
 			if ( Equals( oldValue, value ) )
 				return;
 
-			entry.Initialized = false;
 			UpdateSlotHash( slot, value );
 			entry.SetValue( value );
 		}
@@ -345,7 +532,7 @@ internal class NetworkTable : IDisposable
 			if ( entry.IsReliableType || entry.IsDeltaSnapshotType )
 				continue;
 
-			var bs = ByteStream.CreateReader( serialized );
+			var bs = ByteStream.CreateReader( serialized.Span );
 
 			try
 			{
@@ -473,6 +660,12 @@ internal class NetworkTable : IDisposable
 	/// <param name="onlyWriteChanges"></param>
 	private void WriteEntryToStream( Entry entry, ref ByteStream bs, bool onlyWriteChanges = false )
 	{
+		if ( entry.Typed is { } typed )
+		{
+			typed.Write( ref bs );
+			return;
+		}
+
 		var value = entry.GetValue();
 		if ( entry.IsSerializerType )
 		{
@@ -492,7 +685,7 @@ internal class NetworkTable : IDisposable
 		}
 		else
 		{
-			Game.TypeLibrary.ToBytes( entry.GetValue(), ref bs );
+			Game.TypeLibrary.ToBytes( value, ref bs );
 		}
 	}
 
@@ -686,6 +879,10 @@ internal class NetworkTable : IDisposable
 				SetValue( slot, null );
 			}
 		}
+		else if ( entry.Typed is { } typed )
+		{
+			typed.Read( entry, ref bs );
+		}
 		else
 		{
 			var value = Game.TypeLibrary.FromBytes<object>( ref bs );
@@ -694,11 +891,36 @@ internal class NetworkTable : IDisposable
 	}
 
 	/// <summary>
-	/// If any properties are "query" types, we'll copy the new values to ourselves
-	/// and mark as changed, if changed.
+	/// Whether any entries can only be found to have changed by polling them.
 	/// </summary>
-	public void QueryValues( bool onlyReliableEntries = false )
+	public bool HasPollEntries => _pollEntryCount > 0;
+
+	/// <summary>
+	/// Whether this peer controls an entry that can only be found to have changed by polling it.
+	/// Objects with these never go dormant, because nothing else would notice the change.
+	/// </summary>
+	public bool HasControlledPollEntries()
 	{
+		if ( _pollEntryCount == 0 )
+			return false;
+
+		foreach ( var entry in _queryEntries )
+		{
+			if ( entry.IsPolled && entry.HasControl() )
+				return true;
+		}
+
+		return false;
+	}
+
+	/// <summary>
+	/// If any properties are "query" types, we'll copy the new values to ourselves
+	/// and mark as changed, if changed. Returns true when a value changed, even if already dirty.
+	/// </summary>
+	public bool QueryValues( bool onlyReliableEntries = false )
+	{
+		var anyChanged = false;
+
 		for ( var i = 0; i < _queryEntries.Count; i++ )
 		{
 			var entry = _queryEntries[i];
@@ -711,12 +933,14 @@ internal class NetworkTable : IDisposable
 
 			try
 			{
-				UpdateSlotHash( entry, entry.GetValue() );
+				anyChanged |= UpdateSlotHash( entry, entry.GetValue() );
 			}
 			catch ( Exception e )
 			{
 				Log.Warning( e, $"Error when getting value {entry.DebugName} - {e.Message}" );
 			}
 		}
+
+		return anyChanged;
 	}
 }

@@ -10,6 +10,20 @@ public class SceneLight : SceneObject
 {
 	internal CSceneLightObject lightNative;
 
+	/// <summary>
+	/// Changes when the light moves or its range changes, invalidating cached spatial queries.
+	/// </summary>
+	internal int BoundsVersion { get; private set; }
+
+	/// <summary>
+	/// Updates the scene-owned modulation candidates and the managed renderer's light mirror.
+	/// </summary>
+	internal void SetModulatorRange( uint offset, uint count )
+	{
+		lightNative.SetLightModulatorRange( offset, count );
+		NotifyChanged( Rendering.SceneObjectChange.Settings );
+	}
+
 	internal SceneLight() { }
 	internal SceneLight( HandleCreationData _ ) { }
 
@@ -32,6 +46,7 @@ public class SceneLight : SceneObject
 		{
 			if ( Radius == value ) return;
 			lightNative.SetRadius( value ); NotifyChanged( Rendering.SceneObjectChange.Settings );
+			BoundsVersion++;
 		}
 	}
 
@@ -262,6 +277,7 @@ public class SceneLight : SceneObject
 
 		lightNative.SetWorldDirection( tx.Rotation );
 		lightNative.SetWorldPosition( tx.Position );
+		BoundsVersion++;
 	}
 
 	[Obsolete( "Use ScenePointLight (or stop fucking using SceneObjects at all)" )]
@@ -291,10 +307,20 @@ public class SceneLight : SceneObject
 		base.OnNativeInit( ptr );
 
 		lightNative = (CSceneLightObject)ptr;
+
+		lock ( World.InternalSceneObjects )
+		{
+			World.InternalSceneLights.Add( this );
+		}
 	}
 
 	internal override void OnNativeDestroy()
 	{
+		lock ( World.InternalSceneObjects )
+		{
+			World.InternalSceneLights.Remove( this );
+		}
+
 		// Return any cached shadow map to the pool before this object becomes
 		// eligible for GC. Without this the ConditionalWeakTable silently drops
 		// the entry on collection and the shadow texture is orphaned.

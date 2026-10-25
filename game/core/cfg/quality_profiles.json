@@ -80,13 +80,9 @@
         {
             "r_ssr_downsample_ratio": "4"
         },
-        "Medium":
-        {
-            "r_ssr_downsample_ratio": "2"
-        },
         "High":
         {
-            "r_ssr_downsample_ratio": "1"
+            "r_ssr_downsample_ratio": "2"
         }
     },
     "MotionBlurQuality":
@@ -127,15 +123,8 @@
         "High":
         {
             "r_enable_volume_fog": "1",
-            "volume_fog_width": "240",
-            "volume_fog_height": "160",
-            "volume_fog_depth": "64"
-        },
-        "Ultra":
-        {
-            "r_enable_volume_fog": "1",
-            "volume_fog_width": "320",
-            "volume_fog_height": "200",
+            "volume_fog_width": "192",
+            "volume_fog_height": "128",
             "volume_fog_depth": "64"
         }
     },

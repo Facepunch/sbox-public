@@ -1104,6 +1104,23 @@
 			"Copyright": [
 				"2023 Sony Interactive Entertainment"
 			]
+		},
+		{
+			"Name": "Intel CMAA2",
+			"Comment": "CMAA2 kernels adapted in shaders/common/thirdparty/cmaa2.hlsl. Includes nested MIT-licensed Microsoft packing helper code.",
+			"UsedBy": [
+				"sbox",
+				"sbox-dev"
+			],
+			"License": "Apache-2.0",
+			"ProjectUrl": "https://github.com/GameTechDev/CMAA2",
+			"Version": "2.3 (071c6b0857559f4e36f614362e6d2aab1b61938a)",
+			"Linkage": "static",
+			"Modified": true,
+			"Copyright": [
+				"2018 Intel Corporation",
+				"2015 Microsoft Corporation"
+			]
 		}
 	]
 }

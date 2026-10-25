@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!--
+		Network simulation: a host and N clients, each with its own NetworkSystem, SceneNetworkSystem and Scene,
+		in one process over a simulated transport. Loads the native engine like Sandbox.Test.Engine (needs FACEPUNCH_ENGINE).
+		Code generation runs on this project like on Sandbox.Engine, so [Sync] and [Rpc] in the workload components are real.
+	-->
+
+	<ItemGroup>
+		<PackageReference Include="Facepunch.ActionGraphs" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\Sandbox.Bind\Sandbox.Bind.csproj" />
+		<ProjectReference Include="..\..\Sandbox.System\Sandbox.System.csproj" />
+		<ProjectReference Include="..\..\Sandbox.Engine\Sandbox.Engine.csproj" />
+		<ProjectReference Include="..\..\Sandbox.AppSystem\Sandbox.AppSystem.csproj" />
+		<ProjectReference Include="..\..\Tools\CodeGen\CodeGen.csproj" ReferenceOutputAssembly="false" Private="false" />
+	</ItemGroup>
+
+	<PropertyGroup>
+		<CodeGeneratorExe Condition="'$(OS)' == 'Windows_NT'">..\..\Tools\CodeGen\bin\CodeGen.exe</CodeGeneratorExe>
+		<CodeGeneratorExe Condition="'$(OS)' != 'Windows_NT'">../../Tools/CodeGen/bin/CodeGen</CodeGeneratorExe>
+	</PropertyGroup>
+
+	<Target Name="CleanCodeGen" AfterTargets="Clean">
+		<RemoveDir Directories="obj/.generated" />
+	</Target>
+
+	<Target Name="CodeGenFiles" BeforeTargets="CoreCompile" Condition="'$(DesignTimeBuild)' != 'true'">
+		<WriteLinesToFile File="obj/codegen.rsp" Lines="@(ReferencePath->'%(FullPath)')" Overwrite="true" />
+		<Exec Command="$(CodeGeneratorExe) @obj/codegen.rsp" />
+		<ItemGroup>
+			<GeneratedFiles Include="obj/.generated/**/*.cs" Exclude="obj/.generated/obj/**/*.cs" />
+			<Compile Remove="@(GeneratedFiles->'%(RecursiveDir)%(Filename)%(Extension)')" />
+			<Compile Include="@(GeneratedFiles)" />
+		</ItemGroup>
+	</Target>
+
+</Project>

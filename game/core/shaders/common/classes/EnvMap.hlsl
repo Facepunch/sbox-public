@@ -24,10 +24,10 @@ struct EnvMap
         const float2 vLevel = sqrt(Roughness.xy);
 
         // Accumulate contributions from each environment map
-        for (uint i = 0; i < range.Count; i++)
+        ClusterForEach( range )
         {
             // Get the environment map index
-            const uint index = Cluster::LoadItem( range, i );
+            const uint index = range.Item;
 
             // Transform world position to local cubemap space
             const float3 vCubePos = mul(float4(WorldPosition.xyz, 1.0f), EnvMapWorldToLocal(index)).xyz;
@@ -57,7 +57,7 @@ struct EnvMap
 
             // Specular environment map sampling
             float3 vNormalWarpWs = normalize(lerp(vParallaxReflectionCubemapLocal, WorldNormal, vLevel.x)); // Used to reduce specular aliasing
-            float3 vCubeSample = SampleEnvironmentMapLevel(vNormalWarpWs, vLevel.x, index);
+            float3 vCubeSample = SampleEnvironmentMapLevel(vNormalWarpWs, vLevel.x, UniformIndex(index));
 
             // Accumulate color contribution
             vColor = lerp(vColor, vCubeSample, 1.0f - flDistAccumulated);

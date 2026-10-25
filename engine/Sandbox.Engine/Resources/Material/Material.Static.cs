@@ -35,7 +35,34 @@ public sealed partial class Material : Resource
 		return FromNative( MaterialSystem2.CreateRawMaterial( materialName, shader, anonymous ) );
 	}
 
+	/// <summary>
+	/// Create a new empty material at runtime from a shader, which can be an anonymous one from
+	/// <see cref="Shader.CompileAsync(string, System.Threading.CancellationToken)"/>.
+	/// </summary>
+	/// <param name="materialName">Name of the new material.</param>
+	/// <param name="shader">Shader that the new material will use.</param>
+	/// <param name="anonymous">If false, material can be found by name.</param>
+	/// <returns>The new material.</returns>
+	public static Material Create( string materialName, Shader shader, bool anonymous = true )
+	{
+		ArgumentNullException.ThrowIfNull( shader );
+
+		if ( !shader.IsAnonymous )
+			return Create( materialName, shader.ResourcePath, anonymous );
+
+		ThreadSafe.AssertIsMainThread();
+
+		if ( Graphics.IsActive ) throw new System.Exception( "Material.Create cannot be called during rendering." );
+
+		var material = FromNative( MaterialSystem2.CreateRawMaterialFromShader( materialName, shader.native, anonymous ) );
+		if ( material is not null ) material.anonymousShader = shader;
+		return material;
+	}
+
 	static Dictionary<string, Material> shaderMaterials = new Dictionary<string, Material>( StringComparer.OrdinalIgnoreCase );
+
+	// Anonymous shaders have no path to key by, and their material shouldn't keep them alive
+	static readonly ConditionalWeakTable<Shader, Material> anonymousShaderMaterials = new();
 
 	/// <summary>
 	/// Get an empty material based on the specified shader. This will cache the material so that subsequent calls
@@ -45,6 +72,9 @@ public sealed partial class Material : Resource
 	{
 		if ( shader == null )
 			return null;
+
+		if ( shader.IsAnonymous )
+			return anonymousShaderMaterials.GetValue( shader, x => Create( $"__shader_{x.ResourcePath.NormalizeFilename( false ).Replace( "/", "_" )}.vmat", x ) );
 
 		var shaderPath = shader.ResourcePath.NormalizeFilename( false ).Replace( "/", "_" );
 		if ( shaderMaterials.TryGetValue( shaderPath, out var material ) )

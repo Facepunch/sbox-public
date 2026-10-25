@@ -35,9 +35,13 @@ public abstract partial class Collider
 
 		var isKeyframed = !Static && !Scene.IsEditor;
 
-		_keyframeBody = Scene.PhysicsWorld.CreateBody();
-		_keyframeBody.BodyType = isKeyframed ? PhysicsBodyType.Keyframed : PhysicsBodyType.Static;
-		_keyframeBody.Transform = GetTargetTransform().WithScale( 1.0f );
+		var transform = GetTargetTransform();
+		_keyframeBody = Scene.PhysicsWorld.CreateBody( new PhysicsBodySettings
+		{
+			BodyType = isKeyframed ? PhysicsBodyType.Keyframed : PhysicsBodyType.Static,
+			Position = transform.Position,
+			Rotation = transform.Rotation
+		} );
 		_keyframeBody.UseController = isKeyframed;
 
 		_keyframeBody.Component = this;

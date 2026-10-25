@@ -23,6 +23,7 @@ public partial class RenderSettings
 	/// </summary>
 	internal void ApplyQualityProfiles()
 	{
+		MigrateStretchUpscaling();
 		MigratePostProcessSettings();
 
 		Config.ApplyAll( this );
@@ -64,9 +65,10 @@ public partial class RenderSettings
 
 	public VolumetricFogQuality VolumetricFogQuality
 	{
-		get => VideoSettings.Get<VolumetricFogQuality>( "volumetricfog.quality", VolumetricFogQuality.High );
+		get => (VolumetricFogQuality)Math.Min( (int)VideoSettings.Get<VolumetricFogQuality>( "volumetricfog.quality", VolumetricFogQuality.High ), (int)VolumetricFogQuality.High );
 		set
 		{
+			value = (VolumetricFogQuality)Math.Min( (int)value, (int)VolumetricFogQuality.High );
 			VideoSettings.Set<VolumetricFogQuality>( "volumetricfog.quality", value );
 			Config.SetGroupConVars( "VolumetricFogQuality", value.ToString() );
 		}
@@ -92,22 +94,38 @@ public partial class RenderSettings
 		}
 	}
 
+	const string UpscalerModeKey = "upscaler.mode";
+
 	public UpscalerMode UpscalerMode
 	{
-		get => VideoSettings.Get<UpscalerMode>( "upscaler.mode", UpscalerMode.Off );
+		get
+		{
+			var mode = VideoSettings.Get<UpscalerMode>( UpscalerModeKey, UpscalerMode.Off );
+			return mode == UpscalerMode.Stretch ? UpscalerMode.Off : mode;
+		}
 		set
 		{
-			VideoSettings.Set<UpscalerMode>( "upscaler.mode", value );
-			ConVarSystem.SetInt( "r_upscaling", (int)value, true );
+			var mode = value == UpscalerMode.Stretch ? UpscalerMode.Off : value;
+			VideoSettings.Set<UpscalerMode>( UpscalerModeKey, mode );
+			ConVarSystem.SetInt( "r_upscaling", (int)mode, true );
 		}
 	}
 
+	void MigrateStretchUpscaling()
+	{
+		if ( VideoSettings.Get<UpscalerMode>( UpscalerModeKey, UpscalerMode.Off ) != UpscalerMode.Stretch )
+			return;
+
+		UpscalerMode = UpscalerMode.Off;
+		VideoSettings.Save();
+	}
+
 	/// <summary>
-	/// Render-resolution scale used by Stretch (40-100%) and FSR1 (50-100%) modes.
+	/// Render-resolution scale used by Off (including MSAA and CMAA2) and FSR1 (40-100%).
 	/// </summary>
 	public float UpscalerRenderScale
 	{
-		get => VideoSettings.Get<float>( "upscaler.render_scale", 0.75f );
+		get => VideoSettings.Get<float>( "upscaler.render_scale", 1.0f );
 		set
 		{
 			float v = Math.Clamp( value, 0.4f, 1.0f );
@@ -174,8 +192,8 @@ public partial class RenderSettings
 
 	/// <summary>
 	/// Returns whether the given <see cref="UpscalerMode"/> is usable on the current graphics
-	/// device. Off / Stretch / FSR1 / FSR3 are always available; DLSS requires NVIDIA hardware
-	/// with NGX support and is queried from the native render device.
+	/// device. Off / FSR1 / FSR3 are always available; Stretch is legacy and not selectable.
+	/// DLSS requires NVIDIA hardware with NGX support and is queried from the native render device.
 	/// </summary>
 	public static bool IsUpscalerModeSupported( UpscalerMode mode )
 	{
@@ -185,6 +203,7 @@ public partial class RenderSettings
 		return mode switch
 		{
 			UpscalerMode.DLSS => NativeEngine.RenderDeviceManager.IsUpscalerSupported( UPSCALER_NVIDIA_DLSS ),
+			UpscalerMode.Stretch => false,
 			_ => true,
 		};
 	}
@@ -217,7 +236,7 @@ public partial class RenderSettings
 	public void ResetGraphicsConfig()
 	{
 		UpscalerMode = UpscalerMode.Off;
-		UpscalerRenderScale = 0.75f;
+		UpscalerRenderScale = 1.0f;
 		Fsr1Sharpness = 0.25f;
 		Fsr3UpscalerQuality = Fsr3UpscalerQuality.Performance;
 		Fsr3Sharpness = 0.5f;

@@ -131,7 +131,11 @@ partial class PublishWizard
 
 		public async Task Refresh()
 		{
-			Publisher = await CreatePublisher( Project, PublishConfig );
+			Publisher = Project.Config.Type == "game" ? PublishConfig.Publisher : null;
+			if ( Publisher is null )
+				Publisher = await CreatePublisher( Project, PublishConfig );
+			else
+				await Publisher.PrePublish();
 
 			UpdateFileList();
 		}
@@ -268,7 +272,7 @@ partial class PublishWizard
 		{
 			// we need SOME files to upload, even if they've already been uploaded
 			// having no files here indicates an error.
-			if ( Publisher.Files.Count() == 0 ) return false;
+			if ( Publisher is null || Publisher.Files.Count() == 0 ) return false;
 
 			return true;
 		}

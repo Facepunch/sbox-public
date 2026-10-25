@@ -30,7 +30,19 @@ internal static class DLLImportResolver
 		NativeLibrary.SetDllImportResolver( assembly, ResolveFromNativePath );
 	}
 
+	// The runtime asks once per imported function, and some libraries import thousands of them.
+	private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, IntPtr> handles = new();
+
 	private static IntPtr ResolveFromNativePath( string libraryName, Assembly assembly, DllImportSearchPath? searchPath )
+	{
+		if ( handles.TryGetValue( libraryName, out var handle ) ) return handle;
+
+		handle = Load( libraryName );
+		if ( handle != IntPtr.Zero ) handles[libraryName] = handle;
+		return handle;
+	}
+
+	private static IntPtr Load( string libraryName )
 	{
 		// Specifically for fucking steam_api without using a preprocessor if statement on Platform.cs
 		// should try to aim to have one set of "managed" binaries without platform specific variants

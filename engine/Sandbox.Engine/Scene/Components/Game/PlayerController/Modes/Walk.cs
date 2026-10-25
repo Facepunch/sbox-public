@@ -21,7 +21,8 @@ public partial class MoveModeWalk : MoveMode
 	public override void AddVelocity()
 	{
 		Controller.WishVelocity = Controller.WithoutVertical( Controller.WishVelocity );
-		if ( !Controller.IsOnGround || Controller.GroundIsDynamic )
+		// Idle moving surfaces use native friction; active input needs slope-relative acceleration.
+		if ( !Controller.IsOnGround || (Controller.GroundUsesContactFriction && Controller.WishVelocity.IsNearZeroLength) )
 		{
 			base.AddVelocity();
 			return;
@@ -29,11 +30,22 @@ public partial class MoveModeWalk : MoveMode
 
 		var body = Controller.Body;
 		var normal = Controller.GroundNormal;
+		var up = Controller.UpDirection;
+		var normalUp = normal.Dot( up );
+		Vector3 GroundDirection( Vector3 value )
+		{
+			var horizontal = Controller.WithoutVertical( value );
+			return (horizontal * normalUp - up * horizontal.Dot( normal )).Normal;
+		}
+
 		var velocity = body.Velocity - Controller.GroundVelocity;
-		velocity -= normal * velocity.Dot( normal );
+		var normalVelocity = normal * velocity.Dot( normal );
+		var tangentVelocity = velocity - normalVelocity;
+		var speed = tangentVelocity.Length;
+		// Follow the ground vertically instead of letting its normal steer horizontal movement.
+		velocity = Controller.GroundUsesContactFriction ? tangentVelocity : GroundDirection( velocity ) * speed;
 
 		// Brake along the ground plane, rather than using contact friction which also grabs walls
-		var speed = velocity.Length;
 		var friction = Controller.GroundFriction.Clamp( 0, 1 );
 		if ( speed > 0 )
 		{
@@ -43,11 +55,22 @@ public partial class MoveModeWalk : MoveMode
 
 		var wish = Controller.WishVelocity;
 		var wishSpeed = wish.Length;
-		var wishDirection = (wish - normal * wish.Dot( normal )).Normal;
+		var wishDirection = GroundDirection( wish );
 		var addSpeed = wishSpeed - velocity.Dot( wishDirection );
 		if ( addSpeed > 0 )
 		{
 			velocity += wishDirection * MathF.Min( addSpeed, 10 * wishSpeed * friction * Time.Delta );
+		}
+
+		if ( Controller.GroundUsesContactFriction )
+		{
+			// Control walking along the surface, but leave settling and weight transfer to physics.
+			velocity += normalVelocity;
+			if ( friction > 0 && body.Gravity )
+			{
+				var gravity = Scene.PhysicsWorld.Gravity * body.GravityScale;
+				velocity -= (gravity - normal * gravity.Dot( normal )) * Time.Delta;
+			}
 		}
 
 		body.Velocity = velocity + Controller.GroundVelocity;
@@ -57,13 +80,16 @@ public partial class MoveModeWalk : MoveMode
 	{
 		base.UpdateRigidBody( body );
 
-		if ( !Controller.IsOnGround || Controller.GroundIsDynamic )
+		if ( !Controller.IsOnGround )
+			return;
+
+		body.LinearDamping = 0;
+		if ( Controller.GroundUsesContactFriction )
 			return;
 
 		// Grounded motion follows the slope and StickToGround handles descending.
 		// (Gravity would otherwise add downhill drift every physics step)
 		body.Gravity = Controller.GroundFriction <= 0;
-		body.LinearDamping = 0;
 		Controller.FeetCollider.Friction = 0;
 	}
 

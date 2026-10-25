@@ -101,7 +101,7 @@ public sealed partial class RenderSystem
 		skybox.Stats = stats;
 
 		// Inherit main-world ambient and scaled fog.
-		skyFrame.Space = new ViewEnvironment.ViewSpace { Lighting = world.Lighting, Scale = sky.Scale, OffsetZ = sky.Origin.z, Fog = fog, FogView = view, Origin = sky.Origin };
+		skyFrame.Space = new ViewEnvironment.ViewSpace { Lighting = world.Lighting, Scale = sky.Scale, OffsetZ = sky.Origin.z, Fog = fog, FogView = view, FogSun = shadows.Directional, Origin = sky.Origin };
 		frame.Skybox = skyFrame;
 		lastDrewSkybox = true;
 	}
@@ -123,6 +123,7 @@ public sealed partial class RenderSystem
 		into.Viewport = main.Viewport;
 		into.ClearColor = main.ClearColor;
 		into.ToneMapScalar = main.ToneMapScalar;
+		into.Fog = main.Fog;
 		into.SizeCullThreshold = 0;
 	}
 }

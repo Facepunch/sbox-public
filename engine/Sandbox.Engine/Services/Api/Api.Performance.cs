@@ -60,7 +60,7 @@ internal static partial class Api
 			if ( GpuTimelineInterval <= 0 ) gpuTimeline = null;
 
 			var sampling = gpuSamplingWindow.Update( RealTime.Now, allowed );
-			Diagnostics.GpuProfilerStats.Enabled = Diagnostics.PerfHub.WantsGpuTimings || sampling;
+			Diagnostics.GpuProfilerStats.Enabled = Diagnostics.DevTools.WantsGpuTimings || sampling;
 			Diagnostics.GpuProfilerStats.Update();
 
 			if ( sampling )

@@ -52,6 +52,9 @@ public class SettingItem
 	/// <summary>Greyed out and unwritable, with this as the reason.</summary>
 	public Func<string> DisabledReason { get; init; }
 
+	/// <summary>Runs when the edited value changes, for rows that override others.</summary>
+	public Action OnStaged { get; init; }
+
 	/// <summary>An amber note under the row: a caveat the current value carries.</summary>
 	public Func<string> Warning { get; init; }
 
@@ -77,7 +80,11 @@ public class SettingItem
 	public object Value
 	{
 		get => staged;
-		set => staged = value;
+		set
+		{
+			staged = value;
+			OnStaged?.Invoke();
+		}
 	}
 
 	public float FloatValue

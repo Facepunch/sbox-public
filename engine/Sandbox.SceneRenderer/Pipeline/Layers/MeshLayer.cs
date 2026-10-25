@@ -103,6 +103,11 @@ internal abstract class MeshLayer : RenderLayer
 	public bool ForceDepthFastPath { get; protected init; }
 
 	/// <summary>
+	/// Which occlusion cull result this layer draws with.
+	/// </summary>
+	public OcclusionPhase OcclusionPhase { get; protected init; }
+
+	/// <summary>
 	/// The runs it draws.
 	/// </summary>
 	public MeshRuns Runs { get; protected init; }

@@ -177,6 +177,12 @@ partial class PublishWizard
 				UploadWarning.Label.Text += "\n• You must specify an organisation to publish under.";
 			}
 
+			if ( Project.Config.IsStandaloneOnly )
+			{
+				UploadWarning.Visible = true;
+				UploadWarning.Label.Text += $"\n• \"Disable Whitelist\" is on (Project Settings > Game Exporting). Projects with the whitelist disabled can't be published to {Global.BackendTitle}.";
+			}
+
 			if ( !EditorTypeLibrary.CheckValidationAttributes( Project.Config, out var errors ) )
 			{
 				UploadWarning.Visible = true;
@@ -196,6 +202,7 @@ partial class PublishWizard
 			if ( Package != null && Package.Archived ) return false;
 			if ( Project.Config.Ident == null ) return false;
 			if ( Project.Config.Org == "local" ) return false;
+			if ( Project.Config.IsStandaloneOnly ) return false;
 			if ( !EditorTypeLibrary.CheckValidationAttributes( Project.Config ) ) return false;
 
 			return true;

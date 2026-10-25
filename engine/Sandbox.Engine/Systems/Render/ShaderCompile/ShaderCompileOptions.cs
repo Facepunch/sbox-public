@@ -23,4 +23,9 @@ public struct ShaderCompileOptions
 	/// (<c>SboxBuild shader-stats</c>). Up to date shaders are compiled anyway. See <see cref="SpirvDump"/>.
 	/// </summary>
 	public string SpirvDumpPath { get; set; }
+
+	/// <summary>
+	/// Called as each combo is compiled, from the threads compiling them, for progress
+	/// </summary>
+	internal Action ComboCompiled { get; set; }
 }

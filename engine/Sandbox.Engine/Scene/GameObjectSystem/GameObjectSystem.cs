@@ -84,6 +84,12 @@ public abstract partial class GameObjectSystem : IDisposable
 		/// Called after a scene has been loaded
 		/// </summary>
 		SceneLoaded,
+
+		/// <summary>
+		/// Before cameras copy scene rendering attributes, on the main thread. Also runs for unticked captures.
+		/// May run multiple times per frame; render-thread child views consume the prepared snapshot.
+		/// </summary>
+		PrepareRender,
 	}
 
 	/// <summary>

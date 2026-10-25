@@ -1,3 +1,5 @@
+#pragma warning disable CS0618 // Tests intentionally exercise legacy fog compatibility.
+
 using System.Collections.Generic;
 using Sandbox.Rendering;
 
@@ -542,6 +544,9 @@ public class RenderComponentTest
 		Assert.AreEqual( Color.White, sr.Color );
 		Assert.IsFalse( sr.Additive );
 		Assert.IsFalse( sr.Opaque );
+		Assert.IsFalse( sr.Refraction );
+		Assert.IsNull( sr.NormalTexture );
+		Assert.AreEqual( 8.0f, sr.RefractionStrength );
 		Assert.AreEqual( 0.5f, sr.AlphaCutoff );
 		Assert.AreEqual( FilterMode.Bilinear, sr.TextureFilter );
 		Assert.AreEqual( SpriteRenderer.BillboardMode.Always, sr.Billboard );
@@ -595,6 +600,8 @@ public class RenderComponentTest
 		sr.TextureFilter = FilterMode.Point;
 		sr.Billboard = SpriteRenderer.BillboardMode.None;
 		sr.IsSorted = true;
+		sr.Refraction = true;
+		sr.RefractionStrength = 23.0f;
 
 		var clone = RenderTestUtility.SerializeRoundTrip( scene, go );
 		var loaded = clone.Components.Get<SpriteRenderer>();
@@ -613,9 +620,111 @@ public class RenderComponentTest
 		Assert.AreEqual( FilterMode.Point, loaded.TextureFilter );
 		Assert.AreEqual( SpriteRenderer.BillboardMode.None, loaded.Billboard );
 		Assert.IsTrue( loaded.IsSorted );
+		Assert.IsTrue( loaded.Refraction );
+		Assert.AreEqual( 23.0f, loaded.RefractionStrength );
 
 		clone.Destroy();
 		scene.ProcessDeletes();
+	}
+
+	/// <summary>
+	/// Sprite and particle renderers use the same batch classification regardless of refraction.
+	/// Refraction requires a normal map and translucent, non-additive blending; opacity does not affect it.
+	/// </summary>
+	[TestMethod]
+	[DataRow( false, false, false, true, false )]
+	[DataRow( true, false, false, false, false )]
+	[DataRow( true, true, false, true, false )]
+	[DataRow( true, false, true, true, false )]
+	[DataRow( true, false, false, true, true )]
+	public void SpriteRendererRefractionClassification( bool enabled, bool opaque, bool additive, bool hasNormal, bool expected )
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		var sprite = scene.CreateObject().Components.Create<SpriteRenderer>();
+		sprite.Refraction = enabled;
+		sprite.NormalTexture = hasNormal ? Texture.White : null;
+		sprite.Opaque = opaque;
+		sprite.Additive = additive;
+
+		var particle = scene.CreateObject().Components.Create<ParticleSpriteRenderer>();
+		particle.Refraction = enabled;
+		particle.NormalTexture = sprite.NormalTexture;
+		particle.Opaque = opaque;
+		particle.Additive = additive;
+
+		foreach ( float alpha in new[] { 0.0f, 0.5f, 1.0f } )
+		{
+			sprite.Color = Color.White.WithAlpha( alpha );
+			Assert.AreEqual( expected, sprite.IsRefractive );
+			Assert.AreEqual( expected, particle.IsRefractive );
+			var spriteFlags = SceneSpriteSystem.GetRenderGroupFlags( sprite );
+			var particleFlags = SceneSpriteSystem.GetRenderGroupFlags( particle );
+			Assert.AreEqual( particleFlags, spriteFlags );
+
+			sprite.Refraction = false;
+			particle.Refraction = false;
+			Assert.AreEqual( spriteFlags, SceneSpriteSystem.GetRenderGroupFlags( sprite ), "Refraction must not split the sprite batch." );
+			Assert.AreEqual( particleFlags, SceneSpriteSystem.GetRenderGroupFlags( particle ), "Refraction must not split the particle batch." );
+			sprite.Refraction = enabled;
+			particle.Refraction = enabled;
+		}
+	}
+
+	/// <summary>
+	/// Ordinary and refractive sprites and particles share one sorted batch. Its scene-color copy
+	/// follows the remaining readers when refraction is toggled or a particle renderer disappears.
+	/// </summary>
+	[TestMethod]
+	public void SpriteRefractionSharesSortedBatch()
+	{
+		if ( !Graphics.IsAvailable ) Assert.Inconclusive( "Requires graphics." );
+
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		var ordinary = scene.CreateObject().Components.Create<SpriteRenderer>();
+		ordinary.IsSorted = true;
+
+		var refractive = scene.CreateObject().Components.Create<SpriteRenderer>();
+		refractive.IsSorted = true;
+		refractive.NormalTexture = Texture.White;
+		refractive.Refraction = true;
+
+		var particle = scene.CreateObject().Components.Create<ParticleSpriteRenderer>();
+		particle.GameObject.Tags.Remove( "particles" );
+		particle.SortMode = ParticleSpriteRenderer.ParticleSortMode.ByDistance;
+		particle.NormalTexture = Texture.White;
+		particle.ParticleEffect.Emit( Vector3.Zero, 0 );
+
+		var system = scene.GetSystem<SceneSpriteSystem>();
+		system.UpdateSpriteRenderers();
+		system.UpdateParticleSprites();
+
+		var batch = scene.SceneWorld.SceneObjects.OfType<SpriteBatchSceneObject>().Single();
+		batch.UploadOnHost();
+		Assert.IsTrue( batch.Sorted );
+		Assert.IsTrue( batch.ContainsSprite( ordinary.Id ) );
+		Assert.IsTrue( batch.ContainsSprite( refractive.Id ) );
+		Assert.IsTrue( batch.SpriteGroups.ContainsKey( particle.Id ) );
+		Assert.IsTrue( batch.Flags.WantsFrameBufferCopy );
+
+		refractive.Refraction = false;
+		system.UpdateSpriteRenderers();
+		batch.UploadOnHost();
+		Assert.IsFalse( batch.Flags.WantsFrameBufferCopy );
+
+		particle.Refraction = true;
+		system.UpdateParticleSprites();
+		batch.UploadOnHost();
+		Assert.AreSame( batch, scene.SceneWorld.SceneObjects.OfType<SpriteBatchSceneObject>().Single() );
+		Assert.IsTrue( batch.Flags.WantsFrameBufferCopy );
+
+		particle.Enabled = false;
+		system.UpdateParticleSprites();
+		batch.UploadOnHost();
+		Assert.IsFalse( batch.Flags.WantsFrameBufferCopy );
+		Assert.IsTrue( batch.ContainsSprite( ordinary.Id ) );
+		Assert.IsTrue( batch.ContainsSprite( refractive.Id ) );
 	}
 
 	/// <summary>

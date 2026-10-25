@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using System.Reflection;
 
 namespace SceneTests.Components;
@@ -58,6 +59,17 @@ public class MeshComponentBuildTests
 	{
 		var submeshes = (IEnumerable)typeof( PolygonMesh ).GetField( "_submeshes", BindingFlags.Instance | BindingFlags.NonPublic ).GetValue( mesh );
 		return submeshes.Cast<object>().Select( x => (Mesh)x.GetType().GetProperty( "Mesh" ).GetValue( x ) ).ToArray();
+	}
+
+	static List<PolygonMesh.MeshVertex>[] SubmeshVertices( PolygonMesh mesh )
+	{
+		var submeshes = (IEnumerable)typeof( PolygonMesh ).GetField( "_submeshes", BindingFlags.Instance | BindingFlags.NonPublic ).GetValue( mesh );
+		return submeshes.Cast<object>().Select( x => (List<PolygonMesh.MeshVertex>)x.GetType().GetProperty( "Vertices" ).GetValue( x ) ).ToArray();
+	}
+
+	static int PaintedVertexRefCount( PolygonMesh mesh )
+	{
+		return ((ICollection)typeof( PolygonMesh ).GetField( "_halfEdgeToMeshVertices", BindingFlags.Instance | BindingFlags.NonPublic ).GetValue( mesh )).Count;
 	}
 
 	static void AssertCollision( MeshComponent component, MeshComponent.CollisionType collision )
@@ -315,6 +327,62 @@ public class MeshComponentBuildTests
 			CollectionAssert.AreEqual( meshes, RenderMeshes( component.Mesh ) );
 			AssertCollision( component, MeshComponent.CollisionType.Mesh );
 			Assert.IsTrue( scene.SceneWorld.SceneObjects.Any( x => x.Component == component && x.IsValid() ) );
+		}
+		finally
+		{
+			scene.Destroy();
+		}
+	}
+
+	[TestMethod]
+	public void UnpaintedMeshReleasesVertexData()
+	{
+		var scene = Scene.CreateEditorScene();
+		try
+		{
+			using var scope = scene.Push();
+			var component = scene.CreateObject().AddComponent<MeshComponent>();
+			component.Mesh = CreateBox();
+			AssertCollision( component, MeshComponent.CollisionType.Mesh );
+			Assert.AreEqual( 0, PaintedVertexRefCount( component.Mesh ) );
+			Assert.IsTrue( SubmeshVertices( component.Mesh ).All( x => x.Count == 0 && x.Capacity == 0 ) );
+		}
+		finally
+		{
+			scene.Destroy();
+		}
+	}
+
+	[TestMethod]
+	public void FirstPaintRestoresVertexDataInPlace()
+	{
+		var scene = Scene.CreateEditorScene();
+		try
+		{
+			using var scope = scene.Push();
+			var component = scene.CreateObject().AddComponent<MeshComponent>();
+			component.Mesh = CreateBox();
+			var model = component.Model;
+			var meshes = RenderMeshes( component.Mesh );
+
+			Assert.IsTrue( component.Mesh.GetFaceVerticesConnectedToFace( component.Mesh.TriangleToFace( 0 ), out var vertices ) );
+			component.Mesh.SetVertexColor( vertices[0], Color.Red );
+			component.RebuildMesh();
+
+			Assert.IsFalse( component.Mesh.IsVertexDataDirty );
+			Assert.IsFalse( component.Mesh.IsDirty );
+			Assert.AreSame( model, component.Model );
+			CollectionAssert.AreEqual( meshes, RenderMeshes( component.Mesh ) );
+			Assert.AreEqual( 24, PaintedVertexRefCount( component.Mesh ) );
+			Assert.IsTrue( SubmeshVertices( component.Mesh ).SelectMany( x => x ).Any( x => x.Color == (Color32)Color.Red ) );
+
+			// Painted meshes keep their vertex data through rebuilds
+			component.Mesh.SetVertexColor( vertices[1], Color.Blue );
+			component.Mesh.IsDirty = true;
+			component.RebuildMesh();
+			Assert.AreNotSame( model, component.Model );
+			Assert.AreEqual( 24, PaintedVertexRefCount( component.Mesh ) );
+			Assert.IsTrue( SubmeshVertices( component.Mesh ).SelectMany( x => x ).Any( x => x.Color == (Color32)Color.Blue ) );
 		}
 		finally
 		{

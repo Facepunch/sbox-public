@@ -83,13 +83,36 @@ public partial class GameObject
 	/// Network flags that describe the behavior of this <see cref="GameObject"/> as a <see cref="NetworkObject"/>.
 	/// </summary>
 	[Property, Sync( SyncFlags.FromHost ), Expose]
-	private NetworkFlags NetworkFlags { get; set; } = NetworkFlags.None;
+	private NetworkFlags NetworkFlags
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			_net?.MarkDirty();
+		}
+	} = NetworkFlags.None;
 
 	/// <summary>
 	/// Determines whether updates for this networked object are always transmitted to clients. Otherwise,
 	/// they are only transmitted when the object is determined as visible to each client.
 	/// </summary>
-	[Property, Expose] private bool AlwaysTransmit { get; set; } = true;
+	[Property, Expose]
+	private bool AlwaysTransmit
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			if ( _net is not null )
+			{
+				Scene?.UpdateNetworkCullRegistration( _net );
+				_net.TransmitStateChanged();
+			}
+		}
+	} = true;
 
 	/// <summary>
 	/// Whether our networked transform will be interpolated. This property will only
@@ -228,7 +251,6 @@ public partial class GameObject
 	void Msg_UpdateAlwaysTransmit( bool alwaysTransmit )
 	{
 		AlwaysTransmit = alwaysTransmit;
-		_net?.TransmitStateChanged();
 	}
 
 	internal bool IsNetworkCulled { get; set; }
@@ -277,7 +299,7 @@ public partial class GameObject
 		// Is it the host telling us to drop ownership of this object?
 		if ( caller.IsHost )
 		{
-			_net.Owner = Guid.Empty;
+			ApplyOwnership( snapshotVersion, Guid.Empty );
 			return;
 		}
 
@@ -288,8 +310,26 @@ public partial class GameObject
 		if ( _net.Owner != caller.Id )
 			return;
 
-		_net.LocalSnapshotState.Version = (ushort)(snapshotVersion + 1);
-		_net.Owner = Guid.Empty;
+		ApplyOwnership( snapshotVersion, Guid.Empty );
+	}
+
+	/// <summary>
+	/// Ownership changes propose a new (version, owner) and every peer keeps the greatest, the higher owner id
+	/// winning a tie. Changes that race each other arrive in a different order on each peer, but end the same everywhere.
+	/// </summary>
+	void ApplyOwnership( ushort snapshotVersion, Guid owner )
+	{
+		var version = (ushort)(snapshotVersion + 1);
+		var ahead = (short)(version - _net.LocalSnapshotState.Version);
+
+		if ( ahead < 0 )
+			return;
+
+		if ( ahead == 0 && owner.CompareTo( _net.Owner ) <= 0 )
+			return;
+
+		_net.LocalSnapshotState.Version = version;
+		_net.Owner = owner;
 	}
 
 	/// <summary>
@@ -357,8 +397,7 @@ public partial class GameObject
 		if ( OwnerTransfer == OwnerTransfer.Request && !caller.IsHost )
 			return;
 
-		_net.LocalSnapshotState.Version = (ushort)(snapshotVersion + 1);
-		_net.Owner = Rpc.CallerId;
+		ApplyOwnership( snapshotVersion, Rpc.CallerId );
 	}
 
 	/// <summary>
@@ -397,8 +436,7 @@ public partial class GameObject
 		if ( OwnerTransfer == OwnerTransfer.Request && !caller.IsHost )
 			return;
 
-		_net.LocalSnapshotState.Version = (ushort)(snapshotVersion + 1);
-		_net.Owner = guid;
+		ApplyOwnership( snapshotVersion, guid );
 	}
 
 	[EditorBrowsable( EditorBrowsableState.Never )]
@@ -429,7 +467,9 @@ public partial class GameObject
 			return;
 		}
 
-		net.dataTable.UpdateSlotHash( slot, p.Value );
+		if ( net.dataTable.UpdateSlotHash( slot, p.Value ) )
+			net.MarkDirty();
+
 		p.Setter( p.Value );
 	}
 
@@ -455,6 +495,36 @@ public partial class GameObject
 	{
 		Rpc.OnCallInstanceRpc( this, null, m, argumentList );
 	}
+
+	// Generated RPC wrappers bind to these before the object array overload, so arguments aren't boxed
+
+	[EditorBrowsable( EditorBrowsableState.Never )]
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	protected void __rpc_Wrapper( in WrappedMethod m ) => Rpc.OnCallInstanceRpc( this, null, m, new RpcArgs() );
+
+	[EditorBrowsable( EditorBrowsableState.Never )]
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	protected void __rpc_Wrapper<T1>( in WrappedMethod m, T1 a1 ) => Rpc.OnCallInstanceRpc( this, null, m, new RpcArgs<T1>( a1 ) );
+
+	[EditorBrowsable( EditorBrowsableState.Never )]
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	protected void __rpc_Wrapper<T1, T2>( in WrappedMethod m, T1 a1, T2 a2 ) => Rpc.OnCallInstanceRpc( this, null, m, new RpcArgs<T1, T2>( a1, a2 ) );
+
+	[EditorBrowsable( EditorBrowsableState.Never )]
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	protected void __rpc_Wrapper<T1, T2, T3>( in WrappedMethod m, T1 a1, T2 a2, T3 a3 ) => Rpc.OnCallInstanceRpc( this, null, m, new RpcArgs<T1, T2, T3>( a1, a2, a3 ) );
+
+	[EditorBrowsable( EditorBrowsableState.Never )]
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	protected void __rpc_Wrapper<T1, T2, T3, T4>( in WrappedMethod m, T1 a1, T2 a2, T3 a3, T4 a4 ) => Rpc.OnCallInstanceRpc( this, null, m, new RpcArgs<T1, T2, T3, T4>( a1, a2, a3, a4 ) );
+
+	[EditorBrowsable( EditorBrowsableState.Never )]
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	protected void __rpc_Wrapper<T1, T2, T3, T4, T5>( in WrappedMethod m, T1 a1, T2 a2, T3 a3, T4 a4, T5 a5 ) => Rpc.OnCallInstanceRpc( this, null, m, new RpcArgs<T1, T2, T3, T4, T5>( a1, a2, a3, a4, a5 ) );
+
+	[EditorBrowsable( EditorBrowsableState.Never )]
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	protected void __rpc_Wrapper<T1, T2, T3, T4, T5, T6>( in WrappedMethod m, T1 a1, T2 a2, T3 a3, T4 a4, T5 a5, T6 a6 ) => Rpc.OnCallInstanceRpc( this, null, m, new RpcArgs<T1, T2, T3, T4, T5, T6>( a1, a2, a3, a4, a5, a6 ) );
 
 	/// <summary>
 	/// The network root is the first networked GameObject above this.
@@ -957,7 +1027,7 @@ public partial class GameObject
 
 			// Force a delta snapshot for this object since we changed the owner
 			var system = SceneNetworkSystem.Instance;
-			system?.DeltaSnapshots?.Send( go._net, NetFlags.Reliable, true );
+			system?.DeltaSnapshots?.SendFull( go._net );
 		}
 	}
 }

@@ -119,7 +119,7 @@ sealed partial class NetworkDebugSystem : GameObjectSystem<NetworkDebugSystem>
 	/// </summary>
 	internal void Track<T>( string name, T message, bool outbound = false, Connection source = default )
 	{
-		if ( !NetworkRecord && !Diagnostics.PerfHub.IsCollecting( "network" ) )
+		if ( !TracksCalls )
 			return;
 
 		var bs = ByteStream.Create( 256 );
@@ -134,7 +134,26 @@ sealed partial class NetworkDebugSystem : GameObjectSystem<NetworkDebugSystem>
 			bs.Dispose();
 		}
 
+		Track( name, msgSize, outbound, source, Diagnostics.DevTools.NetworkLog.Kind.Object );
+	}
+
+	/// <summary>
+	/// Whether calls are being tracked, so callers can skip building their names.
+	/// </summary>
+	internal bool TracksCalls => NetworkRecord || Diagnostics.DevTools.IsCollecting( "network" );
+
+	/// <summary>
+	/// Track a network message of a known size for diagnostic purposes.
+	/// </summary>
+	internal void Track( string name, int msgSize, bool outbound = false, Connection source = default ) => Track( name, msgSize, outbound, source, Diagnostics.DevTools.NetworkLog.Kind.Rpc );
+
+	void Track( string name, int msgSize, bool outbound, Connection source, Diagnostics.DevTools.NetworkLog.Kind kind )
+	{
+		if ( !TracksCalls )
+			return;
+
 		EnsureInitialized();
+		Diagnostics.DevTools.NetworkLog.Message( kind, name, msgSize, outbound, outbound ? null : source );
 
 		var stats = outbound ? OutboundStats : InboundStats;
 
@@ -161,10 +180,11 @@ sealed partial class NetworkDebugSystem : GameObjectSystem<NetworkDebugSystem>
 	/// </summary>
 	internal void TrackSync( string name, int bytes, bool outbound = false, Connection source = default )
 	{
-		if ( !NetworkRecord && !Diagnostics.PerfHub.IsCollecting( "network" ) )
+		if ( !TracksCalls )
 			return;
 
 		EnsureInitialized();
+		Diagnostics.DevTools.NetworkLog.Message( Diagnostics.DevTools.NetworkLog.Kind.SyncVar, name, bytes, outbound, outbound ? null : source );
 
 		var stats = outbound ? SyncVarOutboundStats : SyncVarInboundStats;
 
@@ -191,7 +211,7 @@ sealed partial class NetworkDebugSystem : GameObjectSystem<NetworkDebugSystem>
 	/// </summary>
 	internal void Record<T>( MessageType type, T message )
 	{
-		if ( !Diagnostics.PerfHub.IsCollecting( "network" ) )
+		if ( !Diagnostics.DevTools.IsCollecting( "network" ) )
 			return;
 
 		var bs = ByteStream.Create( 256 );
@@ -216,7 +236,7 @@ sealed partial class NetworkDebugSystem : GameObjectSystem<NetworkDebugSystem>
 	/// </summary>
 	internal void Record( MessageType type, int size )
 	{
-		if ( !Diagnostics.PerfHub.IsCollecting( "network" ) )
+		if ( !Diagnostics.DevTools.IsCollecting( "network" ) )
 			return;
 
 		if ( !_currentTick.BytesPerType.TryAdd( type, size ) )
@@ -230,15 +250,24 @@ sealed partial class NetworkDebugSystem : GameObjectSystem<NetworkDebugSystem>
 			DrawPvs();
 		}
 
+		DrawDormancy();
+
 		if ( !_nextSampleTime )
 			return;
 
 		Samples.Enqueue( _currentTick );
 
+		// Once the history is full, the oldest sample is reused for the next
 		if ( Samples.Count > MaxSamples )
-			Samples.Dequeue();
+		{
+			_currentTick = Samples.Dequeue();
+			_currentTick.BytesPerType.Clear();
+		}
+		else
+		{
+			_currentTick = new Sample();
+		}
 
-		_currentTick = new Sample();
 		_nextSampleTime = SampleRate;
 	}
 

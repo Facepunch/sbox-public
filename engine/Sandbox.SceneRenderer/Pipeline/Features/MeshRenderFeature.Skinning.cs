@@ -142,7 +142,7 @@ internal sealed partial class MeshRenderFeature
 		if ( !morphs ) return;
 
 		// Composite before submission, then store atlas subrects.
-		RenderContext.GenerateMorphs();
+		context.GenerateMorphs();
 		for ( int i = 0; i < jobs.Length; i++ )
 		{
 			if ( jobs[i].Morphed ) transforms.SetMorphSubrect( jobs[i].Slot, RenderContext.MorphSubrect( jobs[i].Morph ) );

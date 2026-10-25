@@ -20,6 +20,7 @@ internal sealed class GameStartupWindow : IDisposable
 	Bitmap backdrop;
 	Bitmap scaledBackdrop;
 	Bitmap framebuffer;
+	Bitmap background;
 	Bitmap statusImage;
 	string statusImageText;
 	int statusImageMaxWidth;
@@ -83,6 +84,7 @@ internal sealed class GameStartupWindow : IDisposable
 			softwareSurfaceAvailable = true;
 			SdlWindow.Check( Sdl.ShowWindow( Handle ) );
 			SdlWindow.WarnIfFailed( Sdl.SyncWindow( Handle ) );
+			Bootstrap.MarkStartupWindowVisible();
 
 			logo = LoadBitmap( LogoPath, "startup logo" );
 			if ( !standalone ) backdrop = LoadBitmap( BackdropPath, "startup backdrop" );
@@ -146,9 +148,9 @@ internal sealed class GameStartupWindow : IDisposable
 	{
 		if ( string.IsNullOrWhiteSpace( text ) || maxWidth <= 0 ) return null;
 
-		var paddingX = Math.Clamp( (int)(10 * scale), 5, 12 );
-		var paddingY = Math.Clamp( (int)(4 * scale), 2, 6 );
-		using var font = new SKFont( SKTypeface.Default, Math.Clamp( 14 * scale, 10, 18 ) );
+		var paddingX = (int)(10 * scale);
+		var paddingY = (int)(4 * scale);
+		using var font = new SKFont( SKTypeface.Default, 14 * scale );
 		using var paint = new SKPaint
 		{
 			Color = new SKColor( 244, 247, 252 ),
@@ -212,6 +214,7 @@ internal sealed class GameStartupWindow : IDisposable
 		DisposeImages();
 	}
 
+
 	unsafe void PumpEvents()
 	{
 		if ( pollingEvents ) return;
@@ -271,25 +274,10 @@ internal sealed class GameStartupWindow : IDisposable
 				framebuffer = new Bitmap( width, height );
 				framebufferWidth = width;
 				framebufferHeight = height;
-				DiscardScaledBackdrop();
+				DrawBackground( width, height );
 			}
 
-			framebuffer.Clear( Color.Black );
-			framebuffer.SetFill( Color.White );
-			if ( backdrop is not null )
-			{
-				PrepareBackdrop( width, height );
-				framebuffer.DrawBitmap( scaledBackdrop, new Rect( 0, 0, width, height ) );
-			}
-
-			if ( logo is not null )
-			{
-				var scale = standalone ? height / 1080.0f : 1.0f;
-				scale = Math.Min( scale, Math.Min( width / (float)logo.Width, height / (float)logo.Height ) );
-				var logoWidth = Math.Max( 1, (int)(logo.Width * scale + 0.5f) );
-				var logoHeight = Math.Max( 1, (int)(logo.Height * scale + 0.5f) );
-				framebuffer.DrawBitmap( logo, new Rect( (width - logoWidth) / 2, (height - logoHeight) / 2, logoWidth, logoHeight ) );
-			}
+			background.GetBuffer().CopyTo( framebuffer.GetBuffer() );
 
 			DrawProgress( width, height );
 			unsafe
@@ -306,6 +294,30 @@ internal sealed class GameStartupWindow : IDisposable
 			drawFailed = true;
 			Log.Warning( exception, "Couldn't draw the startup image" );
 		}
+	}
+
+	/// <summary>Compose the backdrop and logo once per size, so progress updates only have to draw the bar.</summary>
+	void DrawBackground( int width, int height )
+	{
+		background?.Dispose();
+		background = new Bitmap( width, height );
+		background.Clear( Color.Black );
+		background.SetFill( Color.White );
+		if ( backdrop is not null )
+		{
+			PrepareBackdrop( width, height );
+			background.DrawBitmap( scaledBackdrop, new Rect( 0, 0, width, height ) );
+			DiscardScaledBackdrop();
+		}
+
+		if ( logo is null ) return;
+
+		var scale = Math.Min( width / 1920.0f, height / 1080.0f );
+		scale = Math.Min( scale, Math.Min( width / (float)logo.Width, height / (float)logo.Height ) );
+		var logoWidth = Math.Max( 1, (int)(logo.Width * scale + 0.5f) );
+		var logoHeight = Math.Max( 1, (int)(logo.Height * scale + 0.5f) );
+		using var scaledLogo = logo.Resize( logoWidth, logoHeight );
+		background.DrawBitmap( scaledLogo, new Rect( (width - logoWidth) / 2, (height - logoHeight) / 2, logoWidth, logoHeight ) );
 	}
 
 	void PrepareBackdrop( int width, int height )
@@ -333,9 +345,12 @@ internal sealed class GameStartupWindow : IDisposable
 		backdropHeight = height;
 	}
 
+	/// <summary>Scales the progress UI with resolution. Below 1080p it stays at a fixed size that's legible on small high-density screens like the Steam Deck.</summary>
+	static float UiScale( int height ) => height < 1080 ? 1.25f : height / 1080.0f;
+
 	void DrawProgress( int width, int height )
 	{
-		var scale = height / 1080.0f;
+		var scale = UiScale( height );
 		var barWidth = Math.Clamp( (int)(320 * scale), 1, width );
 		var barHeight = Math.Clamp( (int)(4 * scale), 1, height );
 		var barX = (width - barWidth) / 2;
@@ -386,6 +401,8 @@ internal sealed class GameStartupWindow : IDisposable
 		DiscardScaledBackdrop();
 		framebuffer?.Dispose();
 		framebuffer = null;
+		background?.Dispose();
+		background = null;
 		framebufferWidth = 0;
 		framebufferHeight = 0;
 		statusImage?.Dispose();

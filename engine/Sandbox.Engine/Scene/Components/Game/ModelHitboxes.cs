@@ -113,7 +113,11 @@ public sealed class ModelHitboxes : Component, Component.ExecuteInEditor
 
 			anim.TryGetBoneTransform( hb.Bone, out var tx );
 
-			var body = system.PhysicsWorld.CreateBody();
+			var body = system.PhysicsWorld.CreateBody( new PhysicsBodySettings
+			{
+				Position = tx.Position,
+				Rotation = tx.Rotation
+			} );
 			PhysicsShape shape = null;
 
 			var hitbox = new Hitbox( Target ?? GameObject, hb.Bone, hb.Tags, body );
@@ -146,7 +150,6 @@ public sealed class ModelHitboxes : Component, Component.ExecuteInEditor
 				shape.Tags.SetFrom( GameObject.Tags );
 				shape.BoneIndex = hb.Bone.Index;
 
-				body.Transform = tx.WithScale( 1 );
 				body.Component = this;
 
 				AddHitbox( hitbox );
