@@ -1,4 +1,4 @@
-﻿using Sandbox.Engine;
+using Sandbox.Engine;
 using System.Diagnostics;
 using System.Threading;
 
@@ -14,7 +14,7 @@ internal static class ResourceLoader
 
 	/// Registers resource paths into PathIndex without loading them, for any file whose
 	/// extension is in <paramref name="extensions"/>. Called during LoadAllGameResource.
-	private static void RegisterPaths( ReadOnlySpan<string> files, IReadOnlySet<string> extensions )
+	private static void RegisterPaths( IReadOnlyList<string> files, IReadOnlySet<string> extensions )
 	{
 		foreach ( var file in files )
 		{
@@ -32,7 +32,9 @@ internal static class ResourceLoader
 		var types = Game.TypeLibrary.GetAttributes<AssetTypeAttribute>().DistinctBy( x => x.Extension )
 			.ToDictionary( x => $".{x.Extension}_c", x => x, StringComparer.OrdinalIgnoreCase );
 
-		var allFiles = fileSystem.FindFile( "/", "*", true ).ToArray();
+		// Snapshot of every file and the filesystem it's in, so loading doesn't search every mounted filesystem per file
+		var index = fileSystem.IndexFiles( "/" );
+		var allFiles = index.Files;
 
 		// Union GameResource extensions with native-only ones so PathIndex covers everything.
 		var allExtensions = new HashSet<string>( types.Keys, StringComparer.OrdinalIgnoreCase );
@@ -56,7 +58,7 @@ internal static class ResourceLoader
 
 			try
 			{
-				var se = Game.Resources.LoadGameResource( type, file, fileSystem, true, sourcePackage );
+				var se = Game.Resources.LoadGameResource( type, file, fileSystem, true, sourcePackage, index );
 				if ( se != null ) allResources.Add( se );
 			}
 			catch ( Exception ex )
@@ -93,12 +95,13 @@ internal static class ResourceLoader
 		var allExtensions = new HashSet<string>( types.Keys, StringComparer.OrdinalIgnoreCase );
 		allExtensions.UnionWith( NativeExtensions );
 
-		var allFiles = new List<string>();
-		var enumeratedFiles = preEnumeratedFiles is null ? fileSystem.FindFile( "/", "*", true ) : await preEnumeratedFiles;
-		foreach ( var file in enumeratedFiles )
+		// Snapshot of every file and the filesystem it's in, so loading doesn't search every mounted filesystem per file.
+		// Pre-enumerated files have no snapshot: they're opened directly instead.
+		var index = preEnumeratedFiles is null ? fileSystem.IndexFiles( "/" ) : null;
+		IReadOnlyList<string> allFiles = index is null ? await preEnumeratedFiles : index.Files;
+		foreach ( var file in allFiles )
 		{
 			ct.ThrowIfCancellationRequested();
-			allFiles.Add( file );
 			if ( allExtensions.Contains( System.IO.Path.GetExtension( file ) ) )
 				Game.Resources.RegisterPath( file );
 			if ( sw.ElapsedMilliseconds > 8 ) { LoadingScreen.Subtitle = System.IO.Path.GetFileName( file ); await Task.Yield(); sw.Restart(); }
@@ -120,7 +123,7 @@ internal static class ResourceLoader
 
 			try
 			{
-				var se = Game.Resources.LoadGameResource( type, file, fileSystem, true, sourcePackage, knownToExist: true );
+				var se = Game.Resources.LoadGameResource( type, file, fileSystem, true, sourcePackage, index );
 				if ( se != null ) allResources.Add( se );
 			}
 			catch ( Exception ex )
