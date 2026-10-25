@@ -124,7 +124,7 @@ public class ColorValueEditor : NodeValueEditor
 
 		// Popup placement reads Box.Rect, which ignores the canvas pan/zoom transform. Anchor on the on-screen rect instead.
 		var topLeft = PanelPositionToScreenPosition( Vector2.Zero );
-		var bottomRight = PanelPositionToScreenPosition( Box.Rect.Size ); 
+		var bottomRight = PanelPositionToScreenPosition( Box.Rect.Size );
 		_popup = new Popup { AnchorRect = new Rect( topLeft, bottomRight - topLeft ) };
 		_popup.SetPositioning( this, Popup.PositionMode.RightTop, 1 );
 		var picker = _popup.AddChild<ColorPickerControl>();
