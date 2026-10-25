@@ -124,6 +124,15 @@ internal sealed partial class PhysicsWorld3d : PhysicsWorldInternal, IHandle
 	/// <summary>
 	/// Step simulation of this physics world. You can only do this on physics worlds that you manually create.
 	/// </summary>
+	public override void Step( float delta, int subSteps )
+	{
+		CurrentTime += delta;
+		Step( CurrentTime, delta, subSteps );
+	}
+
+	/// <summary>
+	/// Step simulation of this physics world. You can only do this on physics worlds that you manually create.
+	/// </summary>
 	public override void Step( double worldTime, float delta, int subSteps )
 	{
 		Assert.True( IsTransient, "You can only step simulation of physics worlds that you create" );
