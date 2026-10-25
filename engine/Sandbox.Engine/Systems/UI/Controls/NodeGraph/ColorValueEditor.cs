@@ -1,4 +1,6 @@
-namespace Sandbox.UI.NodeGraph;
+using Sandbox.UI;
+
+namespace EngineNodeGraph;
 
 /// <summary>
 /// Inline colour swatch. A click opens the engine's <see cref="ColorPickerControl"/> in a popup,
@@ -92,7 +94,7 @@ public class ColorValueEditor : NodeValueEditor
 		}
 
 		paint.ClearPen();
-		paint.SetBrush( ColorPickerTextures.Checkerboard );
+		paint.SetBrush( NodeTheme.Checkerboard );
 		paint.DrawRect( swatchRect, 3f );
 
 		paint.SetPen( Color.White.WithAlpha( hover ? 0.25f : 0.12f ) );
@@ -120,7 +122,11 @@ public class ColorValueEditor : NodeValueEditor
 		if ( Property is null || _popup is { IsValid: true } )
 			return;
 
-		_popup = new Popup( this, Popup.PositionMode.RightTop, 1 );
+		// Popup placement reads Box.Rect, which ignores the canvas pan/zoom transform. Anchor on the on-screen rect instead.
+		var topLeft = PanelPositionToScreenPosition( Vector2.Zero );
+		var bottomRight = PanelPositionToScreenPosition( Box.Rect.Size ); 
+		_popup = new Popup { AnchorRect = new Rect( topLeft, bottomRight - topLeft ) };
+		_popup.SetPositioning( this, Popup.PositionMode.RightTop, 1 );
 		var picker = _popup.AddChild<ColorPickerControl>();
 		picker.Property = Property;
 	}
