@@ -315,10 +315,8 @@ public static partial class AssetSystem
 		if ( !CloudDirectory.AddFile( entry.Path, entry.Crc, entry.Size, package ) )
 			return false; // unwanted - newer revision already registered
 
-		//
-		// File exists - we should probably check crcs and shit
-		//
-		if ( FileSystem.Cloud.FileExists( entry.Path ) && FileSystem.Cloud.FileSize( entry.Path ) == entry.Size )
+		// Same size isn't enough: a republished shader_c with a bumped resource version is the size of the old one
+		if ( FileSystem.Cloud.FileExists( entry.Path ) && FileSystem.Cloud.FileSize( entry.Path ) == entry.Size && CloudFileCrc( entry.Path ) == Convert.ToUInt64( entry.Crc, 16 ) )
 			return false;
 
 		var targetFile = FileSystem.Cloud.GetFullPath( entry.Path );
@@ -341,6 +339,12 @@ public static partial class AssetSystem
 		}
 
 		return true;
+	}
+
+	static ulong CloudFileCrc( string path )
+	{
+		using var stream = FileSystem.Cloud.OpenRead( path );
+		return Sandbox.Utility.Crc64.FromStream( stream );
 	}
 }
 
