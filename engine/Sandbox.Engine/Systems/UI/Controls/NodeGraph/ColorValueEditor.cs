@@ -1,6 +1,4 @@
-using Sandbox.UI;
-
-namespace EngineNodeGraph;
+namespace Sandbox.UI.NodeGraph;
 
 /// <summary>
 /// Inline colour swatch. A click opens the engine's <see cref="ColorPickerControl"/> in a popup,
@@ -94,7 +92,7 @@ public class ColorValueEditor : NodeValueEditor
 		}
 
 		paint.ClearPen();
-		paint.SetBrush( NodeTheme.Checkerboard );
+		paint.SetBrush( ColorPickerTextures.Checkerboard );
 		paint.DrawRect( swatchRect, 3f );
 
 		paint.SetPen( Color.White.WithAlpha( hover ? 0.25f : 0.12f ) );

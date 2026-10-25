@@ -1,6 +1,4 @@
-using Sandbox.UI;
-
-namespace EngineNodeGraph;
+namespace Sandbox.UI.NodeGraph;
 
 /// <summary>
 /// A node in a <see cref="NodeGraphPanel"/>, drawn like the editor's node graph. Lives in the
