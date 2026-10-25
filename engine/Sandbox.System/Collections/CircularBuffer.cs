@@ -143,7 +143,7 @@ public class CircularBuffer<T> : IEnumerable<T>
 			{
 				throw new IndexOutOfRangeException( string.Format( "Cannot access index {0}. Buffer is empty", index ) );
 			}
-			if ( index >= _size )
+			if ( index < 0 || index >= _size )
 			{
 				throw new IndexOutOfRangeException( string.Format( "Cannot access index {0}. Buffer size is {1}", index, _size ) );
 			}
@@ -156,7 +156,7 @@ public class CircularBuffer<T> : IEnumerable<T>
 			{
 				throw new IndexOutOfRangeException( string.Format( "Cannot access index {0}. Buffer is empty", index ) );
 			}
-			if ( index >= _size )
+			if ( index < 0 || index >= _size )
 			{
 				throw new IndexOutOfRangeException( string.Format( "Cannot access index {0}. Buffer size is {1}", index, _size ) );
 			}
