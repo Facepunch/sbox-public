@@ -1,4 +1,6 @@
-namespace Sandbox.UI.NodeGraph;
+using Sandbox.UI;
+
+namespace EngineNodeGraph;
 
 /// <summary>
 /// A node in a <see cref="NodeGraphPanel"/>, drawn like the editor's node graph. Lives in the
@@ -91,6 +93,7 @@ public partial class NodePanel : CanvasPanel.Handle
 		else
 		{
 			OnTooltip = BuildTooltip;
+			Style.Cursor = "move";
 			Node.Changed += MarkNodeChanged;
 		}
 
