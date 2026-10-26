@@ -231,7 +231,7 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 			return false;
 
 		foreach ( var texture in _captureTextures )
-			texture.MarkUsed();
+			texture.MarkUsed( ushort.MaxValue );
 
 		_camera.RenderToCubeTexture( _captureTexture );
 

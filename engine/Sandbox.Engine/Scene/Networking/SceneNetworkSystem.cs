@@ -983,6 +983,11 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		return Game.ActiveScene is null ? null : Game.ActiveScene.Push();
 	}
 
+	/// <summary>
+	/// Allocation-free version of <see cref="Push"/>.
+	/// </summary>
+	internal ScenePushScope PushScope() => new( Game.ActiveScene );
+
 	private void OnObjectDestroyDescendant( ObjectDestroyDescendantMsg message, Connection source )
 	{
 		var scene = Game.ActiveScene;
@@ -1099,8 +1104,8 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			gameObject.PreserveFromHostSyncMembers( gameObjectJson );
 		}
 
-		using ( var _ = CallbackBatch.Batch() )
 		using ( BlobDataSerializer.LoadFromMemory( message.BlobData ) )
+		using ( var _ = CallbackBatch.Batch() )
 		{
 			gameObject?.Deserialize( gameObjectJson, new GameObject.DeserializeOptions
 			{
@@ -1178,8 +1183,8 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			component.PreserveFromHostSyncMembers( componentJson );
 		}
 
-		using ( CallbackBatch.Batch() )
 		using ( BlobDataSerializer.LoadFromMemory( message.BlobData ) )
+		using ( CallbackBatch.Batch() )
 		{
 			component?.DeserializeInternal( componentJson, true );
 			component?.PostDeserialize();
@@ -1302,8 +1307,8 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 		var go = new GameObject();
 
-		using ( CallbackBatch.Batch() )
 		using ( BlobDataSerializer.LoadFromMemory( message.BlobData ) )
+		using ( CallbackBatch.Batch() )
 		{
 			go.Deserialize( JsonNode.Parse( message.JsonData ).AsObject(), networkDeserializeOptionsCreate );
 			go.NetworkSpawnRemote( message );

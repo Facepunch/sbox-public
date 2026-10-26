@@ -2,6 +2,7 @@
 
 """s&box public repository filtering helpers."""
 
+import utils.session
 import argparse
 import json
 import posixpath

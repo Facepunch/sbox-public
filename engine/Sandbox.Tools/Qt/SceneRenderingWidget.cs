@@ -191,9 +191,9 @@ public class SceneRenderingWidget : Frame
 
 		if ( SwapChain == default ) return;
 
-		using ( Scene.Push() )
+		using ( Scene.PushScope() )
 		{
-			using ( GizmoInstance.Push() )
+			using ( GizmoInstance.PushScope() )
 			{
 				PreFrame();
 				RenderScene();

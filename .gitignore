@@ -100,3 +100,5 @@ engine/TestResults/
 /game/screenshots
 /game/tools
 /game/aftermath_dumps
+config.bat
+node_modules

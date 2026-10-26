@@ -189,13 +189,21 @@ public partial class ProjectPublisher
 	}
 
 	/// <summary>
+	/// Projects with the whitelist disabled are standalone only and can't be published
+	/// </summary>
+	void ThrowIfWhitelistDisabled()
+	{
+		if ( Project.Config.IsStandaloneOnly )
+			throw new InvalidOperationException( $"This project has the whitelist disabled (Disable Whitelist in Project Settings > Game Exporting), so it can't be published to {Global.BackendTitle}." );
+	}
+
+	/// <summary>
 	/// Publish a new revision
 	/// </summary>
 	public async Task Publish( IProgress progress = null, CancellationToken cancel = default )
 	{
 		Manifest.RequireUploadManifest();
-		if ( Project.Config.IsStandaloneOnly )
-			return;
+		ThrowIfWhitelistDisabled();
 
 		await TryWorkshopUpload();
 
@@ -221,9 +229,7 @@ public partial class ProjectPublisher
 	{
 		Manifest.RequireUploadManifest();
 		FinishAddingFiles();
-
-		if ( Project.Config.IsStandaloneOnly )
-			return;
+		ThrowIfWhitelistDisabled();
 
 		if ( Manifest.Assets.Count == 0 )
 		{
