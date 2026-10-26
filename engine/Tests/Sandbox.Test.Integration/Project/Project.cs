@@ -35,6 +35,34 @@ public class ProjectTest
 
 	}
 
+	/// <summary>
+	/// Games compile against every library. One installed while the game is open has to be referenced
+	/// straight away, or game code can't use it until the editor restarts.
+	/// </summary>
+	[TestMethod]
+	public void AddingALibraryReferencesItFromOpenGames()
+	{
+		var game = Project.AddFromFile( "unittest/addons/spacewars/.sbproj" );
+
+		var libraryFolder = System.IO.Path.Combine( System.IO.Path.GetTempPath(), $"sbox_library_{Guid.NewGuid():N}" );
+		System.IO.Directory.CreateDirectory( System.IO.Path.Combine( libraryFolder, "Code" ) );
+		System.IO.File.WriteAllText( System.IO.Path.Combine( libraryFolder, "testlibrary.sbproj" ),
+			"""{ "Title": "Test Library", "Type": "library", "Org": "local", "Ident": "testlibrary", "Schema": 1 }""" );
+		System.IO.File.WriteAllText( System.IO.Path.Combine( libraryFolder, "Code", "Library.cs" ), "public class TestLibraryType { }" );
+
+		try
+		{
+			var library = Project.AddFromFile( System.IO.Path.Combine( libraryFolder, "testlibrary.sbproj" ) );
+
+			Assert.IsTrue( game.Compiler.HasReference( library.Package.AssemblyName, deep: true ), "the game's compiler doesn't reference the new library" );
+		}
+		finally
+		{
+			Project.Clear();
+			System.IO.Directory.Delete( libraryFolder, true );
+		}
+	}
+
 	/*
 	[TestMethod]
 	public async Task OpenGameProject()

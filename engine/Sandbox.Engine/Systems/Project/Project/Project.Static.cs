@@ -285,6 +285,16 @@ public partial class Project
 
 		All.Add( project );
 
+		// Game and addon compilers reference every library, so they need remaking to see a new one.
+		// UpdateCompiler only remakes compilers whose references actually changed.
+		if ( project.Config.Type == "library" )
+		{
+			foreach ( var other in All )
+			{
+				if ( other != project ) other.UpdateCompiler();
+			}
+		}
+
 		return project;
 	}
 
