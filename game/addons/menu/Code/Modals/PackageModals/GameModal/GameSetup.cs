@@ -59,6 +59,7 @@ public sealed partial class GameSetup
 
 	public SettingItem ServerNameItem { get; }
 	public SettingItem PrivacyItem { get; }
+	public SettingItem PasswordItem { get; }
 	public SettingItem PlayersItem { get; }
 
 	/// <summary>
@@ -68,6 +69,7 @@ public sealed partial class GameSetup
 
 	public string ServerName => ServerNameItem.Value?.ToString();
 	public LobbyPrivacy Privacy => PrivacyItem.As<LobbyPrivacy>();
+	public string Password => PasswordItem.Value?.ToString();
 	public int MaxPlayers => (int)PlayersItem.FloatValue;
 
 	/// <summary>
@@ -129,6 +131,15 @@ public sealed partial class GameSetup
 			Title = "#menu.games.who_can_join",
 			Options = Enum.GetValues<LobbyPrivacy>().Select( x => new Option( TitleOf( x ), x ) { Icon = IconOf( x ) } ).ToList(),
 			Read = () => saved.Privacy
+		} );
+
+		PasswordItem = Loaded( new SettingItem
+		{
+			Id = "server.password",
+			Title = "#menu.games.password",
+			Kind = SettingKind.Custom,
+			CreateControl = TextControl,
+			Read = () => saved.Password ?? ""
 		} );
 
 		PlayersItem = Loaded( new SettingItem
@@ -342,6 +353,7 @@ public sealed partial class GameSetup
 			MaxPlayers = MaxPlayers,
 			ServerName = ServerName,
 			Privacy = Privacy,
+			Password = Password,
 			GameSettings = GameItems.ToDictionary( x => x.Setting.Name, x => ToText( x.Setting, x.Item ) ),
 		};
 

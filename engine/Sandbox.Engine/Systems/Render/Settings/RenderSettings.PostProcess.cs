@@ -28,9 +28,12 @@ public partial class RenderSettings
 		}
 	}
 
+	/// <summary>SSR has no Medium rung, so it reads as Low.</summary>
+	static EffectQuality SsrLevel( EffectQuality value ) => value == EffectQuality.Medium ? EffectQuality.Low : Valid( value );
+
 	public EffectQuality ScreenSpaceReflectionQuality
 	{
-		get => Valid( VideoSettings.Get<EffectQuality>( "postprocess.ssr", EffectQuality.High ) );
+		get => SsrLevel( VideoSettings.Get<EffectQuality>( "postprocess.ssr", EffectQuality.High ) );
 		set
 		{
 			VideoSettings.Set<EffectQuality>( "postprocess.ssr", value );
@@ -99,7 +102,7 @@ public partial class RenderSettings
 	{
 		var level = EffectLevelFor( preset );
 
-		return new( level, level, level, level, preset != PostProcessQuality.Off );
+		return new( level, level, SsrLevel( level ), level, preset != PostProcessQuality.Off );
 	}
 
 	/// <summary>

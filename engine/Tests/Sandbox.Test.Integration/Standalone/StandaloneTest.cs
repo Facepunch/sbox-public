@@ -35,6 +35,10 @@ public class StandaloneTest
 		config.AppId = 480; // SpaceWar AppID
 		config.TargetIcon = "core/tools/images/hammer/appicon.ico"; // the wizard always offers one, so exercise the icon path
 
+		// We'll test to make sure this env var isn't changed by running the exported game
+		var oldEnginePath = Environment.GetEnvironmentVariable( "FACEPUNCH_ENGINE", EnvironmentVariableTarget.User );
+		var newEnginePath = oldEnginePath;
+
 		try
 		{
 			var project = Project.AddFromFile( "unittest/addons/spacewars/.sbproj" );
@@ -140,7 +144,17 @@ public class StandaloneTest
 		finally
 		{
 			CleanOutput( config );
+
+			newEnginePath = Environment.GetEnvironmentVariable( "FACEPUNCH_ENGINE", EnvironmentVariableTarget.User );
+
+			if ( oldEnginePath != newEnginePath )
+			{
+				// Put it back so other tests still work
+				Environment.SetEnvironmentVariable( "FACEPUNCH_ENGINE", oldEnginePath, EnvironmentVariableTarget.User );
+			}
 		}
+
+		Assert.AreEqual( oldEnginePath, newEnginePath, "The standalone exe overwrote the user-level FACEPUNCH_ENGINE" );
 	}
 
 	private void CleanOutput( ExportConfig config )

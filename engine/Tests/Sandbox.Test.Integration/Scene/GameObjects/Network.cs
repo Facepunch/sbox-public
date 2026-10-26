@@ -64,8 +64,7 @@ public class NetworkTest
 		// Create a snapshot
 		IDeltaSnapshot networkObject = go._net;
 		var state = networkObject.WriteSnapshotState();
-		var snapshot = new DeltaSnapshot();
-		snapshot.CopyFrom( networkObject, state, 2 );
+		var snapshot = SceneNetworkSystem.Instance.DeltaSnapshots.GetFullSnapshotData( state );
 
 		// Become the host
 		clientAndHost.BecomeHost();
@@ -79,7 +78,7 @@ public class NetworkTest
 		go.Transform.Local = transform;
 
 		// Now we'll process the snapshot from the client
-		using ( var reader = ByteStream.CreateReader( SerializeSnapshot( snapshot ) ) )
+		using ( var reader = ByteStream.CreateReader( snapshot ) )
 		{
 			SceneNetworkSystem.Instance.DeltaSnapshots.OnDeltaSnapshot( clientAndHost.Client, reader );
 		}
@@ -300,6 +299,45 @@ public class NetworkTest
 		Assert.AreEqual( 1, comp1.SyncInt );
 		Assert.AreEqual( 2, comp2.SyncInt );
 		Assert.AreEqual( 3, comp3.SyncInt );
+	}
+
+	[TestMethod]
+	public void ObsoleteQueryFlagStillPollsProperty()
+	{
+		using var scope = new Scene().Push();
+		var go = new GameObject();
+		var component = go.Components.Create<QueryPropertyComponent>();
+		go.NetworkSpawn();
+
+		var table = go._net.dataTable;
+		var property = Game.TypeLibrary.GetType<QueryPropertyComponent>().GetProperty( nameof( QueryPropertyComponent.SyncInt ) );
+		var slot = NetworkObject.GetPropertySlot( property.Identity, component.Id );
+		Assert.IsTrue( table.IsRegistered( slot ) );
+
+		var data = ByteStream.Create( 32 );
+		try
+		{
+			table.WriteChanged( ref data );
+			Assert.IsFalse( table.HasAnyChanges );
+
+			component.Value = 2;
+			component.GetterCalls = 0;
+			table.QueryValues();
+			Assert.IsTrue( component.GetterCalls > 0 );
+			Assert.IsTrue( table.HasAnyChanges, "Existing Query properties must still synchronize backing value changes." );
+
+			data.Position = 0;
+			table.WriteChanged( ref data );
+			Assert.IsFalse( table.HasAnyChanges );
+
+			table.SetValue( slot, 3 );
+			Assert.AreEqual( 3, component.Value );
+			Assert.IsTrue( table.HasAnyChanges, "Explicit property updates must still synchronize." );
+		}
+		finally
+		{
+			data.Dispose();
+		}
 	}
 
 	[TestMethod]
@@ -530,8 +568,7 @@ public class NetworkTest
 
 		// client2 now owns it, let's have it record a snapshot in this state
 		var state = networkObject.WriteSnapshotState();
-		var snapshot = new DeltaSnapshot();
-		snapshot.CopyFrom( networkObject, state, 2 );
+		var snapshot = SceneNetworkSystem.Instance.DeltaSnapshots.GetFullSnapshotData( state );
 
 		// Become client1 again
 		Connection.Local = client1;
@@ -547,32 +584,13 @@ public class NetworkTest
 		go.Network.AssignOwnership( client2 );
 
 		// Now we'll process that old snapshot from client2
-		using ( var reader = ByteStream.CreateReader( SerializeSnapshot( snapshot ) ) )
+		using ( var reader = ByteStream.CreateReader( snapshot ) )
 		{
 			sceneSystem.DeltaSnapshots.OnDeltaSnapshot( client2, reader );
 		}
 
 		// These should be equal, because the old snapshot did NOT apply
 		Assert.AreEqual( new Vector3( 0f, 0f, 100f ), go.WorldPosition );
-	}
-
-	byte[] SerializeSnapshot( DeltaSnapshot snapshot )
-	{
-		using var writer = new ByteStream( DeltaSnapshotCluster.MaxSize * 4 );
-
-		writer.Write( snapshot.ObjectId );
-		writer.Write( snapshot.Version );
-		writer.Write( snapshot.SnapshotId );
-		writer.Write( Time.NowDouble );
-		writer.Write( (ushort)snapshot.Entries.Count );
-
-		foreach ( var entry in snapshot.Entries )
-		{
-			writer.Write( entry.Slot );
-			writer.WriteArray( entry.Value );
-		}
-
-		return writer.ToArray();
 	}
 
 	[TestMethod]
@@ -1065,6 +1083,21 @@ public class NetworkTest
 	private class NetworkTestComponent : Component
 	{
 		[Sync] public int SyncInt { get; set; }
+	}
+
+	private class QueryPropertyComponent : Component
+	{
+		public int Value = 1;
+		public int GetterCalls;
+
+#pragma warning disable CS0618 // Published code can still use the obsolete flag.
+		[Sync( SyncFlags.Query )]
+#pragma warning restore CS0618
+		public int SyncInt
+		{
+			get { GetterCalls++; return Value; }
+			set { Value = value; }
+		}
 	}
 
 	private class FromHostPropertyComponent : Component

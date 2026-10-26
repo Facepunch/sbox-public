@@ -32,6 +32,13 @@ internal partial class ShadowMapper
 		nativeViewInfoValid = false;
 
 		InitForView();
+
+		// Main-world fog lighting is inherited by the 3D skybox view.
+		if ( !sceneView.GetRenderAttributesPtr().GetBoolValue( "IsSkybox", false ) )
+		{
+			sceneView.GetRenderAttributesPtr().SetVectorValue( "FogSunColor", Vector3.Zero );
+			sceneView.GetRenderAttributesPtr().SetVectorValue( "FogSunDirection", Vector3.Zero );
+		}
 	}
 
 	/// <summary>
@@ -45,9 +52,17 @@ internal partial class ShadowMapper
 		nativeViewInfoValid = true;
 
 		var mainViewport = view.GetMainViewport();
+		var frustum = view.GetFrustum();
+
+		// Native matrices are column-vector, so the projection is transposed for row-vector use. The view matrix's
+		// rotation is orthonormal: read row-vector, its world to view rotation turns view space back into world.
+		var viewToWorldRotation = frustum.GetView()._numerics;
+		viewToWorldRotation.M14 = viewToWorldRotation.M24 = viewToWorldRotation.M34 = 0.0f;
+
 		View = new ShadowViewInfo
 		{
-			InverseViewProjection = view.GetFrustum().GetInvReverseZViewProjTranspose()._numerics,
+			ProjectionToView = System.Numerics.Matrix4x4.Transpose( frustum.GetInvReverseZProj()._numerics ),
+			ViewToWorldRotation = viewToWorldRotation,
 			CameraPosition = view.GetCameraPosition(),
 			ViewportSize = new Vector2( mainViewport.Rect.Width, mainViewport.Rect.Height ),
 			IsSkybox = view.GetRenderAttributesPtr().GetBoolValue( "IsSkybox", false ),
@@ -68,7 +83,8 @@ internal partial class ShadowMapper
 			Radius = light.Radius,
 			Hardness = light.ShadowHardness,
 			Bias = light.ShadowBias,
-			Baked = (native.GetLightFlags() & 32) != 0, // LIGHTTYPE_FLAGS_BAKED
+			Baked = (native.GetLightFlags() & 32) != 0 // LIGHTTYPE_FLAGS_BAKED
+				&& light is not SceneDirectionalLight { IncludeStaticShadowCasters: true },
 			Static = light.GameObject.IsValid() && light.GameObject.IsStatic,
 			ShadowsEnabled = light.ShadowsEnabled,
 		};
@@ -109,6 +125,13 @@ internal partial class ShadowMapper
 	{
 		DirectionalLight = sceneObject;
 		UseNativeView( view );
+
+		if ( !View.IsSkybox )
+		{
+			view.GetRenderAttributesPtr().SetVectorValue( "FogSunColor", sceneObject.LightColor );
+			view.GetRenderAttributesPtr().SetVectorValue( "FogSunDirection", sceneObject.WorldDirection );
+		}
+
 		return DoDirectionalLight( FromNative( sceneObject ) );
 	}
 

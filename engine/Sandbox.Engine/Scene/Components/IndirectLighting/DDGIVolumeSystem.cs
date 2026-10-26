@@ -69,8 +69,10 @@ sealed class DDGIVolumeSystem : GameObjectSystem<DDGIVolumeSystem>
 		var volumeData = new List<IndirectLightVolume.DDGIVolumeGpuData>();
 		foreach ( var volume in orderedVolumes )
 		{
+			volume.GpuIndex = -1;
 			if ( volume.Enabled && volume.BuildData( out var data ) )
 			{
+				volume.GpuIndex = volumeData.Count;
 				volumeData.Add( data );
 			}
 		}

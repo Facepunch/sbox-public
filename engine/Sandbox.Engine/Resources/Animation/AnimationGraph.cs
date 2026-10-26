@@ -110,7 +110,13 @@ public sealed partial class AnimationGraph : Resource
 	}
 
 	internal IAnimParameterList ParameterList => native.GetParameterList();
-	internal IAnimParameter GetParameterFromList( int index ) => ParameterList.GetParameter( index );
+	internal IAnimParameter GetParameterFromList( int index )
+	{
+		var list = ParameterList;
+		ArgumentOutOfRangeException.ThrowIfNegative( index );
+		ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual( index, list.Count() );
+		return list.GetParameter( index );
+	}
 	internal IAnimParameter GetParameterFromList( string name ) => ParameterList.GetParameter( name );
 
 	/// <summary>

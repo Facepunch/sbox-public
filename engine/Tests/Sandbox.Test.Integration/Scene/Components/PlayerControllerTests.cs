@@ -1,5 +1,6 @@
 using Sandbox.Movement;
 using System;
+using System.Collections.Generic;
 
 namespace SceneTests.Components;
 
@@ -10,8 +11,25 @@ namespace SceneTests.Components;
 /// state machine and serialization. Anything needing real Input is out of scope.
 /// </summary>
 [TestClass]
-public class PlayerControllerTest
+public partial class PlayerControllerTest
 {
+	public sealed class PhysicsMovementRecorder : Component, IScenePhysicsEvents
+	{
+		public PlayerController Controller { get; set; }
+		public List<(Vector3 Before, Vector3 After, Vector3 Velocity, float Delta, bool Grounded, Vector3 InitialVelocity)> Steps { get; } = [];
+		Vector3 _before;
+		Vector3 _velocity;
+
+		public void PrePhysicsStep()
+		{
+			_before = Controller.Body.PhysicsBody.Position;
+			_velocity = Controller.Body.Velocity;
+		}
+
+		public void PostPhysicsStep() => Steps.Add( (_before, Controller.Body.PhysicsBody.Position,
+			Controller.Body.Velocity, Time.Delta, Controller.IsOnGround, _velocity) );
+	}
+
 	/// <summary>
 	/// Creates a large static floor whose top surface sits at z = 0.
 	/// </summary>
@@ -19,10 +37,11 @@ public class PlayerControllerTest
 	{
 		var go = scene.CreateObject();
 		go.Name = "Floor";
-		go.WorldPosition = new Vector3( 0, 0, -50 );
+		var is2D = scene.PhysicsMode == ScenePhysicsMode.Physics2D;
+		go.WorldPosition = is2D ? new Vector3( 0, 50, 0 ) : new Vector3( 0, 0, -50 );
 
 		var box = go.Components.Create<BoxCollider>();
-		box.Scale = new Vector3( 4000, 4000, 100 );
+		box.Scale = is2D ? new Vector3( 4000, 100, 100 ) : new Vector3( 4000, 4000, 100 );
 		box.Static = true;
 
 		return go;
@@ -55,6 +74,64 @@ public class PlayerControllerTest
 		for ( int i = 0; i < maxTicks && !pc.IsOnGround; i++ )
 		{
 			scene.GameTick();
+		}
+	}
+
+	static GameObject CreateStep( Scene scene, float start, float end, float height, Rotation rotation )
+	{
+		var go = scene.CreateObject();
+		var is2D = scene.PhysicsMode == ScenePhysicsMode.Physics2D;
+		var center = is2D ? new Vector3( (start + end) * 0.5f, (100 - height) * 0.5f, 0 )
+			: new Vector3( (start + end) * 0.5f, 0, (height - 100) * 0.5f );
+		go.WorldPosition = rotation * center;
+		go.WorldRotation = rotation;
+		var collider = go.Components.Create<BoxCollider>();
+		collider.Scale = is2D ? new Vector3( end - start, height + 100, 100 ) : new Vector3( end - start, 256, height + 100 );
+		collider.Static = true;
+		return go;
+	}
+
+	static string DescribeGround( PlayerController pc )
+	{
+		var up = pc.Scene.PhysicsMode == ScenePhysicsMode.Physics2D ? (Vector3)Vector2.Up : Vector3.Up;
+		var tr = pc.TraceBody( pc.WorldPosition + up * 4, pc.WorldPosition - up * 2, 1, 0.5f );
+		return $"velocity {pc.Body.Velocity}, ground normal {pc.GroundNormal}, box {tr.Hit}/{tr.StartedSolid}/{tr.Normal}, object {tr.GameObject}, body {tr.Body?.GameObject}, collider {tr.Collider?.GameObject}";
+	}
+
+	static void CreateStairs( Scene scene, float height, Rotation rotation, bool mesh, float scale = 1, float tread = 24, float gap = 0 )
+	{
+		var vertices = new List<Vector3>();
+		var indices = new List<int>();
+		for ( int i = 0; i < 4; ++i )
+		{
+			var start = 48 + i * tread;
+			var end = start + tread - gap;
+			var top = (i + 1) * height;
+			if ( !mesh )
+			{
+				var step = CreateStep( scene, start, end, top, rotation );
+				step.WorldPosition *= scale;
+				step.WorldScale = new Vector3( scale );
+				continue;
+			}
+
+			var index = vertices.Count;
+			vertices.AddRange( [
+				new Vector3( start, -128, top ), new Vector3( end, -128, top ),
+				new Vector3( end, 128, top ), new Vector3( start, 128, top ),
+				new Vector3( start, -128, i * height ), new Vector3( start, 128, i * height )
+			] );
+			indices.AddRange( [index, index + 1, index + 2, index, index + 2, index + 3,
+				index + 4, index + 3, index + 5, index + 4, index, index + 3] );
+		}
+		if ( mesh )
+		{
+			var stairs = scene.CreateObject();
+			stairs.WorldRotation = rotation;
+			stairs.WorldScale = new Vector3( scale );
+			var collider = stairs.Components.Create<ModelCollider>();
+			collider.Model = Model.Builder.AddCollisionMesh( vertices.ToArray(), indices.ToArray() ).Create();
+			collider.Static = true;
 		}
 	}
 
@@ -285,6 +362,358 @@ public class PlayerControllerTest
 		Assert.IsTrue( pc.IsOnGround );
 		Assert.IsTrue( (pc.WorldPosition - stopped).Length < 1, $"should not drift after stopping on a slope: {pc.WorldPosition - stopped}" );
 		Assert.IsTrue( pc.Body.Velocity.Length < 1, $"should remain stopped: {pc.Body.Velocity}" );
+	}
+
+	[TestMethod]
+	[DataRow( 1f, 0f )]
+	[DataRow( 8f, 0f )]
+	[DataRow( 18f, 0f )]
+	[DataRow( 18f, 45f )]
+	public void WalksUpSuccessiveStepsWithoutLosingGround( float height, float yaw )
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+		CreateFloor( scene );
+		var rotation = Rotation.FromYaw( yaw );
+		var direction = rotation.Forward;
+		for ( int i = 0; i < 4; ++i )
+		{
+			CreateStep( scene, 48 + i * 48, 96 + i * 48, (i + 1) * height, rotation );
+		}
+
+		var pc = CreatePlayer( scene, Vector3.Up );
+		TickUntilGrounded( scene, pc );
+		Assert.IsTrue( pc.IsOnGround );
+		pc.WishVelocity = direction * 160;
+		for ( int i = 0; i < 180 && pc.WorldPosition.Dot( direction ) < 216; ++i )
+		{
+			scene.GameTick( 1.0 / 60 );
+			Assert.IsTrue( pc.IsOnGround, $"lost ground at {pc.WorldPosition}" );
+		}
+
+		Assert.IsTrue( pc.WorldPosition.Dot( direction ) >= 216, $"stuck at {pc.WorldPosition}" );
+		Assert.AreEqual( 4 * height, pc.WorldPosition.z, 1.0f );
+		Assert.IsTrue( MathF.Abs( pc.Body.Velocity.z ) < 1, $"launched off a step: {pc.Body.Velocity}" );
+	}
+
+	[TestMethod]
+	[DataRow( 1f, 160f, 0f, false, 1f )]
+	[DataRow( 8f, 80f, 0f, false, 1f )]
+	[DataRow( 8f, 110f, 0f, false, 1f )]
+	[DataRow( 18f, 160f, 0f, false, 1f )]
+	[DataRow( 18f, 320f, 0f, false, 1f )]
+	[DataRow( 18f, 160f, 45f, false, 1f )]
+	[DataRow( 18f, 320f, 45f, false, 1f )]
+	[DataRow( 8f, 110f, 0f, true, 1f )]
+	[DataRow( 16f, 110f, 0f, true, 1f )]
+	[DataRow( 18f, 160f, 0f, true, 1f )]
+	[DataRow( 18f, 320f, 0f, true, 1f )]
+	[DataRow( 18f, 160f, 25f, true, 1f )]
+	[DataRow( 18f, 320f, 45f, true, 1f )]
+	[DataRow( 1f, 160f, 0f, true, 0.5f )]
+	[DataRow( 18f, 160f, 0f, true, 0.5f )]
+	[DataRow( 18f, 320f, 0f, true, 0.5f )]
+	[DataRow( 18f, 320f, 45f, true, 2f )]
+	public void StairsPreserveForwardSpeed( float height, float speed, float yaw, bool mesh, float scale )
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+		CreateFloor( scene );
+		var rotation = Rotation.FromYaw( yaw );
+		var direction = rotation.Forward;
+		CreateStairs( scene, height, rotation, mesh, scale );
+
+		var pc = CreatePlayer( scene, Vector3.Up );
+		pc.WorldScale = new Vector3( scale );
+		var movement = pc.Components.Create<PhysicsMovementRecorder>();
+		movement.Controller = pc;
+		TickUntilGrounded( scene, pc );
+		Assert.IsTrue( pc.IsOnGround );
+		pc.WishVelocity = direction * speed;
+		pc.Body.Velocity = pc.WishVelocity;
+		const double delta = 1.0 / 50;
+		var measuredSteps = 0;
+		var ticks = (int)MathF.Ceiling( 144 * scale / (speed * (float)delta) ) + 20;
+		for ( int i = 0; i < ticks && pc.Body.PhysicsBody.Position.Dot( direction ) < 132 * scale; ++i )
+		{
+			movement.Steps.Clear();
+			scene.GameTick( delta );
+			// Check actual physics steps, not render ticks or interpolated object transforms.
+			foreach ( var step in movement.Steps )
+			{
+				++measuredSteps;
+				Assert.AreEqual( speed, step.Velocity.Dot( direction ), 0.5f, $"slowed on stairs from {step.Before} to {step.After}: {step.Velocity}" );
+				var distance = (step.After - step.Before).Dot( direction );
+				Assert.IsTrue( distance >= speed * step.Delta - 0.05f, $"lost forward movement from {step.Before} to {step.After}: {distance}" );
+				Assert.AreEqual( 0, (step.After - step.Before).Dot( rotation.Left ), 0.05f, $"deflected on stairs from {step.Before} to {step.After}" );
+				Assert.IsTrue( step.Grounded, $"lost ground at {step.After}" );
+				Assert.IsTrue( MathF.Abs( step.Velocity.z ) < 1, $"launched at {step.After}: {step.Velocity}" );
+			}
+		}
+
+		Assert.IsTrue( measuredSteps > 0 );
+		Assert.IsTrue( pc.Body.PhysicsBody.Position.Dot( direction ) >= 132 * scale );
+		Assert.AreEqual( 4 * height * scale, pc.Body.PhysicsBody.Position.z, 1.0f );
+	}
+
+	[TestMethod]
+	[DataRow( -10f )]
+	[DataRow( 10f )]
+	public void StepUpFromSlopedGround( float pitch )
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+		var floor = CreateFloor( scene );
+		floor.WorldRotation = Rotation.FromPitch( pitch );
+		var surface = scene.Trace.Ray( new Vector3( 48, 0, 128 ), new Vector3( 48, 0, -128 ) ).Run();
+		Assert.IsTrue( surface.Hit );
+		var height = surface.EndPosition.z + 8;
+		CreateStep( scene, 48, 256, height, Rotation.Identity );
+		var pc = CreatePlayer( scene, Vector3.Up * 40 );
+		TickUntilGrounded( scene, pc );
+		Assert.IsTrue( pc.IsOnGround );
+		pc.WishVelocity = Vector3.Forward * 160;
+		for ( int i = 0; i < 120 && pc.WorldPosition.x < 80; ++i )
+			scene.GameTick( 1.0 / 60 );
+
+		Assert.IsTrue( pc.WorldPosition.x >= 80, $"stuck on a sloped approach: {pc.WorldPosition}" );
+		Assert.AreEqual( height, pc.WorldPosition.z, 1.0f );
+		Assert.IsTrue( pc.IsOnGround );
+		Assert.IsTrue( MathF.Abs( pc.Body.Velocity.z ) < 1 );
+	}
+
+	[TestMethod]
+	[DataRow( 8f )]
+	[DataRow( 18f )]
+	public void SteppingUsesThe2DUpDirection( float height )
+	{
+		var scene = new Scene { PhysicsMode = ScenePhysicsMode.Physics2D };
+		using var scope = scene.Push();
+		CreateFloor( scene );
+		CreateStep( scene, 48, 256, height, Rotation.Identity );
+		var pc = CreatePlayer( scene, Vector2.Up );
+		TickUntilGrounded( scene, pc );
+		Assert.IsTrue( pc.IsOnGround, $"2D grounding failed at {pc.WorldPosition}: {DescribeGround( pc )}" );
+		pc.WishVelocity = Vector3.Forward * 160;
+		for ( int i = 0; i < 120 && pc.WorldPosition.x < 96; ++i )
+			scene.GameTick( 1.0 / 60 );
+
+		Assert.IsTrue( pc.WorldPosition.x >= 96, $"2D step blocked movement: {pc.WorldPosition}" );
+		Assert.AreEqual( -height, pc.WorldPosition.y, 1.0f );
+		Assert.IsTrue( pc.IsOnGround );
+		Assert.IsTrue( MathF.Abs( pc.Body.Velocity.y ) < 1 );
+	}
+
+	[TestMethod]
+	public void StepUpOntoMovingPlatform()
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+		CreateFloor( scene );
+		var platform = scene.CreateObject();
+		platform.WorldPosition = new Vector3( 152, 0, -46 );
+		var body = platform.Components.Create<Rigidbody>();
+		body.MotionEnabled = false;
+		var collider = platform.Components.Create<BoxCollider>();
+		collider.Scale = new Vector3( 208, 256, 108 );
+		body.Velocity = Vector3.Forward * 20;
+		var pc = CreatePlayer( scene, Vector3.Up );
+		TickUntilGrounded( scene, pc );
+		Assert.IsTrue( pc.IsOnGround );
+		pc.WishVelocity = Vector3.Forward * 160;
+		for ( int i = 0; i < 150 && pc.WorldPosition.x < 96; ++i )
+			scene.GameTick( 1.0 / 60 );
+
+		Assert.IsTrue( pc.WorldPosition.x >= 96, $"moving step blocked movement: {pc.WorldPosition}" );
+		Assert.AreEqual( platform, pc.GroundObject );
+		Assert.IsTrue( pc.GroundVelocity.x > 0, $"lost the platform's velocity: {pc.GroundVelocity}, platform {body.Velocity}" );
+		Assert.IsTrue( MathF.Abs( pc.Body.Velocity.z ) < 1 );
+	}
+
+	[TestMethod]
+	[DataRow( 10f )]
+	[DataRow( 40f )]
+	public void SlowMovementCanStepWithoutAddingVerticalSpeed( float speed )
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+		CreateFloor( scene );
+		CreateStep( scene, 48, 256, 8, Rotation.Identity );
+		var pc = CreatePlayer( scene, new Vector3( 39.95f, 0, 1 ) );
+		TickUntilGrounded( scene, pc );
+		Assert.IsTrue( pc.IsOnGround );
+		pc.WishVelocity = Vector3.Forward * speed;
+		for ( int i = 0; i < 90 && pc.WorldPosition.z < 7; ++i )
+		{
+			scene.GameTick( 1.0 / 60 );
+			Assert.IsTrue( MathF.Abs( pc.Body.Velocity.z ) < 1, $"step injected vertical speed: {pc.Body.Velocity}" );
+			Assert.IsTrue( pc.IsOnGround );
+		}
+
+		Assert.AreEqual( 8f, pc.WorldPosition.z, 0.2f, $"did not lift by the exact step height: {pc.WorldPosition}" );
+	}
+
+	[TestMethod]
+	[DataRow( 19f, 0f )]
+	[DataRow( 40f, 0f )]
+	[DataRow( 8f, 76f )]
+	public void StepUpRespectsHeightAndHeadroom( float height, float ceiling )
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+		CreateFloor( scene );
+		CreateStep( scene, 48, 256, height, Rotation.Identity );
+		if ( ceiling > 0 )
+		{
+			var roof = scene.CreateObject();
+			roof.WorldPosition = new Vector3( 96, 0, ceiling + 8 );
+			var collider = roof.Components.Create<BoxCollider>();
+			collider.Scale = new Vector3( 320, 256, 16 );
+			collider.Static = true;
+		}
+
+		var pc = CreatePlayer( scene, Vector3.Up );
+		TickUntilGrounded( scene, pc );
+		pc.WishVelocity = Vector3.Forward * 160;
+		for ( int i = 0; i < 90; ++i )
+			scene.GameTick( 1.0 / 60 );
+
+		Assert.IsTrue( pc.WorldPosition.x < 44, $"passed an obstructed step: {pc.WorldPosition}" );
+		Assert.IsTrue( pc.WorldPosition.z < 1, $"climbed an obstructed step: {pc.WorldPosition}" );
+		Assert.IsTrue( pc.IsOnGround );
+	}
+
+	[TestMethod]
+	[DataRow( 8f )]
+	[DataRow( 18f )]
+	public void WalksDownSuccessiveStepsWithoutFalling( float height )
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+		CreateFloor( scene );
+		CreateStep( scene, -256, 48, height * 3, Rotation.Identity );
+		CreateStep( scene, 48, 96, height * 2, Rotation.Identity );
+		CreateStep( scene, 96, 144, height, Rotation.Identity );
+		var pc = CreatePlayer( scene, Vector3.Up * (height * 3 + 1) );
+		TickUntilGrounded( scene, pc );
+		Assert.IsTrue( pc.IsOnGround );
+		pc.WishVelocity = Vector3.Forward * 160;
+		for ( int i = 0; i < 150 && pc.WorldPosition.x < 176; ++i )
+		{
+			scene.GameTick( 1.0 / 60 );
+			Assert.IsTrue( pc.IsOnGround, $"fell between steps at {pc.WorldPosition}: {DescribeGround( pc )}" );
+		}
+
+		Assert.IsTrue( pc.WorldPosition.x >= 176, $"stuck at {pc.WorldPosition}" );
+		Assert.AreEqual( 0f, pc.WorldPosition.z, 1.0f );
+	}
+
+	[TestMethod]
+	public void DeepLedgesDoNotSnapDown()
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+		CreateFloor( scene );
+		CreateStep( scene, -256, 48, 48, Rotation.Identity );
+		var pc = CreatePlayer( scene, Vector3.Up * 49 );
+		TickUntilGrounded( scene, pc );
+		pc.WishVelocity = Vector3.Forward * 160;
+		for ( int i = 0; i < 90 && pc.IsOnGround; ++i )
+			scene.GameTick( 1.0 / 60 );
+
+		Assert.IsFalse( pc.IsOnGround, $"did not leave the ledge: {pc.WorldPosition}" );
+		Assert.IsTrue( pc.WorldPosition.z > 44, $"snapped down a deep ledge: {pc.WorldPosition}" );
+	}
+
+	[TestMethod]
+	public void JumpingDoesNotStepOrSnapBackToGround()
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+		CreateFloor( scene );
+		CreateStep( scene, 48, 256, 8, Rotation.Identity );
+		var pc = CreatePlayer( scene, new Vector3( 24, 0, 1 ) );
+		TickUntilGrounded( scene, pc );
+		pc.WishVelocity = Vector3.Forward * 160;
+		pc.Jump( Vector3.Up * 200 );
+		var previous = pc.WorldPosition.z;
+		for ( int i = 0; i < 6; ++i )
+		{
+			scene.GameTick( 1.0 / 30 );
+			Assert.IsFalse( pc.IsOnGround, $"regrounded during a jump at {pc.WorldPosition}" );
+			Assert.IsTrue( pc.WorldPosition.z > previous, $"jump was stopped at {pc.WorldPosition}" );
+			previous = pc.WorldPosition.z;
+		}
+	}
+
+	[TestMethod]
+	public void RealMeshWallsStillBlockMovement()
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+		List<Vector3> vertices =
+		[
+			new( -256, -256, 0 ), new( 256, -256, 0 ), new( 256, 256, 0 ), new( -256, 256, 0 ),
+			new( 64, -256, 0 ), new( 64, 256, 0 ), new( 64, 256, 128 ), new( 64, -256, 128 )
+		];
+		var mesh = scene.CreateObject();
+		var collider = mesh.Components.Create<ModelCollider>();
+		collider.Model = Model.Builder.AddCollisionMesh( vertices, [0, 1, 2, 0, 2, 3, 4, 6, 5, 4, 7, 6] ).Create();
+		collider.Static = true;
+		var pc = CreatePlayer( scene, Vector3.Up * 20 );
+		TickUntilGrounded( scene, pc );
+		Assert.IsTrue( pc.IsOnGround );
+		pc.WishVelocity = Vector3.Forward * 160;
+		for ( int i = 0; i < 90; ++i )
+			scene.GameTick( 1.0 / 60 );
+
+		Assert.IsTrue( pc.WorldPosition.x < 56, $"ignored a real mesh wall: {pc.WorldPosition}" );
+		Assert.IsTrue( pc.IsOnGround );
+		Assert.AreEqual( 0f, pc.WorldPosition.y, 0.05f );
+	}
+
+	[TestMethod]
+	[DataRow( 0f )]
+	[DataRow( 0.1f )]
+	[DataRow( 0.5f )]
+	public void MeshTJunctionsAndSmallGapsDoNotDeflectWalking( float gap )
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+		var vertices = new List<Vector3>();
+		var indices = new List<int>();
+		void AddPatch( float x1, float x2, float y1, float y2 )
+		{
+			var index = vertices.Count;
+			vertices.AddRange( [new( x1, y1, 0 ), new( x2, y1, 0 ), new( x2, y2, 0 ), new( x1, y2, 0 )] );
+			indices.AddRange( [index, index + 1, index + 2, index, index + 2, index + 3] );
+		}
+
+		for ( int i = -4; i < 20; ++i )
+		{
+			var x = i * 32;
+			AddPatch( x + gap, x + 32, -512, 0 );
+			AddPatch( x + gap, x + 16, gap, 512 );
+			AddPatch( x + 16 + gap, x + 32, gap, 512 );
+		}
+
+		var mesh = scene.CreateObject();
+		mesh.WorldRotation = Rotation.FromYaw( 25 );
+		var collider = mesh.Components.Create<ModelCollider>();
+		collider.Model = Model.Builder.AddCollisionMesh( vertices, indices ).Create();
+		collider.Static = true;
+		var pc = CreatePlayer( scene, new Vector3( 0, 3, 20 ) );
+		TickUntilGrounded( scene, pc );
+		Assert.IsTrue( pc.IsOnGround );
+		pc.WishVelocity = Vector3.Forward * 160;
+		for ( int i = 0; i < 150 && pc.WorldPosition.x < 256; ++i )
+		{
+			scene.GameTick( 1.0 / 60 );
+			Assert.IsTrue( pc.IsOnGround, $"lost mesh support at {pc.WorldPosition}: {DescribeGround( pc )}" );
+			Assert.AreEqual( 3f, pc.WorldPosition.y, 0.05f, $"mesh seam deflected the character: {pc.WorldPosition}: {DescribeGround( pc )}" );
+		}
+
+		Assert.IsTrue( pc.WorldPosition.x >= 256, $"mesh seam stopped the character at {pc.WorldPosition}" );
 	}
 
 	/// <summary>

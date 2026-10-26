@@ -25,15 +25,20 @@ public sealed partial class RenderSystem
 		var overlayPrepass = new OverlayDepthPrepassLayer();
 		return
 		[
+			new OcclusionCullLayer( early: true ),
+
 			// Viewmodels claim depth and stencil before the world.
 			overlayPrepass,
 			new DepthPrepassLayer( overlayPrepass ),
 
-			// Compute over the prepass's depth, on the async compute queue where there is one, while the shadow maps draw
-			// (FrameRecorder). Native draws its shadow views first; nothing between here and the stage below reads them.
+			new OcclusionCullLayer( early: false ),
+			new LateDepthPrepassLayer( overlayPrepass ),
+
+			// Pass inputs and outputs determine queue waits; this list is also the serial execution order.
 			new DepthChainLayer(),
+			new EarlyStageLayer( Stage.AfterDepthPrepass, PostProcessQueue.AsyncCompute ),
 			contactShadows,
-			new AsyncStageLayer( Stage.AfterDepthPrepass ),
+			new EarlyStageLayer( Stage.AfterDepthPrepass, PostProcessQueue.Graphics ),
 			new ShadowLayer(),
 			new ShadowsReadyLayer(),
 
@@ -89,6 +94,8 @@ public sealed partial class RenderSystem
 
 			// Prepare fog for the next frame.
 			new VolumetricFogLayer(),
+
+			new OcclusionHistoryLayer(),
 		];
 	}
 

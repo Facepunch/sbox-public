@@ -15,6 +15,11 @@ internal struct UserInfo
 	public byte[] InventoryBlob { get; set; }
 
 	/// <summary>
+	/// The server's password, only sent when it asks for one. Never goes into the connection info everyone sees.
+	/// </summary>
+	public string Password { get; set; }
+
+	/// <summary>
 	/// Build info for the local user, which will then get sent to the server and possibly shared between all clients
 	/// </summary>
 	internal static UserInfo Local

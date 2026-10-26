@@ -52,10 +52,12 @@ public class Skybox3D : Component, Component.ExecuteInEditor
 		try
 		{
 			skyboxScene = Scene.IsEditor ? Scene.CreateEditorScene() : new Scene();
+			skyboxScene.Enabled = false;
 			skyboxScene.Source = SkyboxScene;
 			using ( skyboxScene.Push() )
 			using ( SceneNetworkSystem.SuppressSpawnMessages() )
-			// Keep skybox callbacks out of the parent scene's load batch.
+			// Keep skybox callbacks isolated and their blob data alive until the batch flushes.
+			using ( var blobs = BlobDataSerializer.Load( SkyboxScene.BinaryData, SkyboxScene.ResourcePath ) )
 			using ( CallbackBatch.Isolated() )
 			{
 				var options = new SceneLoadOptions { IsAdditive = true, ShowLoadingScreen = false };
@@ -63,16 +65,15 @@ public class Skybox3D : Component, Component.ExecuteInEditor
 				if ( !skyboxScene.Load( options ) )
 				{
 					Log.Error( $"{GameObject.Name}: could not load skybox scene '{SkyboxScene.ResourcePath}'." );
-					DestroySkybox();
 					return;
 				}
 				skyboxScene.WantsSystemScene = false;
 				if ( skyboxScene.GetComponentsInChildren<Skybox3D>( true ).Any() )
 				{
 					Log.Error( $"{GameObject.Name}: skybox scene '{SkyboxScene.ResourcePath}' contains a nested Skybox3D component." );
-					DestroySkybox();
 					return;
 				}
+				skyboxScene.Enabled = true;
 			}
 
 			sceneSkybox = new SceneSkybox3D( Scene.SceneWorld, skyboxScene.SceneWorld );

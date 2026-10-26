@@ -40,6 +40,7 @@ native accessor g_pResourceSystem as NativeEngine.g_pResourceSystem
 	}
 
 	bool ResolvePathToGuid( string path, out Guid guid );
+	bool NeedsGuidWrite( string path );
 }
 
 

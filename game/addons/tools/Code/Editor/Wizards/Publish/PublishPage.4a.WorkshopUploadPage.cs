@@ -15,6 +15,7 @@ partial class PublishWizard
 
 		bool Loaded;
 		bool Loading;
+		string LoadedIdent;
 
 		/// <summary>
 		/// The workshop item the files go in, 0 for a new one
@@ -65,9 +66,33 @@ partial class PublishWizard
 		{
 			Visible = true;
 
+			// A new compile makes new files - what was published before doesn't cover them
+			if ( Publisher is null )
+			{
+				Published = false;
+				Error = null;
+			}
+
+			// Another package has another item and thumbnail
+			if ( Loaded && LoadedIdent != Project.Config.FullIdent )
+			{
+				Loaded = false;
+				LookingUp = false;
+				PickedThumbnail = null;
+				ItemInfo = null;
+				Preview = null;
+				Published = false;
+				ResetPublisher();
+			}
+
 			if ( Loaded )
 			{
-				Rebuild();
+				// A look-up that was cancelled never finished
+				if ( LookingUp )
+					await LookUpItem();
+				else
+					Rebuild();
+
 				return;
 			}
 
@@ -82,6 +107,7 @@ partial class PublishWizard
 
 			Loading = false;
 			Loaded = true;
+			LoadedIdent = Project.Config.FullIdent;
 
 			if ( !IsValid )
 				return;
@@ -111,12 +137,11 @@ partial class PublishWizard
 				return;
 
 			ItemInfo = info;
-
 			// The package's item might not be one of ours - keep it in the list to go back to
 			if ( ItemId != 0 && !PublishedItems.Any( x => x.Id == ItemId ) )
 				PublishedItems = [new( ItemId, info?.Title ), .. PublishedItems];
 
-			Preview = preview;
+			Preview = PickedThumbnail is not null ? Preview : preview;
 			LookingUp = false;
 			Rebuild();
 		}
@@ -128,7 +153,7 @@ partial class PublishWizard
 				using var bitmap = Bitmap.CreateFromBytes( await Http.RequestBytesAsync( url, cancellationToken: TokenSource.Token ) );
 				return bitmap is null ? null : ToPreview( bitmap, square );
 			}
-			catch ( System.Exception e ) when ( e is not System.OperationCanceledException )
+			catch ( System.Exception e ) when ( !TokenSource.IsCancellationRequested )
 			{
 				Log.Warning( $"Couldn't get the thumbnail from {url} ({e.Message})" );
 				return null;
@@ -215,7 +240,7 @@ partial class PublishWizard
 			if ( PickedThumbnail is not null ) return $"{System.IO.Path.GetFileName( PickedThumbnail )}, cut square. It replaces the item's thumbnail.";
 			if ( ItemInfo?.Thumb is not null ) return "The item's thumbnail on the Steam Workshop. It stays unless you replace it.";
 			if ( BackendThumb is not null ) return $"The package's thumbnail on {Global.BackendTitle}. The item hasn't got one, so it gets this.";
-			return "This map doesn't have a thumbnail yet. Pick an image for it.";
+			return "A thumbnail will be rendered from this map. Choose an image to replace it.";
 		}
 
 		string ItemTitle( ulong id )
@@ -371,6 +396,7 @@ partial class PublishWizard
 
 				await Publisher.Publish( cancel: TokenSource.Token );
 				Published = true;
+				ItemId = Publisher.WorkshopTargetItemId;
 			}
 			catch ( System.OperationCanceledException ) when ( TokenSource.IsCancellationRequested )
 			{
@@ -380,6 +406,10 @@ partial class PublishWizard
 			{
 				Log.Error( e );
 				Error = e.Message;
+
+				// Steam may have made the item already - keep it so trying again doesn't make another
+				if ( Publisher?.WorkshopTargetItemId is { } createdItem and not 0 )
+					ItemId = createdItem;
 			}
 			finally
 			{
@@ -455,7 +485,7 @@ partial class PublishWizard
 
 		public override string NextButtonText => Published ? "Next" : Error is not null ? "Try Again" : "Upload";
 
-		public override bool CanProceed() => Published || (!Loading && !LookingUp && !Busy && HasThumb);
+		public override bool CanProceed() => Published || (!Loading && !LookingUp && !Busy);
 	}
 
 	/// <summary>

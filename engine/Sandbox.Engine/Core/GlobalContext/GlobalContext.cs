@@ -38,6 +38,7 @@ internal partial class GlobalContext
 	{
 		get
 		{
+			Bootstrap.AssertTypeLibraryReady();
 			if ( _disabledReason is not null )
 			{
 				throw new InvalidOperationException( $"{nameof( TypeLibrary )} is currently inaccessible. Reason: {_disabledReason}" );
@@ -70,10 +71,71 @@ internal partial class GlobalContext
 		scripting = null;
 	}
 
+	NodeLibrary nodeLibrary;
+	readonly List<(System.Reflection.Assembly Assembly, bool LogErrors)> pendingNodeAssemblies = new();
+	bool flushingNodeAssemblies;
+
 	/// <summary>
-	/// For actiongraph
+	/// For actiongraph. Assemblies queued with <see cref="AddNodeAssemblyLater"/> are added the first time it's read.
 	/// </summary>
-	public NodeLibrary NodeLibrary { get; set; }
+	public NodeLibrary NodeLibrary
+	{
+		get
+		{
+			if ( pendingNodeAssemblies.Count > 0 ) FlushPendingNodeAssemblies();
+			return nodeLibrary;
+		}
+		set
+		{
+			lock ( pendingNodeAssemblies ) pendingNodeAssemblies.Clear();
+			nodeLibrary = value;
+		}
+	}
+
+	internal bool HasNodeLibrary => nodeLibrary is not null;
+
+	internal void ResetNodeLibrary()
+	{
+		lock ( pendingNodeAssemblies ) pendingNodeAssemblies.Clear();
+		nodeLibrary.Reset();
+	}
+
+	/// <summary>
+	/// Adding an assembly to the node library is slow, and only matters once action graphs are read or written.
+	/// </summary>
+	internal void AddNodeAssemblyLater( System.Reflection.Assembly assembly, bool logErrors = true )
+	{
+		lock ( pendingNodeAssemblies ) pendingNodeAssemblies.Add( (assembly, logErrors) );
+	}
+
+	void FlushPendingNodeAssemblies()
+	{
+		lock ( pendingNodeAssemblies )
+		{
+			if ( flushingNodeAssemblies ) return;
+			flushingNodeAssemblies = true;
+
+			try
+			{
+				foreach ( var (assembly, logErrors) in pendingNodeAssemblies.ToArray() )
+				{
+					var result = nodeLibrary.AddAssembly( assembly );
+					if ( !logErrors ) continue;
+
+					foreach ( var error in result.Errors )
+					{
+						Log.Error( $"{error.Key}: {error.Value}" );
+					}
+				}
+
+				pendingNodeAssemblies.Clear();
+			}
+			finally
+			{
+				flushingNodeAssemblies = false;
+			}
+		}
+	}
 
 	/// <summary>
 	/// All of the mounted assets

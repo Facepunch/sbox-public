@@ -10,7 +10,6 @@
     <Project Path="Sandbox.CodeUpgrader/Sandbox.CodeUpgrader.csproj" />
     <Project Path="Sandbox.Generator/Sandbox.Generator.csproj" />
     <Project Path="Tools/CodeGen/CodeGen.csproj" />
-    <Project Path="Tools/CreateGameCache/CreateGameCache.csproj" />
     <Project Path="Tools/MenuBuild/MenuBuild.csproj" />
     <Project Path="Tools/PackageBuild/PackageBuild.csproj" />
     <Project Path="Tools/ShaderCompiler/ShaderCompiler.csproj" />
@@ -72,6 +71,7 @@
   <Folder Name="/Tests/">
     <Project Path="Benchmark/Benchmark.csproj" />
     <Project Path="Tests/Sandbox.Test.Engine/Sandbox.Test.Engine.csproj" />
+    <Project Path="Tests/Sandbox.Test.NetSim/Sandbox.Test.NetSim.csproj" />
     <Project Path="Tests/Sandbox.Test.Integration/Sandbox.Test.Integration.csproj" />
     <Project Path="Tests/Sandbox.Test.Text/Sandbox.Test.Text.csproj" />
     <Project Path="Tests/Sandbox.Test.Unit/Sandbox.Test.Unit.csproj" />

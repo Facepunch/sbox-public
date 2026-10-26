@@ -135,7 +135,7 @@ public abstract partial class BaseMount : BaseGameMount
 		}
 	}
 
-	internal string GetContentPath( string path ) =>
-		index.Files.ContainsKey( path ) ? $"mount://{Ident}/{path}" : null;
+	internal string GetContentPath( string path, string contentRoot = "" ) =>
+		FindContentFile( index, path, contentRoot ) is { } filename ? $"mount://{Ident}/{filename}" : null;
 
 }

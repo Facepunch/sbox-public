@@ -83,6 +83,16 @@ QuestionModal
 		white-space: pre-line;
 	}
 
+	// What's typed in, for a question that wants an answer
+	.entry
+	{
+		@include front-text-entry;
+
+		width: 100%;
+		flex-grow: 0;
+		margin-top: 8px;
+	}
+
 	.buttons
 	{
 		width: 100%;

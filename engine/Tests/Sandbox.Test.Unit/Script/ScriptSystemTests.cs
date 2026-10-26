@@ -314,22 +314,18 @@ public class ScriptSystemTests
 		Assert.AreEqual( 42, script.RunAndReturn<int>() );
 	}
 
-	[TestMethod]
+	[TestMethod, TestCategory( Allocations.Category )]
 	public void WarmedCallsIncludingArgumentExpiryAllocateNothing()
 	{
 		var script = Game.Scripting.CreateScript( "return Math.Sin(Number) * 10.0;" );
-		for ( int i = 0; i < 10_000; i++ )
+		Allocations.AssertSettles( "10,000 calls", () =>
 		{
-			script.SetArgument( "Number", (double)i );
-			script.RunAndReturn<double>();
-		}
-		long before = GC.GetAllocatedBytesForCurrentThread();
-		for ( int i = 0; i < 10_000; i++ )
-		{
-			script.SetArgument( "Number", (double)i );
-			script.RunAndReturn<double>();
-		}
-		Assert.AreEqual( 0L, GC.GetAllocatedBytesForCurrentThread() - before );
+			for ( int i = 0; i < 10_000; i++ )
+			{
+				script.SetArgument( "Number", (double)i );
+				script.RunAndReturn<double>();
+			}
+		} );
 		Assert.IsNull( script.LastError );
 	}
 }

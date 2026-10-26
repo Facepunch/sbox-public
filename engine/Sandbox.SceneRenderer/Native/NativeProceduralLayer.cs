@@ -62,7 +62,7 @@ internal abstract class NativeProceduralLayer
 		return layer;
 	}
 
-	void Render( ManagedRenderSetup_t setup )
+	protected virtual void Render( ManagedRenderSetup_t setup )
 	{
 		using var _ = new Graphics.Scope( in setup );
 		OnRender();

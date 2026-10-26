@@ -19,9 +19,10 @@ internal sealed class SourceModel( BaseMount mount, string path, (MdlFile Mdl, V
 		var mdl = new MdlFile( mdlStream );
 		PhyFile physics = null;
 		var phyPath = System.IO.Path.ChangeExtension( filename, ".phy" );
-		if ( mount.TryOpenContentFile( phyPath, out var phyStream ) )
+		mount.TryOpenContentFile( phyPath, out var phyStream );
+		using ( phyStream )
 		{
-			using ( phyStream )
+			if ( phyStream is not null )
 			{
 				try
 				{

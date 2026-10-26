@@ -96,14 +96,20 @@ internal static partial class SteamNetwork
 		private Channel<OutgoingSteamMessage> OutgoingMessages { get; } = Channel.CreateUnbounded<OutgoingSteamMessage>();
 		private Channel<IncomingSteamMessage> IncomingMessages { get; } = Channel.CreateUnbounded<IncomingSteamMessage>();
 
-		internal void SendMessage( HSteamNetConnection connection, in byte[] data, int flags )
+		internal void SendMessage( HSteamNetConnection connection, NetPacket packet, int flags )
 		{
-			OutgoingMessages.Writer.TryWrite( new OutgoingSteamMessage
+			// Ours until the networking thread has copied it to Steam
+			packet.AddReference();
+
+			var queued = OutgoingMessages.Writer.TryWrite( new OutgoingSteamMessage
 			{
 				Connection = connection,
-				Data = data,
+				Packet = packet,
 				Flags = flags
 			} );
+
+			if ( !queued )
+				packet.Release();
 		}
 
 		private const int MaxBatchSize = 256;
@@ -125,12 +131,18 @@ internal static partial class SteamNetwork
 			while ( OutgoingMessages.Reader.TryRead( out var msg ) )
 			{
 				// Let Steam allocate the native buffer so there's no need to pin managed arrays.
-				var steamMsgPtr = Glue.Networking.AllocateMessage( msg.Connection, msg.Data.Length, msg.Flags );
+				var steamMsgPtr = Glue.Networking.AllocateMessage( msg.Connection, msg.Packet.Length, msg.Flags );
 				if ( steamMsgPtr == IntPtr.Zero )
+				{
+					msg.Packet.Release();
 					continue;
+				}
 
 				var nativeBuffer = Glue.Networking.GetMessageDataBuffer( steamMsgPtr );
-				Marshal.Copy( msg.Data, 0, nativeBuffer, msg.Data.Length );
+				Marshal.Copy( msg.Packet.Buffer, 0, nativeBuffer, msg.Packet.Length );
+
+				// Copied into Steam's buffer, we're done with it
+				msg.Packet.Release();
 
 				_messageBatch[batchCount++] = steamMsgPtr;
 

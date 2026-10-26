@@ -1,4 +1,5 @@
 using NativeEngine;
+using Sandbox.Engine;
 using System.Runtime.CompilerServices;
 
 namespace Sandbox;
@@ -21,10 +22,14 @@ public static partial class Graphics
 		IsAvailable = g_pRenderDevice.GetRenderDeviceAPI() != RenderDeviceAPI_t.RENDER_DEVICE_API_EMPTY;
 
 		_mipMapGeneratorShader = IsAvailable ? new ComputeShader( "downsample_cs" ) : null;
+
+		if ( IsAvailable )
+			Cmaa2Renderer.Initialize();
 	}
 
 	internal static void Shutdown()
 	{
+		Cmaa2Renderer.Shutdown();
 		IsAvailable = false;
 		_mipMapGeneratorShader = null;
 	}
@@ -77,7 +82,7 @@ public static partial class Graphics
 	internal static IRenderContext Context => _state.renderContext;
 
 	/// <summary>
-	/// Whether the block records into an async compute context (<see cref="ManagedView.ComputeQueue"/>): compute and copies only.
+	/// Whether the block records into an async compute context: compute and copies only.
 	/// </summary>
 	internal static bool OnComputeQueue => _state.computeQueue;
 	internal static ImageFormat IdealColorFormat => _state.colorFormat;
@@ -300,6 +305,7 @@ public static partial class Graphics
 			_state.msaaLevel = setup.msaaLevel.FromEngine();
 			_state.cameraTransform = new Transform( frustum.GetCameraPosition(), frustum.GetCameraAngles() );
 			_state.stats = setup.stats;
+			_state.computeQueue = (setup.sceneLayer.m_nLayerFlags & Rendering.LayerFlags.AsyncComputeContext) != 0;
 
 			_state.attributes = ObjectPool<RenderAttributes>.Get();
 			_state.attributes.Set( setup.renderContext.GetAttributesPtrForModify() );

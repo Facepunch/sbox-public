@@ -24,7 +24,6 @@ internal sealed class RefractionStencilLayer : MeshLayer
 		Depth = true;
 		ForceDepthFastPath = true;
 		Runs = MeshRuns.Refraction;
-		DrawsCustomObjects = false;
 	}
 
 	public override bool IsShared => false;

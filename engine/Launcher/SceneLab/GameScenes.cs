@@ -8,7 +8,7 @@ namespace Sandbox.SceneLab;
 ///
 /// They share a stage (<see cref="Stage"/>): a camera, the sun with sky light, the default sky and a floor.
 /// </summary>
-internal static class GameScenes
+internal static partial class GameScenes
 {
 	/// <summary>
 	/// A camera looking at the middle of the floor from above and to the side, the sun, the default sky and a floor -
@@ -165,6 +165,36 @@ internal static class GameScenes
 	}
 
 	/// <summary>
+	/// A physical rectangle between a spotlight and a floor, exercising both renderer paths.
+	/// </summary>
+	public static Scene LightModulation()
+	{
+		var scene = LightCookie();
+		using var scope = scene.Push();
+		var lamp = scene.Directory.FindByName( "Cookie Light" ).First().Components.Get<SpotLight>();
+		var pattern = lamp.Cookie;
+		lamp.Cookie = null;
+		var pane = new GameObject( true, "Light modulator" );
+		pane.WorldPosition = new Vector3( 0, 0, 120 );
+		pane.WorldRotation = Rotation.LookAt( Vector3.Down, Vector3.Forward );
+		var modulator = pane.Components.Create<LightModulator>();
+		modulator.Size = new Vector2( 100, 100 );
+		modulator.Texture = pattern;
+		modulator.Tint = new Color( 0.12f, 0.8f, 0.3f );
+		return scene;
+	}
+
+	/// <summary>
+	/// Move and tint the rectangle to invalidate its cached light interactions.
+	/// </summary>
+	public static void ChangeLightModulation( Scene scene )
+	{
+		var pane = scene.Directory.FindByName( "Light modulator" ).First();
+		pane.WorldPosition += new Vector3( 55, 0, -25 );
+		pane.Components.Get<LightModulator>().Tint = new Color( 0.85f, 0.12f, 0.4f );
+	}
+
+	/// <summary>
 	/// The Highlight post process outlining a box, a sphere half behind a wall (its obscured colour) and a citizen - drawn again
 	/// by <c>Graphics.Render( SceneObject )</c> with the outline shader, which native draws through its layer's view and a managed
 	/// frame from its mirror, the citizen with this frame's skinning.
@@ -280,6 +310,9 @@ internal static class GameScenes
 	/// SSR reads the prepass's normals and roughness, last frame's colour and its own history. Compare it isolated.
 	/// </summary>
 	public static Scene ScreenSpaceReflections() => OcclusionStage( ao: false, ssr: true );
+
+	/// <summary>Both independent prepass effects in a small scene, without enough draws to enable worker recording.</summary>
+	public static Scene OcclusionAndReflections() => OcclusionStage( ao: true, ssr: true );
 
 	static Scene OcclusionStage( bool ao, bool ssr )
 	{
@@ -690,6 +723,88 @@ internal static class GameScenes
 		line.CastShadows = false;
 
 		return scene;
+	}
+
+	/// <summary>
+	/// Stationary splash particles over contrasting bars: scene-color capture, alpha masking,
+	/// rotated normal maps and soft intersections, without external art or random emission.
+	/// </summary>
+	public static Scene ParticleRefraction()
+	{
+		var scene = Stage( out var camera, new Vector3( -280, 0, 100 ), new Vector3( 0, 0, 75 ) );
+		using var _ = scene.Push();
+
+		const int size = 64;
+		var mask = new byte[size * size * 4];
+		var normals = new byte[mask.Length];
+		for ( int y = 0; y < size; y++ )
+		{
+			for ( int x = 0; x < size; x++ )
+			{
+				var u = (x + 0.5f) / size * 2 - 1;
+				var v = (y + 0.5f) / size * 2 - 1;
+				var radius = MathF.Sqrt( u * u + v * v );
+				var edge = 0.72f + 0.12f * MathF.Sin( MathF.Atan2( v, u ) * 7 );
+				var alpha = ((edge - radius) * 16).Clamp( 0, 1 );
+				var index = (y * size + x) * 4;
+				mask[index] = mask[index + 1] = mask[index + 2] = 255;
+				mask[index + 3] = (byte)(alpha * 32);
+
+				// Unequal axes make rotation errors visible. The normal uses a linear texture view.
+				// Shape the distortion with the normal map, independently of artwork opacity.
+				var normal = new Vector3( u * 0.8f * alpha, -v * 0.35f * alpha, 1 ).Normal;
+				normals[index] = (byte)((normal.x * 0.5f + 0.5f) * 255);
+				normals[index + 1] = (byte)((normal.y * 0.5f + 0.5f) * 255);
+				normals[index + 2] = (byte)((normal.z * 0.5f + 0.5f) * 255);
+				normals[index + 3] = 255;
+			}
+		}
+
+		var sprite = Sprite.FromTexture( Texture.Create( size, size ).WithData( mask ).WithName( "scenelab_splash_mask" ).Finish() );
+		var normalTexture = Texture.Create( size, size ).WithData( normals ).WithName( "scenelab_splash_normal" ).Finish();
+
+		for ( int i = 0; i < 13; i++ )
+		{
+			var bar = Prop( $"Background bar {i}", "models/dev/box.vmdl", new Vector3( 70, (i - 6) * 24, 75 ),
+				i % 2 == 0 ? Color.White : new Color( 0.05f, 0.15f, 0.3f ) );
+			bar.WorldScale = new Vector3( 0.2f, 0.3f, 2.5f );
+		}
+
+		for ( int i = 0; i < 3; i++ )
+		{
+			var fx = new GameObject( true, $"Refractive splash {i}" );
+			var effect = fx.Components.Create<ParticleEffect>();
+			effect.Lifetime = 3600;
+			effect.StartVelocity = 0;
+			var renderer = fx.Components.Create<ParticleSpriteRenderer>();
+			renderer.Sprite = sprite;
+			renderer.Refraction = true;
+			renderer.NormalTexture = normalTexture;
+			renderer.RefractionStrength = 24;
+			renderer.DepthFeather = 12;
+			renderer.SortMode = ParticleSpriteRenderer.ParticleSortMode.ByDistance;
+
+			var particle = effect.Emit( new Vector3( 0, (i - 1) * 90, 75 ), 0 );
+			particle.Size = 100;
+			particle.Angles = new Angles( 0, 0, i * 45 );
+			particle.Alpha = i == 1 ? 0.5f : 1.0f;
+		}
+
+		Prop( "Splash intersection", "models/dev/box.vmdl", new Vector3( 6, 90, 40 ), new Color( 0.8f, 0.3f, 0.1f ), scale: 0.6f );
+		return scene;
+	}
+
+	/// <summary>
+	/// Exercise batch migration back to ordinary rendering and a normal-map change between captures.
+	/// </summary>
+	public static void ChangeParticleRefraction( Scene scene )
+	{
+		var first = scene.Directory.FindByName( "Refractive splash 0" ).First().Components.Get<ParticleSpriteRenderer>();
+		first.Refraction = false;
+		var second = scene.Directory.FindByName( "Refractive splash 1" ).First().Components.Get<ParticleSpriteRenderer>();
+		second.RefractionStrength = 0;
+		var third = scene.Directory.FindByName( "Refractive splash 2" ).First().Components.Get<ParticleSpriteRenderer>();
+		third.NormalTexture = Texture.Create( 1, 1 ).WithData( new byte[] { 255, 128, 128, 255 } ).WithName( "scenelab_splash_changed_normal" ).Finish();
 	}
 
 	/// <summary>
@@ -1325,6 +1440,50 @@ internal static class GameScenes
 
 		// Across the box's top edge and down its side
 		AddDecal( "Wrap", "textures/shapes/circle1.vtex", new Vector3( 40, 27.5f, 37.5f ), Rotation.LookAt( new Vector3( 0, 1, -1 ) ), 1.5f, new Color( 0.9f, 0.2f, 0.1f ), depth: 40 );
+
+		return scene;
+	}
+
+	/// <summary>
+	/// Envmaps and decals for benchmarking their loops in the forward shaders: glossy props under a 4x4 grid of
+	/// overlapping, feathered envmap probes, so neighbouring pixels blend different sets of envmaps, and an 8x8 grid of
+	/// overlapping decals over the floor and props.
+	/// </summary>
+	public static Scene EnvMapsAndDecals()
+	{
+		var scene = Stage( out var _camera );
+		using var _ = scene.Push();
+
+		for ( int x = 0; x < 6; x++ )
+			for ( int y = 0; y < 6; y++ )
+			{
+				var position = new Vector3( x * 50 - 125, y * 50 - 125, 15 );
+				Prop( $"Prop {x} {y}", (x + y) % 2 == 0 ? "models/dev/sphere.vmdl" : "models/dev/box.vmdl", position, new ColorHsv( (x * 6 + y) * 10, 0.5f, 1 ).ToColor(), "materials/dev/dev_metal_rough10.vmat", 0.3f );
+			}
+
+		var cubemap = Texture.Load( "textures/cubemaps/default.vtex" );
+		for ( int x = 0; x < 4; x++ )
+			for ( int y = 0; y < 4; y++ )
+			{
+				var go = new GameObject( true, $"EnvMap {x} {y}" );
+				go.WorldPosition = new Vector3( x * 80 - 120, y * 80 - 120, 60 );
+
+				var probe = go.Components.Create<EnvmapProbe>();
+				probe.Mode = EnvmapProbe.EnvmapProbeMode.CustomTexture;
+				probe.Texture = cubemap;
+				probe.Bounds = BBox.FromPositionAndSize( Vector3.Zero, new Vector3( 140, 140, 160 ) );
+				probe.Feathering = 0.3f;
+				probe.TintColor = new ColorHsv( (x * 4 + y) * 22, 0.4f, 1 ).ToColor();
+			}
+
+		string[] textures = ["textures/shapes/heart1.vtex", "textures/shapes/circle1.vtex", "textures/shapes/arrow1.vtex", "textures/dev/checkerboard.vtex"];
+		var down = Rotation.LookAt( Vector3.Down );
+		for ( int x = 0; x < 8; x++ )
+			for ( int y = 0; y < 8; y++ )
+			{
+				var decal = AddDecal( $"Decal {x} {y}", textures[(x + y) % textures.Length], new Vector3( x * 40 - 140, y * 40 - 140, 20 ), down, 3, new ColorHsv( (x * 8 + y) * 5, 0.6f, 1 ).ToColor(), depth: 60 );
+				decal.ColorMix = 0.7f;
+			}
 
 		return scene;
 	}

@@ -13,7 +13,8 @@ internal sealed partial class GameWindow : IDisposable
 {
 	internal static GameWindow Current { get; private set; }
 
-	readonly SdlWindow window;
+	SdlWindow window;
+	readonly string title;
 	GameStartupWindow startupWindow;
 	WindowMode? windowMode;
 	VideoMode? pendingMode;
@@ -52,46 +53,23 @@ internal sealed partial class GameWindow : IDisposable
 		if ( this.startupWindow is null ) startupWindow?.Dispose();
 		startupVideoMode = mode;
 
-		var width = Math.Max( mode.Window.Width, 1 );
-		var height = Math.Max( mode.Window.Height, 1 );
-		window = new SdlWindow( this.startupWindow?.Handle
-			?? Sdl.CreateWindow( title, width, height, Sdl.WindowFlags.Hidden | Sdl.WindowFlags.Resizable | Sdl.WindowFlags.Vulkan ) );
+		this.title = title;
+		window = this.startupWindow is not null ? new SdlWindow( this.startupWindow.Handle ) : CreateVulkanWindow( title, mode );
 
 		try
 		{
 			if ( this.startupWindow is not null )
 			{
 				windowMode = null;
+				Screen.Size = window.PixelSize;
 				if ( fullscreen ) pendingMode = mode;
 				Current = this;
 				UpdateStartupProgress( initialStartupProgress, initialStartupStatus );
 				return;
+
 			}
 
-			if ( !ApplyWindowMode( mode.Window ) )
-			{
-				pendingMode = mode;
-			}
-
-			if ( CommandLine.HasSwitch( "-x" ) || CommandLine.HasSwitch( "-y" ) )
-			{
-				WarnIfFailed( Sdl.GetWindowPosition( window.Handle, out var x, out var y ) );
-				WarnIfFailed( Sdl.SetWindowPosition( window.Handle, CommandLine.GetSwitchInt( "-x", x ), CommandLine.GetSwitchInt( "-y", y ) ) );
-				window.Sync();
-			}
-
-			AttachSwapChain( mode );
-
-			Current = this;
-			if ( !CommandLine.HasSwitch( "-nowindow" ) )
-			{
-				if ( fullscreen && window.Show() )
-				{
-					pendingMode = mode;
-					ApplyPendingMode();
-				}
-				if ( !fullscreen ) window.Show();
-			}
+			InitializeVulkanWindow( mode );
 		}
 		catch
 		{
@@ -118,12 +96,57 @@ internal sealed partial class GameWindow : IDisposable
 		startupFinished = true;
 		startupWindow = null;
 		if ( splash.TransferToVulkan() == IntPtr.Zero )
+		{
+			// The splash window can't be promoted, e.g. it was closed during startup, so start over with a fresh one
 			splash.Detach();
+			window.Dispose();
+			window = CreateVulkanWindow( title, startupVideoMode );
+			InitializeVulkanWindow( startupVideoMode );
+		}
+		else
+		{
+			AttachSwapChain( startupVideoMode );
+		}
+		Screen.UpdateFromEngine();
 
-		AttachSwapChain( startupVideoMode );
 		if ( renderingRequested ) InitializeRendering();
 	}
 
+	static SdlWindow CreateVulkanWindow( string title, VideoMode mode )
+	{
+		var width = Math.Max( mode.Window.Width, 1 );
+		var height = Math.Max( mode.Window.Height, 1 );
+		return new SdlWindow( Sdl.CreateWindow( title, width, height, Sdl.WindowFlags.Hidden | Sdl.WindowFlags.Resizable | Sdl.WindowFlags.Vulkan ) );
+	}
+
+	void InitializeVulkanWindow( VideoMode mode )
+	{
+		var fullscreen = mode.Window.Fullscreen || (OperatingSystem.IsLinux() && mode.Window.Borderless);
+
+		if ( !ApplyWindowMode( mode.Window ) )
+		{
+			pendingMode = mode;
+		}
+
+		if ( CommandLine.HasSwitch( "-x" ) || CommandLine.HasSwitch( "-y" ) )
+		{
+			WarnIfFailed( Sdl.GetWindowPosition( window.Handle, out var x, out var y ) );
+			WarnIfFailed( Sdl.SetWindowPosition( window.Handle, CommandLine.GetSwitchInt( "-x", x ), CommandLine.GetSwitchInt( "-y", y ) ) );
+			window.Sync();
+		}
+
+		AttachSwapChain( mode );
+
+		Current = this;
+		if ( CommandLine.HasSwitch( "-nowindow" ) ) return;
+
+		if ( fullscreen && window.Show() )
+		{
+			pendingMode = mode;
+			ApplyPendingMode();
+		}
+		if ( !fullscreen ) window.Show();
+	}
 	internal void QueueVideoMode( VideoMode mode )
 	{
 		ThreadSafe.AssertIsMainThread();

@@ -128,13 +128,13 @@ PS
 			#if !S_SOURCE_ALPHA_BLEND
 				color.a = 1;
 			#endif
-			if ( g_flSourceFogEnabled > 0 )
+			if ( g_bFogEnabled && g_flSourceFogEnabled > 0 )
 			{
 				float3 world = i.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz;
 				#if S_ADDITIVE_BLEND
-					color.rgb *= DoAtmospherics( world, i.vPositionSs.xy, float4( 0, 0, 0, 1 ), true ).a;
+					color.rgb *= Fog::Transmittance( world, i.vPositionSs.xy );
 				#else
-					color = DoAtmospherics( world, i.vPositionSs.xy, color );
+					color.rgb = Fog::Apply( world, i.vPositionSs.xy, color.rgb );
 				#endif
 			}
 			return color;

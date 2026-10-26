@@ -38,7 +38,8 @@ internal sealed class StageLayer : RenderLayer
 
 	// A camera's command lists and effects read what native's hook layers could: the depth chain (Depth::Get), and bloom's
 	// objects (the bloom effect)
-	public override FrameResources Reads( RenderFrame frame ) => FrameResources.DepthChain | FrameResources.BloomObjects;
+	public override FrameResources Reads( RenderFrame frame ) => FrameResources.DepthChain | FrameResources.BloomObjects
+		| FrameResources.AmbientOcclusion | FrameResources.Reflections | FrameResources.ContactShadows | FrameResources.Untracked;
 
 	public override void Record( RenderFrame frame, RenderContext rc, ref RenderStats stats )
 	{
@@ -47,38 +48,36 @@ internal sealed class StageLayer : RenderLayer
 }
 
 /// <summary>
-/// A stage's compute-only effects (<c>BasePostProcess.AsyncCompute</c>: AO at <c>AfterDepthPrepass</c>), ahead of the stage on the
-/// async compute queue, beside the shadow maps. Only with <c>r_managed_async_compute</c>; recorded on the graphics queue (a frame
-/// too small to record in parallel) it does nothing, and the stage runs them where it always has.
+/// Independent prepass effects, recorded ahead of ordinary camera hooks. Async effects run on compute; graphics effects
+/// wait only for the depth chain, so SSR can overlap AO. Serial frames leave both at their original stage.
 /// </summary>
-internal sealed class AsyncStageLayer : RenderLayer
+internal sealed class EarlyStageLayer : RenderLayer
 {
 	public Stage Stage { get; }
+	public PostProcessQueue Queue { get; }
 
-	public AsyncStageLayer( Stage stage ) : base( $"{StageLayer.ScopeName( stage )} (async compute)" )
+	public EarlyStageLayer( Stage stage, PostProcessQueue queue )
+		: base( $"{StageLayer.ScopeName( stage )} ({(queue == PostProcessQueue.AsyncCompute ? "async compute" : "early graphics")})" )
 	{
 		Stage = stage;
+		Queue = queue;
 	}
 
-	public override bool IsNeeded( RenderFrame frame ) => ManagedSceneRendering.AsyncCompute && frame.Stages is not null && frame.Stages.HasAsyncCompute( Stage );
+	public override bool IsNeeded( RenderFrame frame ) => ManagedSceneRendering.AsyncCompute && frame.Stages is not null && frame.Stages.HasEarlyPostProcess( Stage, Queue );
 
-	// GTAO reads the depth chain
-	public override FrameResources Reads( RenderFrame frame ) => FrameResources.DepthChain;
+	public override FrameResources Reads( RenderFrame frame ) => FrameResources.DepthChain | FrameResources.Normals;
+	public override FrameResources Writes => Queue == PostProcessQueue.AsyncCompute ? FrameResources.AmbientOcclusion : FrameResources.Reflections;
+	public override bool SupportsAsyncCompute => Queue == PostProcessQueue.AsyncCompute;
 
-	public override bool AsyncCompute => true;
-
-	/// <summary>
-	/// The normals G-buffer the prepass drew, made readable by compute on the graphics queue.
-	/// </summary>
 	public override void HandOff( RenderFrame frame, RenderContext rc )
 	{
 		if ( frame.NormalsGBuffer is { } gbuffer ) rc.BarrierColorToComputeRead( gbuffer );
 	}
 
-	// The effects' own barriers leave their results readable, and the segment that joins waits in every stage
 	public override void Record( RenderFrame frame, RenderContext rc, ref RenderStats stats )
 	{
-		if ( rc.AsyncCompute ) frame.RunAsyncCompute( rc, Stage );
+		if ( Queue == PostProcessQueue.AsyncCompute ? rc.AsyncCompute : frame.AsyncCompute )
+			frame.RunEarlyPostProcess( rc, Stage, Queue );
 	}
 }
 

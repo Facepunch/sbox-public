@@ -144,6 +144,14 @@ public partial class BaseWeaponModel : Component
 	}
 
 	/// <summary>
+	/// Called when the weapon attacks, but has no ammo.
+	/// </summary>
+	public virtual void OnDryFire()
+	{
+		Renderer?.Set( "b_attack_dry", true );
+	}
+
+	/// <summary>
 	/// Called when the weapon starts reloading. Base sets the "b_reload" animation parameter. Override to
 	/// extend (incremental animations, timed reload sounds).
 	/// </summary>

@@ -138,7 +138,9 @@ public sealed class WorldLoader( string name ) : SceneLoader<GameMount>
 		var go = new GameObject( true, "Fog" );
 		go.WorldPosition = new Vector3( 0f, 0f, 1000000f );
 
+#pragma warning disable CS0618 // Retain legacy fog support for existing content.
 		var fog = go.AddComponent<GradientFog>();
+#pragma warning restore CS0618
 		fog.Height = 1000000f;
 
 		if ( hasHaze )

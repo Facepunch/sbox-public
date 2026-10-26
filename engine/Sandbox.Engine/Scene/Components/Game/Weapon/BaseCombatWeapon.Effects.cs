@@ -124,7 +124,23 @@ public partial class BaseCombatWeapon
 	/// <see cref="ImpactEffect(in ShotEffect)"/>). Override for your own (a melee thunk, a scorch).
 	/// Does nothing for a miss.
 	/// </summary>
-	protected virtual void OnShootImpact( in ShotEffect shot ) => ImpactEffect( shot );
+	protected virtual void OnShootImpact( in ShotEffect shot ) => ImpactEffect( shot, GetShotDirection( shot ) );
+
+	/// <summary>
+	/// The direction a shot travelled to reach its hit - from <see cref="ShotEffect.Origin"/>, else <see cref="AimRay"/>
+	/// on the shooter (where pellets are traced from), else the holder's eye on other peers, else the muzzle.
+	/// Worked out on each peer rather than sent with the shot.
+	/// </summary>
+	protected Vector3 GetShotDirection( in ShotEffect shot )
+	{
+		var owner = Owner;
+		var from = shot.Origin
+			?? (!IsProxy ? AimRay.Position
+			: owner.IsValid() ? owner.EyeTransform.Position
+			: GetMuzzleTransform().Position);
+
+		return (shot.HitPosition - from).Normal;
+	}
 
 	/// <summary>
 	/// Spawn a bullet impact at a trace hit - the hit surface's impact sound and decal/particle, oriented
@@ -139,19 +155,24 @@ public partial class BaseCombatWeapon
 		if ( !tr.Hit )
 			return;
 
-		ImpactEffect( tr.GameObject, tr.Surface, tr.HitPosition, tr.Normal );
+		ImpactEffect( tr.GameObject, tr.Surface, tr.HitPosition, tr.Normal, tr.Direction );
 	}
 
 	/// <inheritdoc cref="ImpactEffect(SceneTraceResult)"/>
-	public static void ImpactEffect( in ShotEffect shot )
+	public static void ImpactEffect( in ShotEffect shot ) => ImpactEffect( shot, Vector3.Zero );
+
+	/// <inheritdoc cref="ImpactEffect(SceneTraceResult)"/>
+	/// <param name="shot">The resolved shot.</param>
+	/// <param name="direction">The direction the shot travelled, for the surface's <see cref="Surface.Splatter"/>. Zero skips it.</param>
+	public static void ImpactEffect( in ShotEffect shot, Vector3 direction )
 	{
 		if ( !shot.Hit )
 			return;
 
-		ImpactEffect( shot.HitObject, shot.Surface, shot.HitPosition, shot.Normal );
+		ImpactEffect( shot.HitObject, shot.Surface, shot.HitPosition, shot.Normal, direction );
 	}
 
-	static void ImpactEffect( GameObject hitObject, Surface surface, Vector3 position, Vector3 normal )
+	static void ImpactEffect( GameObject hitObject, Surface surface, Vector3 position, Vector3 normal, Vector3 direction )
 	{
 		if ( Application.IsDedicatedServer )
 			return;
@@ -165,7 +186,7 @@ public partial class BaseCombatWeapon
 		if ( sound.IsValid() )
 			Sound.Play( sound, position );
 
-		ImpactPrefab( hitObject, surface, position, normal );
+		ImpactPrefab( hitObject, surface, position, normal, direction );
 	}
 
 	/// <summary>
@@ -173,6 +194,17 @@ public partial class BaseCombatWeapon
 	/// For attacks that want the visual but their own impact audio (a melee thunk instead of a ricochet).
 	/// </summary>
 	public static void ImpactPrefab( GameObject hitObject, Surface surface, Vector3 position, Vector3 normal )
+	{
+		ImpactPrefab( hitObject, surface, position, normal, Vector3.Zero );
+	}
+
+	/// <inheritdoc cref="ImpactPrefab(GameObject, Surface, Vector3, Vector3)"/>
+	/// <param name="hitObject">What was hit.</param>
+	/// <param name="surface">The surface that was hit.</param>
+	/// <param name="position">Where the hit landed.</param>
+	/// <param name="normal">The surface normal at the hit.</param>
+	/// <param name="direction">The direction the hit travelled, for the surface's <see cref="Surface.Splatter"/>. Zero skips it.</param>
+	public static void ImpactPrefab( GameObject hitObject, Surface surface, Vector3 position, Vector3 normal, Vector3 direction )
 	{
 		if ( Application.IsDedicatedServer )
 			return;
@@ -190,6 +222,8 @@ public partial class BaseCombatWeapon
 		{
 			SpawnImpactPrefab( decalPrefab, hitObject, position, normal, false );
 		}
+
+		Surface.PlaceSplatter( surface.GetSplatter( baseSurface ), position, direction, hitObject );
 	}
 
 	static void SpawnImpactPrefab( GameObject prefab, GameObject hitObject, Vector3 position, Vector3 normal, bool becomeOrphan )
@@ -211,12 +245,19 @@ public partial class BaseCombatWeapon
 			temporaryEffect.BecomeOrphan = becomeOrphan;
 		}
 
+		AttachToHit( impact, hitObject, position );
+	}
+
+	/// <summary>
+	/// Stick an impact to what was hit, and to the nearest bone of a skinned model so it follows animation.
+	/// </summary>
+	internal static void AttachToHit( GameObject impact, GameObject hitObject, Vector3 position )
+	{
 		// The hit object can be gone by the time the impact plays - this shot killed it - and the
 		// impact still belongs where it landed, anchored to the world.
 		if ( !hitObject.IsValid() )
 			return;
 
-		// Stick it to what we hit, and to the nearest bone of a skinned model so it follows animation.
 		var skinned = hitObject.GetComponentInChildren<SkinnedModelRenderer>();
 		if ( skinned is { CreateBoneObjects: true } )
 		{

@@ -14,6 +14,12 @@ internal partial class NetworkSystem
 	public IEnumerable<Connection> Connections => _connections;
 
 	/// <summary>
+	/// Stand-ins for peers we have no direct connection to, see <see cref="Connection.Find"/>.
+	/// </summary>
+	[SkipHotload]
+	internal readonly Dictionary<Guid, Connection> MockConnections = new();
+
+	/// <summary>
 	/// If true then this host is sending assemblies and other files via network tables
 	/// and as such, does not need to load assemblies from the package (if it even exists).
 	/// </summary>
@@ -95,6 +101,7 @@ internal partial class NetworkSystem
 			Assigned = new ChannelInfo { Id = channel.Id },
 			IsDeveloperHost = IsDeveloperHost,
 			HostMigration = IsHostMigrationEnabled,
+			PasswordRequired = NeedsPassword( channel ),
 			HandshakeId = channel.HandshakeId
 		};
 
@@ -189,7 +196,7 @@ internal partial class NetworkSystem
 	/// </summary>
 	internal void OnServerDisconnection( int reasonCode, string reasonString )
 	{
-		var message = $"The server connection closed.\nReason: {reasonString} (code {reasonCode}).";
+		var message = IsBadPassword( reasonString ) ? "Wrong password." : $"The server connection closed.\nReason: {reasonString} (code {reasonCode}).";
 		if ( Connection.Local.State == Connection.ChannelState.Unconnected )
 		{
 			// Keep diagnostics for a failed join without showing another dialog after teardown.

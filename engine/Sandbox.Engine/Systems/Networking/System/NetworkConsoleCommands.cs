@@ -54,8 +54,14 @@ internal static class NetworkConsoleCommands
 	}
 
 	[ConCmd( "connect", ConVarFlags.Protected )]
-	public static void ConnectToServer( string target )
+	public static void ConnectToServer( string target, string password = null )
 	{
+		// Same as setting password first
+		if ( password is not null )
+		{
+			Networking.Password = password;
+		}
+
 		Api.Activity.GameRequested( new( "console" ), replace: false );
 		Networking.Connect( target );
 	}

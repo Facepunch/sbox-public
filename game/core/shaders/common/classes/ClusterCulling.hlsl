@@ -29,15 +29,27 @@ enum ClusterItemType
 {
     ClusterItemType_Light,
     ClusterItemType_EnvMap,
-    ClusterItemType_Decal,
-    ClusterItemType_Count
+    ClusterItemType_Decal
 };
+
+// Features some light in a cluster needs, so shaders can pick a light loop once instead of testing per light.
+// They share the cluster's light count word: the count in the low 16 bits, these above it.
+static const uint ClusterFeature_LightModulators = 1;
+
+static const uint ClusterFeatureShift = 16;
+static const uint ClusterCountMask = 0xFFFF;
 
 struct ClusterRange
 {
     ClusterItemType Type;
     uint Count;
     uint BaseOffset;
+    uint Features; // ClusterFeature bits, lights only
+
+    // ClusterForEach state
+    uint Taken;     // Items this lane has taken
+    uint Pending;   // This lane's next item, ~0 when done
+    uint Item;      // The wave's current item
 };
 
 struct Cluster
@@ -45,7 +57,6 @@ struct Cluster
     static float SliceToDepth( float slice ) { return exp( ( slice - ClusterZParams.y ) / ClusterZParams.x ); }
     static float DepthToSlice( float depth ) { return ClusterZParams.x * log( depth ) + ClusterZParams.y; }
     static uint Capacity( ClusterItemType type ) { return uint( ClusterCapacitiesVec[uint( type )] ); }
-    static uint BaseOffset( ClusterItemType type, uint flatIndex ) { return flatIndex * Capacity( type ); }
 
     static uint Flatten( uint3 coord )
     {
@@ -79,15 +90,21 @@ struct Cluster
 
         depth = clamp( depth, ClusterZParams.z, ClusterZParams.w );
         uint3 d = max( uint3( ClusterCounts.xyz ), 1 );
-        uint3 coord = clamp( uint3( uv * d.xy, DepthToSlice( depth ) ), 0, d - 1 );
-        uint flatIndex = coord.x + d.x * ( coord.y + d.y * coord.z );
+        uint flatIndex = Flatten( clamp( uint3( uv * d.xy, DepthToSlice( depth ) ), 0, d - 1 ) );
 
         // Build range
-        uint capacity = uint( ClusterCapacitiesVec[uint( type )] );
+        uint capacity = Capacity( type );
         uint count = 0;
+        uint features = 0;
         switch ( type )
         {
-            case ClusterItemType_Light:  count = ClusterLightCounts[flatIndex];  break;
+            case ClusterItemType_Light:
+            {
+                uint packed = ClusterLightCounts[flatIndex];
+                count = packed & ClusterCountMask;
+                features = packed >> ClusterFeatureShift;
+                break;
+            }
             case ClusterItemType_EnvMap: count = ClusterEnvMapCounts[flatIndex]; break;
             case ClusterItemType_Decal:  count = ClusterDecalCounts[flatIndex];  break;
             default: break;
@@ -97,8 +114,19 @@ struct Cluster
         range.Type = type;
         range.Count = min( count, capacity );
         range.BaseOffset = flatIndex * capacity;
+        range.Features = features;
+        range.Taken = 0;
+        range.Pending = LoadPending( range );
+        range.Item = 0xFFFFFFFF;
 
         return range;
+    }
+
+    // The features any lane in the wave needs. Uniform, so branching on it picks one light loop for the whole wave
+    // where per-lane features would run both loops in a wave that straddles clusters.
+    static uint WaveFeatures( ClusterRange range )
+    {
+        return WaveActiveBitOr( range.Features );
     }
 
     static uint LoadItem( ClusterRange range, uint index )
@@ -112,6 +140,36 @@ struct Cluster
             default: return 0;
         }
     }
+
+    // This lane's next item, ~0 once it has taken them all. Branch, not ?:, so a full cluster never loads past its end
+    static uint LoadPending( ClusterRange range )
+    {
+        if ( range.Taken >= range.Count )
+            return 0xFFFFFFFF;
+        return LoadItem( range, range.Taken );
+    }
+
+    // Wave steps to the lowest item any lane still has pending, false once none do
+    static bool Next( inout ClusterRange range )
+    {
+        range.Item = WaveActiveMin( range.Pending );
+        return range.Item != 0xFFFFFFFF;
+    }
+
+    // Whether this lane holds the current item, prefetching its next. Not ==: amdllpc would make Item per-lane
+    static bool Take( inout ClusterRange range )
+    {
+        if ( range.Pending > range.Item )
+            return false;
+
+        range.Taken++;
+        range.Pending = LoadPending( range );
+        return true;
+    }
 };
+
+// Body runs once per item this lane holds, walked wave-uniform so item data loads once per wave
+#define ClusterForEach( range ) while ( Cluster::Next( range ) ) if ( Cluster::Take( range ) )
+
 
 #endif

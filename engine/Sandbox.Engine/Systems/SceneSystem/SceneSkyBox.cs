@@ -43,8 +43,6 @@ public class SceneSkyBox : SceneObject
 		{
 			CSceneSystem.CreateSkyBox( skyMaterial.native, world );
 		}
-
-		Material = skyMaterial;
 	}
 
 	internal override void OnNativeInit( CSceneObject ptr )
@@ -52,10 +50,20 @@ public class SceneSkyBox : SceneObject
 		base.OnNativeInit( ptr );
 
 		skyboxNative = (CSceneSkyBoxObject)ptr;
+
+		lock ( World.Skies )
+		{
+			World.Skies.Add( this );
+		}
 	}
 
 	internal override void OnNativeDestroy()
 	{
+		lock ( World.Skies )
+		{
+			World.Skies.Remove( this );
+		}
+
 		skyboxNative = default;
 		base.OnNativeDestroy();
 	}
@@ -68,15 +76,14 @@ public class SceneSkyBox : SceneObject
 		set
 		{
 			skyboxNative.SetMaterial( value?.native ?? default );
-			Material = value;
 			NotifyChanged( Rendering.SceneObjectChange.Settings );
 		}
 	}
 
 	/// <summary>
-	/// The sky material last set, for the managed scene renderer's mirror - <see cref="SkyMaterial"/> has no getter.
+	/// The actual native sky material, including skies created by native tools without a managed constructor.
 	/// </summary>
-	internal Material Material { get; private set; }
+	internal Material Material => this.IsValid() ? Sandbox.Material.FromNative( skyboxNative.GetMaterial() ) : null;
 
 	/// <summary>
 	/// Skybox color tint.

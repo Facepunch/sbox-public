@@ -55,16 +55,22 @@ public static class LauncherEnvironment
 		System.Environment.SetEnvironmentVariable( "FACEPUNCH_ENGINE", GamePath );
 
 		UpdateNativeDllPath( nativeDllPath );
+
+		// Don't update the user-level FACEPUNCH_ENGINE env var if we're running an exported standalone game!
+#if !SBOX_STANDALONE
 		_ = UpdateEnginePathAsync( GamePath );
+#endif
 	}
 
+	/// <summary>
+	/// Allows unit tests and csproj to find the engine path.
+	/// </summary>
 	private static async Task UpdateEnginePathAsync( string gamePath )
 	{
 		try
 		{
 			await Task.Run( () =>
 			{
-				// Allows unit tests and csproj to find the engine path.
 				if ( System.Environment.GetEnvironmentVariable( "FACEPUNCH_ENGINE", EnvironmentVariableTarget.User ) != gamePath )
 				{
 					System.Environment.SetEnvironmentVariable( "FACEPUNCH_ENGINE", gamePath, EnvironmentVariableTarget.User );

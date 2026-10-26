@@ -5,10 +5,20 @@
 #include "common/classes/Bindless.hlsl"
 #include "common/classes/Depth.hlsl"
 
-int NormalsTextureIndex < Attribute("NormalsTextureIndex");>;
+int NormalsTextureIndex < Attribute("NormalsTextureIndex"); Default(-1); >;
 
 struct Normals
 {
+    /// <summary>
+    /// Loads the depth-normals G-buffer texel. It has the view's sample count, and a single-sampled one can't be read as Texture2DMS.
+    /// </summary>
+    static float4 Load(int2 screenPos, uint msaaSampleIndex = 0 )
+    {
+        if ( g_nMSAASampleCount > 1 )
+            return Bindless::GetTexture2DMS( asDynamicUniform( UniformIndex( NormalsTextureIndex ) ) ).Load( screenPos + g_vViewportOffset, msaaSampleIndex );
+        return Bindless::GetTexture2D( asDynamicUniform( UniformIndex( NormalsTextureIndex ) ) ).Load( int3( screenPos + g_vViewportOffset, 0 ) );
+    }
+
     /// <summary>
     /// Reconstructs the world-space normal at the given screen position from the depth buffer.
     /// </summary>
@@ -34,8 +44,7 @@ struct Normals
             return Normals::SampleFromDepth(screenPos);
 
         // Load normals from DepthNormals G-buffer
-        Texture2DMS<float4> tDepthNormals = Bindless::GetTexture2DMS( asDynamicUniform( UniformIndex( NormalsTextureIndex ) ) );
-        float3 normals = tDepthNormals.Load( screenPos + g_vViewportOffset, msaaSampleIndex ).xyz;
+        float3 normals = Normals::Load( screenPos, msaaSampleIndex ).xyz;
 
         // Rebuild from depth if the normal is invalid
         if( all( normals == 0 ) )
@@ -50,11 +59,12 @@ struct Roughness
 {
     static float Sample(int2 screenPos, uint msaaSampleIndex = 0 )
     {
-        // Load roughness from DepthNormals G-buffer
-        Texture2DMS<float4> tDepthNormals = Bindless::GetTexture2DMS( asDynamicUniform( UniformIndex( NormalsTextureIndex ) ) );
-        float roughness = tDepthNormals.Load( screenPos + g_vViewportOffset, msaaSampleIndex ).w;
+        // No G-buffer: fully rough, so nothing traces reflections
+        if (NormalsTextureIndex == -1)
+            return 1.0f;
 
-        return roughness;
+        // Load roughness from DepthNormals G-buffer
+        return Normals::Load( screenPos, msaaSampleIndex ).w;
     }
 };
 #endif // NORMALS_HLSL

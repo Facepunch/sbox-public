@@ -104,6 +104,11 @@ public sealed class MeshObject : RenderObject
 	public bool DepthPrepass { get; set; } = true;
 
 	/// <summary>
+	/// Can be occlusion culled (inverse of <c>SCENEOBJECTFLAG_NO_OCCLUSION_CULLING</c>).
+	/// </summary>
+	public bool OcclusionCulling { get; set; } = true;
+
+	/// <summary>
 	/// Light non-lightmapped draws from a probe volume (<c>SCENEOBJECTFLAG_NEEDS_LIGHT_PROBE</c>).
 	/// </summary>
 	public bool NeedsLightProbe { get; set; }

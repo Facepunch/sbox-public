@@ -386,6 +386,9 @@ public partial class ModelRenderer : Renderer, ExecuteInEditor, ITintable, IMate
 			Tint = mr.Tint;
 			BodyGroups = mr.BodyGroups;
 			MaterialGroup = mr.MaterialGroup;
+
+			taggedMaterialOverrides = mr.taggedMaterialOverrides is not null ? new( mr.taggedMaterialOverrides ) : null;
+			ApplyMaterialOverrides();
 		}
 	}
 

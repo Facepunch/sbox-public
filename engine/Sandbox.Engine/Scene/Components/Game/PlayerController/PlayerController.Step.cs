@@ -1,177 +1,175 @@
-﻿namespace Sandbox;
+namespace Sandbox;
 
 public sealed partial class PlayerController : Component
 {
 	/// <summary>
-	/// Enable debug overlays for this character
+	/// Enable debug overlays for this character.
 	/// </summary>
 	public bool StepDebug { get; set; } = false;
 
-	// set when we stepped this tick, so at the end of the physics step we can restore our position
-	bool _didstep;
+	const float _stepClearance = 0.5f;
 
-	// if we stepped, this holds the position we moved to
-	Vector3 _stepPosition;
+	bool _stepGrounded;
+
+	void BeginStep()
+	{
+		_stepGrounded = !IsProxy && IsOnGround && Mode.AllowGrounding && _timeUntilAllowedGround <= 0;
+	}
+
+	bool CanStep => _stepGrounded && !IsProxy && Body.IsValid() && IsOnGround
+		&& Mode.AllowGrounding && _timeUntilAllowedGround <= 0;
 
 	/// <summary>
-	/// Try to step up. Will trace forward, then up, then across, then down.
+	/// Lift onto a reachable step without consuming the horizontal physics movement.
 	/// </summary>
 	internal void TryStep( float maxDistance )
 	{
-		_didstep = false;
+		if ( maxDistance <= 0 || !CanStep )
+			return;
 
-		if ( !Body.IsValid() ) return;
+		maxDistance *= MathF.Abs( WorldTransform.UniformScale );
 		var up = UpDirection;
-		var velocity = WithoutVertical( Body.Velocity );
-		if ( velocity.IsNearlyZero() ) return;
-		if ( _timeUntilAllowedGround > 0 ) return;
+		var displacement = WithoutVertical( Body.Velocity - GroundVelocity ) * Time.Delta;
+		var distance = displacement.Length;
+		if ( distance <= 0.0001f )
+			return;
 
+		var direction = displacement / distance;
+		var lookahead = displacement + direction * _stepClearance;
 		var from = WorldPosition;
-		var vel = velocity * Time.Delta;
-		float radiusScale = 1.0f;
+		var forward = TraceStepMovement( from, from + lookahead );
+		if ( !forward.Hit || (forward.StartedSolid && !Scene.Is2D && !GroundUsesContactFriction)
+			|| (!forward.StartedSolid && IsPhysicalSupportHit( forward )) )
+			return;
 
-		SceneTraceResult result;
-
-		//
-		// Trace forwards, in our current velocity direction
-		//
+		var maxLift = maxDistance + _stepClearance + _skin;
+		var maxRise = maxDistance + _skin;
+		var upward = TraceMovement( from, from + up * maxLift );
+		var lift = upward.Hit ? MathF.Max( 0, upward.Distance - _movementSkin ) : maxLift;
+		if ( upward.StartedSolid )
 		{
-			var traceOffset = Scene.Is2D ? up : 0;
-			var a = from + traceOffset - vel.Normal * _skin;
-			var b = from + traceOffset + vel;
+			if ( !TryFindContactStepLift( from, direction, maxLift, forward, out lift, out var groundOffset ) )
+				return;
+			maxRise += groundOffset;
+		}
 
-			result = TraceBody( a, b, radiusScale );
+		if ( lift <= _skin )
+			return;
 
-			// If we're inside something, lose girth until we're not
-			while ( result.StartedSolid )
+		var raised = from + up * lift;
+		bool TryLift( Vector3 routeDirection, float routeDistance, SceneTraceResult obstruction, SceneTraceResult clearance )
+		{
+			if ( clearance.StartedSolid )
+				return false;
+
+			var acrossDistance = clearance.Distance - (clearance.Hit ? _stepClearance : 0);
+			var physicsContact = !Scene.Is2D && GroundUsesContactFriction;
+			if ( physicsContact )
+				acrossDistance = MathF.Min( acrossDistance, routeDistance );
+			if ( acrossDistance <= obstruction.Distance + MathF.Min( _skin, routeDistance * 0.1f ) )
+				return false;
+
+			var top = raised + routeDirection * acrossDistance;
+			if ( !TryFindGround( top, 0, lift + _skin, out var landingGround, out var landing, requireContact: physicsContact ) )
+				return false;
+
+			if ( physicsContact )
 			{
-				radiusScale = radiusScale - 0.1f;
-				if ( radiusScale < 0.6f )
-					return;
+				var retreat = from - routeDirection * (_groundedFeetLift + _skin);
+				if ( !TryFindGround( retreat, 4, 2, out var support, out _ ) )
+					return false;
 
-				result = TraceBody( a, b, radiusScale );
+				// Motion along a tilted support plane is not a step, even across different hulls.
+				var stepRise = (landingGround.HitPosition - support.HitPosition).Dot( support.Normal ) / support.Normal.Dot( up );
+				// Compare surface points, allowing for their world-space floating-point precision.
+				var planeScale = MathF.Max( landingGround.HitPosition.Length, support.HitPosition.Length );
+				var planeTolerance = 4 * (MathF.BitIncrement( planeScale ) - planeScale);
+				if ( stepRise <= planeTolerance || stepRise > maxDistance + _skin )
+					return false;
 			}
 
-			// If we didn't hit anything, we're done here
-			if ( !result.Hit )
-				return;
+			var rise = (landing - from).Dot( up );
+			if ( rise <= _skin || rise > maxRise )
+				return false;
 
-			// Walkable slopes are handled by ground movement
-			if ( Mode.IsStandableSurface( result ) )
-				return;
+			var downward = TraceMovement( top, landing, _stepClearance );
+			if ( downward.StartedSolid || (downward.Hit && (downward.EndPosition - landing).Length > _stepClearance)
+				|| TraceMovement( landing, landing ).StartedSolid )
+				return false;
+
+			var lifted = from + up * rise;
+			if ( TraceMovement( lifted, lifted ).StartedSolid )
+				return false;
+
+			Body.WorldPosition = lifted;
+			Body.Velocity = WithoutVertical( Body.Velocity - GroundVelocity ) + GroundVelocity;
 
 			if ( StepDebug )
 			{
-				DebugOverlay.Line( a, b, duration: 10, color: Color.Green );
+				DebugOverlay.Line( from, lifted, duration: 0.1f, color: Color.Green );
+				DebugOverlay.Line( raised, top, duration: 0.1f, color: Color.Green );
+				DebugOverlay.Line( top, landing, duration: 0.1f, color: Color.Green );
 			}
-
-			var direction = vel.Normal;
-			var remainingDistance = vel.Length - result.Distance;
-			from = result.EndPosition;
-
-			if ( Scene.Is2D )
-			{
-				from -= direction * _skin;
-				remainingDistance = (b - from).Dot( direction );
-			}
-
-			if ( remainingDistance <= 0 ) return;
-			vel = direction * remainingDistance;
+			return true;
 		}
 
-		//
-		// We hit a step, move upwards from this point, one step up
-		//
-		{
-			var uppoint = from + up * maxDistance;
+		var across = TraceMovement( raised, raised + lookahead );
+		if ( TryLift( direction, distance, forward, across ) )
+			return;
 
-			// move up 
-			result = TraceBody( from, uppoint, radiusScale );
+		if ( !across.Hit || across.StartedSolid || Mode.IsStandableSurface( across ) )
+			return;
 
-			if ( result.StartedSolid )
-				return;
+		// The side wall may hide a reachable landing. Change only the query route,
+		// leaving horizontal movement and wall sliding to physics.
+		var wallNormal = WithoutVertical( across.Normal ).Normal;
+		var intoWall = displacement.Dot( wallNormal );
+		if ( intoWall >= 0 )
+			return;
 
-			// If we hit our head almost immediately, it's too tight to step up
-			// we need to draw the line somewhere
-			if ( result.Distance < 2 )
-			{
-				if ( StepDebug ) DebugOverlay.Line( from, result.EndPosition, duration: 10, color: Color.Red );
-				return;
-			}
+		var slide = displacement - wallNormal * intoWall;
+		distance = slide.Length;
+		if ( distance <= 0.0001f )
+			return;
 
-			if ( StepDebug )
-			{
-				DebugOverlay.Line( from, result.EndPosition, duration: 10, color: Color.Green );
-			}
-		}
+		direction = slide / distance;
+		lookahead = slide + direction * _stepClearance;
+		forward = TraceStepMovement( from, from + lookahead );
+		if ( !forward.Hit || (forward.StartedSolid && (Scene.Is2D || !GroundUsesContactFriction))
+			|| (!forward.StartedSolid && IsPhysicalSupportHit( forward )) )
+			return;
 
-		// Move across
-		{
-			// move across
-			var a = result.EndPosition;
-			var b = a + vel;
-
-			result = TraceBody( a, b, radiusScale );
-			if ( result.StartedSolid )
-				return;
-
-			if ( StepDebug )
-			{
-				DebugOverlay.Line( a, b, duration: 10, color: Color.Green );
-			}
-		}
-
-		//
-		// Step Down, back to the ground
-		// 
-		{
-			var dist = result.Distance;
-			var top = result.EndPosition;
-			var bottom = result.EndPosition - up * maxDistance;
-
-			result = TraceBody( top, bottom, radiusScale );
-
-			// no ground here (!)
-			if ( !result.Hit )
-			{
-				if ( StepDebug ) DebugOverlay.Line( top, bottom, duration: 10, color: Color.Red );
-				return;
-			}
-
-			// can't stand here
-			if ( !Mode.IsStandableSurface( result ) )
-				return;
-
-			// didn't step up enough to bother - returning here avoids getting stuck on corners when there's a ceiling above (due to RestoreStep preventing moving forward)
-			if ( (result.EndPosition - Body.WorldPosition).Dot( up ) <= _skin )
-				return;
-
-			_didstep = true;
-			_stepPosition = result.EndPosition + up * _skin;
-
-			Body.WorldPosition = _stepPosition;
-
-			// Kill vertical velocity when stepping
-			// so we don't launch into the air
-			Body.Velocity = WithoutVertical( Body.Velocity ) * 0.9f;
-
-			if ( StepDebug )
-			{
-				DebugOverlay.Line( top, _stepPosition, duration: 10, color: Color.Green );
-			}
-		}
+		across = TraceMovement( raised, raised + lookahead );
+		TryLift( direction, distance, forward, across );
 	}
 
-	/// <summary>
-	/// If we stepped up on the previous step, we suck our position back to the previous position after the physics step
-	/// to avoid adding double velocity. This is technically wrong but doesn't seem to cause any harm right now
-	/// </summary>
-	void RestoreStep()
+	bool IsPhysicalSupportHit( SceneTraceResult hit )
 	{
-		if ( _didstep )
+		// Walkable moving slopes must support the player's weight through native contacts.
+		if ( Mode.IsStandableSurface( hit )
+			&& (GroundUsesContactFriction || hit.Body?.BodyType == PhysicsBodyType.Dynamic) )
+			return true;
+
+		// A penetrating contact can make the sweep exit through the support's underside.
+		return GroundUsesContactFriction && _groundShape.IsValid()
+			&& hit.Body == _groundShape.Body && hit.Normal.Dot( UpDirection ) < 0;
+	}
+
+	void ApplyGroundStep( Vector3 position, SceneTraceResult ground )
+	{
+		if ( (position - WorldPosition).Length > _skin )
 		{
-			_didstep = false;
-			Body.WorldPosition = _stepPosition;
+			Body.WorldPosition = position;
+		}
+
+		UpdateGroundFromTraceResult( ground );
+		UpdateGroundVelocity();
+
+		var intoGround = (Body.Velocity - GroundVelocity).Dot( ground.Normal );
+		if ( intoGround < 0 )
+		{
+			// Correct ground penetration vertically without steering along the new surface normal.
+			Body.Velocity -= UpDirection * (intoGround / ground.Normal.Dot( UpDirection ));
 		}
 	}
 }

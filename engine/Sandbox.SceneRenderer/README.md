@@ -86,7 +86,43 @@ can do useful work for the current frame.
 Large frames record work in parallel. Each recording segment has its own native context, created on
 the thread that records it. Shadow culling is also parallelized. Camera stages and custom-object work
 that requires the main thread stay there. Small frames avoid the overhead of parallel recording.
-With `r_managed_async_compute`, depth-chain, contact-shadow and AO work can overlap shadow-map rendering.
+With `r_managed_async_compute` (enabled by default), depth-chain, contact-shadow and AO work can overlap
+shadow-map rendering. SSR automatically starts on graphics once Hi-Z is ready, alongside AO on compute.
+
+Declare each pass's inputs, outputs and compute capability. The pipeline itself stays a plain list:
+
+```csharp
+// On the AO pass:
+public override FrameResources Reads( RenderFrame frame ) => FrameResources.DepthChain | FrameResources.Normals;
+public override FrameResources Writes => FrameResources.AmbientOcclusion;
+public override bool SupportsAsyncCompute => true;
+
+// In the pipeline, in serial execution order:
+new DepthChainLayer(),
+new EarlyStageLayer( Stage.AfterDepthPrepass, PostProcessQueue.AsyncCompute ),
+contactShadows,
+new EarlyStageLayer( Stage.AfterDepthPrepass, PostProcessQueue.Graphics ),
+new ShadowLayer(),
+new ShadowsReadyLayer(),
+```
+
+`FrameRecorder` finds consecutive compute-capable passes and the following independent graphics work. It
+splits compute submissions at the results graphics needs and inserts waits for read/write, write/read and
+write/write conflicts. Read-only sharing needs no wait. Graphics producers submit before the next compute
+batch's handoff; outstanding compute joins before that handoff, another frame or untracked work. No groups,
+named pass dependencies or manual semaphore wiring are required in the pipeline.
+Reusing an earlier compute pass's input or output starts another batch, so graphics preparation cannot clear it too early.
+
+`Reads` defaults to `FrameResources.Untracked`: an undeclared pass is a conservative scheduling boundary.
+To allow overlap, override it with all resources the pass reads (`None` for no inputs), and declare its
+outputs in `Writes`. Include `Untracked` alongside known inputs for arbitrary camera hooks or custom drawing.
+These declarations also drive output culling; `HasSideEffects` keeps work such as the depth prepass even
+when no later pass explicitly reads its output. This does not inspect shader bindings or allocate resources.
+
+Each queue preserves list order. Disabled/unsupported async compute and windows with no independent graphics
+work stay serial. CPU worker thresholds do not control GPU overlap. Graphics-only preparation and result
+transitions remain in `HandOff` and `TakeBack`; preparation must only initialize outputs and transition inputs
+that already exist before the batch. Early camera effects stay at their normal stage on the serial path.
 
 ### Connections to the rest of the engine
 

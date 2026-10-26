@@ -119,7 +119,7 @@ sealed partial class NetworkDebugSystem : GameObjectSystem<NetworkDebugSystem>
 	/// </summary>
 	internal void Track<T>( string name, T message, bool outbound = false, Connection source = default )
 	{
-		if ( !NetworkRecord && !Diagnostics.PerfHub.IsCollecting( "network" ) )
+		if ( !TracksCalls )
 			return;
 
 		var bs = ByteStream.Create( 256 );
@@ -133,6 +133,22 @@ sealed partial class NetworkDebugSystem : GameObjectSystem<NetworkDebugSystem>
 		{
 			bs.Dispose();
 		}
+
+		Track( name, msgSize, outbound, source );
+	}
+
+	/// <summary>
+	/// Whether calls are being tracked, so callers can skip building their names.
+	/// </summary>
+	internal bool TracksCalls => NetworkRecord || Diagnostics.PerfHub.IsCollecting( "network" );
+
+	/// <summary>
+	/// Track a network message of a known size for diagnostic purposes.
+	/// </summary>
+	internal void Track( string name, int msgSize, bool outbound = false, Connection source = default )
+	{
+		if ( !TracksCalls )
+			return;
 
 		EnsureInitialized();
 
@@ -161,7 +177,7 @@ sealed partial class NetworkDebugSystem : GameObjectSystem<NetworkDebugSystem>
 	/// </summary>
 	internal void TrackSync( string name, int bytes, bool outbound = false, Connection source = default )
 	{
-		if ( !NetworkRecord && !Diagnostics.PerfHub.IsCollecting( "network" ) )
+		if ( !TracksCalls )
 			return;
 
 		EnsureInitialized();
@@ -235,10 +251,17 @@ sealed partial class NetworkDebugSystem : GameObjectSystem<NetworkDebugSystem>
 
 		Samples.Enqueue( _currentTick );
 
+		// Once the history is full, the oldest sample is reused for the next
 		if ( Samples.Count > MaxSamples )
-			Samples.Dequeue();
+		{
+			_currentTick = Samples.Dequeue();
+			_currentTick.BytesPerType.Clear();
+		}
+		else
+		{
+			_currentTick = new Sample();
+		}
 
-		_currentTick = new Sample();
 		_nextSampleTime = SampleRate;
 	}
 

@@ -56,7 +56,7 @@ public class ConnectionWireTest
 		var encoded = new byte[Connection.MaxChunkSize];
 		var packets = Connection.CreatePackets( encoded, NetFlags.Reliable );
 		Assert.AreEqual( 1, packets.Length );
-		Assert.AreSame( encoded, packets[0] );
+		CollectionAssert.AreEqual( encoded, packets[0] );
 	}
 
 	[TestMethod]
@@ -66,11 +66,11 @@ public class ConnectionWireTest
 		stream.Write( 42 );
 		stream.Write( "hello" );
 
-		var encoded = Connection.Encode( stream );
+		var encoded = Connection.EncodePacket( stream );
 
-		Assert.AreEqual( Connection.FlagRaw, encoded[0], "Small payload should use FlagRaw" );
+		Assert.AreEqual( Connection.FlagRaw, encoded.Span[0], "Small payload should use FlagRaw" );
 
-		var decoded = Connection.Decode( encoded );
+		var decoded = Connection.Decode( encoded.Span );
 		var original = stream.ToSpan();
 		Assert.IsTrue( decoded.SequenceEqual( original ) );
 	}
@@ -83,11 +83,11 @@ public class ConnectionWireTest
 		for ( int i = 0; i < 200; i++ )
 			stream.Write( 0x41414141 );
 
-		var encoded = Connection.Encode( stream );
+		var encoded = Connection.EncodePacket( stream );
 
-		Assert.AreEqual( Connection.FlagCompressed, encoded[0], "Large repetitive payload should compress" );
+		Assert.AreEqual( Connection.FlagCompressed, encoded.Span[0], "Large repetitive payload should compress" );
 
-		var decoded = Connection.Decode( encoded );
+		var decoded = Connection.Decode( encoded.Span );
 		var original = stream.ToSpan();
 		Assert.IsTrue( decoded.SequenceEqual( original ) );
 	}
@@ -96,7 +96,7 @@ public class ConnectionWireTest
 	public void BuildChunkPacket_HeaderFormat()
 	{
 		var payload = new byte[] { 0xAA, 0xBB, 0xCC };
-		var chunk = Connection.BuildChunkPacket( payload, 0, payload.Length, chunkIndex: 2, totalChunks: 5 );
+		var chunk = Connection.BuildChunkPacket( payload, chunkIndex: 2, totalChunks: 5 );
 
 		Assert.AreEqual( Connection.FlagChunk, chunk[0] );
 		Assert.AreEqual( 2u, BinaryPrimitives.ReadUInt32LittleEndian( chunk.AsSpan( 1 ) ) );
@@ -268,7 +268,7 @@ public class ConnectionWireTest
 	private sealed class StubConnection : Connection
 	{
 		public override bool IsHost => false;
-		internal override void InternalSend( byte[] data, NetFlags flags ) { }
+		internal override void InternalSend( NetPacket packet, NetFlags flags ) { }
 		internal override void InternalRecv( Sandbox.Network.NetworkSystem.MessageHandler handler ) { }
 		internal override void InternalClose( int closeCode, string closeReason ) { }
 	}

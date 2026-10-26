@@ -316,6 +316,30 @@ public class ModalSystem : IModalSystem
 	}
 
 	/// <summary>
+	/// A server we're joining wants its password (sv_password). Null if they'd rather not join.
+	/// </summary>
+	public Task<string> ServerPassword( string serverName )
+	{
+		var answer = new TaskCompletionSource<string>();
+
+		var modal = new QuestionModal
+		{
+			Title = string.IsNullOrWhiteSpace( serverName ) ? "#menu.games.password" : serverName,
+			Message = "#menu.games.password_needed",
+			ConfirmText = "#menu.common.join",
+			ConfirmIcon = "key",
+			Entry = ""
+		};
+
+		// Before it's deleted - and gone without an answer if everything's closed
+		modal.OnClosed += confirmed => answer.TrySetResult( confirmed ? modal.Entry : null );
+		modal.OnGone = () => answer.TrySetResult( null );
+
+		Push( modal );
+		return answer.Task;
+	}
+
+	/// <summary>
 	/// <c>menu_mock_notice</c> - a notice like the host's when it drops you, to look at without being dropped.
 	/// With "error" for the two paragraph kind a failed load gives.
 	/// </summary>

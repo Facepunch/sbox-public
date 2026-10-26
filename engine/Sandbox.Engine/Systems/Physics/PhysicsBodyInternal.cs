@@ -842,6 +842,8 @@ internal abstract partial class PhysicsBodyInternal : IValid
 
 	internal virtual void ResetProxy() { }
 
+	internal virtual bool ContactRecycling { set { } }
+
 	/// <summary>
 	/// Enable enhanced continuous collision detection (CCD) for this body.
 	/// When enabled, the body performs CCD against dynamic bodies

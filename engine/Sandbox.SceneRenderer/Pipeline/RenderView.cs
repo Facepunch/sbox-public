@@ -75,6 +75,12 @@ public sealed class RenderView
 	internal RenderAttributes CameraAttributes { get; set; }
 
 	/// <summary>
+	/// Camera-local analytic fog. Null keeps the world's legacy gradient and cubemap fog.
+	/// Stored on the view so cameras sharing a RenderWorld cannot overwrite one another.
+	/// </summary>
+	public Sandbox.Rendering.FogSetup? Fog { get; set; }
+
+	/// <summary>
 	/// Shader exposure scale (<c>g_flToneMapScalarLinear</c>); auto-exposure value or 1.
 	/// </summary>
 	public float ToneMapScalar { get; set; } = 1.0f;

@@ -26,6 +26,7 @@ public static class LoadingScreen
 			if ( !value )
 			{
 				Progress = null;
+				StepFraction = null;
 				Package = null;
 			}
 		}
@@ -53,6 +54,19 @@ public static class LoadingScreen
 	/// Cleared when the loading screen is hidden.
 	/// </summary>
 	public static Menu.LoadingProgress? Progress { get; internal set; }
+
+	/// <summary>
+	/// How far through the step in <see cref="Title"/> it is, 0 to 1, for a bar while nothing's downloading - like
+	/// updating a package's shaders. Null when the step can't say. Cleared when the loading screen is hidden.
+	/// </summary>
+	public static double? StepFraction
+	{
+		get => double.IsNaN( _stepFraction ) ? null : _stepFraction;
+		// Set from compile threads; a double is written in one go, a double? isn't
+		internal set => _stepFraction = value ?? double.NaN;
+	}
+
+	static double _stepFraction = double.NaN;
 
 	/// <summary>
 	/// Every package downloaded for the load under way, in the order they became known - for one bar

@@ -110,13 +110,8 @@ PS
 		if ( g_bFogEnabled )
 		{
 			float3 world = i.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz;
-			float3 toCamera = world - g_vCameraPositionWs;
-			float visibility = GetVolumetricFogInfluence( world, i.vPositionSs.xy );
-			// Only fog opacity affects a multiplier; never sample the fog's color.
-			if ( dot( toCamera.xy, toCamera.xy ) > g_vGradientFogCullingParams.x && world.z < g_vGradientFogCullingParams.y )
-				visibility *= 1.0 - CalculateGradientFog( world, toCamera ).a;
-			if ( dot( toCamera, toCamera ) > g_vCubeFogCullingParams.x || world.z > g_vCubeFogCullingParams.y )
-				visibility *= 1.0 - CalculateCubemapFog( world, toCamera ).a;
+			float visibility = Fog::ModulationTransmittance( world, i.vPositionSs.xy );
+
 			result.rgb = lerp( S_SOURCE_MOD2X ? 0.5 : 1.0, result.rgb, saturate( visibility ) );
 		}
 		return result;

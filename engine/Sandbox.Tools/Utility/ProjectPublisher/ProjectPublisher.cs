@@ -209,7 +209,7 @@ public partial class ProjectPublisher
 				throw new System.Exception( $"Couldn't upload the thumb to {Global.BackendTitle}, the console has more about why." );
 		}
 
-		if ( !await PostManifest( Manifest, cancel ) )
+		if ( !await PostManifest( Manifest, progress, cancel ) )
 			throw new System.Exception( "The backend didn't accept the new revision, the console has more about why." );
 	}
 
@@ -336,7 +336,7 @@ public partial class ProjectPublisher
 		throw new System.Exception( $"Unhandled status: {result}" );
 	}
 
-	async Task<bool> PostManifest( PackageManifest manifest, CancellationToken cancellationToken )
+	async Task<bool> PostManifest( PackageManifest manifest, IProgress progress, CancellationToken cancellationToken )
 	{
 		if ( Project.Config.IsStandaloneOnly )
 			return false;
@@ -351,7 +351,8 @@ public partial class ProjectPublisher
 			Description = manifest.Description,
 			Publish = true,
 			Meta = Meta.Count > 0 ? Json.Serialize( Meta ) : null,
-			EngineApi = Sandbox.Engine.Protocol.Api
+			EngineApi = Sandbox.Engine.Protocol.Api,
+			VerifyCompile = true
 		};
 
 		publish.Config = new ManifestConfig
@@ -370,6 +371,21 @@ public partial class ProjectPublisher
 		try
 		{
 			result = await Backend.Package.PublishManifest( publish );
+
+			// The backend compiles the code before the revision goes live, holding each post for a while - keep
+			// posting until it's done. It gives up on its side and publishes anyway if its compiler is stuck.
+			while ( result.Status == "compiling" )
+			{
+				progress?.SetProgressMessage( "Compiling on the server" );
+				await Task.Delay( CompileRetryDelay, cancellationToken );
+				result = await Backend.Package.PublishManifest( publish );
+			}
+		}
+		catch ( Refit.ApiException e ) when ( e.StatusCode == System.Net.HttpStatusCode.BadRequest && ReadError( e.Content ) is { } error )
+		{
+			// The backend's reason, such as the code not compiling on the server - the errors are in the detail
+			Log.Warning( $"PublishManifest: {error.Summary}\n{error.Detail}" );
+			throw new System.Exception( string.IsNullOrWhiteSpace( error.Detail ) || error.Detail == error.Summary ? error.Summary : $"{error.Summary}\n\n{FirstLines( error.Detail, 20 )}" );
 		}
 		catch ( Refit.ApiException e )
 		{
@@ -402,6 +418,35 @@ public partial class ProjectPublisher
 
 		return false;
 
+	}
+
+	/// <summary>
+	/// How long to wait before posting the manifest again while the backend compiles. It holds each post ~20s itself.
+	/// </summary>
+	static readonly TimeSpan CompileRetryDelay = TimeSpan.FromSeconds( 10 );
+
+	record struct BackendError( string Summary, string Detail );
+
+	/// <summary>
+	/// The <c>{ Summary, Detail }</c> the backend answers a bad request with, or null if that's not what it sent.
+	/// </summary>
+	static BackendError? ReadError( string content )
+	{
+		try
+		{
+			var error = JsonSerializer.Deserialize<BackendError>( content ?? "", new JsonSerializerOptions { PropertyNameCaseInsensitive = true } );
+			return string.IsNullOrWhiteSpace( error.Summary ) ? null : error;
+		}
+		catch ( JsonException )
+		{
+			return null;
+		}
+	}
+
+	static string FirstLines( string text, int count )
+	{
+		var lines = text.Split( '\n' );
+		return lines.Length <= count ? text : string.Join( '\n', lines.Take( count ) ) + $"\n... and {lines.Length - count} more lines, the console has them all";
 	}
 
 	void SetMetaFromAsset( Asset asset )

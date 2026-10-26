@@ -267,6 +267,24 @@ internal static class Utility
 		return Convert.ToHexString( hash ).ToLowerInvariant();
 	}
 
+	/// <summary>
+	/// Creates a hard link at <paramref name="linkPath"/> to <paramref name="targetPath"/>. Fails when they're
+	/// on different volumes, or the file system doesn't support them.
+	/// </summary>
+	public static bool TryCreateHardLink( string linkPath, string targetPath )
+	{
+		if ( OperatingSystem.IsWindows() )
+			return CreateHardLinkW( linkPath, targetPath, IntPtr.Zero );
+
+		return link( targetPath, linkPath ) == 0;
+	}
+
+	[DllImport( "kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true )]
+	private static extern bool CreateHardLinkW( string lpFileName, string lpExistingFileName, IntPtr lpSecurityAttributes );
+
+	[DllImport( "libc", SetLastError = true )]
+	private static extern int link( string oldpath, string newpath );
+
 	public static string FormatSize( long bytes )
 	{
 		if ( bytes <= 0 )
@@ -292,8 +310,13 @@ internal static class Utility
 	/// file referenced by GITHUB_ENV. No-op when not running under Actions (GITHUB_ENV unset), so locally the
 	/// value is simply never seen by subsequent steps.
 	/// </summary>
+	/// <summary>
+	/// Sets a variable for later steps of the job, and for the rest of this process.
+	/// </summary>
 	public static void SetGitHubEnv( string name, string value )
 	{
+		Environment.SetEnvironmentVariable( name, value );
+
 		var githubEnv = Environment.GetEnvironmentVariable( "GITHUB_ENV" );
 		if ( string.IsNullOrEmpty( githubEnv ) )
 			return;

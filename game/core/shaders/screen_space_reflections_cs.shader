@@ -41,7 +41,7 @@ CS
     int                    PreviousFrameColorIndex < Attribute( "PreviousFrameColorIndex" ); >;
     float                  RoughnessCutoff         < Attribute( "RoughnessCutoff" ); Default( 0.5 ); >;
     RWTexture2D<float4>    OutRadiance             < Attribute( "OutRadiance" ); >;
-    StructuredBuffer<uint> ClassifiedTiles         < Attribute( "ClassifiedTiles" ); >;
+    Texture2D<uint>        ClassifiedTiles         < Attribute( "ClassifiedTiles" ); >;
     Texture2D<float4>      Radiance                < Attribute( "Radiance" ); >;
     // Low-res surface the upscale weighs its taps against: linear depth, roughness, encoded normal
     Texture2D<float4>      Guide                   < Attribute( "Guide" ); >;
@@ -77,7 +77,11 @@ CS
             uint2 subGroupCoord = 0;
         #endif
 
-        uint packedTileCoord = ClassifiedTiles[ tileListIndex ];
+        uint width, height;
+        ClassifiedTiles.GetDimensions( width, height );
+        if ( tileListIndex >= width * height )
+            return ~0u; // Past the list: MainCs bounds-checks it away
+        uint packedTileCoord = ClassifiedTiles.Load( int3( tileListIndex % width, tileListIndex / width, 0 ) );
         uint2 tileCoord = uint2( packedTileCoord & 0xFFFFu, ( packedTileCoord >> 16u ) & 0xFFFFu );
         return ( tileCoord * groupsPerAxis + subGroupCoord ) * 8u + groupThreadId;
     }

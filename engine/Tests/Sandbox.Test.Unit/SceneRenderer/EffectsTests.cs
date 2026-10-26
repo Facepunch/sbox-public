@@ -79,6 +79,53 @@ public class EffectsTests
 		Assert.AreSame( tiny, layers.Translucent[0].Custom );
 	}
 
+	/// <summary>
+	/// Sprite CPU uploads must use the same scalar layout as both sprite shaders, including motion-blur copies.
+	/// </summary>
+	[TestMethod]
+	public void SpriteRefractionGpuLayout()
+	{
+		Assert.AreEqual( 148, Marshal.SizeOf<Sandbox.Rendering.SpriteBatchSceneObject.SpriteData>() );
+		Assert.AreEqual( 140, (int)Marshal.OffsetOf<Sandbox.Rendering.SpriteBatchSceneObject.SpriteData>( "NormalTextureHandle" ) );
+		Assert.AreEqual( 144, (int)Marshal.OffsetOf<Sandbox.Rendering.SpriteBatchSceneObject.SpriteData>( "RefractionStrength" ) );
+	}
+
+	/// <summary>
+	/// Custom readers keep the shared copy and stencil alive, and release both when refraction is disabled.
+	/// </summary>
+	[TestMethod]
+	public void CustomRefractionUsesSharedFrameResources()
+	{
+		var world = new RenderWorld();
+		var custom = new TestCustom( new Vector3( 40, 0, 0 ) ) { WantsFrameBufferCopy = true };
+		world.Add( custom );
+
+		using var system = new RenderSystem();
+		CollectAndPrepare( system, world, LookingDownX() );
+		var feature = system.GetFeature<MeshRenderFeature>();
+		var layers = feature.RunsFor( system.MainPass );
+
+		Assert.AreEqual( MeshRuns.Translucent, layers.FrameBufferReads );
+		Assert.IsTrue( layers.Translucent.Single().ReadsFrameBuffer );
+		Assert.AreSame( custom, layers.Refraction.Single().Custom );
+		Assert.IsTrue( (layers.Custom & MeshRuns.Refraction) != 0, "The stencil must record custom draws on the main thread." );
+		Assert.IsTrue( new RefractionStencilLayer().DrawsCustomObjects );
+
+		custom.WantsFrameBufferCopy = false;
+		CollectAndPrepare( system, world, LookingDownX() );
+		layers = feature.RunsFor( system.MainPass );
+		Assert.AreEqual( (MeshRuns)0, layers.FrameBufferReads );
+		Assert.IsFalse( layers.Translucent.Single().ReadsFrameBuffer );
+		Assert.AreEqual( 0, layers.Refraction.Count );
+
+		custom.WantsFrameBufferCopy = true;
+		custom.IsOpaque = true;
+		CollectAndPrepare( system, world, LookingDownX() );
+		layers = feature.RunsFor( system.MainPass );
+		Assert.AreEqual( (MeshRuns)0, layers.FrameBufferReads, "Opaque layers do not copy the framebuffer." );
+		Assert.AreEqual( 0, layers.Refraction.Count );
+	}
+
 	[TestMethod]
 	public void DecalsBinInSortOrder()
 	{

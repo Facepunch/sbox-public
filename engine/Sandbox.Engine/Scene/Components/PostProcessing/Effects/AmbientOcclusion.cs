@@ -147,7 +147,7 @@ public sealed partial class AmbientOcclusion : BasePostProcess<AmbientOcclusion>
 	internal override bool NeedsDepthNormals => true;
 
 	// GTAO is compute dispatches and barriers from the depth chain and normals into its own targets
-	internal override bool AsyncCompute => true;
+	internal override PostProcessQueue? EarlyQueue => PostProcessQueue.AsyncCompute;
 
 	public override void Render()
 	{

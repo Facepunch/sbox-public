@@ -7,23 +7,24 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	internal PostProcessLayers PostProcess { get; private set; } = new PostProcessLayers();
 
 	/// <summary>
-	/// Whether this camera's post processing reads the depth-normals prepass's G-buffer (AO, SSR), so the managed scene
-	/// renderer draws it.
+	/// Whether this camera's command lists may read the depth-normals prepass's G-buffer, for both renderers.
 	/// </summary>
-	bool WantsDepthNormals() => PostProcess.NeedsDepthNormals;
+	bool WantsDepthNormals() => Scene.RenderAttributes.GetBool( "NeedsDepthNormals" ) || PostProcess.Layers.Count != 0 || HasCustomCommandLists();
 
 	/// <summary>
-	/// Whether post processing at <paramref name="stage"/> can run on the async compute queue (<see cref="BasePostProcess.AsyncCompute"/>).
+	/// Whether independent post processing can run ahead of <paramref name="stage"/> on <paramref name="queue"/>.
 	/// </summary>
-	bool HasAsyncCompute( Stage stage ) => PostProcessSystem.EnablePostProcess && PostProcess.HasAsyncCompute( stage );
+	bool HasEarlyPostProcess( Stage stage, PostProcessQueue queue ) => PostProcessSystem.EnablePostProcess && PostProcess.HasEarlyPostProcess( stage, queue );
+
+	void ScheduleEarlyPostProcess( Stage stage, bool enabled ) => PostProcess.ScheduleEarlyPostProcess( stage, enabled );
 
 	/// <summary>
 	/// Run it, under the conditions the stage would (<c>PostProcessSystem.OnRenderStage</c>). On the render thread.
 	/// </summary>
-	void RenderAsyncCompute( Stage stage )
+	void RenderEarlyPostProcess( Stage stage, PostProcessQueue queue )
 	{
 		if ( !PostProcessSystem.EnablePostProcess || !Graphics.PostProcessEnabled ) return;
-		PostProcess.RenderAsyncCompute( stage );
+		PostProcess.RenderEarlyPostProcess( stage, queue );
 	}
 
 	/// <summary>

@@ -10,18 +10,77 @@ internal class LocalSnapshotState
 {
 	internal class Entry
 	{
-		public readonly HashSet<Guid> Connections = [];
 		public int Slot;
 		public byte[] Value;
 		public ulong Hash;
+
+		/// <summary>
+		/// Stable position of this entry, connections keep what they have of it at this index.
+		/// </summary>
+		public int Index;
+
+		/// <summary>
+		/// When the value last changed, see <see cref="NextChange"/>.
+		/// </summary>
+		public long Change;
+
+		/// <summary>
+		/// Until a connection has it, it goes with every send of this object, for values that can't be read without it.
+		/// </summary>
+		public bool SendWithChanges;
 	}
 
-	public readonly List<Entry> Entries = new( 128 );
-	public readonly HashSet<int> RemovedSlots = new( 128 );
-	public readonly Dictionary<int, Entry> Lookup = new( 128 );
-	public readonly HashSet<Guid> UpdatedConnections = new( 128 );
+	// Not pre-sized: one of these exists per networked object
+	public readonly List<Entry> Entries = new();
+	public readonly HashSet<int> RemovedSlots = new();
+	public readonly Dictionary<int, Entry> Lookup = new();
 
-	public ushort SnapshotId { get; set; }
+	/// <summary>
+	/// Value changes are numbered from one counter, so whether a connection has a value is a comparison.
+	/// </summary>
+	static long NextChange;
+
+	/// <summary>
+	/// The latest <see cref="Entry.Change"/> of any entry, or of a removal.
+	/// </summary>
+	public long LastChange { get; private set; }
+
+	/// <summary>
+	/// One more than the highest <see cref="Entry.Index"/> in use.
+	/// </summary>
+	public int IndexCount { get; private set; }
+
+	readonly Stack<int> _freeIndices = new();
+
+	/// <summary>
+	/// <see cref="Entry.Change"/> by <see cref="Entry.Index"/>, 0 for unused indices. Connections compare against this
+	/// in a tight loop, without touching the entries.
+	/// </summary>
+	public long[] ChangeByIndex => _changeByIndex;
+	long[] _changeByIndex = [];
+
+	/// <summary>
+	/// The entry at each <see cref="Entry.Index"/>, null for unused indices.
+	/// </summary>
+	public Entry[] EntryByIndex => _entryByIndex;
+	Entry[] _entryByIndex = [];
+
+	/// <summary>
+	/// Bumped to make every connection forget what it has of this object, see <see cref="ClearConnections"/>.
+	/// </summary>
+	public int ClearGeneration { get; private set; }
+
+	/// <summary>
+	/// Set by the snapshot system to its connection set once every connection has every value, -1 otherwise.
+	/// </summary>
+	public int AckedByConnections { get; set; } = -1;
+
+	/// <summary>
+	/// The snapshot system's index for this object, -1 until it first sends it.
+	/// </summary>
+	internal int NetIndex { get; set; } = -1;
+
+	public uint SnapshotId { get; set; }
 	public ushort Version { get; set; }
 	public Guid ObjectId { get; set; }
 	public int Size { get; private set; }
@@ -101,30 +160,12 @@ internal class LocalSnapshotState
 	}
 
 	/// <summary>
-	/// Remove a connection from stored state acknowledgements.
-	/// </summary>
-	/// <param name="id"></param>
-	public void RemoveConnection( Guid id )
-	{
-		UpdatedConnections.Remove( id );
-
-		foreach ( var entry in Entries )
-		{
-			entry.Connections.Remove( id );
-		}
-	}
-
-	/// <summary>
-	/// Clear all connections from stored state acknowledgements.
+	/// Forget what every connection has of this object, so everything is sent to them again.
 	/// </summary>
 	public void ClearConnections()
 	{
-		UpdatedConnections.Clear();
-
-		foreach ( var entry in Entries )
-		{
-			entry.Connections.Clear();
-		}
+		ClearGeneration++;
+		AckedByConnections = -1;
 	}
 
 	/// <summary>
@@ -135,12 +176,15 @@ internal class LocalSnapshotState
 		if ( !Lookup.TryGetValue( slot, out var entry ) )
 			return;
 
-		UpdatedConnections.Clear();
-		entry.Connections.Clear();
 		RemovedSlots.Add( slot );
 
 		Entries.Remove( entry );
 		Lookup.Remove( slot );
+		_freeIndices.Push( entry.Index );
+		ChangeByIndex[entry.Index] = 0;
+		EntryByIndex[entry.Index] = null;
+		LastChange = ++NextChange;
+		AckedByConnections = -1;
 
 		Size -= entry.Value.Length;
 	}
@@ -179,15 +223,25 @@ internal class LocalSnapshotState
 			{
 				Slot = slot,
 				Value = value,
-				Hash = hash
+				Hash = hash,
+				Index = _freeIndices.Count > 0 ? _freeIndices.Pop() : IndexCount++
 			};
 
+			if ( IndexCount > ChangeByIndex.Length )
+			{
+				var size = Math.Max( 8, ChangeByIndex.Length * 2 );
+				Array.Resize( ref _changeByIndex, size );
+				Array.Resize( ref _entryByIndex, size );
+			}
+
+			EntryByIndex[entry.Index] = entry;
 			Entries.Add( entry );
 			Lookup[slot] = entry;
 		}
 
-		entry.Connections.Clear();
-		UpdatedConnections.Clear();
+		entry.Change = LastChange = ++NextChange;
+		ChangeByIndex[entry.Index] = entry.Change;
+		AckedByConnections = -1;
 
 		Size += value.Length;
 	}

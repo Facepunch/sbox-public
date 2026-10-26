@@ -171,7 +171,7 @@ public class FloatControlWidget : StringControlWidget
 
 		if ( SliderWidget is not null )
 		{
-			var sliderRect = rect.Shrink( 2, 0, 60, 0 );
+			var sliderRect = rect.Shrink( 2, 0, SliderDrawing.ValueWidth, 0 );
 			SliderWidget.Position = sliderRect.Position;
 			SliderWidget.Size = sliderRect.Size;
 
@@ -454,11 +454,11 @@ public class FloatSlider : Widget
 
 	public float Step { get; set; } = 0.01f;
 
-	const float thumbWidth = 6;
-	const float thumbHeight = 12;
-
 	public FloatSlider( Widget parent ) : base( parent )
 	{
+		// Repaint thumb hover when the pointer moves without a button held.
+		MouseTracking = true;
+
 		Minimum = 0;
 		Maximum = 100;
 		Value = 25;
@@ -483,32 +483,16 @@ public class FloatSlider : Widget
 
 	internal void PaintSlider( Rect rect, float pos )
 	{
-		var trackWidth = 5.0f;
-		var center = rect.Height / 2.0f;
-		var halfThumb = thumbWidth * 0.5f;
-		var width = rect.Width;
-		var highlightColor = HighlightColor;
-
-		Paint.Antialiasing = true;
-
-		Paint.ClearPen();
-
-		Paint.SetBrush( highlightColor.WithAlpha( 0.2f ) );
-		Paint.DrawRect( new( halfThumb, center - trackWidth * 0.5f, width - thumbWidth, trackWidth ), 3.0f );
-
-		Paint.SetBrush( highlightColor.WithAlpha( 0.8f ) );
-		Paint.DrawRect( new( halfThumb, center - trackWidth * 0.5f, pos, trackWidth ), 3.0f );
-
-		Paint.SetBrush( Theme.TextControl );
-		Paint.SetPen( Theme.WindowBackground.WithAlpha( 0.3f ), 1 );
-		Paint.DrawRect( new( pos, center - thumbHeight * 0.5f, thumbWidth, thumbHeight ), 2 );
+		var halfHandle = SliderDrawing.HandleWidth * 0.5f;
+		SliderDrawing.DrawTrack( rect, halfHandle, pos + halfHandle, HighlightColor );
+		SliderDrawing.DrawHandle( this, rect, pos + halfHandle );
 	}
 
 	protected override void OnPaint()
 	{
 		base.OnPaint();
 
-		var pos = DeltaValue * (Width - thumbWidth);
+		var pos = DeltaValue * (Width - SliderDrawing.HandleWidth);
 
 		if ( SliderPaint is null )
 		{
@@ -525,7 +509,7 @@ public class FloatSlider : Widget
 		if ( ReadOnly )
 			return;
 
-		var delta = (position - thumbWidth * 0.5f) / (Width - thumbWidth);
+		var delta = (position - SliderDrawing.HandleWidth * 0.5f) / (Width - SliderDrawing.HandleWidth);
 		DeltaValue = delta.Clamp( 0.0f, 1.0f );
 		OnValueEdited?.Invoke();
 
@@ -548,6 +532,8 @@ public class FloatSlider : Widget
 
 	protected override void OnMouseMove( MouseEvent e )
 	{
+		Update();
+
 		if ( ReadOnly )
 			return;
 

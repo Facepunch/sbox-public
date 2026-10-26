@@ -153,15 +153,7 @@ internal sealed class SceneBridge : IManagedSceneRenderer
 	/// </summary>
 	void SyncSkybox( SceneMirror mirror, SceneCamera camera )
 	{
-		SceneSkybox3D source = null;
-		foreach ( var candidate in camera.World.InternalSkyboxWorlds )
-		{
-			if ( candidate is not null && candidate.IsValid )
-			{
-				source = candidate;
-				break;
-			}
-		}
+		var source = camera.World.GetRenderingSkybox();
 
 		if ( source is null )
 		{
@@ -170,7 +162,7 @@ internal sealed class SceneBridge : IManagedSceneRenderer
 		}
 
 		var skyMirror = MirrorFor( source.SkyboxWorld );
-		skyMirror.Sync( camera );
+		skyMirror.Sync( camera, skyboxView: true );
 
 		var skybox = mirror.World.Skybox3D;
 		if ( skybox?.World != skyMirror.World ) skybox = mirror.World.Skybox3D = new Skybox3D( skyMirror.World );
@@ -191,6 +183,8 @@ internal sealed class SceneBridge : IManagedSceneRenderer
 		view.ZFar = camera.ZFar;
 		view.ClearColor = camera.BackgroundColor;
 		view.CameraAttributes = camera.Attributes;
+		// Captures with ViewSetup overrides use CameraRenderer; this bridge draws the camera's resolved view.
+		view.Fog = camera.ResolveFog( default );
 
 		// mat_toolsvis overrides camera debug mode (CameraRenderer.Configure).
 		view.ToolsView = camera.ToolsView;

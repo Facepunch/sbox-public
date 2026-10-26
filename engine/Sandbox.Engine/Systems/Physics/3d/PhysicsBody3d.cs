@@ -454,6 +454,11 @@ internal sealed partial class PhysicsBody3d : PhysicsBodyInternal, IHandle
 		native.ResetProxy();
 	}
 
+	internal override bool ContactRecycling
+	{
+		set => native.SetContactRecycling( value );
+	}
+
 	/// <summary>
 	/// Enable enhanced continuous collision detection (CCD) for this body.
 	/// </summary>

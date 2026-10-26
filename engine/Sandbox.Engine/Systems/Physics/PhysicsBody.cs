@@ -651,6 +651,11 @@ public sealed partial class PhysicsBody : IValid
 
 	// --- internal surface used by the engine through the public body type ---
 
+	internal bool ContactRecycling
+	{
+		set => _body.ContactRecycling = value;
+	}
+
 	internal object Hitbox
 	{
 		get => _body.Hitbox;

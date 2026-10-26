@@ -41,11 +41,8 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		AddHandler<ObjectRefreshMsgAck>( OnObjectRefreshAck );
 		AddHandler<ObjectDestroyMsg>( OnObjectDestroy );
 		AddHandler<ObjectDetachMsg>( OnObjectDetach );
-		AddHandler<ObjectRpcMsg>( OnObjectMessage );
 		AddHandler<ObjectNetworkTableMsg>( OnNetworkTableChanges );
 		AddHandler<SceneNetworkTableMsg>( OnNetworkTableChanges );
-		AddHandler<SceneRpcMsg>( OnSceneRpc );
-		AddHandler<StaticRpcMsg>( OnStaticRpc );
 		AddHandler<LoadSceneBeginMsg>( OnLoadSceneMsg );
 		AddHandler<LoadSceneSnapshotMsg>( OnLoadSceneSnapshotMsg );
 		AddHandler<LoadSceneRequestSnapshotMsg>( OnLoadSceneRequestSnapshotMsg );
@@ -55,6 +52,16 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	internal void OnHotload()
 	{
 		DeltaSnapshots.Reset();
+	}
+
+	internal override void OnRpcMessage( ByteStream data, Connection source )
+	{
+		Rpc.IncomingRpc( data, source );
+	}
+
+	internal override void AfterIncomingMessages()
+	{
+		DeltaSnapshots.FlushAcks();
 	}
 
 	/// <summary>
@@ -767,11 +774,6 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 				no.RemoveConnection( client.Id );
 			}
 
-			foreach ( var system in Game.ActiveScene.GetSystems() )
-			{
-				system.LocalSnapshotState.RemoveConnection( client.Id );
-			}
-
 			if ( Networking.IsHost )
 			{
 				Platform.Chat.BroadcastPlayerLeave( client );
@@ -1430,21 +1432,6 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		obj._net.OnNetworkDestroy();
 	}
 
-	private void OnObjectMessage( ObjectRpcMsg rpc, Connection source, Guid msgId )
-	{
-		Rpc.IncomingInstanceRpcMsg( rpc, source );
-	}
-
-	private void OnSceneRpc( SceneRpcMsg message, Connection source, Guid msgId )
-	{
-		Rpc.IncomingInstanceRpcMsg( message, source );
-	}
-
-	private void OnStaticRpc( StaticRpcMsg message, Connection source, Guid msgId )
-	{
-		Rpc.IncomingStaticRpcMsg( message, source );
-	}
-
 	/// <summary>
 	/// A heartbeat has been received from the host. We should make sure our times are in sync.
 	/// </summary>
@@ -1663,31 +1650,4 @@ struct ObjectDetachMsg
 struct ObjectDestroyMsg
 {
 	public Guid Guid { get; set; }
-}
-
-[Expose]
-struct SceneRpcMsg
-{
-	public Guid Guid { get; set; }
-	public int MethodIdentity { get; set; }
-	public object[] Arguments { get; set; }
-	public int[] GenericArguments { get; set; }
-}
-
-[Expose]
-struct ObjectRpcMsg
-{
-	public Guid Guid { get; set; }
-	public Guid ComponentId { get; set; }
-	public int MethodIdentity { get; set; }
-	public object[] Arguments { get; set; }
-	public int[] GenericArguments { get; set; }
-}
-
-[Expose]
-struct StaticRpcMsg
-{
-	public int MethodIdentity { get; set; }
-	public object[] Arguments { get; set; }
-	public int[] GenericArguments { get; set; }
 }

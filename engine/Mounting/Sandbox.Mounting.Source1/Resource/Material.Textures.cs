@@ -55,12 +55,12 @@ internal sealed partial class SourceMaterialBuilder
 	{
 		path = VmtFile.NormalizePath( path, ".vtf" );
 		var hdr = path.EndsWith( ".hdr.vtf", System.StringComparison.OrdinalIgnoreCase ) ? path : path[..^4] + ".hdr.vtf";
-		if ( Host.GetContentPath( hdr ) is not null )
+		if ( Host.GetContentPath( hdr, contentRoot ) is not null )
 			path = hdr;
-		else if ( Host.GetContentPath( path ) is null && Host is GarrysModMount )
+		else if ( Host.GetContentPath( path, contentRoot ) is null && Host is GarrysModMount )
 		{
 			Log.Trace( $"{FullPath}: environment texture '{path}' was not found; using GMod's default cubemap." );
-			path = Host.GetContentPath( "materials/engine/defaultcubemap.hdr.vtf" ) is not null
+			path = Host.GetContentPath( "materials/engine/defaultcubemap.hdr.vtf", contentRoot ) is not null
 				? "materials/engine/defaultcubemap.hdr.vtf" : "materials/engine/defaultcubemap.vtf";
 		}
 		return LoadSurfaceTexture( path, frame );
@@ -82,7 +82,7 @@ internal sealed partial class SourceMaterialBuilder
 		if ( path.Trim().StartsWith( "_rt_", System.StringComparison.OrdinalIgnoreCase ) )
 			throw new System.NotSupportedException( $"{FullPath}: unsupported render-target texture '{path}'." );
 		path = VmtFile.NormalizePath( path, ".vtf" );
-		var source = Host.GetSourceTexture( path );
+		var source = Host.GetSourceTexture( path, contentRoot );
 		var texture = animation is { FrameRate: > 0 } ? source.GetAnimationFrames()
 			: source.GetFrame( animation.HasValue ? 0 : frame );
 		if ( texture == null || !texture.IsValid || texture.IsError )

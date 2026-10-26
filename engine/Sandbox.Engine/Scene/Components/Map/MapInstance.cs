@@ -642,7 +642,9 @@ file class MapComponentMapLoader : SceneMapLoader
 
 	void CreateGradientFog( GameObject go, ObjectEntry kv )
 	{
+#pragma warning disable CS0618 // Retain legacy fog support for existing content.
 		var fog = go.Components.Create<GradientFog>();
+#pragma warning restore CS0618
 		fog.Enabled = kv.GetValue<bool>( "fogenabled" );
 		fog.Color = kv.GetValue<Color>( "fogcolor" ).WithAlpha( kv.GetValue<float>( "fogmaxopacity" ) );
 		fog.StartDistance = kv.GetValue<float>( "FogStart" );
@@ -654,7 +656,9 @@ file class MapComponentMapLoader : SceneMapLoader
 
 	void CreateCubemapFog( GameObject go, ObjectEntry kv )
 	{
+#pragma warning disable CS0618 // Retain legacy fog support for existing content.
 		var fog = go.Components.Create<CubemapFog>();
+#pragma warning restore CS0618
 		fog.Sky = kv.GetResource<Material>( "cubemapfogmaterial" );
 		fog.Blur = kv.GetValue<float>( "cubemapfoglodbiase" );
 		fog.StartDistance = kv.GetValue<float>( "cubemapfogstartdistance" );
@@ -876,10 +880,15 @@ file class MapComponentMapLoader : SceneMapLoader
 					break;
 				}
 
+			case "env_light_probe_volume":
+				{
+					LightProbeVolume.InitializeFromLegacy( go, kv );
+					break;
+				}
 			case "env_combined_light_probe_volume":
 				{
 					EnvmapProbe.InitializeFromLegacy( go, kv ); // create an envmap component
-					AddMapObjectComponent( go, kv ); // create the probe sceneobject (we don't have a component for it)
+					LightProbeVolume.InitializeFromLegacy( go, kv );
 					break;
 				}
 			case "snd_soundscape_box":

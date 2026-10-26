@@ -4,7 +4,7 @@ using System.IO;
 
 namespace Sandbox.Mounting.Source1;
 
-internal sealed partial class VpkArchive : IDisposable
+internal sealed partial class VpkArchive : IContentArchive
 {
 	private const ushort EmbeddedArchiveIndex = 0x7fff;
 	private readonly string _directoryFileName;

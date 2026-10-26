@@ -30,6 +30,7 @@ internal sealed partial class SourceMaterialBuilder
 {
 	private BaseMount Host { get; }
 	private string FullPath { get; }
+	private readonly string contentRoot;
 	private readonly VmtParameters parameters;
 	private readonly string shaderName;
 	private readonly TextureTransforms transforms;
@@ -41,6 +42,7 @@ internal sealed partial class SourceMaterialBuilder
 	{
 		Host = mount;
 		FullPath = path;
+		contentRoot = BaseMount.GetContentRoot( path, "materials" );
 		parameters = new VmtParameters( VmtFile.SelectParameters( vmt ), FullPath );
 		shaderName = VmtFile.NormalizeShaderName( vmt.ShaderName );
 		proxies = vmt.Root.GetBlock( "proxies" );

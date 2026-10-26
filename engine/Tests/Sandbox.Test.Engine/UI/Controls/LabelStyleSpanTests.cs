@@ -135,7 +135,7 @@ public partial class LabelStyleSpanTests
 		label.SetStyleSpan( 2, 4, style );
 	}
 
-	[TestMethod]
+	[TestMethod, TestCategory( Allocations.Category )]
 	public void FillingAWarmedSpanBufferDoesNotAllocate()
 	{
 		var style = new Styles { FontColor = Color.Red };
@@ -144,9 +144,6 @@ public partial class LabelStyleSpanTests
 			label.ClearStyleSpans();
 			for ( int i = 0; i < 1000; i++ ) label.SetStyleSpan( i * 2, i * 2 + 1, style );
 		}
-		for ( int i = 0; i < 10; i++ ) Fill();
-		var before = GC.GetAllocatedBytesForCurrentThread();
-		Fill();
-		Assert.AreEqual( 0L, GC.GetAllocatedBytesForCurrentThread() - before );
+		Allocations.AssertSettles( "Filling 1,000 spans", Fill );
 	}
 }

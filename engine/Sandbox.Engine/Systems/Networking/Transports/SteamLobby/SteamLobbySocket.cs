@@ -166,6 +166,7 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 		steamlobby.Value.SetData( "buildid", $"{Application.Version}" );
 		steamlobby.Value.SetData( "access_level", $"{config.Privacy}" );
 		steamlobby.Value.SetData( "presence_group", $"{Guid.NewGuid():N}" );
+		steamlobby.Value.SetData( "pw", Networking.System?.Access.HasPassword == true ? "1" : "0" );
 
 		return lobby;
 	}
@@ -290,7 +291,7 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 			Connections.Clear();
 			SteamLobby.Leave();
 			OutgoingMessages.Writer.TryComplete();
-			while ( OutgoingMessages.Reader.TryRead( out _ ) ) { }
+			while ( OutgoingMessages.Reader.TryRead( out var dropped ) ) dropped.Packet.Release();
 			IncomingMessages.Writer.TryComplete();
 			while ( IncomingMessages.Reader.TryRead( out _ ) ) { }
 		}
@@ -305,7 +306,7 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 	private struct OutgoingMessage
 	{
 		public SteamLobbyConnection Target { get; set; }
-		public byte[] Data { get; set; }
+		public NetPacket Packet { get; set; }
 		public int Flags { get; set; }
 	}
 
@@ -315,9 +316,13 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 	/// <summary>
 	/// Enqueue a message to be sent on the networking thread.
 	/// </summary>
-	internal void SendMessage( SteamLobbyConnection target, byte[] data, int flags )
+	internal void SendMessage( SteamLobbyConnection target, NetPacket packet, int flags )
 	{
-		OutgoingMessages.Writer.TryWrite( new() { Target = target, Data = data, Flags = flags } );
+		// Ours until the networking thread has handed it to Steam
+		packet.AddReference();
+
+		if ( !OutgoingMessages.Writer.TryWrite( new() { Target = target, Packet = packet, Flags = flags } ) )
+			packet.Release();
 	}
 
 	/// <summary>
@@ -368,22 +373,31 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 	{
 		// A queued packet belongs to this connection, even if the same Steam user rejoins.
 		var target = msg.Target;
-		if ( !target.IsValid ) return;
 
-		fixed ( byte* d = msg.Data )
+		// Steam copies it, so it's released whatever happens
+		try
 		{
-			var result = net.SendMessageToUser( target.Friend.Id, (IntPtr)d, msg.Data.Length, msg.Flags, NetworkChannel );
-			if ( result == 1 )
-			{
-				target.LastSendError = null;
-				target.MessagesSent++;
-				return;
-			}
+			if ( !target.IsValid ) return;
 
-			var error = (Result)result;
-			if ( target.LastSendError != error )
-				Log.Warning( $"Steam send to {target.Friend.Id} in lobby {Id} failed: {error} ({result})." );
-			target.LastSendError = error;
+			fixed ( byte* d = msg.Packet.Buffer )
+			{
+				var result = net.SendMessageToUser( target.Friend.Id, (IntPtr)d, msg.Packet.Length, msg.Flags, NetworkChannel );
+				if ( result == 1 )
+				{
+					target.LastSendError = null;
+					target.MessagesSent++;
+					return;
+				}
+
+				var error = (Result)result;
+				if ( target.LastSendError != error )
+					Log.Warning( $"Steam send to {target.Friend.Id} in lobby {Id} failed: {error} ({result})." );
+				target.LastSendError = error;
+			}
+		}
+		finally
+		{
+			msg.Packet.Release();
 		}
 	}
 
@@ -516,6 +530,13 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 
 		SteamLobby.SetData( "_ownerid", $"{Utility.Steam.SteamId}" );
 		SteamLobby.SetData( "map", Networking.MapName );
+
+		// Follows sv_password, and the password a new host took over
+		if ( networkSystem.IsHost )
+		{
+			SteamLobby.SetData( "pw", networkSystem.Access.HasPassword ? "1" : "0" );
+		}
+
 		UpdatePingLocation();
 	}
 

@@ -49,12 +49,7 @@ public static partial class Game
 
 	private static void AddNodesFromAssembly( Assembly asm )
 	{
-		var result = NodeLibrary.AddAssembly( asm );
-
-		foreach ( var error in result.Errors )
-		{
-			Log.Error( $"{error.Key}: {error.Value}" );
-		}
+		GlobalContext.Current.AddNodeAssemblyLater( asm );
 	}
 
 	/// <summary>

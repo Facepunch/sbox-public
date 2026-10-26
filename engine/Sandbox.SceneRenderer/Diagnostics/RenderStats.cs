@@ -10,7 +10,7 @@ public struct RenderStats
 	/// </summary>
 	public int Objects;
 	/// <summary>
-	/// Objects the main view drew - in its frustum and big enough on screen. Lights and probes count.
+	/// Objects submitted after CPU culling - in the main view's frustum and big enough on screen. Lights and probes count.
 	/// </summary>
 	public int ObjectsVisible;
 
@@ -18,6 +18,12 @@ public struct RenderStats
 	/// In the frustum, but too small on screen to draw.
 	/// </summary>
 	public int ObjectsSizeCulled;
+
+	/// <summary>
+	/// Hidden behind other objects and skipped on the GPU. Read back a frame or two late.
+	/// </summary>
+	public int ObjectsOcclusionCulled;
+
 	/// <summary>
 	/// Forward draws, including instanced runs.
 	/// </summary>

@@ -122,6 +122,7 @@ class ProgramSource
 					}
 
 					allCompiles.Add( result );
+					options.ComboCompiled?.Invoke();
 
 					if ( options.ConsoleOutput && fastTimer.ElapsedMilliSeconds > timeBetweenUpdates )
 					{

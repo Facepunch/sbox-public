@@ -2,6 +2,15 @@ using NativeEngine;
 
 namespace Sandbox.SceneRenderer.Gpu;
 
+internal enum DepthResolveMode
+{
+	/// <summary>First sample only, as native does.</summary>
+	Sample0,
+
+	/// <summary>Min and max of every sample over each 4x4 pixels, so the chain starts at quarter resolution.</summary>
+	ConservativeQuarter,
+}
+
 /// <summary>
 /// Passes and targets this renderer and native's pipeline (<see cref="Native.NativeRenderPipeline"/>) share, so the two
 /// build them the same way: the depth chain, quarter-resolution depth, and the bloom and refraction stencil targets.
@@ -25,12 +34,16 @@ internal static class SharedPasses
 	/// downsampled into the rest. <paramref name="sourceDepth"/> is the depth to read, or null for what the native layer
 	/// binds as <c>SourceDepth</c>.
 	/// </summary>
-	public static void BuildDepthChain( IRenderContext context, Texture sourceDepth, Texture destDepth, bool msaaInput, int width, int height )
+	public static void BuildDepthChain( IRenderContext context, Texture sourceDepth, Texture destDepth, bool msaaInput, int width, int height, DepthResolveMode resolve = DepthResolveMode.Sample0 )
 	{
 		var attributes = RenderAttributes.Pool.Get();
 		if ( sourceDepth is not null ) attributes.Set( "SourceDepth", sourceDepth );
 		attributes.Set( "DestDepth", destDepth );
 		attributes.SetCombo( "D_MSAA", msaaInput );
+		attributes.SetCombo( "D_CONSERVATIVE_QUARTER", resolve == DepthResolveMode.ConservativeQuarter );
+
+		if ( resolve == DepthResolveMode.ConservativeQuarter ) attributes.Set( "DepthResolveSourceSize", new Vector2( width, height ) );
+
 		RenderTools.Compute( context, attributes.Get(), DepthResolveCompute.ComputeMaterial.native.GetMode(), width, height, 1 );
 
 		RenderAttributes.Pool.Return( attributes );
@@ -46,7 +59,17 @@ internal static class SharedPasses
 	public static void DownsampleQuarterDepth( RenderAttributes attributes, bool msaaInput )
 	{
 		attributes.SetCombo( "D_MSAA", msaaInput );
+		attributes.SetCombo( "D_UPSCALE", false );
 		attributes.Set( "DownsampleFactor", 4 );
+		Graphics.Blit( DepthResolve, attributes );
+	}
+
+	/// <summary>Write low-resolution scene depth into a full-resolution depth target.</summary>
+	public static void UpscaleDepth( RenderAttributes attributes, bool msaaInput, Vector2 outputToSourceScale )
+	{
+		attributes.SetCombo( "D_MSAA", msaaInput );
+		attributes.SetCombo( "D_UPSCALE", true );
+		attributes.Set( "OutputToSourceScale", outputToSourceScale );
 		Graphics.Blit( DepthResolve, attributes );
 	}
 

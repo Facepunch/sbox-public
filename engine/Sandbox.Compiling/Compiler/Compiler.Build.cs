@@ -161,7 +161,7 @@ partial class Compiler
 		return archive;
 	}
 
-	void BuildInternal( IReadOnlyList<PortableExecutableReference> refs, CompilerOutput output )
+	async Task BuildInternal( IReadOnlyList<PortableExecutableReference> refs, CompilerOutput output )
 	{
 		var archive = output.Archive;
 		var releaseMode = archive.Configuration.ReleaseMode == ReleaseMode.Release;
@@ -181,16 +181,33 @@ partial class Compiler
 					.WithNullableContextOptions( conf.Nullables ? NullableContextOptions.Enable : NullableContextOptions.Disable )
 					.WithAllowUnsafe( conf.Unsafe );
 
-		CSharpCompilation compiler;
-
 		List<SyntaxTree> inputSyntaxTrees =
 		[
 			.. archive.SyntaxTrees, // from source files
 			.. ProcessRazorFiles(archive, output) // processed razor files
 		];
 
+		CSharpCompilation compiler = null;
+		var sourceUpgraded = false;
+		// Published archives need compatibility fixes in memory. Local projects apply the IDE
+		// code fix once, keeping automatic analysis and rewrites out of the hotload path.
+		if ( _currentArchive is not null )
+		{
+			var source = CSharpCompilation.Create( AssemblyName, inputSyntaxTrees, refs, options );
+			compiler = source;
+			try
+			{
+				compiler = await CodeUpgrader.CodeUpgrade.UpgradeAsync( source );
+			}
+			catch ( Exception e ) when ( e is not OperationCanceledException )
+			{
+				log.Warning( e, "Automatic code upgrade failed; compiling the original source." );
+			}
+			sourceUpgraded = compiler != source;
+		}
+
 		List<SyntaxTree> modifiedSyntaxTrees;
-		if ( incrementalState.HasState )
+		if ( incrementalState.HasState && !sourceUpgraded )
 		{
 			compiler = incrementalState.Compilation
 							.WithAssemblyName( AssemblyName )
@@ -207,7 +224,7 @@ partial class Compiler
 		}
 		else
 		{
-			compiler = CSharpCompilation.Create( AssemblyName, inputSyntaxTrees, refs, options );
+			compiler ??= CSharpCompilation.Create( AssemblyName, inputSyntaxTrees, refs, options );
 			modifiedSyntaxTrees = compiler.SyntaxTrees.ToList();
 		}
 
@@ -287,7 +304,12 @@ partial class Compiler
 			return;
 		}
 
-		incrementalState.Update( archive, inputSyntaxTrees, compiler );
+		// Code fixes can change declarations across files. Don't reuse generated trees derived
+		// from those edits on a later compile of the original source (including after the fix is no longer needed).
+		if ( sourceUpgraded )
+			incrementalState.Reset();
+		else
+			incrementalState.Update( archive, inputSyntaxTrees, compiler );
 
 		using ( var a_stream = new System.IO.MemoryStream( output.AssemblyData ) )
 		{

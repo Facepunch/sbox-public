@@ -29,7 +29,6 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 	/// </summary>
 	public Texture GeneratedDistanceTexture { get; set; }
 
-	int _renderedFace = 0;
 	Vector3Int _renderedIndex = 0;
 
 	static ComputeShader DepthCopyShader = new ComputeShader( "common/DDGI/ddgi_depth_copy_cs" );
@@ -67,13 +66,13 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 			// We don't render depth to cubemap, so we copy it manually using a compute shader
 			var depth = Texture.FromNative( Graphics.SceneLayer.GetDepthTarget() );
 
-			CopyDepthToColor( depth, _captureDepth, _renderedFace );
+			int face = Graphics.SceneView.GetRenderTargetArrayIndex();
+			CopyDepthToColor( depth, _captureDepth, face );
 
 			depth.Dispose();
 
-			_renderedFace++;
-
-			if ( _renderedFace == 6 )
+			// Recording order is arbitrary; GPU submission follows the face order.
+			if ( face == 5 )
 				OnRenderFinish( _renderedIndex );
 		};
 
@@ -216,7 +215,6 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 
 	private async Task<bool> RenderProbe( Vector3Int probeIndex, CancellationToken token, CancellationToken progressToken )
 	{
-		_renderedFace = 0;
 		_renderedIndex = probeIndex;
 
 		_camera.Position = _volume.GetRelocatedProbeWorldPosition( probeIndex );

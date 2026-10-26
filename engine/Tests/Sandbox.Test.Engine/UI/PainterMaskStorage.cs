@@ -11,7 +11,7 @@ public class PainterMaskStorageTest
 	/// <summary>
 	/// Aligned polygon and analytic masks reuse batch storage without allocating retained geometry.
 	/// </summary>
-	[TestMethod]
+	[TestMethod, TestCategory( Allocations.Category )]
 	[DoNotParallelize] // Other tests can trigger GC and trim the shared pool during this measurement.
 	[DataRow( "Polygon" )]
 	[DataRow( "Circle" )]
@@ -28,11 +28,10 @@ public class PainterMaskStorageTest
 			{
 				foreach ( var style in new[] { BorderStyle.Solid, BorderStyle.Dashed, BorderStyle.Dotted } )
 				{
-					for ( int i = 0; i < 32; i++ ) Draw( context, points, shape, alignment, style );
-					long start = GC.GetAllocatedBytesForCurrentThread();
-					for ( int i = 0; i < 32; i++ ) Draw( context, points, shape, alignment, style );
-					long allocated = GC.GetAllocatedBytesForCurrentThread() - start;
-					Assert.AreEqual( 0L, allocated, $"{shape}, {alignment}, {style}" );
+					Allocations.AssertSettles( $"{shape}, {alignment}, {style}: 32 draws", () =>
+					{
+						for ( int i = 0; i < 32; i++ ) Draw( context, points, shape, alignment, style );
+					} );
 
 					int expectedDraws = shape is "Ring" or "Crescent" ? 2 : 1;
 					Assert.AreEqual( expectedDraws, context.Batcher.Instances.Count );
