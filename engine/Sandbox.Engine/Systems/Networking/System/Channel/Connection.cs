@@ -516,6 +516,13 @@ public abstract partial class Connection : BytePack.ISerializer
 	internal ConnectionInfo PreInfo { get; set; }
 
 	/// <summary>
+	/// Last <see cref="DisplayName"/> source and its filtered result. Steam's text filter is a native call,
+	/// and UI like nameplates and scoreboards reads the display name of every player every frame.
+	/// </summary>
+	sealed record FilteredName( string Source, ulong SteamId, string Value );
+	FilteredName _filteredName;
+
+	/// <summary>
 	/// The player's name but with any potential nicknames or naughty words filtered out.
 	/// You don't want to be using this in serverside logic really.
 	/// </summary>
@@ -525,14 +532,25 @@ public abstract partial class Connection : BytePack.ISerializer
 	{
 		get
 		{
+			string source = null;
 			if ( Steamworks.SteamFriends.IsInstalled )
 			{
 				var personaName = FriendInfo.DisplayName;
 				if ( !string.IsNullOrWhiteSpace( personaName ) )
-					return Utility.Steam.FilterName( personaName, SteamId );
+					source = personaName;
 			}
 
-			return Utility.Steam.FilterName( Name, SteamId );
+			source ??= Name;
+			var steamId = SteamId;
+
+			// Filter again only when the name or account changes
+			var cached = _filteredName;
+			if ( cached is not null && cached.SteamId == steamId.ValueUnsigned && string.Equals( cached.Source, source, StringComparison.Ordinal ) )
+				return cached.Value;
+
+			var filtered = Utility.Steam.FilterName( source, steamId );
+			_filteredName = new FilteredName( source, steamId.ValueUnsigned, filtered );
+			return filtered;
 		}
 	}
 
