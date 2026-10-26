@@ -39,6 +39,11 @@ internal class FastPathTestCompiler : IDisposable
 	public BaseFileSystem FileSystem { get; }
 	public BuildResult? LastResult { get; private set; }
 
+	/// <summary>
+	/// Loads each compiled assembly. Defaults to the default load context.
+	/// </summary>
+	public Func<byte[], Assembly> LoadAssembly { get; init; } = Assembly.Load;
+
 	public Compiler.Configuration Config
 	{
 		get => Compiler.GetConfiguration();
@@ -101,7 +106,7 @@ internal class FastPathTestCompiler : IDisposable
 
 		var output = Group.BuildResult.Output.First();
 
-		var asm = Assembly.Load( output.AssemblyData );
+		var asm = LoadAssembly( output.AssemblyData );
 
 		var supported = ILHotload.TryFindChangedMethods( LastResult?.Assembly, LastResult?.MethodBodyAssembly, asm,
 			out var changes, out var unexpected, out var hasAttribute );

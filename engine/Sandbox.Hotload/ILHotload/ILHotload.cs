@@ -63,6 +63,21 @@ public partial class ILHotload : IDisposable
 		DetourFactory = null;
 	}
 
+	/// <summary>
+	/// Undo and forget every detour applied to <paramref name="assembly"/>. Call this when a full hotload
+	/// replaces the assembly, otherwise the detours keep it loaded for the rest of the session.
+	/// </summary>
+	public void RemoveDetours( Assembly assembly )
+	{
+		if ( assembly is null || ActiveDetours is null ) return;
+		if ( !ActiveDetours.Remove( assembly, out var detours ) ) return;
+
+		foreach ( var detour in detours.Values )
+		{
+			detour?.Dispose();
+		}
+	}
+
 	public bool Replace( Assembly baseAssembly, Assembly oldIlHotloadAssembly, Assembly newIlHotloadAssembly )
 	{
 		if ( !IsSupported )
