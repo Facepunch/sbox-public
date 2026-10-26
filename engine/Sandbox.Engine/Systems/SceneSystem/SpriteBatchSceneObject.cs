@@ -16,6 +16,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 	public bool Additive { get; set; } = false;
 	public bool Opaque { get; set; } = false;
 	public Material Material { get; set; }
+	public bool UsesCustomMaterial => Material is not null;
 
 	internal Dictionary<Guid, SpriteRenderer> Components = new();
 

@@ -619,6 +619,82 @@ public class RenderComponentTest
 	}
 
 	/// <summary>
+	/// Sprites sharing a material share a batch, and a material batch is released with its last
+	/// sprite instead of staying alive for the rest of the scene.
+	/// </summary>
+	[TestMethod]
+	public void SpriteMaterialBatchesAreSharedAndReleased()
+	{
+		if ( !Graphics.IsAvailable ) Assert.Inconclusive( "Requires graphics." );
+
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var material = Material.Load( "materials/default/white.vmat" );
+		Assert.IsNotNull( material );
+
+		var first = scene.CreateObject().Components.Create<SpriteRenderer>();
+		first.MaterialOverride = material;
+
+		var second = scene.CreateObject().Components.Create<SpriteRenderer>();
+		second.MaterialOverride = material;
+
+		scene.GameTick();
+
+		var batches = scene.SceneWorld.SceneObjects.OfType<SpriteBatchSceneObject>().ToArray();
+		Assert.AreEqual( 1, batches.Length, "Sprites sharing a material should share a batch" );
+		Assert.AreSame( material, batches[0].Material );
+		Assert.IsTrue( batches[0].ContainsSprite( first.Id ) );
+		Assert.IsTrue( batches[0].ContainsSprite( second.Id ) );
+
+		first.Enabled = false;
+		scene.GameTick();
+
+		batches = scene.SceneWorld.SceneObjects.OfType<SpriteBatchSceneObject>().ToArray();
+		Assert.AreEqual( 1, batches.Length, "The batch is still in use by the second sprite" );
+		Assert.IsTrue( batches[0].ContainsSprite( second.Id ) );
+
+		second.Enabled = false;
+		scene.GameTick();
+
+		Assert.AreEqual( 0, scene.SceneWorld.SceneObjects.OfType<SpriteBatchSceneObject>().Count(),
+			"An empty material batch should be released" );
+	}
+
+	/// <summary>
+	/// Moving a sprite to another material releases the batch it left behind when that batch is
+	/// empty, and the sprite is drawn by the new material.
+	/// </summary>
+	[TestMethod]
+	public void ChangingSpriteMaterialMovesItToANewBatch()
+	{
+		if ( !Graphics.IsAvailable ) Assert.Inconclusive( "Requires graphics." );
+
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var materialA = Material.Load( "materials/default/white.vmat" );
+		Assert.IsNotNull( materialA );
+
+		var materialB = materialA.CreateCopy( "sprite-material-batch-test" );
+		Assert.IsNotNull( materialB );
+
+		var sprite = scene.CreateObject().Components.Create<SpriteRenderer>();
+		sprite.MaterialOverride = materialA;
+
+		scene.GameTick();
+		Assert.AreEqual( 1, scene.SceneWorld.SceneObjects.OfType<SpriteBatchSceneObject>().Count() );
+
+		sprite.MaterialOverride = materialB;
+		scene.GameTick();
+
+		var batches = scene.SceneWorld.SceneObjects.OfType<SpriteBatchSceneObject>().ToArray();
+		Assert.AreEqual( 1, batches.Length, "Moving the only sprite should release the old material batch" );
+		Assert.AreSame( materialB, batches[0].Material );
+		Assert.IsTrue( batches[0].ContainsSprite( sprite.Id ) );
+	}
+
+	/// <summary>
 	/// A TrailRenderer emits one trail point per tick while the GameObject moves further
 	/// than PointDistance: the first update always adds a point, stationary ticks add
 	/// nothing, Emitting=false suppresses new points, and MaxPoints trims the oldest

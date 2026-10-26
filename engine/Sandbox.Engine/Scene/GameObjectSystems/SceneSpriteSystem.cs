@@ -341,6 +341,11 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		RenderGroups[renderGroup].RegisterSprite( componentId, component );
 	}
 
+	internal bool ShouldReleaseEmptyRenderGroup( bool isolated, bool usesCustomMaterial )
+	{
+		return isolated || usesCustomMaterial;
+	}
+
 	private void RemoveFromRenderGroup( Guid componentId, ulong renderGroup )
 	{
 		Assert.True( IsPresentInRenderGroup( componentId, renderGroup ) );
@@ -348,7 +353,11 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		var group = RenderGroups[renderGroup];
 		group.UnregisterSprite( componentId );
 
-		if ( group.Components.Count > 0 || !_isolatedRenderGroups.Remove( renderGroup ) )
+		if ( group.Components.Count > 0 || group.SpriteGroups.Count > 0 )
+			return;
+
+		var isolated = _isolatedRenderGroups.Remove( renderGroup );
+		if ( !ShouldReleaseEmptyRenderGroup( isolated, group.UsesCustomMaterial ) )
 			return;
 
 		group.Delete();

@@ -18,6 +18,23 @@ public class SpriteMaterialGroupingTest : SceneTest
 	}
 
 	[TestMethod]
+	public void EmptyMaterialBatchesAreReleased()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var system = scene.GetSystem<SceneSpriteSystem>();
+		Assert.IsNotNull( system );
+
+		Assert.IsFalse( system.ShouldReleaseEmptyRenderGroup( isolated: false, usesCustomMaterial: false ),
+			"Shared default batches survive their last sprite" );
+		Assert.IsTrue( system.ShouldReleaseEmptyRenderGroup( isolated: true, usesCustomMaterial: false ),
+			"Isolated batches are released with their last sprite" );
+		Assert.IsTrue( system.ShouldReleaseEmptyRenderGroup( isolated: false, usesCustomMaterial: true ),
+			"Material batches are released with their last sprite" );
+	}
+
+	[TestMethod]
 	public void SpritesShareABatchPerMaterial()
 	{
 		var scene = new Scene();
