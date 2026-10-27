@@ -13,6 +13,23 @@ public partial class NodeGraphPanel : CanvasPanel
 	public float GridSize { get; set; } = 12f;
 
 	/// <summary>
+	/// Widen every node to fit its whole title, as this graph used to. Off sizes nodes like the qt
+	/// graph and cuts long titles of fixed-size nodes; auto-size ones always fit.
+	/// </summary>
+	public bool FitNodeTitles
+	{
+		get => _fitNodeTitles;
+		set
+		{
+			if ( _fitNodeTitles == value ) return;
+			_fitNodeTitles = value;
+			foreach ( var node in _nodes ) node.MarkNodeChanged();
+		}
+	}
+
+	bool _fitNodeTitles;
+
+	/// <summary>
 	/// Fade the grid out as the view zooms out.
 	/// </summary>
 	public virtual bool FadeOutBackground => true;
@@ -184,7 +201,7 @@ public partial class NodeGraphPanel : CanvasPanel
 		OnNodeValueChanged?.Invoke();
 	}
 
-	Vector2 MouseCanvas => ScreenToCanvas( MousePosition );
+	internal Vector2 MouseCanvas => ScreenToCanvas( MousePosition );
 
 	public override void Tick()
 	{
