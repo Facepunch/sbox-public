@@ -97,10 +97,20 @@ public partial class TypeLibrary
 		log.Trace( $"Registering {incoming} (dynamic:{isDynamic}) ({types.Count()} Types)" );
 
 		var added = new ConcurrentBag<Action>();
-		System.Threading.Tasks.Parallel.ForEach( types, t => AddType( t, isDynamic ) );
-
-		foreach ( var t in types )
-			Types.Add( t );
+		try
+		{
+			System.Threading.Tasks.Parallel.ForEach( types, t => AddType( t, isDynamic ) );
+		}
+		finally
+		{
+			// If one type throws, the others are already live - track them so RemoveAssembly takes
+			// them out again, otherwise they outlive hotloads next to the incoming versions
+			foreach ( var t in types )
+			{
+				if ( typedata.ContainsKey( t ) )
+					Types.Add( t );
+			}
+		}
 
 		//
 		// Call the callbacks on the main thread
@@ -329,7 +339,11 @@ public partial class TypeLibrary
 
 		log.Trace( $"Removing {asm}" );
 
-		foreach ( var type in Types.Where( x => x.Assembly == asm ).ToArray() )
+		var outgoing = typedata.Where( x => x.Key.Assembly == asm ).Select( x => x.Key )
+			.Union( Types.Where( x => x.Assembly == asm ) )
+			.ToArray();
+
+		foreach ( var type in outgoing )
 		{
 			Types.Remove( type );
 			log.Trace( $" - {type}" );
