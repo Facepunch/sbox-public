@@ -257,6 +257,9 @@ public static partial class SceneTools
 		var session = ActiveSession();
 		var parentGo = string.IsNullOrWhiteSpace( parent ) ? null : FindByGuid( parent );
 
+		if ( parentGo is not null && parentGo.Scene != session.Scene )
+			throw new Exception( $"'{parentGo.Name}' is in another open scene - switch_scene to it first" );
+
 		var transform = new Transform(
 			string.IsNullOrWhiteSpace( position ) ? Vector3.Zero : Vector3.Parse( position ),
 			string.IsNullOrWhiteSpace( angles ) ? Rotation.Identity : Rotation.From( Angles.Parse( angles ) ) );
@@ -393,7 +396,7 @@ public static partial class SceneTools
 	public static object DeleteGameObject( string id )
 	{
 		var go = FindByGuid( id );
-		var session = ActiveSession();
+		var session = SessionOf( go );
 
 		using ( session.UndoScope( "Delete GameObject" ).WithGameObjectDestructions( go ).Push() )
 		{
@@ -419,7 +422,7 @@ public static partial class SceneTools
 		string position = "", string angles = "", string scale = "" )
 	{
 		var go = FindByGuid( id );
-		var session = ActiveSession();
+		var session = SessionOf( go );
 
 		var newParent = parent switch
 		{
@@ -427,6 +430,9 @@ public static partial class SceneTools
 			"root" => go.Scene as GameObject,
 			_ => FindByGuid( parent )
 		};
+
+		if ( newParent is not null && newParent.Scene != go.Scene )
+			throw new Exception( $"'{newParent.Name}' is in another open scene - objects can't be parented across scenes" );
 
 		// Name, enabled, parent and transform are all the object's own properties - All would make an
 		// edit inside a prefab instance snapshot the whole instance, before and after
@@ -468,7 +474,7 @@ public static partial class SceneTools
 	{
 		var go = FindByGuid( id );
 		var td = ComponentTools.FindComponentType( type );
-		var session = ActiveSession();
+		var session = SessionOf( go );
 
 		using ( session.UndoScope( $"Add {td.Name}" ).WithComponentCreations().Push() )
 		{
@@ -492,7 +498,7 @@ public static partial class SceneTools
 	public static object RemoveComponent( string id, string type = "" )
 	{
 		var component = ResolveComponent( id, type );
-		var session = ActiveSession();
+		var session = SessionOf( component.GameObject );
 
 		using ( session.UndoScope( $"Remove {component.GetType().Name}" ).WithComponentDestructions( component ).Push() )
 		{
@@ -518,7 +524,7 @@ public static partial class SceneTools
 			throw new Exception( "Give properties as a json object of name to value" );
 
 		var component = ResolveComponent( id, type );
-		var session = ActiveSession();
+		var session = SessionOf( component.GameObject );
 
 		using ( session.UndoScope( $"Edit {component.GetType().Name}" ).WithComponentChanges( component ).Push() )
 		{
@@ -573,7 +579,8 @@ public static partial class SceneTools
 	}
 
 	/// <summary>
-	/// Save the active scene to its file.
+	/// Save the active scene to its file. Edits to objects in other open scenes mark those scenes
+	/// unsaved instead - switch_scene to one first to save it.
 	/// </summary>
 	[McpTool( "save_scene" )]
 	public static SavedScene SaveScene()
@@ -590,7 +597,8 @@ public static partial class SceneTools
 
 	/// <summary>
 	/// Undo the last edit in the active scene, exactly like the user pressing ctrl+z. Use it to back
-	/// out of your own mistake.
+	/// out of your own mistake. Edits to objects in other open scenes go on those scenes' undo
+	/// history - switch_scene to one first to undo there.
 	/// </summary>
 	[McpTool( "undo" )]
 	public static object Undo()
@@ -599,7 +607,7 @@ public static partial class SceneTools
 	}
 
 	/// <summary>
-	/// Redo the last undone edit in the active scene.
+	/// Redo the last undone edit in the active scene. switch_scene first to redo in another open scene.
 	/// </summary>
 	[McpTool( "redo" )]
 	public static object Redo()
@@ -873,6 +881,24 @@ public static partial class SceneTools
 	}
 
 	/// <summary>
+	/// The editor session that owns a game object's scene, so undo and unsaved changes land on the
+	/// scene that was edited rather than whichever tab is active.
+	/// </summary>
+	private static SceneEditorSession SessionOf( GameObject go )
+	{
+		return go?.Scene?.Editor as SceneEditorSession ?? ActiveSession();
+	}
+
+	/// <summary>
+	/// Open sessions with the active one first, so an id shared by duplicated scenes means the
+	/// object in the tab being looked at.
+	/// </summary>
+	private static IEnumerable<SceneEditorSession> SearchOrder()
+	{
+		return SceneEditorSession.All.OrderBy( x => x != SceneEditorSession.Active );
+	}
+
+	/// <summary>
 	/// A component from either its own id, or its game object's id plus a type name.
 	/// </summary>
 	private static Component ResolveComponent( string id, string type )
@@ -880,7 +906,7 @@ public static partial class SceneTools
 		if ( !Guid.TryParse( id, out var guid ) )
 			throw new Exception( $"'{id}' isn't a guid - get_game_object shows component ids" );
 
-		foreach ( var session in SceneEditorSession.All )
+		foreach ( var session in SearchOrder() )
 		{
 			var found = session.Scene?.Directory?.FindComponentByGuid( guid );
 			if ( found is not null ) return found;
@@ -971,11 +997,16 @@ public static partial class SceneTools
 		if ( loaded is null || loaded.IsError )
 			throw new Exception( $"Couldn't load model '{model}' - find models with asset_search type:vmdl" );
 
+		var parentGo = string.IsNullOrWhiteSpace( parent ) ? null : FindByGuid( parent );
+
+		if ( parentGo is not null && parentGo.Scene != scene )
+			throw new Exception( $"'{parentGo.Name}' is in another open scene - switch_scene to it first" );
+
 		var go = scene.CreateObject();
 		go.Name = string.IsNullOrWhiteSpace( name ) ? System.IO.Path.GetFileNameWithoutExtension( model ) : name;
 
-		if ( !string.IsNullOrWhiteSpace( parent ) )
-			go.SetParent( FindByGuid( parent ), keepWorldPosition: false );
+		if ( parentGo is not null )
+			go.SetParent( parentGo, keepWorldPosition: false );
 
 		ApplyTransform( go, position, angles, scale );
 
@@ -1018,7 +1049,7 @@ public static partial class SceneTools
 		if ( !Guid.TryParse( id, out var guid ) )
 			throw new Exception( $"'{id}' isn't a guid - scene_tree and find_game_objects show object ids" );
 
-		foreach ( var session in SceneEditorSession.All )
+		foreach ( var session in SearchOrder() )
 		{
 			var found = session.Scene?.Directory?.FindByGuid( guid );
 			if ( found is not null ) return found;

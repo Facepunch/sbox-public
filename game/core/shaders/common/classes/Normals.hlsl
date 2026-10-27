@@ -7,6 +7,16 @@
 
 int NormalsTextureIndex < Attribute("NormalsTextureIndex"); Default(-1); >;
 
+// Shaders that declare D_MSAA_NORMALS (set from RenderValue.MsaaCombo) bind the G-buffer directly, typed by the combo.
+// A bindless Texture2DMS load faults on AMD RDNA2, even when the image really is multisampled.
+#if defined( D_MSAA_NORMALS )
+    #if D_MSAA_NORMALS
+        Texture2DMS<float4> g_tNormalsGBuffer < Attribute("NormalsGBuffer"); >;
+    #else
+        Texture2D<float4>   g_tNormalsGBuffer < Attribute("NormalsGBuffer"); >;
+    #endif
+#endif
+
 struct Normals
 {
     /// <summary>
@@ -14,9 +24,17 @@ struct Normals
     /// </summary>
     static float4 Load(int2 screenPos, uint msaaSampleIndex = 0 )
     {
+    #if defined( D_MSAA_NORMALS )
+        #if D_MSAA_NORMALS
+            return g_tNormalsGBuffer.Load( screenPos + g_vViewportOffset, msaaSampleIndex );
+        #else
+            return g_tNormalsGBuffer.Load( int3( screenPos + g_vViewportOffset, 0 ) );
+        #endif
+    #else
         if ( g_nMSAASampleCount > 1 )
             return Bindless::GetTexture2DMS( asDynamicUniform( UniformIndex( NormalsTextureIndex ) ) ).Load( screenPos + g_vViewportOffset, msaaSampleIndex );
         return Bindless::GetTexture2D( asDynamicUniform( UniformIndex( NormalsTextureIndex ) ) ).Load( int3( screenPos + g_vViewportOffset, 0 ) );
+    #endif
     }
 
     /// <summary>

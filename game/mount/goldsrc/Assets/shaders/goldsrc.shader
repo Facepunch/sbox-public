@@ -54,12 +54,18 @@ PS
 	Texture2D g_tColor < Channel( RGBA, Box( Color ), Srgb ); OutputFormat( DXT5 ); SrgbRead( true ); >;
 	
 	StaticCombo( S_CHROME, F_CHROME, Sys( ALL ) )
+
+	// Keep the pixel shader in depth/shadow passes so masked textures clip there too
+	BoolAttribute( alphatest, true );
 	
 	float4 MainPs( PixelInput i ) : SV_Target0
 	{
 		Material m = Material::From( i );
 
-		m.Albedo = Tex2DS( g_tColor, g_sSampler0, i.vTextureCoords.xy ).rgb;
+		float4 color = Tex2DS( g_tColor, g_sSampler0, i.vTextureCoords.xy );
+		clip( color.a - 0.5 );
+
+		m.Albedo = color.rgb;
 		m.Normal = i.vNormalWs;
 		m.TextureCoords = i.vTextureCoords.xy;
 		m.Roughness = 1;

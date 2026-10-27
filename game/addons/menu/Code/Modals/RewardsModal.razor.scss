@@ -163,7 +163,7 @@ RewardsModal
 		border-radius: 50%;
 	}
 
-	// Punches the middle out of the arc, leaving a ring the percentage sits inside.
+	// Punches the middle out of the arc, leaving room for the unlocked achievement count.
 	.ring-inner
 	{
 		position: absolute;
@@ -177,15 +177,21 @@ RewardsModal
 		border-radius: 50%;
 		background-color: rgba( 8, 10, 14, 0.92 );
 
-		.percent
+		.progress-count
 		{
 			font-family: $front-font;
-			font-size: 24px;
+			font-size: 20px;
 			font-weight: 700;
 			color: $front-heading;
 		}
 
-		.percent-label
+		.reward-status
+		{
+			font-size: 28px;
+			color: $front-heading;
+		}
+
+		.progress-label
 		{
 			font-size: 9.5px;
 			font-weight: 600;
@@ -197,7 +203,7 @@ RewardsModal
 
 	.hero.done .ring-inner
 	{
-		.percent, .percent-label
+		.progress-count, .progress-label, .reward-status
 		{
 			color: $front-reward;
 		}
@@ -210,15 +216,6 @@ RewardsModal
 		flex-shrink: 1;
 		min-width: 0;
 		gap: 3px;
-	}
-
-	.eyebrow
-	{
-		font-size: 10px;
-		font-weight: 700;
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		color: $front-label;
 	}
 
 	.hero-title
@@ -270,6 +267,25 @@ RewardsModal
 		}
 	}
 
+	.achievement-icon
+	{
+		width: 48px;
+		height: 48px;
+		flex-shrink: 0;
+		align-items: center;
+		justify-content: center;
+		border-radius: 6px;
+		background-color: rgba( white, 0.04 );
+		overflow: hidden;
+
+		img
+		{
+			width: 100%;
+			height: 100%;
+			object-fit: cover;
+		}
+	}
+
 	.objective-body
 	{
 		flex-direction: column;
@@ -293,59 +309,54 @@ RewardsModal
 		color: $front-secondary;
 	}
 
-	.objective-count
+	.objective-game
 	{
-		flex-shrink: 0;
-		font-family: $front-font;
-		font-size: 10.5px;
-		font-weight: 700;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
+		@include front-text-link;
+
+		align-items: center;
+		gap: 8px;
+		padding: 8px 10px;
+		border-radius: 5px;
+		background-color: rgba( white, 0.035 );
+		font-size: 12px;
+		font-weight: 600;
+		cursor: pointer;
+		pointer-events: all;
+
+		label
+		{
+			flex-grow: 1;
+			flex-shrink: 1;
+			min-width: 0;
+		}
+
+		icon
+		{
+			flex-shrink: 0;
+			font-size: 17px;
+		}
+
+		&:hover
+		{
+			background-color: rgba( white, 0.09 );
+			color: white;
+		}
+	}
+
+	.load-error
+	{
+		align-items: center;
+		gap: 6px;
+		padding: 2px 4px;
+		font-size: 11.5px;
 		color: $front-secondary;
 	}
 
 	.objective.met
 	{
-		.objective-head icon, .objective-count
+		.completion
 		{
 			color: $front-reward;
-		}
-
-		// A met bar at full strength shouts over the one you're actually working on.
-		.track
-		{
-			opacity: 0.45;
-		}
-	}
-
-	.track
-	{
-		@include front-track;
-
-		height: 6px;
-	}
-
-	.footer
-	{
-		flex-direction: column;
-		flex-shrink: 0;
-		gap: 6px;
-		padding: 10px 16px 14px 16px;
-		border-top: $front-border-width solid $front-hairline;
-
-		.note
-		{
-			font-size: 11.5px;
-			color: $front-secondary;
-		}
-
-		.docs-link
-		{
-			@include front-text-link;
-
-			font-size: 12px;
-			font-weight: 600;
-			flex-shrink: 0;
 		}
 	}
 }

@@ -26,6 +26,56 @@ GameModal
 		font-size: 14px;
 	}
 
+	// The game coming down before it can be set up - in the middle of where the setup goes
+	.setup-download
+	{
+		flex-grow: 1;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		padding: 64px;
+		gap: 6px;
+		font-family: $front-font;
+
+		i
+		{
+			font-size: 40px;
+			color: linear-gradient( 180deg, #7fb4ff, $front-primary );
+			margin-bottom: 8px;
+		}
+
+		.title
+		{
+			font-size: 18px;
+			font-weight: 700;
+			color: $front-heading;
+		}
+
+		.track
+		{
+			@include front-track;
+
+			width: 360px;
+			margin-top: 20px;
+
+			.fill
+			{
+				height: 100%;
+				border-radius: 999px;
+				background-image: linear-gradient( 90deg, #1f5fc0, $front-primary );
+				transition: width 0.3s ease-out;
+			}
+		}
+
+		.amount
+		{
+			width: 360px;
+			justify-content: space-between;
+			font-size: 12px;
+			color: $front-secondary;
+		}
+	}
+
 	// The page and its tabs, while a new game's being set up in their place - kept, not shown
 	&.setting-up
 	{

@@ -295,6 +295,29 @@ public sealed class WebSurface : IDisposable
 	{
 		currentUrl = x.PchURL;
 		PageTitle = x.PchPageTitle;
+
+		OnPageLoaded?.Invoke( x.PchURL );
+	}
+
+	/// <summary>
+	/// A page has finished loading - its url. Internal, like <see cref="ExecuteJavascript"/>: a page can be one with the
+	/// user's session in it.
+	/// </summary>
+	internal Action<string> OnPageLoaded { get; set; }
+
+	/// <summary>
+	/// Run script in the page that's loaded. Internal on purpose - game code mustn't run script in pages, the menu's
+	/// sbox.game pages have the user's session.
+	/// </summary>
+	internal void ExecuteJavascript( string script )
+	{
+		if ( BrowserId == 0 )
+		{
+			_initQueue += () => ExecuteJavascript( script );
+			return;
+		}
+
+		steamHTMLSurface.ExecuteJavascript( BrowserId, script );
 	}
 
 	public string Cursor { get; private set; }
@@ -432,15 +455,33 @@ public sealed class WebSurface : IDisposable
 		//
 
 
-		if ( IsLimited && modifiers.Contains( KeyboardModifiers.Ctrl ) )
-		{
-			if ( virtualKeyCode == 86 ) return;
-			if ( virtualKeyCode == 67 ) return;
-			if ( virtualKeyCode == 88 ) return;
-		}
+		if ( IsLimited && IsClipboardShortcut( virtualKeyCode, modifiers ) )
+			return;
 
 		if ( state ) steamHTMLSurface.KeyDown( BrowserId, virtualKeyCode, (int)modifiers, false );
 		else steamHTMLSurface.KeyUp( BrowserId, virtualKeyCode, (int)modifiers );
+	}
+
+	/// <summary>
+	/// Is this key combination a clipboard shortcut (paste, copy or cut)
+	/// </summary>
+	internal static bool IsClipboardShortcut( uint virtualKeyCode, KeyboardModifiers modifiers )
+	{
+		if ( modifiers.Contains( KeyboardModifiers.Ctrl ) )
+		{
+			if ( virtualKeyCode == 86 ) return true; // V
+			if ( virtualKeyCode == 67 ) return true; // C
+			if ( virtualKeyCode == 88 ) return true; // X
+			if ( virtualKeyCode == 45 ) return true; // Insert (copy)
+		}
+
+		if ( modifiers.Contains( KeyboardModifiers.Shift ) )
+		{
+			if ( virtualKeyCode == 45 ) return true; // Insert (paste)
+			if ( virtualKeyCode == 46 ) return true; // Delete (cut)
+		}
+
+		return false;
 	}
 
 	bool _keyFocus;

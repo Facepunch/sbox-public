@@ -54,7 +54,7 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 
 	private void CreateFaceObject()
 	{
-		_faceObject = new SceneDynamicObject( Scene.SceneWorld );
+		_faceObject = new SceneDynamicObject( Scene.DebugSceneWorld );
 		_faceObject.Material = Material.Load( "materials/tools/vertex_color_translucent.vmat" );
 		_faceObject.Attributes.SetCombo( "D_DEPTH_BIAS", 1 );
 		_faceObject.Attributes.SetCombo( "D_NO_CULLING", 1 );
@@ -79,7 +79,7 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 
 		using var scope = Gizmo.Scope( "FaceTool" );
 
-		if ( _faceObject.IsValid() && _faceObject.World != Scene.SceneWorld )
+		if ( _faceObject.IsValid() && _faceObject.World != Scene.DebugSceneWorld )
 		{
 			_hoverFace = default;
 			_faceObject.Delete();

@@ -37,19 +37,14 @@
         <StarterShelf Dismissed=@(() => SetStarterDismissed( true )) />
     }
 
-    @if ( Group is not null && StarterDismissed && HasJamShelf )
-    {
-        <JamShelf Jam=@ActiveJam />
-    }
-
-    @if ( Group is not null && Sections.Count == 0 && StarterDismissed && !HasJamShelf )
+    @if ( Group is not null && Sections.Count == 0 && StarterDismissed )
     {
         <div class="empty-wrap">
             <EmptyState Icon="search_off" Title="#menu.home.nothing_to_show" Subtitle="#menu.home.no_games_came_back_for_this_feed_try_another_tab_or_check_back_in_a_bit" />
         </div>
     }
 
-    @foreach ( var section in Sections.Where( x => !(x.Jam && HasJamShelf) ) )
+    @foreach ( var section in Sections )
     {
         <div class="section @( section.Jam ? "jam" : "" ) @(section.ContinuePlaying ? "continue-playing" : "")">
 
@@ -138,7 +133,22 @@
                     <div class="row">
                         @foreach ( var package in section.RowOne )
                         {
-                            <MenuProject.UI.PackageCard Package=@package Videos=@(!section.ContinuePlaying) ShowSubtitle=@section.ContinuePlaying style="@section.RowOneStyle" DiscoveryContext=@section.Discovery
+                            <MenuProject.UI.PackageCard Package=@package Videos=@(!section.ContinuePlaying) SquareThumbnail=@section.ContinuePlaying ShowSubtitle=@section.ContinuePlaying style="@section.RowOneStyle" DiscoveryContext=@section.Discovery
+                                         Rotation=@section.Rotation
+                                         Clicked="@(() => package.OpenModal())"
+                                         RightClicked="@(() => MenuHelpers.OpenPackageMenu( this, package ))" />
+                        }
+                    </div>
+                </div>
+            }
+
+            @if ( section.ExtraRow.Count > 0 )
+            {
+                <div class="tiles">
+                    <div class="row">
+                        @foreach ( var package in section.ExtraRow )
+                        {
+                            <MenuProject.UI.PackageCard Package=@package style="@section.ExtraRowStyle" DiscoveryContext=@section.Discovery
                                          Rotation=@section.Rotation
                                          Clicked="@(() => package.OpenModal())"
                                          RightClicked="@(() => MenuHelpers.OpenPackageMenu( this, package ))" />
@@ -155,7 +165,9 @@
 {
     // Keep in sync with .row PackageCard width and the gap in FrontPageGames.razor.scss.
     const float TileWidth = 300f;
-    const float TileGap = 8f;
+    const float TileGap = 12f;
+    // Preserve the original column breakpoints while making room for wider gaps.
+    const float ColumnSizingGap = 8f;
 
     [Parameter] public Package.ListResult Group { get; set; }
 
@@ -184,22 +196,22 @@
         public string Url;
         public bool Jam;
         public bool ContinuePlaying;
+        public int Priority;
 
         public bool BigRight;
         public Package Big;
         public List<Package> RowOne = new();
         public List<Package> RowTwo = new();
+        public List<Package> ExtraRow = new();
         public string RowOneStyle = "";
         public string RowTwoStyle = "";
+        public string ExtraRowStyle = "";
 
         public MenuProject.UI.CardVideoRotation Rotation;
         public DiscoveryContext Discovery;
     }
 
     List<Section> Sections { get; set; } = new();
-
-    Sandbox.Services.Jam ActiveJam => GameJamSystem.For( this )?.ActiveJam;
-    bool HasJamShelf => ActiveJam is not null;
 
     const string StarterDismissedCookie = "menu.discovery.starter.dismissed";
 
@@ -259,9 +271,11 @@
 
         var mosaicIndex = 0;
 
-        for ( int i = 0; i < Group.Groupings.Length; i++ )
+        // Keep the two main shelves first, preserving the feed's order for everything else.
+        var groupings = Group.Groupings.OrderBy( ShelfPriority ).ToArray();
+        for ( int i = 0; i < groupings.Length; i++ )
         {
-            var grouping = Group.Groupings[i];
+            var grouping = groupings[i];
             var packages = grouping.Packages ?? Array.Empty<Package>();
 
             var section = new Section
@@ -270,7 +284,8 @@
                 Description = grouping.Description,
                 Url = GroupUrl( grouping ),
                 Jam = MenuHelpers.IsJamQuery( grouping.QueryString ),
-                ContinuePlaying = grouping.QueryString?.Contains( "sort:used", StringComparison.OrdinalIgnoreCase ) == true,
+                ContinuePlaying = ShelfPriority( grouping ) == 0,
+                Priority = ShelfPriority( grouping ),
                 Rotation = i < previous.Count ? previous[i].Rotation : new MenuProject.UI.CardVideoRotation(),
             };
 
@@ -307,12 +322,21 @@
                 section.RowOneStyle = section.RowOne.Count < Columns ? ShortRowTileStyle : "";
             }
 
+            // Give the curated Featured shelf another full row below its mosaic (or its
+            // regular row on narrow screens), without repeating any of the games above.
+            if ( section.Priority == 1 )
+            {
+                var shown = new[] { section.Big }.Concat( section.RowOne ).Concat( section.RowTwo ).ToHashSet();
+                section.ExtraRow.AddRange( packages.Where( x => !shown.Contains( x ) ).Take( Columns ) );
+                section.ExtraRowStyle = section.ExtraRow.Count < Columns ? ShortRowTileStyle : "";
+            }
+
             section.Discovery = new DiscoveryContext
             {
                 Surface = "home",
                 Shelf = grouping.Title,
                 List = Group.RequestId,
-                Packages = new[] { section.Big }.Where( x => x is not null ).Concat( section.RowOne ).Concat( section.RowTwo ).ToArray(),
+                Packages = new[] { section.Big }.Where( x => x is not null ).Concat( section.RowOne ).Concat( section.RowTwo ).Concat( section.ExtraRow ).ToArray(),
             };
 
             Sections.Add( section );
@@ -344,7 +368,7 @@
 
         // Inner rect - the tiles lay out inside .tiles' padding.
         var rowWidth = tiles.Box.RectInner.Width / scale;
-        var fit = Math.Max( 1, (int)((rowWidth + TileGap) / (TileWidth + TileGap)) );
+        var fit = Math.Max( 1, (int)((rowWidth + ColumnSizingGap) / (TileWidth + ColumnSizingGap)) );
 
         var tileWidth = (rowWidth - (fit - 1) * TileGap) / fit;
         var bigWidth = MathF.Round( tileWidth * 2 + TileGap );
@@ -378,6 +402,14 @@
     /// plays. None with a video means no big tile.
     /// </summary>
     static Package PickBig( Package[] packages ) => packages.FirstOrDefault( x => !string.IsNullOrEmpty( x?.VideoThumb ) );
+
+    static int ShelfPriority( Package.ListResult.Grouping grouping )
+    {
+        var query = grouping.QueryString?.Split( ' ', StringSplitOptions.RemoveEmptyEntries ) ?? Array.Empty<string>();
+        if ( query.Contains( "sort:used", StringComparer.OrdinalIgnoreCase ) ) return 0;
+        if ( query.Contains( "in:facepunch.featured-games", StringComparer.OrdinalIgnoreCase ) ) return 1;
+        return 2;
+    }
 
     static string GroupUrl( Package.ListResult.Grouping g ) => MenuHelpers.IsJamQuery( g.QueryString ) ? "/jam" : $"/home/group?Query={g.QueryString}&title={g.Title}&subtitle={g.Description}";
 
@@ -438,5 +470,11 @@
         StateHasChanged();
     }
 
-    protected override int BuildHash() => HashCode.Combine( Group, Sections.Count, Columns, BigWidth, StarterDismissed, ActiveJam );
+    public override void OnHotloaded()
+    {
+        base.OnHotloaded();
+        Rebuild();
+    }
+
+    protected override int BuildHash() => HashCode.Combine( Group, Sections.Count, Columns, BigWidth, StarterDismissed );
 }

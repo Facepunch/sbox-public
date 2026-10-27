@@ -22,6 +22,11 @@ internal sealed class Skybox3DPipeline
 		var color = setup.m_hColor;
 		var depth = setup.m_hDepth;
 
+		if ( setup.m_pAttributes.GetBoolValue( "cubeCapture", false ) )
+		{
+			view.SetDefaultLayerObjectExcludedFlags( view.GetDefaultLayerObjectExcludedFlags() | StandardPipeline.CaptureExcludedObjects );
+		}
+
 		ViewSetup.SetSkybox3D( setup );
 		view.GetRenderAttributesPtr().SetBoolValue( "IsSkybox", true );
 

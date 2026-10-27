@@ -4,12 +4,17 @@
 
 <root>
 
-    <HtmlPanel Html="@Package.Description"></HtmlPanel>
+    <HtmlPanel Html="@(Html ?? Package?.Description)"></HtmlPanel>
 
 </root>
 
 @code
 {
    [Parameter] public Package Package {get;set;}
+
+   /// <summary>
+   /// Show this instead of the package's description - its Steam Workshop item's, for a package on the workshop
+   /// </summary>
+   [Parameter] public string Html {get;set;}
 
 }

@@ -8,7 +8,8 @@ public readonly ref partial struct Painter
 	internal void Composite( RenderTargetHandle source, Rect bounds, Filter filter, Mask? mask, MaskScope maskScope,
 		ReadOnlySpan<UI.Shadow> shadows, float borderWidth, Color borderColor )
 	{
-		var commands = NativeCommands();
+		// Native quads apply the scene object's transform in ui/vertex.hlsl.
+		var commands = NativeCommands( objectSpace: true );
 		var attributes = commands.Attributes;
 		attributes.Set( "Texture", source.ColorTexture );
 		attributes.Set( "BoxPosition", bounds.Position );
@@ -47,6 +48,9 @@ public readonly ref partial struct Painter
 		attributes.SetCombo( "D_BLENDMODE", InheritedBlendMode );
 		commands.DrawQuad( bounds.Grow( MathF.Ceiling( filter.Blur * 3 ) ).Ceiling(), Material.UI.Filter, Color.White );
 		Output.CountDraw();
+
+		// Restore the world-space WorldMat for batched draws.
+		ApplyDestinationAttributes();
 	}
 
 	void CompositeLayer( RenderTargetHandle source, Rect bounds, Filter filter, Mask? mask, float opacity )

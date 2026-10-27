@@ -171,7 +171,7 @@ public partial class ProjectPublisher
 						var relative = Path.GetRelativePath( root, file ).NormalizeFilename( true, false );
 						if ( !ResourceFileAllowed( relative ) ) continue;
 						// Compilable assets have already been collected. Don't also ship their sources.
-						if ( AssetSystem.FindByPath( file ) is { } asset && !string.IsNullOrEmpty( asset.GetCompiledFile() ) ) continue;
+						if ( AssetSystem.FindByPath( file ) is { } asset && (asset.IsCompileFailed || !string.IsNullOrEmpty( asset.GetCompiledFile() )) ) continue;
 						await AddFile( file, relative );
 					}
 				}

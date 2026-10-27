@@ -36,4 +36,28 @@ public class WebSurfaceTest
 		else
 			Assert.ThrowsException<InvalidOperationException>( () => WebSurface.CheckUrlIsAllowed( new Uri( uri, UriKind.Absolute ) ) );
 	}
+
+	[TestMethod]
+	[DataRow( 86u, KeyboardModifiers.Ctrl, true )] // Ctrl+V
+	[DataRow( 67u, KeyboardModifiers.Ctrl, true )] // Ctrl+C
+	[DataRow( 88u, KeyboardModifiers.Ctrl, true )] // Ctrl+X
+	[DataRow( 45u, KeyboardModifiers.Ctrl, true )] // Ctrl+Insert
+	[DataRow( 45u, KeyboardModifiers.Shift, true )] // Shift+Insert
+	[DataRow( 46u, KeyboardModifiers.Shift, true )] // Shift+Delete
+	[DataRow( 86u, KeyboardModifiers.Ctrl | KeyboardModifiers.Shift, true )]
+	[DataRow( 45u, KeyboardModifiers.Ctrl | KeyboardModifiers.Alt, true )]
+	[DataRow( 45u, KeyboardModifiers.Shift | KeyboardModifiers.Alt, true )]
+	[DataRow( 46u, KeyboardModifiers.Ctrl | KeyboardModifiers.Shift, true )]
+	[DataRow( 45u, KeyboardModifiers.None, false )] // Insert
+	[DataRow( 46u, KeyboardModifiers.None, false )] // Delete
+	[DataRow( 46u, KeyboardModifiers.Ctrl, false )] // Ctrl+Delete
+	[DataRow( 86u, KeyboardModifiers.Shift, false )] // Shift+V
+	[DataRow( 86u, KeyboardModifiers.None, false )] // V
+	[DataRow( 45u, KeyboardModifiers.Alt, false )] // Alt+Insert
+	[DataRow( 65u, KeyboardModifiers.Ctrl, false )] // Ctrl+A
+	[DataRow( 65u, KeyboardModifiers.Shift, false )] // Shift+A
+	public void IsClipboardShortcut( uint virtualKeyCode, KeyboardModifiers modifiers, bool isClipboard )
+	{
+		Assert.AreEqual( isClipboard, WebSurface.IsClipboardShortcut( virtualKeyCode, modifiers ) );
+	}
 }

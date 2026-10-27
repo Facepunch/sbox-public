@@ -44,18 +44,18 @@
 
 		@* What's new in it bottom left, how the load's going bottom right *@
 		<div class="footer">
-			@* The latest post's headline and its summary *@
-			@if ( Package?.LatestNewsPost is { } news && !string.IsNullOrWhiteSpace( news.Title ) )
+			@* The latest update - the post's headline and its summary, or a newer changelist's title *@
+			@if ( LatestUpdate is { } update )
 			{
 				<div class="news">
 					<div class="news-eyebrow">
 						<div class="eyebrow"><icon>campaign</icon><label>#menu.loading.latest_update</label></div>
-						<div class="ago"><icon>schedule</icon><label>@Ago( news.Created )</label></div>
+						<div class="ago"><icon>schedule</icon><label>@Ago( update.Created )</label></div>
 					</div>
-					<label class="news-title">@news.Title</label>
-					@if ( !string.IsNullOrWhiteSpace( news.Summary ) )
+					<label class="news-title">@update.Title</label>
+					@if ( !string.IsNullOrWhiteSpace( update.Summary ) )
 					{
-						<label class="news-summary">@news.Summary</label>
+						<label class="news-summary">@update.Summary</label>
 					}
 				</div>
 			}
@@ -534,6 +534,38 @@
         if ( total >= 1_000_000_000 ) return $"{bytes / 1_000_000_000:0.00} GB";
         if ( total >= 1_000_000 ) return $"{bytes / 1_000_000:0} MB";
         return $"{bytes / 1_000:0} KB";
+    }
+
+    record struct Update( string Title, string Summary, DateTimeOffset Created );
+
+    /// <summary>
+    /// What's newest in it - the latest post, or its latest changelist if that came out after the post
+    /// (or there's no post). A changelist doesn't say which post it goes with, so it's only by date, and
+    /// a tie goes to the post - it has a summary.
+    /// </summary>
+    static Update? LatestUpdate
+    {
+        get
+        {
+            Update? news = Package?.LatestNewsPost is { } post && !string.IsNullOrWhiteSpace( post.Title )
+                ? new Update( post.Title, post.Summary, post.Created )
+                : null;
+
+            if ( Package is not { LatestChangeLists.Length: > 0 } package ) return news;
+
+            var changes = package.LatestChangeLists.MaxBy( x => x.Created );
+            if ( news is { } latest && latest.Created >= changes.Created ) return news;
+
+            return new Update( ChangesTitle( changes ), null, changes.Created );
+        }
+    }
+
+    // Its title, falling back to its version, then the day it came out
+    static string ChangesTitle( Package.ChangeListSummary changes )
+    {
+        if ( !string.IsNullOrWhiteSpace( changes.Title ) ) return changes.Title;
+        if ( !string.IsNullOrWhiteSpace( changes.Version ) ) return changes.Version;
+        return changes.Created.LocalDateTime.ToString( "d MMMM yyyy" );
     }
 
     static string Ago( DateTimeOffset when )

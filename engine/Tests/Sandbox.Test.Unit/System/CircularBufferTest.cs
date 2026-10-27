@@ -101,6 +101,26 @@ public class CircularBufferTest
 	}
 
 	/// <summary>
+	/// Negative indices should throw even once the buffer has wrapped and
+	/// its start has moved, and a rejected write shouldn't change anything.
+	/// </summary>
+	[TestMethod]
+	public void NegativeIndexThrowsAfterWrap()
+	{
+		var buffer = new CircularBuffer<int>( 3, new[] { 1, 2, 3 } );
+		buffer.PushBack( 4 );
+
+		Assert.ThrowsException<IndexOutOfRangeException>( () => buffer[-1] );
+		Assert.ThrowsException<IndexOutOfRangeException>( () => buffer[-3] );
+		Assert.ThrowsException<IndexOutOfRangeException>( () => buffer[-1] = 99 );
+		Assert.ThrowsException<IndexOutOfRangeException>( () => buffer[-3] = 99 );
+		CollectionAssert.AreEqual( new[] { 2, 3, 4 }, buffer.ToArray() );
+
+		var fresh = new CircularBuffer<int>( 3, new[] { 1, 2 } );
+		Assert.ThrowsException<IndexOutOfRangeException>( () => fresh[-1] );
+	}
+
+	/// <summary>
 	/// Clear should empty the buffer so it can be reused.
 	/// </summary>
 	[TestMethod]

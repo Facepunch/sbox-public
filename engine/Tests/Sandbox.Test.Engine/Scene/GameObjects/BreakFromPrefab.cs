@@ -316,4 +316,35 @@ public class BreakFromPrefabTest : SceneTest
 		Assert.IsTrue( l2.IsOutermostPrefabInstanceRoot, "L2 should be promoted to a full instance" );
 		Assert.IsFalse( l2.PrefabInstance.IsModified(), "promoted L2 instance must not be spuriously marked as modified after reparent" );
 	}
+
+	// dump_scene serializes with BreakPrefabInstances so the output can be pasted into an editor
+	// that doesn't have the game's prefabs. Instances must come out as full, unlinked hierarchies.
+	[TestMethod]
+	public void BreakPrefabInstancesSerializesWithoutPrefabs()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		string json;
+		using ( RegisterNestedPrefabs( out var outerScene ) )
+		{
+			var outer = outerScene.Clone();
+			json = outer.Serialize( new GameObject.SerializeOptions { BreakPrefabInstances = true } ).ToJsonString();
+		}
+
+		Assert.IsFalse( json.Contains( "__Prefab" ), "no prefab instance data should be written" );
+		Assert.IsFalse( json.Contains( "__EditorPrefabNestedInstance" ), "no nested prefab source should be written" );
+
+		var fresh = new Scene();
+		using var freshScope = fresh.Push();
+
+		var restored = new GameObject();
+		restored.Deserialize( System.Text.Json.Nodes.JsonNode.Parse( json ).AsObject() );
+
+		Assert.IsFalse( restored.IsPrefabInstance );
+		var restoredNested = restored.Children[0];
+		Assert.IsFalse( restoredNested.IsPrefabInstance );
+		Assert.AreEqual( 33, restoredNested.Components.Get<PrefabInstanceStatComponent>().Number, "nested content must be written in full" );
+		Assert.AreSame( restoredNested, restored.Components.Get<RefHolderComponent>().Target, "references into the instance must resolve" );
+	}
 }

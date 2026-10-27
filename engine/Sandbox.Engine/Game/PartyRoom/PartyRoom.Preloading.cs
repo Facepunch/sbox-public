@@ -85,12 +85,14 @@ public partial class PartyRoom
 
 	void UpdateFollowing()
 	{
-		_join ??= new PartyJoinController( PreloadAsync, ConnectAsync, StopConnecting );
+		_join ??= new PartyJoinController( PreloadAsync, ConnectAsync, StopConnecting, IsInGame );
 		var target = new PartyJoinController.Target( JoinState, PackageIdent, GameAddress );
 		_join.Update( target, RealTime.Now, HostDownloadProgress );
 		if ( JoiningStage == JoinStage.Connected && !Networking.IsActive )
 			_join.Fail( "Disconnected from the game. Retry to rejoin the party leader." );
 	}
+
+	static bool IsInGame( string address ) => GetGameAddress() == address;
 
 	static void StopConnecting()
 	{

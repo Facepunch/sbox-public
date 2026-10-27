@@ -57,7 +57,7 @@ public partial class ServiceApi
 		/// <summary>
 		/// Open a reward claim: returns the items on offer to choose from (or the existing
 		/// unclaimed offer to resume), or null if there's nothing to claim right now.
-		/// Note: claiming creates the drop, which resets the player's "since last reward" progress.
+		/// Claiming reserves the current week's reward; its item can be chosen after the week ends.
 		/// </summary>
 		[Post( "/account/rewards/claim/1" )]
 		Task<RewardOffer> ClaimReward();

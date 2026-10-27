@@ -466,6 +466,15 @@ file sealed class LightCapturer : ComponentCapturer<Light>
 	protected override void OnCapture( IMovieTrackRecorder recorder, Light component )
 	{
 		recorder.Property( nameof( Light.LightColor ) ).Capture();
+		recorder.Property( nameof( Light.Intensity ) ).Capture();
+		recorder.Property( nameof( Light.Temperature ) ).Capture();
+		recorder.Property( nameof( Light.AnimationEnabled ) ).Capture();
+		recorder.Property( nameof( Light.AnimationPattern ) ).Capture();
+		recorder.Property( nameof( Light.AnimationSpeed ) ).Capture();
+		recorder.Property( nameof( Light.AnimationTimeOffset ) ).Capture();
+		recorder.Property( nameof( Light.AnimationDuration ) ).Capture();
+		recorder.Property( nameof( Light.AnimationCurve ) ).Capture();
+		recorder.Property( nameof( Light.AnimationGradient ) ).Capture();
 		recorder.Property( nameof( Light.FogMode ) ).Capture();
 		recorder.Property( nameof( Light.FogStrength ) ).Capture();
 		recorder.Property( nameof( Light.Shadows ) ).Capture();

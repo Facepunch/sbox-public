@@ -22,4 +22,21 @@ public class WorkshopPackageTest
 
 		Assert.IsTrue( map.InstallsFromWorkshop );
 	}
+
+	[TestMethod]
+	public void GameWithWorkshopIdInstallsFromWorkshop()
+	{
+		var game = new RemotePackage { TypeName = "game", Version = new PackageRevision { Meta = "{\"WorkshopId\":1234}" } };
+
+		Assert.IsTrue( game.InstallsFromWorkshop );
+	}
+
+	[TestMethod]
+	public void GameWithoutWorkshopIdDownloadsFromBackend()
+	{
+		// Games published before they went on the workshop
+		var game = new RemotePackage { TypeName = "game", Version = new PackageRevision { Meta = "{}" } };
+
+		Assert.IsFalse( game.InstallsFromWorkshop );
+	}
 }

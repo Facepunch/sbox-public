@@ -115,12 +115,25 @@ public class EditorToolManager
 	int SelectionHash => CurrentSession?.Selection?.GetHashCode() ?? 0;
 	List<EditorTool> deleteList = new();
 
+	SelectionSystem selectedObjectsSource;
+	int selectedObjectsHash;
+	GameObject[] selectedObjects = [];
+
 	/// <summary>
 	/// Check if the selection has changed. If it has, recreate component tools.
 	/// </summary>
 	private void UpdateSelection()
 	{
-		var gameObjects = CurrentSession.Selection.OfType<GameObject>().ToArray();
+		// Runs every frame, only rebuild the selected GameObjects when the selection changes
+		var selection = CurrentSession.Selection;
+		if ( selection != selectedObjectsSource || selection.GetHashCode() != selectedObjectsHash )
+		{
+			selectedObjectsSource = selection;
+			selectedObjectsHash = selection.GetHashCode();
+			selectedObjects = selection.OfType<GameObject>().ToArray();
+		}
+
+		var gameObjects = selectedObjects;
 
 		// Add component count to hash if we have single object selected, to update when components are added/removed
 		var selectionHash = SelectionHash;

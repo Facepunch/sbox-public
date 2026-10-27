@@ -58,6 +58,9 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 			_camera.ExcludeTags.SetFrom( volume.RenderExcludeTags );
 		}
 
+		// Hide In Game meshes are still visible in the editor, keep them out of bakes
+		_camera.ExcludeTags.Add( MeshComponent.HideInGameTag );
+
 		_camera.OnRenderStageHook += ( stage, camera ) =>
 		{
 			if ( stage != Stage.AfterTransparent )
@@ -231,7 +234,7 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 			return false;
 
 		foreach ( var texture in _captureTextures )
-			texture.MarkUsed();
+			texture.MarkUsed( ushort.MaxValue );
 
 		_camera.RenderToCubeTexture( _captureTexture );
 

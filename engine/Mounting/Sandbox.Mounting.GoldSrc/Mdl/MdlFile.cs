@@ -462,7 +462,8 @@ class File
 			ms.Seek( textureData.Index + pixelCount, SeekOrigin.Begin );
 			var palette = br.ReadBytes( 256 * 3 );
 
-			if ( (textureData.Flags & LightingFlags.Masked) != 0 )
+			var masked = (textureData.Flags & LightingFlags.Masked) != 0;
+			if ( masked )
 			{
 				palette[(255 * 3) + 0] = 0;
 				palette[(255 * 3) + 1] = 0;
@@ -481,7 +482,7 @@ class File
 				imageDataSpan[destIndex] = paletteSpan[palIndex];
 				imageDataSpan[destIndex + 1] = paletteSpan[palIndex + 1];
 				imageDataSpan[destIndex + 2] = paletteSpan[palIndex + 2];
-				imageDataSpan[destIndex + 3] = 255;
+				imageDataSpan[destIndex + 3] = (masked && pixelData[j] == 255) ? (byte)0 : (byte)255;
 			}
 
 			var width = textureData.Width;

@@ -294,5 +294,59 @@ public static partial class Game
 		/// Returns true if the pause menu overlay is open
 		/// </summary>
 		public bool IsPauseMenuOpen => IModalSystem.Current?.IsPauseMenuOpen ?? false;
+
+		/// <summary>
+		/// Asks the user whether they want to open this web page in their browser.
+		/// Only http and https links are allowed.
+		/// </summary>
+		/// <example>
+		/// <code>
+		/// Game.Overlay.OpenUrl( "https://discord.gg/sbox" );
+		/// </code>
+		/// </example>
+		public static void OpenUrl( string url )
+		{
+			if ( !TryGetExternalUrl( url, out var safeUrl ) )
+			{
+				Log.Warning( $"Game.Overlay.OpenUrl: not an http(s) url: {url}" );
+				return;
+			}
+
+			using var scope = GlobalContext.MenuScope();
+
+			IModalSystem.Current?.OpenUrl( safeUrl );
+		}
+
+		/// <summary>
+		/// Checks that <paramref name="url"/> is an absolute http(s) link with a host and no user info,
+		/// and gives it back normalized, with the host in punycode so look-alike domains are visible.
+		/// </summary>
+		internal static bool TryGetExternalUrl( string url, out string safeUrl )
+		{
+			safeUrl = null;
+
+			if ( string.IsNullOrWhiteSpace( url ) || url.Length > 2048 )
+				return false;
+
+			if ( !Uri.TryCreate( url, UriKind.Absolute, out var uri ) )
+				return false;
+
+			if ( uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps )
+				return false;
+
+			if ( !string.IsNullOrEmpty( uri.UserInfo ) || string.IsNullOrEmpty( uri.Host ) )
+				return false;
+
+			// A host can parse but still not be valid IDN (e.g. a lone zero width joiner), which throws here
+			try
+			{
+				safeUrl = new UriBuilder( uri ) { Host = uri.IdnHost }.Uri.AbsoluteUri;
+				return true;
+			}
+			catch ( UriFormatException )
+			{
+				return false;
+			}
+		}
 	}
 }

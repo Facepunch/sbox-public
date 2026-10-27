@@ -26,6 +26,11 @@ internal sealed class StandardPipeline
 	/// </summary>
 	const float LargePrepassCullPercent = 60.0f;
 
+	/// <summary>
+	/// Objects cube captures (envmap probes, DDGI) leave out: viewmodels and anything flagged out of cubemaps (debug overlays).
+	/// </summary>
+	internal const SceneObjectFlags CaptureExcludedObjects = SceneObjectFlags.HideInCubemaps | SceneObjectFlags.GameOverlayLayer;
+
 	static readonly StringToken ForwardMode = "Forward";
 	static readonly StringToken DepthMode = "Depth";
 	static readonly StringToken StaticOverlayMatch = "StaticOverlayLayer";
@@ -62,6 +67,16 @@ internal sealed class StandardPipeline
 		var multisampled = msaa != RenderMultisampleType.RENDER_MULTISAMPLE_NONE;
 		var dynamicObjects = setup.m_bRenderDynamicObjects;
 		var hooks = setup.m_bManagedHooks;
+
+		// Cube captures (envmap probes, DDGI) see the world only: no viewmodels, debug overlays or objects drawn over the UI
+		var capture = view.GetRenderTargetArrayIndex() >= 0;
+		if ( capture )
+		{
+			view.SetDefaultLayerObjectExcludedFlags( view.GetDefaultLayerObjectExcludedFlags() | CaptureExcludedObjects );
+
+			// The 3D skybox's view builds its layers before native copies our flags or array index over, it gets these attributes
+			pipelineAttributes.SetBoolValue( "cubeCapture", true );
+		}
 
 		ViewSetup.SetStandard( setup );
 		ViewSetup.AddLightmapWarnings( setup );
@@ -282,6 +297,12 @@ internal sealed class StandardPipeline
 		//
 		// Game overlays (viewmodels), in front of everything else in their own slice of the depth range
 		//
+		if ( capture )
+		{
+			if ( hooks ) HookLayers.Add( view, "Managed: AfterTransparent", Stage.AfterTransparent, viewport, color, depth );
+			if ( hooks ) HookLayers.Add( view, "Managed: AfterViewModel", Stage.AfterViewmodel, viewport, color, depth );
+		}
+		else
 		{
 			var overlayViewport = viewport;
 			overlayViewport.MinZ = 1.0f - GameOverlayDepthRange;
@@ -360,8 +381,11 @@ internal sealed class StandardPipeline
 		//
 		// Overlays after post processing (gizmos, debug text), with and without depth
 		//
-		AddScreenOverlay( view, "OverlayWithDepth", OverlayWithDepthMatch, viewport, shadingMode, finalColor, depth, colorSpace );
-		AddScreenOverlay( view, "OverlayWithoutDepth", OverlayWithoutDepthMatch, viewport, shadingMode, finalColor, NativeRenderPipeline.NoTarget, colorSpace );
+		if ( !capture )
+		{
+			AddScreenOverlay( view, "OverlayWithDepth", OverlayWithDepthMatch, viewport, shadingMode, finalColor, depth, colorSpace );
+			AddScreenOverlay( view, "OverlayWithoutDepth", OverlayWithoutDepthMatch, viewport, shadingMode, finalColor, NativeRenderPipeline.NoTarget, colorSpace );
+		}
 
 		if ( quadOverdraw ) QuadOverdraw.AddVisualize( view, viewport, finalColor, colorSpace );
 
@@ -373,6 +397,7 @@ internal sealed class StandardPipeline
 		}
 
 		// Objects drawn over the UI
+		if ( !capture )
 		{
 			var layer = NativeLayers.Add( view, "UI Overlay", viewport, shadingMode, finalColor, NativeRenderPipeline.NoTarget, colorSpace,
 				LayerFlags.NeedsFullSort | LayerFlags.PreserveColorBuffers | LayerFlags.NeedsPerViewLightingConstants | LayerFlags.CountArtistTriangles );

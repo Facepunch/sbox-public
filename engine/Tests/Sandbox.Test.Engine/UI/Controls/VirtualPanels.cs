@@ -308,4 +308,39 @@ public class VirtualPanelTest
 		grid.ItemSize = new Vector2( 0.25f, 0.25f );
 		Assert.AreEqual( new Vector2( 1, 1 ), grid.ItemSize );
 	}
+
+	/// <summary>
+	/// Setting Item again (what a parent razor rebuild does) re-renders the existing cells with
+	/// the new template, rather than leaving them showing the old one until they're recreated.
+	/// </summary>
+	[TestMethod]
+	public void SettingItemRefreshesExistingCells()
+	{
+		var root = CreateRoot();
+		var list = new VirtualList { Parent = root };
+		list.Style.Set( "width: 200px; height: 400px;" );
+		list.ItemHeight = 50;
+
+		int first = 0;
+		list.Item = data => builder => first++;
+		list.Items = MakeItems( 1000 );
+
+		// Cells are created in the second pass and run their trees in the third, because the
+		// virtual panel ticks after its children.
+		root.Layout();
+		root.Layout();
+		root.Layout();
+
+		Assert.AreEqual( 9, first );
+
+		int second = 0;
+		list.Item = data => builder => second++;
+
+		root.Layout();
+		root.Layout();
+
+		Assert.AreEqual( 9, list.ChildrenCount );
+		Assert.AreEqual( 9, second );
+		Assert.AreEqual( 9, first );
+	}
 }

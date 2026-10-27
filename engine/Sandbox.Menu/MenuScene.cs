@@ -38,7 +38,7 @@ public static class MenuScene
 		Scene.Camera?.SceneCamera.EnableEngineOverlays = true;
 		SceneCamera.RecordingCamera = Scene.Camera?.SceneCamera;
 
-		using ( Scene.Push() )
+		using ( Scene.PushScope() )
 		{
 			Scene.Render( swapChain, default );
 		}

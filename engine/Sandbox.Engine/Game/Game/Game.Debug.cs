@@ -14,7 +14,7 @@ public static partial class Game
 		using var sceneScope = scene.Push();
 
 		var children = new JsonArray();
-		var options = new GameObject.SerializeOptions();
+		var options = new GameObject.SerializeOptions { BreakPrefabInstances = true };
 
 		foreach ( var child in scene.Children )
 		{

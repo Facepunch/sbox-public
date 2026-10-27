@@ -1,6 +1,6 @@
 
-#include "vphysics2/iphysicsbody.h"
-#include "vphysics2/iphysicsjoint.h"
+#include "physics/iphysicsbody.h"
+#include "physics/iphysicsjoint.h"
 
 [Handle:Sandbox.PhysicsGroup]
 native class IPhysAggregateInstance as NativeEngine.IPhysAggregateInstance

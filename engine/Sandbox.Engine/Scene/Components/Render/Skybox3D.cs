@@ -100,7 +100,7 @@ public class Skybox3D : Component, Component.ExecuteInEditor
 	protected override void OnUpdate()
 	{
 		if ( !skyboxScene.IsValid() ) return;
-		using ( skyboxScene.Push() )
+		using ( skyboxScene.PushScope() )
 		{
 			if ( skyboxScene.IsEditor )
 				skyboxScene.EditorTick( Time.Now, Time.Delta );

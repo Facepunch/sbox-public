@@ -71,6 +71,28 @@
 							},
 							{
 								_class = "BodyGroupChoice"
+								meshes = 
+								[
+									"head_06",
+									"eyes_06",
+									"jaw_06",
+									"head_06_lod2",
+									"head_06_lod3",
+								]
+							},
+							{
+								_class = "BodyGroupChoice"
+								meshes = 
+								[
+									"head_07",
+									"eyes_07",
+									"jaw_07",
+									"head_07_lod2",
+									"head_07_lod3",
+								]
+							},
+							{
+								_class = "BodyGroupChoice"
 								meshes = [  ]
 							},
 						]

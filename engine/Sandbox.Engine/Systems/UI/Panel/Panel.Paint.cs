@@ -33,7 +33,7 @@ public partial class Panel
 		{
 			if ( !LayoutTree.IsInlineParticipant )
 			{
-				if ( HasBackdropFilter ) painter.FilterBackdrop( Box.Rect, _paintCache.Backdrop, _paintCache.OuterRadii );
+				if ( HasBackdropFilter ) painter.FilterBackdrop( Box.Rect, _paintCache.Backdrop, _paintCache.OuterRadii, _paintCache.Background.Descriptor.BorderShapeData );
 				if ( layered || this is RootPanel ) DrawShadows( inset: false, painter );
 				DrawBackground( painter );
 				DrawContent( painter );
@@ -259,10 +259,17 @@ public partial class Panel
 
 		if ( !image.HasFill ) return;
 
+		// Nested clip owners each fill the same labels, but the outermost one draws their effects, under every fill
+		bool drawEffects = !HasTextClipFillAbove();
+
 		foreach ( var label in Descendants.Prepend( this ).OfType<Label>() )
 		{
 			if ( !label.IsVisible || label.VisualRoot != VisualRoot ) continue;
 			if ( !label.GetTextMask( out var texture, out var rect ) ) continue;
+
+			// Shadows and outlines aren't part of the mask, they go under the fill like normal text
+			if ( drawEffects ) label.DrawTextEffects( painter, CachedOverrideBlendMode, CachedRenderOpacity );
+
 			var fill = descriptor with
 			{
 				BackgroundClip = BackgroundClip.Text,
@@ -274,6 +281,20 @@ public partial class Panel
 			};
 			painter.Rect( in fill );
 		}
+	}
+
+	/// <summary>
+	/// A visual ancestor fills its background through the text masks too, so it has already drawn our labels' effects.
+	/// </summary>
+	bool HasTextClipFillAbove()
+	{
+		for ( var panel = VisualParent; panel is not null; panel = panel.VisualParent )
+		{
+			if ( panel.HasBackground && panel._paintCache.ClipsBackgroundToText && panel._paintCache.Background.HasFill && panel.LayoutTree?.IsInlineParticipant != true )
+				return true;
+		}
+
+		return false;
 	}
 
 	/// <summary>

@@ -340,6 +340,34 @@ public class ModalSystem : IModalSystem
 	}
 
 	/// <summary>
+	/// The open link question that's up, if there is one.
+	/// </summary>
+	QuestionModal _openUrl;
+
+	/// <summary>
+	/// A game wants to open a web page (Game.Overlay.OpenUrl) - ask first, showing the link as it'll open.
+	/// While one's up, more are ignored, so a game can't swap the link out from under the click.
+	/// </summary>
+	public void OpenUrl( string url )
+	{
+		if ( string.IsNullOrEmpty( url ) || _openUrl.IsValid() )
+			return;
+
+		_openUrl = new QuestionModal
+		{
+			Title = "#menu.overlay.open_url",
+			Message = url,
+			ConfirmText = "#menu.overlay.open_url_confirm",
+			ConfirmIcon = "open_in_new",
+			OnConfirm = () => MenuUtility.OpenUrl( url )
+		};
+
+		_openUrl.AddClass( "open-url" );
+
+		Push( _openUrl );
+	}
+
+	/// <summary>
 	/// <c>menu_mock_notice</c> - a notice like the host's when it drops you, to look at without being dropped.
 	/// With "error" for the two paragraph kind a failed load gives.
 	/// </summary>

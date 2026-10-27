@@ -25,6 +25,7 @@ public partial class RenderSettings
 	{
 		MigrateStretchUpscaling();
 		MigratePostProcessSettings();
+		RenderScale = RenderScale;
 
 		Config.ApplyAll( this );
 	}
@@ -120,18 +121,28 @@ public partial class RenderSettings
 		VideoSettings.Save();
 	}
 
+	const string RenderScaleKey = "render.scale";
+
 	/// <summary>
 	/// Render-resolution scale used by Off (including MSAA and CMAA2) and FSR1 (40-100%).
 	/// </summary>
-	public float UpscalerRenderScale
+	public float RenderScale
 	{
-		get => VideoSettings.Get<float>( "upscaler.render_scale", 1.0f );
+		get => VideoSettings.Get<float>( RenderScaleKey, 1.0f );
 		set
 		{
 			float v = Math.Clamp( value, 0.4f, 1.0f );
-			VideoSettings.Set<float>( "upscaler.render_scale", v );
-			ConVarSystem.SetFloat( "r_upscaler_render_scale", v, true );
+			VideoSettings.Set<float>( RenderScaleKey, v );
+			ConVarSystem.SetFloat( "r_render_scale", v, true );
 		}
+	}
+
+	/// <summary>Render scale used by Off and FSR1 modes.</summary>
+	[Obsolete( "Use RenderScale" )]
+	public float UpscalerRenderScale
+	{
+		get => RenderScale;
+		set => RenderScale = value;
 	}
 
 	/// <summary>FSR1 RCAS sharpness in [0..1]. Only used when <see cref="UpscalerMode"/> is FSR1.</summary>
@@ -236,7 +247,7 @@ public partial class RenderSettings
 	public void ResetGraphicsConfig()
 	{
 		UpscalerMode = UpscalerMode.Off;
-		UpscalerRenderScale = 1.0f;
+		RenderScale = 1.0f;
 		Fsr1Sharpness = 0.25f;
 		Fsr3UpscalerQuality = Fsr3UpscalerQuality.Performance;
 		Fsr3Sharpness = 0.5f;

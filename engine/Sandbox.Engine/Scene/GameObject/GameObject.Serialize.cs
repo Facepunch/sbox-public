@@ -58,6 +58,12 @@ public partial class GameObject
 		/// </summary>
 		internal bool SerializeForPrefabInstanceToPrefabUpdate { get; set; }
 
+		/// <summary>
+		/// Serialize prefab instances as plain GameObjects, with their full hierarchy and no prefab links.
+		/// Used for standalone snapshots that get loaded where the prefab files might not exist.
+		/// </summary>
+		internal bool BreakPrefabInstances { get; set; }
+
 		/// <summary>Capture shallow undo state while preserving existing prefab ownership on restore.</summary>
 		internal bool SerializeForUndo { get; set; }
 
@@ -164,7 +170,7 @@ public partial class GameObject
 
 		if ( !options.ShouldSave( this ) ) return null;
 
-		if ( IsOutermostPrefabInstanceRoot && !options.SerializePrefabForDiff && !(options.SerializeForUndo && options.IgnoreChildren) && !options.SingleNetworkObject && !options.SceneForNetwork )
+		if ( IsOutermostPrefabInstanceRoot && !options.BreakPrefabInstances && !options.SerializePrefabForDiff && !(options.SerializeForUndo && options.IgnoreChildren) && !options.SingleNetworkObject && !options.SceneForNetwork )
 		{
 			return SerializePrefabInstance();
 		}
@@ -228,7 +234,7 @@ public partial class GameObject
 		{
 			json[JsonKeys.EditorSkipPrefabBreakOnRefresh] = true;
 		}
-		else if ( (!options.SceneForNetwork && !options.SingleNetworkObject)
+		else if ( (!options.SceneForNetwork && !options.SingleNetworkObject && !options.BreakPrefabInstances)
 				&& (IsNestedPrefabInstanceRoot || (IsOutermostPrefabInstanceRoot && options.SerializePrefabForDiff)) )
 		{
 			// For prefab updates all existing nested roots keep their instance data, regardless of depth.
@@ -336,6 +342,10 @@ public partial class GameObject
 		{
 			JsonUpgrader.Upgrade( serializedVersion, node, GetType() );
 		}
+
+		// Error describes the result of loading this object (e.g. a missing prefab stub), start clean.
+		// The missing prefab path below sets it again if the source still can't be loaded.
+		Flags &= ~GameObjectFlags.Error;
 
 		if ( node[JsonKeys.EditorSkipPrefabBreakOnRefresh] is null )
 		{

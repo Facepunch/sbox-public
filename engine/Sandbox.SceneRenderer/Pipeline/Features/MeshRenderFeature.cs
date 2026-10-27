@@ -669,7 +669,9 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 				if ( run.Filter == DrawFilter.Opaque && draw.Translucent ) continue;
 				if ( run.Filter == DrawFilter.Translucent && !draw.Translucent ) continue;
 
-				context.SetObjectAttributes( run.Attributes, draw.Lightmapped ? lightmap : probe );
+				var material = MaterialFor( run, draw, depth && !normals, layer.ForceDepthFastPath, out var stripPixelShader );
+				var drawProbe = probe is not null && RenderMesh.NeedsLightProbe( material ) ? probe : null;
+				context.SetObjectAttributes( run.Attributes, draw.Lightmapped ? lightmap : drawProbe );
 
 				// Skinned draws select per-mesh instance blocks and optional cached vertices.
 				var first = run.FirstInstance;
@@ -686,7 +688,6 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 					context.SetCombo( CsVertexAnimation, vertexCache ? 1 : 0 );
 				}
 
-				var material = MaterialFor( run, draw, depth && !normals, layer.ForceDepthFastPath, out var stripPixelShader );
 				if ( vertexCache )
 				{
 					if ( !context.BindGeometry( mesh, draw ) ) continue;

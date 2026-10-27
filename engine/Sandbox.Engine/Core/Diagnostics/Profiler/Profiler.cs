@@ -39,6 +39,12 @@ internal static class Profiler
 			return;
 		}
 
+		if ( !OperatingSystem.IsWindows() )
+		{
+			Log.Warning( "The profiler records with ETW, which is only available on Windows." );
+			return;
+		}
+
 		Log.Info( "Starting Profiler call `profiler` again to stop." );
 
 		if ( noUpload == false )

@@ -28,7 +28,7 @@ public partial class PartyDeck
 		_ = Instance.BeginCreate( draft.IsPublic, draft );
 	}
 
-	async Task<bool> BeginCreate( bool isPublic, PartyDraft initialDraft = null )
+	async Task<bool> BeginCreate( bool isPublic, PartyDraft initialDraft = null, bool createImmediately = false )
 	{
 		if ( PartyRoom.Current is not null ) return true;
 		Draft ??= initialDraft ?? new PartyDraft { IsPublic = isPublic };
@@ -37,6 +37,20 @@ public partial class PartyDeck
 		SettingsError = null;
 		Window?.Restore();
 		StateHasChanged();
+
+		if ( createImmediately )
+		{
+			try
+			{
+				await draft.Create();
+			}
+			catch ( Exception e )
+			{
+				SettingsError = e.Message;
+				if ( IsValid ) StateHasChanged();
+				return false;
+			}
+		}
 
 		var created = await draft.Completion.Task;
 		if ( Draft == draft )

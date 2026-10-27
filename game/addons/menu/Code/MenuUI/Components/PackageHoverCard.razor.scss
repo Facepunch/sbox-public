@@ -1,3 +1,4 @@
+@import "/styles/_theme.scss";
 @import "/styles/_front.scss";
 
 PackageHoverCard
@@ -537,4 +538,53 @@ PackageHoverCard
 			}
 		}
 	}
+
+	// Subscribed to its workshop item - lit green, like the game page's pill
+	.actions .button.subscribe.active
+	{
+		border-color: rgba( $primary-green, 0.6 );
+		background-color: rgba( $primary-green, 0.16 );
+		box-shadow: 0 0 10px rgba( $primary-green, 0.3 );
+
+		icon
+		{
+			color: $primary-green;
+		}
+	}
+
+	// The shapes of what's coming, while it's worked out whose it is
+	.bone
+	{
+		flex-shrink: 0;
+		border-radius: 999px;
+		background-color: rgba( 255, 255, 255, 0.07 );
+		animation: hover-card-bone 1.2s ease-in-out infinite alternate;
+	}
+
+	.fact-bone
+	{
+		width: 38px;
+		height: 12px;
+	}
+
+	.line-bone
+	{
+		width: 92%;
+		height: 10px;
+		margin: 3px 0;
+
+		&.short { width: 55%; }
+	}
+
+	.group-bone
+	{
+		width: 76px;
+		height: 34px;
+	}
+}
+
+@keyframes hover-card-bone
+{
+	0% { opacity: 0.55; }
+	100% { opacity: 1; }
 }

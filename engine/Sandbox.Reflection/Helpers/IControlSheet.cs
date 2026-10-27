@@ -67,7 +67,14 @@ public interface IControlSheet
 
 		var grouped = properties.GroupBy( x => x.GroupName ?? null ).ToList();
 
-		foreach ( var group in grouped.OrderBy( x => x.Key != null ).ThenBy( x => x.Max( y => y.Order ) ).ThenBy( x => x.Key ) )
+		// Explicit group orders can place a group ahead of ungrouped properties without changing default layouts.
+		var ordered = grouped
+			.OrderBy( x => x.SelectMany( y => y.GetAttributes<GroupAttribute>() ).Select( y => y.Order ).DefaultIfEmpty().Min() )
+			.ThenBy( x => x.Key != null )
+			.ThenBy( x => x.Max( y => y.Order ) )
+			.ThenBy( x => x.Key );
+
+		foreach ( var group in ordered )
 		{
 			var csg = new Group( group.ToList() );
 			AddGroup( csg );

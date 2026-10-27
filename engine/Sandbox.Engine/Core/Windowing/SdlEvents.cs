@@ -88,6 +88,11 @@ internal static class SdlEvents
 			case Sdl.EventType.MouseButtonDown:
 			case Sdl.EventType.MouseButtonUp:
 				if ( window != IntPtr.Zero && window == WindowInput.GetEditorMainWindow() && !WindowInput.GetRelativeMouseMode() ) break;
+				// Motion is dropped while unfocused and SDL won't resend an unchanged position on refocus,
+				// so the click that activates the window would land wherever the cursor last was.
+				var clickPosition = new Vector2( e.Button.X, e.Button.Y );
+				if ( !WindowInput.GetRelativeMouseMode() && InputRouter.MouseCursorPosition != clickPosition )
+					InputRouter.OnMousePositionChange( clickPosition.x, clickPosition.y, 0, 0 );
 				var button = MouseButton( e.Button.Button );
 				if ( button != ButtonCode.BUTTON_CODE_INVALID ) InputRouter.OnMouseButton( button, e.Type == Sdl.EventType.MouseButtonDown );
 				break;

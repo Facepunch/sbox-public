@@ -3,7 +3,7 @@
   "HumanSkinModel": "models/citizen_human/citizen_human_male.vmdl",
   "HumanSkinMaterial": "models/citizen_human/bodies/male/body_male_light.vmat",
   "HumanEyesMaterial": null,
-  "HumanSkinBodyGroups": 8164,
+  "HumanSkinBodyGroups": 32644,
   "HumanSkinMaterialGroup": "skin_light",
   "HumanSkinTags": "male",
   "Title": "Human Skin 3",
@@ -38,8 +38,8 @@
   "Icon": {
     "Path": "models/citizen_clothes/body/human05.clothing.png",
     "Mode": "HumanSkin",
-    "UsePositionOffset": false,
-    "PositionOffset": "0,0,0"
+    "UsePositionOffset": true,
+    "PositionOffset": "203.46019,0,-0.0999999866"
   },
   "__references": [],
   "__version": 0

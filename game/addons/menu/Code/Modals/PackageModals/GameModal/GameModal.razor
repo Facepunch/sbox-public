@@ -4,6 +4,8 @@
 @using Sandbox.UI;
 @using SboxMenu;
 @using System;
+@using System.Threading;
+@using MenuProject.Overlay.Overlays;
 @using Sandbox.Network
 @using Sandbox.Modals
 @using MenuProject.Modals.GameModalComponents;
@@ -14,8 +16,11 @@
 
     <MegaCard>
         <Metrics>
-            @* Just report - the rest is in the info column *@
-            <PackageMetrics Package="@Package" ShowRatings="@false" ShowStats="@false"/>
+            @* Just report - the rest is in the info column. Reports are the backend's - on the workshop, Steam's are on its page *@
+            @if ( !OnWorkshop && !PageLoading )
+            {
+                <PackageMetrics Package="@Package" ShowRatings="@false" ShowStats="@false"/>
+            }
         </Metrics>
         <Tabs>
             @* Setting up a new game, or looking through who's playing it - a trail back to the game's page
@@ -34,15 +39,29 @@
 
             @* A game's tabs - the Overview's the gallery and the newest update under it. Kept while
                setting up, just not shown, so the page is as it was left on the way back *@
-            <PackageTabs @ref=GameTabs Package=@Package Portal=@Portal>
+            <PackageTabs @ref=GameTabs Package=@Package Portal=@Portal ShowReviews=@(!OnWorkshop && !PageLoading) ShowUpdates=@(!OnWorkshop && !PageLoading) WorkshopId=@(OnWorkshop ? WorkshopId : 0)>
                 <Overview>
-                    <Media Package=@Package Loaded=@HasFullPackage Failed=@FetchFailed></Media>
-                    <PackageChanges Package=@Package Embedded=@true />
+                    @* On the workshop it's its item's page - its images, and its description where the latest update would be *@
+                    @* Until it's known which page it is, the gallery's loading - neither one's shown, then swapped for the other *@
+                    @if ( PageLoading )
+                    {
+                        <Media Package=@Package Loaded=@false></Media>
+                    }
+                    else if ( OnWorkshop )
+                    {
+                        <Media Package=@Package Images=@(WorkshopItem?.Images ?? Array.Empty<string>()) YouTubeVideos=@WorkshopItem?.YouTubeVideos Loaded=@true></Media>
+                        <PackageDescription Package=@Package Html=@Sandbox.Html.BBCodeParser.ToHtml( WorkshopItem?.Description ) />
+                    }
+                    else
+                    {
+                        <Media Package=@Package Loaded=@HasFullPackage Failed=@FetchFailed></Media>
+                        <PackageChanges Package=@Package Embedded=@true />
+                    }
                 </Overview>
             </PackageTabs>
         </Tabs>
         <Left>
-            <PackageInfoPanel Portal=@Portal Package="@Package" OnChangelogClicked="@(() => GameTabs?.OpenChanges())" OnReviewsClicked="@(() => GameTabs?.OpenReviews())" />
+            <PackageInfoPanel Portal=@Portal Package="@Package" Loading=@PageLoading OnWorkshop=@OnWorkshop Workshop=@WorkshopItem OnChangelogClicked="@(() => GameTabs?.OpenChanges())" OnReviewsClicked="@(() => GameTabs?.OpenReviews())" />
 
         </Left>
 
@@ -52,6 +71,24 @@
             @if ( Setup is not null )
             {
                 <GameSetupView Setup=@Setup ReadOnly=@SetupReadOnly Notice=@SetupNotice Error=@SetupError />
+            }
+            else if ( IsSettingUp && SetupError is null && SetupDownload is { } download )
+            {
+                @* The game's coming down first - its settings are in it *@
+                <div class="setup-download">
+                    <i>download</i>
+                    <label class="title">@Language.GetPhrase( "menu.games.downloading_game", new() { ["title"] = download.Title } )</label>
+
+                    <div class="track"><div class="fill" style="width: @(DownloadPercent( download ))%;"></div></div>
+
+                    @if ( download.Total > 0 )
+                    {
+                        <div class="amount">
+                            <label>@($"{download.Fraction * 100:0}%")</label>
+                            <label>@($"{LoadingOverlay.SizeIn( download.Downloaded, download.Total )} / {LoadingOverlay.Size( download.Total )}")</label>
+                        </div>
+                    }
+                </div>
             }
             else if ( IsSettingUp )
             {
@@ -80,6 +117,32 @@
     public Package Package;
     public string PackageIdent { get; set; }
     public bool HasFullPackage { get; set; }
+
+    /// <summary>
+    /// It's on the Steam Workshop - the page says what its item says, rather than the backend
+    /// </summary>
+    public bool OnWorkshop => WorkshopId != 0 || (Package?.InstallsFromWorkshop ?? false);
+
+    /// <summary>
+    /// Still working out what the page says - whether it's on the workshop at all (the full package says), and if it
+    /// is, its item. Nothing that's only one or the other is shown until then, so it doesn't swap from one to the other.
+    /// </summary>
+    public bool PageLoading => OnWorkshop ? !WorkshopLoaded : !HasFullPackage && !FetchFailed;
+
+    /// <summary>
+    /// What the Steam Workshop says about it, once it's been asked - null before then, or if Steam couldn't say
+    /// </summary>
+    public WorkshopItemDetails WorkshopItem { get; private set; }
+
+    /// <summary>
+    /// Its Steam Workshop item, once it's been worked out - 0 before then
+    /// </summary>
+    public ulong WorkshopId { get; private set; }
+
+    /// <summary>
+    /// The Workshop's been asked about it - whether or not it answered
+    /// </summary>
+    bool WorkshopLoaded { get; set; }
 
     /// <summary>
     /// The full package didn't come - the page is showing what was cached, which has no gallery.
@@ -123,6 +186,14 @@
 
     internal bool IsSettingUp { get; private set; }
     int setupRequest;
+    CancellationTokenSource setupCancel;
+
+    /// <summary>
+    /// The game coming down before it can be set up - its settings are in it. Null if it isn't downloading.
+    /// </summary>
+    WorkshopDownload? SetupDownload;
+
+    static string DownloadPercent( WorkshopDownload download ) => (Math.Clamp( download.Fraction, 0, 1 ) * 100).ToString( "0.##", System.Globalization.CultureInfo.InvariantCulture );
 
     /// <summary>
     /// Load the full package before creating its game setup, including its map and custom settings.
@@ -131,6 +202,10 @@
     public async Task OpenSetup( Package package, Action<CreateGameResults> onComplete, string via = null, Panel source = null, CreateGameResults? initialSettings = null, bool partyActions = false, PartyDraft draft = null, string initialMap = null )
     {
         var request = ++setupRequest;
+        setupCancel?.Cancel();
+        setupCancel = new CancellationTokenSource();
+        var token = setupCancel.Token;
+        SetupDownload = null;
         var ident = (package ?? Package).FullIdent;
         var maxMembers = draft?.MaxMembers ?? (partyActions && PartyView.Exists ? PartyView.MaxMembers : 0);
         Setup = null;
@@ -147,14 +222,31 @@
             if ( !IsValid || request != setupRequest ) return;
             if ( full is null ) throw new InvalidOperationException( Language.GetPhrase( "menu.games.couldn_t_load_game_settings_cancel_and_try_again" ) );
 
+            // Its settings are the ones its workshop item ships with, so it's installed first - cancelling setup stops waiting on it
+            Action<WorkshopDownload> progress = x =>
+            {
+                if ( !IsValid || request != setupRequest ) return;
+                SetupDownload = x;
+                StateHasChanged();
+            };
+
+            await MenuUtility.InstallWorkshopItemAsync( full, progress, token );
+            if ( !IsValid || request != setupRequest ) return;
+            SetupDownload = null;
+
             // Picker results omit game settings and player limits. Defaults need the full package too.
             var settings = initialSettings ?? GameSetup.GetInitialSettings( full, maxMembers );
             if ( initialMap is not null ) settings.Map = initialMap;
             Setup = new GameSetup( full, onComplete, settings ) { Via = via, Source = source };
         }
+        catch ( OperationCanceledException ) when ( token.IsCancellationRequested )
+        {
+            return;
+        }
         catch ( Exception e )
         {
             if ( !IsValid || request != setupRequest ) return;
+            SetupDownload = null;
             SetupError = e.Message;
         }
 
@@ -167,6 +259,9 @@
     public void CloseSetup()
     {
         setupRequest++;
+        setupCancel?.Cancel();
+        setupCancel = null;
+        SetupDownload = null;
         IsSettingUp = false;
         Setup = null;
         SetClass( "setting-up", false );
@@ -254,6 +349,10 @@
         // Get whatever package info we have - keeping the one it was opened with if there's none cached
         if ( Package.TryGetCached( PackageIdent, out var cached, true ) ) Package = cached;
 
+        // Known to be on the workshop already - ask Steam about its item while the backend's asked about the package
+        var known = MenuUtility.KnownWorkshopId( Package );
+        var workshop = known != 0 ? FetchWorkshopItem( known ) : null;
+
         // Get Full Package info - keeping what we had if it doesn't come, so the page still has
         // something on it and can say what didn't load
         Package full = null;
@@ -271,14 +370,40 @@
         FetchFailed = full is null;
         StateHasChanged();
 
+        // Only the full package says it's on the workshop
+        if ( workshop is null && OnWorkshop )
+            workshop = FetchWorkshopItem( await MenuUtility.GetWorkshopIdAsync( Package ) );
+
+        if ( workshop is not null )
+            await workshop;
+
         await RefreshLobbies();
+    }
+
+    async Task FetchWorkshopItem( ulong id )
+    {
+        var ident = PackageIdent;
+
+        // Its change notes can be asked for while its item is
+        WorkshopId = id;
+        StateHasChanged();
+
+        var item = await MenuUtility.FetchWorkshopItemAsync( id );
+
+        // Moved on to another game while we asked
+        if ( !this.IsValid() || ident != PackageIdent ) return;
+
+        WorkshopItem = item;
+        WorkshopLoaded = true;
+        StateHasChanged();
     }
 
     public override void OnDeleted()
     {
         base.OnDeleted();
+        setupCancel?.Cancel();
         Discovery.PreviewClosed( "page", PackageIdent );
     }
 
-    protected override int BuildHash() => System.HashCode.Combine(Package, HasFullPackage, FetchFailed, Setup, SetupReadOnly, SetupNotice, SetupError, HashCode.Combine( IsSettingUp, IsBrowsingSessions ));
+    protected override int BuildHash() => System.HashCode.Combine(Package, HasFullPackage, FetchFailed, Setup, SetupReadOnly, SetupNotice, SetupError, HashCode.Combine( IsSettingUp, SetupDownload, IsBrowsingSessions, WorkshopItem, WorkshopLoaded, WorkshopId ));
 }

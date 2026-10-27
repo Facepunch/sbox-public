@@ -249,12 +249,7 @@
 
 	static string Slug( string value ) => value.ToLowerInvariant();
 
-	static string FormatSize( long bytes )
-	{
-		var formatted = bytes.FormatBytes();
-		var suffixLength = bytes >= 1024 ? 2 : 1;
-		return $"{formatted[..^suffixLength]} {formatted[^suffixLength..].ToUpperInvariant()}";
-	}
+	static string FormatSize( long bytes ) => MenuHelpers.FormatSize( bytes );
 
 	static string TypeIcon( string type ) => type switch
 	{

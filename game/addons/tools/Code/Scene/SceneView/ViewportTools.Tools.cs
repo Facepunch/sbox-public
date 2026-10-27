@@ -32,8 +32,16 @@ internal class ToolsModeButton : Button
 			.ToArray();
 	}
 
+	private string _buttonModeName;
+
 	private void UpdateButtonText()
 	{
+		// Called every frame, only look the tool up again when the mode changes
+		if ( _buttonModeName == EditorToolManager.CurrentModeName )
+			return;
+
+		_buttonModeName = EditorToolManager.CurrentModeName;
+
 		foreach ( var group in _toolGroups )
 		{
 			foreach ( var type in group.OrderBy( x => x.Type.Name ) )

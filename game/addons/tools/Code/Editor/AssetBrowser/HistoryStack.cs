@@ -109,14 +109,14 @@ public class HistoryStack<T> : IEnumerable<T>
 	{
 		if ( string.IsNullOrEmpty( StateCookie ) ) return;
 
-		items = ProjectCookie.Get( $"{StateCookie}.History", items );
-		items ??= new LinkedList<T>();
+		items = ProjectCookie.Get( $"{StateCookie}.History", items ) ?? new LinkedList<T>();
+		current = null;
+		currentIndex = 0;
 
-		int idx = ProjectCookie.Get( $"{StateCookie}.HistoryIdx", -1 );
-		if ( idx != -1 )
-		{
-			GoTo( idx.Clamp( 0, items.Count - 1 ) );
-		}
+		if ( items.Count == 0 ) return;
+
+		int idx = ProjectCookie.Get( $"{StateCookie}.HistoryIdx", items.Count - 1 );
+		GoTo( idx.Clamp( 0, items.Count - 1 ) );
 	}
 
 	public IEnumerator<T> GetEnumerator()

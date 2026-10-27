@@ -747,6 +747,21 @@ public class ModelBuilderTests
 		}
 	}
 
+	[TestMethod]
+	public void EmptyIndexBufferCanBeSizedLater()
+	{
+		var mesh = new Mesh();
+		mesh.CreateIndexBuffer();
+		Assert.IsFalse( mesh.HasIndexBuffer );
+
+		mesh.SetIndexBufferSize( 3 );
+		mesh.SetIndexBufferData( new[] { 0, 1, 2 } );
+
+		Assert.IsTrue( mesh.HasIndexBuffer );
+		Assert.AreEqual( 3, mesh.IndexCount );
+		Assert.ThrowsException<InvalidOperationException>( () => mesh.CreateIndexBuffer() );
+	}
+
 	private static Mesh CreateBoundsMesh()
 	{
 		var mesh = new Mesh( Material.Load( "materials/default/white.vmat" ) );

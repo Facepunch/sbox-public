@@ -38,6 +38,27 @@ public class PropertiesTest
 
 		tl.RemoveAssembly( ThisAssembly );
 	}
+
+	[TestMethod]
+	public void RecordEqualityContractIsHidden()
+	{
+		var tl = new Sandbox.Internal.TypeLibrary();
+		tl.AddAssembly( ThisAssembly, false );
+
+		var type = tl.GetType<RecordWithProps>();
+
+		Assert.IsNull( type.GetProperty( "EqualityContract" ) );
+		Assert.IsNotNull( type.GetProperty( nameof( RecordWithProps.Foo ) ) );
+		Assert.IsNotNull( type.GetProperty( nameof( RecordWithProps.Bar ) ) );
+
+		tl.RemoveAssembly( ThisAssembly );
+	}
+}
+
+[Expose]
+public record RecordWithProps( int Bar )
+{
+	public int Foo { get; set; }
 }
 
 [Expose]

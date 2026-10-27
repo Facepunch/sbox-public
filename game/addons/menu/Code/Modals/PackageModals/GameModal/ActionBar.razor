@@ -72,7 +72,17 @@
     {
 
     <div class="left">
-        <PackageReactions Package=@Package OnHidden=@(() => Modal?.CloseModal( false )) />
+        @* Not until it's known whose they are - the backend's, or its workshop item's *@
+        @if (Modal?.PageLoading == false)
+        {
+            <PackageReactions Package=@Package OnWorkshop=@Modal.OnWorkshop Workshop=@Modal.WorkshopItem OnHidden=@(() => Modal?.CloseModal( false )) />
+
+            @* Subscribing, by its votes - they're on Steam too *@
+            @if (Modal.OnWorkshop)
+            {
+                <WorkshopSubscribe Package=@Package />
+            }
+        }
     </div>
 
     <div class="right">
@@ -179,7 +189,7 @@
         MapArt.Style.SetBackgroundImage( art );
     }
 
-    protected override int BuildHash() => System.HashCode.Combine(Package, Modal?.HasFullPackage, IsVrOnly, IsMultiplayerGame, LobbyCount, MenuHelpers.HasAuthority, System.HashCode.Combine( Streamer.IsActive, Streamer.ViewerCount, Modal?.Setup, System.HashCode.Combine( Modal?.Setup?.MapTitle, Modal?.Setup?.MapThumb, Modal?.Setup?.Privacy, Modal?.Setup?.MaxPlayers ) ), HashCode.Combine( Modal?.SetupReadOnly, Modal?.CanApplySetup, Modal?.StartSetupText, Modal?.IsSettingUp, Modal?.IsBrowsingSessions ));
+    protected override int BuildHash() => System.HashCode.Combine(Package, HashCode.Combine( Modal?.HasFullPackage, Modal?.PageLoading, Modal?.OnWorkshop, Modal?.WorkshopItem ), IsVrOnly, IsMultiplayerGame, LobbyCount, MenuHelpers.HasAuthority, System.HashCode.Combine( Streamer.IsActive, Streamer.ViewerCount, Modal?.Setup, System.HashCode.Combine( Modal?.Setup?.MapTitle, Modal?.Setup?.MapThumb, Modal?.Setup?.Privacy, Modal?.Setup?.MaxPlayers ) ), HashCode.Combine( Modal?.SetupReadOnly, Modal?.CanApplySetup, Modal?.StartSetupText, Modal?.IsSettingUp, Modal?.IsBrowsingSessions ));
 
     bool IsVrOnly => Package.Info.IsVrOnly;
     bool IsMultiplayerGame => Package.Tags.Contains("multiplayer") || LobbyCount > 0 || Package.Info.MaxPlayers > 1;
@@ -204,7 +214,7 @@
     async Task<bool> OnJoinGame()
     {
         // Your party isn't what it's made for - say so first, joining only if you want to anyway
-        if ( !MenuHelpers.ConfirmPartyFit( Package, () => _ = JoinGame() ) )
+        if ( !MenuHelpers.ConfirmPartyFit( Package, () => _ = JoinGame(), Modal?.OnWorkshop == true ? Modal.WorkshopItem : null ) )
             return false;
 
         return await JoinGame();

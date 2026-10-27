@@ -200,9 +200,9 @@ public readonly ref partial struct Painter
 
 	internal void ApplyDestinationAttributes( bool objectSpace = false ) => Output.ApplyDestinationAttributes( objectSpace );
 
-	internal void FilterBackdrop( Rect rect, Filter filter, BorderRadii radii )
+	internal void FilterBackdrop( Rect rect, Filter filter, BorderRadii radii, in UICssBoxBatched.BorderShape shape = default )
 	{
-		var data = new BackdropData( rect, filter, radii, InheritedOpacity );
+		var data = new BackdropData( rect, filter, radii, InheritedOpacity, shape );
 		Output.AddBackdrop( data, InheritedBlendMode );
 	}
 }

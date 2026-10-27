@@ -21,6 +21,8 @@ COMMON
 {
 	#include "system.fxc" // This should always be the first include in COMMON
 	#include "common.fxc"
+
+	DynamicCombo( D_MSAA_NORMALS, 0..1, Sys( PC ) );
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------

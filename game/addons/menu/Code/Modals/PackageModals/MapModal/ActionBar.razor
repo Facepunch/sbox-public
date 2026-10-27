@@ -12,6 +12,12 @@
     @* What you thought of it, bottom left - the game page's pills *@
     <div class="left">
         <PackageReactions Package=@Package OnHidden=@(() => Modal?.CloseModal( false )) />
+
+        @* Subscribing, by its votes - like the game page *@
+        @if (Modal.HasFullPackage && Package.InstallsFromWorkshop)
+        {
+            <WorkshopSubscribe Package=@Package />
+        }
     </div>
 
     <div class="right">
@@ -24,20 +30,6 @@
 
 		@if (Modal.HasFullPackage)
 		{
-			@if (Package.InstallsFromWorkshop)
-			{
-				@if (MenuUtility.IsSubscribed(Package))
-				{
-					<Button icon="check" onclick=@(() => _ = MenuUtility.UnsubscribeAsync(Package))>#menu.workshop.subscribed</Button>
-				}
-				else
-				{
-					<Button icon="add" onclick=@(() => _ = MenuUtility.SubscribeAsync(Package))>#menu.workshop.subscribe</Button>
-				}
-
-				<Button icon="open_in_new" tooltip="#menu.workshop.open_page" onclick=@(() => _ = MenuUtility.OpenWorkshopPageAsync(Package))>#menu.games.workshop</Button>
-			}
-
 			@if(GamePackage is null)
 			{
                 <Button icon="sports_esports" onclick=@SelectGame>#menu.games.select_game</Button>
@@ -67,7 +59,7 @@
     public static Package MapPackage { get; set; } = null;
     private static string _gamePackageInitializedFor;
 
-    protected override int BuildHash () => System.HashCode.Combine( Package, Modal?.HasFullPackage, LobbyCount, MenuHelpers.HasAuthority, Package?.Interaction, MenuUtility.IsSubscribed( Package ) );
+    protected override int BuildHash () => System.HashCode.Combine( Package, Modal?.HasFullPackage, LobbyCount, MenuHelpers.HasAuthority, Package?.Interaction );
 
     int LobbyCount => Modal?.Lobbies?.Count() ?? 0;
 

@@ -361,9 +361,9 @@ PS_OUTPUT PS_FinalCombinerDoLighting( FinalCombinerInput_t f, inout LightingTerm
 	o.vColor.rgb += lightingTerms.vIndirectSpecular.rgb; 
 
 	//
-	// Add transmissive
+	// Transmission contributions already include the material's mask.
 	//
-	o.vColor.rgb += lightingTerms.vTransmissive.rgb * f.vTransmissiveMask.rgb;
+	o.vColor.rgb += lightingTerms.vTransmissive.rgb;
 
 	return o;
 }

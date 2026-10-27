@@ -54,6 +54,7 @@ public partial class ProjectPublisher
 
 		if ( IsWorkshopAsset( asset ) )
 		{
+			p.WorkshopType = asset.Publishing.PackageType();
 			p.WorkshopAsset = asset;
 		}
 
@@ -79,6 +80,7 @@ public partial class ProjectPublisher
 		{
 			var p = new ProjectPublisher( project );
 			await p.GenerateAssetManifest( cancel: cancel, previewOnly: previewOnly );
+			p.WorkshopType = WorkshopTypeFor( project );
 			return p;
 		}
 	}
@@ -189,13 +191,21 @@ public partial class ProjectPublisher
 	}
 
 	/// <summary>
+	/// Projects with the whitelist disabled are standalone only and can't be published
+	/// </summary>
+	void ThrowIfWhitelistDisabled()
+	{
+		if ( Project.Config.IsStandaloneOnly )
+			throw new InvalidOperationException( $"This project has the whitelist disabled (Disable Whitelist in Project Settings > Game Exporting), so it can't be published to {Global.BackendTitle}." );
+	}
+
+	/// <summary>
 	/// Publish a new revision
 	/// </summary>
 	public async Task Publish( IProgress progress = null, CancellationToken cancel = default )
 	{
 		Manifest.RequireUploadManifest();
-		if ( Project.Config.IsStandaloneOnly )
-			return;
+		ThrowIfWhitelistDisabled();
 
 		await TryWorkshopUpload();
 
@@ -207,7 +217,7 @@ public partial class ProjectPublisher
 			await UploadFiles();
 
 			if ( Manifest.Assets.Any( x => !x.Skip ) )
-				throw new System.Exception( $"Couldn't upload the thumb to {Global.BackendTitle}, the console has more about why." );
+				throw new System.Exception( $"Couldn't upload the files that stay on {Global.BackendTitle}, the console has more about why." );
 		}
 
 		if ( !await PostManifest( Manifest, progress, cancel ) )
@@ -221,9 +231,7 @@ public partial class ProjectPublisher
 	{
 		Manifest.RequireUploadManifest();
 		FinishAddingFiles();
-
-		if ( Project.Config.IsStandaloneOnly )
-			return;
+		ThrowIfWhitelistDisabled();
 
 		if ( Manifest.Assets.Count == 0 )
 		{

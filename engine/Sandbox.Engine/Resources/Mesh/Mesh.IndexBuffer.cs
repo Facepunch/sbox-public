@@ -21,13 +21,6 @@ namespace Sandbox
 		public static implicit operator IndexBufferHandle_t( IndexBufferHandle handle ) => handle._native;
 
 		/// <summary>
-		/// Create an empty index buffer, it can be resized later
-		/// </summary>
-		public IndexBufferHandle() : this( 0, Span<int>.Empty )
-		{
-		}
-
-		/// <summary>
 		/// Create a index buffer with a number of indices
 		/// </summary>
 		public IndexBufferHandle( int indexCount, List<int> data ) : this( indexCount, CollectionsMarshal.AsSpan( data ) )
@@ -267,7 +260,10 @@ namespace Sandbox
 		/// </summary>
 		public void CreateIndexBuffer()
 		{
-			CreateIndexBuffer( 0, Span<int>.Empty );
+			if ( ib.IsValid )
+				throw new InvalidOperationException( "Index buffer has already been created" );
+
+			// A zero sized index buffer isn't allowed, it gets created by SetIndexBufferSize
 		}
 
 		/// <summary>
@@ -317,6 +313,14 @@ namespace Sandbox
 		/// </summary>
 		public void SetIndexBufferSize( int elementCount )
 		{
+			if ( !ib.IsValid )
+			{
+				ib = new( elementCount );
+				MeshGlue.SetMeshIndexBuffer( native, ib, IntPtr.Zero, 0 );
+				SetIndexRange( 0, elementCount );
+				return;
+			}
+
 			ib.SetSize( elementCount );
 			MeshGlue.SetMeshIndexBuffer( native, ib, IntPtr.Zero, 0 );
 		}

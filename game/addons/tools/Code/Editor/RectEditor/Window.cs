@@ -135,6 +135,13 @@ public partial class Window : DockWindow, IAssetEditor
 	[Shortcut( "editor.clear-selection", "ESC" )]
 	private void ClearSelection()
 	{
+		// Let ESC fall through to the fast texture tool's cancel
+		if ( Settings.IsFastTextureTool )
+		{
+			EditorShortcuts.PassShortcut = true;
+			return;
+		}
+
 		if ( !Document.SelectedRectangles.Any() )
 			return;
 

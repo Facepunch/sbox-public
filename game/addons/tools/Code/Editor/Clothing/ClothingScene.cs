@@ -132,14 +132,13 @@ public class ClothingScene
 		Body.Set( "aim_body_weight", 1.0f );
 		Body.Set( "static_pose", 1 );
 
-		// Clothing sits on a neutral mannequin. Expressions belong to skin portraits.
-		var expression = clothing?.HasHumanSkin == true ? 1.0f : 0.0f;
-		Body.Morphs.Set( "mouthSmile_L", 0.5f * expression );
-		Body.Morphs.Set( "mouthSmile_R", 0.5f * expression );
-		Body.Morphs.Set( "browInnerUp", 0.9f * expression );
-		Body.Morphs.Set( "browOuterUp_L", 0.3f * expression );
-		Body.Morphs.Set( "browOuterUp_R", 0.3f * expression );
-		Body.Morphs.Set( "jawOpen", 0.1f * expression );
+		// Keep both skin portraits and clothing mannequins neutral so the face reads clearly.
+		Body.Morphs.Set( "mouthSmile_L", 0.0f );
+		Body.Morphs.Set( "mouthSmile_R", 0.0f );
+		Body.Morphs.Set( "browInnerUp", 0.0f );
+		Body.Morphs.Set( "browOuterUp_L", 0.0f );
+		Body.Morphs.Set( "browOuterUp_R", 0.0f );
+		Body.Morphs.Set( "jawOpen", 0.0f );
 
 		Scene.EditorTick( RealTime.Now, RealTime.Delta );
 
@@ -217,12 +216,14 @@ public class ClothingScene
 		var fullOutfit = IsFullOutfit( mode );
 		var angles = mode switch
 		{
+			// Skin thumbnails show the face straight on so facial features are easy to compare.
+			Clothing.IconSetup.IconModes.HumanSkin => new Angles( 0, 180, 0 ),
 			Clothing.IconSetup.IconModes.Hand => new Angles( 15, 130, 0 ),
 			Clothing.IconSetup.IconModes.Foot => new Angles( 15, 150, 0 ),
 			Clothing.IconSetup.IconModes.Wrist => new Angles( 15, itemRenderers.Any( FrameLeftHand ) ? 220 : 130, 45 ),
 			Clothing.IconSetup.IconModes.Ear => new Angles( 5, 150, 0 ),
 			Clothing.IconSetup.IconModes.Chest or Clothing.IconSetup.IconModes.Head or Clothing.IconSetup.IconModes.Eyes
-				or Clothing.IconSetup.IconModes.Mouth or Clothing.IconSetup.IconModes.HumanSkin => new Angles( 5, 160, 0 ),
+				or Clothing.IconSetup.IconModes.Mouth => new Angles( 5, 160, 0 ),
 			_ => fullOutfit || GetBodyRegion() is not null ? new Angles( 5, 160, 0 ) : new Angles( Pitch, 180 - Yaw, 0 )
 		};
 
@@ -237,9 +238,9 @@ public class ClothingScene
 		var bounds = BBox.FromPoints( points.Select( p => rotation.Inverse * p ) );
 		var center = rotation * bounds.Center;
 
-		// A long lens keeps full outfits readable from collar to boots without shrinking
-		// the lower half through perspective. The mannequin's head is outside this fit.
-		Scene.Camera.FieldOfView = fullOutfit ? 5 : 20;
+		// A long lens keeps full outfits readable and skin portraits free of wide-angle
+		// facial distortion. The mannequin's head is outside the full outfit fit.
+		Scene.Camera.FieldOfView = fullOutfit ? 5 : mode == Clothing.IconSetup.IconModes.HumanSkin ? 2.5f : 20;
 		Scene.Camera.ZFar = 5000;
 		Scene.Camera.ZNear = 0.1f;
 

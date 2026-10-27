@@ -18,7 +18,8 @@ listener and no port to configure.
 
 ## 1. Find sbox-cli
 
-It is `<engine>/bin/managed/sbox-cli.exe`, where `<engine>` is the folder containing `sbox.exe`:
+It is `<engine>/bin/managed/sbox-cli.exe`, where `<engine>` is the folder containing `sbox.exe`.
+On Linux and macOS the files have no `.exe`: `sbox-cli`, `sbox` and `sbox-dev`.
 
 1. The `FACEPUNCH_ENGINE` environment variable. The launcher sets it as a Windows **user**
    variable, so a shell started before that may lack it — check the user scope too

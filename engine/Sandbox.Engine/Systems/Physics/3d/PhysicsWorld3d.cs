@@ -45,6 +45,7 @@ internal sealed partial class PhysicsWorld3d : PhysicsWorldInternal, IHandle
 	}
 
 	internal override PhysicsBodyInternal CreateBodyInternal() => new PhysicsBody3d( this );
+	internal override PhysicsBodyInternal CreateBodyInternal( in PhysicsBodySettings settings ) => new PhysicsBody3d( this, settings );
 
 	internal struct VPhysIntersectionNotification_t
 	{

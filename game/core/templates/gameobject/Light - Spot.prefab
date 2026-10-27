@@ -14,7 +14,7 @@
         "ConeOuter": 45,
         "FogMode": "Enabled",
         "FogStrength": 1,
-        "LightColor": "0.91373,0.98039,1,1",
+        "LightColor": "1,1,1,1",
         "Radius": 500,
         "Shadows": true
       }

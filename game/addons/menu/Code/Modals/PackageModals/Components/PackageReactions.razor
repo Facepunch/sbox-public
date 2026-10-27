@@ -12,6 +12,22 @@
 *@
 <root>
 
+    @* On the workshop the votes are its item's, on Steam - and that's all there is, the rest are the backend's *@
+    @if ( OnWorkshop )
+    {
+        <div class="group">
+            <div class="pill @( WorkshopVote == true ? "active" : "" )" onclick=@( () => _ = VoteOnWorkshop( true ) ) tooltip="#menu.workshop.vote_up">
+                <icon>thumb_up</icon>
+                <label>@WorkshopVotesUp.ToMetric()</label>
+            </div>
+            <div class="pill @( WorkshopVote == false ? "active" : "" )" onclick=@( () => _ = VoteOnWorkshop( false ) ) tooltip="#menu.workshop.vote_down">
+                <icon>thumb_down</icon>
+                <label>@WorkshopVotesDown.ToMetric()</label>
+            </div>
+        </div>
+    }
+    else
+    {
     <div class="group">
         <div class="pill @( Liked ? "active" : "" )" onclick=@( () => _ = Vote( true ) ) tooltip="#menu.games.like">
             <icon>thumb_up</icon>
@@ -73,6 +89,7 @@
             </div>
         </div>
     }
+    }
 
 </root>
 
@@ -97,7 +114,85 @@
     /// </summary>
     [Parameter] public bool ShowReviewScore { get; set; } = true;
 
-    protected override int BuildHash() => HashCode.Combine( Package, Package?.Interaction.Rating, Package?.Interaction.Favourite, Package?.VotesUp, Package?.VotesDown, Package?.Favourited, Package?.Reviews.Total, HashCode.Combine( ShowJam, _nominated, _jamBusy, OnHidden is null, ShowReviews, ShowReviewScore, MenuUtility.Hidden.Revision ) );
+    /// <summary>
+    /// What the Steam Workshop says about it, for a package on the workshop - its votes are its item's. Null while it's being asked.
+    /// </summary>
+    [Parameter] public WorkshopItemDetails Workshop { get; set; }
+
+    protected override int BuildHash() => HashCode.Combine( Package, Package?.Interaction.Rating, Package?.Interaction.Favourite, Package?.VotesUp, Package?.VotesDown, Package?.Favourited, Package?.Reviews.Total, HashCode.Combine( ShowJam, _nominated, _jamBusy, OnHidden is null, ShowReviews, ShowReviewScore, MenuUtility.Hidden.Revision, HashCode.Combine( Workshop, WorkshopVote, _workshopVoted, OnWorkshop ) ) );
+
+    /// <summary>
+    /// Say what the Steam Workshop says, not the backend - the game page, for a package on the workshop. The backend's
+    /// parts go.
+    /// </summary>
+    [Parameter] public bool OnWorkshop { get; set; }
+
+    //
+    // Its workshop item's votes, on Steam
+    //
+
+    /// <summary>
+    /// How we've voted on its item - true up, false down, null not at all (or not asked yet)
+    /// </summary>
+    bool? WorkshopVote;
+
+    /// <summary>
+    /// How we'd voted when the page asked Steam - so ours can be moved between the counts when it changes
+    /// </summary>
+    bool? _workshopVoted;
+
+    ulong _voteAskedFor;
+    bool _voting;
+
+    int WorkshopVotesUp => VoteCount( Workshop?.VotesUp ?? 0, true );
+    int WorkshopVotesDown => VoteCount( Workshop?.VotesDown ?? 0, false );
+
+    /// <summary>
+    /// One side's count with our vote in it. Steam's counts lag behind its votes (and can be its cached ones), so ours
+    /// mightn't be in them yet - it's only taken back out of a side that has one to take, then put where it is now.
+    /// </summary>
+    int VoteCount( int steam, bool up )
+    {
+        var others = _workshopVoted == up && steam > 0 ? steam - 1 : steam;
+        return others + (WorkshopVote == up ? 1 : 0);
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if ( Workshop is not { } item || item.Id == _voteAskedFor ) return;
+
+        _voteAskedFor = item.Id;
+        var vote = await MenuUtility.GetWorkshopVoteAsync( item.Id );
+
+        // Moved on to another item while we asked
+        if ( !this.IsValid() || Workshop?.Id != item.Id ) return;
+
+        WorkshopVote = _workshopVoted = vote;
+        StateHasChanged();
+    }
+
+    async Task VoteOnWorkshop( bool up )
+    {
+        if ( Workshop is not { } item || _voting || WorkshopVote == up ) return;
+
+        _voting = true;
+        var was = WorkshopVote;
+        WorkshopVote = up;
+        StateHasChanged();
+
+        var taken = await MenuUtility.VoteOnWorkshopAsync( item.Id, up );
+        _voting = false;
+
+        if ( !this.IsValid() ) return;
+
+        if ( !taken )
+        {
+            WorkshopVote = was;
+            MenuOverlay.Instance?.BottomRight?.Queue( new MenuProject.Toast { Title = "#menu.workshop.vote_failed", Icon = "thumbs_up_down" } );
+        }
+
+        StateHasChanged();
+    }
 
     string ReviewText => !ShowReviewScore ? null : Package.Reviews.Total > 0 ? Package.Reviews.Score.ToString( "0\\%" ) : "#menu.games.review";
     string ReviewTooltip => ShowReviewScore && Package.Reviews.Total > 0 ? $"{Package.Reviews.Score:N0}% from {Package.Reviews.Total} reviews. Write yours" : "#menu.games.write_a_review";
@@ -169,7 +264,8 @@
     {
         base.OnAfterTreeRender( firstTime );
 
-        if ( firstTime && Package?.TypeName == "game" )
+        // Jams are the backend's - not for a package on the workshop
+        if ( firstTime && Package?.TypeName == "game" && !OnWorkshop )
             _ = LoadJam();
     }
 

@@ -68,6 +68,24 @@ partial class Scene
 	}
 
 	/// <summary>
+	/// The listener transform scene-wide audio (like soundscapes) should use. This is an
+	/// <see cref="AudioListener"/> if one exists, otherwise the camera.
+	/// </summary>
+	internal Transform GetPrimaryListenerTransform()
+	{
+		if ( Listeners is { Count: > 0 } )
+		{
+			foreach ( var listener in Listeners )
+			{
+				if ( listener.IsValid() )
+					return listener.Transform;
+			}
+		}
+
+		return Listener?.Transform ?? global::Transform.Zero;
+	}
+
+	/// <summary>
 	/// Find the closest sound listener at this point.
 	/// </summary>
 	internal Audio.Listener FindClosestListener( Vector3 point )

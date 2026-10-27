@@ -53,11 +53,11 @@
             </div>
         }
     }
-    else if (_changeLists.Length == 0)
+    else if (Count == 0)
     {
         @if (!Embedded)
         {
-            <div class="state">#menu.games.this_package_hasn_t_published_any_changelists</div>
+            <div class="state">@(!OnWorkshop ? "#menu.games.this_package_hasn_t_published_any_changelists" : _notesFailed ? "#menu.workshop.change_notes_failed" : "#menu.workshop.no_change_notes")</div>
         }
     }
     else
@@ -65,11 +65,14 @@
         <div class="timeline" @ref="Timeline">
             @for (var i = 0; i < Shown; i++)
             {
-                var change = _changeLists[i];
+                @* A workshop item's change notes are just what was said, when - no title, no kinds of change *@
+                var change = OnWorkshop ? null : _changeLists[i];
+                var note = OnWorkshop ? _notes[i] : default;
+                var created = change?.Created ?? note.Time;
                 var latest = i == 0;
-                var last = i == Shown - 1;
-                var hasTitle = !string.IsNullOrWhiteSpace(change.Title);
-                var dateText = change.Created.LocalDateTime.ToString("d MMMM yyyy");
+                var last = i == Shown - 1 && !HasOlderNotes;
+                var hasTitle = !string.IsNullOrWhiteSpace(change?.Title);
+                var dateText = created.LocalDateTime.ToString("d MMMM yyyy");
 
                 <div class="update @(latest ? "latest" : "") @(last ? "last" : "")">
 
@@ -99,20 +102,35 @@
                                 @* How long ago, the date itself on hover - not the version number, which means
                                    nothing to a player *@
                                 <div class="meta-row">
-                                    <div class="ago" tooltip="@dateText"><i>schedule</i><label>@MenuHelpers.TimeAgo( change.Created )</label></div>
+                                    <div class="ago" tooltip="@dateText"><i>schedule</i><label>@MenuHelpers.TimeAgo( created )</label></div>
                                 </div>
                             </div>
 
                             <div class="sections">
-                                @if (change.Added.Length > 0) { <PackageChangeSection ClassName="add" Entries="@change.Added" Icon="add_circle" Title="#menu.games.added" /> }
-                                @if (change.Improved.Length > 0) { <PackageChangeSection ClassName="improve" Entries="@change.Improved" Icon="auto_awesome" Title="#menu.games.improved" /> }
-                                @if (change.Fixed.Length > 0) { <PackageChangeSection ClassName="fix" Entries="@change.Fixed" Icon="build" Title="#menu.games.fixed" /> }
-                                @if (change.Removed.Length > 0) { <PackageChangeSection ClassName="remove" Entries="@change.Removed" Icon="remove_circle" Title="#menu.games.removed" /> }
-                                @if (change.KnownIssues.Length > 0) { <PackageChangeSection ClassName="knownissue" Entries="@change.KnownIssues" Icon="warning" Title="#menu.games.known_issues" /> }
+                                @if (change is null)
+                                {
+                                    <label class="note-text @(string.IsNullOrWhiteSpace(note.Text) ? "empty" : "")">@(string.IsNullOrWhiteSpace(note.Text) ? "#menu.workshop.no_change_note" : note.Text)</label>
+                                }
+                                else
+                                {
+                                if (change.Added.Length > 0) { <PackageChangeSection ClassName="add" Entries="@change.Added" Icon="add_circle" Title="#menu.games.added" /> }
+                                if (change.Improved.Length > 0) { <PackageChangeSection ClassName="improve" Entries="@change.Improved" Icon="auto_awesome" Title="#menu.games.improved" /> }
+                                if (change.Fixed.Length > 0) { <PackageChangeSection ClassName="fix" Entries="@change.Fixed" Icon="build" Title="#menu.games.fixed" /> }
+                                if (change.Removed.Length > 0) { <PackageChangeSection ClassName="remove" Entries="@change.Removed" Icon="remove_circle" Title="#menu.games.removed" /> }
+                                if (change.KnownIssues.Length > 0) { <PackageChangeSection ClassName="knownissue" Entries="@change.KnownIssues" Icon="warning" Title="#menu.games.known_issues" /> }
+                                }
                             </div>
                         </div>
                     }
 
+                </div>
+            }
+
+            @* Steam gives them a page at a time *@
+            @if (HasOlderNotes)
+            {
+                <div class="older">
+                    <Button Icon="expand_more" Text="#menu.workshop.show_older_changes" Disabled=@_loadingNotes onclick=@(() => _ = LoadNotes( _notesPage + 1 )) />
                 </div>
             }
         </div>
@@ -129,12 +147,29 @@
     [Parameter] public bool Embedded { get; set; }
 
 
-    int Shown => Embedded ? Math.Min( _changeLists.Length, 1 ) : _changeLists.Length;
+    /// <summary>
+    /// Its Steam Workshop item - the timeline's its change notes rather than the backend's changelists. 0 for the backend's.
+    /// </summary>
+    [Parameter] public ulong WorkshopId { get; set; }
+
+    bool OnWorkshop => WorkshopId != 0;
+
+    int Count => OnWorkshop ? _notes.Count : _changeLists.Length;
+
+    int Shown => Embedded ? Math.Min( Count, 1 ) : Count;
+
+    readonly List<WorkshopChangeNote> _notes = new();
+    int _notesTotal;
+    int _notesPage;
+    bool _notesFailed;
+    bool _loadingNotes;
+
+    bool HasOlderNotes => OnWorkshop && !Embedded && _notes.Count < _notesTotal;
 
     ImmutableArray<Package.ChangeList> _changeLists = ImmutableArray<Package.ChangeList>.Empty;
     bool _loaded;
 
-    protected override int BuildHash() => System.HashCode.Combine(Package, _loaded, _changeLists.Length, Embedded, Near.Hash);
+    protected override int BuildHash() => System.HashCode.Combine(Package, _loaded, _changeLists.Length, Embedded, Near.Hash, System.HashCode.Combine( WorkshopId, _notes.Count, _notesTotal, _notesFailed, _loadingNotes ));
 
     //
     // Only the cards near the screen, built - see the top
@@ -145,7 +180,16 @@
 
     bool IsBuilt( int i ) => Embedded || Near.IsBuilt( i );
 
-    string HeightOf( int i ) => Near.HeightOf( i, Estimate( _changeLists[i] ) );
+    string HeightOf( int i ) => Near.HeightOf( i, OnWorkshop ? Estimate( _notes[i] ) : Estimate( _changeLists[i] ) );
+
+    /// <summary>
+    /// Near enough a change note's card height - its head, and a line for each of its lines (the long ones wrap)
+    /// </summary>
+    static float Estimate( WorkshopChangeNote note )
+    {
+        var lines = string.IsNullOrWhiteSpace( note.Text ) ? 1 : note.Text.Split( '\n' ).Sum( x => 1 + x.Length / 90 );
+        return 70 + lines * 22;
+    }
 
     /// <summary>
     /// Near enough a card's height before it's been built - its head, a heading for each kind of change
@@ -173,7 +217,7 @@
         if ( Embedded || !_loaded ) return;
 
         // Its card, once it's a real one rather than its room
-        if ( Near.Update( this, Timeline, _changeLists.Length, row => row.Children.LastOrDefault( x => !x.IsDeleting ) is { } card && card.HasClass( "card" ) && !card.HasClass( "placeholder" ) ? card : null ) )
+        if ( Near.Update( this, Timeline, Count, row => row.Children.LastOrDefault( x => !x.IsDeleting ) is { } card && card.HasClass( "card" ) && !card.HasClass( "placeholder" ) ? card : null ) )
             StateHasChanged();
     }
 
@@ -181,14 +225,55 @@
     {
         _loaded = false;
         _changeLists = ImmutableArray<Package.ChangeList>.Empty;
+        _notes.Clear();
+        _notesTotal = 0;
+        _notesPage = 0;
+        _notesFailed = false;
         Near.Reset();
         StateHasChanged();
+
+        if (OnWorkshop)
+        {
+            await LoadNotes( 1 );
+            _loaded = true;
+            StateHasChanged();
+            return;
+        }
 
         if (Package is null)
             return;
 
         _changeLists = await Package.GetChangeListsAsync();
         _loaded = true;
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Add this page of the workshop item's change notes to the end of the timeline
+    /// </summary>
+    async Task LoadNotes( int page )
+    {
+        if ( _loadingNotes ) return;
+
+        _loadingNotes = true;
+        var id = WorkshopId;
+        var notes = await MenuUtility.FetchWorkshopChangeNotesAsync( id, page );
+        _loadingNotes = false;
+
+        // Another item's by now
+        if ( !this.IsValid() || id != WorkshopId ) return;
+
+        if ( notes is null )
+        {
+            _notesFailed = _notes.Count == 0;
+        }
+        else
+        {
+            _notes.AddRange( notes.Notes );
+            _notesTotal = notes.Total;
+            _notesPage = page;
+        }
+
         StateHasChanged();
     }
 }

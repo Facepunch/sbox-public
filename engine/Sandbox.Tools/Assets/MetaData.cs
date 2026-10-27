@@ -21,20 +21,51 @@ namespace Editor
 		}
 
 		/// <summary>
-		/// Note - not caching anything here, and reading the whole json file
-		/// every time. Lets see how this turns out.
+		/// The last parsed contents of the file, along with the file state it was read from.
+		/// Immutable so it can be swapped atomically when assets update in parallel.
+		/// </summary>
+		sealed record Snapshot( bool Exists, System.DateTime WriteTimeUtc, long Length, JsonElement? Root );
+
+		Snapshot _snapshot;
+
+		/// <summary>
+		/// Returns the parsed root of the file. The parse is cached and only redone when the
+		/// file's write time or length changes, since assets read their meta many times.
 		/// </summary>
 		JsonElement? Read()
 		{
-			if ( !System.IO.File.Exists( FilePath ) )
+			var info = new System.IO.FileInfo( FilePath );
+			var exists = info.Exists;
+			var writeTime = exists ? info.LastWriteTimeUtc : default;
+			var length = exists ? info.Length : 0;
+
+			var snapshot = _snapshot;
+			if ( snapshot is not null && snapshot.Exists == exists && snapshot.WriteTimeUtc == writeTime && snapshot.Length == length )
+				return snapshot.Root;
+
+			if ( !exists )
+			{
+				_snapshot = new Snapshot( false, default, 0, null );
 				return null;
+			}
 
 			try
 			{
 				var json = System.IO.File.ReadAllText( FilePath );
 
-				var document = JsonDocument.Parse( json, new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip } );
-				return document.RootElement;
+				using var document = JsonDocument.Parse( json, new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip } );
+				var root = document.RootElement.Clone();
+
+				_snapshot = new Snapshot( true, writeTime, length, root );
+				return root;
+			}
+			catch ( JsonException e )
+			{
+				// Cache bad json too, so we only warn once until the file changes
+				_snapshot = new Snapshot( true, writeTime, length, null );
+
+				Log.Warning( e, $"Couldn't parse '{FilePath}' ({e.Message})" );
+				return null;
 			}
 			catch ( System.Exception e )
 			{
@@ -43,10 +74,6 @@ namespace Editor
 			}
 		}
 
-		/// <summary>
-		/// Note - not caching anything here, and reading the whole json file
-		/// every time. Lets see how this turns out.
-		/// </summary>
 		JsonObject StartWrite()
 		{
 			var o = new JsonNodeOptions { PropertyNameCaseInsensitive = true };
@@ -73,6 +100,7 @@ namespace Editor
 						}
 					}
 
+					_snapshot = null;
 					return;
 				}
 				catch ( System.IO.DirectoryNotFoundException ex )

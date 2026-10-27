@@ -4,6 +4,7 @@ namespace Editor.ProjectSettingPages;
 internal sealed class PublishingCategory : ProjectSettingsWindow.Category
 {
 	PublishSettingsWidget settings;
+	internal override bool ShowTitle => false;
 
 	public override void OnInit( Project project )
 	{

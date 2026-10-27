@@ -42,11 +42,19 @@ public static partial class Storage
 	/// <summary>
 	/// This matches ERemoteStoragePublishedFileVisibility in native
 	/// </summary>
+	[Expose]
 	public enum Visibility
 	{
+		[Title( "Public" ), Icon( "public" ), Description( "Anyone can find it" )]
 		Public = 0,
+
+		[Title( "Friends Only" ), Icon( "group" ), Description( "Only your Steam friends can see or download it" )]
 		FriendsOnly = 1,
+
+		[Title( "Private" ), Icon( "lock" ), Description( "Only you can see or download it" )]
 		Private = 2,
+
+		[Title( "Unlisted" ), Icon( "link" ), Description( "Anyone can download it, but it isn't listed" )]
 		Unlisted = 3,
 	}
 

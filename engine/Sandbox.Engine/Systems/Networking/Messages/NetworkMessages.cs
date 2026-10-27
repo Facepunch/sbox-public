@@ -52,10 +52,18 @@ struct ServerInfo
 	public string ServerName { get; set; }
 	public string MapName { get; set; }
 	public ChannelInfo Host { get; set; }
+	public ulong HostSteamId { get; set; }
 	public ChannelInfo Assigned { get; set; }
 	public int MaxPlayers { get; set; }
 	public int EngineVersion { get; set; }
 	public string GamePackage { get; set; }
+
+	/// <summary>
+	/// Which version of the game's workshop item the host has (<see cref="Workshop.GetInstalledVersion"/>), or 0 if
+	/// it isn't installed from the workshop. Clients with a different one can't join.
+	/// </summary>
+	public long GameWorkshopVersion { get; set; }
+
 	public string Map { get; set; }
 	public Guid HandshakeId { get; set; }
 

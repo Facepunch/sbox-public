@@ -65,6 +65,129 @@ Media > .main
 		max-height: 100%;
 	}
 
+	// A YouTube video, in YouTube's own player - the whole frame. It gets no clicks: the controls over it are ours
+	WebPanel.youtube
+	{
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		pointer-events: none;
+	}
+
+	// Over the picture - a click plays or pauses it
+	.yt-surface
+	{
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		cursor: pointer;
+	}
+
+	// Our controls along the bottom - always there while it's paused, while it plays only when the mouse is over it
+	.yt-controls
+	{
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		flex-direction: row;
+		align-items: center;
+		gap: 10px;
+		padding: 28px 14px 12px 14px;
+		background-image: linear-gradient( 0deg, rgba( 0, 0, 0, 0.8 ) 20%, rgba( 0, 0, 0, 0 ) );
+		transition: opacity 0.2s ease;
+
+		&.playing
+		{
+			opacity: 0;
+		}
+	}
+
+	&:hover .yt-controls
+	{
+		opacity: 1;
+	}
+
+	.yt-button
+	{
+		flex-shrink: 0;
+		width: 32px;
+		height: 32px;
+		align-items: center;
+		justify-content: center;
+		border-radius: 50%;
+		cursor: pointer;
+		transition: all 0.1s ease;
+
+		i
+		{
+			font-size: 22px;
+			color: white;
+			text-align: center;
+		}
+
+		&:hover
+		{
+			sound-in: "ui.button.over";
+			background-color: rgba( 255, 255, 255, 0.15 );
+		}
+
+		&:active
+		{
+			sound-in: "ui.button.press";
+		}
+	}
+
+	.yt-time
+	{
+		flex-shrink: 0;
+		font-size: 12px;
+		font-weight: 600;
+		color: rgba( 255, 255, 255, 0.85 );
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
+
+	// Where it's at - what's loaded behind what's played. Click to go there
+	.yt-scrub
+	{
+		position: relative;
+		flex-grow: 1;
+		height: 5px;
+		border-radius: 999px;
+		background-color: rgba( 255, 255, 255, 0.2 );
+		cursor: pointer;
+		transition: height 0.1s ease;
+
+		&:hover
+		{
+			height: 8px;
+		}
+
+		.yt-buffered, .yt-played
+		{
+			position: absolute;
+			left: 0;
+			top: 0;
+			bottom: 0;
+			border-radius: 999px;
+		}
+
+		.yt-buffered
+		{
+			background-color: rgba( 255, 255, 255, 0.3 );
+		}
+
+		.yt-played
+		{
+			background-color: $front-primary;
+		}
+	}
+
 	// A video waiting to be played (no autoplay) - its art filling the frame, a big play button on it
 	.video-poster
 	{

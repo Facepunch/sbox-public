@@ -94,6 +94,14 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 		Transform.OnTransformChanged -= OnTransformChanged;
 
 		UnloadMap();
+		CancelLoading();
+	}
+
+	internal override void OnDestroyInternal()
+	{
+		SceneMap.OnMapUpdated -= OnMapUpdated;
+
+		base.OnDestroyInternal();
 	}
 
 	private void OnTransformChanged()
@@ -174,8 +182,9 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 		{
 			OnMapUnloaded?.InvokeWithWarning();
 			g_pWorldRendererMgr.ServiceWorldRequests();
-			SceneMap.OnMapUpdated -= OnMapUpdated;
 		}
+
+		SceneMap.OnMapUpdated -= OnMapUpdated;
 
 		IsLoaded = false;
 	}
@@ -395,7 +404,9 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 				GameObject.Flags &= ~GameObjectFlags.Loading;
 			}
 
-			SceneMap.OnMapUpdated += OnMapUpdated;
+			// static event, so never subscribe twice and never pin a destroyed component (and its scene)
+			SceneMap.OnMapUpdated -= OnMapUpdated;
+			if ( IsValid ) SceneMap.OnMapUpdated += OnMapUpdated;
 		}
 
 		tokenSources.Remove( tokenSource );

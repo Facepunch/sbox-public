@@ -100,15 +100,11 @@ FrontPageGames
 
 		.see-more
 		{
-			@include front-pill;
-
-			padding: 3px 9px;
+			padding: 4px 0 4px 8px;
 			cursor: pointer;
 			font-family: $front-font;
-			font-size: 10px;
-			font-weight: 600;
-			text-transform: uppercase;
-			letter-spacing: 0.05em;
+			font-size: 11px;
+			font-weight: 500;
 			color: $front-secondary;
 
 			&:hover
@@ -161,9 +157,9 @@ FrontPageGames
 			{
 				flex-grow: 0;
 				flex-shrink: 0;
-				width: 100px;
+				width: 86px;
 				height: 100%;
-				aspect-ratio: auto;
+				aspect-ratio: 1;
 				border-radius: 6px 0 0 6px;
 			}
 			> column
@@ -271,8 +267,8 @@ FrontPageGames
 		flex-direction: row;
 		flex-wrap: nowrap;
 		align-items: stretch;
-		gap: 8px;
-		padding: 5px 5px;
+		gap: 12px;
+		padding: 6px 5px;
 
 		&.big-right
 		{
@@ -286,7 +282,7 @@ FrontPageGames
 		flex-grow: 1;
 		flex-shrink: 1;
 		width: 0;
-		gap: 8px;
+		gap: 12px;
 	}
 
 	.row
@@ -295,7 +291,7 @@ FrontPageGames
 		flex-wrap: nowrap;
 		flex-shrink: 0;
 		width: 100%;
-		gap: 8px;
+		gap: 12px;
 	}
 
 	// Flexible width: rows always stretch edge to edge - no max, so the last tile's

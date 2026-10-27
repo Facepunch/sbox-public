@@ -1,6 +1,6 @@
 
-include "vphysics2/interface.h"
-include "vphysics2/surfaceproperties_resource.h"
+include "physics/interface.h"
+include "physics/surfaceproperties_resource.h"
 
 native accessor g_pPhysicsSystem as NativeEngine.g_pPhysicsSystem
 {

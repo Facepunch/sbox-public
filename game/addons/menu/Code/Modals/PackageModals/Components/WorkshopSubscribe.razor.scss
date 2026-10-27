@@ -1,0 +1,102 @@
+@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+
+// Subscribe and its Workshop page as one hairline pill - the halves lose their own border and rounding,
+// the pair takes them. The page half is just its icon. The buttons are the action bar's.
+WorkshopSubscribe
+{
+	position: relative;
+	flex-direction: row;
+	flex-shrink: 0;
+	align-items: stretch;
+	border-radius: 999px;
+	overflow: hidden;
+	border: 1px solid rgba( 255, 255, 255, 0.1 );
+	background-color: rgba( 255, 255, 255, 0.05 );
+	transition: all 0.1s ease;
+
+	&:hover
+	{
+		border-color: rgba( 255, 255, 255, 0.28 );
+	}
+
+	// Everything in the pill draws over the wipe
+	Button, .split
+	{
+		z-index: 1;
+	}
+
+	Button
+	{
+		border-radius: 0;
+		border-width: 0;
+		background-color: transparent;
+
+		&:hover
+		{
+			background-color: rgba( 255, 255, 255, 0.11 );
+		}
+	}
+
+	// Subscribed - lit up green, so you can tell at a glance it's yours
+	&.subscribed
+	{
+		border-color: rgba( $primary-green, 0.6 );
+		background-color: rgba( $primary-green, 0.14 );
+		box-shadow: 0 0 14px rgba( $primary-green, 0.35 );
+
+		Button
+		{
+			color: $primary-green;
+
+			&:hover
+			{
+				background-color: rgba( $primary-green, 0.2 );
+			}
+		}
+
+		.split
+		{
+			background-color: rgba( $primary-green, 0.35 );
+		}
+	}
+
+	Button.open
+	{
+		padding: 8px 14px;
+	}
+
+	.split
+	{
+		width: 1px;
+		flex-shrink: 0;
+		background-color: rgba( 255, 255, 255, 0.1 );
+	}
+
+	// A quick wipe of green across the pill as you subscribe - a bright leading edge, a wash behind it - then it
+	// fades. The loading screen's, when a download finishes.
+	.wipe
+	{
+		position: absolute;
+		left: 0;
+		top: 0;
+		bottom: 0;
+		width: 0%;
+		pointer-events: none;
+		background-image: linear-gradient( 90deg, rgba( $front-reward, 0.1 ) 0%, rgba( $front-reward, 0.28 ) 80%, rgba( 255, 255, 255, 0.45 ) 100% );
+		animation-name: workshop-subscribe-wipe;
+		animation-duration: 0.55s;
+		animation-timing-function: ease-out;
+		animation-iteration-count: 1;
+		animation-fill-mode: forwards;
+	}
+}
+
+// Across the pill in the first ~0.2s, holds a beat, then fades
+@keyframes workshop-subscribe-wipe
+{
+	0% { width: 0%; opacity: 1; }
+	40% { width: 100%; opacity: 1; }
+	55% { width: 100%; opacity: 1; }
+	100% { width: 100%; opacity: 0; }
+}

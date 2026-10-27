@@ -37,6 +37,9 @@ native static class NativeEngine.ModelDoc
 {
 	inline bool CreateModelFromMeshFile( string pVmdlFileFullPath, string meshRelativePath, string material )
 	{
+		if ( !IsModelDocLibInitialized() )
+			return false;
+
 		CModelDoc modelFile;
 		CModelDocRenderMeshFile *pRenderMeshFile = modelFile.CreateNode< CModelDocRenderMeshFile >( "", nullptr, MODELDOC_CREATE_NODE_DEFAULT );
 		pRenderMeshFile->SetFilename( meshRelativePath );
@@ -49,6 +52,9 @@ native static class NativeEngine.ModelDoc
 
 	inline bool CreateModelFromMesh( string pVmdlFileFullPath, CModelMesh pMesh )
 	{
+		if ( !IsModelDocLibInitialized() )
+			return false;
+
 		CModelDoc modelFile;
 		CModelDocRenderPrimitiveMesh *pRenderPrimitiveMesh = modelFile.CreateNode< CModelDocRenderPrimitiveMesh >( "", nullptr, MODELDOC_CREATE_NODE_DEFAULT );
 		pRenderPrimitiveMesh->CopyFrom( pMesh );
@@ -58,6 +64,9 @@ native static class NativeEngine.ModelDoc
 
 	inline bool CreateModelFromMeshes( string pVmdlFileFullPath, CastTo[CModelMesh**] void* pMeshes, int nMeshCount )
 	{
+		if ( !IsModelDocLibInitialized() )
+			return false;
+
 		CModelDoc modelFile;
 		for ( int i = 0; i < nMeshCount; ++i )
 		{
@@ -72,6 +81,9 @@ native static class NativeEngine.ModelDoc
 	// nCollisionTypes: 0 = None, 1 = Mesh, 2 = Hull
 	inline bool CreateModelFromMeshesWithCollision( string pVmdlFileFullPath, CastTo[CModelMesh**] void* pMeshes, CastTo[int*] void* pCollisionTypes, int nMeshCount )
 	{
+		if ( !IsModelDocLibInitialized() )
+			return false;
+
 		CModelDoc modelFile;
 
 		bool bHasMeshCollision = false;

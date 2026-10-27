@@ -45,9 +45,7 @@ void AdjustAlphaToCoverage( inout Material m )
     #if ( S_ALPHA_TEST )
     {
         float eps = 1.0f/255.0f;
-        
-        // Clip first to try to kill the wave if we're in an area of all zero
-        clip(m.Opacity - eps);
+        float flRawOpacity = m.Opacity;
 
         // Shaders with custom material inputs have no known alpha texture, so no mip compensation.
         #ifdef MATERIAL_ALPHA_TEXTURE
@@ -58,7 +56,9 @@ void AdjustAlphaToCoverage( inout Material m )
 
         m.Opacity = AdjustOpacityForAlphaToCoverage( m.Opacity, g_flAlphaTestReference, g_flAntiAliasedEdgeStrength, m.TextureCoords.xy, vAlphaTextureSize );
 
-        clip(m.Opacity - 0.000001); // Second clipping pass after alpha to coverage adjustment
+        // Clip only after the derivatives above: discard is OpKill, which leaves ddx/fwidth undefined
+        // on partly killed quads, so the depth prepass and the EQUAL colour pass would disagree on coverage
+        clip( min( flRawOpacity - eps, m.Opacity - 0.000001 ) );
     }
     #endif
 }

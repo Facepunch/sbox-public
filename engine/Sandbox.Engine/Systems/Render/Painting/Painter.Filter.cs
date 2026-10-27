@@ -91,5 +91,5 @@ public readonly ref partial struct Painter
 			context.State.Transform * context.BaseTransform, context.State.ClipIndex, context.State.OverrideBlendMode );
 	}
 
-	internal readonly record struct BackdropData( Rect Rect, Filter Filter, BorderRadii Radii, float Opacity );
+	internal readonly record struct BackdropData( Rect Rect, Filter Filter, BorderRadii Radii, float Opacity, UICssBoxBatched.BorderShape Shape = default );
 }

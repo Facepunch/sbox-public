@@ -29,6 +29,12 @@ internal static class GpuFontText
 		public bool HasGradient;
 		public float Opacity;
 
+		/// <summary>Leave out the text effects (shadows, outlines), drawing only the fill and decorations.</summary>
+		public bool SkipEffects;
+
+		/// <summary>Draw only the text effects, without run backgrounds, selection, fill or decorations.</summary>
+		public bool EffectsOnly;
+
 		public static Options Default => new() { SelectionStart = -1, SelectionEnd = -1, Opacity = 1 };
 
 		/// <summary>The options a scene text scope draws with.</summary>
@@ -82,10 +88,10 @@ internal static class GpuFontText
 
 					var style = run.Style;
 
-					if ( style.BackgroundColor.Alpha > 0 && run.RunKind == FontRunKind.Normal )
+					if ( !Options.EffectsOnly && style.BackgroundColor.Alpha > 0 && run.RunKind == FontRunKind.Normal )
 						AddRect( Origin + new Vector2( run.XCoord, line.YCoord ), Origin + new Vector2( run.XCoord + run.Width, line.YCoord + line.Height ), ToColor( style.BackgroundColor ) );
 
-					if ( run.RunKind == FontRunKind.Tabs || run.Glyphs.Length == 0 || style.TextEffects == null ) continue;
+					if ( Options.SkipEffects || run.RunKind == FontRunKind.Tabs || run.Glyphs.Length == 0 || style.TextEffects == null ) continue;
 
 					foreach ( var effect in style.TextEffects )
 					{
@@ -97,6 +103,8 @@ internal static class GpuFontText
 					}
 				}
 			}
+
+			if ( Options.EffectsOnly ) return;
 
 			bool selection = Options.SelectionStart >= 0 && Options.SelectionEnd >= 0 && Options.SelectionStart != Options.SelectionEnd;
 			int selStart = Math.Min( Options.SelectionStart, Options.SelectionEnd );

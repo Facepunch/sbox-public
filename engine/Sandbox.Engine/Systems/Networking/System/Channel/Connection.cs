@@ -536,8 +536,33 @@ public abstract partial class Connection : BytePack.ISerializer
 		}
 	}
 
+	/// <summary>
+	/// The Steam Id of this connection. For a dedicated server this is the game server's Steam Id.
+	/// Clients get the host's Steam Id from the host itself, so it isn't verified on IP connections.
+	/// </summary>
 	[ActionGraphInclude]
-	public SteamId SteamId => Info?.SteamId ?? default;
+	public SteamId SteamId => Info?.SteamId ?? FallbackSteamId;
+
+	/// <summary>
+	/// The Steam Id the host sent us in its <see cref="ServerInfo"/>. Dedicated servers have no
+	/// <see cref="ConnectionInfo"/>, so this is the only place clients get their Steam Id from.
+	/// </summary>
+	internal SteamId HostSteamId { get; set; }
+
+	SteamId FallbackSteamId
+	{
+		get
+		{
+			if ( this is LocalConnection && Application.IsDedicatedServer )
+			{
+				// Still the uninitialized default until the game server has logged on
+				var steamId = Utility.Steam.SteamId;
+				return steamId.AccountType == SteamId.AccountTypes.Invalid ? default : steamId;
+			}
+
+			return HostSteamId;
+		}
+	}
 
 	/// <summary>
 	/// Steam friend information for this connection.

@@ -287,6 +287,30 @@ PackageChanges
         flex-shrink: 0;
         gap: 16px;
     }
+
+    // A workshop item's change note - just what was said, like a change's text
+    .note-text
+    {
+        font-family: $front-font;
+        font-size: 13.5px;
+        font-weight: 500;
+        color: $front-heading;
+        white-space: pre-wrap;
+
+        &.empty
+        {
+            color: $front-secondary;
+            font-style: italic;
+        }
+    }
+
+    // Older change notes, a page at a time from Steam
+    .older
+    {
+        flex-shrink: 0;
+        justify-content: center;
+        padding: 8px 0 0 0;
+    }
 }
 
 @keyframes changes-bone

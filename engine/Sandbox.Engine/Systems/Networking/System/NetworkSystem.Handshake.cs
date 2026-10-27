@@ -38,6 +38,7 @@ internal partial class NetworkSystem
 		IsHostMigrationEnabled = msg.HostMigration;
 
 		source.UpdateFrom( msg.Host );
+		source.HostSteamId = msg.HostSteamId;
 		source.State = Connection.ChannelState.LoadingServerInformation;
 
 		Connection.Local = new LocalConnection( msg.Assigned.Id )
@@ -95,6 +96,19 @@ internal partial class NetworkSystem
 					// Failed to load the game package, we can't continue
 					Networking.Disconnect();
 					return;
+				}
+
+				// Like the server's packages - if its game's files are different to ours, we can't play with what it has
+				if ( Application.GamePackage is { InstallsFromWorkshop: true } game )
+				{
+					var ours = Workshop.GetInstalledVersion( game.WorkshopId );
+
+					if ( msg.GameWorkshopVersion != 0 && ours != 0 && msg.GameWorkshopVersion != ours )
+					{
+						IGameInstanceDll.Current.Disconnect( ServerPackages.MismatchMessage( [new Workshop.Item { Id = game.WorkshopId, Title = game.Title }] ) );
+						Networking.Disconnect();
+						return;
+					}
 				}
 			}
 		}

@@ -27,6 +27,7 @@ struct EnvMap
         ClusterForEach( range )
         {
             // Get the environment map index
+            // Wave-uniform by construction (WaveActiveMin in Cluster::Next), but Slang can't prove it, hence asDynamicUniform
             const uint index = range.Item;
 
             // Transform world position to local cubemap space
@@ -57,7 +58,7 @@ struct EnvMap
 
             // Specular environment map sampling
             float3 vNormalWarpWs = normalize(lerp(vParallaxReflectionCubemapLocal, WorldNormal, vLevel.x)); // Used to reduce specular aliasing
-            float3 vCubeSample = SampleEnvironmentMapLevel(vNormalWarpWs, vLevel.x, UniformIndex(index));
+            float3 vCubeSample = SampleEnvironmentMapLevel(vNormalWarpWs, vLevel.x, index, EnvMapTexture(asDynamicUniform(UniformIndex(index))));
 
             // Accumulate color contribution
             vColor = lerp(vColor, vCubeSample, 1.0f - flDistAccumulated);

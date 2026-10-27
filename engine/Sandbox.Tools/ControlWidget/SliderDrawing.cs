@@ -45,6 +45,46 @@ public static class SliderDrawing
 	}
 
 	/// <summary>
+	/// Draws a linear gradient across the entire track, without a selected interval.
+	/// Color stop positions run from zero to one; endpoint colors extend to the track edges.
+	/// </summary>
+	internal static void DrawGradientTrack( Rect rect, Gradient gradient, bool disabled = false )
+	{
+		if ( gradient.Colors is not { Count: > 0 } colors ) return;
+
+		var track = new Rect( rect.Left + HandleWidth * 0.5f, rect.Top + (rect.Height - TrackHeight) * 0.5f, rect.Width - HandleWidth, TrackHeight );
+		if ( track.Width <= 0 ) return;
+
+		// Adjacent segments share edges. Avoid antialiasing those edges into visible seams.
+		Paint.Antialiasing = false;
+		Paint.ClearPen();
+
+		var previousPosition = 0.0f;
+		var previousColor = colors[0].Value;
+
+		foreach ( var stop in colors )
+		{
+			DrawSegment( previousPosition, stop.Time, previousColor, stop.Value );
+			previousPosition = stop.Time;
+			previousColor = stop.Value;
+		}
+
+		DrawSegment( previousPosition, 1.0f, previousColor, previousColor );
+		Paint.Antialiasing = true;
+
+		void DrawSegment( float start, float end, Color startColor, Color endColor )
+		{
+			if ( end <= start ) return;
+
+			var left = track.Left + start * track.Width;
+			var right = track.Left + end * track.Width;
+			var opacity = disabled ? 0.3f : 1.0f;
+			Paint.SetBrushLinear( new Vector2( left, track.Top ), new Vector2( right, track.Top ), startColor.WithAlphaMultiplied( opacity ), endColor.WithAlphaMultiplied( opacity ) );
+			Paint.DrawRect( new Rect( left, track.Top, right - left, track.Height ) );
+		}
+	}
+
+	/// <summary>
 	/// Draws a handle centered at the given position, measured from the left of rect.
 	/// Uses the owning widget's cursor and enabled state for hover highlighting.
 	/// </summary>

@@ -37,6 +37,30 @@ public class PainterCommandListTest
 	}
 
 	[TestMethod]
+	public void TextureFilterMode()
+	{
+		var list = new CommandList();
+		var rect = new Rect( 0, 0, 32, 32 );
+		using ( var painter = Painter.Begin( list, rect ) )
+		{
+			painter.Texture( Texture.White, rect );
+			painter.Texture( Texture.White, rect, filter: FilterMode.Point );
+		}
+		using ( var inspection = Painter.Begin( list, rect ) )
+		{
+			var recorded = inspection.ActiveContext.Batcher.Instances;
+			Assert.AreEqual( 2, recorded.Count );
+			Assert.AreEqual( ClampSamplerIndex( FilterMode.Bilinear ), recorded[0].SamplerIndex );
+			Assert.AreEqual( ClampSamplerIndex( FilterMode.Point ), recorded[1].SamplerIndex );
+		}
+		Assert.ThrowsException<ArgumentOutOfRangeException>( () =>
+		{
+			using var painter = Painter.Begin( list, rect );
+			painter.Texture( Texture.White, rect, filter: (FilterMode)(-1) );
+		} );
+	}
+
+	[TestMethod]
 	public void LegacyHudSupportsGeneralMatrices()
 	{
 		var list = new CommandList();
@@ -86,6 +110,13 @@ public class PainterCommandListTest
 		catch ( InvalidOperationException ) { rejected = true; }
 		Assert.IsTrue( rejected );
 	}
+
+	static int ClampSamplerIndex( FilterMode filter ) => SamplerState.GetBindlessIndex( new SamplerState
+	{
+		AddressModeU = TextureAddressMode.Clamp,
+		AddressModeV = TextureAddressMode.Clamp,
+		Filter = filter
+	} );
 
 	static Matrix Transform( CommandList list, UICssBoxBatched.BoxInstance instance )
 	{

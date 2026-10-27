@@ -10,7 +10,6 @@ Layer0
 	//---- Ambient Occlusion ----
 	g_flAmbientOcclusionDirectDiffuse "1.000"
 	g_flAmbientOcclusionDirectSpecular "1.000"
-	g_vAmbientOcclusionColorBleed "[0.400000 0.149020 0.129412 0.000000]"
 	TextureAmbientOcclusion "models/citizen_human/bodies/male/body_male_light_ao.png"
 
 	//---- Color ----
@@ -38,15 +37,17 @@ Layer0
 	TextureNormal "models/citizen_human/bodies/male/body_male_light_normal.png"
 
 	//---- Roughness ----
+	g_flRoughnessScale "1.000"
 	TextureRoughness "models/citizen_human/bodies/male/body_male_light_rough.png"
 
 	//---- Specular ----
 	g_flSecondSpecularLobeGlossiness "0.392"
 	g_flSecondSpecularLobeRatio "0.008"
 
-	//---- Texture Coordinates ----
-	g_vTexCoordOffset "[0.000 0.000]"
-	g_vTexCoordScale "[1.000 1.000]"
+	//---- Tinting ----
+	g_bOverrideTinting "0"
+	g_flSkinAge "0.500"
+	TextureTintLookup "models/citizen_human/bodies/male/body_male_light_color.png"
 
 	//---- Transmission ----
 	g_flTransmissionFalloff "0.800"

@@ -1,14 +1,48 @@
 using NativeEngine;
+using System.Text.Json.Nodes;
 using static Sandbox.Component;
 
 namespace Sandbox;
 
 [Expose]
-public abstract class Light : Component, IColorProvider, ExecuteInEditor, ITintable
+public abstract partial class Light : Component, IColorProvider, ExecuteInEditor, ITintable
 {
 	SceneLight _sceneObject;
+	Color? _lastAppliedLightColor;
 
 	internal SceneLight SceneObject => _sceneObject;
+
+	/// <summary>
+	/// Versions light defaults so existing scenes retain their original tint.
+	/// </summary>
+	public override int ComponentVersion => 1;
+
+	/// <summary>
+	/// Preserve the original tint when it was omitted from a legacy point light.
+	/// </summary>
+	[Expose, JsonUpgrader( typeof( PointLight ), 1 )]
+	static void UpgradePointLightTint( JsonObject obj ) => UpgradeLegacyTint( obj );
+
+	/// <summary>
+	/// Preserve the original tint when it was omitted from a legacy spot light.
+	/// </summary>
+	[Expose, JsonUpgrader( typeof( SpotLight ), 1 )]
+	static void UpgradeSpotLightTint( JsonObject obj ) => UpgradeLegacyTint( obj );
+
+	/// <summary>
+	/// Preserve the original tint when it was omitted from a legacy directional light.
+	/// </summary>
+	[Expose, JsonUpgrader( typeof( DirectionalLight ), 1 )]
+	static void UpgradeDirectionalLightTint( JsonObject obj ) => UpgradeLegacyTint( obj );
+
+	/// <summary>
+	/// Supply the legacy default without rounding its channels through the color string serializer.
+	/// </summary>
+	static void UpgradeLegacyTint( JsonObject obj )
+	{
+		var tint = (Color)"#E9FAFF";
+		obj[nameof( LightColor )] ??= new JsonArray( tint.r, tint.g, tint.b, tint.a );
+	}
 
 	/// <summary>
 	/// Index used by baked probe/lightmap direct-light textures, or -1 for a dynamic light.
@@ -30,7 +64,7 @@ public abstract class Light : Component, IColorProvider, ExecuteInEditor, ITinta
 	/// Baked lighting with realtime shadows from dynamic objects, like Hammer's stationary lights.
 	/// Requires a baked light index and enabled shadows.
 	/// </summary>
-	[Property, Advanced]
+	[Property, Group( "Shadows", Order = 2 ), Order( 2 ), Advanced]
 	public bool MixedShadows
 	{
 		get;
@@ -103,9 +137,10 @@ public abstract class Light : Component, IColorProvider, ExecuteInEditor, ITinta
 	}
 
 	/// <summary>
-	/// The main color of the light
+	/// Tint multiplied by the light's intensity and color temperature.
 	/// </summary>
-	[Property]
+	// Retain the property name for existing scenes, scripts and animations.
+	[Property, Group( "Color", Order = -1 ), Title( "Tint" ), Order( -2 )]
 	public Color LightColor
 	{
 		get;
@@ -114,12 +149,122 @@ public abstract class Light : Component, IColorProvider, ExecuteInEditor, ITinta
 			if ( field == value ) return;
 			field = value;
 
-			if ( _sceneObject.IsValid() )
-				_sceneObject.LightColor = value;
+			ApplyLightColor();
 		}
-	} = "#E9FAFF";
+	} = Color.White;
 
-	[Property, Category( "Fog Settings" )]
+	/// <summary>
+	/// Brightness multiplier applied to the tint. One preserves the original brightness,
+	/// zero emits no light, and values above one produce brighter HDR lighting.
+	/// </summary>
+	[Property, Group( "Color", Order = -1 ), Range( 0, 10 ), Order( -1 ), SliderGradient( "#000", "#fff" )]
+	public float Intensity
+	{
+		get;
+		set
+		{
+			value = float.IsFinite( value ) ? MathF.Max( 0, value ) : 1.0f;
+			if ( field == value ) return;
+			field = value;
+
+			ApplyLightColor();
+		}
+	} = 1.0f;
+
+	/// <summary>
+	/// Color temperature in Kelvin. The slider covers 1000 to 12000; values up to 40000 can
+	/// be entered directly. Lower values are warmer and higher values are cooler.
+	/// The default of 6500 K is neutral white and preserves the tint exactly.
+	/// </summary>
+	[Property, Group( "Color", Order = -1 ), Title( "Temperature (K)" ), Range( 1000, 12000 ), Order( -3 )]
+	// Samples of the normalized temperature curve, positioned within the Kelvin range.
+	[SliderGradient( "#ff4400", "#ff890e", "#ffb270", "#ffdabf", "#ffffff", "#cadbff", "#bfd4ff",
+		Positions = new float[] { 0, 1000f / 11000, 2000f / 11000, 3500f / 11000, 0.5f, 9000f / 11000, 1 } )]
+	public float Temperature
+	{
+		get;
+		set
+		{
+			value = float.IsFinite( value ) ? Math.Clamp( value, 1000, 40000 ) : 6500.0f;
+			if ( field == value ) return;
+			field = value;
+
+			ApplyLightColor();
+		}
+	} = 6500.0f;
+
+	/// <summary>
+	/// Reference white used to normalize temperature tints around 6500 K.
+	/// </summary>
+	static readonly Color TemperatureWhite = TemperatureColor( 6500.0f );
+
+	/// <summary>
+	/// Update the rendered color without changing the serialized tint or its HDR values.
+	/// </summary>
+	void ApplyLightColor()
+	{
+		if ( !_sceneObject.IsValid() ) return;
+
+		var color = LightColor * Intensity;
+		var temperature = TemperatureColor( Temperature );
+
+		// Normalize the whole curve, so 6500 K is exactly white without a discontinuity around it.
+		color *= new Color( temperature.r / TemperatureWhite.r, temperature.g / TemperatureWhite.g, temperature.b / TemperatureWhite.b );
+
+		if ( AnimationEnabled )
+		{
+			color *= EvaluateAnimation( Scene.TimeNow );
+		}
+
+		color = color.WithAlpha( LightColor.a );
+		if ( _lastAppliedLightColor == color ) return;
+
+		_sceneObject.LightColor = color;
+		_lastAppliedLightColor = color;
+	}
+
+	/// <summary>
+	/// Approximate a blackbody tint using the same RGB fit as ColorGrading.shader,
+	/// converted from sRGB to linear for multiplication with the light's energy.
+	/// </summary>
+	static Color TemperatureColor( float kelvin )
+	{
+		var temperature = kelvin * 0.01f;
+		float red;
+		float green;
+		float blue;
+
+		if ( temperature <= 66.0f )
+		{
+			red = 1.0f;
+			green = 0.39008158f * MathF.Log( temperature ) - 0.63184144f;
+		}
+		else
+		{
+			red = 1.29293619f * MathF.Pow( temperature - 60.0f, -0.13320476f );
+			green = 1.12989086f * MathF.Pow( temperature - 60.0f, -0.07551485f );
+		}
+
+		if ( temperature >= 66.0f )
+		{
+			blue = 1.0f;
+		}
+		else if ( temperature <= 19.0f )
+		{
+			blue = 0.0f;
+		}
+		else
+		{
+			blue = 0.54320679f * MathF.Log( temperature - 10.0f ) - 1.19625409f;
+		}
+
+		return new Color( red.Clamp( 0, 1 ), green.Clamp( 0, 1 ), blue.Clamp( 0, 1 ) ).ToLinear();
+	}
+
+	/// <summary>
+	/// Controls whether this light illuminates fog and whether that lighting includes shadows.
+	/// </summary>
+	[Property, Group( "Fog", Order = 3 ), Order( 0 )]
 	public FogInfluence FogMode
 	{
 		get;
@@ -133,7 +278,10 @@ public abstract class Light : Component, IColorProvider, ExecuteInEditor, ITinta
 		}
 	} = FogInfluence.Enabled;
 
-	[Property, Range( 0, 1 ), Category( "Fog Settings" )]
+	/// <summary>
+	/// Strength of this light's contribution to fog lighting.
+	/// </summary>
+	[Property, Range( 0, 1 ), Group( "Fog", Order = 3 ), Order( 1 )]
 	public float FogStrength
 	{
 		get;
@@ -150,7 +298,7 @@ public abstract class Light : Component, IColorProvider, ExecuteInEditor, ITinta
 	/// <summary>
 	/// Should this light cast shadows?
 	/// </summary>
-	[Property, Category( "Shadows" ), Order( -10 )]
+	[Property, ToggleGroup( nameof( Shadows ), Order = 2 ), Order( -10 )]
 	public bool Shadows
 	{
 		get;
@@ -164,7 +312,10 @@ public abstract class Light : Component, IColorProvider, ExecuteInEditor, ITinta
 		}
 	} = true;
 
-	[Property, Range( 0, 1 ), Category( "Shadows" ), Advanced]
+	/// <summary>
+	/// Bias applied to shadow depth comparisons to reduce self-shadowing artifacts.
+	/// </summary>
+	[Property, Range( 0, 1 ), Group( "Shadows", Order = 2 ), Order( 1 ), Advanced]
 	public float ShadowBias
 	{
 		get;
@@ -178,7 +329,10 @@ public abstract class Light : Component, IColorProvider, ExecuteInEditor, ITinta
 		}
 	} = 0.0f;
 
-	[Property, Range( 0, 1 ), Category( "Shadows" )]
+	/// <summary>
+	/// Controls the hardness of shadow edges.
+	/// </summary>
+	[Property, Range( 0, 1 ), Group( "Shadows", Order = 2 ), Order( 0 )]
 	public float ShadowHardness
 	{
 		get;
@@ -196,7 +350,7 @@ public abstract class Light : Component, IColorProvider, ExecuteInEditor, ITinta
 	/// Which lighting terms this light is allowed to contribute to. For example,
 	/// turn off <see cref="LightContribution.Specular"/> to stop a light producing highlights.
 	/// </summary>
-	[Property, EnumButtonGroup, Title( "Contributes" )]
+	[Property, Group( "Influence", Order = 0 ), Order( 2 ), EnumButtonGroup, Title( "Contributes" )]
 	public LightContribution Contribution
 	{
 		get;
@@ -271,11 +425,12 @@ public abstract class Light : Component, IColorProvider, ExecuteInEditor, ITinta
 		Assert.NotNull( Scene, "Scene should not be null" );
 
 		_sceneObject = CreateSceneObject();
+		_lastAppliedLightColor = null;
 
 		if ( _sceneObject.IsValid() )
 		{
 			_sceneObject.Component = this;
-			_sceneObject.LightColor = LightColor;
+			ApplyLightColor();
 			_sceneObject.ShadowsEnabled = Shadows;
 			_sceneObject.FogLighting = (SceneLight.FogLightingMode)FogMode;
 			_sceneObject.FogStrength = FogStrength;

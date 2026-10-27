@@ -14,4 +14,9 @@ public class PublishConfig
 	public Dictionary<string, object> AssemblyFiles { get; set; }
 	public CompilerOutput[] CompilerOutput { get; set; }
 	public ProjectPublisher Publisher { get; internal set; }
+
+	/// <summary>
+	/// The Steam Workshop item, thumbnail, visibility and tags picked on the first page. Null if it doesn't go to the workshop.
+	/// </summary>
+	internal PublishWizard.WorkshopChoices Workshop { get; set; }
 }

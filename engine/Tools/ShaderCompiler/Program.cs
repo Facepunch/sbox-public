@@ -19,7 +19,7 @@ public static partial class Program
 		options.SingleThreaded = args.Any( x => x == "-s" );
 		options.ConsoleOutput = !args.Any( x => x == "-q" );
 
-		// Most combos to compile at once, default picks from cores and free memory
+		// Most combos to compile at once, default is one per core
 		var threadsIndex = Array.IndexOf( args, "-j" );
 		if ( threadsIndex >= 0 && threadsIndex + 1 < args.Length && int.TryParse( args[threadsIndex + 1], out var threads ) )
 		{

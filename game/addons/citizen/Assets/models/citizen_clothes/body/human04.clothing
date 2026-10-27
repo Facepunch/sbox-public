@@ -3,7 +3,7 @@
   "HumanSkinModel": "models/citizen_human/citizen_human_female.vmdl",
   "HumanSkinMaterial": "models/citizen_human/bodies/female/female_body_mode_light.vmat",
   "HumanEyesMaterial": null,
-  "HumanSkinBodyGroups": 8186,
+  "HumanSkinBodyGroups": 8178,
   "HumanSkinMaterialGroup": "skin_light",
   "HumanSkinTags": "female",
   "Title": "Human Skin 4",
@@ -38,8 +38,8 @@
   "Icon": {
     "Path": "models/citizen_clothes/body/human04.clothing.png",
     "Mode": "HumanSkin",
-    "UsePositionOffset": false,
-    "PositionOffset": "0,0,0"
+    "UsePositionOffset": true,
+    "PositionOffset": "204.550079,0.0299998838,-0.0999999866"
   },
   "__references": [],
   "__version": 0

@@ -364,8 +364,18 @@ public class TextInput : Panel
 	{
 		if ( key < 32 ) return;
 
-		label.ReplaceSelection( key.ToString() );
+		Insert( key.ToString() );
 		Changed();
+	}
+
+	/// <summary>
+	/// Type over the selection, or at the caret when there isn't one. ReplaceSelection on its
+	/// own writes at the start of an empty selection, which is always 0.
+	/// </summary>
+	void Insert( string text )
+	{
+		if ( label.HasSelection() ) label.ReplaceSelection( text );
+		else label.InsertTextAndMoveCaret( text, label.CaretPosition );
 	}
 
 	public override void OnButtonTyped( ButtonEvent e )
@@ -402,7 +412,7 @@ public class TextInput : Panel
 
 				if ( !string.IsNullOrEmpty( copied ) ) EditorUtility.Clipboard.Copy( copied );
 
-				if ( cut )
+				if ( cut && label.HasSelection() )
 				{
 					label.ReplaceSelection( "" );
 					Changed();
@@ -417,7 +427,7 @@ public class TextInput : Panel
 				// One line only - a pasted newline is just text you can't see
 				paste = paste.Replace( "\r", "" ).Replace( "\n", " " );
 
-				label.ReplaceSelection( paste );
+				Insert( paste );
 				Changed();
 				return true;
 		}

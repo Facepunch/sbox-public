@@ -21,13 +21,13 @@ internal sealed class PlayerSettings
 	/// <summary>
 	/// The fewest players the game is meant for. 1 if it can be played alone.
 	/// </summary>
-	[Range( 0, 64 ), Title( "Recommended Min Players" )]
+	[Range( 0, 64 ), Title( "Recommended Min" )]
 	public int RecommendedMinPlayers { get; set; }
 
 	/// <summary>
 	/// The most players the game is meant for. 0 for no limit, e.g. 4+.
 	/// </summary>
-	[Range( 0, 64 ), Title( "Recommended Max Players" )]
+	[Range( 0, 64 ), Title( "Recommended Max" )]
 	public int RecommendedMaxPlayers { get; set; }
 
 	/// <summary>
@@ -80,18 +80,30 @@ internal sealed class PlayerSettings
 	/// </summary>
 	public void Build( Layout layout, Action<SerializedObject> listen )
 	{
+		layout.Add( new InformationBox( $"<p>{About}</p>" ) );
+		BuildFields( layout, listen );
+	}
+
+	/// <summary>
+	/// What the counts mean, for whoever's setting them
+	/// </summary>
+	public const string About = "Min and max are the lobby limit. Recommended is shown on your game's card.";
+
+	/// <summary>
+	/// <see cref="Build"/> without <see cref="About"/>, for somewhere that says it its own way
+	/// </summary>
+	public void BuildFields( Layout layout, Action<SerializedObject> listen )
+	{
 		var so = this.GetSerialized();
 		listen( so );
 
-		var preview = new Label.Body( "" );
+		var preview = new Label( "" ) { WordWrap = true, Color = Theme.TextControl.WithAlpha( 0.5f ) };
 		var callerChanged = so.OnPropertyChanged;
 		so.OnPropertyChanged = p =>
 		{
 			callerChanged?.Invoke( p );
 			preview.Text = Preview;
 		};
-
-		layout.Add( new InformationBox( "<p>Minimum and Maximum Players are the lobby limit. Recommended players is what your game is meant for - that's what players see on your game's card in the menu.</p>" ) );
 
 		var sheet = new ControlSheet();
 		sheet.AddRow( so.GetProperty( nameof( MinimumPlayers ) ) );

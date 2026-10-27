@@ -39,7 +39,33 @@
                isn't 16:9 sits on its own colours rather than in black bars *@
             <div class="backdrop" style="background-image: url( @BackdropOf( selectedShot ) );"></div>
 
-            if ( selectedShot.IsVideo && !WaitsToPlay )
+            @* A YouTube video's played in YouTube's embedded player, in a web page - once it's asked for, so a page
+               doesn't start a browser just by opening *@
+            if ( IsYouTube( selectedShot ) && _playRequested )
+            {
+                <WebPanel @ref="YouTubePanel" class="youtube" />
+
+                @* The controls are ours - YouTube's are off, and the page gets no clicks. A click on the picture plays or pauses it *@
+                <div class="yt-surface" onclick=@( () => Player?.TogglePlaying() )></div>
+
+                <div class="yt-controls @( Player is { IsPlaying: true } ? "playing" : "" )">
+                    <div class="yt-button" onclick=@( () => Player?.TogglePlaying() )><i>@PlayIcon</i></div>
+                    <label class="yt-time">@FormatTime( Player?.Time ?? 0 ) / @FormatTime( Player?.Duration ?? 0 )</label>
+                    <div class="yt-scrub" @ref="Scrubber" onmousedown=@SeekToMouse>
+                        <div class="yt-buffered" style="width: @Percent( Player?.Buffered ?? 0 )%;"></div>
+                        <div class="yt-played" style="width: @Percent( Progress )%;"></div>
+                    </div>
+                    <div class="yt-button" onclick=@( () => Player?.ToggleMuted() )><i>@( Player is { IsMuted: true } ? "volume_off" : "volume_up" )</i></div>
+                    <div class="yt-button" tooltip="#menu.games.watch_on_youtube" onclick=@( () => OpenOnYouTube( selectedShot ) )><i>open_in_new</i></div>
+                </div>
+            }
+            else if ( IsYouTube( selectedShot ) )
+            {
+                <div class="video-poster" style="background-image: url( @selectedShot.Thumb );" onclick=@( () => _playRequested = true )>
+                    <div class="play-big"><i>play_arrow</i></div>
+                </div>
+            }
+            else if ( selectedShot.IsVideo && !WaitsToPlay )
             {
                 @* Playing by itself it's muted - sound's for when it's asked for *@
                 <VideoPanel Controls=@true Muted=@(!_playRequested) Source="@selectedShot.Url" />
@@ -99,7 +125,92 @@
     /// </summary>
     [Parameter] public bool Autoplay { get; set; } = true;
 
-    protected override int BuildHash() => System.HashCode.Combine(Package, Package?.Screenshots, Loaded, Failed, SelectedScreenshot, _playRequested, Autoplay);
+    /// <summary>
+    /// Show these images instead of the package's screenshots - its Steam Workshop item's, for a package on the workshop
+    /// </summary>
+    [Parameter] public IReadOnlyList<string> Images { get; set; }
+
+    /// <summary>
+    /// Its Steam Workshop item's YouTube videos, by their YouTube ids - ahead of <see cref="Images"/>, like a package's videos
+    /// </summary>
+    [Parameter] public IReadOnlyList<string> YouTubeVideos { get; set; }
+
+    protected override int BuildHash() => System.HashCode.Combine(Package, Package?.Screenshots, Images, YouTubeVideos, Loaded, Failed, SelectedScreenshot, System.HashCode.Combine( _playRequested, Autoplay, Player?.Time, Player?.Duration, Player?.Buffered, Player?.IsPlaying, Player?.IsBuffering, System.HashCode.Combine( Player?.IsMuted, Player?.HasEnded ) ));
+
+    const string YouTubeWatch = "https://www.youtube.com/watch?v=";
+
+    /// <summary>
+    /// A shot for a YouTube video - its url's its YouTube page, its thumbnail the still YouTube makes of it
+    /// </summary>
+    static Package.Screenshot YouTubeShot( string id ) => new()
+    {
+        Url = YouTubeWatch + id,
+        Thumb = $"https://img.youtube.com/vi/{id}/hqdefault.jpg",
+        IsVideo = true
+    };
+
+    static bool IsYouTube( Package.Screenshot shot ) => shot.Url?.StartsWith( YouTubeWatch ) ?? false;
+
+    static void OpenOnYouTube( Package.Screenshot shot ) => MenuUtility.OpenUrl( shot.Url );
+
+    /// <summary>
+    /// The web panel playing the selected YouTube video, while there is one
+    /// </summary>
+    WebPanel YouTubePanel;
+
+    /// <summary>
+    /// The video playing in it, and the panel it was given - a new panel, or another video, gets one again
+    /// </summary>
+    YouTubePlayer _player;
+    WebPanel _playerPanel;
+
+    YouTubePlayer Player => _player is { IsValid: true } ? _player : null;
+
+    Panel Scrubber;
+
+    protected override void OnAfterTreeRender( bool firstTime )
+    {
+        base.OnAfterTreeRender( firstTime );
+
+        if ( !YouTubePanel.IsValid() || selectedShot is not { } shot || !IsYouTube( shot ) ) return;
+
+        var id = shot.Url[YouTubeWatch.Length..];
+        if ( YouTubePanel == _playerPanel && id == _player?.VideoId ) return;
+
+        _playerPanel = YouTubePanel;
+        _player = MenuUtility.PlayYouTubeVideo( YouTubePanel, id );
+    }
+
+    string PlayIcon => Player switch
+    {
+        { IsPlaying: true } or { IsBuffering: true } => "pause",
+        { HasEnded: true } => "replay",
+        _ => "play_arrow"
+    };
+
+    /// <summary>
+    /// How far through it is, 0 to 1
+    /// </summary>
+    float Progress => Player is { Duration: > 0 } player ? Math.Clamp( player.Time / player.Duration, 0, 1 ) : 0;
+
+    /// <summary>
+    /// Go to where the scrubber was clicked
+    /// </summary>
+    void SeekToMouse()
+    {
+        if ( Player is not { Duration: > 0 } player || !Scrubber.IsValid() || Scrubber.Box.Rect.Width <= 0 ) return;
+
+        var fraction = Math.Clamp( Scrubber.MousePosition.x / Scrubber.Box.Rect.Width, 0, 1 );
+        player.Seek( fraction * player.Duration );
+    }
+
+    static string Percent( float fraction ) => (Math.Clamp( fraction, 0, 1 ) * 100).ToString( "0.##", System.Globalization.CultureInfo.InvariantCulture );
+
+    static string FormatTime( float seconds )
+    {
+        var t = TimeSpan.FromSeconds( Math.Max( seconds, 0 ) );
+        return t.TotalHours >= 1 ? t.ToString( @"h\:mm\:ss" ) : t.ToString( @"m\:ss" );
+    }
 
     /// <summary>
     /// The video's been asked for - its play button, or picked off the strip - so it plays with its sound.
@@ -121,7 +232,9 @@
     /// selection indexes this, not the package's own order: it used to index that, so the strip
     /// had the video first but the big view opened on whatever the package listed first.
     /// </summary>
-    List<Package.Screenshot> Shots => Package?.Screenshots?.OrderBy( x => x.IsVideo ? 0 : 1 ).ToList() ?? new();
+    List<Package.Screenshot> Shots => Images is not null || YouTubeVideos is not null
+        ? (YouTubeVideos ?? []).Select( YouTubeShot ).Concat( (Images ?? []).Select( x => new Package.Screenshot { Url = x, Thumb = x } ) ).ToList()
+        : Package?.Screenshots?.OrderBy( x => x.IsVideo ? 0 : 1 ).ToList() ?? new();
 
     // 0 - the video, when there is one, which plays by itself as soon as it's up
     int SelectedScreenshot = 0;

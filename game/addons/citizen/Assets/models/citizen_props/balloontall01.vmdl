@@ -182,22 +182,6 @@
 							gradient = "<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:generic:version{7412167c-06e9-4698-aff2-e63eb59037e7} -->\n{\n\tm_Stops = \n\t[\n\t\t{\n\t\t\tm_flPosition = 0.408269\n\t\t\tm_Color = [ 176, 255, 0, 255 ]\n\t\t},\n\t]\n}"
 						}
 					},
-					{
-						_class = "BreakCommand"
-						game_class = "break_create_particle"
-						game_keys = 
-						{
-							name = resource:"particles/break/break.cardboard.vpcf"
-							cp0_model = resource:""
-							cp0_snapshot = resource:""
-							damage_position_cp = -1
-							damage_direction_cp = -1
-							velocity_cp = -1
-							angular_velocity_cp = -1
-							local_gravity_cp = -1
-							tint_cp = -1
-						}
-					},
 				]
 			},
 		]

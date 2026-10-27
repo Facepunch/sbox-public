@@ -120,7 +120,11 @@ public partial class RenderSettings
 		var preset = DetectPreset();
 		ApplyPreset( preset );
 
-		Apply();
+		// Not Apply(): the window was created from the command line, and switching it to the saved
+		// mode here would drop -sw/-w/-h (e.g. windowed local instances going borderless).
+		ApplyVideoMode( honourCommandLine: true );
+		OnVideoSettingsChanged?.Invoke();
+		VideoSettings.Save();
 
 		log.Info( $"Detected graphics preset: {preset} (gpu: {SystemInfo.Gpu}, vram: {SystemInfo.GpuMemory / (1024 * 1024)}MB, integrated: {SystemInfo.GpuIntegrated}, cores: {SystemInfo.ProcessorCount}, ram: {SystemInfo.TotalMemory / (1024 * 1024)}MB)" );
 	}

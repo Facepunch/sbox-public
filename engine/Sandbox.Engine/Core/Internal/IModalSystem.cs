@@ -34,6 +34,11 @@ public interface IModalSystem
 	public void ServiceConnector();
 
 	/// <summary>
+	/// Ask whether to open this url in the browser. It's already been checked to be http(s).
+	/// </summary>
+	public void OpenUrl( string url ) { }
+
+	/// <summary>
 	/// The menu that is shown when escape is pressed while playing.
 	/// </summary>
 	public void PauseMenu();

@@ -199,6 +199,10 @@ public sealed class TypeDescription : ISourceLineProvider
 			}
 		}
 
+		// Ignore compiler generated properties, such as a record's EqualityContract
+		if ( member is PropertyInfo propa && propa.HasAttribute( typeof( CompilerGeneratedAttribute ) ) )
+			return false;
+
 		if ( member is MethodInfo methodInfo )
 		{
 			// Very special case, destructors implement this as a virtual that automatically calls base destructors

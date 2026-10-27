@@ -264,7 +264,7 @@ public class FastTextureWindow : Window
 		}
 	}
 
-	[Shortcut( "editor.cancel", "ESC" )]
+	[Shortcut( "editor.cancel", "ESC", ShortcutType.Window )]
 	public void Cancel()
 	{
 		if ( MeshFaces != null && OriginalUVs != null && MeshFaces.Length == OriginalUVs.Count )

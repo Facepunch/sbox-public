@@ -29,7 +29,7 @@ public class EmbeddedSpriteControlWidget : EmbeddedResourceControlWidget
 			if ( sprite == null || AdvancedMode )
 			{
 				// Create a new sprite if we don't have one, or if we're in advanced mode to avoid setting texture of pre-existing sprite
-				sprite = new Sprite();
+				sprite = CreateEmbeddedSprite();
 			}
 			CheckForSpriteTexture( sprite ); // Ensure frame/animation exists
 			sprite.Animations[0].Frames[0].Texture = value;
@@ -134,7 +134,10 @@ public class EmbeddedSpriteControlWidget : EmbeddedResourceControlWidget
 			}
 			if ( asset.TryLoadResource<Sprite>( out var sprite ) )
 			{
-				SerializedProperty.SetValue( sprite );
+				// Embed a copy, the asset's instance is shared with everything else that references it
+				PropertyStartEdit();
+				CreateEmbeddedFromFile( SerializedProperty, sprite );
+				PropertyFinishEdit();
 				didDrag = true;
 			}
 
@@ -184,7 +187,7 @@ public class EmbeddedSpriteControlWidget : EmbeddedResourceControlWidget
 	{
 		if ( sprite is null )
 		{
-			sprite = new();
+			sprite = CreateEmbeddedSprite();
 			SerializedProperty.SetValue( sprite );
 		}
 
@@ -200,6 +203,14 @@ public class EmbeddedSpriteControlWidget : EmbeddedResourceControlWidget
 			anim.Frames = [new Sprite.Frame()];
 			SerializedProperty.SetValue( sprite );
 		}
+	}
+
+	/// <summary>
+	/// A new sprite marked as embedded, so it's deep copied on clone and saved inline
+	/// </summary>
+	static Sprite CreateEmbeddedSprite()
+	{
+		return new Sprite { EmbeddedResource = new() { ResourceCompiler = "embed" } };
 	}
 
 	// Disable any IconButtons and disable drop events

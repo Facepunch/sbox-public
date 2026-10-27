@@ -142,7 +142,6 @@ internal partial class ShadowMapper
 	{
 		readonly ShadowMapper mapper;
 		readonly CFrustum frustum = CFrustum.Create();
-		readonly CFrustum exclusionFrustum = CFrustum.Create();
 
 		public NativeShadowRenderer( ShadowMapper mapper )
 		{
@@ -156,14 +155,6 @@ internal partial class ShadowMapper
 			else
 				frustum.BuildFrustumFromVectors( view.Position, view.ZNear, view.ZFar, view.FieldOfView, 1.0f, view.Rotation.Forward, view.Rotation.Left, view.Rotation.Up );
 
-			var exclusion = default( CFrustum );
-			if ( view.HasExclusion )
-			{
-				var size = view.ExclusionSize;
-				exclusionFrustum.InitOrthoCamera( view.ExclusionCenter, view.Rotation.Angles(), -size * 0.5f, size * 0.5f, size, size );
-				exclusion = exclusionFrustum;
-			}
-
 			CSceneSystem.AddShadowView( view.Name,
 				mapper.SceneView,
 				frustum,
@@ -174,7 +165,6 @@ internal partial class ShadowMapper
 				view.ExcludedFlags,
 				view.DepthBias,
 				view.SlopeScaledDepthBias,
-				exclusion,
 				cachedShadowTexture: view.CachedStatic is null ? default : view.CachedStatic.Texture.native );
 
 			return frustum.GetReverseZViewProjTranspose()._numerics;

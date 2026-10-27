@@ -180,15 +180,27 @@ public partial class GameObject
 			{
 				DrawGizmoHandle( ref clicked );
 
-				Components.ForEach( "DrawGizmos", false, c =>
+				// Plain loop rather than Components.ForEach, a lambda capturing clicked allocates per object per frame
+				for ( int i = Components.Count - 1; i >= 0 && i < Components.Count; i-- )
 				{
-					if ( c.OverridesDrawGizmos && !c.Flags.Contains( ComponentFlags.Hidden ) && Gizmo.Settings.IsGizmoEnabled( c.GetType() ) )
+					var c = Components[i];
+					if ( c is null || !c.Active )
+						continue;
+
+					if ( !c.OverridesDrawGizmos || c.Flags.Contains( ComponentFlags.Hidden ) || !Gizmo.Settings.IsGizmoEnabled( c.GetType() ) )
+						continue;
+
+					try
 					{
 						using var scope = Gizmo.Scope();
 						c.DrawGizmosInternal();
 						clicked = clicked || Gizmo.WasClicked;
 					}
-				} );
+					catch ( System.Exception e )
+					{
+						Log.Warning( e, $"Exception when calling DrawGizmos on {c}: {e.Message}" );
+					}
+				}
 			}
 
 			if ( clicked )

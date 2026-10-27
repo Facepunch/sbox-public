@@ -34,7 +34,6 @@
 						<label class="section-title">#menu.games.source</label>
 						<Button class="picker-button browse-option" Active=@(!IsMountedSource && packageSource == PackageSource.Browse) Icon="business_center" Text="#menu.games.workshop" onclick=@(() => SelectPackageSource( PackageSource.Browse )) />
 						<Button class="picker-button browse-option" Active=@(!IsMountedSource && packageSource == PackageSource.Subscribed) Icon="check_circle" Text="#menu.workshop.subscribed" tooltip="#menu.workshop.subscribed_tooltip" onclick=@(() => SelectPackageSource( PackageSource.Subscribed )) />
-						<Button class="picker-button browse-option" Active=@(!IsMountedSource && packageSource == PackageSource.Downloaded) Icon="download_done" Text="#menu.workshop.downloaded" tooltip="#menu.workshop.downloaded_tooltip" onclick=@(() => SelectPackageSource( PackageSource.Downloaded )) />
 						@foreach ( var mount in MountDirectory.GetAll().Where( mount => mount.Mounted ).OrderBy( mount => mount.Title ) )
 						{
 							var mapCount = GetMountMaps( mount.Ident ).Count();

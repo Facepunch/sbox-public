@@ -107,48 +107,58 @@ public partial class BevelTool( BevelEdges[] edges ) : EditorTool
 			var component = edgeGroup.Component;
 			if ( !component.IsValid() ) continue;
 
-			var mesh = new PolygonMesh { Transform = edgeGroup.Mesh.Transform };
-			mesh.MergeMesh( edgeGroup.Mesh, Transform.Zero, out _, out _, out _ );
-
-			var bevelEdges = edgeGroup.Edges
-				.Select( mesh.HalfEdgeHandleFromIndex )
-				.ToList();
-
-			var newOuterEdges = new List<HalfEdgeHandle>();
-			var newInnerEdges = new List<HalfEdgeHandle>();
-			var facesNeedingUVs = new List<FaceHandle>();
-			var newFaces = new List<FaceHandle>();
-
-			if ( !mesh.BevelEdges(
-				bevelEdges,
-				PolygonMesh.BevelEdgesMode.RemoveClosedEdges,
-				parameters.SegmentCount,
-				parameters.Width,
-				parameters.Shape,
-				newOuterEdges,
-				newInnerEdges,
-				newFaces,
-				facesNeedingUVs ) )
+			try
 			{
-				component.Mesh = edgeGroup.Mesh;
-				continue;
+				var mesh = new PolygonMesh { Transform = edgeGroup.Mesh.Transform };
+				mesh.MergeMesh( edgeGroup.Mesh, Transform.Zero, out _, out _, out _ );
+
+				var bevelEdges = edgeGroup.Edges
+					.Select( mesh.HalfEdgeHandleFromIndex )
+					.ToList();
+
+				var newOuterEdges = new List<HalfEdgeHandle>();
+				var newInnerEdges = new List<HalfEdgeHandle>();
+				var facesNeedingUVs = new List<FaceHandle>();
+				var newFaces = new List<FaceHandle>();
+
+				if ( !mesh.BevelEdges(
+					bevelEdges,
+					PolygonMesh.BevelEdgesMode.RemoveClosedEdges,
+					parameters.SegmentCount,
+					parameters.Width,
+					parameters.Shape,
+					newOuterEdges,
+					newInnerEdges,
+					newFaces,
+					facesNeedingUVs ) )
+				{
+					component.Mesh = edgeGroup.Mesh;
+					continue;
+				}
+
+				var smoothMode = parameters.SoftEdges
+					? PolygonMesh.EdgeSmoothMode.Soft
+					: PolygonMesh.EdgeSmoothMode.Default;
+
+				foreach ( var edge in newInnerEdges )
+					mesh.SetEdgeSmoothing( edge, smoothMode );
+
+				foreach ( var face in facesNeedingUVs )
+					mesh.TextureAlignToGrid( mesh.Transform, face );
+
+				mesh.ComputeFaceTextureParametersFromCoordinates( newFaces );
+
+				component.Mesh = mesh;
+				newOuterEdges.AddRange( newInnerEdges );
+				_newEdges[component] = newOuterEdges;
 			}
-
-			var smoothMode = parameters.SoftEdges
-				? PolygonMesh.EdgeSmoothMode.Soft
-				: PolygonMesh.EdgeSmoothMode.Default;
-
-			foreach ( var edge in newInnerEdges )
-				mesh.SetEdgeSmoothing( edge, smoothMode );
-
-			foreach ( var face in facesNeedingUVs )
-				mesh.TextureAlignToGrid( mesh.Transform, face );
-
-			mesh.ComputeFaceTextureParametersFromCoordinates( newFaces );
-
-			component.Mesh = mesh;
-			newOuterEdges.AddRange( newInnerEdges );
-			_newEdges[component] = newOuterEdges;
+			catch ( Exception e )
+			{
+				// Bad topology can make BevelEdges throw, show the original mesh so the tool stays usable
+				component.Mesh = edgeGroup.Mesh;
+				_newEdges.Remove( component );
+				Log.Warning( e, $"Bevel failed: {e.Message}" );
+			}
 		}
 	}
 

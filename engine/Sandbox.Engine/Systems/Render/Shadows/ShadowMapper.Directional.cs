@@ -377,8 +377,6 @@ internal partial class ShadowMapper
 			if ( rt.HasTexture )
 				DirectionalShadowMemorySize += (int)g_pRenderDevice.ComputeTextureMemorySize( rt.Texture.native );
 
-			// Render shadow view. After the first, skip what's inside the largest square inscribed in the
-			// previous cascade's bounding sphere - that cascade has it already.
 			var shadowView = new ShadowViewDesc
 			{
 				Name = CascadeNames[i],
@@ -394,9 +392,6 @@ internal partial class ShadowMapper
 				ExcludedFlags = excludeFlags,
 				DepthBias = ShadowDepthBias,
 				SlopeScaledDepthBias = ShadowSlopeScale,
-				HasExclusion = i > 0,
-				ExclusionCenter = i > 0 ? cascades[i - 1].SphereCenter : default,
-				ExclusionSize = i > 0 ? cascades[i - 1].SphereRadius / MathF.Sqrt( 2.0f ) : 0,
 			};
 
 			Matrix viewProjection = Renderer.RenderShadowView( shadowView );
@@ -443,7 +438,7 @@ internal partial class ShadowMapper
 		CascadeDebugCount = cascadeCount;
 		CascadeShadowMapCount = cascadeCount;
 
-		gpuShadowData.CascadeCount = (uint)numCascades;
+		gpuShadowData.CascadeCount = (uint)cascadeCount;
 		gpuShadowData.InverseShadowMapSize = 1.0f / shadowmapSize;
 
 		float outerRadius = cascadeCount > 0 ? cascades[cascadeCount - 1].SphereRadius : 0f;

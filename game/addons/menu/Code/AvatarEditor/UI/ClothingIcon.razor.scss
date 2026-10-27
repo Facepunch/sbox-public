@@ -9,6 +9,8 @@ ClothingIcon
     position: relative;
     pointer-events: all;
     border-radius: 16px;
+    // Reserve an inner selection border so it cannot clip or shift the tiles.
+    border: 3px solid transparent;
     width: 95px;
     flex-grow: 0;
     height: 90px;
@@ -23,6 +25,8 @@ ClothingIcon
     &.active
     {
         background-color: #0088ff;
+
+        border-color: #0088ff;
     }
 
     .avatar

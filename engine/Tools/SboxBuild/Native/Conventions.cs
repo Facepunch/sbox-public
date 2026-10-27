@@ -18,7 +18,7 @@ public static class Conventions
 		module.Schema.AnchorIncludes.InsertRange( 0, [
 			"tier0/keyvalues.h", "resourcefile/resourcestream.h", "resourcesystem/resourcehandletypes.h",
 			"animationsystem/animation_constants.h", "animationsystem/activity_handle.h",
-			"soundsystem/soundflags.h", "engine2/engineevents.h", "vphysics2/interface.h",
+			"soundsystem/soundflags.h", "engine2/engineevents.h", "physics/interface.h",
 			"scenesystem/isceneutils.h", "tier0/basetypes_schema.h", "tier0/interpolatedvar_wrapped.h",
 			"scenesystem/sceneobject.h"] );
 	}

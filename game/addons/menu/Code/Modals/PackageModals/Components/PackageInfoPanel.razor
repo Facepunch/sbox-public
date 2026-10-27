@@ -17,13 +17,22 @@
     @* What it is - stays put at the top; everything under it scrolls *@
     <div class="panel-top">
         <div class="media-wrapper">
-            <div class="panel-media" style="background-image: url(@(Package.ThumbWide ?? Package.Thumb))"></div>
+            @* A workshop item's thumbnail is square - all of it shows, at the frame's height, rather than cropped to its width *@
+            @if (Loading)
+            {
+                <div class="panel-media bone"></div>
+            }
+            else
+            {
+                <div class="panel-media @(OnWorkshop ? "fit-height" : "")" style="background-image: url(@(OnWorkshop ? Workshop?.Thumb ?? Package.Thumb : Package.ThumbWide ?? Package.Thumb))"></div>
+            }
         </div>
 
         <div class="panel-header">
-            <label class="game-title">@Package.Title</label>
+            <label class="game-title">@(Workshop?.Title ?? Package.Title)</label>
 
-            @if (!string.IsNullOrWhiteSpace(Package.Summary))
+            @* On the workshop its description's on the Overview - the summary's the backend's *@
+            @if (!Loading && !OnWorkshop && !string.IsNullOrWhiteSpace(Package.Summary))
             {
                 <label class="game-summary">@Package.Summary</label>
             }
@@ -33,7 +42,7 @@
            with how many it's for. Green when your party's what it's made for, orange when it isn't (the
            why's for the popup when you go to play), plain when the game doesn't say. Nothing when it
            says nothing at all *@
-        @if (PlayerModes.For(Package) is { Label: { } modeLabel } modes)
+        @if (!Loading && PlayerModes.For(Package, OnWorkshop ? Workshop : null) is { Label: { } modeLabel } modes)
         {
             var fit = modes.FitFor( PlayerModes.PartySize );
 
@@ -50,7 +59,88 @@
     <div class="panel-scroll">
     <div class="panel-sections">
 
-        @* Label on the left, value on the right - one per line *@
+        @* Label on the left, value on the right - one per line. On the workshop, the facts are its item's. Bones
+           until it's known which *@
+        @if (Loading)
+        {
+            <div class="facts">
+                @for (var i = 0; i < 5; i++)
+                {
+                    <div class="fact">
+                        <div class="bone key-bone"></div>
+                        <div class="bone value-bone"></div>
+                    </div>
+                }
+            </div>
+        }
+        else if (OnWorkshop)
+        {
+            <div class="facts">
+                <div class="fact">
+                    <label class="key">#menu.workshop.rating</label>
+                    <div class="value">
+                        @if (Workshop is { } votes)
+                        {
+                            var total = votes.VotesUp + votes.VotesDown;
+                            <label class="rating @RatingClass( total, VoteScore( votes ) )">@(total > 0 ? RatingText( total, VoteScore( votes ) ) : "#menu.workshop.no_votes_yet")</label>
+                            @if (total > 0)
+                            {
+                                <label class="muted">(@total.ToString("N0"))</label>
+                            }
+                        }
+                    </div>
+                </div>
+
+                @if (Workshop is { } item)
+                {
+                    <div class="fact clickable" @onclick="@(() => OnChangelogClicked?.Invoke())">
+                        <label class="key">#menu.games.updated</label>
+                        <div class="value"><label>@MenuHelpers.TimeAgo( item.Updated )</label></div>
+                    </div>
+
+                    <div class="fact">
+                        <label class="key">#menu.games.released</label>
+                        <div class="value"><label>@item.Created.ToLocalTime().ToString("d MMM yyyy")</label></div>
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(item.OwnerName))
+                    {
+                        <div class="fact">
+                            <label class="key">#menu.games.creator</label>
+                            <div class="value">
+                                <img class="org-thumb" src="avatar:@item.OwnerId" />
+                                <label class="creator-name" tooltip="@item.OwnerName">@item.OwnerName</label>
+                            </div>
+                        </div>
+                    }
+
+                    <div class="fact">
+                        <label class="key">#menu.workshop.subscribers</label>
+                        <div class="value">
+                            <div class="stat" tooltip="#menu.workshop.subscribers_tooltip">
+                                <i>group</i>
+                                <label>@item.Subscriptions.ToMetric()</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (item.Size > 0)
+                    {
+                        <div class="fact">
+                            <label class="key">#menu.workshop.file_size</label>
+                            <div class="value">
+                                <div class="stat">
+                                    <i>storage</i>
+                                    <label>@MenuHelpers.FormatSize( item.Size )</label>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+        }
+        else
+        {
         <div class="facts">
             @if (ShowReviews)
             {
@@ -102,14 +192,16 @@
                 </div>
             </div>
         </div>
+        }
 
-        @* You and it - your time, against everyone's, and what you've got to show for it. Once you've played it *@
-        @if (Package.Interaction.Used)
+        @* You and it - your time, against everyone's, and what you've got to show for it. Once you've played it.
+           The backend's numbers, so not on the workshop *@
+        @if (!Loading && !OnWorkshop && Package.Interaction.Used)
         {
             <PackageYourRecord Package=@Package />
         }
 
-        @if (achList is not null)
+        @if (!Loading && achList is not null)
         {
             <PortalButton Portal=@Portal>
                 <Button>
@@ -125,8 +217,8 @@
             </PortalButton>
         }
 
-        @* Last of all, at the very bottom *@
-        @if (Package.Tags?.Length > 0)
+        @* Last of all, at the very bottom - the backend's tags, a workshop item's only say what it is *@
+        @if (!Loading && !OnWorkshop && Package.Tags?.Length > 0)
         {
             <Card class="tags-card">
                 <ChildContent>
@@ -161,6 +253,32 @@
 	/// <summary>How it's reviewed, first of the facts - not in the pause menu.</summary>
 	[Parameter] public bool ShowReviews { get; set; } = true;
 
+	/// <summary>
+	/// What the Steam Workshop says about it, for a package on the workshop - its facts come from that instead of
+	/// the backend. Null while it's being asked.
+	/// </summary>
+	[Parameter] public WorkshopItemDetails Workshop { get; set; }
+
+	/// <summary>
+	/// Still working out what it says - whether it's the backend's or its workshop item's. Bones in the meantime.
+	/// </summary>
+	[Parameter] public bool Loading { get; set; }
+
+	/// <summary>
+	/// Say what the Steam Workshop says, not the backend - the game page, for a package on the workshop. The backend's
+	/// parts go.
+	/// </summary>
+	[Parameter] public bool OnWorkshop { get; set; }
+
+	/// <summary>
+	/// How much of its Steam votes are up, 0 to 100 - its rating's score, like a review score
+	/// </summary>
+	static float VoteScore( WorkshopItemDetails item )
+	{
+		var total = item.VotesUp + item.VotesDown;
+		return total > 0 ? item.VotesUp * 100f / total : 0;
+	}
+
 	AchievementCollection achList;
 
 	/// <summary>
@@ -174,7 +292,7 @@
 	{
 		if ( modes.PlayersText is { } players ) return $"{modes.Hint} · {players}";
 
-		var max = Package?.Info.MaxPlayers ?? 0;
+		var max = modes.MaxPlayers > 0 ? modes.MaxPlayers : Package?.Info.MaxPlayers ?? 0;
 		return modes.Multiplayer && max > 1 ? $"{modes.Hint} · up to {max} players" : modes.Hint;
 	}
 
@@ -193,11 +311,11 @@
 	/// Steam's words for a review score - how positive, and how sure (how many reviews) it is.
 	/// Under ten reviews there's not enough to say. The pause menu's Overview says it too.
 	/// </summary>
-	public static string RatingText( Package package )
-	{
-		var total = package.Reviews.Total;
-		var score = package.Reviews.Score;
+	public static string RatingText( Package package ) => RatingText( package.Reviews.Total, package.Reviews.Score );
 
+	/// <inheritdoc cref="RatingText(Package)"/>
+	static string RatingText( int total, float score )
+	{
 		if ( total <= 0 ) return "#menu.games.no_reviews_yet";
 		if ( total < 10 ) return $"{total} review{(total == 1 ? "" : "s")}";
 
@@ -217,18 +335,20 @@
 	/// <summary>
 	/// "positive", "mixed" or "negative" for colouring <see cref="RatingText"/> - "none" under ten reviews.
 	/// </summary>
-	public static string RatingClass( Package package )
-	{
-		if ( package.Reviews.Total < 10 ) return "none";
+	public static string RatingClass( Package package ) => RatingClass( package.Reviews.Total, package.Reviews.Score );
 
-		var score = package.Reviews.Score;
+	/// <inheritdoc cref="RatingClass(Package)"/>
+	static string RatingClass( int total, float score )
+	{
+		if ( total < 10 ) return "none";
+
 		if ( score >= 70 ) return "positive";
 		if ( score >= 40 ) return "mixed";
 		return "negative";
 	}
 
 	// The party's size too - the play mode card goes green or orange with it, while the page is open
-	protected override int BuildHash() => System.HashCode.Combine(Package, Package?.Interaction.Used, ShowReviews, PlayerModes.PartySize);
+	protected override int BuildHash() => System.HashCode.Combine(Package, Package?.Interaction.Used, ShowReviews, PlayerModes.PartySize, Workshop, OnWorkshop, Loading);
 
 	protected override async Task OnParametersSetAsync()
 	{

@@ -3,18 +3,17 @@ using Sandbox;
 namespace MenuProject.Modals;
 
 /// <summary>
-/// Browsing the workshop, or listing what we've got from it - the maps we're subscribed to, or every one downloaded
+/// Browsing the workshop, or listing the maps we're subscribed to on it
 /// </summary>
 public partial class PackageSelectionModal
 {
 	/// <summary>
-	/// Where the packages come from, when it's not a mounted game - browsing the workshop, or what we've got
+	/// Where the packages come from, when it's not a mounted game - browsing the workshop, or what we're subscribed to
 	/// </summary>
 	enum PackageSource
 	{
 		Browse,
-		Subscribed,
-		Downloaded
+		Subscribed
 	}
 
 	PackageSource packageSource;
@@ -22,8 +21,8 @@ public partial class PackageSelectionModal
 	bool IsWorkshopSource => !IsMountedSource && packageSource != PackageSource.Browse;
 
 	/// <summary>
-	/// What we've got from the workshop, for <see cref="PackageSource.Subscribed"/> or <see cref="PackageSource.Downloaded"/> -
-	/// and what it was found for, so it's found again when that changes
+	/// What we're subscribed to on the workshop, for <see cref="PackageSource.Subscribed"/> - and what it was found for,
+	/// so it's found again when that changes
 	/// </summary>
 	Package[] workshopPackages;
 	string workshopPackagesFor;
@@ -40,7 +39,7 @@ public partial class PackageSelectionModal
 
 		try
 		{
-			packages = await MenuUtility.FindWorkshopPackagesAsync( debouncedSearch, packageSource == PackageSource.Subscribed, packageTypes );
+			packages = await MenuUtility.FindWorkshopPackagesAsync( debouncedSearch, true, packageTypes );
 		}
 		catch ( Exception e )
 		{

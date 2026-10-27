@@ -6,7 +6,7 @@ using static SceneRendererTests.TestScenes;
 namespace SceneRendererTests;
 
 /// <summary>
-/// Shadow views, through the shared <c>ShadowMapper</c>: sun cascades and their exclusion, local light shadows.
+/// Shadow views, through the shared <c>ShadowMapper</c>: sun cascades, local light shadows.
 /// </summary>
 // Frames go through the engine's ShadowMapper, whose cache and frame counter are static: one test's frame
 // can't run in the middle of another's
@@ -51,8 +51,8 @@ public class ShadowTests
 	}
 
 	/// <summary>
-	/// The sun gets four orthographic cascades, each bigger than the last, and a cascade leaves out
-	/// casters the one before it already covers - native's exclusion frustum.
+	/// The sun gets four orthographic cascades, each bigger than the last, and each keeps the casters the one before it
+	/// covers: both are sampled where they blend.
 	/// </summary>
 	[TestMethod]
 	public void SunCascades()
@@ -85,14 +85,14 @@ public class ShadowTests
 				if ( i > 0 ) Assert.IsTrue( passes[i].View.OrthoSize.x > passes[i - 1].View.OrthoSize.x, "cascades grow" );
 			}
 
-			// Move the box to the middle of the first cascade: then it's inside the second's exclusion box
+			// Move the box to the middle of the first cascade
 			var center = system.ShadowMaps.Directional.CascadeSpheres[0];
 			box.Transform = new Transform( new Vector3( center.x, center.y, center.z ) );
 			CollectAndPrepare( system, world, view );
 
 			passes = system.ShadowMaps.Passes;
 			CollectionAssert.Contains( passes[0].Visible( mesh ), 0 );
-			CollectionAssert.DoesNotContain( passes[1].Visible( mesh ), 0, "the first cascade already has it" );
+			CollectionAssert.Contains( passes[1].Visible( mesh ), 0, "both cascades are sampled where they blend" );
 
 			// No sun shadows, no cascades - but the sun still lights
 			world.Lighting.SunShadows = false;

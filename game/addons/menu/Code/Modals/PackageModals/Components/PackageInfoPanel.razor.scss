@@ -148,6 +148,13 @@ PackageInfoPanel
         background-position: center;
         border-radius: $front-radius;
         border: $front-border-width solid $front-border;
+
+        &.fit-height
+        {
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-color: rgba( 0, 0, 0, 0.3 );
+        }
     }
 
     .panel-header
@@ -560,4 +567,37 @@ PackageInfoPanel
         letter-spacing: 0.06em;
         color: $front-body;
     }
+
+    // Its shape while it's worked out what it says
+    .bone
+    {
+        flex-shrink: 0;
+        border-radius: 999px;
+        background-color: rgba( 255, 255, 255, 0.07 );
+        animation: info-bone 1.2s ease-in-out infinite alternate;
+    }
+
+    .panel-media.bone
+    {
+        border-radius: $front-radius;
+    }
+
+    .key-bone
+    {
+        width: 64px;
+        height: 10px;
+        margin-right: 28px;
+    }
+
+    .value-bone
+    {
+        width: 96px;
+        height: 12px;
+    }
+}
+
+@keyframes info-bone
+{
+    0% { opacity: 0.55; }
+    100% { opacity: 1; }
 }

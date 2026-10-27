@@ -654,6 +654,31 @@ public class AudioComponentTest
 	}
 
 	/// <summary>
+	/// Soundscapes are picked from an AudioListener's position when the scene
+	/// has one, not from the camera (sbox-public#11753).
+	/// </summary>
+	[TestMethod]
+	public void SoundscapeTriggerActivatesFromAudioListener()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var cameraGo = scene.CreateObject();
+		cameraGo.WorldPosition = new Vector3( 0, 0, 2000 );
+		cameraGo.Components.Create<CameraComponent>();
+
+		var trigger = scene.CreateObject().Components.Create<SoundscapeTrigger>();
+		trigger.Type = SoundscapeTrigger.TriggerType.Sphere;
+		trigger.Radius = 100f;
+
+		scene.CreateObject().Components.Create<AudioListener>();
+
+		scene.GameTick();
+
+		Assert.IsTrue( trigger.Playing );
+	}
+
+	/// <summary>
 	/// Disabling a soundscape trigger stops it - the Playing flag is reset so a
 	/// re-entered trigger starts cleanly.
 	/// </summary>

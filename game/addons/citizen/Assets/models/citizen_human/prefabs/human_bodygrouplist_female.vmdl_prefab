@@ -43,6 +43,8 @@
 									"head_03",
 									"eyes_03",
 									"jaw_03",
+									"head_03_lod2",
+									"head_03_lod3",
 								]
 							},
 							{
@@ -52,6 +54,8 @@
 									"head_04",
 									"eyes_04",
 									"jaw_04",
+									"head_04_lod2",
+									"head_04_lod3",
 								]
 							},
 							{

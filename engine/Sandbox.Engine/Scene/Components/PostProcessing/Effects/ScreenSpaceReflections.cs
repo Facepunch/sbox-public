@@ -107,6 +107,8 @@ public class ScreenSpaceReflections : BasePostProcess<ScreenSpaceReflections>
 		cmd.Attributes.Set( "RoughnessCutoff", RoughnessCutoff );
 		cmd.Attributes.Set( "Scale", 1.0f / Ratio );
 		cmd.Attributes.Set( "ScaleInv", (float)Ratio );
+		// Normals read the G-buffer bound directly, typed by this, not through bindless
+		cmd.Attributes.SetValue( "D_MSAA_NORMALS", RenderValue.MsaaCombo );
 
 		cmd.ResourceBarrierTransition( lastFrame, ResourceState.NonPixelShaderResource );
 

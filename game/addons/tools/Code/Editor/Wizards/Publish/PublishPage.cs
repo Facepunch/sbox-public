@@ -6,9 +6,8 @@ partial class PublishWizard : BaseWizard
 	PublishConfig Config = new();
 
 	ResourcePublishContext context;
-	bool restartingCompile;
 
-	public override string Title => $"Upload to {Global.BackendTitle}";
+	public override string Title => "Publisher";
 	public override string Icon => "upload_file";
 
 	private PublishWizard( Project project, ResourcePublishContext publishContext )
@@ -16,7 +15,11 @@ partial class PublishWizard : BaseWizard
 		Project = project;
 		context = publishContext;
 
+		BuildHeaderRight( HeaderRight );
 		AddSteps();
+
+		// Compiles while the first page is filled in - the badge in the header says how it's going
+		_ = CompileAsync();
 	}
 
 	protected void AddSteps()
@@ -32,29 +35,13 @@ partial class PublishWizard : BaseWizard
 
 		if ( projectType == "game" )
 		{
-			AddStep( new PlayersWizardPage() { Project = Project, PublishConfig = Config } );
-		}
-
-		// Show license warnings for games/maps/scenes that reference cloud assets
-		if ( projectType is "game" or "map" && CloudAsset.GetAssetReferences( true ).Count > 0 )
-		{
-			AddStep( new LicenseCheckWizardPage() { Project = Project, PublishConfig = Config } );
-		}
-
-		if ( Project.HasCodePath() )
-		{
-			AddStep( new CompileWizardPage() { Project = Project, PublishConfig = Config } );  // compile everything
-		}
-
-		if ( projectType == "game" )
-		{
 			AddStep( new AssetReviewWizardPage() { Project = Project, PublishConfig = Config } );
 		}
 
-		// Maps go to the workshop - no files for the backend, no video, and the revision gets a default changelist
+		// Maps and games go to the workshop - the backend only gets the thumb and code, and no video
 		if ( ProjectPublisher.PublishesToWorkshop( Project ) )
 		{
-			AddStep( new WorkshopUploadPage() { Project = Project, PublishConfig = Config } );    // item and thumbnail, then files to the workshop, then make live
+			AddStep( new WorkshopUploadPage() { Project = Project, PublishConfig = Config } );    // files to the item picked on the first page, then make live
 		}
 		else
 		{
@@ -81,37 +68,23 @@ partial class PublishWizard : BaseWizard
 	[Event( "compile.complete" )]
 	void OnCompileComplete( CompileGroup group )
 	{
-		if ( !IsValid || !group.BuildResult.Success || Config.AssemblyFiles is null ) return;
+		if ( !IsValid || !group.BuildResult.Success || compileState == CompileState.Compiling ) return;
 
-		var compileStep = Steps.FindIndex( x => x is CompileWizardPage );
-		if ( compileStep < 0 || Steps.IndexOf( Current ) <= compileStep ) return;
+		// Not while it's uploading - the upload has the code it started with
+		if ( Current?.FinishTask is { IsCompleted: false } ) return;
 
-		// Only code included in this publish matters; editor-only recompiles don't invalidate it.
-		if ( Config.CompilerOutput is null || !group.BuildResult.Output.Any( output =>
-			Config.CompilerOutput.Any( published => published.Compiler.AssemblyName == output.Compiler.AssemblyName ) ) )
-			return;
+		// It failed and they've fixed it - or code that's in this publish changed. Editor-only recompiles don't matter.
+		var publishedChanged = Config.CompilerOutput is not null && group.BuildResult.Output.Any( output =>
+			Config.CompilerOutput.Any( published => published.Compiler.AssemblyName == output.Compiler.AssemblyName ) );
 
-		if ( restartingCompile ) return;
-		_ = RestartCompileAsync( Steps[compileStep] );
-	}
-
-	async Task RestartCompileAsync( BaseWizardPage compilePage )
-	{
-		restartingCompile = true;
-		try
-		{
-			await ReturnToPageAsync( compilePage );
-		}
-		finally
-		{
-			restartingCompile = false;
-		}
+		if ( compileState == CompileState.Failed || publishedChanged )
+			_ = CompileAsync();
 	}
 
 	public static PublishWizard Open( Project project, ResourcePublishContext publishContext = default )
 	{
 		var w = new PublishWizard( project, publishContext );
-		w.CreateWindow( 1200, 940 );
+		w.CreateWindow( 1235, 800 );
 		return w;
 	}
 }

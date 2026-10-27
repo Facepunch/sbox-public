@@ -9,7 +9,6 @@ internal enum BoneFlags : uint
 	// 		FLAG_SIMULATION		= ( 1 << 0 ),
 	// 		FLAG_RENDERING		= ( 1 << 1 ),
 	FLAG_BONEFLEXDRIVER = (1 << 2), // bone is used to drive flexes
-	FLAG_CLOTH = (1 << 3),  // bone is used by the cloth system (but animation may also need to happen on this bone as well)
 	FLAG_PHYSICS = (1 << 4),    // bone is used by the physics system  (SIM only)
 	FLAG_ATTACHMENT = (1 << 5), // bone is used by an attachment point (SIM only)
 	FLAG_ANIMATION = (1 << 6),  // animation system has saved data about this bone

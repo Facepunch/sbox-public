@@ -12,13 +12,18 @@
 
     <FormRow Label="#menu.avatar.skin">
         <Content>
-            <div class="skin-items">
-                @foreach( var item in Manager.GetAllClothing().Where( x => x.HasHumanSkin ) )
+            <div class="skin-groups">
+                @foreach( var group in SkinGroups() )
                 {
-                    var w = Manager.IsSelected(item);
-                    var c = w ? "active" : "";
+                    <div class="skin-items">
+                        @foreach( var item in group )
+                        {
+                            var w = Manager.IsSelected(item);
+                            var c = w ? "active" : "";
 
-                    <ClothingIcon class="@c" onclick=@( () => Clicked( item ) ) Icon=@item.Icon.Path></ClothingIcon>
+                            <ClothingIcon class="@c" onclick=@( () => Clicked( item ) ) Icon=@item.Icon.Path></ClothingIcon>
+                        }
+                    </div>
                 }
             </div>
 
@@ -69,6 +74,26 @@
             hash.Add( entry );
 
         return hash.ToHashCode();
+    }
+
+    /// <summary>
+    /// Skins split into one unlabelled block per body (by their human skin tags), male bodies first.
+    /// </summary>
+    IEnumerable<IGrouping<int, Clothing>> SkinGroups()
+    {
+        return Manager.GetAllClothing()
+            .Where( x => x.HasHumanSkin )
+            .GroupBy( SkinGroupOrder )
+            .OrderBy( g => g.Key );
+    }
+
+    static int SkinGroupOrder( Clothing skin )
+    {
+        var tags = skin.HumanSkinTags;
+        if ( tags is null ) return 2;
+        if ( tags.Has( "male" ) ) return 0;
+        if ( tags.Has( "female" ) ) return 1;
+        return 2;
     }
 
     void Clicked( Clothing x )

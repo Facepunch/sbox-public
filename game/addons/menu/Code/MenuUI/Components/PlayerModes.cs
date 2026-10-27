@@ -42,13 +42,45 @@ public readonly record struct PlayerModes( bool Solo, bool Multiplayer, bool Coo
 		var coop = Flag( "Coop" ) || Has( "coop" );
 		var versus = Flag( "Versus" ) || Has( "versus" ) || Has( "pvp" );
 
+		return Make( Has( "singleplayer" ), Has( "multiplayer" ), coop, versus, recommendedMin, recommendedMax, maxPlayers );
+	}
+
+	/// <summary>
+	/// From its Steam Workshop item - the tags and player counts it was published with. Unknown for an item
+	/// published before they were, see <see cref="For(Package, WorkshopItemDetails)"/>.
+	/// </summary>
+	public static PlayerModes For( WorkshopItemDetails item )
+	{
+		if ( item is null ) return default;
+
+		bool Has( string tag ) => item.Tags.Contains( tag, StringComparer.OrdinalIgnoreCase );
+		int Count( string key ) => item.KeyValues.TryGetValue( key, out var value ) && int.TryParse( value, out var n ) ? n : 0;
+
+		return Make( Has( "Singleplayer" ), Has( "Multiplayer" ), Has( "Co-op" ), Has( "Versus" ), Count( "RecommendedMinPlayers" ), Count( "RecommendedMaxPlayers" ), Count( "MaxPlayers" ) );
+	}
+
+	/// <summary>
+	/// From its Steam Workshop item when that says, otherwise from the package - an item published before it had
+	/// the tags doesn't.
+	/// </summary>
+	public static PlayerModes For( Package package, WorkshopItemDetails workshop )
+	{
+		var modes = For( workshop );
+		return modes.IsUnknown && !modes.HasRecommendedPlayers ? For( package ) : modes;
+	}
+
+	/// <summary>
+	/// What it's meant for decides, when it says - otherwise whether it says it's singleplayer or multiplayer
+	/// </summary>
+	static PlayerModes Make( bool solo, bool multiplayer, bool coop, bool versus, int recommendedMin, int recommendedMax, int maxPlayers )
+	{
 		if ( recommendedMin > 0 || recommendedMax > 0 )
 		{
 			var min = recommendedMin > 0 ? recommendedMin : 1;
 			return new PlayerModes( min <= 1, recommendedMax == 0 || recommendedMax > 1 || coop || versus, coop, versus, recommendedMin, recommendedMax, maxPlayers );
 		}
 
-		return new PlayerModes( Has( "singleplayer" ), Has( "multiplayer" ) || coop || versus, coop, versus, 0, 0, maxPlayers );
+		return new PlayerModes( solo, multiplayer || coop || versus, coop, versus, 0, 0, maxPlayers );
 	}
 
 	/// <summary>

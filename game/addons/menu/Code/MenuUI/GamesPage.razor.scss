@@ -16,3 +16,54 @@ GamesPage packagelist virtualgrid
 {
     padding-bottom: 132px;
 }
+
+// Where the games come from - like the map picker's sources
+GamesPage .sources
+{
+    gap: 3px;
+
+    Button.source
+    {
+        width: 100%;
+        height: 38px;
+        flex-shrink: 0;
+        align-items: center;
+        justify-content: flex-start;
+        padding: 10px 12px;
+        gap: 10px;
+        font-size: 14px;
+        font-weight: 500;
+        color: $default-100;
+        border-radius: 6px;
+        background-color: transparent;
+        cursor: pointer;
+
+        .iconpanel
+        {
+            font-size: 20px;
+        }
+
+        &:hover
+        {
+            color: white;
+            background-color: rgba( white, 0.05 );
+        }
+
+        &.active
+        {
+            color: #a9cdff;
+            background-color: rgba( $primary-blue, 0.18 );
+        }
+    }
+}
+
+// None of yours from the workshop yet
+GamesPage .no-games
+{
+    flex-grow: 1;
+    align-items: center;
+    justify-content: center;
+    padding: 64px;
+    color: rgba( white, 0.5 );
+    font-size: 15px;
+}

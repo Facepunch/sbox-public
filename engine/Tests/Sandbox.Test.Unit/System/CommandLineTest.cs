@@ -39,4 +39,30 @@ public class CommandLineTest
 			CommandLine.Parse();
 		}
 	}
+
+	/// <summary>
+	/// Parsing a launch command line from Steam (e.g. the website's Play button while running)
+	/// returns its own switches and leaves the process command line alone.
+	/// </summary>
+	[TestMethod]
+	public void ParseStringIsSeparate()
+	{
+		var before = CommandLine.Full;
+
+		var switches = CommandLine.Parse( "-rungame facepunch.sandbox -webreferrer youtube.com" );
+		Assert.AreEqual( 2, switches.Count );
+		Assert.AreEqual( "facepunch.sandbox", switches["rungame"] );
+		Assert.AreEqual( "youtube.com", switches["WebReferrer"] );
+
+		switches = CommandLine.Parse( "-rungame facepunch.sandbox" );
+		Assert.AreEqual( 1, switches.Count );
+		Assert.AreEqual( "facepunch.sandbox", switches["rungame"] );
+		Assert.IsFalse( switches.ContainsKey( "webreferrer" ) );
+
+		Assert.AreEqual( 0, CommandLine.Parse( "" ).Count );
+		Assert.AreEqual( 0, CommandLine.Parse( null ).Count );
+
+		Assert.AreEqual( before, CommandLine.Full );
+		Assert.IsFalse( CommandLine.HasSwitch( "rungame" ) );
+	}
 }

@@ -657,6 +657,12 @@ public partial class GameObject : IJsonConvert, IComponentLister, BytePack.ISeri
 		Name = $"{baseName} ({highestNumber + 1})";
 	}
 
+	/// <summary>
+	/// Returns this object and its descendants in depth-first order, optionally skipping disabled subtrees.
+	/// </summary>
+	/// <remarks>
+	/// Descendants are snapshotted after yielding this object.
+	/// </remarks>
 	[ActionGraphInclude, Pure]
 	public IEnumerable<GameObject> GetAllObjects( bool enabled )
 	{
@@ -665,7 +671,42 @@ public partial class GameObject : IJsonConvert, IComponentLister, BytePack.ISeri
 
 		yield return this;
 
-		foreach ( var child in Children.OfType<GameObject>().SelectMany( x => x.GetAllObjects( enabled ) ).ToArray() )
+		if ( Children.Count == 0 )
+			yield break;
+
+		var snapshot = new List<GameObject>( Children.Count );
+		Stack<(GameObject Parent, int ChildIndex)> parents = null;
+		var parent = this;
+		var childIndex = 0;
+
+		while ( true )
+		{
+			if ( childIndex < parent.Children.Count )
+			{
+				var child = parent.Children[childIndex++];
+				if ( child is null || (enabled && !child.Enabled) )
+					continue;
+
+				snapshot.Add( child );
+				if ( child.Children.Count == 0 )
+					continue;
+
+				parents ??= new();
+				parents.Push( (parent, childIndex) );
+				parent = child;
+				childIndex = 0;
+			}
+			else
+			{
+				if ( parents is null || !parents.TryPop( out var previous ) )
+					break;
+
+				parent = previous.Parent;
+				childIndex = previous.ChildIndex;
+			}
+		}
+
+		foreach ( var child in snapshot )
 		{
 			yield return child;
 		}
@@ -689,6 +730,11 @@ public partial class GameObject : IJsonConvert, IComponentLister, BytePack.ISeri
 			var bounds = x is Component c
 				? x.LocalBounds.Transform( c.WorldTransform )
 				: x.LocalBounds;
+
+			// Unbounded contributors (e.g. procedural meshes without Bounds report ±float.MaxValue)
+			// would turn the whole result into NaN/infinity, so leave them out
+			if ( !bounds.Size.IsFinite )
+				return;
 
 			result = result.HasValue
 				? result.Value.AddBBox( bounds )

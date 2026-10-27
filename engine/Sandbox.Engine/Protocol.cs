@@ -13,7 +13,7 @@ public static class Protocol
 	/// <summary>
 	/// We cannot talk to servers or clients with a network protocol different to this.
 	/// </summary>
-	public static int Network => 1111;
+	public static int Network => 1113;
 }
 
 // Api Versions
@@ -33,6 +33,8 @@ public static class Protocol
 
 
 // Network Versions
+// 1113. 26th October 2026 - ServerInfo says which version of the game's workshop item the host has
+// 1112. 25th October 2026 - ServerInfo carries the host's SteamId
 // 1109. 14th October 2026 - Network rebuild: delta snapshot clusters, 32 bit snapshot ids, multicast relays, raw typed RPCs, targeted messages removed
 // 1108. 12th October 2026 - Delta snapshots carry the sender's time
 // 1107. 11th October 2026 - Server packages say which version of their workshop item the server has

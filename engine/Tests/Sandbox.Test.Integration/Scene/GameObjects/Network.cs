@@ -917,6 +917,141 @@ public class NetworkTest
 		Assert.AreEqual( expectedFaces, clientMesh.Mesh.FaceHandles.Count(), "Mesh geometry did not survive the snapshot" );
 	}
 
+	private static PolygonMesh CreateQuadMesh()
+	{
+		var mesh = new PolygonMesh();
+		var a = mesh.AddVertex( new Vector3( 0, 0, 0 ) );
+		var b = mesh.AddVertex( new Vector3( 64, 0, 0 ) );
+		var c = mesh.AddVertex( new Vector3( 64, 64, 0 ) );
+		var d = mesh.AddVertex( new Vector3( 0, 64, 0 ) );
+		mesh.AddFace( a, b, c, d );
+		return mesh;
+	}
+
+	private static void AssertReceivedMesh( Scene receiverScene, Guid id )
+	{
+		var go = receiverScene.Directory.FindByGuid( id );
+		Assert.IsTrue( go.IsValid(), "Mesh object missing on receiver" );
+
+		var meshComponent = go.GetComponent<MeshComponent>();
+		Assert.IsNotNull( meshComponent, "MeshComponent missing on receiver" );
+		Assert.IsNotNull( meshComponent.Mesh, "Mesh data missing on receiver" );
+		Assert.AreEqual( 1, meshComponent.Mesh.FaceHandles.Count(), "Mesh geometry did not survive" );
+	}
+
+	/// <summary>
+	/// A single networked object spawned while a client is connected goes through ObjectCreateMsg.
+	/// Its blob-backed properties are read when the callback batch flushes, so the blob data has to
+	/// still be loaded at that point.
+	/// </summary>
+	[TestMethod]
+	public void NetworkedMeshSurvivesSpawnToConnectedClient()
+	{
+		using var clientAndHost = new ClientAndHost( TypeLibrary );
+
+		var senderScene = new Scene();
+		var receiverScene = new Scene();
+
+		Guid id;
+
+		using ( senderScene.Push() )
+		{
+			clientAndHost.BecomeHost();
+
+			var go = new GameObject( "Floor" );
+			go.Components.Create<MeshComponent>().Mesh = CreateQuadMesh();
+			go.NetworkSpawn();
+
+			id = go.Id;
+		}
+
+		using ( receiverScene.Push() )
+		{
+			clientAndHost.BecomeClient();
+			clientAndHost.ProcessMessages();
+
+			AssertReceivedMesh( receiverScene, id );
+		}
+	}
+
+	/// <summary>
+	/// Spawning an object with networked children sends an ObjectCreateBatchMsg instead.
+	/// </summary>
+	[TestMethod]
+	public void NetworkedMeshSurvivesBatchedSpawnToConnectedClient()
+	{
+		using var clientAndHost = new ClientAndHost( TypeLibrary );
+
+		var senderScene = new Scene();
+		var receiverScene = new Scene();
+
+		Guid floorId;
+		Guid barrelId;
+
+		using ( senderScene.Push() )
+		{
+			clientAndHost.BecomeHost();
+
+			var root = new GameObject( "Root" );
+
+			var floor = new GameObject( root, true, "Floor" );
+			floor.Components.Create<MeshComponent>().Mesh = CreateQuadMesh();
+
+			var barrel = new GameObject( root, true, "Barrel" );
+			barrel.NetworkMode = NetworkMode.Object;
+
+			root.NetworkSpawn();
+
+			floorId = floor.Id;
+			barrelId = barrel.Id;
+		}
+
+		using ( receiverScene.Push() )
+		{
+			clientAndHost.BecomeClient();
+			clientAndHost.ProcessMessages();
+
+			Assert.IsTrue( receiverScene.Directory.FindByGuid( barrelId ).IsValid(), "Networked child missing on receiver" );
+			AssertReceivedMesh( receiverScene, floorId );
+		}
+	}
+
+	/// <summary>
+	/// Refreshing a single descendant sends an ObjectRefreshDescendantMsg, which deserializes the same way.
+	/// </summary>
+	[TestMethod]
+	public void NetworkedMeshSurvivesDescendantRefresh()
+	{
+		using var clientAndHost = new ClientAndHost( TypeLibrary );
+
+		var senderScene = new Scene();
+		var receiverScene = new Scene();
+
+		Guid floorId;
+
+		using ( senderScene.Push() )
+		{
+			clientAndHost.BecomeHost();
+
+			var root = new GameObject( "Root" );
+			root.NetworkSpawn();
+
+			var floor = new GameObject( root, true, "Floor" );
+			floor.Components.Create<MeshComponent>().Mesh = CreateQuadMesh();
+			root.Network.Refresh( floor );
+
+			floorId = floor.Id;
+		}
+
+		using ( receiverScene.Push() )
+		{
+			clientAndHost.BecomeClient();
+			clientAndHost.ProcessMessages();
+
+			AssertReceivedMesh( receiverScene, floorId );
+		}
+	}
+
 	[TestMethod]
 	[DataRow( false, false, false, DisplayName = "Cullable + hidden -> excluded" )]
 	[DataRow( false, true, true, DisplayName = "Cullable + visible -> included" )]

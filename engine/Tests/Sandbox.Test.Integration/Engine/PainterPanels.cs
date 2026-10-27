@@ -37,6 +37,34 @@ public class PainterPanelTest
 		}
 	}
 
+	[TestMethod]
+	public void TextClippedBackgroundKeepsTheTextStroke()
+	{
+		if ( !Graphics.IsAvailable ) Assert.Inconclusive( "Requires graphics to rasterize the text mask." );
+
+		var root = new RootPanel { PanelBounds = new Rect( 0, 0, 400, 300 ) };
+		var panel = root.AddChild<Panel>();
+		panel.Style.Set( "position: absolute; left: 40px; top: 30px; width: 200px; height: 80px; background-color: red; background-clip: text;" );
+		var label = panel.AddChild<Label>();
+		label.Style.Set( "font-family: Arial; font-size: 24px; color: white; text-stroke: 4px blue; background-color: green; background-clip: text;" );
+		label.Text = "Stroked";
+		try
+		{
+			root.Layout();
+			var instances = PanelDrawSnapshot.Build( root ).Instances.ToList();
+			var fill = instances.FindIndex( x => x.BackgroundClip == (int)BackgroundClip.Text );
+			var stroke = instances.FindIndex( x => (x.Flags & (1u << 14)) != 0 && x.Color == Color.Blue );
+			var lastStroke = instances.FindLastIndex( x => (x.Flags & (1u << 14)) != 0 && x.Color == Color.Blue );
+			Assert.AreEqual( 2, instances.Count( x => x.BackgroundClip == (int)BackgroundClip.Text ), "The panel and the label each fill the text" );
+			Assert.IsTrue( stroke >= 0 && lastStroke < fill, "The stroke draws once, under both clipped fills" );
+			Assert.IsFalse( instances.Any( x => x.Color == Color.White ), "The glyph fill colour is replaced by the background" );
+		}
+		finally
+		{
+			root.Delete( true );
+		}
+	}
+
 	sealed class InheritedLegacyPanel : LegacyPanel
 	{
 	}

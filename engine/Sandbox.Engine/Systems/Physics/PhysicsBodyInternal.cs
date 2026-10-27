@@ -374,7 +374,7 @@ internal abstract partial class PhysicsBodyInternal : IValid
 		return AddHeightFieldShape( heights, materials, sizeX, sizeY, sizeScale, heightScale, 0 );
 	}
 
-	internal virtual unsafe PhysicsShape AddHeightFieldShape( ushort[] heights, byte[] materials, int sizeX, int sizeY, float sizeScale, float heightScale, int materialCount ) => throw new NotSupportedException();
+	internal virtual unsafe PhysicsShape AddHeightFieldShape( ushort[] heights, byte[] materials, int sizeX, int sizeY, float sizeScale, float heightScale, int materialCount, ReadOnlySpan<int> surfaceIndices = default ) => throw new NotSupportedException();
 
 	[Obsolete]
 	public PhysicsShape AddCloneShape( PhysicsShape shape ) => null;
@@ -393,12 +393,6 @@ internal abstract partial class PhysicsBodyInternal : IValid
 	/// Remove all physics shapes, but not the physics body itself.
 	/// </summary>
 	public virtual void ClearShapes() { }
-
-	/// <summary>
-	/// Returns a scope that marks subsequently created shapes as triggers.
-	/// Dispose the scope to restore the default non-trigger state.
-	/// </summary>
-	internal virtual IDisposable TriggerScope() => null;
 
 	/// <summary>
 	/// Called from Shape.Remove()

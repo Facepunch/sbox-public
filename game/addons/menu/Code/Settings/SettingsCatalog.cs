@@ -521,8 +521,8 @@ public class SettingsCatalog
 			NumberFormat = "0'%'",
 			IsVisible = () => StagedUpscaler is UpscalerMode.Off or UpscalerMode.FSR1,
 			AppliesRenderSettings = true,
-			Read = () => (int)MathF.Round( Render.UpscalerRenderScale * 100f ),
-			Write = value => Render.UpscalerRenderScale = ToFloat( value ) / 100f
+			Read = () => (int)MathF.Round( Render.RenderScale * 100f ),
+			Write = value => Render.RenderScale = ToFloat( value ) / 100f
 		} );
 
 		Items.Add( new SettingItem

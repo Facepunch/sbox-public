@@ -11,6 +11,7 @@ native class ISteamHTMLSurface
 	void RemoveBrowser( uint bx );
 	void LoadURL( uint bx, string pchURL, string pchPostData );
 	void AddHeader( uint bx, string key, string value );
+	void ExecuteJavascript( uint bx, string pchScript );
 	void SetSize( uint bx, uint w, uint h );
 	void GetLinkAtPosition( uint bx, uint w, uint h );
 	

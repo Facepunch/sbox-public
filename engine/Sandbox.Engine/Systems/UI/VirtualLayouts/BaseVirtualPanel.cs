@@ -20,6 +20,9 @@ public abstract class BaseVirtualPanel : Panel
 	private int _sourceListCount;
 	protected bool _lastCellCreated;
 
+	private RenderFragment<object> _item;
+	private bool _itemChanged;
+
 	/// <summary>
 	/// When true, forces a layout rebuild on the next <see cref="Tick"/>.
 	/// </summary>
@@ -28,8 +31,20 @@ public abstract class BaseVirtualPanel : Panel
 	/// <summary>
 	/// Template used to render an item into a cell panel.
 	/// </summary>
+	/// <remarks>
+	/// Razor sets this every time the parent rebuilds. Existing cells are re-rendered with the new
+	/// template, even if it's the same delegate, because the template can read outside state.
+	/// </remarks>
 	[Parameter]
-	public RenderFragment<object> Item { get; set; }
+	public RenderFragment<object> Item
+	{
+		get => _item;
+		set
+		{
+			_item = value;
+			_itemChanged = true;
+		}
+	}
 
 	/// <summary>
 	/// Called when a cell is created. Allows you to fill the cell in
@@ -207,6 +222,7 @@ public abstract class BaseVirtualPanel : Panel
 		if ( ComputedStyle is null || !IsVisible ) return;
 
 		CheckSourceForChanges();
+		RefreshCellContent();
 
 		// Pull CSS gaps into layout spacing.
 		UpdateLayoutSpacing( new(
@@ -316,6 +332,24 @@ public abstract class BaseVirtualPanel : Panel
 		}
 
 		PositionPanel( i, panel );
+	}
+
+	// Re-render existing cells when the Item template has been set again, like a normal razor child would be.
+	private void RefreshCellContent()
+	{
+		if ( !_itemChanged ) return;
+		_itemChanged = false;
+
+		if ( Item is null ) return;
+
+		foreach ( var (idx, panel) in _created )
+		{
+			if ( !_cellData.TryGetValue( idx, out var data ) )
+				continue;
+
+			panel.ChildContent = Item.Invoke( data );
+			panel.StateHasChanged();
+		}
 	}
 
 	private void OnCreatedLastCell()

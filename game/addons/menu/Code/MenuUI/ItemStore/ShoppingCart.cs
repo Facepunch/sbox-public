@@ -28,11 +28,16 @@ public class ShoppingCart
 	public void RemoveAllFromCart( Sandbox.Services.Inventory.ItemDefinition item )
 	{
 		Items.RemoveAll( x => x.Id == item.Id );
+		checkoutEntries?.RemoveAll( x => x.Id == item.Id );
 	}
 
 	public void RemoveFromCart( Sandbox.Services.Inventory.ItemDefinition item )
 	{
-		Items.Remove( item );
+		// Removes the first entry, which is one being checked out if there are any left
+		if ( Items.Remove( item ) )
+		{
+			checkoutEntries?.Remove( item );
+		}
 	}
 
 	/// <summary>
@@ -65,18 +70,28 @@ public class ShoppingCart
 	{
 		if ( CheckingOut ) return;
 
+		// Steam only buys what's in the cart right now, items added while checking out stay in the cart
+		var purchasing = Items.ToList();
+		if ( purchasing.Count == 0 ) return;
+
 		CheckingOut = true;
+		checkoutEntries = purchasing.ToList();
 
 		try
 		{
-			var success = await MenuUtility.Inventory.CheckOut( Items );
+			var success = await MenuUtility.Inventory.CheckOut( purchasing );
 
 			Log.Info( $"Checkout Success: {success}" );
 
 			if ( success )
 			{
-				var itemNames = Items.Select( x => x.Name ).ToList();
-				Items.Clear();
+				var itemNames = purchasing.Select( x => x.Name ).ToList();
+
+				// Entries being checked out always come before ones added since, so this leaves those alone
+				foreach ( var item in checkoutEntries )
+				{
+					Items.Remove( item );
+				}
 
 				// Show a confirmation popup with the purchased items
 				var itemCount = itemNames.Count;
@@ -90,8 +105,14 @@ public class ShoppingCart
 		finally
 		{
 			CheckingOut = false;
+			checkoutEntries = null;
 		}
 	}
 
 	public bool CheckingOut { get; set; }
+
+	/// <summary>
+	/// Entries being checked out that are still in the cart.
+	/// </summary>
+	List<Sandbox.Services.Inventory.ItemDefinition> checkoutEntries;
 }

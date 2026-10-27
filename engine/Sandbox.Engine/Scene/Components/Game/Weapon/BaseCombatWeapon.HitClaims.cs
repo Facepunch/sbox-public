@@ -96,7 +96,7 @@ public partial class BaseCombatWeapon
 
 			// Normalized so a huge-but-finite claimed direction can't multiply the impulse past any
 			// force clamp a validator applies.
-			ApplyBulletDamage( pellet.HitObject, pellet.Origin, pellet.Position, pellet.Direction.Normal, claim.Damage, claim.Force, Attacker, GameObject, pellet.Tags );
+			ApplyBulletDamage( pellet.HitObject, pellet.Origin, pellet.Position, pellet.Direction.Normal, claim.Damage, HitForce( pellet.HitObject, claim.Force ), Attacker, GameObject, pellet.Tags );
 		}
 	}
 

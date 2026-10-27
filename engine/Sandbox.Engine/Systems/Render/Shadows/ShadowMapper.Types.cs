@@ -146,14 +146,6 @@ internal struct ShadowViewDesc
 	public float SlopeScaledDepthBias;
 
 	/// <summary>
-	/// Casters entirely inside an orthographic box <see cref="ExclusionSize"/> across at
-	/// <see cref="ExclusionCenter"/>, turned like this view, are left out - they're in an earlier cascade.
-	/// </summary>
-	public bool HasExclusion;
-	public Vector3 ExclusionCenter;
-	public float ExclusionSize;
-
-	/// <summary>
 	/// Static casters already rendered into this map: it's copied in instead of clearing, and only
 	/// dynamic casters are rendered on top.
 	/// </summary>
