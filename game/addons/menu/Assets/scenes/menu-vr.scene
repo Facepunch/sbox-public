@@ -44,8 +44,8 @@
       "__version": 2,
       "Flags": 0,
       "Name": "Player",
-      "Position": "128,0.00002492252,0",
-      "Rotation": "0,0,-1,0.0000001947072",
+      "Position": "128,2.49225195E-05,0",
+      "Rotation": "0,0,-1,1.94707198E-07",
       "Scale": "1,1,1",
       "Tags": "",
       "Enabled": true,
@@ -74,7 +74,7 @@
           "__version": 2,
           "Flags": 0,
           "Name": "Left Hand",
-          "Position": "-0.000001219477,-4,8",
+          "Position": "-1.21947699E-06,-4,8",
           "Rotation": "0,0,0,1",
           "Scale": "1,1,1",
           "Tags": "",
@@ -102,7 +102,7 @@
               "UseRelativeTransform": false
             },
             {
-              "__type": "Menu.VRModelSwitcher",
+              "__type": "SboxMenu.VRModelSwitcher",
               "__guid": "5bc0f37f-5d6b-4edf-bf5b-ed3e59e353c3",
               "__enabled": true,
               "Flags": 0,
@@ -150,11 +150,15 @@
                   "BoneMergeTarget": null,
                   "CreateAttachments": false,
                   "CreateBoneObjects": false,
+                  "DeformationMode": "Normal",
                   "LodOverride": null,
                   "MaterialGroup": null,
                   "MaterialOverride": null,
                   "Materials": null,
-                  "Model": "models/first_person/hand_human_left.vmdl",
+                  "Model": {
+                    "Id": "2a32ad33-5050-4b82-b333-82dcb0c27f05",
+                    "Path": "models/first_person/hand_human_left.vmdl"
+                  },
                   "Morphs": {},
                   "OnComponentDestroy": null,
                   "OnComponentDisabled": null,
@@ -162,13 +166,7 @@
                   "OnComponentFixedUpdate": null,
                   "OnComponentStart": null,
                   "OnComponentUpdate": null,
-                  "Parameters": {
-                    "bools": {},
-                    "ints": {},
-                    "floats": {},
-                    "vectors": {},
-                    "rotations": {}
-                  },
+                  "Parameters": {},
                   "PlaybackRate": 1,
                   "RenderOptions": {
                     "GameLayer": true,
@@ -228,11 +226,15 @@
                   "BoneMergeTarget": null,
                   "CreateAttachments": false,
                   "CreateBoneObjects": false,
+                  "DeformationMode": "Normal",
                   "LodOverride": null,
                   "MaterialGroup": null,
                   "MaterialOverride": null,
                   "Materials": null,
-                  "Model": "models/first_person/hand_human_left.vmdl",
+                  "Model": {
+                    "Id": "2a32ad33-5050-4b82-b333-82dcb0c27f05",
+                    "Path": "models/first_person/hand_human_left.vmdl"
+                  },
                   "Morphs": {},
                   "OnComponentDestroy": null,
                   "OnComponentDisabled": null,
@@ -240,13 +242,7 @@
                   "OnComponentFixedUpdate": null,
                   "OnComponentStart": null,
                   "OnComponentUpdate": null,
-                  "Parameters": {
-                    "bools": {},
-                    "ints": {},
-                    "floats": {},
-                    "vectors": {},
-                    "rotations": {}
-                  },
+                  "Parameters": {},
                   "PlaybackRate": 1,
                   "RenderOptions": {
                     "GameLayer": true,
@@ -285,8 +281,8 @@
                   "Flags": 0,
                   "Name": "Model",
                   "Position": "0,0,0",
-                  "Rotation": "0,0.8870109,0,0.4617486",
-                  "Scale": "0.025,0.025,0.1",
+                  "Rotation": "0,0.887010872,0,0.4617486",
+                  "Scale": "0.0250000004,0.0250000004,0.100000001",
                   "Tags": "",
                   "Enabled": true,
                   "NetworkMode": 2,
@@ -306,7 +302,10 @@
                       "MaterialGroup": null,
                       "MaterialOverride": null,
                       "Materials": null,
-                      "Model": "models/dev/box.vmdl",
+                      "Model": {
+                        "Id": "8a84e5a0-01f8-0000-f0db-b088f8010000",
+                        "Path": "models/dev/box.vmdl"
+                      },
                       "OnComponentDestroy": null,
                       "OnComponentDisabled": null,
                       "OnComponentEnabled": null,
@@ -334,7 +333,7 @@
           "__version": 2,
           "Flags": 0,
           "Name": "Right Hand",
-          "Position": "-0.000007935192,-8,8",
+          "Position": "-7.93519212E-06,-8,8",
           "Rotation": "0,0,0,1",
           "Scale": "1,1,1",
           "Tags": "",
@@ -362,7 +361,7 @@
               "UseRelativeTransform": false
             },
             {
-              "__type": "Menu.VRModelSwitcher",
+              "__type": "SboxMenu.VRModelSwitcher",
               "__guid": "1a2f423e-1d55-45cf-9b65-74ba7f6e26f0",
               "__enabled": true,
               "Flags": 0,
@@ -390,7 +389,7 @@
               "Flags": 0,
               "Name": "Hand",
               "Position": "0,0,0",
-              "Rotation": "0.00000002980232,0.7071068,-0.00000002980232,0.7071067",
+              "Rotation": "2.98023206E-08,0.707106829,-2.98023206E-08,0.707106709",
               "Scale": "1,1,1",
               "Tags": "",
               "Enabled": true,
@@ -410,11 +409,15 @@
                   "BoneMergeTarget": null,
                   "CreateAttachments": false,
                   "CreateBoneObjects": false,
+                  "DeformationMode": "Normal",
                   "LodOverride": null,
                   "MaterialGroup": null,
                   "MaterialOverride": null,
                   "Materials": null,
-                  "Model": "models/first_person/hand_human_right.vmdl",
+                  "Model": {
+                    "Id": "88b4b74c-a246-4413-8e33-2054779cdc96",
+                    "Path": "models/first_person/hand_human_right.vmdl"
+                  },
                   "Morphs": {},
                   "OnComponentDestroy": null,
                   "OnComponentDisabled": null,
@@ -422,13 +425,7 @@
                   "OnComponentFixedUpdate": null,
                   "OnComponentStart": null,
                   "OnComponentUpdate": null,
-                  "Parameters": {
-                    "bools": {},
-                    "ints": {},
-                    "floats": {},
-                    "vectors": {},
-                    "rotations": {}
-                  },
+                  "Parameters": {},
                   "PlaybackRate": 1,
                   "RenderOptions": {
                     "GameLayer": true,
@@ -466,8 +463,8 @@
                   "__version": 2,
                   "Flags": 0,
                   "Name": "Interact",
-                  "Position": "1.489181,0.8443159,3.646605",
-                  "Rotation": "0.00541385,-0.4121031,-0.1307664,0.9016883",
+                  "Position": "1.48918104,0.844315886,3.64660501",
+                  "Rotation": "0.00541384984,-0.412103087,-0.130766407,0.901688278",
                   "Scale": "1,1,1",
                   "Tags": "",
                   "Enabled": true,
@@ -503,7 +500,7 @@
               "Flags": 0,
               "Name": "Controller",
               "Position": "0,0,0",
-              "Rotation": "0.00000002980232,0.7071068,-0.00000002980232,0.7071067",
+              "Rotation": "2.98023206E-08,0.707106829,-2.98023206E-08,0.707106709",
               "Scale": "1,1,1",
               "Tags": "",
               "Enabled": true,
@@ -523,11 +520,15 @@
                   "BoneMergeTarget": null,
                   "CreateAttachments": false,
                   "CreateBoneObjects": false,
+                  "DeformationMode": "Normal",
                   "LodOverride": null,
                   "MaterialGroup": null,
                   "MaterialOverride": null,
                   "Materials": null,
-                  "Model": "models/first_person/hand_human_right.vmdl",
+                  "Model": {
+                    "Id": "88b4b74c-a246-4413-8e33-2054779cdc96",
+                    "Path": "models/first_person/hand_human_right.vmdl"
+                  },
                   "Morphs": {},
                   "OnComponentDestroy": null,
                   "OnComponentDisabled": null,
@@ -535,13 +536,7 @@
                   "OnComponentFixedUpdate": null,
                   "OnComponentStart": null,
                   "OnComponentUpdate": null,
-                  "Parameters": {
-                    "bools": {},
-                    "ints": {},
-                    "floats": {},
-                    "vectors": {},
-                    "rotations": {}
-                  },
+                  "Parameters": {},
                   "PlaybackRate": 1,
                   "RenderOptions": {
                     "GameLayer": true,
@@ -580,8 +575,8 @@
                   "Flags": 0,
                   "Name": "Model",
                   "Position": "0,0,0",
-                  "Rotation": "-0.00000004019616,0.3007057,-0.0000000126738,0.953717",
-                  "Scale": "0.025,0.025,0.1",
+                  "Rotation": "-4.01961593E-08,0.300705701,-1.26737998E-08,0.953716993",
+                  "Scale": "0.0250000004,0.0250000004,0.100000001",
                   "Tags": "",
                   "Enabled": true,
                   "NetworkMode": 2,
@@ -601,7 +596,10 @@
                       "MaterialGroup": null,
                       "MaterialOverride": null,
                       "Materials": null,
-                      "Model": "models/dev/box.vmdl",
+                      "Model": {
+                        "Id": "8a84e5a0-01f8-0000-f0db-b088f8010000",
+                        "Path": "models/dev/box.vmdl"
+                      },
                       "OnComponentDestroy": null,
                       "OnComponentDisabled": null,
                       "OnComponentEnabled": null,
@@ -624,8 +622,8 @@
                       "__version": 2,
                       "Flags": 0,
                       "Name": "Interact",
-                      "Position": "1.124811,0.00003695488,26.22499",
-                      "Rotation": "0,-0.7071068,0,0.7071068",
+                      "Position": "1.12481105,3.69548798E-05,26.2249908",
+                      "Rotation": "0,-0.707106829,0,0.707106829",
                       "Scale": "40,40,10",
                       "Tags": "",
                       "Enabled": true,
@@ -662,8 +660,8 @@
           "__version": 2,
           "Flags": 0,
           "Name": "Camera",
-          "Position": "-145.2723,0.00008149364,45.50003",
-          "Rotation": "-0.0000000001570188,-0.002617992,0.0000001509947,-0.9999966",
+          "Position": "-145.272293,8.14936429E-05,45.5000305",
+          "Rotation": "-1.57018801E-10,-0.002617992,1.50994694E-07,-0.999996603",
           "Scale": "1,1,1",
           "Tags": "maincamera",
           "Enabled": true,
@@ -708,8 +706,6 @@
               "__enabled": true,
               "Flags": 0,
               "__version": 1,
-              "Filter": "Bilinear",
-              "Gamma": 2.2,
               "Mode": "Additive",
               "OnComponentDestroy": null,
               "OnComponentDisabled": null,
@@ -763,7 +759,6 @@
               "__guid": "16cd1ed6-b1bf-4959-b657-95d1ec6f36cb",
               "__enabled": true,
               "Flags": 0,
-              "Denoise": true,
               "OnComponentDestroy": null,
               "OnComponentDisabled": null,
               "OnComponentEnabled": null,
@@ -777,7 +772,6 @@
               "__enabled": true,
               "Flags": 0,
               "__version": 1,
-              "DenoiseMode": "Temporal",
               "FalloffRange": 1,
               "Intensity": 1,
               "OnComponentDestroy": null,
@@ -815,7 +809,7 @@
       "__version": 2,
       "Flags": 0,
       "Name": "Screen",
-      "Position": "0,-0.00002492252,64",
+      "Position": "0,-2.49225195E-05,64",
       "Rotation": "0,0,0,1",
       "Scale": "0.75,0.75,0.75",
       "Tags": "",
@@ -833,6 +827,7 @@
           "Flags": 0,
           "HorizontalAlign": "Center",
           "InteractionRange": 1000,
+          "Lighting": false,
           "LookAtCamera": false,
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
@@ -870,7 +865,7 @@
       "__version": 2,
       "Flags": 0,
       "Name": "Envmap Probe",
-      "Position": "32.68621,-3.450176,47.90074",
+      "Position": "32.6862106,-3.450176,47.9007416",
       "Rotation": "0,0,0,1",
       "Scale": "1,1,1",
       "Tags": "",
@@ -906,8 +901,12 @@
           "OnComponentUpdate": null,
           "Priority": 0,
           "Projection": "Box",
+          "RenderExcludeTags": "",
           "Resolution": "Small",
-          "Texture": "textures/cubemaps/default2.vtex",
+          "Texture": {
+            "Id": "739e0d1c-2cb0-4b83-8f85-38b7eaf46e62",
+            "Path": "textures/cubemaps/default2.vtex"
+          },
           "TintColor": "1,1,1,1",
           "UpdateStrategy": "OnEnabled",
           "ZFar": 4096,
@@ -921,7 +920,7 @@
       "__version": 2,
       "Flags": 0,
       "Name": "2D Skybox",
-      "Position": "-24.69576,-124.0188,-0.07687378",
+      "Position": "-24.6957607,-124.018799,-0.0768737793",
       "Rotation": "0,0,0,1",
       "Scale": "1,1,1",
       "Tags": "skybox",
@@ -944,7 +943,10 @@
           "OnComponentStart": null,
           "OnComponentUpdate": null,
           "SkyIndirectLighting": true,
-          "SkyMaterial": "materials/skybox/light_test_default.vmat",
+          "SkyMaterial": {
+            "Id": "32c71a90-a7d7-4e23-9c7f-ec05a53d7752",
+            "Path": "materials/skybox/light_test_default.vmat"
+          },
           "Tint": "0.2,0.2,0.2,1"
         }
       ],
@@ -955,8 +957,8 @@
       "__version": 2,
       "Flags": 0,
       "Name": "decal (1)",
-      "Position": "-65.64123,73.47563,16.82562",
-      "Rotation": "-0.1006371,0.9177288,0.2251538,0.3113704",
+      "Position": "-65.6412277,73.4756317,16.8256207",
+      "Rotation": "-0.100637101,0.917728782,0.225153804,0.311370403",
       "Scale": "1,1,1",
       "Tags": "",
       "Enabled": true,
@@ -974,34 +976,15 @@
           "__version": 3,
           "AttenuationAngle": 1,
           "ColorMix": 1,
-          "ColorTint": {
-            "Type": "Constant",
-            "Evaluation": "Life",
-            "GradientA": {
-              "blend": "Linear",
-              "color": [
-                {
-                  "t": 0.5,
-                  "c": "1,1,1,1"
-                }
-              ],
-              "alpha": []
-            },
-            "GradientB": {
-              "blend": "Linear",
-              "color": [
-                {
-                  "t": 0.5,
-                  "c": "1,1,1,1"
-                }
-              ],
-              "alpha": []
-            },
-            "ConstantA": "0.4093,0.4093,0.4093,1",
-            "ConstantB": "1,1,1,1"
-          },
+          "ColorTint": "0.4093,0.4093,0.4093,1",
+          "CoverageAmount": 1,
+          "CoverageFadeIn": 0,
+          "CoverageRange": 0.07,
           "Decals": [
-            "decals/facepunch-logo.decal"
+            {
+              "Id": "dfa10ed1-8911-4265-801b-265185726520",
+              "Path": "decals/facepunch-logo.decal"
+            }
           ],
           "Depth": 8,
           "LifeTime": 8,
@@ -1033,8 +1016,8 @@
       "__version": 2,
       "Flags": 0,
       "Name": "decal",
-      "Position": "39.49723,-66.00688,5.871318",
-      "Rotation": "-0.2931381,0.782539,0.1926822,0.5143697",
+      "Position": "39.4972305,-66.0068817,5.87131786",
+      "Rotation": "-0.293138087,0.78253901,0.192682207,0.514369726",
       "Scale": "1,1,1",
       "Tags": "",
       "Enabled": true,
@@ -1052,34 +1035,15 @@
           "__version": 3,
           "AttenuationAngle": 1,
           "ColorMix": 1,
-          "ColorTint": {
-            "Type": "Constant",
-            "Evaluation": "Life",
-            "GradientA": {
-              "blend": "Linear",
-              "color": [
-                {
-                  "t": 0.5,
-                  "c": "1,1,1,1"
-                }
-              ],
-              "alpha": []
-            },
-            "GradientB": {
-              "blend": "Linear",
-              "color": [
-                {
-                  "t": 0.5,
-                  "c": "1,1,1,1"
-                }
-              ],
-              "alpha": []
-            },
-            "ConstantA": "1,1,1,1",
-            "ConstantB": "1,1,1,1"
-          },
+          "ColorTint": "1,1,1,1",
+          "CoverageAmount": 1,
+          "CoverageFadeIn": 0,
+          "CoverageRange": 0.07,
           "Decals": [
-            "decals/facepunch-logo.decal"
+            {
+              "Id": "dfa10ed1-8911-4265-801b-265185726520",
+              "Path": "decals/facepunch-logo.decal"
+            }
           ],
           "Depth": 8,
           "LifeTime": 5,
@@ -1111,8 +1075,8 @@
       "__version": 2,
       "Flags": 0,
       "Name": "pizza_box_gib",
-      "Position": "46.62005,-68.70239,1.806662",
-      "Rotation": "-0.07633493,0.2388258,0.2947276,0.9221014",
+      "Position": "46.6200485,-68.7023926,1.80666196",
+      "Rotation": "-0.076334931,0.238825798,0.294727594,0.922101378",
       "Scale": "1,1,1",
       "Tags": "",
       "Enabled": true,
@@ -1131,13 +1095,17 @@
           "Health": 0,
           "IsStatic": false,
           "MaterialGroup": null,
-          "Model": "models/sbox_props/pizza_box/pizza_box_gib.vmdl",
+          "Model": {
+            "Id": "a2edd0c0-06aa-450d-9160-67f9b2b97845",
+            "Path": "models/sbox_props/pizza_box/pizza_box_gib.vmdl"
+          },
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
           "OnComponentEnabled": null,
           "OnComponentFixedUpdate": null,
           "OnComponentStart": null,
           "OnComponentUpdate": null,
+          "OnGibsCreated": null,
           "OnPropBreak": null,
           "OnPropTakeDamage": null,
           "StartAsleep": true,
@@ -1154,7 +1122,10 @@
           "MaterialGroup": null,
           "MaterialOverride": null,
           "Materials": null,
-          "Model": "models/sbox_props/pizza_box/pizza_box_gib.vmdl",
+          "Model": {
+            "Id": "a2edd0c0-06aa-450d-9160-67f9b2b97845",
+            "Path": "models/sbox_props/pizza_box/pizza_box_gib.vmdl"
+          },
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
           "OnComponentEnabled": null,
@@ -1179,7 +1150,10 @@
           "Elasticity": null,
           "Friction": null,
           "IsTrigger": false,
-          "Model": "models/sbox_props/pizza_box/pizza_box_gib.vmdl",
+          "Model": {
+            "Id": "a2edd0c0-06aa-450d-9160-67f9b2b97845",
+            "Path": "models/sbox_props/pizza_box/pizza_box_gib.vmdl"
+          },
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
           "OnComponentEnabled": null,
@@ -1206,6 +1180,7 @@
           "Gravity": true,
           "GravityScale": 1,
           "ImpactDamage": 0,
+          "InertiaScale": 1,
           "LinearDamping": 0,
           "Locking": {
             "X": false,
@@ -1227,6 +1202,7 @@
           "OnComponentUpdate": null,
           "OverrideMassCenter": false,
           "RigidbodyFlags": 0,
+          "SleepThreshold": 2,
           "StartAsleep": true
         }
       ],
@@ -1240,7 +1216,7 @@
       "Position": "-176,-32,-224",
       "Rotation": "0,0,0,1",
       "Scale": "1,1,1",
-      "Tags": "",
+      "Tags": "world",
       "Enabled": true,
       "NetworkMode": 2,
       "NetworkFlags": 0,
@@ -1261,111 +1237,9 @@
           "HideInGame": false,
           "IsTrigger": false,
           "Mesh": {
-            "Topology": "H4sIAAAAAAAACl2QCQ7CMAwEp4Qj3NBy/f+laMRGsohUVbFn1+t04ANs+Z0VsM69AwfgBFyAKZ9MPXdgk3qLnsI+Um/h/me9i2ZXfFvYOazafTJN0XRgKZmPyWtfXvYVL73PZRd52WdYPa7xtC8veys7u6t17/7t6Tn0ZtFjvIXZR895zjKjPWf4NiOrGt+ivpXZ3XnozaOndVn9vvVkkTjEAQAA",
-            "Position": "-176,-32,-224",
-            "Rotation": "0,0,0,1",
-            "Positions": [
-              "-912,-960,224",
-              "912,-960,224",
-              "912,960,224",
-              "-912,960,224",
-              "-912,960,-224",
-              "912,960,-224",
-              "912,-960,-224",
-              "-912,-960,-224"
-            ],
-            "TextureCoord": [
-              "1.78125,1.875",
-              "-1.78125,-0.4375",
-              "1.78125,-1.875",
-              "-1.875,-0.4375",
-              "-1.78125,-1.875",
-              "-1.78125,-0.4375",
-              "-1.78125,1.875",
-              "-1.875,-0.4375",
-              "1.78125,-1.875",
-              "1.78125,0.4375",
-              "1.78125,1.875",
-              "1.875,0.4375",
-              "-1.78125,1.875",
-              "1.78125,0.4375",
-              "-1.78125,-1.875",
-              "1.875,0.4375",
-              "1.875,-0.4375",
-              "-1.78125,0.4375",
-              "-1.875,0.4375",
-              "1.78125,-0.4375",
-              "-1.875,0.4375",
-              "1.78125,-0.4375",
-              "1.875,-0.4375",
-              "-1.78125,0.4375"
-            ],
-            "TextureUAxis": [
-              "1,0,0",
-              "1,0,-0",
-              "0,-1,0",
-              "0,1,0",
-              "-1,0,0",
-              "1,-0,0"
-            ],
-            "TextureVAxis": [
-              "0,-1,0",
-              "0,-1,0",
-              "0,0,-1",
-              "-0,0,-1",
-              "0,0,-1",
-              "-0,0,-1"
-            ],
-            "TextureScale": [
-              "0.25,0.25",
-              "0.25,0.25",
-              "0.25,0.25",
-              "0.25,0.25",
-              "0.25,0.25",
-              "0.25,0.25"
-            ],
-            "TextureOffset": [
-              "704,1920",
-              "704,1920",
-              "1920,1152",
-              "128,1152",
-              "1344,1152",
-              "704,1152"
-            ],
-            "MaterialIndex": [
-              1,
-              0,
-              0,
-              1,
-              0,
-              0
-            ],
-            "EdgeFlags": [
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0
-            ],
+            "Data": {
+              "$blob": "e79f25a6-e06b-8599-b68f-51bcf6298a5b"
+            },
             "Materials": [
               "materials/grass/floor_grass_a.vmat",
               "materials/generic/floor_asphalt_b.vmat"
@@ -1396,8 +1270,8 @@
       "__version": 2,
       "Flags": 0,
       "Name": "metal_wheely_bin",
-      "Position": "-338.7609,-158.7452,4.663871",
-      "Rotation": "0,0,-0.5,0.8660254",
+      "Position": "-338.760895,-158.745193,4.66387081",
+      "Rotation": "0,0,-0.5,0.866025388",
       "Scale": "1,1,1",
       "Tags": "",
       "Enabled": true,
@@ -1417,11 +1291,15 @@
           "BoneMergeTarget": null,
           "CreateAttachments": false,
           "CreateBoneObjects": true,
+          "DeformationMode": "Normal",
           "LodOverride": null,
           "MaterialGroup": "ecgo",
           "MaterialOverride": null,
           "Materials": null,
-          "Model": "models/sbox_props/metal_wheely_bin/metal_wheely_bin.vmdl",
+          "Model": {
+            "Id": "2a6bc344-8ddc-41cf-a04e-add979f2a537",
+            "Path": "models/sbox_props/metal_wheely_bin/metal_wheely_bin.vmdl"
+          },
           "Morphs": {},
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
@@ -1429,13 +1307,7 @@
           "OnComponentFixedUpdate": null,
           "OnComponentStart": null,
           "OnComponentUpdate": null,
-          "Parameters": {
-            "bools": {},
-            "ints": {},
-            "floats": {},
-            "vectors": {},
-            "rotations": {}
-          },
+          "Parameters": {},
           "PlaybackRate": 1,
           "RenderOptions": {
             "GameLayer": true,
@@ -1457,7 +1329,7 @@
         {
           "__guid": "ab5359f2-2e0a-407a-bc0b-45d20b4a74a5",
           "__version": 2,
-          "Flags": 4,
+          "Flags": 0,
           "Name": "body",
           "Position": "0,0,0",
           "Rotation": "0,0,0,1",
@@ -1474,7 +1346,7 @@
             {
               "__guid": "ed612ec5-c82b-49e6-8f4d-88fa0ef4b4e9",
               "__version": 2,
-              "Flags": 4,
+              "Flags": 0,
               "Name": "lid",
               "Position": "0,0,0",
               "Rotation": "0,0,0,1",
@@ -1492,7 +1364,7 @@
             {
               "__guid": "3a5024cf-675b-40be-81cd-00922478f269",
               "__version": 2,
-              "Flags": 4,
+              "Flags": 0,
               "Name": "wheel_fr",
               "Position": "0,0,0",
               "Rotation": "0,0,0,1",
@@ -1510,7 +1382,7 @@
             {
               "__guid": "3906be6b-e036-41a5-9c2a-1b93ba39b401",
               "__version": 2,
-              "Flags": 4,
+              "Flags": 0,
               "Name": "wheel_rl",
               "Position": "0,0,0",
               "Rotation": "0,0,0,1",
@@ -1528,7 +1400,7 @@
             {
               "__guid": "b822dc2b-b815-4872-a169-6d203a7718fe",
               "__version": 2,
-              "Flags": 4,
+              "Flags": 0,
               "Name": "wheel_rr",
               "Position": "0,0,0",
               "Rotation": "0,0,0,1",
@@ -1546,7 +1418,7 @@
             {
               "__guid": "5c00d36d-3c41-461d-8590-3173498706cf",
               "__version": 2,
-              "Flags": 4,
+              "Flags": 0,
               "Name": "wheel_fl",
               "Position": "0,0,0",
               "Rotation": "0,0,0,1",
@@ -1570,8 +1442,8 @@
       "__version": 2,
       "Flags": 0,
       "Name": "binbag_pile_a2",
-      "Position": "23.41207,-66.07755,0.9883317",
-      "Rotation": "0,0,0.6087614,0.7933534",
+      "Position": "23.4120693,-66.0775528,0.988331676",
+      "Rotation": "0,0,0.60876143,0.793353379",
       "Scale": "1,1,1",
       "Tags": "",
       "Enabled": true,
@@ -1590,13 +1462,17 @@
           "Health": 0,
           "IsStatic": true,
           "MaterialGroup": null,
-          "Model": "models/sbox_props/binbags/binbag_pile_a2.vmdl",
+          "Model": {
+            "Id": "af39876e-fb2e-4338-82c2-29ca6d0c18b7",
+            "Path": "models/sbox_props/binbags/binbag_pile_a2.vmdl"
+          },
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
           "OnComponentEnabled": null,
           "OnComponentFixedUpdate": null,
           "OnComponentStart": null,
           "OnComponentUpdate": null,
+          "OnGibsCreated": null,
           "OnPropBreak": null,
           "OnPropTakeDamage": null,
           "StartAsleep": false,
@@ -1613,7 +1489,10 @@
           "MaterialGroup": null,
           "MaterialOverride": null,
           "Materials": null,
-          "Model": "models/sbox_props/binbags/binbag_pile_a2.vmdl",
+          "Model": {
+            "Id": "af39876e-fb2e-4338-82c2-29ca6d0c18b7",
+            "Path": "models/sbox_props/binbags/binbag_pile_a2.vmdl"
+          },
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
           "OnComponentEnabled": null,
@@ -1638,7 +1517,10 @@
           "Elasticity": null,
           "Friction": null,
           "IsTrigger": false,
-          "Model": "models/sbox_props/binbags/binbag_pile_a2.vmdl",
+          "Model": {
+            "Id": "af39876e-fb2e-4338-82c2-29ca6d0c18b7",
+            "Path": "models/sbox_props/binbags/binbag_pile_a2.vmdl"
+          },
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
           "OnComponentEnabled": null,
@@ -1662,8 +1544,8 @@
       "__version": 2,
       "Flags": 0,
       "Name": "balloonregular01 (1)",
-      "Position": "-209.7492,-74.56284,72.33929",
-      "Rotation": "0.1294095,-0.1294095,-0.01703708,0.982963",
+      "Position": "-209.749207,-74.5628433,72.3392868",
+      "Rotation": "0.129409507,-0.129409507,-0.0170370806,0.982963026",
       "Scale": "1,1,1",
       "Tags": "",
       "Enabled": true,
@@ -1684,7 +1566,10 @@
           "MaterialGroup": null,
           "MaterialOverride": null,
           "Materials": null,
-          "Model": "models/citizen_props/balloonregular01.vmdl",
+          "Model": {
+            "Id": "4e3a5d0e-2eab-4147-acbe-8022cff3a658",
+            "Path": "models/citizen_props/balloonregular01.vmdl"
+          },
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
           "OnComponentEnabled": null,
@@ -1708,8 +1593,8 @@
       "__version": 2,
       "Flags": 0,
       "Name": "balloonregular01",
-      "Position": "-208.384,-63.46062,72.33929",
-      "Rotation": "-0.1305262,0,0,0.9914449",
+      "Position": "-208.384003,-63.4606209,72.3392868",
+      "Rotation": "-0.1305262,0,0,0.991444886",
       "Scale": "1,1,1",
       "Tags": "",
       "Enabled": true,
@@ -1730,7 +1615,10 @@
           "MaterialGroup": null,
           "MaterialOverride": null,
           "Materials": null,
-          "Model": "models/citizen_props/balloonregular01.vmdl",
+          "Model": {
+            "Id": "4e3a5d0e-2eab-4147-acbe-8022cff3a658",
+            "Path": "models/citizen_props/balloonregular01.vmdl"
+          },
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
           "OnComponentEnabled": null,
@@ -1754,9 +1642,9 @@
       "__version": 2,
       "Flags": 0,
       "Name": "crowbar01",
-      "Position": "1.049458,75.31064,1.338111",
-      "Rotation": "-0.6714455,-0.2217225,0.2217225,0.6714456",
-      "Scale": "0.4,0.4,0.4",
+      "Position": "1.04945803,75.3106384,1.33811104",
+      "Rotation": "-0.671445489,-0.221722499,0.221722499,0.671445608",
+      "Scale": "0.400000006,0.400000006,0.400000006",
       "Tags": "",
       "Enabled": true,
       "NetworkMode": 2,
@@ -1776,7 +1664,10 @@
           "MaterialGroup": null,
           "MaterialOverride": null,
           "Materials": null,
-          "Model": "models/citizen_props/crowbar01.vmdl",
+          "Model": {
+            "Id": "f1263ec6-2b39-4e45-9df9-d22abaf71f7c",
+            "Path": "models/citizen_props/crowbar01.vmdl"
+          },
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
           "OnComponentEnabled": null,
@@ -1800,8 +1691,8 @@
       "__version": 2,
       "Flags": 0,
       "Name": "crate01 (3)",
-      "Position": "-242.1306,-60.88898,0.2304447",
-      "Rotation": "0,0,-0.258819,0.9659258",
+      "Position": "-242.1306,-60.8889809,0.2304447",
+      "Rotation": "0,0,-0.258819014,0.965925813",
       "Scale": "1,1,1",
       "Tags": "",
       "Enabled": true,
@@ -1822,7 +1713,10 @@
           "MaterialGroup": null,
           "MaterialOverride": null,
           "Materials": null,
-          "Model": "models/citizen_props/crate01.vmdl",
+          "Model": {
+            "Id": "86d0eeb7-da66-4596-bae9-89e081879b9d",
+            "Path": "models/citizen_props/crate01.vmdl"
+          },
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
           "OnComponentEnabled": null,
@@ -1843,7 +1737,7 @@
           "__guid": "00db71d8-2589-46bd-a249-f620168a25c5",
           "__enabled": true,
           "Flags": 0,
-          "Center": "0,0,21.60001",
+          "Center": "0,0,21.6000099",
           "ColliderFlags": 0,
           "Elasticity": null,
           "Friction": null,
@@ -1859,7 +1753,7 @@
           "OnTriggerEnter": null,
           "OnTriggerExit": null,
           "RollingResistance": null,
-          "Scale": "32.70003,35.30009,33.50008",
+          "Scale": "32.7000313,35.3000908,33.5000801",
           "Static": false,
           "Surface": null,
           "SurfaceVelocity": "0,0,0"
@@ -1872,7 +1766,7 @@
       "__version": 2,
       "Flags": 0,
       "Name": "crate01 (1)",
-      "Position": "-426.1834,-41.09237,0.2300434",
+      "Position": "-426.183411,-41.0923691,0.230043396",
       "Rotation": "0,0,0,1",
       "Scale": "1,1,1",
       "Tags": "",
@@ -1894,7 +1788,10 @@
           "MaterialGroup": null,
           "MaterialOverride": null,
           "Materials": null,
-          "Model": "models/citizen_props/crate01.vmdl",
+          "Model": {
+            "Id": "86d0eeb7-da66-4596-bae9-89e081879b9d",
+            "Path": "models/citizen_props/crate01.vmdl"
+          },
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
           "OnComponentEnabled": null,
@@ -1918,7 +1815,7 @@
       "__version": 2,
       "Flags": 0,
       "Name": "crate01",
-      "Position": "-426.1834,-0.7936249,0.2300434",
+      "Position": "-426.183411,-0.793624878,0.230043396",
       "Rotation": "0,0,0,1",
       "Scale": "1,1,1",
       "Tags": "",
@@ -1940,7 +1837,10 @@
           "MaterialGroup": null,
           "MaterialOverride": null,
           "Materials": null,
-          "Model": "models/citizen_props/crate01.vmdl",
+          "Model": {
+            "Id": "86d0eeb7-da66-4596-bae9-89e081879b9d",
+            "Path": "models/citizen_props/crate01.vmdl"
+          },
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
           "OnComponentEnabled": null,
@@ -1964,8 +1864,8 @@
       "__version": 2,
       "Flags": 0,
       "Name": "broom01",
-      "Position": "-92.07967,8.566803,0.5801839",
-      "Rotation": "-0.4304593,-0.5609855,-0.4304593,0.5609856",
+      "Position": "-92.0796738,8.56680298,0.580183923",
+      "Rotation": "-0.430459291,-0.560985506,-0.430459291,0.560985625",
       "Scale": "1,1,1",
       "Tags": "",
       "Enabled": true,
@@ -1986,7 +1886,10 @@
           "MaterialGroup": null,
           "MaterialOverride": null,
           "Materials": null,
-          "Model": "models/citizen_props/broom01.vmdl",
+          "Model": {
+            "Id": "5a85f745-34fb-44b1-a39f-8685efd33de0",
+            "Path": "models/citizen_props/broom01.vmdl"
+          },
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
           "OnComponentEnabled": null,
@@ -2010,9 +1913,9 @@
       "__version": 2,
       "Flags": 0,
       "Name": "beachball (1)",
-      "Position": "-170.5875,-11.73228,0.8725367",
-      "Rotation": "-0.2688613,0.3202686,-0.5840491,0.6957214",
-      "Scale": "0.2,0.2,0.2",
+      "Position": "-170.587494,-11.7322798,0.872536719",
+      "Rotation": "-0.268861294,0.320268601,-0.584049106,0.695721388",
+      "Scale": "0.200000003,0.200000003,0.200000003",
       "Tags": "",
       "Enabled": true,
       "NetworkMode": 2,
@@ -2030,9 +1933,15 @@
           "CreateAttachments": false,
           "LodOverride": null,
           "MaterialGroup": null,
-          "MaterialOverride": "materials/light_emit_bright.vmat",
+          "MaterialOverride": {
+            "Id": "b5d51214-f441-449e-ac63-ad20f022f062",
+            "Path": "materials/light_emit_bright.vmat"
+          },
           "Materials": null,
-          "Model": "models/citizen_props/beachball.vmdl",
+          "Model": {
+            "Id": "e31589fc-23ff-4a0b-941b-1391080ef44e",
+            "Path": "models/citizen_props/beachball.vmdl"
+          },
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
           "OnComponentEnabled": null,
@@ -2056,8 +1965,8 @@
       "__version": 2,
       "Flags": 0,
       "Name": "beachball",
-      "Position": "-80.20251,73.36488,4.254561",
-      "Rotation": "-0.2688741,0.3203326,-0.584021,0.6957106",
+      "Position": "-80.202507,73.3648834,4.25456095",
+      "Rotation": "-0.268874109,0.320332587,-0.584020972,0.695710599",
       "Scale": "1,1,1",
       "Tags": "",
       "Enabled": true,
@@ -2078,7 +1987,10 @@
           "MaterialGroup": null,
           "MaterialOverride": null,
           "Materials": null,
-          "Model": "models/citizen_props/beachball.vmdl",
+          "Model": {
+            "Id": "e31589fc-23ff-4a0b-941b-1391080ef44e",
+            "Path": "models/citizen_props/beachball.vmdl"
+          },
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
           "OnComponentEnabled": null,
@@ -2099,7 +2011,7 @@
           "__guid": "9000aa23-6090-45b7-a610-82b3808feb5c",
           "__enabled": true,
           "Flags": 0,
-          "Center": "0,0,9.500002",
+          "Center": "0,0,9.50000191",
           "ColliderFlags": 0,
           "Elasticity": null,
           "Friction": null,
@@ -2131,6 +2043,7 @@
           "Gravity": true,
           "GravityScale": 1,
           "ImpactDamage": 0,
+          "InertiaScale": 1,
           "LinearDamping": 0,
           "Locking": {
             "X": false,
@@ -2152,6 +2065,7 @@
           "OnComponentUpdate": null,
           "OverrideMassCenter": false,
           "RigidbodyFlags": 0,
+          "SleepThreshold": 2,
           "StartAsleep": false
         }
       ],
@@ -2162,8 +2076,8 @@
       "__version": 2,
       "Flags": 0,
       "Name": "mannequin (3)",
-      "Position": "-288.6349,-195.1533,0.03373157",
-      "Rotation": "0,0,0.9659259,0.2588191",
+      "Position": "-288.634888,-195.153305,0.0337315686",
+      "Rotation": "0,0,0.965925872,0.258819103",
       "Scale": "1,1,1",
       "Tags": "",
       "Enabled": true,
@@ -2184,7 +2098,10 @@
           "MaterialGroup": null,
           "MaterialOverride": null,
           "Materials": null,
-          "Model": "models/citizen_mannequin/mannequin.vmdl",
+          "Model": {
+            "Id": "8d72bcc6-b19e-408e-baaf-325734a0a48a",
+            "Path": "models/citizen_mannequin/mannequin.vmdl"
+          },
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
           "OnComponentEnabled": null,
@@ -2208,8 +2125,8 @@
       "__version": 2,
       "Flags": 0,
       "Name": "mannequin (4)",
-      "Position": "-329.7918,192.5612,2.955941",
-      "Rotation": "0.6829187,0.1833632,0.6924176,-0.1433803",
+      "Position": "-329.791809,192.561203,2.95594096",
+      "Rotation": "0.682918727,0.183363199,0.692417622,-0.143380299",
       "Scale": "1,1,1",
       "Tags": "",
       "Enabled": true,
@@ -2230,7 +2147,10 @@
           "MaterialGroup": null,
           "MaterialOverride": null,
           "Materials": null,
-          "Model": "models/citizen_mannequin/mannequin.vmdl",
+          "Model": {
+            "Id": "8d72bcc6-b19e-408e-baaf-325734a0a48a",
+            "Path": "models/citizen_mannequin/mannequin.vmdl"
+          },
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
           "OnComponentEnabled": null,
@@ -2254,8 +2174,8 @@
       "__version": 2,
       "Flags": 0,
       "Name": "mannequin (1)",
-      "Position": "-439.3649,55.82377,0.03357627",
-      "Rotation": "0,0,-0.3826834,0.9238796",
+      "Position": "-439.364899,55.8237686,0.0335762687",
+      "Rotation": "0,0,-0.382683396,0.923879623",
       "Scale": "1,1,1",
       "Tags": "",
       "Enabled": true,
@@ -2276,7 +2196,10 @@
           "MaterialGroup": null,
           "MaterialOverride": null,
           "Materials": null,
-          "Model": "models/citizen_mannequin/mannequin.vmdl",
+          "Model": {
+            "Id": "8d72bcc6-b19e-408e-baaf-325734a0a48a",
+            "Path": "models/citizen_mannequin/mannequin.vmdl"
+          },
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
           "OnComponentEnabled": null,
@@ -2300,8 +2223,8 @@
       "__version": 2,
       "Flags": 0,
       "Name": "mannequin",
-      "Position": "-145.5348,102.7083,0.03355909",
-      "Rotation": "0,0,-0.3826834,0.9238796",
+      "Position": "-145.534805,102.708298,0.0335590914",
+      "Rotation": "0,0,-0.382683396,0.923879623",
       "Scale": "1,1,1",
       "Tags": "",
       "Enabled": true,
@@ -2322,7 +2245,10 @@
           "MaterialGroup": null,
           "MaterialOverride": null,
           "Materials": null,
-          "Model": "models/citizen_mannequin/mannequin.vmdl",
+          "Model": {
+            "Id": "8d72bcc6-b19e-408e-baaf-325734a0a48a",
+            "Path": "models/citizen_mannequin/mannequin.vmdl"
+          },
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
           "OnComponentEnabled": null,
@@ -2346,7 +2272,7 @@
       "__version": 2,
       "Flags": 0,
       "Name": "Volumetric Fog",
-      "Position": "-50.1824,54.43219,-22.4809",
+      "Position": "-50.1823997,54.4321899,-22.4808998",
       "Rotation": "0,0,0,1",
       "Scale": "1,1,1",
       "Tags": "",
@@ -2366,6 +2292,7 @@
             "Mins": "-1500,-1500,-1500",
             "Maxs": "1500,1500,1500"
           },
+          "Color": "1,1,1,1",
           "FalloffExponent": 1,
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
@@ -2383,8 +2310,8 @@
       "__version": 2,
       "Flags": 0,
       "Name": "Spot Light (3)",
-      "Position": "206.6203,-14.28772,105.2001",
-      "Rotation": "0.1169185,-0.06243691,-0.9908795,-0.02426805",
+      "Position": "206.6203,-14.2877197,105.200104",
+      "Rotation": "0.116918497,-0.0624369085,-0.990879476,-0.0242680497",
       "Scale": "1,1,1",
       "Tags": "light_spot,light",
       "Enabled": true,
@@ -2399,13 +2326,56 @@
           "__guid": "7d6ec6ff-a347-424f-8812-cd3e2dbfa354",
           "__enabled": true,
           "Flags": 0,
+          "__version": 1,
+          "AnimationCurve": [
+            {
+              "x": 0,
+              "y": 0,
+              "in": 0,
+              "out": 0,
+              "mode": "Mirrored"
+            },
+            {
+              "x": 0.5,
+              "y": 1,
+              "in": 0,
+              "out": 0,
+              "mode": "Mirrored"
+            },
+            {
+              "x": 1,
+              "y": 0,
+              "in": 0,
+              "out": 0,
+              "mode": "Mirrored"
+            }
+          ],
+          "AnimationDuration": 2,
+          "AnimationEnabled": false,
+          "AnimationGradient": {
+            "blend": "Linear",
+            "color": [
+              {
+                "t": 0.5,
+                "c": "1,1,1,1"
+              }
+            ],
+            "alpha": []
+          },
+          "AnimationPattern": "Flicker",
+          "AnimationSpeed": 1,
+          "AnimationTimeOffset": 0,
           "Attenuation": 1.06,
+          "BakeLightIndex": -1,
           "ConeInner": 0,
           "ConeOuter": 27.78,
+          "Contribution": "Diffuse, Specular, Transmissive",
           "Cookie": null,
           "FogMode": "Enabled",
           "FogStrength": 0,
+          "Intensity": 1,
           "LightColor": "40.1986,39.98047,38.88981,1",
+          "MixedShadows": false,
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
           "OnComponentEnabled": null,
@@ -2413,7 +2383,10 @@
           "OnComponentStart": null,
           "OnComponentUpdate": null,
           "Radius": 277.4994,
-          "Shadows": true
+          "ShadowBias": 0,
+          "ShadowHardness": 0,
+          "Shadows": true,
+          "Temperature": 6500
         }
       ],
       "Children": []
@@ -2423,8 +2396,8 @@
       "__version": 2,
       "Flags": 0,
       "Name": "Spot Light (1)",
-      "Position": "40.25806,312.6415,21.17657",
-      "Rotation": "-0.05440018,-0.1485733,-0.7033296,0.6930322",
+      "Position": "40.2580605,312.64151,21.1765709",
+      "Rotation": "-0.0544001795,-0.148573294,-0.703329623,0.693032205",
       "Scale": "1,1,1",
       "Tags": "light_spot,light",
       "Enabled": true,
@@ -2439,13 +2412,56 @@
           "__guid": "680e9d07-6604-48cb-ad75-9b65a528433d",
           "__enabled": true,
           "Flags": 0,
+          "__version": 1,
+          "AnimationCurve": [
+            {
+              "x": 0,
+              "y": 0,
+              "in": 0,
+              "out": 0,
+              "mode": "Mirrored"
+            },
+            {
+              "x": 0.5,
+              "y": 1,
+              "in": 0,
+              "out": 0,
+              "mode": "Mirrored"
+            },
+            {
+              "x": 1,
+              "y": 0,
+              "in": 0,
+              "out": 0,
+              "mode": "Mirrored"
+            }
+          ],
+          "AnimationDuration": 2,
+          "AnimationEnabled": false,
+          "AnimationGradient": {
+            "blend": "Linear",
+            "color": [
+              {
+                "t": 0.5,
+                "c": "1,1,1,1"
+              }
+            ],
+            "alpha": []
+          },
+          "AnimationPattern": "Flicker",
+          "AnimationSpeed": 1,
+          "AnimationTimeOffset": 0,
           "Attenuation": 1.2,
+          "BakeLightIndex": -1,
           "ConeInner": 81,
           "ConeOuter": 16.04,
+          "Contribution": "Diffuse, Specular, Transmissive",
           "Cookie": null,
           "FogMode": "Enabled",
           "FogStrength": 0.03,
+          "Intensity": 1,
           "LightColor": "100,52.09301,84.82945,1",
+          "MixedShadows": false,
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
           "OnComponentEnabled": null,
@@ -2453,7 +2469,10 @@
           "OnComponentStart": null,
           "OnComponentUpdate": null,
           "Radius": 500,
-          "Shadows": true
+          "ShadowBias": 0,
+          "ShadowHardness": 0,
+          "Shadows": true,
+          "Temperature": 6500
         }
       ],
       "Children": []
@@ -2463,8 +2482,8 @@
       "__version": 2,
       "Flags": 0,
       "Name": "Spot Light (2)",
-      "Position": "-164.8212,-11.98587,2.330881",
-      "Rotation": "-0.1725723,-0.1342278,0.02133795,0.9755749",
+      "Position": "-164.821198,-11.9858704,2.33088112",
+      "Rotation": "-0.1725723,-0.134227797,0.0213379506,0.975574911",
       "Scale": "1,1,1",
       "Tags": "light,light_spot",
       "Enabled": true,
@@ -2479,13 +2498,56 @@
           "__guid": "7c455ef8-6add-45bf-b052-739b37a7cb4e",
           "__enabled": true,
           "Flags": 0,
+          "__version": 1,
+          "AnimationCurve": [
+            {
+              "x": 0,
+              "y": 0,
+              "in": 0,
+              "out": 0,
+              "mode": "Mirrored"
+            },
+            {
+              "x": 0.5,
+              "y": 1,
+              "in": 0,
+              "out": 0,
+              "mode": "Mirrored"
+            },
+            {
+              "x": 1,
+              "y": 0,
+              "in": 0,
+              "out": 0,
+              "mode": "Mirrored"
+            }
+          ],
+          "AnimationDuration": 2,
+          "AnimationEnabled": false,
+          "AnimationGradient": {
+            "blend": "Linear",
+            "color": [
+              {
+                "t": 0.5,
+                "c": "1,1,1,1"
+              }
+            ],
+            "alpha": []
+          },
+          "AnimationPattern": "Flicker",
+          "AnimationSpeed": 1,
+          "AnimationTimeOffset": 0,
           "Attenuation": 1,
+          "BakeLightIndex": -1,
           "ConeInner": 12.97,
           "ConeOuter": 14.22,
+          "Contribution": "Diffuse, Specular, Transmissive",
           "Cookie": null,
           "FogMode": "Enabled",
           "FogStrength": 0.02,
+          "Intensity": 1,
           "LightColor": "102.13,60.56546,30.87651,1",
+          "MixedShadows": false,
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
           "OnComponentEnabled": null,
@@ -2493,7 +2555,10 @@
           "OnComponentStart": null,
           "OnComponentUpdate": null,
           "Radius": 500,
-          "Shadows": true
+          "ShadowBias": 0,
+          "ShadowHardness": 0,
+          "Shadows": true,
+          "Temperature": 6500
         }
       ],
       "Children": []
@@ -2503,8 +2568,8 @@
       "__version": 2,
       "Flags": 0,
       "Name": "Spot Light",
-      "Position": "-307.5455,-232.9282,39.16085",
-      "Rotation": "-0.08510713,-0.02440909,0.5158982,0.8520619",
+      "Position": "-307.545502,-232.928207,39.1608505",
+      "Rotation": "-0.0851071328,-0.0244090892,0.515898228,0.852061927",
       "Scale": "1,1,1",
       "Tags": "light,light_spot",
       "Enabled": true,
@@ -2519,13 +2584,56 @@
           "__guid": "ada5642c-0d11-4d88-95f8-13abefa1f28b",
           "__enabled": true,
           "Flags": 0,
+          "__version": 1,
+          "AnimationCurve": [
+            {
+              "x": 0,
+              "y": 0,
+              "in": 0,
+              "out": 0,
+              "mode": "Mirrored"
+            },
+            {
+              "x": 0.5,
+              "y": 1,
+              "in": 0,
+              "out": 0,
+              "mode": "Mirrored"
+            },
+            {
+              "x": 1,
+              "y": 0,
+              "in": 0,
+              "out": 0,
+              "mode": "Mirrored"
+            }
+          ],
+          "AnimationDuration": 2,
+          "AnimationEnabled": false,
+          "AnimationGradient": {
+            "blend": "Linear",
+            "color": [
+              {
+                "t": 0.5,
+                "c": "1,1,1,1"
+              }
+            ],
+            "alpha": []
+          },
+          "AnimationPattern": "Flicker",
+          "AnimationSpeed": 1,
+          "AnimationTimeOffset": 0,
           "Attenuation": 1,
+          "BakeLightIndex": -1,
           "ConeInner": 15,
           "ConeOuter": 45,
+          "Contribution": "Diffuse, Specular, Transmissive",
           "Cookie": null,
           "FogMode": "Enabled",
           "FogStrength": 0.05,
+          "Intensity": 1,
           "LightColor": "53.2026,90.7136,102.13,1",
+          "MixedShadows": false,
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
           "OnComponentEnabled": null,
@@ -2533,7 +2641,10 @@
           "OnComponentStart": null,
           "OnComponentUpdate": null,
           "Radius": 500,
-          "Shadows": true
+          "ShadowBias": 0,
+          "ShadowHardness": 0,
+          "Shadows": true,
+          "Temperature": 6500
         }
       ],
       "Children": []
@@ -2543,8 +2654,8 @@
       "__version": 2,
       "Flags": 0,
       "Name": "Sun",
-      "Position": "214.7246,157.0694,-112.2673",
-      "Rotation": "0.2731873,0.0863988,-0.9134778,0.2888984",
+      "Position": "214.724594,157.069397,-112.267303",
+      "Rotation": "0.27318731,0.0863988027,-0.913477778,0.288898408",
       "Scale": "1,1,1",
       "Tags": "light_directional,light",
       "Enabled": true,
@@ -2559,17 +2670,68 @@
           "__guid": "c4dc8ee2-6846-4e04-a01e-08f616b83a05",
           "__enabled": true,
           "Flags": 0,
+          "__version": 1,
+          "AnimationCurve": [
+            {
+              "x": 0,
+              "y": 0,
+              "in": 0,
+              "out": 0,
+              "mode": "Mirrored"
+            },
+            {
+              "x": 0.5,
+              "y": 1,
+              "in": 0,
+              "out": 0,
+              "mode": "Mirrored"
+            },
+            {
+              "x": 1,
+              "y": 0,
+              "in": 0,
+              "out": 0,
+              "mode": "Mirrored"
+            }
+          ],
+          "AnimationDuration": 2,
+          "AnimationEnabled": false,
+          "AnimationGradient": {
+            "blend": "Linear",
+            "color": [
+              {
+                "t": 0.5,
+                "c": "1,1,1,1"
+              }
+            ],
+            "alpha": []
+          },
+          "AnimationPattern": "Flicker",
+          "AnimationSpeed": 1,
+          "AnimationTimeOffset": 0,
+          "BakeLightIndex": -1,
+          "ContactShadows": true,
+          "Contribution": "Diffuse, Specular, Transmissive",
           "FogMode": "Enabled",
           "FogStrength": 1,
+          "IncludeStaticShadowCasters": false,
+          "Intensity": 1,
           "LightColor": "0.92206,0.96755,0.9814,1",
+          "MixedShadows": false,
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
           "OnComponentEnabled": null,
           "OnComponentFixedUpdate": null,
           "OnComponentStart": null,
           "OnComponentUpdate": null,
+          "ShadowBias": 0,
+          "ShadowCascadeCount": 4,
+          "ShadowCascadeSplitRatio": 0.91,
+          "ShadowHardness": 0,
           "Shadows": true,
-          "SkyColor": "0.23243,0.28833,0.31628,1"
+          "SkyColor": "0.23243,0.28833,0.31628,1",
+          "Temperature": 6500,
+          "Visualizer": {}
         }
       ],
       "Children": []
@@ -2577,6 +2739,7 @@
   ],
   "SceneProperties": {
     "NetworkInterpolation": true,
+    "PhysicsMode": "Physics3D",
     "TimeScale": 1,
     "WantsSystemScene": true,
     "Metadata": {
@@ -2592,7 +2755,22 @@
       "AgentStepSize": 18,
       "AgentMaxSlope": 40,
       "ExcludedBodies": "",
-      "IncludedBodies": ""
+      "IncludedBodies": "",
+      "DeferGeneration": false,
+      "CustomBounds": false
+    },
+    "GameObjectSystems": {
+      "Sandbox.Clutter.ClutterGridSystem": {
+        "Storage": {
+          "$blob": "64db792e-5935-8fbc-8cfa-050cd49fa7fd",
+          "$refs": []
+        }
+      },
+      "Sandbox.SelectionSetsSystem": {
+        "Data": {
+          "SelectionSets": []
+        }
+      }
     }
   },
   "ResourceVersion": 3,
