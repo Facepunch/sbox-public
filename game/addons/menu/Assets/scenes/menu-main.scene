@@ -40,6 +40,38 @@
       "Children": []
     },
     {
+      "__guid": "83f0f684-3e19-4d05-8332-e87e02f64e3a",
+      "__version": 2,
+      "Flags": 0,
+      "Name": "VR Scene Switcher",
+      "Position": "0,0,0",
+      "Rotation": "0,0,0,1",
+      "Scale": "1,1,1",
+      "Tags": "",
+      "Enabled": true,
+      "NetworkMode": 2,
+      "NetworkFlags": 0,
+      "NetworkOrphaned": 0,
+      "NetworkTransmit": true,
+      "OwnerTransfer": 1,
+      "Components": [
+        {
+          "__type": "SboxMenu.VRSceneSwitcher",
+          "__guid": "0fb80ecd-6e05-4ad2-9a4f-51acddc09533",
+          "__enabled": true,
+          "Flags": 0,
+          "OnComponentDestroy": null,
+          "OnComponentDisabled": null,
+          "OnComponentEnabled": null,
+          "OnComponentFixedUpdate": null,
+          "OnComponentStart": null,
+          "OnComponentUpdate": null,
+          "TargetScene": "scenes/menu-vr.scene"
+        }
+      ],
+      "Children": []
+    },
+    {
       "__guid": "744294e7-ebb6-493e-ab1f-644e6ac40480",
       "__version": 2,
       "Flags": 0,
