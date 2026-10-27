@@ -88,7 +88,7 @@ public partial class NodePanel
 			// The image is the card, with the icon in a corner and the name over the bottom, e.g. for resource references
 			var thumbRect = _thumbRect;
 
-			paint.SetPen( NodeTheme.Hairline );
+			paint.SetPen( NodeTheme.Outline );
 			paint.DrawImage( thumbRect, thumb, NodeTheme.Radius - 4f );
 
 			if ( display.Icon is { } icon )

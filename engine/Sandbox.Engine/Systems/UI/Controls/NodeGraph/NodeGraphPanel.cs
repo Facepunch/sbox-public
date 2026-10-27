@@ -4,7 +4,7 @@ namespace Sandbox.UI.NodeGraph;
 /// Shows an <see cref="IGraph"/> as nodes and wires, like the editor's node graph. Middle-drag
 /// pans, the wheel zooms, left-drag on empty space box-selects, Delete removes the selection.
 /// </summary>
-[StyleSheet.Inline( "nodegraphpanel", ".nodegraphpanel { min-width: 0; min-height: 0; } .nodegraphpanel .canvas-selection-box { border: 1px solid #4C8DFF; background-color: rgba( 76, 141, 255, 0.1 ); border-radius: 4px; }" )]
+[StyleSheet.Inline( "nodegraphpanel", Styles )]
 public partial class NodeGraphPanel : CanvasPanel
 {
 	/// <summary>
@@ -75,12 +75,12 @@ public partial class NodeGraphPanel : CanvasPanel
 	/// <summary>
 	/// Outline of a node under the cursor.
 	/// </summary>
-	public Color HoverBorderColor { get; set; } = NodeTheme.HairlineHover;
+	public Color HoverBorderColor { get; set; } = NodeTheme.OutlineHover;
 
 	/// <summary>
 	/// Outline of a node that isn't selected, hovered or in error.
 	/// </summary>
-	public Color BorderColor { get; set; } = NodeTheme.Hairline;
+	public Color BorderColor { get; set; } = NodeTheme.Outline;
 
 	/// <summary>
 	/// Outline and glow of a <see cref="NodePanel.Highlighted"/> node. Apart from the selection's, so

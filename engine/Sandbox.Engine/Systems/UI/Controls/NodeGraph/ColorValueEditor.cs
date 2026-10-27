@@ -64,7 +64,7 @@ public class ColorValueEditor : NodeValueEditor
 		var field = NodeTheme.FieldRect( rect );
 		var hover = paint.HasMouseOver;
 
-		paint.SetPen( hover ? NodeTheme.HairlineHover : NodeTheme.Hairline );
+		paint.SetPen( hover ? NodeTheme.OutlineHover : NodeTheme.Outline );
 		paint.SetBrush( NodeTheme.FieldBackground );
 		paint.DrawRect( field, 4f );
 
