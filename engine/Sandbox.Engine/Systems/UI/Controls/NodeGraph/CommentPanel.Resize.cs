@@ -135,7 +135,7 @@ public partial class CommentPanel
 			Edge.Right | Edge.Top or Edge.Left | Edge.Bottom => "nesw-resize",
 			Edge.Left or Edge.Right => "ew-resize",
 			Edge.Top or Edge.Bottom => "ns-resize",
-			_ => null,
+			_ => "crosshair",
 		};
 
 		if ( cursor == _cursor ) return;
