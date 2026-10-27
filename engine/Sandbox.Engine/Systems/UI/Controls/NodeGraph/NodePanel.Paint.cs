@@ -206,14 +206,31 @@ public partial class NodePanel
 
 		paint.SetDefaultFont( 8f, 600 );
 		paint.SetPen( NodeTheme.Text );
-		paint.DrawText( row with { Top = titleCenter - 12f, Height = 24f }, display.Name, TextFlag.LeftCenter );
+		paint.DrawText( row with { Top = titleCenter - 12f, Height = 24f }, Elide( ref paint, display.Name, row.Width ), TextFlag.LeftCenter );
 
 		if ( twoLines )
 		{
 			paint.SetDefaultFont( 7f );
 			paint.SetPen( NodeTheme.Text.WithAlpha( 0.55f ) );
-			paint.DrawText( row with { Top = center + 6.5f - 12f, Height = 24f }, Node.Subtitle, TextFlag.LeftCenter );
+			paint.DrawText( row with { Top = center + 6.5f - 12f, Height = 24f }, Elide( ref paint, Node.Subtitle, row.Width ), TextFlag.LeftCenter );
 		}
+	}
+
+	/// <summary>
+	/// Cut <paramref name="text"/> to fit <paramref name="width"/> in the current font, ending in an ellipsis.
+	/// Nodes are sized like the qt graph's, so a long title can be wider than its header.
+	/// </summary>
+	static string Elide( ref NodePaint paint, string text, float width )
+	{
+		if ( string.IsNullOrEmpty( text ) || paint.MeasureText( text ).x <= width ) return text;
+
+		for ( var length = text.Length - 1; length > 0; length-- )
+		{
+			var cut = text[..length].TrimEnd() + "…";
+			if ( paint.MeasureText( cut ).x <= width ) return cut;
+		}
+
+		return "…";
 	}
 
 	/// <summary>

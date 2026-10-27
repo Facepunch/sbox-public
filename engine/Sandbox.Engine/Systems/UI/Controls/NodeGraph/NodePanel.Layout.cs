@@ -100,19 +100,10 @@ public partial class NodePanel
 	static float HeaderIconWidth( bool twoLines ) => twoLines ? 25f : 20f;
 
 	/// <summary>
-	/// Width the header needs for its icon, title and subtitle, in the fonts they're drawn with.
+	/// Width an auto-size node's header asks for, measured as the qt graph does so nodes come out
+	/// the same width in both.
 	/// </summary>
-	float HeaderWidth()
-	{
-		var text = NodePaint.Measure( DisplayInfo.Name, 8f, 600 ).x;
-
-		if ( Node.HasSubtitle )
-		{
-			text = MathF.Max( text, NodePaint.Measure( Node.Subtitle, 7f ).x );
-		}
-
-		return HeaderPadLeft + (DisplayInfo.Icon is null ? 0f : HeaderIconWidth( Node.HasSubtitle )) + text + HeaderPadRight;
-	}
+	float HeaderWidth() => NodePaint.Measure( DisplayInfo.Name, 7f, 500 ).x + 44f;
 
 	protected virtual void Layout()
 	{
@@ -137,9 +128,6 @@ public partial class NodePanel
 		{
 			titleWidth += 24f;
 		}
-
-		// A fixed-size node still grows to fit its title, rather than drawing it past its edge
-		totalWidth = MathF.Max( totalWidth, titleWidth );
 
 		if ( Node.AutoSize )
 		{
