@@ -488,6 +488,21 @@
                       "OnComponentUpdate": null,
                       "RightMouseAction": "Attack2",
                       "VRHandSource": "Right"
+                    },
+                    {
+                      "__type": "SboxMenu.VRPointer",
+                      "__guid": "1e8f0b74-ae58-4491-acc3-68c8fb6e78c5",
+                      "__enabled": true,
+                      "Flags": 0,
+                      "Length": 32,
+                      "OnComponentDestroy": null,
+                      "OnComponentDisabled": null,
+                      "OnComponentEnabled": null,
+                      "OnComponentFixedUpdate": null,
+                      "OnComponentStart": null,
+                      "OnComponentUpdate": null,
+                      "Tint": "1,1,1,1",
+                      "Width": 0.15
                     }
                   ],
                   "Children": []
@@ -647,6 +662,21 @@
                           "OnComponentUpdate": null,
                           "RightMouseAction": "Attack2",
                           "VRHandSource": "Right"
+                        },
+                        {
+                          "__type": "SboxMenu.VRPointer",
+                          "__guid": "7494b8b3-f890-420f-8967-56ba9813d192",
+                          "__enabled": true,
+                          "Flags": 0,
+                          "Length": 32,
+                          "OnComponentDestroy": null,
+                          "OnComponentDisabled": null,
+                          "OnComponentEnabled": null,
+                          "OnComponentFixedUpdate": null,
+                          "OnComponentStart": null,
+                          "OnComponentUpdate": null,
+                          "Tint": "1,1,1,1",
+                          "Width": 0.15
                         }
                       ],
                       "Children": []
