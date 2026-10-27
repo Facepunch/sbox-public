@@ -355,4 +355,70 @@ public class NodeGraphPanelTests
 		Assert.IsNull( panel.Preview );
 		CollectionAssert.AreEqual( new[] { "Add Node", "Add Node" }, panel.Undo );
 	}
+
+	sealed class TestComment : TestNode, ICommentNode
+	{
+		public string Title { get; set; } = "Comment";
+		public Color Color { get; set; } = Color.Green;
+		public Vector2 Size { get; set; }
+		public List<string> Members { get; } = new();
+
+		public TestComment( Vector2 position, Vector2 size ) : base( "Comment", position ) => Size = size;
+	}
+
+	/// <summary>
+	/// Re-reads every node once an edit ends, as hosts that re-evaluate the graph on redo do.
+	/// </summary>
+	sealed class RereadingGraphPanel : NodeGraphPanel
+	{
+		public override void PushUndo( string name ) { }
+
+		public override void PushRedo()
+		{
+			foreach ( var node in Nodes.ToArray() ) node.MarkNodeChanged();
+		}
+	}
+
+	[TestMethod]
+	public void CommentGrownByADragKeepsItsBoxAndMembersOnRelease()
+	{
+		var graph = new TestGraph();
+		var dragged = new TestNode( "Dragged", new Vector2( 0, 0 ) );
+		var other = new TestNode( "Other", new Vector2( 120, 120 ) );
+		var comment = new TestComment( new Vector2( -48, -84 ), new Vector2( 360, 360 ) );
+		comment.Members.Add( dragged.Identifier );
+		comment.Members.Add( other.Identifier );
+		graph.AddNode( comment );
+		graph.AddNode( dragged );
+		graph.AddNode( other );
+
+		var panel = _surface.Root.AddChild( new RereadingGraphPanel() );
+		panel.Style.Width = 1000;
+		panel.Style.Height = 800;
+		panel.Graph = graph;
+		Frame();
+
+		// Up and left past the comment's edge, so it grows from its top left corner
+		var node = panel.FindNode( dragged );
+		var from = panel.Box.Rect.Position + panel.CanvasToScreen( node.Position + node.Size * 0.5f );
+		var end = panel.Box.Rect.Position + panel.CanvasToScreen( new Vector2( -300, -300 ) + node.Size * 0.5f );
+
+		_surface.MouseMoved( from );
+		Frame();
+		_surface.Input.AddMouseButton( NativeEngine.ButtonCode.MouseLeft, true, default );
+		Frame();
+		for ( var i = 1; i <= 4; i++ )
+		{
+			_surface.MouseMoved( Vector2.Lerp( from, end, i / 4f ) );
+			Frame();
+		}
+		_surface.Input.AddMouseButton( NativeEngine.ButtonCode.MouseLeft, false, default );
+		Frame();
+
+		var commentPanel = panel.FindNode( comment );
+		Assert.AreEqual( new Vector2( 120, 120 ), other.Position, "a member the drag didn't touch stays put" );
+		Assert.IsTrue( comment.Position.x < dragged.Position.x && comment.Position.y < dragged.Position.y, "the comment still holds the dragged node" );
+		Assert.AreEqual( comment.Position, commentPanel.Position, "the box shown is the one written" );
+		Assert.AreEqual( comment.Size, commentPanel.Size );
+	}
 }

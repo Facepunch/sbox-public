@@ -236,6 +236,18 @@ public partial class CommentPanel : NodePanel
 	}
 
 	/// <summary>
+	/// Grow around the members and write that to the node now, rather than on the next tick. Not
+	/// while selected: it moved with the drag, and its members only catch up on its next tick.
+	/// </summary>
+	internal void CommitGrowth()
+	{
+		if ( IsPreview || _following || Selected ) return;
+
+		RefreshMemberIds();
+		Grow( false );
+	}
+
+	/// <summary>
 	/// Whether every member is a comment. False when it holds none.
 	/// </summary>
 	bool HoldsOnlyComments()

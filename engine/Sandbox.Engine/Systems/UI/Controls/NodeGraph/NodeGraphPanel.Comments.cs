@@ -162,9 +162,14 @@ public partial class NodeGraphPanel
 		var target = _dropTarget;
 		_dropTarget = null;
 
-		if ( !target.IsValid() ) return;
+		if ( target.IsValid() )
+		{
+			target.IsDropTarget = false;
+			if ( !cancelled ) AddToComment( target, FreeSelectedNodes() );
+		}
 
-		target.IsDropTarget = false;
-		if ( !cancelled ) AddToComment( target, FreeSelectedNodes() );
+		// Comments only grew on screen during the drag. Write them inside the drag's undo step: a host
+		// re-reading its nodes when the step ends would otherwise put them back, and take that for a move
+		foreach ( var comment in Comments ) comment.CommitGrowth();
 	}
 }
