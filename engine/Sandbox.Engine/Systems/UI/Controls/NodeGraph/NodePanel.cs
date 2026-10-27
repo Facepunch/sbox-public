@@ -95,7 +95,7 @@ public partial class NodePanel : CanvasPanel.Handle
 			Node.Changed += MarkNodeChanged;
 		}
 
-		MoveTo( node.Position );
+		MoveTo( node.Position - Origin );
 		UpdatePlugs();
 	}
 
@@ -113,7 +113,7 @@ public partial class NodePanel : CanvasPanel.Handle
 		if ( !IsValid ) return;
 
 		UpdatePlugs();
-		MoveTo( Node.Position );
+		MoveTo( Node.Position - Origin );
 	}
 
 	/// <summary>
@@ -130,7 +130,7 @@ public partial class NodePanel : CanvasPanel.Handle
 	/// <summary>
 	/// Re-read what <see cref="MarkNodeChanged"/> doesn't. Overrides should call the base.
 	/// </summary>
-	protected virtual void OnRebuild() => MoveTo( Node.Position );
+	protected virtual void OnRebuild() => MoveTo( Node.Position - Origin );
 
 	/// <summary>
 	/// Fill the node's tooltip.
@@ -179,6 +179,12 @@ public partial class NodePanel : CanvasPanel.Handle
 	}
 
 	/// <summary>
+	/// Where <see cref="INode.Position"/> sits on the panel, from its top left. That point is what
+	/// snaps to the grid. Reroutes put it at their centre, as the qt graph does.
+	/// </summary>
+	protected internal virtual Vector2 Origin => Vector2.Zero;
+
+	/// <summary>
 	/// Put the node's top left at <paramref name="position"/>, in canvas units.
 	/// </summary>
 	public void MoveTo( Vector2 position )
@@ -189,15 +195,21 @@ public partial class NodePanel : CanvasPanel.Handle
 	}
 
 	/// <summary>
-	/// Write the panel position back to the node, snapped to the grid.
+	/// Put the panel's <see cref="Origin"/> at <paramref name="position"/> snapped to the grid.
+	/// </summary>
+	internal void MoveOriginTo( Vector2 position ) => MoveTo( position.SnapToGrid( Graph.GridSize ) - Origin );
+
+	/// <summary>
+	/// Write the panel position back to the node, its <see cref="Origin"/> snapped to the grid.
 	/// </summary>
 	public void CommitPosition()
 	{
-		MoveTo( Position.SnapToGrid( Graph.GridSize ) );
+		MoveOriginTo( Position + Origin );
 
-		if ( !IsPreview && !Equals( Node.Position, Position ) )
+		var position = Position + Origin;
+		if ( !IsPreview && !Equals( Node.Position, position ) )
 		{
-			Node.Position = Position;
+			Node.Position = position;
 		}
 	}
 }

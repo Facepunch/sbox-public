@@ -41,7 +41,7 @@ public partial class NodePanel
 		{
 			if ( !node.IsValid() ) continue;
 
-			var position = (start + delta).SnapToGrid( Graph.GridSize );
+			var position = (start + delta + node.Origin).SnapToGrid( Graph.GridSize ) - node.Origin;
 
 			// Once per drag, before the first change: comments write their members as they move
 			if ( !_pushedMove && position != node.Position )

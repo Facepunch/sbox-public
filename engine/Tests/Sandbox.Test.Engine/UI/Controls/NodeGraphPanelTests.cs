@@ -206,6 +206,9 @@ public class NodeGraphPanelTests
 		Assert.AreSame( reroute.Out[0], b.In[0].ConnectedOutput );
 		Assert.AreEqual( 2, panel.Connections.Count, "one wire per input, also after the view syncs with the model" );
 		Assert.IsInstanceOfType( panel.FindNode( reroute ), typeof( ReroutePanel ) );
+		var dot = panel.FindNode( reroute );
+		Assert.AreEqual( Vector2.Zero, reroute.Position, "a reroute's position is its centre, as in the qt graph" );
+		Assert.AreEqual( Vector2.Zero, dot.Position + dot.Size * 0.5f, "the dot is drawn centred on it" );
 		CollectionAssert.AreEqual( new[] { "Reroute Connection" }, panel.Undo );
 		Assert.AreEqual( 1, panel.Redo );
 	}

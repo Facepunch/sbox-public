@@ -67,7 +67,7 @@ public partial class NodeGraphPanel
 			_previewFollowsMouse = false;
 
 			if ( !_nodePreview.IsValid() ) ShowDropPreview( hoverType, position );
-			else _nodePreview.MoveTo( position.SnapToGrid( GridSize ) );
+			else _nodePreview.MoveOriginTo( position );
 
 			e.StopPropagation();
 			return;

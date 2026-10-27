@@ -25,6 +25,11 @@ public class ReroutePanel : NodePanel
 	public override bool HasTooltip => false;
 
 	/// <summary>
+	/// The node's position is the dot's centre, so that's what sits on the grid.
+	/// </summary>
+	protected internal override Vector2 Origin => new( Diameter * 0.5f );
+
+	/// <summary>
 	/// Whether an input is fed, so a press should pull a wire out of the output.
 	/// </summary>
 	bool PreferOutput => Inputs.Any( x => x.IsConnected );

@@ -206,7 +206,7 @@ public partial class NodeGraphPanel
 		{
 			if ( _createReroute && RerouteNodeType is not null )
 			{
-				CreateNewNode( RerouteNodeType, position - new Vector2( ReroutePanel.Diameter * 0.5f ), plug, selected: false );
+				CreateNewNode( RerouteNodeType, position, plug, selected: false );
 			}
 			else
 			{

@@ -198,7 +198,7 @@ public partial class NodeGraphPanel
 
 		using var undoScope = UndoScope( "Reroute Connection" );
 
-		var panel = CreateNewNode( RerouteNodeType, position - new Vector2( ReroutePanel.Diameter * 0.5f ) );
+		var panel = CreateNewNode( RerouteNodeType, position );
 		if ( panel is null || panel.Inputs.Count == 0 || panel.Outputs.Count == 0 ) return;
 
 		var from = connection.Output;

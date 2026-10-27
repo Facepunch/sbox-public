@@ -113,7 +113,7 @@ public partial class NodeGraphPanel
 	{
 		using var undoScope = UndoScope( "Add Reroute" );
 
-		CreateNewNode( RerouteNodeType, position - new Vector2( ReroutePanel.Diameter * 0.5f ) );
+		CreateNewNode( RerouteNodeType, position );
 	}
 
 	/// <summary>
