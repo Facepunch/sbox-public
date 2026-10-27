@@ -487,7 +487,7 @@
                       "OnComponentStart": null,
                       "OnComponentUpdate": null,
                       "RightMouseAction": "Attack2",
-                      "VRHandSource": "Left"
+                      "VRHandSource": "Right"
                     }
                   ],
                   "Children": []
@@ -634,17 +634,19 @@
                       "OwnerTransfer": 1,
                       "Components": [
                         {
-                          "__type": "Sandbox.VRWorldInput",
+                          "__type": "Sandbox.WorldInput",
                           "__guid": "27846cc3-dff2-4604-8f7d-02a253469c45",
                           "__enabled": true,
-                          "DampingFactor": 0.5,
-                          "HandSource": "Right",
+                          "Flags": 0,
+                          "LeftMouseAction": "Attack1",
                           "OnComponentDestroy": null,
                           "OnComponentDisabled": null,
                           "OnComponentEnabled": null,
                           "OnComponentFixedUpdate": null,
                           "OnComponentStart": null,
-                          "OnComponentUpdate": null
+                          "OnComponentUpdate": null,
+                          "RightMouseAction": "Attack2",
+                          "VRHandSource": "Right"
                         }
                       ],
                       "Children": []
