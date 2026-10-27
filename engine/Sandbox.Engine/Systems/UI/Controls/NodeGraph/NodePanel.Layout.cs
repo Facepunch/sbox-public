@@ -182,8 +182,8 @@ public partial class NodePanel
 			(totalWidth, totalHeight) = (Math.Max( 36f, size ), size);
 		}
 
-		// Up, not to nearest, so the header keeps its right padding
-		totalWidth = MathF.Ceiling( totalWidth / Graph.GridSize ) * Graph.GridSize;
+		// To nearest, like the qt graph, so nodes come out the same width in both
+		totalWidth = totalWidth.SnapToGrid( Graph.GridSize );
 		totalHeight = totalHeight.SnapToGrid( Graph.GridSize );
 
 		var top = TitleHeight + (verticalCenter ? totalHeight - inputHeight : 0f) * 0.5f;
