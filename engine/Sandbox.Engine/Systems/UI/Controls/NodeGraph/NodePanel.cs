@@ -165,6 +165,8 @@ public partial class NodePanel : CanvasPanel.Handle
 	{
 		base.Tick();
 
+		UpdateNodeCursor();
+
 		if ( !RaisesOnInteraction ) return;
 
 		var interacting = IsDragging || HasFocus;
@@ -176,6 +178,20 @@ public partial class NodePanel : CanvasPanel.Handle
 		if ( interacting && Parent is { } parent ) parent.SetChildIndex( this, parent.ChildrenCount - 1 );
 
 		Style.ZIndex = interacting ? InteractionZIndex : ReleasedZIndex;
+	}
+
+	/// <summary>
+	/// What <see cref="INode.CursorAt"/> last asked for; null leaves the panel's own cursor alone.
+	/// </summary>
+	string _nodeCursor;
+
+	void UpdateNodeCursor()
+	{
+		var cursor = HasHovered && !IsDragging && !IsPreview ? Node.CursorAt( Graph.MouseCanvas - Position ) : null;
+		if ( cursor == _nodeCursor ) return;
+
+		_nodeCursor = cursor;
+		Style.Cursor = cursor ?? "move";
 	}
 
 	/// <summary>
