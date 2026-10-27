@@ -53,6 +53,7 @@ public class ProjectTest
 		try
 		{
 			var library = Project.AddFromFile( System.IO.Path.Combine( libraryFolder, "testlibrary.sbproj" ) );
+			Project.UpdateLibraryReferences();
 
 			Assert.IsTrue( game.Compiler.HasReference( library.Package.AssemblyName, deep: true ), "the game's compiler doesn't reference the new library" );
 		}

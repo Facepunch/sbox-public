@@ -72,6 +72,20 @@ public partial class Project
 		}
 	}
 
+	/// <summary>
+	/// Game and addon compilers reference every library, and those references are only added when the
+	/// compiler is created. Call this after a library is added while projects are open so their compilers
+	/// are remade with it. Projects whose library references haven't changed are left alone.
+	/// </summary>
+	internal static void UpdateLibraryReferences()
+	{
+		foreach ( var project in All )
+		{
+			if ( project.Config.Type is "game" or "addon" )
+				project.UpdateCompiler();
+		}
+	}
+
 	static void OnCompileStarted()
 	{
 		IToolsDll.Current?.RunEvent( "compile.started", CompileGroup );
@@ -284,16 +298,6 @@ public partial class Project
 		}
 
 		All.Add( project );
-
-		// Game and addon compilers reference every library, so they need remaking to see a new one.
-		// UpdateCompiler only remakes compilers whose references actually changed.
-		if ( project.Config.Type == "library" )
-		{
-			foreach ( var other in All )
-			{
-				if ( other != project ) other.UpdateCompiler();
-			}
-		}
 
 		return project;
 	}
