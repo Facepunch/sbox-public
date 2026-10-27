@@ -548,6 +548,8 @@ internal class CloudAssetDirectory : IDisposable
 	/// </summary>
 	internal Package FindPackage( string absolutePath, string relativePath )
 	{
+		// Normalizing adds a leading slash ("/c:/...") that Windows can't open, so delete with the original path
+		var filePath = absolutePath;
 		absolutePath = absolutePath.NormalizeFilename( true );
 		relativePath = relativePath.NormalizeFilename( true );
 
@@ -560,7 +562,7 @@ internal class CloudAssetDirectory : IDisposable
 
 			try
 			{
-				System.IO.File.Delete( absolutePath );
+				System.IO.File.Delete( filePath );
 			}
 			catch { } // ignore errors, we'll try again next time
 

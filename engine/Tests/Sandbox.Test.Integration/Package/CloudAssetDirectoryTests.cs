@@ -408,4 +408,24 @@ public class CloudAssetDirectoryTest
 
 		Assert.IsNull( directory.FindPackage( "C:/projects/mygame/models/thing.vmdl_c", "models/thing.vmdl_c" ) );
 	}
+
+	/// <summary>
+	/// A file inside the cloud folder that no package claims is an orphan left behind by an older
+	/// revision. The lookup deletes it so the "unable to determine package" warning doesn't repeat
+	/// on every scan. The absolute path arrives in native form (e.g. "C:/..."), which has to stay
+	/// deletable on Windows after normalization prefixes it with a slash.
+	/// </summary>
+	[TestMethod]
+	public void FindPackageByPath_UnclaimedCloudFile_DeletesFile()
+	{
+		var cloudFolder = Path.Combine( TestDir, ".sbox", "cloud" );
+		Directory.CreateDirectory( Path.Combine( cloudFolder, "jutsu" ) );
+		var orphan = Path.Combine( cloudFolder, "jutsu", "orphan.jutsu" );
+		System.IO.File.WriteAllText( orphan, "left over from an older revision" );
+
+		using var directory = new CloudAssetDirectory( DbPath( "orphan" ) );
+
+		Assert.IsNull( directory.FindPackage( orphan.Replace( '\\', '/' ), "jutsu/orphan.jutsu" ) );
+		Assert.IsFalse( System.IO.File.Exists( orphan ), "Unclaimed cloud file was not deleted" );
+	}
 }
