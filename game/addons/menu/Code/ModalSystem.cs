@@ -53,7 +53,7 @@ public class ModalSystem : IModalSystem
 	/// </summary>
 	protected void Push( Panel modal )
 	{
-		MenuOverlay.Instance.AddChild( modal );
+		GetModalParent().AddChild( modal );
 
 		modal.Style.ZIndex = (OpenModals.LastOrDefault()?.Style.ZIndex ?? 1000) + 10;
 
@@ -62,6 +62,25 @@ public class ModalSystem : IModalSystem
 			basemodal.OnClosed += ( s ) => OnModalClosing( basemodal, s );
 			OpenModals.Add( basemodal );
 		}
+	}
+
+	SboxMenu.VRModalHost _vrModalHost;
+
+	/// <summary>
+	/// Where modals go - the overlay, or in the VR menu the menu's world panel, since the overlay's drawn
+	/// flat on the screen where the headset can't see it.
+	/// </summary>
+	Panel GetModalParent()
+	{
+		var menu = MenuProject.MainMenu.Instance?.Panel;
+		if ( !Application.IsVR || Sandbox.Game.InGame || !menu.IsValid() )
+			return MenuOverlay.Instance;
+
+		// The menu's panel is made again when its scene is
+		if ( !_vrModalHost.IsValid() || _vrModalHost.Parent != menu )
+			_vrModalHost = menu.AddChild<SboxMenu.VRModalHost>();
+
+		return _vrModalHost;
 	}
 
 	void OnModalClosing( BaseModal modal, bool success )
