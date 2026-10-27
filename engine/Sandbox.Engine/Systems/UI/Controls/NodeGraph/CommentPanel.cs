@@ -48,6 +48,9 @@ public partial class CommentPanel : NodePanel
 
 	protected override float TitleHeight => HeaderHeight;
 
+	// The title is already written on the box
+	public override bool HasTooltip => false;
+
 	/// <summary>
 	/// Where the comment was last tick, to tell when something else moved it.
 	/// </summary>
