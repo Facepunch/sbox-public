@@ -25,11 +25,6 @@ internal sealed class DevToolsBudget : Panel
 
 	readonly List<(Color Color, string Name, float Ms)> _legend = new();
 
-	/// <summary>
-	/// What a GPU segment does when clicked: open the GPU's own timeline under the ruler.
-	/// </summary>
-	const string ZoomGpu = "gpu-zoom";
-
 	public DevToolsBudget()
 	{
 		AddClass( "budget" );
@@ -41,8 +36,7 @@ internal sealed class DevToolsBudget : Panel
 		foreach ( var hit in _hits )
 		{
 			if ( !hit.Rect.IsInside( m ) || hit.Tab is null ) continue;
-			if ( hit.Tab == ZoomGpu ) DevTools.GpuZoom = !DevTools.GpuZoom;
-			else if ( DevTools.ShowAdvanced ) DevTools.ActiveTab = hit.Tab;
+			DevTools.ActiveTab = hit.Tab;
 			break;
 		}
 	}
@@ -69,14 +63,16 @@ internal sealed class DevToolsBudget : Panel
 		var busyMs = picked ? frames.BusyMs( sel ) : s.CpuWorkAvg;
 		var selfMs = picked ? frames.SelfMs( sel ) : s.SelfAvg;
 		var waitMs = picked ? frames.IdleMs( sel ) : s.CapWaitAvg;
-		var gpuMs = MathF.Max( picked ? frames.GpuMs( sel ) : s.GpuAvg, DevTools.GpuTimeline.ElapsedMs );
+		var gpuMs = MathF.Max( picked ? frames.GpuMs( sel ) : s.GpuAvg, DevTools.ShownGpuTimeline.ElapsedMs );
 
 		// Room for the budget and a little past it, or the p99 frame - but a long hitch is clipped rather than allowed to
 		// shrink the budget to a sliver
 		var wanted = MathF.Max( target * 1.15f, MathF.Max( picked ? frameMs : s.FrameP99, gpuMs ) * 1.05f );
 		wanted = MathF.Min( wanted, target * 2.5f );
-		_scaleMs = _scaleMs.LerpTo( wanted, Time.Delta * 4f );
-		if ( _scaleMs < wanted * 0.8f || _scaleMs > wanted * 1.5f ) _scaleMs = wanted;
+
+		// Held still until what it shows outgrows it or falls well short, then snapped: easing it every frame kept every
+		// segment and tick on the move
+		if ( wanted > _scaleMs || wanted < _scaleMs * 0.7f ) _scaleMs = wanted;
 
 		var plotX = LabelW;
 		var plotW = w - LabelW - Right;
@@ -153,7 +149,7 @@ internal sealed class DevToolsBudget : Panel
 		// timeline yet, the leaf passes end to end.
 		Label( painter, "GPU", gpuY, CostRowH );
 		_legend.Clear();
-		var timeline = DevTools.GpuTimeline;
+		var timeline = DevTools.ShownGpuTimeline;
 		if ( timeline.Spans.Count > 0 )
 		{
 			DrawGpuTimeline( painter, timeline, gpuY, X );
@@ -165,12 +161,12 @@ internal sealed class DevToolsBudget : Panel
 			foreach ( var p in s.TopGpu )
 			{
 				if ( p.AvgMs < 0.02f ) continue;
-				gx = Segment( painter, gx, gpuY, CostRowH, p.AvgMs, p.Color, p.Name, px, "gpu" );
+				gx = Segment( painter, gx, gpuY, CostRowH, p.AvgMs, p.Color, p.Name, px, "rendering" );
 				_legend.Add( (p.Color, p.Name, p.AvgMs) );
 				gpuSum += p.AvgMs;
 			}
 
-			if ( s.GpuAvg > gpuSum + 0.05f ) gx = Segment( painter, gx, gpuY, CostRowH, s.GpuAvg - gpuSum, DevToolsStyles.Raised, "other", px, "gpu", DevToolsStyles.Dim );
+			if ( s.GpuAvg > gpuSum + 0.05f ) gx = Segment( painter, gx, gpuY, CostRowH, s.GpuAvg - gpuSum, DevToolsStyles.Raised, "other", px, "rendering", DevToolsStyles.Dim );
 		}
 
 		Total( painter, s.GpuAvg, gpuY, CostRowH, plotX + plotW, DevToolsStyles.Gpu );
@@ -259,9 +255,9 @@ internal sealed class DevToolsBudget : Panel
 			var left = X( span.StartMs );
 			var width = MathF.Max( 0.75f, X( span.EndMs ) - left );
 			var rect = span.Async ? new Rect( left, y + laneH + 1, width, CostRowH - laneH - 1 ) : new Rect( left, y, width, laneH );
-			painter.Fill = DevToolsStyles.Series[span.Family];
+			painter.Fill = DevToolsStyles.PassColor( span.Kind );
 			painter.Rect( rect );
-			_hits.Add( new Hit( rect, span.Async ? $"{span.Name} (async)" : span.Name, span.Ms, ZoomGpu ) );
+			_hits.Add( new Hit( rect, span.Async ? $"{span.Name} (async)" : span.Name, span.Ms, "rendering" ) );
 
 			if ( !span.Async && width > span.Name.Length * 6.4f + 10 )
 				Text( painter, span.Name, new Rect( left + 5, y, width - 8, laneH ), TextFlag.LeftCenter, Color.Parse( "#141414" ).Value, 11, "Inter" );
@@ -276,7 +272,7 @@ internal sealed class DevToolsBudget : Panel
 		_legend.Add( (DevToolsStyles.Raised, "elapsed", timeline.ElapsedMs) );
 		if ( timeline.HasAsync ) _legend.Add( (DevToolsStyles.Dim, "async", timeline.AsyncBusyMs) );
 		foreach ( var span in timeline.Spans.Where( x => x.Leaf ).OrderByDescending( x => x.Ms ).Take( 8 ) )
-			_legend.Add( (DevToolsStyles.Series[span.Family], span.Name, span.Ms) );
+			_legend.Add( (DevToolsStyles.PassColor( span.Kind ), span.Name, span.Ms) );
 	}
 
 	/// <summary>
@@ -320,414 +316,143 @@ internal sealed class DevToolsBudget : Panel
 	}
 }
 
-/// <summary>
-/// A thin bar of segments against a budget - how much of it each part takes, with the budget marked.
-/// </summary>
-internal sealed class DevToolsStackBar : Panel
-{
-	public Func<IEnumerable<(Color Color, float Value)>> Segments { get; set; }
-	public Func<float> Budget { get; set; } = () => 1;
-	public bool BudgetLine { get; set; } = true;
-
-	public DevToolsStackBar()
-	{
-		AddClass( "stack-bar" );
-	}
-
-	public override void OnDraw( Painter painter )
-	{
-		if ( Segments is null ) return;
-
-		var scale = ScaleToScreen;
-		var w = Box.Rect.Width / scale;
-		var h = Box.Rect.Height / scale;
-		var budget = MathF.Max( 0.0001f, Budget() );
-
-		using var state = painter.Scope();
-		painter.Scale( scale );
-		painter.Stroke = Stroke.None;
-
-		painter.Fill = DevToolsStyles.Raised;
-		painter.Rect( new Rect( 0, 0, w, h ) );
-
-		// The budget sits at 80% of the width, so going over it shows
-		var full = BudgetLine ? budget * 1.25f : budget;
-		float x = 0;
-		foreach ( var (color, value) in Segments() )
-		{
-			var sw = value / full * w;
-			if ( x + sw > w ) sw = w - x;
-			if ( sw <= 0 ) break;
-			painter.Fill = color;
-			painter.Rect( new Rect( x, 0, MathF.Max( 1, sw - 1 ), h ) );
-			x += sw;
-		}
-
-		if ( BudgetLine )
-		{
-			painter.Fill = DevToolsStyles.Text;
-			painter.Rect( new Rect( w * 0.8f - 1, -2, 2, h + 4 ) );
-		}
-	}
-}
-
 
 /// <summary>
-/// Docked, for reading at a glance: a row of gauges over the frame drawn against its budget. A gauge is a name, a number
-/// and a chart, edged amber or red when it's out of line; everything else it knows is in its tooltip.
+/// The frame at a glance, the way <c>stat unit</c> puts it: the frame, the main thread, its rendering and the GPU on one
+/// line with what bounds the frame rate, recent frames under it, what's out of line, the frame's counters, and the frame
+/// laid along its budget. Numbers first; colour only where something's out of line.
 /// </summary>
 internal sealed class DevToolsGlanceTab : DevToolsTab
 {
 	public override string TabId => DevTools.OverviewTabId;
 	public override string Title => "Overview";
-	public override bool Advanced => false;
 
-	sealed class Gauge : Panel
+	sealed class Stat : Panel
 	{
-		public Label Value, Unit;
-		public Panel Chart;
-	}
+		public readonly Label Value, Unit;
 
-	/// <summary>
-	/// The rendering counters only update once a second, so they keep a minute of history of their own.
-	/// </summary>
-	sealed class Counter
-	{
-		public const int Size = 60;
-		readonly float[] _values = new float[Size];
-		int _head;
-		public int Count { get; private set; }
-
-		public void Push( float value )
+		public Stat( Panel parent, string key, string tab )
 		{
-			_values[_head] = value;
-			_head = (_head + 1) % Size;
-			Count = Math.Min( Count + 1, Size );
+			AddClass( "stat" );
+			parent.AddChild( this );
+			AddChild( new Label( key, "stat-key" ) );
+			Value = AddChild( new Label( "-", "stat-value" ) );
+			Unit = AddChild( new Label( "", "stat-unit" ) );
+			if ( tab is not null )
+			{
+				AddClass( "link" );
+				AddEventListener( "onclick", () => DevTools.ActiveTab = tab );
+			}
 		}
 
-		public float At( int age ) => _values[(_head - 1 - age + Size * 2) % Size];
+		public void Set( string value, string unit, string tooltip, DevTools.Severity? severity = null )
+		{
+			Value.Text = value;
+			Unit.Text = unit;
+			Tooltip = tooltip;
+			SetClass( "warning", severity == DevTools.Severity.Warning );
+			SetClass( "bad", severity == DevTools.Severity.Bad );
+		}
 	}
 
-	readonly Gauge _fps, _p99, _cpu, _gpu, _memory, _vram, _draws, _triangles, _objects, _lights;
-	readonly Counter _drawHistory = new(), _triangleHistory = new(), _objectHistory = new(), _lightHistory = new();
-	RealTimeSince _sinceSample = 1;
-	readonly DevToolsGpuZoom _zoom;
-	bool _zoomShown;
-	float _zoomGrew;
+	readonly Stat _frame, _cpu, _render, _gpu, _bound;
+	readonly DevToolsFindings _findings;
+	readonly DevToolsFacts _counters;
+
+	/// <summary>
+	/// The main thread's rendering, among the <see cref="DevTools.Categories"/>.
+	/// </summary>
+	static readonly int RenderCategory = Array.IndexOf( DevTools.Categories, PerformanceStats.Timings.Render );
 
 	public DevToolsGlanceTab()
 	{
-		AddClass( "dock" );
-		AddClass( "dock-glance" );
+		AddClass( "glance" );
 
-		var row = AddChild( new Panel( null, "glance-gauges" ) );
-		Gauge Add( string key, string tab )
+		var line = AddChild( new Panel( null, "stat-line span-all" ) );
+		_frame = new Stat( line, "frame", "cpu" );
+		_cpu = new Stat( line, "cpu", "cpu" );
+		_render = new Stat( line, "render", "cpu" );
+		_gpu = new Stat( line, "gpu", "rendering" );
+		// The limiter is judged from the frame's timings, not measured: it says likely
+		_bound = new Stat( line, "likely bound by", null );
+		_bound.AddClass( "stat-verdict" );
+
+		var history = AddChild( new DevToolsSparkline
 		{
-			var g = row.AddChild( new Gauge() );
-			g.AddClass( "gauge" );
-			g.AddChild( new Label( key, "gauge-key" ) );
-			var line = g.AddChild( new Panel( null, "gauge-line" ) );
-			g.Value = line.AddChild( new Label( "-", "gauge-value" ) );
-			g.Unit = line.AddChild( new Label( "", "gauge-unit" ) );
-			g.Chart = g.AddChild( new Panel( null, "gauge-chart" ) );
-			if ( tab is not null ) g.AddEventListener( "onclick", () => { if ( DevTools.ShowAdvanced ) DevTools.ActiveTab = tab; } );
-			return g;
-		}
+			Sample = age => DevTools.ShownFrames.FrameMs( age ),
+			Floor = 4,
+			Target = () => DevTools.Current.TargetMs,
+			Selectable = true,
+		} );
+		history.AddClass( "glance-history" );
+		history.AddClass( "span-all" );
 
-		void History( Gauge g, Counter counter ) =>
-			g.Chart.AddChild( new DevToolsSparkline { Sample = counter.At, Count = () => counter.Count, Capacity = Counter.Size, Floor = 1, Color = DevToolsStyles.Cpu } );
+		_findings = AddChild( new DevToolsFindings() );
+		_findings.AddClass( "span-all" );
 
-		Func<float> target = () => DevTools.Current.TargetMs;
+		_counters = AddChild( new DevToolsFacts() );
+		_counters.AddClass( "span-all" );
 
-		_fps = Add( "frame rate", "cpu" );
-		_fps.Chart.AddChild( new DevToolsSparkline { Sample = age => DevTools.ShownFrames.FrameMs( age ), Floor = 4, Target = target, Selectable = true } );
-
-		_p99 = Add( "p99 frame", "cpu" );
-		_p99.Chart.AddChild( new DevToolsHistogram { ShowLabels = false } );
-
-		_cpu = Add( "cpu", "cpu" );
-		_cpu.Chart.AddChild( new DevToolsSparkline { Sample = age => DevTools.ShownFrames.BusyMs( age ), Floor = 4, Target = target, Selectable = true } );
-
-		_gpu = Add( "gpu", "gpu" );
-		_gpu.Chart.AddChild( new DevToolsSparkline { Sample = age => DevTools.ShownFrames.GpuMs( age ), Floor = 4, Target = target, Color = DevToolsStyles.Gpu, Selectable = true } );
-
-		_memory = Add( "memory", "memory" );
-		_memory.Chart.AddChild( new DevToolsSparkline { Sample = age => DevTools.ShownFrames.AllocKb( age ), Floor = 64, Color = DevToolsStyles.Dim, Selectable = true } );
-
-		_vram = Add( "vram", "memory" );
-		_vram.Chart.AddChild( new DevToolsStackBar { Segments = VramSegments, Budget = () => 1, BudgetLine = false } );
-
-		_draws = Add( "draws", "rendering" );
-		History( _draws, _drawHistory );
-
-		_triangles = Add( "triangles", "rendering" );
-		History( _triangles, _triangleHistory );
-
-		_objects = Add( "objects", "rendering" );
-		History( _objects, _objectHistory );
-
-		_lights = Add( "lights", "shadows" );
-		History( _lights, _lightHistory );
-
-		var ruler = AddChild( new Panel( null, "glance-ruler" ) );
-		ruler.AddChild( new DevToolsBudget { ShowTotals = false } );
-		_zoom = ruler.AddChild( new DevToolsGpuZoom() );
-		var history = ruler.AddChild( new DevToolsSparkline { Sample = age => DevTools.ShownFrames.FrameMs( age ), Floor = 4, Target = target, Selectable = true } );
-		history.AddClass( "dock-history" );
-		history.Style.MarginRight = 14;
+		var ruler = AddChild( new DevToolsBudget { ShowTotals = true } );
+		ruler.AddClass( "span-all" );
 	}
-
-	public override void Tick()
-	{
-		base.Tick();
-
-		// The zoomed GPU frame opens under the ruler, and the window grows to fit it rather than scrolling
-		var open = DevTools.GpuZoom;
-		_zoom.SetClass( "hidden", !open );
-		if ( open == _zoomShown ) return;
-		_zoomShown = open;
-
-		if ( SurfaceWindow.FromPanel( this ) is not { } window || window.IsMaximized ) return;
-		if ( open )
-		{
-			_zoomGrew = DevToolsGpuZoom.HeightFor( DevTools.GpuTimeline ) + 8;
-			window.Size += new Vector2( 0, _zoomGrew );
-		}
-		else if ( _zoomGrew > 0 )
-		{
-			window.Size -= new Vector2( 0, _zoomGrew );
-			_zoomGrew = 0;
-		}
-	}
-
-	static IEnumerable<(Color, float)> VramSegments()
-	{
-		var f = GpuProfilerStats.VideoMemoryUsageFraction;
-		yield return (f > 0.95f ? DevToolsStyles.Bad : f > 0.8f ? DevToolsStyles.Warning : DevToolsStyles.Cpu, f);
-	}
-
-	static void Set( Gauge g, string value, string unit, string tooltip, DevTools.Severity? severity = null )
-	{
-		g.Value.Text = value;
-		g.Unit.Text = unit;
-		g.Tooltip = tooltip;
-		g.SetClass( "warning", severity == DevTools.Severity.Warning );
-		g.SetClass( "bad", severity == DevTools.Severity.Bad );
-	}
-
-	/// <summary>
-	/// Memory sizes side by side read in one unit: GiB, to two places.
-	/// </summary>
-	static string Gib( double bytes ) => $"{bytes / (1024.0 * 1024 * 1024):0.00}";
 
 	public override void Refresh( DevTools.Summary s )
 	{
 		var none = s.Frames == 0;
-		var second = PerformanceStats.LastSecond;
-		var gcMs = TimeSpan.FromTicks( second.GcPause ).TotalMilliseconds;
+		var target = s.TargetMs;
+		DevTools.Severity? Over( bool limiting ) => none || s.MeetingTarget || !limiting ? null : s.Rating;
 
-		Set( _fps, none ? "-" : $"{s.Fps:0}", "fps",
-			none ? null : $"{s.FrameAvg:0.00} ms a frame, target {s.TargetFps:0} fps from {s.TargetSource}\nLimited by {s.LimitText}: {DevToolsWindow.LimitTooltip( s )}",
+		_frame.Set( none ? "-" : $"{s.FrameAvg:0.00}", "ms",
+			none ? null : $"{s.Fps:0} fps, target {s.TargetFps:0} from {s.TargetSource}\np99 {s.FrameP99:0.00} ms, max {s.FrameMax:0.0} ms, {s.Spikes} hitches over {s.HitchMs:0} ms",
 			none || s.MeetingTarget ? null : s.Rating );
 
-		Set( _p99, none ? "-" : $"{s.FrameP99:0.0}", "ms",
-			$"99% of frames come in under this\nHitches (over {s.HitchMs:0.0} ms): {s.Spikes}{(s.Spikes > 0 ? $", worst {s.WorstSpikeMs:0} ms" : "")}\nFrame time spread, the budget dashed",
-			s.Spikes > 4 || s.WorstSpikeMs > 100 ? DevTools.Severity.Bad : s.Spikes > 0 || s.FrameP99 > s.TargetMs * 1.25f ? DevTools.Severity.Warning : null );
+		_cpu.Set( none ? "-" : $"{s.CpuWorkAvg:0.00}", "ms",
+			none ? null : $"Main thread work a frame, {s.CpuWorkAvg / target * 100:0}% of the budget\np99 {s.CpuTime.P99:0.00} ms, max {s.CpuTime.Max:0.0} ms",
+			Over( s.Limiter == DevTools.Limiter.Cpu ) );
 
-		Set( _cpu, none ? "-" : $"{s.CpuWorkAvg:0.00}", "ms",
-			none ? null : $"Main thread work a frame, {s.CpuWorkAvg / s.TargetMs * 100:0}% of the budget\np99 {s.CpuTime.P99:0.00} ms, max {s.CpuTime.Max:0.0} ms",
-			s.Limiter == DevTools.Limiter.Cpu && !s.MeetingTarget ? s.Rating : null );
+		var render = RenderCategory >= 0 ? s.CategoryTime[RenderCategory] : default;
+		_render.Set( none ? "-" : $"{render.Avg:0.00}", "ms",
+			none ? null : $"The main thread's rendering - culling, preparing, recording and submitting - p99 {render.P99:0.00} ms\nThe rest of the CPU time is the game: see the CPU tab" );
 
-		Set( _gpu, s.GpuAvg > 0 ? $"{s.GpuAvg:0.00}" : "-", "ms",
-			s.GpuAvg > 0 ? $"{(DevTools.GpuFromPasses ? "GPU busy a frame, its passes added up" : "GPU time a frame")}, {s.GpuAvg / s.TargetMs * 100:0}% of the budget\np99 {s.GpuTime.P99:0.00} ms, max {s.GpuTime.Max:0.0} ms" : "No GPU timings yet",
-			s.Limiter == DevTools.Limiter.Gpu && !s.MeetingTarget ? s.Rating : null );
+		_gpu.Set( s.GpuAvg > 0 ? $"{s.GpuAvg:0.00}" : "-", "ms",
+			s.GpuAvg > 0 ? $"{(DevTools.GpuFromPasses ? "GPU busy a frame, its passes added up" : "GPU time a frame")}, {s.GpuAvg / target * 100:0}% of the budget\np99 {s.GpuTime.P99:0.00} ms, max {s.GpuTime.Max:0.0} ms\nIts passes on the Rendering tab" : "No GPU timings yet",
+			Over( s.Limiter == DevTools.Limiter.Gpu ) );
 
-		Set( _memory, Gib( PerformanceStats.ApproximateProcessMemoryUsage ), "GiB",
-			$"Process memory\nAllocating {DevToolsFormat.Bytes( second.ByteAlloc )}/s managed, paused {gcMs:0.0} ms/s for GC (gen0 {second.Gc0}, gen1 {second.Gc1}, gen2 {second.Gc2})\nChart: allocation per frame",
-			gcMs > 8 || second.Gc2 > 0 ? DevTools.Severity.Bad : gcMs > 2 || second.ByteAlloc > 20 * 1024 * 1024 ? DevTools.Severity.Warning : null );
+		_bound.Set( none ? "-" : s.LimitText, "", none ? null : DevToolsWindow.LimitTooltip( s ), none || s.MeetingTarget ? null : s.Rating );
 
-		var vram = GpuProfilerStats.VideoMemoryUsageFraction;
-		var hasVram = GpuProfilerStats.VideoMemoryBudget > 0;
-		Set( _vram, hasVram ? Gib( GpuProfilerStats.VideoMemoryUsed ) : "-", "GiB",
-			hasVram ? $"Video memory, {vram * 100:0}% of the {Gib( GpuProfilerStats.VideoMemoryBudget )} GiB budget" : null,
-			vram > 0.95f ? DevTools.Severity.Bad : vram > 0.8f ? DevTools.Severity.Warning : null );
+		_findings.Set( s.Issues );
+		RefreshCounters();
+	}
 
-		// Rendering counters, which already include the managed renderer's
+	void RefreshCounters()
+	{
 		var f = FrameStats.Current;
-		if ( _sinceSample >= 1 && !DevTools.Paused )
+		var m = f.Managed;
+		var managed = m.Renders > 0;
+		var c = _counters;
+
+		var draws = managed ? m.TotalDraws : f.DrawCalls;
+		c.Set( "Draws", $"{draws:N0}", draws >= 5000 ? DevTools.Severity.Bad : draws >= 3000 ? DevTools.Severity.Warning : null, "Draw calls a frame. By pass on the Rendering tab" );
+		c.Set( "Triangles", DevToolsFormat.Count( managed ? m.Triangles : f.TrianglesRendered ) );
+		c.Set( "Objects", $"{(managed ? m.ObjectsVisible : f.ObjectsRendered):N0}", tooltip: managed ? $"Visible, of {m.Objects:N0}" : $"Drawn, of {f.ObjectsTested:N0} tested" );
+		c.Set( "Lights", $"{(managed ? m.Lights : f.ShadowedLightsInView + f.UnshadowedLightsInView):N0}" );
+
+		var second = PerformanceStats.LastSecond;
+		var gcMs = TimeSpan.FromTicks( second.GcPause ).TotalMilliseconds;
+		c.Set( "Memory", $"{PerformanceStats.ApproximateProcessMemoryUsage / (1024.0 * 1024 * 1024):0.00} GiB",
+			gcMs > 8 || second.Gc2 > 0 ? DevTools.Severity.Bad : gcMs > 2 ? DevTools.Severity.Warning : null,
+			$"Process memory\nAllocating {DevToolsFormat.Bytes( second.ByteAlloc )}/s managed, paused {gcMs:0.0} ms/s for GC" );
+
+		if ( GpuProfilerStats.VideoMemoryBudget > 0 )
 		{
-			_sinceSample = 0;
-			_drawHistory.Push( (float)f.DrawCalls );
-			_triangleHistory.Push( (float)f.TrianglesRendered );
-			_objectHistory.Push( (float)f.ObjectsRendered );
-			_lightHistory.Push( Lights( f ) );
+			var vram = GpuProfilerStats.VideoMemoryUsageFraction;
+			c.Set( "VRAM", $"{vram * 100:0}%", vram > 0.95f ? DevTools.Severity.Bad : vram > 0.8f ? DevTools.Severity.Warning : null,
+				$"Video memory, {DevToolsFormat.BytesOf( GpuProfilerStats.VideoMemoryUsed, GpuProfilerStats.VideoMemoryBudget )}" );
 		}
-
-		Set( _draws, DevToolsFormat.Count( f.DrawCalls ), "",
-			$"Draw calls a frame, counted once a second\n{f.MaterialChanges:N0} material changes, {f.RenderTargetResolves:N0} resolves",
-			f.DrawCalls > 5000 ? DevTools.Severity.Bad : f.DrawCalls > 3000 ? DevTools.Severity.Warning : null );
-		Set( _triangles, DevToolsFormat.Count( f.TrianglesRendered ), "",
-			f.DrawCalls > 0 ? $"Triangles a frame, {f.TrianglesRendered / f.DrawCalls:N0} a draw" : "Triangles a frame" );
-		Set( _objects, DevToolsFormat.Count( f.ObjectsRendered ), "",
-			$"Objects drawn, of {f.ObjectsTested:N0} tested\nCulled: {f.ObjectsCulledByVis:N0} by visibility, {f.ObjectsCulledByScreenSize:N0} by size, {f.ObjectsCulledByFade:N0} by fade" );
-
-		var managed = f.Managed.Renders > 0;
-		Set( _lights, $"{Lights( f ):N0}", "",
-			managed ? $"Lights in view\n{f.Managed.ShadowViews:N0} shadow views rendered" : $"Lights in view, {f.ShadowedLightsInView:N0} shadowed\n{f.ShadowMaps:N0} shadow maps" );
-	}
-
-	static float Lights( FrameStats f ) => f.Managed.Renders > 0 ? f.Managed.Lights : (float)(f.ShadowedLightsInView + f.UnshadowedLightsInView);
-}
-
-/// <summary>
-/// The GPU's frame at its own scale: every pass where it ran, nested under its parent like a flame chart, graphics
-/// and async compute apart, the CPU's submits marked. Opened from the budget ruler's GPU row, where the GPU is often too
-/// small to read; the scale here is the GPU frame's, not the budget's, and says so.
-/// </summary>
-internal sealed class DevToolsGpuZoom : Panel
-{
-	const float LabelW = 56, AxisH = 20, RowH = 16, Right = 14, Gap = 6;
-
-	readonly List<(Rect Rect, DevTools.GpuSpan Span)> _hits = new();
-
-	public DevToolsGpuZoom()
-	{
-		AddClass( "gpu-zoom" );
-	}
-
-	/// <summary>
-	/// The height the layout needs: an axis, a row a depth on each queue.
-	/// </summary>
-	public static float HeightFor( DevTools.GpuLayout layout ) =>
-		AxisH + (layout.MaxDepth + 1) * RowH + (layout.HasAsync ? Gap + (layout.MaxAsyncDepth + 1) * RowH : 0) + 8;
-
-	public override void Tick()
-	{
-		base.Tick();
-		Style.Height = HeightFor( DevTools.GpuTimeline );
-	}
-
-	protected override void OnClick( MousePanelEvent e )
-	{
-		// The label column closes it again
-		if ( e.LocalPosition.x / ScaleToScreen < LabelW ) DevTools.GpuZoom = false;
-	}
-
-	public override void OnDraw( Painter painter )
-	{
-		var timeline = DevTools.GpuTimeline;
-		var scale = ScaleToScreen;
-		var w = Box.Rect.Width / scale;
-		var h = Box.Rect.Height / scale;
-		if ( w < 200 ) return;
-
-		using var state = painter.Scope();
-		painter.Scale( scale );
-		painter.Stroke = Stroke.None;
-		_hits.Clear();
-
-		var plotX = LabelW;
-		var plotW = w - LabelW - Right;
-
-		if ( timeline.Spans.Count == 0 || timeline.ElapsedMs <= 0 )
+		else
 		{
-			Text( painter, "Waiting for a GPU timeline", new Rect( plotX, 0, plotW, h ), TextFlag.LeftCenter, DevToolsStyles.Faint, 11, "Inter" );
-			return;
+			c.Hide( "VRAM" );
 		}
-
-		var px = plotW / timeline.ElapsedMs;
-		float X( float ms ) => plotX + ms * px;
-		var rowsTop = AxisH;
-		var asyncTop = rowsTop + (timeline.MaxDepth + 1) * RowH + Gap;
-		var bottom = timeline.HasAsync ? asyncTop + (timeline.MaxAsyncDepth + 1) * RowH : asyncTop - Gap;
-
-		painter.Fill = DevToolsStyles.Plot;
-		painter.Rect( new Rect( plotX, rowsTop, plotW, bottom - rowsTop ) );
-
-		// Axis, in the GPU frame's own ms
-		ReadOnlySpan<float> steps = [0.01f, 0.02f, 0.05f, 0.1f, 0.2f, 0.25f, 0.5f, 1, 2, 5, 10];
-		var step = steps[^1];
-		foreach ( var st in steps ) { if ( st * px >= 64 ) { step = st; break; } }
-		for ( float t = 0; t <= timeline.ElapsedMs + 0.0001f; t += step )
-		{
-			var x = X( t );
-			painter.Fill = DevToolsStyles.Line;
-			painter.Rect( new Rect( x, AxisH - 5, 1, 5 ) );
-			painter.Fill = Color.White.WithAlpha( 0.035f );
-			painter.Rect( new Rect( x, rowsTop, 1, bottom - rowsTop ) );
-			Text( painter, t == 0 ? "0" : $"{t:0.##}", new Rect( x - 30, 2, 60, AxisH - 8 ), TextFlag.Center, DevToolsStyles.Faint, 10 );
-		}
-
-		var busyShare = timeline.ElapsedMs > 0 ? timeline.BusyMs / timeline.ElapsedMs : 0;
-		var summary = $"GPU frame zoomed: busy {timeline.BusyMs:0.00} of {timeline.ElapsedMs:0.00} ms ({busyShare * 100:0}%)";
-		var summaryW = summary.Length * 6.2f + 12;
-		painter.Fill = DevToolsStyles.Plot;
-		painter.Rect( new Rect( plotX + plotW - summaryW, 1, summaryW, AxisH - 7 ) );
-		Text( painter, summary, new Rect( plotX, 2, plotW - 4, AxisH - 8 ), TextFlag.RightCenter, DevToolsStyles.Bright, 10 );
-
-		Text( painter, "graphics", new Rect( 8, rowsTop, LabelW - 10, RowH ), TextFlag.LeftCenter, DevToolsStyles.Dim, 11, "Inter" );
-		if ( timeline.HasAsync ) Text( painter, "async", new Rect( 8, asyncTop, LabelW - 10, RowH ), TextFlag.LeftCenter, DevToolsStyles.Dim, 11, "Inter" );
-		Text( painter, "close", new Rect( 8, 2, LabelW - 10, AxisH - 8 ), TextFlag.LeftCenter, DevToolsStyles.Faint, 10, "Inter" );
-
-		// Submits: a tick on the axis and a faint line down, so a pass waiting on one lines up with it
-		foreach ( var t in timeline.Submits )
-		{
-			var x = X( t );
-			painter.Fill = DevToolsStyles.Text.WithAlpha( 0.12f );
-			painter.Rect( new Rect( x, rowsTop, 1, bottom - rowsTop ) );
-			painter.Fill = DevToolsStyles.Text;
-			painter.Rect( new Rect( x - 0.5f, AxisH - 6, 2, 6 ) );
-		}
-
-		foreach ( var span in timeline.Spans )
-		{
-			var y = (span.Async ? asyncTop : rowsTop) + span.Depth * RowH;
-			var left = X( span.StartMs );
-			var width = MathF.Max( 0.75f, span.Ms * px - 1 );
-			var rect = new Rect( left, y, width, RowH - 1 );
-
-			// Parents dim, so the leaves - where the time is spent - stand out
-			var color = DevToolsStyles.Series[span.Family];
-			painter.Fill = span.Leaf ? color : color.WithAlpha( 0.35f );
-			painter.Rect( rect );
-			_hits.Add( (rect, span) );
-
-			var ink = span.Leaf ? Color.Parse( "#141414" ).Value : DevToolsStyles.Text;
-			var withMs = $"{span.Name} {DevToolsFormat.Ms( span.Ms )}";
-			if ( width > withMs.Length * 6.2f + 8 )
-				Text( painter, withMs, new Rect( left + 4, y, width - 6, RowH - 1 ), TextFlag.LeftCenter, ink, 10.5f, "Inter" );
-			else if ( width > span.Name.Length * 6.2f + 8 )
-				Text( painter, span.Name, new Rect( left + 4, y, width - 6, RowH - 1 ), TextFlag.LeftCenter, ink, 10.5f, "Inter" );
-		}
-
-		if ( HasHovered )
-		{
-			var m = MousePosition / scale;
-			for ( int i = _hits.Count - 1; i >= 0; i-- )
-			{
-				var (rect, span) = _hits[i];
-				if ( !rect.IsInside( m ) ) continue;
-
-				painter.Stroke = Stroke.Solid( Color.White, 1 );
-				painter.Fill = Color.Transparent;
-				painter.Rect( rect );
-				painter.Stroke = Stroke.None;
-
-				var box = new Rect( MathF.Min( m.x + 12, w - 210 ), MathF.Min( m.y + 12, h - 36 ), 200, 34 );
-				painter.Fill = Color.Parse( "#1C1C1C" ).Value;
-				painter.Stroke = Stroke.Solid( DevToolsStyles.Line, 1 );
-				painter.Rect( box );
-				painter.Stroke = Stroke.None;
-				Text( painter, span.Name, new Rect( box.Left + 6, box.Top + 2, box.Width - 12, 15 ), TextFlag.LeftCenter, DevToolsStyles.Text, 11, "Inter" );
-				Text( painter, $"{span.Ms:0.000} ms, {span.StartMs:0.00} to {span.EndMs:0.00}", new Rect( box.Left + 6, box.Top + 17, box.Width - 12, 15 ), TextFlag.LeftCenter, DevToolsStyles.Dim, 10 );
-				break;
-			}
-		}
-	}
-
-	static void Text( Painter painter, string text, Rect rect, TextFlag flags, Color color, float size = 11, string font = "Roboto Mono" )
-	{
-		var scope = new TextRendering.Scope( text, color, size, font, 500 );
-		DebugOverlay.DrawText( painter, scope, rect, flags );
 	}
 }

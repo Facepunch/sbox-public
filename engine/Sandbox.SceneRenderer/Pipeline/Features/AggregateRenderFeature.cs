@@ -207,6 +207,7 @@ internal sealed class AggregateRenderFeature : RenderFeature
 				: context.DrawModelFragments( material, mode, mesh, draw, aggregate.FirstInstance, argsRing.Current, batch.FirstArg, batch.Count, depthBias, slopeBias, stripPixelShader );
 			if ( !drawn ) continue;
 
+			stats.DrawnTriangles += batch.Triangles;
 			if ( shadow )
 			{
 				stats.ShadowDraws++;

@@ -73,6 +73,9 @@ internal static partial class DevTools
 	internal static void RenderGameDock()
 	{
 		if ( _dockSurface is null || !IsOpen ) return;
+
+		// Drawn every game frame, so it's part of what the dev tools costs
+		using var _ = Timing.Scope();
 		_dockSurface.Render();
 	}
 

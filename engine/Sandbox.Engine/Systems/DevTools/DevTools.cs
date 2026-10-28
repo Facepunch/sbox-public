@@ -6,8 +6,7 @@ namespace Sandbox.Diagnostics;
 /// <summary>
 /// The dev tools (<c>devtools</c>, F11): one place for the engine's performance numbers, which used to be a
 /// separate <c>overlay_*</c> convar each, stacked up the side of the screen. The overview tab says what's limiting
-/// the frame and what's worth looking at, for anyone. The other tabs are the detail behind it, for developers - see
-/// <see cref="ShowAdvanced"/>.
+/// the frame and what's worth looking at; the other tabs are the detail behind it.
 /// <para>
 /// The dev tools dock along the bottom of the game window, over the game (<see cref="Host.GameDock"/>), and pop out into
 /// a window of their own (a <see cref="SurfaceWindow"/>) that doesn't cover what it's measuring or take the game's mouse
@@ -43,19 +42,10 @@ internal static partial class DevTools
 		EditorDock,
 	}
 
-	[ConVar( "devtools_advanced", ConVarFlags.Protected | ConVarFlags.Saved, Help = "Show every dev tools tab, not just the overview. Always on in the editor and with sv_cheats" )]
-	internal static bool AdvancedEnabled { get; set; }
-
 	/// <summary>
 	/// The size the popped out window opens at: wide and short, to sit under the game.
 	/// </summary>
 	static readonly Vector2 WindowSize = new( 1560, 340 );
-
-	/// <summary>
-	/// Whether the developer tabs are available. Players get the overview; the rest needs the editor, cheats, or
-	/// opting in with <c>devtools_advanced</c>.
-	/// </summary>
-	internal static bool ShowAdvanced => Application.IsEditor || Application.CheatsEnabled || AdvancedEnabled;
 
 	/// <summary>
 	/// Whether the tabs that would work as a wallhack are available - the audio tab shows where sounds are. Their
@@ -81,7 +71,7 @@ internal static partial class DevTools
 	/// </summary>
 	internal static PerformanceStats.Timings Timing { get; } = PerformanceStats.Timings.Get( "Dev Tools", "#9aa5b1" );
 
-	[ConCmd( "devtools", ConVarFlags.Protected, Help = "Toggle the dev tools. Pass a tab name (overview, cpu, gpu, memory, rendering, network, ui, audio) to open it on that tab" )]
+	[ConCmd( "devtools", ConVarFlags.Protected, Help = "Toggle the dev tools. Pass a tab name (overview, cpu, memory, rendering, network, ui, audio) to open it on that tab" )]
 	internal static void ToggleCommand( string tab = "" )
 	{
 		if ( Application.IsHeadless )
@@ -89,7 +79,8 @@ internal static partial class DevTools
 
 		if ( !string.IsNullOrWhiteSpace( tab ) )
 		{
-			ActiveTab = tab.Trim().ToLowerInvariant();
+			// The GPU tab's passes and timeline are the Rendering tab's now
+			ActiveTab = tab.Trim().ToLowerInvariant() is "gpu" ? "rendering" : tab.Trim().ToLowerInvariant();
 			Open();
 			return;
 		}
@@ -182,9 +173,7 @@ internal static partial class DevTools
 	internal static bool IsShowing( string tab )
 	{
 		if ( !IsOpen || !string.Equals( ActiveTab, tab, StringComparison.OrdinalIgnoreCase ) ) return false;
-		if ( tab == OverviewTabId ) return true;
-		if ( tab == "audio" ) return ShowCheatTabs;
-		return ShowAdvanced;
+		return tab != "audio" || ShowCheatTabs;
 	}
 
 	static readonly Dictionary<string, double> _collectUntil = new( StringComparer.OrdinalIgnoreCase );
@@ -207,9 +196,10 @@ internal static partial class DevTools
 		IsShowing( tab ) || RealTime.Now < _collectUntil.GetValueOrDefault( tab );
 
 	/// <summary>
-	/// The dev tools reads GPU pass timings for the overview's top costs and the GPU tab, so profiling runs while it's open.
+	/// The dev tools reads GPU pass timings for the overview's ruler and the Rendering tab's passes, so profiling runs while
+	/// it's open.
 	/// </summary>
-	internal static bool WantsGpuTimings => IsOpen || IsCollecting( "gpu" );
+	internal static bool WantsGpuTimings => IsOpen || IsCollecting( "rendering" );
 
 	/// <summary>
 	/// The frame picked out for a closer look, by its <see cref="FrameHistory.Number"/>. Picking one pauses the dev tools, so
@@ -239,7 +229,7 @@ internal static partial class DevTools
 	static Vector2? _windowPosition;
 
 	/// <summary>
-	/// How often the window redraws. Its numbers move four times a second; it doesn't need to keep up with the game,
+	/// How often the window redraws. Its numbers move twice a second; it doesn't need to keep up with the game,
 	/// and every frame it skips is a layout and a present the game doesn't pay for.
 	/// </summary>
 	const float WindowFrameRate = 30;

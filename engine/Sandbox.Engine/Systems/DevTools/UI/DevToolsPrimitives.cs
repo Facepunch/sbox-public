@@ -107,6 +107,15 @@ internal sealed class DevToolsFacts : Panel
 	}
 
 	/// <summary>
+	/// The facts on show, one "key: value" a line, for copying.
+	/// </summary>
+	public void WriteText( System.Text.StringBuilder into )
+	{
+		foreach ( var (key, (cell, value)) in _facts )
+			if ( !cell.HasClass( "hidden" ) ) into.AppendLine( $"{key}: {value.Text}" );
+	}
+
+	/// <summary>
 	/// Hide a fact that doesn't apply right now.
 	/// </summary>
 	public void Hide( string key )
@@ -134,6 +143,13 @@ internal sealed class DevToolsTable : Panel
 	readonly string _columns;
 	readonly Panel _header;
 	readonly Dictionary<string, RowPanel> _rows = new();
+
+	/// <summary>
+	/// Rows whose keys dropped out, hidden, for new keys to take over: a list whose entries come and go - the top
+	/// allocating types - made a row of about twenty panels for every new name and kept the old ones hidden for good.
+	/// </summary>
+	readonly Stack<RowPanel> _spare = new();
+	readonly List<string> _dropped = new();
 	readonly List<RowPanel> _order = new();
 	readonly HashSet<string> _seen = new();
 	readonly Label _empty;
@@ -216,9 +232,14 @@ internal sealed class DevToolsTable : Panel
 	{
 		if ( !_rows.TryGetValue( key, out var row ) )
 		{
-			row = AddChild( new RowPanel() );
-			row.AddClass( "data-row" );
-			row.Style.Set( "grid-template-columns", _columns );
+			if ( !_spare.TryPop( out row ) )
+			{
+				row = AddChild( new RowPanel() );
+				row.AddClass( "data-row" );
+				row.Style.Set( "grid-template-columns", _columns );
+			}
+
+			row.SetClass( "hidden", false );
 			_rows[key] = row;
 		}
 
@@ -275,8 +296,18 @@ internal sealed class DevToolsTable : Panel
 	/// </summary>
 	public void End( string emptyText = null )
 	{
+		// Rows not set this time are hidden and kept for other keys
+		_dropped.Clear();
 		foreach ( var (key, row) in _rows )
-			row.SetClass( "hidden", !_seen.Contains( key ) );
+		{
+			if ( _seen.Contains( key ) ) continue;
+			row.SetClass( "hidden", true );
+			row.Click = null;
+			_spare.Push( row );
+			_dropped.Add( key );
+		}
+
+		foreach ( var key in _dropped ) _rows.Remove( key );
 
 		for ( int i = 0; i < _order.Count; i++ )
 			_order[i].SetClass( "last", i == _order.Count - 1 );
@@ -306,6 +337,24 @@ internal sealed class DevToolsTable : Panel
 
 		_empty.Text = emptyText ?? "";
 		_empty.SetClass( "hidden", _order.Count > 0 || emptyText is null );
+	}
+
+	/// <summary>
+	/// The rows on show, a line each with the cells tab separated and a tree's rows indented, for copying.
+	/// </summary>
+	public void WriteText( System.Text.StringBuilder into )
+	{
+		if ( _header is not null )
+			into.AppendLine( string.Join( "\t", _header.Children.OfType<Label>().Select( x => x.Text ) ).TrimEnd() );
+
+		foreach ( var row in _order )
+		{
+			var cells = row.Cells.Where( x => !x.HasClass( "hidden" ) ).ToList();
+			if ( cells.Count == 0 ) continue;
+
+			var indent = new string( ' ', (int)MathF.Max( 0, (cells[0].Indent - 10) / 7 ) );
+			into.AppendLine( indent + string.Join( "\t", cells.Select( x => x.Text.HasClass( "hidden" ) ? "" : x.Text.Text ) ).TrimEnd() );
+		}
 	}
 
 	/// <summary>
@@ -387,7 +436,7 @@ internal sealed class DevToolsFindings : Panel
 			Link = AddChild( new Label( "", "finding-link" ) );
 			AddEventListener( "onclick", () =>
 			{
-				if ( Tab is not null && DevTools.ShowAdvanced ) DevTools.ActiveTab = Tab;
+				if ( Tab is not null ) DevTools.ActiveTab = Tab;
 			} );
 		}
 	}
@@ -417,7 +466,7 @@ internal sealed class DevToolsFindings : Panel
 			if ( i >= issues.Count ) continue;
 
 			var issue = issues[i];
-			var linked = issue.Tab is not null && DevTools.ShowAdvanced && issue.Tab != DevTools.ActiveTab;
+			var linked = issue.Tab is not null && issue.Tab != DevTools.ActiveTab;
 			row.Tab = issue.Tab;
 			row.SetClass( "link", linked );
 			row.Title.Text = issue.Title;

@@ -196,5 +196,65 @@ internal sealed record GpuFrameTimeline( string FrameId, int DroppedEvents, GpuF
 		return visited == indices.Length; // A cycle has no reachable root.
 	}
 
+	/// <summary>
+	/// The frame's events with each pass recorded in pieces back to back made one, from its first piece's start to its
+	/// last's end, the pieces' children under it, and the paths rebuilt. The managed renderer records a layer in a piece
+	/// per recording thread, each its own scope, and how many there are changes frame to frame - shown apart, a layer was
+	/// a row of slivers that never held still. Pieces are consecutive siblings of one name on one queue.
+	/// </summary>
+	internal static Event[] MergePieces( Event[] events )
+	{
+		var into = new int[events.Length];
+		var start = new double[events.Length];
+		var end = new double[events.Length];
+		for ( int i = 0; i < events.Length; i++ )
+		{
+			into[i] = i;
+			start[i] = events[i].StartMs;
+			end[i] = events[i].EndMs;
+		}
+
+		// Parents start no later than their children, so each is placed before what's under it
+		var order = Enumerable.Range( 0, events.Length ).Where( i => events[i].Kind == "pass" )
+			.OrderBy( i => events[i].StartMs ).ThenByDescending( i => events[i].EndMs ).ThenBy( i => i );
+
+		var lastChild = new Dictionary<(int Parent, string Queue), int>();
+		foreach ( var i in order )
+		{
+			var e = events[i];
+			var parent = e.Parent >= 0 ? into[e.Parent] : -1;
+			if ( lastChild.TryGetValue( (parent, e.Queue), out var previous ) && events[previous].Name == e.Name )
+			{
+				into[i] = previous;
+				start[previous] = Math.Min( start[previous], e.StartMs );
+				end[previous] = Math.Max( end[previous], e.EndMs );
+				continue;
+			}
+
+			lastChild[(parent, e.Queue)] = i;
+		}
+
+		var index = new int[events.Length];
+		var kept = new List<Event>( events.Length );
+		for ( int i = 0; i < events.Length; i++ )
+		{
+			index[i] = -1;
+			if ( into[i] != i ) continue;
+			index[i] = kept.Count;
+			kept.Add( events[i] );
+		}
+
+		var merged = kept.ToArray();
+		for ( int i = 0; i < events.Length; i++ )
+		{
+			if ( index[i] < 0 ) continue;
+			var e = events[i];
+			var parent = e.Parent >= 0 ? index[into[e.Parent]] : -1;
+			merged[index[i]] = e with { Parent = parent, StartMs = start[i], EndMs = end[i] };
+		}
+
+		return BuildPaths( merged ) ? merged : events;
+	}
+
 	static string Id( ulong value ) => value == 0 ? null : value.ToString( System.Globalization.CultureInfo.InvariantCulture );
 }

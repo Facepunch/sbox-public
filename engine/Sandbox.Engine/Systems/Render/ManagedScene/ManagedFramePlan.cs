@@ -20,6 +20,19 @@ internal sealed class ManagedFramePlan
 	public static bool Wanted => RealTime.Now < wantedUntil;
 
 	/// <summary>
+	/// How often a plan is made while one is wanted. Nothing reads them faster - the dev tools samples ten times a second -
+	/// and making one every frame, its layers timed and counted, cost a few megabytes a second of garbage.
+	/// </summary>
+	const double Interval = 0.1;
+
+	static double publishedAt;
+
+	/// <summary>
+	/// Whether to make a plan of this frame: one is wanted, and the last is <see cref="Interval"/> old.
+	/// </summary>
+	public static bool Due => Wanted && RealTime.Now - publishedAt >= Interval;
+
+	/// <summary>
 	/// The last plan published.
 	/// </summary>
 	public static ManagedFramePlan Latest { get; set; }
@@ -53,6 +66,22 @@ internal sealed class ManagedFramePlan
 
 		/// <summary>The first segment it records in, or -1.</summary>
 		public int Segment;
+
+		/// <summary>Where it runs among all the frames' layers, child frames' included, or -1 if it doesn't. A layer that
+		/// runs a child frame has the place of the child's first layer.</summary>
+		public int Order;
+
+		/// <summary>The frame in <see cref="Frames"/> it runs in its place - the 3D skybox's - or -1.</summary>
+		public int ChildFrame;
+
+		/// <summary>What recording it cost on the CPU, in milliseconds, across the <see cref="Pieces"/> it was recorded in,
+		/// threads added together.</summary>
+		public double CpuMs;
+		public int Pieces;
+
+		/// <summary>What it recorded: draws, triangles, and material binds - full ones, and similar materials' partial ones.</summary>
+		public int Recorded, Binds, SimilarBinds;
+		public long Triangles;
 	}
 
 	/// <summary>
@@ -84,6 +113,13 @@ internal sealed class ManagedFramePlan
 
 		/// <summary>The first layer it records.</summary>
 		public string First;
+
+		/// <summary>When it was recorded (<see cref="System.Diagnostics.Stopwatch"/> ticks), and on which thread.</summary>
+		public long StartTicks, EndTicks;
+		public int Thread;
+
+		/// <summary>When it was recorded, in milliseconds from the frame's first submit (<see cref="Publish"/>).</summary>
+		public double StartMs, EndMs;
 	}
 
 	/// <summary>
@@ -91,6 +127,19 @@ internal sealed class ManagedFramePlan
 	/// waiting on workers; workers is their total.
 	/// </summary>
 	public double CollectMs, PrepareMs, SetupMs, RecordMs, RecordWaitMs, SubmitMs, WorkerMs;
+
+	/// <summary>
+	/// When the frame started being made and when it was first submitted (<see cref="System.Diagnostics.Stopwatch"/> ticks), and the thread
+	/// that made it.
+	/// </summary>
+	public long StartTicks, SubmitTicks;
+	public int MainThread;
+
+	/// <summary>
+	/// When the frame started being made, in milliseconds before its first submit: the GPU's timeline starts at that
+	/// submit, so the CPU's work lines up with it from here.
+	/// </summary>
+	public double StartMs;
 
 	/// <summary>
 	/// The camera the frame is of.
@@ -116,16 +165,49 @@ internal sealed class ManagedFramePlan
 	/// </summary>
 	public void Publish()
 	{
-		const double keep = 0.9;
+		// Plans come ten times a second, so this settles over about a second
+		const double keep = 0.7;
+		publishedAt = RealTime.Now;
+
+		double Ms( long ticks ) => SubmitTicks == 0 ? 0 : (ticks - SubmitTicks) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+		StartMs = Ms( StartTicks );
+		for ( int i = 0; i < Segments.Count; i++ )
+		{
+			var segment = Segments[i];
+			segment.StartMs = Ms( segment.StartTicks );
+			segment.EndMs = Ms( segment.EndTicks );
+			Segments[i] = segment;
+		}
 
 		if ( Latest is { } last && last.Camera == Camera && last.Segments.Count == Segments.Count )
 		{
 			for ( int i = 0; i < Segments.Count; i++ )
 			{
 				var segment = Segments[i];
-				segment.Ms = last.Segments[i].Ms * keep + segment.Ms * (1 - keep);
+				var was = last.Segments[i];
+				segment.Ms = was.Ms * keep + segment.Ms * (1 - keep);
+				segment.StartMs = was.StartMs * keep + segment.StartMs * (1 - keep);
+				segment.EndMs = was.EndMs * keep + segment.EndMs * (1 - keep);
 				Segments[i] = segment;
 			}
+
+			// Layers settle too while the frames keep their layers
+			for ( int f = 0; f < Frames.Count && f < last.Frames.Count; f++ )
+			{
+				var layers = Frames[f].Layers;
+				var lastLayers = last.Frames[f].Layers;
+				if ( layers.Count != lastLayers.Count ) continue;
+
+				for ( int l = 0; l < layers.Count; l++ )
+				{
+					var layer = layers[l];
+					if ( layer.Name != lastLayers[l].Name ) continue;
+					layer.CpuMs = lastLayers[l].CpuMs * keep + layer.CpuMs * (1 - keep);
+					layers[l] = layer;
+				}
+			}
+
+			StartMs = last.StartMs * keep + StartMs * (1 - keep);
 
 			CollectMs = last.CollectMs * keep + CollectMs * (1 - keep);
 			PrepareMs = last.PrepareMs * keep + PrepareMs * (1 - keep);

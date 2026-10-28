@@ -794,6 +794,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 				if ( !drawn ) continue;
 			}
 
+			stats.DrawnTriangles += (long)(draw.IndexCount / 3) * run.Count;
 			if ( shadow )
 			{
 				stats.ShadowDraws++;

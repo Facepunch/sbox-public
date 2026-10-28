@@ -5,79 +5,126 @@ using Sandbox.UI;
 namespace Sandbox.Diagnostics;
 
 /// <summary>
-/// What the renderer submitted last frame, what it threw away, and the resources and effects it leaned on. Numbers in
-/// tables, coloured where they're out of line, with what's out of line listed first.
+/// The renderer's frame: GPU time frame by frame, every pass in the order it ran with what it cost on the GPU and - through
+/// the managed renderer - to record, the picked pass in detail, the frame on one clock from the CPU starting it to the
+/// GPU finishing it, and the frame's counters. The way GPU profilers lay it out: history, tree, detail, timeline.
 /// </summary>
 internal sealed class DevToolsRenderingTab : DevToolsTab
 {
 	public override string TabId => "rendering";
 	public override string Title => "Rendering";
 
-	// Where a number starts to be worth a look. Rules of thumb carried over from the old frame stats overlay.
-	const double DrawCallsWarn = 3000, DrawCallsBad = 5000;
-	const double MatChangesPerDrawWarn = 0.5;
-	const double TrisPerDrawWarn = 1000;
-	const double BatchDensityWarn = 2;
-	const double TexturePoolWarn = 85, TexturePoolBad = 95;
-	const int StreamingWarn = 32;
-
-	/// <summary>
-	/// Batching ratios only mean something once there are enough draws for them to add up.
-	/// </summary>
-	const double BatchingMattersAbove = 300;
-
-	const string Columns = "minmax(0, 1fr) 72px minmax(0, 1fr)";
-
 	readonly DevToolsFacts _context;
-	readonly DevToolsFindings _findings;
-	readonly DevToolsTable _submission;
-	readonly DevToolsTable _visibility;
-	readonly DevToolsTable _occlusion;
-	readonly DevToolsTable _occlusionSettings;
-	readonly DevToolsTable _lights;
-	readonly DevToolsTable _textures;
-	readonly DevToolsTable _postProcess;
-	readonly Panel _managedPane;
-	readonly DevToolsTable _managedPhases;
-	readonly DevToolsTable _managedDraws;
+	readonly DevToolsTable _managedTree, _nativeTree, _skippedTable;
+	readonly Label _orderButton, _skippedToggle, _treeAside;
+	readonly DevToolsSection _detail;
+	readonly DevToolsFacts _frameFacts, _passFacts;
+	readonly Panel _detailChart;
+	readonly Label _detailHint;
+	readonly DevToolsFacts _counters;
 	readonly Panel _deviceLines;
-	readonly List<DevTools.Issue> _issues = new();
+	readonly List<DevTools.RenderPass> _passes = new();
+	readonly List<DevTools.SkippedLayer> _skipped = new();
+	readonly List<DevTools.GpuPass> _profilerPasses = new();
+	readonly List<(string View, string Pass)> _views = new();
 	string _deviceKey;
+	DevTools.PassOrder _order;
+	bool _showSkipped;
+	string _filter = "";
+	string _chartFor;
 
 	public DevToolsRenderingTab()
 	{
+		AddClass( "rendering" );
+
 		_context = AddChild( new DevToolsFacts() );
-		_findings = AddChild( new DevToolsFindings() );
+		_context.AddClass( "span-all" );
 
-		var split = AddChild( new Panel( null, "split" ) );
+		// GPU time frame by frame, scaled to itself rather than the budget so its ups and downs show; picking a frame
+		// pauses on it
+		var history = AddChild( new Panel( null, "render-history span-all" ) );
+		history.AddChild( new Label( "gpu ms", "render-history-key" ) );
+		history.AddChild( new DevToolsSparkline
+		{
+			Sample = age => DevTools.ShownFrames.GpuMs( age ),
+			Floor = 1,
+			Color = DevToolsStyles.Gpu,
+			Selectable = true,
+		} );
 
-		_submission = Pane( split, "render-submission" ).AddChild( new DevToolsTable( Columns, "Submission", "#count", "" ).Banded() );
-		var visibility = Pane( split );
-		_visibility = visibility.AddChild( new DevToolsTable( "minmax(0, 1fr) 64px 40px 64px", "Visibility", "#objects", "#%", "" ).Banded() );
-		_occlusion = visibility.AddChild( new DevToolsTable( "minmax(0, 1fr) 64px 40px 64px", "GPU occlusion", "#count", "#%", "" ).Banded() );
-		_occlusionSettings = visibility.AddChild( new DevToolsTable( "minmax(0, 1fr) 96px", "Occlusion settings", "" ).Banded() );
-		_lights = Pane( split ).AddChild( new DevToolsTable( "minmax(0, 1fr) 64px", "Lights and shadows", "#count" ).Banded() );
-		_textures = Pane( split ).AddChild( new DevToolsTable( "minmax(0, 1fr) minmax(0, 130px) 64px", "Texture pool", "#", "" ).Banded() );
+		// The whole frame on one clock, over the passes it's made of
+		var timeline = AddChild( new DevToolsSection( "Timeline", "span-all" ) );
+		var chart = timeline.Body.AddChild( new DevToolsFrameTimeline { Status = timeline.Aside } );
+		var fitGpu = timeline.Head.AddChild( new Label( "fit gpu", "head-button" ) );
+		fitGpu.Tooltip = "The GPU's work. Double click empty space to go back a zoom";
+		fitGpu.AddEventListener( "onclick", () => chart.Fit( false ) );
+		var fitAll = timeline.Head.AddChild( new Label( "fit frame", "head-button" ) );
+		fitAll.Tooltip = "The whole frame, from the CPU starting on it to the GPU finishing it";
+		fitAll.AddEventListener( "onclick", () => chart.Fit( true ) );
 
-		_postProcess = Pane( split, "span-all" ).AddChild( new DevToolsTable( "minmax(0, 1fr) minmax(0, 1fr) 48px minmax(0, 1fr)", "Post-processing", "stage", "#order", "flags" ).Banded() );
+		var split = AddChild( new Panel( null, "pass-split span-all" ) );
+		var tree = split.AddChild( new Panel( null, "section pass-tree" ) );
 
-		_managedPane = Pane( split, "span-all" );
-		var managed = _managedPane.AddChild( new Panel( null, "split" ) );
-		_managedPhases = Pane( managed ).AddChild( new DevToolsTable( "minmax(0, 1fr) 56px 64px", "Managed renderer", "#ms", "" ).Banded() );
-		_managedDraws = Pane( managed ).AddChild( new DevToolsTable( "minmax(0, 1fr) 64px 64px", "Draws by pass", "#draws", "" ).Banded() );
-		_managedPane.AddChild( new DevToolsSection( "Frame plan" ).Collapsible( body =>
-			body.AddChild( new DevToolsOverlayView( ( Painter p, ref Vector2 pos ) => DebugOverlay.ScenePlan.Draw( p, ref pos, 1 ) ) ) ) );
+		var tools = tree.AddChild( new Panel( null, "section-head" ) );
+		tools.AddChild( new Label( "Passes", "section-title" ) );
+		_treeAside = tools.AddChild( new Label( "", "section-aside" ) );
+		// Find a pass by name: the matches, and what they're in
+		var filter = tools.AddChild( new TextEntry() );
+		filter.AddClass( "pass-filter" );
+		filter.Placeholder = "find";
+		filter.AddEventListener( "onchange", () => { _filter = filter.Text ?? ""; Refresh( DevTools.Current ); } );
 
-		var device = split.AddChild( new DevToolsSection( "Device report", "span-all" ) );
+		_orderButton = tools.AddChild( new Label( "", "head-button" ) );
+		_orderButton.AddEventListener( "onclick", () =>
+		{
+			// Recording time only means something through the managed renderer
+			var managed = FrameStats.Current.Managed.Renders > 0;
+			_order = _order switch
+			{
+				DevTools.PassOrder.Started => DevTools.PassOrder.Gpu,
+				DevTools.PassOrder.Gpu when managed => DevTools.PassOrder.Recording,
+				_ => DevTools.PassOrder.Started,
+			};
+			Refresh( DevTools.Current );
+		} );
+
+		const string managedColumns = "minmax(140px, 1fr) 40px 52px 52px minmax(40px, 110px) 52px 52px 52px";
+		_managedTree = tree.AddChild( new DevToolsTable( managedColumns, "pass", "", "#gpu ms", "#max", "", "#rec ms", "#draws", "#binds" ) );
+		_nativeTree = tree.AddChild( new DevToolsTable( "minmax(140px, 1fr) 40px 52px 52px minmax(40px, 160px)", "pass", "", "#gpu ms", "#max", "" ) );
+
+		_skippedToggle = tree.AddChild( new Label( "", "pass-skipped" ) );
+		_skippedToggle.AddEventListener( "onclick", () => { _showSkipped = !_showSkipped; Refresh( DevTools.Current ); } );
+		_skippedTable = tree.AddChild( new DevToolsTable( "minmax(140px, 1fr) 80px minmax(0, 1fr)" ) );
+
+		_detail = split.AddChild( new DevToolsSection( "Frame", "pass-detail" ) );
+		_frameFacts = _detail.Body.AddChild( new DevToolsFacts() );
+		_passFacts = _detail.Body.AddChild( new DevToolsFacts() );
+		_detailChart = _detail.Body.AddChild( new Panel( null, "pass-chart" ) );
+		_detailChart.AddChild( new DevToolsSparkline
+		{
+			Sample = age => _chartFor is null ? 0 : DevTools.GpuSpanSample( _chartFor, age ),
+			Count = () => _chartFor is null ? 0 : DevTools.GpuSpanSamples( _chartFor ),
+			Capacity = DevTools.GpuSpanHistory,
+			Floor = 0.05f,
+			Color = DevToolsStyles.Gpu,
+		} );
+		_detailHint = _detail.Body.AddChild( new Label( "", "hint" ) );
+
+		_counters = AddChild( new DevToolsFacts() );
+		_counters.AddClass( "span-all" );
+
+		var device = AddChild( new DevToolsSection( "Device report", "span-all" ) );
 		_deviceLines = new Panel( null, "device-lines" );
 		device.Collapsible( body => body.AddChild( _deviceLines ) );
 	}
 
-	static Panel Pane( Panel split, string classes = null )
+	/// <summary>
+	/// While this is on screen, ask the managed renderer to keep publishing its plan.
+	/// </summary>
+	public override void Tick()
 	{
-		var pane = split.AddChild( new Panel( null, "section" ) );
-		if ( classes is not null ) pane.AddClass( classes );
-		return pane;
+		base.Tick();
+		if ( DevTools.IsShowing( TabId ) ) ManagedFramePlan.Want();
 	}
 
 	public override void Refresh( DevTools.Summary s )
@@ -85,318 +132,269 @@ internal sealed class DevToolsRenderingTab : DevToolsTab
 		var f = FrameStats.Current;
 		var m = f.Managed;
 		var isManaged = m.Renders > 0;
+		var timeline = DevTools.ShownGpuTimeline;
+		var plan = isManaged ? timeline.Plan ?? ManagedFramePlan.Latest : null;
 
-		var drawCalls = isManaged ? m.TotalDraws : f.DrawCalls;
-		var triangles = isManaged ? m.Triangles : f.TrianglesRendered;
-		var trisPerDraw = Ratio( triangles, drawCalls );
-		var batchingMatters = drawCalls > BatchingMattersAbove;
+		// Native's passes go under the scene views the GPU profiler has them in
+		_views.Clear();
+		if ( plan is null )
+		{
+			DevTools.GetGpuPasses( _profilerPasses );
+			string view = null;
+			foreach ( var pass in _profilerPasses )
+			{
+				if ( pass.Depth == 1 ) view = pass.Name;
+				else if ( pass.Depth == 2 && view is not null ) _views.Add( (view, pass.Name) );
+			}
+		}
 
-		RefreshContext( f, m, isManaged );
-		RefreshFindings( f );
-		RefreshSubmission( f, m, isManaged, drawCalls, triangles, trisPerDraw, batchingMatters );
-		RefreshVisibility( f, m, isManaged );
-		RefreshOcclusion( f, m, isManaged );
-		RefreshOcclusionSettings( isManaged );
-		RefreshLights( f, m, isManaged );
-		RefreshTextures( f );
-		RefreshPostProcess();
-		RefreshManaged( m, isManaged );
+		DevTools.BuildPasses( timeline, plan, _views, plan is null && _order == DevTools.PassOrder.Recording ? DevTools.PassOrder.Gpu : _order, _passes, _skipped );
+
+		RefreshContext( s, f, m, isManaged, timeline );
+		RefreshTree( s, plan is not null );
+		RefreshDetail( s, plan, timeline );
+		RefreshCounters( f, m, isManaged );
 		RefreshDevice( f );
 	}
 
-	void RefreshContext( FrameStats f, ManagedFrameCounters m, bool isManaged )
+	void RefreshContext( DevTools.Summary s, FrameStats f, ManagedFrameCounters m, bool isManaged, DevTools.GpuLayout timeline )
 	{
 		var rs = RenderSettings.Instance;
 		var samples = rs.AntiAliasQuality.ToString();
 		var msaa = rs.AntiAliasQuality == MultisampleAmount.MultisampleNone ? null : $"{samples["Multisample".Length..]} MSAA";
-
 		var aa = rs.AntiAliasMode == AntiAliasMode.Cmaa2
 			? msaa is null ? "CMAA2" : $"CMAA2 + {msaa}"
 			: msaa ?? "off";
 
+		_context.Set( "Showing", DevToolsFrameTimeline.Showing( timeline ), tooltip: timeline.CapturedOn > 0
+			? "A frame is picked: the GPU's passes are one captured frame, the soonest after it - GPU results arrive a few frames late. Counters are the last second's"
+			: "GPU times are averaged over the frames captured in the last two seconds; max is the most any of them took" );
 		_context.Set( "Renderer", isManaged ? "managed" : "native", tooltip: isManaged
 			? $"{m.Renders} camera {(m.Renders == 1 ? "frame" : "frames")} through Sandbox.SceneRenderer last frame"
 			: ManagedSceneRendering.Enabled ? "r_managed_scene is on, but no camera rendered through it" : "The Source 2 scene system" );
 		_context.Set( "Resolution", $"{Screen.Width:0}x{Screen.Height:0}" );
 		_context.Set( "AA", aa );
 		_context.Set( "Upscaling", rs.UpscalerMode.ToString().ToLowerInvariant() );
-		_context.Set( "Scene views", $"{f.SceneViewsRendered:N0}" );
-		_context.Set( "Resolves", $"{f.RenderTargetResolves:N0}" );
+		_context.Set( "GPU frame", s.GpuAvg > 0 ? $"{s.GpuAvg:0.00} ms" : "-", s.Limiter == DevTools.Limiter.Gpu && !s.MeetingTarget ? s.Rating : null,
+			s.GpuAvg > 0 ? $"p99 {s.GpuTime.P99:0.00} ms, max {s.GpuTime.Max:0.0} ms\n{s.GpuAvg / MathF.Max( 0.01f, s.TargetMs ) * 100:0}% of the {s.TargetMs:0.0} ms budget" : null );
+		_context.Set( "GPU busy", timeline.ActiveMs > 0 ? $"{timeline.BusyShare * 100:0}%" : "-",
+			tooltip: timeline.ActiveMs > 0 ? $"The graphics queue had a pass running {timeline.BusyMs:0.00} ms of the {timeline.ActiveMs:0.00} ms from its first pass to its last{(timeline.HasAsync ? $"\nAsync compute busy {timeline.AsyncBusyMs:0.00} ms beside it" : "")}" : null );
 	}
 
-	void RefreshFindings( FrameStats f )
+	void RefreshTree( DevTools.Summary s, bool managed )
 	{
-		FindIssues( f, _issues );
-		_findings.Set( _issues );
+		_managedTree.SetClass( "hidden", !managed );
+		_nativeTree.SetClass( "hidden", managed );
+		var table = managed ? _managedTree : _nativeTree;
+		var gpuFrame = s.GpuAvg > 0 ? s.GpuAvg : DevTools.ShownGpuTimeline.BusyMs;
+		var selected = DevTools.SelectedPass;
+
+		(_orderButton.Text, _orderButton.Tooltip) = _order switch
+		{
+			DevTools.PassOrder.Gpu => ("by gpu ms", "Most GPU time first among siblings. Click to sort by recording time"),
+			DevTools.PassOrder.Recording when managed => ("by rec ms", "Most recording time first among siblings, what's under them included. Click for the order they ran in"),
+			_ => ("in order", "In the order they started on the GPU. Click to sort by GPU time"),
+		};
+
+		// What the filter finds, and what each match is in, so it stays in its place in the tree
+		var shown = Filtered();
+
+		// Passes that took next to nothing fold away with the layers that didn't run
+		var idle = 0;
+		var idleMs = 0f;
+		table.Begin();
+		for ( int index = 0; index < _passes.Count; index++ )
+		{
+			var pass = _passes[index];
+			if ( shown is not null && !shown[index] ) continue;
+			if ( shown is null && IsIdle( pass ) && pass.Key != selected && !_showSkipped )
+			{
+				idle++;
+				if ( pass.Parent < 0 || !IsIdle( _passes[pass.Parent] ) ) idleMs += pass.GpuMs;
+				continue;
+			}
+
+			var gpu = pass.GpuMs;
+			var layer = pass.Layer;
+			var key = pass.Key;
+			Action pick = () => DevTools.SelectedPass = DevTools.SelectedPass == key ? null : key;
+
+			var none = new DevToolsTable.Cell( "", "number" );
+			// The kind's colour, as the timeline draws it
+			var kind = pass.Span?.Kind ?? DevTools.KindOf( pass.Name, DevTools.PassKind.Other );
+			var name = new DevToolsTable.Cell( pass.Name, null, DevToolsStyles.PassColor( kind ), Indent: 10 + pass.Depth * 14 );
+			var queue = new DevToolsTable.Cell( pass.Async ? "async" : "", "dim" );
+			var avg = gpu > 0 ? DevToolsTable.Number( DevToolsFormat.Ms( gpu ) ) : none;
+			var max = pass.Span is { MaxMs: > 0 } span ? new DevToolsTable.Cell( DevToolsFormat.Ms( span.MaxMs ), "number dim" ) : none;
+			var bar = gpu > 0 && gpuFrame > 0 ? DevToolsTable.BarOf( gpu / gpuFrame ) : "";
+			var rowClass = key == selected ? "selected" : pass.Heading ? "heading" : null;
+
+			if ( !managed )
+			{
+				table.Row( key, [name, queue, avg, max, bar], pick, PassTooltip( pass ), rowClass );
+				continue;
+			}
+
+			var l = layer ?? default;
+			var cpu = l.CpuMs > 0 ? DevToolsTable.Number( DevToolsFormat.Ms( l.CpuMs ) ) : none;
+			var draws = l.Recorded > 0 ? DevToolsTable.Number( DevToolsFormat.Count( l.Recorded ) ) : none;
+			var binds = l.Binds + l.SimilarBinds > 0 ? DevToolsTable.Number( DevToolsFormat.Count( l.Binds + l.SimilarBinds ) ) : none;
+			table.Row( key, [name, queue, avg, max, bar, cpu, draws, binds], pick, PassTooltip( pass ), rowClass );
+		}
+		table.End( shown is not null ? "Nothing by that name" : "Waiting for GPU timings" );
+
+		_treeAside.Text = _passes.Count > 0 ? $"{_passes.Count( x => x.Depth == 0 )} at the top, {_passes.Count} in all" : "";
+
+		// The managed frame's layers that didn't run, folded away
+		if ( _showSkipped ) idle = _passes.Count( IsIdle );
+		var folded = new List<string>();
+		if ( idle > 0 ) folded.Add( $"{idle} {(idle == 1 ? "pass" : "passes")} under 0.02 ms{(idleMs > 0 ? $" ({DevToolsFormat.Ms( idleMs )} ms between them)" : "")}" );
+		if ( _skipped.Count > 0 ) folded.Add( $"{_skipped.Count} {(_skipped.Count == 1 ? "layer" : "layers")} that didn't run" );
+		_skippedToggle.SetClass( "hidden", folded.Count == 0 );
+		_skippedToggle.Text = _showSkipped ? $"hide the {string.Join( " and ", folded )}" : $"show the {string.Join( " and ", folded )}";
+		_skippedTable.SetClass( "hidden", !_showSkipped || _skipped.Count == 0 );
+		if ( _showSkipped )
+		{
+			_skippedTable.Begin();
+			foreach ( var skip in _skipped )
+				_skippedTable.Row( $"{skip.Frame}:{skip.Name}", [new( skip.Name, "dim", Indent: 10 ), new( skip.Frame, "dim" ), new( skip.Why, "note" )] );
+			_skippedTable.End();
+		}
 	}
 
 	/// <summary>
-	/// What's out of line in last frame's rendering numbers, worst first.
+	/// Which rows the filter keeps - each pass whose name has it in, and what that pass is in - or null with no filter.
 	/// </summary>
-	internal static void FindIssues( FrameStats f, List<DevTools.Issue> into )
+	bool[] Filtered()
 	{
-		var isManaged = f.Managed.Renders > 0;
-		var drawCalls = isManaged ? f.Managed.TotalDraws : f.DrawCalls;
-		var trisPerDraw = Ratio( isManaged ? f.Managed.Triangles : f.TrianglesRendered, drawCalls );
-		var batchingMatters = drawCalls > BatchingMattersAbove;
+		if ( string.IsNullOrWhiteSpace( _filter ) ) return null;
 
-		into.Clear();
-
-		if ( drawCalls >= DrawCallsWarn )
-			into.Add( new( drawCalls >= DrawCallsBad ? DevTools.Severity.Bad : DevTools.Severity.Warning, "Draw calls",
-				$"{drawCalls:N0}, over {DrawCallsWarn:N0}. Merge meshes, instance repeats, use LODs", null ) );
-
-		if ( batchingMatters && trisPerDraw < TrisPerDrawWarn )
-			into.Add( new( DevTools.Severity.Warning, "Small draws",
-				$"{trisPerDraw:N0} triangles per draw, under {TrisPerDrawWarn:N0}", null ) );
-
-		if ( !isManaged )
+		var keep = new bool[_passes.Count];
+		for ( int i = 0; i < _passes.Count; i++ )
 		{
-			var matPerDraw = Ratio( f.MaterialChanges + f.ShadowMaterialChanges, f.DrawCalls );
-			if ( batchingMatters && matPerDraw > MatChangesPerDrawWarn )
-				into.Add( new( DevTools.Severity.Info, "Material changes",
-					$"{matPerDraw:0.00} per draw, over {MatChangesPerDrawWarn}. Share materials so draws batch", null ) );
+			if ( !_passes[i].Name.Contains( _filter.Trim(), StringComparison.OrdinalIgnoreCase ) ) continue;
+			for ( int p = i; p >= 0 && !keep[p]; p = _passes[p].Parent ) keep[p] = true;
 		}
 
-		var pool = Percent( f.TexturePoolUsedBytes, f.TexturePoolLimitBytes );
-		if ( pool >= TexturePoolWarn )
-			into.Add( new( pool >= TexturePoolBad ? DevTools.Severity.Bad : DevTools.Severity.Warning, "Texture pool",
-				$"{pool:0}% used, {DevToolsFormat.BytesOf( f.TexturePoolUsedBytes, f.TexturePoolLimitBytes )}", null ) );
-
-		if ( f.PendingStreamingRequests > StreamingWarn )
-			into.Add( new( DevTools.Severity.Info, "Streaming backlog", $"{f.PendingStreamingRequests:N0} pending", null ) );
-
-		// Debug settings that change what renders, easy to forget about
-		if ( OcclusionDebug.Freeze )
-			into.Add( new( DevTools.Severity.Warning, "Occlusion frozen", "r_occlusion_freeze is on, culling ignores the camera", null ) );
-
-		if ( OcclusionDebug.EarlyCull != OcclusionEarlyCull.On )
-			into.Add( new( DevTools.Severity.Info, "Early occlusion cull", $"r_occlusion_early is {OcclusionDebug.EarlyMode}", null ) );
-
-		into.Sort( static ( a, b ) => b.Severity.CompareTo( a.Severity ) );
+		return keep;
 	}
 
-	void RefreshSubmission( FrameStats f, ManagedFrameCounters m, bool isManaged, double drawCalls, double triangles, double trisPerDraw, bool batchingMatters )
+	/// <summary>
+	/// Took next to nothing on either side: under 0.02 ms on the GPU on average, never 0.05, and nothing much to record.
+	/// </summary>
+	static bool IsIdle( DevTools.RenderPass pass ) =>
+		pass.GpuMs < 0.02f && (pass.Span?.MaxMs ?? 0) < 0.05f && (pass.Layer?.CpuMs ?? 0) < 0.02 && (pass.Layer?.Recorded ?? 0) == 0;
+
+	static string PassTooltip( DevTools.RenderPass pass )
 	{
-		var t = _submission;
-		t.Begin();
+		var lines = new List<string> { pass.Name };
+		if ( pass.Span is { } span ) lines.Add( span.MaxMs > 0 ? $"GPU {span.AvgMs:0.000} ms avg, {span.MaxMs:0.000} ms max, from {span.StartMs:0.00} ms" : $"GPU {span.AvgMs:0.000} ms avg, from {span.StartMs:0.00} ms" );
+		if ( pass.Layer is { } layer && layer.Pieces > 0 ) lines.Add( $"Recorded in {layer.CpuMs:0.000} ms over {layer.Pieces} {(layer.Pieces == 1 ? "piece" : "pieces")}, added across threads" );
 
-		t.Row( "draws", ["Draw calls", N( $"{drawCalls:N0}", Grade( drawCalls, DrawCallsWarn, DrawCallsBad ) ),
-			DevToolsTable.Note( isManaged ? $"{m.Draws:N0} forward, {m.DepthDraws:N0} depth, {m.ShadowDraws:N0} shadow" : "" )] );
-		t.Row( "tris", ["Triangles", N( DevToolsFormat.Count( triangles ) ), DevToolsTable.Note( $"{trisPerDraw:N0} per draw" )] );
-
-		if ( isManaged )
-		{
-			t.Row( "instances", ["Instances", N( $"{m.Instances:N0}" ), DevToolsTable.Note( $"{m.Objects:N0} objects, {m.ObjectsVisible:N0} visible" )] );
-			t.End();
-			return;
-		}
-
-		var batchDensity = Ratio( f.ObjectsRendered, f.RenderBatchDraws );
-		t.Row( "batches", ["Batches", N( $"{f.RenderBatchDraws:N0}", batchingMatters && batchDensity < BatchDensityWarn ? DevTools.Severity.Warning : null ),
-			DevToolsTable.Note( $"{batchDensity:N1} objects each" )] );
-
-		var matChanges = f.MaterialChanges + f.ShadowMaterialChanges;
-		var matPerDraw = Ratio( matChanges, f.DrawCalls );
-		t.Row( "matchanges", ["Material changes", N( $"{matChanges:N0}", batchingMatters && matPerDraw > MatChangesPerDrawWarn ? DevTools.Severity.Warning : null ),
-			DevToolsTable.Note( $"{matPerDraw:0.00} per draw, {f.ShadowMaterialChanges:N0} in shadows" )] );
-
-		var sets = f.FullMaterialSets + f.SimilarMaterialSets;
-		t.Row( "sets", ["Material sets", N( $"{sets:N0}" ), DevToolsTable.Note( $"{f.SimilarMaterialSets:N0} similar ({Percent( f.SimilarMaterialSets, sets ):0}%)" )] );
-
-		var prims = f.BaseObjectDraws + f.AnimatableObjectDraws + f.AggregateObjectDraws;
-		t.Row( "aggregated", ["Aggregated", N( $"{f.AggregateObjectDraws:N0}" ), DevToolsTable.Note( $"of {prims:N0} primitives ({Percent( f.AggregateObjectDraws, prims ):0}%)" )] );
-		if ( f.UnbatchableMaterialDraws > 0 )
-			t.Row( "unbatchable", ["Unbatchable", N( $"{f.UnbatchableMaterialDraws:N0}" ), DevToolsTable.Note( "materials that can't batch" )] );
-
-		t.Row( "cbuffers", ["Constant buffers", N( $"{f.ConstantBufferUpdates:N0}" ), DevToolsTable.Note( $"{DevToolsFormat.Bytes( f.ConstantBufferBytes )} uploaded" )] );
-		t.Row( "contexts", ["Contexts", N( $"{f.PrimaryContexts + f.SecondaryContexts:N0}" ), DevToolsTable.Note( $"{f.PrimaryContexts:N0} primary, {f.SecondaryContexts:N0} secondary" )] );
-		t.Row( "displaylists", ["Display lists", N( $"{f.DisplayLists:N0}" ), DevToolsTable.Note( "" )] );
-		if ( f.UniqueMaterials > 0 )
-			t.Row( "materials", ["Unique materials", N( $"{f.UniqueMaterials:N0}" ), DevToolsTable.Note( "" )] );
-
-		t.End();
+		// How it was placed, where that's inferred rather than recorded
+		if ( pass.Key.StartsWith( "view:" ) ) lines.Add( "Grouped by pass names: the GPU timeline doesn't record which view drew what" );
+		else if ( pass.Layer is not null && pass.Span is not null ) lines.Add( "Matched to its layer by name and the order the layers ran" );
+		return string.Join( "\n", lines );
 	}
 
-	void RefreshVisibility( FrameStats f, ManagedFrameCounters m, bool isManaged )
+	void RefreshDetail( DevTools.Summary s, ManagedFramePlan plan, DevTools.GpuLayout timeline )
 	{
-		var t = _visibility;
-		t.Begin();
+		var selected = DevTools.SelectedPass is { } key ? _passes.FirstOrDefault( x => x.Key == key ) : null;
+		var facts = selected is null ? _frameFacts : _passFacts;
+		_frameFacts.SetClass( "hidden", selected is not null );
+		_passFacts.SetClass( "hidden", selected is null );
 
-		if ( isManaged )
+		// The facts a pass has, the rest hidden
+		var shown = new HashSet<string>();
+		void Set( string name, string value, string tooltip = null )
 		{
-			var other = Math.Max( 0, m.Objects - m.ObjectsVisible - m.ObjectsSizeCulled );
-			Part( t, "Submitted", m.ObjectsVisible, m.Objects, always: true );
-			Part( t, "Too small", m.ObjectsSizeCulled, m.Objects );
-			Part( t, "Unaccounted", other, m.Objects );
-			t.End();
-			return;
+			facts.Set( name, value, tooltip: tooltip );
+			shown.Add( name );
 		}
 
-		// The scene system counts what visibility, screen size and fading removed. The rest of what it tested and
-		// didn't submit isn't attributed to anything, so it's shown as such rather than guessed at.
-		var tested = f.ObjectsTested;
-		var submitted = Math.Min( f.ObjectsRendered, tested );
-		var counted = f.ObjectsCulledByVis + f.ObjectsCulledByScreenSize + f.ObjectsCulledByFade;
-		var unaccounted = Math.Max( 0, tested - submitted - counted );
-
-		Part( t, "Submitted", submitted, tested, always: true );
-		Part( t, "Vis culled", f.ObjectsCulledByVis, tested );
-		Part( t, "Too small", f.ObjectsCulledByScreenSize, tested );
-		Part( t, "Faded out", f.ObjectsCulledByFade, tested );
-		Part( t, "Unaccounted", unaccounted, tested, tooltip: "Tested and not submitted, without a reason the scene system counts" );
-		t.Row( "tested", [new( "Tested", "dim" ), N( $"{tested:N0}" ), "", ""], rowClass: "total" );
-		t.Row( "precull", [new( "Before culling", "dim" ), new( $"{f.ObjectsPreCull:N0}", "number dim" ), "", ""],
-			tooltip: "Counted at an earlier stage - doesn't have to add up with the rest" );
-		t.End();
-	}
-
-	void RefreshOcclusion( FrameStats f, ManagedFrameCounters m, bool isManaged )
-	{
-		var enabled = isManaged ? ManagedSceneRendering.Occlusion : RenderPipeline.OcclusionCulling;
-		_occlusion.SetClass( "hidden", !enabled );
-		if ( !enabled ) return;
-
-		var count = isManaged ? m.ObjectsOcclusionCulled : f.ObjectsCulledByOcclusion;
-		var t = _occlusion;
-		t.Begin();
-		t.Row( "hidden", [isManaged ? "Hidden objects" : "Hidden instances", N( $"{count:N0}" ), "", ""],
-			tooltip: isManaged ? "Read back from the GPU a few frames later."
-				: "An object counts once per material. Read back from the GPU a few frames later." );
-
-		// Aggregates are native only
-		if ( !isManaged && RenderPipeline.GetOcclusionCounts() is { Fragments: > 0 } c )
+		if ( selected is null )
 		{
-			Part( t, "Hidden fragments", c.HiddenFragments, c.Fragments, always: true, tooltip: $"Of {c.Fragments:N0} aggregate fragments" );
-			Part( t, "Hidden triangles", c.HiddenTriangles, c.Triangles, always: true, text: DevToolsFormat.Count( c.HiddenTriangles ),
-				tooltip: $"Of {c.Triangles:N0} in aggregate fragments" );
-			Part( t, "Hidden but drawn", c.MissedTriangles, c.Triangles, text: DevToolsFormat.Count( c.MissedTriangles ),
-				tooltip: "Estimated hidden triangles in fragments that were still drawn" );
-			Part( t, "Too close to test", c.UntestedTriangles, c.Triangles, text: DevToolsFormat.Count( c.UntestedTriangles ) );
-		}
+			_detail.TitleLabel.Text = "Frame";
+			_detail.Aside.Text = "";
+			_chartFor = null;
 
-		t.End();
-	}
-
-	static void Part( DevToolsTable t, string name, double count, double total, bool always = false, string tooltip = null, string text = null )
-	{
-		if ( count <= 0 && !always ) return;
-		var share = Ratio( count, total );
-		t.Row( name, [name, N( text ?? $"{count:N0}" ), new( $"{share * 100:0}", "number dim" ), DevToolsTable.BarOf( share )], tooltip: tooltip );
-	}
-
-	static readonly string[] OnOff = ["off", "on"];
-	static readonly string[] AggregateModes = ["off", "draw empty", "compact"];
-	static readonly string[] DebugModes = ["off", "hidden", "all", "on depth"];
-	static readonly string[] EarlyModes = ["off", "on", "reject all"];
-
-	// Clicking a row steps to the next value through the console, so cheat convars stay locked without sv_cheats
-	void RefreshOcclusionSettings( bool isManaged )
-	{
-		var t = _occlusionSettings;
-		t.Begin();
-
-		if ( isManaged )
-		{
-			Setting( t, "Culling", "r_managed_occlusion", ManagedSceneRendering.Occlusion ? 1 : 0, OnOff );
-		}
-		else
-		{
-			Setting( t, "Culling", "r_occlusion_culling", RenderPipeline.OcclusionCulling ? 1 : 0, OnOff );
-			Setting( t, "Aggregates", "r_occlusion_aggregates", RenderPipeline.AggregateMode, AggregateModes );
-		}
-
-		Setting( t, "Debug boxes", "r_occlusion_debug", OcclusionDebug.DebugMode, DebugModes, cheat: true );
-		Setting( t, "Freeze", "r_occlusion_freeze", OcclusionDebug.Freeze ? 1 : 0, OnOff, cheat: true );
-		Setting( t, "Early cull", "r_occlusion_early", OcclusionDebug.EarlyMode, EarlyModes, cheat: true );
-		t.End();
-	}
-
-	static void Setting( DevToolsTable t, string label, string convar, int value, string[] names, bool cheat = false )
-	{
-		var text = names[Math.Clamp( value, 0, names.Length - 1 )];
-		if ( cheat && !Game.CheatsEnabled )
-		{
-			t.Row( convar, [label, new( text, "number dim" )], tooltip: $"{convar} needs sv_cheats 1" );
-			return;
-		}
-
-		var next = (value + 1) % names.Length;
-		t.Row( convar, [label, N( text )], () => ConVarSystem.Run( $"{convar} {next}" ), convar );
-	}
-
-	void RefreshLights( FrameStats f, ManagedFrameCounters m, bool isManaged )
-	{
-		var t = _lights;
-		t.Begin();
-		t.Row( "shadowed", ["Shadowed lights", N( $"{f.ShadowedLightsInView:N0}" )] );
-		t.Row( "unshadowed", ["Unshadowed lights", N( $"{f.UnshadowedLightsInView:N0}" )] );
-		t.Row( "maps", ["Shadow maps", N( $"{f.ShadowMaps:N0}" )], tooltip: f.ShadowedLightsInView > 0 ? $"{Ratio( f.ShadowMaps, f.ShadowedLightsInView ):N1} per shadowed light" : null );
-
-		if ( isManaged )
-		{
-			t.Row( "views", ["Shadow views", N( $"{m.ShadowViews:N0}" )] );
-			t.Row( "shadowdraws", ["Shadow draws", N( $"{m.ShadowDraws:N0}" )] );
-			t.Row( "binned", ["Lights binned", N( $"{m.Lights:N0}" )] );
-		}
-		else
-		{
-			t.Row( "shadowmats", ["Shadow material changes", N( $"{f.ShadowMaterialChanges:N0}" )], tooltip: $"{f.ShadowMaterialChangesAlphaTested:N0} alpha tested" );
-		}
-
-		t.End();
-	}
-
-	void RefreshTextures( FrameStats f )
-	{
-		var t = _textures;
-		t.Begin();
-
-		var limit = (double)f.TexturePoolLimitBytes;
-		var used = (double)f.TexturePoolUsedBytes;
-		var pool = Percent( used, limit );
-		var severity = Grade( pool, TexturePoolWarn, TexturePoolBad );
-
-		t.Row( "used", ["Used", N( limit > 0 ? DevToolsFormat.BytesOf( used, limit ) : DevToolsFormat.Bytes( used ), severity ), DevToolsTable.BarOf( Ratio( used, limit ), severity )] );
-
-		// What the used part is made of - more telling than how much of a big pool is free
-		var pinned = (double)f.TexturePoolNonEvictableBytes;
-		t.Row( "pinned", ["Pinned", N( DevToolsFormat.Bytes( pinned ) ), DevToolsTable.BarOf( Ratio( pinned, limit ) )], tooltip: "Can't be evicted to make room" );
-		t.Row( "evictable", ["Evictable", N( DevToolsFormat.Bytes( Math.Max( 0, used - pinned ) ) ), DevToolsTable.BarOf( Ratio( Math.Max( 0, used - pinned ), limit ) )] );
-		t.Row( "pending", ["Streaming", N( $"{f.PendingStreamingRequests:N0}", f.PendingStreamingRequests > StreamingWarn ? DevTools.Severity.Warning : null ), ""] );
-
-		if ( GpuProfilerStats.VideoMemoryBudget > 0 )
-		{
-			var vram = GpuProfilerStats.VideoMemoryUsageFraction;
-			var vramSeverity = vram > 0.95f ? DevTools.Severity.Bad : vram > 0.8f ? DevTools.Severity.Warning : (DevTools.Severity?)null;
-			t.Row( "vram", ["Video memory", N( DevToolsFormat.BytesOf( GpuProfilerStats.VideoMemoryUsed, GpuProfilerStats.VideoMemoryBudget ), vramSeverity ), DevToolsTable.BarOf( vram, vramSeverity )], rowClass: "total" );
-		}
-
-		t.End();
-	}
-
-	void RefreshPostProcess()
-	{
-		var camera = Application.GetActiveScene()?.Camera;
-		var layers = camera?.PostProcess.Layers;
-
-		var t = _postProcess;
-		t.Begin();
-
-		if ( layers is not null )
-		{
-			foreach ( var (stage, list) in layers.OrderBy( x => x.Key ) )
+			if ( timeline.ElapsedMs > 0 )
 			{
-				foreach ( var layer in list.OrderBy( x => x.Order ) )
-				{
-					t.Row( $"{stage}/{layer.Name}/{layer.Order}", [layer.Name, new( Words( stage.ToString() ), "dim" ), N( $"{layer.Order}" ), new( string.Join( ", ", Flags( layer ) ), "dim" )] );
-				}
+				Set( "GPU span", $"{timeline.ActiveMs:0.00} ms", "From the GPU's first pass on the frame to its last" );
+				Set( "GPU busy", $"{timeline.BusyMs:0.00} ms", $"Time the graphics queue had a pass running, {timeline.BusyShare * 100:0}% of the span" );
+				Set( "Submit to done", $"{timeline.ElapsedMs:0.00} ms", "From the frame's first submit to its last pass ending, the wait before the GPU starts included" );
+				if ( timeline.HasAsync ) Set( "Async busy", $"{timeline.AsyncBusyMs:0.00} ms", "Time the async compute queue had a pass running, beside the graphics queue" );
+				Set( "Submits", $"{timeline.Submits.Count}" );
 			}
+
+			if ( plan is not null )
+			{
+				var main = plan.CollectMs + plan.PrepareMs + plan.SetupMs + plan.RecordMs + plan.SubmitMs;
+				var workers = plan.Segments.Where( x => x.Thread != plan.MainThread ).Select( x => x.Thread ).Distinct().Count();
+				Set( "CPU", $"{main:0.00} ms", $"The main thread making the frame: collect {plan.CollectMs:0.00}, prepare {plan.PrepareMs:0.00}, setup {plan.SetupMs:0.00}, record {plan.RecordMs:0.00}, submit {plan.SubmitMs:0.00} ms" );
+				Set( "Workers", $"{plan.WorkerMs:0.00} ms", $"Recording on {workers} worker {(workers == 1 ? "thread" : "threads")}, added up. They run beside the main thread, which waited {plan.RecordWaitMs:0.00} ms on them" );
+				Set( "Segments", $"{plan.Segments.Count}", $"{plan.Segments.Count( x => x.Async )} on the async compute queue" );
+			}
+
+			_detailHint.Text = "Pick a pass in the tree or on the timeline";
+		}
+		else
+		{
+			_detail.TitleLabel.Text = selected.Name;
+			_detail.Aside.Text = selected.Heading ? "frame" : selected.Async ? "async compute" : "";
+			_chartFor = selected.Heading ? null : selected.Span?.Path;
+
+			if ( selected.Span is { } span )
+			{
+				var gpuFrame = s.GpuAvg > 0 ? s.GpuAvg : timeline.BusyMs;
+				Set( "GPU", $"{span.AvgMs:0.000} ms", "Average over the frames captured in the last two seconds" );
+				if ( span.MaxMs > 0 ) Set( "GPU max", $"{span.MaxMs:0.000} ms" );
+				if ( gpuFrame > 0 ) Set( "Of GPU frame", $"{span.AvgMs / gpuFrame * 100:0}%" );
+				Set( "Runs", $"{span.StartMs:0.00} to {span.EndMs:0.00} ms", "From the frame's first submit" );
+			}
+
+			if ( selected.Layer is { } layer && plan is not null )
+			{
+				if ( layer.Pieces > 0 )
+					Set( "Recording", $"{layer.CpuMs:0.000} ms", $"CPU time recording it, over {layer.Pieces} {(layer.Pieces == 1 ? "piece" : "pieces")}, added up across threads - not how long it took end to end" );
+				if ( layer.Recorded > 0 ) Set( "Draws", $"{layer.Recorded:N0}", layer.Views > 0 ? $"{layer.Views:N0} views, {layer.Runs:N0} runs" : null );
+				if ( layer.Binds + layer.SimilarBinds > 0 ) Set( "Binds", $"{layer.Binds + layer.SimilarBinds:N0}", $"{layer.Binds:N0} full material binds, {layer.SimilarBinds:N0} similar materials rebinding only what differs" );
+				if ( layer.Triangles > 0 ) Set( "Triangles", DevToolsFormat.Count( layer.Triangles ) );
+				if ( layer.Makes != 0 ) Set( "Makes", Names( plan, layer.Makes, 0 ) );
+				if ( layer.Reads != 0 ) Set( "Reads", Names( plan, layer.Reads, layer.NotMade ), layer.NotMade != 0 ? "? read without anything making it this frame" : null );
+			}
+
+			if ( Effect( selected.Name ) is { } effect )
+				Set( "Post-process", $"{Words( effect.Stage )}, order {effect.Layer.Order}", string.Join( ", ", Flags( effect.Layer ) ) );
+
+			var children = _passes.Count( x => x.Parent >= 0 && _passes[x.Parent] == selected );
+			if ( children > 0 ) Set( "Passes in it", $"{children}" );
+
+			_detailHint.Text = "";
 		}
 
-		t.End( camera is null ? "No active camera"
-			: !camera.EnablePostProcessing ? "Post-processing is off on this camera"
-			: "No effects on this camera" );
+		foreach ( var name in DetailFacts )
+			if ( !shown.Contains( name ) ) facts.Hide( name );
+
+		_detailChart.SetClass( "hidden", _chartFor is null );
+		_detailHint.SetClass( "hidden", string.IsNullOrEmpty( _detailHint.Text ) );
+	}
+
+	static readonly string[] DetailFacts = ["GPU span", "GPU busy", "Submit to done", "Async busy", "Submits", "CPU", "Workers", "Segments", "GPU", "GPU max", "Of GPU frame", "Runs", "Recording", "Draws", "Binds", "Triangles", "Makes", "Reads", "Post-process", "Passes in it"];
+
+	/// <summary>
+	/// The active camera's post-processing effect of this name, which the GPU timeline shows as a pass.
+	/// </summary>
+	static (PostProcessLayer Layer, string Stage)? Effect( string name )
+	{
+		var layers = Application.GetActiveScene()?.Camera?.PostProcess.Layers;
+		if ( layers is null ) return null;
+
+		foreach ( var (stage, list) in layers )
+			foreach ( var layer in list )
+				if ( layer.Name == name ) return (layer, stage.ToString());
+
+		return null;
 	}
 
 	static IEnumerable<string> Flags( PostProcessLayer layer )
@@ -407,44 +405,43 @@ internal sealed class DevToolsRenderingTab : DevToolsTab
 		if ( layer.NeedsDepthNormals ) yield return "depth normals";
 	}
 
-	void RefreshManaged( ManagedFrameCounters m, bool isManaged )
+	void RefreshCounters( FrameStats f, ManagedFrameCounters m, bool isManaged )
 	{
-		_managedPane.SetClass( "hidden", !isManaged );
-		if ( !isManaged ) return;
+		var c = _counters;
+		var drawCalls = isManaged ? m.TotalDraws : f.DrawCalls;
+		var triangles = isManaged ? m.Triangles : f.TrianglesRendered;
 
-		// Worker recording and waiting overlap the main thread, so they're shown beside it rather than added in
-		var total = m.MainThreadMs;
-		var t = _managedPhases;
-		t.Begin();
-		Phase( t, "Collect", m.CollectMs, total );
-		Phase( t, "Prepare", m.PrepareMs, total );
-		Phase( t, "Record", m.RecordMs, total );
-		Phase( t, "Sync", m.SyncMs, total );
-		Phase( t, "Setup", m.SetupMs, total );
-		Phase( t, "Submit", m.SubmitMs, total );
-		t.Row( "total", ["Main thread", N( DevToolsFormat.Ms( total ) ), ""], rowClass: "total" );
-		t.Row( "workers", [new( "Workers recording", "dim" ), new( DevToolsFormat.Ms( m.WorkerRecordMs ), "number dim" ), ""], tooltip: "Overlaps the main thread" );
-		t.Row( "wait", [new( "Waiting on workers", "dim" ), new( DevToolsFormat.Ms( m.RecordWaitMs ), "number dim" ), ""] );
-		t.End();
+		c.Set( "Draws", $"{drawCalls:N0}", drawCalls >= 5000 ? DevTools.Severity.Bad : drawCalls >= 3000 ? DevTools.Severity.Warning : null,
+			isManaged ? $"{m.Draws:N0} forward ({m.TranslucentDraws:N0} translucent), {m.DepthDraws:N0} depth, {m.ShadowDraws:N0} shadow, {m.CustomDraws:N0} custom"
+				: $"{f.RenderBatchDraws:N0} batches, {f.AggregateObjectDraws:N0} aggregated\n{f.ConstantBufferUpdates:N0} constant buffer updates, {DevToolsFormat.Bytes( f.ConstantBufferBytes )}\n{f.PrimaryContexts + f.SecondaryContexts:N0} contexts, {f.DisplayLists:N0} display lists" );
+		c.Set( "Triangles", DevToolsFormat.Count( triangles ), tooltip: drawCalls > 0 ? $"{triangles / drawCalls:N0} a draw{(isManaged ? ", forward only" : "")}" : null );
 
-		var d = _managedDraws;
-		var opaque = Math.Max( 0, m.Draws - m.TranslucentDraws );
-		d.Begin();
-		Pass( d, "Opaque", opaque, m.TotalDraws );
-		Pass( d, "Translucent", m.TranslucentDraws, m.TotalDraws );
-		Pass( d, "Depth", m.DepthDraws, m.TotalDraws );
-		Pass( d, "Shadow", m.ShadowDraws, m.TotalDraws );
-		Pass( d, "Custom", m.CustomDraws, m.TotalDraws );
-		d.End();
-	}
+		if ( isManaged )
+		{
+			var plan = ManagedFramePlan.Latest;
+			var binds = 0; var similar = 0;
+			if ( plan is not null )
+				foreach ( var frame in plan.Frames )
+					foreach ( var layer in frame.Layers ) { binds += layer.Binds; similar += layer.SimilarBinds; }
 
-	static void Phase( DevToolsTable t, string name, double ms, double total ) =>
-		t.Row( name, [name, N( DevToolsFormat.Ms( ms ) ), DevToolsTable.BarOf( Ratio( ms, total ) )] );
+			c.Set( "Binds", binds + similar > 0 ? $"{binds + similar:N0}" : "-", tooltip: $"{binds:N0} full material binds, {similar:N0} similar materials rebinding only what differs" );
+			c.Set( "Objects", $"{m.ObjectsVisible:N0}", tooltip: $"Visible, of {m.Objects:N0}\n{m.ObjectsSizeCulled:N0} too small{(ManagedSceneRendering.Occlusion ? $", {m.ObjectsOcclusionCulled:N0} hidden (occlusion, read back late)" : "")}\n{m.Instances:N0} instances" );
+			c.Set( "Lights", $"{m.Lights:N0}", tooltip: $"Lights binned for the view" );
+			c.Set( "Shadow views", $"{m.ShadowViews:N0}", tooltip: $"{m.ShadowDraws:N0} shadow draws" );
+		}
+		else
+		{
+			var matChanges = f.MaterialChanges + f.ShadowMaterialChanges;
+			c.Set( "Binds", $"{matChanges:N0}", tooltip: $"Material changes, {f.ShadowMaterialChanges:N0} in shadows\n{f.FullMaterialSets:N0} full sets, {f.SimilarMaterialSets:N0} similar" );
 
-	static void Pass( DevToolsTable t, string name, double draws, double total )
-	{
-		if ( draws <= 0 ) return;
-		t.Row( name, [name, N( $"{draws:N0}" ), DevToolsTable.BarOf( Ratio( draws, total ) )] );
+			var tested = f.ObjectsTested;
+			var occlusion = RenderPipeline.OcclusionCulling ? $"\n{f.ObjectsCulledByOcclusion:N0} hidden instances (occlusion, read back late)" : "";
+			c.Set( "Objects", $"{f.ObjectsRendered:N0}", tooltip: $"Drawn, of {tested:N0} tested\n{f.ObjectsCulledByVis:N0} vis culled, {f.ObjectsCulledByScreenSize:N0} too small, {f.ObjectsCulledByFade:N0} faded out{occlusion}" );
+			c.Set( "Lights", $"{f.ShadowedLightsInView + f.UnshadowedLightsInView:N0}", tooltip: $"{f.ShadowedLightsInView:N0} shadowed, {f.UnshadowedLightsInView:N0} unshadowed" );
+			c.Set( "Shadow views", $"{f.ShadowMaps:N0}", tooltip: "Shadow maps rendered" );
+		}
+
+		c.Set( "Scene views", $"{f.SceneViewsRendered:N0}", tooltip: $"{f.RenderTargetResolves:N0} resolves" );
 	}
 
 	void RefreshDevice( FrameStats f )
@@ -460,17 +457,23 @@ internal sealed class DevToolsRenderingTab : DevToolsTab
 			_deviceLines.AddChild( new Label( line.TrimEnd( '\r' ) ) );
 	}
 
-	static DevToolsTable.Cell N( string text, DevTools.Severity? severity = null ) => DevToolsTable.Number( text, severity );
+	/// <summary>
+	/// The names of the resources in a mask, those in <paramref name="missing"/> marked as read without being made.
+	/// </summary>
+	static string Names( ManagedFramePlan plan, uint mask, uint missing )
+	{
+		var names = new List<string>();
+		for ( int bit = 0; bit < 32 && bit < plan.Resources.Length; bit++ )
+		{
+			if ( (mask & (1u << bit)) == 0 ) continue;
+			names.Add( (missing & (1u << bit)) != 0 ? $"{plan.Resources[bit]}?" : plan.Resources[bit] );
+		}
 
-	static DevTools.Severity? Grade( double value, double warn, double bad ) =>
-		value >= bad ? DevTools.Severity.Bad : value >= warn ? DevTools.Severity.Warning : null;
-
-	static double Ratio( double a, double b ) => b > 0 ? a / b : 0;
-
-	static double Percent( double a, double b ) => b > 0 ? a / b * 100 : 0;
+		return string.Join( ", ", names );
+	}
 
 	/// <summary>
-	/// "BeforePostProcess" to "Before post process".
+	/// "BeforePostProcess" to "before post process".
 	/// </summary>
 	static string Words( string name )
 	{
@@ -478,13 +481,8 @@ internal sealed class DevToolsRenderingTab : DevToolsTab
 		for ( int i = 0; i < name.Length; i++ )
 		{
 			var c = name[i];
-			if ( i > 0 && char.IsUpper( c ) && !char.IsUpper( name[i - 1] ) )
-			{
-				words.Append( ' ' );
-				c = char.ToLowerInvariant( c );
-			}
-
-			words.Append( c );
+			if ( i > 0 && char.IsUpper( c ) && !char.IsUpper( name[i - 1] ) ) words.Append( ' ' );
+			words.Append( char.ToLowerInvariant( c ) );
 		}
 
 		return words.ToString();

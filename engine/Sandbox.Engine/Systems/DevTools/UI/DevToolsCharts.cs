@@ -41,9 +41,29 @@ internal sealed class DevToolsSparkline : Panel
 	/// </summary>
 	public int Capacity { get; set; } = DevTools.FrameHistory.Capacity;
 
+	/// <summary>
+	/// The value the top of the chart stands for, held between frames (<see cref="HoldScale"/>).
+	/// </summary>
+	float _top;
+
 	public DevToolsSparkline()
 	{
 		AddClass( "sparkline" );
+	}
+
+	/// <summary>
+	/// A chart's scale that holds still: it grows straight away to fit what it needs to show, shrinks only once that's
+	/// under half of it, and always lands on a round step (1, 2 or 5 to a power of ten). Rescaling to the series every
+	/// frame made every bar jump as single frames came and went.
+	/// </summary>
+	internal static float HoldScale( float current, float wanted )
+	{
+		if ( wanted <= 0 ) return current;
+		if ( current > 0 && wanted <= current && wanted >= current * 0.5f ) return current;
+
+		var power = MathF.Pow( 10, MathF.Floor( MathF.Log10( wanted ) ) );
+		var step = wanted / power;
+		return power * (step <= 1 ? 1 : step <= 2 ? 2 : step <= 5 ? 5 : 10);
 	}
 
 	protected override void OnClick( MousePanelEvent e )
@@ -77,7 +97,8 @@ internal sealed class DevToolsSparkline : Panel
 		values.CopyTo( sorted );
 		sorted.Sort();
 		var target = Target?.Invoke() ?? 0;
-		var top = MathF.Max( MathF.Max( Floor, target * 2 ), sorted[(int)((count - 1) * 0.97f)] * 1.25f );
+		var wanted = MathF.Max( MathF.Max( Floor, target * 2 ), sorted[(int)((count - 1) * 0.97f)] * 1.25f );
+		var top = _top = HoldScale( _top, wanted );
 
 		var selected = DevTools.SelectedAge;
 		for ( int i = 0; i < count; i++ )

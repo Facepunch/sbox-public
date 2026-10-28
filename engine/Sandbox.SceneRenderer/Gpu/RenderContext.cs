@@ -101,11 +101,28 @@ internal sealed class RenderContext : IDisposable
 		if ( materialBind != IntPtr.Zero ) RenderTools.ResetMaterialBind( materialBind );
 	}
 
-	public void Dispose()
+	/// <summary>
+	/// Full and similar-material binds this context's draws have made, ever (<c>RenderTools.GetMaterialBindCounts</c>). A
+	/// range of draws made the difference.
+	/// </summary>
+	internal unsafe (int Full, int Similar) MaterialBinds
+	{
+		get
+		{
+			if ( materialBind == IntPtr.Zero ) return default;
+			int full, similar;
+			RenderTools.GetMaterialBindCounts( materialBind, (IntPtr)(&full), (IntPtr)(&similar) );
+			return (full, similar);
+		}
+	}
+
+	static unsafe IntPtr AllocMaterialBind() => (IntPtr)NativeMemory.AllocZeroed( (nuint)RenderTools.GetMaterialBindSize() );
+
+	public unsafe void Dispose()
 	{
 		if ( materialBind != IntPtr.Zero )
 		{
-			Marshal.FreeHGlobal( materialBind );
+			NativeMemory.Free( (void*)materialBind );
 			materialBind = IntPtr.Zero;
 		}
 
@@ -633,8 +650,8 @@ internal sealed class RenderContext : IDisposable
 		ViewConstants = null;
 		passStateCount = 0;
 
-		// Material binds cannot survive across frames.
-		if ( materialBind == IntPtr.Zero ) materialBind = Marshal.AllocHGlobal( RenderTools.GetMaterialBindSize() );
+		// Material binds cannot survive across frames. Zeroed, so its bind counts start at nothing.
+		if ( materialBind == IntPtr.Zero ) materialBind = AllocMaterialBind();
 		ResetMaterialBind();
 
 		borrowed = shared is not null;

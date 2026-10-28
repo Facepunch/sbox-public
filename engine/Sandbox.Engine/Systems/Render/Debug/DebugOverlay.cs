@@ -47,7 +47,6 @@ internal static partial class DebugOverlay
 		// Allocation tracking counts GC pauses frame by frame, so it samples every game frame rather than the dev tools'
 		if ( Diagnostics.DevTools.IsCollecting( "memory" ) ) DebugOverlay.Allocations.Sample();
 		else DebugOverlay.Allocations.Disabled();
-		if ( !Diagnostics.DevTools.IsShowing( "gpu" ) ) DebugOverlay.GpuTimeline.Clear();
 
 		if ( ShadowMapper.DebugEnabled )
 			ShadowMapper.Draw( ref pos, painter );

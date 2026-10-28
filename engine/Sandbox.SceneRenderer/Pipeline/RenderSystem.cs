@@ -251,7 +251,13 @@ public sealed partial class RenderSystem : IDisposable
 		recorder.Plan( frame, ParallelRecording, Sandbox.Rendering.ManagedSceneRendering.AsyncCompute );
 
 		// The dev tools's frame plan, or SceneLab's plan overlay: frames drawn into a window show their plan, published with its times
-		var plan = Sandbox.Rendering.ManagedFramePlan.Wanted && (IntPtr)output.SwapChain != IntPtr.Zero ? recorder.Snapshot( view.Name ) : null;
+		var plan = Sandbox.Rendering.ManagedFramePlan.Due && (IntPtr)output.SwapChain != IntPtr.Zero ? recorder.Snapshot( view.Name ) : null;
+		recorder.Measuring = plan is not null;
+		if ( plan is not null )
+		{
+			plan.StartTicks = start;
+			plan.MainThread = Environment.CurrentManagedThreadId;
+		}
 
 		context.Begin();
 		var submitted = false;
@@ -281,6 +287,7 @@ public sealed partial class RenderSystem : IDisposable
 			Lap();
 
 			using var _ = Zones.Submit.Start();
+			if ( plan is not null ) plan.SubmitTicks = Stopwatch.GetTimestamp();
 			recorder.Submit( (IntPtr)output.SwapChain != IntPtr.Zero ? output.SwapChain : TimingSwapChain );
 			submitted = true;
 		}
