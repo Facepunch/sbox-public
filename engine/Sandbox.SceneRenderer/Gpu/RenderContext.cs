@@ -930,22 +930,23 @@ internal sealed class RenderContext : IDisposable
 
 	/// <summary>
 	/// Bind and draw instances in one native call (<c>RenderTools.DrawModelDrawCall</c>), reusing similar-material state.
-	/// Vertex-cache draws use the separate binding path.
+	/// Vertex-cache draws use the separate binding path. <paramref name="skinned"/> draws pick bones by blend index, so they
+	/// keep their own input layout depth-only too.
 	/// </summary>
-	public bool DrawModel( Material material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false )
+	public bool DrawModel( Material material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false )
 	{
 		return RenderTools.DrawModelDrawCall( context, drawAttributes, material.native, shaderMode, mesh.Model.native, draw.Mesh, draw.DrawCall,
-			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, InstanceIds.native, firstInstance, instances, materialBind );
+			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, skinned, InstanceIds.native, firstInstance, instances, materialBind );
 	}
 
 	/// <summary>
 	/// <see cref="DrawModel"/> with only the instances the occlusion cull kept for <paramref name="phase"/>
 	/// (<c>RenderTools.DrawModelDrawCallIndirect</c>).
 	/// </summary>
-	public bool DrawModelCulled( Material material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int argsIndex, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false )
+	public bool DrawModelCulled( Material material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int argsIndex, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false )
 	{
 		return RenderTools.DrawModelDrawCallIndirect( context, drawAttributes, material.native, shaderMode, mesh.Model.native, draw.Mesh, draw.DrawCall,
-			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, Occlusion.CulledIds.native, Occlusion.IdOffset( phase ) + firstInstance,
+			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, skinned, Occlusion.CulledIds.native, Occlusion.IdOffset( phase ) + firstInstance,
 			Occlusion.Args.native, (Occlusion.ArgOffset( phase ) + argsIndex) * OcclusionCuller.ArgsStride, materialBind );
 	}
 

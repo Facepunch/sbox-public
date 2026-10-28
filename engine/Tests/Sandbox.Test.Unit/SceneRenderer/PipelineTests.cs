@@ -94,6 +94,33 @@ public class PipelineTests
 	}
 
 	/// <summary>
+	/// A batched list's draws go out sorted by what they bind, not object by object: two meshes, each with a depth-only draw
+	/// and another, draw both depth-only draws first, so the prepass binds its material once.
+	/// </summary>
+	[TestMethod]
+	public void BatchedDrawsAreSortedAcrossRuns()
+	{
+		RenderMesh.Draw[] draws = [new( 0, 0, 0, 36, 24, 0, null, ShadowFastPath: true ), new( 0, 1, 0, 36, 24, 0, null )];
+
+		// Two meshes, so they don't instance together
+		var world = new RenderWorld();
+		world.Add( new MeshObject( new RenderMesh( UnitBox, [draws] ), new Transform( new Vector3( 20, 0, 0 ) ) ) );
+		world.Add( new MeshObject( new RenderMesh( UnitBox, [draws] ), new Transform( new Vector3( 30, 0, 0 ) ) ) );
+
+		using var system = new RenderSystem();
+		Sandbox.Rendering.ShadowMapper.ResetCache();
+		CollectAndPrepare( system, world, LookingDownX() );
+
+		var lists = system.GetFeature<MeshRenderFeature>().RunsFor( system.MainPass );
+		Assert.AreEqual( 2, lists.Opaque.Count, "a run each" );
+
+		var items = lists.ItemsByBit[0];
+		CollectionAssert.AreEqual( new[] { 0, 0, 1, 1 }, items.Select( x => x.Draw ).ToArray(), "depth-only draws first" );
+		CollectionAssert.AreEquivalent( new[] { 0, 1 }, items.Take( 2 ).Select( x => x.Run ).ToArray(), "one from each run" );
+		Assert.AreEqual( 4, system.RunCount( system.MainPass, new OpaqueLayer() ), "the layer records draws" );
+	}
+
+	/// <summary>
 	/// An object the main view and the sun's cascades all draw has one transform entry a frame, which every view's instance
 	/// reads.
 	/// </summary>

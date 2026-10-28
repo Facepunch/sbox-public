@@ -32,7 +32,7 @@ internal sealed partial class MeshRenderFeature
 		NearestFirst,
 
 		/// <summary>
-		/// By <see cref="MeshObject.RenderOrder"/>, lowest first: a map's static overlays.
+		/// By <see cref="MeshObject.RenderOrder"/>, lowest first, then material: a map's static overlays.
 		/// </summary>
 		RenderOrder,
 	}
@@ -79,6 +79,7 @@ internal sealed partial class MeshRenderFeature
 
 	// Compute only the sort keys an object's lists need.
 	static readonly MeshRuns BatchedLists = ListsWhere( static list => list.Sort == ListSort.Batched );
+	static readonly MeshRuns RenderOrderLists = ListsWhere( static list => list.Sort == ListSort.RenderOrder );
 	static readonly MeshRuns DistanceSortedLists = ListsWhere( static list => list.Sort is ListSort.BackToFront or ListSort.Full or ListSort.NearestFirst );
 
 	static MeshRuns ListsWhere( Func<ListDefinition, bool> predicate )

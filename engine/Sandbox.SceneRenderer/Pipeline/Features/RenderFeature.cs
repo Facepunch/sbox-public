@@ -47,7 +47,8 @@ internal abstract class RenderFeature
 	internal virtual void Setup( RenderContext context, RenderWorld world, ViewPass view ) { }
 
 	/// <summary>
-	/// Number of runs available for this view and layer.
+	/// Number of runs available for this view and layer: what <see cref="Draw"/> ranges index. A feature picks its unit; meshes
+	/// record single draws.
 	/// </summary>
 	internal virtual int RunCount( ViewPass view, MeshLayer layer ) => 0;
 
