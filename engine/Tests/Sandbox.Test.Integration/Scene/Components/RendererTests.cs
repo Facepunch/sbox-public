@@ -628,6 +628,122 @@ public class RenderComponentTest
 	}
 
 	/// <summary>
+	/// Sprites sharing a material share a batch, and a material batch is deleted with its last
+	/// sprite instead of staying alive for the rest of the scene.
+	/// </summary>
+	[TestMethod]
+	public void SpriteMaterialBatchesAreSharedAndReleased()
+	{
+		if ( !Graphics.IsAvailable ) Assert.Inconclusive( "Requires graphics." );
+
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var material = Material.Load( "materials/default/white.vmat" );
+		Assert.IsNotNull( material );
+
+		var first = scene.CreateObject().Components.Create<SpriteRenderer>();
+		first.MaterialOverride = material;
+
+		var second = scene.CreateObject().Components.Create<SpriteRenderer>();
+		second.MaterialOverride = material;
+
+		scene.GameTick();
+
+		var batches = scene.SceneWorld.SceneObjects.OfType<SpriteBatchSceneObject>().ToArray();
+		Assert.AreEqual( 1, batches.Length, "Sprites sharing a material should share a batch" );
+		Assert.AreSame( material, batches[0].Material );
+		Assert.IsTrue( batches[0].ContainsSprite( first.Id ) );
+		Assert.IsTrue( batches[0].ContainsSprite( second.Id ) );
+
+		first.Enabled = false;
+		scene.GameTick();
+
+		batches = scene.SceneWorld.SceneObjects.OfType<SpriteBatchSceneObject>().ToArray();
+		Assert.AreEqual( 1, batches.Length, "The batch is still in use by the second sprite" );
+		Assert.IsTrue( batches[0].ContainsSprite( second.Id ) );
+
+		second.Enabled = false;
+		scene.GameTick();
+
+		Assert.AreEqual( 0, scene.SceneWorld.SceneObjects.OfType<SpriteBatchSceneObject>().Count(),
+			"An empty material batch should be deleted" );
+	}
+
+	/// <summary>
+	/// Moving a sprite to another material deletes the batch it left behind when that batch is
+	/// empty, and the sprite is drawn by the new material.
+	/// </summary>
+	[TestMethod]
+	public void ChangingSpriteMaterialMovesItToANewBatch()
+	{
+		if ( !Graphics.IsAvailable ) Assert.Inconclusive( "Requires graphics." );
+
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var materialA = Material.Load( "materials/default/white.vmat" );
+		Assert.IsNotNull( materialA );
+
+		var materialB = materialA.CreateCopy( "sprite-material-batch-test" );
+		Assert.IsNotNull( materialB );
+
+		var sprite = scene.CreateObject().Components.Create<SpriteRenderer>();
+		sprite.MaterialOverride = materialA;
+
+		scene.GameTick();
+		Assert.AreEqual( 1, scene.SceneWorld.SceneObjects.OfType<SpriteBatchSceneObject>().Count() );
+
+		sprite.MaterialOverride = materialB;
+		scene.GameTick();
+
+		var batches = scene.SceneWorld.SceneObjects.OfType<SpriteBatchSceneObject>().ToArray();
+		Assert.AreEqual( 1, batches.Length, "Moving the only sprite should delete the old material batch" );
+		Assert.AreSame( materialB, batches[0].Material );
+		Assert.IsTrue( batches[0].ContainsSprite( sprite.Id ) );
+
+		sprite.MaterialOverride = null;
+		scene.GameTick();
+
+		batches = scene.SceneWorld.SceneObjects.OfType<SpriteBatchSceneObject>().ToArray();
+		Assert.AreEqual( 1, batches.Length, "Clearing the material moves the sprite back to a built-in batch" );
+		Assert.IsNull( batches[0].Material );
+
+		materialB.Destroy();
+	}
+
+	/// <summary>
+	/// A material's batch id belongs to that material object: copies of the same material never
+	/// share one, even though they look identical, and a material keeps its id while it lives.
+	/// </summary>
+	[TestMethod]
+	public void SpriteMaterialIdsAreUniquePerMaterial()
+	{
+		if ( !Graphics.IsAvailable ) Assert.Inconclusive( "Requires graphics." );
+
+		var asset = Material.Load( "materials/default/white.vmat" );
+		Assert.IsNotNull( asset );
+
+		var copies = Enumerable.Range( 0, 64 ).Select( i => asset.CreateCopy( $"sprite-material-id-{i}" ) ).ToArray();
+		try
+		{
+			var ids = copies.Select( SceneSpriteSystem.GetMaterialId ).ToArray();
+
+			Assert.IsFalse( ids.Contains( 0 ), "0 is reserved for the built-in sprite material" );
+			Assert.AreEqual( ids.Length, ids.Distinct().Count(), "Every material object gets its own id" );
+			Assert.AreNotEqual( SceneSpriteSystem.GetMaterialId( asset ), ids[0] );
+			CollectionAssert.AreEqual( ids, copies.Select( SceneSpriteSystem.GetMaterialId ).ToArray(), "A material keeps its id" );
+
+			copies[0].Destroy();
+			Assert.AreEqual( 0, SceneSpriteSystem.GetMaterialId( copies[0] ), "A destroyed material batches like no material" );
+		}
+		finally
+		{
+			foreach ( var copy in copies.Skip( 1 ) ) copy?.Destroy();
+		}
+	}
+
+	/// <summary>
 	/// Sprite and particle renderers use the same batch classification regardless of refraction.
 	/// Refraction requires a normal map and translucent, non-additive blending; opacity does not affect it.
 	/// </summary>

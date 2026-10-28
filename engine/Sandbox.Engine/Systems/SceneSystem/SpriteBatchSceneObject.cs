@@ -16,6 +16,12 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 	public bool Additive { get; set; } = false;
 	public bool Opaque { get; set; } = false;
 
+	/// <summary>
+	/// The material every sprite in this batch is drawn with, or null for the built-in sprite material.
+	/// Its parameters are bound with it, so they are the same for the whole batch.
+	/// </summary>
+	public Material Material { get; set; }
+
 	internal Dictionary<Guid, SpriteRenderer> Components = new();
 
 	private static ComputeShader SpriteComputeShader = new( "sprite/sprite_cs" );
@@ -666,7 +672,9 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 			attributes.Set( "Vertices", (GpuBuffer)VertexBuffer );
 			if ( _renderHasText ) GpuFontText.Bind( attributes, _renderFrame );
 
-			Graphics.DrawIndexedInstanced( (GpuBuffer)IndexBuffer, SpriteMaterial, _renderInstanceCount, attributes );
+			// A material that has been destroyed since falls back to the built-in one
+			var material = Material.IsValid() ? Material : SpriteMaterial;
+			Graphics.DrawIndexedInstanced( (GpuBuffer)IndexBuffer, material, _renderInstanceCount, attributes );
 		}
 		finally
 		{
