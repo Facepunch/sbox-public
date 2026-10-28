@@ -43,6 +43,10 @@ native static class RenderTools as NativeEngine.RenderTools
 	void RenderAutoExposure( IRenderContext renderContext, ITonemapSystem tonemapSystem, ITexture hColor, int nX, int nY, int nWidth, int nHeight );
 	bool DrawModelDrawCall( IRenderContext renderContext, CRenderAttributes attributes, IMaterial material, StringToken nMode, IModel hModel, int nMesh, int nDrawCall, int nDepthBias, float flSlopeScaledDepthBias, bool bStripPixelShader, int nOverlayStencil, RenderBufferHandle_t hInstanceIds, int nFirstSlot, int nInstances, void* pBind );
 	bool DrawModelDrawCallIndirect( IRenderContext renderContext, CRenderAttributes attributes, IMaterial material, StringToken nMode, IModel hModel, int nMesh, int nDrawCall, int nDepthBias, float flSlopeScaledDepthBias, bool bStripPixelShader, int nOverlayStencil, RenderBufferHandle_t hInstanceIds, int nFirstSlot, RenderBufferHandle_t hArgs, int nArgsOffset, void* pBind );
+	bool DrawModelDrawCallMultiIndirect( IRenderContext renderContext, CRenderAttributes attributes, IMaterial material, StringToken nMode, IModel hModel, int nMesh, int nDrawCall, int nDepthBias, float flSlopeScaledDepthBias, bool bStripPixelShader, int nOverlayStencil, RenderBufferHandle_t hInstanceIds, int nFirstSlot, RenderBufferHandle_t hArgs, int nArgsOffset, int nMaxDraws, RenderBufferHandle_t hCount, int nCountOffset, void* pBind );
+	bool SupportsDrawIndirectCount();
+	IModel GetAggregateModel( CSceneObject sceneObject, CastTo[bool*] void* pLightmapped );
+	int GetAggregateFragments( CSceneObject sceneObject, void* pOut, int nMaxFragments );
 	int GetMaterialBindSize();
 	void ResetMaterialBind( void* pBind );
 	ulong GetMaterialSimilarityKey( IMaterial material );

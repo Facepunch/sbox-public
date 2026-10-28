@@ -56,6 +56,10 @@ public class PipelineTests
 			world.Add( new EffectsTests.TestCustom( new Vector3( 100 + i * 5, -10, 0 ) ) { IsOpaque = i % 2 == 0, CastShadows = i % 4 == 0 } );
 		}
 
+		// Aggregates, culled fragment by fragment
+		for ( int i = 0; i < 4; i++ )
+			world.Add( AggregateTests.TestAggregate() );
+
 		// A 3D skybox, collected and prepared through its own render system
 		var sky = new RenderWorld();
 		for ( int i = 0; i < 200; i++ )
@@ -83,7 +87,7 @@ public class PipelineTests
 			stats = new RenderStats();
 		}, everyThread: true );
 
-		Assert.AreEqual( 5096, stats.ObjectsVisible );
+		Assert.AreEqual( 5100, stats.ObjectsVisible );
 		Assert.AreEqual( 64, system.GetFeature<LightBinnerFeature>().Count );
 		Assert.AreEqual( 16, system.GetFeature<LightBinnerFeature>().DecalCount );
 		Assert.IsTrue( system.SkyboxStats?.ObjectsVisible > 0, "the skybox was prepared" );

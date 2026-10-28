@@ -309,6 +309,7 @@ internal sealed record SceneLabScene
 		new() { Name = "Flatgrass Interior", Group = "Maps", Game = MapScenes.FlatgrassInterior, Frame = MapScenes.StartWhenOnline, Ready = MapScenes.Loaded },
 		new() { Name = "Flatgrass Props", Group = "Maps", Game = MapScenes.FlatgrassProps, Frame = MapScenes.StartWhenOnline, Ready = MapScenes.Loaded },
 		new() { Name = "Construct Skyline", Group = "Maps", Game = MapScenes.ConstructSkyline, Frame = MapScenes.StartWhenOnline, Ready = MapScenes.Loaded },
+		new() { Name = "Construct Overview", Group = "Maps", Game = MapScenes.ConstructOverview, Frame = MapScenes.StartWhenOnline, Ready = MapScenes.Loaded },
 		new() { Name = "Construct Skyline Fog", Group = "Maps", Game = MapScenes.ConstructSkylineFog, Frame = MapScenes.StartWhenOnline, Ready = MapScenes.Loaded, NativeAlongside = true },
 	];
 

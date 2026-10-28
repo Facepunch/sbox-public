@@ -21,6 +21,7 @@ public sealed partial class RenderSystem : IDisposable
 	readonly ViewEnvironment environment = new();
 	readonly LightBinnerFeature lightBinner = new();
 	readonly MeshRenderFeature meshes = new();
+	readonly AggregateRenderFeature aggregates = new();
 	readonly ViewPass mainPass = new();
 	readonly RenderFrame frame;
 	readonly ShadowSystem shadows;
@@ -100,12 +101,14 @@ public sealed partial class RenderSystem : IDisposable
 		LightBinnerFeature.GpuLight.ValidateLayout();
 		LightBinnerFeature.GpuEnvMap.ValidateLayout();
 		LightBinnerFeature.GpuDecal.ValidateLayout();
+		AggregateObject.FragmentDraw.ValidateLayout();
 		shadows = new ShadowSystem( this );
 		frame = new RenderFrame( this );
 
 		// Lights first - they're binned before anything draws
 		AddFeature( lightBinner );
 		AddFeature( meshes );
+		AddFeature( aggregates );
 	}
 
 	/// <summary>
@@ -519,8 +522,10 @@ public sealed partial class RenderSystem : IDisposable
 		var wanted = Sandbox.Rendering.ManagedSceneRendering.Occlusion && DepthPrepass && !isSkybox;
 		Occlusion.Begin();
 		meshes.Occlusion = wanted ? Occlusion : null;
+		aggregates.Occlusion = meshes.Occlusion;
 		Prepare( world, mainPass, transforms );
 		meshes.Occlusion = null;
+		aggregates.Occlusion = null;
 		OcclusionActive = wanted && Occlusion.InstanceCount > 0;
 		OcclusionHistory.BeginFrame( OcclusionActive, view.Viewport );
 		Occlusion.Previous = OcclusionHistory.EarlyDepth;
