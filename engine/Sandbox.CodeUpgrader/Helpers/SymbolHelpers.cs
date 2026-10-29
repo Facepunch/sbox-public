@@ -37,9 +37,6 @@ static class SymbolHelpers
 		return false;
 	}
 
-	/// <summary>
-	/// Whether <paramref name="type"/> is, or implements, any of the named types (generic definitions match any construction).
-	/// </summary>
 	public static bool Implements( ITypeSymbol type, Compilation compilation, params string[] metadataNames )
 	{
 		foreach ( var name in metadataNames )
@@ -49,9 +46,6 @@ static class SymbolHelpers
 		return false;
 	}
 
-	/// <summary>
-	/// <paramref name="type"/> itself, or the interface it implements, whose definition is the named type.
-	/// </summary>
 	public static INamedTypeSymbol? FindInterface( ITypeSymbol type, Compilation compilation, string metadataName )
 	{
 		var contract = compilation.GetTypeByMetadataName( metadataName );
