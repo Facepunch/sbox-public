@@ -408,4 +408,49 @@ public class CloudAssetDirectoryTest
 
 		Assert.IsNull( directory.FindPackage( "C:/projects/mygame/models/thing.vmdl_c", "models/thing.vmdl_c" ) );
 	}
+
+	/// <summary>
+	/// The editor recompiles a package's compiled files from its shipped sources when it considers them stale,
+	/// so their size on disk stops matching the manifest. That mustn't make the package invalid on the next
+	/// start, or it gets removed and reinstalled every launch. Any other file changing size still invalidates.
+	/// </summary>
+	[TestMethod]
+	public void Reopen_RecompiledCompiledFile_KeepsPackage_ChangedSourceDoesNot()
+	{
+		var cloudFolder = Path.Combine( TestDir, "cloud" );
+		Directory.CreateDirectory( Path.Combine( cloudFolder, "materials" ) );
+		var previousCloud = Editor.FileSystem.Cloud;
+		Editor.FileSystem.Cloud = new LocalFileSystem( cloudFolder );
+
+		try
+		{
+			var compiledOnly = MakePackage( "clouddirtest", "compiled", "material", 1 );
+			var withSource = MakePackage( "clouddirtest", "source", "material", 1 );
+			var path = DbPath( "recompiled" );
+
+			System.IO.File.WriteAllText( Path.Combine( cloudFolder, "materials", "rock.tmat_c" ), "shipped compiled" );
+			System.IO.File.WriteAllText( Path.Combine( cloudFolder, "materials", "rock.tmat" ), "shipped source" );
+
+			using ( var directory = new CloudAssetDirectory( path ) )
+			{
+				directory.AddFile( "materials/rock.tmat_c", "crc-c", "shipped compiled".Length, compiledOnly );
+				directory.AddPackage( compiledOnly );
+				directory.AddFile( "materials/rock.tmat", "crc-s", "shipped source".Length, withSource );
+				directory.AddPackage( withSource );
+			}
+
+			System.IO.File.WriteAllText( Path.Combine( cloudFolder, "materials", "rock.tmat_c" ), "recompiled locally, different size" );
+			System.IO.File.WriteAllText( Path.Combine( cloudFolder, "materials", "rock.tmat" ), "edited" );
+
+			using ( var directory = new CloudAssetDirectory( path ) )
+			{
+				Assert.IsNotNull( directory.FindPackage( compiledOnly.FullIdent ), "Recompiled file made its package invalid" );
+				Assert.IsNull( directory.FindPackage( withSource.FullIdent ), "A non-compiled file changing size should still invalidate its package" );
+			}
+		}
+		finally
+		{
+			Editor.FileSystem.Cloud = previousCloud;
+		}
+	}
 }

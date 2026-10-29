@@ -495,7 +495,18 @@ internal class CloudAssetDirectory : IDisposable
 	}
 
 	/// <summary>
-	/// Validate files on disk match their db entries. If a file is missing or has the wrong size, remove it from the db.
+	/// Compiled files only need to exist: the editor recompiles them locally, which changes their size.
+	/// </summary>
+	static bool IsIntact( File file )
+	{
+		if ( !FileSystem.Cloud.FileExists( file.Path ) )
+			return false;
+
+		return file.Path.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) || FileSystem.Cloud.FileSize( file.Path ) == file.Size;
+	}
+
+	/// <summary>
+	/// Validate files on disk match their db entries. If a file is missing or isn't <see cref="IsIntact">intact</see>, remove it from the db.
 	/// </summary>
 	void ValidateFiles()
 	{
@@ -504,7 +515,7 @@ internal class CloudAssetDirectory : IDisposable
 		var badFiles = new ConcurrentBag<string>();
 		files.FindAll().ToArray().AsParallel().ForAll( file =>
 		{
-			if ( !FileSystem.Cloud.FileExists( file.Path ) || FileSystem.Cloud.FileSize( file.Path ) != file.Size )
+			if ( !IsIntact( file ) )
 				badFiles.Add( file.Path );
 		} );
 
@@ -524,21 +535,7 @@ internal class CloudAssetDirectory : IDisposable
 		if ( !linksByPackage.TryGetValue( (package.FullIdent, package.Revision.VersionId), out var linkList ) )
 			return true;
 
-		return linkList.AsParallel().All( link =>
-		{
-			if ( !filesByPath.TryGetValue( link.Path, out var f ) )
-				return false; // link to nonexistent file?
-
-			if ( !FileSystem.Cloud.FileExists( f.Path ) )
-				return false;
-
-			if ( FileSystem.Cloud.FileSize( f.Path ) != f.Size )
-				return false;
-
-			// crc?
-
-			return true;
-		} );
+		return linkList.AsParallel().All( link => filesByPath.TryGetValue( link.Path, out var f ) && IsIntact( f ) );
 	}
 
 	/// <summary>
