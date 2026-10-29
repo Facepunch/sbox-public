@@ -1,7 +1,9 @@
 #ifndef SHADOWS_SHADOWFILTERING
 #define SHADOWS_SHADOWFILTERING
 
-int UserShadowFilterQuality < Attribute( "ShadowFilterQuality" ); >;
+// A specialization constant: each pipeline has one filter quality, so the driver drops the others and fully
+// unrolls the disk loop for its tap count. Changing the setting builds new pipelines.
+int UserShadowFilterQuality < Attribute( "ShadowFilterQuality" ); Default( 0 ); SpecializedConstant(); >;
 
 // HW PCF Sampler
 SamplerComparisonState ShadowDepthPCFSampler < Filter( COMPARISON_MIN_MAG_MIP_LINEAR ); AddressU( CLAMP ); AddressV( CLAMP ); ComparisonFunc( GREATER_EQUAL ); >;
