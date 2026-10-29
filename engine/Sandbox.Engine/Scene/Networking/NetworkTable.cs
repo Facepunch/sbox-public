@@ -488,8 +488,13 @@ internal class NetworkTable : IDisposable
 			{
 				Log.Warning( e, $"Error when getting value {entry.DebugName} - {e.Message}" );
 			}
+			finally
+			{
+				bs.Dispose();
+			}
 
-			bs.Dispose();
+			if ( entry.Serialized is null )
+				continue;
 
 			snapshot.AddSerialized( entry.Slot, entry.Serialized );
 

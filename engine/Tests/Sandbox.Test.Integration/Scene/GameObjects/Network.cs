@@ -340,6 +340,88 @@ public class NetworkTest
 		}
 	}
 
+	/// <summary>
+	/// A synced value that fails to serialize is left out of the snapshot, and the object's other synced
+	/// values still go in.
+	/// </summary>
+	[TestMethod]
+	public void SnapshotSkipsSyncedValueThatFailsToSerialize()
+	{
+		using var scope = new Scene().Push();
+		using var clientAndHost = new ClientAndHost( TypeLibrary );
+		clientAndHost.BecomeHost();
+
+		var go = new GameObject();
+		var component = go.Components.Create<UnserializableSyncComponent>();
+		component.SyncInt = 5;
+		go.NetworkSpawn();
+
+		var type = Game.TypeLibrary.GetType<UnserializableSyncComponent>();
+		var holderSlot = NetworkObject.GetPropertySlot( type.GetProperty( nameof( UnserializableSyncComponent.Holder ) ).Identity, component.Id );
+		var intSlot = NetworkObject.GetPropertySlot( type.GetProperty( nameof( UnserializableSyncComponent.SyncInt ) ).Identity, component.Id );
+
+		Assert.IsTrue( go._net.dataTable.IsRegistered( holderSlot ), "Precondition: the unserializable value is synced" );
+
+		IDeltaSnapshot networkObject = go._net;
+		var state = networkObject.WriteSnapshotState();
+
+		Assert.IsFalse( state.Lookup.ContainsKey( holderSlot ), "A value that can't be serialized has nothing to send" );
+		Assert.IsTrue( state.Lookup.ContainsKey( intSlot ), "The other synced values must still be sent" );
+	}
+
+	/// <summary>
+	/// A synced value that stops serializing keeps its last good value in the snapshot, the snapshot can still be
+	/// sent, and every failed attempt is logged so it can't be missed.
+	/// </summary>
+	[TestMethod]
+	public void SnapshotKeepsLastValueWhenSyncedValueStopsSerializing()
+	{
+		using var scope = new Scene().Push();
+		using var clientAndHost = new ClientAndHost( TypeLibrary );
+		clientAndHost.BecomeHost();
+
+		var go = new GameObject();
+		var component = go.Components.Create<UnserializableSyncComponent>();
+		component.Holder = default;
+		go.NetworkSpawn();
+
+		var table = go._net.dataTable;
+		var type = Game.TypeLibrary.GetType<UnserializableSyncComponent>();
+		var holderSlot = NetworkObject.GetPropertySlot( type.GetProperty( nameof( UnserializableSyncComponent.Holder ) ).Identity, component.Id );
+		var intSlot = NetworkObject.GetPropertySlot( type.GetProperty( nameof( UnserializableSyncComponent.SyncInt ) ).Identity, component.Id );
+
+		IDeltaSnapshot networkObject = go._net;
+		var state = networkObject.WriteSnapshotState();
+		var lastGood = state.Lookup[holderSlot].Value.ToArray();
+
+		var warnings = new List<string>();
+		void OnMessage( LogEvent e ) { if ( e.Message.Contains( "Error when getting value" ) ) warnings.Add( e.Message ); }
+		Sandbox.Diagnostics.Logging.OnMessage += OnMessage;
+
+		try
+		{
+			table.SetValue( holderSlot, new UnserializableHolder { Map = new() } );
+
+			for ( var i = 1; i <= 3; i++ )
+			{
+				var intChange = state.Lookup[intSlot].Change;
+				table.SetValue( intSlot, i );
+				state = networkObject.WriteSnapshotState();
+
+				CollectionAssert.AreEqual( lastGood, state.Lookup[holderSlot].Value, "The last good value stays in the snapshot" );
+				Assert.IsTrue( state.Lookup[intSlot].Change > intChange, "The other synced values must still be sent" );
+			}
+
+			SceneNetworkSystem.Instance.DeltaSnapshots.GetFullSnapshotData( state );
+		}
+		finally
+		{
+			Sandbox.Diagnostics.Logging.OnMessage -= OnMessage;
+		}
+
+		Assert.AreEqual( 3, warnings.Count, "Every failed attempt is logged" );
+	}
+
 	[TestMethod]
 	public void NetworkRefreshWithParentChangeHasCorrectPosition()
 	{
@@ -1246,5 +1328,21 @@ public class NetworkTest
 	{
 		[Property, Sync]
 		public int RegularInt { get; set; } = 1;
+	}
+
+	/// <summary>
+	/// Structs are serialized field by field, and a NetDictionary field can't be. Exposed so serialization knows
+	/// the struct and gets as far as the field, like it does for game code.
+	/// </summary>
+	[Expose]
+	private struct UnserializableHolder
+	{
+		public NetDictionary<int, int> Map;
+	}
+
+	private class UnserializableSyncComponent : Component
+	{
+		[Sync] public UnserializableHolder Holder { get; set; } = new UnserializableHolder { Map = new() };
+		[Sync] public int SyncInt { get; set; }
 	}
 }
