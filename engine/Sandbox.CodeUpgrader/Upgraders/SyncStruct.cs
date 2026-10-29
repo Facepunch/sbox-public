@@ -4,22 +4,19 @@ using System.Threading;
 namespace Sandbox.CodeUpgrader;
 
 /// <summary>
-/// Structs that a [Sync] property can't replicate properly.
-/// <list type="bullet">
-/// <item>SB3008: NetworkTable decides whether a synced value changed by comparing its hash with the last one.
-/// The default struct hash (ValueType.GetHashCode) only covers every field for tightly packed, primitive-only
-/// structs, otherwise edits to later fields keep the old hash and aren't sent. A record struct's generated
-/// hash uses each field's own hash, so a plain struct field inside one has the same problem.</item>
-/// <item>SB3009: structs are serialized field by field, and a NetList or NetDictionary field can't be,
-/// so the value fails to sync.</item>
-/// </list>
+/// Detects synced structs with incomplete hashes or unsupported network container fields.
 /// </summary>
 [DiagnosticAnalyzer( LanguageNames.CSharp )]
 public sealed class SyncStructAnalyzer : Analyzer
 {
+	// Track constructed types so Box<Box<T>> is allowed; cap depth for expanding generics that never repeat.
+	const int MaxDepth = 16;
+
+	static readonly ImmutableArray<DiagnosticDescriptor> Rules = ImmutableArray.Create( Diagnostics.SyncStructHash, Diagnostics.SyncStructContainer );
+
 	public override DiagnosticDescriptor Rule => Diagnostics.SyncStructHash;
 
-	public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create( Diagnostics.SyncStructHash, Diagnostics.SyncStructContainer );
+	public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => Rules;
 
 	public override void Init( AnalysisContext context )
 	{
@@ -53,12 +50,6 @@ public sealed class SyncStructAnalyzer : Analyzer
 		}
 	}
 
-	/// <summary>
-	/// The value itself, and whether NetworkTable hashes it whole, plus the items of collections it hashes item
-	/// by item (ToHashCode / ListHasher): single-dimension arrays and concrete IList/IDictionary types. Interfaces
-	/// don't say what the value really is, so their items aren't assumed to be hashed. NetList and NetDictionary
-	/// track their own changes and are never hashed.
-	/// </summary>
 	static IEnumerable<(ITypeSymbol Type, bool Hashed)> SyncedValues( ITypeSymbol type, Compilation compilation )
 	{
 		if ( type is IArrayTypeSymbol array )
@@ -70,6 +61,16 @@ public sealed class SyncStructAnalyzer : Analyzer
 		if ( SymbolHelpers.Implements( type, compilation, "Sandbox.INetworkSerializer" ) )
 		{
 			yield return (type, false);
+
+			var collection = SymbolHelpers.FindInterface( type, compilation, "Sandbox.NetList`1" )
+				?? SymbolHelpers.FindInterface( type, compilation, "Sandbox.NetDictionary`2" );
+
+			if ( collection is not null )
+			{
+				foreach ( var argument in collection.TypeArguments )
+					yield return (argument, false);
+			}
+
 			yield break;
 		}
 
@@ -79,23 +80,19 @@ public sealed class SyncStructAnalyzer : Analyzer
 
 		if ( type.TypeKind == TypeKind.Interface ) yield break;
 
-		var collection = isDictionary ? SymbolHelpers.FindInterface( type, compilation, "System.Collections.Generic.IDictionary`2" )
+		var items = isDictionary ? SymbolHelpers.FindInterface( type, compilation, "System.Collections.Generic.IDictionary`2" )
 			: isList ? SymbolHelpers.FindInterface( type, compilation, "System.Collections.Generic.IEnumerable`1" )
 			: null;
 
-		if ( collection is null ) yield break;
+		if ( items is null ) yield break;
 
-		foreach ( var argument in collection.TypeArguments )
+		foreach ( var argument in items.TypeArguments )
 			yield return (argument, true);
 	}
 
-	/// <summary>
-	/// The path to the first NetList/NetDictionary field (or auto-property) in the struct or any struct field
-	/// nested in it, e.g. "Inner.Inventory".
-	/// </summary>
 	static string FindContainer( ITypeSymbol type, Compilation compilation, HashSet<ITypeSymbol> path, CancellationToken cancellationToken )
 	{
-		if ( !path.Add( type.OriginalDefinition ) ) return null;
+		if ( path.Count >= MaxDepth || !path.Add( type ) ) return null;
 
 		try
 		{
@@ -103,36 +100,68 @@ public sealed class SyncStructAnalyzer : Analyzer
 			{
 				cancellationToken.ThrowIfCancellationRequested();
 
-				var fieldType = Unwrap( field.Type );
 				var name = (field.AssociatedSymbol ?? field).Name;
 
-				if ( SymbolHelpers.Implements( fieldType, compilation, "Sandbox.INetworkSerializer" ) )
-					return name;
+				foreach ( var serialized in SerializedTypes( field.Type, compilation ) )
+				{
+					if ( SymbolHelpers.Implements( serialized, compilation, "Sandbox.INetworkSerializer" ) )
+						return name;
 
-				if ( IsSourceStruct( fieldType ) && FindContainer( fieldType, compilation, path, cancellationToken ) is { } nested )
-					return $"{name}.{nested}";
+					if ( IsSourceStruct( serialized ) && FindContainer( serialized, compilation, path, cancellationToken ) is { } nested )
+						return $"{name}.{nested}";
+				}
 			}
 
 			return null;
 		}
 		finally
 		{
-			path.Remove( type.OriginalDefinition );
+			path.Remove( type );
 		}
 	}
 
-	/// <summary>
-	/// The struct whose hash misses changes to some of its fields, if any. Without its own GetHashCode, a struct
-	/// with more than one field only gets every field hashed when they're all integers, chars, bools or enums;
-	/// otherwise the default hash uses its first non-null field alone. A single-field struct hashes that field,
-	/// and a record struct's generated GetHashCode hashes each field with its own hash, so those are checked
-	/// through their fields. A hand-written GetHashCode is trusted. Only fields known to break the full hash
-	/// count, so a type parameter or unresolved field doesn't, and struct layout (padding) isn't modelled. Some
-	/// broken structs aren't caught.
-	/// </summary>
+	static IEnumerable<ITypeSymbol> SerializedTypes( ITypeSymbol type, Compilation compilation )
+	{
+		type = Unwrap( type );
+		yield return type;
+
+		if ( type is IArrayTypeSymbol array )
+		{
+			foreach ( var item in SerializedTypes( array.ElementType, compilation ) )
+				yield return item;
+
+			yield break;
+		}
+
+		var collection = FindBase( type, compilation, "System.Collections.Generic.List`1" )
+			?? FindBase( type, compilation, "System.Collections.Generic.Dictionary`2" );
+
+		if ( collection is null ) yield break;
+
+		foreach ( var argument in collection.TypeArguments )
+		{
+			foreach ( var item in SerializedTypes( argument, compilation ) )
+				yield return item;
+		}
+	}
+
+	static INamedTypeSymbol FindBase( ITypeSymbol type, Compilation compilation, string metadataName )
+	{
+		var definition = compilation.GetTypeByMetadataName( metadataName );
+		if ( definition is null ) return null;
+
+		for ( var t = type as INamedTypeSymbol; t is not null; t = t.BaseType )
+		{
+			if ( SymbolEqualityComparer.Default.Equals( t.OriginalDefinition, definition ) ) return t;
+		}
+
+		return null;
+	}
+
+	// Trust explicit hashes; generated record hashes still depend on each field's hash.
 	static ITypeSymbol FindWeakHash( ITypeSymbol type, HashSet<ITypeSymbol> path, CancellationToken cancellationToken )
 	{
-		if ( !path.Add( type.OriginalDefinition ) ) return null;
+		if ( path.Count >= MaxDepth || !path.Add( type ) ) return null;
 
 		try
 		{
@@ -145,7 +174,7 @@ public sealed class SyncStructAnalyzer : Analyzer
 			var fields = InstanceFields( type ).ToArray();
 
 			if ( hash is null && fields.Length > 1 )
-				return fields.Any( f => BreaksBitwiseHash( f.Type ) ) ? type : null;
+				return fields.Any( f => BreaksBitwiseHash( f.Type ) ) || HasPadding( type, fields ) ? type : null;
 
 			foreach ( var field in fields )
 			{
@@ -160,8 +189,46 @@ public sealed class SyncStructAnalyzer : Analyzer
 		}
 		finally
 		{
-			path.Remove( type.OriginalDefinition );
+			path.Remove( type );
 		}
+	}
+
+	// Padding makes ValueType.GetHashCode fall back to the first field.
+	static bool HasPadding( ITypeSymbol type, IFieldSymbol[] fields )
+	{
+		if ( SymbolHelpers.HasAttribute( type, "System.Runtime.InteropServices.StructLayoutAttribute" ) ) return false;
+
+		var offset = 0;
+		var alignment = 1;
+		var used = 0;
+
+		foreach ( var field in fields )
+		{
+			var size = SizeOf( field.Type );
+			if ( size == 0 ) return false;
+
+			offset = AlignUp( offset, size ) + size;
+			alignment = System.Math.Max( alignment, size );
+			used += size;
+		}
+
+		return AlignUp( offset, alignment ) != used;
+	}
+
+	static int AlignUp( int value, int alignment ) => (value + alignment - 1) / alignment * alignment;
+
+	static int SizeOf( ITypeSymbol type )
+	{
+		if ( type is INamedTypeSymbol { EnumUnderlyingType: { } underlying } ) type = underlying;
+
+		return type.SpecialType switch
+		{
+			SpecialType.System_Boolean or SpecialType.System_Byte or SpecialType.System_SByte => 1,
+			SpecialType.System_Char or SpecialType.System_Int16 or SpecialType.System_UInt16 => 2,
+			SpecialType.System_Int32 or SpecialType.System_UInt32 => 4,
+			SpecialType.System_Int64 or SpecialType.System_UInt64 or SpecialType.System_IntPtr or SpecialType.System_UIntPtr => 8,
+			_ => 0,
+		};
 	}
 
 	static bool IsBitwiseHashed( ITypeSymbol type ) => type.TypeKind == TypeKind.Enum || type.SpecialType is
@@ -181,7 +248,6 @@ public sealed class SyncStructAnalyzer : Analyzer
 	static IEnumerable<IFieldSymbol> InstanceFields( ITypeSymbol type ) =>
 		type.GetMembers().OfType<IFieldSymbol>().Where( f => !f.IsStatic && !f.IsConst );
 
-	// Nullable<T> hashes and serializes the value it wraps.
 	static ITypeSymbol Unwrap( ITypeSymbol type )
 	{
 		return type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nullable
@@ -189,17 +255,13 @@ public sealed class SyncStructAnalyzer : Analyzer
 			: type;
 	}
 
-	/// <summary>
-	/// Structs with source the user can edit: this project or a referenced project. Types that only exist as
-	/// metadata (engine, BCL, packages) are left alone.
-	/// </summary>
 	static bool IsSourceStruct( ITypeSymbol type ) => type.TypeKind == TypeKind.Struct && !type.DeclaringSyntaxReferences.IsEmpty;
 
 	static string Display( ITypeSymbol type ) => type.ToDisplayString( SymbolDisplayFormat.MinimallyQualifiedFormat );
 
 	public override async Task RunTests( IAnalyzerTest tester )
 	{
-		// Plain values, nullables, arrays, concrete collections and generic structs all go through the hash.
+		// Weak hashes in synced values and collection items.
 		await tester.TestWithMarkup(
 			"""
 			using Sandbox;
@@ -215,6 +277,13 @@ public sealed class SyncStructAnalyzer : Analyzer
 			public record struct Outer( Slot Slot );
 			public record struct Key( Item Value );
 			public record struct Entry( Item Item );
+			public struct Single<T> { public T Value; }
+			public enum Level : byte { Low, High }
+			public struct Ammo { public int Count; public bool Reloading; }
+			public struct Flag { public bool Active; public int Count; }
+			public struct Wide { public int Id; public long Ticks; }
+			public struct Trailing { public long Ticks; public int Id; }
+			public struct Leveled { public Level Level; public short Count; }
 			public class Inventory
 			{
 				[Sync] public {|SB3008:Item|} Held { get; set; }
@@ -229,6 +298,12 @@ public sealed class SyncStructAnalyzer : Analyzer
 				[Sync] public {|SB3008:Wrapper|} Wrapper { get; set; }
 				[Sync] public {|SB3008:Slot|} Record { get; set; }
 				[Sync] public {|SB3008:Outer|} NestedRecord { get; set; }
+				[Sync] public {|SB3008:Single<Single<Item>>|} Boxed { get; set; }
+				[Sync] public {|SB3008:Ammo|} Ammo { get; set; }
+				[Sync] public {|SB3008:Flag|} Flag { get; set; }
+				[Sync] public {|SB3008:Wide|} Wide { get; set; }
+				[Sync] public {|SB3008:Trailing|} Trailing { get; set; }
+				[Sync] public {|SB3008:Leveled|} Leveled { get; set; }
 				[Replicated] public {|SB3008:Item|} Aliased { get; set; }
 			#pragma warning disable CS0618
 				[HostSync] public {|SB3008:Item|} Legacy { get; set; }
@@ -241,13 +316,14 @@ public sealed class SyncStructAnalyzer : Analyzer
 			}
 			""" );
 
-		// Structs whose hash covers every field, types the user can't change, and values that aren't hashed.
+		// Complete hashes, external types and values that aren't hashed.
 		await tester.TestWithMarkup(
 			"""
 			using Sandbox;
 			using System;
 			using System.Collections;
 			using System.Collections.Generic;
+			using System.Runtime.InteropServices;
 
 			public record struct RecordItem( string Id, int Count );
 			public record struct RecordSlot( RecordItem Item, int Index );
@@ -256,6 +332,10 @@ public sealed class SyncStructAnalyzer : Analyzer
 			public struct Name { public string Value; }
 			public struct Pair<T> { public T A; public T B; }
 			public record struct RecordInts( Ints Stats, int Index );
+			public struct Packed { public bool Active; public bool Visible; public short Count; }
+			public struct Color { public byte R; public byte G; public byte B; }
+			public struct Mixed { public int Id; public byte A; public byte B; public short C; }
+			[StructLayout( LayoutKind.Sequential, Pack = 1 )] public struct Tight { public int Count; public bool Reloading; }
 			public struct HashedItem
 			{
 				public string Id;
@@ -297,6 +377,10 @@ public sealed class SyncStructAnalyzer : Analyzer
 				[Sync] public NameList Names { get; set; }
 				[Sync] public Slot Slot { get; set; }
 				[Sync] public int Count { get; set; }
+				[Sync] public Packed Packed { get; set; }
+				[Sync] public Color Color { get; set; }
+				[Sync] public Mixed Mixed { get; set; }
+				[Sync] public Tight Tight { get; set; }
 				[Sync] public Vector3 Position { get; set; }
 				[Sync] public Guid Id { get; set; }
 				[Sync] public KeyValuePair<int, int> Pair { get; set; }
@@ -330,7 +414,7 @@ public sealed class SyncStructAnalyzer : Analyzer
 			}
 			""" );
 
-		// Code that doesn't compile yet gets no warning, and a recursive generic struct doesn't hang the analyzer.
+		// Incomplete code and expanding generic structs.
 		await tester.TestWithMarkup(
 			"""
 			using Sandbox;
@@ -362,6 +446,10 @@ public sealed class SyncStructAnalyzer : Analyzer
 				public NetDictionary<int, Item?> Inventory;
 				public override int GetHashCode() => HashCode.Combine( Inventory );
 			}
+			public struct Single<T> { public T Value; }
+			public struct ListsHolder { public int Id; public NetList<int>[] Lists; }
+			public struct MapsHolder { public List<NetDictionary<int, int>> Maps; }
+			public struct TeamHolder { public Dictionary<int, Holder[]> Teams; }
 			public class Player
 			{
 				[Sync] public {|SB3009:Holder|} Holder { get; set; }
@@ -372,6 +460,12 @@ public sealed class SyncStructAnalyzer : Analyzer
 				[Sync] public {|SB3009:List<Holder>|} Many { get; set; }
 				[Sync] public NetDictionary<int, Item?> Inventory { get; set; } = new();
 				public Holder Local { get; set; }
+				[Sync] public {|SB3009:ListsHolder|} Lists { get; set; }
+				[Sync] public {|SB3009:MapsHolder|} Maps { get; set; }
+				[Sync] public {|SB3009:TeamHolder|} Teams { get; set; }
+				[Sync] public {|SB3009:Single<Single<Holder>>|} Boxed { get; set; }
+				[Sync] public {|SB3009:NetList<Holder>|} Values { get; set; } = new();
+				[Sync] public {|SB3009:NetDictionary<int, Holder>|} ValueMap { get; set; } = new();
 			#pragma warning disable SB3009
 				[Sync] public Holder Suppressed { get; set; }
 			#pragma warning restore SB3009
