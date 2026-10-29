@@ -36,4 +36,20 @@ static class SymbolHelpers
 
 		return false;
 	}
+
+	/// <summary>
+	/// Whether <paramref name="type"/> is, or implements, any of the named types (generic definitions match any construction).
+	/// </summary>
+	public static bool Implements( ITypeSymbol type, Compilation compilation, params string[] metadataNames )
+	{
+		foreach ( var name in metadataNames )
+		{
+			var contract = compilation.GetTypeByMetadataName( name );
+			if ( contract is null ) continue;
+			if ( SymbolEqualityComparer.Default.Equals( type.OriginalDefinition, contract )
+				|| type.AllInterfaces.Any( x => SymbolEqualityComparer.Default.Equals( x.OriginalDefinition, contract ) ) )
+				return true;
+		}
+		return false;
+	}
 }
