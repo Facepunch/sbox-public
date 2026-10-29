@@ -403,7 +403,8 @@ void ComputeDirectLightingForLight( const FinalCombinerInput_t f, float3 vReceiv
 	#endif
 	
 	// Apply transmission after range, cone and shadow rejection, to this light alone.
-	// bModulators is constant in each copy of the caller's light loop, so the copy without it is the plain loop.
+	// bModulators is uniform: the clustered loop passes its wave's cluster features
+	[branch]
 	if ( bModulators )
 	{
 		if ( lightData.Type == LightType::LightTypeDirectional )
@@ -526,22 +527,13 @@ void ComputeDirectLighting( inout LightingTerms_t o, const FinalCombinerInput_t 
 	if ( !WaveActiveAnyTrue( lightRange.Count > 0 ) )
 		return;
 
-	// Two copies of the loop, picked once per wave: waves whose clusters have no modulated light run the plain one.
-	// Combined without short-circuiting, so the plain loop is reached from one branch: a second path into it made the
-	// compiler wrap both loops in a flow loop whose state spilled scalar registers inside the plain loop.
+	// Whether any lane's cluster has a modulated light, uniform across the wave. One loop with a uniform branch inside:
+	// a second copy of the loop without modulators doubled the light code in every combo (compile time, and a wave of
+	// occupancy on the heaviest combos) for a few percent in light-heavy scenes.
 	uint features = Cluster::WaveFeatures( lightRange ) & ( LightModulators::Active() ? ClusterFeature_LightModulators : 0 );
 
-	[branch]
-	if ( features != 0 )
-	{
-		ClusterForEach( lightRange )
-			ComputeDirectLightingForLight( f, vReceiverNormalWs, DynamicLightConstantByIndex( lightRange.Item ), o.vDiffuse.rgb, o.vSpecular.rgb, o.vTransmissive.rgb, false, true );
-	}
-	else
-	{
-		ClusterForEach( lightRange )
-			ComputeDirectLightingForLight( f, vReceiverNormalWs, DynamicLightConstantByIndex( lightRange.Item ), o.vDiffuse.rgb, o.vSpecular.rgb, o.vTransmissive.rgb, false, false );
-	}
+	ClusterForEach( lightRange )
+		ComputeDirectLightingForLight( f, vReceiverNormalWs, DynamicLightConstantByIndex( lightRange.Item ), o.vDiffuse.rgb, o.vSpecular.rgb, o.vTransmissive.rgb, false, features != 0 );
 }
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------------
