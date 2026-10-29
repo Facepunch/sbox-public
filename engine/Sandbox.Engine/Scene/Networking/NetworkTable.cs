@@ -628,6 +628,14 @@ internal class NetworkTable : IDisposable
 			try
 			{
 				WriteEntryToStream( entry, ref bs );
+
+				container.Write( slot );
+				container.Write( bs.Length );
+
+				if ( bs.Length > 0 )
+					container.Write( bs );
+
+				count++;
 			}
 			catch ( Exception e )
 			{
@@ -635,15 +643,7 @@ internal class NetworkTable : IDisposable
 			}
 			finally
 			{
-				container.Write( slot );
-				container.Write( bs.Length );
-
-				if ( bs.Length > 0 )
-					container.Write( bs );
-
 				bs.Dispose();
-
-				count++;
 			}
 		}
 
