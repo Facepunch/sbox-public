@@ -340,10 +340,6 @@ public class NetworkTest
 		}
 	}
 
-	/// <summary>
-	/// A synced value that fails to serialize is left out of the snapshot, and the object's other synced
-	/// values still go in.
-	/// </summary>
 	[TestMethod]
 	public void SnapshotSkipsSyncedValueThatFailsToSerialize()
 	{
@@ -369,10 +365,6 @@ public class NetworkTest
 		Assert.IsTrue( state.Lookup.ContainsKey( intSlot ), "The other synced values must still be sent" );
 	}
 
-	/// <summary>
-	/// A synced value that stops serializing keeps its last good value in the snapshot, the snapshot can still be
-	/// sent, and every failed attempt is logged so it can't be missed.
-	/// </summary>
 	[TestMethod]
 	public void SnapshotKeepsLastValueWhenSyncedValueStopsSerializing()
 	{
@@ -420,6 +412,51 @@ public class NetworkTest
 		}
 
 		Assert.AreEqual( 3, warnings.Count, "Every failed attempt is logged" );
+	}
+
+	[TestMethod]
+	public void WriteAllSkipsSyncedValueThatFailsToSerialize()
+	{
+		using var scope = new Scene().Push();
+		using var clientAndHost = new ClientAndHost( TypeLibrary );
+		clientAndHost.BecomeHost();
+
+		var go = new GameObject();
+		var component = go.Components.Create<UnserializableSyncComponent>();
+		component.SyncInt = 5;
+		go.NetworkSpawn();
+
+		var type = Game.TypeLibrary.GetType<UnserializableSyncComponent>();
+		var holderSlot = NetworkObject.GetPropertySlot( type.GetProperty( nameof( UnserializableSyncComponent.Holder ) ).Identity, component.Id );
+		var intSlot = NetworkObject.GetPropertySlot( type.GetProperty( nameof( UnserializableSyncComponent.SyncInt ) ).Identity, component.Id );
+
+		var data = ByteStream.Create( 32 );
+		go._net.dataTable.WriteAll( ref data );
+		var reader = ByteStream.CreateReader( data.ToArray() );
+		data.Dispose();
+
+		try
+		{
+			var slots = new List<int>();
+			var count = reader.Read<int>();
+			var containerLength = reader.Read<int>();
+			var end = reader.Position + containerLength;
+
+			for ( var i = 0; i < count; i++ )
+			{
+				slots.Add( reader.Read<int>() );
+				var length = reader.Read<int>();
+				reader.Position += length;
+			}
+
+			Assert.AreEqual( end, reader.Position, "Every written slot is complete" );
+			CollectionAssert.DoesNotContain( slots, holderSlot, "A value that can't be serialized isn't sent" );
+			CollectionAssert.Contains( slots, intSlot, "The other synced values must still be sent" );
+		}
+		finally
+		{
+			reader.Dispose();
+		}
 	}
 
 	[TestMethod]
@@ -1330,10 +1367,6 @@ public class NetworkTest
 		public int RegularInt { get; set; } = 1;
 	}
 
-	/// <summary>
-	/// Structs are serialized field by field, and a NetDictionary field can't be. Exposed so serialization knows
-	/// the struct and gets as far as the field, like it does for game code.
-	/// </summary>
 	[Expose]
 	private struct UnserializableHolder
 	{
