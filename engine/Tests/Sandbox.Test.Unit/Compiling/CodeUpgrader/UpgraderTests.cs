@@ -51,5 +51,6 @@ public partial class UpgraderTest
 	[TestMethod] public Task HostAsyncAnalyzer() => TestAnalyzer<HostAsyncAnalyzer>();
 	[TestMethod] public Task SyncWrittenAfterAwaitAnalyzer() => TestAnalyzer<SyncWrittenAfterAwaitAnalyzer>();
 	[TestMethod] public Task SyncCollectionAnalyzer() => TestAnalyzer<SyncCollectionAnalyzer>();
+	[TestMethod] public Task SyncStructAnalyzer() => TestAnalyzer<SyncStructAnalyzer>();
 	[TestMethod] public Task HostSyncAttributeFix() => TestFixer<HostSyncAttributeFix>();
 }
