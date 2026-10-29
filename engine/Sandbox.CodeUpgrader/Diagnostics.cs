@@ -22,6 +22,7 @@ static class Diagnostics
 	public static DiagnosticDescriptor SyncWrittenAfterAwait = Warning( "SB3005", "Synced value written after an await", "'{0}' is written after an await in {1}. If the host leaves before then, the rest never runs and what was set before stays set. Drive this from a [Sync] TimeUntil in OnUpdate instead.", "Networking", MigrationHelp );
 	public static DiagnosticDescriptor HostAsync = Warning( "SB3006", "Async host logic is not migrated", "This async operation runs from host-only code. Its pending work is not transferred when the host leaves. Keep progress in synced state and resume it on the new host, or drive timed logic from a [Sync] TimeUntil in OnUpdate.", "Networking", MigrationHelp );
 	public static DiagnosticDescriptor SyncCollection = Warning( "SB3007", "Use a networked collection with [Sync]", "'{0}' uses an ordinary collection with [Sync], which requires polling and is bad for performance. Use {1} instead.", "Networking" );
+	public static DiagnosticDescriptor SyncStructHash = Warning( "SB3008", "Synced struct's hash misses field changes", "'{0}' syncs struct '{1}', whose default GetHashCode only uses one of its fields. Sync spots changes by comparing hashes, so changes to its other fields aren't sent unless that field changes too. Make '{1}' a record struct or override GetHashCode.", "Networking" );
 
 	static DiagnosticDescriptor Warning( string id, string title, string message, string category = "Refactoring", string helpLink = null )
 	{

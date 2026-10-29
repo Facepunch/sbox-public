@@ -44,12 +44,22 @@ static class SymbolHelpers
 	{
 		foreach ( var name in metadataNames )
 		{
-			var contract = compilation.GetTypeByMetadataName( name );
-			if ( contract is null ) continue;
-			if ( SymbolEqualityComparer.Default.Equals( type.OriginalDefinition, contract )
-				|| type.AllInterfaces.Any( x => SymbolEqualityComparer.Default.Equals( x.OriginalDefinition, contract ) ) )
-				return true;
+			if ( FindInterface( type, compilation, name ) is not null ) return true;
 		}
 		return false;
+	}
+
+	/// <summary>
+	/// <paramref name="type"/> itself, or the interface it implements, whose definition is the named type.
+	/// </summary>
+	public static INamedTypeSymbol? FindInterface( ITypeSymbol type, Compilation compilation, string metadataName )
+	{
+		var contract = compilation.GetTypeByMetadataName( metadataName );
+		if ( contract is null ) return null;
+
+		if ( type is INamedTypeSymbol named && SymbolEqualityComparer.Default.Equals( named.OriginalDefinition, contract ) )
+			return named;
+
+		return type.AllInterfaces.FirstOrDefault( x => SymbolEqualityComparer.Default.Equals( x.OriginalDefinition, contract ) );
 	}
 }
