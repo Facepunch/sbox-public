@@ -23,6 +23,7 @@ static class Diagnostics
 	public static DiagnosticDescriptor HostAsync = Warning( "SB3006", "Async host logic is not migrated", "This async operation runs from host-only code. Its pending work is not transferred when the host leaves. Keep progress in synced state and resume it on the new host, or drive timed logic from a [Sync] TimeUntil in OnUpdate.", "Networking", MigrationHelp );
 	public static DiagnosticDescriptor SyncCollection = Warning( "SB3007", "Use a networked collection with [Sync]", "'{0}' uses an ordinary collection with [Sync], which requires polling and is bad for performance. Use {1} instead.", "Networking" );
 	public static DiagnosticDescriptor SyncStructHash = Warning( "SB3008", "Synced struct's hash misses field changes", "'{0}' syncs struct '{1}', whose default GetHashCode only uses one of its fields. Sync spots changes by comparing hashes, so changes to its other fields aren't sent unless that field changes too. Make '{1}' a record struct or override GetHashCode.", "Networking" );
+	public static DiagnosticDescriptor SyncStructContainer = Warning( "SB3009", "Network container inside a synced struct", "'{0}' syncs struct '{1}', which holds the network container '{2}'. NetList and NetDictionary can't be serialized inside a struct, so '{0}' fails to sync while '{2}' is set. Move '{2}' to its own [Sync] property instead.", "Networking" );
 
 	static DiagnosticDescriptor Warning( string id, string title, string message, string category = "Refactoring", string helpLink = null )
 	{

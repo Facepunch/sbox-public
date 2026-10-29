@@ -4,15 +4,22 @@ using System.Threading;
 namespace Sandbox.CodeUpgrader;
 
 /// <summary>
-/// NetworkTable decides whether a synced value changed by comparing its hash with the last one. The default
-/// struct hash (ValueType.GetHashCode) only covers every field for tightly packed, primitive-only structs,
-/// otherwise edits to later fields keep the old hash and aren't sent. A record struct's generated hash uses
-/// each field's own hash, so a plain struct field inside one has the same problem.
+/// Structs that a [Sync] property can't replicate properly.
+/// <list type="bullet">
+/// <item>SB3008: NetworkTable decides whether a synced value changed by comparing its hash with the last one.
+/// The default struct hash (ValueType.GetHashCode) only covers every field for tightly packed, primitive-only
+/// structs, otherwise edits to later fields keep the old hash and aren't sent. A record struct's generated
+/// hash uses each field's own hash, so a plain struct field inside one has the same problem.</item>
+/// <item>SB3009: structs are serialized field by field, and a NetList or NetDictionary field can't be,
+/// so the value fails to sync.</item>
+/// </list>
 /// </summary>
 [DiagnosticAnalyzer( LanguageNames.CSharp )]
 public sealed class SyncStructAnalyzer : Analyzer
 {
 	public override DiagnosticDescriptor Rule => Diagnostics.SyncStructHash;
+
+	public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create( Diagnostics.SyncStructHash, Diagnostics.SyncStructContainer );
 
 	public override void Init( AnalysisContext context )
 	{
@@ -34,6 +41,12 @@ public sealed class SyncStructAnalyzer : Analyzer
 		{
 			var type = Unwrap( value );
 			if ( !IsSourceStruct( type ) || !checkedTypes.Add( type ) ) continue;
+
+			if ( FindContainer( type, context.Compilation, path, context.CancellationToken ) is { } container )
+			{
+				context.ReportDiagnostic( Diagnostic.Create( Diagnostics.SyncStructContainer, location, property.Name, Display( type ), container ) );
+				continue;
+			}
 
 			if ( hashed && FindWeakHash( type, path, context.CancellationToken ) is { } weak && reportedWeak.Add( weak ) )
 				context.ReportDiagnostic( Diagnostic.Create( Diagnostics.SyncStructHash, location, property.Name, Display( weak ) ) );
@@ -74,6 +87,38 @@ public sealed class SyncStructAnalyzer : Analyzer
 
 		foreach ( var argument in collection.TypeArguments )
 			yield return (argument, true);
+	}
+
+	/// <summary>
+	/// The path to the first NetList/NetDictionary field (or auto-property) in the struct or any struct field
+	/// nested in it, e.g. "Inner.Inventory".
+	/// </summary>
+	static string FindContainer( ITypeSymbol type, Compilation compilation, HashSet<ITypeSymbol> path, CancellationToken cancellationToken )
+	{
+		if ( !path.Add( type.OriginalDefinition ) ) return null;
+
+		try
+		{
+			foreach ( var field in InstanceFields( type ) )
+			{
+				cancellationToken.ThrowIfCancellationRequested();
+
+				var fieldType = Unwrap( field.Type );
+				var name = (field.AssociatedSymbol ?? field).Name;
+
+				if ( SymbolHelpers.Implements( fieldType, compilation, "Sandbox.INetworkSerializer" ) )
+					return name;
+
+				if ( IsSourceStruct( fieldType ) && FindContainer( fieldType, compilation, path, cancellationToken ) is { } nested )
+					return $"{name}.{nested}";
+			}
+
+			return null;
+		}
+		finally
+		{
+			path.Remove( type.OriginalDefinition );
+		}
 	}
 
 	/// <summary>
@@ -297,6 +342,39 @@ public sealed class SyncStructAnalyzer : Analyzer
 			{
 				[Sync] public Broken Broken { get; set; }
 				[Sync] public Expanding<int> Expanding { get; set; }
+			}
+			""" );
+
+		// Network containers inside a synced struct only get SB3009.
+		await tester.TestWithMarkup(
+			"""
+			using Sandbox;
+			using System;
+			using System.Collections.Generic;
+
+			public struct Item { public string Id; public int Count; }
+			public struct Holder { public NetDictionary<int, Item?> Inventory; }
+			public struct AutoHolder { public NetList<int> List { get; set; } }
+			public record struct RecordHolder( NetDictionary<int, int> Map );
+			public struct Outer { public int Id; public Holder Inner; }
+			public struct HashedHolder
+			{
+				public NetDictionary<int, Item?> Inventory;
+				public override int GetHashCode() => HashCode.Combine( Inventory );
+			}
+			public class Player
+			{
+				[Sync] public {|SB3009:Holder|} Holder { get; set; }
+				[Sync] public {|SB3009:AutoHolder?|} Auto { get; set; }
+				[Sync] public {|SB3009:RecordHolder|} Record { get; set; }
+				[Sync] public {|SB3009:Outer|} Nested { get; set; }
+				[Sync] public {|SB3009:HashedHolder|} Hashed { get; set; }
+				[Sync] public {|SB3009:List<Holder>|} Many { get; set; }
+				[Sync] public NetDictionary<int, Item?> Inventory { get; set; } = new();
+				public Holder Local { get; set; }
+			#pragma warning disable SB3009
+				[Sync] public Holder Suppressed { get; set; }
+			#pragma warning restore SB3009
 			}
 			""" );
 	}
