@@ -135,7 +135,7 @@ float SampleShadowPCF_Poisson5( ShadowPCFInput i )
     float flShadow = 0.0;
     float flCompareDepth = saturate( i.ShadowPos.z + i.Bias );
 
-    [ForceUnroll]
+    [unroll]
     for ( int s = 0; s < 5; s++ )
     {
         float2 vOffset = mul( mRotation, g_vPoissonDisk5[s] ) * vFilterScale;
@@ -166,7 +166,7 @@ float SampleShadowPCF_Poisson12( ShadowPCFInput i )
     float flShadow = 0.0;
     float flCompareDepth = saturate( i.ShadowPos.z + i.Bias );
 
-    [ForceUnroll]
+    [unroll]
     for ( int s = 0; s < 12; s++ )
     {
         float2 vOffset = mul( mRotation, g_vPoissonDisk12[s] ) * vFilterScale;
@@ -197,7 +197,7 @@ float SampleShadowPCF_Poisson16( ShadowPCFInput i )
     float flShadow = 0.0;
     float flCompareDepth = saturate( i.ShadowPos.z + i.Bias );
 
-    [ForceUnroll]
+    [unroll]
     for ( int s = 0; s < 16; s++ )
     {
         float2 vOffset = mul( mRotation, g_vPoissonDisk16[s] ) * vFilterScale;
@@ -221,7 +221,7 @@ float SampleDirectionalShadowTent16( ShadowPCFInput i )
     float2 baseTexel = floor( texelPosition ) - 3.0;
     float2 phase = frac( texelPosition );
     float visibility = 0.0;
-    [ForceUnroll]
+    [unroll]
     for ( int s = 0; s < 16; ++s )
     {
         float2 k = 2.0 * float2( s % 4, s / 4 );

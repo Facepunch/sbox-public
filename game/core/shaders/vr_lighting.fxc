@@ -689,7 +689,7 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 
 		if ( g_bNonDirectionalDiffuseLighting )
 		{
-			[ForceUnroll] for ( int a = 0; a < 6; a++ )
+			[unroll] for ( int a = 0; a < 6; a++ )
 			{
 				lightingTerms.vIndirectDiffuse.rgb += vAmbientCube[a].rgb;
 			}
