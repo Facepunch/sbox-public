@@ -579,10 +579,42 @@ void ComputeBakedLighting( inout LightingTerms_t o, const FinalCombinerInput_t f
 
 	// Derivatives must be evaluated before the per-light branch diverges.
 	const float3 vReceiverNormalWs = ComputeShadowReceiverNormal( f.vPositionWs.xyz );
-	for ( int j = 0; j < 4; j++ )
+
+	// Slots this lane still has to add, a bit each
+	uint nPending = 0;
+	[unroll]
+	for ( uint j = 0; j < 4; j++ )
+		nPending |= ( vLightStrengths[j] > 0.0001 ) ? ( 1u << j ) : 0u;
+
+	// Walk the wave's baked lights lowest index first, as ClusterForEach walks a cluster's, so each light's data is
+	// the same for the whole wave and loads once into scalar registers instead of per lane
+	for ( ;; )
 	{
-		CalcBakedLightingForLight( f, vReceiverNormalWs, vLightIndices[j], vLightStrengths[j],
-			o.vDiffuse, o.vSpecular, o.vTransmissive );
+		uint nLaneLowest = 0xFFFFFFFF;
+		[unroll]
+		for ( uint j = 0; j < 4; j++ )
+		{
+			if ( nPending & ( 1u << j ) )
+				nLaneLowest = min( nLaneLowest, uint( vLightIndices[j] ) );
+		}
+
+		const uint nLight = WaveActiveMin( nLaneLowest );
+		if ( nLight == 0xFFFFFFFF )
+			break;
+
+		// This lane's strength for it, from every slot that holds it
+		float flStrength = 0.0;
+		[unroll]
+		for ( uint k = 0; k < 4; k++ )
+		{
+			if ( ( nPending & ( 1u << k ) ) && uint( vLightIndices[k] ) == nLight )
+			{
+				flStrength += vLightStrengths[k];
+				nPending &= ~( 1u << k );
+			}
+		}
+
+		CalcBakedLightingForLight( f, vReceiverNormalWs, nLight, flStrength, o.vDiffuse, o.vSpecular, o.vTransmissive );
 	}
 }
 
