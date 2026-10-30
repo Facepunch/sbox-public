@@ -135,9 +135,10 @@ struct ProjectedShadowCube
 		}
 		else
 		{
-			// 5, 12 or 29 taps on one disk. Radii keep the RMS radius of the ring-heavy tables these replaced
-			// (2.5, 2.14 and 2.04), scaled by sqrt(2) for the disk's own RMS radius
-			uint nTaps = UserShadowFilterQuality == 1 ? 5 : UserShadowFilterQuality == 2 ? 12 : 29;
+			// 4, 6 or 8 taps on one disk (Bevy filters cubes with 8). Every tap is a hardware 2x2 compare, so few
+			// are needed. Radii keep the RMS radius of the 5, 12 and 29-tap tables these replaced (2.5, 2.14 and
+			// 2.04), scaled by sqrt(2) for the disk's own RMS radius
+			uint nTaps = UserShadowFilterQuality == 1 ? 4 : UserShadowFilterQuality == 2 ? 6 : 8;
 			float flRadius = UserShadowFilterQuality == 1 ? 3.5355 : UserShadowFilterQuality == 2 ? 3.0209 : 2.8811;
 
 			ShadowDisk disk = ShadowDisk::Start( 0.0, nTaps );

@@ -101,11 +101,6 @@ struct DirectionalLightShadow
 		pcfInput.Hardness = g_DirectionalLightCascadeHardness[cascadeIndex];
         pcfInput.ScreenPos = screenPos;
 
-#ifndef FORCE_BILINEAR_PCF_SHADOWS_ONLY
-        // Soft cascades take the same disk as SampleShadowPCF at this quality, so there's only one copy of it
-        if ( UserShadowFilterQuality >= 3 && pcfInput.Hardness > 1.0 )
-            return SampleDirectionalShadowTent16( pcfInput );
-#endif
         return SampleShadowPCF( pcfInput );
     }
 
