@@ -287,8 +287,21 @@ public sealed partial class RenderSystem : IDisposable
 			Lap();
 
 			using var _ = Zones.Submit.Start();
-			if ( plan is not null ) plan.SubmitTicks = Stopwatch.GetTimestamp();
-			recorder.Submit( (IntPtr)output.SwapChain != IntPtr.Zero ? output.SwapChain : TimingSwapChain );
+			var handedOver = Stopwatch.GetTimestamp();
+
+			// The submission carries a tag through the render thread to the GPU's timings, so the dev tools can pair a
+			// GPU frame with the plan of the frame that made it
+			var tag = (IntPtr)output.SwapChain != IntPtr.Zero ? Sandbox.Rendering.ManagedFramePlan.NoteHandedOver( handedOver, view ) : 0;
+			if ( plan is not null ) { plan.SubmitTicks = handedOver; plan.SubmitTag = tag; plan.View = view; }
+			g_pRenderDevice.SetSubmitTag( (ulong)tag );
+			try
+			{
+				recorder.Submit( (IntPtr)output.SwapChain != IntPtr.Zero ? output.SwapChain : TimingSwapChain );
+			}
+			finally
+			{
+				g_pRenderDevice.SetSubmitTag( 0 );
+			}
 			submitted = true;
 		}
 		finally

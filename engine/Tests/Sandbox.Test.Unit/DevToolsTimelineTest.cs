@@ -211,4 +211,95 @@ public class DevToolsTimelineTest
 		Assert.AreEqual( 50, DevToolsSparkline.HoldScale( top, 21 ), "outgrown: up a step" );
 		Assert.AreEqual( 5, DevToolsSparkline.HoldScale( top, 4 ), "well under: down to fit" );
 	}
+
+	/// <summary>
+	/// A published plan stays as its frame was, found by its submission's tag for pairing with its GPU frame; the settled
+	/// copy the overlay shows moves part way from the last one.
+	/// </summary>
+	[TestMethod]
+	public void PlansKeepTheirFrameAsItWas()
+	{
+		var camera = $"PlansKeepTheirFrameAsItWas {Guid.NewGuid()}";
+		ManagedFramePlan Plan( double ms )
+		{
+			var plan = new ManagedFramePlan { Camera = camera, RecordMs = ms };
+			plan.Segments.Add( new ManagedFramePlan.Segment { Ms = ms } );
+			var frame = new ManagedFramePlan.Frame { Name = "Camera" };
+			frame.Layers.Add( Layer( "Opaque Forward", 0, cpu: ms ) );
+			plan.Frames.Add( frame );
+			return plan;
+		}
+
+		Plan( 10 ).Publish();
+		var second = Plan( 20 );
+		second.SubmitTag = long.MaxValue - 1;
+		second.Publish();
+
+		Assert.AreSame( second, ManagedFramePlan.WithTag( long.MaxValue - 1 ) );
+		Assert.IsNull( ManagedFramePlan.WithTag( 0 ), "untagged submissions have no plan" );
+		Assert.AreEqual( 20, second.RecordMs );
+		Assert.AreEqual( 20, second.Segments[0].Ms );
+		Assert.AreEqual( 20, second.Frames[0].Layers[0].CpuMs );
+
+		var settled = ManagedFramePlan.Latest;
+		Assert.AreNotSame( second, settled );
+		Assert.AreEqual( 13, settled.RecordMs, 0.001 );
+		Assert.AreEqual( 13, settled.Segments[0].Ms, 0.001 );
+		Assert.AreEqual( 13, settled.Frames[0].Layers[0].CpuMs, 0.001 );
+	}
+
+	/// <summary>
+	/// The render thread submits a frame a little after the managed renderer hands it over. A GPU frame's host submits,
+	/// on the host clock, carry the tag of the frame they were handed over with, and every camera handed over in that
+	/// engine frame is in that GPU frame, so each camera's delay is measured against its own handover even when a batched
+	/// submission kept only the first camera's tag. Delays are settled for each camera, by its view rather than its name:
+	/// cameras sit at different places in a GPU frame, so their offsets differ.
+	/// </summary>
+	[TestMethod]
+	public void SubmitDelayIsFromTheTaggedFrame()
+	{
+		var frequency = System.Diagnostics.Stopwatch.Frequency;
+		long Ms( double ms ) => (long)(ms * frequency / 1000.0);
+		var a = new object();
+		var b = new object();
+		var zero = System.Diagnostics.Stopwatch.GetTimestamp();
+		var engineFrame = Application.FrameCount;
+
+		try
+		{
+			ManagedFramePlan.Want();
+			long first = 0, second = 0;
+			for ( int i = 0; i < 50; i++ )
+			{
+				// One engine frame, one GPU frame: A hands over at 0 and its submit starts the GPU frame 1 ms later; B, of the
+				// same name, hands over at 10 ms. The render thread batched both, so only A's tag comes back
+				Application.FrameCount = engineFrame + 1000 + (ulong)i;
+				first = ManagedFramePlan.NoteHandedOver( zero, a );
+				second = ManagedFramePlan.NoteHandedOver( zero + Ms( 10 ), b );
+				ManagedFramePlan.NoteGpuFrame( first, zero + Ms( 1 ), 0 );
+			}
+
+			Assert.AreNotEqual( 0, first );
+			Assert.AreNotEqual( first, second );
+			Assert.AreEqual( 1, ManagedFramePlan.SubmitDelayTicks( a ) * 1000.0 / frequency, 0.01 );
+			Assert.AreEqual( -9, ManagedFramePlan.SubmitDelayTicks( b ) * 1000.0 / frequency, 0.01, "B's plan starts 9 ms before its frame's handover" );
+
+			// B's own tag coming back as well, in a later submit of the same GPU frame, doesn't count the frame twice
+			ManagedFramePlan.NoteGpuFrame( second, zero + Ms( 11 ), 10 );
+			Assert.AreEqual( -9, ManagedFramePlan.SubmitDelayTicks( b ) * 1000.0 / frequency, 0.01 );
+
+			// A tag nothing was handed over with changes nothing
+			ManagedFramePlan.NoteGpuFrame( long.MaxValue, zero, 0 );
+			Assert.AreEqual( 1, ManagedFramePlan.SubmitDelayTicks( a ) * 1000.0 / frequency, 0.01 );
+
+			// B's plan pairs with the GPU frame whose submission only carried A's tag
+			var plan = new ManagedFramePlan { Camera = "Camera", View = b, SubmitTag = second };
+			plan.Publish();
+			Assert.AreSame( plan, ManagedFramePlan.WithTag( first ) );
+		}
+		finally
+		{
+			Application.FrameCount = engineFrame;
+		}
+	}
 }

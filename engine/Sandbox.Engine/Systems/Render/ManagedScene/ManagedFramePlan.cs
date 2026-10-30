@@ -32,10 +32,105 @@ internal sealed class ManagedFramePlan
 	/// </summary>
 	public static bool Due => Wanted && RealTime.Now - publishedAt >= Interval;
 
+	// The tag, handover time, engine frame and camera of the frames recently drawn into a swap chain, oldest overwritten
+	// first, while a plan is wanted. Tags start at 1, so 0 is no tag
+	static readonly (long Tag, long Ticks, ulong Frame, object Camera)[] handedOver = new (long, long, ulong, object)[64];
+	static int handedOverNext;
+	static long lastTag;
+	static ulong lastNotedFrame;
+
+	// Each camera's settled delay (SubmitDelayTicks), by the camera's view: cameras sit at different places in a GPU
+	// frame, so theirs differ, and names needn't be unique
+	static readonly System.Runtime.CompilerServices.ConditionalWeakTable<object, System.Runtime.CompilerServices.StrongBox<long>> submitDelays = new();
+
 	/// <summary>
-	/// The last plan published.
+	/// How long after the renderer hands the frame of <paramref name="camera"/> (its view) over the GPU's timeline for it
+	/// starts, in <see cref="System.Diagnostics.Stopwatch"/> ticks: the render thread submits it a little later, after any
+	/// camera before it. Measured from GPU frames whose submit sampled the host clock (<see cref="NoteGpuFrame"/>),
+	/// settled; 0 until one has.
 	/// </summary>
-	public static ManagedFramePlan Latest { get; set; }
+	public static long SubmitDelayTicks( object camera ) => camera is not null && submitDelays.TryGetValue( camera, out var delay ) ? delay.Value : 0;
+
+	/// <summary>
+	/// The renderer handed the frame of <paramref name="camera"/> (its view), drawn into a swap chain, over for submitting
+	/// at <paramref name="ticks"/>. Returns the tag to submit it with (<c>IRenderDevice::SetSubmitTag</c>), which comes
+	/// back on its GPU frame's host submits, or 0 when nothing wants plans.
+	/// </summary>
+	public static long NoteHandedOver( long ticks, object camera )
+	{
+		if ( !Wanted ) return 0;
+		var tag = ++lastTag;
+		handedOver[handedOverNext] = (tag, ticks, Application.FrameCount, camera);
+		handedOverNext = (handedOverNext + 1) % handedOver.Length;
+		return tag;
+	}
+
+	// The engine frame the frame tagged tag was handed over in, or 0
+	static ulong FrameOf( long tag )
+	{
+		if ( tag == 0 ) return 0;
+		foreach ( var h in handedOver )
+			if ( h.Tag == tag ) return h.Frame;
+		return 0;
+	}
+
+	/// <summary>
+	/// A GPU frame came back with a host submit of the frame tagged <paramref name="tag"/>, at
+	/// <paramref name="submitTicks"/> on the host clock and <paramref name="submitMs"/> into its timeline. Every camera
+	/// handed over in the same engine frame is in that GPU frame, tagged or not - the render thread can batch several
+	/// cameras' work into one submission, which keeps only the first's tag - so how much later than each was handed over
+	/// the timeline started is the delay to line that camera's side up by.
+	/// </summary>
+	public static void NoteGpuFrame( long tag, long submitTicks, double submitMs )
+	{
+		var frame = FrameOf( tag );
+		if ( submitTicks <= 0 || frame == 0 || frame == lastNotedFrame ) return;
+		lastNotedFrame = frame;
+
+		var origin = TimelineOrigin( submitTicks, submitMs );
+		foreach ( var (_, handed, f, camera) in handedOver )
+		{
+			if ( f != frame || camera is null ) continue;
+
+			var delay = origin - handed;
+			if ( submitDelays.TryGetValue( camera, out var settled ) ) settled.Value = (long)(settled.Value * 0.8 + delay * 0.2);
+			else submitDelays.Add( camera, new System.Runtime.CompilerServices.StrongBox<long>( delay ) );
+		}
+	}
+
+	/// <summary>
+	/// Where a GPU frame's timeline starts on the host clock, from a host submit <paramref name="submitMs"/> into it at
+	/// <paramref name="submitTicks"/>.
+	/// </summary>
+	public static long TimelineOrigin( long submitTicks, double submitMs ) =>
+		submitTicks - (long)(submitMs * System.Diagnostics.Stopwatch.Frequency / 1000.0);
+
+	// Recently published frames' own plans, for pairing with GPU frames by tag
+	static readonly ManagedFramePlan[] published = new ManagedFramePlan[32];
+	static int publishedNext;
+
+	/// <summary>
+	/// The published plan of the frame submitted with <paramref name="tag"/>, else of another camera's frame handed over
+	/// with it, whose tag a batched submission may have lost (<see cref="NoteGpuFrame"/>); or null when there wasn't one:
+	/// plans are only made ten times a second, so most GPU frames have none.
+	/// </summary>
+	public static ManagedFramePlan WithTag( long tag )
+	{
+		if ( tag == 0 ) return null;
+		foreach ( var plan in published )
+			if ( plan is not null && plan.SubmitTag == tag ) return plan;
+
+		var frame = FrameOf( tag );
+		if ( frame == 0 ) return null;
+		foreach ( var plan in published )
+			if ( plan is not null && plan.SubmitTag != 0 && FrameOf( plan.SubmitTag ) == frame ) return plan;
+		return null;
+	}
+
+	/// <summary>
+	/// The last plan published, its times settled with the ones before (<see cref="Publish"/>).
+	/// </summary>
+	public static ManagedFramePlan Latest { get; private set; }
 
 	/// <summary>
 	/// What became of a layer.
@@ -118,7 +213,7 @@ internal sealed class ManagedFramePlan
 		public long StartTicks, EndTicks;
 		public int Thread;
 
-		/// <summary>When it was recorded, in milliseconds from the frame's first submit (<see cref="Publish"/>).</summary>
+		/// <summary>When it was recorded, in milliseconds from where the GPU's timeline starts (<see cref="StartMs"/>).</summary>
 		public double StartMs, EndMs;
 	}
 
@@ -136,15 +231,32 @@ internal sealed class ManagedFramePlan
 	public int MainThread;
 
 	/// <summary>
-	/// When the frame started being made, in milliseconds before its first submit: the GPU's timeline starts at that
-	/// submit, so the CPU's work lines up with it from here.
+	/// The tag its submission carried to the GPU's timings (<see cref="NoteHandedOver"/>), or 0.
+	/// </summary>
+	public long SubmitTag;
+
+	/// <summary>
+	/// When the frame started being made, in milliseconds before the GPU's timeline for it starts - its first submit,
+	/// which the render thread makes <see cref="SubmitDelayTicks"/> after the frame is handed over - so the CPU's work
+	/// lines up with the GPU's from here.
 	/// </summary>
 	public double StartMs;
+
+	/// <summary>
+	/// When the frame was handed over to be submitted, in milliseconds from where the GPU's timeline starts: a little
+	/// before it, by <see cref="SubmitDelayTicks"/>.
+	/// </summary>
+	public double SubmitStartMs;
 
 	/// <summary>
 	/// The camera the frame is of.
 	/// </summary>
 	public string Camera;
+
+	/// <summary>
+	/// The camera's view, which says which camera it is when names are shared: its <see cref="SubmitDelayTicks"/>.
+	/// </summary>
+	public object View;
 
 	/// <summary>
 	/// Whether any segment was recorded on workers.
@@ -156,21 +268,17 @@ internal sealed class ManagedFramePlan
 	/// </summary>
 	public string[] Resources = [];
 
-	public readonly List<Frame> Frames = new();
-	public readonly List<Segment> Segments = new();
+	public List<Frame> Frames { get; private set; } = new();
+	public List<Segment> Segments { get; private set; } = new();
 
 	/// <summary>
-	/// Publish this plan as the latest, its times averaged with the last one's while the frame keeps its shape - the same
-	/// camera and segments - so the overlay's numbers settle rather than flicker frame to frame.
+	/// Set its times in milliseconds from <paramref name="zero"/>, on the host clock.
 	/// </summary>
-	public void Publish()
+	void PlaceTimes( long zero )
 	{
-		// Plans come ten times a second, so this settles over about a second
-		const double keep = 0.7;
-		publishedAt = RealTime.Now;
-
-		double Ms( long ticks ) => SubmitTicks == 0 ? 0 : (ticks - SubmitTicks) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+		double Ms( long ticks ) => SubmitTicks == 0 ? 0 : (ticks - zero) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
 		StartMs = Ms( StartTicks );
+		SubmitStartMs = Ms( SubmitTicks );
 		for ( int i = 0; i < Segments.Count; i++ )
 		{
 			var segment = Segments[i];
@@ -178,46 +286,89 @@ internal sealed class ManagedFramePlan
 			segment.EndMs = Ms( segment.EndTicks );
 			Segments[i] = segment;
 		}
+	}
 
-		if ( Latest is { } last && last.Camera == Camera && last.Segments.Count == Segments.Count )
+	/// <summary>
+	/// A copy with its times from where its own GPU frame's timeline started (<paramref name="originTicks"/>, from
+	/// <see cref="TimelineOrigin"/>), rather than its camera's settled <see cref="SubmitDelayTicks"/>.
+	/// </summary>
+	public ManagedFramePlan AlignedTo( long originTicks )
+	{
+		var copy = (ManagedFramePlan)MemberwiseClone();
+		copy.Segments = new List<Segment>( Segments );
+		copy.PlaceTimes( originTicks );
+		return copy;
+	}
+
+	/// <summary>
+	/// Publish this plan as the latest frame's, and as <see cref="Latest"/> a copy of it with its times averaged with the
+	/// last one's while the frame keeps its shape - the same camera and segments - so the overlay's numbers settle rather
+	/// than flicker frame to frame.
+	/// </summary>
+	public void Publish()
+	{
+		// Plans come ten times a second, so this settles over about a second
+		const double keep = 0.7;
+		publishedAt = RealTime.Now;
+
+		PlaceTimes( SubmitTicks + SubmitDelayTicks( View ) );
+
+		published[publishedNext] = this;
+		publishedNext = (publishedNext + 1) % published.Length;
+
+		if ( Latest is not { } last || last.View != View || last.Segments.Count != Segments.Count )
 		{
-			for ( int i = 0; i < Segments.Count; i++ )
-			{
-				var segment = Segments[i];
-				var was = last.Segments[i];
-				segment.Ms = was.Ms * keep + segment.Ms * (1 - keep);
-				segment.StartMs = was.StartMs * keep + segment.StartMs * (1 - keep);
-				segment.EndMs = was.EndMs * keep + segment.EndMs * (1 - keep);
-				Segments[i] = segment;
-			}
-
-			// Layers settle too while the frames keep their layers
-			for ( int f = 0; f < Frames.Count && f < last.Frames.Count; f++ )
-			{
-				var layers = Frames[f].Layers;
-				var lastLayers = last.Frames[f].Layers;
-				if ( layers.Count != lastLayers.Count ) continue;
-
-				for ( int l = 0; l < layers.Count; l++ )
-				{
-					var layer = layers[l];
-					if ( layer.Name != lastLayers[l].Name ) continue;
-					layer.CpuMs = lastLayers[l].CpuMs * keep + layer.CpuMs * (1 - keep);
-					layers[l] = layer;
-				}
-			}
-
-			StartMs = last.StartMs * keep + StartMs * (1 - keep);
-
-			CollectMs = last.CollectMs * keep + CollectMs * (1 - keep);
-			PrepareMs = last.PrepareMs * keep + PrepareMs * (1 - keep);
-			SetupMs = last.SetupMs * keep + SetupMs * (1 - keep);
-			RecordMs = last.RecordMs * keep + RecordMs * (1 - keep);
-			RecordWaitMs = last.RecordWaitMs * keep + RecordWaitMs * (1 - keep);
-			SubmitMs = last.SubmitMs * keep + SubmitMs * (1 - keep);
-			WorkerMs = last.WorkerMs * keep + WorkerMs * (1 - keep);
+			Latest = this;
+			return;
 		}
 
-		Latest = this;
+		// The settled copy: this frame's plan, its times moved part way from the last settled one's
+		var settled = (ManagedFramePlan)MemberwiseClone();
+		settled.Segments = new( Segments );
+		settled.Frames = new( Frames.Count );
+
+		for ( int i = 0; i < Segments.Count; i++ )
+		{
+			var segment = Segments[i];
+			var was = last.Segments[i];
+			segment.Ms = was.Ms * keep + segment.Ms * (1 - keep);
+			segment.StartMs = was.StartMs * keep + segment.StartMs * (1 - keep);
+			segment.EndMs = was.EndMs * keep + segment.EndMs * (1 - keep);
+			settled.Segments[i] = segment;
+		}
+
+		// Layers settle too while the frames keep their layers
+		for ( int f = 0; f < Frames.Count; f++ )
+		{
+			var frame = new Frame { Name = Frames[f].Name, Skybox = Frames[f].Skybox };
+			frame.Layers.AddRange( Frames[f].Layers );
+			settled.Frames.Add( frame );
+
+			if ( f >= last.Frames.Count ) continue;
+			var layers = frame.Layers;
+			var lastLayers = last.Frames[f].Layers;
+			if ( layers.Count != lastLayers.Count ) continue;
+
+			for ( int l = 0; l < layers.Count; l++ )
+			{
+				var layer = layers[l];
+				if ( layer.Name != lastLayers[l].Name ) continue;
+				layer.CpuMs = lastLayers[l].CpuMs * keep + layer.CpuMs * (1 - keep);
+				layers[l] = layer;
+			}
+		}
+
+		settled.StartMs = last.StartMs * keep + StartMs * (1 - keep);
+		settled.SubmitStartMs = last.SubmitStartMs * keep + SubmitStartMs * (1 - keep);
+
+		settled.CollectMs = last.CollectMs * keep + CollectMs * (1 - keep);
+		settled.PrepareMs = last.PrepareMs * keep + PrepareMs * (1 - keep);
+		settled.SetupMs = last.SetupMs * keep + SetupMs * (1 - keep);
+		settled.RecordMs = last.RecordMs * keep + RecordMs * (1 - keep);
+		settled.RecordWaitMs = last.RecordWaitMs * keep + RecordWaitMs * (1 - keep);
+		settled.SubmitMs = last.SubmitMs * keep + SubmitMs * (1 - keep);
+		settled.WorkerMs = last.WorkerMs * keep + WorkerMs * (1 - keep);
+
+		Latest = settled;
 	}
 }

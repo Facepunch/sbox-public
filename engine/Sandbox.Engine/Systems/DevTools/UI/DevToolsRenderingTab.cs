@@ -133,7 +133,8 @@ internal sealed class DevToolsRenderingTab : DevToolsTab
 		var m = f.Managed;
 		var isManaged = m.Renders > 0;
 		var timeline = DevTools.ShownGpuTimeline;
-		var plan = isManaged ? timeline.Plan ?? ManagedFramePlan.Latest : null;
+		// A picked frame shows its own frame's plan or none: never another frame's CPU side
+		var plan = !isManaged ? null : timeline.Picked != 0 ? timeline.Plan : timeline.Plan ?? ManagedFramePlan.Latest;
 
 		// Native's passes go under the scene views the GPU profiler has them in
 		_views.Clear();

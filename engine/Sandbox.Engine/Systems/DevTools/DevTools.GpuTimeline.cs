@@ -61,10 +61,10 @@ internal static partial class DevTools
 
 	/// <summary>
 	/// One captured GPU frame as it was, kept so a frame picked in a chart can show a real frame rather than the averages.
-	/// <see cref="Frame"/> is the frame it was captured on; GPU results arrive a few frames late, so the GPU work in it is
-	/// a little older.
+	/// <see cref="Frame"/> is the frame it was captured on, at <see cref="At"/>; GPU results arrive a few frames late, so
+	/// the GPU work in it is a little older.
 	/// </summary>
-	sealed record GpuCapture( long Frame, List<GpuSpan> Spans, List<float> Submits, Sandbox.Rendering.ManagedFramePlan Plan );
+	sealed record GpuCapture( long Frame, double At, List<GpuSpan> Spans, List<float> Submits, Sandbox.Rendering.ManagedFramePlan Plan );
 
 	/// <summary>
 	/// The captures of the last ten seconds or so, oldest first.
@@ -106,9 +106,10 @@ internal static partial class DevTools
 	internal const int GpuSpanHistory = 100;
 
 	/// <summary>
-	/// A captured frame's pass: where it started, how long it took, and when it was captured.
+	/// A captured frame's pass: where it started, how long it took, and when it was captured. A pass that didn't run in a
+	/// capture gets a sample too, not <paramref name="Ran"/>, so its average is per captured frame and its chart has gaps.
 	/// </summary>
-	readonly record struct SpanSample( float Start, float Ms, double At );
+	readonly record struct SpanSample( float Start, float Ms, double At, bool Ran = true );
 
 	sealed class SampledSpan
 	{
@@ -149,6 +150,16 @@ internal static partial class DevTools
 	internal static int GpuSpanSamples( string path ) => _gpuSpans.TryGetValue( path, out var span ) ? span.Count : 0;
 
 	/// <summary>
+	/// What a kept capture had of the pass at <paramref name="path"/>: its sample, or one of nothing if it didn't run.
+	/// </summary>
+	static SpanSample SampleIn( GpuCapture capture, string path )
+	{
+		foreach ( var span in capture.Spans )
+			if ( span.Path == path ) return new SpanSample( span.StartMs, span.Ms, capture.At );
+		return new SpanSample( 0, 0, capture.At, Ran: false );
+	}
+
+	/// <summary>
 	/// Capture the latest completed GPU frame into each pass's samples, when one is due.
 	/// </summary>
 	static void SampleGpuTimeline( bool force )
@@ -163,9 +174,22 @@ internal static partial class DevTools
 		var events = frame.Events;
 
 		var submit = 0;
+		long noted = 0;
+		Sandbox.Rendering.ManagedFramePlan plan = null;
 		foreach ( var e in events )
 		{
 			if ( e.Kind != "host-submit" ) continue;
+
+			// A submit tagged with a managed frame's tag says how long after that frame was handed over it really went
+			if ( e.SubmitTag != 0 && e.SubmitTag != noted && e.HostTicks > 0 )
+			{
+				Sandbox.Rendering.ManagedFramePlan.NoteGpuFrame( e.SubmitTag, e.HostTicks, e.StartMs );
+				noted = e.SubmitTag;
+			}
+
+			// and which frame's plan, if one was made, goes with this GPU frame, lined up with its own timeline
+			if ( plan is null && Sandbox.Rendering.ManagedFramePlan.WithTag( e.SubmitTag ) is { } tagged )
+				plan = e.HostTicks > 0 ? tagged.AlignedTo( Sandbox.Rendering.ManagedFramePlan.TimelineOrigin( e.HostTicks, e.StartMs ) ) : tagged;
 
 			// The nth submit of the frame, eased like the passes
 			if ( submit < _gpuSubmits.Count ) _gpuSubmits[submit] = _gpuSubmits[submit].LerpTo( (float)e.StartMs, 0.2f );
@@ -202,7 +226,9 @@ internal static partial class DevTools
 
 			if ( !_gpuSpans.TryGetValue( e.Path, out var span ) )
 			{
+				// New, or back after dropping out: its history is the captures kept before this one, nothing where it didn't run
 				span = new SampledSpan();
+				foreach ( var earlier in _captures ) span.Add( SampleIn( earlier, e.Path ) );
 				_gpuSpans[e.Path] = span;
 			}
 
@@ -216,14 +242,17 @@ internal static partial class DevTools
 			span.Add( new SpanSample( (float)e.StartMs, (float)(e.EndMs - e.StartMs), now ) );
 		}
 
-		// Passes that stopped running drop out after a couple of seconds
+		// Passes that didn't run in this frame count as nothing in it, and drop out after a couple of seconds
+		foreach ( var span in _gpuSpans.Values )
+			if ( span.SeenAt != now ) span.Add( new SpanSample( 0, 0, now, Ran: false ) );
+
 		foreach ( var key in _gpuSpans.Where( x => now - x.Value.SeenAt > 2 ).Select( x => x.Key ).ToList() )
 			_gpuSpans.Remove( key );
 
-		// The frame as it was, for picking frames later
+		// The frame as it was, for picking frames later, with the plan of the CPU frame that made it when there's one: the
+		// submission's tag says which, and plans are only made ten times a second, so most captures have none
 		var submits = events.Where( x => x.Kind == "host-submit" ).Select( x => (float)x.StartMs ).ToList();
-		var plan = FrameStats.Current.Managed.Renders > 0 && Sandbox.Rendering.ManagedFramePlan.Latest is { SubmitTicks: > 0 } latest ? latest : null;
-		_captures.Add( new GpuCapture( Frames.Number( 0 ), captured, submits, plan ) );
+		_captures.Add( new GpuCapture( Frames.Number( 0 ), now, captured, submits, plan ) );
 		if ( _captures.Count > CaptureHistory ) _captures.RemoveAt( 0 );
 		_pickedLayout = null;
 	}
@@ -237,20 +266,24 @@ internal static partial class DevTools
 		var spans = new List<GpuSpan>();
 		foreach ( var (path, s) in _gpuSpans )
 		{
+			// Its time is averaged over every frame captured in the window, the ones it didn't run in as nothing; where it
+			// starts, over the ones it ran in
 			float start = 0, sum = 0, max = 0;
-			var n = 0;
+			int n = 0, ran = 0;
 			for ( int age = 0; age < s.Count; age++ )
 			{
 				var sample = s.At( age );
-				if ( n > 0 && now - sample.At > AnalysisWindowMs / 1000f ) break;
+				if ( now - sample.At > AnalysisWindowMs / 1000f ) break;
+				n++;
+				if ( !sample.Ran ) continue;
 				start += sample.Start;
 				sum += sample.Ms;
 				max = MathF.Max( max, sample.Ms );
-				n++;
+				ran++;
 			}
 
-			if ( n == 0 ) continue;
-			start /= n;
+			if ( ran == 0 ) continue;
+			start /= ran;
 			var avg = sum / n;
 
 			spans.Add( new GpuSpan( path, s.Parent, s.Name, s.Depth, s.Async, s.Leaf, start, start + avg, s.Kind ) { AvgMs = avg, MaxMs = max } );

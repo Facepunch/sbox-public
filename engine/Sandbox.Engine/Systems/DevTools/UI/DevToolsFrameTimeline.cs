@@ -191,7 +191,7 @@ internal sealed class DevToolsFrameTimeline : Panel
 
 	static float CpuEnd( ManagedFramePlan plan )
 	{
-		var end = (float)plan.SubmitMs;
+		var end = (float)(plan.SubmitStartMs + plan.SubmitMs);
 		foreach ( var segment in plan.Segments ) end = MathF.Max( end, (float)segment.EndMs );
 		return end;
 	}
@@ -594,7 +594,7 @@ internal sealed class DevToolsFrameTimeline : Panel
 		{
 			// The main thread from start to submit, what it and the workers recorded over it
 			painter.Fill = DevToolsStyles.Cpu.WithAlpha( 0.3f );
-			painter.Rect( new Rect( X( (float)plan.StartMs ), cpuY, MathF.Max( 1, X( (float)plan.SubmitMs ) - X( (float)plan.StartMs ) ), bandH ) );
+			painter.Rect( new Rect( X( (float)plan.StartMs ), cpuY, MathF.Max( 1, X( (float)(plan.SubmitStartMs + plan.SubmitMs) ) - X( (float)plan.StartMs ) ), bandH ) );
 			foreach ( var segment in plan.Segments )
 			{
 				if ( segment.EndTicks == 0 ) continue;
@@ -809,7 +809,7 @@ internal sealed class DevToolsFrameTimeline : Panel
 		var shade = 0;
 		foreach ( var (name, ms, detail) in phases )
 		{
-			if ( name == "Submit" ) t = 0;
+			if ( name == "Submit" ) t = (float)plan.SubmitStartMs;
 
 			var rect = Clip( new Rect( ToX( t ), top + 1, MathF.Max( 1, ToX( t + (float)ms ) - ToX( t ) - 1 ), RowH - 2 ) );
 			t += (float)ms;

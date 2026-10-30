@@ -58,6 +58,17 @@ internal sealed record GpuFrameTimeline( string FrameId, int DroppedEvents, GpuF
 		public double DeviationMs { get; init; }
 		public int CommandBuffers { get; init; }
 		public bool WaitForAcquire { get; init; }
+
+		/// <summary>
+		/// A host submit's <see cref="System.Diagnostics.Stopwatch"/> time, sampled with the device clock at the submit,
+		/// or 0 where it couldn't be.
+		/// </summary>
+		public long HostTicks { get; init; }
+
+		/// <summary>
+		/// A host submit's tag (<c>IRenderDevice::SetSubmitTag</c>): which caller's frame the submission was, or 0.
+		/// </summary>
+		public long SubmitTag { get; init; }
 	}
 
 	/// <summary>
@@ -130,7 +141,9 @@ internal sealed record GpuFrameTimeline( string FrameId, int DroppedEvents, GpuF
 					: $"0x{waitMask:X}",
 				DeviationMs = data.DeviationMs,
 				CommandBuffers = data.CommandBuffers,
-				WaitForAcquire = data.WaitForAcquire
+				WaitForAcquire = data.WaitForAcquire,
+				HostTicks = (long)data.HostTicks,
+				SubmitTag = (long)data.SubmitTag
 			};
 		}
 
