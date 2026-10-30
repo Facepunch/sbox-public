@@ -142,6 +142,7 @@ struct ProjectedShadowCube
 			float flRadius = UserShadowFilterQuality == 1 ? 3.5355 : UserShadowFilterQuality == 2 ? 3.0209 : 2.8811;
 
 			ShadowDisk disk = ShadowDisk::Start( 0.0, nTaps );
+			[unroll]
 			for ( uint i = 0; i < nTaps; ++i )
 			{
 				float2 offset = disk.Next( i ) * flRadius;

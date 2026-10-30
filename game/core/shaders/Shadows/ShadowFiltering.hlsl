@@ -111,7 +111,9 @@ float SampleShadowTent( ShadowPCFInput i, uint nAxisTaps )
     float2 vBase = floor( vGridPosition ) - ( flTaps - 1.0 );
     float2 vPhase = frac( vGridPosition );
 
+    // The tap count is a specialization constant in pipelines, so the driver can unroll it fully and keep every fetch in flight
     float flVisibility = 0.0;
+    [unroll]
     for ( uint s = 0; s < nAxisTaps * nAxisTaps; s++ )
     {
         float2 k = 2.0 * float2( s % nAxisTaps, s / nAxisTaps );
