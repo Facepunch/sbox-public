@@ -486,15 +486,12 @@ internal class NetworkTable : IDisposable
 			}
 			catch ( Exception e )
 			{
-				Log.Warning( e, $"Error when getting value {entry.DebugName} - {e.Message}" );
+				throw new InvalidOperationException( $"Couldn't serialize synced property {entry.DebugName} ({entry.TargetType}) for networking. Synced values must be serializable, including every field of a synced struct. Serializer error: {e.Message}", e );
 			}
 			finally
 			{
 				bs.Dispose();
 			}
-
-			if ( entry.Serialized is null )
-				continue;
 
 			snapshot.AddSerialized( entry.Slot, entry.Serialized );
 
@@ -620,41 +617,46 @@ internal class NetworkTable : IDisposable
 		var container = ByteStream.Create( 32 );
 		var count = 0;
 
-		foreach ( var (slot, entry) in _entries )
+		try
 		{
-			var bs = ByteStream.Create( 32 );
-
-			try
+			foreach ( var (slot, entry) in _entries )
 			{
-				WriteEntryToStream( entry, ref bs );
+				var bs = ByteStream.Create( 32 );
 
-				container.Write( slot );
-				container.Write( bs.Length );
+				try
+				{
+					WriteEntryToStream( entry, ref bs );
 
-				if ( bs.Length > 0 )
-					container.Write( bs );
+					container.Write( slot );
+					container.Write( bs.Length );
 
-				count++;
+					if ( bs.Length > 0 )
+						container.Write( bs );
+
+					count++;
+				}
+				catch ( Exception e )
+				{
+					throw new InvalidOperationException( $"Couldn't serialize synced property {entry.DebugName} ({entry.TargetType}) for networking. Synced values must be serializable, including every field of a synced struct. Serializer error: {e.Message}", e );
+				}
+				finally
+				{
+					bs.Dispose();
+				}
 			}
-			catch ( Exception e )
+
+			data.Write( count );
+
+			if ( count > 0 )
 			{
-				Log.Warning( e, $"Error when getting value {entry.DebugName} - {e.Message}" );
-			}
-			finally
-			{
-				bs.Dispose();
+				data.Write( container.Length );
+				data.Write( container );
 			}
 		}
-
-		data.Write( count );
-
-		if ( count > 0 )
+		finally
 		{
-			data.Write( container.Length );
-			data.Write( container );
+			container.Dispose();
 		}
-
-		container.Dispose();
 	}
 
 	/// <summary>

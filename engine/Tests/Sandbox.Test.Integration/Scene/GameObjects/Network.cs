@@ -341,122 +341,61 @@ public class NetworkTest
 	}
 
 	[TestMethod]
-	public void SnapshotSkipsSyncedValueThatFailsToSerialize()
+	public void SnapshotThrowsWhenSyncedValueFailsToSerialize()
 	{
 		using var scope = new Scene().Push();
 		using var clientAndHost = new ClientAndHost( TypeLibrary );
 		clientAndHost.BecomeHost();
 
-		var go = new GameObject();
-		var component = go.Components.Create<UnserializableSyncComponent>();
-		component.SyncInt = 5;
-		go.NetworkSpawn();
-
-		var type = Game.TypeLibrary.GetType<UnserializableSyncComponent>();
-		var holderSlot = NetworkObject.GetPropertySlot( type.GetProperty( nameof( UnserializableSyncComponent.Holder ) ).Identity, component.Id );
-		var intSlot = NetworkObject.GetPropertySlot( type.GetProperty( nameof( UnserializableSyncComponent.SyncInt ) ).Identity, component.Id );
-
-		Assert.IsTrue( go._net.dataTable.IsRegistered( holderSlot ), "Precondition: the unserializable value is synced" );
-
+		var go = SpawnUnserializableSyncComponent();
 		IDeltaSnapshot networkObject = go._net;
-		var state = networkObject.WriteSnapshotState();
 
-		Assert.IsFalse( state.Lookup.ContainsKey( holderSlot ), "A value that can't be serialized has nothing to send" );
-		Assert.IsTrue( state.Lookup.ContainsKey( intSlot ), "The other synced values must still be sent" );
+		var error = Assert.ThrowsException<InvalidOperationException>( () => networkObject.WriteSnapshotState() );
+		StringAssert.Contains( error.Message, $"{nameof( UnserializableSyncComponent )}.{nameof( UnserializableSyncComponent.Holder )}" );
+		Assert.IsNotNull( error.InnerException, "The serializer's exception is kept as the cause" );
 	}
 
 	[TestMethod]
-	public void SnapshotKeepsLastValueWhenSyncedValueStopsSerializing()
+	public void WriteAllThrowsWhenSyncedValueFailsToSerialize()
 	{
 		using var scope = new Scene().Push();
 		using var clientAndHost = new ClientAndHost( TypeLibrary );
 		clientAndHost.BecomeHost();
 
-		var go = new GameObject();
-		var component = go.Components.Create<UnserializableSyncComponent>();
-		component.Holder = default;
-		go.NetworkSpawn();
+		var go = SpawnUnserializableSyncComponent();
 
-		var table = go._net.dataTable;
-		var type = Game.TypeLibrary.GetType<UnserializableSyncComponent>();
-		var holderSlot = NetworkObject.GetPropertySlot( type.GetProperty( nameof( UnserializableSyncComponent.Holder ) ).Identity, component.Id );
-		var intSlot = NetworkObject.GetPropertySlot( type.GetProperty( nameof( UnserializableSyncComponent.SyncInt ) ).Identity, component.Id );
-
-		IDeltaSnapshot networkObject = go._net;
-		var state = networkObject.WriteSnapshotState();
-		var lastGood = state.Lookup[holderSlot].Value.ToArray();
-
-		var warnings = new List<string>();
-		void OnMessage( LogEvent e ) { if ( e.Message.Contains( "Error when getting value" ) ) warnings.Add( e.Message ); }
-		Sandbox.Diagnostics.Logging.OnMessage += OnMessage;
-
-		try
+		var error = Assert.ThrowsException<InvalidOperationException>( () =>
 		{
-			table.SetValue( holderSlot, new UnserializableHolder { Map = new() } );
+			var data = ByteStream.Create( 32 );
 
-			for ( var i = 1; i <= 3; i++ )
+			try
 			{
-				var intChange = state.Lookup[intSlot].Change;
-				table.SetValue( intSlot, i );
-				state = networkObject.WriteSnapshotState();
-
-				CollectionAssert.AreEqual( lastGood, state.Lookup[holderSlot].Value, "The last good value stays in the snapshot" );
-				Assert.IsTrue( state.Lookup[intSlot].Change > intChange, "The other synced values must still be sent" );
+				go._net.dataTable.WriteAll( ref data );
 			}
+			finally
+			{
+				data.Dispose();
+			}
+		} );
 
-			SceneNetworkSystem.Instance.DeltaSnapshots.GetFullSnapshotData( state );
-		}
-		finally
-		{
-			Sandbox.Diagnostics.Logging.OnMessage -= OnMessage;
-		}
-
-		Assert.AreEqual( 3, warnings.Count, "Every failed attempt is logged" );
+		StringAssert.Contains( error.Message, $"{nameof( UnserializableSyncComponent )}.{nameof( UnserializableSyncComponent.Holder )}" );
+		Assert.IsNotNull( error.InnerException, "The serializer's exception is kept as the cause" );
 	}
 
-	[TestMethod]
-	public void WriteAllSkipsSyncedValueThatFailsToSerialize()
+	/// <summary>
+	/// Spawn with a serializable value, then swap in one that can't be serialized.
+	/// </summary>
+	private static GameObject SpawnUnserializableSyncComponent()
 	{
-		using var scope = new Scene().Push();
-		using var clientAndHost = new ClientAndHost( TypeLibrary );
-		clientAndHost.BecomeHost();
-
 		var go = new GameObject();
 		var component = go.Components.Create<UnserializableSyncComponent>();
-		component.SyncInt = 5;
 		go.NetworkSpawn();
 
 		var type = Game.TypeLibrary.GetType<UnserializableSyncComponent>();
 		var holderSlot = NetworkObject.GetPropertySlot( type.GetProperty( nameof( UnserializableSyncComponent.Holder ) ).Identity, component.Id );
-		var intSlot = NetworkObject.GetPropertySlot( type.GetProperty( nameof( UnserializableSyncComponent.SyncInt ) ).Identity, component.Id );
+		go._net.dataTable.SetValue( holderSlot, new UnserializableHolder { Map = new() } );
 
-		var data = ByteStream.Create( 32 );
-		go._net.dataTable.WriteAll( ref data );
-		var reader = ByteStream.CreateReader( data.ToArray() );
-		data.Dispose();
-
-		try
-		{
-			var slots = new List<int>();
-			var count = reader.Read<int>();
-			var containerLength = reader.Read<int>();
-			var end = reader.Position + containerLength;
-
-			for ( var i = 0; i < count; i++ )
-			{
-				slots.Add( reader.Read<int>() );
-				var length = reader.Read<int>();
-				reader.Position += length;
-			}
-
-			Assert.AreEqual( end, reader.Position, "Every written slot is complete" );
-			CollectionAssert.DoesNotContain( slots, holderSlot, "A value that can't be serialized isn't sent" );
-			CollectionAssert.Contains( slots, intSlot, "The other synced values must still be sent" );
-		}
-		finally
-		{
-			reader.Dispose();
-		}
+		return go;
 	}
 
 	[TestMethod]
@@ -1375,7 +1314,6 @@ public class NetworkTest
 
 	private class UnserializableSyncComponent : Component
 	{
-		[Sync] public UnserializableHolder Holder { get; set; } = new UnserializableHolder { Map = new() };
-		[Sync] public int SyncInt { get; set; }
+		[Sync] public UnserializableHolder Holder { get; set; }
 	}
 }
