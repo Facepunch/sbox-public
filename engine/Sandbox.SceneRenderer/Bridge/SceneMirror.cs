@@ -639,6 +639,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 				lighting.SunShadows = sun.ShadowsEnabled;
 				lighting.SunShadowCascades = sun.ShadowCascadeCount;
 				lighting.SunShadowSplitRatio = sun.ShadowCascadeSplitRatio;
+				lighting.SunShadowMaxDistance = sun.ShadowCascadeMaxDistance;
 				lighting.SunShadowHardness = sun.ShadowHardness;
 				lighting.SunShadowBias = sun.ShadowBias;
 

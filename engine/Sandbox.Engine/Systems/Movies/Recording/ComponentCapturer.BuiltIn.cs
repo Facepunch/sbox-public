@@ -524,6 +524,7 @@ file sealed class DirectionalLightCapturer : ComponentCapturer<DirectionalLight>
 		{
 			recorder.Property( nameof( DirectionalLight.ShadowCascadeCount ) ).Capture();
 			recorder.Property( nameof( DirectionalLight.ShadowCascadeSplitRatio ) ).Capture();
+			recorder.Property( nameof( DirectionalLight.ShadowCascadeMaxDistance ) ).Capture();
 		}
 	}
 }

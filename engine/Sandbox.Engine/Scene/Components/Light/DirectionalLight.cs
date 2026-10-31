@@ -68,6 +68,27 @@ public class DirectionalLight : Light
 		}
 	} = 0.91f;
 
+	/// <summary>
+	/// Maximum distance from the camera that this light's cascaded shadows are rendered. The cascades
+	/// fit to the smaller of this and the user's quality setting, so a small scene can keep tight,
+	/// high-detail cascades on every preset. 0 uses the quality setting.
+	/// </summary>
+	[Property, Group( "Shadows" ), Title( "Max Distance" ), Range( 0, 50000 )]
+	public float ShadowCascadeMaxDistance
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+
+			if ( _so.IsValid() )
+				_so.ShadowCascadeMaxDistance = value;
+
+			Visualizer?.Update?.Invoke();
+		}
+	}
+
 	[Property, Group( "Shadows" ), HideIf( nameof( ShadowCascadeCount ), 1 )]
 	public CascadeVisualizer Visualizer { get; set; } = new();
 
@@ -112,6 +133,7 @@ public class DirectionalLight : Light
 		{
 			ShadowCascadeCount = ShadowCascadeCount,
 			ShadowCascadeSplitRatio = ShadowCascadeSplitRatio,
+			ShadowCascadeMaxDistance = ShadowCascadeMaxDistance,
 			ContactShadows = ContactShadows,
 			IncludeStaticShadowCasters = IncludeStaticShadowCasters,
 		};
