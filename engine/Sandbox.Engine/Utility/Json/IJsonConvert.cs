@@ -12,7 +12,7 @@ public interface IJsonConvert
 	public abstract static void JsonWrite( object value, Utf8JsonWriter writer );
 }
 
-class JsonConvertFactory : JsonConverterFactory
+public sealed class JsonConvertFactory : JsonConverterFactory
 {
 	public override bool CanConvert( Type typeToConvert )
 	{
