@@ -36,6 +36,12 @@ public abstract partial class GameResource : Resource, ISourceLineProvider
 	internal int LastSavedSourceHash { get; set; }
 
 	/// <summary>
+	/// When this was last loaded from its compiled file. A compiled file written after that holds a newer version.
+	/// </summary>
+	[Hide, JsonIgnore]
+	internal DateTime LastLoadedTime { get; set; }
+
+	/// <summary>
 	/// Re-use ActionGraph instances when deserializing this resource.
 	/// </summary>
 	[JsonIgnore]
@@ -424,6 +430,8 @@ public abstract partial class GameResource : Resource, ISourceLineProvider
 		if ( json is null )
 			return false;
 
+		LastLoadedTime = DateTime.UtcNow;
+
 		// Prevent loading the same data twice
 		// todo - this should be a CRC on data
 		var newHash = json.FastHash();
@@ -440,6 +448,11 @@ public abstract partial class GameResource : Resource, ISourceLineProvider
 		LoadFromResource( data );
 		return true;
 	}
+
+	/// <summary>
+	/// Whether a source file with this hash was changed outside of the editor since this was last loaded or saved.
+	/// </summary>
+	internal bool IsExternalSourceChange( int sourceHash ) => LastSavedSourceHash != 0 && sourceHash != LastSavedSourceHash;
 
 	internal virtual bool LoadFromResource( Span<byte> data )
 	{

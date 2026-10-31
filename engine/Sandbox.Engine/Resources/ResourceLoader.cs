@@ -210,7 +210,7 @@ internal static class ResourceLoader
 				if ( string.IsNullOrEmpty( jsonBlob ) ) continue;
 
 				var sourceHash = jsonBlob.FastHash();
-				if ( sourceHash != resource.LastSavedSourceHash && resource.LastSavedSourceHash != 0 )
+				if ( resource.IsExternalSourceChange( sourceHash ) )
 				{
 					IToolsDll.Current?.RunEvent<ResourceLibrary.IEventListener>( i => i.OnExternalChanges( resource ) );
 					isModifiedSource = true;
@@ -232,6 +232,41 @@ internal static class ResourceLoader
 
 			Log.Info( $"Detected Asset File Deleted {path}" );
 			resource.DestroyInternal();
+		}
+	}
+
+	/// <summary>
+	/// Load a resource's compiled file now if it was written after the resource was loaded, like when the editor
+	/// recompiles an outdated asset while registering it on startup. The file watchers would only load it a few
+	/// frames later, once the editor may have used the old version. A source changed outside of the editor is left
+	/// to them, since they report it as an external change.
+	/// </summary>
+	internal static bool LoadIfRecompiled( GameResource resource, string compiledFile, string sourceFile )
+	{
+		if ( resource is null || resource.IsPromise || resource.LastLoadedTime == default || resource.HasUnsavedChanges )
+			return false;
+
+		if ( string.IsNullOrEmpty( compiledFile ) || string.IsNullOrEmpty( sourceFile ) )
+			return false;
+
+		try
+		{
+			if ( System.IO.File.GetLastWriteTimeUtc( compiledFile ) <= resource.LastLoadedTime || !System.IO.File.Exists( sourceFile ) )
+				return false;
+
+			if ( resource.IsExternalSourceChange( System.IO.File.ReadAllText( sourceFile ).FastHash() ) )
+				return false;
+
+			if ( !resource.TryLoadFromData( System.IO.File.ReadAllBytes( compiledFile ) ) )
+				return false;
+
+			resource.PostReloadInternal();
+			return true;
+		}
+		catch ( Exception ex )
+		{
+			Log.Warning( ex, $"Exception when trying to load {compiledFile}" );
+			return false;
 		}
 	}
 
