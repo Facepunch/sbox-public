@@ -7,7 +7,7 @@ namespace Sandbox.Mounting.Source1;
 internal sealed partial class SourceModelBuilder
 {
 	private BBox?[] AddGeometry( ModelBuilder builder, MdlFile mdl, VtxFile vtx, MaterialSlots materials,
-		BBox viewBounds, string[] bodyGroupNames, string[] flexNames, VertexTransform[] skinTransforms )
+		BBox viewBounds, string[] bodyGroupNames, string[] flexNames, VertexTransform[] skinTransforms, StaticPropLighting lighting = null )
 	{
 		var boneBounds = new BBox?[mdl.BoneCount];
 		if ( vtx == null )
@@ -15,13 +15,14 @@ internal sealed partial class SourceModelBuilder
 		for ( var lod = 0; lod < vtx.RenderLodCount; lod++ )
 		{
 			builder.WithLodDistance( lod, vtx.GetLodSwitchPoint( lod ) );
-			AddLodGeometry( builder, mdl, vtx, materials, viewBounds, bodyGroupNames, flexNames, lod, boneBounds, skinTransforms );
+			AddLodGeometry( builder, mdl, vtx, materials, viewBounds, bodyGroupNames, flexNames, lod, boneBounds, skinTransforms, lighting );
 		}
 		return boneBounds;
 	}
 
 	private void AddLodGeometry( ModelBuilder builder, MdlFile mdl, VtxFile vtx, MaterialSlots materials,
-		BBox viewBounds, string[] bodyGroupNames, string[] flexNames, int lod, BBox?[] boneBounds, VertexTransform[] skinTransforms )
+		BBox viewBounds, string[] bodyGroupNames, string[] flexNames, int lod, BBox?[] boneBounds, VertexTransform[] skinTransforms,
+		StaticPropLighting lighting )
 	{
 		for ( int bodyPartIndex = 0; bodyPartIndex < mdl.BodyPartCount; bodyPartIndex++ )
 		{
@@ -87,7 +88,8 @@ internal sealed partial class SourceModelBuilder
 					for ( int i = 0; i < indices.Length; i += 3 )
 						(indices[i + 1], indices[i + 2]) = (indices[i + 2], indices[i + 1]);
 
-					var material = materials.Get( mesh.Material, lod );
+					var lightingKey = (bodyPartIndex, modelIndex, lod, meshIndex);
+					var material = materials.GetForMesh( mesh.Material, lod, lightingKey );
 					var renderMesh = new Mesh( material );
 					var morphBounds = mesh.NumFlexes > 0
 						? AddMeshMorphs( mdl, mesh, originalToOutput, flexNames, renderMesh, uniqueVerts.Length, vertexTransforms )
@@ -111,9 +113,7 @@ internal sealed partial class SourceModelBuilder
 					else if ( mesh.MaterialType == 1 )
 					{
 						var eye = mdl.GetEyeball( bodyPartIndex, modelIndex, mesh.MaterialParam );
-						var sourceLighting = material.ShaderName.EndsWith( "eyes.shader", StringComparison.OrdinalIgnoreCase )
-							&& material.GetFeature( "F_SOURCE_EYE_REFRACT" ) == 0;
-						var eyeVertices = CreateEyeVertices( uniqueVerts, eye, mdl.Bones[eye.Bone].PoseToBone, sourceLighting, vertexTransforms );
+						var eyeVertices = CreateEyeVertices( uniqueVerts, eye, mdl.Bones[eye.Bone].PoseToBone, vertexTransforms );
 						renderMesh.CreateVertexBuffer<EyeVertex>( eyeVertices.Length, eyeVertices );
 					}
 					else
@@ -121,7 +121,21 @@ internal sealed partial class SourceModelBuilder
 						if ( vertexTransforms is not null )
 							for ( var i = 0; i < uniqueVerts.Length; i++ )
 								uniqueVerts[i] = TransformVertex( uniqueVerts[i], vertexTransforms[i] );
-						renderMesh.CreateVertexBuffer<SkinnedVertex>( uniqueVerts.Length, uniqueVerts );
+						if ( lighting is not null )
+						{
+							var litVertices = new StaticPropVertex[uniqueVerts.Length];
+							for ( var original = 0; original < originalToOutput.Length; original++ )
+							{
+								var mapped = originalToOutput[original];
+								if ( mapped < 0 ) continue;
+								var vertex = uniqueVerts[mapped];
+								litVertices[mapped] = new StaticPropVertex( vertex,
+									lighting.GetColor( lightingKey, original, vertex.position, vertex.normal ) );
+							}
+							renderMesh.CreateVertexBuffer<StaticPropVertex>( litVertices.Length, litVertices );
+						}
+						else
+							renderMesh.CreateVertexBuffer<SkinnedVertex>( uniqueVerts.Length, uniqueVerts );
 					}
 					renderMesh.CreateIndexBuffer( indices.Length, indices );
 					renderMesh.Bounds = viewBounds;

@@ -162,15 +162,6 @@ internal sealed partial class MdlFile
 		[MarshalAs( UnmanagedType.ByValArray, SizeConst = 64 )]
 		internal byte[] _name;
 
-		public string Name
-		{
-			get
-			{
-				var end = Array.IndexOf( _name, (byte)0 );
-				return Encoding.UTF8.GetString( _name, 0, end >= 0 ? end : _name.Length );
-			}
-		}
-
 		public int Type;
 		public float BoundingRadius;
 		public int NumMeshes;
@@ -382,31 +373,6 @@ internal sealed partial class MdlFile
 	}
 
 	[StructLayout( LayoutKind.Sequential, Pack = 1 )]
-	public struct StudioFlexController
-	{
-		public int TypeIndex;
-		public int NameIndex;
-		public int LocalToGlobal;
-		public float Min;
-		public float Max;
-	}
-
-	[StructLayout( LayoutKind.Sequential, Pack = 1 )]
-	public struct StudioFlexRule
-	{
-		public int Flex;
-		public int NumOps;
-		public int OpIndex;
-	}
-
-	[StructLayout( LayoutKind.Sequential, Pack = 1 )]
-	public struct StudioFlexOp
-	{
-		public int Op;
-		public float Offset;
-	}
-
-	[StructLayout( LayoutKind.Sequential, Pack = 1 )]
 	public struct StudioFlex
 	{
 		public int FlexDesc;
@@ -465,43 +431,4 @@ internal sealed partial class MdlFile
 		RawRot2 = 0x20,
 	}
 
-	[StructLayout( LayoutKind.Sequential, Pack = 1 )]
-	public struct StudioAnim
-	{
-		public byte Bone;
-		public StudioAnimType Flags;
-		public short NextOffset;
-	}
-
-	[StructLayout( LayoutKind.Sequential, Pack = 1 )]
-	public struct StudioAnimValuePtr
-	{
-		[MarshalAs( UnmanagedType.ByValArray, SizeConst = 3 )]
-		public short[] Offset;
-	}
-
-	[StructLayout( LayoutKind.Explicit, Size = 2 )]
-	public struct StudioAnimValue
-	{
-		[FieldOffset( 0 )]
-		public byte Valid;
-		[FieldOffset( 1 )]
-		public byte Total;
-		[FieldOffset( 0 )]
-		public short Value;
-	}
-
-	[StructLayout( LayoutKind.Sequential, Pack = 1 )]
-	public struct StudioAnimBlock
-	{
-		public int DataStart;
-		public int DataEnd;
-	}
-
-	[StructLayout( LayoutKind.Sequential, Pack = 1 )]
-	public struct StudioAnimSections
-	{
-		public int AnimBlock;
-		public int AnimIndex;
-	}
 }

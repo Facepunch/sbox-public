@@ -12,13 +12,14 @@ internal sealed class SourceDecalTextureLoader( SourceDecalMaterial material, bo
 	{
 		var parameters = material.Parameters;
 		var path = VmtFile.NormalizePath( parameters.String( normal ? "$bumpmap" : "$basetexture" ), ".vtf" );
-		var source = Host.GetSourceTexture( path );
+		var root = BaseMount.GetContentRoot( material.Path, "materials" );
+		var source = Host.GetSourceTexture( path, root );
 		var frame = parameters.Integer( normal ? "$bumpframe" : "$frame" );
 		var vtf = source.ReadFrame( frame );
 		var rect = material.Subrect ?? new SourceDecalMaterial.Rectangle( 0, 0, vtf.Header.Width, vtf.Header.Height );
 		if ( normal && material.Subrect.HasValue )
 		{
-			var color = Host.GetSourceTexture( parameters.String( "$basetexture" ) );
+			var color = Host.GetSourceTexture( parameters.String( "$basetexture" ), root );
 			rect = new( rect.X * vtf.Header.Width / color.Header.Width, rect.Y * vtf.Header.Height / color.Header.Height,
 				rect.Width * vtf.Header.Width / color.Header.Width, rect.Height * vtf.Header.Height / color.Header.Height );
 		}
@@ -61,19 +62,23 @@ internal static class SourceDecalPixels
 		if ( rect.X < 0 || rect.Y < 0 || rect.Width <= 0 || rect.Height <= 0
 			|| (long)rect.X + rect.Width > vtf.Header.Width || (long)rect.Y + rect.Height > vtf.Header.Height )
 			throw new InvalidDataException( $"{material.Path}: decal subrect extends outside its texture." );
-		var source = vtf.ReadRgbaPixels( frame );
+		var source = vtf.ReadRgbaPixels( frame, (rect.X, rect.Y, rect.Width, rect.Height) );
 		var output = new Vector4[checked(rect.Width * rect.Height)];
 		var parameters = material.Parameters;
 		var transform = parameters.Transform( normal ? "$bumptransform" : "$basetexturetransform" );
+		var scale = !normal && material.BlendMode == DecalBlendMode.Multiply ? material.ModulationScale : 1;
+		var hdr = vtf.Header.HiResFormat is VtfFormat.RGBA16161616F or VtfFormat.RGB323232F or VtfFormat.RGBA32323232F;
+		var alphaTest = !normal && parameters.Boolean( "$alphatest" );
+		var alphaReference = alphaTest ? parameters.Float( "$alphatestreference", 0.5f ) : 0;
 		for ( var y = 0; y < rect.Height; y++ )
 			for ( var x = 0; x < rect.Width; x++ )
 			{
 				var uv = transform.Transform( new Vector2( (x + 0.5f) / rect.Width, (y + 0.5f) / rect.Height ) );
 				if ( !float.IsFinite( uv.x ) || !float.IsFinite( uv.y ) )
 					throw new InvalidDataException( $"{material.Path}: decal texture coordinates overflow." );
-				var sx = rect.X + Math.Clamp( (int)MathF.Floor( Math.Clamp( uv.x, 0, 1 ) * rect.Width ), 0, rect.Width - 1 );
-				var sy = rect.Y + Math.Clamp( (int)MathF.Floor( Math.Clamp( uv.y, 0, 1 ) * rect.Height ), 0, rect.Height - 1 );
-				var pixel = source[sy * vtf.Header.Width + sx];
+				var sx = Math.Clamp( (int)MathF.Floor( Math.Clamp( uv.x, 0, 1 ) * rect.Width ), 0, rect.Width - 1 );
+				var sy = Math.Clamp( (int)MathF.Floor( Math.Clamp( uv.y, 0, 1 ) * rect.Height ), 0, rect.Height - 1 );
+				var pixel = source[sy * rect.Width + sx];
 				if ( normal )
 				{
 					if ( vtf.Header.HiResFormat == VtfFormat.UV88 )
@@ -94,13 +99,11 @@ internal static class SourceDecalPixels
 				}
 				else
 				{
-					var scale = material.BlendMode == DecalBlendMode.Multiply ? material.ModulationScale : 1;
-					var hdr = vtf.Header.HiResFormat is VtfFormat.RGBA16161616F or VtfFormat.RGB323232F or VtfFormat.RGBA32323232F;
 					pixel.x = hdr ? pixel.x * scale : Linear( pixel.x * scale );
 					pixel.y = hdr ? pixel.y * scale : Linear( pixel.y * scale );
 					pixel.z = hdr ? pixel.z * scale : Linear( pixel.z * scale );
-					if ( parameters.Boolean( "$alphatest" ) )
-						pixel.w = pixel.w >= parameters.Float( "$alphatestreference", 0.5f ) ? 1 : 0;
+					if ( alphaTest )
+						pixel.w = pixel.w >= alphaReference ? 1 : 0;
 					else if ( material.Shader == "decalmodulate" )
 						pixel.w = pixel.w > 0 ? 1 : 0;
 				}

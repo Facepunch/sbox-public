@@ -16,19 +16,11 @@ internal sealed partial class PhyFile
 	{
 		public int Index { get; internal set; }
 		public string Name { get; internal set; }
-		public string Parent { get; internal set; }
 		public string SurfaceProperty { get; internal set; } = "default";
 		public float Mass { get; internal set; } = 1;
 		public float Damping { get; internal set; } = 0.1f;
 		public float RotationalDamping { get; internal set; } = 0.1f;
 		public float Inertia { get; internal set; } = 1;
-		public float RotationalInertiaLimit { get; internal set; } = 0.05f;
-		public float Drag { get; internal set; } = 1;
-		public float Volume { get; internal set; }
-		public Vector3 MassCenter { get; internal set; }
-		public Vector3? MassCenterOverride { get; internal set; }
-		// IVP's serialized inertia is not a proven mass-scaled tensor.
-		public Vector3 RawInertia { get; internal set; }
 		public IReadOnlyList<Vector3[]> Convexes { get; internal set; }
 	}
 
@@ -118,14 +110,14 @@ internal sealed partial class PhyFile
 			var compactSize = (uint)Int( compact + 28 ) >> 8;
 			if ( compactSize != rangeEnd - compact )
 				throw Error( $"solid {i} has inconsistent compact surface size." );
-			var center = Position( compact );
+			Position( compact );
 			var inertia = Vector( compact + 12 );
 			if ( inertia.x < 0 || inertia.y < 0 || inertia.z < 0 || Float( compact + 24 ) < 0 )
 				throw Error( $"solid {i} has invalid mass properties." );
 			var rootOffset = Int( compact + 32 );
 			rangeStart = compact + 48;
 			var convexes = ReadTree( Relative( compact, rootOffset, 28 ) );
-			solids[i] = new Solid { Index = i, MassCenter = center, RawInertia = inertia, Convexes = convexes.AsReadOnly() };
+			solids[i] = new Solid { Index = i, Convexes = convexes.AsReadOnly() };
 			offset = end;
 		}
 		Solids = Array.AsReadOnly( solids );

@@ -6,25 +6,31 @@ namespace Sandbox.Mounting.Source1;
 
 internal sealed partial class VtfFile
 {
-	internal Vector4[] ReadRgbaPixels( int frame = 0 )
+	internal Vector4[] ReadRgbaPixels( int frame, (int X, int Y, int Width, int Height) region )
 	{
 		if ( FaceCount != 1 || ZSliceCount != 1 )
 			throw new NotSupportedException( "Decal textures must be two-dimensional." );
+		if ( region.X < 0 || region.Y < 0 || region.Width <= 0 || region.Height <= 0
+			|| (long)region.X + region.Width > Header.Width || (long)region.Y + region.Height > Header.Height )
+			throw new ArgumentOutOfRangeException( nameof( region ), "Pixel region extends outside its texture." );
 		var format = Header.HiResFormat;
 		var source = GetHiResPixelData( 0, frame: frame );
-		var pixels = new Vector4[checked(Header.Width * Header.Height)];
+		var pixels = new Vector4[checked(region.Width * region.Height)];
 		byte[] converted = null;
 		if ( format is VtfFormat.DXT1 or VtfFormat.DXT1_ONEBITALPHA or VtfFormat.DXT3 or VtfFormat.DXT5 )
 		{
 			converted = new byte[checked(pixels.Length * 4)];
-			DecompressDxt( source, converted, format, Header.Width, Header.Height );
+			DecompressDxt( source, converted, format, Header.Width, Header.Height, region );
 			format = VtfFormat.RGBA8888;
 		}
 		else if ( format is not (VtfFormat.RGBA8888 or VtfFormat.BGRA8888 or VtfFormat.RGBA16161616F
 			or VtfFormat.RGBA16161616 or VtfFormat.RGB323232F or VtfFormat.RGBA32323232F) )
 		{
 			converted = new byte[checked(pixels.Length * 4)];
-			ConvertPixels( source, converted, format );
+			int sourceStride = GetImageDataSize( 1, 1, 1, 1, format );
+			for ( int y = 0; y < region.Height; y++ )
+				ConvertPixels( source.Slice( ((region.Y + y) * Header.Width + region.X) * sourceStride, region.Width * sourceStride ),
+					converted.AsSpan( y * region.Width * 4, region.Width * 4 ), format );
 			format = VtfFormat.RGBA8888;
 		}
 		if ( converted is not null ) source = converted;
@@ -37,7 +43,8 @@ internal sealed partial class VtfFile
 		};
 		for ( var i = 0; i < pixels.Length; i++ )
 		{
-			var pixel = source.Slice( i * stride, stride );
+			int offset = converted is not null ? i : (region.Y + i / region.Width) * Header.Width + region.X + i % region.Width;
+			var pixel = source.Slice( offset * stride, stride );
 			if ( format == VtfFormat.RGBA16161616F )
 			{
 				var channels = MemoryMarshal.Cast<byte, Half>( pixel );
@@ -64,6 +71,10 @@ internal sealed partial class VtfFile
 
 	public static void DecompressDxt( ReadOnlySpan<byte> source, Span<byte> destination,
 		VtfFormat format, int width, int height )
+		=> DecompressDxt( source, destination, format, width, height, (0, 0, width, height) );
+
+	private static void DecompressDxt( ReadOnlySpan<byte> source, Span<byte> destination,
+		VtfFormat format, int width, int height, (int X, int Y, int Width, int Height) region )
 	{
 		var blockSize = format switch
 		{
@@ -73,17 +84,20 @@ internal sealed partial class VtfFile
 		};
 		if ( width <= 0 || height <= 0 )
 			throw new ArgumentOutOfRangeException( nameof( width ), "DXT dimensions must be positive." );
+		if ( region.X < 0 || region.Y < 0 || region.Width <= 0 || region.Height <= 0
+			|| (long)region.X + region.Width > width || (long)region.Y + region.Height > height )
+			throw new ArgumentOutOfRangeException( nameof( region ), "DXT region extends outside its texture." );
 		var blocksX = checked((width + 3) / 4);
 		var blocksY = checked((height + 3) / 4);
 		if ( source.Length != checked(blocksX * blocksY * blockSize)
-			|| destination.Length != checked(width * height * 4) )
+			|| destination.Length != checked(region.Width * region.Height * 4) )
 			throw new ArgumentException( "VTF DXT conversion buffer sizes do not match." );
 
 		Span<byte> colors = stackalloc byte[16];
 		Span<byte> alphas = stackalloc byte[8];
-		for ( var blockY = 0; blockY < blocksY; blockY++ )
+		for ( var blockY = region.Y / 4; blockY <= (region.Y + region.Height - 1) / 4; blockY++ )
 		{
-			for ( var blockX = 0; blockX < blocksX; blockX++ )
+			for ( var blockX = region.X / 4; blockX <= (region.X + region.Width - 1) / 4; blockX++ )
 			{
 				var block = source.Slice( (blockY * blocksX + blockX) * blockSize, blockSize );
 				var colorBlock = block[(blockSize - 8)..];
@@ -119,13 +133,13 @@ internal sealed partial class VtfFile
 					}
 					alphaBits >>= 16;
 				}
-				for ( var y = 0; y < 4 && blockY * 4 + y < height; y++ )
+				for ( var y = Math.Max( 0, region.Y - blockY * 4 ); y < 4 && blockY * 4 + y < region.Y + region.Height; y++ )
 				{
-					for ( var x = 0; x < 4 && blockX * 4 + x < width; x++ )
+					for ( var x = Math.Max( 0, region.X - blockX * 4 ); x < 4 && blockX * 4 + x < region.X + region.Width; x++ )
 					{
 						var pixel = y * 4 + x;
 						var color = (int)((colorIndices >> (pixel * 2)) & 3);
-						var output = destination.Slice( ((blockY * 4 + y) * width + blockX * 4 + x) * 4, 4 );
+						var output = destination.Slice( ((blockY * 4 + y - region.Y) * region.Width + blockX * 4 + x - region.X) * 4, 4 );
 						colors.Slice( color * 4, 4 ).CopyTo( output );
 						if ( format == VtfFormat.DXT3 )
 							output[3] = (byte)(((alphaBits >> (pixel * 4)) & 15) * 17);

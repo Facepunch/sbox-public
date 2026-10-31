@@ -11,6 +11,7 @@ FEATURES
 	Feature( F_SOURCE_ALPHA_WRITE, 0..1, "Source 1" );
 	Feature( F_SOURCE_IGNORE_Z, 0..1, "Source 1" );
 	Feature( F_SOURCE_TEXTURE_ANIMATION, 0..1, "Source 1" );
+	Feature( F_SOURCE_PROXIES, 0..1, "Source 1" );
 	FeatureRule( Requires1( F_ADDITIVE_BLEND, F_TRANSLUCENT ), "Additive requires blending" );
 	FeatureRule( Requires1( F_SOURCE_ALPHA_BLEND, F_TRANSLUCENT ), "Alpha blending requires translucency" );
 }
@@ -107,7 +108,6 @@ PS
 
 	float3 g_vSourceColorTint < Default3( 1, 1, 1 ); >;
 	float g_flSourceAlpha < Default( 1 ); >;
-	float g_flSourceFogEnabled < Default( 1 ); >;
 	float3 g_vSourceBaseTransformU < Default3( 1, 0, 0 ); >;
 	float3 g_vSourceBaseTransformV < Default3( 0, 1, 0 ); >;
 	float3 g_vSourceTexture2TransformU < Default3( 1, 0, 0 ); >;
@@ -120,15 +120,15 @@ PS
 		#if S_MODE_DEPTH
 			return float4( 0, 0, 0, 1 );
 		#else
-			float2 uv = SourceUv( i.vTextureCoords.xy, g_vSourceBaseTransformU, g_vSourceBaseTransformV, g_vSourceBaseScroll );
-			float2 uv2 = SourceUv( i.vTextureCoords.xy, g_vSourceTexture2TransformU, g_vSourceTexture2TransformV, g_vSourceTexture2Scroll );
+			float2 uv = SourceUv( i.vTextureCoords.xy, g_vSourceBaseTransformU, g_vSourceBaseTransformV, g_vSourceBaseScroll, g_vSourceBaseProxyU, g_vSourceBaseProxyV );
+			float2 uv2 = SourceUv( i.vTextureCoords.xy, g_vSourceTexture2TransformU, g_vSourceTexture2TransformV, g_vSourceTexture2Scroll, g_vSourceTexture2ProxyU, g_vSourceTexture2ProxyV );
 			float4 color = g_tColor.Sample( g_sColor, SourceFrameUv( uv, i.flSourceFrame ) )
 				* g_tTexture2.Sample( g_sTexture2, uv2 )
-				* float4( g_vSourceColorTint, g_flSourceAlpha ) * i.vVertexColor;
+				* float4( SourceProxyVector( g_vSourceColorTint, g_vSourceColorTintProxy ), saturate( SourceProxyScalar( g_flSourceAlpha, g_flSourceAlphaProxy ) ) ) * i.vVertexColor;
 			#if !S_SOURCE_ALPHA_BLEND
 				color.a = 1;
 			#endif
-			if ( g_bFogEnabled && g_flSourceFogEnabled > 0 )
+			if ( g_bFogEnabled )
 			{
 				float3 world = i.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz;
 				#if S_ADDITIVE_BLEND

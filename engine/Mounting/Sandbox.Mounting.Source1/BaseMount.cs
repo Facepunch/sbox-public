@@ -18,9 +18,11 @@ public abstract partial class BaseMount : BaseGameMount
 
 	private static readonly Dictionary<string, ResourceFactory> FileTypes = new( StringComparer.OrdinalIgnoreCase )
 	{
+		{ ".bsp", new( ResourceType.Scene, static path => new MapLoader( path ) ) },
 		{ ".mdl", new( ResourceType.Model, static path => new ModelLoader( path ) ) },
 		{ ".vmt", new( ResourceType.Material, static path => new MaterialLoader( path ) ) },
 		{ ".vtf", new( ResourceType.Texture, static path => new TextureLoader( path ) ) },
+		{ ".raw", new( ResourceType.Texture, static path => new SourceColorLookupLoader( path ) ) },
 		{ ".wav", new( ResourceType.Sound, static path => new WavSoundLoader( path ) ) },
 		{ ".mp3", new( ResourceType.Sound, static path => new Mp3SoundLoader( path ) ) }
 	};
@@ -48,6 +50,7 @@ public abstract partial class BaseMount : BaseGameMount
 		try
 		{
 			IndexSources( next, sources );
+			IndexMapPaks( next );
 			var unavailable = next.RemoveUnavailableModels();
 			if ( unavailable.Count > 0 )
 			{
@@ -77,6 +80,15 @@ public abstract partial class BaseMount : BaseGameMount
 		previous.Dispose();
 	}
 
+	private FileIndex AcquireIndex()
+	{
+		lock ( indexLock )
+		{
+			index.Retain();
+			return index;
+		}
+	}
+
 	protected override void Shutdown()
 	{
 		ReplaceIndex( new FileIndex() );
@@ -85,7 +97,9 @@ public abstract partial class BaseMount : BaseGameMount
 	protected override Task Mount( MountContext context )
 	{
 		IsMounted = false;
-		var current = index;
+		using var current = AcquireIndex();
+		foreach ( var error in current.Errors )
+			context.AddError( error );
 		if ( current.Resources.Count == 0 )
 		{
 			context.AddError( $"No supported {Title} resources were found." );
@@ -95,11 +109,17 @@ public abstract partial class BaseMount : BaseGameMount
 		foreach ( var resource in current.Resources )
 		{
 			context.Add( resource.Factory.Type, resource.Path, resource.Factory.Create( resource.Path ) );
-			if ( resource.Factory.Type == ResourceType.Texture )
+			if ( resource.Factory.Type == ResourceType.Texture && resource.Path.EndsWith( ".vtf", StringComparison.OrdinalIgnoreCase ) )
 				MountTextureFrames( context, current, resource.Path );
+			if ( resource.Factory.Type == ResourceType.Scene )
+			{
+				context.Add( ResourceType.Scene, $"{resource.Path}_skybox", new MapLoader( resource.Path, skybox: true ) );
+				context.Add( ResourceType.Texture, $"{resource.Path}_grading.vtex", new MapColorLookupLoader( resource.Path ) );
+			}
 		}
 
 		MountDecals( context, current );
+		MountSoundscapes( context, current );
 		try
 		{
 			MountSurfaces( context, current );
@@ -119,7 +139,7 @@ public abstract partial class BaseMount : BaseGameMount
 	{
 		try
 		{
-			using var stream = files.Files[path].Open();
+			using var stream = files.Files[path].OpenHeader( VtfFile.HeaderLength );
 			var header = VtfFile.ReadHeader( stream );
 			if ( header.Frames == 0 )
 				throw new InvalidDataException( "VTF frame count is zero." );

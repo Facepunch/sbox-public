@@ -7,44 +7,37 @@ namespace Sandbox.Mounting.Source1;
 internal sealed partial class SourceModelBuilder
 {
 	private static EyeVertex[] CreateEyeVertices( ReadOnlySpan<SkinnedVertex> vertices, MdlFile.StudioEyeball eye,
-		MdlFile.Matrix3x4 poseToBone, bool sourceLighting, VertexTransform[] vertexTransforms = null )
+		MdlFile.Matrix3x4 poseToBone, VertexTransform[] vertexTransforms = null )
 	{
-		// Bake stored-forward neutral gaze, not the runtime target-dependent zoffset adjustment.
-		var forward = eye.Forward.Normal;
-		var up = eye.Up.Normal;
-		var right = Vector3.Cross( forward, up ).Normal;
-		up = Vector3.Cross( right, forward ).Normal;
-		if ( !float.IsFinite( right.LengthSquared ) || !float.IsFinite( up.LengthSquared )
-			|| right.LengthSquared < 0.5f || up.LengthSquared < 0.5f )
-			throw new System.IO.InvalidDataException( "Invalid MDL eyeball orientation." );
-
-		var u = Projection( -right * eye.IrisScale );
-		var v = Projection( -up * eye.IrisScale );
+		var (u, v) = GetEyeProjection( eye, poseToBone );
 		var result = GC.AllocateUninitializedArray<EyeVertex>( vertices.Length );
 		for ( var i = 0; i < result.Length; i++ )
 		{
 			var position = new Vector4( vertices[i].position, 1 );
 			var uv = new Vector2( Vector4.Dot( position, u ), Vector4.Dot( position, v ) );
 			if ( !float.IsFinite( uv.x ) || !float.IsFinite( uv.y ) )
-				throw new System.IO.InvalidDataException( "Invalid MDL iris coordinates." );
+				throw new InvalidDataException( "Invalid MDL iris coordinates." );
 			var vertex = vertices[i];
-			if ( sourceLighting )
-			{
-				var local = TransformToBone( vertex.position, poseToBone ) - eye.Origin;
-				var normal = local - 0.5f * Vector3.Dot( local, eye.Up ) * eye.Up;
-				normal = new Vector3(
-					poseToBone.M11 * normal.x + poseToBone.M21 * normal.y + poseToBone.M31 * normal.z,
-					poseToBone.M12 * normal.x + poseToBone.M22 * normal.y + poseToBone.M32 * normal.z,
-					poseToBone.M13 * normal.x + poseToBone.M23 * normal.y + poseToBone.M33 * normal.z );
-				if ( !float.IsFinite( normal.LengthSquared ) || normal.LengthSquared < 1e-12f )
-					throw new InvalidDataException( "Invalid MDL eye lighting normal." );
-				vertex.normal = normal.Normal;
-			}
 			if ( vertexTransforms is not null )
 				vertex = TransformVertex( vertex, vertexTransforms[i] );
 			result[i] = new EyeVertex( vertex, uv );
 		}
 		return result;
+	}
+
+	internal static (Vector4 U, Vector4 V) GetEyeProjection( MdlFile.StudioEyeball eye, MdlFile.Matrix3x4 poseToBone )
+	{
+		var forward = -eye.Forward.Normal;
+		var up = eye.Up.Normal;
+		var right = Vector3.Cross( forward, up ).Normal;
+		forward = (forward + 2 * eye.ZOffset * right).Normal;
+		right = Vector3.Cross( forward, up ).Normal;
+		up = Vector3.Cross( right, forward ).Normal;
+		if ( !float.IsFinite( right.LengthSquared ) || !float.IsFinite( up.LengthSquared )
+			|| right.LengthSquared < 0.5f || up.LengthSquared < 0.5f )
+			throw new InvalidDataException( "Invalid MDL eyeball orientation." );
+
+		return (Projection( -right * eye.IrisScale ), Projection( -up * eye.IrisScale ));
 
 		Vector4 Projection( Vector3 axis ) => new(
 			axis.x * poseToBone.M11 + axis.y * poseToBone.M21 + axis.z * poseToBone.M31,

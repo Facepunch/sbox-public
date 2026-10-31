@@ -75,37 +75,12 @@ internal sealed partial class PhyFile
 		seen[index] = true;
 		var solid = Solids[index];
 		solid.Name = String( block, "name" );
-		solid.Parent = block.Values.TryGetValue( "parent", out var parentName ) ? parentName : "";
 		solid.SurfaceProperty = block.Values.TryGetValue( "surfaceprop", out var surface ) && !string.IsNullOrWhiteSpace( surface )
 			? surface.ToLowerInvariant() : "default";
 		solid.Mass = Number( block, "mass", 1, positive: true );
 		solid.Damping = Number( block, "damping", 0.1f );
 		solid.RotationalDamping = Number( block, "rotdamping", 0.1f );
 		solid.Inertia = Number( block, "inertia", 1 );
-		solid.RotationalInertiaLimit = Number( block, "rotinertialimit", 0.05f );
-		solid.Drag = Number( block, "drag", 1 );
-		solid.Volume = Number( block, "volume", 0 );
-		if ( block.Values.TryGetValue( "masscenteroverride", out var center ) )
-			solid.MassCenterOverride = ReadMassCenter( center );
-	}
-
-	private Vector3 ReadMassCenter( ReadOnlySpan<char> text )
-	{
-		Span<float> components = stackalloc float[3];
-		for ( var i = 0; i < components.Length; i++ )
-		{
-			text = text.TrimStart();
-			var length = 0;
-			while ( length < text.Length && !char.IsWhiteSpace( text[length] ) )
-				length++;
-			if ( length == 0 )
-				throw Error( "masscenteroverride must contain three coordinates." );
-			components[i] = ParseFloat( text[..length] );
-			text = text[length..];
-		}
-		if ( !text.IsWhiteSpace() )
-			throw Error( "masscenteroverride must contain three coordinates." );
-		return new Vector3( components[0], components[1], components[2] );
 	}
 
 	private Constraint ReadConstraint( VmtNode block )

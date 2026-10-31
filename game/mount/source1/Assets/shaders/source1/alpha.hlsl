@@ -1,5 +1,6 @@
 #ifndef SOURCE1_ALPHA_HLSL
 #define SOURCE1_ALPHA_HLSL
+#include "source1/proxies.hlsl"
 
 StaticCombo( S_SOURCE_ALPHA_SINE, F_SOURCE_ALPHA_SINE, Sys( ALL ) );
 
@@ -15,7 +16,7 @@ float SourceAlpha()
 		float wave = sin( phase * 6.283185307179586 ) * 0.5 + 0.5;
 		return saturate( (g_vSourceAlphaSine.w - g_vSourceAlphaSine.z) * wave + g_vSourceAlphaSine.z );
 	#else
-		return g_flSourceAlpha;
+		return saturate( SourceProxyScalar( g_flSourceAlpha, g_flSourceAlphaProxy ) );
 	#endif
 }
 

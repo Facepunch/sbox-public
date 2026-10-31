@@ -1,6 +1,6 @@
 HEADER
 {
-	Description = "Source 1 source1 layered volume clouds";
+	Description = "Source 1 layered volume clouds";
 }
 
 FEATURES

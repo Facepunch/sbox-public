@@ -501,9 +501,13 @@ namespace HotloadTests
 			}
 
 			using var cts = new CancellationTokenSource();
+			using var spinning = new ManualResetEventSlim();
 
-			Task.Run( () =>
+			// A dedicated thread that is already spinning: a pool task can start after the hotload has finished
+			var interferer = new Thread( () =>
 			{
+				spinning.Set();
+
 				while ( !cts.IsCancellationRequested )
 				{
 					// Wait for hotload to clear the set and start repopulating
@@ -518,11 +522,15 @@ namespace HotloadTests
 					InitOnlyHashSet.Add( itemCount + 1 );
 					break;
 				}
-			}, cts.Token );
+			} );
+
+			interferer.Start();
+			spinning.Wait();
 
 			var result = Hotload( true );
 
 			cts.Cancel();
+			interferer.Join();
 
 			Assert.IsTrue( result.HasErrors );
 

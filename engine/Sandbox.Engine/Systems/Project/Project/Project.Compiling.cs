@@ -29,7 +29,7 @@ public partial class Project
 	int lastCompilerHash;
 
 	// anything that means we need to re-create the compiler and recompile should be here
-	int CompilerHash => HashCode.Combine( Active, Current == this, Json.SerializeAsObject( Config.GetCompileSettings() ).ToJsonString(), Config.IsStandaloneOnly, Config.Org, Config.Ident, Config.Type, string.Join( ";", PackageReferences() ) );
+	int CompilerHash => HashCode.Combine( Active, Current == this, Json.SerializeAsObject( Config.GetCompileSettings() ).ToJsonString(), Config.IsStandaloneOnly, Config.Org, Config.Ident, Config.Type, string.Join( ";", PackageReferences().Concat( EditorPackageReferences() ).Select( x => x.FullIdent ) ) );
 
 	/// <summary>
 	/// Whether to save/load compiled assemblies to disk.
@@ -279,6 +279,20 @@ public partial class Project
 	}
 
 	/// <summary>
+	/// Libraries whose editor code the editor compiler references.
+	/// </summary>
+	IEnumerable<Package> EditorPackageReferences()
+	{
+		if ( (Config.Type == "game" || Config.Type == "addon") && !IsBuiltIn )
+		{
+			foreach ( var library in Project.Libraries.Where( x => x.HasEditorPath() ) )
+			{
+				yield return library.Package;
+			}
+		}
+	}
+
+	/// <summary>
 	/// If required, create the editor compiler
 	/// </summary>
 	void UpdateEditorCompiler()
@@ -339,13 +353,9 @@ public partial class Project
 			EditorCompiler.AddReference( reference );
 		}
 
-		if ( (Config.Type == "game" || Config.Type == "addon") && !IsBuiltIn )
+		foreach ( var reference in EditorPackageReferences() )
 		{
-			// editor libraries
-			foreach ( var library in Libraries.Where( x => x.HasEditorPath() ) )
-			{
-				EditorCompiler.AddEditorReference( library.Package );
-			}
+			EditorCompiler.AddEditorReference( reference );
 		}
 
 		EditorCompiler.AddReference( "package.local.actiongraph" );
