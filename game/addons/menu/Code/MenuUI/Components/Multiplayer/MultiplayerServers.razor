@@ -99,11 +99,37 @@
 	{
 		if ( HideFullServers && server.IsFull ) return false;
 		if ( HideEmptyServers && server.Members == 0 ) return false;
+		if ( Application.IsVR && !IsVrGame( server.Game ) ) return false;
 		if ( string.IsNullOrWhiteSpace( search ) ) return true;
 
 		var text = $"{server.Name} {server.Game} {server.Map}";
 		if ( Package.TryGetCached( server.Game, out var package, true ) ) text += $" {package.Title}";
 		return text.Contains( search.Trim(), StringComparison.OrdinalIgnoreCase );
+	}
+
+	/// <summary>
+	/// Games whose package we're finding to know whether they're VR games, so each is only asked for once.
+	/// </summary>
+	readonly HashSet<string> fetchingGames = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>
+	/// In VR only VR games are listed, like the home feeds. A game we don't know yet stays hidden until its package is found.
+	/// </summary>
+	bool IsVrGame( string gameIdent )
+	{
+		if ( string.IsNullOrEmpty( gameIdent ) ) return false;
+
+		if ( Package.TryGetCached( gameIdent, out var package, true ) )
+			return package.Tags?.Contains( "vr", StringComparer.OrdinalIgnoreCase ) ?? false;
+
+		if ( fetchingGames.Add( gameIdent ) ) _ = FetchGame( gameIdent );
+		return false;
+	}
+
+	async Task FetchGame( string gameIdent )
+	{
+		await Package.FetchAsync( gameIdent, true );
+		servers?.StateHasChanged();
 	}
 
 	async Task RefreshServers()

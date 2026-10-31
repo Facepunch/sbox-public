@@ -43,21 +43,23 @@ public sealed class WorldInput : Component
 		WorldPanelInput.MouseRightPressed = Input.Down( RightMouseAction );
 		WorldPanelInput.MouseWheel = Input.MouseWheel;
 
-		// If the mouse is active, we want to use the mouse cursor ray instead, and use MOUSE1/2 as backup also
-		if ( Mouse.Active && Scene?.Camera is not null )
-		{
-			WorldPanelInput.Ray = Scene.Camera.ScreenPixelToRay( Mouse.Position );
-			WorldPanelInput.MouseLeftPressed |= Input.Keyboard.Down( "MOUSE1" );
-			WorldPanelInput.MouseRightPressed |= Input.Keyboard.Down( "MOUSE2" );
-		}
-
-		// If we're in VR, triggers are mouse presses, joystick scrolls
+		// If we're in VR, we point with this gameobject even if the mouse is active - the cursor
+		// is on the desktop, not in the headset. Triggers are mouse presses, joystick scrolls
 		if ( Game.IsRunningInVR )
 		{
 			var hand = (VRHandSource == VRHand.HandSources.Left) ? Input.VR.LeftHand : Input.VR.RightHand;
 			WorldPanelInput.MouseLeftPressed = hand.Trigger.Value > 0.75f;
 			WorldPanelInput.MouseRightPressed = false;
 			WorldPanelInput.MouseWheel = hand.Joystick.Value;
+			return;
+		}
+
+		// If the mouse is active, we want to use the mouse cursor ray instead, and use MOUSE1/2 as backup also
+		if ( Mouse.Active && Scene?.Camera is not null )
+		{
+			WorldPanelInput.Ray = Scene.Camera.ScreenPixelToRay( Mouse.Position );
+			WorldPanelInput.MouseLeftPressed |= Input.Keyboard.Down( "MOUSE1" );
+			WorldPanelInput.MouseRightPressed |= Input.Keyboard.Down( "MOUSE2" );
 		}
 	}
 }

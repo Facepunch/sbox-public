@@ -16,7 +16,7 @@
 
 					@* Feeds live with the page they change - leave the front page and they go with it. *@
 					<div class="tabs">
-						@foreach ( var tab in Tabs )
+						@foreach ( var tab in VisibleTabs )
 						{
 							<Button Href="@tab.Url" Active="@(CurrentTab == tab)">@tab.Title</Button>
 						}
@@ -36,7 +36,7 @@
 					}
 					else
 					{
-						<MenuProject.UI.PackageList Surface="home" Shelf=@CurrentTab.Name Query=@($"type:game {CurrentTab.Query}") Take=@(60) OnSelected=@Selected OnMenu=@Menu></MenuProject.UI.PackageList>
+						<MenuProject.UI.PackageList Surface="home" Shelf=@CurrentTab.Name Query=@(GetQuery( CurrentTab )) Take=@(60) OnSelected=@Selected OnMenu=@Menu></MenuProject.UI.PackageList>
 					}
 				</div>
 
@@ -95,10 +95,20 @@
 		new( "roguelike", "#menu.home.roguelike", "sort:quality genre:roguelike" ),
 	];
 
-	static FeedTab FindTab( string name ) => Tabs.Concat( Genres ).FirstOrDefault( x => x.Name == name ) ?? Tabs[0];
+	/// <summary>
+	/// In VR every feed only lists VR games, so the curated Discover shelves would mostly come
+	/// up empty - hide it and open on Trending instead.
+	/// </summary>
+	static IEnumerable<FeedTab> VisibleTabs => Application.IsVR ? Tabs.Where( x => !x.IsDiscover ) : Tabs;
+
+	static FeedTab DefaultTab => VisibleTabs.First();
+
+	static FeedTab FindTab( string name ) => VisibleTabs.Concat( Genres ).FirstOrDefault( x => x.Name == name ) ?? DefaultTab;
+
+	static string GetQuery( FeedTab tab ) => Application.IsVR ? $"type:game {tab.Query} +vr" : $"type:game {tab.Query}";
 
 	/// <summary>The feed the front page is currently showing.</summary>
-	public static FeedTab CurrentTab { get; private set; } = Tabs[0];
+	public static FeedTab CurrentTab { get; private set; } = FindTab( null );
 
 	// The navigator caches this page and re-applies query params through the
 	// setter on every visit, so the tab has to be picked here.
