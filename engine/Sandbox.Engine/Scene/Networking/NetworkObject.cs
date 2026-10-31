@@ -489,7 +489,8 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot, INetworkWa
 
 		if ( component is null ) return;
 
-		if ( !component.IsValid() )
+		// Destroying a component takes it out of the directory straight away, but it stays valid until its callback batch ends.
+		if ( !component.IsValid() || component.Scene.Directory.FindComponentByGuid( component.Id ) != component )
 		{
 			// We want to tell clients that this component has been destroyed...
 			var msg = new ObjectDestroyComponentMsg

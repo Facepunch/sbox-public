@@ -1392,6 +1392,11 @@ internal class DeltaSnapshotSystem
 	}
 
 	/// <summary>
+	/// The object's id in <see cref="GetFullSnapshotData"/>.
+	/// </summary>
+	internal static Guid ReadObjectId( byte[] snapshotData ) => MemoryMarshal.Read<Guid>( snapshotData );
+
+	/// <summary>
 	/// The object's snapshot version in <see cref="GetFullSnapshotData"/>, after its id.
 	/// </summary>
 	internal static ushort ReadVersion( byte[] snapshotData ) => BinaryPrimitives.ReadUInt16LittleEndian( snapshotData.AsSpan( 16 ) );
