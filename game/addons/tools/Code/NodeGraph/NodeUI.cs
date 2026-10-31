@@ -682,12 +682,12 @@ public partial class NodeUI : GraphicsItem
 	{
 		Position = Position.SnapToGrid( Graph.GridSize );
 
-		if ( Node != null )
+		if ( Node != null && !object.Equals( Node.Position, Position ) )
 		{
 			Graph?.MoveableMoved();
 			Node.Position = Position;
-		}
 
-		Graph?.NodePositionChanged( this );
+			Graph?.NodePositionChanged( this );
+		}
 	}
 }
