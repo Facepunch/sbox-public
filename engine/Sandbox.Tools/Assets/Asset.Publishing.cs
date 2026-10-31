@@ -11,6 +11,13 @@ public partial class Asset
 	PublishSettings _publishConfig;
 
 	/// <summary>
+	/// The meta file had no publish settings when last read. Asset updates re-read it through
+	/// <see cref="UpdateAutoTags"/>; until then there's no need to read it again, the same way
+	/// <see cref="_publishConfig"/> is kept once it exists.
+	/// </summary>
+	bool _publishSettingsAbsent;
+
+	/// <summary>
 	/// Access the asset publisher config.
 	/// </summary>
 	public PublishSettings Publishing => GetPublishSettings( true );
@@ -23,7 +30,9 @@ public partial class Asset
 		if ( _publishConfig is not null )
 			return _publishConfig;
 
-		var settings = MetaData?.Get<PublishSettings>( "publish" );
+		var settings = _publishSettingsAbsent ? null : MetaData?.Get<PublishSettings>( "publish" );
+		_publishSettingsAbsent = settings is null;
+
 		if ( createNew ) settings ??= new PublishSettings();
 
 		if ( settings is not null )
