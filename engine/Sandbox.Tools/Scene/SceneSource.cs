@@ -20,9 +20,10 @@ internal static class SceneSource
 		return asset;
 	}
 
-	internal static string ReadJson( string path )
+	internal static string ReadJson( string path, out int sourceHash )
 	{
 		var json = File.ReadAllText( path );
+		sourceHash = json.FastHash();
 		if ( !json.StartsWith( '<' ) )
 			return json;
 
@@ -40,10 +41,14 @@ internal static class SceneSource
 	internal static SceneFile LoadForEditing( Asset asset )
 	{
 		var path = asset.GetSourceFile( true );
-		var json = ReadJson( path );
+		var json = ReadJson( path, out var sourceHash );
 		var blobPath = path + "_d";
 		var blobs = File.Exists( blobPath ) ? File.ReadAllBytes( blobPath ) : [];
-		return SceneFile.FromSource( asset.Path, asset.Guid, json, blobs );
+		var file = SceneFile.FromSource( asset.Path, asset.Guid, json, blobs );
+
+		// Hash the file as the resource library does, which isn't the same as hashing the json for KV3 sources
+		file.LastSavedSourceHash = sourceHash;
+		return file;
 	}
 
 	internal static bool Save( Asset asset, SceneFile file )
@@ -52,7 +57,21 @@ internal static class SceneSource
 		if ( !asset.SaveSource( file ) )
 			return false;
 
-		return asset.LoadResource<SceneFile>() is not null;
+		if ( asset.LoadResource<SceneFile>() is null )
+			return false;
+
+		TrackSource( file );
+		return true;
+	}
+
+	/// <summary>
+	/// Scenes are edited from their own copy of the source, so the resource library's copy never sees the source the
+	/// editor loads or saves. Give it that source's hash, or it reports the source as an external change when it's recompiled.
+	/// </summary>
+	internal static void TrackSource( SceneFile file )
+	{
+		if ( file.LastSavedSourceHash != 0 && ResourceLibrary.TryGet<SceneFile>( file.ResourcePath, out var resource ) )
+			resource.LastSavedSourceHash = file.LastSavedSourceHash;
 	}
 
 	internal static SceneFile LoadForPlay( SceneEditorSession editor )

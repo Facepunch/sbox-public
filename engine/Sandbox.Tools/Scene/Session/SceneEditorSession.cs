@@ -299,7 +299,9 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession, AssetSystem
 		var source = Scene.Source;
 		if ( source is SceneFile sceneFile && SceneSource.FindAsset( sceneFile ) is Asset asset && File.Exists( asset.GetSourceFile( true ) ) )
 		{
-			source = SceneSource.LoadForEditing( asset );
+			var file = SceneSource.LoadForEditing( asset );
+			SceneSource.TrackSource( file );
+			source = file;
 		}
 
 		InitUndo();
@@ -557,6 +559,7 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession, AssetSystem
 			using var _ = openingScene.Push();
 
 			openingScene.Load( sceneFile );
+			SceneSource.TrackSource( sceneFile );
 
 			var session = new SceneEditorSession( openingScene );
 			return session;
