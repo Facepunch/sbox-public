@@ -341,6 +341,64 @@ public class NetworkTest
 	}
 
 	[TestMethod]
+	public void SnapshotThrowsWhenSyncedValueFailsToSerialize()
+	{
+		using var scope = new Scene().Push();
+		using var clientAndHost = new ClientAndHost( TypeLibrary );
+		clientAndHost.BecomeHost();
+
+		var go = SpawnUnserializableSyncComponent();
+		IDeltaSnapshot networkObject = go._net;
+
+		var error = Assert.ThrowsException<InvalidOperationException>( () => networkObject.WriteSnapshotState() );
+		StringAssert.Contains( error.Message, $"{nameof( UnserializableSyncComponent )}.{nameof( UnserializableSyncComponent.Holder )}" );
+		Assert.IsNotNull( error.InnerException, "The serializer's exception is kept as the cause" );
+	}
+
+	[TestMethod]
+	public void WriteAllThrowsWhenSyncedValueFailsToSerialize()
+	{
+		using var scope = new Scene().Push();
+		using var clientAndHost = new ClientAndHost( TypeLibrary );
+		clientAndHost.BecomeHost();
+
+		var go = SpawnUnserializableSyncComponent();
+
+		var error = Assert.ThrowsException<InvalidOperationException>( () =>
+		{
+			var data = ByteStream.Create( 32 );
+
+			try
+			{
+				go._net.dataTable.WriteAll( ref data );
+			}
+			finally
+			{
+				data.Dispose();
+			}
+		} );
+
+		StringAssert.Contains( error.Message, $"{nameof( UnserializableSyncComponent )}.{nameof( UnserializableSyncComponent.Holder )}" );
+		Assert.IsNotNull( error.InnerException, "The serializer's exception is kept as the cause" );
+	}
+
+	/// <summary>
+	/// Spawn with a serializable value, then swap in one that can't be serialized.
+	/// </summary>
+	private static GameObject SpawnUnserializableSyncComponent()
+	{
+		var go = new GameObject();
+		var component = go.Components.Create<UnserializableSyncComponent>();
+		go.NetworkSpawn();
+
+		var type = Game.TypeLibrary.GetType<UnserializableSyncComponent>();
+		var holderSlot = NetworkObject.GetPropertySlot( type.GetProperty( nameof( UnserializableSyncComponent.Holder ) ).Identity, component.Id );
+		go._net.dataTable.SetValue( holderSlot, new UnserializableHolder { Map = new() } );
+
+		return go;
+	}
+
+	[TestMethod]
 	public void NetworkRefreshWithParentChangeHasCorrectPosition()
 	{
 		Assert.IsNotNull( TypeLibrary.GetType<ModelRenderer>(), "TypeLibrary hasn't been given the game assembly" );
@@ -1246,5 +1304,16 @@ public class NetworkTest
 	{
 		[Property, Sync]
 		public int RegularInt { get; set; } = 1;
+	}
+
+	[Expose]
+	private struct UnserializableHolder
+	{
+		public NetDictionary<int, int> Map;
+	}
+
+	private class UnserializableSyncComponent : Component
+	{
+		[Sync] public UnserializableHolder Holder { get; set; }
 	}
 }
