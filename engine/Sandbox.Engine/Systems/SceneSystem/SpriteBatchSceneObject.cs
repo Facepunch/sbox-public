@@ -22,6 +22,12 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 	/// </summary>
 	public Material Material { get; set; }
 
+	/// <summary>
+	/// The <see cref="Renderer.Attributes"/> of the one sprite in this batch, when that sprite uses a custom
+	/// material and has attributes of its own. Such a sprite is always drawn in a batch of its own.
+	/// </summary>
+	public RenderAttributes ComponentAttributes { get; set; }
+
 	internal Dictionary<Guid, SpriteRenderer> Components = new();
 
 	private static ComputeShader SpriteComputeShader = new( "sprite/sprite_cs" );
@@ -658,6 +664,9 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		var attributes = RenderAttributes.Pool.Get();
 		try
 		{
+			// The sprite's own attributes go first so the batch's buffers and combos below always win
+			ComponentAttributes?.MergeTo( attributes );
+
 			attributes.SetCombo( "D_BLEND", _renderAdditive ? 1 : 0 );
 			attributes.SetCombo( "D_OPAQUE", _renderOpaque ? 1 : 0 );
 			attributes.SetCombo( "D_TEXT", _renderHasText ? 1 : 0 );

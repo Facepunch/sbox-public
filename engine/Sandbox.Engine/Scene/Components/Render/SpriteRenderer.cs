@@ -180,6 +180,8 @@ public sealed partial class SpriteRenderer : Renderer, Component.ExecuteInEditor
 	/// written for the sprite pipeline, like <c>sprite/sprite_ps.shader</c>: it reads each sprite from the
 	/// batch's instance buffers rather than from a mesh. The material's parameters apply to every sprite
 	/// drawn with it. Sprites sharing a material are drawn together, each different material adds a draw call.
+	/// A sprite that also sets its own <see cref="Renderer.Attributes"/> is drawn on its own, so those
+	/// attributes only apply to it, at the cost of one draw call per such sprite.
 	/// </summary>
 	[Property, Category( "Visuals" ), Order( -200 )]
 	public Material MaterialOverride { get; set; }
