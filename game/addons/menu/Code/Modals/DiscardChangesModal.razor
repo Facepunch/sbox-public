@@ -1,0 +1,34 @@
+﻿@using Sandbox
+@using Sandbox.UI
+
+@namespace MenuProject.Modals
+@inherits MenuProject.Modals.BaseModal
+
+<root>
+    <div class="window">
+		<div class="header">
+			<i>warning</i>
+			<label class="heading">Warning</label>
+		</div>
+		<div class="body">
+			<label class="body">Your avatar has unsaved changes. Are you sure you want to leave?</label>
+		</div>
+		<div class="footer">
+			<Button class="clicky primary" Icon="save" @onclick="@( () => Finish(DiscardResult.Save) )">Save</Button>
+			<Button class="clicky primary" Icon="delete" @onclick="@( () => Finish(DiscardResult.Discard) )">Discard</Button>
+			<Button class="clicky primary" Icon="close" @onclick="@( () => Finish(DiscardResult.Cancel) )">Cancel</Button>
+		</div>
+    </div>
+</root>
+
+@code
+{
+	public Action<DiscardResult> OnResult { get; set; }
+	public enum DiscardResult { Save, Discard, Cancel }
+
+	void Finish( DiscardResult result )
+	{
+		OnResult?.Invoke( result );
+		Delete();
+	}
+}
