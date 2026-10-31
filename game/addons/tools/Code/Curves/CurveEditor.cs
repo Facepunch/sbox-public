@@ -263,6 +263,12 @@ public class CurveEditor : GraphicsView
 	/// </summary>
 	internal GraphicsItems.EditableCurve.HandleDrag Drag { get; } = new();
 
+	[EditorEvent.Frame]
+	public void Frame()
+	{
+		Drag.Flush();
+	}
+
 	bool isDraggingBackground = false;
 	Vector2 dragStartPosition;
 	protected override void OnMousePress( MouseEvent e )
@@ -292,9 +298,6 @@ public class CurveEditor : GraphicsView
 	protected override void OnMouseMove( MouseEvent e )
 	{
 		base.OnMouseMove( e );
-
-		// The base call moved every dragged handle - apply the group offset once
-		Drag.ApplyPending();
 
 		if ( isDraggingBackground )
 		{
