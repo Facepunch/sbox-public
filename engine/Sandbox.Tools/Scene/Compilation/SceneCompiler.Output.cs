@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text.Json;
 
 namespace Editor;
@@ -29,20 +28,24 @@ internal static partial class SceneCompiler
 			&& System.Security.Cryptography.CryptographicOperations.FixedTimeEquals( revision.Hash, System.Security.Cryptography.SHA256.HashData( content ) );
 	}
 
-	static string GetGenerationPath( Asset asset, string generation )
+	/// <summary>
+	/// Where a generation's resources end up on disk, laid out the same way as the scene folder that writes them.
+	/// </summary>
+	internal static string GetGenerationPath( string sourcePath, string generation )
 	{
-		var sourcePath = asset.GetSourceFile( false );
 		var extension = Path.GetExtension( sourcePath ).Replace( ".", "_" );
 		var dataFolder = $"{Path.ChangeExtension( sourcePath, null )}{extension}_data";
-		return $"{dataFolder}/compiled/{generation}".NormalizeFilename( false );
+
+		// Normalized so it compares equal to the paths Directory hands back during cleanup.
+		return Path.GetFullPath( Path.Combine( dataFolder, "compiled", generation ) );
 	}
 
-	static void CleanupGeneration( string path )
+	internal static void CleanupGeneration( string path )
 	{
 		try
 		{
-			if ( FileSystem.Mounted.DirectoryExists( path ) )
-				FileSystem.Mounted.DeleteDirectory( path, true );
+			if ( Directory.Exists( path ) )
+				Directory.Delete( path, true );
 		}
 		catch ( Exception e )
 		{
@@ -50,9 +53,12 @@ internal static partial class SceneCompiler
 		}
 	}
 
-	static void CleanupPreviousGenerations( string currentPath, object generationGate, HashSet<string> activeGenerations )
+	internal static void CleanupPreviousGenerations( string currentPath, object generationGate, HashSet<string> activeGenerations )
 	{
-		var compiledFolder = currentPath[..currentPath.LastIndexOf( '/' )];
+		var compiledFolder = Path.GetDirectoryName( currentPath );
+		if ( !Directory.Exists( compiledFolder ) )
+			return;
+
 		HashSet<string> active;
 
 		lock ( generationGate )
@@ -60,21 +66,19 @@ internal static partial class SceneCompiler
 
 		try
 		{
-			foreach ( var directory in FileSystem.Mounted.FindDirectory( compiledFolder ).ToArray() )
+			foreach ( var path in Directory.GetDirectories( compiledFolder ) )
 			{
-				var path = $"{compiledFolder}/{directory}".NormalizeFilename( false );
 				if ( path.Equals( currentPath, StringComparison.OrdinalIgnoreCase ) || active.Contains( path ) )
 					continue;
 
 				CleanupGeneration( path );
 			}
 
-			foreach ( var file in FileSystem.Mounted.FindFile( compiledFolder ).ToArray() )
+			foreach ( var path in Directory.GetFiles( compiledFolder ) )
 			{
-				var path = $"{compiledFolder}/{file}".NormalizeFilename( false );
 				try
 				{
-					FileSystem.Mounted.DeleteFile( path );
+					File.Delete( path );
 				}
 				catch ( Exception e )
 				{
