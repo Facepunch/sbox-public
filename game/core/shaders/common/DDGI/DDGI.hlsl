@@ -276,7 +276,9 @@ struct DDGI
         float3 accumulatedIrradiance = 0.0f.xxx;
         float accumulatedWeight = 0.0f;
 
-        [unroll]
+        // Not unrolled: each probe's fetches wait on its own branches anyway, and unrolled the probes push the
+        // forward shader to 122 VGPRs, 5 waves on RDNA3 instead of 6
+        [loop]
         for ( int i = 0; i < 8; ++i )
         {
             int3 offset = int3( i, i >> 1, i >> 2 ) & int3( 1, 1, 1 );
