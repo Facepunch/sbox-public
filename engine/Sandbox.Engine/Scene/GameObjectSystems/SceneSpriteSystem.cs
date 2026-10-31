@@ -4,7 +4,9 @@ using Sandbox.Hashing;
 using Sandbox.Rendering;
 using System.Buffers;
 using System.Collections.Frozen;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 {
@@ -13,7 +15,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 	private readonly record struct ParticleResult( Guid Id, ulong Group, IBatchedParticleSpriteRenderer System, int Offset, int Count, int SplotCount, BBox Bounds );
 
 	/// <summary>Carries the data needed to configure a new <see cref="SpriteBatchSceneObject"/> from the original component state.</summary>
-	private readonly record struct RenderGroupConfig( InstanceGroupFlags Flags, RenderOptions RenderOptions, IReadOnlySet<uint> Tags );
+	private readonly record struct RenderGroupConfig( InstanceGroupFlags Flags, RenderOptions RenderOptions, IReadOnlySet<uint> Tags, Material Material, RenderAttributes Attributes );
 
 	Dictionary<ulong, SpriteBatchSceneObject> RenderGroups = [];
 
@@ -42,7 +44,12 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 	private readonly HashSet<Guid> _currentEnabledSprites = new();
 	private readonly List<Guid> _spritesToRemove = new();
 	private readonly List<Guid> _keysToRemoveScratch = new();
-	private readonly HashSet<ulong> _isolatedRenderGroups = [];
+
+	/// <summary>
+	/// Batches that are deleted along with their last sprite: isolated ones, and ones drawn with a custom material.
+	/// The shared default batches stay alive.
+	/// </summary>
+	private readonly HashSet<ulong> _transientRenderGroups = [];
 
 	internal unsafe void UpdateParticleSprites()
 	{
@@ -269,7 +276,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 	/// </summary>
 	internal BBox? LitBounds { get; private set; }
 
-	private static ulong GetRenderGroupKey( ISpriteRenderGroup component, GameTags tags, RenderOptions renderOptions, Guid isolatedComponent = default )
+	private static ulong GetRenderGroupKey( ISpriteRenderGroup component, GameTags tags, RenderOptions renderOptions, Guid isolatedComponent = default, int materialId = 0 )
 	{
 		var flags = GetRenderGroupFlags( component );
 
@@ -281,17 +288,33 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		);
 
 		var tokens = tags.GetTokens();
-		// Single buffer: [4 bytes flags][1 byte renderLayer][16 bytes isolated component][4*N bytes tokens].
-		Span<byte> buf = tokens.Count <= 64 ? stackalloc byte[21 + tokens.Count * 4] : new byte[21 + tokens.Count * 4];
+		// Single buffer: [4 bytes flags][1 byte renderLayer][4 bytes material][16 bytes isolated component][4*N bytes tokens].
+		Span<byte> buf = tokens.Count <= 64 ? stackalloc byte[25 + tokens.Count * 4] : new byte[25 + tokens.Count * 4];
 		MemoryMarshal.Write( buf, in flags );
 		buf[4] = renderLayerFlags;
-		MemoryMarshal.Write( buf[5..], in isolatedComponent );
-		var tokenSlice = MemoryMarshal.Cast<byte, uint>( buf[21..] );
+		MemoryMarshal.Write( buf[5..], in materialId );
+		MemoryMarshal.Write( buf[9..], in isolatedComponent );
+		var tokenSlice = MemoryMarshal.Cast<byte, uint>( buf[25..] );
 		int i = 0;
 		foreach ( var token in tokens ) tokenSlice[i++] = token;
 		MemoryExtensions.Sort( tokenSlice );
 
 		return XxHash3.HashToUInt64( buf );
+	}
+
+	static readonly ConditionalWeakTable<Material, object> _materialIds = new();
+	static int _lastMaterialId;
+
+	/// <summary>
+	/// The material's part of a batch key: a number handed out once per material object and never reused, so two
+	/// materials never share a batch. 0 is the built-in sprite material.
+	/// </summary>
+	private static int GetMaterialId( Material material )
+	{
+		if ( !material.IsValid() )
+			return 0;
+
+		return (int)_materialIds.GetValue( material, static _ => Interlocked.Increment( ref _lastMaterialId ) );
 	}
 
 	/// <summary>
@@ -308,9 +331,9 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		return flags;
 	}
 
-	private static RenderGroupConfig BuildConfig( ISpriteRenderGroup component, GameTags tags, RenderOptions renderOptions )
+	private static RenderGroupConfig BuildConfig( ISpriteRenderGroup component, GameTags tags, RenderOptions renderOptions, Material material = null, RenderAttributes attributes = null )
 	{
-		return new RenderGroupConfig( GetRenderGroupFlags( component ), renderOptions.Clone(), tags.GetTokens().ToFrozenSet() );
+		return new RenderGroupConfig( GetRenderGroupFlags( component ), renderOptions.Clone(), tags.GetTokens().ToFrozenSet(), material, attributes );
 	}
 
 	/// <summary>
@@ -348,7 +371,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		var group = RenderGroups[renderGroup];
 		group.UnregisterSprite( componentId );
 
-		if ( group.Components.Count > 0 || !_isolatedRenderGroups.Remove( renderGroup ) )
+		if ( group.Components.Count > 0 || !_transientRenderGroups.Remove( renderGroup ) )
 			return;
 
 		group.Delete();
@@ -365,20 +388,23 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		renderGroupObject.Sorted = (config.Flags & InstanceGroupFlags.Sorted) != 0;
 		renderGroupObject.Additive = (config.Flags & InstanceGroupFlags.Additive) != 0;
 		renderGroupObject.Opaque = (config.Flags & InstanceGroupFlags.Opaque) != 0;
+		renderGroupObject.Material = config.Material;
+		renderGroupObject.ComponentAttributes = config.Attributes;
 		renderGroupObject.Tags.SetFrom( new TagSet( config.Tags.Select( StringToken.GetValue ) ) );
 		config.RenderOptions.Apply( renderGroupObject );
 
 		RenderGroups.Add( key, renderGroupObject );
-		if ( isolated ) _isolatedRenderGroups.Add( key );
+		if ( isolated || config.Material is not null ) _transientRenderGroups.Add( key );
 		return renderGroupObject;
 	}
 
 	internal void RegisterSprite( Guid componentId, SpriteRenderer component )
 	{
 		var isolatedComponent = GetIsolatedComponent( component );
-		var key = GetRenderGroupKey( component, component.Tags as GameTags, component.RenderOptions, isolatedComponent );
+		var material = GetMaterial( component );
+		var key = GetRenderGroupKey( component, component.Tags as GameTags, component.RenderOptions, isolatedComponent, GetMaterialId( material ) );
 		if ( !RenderGroups.ContainsKey( key ) )
-			CreateRenderGroup( key, BuildConfig( component, component.Tags as GameTags, component.RenderOptions ), isolatedComponent != default );
+			CreateRenderGroup( key, BuildConfig( component, component.Tags as GameTags, component.RenderOptions, material, GetAttributes( component ) ), isolatedComponent != default );
 
 		InsertInRenderGroup( componentId, component, key );
 	}
@@ -389,7 +415,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		if ( FindCurrentRenderGroup( componentId ) is ulong oldRenderGroup )
 		{
 			var isolatedComponent = GetIsolatedComponent( component );
-			var newRenderGroup = GetRenderGroupKey( component, (GameTags)component.Tags, component.RenderOptions, isolatedComponent );
+			var newRenderGroup = GetRenderGroupKey( component, (GameTags)component.Tags, component.RenderOptions, isolatedComponent, GetMaterialId( GetMaterial( component ) ) );
 			if ( !oldRenderGroup.Equals( newRenderGroup ) )
 			{
 				RemoveFromRenderGroup( componentId, oldRenderGroup );
@@ -410,7 +436,27 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 
 	private static Guid GetIsolatedComponent( SpriteRenderer component )
 	{
+		if ( GetAttributes( component ) is not null )
+			return component.Id;
+
 		return !component.Opaque && component.Billboard == SpriteRenderer.BillboardMode.None ? component.Id : default;
+	}
+
+	/// <summary>
+	/// The sprite's own <see cref="Renderer.Attributes"/>, if it uses a custom material and has used them.
+	/// A batch is drawn with one set of attributes, so such a sprite gets a batch of its own.
+	/// </summary>
+	private static RenderAttributes GetAttributes( SpriteRenderer component )
+	{
+		return GetMaterial( component ) is not null ? component.PendingAttributes : null;
+	}
+
+	/// <summary>
+	/// The material a sprite is batched with, null for the built-in sprite material.
+	/// </summary>
+	private static Material GetMaterial( SpriteRenderer component )
+	{
+		return component.MaterialOverride.IsValid() ? component.MaterialOverride : null;
 	}
 
 	internal void UnregisterSprite( Guid componentId )

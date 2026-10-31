@@ -16,6 +16,18 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 	public bool Additive { get; set; } = false;
 	public bool Opaque { get; set; } = false;
 
+	/// <summary>
+	/// The material every sprite in this batch is drawn with, or null for the built-in sprite material.
+	/// Its parameters are bound with it, so they are the same for the whole batch.
+	/// </summary>
+	public Material Material { get; set; }
+
+	/// <summary>
+	/// The <see cref="Renderer.Attributes"/> of the one sprite in this batch, when that sprite uses a custom
+	/// material and has attributes of its own. Such a sprite is always drawn in a batch of its own.
+	/// </summary>
+	public RenderAttributes ComponentAttributes { get; set; }
+
 	internal Dictionary<Guid, SpriteRenderer> Components = new();
 
 	private static ComputeShader SpriteComputeShader = new( "sprite/sprite_cs" );
@@ -652,6 +664,9 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		var attributes = RenderAttributes.Pool.Get();
 		try
 		{
+			// The sprite's own attributes go first so the batch's buffers and combos below always win
+			ComponentAttributes?.MergeTo( attributes );
+
 			attributes.SetCombo( "D_BLEND", _renderAdditive ? 1 : 0 );
 			attributes.SetCombo( "D_OPAQUE", _renderOpaque ? 1 : 0 );
 			attributes.SetCombo( "D_TEXT", _renderHasText ? 1 : 0 );
@@ -666,7 +681,9 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 			attributes.Set( "Vertices", (GpuBuffer)VertexBuffer );
 			if ( _renderHasText ) GpuFontText.Bind( attributes, _renderFrame );
 
-			Graphics.DrawIndexedInstanced( (GpuBuffer)IndexBuffer, SpriteMaterial, _renderInstanceCount, attributes );
+			// A material that has been destroyed since falls back to the built-in one
+			var material = Material.IsValid() ? Material : SpriteMaterial;
+			Graphics.DrawIndexedInstanced( (GpuBuffer)IndexBuffer, material, _renderInstanceCount, attributes );
 		}
 		finally
 		{
