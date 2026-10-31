@@ -29,6 +29,27 @@ public static class Launcher
 	/// </summary>
 	static bool FindExisting()
 	{
+		// Enumerating every process on the machine is the slowest thing the launcher does
+		// before it starts booting - 50ms on a Mac. Only Windows needs the process, to bring
+		// its window to the front; everywhere else a named mutex answers the same question
+		// for nothing. The mutex is held for the life of the process. A launcher that crashed
+		// leaves it behind, so whether it already existed says nothing - whether it can be
+		// taken does, and taking one that was abandoned throws, which is the same answer as
+		// taking it clean
+		if ( !OperatingSystem.IsWindows() )
+		{
+			instanceLock = new Mutex( false, "sbox-launcher-instance" );
+
+			try
+			{
+				return !instanceLock.WaitOne( 0 );
+			}
+			catch ( AbandonedMutexException )
+			{
+				return false;
+			}
+		}
+
 		var currentId = Process.GetCurrentProcess().Id;
 		var currentName = Process.GetCurrentProcess().ProcessName;
 
@@ -60,6 +81,8 @@ public static class Launcher
 
 		return false;
 	}
+
+	static Mutex instanceLock;
 
 	const int SW_RESTORE = 9;
 
