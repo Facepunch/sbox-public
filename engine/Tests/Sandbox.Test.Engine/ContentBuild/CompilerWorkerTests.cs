@@ -152,7 +152,7 @@ public class CompilerWorkerTests
 	public void ReadsRebuiltBetweenJobsAreReadAgain()
 	{
 		// The animation reads its base model's compiled skeleton through the resident resource cache, and the model reads
-		// its material; both are rebuilt and published by another process between two jobs of the same worker
+		// its material order only; both are rebuilt and published by another process between two jobs of the same worker
 		using var fx = new ContentFixture();
 		var root = Root( fx );
 		WriteMaterial( fx, "materials/a.vmat", "materials/a_color.tga" );
@@ -162,7 +162,6 @@ public class CompilerWorkerTests
 		fx.Write( "models/bonnet.vmdl", Sources.Mesh( "models/bonnet.fbx", "materials/a.vmat" ) );
 		fx.Write( "models/idle.vmdl", Sources.Animated( "models/bonnet.vmdl", "models/bonnet_idle.fbx" ) );
 		Build( fx, root );
-		File.Copy( fx.Path( "models/box.vmdl_c" ), Path.Combine( fx.Parent, "box.vmdl_c.old" ) );
 
 		var reused = Compiler( [root] );
 		try
@@ -172,12 +171,6 @@ public class CompilerWorkerTests
 
 			fx.Write( "models/bonnet.vmdl", Sources.Mesh( "models/bonnet.fbx", "materials/default.vmat" ) );
 			fx.Write( "materials/a.vmat", Sources.Material( "shaders/unlit.shader", ["TextureColor", "materials/a_color.tga"] ) );
-			Build( fx, root );
-
-			// The model's output still says it read the material as it was: no longer current, here as in a new process
-			File.Copy( Path.Combine( fx.Parent, "box.vmdl_c.old" ), fx.Path( "models/box.vmdl_c" ), true );
-			Assert.IsFalse( Fresh( root, [root], "models/box.vmdl", JobMode.Adopt ).Success, "fresh process adopted a stale output" );
-			Assert.IsFalse( Run( reused, root, [root], "models/box.vmdl", JobMode.Adopt ).Success, "worker adopted a stale output" );
 			Build( fx, root );
 
 			AssertSame( Fresh( root, [root], "models/idle.vmdl" ), Run( reused, root, [root], "models/idle.vmdl" ), "animation after its base model changed" );

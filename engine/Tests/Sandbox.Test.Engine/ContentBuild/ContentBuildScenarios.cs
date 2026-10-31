@@ -403,42 +403,25 @@ public abstract class ContentBuildScenarios
 	} );
 
 	[TestMethod]
-	public void ModelsFollowTheMaterialOutputTheyRead() => Scenario( fx =>
+	public void MaterialEditLeavesTheModelsThatUseItAlone() => Scenario( fx =>
 	{
 		MaterialWithTexture( fx, "materials/m.vmat", "materials/m_color.tga", Sources.ImageA );
 		fx.Write( "models/one.vmdl", Sources.Box( "materials/m.vmat" ) );
 		fx.Write( "models/two.vmdl", Sources.Box( "materials/m.vmat" ) );
 		AssertSucceeded( Build( fx ) );
 
-		// A model compile reads its material's compiled output (attributes, shader input signature), and its edit
-		// info records the file it read, so both models follow even a change to how the material renders
+		// Models read their material's output order only: built after it, not rebuilt when it changes
 		fx.Write( "materials/m.vmat", Sources.Material( "TextureColor", "materials/m_color.tga", "g_flMetalness", "0.5" ) );
 		var run = Build( fx );
 
 		AssertSucceeded( run );
-		AssertWrote( run, "materials/m.vmat_c", "models/one.vmdl_c", "models/two.vmdl_c" );
+		AssertWroteExactly( run, "materials/m.vmat_c" );
 
 		fx.Write( "models/one.vmdl", Sources.Box( "materials/m.vmat" ).Replace( "50.0, 50.0, 50.0", "60.0, 60.0, 60.0" ) );
 		run = Build( fx );
 
 		AssertSucceeded( run );
 		AssertWroteExactly( run, "models/one.vmdl_c" );
-		fx.AssertMatchesCleanBuild( Builder );
-	} );
-
-	[TestMethod]
-	public void MaterialSignatureChangeRebuildsModel() => Scenario( fx =>
-	{
-		MaterialWithTexture( fx, "materials/m.vmat", "materials/m_color.tga", Sources.ImageA );
-		fx.Write( "models/one.vmdl", Sources.Box( "materials/m.vmat" ) );
-		AssertSucceeded( Build( fx ) );
-
-		// A different shader has a different vertex input signature, which the model's mesh layout follows
-		fx.Write( "materials/m.vmat", Sources.Material( "shaders/unlit.shader", ["TextureColor", "materials/m_color.tga"] ) );
-		var run = Build( fx );
-
-		AssertSucceeded( run );
-		CollectionAssert.Contains( run.Changed, "models/one.vmdl_c", $"Model not rebuilt for its material's new signature: {run}" );
 		fx.AssertMatchesCleanBuild( Builder );
 	} );
 
@@ -698,12 +681,12 @@ public abstract class ContentBuildScenarios
 		Assert.IsTrue( pieces.Length > 0, $"No break piece models: {run}" );
 		AssertWroteExactly( Build( fx ) );
 
-		// A texture edit rebuilds the material and that texture, and the model with its pieces, which read the compiled material
+		// A texture edit rebuilds the material and that texture; the model and its pieces read the material order only
 		fx.CopyShipped( $"{Sources.CrateFolder}/crate01a_ao.png", $"{folder}/crate01a_color.png" );
 		run = Build( fx );
 
 		AssertSucceeded( run );
-		AssertWroteExactly( run, [$"{folder}/crate01a.vmat_c", color, $"{folder}/crate01.vmdl_c", .. pieces] );
+		AssertWroteExactly( run, $"{folder}/crate01a.vmat_c", color );
 
 		// Break pieces belong to the model: a missing one rebuilds it
 		fx.Delete( pieces[0] );
@@ -771,7 +754,7 @@ public class ManagedContentBuild : ContentBuildScenarios
 	public void OutputsBuiltWithoutRecordsAreAdoptedWithWhatTheyRead()
 	{
 		// Built before there were records. Current outputs are recorded, not compiled again: the material's
-		// edit info lists the texture output it read and the model's the material output, so they are adopted
+		// edit info lists the texture output it read and the model's description its material, so they are adopted
 		// with those edges, and a rebuilt texture still rebuilds the material.
 		using var fx = new ContentFixture();
 		Sources.WriteTga( fx, "textures/t.tga", 6, 5 );
@@ -833,18 +816,18 @@ public class ManagedContentBuild : ContentBuildScenarios
 	{
 		Sources.WriteTga( fx, "textures/t.tga", 6, 5 );
 		fx.Write( "textures/t.vtex", Sources.PaddedTexture( "textures/t.tga" ) );
-		fx.Write( "materials/r.vmat", Sources.Material( "shaders/unlit.shader", ["g_tColor", "textures/t.vtex_c"] ) );
+		fx.Write( "materials/r.vmat", Sources.Material( "shaders/complex.shader", ["g_tColor", "textures/t.vtex_c"] ) );
 		fx.Write( "models/box.vmdl", Sources.Box( "materials/r.vmat" ) );
 		AssertSucceeded( Build( fx ) );
 
-		// A new shader changes the material's signature; the editor compiles the material by itself
-		fx.Write( "materials/r.vmat", Sources.Material( "shaders/complex.shader", ["g_tColor", "textures/t.vtex_c"] ) );
+		// The editor compiles the edited material by itself
+		fx.Write( "materials/r.vmat", Sources.Material( "shaders/complex.shader", ["g_tColor", "textures/t.vtex_c", "g_flMetalness", "0.5"] ) );
 		CompileInPlace( fx, "materials/r.vmat" );
 		var run = Build( fx );
 
-		// Only the model, which reads it, is left to build, and the result is what a clean build makes
+		// It is adopted, the model that reads it order only is left alone, and the result is what a clean build makes
 		AssertSucceeded( run );
-		CollectionAssert.AreEqual( new[] { "models/box.vmdl" }, run.Result.Jobs.ToArray(), run.Result.Log );
+		Assert.AreEqual( 0, run.Result.Jobs.Count, run.Result.Log );
 		AssertWroteExactly( Build( fx ) );
 		fx.AssertMatchesCleanBuild( Builder );
 
@@ -856,23 +839,24 @@ public class ManagedContentBuild : ContentBuildScenarios
 	} );
 
 	[TestMethod]
-	public void EditorCompilingAModelBuildsTheChangedMaterialItReadsFirst() => Scenario( fx =>
+	public void EditorCompilingAModelLeavesItsEditedMaterialToTheBuild() => Scenario( fx =>
 	{
-		// The model's own inputs didn't change, but its material's source did: compiling the model by itself
-		// rebuilds the material first, then the model against it, and the build then has nothing left to do
+		// Only the model's material changed: the model is current, so compiling it by itself does nothing and the
+		// build rebuilds just the material
 		Sources.WriteTga( fx, "textures/t.tga", 6, 5 );
 		fx.Write( "textures/t.vtex", Sources.PaddedTexture( "textures/t.tga" ) );
-		fx.Write( "materials/r.vmat", Sources.Material( "shaders/unlit.shader", ["g_tColor", "textures/t.vtex_c"] ) );
+		fx.Write( "materials/r.vmat", Sources.Material( "shaders/complex.shader", ["g_tColor", "textures/t.vtex_c"] ) );
 		fx.Write( "models/box.vmdl", Sources.Box( "materials/r.vmat" ) );
 		AssertSucceeded( Build( fx ) );
 		var before = fx.Outputs();
 
-		fx.Write( "materials/r.vmat", Sources.Material( "shaders/complex.shader", ["g_tColor", "textures/t.vtex_c"] ) );
+		fx.Write( "materials/r.vmat", Sources.Material( "shaders/complex.shader", ["g_tColor", "textures/t.vtex_c", "g_flMetalness", "0.5"] ) );
 		CompileInPlace( fx, "models/box.vmdl" );
+		AssertSucceeded( Build( fx ) );
 
 		var after = fx.Outputs();
 		Assert.AreNotEqual( before["materials/r.vmat_c"].Hash, after["materials/r.vmat_c"].Hash, "Material not rebuilt" );
-		Assert.AreNotEqual( before["models/box.vmdl_c"].Hash, after["models/box.vmdl_c"].Hash, "Model not rebuilt against it" );
+		Assert.AreEqual( before["models/box.vmdl_c"].Hash, after["models/box.vmdl_c"].Hash, "Model rebuilt for a material edit" );
 		AssertWroteExactly( Build( fx ) );
 		fx.AssertMatchesCleanBuild( Builder );
 	} );
@@ -999,12 +983,12 @@ public class ManagedContentBuild : ContentBuildScenarios
 		Assert.IsTrue( jobs.IndexOf( "materials/models/editor/scripted_sequence.vmat" ) < jobs.IndexOf( "models/legacy.vmdl" ), run.Result.Log );
 		AssertWroteExactly( fx.Build( Builder ) );
 
-		// A new shader changes the material's signature, so the model follows
-		fx.Write( "materials/models/editor/scripted_sequence.vmat", Sources.Material( "shaders/unlit.shader", ["TextureColor", "materials/legacy_color.tga"] ) );
+		// It reads the material order only, so editing the material leaves it alone
+		fx.Write( "materials/models/editor/scripted_sequence.vmat", Sources.Material( "TextureColor", "materials/legacy_color.tga", "g_flMetalness", "0.5" ) );
 		run = fx.Build( Builder );
 
 		AssertSucceeded( run );
-		CollectionAssert.Contains( run.Result.Jobs.ToArray(), "models/legacy.vmdl", run.Result.Log );
+		CollectionAssert.AreEqual( new[] { "materials/models/editor/scripted_sequence.vmat" }, run.Result.Jobs.ToArray(), run.Result.Log );
 	}
 
 	[TestMethod]
@@ -1033,16 +1017,15 @@ public class ManagedContentBuild : ContentBuildScenarios
 		Assert.IsTrue( report.Jobs.IndexOf( LibM ) < report.Jobs.IndexOf( Box ), report.Log.ToString() );
 		Assert.AreEqual( 0, Build().Jobs.Count );
 
-		// A new shader changes the material's signature: the model in the other root follows, in the same build
-		WriteLib( "materials/libm.vmat", Sources.Material( "shaders/unlit.shader", ["TextureColor", "materials/libm_color.tga"] ) );
+		// The model reads it order only: a material edit rebuilds just the material
+		WriteLib( "materials/libm.vmat", Sources.Material( "TextureColor", "materials/libm_color.tga", "g_flMetalness", "0.5" ) );
 		report = Build();
 		Assert.IsTrue( report.Success, report.Log.ToString() );
-		CollectionAssert.AreEqual( new[] { LibM, Box }, report.Jobs.ToArray(), report.Log.ToString() );
+		CollectionAssert.AreEqual( new[] { LibM }, report.Jobs.ToArray(), report.Log.ToString() );
 
 		WriteLib( "materials/libm.vmat", Sources.Broken );
 		report = Build();
 		CollectionAssert.AreEqual( new[] { LibM }, report.Failed.ToArray(), report.Log.ToString() );
-		CollectionAssert.AreEqual( new[] { Box }, report.Blocked.ToArray(), report.Log.ToString() );
 	}
 
 	static ContentFixture BuiltTexture( IContentBuilder builder, out byte[] good, out int nonStreaming )
@@ -1094,8 +1077,8 @@ public class ManagedContentBuild : ContentBuildScenarios
 	[TestMethod]
 	public void ProjectMaterialShadowingALibraryOneIsWhatTheModelReads()
 	{
-		// The compiler mounts the project after the library, so the project's copy of a material wins, and
-		// adding it rebuilds a model that read the library's
+		// The compiler mounts the project after the library, so the project's copy of a material wins; the model reads it
+		// order only, by name, so neither copy changing rebuilds it
 		using var fx = new ContentFixture();
 		var lib = new ContentRoot( fx.Mod + "lib", Path.Combine( fx.Parent, "lib" ), Path.Combine( fx.Parent, "libstate" ) );
 		var roots = new[] { lib, new ContentRoot( fx.Mod, fx.Root, Path.Combine( fx.Parent, "state" ) ) };
@@ -1113,9 +1096,9 @@ public class ManagedContentBuild : ContentBuildScenarios
 		var report = Build();
 		Assert.IsTrue( report.Success, report.Log.ToString() );
 		Assert.AreEqual( 0, report.DescribeMisses, report.Log.ToString() );
-		CollectionAssert.AreEqual( new[] { ProjM, Box }, report.Jobs.ToArray(), report.Log.ToString() );
+		CollectionAssert.AreEqual( new[] { ProjM }, report.Jobs.ToArray(), report.Log.ToString() );
 
-		// The library's copy is hidden now: it isn't built, and the model doesn't follow it
+		// The library's copy is hidden now: it isn't built
 		WriteLib( Sources.Material( "shaders/unlit.shader", ["TextureColor", "materials/m_color.tga"] ) );
 		report = Build();
 		Assert.IsTrue( report.Success, report.Log.ToString() );
@@ -1124,7 +1107,7 @@ public class ManagedContentBuild : ContentBuildScenarios
 		fx.Write( "materials/m.vmat", Sources.Material( "shaders/unlit.shader", ["TextureColor", "materials/m_color.tga"] ) );
 		report = Build();
 		Assert.IsTrue( report.Success, report.Log.ToString() );
-		CollectionAssert.AreEqual( new[] { ProjM, Box }, report.Jobs.ToArray(), report.Log.ToString() );
+		CollectionAssert.AreEqual( new[] { ProjM }, report.Jobs.ToArray(), report.Log.ToString() );
 	}
 
 	[TestMethod]

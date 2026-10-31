@@ -89,7 +89,8 @@ public sealed record SpecialDependency( string Compiler, uint Data, string Name,
 
 /// <param name="Source">Absolute path of the source whose compiled output is read.</param>
 /// <param name="Compiled">Absolute path of the compiled file that was there to read, or null.</param>
-public sealed record PrerequisiteRead( string Source, string Compiled );
+/// <param name="OrderOnly">Built first, but its contents changing doesn't make the reader stale.</param>
+public sealed record PrerequisiteRead( string Source, string Compiled, bool OrderOnly = false );
 
 /// <summary>
 /// The tab-separated facts resourcecompiler reports for a build (ResourceCompilerContext::ReportBuildFact),
@@ -120,7 +121,7 @@ public static class BuildReportParser
 				("input", 4 ) => Add( inputs, new InputFact( f[3], (Hex( f[1] ) & 2) != 0, Hex( f[2] ), (Hex( f[1] ) & 4) != 0 ) ),
 				("special", 5 ) => Add( special, new SpecialDependency( f[1], uint.Parse( f[2] ), f[4], Hex( f[3] ) ) ),
 				("arg", 2 ) => Add( arguments, f[1] ),
-				("prereq", 3 ) => f[1].Length == 0 || Add( prerequisites, new PrerequisiteRead( f[1], f[2].Length > 0 ? Path.GetFullPath( f[2] ) : null ) ),
+				("prereq", 3 or 4 ) => f[1].Length == 0 || (f.Length == 3 || f[3] == "order") && Add( prerequisites, new PrerequisiteRead( f[1], f[2].Length > 0 ? Path.GetFullPath( f[2] ) : null, f.Length == 4 ) ),
 				_ => false,
 			};
 			if ( !ok ) return Malformed( line );
