@@ -6,8 +6,16 @@ partial class MapLoader
 {
 	private class PropEntityLoader : EntityLoader
 	{
-		public override void Load( EntityBuilder builder, MapEntity entity ) => builder.BuildProp( Read( entity ) );
+		public override void Load( EntityBuilder builder, MapEntity entity )
+		{
+			var prop = Read( entity );
+			var instance = builder.BuildProp( prop );
+			if ( instance is not null )
+				AddInteraction( builder, entity, instance, prop );
+		}
+
 		protected virtual MapProp Read( MapEntity entity ) => ReadProp( entity );
+		protected virtual bool AddInteraction( EntityBuilder builder, MapEntity entity, GameObject instance, MapProp prop ) => false;
 	}
 
 	private sealed class DynamicPropEntityLoader : PropEntityLoader
