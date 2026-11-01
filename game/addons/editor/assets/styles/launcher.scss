@@ -292,7 +292,7 @@ LauncherWindow.dropping .projects { background-color: rgba( $accent, 0.06 ); bor
 
 .projectrow:hover .open { opacity: 1; transform: translateX( 0px ); }
 .projectrow .open:hover { background-color: $accent-hover; transform: scale( 1.08 ); }
-.projectrow .open:active { transform: scale( 0.94 ); }
+.projectrow .open:active { background-color: $accent; }
 .projectrow .open .icon { flex-shrink: 0; font-size: 13px; margin-right: 4px; }
 .projectrow .open .button-right-column { flex-shrink: 0; }
 .projectrow .open .button-label { white-space: nowrap; }
