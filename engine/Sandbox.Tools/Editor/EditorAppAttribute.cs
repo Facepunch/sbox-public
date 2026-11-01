@@ -20,8 +20,16 @@ namespace Editor
 
 		public void Open()
 		{
-			var window = EditorTypeLibrary.Create<Widget>( TargetType );
-			window.Show();
+			if ( TargetType.IsAssignableTo( typeof( PanelWindow ) ) )
+			{
+				var window = EditorTypeLibrary.Create<PanelWindow>( TargetType );
+				window.Show();
+			}
+			else
+			{
+				var window = EditorTypeLibrary.Create<Widget>( TargetType );
+				window.Show();
+			}
 		}
 	}
 }
