@@ -24,6 +24,7 @@ sealed class DDGIVolumeSystem : GameObjectSystem<DDGIVolumeSystem>
 		ReleaseBuffer();
 
 		Scene?.RenderAttributes?.Set( "DDGI_VolumeCount", 0 );
+		Scene?.RenderAttributes?.Set( "DDGI_Enabled", 0 );
 		Scene?.RenderAttributes?.Set( "DDGI_Volumes", (GpuBuffer)null );
 
 		base.Dispose();
@@ -83,6 +84,7 @@ sealed class DDGIVolumeSystem : GameObjectSystem<DDGIVolumeSystem>
 			EnsureBufferCapacity( volumeData.Count );
 			GpuBuffer.SetData( volumeData );
 			Scene.RenderAttributes.Set( "DDGI_VolumeCount", volumeData.Count );
+			Scene.RenderAttributes.Set( "DDGI_Enabled", 1 ); // Specialization constant: pixel shaders leave DDGI out when 0
 			Scene.RenderAttributes.Set( "DDGI_Volumes", GpuBuffer );
 			return;
 		}
@@ -90,6 +92,7 @@ sealed class DDGIVolumeSystem : GameObjectSystem<DDGIVolumeSystem>
 		// No valid volumes: clear renderer attributes to avoid stale data.
 		ReleaseBuffer();
 		Scene.RenderAttributes.Set( "DDGI_VolumeCount", 0 );
+		Scene.RenderAttributes.Set( "DDGI_Enabled", 0 );
 		Scene.RenderAttributes.Set( "DDGI_Volumes", (GpuBuffer)null );
 	}
 

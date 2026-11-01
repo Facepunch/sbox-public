@@ -59,6 +59,11 @@ struct DDGIVolume
 StructuredBuffer<DDGIVolume> DDGIVolumes < Attribute( "DDGI_Volumes" ); >;
 uint DDGIVolumeCount < Attribute( "DDGI_VolumeCount" ); >;
 
+// Whether the scene has any volumes, as a specialization constant: pixel pipelines for scenes without DDGI leave its code
+// out, which takes complex.shader's forward pass from 7 to 8 waves on RDNA3. Compute doesn't get specialized, so it keeps
+// the runtime count.
+int DDGIEnabled < Attribute( "DDGI_Enabled" ); Default( 0 ); SpecializedConstant(); >;
+
 #define DDGISampler g_sBilinearClamp
 #define DDGI_IRRADIANCE_OCT_RESOLUTION 8
 #define DDGI_DISTANCE_OCT_RESOLUTION 16
@@ -232,7 +237,11 @@ struct DDGI
 
     static bool IsEnabled()
     {
-        return DDGIVolumeCount > 0;
+        #if ( PROGRAM == VFX_PROGRAM_PS )
+            return DDGIEnabled != 0 && DDGIVolumeCount > 0;
+        #else
+            return DDGIVolumeCount > 0;
+        #endif
     }
 
     static float3 Evaluate( DDGIVolume volume, float3 positionWs, float3 normalWs, float3 cameraDirection = float3(0,0,0) )
