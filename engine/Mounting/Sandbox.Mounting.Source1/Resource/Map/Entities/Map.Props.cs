@@ -20,16 +20,16 @@ partial class MapLoader
 		{
 			Parent = world
 		};
-		public void BuildProp( MapProp prop )
+		public GameObject BuildProp( MapProp prop )
 		{
 			if ( string.IsNullOrWhiteSpace( prop.Model ) || !prop.Model.EndsWith( ".mdl", StringComparison.OrdinalIgnoreCase ) )
 			{
 				warnings.Add( $"Prop '{prop.Name}' has no supported MDL model; omitted." );
-				return;
+				return null;
 			}
 
-			if ( !float.IsFinite( prop.Scale ) || prop.Scale <= 0 || prop.Skin < 0 )
-				throw new InvalidDataException( $"{owner.FullPath}: prop '{prop.Name}' has invalid scale or skin." );
+			if ( !float.IsFinite( prop.Scale ) || prop.Scale <= 0 || prop.Skin < 0 || prop.Body < 0 )
+				throw new InvalidDataException( $"{owner.FullPath}: prop '{prop.Name}' has invalid scale, skin or body." );
 			if ( !float.IsFinite( prop.MassScale ) )
 				throw new InvalidDataException( $"{owner.FullPath}: prop '{prop.Name}' has invalid mass scale." );
 			var path = prop.Model.Replace( '\\', '/' ).TrimStart( '/' );
@@ -40,7 +40,7 @@ partial class MapLoader
 				if ( resource is null )
 				{
 					warnings.Add( $"Prop model '{path}' is missing; its instances were omitted." );
-					return;
+					return null;
 				}
 
 				try
@@ -57,13 +57,13 @@ partial class MapLoader
 				catch ( Exception e ) when ( e is IOException or InvalidDataException or NotSupportedException or InvalidOperationException )
 				{
 					warnings.Add( $"Prop model '{path}' could not be imported: {e.Message}; its instances were omitted." );
-					return;
+					return null;
 				}
 			}
 
 			model ??= LoadModel( path );
 			if ( model is null )
-				return;
+				return null;
 			ReportPhysicsSettings( prop, model, path );
 			var useGameplay = !skybox && CanBuildGameplayProp( prop, model, path );
 			var isStatic = prop.Physics == PropPhysics.Static && !useGameplay;
@@ -78,10 +78,11 @@ partial class MapLoader
 			if ( isStatic )
 				instance.Tags.Add( "world" );
 			var materialGroup = GetSkin( model, prop.Skin, path );
+			var bodyGroups = GetBodyGroupMask( model, prop.Body );
 			if ( useGameplay )
 			{
-				AddGameplayProp( prop, instance, model, materialGroup );
-				return;
+				AddGameplayProp( prop, instance, model, materialGroup, bodyGroups );
+				return instance;
 			}
 
 			var ragdollRenderer = prop.Physics == PropPhysics.Ragdoll ? instance.AddComponent<SkinnedModelRenderer>() : null;
@@ -90,9 +91,29 @@ partial class MapLoader
 			renderer.Tint = prop.Tint;
 			renderer.Enabled = prop.Visible;
 			renderer.MaterialGroup = materialGroup;
+			renderer.BodyGroups = bodyGroups;
 			if ( prop.StaticPropIndex >= 0 && (prop.StaticPropFlags & 0x10) != 0 )
 				renderer.RenderType = ModelRenderer.ShadowRenderType.Off;
 			AddPhysics( prop, renderer, ragdollRenderer, path );
+			return instance;
+		}
+
+		private static ulong GetBodyGroupMask( Model model, int body )
+		{
+			var parts = model.Parts;
+			var bodyGroups = parts.DefaultMask;
+			foreach ( var part in parts.All )
+			{
+				if ( part.Choices.Count == 0 )
+					continue;
+
+				var choiceIndex = body % part.Choices.Count;
+				body /= part.Choices.Count;
+				bodyGroups &= ~part.Mask;
+				bodyGroups |= part.Choices[choiceIndex].Mask;
+			}
+
+			return bodyGroups;
 		}
 
 		public void Finish()

@@ -6,8 +6,16 @@ partial class MapLoader
 {
 	private class PropEntityLoader : EntityLoader
 	{
-		public override void Load( EntityBuilder builder, MapEntity entity ) => builder.BuildProp( Read( entity ) );
+		public override void Load( EntityBuilder builder, MapEntity entity )
+		{
+			var prop = Read( entity );
+			var instance = builder.BuildProp( prop );
+			if ( instance is not null )
+				AddInteraction( builder, entity, instance, prop );
+		}
+
 		protected virtual MapProp Read( MapEntity entity ) => ReadProp( entity );
+		protected virtual bool AddInteraction( EntityBuilder builder, MapEntity entity, GameObject instance, MapProp prop ) => false;
 	}
 
 	private sealed class DynamicPropEntityLoader : PropEntityLoader
@@ -51,6 +59,6 @@ partial class MapLoader
 		var color = entity.Vector( "rendercolor", new Vector3( 255 ) ) / 255.0f;
 		var renderMode = entity.Integer( "rendermode" );
 		var alpha = renderMode == 0 ? 1 : entity.Number( "renderamt", 255 ) / 255.0f;
-		return new MapProp( entity.Get( "model" ), entity.Get( "targetname" ) ?? className.ToLowerInvariant(), entity.Vector( "origin" ), ReadEntityAngles( entity ), entity.Number( "modelscale", 1 ), entity.Integer( "skin" ), entity.Integer( "solid", 6 ), new Color( color.x, color.y, color.z, alpha ), Visible: renderMode != 10 );
+		return new MapProp( entity.Get( "model" ), entity.Get( "targetname" ) ?? className.ToLowerInvariant(), entity.Vector( "origin" ), ReadEntityAngles( entity ), entity.Number( "modelscale", 1 ), entity.Integer( "skin" ), entity.Integer( "solid", 6 ), new Color( color.x, color.y, color.z, alpha ), Visible: renderMode != 10, Body: entity.Integer( "body" ) );
 	}
 }
