@@ -63,6 +63,7 @@ internal partial class ShadowMapper
 		{
 			ProjectionToView = System.Numerics.Matrix4x4.Transpose( frustum.GetInvReverseZProj()._numerics ),
 			ViewToWorldRotation = viewToWorldRotation,
+			WorldToProjection = System.Numerics.Matrix4x4.Transpose( frustum.GetReverseZViewProj()._numerics ),
 			CameraPosition = view.GetCameraPosition(),
 			ViewportSize = new Vector2( mainViewport.Rect.Width, mainViewport.Rect.Height ),
 			IsSkybox = view.GetRenderAttributesPtr().GetBoolValue( "IsSkybox", false ),
