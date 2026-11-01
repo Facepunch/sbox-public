@@ -59,7 +59,7 @@ namespace Sandbox
 		{
 			decimal res = Default;
 
-			if ( !decimal.TryParse( str, out res ) )
+			if ( !decimal.TryParse( str, NumberStyles.Number, CultureInfo.InvariantCulture, out res ) )
 				return default;
 
 			return res;
@@ -112,7 +112,7 @@ namespace Sandbox
 			if ( str.Equals( "no", StringComparison.OrdinalIgnoreCase ) ) return false;
 			if ( str.Equals( "null", StringComparison.OrdinalIgnoreCase ) ) return false;
 
-			if ( float.TryParse( str, out float f ) )
+			if ( float.TryParse( str, NumberStyles.Float, CultureInfo.InvariantCulture, out float f ) )
 				return f != 0;
 
 			return true;

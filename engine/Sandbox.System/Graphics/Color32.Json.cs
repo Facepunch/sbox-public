@@ -59,7 +59,7 @@ namespace Sandbox.Internal.JsonConvert
 
 		public override void Write( Utf8JsonWriter writer, Color32 val, JsonSerializerOptions options )
 		{
-			writer.WriteStringValue( $"{val.r},{val.g},{val.b},{val.a}" );
+			writer.WriteStringValue( FormattableString.Invariant( $"{val.r},{val.g},{val.b},{val.a}" ) );
 		}
 	}
 }

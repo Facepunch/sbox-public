@@ -1550,7 +1550,7 @@ public partial struct Color : IEquatable<Color>
 
 	public override readonly string ToString()
 	{
-		return $"{r:0.00}, {g:0.00}, {b:0.00}, {a:0.00}";
+		return FormattableString.Invariant( $"{r:0.00}, {g:0.00}, {b:0.00}, {a:0.00}" );
 	}
 
 	#region operators

@@ -617,7 +617,7 @@ public struct Rotation : System.IEquatable<Rotation>, IParsable<Rotation>, IInte
 
 	public override readonly string ToString()
 	{
-		return $"{x:0.#####},{y:0.#####},{z:0.#####},{w:0.#####}";
+		return FormattableString.Invariant( $"{x:0.#####},{y:0.#####},{z:0.#####},{w:0.#####}" );
 	}
 
 	#region operators

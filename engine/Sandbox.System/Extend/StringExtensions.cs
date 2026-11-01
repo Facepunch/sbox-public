@@ -199,7 +199,7 @@ public static partial class SandboxSystemExtensions
 	/// </summary>
 	public static float ToFloat( this string str, float Default = 0 )
 	{
-		if ( float.TryParse( str, NumberStyles.Float, null, out var res ) )
+		if ( float.TryParse( str, NumberStyles.Float, CultureInfo.InvariantCulture, out var res ) )
 			return res;
 
 		return Default;
@@ -227,7 +227,7 @@ public static partial class SandboxSystemExtensions
 	/// </summary>
 	public static float ToDouble( this string str, float Default = 0 )
 	{
-		if ( float.TryParse( str, NumberStyles.Float, null, out var res ) )
+		if ( float.TryParse( str, NumberStyles.Float, CultureInfo.InvariantCulture, out var res ) )
 			return res;
 
 		return Default;
@@ -256,7 +256,7 @@ public static partial class SandboxSystemExtensions
 	/// </summary>
 	public static decimal ToDecimal( this string str, decimal Default = 0 )
 	{
-		if ( decimal.TryParse( str, out var res ) )
+		if ( decimal.TryParse( str, NumberStyles.Number, CultureInfo.InvariantCulture, out var res ) )
 			return res;
 		return Default;
 	}
@@ -358,7 +358,7 @@ public static partial class SandboxSystemExtensions
 		if ( str.Equals( "no", StringComparison.OrdinalIgnoreCase ) ) return false;
 		if ( str.Equals( "null", StringComparison.OrdinalIgnoreCase ) ) return false;
 
-		if ( float.TryParse( str, out float f ) )
+		if ( float.TryParse( str, NumberStyles.Float, CultureInfo.InvariantCulture, out float f ) )
 			return f != 0;
 
 		return true;

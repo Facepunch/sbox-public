@@ -384,10 +384,10 @@ namespace Sandbox.UI
 		public readonly override string ToString()
 		{
 			if ( Unit == LengthUnit.Expression ) return $"{_expression}";
-			if ( Unit == LengthUnit.Pixels ) return $"{Value}px";
-			if ( Unit == LengthUnit.Percentage ) return $"{Value}%";
-			if ( Unit == LengthUnit.RootEm ) return $"{Value}rem";
-			if ( Unit == LengthUnit.Em ) return $"{Value}em";
+			if ( Unit == LengthUnit.Pixels ) return FormattableString.Invariant( $"{Value}px" );
+			if ( Unit == LengthUnit.Percentage ) return FormattableString.Invariant( $"{Value}%" );
+			if ( Unit == LengthUnit.RootEm ) return FormattableString.Invariant( $"{Value}rem" );
+			if ( Unit == LengthUnit.Em ) return FormattableString.Invariant( $"{Value}em" );
 
 			return $"{Unit}";
 		}

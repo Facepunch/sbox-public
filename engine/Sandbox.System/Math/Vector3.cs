@@ -766,7 +766,7 @@ public partial struct Vector3 : System.IEquatable<Vector3>, IParsable<Vector3>, 
 	/// </summary>
 	public readonly override string ToString()
 	{
-		return $"{x:0.####},{y:0.####},{z:0.####}";
+		return FormattableString.Invariant( $"{x:0.####},{y:0.####},{z:0.####}" );
 	}
 
 	/// <inheritdoc cref="Parse(string)" />

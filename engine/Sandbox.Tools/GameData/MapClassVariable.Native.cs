@@ -1,5 +1,6 @@
 ﻿using Native;
 using System;
+using System.Globalization;
 using System.Reflection;
 using System.Text;
 
@@ -35,7 +36,7 @@ public partial class MapClassVariable
 			output.AppendLine( "{" );
 			foreach ( var kvp in Metadata )
 			{
-				bool isNotString = bool.TryParse( kvp.Value, out bool _ ) || float.TryParse( kvp.Value, out float _ );
+				bool isNotString = bool.TryParse( kvp.Value, out bool _ ) || float.TryParse( kvp.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out float _ );
 				output.AppendLine( $"\t{kvp.Key} = {(isNotString ? kvp.Value : kvp.Value.QuoteSafe())}" );
 			}
 			output.AppendLine( "}" );

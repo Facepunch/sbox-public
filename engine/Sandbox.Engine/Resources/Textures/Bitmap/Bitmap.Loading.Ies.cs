@@ -1,4 +1,5 @@
 ﻿using SkiaSharp;
+using System.Globalization;
 using System.IO;
 using System.Text;
 
@@ -127,18 +128,18 @@ public partial class Bitmap
 			var lightInfo = reader.ReadToEnd().Split( new string[] { " ", "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries );
 
 			NumLamps = int.Parse( lightInfo[0] );
-			LumensPerLamp = float.Parse( lightInfo[1] );
-			CandelaMultiplier = float.Parse( lightInfo[2] );
+			LumensPerLamp = float.Parse( lightInfo[1], CultureInfo.InvariantCulture );
+			CandelaMultiplier = float.Parse( lightInfo[2], CultureInfo.InvariantCulture );
 			NumVertical = int.Parse( lightInfo[3] );
 			NumHorizontal = int.Parse( lightInfo[4] );
 			PhotometricType = int.Parse( lightInfo[5] );
 			UnitsType = int.Parse( lightInfo[6] );
-			Width = float.Parse( lightInfo[7] );
-			Length = float.Parse( lightInfo[8] );
-			Height = float.Parse( lightInfo[9] );
-			BallastFactor = float.Parse( lightInfo[10] );
-			Unused = float.Parse( lightInfo[11] );
-			InputWatts = float.Parse( lightInfo[12] );
+			Width = float.Parse( lightInfo[7], CultureInfo.InvariantCulture );
+			Length = float.Parse( lightInfo[8], CultureInfo.InvariantCulture );
+			Height = float.Parse( lightInfo[9], CultureInfo.InvariantCulture );
+			BallastFactor = float.Parse( lightInfo[10], CultureInfo.InvariantCulture );
+			Unused = float.Parse( lightInfo[11], CultureInfo.InvariantCulture );
+			InputWatts = float.Parse( lightInfo[12], CultureInfo.InvariantCulture );
 
 			VerticalAngles = new List<float>();
 			HorizontalAngles = new List<float>();
@@ -148,19 +149,19 @@ public partial class Bitmap
 
 			for ( int y = 0; y < NumVertical; y++, i++ )
 			{
-				VerticalAngles.Add( float.Parse( lightInfo[i] ) );
+				VerticalAngles.Add( float.Parse( lightInfo[i], CultureInfo.InvariantCulture ) );
 			}
 
 			for ( int x = 0; x < NumHorizontal; x++, i++ )
 			{
-				HorizontalAngles.Add( float.Parse( lightInfo[i] ) );
+				HorizontalAngles.Add( float.Parse( lightInfo[i], CultureInfo.InvariantCulture ) );
 			}
 
 			for ( int x = 0; x < NumHorizontal; x++ )
 			{
 				for ( int y = 0; y < NumVertical; y++, i++ )
 				{
-					Candelas.Add( float.Parse( lightInfo[i] ) );
+					Candelas.Add( float.Parse( lightInfo[i], CultureInfo.InvariantCulture ) );
 				}
 			}
 

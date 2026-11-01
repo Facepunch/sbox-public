@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Globalization;
 using System.Text;
 
 namespace Sandbox.UI
@@ -792,7 +793,7 @@ namespace Sandbox.UI
 
 					// TryReadFloat eats lengths, TryReadLength eats floats
 					// settle it with this
-					if ( float.TryParse( maybeFloat, out float val ) )
+					if ( float.TryParse( maybeFloat, NumberStyles.Float, CultureInfo.InvariantCulture, out float val ) )
 					{
 						if ( floatCount == 0 )
 						{

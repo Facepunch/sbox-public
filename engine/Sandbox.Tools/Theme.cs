@@ -1,4 +1,5 @@
-﻿using System.Runtime.InteropServices;
+﻿using System.Globalization;
+using System.Runtime.InteropServices;
 
 namespace Editor;
 
@@ -198,13 +199,13 @@ public static partial class Theme
 		Prefab = Color.Parse( theme?["Prefab"] ) ?? Color.Parse( "#3273EB" ).Value;
 		Folder = Color.Parse( theme?["Folder"] ) ?? Color.Parse( "#E6DB74" ).Value;
 
-		if ( !float.TryParse( theme?["ControlRadius"], out ControlRadius ) )
+		if ( !float.TryParse( theme?["ControlRadius"], NumberStyles.Float, CultureInfo.InvariantCulture, out ControlRadius ) )
 			ControlRadius = 3.0f;
 
-		if ( !float.TryParse( theme?["ControlHeight"], out ControlHeight ) )
+		if ( !float.TryParse( theme?["ControlHeight"], NumberStyles.Float, CultureInfo.InvariantCulture, out ControlHeight ) )
 			ControlHeight = 18.0f;
 
-		if ( !float.TryParse( theme?["RowHeight"], out RowHeight ) )
+		if ( !float.TryParse( theme?["RowHeight"], NumberStyles.Float, CultureInfo.InvariantCulture, out RowHeight ) )
 			RowHeight = 16.0f;
 
 		HeadingFont = theme?["HeadingFont"];
