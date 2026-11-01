@@ -128,8 +128,9 @@ internal sealed class RenderFrame
 	{
 		Time = RenderContext.RenderTime;
 		context.Attributes.Set( TimeAttribute, Time );
-		// The managed skybox is a child frame; AO and SSR belong to the main camera.
-		context.Attributes.Set( DisableScreenSpaceEffects, IsSkybox );
+		// The managed skybox is a child frame; AO and SSR belong to the main camera. The slots are frame-wide, so a camera that
+		// publishes neither would read another camera's.
+		context.Attributes.Set( DisableScreenSpaceEffects, IsSkybox || !(Stages?.PublishesScreenSpaceEffects ?? true) );
 		constants = new ViewConstants();
 		View.FillConstants( ref constants, Output.Size, Time, Output.Samples, DepthMin, DepthMax );
 

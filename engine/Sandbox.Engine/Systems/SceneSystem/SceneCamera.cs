@@ -115,6 +115,19 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	internal void RenderEarlyPostProcess( Rendering.Stage stage, PostProcessQueue queue ) => RenderEarlyPostProcessHook?.Invoke( stage, queue );
 
 	/// <summary>
+	/// Whether the camera component's post processing publishes a pipeline texture (ambient occlusion).
+	/// </summary>
+	internal Func<bool> PublishesPipelineTexturesHook;
+
+	/// <summary>
+	/// Whether this camera's post processing, when it runs, publishes a pipeline texture (ambient occlusion). Those slots are
+	/// frame-wide: a view that publishes neither AO nor screen-space reflections must not sample them, or it reads another
+	/// camera's results in its own screen space - an overlay camera's viewmodel shows the main camera's occlusion of the
+	/// world behind it.
+	/// </summary>
+	internal bool PublishesPipelineTextures => PublishesPipelineTexturesHook?.Invoke() ?? false;
+
+	/// <summary>
 	/// Called when rendering the transparent pass
 	/// </summary>
 	[Obsolete]
@@ -274,17 +287,20 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	ScreenSpaceReflectionsPass _reflections;
 
 	/// <summary>
-	/// The screen-space reflections this camera's views render: part of every camera, or null when the graphics settings
-	/// turn them off (<see cref="ScreenSpaceReflectionsPass.IsEnabled"/>).
+	/// The screen-space reflections this camera's views render: part of every camera that clears colour, or null when the
+	/// graphics settings turn them off (<see cref="ScreenSpaceReflectionsPass.IsEnabled"/>). A camera that draws over another
+	/// camera's image (a viewmodel camera) has no scene of its own to reflect, and its result would replace the other
+	/// camera's in the frame-wide reflections slot.
 	/// </summary>
-	internal ScreenSpaceReflectionsPass ScreenSpaceReflections => ScreenSpaceReflectionsPass.IsEnabled ? _reflections : null;
+	internal ScreenSpaceReflectionsPass ScreenSpaceReflections
+		=> ScreenSpaceReflectionsPass.IsEnabled && ClearFlags.HasFlag( ClearFlags.Color ) ? _reflections : null;
 
 	/// <summary>
 	/// Make the pass while reflections are on. On the main thread: it makes its shaders here, which a render job can't.
 	/// </summary>
 	internal void UpdateScreenSpaceReflections()
 	{
-		if ( ScreenSpaceReflectionsPass.IsEnabled )
+		if ( ScreenSpaceReflectionsPass.IsEnabled && ClearFlags.HasFlag( ClearFlags.Color ) )
 			_reflections ??= new();
 	}
 

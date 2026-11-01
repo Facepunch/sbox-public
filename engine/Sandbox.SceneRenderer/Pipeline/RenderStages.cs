@@ -27,6 +27,12 @@ internal interface IRenderStages
 	ScreenSpaceReflectionsPass ScreenSpaceReflections => null;
 
 	/// <summary>
+	/// Whether the camera publishes the ambient occlusion or screen-space reflection pipeline textures itself. The slots are
+	/// frame-wide, so a frame that publishes neither doesn't sample them (<see cref="RenderFrame.SetViewConstants"/>).
+	/// </summary>
+	bool PublishesScreenSpaceEffects => true;
+
+	/// <summary>
 	/// Trace them in <paramref name="target"/>'s context with no frame targets bound, or keep the lit scene as their
 	/// <paramref name="history"/> with colour bound.
 	/// </summary>

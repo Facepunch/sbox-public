@@ -133,8 +133,10 @@ internal sealed class StandardPipeline
 			if ( prepassCulled ) AddLateDepthNormalPrepass( setup, viewport, normals, depth );
 		}
 
-		// Screen-space reflections are part of every camera view; reflections, cube captures and child views go without
+		// Screen-space reflections are part of every camera view; reflections, cube captures, child views and cameras drawing
+		// over another camera's image go without
 		var reflections = hooks && !reflection && !capture && !view.GetParent().IsValid ? camera?.ScreenSpaceReflections : null;
+		ViewSetup.SetScreenSpaceEffects( view, reflections is not null || (hooks && view.GetPostProcessEnabled() && camera?.PublishesPipelineTextures == true) );
 		var earlyGraphicsEffects = camera?.HasEarlyPostProcess( Stage.AfterDepthPrepass, PostProcessQueue.Graphics ) == true;
 
 		var overlap = RenderPipeline.OverlapReflections && hooks && view.GetPostProcessEnabled()

@@ -162,6 +162,7 @@ public sealed unsafe partial class CommandList
 			drawAttributeAccess?.ClearRenderTargets();
 			drawAttributes?.Clear( false );
 			_entries.Clear();
+			PublishesPipelineTextures = false;
 		}
 	}
 
@@ -1062,7 +1063,14 @@ public sealed unsafe partial class CommandList
 		}
 
 		AddEntry( &Execute, new Entry { Object5 = buffer.Name, Data1 = new Vector4( (int)slot, 0, 0, 0 ) } );
+		PublishesPipelineTextures = true;
 	}
+
+	/// <summary>
+	/// Whether this list publishes a pipeline texture (<see cref="SetPipelineTexture"/>) since it was last reset. The slots
+	/// are frame-wide, so a view samples them only when something in it published them (<c>DisableScreenSpaceEffects</c>).
+	/// </summary>
+	internal bool PublishesPipelineTextures { get; private set; }
 
 
 	/// <inheritdoc cref="ComputeShader.Dispatch(int, int, int)"/>

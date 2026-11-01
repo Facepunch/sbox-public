@@ -56,10 +56,6 @@ internal static class ViewSetup
 		var viewAttributes = setup.m_pView.GetRenderAttributesPtr();
 		SetLookups( viewAttributes );
 
-		// AO and SSR slots are frame-global. Child views have different screen coordinates
-		// and cannot consume the parent's results, even when their post processing is disabled.
-		viewAttributes.SetBoolValue( DisableScreenSpaceEffects, setup.m_pView.GetParent().IsValid );
-
 		var ambient = viewAttributes.GetVector4DValue( AmbientColor, setup.m_pAttributes.GetVector4DValue( AmbientColor, default ) );
 		viewAttributes.SetVector4DValue( ToolsAmbientLighting, ambient );
 
@@ -67,6 +63,16 @@ internal static class ViewSetup
 		viewAttributes.SetTextureValue( DynamicAmbientOcclusion, CSceneSystem.GetWellKnownTexture( SceneSystemWellKnownTextureObjectID.SCENE_TXTR_WHITE_1x1 ), -1 );
 		viewAttributes.SetTextureValue( DynamicAmbientOcclusionDepth, CSceneSystem.GetWellKnownTexture( SceneSystemWellKnownTextureObjectID.SCENE_TXTR_ONE_16_BIT_1x1 ), -1 );
 		viewAttributes.SetTextureValue( ReflectionTextureColor, CSceneSystem.GetWellKnownTexture( SceneSystemWellKnownTextureObjectID.SCENE_TXTR_TRANSPARENT_BLACK_1x1 ), -1 );
+	}
+
+	/// <summary>
+	/// The AO and SSR pipeline texture slots are frame-wide: each holds whichever view published it last. A view samples them
+	/// only if it publishes one itself. Child views have different screen coordinates and never sample the parent's, and a
+	/// camera that publishes neither (an overlay camera drawing a viewmodel) would otherwise read another camera's results.
+	/// </summary>
+	public static void SetScreenSpaceEffects( ISceneView view, bool publishes )
+	{
+		view.GetRenderAttributesPtr().SetBoolValue( DisableScreenSpaceEffects, view.GetParent().IsValid || !publishes );
 	}
 
 	/// <summary>
