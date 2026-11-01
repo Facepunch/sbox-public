@@ -25,12 +25,13 @@ partial class MapLoader
 			return true;
 		}
 
-		private static void AddGameplayProp( MapProp prop, GameObject instance, Model model, string materialGroup )
+		private static void AddGameplayProp( MapProp prop, GameObject instance, Model model, string materialGroup, ulong bodyGroups )
 		{
 			var gameplay = instance.AddComponent<Prop>( false );
 			gameplay.IsStatic = prop.Physics == PropPhysics.Static;
 			gameplay.StartAsleep = prop.StartAsleep;
 			gameplay.Model = model;
+			gameplay.BodyGroups = bodyGroups;
 			gameplay.Tint = prop.Tint;
 			gameplay.MaterialGroup = materialGroup;
 			gameplay.Enabled = true;

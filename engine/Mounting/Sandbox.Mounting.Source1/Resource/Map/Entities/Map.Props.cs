@@ -28,8 +28,8 @@ partial class MapLoader
 				return null;
 			}
 
-			if ( !float.IsFinite( prop.Scale ) || prop.Scale <= 0 || prop.Skin < 0 )
-				throw new InvalidDataException( $"{owner.FullPath}: prop '{prop.Name}' has invalid scale or skin." );
+			if ( !float.IsFinite( prop.Scale ) || prop.Scale <= 0 || prop.Skin < 0 || prop.Body < 0 )
+				throw new InvalidDataException( $"{owner.FullPath}: prop '{prop.Name}' has invalid scale, skin or body." );
 			if ( !float.IsFinite( prop.MassScale ) )
 				throw new InvalidDataException( $"{owner.FullPath}: prop '{prop.Name}' has invalid mass scale." );
 			var path = prop.Model.Replace( '\\', '/' ).TrimStart( '/' );
@@ -78,10 +78,10 @@ partial class MapLoader
 			if ( isStatic )
 				instance.Tags.Add( "world" );
 			var materialGroup = GetSkin( model, prop.Skin, path );
+			var bodyGroups = GetBodyGroupMask( model, prop.Body );
 			if ( useGameplay )
 			{
-				AddGameplayProp( prop, instance, model, materialGroup );
-				return;
+				AddGameplayProp( prop, instance, model, materialGroup, bodyGroups );
 				return instance;
 			}
 
@@ -91,10 +91,29 @@ partial class MapLoader
 			renderer.Tint = prop.Tint;
 			renderer.Enabled = prop.Visible;
 			renderer.MaterialGroup = materialGroup;
+			renderer.BodyGroups = bodyGroups;
 			if ( prop.StaticPropIndex >= 0 && (prop.StaticPropFlags & 0x10) != 0 )
 				renderer.RenderType = ModelRenderer.ShadowRenderType.Off;
 			AddPhysics( prop, renderer, ragdollRenderer, path );
 			return instance;
+		}
+
+		private static ulong GetBodyGroupMask( Model model, int body )
+		{
+			var parts = model.Parts;
+			var bodyGroups = parts.DefaultMask;
+			foreach ( var part in parts.All )
+			{
+				if ( part.Choices.Count == 0 )
+					continue;
+
+				var choiceIndex = body % part.Choices.Count;
+				body /= part.Choices.Count;
+				bodyGroups &= ~part.Mask;
+				bodyGroups |= part.Choices[choiceIndex].Mask;
+			}
+
+			return bodyGroups;
 		}
 
 		public void Finish()
