@@ -84,6 +84,11 @@ LauncherWindow.dropping .projects { background-color: rgba( $accent, 0.06 ); bor
 
 .header .searchbox .content-label.placeholder { color: $text-muted; opacity: 1; }
 .header .searchbox iconpanel { color: $text-muted; }
+.header .searchbox iconpanel.searchicon { left: 0; right: auto; padding-left: 10px; padding-right: 0; }
+.header .searchbox.has-icon { padding-left: 30px; }
+.header .searchbox iconpanel.clearbutton { color: $text-muted; opacity: 1; transition: color 0.12s ease-out; }
+.header .searchbox iconpanel.clearbutton:hover,
+.header .searchbox iconpanel.clearbutton:active { color: $text; opacity: 1; }
 .header .searchbox { background-color: rgba( $raised, 0.62 ); border-color: rgba( $line, 0.85 ); }
 
 .header .grow { flex-grow: 1; }
@@ -474,6 +479,9 @@ LauncherWindow.style-light .sectionlabel .text { color: $l-text; }
 .style-light .header .searchbox { background-color: rgba( $l-raised, 0.72 ); border-color: rgba( $l-line, 0.85 ); }
 .style-light .header .searchbox .content-label.placeholder { color: $l-text-muted; opacity: 1; }
 .style-light .header .searchbox iconpanel { color: $l-text-muted; }
+.style-light .header .searchbox iconpanel.clearbutton { color: $l-text-muted; }
+.style-light .header .searchbox iconpanel.clearbutton:hover,
+.style-light .header .searchbox iconpanel.clearbutton:active { color: $l-text; }
 
 .style-light .project-column .sectionlabel .rule, .style-light .rail .sectionlabel .rule, .style-light .sidebar .sectionlabel .rule { background-color: rgba( $l-text, 0.20 ); }
 
