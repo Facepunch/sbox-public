@@ -211,7 +211,7 @@ namespace Sandbox
 					foreach ( var n in aa.Value )
 					{
 						aliases ??= new();
-						aliases.Add( n.ToLower() );
+						aliases.Add( n.ToLowerInvariant() );
 					}
 				}
 
@@ -220,7 +220,7 @@ namespace Sandbox
 					foreach ( var n in ta.EnumerateValues() )
 					{
 						tags ??= new();
-						tags.Add( n.ToLower() );
+						tags.Add( n.ToLowerInvariant() );
 					}
 				}
 

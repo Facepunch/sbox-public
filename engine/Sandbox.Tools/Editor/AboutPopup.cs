@@ -171,7 +171,7 @@ public class AboutWidget : BaseWindow
 					{
 						try
 						{
-							var componentId = component.Name.ToLower().Replace( " ", "-" );
+							var componentId = component.Name.ToLowerInvariant().Replace( " ", "-" );
 							var licenseFileName = $"thirdpartylegalnotices/licenses/{componentId}";
 							var licenseText = File.ReadAllText( licenseFileName );
 							licenseTextEdit.PlainText = licenseText;

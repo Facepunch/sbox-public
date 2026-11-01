@@ -630,7 +630,7 @@ namespace Editor
 			try
 			{
 				Paint.SetFont( "Material Icons", pixelHeight, 400, sizeInPixels: true );
-				return Paint.DrawText( rect, iconName?.ToLower(), alignment );
+				return Paint.DrawText( rect, iconName?.ToLowerInvariant(), alignment );
 			}
 			finally
 			{

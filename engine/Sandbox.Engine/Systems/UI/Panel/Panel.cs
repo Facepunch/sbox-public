@@ -122,7 +122,7 @@ public partial class Panel : IPanel, IValid, IComponent
 		StyleSheet = new StyleSheetCollection( this );
 		Transitions = new Transitions( this );
 
-		ElementName = GetType().Name.ToLower();
+		ElementName = GetType().Name.ToLowerInvariant();
 		Switch( PseudoClass.Empty, true );
 
 		LoadStyleSheet();

@@ -26,8 +26,8 @@ public class ThirdPartyLegalTest
 		foreach ( var component in indexData.Components )
 		{
 			// We don't require a license for public domain components
-			if ( component.License.ToLower() == "public-domain" || component.License.ToLower() == "proprietary" ) continue;
-			var licensePath = Path.Combine( "thirdpartylegalnotices/licenses/", component.Name.ToLower().Replace( " ", "-" ) );
+			if ( component.License.ToLowerInvariant() == "public-domain" || component.License.ToLowerInvariant() == "proprietary" ) continue;
+			var licensePath = Path.Combine( "thirdpartylegalnotices/licenses/", component.Name.ToLowerInvariant().Replace( " ", "-" ) );
 			Assert.IsTrue( File.Exists( licensePath ), $"License file missing: {licensePath}" );
 		}
 	}

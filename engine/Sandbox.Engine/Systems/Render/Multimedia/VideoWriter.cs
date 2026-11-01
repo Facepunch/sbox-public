@@ -56,7 +56,7 @@ public sealed class VideoWriter : IDisposable
 			_ => "opus",
 		};
 
-		internal string ContainerName => Container.ToString().ToLower();
+		internal string ContainerName => Container.ToString().ToLowerInvariant();
 	}
 
 	[Expose]

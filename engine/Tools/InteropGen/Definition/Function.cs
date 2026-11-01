@@ -14,12 +14,12 @@ public class Function
 {
 	private static readonly Regex FunctionRegex = new(
 		@"^(static)?[\s+]?(.+?)\s+([a-zA-Z0-9_]+?)\(((.+?))?\)( const)?;(.+)?",
-		RegexOptions.IgnoreCase
+		RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
 	);
 
 	private static readonly Regex InlineFunctionRegex = new(
 		@"^inline\s(static)?[\s+]?(.+?)\s+([a-zA-Z0-9_]+?)\(((.+?))?\)( const)?(.+)?",
-		RegexOptions.IgnoreCase
+		RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
 	);
 
 	public bool Native { get; set; }

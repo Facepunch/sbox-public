@@ -486,7 +486,7 @@ public static partial class Networking
 
 		// If this game can only be hosted on a Dedicated Server, ensure that we are one. We'll allow
 		// the Editor to host a lobby as well, though, for testing and development purposes.
-		var launchMode = Application.GamePackage?.GetCachedMeta( "LaunchMode", "default" ).ToLower();
+		var launchMode = Application.GamePackage?.GetCachedMeta( "LaunchMode", "default" ).ToLowerInvariant();
 
 		if ( launchMode == "dedicatedserveronly" && !Application.IsDedicatedServer && !Application.IsEditor )
 			throw new UnauthorizedAccessException( "This game can only be hosted on a Dedicated Server" );

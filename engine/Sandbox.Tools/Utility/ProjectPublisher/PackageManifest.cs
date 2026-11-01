@@ -643,7 +643,7 @@ public partial class ProjectPublisher
 				return;
 			}
 
-			CodePackageReferences.Add( package.ToLower() );
+			CodePackageReferences.Add( package.ToLowerInvariant() );
 
 			await AddAsset( asset );
 

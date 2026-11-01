@@ -154,7 +154,7 @@ public class ProjectConfig
 		AssetsDirectory = new DirectoryInfo( System.IO.Path.Combine( path, "Assets" ) );
 
 		Org ??= "local";
-		Ident ??= Directory.Name.ToLower();
+		Ident ??= Directory.Name.ToLowerInvariant();
 		PackageReferences ??= new List<string>();
 
 		if ( Type == "map" ) Type = "content";

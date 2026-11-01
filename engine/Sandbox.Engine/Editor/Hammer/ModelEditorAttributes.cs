@@ -27,7 +27,7 @@ namespace Sandbox.ModelEditor.Internal
 				// Skip empty strings
 				if ( pair.Value == null || pair.Value is string && string.IsNullOrEmpty( (string)pair.Value ) ) continue;
 
-				sb.AppendLine( $"\t{pair.Key.QuoteSafe()} = {(pair.Value is string @string ? @string.QuoteSafe() : pair.Value.ToString().ToLower())}" );
+				sb.AppendLine( $"\t{pair.Key.QuoteSafe()} = {(pair.Value is string @string ? @string.QuoteSafe() : pair.Value.ToString().ToLowerInvariant())}" );
 			}
 			sb.AppendLine( "}" );
 

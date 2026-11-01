@@ -420,7 +420,7 @@ public sealed class VideoPlayer : IDisposable, IWeakInteropHandle
 			throw new InvalidOperationException( $"Access to '{uri}' is not allowed." );
 		}
 
-		var ext = System.IO.Path.GetExtension( uri.AbsolutePath ).TrimStart( '.' ).ToLower();
+		var ext = System.IO.Path.GetExtension( uri.AbsolutePath ).TrimStart( '.' ).ToLowerInvariant();
 
 		native.Play( url, ext );
 	}
@@ -440,7 +440,7 @@ public sealed class VideoPlayer : IDisposable, IWeakInteropHandle
 			return;
 		}
 
-		var ext = System.IO.Path.GetExtension( path ).TrimStart( '.' ).ToLower();
+		var ext = System.IO.Path.GetExtension( path ).TrimStart( '.' ).ToLowerInvariant();
 
 		if ( !filesystem.FileExists( path ) )
 			return;

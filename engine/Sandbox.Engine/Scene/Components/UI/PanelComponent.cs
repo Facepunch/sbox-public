@@ -33,7 +33,7 @@ public abstract partial class PanelComponent : Component, IPanelComponent, Compo
 	{
 		loadedStyleSheet = null;
 		panel = new CustomBuildPanel( this, BuildRenderTree, OnTreeRenderedInternal, GetRenderTreeChecksum, BuildRenderHash );
-		panel.ElementName = GetType().Name.ToLower();
+		panel.ElementName = GetType().Name.ToLowerInvariant();
 		panel.GameObject = GameObject;
 
 		LoadStyleSheet();

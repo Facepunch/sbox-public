@@ -507,7 +507,7 @@ public class BaseFileSystem
 		if ( !WatchEnabled )
 			return;
 
-		path = path.ToLower();
+		path = path.ToLowerInvariant();
 
 		// Ignore common visual studio spam
 		if ( path.EndsWith( ".tmp" ) || path.EndsWith( "~" ) )
@@ -701,6 +701,6 @@ public class BaseFileSystem
 	/// </summary>
 	internal static string NormalizeFilename( string filepath )
 	{
-		return filepath.ToLower().Replace( "\\", "/" ); // we can probably do more here
+		return filepath.ToLowerInvariant().Replace( "\\", "/" ); // we can probably do more here
 	}
 }

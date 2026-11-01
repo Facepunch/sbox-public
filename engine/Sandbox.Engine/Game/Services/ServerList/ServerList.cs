@@ -66,7 +66,7 @@ public class ServerList : List<ServerList.Entry>, IDisposable, IWeakInteropHandl
 			switch ( parts[0] )
 			{
 				case "game":
-					entry.Game = parts[1].ToLower();
+					entry.Game = parts[1].ToLowerInvariant();
 					break;
 
 				case "gameversion":

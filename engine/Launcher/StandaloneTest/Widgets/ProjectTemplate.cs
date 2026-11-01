@@ -8,7 +8,7 @@ internal class ProjectTemplate
 	ProjectConfig Config { get; init; }
 	string TemplatePath { get; init; }
 
-	public string AddonType => Config.Type.ToLower();
+	public string AddonType => Config.Type.ToLowerInvariant();
 	public string Title => Config.Title;
 	public string ParentPackage => Config.TryGetMeta<string>( "ParentPackage", out var v ) ? v : null;
 

@@ -244,10 +244,10 @@ internal static partial class StyleParser
 				if ( !System.IO.Path.HasExtension( cleanFile ) ) cleanFile = $"_{cleanFile}.scss";
 
 				// try to find file in local directory, if not found then fall back
-				var localPath = System.IO.Path.Combine( thisRoot, cleanFile ).ToLower();
+				var localPath = System.IO.Path.Combine( thisRoot, cleanFile ).ToLowerInvariant();
 				if ( !GlobalContext.Current.FileMount.FileExists( localPath ) )
 				{
-					localPath = cleanFile.ToLower();
+					localPath = cleanFile.ToLowerInvariant();
 				}
 
 				TryImport( sheet, localPath, p.FileAndLine, recover );

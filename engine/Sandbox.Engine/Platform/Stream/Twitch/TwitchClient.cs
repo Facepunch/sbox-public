@@ -179,7 +179,7 @@ internal class TwitchClient
 		if ( string.IsNullOrEmpty( channel ) )
 			return;
 
-		await _webSocket.Send( $"JOIN #{channel.ToLower()}" );
+		await _webSocket.Send( $"JOIN #{channel.ToLowerInvariant()}" );
 	}
 
 	private void IRC_OnMessage( IrcMessage ircMessage )

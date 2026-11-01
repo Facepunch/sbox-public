@@ -77,7 +77,7 @@ internal class UploadSteam( string branch )
 	}
 
 	// SteamPipe prints the assigned build number as "BuildID <number>" on success; capture the last one we see.
-	private static readonly Regex BuildIdRegex = new( @"BuildID\s+(\d+)", RegexOptions.IgnoreCase | RegexOptions.Compiled );
+	private static readonly Regex BuildIdRegex = new( @"BuildID\s+(\d+)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled );
 
 	/// <summary>
 	/// Runs <c>steamcmd +run_app_build</c> for the given app VDF, mirroring its output to the log while scraping

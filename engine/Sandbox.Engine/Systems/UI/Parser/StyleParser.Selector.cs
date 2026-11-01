@@ -197,7 +197,7 @@ internal static partial class StyleParser
 				if ( p.IsEnd || p.IsOneOf( seperators ) )
 					throw new System.Exception( $"Invalid Rule \"{rule_string}\"" );
 
-				var id = p.ReadUntilOrEnd( ".:#" ).ToLower();
+				var id = p.ReadUntilOrEnd( ".:#" ).ToLowerInvariant();
 				rule.Id = id;
 			}
 			else if ( p.Current == ':' )
@@ -221,7 +221,7 @@ internal static partial class StyleParser
 			}
 			else
 			{
-				rule.Element = p.ReadUntilOrEnd( ".:#" ).ToLower();
+				rule.Element = p.ReadUntilOrEnd( ".:#" ).ToLowerInvariant();
 			}
 		}
 

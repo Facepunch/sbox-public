@@ -59,7 +59,7 @@ internal static partial class EntityParser
 			}
 
 			// Basic info fallbacks
-			if ( string.IsNullOrEmpty( propName ) ) propName = prop.Name.ToLower();
+			if ( string.IsNullOrEmpty( propName ) ) propName = prop.Name.ToLowerInvariant();
 			if ( string.IsNullOrEmpty( propTitle ) ) propTitle = prop.Name.ToTitleCase();
 
 			// Skip unwanted stuff from base classes.
@@ -108,7 +108,7 @@ internal static partial class EntityParser
 				if ( prop.PropertyType.IsAssignableTo( typeof( IAsset ) ) )
 				{
 					var assetname = prop.PropertyType.GetCustomAttribute<LibraryAttribute>()?.Name ?? prop.PropertyType.Name;
-					variable.Metadata["editor"] = $"AssetBrowse({assetname.ToLower()})";
+					variable.Metadata["editor"] = $"AssetBrowse({assetname.ToLowerInvariant()})";
 				}
 			}
 

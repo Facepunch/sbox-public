@@ -73,7 +73,7 @@ class ParameterFormatter : DefaultUrlParameterFormatter
 		// make sure bool is lowercase! what are you doing c#
 		if ( value is bool b )
 		{
-			return b.ToString().ToLower();
+			return b.ToString().ToLowerInvariant();
 		}
 
 		return base.Format( value, attributeProvider, type );

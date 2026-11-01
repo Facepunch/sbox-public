@@ -54,7 +54,7 @@ internal static partial class Workshop
 	static readonly Regex ChangeNoteRegex = new( @"changeLogCtn.*?<p id=""(\d+)"">(.*?)</p>", RegexOptions.Singleline );
 
 	static readonly Regex ChangeNoteTotalRegex = new( @"workshopBrowsePagingInfo"">[^<]*?of ([\d,]+) entries" );
-	static readonly Regex HtmlBreakRegex = new( @"<br\s*/?>", RegexOptions.IgnoreCase );
+	static readonly Regex HtmlBreakRegex = new( @"<br\s*/?>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant );
 	static readonly Regex HtmlTagRegex = new( @"<[^>]+>" );
 
 	/// <summary>

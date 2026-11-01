@@ -107,7 +107,7 @@ internal static partial class Api
 				if ( !IsSessionActive )
 					return;
 
-				if ( game != null ) game = game.Trim().ToLower();
+				if ( game != null ) game = game.Trim().ToLowerInvariant();
 
 				var data = new Dictionary<string, object>();
 				data.Add( "game", game );

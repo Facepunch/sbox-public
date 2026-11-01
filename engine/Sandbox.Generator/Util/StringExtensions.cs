@@ -381,7 +381,7 @@ namespace Sandbox
 		{
 			wildcard = Regex.Escape( wildcard ).Replace( "\\*", ".*" );
 			wildcard = $"&{wildcard}$";
-			return Regex.IsMatch( str, wildcard, RegexOptions.IgnoreCase );
+			return Regex.IsMatch( str, wildcard, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant );
 		}
 
 		/// <summary>

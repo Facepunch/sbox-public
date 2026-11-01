@@ -59,7 +59,7 @@ partial class Calc
 				var token = new Token();
 
 				var word = p.ReadUntilWhitespaceOrNewlineOrEnd().Trim();
-				word = word.ToLower();
+				word = word.ToLowerInvariant();
 
 				if ( word == "+" ) token.Type = TokenType.Add;
 				else if ( word == "-" ) token.Type = TokenType.Subtract;
