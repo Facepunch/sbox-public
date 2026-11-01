@@ -80,6 +80,12 @@ public partial class Texture
 	{
 		if ( native.IsNull ) throw new ObjectDisposedException( "Texture" );
 
+		if ( x < 0 || y < 0 || z < 0 || width < 0 || height < 0 || depth < 0 )
+			throw new ArgumentException( "Update region can't be negative" );
+
+		if ( (long)x + width > Width || (long)y + height > Height || (long)z + depth > Math.Max( Depth, 1 ) )
+			throw new ArgumentException( "Update region is outside the texture" );
+
 		DirtyVersion++; // Layer caches hash this
 
 		var memRequired = ImageLoader.GetMemRequired( width, height, depth, ImageFormat, false );
