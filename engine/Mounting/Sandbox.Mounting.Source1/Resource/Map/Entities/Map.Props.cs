@@ -20,12 +20,12 @@ partial class MapLoader
 		{
 			Parent = world
 		};
-		public GameObject BuildProp( MapProp prop )
+		public void BuildProp( MapProp prop )
 		{
 			if ( string.IsNullOrWhiteSpace( prop.Model ) || !prop.Model.EndsWith( ".mdl", StringComparison.OrdinalIgnoreCase ) )
 			{
 				warnings.Add( $"Prop '{prop.Name}' has no supported MDL model; omitted." );
-				return null;
+				return;
 			}
 
 			if ( !float.IsFinite( prop.Scale ) || prop.Scale <= 0 || prop.Skin < 0 || prop.Body < 0 )
@@ -40,7 +40,7 @@ partial class MapLoader
 				if ( resource is null )
 				{
 					warnings.Add( $"Prop model '{path}' is missing; its instances were omitted." );
-					return null;
+					return;
 				}
 
 				try
@@ -57,13 +57,13 @@ partial class MapLoader
 				catch ( Exception e ) when ( e is IOException or InvalidDataException or NotSupportedException or InvalidOperationException )
 				{
 					warnings.Add( $"Prop model '{path}' could not be imported: {e.Message}; its instances were omitted." );
-					return null;
+					return;
 				}
 			}
 
 			model ??= LoadModel( path );
 			if ( model is null )
-				return null;
+				return;
 			ReportPhysicsSettings( prop, model, path );
 			var useGameplay = !skybox && CanBuildGameplayProp( prop, model, path );
 			var isStatic = prop.Physics == PropPhysics.Static && !useGameplay;
@@ -82,7 +82,7 @@ partial class MapLoader
 			if ( useGameplay )
 			{
 				AddGameplayProp( prop, instance, model, materialGroup, bodyGroups );
-				return instance;
+				return;
 			}
 
 			var ragdollRenderer = prop.Physics == PropPhysics.Ragdoll ? instance.AddComponent<SkinnedModelRenderer>() : null;
@@ -95,7 +95,6 @@ partial class MapLoader
 			if ( prop.StaticPropIndex >= 0 && (prop.StaticPropFlags & 0x10) != 0 )
 				renderer.RenderType = ModelRenderer.ShadowRenderType.Off;
 			AddPhysics( prop, renderer, ragdollRenderer, path );
-			return instance;
 		}
 
 		private static ulong GetBodyGroupMask( Model model, int body )

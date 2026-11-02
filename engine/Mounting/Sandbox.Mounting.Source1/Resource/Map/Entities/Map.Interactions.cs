@@ -51,38 +51,6 @@ partial class MapLoader
 		protected override Door.DoorMode Mode => Door.DoorMode.Rotating;
 	}
 
-	private sealed class PropDoorEntityLoader : PropEntityLoader
-	{
-		protected override MapProp Read( MapEntity entity ) => base.Read( entity ) with { Physics = PropPhysics.Kinematic };
-
-		protected override bool AddInteraction( EntityBuilder builder, MapEntity entity, GameObject instance, MapProp prop )
-		{
-			var flags = entity.Integer( "spawnflags" );
-			var openDir = entity.Integer( "opendir" );     // 0 = both ways, 1 = forward, 2 = backward
-			var spawnPos = entity.Integer( "spawnpos" );   // 0 = closed, 1 = open forward, 2 = open backward
-
-			var door = instance.AddComponent<Door>( false );
-			door.Mode = Door.DoorMode.Rotating;
-			door.Speed = entity.Number( "speed", 100 );
-			if ( door.Speed == 0 ) door.Speed = 100;
-			door.StartOpen = spawnPos != 0 || (flags & 1) != 0;
-			door.IsLocked = (flags & 2048) != 0;
-			door.IsUsable = (flags & 32768) == 0;
-			door.OpenAwayFromPlayer = openDir == 0;
-			var returnDelay = entity.Number( "returndelay", -1 );   // -1 = never closes
-			door.AutoClose = returnDelay >= 0;
-			door.AutoCloseDelay = Math.Max( 0, returnDelay );
-			door.TargetAngle = entity.Number( "distance", 90 ) * (openDir == 2 ? -1 : 1);
-
-			if ( spawnPos == 2 && openDir == 0 )
-				builder.ReportWarning( $"Door '{instance.Name}' starts open backwards; the native door can only start open in its default direction." );
-
-			builder.RegisterEntityIO( entity, door );
-			door.Enabled = true;
-			return true;
-		}
-	}
-
 	private sealed class ButtonEntityLoader : BrushEntityLoader
 	{
 		public override bool AddInteraction( EntityBuilder builder, MapEntity entity, GameObject instance, BspModel model )
