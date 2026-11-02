@@ -99,7 +99,7 @@ public sealed partial class MovieClip : IMovieClip
 	/// the given <paramref name="type"/>. To create a nested track, use <see cref="CompiledClipExtensions.Component"/>.
 	/// </summary>
 	public static ICompiledReferenceTrack RootComponent( Type type, Guid? id = null ) =>
-		TypeLibrary.GetType( typeof( CompiledReferenceTrack<> ) )
+		Sandbox.Engine.GlobalContext.Current.TypeLibrary.GetType( typeof( CompiledReferenceTrack<> ) )
 			.CreateGeneric<ICompiledReferenceTrack>( [type], [id ?? Guid.NewGuid(), type.Name, null] );
 
 	/// <summary>

@@ -1,3 +1,4 @@
+using Sandbox.Engine;
 using Sandbox.Network;
 using System.Buffers.Binary;
 using System.IO;
@@ -64,7 +65,7 @@ public static partial class Networking
 		if ( data.Length < offset + 5 ) return "Packed";
 
 		var typeId = BinaryPrimitives.ReadInt32LittleEndian( data.Slice( offset + 1 ) );
-		return Game.TypeLibrary?.GetTypeByIdent( typeId )?.Name ?? $"Packed_{typeId:X8}";
+		return GlobalContext.Current.TypeLibrary?.GetTypeByIdent( typeId )?.Name ?? $"Packed_{typeId:X8}";
 	}
 
 	internal static void FlushRecordedMessages( int writeCount = int.MaxValue )

@@ -1,4 +1,5 @@
-﻿namespace Sandbox.UI;
+﻿using Sandbox.Engine;
+namespace Sandbox.UI;
 
 public partial class Panel
 {
@@ -127,7 +128,7 @@ public partial class Panel
 	/// <returns>True if the attribute exists and we loaded from it, otherwise false</returns>
 	private bool LoadStyleSheetFromAttribute()
 	{
-		var type = Game.TypeLibrary?.GetType( GetType() );
+		var type = GlobalContext.Current.TypeLibrary?.GetType( GetType() );
 		var attr = type?.GetAttribute<StyleSheetAttribute>( false );
 
 		if ( attr == null )
@@ -158,7 +159,7 @@ public partial class Panel
 	/// <returns>True if the attribute exists and we loaded from it, otherwise false</returns>
 	private bool LoadStyleSheetAuto()
 	{
-		var type = Game.TypeLibrary?.GetType( GetType() );
+		var type = GlobalContext.Current.TypeLibrary?.GetType( GetType() );
 
 		// Get the shortest class file (incase we have MyPanel.SomeStuff.Blah)
 		var classFileLocation = type?.GetAttributes<Internal.ClassFileLocationAttribute>()

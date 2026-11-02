@@ -468,7 +468,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 				{
 					SnapshotData = WriteGameObjectSystemSnapshot( system ),
 					TableData = system.WriteDataTable( true ),
-					Type = Game.TypeLibrary.GetType( system.GetType() ).Identity,
+					Type = GlobalContext.Current.TypeLibrary.GetType( system.GetType() ).Identity,
 					Id = system.Id
 				} );
 			}
@@ -681,7 +681,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	{
 		foreach ( var s in msg.GameObjectSystems )
 		{
-			var type = Game.TypeLibrary.GetTypeByIdent( s.Type );
+			var type = GlobalContext.Current.TypeLibrary.GetTypeByIdent( s.Type );
 			if ( type is null )
 				continue;
 
@@ -1156,7 +1156,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		if ( !component.IsValid() )
 		{
 			var componentTypeName = componentJson.GetPropertyValue( Component.JsonKeys.Type, "" );
-			var componentType = Game.TypeLibrary.GetType<Component>( componentTypeName, true );
+			var componentType = GlobalContext.Current.TypeLibrary.GetType<Component>( componentTypeName, true );
 
 			if ( componentType is null || componentType.TargetType.IsAbstract )
 			{

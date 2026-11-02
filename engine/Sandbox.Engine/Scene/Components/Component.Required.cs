@@ -1,4 +1,5 @@
-﻿namespace Sandbox;
+﻿using Sandbox.Engine;
+namespace Sandbox;
 
 public partial class Component
 {
@@ -32,7 +33,7 @@ public partial class Component
 
 		// Missing, so create it
 		{
-			var typeDesc = Game.TypeLibrary.GetType( prop.PropertyType );
+			var typeDesc = GlobalContext.Current.TypeLibrary.GetType( prop.PropertyType );
 			prop.SetValue( this, Components.Create( typeDesc ) );
 		}
 	}

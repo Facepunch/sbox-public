@@ -1,4 +1,5 @@
-﻿using System.Text.Json.Serialization;
+﻿using Sandbox.Engine;
+using System.Text.Json.Serialization;
 
 namespace Sandbox;
 
@@ -19,7 +20,7 @@ internal readonly struct ComponentReference
 	/// </summary>
 	public static ComponentReference FromInstance( Component component )
 	{
-		var t = Game.TypeLibrary.GetType( component.GetType() );
+		var t = GlobalContext.Current.TypeLibrary.GetType( component.GetType() );
 		return new ComponentReference( ExpectedReferenceType, component.Id, component.GameObject.Id, t?.ClassName );
 	}
 
@@ -71,7 +72,7 @@ internal readonly struct ComponentReference
 	/// <param name="targetType">Optional base type / interface that the resolved type must derive from / implement. Defaults to <see cref="Component"/>.</param>
 	public Type? ResolveComponentType( Type? targetType = null )
 	{
-		return Game.TypeLibrary.GetType( targetType ?? typeof( Component ), ComponentTypeName, true )?.TargetType;
+		return GlobalContext.Current.TypeLibrary.GetType( targetType ?? typeof( Component ), ComponentTypeName, true )?.TargetType;
 	}
 
 	/// <summary>

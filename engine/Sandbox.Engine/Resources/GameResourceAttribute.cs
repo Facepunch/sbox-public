@@ -1,4 +1,5 @@
-﻿using System.ComponentModel;
+﻿using Sandbox.Engine;
+using System.ComponentModel;
 
 namespace Sandbox;
 
@@ -45,7 +46,7 @@ public class AssetTypeAttribute : System.Attribute, ITypeAttribute, IUninheritab
 	/// </summary>
 	public static TypeDescription FindTypeByExtension( string extension )
 	{
-		foreach ( var t in Game.TypeLibrary.GetTypesWithAttribute<AssetTypeAttribute>() )
+		foreach ( var t in GlobalContext.Current.TypeLibrary.GetTypesWithAttribute<AssetTypeAttribute>() )
 		{
 			if ( string.Equals( t.Attribute.Extension, extension, StringComparison.OrdinalIgnoreCase ) )
 				return t.Type;

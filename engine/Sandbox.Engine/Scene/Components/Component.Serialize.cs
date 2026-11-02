@@ -1,4 +1,5 @@
-﻿using Facepunch.ActionGraphs;
+﻿using Sandbox.Engine;
+using Facepunch.ActionGraphs;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -22,7 +23,7 @@ public abstract partial class Component : BytePack.ISerializer
 		if ( !isNetworked && Flags.Contains( ComponentFlags.NotSaved ) )
 			return null;
 
-		var t = Game.TypeLibrary.GetType( GetType() );
+		var t = GlobalContext.Current.TypeLibrary.GetType( GetType() );
 		if ( t is null )
 		{
 			Log.Warning( $"TypeLibrary could not find {GetType()}" );
@@ -256,7 +257,7 @@ public abstract partial class Component : BytePack.ISerializer
 			{
 				// By getting the property from the declaring class, we can allow setting
 				// properties with a private setter.
-				var declaringType = Game.TypeLibrary.GetType( prop.MemberInfo.DeclaringType );
+				var declaringType = GlobalContext.Current.TypeLibrary.GetType( prop.MemberInfo.DeclaringType );
 				prop = declaringType.GetProperty( member.Name ) ?? prop;
 			}
 
@@ -290,7 +291,7 @@ public abstract partial class Component : BytePack.ISerializer
 			{
 				// By getting the field from the declaring class, we can allow setting
 				// private fields.
-				var declaringType = Game.TypeLibrary.GetType( field.MemberInfo.DeclaringType );
+				var declaringType = GlobalContext.Current.TypeLibrary.GetType( field.MemberInfo.DeclaringType );
 				field = declaringType.GetField( member.Name ) ?? field;
 			}
 

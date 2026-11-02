@@ -1,3 +1,4 @@
+using Sandbox.Engine;
 namespace Sandbox.UI;
 
 /// <summary>
@@ -107,7 +108,7 @@ public partial class PanelRenderTreeBuilder : Microsoft.AspNetCore.Components.Re
 		if ( scope.Block.CheckCacheValue( HashCode.Combine( element, sequence, propertyName ), 1 ) )
 			return;
 
-		var tl = Game.TypeLibrary.GetType( element.GetType() );
+		var tl = GlobalContext.Current.TypeLibrary.GetType( element.GetType() );
 		if ( tl == null ) return;
 		var theirProperty = tl.GetProperty( propertyName );
 		if ( theirProperty == null )

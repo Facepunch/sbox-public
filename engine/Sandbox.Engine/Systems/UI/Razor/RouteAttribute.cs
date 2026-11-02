@@ -1,4 +1,5 @@
-﻿using Sandbox;
+﻿using Sandbox.Engine;
+using Sandbox;
 
 namespace Microsoft.AspNetCore.Components;
 
@@ -27,7 +28,7 @@ public class RouteAttribute : System.Attribute
 	{
 		//Log.Info( $"FindValidTarget [{url}] [{parentUrl}]" );
 
-		var val = Game.TypeLibrary.GetTypesWithAttribute<RouteAttribute>()
+		var val = GlobalContext.Current.TypeLibrary.GetTypesWithAttribute<RouteAttribute>()
 								.Where( x => x.Attribute.IsUrl( url ) && !x.Attribute.IsUrl( parentUrl ) )
 								.OrderByDescending( x => x.Attribute.Url.Count( c => c == '*' ) )
 								.FirstOrDefault();

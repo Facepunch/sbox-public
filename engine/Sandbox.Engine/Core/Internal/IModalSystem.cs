@@ -1,4 +1,5 @@
-﻿using Sandbox.UI;
+﻿using Sandbox.Engine;
+using Sandbox.UI;
 
 namespace Sandbox.Modals;
 
@@ -275,7 +276,7 @@ public struct WorkshopPublishOptions
 	/// </summary>
 	public void AddCategory<TEnum>( string name ) where TEnum : struct, Enum
 	{
-		var t = Game.TypeLibrary.GetEnumDescription( typeof( TEnum ) );
+		var t = GlobalContext.Current.TypeLibrary.GetEnumDescription( typeof( TEnum ) );
 		if ( t == null )
 			throw new Exception( $"Type {typeof( TEnum ).FullName} is not registered in the TypeLibrary" );
 
@@ -284,7 +285,7 @@ public struct WorkshopPublishOptions
 		var get = () => kv.TryGetValue( name, out string val ) ? (Enum.TryParse( val, true, out TEnum r ) ? r : default) : default;
 		var set = ( TEnum x ) => { kv[name] = x.ToString(); };
 
-		var prop = Game.TypeLibrary.CreateProperty( name, get, set );
+		var prop = GlobalContext.Current.TypeLibrary.CreateProperty( name, get, set );
 
 		Categories[name] = prop;
 	}

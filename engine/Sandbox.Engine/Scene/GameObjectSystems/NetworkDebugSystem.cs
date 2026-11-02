@@ -1,4 +1,5 @@
-﻿using Sandbox.Utility;
+﻿using Sandbox.Engine;
+using Sandbox.Utility;
 using System.Diagnostics;
 
 namespace Sandbox;
@@ -126,7 +127,7 @@ sealed partial class NetworkDebugSystem : GameObjectSystem<NetworkDebugSystem>
 		int msgSize;
 		try
 		{
-			Game.TypeLibrary.ToBytes( message, ref bs );
+			GlobalContext.Current.TypeLibrary.ToBytes( message, ref bs );
 			msgSize = bs.Length;
 		}
 		finally
@@ -218,7 +219,7 @@ sealed partial class NetworkDebugSystem : GameObjectSystem<NetworkDebugSystem>
 		int msgSize;
 		try
 		{
-			Game.TypeLibrary.ToBytes( message, ref bs );
+			GlobalContext.Current.TypeLibrary.ToBytes( message, ref bs );
 			msgSize = bs.Length;
 		}
 		finally

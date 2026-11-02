@@ -1,4 +1,5 @@
-﻿namespace Sandbox;
+﻿using Sandbox.Engine;
+namespace Sandbox;
 
 /// <summary>
 /// Flags to search for Components.
@@ -168,7 +169,7 @@ public class ComponentList
 		using var batch = CallbackBatch.Batch();
 
 		// TypeLibrary caches a compiled parameterless factory, much cheaper than Activator.CreateInstance
-		var t = Game.TypeLibrary?.GetType( type )?.Create<Component>() ?? (Component)Activator.CreateInstance( type );
+		var t = GlobalContext.Current.TypeLibrary?.GetType( type )?.Create<Component>() ?? (Component)Activator.CreateInstance( type );
 
 		t.GameObject = go;
 		_list.Add( t );

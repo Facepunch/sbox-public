@@ -29,7 +29,7 @@ internal static class ResourceLoader
 	internal static void LoadAllGameResource( BaseFileSystem fileSystem, bool reloadExisting = false, Package sourcePackage = null )
 	{
 		var sw = Stopwatch.StartNew();
-		var types = Game.TypeLibrary.GetAttributes<AssetTypeAttribute>().DistinctBy( x => x.Extension )
+		var types = GlobalContext.Current.TypeLibrary.GetAttributes<AssetTypeAttribute>().DistinctBy( x => x.Extension )
 			.ToDictionary( x => $".{x.Extension}_c", x => x, StringComparer.OrdinalIgnoreCase );
 
 		var allFiles = fileSystem.FindFile( "/", "*", true ).ToArray();
@@ -87,7 +87,7 @@ internal static class ResourceLoader
 	internal static async Task LoadAllGameResourceAsync( BaseFileSystem fileSystem, CancellationToken ct = default, bool reloadExisting = false, Package sourcePackage = null, Task<List<string>> preEnumeratedFiles = null, Func<string, bool> includeExtension = null )
 	{
 		var sw = Stopwatch.StartNew();
-		var types = Game.TypeLibrary.GetAttributes<AssetTypeAttribute>().DistinctBy( x => x.Extension )
+		var types = GlobalContext.Current.TypeLibrary.GetAttributes<AssetTypeAttribute>().DistinctBy( x => x.Extension )
 			.ToDictionary( x => $".{x.Extension}_c", x => x, StringComparer.OrdinalIgnoreCase );
 
 		var allExtensions = new HashSet<string>( types.Keys, StringComparer.OrdinalIgnoreCase );

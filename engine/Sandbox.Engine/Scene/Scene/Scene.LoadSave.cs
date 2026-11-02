@@ -1,4 +1,5 @@
-﻿using Facepunch.ActionGraphs;
+﻿using Sandbox.Engine;
+using Facepunch.ActionGraphs;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -271,7 +272,7 @@ public partial class Scene : GameObject
 	{
 		var jso = new JsonObject();
 
-		foreach ( var prop in Game.TypeLibrary.GetType<Scene>()
+		foreach ( var prop in GlobalContext.Current.TypeLibrary.GetType<Scene>()
 			.Properties
 			.Where( x => x.HasAttribute<PropertyAttribute>() )
 			.OrderBy( x => x.Name ) )
@@ -305,7 +306,7 @@ public partial class Scene : GameObject
 
 		foreach ( var system in GetSystems() )
 		{
-			var systemType = Game.TypeLibrary.GetType( system.GetType() );
+			var systemType = GlobalContext.Current.TypeLibrary.GetType( system.GetType() );
 			if ( systemType is null ) continue;
 
 			var systemTypeName = systemType.FullName;
@@ -359,7 +360,7 @@ public partial class Scene : GameObject
 
 	void DeserializeProperties( JsonObject data, bool isSystemScene = false )
 	{
-		var sceneType = Game.TypeLibrary.GetType<Scene>();
+		var sceneType = GlobalContext.Current.TypeLibrary.GetType<Scene>();
 		Assert.NotNull( sceneType, "Scene type is inaccessible!" );
 
 		foreach ( var prop in sceneType.Properties.Where( x => x.HasAttribute<PropertyAttribute>() ) )
