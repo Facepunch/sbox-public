@@ -95,6 +95,13 @@ public static partial class Gizmo
 		/// </summary>
 		internal HitboxLineScope lineScope;
 
+		readonly StringCache<(string Parent, string Name)> childPaths = new( ReferenceFirstComparer<string>.Default );
+		readonly StringCache<(string Prefix, int Id)> numberedNames = new( ReferenceFirstComparer<int>.Default );
+
+		internal string ChildPath( string parent, string name ) => childPaths.Get( (parent, name), static key => $"{key.Parent}/{key.Name}" );
+
+		internal string NumberedName( string prefix, int id ) => numberedNames.Get( (prefix, id), static key => $"{key.Prefix}{key.Id}" );
+
 		/// <summary>
 		/// The current control mode. This is generally implementation specific. 
 		/// We tend to use "mouse" and "firstperson".
@@ -213,6 +220,9 @@ public static partial class Gizmo
 			Pool = Entries;
 			Entries = p;
 			Entries.Clear();
+
+			childPaths.NextFrame();
+			numberedNames.NextFrame();
 
 			previous = current;
 			current = builder;
