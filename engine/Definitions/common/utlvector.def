@@ -30,6 +30,10 @@ native class CUtlVector<float> as NativeEngine.CUtlVectorFloat
 	int Count();
 	void SetCount( int count );
 	float Element( int i );
+	inline void Add( float value )
+	{
+		self->AddToTail( value );
+	}
 }
 
 native class CUtlVector<uint32> as NativeEngine.CUtlVectorUInt32

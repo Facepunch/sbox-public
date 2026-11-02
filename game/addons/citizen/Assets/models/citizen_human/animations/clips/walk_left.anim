@@ -1,0 +1,71 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:generic:version{7412167c-06e9-4698-aff2-e63eb59037e7} -->
+{
+	_class = "CClipDocument"
+	m_sourceFilename = "models/citizen_human/animations/rust@walk_w.fbx"
+	m_animationSkeletonName = "models/citizen_human/animgraphs/human.skel"
+	m_nStartFrame = -1
+	m_nEndFrame = -1
+	m_flImportScale = 1
+	m_additiveType = "None"
+	m_nAdditiveBaseFrameIdx = 4
+	m_bExtractMotion = true
+	m_motionExtractionBone = "pelvis"
+	m_bExtractMotionTZ = false
+	m_bExtractMotionRZ = false
+	m_eventTracks = 
+	[
+		{
+			m_eventClassName = "CFootEvent"
+			m_bIsSyncTrack = false
+			m_bIsDisabled = false
+			m_events = 
+			[
+				{
+					m_startTime = 5.005
+					m_duration = 0
+					m_phase = 0
+				},
+				{
+					m_startTime = 18.005
+					m_duration = 0
+					m_phase = 2
+				},
+			]
+		},
+		{
+			m_eventClassName = "CGenericEvent"
+			m_bIsSyncTrack = false
+			m_bIsDisabled = false
+			m_events = 
+			[
+				{
+					m_name = "AE_FOOTSTEP"
+					m_startTime = 6
+					m_duration = 0
+					m_eventData = 
+					{
+						attachment = "foot_L"
+						Foot = 0
+						volume = 0.75
+					}
+				},
+				{
+					m_name = "AE_FOOTSTEP"
+					m_startTime = 21
+					m_duration = 0
+					m_eventData = 
+					{
+						attachment = "foot_R"
+						Foot = 1
+						volume = 0.75
+					}
+				},
+			]
+		},
+	]
+	m_alignToClipFilename = "models/citizen_human/animations/rust@idle.fbx"
+	m_alignBone = "pelvis"
+	m_motionExtractionType = "Single"
+	m_flDurationOverrideSeconds = -1
+	m_flImportFrameRate = -1
+}

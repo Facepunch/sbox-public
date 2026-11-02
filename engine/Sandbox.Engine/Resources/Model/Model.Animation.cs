@@ -24,9 +24,4 @@ public partial class Model
 	private List<string> _animationNames;
 	public IReadOnlyList<string> AnimationNames => _animationNames ??= Enumerable.Range( 0, AnimationCount )
 			.Select( GetAnimationName ).ToList();
-
-	/// <summary>
-	/// Get the animgraph this model uses.
-	/// </summary>
-	public AnimationGraph AnimGraph => AnimationGraph.FromNative( native.GetAnimationGraph() );
 }

@@ -2,6 +2,8 @@ namespace Sandbox;
 
 public partial class BaseCombatWeapon
 {
+	private bool _attackAnimationPending;
+
 	//
 	// Shot presentation, modelled on GMod's ShootEffects / DoImpactEffect. ShootEffects plays the
 	// muzzle/fire presentation and relays it across the network; ImpactEffect is a static utility that
@@ -117,7 +119,11 @@ public partial class BaseCombatWeapon
 		if ( shot.NoEvents ) return;
 
 		PlayAttackSound();
-		HolderRenderer?.Set( "b_attack", true );
+		_attackAnimationPending = true;
+#pragma warning disable CS0618
+		if ( HolderRenderer is { Animation.Graph: null } renderer )
+			renderer.Set( "b_attack", true );
+#pragma warning restore CS0618
 		WeaponModel?.OnAttack( hitPoint, shot.Origin );
 	}
 

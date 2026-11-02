@@ -1,5 +1,7 @@
 ﻿namespace Sandbox.Movement;
 
+#pragma warning disable CS0618
+
 partial class MoveMode
 {
 	/// <summary>
@@ -11,6 +13,7 @@ partial class MoveMode
 
 		OnUpdateAnimatorVelocity( renderer );
 		OnUpdateAnimatorState( renderer );
+
 		OnUpdateAnimatorLookDirection( renderer );
 
 		UpdateRotationSpeed( renderer );
@@ -66,8 +69,8 @@ partial class MoveMode
 			// convert to model space
 			skid = GetLocalVelocity( rot, skid );
 
-			renderer.Set( "skid_x", (skid.x / 400.0f) );
-			renderer.Set( "skid_y", (skid.y / 400.0f) );
+			SetAnimatorParameter( renderer, "skid_x", skid.x / 400.0f );
+			SetAnimatorParameter( renderer, "skid_y", skid.y / 400.0f );
 		}
 
 		// move the legs
@@ -85,20 +88,20 @@ partial class MoveMode
 
 			smoothed = GetLocalVelocity( rot, smoothed );
 
-			renderer.Set( "move_groundspeed", smoothed.WithZ( 0f ).Length );
-			renderer.Set( "move_x", smoothed.x );
-			renderer.Set( "move_y", smoothed.y );
-			renderer.Set( "move_z", smoothed.z );
+			SetAnimatorParameter( renderer, "move_groundspeed", smoothed.WithZ( 0f ).Length );
+			SetAnimatorParameter( renderer, "move_x", smoothed.x );
+			SetAnimatorParameter( renderer, "move_y", smoothed.y );
+			SetAnimatorParameter( renderer, "move_z", smoothed.z );
 		}
 
 		// the player's wish
 		{
 			var local = GetLocalVelocity( rot, wishVel );
 
-			renderer.Set( "wish_groundspeed", wishVel.WithZ( 0f ).Length );
-			renderer.Set( "wish_x", local.x );
-			renderer.Set( "wish_y", local.y );
-			renderer.Set( "wish_z", local.z );
+			SetAnimatorParameter( renderer, "wish_groundspeed", wishVel.WithZ( 0f ).Length );
+			SetAnimatorParameter( renderer, "wish_x", local.x );
+			SetAnimatorParameter( renderer, "wish_y", local.y );
+			SetAnimatorParameter( renderer, "wish_z", local.z );
 		}
 
 	}
@@ -128,10 +131,13 @@ partial class MoveMode
 	/// </summary>
 	protected virtual void OnUpdateAnimatorState( SkinnedModelRenderer renderer )
 	{
-		renderer.Set( "sit", 0 );
-		renderer.Set( "b_swim", Controller.IsSwimming );
-		renderer.Set( "b_climb", Controller.IsClimbing );
-		renderer.Set( "b_grounded", Controller.IsOnGround || Controller.IsClimbing );
+		if ( renderer.Animation.Graph is not null )
+			renderer.Animation.Parameters.TrySet( "sit", "not_sitting" );
+		else
+			SetAnimatorParameter( renderer, "sit", 0 );
+		SetAnimatorParameter( renderer, "b_swim", Controller.IsSwimming );
+		SetAnimatorParameter( renderer, "b_climb", Controller.IsClimbing );
+		SetAnimatorParameter( renderer, "b_grounded", Controller.IsOnGround || Controller.IsClimbing );
 
 		var duck = Controller.Headroom.Remap( 25, 0, 0, 0.5f, true );
 
@@ -141,7 +147,7 @@ partial class MoveMode
 			duck += 1.0f;
 		}
 
-		renderer.Set( "duck", duck );
+		SetAnimatorParameter( renderer, "duck", duck );
 	}
 
 	/// <summary>
@@ -149,6 +155,12 @@ partial class MoveMode
 	/// </summary>
 	protected virtual void OnUpdateAnimatorLookDirection( SkinnedModelRenderer renderer )
 	{
+		if ( renderer.Animation.Graph is not null )
+		{
+			OnUpdateAnimationGraph( renderer );
+			return;
+		}
+
 		var eyesForward = Controller.EyeTransform.Forward;
 
 		renderer.SetLookDirection( "aim_eyes", eyesForward, Controller.AimStrengthEyes );
@@ -218,10 +230,34 @@ partial class MoveMode
 
 		// TODO: why 5?
 
-		renderer.Set( "move_rotationspeed", _animRotationSpeed * 5f );
+		SetAnimatorParameter( renderer, "move_rotationspeed", _animRotationSpeed * 5f );
 
 		_timeSinceRotationSpeedUpdate = 0f;
 		_animRotationSpeed = 0f;
+	}
+
+	protected static void SetAnimatorParameter( SkinnedModelRenderer renderer, string name, float value )
+	{
+		if ( renderer.Animation.Graph is not null )
+			renderer.Animation.Parameters.TrySet( name, value );
+		else
+			renderer.Set( name, value );
+	}
+
+	protected static void SetAnimatorParameter( SkinnedModelRenderer renderer, string name, bool value )
+	{
+		if ( renderer.Animation.Graph is not null )
+			renderer.Animation.Parameters.TrySet( name, value );
+		else
+			renderer.Set( name, value );
+	}
+
+	protected static void SetAnimatorParameter( SkinnedModelRenderer renderer, string name, int value )
+	{
+		if ( renderer.Animation.Graph is not null )
+			renderer.Animation.Parameters.TrySet( name, value );
+		else
+			renderer.Set( name, value );
 	}
 
 }

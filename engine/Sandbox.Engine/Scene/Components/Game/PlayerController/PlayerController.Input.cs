@@ -134,7 +134,15 @@ public sealed partial class PlayerController : Component
 	{
 		if ( UseAnimatorControls && Renderer.IsValid() )
 		{
+			if ( Renderer.Animation.Graph is not null )
+			{
+				_jumpAnimationPending = true;
+				return;
+			}
+
+#pragma warning disable CS0618
 			Renderer.Set( "b_jump", true );
+#pragma warning restore CS0618
 		}
 	}
 
