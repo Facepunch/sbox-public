@@ -25,6 +25,24 @@ namespace Editor
 				var window = EditorTypeLibrary.Create<PanelWindow>( TargetType );
 				window.Show();
 			}
+			else if ( TargetType.IsAssignableTo( typeof( Sandbox.UI.Panel ) ) )
+			{
+				var window = EditorTypeLibrary.Create<PanelWindow>( typeof( PanelWindow ), ["", null] );
+
+				// Catch the exception when the user forgets to add a constructor with `PanelWindow` as its only argument.
+				try
+				{
+					window.Root.AddChild( EditorTypeLibrary.Create<Sandbox.UI.Panel>( TargetType, [window] ) );
+				}
+				catch ( System.Exception e )
+				{
+					Log.Error( e, $"Couldn't create EditorApp ({e.Message})" );
+					window.Dispose();
+					return;
+				}
+
+				window.Show();
+			}
 			else
 			{
 				var window = EditorTypeLibrary.Create<Widget>( TargetType );
