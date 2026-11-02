@@ -27,7 +27,13 @@ public class AssetType
 	public static AssetType Animation { get; protected set; }
 
 	/// <summary>
-	/// Animation Graph (.vanmgrph) asset type.
+	/// Legacy Animation Graph (.vanmgrph) asset type.
+	/// </summary>
+	[Obsolete( "AnimGraph1 is obsolete. Use AnimationGraph instead." )]
+	public static AssetType LegacyAnimationGraph { get; protected set; }
+
+	/// <summary>
+	/// Animation Graph (.ag) asset type.
 	/// </summary>
 	public static AssetType AnimationGraph { get; protected set; }
 
@@ -228,10 +234,28 @@ public class AssetType
 		}
 
 		if ( FriendlyName == "Animation" ) Animation = this;
-		if ( FriendlyName == "Animation Graph" )
+		if ( FileExtension == "vanmgrph" )
+		{
+#pragma warning disable CS0618
+			LegacyAnimationGraph = this;
+			ResourceType = typeof( AnimationGraph );
+#pragma warning restore CS0618
+		}
+
+		if ( FileExtension == "ag" )
 		{
 			AnimationGraph = this;
-			ResourceType = typeof( AnimationGraph );
+			ResourceType = typeof( Sandbox.Animation.Graph );
+		}
+
+		if ( FileExtension == "anim" )
+		{
+			ResourceType = typeof( Sandbox.Animation.Clip );
+		}
+
+		if ( FileExtension == "skel" )
+		{
+			ResourceType = typeof( Sandbox.Animation.Skeleton );
 		}
 
 		if ( FriendlyName == "Sound File" )
@@ -398,7 +422,10 @@ public class AssetType
 		if ( t == typeof( Material ) ) return AssetType.Material;
 		if ( t == typeof( Model ) ) return AssetType.Model;
 		if ( t == typeof( SoundFile ) ) return AssetType.SoundFile;
-		if ( t == typeof( AnimationGraph ) ) return AssetType.AnimationGraph;
+#pragma warning disable CS0618
+		if ( t == typeof( AnimationGraph ) ) return AssetType.LegacyAnimationGraph;
+#pragma warning restore CS0618
+		if ( t == typeof( Sandbox.Animation.Graph ) ) return AssetType.AnimationGraph;
 		if ( t == typeof( Shader ) ) return AssetType.Shader;
 
 		foreach ( var a in t.GetCustomAttributes<AssetTypeAttribute>() )

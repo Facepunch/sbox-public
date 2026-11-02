@@ -94,6 +94,7 @@ file sealed class SkinnedModelRendererCapturer : ComponentCapturer<SkinnedModelR
 		}
 		else if ( component.UseAnimGraph )
 		{
+#pragma warning disable CS0618
 			if ( component.Parameters.Graph is not { } graph ) return;
 
 			var parametersTrack = recorder.Property( nameof( SkinnedModelRenderer.Parameters ) );
@@ -107,6 +108,7 @@ file sealed class SkinnedModelRendererCapturer : ComponentCapturer<SkinnedModelR
 					parametersTrack.Property( paramName ).Capture();
 				}
 			}
+#pragma warning restore CS0618
 		}
 		else
 		{

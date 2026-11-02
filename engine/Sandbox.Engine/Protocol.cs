@@ -8,7 +8,7 @@ public static class Protocol
 	/// <summary>
 	/// We cannot play packages with an Api version higher than this.
 	/// </summary>
-	public static int Api => 32;
+	public static int Api => 33;
 
 	/// <summary>
 	/// We cannot talk to servers or clients with a network protocol different to this.
@@ -17,6 +17,7 @@ public static class Protocol
 }
 
 // Api Versions
+// 33. 29 October 2026 - AG2 adds the Sandbox.Animation namespace; AssetType.AnimationGraph now selects .ag, use LegacyAnimationGraph for .vanmgrph
 // 32. 22 October 2026 - ModelPhysics bodies and joints use NetList
 // 31. 17 October 2026 - Network stuff
 // 30. 05 October 2026 - Compiled sounds support Opus and Vorbis compression

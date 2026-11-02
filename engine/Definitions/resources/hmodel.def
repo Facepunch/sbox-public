@@ -21,6 +21,7 @@ native class CModel as NativeEngine.IModel
 {
 	stable string GetModelName();
 	stable string GetBaseModelName();
+	stable string GetSkeletonName();
 	IModel GetBaseModel();
 
 	bool IsTranslucent();
@@ -216,6 +217,8 @@ native class CModel as NativeEngine.IModel
 
 	int GetNumAnim();
 	stable string GetAnimationName( int nAnimation );
+	int GetNumWeightlists();
+	stable string GetWeightlistName( int nWeightlist );
 
 	inline void GetSequenceNames( CUtlVectorString names )
 	{
@@ -248,6 +251,8 @@ native class CModel as NativeEngine.IModel
 	}
 
 	HAnimationGraph GetAnimationGraph();
+	HAnimGraph2 GetAnimationGraph2();
+	stable string GetAnimationGraphName();
 
 	CPhysicsData GetPhysicsContainer();
 

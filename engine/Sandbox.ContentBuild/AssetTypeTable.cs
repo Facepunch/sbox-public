@@ -11,18 +11,18 @@ public sealed partial class AssetTypeTable
 	readonly Dictionary<string, (AssetKind Kind, string Output)> types = new( StringComparer.OrdinalIgnoreCase );
 
 	/// <summary>
-	/// Textures, sounds, animgraphs, generic data, manifests and standalone physics read only source files
-	/// (an animgraph's subgraphs are inputs, the models it names are only references). Materials and models
-	/// read other assets' compiled outputs and describe which. Shaders are built before content by their own
+	/// Textures, sounds, animgraphs, skeletons, generic data, manifests and standalone physics read only source files
+	/// (an animgraph's subgraphs are inputs, the models it names are only references). Materials, models and animation
+	/// clips can read other assets' compiled outputs and describe which. Shaders are built before content by their own
 	/// compiler, and maps and their visibility by Hammer. The rest can't be built from a source file of their
 	/// own: sound event and stack scripts and remap tables have no compiler, meshes and morphs refuse, and
-	/// animations, sequences and animation groups are only built inside a model compile. Their sources fail
+	/// legacy animations, sequences and animation groups are only built inside a model compile. Their sources fail
 	/// the build rather than be built on a guess.
 	/// </summary>
 	static AssetKind KindOf( string compiler ) => compiler switch
 	{
-		"CompileTexture" or "CompileSound" or "CompileAnimgraph" or "CompileGenericData" or "CompileResourceManifest" or "CompileVPhysXData" => AssetKind.Compiled,
-		"CompileMaterial" or "CompileModel" => AssetKind.Described,
+		"CompileTexture" or "CompileSound" or "CompileAnimgraph" or "CompileAnimSkeleton" or "CompileGenericData" or "CompileResourceManifest" or "CompileVPhysXData" => AssetKind.Compiled,
+		"CompileMaterial" or "CompileModel" or "CompileAnimClip" => AssetKind.Described,
 		"CompileShader" or "CompileMap" or "CompileMapVisibility" => AssetKind.None,
 		_ => AssetKind.Unsupported,
 	};

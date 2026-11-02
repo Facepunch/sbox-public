@@ -1,0 +1,45 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:generic:version{7412167c-06e9-4698-aff2-e63eb59037e7} -->
+{
+	_class = "CClipDocument"
+	m_sourceFilename = "models/citizen_human/animations/rust@jump_n.fbx"
+	m_animationSkeletonName = "models/citizen_human/animgraphs/human.skel"
+	m_nTake = 0
+	m_nStartFrame = -1
+	m_nEndFrame = -1
+	m_flImportScale = 1
+	m_additiveType = "None"
+	m_eventTracks = 
+	[
+		{
+			m_eventClassName = "CGenericEvent"
+			m_bIsSyncTrack = false
+			m_bIsDisabled = false
+			m_events = 
+			[
+				{
+					m_name = "AE_FOOTSTEP"
+					m_startTime = 1
+					m_duration = 0
+					m_eventData = 
+					{
+						attachment = "foot_R"
+						Foot = 1
+						volume = 0.7
+					}
+				},
+				{
+					m_name = "AE_FOOTSTEP"
+					m_startTime = 13
+					m_duration = 0
+					m_eventData = 
+					{
+						attachment = "foot_L"
+						Foot = 0
+						volume = 0.7
+					}
+				},
+			]
+		},
+	]
+	m_flImportFrameRate = -1
+}

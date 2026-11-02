@@ -81,7 +81,9 @@ public class MotionToAnimParams : BlendModification
 
 			var compiledRootTrack = MovieClip.RootGameObject( rootTrack.Name, rootTrack.Id );
 			var compiledRendererTrack = compiledRootTrack.Component<SkinnedModelRenderer>( rendererTrack.Id );
+#pragma warning disable CS0618
 			var compiledParamsTrack = compiledRendererTrack.Property<SkinnedModelRenderer.ParameterAccessor>( nameof( SkinnedModelRenderer.Parameters ) );
+#pragma warning restore CS0618
 
 			compiledTracks.Add( compiledParamsTrack.Property<float>( "move_x" )
 				.WithSamples( timeRange, sampleRate, velocities.Select( x => x.x ) ) );

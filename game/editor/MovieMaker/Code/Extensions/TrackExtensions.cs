@@ -44,10 +44,12 @@ public static class TrackExtensions
 
 	public static IEnumerable<TrackView> GetSkinnedModelRendererTracksWithParameters( this TrackListView listView, MovieTimeRange timeRange )
 	{
+#pragma warning disable CS0618
 		return listView.UnlockedTracks
 			.Where( x => x is { Track: ProjectReferenceTrack<SkinnedModelRenderer> } )
 			.Where( x => x.Find( nameof( SkinnedModelRenderer.Parameters ) )?.Children.Any(
 				y => y.Track is IProjectPropertyTrack propertyTrack && propertyTrack.GetBlocks( timeRange ).Any() ) ?? false );
+#pragma warning restore CS0618
 	}
 
 	public static IReadOnlyList<ICompiledPropertyTrack> BakeAnimation( this SkinnedModelRenderer renderer, MovieTimeRange timeRange, BakeAnimationsOptions? options = null )

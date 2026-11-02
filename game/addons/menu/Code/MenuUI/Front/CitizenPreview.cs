@@ -177,7 +177,9 @@ public sealed class CitizenPreview : Panel
 				renderer.Model = Model.Load( "models/citizen_human/human.vmdl" );
 
 				// The hands-on-hips pose the garage character used
+#pragma warning disable CS0618
 				renderer.Set( "special_idle_states", 1 );
+#pragma warning restore CS0618
 
 				if ( !PlayIntro )
 				{
@@ -201,7 +203,9 @@ public sealed class CitizenPreview : Panel
 
 				// A human skin swaps the body model, which rebuilds the anim graph with default
 				// parameters - put the pose back so the entry animation plays
+#pragma warning disable CS0618
 				renderer.Set( "special_idle_states", 1 );
+#pragma warning restore CS0618
 
 				// Taller people need the camera a little higher - a rough guess, and all we've got unless
 				// we're framing on their head, which takes over once they're posed
@@ -477,7 +481,9 @@ public sealed class CitizenPreview : Panel
 		_eyeDirection = Vector3.Lerp( _eyeDirection, wantDirection, RealTime.Delta * 8f ).Normal;
 		_eyeWeight = _eyeWeight.LerpTo( wantWeight, RealTime.Delta * 6f );
 
+#pragma warning disable CS0618
 		_renderer.SetLookDirection( "aim_eyes", _eyeDirection, _eyeWeight );
+#pragma warning restore CS0618
 	}
 
 	public override void OnDeleted()

@@ -136,6 +136,7 @@ public partial class Project
 			AddFromFileBuiltIn( "editor/MovieMaker/.sbproj" );
 			AddFromFileBuiltIn( "editor/Hammer/.sbproj" );
 			AddFromFileBuiltIn( "editor/DooEditor/DooEditor.sbproj" );
+			AddFromFileBuiltIn( "editor/AnimGraph/.sbproj" );
 		}
 
 		if ( syncPackageManager )

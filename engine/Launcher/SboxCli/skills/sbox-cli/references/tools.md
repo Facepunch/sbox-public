@@ -58,6 +58,12 @@ textures), `create_asset`, `asset_compile`, `asset_thumbnail` (image).
 
 **`play`** — `play_start`, `play_stop`, `play_pause`.
 
+**`animgraph`** — `animgraph_inspect`, `animgraph_node_types`, `animgraph_create`,
+`animgraph_edit`, `animgraph_compile`. Inspect first, then pass the returned revision to edits.
+`group_nodes` and `ungroup_node` preserve connections across pose-group boundaries;
+`layout_graph` arranges nodes, optionally recursively. Group contents use locators such as
+`root/node:<id>/graph:0`. Pose groups compile inline, without a child runtime graph.
+
 **`editor`** — `editor_status`, `compile_status` (every compiler's errors and warnings with file
 and line), `console_command`.
 
