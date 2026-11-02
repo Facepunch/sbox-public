@@ -37,7 +37,8 @@ public sealed record InputStamp( string Path, bool Exists, uint Checksum, long S
 /// <param name="Hash">Its hash when it was read, "0" if it didn't exist.</param>
 /// <param name="Output">The producer's output path within its root, which a later build may resolve to a
 /// different root; empty for a file no root of the build produced. Null in records written before it existed.</param>
-public sealed record RecordedPrerequisite( string File, string Hash, string Output = null );
+/// <param name="OrderOnly">Only whether it exists matters, not its contents.</param>
+public sealed record RecordedPrerequisite( string File, string Hash, string Output = null, bool OrderOnly = false );
 
 /// <summary>
 /// A publication failed part way (a file in use, read-only, ...) and was put back as it was.

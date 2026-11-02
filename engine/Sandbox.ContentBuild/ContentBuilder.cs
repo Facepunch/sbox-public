@@ -572,16 +572,16 @@ public static class ContentBuilder
 				if ( node.Record is not null && Unshared( root, node.Record.Outputs.Keys.Where( x => !outputs.Contains( x, StringComparer.OrdinalIgnoreCase ) ), node.Source ).Any() ) continue;
 
 				// Its own outputs (its generated textures) aren't reads
-				var reads = (described.TryGetValue( node, out var fresh ) ? fresh.Select( Read ).Where( x => x.File is not null && x.Producer != node ).ToList() : (node.Record?.Prerequisites ?? []).Select( x => (Producer: ProducerOfOutput( x.File ), File: Path.GetFullPath( x.File )) ).ToList())
+				var reads = (described.TryGetValue( node, out var fresh ) ? fresh.Select( Read ).Where( x => x.File is not null && x.Producer != node ).ToList() : (node.Record?.Prerequisites ?? []).Select( x => (Producer: ProducerOfOutput( x.File ), File: Path.GetFullPath( x.File ), x.OrderOnly) ).ToList())
 					.Where( x => !outputs.Contains( root.Key( x.File ), StringComparer.OrdinalIgnoreCase ) ).ToList();
 				var checkedReads = result.Inputs.Where( x => x.Game ).Select( x => Path.GetFullPath( x.Path ) ).ToHashSet( StringComparer.OrdinalIgnoreCase );
-				if ( reads.Any( x => !checkedReads.Contains( x.File ) ) ) continue;
+				if ( reads.Any( x => !x.OrderOnly && !checkedReads.Contains( x.File ) ) ) continue;
 
 				// Whatever else the output says it read (more than its description lists) is a read too, built first
-				reads.AddRange( checkedReads.Where( x => !reads.Any( r => string.Equals( r.File, x, StringComparison.OrdinalIgnoreCase ) ) && !outputs.Contains( root.Key( x ), StringComparer.OrdinalIgnoreCase ) ).Select( x => (ProducerOfOutput( x ), x) ) );
+				reads.AddRange( checkedReads.Where( x => !reads.Any( r => string.Equals( r.File, x, StringComparison.OrdinalIgnoreCase ) ) && !outputs.Contains( root.Key( x ), StringComparer.OrdinalIgnoreCase ) ).Select( x => (ProducerOfOutput( x ), x, false) ) );
 				foreach ( var producer in reads.Select( x => x.Producer ).Where( x => x is not null && x != node ) ) node.Prerequisites.Add( producer );
 
-				var prerequisites = reads.Select( x => new RecordedPrerequisite( x.File, File.Exists( x.File ) ? Hashing.File( x.File ) : "0", ReadOutput( x.Producer, x.File ) ) ).ToList();
+				var prerequisites = reads.Select( x => new RecordedPrerequisite( x.File, File.Exists( x.File ) ? Hashing.File( x.File ) : "0", ReadOutput( x.Producer, x.File ), x.OrderOnly ) ).ToList();
 				var record = NewRecord( node, result, outputs.ToDictionary( x => x, x => Hashing.Stamp( root.Locate( x ) ), StringComparer.OrdinalIgnoreCase ), prerequisites );
 
 				try { root.Store.Publish( node.Source, record.Job, record, new Dictionary<string, string>(), [] ); }
@@ -598,9 +598,9 @@ public static class ContentBuilder
 		/// <summary>
 		/// The compiled file a described read finds: its producer's output in this build, or whatever the compiler found.
 		/// </summary>
-		(Node Producer, string File) Read( PrerequisiteRead read ) => Producer( read.Source ) is { } producer
-			? (producer, Path.GetFullPath( producer.Root.Resolve( producer.Output ) ))
-			: (null, read.Compiled is null ? null : Path.GetFullPath( read.Compiled ));
+		(Node Producer, string File, bool OrderOnly) Read( PrerequisiteRead read ) => Producer( read.Source ) is { } producer
+			? (producer, Path.GetFullPath( producer.Root.Resolve( producer.Output ) ), read.OrderOnly)
+			: (null, read.Compiled is null ? null : Path.GetFullPath( read.Compiled ), read.OrderOnly);
 
 		string ReadOutput( Node producer, string file ) => producer?.Output ?? request.ReadOnlyMounts
 			.Select( x => Path.GetRelativePath( x.Path, file ).Replace( '\\', '/' ) )
@@ -887,6 +887,7 @@ public static class ContentBuilder
 			var blocker = reads.FirstOrDefault( x => x.Node?.State is State.Failed or State.Blocked ).Node;
 			if ( blocker is not null ) { Block( node, $"read {blocker.Name}, which failed" ); return; }
 
+			if ( result.Success ) KeepPublishedGenerated( node, result, staging );
 			var error = result.Success ? Validate( node, result, staging ) : "compile failed";
 			if ( error is not null ) { Fail( node, error, result.Log ); return; }
 
@@ -924,7 +925,8 @@ public static class ContentBuilder
 		List<(Node Node, RecordedPrerequisite Recorded)> Reads( Node node, CompileResult result, HashSet<string> own, Func<string, string> hashOf )
 		{
 			var reads = new List<(Node, RecordedPrerequisite)>();
-			foreach ( var read in result.Prerequisites.DistinctBy( x => x.Source, StringComparer.OrdinalIgnoreCase ) )
+			// Order only if every read of it was
+			foreach ( var read in result.Prerequisites.GroupBy( x => x.Source, StringComparer.OrdinalIgnoreCase ).Select( x => x.First() with { OrderOnly = x.All( r => r.OrderOnly ) } ) )
 			{
 				var producer = Producer( read.Source );
 				if ( producer == node ) continue;
@@ -932,7 +934,7 @@ public static class ContentBuilder
 				var file = Path.GetFullPath( producer is not null ? producer.Root.Resolve( producer.Output ) : read.Compiled ?? read.Source + "_c" );
 				if ( producer is null && node.Root.Key( file ) is { } key && own.Contains( key ) ) continue;
 
-				reads.Add( (producer, new RecordedPrerequisite( file, hashOf( file ), ReadOutput( producer, file ) )) );
+				reads.Add( (producer, new RecordedPrerequisite( file, hashOf( file ), ReadOutput( producer, file ), read.OrderOnly )) );
 			}
 			return reads;
 		}
@@ -945,6 +947,24 @@ public static class ContentBuilder
 		{
 			var shadowed = result.Prerequisites.FirstOrDefault( x => x.Compiled is not null && Producer( x.Source ) is { } p && p != node && !string.Equals( Path.GetFullPath( x.Compiled ), p.Root.Resolve( p.Output ), StringComparison.OrdinalIgnoreCase ) );
 			return shadowed is null ? null : $"read {shadowed.Compiled} instead of what {Producer( shadowed.Source ).Name} builds";
+		}
+
+		// Generated children are named after their recipe; GPU compression isn't bit exact, so keep a current owner's copy
+		void KeepPublishedGenerated( Node node, CompileResult result, string staging )
+		{
+			var root = node.Root;
+			foreach ( var output in result.Outputs )
+			{
+				var rel = root.OutputKey( output, staging );
+				if ( rel is null || Shared( rel ) || !Path.GetFileName( rel ).Contains( ".generated.", StringComparison.OrdinalIgnoreCase ) ) continue;
+				if ( root.Resolve( rel ) is not { } published || !File.Exists( published ) ) continue;
+
+				var hash = Hashing.File( published );
+				var current = root.Store.Owners( rel ).Any( owner => !string.Equals( owner, node.Source, StringComparison.OrdinalIgnoreCase )
+					&& nodes.TryGetValue( (root, owner), out var other ) && other.State is State.Committed or State.Clean
+					&& root.Store.All[owner].Outputs[rel].Hash == hash );
+				if ( current ) File.Copy( published, output, true );
+			}
 		}
 
 		/// <summary>
@@ -1014,6 +1034,8 @@ public static class ContentBuilder
 		{
 			foreach ( var prerequisite in node.Record?.Prerequisites ?? [] )
 			{
+				if ( prerequisite.OrderOnly ) continue;
+
 				// Older records only have the file: one outside every root here can't be checked, so read again
 				var output = prerequisite.Output ?? roots.Select( x => x.InRoot( prerequisite.File ) ).FirstOrDefault( x => x is not null );
 				if ( output is null ) return $"{prerequisite.File} is outside every root of this build";
@@ -1057,6 +1079,12 @@ public static class ContentBuilder
 			foreach ( var prerequisite in node.Record.Prerequisites )
 			{
 				var file = new FileInfo( prerequisite.File );
+				if ( prerequisite.OrderOnly )
+				{
+					if ( file.Exists != (prerequisite.Hash != "0") ) return $"{prerequisite.File} {(file.Exists ? "appeared" : "is gone")}";
+					continue;
+				}
+
 				var producer = ProducerOfOutput( prerequisite.File );
 				var stamp = producer?.Record?.Outputs.GetValueOrDefault( producer.Output );
 				// The producer already records these bytes. Reuse that hash only while the file still matches
