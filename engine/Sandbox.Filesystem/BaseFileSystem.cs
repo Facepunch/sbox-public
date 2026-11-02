@@ -269,7 +269,7 @@ public class BaseFileSystem
 		}
 	}
 
-	internal void MoveFile( string source, string destination ) => system.MoveFile( FixPath( source ), FixPath( destination ) );
+	internal void MoveFile( string source, string destination ) => system.MoveFile( FixPath( source ), FixWritePath( destination ) );
 
 	/// <summary>
 	/// Write the contents to the path. The file will be over-written if the file exists
@@ -393,9 +393,10 @@ public class BaseFileSystem
 	/// </summary>
 	public System.IO.Stream OpenWrite( string path, FileMode mode = FileMode.Create )
 	{
+		var fixedPath = FixWritePath( path );
 		CreatePathForFile( path );
 
-		return system.OpenFile( FixPath( path ), mode, FileAccess.Write );
+		return system.OpenFile( fixedPath, mode, FileAccess.Write );
 	}
 
 	/// <summary>
@@ -694,6 +695,14 @@ public class BaseFileSystem
 
 		if ( path[0] == '/' ) return path;
 		return string.Concat( "/", path );
+	}
+
+	static string FixWritePath( string path )
+	{
+		path = FixPath( path );
+		if ( SafePath.IsReservedDeviceName( Path.GetFileName( path.AsSpan() ) ) ) throw new ArgumentException( "File name cannot be a reserved device name!", "path" );
+
+		return path;
 	}
 
 	/// <summary>
