@@ -12,6 +12,7 @@ namespace Editor.Mcp;
 /// Each engine process has a local, same-user MCP endpoint independent of the editor HTTP port.
 /// The process start time in its name prevents attaching to a reused PID.
 /// </summary>
+[SkipHotload]
 internal static class McpPipeServer
 {
 	static CancellationTokenSource lifetime;
