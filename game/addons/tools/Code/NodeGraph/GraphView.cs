@@ -97,7 +97,29 @@ public class GraphView : GraphicsView, IGridSizeView
 	protected virtual bool CanDisconnectByDroppingConnection => true;
 	protected virtual bool UseSmoothZoom => false;
 
-	protected virtual bool CanConnect( PlugOut output, PlugIn input ) => true;
+	protected virtual bool AreConnectionTypesCompatible( Type a, Type b ) => true;
+
+	protected virtual bool CanConnect( PlugOut output, PlugIn input, Connection source = null )
+	{
+		if ( output.Inner.Node is not IRerouteNode && input.Inner.Node is not IRerouteNode )
+			return AreConnectionTypesCompatible( output.Inner.Type, input.Inner.Type );
+
+		return IRerouteNode.CanConnect<Plug>( output, input, plug => plug.Inner,
+			( plug, replacingInput ) => GetRerouteConnections( plug, replacingInput, source ), AreConnectionTypesCompatible );
+	}
+
+	private static IEnumerable<Plug> GetRerouteConnections( Plug plug, Plug replacingInput, Connection source )
+	{
+		var upstream = plug.Node.Inputs[0];
+		if ( upstream != replacingInput && upstream.Connection.IsValid() && upstream.Connection != source )
+			yield return upstream.Connection.Output;
+
+		foreach ( var connection in plug.Node.Outputs[0].Connections )
+		{
+			if ( connection.Input != replacingInput && connection != source )
+				yield return connection.Input;
+		}
+	}
 
 	public float GridSize { get; set; } = 12f;
 	public virtual bool FadeOutBackground => true;
@@ -1083,7 +1105,7 @@ public class GraphView : GraphicsView, IGridSizeView
 
 		var output = plug as PlugOut ?? dropTarget as PlugOut;
 		var input = plug as PlugIn ?? dropTarget as PlugIn;
-		var isInvalid = output.IsValid() && input.IsValid() && !CanConnect( output, input );
+		var isInvalid = output.IsValid() && input.IsValid() && !CanConnect( output, input, source );
 
 		DropTarget?.Update();
 		DropTarget = dropTarget;
@@ -1104,8 +1126,14 @@ public class GraphView : GraphicsView, IGridSizeView
 		bool disconnected = false;
 		bool connected = false;
 
-		if ( source.IsValid() && !DropTarget.IsValid() && !CanDisconnectByDroppingConnection )
+		var output = plug as PlugOut ?? DropTarget as PlugOut;
+		var input = plug as PlugIn ?? DropTarget as PlugIn;
+		var canConnect = DropTarget.IsValid() && DropTarget.Node != plug.Node && CanConnect( output, input, source );
+
+		if ( source.IsValid() && !canConnect && (DropTarget.IsValid() || !CanDisconnectByDroppingConnection) )
 		{
+			DropTarget?.Update();
+			DropTarget = null;
 			Preview?.Destroy();
 			Preview = null;
 			return;
@@ -1136,10 +1164,7 @@ public class GraphView : GraphicsView, IGridSizeView
 			source.Destroy();
 		}
 
-		var output = plug as PlugOut ?? DropTarget as PlugOut;
-		var input = plug as PlugIn ?? DropTarget as PlugIn;
-
-		if ( DropTarget.IsValid() && DropTarget.Node != plug.Node && CanConnect( output, input ) )
+		if ( canConnect )
 		{
 			connected = true;
 
@@ -1194,6 +1219,12 @@ public class GraphView : GraphicsView, IGridSizeView
 
 		if ( !uiOnly )
 		{
+			if ( !CanConnect( nodeOutput, dropTarget ) )
+			{
+				Log.Warning( "Cannot connect incompatible pin types or create a reroute cycle" );
+				return null;
+			}
+
 			dropTarget.Inner.ConnectedOutput = nodeOutput.Inner;
 		}
 
@@ -1251,6 +1282,12 @@ public class GraphView : GraphicsView, IGridSizeView
 	internal void RerouteConnection( Connection c, Vector2 scenePosition )
 	{
 		if ( !CanCreateReroute ) return;
+
+		if ( !CanConnect( c.Output, c.Input ) )
+		{
+			Log.Warning( "Cannot reroute incompatible pin types or a reroute cycle" );
+			return;
+		}
 
 		using var undoScope = UndoScope( "Reroute Connection" );
 

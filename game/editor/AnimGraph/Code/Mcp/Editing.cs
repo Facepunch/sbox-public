@@ -34,6 +34,9 @@ public static partial class McpTools
 	///
 	/// Later operations can reference an add_node, add_parameter or group_nodes alias as @alias, including
 	/// inside graph locators such as root/node:@machine/state:0.
+	/// For wire organisation, add_node with Type RerouteNode and Values (Position, Comment),
+	/// then connect through its Input and Result plugs. Fan out Result to share a route.
+	/// Reconnect consumers before removing a reroute; set_node edits its position and comment.
 	/// </summary>
 	/// <param name="path">The .ag asset path.</param>
 	/// <param name="expectedRevision">Revision from animgraph_inspect or animgraph_create.</param>
@@ -280,10 +283,32 @@ public static partial class McpTools
 		var input = target.Inputs.FirstOrDefault( plug => string.Equals( plug.Identifier, inputName, StringComparison.OrdinalIgnoreCase ) )
 			?? throw new Exception( $"{target.GetType().Name} has no input '{operation.ToInput}'" );
 
-		if ( output.Type != input.Type )
-			throw new Exception( $"Cannot connect {LinkType( output.Type )} to {LinkType( input.Type )}" );
+		var canConnect = source is IRerouteNode || target is IRerouteNode
+			? CanConnectReroute( graph, output, input )
+			: output.Type == input.Type;
+		if ( !canConnect )
+			throw new Exception( $"Cannot connect {LinkType( output.Type )} to {LinkType( input.Type )}: incompatible pin types or reroute cycle" );
 
 		input.ConnectedOutput = output;
+	}
+
+	private static bool CanConnectReroute( Data graph, IPlugOut output, IPlugIn input )
+	{
+		var consumers = graph.Nodes.SelectMany( node => node.Inputs )
+			.Where( candidate => candidate != input && candidate.ConnectedOutput?.Node is IRerouteNode )
+			.ToLookup( candidate => candidate.ConnectedOutput.Node );
+
+		IEnumerable<IPlug> GetConnections( IPlug plug, IPlug replacingInput )
+		{
+			var upstream = plug.Node.Inputs.First();
+			if ( upstream != replacingInput && upstream.ConnectedOutput is { } source )
+				yield return source;
+
+			foreach ( var consumer in consumers[plug.Node] )
+				yield return consumer;
+		}
+
+		return IRerouteNode.CanConnect<IPlug>( output, input, plug => plug, GetConnections, ( a, b ) => a == b );
 	}
 
 	private static void Disconnect( Data root, EditOperation operation, IReadOnlyDictionary<string, string> aliases )
