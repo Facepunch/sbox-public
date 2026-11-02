@@ -4,9 +4,9 @@ namespace Sandbox.Mounting.Source1;
 
 internal sealed partial class SourceMaterialBuilder
 {
-	private Material CreateMonitor( string resourceName )
+	private Material CreateMonitor( string resourceName, bool mapSurface = false )
 	{
-		var material = CreateSurface( "unlitgeneric", parameters, transforms, alpha, animation, resourceName );
+		var material = CreateSurface( "unlitgeneric", parameters, transforms, alpha, animation, resourceName, mapSurface );
 		var second = parameters.String( "$texture2" );
 		if ( !string.IsNullOrWhiteSpace( second ) )
 		{
@@ -25,7 +25,7 @@ internal sealed partial class SourceMaterialBuilder
 
 	private Material CreateVolumeClouds( string resourceName )
 	{
-		var material = CreateShaderMaterial( "shaders/source1/volume_clouds.shader", resourceName );
+		var material = CreateShaderMaterial( "shaders/source1/volumeclouds.shader", resourceName );
 		material.SetFeature( "F_RENDER_BACKFACES", parameters.Boolean( "$nocull" ) ? 1 : 0 );
 		string[] keys = ["$basetexture", "$basetexture2", "$basetexture3"];
 		string[] inputs = ["g_tColor", "g_tTexture2", "g_tTexture3"];

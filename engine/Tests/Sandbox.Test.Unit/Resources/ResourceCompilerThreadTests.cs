@@ -16,6 +16,24 @@ public class ResourceCompilerThreadTests
 		protected override Task<bool> Compile() => callback();
 	}
 
+	sealed class FailureContext : ResourceCompileContext
+	{
+		public string Error { get; private set; }
+		internal override void Fail( string error ) => Error = error;
+		public override string AbsolutePath => throw new NotSupportedException();
+		public override string RelativePath => throw new NotSupportedException();
+		public override int ResourceVersion { get; set; }
+		public override bool Describing => false;
+		internal override int WriteBlock( string blockName, IntPtr data, int count ) => throw new NotSupportedException();
+		public override void AddRuntimeReference( string path ) => throw new NotSupportedException();
+		public override void AddCompileReference( string path, bool optional = false ) => throw new NotSupportedException();
+		public override void AddGameFileReference( string path ) => throw new NotSupportedException();
+		public override void AddCompiledReference( string path ) => throw new NotSupportedException();
+		public override Child CreateChild( string absolutePath ) => throw new NotSupportedException();
+		public override string ScanJson( string json ) => throw new NotSupportedException();
+		public override byte[] ReadSource() => throw new NotSupportedException();
+	}
+
 	sealed class CallbackTextureGenerator( Func<Task> callback ) : TextureGenerator
 	{
 		protected override async ValueTask<Texture> CreateTexture( Options options, CancellationToken ct )
@@ -129,20 +147,25 @@ public class ResourceCompilerThreadTests
 	}
 
 	/// <summary>
-	/// A failed compile must restore the caller's context as well as return failure.
+	/// A failed compile must restore the caller's context and record the failure, without allowing native fallback.
 	/// </summary>
 	[TestMethod]
+	[DataRow( false )]
+	[DataRow( true )]
 	[Timeout( 5000 )]
-	public void FailureRestoresCallingContext()
+	public void FailureRestoresCallingContext( bool asynchronous )
 	{
 		var previous = SynchronizationContext.Current;
+		var context = new FailureContext();
 		var compiler = new CallbackCompiler( async () =>
 		{
-			await Task.Yield();
+			if ( asynchronous ) await Task.Yield();
 			throw new InvalidOperationException( "Expected compiler failure" );
 		} );
+		compiler.SetContext( context );
 
-		Assert.IsFalse( compiler.CompileInternal() );
+		Assert.IsTrue( compiler.CompileInternal(), "The failed compile was handled; native compilation must not take over" );
+		StringAssert.Contains( context.Error, "Expected compiler failure" );
 		Assert.AreSame( previous, SynchronizationContext.Current );
 	}
 }

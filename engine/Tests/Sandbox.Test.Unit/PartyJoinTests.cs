@@ -359,4 +359,53 @@ public class PartyJoinTests
 		await join.PendingTask;
 		Assert.AreEqual( "second.game", downloaded );
 	}
+
+	[TestMethod]
+	public void FollowerAlreadyInTheLeadersGameDoesNotRejoin()
+	{
+		var downloads = 0;
+		var connects = 0;
+		var stops = 0;
+		using var join = new PartyJoinController( ( _, _, _ ) => { downloads++; return Task.CompletedTask; },
+			( _, _, _ ) => { connects++; return Task.CompletedTask; }, () => stops++, address => address == "server" );
+		join.Update( Ready(), 0 );
+		join.Update( Ready(), 1 );
+		Assert.AreEqual( PartyRoom.JoinStage.Connected, join.Stage );
+		Assert.AreEqual( 0, downloads );
+		Assert.AreEqual( 0, connects );
+		Assert.AreEqual( 0, stops );
+	}
+
+	[TestMethod]
+	public async Task FollowerInADifferentGameStillJoinsTheLeader()
+	{
+		var downloads = 0;
+		var connects = 0;
+		using var join = new PartyJoinController( ( _, _, _ ) => { downloads++; return Task.CompletedTask; },
+			( _, _, _ ) => { connects++; return Task.CompletedTask; }, () => { }, address => address == "other-server" );
+		join.Update( Ready(), 0 );
+		await join.PendingTask;
+		Assert.AreEqual( PartyRoom.JoinStage.Connected, join.Stage );
+		Assert.AreEqual( 1, downloads );
+		Assert.AreEqual( 1, connects );
+	}
+
+	[TestMethod]
+	public async Task PreloadFinishingAfterFindingTheLeadersGameKeepsConnected()
+	{
+		var download = new TaskCompletionSource();
+		var connects = 0;
+		using var join = new PartyJoinController( ( _, _, _ ) => download.Task,
+			( _, _, _ ) => { connects++; return Task.CompletedTask; }, () => { }, address => address == "server" );
+		join.Update( Loading(), 0 );
+		var pending = join.PendingTask;
+		join.Update( Ready(), 1 );
+		Assert.AreEqual( PartyRoom.JoinStage.Connected, join.Stage );
+
+		download.SetResult();
+		await pending;
+		join.Update( Ready(), 2 );
+		Assert.AreEqual( PartyRoom.JoinStage.Connected, join.Stage );
+		Assert.AreEqual( 0, connects );
+	}
 }

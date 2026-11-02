@@ -166,7 +166,9 @@ internal class TypeDropdownWidget : AdvancedDropdownPopup
 		typeof(IMovieResource),
 		typeof(RangedFloat),
 		typeof(GameTransform),
+#pragma warning disable CS0618
 		typeof(SkinnedModelRenderer.ParameterAccessor),
+#pragma warning restore CS0618
 		typeof(MaterialAccessor),
 		typeof(Enum),
 		typeof(ICodeEditor),

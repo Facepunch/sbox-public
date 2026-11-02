@@ -30,11 +30,13 @@ public class AnimParamsToBones : BlendModification
 			var compiledRootTrack = MovieClip.RootGameObject( rendererTrackView.Name, rendererTrackView.Parent!.Track.Id );
 			var compiledRendererTrack = compiledRootTrack.Component<SkinnedModelRenderer>( rendererTrackView.Track.Id );
 
+#pragma warning disable CS0618
 			var animParamTracks = rendererTrackView.Find( nameof( SkinnedModelRenderer.Parameters ) )
 				?.Children
 				.Select( x => x.Track )
 				.OfType<IProjectPropertyTrack>()
 				.ToArray() ?? [];
+#pragma warning restore CS0618
 
 			var options = new BakeAnimationsOptions(
 				SampleRate: EditMode.Project.SampleRate,
@@ -66,7 +68,9 @@ public class AnimParamsToBones : BlendModification
 		{
 			if ( track is ProjectPropertyTrack<float> floatTrack && floatTrack.TryGetValue( time, out var value ) )
 			{
+#pragma warning disable CS0618
 				model.SetAnimParameter( track.Name, value );
+#pragma warning restore CS0618
 			}
 
 			// TODO: other types

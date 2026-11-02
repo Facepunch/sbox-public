@@ -6,14 +6,14 @@ internal static partial class DebugOverlay
 	{
 		private static readonly Dictionary<NetworkDebugSystem.MessageType, Color> Colors = new()
 		{
-			[NetworkDebugSystem.MessageType.Rpc] = Sandbox.Diagnostics.HubStyles.Series[0],
-			[NetworkDebugSystem.MessageType.Spawn] = Sandbox.Diagnostics.HubStyles.Series[1],
-			[NetworkDebugSystem.MessageType.Refresh] = Sandbox.Diagnostics.HubStyles.Series[2],
-			[NetworkDebugSystem.MessageType.Snapshot] = Sandbox.Diagnostics.HubStyles.Series[3],
-			[NetworkDebugSystem.MessageType.SyncVars] = Sandbox.Diagnostics.HubStyles.Series[4],
-			[NetworkDebugSystem.MessageType.Culling] = Sandbox.Diagnostics.HubStyles.Series[5],
-			[NetworkDebugSystem.MessageType.StringTable] = Sandbox.Diagnostics.HubStyles.Series[6],
-			[NetworkDebugSystem.MessageType.UserCommands] = Sandbox.Diagnostics.HubStyles.Series[7]
+			[NetworkDebugSystem.MessageType.Rpc] = Sandbox.Diagnostics.DevToolsStyles.Series[0],
+			[NetworkDebugSystem.MessageType.Spawn] = Sandbox.Diagnostics.DevToolsStyles.Series[1],
+			[NetworkDebugSystem.MessageType.Refresh] = Sandbox.Diagnostics.DevToolsStyles.Series[2],
+			[NetworkDebugSystem.MessageType.Snapshot] = Sandbox.Diagnostics.DevToolsStyles.Series[3],
+			[NetworkDebugSystem.MessageType.SyncVars] = Sandbox.Diagnostics.DevToolsStyles.Series[4],
+			[NetworkDebugSystem.MessageType.Culling] = Sandbox.Diagnostics.DevToolsStyles.Series[5],
+			[NetworkDebugSystem.MessageType.StringTable] = Sandbox.Diagnostics.DevToolsStyles.Series[6],
+			[NetworkDebugSystem.MessageType.UserCommands] = Sandbox.Diagnostics.DevToolsStyles.Series[7]
 		};
 
 		private static float _smoothedInKbpsIn;

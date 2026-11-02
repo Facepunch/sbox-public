@@ -1,3 +1,4 @@
+using MenuProject.UI;
 using Sandbox;
 
 namespace MenuProject.Modals;
@@ -39,44 +40,12 @@ public partial class PackageSelectionModal
 	RealTimeSince timeSinceSearchEdited;
 	string lastReportedQuery;
 
-	static readonly Package.SortOrder FavouritesSortOrder = new( "favourite", "#menu.games.your_favourites", "bookmarks" );
-
-	static readonly Package.SortOrder[] GameSortOrders =
-	[
-		new() { Name = "trending", Title = "#menu.games.trending", Icon = "trending_up" },
-		new() { Name = "rankday", Title = "#menu.games.popular_today", Icon = "local_fire_department" },
-		new() { Name = "rankweek", Title = "#menu.games.popular_this_week", Icon = "date_range" },
-		new() { Name = "rankmonth", Title = "#menu.games.popular_this_month", Icon = "calendar_month" },
-		new() { Name = "quality", Title = "#menu.games.most_loved", Icon = "favorite" },
-		new() { Name = "newest", Title = "#menu.games.new_releases", Icon = "new_releases" },
-		new() { Name = "updated", Title = "#menu.games.recently_updated", Icon = "schedule" },
-		new() { Name = "hiddengem", Title = "#menu.games.hidden_gems", Icon = "diamond" },
-		FavouritesSortOrder
-	];
-
-	static readonly Package.SortOrder[] DefaultSortOrders =
-	[
-		new() { Name = "trending", Title = "#menu.games.trending", Icon = "trending_up" }
-	];
-
 	bool IsGamePicker => packageTypes.Count == 1 && packageTypes[0] == "game";
 
-	IEnumerable<Package.SortOrder> SortOrders
-	{
-		get
-		{
-			if ( IsGamePicker ) return GameSortOrders;
-
-			var orders = Result?.Orders is { Length: > 0 } availableOrders ? availableOrders : DefaultSortOrders;
-
-			if ( packageTypes.Count == 1 && packageTypes[0] == "map" && !orders.Any( order => order.Name == FavouritesSortOrder.Name ) )
-			{
-				return orders.Append( FavouritesSortOrder );
-			}
-
-			return orders;
-		}
-	}
+	/// <summary>
+	/// The Games page's sorts, whatever it's picking - a row of icons that fits the sidebar
+	/// </summary>
+	static IEnumerable<Package.SortOrder> SortOrders => GamePackageSortOrder.Orders;
 
 	string PackageNoun => packageTypes.Count == 1 ? packageTypes[0] switch
 	{
@@ -96,7 +65,6 @@ public partial class PackageSelectionModal
 	string SearchQuery => $"{string.Join( " ", packageTypes.Select( type => $"type:{type}" ) )} {string.Join( " ", requiredFilters )} sort:{sortOrder} {debouncedSearch} {string.Join( " ", selectedTags.Select( tag => $"+{tag}" ) )} {string.Join( " ", selectedCategories.Select( category => $"{category.Key}:{category.Value}" ) )}".Trim();
 
 	string ResultsTitle => packageSource == PackageSource.Subscribed ? Language.GetPhrase( "menu.workshop.subscribed_packages", new() { ["noun"] = PackageNoun } )
-		: packageSource == PackageSource.Downloaded ? Language.GetPhrase( "menu.workshop.downloaded_packages", new() { ["noun"] = PackageNoun } )
 		: !string.IsNullOrWhiteSpace( debouncedSearch ) ? "#menu.games.search_results" : SortOrders.FirstOrDefault( order => order.Name == sortOrder ).Title ?? Result?.Orders?.FirstOrDefault( order => order.Name == sortOrder ).Title ?? "#menu.games.results";
 
 	void SetQuery( string query )

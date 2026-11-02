@@ -122,6 +122,11 @@ public struct LobbyInformation
 	public bool IsHidden => Data.TryGetValue( "hdn", out var value ) && value == "1";
 
 	/// <summary>
+	/// True if you need a password to join this lobby or server.
+	/// </summary>
+	public bool IsPasswordProtected => Data.TryGetValue( "pw", out var value ) && value == "1";
+
+	/// <summary>
 	/// Return true if this lobby contains a friend.
 	/// </summary>
 	internal bool ContainsFriends => false;
@@ -144,6 +149,7 @@ internal static class DedicatedServer
 	private static Dictionary<string, string> _data = new();
 	private static string _mapName;
 	private static string _name;
+	private static bool _passwordProtected;
 
 	/// <summary>
 	/// All metadata for this dedicated server.
@@ -172,6 +178,31 @@ internal static class DedicatedServer
 			sgs.SetAdvertiseServerActive( true );
 
 			_name = value;
+		}
+	}
+
+	/// <summary>
+	/// Whether the server browser shows this server needs a password (sv_password).
+	/// </summary>
+	public static bool PasswordProtected
+	{
+		get => _passwordProtected;
+		set
+		{
+			var sgs = Steam.SteamGameServer();
+			if ( !sgs.IsValid || !Networking.IsHost )
+			{
+				_passwordProtected = value;
+				return;
+			}
+
+			if ( _passwordProtected == value )
+				return;
+
+			sgs.SetPasswordProtected( value );
+			sgs.SetAdvertiseServerActive( true );
+
+			_passwordProtected = value;
 		}
 	}
 
@@ -316,11 +347,15 @@ internal static class DedicatedServer
 			sgs.SetServerName( hostname );
 			sgs.SetMapName( mapName );
 
+			var passwordProtected = Networking.System?.Access.HasPassword ?? false;
+			sgs.SetPasswordProtected( passwordProtected );
+
 			Networking.UpdateServerName( hostname );
 			Networking.MaxPlayers = config.MaxPlayers;
 
 			_mapName = mapName;
 			_name = hostname;
+			_passwordProtected = passwordProtected;
 
 			if ( !IsGameServerActive && !sgs.BLoggedOn() )
 			{

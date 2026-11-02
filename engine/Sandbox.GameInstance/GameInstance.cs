@@ -119,6 +119,8 @@ internal class GameInstance : IGameInstance
 		// Destroy resource manifests before unmounting their package or network-backed files.
 		Game.Resources.Clear();
 
+		Sandbox.Engine.Shaders.GameShaders.Shutdown();
+
 		if ( activePackage != null && !Application.IsStandalone )
 		{
 			Game.Language?.Shutdown();
@@ -337,6 +339,14 @@ internal class GameInstance : IGameInstance
 			await ResourceLoader.LoadAllGameResourceAsync( FileSystem.Mounted, token );
 		}
 
+		// Dedicated servers install packages that GameResources reference as they load, wait
+		// for them so their resources are registered before the game starts using them
+		if ( Application.IsDedicatedServer )
+		{
+			Log.Trace( $"Waiting for referenced packages" );
+			await Game.Resources.WaitForReferencedPackagesAsync( token );
+		}
+
 		LoadingScreen.Title = $"Loading Fonts";
 		Api.Activity.LoadStage( "fonts" );
 		await Task.Yield(); // make frame
@@ -444,6 +454,12 @@ internal class GameInstance : IGameInstance
 				Texture.Hotload( FileSystem.Mounted, file );
 			}
 		};
+
+		// The editor's asset system compiles shaders
+		if ( !Application.IsEditor && !Application.IsHeadless )
+		{
+			Sandbox.Engine.Shaders.ShaderHotload.Watch( FileSystem.Mounted );
+		}
 
 		var settingsWatcher = EngineFileSystem.ProjectSettings.Watch();
 		settingsWatcher.OnChanges += x =>

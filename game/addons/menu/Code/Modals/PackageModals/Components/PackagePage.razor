@@ -22,7 +22,7 @@
             break;
 
         case Changes:
-            <PackageChanges Package=@Package />
+            <PackageChanges Package=@Package WorkshopId=@WorkshopId />
             break;
 
         case News:
@@ -70,5 +70,10 @@
     /// </summary>
     [Parameter] public string Page { get; set; }
 
-    protected override int BuildHash() => HashCode.Combine( Package, Page );
+    /// <summary>
+    /// Its Steam Workshop item - its Changes are the item's change notes. 0 for the backend's.
+    /// </summary>
+    [Parameter] public ulong WorkshopId { get; set; }
+
+    protected override int BuildHash() => HashCode.Combine( Package, Page, WorkshopId );
 }

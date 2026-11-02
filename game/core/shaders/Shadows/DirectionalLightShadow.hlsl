@@ -77,6 +77,13 @@ int FindCascade( float3 worldPosition, out float3 posLs )
 	return FindCascadeWithOffset( worldPosition - g_vHighPrecisionLightingOffsetWs.xyz, posLs );
 }
 
+float CascadeBlendWeight( int cascadeIndex, float3 positionWithOffsetWs )
+{
+	float4 sphere = g_DirectionalLightCascadeSpheres[cascadeIndex];
+	float3 toCenter = positionWithOffsetWs - ( sphere.xyz - g_vHighPrecisionLightingOffsetWs.xyz );
+	return 1.0 - smoothstep( 0.81 * sphere.w, sphere.w, dot( toCenter, toCenter ) );
+}
+
 struct DirectionalLightShadow
 {
 	// Camera-relative position (vPositionWithOffsetWs).
@@ -166,11 +173,25 @@ struct DirectionalLightShadow
 
 		float3 posLs;
 		int cascade = FindCascadeWithOffset( positionWithOffsetWs, posLs );
-
 		if ( cascade < 0 )
 			return ssShadow;
 
-		return SampleCascadeWithOffset( cascade, positionWithOffsetWs, normalWs, vPositionSs.xy ) * ssShadow;
+		// Sampled outside a loop: the filter inside the cascade loop cost lit shaders about 50 VGPRs
+		float visibility = SampleCascadeWithOffset( cascade, positionWithOffsetWs, normalWs, vPositionSs.xy );
+
+		// Near the edge, blend into the next cascade, or out to unshadowed past the last
+		float weight = CascadeBlendWeight( cascade, positionWithOffsetWs );
+		if ( weight < 1.0 )
+		{
+			int next = cascade + 1;
+			float nextVisibility = 1.0;
+			if ( next < (int)g_DirectionalLightCascadeCount )
+				nextVisibility = SampleCascadeWithOffset( next, positionWithOffsetWs, normalWs, vPositionSs.xy );
+
+			visibility = lerp( nextVisibility, visibility, weight );
+		}
+
+		return visibility * ssShadow;
     }
 
     // For callers that have no receiver normal at hand. The normal comes from screen-space derivatives,
@@ -194,14 +215,20 @@ struct DirectionalLightShadow
 
     static float3 GetDebugColor( float3 worldPosition )
     {
-		for ( int i = 0; i < (int)g_DirectionalLightCascadeCount; i++ )
+		float3 color = 0.0;
+		float remaining = 1.0;
+		[unroll]
+		for ( int i = 0; i < MAX_CASCADE_COUNT; i++ )
 		{
-			float3 toCenter = worldPosition - g_DirectionalLightCascadeSpheres[i].xyz;
-			if ( dot( toCenter, toCenter ) < g_DirectionalLightCascadeSpheres[i].w )
-				return i == 0 ? DebugColors[0] : i == 1 ? DebugColors[1] : i == 2 ? DebugColors[2] : DebugColors[3]; // a runtime index would put the table in local memory
+			if ( i >= g_DirectionalLightCascadeCount || remaining <= 0.0 )
+				break;
+
+			float weight = remaining * CascadeBlendWeight( i, worldPosition - g_vHighPrecisionLightingOffsetWs.xyz );
+			color += weight * ( i == 0 ? DebugColors[0] : i == 1 ? DebugColors[1] : i == 2 ? DebugColors[2] : DebugColors[3] );
+			remaining -= weight;
 		}
 
-        return float3( 0.0f, 0.0f, 0.0f );
+		return color;
     }
 };
 

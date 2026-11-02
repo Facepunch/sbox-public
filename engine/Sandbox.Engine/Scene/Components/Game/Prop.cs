@@ -501,6 +501,8 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 		var force = Model.Data.ExplosionForce;
 		if ( force <= 0 ) force = 1;
 
+		CreateScorchDecal();
+
 		var explosionPrefab = Game.Resources.Get<PrefabFile>( "/prefabs/engine/explosion_med.prefab" );
 		if ( explosionPrefab == null )
 		{
@@ -526,6 +528,29 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 
 		go.Enabled = true;
 		go.NetworkSpawn( true, null );
+	}
+
+	[Rpc.Broadcast( NetFlags.OwnerOnly )]
+	private void CreateScorchDecal()
+	{
+		var tr = Scene.Trace.Ray( new Ray( WorldPosition + new Vector3( 0, 0, 8 ), Vector3.Down ), 40 )
+			.IgnoreDynamic()
+			.IgnoreGameObjectHierarchy( GameObject )
+			.UseHitPosition( true )
+			.Run();
+
+		if ( !tr.Hit ) return;
+
+		var scorchPrefab = GameObject.GetPrefab( "/prefabs/engine/scorch.prefab" );
+		if ( scorchPrefab == null )
+		{
+			Log.Warning( "Can't find /prefabs/engine/scorch.prefab" );
+			return;
+		}
+
+		var go = scorchPrefab.Clone( tr.HitPosition + tr.Normal, Rotation.LookAt( -tr.Normal, Vector3.Up ) );
+		go.SetParent( tr.GameObject, true );
+		go.Enabled = true;
 	}
 
 	private void PlayBreakSound()

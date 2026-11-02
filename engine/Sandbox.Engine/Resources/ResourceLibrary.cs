@@ -3,6 +3,7 @@ using Sandbox.Engine;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Threading;
 using static Sandbox.ResourceLibrary;
 
 namespace Sandbox;
@@ -261,6 +262,10 @@ public class ResourceSystem
 		PathIndex.Clear();
 
 		TypeCache.Clear();
+
+		_referenceInstallCancel.Cancel();
+		_referenceInstallCancel = new();
+		_pendingReferenceInstalls.Clear();
 	}
 
 	/// <summary>
@@ -704,7 +709,19 @@ public class ResourceSystem
 	}
 
 	/// <summary>
-	/// Installs all references for a GameResource 
+	/// Reference installs started by <see cref="InstallReferences"/> that haven't finished yet
+	/// </summary>
+	private readonly List<Task> _pendingReferenceInstalls = new();
+
+	/// <summary>
+	/// Cancelled when this resource system is cleared, so reference installs from a game that's
+	/// closing don't keep going and load their resources into the next one
+	/// </summary>
+	private CancellationTokenSource _referenceInstallCancel = new();
+
+	/// <summary>
+	/// Installs all references for a GameResource. This goes through <see cref="ServerPackages.DownloadAndMount"/>
+	/// so the package's GameResources get loaded too, not just its files mounted.
 	/// </summary>
 	private void InstallReferences( GameResource se )
 	{
@@ -712,7 +729,22 @@ public class ResourceSystem
 
 		foreach ( var r in references )
 		{
-			_ = PackageManager.InstallAsync( new PackageLoadOptions() { PackageIdent = r, ContextTag = "server" } );
+			_pendingReferenceInstalls.Add( ServerPackages.DownloadAndMount( r, _referenceInstallCancel.Token ).AsTask() );
+		}
+	}
+
+	/// <summary>
+	/// Wait for every package install started by <see cref="InstallReferences"/>. Loading a referenced
+	/// package's resources can start more installs, so keep going until there's nothing left.
+	/// </summary>
+	internal async Task WaitForReferencedPackagesAsync( CancellationToken token = default )
+	{
+		while ( _pendingReferenceInstalls.Count > 0 )
+		{
+			var pending = _pendingReferenceInstalls.ToArray();
+			_pendingReferenceInstalls.Clear();
+
+			await Task.WhenAll( pending ).WaitAsync( token );
 		}
 	}
 }

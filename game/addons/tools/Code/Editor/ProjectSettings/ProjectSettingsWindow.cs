@@ -180,6 +180,7 @@ internal sealed class ProjectSettingsWindow : Window
 
 		if ( project.Config.Type == "game" )
 		{
+			AddCategoryToList( typeof( PublishingCategory ), "Project" );
 			AddCategoryToList( typeof( GameCategory ), "Project" );
 			AddCategoryToList( typeof( StandaloneCategory ), "Project" );
 			AddCategoryToList( typeof( SystemsPage ), "Systems" );
@@ -194,7 +195,6 @@ internal sealed class ProjectSettingsWindow : Window
 
 			AddCategoryToList( typeof( CompilerCategory ), "Compiler" );
 
-			AddCategoryToList( typeof( ResourcesCategory ), "Other" );
 			AddCategoryToList( typeof( ReferencesCategory ), "Other" );
 			AddCategoryToList( typeof( CursorCategory ), "Other" );
 		}

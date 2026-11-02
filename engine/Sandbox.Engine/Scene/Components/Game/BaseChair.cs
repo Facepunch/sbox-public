@@ -232,17 +232,41 @@ public partial class BaseChair : Component, Component.IPressable, Component.IDam
 		renderer.LocalRotation = Rotation.Identity;
 
 		// Update animation parameters
-		renderer.Set( "sit", (int)SitPose );
-		renderer.Set( "sit_offset_height", SitHeight * 12.0f );
-		renderer.Set( "b_grounded", true );
-		renderer.Set( "b_swim", false );
-		renderer.Set( "duck", false );
+#pragma warning disable CS0618
+		if ( renderer.Animation.Graph is not null )
+		{
+			var parameters = renderer.Animation.Parameters;
+			parameters.TrySet( "sit", SitPose switch
+			{
+				AnimatorSitPose.Standing => "not_sitting",
+				AnimatorSitPose.Chair => "sitting_01",
+				AnimatorSitPose.ChairForward => "sitting_02",
+				AnimatorSitPose.ChairCrossed => "sitting_03",
+				AnimatorSitPose.KneelingOpen => "sitting_ground_01",
+				AnimatorSitPose.Kneeling => "sitting_ground_02",
+				AnimatorSitPose.Ground => "sitting_ground_03",
+				AnimatorSitPose.GroundCrossed => "sitting_ground_04",
+				_ => throw new ArgumentOutOfRangeException( nameof( SitPose ) )
+			} );
+			parameters.TrySet( "sit_offset_height", SitHeight * 12.0f );
+			parameters.TrySet( "b_grounded", true );
+			parameters.TrySet( "b_swim", false );
+			parameters.TrySet( "duck", 0f );
+		}
+		else
+		{
+			renderer.Set( "sit", (int)SitPose );
+			renderer.Set( "sit_offset_height", SitHeight * 12.0f );
+			renderer.Set( "b_grounded", true );
+			renderer.Set( "b_swim", false );
+			renderer.Set( "duck", false );
 
-		// Look in the direction the player is aiming
-		var eyesForward = controller.EyeTransform.Forward;
-		renderer.SetLookDirection( "aim_eyes", eyesForward, controller.AimStrengthEyes );
-		renderer.SetLookDirection( "aim_head", eyesForward, controller.AimStrengthHead );
-		renderer.SetLookDirection( "aim_body", eyesForward, controller.AimStrengthBody );
+			var eyesForward = controller.EyeTransform.Forward;
+			renderer.SetLookDirection( "aim_eyes", eyesForward, controller.AimStrengthEyes );
+			renderer.SetLookDirection( "aim_head", eyesForward, controller.AimStrengthHead );
+			renderer.SetLookDirection( "aim_body", eyesForward, controller.AimStrengthBody );
+		}
+#pragma warning restore CS0618
 
 		// Clamp the eye angles
 		ClampEyes( controller );
@@ -292,11 +316,13 @@ public partial class BaseChair : Component, Component.IPressable, Component.IDam
 
 		var so = Gizmo.Draw.Model( "models/citizen_human/human.vmdl", localSeatPos.WithScale( 1 ) );
 		so.ColorTint = Color.White.WithAlpha( 0.6f );
+#pragma warning disable CS0618
 		so.SetAnimParameter( "sit", (int)SitPose );
 		so.SetAnimParameter( "sit_offset_height", SitHeight * 12.0f );
 		so.SetAnimParameter( "b_grounded", true );
 		so.SetAnimParameter( "b_swim", false );
 		so.SetAnimParameter( "duck", false );
+#pragma warning restore CS0618
 		so.Update( RealTime.Delta * 10.0f );
 	}
 
@@ -341,4 +367,3 @@ public partial class BaseChair : Component, Component.IPressable, Component.IDam
 		GetOccupant()?.GetComponent<IDamageable>()?.OnDamage( damage );
 	}
 }
-

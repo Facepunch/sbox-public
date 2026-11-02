@@ -27,6 +27,7 @@ internal partial class PainterBatcher
 	internal void AddBackdrop( in Painter.BackdropData data, Matrix localTransform, int localClip, BlendMode blendMode )
 	{
 		Flush();
+		Volatile++;
 		var target = Destination;
 		var transform = localTransform * target.Transform;
 		var clipIndex = GetOrAddDrawClip( localClip, target.Transform, GetOrAddScissor( target.Scissor ) );
@@ -50,6 +51,7 @@ internal partial class PainterBatcher
 	// CSS backdrops can reuse a capture while the intervening drawing is independent.
 	internal void AddBackdrop( in Painter.BackdropData data, BlendMode blendMode )
 	{
+		Volatile++;
 		var reuseGrab = PrepareBackdrop( data );
 		ApplyDestinationAttributes( objectSpace: true );
 		var attributes = _commands.BeginDrawAttributes();
@@ -67,6 +69,16 @@ internal partial class PainterBatcher
 		attributes.Set( "BoxBloat", 1f );
 		attributes.Set( "BorderRadius", radii.Horizontal );
 		attributes.Set( "BorderRadiusV", radii.Vertical );
+		// Only polygon and circle border shapes reach here; anything else stays a rounded rect.
+		var shape = data.Shape;
+		var shapeKind = shape.Kind is UICssBoxBatched.ShapeKind.Polygon or UICssBoxBatched.ShapeKind.Circle ? shape.Kind : UICssBoxBatched.ShapeKind.None;
+		attributes.Set( "BackdropShapeKind", shapeKind );
+		attributes.Set( "BackdropShapeCount", shape.PolygonCount );
+		attributes.Set( "BackdropShape01", shape.Polygon01 );
+		attributes.Set( "BackdropShape23", shape.Polygon23 );
+		attributes.Set( "BackdropShape45", shape.Polygon45 );
+		attributes.Set( "BackdropShape67", shape.Polygon67 );
+		attributes.Set( "BackdropShapeCircle", shape.Circle );
 		attributes.Set( "Brightness", data.Filter.Brightness );
 		attributes.Set( "Contrast", data.Filter.Contrast );
 		attributes.Set( "Saturate", data.Filter.Saturation );

@@ -7,6 +7,7 @@ native pointer HMaterial as NativeEngine.HMaterial
 native accessor g_pMaterialSystem2 as NativeEngine.MaterialSystem2
 {
 	IMaterial CreateRawMaterial( string materialName, string shader, bool anonymous );
+	IMaterial CreateRawMaterialFromShader( string materialName, CVfx shader, bool anonymous );
 	IMaterial CreateProceduralMaterialCopy( IMaterial hSrcMaterial,  CastTo[ProceduralResourceType_t] int nResourceType, bool bRecreateStaticBuffers );
 
 	// doesn't work, pResourceName becomes invalid

@@ -1,4 +1,5 @@
 ﻿using Sandbox.Engine;
+using Sandbox.Modals;
 
 namespace Sandbox.Network;
 
@@ -37,6 +38,7 @@ internal partial class NetworkSystem
 		IsHostMigrationEnabled = msg.HostMigration;
 
 		source.UpdateFrom( msg.Host );
+		source.HostSteamId = msg.HostSteamId;
 		source.State = Connection.ChannelState.LoadingServerInformation;
 
 		Connection.Local = new LocalConnection( msg.Assigned.Id )
@@ -53,6 +55,18 @@ internal partial class NetworkSystem
 		if ( !source.OnReceiveServerInfo( ref output, msg ) )
 		{
 			return;
+		}
+
+		//
+		// sv_password - before we load anything for it
+		//
+		if ( msg.PasswordRequired )
+		{
+			var password = await GetServerPassword( msg.ServerName );
+			if ( password is null )
+				return;
+
+			output.Password = password;
 		}
 
 		log.Trace( $"Server Id is {source.Id}" );
@@ -82,6 +96,19 @@ internal partial class NetworkSystem
 					// Failed to load the game package, we can't continue
 					Networking.Disconnect();
 					return;
+				}
+
+				// Like the server's packages - if its game's files are different to ours, we can't play with what it has
+				if ( Application.GamePackage is { InstallsFromWorkshop: true } game )
+				{
+					var ours = Workshop.GetInstalledVersion( game.WorkshopId );
+
+					if ( msg.GameWorkshopVersion != 0 && ours != 0 && msg.GameWorkshopVersion != ours )
+					{
+						IGameInstanceDll.Current.Disconnect( ServerPackages.MismatchMessage( [new Workshop.Item { Id = game.WorkshopId, Title = game.Title }] ) );
+						Networking.Disconnect();
+						return;
+					}
 				}
 			}
 		}
@@ -147,6 +174,62 @@ internal partial class NetworkSystem
 		} );
 	}
 
+	/// <summary>
+	/// The password for a server that wants one: the password convar, or else we ask the player. Null if
+	/// there isn't one, and we've disconnected.
+	/// </summary>
+	async Task<string> GetServerPassword( string serverName )
+	{
+		if ( !string.IsNullOrEmpty( Networking.Password ) )
+			return Networking.Password;
+
+		if ( Networking.IsMatchmaking || IModalSystem.Current is null )
+		{
+			IGameInstanceDll.Current.Disconnect( "This server needs a password. Set it with password \"...\" and connect again." );
+			Networking.Disconnect();
+			return null;
+		}
+
+		LoadingScreen.IsVisible = false;
+
+		Task<string> prompt;
+		using ( GlobalContext.MenuScope() )
+		{
+			prompt = IModalSystem.Current.ServerPassword( serverName );
+		}
+
+		var password = await prompt;
+
+		// Gave up on it, or went somewhere else while it was up
+		if ( !ReferenceEquals( Networking.System, this ) || IsDisconnected )
+			return null;
+
+		if ( string.IsNullOrEmpty( password ) )
+		{
+			IGameInstanceDll.Current.Disconnect();
+			Networking.Disconnect();
+			return null;
+		}
+
+		// Kept like Source's, so a reconnect doesn't ask again
+		Networking.Password = password;
+		LoadingScreen.IsVisible = true;
+
+		return password;
+	}
+
+	/// <summary>
+	/// The host turned us away for the wrong password. Forget it, so joining again asks for it.
+	/// </summary>
+	static bool IsBadPassword( string reason )
+	{
+		if ( reason != JoinAccess.BadPasswordReason )
+			return false;
+
+		Networking.Password = "";
+		return true;
+	}
+
 	async Task On_Handshake_ClientInfo( UserInfo msg, Connection source, Guid msgId )
 	{
 		// Only the host lets people in. A peer would check them against rules it doesn't have.
@@ -198,6 +281,16 @@ internal partial class NetworkSystem
 				source.Kick( privacyDenial );
 				return;
 			}
+		}
+
+		//
+		// sv_password. Asked of every kind of connection, dedicated servers included.
+		//
+		if ( NeedsPassword( source ) && !Access.CheckPassword( msg.Password ) )
+		{
+			Log.Info( $"Kicked {msg.Name} [{msg.SteamId}] - {(string.IsNullOrEmpty( msg.Password ) ? "no password" : "bad password")}" );
+			source.Kick( JoinAccess.BadPasswordReason );
+			return;
 		}
 
 		var denialReason = "";
@@ -383,6 +476,7 @@ internal partial class NetworkSystem
 	async Task On_Handshake_Snapshot( InitialSnapshotResponse msg, Connection source, Guid msgId )
 	{
 		NetworkDebugSystem.Current?.Record( NetworkDebugSystem.MessageType.Snapshot, msg );
+		Sandbox.Diagnostics.DevTools.NetworkLog.Message( Sandbox.Diagnostics.DevTools.NetworkLog.Kind.Snapshot, "SceneSnapshot", msg, false, source );
 
 		if ( !source.IsHost )
 			return;
@@ -448,6 +542,7 @@ internal partial class NetworkSystem
 		}
 
 		source.State = Connection.ChannelState.Connected;
+		Sandbox.Diagnostics.DevTools.NetworkLog.Session( "Peer joined", source );
 
 		//
 		// Tell game this guy is fully active.
@@ -482,7 +577,7 @@ internal partial class NetworkSystem
 			return Task.CompletedTask;
 		}
 
-		FailureReason = $"Kicked from server.\n\nReason: {msg.Reason}";
+		FailureReason = IsBadPassword( msg.Reason ) ? "Wrong password." : $"Kicked from server.\n\nReason: {msg.Reason}";
 		Api.Activity.SetExitReason( "kicked", msg.Reason );
 		IGameInstanceDll.Current.Disconnect( FailureReason );
 		return Task.CompletedTask;
@@ -509,6 +604,7 @@ internal partial class NetworkSystem
 		Api.Activity.LoadFinished();
 
 		Connection.Local.State = Connection.ChannelState.Connected;
+		Sandbox.Diagnostics.DevTools.NetworkLog.Session( "Joined", source, starts: true );
 		source.State = Connection.ChannelState.Connected;
 
 		// Before the party sees we're in and follows

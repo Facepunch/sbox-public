@@ -242,7 +242,10 @@ file sealed class MemberPropertyFactory : ITrackPropertyFactory
 
 	private static HashSet<Type> IgnoredTypes { get; } =
 	[
-		typeof( AnimationGraph )
+#pragma warning disable CS0618
+		typeof( AnimationGraph ),
+#pragma warning restore CS0618
+		typeof( Animation.Graph )
 	];
 
 	private static HashSet<Type> MathPrimitiveTypes { get; } =
@@ -269,7 +272,9 @@ file sealed class MemberPropertyFactory : ITrackPropertyFactory
 	private static HashSet<Type> AccessorTypes { get; } =
 	[
 		typeof( SkinnedModelRenderer.MorphAccessor ),
+#pragma warning disable CS0618
 		typeof( SkinnedModelRenderer.ParameterAccessor ),
+#pragma warning restore CS0618
 		typeof( SkinnedModelRenderer.SequenceAccessor ),
 		typeof( GameTags ),
 		typeof( TagSet ),

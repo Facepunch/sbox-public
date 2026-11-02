@@ -8,7 +8,8 @@ namespace Facepunch.Steps;
 
 /// <summary>
 /// Packages a complete, ready-to-run build of the game into a single zip and
-/// uploads it to R2 so it can be downloaded and launched.
+/// uploads it to R2 so it can be downloaded and launched. Alongside it goes a much
+/// smaller zip with just what PackageBuild and ShaderCompiler need to run.
 /// </summary>
 internal class UploadBuildArtifacts
 {
@@ -175,6 +176,56 @@ internal class UploadBuildArtifacts
 		"addons/citizen/Assets/models/**/*_metal.png"
 	};
 
+	// The compilers build is the slice of the full build that PackageBuild and ShaderCompiler need,
+	// so the backend's compile workers don't have to download everything. It's picked from the full
+	// build's files, so anything stripped above stays stripped here.
+	private static readonly string[] CompilerIncludeGlobs =
+	{
+		// PackageBuild compiles against bin/managed, ShaderCompiler runs from it
+		"bin/managed/**",
+
+		// ShaderCompiler boots the engine with the resource compiler, which needs these
+		"bin/assettypes.txt",
+		"bin/win64/animationsystem.dll",
+		"bin/win64/dxcompiler.dll",
+		"bin/win64/engine2.dll",
+		"bin/win64/filesystem_stdio.dll",
+		"bin/win64/materialsystem2.dll",
+		"bin/win64/meshsystem.dll",
+		"bin/win64/modeldoc_utils.dll",
+		"bin/win64/openxr_loader.dll",
+		"bin/win64/rendersystemempty.dll",
+		"bin/win64/resourcecompiler.dll",
+		"bin/win64/schemasystem.dll",
+		"bin/win64/SDL3.dll",
+		"bin/win64/sentry.dll",
+		"bin/win64/slang-compiler.dll",
+		"bin/win64/slang.dll",
+		"bin/win64/steam_api64.dll",
+		"bin/win64/tier0.dll",
+		"bin/win64/vfx_vulkan.dll",
+
+		// Shader includes, plus the error assets the engine loads at startup
+		"core/shaders/**/*.fxc",
+		"core/shaders/**/*.hlsl",
+		"core/shaders/**/*.h",
+		"core/shaders/**/*.cpp",
+		"core/shaders/error.shader_c",
+		"core/materials/error.vmat_c"
+	};
+
+	private static readonly string[] CompilerExcludeGlobs =
+	{
+		"bin/managed/**/*.xml"
+	};
+
+	// The engine mounts these at startup and throws if they're missing, but nothing in them is needed
+	private static readonly string[] CompilerEmptyFolders =
+	{
+		"game/addons/citizen/Assets/",
+		"game/mount/"
+	};
+
 	internal ExitCode Run()
 	{
 		try
@@ -204,30 +255,38 @@ internal class UploadBuildArtifacts
 			}
 
 			var zipPath = Path.Combine( Path.GetTempPath(), $"sbox-build-{commit}-{Guid.NewGuid():N}.zip" );
+			var compilersZipPath = Path.Combine( Path.GetTempPath(), $"sbox-compilers-{commit}-{Guid.NewGuid():N}.zip" );
 
 			try
 			{
-				CreateArchive( files, zipPath );
+				var zipSize = CreateArchive( files, zipPath );
 
-				var zipSize = new FileInfo( zipPath ).Length;
-				Log.Info( $"Packaged {files.Count} file(s) into build archive ({Utility.FormatSize( zipSize )})" );
+				// R2 takes one write at a time per object, but separate objects can go up together,
+				// so the full build uploads while the compilers zip is made and uploaded.
+				var buildUpload = Task.Run( () => UploadZip( s3, bucket, zipPath, $"builds/{commit}.zip" ) );
 
-				// Immutable, commit-keyed object.
-				if ( !UploadZip( s3, bucket, zipPath, $"builds/{commit}.zip" ) )
+				var compilersSize = CreateArchive( SelectCompilerFiles( repoRoot, files ), compilersZipPath, CompilerEmptyFolders );
+				var compilersUploaded = UploadZip( s3, bucket, compilersZipPath, $"builds/{commit}-compilers.zip" );
+
+				// Immutable, commit-keyed objects.
+				if ( !buildUpload.GetAwaiter().GetResult() || !compilersUploaded )
 					return ExitCode.Failure;
 
 				// Hand the size to the later report-build step so it can record the artifact's byte size.
 				Utility.SetGitHubEnv( "BUILD_ARTIFACT_BYTES", zipSize.ToString() );
 
 				Log.Info( $"Build artifact available at {R2.PublicBaseUrl}/builds/{commit}.zip" );
+				Log.Info( $"Compilers artifact available at {R2.PublicBaseUrl}/builds/{commit}-compilers.zip" );
 				GitHubActions.AddLink( "Build", $"{R2.PublicBaseUrl}/builds/{commit}.zip" );
-				GitHubActions.Note( Utility.FormatSize( zipSize ) );
+				GitHubActions.AddLink( "Compilers", $"{R2.PublicBaseUrl}/builds/{commit}-compilers.zip" );
+				GitHubActions.Note( $"{Utility.FormatSize( zipSize )}, compilers {Utility.FormatSize( compilersSize )}" );
 
 				return ExitCode.Success;
 			}
 			finally
 			{
 				try { if ( File.Exists( zipPath ) ) File.Delete( zipPath ); } catch { }
+				try { if ( File.Exists( compilersZipPath ) ) File.Delete( compilersZipPath ); } catch { }
 			}
 		}
 		catch ( Exception ex )
@@ -263,33 +322,51 @@ internal class UploadBuildArtifacts
 		return files;
 	}
 
-	internal static void CreateArchive( IReadOnlyCollection<(string EntryPath, string AbsolutePath)> files, string zipPath )
+	/// <summary>
+	/// Picks the files PackageBuild and ShaderCompiler need out of the full build
+	/// (see <see cref="CompilerIncludeGlobs"/>).
+	/// </summary>
+	private static List<(string EntryPath, string AbsolutePath)> SelectCompilerFiles( string repoRoot, IReadOnlyCollection<(string EntryPath, string AbsolutePath)> files )
 	{
-		if ( File.Exists( zipPath ) )
-			File.Delete( zipPath );
+		var matcher = new Matcher( StringComparison.OrdinalIgnoreCase );
+		matcher.AddIncludePatterns( CompilerIncludeGlobs );
+		matcher.AddExcludePatterns( CompilerExcludeGlobs );
 
-		Log.Info( $"Creating build archive ({files.Count} file(s))..." );
+		var gameRoot = Path.Combine( repoRoot, "game" );
+		var selected = matcher.Match( gameRoot, files.Select( x => x.AbsolutePath ) ).Files
+			.Select( x => ToForwardSlash( Path.Combine( "game", x.Path ) ) )
+			.ToHashSet( StringComparer.OrdinalIgnoreCase );
 
-		using ( var archive = ZipFile.Open( zipPath, ZipArchiveMode.Create ) )
-		{
-			foreach ( var (entryPath, absolutePath) in files )
-			{
-				archive.CreateEntryFromFile( absolutePath, entryPath, CompressionLevel.Fastest );
-			}
-		}
+		return files.Where( x => selected.Contains( x.EntryPath ) ).ToList();
 	}
 
 	/// <summary>
-	/// R2 only allows one concurrent write to a given object name, so the multipart
-	/// parts have to go up one at a time - uploading them in parallel (the SDK default
-	/// is 10) gets rejected with "Reduce your concurrent request rate for the same object".
-	/// https://developers.cloudflare.com/r2/platform/limits/
+	/// Zips the files and returns the zip's size.
 	/// </summary>
-	private const int UploadConcurrency = 1;
+	private static long CreateArchive( IReadOnlyCollection<(string EntryPath, string AbsolutePath)> files, string zipPath, IEnumerable<string> emptyFolders = null )
+	{
+		Log.Info( $"Creating {Path.GetFileName( zipPath )} ({files.Count} file(s))..." );
+
+		ParallelZip.Create( zipPath, files, emptyFolders );
+
+		var size = new FileInfo( zipPath ).Length;
+		Log.Info( $"Packaged {files.Count} file(s) into {Path.GetFileName( zipPath )} ({Utility.FormatSize( size )})" );
+
+		return size;
+	}
 
 	/// <summary>
-	/// Serial parts means we want as few of them as possible: a ~5GB archive is ~40
-	/// requests at 128MiB rather than ~1000 at the SDK's 5MiB default.
+	/// One part at a time only managed ~13MB/s. R2 rate limits writes to the same object
+	/// (https://developers.cloudflare.com/r2/platform/limits/), and the SDK default of 10
+	/// parallel 5MiB parts got rejected with "Reduce your concurrent request rate for the
+	/// same object" - but a few big parts at once is a much lower request rate than that.
+	/// Retries go back to one at a time in case R2 still doesn't like it.
+	/// </summary>
+	private const int UploadConcurrency = 4;
+
+	/// <summary>
+	/// Big parts keep the request rate down: a ~5GB archive is ~40 requests at 128MiB
+	/// rather than ~1000 at the SDK's 5MiB default.
 	/// </summary>
 	private const long UploadPartSize = 128 * 1024 * 1024;
 
@@ -299,14 +376,17 @@ internal class UploadBuildArtifacts
 
 		for ( var attempt = 1; attempt <= attempts; attempt++ )
 		{
-			Log.Info( $"Uploading build artifact to {key}..." );
+			var concurrency = attempt == 1 ? UploadConcurrency : 1;
+			Log.Info( $"Uploading build artifact to {key} ({concurrency} part(s) at a time)..." );
 
 			try
 			{
+				var timer = System.Diagnostics.Stopwatch.StartNew();
+
 				// TransferUtility handles multipart upload + retries for large archives.
 				using var transfer = new TransferUtility( s3, new TransferUtilityConfig
 				{
-					ConcurrentServiceRequests = UploadConcurrency
+					ConcurrentServiceRequests = concurrency
 				} );
 
 				var request = new TransferUtilityUploadRequest
@@ -324,6 +404,9 @@ internal class UploadBuildArtifacts
 				};
 
 				transfer.UploadAsync( request ).GetAwaiter().GetResult();
+
+				var megabytes = new FileInfo( zipPath ).Length / 1024.0 / 1024.0;
+				Log.Info( $"Uploaded {key} in {timer.Elapsed.TotalSeconds:0}s ({megabytes / timer.Elapsed.TotalSeconds:0} MB/s)" );
 				return true;
 			}
 			catch ( Exception ex )

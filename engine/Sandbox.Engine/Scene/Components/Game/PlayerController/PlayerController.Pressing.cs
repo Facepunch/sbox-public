@@ -211,12 +211,11 @@ public sealed partial class PlayerController : Component
 		// what we did in Rust and it worked great.
 		for ( float f = 0.0f; f <= 4.0f; f += 2.0f )
 		{
-			var hits = Scene.Trace
+			var hits = Scene.RunTraceAll( Scene.Trace
 							.Ray( EyePosition, EyePosition + EyeAngles.Forward * (ReachLength - f) )
 							.IgnoreGameObjectHierarchy( GameObject )
 							.Radius( f )
-							.HitTriggers()
-							.RunAll();
+							.HitTriggers() );
 
 			foreach ( var hit in hits )
 			{

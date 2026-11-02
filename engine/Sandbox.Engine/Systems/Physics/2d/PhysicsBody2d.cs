@@ -28,14 +28,22 @@ internal sealed partial class PhysicsBody2d : PhysicsBodyInternal
 	bool _overrideInertia;
 	float _inertiaOverride;
 	float _inertiaScale = 1.0f;
+	bool _deferMassUpdates;
+	bool _massDirty;
 
 	public override bool IsValid => Box2d.b2Body_IsValid( _bodyId );
 
-	public PhysicsBody2d( PhysicsWorld2d world, b2BodyId bodyId )
+	internal PhysicsBody2d( PhysicsWorld2d world, b2BodyId bodyId, in PhysicsBodySettings settings )
 	{
 		World = world;
 		BodyId = bodyId;
 
+		base.GravityEnabled = settings.Flags.HasFlag( PhysicsBodyCreationFlags.Gravity );
+		base.GravityScale = settings.GravityScale;
+		_massOverride = settings.Mass;
+		_inertiaScale = settings.InertiaScale;
+		_overrideMassCenter = settings.Flags.HasFlag( PhysicsBodyCreationFlags.OverrideMassCenter );
+		_localMassCenterOverride = settings.MassCenter;
 		_handle = GCHandle.Alloc( this );
 		Box2d.b2Body_SetUserData( BodyId, GCHandle.ToIntPtr( _handle ) );
 	}
@@ -94,13 +102,39 @@ internal sealed partial class PhysicsBody2d : PhysicsBodyInternal
 
 	public override void RebuildMass()
 	{
+		if ( _deferMassUpdates )
+		{
+			_massDirty = true;
+			return;
+		}
+
 		Box2d.b2Body_ApplyMassFromShapes( BodyId );
 		_baseMassData = Box2d.b2Body_GetMassData( BodyId );
-		UpdateMass();
+		if ( _massOverride > 0 || _overrideMassCenter || _overrideInertia || _inertiaScale != 1 )
+			UpdateMass();
+	}
+
+	internal override bool SetMassUpdatesDeferred( bool defer )
+	{
+		var wasDeferred = _deferMassUpdates;
+		_deferMassUpdates = defer;
+		if ( !defer && _massDirty )
+		{
+			_massDirty = false;
+			RebuildMass();
+		}
+
+		return wasDeferred;
 	}
 
 	void UpdateMass()
 	{
+		if ( _deferMassUpdates )
+		{
+			_massDirty = true;
+			return;
+		}
+
 		var data = _baseMassData;
 
 		if ( _massOverride > 0f && data.mass > 0f )
@@ -228,6 +262,9 @@ internal sealed partial class PhysicsBody2d : PhysicsBodyInternal
 		};
 		set
 		{
+			if ( BodyType == value )
+				return;
+
 			var b2Type = value switch
 			{
 				PhysicsBodyType.Dynamic => b2BodyType.b2_dynamicBody,
@@ -380,8 +417,8 @@ internal sealed partial class PhysicsBody2d : PhysicsBodyInternal
 			foreach ( var joint in _joints.ToArray() )
 				joint.Remove();
 
-			foreach ( var shape in _shapes.ToArray() )
-				shape.Remove();
+			foreach ( var shape in _shapes )
+				shape.Destroy();
 
 			_shapes.Clear();
 

@@ -1,6 +1,6 @@
 
-#include "physicslib/physicsdata.h"
-#include "vphysx/vphysx_collisionmesh_resource.h"
+#include "physics/physicsdata.h"
+#include "physics/collision_resource.h"
 
 [ResourceHandle:HPhysicsData]
 native class CPhysicsData

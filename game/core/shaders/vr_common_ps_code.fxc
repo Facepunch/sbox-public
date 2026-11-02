@@ -36,7 +36,11 @@
 #if ( S_UNLIT )
 	BoolAttribute( unlit, true );
 #else
-	BoolAttribute( NeedsLightProbe, true );
+	// Allow lit shaders to opt out of legacy baked light-probe binding.
+	#ifndef NEEDS_LIGHT_PROBE
+		#define NEEDS_LIGHT_PROBE true
+	#endif
+	BoolAttribute( NeedsLightProbe, NEEDS_LIGHT_PROBE );
 #endif
 
 bool g_bFogEnabled < Default( 1.0f ); UiType( CheckBox ); UiGroup( "Fog,300" ); >;
@@ -361,9 +365,9 @@ PS_OUTPUT PS_FinalCombinerDoLighting( FinalCombinerInput_t f, inout LightingTerm
 	o.vColor.rgb += lightingTerms.vIndirectSpecular.rgb; 
 
 	//
-	// Add transmissive
+	// Transmission contributions already include the material's mask.
 	//
-	o.vColor.rgb += lightingTerms.vTransmissive.rgb * f.vTransmissiveMask.rgb;
+	o.vColor.rgb += lightingTerms.vTransmissive.rgb;
 
 	return o;
 }

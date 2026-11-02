@@ -25,6 +25,8 @@
 		<ApplicationIcon>sbox.ico</ApplicationIcon>
 		<GenerateDependencyFile>false</GenerateDependencyFile>
 		<CETCompat>false</CETCompat>
+		<!-- Exported games never persist the user-level FACEPUNCH_ENGINE, see LauncherEnvironment -->
+		<DefineConstants>$(DefineConstants);SBOX_STANDALONE</DefineConstants>
 	</PropertyGroup>
 
 	<ItemGroup>

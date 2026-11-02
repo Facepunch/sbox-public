@@ -131,10 +131,11 @@
 
     RewardWindow RewardWindow => rewardState?.Windows.FirstOrDefault();
 
-    bool RewardReady => RewardWindow is not null && (RewardWindow.IsEligible || rewardState.Pending is not null);
+    bool RewardReady => rewardState?.Pending is not null || (RewardWindow?.IsEligible == true
+        && (RewardWindow.EndsAt == default || RewardWindow.EndsAt > DateTimeOffset.UtcNow));
 
     /// <summary>How far the drop has come. Null while there's nothing being tracked, so no bar.</summary>
-    float? RewardProgress => RewardWindow is null ? null : (RewardReady ? 1f : RewardWindow.Progress);
+    float? RewardProgress => RewardReady || RewardWindow?.IsClaimed == true ? 1f : RewardWindow?.Progress;
 
     /// <summary>Lit while the jam is live - entries open, or being judged and voted on.</summary>
     bool JamLive => jam is { IsLive: true };

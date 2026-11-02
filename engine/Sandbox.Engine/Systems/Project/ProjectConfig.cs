@@ -82,9 +82,17 @@ public class ProjectConfig
 	public bool IncludeSourceFiles { get; set; }
 
 	/// <summary>
-	/// A list of paths in which to look for extra assets to upload with the addon. Note that compiled asset files are automatically included.
+	/// Paths and wildcard patterns for files to always publish. Matching assets and their dependencies are included
+	/// even when PublishUsedAssetsOnly is enabled. Matching loose files are included unchanged.
 	/// </summary>
 	public string Resources { get; set; }
+
+	/// <summary>
+	/// Publish assets referenced by configured scenes and project settings, assets in the Resources folder at the
+	/// root of each asset directory, explicit Resources patterns, and their dependencies. Code is not scanned.
+	/// Enabled for new games; existing projects continue publishing all assets until they opt in.
+	/// </summary>
+	public bool PublishUsedAssetsOnly { get; set; }
 
 	/// <summary>
 	/// A list of packages that this package depends on. These should be installed alongside this package.

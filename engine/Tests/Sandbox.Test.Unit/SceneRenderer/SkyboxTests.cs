@@ -49,6 +49,13 @@ public class SkyboxTests
 		Assert.AreEqual( 0, view.SizeCullThreshold );
 		Assert.AreEqual( main.Fog, view.Fog, "Skybox views inherit the fog snapshot; coordinate conversion happens when binding attributes" );
 
+		var sky = new Skybox3D( new RenderWorld() ) { Scale = 16, Fog = new FogSetup { Mode = FogMode.Distance, StartDistance = -160, EndDistance = 1600 } };
+		RenderSystem.FillSkyboxView( view, main, sky );
+		Assert.AreEqual( sky.Fog, view.Fog, "Independent skybox fog replaces the inherited snapshot" );
+		sky.Fog = null;
+		RenderSystem.FillSkyboxView( view, main, sky );
+		Assert.AreEqual( main.Fog, view.Fog, "Removing the override restores main-view fog" );
+
 		main.Fog = null;
 		RenderSystem.FillSkyboxView( view, main, new Skybox3D( new RenderWorld() ) { Scale = 16 } );
 		Assert.IsNull( view.Fog, "Reused child views clear the previous camera's fog" );

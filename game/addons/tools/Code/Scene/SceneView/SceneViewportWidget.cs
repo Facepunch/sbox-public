@@ -30,6 +30,8 @@ public partial class SceneViewportWidget : Widget
 	private CameraComponent _editorCamera;
 	private CameraComponent _ejectCamera;
 
+	private Action<EditorEvent.ISceneView> _drawGizmosInterface;
+
 	/// <summary>
 	/// If assigned, copy FoV / ZNear / ZFar etc from this camera.
 	/// </summary>
@@ -699,7 +701,8 @@ public partial class SceneViewportWidget : Widget
 
 		Tools.Frame( _activeCamera, Session, GizmoInstance.Input.IsHovered );
 
-		EditorEvent.RunInterface<EditorEvent.ISceneView>( x => x.DrawGizmos( Session.Scene ) );
+		_drawGizmosInterface ??= x => x.DrawGizmos( Session.Scene );
+		EditorEvent.RunInterface( _drawGizmosInterface );
 		Session.Scene.EditorDraw();
 
 		DrawSelection();

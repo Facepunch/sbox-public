@@ -71,22 +71,28 @@ public sealed partial class Fog : BasePostProcess<Fog>
 	public bool DistanceEnabled { get; set; } = true;
 
 	/// <summary>
-	/// Distance uses an artistic start/end ramp; exponential uses a physically defined attenuation distance.
+	/// Distance uses a start/end ramp with a configurable exponent; exponential uses attenuation distance.
 	/// </summary>
 	[Property, Group( nameof( DistanceEnabled ) )]
 	public FogMode Mode { get; set; } = FogMode.Exponential;
 
 	/// <summary>
-	/// Distance from the camera before exponential fog starts, in engine units. Distance is measured in three dimensions.
+	/// Measure distance radially, or along the camera's forward axis.
+	/// </summary>
+	[Property, Advanced, Group( nameof( DistanceEnabled ) )]
+	public FogDistanceMetric DistanceMetric { get; set; }
+
+	/// <summary>
+	/// Distance from the camera before exponential fog starts, in engine units.
 	/// </summary>
 	[Property, Group( nameof( DistanceEnabled ) ), ShowIf( nameof( Mode ), FogMode.Exponential ), Range( 0, 10000 )]
 	public float StartDistance { get; set; }
 
 	/// <summary>
-	/// Start and end distances of the artistic fog ramp, in engine units.
+	/// Clear and full-fog endpoints of the distance ramp, in engine units. Signed and reversed ranges are supported.
 	/// </summary>
 	[Property, Group( nameof( DistanceEnabled ) ), Title( "Start / End" )]
-	[ShowIf( nameof( Mode ), FogMode.Distance ), MinMaxSlider( 0, 10000 ), Step( 1 )]
+	[ShowIf( nameof( Mode ), FogMode.Distance ), Step( 1 )]
 	public Vector2 DistanceRange { get; set; } = new( 0, 4096 );
 
 	/// <summary>
@@ -102,7 +108,7 @@ public sealed partial class Fog : BasePostProcess<Fog>
 	public float AttenuationDistance { get; set; } = 2000;
 
 	/// <summary>
-	/// Upper limit on distance fog opacity, independent of the colour's alpha.
+	/// Upper limit on distance fog opacity after applying the curve, independent of the colour's alpha.
 	/// </summary>
 	[Property, Group( nameof( DistanceEnabled ) ), Range( 0, 1 )]
 	public float MaximumOpacity { get; set; } = 1;
@@ -179,6 +185,30 @@ public sealed partial class Fog : BasePostProcess<Fog>
 	/// </summary>
 	[Property, Group( "Color" )]
 	public Color Color { get; set; } = Color.White;
+
+	/// <summary>
+	/// Blend between two fog colors using the camera's forward direction.
+	/// </summary>
+	[Property, Advanced, Group( "Color" )]
+	public bool DirectionalColorEnabled { get; set; }
+
+	/// <summary>
+	/// Fog color when looking opposite ColorDirection.
+	/// </summary>
+	[Property, Advanced, Group( "Color" ), ShowIf( nameof( DirectionalColorEnabled ), true )]
+	public Color SecondaryColor { get; set; } = Color.White;
+
+	/// <summary>
+	/// Direction of the primary color, relative to this object's rotation.
+	/// </summary>
+	[Property, Advanced, Group( "Color" ), ShowIf( nameof( DirectionalColorEnabled ), true )]
+	public Vector3 ColorDirection { get; set; } = Vector3.Forward;
+
+	/// <summary>
+	/// Nonnegative color multiplier applied after directional blending in linear space.
+	/// </summary>
+	[Property, Advanced, Group( "Color" )]
+	public float ColorScale { get; set; } = 1;
 
 	/// <summary>
 	/// Sky material used by Custom Sky. Missing textures fall back to the constant colour.
@@ -261,21 +291,26 @@ public sealed partial class Fog : BasePostProcess<Fog>
 	/// <summary>
 	/// Resolve the complete authored layer for this camera.
 	/// </summary>
-	internal FogSetup GetSettings( CameraComponent camera )
+	internal FogSetup GetSettings( CameraComponent camera ) => GetSettings( Scene.SceneWorld, camera.RenderTags, camera.RenderExcludeTags );
+
+	internal FogSetup GetSettings( SceneWorld world, ITagSet renderTags, ITagSet excludeTags )
 	{
-		var distanceSky = ResolveSky( camera, ColorSource, Sky, Color.WithAlpha( 1 ) );
-		var heightSky = ResolveSky( camera, HeightColorSource, HeightSky, HeightColor.WithAlpha( HeightColor.a.Clamp( 0, 1 ) ) );
+		var distanceSky = ResolveSky( world, renderTags, excludeTags, ColorSource, Sky, Color.WithAlpha( 1 ) );
+		var heightSky = ResolveSky( world, renderTags, excludeTags, HeightColorSource, HeightSky, HeightColor.WithAlpha( HeightColor.a.Clamp( 0, 1 ) ) );
 
 		return new FogSetup
 		{
 			Enabled = FogEnabled,
 			DistanceEnabled = DistanceEnabled,
 			Mode = Mode,
+			DistanceMetric = DistanceMetric,
 			Color = distanceSky.Color,
-			// Sanitize each authored endpoint before interpolation so invalid values cannot
-			// distort surrounding valid fog during a volume blend.
-			StartDistance = MathF.Max( 0, Mode == FogMode.Distance ? DistanceRange.x : StartDistance ),
-			EndDistance = MathF.Max( 0, DistanceRange.y ),
+			DirectionalColorEnabled = DirectionalColorEnabled,
+			SecondaryColor = SecondaryColor.WithAlpha( 1 ),
+			ColorDirection = WorldRotation * ColorDirection,
+			ColorScale = ColorScale,
+			StartDistance = Mode == FogMode.Distance ? DistanceRange.x : MathF.Max( 0, StartDistance ),
+			EndDistance = Mode == FogMode.Distance ? DistanceRange.y : MathF.Max( 0, DistanceRange.y ),
 			FalloffExponent = MathF.Max( FalloffExponent, 0.001f ),
 			AttenuationDistance = MathF.Max( AttenuationDistance, 0.001f ),
 			MaximumOpacity = MaximumOpacity.Clamp( 0, 1 ),
@@ -312,7 +347,7 @@ public sealed partial class Fog : BasePostProcess<Fog>
 	/// <summary>
 	/// Resolve a sky's texture, tint, encoding and orientation using this camera's visibility.
 	/// </summary>
-	(Color Color, Texture Texture, FogSkyEncoding Encoding, Rotation Rotation) ResolveSky( CameraComponent camera, FogColorSource source, Material customSky, Color color )
+	(Color Color, Texture Texture, FogSkyEncoding Encoding, Rotation Rotation) ResolveSky( SceneWorld world, ITagSet renderTags, ITagSet excludeTags, FogColorSource source, Material customSky, Color color )
 	{
 		Material skyMaterial = null;
 		var rotation = WorldRotation.Conjugate;
@@ -322,12 +357,11 @@ public sealed partial class Fog : BasePostProcess<Fog>
 			skyMaterial = customSky;
 		}
 		else if ( source == FogColorSource.SceneSky &&
-			(camera.RenderTags.IsEmpty || camera.RenderTags.Has( "skybox" )) &&
-			!camera.RenderExcludeTags.Has( "skybox" ) )
+			(renderTags.GetTokens().Count == 0 || renderTags.Has( "skybox" )) &&
+			!excludeTags.Has( "skybox" ) )
 		{
-			var world = Scene.SceneWorld;
 			var skyboxWorld = world.GetRenderingSkybox()?.SkyboxWorld;
-			var sky = skyboxWorld is not null ? skyboxWorld.GetSky() : world.GetSky( camera.RenderTags, camera.RenderExcludeTags );
+			var sky = skyboxWorld is not null ? skyboxWorld.GetSky() : world.GetSky( renderTags, excludeTags );
 
 			if ( sky is not null )
 			{

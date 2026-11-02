@@ -30,6 +30,10 @@ public sealed class RenderMesh
 	/// </summary>
 	internal static bool ReadsFrameBuffer( Material material ) => material is not null && material.native.GetIntAttributeOrDefault( "bWantsFBCopyTexture", 0 ) != 0;
 
+	internal static bool NeedsLightProbe( Material material ) => material is not null
+		&& material.Flags.GetBool( "NeedsLightProbe", true )
+		&& material.Flags.GetBool( "UsesBakedLightingFromProbe", true );
+
 	/// <summary>
 	/// Model owning the draw buffers.
 	/// </summary>

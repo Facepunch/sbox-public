@@ -76,6 +76,7 @@ partial class Session
 
 			// TODO: Hack for anim graph parameters including periods
 
+#pragma warning disable CS0618
 			if ( parentTrack.TargetType != typeof( SkinnedModelRenderer.ParameterAccessor ) && propertyPath.IndexOf( '.' ) is var index and > -1 )
 			{
 				propertyName = propertyPath[..index];
@@ -85,6 +86,7 @@ partial class Session
 			{
 				propertyPath = string.Empty;
 			}
+#pragma warning restore CS0618
 
 			parentTrack = parentTrack.Children.FirstOrDefault( x => x.Name == propertyName );
 		}
@@ -215,6 +217,7 @@ partial class Session
 
 			// TODO: Hack for anim graph parameters including periods
 
+#pragma warning disable CS0618
 			if ( parentTrack.TargetType != typeof( SkinnedModelRenderer.ParameterAccessor ) && propertyPath.IndexOf( '.' ) is var index and > -1 )
 			{
 				propertyName = propertyPath[..index];
@@ -224,6 +227,7 @@ partial class Session
 			{
 				propertyPath = string.Empty;
 			}
+#pragma warning restore CS0618
 
 			parentTrack = GetOrCreateTrackCore( parentTrack, propertyName );
 		}

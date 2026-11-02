@@ -6,7 +6,7 @@
 [Library( "snd_soundscape_box" ), HammerEntity]
 [EditorSprite( "editor/env_soundscape.vmat" ), VisGroup( VisGroup.Sound )]
 [Title( "Soundscape Box" ), Category( "Sound" ), Icon( "speaker_group" )]
-[BoundsHelper( "extents", true )]
+[BoundsHelper( "extents" )]
 class SoundScapeBoxEntity : HammerEntityDefinition
 {
 	/// <summary>

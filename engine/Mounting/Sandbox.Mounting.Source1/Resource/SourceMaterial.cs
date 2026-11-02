@@ -18,12 +18,12 @@ internal sealed class SourceMaterial : IDisposable
 		builder = new( () => new SourceMaterialBuilder( mount, path, source ) );
 	}
 
-	internal static SourceMaterial Read( BaseMount mount, string path, object scope )
+	internal static SourceMaterial Read( BaseMount mount, string path, object scope, Func<string, string, Stream> open )
 	{
 		var contentRoot = BaseMount.GetContentRoot( path, "materials" );
 		var entry = VmtFile.NormalizePath( path[contentRoot.Length..], ".vmt" );
 		Stream Open( string file ) => file.Equals( entry, StringComparison.OrdinalIgnoreCase )
-			? mount.OpenContentFile( path ) : mount.OpenContentFile( file, contentRoot );
+			? open( path, "" ) : open( file, contentRoot );
 		var source = VmtFile.Load( entry, Open,
 			symbol => symbol.ToLowerInvariant() switch
 			{
@@ -35,12 +35,21 @@ internal sealed class SourceMaterial : IDisposable
 		return new SourceMaterial( mount, path, source, scope );
 	}
 
-	public Material CreateMaterial( string name )
+	public Material CreateMaterial( string name, bool mapSurface = false )
 	{
 		lock ( buildLock )
 		{
 			ObjectDisposedException.ThrowIf( disposed, this );
-			return builder.Value.CreateMaterial( name );
+			return builder.Value.CreateMaterial( name, mapSurface );
+		}
+	}
+
+	internal bool TryGetMappingSize( out Vector2 size )
+	{
+		lock ( buildLock )
+		{
+			ObjectDisposedException.ThrowIf( disposed, this );
+			return builder.Value.TryGetMappingSize( out size );
 		}
 	}
 

@@ -18,71 +18,72 @@
 			<Button class="close-button" Icon="close" onclick=@(() => CloseModal( false )) tooltip="#menu.common.close" />
 		</div>
 
-		<div class="picker-toolbar">
-			<TextEntry class="package-search" Text=@searchText Placeholder=@($"Search {PackageNoun}s...") OnTextEdited=@OnSearchEdited />
-			@if ( IsGamePicker )
-			{
-				<Button class="picker-button multiplayer-filter" Active=@selectedTags.Contains( "multiplayer" ) Icon="groups" Text="#menu.games.multiplayer_only" onclick=@ToggleMultiplayer />
-			}
-		</div>
-
 		<div class="picker-body">
+			@* Laid out like the Games page's filters - headings with their icons, the sorts a row of round
+			   buttons, the search under them. That much stays put; the filters under it scroll *@
 			<div class="picker-sidebar">
-				@if ( ShowMapSources )
-				{
-					<div class="filter-section browse-options">
-						<label class="section-title">#menu.games.source</label>
-						<Button class="picker-button browse-option" Active=@(!IsMountedSource && packageSource == PackageSource.Browse) Icon="business_center" Text="#menu.games.workshop" onclick=@(() => SelectPackageSource( PackageSource.Browse )) />
-						<Button class="picker-button browse-option" Active=@(!IsMountedSource && packageSource == PackageSource.Subscribed) Icon="check_circle" Text="#menu.workshop.subscribed" tooltip="#menu.workshop.subscribed_tooltip" onclick=@(() => SelectPackageSource( PackageSource.Subscribed )) />
-						<Button class="picker-button browse-option" Active=@(!IsMountedSource && packageSource == PackageSource.Downloaded) Icon="download_done" Text="#menu.workshop.downloaded" tooltip="#menu.workshop.downloaded_tooltip" onclick=@(() => SelectPackageSource( PackageSource.Downloaded )) />
-						@foreach ( var mount in MountDirectory.GetAll().Where( mount => mount.Mounted ).OrderBy( mount => mount.Title ) )
-						{
-							var mapCount = GetMountMaps( mount.Ident ).Count();
-							if ( mapCount == 0 ) continue;
-
-							<button class="picker-button browse-option mount-source @(selectedMount == mount.Ident ? "active" : "")" tooltip=@($"{mount.Title} — {mapCount:N0} maps") onclick=@(() => SelectSource( mount.Ident ))>
-								<icon class="mount-icon">sports_esports</icon>
-								<label class="button-label">@mount.Title</label>
-								<label class="mount-count">@mapCount.ToString( "N0" )</label>
-							</button>
-						}
-					</div>
-				}
-
-				@if ( !IsMountedSource && packageSource == PackageSource.Browse )
-				{
-					<div class="filter-section browse-options">
-						<label class="section-title">#menu.games.browse</label>
-						@foreach ( var order in SortOrders )
-						{
-							<Button class="picker-button browse-option" Active=@(sortOrder == order.Name) Icon=@order.Icon Text=@order.Title onclick=@(() => sortOrder = order.Name) />
-						}
-					</div>
-
-					@if ( Result?.Properties is { Length: > 0 } )
+				<div class="sidebar-top">
+					@if ( ShowMapSources )
 					{
-						<div class="filter-section">
-							<label class="section-title">#menu.games.features</label>
-							<PackagePropertyFilter Result=@Result Selected=@selectedTags />
+						<div class="filter-section browse-options">
+							<h2><WithIcon Icon="source" Text="#menu.games.source" /></h2>
+							<Button class="picker-button browse-option" Active=@(!IsMountedSource && packageSource == PackageSource.Browse) Icon="business_center" Text="#menu.games.workshop" onclick=@(() => SelectPackageSource( PackageSource.Browse )) />
+							<Button class="picker-button browse-option" Active=@(!IsMountedSource && packageSource == PackageSource.Subscribed) Icon="check_circle" Text="#menu.workshop.subscribed" tooltip="#menu.workshop.subscribed_tooltip" onclick=@(() => SelectPackageSource( PackageSource.Subscribed )) />
+							@foreach ( var mount in MountDirectory.GetAll().Where( mount => mount.Mounted ).OrderBy( mount => mount.Title ) )
+							{
+								var mapCount = GetMountMaps( mount.Ident ).Count();
+								if ( mapCount == 0 ) continue;
+
+								<button class="picker-button browse-option mount-source @(selectedMount == mount.Ident ? "active" : "")" tooltip=@($"{mount.Title} — {mapCount:N0} maps") onclick=@(() => SelectSource( mount.Ident ))>
+									<icon class="mount-icon">sports_esports</icon>
+									<label class="button-label">@mount.Title</label>
+									<label class="mount-count">@mapCount.ToString( "N0" )</label>
+								</button>
+							}
 						</div>
 					}
 
-					@if ( Result?.Facets is not null )
+					@if ( !IsMountedSource && packageSource == PackageSource.Browse )
 					{
-						@foreach ( var facet in Result.Facets )
-						{
-							<div class="filter-section">
-								<label class="section-title">@facet.Title</label>
-								<PackageCategoryFilter Result=@Result Selected=@selectedCategories Facet=@facet />
-							</div>
-						}
+						<GamePackageSortOrder Value:bind=@sortOrder />
 					}
 
-					<div class="filter-section">
-						<label class="section-title">#menu.games.tags</label>
-						<PackageTagFilter Result=@Result Selected=@selectedTags />
-					</div>
-				}
+					<TextEntry class="package-search" Text=@searchText Placeholder=@($"Search {PackageNoun}s...") OnTextEdited=@OnSearchEdited />
+
+					@if ( IsGamePicker )
+					{
+						<Button class="picker-button multiplayer-filter" Active=@selectedTags.Contains( "multiplayer" ) Icon="groups" Text="#menu.games.multiplayer_only" onclick=@ToggleMultiplayer />
+					}
+				</div>
+
+				<div class="sidebar-filters">
+					@if ( !IsMountedSource && packageSource == PackageSource.Browse )
+					{
+						@if ( Result?.Properties is { Length: > 0 } )
+						{
+							<div class="filter-section">
+								<h2><WithIcon Icon="star" Text="#menu.games.features" /></h2>
+								<PackagePropertyFilter Result=@Result Selected=@selectedTags />
+							</div>
+						}
+
+						@if ( Result?.Facets is not null )
+						{
+							@foreach ( var facet in Result.Facets.Where( x => !MenuHelpers.IsRatingFacet( x ) ) )
+							{
+								<div class="filter-section">
+									<h2><WithIcon Icon=@(facet.Entries.FirstOrDefault()?.Icon ?? "category") Text=@facet.Title /></h2>
+									<PackageCategoryFilter Result=@Result Selected=@selectedCategories Facet=@facet />
+								</div>
+							}
+						}
+
+						<div class="filter-section">
+							<h2><WithIcon Icon="tag" Text="#menu.games.tags" /></h2>
+							<PackageTagFilter Result=@Result Selected=@selectedTags />
+						</div>
+					}
+				</div>
 			</div>
 			<div class="picker-results">
 				<div class="results-header">
@@ -106,7 +107,7 @@
 				</div>
 				@if ( !IsMountedSource )
 				{
-					<MenuProject.UI.PackageList @ref=packageList Surface="package-picker" Query=@SearchQuery Packages=@(IsWorkshopSource ? workshopPackages ?? Array.Empty<Package>() : null) OnSelected=@SelectPackage Take=@(100) ItemSize=@(new Vector2( 250, 190 )) HoverPreview=@false ShowSubscribe=@ShowMapSources />
+					<MenuProject.UI.PackageList @ref=packageList Surface="package-picker" Query=@SearchQuery Packages=@(IsWorkshopSource ? workshopPackages ?? Array.Empty<Package>() : null) OnSelected=@SelectPackage Take=@(100) HoverPreview=@false ShowSubscribe=@ShowMapSources />
 				}
 				else if ( mountedMaps.Length == 0 )
 				{

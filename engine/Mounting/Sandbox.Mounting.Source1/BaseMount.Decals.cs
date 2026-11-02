@@ -29,17 +29,22 @@ public abstract partial class BaseMount
 			Log.Trace( $"{Title}: no Source decal script is available; named impact decal groups were not mounted." );
 
 		var referenced = files.Decals.Groups.Values.SelectMany( entries => entries )
-			.Where( entry => entry.Weight > 0 ).Select( entry => entry.Material ).Distinct( StringComparer.OrdinalIgnoreCase );
-		foreach ( var path in referenced )
+			.Where( entry => entry.Weight > 0 ).Select( entry => (Path: entry.Material, Root: "") )
+			.Concat( files.MapDecals ).Distinct();
+		foreach ( var (path, root) in referenced )
 		{
+			var resourcePath = $"{root}{path}";
+			if ( files.DecalMaterials.ContainsKey( resourcePath ) ) continue;
 			try
 			{
-				var material = SourceDecalMaterial.Read( path, OpenContentFile, message => Log.Trace( message ) );
-				files.DecalMaterials.Add( path, material );
-				context.Add( ResourceType.Texture, $"{path}.decal_color.vtex", new SourceDecalTextureLoader( material, false ) );
+				var material = SourceDecalMaterial.Read( path, file => OpenContentFile( file, root ), message => Log.Trace( message ) )
+					with
+				{ Path = resourcePath };
+				files.DecalMaterials.Add( resourcePath, material );
+				context.Add( ResourceType.Texture, $"{resourcePath}.decal_color.vtex", new SourceDecalTextureLoader( material, false ) );
 				if ( !string.IsNullOrWhiteSpace( material.Parameters.String( "$bumpmap" ) ) )
-					context.Add( ResourceType.Texture, $"{path}.decal_normal.vtex", new SourceDecalTextureLoader( material, true ) );
-				context.Add( ResourceType.GameResource, $"{path}.decal", new SourceDecalLoader( material ) );
+					context.Add( ResourceType.Texture, $"{resourcePath}.decal_normal.vtex", new SourceDecalTextureLoader( material, true ) );
+				context.Add( ResourceType.GameResource, $"{resourcePath}.decal", new SourceDecalLoader( material ) );
 			}
 			catch ( Exception e ) when ( e is IOException or InvalidDataException or NotSupportedException )
 			{
@@ -59,9 +64,11 @@ public abstract partial class BaseMount
 
 	internal bool HasDecalMaterial( string path ) => index.DecalMaterials.ContainsKey( path );
 
-	internal DecalDefinition GetDecal( string path )
+	internal DecalDefinition GetDecal( string path, string contentRoot = "" )
 	{
 		path = VmtFile.NormalizePath( path, ".vmt" );
+		if ( contentRoot.Length > 0 && HasDecalMaterial( $"{contentRoot}{path}" ) )
+			path = $"{contentRoot}{path}";
 		if ( !HasDecalMaterial( path ) )
 			throw new FileNotFoundException( $"{Title}: decal material '{path}' is not registered in the mount.", path );
 		var resource = $"mount://{Ident}/{path}.decal";

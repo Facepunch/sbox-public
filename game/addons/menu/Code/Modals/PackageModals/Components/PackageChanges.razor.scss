@@ -198,37 +198,6 @@ PackageChanges
     }
 
     //
-    // Embedded on the Overview - under the gallery, part of that page's scroll rather than its own,
-    // no timeline line (there's only the one)
-    //
-
-    &.embedded
-    {
-        overflow: visible;
-        overflow-y: visible;
-
-        // 9, plus the thumbnail strip's own 3 under it - 12 off the gallery, the same as the gap
-        // inside the gallery between its big view and the strip
-        padding: 9px 24px 64px 24px;
-        gap: 10px;
-
-        .rail
-        {
-            display: none;
-        }
-
-        .update
-        {
-            gap: 0;
-        }
-
-        .card
-        {
-            margin-bottom: 0;
-        }
-    }
-
-    //
     // Loading - grey bars in the shape of an update card, breathing
     //
 
@@ -286,6 +255,30 @@ PackageChanges
         flex-direction: column;
         flex-shrink: 0;
         gap: 16px;
+    }
+
+    // A workshop item's change note - just what was said, like a change's text
+    .note-text
+    {
+        font-family: $front-font;
+        font-size: 13.5px;
+        font-weight: 500;
+        color: $front-heading;
+        white-space: pre-wrap;
+
+        &.empty
+        {
+            color: $front-secondary;
+            font-style: italic;
+        }
+    }
+
+    // Older change notes, a page at a time from Steam
+    .older
+    {
+        flex-shrink: 0;
+        justify-content: center;
+        padding: 8px 0 0 0;
     }
 }
 

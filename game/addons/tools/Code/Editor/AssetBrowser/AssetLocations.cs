@@ -150,6 +150,72 @@ public class AssetLocations : TreeView
 		}
 	}
 
+	[Shortcut( "editor.delete", "DEL" )]
+	void DeleteSelectedFolder()
+	{
+		// Always handle DEL here, even when there's nothing deletable, so it doesn't fall through to deleting scene objects
+		if ( SelectedItems.FirstOrDefault() is DiskLocation location )
+		{
+			DeleteFolder( location );
+		}
+	}
+
+	/// <summary>
+	/// Ask to delete a folder. If the browser is inside it, move up to its parent afterwards.
+	/// </summary>
+	internal void DeleteFolder( DiskLocation location )
+	{
+		if ( !CanModifyFolder( location ) )
+			return;
+
+		var directory = new DirectoryInfo( location.Path );
+
+		AssetList.ConfirmDeleteFolder( directory, () =>
+		{
+			var current = Browser?.CurrentLocation?.Path?.NormalizeFilename( false, false ).TrimEnd( '/' );
+			var deleted = directory.FullName.NormalizeFilename( false, false ).TrimEnd( '/' );
+
+			if ( current is null || directory.Parent is null )
+				return;
+
+			if ( current.Equals( deleted, StringComparison.OrdinalIgnoreCase ) || current.StartsWith( deleted + "/", StringComparison.OrdinalIgnoreCase ) )
+			{
+				Browser.NavigateTo( directory.Parent.FullName );
+			}
+		} );
+	}
+
+	/// <summary>
+	/// Can this folder be deleted or renamed from the sidebar? Not if it's (or contains) a project, library or base content root.
+	/// </summary>
+	internal static bool CanModifyFolder( DiskLocation location )
+	{
+		if ( location.IsRoot || !Directory.Exists( location.Path ) )
+			return false;
+
+		// IsRoot only knows about core and citizen when the path looks like a dev checkout, so check the real roots too
+		var roots = EditorUtility.Projects.GetAll().Select( x => x.GetRootPath() )
+			.Append( Project.Current?.GetRootPath() )
+			.Append( FileSystem.Root.GetFullPath( "/core/" ) )
+			.Append( FileSystem.Root.GetFullPath( "/addons/citizen/assets/" ) );
+
+		var path = NormalizeFolder( location.Path );
+
+		foreach ( var root in roots )
+		{
+			if ( string.IsNullOrEmpty( root ) )
+				continue;
+
+			var rootPath = NormalizeFolder( root );
+			if ( rootPath.Equals( path, StringComparison.OrdinalIgnoreCase ) || rootPath.StartsWith( path + "/", StringComparison.OrdinalIgnoreCase ) )
+				return false;
+		}
+
+		return true;
+	}
+
+	static string NormalizeFolder( string path ) => Path.GetFullPath( path ).NormalizeFilename( false, false ).TrimEnd( '/' );
+
 	public void SetIncludePathNames( bool enabled )
 	{
 		IncludePathNames = enabled;

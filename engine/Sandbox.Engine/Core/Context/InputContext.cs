@@ -68,37 +68,103 @@ internal sealed class InputContext
 	}
 
 	/// <summary>
-	/// When true we've called StartTrapping and are waiting for the user to release keys
+	/// Set while <see cref="StartTrapping"/> is waiting for a button combination
 	/// </summary>
-	bool TrappingKeys { get; set; }
-	HashSet<string> TrappedKeys { get; set; }
-
-	static Action<string[]> TrapCallback;
+	Action<string[]> _trapCallback;
 
 	/// <summary>
-	/// Start trapping keys. When the user releases all keys the callback will be called
-	/// with a list of buttons that were pressed during the trap.
+	/// Buttons that went down since trapping started, in the order they went down
+	/// </summary>
+	readonly List<ButtonCode> _trapped = [];
+
+	/// <summary>
+	/// We've called <see cref="StartTrapping"/> and are waiting for the user to release a trapped button
+	/// </summary>
+	internal bool IsTrapping => _trapCallback is not null;
+
+	/// <summary>
+	/// Start trapping buttons. They stop reaching the game and UI until one of them is released, then the
+	/// callback is called with every button that went down during the trap. Trapping something else, or
+	/// <see cref="CancelTrapping"/>, calls the callback with no buttons. The callback runs during the next
+	/// UI tick, in the scope of whoever is ticking <see cref="TargetUISystem"/>.
 	/// </summary>
 	public void StartTrapping( Action<string[]> callback )
 	{
-		TrappingKeys = true;
-		TrappedKeys = new HashSet<string>();
-		TrapCallback = callback;
+		ArgumentNullException.ThrowIfNull( callback );
+
+		CancelTrapping();
+		_trapCallback = callback;
 	}
 
 	/// <summary>
-	/// Called when a key is released if we're trapping keys.
+	/// Stop trapping without a combination. Returns false if we weren't trapping.
 	/// </summary>
-	void EndTrapping()
+	public bool CancelTrapping()
 	{
-		TrappingKeys = false;
-		TrapCallback?.Invoke( TrappedKeys.ToArray() );
-		TrapCallback = null;
+		if ( !IsTrapping ) return false;
+
+		_trapped.Clear();
+		FinishTrapping();
+		return true;
+	}
+
+	/// <summary>
+	/// Drop the trap without calling its callback - the game that started it is going away, and its callback
+	/// with it. This context outlives games, so a trap left armed would eat the next game's first combination.
+	/// </summary>
+	internal void ResetTrapping()
+	{
+		_trapCallback = null;
+		_trapped.Clear();
+	}
+
+	void FinishTrapping()
+	{
+		var callback = _trapCallback;
+		var buttons = _trapped.Select( Sandbox.Engine.KeyTranslation.CodeToString ).ToArray();
+
+		_trapCallback = null;
+		_trapped.Clear();
+
+		if ( TargetUISystem is null )
+		{
+			callback( buttons );
+			return;
+		}
+
+		TargetUISystem.InputEventQueue.QueueCallback( () => callback( buttons ) );
+	}
+
+	/// <summary>
+	/// Give a button to the trap. Returns true if the trap took it, so nothing else should see it.
+	/// </summary>
+	bool TrapButton( ButtonCode button, bool pressed )
+	{
+		if ( !IsTrapping ) return false;
+
+		if ( pressed )
+		{
+			// Still down from before trapping started, this is just key repeat - it isn't part of the combination
+			if ( _pressed.Contains( button ) )
+				return true;
+
+			if ( !_trapped.Contains( button ) && !string.IsNullOrWhiteSpace( Sandbox.Engine.KeyTranslation.CodeToString( button ) ) )
+				_trapped.Add( button );
+
+			return true;
+		}
+
+		// Held before trapping started - let the release through so the game doesn't think it's still down
+		if ( !_trapped.Contains( button ) )
+			return false;
+
+		FinishTrapping();
+		return true;
 	}
 
 	internal void IN_Text( string text )
 	{
-		if ( TrappingKeys )
+		if ( IsTrapping )
 			return;
 
 		// A button is being held that was down when we switched to UI mode
@@ -177,12 +243,6 @@ internal sealed class InputContext
 	/// </summary>
 	internal bool In_Escape()
 	{
-		if ( TrappingKeys )
-		{
-			EndTrapping();
-			return true;
-		}
-
 		// A drag belongs to the pointer, not to whatever has keyboard focus
 		if ( TryCancelDrag() )
 			return true;
@@ -228,8 +288,12 @@ internal sealed class InputContext
 	/// </summary>
 	internal void IN_ButtonReleased( ButtonCode scanButtonCode, ButtonCode keyButtonCode, KeyboardModifiers modifiers )
 	{
-		if ( TrappingKeys )
+		// Released while something else has the keyboard (the pause menu or an overlay) - that isn't a combination
+		if ( IsTrapping && _trapped.Contains( scanButtonCode ) )
+		{
+			CancelTrapping();
 			return;
+		}
 
 		_blockingTextInput.Remove( scanButtonCode );
 
@@ -247,21 +311,8 @@ internal sealed class InputContext
 
 	internal void IN_Button( bool pressed, ButtonCode scanButtonCode, ButtonCode keyButtonCode, bool repeat, KeyboardModifiers modifiers )
 	{
-		if ( TrappingKeys )
-		{
-			var name = Sandbox.Engine.KeyTranslation.CodeToString( scanButtonCode );
-			if ( !string.IsNullOrWhiteSpace( name ) )
-			{
-				TrappedKeys.Add( name );
-			}
-
-			if ( !pressed )
-			{
-				EndTrapping();
-			}
-
+		if ( TrapButton( scanButtonCode, pressed ) )
 			return;
-		}
 
 		if ( IsMouseButton( scanButtonCode ) )
 		{

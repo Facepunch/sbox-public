@@ -50,6 +50,29 @@ internal partial class NetworkSystem
 		source.SendMessage( new AllowJoinAckMsg { SteamId = msg.SteamId } );
 	}
 
+	/// <summary>
+	/// Does this joiner have to send the password? Only a lobby connection's Steam Id can be trusted
+	/// before they've told us who they are, so only they get in on an invite.
+	/// </summary>
+	bool NeedsPassword( Connection connection )
+	{
+		return Access.NeedsPassword( connection is SteamLobbyConnection slob ? slob.Friend.Id : 0 );
+	}
+
+	/// <summary>
+	/// The host's password changed (sv_password). Players already in stay in.
+	/// </summary>
+	internal void SetPassword( string password )
+	{
+		Access.Password = password ?? "";
+
+		// Lobbies advertise it when they tick
+		if ( Application.IsDedicatedServer )
+		{
+			DedicatedServer.PasswordProtected = Access.HasPassword;
+		}
+	}
+
 	void OnAllowJoinAck( AllowJoinAckMsg msg, Connection source, Guid msgId )
 	{
 		if ( !source.IsHost )

@@ -85,7 +85,7 @@ public static partial class MenuUtility
 
 			foreach ( var lobby in orderedLobbies )
 			{
-				if ( lobby.IsFull ) continue;
+				if ( lobby.IsFull || lobby.IsPasswordProtected ) continue;
 
 				// We might be in a game now
 				if ( Game.InGame ) return false;

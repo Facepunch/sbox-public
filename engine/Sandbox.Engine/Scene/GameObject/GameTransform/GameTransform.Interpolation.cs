@@ -72,9 +72,14 @@ public partial class GameTransform
 	{
 		// If we're headless, don't interpolate. Interpolation here is for visual purposes only and we
 		// have no graphics.
-		if ( Application.IsHeadless )
-			return false;
+		return !Application.IsHeadless && WouldInterpolate();
+	}
 
+	/// <summary>
+	/// <see cref="ShouldInterpolate"/> without the headless check.
+	/// </summary>
+	bool WouldInterpolate()
+	{
 		var isEnabled = GameObject?.Enabled ?? false;
 		var isFixedUpdate = GameObject?.Scene?.IsFixedUpdate ?? false;
 		var isStatic = GameObject?.IsStatic ?? false;
@@ -199,6 +204,7 @@ public partial class GameTransform
 	/// </summary>
 	internal void ClearLocalInterpolation()
 	{
+		GameObject?._net?.ClearStep();
 		Interpolate = false;
 		TransformChanged();
 	}

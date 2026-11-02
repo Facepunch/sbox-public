@@ -14,7 +14,7 @@ internal sealed class SourceDecalLoader( SourceDecalMaterial material ) : Resour
 			throw new NotSupportedException( $"{material.Path}: unsupported Source decal shader '{material.Shader}'." );
 		var parameters = material.Parameters;
 		var color = LoadTexture( "color" );
-		var source = Host.GetSourceTexture( parameters.String( "$basetexture" ) );
+		var source = Host.GetSourceTexture( parameters.String( "$basetexture" ), BaseMount.GetContentRoot( material.Path, "materials" ) );
 		var normal = !string.IsNullOrWhiteSpace( parameters.String( "$bumpmap" ) ) ? LoadTexture( "normal" ) : null;
 		var scale = parameters.Float( "$decalscale", 1 );
 		if ( scale <= 0 || !float.IsFinite( color.Width * scale ) || !float.IsFinite( color.Height * scale ) )
@@ -65,6 +65,7 @@ internal sealed class SourceDecalPrefabLoader( string group, IReadOnlyList<Sourc
 		var builder = new PrefabBuilder().WithName( Path );
 		using ( builder.Scope() )
 		{
+			Game.ActiveScene.Enabled = false;
 			var root = new GameObject( true, group );
 			root.AddComponent<TemporaryEffect>();
 			if ( definitions.Count > 0 )

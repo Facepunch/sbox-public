@@ -1,5 +1,8 @@
 using System;
+using System.IO;
+using System.Text;
 using System.Text.Json.Serialization;
+using Sandbox.Resources;
 
 namespace ResourceTests;
 
@@ -112,5 +115,42 @@ public class BlobResourceTest
 		// Editing the source must not change the copy.
 		source.Data[0] = 999;
 		Assert.AreEqual( 5, copy.Data[0] );
+	}
+
+	/// <summary>
+	/// A compiled resource without a blob block still gets its blob data from the "_d" sidecar next
+	/// to it, which is where a resource compiled before its sidecar existed keeps it. With neither,
+	/// the json still loads.
+	/// </summary>
+	[TestMethod]
+	public void CompiledWithoutBlobBlockReadsSidecar()
+	{
+		var source = new BlobResource { Scalar = 42, Data = new[] { 5, 10, 15, 20, 25 } };
+		var json = source.Serialize().ToJsonString();
+
+		var writer = new ResourceWriter();
+		writer.SetDataBlock( Encoding.UTF8.GetBytes( json ) );
+		var compiled = writer.ToArray();
+
+		var path = Path.Combine( Path.GetTempPath(), $"{Guid.NewGuid()}.blobres" );
+		try
+		{
+			File.WriteAllBytes( path + "_d", source.BinaryData );
+
+			var loaded = new BlobResource();
+			loaded.RegisterWeakResourceId( path );
+			Assert.IsTrue( loaded.TryLoadFromData( compiled ) );
+			Assert.AreEqual( 42, loaded.Scalar );
+			Assert.IsTrue( loaded.Data.SequenceEqual( source.Data ), "Blob data should come from the sidecar" );
+		}
+		finally
+		{
+			File.Delete( path + "_d" );
+		}
+
+		var withoutSidecar = new BlobResource();
+		withoutSidecar.RegisterWeakResourceId( path );
+		Assert.IsTrue( withoutSidecar.TryLoadFromData( compiled ) );
+		Assert.AreEqual( 42, withoutSidecar.Scalar );
 	}
 }

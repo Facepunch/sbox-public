@@ -3,43 +3,30 @@
 
 // Gaussian texture blur --------------------------------------------------------------------------------------------------------------------------------
 //
-// One pass, no intermediate target: a grid of taps out to three sigma, gaussian weighted. The taps spread out as
-// sigma grows so the cost is fixed; that doesn't alias because the gaussian is smooth - its spectrum is gone long
-// before the tap spacing matters. Sigma is in texels of the source. Used for filter: blur() (sigma = the radius) and
-// filter: drop-shadow() (sigma = half the blur radius), the same definitions the web uses.
-
-#define GAUSSIAN_BLUR_TAPS 15
+// The panel layer is padded by the blur's reach and carries a gaussian mip chain (Panel.Layer.cs), so past the first
+// level the blur is already sitting in the pyramid and a trilinear fetch is the whole job. downsample_cs builds a
+// level with a 2x2 box on the source grid and a 9-tap binomial on the destination - 1/4 + 2 of the level's own texels
+// squared in variance - and the bilinear magnification adds another 1/6, so level L reads as
+// sigma^2 = 35/12 * 4^L - 11/4 texels of mip 0. Sigma is in texels of mip 0: filter: blur() passes the radius,
+// drop-shadow() half the blur radius, as the web does.
 
 float4 GaussianBlurTexture( Texture2D tex, SamplerState s, float2 uv, float sigma, float2 invTexDim )
 {
-	if ( sigma <= 0.05 )
-		return tex.Sample( s, uv );
+	if ( sigma <= 0.05 ) return tex.SampleLevel( s, uv, 0 );
 
-	// Taps never closer than a texel; below that the grid just reaches past three sigma
-	float step = max( 6.0 * sigma / ( GAUSSIAN_BLUR_TAPS - 1 ), 1.0 );
-	float start = -step * ( GAUSSIAN_BLUR_TAPS - 1 ) * 0.5;
-	float k = -0.5 / ( sigma * sigma );
+	float var = sigma * sigma;
+	float lod = 0.5 * log2( max( ( var + 11.0 / 4.0 ) * ( 12.0 / 35.0 ), 1.0 ) );
+	if ( lod >= 1.0 )
+		return tex.SampleLevel( s, uv, lod );
 
-	float4 sum = 0;
-	float weight = 0;
+	// Below level 1 there's nothing to blend with - mip 0 is sharp, and lerping it against mip 1 ghosts rather than
+	// blurs. So split the variance: four taps on the diagonals take half, and the fetch drops to the level carrying
+	// the other half, which between levels 0 and 1 is linear in the lod (1/6 at level 0, 8.75 more at level 1)
+	lod = max( ( 0.5 * var - 1.0 / 6.0 ) / 8.75, 0.0 );
+	float2 d = sigma * 0.7071 * invTexDim;
 
-	[unroll]
-	for ( int y = 0; y < GAUSSIAN_BLUR_TAPS; y++ )
-	{
-		float oy = start + y * step;
-		float wy = exp( oy * oy * k );
-
-		[unroll]
-		for ( int x = 0; x < GAUSSIAN_BLUR_TAPS; x++ )
-		{
-			float ox = start + x * step;
-			float w = wy * exp( ox * ox * k );
-			sum += tex.Sample( s, uv + float2( ox, oy ) * invTexDim ) * w;
-			weight += w;
-		}
-	}
-
-	return sum / weight;
+	return 0.25 * ( tex.SampleLevel( s, uv + float2( -d.x, -d.y ), lod ) + tex.SampleLevel( s, uv + float2( d.x, -d.y ), lod )
+	              + tex.SampleLevel( s, uv + float2( -d.x,  d.y ), lod ) + tex.SampleLevel( s, uv + float2( d.x,  d.y ), lod ) );
 }
 
 #endif // UI_BLUR_HLSL

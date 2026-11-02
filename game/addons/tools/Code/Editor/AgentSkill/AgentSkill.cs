@@ -19,7 +19,7 @@ internal static class AgentSkill
 		public string Message => $"{Output}{Error}".Trim();
 	}
 
-	static string Cli => System.IO.Path.Combine( Environment.CurrentDirectory, "bin", "managed", "sbox-cli.exe" );
+	static string Cli => System.IO.Path.Combine( Environment.CurrentDirectory, "bin", "managed", OperatingSystem.IsWindows() ? "sbox-cli.exe" : "sbox-cli" );
 
 	/// <summary>
 	/// Set when the user declines the startup prompt or removes the skill, so the editor stops asking.

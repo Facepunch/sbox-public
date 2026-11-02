@@ -15,8 +15,9 @@ internal abstract class RpcInvoker
 
 	public int ParameterCount { get; private set; }
 
-	// Keyed by the method, so invokers for hotloaded-away code go with it
-	static readonly ConditionalWeakTable<MethodInfo, RpcInvoker> Cache = new();
+	// Keyed by the method, so invokers for hotloaded-away code go with it. Skipped by hotload, which would otherwise
+	// carry them over to the new methods and can't upgrade their open-instance delegates.
+	[SkipHotload] static readonly ConditionalWeakTable<MethodInfo, RpcInvoker> Cache = new();
 	static readonly RpcInvoker Unsupported = new UnsupportedInvoker();
 
 	public static RpcInvoker Get( MethodInfo method )

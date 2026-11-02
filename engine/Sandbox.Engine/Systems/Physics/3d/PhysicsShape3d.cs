@@ -289,6 +289,14 @@ internal sealed partial class PhysicsShape3d : PhysicsShapeInternal, IHandle
 
 	Surface _surface;
 
+	internal void InitializeCreationSettings( PhysicsBody3d body )
+	{
+		_surface = body.ResolvedCreationSurface;
+		Collider = body.CreationCollider;
+		if ( Collider is not null )
+			((TagAccessor)Tags).Initialize( Collider.GameObject.Tags );
+	}
+
 	public override Surface Surface
 	{
 		get
@@ -302,6 +310,9 @@ internal sealed partial class PhysicsShape3d : PhysicsShapeInternal, IHandle
 		}
 		set
 		{
+			if ( ReferenceEquals( _surface, value ) )
+				return;
+
 			_surface = value;
 			UpdateSurface();
 		}

@@ -1221,6 +1221,7 @@ public class WorldComponentTest
 		Assert.IsTrue( minZ > 0f, $"the sag should stay sane: {minZ}" );
 	}
 
+#pragma warning disable CS0618 // Exercises the obsolete WaterVolume, which existing scenes still use.
 	/// <summary>
 	/// A dynamic body inside a WaterVolume receives buoyancy and ends up far above
 	/// an identical free-falling body, while bodies carrying an ignore tag fall
@@ -1274,6 +1275,7 @@ public class WorldComponentTest
 		Assert.IsTrue( corked.WorldPosition.z < floater.WorldPosition.z - 500f,
 			$"ignored tags fall like there's no water: {corked.WorldPosition} vs {floater.WorldPosition}" );
 	}
+#pragma warning restore CS0618
 
 	/// <summary>
 	/// A manual hitbox only registers on traces with UseHitboxes - a plain physics
@@ -1391,6 +1393,7 @@ public class WorldComponentTest
 		Assert.IsFalse( after.Hit, "no hitboxes remain to be hit" );
 	}
 
+#pragma warning disable CS0618 // Exercises the obsolete WaterVolume, which existing scenes still use.
 	/// <summary>
 	/// VerletRope, WaterVolume and ManualHitbox keep their configured values through
 	/// a serialization round trip; the rope's attachment reference resolves back to
@@ -1452,4 +1455,5 @@ public class WorldComponentTest
 		Assert.AreEqual( new Vector3( 1, 2, 3 ), hb2.CenterA );
 		Assert.AreEqual( new Vector3( 4, 5, 6 ), hb2.CenterB );
 	}
+#pragma warning restore CS0618
 }

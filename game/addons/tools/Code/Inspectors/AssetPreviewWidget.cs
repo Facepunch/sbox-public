@@ -124,6 +124,9 @@ public class AssetPreviewWidget : Widget
 		if ( initializing || preview?.Camera is null )
 			return;
 
+		// Previews that draw gizmos need the instance to know about the camera
+		renderWidget.UpdateGizmoInputs( false );
+
 		using ( preview.Scene.Push() )
 		{
 			preview.ScreenSize = (Vector2Int)renderWidget.Size;

@@ -16,7 +16,7 @@ internal class MountAsset : Asset
 		this.source = source;
 	}
 
-	internal override void UpdateInternals( bool compileImmediately = true )
+	internal override void UpdateInternals()
 	{
 		AssetType = AssetType.ResolveFromPath( file.Path );
 

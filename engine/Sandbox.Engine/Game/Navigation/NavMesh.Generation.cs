@@ -139,80 +139,72 @@ public sealed partial class NavMesh
 
 		var maxConcurrency = Math.Max( 1, HeightFieldGenerationThreadCount );
 		using var concurrencySemaphore = new SemaphoreSlim( maxConcurrency, maxConcurrency );
-		var generationTasks = new List<Task>( tilesToProcess.Count );
 
-		foreach ( var tile in tilesToProcess )
-		{
-			generationTasks.Add( ProcessTileAsync( tile ) );
-		}
-
-		await Task.WhenAll( generationTasks );
+		await Task.WhenAll( tilesToProcess.Select( ProcessTileAsync ) );
 
 		async Task ProcessTileAsync( NavMeshTile tile )
 		{
 			await concurrencySemaphore.WaitAsync().ConfigureAwait( false );
+
+			HeightFieldGenerator heightFieldGenerator = null;
 			try
 			{
-				await Task.Run( async () =>
+				await Task.Yield();
+				await GameTask.MainThread();
+
+				var generatorConfig = CreateTileGenerationConfig( tile.TilePosition );
+				bool isBakedTile = tile.IsBakedHeightField;
+
+				// Use baked heightfield data directly if available, avoiding expensive geometry collection.
+				if ( !isBakedTile )
 				{
-					var generatorConfig = CreateTileGenerationConfig( tile.TilePosition );
+					heightFieldGenerator = HeightFieldGeneratorPool.Get();
+					heightFieldGenerator.Init( generatorConfig );
+					heightFieldGenerator.CollectGeometry( this, world, generatorConfig.Bounds );
+				}
 
-					try
+				var tileMesh = await Task.Run( () =>
+				{
+					CompactHeightfield heightField;
+
+					// A baked tile with no heightfield was excluded on purpose and stays empty.
+					if ( isBakedTile )
 					{
-						CompactHeightfield heightField;
-
-						// Use baked heightfield data directly if available, avoiding expensive geometry collection.
-						// A baked tile with no heightfield was excluded on purpose and stays empty.
-						if ( tile.IsBakedHeightField )
-						{
-							heightField = tile.IsHeightFieldValid ? tile.DecompressCachedHeightField() : null;
-						}
-						else
-						{
-							var heightFieldGenerator = HeightFieldGeneratorPool.Get();
-							try
-							{
-								heightFieldGenerator.Init( generatorConfig );
-
-								await GameTask.MainThread();
-								heightFieldGenerator.CollectGeometry( this, world, generatorConfig.Bounds );
-								await GameTask.WorkerThread();
-
-								heightField = heightFieldGenerator.Generate();
-							}
-							finally
-							{
-								HeightFieldGeneratorPool.Return( heightFieldGenerator );
-							}
-
-							tile.SetCachedHeightField( heightField );
-						}
-
-						if ( heightField == null )
-						{
-							await GameTask.MainThread();
-							LoadTileOnMainThread( tile, null );
-							return;
-						}
-
-						using ( heightField )
-						{
-							var tileMesh = tile.BuildNavmesh( heightField, generatorConfig, this );
-
-							await GameTask.MainThread();
-							LoadTileOnMainThread( tile, tileMesh );
-						}
+						heightField = tile.IsHeightFieldValid ? tile.DecompressCachedHeightField() : null;
 					}
-					catch ( Exception e )
+					else
 					{
-						// Swallow per-tile exceptions to avoid cancelling whole batch;
-						Log.Warning( $"Navmesh: Exception while generating tile {tile.TilePosition.x},{tile.TilePosition.y}" );
-						Log.Warning( e );
+						heightField = heightFieldGenerator.Generate();
+						tile.SetCachedHeightField( heightField );
+					}
+
+					if ( heightField == null )
+					{
+						return null;
+					}
+
+					using ( heightField )
+					{
+						return tile.BuildNavmesh( heightField, generatorConfig, this );
 					}
 				} ).ConfigureAwait( false );
+
+				await GameTask.MainThread();
+				LoadTileOnMainThread( tile, tileMesh );
+			}
+			catch ( Exception e )
+			{
+				// Swallow per-tile exceptions to avoid cancelling whole batch;
+				Log.Warning( $"Navmesh: Exception while generating tile {tile.TilePosition.x},{tile.TilePosition.y}" );
+				Log.Warning( e );
 			}
 			finally
 			{
+				if ( heightFieldGenerator != null )
+				{
+					HeightFieldGeneratorPool.Return( heightFieldGenerator );
+				}
+
 				concurrencySemaphore.Release();
 			}
 		}

@@ -15,14 +15,20 @@ native static accessor g_pAssetSystem as IAssetSystem
 	void UpdateMods();
 	int GetAllModsCount();
 
+	// Compiles this one asset now, if it isn't current
 	inline bool RecompileAsset( IAsset asset, bool full )
 	{
-		CUtlVector<IAsset*> assets;
-		assets.AddToTail( asset );
-		return g_pAssetSystem->RecompileMultipleAssets( assets, full ? COMPILE_PARENTS_AND_CHILDREN_AND_ASSOCIATES : COMPILE_AS_NEEDED );
+		return asset->RecompileAsset( full ? COMPILE_PARENTS_AND_CHILDREN_AND_ASSOCIATES : COMPILE_AS_NEEDED );
 	}
 
 	void UpdateGameResourceType( string title, string extension );
+
+	void SuspendOnDemandCompiles( bool suspend );
+	void SetAssetBuiltAt( string path, int epoch );
+	int GetContentChangeEpoch();
+	bool EnsureAssetCurrentForLoad( IAsset asset );
+	void RegisterBuildOutputs( string paths );
+	void SetContentRootLocks( string lockFiles );
 
 	void LoadWorkingSetsAndTags();
 }

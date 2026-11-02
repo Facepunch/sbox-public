@@ -106,6 +106,14 @@ public class ControlSheet : Panel, IControlSheet
 	{
 		var g = _body.AddChild<ControlSheetGroup>();
 		g.Header.Title = group.Name;
+		g.SetClass( "titled", !string.IsNullOrWhiteSpace( group.Name ) );
+
+		// Titled groups fold from the header, like the editor's; [Group( StartFolded = true )] starts them closed
+		if ( !string.IsNullOrWhiteSpace( group.Name ) )
+		{
+			var startFolded = group.Properties.SelectMany( x => x.GetAttributes<GroupAttribute>() ).Any( x => x.StartFolded );
+			g.SetFoldable( group.Name, startFolded );
+		}
 
 		//
 		// This is part of a toggle group - so add a checkbox to the header
@@ -130,6 +138,9 @@ public class ControlSheet : Panel, IControlSheet
 
 		foreach ( var prop in group.Properties )
 		{
+			if ( prop.HasAttribute<HideAttribute>() )
+				continue;
+
 			var row = g.Body.AddChild<ControlSheetRow>();
 			row.Initialize( prop );
 		}

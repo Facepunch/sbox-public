@@ -221,8 +221,9 @@ public sealed partial class ModelPhysics : Component, IScenePhysicsEvents, IHasM
 
 		var world = WorldTransform;
 
-		foreach ( var body in Bodies )
+		for ( var i = 0; i < Bodies.Count; i++ )
 		{
+			var body = Bodies[i];
 			var rb = body.Component;
 			if ( !rb.IsValid() )
 				continue;
@@ -264,8 +265,9 @@ public sealed partial class ModelPhysics : Component, IScenePhysicsEvents, IHasM
 		if ( !so.IsValid() )
 			return;
 
-		foreach ( var body in Bodies )
+		for ( var i = 0; i < Bodies.Count; i++ )
 		{
+			var body = Bodies[i];
 			if ( !body.Component.IsValid() )
 				continue;
 

@@ -121,8 +121,10 @@ internal partial class NetworkSystem
 	{
 		Assert.NotNull( sockets, "Socket list is null" ); // should be impossible
 
-		// This network system only exists in the game.
-		using var gameScope = GameSystem?.Push();
+		// This network system only exists in the game. Scene networking pushes without boxing a scope.
+		var sceneSystem = GameSystem as SceneNetworkSystem;
+		using var sceneScope = sceneSystem?.PushScope() ?? default;
+		using var gameScope = sceneSystem is null ? GameSystem?.Push() : null;
 
 		// A failed encoder can close a connection while we drain the queue, so they're flushed from a copy
 		_flushing.Clear();

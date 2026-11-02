@@ -33,16 +33,8 @@ internal class MockConnection : Connection
 	internal override void InternalSend( NetPacket packet, NetFlags flags ) { }
 
 	// No transport of our own, everything goes through the host
+	internal override bool RoutesThroughHost => true;
 
-	internal override void SendStream( ByteStream stream, NetFlags flags = NetFlags.Reliable )
-	{
-		System?.SendMulticast( [Id], stream.ToSpan(), flags );
-	}
-
-	internal override void Send( NetPacket encoded, NetFlags flags, ref byte[][] packets )
-	{
-		System?.SendMulticast( [Id], Decode( encoded.Span ), flags );
-	}
 
 	public MockConnection( Guid id )
 	{

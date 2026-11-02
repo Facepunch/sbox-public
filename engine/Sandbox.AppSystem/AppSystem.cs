@@ -146,6 +146,10 @@ public class AppSystem
 			Console.WriteLine( $"Error: ({e.GetType()}) {e.Message}" );
 
 			CrashShutdown();
+
+			// Only get here if native interop never came up, so Plat_ExitProcess wasn't available.
+			// Rethrow so the real startup error is what the runtime reports.
+			throw;
 		}
 	}
 
@@ -159,6 +163,7 @@ public class AppSystem
 	/// <summary>
 	/// Emergency shutdown for crash scenarios. Uses Plat_ExitProcess to immediately
 	/// terminate without running finalizers, DLL destructors, or creating dumps.
+	/// Returns if native interop isn't initialized, so the caller can let the exception propagate.
 	/// </summary>
 	void CrashShutdown()
 	{
@@ -176,7 +181,7 @@ public class AppSystem
 
 		try { NLog.LogManager.Shutdown(); } catch { }
 
-		NativeEngine.EngineGlobal.Plat_ExitProcess( 1 );
+		try { NativeEngine.EngineGlobal.Plat_ExitProcess( 1 ); } catch { }
 	}
 
 	public virtual void Shutdown()
@@ -227,6 +232,7 @@ public class AppSystem
 
 		Engine.InputRouter.Shutdown();
 		Diagnostics.Logging.ClearListeners();
+		MenuUtility.ClearLoggers();
 
 		// Flush mount utility preview cache — holds strong refs to textures
 		Mounting.MountUtility.FlushCache();
@@ -403,14 +409,14 @@ public class AppSystem
 
 
 		Bootstrap.PrepareTypeLibraries();
-		startupWindow?.UpdateProgress( 0.02f, "Initializing Vulkan" );
+		startupWindow?.UpdateProgress( 0.05f, "Starting graphics" );
 		if ( !NativeEngine.EngineGlobal.SourceEnginePreInit( commandLine, _appSystem ) )
 		{
 			startupWindow?.Dispose();
 			throw new System.Exception( "SourceEnginePreInit failed" );
 		}
 		if ( !Application.IsInitialized ) Bootstrap.InitApplication( _appSystem );
-		startupWindow?.UpdateProgress( 0.04f, "Creating game window" );
+		startupWindow?.UpdateProgress( 0.16f, "Loading the engine" );
 
 		Bootstrap.PreInit( () =>
 		{
@@ -437,9 +443,9 @@ public class AppSystem
 
 		Bootstrap.BeginResourceScan();
 		gameWindow?.InitializeRendering();
-		gameWindow?.UpdateStartupProgress( 0.5f, "Loading materials" );
+		gameWindow?.UpdateStartupProgress( 0.22f, "Loading shaders" );
 		Bootstrap.Init();
-		gameWindow?.UpdateStartupProgress( 1.0f, "Ready" );
+		gameWindow?.UpdateStartupProgress( 0.4f, "Building the menu" );
 	}
 
 	protected void SetWindowTitle( string title )

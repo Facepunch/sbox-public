@@ -340,6 +340,9 @@ public class EditorMainWindow : DockWindow, IUndoSystemProvider
 		MenuBar.RegisterNamed( "Editor", MenuBar );
 		DockAttribute.RegisterWindow( "Editor", this );
 
+		// Dev tools open in a dock here, not a window of their own
+		DevToolsDock.Install( this );
+
 		// Reopen last session's scenes so their docks exist before the layout is restored
 		SceneEditorSession.RestoreOpenSessions();
 

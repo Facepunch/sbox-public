@@ -2,7 +2,7 @@
 include "sbox/glue_mesh.h"
 include "modellib/modelbuilder.h"
 include "meshutils/simplifyparams.h"
-include "vphysx/vphysx_collisionmesh_resource.h"
+include "physics/collision_resource.h"
 include "meshutils/uvparamlscm.h"
 
 native struct SboxVertex_t is Sandbox.Vertex
@@ -101,7 +101,7 @@ native class CPhysBodyDesc
 
 	inline void AddHull( CastTo[Vector*] void* pPoints, int nNumPoints, Transform transform, float flPrecisionDegrees, float flPrecisionInches, int nMaxFaces, int nMaxEdges, int nMaxVerts, int nAlgo )
 	{
-		RnHullSimplificationParams_t params;
+		PhysicsHullSimplificationParams_t params;
 		params.m_flPrecisionDegrees = flPrecisionDegrees;
 		params.m_flPrecisionInches = flPrecisionInches;
 		params.m_nMaxFaces = nMaxFaces;

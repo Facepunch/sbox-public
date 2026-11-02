@@ -103,6 +103,9 @@ internal static partial class PackageManager
 				throw new WebException( $"Unable to download package '{Package.FullIdent}'" );
 			}
 
+			// Before anything can load them: recompile shaders an older engine compiled
+			await Sandbox.Engine.Shaders.ShaderUpgrade.UpgradeAsync( PackageFileSystem.Redirect, Package.Title, token );
+
 			//
 			// Mount downloaded filesystem as our main filesystem
 			//
@@ -139,19 +142,23 @@ internal static partial class PackageManager
 				AssemblyFileSystem.Mount( FileSystem.CreateSubSystem( ".bin" ) );
 			}
 
-			MemoryFileSystem dllFs;
+			MemoryFileSystem dllFs = null;
 
 			if ( CompilesOnBackend() )
 			{
-				// The dll built for exactly our engine version. If it failed, is still compiling or can't be fetched,
-				// leave it unmounted so the install compiles the code archives here. Without any archives, take the
-				// compile the manifest lists, which can be for an older engine version.
-				dllFs = await DownloadCompiledDllAsync( token );
-				if ( dllFs is null && !HasCodeArchives() )
-					dllFs = await DownloadBinDllsAsync( Package.Revision, token );
+				// The dlls built for exactly our engine version. With code archives, anything short of that (failed,
+				// still compiling, unreachable) leaves them unmounted and the install compiles the archives here.
+				// Without any there's nothing else to run, so wait out the compile.
+				var hasArchives = HasCodeArchives();
+				(dllFs, var error) = await DownloadCompiledDllAsync( waitForCompile: !hasArchives, token );
+
+				if ( dllFs is null && !hasArchives )
+					throw new System.Exception( $"Couldn't get the code for '{Package.FullIdent}': {error}" );
 			}
-			else
+			else if ( !HasCodeArchives() )
 			{
+				// Everything that isn't a game compiles its code archives on install, older revisions
+				// without any only have the dlls in their manifest
 				dllFs = await DownloadBinDllsAsync( Package.Revision, token );
 			}
 
@@ -162,64 +169,83 @@ internal static partial class PackageManager
 		}
 
 		/// <summary>
-		/// The backend compiles every package's code apart from libraries and tools, which their consumers compile.
+		/// Only games compile on the backend. Everything else (addons, libraries, tools) compiles its code archives here.
 		/// </summary>
 		private bool CompilesOnBackend()
 		{
 			if ( Backend.Package is null || Package.Revision is not { VersionId: > 0 } )
 				return false;
 
-			if ( Package.TypeName is "library" or "tool" )
+			if ( Package.TypeName != "game" )
 				return false;
 
 			return HasManifestDlls() || HasCodeArchives();
 		}
 
 		/// <summary>
-		/// How long to wait on the backend for a compile. It answers Pending itself after ~20s.
+		/// How long one request to the backend for the compile can take. It answers Pending itself after ~20s.
 		/// </summary>
 		static readonly TimeSpan CompiledDllTimeout = TimeSpan.FromSeconds( 60 );
 
 		/// <summary>
-		/// The package's dll compiled by the backend against our engine version, queueing the compile if nobody has
-		/// asked for it yet. Null when the compile failed or is still going, or the backend can't be reached and we
-		/// haven't fetched it before.
+		/// How long to wait before asking again while it compiles, when the backend doesn't say.
 		/// </summary>
-		private async Task<MemoryFileSystem> DownloadCompiledDllAsync( CancellationToken token )
+		static readonly TimeSpan CompiledDllRetry = TimeSpan.FromSeconds( 10 );
+
+		/// <summary>
+		/// The package's dlls compiled by the backend against our engine version - its own and any libraries it bundles -
+		/// queueing the compile if nobody has asked for it yet. With <paramref name="waitForCompile"/> it keeps asking
+		/// until the compile is done, otherwise a compile that's still going counts as no dlls. Null dlls, and why, when
+		/// the compile failed, or the backend can't be reached and we haven't fetched them before.
+		/// </summary>
+		private async Task<(MemoryFileSystem Dlls, string Error)> DownloadCompiledDllAsync( bool waitForCompile, CancellationToken token )
 		{
 			var ident = Package.FullIdent;
 			var revision = Package.Revision.VersionId;
 			var engineVersion = Sandbox.Engine.Protocol.Api;
 
-			// A revision's dll for a version never changes, so the last answer is good for installing offline
-			var cacheKey = $"dll.{ident}.{revision}.{engineVersion}";
+			// A revision's dlls for a version never change, so the last answer is good for installing offline
+			var cacheKey = $"dlls.{ident}.{revision}.{engineVersion}";
 
-			ManifestSchema.File file;
+			ManifestSchema.File[] files;
 
 			try
 			{
-				using var timeout = CancellationTokenSource.CreateLinkedTokenSource( token );
-				timeout.CancelAfter( CompiledDllTimeout );
-
 				LoadingScreen.Subtitle = "Fetching compiled code";
-				var response = await Backend.Package.GetDll( ident, revision, engineVersion, timeout.Token );
 
-				if ( response.Content is not { Status: "Compiled" } dll )
+				while ( true )
 				{
-					var reason = response.Content?.Status == "Pending" ? "still compiling" : $"{(int)response.StatusCode} {response.Error?.Content}";
-					Log.Info( $"No compiled dll for {ident} on engine version {engineVersion} ({reason})" );
-					return null;
-				}
+					using var timeout = CancellationTokenSource.CreateLinkedTokenSource( token );
+					timeout.CancelAfter( CompiledDllTimeout );
 
-				file = new ManifestSchema.File { Url = dll.Url, Crc = dll.Crc, Size = dll.Size, Path = $".bin/package.{ident}.dll" };
-				Services.ServiceCache.WriteDisk( cacheKey, file );
+					var response = await Backend.Package.GetDll( ident, revision, engineVersion, timeout.Token );
+
+					if ( response.Content is { Status: "Compiled", Dlls.Length: > 0 } result )
+					{
+						files = result.Dlls.Select( x => new ManifestSchema.File { Url = x.Url, Crc = x.Crc, Size = x.Size, Path = x.Path } ).ToArray();
+						Services.ServiceCache.WriteDisk( cacheKey, files );
+						break;
+					}
+
+					var pending = response.Content?.Status == "Pending";
+					var reason = pending ? "it's still compiling" : $"{(int)response.StatusCode} {response.Content?.Error ?? response.Error?.Content}";
+
+					if ( !pending || !waitForCompile )
+					{
+						Log.Info( $"No compiled dll for {ident} on engine version {engineVersion} ({reason})" );
+						return (null, reason);
+					}
+
+					LoadingScreen.Subtitle = "Waiting for the server to compile it";
+					await Task.Delay( response.Headers.RetryAfter?.Delta ?? CompiledDllRetry, token );
+				}
 			}
 			catch ( Exception e ) when ( !token.IsCancellationRequested )
 			{
-				if ( !Services.ServiceCache.TryReadDisk( cacheKey, out file ) )
+				if ( !Services.ServiceCache.TryReadDisk( cacheKey, out files ) )
 				{
 					Log.Warning( e, $"Couldn't fetch the compiled dll for {ident} ({e.Message})" );
-					return null;
+					return (null, e.Message);
 				}
 			}
 			finally
@@ -227,27 +253,38 @@ internal static partial class PackageManager
 				LoadingScreen.Subtitle = null;
 			}
 
-			byte[] bytes;
-
-			try
-			{
-				bytes = await GetCachedDllAsync( file, token );
-			}
-			catch ( Exception e ) when ( !token.IsCancellationRequested )
-			{
-				Log.Warning( e, $"Couldn't download the compiled dll for {ident} ({e.Message})" );
-				return null;
-			}
-
-			if ( bytes is null || Crc64.FromBytes( bytes ) != Convert.ToUInt64( file.Crc, 16 ) )
-			{
-				Log.Warning( $"Compiled dll for {ident} didn't download intact" );
-				return null;
-			}
-
 			var memFs = new MemoryFileSystem();
-			memFs.WriteAllBytes( System.IO.Path.GetFileName( file.Path ), bytes );
-			return memFs;
+
+			foreach ( var file in files )
+			{
+				byte[] bytes;
+
+				try
+				{
+					LoadingScreen.Subtitle = System.IO.Path.GetFileName( file.Path );
+					bytes = await GetCachedDllAsync( file, token );
+				}
+				catch ( Exception e ) when ( !token.IsCancellationRequested )
+				{
+					Log.Warning( e, $"Couldn't download the compiled {file.Path} for {ident} ({e.Message})" );
+					return (null, $"couldn't download {file.Path}");
+				}
+				finally
+				{
+					LoadingScreen.Subtitle = null;
+				}
+
+				// All or nothing - compiling the code archives brings its own copy of every assembly
+				if ( bytes is null || Crc64.FromBytes( bytes ) != Convert.ToUInt64( file.Crc, 16 ) )
+				{
+					Log.Warning( $"Compiled {file.Path} for {ident} didn't download intact" );
+					return (null, $"{file.Path} didn't download intact");
+				}
+
+				memFs.WriteAllBytes( System.IO.Path.GetFileName( file.Path ), bytes );
+			}
+
+			return (memFs, null);
 		}
 
 		private static async Task<MemoryFileSystem> DownloadBinDllsAsync( Package.IRevision revision, CancellationToken token )

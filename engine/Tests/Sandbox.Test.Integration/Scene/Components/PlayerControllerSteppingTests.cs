@@ -6,6 +6,8 @@ namespace SceneTests.Components;
 
 public partial class PlayerControllerTest
 {
+	// Covers the controller's 0.095-unit contact skin.
+	const float ContactPositionTolerance = 0.1f;
 	public sealed class StepDecisionRecorder : MoveModeWalk
 	{
 		public int Decisions { get; private set; }
@@ -32,6 +34,15 @@ public partial class PlayerControllerTest
 	{
 		Assert.IsTrue( recorder.Decisions > 0, "step planner was not exercised" );
 		Assert.AreEqual( 0f, recorder.MaxLift, 0.001f, "step planner applied a lift without a valid step" );
+	}
+
+	static float HullSupport( PlayerController pc, Vector3 direction )
+	{
+		var feet = pc.FeetCollider;
+		var support = (feet.WorldRotation.Inverse * direction).Abs().Dot( feet.Scale * feet.WorldScale.Abs() * 0.5f );
+		if ( pc.BodyCollider.Enabled )
+			support = MathF.Max( support, pc.BodyCollider.Radius * MathF.Abs( pc.BodyCollider.WorldTransform.UniformScale ) );
+		return support;
 	}
 
 	static GameObject AddMovementBox( Scene scene, Vector3 center, Vector3 size, Rotation rotation )
@@ -75,8 +86,9 @@ public partial class PlayerControllerTest
 		CreateStairs( scene, height, stairsRotation, mesh, scale );
 		AddMovementBox( scene, new Vector3( 64, side * 48, 128 ) * scale, new Vector3( 512, 32, 512 ) * scale, rotation );
 		var pc = CreatePlayer( scene, Vector3.Up * ((descending ? 4 * height * scale : 0) + 1) );
+		((MoveModeWalk)pc.Mode).StepDownHeight = MathF.Max( 18, height + 1 );
 		pc.WorldScale = new Vector3( scale );
-		var wallLimit = 32 * scale - pc.BodyCollider.Radius * scale;
+		var wallLimit = 32 * scale - HullSupport( pc, rotation.Left );
 		var towardWall = rotation * new Vector3( 0, side, 0 );
 		var start = new Vector3( 0, side * (wallLimit - 0.2f), (descending ? 4 * height * scale : 0) + 1 );
 		if ( descending )
@@ -101,7 +113,7 @@ public partial class PlayerControllerTest
 			{
 				var distance = (step.After - step.Before).Dot( direction );
 				var expected = step.InitialVelocity.Dot( direction ) * step.Delta;
-				Assert.IsTrue( distance >= expected - 0.05f, $"wall clipped progress from {step.Before} to {step.After}: {distance} < {expected}" );
+				Assert.IsTrue( distance >= expected - ContactPositionTolerance, $"wall clipped progress from {step.Before} to {step.After}: {distance} < {expected}" );
 				Assert.IsTrue( step.Grounded, $"lost support at {step.After}: {DescribeGround( pc )}" );
 				Assert.IsTrue( MathF.Abs( step.Velocity.z ) < 1, $"launched at {step.After}: {step.Velocity}" );
 				Assert.IsTrue( step.After.Dot( towardWall ) <= wallLimit + 0.25f * MathF.Max( 1, scale ), $"entered wall at {step.After}" );
@@ -192,7 +204,7 @@ public partial class PlayerControllerTest
 			lowCeiling ? new Vector3( 512, 256, 32 ) : new Vector3( 32, 512, 512 ), rotation );
 		var pc = CreatePlayer( scene, Vector3.Up );
 		var towardWall = rotation * new Vector3( 0, 1, 0 );
-		var wallLimit = 32 - pc.BodyCollider.Radius;
+		var wallLimit = 32 - HullSupport( pc, rotation.Left );
 		pc.WorldPosition += towardWall * (wallLimit - 0.2f);
 		TickUntilGrounded( scene, pc );
 		Assert.IsTrue( pc.IsOnGround );
@@ -202,13 +214,13 @@ public partial class PlayerControllerTest
 			scene.GameTick( 1.0 / 50 );
 			var position = pc.Body.PhysicsBody.Position;
 			Assert.IsTrue( position.Dot( towardWall ) <= wallLimit + 0.25f, $"entered wall at {position}" );
-			Assert.IsTrue( position.Dot( rotation.Forward ) <= (lowCeiling ? 44 : 96 - pc.BodyCollider.Radius + 0.25f), $"bypassed obstruction at {position}" );
+			Assert.IsTrue( position.Dot( rotation.Forward ) <= (lowCeiling ? 44 : 96 - HullSupport( pc, rotation.Forward ) + 0.25f), $"bypassed obstruction at {position}" );
 			Assert.IsTrue( pc.IsOnGround, $"lost ground at {position}" );
 			Assert.IsTrue( MathF.Abs( pc.Body.Velocity.z ) < 1, $"launched at {position}" );
 		}
 		Assert.AreEqual( lowCeiling ? 0 : 36, pc.Body.PhysicsBody.Position.z, 1.0f );
 		if ( !lowCeiling )
-			Assert.IsTrue( pc.Body.PhysicsBody.Position.Dot( rotation.Forward ) > 80 );
+			Assert.IsTrue( pc.Body.PhysicsBody.Position.Dot( rotation.Forward ) > 96 - HullSupport( pc, rotation.Forward ) - 1 );
 	}
 
 	[TestMethod]
@@ -230,7 +242,7 @@ public partial class PlayerControllerTest
 		AddMovementBox( scene, new Vector3( 64, 48, 128 ), new Vector3( 512, 32, 512 ), rotation );
 		var pc = CreatePlayer( scene, Vector3.Up * 40 );
 		var towardWall = rotation * new Vector3( 0, 1, 0 );
-		pc.WorldPosition += towardWall * (32 - pc.BodyCollider.Radius - 0.2f);
+		pc.WorldPosition += towardWall * (32 - HullSupport( pc, towardWall ) - 0.2f);
 		var movement = pc.Components.Create<PhysicsMovementRecorder>();
 		movement.Controller = pc;
 		TickUntilGrounded( scene, pc );
@@ -244,7 +256,7 @@ public partial class PlayerControllerTest
 			{
 				var distance = (step.After - step.Before).Dot( rotation.Forward );
 				var expected = step.InitialVelocity.Dot( rotation.Forward ) * step.Delta;
-				Assert.IsTrue( distance >= expected - 0.05f, $"slope clipped progress from {step.Before} to {step.After}: {distance} < {expected}" );
+				Assert.IsTrue( distance >= expected - ContactPositionTolerance, $"slope clipped progress from {step.Before} to {step.After}: {distance} < {expected}" );
 				Assert.IsTrue( step.Grounded, $"lost support at {step.After}" );
 			}
 		}
@@ -265,7 +277,7 @@ public partial class PlayerControllerTest
 		AddMovementBox( scene, new Vector3( 0, 0, 94 ), new Vector3( 1024, 1024, 32 ), Rotation.Identity );
 		var pc = CreatePlayer( scene, Vector3.Up );
 		var towardWall = rotation * new Vector3( 0, 1, 0 );
-		pc.WorldPosition += towardWall * (32 - pc.BodyCollider.Radius - 0.2f);
+		pc.WorldPosition += towardWall * (32 - HullSupport( pc, towardWall ) - 0.2f);
 		var movement = pc.Components.Create<PhysicsMovementRecorder>();
 		movement.Controller = pc;
 		TickUntilGrounded( scene, pc );
@@ -366,7 +378,7 @@ public partial class PlayerControllerTest
 		AddMovementBox( scene, new Vector3( 64, 48, 128 ), new Vector3( 512, 32, 512 ), rotation );
 		var pc = CreatePlayer( scene, rotation * new Vector3( 24, 0, 1 ) );
 		var towardWall = rotation * new Vector3( 0, 1, 0 );
-		pc.WorldPosition += towardWall * (32 - pc.BodyCollider.Radius - 0.2f);
+		pc.WorldPosition += towardWall * (32 - HullSupport( pc, towardWall ) - 0.2f);
 		TickUntilGrounded( scene, pc );
 		var movement = pc.Components.Create<PhysicsMovementRecorder>();
 		movement.Controller = pc;
@@ -398,20 +410,22 @@ public partial class PlayerControllerTest
 		using var scope = scene.Push();
 		CreateFloor( scene );
 		CreateStairs( scene, 8, Rotation.Identity, mesh );
-		var pc = CreatePlayer( scene, new Vector3( 39, 0, 1 ) );
+		var pc = CreatePlayer( scene, Vector3.Up );
+		pc.WorldPosition = new Vector3( 48 - pc.BodyRadius * 0.5f - 1, 0, 1 );
 		TickUntilGrounded( scene, pc );
 		pc.WishVelocity = Vector3.Forward * 10;
 		for ( int i = 0; i < 1000 && pc.Body.PhysicsBody.Position.z < 7; ++i )
 			scene.GameTick( 1.0 / 50 );
 		Assert.AreEqual( 8f, pc.Body.PhysicsBody.Position.z, 0.2f );
 		pc.WishVelocity = Vector3.Backward * 10;
-		for ( int i = 0; i < 1000 && pc.Body.PhysicsBody.Position.x > 36; ++i )
+		var returnPosition = 48 - pc.BodyRadius * 0.5f - 4;
+		for ( int i = 0; i < 1000 && pc.Body.PhysicsBody.Position.x > returnPosition; ++i )
 		{
 			scene.GameTick( 1.0 / 50 );
 			Assert.IsTrue( pc.IsOnGround );
 			Assert.IsTrue( MathF.Abs( pc.Body.Velocity.z ) < 1 );
 		}
-		Assert.IsTrue( pc.Body.PhysicsBody.Position.x <= 36 );
+		Assert.IsTrue( pc.Body.PhysicsBody.Position.x <= returnPosition );
 		Assert.AreEqual( 0f, pc.Body.PhysicsBody.Position.z, 0.2f, "clearance lookahead retained unsupported step height" );
 	}
 
@@ -499,6 +513,7 @@ public partial class PlayerControllerTest
 		CreateFloor( scene );
 		CreateStairs( scene, 18, Rotation.Identity, mesh );
 		var pc = CreatePlayer( scene, Vector3.Up );
+		((MoveModeWalk)pc.Mode).StepDownHeight = 20;
 		var movement = pc.Components.Create<PhysicsMovementRecorder>();
 		movement.Controller = pc;
 		TickUntilGrounded( scene, pc );
@@ -738,7 +753,8 @@ public partial class PlayerControllerTest
 		CreateFloor( scene );
 		var rotation = Rotation.FromYaw( yaw );
 		CreateStep( scene, 48, 256, 18, rotation );
-		var pc = CreatePlayer( scene, rotation * new Vector3( 39, 0, 1 ) );
+		var pc = CreatePlayer( scene, Vector3.Up );
+		pc.WorldPosition = rotation * new Vector3( 48 - HullSupport( pc, rotation.Forward ) - 1, 0, 1 );
 		var decisions = ObserveStepDecisions( pc );
 		TickUntilGrounded( scene, pc );
 		Assert.IsTrue( pc.IsOnGround );
@@ -822,7 +838,7 @@ public partial class PlayerControllerTest
 		AddMovementBox( scene, new Vector3( 64, 48, 128 ), new Vector3( 512, 32, 512 ), rotation );
 		var pc = CreatePlayer( scene, Vector3.Up );
 		var decisions = ObserveStepDecisions( pc );
-		pc.WorldPosition += rotation.Left * (32 - pc.BodyCollider.Radius - 0.2f);
+		pc.WorldPosition += rotation.Left * (32 - HullSupport( pc, rotation.Left ) - 0.2f);
 		TickUntilGrounded( scene, pc );
 		Assert.IsTrue( pc.IsOnGround );
 		pc.WishVelocity = (rotation.Forward + rotation.Left * 0.5f) * 160;
@@ -832,7 +848,7 @@ public partial class PlayerControllerTest
 			var position = pc.Body.PhysicsBody.Position;
 			Assert.AreEqual( 0f, position.z, 0.2f, "wall-slide fallback lifted onto a tall obstruction" );
 			Assert.IsTrue( position.Dot( rotation.Forward ) < 44 );
-			Assert.IsTrue( position.Dot( rotation.Left ) <= 32 - pc.BodyCollider.Radius + 0.25f );
+			Assert.IsTrue( position.Dot( rotation.Left ) <= 32 - HullSupport( pc, rotation.Left ) + 0.25f );
 		}
 		AssertNoStepLift( decisions );
 	}
@@ -855,7 +871,7 @@ public partial class PlayerControllerTest
 		pc.IsDucking = ducked;
 		var ceiling = pc.CurrentHeight + 7;
 		AddMovementBox( scene, new Vector3( 96, 0, ceiling + 8 ), new Vector3( 512, 256, 16 ), rotation );
-		pc.WorldPosition += rotation.Left * (32 - pc.BodyCollider.Radius - 0.2f);
+		pc.WorldPosition += rotation.Left * (32 - HullSupport( pc, rotation.Left ) - 0.2f);
 		TickUntilGrounded( scene, pc );
 		Assert.IsTrue( pc.IsOnGround );
 		pc.WishVelocity = (rotation.Forward + rotation.Left * 0.5f) * 160;

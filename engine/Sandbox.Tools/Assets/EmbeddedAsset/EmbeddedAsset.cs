@@ -15,7 +15,7 @@ internal class EmbeddedAsset : Asset
 		Name = property.FindPathInScene()?.ToString();
 	}
 
-	internal override void UpdateInternals( bool compileImmediately = true )
+	internal override void UpdateInternals()
 	{
 
 	}

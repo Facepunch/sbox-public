@@ -6,7 +6,8 @@
 
 @* A yes-or-no question in a box in the middle of the screen, on the rail's paper - a glow through it
    in the question's colour, the question, then the two answers. Escape or a click off it is Cancel.
-   Without a CancelText it's just something to be told, with the one button - a notice. *@
+   Without a CancelText it's just something to be told, with the one button - a notice. With an Entry
+   there's something to type in too, and enter in it is the confirm button. *@
 <root>
     <div class="window">
         <div class="wash" style="background-image: radial-gradient( @Color.WithAlpha( 0.2f ).Rgba 0%, @Color.WithAlpha( 0f ).Rgba 70% );"></div>
@@ -16,6 +17,11 @@
         @if ( !string.IsNullOrEmpty( Message ) )
         {
             <label class="message">@Message</label>
+        }
+
+        @if ( Entry is not null )
+        {
+            <TextEntry @ref=_entry class="entry" Value:bind=@Entry onsubmit=@Confirm />
         }
 
         <div class="buttons">
@@ -47,12 +53,37 @@
     public string CancelText { get; set; } = "#menu.common.cancel";
 
     /// <summary>
+    /// What's typed in its box. Null for no box.
+    /// </summary>
+    public string Entry { get; set; }
+
+    /// <summary>
     /// Called after it's closed, when the confirm button's pressed.
     /// </summary>
     public Action OnConfirm { get; set; }
 
+    /// <summary>
+    /// Called once it's gone, however it went - answered, or closed with everything else.
+    /// </summary>
+    public Action OnGone { get; set; }
+
+    TextEntry _entry;
+
+    protected override void OnAfterTreeRender( bool firstTime )
+    {
+        if ( firstTime ) _entry?.Focus();
+    }
+
+    public override void OnDeleted()
+    {
+        base.OnDeleted();
+        OnGone?.Invoke();
+    }
+
     void Confirm()
     {
+        if ( _entry is not null ) Entry = _entry.Text;
+
         CloseModal( true );
         OnConfirm?.Invoke();
     }

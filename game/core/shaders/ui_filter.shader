@@ -190,17 +190,10 @@ PS
 	{
 		PS_OUTPUT o;
 
-		// The quad is the layer grown by three sigma of blur on each side, see Panel.Layer.cs
 		float2 uv = i.vTexCoord.xy;
-		float2 uvAdjust = FilterBlur * 3.0 * g_vInvTextureDim.xy;
-		uv = lerp(-uvAdjust, 1.0 + uvAdjust, uv);
 
 		UI_CommonProcessing_Pre( i );
 		g_flUIClipCoverage *= ScissorCoverage( PainterScissorIndex, i.vPositionPanelSpace.xy / i.vPositionPanelSpace.w );
-
-
-		//uv.x = lerp( uvAdjust, 1 - uvAdjust, uv.x );
-		//uv.y = lerp( uvAdjust, 1 - uvAdjust, uv.y );
 
 		// filter: blur( r ) - r is the gaussian's standard deviation. Sampled with a border sampler so the blur fades
 		// to nothing past the layer's edge instead of wrapping its far side in
@@ -214,8 +207,8 @@ PS
 		{
 			float2 maskSize = MaskPos.zw;
 			float2 vOffset = MaskPos.xy / maskSize;
-			
-			float2 vUV = -vOffset + ( ( uv ) * ( BoxSize / maskSize ) );
+
+			float2 vUV = -vOffset + ( uv * ( BoxSize / maskSize ) );
 			vUV = RotateTexCoord( vUV, MaskAngle );
 
 			//

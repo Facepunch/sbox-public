@@ -96,11 +96,14 @@ internal partial class NetworkSystem
 			MapName = Networking.MapName,
 			EngineVersion = 234,
 			GamePackage = Application.GamePackage?.GetIdent( false, true ) ?? "",
+			GameWorkshopVersion = Application.GamePackage is { InstallsFromWorkshop: true } game ? Workshop.GetInstalledVersion( game.WorkshopId ) : 0,
 			Map = Application.Map,
 			Host = new ChannelInfo { Id = Connection.Local.Id },
+			HostSteamId = Connection.Local.SteamId,
 			Assigned = new ChannelInfo { Id = channel.Id },
 			IsDeveloperHost = IsDeveloperHost,
 			HostMigration = IsHostMigrationEnabled,
+			PasswordRequired = NeedsPassword( channel ),
 			HandshakeId = channel.HandshakeId
 		};
 
@@ -169,6 +172,8 @@ internal partial class NetworkSystem
 		if ( !known )
 			return;
 
+		Sandbox.Diagnostics.DevTools.NetworkLog.Session( "Peer left", source );
+
 		if ( source.State >= Connection.ChannelState.Welcome )
 		{
 			// We only need to call this if we called OnConnected, which would only
@@ -195,7 +200,7 @@ internal partial class NetworkSystem
 	/// </summary>
 	internal void OnServerDisconnection( int reasonCode, string reasonString )
 	{
-		var message = $"The server connection closed.\nReason: {reasonString} (code {reasonCode}).";
+		var message = IsBadPassword( reasonString ) ? "Wrong password." : $"The server connection closed.\nReason: {reasonString} (code {reasonCode}).";
 		if ( Connection.Local.State == Connection.ChannelState.Unconnected )
 		{
 			// Keep diagnostics for a failed join without showing another dialog after teardown.
@@ -204,6 +209,7 @@ internal partial class NetworkSystem
 		}
 
 		FailureReason = message;
+		Sandbox.Diagnostics.DevTools.NetworkLog.Session( $"Ended: {reasonString}", HostConnection, ends: true );
 		IGameInstanceDll.Current.Disconnect( FailureReason );
 	}
 

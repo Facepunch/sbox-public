@@ -2,7 +2,11 @@ namespace Sandbox;
 
 /// <summary>
 /// Makes objects float, sink and drift. Attach to any trigger collider to create water.
+/// Use <see cref="WaterBody"/> instead, which draws the water and gives it buoyancy, drag, swimming and waves.
+/// This still works so scenes that have it keep behaving the same.
 /// </summary>
+[Obsolete( "Use WaterBody, which draws the water and gives it buoyancy, drag, swimming and waves." )]
+[Hide]
 [Title( "Water Volume" )]
 [Category( "Physics" )]
 [Icon( "water" )]

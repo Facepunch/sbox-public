@@ -102,7 +102,9 @@
         <UiTestCase Caption="0.4" Setup="@TextPlate" Text="Faded" Css="@($"background-image: linear-gradient( to right, {GalleryPalette.PinkHex}, {GalleryPalette.CyanHex} ); background-clip: text; opacity: 0.4")"
                     Note="Opacity applies to the painted result like anywhere else." />
         <UiTestCase Caption="2px 2px 3px black" Setup="@TextPlate" Text="Shadow" Css="@($"background-image: linear-gradient( to right, {GalleryPalette.PinkHex}, {GalleryPalette.CyanHex} ); background-clip: text; text-shadow: 2px 2px 3px black")"
-                    Note="Text effects are baked into the stencil, so a shadow becomes part of the shape." />
+                    Note="Only the glyphs make the stencil - the shadow keeps its own colour and draws underneath." />
+        <UiTestCase Caption="4px white" Setup="@TextPlate" Text="Stroke" Css="@($"background-image: linear-gradient( to right, {GalleryPalette.PinkHex}, {GalleryPalette.CyanHex} ); background-clip: text; text-stroke: 4px white")"
+                    Note="Same for text-stroke - an outline in its own colour around the clipped fill." />
     </div>
 
 </root>

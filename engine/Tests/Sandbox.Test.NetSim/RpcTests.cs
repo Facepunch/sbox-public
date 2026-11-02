@@ -38,6 +38,9 @@ public sealed class RpcProbe : Component
 	[Rpc.Broadcast]
 	public static void Static( int x, string y ) => Record( $"Static {x} {y}" );
 
+	[Rpc.Broadcast( NetFlags.Unreliable )]
+	public static void UnreliableStatic( int value ) => Record( $"Unreliable {value}" );
+
 	[Rpc.Broadcast]
 	public void Throws( int x ) => throw new InvalidOperationException( $"throws {x}" );
 }

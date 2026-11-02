@@ -75,7 +75,7 @@ public partial class PlayerControllerTest
 			foreach ( var step in movement.Steps )
 			{
 				++measured;
-				Assert.IsTrue( step.Grounded, $"lost heightfield support at {step.After}" );
+				Assert.IsTrue( step.Grounded, $"lost heightfield support at {step.After}: {DescribeGround( pc )}" );
 				Assert.IsTrue( MathF.Abs( step.Velocity.Dot( sideways ) ) < 0.5f,
 					$"terrain redirected input at {step.Before} -> {step.After}: before physics {step.InitialVelocity}, after physics {step.Velocity}, ground {pc.GroundNormal}" );
 				Assert.IsTrue( MathF.Abs( (step.After - start).Dot( sideways ) ) < 0.5f,

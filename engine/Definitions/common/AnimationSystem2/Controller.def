@@ -1,0 +1,54 @@
+include "modellib/animgraph2controller.h"
+
+native enum CGraphRecordingPlayer::Result as Sandbox.Animation.GraphRecording.SeekResult;
+native enum GraphValueType_t as Sandbox.Animation.GraphValueKind;
+
+native class CAnimGraph2Controller as NativeEngine.AnimationGraph2Controller
+{
+	int GetControlParameterIndex( StringToken name );
+	GraphValueType_t GetControlParameterType( CastTo[int16] int parameterIndex );
+	uint GetControlParameterIDHash( CastTo[int16] int parameterIndex );
+	bool SetParamFloat( StringToken name, float value );
+	bool SetParamBool( StringToken name, bool value );
+	bool SetParamID( StringToken name, StringToken value );
+	bool SetParamVector( StringToken name, Vector value );
+	bool SetParamTarget( StringToken name, Transform value, bool isSet, bool isBoneTarget, StringToken boneID );
+	float GetParamFloat( StringToken name );
+	bool GetParamBool( StringToken name );
+	Vector GetParamVector( StringToken name );
+	bool GetParamTarget( StringToken name, cref out Transform value );
+	void ResetControlParameters();
+	bool ResetControlParameter( StringToken name );
+
+	bool IsTagActive( StringToken tag );
+	bool GetFloatChannelValue( StringToken setId, StringToken channelId, out float value );
+
+	bool IsGraphNodeActive( CastTo[int16] int nodeIndex );
+	bool GetNodeDebugInfo( int nodeIndex, out int flags, out int valueType, out float duration, out float currentTime, out float previousTime, out int syncEventCount, out int currentSyncEvent, out float currentSyncEventPercentage );
+	bool GetNodeDebugValue( int nodeIndex, out int boolValue, out float floatValue, out uint idValue, out Vector vectorValue, out Transform targetTransform, out int targetFlags, out uint targetBoneID );
+	stable string GetDebugIDName( StringToken id );
+	bool GetSyncTrackEvent( int nodeIndex, int eventIndex, out uint id, out float startTime, out float duration );
+	bool GetStateMachineTransitionState( int nodeIndex, out int activeStateIndex, out int transitionSourceStateIndex, out int activeTransitionNodeIndex, out float transitionProgress );
+	bool GetSelectorState( int nodeIndex, out int selectedOptionIndex );
+	bool GetTransitionProgressPercentage( int nodeIndex, out float progress );
+	bool GetParameterizedBlendDebugInfo( int nodeIndex, out int sourceNodeIndex0, out int sourceNodeIndex1, out float blendWeight );
+	bool GetBlend2DParameter( int nodeIndex, out Vector2 parameter );
+	bool GetLayerWeight( int nodeIndex, int layerIndex, out float weight );
+	bool GetIKWeight( int nodeIndex, out float weight );
+	bool HasDebuggableGraphInstance( int nodeIndex, out int hasInstance );
+
+	void StartRecording();
+	void StopRecording();
+	void ClearRecording();
+	bool IsRecording();
+	bool HasRecordedData();
+	bool StartRecordingPlayback();
+	void StopRecordingPlayback();
+	bool IsRecordingPlaybackActive();
+	CGraphRecordingPlayer::Result GoToRecordedUpdate( int updateIndex );
+	int GetNumRecordedUpdates();
+	int GetCurrentRecordedUpdateIndex();
+	bool GetCurrentRecordedUpdateInfo( out int updateType, out float deltaTime, out int startEvent, out float startPercentage, out int endEvent, out float endPercentage );
+	bool GetRecordedUpdateInfo( int updateIndex, out int updateType, out float deltaTime, out int startEvent, out float startPercentage, out int endEvent, out float endPercentage );
+	Transform GetRecordedCharacterTransformS2();
+}

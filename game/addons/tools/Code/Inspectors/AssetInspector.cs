@@ -135,7 +135,6 @@ public class AssetInspector : InspectorWidget, AssetSystem.IEventListener
 		Enabled = true;
 	}
 
-	[EditorEvent.Hotload]
 	void RebuildUI()
 	{
 		if ( SerializedObject.IsMultipleTargets )
@@ -146,6 +145,15 @@ public class AssetInspector : InspectorWidget, AssetSystem.IEventListener
 		{
 			CreateContentUI( Asset, AssetPreview );
 		}
+	}
+
+	[EditorEvent.Hotload]
+	void OnHotload()
+	{
+		if ( _assetInspectors.Count == 1 && _assetInspectors[0].RebuildOnHotload() )
+			return;
+
+		RebuildUI();
 	}
 
 	/// <summary>
@@ -171,6 +179,8 @@ public class AssetInspector : InspectorWidget, AssetSystem.IEventListener
 		PreviewContainer.Layout.Add( Preview, 1 );
 	}
 
+	bool _previewOutOfDate;
+
 	/// <summary>
 	/// The asset was recompiled or changed on disk. Recreate the preview widget so it shows the
 	/// latest compiled content, and hand the fresh preview to anyone holding the old one.
@@ -179,6 +189,23 @@ public class AssetInspector : InspectorWidget, AssetSystem.IEventListener
 	{
 		if ( asset != Asset )
 			return;
+
+		_previewOutOfDate = true;
+		RefreshPreview();
+	}
+
+	[EditorEvent.Frame]
+	void RefreshPreview()
+	{
+		if ( !_previewOutOfDate )
+			return;
+
+		// Rebuilding creates a new native rendering widget, which brings the editor window in front of
+		// whatever tool window is active (e.g. saving in ModelDoc or the Material Editor). Wait until we're active.
+		if ( !IsActiveWindow && !(EditorWindow?.IsActiveWindow ?? false) )
+			return;
+
+		_previewOutOfDate = false;
 
 		AssetPreview = AssetPreview.CreateForAsset( Asset );
 		BuildPreviewWidget();
@@ -215,7 +242,11 @@ public class AssetInspector : InspectorWidget, AssetSystem.IEventListener
 			Clicked = () =>
 			{
 				if ( generic )
+				{
 					OnSave?.Invoke();
+					if ( Asset.HasUnsavedChanges )
+						return;
+				}
 				else
 					SaveAsset( Asset, gameResource );
 				popup.Destroy();
@@ -674,6 +705,12 @@ public class AssetInspector : InspectorWidget, AssetSystem.IEventListener
 		/// Save option or read its context. Optional - the default does nothing.
 		/// </summary>
 		public void SetInspector( AssetInspector inspector ) { }
+
+		/// <summary>
+		/// Rebuild around an existing document without losing its edits or undo history.
+		/// Return true when handled; otherwise the host recreates the inspector.
+		/// </summary>
+		public bool RebuildOnHotload() => false;
 	}
 
 }

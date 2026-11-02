@@ -10,7 +10,7 @@ public partial class Scene : GameObject
 
 	[ThreadStatic] static List<PhysicsTraceResult> _physicsTraceScratch;
 
-	internal IEnumerable<SceneTraceResult> RunTraceAll( SceneTrace trace )
+	internal List<SceneTraceResult> RunTraceAll( SceneTrace trace )
 	{
 		SceneMetrics.RayTraceAll++;
 

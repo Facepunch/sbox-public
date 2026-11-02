@@ -23,7 +23,7 @@ internal static partial class DebugOverlay
 		/// </summary>
 		internal static HostInput Input;
 
-		private static Color[] PassColors => HubStyles.Series;
+		private static Color[] PassColors => DevToolsStyles.Series;
 
 		private const int MaxTimelineRows = 8;
 		private const float TimelineRowHeight = 30;
@@ -205,19 +205,19 @@ internal static partial class DebugOverlay
 			_timelineHoverBounds = new Rect( chartX, chartY, chartWidth, chartBottom - chartY );
 
 			painter.Stroke = Stroke.None;
-			painter.Fill = HubStyles.Plot;
+			painter.Fill = DevToolsStyles.Plot;
 			painter.Rect( new Rect( pos.x - 12, pos.y - 12, width + 24, bottom - pos.y + 24 ) );
 			painter.Clip( new Rect( pos.x, pos.y, width, bottom - pos.y ) );
 			_freezeButtonBounds = new Rect( pos.x + width - 112, pos.y, 112, 28 );
 			UpdateFreezeButton();
 			var status = FreezeGpuTimeline ? "FROZEN" : hovering ? "HELD FOR INSPECTION" : "LIVE (4 Hz)";
 			TimelineText( painter, $"GPU frame #{_timeline.FrameId}  |  {_timeline.Renderer}  |  {_timelineSpan:F3}ms captured span  |  {status}",
-				HubStyles.Text, new Rect( pos.x, pos.y, width - 128, 28 ), 12, 600 );
+				DevToolsStyles.Text, new Rect( pos.x, pos.y, width - 128, 28 ), 12, 600 );
 
 			bool buttonHovered = Input.CursorInside && _freezeButtonBounds.IsInside( Input.Cursor );
-			painter.Fill = _freezeButtonPressed && buttonHovered ? HubStyles.Line
-				: buttonHovered ? HubStyles.Raised.Lighten( 0.3f ) : HubStyles.Raised;
-			painter.Stroke = Stroke.Solid( FreezeGpuTimeline ? HubStyles.Warning : HubStyles.Line, 1 );
+			painter.Fill = _freezeButtonPressed && buttonHovered ? DevToolsStyles.Line
+				: buttonHovered ? DevToolsStyles.Raised.Lighten( 0.3f ) : DevToolsStyles.Raised;
+			painter.Stroke = Stroke.Solid( FreezeGpuTimeline ? DevToolsStyles.Warning : DevToolsStyles.Line, 1 );
 			painter.Rect( _freezeButtonBounds );
 			painter.Stroke = Stroke.None;
 			TimelineText( painter, FreezeGpuTimeline ? "Resume" : "Freeze", Color.White, _freezeButtonBounds,
@@ -313,7 +313,7 @@ internal static partial class DebugOverlay
 			var bounds = new Rect( x, y, width, height );
 
 			using var state = painter.Scope();
-			painter.Fill = HubStyles.Raised.WithAlpha( 0.98f );
+			painter.Fill = DevToolsStyles.Raised.WithAlpha( 0.98f );
 			painter.Stroke = Stroke.Solid( bar.Color.WithAlpha( 0.8f ), 1 );
 			painter.Rect( bounds );
 			painter.Stroke = Stroke.None;

@@ -57,6 +57,9 @@ internal partial class PainterBatcher
 		internal Rect Viewport;
 		internal Scissoring Scissor;
 
+		// A new layer's clips and transform are content of that layer even when an ancestor already resolved them
+		internal void ForgetSpatial() { _scissorIndex = null; _transformIndex = null; }
+
 		internal void SetScissor( in Scissoring scissor )
 		{
 			if ( Scissor.Equals( in scissor ) ) return;
@@ -124,6 +127,7 @@ internal partial class PainterBatcher
 	{
 		_commands = commands;
 		_tables = [_textTable, _boxTable, _scissorTable, _transformTable, _gradientTable, _shapeTable, _pathTable, _pathNodeTable, _polygonPointTable];
+		foreach ( var table in _tables ) table.Hash = _hash;
 	}
 
 	internal void SetViewport( Rect bounds, Matrix? worldMatrix )
@@ -153,6 +157,8 @@ internal partial class PainterBatcher
 	internal void RetainTexture( Texture texture, bool presented )
 	{
 		_textures.Add( new( texture, presented ) );
+		if ( _hash.Layers > 0 ) _hash.Extra += texture.DirtyVersion; // A texture rewritten in place keeps its index, so its version is content
+		if ( _hash.Layers > 0 && (texture.IsAnimated || texture.ParentObject is VideoPlayer || texture.IsRenderTarget) ) Volatile++;
 	}
 
 	internal void BeginExecute()
@@ -192,6 +198,8 @@ internal partial class PainterBatcher
 			Array.Resize( ref _targetStack, Math.Max( 4, _targetDepth * 2 ) );
 
 		_targetStack[_targetDepth] = Destination;
+		_hash.Layers++;
+		_hash.Ordinal = 0;
 		return _targetDepth++;
 	}
 
@@ -202,6 +210,7 @@ internal partial class PainterBatcher
 
 		Destination = _targetStack[index];
 		_targetDepth = index;
+		_hash.Layers--;
 	}
 
 	internal int PushClip( Rect rect, BorderRadii radii, Matrix transform )
@@ -251,6 +260,7 @@ internal partial class PainterBatcher
 	{
 		if ( _blendMode != blendMode ) FlushBatch();
 		_blendMode = blendMode;
+		if ( _hash.Layers > 0 ) _hash.Extra += HashCode.Combine( (int)blendMode, Count ); // The blend mode is a per-batch combo, not instance data
 		Add( instance );
 		TrackBackdropWrite( instance );
 	}

@@ -417,6 +417,9 @@ public sealed class NetDictionary<TKey, TValue> : INetworkSerializer, INetworkRe
 		if ( !CanWriteChanges() )
 			return;
 
+		if ( Parent is INetworkWakeable networkWakeable )
+			networkWakeable.MarkDirty();
+
 		if ( e.Action == NotifyCollectionChangedAction.Add )
 		{
 			var (k, v) = (KeyValuePair<TKey, TValue>)e.NewItems[0];

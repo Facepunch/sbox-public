@@ -197,6 +197,24 @@ internal sealed partial class TextBlock : IDisposable
 		painter.Glyphs( Instances, blendMode, HasGradient ? GradientInfo : default );
 	}
 
+	/// <summary>
+	/// Emit only the text's shadows and outlines, for background-clip: text, which fills the glyphs with the background instead.
+	/// </summary>
+	internal void DrawEffects( Painter painter, BlendMode blendMode, Styles currentStyle, Rect textrect, float opacity )
+	{
+		if ( !ui_rendertext || Block is null || BlockSize == 0 || Text.Length == 0 ) return;
+		if ( opacity <= 0 || Style?.TextEffects?.Any() != true ) return;
+
+		var options = GetOptions();
+		options.Opacity = opacity;
+		options.HasGradient = false;
+		options.EffectsOnly = true;
+
+		Instances.Clear();
+		GpuFontText.Build( Block, GetBlockOrigin( currentStyle, textrect ), options, Instances );
+		painter.Glyphs( Instances, blendMode, default );
+	}
+
 	GpuFontText.Options GetOptions()
 	{
 		var options = GpuFontText.Options.Default;
@@ -629,9 +647,11 @@ internal sealed partial class TextBlock : IDisposable
 		int width = (int)textureSize.x, height = (int)textureSize.y;
 		if ( width < 2 || height < 2 ) return null;
 
-		// Only the alpha is used, so colour and gradient don't matter here
+		// Only the alpha is used, so colour and gradient don't matter here. Shadows and outlines
+		// aren't part of the mask, the label draws them itself under the clipped fill.
 		var options = GetOptions();
 		options.HasGradient = false;
+		options.SkipEffects = true;
 
 		var origin = new Vector2( TextureMargin.Left - Block.MeasuredPadding.Left, TextureMargin.Top );
 		return GpuFontText.Render( Block, origin, width, height, false, int.MaxValue, options, Texture );

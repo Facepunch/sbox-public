@@ -619,14 +619,23 @@ namespace Steamworks.Data
 		#endregion
 	}
 
-	[StructLayout( LayoutKind.Sequential, Pack = Platform.StructPlatformPackSize )]
+	// Hand-edited: keep this when regenerating. The managed assemblies are built on Windows and
+	// shipped to every platform, so Platform.StructPlatformPackSize can't describe the Linux/macOS
+	// layout. Steam packs callbacks to 4 bytes there (id at offset 4, size 12) and to 8 bytes on
+	// Windows (id at offset 8, size 16), so both offsets are mapped and picked at runtime.
+	[StructLayout( LayoutKind.Explicit, Size = 16 )]
 	internal struct LobbyCreated_t : ICallbackData
 	{
-		internal Result Result; // m_eResult EResult
-		internal ulong SteamIDLobby; // m_ulSteamIDLobby uint64
+		[FieldOffset( 0 )] internal Result Result; // m_eResult EResult
+		[FieldOffset( 4 )] internal ulong SteamIDLobbyPackSmall; // m_ulSteamIDLobby uint64 (pack 4)
+		[FieldOffset( 8 )] internal ulong SteamIDLobbyPackLarge; // m_ulSteamIDLobby uint64 (pack 8)
+
+		internal readonly ulong SteamIDLobby => GetSteamIDLobby( !OperatingSystem.IsWindows() );
+
+		internal readonly ulong GetSteamIDLobby( bool packSmall ) => packSmall ? SteamIDLobbyPackSmall : SteamIDLobbyPackLarge;
 
 		#region SteamCallback
-		internal static int _datasize = System.Runtime.InteropServices.Marshal.SizeOf( typeof( LobbyCreated_t ) );
+		internal static int _datasize = OperatingSystem.IsWindows() ? 16 : 12;
 		public int DataSize => _datasize;
 		public CallbackType CallbackType => CallbackType.LobbyCreated;
 		#endregion

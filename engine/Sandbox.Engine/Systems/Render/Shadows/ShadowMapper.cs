@@ -502,6 +502,10 @@ internal partial class ShadowMapper
 			return InvalidShadowIndex;
 		}
 
+		// Reflections without shadows don't wait on this frame's shadow maps
+		if ( View.NoShadows )
+			return InvalidShadowIndex;
+
 		return light.Type switch
 		{
 			ShadowLightType.Spot => FindOrCreateProjectedShadowMap( light, flScreenSize ),

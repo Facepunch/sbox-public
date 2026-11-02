@@ -4,8 +4,11 @@ Layer0
 {
 	shader "shaders/complex.shader"
 
+	//---- Animation ----
+	F_MORPH_SUPPORTED 1
+
 	//---- Translucent ----
-	F_ALPHA_TEST 1
+	F_TRANSLUCENT 1
 
 	//---- Ambient Occlusion ----
 	g_flAmbientOcclusionDirectDiffuse "0.000"
@@ -41,7 +44,6 @@ Layer0
 	g_vTexCoordScrollSpeed "[0.000 0.000]"
 
 	//---- Translucent ----
-	g_flAlphaTestReference "0.350"
-	g_flAntiAliasedEdgeStrength "0.136"
+	g_flOpacityScale "1.000"
 	TextureTranslucency "models/citizen_human/heads/citizen_human_femalehead01/eyelashes_01_opacity.png"
 }

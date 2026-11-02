@@ -105,7 +105,6 @@ public class PostProcessingComponentTest
 		CreateAndCycle<HighlightOutline>( scene );
 		CreateAndCycle<MotionBlur>( scene );
 		CreateAndCycle<Pixelate>( scene );
-		CreateAndCycle<ScreenSpaceReflections>( scene );
 		CreateAndCycle<Sharpen>( scene );
 		CreateAndCycle<Tonemapping>( scene );
 		CreateAndCycle<Vignette>( scene );
@@ -194,9 +193,6 @@ public class PostProcessingComponentTest
 
 		var pixelate = go.Components.Create<Pixelate>( false );
 		Assert.AreEqual( 0.25f, pixelate.Scale );
-
-		var ssr = go.Components.Create<ScreenSpaceReflections>( false );
-		Assert.AreEqual( 0.5f, ssr.RoughnessCutoff, 0.001f, "SSR roughness cutoff is a hardcoded constant" );
 
 		var sharpen = go.Components.Create<Sharpen>( false );
 		Assert.AreEqual( 2.0f, sharpen.Scale );
@@ -393,7 +389,6 @@ public class PostProcessingComponentTest
 		outline.Width = 2.0f;
 		outline.OverrideTargets = true;
 
-		go.Components.Create<ScreenSpaceReflections>();
 		go.Components.Create<Highlight>();
 
 		var clone = SerializeRoundTrip( scene, go );
@@ -447,7 +442,6 @@ public class PostProcessingComponentTest
 		Assert.AreEqual( 2.0f, loadedOutline.Width );
 		Assert.IsTrue( loadedOutline.OverrideTargets );
 
-		Assert.IsNotNull( clone.Components.Get<ScreenSpaceReflections>(), "SSR should survive the round trip" );
 		Assert.IsNotNull( clone.Components.Get<Highlight>(), "Highlight should survive the round trip" );
 
 		clone.Destroy();
@@ -489,6 +483,48 @@ public class PostProcessingComponentTest
 
 		clone.Destroy();
 		scene.ProcessDeletes();
+	}
+
+	/// <summary>
+	/// Every camera renders screen-space reflections as part of the renderer, with no effect to add, and reads the
+	/// depth-normals G-buffer they trace from. The obsolete component adds nothing.
+	/// </summary>
+	[TestMethod]
+	public void ScreenSpaceReflectionsArePartOfEveryCamera()
+	{
+		var oldRatio = ScreenSpaceReflectionsPass.DownsampleRatio;
+		ScreenSpaceReflectionsPass.DownsampleRatio = 2;
+
+		var scene = new Scene();
+		try
+		{
+			using var sceneScope = scene.Push();
+
+			var camGo = scene.CreateObject();
+			var cam = camGo.Components.Create<CameraComponent>();
+
+			Update();
+			Assert.IsNotNull( cam.SceneCamera.ScreenSpaceReflections, "A camera should render screen-space reflections by default" );
+			Assert.AreEqual( 0, TotalLayerCount( cam ), "Screen-space reflections aren't a post process effect" );
+			Assert.IsTrue( cam.SceneCamera.Attributes.GetBool( "NeedsDepthNormals" ), "The trace reads the depth-normals G-buffer" );
+
+#pragma warning disable CS0618 // The obsolete component is what's being tested
+			camGo.Components.Create<ScreenSpaceReflections>();
+#pragma warning restore CS0618
+			Update();
+			Assert.AreEqual( 0, TotalLayerCount( cam ), "The obsolete component should add nothing" );
+
+			void Update()
+			{
+				scene.GameTick();
+				scene.PreCameraRender();
+			}
+		}
+		finally
+		{
+			ScreenSpaceReflectionsPass.DownsampleRatio = oldRatio;
+			scene.Destroy();
+		}
 	}
 
 	/// <summary>

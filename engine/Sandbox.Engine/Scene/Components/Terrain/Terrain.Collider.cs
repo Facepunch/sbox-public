@@ -64,21 +64,25 @@ public partial class Terrain
 			}
 		}
 
-		var shape = targetBody.AddHeightFieldShape( Storage.HeightMap, surfaceMap, Storage.Resolution, Storage.Resolution, sizeScale, heightScale, 4 );
-		shape.Collider = this;
-		shape.Surface = Surface;
+		try
+		{
+			Span<int> surfaceIndices = stackalloc int[4];
+			surfaceIndices.Fill( Surface?.Index ?? -1 );
+			int index = 0;
+			foreach ( var material in Storage.Materials )
+			{
+				if ( index == surfaceIndices.Length ) break;
+				surfaceIndices[index++] = (material.Surface ?? Surface)?.Index ?? -1;
+			}
 
-		shape.Surfaces = Storage.Materials
-			.Select( x => x.Surface ?? Surface )
-			.Concat( Enumerable.Repeat( Surface, 4 ) )
-			.Take( 4 )
-			.ToArray();
+			_shape = targetBody.AddHeightFieldShape( Storage.HeightMap, surfaceMap, Storage.Resolution, Storage.Resolution, sizeScale, heightScale, 4, surfaceIndices );
+		}
+		finally
+		{
+			ArrayPool<byte>.Shared.Return( surfaceMap );
+		}
 
-		_shape = shape;
-
-		ArrayPool<byte>.Shared.Return( surfaceMap );
-
-		yield return shape;
+		yield return _shape;
 	}
 
 	private unsafe void UpdateColliderHeights( int x, int y, int w, int h )

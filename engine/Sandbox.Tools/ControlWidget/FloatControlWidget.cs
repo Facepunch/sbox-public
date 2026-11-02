@@ -69,6 +69,11 @@ public class FloatControlWidget : StringControlWidget
 				clampAttribute.Slider
 			);
 		}
+
+		if ( SliderWidget is not null )
+		{
+			SliderWidget.TrackGradient = attributes.OfType<SliderGradientAttribute>().FirstOrDefault()?.CreateGradient();
+		}
 	}
 
 	void CreateStepButtons()
@@ -341,7 +346,7 @@ public class FloatControlWidget : StringControlWidget
 			if ( e.ButtonState.Contains( MouseButtons.Right ) ) delta *= 0.1f;
 
 			dragValue += delta;
-			if ( HasRange && RangeClamped ) dragValue = dragValue.Clamp( Range.x, Range.y );
+			if ( HasRange && (RangeClamped || SliderWidget is not null) ) dragValue = dragValue.Clamp( Range.x, Range.y );
 
 			var steppedValue = (RangeStep != 0.0f) ? dragValue.SnapToGrid( RangeStep ) : dragValue;
 			SerializedProperty.As.Float = steppedValue;
@@ -412,6 +417,11 @@ public class FloatControlWidget : StringControlWidget
 
 public class FloatSlider : Widget
 {
+	/// <summary>
+	/// Optional gradient across the whole track, replacing its value-dependent highlight.
+	/// </summary>
+	internal Gradient? TrackGradient { get; set; }
+
 	public float Minimum { get; set; }
 	public float Maximum { get; set; }
 	public Action OnValueEdited { get; set; }
@@ -484,7 +494,17 @@ public class FloatSlider : Widget
 	internal void PaintSlider( Rect rect, float pos )
 	{
 		var halfHandle = SliderDrawing.HandleWidth * 0.5f;
-		SliderDrawing.DrawTrack( rect, halfHandle, pos + halfHandle, HighlightColor );
+		var disabled = !Enabled || ReadOnly;
+
+		if ( TrackGradient is { Colors.Count: > 0 } gradient )
+		{
+			SliderDrawing.DrawGradientTrack( rect, gradient, disabled );
+		}
+		else
+		{
+			SliderDrawing.DrawTrack( rect, halfHandle, pos + halfHandle, HighlightColor, disabled );
+		}
+
 		SliderDrawing.DrawHandle( this, rect, pos + halfHandle );
 	}
 

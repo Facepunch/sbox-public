@@ -13,13 +13,14 @@ internal sealed partial class SourceModelBuilder( BaseMount mount, string fullPa
 	private BaseMount Host { get; } = mount;
 	private string FullPath { get; } = fullPath;
 	private string ContentRoot { get; } = BaseMount.GetContentRoot( fullPath, "models" );
-	internal Model BuildModel( MdlFile mdl, VtxFile vtx, PhyFile physics, string name = null, Transform[] referencePose = null )
+	internal Model BuildModel( MdlFile mdl, VtxFile vtx, PhyFile physics, string name = null, Transform[] referencePose = null,
+		StaticPropLighting lighting = null )
 	{
 		var builder = Model.Builder.WithName( name );
 		var viewBounds = GetViewBounds( mdl );
 		var flexNames = mdl.FlexNames.ToArray();
 		var bodyGroupNames = AddBodyGroups( builder, mdl );
-		var materials = new MaterialSlots( this, mdl, vtx );
+		var materials = new MaterialSlots( this, mdl, vtx, lighting );
 		var boneTransforms = GetBoneTransforms( mdl, referencePose );
 		VertexTransform[] skinTransforms = null;
 		if ( referencePose is not null )
@@ -36,7 +37,7 @@ internal sealed partial class SourceModelBuilder( BaseMount mount, string fullPa
 					bone.PointToWorld( new Vector3( matrix.M14, matrix.M24, matrix.M34 ) ) );
 			}
 		}
-		var boneBounds = AddGeometry( builder, mdl, vtx, materials, viewBounds, bodyGroupNames, flexNames, skinTransforms );
+		var boneBounds = AddGeometry( builder, mdl, vtx, materials, viewBounds, bodyGroupNames, flexNames, skinTransforms, lighting );
 		materials.AddGroups( builder );
 
 		var boneNames = AddSkeleton( builder, mdl, boneBounds, boneTransforms, parentLocal: vtx == null );

@@ -1,5 +1,5 @@
 ﻿
-#include "sbox/physics_trace.h"
+#include "physics/trace_request.h"
 
 native struct PhysicsTrace.Result;
 native struct PhysicsTrace.Request;

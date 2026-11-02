@@ -7,6 +7,28 @@ namespace Sandbox.Mounting.Source1;
 internal sealed partial class SourceMaterialBuilder
 {
 	private readonly Dictionary<(string Path, int Frame, bool Animated), SurfaceTexture> dependencies = [];
+	internal bool TryGetMappingSize( out Vector2 size )
+	{
+		foreach ( var parameter in new[] { "$basetexture", "$envmapmask", "$bumpmap", "$dudvmap", "$normalmap" } )
+		{
+			var path = parameters.String( parameter );
+			if ( string.IsNullOrWhiteSpace( path ) )
+				continue;
+			if ( path.Trim().StartsWith( "_rt_", System.StringComparison.OrdinalIgnoreCase ) )
+			{
+				size = default;
+				return false;
+			}
+
+			var header = Host.GetSourceTexture( path, contentRoot ).Header;
+			size = new Vector2( header.Width, header.Height );
+			return true;
+		}
+
+		size = new Vector2( 32, 32 );
+		return true;
+	}
+
 	private sealed record SurfaceTexture( Texture Texture, VtfHeader Header )
 	{
 		public bool HasAlpha => (Header.Flags & (VtfFlags.ONEBITALPHA | VtfFlags.EIGHTBITALPHA)) != 0
@@ -43,13 +65,18 @@ internal sealed partial class SourceMaterialBuilder
 
 	private SurfaceTexture LoadSurfaceTexture( string path, int frame = 0, TextureAnimation? animation = null )
 	{
-		var key = (path.Trim().ToLowerInvariant(), animation.HasValue ? 0 : frame, animation is { FrameRate: > 0 });
+		var key = (path.Trim().ToLowerInvariant(), animation?.StaticFrame ?? (animation.HasValue ? 0 : frame), animation is { FrameRate: > 0 });
 		if ( dependencies.TryGetValue( key, out var cached ) && cached.Texture is { IsValid: true, IsError: false } )
 			return cached;
 		return dependencies[key] = ReadSurfaceTexture( path, frame, animation );
 	}
 
-	internal void ClearDependencies() => dependencies.Clear();
+	internal void ClearDependencies()
+	{
+		dependencies.Clear();
+		proxyTexture = null;
+		proxyTextureData = null;
+	}
 
 	private SurfaceTexture LoadEnvironmentTexture( string path, int frame )
 	{
@@ -83,8 +110,10 @@ internal sealed partial class SourceMaterialBuilder
 			throw new System.NotSupportedException( $"{FullPath}: unsupported render-target texture '{path}'." );
 		path = VmtFile.NormalizePath( path, ".vtf" );
 		var source = Host.GetSourceTexture( path, contentRoot );
-		var texture = animation is { FrameRate: > 0 } ? source.GetAnimationFrames()
-			: source.GetFrame( animation.HasValue ? 0 : frame );
+		var selectedFrame = animation?.StaticFrame ?? (animation.HasValue ? 0 : frame);
+		if ( animation?.StaticFrame is not null && (selectedFrame < 0 || selectedFrame >= source.Header.Frames) )
+			selectedFrame = 0;
+		var texture = animation is { FrameRate: > 0 } ? source.GetAnimationFrames() : source.GetFrame( selectedFrame );
 		if ( texture == null || !texture.IsValid || texture.IsError )
 			throw new InvalidDataException( $"{FullPath}: texture '{path}' frame {frame} could not be loaded." );
 		return new SurfaceTexture( texture, source.Header );

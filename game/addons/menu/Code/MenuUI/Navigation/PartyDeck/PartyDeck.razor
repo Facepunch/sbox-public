@@ -428,13 +428,13 @@
 	}
 
 	/// <summary>
-	/// Open party setup and wait for Create or cancellation before continuing.
+	/// Open party setup, or create immediately when inviting a friend, before continuing.
 	/// </summary>
-	public static Task<bool> EnsurePartyExists( bool isPublic = false )
+	public static Task<bool> EnsurePartyExists( bool isPublic = false, bool createImmediately = false )
 	{
 		if ( PartyRoom.Current is not null ) return System.Threading.Tasks.Task.FromResult( true );
 		if ( !Instance.IsValid() ) throw new InvalidOperationException( Language.GetPhrase( "menu.party.party_settings_are_not_available_yet" ) );
-		return Instance.BeginCreate( isPublic );
+		return Instance.BeginCreate( isPublic, createImmediately: createImmediately );
 	}
 
 	void OpenFriends()

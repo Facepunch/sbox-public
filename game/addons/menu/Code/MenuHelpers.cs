@@ -79,9 +79,19 @@ public static class MenuHelpers
 	{
 		Assert.True( HasAuthority, "You do not have authority to start a game, only the party owner can do that." );
 
-		// Your party isn't what it's made for - say so, and only go on if you want to
-		if ( !fitChecked && !ConfirmPartyFit( package, () => PlayGame( package, mapPackage, via, source, fitChecked: true ) ) )
-			return;
+		// List results (hover cards, shelves) come without the package's meta - LaunchMode, MaxPlayers,
+		// GameSettings - so get the full package before deciding how to launch it
+		if ( package.IsRemote )
+			package = await Package.FetchAsync( package.FullIdent, false ) ?? package;
+
+		// Your party isn't what it's made for - say so, and only go on if you want to. On your own it always is, so
+		// its workshop item's only asked about for a party.
+		if ( !fitChecked && MenuProject.PlayerModes.PartySize > 1 )
+		{
+			var workshop = await MenuUtility.FetchWorkshopItemAsync( MenuUtility.KnownWorkshopId( package ) );
+			if ( !ConfirmPartyFit( package, () => PlayGame( package, mapPackage, via, source, fitChecked: true ), workshop ) )
+				return;
+		}
 
 		// VR-only game but not in VR
 		if ( package.Info.IsVrOnly && !Application.IsVR )
@@ -184,6 +194,9 @@ public static class MenuHelpers
 
 		if ( !string.IsNullOrEmpty( settings.ServerName ) ) LaunchArguments.ServerName = settings.ServerName;
 		LaunchArguments.Privacy = settings.Privacy;
+
+		// A party's copy of the setup leaves the password out - it's in the leader's own
+		LaunchArguments.Password = settings.Password ?? GameSetup.GetInitialSettings( package ).Password;
 		LaunchArguments.Map = null;
 
 		if ( !string.IsNullOrEmpty( settings.Map ) )
@@ -198,12 +211,13 @@ public static class MenuHelpers
 
 	/// <summary>
 	/// Whether your party's what the game's made for - true to go straight on. If it isn't, pops up why,
-	/// with Play anyway (which runs <paramref name="playAnyway"/>) and Return, and gives false.
+	/// with Play anyway (which runs <paramref name="playAnyway"/>) and Return, and gives false. Its
+	/// <paramref name="workshop"/> item says how it's played, for one on the workshop.
 	/// </summary>
-	public static bool ConfirmPartyFit( Package package, Action playAnyway )
+	public static bool ConfirmPartyFit( Package package, Action playAnyway, WorkshopItemDetails workshop = null )
 	{
 		var size = MenuProject.PlayerModes.PartySize;
-		var modes = MenuProject.PlayerModes.For( package );
+		var modes = MenuProject.PlayerModes.For( package, workshop );
 		var (fit, why) = modes.FitFor( size );
 		if ( fit != MenuProject.PlayerModes.FitKind.Poor ) return true;
 
@@ -293,6 +307,21 @@ public static class MenuHelpers
 		var minutes = (int)time.TotalMinutes;
 		if ( minutes < 1 ) return "Under a minute";
 		return $"{minutes} minute{(minutes == 1 ? "" : "s")}";
+	}
+
+	/// <summary>
+	/// A size in bytes to read - "201.63 MB", with a space before the unit and the unit in capitals
+	/// </summary>
+	/// <summary>
+	/// The backend's 1 to 5 star rating filter - not offered, the rest of its filters are
+	/// </summary>
+	public static bool IsRatingFacet( Package.Facet facet ) => facet.Name.Contains( "rating", StringComparison.OrdinalIgnoreCase ) || facet.Title.Contains( "rating", StringComparison.OrdinalIgnoreCase );
+
+	public static string FormatSize( long bytes )
+	{
+		var formatted = bytes.FormatBytes();
+		var suffixLength = bytes >= 1024 ? 2 : 1;
+		return $"{formatted[..^suffixLength]} {formatted[^suffixLength..].ToUpperInvariant()}";
 	}
 
 	/// <summary>
@@ -391,7 +420,6 @@ public static class MenuHelpers
 		menu.AddOption( favourite ? "favorite" : "favorite_border", favourite ? "#menu.games.remove_from_favourites" : "#menu.games.add_to_favourites", () => _ = package.SetFavouriteAsync( !favourite ) );
 
 		menu.AddSpacer();
-		menu.AddOption( "corporate_fare", "#menu.games.view_creator", () => Game.Overlay.ShowOrganizationModal( package.Org ) );
 		menu.AddOption( "rate_review", "#menu.games.review_game", () => Game.Overlay.ShowReviewModal( package ) );
 		menu.AddOption( "flag", "#menu.games.report_game", () => Game.Overlay.ShowReportModal( package.FullIdent ) );
 		menu.AddOption( "block", "#menu.games.hide_game", () => _ = HidePackage( source, package ) );
@@ -479,7 +507,7 @@ public static class MenuHelpers
 
 			foreach ( var lobby in lobbies ) // TODO - order by most attractive
 			{
-				if ( lobby.IsFull ) continue;
+				if ( lobby.IsFull || lobby.IsPasswordProtected ) continue;
 
 				if ( await MenuUtility.TryJoinLobby( lobby.LobbyId ) )
 					return;
@@ -505,7 +533,6 @@ public static class MenuHelpers
 
 		menu.AddSpacer();
 		menu.AddOption( "info", "#menu.games.view_map_details", () => Game.Overlay.ShowPackageModal( package.FullIdent ) );
-		menu.AddOption( "corporate_fare", "#menu.games.view_creator", () => Game.Overlay.ShowOrganizationModal( package.Org ) );
 		menu.AddOption( "star", "#menu.games.rate_map", () => Game.Overlay.ShowReviewModal( package ) );
 	}
 

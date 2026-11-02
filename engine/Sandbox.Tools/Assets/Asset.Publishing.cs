@@ -56,6 +56,13 @@ public partial class Asset
 		[Browsable( false )]
 		public Sandbox.DataModel.ProjectConfig ProjectConfig { get; set; }
 
+		/// <summary>
+		/// Package references added by Hammer, rather than explicitly configured by the user.
+		/// Kept in local publish metadata so unused automatic references can be removed on save.
+		/// </summary>
+		[JsonInclude]
+		internal string[] HammerAutoPackageReferences { get; set; }
+
 		internal void InitializeInternal( Asset asset )
 		{
 			this.asset = asset;

@@ -462,7 +462,13 @@ public sealed partial class Dresser : Component, Component.ExecuteInEditor
 		if ( _settingAppearance || !BodyTarget.IsValid() || BodyTarget.Scene.IsPrefabCacheSceneRoot )
 			return;
 
-		BodyTarget.Set( "scale_height", ApplyHeightScale ? ManualHeight.Remap( 0, 1, 0.8f, 1.2f, true ) : 1 );
+#pragma warning disable CS0618
+		var height = ApplyHeightScale ? ManualHeight.Remap( 0, 1, 0.8f, 1.2f, true ) : 1;
+		if ( BodyTarget.Animation.Graph is not null )
+			BodyTarget.Animation.Parameters.Set( "scale_height", height, persist: true );
+		else
+			BodyTarget.Set( "scale_height", height );
+#pragma warning restore CS0618
 		BodyTarget.Attributes.Set( "skin_age", ManualAge );
 		BodyTarget.Attributes.Set( "skin_tint", ManualTint );
 

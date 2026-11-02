@@ -121,11 +121,6 @@ native class IAsset
 		return this->CompileState() == ASSET_FILE_COMPILE_FAILED;
 	}
 
-	inline bool CompileIfNeeded()
-	{
-		return this->RecompileAsset( COMPILE_AS_NEEDED );
-	}
-
 	inline int FindIntEditInfo( string name )
 	{
 		int output = 0;

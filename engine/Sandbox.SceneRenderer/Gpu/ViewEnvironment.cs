@@ -136,7 +136,7 @@ internal sealed class ViewEnvironment : IDisposable
 		SetupGradientFog( ref vr, viewLighting.GradientFog, scale, space.OffsetZ );
 		var fogCube = SetupCubemapFog( ref vr, viewLighting.CubemapFog, scale, space.OffsetZ );
 		// Match CameraRenderer.Configure and native Add3DSkyboxLayers without mutating world lighting.
-		context.SetConstants( FogConstants.BufferName, (view?.Fog ?? default( FogSetup )).ToConstants( scale, space.OffsetZ ) );
+		context.SetConstants( FogConstants.BufferName, (view?.Fog ?? default( FogSetup )).ToConstants( scale, space.OffsetZ, view?.Rotation.Forward ?? Vector3.Forward ) );
 		var fogSun = space.Lighting is null ? sun : space.FogSun;
 		attributes.Set( "FogSunColor", fogSun.Enabled ? (Vector3)fogSun.Color : Vector3.Zero );
 		attributes.Set( "FogSunDirection", -(Vector3)fogSun.Direction );

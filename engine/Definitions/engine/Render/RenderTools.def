@@ -30,7 +30,7 @@ native static class RenderTools as NativeEngine.RenderTools
 	bool DrawDynamicSceneObject( IRenderContext renderContext, CSceneObject sceneObject, StringToken nShaderMode );
 	bool ModelMeshHasMorphs( IModel hModel, int nMesh );
 	int QueueModelMeshMorph( CSceneObject sceneObject, IModel hModel, int nMesh );
-	void GenerateMorphs();
+	void GenerateMorphs( IRenderContext context );
 	void GetMorphSubrect( int nHandle, CastTo[Vector4D*] void* pSubrect );
 	void* CreateConstantBuffer( int nSize );
 	void SetConstantBufferData( IRenderContext renderContext, CRenderAttributes attributes, StringToken nName, void* hBuffer, void* pData, int nSize );
@@ -42,6 +42,7 @@ native static class RenderTools as NativeEngine.RenderTools
 	float TonemapFrameUpdate( ITonemapSystem tonemapSystem, bool bUpdate );
 	void RenderAutoExposure( IRenderContext renderContext, ITonemapSystem tonemapSystem, ITexture hColor, int nX, int nY, int nWidth, int nHeight );
 	bool DrawModelDrawCall( IRenderContext renderContext, CRenderAttributes attributes, IMaterial material, StringToken nMode, IModel hModel, int nMesh, int nDrawCall, int nDepthBias, float flSlopeScaledDepthBias, bool bStripPixelShader, int nOverlayStencil, RenderBufferHandle_t hInstanceIds, int nFirstSlot, int nInstances, void* pBind );
+	bool DrawModelDrawCallIndirect( IRenderContext renderContext, CRenderAttributes attributes, IMaterial material, StringToken nMode, IModel hModel, int nMesh, int nDrawCall, int nDepthBias, float flSlopeScaledDepthBias, bool bStripPixelShader, int nOverlayStencil, RenderBufferHandle_t hInstanceIds, int nFirstSlot, RenderBufferHandle_t hArgs, int nArgsOffset, void* pBind );
 	int GetMaterialBindSize();
 	void ResetMaterialBind( void* pBind );
 	ulong GetMaterialSimilarityKey( IMaterial material );

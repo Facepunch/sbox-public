@@ -71,6 +71,19 @@ native class Steam.Ugc.CUgcQuery as NativeEngine.CUgcQuery
     string GetResultJson();
 }
 
+native class Steam.Ugc.CUgcVote as NativeEngine.CUgcVote
+{
+    static CUgcVote GetVote( ulong fileid );
+    static CUgcVote SetVote( ulong fileid, bool voteUp );
+    void Dispose(); [delete]
+
+    bool m_complete;
+    bool m_success;
+    int m_resultCode;
+    bool m_votedUp;
+    bool m_votedDown;
+}
+
 native static class Steam.Ugc.CUgcSubscriptions as NativeEngine.CUgcSubscriptions
 {
     string GetSubscribedJson();

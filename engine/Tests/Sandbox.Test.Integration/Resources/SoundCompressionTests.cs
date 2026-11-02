@@ -288,6 +288,30 @@ public class SoundCompressionTests
 		Assert.IsTrue( timer.Elapsed < TimeSpan.FromSeconds( 1 ), $"Permanent decoder failure took {timer.Elapsed.TotalSeconds:F2} seconds to return" );
 	}
 
+	[TestMethod]
+	public async Task MonoSamplesAverageLoudStereoInsteadOfClipping()
+	{
+		// Unsigned 8-bit stereo at 0.75 of full scale goes through the mixer downmix path
+		const int frames = 1024;
+		var source = Enumerable.Repeat( (byte)224, frames * 2 ).ToArray();
+		CSfxTable native;
+		unsafe
+		{
+			fixed ( byte* data = source )
+			{
+				native = g_pSoundSystem.CreateSound( $"pcm8_test_{Guid.NewGuid():N}.vsnd", 2, 44100,
+					(int)SoundFormat.PCM8, frames, frames / 44100.0f, -1, 0, (IntPtr)data, source.Length );
+			}
+		}
+		var sound = (SoundFile)Activator.CreateInstance( typeof( SoundFile ), BindingFlags.Instance | BindingFlags.NonPublic,
+			null, new object[] { native }, null );
+
+		var samples = await sound.GetSamplesAsync();
+		Assert.AreEqual( frames, samples.Length );
+		// Summing the channels instead would clamp every sample to 32767
+		Assert.IsTrue( samples.All( x => Math.Abs( x - 0x6060 ) <= 1 ), $"Expected the channel average 24672, got {samples.Min()}..{samples.Max()}" );
+	}
+
 	static AudioSampler VorbisSampler( byte[] source, int rate, int channels, int frames )
 		=> new( VorbisSound( source, rate, channels, frames ).CreateMixer() );
 

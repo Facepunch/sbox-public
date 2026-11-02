@@ -54,8 +54,15 @@ internal partial class PainterBatcher
 
 	internal int GpuBufferCount => _tables.Sum( table => table.BufferCount );
 
+	// Layer caching: instances are hashed while a target is pushed, so a layer's content hash is the difference between
+	// two readings. Volatile counts draws the hash can't see - native commands, backdrops, live textures
+	readonly HashState _hash = new();
+	internal int Volatile;
+	internal int ContentSum { get { var sum = 0; foreach ( var table in _tables ) sum += table.Sum; return sum + _hash.Extra; } }
+
 	internal void AdvanceFrame()
 	{
+		_hash.Layers = 0;
 		_frameIndex = (_frameIndex + 1) % FrameCount;
 		foreach ( var table in _tables ) table.Clear();
 		_pathLookup.Clear();
@@ -77,7 +84,11 @@ internal partial class PainterBatcher
 		int next = inherited;
 		while ( index >= 0 )
 		{
-			if ( _drawClipLookup.TryGetValue( (index, parentTransform, inherited), out next ) ) break;
+			if ( _drawClipLookup.TryGetValue( (index, parentTransform, inherited), out next ) )
+			{
+				_scissorTable.Fold( _scissorTable.AsSpan().Slice( next, 1 ) );
+				break;
+			}
 			_drawClipStack.Add( index );
 			index = DrawClips[index].Parent;
 			next = inherited;
@@ -202,9 +213,13 @@ internal partial class PainterBatcher
 		attributes.Set( "PainterScissorIndex", index );
 	}
 
+	internal sealed class HashState { internal int Layers, Ordinal, Extra; }
+
 	internal interface IGpuTable
 	{
 		int BufferCount { get; }
+		int Sum { get; }
+		HashState Hash { set; }
 		void Clear();
 		void Upload( int frame, CommandList.AttributeAccess attributes );
 		void Dispose();
@@ -225,14 +240,30 @@ internal partial class PainterBatcher
 		internal T this[int index] => _items[index];
 		internal Span<T> AsSpan() => CollectionsMarshal.AsSpan( _items );
 		public int BufferCount => _buffers.Count( b => b != null );
+		public int Sum { get; private set; }
+		public HashState Hash { get; set; }
 
 		internal int Add( in T item )
 		{
 			Append( 1 )[0] = item;
+			Fold( new ReadOnlySpan<T>( in item ) );
 			return _items.Count - 1;
 		}
 
-		internal void AddRange( ReadOnlySpan<T> items ) => _items.AddRange( items );
+		internal void AddRange( ReadOnlySpan<T> items )
+		{
+			_items.AddRange( items );
+			Fold( items );
+		}
+
+		internal void Fold( ReadOnlySpan<T> items )
+		{
+			var state = Hash;
+			if ( state.Layers == 0 ) return;
+			var hash = new HashCode();
+			hash.AddBytes( MemoryMarshal.AsBytes( items ) );
+			Sum += HashCode.Combine( hash.ToHashCode(), state.Ordinal++ );
+		}
 
 		// The caller must fill every element before another table mutation or upload.
 		internal Span<T> Append( int count )
@@ -284,7 +315,12 @@ internal partial class PainterBatcher
 	{
 		readonly Dictionary<TKey, int> _lookup = [];
 
-		internal bool TryGet( in TKey key, out int index ) => _lookup.TryGetValue( key, out index );
+		internal bool TryGet( in TKey key, out int index )
+		{
+			if ( !_lookup.TryGetValue( key, out index ) ) return false;
+			Fold( AsSpan().Slice( index, 1 ) ); // A reused entry is content too: same index, maybe a different value than last frame
+			return true;
+		}
 
 		/// <summary>
 		/// Resolves an already constructed value with one dictionary probe, including on insertion.

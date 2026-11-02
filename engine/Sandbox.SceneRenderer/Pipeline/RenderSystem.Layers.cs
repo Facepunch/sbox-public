@@ -25,15 +25,21 @@ public sealed partial class RenderSystem
 		var overlayPrepass = new OverlayDepthPrepassLayer();
 		return
 		[
+			new OcclusionCullLayer( early: true ),
+
 			// Viewmodels claim depth and stencil before the world.
 			overlayPrepass,
 			new DepthPrepassLayer( overlayPrepass ),
+
+			new OcclusionCullLayer( early: false ),
+			new LateDepthPrepassLayer( overlayPrepass ),
 
 			// Pass inputs and outputs determine queue waits; this list is also the serial execution order.
 			new DepthChainLayer(),
 			new EarlyStageLayer( Stage.AfterDepthPrepass, PostProcessQueue.AsyncCompute ),
 			contactShadows,
 			new EarlyStageLayer( Stage.AfterDepthPrepass, PostProcessQueue.Graphics ),
+			new ScreenSpaceReflectionsLayer(),
 			new ShadowLayer(),
 			new ShadowsReadyLayer(),
 
@@ -52,6 +58,7 @@ public sealed partial class RenderSystem
 			// Tools-only materials.
 			new ToolsUtilLayer( translucent: false ),
 			new StaticOverlayLayer(),
+			new ScreenSpaceReflectionsHistoryLayer(),
 			new StageLayer( Stage.AfterOpaque ),
 
 			new Skybox3DLayer(),
@@ -89,6 +96,8 @@ public sealed partial class RenderSystem
 
 			// Prepare fog for the next frame.
 			new VolumetricFogLayer(),
+
+			new OcclusionHistoryLayer(),
 		];
 	}
 

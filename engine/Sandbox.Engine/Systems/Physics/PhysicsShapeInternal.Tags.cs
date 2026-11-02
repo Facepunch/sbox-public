@@ -11,6 +11,23 @@ partial class PhysicsShapeInternal
 		// Rebuilt on the main thread so physics filtering can read it from a worker thread.
 		volatile IReadOnlySet<uint> tokens = FrozenSet<uint>.Empty;
 
+		public override void SetFrom( ITagSet set )
+		{
+			if ( set is not GameTags )
+			{
+				base.SetFrom( set );
+				return;
+			}
+
+			var tags = set.TryGetAll();
+			if ( all.SetEquals( tags ) )
+				return;
+
+			all.Clear();
+			all.UnionWith( tags );
+			tokens = set.GetTokens().ToFrozenSet();
+		}
+
 		public override void Add( string tag )
 		{
 			if ( all.Add( tag ) ) RebuildTokens();

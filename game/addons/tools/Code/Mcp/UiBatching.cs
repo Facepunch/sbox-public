@@ -3,7 +3,7 @@ using Sandbox.UI;
 namespace Editor.Mcp;
 
 /// <summary>
-/// What the UI cost to draw last frame, per root panel. The same numbers the performance hub's UI tab shows.
+/// What the UI cost to draw last frame, per root panel. The same numbers the dev tools's UI tab shows.
 /// </summary>
 public static partial class UiTools
 {

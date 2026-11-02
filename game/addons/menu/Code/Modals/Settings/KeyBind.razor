@@ -75,7 +75,7 @@
 
             MenuUtility.Input.TrapButtons( (buttons) =>
             {
-                if ( buttons.Contains( "escape", StringComparer.OrdinalIgnoreCase ) )
+                if ( buttons.Length == 0 )
                 {
                     Cancel();
                     return;

@@ -108,8 +108,12 @@ public partial class MoveModeSwim : MoveMode
 			if ( !touch.Tags.Contains( "water" ) )
 				continue;
 
-			var waterSurface = touch.FindClosestPoint( head );
-			var level = Vector3.InverseLerp( waterSurface, foot, head, true );
+			float level;
+			var water = WaterBody.FromCollider( touch );
+			if ( water.IsValid() )
+				level = water.SubmergedFraction( foot, head );
+			else
+				level = Vector3.InverseLerp( touch.FindClosestPoint( head ), foot, head, true );
 			level = (level * 100).CeilToInt() / 100.0f;
 
 			if ( level > waterLevel )

@@ -2,15 +2,15 @@ namespace Sandbox.Rendering;
 
 /// <summary>
 /// What the managed scene renderer did in a frame, added up over every camera it rendered - native's scenesystem counters
-/// (<c>SceneSystemPerFrameStats_t</c>) don't see its draws, so the frame stats (the performance hub's Rendering tab) read these.
+/// (<c>SceneSystemPerFrameStats_t</c>) don't see its draws, so the frame stats (the dev tools's Rendering tab) read these.
 /// </summary>
 internal struct ManagedFrameCounters
 {
 	/// <summary>Camera frames the managed renderer rendered.</summary>
 	public int Renders;
 
-	/// <summary>Objects in the worlds rendered, those the main views drew, and those too small on screen to draw.</summary>
-	public int Objects, ObjectsVisible, ObjectsSizeCulled;
+	/// <summary>Objects in the worlds rendered, those submitted after CPU culling, those too small on screen, and those occlusion culled.</summary>
+	public int Objects, ObjectsVisible, ObjectsSizeCulled, ObjectsOcclusionCulled;
 
 	/// <summary>Instanced draws: forward (translucent included), depth prepass, translucent alone, shadow views, and custom objects drawing themselves.</summary>
 	public int Draws, DepthDraws, TranslucentDraws, ShadowDraws, CustomDraws;
@@ -39,6 +39,7 @@ internal struct ManagedFrameCounters
 		Objects += other.Objects;
 		ObjectsVisible += other.ObjectsVisible;
 		ObjectsSizeCulled += other.ObjectsSizeCulled;
+		ObjectsOcclusionCulled += other.ObjectsOcclusionCulled;
 		Draws += other.Draws;
 		DepthDraws += other.DepthDraws;
 		TranslucentDraws += other.TranslucentDraws;

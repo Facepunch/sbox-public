@@ -7,10 +7,9 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	internal PostProcessLayers PostProcess { get; private set; } = new PostProcessLayers();
 
 	/// <summary>
-	/// Whether this camera's post processing reads the depth-normals prepass's G-buffer (AO, SSR), so the managed scene
-	/// renderer draws it.
+	/// Whether this camera's command lists may read the depth-normals prepass's G-buffer, for both renderers.
 	/// </summary>
-	bool WantsDepthNormals() => PostProcess.NeedsDepthNormals;
+	bool WantsDepthNormals() => Scene.RenderAttributes.GetBool( "NeedsDepthNormals" ) || PostProcess.Layers.Count != 0 || HasCustomCommandLists();
 
 	/// <summary>
 	/// Whether independent post processing can run ahead of <paramref name="stage"/> on <paramref name="queue"/>.

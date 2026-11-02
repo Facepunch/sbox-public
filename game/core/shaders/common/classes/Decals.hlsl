@@ -152,7 +152,8 @@ struct Decals
 
 			const float decalAttenuation = DecalAttenuation( material.Normal, -decalProjectionAxisWorld, fAtt );
 
-			// Only reached from ClusterForEach, so the decal and every index read from it are wave-uniform
+			// Only reached from ClusterForEach, so the decal and every index read from it are wave-uniform.
+			// Slang can't prove it, hence asDynamicUniform
 			int samplerIndex = 0;
 
 			if ( color > 0 )
@@ -173,7 +174,7 @@ struct Decals
 				float4 decal_albedo = float4( 0, 0, 0, 0 );
 				float flHeightCoverageMask = 1;
 
-				Texture2D texture = Bindless::GetTexture2D( UniformIndex( color ) );
+				Texture2D texture = Bindless::GetTexture2D( asDynamicUniform( UniformIndex( color ) ) );
 
 				if ( decal.ExtraDataOffset >= 0 )
 				{
@@ -185,14 +186,14 @@ struct Decals
 					samplerIndex = DecalsExtraDataBuffer.Load( decal.ExtraDataOffset + 36 );
 					uint emissionIdx = DecalsExtraDataBuffer.Load( decal.ExtraDataOffset + 40 );
 
-					SamplerState textureSampler = Bindless::GetSampler( samplerIndex );
+					SamplerState textureSampler = Bindless::GetSampler( asDynamicUniform( samplerIndex ) );
 
 					if ( heightIdx > 0 )
 					{
 						float strength = asfloat( DecalsExtraDataBuffer.Load( decal.ExtraDataOffset + 32 ) );
 						
 						// get the heightmap texture 2D from bindless and sample it 
-						Texture2D tHeightmap = Bindless::GetTexture2D( UniformIndex( heightIdx ) );
+						Texture2D tHeightmap = Bindless::GetTexture2D( asDynamicUniform( UniformIndex( heightIdx ) ) );
 	
 						// maybe there's a way to do it wih the quat directly, but i don't fucking know
 						float3x3 rot = QuaternionToMatrix(decal.Quat);
@@ -248,7 +249,7 @@ struct Decals
 					if ( emissionIdx > 0 )
 					{
 						float strength = asfloat( DecalsExtraDataBuffer.Load( decal.ExtraDataOffset + 44 ) );
-						float4 decal_emission = Bindless::GetTexture2D( UniformIndex( emissionIdx ) ).SampleGrad( textureSampler, decalUV.xy, gradUV.xy, gradUV.zw );
+						float4 decal_emission = Bindless::GetTexture2D( asDynamicUniform( UniformIndex( emissionIdx ) ) ).SampleGrad( textureSampler, decalUV.xy, gradUV.xy, gradUV.zw );
 						material.Emission = lerp( material.Emission, decal_emission.rgb * strength, decal_albedo.a );
 					}
 				}
@@ -273,8 +274,8 @@ struct Decals
 				// blend everything else in from the color transparency
 				if ( normal > 0 )
 				{
-					SamplerState textureSampler = Bindless::GetSampler( samplerIndex );
-					float3 normalts = DecodeNormal( Bindless::GetTexture2D( UniformIndex( normal ) ).SampleGrad( textureSampler, decalUV.xy, gradUV.xy, gradUV.zw ).xyz );
+					SamplerState textureSampler = Bindless::GetSampler( asDynamicUniform( samplerIndex ) );
+					float3 normalts = DecodeNormal( Bindless::GetTexture2D( asDynamicUniform( UniformIndex( normal ) ) ).SampleGrad( textureSampler, decalUV.xy, gradUV.xy, gradUV.zw ).xyz );
 
 					float3x3 rot = QuaternionToMatrix(decal.Quat);
 					float3 normal = TransformNormal( normalts, -rot[0], -rot[1], -rot[2] );
@@ -284,8 +285,8 @@ struct Decals
 
 				if ( rma > 0 )
 				{
-					SamplerState textureSampler = Bindless::GetSampler( samplerIndex );
-					float4 decal_rma = Bindless::GetTexture2D( UniformIndex( rma ) ).SampleGrad( textureSampler, decalUV.xy, gradUV.xy, gradUV.zw );
+					SamplerState textureSampler = Bindless::GetSampler( asDynamicUniform( samplerIndex ) );
+					float4 decal_rma = Bindless::GetTexture2D( asDynamicUniform( UniformIndex( rma ) ) ).SampleGrad( textureSampler, decalUV.xy, gradUV.xy, gradUV.zw );
 					material.Roughness = lerp( material.Roughness, decal_rma.r, decal_albedo.a );
 					material.Metalness = lerp( material.Metalness, decal_rma.g, decal_albedo.a );
 					material.AmbientOcclusion = lerp( material.AmbientOcclusion, decal_rma.b, decal_albedo.a );

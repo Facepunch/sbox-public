@@ -53,18 +53,11 @@ internal sealed partial class MdlFile
 	public int BoneCount => _bones.Length;
 	public StudioBone[] Bones => _bones;
 
-	public int AttachmentCount => _attachments.Length;
 	public IEnumerable<StudioAttachment> Attachments => _attachments;
 
 	public IEnumerable<string> FlexNames => _flexNames;
-	public IEnumerable<StudioVertAnim> VertAnims => _vertAnims;
 
 	public int BodyPartCount => _bodyParts.Length;
-
-	public StudioBone GetBone( int index )
-	{
-		return _bones[index];
-	}
 
 	public string GetBoneName( int index )
 	{
@@ -81,11 +74,6 @@ internal sealed partial class MdlFile
 	public string GetBodyPartName( int index )
 	{
 		return _bodyPartNames[index];
-	}
-
-	public string GetModelName( int index )
-	{
-		return _models[index].Name;
 	}
 
 	public StudioBodyPart GetBodyPart( int index )
@@ -123,32 +111,11 @@ internal sealed partial class MdlFile
 		return _vertAnims.AsSpan( flex.VertIndex, flex.NumVerts );
 	}
 
-	public IEnumerable<StudioModel> GetModels( int bodyPartIndex )
-	{
-		var part = _bodyParts[bodyPartIndex];
-		return Enumerable.Range( part.ModelIndex, part.NumModels ).Select( x => _models[x] );
-	}
-
-	public IEnumerable<StudioMesh> GetMeshes( int index, int count )
-	{
-		return Enumerable.Range( index, count ).Select( x => _meshes[x] );
-	}
-
-	public IEnumerable<StudioMesh> GetMeshes( ref StudioModel model )
-	{
-		return GetMeshes( model.MeshIndex, model.NumMeshes );
-	}
-
 	public int MaterialCount => _materials.Length;
 	public int MaterialPathCount => _materialPaths.Length;
-	public int MaterialNameCount => _materialNames.Length;
 	public int SkinFamilyCount => _header.NumSkinFamilies;
 
 	public string GetMaterialName( int index ) => _materialNames[index];
-	public string GetMeshMaterialName( int index ) => GetMaterialName( _defaultSkin.Length > 0 ? _defaultSkin[index] : index );
-	public string GetMeshMaterialFullPath( int index, int pathIndex ) => GetMaterialFullPath( _defaultSkin.Length > 0 ? _defaultSkin[index] : index, pathIndex );
-	public string GetMeshMaterialName( int meshMaterialIndex, int skinFamily ) => GetMaterialName( GetSkinMaterial( meshMaterialIndex, skinFamily ) );
-	public string GetMeshMaterialFullPath( int meshMaterialIndex, int pathIndex, int skinFamily ) => GetMaterialFullPath( GetSkinMaterial( meshMaterialIndex, skinFamily ), pathIndex );
 
 	internal int GetSkinMaterial( int meshMaterialIndex, int skinFamily )
 	{

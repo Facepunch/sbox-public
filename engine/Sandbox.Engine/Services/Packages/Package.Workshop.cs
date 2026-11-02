@@ -1,6 +1,8 @@
 using Sandbox.Menu;
 using Sandbox.Services;
 using System.Diagnostics;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading;
 
 namespace Sandbox;
@@ -14,9 +16,9 @@ public partial class Package
 
 	/// <summary>
 	/// Are this package's files installed from its Steam Workshop item, rather than downloaded from the backend?
-	/// Only maps - clothing has a workshop item too, but its files are on the backend.
+	/// Only maps and games - clothing has a workshop item too, but its files are on the backend.
 	/// </summary>
-	public bool InstallsFromWorkshop => WorkshopId != 0 && string.Equals( TypeName, "map", StringComparison.OrdinalIgnoreCase );
+	public bool InstallsFromWorkshop => WorkshopId != 0 && (string.Equals( TypeName, "map", StringComparison.OrdinalIgnoreCase ) || string.Equals( TypeName, "game", StringComparison.OrdinalIgnoreCase ));
 
 	/// <summary>
 	/// The workshop item this package's files are installed from, or 0 if they aren't, or we can't tell. Search results
@@ -31,6 +33,43 @@ public partial class Package
 
 			return TryGetCached( FullIdent, out var full, false ) && full.InstallsFromWorkshop ? full.WorkshopId : 0;
 		}
+	}
+
+	/// <summary>
+	/// Take this package's meta from its workshop item installed in <paramref name="folder"/> - the game's own, as it
+	/// was published, rather than the backend's. It keeps its <see cref="WorkshopId"/>, a new item can't know its own.
+	/// </summary>
+	internal void UseWorkshopMeta( string folder )
+	{
+		if ( this is not RemotePackage ) return;
+		if ( WorkshopItemMetaData.Read( folder )?.Meta is not { Length: > 0 } meta ) return;
+
+		UseWorkshopMetaJson( meta );
+	}
+
+	/// <summary>
+	/// <see cref="UseWorkshopMeta"/>, given the meta json the item shipped with
+	/// </summary>
+	internal void UseWorkshopMetaJson( string meta )
+	{
+		if ( this is not RemotePackage remote ) return;
+
+		JsonObject json;
+
+		try
+		{
+			json = JsonNode.Parse( meta ) as JsonObject;
+		}
+		catch ( JsonException e )
+		{
+			Log.Warning( $"Workshop item {WorkshopId}'s meta for {FullIdent} isn't valid json ({e.Message})" );
+			return;
+		}
+
+		if ( json is null ) return;
+
+		json["WorkshopId"] = WorkshopId;
+		remote.UseMeta( json.ToJsonString() );
 	}
 
 	/// <summary>
@@ -123,6 +162,11 @@ public partial class Package
 
 		try
 		{
+			// A game's backend manifest has the dlls it compiled from the item's code - so they're loaded rather than compiled
+			// here. Maps don't have code, they don't need the backend to install.
+			var isGame = string.Equals( TypeName, "game", StringComparison.OrdinalIgnoreCase );
+			var manifest = isGame ? Revision.DownloadManifestAsync( token ) : Task.CompletedTask;
+
 			folder = await Workshop.InstallAsync( WorkshopId, OnProgress, token );
 			installSeconds = sw.Elapsed.TotalSeconds;
 
@@ -131,6 +175,9 @@ public partial class Package
 				await Task.WhenAny( ended.Task, Task.Delay( 1000, token ) );
 
 			error = ended.Task.IsCompleted ? ended.Task.Result : null;
+
+			// After the install's been timed - it's the backend's, not Steam's
+			await manifest;
 		}
 		catch ( OperationCanceledException ) when ( token.IsCancellationRequested )
 		{
@@ -169,12 +216,16 @@ public partial class Package
 		progress.Fraction = 1;
 		options.Loading?.LoadingProgress( progress );
 
+		UseWorkshopMeta( folder );
+
 		// Prefetching, it just needed installing
 		if ( fs is null )
 			return true;
 
+		// Not the item's own meta, that isn't one of the package's files
 		var files = System.IO.Directory.EnumerateFiles( folder, "*", System.IO.SearchOption.AllDirectories )
 			.Select( x => new ManifestSchema.File { Path = System.IO.Path.GetRelativePath( folder, x ).Replace( '\\', '/' ) } )
+			.Where( x => x.Path != WorkshopItemMetaData.FileName )
 			.ToArray();
 
 		foreach ( var file in DownloadableFiles( files, options.SkipAssetDownload ) )

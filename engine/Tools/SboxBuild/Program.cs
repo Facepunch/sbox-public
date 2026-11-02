@@ -31,7 +31,6 @@ internal class Program
 		AddNvPatchCommand( rootCommand );
 		AddSignBinariesCommand( rootCommand );
 		AddBuildAddonsCommand( rootCommand );
-		AddGameCacheCommand( rootCommand );
 		AddUploadSymbolsCommand( rootCommand );
 		AddUploadDocsCommand( rootCommand );
 		AddSentryReleaseCommand( rootCommand );
@@ -139,7 +138,9 @@ internal class Program
 	private static void AddBuildContentCommand( RootCommand rootCommand )
 	{
 		var cmd = new Command( "build-content", "Build game content" );
-		cmd.SetHandler( () => { Environment.ExitCode = (int)new BuildContent().Run(); } );
+		var rootOption = new Option<string>( "--root", description: "Only build the content root at this path under game/, with whatever it reads from the others", getDefaultValue: () => null );
+		cmd.AddOption( rootOption );
+		cmd.SetHandler( ( string root ) => Environment.ExitCode = (int)new BuildContent( root ).Run(), rootOption );
 		rootCommand.Add( cmd );
 	}
 
@@ -254,13 +255,6 @@ internal class Program
 	{
 		var cmd = new Command( "build-addons", "Build addons and menu" );
 		cmd.SetHandler( () => { Environment.ExitCode = (int)new BuildAddons().Run(); } );
-		rootCommand.Add( cmd );
-	}
-
-	private static void AddGameCacheCommand( RootCommand rootCommand )
-	{
-		var cmd = new Command( "game-cache", "Create game cache" );
-		cmd.SetHandler( () => { Environment.ExitCode = (int)new GameCache().Run(); } );
 		rootCommand.Add( cmd );
 	}
 

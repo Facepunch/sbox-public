@@ -21,7 +21,7 @@ Media
 	}
 }
 
-// A 16:9 frame, rounded and outlined like the menu's panels, with a shadow to lift it off the page.
+// A 16:9 frame, rounded and outlined like the menu's panels - no shadow, it showed as a dark smudge under it.
 // The shot sits in it whole; its blurred copy fills round it
 Media > .main
 {
@@ -36,7 +36,6 @@ Media > .main
 	border-radius: $front-radius;
 	border: $front-border-width solid $front-border;
 	background-color: #0B0D14;
-	box-shadow: 0 16px 40px rgba( 0, 0, 0, 0.45 );
 
 	// Only the one shot, so no strip under it - the strip's 3 of its own, so the description sits
 	// the same distance off it
@@ -63,6 +62,129 @@ Media > .main
 		flex-shrink: 1;
 		max-width: 100%;
 		max-height: 100%;
+	}
+
+	// A YouTube video, in YouTube's own player - the whole frame. It gets no clicks: the controls over it are ours
+	WebPanel.youtube
+	{
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		pointer-events: none;
+	}
+
+	// Over the picture - a click plays or pauses it
+	.yt-surface
+	{
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		cursor: pointer;
+	}
+
+	// Our controls along the bottom - always there while it's paused, while it plays only when the mouse is over it
+	.yt-controls
+	{
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		flex-direction: row;
+		align-items: center;
+		gap: 10px;
+		padding: 28px 14px 12px 14px;
+		background-image: linear-gradient( 0deg, rgba( 0, 0, 0, 0.8 ) 20%, rgba( 0, 0, 0, 0 ) );
+		transition: opacity 0.2s ease;
+
+		&.playing
+		{
+			opacity: 0;
+		}
+	}
+
+	&:hover .yt-controls
+	{
+		opacity: 1;
+	}
+
+	.yt-button
+	{
+		flex-shrink: 0;
+		width: 32px;
+		height: 32px;
+		align-items: center;
+		justify-content: center;
+		border-radius: 50%;
+		cursor: pointer;
+		transition: all 0.1s ease;
+
+		i
+		{
+			font-size: 22px;
+			color: white;
+			text-align: center;
+		}
+
+		&:hover
+		{
+			sound-in: "ui.button.over";
+			background-color: rgba( 255, 255, 255, 0.15 );
+		}
+
+		&:active
+		{
+			sound-in: "ui.button.press";
+		}
+	}
+
+	.yt-time
+	{
+		flex-shrink: 0;
+		font-size: 12px;
+		font-weight: 600;
+		color: rgba( 255, 255, 255, 0.85 );
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
+
+	// Where it's at - what's loaded behind what's played. Click to go there
+	.yt-scrub
+	{
+		position: relative;
+		flex-grow: 1;
+		height: 5px;
+		border-radius: 999px;
+		background-color: rgba( 255, 255, 255, 0.2 );
+		cursor: pointer;
+		transition: height 0.1s ease;
+
+		&:hover
+		{
+			height: 8px;
+		}
+
+		.yt-buffered, .yt-played
+		{
+			position: absolute;
+			left: 0;
+			top: 0;
+			bottom: 0;
+			border-radius: 999px;
+		}
+
+		.yt-buffered
+		{
+			background-color: rgba( 255, 255, 255, 0.3 );
+		}
+
+		.yt-played
+		{
+			background-color: $front-primary;
+		}
 	}
 
 	// A video waiting to be played (no autoplay) - its art filling the frame, a big play button on it
@@ -168,29 +290,12 @@ Media > .main
 	}
 }
 
-// Holds the strip, and the fade over its right end - on this box, not the scrolling strip (a mask
-// on something that scrolls draws it wrong), so the fade stays put while the strip scrolls under.
-// The page's colour behind the gallery, clear to solid
+// Holds the strip - no fade over its end, a thumbnail cut off there says there's more. A fade had to be
+// the colour of whatever's behind the gallery, which isn't the same everywhere it's shown
 Media > .strip
 {
-	position: relative;
 	flex-shrink: 0;
 	max-width: 100%;
-
-	&::after
-	{
-		content: "";
-		position: absolute;
-		top: 0;
-		right: 0;
-		bottom: 0;
-		width: 56px;
-		// Sampled off the page in a screenshot - 17,19,25. A shade lighter and it shows as a pale
-		// block over the empty end of the strip
-		background-image: linear-gradient( to right, rgba( 17, 19, 25, 0 ), rgb( 17, 19, 25 ) );
-		pointer-events: none;
-		z-index: 10;
-	}
 }
 
 // The strip - bigger thumbnails, the one you're on outlined in the menu blue, the rest dimmed and
@@ -202,13 +307,12 @@ Media > .strip > .list
 	gap: 6px;
 	max-width: 100%;
 
-	// No scrollbar - the fade on the right end says there's more
+	// No scrollbar - the last thumbnail cut off at the end says there's more
 	scrollbar-width: none;
 	height: 69px;
 
-	// Room on the right to scroll the last thumbnail out from under the fade, and a little round
-	// the rest for the selected one's outline
-	padding: 3px 56px 3px 3px;
+	// A little round them for the selected one's outline
+	padding: 3px;
 
 	> .screenshot
 	{

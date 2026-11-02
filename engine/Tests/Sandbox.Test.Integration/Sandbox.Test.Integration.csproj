@@ -23,6 +23,8 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<None Include="..\Sandbox.Test.Unit\Data\SourceMovement\reference.json" Link="Data\SourceMovement\reference.json" CopyToOutputDirectory="PreserveNewest" />
+		<None Update="Data\MovementReplay\**\*" CopyToOutputDirectory="PreserveNewest" />
 		<None Update="Resources\Audio\*">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</None>

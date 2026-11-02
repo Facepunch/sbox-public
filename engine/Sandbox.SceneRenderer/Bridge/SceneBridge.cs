@@ -168,6 +168,7 @@ internal sealed class SceneBridge : IManagedSceneRenderer
 		if ( skybox?.World != skyMirror.World ) skybox = mirror.World.Skybox3D = new Skybox3D( skyMirror.World );
 		skybox.Origin = source.Origin;
 		skybox.Scale = source.Scale;
+		skybox.Fog = camera.EnablePostProcessing ? source.ResolveFog( camera ) : null;
 	}
 
 	/// <summary>

@@ -7,7 +7,7 @@ namespace Sandbox.Mounting.Source1;
 
 internal sealed partial class VtfFile
 {
-	private const int HeaderLength = 63;
+	internal const int HeaderLength = 63;
 
 	internal static VtfHeader ReadHeader( Stream stream )
 	{
@@ -19,16 +19,6 @@ internal sealed partial class VtfFile
 		if ( header.MajorVersion != 7 || header.MinorVersion > 5 )
 			throw new NotSupportedException( $"VTF version {header.MajorVersion}.{header.MinorVersion} is not supported." );
 		return header;
-	}
-
-	public static VtfFile FromStream( Stream stream, int? frame = null )
-	{
-		return new VtfFile( stream, frame: frame );
-	}
-
-	internal static VtfFile FromTextureStream( Stream stream, int? frame )
-	{
-		return new VtfFile( stream, false, frame, true );
 	}
 
 	public static int GetImageDataSize( int width, int height, int depth, int mipCount, VtfFormat format )
@@ -84,14 +74,12 @@ internal sealed partial class VtfFile
 	private readonly int? _selectedFrame;
 	private int _loadedMipmapCount;
 	private readonly long _imageOffset;
-	private readonly long? _sheetOffset;
 
 	public VtfHeader Header { get; }
 	public int MipmapCount { get; }
 	public int FrameCount { get; }
 	public int FaceCount { get; }
 	public int ZSliceCount { get; }
-	public bool HasSheet { get; }
 
 	[StructLayout( LayoutKind.Sequential, Pack = 1 )]
 	private struct ImageData
@@ -142,8 +130,6 @@ internal sealed partial class VtfFile
 		FrameCount = metadata.FrameCount;
 		FaceCount = metadata.FaceCount;
 		ZSliceCount = metadata.ZSliceCount;
-		HasSheet = metadata.HasSheet;
-		_sheetOffset = metadata._sheetOffset;
 		_imageOffset = metadata._imageOffset;
 		_selectedFrame = frame;
 		if ( frame.HasValue && (uint)frame.Value >= FrameCount )
@@ -193,6 +179,7 @@ internal sealed partial class VtfFile
 			readCount += 15;
 			if ( readCount + resourceCount * 8L > Header.HeaderSize )
 				throw new InvalidDataException( "VTF resource directory exceeds its header." );
+			bool hasSheet = false;
 			for ( var i = 0U; i < resourceCount; i++ )
 			{
 				stream.ReadExactly( buffer );
@@ -200,11 +187,11 @@ internal sealed partial class VtfFile
 				var type = BinaryPrimitives.ReadUInt32LittleEndian( buffer );
 				if ( (type & 0x00ffffff) == 0x10 )
 				{
-					if ( HasSheet || (type & 0xff000000) != 0 )
+					if ( hasSheet || (type & 0xff000000) != 0 )
 						throw new InvalidDataException( "Invalid or duplicate VTF sheet resource." );
-					HasSheet = true;
-					_sheetOffset = BinaryPrimitives.ReadUInt32LittleEndian( buffer[4..] );
-					if ( _sheetOffset < Header.HeaderSize )
+					hasSheet = true;
+					var sheetOffset = BinaryPrimitives.ReadUInt32LittleEndian( buffer[4..] );
+					if ( sheetOffset < Header.HeaderSize )
 						throw new InvalidDataException( "VTF sheet resource overlaps its header." );
 				}
 				if ( (type & 0x00ffffff) != 0x30 )
@@ -225,21 +212,6 @@ internal sealed partial class VtfFile
 		_imageOffset = imageOffset.Value;
 		if ( onlyHeader ) return;
 		ReadPixels( stream, frame, textureData, Header.HeaderSize );
-	}
-
-	internal byte[] ReadSheet( Stream stream )
-	{
-		if ( !_sheetOffset.HasValue )
-			throw new InvalidOperationException( "VTF has no sheet resource." );
-		Skip( stream, _sheetOffset.Value );
-		Span<byte> size = stackalloc byte[4];
-		stream.ReadExactly( size );
-		var length = BinaryPrimitives.ReadUInt32LittleEndian( size );
-		if ( length is < 8 or > 16 * 1024 * 1024 )
-			throw new InvalidDataException( "Invalid VTF sheet resource length." );
-		var bytes = new byte[length];
-		stream.ReadExactly( bytes );
-		return bytes;
 	}
 
 	private void ReadPixels( Stream stream, int? frame, bool textureData, long position = 0 )
@@ -326,20 +298,4 @@ internal sealed partial class VtfFile
 		return GetHiResPixelData( mipmap, _selectedFrame ?? 0 ).Length;
 	}
 
-	public int GetHiResPixelData( int mipmap, int frame, int face, int zslice, byte[] dst, int dstOffset = 0 )
-	{
-		var data = GetHiResPixelData( mipmap, frame, face, zslice );
-		if ( dst != null ) data.CopyTo( dst.AsSpan( dstOffset ) );
-		return data.Length;
-	}
-
-	public void WriteHiResPixelData( int mipmap, int frame, int face, int zslice, BinaryWriter writer )
-	{
-		writer.Write( GetHiResPixelData( mipmap, frame, face, zslice ) );
-	}
-
-	public void WriteHiResPixelData( int mipmap, int frame, int face, int zslice, Stream stream )
-	{
-		stream.Write( GetHiResPixelData( mipmap, frame, face, zslice ) );
-	}
 }

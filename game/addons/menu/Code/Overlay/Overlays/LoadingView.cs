@@ -77,6 +77,12 @@ public static class LoadingView
 
 	public static int TaskCount => IsMocking ? 0 : LoadingScreen.Tasks.Count;
 
+	/// <summary>
+	/// How far through the step in the title it is, 0 to 1, when it isn't a download - updating a
+	/// package's shaders. Null when the step can't say.
+	/// </summary>
+	public static double? StepFraction => IsMocking ? null : LoadingScreen.StepFraction;
+
 	public static string FirstTask => IsMocking ? null : LoadingScreen.Tasks.FirstOrDefault()?.Title;
 
 	/// <summary>

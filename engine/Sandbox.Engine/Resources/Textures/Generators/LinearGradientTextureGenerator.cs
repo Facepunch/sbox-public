@@ -35,25 +35,30 @@ public class LinearGradient : TextureGenerator
 	[Hide, JsonIgnore]
 	public override bool CacheToDisk => true;
 
-	protected override ValueTask<Texture> CreateTexture( Options options, CancellationToken ct )
+	[System.Diagnostics.CodeAnalysis.SuppressMessage( "Reliability", "CA2000", Justification = "The caller owns the bitmap returned through ValueTask; failures and the intermediate heightmap are disposed here." )]
+	protected override ValueTask<Bitmap> CreateBitmap( Options options, CancellationToken ct )
 	{
-		using var bitmap = new Bitmap( Size.x, Size.y, IsHdr && !ConvertHeightToNormals );
-		bitmap.Clear( Color.Transparent );
-
-		var hw = bitmap.Rect.Size.Length * 0.5f * Scale.Clamp( 0.0001f, 1000f );
-		var dir = Vector2.FromDegrees( Angle ) * hw;
-		var center = Center * bitmap.Rect.Size;
-
-		bitmap.SetLinearGradient( center - dir, center + dir, Gradient );
-		bitmap.DrawRect( bitmap.Rect );
-
-		if ( ConvertHeightToNormals )
+		var bitmap = new Bitmap( Size.x, Size.y, IsHdr && !ConvertHeightToNormals );
+		try
 		{
-			using var normalMap = bitmap.HeightmapToNormalMap( NormalScale );
-			ValueTask.FromResult( normalMap.ToTexture() );
+			bitmap.Clear( Color.Transparent );
+
+			var hw = bitmap.Rect.Size.Length * 0.5f * Scale.Clamp( 0.0001f, 1000f );
+			var dir = Vector2.FromDegrees( Angle ) * hw;
+			var center = Center * bitmap.Rect.Size;
+
+			bitmap.SetLinearGradient( center - dir, center + dir, Gradient );
+			bitmap.DrawRect( bitmap.Rect );
+		}
+		catch
+		{
+			bitmap.Dispose();
+			throw;
 		}
 
-		return ValueTask.FromResult( bitmap.ToTexture() );
+		if ( !ConvertHeightToNormals ) return ValueTask.FromResult( bitmap );
+
+		using ( bitmap ) return ValueTask.FromResult( bitmap.HeightmapToNormalMap( NormalScale ) );
 	}
 }
 

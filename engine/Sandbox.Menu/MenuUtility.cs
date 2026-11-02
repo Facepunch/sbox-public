@@ -21,14 +21,38 @@ public static partial class MenuUtility
 		IModalSystem.Current = system;
 	}
 
+	static event Action<LogEvent> MenuLoggers;
+
 	public static void AddLogger( Action<LogEvent> logger )
 	{
-		Sandbox.Diagnostics.Logging.OnMessage += logger;
+		MenuLoggers += logger;
+
+		Sandbox.Diagnostics.Logging.OnMessage -= DispatchToMenuLoggers;
+		Sandbox.Diagnostics.Logging.OnMessage += DispatchToMenuLoggers;
 	}
 
 	public static void RemoveLogger( Action<LogEvent> logger )
 	{
-		Sandbox.Diagnostics.Logging.OnMessage -= logger;
+		MenuLoggers -= logger;
+	}
+
+	internal static void ClearLoggers()
+	{
+		MenuLoggers = null;
+	}
+
+	/// <summary>
+	/// Messages arrive in whatever context logged them, usually the game's. Menu loggers are menu code - they
+	/// create menu panels - so run them in the menu's context, not against the game's TypeLibrary and UI.
+	/// </summary>
+	static void DispatchToMenuLoggers( LogEvent e )
+	{
+		var loggers = MenuLoggers;
+		if ( loggers is null )
+			return;
+
+		using var scope = GlobalContext.MenuScope();
+		loggers( e );
 	}
 
 	public static void AddChatListener( Action<ChatMessageEvent> listener )
@@ -441,6 +465,11 @@ public static partial class MenuUtility
 		}, null );
 	}
 
+	/// <summary>
+	/// Keep the startup screen up, showing this status, while something is about to appear, so it doesn't pop in
+	/// once the startup screen has faded. Dispose the returned hold once it's there.
+	/// </summary>
+	public static IDisposable HoldStartupScreen( string status ) => StartupScreen.HoldFor( status );
 }
 
 /// <summary>

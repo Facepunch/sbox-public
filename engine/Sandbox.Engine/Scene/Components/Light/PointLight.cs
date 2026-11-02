@@ -18,7 +18,7 @@ public class PointLight : Light
 	/// <summary>
 	/// Constant term in the light's distance attenuation denominator.
 	/// </summary>
-	[Property, Advanced]
+	[Property, Group( "Influence", Order = 0 ), Order( 3 ), Advanced]
 	public float ConstantAttenuation
 	{
 		get;
@@ -32,7 +32,7 @@ public class PointLight : Light
 	/// <summary>
 	/// Linear term in the light's distance attenuation denominator.
 	/// </summary>
-	[Property, Advanced]
+	[Property, Group( "Influence", Order = 0 ), Order( 4 ), Advanced]
 	public float LinearAttenuation
 	{
 		get;
@@ -43,7 +43,10 @@ public class PointLight : Light
 		}
 	}
 
-	[Property]
+	/// <summary>
+	/// Maximum distance reached by this light.
+	/// </summary>
+	[Property, Group( "Influence", Order = 0 ), Order( 0 )]
 	public float Radius
 	{
 		get;
@@ -57,7 +60,10 @@ public class PointLight : Light
 		}
 	} = 400;
 
-	[Property, Range( 0, 10 )]
+	/// <summary>
+	/// Quadratic term controlling how this light fades with distance.
+	/// </summary>
+	[Property, Range( 0, 10 ), Group( "Influence", Order = 0 ), Order( 1 )]
 	public float Attenuation
 	{
 		get;

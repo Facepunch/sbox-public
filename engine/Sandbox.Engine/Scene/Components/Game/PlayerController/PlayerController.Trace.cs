@@ -3,6 +3,7 @@
 public sealed partial class PlayerController : Component
 {
 	const float _movementSkin = 0.05f;
+	const float _traceSeparation = 0.03125f; // Native DIST_EPSILON.
 
 	/// <summary>
 	/// Return an aabb representing the body
@@ -40,6 +41,89 @@ public sealed partial class PlayerController : Component
 
 		var upper = TraceUpperMovement( from, to, skin ).Run();
 		return upper.StartedSolid || upper.Fraction < result.Fraction ? upper : result;
+	}
+
+	internal SceneTraceResult TraceStaticMovement( Vector3 from, Vector3 to, PhysicsShape previousContact, Vector3 previousNormal, bool includeGroundClearance = false )
+	{
+		var result = TraceMovement( from, to, 0, includeGroundClearance );
+		// Perpendicular probes distinguish grazing contacts from actual penetration.
+		if ( result.Hit )
+			RefineStaticContact( ref result, from, to, result.Shape, UpDirection, includeGroundClearance, matchNormal: false );
+		RefineStaticContact( ref result, from, to, previousContact, previousNormal, includeGroundClearance, matchNormal: true );
+		return result;
+	}
+
+	bool TryProbeSlideContact( Vector3 position, PhysicsShape shape, Vector3 direction, bool includeGroundClearance, bool matchNormal, out SceneTraceResult surface )
+	{
+		var probeOffset = direction * 0.125f;
+		foreach ( var hit in TraceFeetMovement( position + probeOffset, position - probeOffset, 0, includeGroundClearance, out var offset ).UseHitPosition().RunAll() )
+		{
+			if ( hit.Shape != shape || hit.StartedSolid || (matchNormal && hit.Normal.Dot( direction ) < 0.9999f) ) continue;
+			surface = hit;
+			// Reconstruct the contact from its hull face to avoid accumulating sweep error.
+			var face = Scene.Trace.Ray( hit.HitPosition + hit.Normal * 0.125f, hit.HitPosition - hit.Normal * 0.125f )
+				.IgnoreGameObjectHierarchy( GameObject ).WithCollisionRules( Tags ).UseHitPosition().Run();
+			surface.StartPosition -= offset;
+			surface.EndPosition -= offset;
+			var normalAlongProbe = face.Normal.Dot( direction );
+			if ( face.Hit && !face.StartedSolid && face.Shape == shape && face.Normal.Dot( hit.Normal ) > 0.9999f && normalAlongProbe > 0.001f )
+			{
+				var feet = FeetCollider;
+				var extents = feet.Scale * feet.WorldScale.Abs() * 0.5f;
+				var clearance = (feet.WorldTransform.PointToWorld( feet.Center ) - WorldPosition - offset).Dot( UpDirection );
+				extents += (feet.WorldRotation.Inverse * UpDirection).Abs() * clearance;
+				var support = (feet.WorldRotation.Inverse * face.Normal).Abs().Dot( extents );
+				var separation = (position + offset - face.HitPosition).Dot( face.Normal ) - support;
+				surface.Normal = face.Normal;
+				surface.EndPosition = position - direction * ((separation - _traceSeparation) / normalAlongProbe);
+			}
+			return true;
+		}
+		surface = default;
+		return false;
+	}
+
+	SceneTraceResult TraceMovementIgnoringShape( Vector3 from, Vector3 to, PhysicsShape ignoredShape, bool includeGroundClearance )
+	{
+		var result = new SceneTraceResult { StartPosition = from, EndPosition = to, Fraction = 1 };
+		void Consider( SceneTraceResult hit, Vector3 offset )
+		{
+			if ( hit.Shape == ignoredShape || (!hit.StartedSolid && hit.Fraction >= result.Fraction) ) return;
+			result = hit;
+			result.StartPosition -= offset;
+			result.EndPosition -= offset;
+		}
+		foreach ( var hit in TraceFeetMovement( from, to, 0, includeGroundClearance, out var offset ).RunAll() ) Consider( hit, offset );
+		if ( BodyCollider.IsValid() && BodyCollider.Enabled )
+			foreach ( var hit in TraceUpperMovement( from, to, 0 ).RunAll() ) Consider( hit, Vector3.Zero );
+		return result;
+	}
+
+	void RefineStaticContact( ref SceneTraceResult result, Vector3 from, Vector3 to, PhysicsShape shape, Vector3 direction, bool includeGroundClearance, bool matchNormal )
+	{
+		if ( !shape.IsValid() || !shape.IsHullShape || shape.Body?.BodyType != PhysicsBodyType.Static
+			|| !shape.SurfaceVelocity.IsNearZeroLength || direction.Dot( UpDirection ) <= 0 ) return;
+		if ( !TryProbeSlideContact( from, shape, direction, includeGroundClearance, matchNormal, out var contact )
+			|| contact.Normal.Dot( UpDirection ) <= 0 || Mode.IsStandableSurface( contact ) ) return;
+
+		var movement = to - from;
+		var offsetToPlane = (contact.EndPosition - from).Dot( contact.Normal );
+		var separation = _traceSeparation - offsetToPlane;
+		if ( separation <= 0.00001f ) return;
+		var approach = movement.Dot( contact.Normal );
+		if ( result.Shape == shape && (result.StartedSolid || approach > -separation) )
+			result = TraceMovementIgnoringShape( from, to, shape, includeGroundClearance );
+
+		if ( approach > -separation || result.StartedSolid ) return;
+		var fraction = MathF.Max( 0, offsetToPlane / approach );
+		if ( fraction >= 1 || fraction > result.Fraction ) return;
+		if ( result.Hit && fraction == result.Fraction && (result.Normal.Dot( UpDirection ) <= 0 || Mode.IsStandableSurface( result )) ) return;
+		if ( fraction > 0 && !TryProbeSlideContact( from + movement * fraction, shape, contact.Normal, includeGroundClearance, true, out _ ) ) return;
+
+		result = contact;
+		result.StartPosition = from;
+		result.EndPosition = from + movement * fraction;
+		result.Fraction = fraction;
 	}
 
 	SceneTrace TraceFeetMovement( Vector3 from, Vector3 to, float skin, bool includeGroundClearance, out Vector3 offset )
@@ -197,12 +281,15 @@ public sealed partial class PlayerController : Component
 		return true;
 	}
 
-	bool TryFindGround( Vector3 position, float lift, float drop, out SceneTraceResult ground, out Vector3 landing, bool requireContact = false )
+	bool TryFindGround( Vector3 position, float lift, float drop, out SceneTraceResult ground, out Vector3 landing, bool requireContact = false, bool preciseDrop = false )
 	{
 		var feet = FeetCollider;
 		var up = UpDirection;
 		var localUp = feet.WorldRotation.Inverse * up;
 		var extents = feet.Scale * feet.WorldScale.Abs() * 0.5f;
+		// Probe the footprint, not the whole standing hull.
+		var verticalExtent = extents.Dot( localUp.Abs() );
+		extents -= localUp.Abs() * MathF.Max( verticalExtent - 2, 0 );
 		var center = WithoutVertical( feet.WorldTransform.PointToWorld( feet.Center ) - WorldPosition )
 			+ up * extents.Dot( localUp.Abs() );
 		// Physical landings need actual feet overlap, not the static step planner's lookahead margin.
@@ -252,6 +339,11 @@ public sealed partial class PlayerController : Component
 			// A tilted triangle's plane may not support the entire footprint. Retain the swept support height.
 			if ( confirmSurface && normalUp < 0.9999f )
 				height = (sweptPosition - position).Dot( up ) + _skin / normalUp;
+
+			// Physical supports need contact tolerance; static landings use strict reach.
+			if ( preciseDrop && hit.Body?.BodyType == PhysicsBodyType.Static
+				&& height - _skin / normalUp <= -drop )
+				return false;
 
 			if ( height > lift + _skin / normalUp || height < -drop - _skin )
 				return false;

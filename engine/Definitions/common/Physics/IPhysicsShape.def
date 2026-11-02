@@ -1,7 +1,7 @@
 
-#include "vphysics2/iphysicsbody.h"
-#include "vphysics2/iphysicsshape.h"
-#include "vphysics2/iphysicsjoint.h"
+#include "physics/iphysicsbody.h"
+#include "physics/iphysicsshape.h"
+#include "physics/iphysicsjoint.h"
 
 native class CQueryResult as NativeEngine.CQueryResult
 {

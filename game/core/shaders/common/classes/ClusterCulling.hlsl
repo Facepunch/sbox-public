@@ -90,8 +90,12 @@ struct Cluster
 
         depth = clamp( depth, ClusterZParams.z, ClusterZParams.w );
         uint3 d = max( uint3( ClusterCounts.xyz ), 1 );
-        uint flatIndex = Flatten( clamp( uint3( uv * d.xy, DepthToSlice( depth ) ), 0, d - 1 ) );
+        return Query( type, Flatten( clamp( uint3( uv * d.xy, DepthToSlice( depth ) ), 0, d - 1 ) ) );
+    }
 
+    // The cluster at a flattened index, for callers that already know which
+    static ClusterRange Query( ClusterItemType type, uint flatIndex )
+    {
         // Build range
         uint capacity = Capacity( type );
         uint count = 0;

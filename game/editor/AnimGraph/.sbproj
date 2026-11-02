@@ -1,0 +1,22 @@
+{
+  "Title": "AnimGraph",
+  "Type": "tool",
+  "Org": "local",
+  "Ident": "animgraph",
+  "Tags": null,
+  "Schema": 1,
+  "HasAssets": false,
+  "AssetsPath": "",
+  "Resources": null,
+  "MenuResources": null,
+  "HasCode": true,
+  "CodePath": "",
+  "PackageReferences": [],
+  "EditorReferences": null,
+  "Metadata": {
+    "Compiler": {
+      "TreatWarningsAsErrors": true
+    },
+    "ProjectTemplate": null
+  }
+}

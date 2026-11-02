@@ -101,7 +101,7 @@ internal static class NativeLayers
 	/// A forward layer of opaque objects, static or dynamic, with the layer its fading objects go to after it
 	/// (<c>CRenderingPipelineStandard::AddOpaqueLayers</c>). Static objects are the world, dynamic everything else.
 	/// </summary>
-	public static void AddOpaque( CRenderPipelineSetup setup, string name, string fadeName, bool dynamicObjects )
+	public static void AddOpaque( CRenderPipelineSetup setup, string name, string fadeName, bool dynamicObjects, bool occlusionCulled = false )
 	{
 		var view = setup.m_pView;
 		var viewport = setup.m_viewport;
@@ -114,6 +114,7 @@ internal static class NativeLayers
 			opaque = Add( view, name, viewport, shadingMode, setup.m_hColor, setup.m_hDepth, setup.m_colorSpace,
 				LayerFlags.NeverRemove | LayerFlags.NeedsPerViewLightingConstants | LayerFlags.CountArtistTriangles );
 			opaque.LayerEnum = SceneLayerType.Opaque;
+			if ( occlusionCulled ) opaque.m_nLayerFlags |= LayerFlags.OcclusionCulled;
 			opaque.DisableReflectionsAndRefractionsForObjectsInThisLayer( true );
 			opaque.AddObjectFlagsRequiredMask( SceneObjectFlags.IsOpaque );
 			opaque.AddObjectFlagsExcludedMask( SceneObjectFlags.IsLight | SceneObjectFlags.ExcludeGameLayer );

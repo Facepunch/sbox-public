@@ -303,18 +303,19 @@ internal static partial class GameScenes
 	/// the forward pass applies its result through a pipeline texture slot. Its history is the camera's, so compare it
 	/// isolated (<c>scenelab.exe -parity -isolated</c>).
 	/// </summary>
-	public static Scene AmbientOcclusion() => OcclusionStage( ao: true, ssr: false );
+	public static Scene AmbientOcclusion() => OcclusionStage( ao: true );
 
 	/// <summary>
-	/// Screen space reflections (<c>ScreenSpaceReflections</c>): the ambient occlusion scene reflected in its metal floor.
-	/// SSR reads the prepass's normals and roughness, last frame's colour and its own history. Compare it isolated.
+	/// Screen space reflections (<c>ScreenSpaceReflectionsPass</c>): the ambient occlusion scene reflected in its metal floor.
+	/// SSR reads the prepass's normals and roughness, last frame's colour and its own history. Compare it isolated. Every
+	/// camera renders it now, so the other occlusion scenes have it too.
 	/// </summary>
-	public static Scene ScreenSpaceReflections() => OcclusionStage( ao: false, ssr: true );
+	public static Scene ScreenSpaceReflections() => OcclusionStage( ao: false );
 
 	/// <summary>Both independent prepass effects in a small scene, without enough draws to enable worker recording.</summary>
-	public static Scene OcclusionAndReflections() => OcclusionStage( ao: true, ssr: true );
+	public static Scene OcclusionAndReflections() => OcclusionStage( ao: true );
 
-	static Scene OcclusionStage( bool ao, bool ssr )
+	static Scene OcclusionStage( bool ao )
 	{
 		var scene = Stage( out var camera, new Vector3( -200, -150, 110 ), new Vector3( 20, 20, 20 ) );
 		using var _ = scene.Push();
@@ -331,7 +332,6 @@ internal static partial class GameScenes
 		OnFloor( Prop( "Small Box", "models/dev/box.vmdl", new Vector3( 10, -40, 0 ), new Color( 0.4f, 0.9f, 0.4f ), scale: 0.3f ) );
 
 		if ( ao ) camera.GameObject.Components.Create<Sandbox.AmbientOcclusion>();
-		if ( ssr ) camera.GameObject.Components.Create<Sandbox.ScreenSpaceReflections>();
 		return scene;
 	}
 
@@ -1088,6 +1088,43 @@ internal static partial class GameScenes
 		spotLight.ConeOuter = 30;
 		spotLight.ConeInner = 20;
 		spotLight.Shadows = true;
+
+		return scene;
+	}
+
+	/// <summary>
+	/// Dense smoke: 1500 big lit smoke sprites overlapping in the fog scene with an 8x8 grid of point lights, every eighth one
+	/// shadowed, for sprite lighting under heavy overdraw. Placed from a fixed seed, so captures repeat.
+	/// </summary>
+	public static Scene DenseSmoke()
+	{
+		var scene = VolumetricFog();
+		using var _ = scene.Push();
+
+		for ( int i = 0; i < 64; i++ )
+		{
+			var light = new GameObject( true, $"Smoke Light {i}" );
+			light.WorldPosition = new Vector3( (i % 8 - 3.5f) * 45, (i / 8 - 3.5f) * 45, 30 + (i % 3) * 30 );
+			var point = light.Components.Create<PointLight>();
+			point.LightColor = new ColorHsv( i * 47 % 360, 0.7f, 1 ).ToColor() * 0.5f;
+			point.Radius = 90;
+			point.Shadows = i % 8 == 0;
+		}
+
+		var sprite = Sprite.FromTexture( Texture.Load( "textures/particles/smoke/smoke_loop_a.vtex" ) );
+		var random = new Random( 1 );
+		for ( int i = 0; i < 1500; i++ )
+		{
+			var go = new GameObject( true, $"Smoke {i}" );
+			go.WorldPosition = new Vector3( random.Float( -170, 170 ), random.Float( -170, 170 ), random.Float( 10, 140 ) );
+			var renderer = go.Components.Create<SpriteRenderer>();
+			renderer.Sprite = sprite;
+			renderer.Size = random.Float( 50, 110 );
+			renderer.Color = new Color( 0.8f, 0.8f, 0.8f, 0.3f );
+			renderer.AlphaCutoff = 0;
+			renderer.Lighting = true;
+			renderer.IsSorted = true;
+		}
 
 		return scene;
 	}

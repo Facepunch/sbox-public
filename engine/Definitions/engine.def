@@ -31,5 +31,5 @@ managed static class Sandbox.Engine.Bootstrap
 managed static class Sandbox.Engine.SystemInfo
 {
 	static void Set( string cpu, ushort processorCount, ulong frequency, ulong totalMemory );
-	static void SetGpu( string driver, string version, ulong memory );
+	static void SetGpu( string driver, string version, ulong memory, bool integrated );
 }

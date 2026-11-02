@@ -26,6 +26,8 @@ public class PhysicsCollider : Collider, IHasPhysicsDescription
 
 	internal override void UpdateShape()
 	{
+		var body = PhysicsBody;
+		using var mass = body.IsValid() ? body._body.BatchMassUpdates() : default;
 		base.UpdateShape();
 
 		// Because we rebuild the physics shapes, allow rigidbody to apply their properties.
@@ -81,15 +83,21 @@ public class PhysicsCollider : Collider, IHasPhysicsDescription
 
 			foreach ( var sphere in part.Spheres )
 			{
-				var shape = targetBody.AddSphereShape( bx.PointToWorld( sphere.Sphere.Center ), sphere.Sphere.Radius * bx.UniformScale );
-				shape.Surface = sphere.Surface;
+				PhysicsShape shape;
+				using ( targetBody._body.UseShapeSurface( sphere.Surface ) )
+				{
+					shape = targetBody.AddSphereShape( bx.PointToWorld( sphere.Sphere.Center ), sphere.Sphere.Radius * bx.UniformScale );
+				}
 				yield return shape;
 			}
 
 			foreach ( var capsule in part.Capsules )
 			{
-				var shape = targetBody.AddCapsuleShape( bx.PointToWorld( capsule.Capsule.CenterA ), bx.PointToWorld( capsule.Capsule.CenterB ), capsule.Capsule.Radius * bx.UniformScale );
-				shape.Surface = capsule.Surface;
+				PhysicsShape shape;
+				using ( targetBody._body.UseShapeSurface( capsule.Surface ) )
+				{
+					shape = targetBody.AddCapsuleShape( bx.PointToWorld( capsule.Capsule.CenterA ), bx.PointToWorld( capsule.Capsule.CenterB ), capsule.Capsule.Radius * bx.UniformScale );
+				}
 				yield return shape;
 			}
 
@@ -97,16 +105,21 @@ public class PhysicsCollider : Collider, IHasPhysicsDescription
 			{
 				foreach ( var hull in part.Hulls )
 				{
-					var shape = targetBody.AddShape( hull, bx );
-					shape.Surface = hull.Surface;
+					PhysicsShape shape;
+					using ( targetBody._body.UseShapeSurface( hull.Surface ) )
+					{
+						shape = targetBody.AddShape( hull, bx );
+					}
 					yield return shape;
 				}
 
 				foreach ( var mesh in part.Meshes )
 				{
-					var shape = targetBody.AddShape( mesh, bx, false, true );
-					shape.Surface = mesh.Surface;
-					shape.Surfaces = mesh.Surfaces;
+					PhysicsShape shape;
+					using ( targetBody._body.UseShapeSurface( mesh.Surface, mesh.Surfaces ) )
+					{
+						shape = targetBody.AddShape( mesh, bx, false, true );
+					}
 					yield return shape;
 				}
 			}
@@ -116,7 +129,6 @@ public class PhysicsCollider : Collider, IHasPhysicsDescription
 				{
 					foreach ( var shape in body2d.AddHullPartShapes( hull, bx ) )
 					{
-						shape.Surface = hull.Surface;
 						yield return shape;
 					}
 				}
@@ -125,8 +137,6 @@ public class PhysicsCollider : Collider, IHasPhysicsDescription
 				{
 					foreach ( var shape in body2d.AddMeshPartShapes( mesh, bx ) )
 					{
-						shape.Surface = mesh.Surface;
-						shape.Surfaces = mesh.Surfaces;
 						yield return shape;
 					}
 				}

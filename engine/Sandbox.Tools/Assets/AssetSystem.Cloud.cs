@@ -24,6 +24,7 @@ public static partial class AssetSystem
 	/// <param name="skipIfInstalled">Skip downloading the remote package if any version of this package is already installed.</param>
 	/// <param name="loading"></param>
 	/// <param name="token"></param>
+	/// <exception cref="AggregateException">One or more files failed to download or verify. The package is not marked installed.</exception>
 	public static async Task<Asset> InstallAsync( Package package, bool skipIfInstalled = true, Action<float> loading = null, CancellationToken token = default )
 	{
 		ThreadSafe.AssertIsMainThread();
@@ -267,20 +268,36 @@ public static partial class AssetSystem
 		long totalSize = package.Revision.Manifest.Files.Sum( x => x.Size );
 		long downloaded = 0;
 		var written = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
+		var failures = new List<Exception>();
 
 		IToolsDll.Current?.RunEvent( "package.download.start", package, token );
 
 		await package.Revision.Manifest.Files.ForEachTaskAsync( async ( e ) =>
 		{
-			if ( await DownloadFile( package, e, token ) )
-				written.Add( e.Path );
+			if ( token.IsCancellationRequested ) return;
 
-			downloaded += e.Size;
+			try
+			{
+				if ( await DownloadFile( package, e, token ) )
+					written.Add( e.Path );
 
-			float frac = (float)((double)downloaded / (double)totalSize);
-			progress?.Invoke( frac );
-			IToolsDll.Current?.RunEvent( "package.download.update", package, frac );
+				downloaded += e.Size;
+
+				float frac = (float)((double)downloaded / (double)totalSize);
+				progress?.Invoke( frac );
+				IToolsDll.Current?.RunEvent( "package.download.update", package, frac );
+			}
+			catch ( Exception ex )
+			{
+				// Keep failures here: ForEachTaskAsync can discard completed faulted tasks.
+				failures.Add( ex );
+			}
 		}, Package.MaxParallelDownloads );
+
+		// All started downloads have finished before the caller releases its watcher suppression.
+		token.ThrowIfCancellationRequested();
+		if ( failures.Count > 0 )
+			throw new AggregateException( $"Failed to install cloud files for {package.FullIdent}", failures );
 
 		IToolsDll.Current?.RunEvent( "package.download.complete", package );
 		return written;
@@ -315,12 +332,16 @@ public static partial class AssetSystem
 		if ( !CloudDirectory.AddFile( entry.Path, entry.Crc, entry.Size, package ) )
 			return false; // unwanted - newer revision already registered
 
-		//
-		// File exists - we should probably check crcs and shit
-		//
-		if ( FileSystem.Cloud.FileExists( entry.Path ) && FileSystem.Cloud.FileSize( entry.Path ) == entry.Size )
+		var crc = Convert.ToUInt64( entry.Crc, 16 );
+		if ( await CloudDirectory.IsFileCurrentAsync( entry.Path, crc, entry.Size, token ) )
 			return false;
 
+		// Hashing yields to other installs. Check that a newer package hasn't claimed this path.
+		if ( !CloudDirectory.AddFile( entry.Path, entry.Crc, entry.Size, package ) )
+			return false;
+
+		CloudDirectory.TryGetFile( entry.Path, out var downloadRecord );
+		CloudDirectory.InvalidateFileVerification( entry.Path );
 		var targetFile = FileSystem.Cloud.GetFullPath( entry.Path );
 		var targetPath = System.IO.Path.GetDirectoryName( entry.Path );
 		FileSystem.Cloud.CreateDirectory( targetPath );
@@ -337,7 +358,18 @@ public static partial class AssetSystem
 		else
 		{
 			var url = $"{entry.Url}";
-			await Sandbox.Utility.Web.DownloadFile( url, targetFile, token );
+			if ( !await Sandbox.Utility.Web.DownloadFile( url, targetFile, token ) )
+				throw new System.IO.IOException( $"Failed to download cloud file {entry.Path} from {url}" );
+		}
+
+		var isCurrent = await CloudDirectory.IsFileCurrentAsync( entry.Path, crc, entry.Size, token );
+		if ( !CloudDirectory.TryGetFile( entry.Path, out var currentRecord ) || !ReferenceEquals( downloadRecord, currentRecord ) )
+			return false; // superseded during download or verification - leave the newer record alone
+
+		if ( !isCurrent )
+		{
+			CloudDirectory.InvalidateFileVerification( entry.Path );
+			throw new System.IO.InvalidDataException( $"Downloaded cloud file doesn't match its manifest: {entry.Path}" );
 		}
 
 		return true;

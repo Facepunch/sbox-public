@@ -131,7 +131,14 @@ public partial class NodeUI : GraphicsItem
 	public List<PlugIn> Inputs = new();
 	public List<PlugOut> Outputs = new();
 
+	private bool _updatingPlugs;
+
 	protected virtual float TitleHeight => Node.HasTitleBar ? 24f : 0f;
+
+	/// <summary>
+	/// Space reserved at the right of the title for additional indicators or controls.
+	/// </summary>
+	protected virtual float TitleAccessoryWidth => 0f;
 
 	private Rect _thumbRect;
 
@@ -212,12 +219,21 @@ public partial class NodeUI : GraphicsItem
 
 	public void MarkNodeChanged()
 	{
-		if ( !IsValid )
+		if ( !IsValid || _updatingPlugs )
 		{
 			return;
 		}
 
-		UpdatePlugs( false );
+		_updatingPlugs = true;
+		try
+		{
+			UpdatePlugs( false );
+		}
+		finally
+		{
+			_updatingPlugs = false;
+		}
+
 		Update();
 
 		Graph?.NodePositionChanged( this );
@@ -351,7 +367,7 @@ public partial class NodeUI : GraphicsItem
 		if ( Node.AutoSize )
 		{
 			Paint.SetDefaultFont( 7, 500 );
-			var titleWidth = Node.HasTitleBar ? Paint.MeasureText( DisplayInfo.Name ).x + 44f : 0f;
+			var titleWidth = Node.HasTitleBar ? Paint.MeasureText( DisplayInfo.Name ).x + 44f + TitleAccessoryWidth : 0f;
 
 			if ( Inputs.Any( x => x.Inner.InTitleBar ) )
 			{
@@ -538,6 +554,7 @@ public partial class NodeUI : GraphicsItem
 			}
 
 			var title = display.Name;
+			titleRect.Right -= TitleAccessoryWidth;
 
 			Paint.SetDefaultFont( 7, 500 );
 			Paint.SetPen( PrimaryColor.Lighten( 0.8f ) );
@@ -613,6 +630,13 @@ public partial class NodeUI : GraphicsItem
 
 		var hasError = !string.IsNullOrWhiteSpace( Node.ErrorMessage );
 		var selectionOutline = SelectionOutline;
+
+		if ( Node is INodeHighlight { HighlightOutlineColor: { } highlight } && highlight.a > 0f )
+		{
+			Paint.SetPen( highlight, 2.0f );
+			Paint.ClearBrush();
+			Paint.DrawRect( rect, radius );
+		}
 
 		if ( hasError )
 		{

@@ -68,11 +68,6 @@ internal sealed class ViewPass
 	public float SlopeScaledDepthBias { get; set; }
 
 	/// <summary>
-	/// Excludes casters fully covered by an earlier cascade.
-	/// </summary>
-	public ViewFrustum? Exclusion { get; set; }
-
-	/// <summary>
 	/// Shared query sphere for a light's shadow views. Null uses the view frustum.
 	/// </summary>
 	public (Vector3 Center, float Radius)? LightSphere { get; set; }
@@ -115,7 +110,6 @@ internal sealed class ViewPass
 		TargetSlice = 0;
 		DepthBias = 0;
 		SlopeScaledDepthBias = 0;
-		Exclusion = null;
 		LightSphere = null;
 	}
 }

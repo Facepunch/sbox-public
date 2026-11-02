@@ -153,7 +153,9 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 				var entry = entries[i];
 				using ( _executeCommandList.Start( entry.List.DebugName ) )
 				{
-					if ( entry.List.Flags.Contains( CommandList.Flag.PostProcess ) && !currentCamera.EnablePostProcessing )
+					// The view decides too: a reflection or other secondary view can turn post processing off.
+					if ( entry.List.Flags.Contains( CommandList.Flag.PostProcess )
+						&& (!currentCamera.EnablePostProcessing || (Graphics.IsActive && !Graphics.PostProcessEnabled)) )
 						continue;
 
 					entry.List.ExecuteOnRenderThread();

@@ -417,6 +417,9 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		Analytics.GameClosed();
 		using var scope = GlobalContext.GameScope();
 
+		// A capture the game left armed - the pause menu took escape, or we got dropped
+		InputContext?.ResetTrapping();
+
 		if ( gameInstance is not null )
 		{
 			ConVarSystem.SaveAll();

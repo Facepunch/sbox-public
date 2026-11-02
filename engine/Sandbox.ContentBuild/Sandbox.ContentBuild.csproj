@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!--
+		Builds content roots: inventory, dependency graph, up-to-date checks, scheduling and publication.
+		Compiling one asset is delegated to IAssetCompiler (resourcecompiler.exe). No engine dependency, so
+		SboxBuild, the editor and tests can all use it.
+	-->
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>disable</Nullable>
+		<RootNamespace>Sandbox.ContentBuild</RootNamespace>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="System.IO.Hashing" Version="10.0.0" />
+		<InternalsVisibleTo Include="Sandbox.Test.Unit" />
+		<InternalsVisibleTo Include="Sandbox.Test.Engine" />
+	</ItemGroup>
+
+</Project>

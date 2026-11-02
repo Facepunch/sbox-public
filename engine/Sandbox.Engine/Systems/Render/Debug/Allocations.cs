@@ -3,7 +3,7 @@ namespace Sandbox;
 internal static partial class DebugOverlay
 {
 	/// <summary>
-	/// Managed allocations by type, and GC pauses, for the performance hub's Memory tab. Tracking starts the first
+	/// Managed allocations by type, and GC pauses, for the dev tools's Memory tab. Tracking starts the first
 	/// time the tab samples and stops when it closes, since an allocation scope isn't free.
 	/// </summary>
 	public partial class Allocations

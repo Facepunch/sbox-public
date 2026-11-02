@@ -29,9 +29,24 @@ internal sealed class SnapshotCapture
 			stream.Write( InternalMessageType.Packed );
 			serializer.SerializeTo( ref stream, envelope( Materialize() ) );
 			var packet = Connection.EncodePacket( stream );
-			var packets = Connection.CreatePackets( packet.Span, flags );
-			packet.Release();
-			return packets;
+			try
+			{
+				// Keep the complete encoded message for a possible host relay. Prepare large direct-send
+				// chunks here on the worker, rather than copying the snapshot on the network frame.
+				var encoded = packet.Span.ToArray();
+				if ( (flags & NetFlags.Reliable) == 0 || encoded.Length <= Connection.MaxChunkSize )
+					return [encoded];
+
+				var chunks = Connection.CreatePackets( encoded, flags );
+				var result = new byte[chunks.Length + 1][];
+				result[0] = encoded;
+				chunks.CopyTo( result, 1 );
+				return result;
+			}
+			finally
+			{
+				packet.Release();
+			}
 		}
 		finally
 		{

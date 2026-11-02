@@ -18,8 +18,10 @@ internal sealed partial class VtxFile
 	private readonly int[][] _vertexIndices;
 
 	public bool HasTangents { get; }
+	internal readonly record struct LightingMesh( int BodyPart, int Model, int Lod, int Mesh, ushort[] Vertices );
+	internal IReadOnlyList<LightingMesh> LightingMeshes { get; }
 
-	public VtxFile( Stream stream, MdlFile mdl, VvdFile vvd, int maxLods = 8 )
+	public VtxFile( Stream stream, MdlFile mdl, VvdFile vvd, int maxLods = 8, bool readLighting = false )
 	{
 		if ( !stream.CanSeek )
 			throw new InvalidDataException( "VTX parsing requires a seekable stream." );
@@ -27,6 +29,7 @@ internal sealed partial class VtxFile
 			throw new ArgumentOutOfRangeException( nameof( maxLods ) );
 		var stripData = new List<(OptimizedVertex[] Vertices, ushort[] Indices, StripHeader Strip)>();
 		var indexCount = 0;
+		var lightingMeshes = new List<LightingMesh>();
 
 		using ( var reader = new BinaryReader( stream, Encoding.UTF8, leaveOpen: true ) )
 		{
@@ -139,6 +142,10 @@ internal sealed partial class VtxFile
 										throw new InvalidDataException( "VTX vertex is outside its MDL mesh." );
 								}
 
+								if ( readLighting )
+									lightingMeshes.Add( new LightingMesh( bodyPartIndex, modelIndex, lodIndex, meshIndex,
+										verts.Select( vertex => vertex.OrigMeshVertId ).ToArray() ) );
+
 								reader.BaseStream.Seek( start + stripGroup.IndexOffset, SeekOrigin.Begin );
 								var indices = LumpReader<ushort>.ReadLumpFromStream( reader.BaseStream, stripGroup.NumIndices );
 
@@ -232,15 +239,8 @@ internal sealed partial class VtxFile
 			_tangents = vvd.Tangents;
 			_vertexIndices = vertexIndices;
 			HasTangents = vvd.HasTangents;
+			LightingMeshes = lightingMeshes;
 		}
-	}
-
-	public int GetLodCount( int bodyPart, int model )
-	{
-		var bodyPartHdr = _bodyParts[bodyPart];
-		var modelHdr = _models[bodyPartHdr.ModelOffset + model];
-
-		return modelHdr.NumLods;
 	}
 
 	public int GetIndexCount( int bodyPart, int model, int lod, int mesh )
@@ -260,25 +260,8 @@ internal sealed partial class VtxFile
 		return meshData.IndexCount;
 	}
 
-	public int GetVertexCount( int bodyPart, int model, int lod, int mesh )
-	{
-		return GetMeshData( bodyPart, model, lod, mesh ).VertexCount;
-	}
-
 	public VertexData<StudioVertex> GetVertices( int bodyPart, int model, int lod, int mesh )
 		=> GetVertexData( _vertices, bodyPart, model, lod, mesh );
-
-	public int GetVertices( int bodyPart, int model, int lod, int mesh, StudioVertex[] destArray, int offset = 0 )
-	{
-		var vertices = GetVertices( bodyPart, model, lod, mesh );
-
-		if ( destArray != null )
-		{
-			vertices.CopyTo( destArray.AsSpan( offset ) );
-		}
-
-		return vertices.Length;
-	}
 
 	public VertexData<Vector4> GetTangents( int bodyPart, int model, int lod, int mesh )
 	{
@@ -286,30 +269,6 @@ internal sealed partial class VtxFile
 			return default;
 
 		return GetVertexData( _tangents, bodyPart, model, lod, mesh );
-	}
-
-	public int GetTangents( int bodyPart, int model, int lod, int mesh, Vector4[] destArray, int offset = 0 )
-	{
-		if ( !HasTangents )
-			return 0;
-
-		var tangents = GetTangents( bodyPart, model, lod, mesh );
-
-		if ( destArray != null )
-		{
-			tangents.CopyTo( destArray.AsSpan( offset ) );
-		}
-
-		return tangents.Length;
-	}
-
-	public int GetMeshCount( int bodyPart, int model, int lod )
-	{
-		var bodyPartHdr = _bodyParts[bodyPart];
-		var modelHdr = _models[bodyPartHdr.ModelOffset + model];
-		var lodHdr = _modelLods[modelHdr.LodOffset + lod];
-
-		return lodHdr.NumMeshes;
 	}
 
 	private MeshData GetMeshData( int bodyPart, int model, int lod, int mesh )
@@ -338,17 +297,5 @@ internal sealed partial class VtxFile
 		public bool IsEmpty => Length == 0;
 		public ref readonly T this[int index] => ref _values[_indices.IsEmpty ? index : _indices[index]];
 
-		public void CopyTo( Span<T> destination )
-		{
-			if ( _indices.IsEmpty )
-			{
-				_values.CopyTo( destination );
-				return;
-			}
-			if ( destination.Length < _indices.Length )
-				throw new ArgumentException( "Destination is shorter than the vertex data.", nameof( destination ) );
-			for ( var i = 0; i < _indices.Length; ++i )
-				destination[i] = _values[_indices[i]];
-		}
 	}
 }

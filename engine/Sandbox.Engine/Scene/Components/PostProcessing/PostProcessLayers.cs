@@ -115,25 +115,6 @@ internal class PostProcessLayers
 				entry.RanEarly = true;
 		}
 	}
-
-	/// <summary>
-	/// Whether a layer reads the depth-normals prepass's G-buffer (<see cref="BasePostProcess.NeedsDepthNormals"/>).
-	/// </summary>
-	public bool NeedsDepthNormals
-	{
-		get
-		{
-			foreach ( var list in Layers.Values )
-			{
-				foreach ( var entry in list )
-				{
-					if ( entry.NeedsDepthNormals ) return true;
-				}
-			}
-
-			return false;
-		}
-	}
 }
 
 internal record struct WeightedEffect

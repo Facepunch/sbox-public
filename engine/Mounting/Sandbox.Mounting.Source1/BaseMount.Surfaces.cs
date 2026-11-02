@@ -15,8 +15,7 @@ public abstract partial class BaseMount
 
 	private void MountSurfaces( MountContext context, FileIndex files )
 	{
-		lock ( indexLock )
-			missingSurfaces.Clear();
+		missingSurfaces.Clear();
 		files.Surfaces.Clear();
 		files.SurfaceSounds.Clear();
 		const string manifest = "scripts/surfaceproperties_manifest.txt";
@@ -118,10 +117,7 @@ public abstract partial class BaseMount
 	{
 		if ( string.IsNullOrWhiteSpace( name ) || !index.Surfaces.ContainsKey( name ) )
 		{
-			bool logMissingSurface;
-			lock ( indexLock )
-				logMissingSurface = missingSurfaces.Add( name ?? "" );
-			if ( logMissingSurface )
+			if ( missingSurfaces.Add( name ?? "" ) )
 				Log.Trace( $"{source}: Source surface '{name}' is unavailable in {Title}; using the default surface." );
 			if ( !index.Surfaces.ContainsKey( "default" ) )
 				return Surface.FindByName( "default" )

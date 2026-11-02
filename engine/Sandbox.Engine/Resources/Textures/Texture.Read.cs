@@ -66,7 +66,7 @@ public partial class Texture
 			// If desc.m_nWidth and height are 0, this is probably the rendersystemempty, which is obviously a disaster
 			//
 
-			throw new System.Exception( $"targetMemoryRequired <= 0 ({width}x{height}x{depth} {outputFormat})" );
+			throw new System.Exception( $"targetMemoryRequired <= 0 ({width}x{height}x{depth} {outputFormat}): reading a texture's pixels needs a GPU device" );
 		}
 
 		var bitmap = new Bitmap( width, height * depth, floatingPoint );

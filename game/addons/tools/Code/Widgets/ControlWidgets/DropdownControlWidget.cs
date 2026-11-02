@@ -19,6 +19,12 @@ public abstract class DropdownControlWidget<T> : ControlWidget
 		public T Value { get; set; }
 		public string Label { get; set; }
 		public string Icon { get; set; }
+
+		/// <summary>
+		/// A picture in place of <see cref="Icon"/>, like a thumbnail - cut to fill the icon's square
+		/// </summary>
+		public Pixmap Image { get; set; }
+
 		public string Description { get; set; }
 	}
 
@@ -144,7 +150,25 @@ file class MenuOption<T> : Widget
 
 		if ( e is DropdownControlWidget<T>.Entry entry )
 		{
-			if ( !string.IsNullOrWhiteSpace( entry.Icon ) )
+			if ( entry.Image is { } image )
+			{
+				var picture = Layout.Add( new Widget( this ) { FixedSize = Theme.RowHeight, TransparentForMouseEvents = true } );
+				picture.OnPaintOverride = () =>
+				{
+					// Cut to fill the square, the corners rounded
+					var covered = image.Resize( picture.Size );
+					var offset = (new Vector2( covered.Width, covered.Height ) - picture.Size) * 0.5f;
+
+					Paint.Antialiasing = true;
+					Paint.ClearPen();
+					Paint.Translate( -offset );
+					Paint.SetBrush( covered );
+					Paint.DrawRect( new Rect( offset, picture.Size ), 3 );
+					Paint.Translate( offset );
+					return true;
+				};
+			}
+			else if ( !string.IsNullOrWhiteSpace( entry.Icon ) )
 			{
 				Layout.Add( new IconButton( entry.Icon ) { Background = Color.Transparent, TransparentForMouseEvents = true, IconSize = 18 } );
 			}

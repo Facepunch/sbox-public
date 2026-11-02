@@ -25,7 +25,7 @@ class Program
 		// Attach the VK_EXT_device_fault vendor blob (AMD) if available
 		AttachDeviceFaultFile( envelope );
 
-		// Attach the most recent game log if available
+		// Attach the crashing process's log if available
 		AttachLatestLog( envelope );
 
 		// Attach managed stack traces from minidump (ClrMD)
@@ -242,7 +242,13 @@ class Program
 				return;
 			}
 
-			var candidates = new[] { "sbox.log", "sbox-dev.log" }
+			// Each process logs to logs/<process name>.log, another process's log would only mislead
+			var processName = envelope.TryGetEvent()?.TryParseAsJson()?["contexts"]?["process"]?["name"]?.GetValue<string>();
+			var logNames = string.IsNullOrEmpty( processName )
+				? new[] { "sbox.log", "sbox-dev.log" }
+				: new[] { $"{processName.Split( '.' )[0]}.log" };
+
+			var candidates = logNames
 				.Select( name => new FileInfo( Path.Combine( logsDir, name ) ) )
 				.Where( fi => fi.Exists )
 				.OrderByDescending( fi => fi.LastWriteTimeUtc )

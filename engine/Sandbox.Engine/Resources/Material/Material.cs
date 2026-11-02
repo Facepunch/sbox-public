@@ -67,6 +67,8 @@ public sealed partial class Material : Resource
 	/// </summary>
 	public Material CreateCopy( string name = null )
 	{
-		return FromNative( MaterialSystem2.CreateProceduralMaterialCopy( native, 0, true ), name );
+		var copy = FromNative( MaterialSystem2.CreateProceduralMaterialCopy( native, 0, true ), name );
+		if ( copy is not null ) copy.anonymousShader = anonymousShader;
+		return copy;
 	}
 }

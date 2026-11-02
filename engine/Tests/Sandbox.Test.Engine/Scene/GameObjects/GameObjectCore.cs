@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 
 namespace SceneTests.GameObjects;
@@ -294,6 +295,95 @@ public class GameObjectCoreTest : SceneTest
 		Assert.AreEqual( 0, root.GetAllObjects( true ).Count() );
 	}
 
+	[TestMethod]
+	public void GetAllObjectsCapturesDescendantsAfterYieldingRoot()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var root = scene.CreateObject();
+		var first = new GameObject( root );
+		var second = new GameObject( root );
+		using var iterator = root.GetAllObjects( false ).GetEnumerator();
+
+		Assert.IsTrue( iterator.MoveNext() );
+		Assert.AreSame( root, iterator.Current );
+
+		var grandchild = new GameObject( first );
+		var last = new GameObject( root );
+		var descendants = new List<GameObject>();
+		while ( iterator.MoveNext() )
+			descendants.Add( iterator.Current );
+
+		CollectionAssert.AreEqual( new[] { first, grandchild, second, last }, descendants.ToArray() );
+	}
+
+	[TestMethod]
+	public void GetAllObjectsRetainsSnapshotWhenHierarchyChanges()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var root = scene.CreateObject();
+		var first = new GameObject( root );
+		var grandchild = new GameObject( first );
+		var second = new GameObject( root );
+		var disabled = new GameObject( root, false );
+		_ = new GameObject( disabled );
+		using var iterator = root.GetAllObjects( true ).GetEnumerator();
+
+		Assert.IsTrue( iterator.MoveNext() );
+		Assert.AreSame( root, iterator.Current );
+		Assert.IsTrue( iterator.MoveNext() );
+		Assert.AreSame( first, iterator.Current );
+
+		grandchild.Parent = scene;
+		second.Enabled = false;
+		disabled.Enabled = true;
+		_ = new GameObject( first );
+
+		var remaining = new List<GameObject>();
+		while ( iterator.MoveNext() )
+			remaining.Add( iterator.Current );
+
+		CollectionAssert.AreEqual( new[] { grandchild, second }, remaining.ToArray() );
+		CollectionAssert.AreEqual( new[] { root, first, first.Children.Single(), disabled, disabled.Children.Single() },
+			root.GetAllObjects( true ).ToArray() );
+	}
+
+	[DataTestMethod]
+	[DataRow( false )]
+	[DataRow( true )]
+	public void GetAllObjectsPreservesDepthFirstOrderAcrossNestedSiblings( bool enabledOnly )
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var root = scene.CreateObject();
+		var first = new GameObject( root );
+		var firstChild = new GameObject( first );
+		var firstLeaf = new GameObject( firstChild );
+		var disabledDeep = new GameObject( firstChild, false );
+		var deepDisabledChild = new GameObject( disabledDeep );
+		var lastLeaf = new GameObject( firstChild );
+		var disabledMiddle = new GameObject( first, false );
+		var middleDisabledChild = new GameObject( disabledMiddle );
+		var lastChild = new GameObject( first );
+		var disabledRootChild = new GameObject( root, false );
+		var rootDisabledGrandchild = new GameObject( disabledRootChild );
+		var last = new GameObject( root );
+		var lastBranch = new GameObject( last );
+		var lastBranchLeaf = new GameObject( lastBranch );
+
+		var expected = enabledOnly
+			? new[] { root, first, firstChild, firstLeaf, lastLeaf, lastChild, last, lastBranch, lastBranchLeaf }
+			: new[] { root, first, firstChild, firstLeaf, disabledDeep, deepDisabledChild, lastLeaf,
+				disabledMiddle, middleDisabledChild, lastChild, disabledRootChild, rootDisabledGrandchild,
+				last, lastBranch, lastBranchLeaf };
+
+		CollectionAssert.AreEqual( expected, root.GetAllObjects( enabledOnly ).ToArray() );
+	}
+
 	/// <summary>
 	/// GetNextSibling returns null when there is no later sibling, including when
 	/// the only later siblings are disabled and enabledOnly is requested.
@@ -375,6 +465,28 @@ public class GameObjectCoreTest : SceneTest
 		var merged = go.GetBounds();
 		Assert.IsTrue( merged.Mins.AlmostEqual( new Vector3( 90, -10, -10 ) ), $"{merged.Mins}" );
 		Assert.IsTrue( merged.Maxs.AlmostEqual( new Vector3( 210, 10, 10 ) ), $"{merged.Maxs}" );
+	}
+
+	/// <summary>
+	/// An unbounded contributor (±float.MaxValue, e.g. a procedural mesh without Bounds)
+	/// is left out instead of turning the whole result into NaN.
+	/// </summary>
+	[TestMethod]
+	public void GetBoundsSkipsUnboundedContributors()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var go = scene.CreateObject();
+		go.Components.Create<BoundsProbeComponent>();
+
+		var unbounded = new GameObject( go );
+		unbounded.Components.Create<BoundsProbeComponent>().LocalBounds = new BBox( new Vector3( -float.MaxValue ), new Vector3( float.MaxValue ) );
+
+		// Vector3/BBox equality is AlmostEqual, which accepts NaN, so check finiteness first
+		var bounds = go.GetBounds();
+		Assert.IsTrue( bounds.Mins.IsFinite && bounds.Maxs.IsFinite, $"{bounds}" );
+		Assert.AreEqual( BBox.FromPositionAndSize( Vector3.Zero, 20f ), bounds );
 	}
 
 	/// <summary>

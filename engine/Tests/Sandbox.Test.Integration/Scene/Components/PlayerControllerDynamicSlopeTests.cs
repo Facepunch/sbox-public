@@ -98,6 +98,8 @@ public partial class PlayerControllerTest
 		using var scope = scene.Push();
 		var body = CreateOverlappingHullPlayerSupport( scene, seesaw, pitch, yaw, 64, rise );
 		var pc = CreatePlayer( scene, body.PhysicsBody.Transform.PointToWorld( new Vector3( -180, 0, 8 ) ) + Vector3.Up * 8 );
+		// Keep the original player footprint for this dynamic-support fixture.
+		pc.BodyRadius = 16;
 		var decisions = ObserveStepDecisions( pc );
 		TickUntilGrounded( scene, pc );
 		Assert.IsTrue( pc.IsOnGround );
@@ -110,9 +112,30 @@ public partial class PlayerControllerTest
 		}
 		var local = body.PhysicsBody.Transform.PointToLocal( pc.Body.PhysicsBody.Position );
 		Assert.IsTrue( local.x >= 160, $"blocked by a real compound step at {local}, velocity {pc.Body.Velocity}, lift {decisions.MaxLift}" );
-		var normal = body.PhysicsBody.Rotation.Up;
-		var feetSupport = 8 * (MathF.Abs( normal.x ) + MathF.Abs( normal.y ));
-		Assert.AreEqual( 8 + rise + feetSupport, local.z, 0.5f );
+
+		float HeightError()
+		{
+			var position = body.PhysicsBody.Transform.PointToLocal( pc.Body.PhysicsBody.Position );
+			var normal = body.PhysicsBody.Rotation.Up;
+			var feetSupport = pc.FeetCollider.Scale.x * 0.5f * (MathF.Abs( normal.x ) + MathF.Abs( normal.y ));
+			return position.z - (8 + rise + feetSupport);
+		}
+
+		if ( seesaw )
+		{
+			pc.WishVelocity = Vector3.Zero;
+			var stableTicks = 0;
+			for ( int i = 0; i < 50 && stableTicks < 5; ++i )
+			{
+				scene.GameTick( 1.0 / 50 );
+				Assert.IsTrue( pc.IsOnGround, $"lost support while settling on a dynamic step: {DescribeGround( pc )}" );
+				Assert.AreEqual( body.GameObject, pc.GroundObject );
+				stableTicks = MathF.Abs( HeightError() ) <= 0.5f ? stableTicks + 1 : 0;
+			}
+			Assert.AreEqual( 5, stableTicks, $"feet did not settle on a dynamic step: height error {HeightError()}" );
+		}
+
+		Assert.AreEqual( 0, HeightError(), 0.5f );
 		Assert.IsTrue( pc.IsOnGround );
 	}
 
@@ -395,7 +418,7 @@ public partial class PlayerControllerTest
 			loadLocking.Roll = true;
 			passive.Locking = loadLocking;
 			var collider = load.Components.Create<BoxCollider>();
-			collider.Scale = new Vector3( 16, 16, 72 );
+			collider.Scale = new Vector3( 32, 32, 72 );
 			collider.Center = Vector3.Up * 36;
 			collider.Friction = 101;
 		}
@@ -472,6 +495,7 @@ public partial class PlayerControllerTest
 		Assert.AreEqual( body.GameObject, hit.GameObject );
 		var pc = CreatePlayer( scene, hit.EndPosition + Vector3.Up );
 		pc.BodyHeight = 64;
+		pc.BodyRadius = 16;
 		for ( int i = 0; i < 30; ++i )
 			scene.GameTick( 1.0 / 50 );
 		Assert.IsTrue( pc.IsOnGround );
@@ -510,6 +534,8 @@ public partial class PlayerControllerTest
 		var pc = CreatePlayer( scene, hit.EndPosition + Vector3.Up );
 		pc.BodyHeight = 64;
 		var decisions = ObserveStepDecisions( pc );
+		// Match the player footprint in the reproduced scene, not the Source-sized helper.
+		pc.BodyRadius = 16;
 		for ( int i = 0; i < 60; ++i )
 			scene.GameTick( 1.0 / 50 );
 		for ( int crossing = 0; crossing < 3; ++crossing )

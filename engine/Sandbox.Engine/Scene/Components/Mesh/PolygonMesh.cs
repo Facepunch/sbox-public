@@ -52,6 +52,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 		public List<float> UvDensity { get; set; } = new();
 		public Material Material { get; set; }
 		public int Index { get; set; }
+		public int VertexCount { get; set; }
 	}
 
 	private struct FaceData
@@ -4425,9 +4426,22 @@ public sealed partial class PolygonMesh : IJsonConvert
 	readonly List<Submesh> _submeshes = [];
 	readonly Dictionary<FaceHandle, Vector3> _faceNormalCache = [];
 
+	/// <summary>
+	/// Set once the mesh has been painted, so <see cref="UpdateVertexData"/> can patch the built buffers in place.
+	/// Until then the CPU copy of the render vertices is released after each build.
+	/// </summary>
+	bool _keepVertexData;
+
 	internal void UpdateVertexData()
 	{
 		if ( _dirtyHalfEdges.Count == 0 ) return;
+
+		// The built buffers no longer match the mesh, fall back to a full rebuild
+		if ( !_keepVertexData && !RestoreVertexData() )
+		{
+			IsDirty = true;
+			return;
+		}
 
 		var dirtySubmeshes = new HashSet<int>();
 
@@ -4455,16 +4469,111 @@ public sealed partial class PolygonMesh : IJsonConvert
 		{
 			var submesh = _submeshes[submeshIndex];
 			var mesh = submesh.Mesh;
-			mesh.SetVertexBufferData( submesh.Vertices );
+			mesh?.SetVertexBufferData( submesh.Vertices );
 		}
 
 		_dirtyHalfEdges.Clear();
 	}
 
 	/// <summary>
+	/// Re-triangulate the vertex data released after the last build, keeping the built render meshes.
+	/// Returns false if the result doesn't match the built vertex buffers.
+	/// </summary>
+	bool RestoreVertexData()
+	{
+		var built = _submeshes.ToArray();
+
+		_keepVertexData = true;
+		BuildSubmeshes();
+
+		var matches = built.Length == _submeshes.Count;
+		for ( int i = 0; matches && i < built.Length; i++ )
+		{
+			matches = built[i].Material == _submeshes[i].Material && built[i].VertexCount == _submeshes[i].Vertices.Count;
+		}
+
+		if ( !matches )
+		{
+			_submeshes.Clear();
+			_submeshes.AddRange( built );
+			_halfEdgeToMeshVertices.Clear();
+			return false;
+		}
+
+		for ( int i = 0; i < built.Length; i++ )
+		{
+			_submeshes[i].Mesh = built[i].Mesh;
+			_submeshes[i].VertexCount = built[i].VertexCount;
+		}
+
+		return true;
+	}
+
+	/// <summary>
 	/// Triangulate the polygons into a model with the selected collision type.
 	/// </summary>
 	public Model Rebuild( MeshComponent.CollisionType collision = MeshComponent.CollisionType.None )
+	{
+		BuildSubmeshes();
+
+		foreach ( var submesh in _submeshes )
+		{
+			var vertices = submesh.Vertices;
+			var indices = submesh.Indices;
+
+			submesh.VertexCount = vertices.Count;
+
+			if ( vertices.Count < 3 )
+				continue;
+
+			if ( indices.Count < 3 )
+				continue;
+
+			var bounds = BBox.FromPoints( vertices.Select( x => x.Position ) );
+			var material = submesh.Material ?? DefaultMaterial;
+			var mesh = new Mesh( material );
+			mesh.CreateVertexBuffer( vertices.Count, vertices );
+			mesh.CreateIndexBuffer( indices.Count, indices );
+			mesh.Bounds = bounds;
+
+			var uvDensity = submesh.UvDensity;
+			if ( uvDensity.Count > 0 )
+			{
+				uvDensity.Sort();
+				mesh.UvDensity = uvDensity[2 * (uvDensity.Count - 1) / 10];
+			}
+
+			submesh.Mesh = mesh;
+		}
+
+		IsDirty = false;
+
+		// The new buffers already hold the current blends and colors
+		_dirtyHalfEdges.Clear();
+
+		var model = CreateModel( collision );
+
+		// Most meshes are never painted, don't keep a copy of their render vertices around
+		if ( !_keepVertexData )
+		{
+			foreach ( var submesh in _submeshes )
+			{
+				submesh.Vertices.Clear();
+				submesh.Vertices.TrimExcess();
+				submesh.Indices.Clear();
+				submesh.Indices.TrimExcess();
+				submesh.UvDensity.Clear();
+				submesh.UvDensity.TrimExcess();
+			}
+		}
+
+		return model;
+	}
+
+	/// <summary>
+	/// Triangulate every visible face into per-material submeshes on the CPU.
+	/// </summary>
+	void BuildSubmeshes()
 	{
 		var faceCount = Topology.FaceCount;
 		var halfEdgeCount = Topology.HalfEdgeCount;
@@ -4482,7 +4591,8 @@ public sealed partial class PolygonMesh : IJsonConvert
 		_meshVertices.EnsureCapacity( faceCount * 4 );
 		_meshIndices.EnsureCapacity( faceCount * 6 );
 		_meshTriangleMaterials.EnsureCapacity( faceCount * 2 );
-		_halfEdgeToMeshVertices.EnsureCapacity( halfEdgeCount );
+		if ( _keepVertexData )
+			_halfEdgeToMeshVertices.EnsureCapacity( halfEdgeCount );
 		_meshFaces.EnsureCapacity( faceCount );
 		_faceNormalCache.EnsureCapacity( faceCount );
 
@@ -4523,38 +4633,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 		_submeshes.Clear();
 		_submeshes.AddRange( submeshes.Values );
 
-		foreach ( var submesh in submeshes.Values )
-		{
-			var vertices = submesh.Vertices;
-			var indices = submesh.Indices;
-
-			if ( vertices.Count < 3 )
-				continue;
-
-			if ( indices.Count < 3 )
-				continue;
-
-			var bounds = BBox.FromPoints( vertices.Select( x => x.Position ) );
-			var material = submesh.Material ?? DefaultMaterial;
-			var mesh = new Mesh( material );
-			mesh.CreateVertexBuffer( vertices.Count, vertices );
-			mesh.CreateIndexBuffer( indices.Count, indices );
-			mesh.Bounds = bounds;
-
-			var uvDensity = submesh.UvDensity;
-			if ( uvDensity.Count > 0 )
-			{
-				uvDensity.Sort();
-				mesh.UvDensity = uvDensity[2 * (uvDensity.Count - 1) / 10];
-			}
-
-			submesh.Mesh = mesh;
-		}
-
-		IsDirty = false;
-
 		_faceNormalCache.Clear();
-		return CreateModel( collision );
 	}
 
 	internal Model CreateModel( MeshComponent.CollisionType collision )
@@ -5969,6 +6048,9 @@ public sealed partial class PolygonMesh : IJsonConvert
 				Blend = Blends[faceEdge],
 				Color = Colors[faceEdge],
 			} );
+
+			if ( !_keepVertexData )
+				continue;
 
 			if ( !_halfEdgeToMeshVertices.TryGetValue( faceEdge, out var list ) )
 			{

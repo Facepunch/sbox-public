@@ -277,12 +277,30 @@ internal partial class GameInstanceDll
 	}
 
 	static string[] _interestingExtensions = new[] { "_c", ".scss", ".ttf" };
-	static string[] _engineAssets = new[] { "vtex_c", "vmat_c", "vsnd_c", "vmdl_c", "vphys_c", "vpk", "vanmgrph_c", "shader_c" }; // anything the native engine loads from disk has to be a LARGE download
+	static string[] _engineAssets = new[] { "vtex_c", "vmat_c", "vsnd_c", "vmdl_c", "vphys_c", "vpk", "vanmgrph_c", "shader_c", "ag_c", "anim_c", "skel_c" }; // anything the native engine loads from disk has to be a LARGE download
 	List<string> _netIncludePaths = new(); // wildcard-supported paths we also want to include content of
 
 	// Small files only live in an in-memory filesystem, which native loaders can't read - engine assets must be a real file on disk.
 	internal static bool ShouldUseLargeDownload( string filename, long size )
 		=> size >= 1024 * 64 || _engineAssets.Any( x => filename.EndsWith( x ) );
+
+	internal static IEnumerable<string> GetNetworkIncludePaths( string resources, bool publishUsedAssetsOnly )
+	{
+		if ( publishUsedAssetsOnly ) yield return "/resources/*";
+		foreach ( var line in (resources ?? "").Split( '\n', StringSplitOptions.RemoveEmptyEntries ) )
+		{
+			var path = line.Trim();
+			if ( path.StartsWith( "//" ) ) continue;
+			if ( publishUsedAssetsOnly )
+			{
+				// These only add loose downloads; publishing exclusions must not block required assets.
+				if ( path.Length == 0 || path.StartsWith( '#' ) || path.StartsWith( '!' ) ) continue;
+				path = path.Replace( '\\', '/' );
+				if ( path.EndsWith( '/' ) ) path += "*";
+			}
+			yield return path.NormalizeFilename( true, false );
+		}
+	}
 
 	bool ShouldNetworkFile( string filename )
 	{
@@ -385,15 +403,8 @@ internal partial class GameInstanceDll
 
 		// include anything on resource paths
 		var project = Project.Current;
-		if ( project is not null && !string.IsNullOrWhiteSpace( project.Config.Resources ) )
-		{
-			var resourcePaths = project.Config.Resources.Split( "\n", StringSplitOptions.RemoveEmptyEntries )
-			.Select( x => x.Trim() )
-			.Where( x => !x.StartsWith( "//" ) )
-			.Select( x => x.NormalizeFilename( true, false ) );
-
-			_netIncludePaths.AddRange( resourcePaths );
-		}
+		_netIncludePaths.Clear();
+		_netIncludePaths.AddRange( GetNetworkIncludePaths( project?.Config.Resources, project?.Config.PublishUsedAssetsOnly == true ) );
 
 		// a library is its own package with its own filesystem, so its assets aren't in the
 		// game's filesystem and joining clients are never told about them

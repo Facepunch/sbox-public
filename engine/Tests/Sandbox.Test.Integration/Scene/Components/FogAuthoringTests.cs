@@ -94,6 +94,12 @@ public class FogAuthoringTests
 			Assert.AreEqual( -100.0f, fog.StartDistance );
 			Assert.AreEqual( 0.0f, fog.AttenuationDistance );
 			Assert.AreEqual( 2.0f, fog.MaximumOpacity );
+			fog.Mode = FogMode.Distance;
+			fog.DistanceMetric = FogDistanceMetric.ViewDepth;
+			settings = fog.GetSettings( camera );
+			Assert.AreEqual( -100f, settings.StartDistance );
+			Assert.AreEqual( -50f, settings.EndDistance );
+			Assert.AreEqual( FogDistanceMetric.ViewDepth, settings.DistanceMetric );
 		}
 		finally
 		{
@@ -219,6 +225,15 @@ public class FogAuthoringTests
 			var serialized = Game.TypeLibrary.GetSerializedObject( fog );
 			Assert.AreEqual( materialVisible, serialized.GetProperty( nameof( Fog.HeightSky ) ).ShouldShow() );
 			Assert.AreEqual( blurVisible, serialized.GetProperty( nameof( Fog.HeightSkyBlur ) ).ShouldShow() );
+			foreach ( var property in new[]
+			{
+				nameof( Fog.DistanceMetric ), nameof( Fog.DirectionalColorEnabled ), nameof( Fog.SecondaryColor ),
+				nameof( Fog.ColorDirection ), nameof( Fog.ColorScale )
+			} )
+			{
+				Assert.IsTrue( serialized.GetProperty( property ).HasAttribute<AdvancedAttribute>(), property );
+			}
+			Assert.IsTrue( typeof( Skybox3D ).GetProperty( nameof( Skybox3D.FogOverride ) ).IsDefined( typeof( AdvancedAttribute ), false ) );
 		}
 		finally
 		{
@@ -332,7 +347,9 @@ public class FogAuthoringTests
 	/// The component round-trips all settings and tolerates the removed Overrides field in existing scenes.
 	/// </summary>
 	[TestMethod]
-	public void FogSettingsSerializeWithoutLegacyConversion()
+	[DataRow( FogMode.Distance )]
+	[DataRow( FogMode.Exponential )]
+	public void FogSettingsSerializeWithoutLegacyConversion( FogMode mode )
 	{
 		var scene = new Scene();
 		try
@@ -340,7 +357,12 @@ public class FogAuthoringTests
 			using var scope = scene.Push();
 			var fog = scene.CreateObject().Components.Create<Fog>();
 			fog.FogEnabled = false;
-			fog.Mode = FogMode.Distance;
+			fog.Mode = mode;
+			fog.DistanceMetric = FogDistanceMetric.ViewDepth;
+			fog.DirectionalColorEnabled = true;
+			fog.SecondaryColor = Color.Yellow;
+			fog.ColorDirection = Vector3.Left;
+			fog.ColorScale = 2;
 			fog.DistanceRange = new Vector2( 24, 1234 );
 			fog.AttenuationDistance = 321;
 			fog.FalloffExponent = 2.5f;
@@ -387,6 +409,11 @@ public class FogAuthoringTests
 
 			Assert.IsFalse( copy.FogEnabled );
 			Assert.AreEqual( fog.Mode, copy.Mode );
+			Assert.AreEqual( fog.DistanceMetric, copy.DistanceMetric );
+			Assert.AreEqual( fog.DirectionalColorEnabled, copy.DirectionalColorEnabled );
+			Assert.AreEqual( fog.SecondaryColor, copy.SecondaryColor );
+			Assert.AreEqual( fog.ColorDirection, copy.ColorDirection );
+			Assert.AreEqual( fog.ColorScale, copy.ColorScale );
 			Assert.AreEqual( fog.StartDistance, copy.StartDistance );
 			Assert.AreEqual( fog.DistanceRange, copy.DistanceRange );
 			Assert.AreEqual( fog.AttenuationDistance, copy.AttenuationDistance );

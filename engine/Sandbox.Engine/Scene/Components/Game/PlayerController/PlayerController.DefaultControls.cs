@@ -65,6 +65,8 @@ public sealed partial class PlayerController : Component
 	protected override void OnFixedUpdate()
 	{
 		if ( Scene.IsEditor ) return;
+		// Seats disable the body, so mode changes cannot rely on physics callbacks alone.
+		if ( !Body.Enabled ) ChooseBestMoveMode();
 
 		UpdateHeadroom();
 		UpdateFalling();
@@ -75,7 +77,7 @@ public sealed partial class PlayerController : Component
 		if ( !UseInputControls ) return;
 
 		InputMove();
-		UpdateDucking( Input.Down( "duck" ) );
+		UpdateDuckInput( Input.Down( "duck" ) );
 		InputJump();
 
 		UpdateEyeTransform();

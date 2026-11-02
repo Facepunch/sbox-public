@@ -3,8 +3,8 @@ using System;
 namespace Sandbox;
 
 /// <summary>
-/// Utils for uploading assets to the Steam Workshop. Clothing uploads a stub so it can be sold as a
-/// steam inventory item, maps upload all of their files.
+/// Utils for uploading to the Steam Workshop. Clothing uploads a stub so it can be sold as a
+/// steam inventory item, maps and games upload all of their files.
 /// </summary>
 static class WorkshopUtils
 {
@@ -42,9 +42,10 @@ static class WorkshopUtils
 		var addon = asset.Publishing.CreateTemporaryProject();
 
 		// The content is just a json file with data in it
-		DeleteTemporaryFolder( asset.Name );
-		Editor.FileSystem.Transient.CreateDirectory( asset.Name );
-		Editor.FileSystem.Transient.WriteJson( $"{asset.Name}/item.json", new WorkshopItemMetaData()
+		var folderName = $"workshop/{asset.Name}";
+		DeleteTemporaryFolder( folderName );
+		Editor.FileSystem.ProjectTemporary.CreateDirectory( folderName );
+		Editor.FileSystem.ProjectTemporary.WriteJson( $"{folderName}/item.json", new WorkshopItemMetaData()
 		{
 			PackageIdent = addon.Config.FullIdent,
 			Title = addon.Config.Title,
@@ -53,7 +54,7 @@ static class WorkshopUtils
 
 		try
 		{
-			var itemId = await Upload( asset, asset.MetaData.Get( "WorkshopId", 0UL ), Editor.FileSystem.Transient.GetFullPath( asset.Name ), true, item =>
+			var itemId = await Upload( asset.MetaData.Get( "WorkshopId", 0UL ), Editor.FileSystem.ProjectTemporary.GetFullPath( folderName ), true, item =>
 			{
 				item.SetTitle( clothing.Title );
 
@@ -63,30 +64,36 @@ static class WorkshopUtils
 				}
 			} );
 
-			return itemId != 0;
+			if ( itemId == 0 )
+				return false;
+
+			// Save workshop id now we've successfully uploaded to the workshop
+			asset.MetaData.Set( "WorkshopId", itemId );
+			return true;
 		}
 		finally
 		{
-			DeleteTemporaryFolder( asset.Name );
+			DeleteTemporaryFolder( folderName );
 		}
 	}
 
 	/// <summary>
-	/// Delete a folder we've built a workshop item's content in
+	/// Delete a folder we've built a workshop item's content in. They're built in .sbox, which isn't mounted -
+	/// in the transient folder the resource and font watchers would load the copies and complain when they go.
 	/// </summary>
 	internal static void DeleteTemporaryFolder( string name )
 	{
-		if ( Editor.FileSystem.Transient.DirectoryExists( name ) )
+		if ( Editor.FileSystem.ProjectTemporary.DirectoryExists( name ) )
 		{
-			Editor.FileSystem.Transient.DeleteDirectory( name, true );
+			Editor.FileSystem.ProjectTemporary.DeleteDirectory( name, true );
 		}
 	}
 
 	/// <summary>
-	/// Upload a folder as the content of this asset's workshop item, creating one if <paramref name="itemId"/>
-	/// is 0, and remember the item's id in the asset's metadata. Returns the item id, or 0 if it failed.
+	/// Upload a folder as the content of a workshop item, creating one if <paramref name="itemId"/>
+	/// is 0. Returns the item id, or 0 if it failed.
 	/// </summary>
-	internal static async Task<ulong> Upload( Asset asset, ulong itemId, string contentFolder, bool microtransaction, Action<Services.Ugc.UgcPublisher> configure, string changeNote = "" )
+	internal static async Task<ulong> Upload( ulong itemId, string contentFolder, bool microtransaction, Action<Services.Ugc.UgcPublisher> configure, string changeNote = "" )
 	{
 		var item = itemId > 0 ? Services.Ugc.OpenItem( itemId )
 			: microtransaction ? await Services.Ugc.CreateMtxItem()
@@ -94,7 +101,7 @@ static class WorkshopUtils
 
 		if ( item is null )
 		{
-			Log.Warning( $"Couldn't create a workshop item for {asset.Path}" );
+			Log.Warning( $"Couldn't create a workshop item for {contentFolder}" );
 			return 0;
 		}
 
@@ -107,12 +114,10 @@ static class WorkshopUtils
 
 		if ( !result )
 		{
-			Log.Warning( $"Couldn't upload {asset.Path} to workshop item {item.ItemId}" );
+			Log.Warning( $"Couldn't upload {contentFolder} to workshop item {item.ItemId}" );
 			return 0;
 		}
 
-		// Save workshop id now we've successfully uploaded to the workshop
-		asset.MetaData.Set( "WorkshopId", item.ItemId );
 		return item.ItemId;
 	}
 }

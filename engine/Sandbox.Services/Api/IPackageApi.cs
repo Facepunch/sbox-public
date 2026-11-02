@@ -189,6 +189,12 @@ public struct PublishManifest
 	public bool Publish { get; set; }
 	public int EngineApi { get; set; }
 	public string Meta { get; set; }
+
+	/// <summary>
+	/// Have the backend compile the code before it publishes. It answers <c>compiling</c> until that's done, and
+	/// 400 with the compiler errors when it doesn't compile.
+	/// </summary>
+	public bool VerifyCompile { get; set; }
 }
 
 public record struct ManifestFile( string Name, int Size, string Hash );
@@ -217,6 +223,20 @@ public class PackageDllResult
 	/// Compiled, Pending or Failed
 	/// </summary>
 	public string Status { get; set; }
+
+	/// <summary>
+	/// The package's own assembly and any libraries it bundles, when Compiled
+	/// </summary>
+	public PackageDllFile[] Dlls { get; set; }
+	public string Error { get; set; }
+}
+
+public class PackageDllFile
+{
+	/// <summary>
+	/// Where it goes in the package, like <c>.bin/package.org.ident.dll</c>
+	/// </summary>
+	public string Path { get; set; }
 	public string Url { get; set; }
 
 	/// <summary>
@@ -224,7 +244,6 @@ public class PackageDllResult
 	/// </summary>
 	public string Crc { get; set; }
 	public long Size { get; set; }
-	public string Error { get; set; }
 }
 
 /// <summary>

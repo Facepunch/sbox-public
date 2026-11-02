@@ -22,18 +22,19 @@ internal class DepthPrepassLayer : MeshLayer
 	/// </summary>
 	readonly OverlayDepthPrepassLayer overlays;
 
-	public DepthPrepassLayer( OverlayDepthPrepassLayer overlays ) : this( "Depth Prepass", MeshRuns.Opaque )
+	public DepthPrepassLayer( OverlayDepthPrepassLayer overlays ) : this( "Depth Prepass", MeshRuns.Opaque, overlays )
 	{
-		this.overlays = overlays;
 		ownsGBuffer = true;
+		OcclusionPhase = OcclusionPhase.Early;
 	}
 
-	protected DepthPrepassLayer( string name, MeshRuns runs ) : base( name )
+	protected DepthPrepassLayer( string name, MeshRuns runs, OverlayDepthPrepassLayer overlays = null ) : base( name )
 	{
 		ShaderMode = DepthMode;
 		Depth = true;
 		WritesNormals = true;
 		Runs = runs;
+		this.overlays = overlays;
 
 		// Opaque custom objects - terrain - prepass too, as native's do, for views with depth normals (DrawsCustomObjectsIn):
 		// AO runs after the prepass, before they'd draw
@@ -106,4 +107,21 @@ internal sealed class OverlayDepthPrepassLayer : DepthPrepassLayer
 	protected override bool Clears( RenderFrame frame ) => true;
 
 	protected override OverlayStencil Stencil( RenderFrame frame ) => OverlayStencil.Write;
+}
+
+/// <summary>
+/// The world prepass again, for anything the early occlusion cull rejected that's visible now. Only draws culled runs,
+/// into the same depth and G-buffer.
+/// </summary>
+internal sealed class LateDepthPrepassLayer : DepthPrepassLayer
+{
+	public LateDepthPrepassLayer( OverlayDepthPrepassLayer overlays ) : base( "Depth Prepass (Late)", MeshRuns.Opaque, overlays )
+	{
+		OcclusionPhase = OcclusionPhase.Late;
+	}
+
+	// Without last frame's chain the early prepass drew everything
+	public override bool IsNeeded( RenderFrame frame ) => frame.System.Occlusion.CullsEarly;
+
+	protected override bool Clears( RenderFrame frame ) => false;
 }

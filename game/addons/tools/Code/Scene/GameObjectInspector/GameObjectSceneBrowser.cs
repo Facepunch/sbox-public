@@ -91,10 +91,10 @@ public class GameObjectSceneBrowser : Widget
 		{
 			if ( gameObj.Flags.HasFlag( GameObjectFlags.EditorOnly ) || gameObj.Flags.HasFlag( GameObjectFlags.Hidden ) )
 				continue;
-			var treeNode = AddGameObject( gameObj, header );
+			AddGameObject( gameObj, header );
 		}
 
-		SceneTree.Open( header, ComponentType is not null );
+		SceneTree.Open( header, false );
 	}
 
 	public void SelectGameObject( GameObject gameObject )
@@ -115,26 +115,30 @@ public class GameObjectSceneBrowser : Widget
 		}
 	}
 
-	TreeNode AddGameObject( GameObject gameObject, TreeNode parent )
+	bool AddGameObject( GameObject gameObject, TreeNode parent )
 	{
 		var node = new SceneGameObjectNode( gameObject, ComponentType );
 		ObjectNodes.Add( node );
 		parent.AddItem( node );
-		AddComponents( gameObject, node );
+		var open = AddComponents( gameObject, node );
 		foreach ( var child in gameObject.Children )
 		{
 			if ( child.Flags.HasFlag( GameObjectFlags.EditorOnly ) || child.Flags.HasFlag( GameObjectFlags.Hidden ) )
 				continue;
-			AddGameObject( child, node );
+			open = AddGameObject( child, node ) || open;
 		}
-		return node;
+
+		if ( open )
+			SceneTree.Open( node );
+		return open;
 	}
 
-	void AddComponents( GameObject gameObject, TreeNode parent )
+	bool AddComponents( GameObject gameObject, TreeNode parent )
 	{
 		if ( ComponentType is null )
-			return;
+			return false;
 
+		var open = false;
 		foreach ( var component in gameObject.Components.GetAll() )
 		{
 			if ( !component.GetType().IsAssignableTo( ComponentType ) )
@@ -143,7 +147,10 @@ public class GameObjectSceneBrowser : Widget
 			var node = new SceneComponentNode( component );
 			ComponentNodes.Add( node );
 			parent.AddItem( node );
+			open = true;
 		}
+
+		return open;
 	}
 }
 

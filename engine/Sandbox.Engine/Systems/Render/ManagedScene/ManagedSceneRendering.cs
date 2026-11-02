@@ -66,6 +66,9 @@ internal static partial class ManagedSceneRendering
 	[ConVar( "r_managed_async_compute", Help = "Run the managed scene renderer's depth chain, contact shadows and AO on the async compute queue, beside SSR and shadow rendering" )]
 	public static bool AsyncCompute { get; set; } = true;
 
+	[ConVar( "r_managed_occlusion", Help = "Skip opaque meshes hidden by the depth prepass in the managed scene renderer" )]
+	public static bool Occlusion { get; set; } = true;
+
 	/// <summary>
 	/// Set by Sandbox.SceneRenderer when the app system installs it at startup.
 	/// </summary>

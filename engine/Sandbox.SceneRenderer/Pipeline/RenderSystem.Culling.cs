@@ -60,7 +60,7 @@ public sealed partial class RenderSystem
 
 	/// <summary>
 	/// Filter candidates by frustum, root-view size and tags, then feature support.
-	/// Shadow views also apply caster, static and exclusion-frustum filters.
+	/// Shadow views also apply caster and static filters.
 	/// </summary>
 	internal void Cull( RenderWorld world, ViewPass pass, List<int> candidates, int inTree, bool inFrustum, ref RenderStats stats )
 	{
@@ -69,7 +69,6 @@ public sealed partial class RenderSystem
 		var sizeCull = new SizeCull( root );
 		var shadow = pass.IsShadow;
 		var filter = pass.StaticFilter;
-		var exclusion = pass.Exclusion;
 		var objects = world.Objects;
 		var centers = world.BoundsCenter;
 		var extents = world.BoundsExtents;
@@ -100,7 +99,6 @@ public sealed partial class RenderSystem
 				if ( !f.DrawsShadows || !f.CastsShadow( obj ) ) continue;
 				if ( filter == StaticFilter.OnlyStatic && !obj.IsStatic ) continue;
 				if ( filter == StaticFilter.NoStatic && obj.IsStatic ) continue;
-				if ( exclusion.HasValue && exclusion.Value.Contains( centers[i], extents[i] ) ) continue;
 			}
 
 			pass.Visible( f ).Add( i );

@@ -142,11 +142,35 @@ internal sealed partial class PhysicsWorld2d : PhysicsWorldInternal
 		return rules.GetCollisionRule( tagsA, tagsB ) == CollisionRules.Result.Collide;
 	}
 
-	internal override PhysicsBodyInternal CreateBodyInternal()
+	internal override PhysicsBodyInternal CreateBodyInternal() => CreateBodyInternal( new PhysicsBodySettings() );
+
+	internal override PhysicsBodyInternal CreateBodyInternal( in PhysicsBodySettings settings )
 	{
 		var def = Box2d.b2DefaultBodyDef();
-		var bodyId = Box2d.b2CreateBody( WorldId, def );
-		var body = new PhysicsBody2d( this, bodyId );
+		def.type = settings.BodyType switch
+		{
+			PhysicsBodyType.Dynamic => b2BodyType.b2_dynamicBody,
+			PhysicsBodyType.Keyframed => b2BodyType.b2_kinematicBody,
+			_ => b2BodyType.b2_staticBody
+		};
+		def.position = settings.Position;
+		def.rotation = settings.Rotation;
+		def.linearVelocity = settings.Velocity;
+		def.angularVelocity = settings.AngularVelocity.z.DegreeToRadian();
+		def.linearDamping = settings.LinearDamping;
+		def.angularDamping = settings.AngularDamping;
+		def.gravityScale = settings.Flags.HasFlag( PhysicsBodyCreationFlags.Gravity ) ? settings.GravityScale : 0;
+		def.sleepThreshold = settings.SleepThreshold;
+		def.enableSleep = settings.Flags.HasFlag( PhysicsBodyCreationFlags.AutoSleep );
+		def.isAwake = settings.Flags.HasFlag( PhysicsBodyCreationFlags.Awake );
+		def.isBullet = settings.Flags.HasFlag( PhysicsBodyCreationFlags.Bullet );
+		def.motionLocks = new b2MotionLocks
+		{
+			linearX = (byte)(settings.MotionLocks & 1),
+			linearY = (byte)((settings.MotionLocks >> 1) & 1),
+			angularZ = (byte)((settings.MotionLocks >> 4) & 1)
+		};
+		var body = new PhysicsBody2d( this, Box2d.b2CreateBody( WorldId, def ), settings );
 		RegisterBody( body );
 		return body;
 	}

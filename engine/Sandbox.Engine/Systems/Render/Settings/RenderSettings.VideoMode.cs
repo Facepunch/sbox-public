@@ -125,9 +125,13 @@ public partial class RenderSettings
 		VideoSettings.Save();
 	}
 
-	private void ApplyVideoMode()
+	/// <param name="honourCommandLine">Keep this session's command-line window switches (-sw, -w/-h, etc.) on top of the saved settings.</param>
+	private void ApplyVideoMode( bool honourCommandLine = false )
 	{
 		if ( GameWindow.Current is not { } window ) return;
+
+		// Resolve before the desktop size is written back, so this matches the mode the window was created with
+		GameWindow.VideoMode? commandLineMode = honourCommandLine ? GameWindow.VideoMode.FromCommandLine( this ) : null;
 
 		if ( Borderless && !Fullscreen )
 		{
@@ -136,7 +140,7 @@ public partial class RenderSettings
 			ResolutionHeight = (int)size.y;
 		}
 
-		window.QueueVideoMode( GameWindow.VideoMode.FromSettings( this ) );
+		window.QueueVideoMode( commandLineMode ?? GameWindow.VideoMode.FromSettings( this ) );
 	}
 
 	/// <summary>

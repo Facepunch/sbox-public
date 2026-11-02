@@ -46,14 +46,6 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 
 		Colliders.Add( collider );
 
-		//
-		// Reapply these so they propagate down to the shapes
-		//
-		if ( _body.IsValid() )
-		{
-			_body.EnableTouch = CollisionEventsEnabled;
-			_body.EnableTouchPersists = CollisionUpdateEventsEnabled;
-		}
 	}
 
 	/// <summary>
@@ -64,4 +56,3 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 		Colliders.Remove( collider );
 	}
 }
-

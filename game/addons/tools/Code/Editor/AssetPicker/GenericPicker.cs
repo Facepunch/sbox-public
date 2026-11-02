@@ -261,7 +261,16 @@ public class GenericPicker : AssetPicker
 
 		if ( AssetSystem.CanCloudInstall( package ) )
 		{
-			var a = await AssetSystem.InstallAsync( package.FullIdent );
+			Asset a;
+			try
+			{
+				a = await AssetSystem.InstallAsync( package.FullIdent );
+			}
+			catch ( AggregateException ex )
+			{
+				Log.Error( ex, $"Failed to install package: {package.FullIdent}" );
+				return;
+			}
 
 			if ( !IsValid ) return;
 

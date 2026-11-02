@@ -1,5 +1,6 @@
 #ifndef SOURCE1_FRAMES_HLSL
 #define SOURCE1_FRAMES_HLSL
+#include "source1/proxies.hlsl"
 
 StaticCombo( S_SOURCE_TEXTURE_ANIMATION, F_SOURCE_TEXTURE_ANIMATION, Sys( ALL ) );
 
@@ -20,7 +21,7 @@ StaticCombo( S_SOURCE_TEXTURE_ANIMATION, F_SOURCE_TEXTURE_ANIMATION, Sys( ALL ) 
 float SourceFrame()
 {
 	#if S_SOURCE_TEXTURE_ANIMATION
-		return fmod( floor( max( g_flTime, 0 ) * g_vSourceTextureAnimation.x ), g_vSourceTextureAnimation.y );
+		return SourceProxyScalar( fmod( floor( max( g_flTime, 0 ) * g_vSourceTextureAnimation.x ), g_vSourceTextureAnimation.y ), g_flSourceFrameProxy );
 	#else
 		return 0;
 	#endif

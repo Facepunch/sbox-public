@@ -111,7 +111,12 @@ public abstract partial class Resource : IValid, IJsonConvert, BytePack.ISeriali
 		if ( t == typeof( Texture ) ) return Texture.Load( id );
 		if ( t == typeof( Model ) ) return Model.Load( id );
 		if ( t == typeof( SoundFile ) ) return SoundFile.Load( id.Path ); // todo: guid me
+#pragma warning disable CS0618
 		if ( t == typeof( AnimationGraph ) ) return AnimationGraph.Load( id );
+#pragma warning restore CS0618
+		if ( t == typeof( Animation.Graph ) ) return Animation.Graph.Load( id.Path );
+		if ( t == typeof( Animation.Clip ) ) return Animation.Clip.Load( id.Path );
+		if ( t == typeof( Animation.Skeleton ) ) return Animation.Skeleton.Load( id.Path );
 		if ( t == typeof( Shader ) ) return Shader.Load( id );
 		if ( t == typeof( PhysicsGroupDescription ) ) return PhysicsGroupDescription.Load( id );
 

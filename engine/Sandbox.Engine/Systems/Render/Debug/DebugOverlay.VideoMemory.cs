@@ -28,7 +28,7 @@ internal static partial class DebugOverlay
 			{
 				_nextSample = now + 1.0;
 				// Integrated GPUs normally use system RAM; that alone is not VRAM paging.
-				if ( RenderSettings.IsIntegratedGpu( SystemInfo.Gpu ) )
+				if ( SystemInfo.GpuIntegrated )
 				{
 					_pressure = default;
 					return;

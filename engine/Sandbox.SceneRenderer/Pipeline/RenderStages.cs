@@ -20,6 +20,17 @@ internal interface IRenderStages
 	/// Run it in <paramref name="target"/>'s context, with no frame targets bound. The normal stage then skips it.
 	/// </summary>
 	void RenderEarlyPostProcess( Stage stage, PostProcessQueue queue, in StageTarget target ) { }
+
+	/// <summary>
+	/// The camera's screen-space reflections, or null when it doesn't render them.
+	/// </summary>
+	ScreenSpaceReflectionsPass ScreenSpaceReflections => null;
+
+	/// <summary>
+	/// Trace them in <paramref name="target"/>'s context with no frame targets bound, or keep the lit scene as their
+	/// <paramref name="history"/> with colour bound.
+	/// </summary>
+	void RenderScreenSpaceReflections( bool history, in StageTarget target ) { }
 }
 
 /// <summary>

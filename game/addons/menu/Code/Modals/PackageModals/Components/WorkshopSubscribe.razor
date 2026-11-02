@@ -1,0 +1,47 @@
+@namespace MenuProject.Modals.PackageModalComponents
+@inherits Panel
+@using Sandbox;
+@using Sandbox.UI;
+@using System;
+
+@*
+    Subscribing to a package's Steam Workshop item, and its page there - one pill, split like New Game and Join on the
+    game page. Lit green while you're subscribed, with a green wipe across it as you subscribe, like the loading
+    screen's when a download finishes. The game page's footer, and the map page's.
+*@
+<root class="@(Subscribed ? "subscribed" : "")">
+
+    @* Just subscribed - the wipe plays as it's made, once *@
+    @if ( _wiping )
+    {
+        <div class="wipe"></div>
+    }
+
+    @* The one button, saying which it is - swapping in another left the old one behind *@
+    <Button Icon=@(Subscribed ? "check" : "add") Text=@(Subscribed ? "#menu.workshop.subscribed" : "#menu.workshop.subscribe") tooltip=@(Subscribed ? "#menu.workshop.unsubscribe_tooltip" : "#menu.workshop.subscribe_tooltip") onclick=@Toggle />
+    <div class="split"></div>
+    <Button Icon="open_in_new" class="open" tooltip="#menu.workshop.open_page" onclick=@(() => _ = MenuUtility.OpenWorkshopPageAsync( Package )) />
+
+</root>
+
+@code
+{
+    [Parameter] public Package Package { get; set; }
+
+    bool Subscribed => MenuUtility.IsSubscribed( Package );
+
+    bool _wiping;
+
+    void Toggle()
+    {
+        // Unsubscribing takes the wipe away, so the next subscribe makes it again
+        _wiping = !Subscribed;
+
+        if ( Subscribed ) _ = MenuUtility.UnsubscribeAsync( Package );
+        else _ = MenuUtility.SubscribeAsync( Package );
+
+        StateHasChanged();
+    }
+
+    protected override int BuildHash() => HashCode.Combine( Package, Subscribed, _wiping );
+}

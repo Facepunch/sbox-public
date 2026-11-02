@@ -37,6 +37,11 @@ public abstract class ResourceGenerator
 	public virtual bool CacheToDisk => false;
 
 	/// <summary>
+	/// Other assets whose compiled output generating this reads, by path, known without generating it.
+	/// </summary>
+	internal virtual IEnumerable<string> CompiledReads => [];
+
+	/// <summary>
 	/// Create a ResourceGenerator by name
 	/// </summary>
 	public static ResourceGenerator<T> Create<T>( string generatorName ) where T : Resource

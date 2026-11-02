@@ -5,13 +5,32 @@ namespace Sandbox.Layout;
 /// </summary>
 internal static partial class LayoutAlgorithm
 {
-	internal static void ZeroOutLayoutRecursively( LayoutNode node )
+	/// <summary>
+	/// Lay out a <c>display: none</c> child: its whole subtree gets an empty layout. A subtree that is still zeroed
+	/// from an earlier pass is left alone: anything that could change it (a style change, a node added or dirtied
+	/// below, a move to another owner) dirties or resets the child first.
+	/// </summary>
+	internal static void LayoutHiddenChild( LayoutNode child )
+	{
+		if ( child.IsDirty || !child.Layout.IsZeroedWhileHidden )
+		{
+			ZeroOutLayoutRecursively( child );
+			child.Layout.IsZeroedWhileHidden = true;
+		}
+
+		child.SetDirty( false );
+	}
+
+	private static void ZeroOutLayoutRecursively( LayoutNode node )
 	{
 		node.Layout.Reset();
 		node.InlineFragments = Array.Empty<InlineFragment>();
 		node.Layout.SetDimension( Dimension.Width, 0 );
 		node.Layout.SetDimension( Dimension.Height, 0 );
 		node.HasNewLayout = true;
+
+		// Clean, so a later change anywhere below propagates up and dirties the hidden child again
+		node.SetDirty( false );
 
 		foreach ( var child in node.ChildList )
 		{

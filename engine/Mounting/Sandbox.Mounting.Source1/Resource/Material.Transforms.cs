@@ -6,7 +6,7 @@ namespace Sandbox.Mounting.Source1;
 
 internal sealed partial class SourceMaterialBuilder
 {
-	private readonly record struct TextureTransform( Matrix Transform, Vector2 Scroll )
+	private readonly record struct TextureTransform( Matrix Transform, Vector2 Scroll, ProxyTransform Proxy = null )
 	{
 		public void Bind( Material material, string slot, float scale = 1 )
 		{
@@ -18,6 +18,7 @@ internal sealed partial class SourceMaterialBuilder
 			material.Set( $"g_vSource{slot}TransformU", new Vector3( matrix.M11, matrix.M21, matrix.M41 ) );
 			material.Set( $"g_vSource{slot}TransformV", new Vector3( matrix.M12, matrix.M22, matrix.M42 ) );
 			material.Set( $"g_vSource{slot}Scroll", new Vector3( Scroll.x, Scroll.y, scale ) );
+			Proxy?.Bind( material, slot, scale );
 		}
 	}
 
@@ -40,6 +41,7 @@ internal sealed partial class SourceMaterialBuilder
 		"water" or "refract" or "core" => key is "$bumptransform" or "$normalmaptransform" or "$bumptransform2",
 		"unlittwotexture" => key is "$basetexturetransform" or "$texture2transform",
 		"modulate" => key == "$basetexturetransform",
+		"worldtwotextureblend" => key is "$basetexturetransform" or "$bumptransform",
 		"vertexlitgeneric" or "lightmappedgeneric" or "unlitgeneric" or "worldvertextransition" or "vortwarp"
 			=> key is "$basetexturetransform" or "$basetexturetransform2" or "$bumptransform" or "$bumptransform2"
 				or "$detailtexturetransform" or "$envmapmasktransform" or "$blendmasktransform",

@@ -8,7 +8,7 @@ Layer0
 	F_MORPH_SUPPORTED 1
 
 	//---- Translucent ----
-	F_ALPHA_TEST 1
+	F_TRANSLUCENT 1
 
 	//---- Ambient Occlusion ----
 	g_flAmbientOcclusionDirectDiffuse "0.000"
@@ -44,7 +44,6 @@ Layer0
 	g_vTexCoordScrollSpeed "[0.000 0.000]"
 
 	//---- Translucent ----
-	g_flAlphaTestReference "0.587"
-	g_flAntiAliasedEdgeStrength "0.000"
+	g_flOpacityScale "1.000"
 	TextureTranslucency "models/citizen_clothes/hair/medium_beard/Textures/medium_beard_cap_opacity.png"
 }

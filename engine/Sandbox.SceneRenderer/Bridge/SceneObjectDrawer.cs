@@ -69,7 +69,7 @@ internal sealed class SceneObjectDrawer : IDisposable
 		// External drawing may have changed bindings.
 		context.Invalidate();
 
-		var probe = obj.ProbeChoice >= 0 && obj.ProbeChoice < obj.World?.LightProbeVolumes.Count ? obj.World.LightProbeVolumes[obj.ProbeChoice].Attributes : null;
+		var probe = obj.NeedsLightProbe && obj.ProbeChoice >= 0 && obj.ProbeChoice < obj.World?.LightProbeVolumes.Count ? obj.World.LightProbeVolumes[obj.ProbeChoice].Attributes : null;
 		var mode = Graphics.DrawShaderMode;
 		var frameIds = context.InstanceIds;
 		context.InstanceIds = ids;
@@ -96,7 +96,8 @@ internal sealed class SceneObjectDrawer : IDisposable
 					drawAttributes.Set( HasBaseOpacity, opacity is not null );
 				}
 
-				context.SetObjectAttributes( drawAttributes, draw.Lightmapped ? obj.LightmapAttributes : probe );
+				var drawProbe = probe is not null && RenderMesh.NeedsLightProbe( drawMaterial ) ? probe : null;
+				context.SetObjectAttributes( drawAttributes, draw.Lightmapped ? obj.LightmapAttributes : drawProbe );
 
 				var vertexCache = skinned && mesh.SkinFor( draw.Mesh ) is { } skin && (skin.UsesVertexCache || obj.IsDeformed || (obj.MorphSource is not null && skin.Morphs));
 				if ( obj.IsSkinned ) context.SetCombo( CsVertexAnimation, vertexCache ? 1 : 0 );

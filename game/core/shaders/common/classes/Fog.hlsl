@@ -58,7 +58,7 @@ cbuffer FogConstants
 	int FogSkyTextureIndex;
 	int FogHeightSkyTextureIndex;
 	float FogHeightSkyShared;
-	float FogPadding;
+	float FogDistanceMetric;
 	float4x4 FogSkyTransform;
 	float4x4 FogHeightSkyTransform;
 };
@@ -159,7 +159,10 @@ struct Fog
 			return 0;
 		}
 
-		float fogLength = max( 0, length( ray ) - FogDistance.x );
+		float distance = FogDistanceMetric > 0.5
+			? max( 0, dot( ray, g_vCameraDirWs ) )
+			: length( ray );
+		float fogLength = max( 0, distance - FogDistance.x );
 		float opacity;
 
 		if ( FogControl.z > 0.5 )
@@ -168,8 +171,9 @@ struct Fog
 		}
 		else
 		{
-			float range = max( FogDistance.y - FogDistance.x, 0.001 );
-			opacity = pow( saturate( fogLength / range ), FogDistance.z );
+			float range = FogDistance.y - FogDistance.x;
+			float inverseRange = range != 0 ? rcp( range ) : 1000;
+			opacity = pow( saturate( ( distance - FogDistance.x ) * inverseRange ), FogDistance.z );
 		}
 
 		return min( opacity, FogControl.y ) * FogLayerParams.x;

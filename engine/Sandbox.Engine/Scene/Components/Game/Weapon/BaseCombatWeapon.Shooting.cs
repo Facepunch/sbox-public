@@ -147,6 +147,20 @@ public partial class BaseCombatWeapon
 	protected virtual GameObject Attacker => Owner?.GameObject ?? GameObject;
 
 	/// <summary>
+	/// The impulse one of this weapon's hits applies to <paramref name="target"/>, decided on the host.
+	/// </summary>
+	protected virtual float GetHitForce( GameObject target, float force ) => force;
+
+	float HitForce( GameObject target, float force )
+	{
+		if ( !target.IsValid() )
+			return force;
+
+		var result = GetHitForce( target, force );
+		return float.IsFinite( result ) ? Math.Max( result, 0f ) : 0f;
+	}
+
+	/// <summary>
 	/// The trace used for this weapon's bullets. Base traces against hitboxes and ignores the
 	/// <see cref="Attacker"/>'s hierarchy. Override to add collision rules or filters.
 	/// </summary>
@@ -168,7 +182,7 @@ public partial class BaseCombatWeapon
 	protected SceneTraceResult ShootBullet( SceneTraceResult tr, float damage, float force, TagSet tags = null, bool hitboxTags = true )
 	{
 		if ( Networking.IsHost )
-			return ShootBullet( tr, damage, force, Attacker, GameObject, tags, hitboxTags );
+			return ShootBullet( tr, damage, HitForce( tr.GameObject, force ), Attacker, GameObject, tags, hitboxTags );
 
 		// Only the owner can claim hits with this weapon.
 		if ( IsProxy )
@@ -209,7 +223,7 @@ public partial class BaseCombatWeapon
 			{
 				var pellet = ray with { Forward = ray.Forward.WithAimCone( spread.x, spread.y ) };
 				var tr = BulletTrace( pellet, distance, radius ).Run();
-				results[i] = ShootBullet( tr, damage, force, Attacker, GameObject, tags );
+				results[i] = ShootBullet( tr, damage, HitForce( tr.GameObject, force ), Attacker, GameObject, tags );
 			}
 
 			return results;

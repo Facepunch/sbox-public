@@ -23,6 +23,9 @@ public static partial class Graphics
 				DebugOverlay.Render();
 				ScreenCaptureUtility.CaptureFrame();
 				ScreenCaptureUtility.DrawRecordingBorder();
+
+				// Over everything, and after the capture so recordings don't have it in
+				Sandbox.Diagnostics.DevTools.RenderGameDock();
 			}
 
 			return;

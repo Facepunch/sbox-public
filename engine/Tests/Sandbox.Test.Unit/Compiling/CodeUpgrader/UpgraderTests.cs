@@ -43,9 +43,6 @@ public partial class UpgraderTest
 	[TestMethod] public Task HotloadUnsupportedAnalyzer() => TestAnalyzer<HotloadUnsupportedAnalyzer>();
 	[TestMethod] public Task HotloadUnsupportedFix() => TestFixer<HotloadUnsupportedFixer>();
 
-	[TestMethod] public Task SyncQueryAnalyzer() => TestAnalyzer<SyncQueryAnalyzer>();
-	[TestMethod] public Task SyncQueryFix() => TestFixer<SyncQueryFix>();
-
 	[TestMethod] public Task HostSyncAttributeAnalyzer() => TestAnalyzer<HostSyncAttributeAnalyzer>();
 
 	[TestMethod] public Task ConnectionStoredAnalyzer() => TestAnalyzer<ConnectionStoredAnalyzer>();
@@ -53,5 +50,6 @@ public partial class UpgraderTest
 	[TestMethod] public Task HostInvokeAnalyzer() => TestAnalyzer<HostInvokeAnalyzer>();
 	[TestMethod] public Task HostAsyncAnalyzer() => TestAnalyzer<HostAsyncAnalyzer>();
 	[TestMethod] public Task SyncWrittenAfterAwaitAnalyzer() => TestAnalyzer<SyncWrittenAfterAwaitAnalyzer>();
+	[TestMethod] public Task SyncCollectionAnalyzer() => TestAnalyzer<SyncCollectionAnalyzer>();
 	[TestMethod] public Task HostSyncAttributeFix() => TestFixer<HostSyncAttributeFix>();
 }

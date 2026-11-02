@@ -14,6 +14,7 @@ internal sealed class PartyJoinController : IDisposable
 	readonly Func<string, CancellationToken, Action<LoadingProgress?>, Task> _download;
 	readonly Func<string, CancellationToken, Action<LoadingProgress?>, Task> _connect;
 	readonly Action _stopConnecting;
+	readonly Func<string, bool> _isInGame;
 	CancellationTokenSource _attempt;
 	Target _target;
 	bool _hasTarget;
@@ -29,11 +30,12 @@ internal sealed class PartyJoinController : IDisposable
 	internal Task PendingTask { get; private set; } = Task.CompletedTask;
 
 	internal PartyJoinController( Func<string, CancellationToken, Action<LoadingProgress?>, Task> download,
-		Func<string, CancellationToken, Action<LoadingProgress?>, Task> connect, Action stopConnecting )
+		Func<string, CancellationToken, Action<LoadingProgress?>, Task> connect, Action stopConnecting, Func<string, bool> isInGame = null )
 	{
 		_download = download;
 		_connect = connect;
 		_stopConnecting = stopConnecting;
+		_isInGame = isInGame;
 	}
 
 	internal void Update( Target target, double now, LoadingProgress? hostProgress = null )
@@ -60,6 +62,14 @@ internal sealed class PartyJoinController : IDisposable
 		_target = target;
 		if ( target.State is PartyRoom.OwnerJoinState.None ) return;
 		if ( Stage is PartyRoom.JoinStage.Failed or PartyRoom.JoinStage.Cancelled or PartyRoom.JoinStage.Connected ) return;
+
+		if ( target.State == PartyRoom.OwnerJoinState.Ready && !string.IsNullOrWhiteSpace( target.Address ) && !_connecting && _isInGame?.Invoke( target.Address ) == true )
+		{
+			// Already in the leader's game (e.g. invited while playing together), don't rejoin it
+			Reset();
+			Stage = PartyRoom.JoinStage.Connected;
+			return;
+		}
 
 		if ( hostProgress is { } host && (_hostProgress is not { } previous || host.Fraction != previous.Fraction || host.Title != previous.Title) )
 			_lastActivity = now;

@@ -10,7 +10,16 @@ internal sealed partial class Controller
 	/// <summary>
 	/// Get the first controller that's connected (shortcut)
 	/// </summary>
-	internal static Controller First => All.FirstOrDefault();
+	internal static Controller First
+	{
+		get
+		{
+			foreach ( var controller in All )
+				return controller;
+
+			return null;
+		}
+	}
 
 	/// <summary>
 	/// The input context for this controller.

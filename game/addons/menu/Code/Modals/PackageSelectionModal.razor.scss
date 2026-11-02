@@ -1,4 +1,7 @@
 @import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+
+// The same card as a game's page (MegaCard) - its slab, hairlines and colours, the results sunk into it like the page
 
 .modal.package-picker-modal
 {
@@ -8,13 +11,10 @@
 		max-width: 94vw;
 		height: 860px;
 		max-height: 90vh;
+		@include front-card;
 		flex-direction: column;
-		background-color: $default-900;
-		border: 1px solid $default-border;
-		border-radius: 12px;
-		overflow: hidden;
+		box-shadow: 0 30px 90px rgba( $default-950, 0.75 );
 		pointer-events: all;
-		font-family: $font-default;
 	}
 
 	.picker-header
@@ -23,6 +23,7 @@
 		align-items: center;
 		justify-content: space-between;
 		padding: 24px 28px 20px;
+		border-bottom: $front-border-width solid $front-hairline;
 
 		.heading
 		{
@@ -32,15 +33,15 @@
 
 		.picker-title
 		{
-			font-family: $font-heading;
+			font-family: $front-font;
 			font-size: 26px;
 			font-weight: 700;
-			color: $default-text;
+			color: $front-heading;
 		}
 
 		.picker-subtitle
 		{
-			color: $default-200;
+			color: $front-secondary;
 			font-size: 14px;
 		}
 
@@ -54,38 +55,29 @@
 			padding: 0;
 			border-radius: 6px;
 			font-size: 24px;
-			color: $default-200;
+			color: $front-secondary;
 
 			&:hover
 			{
-				background-color: $default-800;
-				color: white;
+				background-color: rgba( 255, 255, 255, 0.06 );
+				color: $front-heading;
 			}
 		}
 	}
 
-	.picker-toolbar
-	{
-		flex-shrink: 0;
-		align-items: center;
-		gap: 12px;
-		padding: 0 28px 24px;
-		border-bottom: 1px solid $default-border;
-	}
-
+	// In the sidebar, under the sorts, like the Games page's
 	.package-search
 	{
-		flex-grow: 1;
-		flex-shrink: 1;
-		min-width: 0;
-		height: 44px;
+		flex-shrink: 0;
+		width: 100%;
+		height: 40px;
 		padding: 0 36px 0 14px;
 		gap: 10px;
 		align-items: center;
 		font-size: 15px;
-		color: $default-text;
-		background-color: $default-950;
-		border: 1px solid $default-border;
+		color: $front-body;
+		background-color: rgba( 0, 0, 0, 0.28 );
+		border: $front-border-width solid $front-hairline;
 		border-radius: 6px;
 
 		&::before
@@ -93,19 +85,19 @@
 			content: "search";
 			font-family: Material Icons;
 			font-size: 22px;
-			color: $default-300;
+			color: $front-tertiary;
 			flex-shrink: 0;
 			pointer-events: none;
 		}
 
 		&:focus
 		{
-			border-color: $primary-blue;
+			border-color: $front-primary;
 		}
 
 		.placeholder
 		{
-			color: $default-300;
+			color: $front-tertiary;
 		}
 	}
 
@@ -119,7 +111,7 @@
 		gap: 10px;
 		font-size: 14px;
 		font-weight: 500;
-		color: $default-100;
+		color: $front-body;
 		border-radius: 6px;
 		background-color: transparent;
 		cursor: pointer;
@@ -131,25 +123,27 @@
 
 		&:hover
 		{
-			color: white;
-			background-color: rgba( white, 0.05 );
+			color: $front-heading;
+			background-color: rgba( 255, 255, 255, 0.05 );
 		}
 
 		&.active
 		{
 			color: #a9cdff;
-			background-color: rgba( $primary-blue, 0.18 );
+			background-color: rgba( $front-primary, 0.18 );
 		}
 	}
 
 	.multiplayer-filter
 	{
-		height: 44px;
-		border: 1px solid $default-border;
+		flex-shrink: 0;
+		width: 100%;
+		height: 40px;
+		border: $front-border-width solid $front-hairline;
 
 		&.active
 		{
-			border-color: rgba( $primary-blue, 0.4 );
+			border-color: rgba( $front-primary, 0.4 );
 		}
 	}
 
@@ -160,16 +154,15 @@
 		min-height: 0;
 	}
 
+	// Wide enough for the eight sorts across, like the Games page's
 	.picker-sidebar
 	{
-		width: 248px;
+		width: 352px;
 		flex-shrink: 0;
 		flex-direction: column;
-		padding: 20px 16px;
-		gap: 24px;
-		overflow-y: scroll;
-		background-color: rgba( $default-950, 0.4 );
-		border-right: 1px solid $default-border;
+		min-height: 0;
+		background-color: rgba( 0, 0, 0, 0.15 );
+		border-right: $front-border-width solid $front-hairline;
 	}
 
 	.filter-section
@@ -180,15 +173,53 @@
 		gap: 8px;
 	}
 
-	.section-title
+	// Where it's from, how it's sorted and the search - staying put
+	.sidebar-top
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		gap: 20px;
+		padding: 24px 20px 20px 20px;
+	}
+
+	// The filters under the search, scrolling on their own with a thin bar - 8px clear of its 8px track
+	.sidebar-filters
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		min-height: 0;
+		gap: 20px;
+		padding: 0 12px 24px 20px;
+		overflow-y: scroll;
+		scrollbar-width: thin;
+		scrollbar-color: $front-secondary transparent;
+		scrollbar-gutter: stable;
+	}
+
+	// A section's heading, its icon in front in the menu blue - the Games page's
+	.picker-sidebar h2
 	{
 		flex-shrink: 0;
-		padding: 0 12px 4px;
-		font-size: 11px;
+		margin-bottom: 4px;
+		font-size: 15px;
 		font-weight: 700;
 		text-transform: uppercase;
-		letter-spacing: 1px;
-		color: $default-300;
+		letter-spacing: 0.06em;
+		color: $front-heading;
+
+		i
+		{
+			color: $front-primary;
+			text-transform: none;
+			font-size: 21px;
+		}
+	}
+
+	// How they're sorted - the Games page's row of round icon buttons, across the sidebar
+	GamePackageSortOrder
+	{
+		flex-shrink: 0;
 	}
 
 	.browse-options
@@ -235,8 +266,8 @@
 			font-weight: 500;
 			text-align: center;
 			white-space: nowrap;
-			color: $default-200;
-			background-color: rgba( white, 0.06 );
+			color: $front-secondary;
+			background-color: rgba( 255, 255, 255, 0.06 );
 		}
 	}
 
@@ -259,12 +290,12 @@
 			flex-shrink: 0;
 			padding: 6px 8px;
 			gap: 8px;
-			color: $default-100;
+			color: $front-body;
 
 			&.active
 			{
 				color: #a9cdff;
-				background-color: rgba( $primary-blue, 0.18 );
+				background-color: rgba( $front-primary, 0.18 );
 			}
 		}
 
@@ -278,7 +309,7 @@
 			{
 				min-width: 0;
 				flex-grow: 1;
-				font-family: $font-default;
+				font-family: $front-font;
 				font-weight: 500;
 			}
 
@@ -306,8 +337,8 @@
 			white-space: nowrap;
 			font-size: 11px;
 			font-weight: 500;
-			color: $default-200;
-			background-color: rgba( white, 0.06 );
+			color: $front-secondary;
+			background-color: rgba( 255, 255, 255, 0.06 );
 		}
 	}
 
@@ -319,28 +350,29 @@
 		min-width: 0;
 		min-height: 0;
 		width: 0;
+		background-color: rgba( 0, 0, 0, 0.28 );
 	}
 
+	// 24 round the results - 16 between the heading and the tiles, like between the tiles
 	.results-header
 	{
 		flex-shrink: 0;
 		align-items: center;
 		gap: 12px;
-		height: 60px;
-		padding: 12px 24px;
+		padding: 24px 24px 0 24px;
 	}
 
 	.results-title
 	{
 		font-size: 16px;
 		font-weight: 600;
-		color: $default-text;
+		color: $front-heading;
 	}
 
 	.results-count
 	{
 		font-size: 12px;
-		color: $default-300;
+		color: $front-tertiary;
 	}
 
 	.clear-filters
@@ -350,6 +382,7 @@
 		padding: 6px 8px;
 	}
 
+	// Tiles like the Games page's - just the art, the grid's own spacing
 	packagelist
 	{
 		min-height: 0;
@@ -357,16 +390,21 @@
 
 		VirtualGrid
 		{
-			padding: 8px 24px 24px;
+			padding: 16px 24px 24px;
 			gap: 16px;
 
+			// The art, filling its cell - no name or numbers under it
 			PackageCard
 			{
-				align-self: flex-start;
-				padding: 8px;
-				border-radius: 8px;
+				width: 100%;
+				height: auto;
 
-				// Use the card's own padding for the hover background.
+				column
+				{
+					display: none;
+				}
+
+				// Just the lift under the pointer - no plate behind it
 				&:not(.list)::after
 				{
 					display: none;
@@ -374,29 +412,7 @@
 
 				&:not(.list):hover
 				{
-					transform: none;
-					background-color: $default-800;
-				}
-
-				// Keep the artwork full width, with room below for the title and stats.
-				.image, column
-				{
-					flex-shrink: 0;
-				}
-
-				.image
-				{
-					border-radius: 4px;
-				}
-
-				column
-				{
-					padding: 8px 2px 0;
-				}
-
-				.package-title
-				{
-					white-space: nowrap;
+					background-color: transparent;
 				}
 			}
 		}
@@ -408,8 +424,8 @@
 		flex-grow: 1;
 		flex-shrink: 1;
 		min-height: 0;
-		padding: 8px 24px 24px;
-		gap: 18px;
+		padding: 16px 24px 24px;
+		gap: 16px;
 	}
 
 	.mounted-maps-empty

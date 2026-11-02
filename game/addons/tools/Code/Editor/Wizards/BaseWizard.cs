@@ -10,6 +10,12 @@ public abstract class BaseWizard : Widget
 
 	public Layout BodyLayout;
 	public Layout HeaderLayout;
+
+	/// <summary>
+	/// The right of the header, beside the page's title - <see cref="BuildHeaderRight"/> fills it
+	/// </summary>
+	public Layout HeaderRight;
+	Layout HeaderRow;
 	public Layout FooterRight;
 	public Layout FooterLeft;
 	public Layout Footer;
@@ -74,7 +80,9 @@ public abstract class BaseWizard : Widget
 	{
 		Layout = Layout.Column();
 
-		HeaderLayout = Layout.AddColumn();
+		HeaderRow = Layout.AddRow();
+		HeaderLayout = HeaderRow.AddColumn( 1 );
+		HeaderRight = HeaderRow.AddRow();
 		var body = Layout.AddColumn( 1 );
 		ScrollArea = new ScrollArea( this );
 		body.Add( ScrollArea );
@@ -86,7 +94,7 @@ public abstract class BaseWizard : Widget
 		Layout.AddStretchCell( 0 );
 
 		Footer = Layout.AddRow();
-		Footer.Margin = 16;
+		Footer.Margin = new Sandbox.UI.Margin( 32, 16 );
 
 		FooterLeft = Footer.AddRow();
 		Footer.AddStretchCell();
@@ -99,6 +107,7 @@ public abstract class BaseWizard : Widget
 	void BuildNavigation()
 	{
 		HeaderLayout.Clear( true );
+		HeaderRight.Clear( true );
 		FooterLeft.Clear( true );
 		FooterRight.Clear( true );
 
@@ -114,7 +123,22 @@ public abstract class BaseWizard : Widget
 
 		NextButton = FooterRight.Add( new Button.Primary( "Next", "navigate_next" ) );
 		NextButton.Clicked = NextPage;
+
+		HeaderRight.Margin = new Sandbox.UI.Margin( 0, 16, 32, 16 );
+		BuildHeaderRight( HeaderRight );
 	}
+
+	/// <summary>
+	/// Put something in the right of the header, beside the page's title - built again on hotload
+	/// </summary>
+	protected virtual void BuildHeaderRight( Layout layout )
+	{
+	}
+
+	/// <summary>
+	/// Can we go on from any page? False holds the wizard where it is, whatever the page says.
+	/// </summary>
+	protected virtual bool CanGoOn => true;
 
 	public Layout StartSection( string name, Layout layout = null )
 	{
@@ -221,10 +245,9 @@ public abstract class BaseWizard : Widget
 
 		var left = Color.Lerp( Theme.WindowBackground, Theme.Primary, 0.5f );
 
-		var r = HeaderLayout.InnerRect;
 		Paint.Antialiasing = true;
 		Paint.SetBrushAndPen( left );
-		Paint.DrawRect( HeaderLayout.InnerRect );
+		Paint.DrawRect( HeaderRow.InnerRect );
 
 		Paint.SetBrushAndPen( Theme.WindowBackground );
 		Paint.DrawRect( Footer.OuterRect );
@@ -259,7 +282,7 @@ public abstract class BaseWizard : Widget
 
 		BackButton.Visible = true;
 		BackButton.Enabled = !loading && Steps.First() != Current;
-		NextButton.Enabled = !loading && Steps.Last() != Current && Current.CanProceed();
+		NextButton.Enabled = !loading && Steps.Last() != Current && CanGoOn && Current.CanProceed();
 		NextButton.Text = Current.NextButtonText;
 		NextButton.Icon = "navigate_next";
 	}
@@ -288,6 +311,9 @@ public abstract class BaseWizard : Widget
 		if ( loading ) return;
 
 		if ( !Current.CanProceed() )
+			return;
+
+		if ( Current != Steps.Last() && !CanGoOn )
 			return;
 
 		OnSave();

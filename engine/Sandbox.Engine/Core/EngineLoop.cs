@@ -91,6 +91,7 @@ internal static class EngineLoop
 					FrameEnd();
 				}
 				IToolsDll.Current?.RunFrame();
+				Bootstrap.TryFinishStartup();
 			}
 			catch ( System.Exception e )
 			{
@@ -100,7 +101,7 @@ internal static class EngineLoop
 
 		var idleMs = framePacer.Wait( FrameRateLimit.FramesPerSecond );
 		PerformanceStats.Timings.Idle.AddMilliseconds( idleMs );
-		PerfHub.SampleFrame( frameTimer.ElapsedMilliSeconds, idleMs );
+		DevTools.SampleFrame( frameTimer.ElapsedMilliSeconds, idleMs );
 
 		previousTime = time;
 	}
@@ -135,11 +136,7 @@ internal static class EngineLoop
 	{
 		ThreadSafe.AssertIsMainThread();
 
-		//
-		// Let the Steam API and Steam Game Server API think
-		//
-		NativeEngine.Steam.SteamGameServer_RunCallbacks();
-		NativeEngine.Steam.SteamAPI_RunCallbacks();
+		RunSteamCallbacks();
 
 		//
 		// Update performance stats (should be called every frame)
@@ -225,7 +222,7 @@ internal static class EngineLoop
 		}
 
 		// After the game and menu UI so it draws over them. Outside the UI scope so it doesn't count as the game's UI.
-		PerfHub.Simulate();
+		DevTools.Simulate();
 
 		// Give each sound handle an opportunity to for a frame think
 		using ( PerformanceStats.Timings.Audio.Scope() )
@@ -245,6 +242,15 @@ internal static class EngineLoop
 		PartyRoom.Current?.Tick();
 
 		Audio.AudioEngine.Tick();
+	}
+
+	/// <summary>
+	/// Let the Steam API and Steam Game Server API think
+	/// </summary>
+	internal static void RunSteamCallbacks()
+	{
+		NativeEngine.Steam.SteamGameServer_RunCallbacks();
+		NativeEngine.Steam.SteamAPI_RunCallbacks();
 	}
 
 	public static void RunAsyncTasks()

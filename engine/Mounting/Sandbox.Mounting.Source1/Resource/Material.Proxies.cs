@@ -7,7 +7,7 @@ namespace Sandbox.Mounting.Source1;
 
 internal sealed partial class SourceMaterialBuilder
 {
-	private readonly record struct TextureAnimation( float FrameRate )
+	private readonly record struct TextureAnimation( float FrameRate, int? StaticFrame = null )
 	{
 		public void Bind( Material material, SurfaceTexture texture )
 		{
@@ -18,9 +18,9 @@ internal sealed partial class SourceMaterialBuilder
 		}
 	}
 
-	private readonly record struct MaterialAlpha( float Value, Vector4? Sine = null )
+	private readonly record struct MaterialAlpha( float Value, Vector4? Sine = null, bool Dynamic = false )
 	{
-		public bool CanBeTranslucent => Sine is { } wave ? Math.Min( wave.z, wave.w ) < 1 : Value < 1;
+		public bool CanBeTranslucent => Dynamic || (Sine is { } wave ? Math.Min( wave.z, wave.w ) < 1 : Value < 1);
 
 		public void Bind( Material material )
 		{
@@ -33,6 +33,8 @@ internal sealed partial class SourceMaterialBuilder
 
 	private (TextureTransforms Transforms, MaterialAlpha Alpha, TextureAnimation? Animation) GetMaterialProxies( VmtFile vmt, string shader, VmtParameters parameters )
 	{
+		if ( TryGetExtendedProxies( vmt, shader, out var extended ) )
+			return extended;
 		var alpha = new MaterialAlpha( SupportsAlpha( shader ) ? Math.Clamp( parameters.Float( "$alpha", 1 ), 0, 1 ) : 1 );
 		TextureAnimation? animation = null;
 		var unchanged = (new TextureTransforms( parameters, null ), alpha, animation);
@@ -160,8 +162,8 @@ internal sealed partial class SourceMaterialBuilder
 		&& !float.TryParse( text, NumberStyles.Float, CultureInfo.InvariantCulture, out _ );
 
 	private static bool SupportsAlpha( string shader ) => shader is "vertexlitgeneric" or "lightmappedgeneric"
-		or "unlitgeneric" or "worldvertextransition" or "modulate" or "water" or "refract" or "vortwarp";
+		or "unlitgeneric" or "worldvertextransition" or "modulate" or "water" or "refract" or "vortwarp" or "worldtwotextureblend";
 
 	private static bool SupportsAnimatedTexture( string shader ) => shader is "vertexlitgeneric" or "lightmappedgeneric"
-		or "unlitgeneric" or "worldvertextransition" or "modulate" or "unlittwotexture" or "water" or "refract" or "core" or "vortwarp";
+		or "unlitgeneric" or "worldvertextransition" or "modulate" or "unlittwotexture" or "water" or "refract" or "core" or "vortwarp" or "worldtwotextureblend";
 }

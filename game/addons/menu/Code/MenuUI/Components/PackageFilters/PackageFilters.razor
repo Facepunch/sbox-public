@@ -14,7 +14,7 @@
 
     <div class="left">
 
-    @foreach ( var facet in Result.Facets )
+    @foreach ( var facet in Result.Facets.Where( x => !global::MenuHelpers.IsRatingFacet( x ) ) )
     {
         filterFacets.TryGetValue( facet.Name, out var value );
 

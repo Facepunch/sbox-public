@@ -134,7 +134,7 @@ public class PipelineTests
 		var view = system.MainPass;
 
 		var layers = system.Layers.OfType<MeshLayer>().ToArray();
-		Assert.AreEqual( 16, layers.Length, "shadow, overlay prepass, prepass, bloom, refraction stencil, opaque, tools opaque, static overlays, decals, translucent, tools translucent, the two game overlay layers, the two screen overlay layers and after UI" );
+		Assert.AreEqual( 17, layers.Length, "shadow, overlay prepass, prepass, late prepass, bloom, refraction stencil, opaque, tools opaque, static overlays, decals, translucent, tools translucent, the two game overlay layers, the two screen overlay layers and after UI" );
 
 		foreach ( var layer in layers )
 		{

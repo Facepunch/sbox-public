@@ -56,7 +56,7 @@ enum ToolsVisModes
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-int 	ToolsVisMode 		< Attribute("ToolsVisMode"); Default(0); > ;
+int 	ToolsVisMode 		< Attribute("ToolsVisMode"); Default(0); SpecializedConstant(); > ;
 float3 	FlatOverlayColor 	< Attribute("FlatOverlayColor"); Default3(1.0, 0.0, 1.0); > ;
 float4 	ShaderIDColor 		< Source(ShaderIDColor); > ;
 float4 	ShadingComplexity 	< Source(ShadingComplexity); > ;

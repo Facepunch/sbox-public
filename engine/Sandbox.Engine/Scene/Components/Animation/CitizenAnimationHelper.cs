@@ -18,6 +18,7 @@ namespace Sandbox.Citizen;
 [Category( "Citizen" )]
 [Icon( "directions_run" )]
 [Alias( "CitizenAnimation" )]
+[Obsolete( "Uses obsolete AnimGraph1. Use an AnimGraph2 graph and SkinnedModelRenderer.Animation.Parameters instead." )]
 public sealed class CitizenAnimationHelper : Component, Component.ExecuteInEditor
 {
 	SkinnedModelRenderer _target;

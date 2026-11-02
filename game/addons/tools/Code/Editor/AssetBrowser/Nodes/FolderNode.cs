@@ -82,6 +82,13 @@ partial class FolderNode : TreeNode<LocalAssetBrowser.Location>
 				Context = this
 			};
 
+			if ( AssetLocations.CanModifyFolder( diskLocation ) )
+			{
+				fcm.Menu.AddOption( "Delete", "delete", () => (TreeView as AssetLocations)?.DeleteFolder( diskLocation ), "editor.delete" );
+				fcm.Menu.AddOption( "Rename", "edit", () => AssetList.OpenRenameFlyout( fcm.Target, fcm.ScreenPosition ) );
+				fcm.Menu.AddSeparator();
+			}
+
 			EditorEvent.Run( "folder.contextmenu", fcm );
 
 			if ( !fcm.Menu.HasOptions )

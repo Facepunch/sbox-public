@@ -11,7 +11,7 @@
         "__guid": "497b0e69-53dd-4789-aa42-1848d83e9c71",
         "FogMode": "Enabled",
         "FogStrength": 1,
-        "LightColor": "0.91373,0.98039,1,1",
+        "LightColor": "1,1,1,1",
         "Shadows": true,
         "SkyColor": "0,0,0,0"
       }

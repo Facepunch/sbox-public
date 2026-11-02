@@ -522,32 +522,49 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 	{
 		if ( _body.IsValid() ) return;
 
-		_body = Scene.PhysicsWorld?.CreateBody();
+		_isSimulatingPhysics = ShouldSimulatePhysics;
+		var bodyType = Scene.IsEditor
+			? Scene.GetSystem<ScenePhysicsSystem>()?.HasRigidBody( this ) == true ? PhysicsBodyType.Dynamic : PhysicsBodyType.Static
+			: _isSimulatingPhysics && MotionEnabled ? PhysicsBodyType.Dynamic : PhysicsBodyType.Keyframed;
+		var dynamic = bodyType == PhysicsBodyType.Dynamic;
+		var settings = new PhysicsBodySettings
+		{
+			BodyType = bodyType,
+			Position = WorldPosition,
+			Rotation = WorldRotation,
+			Velocity = StartAsleep ? default : _lastVelocity,
+			AngularVelocity = StartAsleep ? default : _lastAngularVelocity,
+			SleepThreshold = SleepThreshold,
+			LinearDamping = dynamic ? LinearDamping : 0,
+			AngularDamping = dynamic ? AngularDamping : 0,
+			GravityScale = dynamic ? GravityScale : 1,
+			Mass = dynamic ? MassOverride : 0,
+			InertiaScale = dynamic ? InertiaScale : 1,
+			MassCenter = dynamic ? MassCenterOverride : default
+		};
+		if ( dynamic )
+		{
+			settings.SetLocks( Locking );
+			if ( !Gravity )
+				settings.Flags &= ~PhysicsBodyCreationFlags.Gravity;
+			if ( OverrideMassCenter )
+				settings.Flags |= PhysicsBodyCreationFlags.OverrideMassCenter;
+		}
+		if ( EnhancedCcd )
+			settings.Flags |= PhysicsBodyCreationFlags.Bullet;
+		if ( StartAsleep )
+			settings.Flags &= ~PhysicsBodyCreationFlags.Awake;
 
+		_body = Scene.PhysicsWorld.CreateBody( settings );
 		_body.Component = this;
-		_body.Transform = WorldTransform;
-		_body.AutoSleep = true;
-
-		//defaults
-		_body.EnableTouch = CollisionEventsEnabled;
-		_body.EnableTouchPersists = CollisionUpdateEventsEnabled;
-
-		// Apply velocities that were set before the body was created
-		_body.Velocity = _lastVelocity;
-		_body.AngularVelocity = _lastAngularVelocity;
-
-		_body.EnhancedCcd = EnhancedCcd;
-		_body.SleepThreshold = SleepThreshold;
 
 		// Make sure we clear these so we don't reapply them again later
 		_lastVelocity = default;
 		_lastAngularVelocity = default;
 
-		_isSimulatingPhysics = ShouldSimulatePhysics;
-
 		_body._body.OnDirty = MarkActive;
 
-		UpdateBody();
+		UpdateBody( true );
 	}
 
 	protected override void OnEnabled()
@@ -571,7 +588,10 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 			_body.Sleeping = StartAsleep;
 		}
 
-		BroadcastToColliders();
+		using ( _body._body.BatchMassUpdates() )
+		{
+			BroadcastToColliders();
+		}
 	}
 
 	internal override void OnDisabledInternal()
@@ -853,7 +873,9 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 	/// <summary>
 	/// Updates the physics body with the current properties of this component.
 	/// </summary>
-	internal void UpdateBody()
+	internal void UpdateBody() => UpdateBody( false );
+
+	void UpdateBody( bool initializing )
 	{
 		if ( !_body.IsValid() ) return;
 
@@ -863,7 +885,8 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 		if ( Scene.IsEditor )
 		{
 			var system = Scene.GetSystem<ScenePhysicsSystem>();
-			_body.BodyType = system is not null && system.HasRigidBody( this ) ? PhysicsBodyType.Dynamic : PhysicsBodyType.Static;
+			if ( !initializing )
+				_body.BodyType = system is not null && system.HasRigidBody( this ) ? PhysicsBodyType.Dynamic : PhysicsBodyType.Static;
 			_body.EnableCollisionSounds = !RigidbodyFlags.Contains( RigidbodyFlags.DisableCollisionSounds );
 
 			// Always considered dynamic for navmesh
@@ -874,12 +897,13 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 			// Reset whatever this is.
 			_body.NavmeshBodyTypeOverride = null;
 
-			_body.MotionEnabled = _isSimulatingPhysics && MotionEnabled;
+			if ( !initializing )
+				_body.MotionEnabled = _isSimulatingPhysics && MotionEnabled;
 			_body.EnableCollisionSounds = _isSimulatingPhysics && !RigidbodyFlags.Contains( RigidbodyFlags.DisableCollisionSounds );
 		}
 
 		// All these properties only matter for dynamic.
-		if ( _body.BodyType == PhysicsBodyType.Dynamic )
+		if ( !initializing && _body.BodyType == PhysicsBodyType.Dynamic )
 		{
 			_body.Locking = Locking;
 			_body.AngularDamping = AngularDamping;

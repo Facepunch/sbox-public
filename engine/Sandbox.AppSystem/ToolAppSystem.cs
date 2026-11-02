@@ -2,6 +2,7 @@
 using Sandbox.Tasks;
 using System;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 
@@ -45,6 +46,11 @@ public class ToolAppSystem : AppSystem, IDisposable
 		AddSearchPaths( System.Environment.GetCommandLineArgs() );
 	}
 
+	/// <summary>
+	/// The managed engine's startup, as an app's.
+	/// </summary>
+	protected virtual void PreInit() => Bootstrap.PreInit();
+
 	protected void InitTool( AppSystemCreateInfo createInfo )
 	{
 		var commandLine = System.Environment.CommandLine;
@@ -54,6 +60,10 @@ public class ToolAppSystem : AppSystem, IDisposable
 		_appSystem.SetModGameSubdir( "core" );
 		_appSystem.SetInToolsMode();
 		_appSystem.SetSteamAppId( (uint)Application.AppId );
+
+		// A tool that needs the GPU (a compiler that renders) asks for it, as resourcecompiler does
+		if ( Environment.GetCommandLineArgs().Contains( "-vulkan" ) )
+			_appSystem.SetDefaultRenderSystemOption( "-vulkan" );
 
 		//_appSystem.Init();
 
@@ -65,7 +75,7 @@ public class ToolAppSystem : AppSystem, IDisposable
 		_appSystem.AddSystem( "resourcecompiler", "ResourceCompilerSystem001" );
 
 		Bootstrap.InitApplication( _appSystem );
-		Bootstrap.PreInit();
+		PreInit();
 
 		//Bootstrap.Init();
 	}

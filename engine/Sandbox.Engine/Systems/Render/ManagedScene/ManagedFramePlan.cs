@@ -2,7 +2,7 @@ namespace Sandbox.Rendering;
 
 /// <summary>
 /// A frame's plan as the managed scene renderer made it - which layers ran, why the rest didn't, what each made and read,
-/// and how recording split across threads - for the frame plan on the performance hub's Rendering tab (<c>DebugOverlay.ScenePlan</c>).
+/// and how recording split across threads - for the frame plan on the dev tools's Rendering tab (<c>DebugOverlay.ScenePlan</c>).
 /// The renderer publishes one for each frame it draws into a swap chain while something wants it (<see cref="Wanted"/>).
 /// </summary>
 internal sealed class ManagedFramePlan

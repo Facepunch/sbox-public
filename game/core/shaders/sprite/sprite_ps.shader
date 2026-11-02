@@ -295,6 +295,9 @@ PS
 
 	Texture2D g_tFrameBufferCopyTexture < Attribute( "FrameBufferCopyTexture" ); SrgbRead( false ); >;
 
+	// Lit sprites' light, per froxel of the light clusters (ParticleLightingSystem)
+	Texture3D g_tParticleLighting < Attribute( "ParticleLighting" ); SrgbRead( false ); >;
+
 
 	// Performs UV Flipping
 	float2 GetUV(SpriteData sprite, float2 inUV)
@@ -503,24 +506,12 @@ PS
 		}
 		#endif
 
-		if(hasLighting)
+		if ( hasLighting )
 		{
-			FinalCombinerInput_t finalCombinerInput = {};
-			finalCombinerInput.vPositionWithOffsetWs.xyz = i.vPositionWithOffsetWs.xyz;
-			finalCombinerInput.vPositionWs.xyz = i.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz;
-			finalCombinerInput.vRoughness = 1;
-			finalCombinerInput.vNormalWs = i.vNormalWs;
-			finalCombinerInput.vPositionSs = i.vPositionSs;
-
-			LightingTerms_t lightingTerms = InitLightingTerms();
-			ComputeDirectLighting( lightingTerms, finalCombinerInput );
-			CalculateIndirectLighting( lightingTerms, finalCombinerInput ); 
-
-			float4 lighting = float4( 0.0, 0.0, 0.0, 1.0 );
-			lighting.rgb += lightingTerms.vDiffuse.rgb; 
-			lighting.rgb += lightingTerms.vIndirectDiffuse.rgb;
-
-			col *= lighting;
+			float3 worldPosition = i.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz;
+			float depth = clamp( dot( worldPosition - g_vCameraPositionWs, g_vCameraDirWs ), ClusterZParams.z, ClusterZParams.w );
+			float3 uvw = float3( CalculateViewportUv( i.vPositionSs.xy ), Cluster::DepthToSlice( depth ) * ClusterInvCounts.z );
+			col.rgb *= g_tParticleLighting.SampleLevel( g_sTrilinearClamp, uvw, 0 ).rgb;
 		}
 
 		if ( g_bFogEnabled )

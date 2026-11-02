@@ -62,6 +62,11 @@ public static class LaunchArguments
 	public static string ServerName { get; set; }
 
 	/// <summary>
+	/// The password for lobbies created on game start. Write only, games don't get to read it.
+	/// </summary>
+	public static string Password { internal get; set; }
+
+	/// <summary>
 	/// Should be called when leaving a game to set the properties back to default. We need to be
 	/// aware and prevent these leaking between games.
 	/// </summary>
@@ -71,6 +76,7 @@ public static class LaunchArguments
 		Map = default;
 		PrivacyOverride = null;
 		ServerName = default;
+		Password = default;
 		MaxPlayers = 0;
 	}
 

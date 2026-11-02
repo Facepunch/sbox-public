@@ -132,18 +132,22 @@ public partial class LadderMoveModeTest
 	}
 
 	[TestMethod]
-	public void ExitingLadderAtTopCanLandOnPlatform()
+	[DataRow( 16f )]
+	[DataRow( 32f )]
+	public void ExitingLadderAtTopCanLandOnPlatform( float bodyWidth )
 	{
 		var scene = new Scene();
 		using var scope = scene.Push();
 		CreateFloor( scene );
 		CreateLadderTrigger( scene, new Vector3( 16, 0, 96 ), new Vector3( 20, 64, 192 ) );
 		var platform = scene.CreateObject();
-		platform.WorldPosition = new Vector3( 80, 0, 184 );
+		// The platform starts at the player's footprint, without an air gap at the exit.
+		platform.WorldPosition = new Vector3( 64 + bodyWidth * 0.5f, 0, 184 );
 		var collider = platform.Components.Create<BoxCollider>();
 		collider.Scale = new Vector3( 128, 128, 16 );
 		collider.Static = true;
 		var pc = CreatePlayer( scene, Vector3.Up * 80, out var mode );
+		pc.BodyRadius = bodyWidth;
 		TickUntil( scene, () => pc.IsClimbing, 60 );
 		Assert.IsTrue( pc.IsClimbing );
 		pc.WishVelocity = mode.UpdateMove( Rotation.Identity, Vector3.Forward );
@@ -154,6 +158,10 @@ public partial class LadderMoveModeTest
 		pc.WishVelocity = Vector3.Forward * 160;
 		for ( int i = 0; i < 120 && !pc.IsOnGround; ++i )
 			scene.GameTick( 1.0 / 50 );
+		Assert.IsTrue( pc.IsOnGround );
+		Assert.AreEqual( platform, pc.GroundObject );
+		// Ground is acquired within probe reach; snapping finishes on the next walking tick.
+		scene.GameTick( 1.0 / 50 );
 		Assert.IsTrue( pc.IsOnGround );
 		Assert.AreEqual( platform, pc.GroundObject );
 		Assert.AreEqual( 192f, pc.Body.PhysicsBody.Position.z, 1.0f );
@@ -260,8 +268,10 @@ public partial class LadderMoveModeTest
 		Assert.IsFalse( pc.IsClimbing, $"retained removed {removal}" );
 		Assert.IsTrue( pc.Mode is MoveModeWalk );
 		Assert.IsNull( mode.ClimbingObject );
-		TickUntil( scene, () => pc.Body.Gravity, 10 );
-		Assert.IsTrue( pc.Body.Gravity, "walking did not restore gravity after losing the ladder" );
+		var height = pc.WorldPosition.z;
+		TickUntil( scene, () => pc.WorldPosition.z < height, 10 );
+		Assert.IsTrue( pc.Body.Velocity.z < -1, "walking did not resume falling after losing the ladder" );
+		Assert.IsTrue( pc.WorldPosition.z < height );
 		TickUntil( scene, () => pc.IsOnGround, 150 );
 		Assert.IsTrue( pc.IsOnGround );
 	}

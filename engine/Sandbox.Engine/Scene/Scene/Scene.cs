@@ -131,7 +131,7 @@ public partial class Scene : GameObject
 	/// </summary>
 	internal int ReloadHash => HashCode.Combine( PhysicsMode );
 
-	public PhysicsWorld PhysicsWorld => _physicsWorld ??= CreatePhysicsWorld();
+	public PhysicsWorld PhysicsWorld => _physicsWorld ??= _destroyed ? null : CreatePhysicsWorld();
 
 	/// <summary>
 	/// Creates the physics world for this scene, matching <see cref="PhysicsMode"/>.

@@ -42,6 +42,15 @@ public sealed partial class PlayerController : Component
 			|| (!forward.StartedSolid && IsPhysicalSupportHit( forward )) )
 			return;
 
+		if ( !Scene.Is2D && !GroundUsesContactFriction && forward.Body?.BodyType == PhysicsBodyType.Static
+			&& forward.Shape.IsValid() && forward.Shape.IsHullShape )
+		{
+			// Static hulls use exact reach; moving bodies need contact tolerance.
+			var reached = TraceMovement( from, from + displacement, 0, includeGroundClearance: true );
+			if ( reached.StartedSolid ) reached = TraceMovement( from, from + displacement, 0 );
+			if ( !reached.Hit || reached.StartedSolid ) return;
+		}
+
 		var maxLift = maxDistance + _stepClearance + _skin;
 		var maxRise = maxDistance + _skin;
 		var upward = TraceMovement( from, from + up * maxLift );

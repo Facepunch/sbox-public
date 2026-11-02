@@ -150,6 +150,7 @@ public class SettingsCatalog
 		["TextureQuality"] = "gfx.texture",
 		["ShadowQuality"] = "gfx.shadows",
 		["VolumetricFogQuality"] = "gfx.fog",
+		["WaterQuality"] = "gfx.water",
 		["AntiAliasMode"] = "gfx.aa",
 		["AntiAliasQuality"] = "gfx.msaa_samples",
 		["AmbientOcclusionQuality"] = "gfx.ao",
@@ -450,6 +451,19 @@ public class SettingsCatalog
 
 		Items.Add( new SettingItem
 		{
+			Id = "gfx.water",
+			Category = "graphics",
+			Section = "#menu.settings.quality",
+			Title = "#menu.settings.water",
+			Description = "#menu.settings.gfx.water.description",
+			Options = Levels( WaterQuality.Low, WaterQuality.Medium, WaterQuality.High, WaterQuality.Ultra ),
+			AppliesRenderSettings = true,
+			Read = () => Render.WaterQuality.ToString(),
+			Write = value => Render.WaterQuality = ToEnum<WaterQuality>( value )
+		} );
+
+		Items.Add( new SettingItem
+		{
 			Id = "gfx.aa",
 			Category = "graphics",
 			Section = "#menu.settings.quality",
@@ -521,8 +535,8 @@ public class SettingsCatalog
 			NumberFormat = "0'%'",
 			IsVisible = () => StagedUpscaler is UpscalerMode.Off or UpscalerMode.FSR1,
 			AppliesRenderSettings = true,
-			Read = () => (int)MathF.Round( Render.UpscalerRenderScale * 100f ),
-			Write = value => Render.UpscalerRenderScale = ToFloat( value ) / 100f
+			Read = () => (int)MathF.Round( Render.RenderScale * 100f ),
+			Write = value => Render.RenderScale = ToFloat( value ) / 100f
 		} );
 
 		Items.Add( new SettingItem
@@ -834,6 +848,7 @@ public class SettingsCatalog
 		} );
 
 		AddVolume( "audio.volume", "#menu.settings.audio.volume.title", "#menu.settings.audio.volume.description", "volume" );
+		AddVolume( "audio.game", "#menu.settings.audio.game.title", "#menu.settings.audio.game.description", "game_volume" );
 		AddVolume( "audio.music", "#menu.settings.audio.music.title", "#menu.settings.audio.music.description", "music_volume" );
 		AddVolume( "audio.menu_music", "#menu.settings.audio.menu_music.title", "#menu.settings.audio.menu_music.description", "music_volume_menu" );
 		AddVolume( "audio.voice", "#menu.settings.audio.voice.title", "#menu.settings.audio.voice.description", "voip_volume" );
@@ -1109,6 +1124,7 @@ public class SettingsCatalog
 
 		ConsoleSystem.SetValue( "snd_simulation_enable", true );
 		ConsoleSystem.SetValue( "volume", 1.0f );
+		ConsoleSystem.SetValue( "game_volume", 1.0f );
 		ConsoleSystem.SetValue( "music_volume", 1.0f );
 		ConsoleSystem.SetValue( "music_volume_menu", 1.0f );
 		ConsoleSystem.SetValue( "voip_volume", 1.0f );

@@ -804,6 +804,60 @@
 			m_Category = "Animation"
 		},
 		{
+			_class = "CResourceAssetTypeInfo"
+			m_Name = "animgraph2"
+			m_FriendlyName = "AnimGraph2"
+			m_Ext = "ag"
+			m_CompilerIdentifier = "CompileAnimgraph2"
+			m_bPrefersIconForThumbnail = true
+			m_IconLg = "toolimages:animgraph_editor/animgraph2_asset_lg.png"
+			m_IconSm = "toolimages:animgraph_editor/animgraph2_asset_sm.png"
+			m_Blocks =
+			[
+				{
+					m_BlockID = "DATA"
+					m_Encoding = "RESOURCE_ENCODING_KV3"
+				},
+			]
+			m_Category = "Animation"
+		},
+		{
+			_class = "CResourceAssetTypeInfo"
+			m_Name = "skeleton"
+			m_FriendlyName = "Skeleton"
+			m_Ext = "skel"
+			m_CompilerIdentifier = "CompileAnimSkeleton"
+			m_IconLg = "toolimages:assettypes/skeleton_lg.png"
+			m_IconSm = "toolimages:assettypes/skeleton_sm.png"
+			m_bPrefersIconForThumbnail = true
+			m_Blocks =
+			[
+				{
+					m_BlockID = "DATA"
+					m_Encoding = "RESOURCE_ENCODING_KV3"
+				},
+			]
+			m_Category = "Animation"
+		},
+		{
+			_class = "CResourceAssetTypeInfo"
+			m_Name = "animclip"
+			m_FriendlyName = "Animation Clip"
+			m_Ext = "anim"
+			m_CompilerIdentifier = "CompileAnimClip"
+			m_IconLg = "toolimages:assettypes/animation_lg.png"
+			m_IconSm = "toolimages:assettypes/animation_sm.png"
+			m_bPrefersIconForThumbnail = true
+			m_Blocks =
+			[
+				{
+					m_BlockID = "DATA"
+					m_Encoding = "RESOURCE_ENCODING_KV3"
+				},
+			]
+			m_Category = "Animation"
+		},
+		{
 			_class = "CSimpleAssetTypeInfo"
 			m_Name = "anim_subgraph"
 			m_FriendlyName = "Animation SubGraph"

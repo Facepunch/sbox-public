@@ -80,6 +80,8 @@ public partial class Texture
 	{
 		if ( native.IsNull ) throw new ObjectDisposedException( "Texture" );
 
+		DirtyVersion++; // Layer caches hash this
+
 		var memRequired = ImageLoader.GetMemRequired( width, height, depth, ImageFormat, false );
 		if ( data.Length < memRequired )
 		{

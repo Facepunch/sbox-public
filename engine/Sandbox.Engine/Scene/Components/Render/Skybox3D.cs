@@ -24,6 +24,22 @@ public class Skybox3D : Component, Component.ExecuteInEditor
 		}
 	}
 
+	/// <summary>
+	/// Optional settings for skybox fog, authored in main-world units.
+	/// The referenced Fog can be disabled to keep it from affecting the main world.
+	/// </summary>
+	[Property, Advanced]
+	public Fog FogOverride
+	{
+		get;
+		set
+		{
+			field = value;
+			if ( sceneSkybox is not null )
+				sceneSkybox.FogOverride = value;
+		}
+	}
+
 	Scene skyboxScene;
 	SceneSkybox3D sceneSkybox;
 
@@ -52,6 +68,7 @@ public class Skybox3D : Component, Component.ExecuteInEditor
 		try
 		{
 			skyboxScene = Scene.IsEditor ? Scene.CreateEditorScene() : new Scene();
+			skyboxScene.Enabled = false;
 			skyboxScene.Source = SkyboxScene;
 			using ( skyboxScene.Push() )
 			using ( SceneNetworkSystem.SuppressSpawnMessages() )
@@ -64,19 +81,19 @@ public class Skybox3D : Component, Component.ExecuteInEditor
 				if ( !skyboxScene.Load( options ) )
 				{
 					Log.Error( $"{GameObject.Name}: could not load skybox scene '{SkyboxScene.ResourcePath}'." );
-					DestroySkybox();
 					return;
 				}
 				skyboxScene.WantsSystemScene = false;
 				if ( skyboxScene.GetComponentsInChildren<Skybox3D>( true ).Any() )
 				{
 					Log.Error( $"{GameObject.Name}: skybox scene '{SkyboxScene.ResourcePath}' contains a nested Skybox3D component." );
-					DestroySkybox();
 					return;
 				}
+				skyboxScene.Enabled = true;
 			}
 
 			sceneSkybox = new SceneSkybox3D( Scene.SceneWorld, skyboxScene.SceneWorld );
+			sceneSkybox.FogOverride = FogOverride;
 			UpdateTransform();
 		}
 		finally
@@ -100,7 +117,7 @@ public class Skybox3D : Component, Component.ExecuteInEditor
 	protected override void OnUpdate()
 	{
 		if ( !skyboxScene.IsValid() ) return;
-		using ( skyboxScene.Push() )
+		using ( skyboxScene.PushScope() )
 		{
 			if ( skyboxScene.IsEditor )
 				skyboxScene.EditorTick( Time.Now, Time.Delta );

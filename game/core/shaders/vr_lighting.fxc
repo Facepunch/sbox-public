@@ -67,6 +67,9 @@ bool g_bShowLPVVoxels < Attribute( "g_bShowLPVVoxels" ); >;
 #ifndef S_TRANSMISSIVE
 #define S_TRANSMISSIVE 0
 #endif
+#ifndef S_DIFFUSE_TWO_SIDED
+#define S_DIFFUSE_TWO_SIDED 0
+#endif
 float g_flLightRangeForSelfShadowNormals < Default( 0.707 ); Range( 0.0, 1.0 ); UiGroup( "Normal" ); >;
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -187,7 +190,9 @@ void ComputeDiffuseAndSpecularTerms( out float3 o_vDiffuseTerm, out float3 o_vSp
 			#else
 			{
 				float flDiffuseExponent = ( vDiffuseExponent.x + vDiffuseExponent.y ) * 0.5;
-				o_vDiffuseTerm.rgb = pow( flNDotL, flDiffuseExponent ) * ( ( flDiffuseExponent + 1.0 ) * 0.5 ).xxx;
+				// Two-sided diffuse leaves the clamped N.L used by specular unchanged.
+				float flDiffuseNdotL = S_DIFFUSE_TWO_SIDED ? abs( dot( f.vNormalWs.xyz, vPositionToLightDirWs.xyz ) ) : flNDotL;
+				o_vDiffuseTerm.rgb = pow( flDiffuseNdotL, flDiffuseExponent ) * ( ( flDiffuseExponent + 1.0 ) * 0.5 ).xxx;
 			}
 			#endif
 		}
@@ -195,7 +200,7 @@ void ComputeDiffuseAndSpecularTerms( out float3 o_vDiffuseTerm, out float3 o_vSp
 
 	// Specular
 	o_vSpecularTerm = float3( 0.0, 0.0, 0.0 );
-	[branch] if ( bSpecular )
+	[branch] if ( bSpecular && ( !S_DIFFUSE_TWO_SIDED || flNDotL > 0.0 ) )
 	{
 		float3 vHalfAngleDirWs = normalize( vPositionToLightDirWs.xyz + vPositionToCameraDirWs.xyz );
 
@@ -335,7 +340,7 @@ void ComputeDirectLightingForLight( const FinalCombinerInput_t f, float3 vReceiv
 	// Cone and facing tests share one branch so their light data loads in one round trip; bitwise |, && would split it
 	bool bReject = !bBaked && ( flConeToDirection <= 0.0 );
 
-	#if ( !S_TRANSMISSIVE && !S_SUBSURFACE_SCATTERING )
+	#if ( !S_TRANSMISSIVE && !S_SUBSURFACE_SCATTERING && !S_DIFFUSE_TWO_SIDED )
 		// Facing away: diffuse is pow( N.L ) and every specular lobe is scaled by N.L, so the light adds nothing.
 		// S_TRANSMISSIVE_BACKFACE_NDOTL is a spec constant, so #if would always read it as 0
 		if ( S_TRANSMISSIVE_BACKFACE_NDOTL == 0 )
@@ -590,7 +595,7 @@ void ComputeBakedLighting( inout LightingTerms_t o, const FinalCombinerInput_t f
 }
 
 // https://sms.playstation.com/stories/gdc-2019-indirect-lighting
-float NormalizeCubeBrightness( dynamic_uniform UniformIndex iCubeID, float3 vNormalWs, float flIsotropicRoughness, float flTargetLuminanceOfCubemap )
+float NormalizeCubeBrightness( uint iCubeID, TextureCube tCube, float3 vNormalCubemapLocal, float flIsotropicRoughness, float flTargetLuminanceOfCubemap )
 {
 	const float flRoughnessBegin = 0.1f;
 	const float flNormalizationCeiling = 32.0f;
@@ -599,7 +604,7 @@ float NormalizeCubeBrightness( dynamic_uniform UniformIndex iCubeID, float3 vNor
 		flNormalizationCeiling - ( flNormalizationCeiling - 1.0f ) / ( 1.0f - flRoughnessBegin ) );
 
 	// Our cubemaps are pre-filtered, use a roughly blurred mip of them in place of spherical harmonics to do the normalization
-	float flMeasuredLuminanceOfCubemap = max( RelativeLuminance( SampleEnvironmentMapLevel(vNormalWs, 1.0f, iCubeID) ), 0.001 );
+	float flMeasuredLuminanceOfCubemap = max( RelativeLuminance( SampleEnvironmentMapLevel(vNormalCubemapLocal, 1.0f, iCubeID, tCube) ), 0.001 );
 
 	float flNormalizationMax = flIsotropicRoughness * vNormalizationParams.x + vNormalizationParams.y;
 	flNormalizationMax = max(flNormalizationMax, 1.0f);
@@ -704,7 +709,7 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 			{
 				flTargetLuminanceOfCubemap = RelativeLuminance( SampleIrradiance( vAmbientCube, vNormalWs.xyz ) );
 				lightingTerms.vIndirectDiffuse.rgb = SampleIrradiance( vAmbientCube, vNormalWs.xyz );
-				lightingTerms.vTransmissive.rgb += SampleIrradiance( vAmbientCube, -vNormalWs.xyz );
+				lightingTerms.vTransmissive.rgb += vTransmissiveMask.rgb * SampleIrradiance( vAmbientCube, -vNormalWs.xyz );
 			}
 			else
 			#if ( S_SUBSURFACE_SCATTERING == SUBSURFACE_SCATTERING_PREINTEGRATED )
@@ -783,6 +788,7 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 		
 		ClusterForEach( envRange )
 		{
+			// Wave-uniform by construction (WaveActiveMin in Cluster::Next), but Slang can't prove it, hence asDynamicUniform
 			const uint index = envRange.Item;
 
 			const float3 vCubePos = mul( float4( vPositionWs.xyz, 1.0 ), EnvMapWorldToLocal( index ) ).xyz;
@@ -804,6 +810,9 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 			if( flDistance + max( flEdgeFeathering, 0.0f ) < 0.0 )
 				continue;
 
+			// Cube lookups are in probe space, realtime probes are mirrored so the world normal can't be used directly
+			const float3 vNormalCubemapLocal = normalize( mul( float4( vNormalWs.xyz, 0.0f ), EnvMapWorldToLocal( index ) ).xyz );
+
 			float3 vParallaxReflectionCubemapLocal = CalcParallaxReflectionCubemapLocal( vPositionWs, vNormalWs, vAnisotropy, flRetroReflectivity, vTangentUWs, vTangentVWs, index );
 
 			//---------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -811,8 +820,8 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 			//---------------------------------------------------------------------------------------------------------------------------------------------------------
 			float3 vCubeMapTexel = 0.0f;
 
-			float3 vNormalWarpWs = normalize( lerp( vParallaxReflectionCubemapLocal.xyz, vNormalWs.xyz, vLevel.x ) ); // Used to deal with specular aliasing
-			vCubeMapTexel = SampleEnvironmentMapLevel( vNormalWarpWs.xyz, vLevel.x, UniformIndex( index ) );
+			float3 vNormalWarpWs = normalize( lerp( vParallaxReflectionCubemapLocal.xyz, vNormalCubemapLocal.xyz, vLevel.x ) ); // Used to deal with specular aliasing
+			vCubeMapTexel = SampleEnvironmentMapLevel( vNormalWarpWs.xyz, vLevel.x, index, EnvMapTexture( asDynamicUniform( UniformIndex( index ) ) ) );
 
 			// Apply BRDFs
 			if ( S_CLOTH_SHADING != 0 )
@@ -834,19 +843,19 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 			#if ( S_TWO_LOBE_SPECULAR )
 			{
 				// Glossy lobe
-				vNormalWarpWs = normalize( lerp( vParallaxReflectionCubemapLocal.xyz, vNormalWs.xyz, vLevel.y ) );
-				float3 vCubeMapTexelGlossy = SampleEnvironmentMapLevel( vNormalWarpWs.xyz, vLevel.y, UniformIndex( index ) );
+				vNormalWarpWs = normalize( lerp( vParallaxReflectionCubemapLocal.xyz, vNormalCubemapLocal.xyz, vLevel.y ) );
+				float3 vCubeMapTexelGlossy = SampleEnvironmentMapLevel( vNormalWarpWs.xyz, vLevel.y, index, EnvMapTexture( asDynamicUniform( UniformIndex( index ) ) ) );
 				vCubeMapTexelGlossy *= CalcBRDFReflectionFactor( flNDotV, vRoughness.y, finalCombinerData.vSpecularColor );
 				vCubeMapTexel = lerp( vCubeMapTexel, vCubeMapTexelGlossy, flTwoLobeSpecularRatio );
 			}
 			#endif
 
 			float normalization = bHasCubeBrightnessNormalization
-				? NormalizeCubeBrightness( UniformIndex( index ), vNormalWs, vRoughness.x, flTargetLuminanceOfCubemap ) : 1.0f;
+				? NormalizeCubeBrightness( index, EnvMapTexture( asDynamicUniform( UniformIndex( index ) ) ), vNormalCubemapLocal, vRoughness.x, flTargetLuminanceOfCubemap ) : 1.0f;
 			if ( ddgi.a > 0.0f )
 			{
 				float ddgiLuminance = RelativeLuminance( ddgi.rgb / ddgi.a );
-				normalization = lerp( normalization, NormalizeCubeBrightness( UniformIndex( index ), vNormalWs, vRoughness.x, ddgiLuminance ), ddgi.a );
+				normalization = lerp( normalization, NormalizeCubeBrightness( index, EnvMapTexture( asDynamicUniform( UniformIndex( index ) ) ), vNormalCubemapLocal, vRoughness.x, ddgiLuminance ), ddgi.a );
 			}
 			vCubeMapTexel *= normalization;
 
@@ -857,23 +866,23 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 			//---------------------------------------------------------------------------------------------------------------------------------------------------------
 			{
 				const float3 vPositionCubemapLocal 		= mul( float4( vPositionWs.xyz, 1.0f ), EnvMapWorldToLocal( index ) ).xyz;
-				const float3 vReflectionCubemapLocal 	= mul( float4( vNormalWs.xyz, 0.0f ), 	EnvMapWorldToLocal( index ) ).xyz;
+				const float3 vReflectionCubemapLocal 	= vNormalCubemapLocal;
 
                 // Sam: Avoid using parallax for diffuse IBLs, it's causing issues with non-uniform scaled envmaps for minimal gains
                 // https://files.facepunch.com/sampavlovic/1b1711b1/SMr1GfypB3.png
                 const float3 vDiffuseIBLNormal = vReflectionCubemapLocal; //CubeMapBoxProjection(vReflectionCubemapLocal.xyz, vPositionCubemapLocal.xyz, EnvMapBoxMins(index).xyz, EnvMapBoxMaxs(index).xyz);
-				float3 vCubeMapTexelDiffuse = SampleEnvironmentMapLevel( vDiffuseIBLNormal.xyz, 1.0f, UniformIndex( index ) );
+				float3 vCubeMapTexelDiffuse = SampleEnvironmentMapLevel( vDiffuseIBLNormal.xyz, 1.0f, index, EnvMapTexture( asDynamicUniform( UniformIndex( index ) ) ) );
 
 				// Apply from the normal warp if we have SSS
 				#if ( S_SUBSURFACE_SCATTERING == SUBSURFACE_SCATTERING_PREINTEGRATED )
 				{
-					float3 vNormalR = normalize( lerp( vDiffuseIBLNormal.xyz, vNormalWs.xyz, g_vAmbientNormalSoftness.r * finalCombinerData.flSSSMask ) );
-					float3 vNormalG = normalize( lerp( vDiffuseIBLNormal.xyz, vNormalWs.xyz, g_vAmbientNormalSoftness.g * finalCombinerData.flSSSMask ) );
-					float3 vNormalB = normalize( lerp( vDiffuseIBLNormal.xyz, vNormalWs.xyz, g_vAmbientNormalSoftness.b * finalCombinerData.flSSSMask ) );
+					float3 vNormalR = normalize( lerp( vDiffuseIBLNormal.xyz, vNormalCubemapLocal.xyz, g_vAmbientNormalSoftness.r * finalCombinerData.flSSSMask ) );
+					float3 vNormalG = normalize( lerp( vDiffuseIBLNormal.xyz, vNormalCubemapLocal.xyz, g_vAmbientNormalSoftness.g * finalCombinerData.flSSSMask ) );
+					float3 vNormalB = normalize( lerp( vDiffuseIBLNormal.xyz, vNormalCubemapLocal.xyz, g_vAmbientNormalSoftness.b * finalCombinerData.flSSSMask ) );
 					
-					vCubeMapTexelDiffuse.r = SampleEnvironmentMapLevel( vNormalR.xyz, 1.0f, UniformIndex( index ) ).r;
-					vCubeMapTexelDiffuse.g = SampleEnvironmentMapLevel( vNormalG.xyz, 1.0f, UniformIndex( index ) ).g;
-					vCubeMapTexelDiffuse.b = SampleEnvironmentMapLevel( vNormalB.xyz, 1.0f, UniformIndex( index ) ).b;
+					vCubeMapTexelDiffuse.r = SampleEnvironmentMapLevel( vNormalR.xyz, 1.0f, index, EnvMapTexture( asDynamicUniform( UniformIndex( index ) ) ) ).r;
+					vCubeMapTexelDiffuse.g = SampleEnvironmentMapLevel( vNormalG.xyz, 1.0f, index, EnvMapTexture( asDynamicUniform( UniformIndex( index ) ) ) ).g;
+					vCubeMapTexelDiffuse.b = SampleEnvironmentMapLevel( vNormalB.xyz, 1.0f, index, EnvMapTexture( asDynamicUniform( UniformIndex( index ) ) ) ).b;
 				}
 				#endif
 

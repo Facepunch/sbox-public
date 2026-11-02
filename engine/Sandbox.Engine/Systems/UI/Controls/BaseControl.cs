@@ -53,6 +53,16 @@ public class BaseControl : Panel
 	public virtual bool SupportsMultiEdit => false;
 
 	/// <summary>
+	/// Take the whole row instead of the value column.
+	/// </summary>
+	public virtual bool IsWideMode => false;
+
+	/// <summary>
+	/// Show the property's name with this control.
+	/// </summary>
+	public virtual bool IncludeLabel => true;
+
+	/// <summary>
 	/// Create a BaseControl for a given SerializedProperty.
 	/// We'll look at BaseControls with [CustomEditor] attributes and see if any of them can handle this property.
 	/// </summary>
@@ -62,7 +72,11 @@ public class BaseControl : Panel
 
 		var type = property.PropertyType;
 
-		var allAttributes = Game.TypeLibrary.GetTypesWithAttribute<CustomEditorAttribute>( false )
+		// Can't be written - show the value. A get-only class reference still has editable fields.
+		if ( !property.IsEditable && !property.IsMethod && (type is null || type.IsValueType || type == typeof( string )) )
+			return new ValueText( property );
+
+		var allAttributes = EditorTypes()
 					.Where( x => x.Type.TargetType.IsAssignableTo( typeof( BaseControl ) ) )
 					.ToArray();
 
@@ -93,7 +107,27 @@ public class BaseControl : Panel
 		if ( property.IsMethod )
 			return null;
 
-		return new MissingEditor( property );
+		// No control for this class or struct - edit its properties
+		if ( GenericControl.CanEdit( property ) && !property.IsMultipleValues )
+			return new GenericControl { Property = property };
+
+		return new ValueText( property );
+	}
+
+	/// <summary>
+	/// Types with [CustomEditor] - the game's, and in the editor the tools' too, so editor-only
+	/// controls like asset pickers can live with the editor code.
+	/// </summary>
+	static IEnumerable<(TypeDescription Type, CustomEditorAttribute Attribute)> EditorTypes()
+	{
+		var game = Game.TypeLibrary.GetTypesWithAttribute<CustomEditorAttribute>( false );
+		var editor = Sandbox.Internal.TypeLibrary.Editor;
+
+		if ( editor is null || editor == Game.TypeLibrary )
+			return game;
+
+		return game.Concat( editor.GetTypesWithAttribute<CustomEditorAttribute>( false ) )
+			.DistinctBy( x => (x.Type.TargetType, x.Attribute) );
 	}
 }
 
@@ -110,15 +144,38 @@ file class MultiEditNotSupported : BaseControl
 	}
 }
 
-file class MissingEditor : BaseControl
+/// <summary>
+/// The value as dimmed read-only text - for types with no control, and properties that can't be
+/// written. Like the editor's MissingSerializedPropertyWidget.
+/// </summary>
+file class ValueText : BaseControl
 {
 	Label label;
+	object shown;
 
-	public MissingEditor( SerializedProperty property )
+	public ValueText( SerializedProperty property )
 	{
-		label = AddChild<Label>();
-		label.Text = $"No Editor Found For {property.PropertyType.Name}";
+		AddClass( "value-text" );
+		Style.Opacity = 0.5f;
+		Style.Padding = 6;
 
+		label = AddChild<Label>();
 		Property = property;
+		Refresh();
+	}
+
+	public override void Tick()
+	{
+		base.Tick();
+		Refresh();
+	}
+
+	void Refresh()
+	{
+		var value = Property?.GetValue<object>( null );
+		if ( Equals( value, shown ) && label.Text is not null ) return;
+
+		shown = value;
+		label.Text = value?.ToString() ?? "None";
 	}
 }

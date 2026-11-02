@@ -15,6 +15,7 @@ internal sealed class SimObject : IDeltaSnapshot
 	public Guid Id { get; }
 	public bool IsProxy => false;
 	public ushort SnapshotVersion => Local.Version;
+	public bool IsFullyUpdated { get; set; }
 
 	public readonly LocalSnapshotState Local = new();
 	public readonly int[] Slots;

@@ -496,6 +496,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		mesh.DrawsOpaque = flags.HasFlag( SceneObjectFlags.IsOpaque );
 		mesh.DrawsTranslucent = flags.HasFlag( SceneObjectFlags.IsTranslucent );
 		mesh.DepthPrepass = !flags.HasFlag( SceneObjectFlags.NoZPrepass );
+		mesh.OcclusionCulling = !flags.HasFlag( SceneObjectFlags.NoOcclusionCulling );
 		mesh.WantsFrameBufferCopy = flags.HasFlag( SceneObjectFlags.WantsFrameBufferCopyTexture );
 		mesh.Decal = flags.HasFlag( SceneObjectFlags.IsDecal );
 		mesh.NeedsLightProbe = flags.HasFlag( SceneObjectFlags.NeedsLightProbe );

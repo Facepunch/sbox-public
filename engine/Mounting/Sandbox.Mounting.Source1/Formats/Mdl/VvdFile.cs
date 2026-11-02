@@ -37,11 +37,6 @@ internal sealed class VvdFile
 		public int NumVertices;
 	}
 
-	public static VvdFile FromStream( Stream stream )
-	{
-		return new VvdFile( stream );
-	}
-
 	private readonly int[] _numVerts;
 	private readonly StudioVertex[] _vertices;
 	private readonly Vector4[] _tangents;
@@ -147,9 +142,6 @@ internal sealed class VvdFile
 		return _numVerts[lod];
 	}
 
-	public int GetVertices( int lod, StudioVertex[] dest, int offset = 0 ) => CopyLodData( lod, _vertices, dest, offset );
-	public int GetTangents( int lod, Vector4[] dest, int offset = 0 ) => CopyLodData( lod, _tangents, dest, offset );
-
 	internal ReadOnlyMemory<StudioVertex> Vertices => _vertices;
 	internal ReadOnlyMemory<Vector4> Tangents => _tangents;
 
@@ -171,30 +163,4 @@ internal sealed class VvdFile
 		return result;
 	}
 
-	private int CopyLodData<T>( int lod, T[] source, T[] dest, int offset )
-	{
-		var count = GetVertexCount( lod );
-		if ( source == null )
-			return 0;
-		if ( offset < 0 || (dest != null && offset > dest.Length - count) )
-			throw new ArgumentOutOfRangeException( nameof( offset ) );
-
-		if ( _fixups == null )
-		{
-			if ( dest != null ) Array.Copy( source, 0, dest, offset, count );
-			return count;
-		}
-
-		var startOffset = offset;
-
-		foreach ( var vertexFixup in _fixups )
-		{
-			if ( vertexFixup.Lod < lod ) continue;
-
-			if ( dest != null ) Array.Copy( source, vertexFixup.SourceVertexId, dest, offset, vertexFixup.NumVertices );
-			offset += vertexFixup.NumVertices;
-		}
-
-		return offset - startOffset;
-	}
 }

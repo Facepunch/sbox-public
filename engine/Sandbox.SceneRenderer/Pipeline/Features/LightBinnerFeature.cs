@@ -247,9 +247,9 @@ internal sealed partial class LightBinnerFeature : RenderFeature
 			Capacities = new( MaxLightsPerCluster, MaxEnvMapsPerCluster, MaxDecalsPerCluster, 0 ),
 		} );
 
-		// Write-after-read needs only an execution dependency on previous-frame readers.
+		// Write-after-read needs only an execution dependency on previous-frame readers: shading, and particle lighting in compute.
 		foreach ( var buffer in ClusterBuffers() )
-			context.BufferBarrier( buffer, RenderBarrierPipelineStageFlags_t.FragmentShaderBit, 0, RenderBarrierPipelineStageFlags_t.ComputeShaderBit, RenderBarrierAccessFlags_t.ShaderWriteBit );
+			context.BufferBarrier( buffer, RenderBarrierPipelineStageFlags_t.FragmentShaderBit | RenderBarrierPipelineStageFlags_t.ComputeShaderBit, 0, RenderBarrierPipelineStageFlags_t.ComputeShaderBit, RenderBarrierAccessFlags_t.ShaderWriteBit );
 
 		context.BufferBarrier( lightBuffer, RenderBarrierPipelineStageFlags_t.TransferBit, RenderBarrierAccessFlags_t.TransferWriteBit,
 			RenderBarrierPipelineStageFlags_t.ComputeShaderBit | RenderBarrierPipelineStageFlags_t.FragmentShaderBit, RenderBarrierAccessFlags_t.ShaderReadBit );
@@ -264,7 +264,7 @@ internal sealed partial class LightBinnerFeature : RenderFeature
 		context.Dispatch( cullingShader, ClusterCountX, ClusterCountY, ClusterCountZ );
 
 		foreach ( var buffer in ClusterBuffers() )
-			context.BufferBarrier( buffer, RenderBarrierPipelineStageFlags_t.ComputeShaderBit, RenderBarrierAccessFlags_t.ShaderWriteBit, RenderBarrierPipelineStageFlags_t.FragmentShaderBit, RenderBarrierAccessFlags_t.ShaderReadBit );
+			context.BufferBarrier( buffer, RenderBarrierPipelineStageFlags_t.ComputeShaderBit, RenderBarrierAccessFlags_t.ShaderWriteBit, RenderBarrierPipelineStageFlags_t.FragmentShaderBit | RenderBarrierPipelineStageFlags_t.ComputeShaderBit, RenderBarrierAccessFlags_t.ShaderReadBit );
 	}
 
 	GpuBuffer[] clusterBuffers;

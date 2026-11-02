@@ -98,7 +98,6 @@ public partial class ViewportTools : Widget
 	public void OnViewportToolsFrame()
 	{
 		UpdateDimensions();
-		UpdateChildren();
 		UpdateToolExtensionToolbar();
 	}
 

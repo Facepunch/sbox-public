@@ -172,12 +172,14 @@ public class FilePathStringControlWidget : ControlWidget
 		}
 		else if ( obj is string str )
 		{
-			var relativePath = System.IO.Path.GetRelativePath( Project.Current.GetAssetsPath(), str );
+			var relativePath = AssetSystem.FindByPath( str )?.RelativePath
+				?? System.IO.Path.GetRelativePath( Project.Current.GetAssetsPath(), str );
 			SerializedProperty.SetValue( relativePath );
 		}
 		else if ( obj is AssetEntry assetEntry )
 		{
-			var path = System.IO.Path.GetRelativePath( Project.Current.GetAssetsPath(), assetEntry.AbsolutePath );
+			var path = AssetSystem.FindByPath( assetEntry.AbsolutePath )?.RelativePath
+				?? System.IO.Path.GetRelativePath( Project.Current.GetAssetsPath(), assetEntry.AbsolutePath );
 			SerializedProperty.SetValue( path );
 		}
 		SerializedProperty.Parent.NoteFinishEdit( SerializedProperty );

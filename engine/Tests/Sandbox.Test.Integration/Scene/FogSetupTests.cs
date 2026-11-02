@@ -168,6 +168,34 @@ public class FogSetupTests
 		Assert.AreEqual( new Vector4( 120, 30, 200, 0.25f ), constants.Height );
 		Assert.AreEqual( new Vector3( 0.2f, 0.4f, 0.6f ), constants.Color, "Color alpha must not multiply density or tint" );
 
+		fog.Mode = FogMode.Distance;
+		fog.DistanceMetric = FogDistanceMetric.ViewDepth;
+		fog.StartDistance = -160;
+		fog.Color = new Color( 2, 0.5f, 0.25f );
+		fog.SecondaryColor = new Color( 0.25f, 1, 4 );
+		fog.ColorScale = 2;
+		fog.DirectionalColorEnabled = true;
+		fog.ColorDirection = Vector3.Forward;
+		constants = fog.ToConstants( 16, 100, Vector3.Forward );
+		Assert.AreEqual( -10f, constants.Distance.x );
+		Assert.AreEqual( 1f, constants.DistanceMetric );
+		Assert.AreEqual( new Vector3( 4, 1, 0.5f ), constants.Color );
+		constants = fog.ToConstants( viewDirection: Vector3.Backward );
+		Assert.AreEqual( new Vector3( 0.5f, 2, 8 ), constants.Color );
+		constants = fog.ToConstants( viewDirection: Vector3.Left );
+		Assert.AreEqual( new Vector3( 2.25f, 1.5f, 4.25f ), constants.Color, "Directional colors blend and scale in linear space, preserving HDR values" );
+
+		fog.EndDistance = -320;
+		constants = fog.ToConstants( 16 );
+		Assert.AreEqual( new Vector2( -10, -20 ), new Vector2( constants.Distance.x, constants.Distance.y ), "Distance ramps retain signed and reversed endpoints" );
+		fog.Mode = FogMode.Exponential;
+		constants = fog.ToConstants( viewDirection: Vector3.Left );
+		Assert.AreEqual( 0f, constants.Distance.x, "Exponential fog still clamps its clear distance" );
+		Assert.AreEqual( new Vector3( 2.25f, 1.5f, 4.25f ), constants.Color, "Color blending is independent of attenuation" );
+		fog.DirectionalColorEnabled = false;
+		constants = fog.ToConstants();
+		Assert.AreEqual( new Vector3( 4, 1, 0.5f ), constants.Color, "Linear color scaling retains HDR values" );
+
 		fog.Enabled = false;
 		constants = fog.ToConstants();
 		var suppression = constants.Control;
@@ -211,6 +239,8 @@ public class FogSetupTests
 		Assert.AreEqual( 1.0f, control.x, "A caller providing only a color receives a full-weight override" );
 		Assert.AreEqual( 1.0f, control.y );
 		Assert.AreEqual( (float)FogMode.Exponential, control.z );
+		Assert.AreEqual( FogDistanceMetric.Radial, fog.DistanceMetric );
+		Assert.AreEqual( 0f, constants.DistanceMetric );
 		Assert.AreEqual( 2000.0f, constants.Distance.w );
 		Assert.AreEqual( new Vector3( 1, 0, 0 ), constants.Color );
 

@@ -170,6 +170,20 @@ internal sealed class RemotePackage : Package
 		}
 	}
 
+	/// <summary>
+	/// Use this meta rather than the backend's - remembered offline with the rest of the package
+	/// </summary>
+	internal void UseMeta( string meta )
+	{
+		if ( Version is null ) return;
+
+		Version.Meta = meta;
+		if ( Dto?.Version is not null ) Dto.Version.Meta = meta;
+
+		cachedJson = null;
+		ClearMetaCache();
+	}
+
 	internal override JsonElement? GetJson()
 	{
 		if ( Version == null ) return null;
