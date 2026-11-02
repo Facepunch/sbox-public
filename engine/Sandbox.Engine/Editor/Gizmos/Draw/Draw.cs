@@ -114,11 +114,19 @@ public static partial class Gizmo
 		/// <summary>
 		/// Draw a model
 		/// </summary>
-		public SceneModel Model( Model model, Transform localTransform )
+		public SceneModel Model( Model model, Transform localTransform ) => Model( model, localTransform, false );
+
+		/// <summary>
+		/// Draw a model, choosing whether it casts shadows
+		/// </summary>
+		internal SceneModel Model( Model model, Transform localTransform, bool castShadows )
 		{
 			var tx = Transform.ToWorld( localTransform );
 			var so = Active.FindOrCreate( model.Name ?? "", (World, model, tx), static s => new SceneModel( s.World, s.model, s.tx ) );
-			so.Flags.CastShadows = false;
+
+			if ( so.Flags.CastShadows != castShadows )
+				so.Flags.CastShadows = castShadows;
+
 			so.Model = model;
 			so.ColorTint = Color;
 			so.Transform = tx;
