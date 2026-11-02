@@ -219,6 +219,8 @@ public partial class GpuBuffer : IValid, IDisposable
 
 		var arrayElementSize = Unsafe.SizeOf<T>();
 
+		ThrowIfOutOfRange( (long)start * arrayElementSize, (long)count * arrayElementSize );
+
 		GetDataInternal( MemoryMarshal.Cast<T, byte>( data ), (uint)(start * arrayElementSize), (uint)(count * arrayElementSize) );
 	}
 
@@ -266,6 +268,8 @@ public partial class GpuBuffer : IValid, IDisposable
 		if ( !SandboxedUnsafe.IsAcceptablePod( typeof( T ) ) )
 			throw new InvalidOperationException( $"{typeof( T )} is not allowed in GPU buffers" );
 
+		ThrowIfOutOfRange( (long)start * ElementSize, (long)count * ElementSize );
+
 		var offsetInBytes = start * ElementSize;
 		var sizeInBytes = count * ElementSize;
 
@@ -292,7 +296,10 @@ public partial class GpuBuffer : IValid, IDisposable
 		if ( !SandboxedUnsafe.IsAcceptablePod( typeof( T ) ) )
 			throw new InvalidOperationException( $"{typeof( T )} is not allowed in GPU buffers" );
 
-		SetDataInternal( MemoryMarshal.Cast<T, byte>( data ), elementOffset * Unsafe.SizeOf<T>() );
+		var bytes = MemoryMarshal.Cast<T, byte>( data );
+		ThrowIfOutOfRange( (long)elementOffset * Unsafe.SizeOf<T>(), bytes.Length );
+
+		SetDataInternal( bytes, elementOffset * Unsafe.SizeOf<T>() );
 	}
 
 	/// <summary>
@@ -334,7 +341,15 @@ public partial class GpuBuffer : IValid, IDisposable
 		if ( !Usage.HasFlag( UsageFlags.Append ) && !Usage.HasFlag( UsageFlags.Structured ) )
 			throw new InvalidOperationException( $"GpuBuffer must be created with UsageFlags.Append or UsageFlags.Structured to CopyStructureCount." );
 
+		destBuffer.ThrowIfOutOfRange( destBufferOffset, sizeof( uint ) );
+
 		RenderTools.CopyGPUBufferHiddenStructureCount( Graphics.Context, native, destBuffer.native, (uint)destBufferOffset );
+	}
+
+	internal void ThrowIfOutOfRange( long offsetInBytes, long sizeInBytes )
+	{
+		if ( offsetInBytes < 0 || sizeInBytes < 0 || offsetInBytes + sizeInBytes > (long)ElementCount * ElementSize )
+			throw new ArgumentOutOfRangeException( nameof( offsetInBytes ), $"Range {offsetInBytes}+{sizeInBytes} exceeds GpuBuffer size {(long)ElementCount * ElementSize}" );
 	}
 
 	/// <summary>
