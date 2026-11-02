@@ -308,7 +308,7 @@ internal sealed class StandardPipeline
 				LayerFlags.NeedsFullSort | LayerFlags.NeedsPerViewLightingConstants | LayerFlags.CountArtistTriangles | LayerFlags.DoesntModifyDepthStencilBuffer );
 			layer.LayerEnum = SceneLayerType.Translucent;
 			layer.AddObjectFlagsRequiredMask( SceneObjectFlags.IsTranslucent );
-			layer.AddObjectFlagsExcludedMask( SceneObjectFlags.ExcludeGameLayer );
+			layer.AddObjectFlagsExcludedMask( SceneObjectFlags.ExcludeGameLayer | SceneObjectFlags.GameOverlayLayer );
 			layer.SetFadeTargetLayer( layer );
 
 			// Faded objects redirected here might need to set blend state based on this attribute
@@ -350,6 +350,8 @@ internal sealed class StandardPipeline
 			opaque.AddObjectFlagsRequiredMask( SceneObjectFlags.IsOpaque | SceneObjectFlags.GameOverlayLayer );
 			opaque.AddObjectFlagsExcludedMask( SceneObjectFlags.ExcludeGameLayer );
 
+			opaque.SetFadeTargetLayer( NativeLayers.AddFade( view, "GameOverlay Fade", overlayViewport, shadingMode, color, depth, colorSpace, LayerFlags.PreserveColorBuffers ) );
+
 			if ( hooks ) HookLayers.Add( view, "Managed: AfterTransparent", Stage.AfterTransparent, viewport, color, depth );
 			if ( hooks ) HookLayers.Add( view, "Managed: AfterViewModel", Stage.AfterViewmodel, viewport, color, depth );
 
@@ -360,6 +362,9 @@ internal sealed class StandardPipeline
 			translucent.LayerEnum = SceneLayerType.Translucent;
 			translucent.AddObjectFlagsRequiredMask( SceneObjectFlags.IsTranslucent | SceneObjectFlags.GameOverlayLayer );
 			translucent.AddObjectFlagsExcludedMask( SceneObjectFlags.ExcludeGameLayer );
+			translucent.SetFadeTargetLayer( translucent );
+			translucent.GetRenderAttributesPtr().SetIntValue( "EnableAlphaTint", 1 );
+			translucent.GetRenderAttributesPtr().SetComboValue( "D_OPAQUE_FADE", 1 );
 		}
 
 		if ( viewAttributes.GetIntValue( "ToolsVisMode", 0 ) == (int)SceneCameraDebugMode.ShaderIDColor )

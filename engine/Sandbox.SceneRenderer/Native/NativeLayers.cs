@@ -117,7 +117,7 @@ internal static class NativeLayers
 			if ( occlusionCulled ) opaque.m_nLayerFlags |= LayerFlags.OcclusionCulled;
 			opaque.DisableReflectionsAndRefractionsForObjectsInThisLayer( true );
 			opaque.AddObjectFlagsRequiredMask( SceneObjectFlags.IsOpaque );
-			opaque.AddObjectFlagsExcludedMask( SceneObjectFlags.IsLight | SceneObjectFlags.ExcludeGameLayer );
+			opaque.AddObjectFlagsExcludedMask( SceneObjectFlags.IsLight | SceneObjectFlags.ExcludeGameLayer | SceneObjectFlags.GameOverlayLayer );
 
 			if ( dynamicObjects ) opaque.AddObjectFlagsExcludedMask( SceneObjectFlags.StaticObject );
 			else opaque.AddObjectFlagsRequiredMask( SceneObjectFlags.StaticObject );
@@ -131,14 +131,23 @@ internal static class NativeLayers
 			}
 		}
 
-		// Objects fading out end up here, drawn dithered rather than blended
-		var fade = Add( view, fadeName, viewport, shadingMode, setup.m_hColor, setup.m_hDepth, setup.m_colorSpace,
-			LayerFlags.NeedsPerViewLightingConstants | LayerFlags.CountArtistTriangles | LayerFlags.FadeWithoutAlphaBlending );
-		fade.LayerEnum = SceneLayerType.Opaque;
+		var fade = AddFade( view, fadeName, viewport, shadingMode, setup.m_hColor, setup.m_hDepth, setup.m_colorSpace, default );
 		fade.DisableReflectionsAndRefractionsForObjectsInThisLayer( true );
-		fade.AddObjectFlagsExcludedMask( AllObjects );
-		fade.GetRenderAttributesPtr().SetComboValue( "D_OPAQUE_FADE", 1 );
 
 		if ( opaque.IsValid ) opaque.SetFadeTargetLayer( fade );
+	}
+
+	/// <summary>
+	/// The layer an opaque layer's fading objects end up in, drawn dithered rather than blended.
+	/// </summary>
+	public static ISceneLayer AddFade( ISceneView view, string name, RenderViewport viewport, StringToken shadingMode,
+		SceneViewRenderTargetHandle color, SceneViewRenderTargetHandle depth, RenderColorSpace colorSpace, LayerFlags flags )
+	{
+		var fade = Add( view, name, viewport, shadingMode, color, depth, colorSpace,
+			flags | LayerFlags.NeedsPerViewLightingConstants | LayerFlags.CountArtistTriangles | LayerFlags.FadeWithoutAlphaBlending );
+		fade.LayerEnum = SceneLayerType.Opaque;
+		fade.AddObjectFlagsExcludedMask( AllObjects );
+		fade.GetRenderAttributesPtr().SetComboValue( "D_OPAQUE_FADE", 1 );
+		return fade;
 	}
 }

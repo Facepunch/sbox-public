@@ -129,12 +129,12 @@ internal sealed partial class MeshRenderFeature
 			return runs;
 		}
 
-		// Overlays prepass separately (DepthNormalPrepassLayer) and redraw unfaded in front.
+		// Overlays prepass separately (DepthNormalPrepassLayer) and draw in front, or in the world when faded.
 		var game = obj.GameLayers;
 		var overlay = obj.Overlay;
 		if ( opaque && game ) runs |= opaqueList == MeshRuns.Opaque && overlay ? MeshRuns.OverlayPrepass : opaqueList;
 		if ( opaque && overlay && !faded ) runs |= MeshRuns.OverlayOpaque;
-		if ( translucent && game ) runs |= MeshRuns.Translucent;
+		if ( translucent && game && (!overlay || faded) ) runs |= MeshRuns.Translucent;
 		if ( translucent && overlay && !faded ) runs |= MeshRuns.OverlayTranslucent;
 
 		// Flag-only layers ignore GameLayers. Bloom excludes faded objects.
@@ -166,7 +166,7 @@ internal sealed partial class MeshRenderFeature
 		// Shadow views take every caster culling picked
 		var opaque = obj.IsOpaque;
 		MeshRuns runs = 0;
-		if ( shadow || obj.GameLayers ) runs |= opaque ? MeshRuns.Opaque : MeshRuns.Translucent;
+		if ( shadow || obj.GameLayers && !obj.Overlay ) runs |= opaque ? MeshRuns.Opaque : MeshRuns.Translucent;
 		if ( shadow ) return runs;
 
 		if ( obj.Overlay ) runs |= opaque ? MeshRuns.OverlayOpaque : MeshRuns.OverlayTranslucent;
