@@ -117,7 +117,7 @@ public static partial class Gizmo
 		public SceneModel Model( Model model, Transform localTransform )
 		{
 			var tx = Transform.ToWorld( localTransform );
-			var so = Active.FindOrCreate<SceneModel>( $"{model.Name}", () => new SceneModel( World, model, tx ) );
+			var so = Active.FindOrCreate( model.Name ?? "", (World, model, tx), static s => new SceneModel( s.World, s.model, s.tx ) );
 			so.Flags.CastShadows = false;
 			so.Model = model;
 			so.ColorTint = Color;
