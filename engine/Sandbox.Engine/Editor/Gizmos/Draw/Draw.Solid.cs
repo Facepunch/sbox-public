@@ -264,23 +264,23 @@ public static partial class Gizmo
 		public void SolidSphere( Vector3 center, float radius, int hSegments = 8, int vSegments = 8 )
 		{
 			var so = VertexObject( Graphics.PrimitiveType.Triangles, SolidMaterial );
+
+			if ( hSegments < 1 || vSegments < 1 )
+				return;
+
+			var around = UnitCircle( hSegments );
+			var down = UnitCircle( vSegments * 2 );
 			var vertices = _scratchVertices;
 			vertices.Clear();
 
 			for ( var y = 0; y <= vSegments; y++ )
 			{
-				var v = (float)y / vSegments;
-				var vAngle = v * MathF.PI;
-
 				for ( int x = 0; x <= hSegments; x++ )
 				{
-					var u = (float)x / hSegments;
-					var hAngle = u * MathF.PI * 2;
-
 					var vertex = new Vector3(
-						center.x + radius * MathF.Sin( vAngle ) * MathF.Cos( hAngle ),
-						center.y + radius * MathF.Cos( vAngle ),
-						center.z + radius * MathF.Sin( vAngle ) * MathF.Sin( hAngle )
+						center.x + radius * down[y].x * around[x].y,
+						center.y + radius * down[y].y,
+						center.z + radius * down[y].x * around[x].x
 					);
 
 					vertices.Add( new Vertex( vertex, Color ) );

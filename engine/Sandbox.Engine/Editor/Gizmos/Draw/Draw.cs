@@ -21,6 +21,36 @@ public static partial class Gizmo
 		static Material SpriteMaterial => field ??= Material.Load( "materials/gizmo/sprite.vmat" );
 		static Material GridMaterial => field ??= Material.Load( "materials/gizmo/grid.vmat" );
 
+		/// <summary>
+		/// Largest section count kept in <see cref="UnitCircle"/>; bigger ones are built per call so arbitrary segment counts can't grow the cache
+		/// </summary>
+		const int MaxCachedCircleSections = 128;
+
+		static readonly Vector2[][] _unitCircles = new Vector2[MaxCachedCircleSections + 1][];
+
+		/// <summary>
+		/// (sin, cos) of <c>i / sections</c> of a full turn for i in 0..sections, so spheres don't do trig per vertex every frame
+		/// </summary>
+		static Vector2[] UnitCircle( int sections )
+		{
+			if ( sections > MaxCachedCircleSections )
+				return BuildUnitCircle( sections );
+
+			return _unitCircles[sections] ??= BuildUnitCircle( sections );
+		}
+
+		static Vector2[] BuildUnitCircle( int sections )
+		{
+			var circle = new Vector2[sections + 1];
+			for ( int i = 0; i <= sections; i++ )
+			{
+				var f = (float)i / sections * MathF.PI * 2;
+				circle[i] = new Vector2( MathF.Sin( f ), MathF.Cos( f ) );
+			}
+
+			return circle;
+		}
+
 		internal GizmoDraw()
 		{
 
