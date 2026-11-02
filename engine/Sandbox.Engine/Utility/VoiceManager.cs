@@ -7,7 +7,8 @@ namespace Sandbox;
 
 /// <summary>
 /// Captures the microphone through SDL and encodes it with Opus. The device is only open while
-/// something wants to record. A packet is a run of Opus frames, each prefixed with a ushort length.
+/// something wants to record, or between presses with <see cref="Preferences.StreamlinedPushToTalk"/>.
+/// A packet is a run of Opus frames, each prefixed with a ushort length.
 /// </summary>
 internal static class VoiceManager
 {
@@ -57,6 +58,9 @@ internal static class VoiceManager
 	public static bool IsValid => !Application.IsHeadless;
 	public static bool IsListening { get; private set; }
 	public static bool IsRecording => timeSinceLastHear < 0.2f;
+
+	/// <inheritdoc cref="Preferences.StreamlinedPushToTalk"/>
+	private static bool StreamlinedPushToTalk => Preferences.VoiceMode == VoiceMode.PushToTalk && Preferences.StreamlinedPushToTalk;
 
 	public static bool StartRecording()
 	{
@@ -108,22 +112,30 @@ internal static class VoiceManager
 
 			var sending = IsListening || timeSinceStopped < TailTime;
 			var testing = timeSinceTestRequested < 0.5f;
+			var wanted = sending || testing;
 
 			// Nobody wants the mic, let it go
-			if ( !sending && !testing )
+			if ( !wanted && !StreamlinedPushToTalk )
 			{
 				CloseCapture();
 				return;
 			}
 
 			// Picked a different mic in the settings. A test listens to the one it asked for,
-			// unless we're actually talking.
-			var device = (sending ? Preferences.VoiceDevice : testDevice) ?? "";
+			// unless we're actually talking. Held open between presses, it's the one we'll talk on.
+			var device = (testing && !sending ? testDevice : Preferences.VoiceDevice) ?? "";
 			if ( capture != IntPtr.Zero && captureDevice != device )
 				CloseCapture();
 
 			if ( capture == IntPtr.Zero && !OpenCapture( device ) )
 				return;
+
+			// StreamlinedPushToTalk: held open between presses, throw away what it hears
+			if ( !wanted )
+			{
+				DiscardCapture();
+				return;
+			}
 
 			ReadVoice( sending );
 		}
@@ -199,6 +211,21 @@ internal static class VoiceManager
 
 		VoiceGlue.CloseCapture( capture );
 		capture = IntPtr.Zero;
+		captureCount = 0;
+		timeSinceLoud = 10;
+		Level = MinLevel;
+	}
+
+	/// <summary>
+	/// Drain an open mic nobody is listening to, so it doesn't pile up and get sent on the next press
+	/// </summary>
+	static unsafe void DiscardCapture()
+	{
+		fixed ( float* samples = captureBuffer )
+		{
+			VoiceGlue.ReadCapture( capture, (IntPtr)samples, captureBuffer.Length );
+		}
+
 		captureCount = 0;
 		timeSinceLoud = 10;
 		Level = MinLevel;

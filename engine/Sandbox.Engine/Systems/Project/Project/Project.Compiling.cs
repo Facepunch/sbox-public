@@ -363,6 +363,7 @@ public partial class Project
 		EditorCompiler.AddReference( "package.local.moviemaker" );
 		EditorCompiler.AddReference( "package.local.hammer" );
 		EditorCompiler.AddReference( "package.local.dooeditor" );
+		EditorCompiler.AddReference( "package.local.animgraph" );
 
 		foreach ( var reference in compilerSettings.DistinctAssemblyReferences )
 		{

@@ -125,12 +125,14 @@ public class ClothingScene
 	{
 		UpdateLighting();
 
+#pragma warning disable CS0618
 		Body.Set( "b_grounded", true );
 		Body.Set( "aim_eyes", Vector3.Forward * 100.0f );
 		Body.Set( "aim_head", Vector3.Forward * 100.0f );
 		Body.Set( "aim_body", Vector3.Forward * 100.0f );
 		Body.Set( "aim_body_weight", 1.0f );
 		Body.Set( "static_pose", 1 );
+#pragma warning restore CS0618
 
 		// Keep both skin portraits and clothing mannequins neutral so the face reads clearly.
 		Body.Morphs.Set( "mouthSmile_L", 0.0f );

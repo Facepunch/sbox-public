@@ -1,4 +1,5 @@
 ﻿using Microsoft.CodeAnalysis;
+using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 
 namespace Sandbox;
@@ -7,6 +8,8 @@ public partial class AccessRules
 {
 	public List<Regex> Whitelist = new();
 	public List<Regex> Blacklist = new();
+
+	readonly ConcurrentDictionary<string, bool> whitelistCache = new();
 
 	public AccessRules()
 	{
@@ -55,9 +58,11 @@ public partial class AccessRules
 	/// </summary>
 	public bool IsInWhitelist( string test )
 	{
-		if ( Blacklist.Any( x => x.IsMatch( test ) ) )
-			return false;
+		if ( whitelistCache.TryGetValue( test, out var cached ) )
+			return cached;
 
-		return Whitelist.Any( x => x.IsMatch( test ) );
+		var allowed = !Blacklist.Any( x => x.IsMatch( test ) ) && Whitelist.Any( x => x.IsMatch( test ) );
+		whitelistCache[test] = allowed;
+		return allowed;
 	}
 }

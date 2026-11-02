@@ -6,6 +6,7 @@ native struct SceneDeformationVolumeData_t is Sandbox.SceneDeformationVolumeData
 delegate SboxAnimationEventCallback;
 delegate SboxAnimTagEventCallback;
 delegate SboxAnimGraphChangedCallback;
+delegate SboxAnimGraph2ControllerCreatedCallback;
 
 [Handle:Sandbox.SceneModel]
 native class CSceneAnimatableObject as NativeEngine.CSceneAnimatableObject : CSceneObject
@@ -55,11 +56,19 @@ native class CSceneAnimatableObject as NativeEngine.CSceneAnimatableObject : CSc
 	void GetParentSpaceBones( int nNumBones, void* pOut );
 	void SetParentSpaceBone( int index, Transform tx );
 
-	void InitAnimGraph( SboxAnimGraphChangedCallback pAnimGraphChangedCallback );
+	void InitAnimation();
+	void SetAnimGraphChangedCallback( SboxAnimGraphChangedCallback callback );
 	void SetAnimGraph( string graphName );
 
 	void SetAnimGraph( HAnimationGraph hGraph );
 	HAnimationGraph GetAnimGraph();
+
+	void SetAnimGraph2( HAnimGraph2 hGraph );
+	void SetAnimGraph2ControllerCreatedCallback( SboxAnimGraph2ControllerCreatedCallback callback );
+	NativeEngine.AnimationGraph2Controller GetAnimGraph2Controller();
+	float GetAnimGraph2UpdateTimeMs();
+	void SetLowDetailAnimation( bool bLowDetail );
+	bool IsLowDetailAnimation();
 
 	void SBox_SetFlexOverride( StringToken name, float flWeight, float flFadeTime );
 	void SBox_SetFlexOverride( int flexId, float flWeight, float flFadeTime );

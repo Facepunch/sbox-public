@@ -18,6 +18,8 @@ namespace Sandbox;
 [Alias( "Sandbox.BaseWeapon" )]
 public partial class BaseCombatWeapon : BaseInventoryItem
 {
+	private bool _deployAnimationPending;
+
 	/// <summary>
 	/// The player controller holding this, or null if it isn't held by one (it's in the world, or
 	/// held by something that isn't a <see cref="PlayerController"/>). Derived from the hierarchy.
@@ -120,16 +122,47 @@ public partial class BaseCombatWeapon : BaseInventoryItem
 	/// </summary>
 	protected virtual void UpdateBodyAnimations( SkinnedModelRenderer body )
 	{
-		if ( !string.IsNullOrEmpty( HoldType ) )
+		if ( body.Animation.Graph is not null )
 		{
-			body.Set( "holdtype", HoldType );
-			body.Set( "holdtype_handedness", (int)Handedness );
+			if ( !body.Animation.IsValid )
+				return;
+
+			var parameters = body.Animation.Parameters;
+			parameters.TrySet( "b_attack", _attackAnimationPending );
+			parameters.TrySet( "b_reload", _reloadAnimationPending );
+			parameters.TrySet( "b_deploy", _deployAnimationPending );
+			parameters.TrySet( "b_reload_cancel", _reloadCancelAnimationPending );
 		}
+
+		_attackAnimationPending = false;
+		_reloadAnimationPending = false;
+		_deployAnimationPending = false;
+		_reloadCancelAnimationPending = false;
+
+		if ( string.IsNullOrEmpty( HoldType ) )
+			return;
+
+		if ( body.Animation.Graph is not null )
+		{
+			body.Animation.Parameters.TrySet( "holdtype", HoldType );
+			body.Animation.Parameters.TrySet( "holdtype_handedness", (int)Handedness );
+			return;
+		}
+
+#pragma warning disable CS0618
+		body.Set( "holdtype", HoldType );
+		body.Set( "holdtype_handedness", (int)Handedness );
+#pragma warning restore CS0618
 	}
 
 	protected override void OnEquipped()
 	{
 		base.OnEquipped();
+
+		_attackAnimationPending = false;
+		_reloadAnimationPending = false;
+		_deployAnimationPending = true;
+		_reloadCancelAnimationPending = false;
 
 		CreateWorldModel();
 		CreateViewModel();
@@ -144,10 +177,24 @@ public partial class BaseCombatWeapon : BaseInventoryItem
 		base.OnHolstered();
 
 		// Empty hands - the next weapon's equip sets its own hold type.
-		if ( !string.IsNullOrEmpty( HoldType ) )
-			HolderRenderer?.Set( "holdtype", "none" );
+		if ( !string.IsNullOrEmpty( HoldType ) && HolderRenderer is { } body )
+		{
+			if ( body.Animation.Graph is not null )
+				body.Animation.Parameters.TrySet( "holdtype", "none" );
+			else
+			{
+#pragma warning disable CS0618
+				body.Set( "holdtype", "none" );
+#pragma warning restore CS0618
+			}
+		}
 
 		CancelReload();
+
+		_attackAnimationPending = false;
+		_reloadAnimationPending = false;
+		_deployAnimationPending = false;
+		_reloadCancelAnimationPending = false;
 
 		DestroyWorldModel();
 		DestroyViewModel();

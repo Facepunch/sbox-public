@@ -103,6 +103,11 @@ public interface INode
 	Action? GoToDefinition => null;
 }
 
+public interface INodeHighlight
+{
+	Color HighlightOutlineColor { get; }
+}
+
 public interface IRerouteNode : INode
 {
 	string? Comment { get; set; }

@@ -784,6 +784,21 @@ public static partial class EditorUtility
 	}
 
 	/// <summary>
+	/// Write json back out as kv3, so an asset we read with <see cref="KeyValues3ToJson"/> stays
+	/// in the format the rest of the tools expect.
+	/// </summary>
+	public static bool JsonToKeyValues3File( string filePath, string json )
+	{
+		var kv = EngineGlue.JsonToKeyValues3( json );
+		if ( kv.IsNull ) return false;
+
+		var saved = kv.SaveToFile( filePath );
+		kv.DeleteThis();
+
+		return saved;
+	}
+
+	/// <summary>
 	/// Some old ass assets are keyvalues (1). Convert them to Json so we can use them.
 	/// </summary>
 	public static string KeyValues1ToJson( string kvString )

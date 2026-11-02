@@ -290,8 +290,10 @@ public sealed partial class AvatarEditManager : Component
 
 			// A human skin swaps the body model, which rebuilds the anim graph with default
 			// parameters - put it back on the avatar menu's looping idles, skipping the entry wave
+#pragma warning disable CS0618
 			targetRenderer.Set( "b_avatar_skip_intro", true );
 			targetRenderer.Set( "special_idle_states", "avatar_menu" );
+#pragma warning restore CS0618
 		}
 		catch ( OperationCanceledException ) when ( token.IsCancellationRequested )
 		{

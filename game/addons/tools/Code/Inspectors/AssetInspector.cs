@@ -135,7 +135,6 @@ public class AssetInspector : InspectorWidget, AssetSystem.IEventListener
 		Enabled = true;
 	}
 
-	[EditorEvent.Hotload]
 	void RebuildUI()
 	{
 		if ( SerializedObject.IsMultipleTargets )
@@ -146,6 +145,15 @@ public class AssetInspector : InspectorWidget, AssetSystem.IEventListener
 		{
 			CreateContentUI( Asset, AssetPreview );
 		}
+	}
+
+	[EditorEvent.Hotload]
+	void OnHotload()
+	{
+		if ( _assetInspectors.Count == 1 && _assetInspectors[0].RebuildOnHotload() )
+			return;
+
+		RebuildUI();
 	}
 
 	/// <summary>
@@ -234,7 +242,11 @@ public class AssetInspector : InspectorWidget, AssetSystem.IEventListener
 			Clicked = () =>
 			{
 				if ( generic )
+				{
 					OnSave?.Invoke();
+					if ( Asset.HasUnsavedChanges )
+						return;
+				}
 				else
 					SaveAsset( Asset, gameResource );
 				popup.Destroy();
@@ -693,6 +705,12 @@ public class AssetInspector : InspectorWidget, AssetSystem.IEventListener
 		/// Save option or read its context. Optional - the default does nothing.
 		/// </summary>
 		public void SetInspector( AssetInspector inspector ) { }
+
+		/// <summary>
+		/// Rebuild around an existing document without losing its edits or undo history.
+		/// Return true when handled; otherwise the host recreates the inspector.
+		/// </summary>
+		public bool RebuildOnHotload() => false;
 	}
 
 }

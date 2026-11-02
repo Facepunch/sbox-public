@@ -7,6 +7,7 @@ namespace Editor.Mcp;
 /// <summary>
 /// Connection-local context flows through async tools, including calls queued on the main thread.
 /// </summary>
+[SkipHotload]
 internal sealed class McpSession
 {
 	static readonly AsyncLocal<McpSession> current = new();

@@ -9,6 +9,7 @@ public class Connection : GraphicsLine
 
 	public float WidthScale { get; set; } = 1f;
 	public Color ColorTint { get; set; }
+	internal bool IsInvalidPreview { get; set; }
 
 	private bool _dragging;
 
@@ -67,7 +68,7 @@ public class Connection : GraphicsLine
 		var color = Color.Lerp( config.Color, ColorTint.WithAlpha( 1f ), ColorTint.a );
 		var width = 4.0f;
 
-		if ( !Input.IsValid() || !Input.IsValid() ) color = color.WithAlpha( 0.4f );
+		if ( !Input.IsValid() || !Output.IsValid() ) color = color.WithAlpha( 0.4f );
 		else if ( outNode?.Node.IsReachable is false || inNode?.Node.IsReachable is false ) color = color.Desaturate( 0.5f ).Darken( 0.25f );
 
 		if ( Paint.HasSelected )
@@ -81,6 +82,9 @@ public class Connection : GraphicsLine
 			color = SelectedColor;
 			width = 6.0f;
 		}
+
+		if ( IsInvalidPreview )
+			color = Theme.Red;
 
 		Paint.SetPen( color, width * WidthScale );
 
