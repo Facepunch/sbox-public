@@ -341,7 +341,12 @@ Selected: {(current.SelectedPath == null ? "" : string.Join( ", ", current.Selec
 		/// <summary>
 		/// Find a cached version of this sceneobject - if not found, create one
 		/// </summary>
-		internal T FindOrCreate<T>( string key, Func<T> value ) where T : SceneObject
+		internal T FindOrCreate<T>( string key, Func<T> value ) where T : SceneObject => FindOrCreate( key, value, static create => create() );
+
+		/// <summary>
+		/// Find a cached version of this sceneobject - if not found, create one
+		/// </summary>
+		internal T FindOrCreate<T, TState>( string key, TState state, Func<TState, T> create ) where T : SceneObject
 		{
 			Active.scope.Create++;
 
@@ -368,7 +373,7 @@ Selected: {(current.SelectedPath == null ? "" : string.Join( ", ", current.Selec
 			//
 			if ( obj == null )
 			{
-				obj = value();
+				obj = create( state );
 				ObjectsCreated++;
 			}
 
