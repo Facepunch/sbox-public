@@ -120,7 +120,7 @@ public class SpotLight : Light
 
 	protected override void DrawGizmos()
 	{
-		using var scope = Gizmo.Scope( $"light-{GetHashCode()}" );
+		using var scope = Gizmo.Scope( Gizmo.NumberedName( "light-", GetHashCode() ) );
 
 		if ( !Gizmo.IsSelected && !Gizmo.IsHovered )
 			return;

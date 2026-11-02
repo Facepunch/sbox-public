@@ -126,7 +126,7 @@ public class DirectionalLight : Light
 
 	protected override void DrawGizmos()
 	{
-		using var scope = Gizmo.Scope( $"light-{GetHashCode()}" );
+		using var scope = Gizmo.Scope( Gizmo.NumberedName( "light-", GetHashCode() ) );
 		Gizmo.Draw.Color = LightColor;
 
 		var segments = 12;

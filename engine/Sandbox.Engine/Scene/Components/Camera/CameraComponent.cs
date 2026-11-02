@@ -248,7 +248,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		if ( sceneCamera is null )
 			return;
 
-		using var scope = Gizmo.Scope( $"{GetHashCode()}" );
+		using var scope = Gizmo.Scope( Gizmo.NumberedName( "camera-", GetHashCode() ) );
 
 		Gizmo.Transform = global::Transform.Zero;
 
