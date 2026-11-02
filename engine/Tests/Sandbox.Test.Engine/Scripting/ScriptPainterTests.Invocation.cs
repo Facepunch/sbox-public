@@ -10,7 +10,7 @@ public partial class ScriptPainterTests
 	[TestMethod, TestCategory( Allocations.Category )]
 	public void FluentInvocationDoesNotAllocateAfterWarmup()
 	{
-		var script = Game.Scripting.CreateScript( "return amount;" );
+		var script = GlobalContext.Current.Scripting.CreateScript( "return amount;" );
 		var total = 0;
 		Allocations.AssertSettles( "100 fluent invocations", () =>
 		{
@@ -23,10 +23,10 @@ public partial class ScriptPainterTests
 	[TestMethod]
 	public void FluentInvocationReportsInvalidSourceAndNames()
 	{
-		var invalid = Game.Scripting.CreateScript( "return (;" );
+		var invalid = GlobalContext.Current.Scripting.CreateScript( "return (;" );
 		Assert.IsFalse( invalid.With( "amount", 1 ).Compile() );
 		Assert.IsNotNull( invalid.LastError );
-		var script = Game.Scripting.CreateScript( "return amount;" );
+		var script = GlobalContext.Current.Scripting.CreateScript( "return amount;" );
 		Assert.ThrowsException<ArgumentNullException>( () => { script.With( null, 1 ); } );
 		Assert.ThrowsException<ArgumentException>( () => { script.With( "amount", 1 ).With( "missing", 2 ); } );
 	}
@@ -39,7 +39,7 @@ public partial class ScriptPainterTests
 		using var writer = first.Begin( default );
 		using var reader = second.Begin( default );
 		reader.Opacity = 0.25f;
-		var script = Game.Scripting.CreateScript( "writer.Opacity = reader.Opacity * amount; return writer.Opacity;" );
+		var script = GlobalContext.Current.Scripting.CreateScript( "writer.Opacity = reader.Opacity * amount; return writer.Opacity;" );
 		var invocation = script.With( "writer", writer ).With( "reader", reader ).With( "amount", 2 );
 		Assert.IsTrue( invocation.Compile(), script.LastError?.Message );
 		Assert.AreEqual( 1f, writer.Opacity, "Compilation must not execute the script." );
@@ -52,7 +52,7 @@ public partial class ScriptPainterTests
 	[TestMethod]
 	public void FluentChainsAreIndependentAndLastArgumentWins()
 	{
-		var script = Game.Scripting.CreateScript( "return amount;" );
+		var script = GlobalContext.Current.Scripting.CreateScript( "return amount;" );
 		var first = script.With( "amount", 10 );
 		var second = first.With( "amount", 20 );
 		Assert.AreEqual( 20, second.RunAndReturn<int>() );
@@ -64,7 +64,7 @@ public partial class ScriptPainterTests
 	[TestMethod, Timeout( 10000 )]
 	public void FluentInvocationHonorsInstructionLimitAndCanRecover()
 	{
-		var script = Game.Scripting.CreateScript( "for (var i = 0; i < amount; i++) { } return amount;" );
+		var script = GlobalContext.Current.Scripting.CreateScript( "for (var i = 0; i < amount; i++) { } return amount;" );
 		var invocation = script.With( "amount", 100 );
 		Assert.IsFalse( invocation.Run( instructionLimit: 10 ) );
 		StringAssert.Contains( script.LastError.Message.ToLowerInvariant(), "instruction limit" );
@@ -75,7 +75,7 @@ public partial class ScriptPainterTests
 	[TestMethod]
 	public void FluentInvocationChecksItsOwningContextAtExecution()
 	{
-		var script = Game.Scripting.CreateScript( "return amount;" );
+		var script = GlobalContext.Current.Scripting.CreateScript( "return amount;" );
 		var invocation = script.With( "amount", 1 );
 		var owner = GlobalContext.Current;
 		try

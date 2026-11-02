@@ -279,7 +279,7 @@ public class NavigationHost : Panel
 			return (destination.Key, destination.Value);
 		}
 
-		var attr = RouteAttribute.FindValidTarget( url, currentUrl );
+		var attr = RouteAttribute.FindValidTarget( GlobalContext.Current.TypeLibrary, url, currentUrl );
 		if ( attr == null ) return default;
 
 		return (attr.Value.Attribute.Url, attr.Value.Type);

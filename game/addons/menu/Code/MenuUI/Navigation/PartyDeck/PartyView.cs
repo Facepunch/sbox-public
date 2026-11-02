@@ -74,7 +74,7 @@ public static class PartyView
 		else
 		{
 			Party.Name = name;
-			ConsoleSystem.SetValue( "party_name", name.Trim() );
+			MenuUtility.SetConsoleVariable( "party_name", name.Trim() );
 		}
 	}
 

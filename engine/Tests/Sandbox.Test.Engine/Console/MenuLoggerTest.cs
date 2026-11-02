@@ -28,7 +28,7 @@ public class MenuLoggerTest
 
 			seenContext = GlobalContext.Current;
 
-			try { _ = Game.TypeLibrary; }
+			try { _ = GlobalContext.Current.TypeLibrary; }
 			catch ( Exception ex ) { listenerException = ex; }
 		}
 

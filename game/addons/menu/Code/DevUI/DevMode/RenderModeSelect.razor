@@ -27,7 +27,7 @@
     void SetMode( SceneCameraDebugMode mode )
     {
         _selectedMode = mode;
-        ConsoleSystem.Run( "mat_toolsvis", ((int)mode).ToString() );
+        MenuUtility.RunCommand( "mat_toolsvis", ((int)mode).ToString() );
 
         if ( Game.ActiveScene?.Camera is CameraComponent cam )
             cam.DebugMode = mode;

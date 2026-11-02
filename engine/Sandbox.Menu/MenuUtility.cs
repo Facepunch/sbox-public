@@ -13,6 +13,11 @@ public static partial class MenuUtility
 {
 	public static Action Tick { get; set; }
 
+	/// <summary>
+	/// The menu's own TypeLibrary. <see cref="Game.TypeLibrary"/> is always the game's.
+	/// </summary>
+	public static Sandbox.Internal.TypeLibrary TypeLibrary => GlobalContext.Menu.TypeLibrary;
+
 	/// <summary>Whether higher-resolution texture data is currently downloading.</summary>
 	public static bool IsTextureWebStreamingActive => NativeGlue.Resources.IsTextureWebStreamingActive();
 
@@ -201,12 +206,12 @@ public static partial class MenuUtility
 		// Should be left with a Steam Id but otherwise try connecting by IP.
 		if ( ulong.TryParse( connectString, out ulong lobbySteamId ) )
 		{
-			ConsoleSystem.Run( $"connect {lobbySteamId}" );
+			RunCommand( $"connect {lobbySteamId}" );
 		}
 		else
 		{
 			var ipAddress = IPEndPoint.Parse( connectString );
-			ConsoleSystem.Run( $"connect {ipAddress}" );
+			RunCommand( $"connect {ipAddress}" );
 		}
 	}
 
@@ -253,6 +258,22 @@ public static partial class MenuUtility
 	public static void SetConsoleVariable( string name, object value )
 	{
 		ConVarSystem.SetValue( name, value?.ToString(), true );
+	}
+
+	/// <summary>
+	/// Get a console variable. Unlike ConsoleSystem.*, this can read protected console variables.
+	/// </summary>
+	public static string GetConsoleVariable( string name, string defaultValue = null )
+	{
+		return ConVarSystem.GetValue( name, defaultValue, true );
+	}
+
+	/// <summary>
+	/// Run a console command. Unlike ConsoleSystem.*, this can run protected commands.
+	/// </summary>
+	public static void RunCommand( string command, params object[] arguments )
+	{
+		ConsoleSystem.RunCommand( command, arguments, true );
 	}
 
 	/// <summary>

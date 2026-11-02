@@ -40,8 +40,8 @@ public class MainThreadContextTests
 		OnWorker( origin, suppressFlow, () => MainThread.Queue( () =>
 		{
 			observedContext = GlobalContext.Current;
-			observedLibrary = Game.TypeLibrary;
-			sawMenuType = Game.TypeLibrary.GetType( typeof( MenuOnlyMarker ).FullName, exactFullName: true ) is not null;
+			observedLibrary = GlobalContext.Current.TypeLibrary;
+			sawMenuType = GlobalContext.Current.TypeLibrary.GetType( typeof( MenuOnlyMarker ).FullName, exactFullName: true ) is not null;
 		} ) );
 
 		using var scope = new GlobalContext.GlobalContextScope( drainer );

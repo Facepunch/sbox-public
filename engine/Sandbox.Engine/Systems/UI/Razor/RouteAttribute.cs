@@ -24,11 +24,13 @@ public class RouteAttribute : System.Attribute
 	/// <summary>
 	/// Given a URL, check out TypeLibrary and find a valid target
 	/// </summary>
-	public static (TypeDescription Type, RouteAttribute Attribute)? FindValidTarget( string url, string parentUrl )
+	public static (TypeDescription Type, RouteAttribute Attribute)? FindValidTarget( string url, string parentUrl ) => FindValidTarget( Game.TypeLibrary, url, parentUrl );
+
+	internal static (TypeDescription Type, RouteAttribute Attribute)? FindValidTarget( Sandbox.Internal.TypeLibrary library, string url, string parentUrl )
 	{
 		//Log.Info( $"FindValidTarget [{url}] [{parentUrl}]" );
 
-		var val = GlobalContext.Current.TypeLibrary.GetTypesWithAttribute<RouteAttribute>()
+		var val = library.GetTypesWithAttribute<RouteAttribute>()
 								.Where( x => x.Attribute.IsUrl( url ) && !x.Attribute.IsUrl( parentUrl ) )
 								.OrderByDescending( x => x.Attribute.Url.Count( c => c == '*' ) )
 								.FirstOrDefault();
