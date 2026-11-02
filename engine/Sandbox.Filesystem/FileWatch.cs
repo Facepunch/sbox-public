@@ -48,8 +48,8 @@ public sealed class FileWatch : IDisposable
 		this.system = system;
 		Enabled = true;
 
-		var pattern = Regex.Escape( path.ToLower() ).Replace( @"\*", ".*" ).Replace( @"\?", "." );
-		regexTest = new Regex( $"^{pattern}$", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled );
+		var pattern = Regex.Escape( path.ToLowerInvariant() ).Replace( @"\*", ".*" ).Replace( @"\?", "." );
+		regexTest = new Regex( $"^{pattern}$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Singleline | RegexOptions.Compiled );
 	}
 
 	internal FileWatch( BaseFileSystem system )

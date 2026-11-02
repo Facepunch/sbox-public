@@ -32,7 +32,7 @@ public class GameMount : BaseGameMount
 	{
 		foreach ( var fullPath in System.IO.Directory.GetFiles( appDir, "*.*", SearchOption.AllDirectories ) )
 		{
-			var ext = Path.GetExtension( fullPath )?.ToLower();
+			var ext = Path.GetExtension( fullPath )?.ToLowerInvariant();
 			if ( string.IsNullOrWhiteSpace( ext ) )
 				continue;
 

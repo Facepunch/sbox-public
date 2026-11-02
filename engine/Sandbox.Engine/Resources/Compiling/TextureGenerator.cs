@@ -90,7 +90,7 @@ public abstract class TextureGenerator : ResourceGenerator<Texture>
 		// If the generator supports caching to disk, create a deterministic path for the compiled texture
 		if ( CacheToDisk && EngineFileSystem.Mounted is BaseFileSystem mounted )
 		{
-			var generatorName = (di.ClassName ?? di.Name).ToLower().GetFilenameSafe();
+			var generatorName = (di.ClassName ?? di.Name).ToLowerInvariant().GetFilenameSafe();
 			var crc = Sandbox.Utility.Crc64.FromString( data.ToJsonString() );
 			var compiledPath = $"textures/generated/{generatorName}/{crc:x}.vtex";
 

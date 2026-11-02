@@ -72,7 +72,7 @@ public struct TransitionDesc
 			switch ( property )
 			{
 				case "transition-property":
-					t.Property = StyleParser.GetPropertyFromAlias( item.ToLower() );
+					t.Property = StyleParser.GetPropertyFromAlias( item.ToLowerInvariant() );
 					break;
 
 				case "transition-duration":
@@ -123,7 +123,7 @@ public struct TransitionDesc
 		}
 		else
 		{
-			t.Property = p.ReadWord( null, true ).ToLower();
+			t.Property = p.ReadWord( null, true ).ToLowerInvariant();
 			t.Property = StyleParser.GetPropertyFromAlias( t.Property );
 			if ( p.IsEnd ) return t;
 			p = p.SkipWhitespaceAndNewlines();

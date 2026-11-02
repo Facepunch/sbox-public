@@ -16,7 +16,7 @@ internal class NativeHeaderWriter : BaseWriter
 
 	public override void Generate()
 	{
-		string headerDef = "_" + definitions.Filename.Replace( ".def", "" ).Replace( ".", "_" ).ToUpper() + "_H";
+		string headerDef = "_" + definitions.Filename.Replace( ".def", "" ).Replace( ".", "_" ).ToUpperInvariant() + "_H";
 
 		WriteLine( $"#ifndef {headerDef}" );
 		WriteLine( $"#define {headerDef}" );
@@ -143,7 +143,7 @@ internal class NativeHeaderWriter : BaseWriter
 
 			WriteLine();
 
-			string fileOut = EndSubFile( c.NativeName.ToLower() );
+			string fileOut = EndSubFile( c.NativeName.ToLowerInvariant() );
 			WriteLine( $"#include \"{fileOut}\"" );
 		}
 	}

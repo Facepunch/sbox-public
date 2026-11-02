@@ -11,7 +11,7 @@ public class Struct
 {
 	private static readonly Regex StructParseRegex = new(
 		@"([\w.:\(\)]+)( [\s+]?(?:as|is) [\s+]?([\w.:]+))?(.+)?",
-		RegexOptions.IgnoreCase
+		RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
 	);
 
 	public string NativeName { get; set; }

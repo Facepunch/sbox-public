@@ -68,7 +68,7 @@ namespace Sandbox.Generator
 
 			// See if its a nullable. Ideally we'd extract the underlying type, but how?
 			// update: I have no idea what this does
-			if ( !isString && symbol.Type.TypeKind == TypeKind.Structure && symbol.NullableAnnotation == NullableAnnotation.Annotated && (int.TryParse( strValue, out _ ) || float.TryParse( strValue, out _ )) )
+			if ( !isString && symbol.Type.TypeKind == TypeKind.Structure && symbol.NullableAnnotation == NullableAnnotation.Annotated && (int.TryParse( strValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out _ ) || float.TryParse( strValue, NumberStyles.Float, CultureInfo.InvariantCulture, out _ )) )
 			{
 				WriteAttribute( ref node );
 				return;

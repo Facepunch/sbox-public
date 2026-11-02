@@ -37,7 +37,7 @@ public static partial class SandboxSystemExtensions
 	/// <returns></returns>
 	public static long FromBase36( this string input )
 	{
-		var reversed = input.ToLower().Reverse();
+		var reversed = input.ToLowerInvariant().Reverse();
 		long result = 0;
 		int pos = 0;
 		foreach ( char c in reversed )

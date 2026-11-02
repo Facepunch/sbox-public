@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 namespace Sandbox;
 
@@ -256,7 +257,7 @@ public class DooEngine : GameObjectSystem<DooEngine>
 		if ( o is double d ) return (float)d;
 		if ( o is int i ) return i;
 		if ( o is long l ) return l;
-		if ( o is string s && float.TryParse( s, out var result ) ) return result;
+		if ( o is string s && float.TryParse( s, NumberStyles.Float, CultureInfo.InvariantCulture, out var result ) ) return result;
 		return 0;
 	}
 

@@ -132,6 +132,6 @@ file sealed class MovieTimeRangeConverter : JsonConverter<MovieTimeRange>
 
 	public override void Write( Utf8JsonWriter writer, MovieTimeRange value, JsonSerializerOptions options )
 	{
-		writer.WriteStringValue( $"{value.Start.Ticks},{value.End.Ticks}" );
+		writer.WriteStringValue( FormattableString.Invariant( $"{value.Start.Ticks},{value.End.Ticks}" ) );
 	}
 }

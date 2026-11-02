@@ -12,12 +12,12 @@ public class Class
 {
 	private static readonly Regex ClassParseRegex = new(
 		@"([\w<>\*.:\(\)]+)( [\s+]?as [\s+]?([\w.:]+))?(.+)?",
-		RegexOptions.IgnoreCase
+		RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
 	);
 
 	private static readonly Regex ExtraParseRegex = new(
 		@"[\s+]?: [\s+]?([\w.:]+)",
-		RegexOptions.IgnoreCase
+		RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
 	);
 
 	private static readonly char[] NamespaceSeparators = ['.', ':'];

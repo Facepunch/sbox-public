@@ -523,7 +523,7 @@ internal class PanelInput
 			if ( bc == ButtonCode.MouseBack ) return "mouseback";
 			if ( bc == ButtonCode.MouseForward ) return "mouseforward";
 
-			return bc.ToString().ToLower();
+			return bc.ToString().ToLowerInvariant();
 		}
 
 		void OnPressed( Panel hovered )

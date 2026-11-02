@@ -15,7 +15,7 @@ public class Variable
 
 	internal static Variable Parse( string line )
 	{
-		Match m = Regex.Match( line, @"^[\s+]?(static)?[\s+]?(.+?)\s+([a-zA-Z0-9_]+?);", RegexOptions.IgnoreCase );
+		Match m = Regex.Match( line, @"^[\s+]?(static)?[\s+]?(.+?)\s+([a-zA-Z0-9_]+?);", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant );
 		if ( !m.Success )
 		{
 			return null;

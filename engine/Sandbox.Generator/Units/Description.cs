@@ -256,7 +256,7 @@ internal static class Description
 
 		private static string FormatList( XElement element, Worker master )
 		{
-			var type = element.Attribute( "type" )?.Value.ToLower();
+			var type = element.Attribute( "type" )?.Value.ToLowerInvariant();
 			var items = element.Elements( "item" )
 				.Select( x => (
 					Term: FormatElementContents( x.Element( "term" ), master ),

@@ -57,7 +57,8 @@ public class Mangler
 
 		string str = $"{ns}_{c}_{f}".Trim( '_' );
 
-		str = Regex.Replace( str, @"[^a-z0-9\._]", "", RegexOptions.IgnoreCase );
+		// CultureInvariant so [a-z] still matches 'I' under cultures like tr-TR
+		str = Regex.Replace( str, @"[^a-z0-9\._]", "", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant );
 
 		return str;
 	}
@@ -69,7 +70,7 @@ public class Mangler
 			return s;
 		}
 
-		s = Regex.Replace( s, @"[aeiou<>\.\:\s\-]", "", RegexOptions.IgnoreCase );
+		s = Regex.Replace( s, @"[aeiou<>\.\:\s\-]", "", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant );
 
 		return s.Length > 16 ? s[..16] : s;
 	}

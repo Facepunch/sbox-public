@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Globalization;
 using System.Text;
 
 namespace Sandbox.UI
@@ -755,7 +756,7 @@ namespace Sandbox.UI
 
 			while ( !p.IsEnd )
 			{
-				var word = p.ReadWord( " ", true ).ToLower();
+				var word = p.ReadWord( " ", true ).ToLowerInvariant();
 				p.Pointer -= word.Length;
 
 				if ( word == "none" )
@@ -792,7 +793,7 @@ namespace Sandbox.UI
 
 					// TryReadFloat eats lengths, TryReadLength eats floats
 					// settle it with this
-					if ( float.TryParse( maybeFloat, out float val ) )
+					if ( float.TryParse( maybeFloat, NumberStyles.Float, CultureInfo.InvariantCulture, out float val ) )
 					{
 						if ( floatCount == 0 )
 						{
@@ -2196,7 +2197,7 @@ namespace Sandbox.UI
 				// in the shorthand must be accepted for those properties rather than for animation-name.
 				// respectParens so a functional easing like cubic-bezier(0.16, 1, 0.3, 1) or steps(4, end) - which
 				// contain spaces - is read as a single token instead of being split.
-				var word = p.ReadWord( null, true, true ).ToLower();
+				var word = p.ReadWord( null, true, true ).ToLowerInvariant();
 
 				if ( Utility.Easing.TryGetFunction( word, out _ ) )
 				{

@@ -59,7 +59,7 @@ namespace Sandbox
 		{
 			decimal res = Default;
 
-			if ( !decimal.TryParse( str, out res ) )
+			if ( !decimal.TryParse( str, NumberStyles.Number, CultureInfo.InvariantCulture, out res ) )
 				return default;
 
 			return res;
@@ -112,7 +112,7 @@ namespace Sandbox
 			if ( str.Equals( "no", StringComparison.OrdinalIgnoreCase ) ) return false;
 			if ( str.Equals( "null", StringComparison.OrdinalIgnoreCase ) ) return false;
 
-			if ( float.TryParse( str, out float f ) )
+			if ( float.TryParse( str, NumberStyles.Float, CultureInfo.InvariantCulture, out float f ) )
 				return f != 0;
 
 			return true;
@@ -381,7 +381,7 @@ namespace Sandbox
 		{
 			wildcard = Regex.Escape( wildcard ).Replace( "\\*", ".*" );
 			wildcard = $"&{wildcard}$";
-			return Regex.IsMatch( str, wildcard, RegexOptions.IgnoreCase );
+			return Regex.IsMatch( str, wildcard, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant );
 		}
 
 		/// <summary>

@@ -1,5 +1,6 @@
 ﻿using Sandbox;
 using System;
+using System.Globalization;
 
 class MaterialLoader( string fullPath ) : ResourceLoader<GameMount>
 {
@@ -63,7 +64,7 @@ class MaterialLoader( string fullPath ) : ResourceLoader<GameMount>
 
 				strings[key] = value;
 			}
-			else if ( float.TryParse( value, out float num ) )
+			else if ( float.TryParse( value, NumberStyles.Float, CultureInfo.InvariantCulture, out float num ) )
 			{
 				numbers[key] = num;
 			}

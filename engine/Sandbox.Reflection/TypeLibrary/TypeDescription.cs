@@ -458,7 +458,7 @@ public sealed class TypeDescription : ISourceLineProvider
 				foreach ( var n in tag.EnumerateValues() )
 				{
 					tags ??= new();
-					tags.Add( n.ToLower() );
+					tags.Add( n.ToLowerInvariant() );
 				}
 			}
 		}

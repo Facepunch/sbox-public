@@ -86,7 +86,7 @@ public static class Paths
 			.Replace( @"\*\*/", ".*" )
 			.Replace( @"\*", "[^/]*" )
 			.Replace( @"\?", "." ) + "$";
-		var regex = new Regex( pattern, RegexOptions.IgnoreCase );
+		var regex = new Regex( pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant );
 		return path => regex.IsMatch( path );
 	}
 

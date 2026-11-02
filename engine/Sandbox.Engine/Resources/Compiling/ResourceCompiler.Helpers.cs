@@ -65,7 +65,7 @@ public abstract partial class ResourceCompiler
 
 		var di = DisplayInfo.For( generator );
 		var crc = Sandbox.Utility.Crc64.FromString( embed.Data.ToJsonString() );
-		var generatorName = (di.ClassName ?? di.Name).ToLower();
+		var generatorName = (di.ClassName ?? di.Name).ToLowerInvariant();
 		generatorName = generatorName.GetFilenameSafe();
 
 		return $"/{subfolder}/generated/{generatorName}/{crc:x}.{extension}";

@@ -37,13 +37,13 @@ public partial class Panel
 			if ( pea == null ) continue;
 
 			var method = methodDesc.MemberInfo as MethodInfo;
-			var event_name = methodDesc.Name.ToLower();
+			var event_name = methodDesc.Name.ToLowerInvariant();
 
 			var args = method.GetParameters(); // todo cache
 			var ret = method.ReturnParameter;
 
 			if ( event_name.EndsWith( "event" ) ) event_name = event_name[..^5];
-			if ( pea != null && pea.Name != null ) event_name = pea.Name.ToLower();
+			if ( pea != null && pea.Name != null ) event_name = pea.Name.ToLowerInvariant();
 
 			if ( args.Length == 1 )
 			{

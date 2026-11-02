@@ -619,7 +619,7 @@ public partial struct Vector2 : System.IEquatable<Vector2>, IParsable<Vector2>, 
 		if ( _x.AlmostEqual( 0 ) ) _x = 0.0f;
 		if ( _y.AlmostEqual( 0 ) ) _y = 0.0f;
 
-		return $"{_x:0.###},{_y:0.###}";
+		return FormattableString.Invariant( $"{_x:0.###},{_y:0.###}" );
 	}
 
 	/// <summary>

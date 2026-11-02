@@ -393,7 +393,7 @@ public static class EditorShortcuts
 		void UpdateDisplayKeys()
 		{
 			DisplayKeys = string.Join( '+', _keys.Split( '+' )
-				.Select( x => System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase( x.ToLower() ) ) );
+				.Select( x => System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase( x.ToLowerInvariant() ) ) );
 		}
 
 		void GetNameFromIdent( string ident )

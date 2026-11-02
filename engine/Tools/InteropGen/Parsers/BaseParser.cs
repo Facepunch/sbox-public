@@ -15,12 +15,12 @@ namespace Facepunch.InteropGen.Parsers;
 internal class BaseParser
 {
 	// A directive line: the first word is the keyword, the rest is its argument.
-	private static readonly Regex DirectiveRegex = new( @"([a-z]+?)\s+(.+)", RegexOptions.IgnoreCase );
+	private static readonly Regex DirectiveRegex = new( @"([a-z]+?)\s+(.+)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant );
 
 	/// <summary>
 	/// An attribute line like [nogc]. Shared by the parsers that accept attributes.
 	/// </summary>
-	protected static readonly Regex AttributeRegex = new( @"^\[(.+)\]", RegexOptions.IgnoreCase );
+	protected static readonly Regex AttributeRegex = new( @"^\[(.+)\]", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant );
 
 	protected Definition definition;
 	protected Stack<BaseParser> subParser = new();

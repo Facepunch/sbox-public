@@ -142,9 +142,9 @@ partial class ManagedCommand : Command
 		var defaultValue = member.GetCustomAttribute<DefaultValueAttribute>()?.Value;
 		var isReplicated = attribute.Flags.Contains( ConVarFlags.Replicated );
 
-		_defaultValue = defaultValue?.ToString()
+		_defaultValue = ConVarSystem.ToInvariantString( defaultValue )
 			?? ReadInitialValue()
-			?? (type.IsValueType ? Activator.CreateInstance( type )?.ToString() : null);
+			?? (type.IsValueType ? ConVarSystem.ToInvariantString( Activator.CreateInstance( type ) ) : null);
 
 		// Property initializers have already run, so whatever it holds now is the default. Not for
 		// replicated convars though - reading one goes through the string table, so we'd risk
@@ -297,7 +297,7 @@ partial class ManagedCommand : Command
 		{
 			if ( member is PropertyInfo propertyInfo )
 			{
-				return propertyInfo.GetValue( null )?.ToString();
+				return ConVarSystem.ToInvariantString( propertyInfo.GetValue( null ) );
 			}
 
 			return null;

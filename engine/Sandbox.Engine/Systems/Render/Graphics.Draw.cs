@@ -281,7 +281,7 @@ public static partial class Graphics
 		if ( string.IsNullOrEmpty( iconName ) )
 			iconName = "people";
 
-		return DrawText( rect, iconName?.ToLower(), color, "Material Icons", fontSize, flags: alignment );
+		return DrawText( rect, iconName?.ToLowerInvariant(), color, "Material Icons", fontSize, flags: alignment );
 	}
 
 	/// <summary>

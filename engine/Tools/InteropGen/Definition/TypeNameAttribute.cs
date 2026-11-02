@@ -13,6 +13,6 @@ public class TypeNameAttribute : System.Attribute
 
 	public TypeNameAttribute( string match )
 	{
-		TypeName = match.ToLower();
+		TypeName = match.ToLowerInvariant();
 	}
 }

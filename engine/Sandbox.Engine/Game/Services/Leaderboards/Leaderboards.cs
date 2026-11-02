@@ -76,7 +76,7 @@ public static partial class Leaderboards
 			Title = result.Title;
 			DisplayName = result.DisplayName;
 			Description = result.Description;
-			Unit = result.Unit?.ToLower() ?? "";
+			Unit = result.Unit?.ToLowerInvariant() ?? "";
 
 			Entries = result.Entries.Select( x => new Entry( x ) ).ToArray();
 		}

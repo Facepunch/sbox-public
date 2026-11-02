@@ -396,7 +396,7 @@ internal static class ShaderUpgrade
 		return cachePath;
 	}
 
-	static readonly Regex ErrorLine = new( @"\berr(or)?:", RegexOptions.IgnoreCase | RegexOptions.Compiled );
+	static readonly Regex ErrorLine = new( @"\berr(or)?:", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled );
 
 	/// <summary>
 	/// The line of a compile's output that says what went wrong - the first error, not the warnings ahead of it -

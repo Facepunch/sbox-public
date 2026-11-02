@@ -258,7 +258,7 @@ public struct FindPackageQuery
 				return true;
 
 			case "asset":
-				find.PrimaryAsset = value.ToLower();
+				find.PrimaryAsset = value.ToLowerInvariant();
 				return true;
 
 			// "contest:" is the old name for this filter. It is in the docs, in saved

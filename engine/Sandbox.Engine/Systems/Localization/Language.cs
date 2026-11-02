@@ -40,7 +40,7 @@ public class LanguageContainer
 		var language = Application.LanguageCode;
 
 		language ??= "en";
-		language = language.ToLower();
+		language = language.ToLowerInvariant();
 
 		if ( _previousLanguage == language )
 			return;

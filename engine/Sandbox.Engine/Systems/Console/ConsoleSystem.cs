@@ -13,7 +13,7 @@ public static partial class ConsoleSystem
 	public static void SetValue( string name, object value )
 	{
 		// Menu is allowed to access engine ConVars for settings, games can not
-		ConVarSystem.SetValue( name, value?.ToString(), Game.IsMenu );
+		ConVarSystem.SetValue( name, ConVarSystem.ToInvariantString( value ), Game.IsMenu );
 	}
 
 	/// <summary>

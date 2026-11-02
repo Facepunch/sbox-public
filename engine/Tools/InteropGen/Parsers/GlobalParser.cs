@@ -13,9 +13,9 @@ namespace Facepunch.InteropGen.Parsers;
 /// </summary>
 internal class GlobalParser : BaseParser
 {
-	private static readonly Regex TypeRegex = new( @"^(static)?[\s+]?(class|accessor) [\s+]?(.+)", RegexOptions.IgnoreCase );
-	private static readonly Regex StructRegex = new( @"^(struct|enum|pointer) [\s+]?(.+)", RegexOptions.IgnoreCase );
-	private static readonly Regex NativeRegex = new( @"^(native|managed) [\s+]?(.+)", RegexOptions.IgnoreCase );
+	private static readonly Regex TypeRegex = new( @"^(static)?[\s+]?(class|accessor) [\s+]?(.+)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant );
+	private static readonly Regex StructRegex = new( @"^(struct|enum|pointer) [\s+]?(.+)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant );
+	private static readonly Regex NativeRegex = new( @"^(native|managed) [\s+]?(.+)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant );
 
 	/// <summary>
 	/// The top-level .def directives: keyword → what it does with its argument.

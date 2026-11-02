@@ -84,7 +84,7 @@ internal static partial class ModelDocParser
 
 			string propTitle = displayInfo.Name ?? prop.Name.ToTitleCase();
 			string propDesc = displayInfo.Description ?? "";
-			string propName = prop.Name.ToLower();
+			string propName = prop.Name.ToLowerInvariant();
 
 			if ( prop.GetCustomAttribute<System.ObsoleteAttribute>() is ObsoleteAttribute obsolete )
 			{
@@ -147,7 +147,7 @@ internal static partial class ModelDocParser
 				if ( prop.PropertyType.IsAssignableTo( typeof( IAsset ) ) )
 				{
 					var assetname = prop.PropertyType.GetCustomAttribute<LibraryAttribute>()?.Name ?? prop.PropertyType.Name;
-					variable.Metadata["editor"] = $"AssetBrowse({assetname.ToLower()})";
+					variable.Metadata["editor"] = $"AssetBrowse({assetname.ToLowerInvariant()})";
 				}
 			}
 

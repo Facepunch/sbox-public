@@ -1,10 +1,17 @@
 ﻿using Sandbox.Network;
+using System.Globalization;
 using System.Reflection;
 
 namespace Sandbox;
 
 internal static partial class ConVarSystem
 {
+	/// <summary>
+	/// ConVar values are stored as strings and read back with <see cref="StringExtensions.ToType"/>, which parses
+	/// invariantly, so they have to be written invariantly too or "0.5" becomes "0,5" on some cultures.
+	/// </summary>
+	internal static string ToInvariantString( object value ) => value is IFormattable f ? f.ToString( null, CultureInfo.InvariantCulture ) : value?.ToString();
+
 	public delegate void ConVarChangedDelegate( Command command, string oldValue );
 
 	/// <summary>
@@ -217,7 +224,7 @@ internal static partial class ConVarSystem
 	/// </summary>
 	public static float GetFloat( string name, float defaultValue, bool allowEngineVariable )
 	{
-		return float.TryParse( GetValue( name, defaultValue.ToString(), allowEngineVariable ), out var value ) ? value : defaultValue;
+		return float.TryParse( GetValue( name, ToInvariantString( defaultValue ), allowEngineVariable ), NumberStyles.Float, CultureInfo.InvariantCulture, out var value ) ? value : defaultValue;
 	}
 
 	/// <summary>
@@ -250,7 +257,7 @@ internal static partial class ConVarSystem
 	/// </summary>
 	public static void SetFloat( string name, float value, bool allowProtected )
 	{
-		SetValue( name, value.ToString(), allowProtected );
+		SetValue( name, ToInvariantString( value ), allowProtected );
 	}
 
 	/// <summary>
@@ -431,7 +438,7 @@ internal static partial class ConVarSystem
 	{
 		if ( Members.TryGetValue( name, out var command ) )
 		{
-			MainThread.Queue( () => InvokeConVarChanged( command, previous?.ToString() ) );
+			MainThread.Queue( () => InvokeConVarChanged( command, ToInvariantString( previous ) ) );
 		}
 	}
 
