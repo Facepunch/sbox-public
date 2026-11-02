@@ -15,20 +15,14 @@ public static partial class Gizmo
 			if ( !_vertexObject.IsValid() ) return false;
 			if ( !ReferenceEquals( _vertexObjectMaterial, material ) ) return false;
 			if ( _vertexObject.PrimitiveType != type ) return false;
-			if ( _vertexObjectPath != Path ) return false;
-			if ( _vertexObject.Transform != Transform ) return false;
-
-			//if ( type == Graphics.PrimitiveType.Lines )
-			{
-				if ( _lastState.LineThickness != LineThickness ) return false;
-				if ( _lastState.IgnoreDepth != IgnoreDepth ) return false;
-			}
+			if ( _lastState.LineThickness != LineThickness ) return false;
+			if ( _lastState.IgnoreDepth != IgnoreDepth ) return false;
 
 			if ( type == Graphics.PrimitiveType.Points )
-			{
-				if ( !ReferenceEquals( _vertexObjectTexture, texture ) ) return false;
-				if ( _lastState.Color != Color ) return false;
-			}
+				return ReferenceEquals( _vertexObjectTexture, texture );
+
+			if ( _vertexObjectPath != Path ) return false;
+			if ( _vertexObject.Transform != Transform ) return false;
 
 			return true;
 		}
@@ -38,6 +32,14 @@ public static partial class Gizmo
 			// Keep accumulating into the same object while it's reusable; flushing mid-batch would clobber it (Write does a native Begin that clears the buffer).
 			if ( CanReuseVertexObject( type, material, texture ) )
 			{
+				// Still a new object to this scope, so unnamed scopes and pool keys after it don't shift
+				if ( type == Graphics.PrimitiveType.Points && (_vertexObjectPath != Path || _lastState.Transform != Transform || _lastState.Color != Color) )
+				{
+					Active.scope.Create++;
+					_vertexObjectPath = Path;
+					_lastState = Active.scope;
+				}
+
 				return _vertexObject;
 			}
 
