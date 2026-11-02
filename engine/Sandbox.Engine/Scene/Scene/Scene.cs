@@ -6,6 +6,8 @@ namespace Sandbox;
 
 public partial class Scene : GameObject
 {
+	internal Queue<Particle> ParticlePool { get; } = new();
+
 	public bool IsEditor { get; private set; }
 
 	/// <summary>

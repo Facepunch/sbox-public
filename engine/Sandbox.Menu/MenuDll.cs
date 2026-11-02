@@ -403,6 +403,7 @@ internal sealed class MenuDll : IMenuDll
 
 	public void ClosePopups( object panelClickedOn )
 	{
+		using var scope = GlobalContext.MenuScope();
 		BasePopup.CloseAll( panelClickedOn as Panel );
 	}
 

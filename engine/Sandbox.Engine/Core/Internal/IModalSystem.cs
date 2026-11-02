@@ -267,7 +267,9 @@ public struct WorkshopPublishOptions
 	/// <summary>
 	/// Defined categories to show in the workshop publish modal
 	/// </summary>
-	public Dictionary<string, SerializedProperty> Categories { get; } = [];
+	public Dictionary<string, SerializedProperty> Categories { get; internal set; } = [];
+
+	internal List<(string Name, Type EnumType, Func<Dictionary<string, string>, SerializedProperty> Create)> CategoryFactories { get; } = [];
 
 	/// <summary>
 	/// Adds a new category associated with the specified enum type to the collection. 
@@ -276,18 +278,18 @@ public struct WorkshopPublishOptions
 	/// </summary>
 	public void AddCategory<TEnum>( string name ) where TEnum : struct, Enum
 	{
-		var t = GlobalContext.Current.TypeLibrary.GetEnumDescription( typeof( TEnum ) );
-		if ( t == null )
-			throw new Exception( $"Type {typeof( TEnum ).FullName} is not registered in the TypeLibrary" );
-
 		KeyValues ??= [];
-		var kv = KeyValues;
+
+		Categories[name] = CreateCategory<TEnum>( name, KeyValues );
+		CategoryFactories.Add( (name, typeof( TEnum ), kv => CreateCategory<TEnum>( name, kv )) );
+	}
+
+	static SerializedProperty CreateCategory<TEnum>( string name, Dictionary<string, string> kv ) where TEnum : struct, Enum
+	{
 		var get = () => kv.TryGetValue( name, out string val ) ? (Enum.TryParse( val, true, out TEnum r ) ? r : default) : default;
 		var set = ( TEnum x ) => { kv[name] = x.ToString(); };
 
-		var prop = GlobalContext.Current.TypeLibrary.CreateProperty( name, get, set );
-
-		Categories[name] = prop;
+		return GlobalContext.Current.TypeLibrary.CreateProperty( name, get, set );
 	}
 }
 

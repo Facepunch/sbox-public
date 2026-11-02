@@ -49,7 +49,7 @@ public sealed class PhysicsGroupDescription : Resource
 		Dispose();
 		Refresh();
 
-		foreach ( var scene in Scene.All )
+		foreach ( var scene in Scene.AllIncludingUnlisted )
 		{
 			using var scope = scene.Push();
 

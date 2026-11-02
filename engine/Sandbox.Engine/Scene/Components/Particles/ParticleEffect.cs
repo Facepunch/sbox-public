@@ -1014,7 +1014,7 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 		var localSpace = LocalSpace.Evaluate( 0, 254 ).Clamp( 0, 1 );
 		var delay = StartDelay.Evaluate( delta, Random.Shared.Float() );
 
-		var p = Particle.Create();
+		var p = Particle.Create( Scene?.ParticlePool );
 
 		p.Position = position;
 		p.StartPosition = position;
@@ -1143,8 +1143,8 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 			Log.Warning( e );
 		}
 
-		if ( Particle.Pool.Count < 4096 )
-			Particle.Pool.Enqueue( p );
+		if ( Scene?.ParticlePool is { Count: < 4096 } pool )
+			pool.Enqueue( p );
 
 		SceneMetrics.ParticlesDestroyed++;
 		return true;

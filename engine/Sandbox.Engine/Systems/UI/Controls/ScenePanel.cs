@@ -68,7 +68,7 @@ namespace Sandbox.UI
 
 		public ScenePanel()
 		{
-			_renderScene = new() { WantsSystemScene = false };
+			_renderScene = new() { WantsSystemScene = false, IsUnlisted = true };
 			_ownsScene = true;
 
 			Camera.FieldOfView = 60;

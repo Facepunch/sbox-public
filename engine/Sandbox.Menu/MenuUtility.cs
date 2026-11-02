@@ -56,6 +56,9 @@ public static partial class MenuUtility
 		if ( loggers is null )
 			return;
 
+		e.Exception = null;
+		e.Arguments = null;
+
 		using var scope = GlobalContext.MenuScope();
 		loggers( e );
 	}
@@ -142,6 +145,13 @@ public static partial class MenuUtility
 	/// </summary>
 	public static void OpenFolder( string path )
 	{
+		// UNC paths would connect to the remote share and leak the user's NTLM hash
+		if ( string.IsNullOrWhiteSpace( path ) || !System.IO.Path.IsPathFullyQualified( path ) || path.StartsWith( @"\\" ) || path.StartsWith( "//" ) || !System.IO.Directory.Exists( path ) )
+		{
+			Log.Warning( $"MenuUtility.OpenFolder: not a folder: {path}" );
+			return;
+		}
+
 		System.Diagnostics.Process.Start( new System.Diagnostics.ProcessStartInfo()
 		{
 			FileName = path,
@@ -155,12 +165,29 @@ public static partial class MenuUtility
 	/// </summary>
 	public static void OpenUrl( string path )
 	{
+		if ( !TryGetOpenableUrl( path, out var url ) )
+		{
+			Log.Warning( $"MenuUtility.OpenUrl: not an http(s) or steam url: {path}" );
+			return;
+		}
+
 		System.Diagnostics.Process.Start( new System.Diagnostics.ProcessStartInfo()
 		{
-			FileName = path,
+			FileName = url,
 			UseShellExecute = true,
 			Verb = "open"
 		} );
+	}
+
+	static readonly System.Text.RegularExpressions.Regex SteamUrl = new( @"^steam://(store/\d+|install/\d+|url/CommunityFilePage/\d+)/?$", System.Text.RegularExpressions.RegexOptions.CultureInvariant );
+
+	static bool TryGetOpenableUrl( string path, out string url )
+	{
+		if ( Game.Overlay.TryGetExternalUrl( path, out url ) )
+			return true;
+
+		url = path;
+		return path is not null && SteamUrl.IsMatch( path );
 	}
 
 	static List<Friend> _friendList;

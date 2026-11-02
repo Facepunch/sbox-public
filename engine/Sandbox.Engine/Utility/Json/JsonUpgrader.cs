@@ -10,7 +10,10 @@ internal static class JsonUpgrader
 
 	public static void UpdateUpgraders( TypeLibrary typeLibrary )
 	{
-		_methods = typeLibrary.GetMethodsWithAttribute<JsonUpgraderAttribute>().ToArray();
+		_methods = typeLibrary.GetMethodsWithAttribute<JsonUpgraderAttribute>()
+			// A package's upgrader for an engine type would run for everyone loading that type, the menu included
+			.Where( x => x.Attribute.Type is not null && (x.Method.MemberInfo?.DeclaringType?.Assembly == x.Attribute.Type.Assembly || IsolatedAssemblyContext.IsPackageType( x.Attribute.Type )) )
+			.ToArray();
 	}
 
 	/// <summary>

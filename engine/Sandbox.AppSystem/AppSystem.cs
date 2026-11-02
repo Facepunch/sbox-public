@@ -319,7 +319,7 @@ public class AppSystem
 		NativeResourceCache.HandleShutdownLeaks();
 
 		// print each scene that is leaked
-		foreach ( var leakedScene in Scene.All )
+		foreach ( var leakedScene in Scene.AllIncludingUnlisted )
 		{
 			log.Warning( $"Leaked scene {leakedScene.Id} during shutdown." );
 		}

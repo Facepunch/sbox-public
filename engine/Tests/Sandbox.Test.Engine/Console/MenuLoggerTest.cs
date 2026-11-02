@@ -20,6 +20,8 @@ public class MenuLoggerTest
 
 		GlobalContext seenContext = null;
 		Exception listenerException = null;
+		Exception seenException = null;
+		object[] seenArguments = null;
 
 		void Listener( LogEvent e )
 		{
@@ -27,6 +29,8 @@ public class MenuLoggerTest
 				return;
 
 			seenContext = GlobalContext.Current;
+			seenException = e.Exception;
+			seenArguments = e.Arguments;
 
 			try { _ = GlobalContext.Current.TypeLibrary; }
 			catch ( Exception ex ) { listenerException = ex; }
@@ -40,7 +44,7 @@ public class MenuLoggerTest
 			using ( GlobalContext.GameScope() )
 			using ( GlobalContext.Current.DisableTypelibraryScope( "!Testing!" ) )
 			{
-				new Logger( "Test" ).Warning( $"{message}" );
+				new Logger( "Test" ).Warning( new GameException(), $"{message} {new object()}" );
 			}
 		} );
 
@@ -58,5 +62,12 @@ public class MenuLoggerTest
 
 		Assert.AreSame( GlobalContext.Menu, seenContext, "Menu logger ran in the menu context" );
 		Assert.IsNull( listenerException, "Menu logger didn't hit the game's locked TypeLibrary" );
+		Assert.IsNull( seenException, "Menu logger was handed the game's exception" );
+		Assert.IsNull( seenArguments, "Menu logger was handed the game's arguments" );
+	}
+
+	sealed class GameException : Exception
+	{
+		public override string Message => "game exception";
 	}
 }

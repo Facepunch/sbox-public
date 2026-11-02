@@ -8,7 +8,7 @@ public static class MenuScene
 	{
 		Log.Info( $"Loading startup scene: {sceneName}" );
 
-		Scene = new Scene();
+		Scene = new Scene { IsUnlisted = true };
 
 		using ( Scene.Push() )
 		{

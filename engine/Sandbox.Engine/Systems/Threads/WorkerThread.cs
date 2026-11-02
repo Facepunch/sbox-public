@@ -34,6 +34,9 @@ internal static class WorkerThread
 		_sWorkerTasks = new Task[workerThreads];
 		_sCts = new CancellationTokenSource();
 
+		// Don't let the workers inherit whichever context happened to start them
+		using var noFlow = ExecutionContext.SuppressFlow();
+
 		for ( var i = 0; i < workerThreads; i++ )
 		{
 			_sWorkerTasks[i] = Task.Run( WorkerTask );

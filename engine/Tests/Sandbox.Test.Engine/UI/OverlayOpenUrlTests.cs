@@ -1,7 +1,4 @@
 using Sandbox.Modals;
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 
 namespace UITests;
 
@@ -92,38 +89,5 @@ public class OverlayOpenUrlTests
 		{
 			IModalSystem.Current = previous;
 		}
-	}
-
-	sealed class RecordingModalSystem : IModalSystem
-	{
-		public List<string> OpenedUrls { get; } = new();
-
-		public void OpenUrl( string url ) => OpenedUrls.Add( url );
-
-		public bool HasModalsOpen() => false;
-		public void CloseAll( bool immediate = false ) { }
-		public void Game( string packageIdent ) { }
-		public void Map( string packageIdent ) { }
-		public void Package( string packageIdent, string page ) { }
-		public void Review( Package package ) { }
-		public void Report( string packageIdent ) { }
-		public void PackageSelect( string query, Action<Package> onPackageSelected, Action<string> onFilterChanged = null ) { }
-		public void MapSelect( Action<string> onMapSelected, string selected = null ) { }
-		public void FriendsList( in FriendsListModalOptions options ) { }
-		public void Server( Sandbox.Network.LobbyInformation lobby ) { }
-		public void ServerList( in ServerListConfig config ) { }
-		public void Settings( string page = "" ) { }
-		public void CreateGame( in CreateGameOptions options ) { }
-		public void Player( SteamId steamid, string page = "" ) { }
-		public void News( Sandbox.Services.News newsitem ) { }
-		public void PlayerList() { }
-		public void WorkshopPublish( in WorkshopPublishOptions options ) { }
-		public void Notice( string title, string message, string icon ) { }
-		public Task<string> ServerPassword( string serverName ) => Task.FromResult<string>( null );
-		public void ServiceConnector() { }
-		public void PauseMenu() { }
-		public void BenchmarkResults( Guid batchId, IReadOnlyList<BenchmarkTestSummary> summaries ) { }
-		public bool IsModalOpen => false;
-		public bool IsPauseMenuOpen => false;
 	}
 }
