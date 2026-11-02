@@ -872,6 +872,19 @@ public class SettingsCatalog
 
 		Items.Add( new SettingItem
 		{
+			Id = "audio.streamlined",
+			Category = "audio",
+			Section = "#menu.settings.voice",
+			Title = "#menu.settings.streamlined_push_to_talk",
+			Description = "#menu.settings.audio.streamlined.description",
+			Options = OffOn,
+			IsVisible = () => Find( "audio.voicemode" )?.As<VoiceMode>() == VoiceMode.PushToTalk,
+			Read = () => ConsoleSystem.GetValue( "voip_streamlined" ).ToBool(),
+			Write = value => ConsoleSystem.SetValue( "voip_streamlined", ToBool( value ) )
+		} );
+
+		Items.Add( new SettingItem
+		{
 			Id = "audio.microphone",
 			Category = "audio",
 			Section = "#menu.settings.voice",
@@ -1129,6 +1142,7 @@ public class SettingsCatalog
 		ConsoleSystem.SetValue( "music_volume_menu", 1.0f );
 		ConsoleSystem.SetValue( "voip_volume", 1.0f );
 		ConsoleSystem.SetValue( "voip_mode", (int)VoiceMode.PushToTalk );
+		ConsoleSystem.SetValue( "voip_streamlined", false );
 		ConsoleSystem.SetValue( "voip_device", "" );
 		ConsoleSystem.SetValue( "voip_threshold", -50.0f );
 		ConsoleSystem.SetValue( "snd_mute_losefocus", false );
