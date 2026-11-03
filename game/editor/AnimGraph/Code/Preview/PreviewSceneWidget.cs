@@ -12,6 +12,7 @@ public class PreviewSceneWidget : Widget
 	protected GameObject ModelObject { get; private set; }
 	protected SkinnedModelRenderer Renderer { get; private set; }
 	protected Model Model { get; private set; }
+	public Skeleton PreviewSkeleton { get; private set; }
 	private readonly PreviewThrobber _throbber;
 
 	/// <summary>Scroll the ground against root motion. Turn off when the model shouldn't treadmill, e.g. ragdolled.</summary>
@@ -237,14 +238,63 @@ public class PreviewSceneWidget : Widget
 	/// </summary>
 	public void FrameCamera()
 	{
-		if ( Model is null )
+		if ( Model is null && PreviewSkeleton is null )
 			return;
 
-		_center = Model.Bounds.Center;
-		_distance = MathX.SphereCameraDistance( Model.Bounds.Size.Length * 0.5f, FieldOfView ) * 1.2f;
+		var bounds = Model?.Bounds ?? new BBox();
+		if ( Model is null )
+			foreach ( var bone in PreviewSkeleton.Bones )
+				bounds = bounds.AddPoint( bone.Transform.Position );
+
+		_center = bounds.Center;
+		_distance = MathX.SphereCameraDistance( bounds.Size.Length * 0.5f, FieldOfView ) * 1.2f;
 		_origin = Vector3.Zero;
 
 		UpdateCamera();
+	}
+
+	protected void SetSkeleton( Skeleton skeleton )
+	{
+		if ( PreviewSkeleton == skeleton )
+			return;
+
+		PreviewSkeleton = skeleton;
+
+		if ( Model is null )
+			FrameCamera();
+	}
+
+	protected virtual Transform GetSkeletonBoneTransform( int index ) => PreviewSkeleton.Bones[index].Transform;
+
+	private bool TryGetPreviewBoneTransform( string name, out Transform transform )
+	{
+		if ( Renderer.IsValid() )
+			return Renderer.TryGetBoneTransform( name, out transform );
+
+		var bone = PreviewSkeleton?.Bones.FirstOrDefault( bone => bone.Name == name );
+		transform = bone is null ? Transform.Zero : GetSkeletonBoneTransform( bone.Index );
+		return bone is not null;
+	}
+
+	private IEnumerable<(string Name, Transform Transform, Transform Parent)> GetPreviewBones()
+	{
+		if ( Renderer.IsValid() && Renderer.Model is { } model )
+		{
+			foreach ( var bone in model.Bones.AllBones )
+			{
+				if ( !Renderer.TryGetBoneTransform( bone, out var transform ) )
+					continue;
+				if ( bone.Parent is null || !Renderer.TryGetBoneTransform( bone.Parent, out var parent ) )
+					parent = Renderer.WorldTransform;
+				yield return (bone.Name, transform, parent);
+			}
+		}
+		else if ( PreviewSkeleton is { } skeleton )
+		{
+			foreach ( var bone in skeleton.Bones )
+				yield return (bone.Name, GetSkeletonBoneTransform( bone.Index ),
+					bone.ParentIndex >= 0 ? GetSkeletonBoneTransform( bone.ParentIndex ) : Transform.Zero);
+		}
 	}
 
 	private void PreFrame()
@@ -293,7 +343,7 @@ public class PreviewSceneWidget : Widget
 	/// <summary>
 	/// What colour to draw a bone. Overridden where the skeleton means something, like a bone mask.
 	/// </summary>
-	protected virtual Color BoneColor( BoneCollection.Bone bone, bool hovered )
+	protected virtual Color BoneColor( string bone, bool hovered )
 	{
 		return Color.White.WithAlpha( hovered ? 1f : 0.25f );
 	}
@@ -304,22 +354,15 @@ public class PreviewSceneWidget : Widget
 	/// </summary>
 	private void DrawBones()
 	{
-		if ( !Renderer.IsValid() || Renderer.Model is null )
-			return;
-
 		var ray = Gizmo.CurrentRay;
 		var picked = _hoveredBones.FirstOrDefault();
 		var hits = new List<(string Name, float Score)>();
 
-		foreach ( var bone in Renderer.Model.Bones.AllBones )
+		foreach ( var bone in GetPreviewBones() )
 		{
-			if ( !Renderer.TryGetBoneTransform( bone, out var tx ) )
-				continue;
-
-			if ( bone.Parent is null || !Renderer.TryGetBoneTransform( bone.Parent, out var parentTx ) )
-				parentTx = Renderer.WorldTransform;
-
-			using var scope = Gizmo.Scope( $"BoneHandle{bone.Index}", tx );
+			var tx = bone.Transform;
+			var parentTx = bone.Parent;
+			using var scope = Gizmo.Scope( $"BoneHandle{bone.Name}", tx );
 
 			var radius = Math.Min( 1f, tx.Position.Distance( Gizmo.CameraTransform.Position ) / 64f );
 			var hovered = bone.Name == picked;
@@ -333,7 +376,7 @@ public class PreviewSceneWidget : Widget
 				hits.Add( (bone.Name, score) );
 
 			Gizmo.Draw.IgnoreDepth = true;
-			Gizmo.Draw.Color = BoneColor( bone, hovered );
+			Gizmo.Draw.Color = BoneColor( bone.Name, hovered );
 			Gizmo.Draw.LineThickness = hovered ? 2f : 1f;
 			Gizmo.Draw.Line( 0f, tx.PointToLocal( parentTx.Position ) );
 			Gizmo.Draw.LineCircle( 0f, radius );
@@ -505,7 +548,7 @@ public class PreviewSceneWidget : Widget
 		Camera.WorldRotation = new Angles( _angles.y, -_angles.x, 0 );
 
 		var center = _center;
-		if ( FocusBone is not null && Renderer.IsValid() && Renderer.TryGetBoneTransform( FocusBone, out var boneTx ) )
+		if ( FocusBone is not null && TryGetPreviewBoneTransform( FocusBone, out var boneTx ) )
 			center = boneTx.Position;
 
 		Camera.WorldPosition = center + _origin + Camera.WorldRotation.Backward * _distance;

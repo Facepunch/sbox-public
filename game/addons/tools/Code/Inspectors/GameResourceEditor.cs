@@ -1,14 +1,18 @@
 ﻿namespace Editor.Inspectors;
 
 [EditorForAssetType( "__fallback" ), EditorForAssetType( "vtex" )]
-public partial class GameResourceEditor : BaseWindow, IAssetEditor
+public partial class GameResourceEditor : AssetEditorWindow
+{
+}
+
+public abstract class AssetEditorWindow : BaseWindow, IAssetEditor
 {
 	public bool CanOpenMultipleAssets => false;
 
 	public AssetInspector Inspector { get; private set; }
 	public Asset Asset => Inspector?.Asset;
 
-	public GameResourceEditor()
+	protected AssetEditorWindow()
 	{
 		Size = new Vector2( 650, 920 );
 		MaximumWidth = 800;

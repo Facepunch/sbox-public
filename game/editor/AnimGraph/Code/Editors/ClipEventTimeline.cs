@@ -1,3 +1,7 @@
+using Editor.NodeEditor;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+
 namespace Editor.AnimGraph;
 
 /// <summary>
@@ -47,6 +51,8 @@ internal sealed class ClipEventTimeline : Widget
 			AddEvent = AddEvent,
 			DeleteEvent = DeleteEvent,
 			ContextMenu = OpenContextMenu,
+			Copy = CopySelection,
+			Paste = () => PasteEvents( Playhead * LastFrame ),
 			Scrubbed = Seek,
 			Edited = () =>
 			{
@@ -107,7 +113,7 @@ internal sealed class ClipEventTimeline : Widget
 
 		_addTrack = row.Add( SectionHeader.CreateButton( this, "add", Theme.Green, "Add an event track", OpenAddTrackMenu ) );
 		_addEvent = row.Add( SectionHeader.CreateButton( this, "add_circle_outline", Theme.Green, "Add an event at the playhead", () => AddEvent( _track, Playhead * LastFrame ) ) );
-		_trackOptions = row.Add( SectionHeader.CreateButton( this, "more_horiz", Theme.TextControl, "Track options", () => OpenContextMenu( _track, Playhead * LastFrame ) ) );
+		_trackOptions = row.Add( SectionHeader.CreateButton( this, "more_horiz", Theme.TextControl, "Event options", () => OpenContextMenu( _track, Playhead * LastFrame ) ) );
 
 		return bar;
 	}
@@ -186,7 +192,7 @@ internal sealed class ClipEventTimeline : Widget
 	private void ShowProperties()
 	{
 		_addEvent.Enabled = !ReadOnly && IsLive( _track );
-		_trackOptions.Enabled = !ReadOnly && IsLive( _track );
+		_trackOptions.Enabled = HasDocument;
 		_properties.Enabled = !ReadOnly;
 		_properties.Show( _event, _track?.EventClass, HasDocument ? "Select an event to edit it" : "" );
 	}
@@ -343,10 +349,26 @@ internal sealed class ClipEventTimeline : Widget
 
 	private void OpenContextMenu( ClipDocument.Track track, float frame )
 	{
-		if ( ReadOnly )
+		if ( !HasDocument )
 			return;
 
 		var menu = new Menu( this );
+
+		if ( IsLive( track ) )
+		{
+			if ( _event is not null && track.Events.Contains( _event ) )
+				menu.AddOption( "Copy Event", "content_copy", () => CopyEvents( track, _event ), "Ctrl+C" );
+			menu.AddOption( "Copy Track", "content_copy", () => CopyEvents( track ) );
+		}
+		menu.AddOption( "Copy All Events", "content_copy", () => CopyEvents() ).Enabled = _document.Tracks.Count > 0;
+		menu.AddOption( "Paste Events", "content_paste", () => PasteEvents( frame ), "Ctrl+V" ).Enabled = !ReadOnly
+			&& (GraphClipboard.CanPaste( TracksClipboardIdent ) || GraphClipboard.CanPaste( EventClipboardIdent ));
+		if ( ReadOnly )
+		{
+			menu.OpenAtCursor();
+			return;
+		}
+		menu.AddSeparator();
 
 		if ( track is null )
 		{
@@ -380,5 +402,85 @@ internal sealed class ClipEventTimeline : Widget
 		menu.AddOption( "Delete Track", "delete_sweep", () => DeleteTrack( track ) );
 
 		menu.OpenAtCursor();
+	}
+
+	private const string TracksClipboardIdent = "animgraph-clip-tracks";
+	private const string EventClipboardIdent = "animgraph-clip-event";
+
+	private void CopySelection() => CopyEvents( _track, _event );
+
+	private void CopyEvents( ClipDocument.Track track = null, ClipDocument.Event item = null )
+	{
+		if ( !HasDocument || (track is not null && !IsLive( track )) || (item is not null && (track is null || !track.Events.Contains( item ))) )
+			return;
+
+		var copy = ClipDocument.Create();
+		if ( item is not null )
+			copy.AddTrack( track.EventClass ).AddEvent( item );
+		else
+			foreach ( var source in track is null ? _document.Tracks : [track] )
+				copy.AddTrack( source );
+
+		GraphClipboard.Copy( item is null ? TracksClipboardIdent : EventClipboardIdent, copy.SerializeEvents() );
+	}
+
+	private void PasteEvents( float frame )
+	{
+		if ( !HasDocument || ReadOnly )
+			return;
+
+		var singleEvent = GraphClipboard.CanPaste( EventClipboardIdent );
+		if ( !GraphClipboard.TryPaste( singleEvent ? EventClipboardIdent : TracksClipboardIdent, out var json ) )
+			return;
+
+		try
+		{
+			if ( JsonNode.Parse( json ) is not JsonArray tracks )
+				throw new JsonException( "Expected event tracks." );
+
+			var copy = ClipDocument.Create();
+			copy.Restore( json );
+			if ( copy.Tracks.Count == 0 || copy.Tracks.Count != tracks.Count
+				|| (singleEvent && (copy.Tracks.Count != 1 || copy.Tracks[0].Events.Count != 1)) )
+				throw new JsonException( "Clipboard contains no valid events." );
+
+			foreach ( var track in copy.Tracks )
+			{
+				foreach ( var item in track.Events )
+				{
+					item.StartFrame = (singleEvent ? MathF.Round( frame ) : item.StartFrame).Clamp( 0, LastFrame );
+					item.DurationFrames = item.DurationFrames.Clamp( 0, LastFrame - item.StartFrame );
+				}
+			}
+
+			if ( singleEvent )
+			{
+				var source = copy.Tracks[0];
+				var target = IsLive( _track ) && _track.EventClass == source.EventClass ? _track
+					: _document.Tracks.FirstOrDefault( track => track.EventClass == source.EventClass ) ?? _document.AddTrack( source.EventClass );
+				var item = target.AddEvent( source.Events[0] );
+				Select( target, item );
+			}
+			else
+			{
+				ClipDocument.Track first = null;
+				foreach ( var source in copy.Tracks )
+				{
+					var added = _document.AddTrack( source );
+					if ( added.IsSyncTrack )
+						_document.SetSyncTrack( added, true );
+					first ??= added;
+				}
+				Select( first, null );
+			}
+			Commit( "Paste Events" );
+			Rebuild();
+		}
+		catch ( JsonException exception )
+		{
+			Log.Warning( $"Couldn't paste animation events: {exception.Message}" );
+			_status.Text = "Couldn't paste animation events: invalid clipboard data.";
+			_status.Color = Theme.Red;
+		}
 	}
 }

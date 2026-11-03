@@ -8,8 +8,9 @@ public class AssetPreviewWidget : Widget
 	AssetPreview preview;
 
 	bool initializing;
+	readonly bool customPreview;
 
-	public AssetPreviewWidget( AssetPreview p ) : base( null )
+	public AssetPreviewWidget( AssetPreview p, Widget customWidget = null ) : base( null )
 	{
 		preview = p;
 
@@ -17,6 +18,13 @@ public class AssetPreviewWidget : Widget
 		HorizontalSizeMode = SizeMode.Flexible;
 
 		Layout = Layout.Column();
+
+		if ( customWidget is not null )
+		{
+			customPreview = true;
+			Layout.Add( customWidget, 1 );
+			return;
+		}
 
 		initializing = true;
 		_ = InitAsync();
@@ -107,7 +115,7 @@ public class AssetPreviewWidget : Widget
 
 	protected override void OnPaint()
 	{
-		if ( initializing )
+		if ( initializing || customPreview )
 			return;
 
 		if ( preview.Camera is not null )

@@ -54,6 +54,8 @@ public abstract class BonePickerControlWidget : ControlWidget
 	/// The model the graph, or the variation being edited, animates.
 	/// </summary>
 	protected virtual Model TargetModel => TargetGraph?.TargetModel;
+	protected virtual Skeleton TargetSkeleton => Owners.OfType<SkeletonDocument>().FirstOrDefault()?.SourceSkeleton
+		?? Owners.OfType<ClipDocument>().FirstOrDefault()?.SourceSkeleton;
 
 	protected override void PaintControl()
 	{
@@ -105,8 +107,7 @@ public abstract class BonePickerControlWidget : ControlWidget
 			return;
 
 		var model = TargetModel;
-		var skeleton = Owners.OfType<SkeletonDocument>().FirstOrDefault()?.SourceSkeleton
-			?? Owners.OfType<ClipDocument>().FirstOrDefault()?.SourceSkeleton;
+		var skeleton = TargetSkeleton;
 		if ( model is null && skeleton is null )
 			return;
 

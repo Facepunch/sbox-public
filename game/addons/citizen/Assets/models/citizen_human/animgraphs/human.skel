@@ -3169,4 +3169,5 @@
 			]
 		},
 	]
+	m_previewModel = "models/citizen_human/citizen_human_male.vmdl"
 }

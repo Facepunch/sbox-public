@@ -23,6 +23,8 @@ internal sealed class ClipEventLanes : Widget
 	public Action<ClipDocument.Track, float> AddEvent { get; set; }
 	public Action DeleteEvent { get; set; }
 	public Action<ClipDocument.Track, float> ContextMenu { get; set; }
+	public Action Copy { get; set; }
+	public Action Paste { get; set; }
 	public Action<float> Scrubbed { get; set; }
 
 	private bool _resizing;
@@ -381,6 +383,16 @@ internal sealed class ClipEventLanes : Widget
 
 	protected override void OnKeyPress( KeyEvent e )
 	{
+		if ( e.HasCtrl && e.Key is KeyCode.C or KeyCode.V )
+		{
+			if ( e.Key == KeyCode.C )
+				Copy?.Invoke();
+			else if ( !ReadOnly )
+				Paste?.Invoke();
+			e.Accepted = true;
+			return;
+		}
+
 		if ( ReadOnly || SelectedEvent is not { } item )
 			return;
 

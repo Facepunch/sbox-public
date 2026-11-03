@@ -161,12 +161,16 @@ public class AssetInspector : InspectorWidget, AssetSystem.IEventListener
 	/// </summary>
 	private void BuildPreviewWidget()
 	{
+		var custom = AssetPreview is null ? null : _assetInspectors
+			.Select( inspector => inspector.CreatePreviewWidget( PreviewContainer, AssetPreview ) )
+			.FirstOrDefault( widget => widget is not null );
+
 		// destroying the old AssetPreviewWidget disposes the old AssetPreview with it
 		PreviewContainer.Layout.Clear( true );
 
 		if ( AssetPreview is not null )
 		{
-			Preview = new AssetPreviewWidget( AssetPreview );
+			Preview = new AssetPreviewWidget( AssetPreview, custom );
 		}
 		else
 		{
@@ -223,6 +227,9 @@ public class AssetInspector : InspectorWidget, AssetSystem.IEventListener
 	}
 
 	protected override bool OnInspectorClose( object newObj = null )
+		=> ConfirmClose( () => EditorUtility.InspectorObject = newObj );
+
+	public bool ConfirmClose( Action onClose )
 	{
 		var generic = !Asset.TryLoadResource<GameResource>( out var gameResource ) || !gameResource.HasUnsavedChanges;
 		if ( generic && !Asset.HasUnsavedChanges )
@@ -250,8 +257,7 @@ public class AssetInspector : InspectorWidget, AssetSystem.IEventListener
 				else
 					SaveAsset( Asset, gameResource );
 				popup.Destroy();
-				// After we are done with the popup, retrigger the inspector change since we previously blocked it.
-				EditorUtility.InspectorObject = newObj;
+				onClose();
 			}
 		} );
 
@@ -264,7 +270,7 @@ public class AssetInspector : InspectorWidget, AssetSystem.IEventListener
 				else
 					ResetAsset( Asset, gameResource );
 				popup.Destroy();
-				EditorUtility.InspectorObject = newObj;
+				onClose();
 			}
 		} );
 		popup.ButtonLayout.Add( new Button( "Cancel" ) { Clicked = () => { popup.Destroy(); } } );
@@ -699,6 +705,7 @@ public class AssetInspector : InspectorWidget, AssetSystem.IEventListener
 		/// or react to the preview. Optional - the default does nothing.
 		/// </summary>
 		public void SetAssetPreview( AssetPreview preview ) { }
+		public Widget CreatePreviewWidget( Widget parent, AssetPreview preview ) => null;
 
 		/// <summary>
 		/// Gives the inspector a reference back to the hosting <see cref="AssetInspector"/>, e.g. to toggle its

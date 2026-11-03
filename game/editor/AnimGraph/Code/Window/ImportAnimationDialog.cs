@@ -61,6 +61,7 @@ internal sealed class ImportAnimationDialog : Dialog
 		sheet.AddGroup( "Import Settings",
 		[
 			serialized.GetProperty( nameof( ClipDocument.Take ) ),
+			serialized.GetProperty( nameof( ClipDocument.FrameRange ) ),
 			serialized.GetProperty( nameof( ClipDocument.StartFrame ) ),
 			serialized.GetProperty( nameof( ClipDocument.EndFrame ) ),
 			serialized.GetProperty( nameof( ClipDocument.ImportScale ) ),

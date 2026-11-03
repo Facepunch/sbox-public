@@ -254,6 +254,7 @@ internal class FocusBonePicker : BonePickerControlWidget
 
 	// The preview's own model, which the graph's target model isn't while a variation is previewed
 	protected override Model TargetModel => _preview.PreviewModel;
+	protected override Skeleton TargetSkeleton => _preview.PreviewSkeleton;
 
 	// The toolbar control is narrow, the bone names in it aren't
 	protected override float PickerWidth => 380f;

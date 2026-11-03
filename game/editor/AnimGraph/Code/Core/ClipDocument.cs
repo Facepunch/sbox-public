@@ -6,8 +6,15 @@ namespace Editor.AnimGraph;
 /// The authored half of an animation clip - the .anim document rather than the compiled resource.
 /// The pose data comes from the source art; this authors import settings and event markup.
 /// </summary>
-public sealed class ClipDocument
+public sealed class ClipDocument : IAnimationDocument
 {
+	[Property, Hide, ResourceType( "vmdl" ), Description( "Optional preview model. Leave empty to use the skeleton's preview model." )]
+	public string PreviewModel
+	{
+		get => ReadString( PreviewModelKey );
+		set => _root[PreviewModelKey] = value ?? "";
+	}
+
 	[Property, Group( "Import" ), Title( "Animation File" ), FilePath( Extension = "fbx,dmx,smd" ), Description( "Choose a project animation, drag in a file, or browse for an FBX, DMX or SMD file on your computer." ), HideIf( nameof( UseMorphFrame ), true )]
 	public string SourceFilename
 	{
@@ -22,35 +29,56 @@ public sealed class ClipDocument
 		set => _root[SkeletonKey] = AssetSystem.FindByPath( value )?.Path ?? value ?? "";
 	}
 
-	[Property, Group( "Import Settings", StartFolded = true ), Description( "Which animation to import when the source file contains several takes. 0 selects the first take." )]
+	[Property, Group( "Import Settings", StartFolded = true ), Editor( "animgraph.take" ), HideIf( nameof( HasSingleTake ), true ), Description( "Which animation to import when the source file contains several takes." )]
 	public int Take
 	{
 		get => ReadInt( TakeKey, 0 );
 		set => _root[TakeKey] = Math.Max( value, 0 );
 	}
 
-	[Property, Group( "Import Settings", StartFolded = true ), Title( "Start Frame" ), Description( "Override the first source frame. Leave unset to use the beginning of the source animation." )]
+	[Property, Group( "Import Settings", StartFolded = true ), WideMode, Editor( "animgraph.frame-range" ), ShowIf( nameof( HasSourceFrames ), true ), HideIf( nameof( UseMorphFrame ), true ),
+		Description( "Choose the source frames to import. Drag either end to trim, or drag the middle to move the range. Frame numbers include both endpoints." )]
+	public Vector2 FrameRange
+	{
+		get => new( StartFrame ?? 0, EndFrame ?? Math.Max( SourceFrameCount - 1, 0 ) );
+		set
+		{
+			if ( !float.IsFinite( value.x ) || !float.IsFinite( value.y ) )
+				throw new ArgumentOutOfRangeException( nameof( value ) );
+
+			var previous = FrameRange;
+			var last = Math.Max( SourceFrameCount - 1, 0 );
+			var start = (int)Math.Clamp( MathF.Round( value.x ), 0, last );
+			var end = (int)Math.Clamp( MathF.Round( value.y ), start, last );
+			if ( start != previous.x )
+				StartFrame = start == 0 ? null : start;
+			if ( end != previous.y )
+				EndFrame = end == last ? null : end;
+		}
+	}
+
+	[Property, Group( "Import Settings", StartFolded = true ), Title( "Start Frame" ), HideIf( nameof( HasSourceFrames ), true ), Description( "Override the first source frame. Leave unset to use the beginning of the source animation." )]
 	public int? StartFrame
 	{
 		get => ReadInt( StartFrameKey, -1 ) is var frame && frame >= 0 ? frame : null;
 		set => _root[StartFrameKey] = Math.Max( value ?? -1, -1 );
 	}
 
-	[Property, Group( "Import Settings", StartFolded = true ), Title( "End Frame" ), Description( "Override the last source frame. Leave unset to use the end of the source animation." )]
+	[Property, Group( "Import Settings", StartFolded = true ), Title( "End Frame" ), HideIf( nameof( HasSourceFrames ), true ), Description( "Override the last source frame. Leave unset to use the end of the source animation." )]
 	public int? EndFrame
 	{
 		get => ReadInt( EndFrameKey, -1 ) is var frame && frame >= 0 ? frame : null;
 		set => _root[EndFrameKey] = Math.Max( value ?? -1, -1 );
 	}
 
-	[Property, Group( "Import Settings", StartFolded = true ), Title( "Import Scale" ), Description( "Extra scale applied after the skeleton's import scale. Leave at 1 when the animation and original rig use the same source units." )]
+	[Property, Group( "Import Settings", StartFolded = true ), Title( "Import Scale" ), Editor( "importscale" ), Description( "Extra scale applied after the skeleton's import scale. Leave at 1 when the animation and original rig use the same source units." )]
 	public float ImportScale
 	{
 		get => _root[ImportScaleKey] is JsonValue value && value.TryGetValue( out float scale ) ? scale : 1f;
 		set => _root[ImportScaleKey] = value;
 	}
 
-	[Property, Group( "Import Settings", StartFolded = true ), Title( "Frame Rate" ), DefaultValue( 30f ), Description( "Override frames per second. Leave unset to use the source frame rate." )]
+	[Property, Group( "Import Settings", StartFolded = true ), Title( "Frame Rate" ), DefaultValue( 24f ), Description( "Override frames per second. Leave unset to use the source frame rate." )]
 	public float? ImportFrameRate
 	{
 		get => ReadFloat( ImportFrameRateKey, -1f ) is var rate && rate >= 0 ? rate : null;
@@ -313,6 +341,46 @@ public sealed class ClipDocument
 	}
 
 	internal Skeleton SourceSkeleton => string.IsNullOrWhiteSpace( SkeletonName ) ? null : Skeleton.Load( SkeletonName );
+	private string _takeSource;
+	private int _takeIndex = -1;
+	private int _sourceFrameCount;
+	private IReadOnlyList<string> _animationTakes = [];
+
+	internal IReadOnlyList<string> GetAnimationTakes( bool refresh = false )
+	{
+		if ( refresh || _takeSource != SourceFilename || _takeIndex != Take )
+		{
+			_takeSource = SourceFilename;
+			_takeIndex = Take;
+			_sourceFrameCount = 0;
+			_animationTakes = [];
+			try
+			{
+				if ( !string.IsNullOrWhiteSpace( _takeSource ) )
+					_animationTakes = ModelEditor.ModelDoc.GetAnimationTakes( _takeSource, _takeIndex, out _sourceFrameCount );
+			}
+			catch ( InvalidOperationException exception )
+			{
+				_sourceFrameCount = 0;
+				Log.Warning( $"Couldn't read animation takes for '{_takeSource}': {exception.Message}" );
+			}
+		}
+
+		return _animationTakes;
+	}
+
+	internal int SourceFrameCount
+	{
+		get
+		{
+			GetAnimationTakes();
+			return _sourceFrameCount;
+		}
+	}
+
+	private bool HasSourceFrames => SourceFrameCount > 0;
+	private bool HasSingleTake => Take == 0 && GetAnimationTakes().Count == 1;
+
 	private string _channelSkeleton;
 	private IReadOnlyList<string> _sourceFloatChannels = [];
 
@@ -582,12 +650,17 @@ public sealed class ClipDocument
 
 		public Event AddEvent( float startFrame )
 		{
-			var json = new JsonObject
+			return AddEvent( new JsonObject
 			{
 				[StartTimeKey] = startFrame,
 				[DurationKey] = 0.0f
-			};
+			} );
+		}
 
+		internal Event AddEvent( Event source ) => AddEvent( (JsonObject)source.Json.DeepClone() );
+
+		private Event AddEvent( JsonObject json )
+		{
 			var added = new Event( json );
 
 			// Events on a track are the ones the compiler reads, so the array is the real list
@@ -788,21 +861,28 @@ public sealed class ClipDocument
 
 	public Track AddTrack( string eventClass )
 	{
-		var json = new JsonObject
+		return AddTrack( new JsonObject
 		{
 			[EventClassKey] = eventClass,
 			[SyncTrackKey] = false,
 			[DisabledKey] = false,
 			[EventsKey] = new JsonArray()
-		};
+		} );
+	}
 
-		var track = new Track( json, [] );
+	internal Track AddTrack( Track source ) => AddTrack( (JsonObject)source.Json.DeepClone() );
+
+	private Track AddTrack( JsonObject json )
+	{
+		var track = new Track( json, ReadEvents( json ) );
 
 		TrackArray().Add( json );
 		Tracks.Add( track );
 
 		return track;
 	}
+
+	internal string SerializeEvents() => TrackArray().ToJsonString();
 
 	public void RemoveTrack( Track track )
 	{
@@ -860,9 +940,10 @@ public sealed class ClipDocument
 	private static readonly string[] EditableKeys =
 	[
 		.. ImportKeys,
-		TracksKey, AdditiveTypeKey, AdditiveModelSpaceKey, AdditiveBaseFileKey, AdditiveBaseTakeKey,
+		PreviewModelKey, TracksKey, AdditiveTypeKey, AdditiveModelSpaceKey, AdditiveBaseFileKey, AdditiveBaseTakeKey,
 		AdditiveBaseStartFrameKey, AdditiveBaseEndFrameKey, AdditiveBaseFrameKey
 	];
+	private const string PreviewModelKey = "m_previewModel";
 	private const string SkeletonKey = "m_animationSkeletonName";
 	private const string SourceFilenameKey = "m_sourceFilename";
 	private const string TakeKey = "m_nTake";
