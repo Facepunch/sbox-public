@@ -83,6 +83,16 @@ public partial class Scene : GameObject
 
 			ProcessDeletes();
 			NavMesh.Reset();
+
+			if ( HasPhysicsWorld )
+			{
+				var worldBody = _physicsWorld.Body;
+				if ( worldBody.IsValid() && _physicsWorld.BodyCount == 1 && worldBody.ShapeCount == 0 )
+				{
+					_physicsWorld.Delete();
+					_physicsWorld = null;
+				}
+			}
 		}
 
 		if ( !IsEditor && options.ShowLoadingScreen )
