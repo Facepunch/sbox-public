@@ -1,4 +1,5 @@
-﻿namespace Sandbox;
+﻿using Sandbox.Engine;
+namespace Sandbox;
 
 public partial class GameObject
 {
@@ -53,7 +54,7 @@ public partial class GameObject
 			if ( c is null )
 				continue;
 
-			var typeDesc = Game.TypeLibrary.GetType( c.GetType() );
+			var typeDesc = GlobalContext.Current.TypeLibrary.GetType( c.GetType() );
 			if ( typeDesc is null )
 				continue;
 
@@ -180,15 +181,27 @@ public partial class GameObject
 			{
 				DrawGizmoHandle( ref clicked );
 
-				Components.ForEach( "DrawGizmos", false, c =>
+				// Plain loop rather than Components.ForEach, a lambda capturing clicked allocates per object per frame
+				for ( int i = Components.Count - 1; i >= 0 && i < Components.Count; i-- )
 				{
-					if ( c.OverridesDrawGizmos && !c.Flags.Contains( ComponentFlags.Hidden ) )
+					var c = Components[i];
+					if ( c is null || !c.Active )
+						continue;
+
+					if ( !c.OverridesDrawGizmos || c.Flags.Contains( ComponentFlags.Hidden ) || !Gizmo.Settings.IsGizmoEnabled( c.GetType() ) )
+						continue;
+
+					try
 					{
 						using var scope = Gizmo.Scope();
 						c.DrawGizmosInternal();
 						clicked = clicked || Gizmo.WasClicked;
 					}
-				} );
+					catch ( System.Exception e )
+					{
+						Log.Warning( e, $"Exception when calling DrawGizmos on {c}: {e.Message}" );
+					}
+				}
 			}
 
 			if ( clicked )
@@ -257,6 +270,12 @@ public partial class GameObject
 
 			Gizmo.Hitbox.Sphere( new Sphere( 0, 0.4f ) );
 
+			if ( Gizmo.IsHovered || Gizmo.IsSelected )
+			{
+				var textPos = Gizmo.Transform.Position + Gizmo.CameraTransform.Up * 0.8f;
+				Gizmo.Draw.Text( Name, Gizmo.Transform.ToLocal( new Transform( textPos ) ), flags: TextFlag.Center );
+			}
+
 			if ( Gizmo.WasClicked )
 				GizmoSelect();
 		}
@@ -267,7 +286,7 @@ public partial class GameObject
 	/// </summary>
 	GameObject FindSelectionBase()
 	{
-		var isSelectionBase = IsNetworkRoot || IsOutermostPrefabInstanceRoot || Components.GetAll().Any( x => Game.TypeLibrary.GetType( x?.GetType() )?.HasAttribute<SelectionBaseAttribute>() == true );
+		var isSelectionBase = IsNetworkRoot || IsOutermostPrefabInstanceRoot || Components.GetAll().Any( x => GlobalContext.Current.TypeLibrary.GetType( x?.GetType() )?.HasAttribute<SelectionBaseAttribute>() == true );
 
 		if ( isSelectionBase ) return this;
 

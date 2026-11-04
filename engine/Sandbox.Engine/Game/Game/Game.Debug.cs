@@ -14,7 +14,7 @@ public static partial class Game
 		using var sceneScope = scene.Push();
 
 		var children = new JsonArray();
-		var options = new GameObject.SerializeOptions();
+		var options = new GameObject.SerializeOptions { BreakPrefabInstances = true };
 
 		foreach ( var child in scene.Children )
 		{
@@ -31,7 +31,7 @@ public static partial class Game
 		if ( string.IsNullOrWhiteSpace( json ) )
 			return;
 
-		NativeEngine.EngineGlobal.Plat_SetClipboardText( json );
+		NativeEngine.Sdl.SetClipboardText( json );
 		Log.Info( $"Copied {scene.Name} scene to clipboard, paste it into a new scene in the editor." );
 	}
 }

@@ -1,0 +1,24 @@
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+@using Sandbox;
+@using Sandbox.UI;
+@attribute [Group( "Text" )]
+@attribute [Title( "font-variant-numeric" )]
+@attribute [Description( "Compare font-variant-numeric values independently." )]
+@attribute [Icon( "text_fields" )]
+
+<root>
+    <h2>font-variant-numeric</h2>
+    <div class="cases">
+        <UiTestCase Setup="@Text" Css="font-variant-numeric: normal" Caption="normal" Text="@Digits" />
+        <UiTestCase Setup="@Text" Css="font-variant-numeric: tabular-nums" Caption="tabular-nums" Text="@Digits" Note="Every digit the same width, so a counter doesn't shuffle." />
+    </div>
+</root>
+
+@code
+{
+    const string Text = UiTestCase.TextSetup;
+    const string Sample = "Sphinx of black quartz";
+    const string Paragraph = "Sphinx of black quartz, judge my vow. Pack my box with five dozen liquor jugs.";
+    const string Digits = "0123456789 1111 8888";
+}

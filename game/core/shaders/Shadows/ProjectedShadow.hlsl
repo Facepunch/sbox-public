@@ -19,7 +19,7 @@ struct ProjectedShadowStruct
 
 StructuredBuffer<ProjectedShadowStruct> ProjectedShadows < Attribute( "ProjectedShadows" ); >;
 
-class ProjectedShadow
+struct ProjectedShadow
 {
     static float3 GetOccludedPosition( uint shadowIndex, float3 fragPos, float3 lightPos, float lightRadius )
     {
@@ -34,13 +34,20 @@ class ProjectedShadow
         return lightPos + ( fragPos - lightPos ) * min( flOccluderViewZ / sp.w, 1.0f );
     }
 
-    static float GetVisibility( uint shadowIndex, float3 worldPosition, float2 screenPos )
+    static float GetVisibility( uint shadowIndex, float3 worldPosition, float3 normalWs, float2 screenPos )
     {
         if ( shadowIndex == 0xFFFFFFFF )
             return 1.0f;
 
         ProjectedShadowStruct shadow = ProjectedShadows[shadowIndex];
         Texture2D shadowmap = Bindless::GetTexture2D( shadow.ShadowMapTextureIndex );
+
+        // A texel spans 2 * w * tan( cone ) / res. The matrix's x column is 0.5 * cot( cone ) * right plus the
+        // scale-bias's 0.5 * w, so taking that out leaves the UV covered per world unit at unit depth: 0.5 * cot( cone ).
+        const float4x4 m = shadow.WorldToShadowMatrix;
+        const float flUvPerUnit = length( float3( m[0][0], m[1][0], m[2][0] ) - 0.5f * float3( m[0][3], m[1][3], m[2][3] ) );
+        const float flDepthW = abs( mul( float4( worldPosition, 1.0f ), m ).w );
+        worldPosition = ApplyShadowNormalOffset( worldPosition, normalWs, flDepthW * shadow.InvShadowMapRes / flUvPerUnit, shadow.ShadowHardness );
 
         float4 shadowPosition = mul( float4( worldPosition, 1.0f ), shadow.WorldToShadowMatrix );
 
@@ -58,6 +65,13 @@ class ProjectedShadow
 
         // Square the result for a softer falloff
         return shadowVisibility * shadowVisibility;
+    }
+
+    // For callers that have no receiver normal at hand. The normal comes from screen-space derivatives,
+    // so this is only valid in uniform control flow - from inside a per-light loop, use the overload above.
+    static float GetVisibility( uint shadowIndex, float3 worldPosition, float2 screenPos )
+    {
+        return GetVisibility( shadowIndex, worldPosition, ComputeShadowReceiverNormal( worldPosition ), screenPos );
     }
 };
 

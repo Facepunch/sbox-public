@@ -277,11 +277,14 @@ partial class TrackBinder : IJsonPopulator
 				return match;
 			}
 
-			return Parent?.Value is { } go
-				? go.Components
+			if ( Parent?.Value is { } go )
+			{
+				return go.Components
 					.GetAll<T>( FindMode.EverythingInSelf )
-					.FirstOrDefault( x => x.IsValid && !x.GameObject.IsDestroyed && Binder.CanAutoBind( Id, x ) )
-				: null;
+					.FirstOrDefault( x => x.IsValid && !x.GameObject.IsDestroyed && Binder.CanAutoBind( Id, x ) );
+			}
+
+			return null;
 		}
 	}
 

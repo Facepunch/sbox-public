@@ -11,16 +11,17 @@
   "Category": "HatCostume",
   "ConditionalModels": {},
   "Tags": null,
-  "Parent": null,
   "Model": "models/citizen_clothes/hat/cowboy_hat/models/cowboy_hat.vmdl",
   "HumanAltModel": "models/citizen_clothes/hat/cowboy_hat/models/cowboy_hat_m_human.vmdl",
   "HumanAltFemaleModel": null,
   "SkinMaterial": null,
   "EyesMaterial": null,
   "MaterialGroup": null,
+  "HeelHeight": 0,
   "SlotsUnder": "HeadTop",
   "SlotsOver": 0,
   "HideBody": 0,
+  "DeformationMode": "Normal",
   "AllowTintSelect": false,
   "TintSelection": {
     "blend": "Linear",
@@ -37,7 +38,8 @@
   "Icon": {
     "Path": "models/citizen_clothes/hat/cowboy_hat/cowboy_hat.clothing.png",
     "Mode": "Eyes",
-    "PositionOffset": "-9.299998,0,0.5000004"
+    "UsePositionOffset": false,
+    "PositionOffset": "-9.29999828,0,0.500000417"
   },
   "__references": [],
   "__version": 0

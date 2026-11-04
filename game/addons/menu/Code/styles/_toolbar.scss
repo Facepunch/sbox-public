@@ -1,0 +1,217 @@
+@import "/styles/_front.scss";
+
+// Dress the engine Toolbar once; individual pages supply controls and arrange the strip.
+MenuShell .toolbar
+{
+	font-family: $front-font;
+	color: $front-body;
+	height: auto;
+	padding: 0;
+	border: 0;
+	gap: 4px;
+	flex-wrap: nowrap;
+	scrollbar-width: none;
+
+	> .button
+	{
+		align-items: center;
+		justify-content: center;
+		min-width: 34px;
+		height: 34px;
+		padding: 0 10px;
+		gap: 6px;
+		font-size: 12px;
+		font-weight: 500;
+		text-transform: none;
+		letter-spacing: 0;
+		border: 1px solid transparent;
+		border-radius: 6px;
+		background-color: transparent;
+		color: $front-secondary;
+		opacity: 1;
+
+		.iconpanel
+		{
+			font-size: 19px;
+			margin: 0;
+		}
+
+		&.icon-only
+		{
+			width: 34px;
+			padding: 0;
+		}
+
+		&:hover
+		{
+			background-color: rgba( 255, 255, 255, 0.05 );
+			color: $front-heading;
+			opacity: 1;
+		}
+
+		&.active
+		{
+			background-color: rgba( $front-primary, 0.12 );
+			border-color: rgba( $front-primary, 0.2 );
+			color: #9fc9ff;
+		}
+
+		&.disabled
+		{
+			opacity: 0.3;
+			pointer-events: none;
+		}
+	}
+
+	> .pill-group
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		height: 34px;
+		padding: 0 3px;
+		gap: 2px;
+		border: 1px solid $front-border;
+		border-radius: 999px;
+		background-color: $front-card-deep;
+		transition: border-color 0.1s ease;
+
+		&:hover
+		{
+			border-color: rgba( $front-link, 0.65 );
+		}
+	}
+
+	> .pill-group > .button
+	{
+		flex-shrink: 0;
+		align-items: center;
+		justify-content: center;
+		min-width: 28px;
+		height: 26px;
+		padding: 0 10px;
+		gap: 5px;
+		font-size: 12px;
+		font-weight: 600;
+		text-transform: none;
+		letter-spacing: 0;
+		border: 0;
+		border-radius: 999px;
+		background-color: transparent;
+		color: $front-body;
+		opacity: 1;
+		transition: background-color 0.1s ease;
+
+		.iconpanel
+		{
+			font-size: 20px;
+			margin: 0;
+			color: $front-body;
+		}
+
+		&.icon-only
+		{
+			width: 28px;
+			padding: 0;
+		}
+
+		&:hover
+		{
+			sound-in: "ui.button.over";
+			background-color: rgba( 255, 255, 255, 0.08 );
+			color: $front-heading;
+			opacity: 1;
+
+			.iconpanel
+			{
+				color: $front-heading;
+			}
+		}
+
+		&:active
+		{
+			sound-in: "ui.button.press";
+		}
+
+		&.active
+		{
+			background-color: rgba( $front-primary, 0.32 );
+			color: $front-heading;
+			opacity: 1;
+
+			.iconpanel
+			{
+				color: $front-primary * 1.7;
+			}
+		}
+
+		&.disabled
+		{
+			opacity: 1;
+			pointer-events: none;
+
+			.iconpanel
+			{
+				opacity: 0.35;
+			}
+		}
+	}
+
+	> .toolbar-search
+	{
+		// Let search shrink while command buttons keep their usable size.
+		flex-grow: 1;
+		flex-shrink: 1;
+		flex-basis: 0;
+		min-width: 0;
+		height: 34px;
+		margin-right: 4px;
+		padding: 0 34px 0 12px;
+		gap: 8px;
+		font-size: 14px;
+		color: $front-body;
+		border-radius: 7px;
+		border: 1px solid $front-border;
+		background-color: $front-card-deep;
+
+		// TextEntry owns editing and clearing; the leading search glyph is decorative.
+		&::before
+		{
+			content: "search";
+			font-family: Material Icons;
+			font-size: 20px;
+			color: $front-secondary;
+			flex-shrink: 0;
+			pointer-events: none;
+		}
+
+		&:hover, &:focus
+		{
+			border-color: rgba( $front-link, 0.65 );
+		}
+
+		&:empty
+		{
+			padding-right: 12px;
+		}
+
+		.content-label.placeholder
+		{
+			color: $front-secondary;
+			opacity: 0.8;
+		}
+
+		.clearbutton
+		{
+			font-size: 18px;
+			color: $front-secondary;
+			opacity: 1;
+
+			&:hover
+			{
+				color: $front-heading;
+				opacity: 1;
+			}
+		}
+	}
+}

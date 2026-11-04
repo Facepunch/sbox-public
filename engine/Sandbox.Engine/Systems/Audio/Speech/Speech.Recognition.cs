@@ -165,6 +165,7 @@ public static class Recognition
 
 	internal static void Reset()
 	{
+		Stop();
 		RecognizerInfo = null;
 		IsListening = false;
 	}

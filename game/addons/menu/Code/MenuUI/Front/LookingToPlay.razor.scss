@@ -1,0 +1,134 @@
+@import "/styles/_front.scss";
+
+// Expanded cards use FriendsRail's .party, .game-art and .action.join rules, just like the list below.
+LookingToPlay
+{
+	flex-direction: column;
+	flex-shrink: 0;
+	border-bottom: $front-border-width solid $front-hairline;
+
+	.looking-head
+	{
+		align-items: center;
+		flex-shrink: 0;
+		gap: 8px;
+		height: 48px;
+		padding: 0 12px 0 10px;
+	}
+
+	.section-toggle
+	{
+		flex-shrink: 0;
+		align-items: center;
+		gap: 5px;
+		cursor: pointer;
+		height: 100%;
+		> icon
+		{
+			font-size: 16px;
+			color: $front-label;
+			transition: transform 0.15s ease;
+		}
+		.title { @include front-section-label; }
+		&:hover .title { color: $front-heading; }
+	}
+
+	.count
+	{
+		font-size: 10px;
+		font-weight: 700;
+		color: $front-secondary;
+		background-color: rgba( 255, 255, 255, 0.07 );
+		border-radius: 20px;
+		padding: 1px 7px;
+	}
+
+	.party-strip
+	{
+		margin-left: auto;
+		flex-shrink: 1;
+		min-width: 0;
+		align-items: center;
+		height: 42px;
+		overflow-x: scroll;
+		padding-left: 4px;
+		padding-right: 3px;
+		opacity: 0;
+		pointer-events: none;
+		transition: opacity 0.2s ease-out;
+	}
+
+	.party-peek
+	{
+		position: relative;
+		flex-shrink: 0;
+		width: 38px;
+		height: 34px;
+		margin-left: -4px;
+		cursor: pointer;
+		transition: transform 0.1s ease;
+		&:hover { transform: translateY( -2px ); z-index: 2; }
+	}
+
+	.game-thumb
+	{
+		width: 30px;
+		height: 28px;
+		border-radius: 5px;
+		border: 2px solid $front-card-deep;
+		background-color: $front-card-deep;
+		background-size: cover;
+		background-position: center;
+		align-items: center;
+		justify-content: center;
+		icon { display: none; font-size: 18px; color: $front-secondary; }
+		&.no-art icon { display: flex; }
+	}
+
+	.host-face
+	{
+		position: absolute;
+		right: 0;
+		bottom: 0;
+		width: 20px;
+		height: 20px;
+		border: 2px solid $front-card-deep;
+		border-radius: 50%;
+		background-size: cover;
+	}
+
+	.looking-fold { flex-direction: column; flex-shrink: 0; overflow: hidden; }
+	.looking-body { flex-direction: column; flex-shrink: 0; padding: 0 8px 8px 8px; }
+	&.collapsed
+	{
+		.section-toggle > icon { transform: rotate( -90deg ); }
+		.party-strip { opacity: 1; pointer-events: all; }
+		.looking-fold { pointer-events: none; }
+	}
+
+	.looking-rows
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		max-height: 228px;
+		overflow-y: scroll;
+	}
+
+	// Give the title a definite basis in the shared flex row so its ellipsis has room for text.
+	.party .party-name
+	{
+		width: 140px;
+		max-width: 140px;
+	}
+
+	.party-size, .party-state
+	{
+		flex-shrink: 0;
+		font-size: 10.5px;
+		color: $front-secondary;
+	}
+	.party-size { margin-left: 4px; }
+
+	.empty-state, .error { flex-shrink: 0; padding: 4px 8px; font-size: 11px; color: $front-secondary; }
+	.error { color: $front-danger; }
+}

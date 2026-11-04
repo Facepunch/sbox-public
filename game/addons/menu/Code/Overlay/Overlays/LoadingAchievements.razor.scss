@@ -1,0 +1,67 @@
+@import "/styles/_front.scss";
+
+// 🏆 12 / 30 on the end of the game's name, level with it - straight on the art like the name,
+// shadowed to keep it readable
+LoadingAchievements
+{
+	flex-direction: row;
+	flex-shrink: 0;
+	align-items: center;
+	gap: 6px;
+	margin-left: 24px;
+	transition: all 0.4s ease-out;
+
+	// Comes in once the achievements have loaded, rather than popping
+	&:intro
+	{
+		opacity: 0;
+	}
+
+	// Its own box, so the count after it can't slide under it
+	.trophy
+	{
+		flex-shrink: 0;
+		width: 17px;
+		height: 17px;
+		font-family: "Material Icons";
+		font-size: 17px;
+		text-align: center;
+		color: linear-gradient( 180deg, #ffd980, #d99a2b );
+		text-shadow: 0 1px 6px rgba( 0, 0, 0, 0.7 );
+	}
+
+	// Centred on the trophy - on a shared baseline the big number sat low against it
+	.count
+	{
+		flex-direction: row;
+		align-items: center;
+		flex-shrink: 0;
+		gap: 4px;
+		font-family: Inter;
+		font-variant-numeric: tabular-nums;
+		text-shadow: 0 1px 6px rgba( 0, 0, 0, 0.7 );
+
+		.got
+		{
+			font-size: 15px;
+			font-weight: 700;
+			color: $front-heading;
+		}
+
+		.of
+		{
+			font-size: 12px;
+			font-weight: 600;
+			color: $front-secondary;
+		}
+
+		// All got - the lot goes gold
+		&.complete
+		{
+			.got, .of
+			{
+				color: linear-gradient( 180deg, #ffd980, #d99a2b );
+			}
+		}
+	}
+}

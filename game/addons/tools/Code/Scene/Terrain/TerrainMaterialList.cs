@@ -134,6 +134,7 @@ public class TerrainMaterialList : ListView
 		foreach ( var dragAsset in draggedAssets )
 		{
 			var asset = await dragAsset.GetAssetAsync();
+			if ( asset is null ) continue;
 			if ( asset.TryLoadResource<TerrainMaterial>( out var material ) )
 			{
 				if ( Terrain.Storage.Materials.Contains( material ) ) continue;

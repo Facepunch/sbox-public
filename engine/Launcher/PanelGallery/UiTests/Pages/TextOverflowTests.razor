@@ -1,0 +1,38 @@
+@using Sandbox.PanelGallery;
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+@using Sandbox;
+@using Sandbox.UI;
+@attribute [Group( "Text" )]
+@attribute [Title( "text-overflow" )]
+@attribute [Description( "text-overflow examples" )]
+@attribute [Icon( "text_fields" )]
+<root>
+    <h2>text-overflow</h2>
+    <div class="cases">
+        <UiTestCase Caption="ellipsis" Setup="@Text" Css="white-space: nowrap; overflow: hidden; text-overflow: ellipsis" Text="@Paragraph"
+                    Note="The usual one-line truncation." />
+        <UiTestCase Caption="Clipped to 40px" Setup="@Text" Css="overflow: hidden; text-overflow: ellipsis; height: 40px" Text="@Paragraph"
+                    Note="Wrapped and clipped to a height - the last visible line gets the dots." />
+        <UiTestCase Caption="Clipped to 60px" Setup="@Text" Css="overflow: hidden; text-overflow: ellipsis; height: 60px" Text="@Paragraph"
+                    Note="Same text, taller box. Measurement is cached per height, so this must differ from the case beside it." />
+        <UiTestCase Caption="clip" Setup="@Text" Css="white-space: nowrap; overflow: hidden; text-overflow: clip" Text="@Paragraph"
+                    Note="Hard cut, mid-glyph, no dots." />
+        <UiTestCase Caption="Narrow ellipsis" Setup="@Text" Css="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 40px" Text="@Paragraph"
+                    Note="Barely enough room for the dots themselves." />
+        <UiTestCase Caption="Ellipsis beside a fixed item" Setup="width: 200px; height: 40px; background-color: rgba( 255, 255, 255, 0.06 )" Css="flex-direction: row">
+            <ChildContent>
+                <label style="width: 0; flex-grow: 1; font-size: 14px; color: #e6eaf2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">@Paragraph</label>
+                <div style="@($"width: 24px; height: 24px; flex-shrink: 0; background-color: {GalleryPalette.CyanHex}")"></div>
+            </ChildContent>
+        </UiTestCase>
+    </div>
+</root>
+@code
+{
+    const string Text = UiTestCase.TextSetup;
+    const string Sample = "Sphinx of black quartz";
+    const string Descenders = "puzzling jargon gypsy";
+    const string Paragraph = "Sphinx of black quartz, judge my vow. Pack my box with five dozen liquor jugs.";
+    const string LongWord = "Pneumonoultramicroscopicsilicovolcanoconiosis";
+}

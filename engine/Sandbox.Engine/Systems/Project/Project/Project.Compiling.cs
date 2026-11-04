@@ -29,17 +29,12 @@ public partial class Project
 	int lastCompilerHash;
 
 	// anything that means we need to re-create the compiler and recompile should be here
-	int CompilerHash => HashCode.Combine( Active, Current == this, Json.SerializeAsObject( Config.GetCompileSettings() ).ToJsonString(), Config.IsStandaloneOnly, Config.Org, Config.Ident, Config.Type, string.Join( ";", PackageReferences() ) );
+	int CompilerHash => HashCode.Combine( Active, Current == this, Json.SerializeAsObject( Config.GetCompileSettings() ).ToJsonString(), Config.IsStandaloneOnly, Config.Org, Config.Ident, Config.Type, string.Join( ";", PackageReferences().Concat( EditorPackageReferences() ).Select( x => x.FullIdent ) ) );
 
 	/// <summary>
 	/// Whether to save/load compiled assemblies to disk.
 	/// </summary>
 	bool CacheAssemblies => IsBuiltIn && Application.IsRetail && Application.IsEditor;
-
-	/// <summary>
-	/// These package types should reference package.base
-	/// </summary>
-	private static HashSet<string> BaseReferencingTypes { get; } = new HashSet<string> { "game", "addon", "library" };
 
 	private void UpdateCompiler()
 	{
@@ -100,17 +95,11 @@ public partial class Project
 			var compilerName = $"{Config.Org}.{Config.Ident}".Trim( '.' );
 			var codePath = GetCodePath();
 
-			if ( compilerName == "local.base" ) compilerName = "base";
 			if ( compilerName == "local.toolbase" ) compilerName = "toolbase";
 
 			Log.Trace( $"Create Compiler `{compilerName}`" );
 
 			Compiler = CompileGroup.CreateCompiler( compilerName, codePath, compilerSettings );
-
-			if ( BaseReferencingTypes.Contains( Config.Type ) && compilerName != "base" )
-			{
-				Compiler.AddBaseReference();
-			}
 
 			Compiler.GeneratedCode.AppendLine( $"global using Microsoft.AspNetCore.Components;" );
 			Compiler.GeneratedCode.AppendLine( $"global using Microsoft.AspNetCore.Components.Rendering;" );
@@ -266,20 +255,6 @@ public partial class Project
 
 			AssemblyFileSystem.CreateDirectory( "/.bin" );
 
-			if ( Config.FullIdent == "local.base" )
-			{
-				// package.base gets sent to clients, so we need to have a .cll
-				string cllPath = Path.Combine( directory, $"{compiler.AssemblyName}.cll" );
-				if ( !File.Exists( cllPath ) )
-					return false;
-
-				byte[] cllBytes = File.ReadAllBytes( cllPath );
-				if ( cllBytes is null )
-					return false;
-
-				AssemblyFileSystem.WriteAllBytes( $"/.bin/{compiler.AssemblyName}.cll", cllBytes );
-			}
-
 			// All good, swap in the assembly
 			compiler.UpdateFromAssembly( bytes );
 			AssemblyFileSystem.WriteAllBytes( $"/.bin/{compiler.AssemblyName}.dll", bytes );
@@ -297,6 +272,20 @@ public partial class Project
 		if ( (Config.Type == "game" || Config.Type == "addon") && !IsBuiltIn )
 		{
 			foreach ( var library in Project.Libraries.Where( x => x.HasCodePath() ) )
+			{
+				yield return library.Package;
+			}
+		}
+	}
+
+	/// <summary>
+	/// Libraries whose editor code the editor compiler references.
+	/// </summary>
+	IEnumerable<Package> EditorPackageReferences()
+	{
+		if ( (Config.Type == "game" || Config.Type == "addon") && !IsBuiltIn )
+		{
+			foreach ( var library in Project.Libraries.Where( x => x.HasEditorPath() ) )
 			{
 				yield return library.Package;
 			}
@@ -341,7 +330,6 @@ public partial class Project
 			EditorCompiler.AddReference( Compiler );
 		}
 
-		EditorCompiler.AddBaseReference();
 		EditorCompiler.AddToolBaseReference();
 
 		EditorCompiler.AddReference( "Sandbox.Tools" );
@@ -365,13 +353,9 @@ public partial class Project
 			EditorCompiler.AddReference( reference );
 		}
 
-		if ( (Config.Type == "game" || Config.Type == "addon") && !IsBuiltIn )
+		foreach ( var reference in EditorPackageReferences() )
 		{
-			// editor libraries
-			foreach ( var library in Libraries.Where( x => x.HasEditorPath() ) )
-			{
-				EditorCompiler.AddEditorReference( library.Package );
-			}
+			EditorCompiler.AddEditorReference( reference );
 		}
 
 		EditorCompiler.AddReference( "package.local.actiongraph" );
@@ -379,6 +363,7 @@ public partial class Project
 		EditorCompiler.AddReference( "package.local.moviemaker" );
 		EditorCompiler.AddReference( "package.local.hammer" );
 		EditorCompiler.AddReference( "package.local.dooeditor" );
+		EditorCompiler.AddReference( "package.local.animgraph" );
 
 		foreach ( var reference in compilerSettings.DistinctAssemblyReferences )
 		{

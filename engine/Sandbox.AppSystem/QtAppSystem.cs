@@ -92,10 +92,15 @@ public class QtAppSystem
 	/// </summary>
 	protected void LoadSteamDll()
 	{
-		var dllName = $"{Environment.CurrentDirectory}\\bin\\win64\\steam_api64.dll";
+		// Windows ships this as steam_api64, everywhere else it's plain steam_api.
+		// GetNativeLibraryName only sorts out the lib prefix and the extension, not the name.
+		var baseName = OperatingSystem.IsWindows() ? "steam_api64" : "steam_api";
+		var fileName = Sandbox.Interop.GetNativeLibraryName( baseName );
+		var dllName = System.IO.Path.Combine( AppContext.BaseDirectory, NetCore.NativeDllPath, fileName );
+
 		if ( !NativeLibrary.TryLoad( dllName, out steamApiDll ) )
 		{
-			throw new System.Exception( "Couldn't load bin/win64/steam_api64.dll" );
+			throw new System.Exception( $"Couldn't load {dllName}" );
 		}
 	}
 }

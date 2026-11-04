@@ -88,9 +88,9 @@ public class SlopeScatterer : Scatterer
 			return instances;
 
 		var sceneBounds = scene.GetBounds();
-		var traces = BatchTraceGround( scene, points, sceneBounds );
+		using var pooledTraces = RentGroundTraces( scene, points, sceneBounds );
 
-		foreach ( var trace in traces )
+		foreach ( var trace in pooledTraces.Span )
 		{
 			if ( !trace.Hit )
 				continue;
@@ -278,9 +278,9 @@ public class TerrainMaterialScatterer : Scatterer
 			return instances;
 
 		var sceneBounds = scene.GetBounds();
-		var traces = BatchTraceGround( scene, points, sceneBounds );
+		using var pooledTraces = RentGroundTraces( scene, points, sceneBounds );
 
-		foreach ( var trace in traces )
+		foreach ( var trace in pooledTraces.Span )
 		{
 			if ( !trace.Hit )
 				continue;

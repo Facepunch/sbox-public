@@ -1,5 +1,6 @@
 ﻿
 using NativeEngine;
+using Sandbox.Engine;
 
 namespace Sandbox.Audio;
 
@@ -39,7 +40,7 @@ internal static partial class AudioEngine
 
 	static AudioEngine()
 	{
-		if ( Application.IsUnitTest )
+		if ( Application.IsUnitTest && (!Application.IsInitialized || !IsValid) )
 			return;
 
 		if ( IsValid )
@@ -75,8 +76,9 @@ internal static partial class AudioEngine
 		// calling g_pAudioDevice.MuteDevice actually starts the audio system for the first time.
 		// if we never call it, the audio system will never start.
 
-		var mute = Mute || (MuteLoseFocus && !InputSystem.IsAppActive());
+		var mute = Mute || (MuteLoseFocus && !WindowInput.IsAppActive());
 		g_pAudioDevice.MuteDevice( mute );
 
+		Game.Music.Tick();
 	}
 }

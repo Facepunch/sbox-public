@@ -60,6 +60,14 @@ internal class TitleBar : Widget
 		//
 		// Left
 		//
+
+		// macOS draws its traffic lights here, leave room for them
+		if ( OperatingSystem.IsMacOS() )
+		{
+			Layout.AddSpacingCell( 72 );
+			IconWidget.Visible = false;
+		}
+
 		Layout.Add( IconWidget, 0 );
 		Layout.Add( MenuBar, 0 );
 
@@ -94,6 +102,10 @@ internal class TitleBar : Widget
 		CloseButton = new WindowControlButton( WindowControlIcon.Close, Window.Close );
 		CloseButton.HighlightColor = Color.Parse( "#c42b1c" ).Value;
 		right.Add( CloseButton, 0 );
+
+		// macOS draws its own traffic lights, hide ours
+		if ( OperatingSystem.IsMacOS() )
+			MinimizeButton.Visible = MaximizeButton.Visible = CloseButton.Visible = false;
 	}
 
 	private bool PaintIcon()

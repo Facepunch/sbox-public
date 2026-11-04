@@ -9,7 +9,7 @@ namespace Editor;
 /// A SceneEditorSession holds a Scene that is open in the editor.
 /// It creates a widget, has a selection and undo system.
 /// </summary>
-public partial class SceneEditorSession : Scene.ISceneEditorSession
+public partial class SceneEditorSession : Scene.ISceneEditorSession, AssetSystem.IEventListener
 {
 	/// <summary>
 	/// All open editor sessions
@@ -62,6 +62,7 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 
 		InitUndo();
 		timeSinceSavedState = 0;
+		_reloadHash = scene.ReloadHash;
 
 		if ( this is not GameEditorSession )
 		{
@@ -153,6 +154,7 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	}
 
 	RealTimeSince timeSinceSavedState;
+	int _reloadHash;
 
 	public void Tick()
 	{
@@ -161,11 +163,33 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		//
 		Scene.ProcessDeletes();
 
+		// Reload the scene if settings that affect world setup have changed
+		var hash = Scene.ReloadHash;
+		if ( hash != _reloadHash )
+		{
+			_reloadHash = hash;
+			Scene.Reload();
+		}
+
 		// Save camera state to disk
 		if ( timeSinceSavedState > 1.0f )
 		{
 			timeSinceSavedState = 0;
 			EditorEvent.Run( "scene.session.save" );
+		}
+	}
+
+	void AssetSystem.IEventListener.OnAssetChanged( Asset asset )
+	{
+		if ( asset is null || asset.Guid == Guid.Empty )
+			return;
+
+		foreach ( var session in All )
+		{
+			if ( session.IsMounted || session.Scene?.Source is not SceneFile source || source.Guid != asset.Guid )
+				continue;
+
+			SceneSource.FindAsset( source );
 		}
 	}
 
@@ -272,8 +296,16 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		if ( Scene.Source is null )
 			return;
 
+		var source = Scene.Source;
+		if ( source is SceneFile sceneFile && SceneSource.FindAsset( sceneFile ) is Asset asset && File.Exists( asset.GetSourceFile( true ) ) )
+		{
+			var file = SceneSource.LoadForEditing( asset );
+			SceneSource.TrackSource( file );
+			source = file;
+		}
+
 		InitUndo();
-		Scene.Load( Scene.Source );
+		Scene.Load( source );
 
 		Selection.Clear();
 	}
@@ -283,6 +315,9 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		// Mounted scenes live at a read-only mount:// path - they can't be saved or saved as.
 		if ( IsMounted )
 			return;
+
+		if ( Scene.Source is SceneFile source )
+			SceneSource.FindAsset( source );
 
 		bool isPrefab = Scene is PrefabScene;
 		string extension = isPrefab ? "prefab" : "scene";
@@ -320,18 +355,29 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 
 		EditorEvent.Run( "scene.beforesave", Active.Scene );
 
+		if ( !isPrefab && !saveAs && !HasUnsavedChanges && Scene.Source is not null && File.Exists( saveLocation ) )
+		{
+			EditorEvent.Run( "scene.saved", Scene );
+			return;
+		}
+
 		var asset = AssetSystem.CreateResource( extension, saveLocation );
 		Assert.NotNull( asset, $"Failed to CreateResource for {fileType} at {saveLocation}" );
 
 		GameResource resource = Scene is PrefabScene prefabScene ? prefabScene.ToPrefabFile() : Scene.CreateSceneFile();
-		asset.SaveToDisk( resource );
+		var saved = resource is SceneFile sceneFile ? SceneSource.Save( asset, sceneFile ) : asset.SaveToDisk( resource );
+		if ( !saved )
+		{
+			Log.Error( $"Could not save {asset.Path}." );
+			return;
+		}
 
 		// Update this scene's path
 		Scene.Source = resource;
 		Scene.Name = System.IO.Path.GetFileNameWithoutExtension( saveLocation );
 
 		HasUnsavedChanges = false;
-		EditorEvent.Run( "scene.saved", Active.Scene );
+		EditorEvent.Run( "scene.saved", Scene );
 
 		UpdateEditorTitle();
 	}
@@ -414,6 +460,12 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	/// </summary>
 	internal static void SaveOpenSessions()
 	{
+		foreach ( var session in All )
+		{
+			if ( !session.IsMounted && session.Scene?.Source is SceneFile source )
+				SceneSource.FindAsset( source );
+		}
+
 		var open = All
 			.Where( x => x is not GameEditorSession )
 			.Select( x => x.Scene.Source?.ResourcePath )
@@ -482,7 +534,14 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	/// </summary>
 	public static SceneEditorSession CreateFromPath( string path )
 	{
-		var resource = ResourceLibrary.Get<Resource>( path );
+		Resource resource = null;
+
+		if ( AssetSystem.FindByPath( path ) is Asset asset && asset.AssetType.FileExtension == "scene" && File.Exists( asset.GetSourceFile( true ) ) )
+		{
+			resource = SceneSource.LoadForEditing( asset );
+		}
+
+		resource ??= ResourceLibrary.Get<Resource>( path );
 
 		// Not loaded yet? It might be a mounted scene/prefab.
 		resource ??= SceneFile.Load( path );
@@ -500,6 +559,7 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 			using var _ = openingScene.Push();
 
 			openingScene.Load( sceneFile );
+			SceneSource.TrackSource( sceneFile );
 
 			var session = new SceneEditorSession( openingScene );
 			return session;
@@ -535,15 +595,15 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 
 	public Editor.SceneFolder GetSceneFolder()
 	{
-		if ( Scene?.Source?.ResourcePath == null )
+		if ( Scene?.Source?.ResourcePath is not { } path || AssetSystem.FindByPath( path ) is not { } sourceAsset )
 			return default;
 
-		if ( AssetSystem.FindByPath( Scene.Source.ResourcePath ) is Asset sourceAsset )
-		{
-			return new AssetFolderInstance( sourceAsset );
-		}
+		var relativePath = sourceAsset.GetSourceFile( false );
+		var assetPath = sourceAsset.GetSourceFile( true );
+		if ( string.IsNullOrEmpty( relativePath ) || string.IsNullOrEmpty( assetPath ) )
+			return default;
 
-		return default;
+		return new AssetFolderInstance( relativePath, assetPath );
 	}
 }
 
@@ -553,11 +613,8 @@ file class AssetFolderInstance : SceneFolder
 	string _relativeFolder;
 	BaseFileSystem _fs;
 
-	public AssetFolderInstance( Asset sourceAsset )
+	public AssetFolderInstance( string relativePath, string assetPath )
 	{
-		var relativePath = sourceAsset.GetSourceFile( false );
-		var assetPath = sourceAsset.GetSourceFile( true );
-
 		var extension = System.IO.Path.GetExtension( assetPath ).Replace( ".", "_" );
 		_folder = System.IO.Path.ChangeExtension( assetPath, null );
 		_folder = $"{_folder}{extension}_data";

@@ -48,6 +48,11 @@ public partial class TerrainEditorTool : EditorTool
 
 	public override void OnDisabled()
 	{
+		ClearBrushPreview();
+	}
+
+	internal void ClearBrushPreview()
+	{
 		_previewObject?.Delete();
 		_previewObject = null;
 	}
@@ -83,6 +88,14 @@ public partial class TerrainEditorTool : EditorTool
 			var rot = group.Add( ControlSheetRow.Create( so.GetProperty( nameof( BrushSettings.Rotation ) ) ) );
 			rot.Enabled = !BrushSettings.RandomRotation;
 			var rndRot = group.Add( ControlSheetRow.Create( so.GetProperty( nameof( BrushSettings.RandomRotation ) ) ) );
+			group.Add( ControlSheetRow.Create( so.GetProperty( nameof( BrushSettings.ShowGridPreview ) ) ) );
+
+			// Flatten only option, the sidebar is rebuilt whenever the subtool changes
+			if ( CurrentTool is FlattenTool flatten )
+			{
+				var flattenSo = flatten.GetSerialized();
+				group.Add( ControlSheetRow.Create( flattenSo.GetProperty( nameof( FlattenTool.AlignToSurface ) ) ) );
+			}
 
 			so.OnPropertyChanged += ( prop ) =>
 			{
@@ -92,7 +105,8 @@ public partial class TerrainEditorTool : EditorTool
 		}
 
 		// Paint-only sections — hidden unless PaintTextureTool is active
-		var paintOnlySection = new PaintOnlySectionWidget( this, opacityRow );
+		var sidebarStretch = new Widget( sidebar ) { VerticalSizeMode = SizeMode.Flexible };
+		var paintOnlySection = new PaintOnlySectionWidget( this, opacityRow, sidebarStretch );
 		{
 			// Material selection
 			var terrain = GetSelectedComponent<Terrain>() ?? Scene.Get<Terrain>();
@@ -100,12 +114,12 @@ public partial class TerrainEditorTool : EditorTool
 			if ( terrain.IsValid() )
 			{
 				var group = ToolSidebarWidget.CreateGroupWidget( "Materials", SizeMode.Flexible );
-				paintOnlySection.Layout.Add( group );
+				paintOnlySection.Layout.Add( group, 1 );
 
 				var materialList = new TerrainMaterialList( paintOnlySection, terrain );
 				materialList.ItemSize += 24;
 				materialList.BuildItems();
-				group.ContentLayout.Add( materialList );
+				group.ContentLayout.Add( materialList, 1 );
 
 				var hlayout = group.ContentLayout.AddRow();
 				hlayout.Spacing = 8;
@@ -132,16 +146,17 @@ public partial class TerrainEditorTool : EditorTool
 				hlayout.Add( newTerrainMat, 1 );
 			}
 
-			sidebar.Layout.Add( paintOnlySection );
+			sidebar.Layout.Add( paintOnlySection, 1 );
+			sidebar.Layout.Add( sidebarStretch, 1 );
 		}
 
-		sidebar.Layout.AddStretchCell();
 		SetOpacityToolTip( opacityRow );
 
 		sidebar.AddShortcuts(
 			("Adjust Size", "Shift+MMB ↔"),
 			("Adjust Opacity", "Shift+MMB ↕"),
-			("Rotate", "CTRL+MMB ↔")
+			("Rotate", "CTRL+MMB ↔"),
+			("Switch brush preview", "Capslock")
 			);
 
 		return sidebar;
@@ -194,7 +209,7 @@ public partial class TerrainEditorTool : EditorTool
 		_previewObject.Color = color;
 		_previewObject.BrushRotation = BrushSettings.Rotation;
 
-		if ( terrain?.Storage is not null )
+		if ( BrushSettings.ShowGridPreview && terrain?.Storage is not null )
 		{
 			var tx = terrain.WorldTransform;
 			_previewObject.CellSize = terrain.Storage.TerrainSize / terrain.Storage.Resolution;
@@ -225,16 +240,22 @@ public partial class TerrainEditorTool : EditorTool
 			_previewObject.Color = color.WithAlpha( 0 );
 			_previewObject.BrushRotation = BrushSettings.Rotation;
 
-			var ttx = terrain.WorldTransform;
-			_previewObject.CellSize = terrain.Storage.TerrainSize / terrain.Storage.Resolution;
-			_previewObject.TerrainOrigin = ttx.Position;
-			_previewObject.TerrainRight = ttx.Rotation.Right;
-			_previewObject.TerrainForward = ttx.Rotation.Forward;
+			if ( BrushSettings.ShowGridPreview )
+			{
+				var ttx = terrain.WorldTransform;
+				_previewObject.CellSize = terrain.Storage.TerrainSize / terrain.Storage.Resolution;
+				_previewObject.TerrainOrigin = ttx.Position;
+				_previewObject.TerrainRight = ttx.Rotation.Right;
+				_previewObject.TerrainForward = ttx.Rotation.Forward;
+			}
+			else
+			{
+				_previewObject.CellSize = 0f;
+			}
 		}
-		else if ( _previewObject != null )
+		else
 		{
-			_previewObject.Delete();
-			_previewObject = null;
+			ClearBrushPreview();
 		}
 
 		var size = BrushSettings.Size;
@@ -280,13 +301,16 @@ internal class PaintOnlySectionWidget : Widget
 {
 	readonly TerrainEditorTool _tool;
 	readonly ControlSheetRow _opacityRow;
+	readonly Widget _sidebarStretch;
 
-	public PaintOnlySectionWidget( TerrainEditorTool tool, ControlSheetRow opacityRow ) : base( null )
+	public PaintOnlySectionWidget( TerrainEditorTool tool, ControlSheetRow opacityRow, Widget sidebarStretch ) : base( null )
 	{
 		_tool = tool;
 		_opacityRow = opacityRow;
+		_sidebarStretch = sidebarStretch;
 		Layout = Layout.Column();
 		Layout.Spacing = 2;
+		VerticalSizeMode = SizeMode.Flexible;
 	}
 
 	[EditorEvent.Frame]
@@ -294,6 +318,9 @@ internal class PaintOnlySectionWidget : Widget
 	{
 		bool isPaint = _tool.CurrentTool is PaintTextureTool;
 		Hidden = !isPaint;
+
+		if ( _sidebarStretch.IsValid() )
+			_sidebarStretch.Hidden = isPaint;
 
 		if ( !_opacityRow.IsValid() ) return;
 

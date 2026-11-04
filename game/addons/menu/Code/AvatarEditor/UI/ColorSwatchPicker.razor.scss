@@ -1,55 +1,50 @@
 
-ColorSwatchPicker {
+ColorSwatchPicker
+{
     background-color: #0008;
-    padding: 4px;
-    border-radius: 10px;
+    padding: 5px;
+    border-radius: 16px;
     position: relative;
     pointer-events: all;
-    height: 28px;
-}
+    // Match the regular avatar slider's track and inset.
+    height: 42px;
 
-.swatch 
-{
-    height: 20px;
-    flex-shrink: 0;
-    flex-grow: 1;
-    pointer-events: none;
-}
+    .track
+    {
+        width: 100%;
+        border-radius: 11px;
+        overflow: hidden;
+        cursor: pointer;
+        position: relative;
+    }
 
-.swatches 
-{
-    width: 100%;
-    border-radius: 6px;
-    overflow: hidden;
+    .thumb
+    {
+        position: absolute;
+        z-index: 100;
+        top: 5px;
+        bottom: 5px;
+        width: 2px;
+        pointer-events: none;
+        transform: translateZ(-10px);
+        color: #fff;
+        text-shadow: none;
+        margin-left: 3px;
 
-    cursor: pointer;
-    position: relative;
-}
+        i
+        {
+            position: absolute;
+            transform: rotate( 90deg );
+            font-size: 14px;
+            top: -7px;
+            left: -4px;
+        }
 
-.thumb
-{
-    position: absolute;
-    z-index: 100;
-    height: 100%;
-    width: 2px;
-    pointer-events: none;
-    transform: translateZ(-10px);
-    color: #fff;
-    text-shadow: none;
-    margin-left: 3px;
-}
-
-.thumb i
-{
-    position: absolute;
-    transform: rotate( 90deg );
-    font-size: 14px;
-    top: -7px;
-    left: -4px;
-}
-
-.thumb .bottom
-{
-    top: 13px;
-    transform: rotate( -90deg );
+        .bottom
+        {
+            top: auto;
+            bottom: -7px;
+            transform: rotate( -90deg );
+        }
+    }
 }

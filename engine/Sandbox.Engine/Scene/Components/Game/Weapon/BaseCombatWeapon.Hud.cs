@@ -46,7 +46,7 @@ public partial class BaseCombatWeapon
 			return;
 
 		var owner = Owner;
-		var aimPos = Screen.Size * 0.5f;
+		var aimPos = camera.ScreenRect.Size * 0.5f;
 
 		// When the camera isn't on the aim ray, project the point we're actually aiming at.
 		if ( !owner.IsValid() || owner.ThirdPerson )
@@ -58,15 +58,20 @@ public partial class BaseCombatWeapon
 			aimPos = camera.PointToScreenPixels( tr.EndPosition );
 		}
 
+#pragma warning disable CS0618 // Preserve dispatch to existing HudPainter overrides.
 		DrawHud( camera.Hud, aimPos );
+#pragma warning restore CS0618
+
+		using var painter = camera.BeginHud();
+		DrawHud( painter, aimPos );
 	}
 
 	/// <summary>
 	/// Draw this weapon's HUD - called every frame on the client holding it, with the crosshair
 	/// position (screen centre, or the projected aim point in third person). Base draws the crosshair
-	/// via <see cref="DrawCrosshair"/>; override to add ammo counts, hints or scopes.
+	/// via <see cref="DrawCrosshair(Painter, Vector2)"/>; override to add ammo counts, hints or scopes.
 	/// </summary>
-	public virtual void DrawHud( HudPainter painter, Vector2 crosshair )
+	public virtual void DrawHud( Painter painter, Vector2 crosshair )
 	{
 		DrawCrosshair( painter, crosshair );
 	}
@@ -74,13 +79,25 @@ public partial class BaseCombatWeapon
 	/// <summary>
 	/// Draw this weapon's crosshair at the aim position. Base draws a simple four-line cross.
 	/// </summary>
+	public virtual void DrawCrosshair( Painter painter, Vector2 center )
+	{
+
+	}
+
+	/// <summary>
+	/// Legacy weapon HUD callback. Retained for existing overrides.
+	/// </summary>
+	[Obsolete( "Override DrawHud(Painter painter, Vector2 crosshair) instead." )]
+	public virtual void DrawHud( HudPainter painter, Vector2 crosshair )
+	{
+		DrawCrosshair( painter, crosshair );
+	}
+
+	/// <summary>
+	/// Legacy crosshair callback. The default crosshair is drawn by the Painter overload.
+	/// </summary>
+	[Obsolete( "Override DrawCrosshair(Painter painter, Vector2 center) instead." )]
 	public virtual void DrawCrosshair( HudPainter hud, Vector2 center )
 	{
-		var color = CanPrimaryAttack() ? CrosshairCanShoot : CrosshairNoShoot;
-
-		hud.DrawLine( center + Vector2.Left * 32, center + Vector2.Left * 15, 3, color );
-		hud.DrawLine( center - Vector2.Left * 32, center - Vector2.Left * 15, 3, color );
-		hud.DrawLine( center + Vector2.Up * 32, center + Vector2.Up * 15, 3, color );
-		hud.DrawLine( center - Vector2.Up * 32, center - Vector2.Up * 15, 3, color );
 	}
 }

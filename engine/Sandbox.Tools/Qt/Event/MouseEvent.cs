@@ -185,76 +185,31 @@ public ref struct KeyEvent
 
 	string GetKeyName()
 	{
-		// Check if the key is a native key that isn't supported by KeyCode
-		switch ( NativeKeyCode )
+		// Qt's key codes and its keypad modifier mean the same on every platform; the native
+		// virtual key does not (on macOS key 13 is W, on Windows 0x0D is Enter).
+		bool keypad = ptr.modifiers().Contains( QtKeyboardModifiers.KeypadModifier );
+
+		if ( Key >= KeyCode.Num0 && Key <= KeyCode.Num9 )
+			return keypad ? $"KP_{Key - KeyCode.Num0}" : $"{Key - KeyCode.Num0}";
+
+		if ( keypad )
 		{
-			case 0x0D: return "Enter"; // Enter
-			case 0x20: return "Space"; // Spacebar
-			case 0x30: return "0"; // Main keyboard 0
-			case 0x31: return "1"; // Main keyboard 1
-			case 0x32: return "2"; // Main keyboard 2
-			case 0x33: return "3"; // Main keyboard 3
-			case 0x34: return "4"; // Main keyboard 4
-			case 0x35: return "5"; // Main keyboard 5
-			case 0x36: return "6"; // Main keyboard 6
-			case 0x37: return "7"; // Main keyboard 7
-			case 0x38: return "8"; // Main keyboard 8
-			case 0x39: return "9"; // Main keyboard 9
-			case 0x3B: return ";"; // Semicolon
-			case 0x41: return "A";
-			case 0x42: return "B";
-			case 0x43: return "C";
-			case 0x44: return "D";
-			case 0x45: return "E";
-			case 0x46: return "F";
-			case 0x47: return "G";
-			case 0x48: return "H";
-			case 0x49: return "I";
-			case 0x4A: return "J";
-			case 0x4B: return "K";
-			case 0x4C: return "L";
-			case 0x4D: return "M";
-			case 0x4E: return "N";
-			case 0x4F: return "O";
-			case 0x50: return "P";
-			case 0x51: return "Q";
-			case 0x52: return "R";
-			case 0x53: return "S";
-			case 0x54: return "T";
-			case 0x55: return "U";
-			case 0x56: return "V";
-			case 0x57: return "W";
-			case 0x58: return "X";
-			case 0x59: return "Y";
-			case 0x5A: return "Z";
-			case 0x60: return "KP_0"; // Numpad 0
-			case 0x61: return "KP_1"; // Numpad 1
-			case 0x62: return "KP_2"; // Numpad 2
-			case 0x63: return "KP_3"; // Numpad 3
-			case 0x64: return "KP_4"; // Numpad 4
-			case 0x65: return "KP_5"; // Numpad 5
-			case 0x66: return "KP_6"; // Numpad 6
-			case 0x67: return "KP_7"; // Numpad 7
-			case 0x68: return "KP_8"; // Numpad 8
-			case 0x69: return "KP_9"; // Numpad 9
-			case 0x6A: return "KP_Multiply"; // Numpad *
-			case 0x6B: return "KP_Add"; // Numpad +
-			case 0x6D: return "KP_Minus"; // Numpad -
-			case 0x6E: return "KP_Del"; // Numpad .
-			case 0x6F: return "KP_Divide"; // Numpad /
-			case 0xBC: return ","; // Comma
-			case 0xBE: return "."; // Period
-			case 0xBF: return "/"; // Slash
-			case 0xC0: return "`"; // Tilde
-			case 0xDB: return "["; // Left bracket
-			case 0xDC: return "\\"; // Backslash
-			case 0xDD: return "]"; // Right bracket
-			case 0xDE: return "'"; // Apostrophe
+			switch ( Key )
+			{
+				case KeyCode.Asterisk: return "KP_Multiply";
+				case KeyCode.Plus: return "KP_Add";
+				case KeyCode.Minus: return "KP_Minus";
+				case KeyCode.Period: return "KP_Del";
+				case KeyCode.Slash: return "KP_Divide";
+			}
 		}
 
 		// If it's a Keycode, then remap a few keys to their more common names
 		switch ( Key )
 		{
+			case KeyCode.Return: return "Enter";
+			case KeyCode.Space: return "Space";
+			case KeyCode.QuoteLeft: return "`";
 			case KeyCode.Delete: return "Del";
 			case KeyCode.Escape: return "Esc";
 			case KeyCode.Insert: return "Ins";

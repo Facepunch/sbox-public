@@ -15,12 +15,23 @@ public partial class Package
 		public string Title { get; set; }
 
 		/// <summary>
+		/// Unique to this fetch. Impressions and launches from this list carry it, so they can be traced
+		/// back to exactly what the player was shown.
+		/// </summary>
+		public Guid RequestId { get; set; }
+
+		/// <summary>
 		/// The groups of packages
 		/// </summary>
 		public Grouping[] Groupings { get; set; }
 
 		public class Grouping
 		{
+			/// <summary>
+			/// Stable id of this shelf on the backend
+			/// </summary>
+			public Guid Id { get; set; }
+
 			/// <summary>
 			/// The title of this group
 			/// </summary>
@@ -56,9 +67,11 @@ public partial class Package
 		internal static ListResult From( PackageGroups groups )
 		{
 			var result = new ListResult();
-			result.Title = result.Title;
+			result.Title = groups.Title;
+			result.RequestId = Guid.NewGuid();
 			result.Groupings = groups.Groupings?.Select( x => new Grouping
 			{
+				Id = x.Id,
 				Title = x.Title,
 				Description = x.Description,
 				Icon = x.Icon,

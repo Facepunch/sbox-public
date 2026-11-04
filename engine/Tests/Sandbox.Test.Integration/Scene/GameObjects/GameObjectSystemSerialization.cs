@@ -12,11 +12,7 @@ public class GameObjectSystemSerializationTest
 	{
 		_oldTypeLibrary = Game.TypeLibrary;
 
-		var typeLibrary = new Sandbox.Internal.TypeLibrary();
-		typeLibrary.AddAssembly( typeof( Sandbox.Scene ).Assembly, false );
-		typeLibrary.AddAssembly( typeof( GameObjectSystemDefaultTestSystem ).Assembly, false );
-
-		Game.TypeLibrary = typeLibrary;
+		Game.TypeLibrary = SharedTypeLibrary.EngineAndTests;
 	}
 
 	[TestCleanup]

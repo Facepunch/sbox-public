@@ -1,4 +1,4 @@
-﻿using NativeEngine;
+using NativeEngine;
 using Sandbox;
 using System;
 
@@ -49,11 +49,17 @@ public class TextureResidencyInfo
 	public int RefCount;
 	public TextureCategory Categories;
 
+	private WeakReference<Texture> _texture;
+
 	/// <summary>
-	/// Managed Texture wrapper for this GPU-resident texture. May be null if
-	/// the native handle could not be wrapped.
+	/// Managed wrapper, if one already exists. Weak: a snapshot holding these strongly would
+	/// keep every listed texture alive, so the viewer could never show anything being freed.
 	/// </summary>
-	public Texture Texture;
+	public Texture Texture
+	{
+		get => _texture is not null && _texture.TryGetTarget( out var texture ) ? texture : null;
+		private set => _texture = value is null ? null : new WeakReference<Texture>( value );
+	}
 
 	static TextureResidencyInfo From( ITexture texture, Texture managedTexture, string name, int refCount )
 	{
@@ -70,19 +76,18 @@ public class TextureResidencyInfo
 		: (flags & RuntimeTextureSpecificationFlags.TSPEC_TEXTURE_ARRAY) != 0 ? TextureDimension._2DArray
 		: TextureDimension._2D;
 
-		// Build category flags
+		// Straight off the native handle. Going via a managed Texture would mean wrapping every
+		// resident texture just to list it, and each wrapper gets held by NativeResourceCache.
 		var categories = TextureCategory.None;
-		if ( managedTexture is not null && managedTexture.IsValid )
-		{
-			if ( managedTexture.IsRenderTarget )
-				categories |= TextureCategory.RenderTarget;
 
-			if ( managedTexture.UAVAccess )
-				categories |= TextureCategory.UAV;
+		if ( g_pRenderDevice.IsTextureRenderTarget( texture ) )
+			categories |= TextureCategory.RenderTarget;
 
-			if ( managedTexture.MultisampleType != NativeEngine.RenderMultisampleType.RENDER_MULTISAMPLE_NONE )
-				categories |= TextureCategory.MSAA;
-		}
+		if ( flags.HasFlag( RuntimeTextureSpecificationFlags.TSPEC_UAV ) )
+			categories |= TextureCategory.UAV;
+
+		if ( g_pRenderDevice.GetTextureMultisampleType( texture ) != RenderMultisampleType.RENDER_MULTISAMPLE_NONE )
+			categories |= TextureCategory.MSAA;
 
 		if ( loadedDesc.m_nImageFormat.IsDepthFormat() )
 			categories |= TextureCategory.DepthBuffer;
@@ -90,7 +95,7 @@ public class TextureResidencyInfo
 		if ( diskMemorySize > 0 && loadedMemorySize < diskMemorySize )
 			categories |= TextureCategory.Streaming;
 
-		var lastUsed = managedTexture is { IsValid: true } ? managedTexture.LastUsed : -1;
+		var lastUsed = g_pRenderDevice.GetTextureLastUsed( texture ).Clamp( 0, 1000 );
 		if ( lastUsed >= 100 )
 			categories |= TextureCategory.Stale;
 
@@ -152,34 +157,13 @@ public class TextureResidencyInfo
 
 				// Look up an existing managed wrapper without taking another strong handle. Engine-owned
 				// textures (render targets, depth buffers, etc.) won't be in the cache.
-				NativeResourceCache.TryGetValue<Texture>( texture.GetBindingPtr().ToInt64(), out var managedTexture );
+				NativeResourceCache.TryPeek<Texture>( texture.GetBindingPtr().ToInt64(), out var managedTexture );
 
-				if ( managedTexture is { IsValid: true } )
-				{
-					// A managed wrapper already exists and owns its own strong handle independently
-					// of ours. Build the entry from our handle, then release the extra reference
-					// that Element() allocated for us so we don't inflate the refcount.
-					ret.Add( From( texture, managedTexture, name, refCount ) );
+				// Everything displayed comes off the native handle, so no wrapper is created
+				// here. Release the reference Element() allocated for us either way.
+				ret.Add( From( texture, managedTexture, name, refCount ) );
 
-					if ( !texture.IsNull )
-						texture.DestroyStrongHandle();
-
-					continue;
-				}
-
-				// Native-only texture with no managed wrapper. FromNative adopts our strong handle:
-				// it either wraps it in a new managed Texture (ownership transferred) or releases it
-				// if it finds an existing cached wrapper. In both cases we must NOT release it again.
-				managedTexture = Texture.FromNative( texture );
-
-				// FromNative may have released `texture` while adopting a cached wrapper, so query
-				// through the wrapper's live handle when we have one; otherwise `texture` is still ours.
-				var query = managedTexture is { IsValid: true } ? managedTexture.native : texture;
-				ret.Add( From( query, managedTexture, name, refCount ) );
-
-				// If FromNative refused the handle (null/invalid texture) it never took ownership,
-				// so the reference is still ours to release.
-				if ( managedTexture is null && !texture.IsNull )
+				if ( !texture.IsNull )
 					texture.DestroyStrongHandle();
 			}
 		}

@@ -1,0 +1,104 @@
+@using Sandbox.PanelGallery;
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+@using Sandbox;
+@using Sandbox.UI;
+@attribute [Group( "Effects" )]
+@attribute [Title( "backdrop-filter" )]
+@attribute [Icon( "opacity" )]
+<root>
+    <h2>Filtering what's behind the glass</h2>
+    <p>The left side stays untouched. The glass on the right animates its filter strength over the same stripes and text behind it.</p>
+    <div class="cases">
+        <UiTestCase Setup="width: 240px; height: 200px; position: relative" Caption="Unfiltered" Note="backdrop-filter: none">
+            <ChildContent>
+                <div class="backdrop-art"><label>GLASS</label><div class="stripe pink"></div><div class="stripe lime"></div><label>Panels</label></div>
+                <div class="backdrop-glass" style="backdrop-filter: none "><label>Unfiltered</label></div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="width: 240px; height: 200px; position: relative" Caption="Blur" Note="Blur animates from 12px to 0px and back.">
+            <ChildContent>
+                <div class="backdrop-art"><label>GLASS</label><div class="stripe pink"></div><div class="stripe lime"></div><label>Panels</label></div>
+                <div class="backdrop-glass" style="backdrop-filter: blur(8px) "><label>Blur</label></div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="width: 240px; height: 200px; position: relative" Caption="Dim" Note="Brightness animates from 25% to 100% and back.">
+            <ChildContent>
+                <div class="backdrop-art"><label>GLASS</label><div class="stripe pink"></div><div class="stripe lime"></div><label>Panels</label></div>
+                <div class="backdrop-glass" style="backdrop-filter: brightness(0.4) "><label>Dim</label></div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="width: 240px; height: 200px; position: relative" Caption="Grayscale" Note="Grayscale animates from 100% to 0% and back.">
+            <ChildContent>
+                <div class="backdrop-art"><label>GLASS</label><div class="stripe pink"></div><div class="stripe lime"></div><label>Panels</label></div>
+                <div class="backdrop-glass" style="backdrop-filter: grayscale(1) "><label>Grayscale</label></div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="width: 240px; height: 200px; position: relative" Caption="Saturated" Note="Saturation animates from 300% to 100% and back.">
+            <ChildContent>
+                <div class="backdrop-art"><label>GLASS</label><div class="stripe pink"></div><div class="stripe lime"></div><label>Panels</label></div>
+                <div class="backdrop-glass" style="backdrop-filter: saturate(2) "><label>Saturated</label></div>
+            </ChildContent>
+        </UiTestCase>
+    </div>
+    <h2>Overlapping filter stacks</h2>
+    <p>Four panes overlap over the same artwork. Back to front: blur, grayscale, blur, blur. The stepped edges expose each filter, while the centre passes through all four.</p>
+    <div class="cases">
+        @foreach ( var isolated in new[] { false, true } )
+        {
+            <UiTestCase class="roomy" Setup="width: 400px; height: 320px; position: relative" Caption="@(isolated ? "Overlapping siblings in an isolated layer" : "Overlapping siblings")" Note="Later panes should filter the artwork and earlier panes, including their borders and labels. The shared overlap should stay grayscale and become progressively softer.">
+                <ChildContent>
+                    <div class="backdrop-stack" style="@(isolated ? "isolation: isolate" : "")">
+                        <div class="backdrop-art"><label>GLASS STACK</label><div class="stripe pink"></div><div class="stripe lime"></div><label>SHARP TEXT</label><div class="stripe pink"></div></div>
+                        <div class="stack-glass" style="left: 16px; top: 16px; backdrop-filter: blur(3px)"><label>1: Blur 3px</label></div>
+                        <div class="stack-glass" style="left: 64px; top: 52px; backdrop-filter: grayscale(1)"><label>2: Grayscale</label></div>
+                        <div class="stack-glass" style="left: 112px; top: 88px; backdrop-filter: blur(6px)"><label>3: Blur 6px</label></div>
+                        <div class="stack-glass" style="left: 160px; top: 124px; backdrop-filter: blur(10px)"><label>4: Blur 10px</label></div>
+                    </div>
+                </ChildContent>
+            </UiTestCase>
+        }
+        <UiTestCase class="roomy" Setup="width: 400px; height: 320px; position: relative" Caption="Nested filter panels" Note="The same filter order, with each pane a child of the previous pane. Check the shared overlap and the child panes extending beyond their parents for missing artwork, seams or rectangular clears.">
+            <ChildContent>
+                <div class="backdrop-art"><label>GLASS STACK</label><div class="stripe pink"></div><div class="stripe lime"></div><label>SHARP TEXT</label><div class="stripe pink"></div></div>
+                <div class="stack-glass" style="left: 16px; top: 16px; backdrop-filter: blur(3px)">
+                    <label>1: Blur 3px</label>
+                    <div class="stack-glass" style="left: 48px; top: 36px; backdrop-filter: grayscale(1)">
+                        <label>2: Grayscale</label>
+                        <div class="stack-glass" style="left: 48px; top: 36px; backdrop-filter: blur(6px)">
+                            <label>3: Blur 6px</label>
+                            <div class="stack-glass" style="left: 48px; top: 36px; backdrop-filter: blur(10px)"><label>4: Blur 10px</label></div>
+                        </div>
+                    </div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+    </div>
+</root>
+
+@code
+{
+    float time = ShapeMovie.InitialTime();
+    Panel[] glass;
+    static IEnumerable<Panel> WalkPanels( Panel parent )
+    {
+        foreach ( var child in parent.Children )
+        {
+            yield return child;
+            foreach ( var descendant in WalkPanels( child ) ) yield return descendant;
+        }
+    }
+    public override void Tick()
+    {
+        base.Tick();
+        if ( !Environment.GetCommandLineArgs().Contains( "-pause-animation" ) ) time += RealTime.Delta;
+        glass ??= WalkPanels( this ).Where( x => x.HasClass( "backdrop-glass" ) ).ToArray();
+        if ( glass.Length != 5 ) { glass = null; return; }
+        float u = 1 - ShapeMovie.Motion( time % 3 / 3 );
+        string[] filters = ["none", FormattableString.Invariant( $"blur({12*u:0.00}px)" ),
+            FormattableString.Invariant( $"brightness({1 - 0.75f*u:0.00})" ),
+            FormattableString.Invariant( $"grayscale({u:0.00})" ),
+            FormattableString.Invariant( $"saturate({1 + 2*u:0.00})" )];
+        for ( int i = 1; i < glass.Length; i++ ) glass[i].Style.Set( "backdrop-filter", filters[i] );
+    }
+}

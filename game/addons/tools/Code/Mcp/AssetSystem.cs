@@ -1,7 +1,3 @@
-using System;
-using System.Linq;
-using System.Threading.Tasks;
-
 namespace Editor.Mcp;
 
 [McpToolset( "asset", "The asset system - search, inspect, compile, edit and preview the project's assets" )]

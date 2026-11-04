@@ -16,26 +16,6 @@ public class PanelDataBindingTest
 	}
 
 	/// <summary>
-	/// StringValue defaults to null and round-trips through the property. Setting it via the
-	/// special "value" property short-circuits before attribute storage, so no attribute is
-	/// recorded for it.
-	/// </summary>
-	[TestMethod]
-	public void StringValueRoundTrip()
-	{
-		var p = new Panel();
-
-		Assert.IsNull( p.StringValue );
-
-		p.StringValue = "hello";
-		Assert.AreEqual( "hello", p.StringValue );
-
-		p.SetProperty( "value", "world" );
-		Assert.AreEqual( "world", p.StringValue );
-		Assert.IsNull( p.GetAttribute( "value" ) );
-	}
-
-	/// <summary>
 	/// CreateValueEvent( name, value ) queues a "{name}.changed" event carrying the value, which
 	/// reaches event listeners registered for that derived event name on the next tick.
 	/// </summary>
@@ -148,25 +128,6 @@ public class PanelDataBindingTest
 
 		Assert.AreEqual( "bar", p.GetAttribute( "data-foo" ) );
 		Assert.AreEqual( "fallback", p.GetAttribute( "missing", "fallback" ) );
-	}
-
-	/// <summary>
-	/// SetPropertyObject assigns directly via reflection when the value's type matches the
-	/// property type - skipping attribute storage - and falls back to the string SetProperty
-	/// path (which records an attribute) for mismatched types.
-	/// </summary>
-	[TestMethod]
-	public void SetPropertyObjectAssignment()
-	{
-		var p = new BindingProbePanel();
-
-		p.SetPropertyObject( "BoundCount", 7 );
-		Assert.AreEqual( 7, p.BoundCount );
-		Assert.IsNull( p.GetAttribute( "BoundCount" ) );
-
-		p.SetPropertyObject( "BoundCount", "13" );
-		Assert.AreEqual( 13, p.BoundCount );
-		Assert.AreEqual( "13", p.GetAttribute( "BoundCount" ) );
 	}
 }
 

@@ -24,7 +24,7 @@ public static partial class Networking
 		_isClosing = true;
 	}
 
-	static Lock NetworkThreadLock = new Lock();
+	internal static Lock NetworkThreadLock = new Lock();
 
 	private static void RunThread()
 	{

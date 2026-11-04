@@ -47,4 +47,19 @@ native class CMapDoc as NativeMapDoc.CMapDoc
     {
         self->AddObjectToDocument( CREATE_MAP_NODE( CMapStaticOverlay, self->GetFileId() ) );
     }
+
+    //
+    // Duplicate a node and its children into the same parent the way Hammer's own clone does -
+    // the copies get fresh node ids, references between them are remapped, and they're kept for undo.
+    //
+    inline CMapNode CloneObject( CMapNode node )
+    {
+        CUtlVector< CMapNode* > objects;
+        objects.AddToTail( node );
+
+        CUtlVector< CMapNode* > newObjects;
+        self->CloneObjects( objects, CLONE_DO_NOT_CHANGE_SELECTION, nullptr, nullptr, &newObjects );
+
+        return newObjects.Count() > 0 ? newObjects[0] : (CMapNode*)nullptr;
+    }
 }

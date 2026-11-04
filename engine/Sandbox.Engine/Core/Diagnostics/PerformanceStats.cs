@@ -88,6 +88,9 @@ public static partial class PerformanceStats
 		frameTimer ??= Stopwatch.StartNew();
 		secondTimer ??= Stopwatch.StartNew();
 
+		// What the managed scene renderer drew last frame, for the frame stats
+		Rendering.ManagedSceneRendering.EndFrame();
+
 		float frameMs = (float)frameTimer.Elapsed.TotalMilliseconds;
 
 		PerformanceStats.FrameTime = frameTimer.Elapsed.TotalSeconds;
@@ -168,6 +171,7 @@ public static partial class PerformanceStats
 			g_pRenderDevice.GetGpuStatsSummary(),
 			NativeEngine.g_pResourceSystem.GetNumPendingStreamingRequests(),
 			poolUsed, poolLimit, poolNonEvictable );
+		FrameStats._current.AddManaged( Rendering.ManagedSceneRendering.LastFrame );
 
 		return true;
 	}

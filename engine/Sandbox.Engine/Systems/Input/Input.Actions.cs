@@ -46,7 +46,17 @@ public static partial class Input
 	/// <returns></returns>
 	internal static int GetActionIndex( string actionName )
 	{
-		return InputActions?.FindIndex( x => string.Equals( x.Name, actionName, StringComparison.OrdinalIgnoreCase ) ) ?? -1;
+		// Plain loop: a FindIndex lambda would capture actionName and allocate on every Down/Pressed/Released
+		var actions = InputActions;
+		if ( actions is null ) return -1;
+
+		for ( int i = 0; i < actions.Count; i++ )
+		{
+			if ( string.Equals( actions[i].Name, actionName, StringComparison.OrdinalIgnoreCase ) )
+				return i;
+		}
+
+		return -1;
 	}
 
 	/// <inheritdoc cref="GetActionIndex(string)"/>
@@ -129,6 +139,9 @@ public static partial class Input
 	/// <inheritdoc cref="SetAction(int, bool)"/>
 	public static void SetAction( string action, bool down ) => SetAction( GetActionIndex( action ), down );
 
+	/// <inheritdoc cref="SetLastAction(int, bool)"/>
+	public static void SetLastAction( string action, bool down ) => SetLastAction( GetActionIndex( action ), down );
+
 	/// <summary>
 	/// Remove this action, so it's no longer being pressed.
 	/// </summary>
@@ -182,6 +195,17 @@ public static partial class Input
 	{
 		if ( down ) Actions |= 1UL << index;
 		else Actions &= ~(1UL << index);
+	}
+
+	/// <summary>
+	/// Activates / Deactivates the previous action when building input.
+	/// </summary>
+	/// <param name="index"></param>
+	/// <param name="down"></param>
+	internal static void SetLastAction( int index, bool down )
+	{
+		if ( down ) LastActions |= 1UL << index;
+		else LastActions &= ~(1UL << index);
 	}
 
 	static InputAction FindInputActionByName( string action )
@@ -286,7 +310,7 @@ public static partial class Input
 	{
 		if ( !down ) return;
 
-		var binding = g_pInputService.GetBinding( code );
+		var binding = Sandbox.Engine.KeyBindings.GetBinding( code );
 		if ( string.IsNullOrEmpty( binding ) ) return;
 
 		ConVarSystem.Run( $"{binding}\n" );
@@ -297,7 +321,13 @@ public static partial class Input
 	/// </summary>
 	private static bool IsControllerContext( Context context )
 	{
-		return Controller.All.Any( c => c.InputContext == context );
+		// Not Any - the predicate would capture context and allocate a closure every call.
+		foreach ( var c in Controller.All )
+		{
+			if ( c.InputContext == context ) return true;
+		}
+
+		return false;
 	}
 
 	internal static InputSettings InputSettings { get; set; }

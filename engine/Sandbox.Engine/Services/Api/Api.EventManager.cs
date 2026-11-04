@@ -7,6 +7,8 @@ internal static partial class Api
 		private static RealTimeSince TimeSincePosted;
 		private static Task TaskFlushEvent;
 		private static List<EventRecord> Pending = new();
+		private static readonly System.Threading.Lock QueueLock = new();
+		private static readonly System.Threading.SemaphoreSlim FlushMutex = new( 1, 1 );
 
 		/// <summary>
 		/// Add an event to the queue. You should not use this event again.
@@ -19,7 +21,7 @@ internal static partial class Api
 			if ( !AccountInformation.UseAnalytics )
 				return;
 
-			Pending.Add( e );
+			lock ( QueueLock ) Pending.Add( e );
 		}
 
 		/// <summary>
@@ -27,16 +29,15 @@ internal static partial class Api
 		/// </summary>
 		internal static void Flush()
 		{
-			TimeSincePosted = 0;
-
-			if ( Pending.Count == 0 ) return;
-			_ = Task.Run( FlushEvents );
+			lock ( QueueLock )
+			{
+				if ( Pending.Count == 0 || TaskFlushEvent is { IsCompleted: false } ) return;
+				TimeSincePosted = 0;
+				TaskFlushEvent = Task.Run( FlushEvents );
+			}
 		}
 
-		internal static async Task Shutdown()
-		{
-			await FlushEvents();
-		}
+		internal static Task Shutdown() => FlushEvents();
 
 		/// <summary>
 		/// Post a batch of analytic events. Analytic events are things like compile or load times to 
@@ -44,47 +45,40 @@ internal static partial class Api
 		/// </summary>
 		internal static void TickEvents()
 		{
-			// nothing to do
-			if ( Pending.Count == 0 )
-				return;
-
-			// throttle
-			if ( TimeSincePosted < 30 && Pending.Count < 100 )
-				return;
-
-			// wait for the last one to finish
-			if ( TaskFlushEvent != null && !TaskFlushEvent.IsCompleted )
-				return;
+			lock ( QueueLock )
+			{
+				if ( Pending.Count == 0 || (TimeSincePosted < 30 && Pending.Count < 100) ) return;
+			}
 
 			Flush();
 		}
 
 		private static async Task FlushEvents()
 		{
-			if ( Pending.Count <= 0 ) return;
-
-			// Take the records locally to clear the queue
-			var records = Pending.ToArray();
-			Pending.Clear();
-
-			// Wait for any pending pushes
-			if ( TaskFlushEvent != null && !TaskFlushEvent.IsCompleted )
-				await TaskFlushEvent;
-
-			if ( records.Count() == 0 )
-				return;
-
+			await FlushMutex.WaitAsync().ConfigureAwait( false );
 			try
 			{
-				TaskFlushEvent = PostEventsAsync( records );
-				await TaskFlushEvent;
+				// Shutdown waits for any send already in progress before draining the remaining queue.
+				if ( Sandbox.Backend.Account is null ) return;
+				EventRecord[] records;
+				lock ( QueueLock )
+				{
+					if ( Pending.Count == 0 ) return;
+					records = Pending.ToArray();
+					Pending.Clear();
+				}
+
+				await PostEventsAsync( records ).ConfigureAwait( false );
 			}
 			catch ( System.Exception e )
 			{
 				Log.Warning( e, $"Exception when flushing events ({e.Message})" );
 			}
 
-			TaskFlushEvent = null;
+			finally
+			{
+				FlushMutex.Release();
+			}
 		}
 
 
@@ -102,7 +96,7 @@ internal static partial class Api
 				Events = records
 			};
 
-			await Sandbox.Backend.Account.SubmitEvents( values );
+			await Sandbox.Backend.Account.SubmitEvents( values ).ConfigureAwait( false );
 		}
 	}
 }

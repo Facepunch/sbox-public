@@ -66,8 +66,11 @@ public sealed class TemporaryEffect : Component, Component.ExecuteInEditor
 		{
 			if ( !go.Enabled ) return false;
 
-			foreach ( var component in go.Components.GetAll() )
+			// Indexed, because foreaching GetAll() boxes an enumerator per object per frame
+			var components = go.Components;
+			for ( int i = 0; i < components.Count; i++ )
 			{
+				var component = components[i];
 				if ( component is ITemporaryEffect te && component.Active && te.IsActive )
 					return true;
 			}

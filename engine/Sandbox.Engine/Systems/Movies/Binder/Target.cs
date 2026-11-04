@@ -1,7 +1,4 @@
-﻿using System;
-using System.Runtime.CompilerServices;
-
-namespace Sandbox.MovieMaker;
+﻿namespace Sandbox.MovieMaker;
 
 #nullable enable
 
@@ -133,10 +130,16 @@ public partial interface ITrackProperty : ITrackTarget, IValid
 	new object? Value { get; set; }
 
 	/// <summary>
-	/// If bound and writable, update this property's value from the
-	/// given <paramref name="track"/> at the given <paramref name="time"/>.
+	/// Does this property have a default value that should be applied
+	/// at times when controlling tracks have no data?
 	/// </summary>
-	bool Update( IPropertyTrack track, MovieTime time );
+	bool HasDefaultValue => false;
+
+	/// <summary>
+	/// If <see cref="HasDefaultValue"/> is true, what default value should be
+	/// used for this property.
+	/// </summary>
+	object? DefaultValue { get; }
 
 	bool IValid.IsValid => true;
 	TrackBinder ITrackTarget.Binder => Parent.Binder;
@@ -152,38 +155,15 @@ public partial interface ITrackProperty<T> : ITrackProperty, ITrackTarget<T>
 	/// <inheritdoc cref="ITrackProperty.Value"/>
 	new T Value { get; set; }
 
+	new T DefaultValue => default!;
+
 	T ITrackTarget<T>.Value => Value;
-
-	/// <inheritdoc cref="ITrackProperty.Update"/>
-	bool Update( IPropertyTrack<T> track, MovieTime time )
-	{
-		if ( !IsBound || !CanWrite ) return false;
-
-		if ( !track.TryGetValue( time, out var value ) )
-		{
-			// Special handling for Enabled: false when there's no value
-
-			if ( track is { Parent: IReferenceTrack, Name: nameof( GameObject.Enabled ) } && this is ITrackProperty<bool> boolProperty )
-			{
-				boolProperty.Value = false;
-				return true;
-			}
-
-			return false;
-		}
-
-		Value = value;
-		return true;
-	}
-
-	bool ITrackProperty.Update( IPropertyTrack track, MovieTime time )
-	{
-		return track is IPropertyTrack<T> typedTrack && Update( typedTrack, time );
-	}
 
 	object? ITrackProperty.Value
 	{
 		get => Value;
 		set => Value = (T)value!;
 	}
+
+	object? ITrackProperty.DefaultValue => DefaultValue;
 }

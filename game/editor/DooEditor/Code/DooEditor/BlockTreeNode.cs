@@ -125,7 +125,7 @@ public class BlockTreeNode : TreeNode<Doo.Block>
 
 	void Menu_Delete()
 	{
-		_doo.DeleteBlock( Value );
+		TreeView.GetAncestor<DooEditorWidget>().Edit( () => _doo.DeleteBlock( Value ) );
 	}
 
 	public override bool OnDragStart()
@@ -168,22 +168,25 @@ public class BlockTreeNode : TreeNode<Doo.Block>
 
 	void InsertBlockAtEdge( Doo.Block block, ItemEdge edge )
 	{
-		if ( edge.HasFlag( ItemEdge.Top ) )
+		TreeView.GetAncestor<DooEditorWidget>().Edit( () =>
 		{
-			_doo.InsertBefore( Value, block );
-		}
-		else if ( edge.HasFlag( ItemEdge.Bottom ) )
-		{
-			_doo.InsertAfter( Value, block );
-		}
-		else if ( Value.HasBody() )
-		{
-			_doo.AddChild( Value, block );
-		}
-		else
-		{
-			_doo.InsertAfter( Value, block );
-		}
+			if ( edge.HasFlag( ItemEdge.Top ) )
+			{
+				_doo.InsertBefore( Value, block );
+			}
+			else if ( edge.HasFlag( ItemEdge.Bottom ) )
+			{
+				_doo.InsertAfter( Value, block );
+			}
+			else if ( Value.HasBody() )
+			{
+				_doo.AddChild( Value, block );
+			}
+			else
+			{
+				_doo.InsertAfter( Value, block );
+			}
+		} );
 	}
 
 	bool IsDescendantOf( BlockTreeNode potentialAncestor )

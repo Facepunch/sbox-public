@@ -24,6 +24,13 @@ partial class Model
 			public int Vertices { get; init; }
 			public int Triangles { get; init; }
 			public int LodMask { get; init; }
+
+			/// <summary>
+			/// Which body groups draw this mesh. A renderer draws it when this shares a bit with
+			/// its <see cref="ModelRenderer.BodyGroups"/>.
+			/// </summary>
+			public ulong MeshGroupMask { get; init; }
+
 			public int TranslucencyType { get; init; }
 			public Vector3 BoundsMin { get; init; }
 			public Vector3 BoundsMax { get; init; }
@@ -90,6 +97,7 @@ partial class Model
 					Vertices = verts,
 					Triangles = tris,
 					LodMask = lodMask,
+					MeshGroupMask = native.GetMeshGroupMaskForMesh( i ),
 					TranslucencyType = translucencyType,
 					BoundsMin = mins,
 					BoundsMax = maxs,

@@ -92,12 +92,12 @@ namespace Topten.RichTextKit
 		/// <summary>
 		/// The text color for text in this run (defaults to black).
 		/// </summary>
-		public SKColor TextColor { get; set; } = new SKColor( 0xFF000000 );
+		public SKColorF TextColor { get; set; } = new SKColorF( 0, 0, 0, 1 );
 
 		/// <summary>
 		/// The underline color for the text in this run (defaults to the current text color)
 		/// </summary>
-		public SKColor? UnderlineColor { get; set; }
+		public SKColorF? UnderlineColor { get; set; }
 
 		/// <summary>
 		/// Sets the underline or strike-through stroke thickness(defaults to the current strike-through or underline thickness depending on context)
@@ -132,7 +132,7 @@ namespace Topten.RichTextKit
 		/// <summary>
 		/// The background color of this run (no background is painted by default).
 		/// </summary>
-		public SKColor BackgroundColor { get; set; } = SKColor.Empty;
+		public SKColorF BackgroundColor { get; set; } = SKColorF.Empty;
 
 		/// <summary>
 		/// The character spacing for text in this run (defaults to 0).

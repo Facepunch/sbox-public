@@ -10,18 +10,18 @@ public static partial class Inventory
 		internal int DefinitionId;
 
 		public int Id => DefinitionId;
-		public string Name { get; private set; }
-		public string Description { get; private set; }
-		public string DescriptionWithMeta { get; private set; }
-		public string IconUrl { get; private set; }
-		public string IconUrlLarge { get; private set; }
-		public string PackageIdent { get; private set; }
-		public string Category { get; private set; }
-		public bool StoreHidden { get; private set; }
-		public string Asset { get; private set; }
-		public string Rarity { get; private set; }
-		public DateTime? SellStart { get; private set; }
-		public DateTime? SellEnd { get; private set; }
+		public string Name { get { LoadProperties(); return field; } private set; }
+		public string Description { get { LoadProperties(); return field; } private set; }
+		public string DescriptionWithMeta { get { LoadProperties(); return field; } private set; }
+		public string IconUrl { get { LoadProperties(); return field; } private set; }
+		public string IconUrlLarge { get { LoadProperties(); return field; } private set; }
+		public string PackageIdent { get { LoadProperties(); return field; } private set; }
+		public string Category { get { LoadProperties(); return field; } private set; }
+		public bool StoreHidden { get { LoadProperties(); return field; } private set; }
+		public string Asset { get { LoadProperties(); return field; } private set; }
+		public string Rarity { get { LoadProperties(); return field; } private set; }
+		public DateTime? SellStart { get { LoadProperties(); return field; } private set; }
+		public DateTime? SellEnd { get { LoadProperties(); return field; } private set; }
 
 		/// <summary>
 		/// If we're for sale, this is our price
@@ -33,17 +33,30 @@ public static partial class Inventory
 		/// </summary>
 		public CurrencyValue BasePrice { get; private set; }
 
-		Dictionary<string, string> _props = new();
+		volatile bool propertiesLoaded;
+		// The native property getter shares one string buffer between all definitions
+		static readonly object propertiesLock = new();
 
 		public ItemDefinition( int id )
 		{
 			DefinitionId = id;
-
-			UpdateProperties();
 		}
 
-		void UpdateProperties()
+		// Reading every property from Steam is slow across the whole catalog, so only do it for definitions that are used.
+		void LoadProperties()
 		{
+			if ( propertiesLoaded ) return;
+
+			lock ( propertiesLock )
+			{
+				if ( propertiesLoaded ) return;
+				ReadProperties();
+			}
+		}
+
+		void ReadProperties()
+		{
+			var props = new Dictionary<string, string>();
 			var properties = NativeEngine.SteamInventory.GetDefinitionProperty( DefinitionId, "" );
 			if ( properties is not null )
 			{
@@ -51,31 +64,32 @@ public static partial class Inventory
 
 				foreach ( var entry in parray )
 				{
-					var val = NativeEngine.SteamInventory.GetDefinitionProperty( DefinitionId, entry );
-					_props[entry] = val;
+					props[entry] = NativeEngine.SteamInventory.GetDefinitionProperty( DefinitionId, entry );
 				}
 			}
 
-			Name = _props.GetValueOrDefault( "name" );
-			Description = _props.GetValueOrDefault( "summary" );
-			DescriptionWithMeta = _props.GetValueOrDefault( "description" );
-			IconUrl = _props.GetValueOrDefault( "icon_url" );
-			IconUrlLarge = _props.GetValueOrDefault( "icon_url_large" );
-			PackageIdent = _props.GetValueOrDefault( "package" );
-			Category = _props.GetValueOrDefault( "clothing_cat" );
-			StoreHidden = _props.GetValueOrDefault( "store_hidden" ).ToBool();
-			Asset = _props.GetValueOrDefault( "asset" );
-			Rarity = _props.GetValueOrDefault( "rarity" );
+			Name = props.GetValueOrDefault( "name" );
+			Description = props.GetValueOrDefault( "summary" );
+			DescriptionWithMeta = props.GetValueOrDefault( "description" );
+			IconUrl = props.GetValueOrDefault( "icon_url" );
+			IconUrlLarge = props.GetValueOrDefault( "icon_url_large" );
+			PackageIdent = props.GetValueOrDefault( "package" );
+			Category = props.GetValueOrDefault( "clothing_cat" );
+			StoreHidden = props.GetValueOrDefault( "store_hidden" ).ToBool();
+			Asset = props.GetValueOrDefault( "asset" );
+			Rarity = props.GetValueOrDefault( "rarity" );
 
-			if ( _props.GetValueOrDefault( "sell_start" ) is string sellStartStr && int.TryParse( sellStartStr, out var sellStartInt ) )
+			if ( props.GetValueOrDefault( "sell_start" ) is string sellStartStr && int.TryParse( sellStartStr, out var sellStartInt ) )
 			{
 				SellStart = sellStartInt.ToDateTime();
 			}
 
-			if ( _props.GetValueOrDefault( "sell_end" ) is string sellEndStr && int.TryParse( sellEndStr, out var sellEndInt ) )
+			if ( props.GetValueOrDefault( "sell_end" ) is string sellEndStr && int.TryParse( sellEndStr, out var sellEndInt ) )
 			{
 				SellEnd = sellEndInt.ToDateTime();
 			}
+
+			propertiesLoaded = true;
 		}
 
 		internal void FetchPriceInformation( string currency )

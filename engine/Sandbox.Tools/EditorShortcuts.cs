@@ -7,11 +7,16 @@ public static class EditorShortcuts
 	public static List<Entry> Entries = new();
 	static Dictionary<Type, List<object>> Targets = new();
 
+	/// <summary>
+	/// Disables shortcut invocations when set to false. Used when first-person controlling the scene view camera,
+	/// since shortcuts overlap with the camera movement keys. This is automatically reset to true after a short delay.
+	/// </summary>
 	public static bool AllowShortcuts
 	{
 		get => _timeSinceInputsBlocked >= 0.05f;
 		set => _timeSinceInputsBlocked = value ? 1f : 0f;
 	}
+
 	static RealTimeSince _timeSinceInputsBlocked = 0f;
 
 	/// <summary>
@@ -74,6 +79,42 @@ public static class EditorShortcuts
 		Targets[typeKey].Remove( obj );
 	}
 
+	/// <summary>
+	/// Is <paramref name="keys"/> a function key shortcut (F1-F24) with optional modifiers (CTRL, ALT, SHIFT)?
+	/// </summary>
+	internal static bool IsFunctionKeyShortcut( string keys )
+	{
+		if ( string.IsNullOrEmpty( keys ) ) return false;
+
+		var split = keys.Split( "+", StringSplitOptions.RemoveEmptyEntries );
+
+		var anyFunctionKeys = false;
+
+		foreach ( var key in split )
+		{
+			// Special case: keys 0-9 will get parsed in Enum.TryParse by numeric value instead of name
+
+			if ( char.IsDigit( key[0] ) || key[0] is '-' or '+' ) return false;
+
+			// We need at least one Fn key
+
+			if ( Enum.TryParse<KeyCode>( key, ignoreCase: true, out var keyCode ) && keyCode is >= KeyCode.F1 and <= KeyCode.F24 )
+			{
+				anyFunctionKeys = true;
+				continue;
+			}
+
+			// Modifiers are allowed
+
+			if ( !Enum.TryParse<KeyboardModifiers>( key, ignoreCase: true, out var mod ) || mod == KeyboardModifiers.None )
+			{
+				return false;
+			}
+		}
+
+		return anyFunctionKeys;
+	}
+
 	internal static bool Invoke( string keys, bool force = false )
 	{
 		// Don't invoke shortcuts if the focus widget if we're typing in a LineEdit and holding CTRL or ALT (Not SHIFT since it's used for capital letters)
@@ -88,12 +129,16 @@ public static class EditorShortcuts
 			foreach ( var entry in group )
 			{
 				if ( GetKeys( entry.Identifier ) != keys ) continue;
+
 				entry.IsDown = true;
 
-				if ( AllowShortcuts && !hasInvoked && entry.Invoke( force ) )
-				{
-					justInvoked = true;
-				}
+				if ( hasInvoked ) continue;
+
+				// Always allow Fn keys, even when first-person controlling the scene view camera
+
+				if ( !AllowShortcuts && !IsFunctionKeyShortcut( keys ) ) continue;
+
+				justInvoked |= entry.Invoke( force );
 			}
 			if ( justInvoked ) hasInvoked = true;
 		}
@@ -137,7 +182,6 @@ public static class EditorShortcuts
 	/// </summary>
 	internal static bool InvokeWheel( int delta, KeyboardModifiers modifiers )
 	{
-		if ( !AllowShortcuts ) return false;
 		if ( delta == 0 ) return false;
 
 		var wheelKey = delta > 0 ? "MWHEELUP" : "MWHEELDOWN";
@@ -258,81 +302,84 @@ public static class EditorShortcuts
 
 		public bool Invoke( bool force = false )
 		{
-			ShortcutType type = force ? ShortcutType.Application : Attribute.Type;
+			var type = force ? ShortcutType.Application : Attribute.Type;
 
-			var targets = new List<object>();
-			if ( MethodDesc.IsStatic && TargetKey == TypeKey && targets.Count == 0 )
+			// Widgets of the target type gate whether this shortcut is currently accessible
+			IEnumerable<Widget> gates;
+			if ( MethodDesc.IsStatic && TargetKey == TypeKey )
 			{
-				targets.Add( EditorWindow );
+				gates = [EditorWindow];
 				if ( !force ) type = ShortcutType.Window;
 			}
 			else
 			{
-				foreach ( var target in Targets )
-				{
-					if ( target.Key.IsAssignableTo( TargetKey ) )
-					{
-						targets.AddRange( target.Value );
-					}
-				}
+				// Prefer the focused gate so forced invokes (e.g. menu options) hit the right scene view
+				gates = InstancesOf( TargetKey ).OrderByDescending( ContainsFocus );
 			}
 
-			bool invoked = false;
-			foreach ( var target in targets )
+			foreach ( var gate in gates )
 			{
-				if ( target is not Widget w )
+				if ( !IsAccessible( gate, type ) )
 					continue;
 
-				if ( type == ShortcutType.Window )
+				var instance = MethodDesc.IsStatic ? null : ResolveInstance( gate );
+				if ( !MethodDesc.IsStatic && instance is null )
+					continue;
+
+				MethodDesc.Invoke( instance );
+
+				if ( PassShortcut )
 				{
-					if ( !w.IsActiveWindow )
-						continue;
-				}
-				else if ( type == ShortcutType.Widget )
-				{
-					var accessible = w.Visible && w.Enabled && (w.IsFocused || (Application.FocusWidget?.IsDescendantOf( w ) ?? false));
-					if ( type == ShortcutType.Widget && !accessible )
-						continue;
+					PassShortcut = false;
+					return false;
 				}
 
-				invoked = true;
-
-				// Only invoke the method if we don't have a custom target override
-				if ( MethodDesc.IsStatic || TargetKey == TypeKey )
-				{
-					MethodDesc?.Invoke( MethodDesc.IsStatic ? null : target );
-					if ( PassShortcut )
-					{
-						PassShortcut = false;
-						return false;
-					}
-					break;
-				}
+				return true;
 			}
 
-			// If we would have invoked the method, but we have a custom target override, invoke the method for the custom target(s)
-			if ( !MethodDesc.IsStatic && invoked && TargetKey != TypeKey )
+			return false;
+		}
+
+		static bool ContainsFocus( Widget w ) => w.IsValid() && (w.IsFocused || (Application.FocusWidget?.IsDescendantOf( w ) ?? false));
+
+		static bool IsAccessible( Widget w, ShortcutType type ) => w.IsValid() && type switch
+		{
+			ShortcutType.Window => w.IsActiveWindow,
+			ShortcutType.Widget => w.Visible && w.Enabled && ContainsFocus( w ),
+			_ => true,
+		};
+
+		/// <summary>
+		/// All registered widgets of the given type.
+		/// </summary>
+		static IEnumerable<Widget> InstancesOf( Type type )
+		{
+			return Targets.Where( t => t.Key.IsAssignableTo( type ) )
+				.SelectMany( t => t.Value )
+				.OfType<Widget>();
+		}
+
+		/// <summary>
+		/// The widget the shortcut method is invoked on. Usually the gating widget itself, but for
+		/// shortcuts with a target override it's the nearest instance of the declaring type - found
+		/// by widening the search scope one ancestor at a time - so shortcuts stay within the same
+		/// scene view as the gate, whether the declaring widget is a descendant or a sibling of it.
+		/// </summary>
+		Widget ResolveInstance( Widget gate )
+		{
+			if ( TargetKey == TypeKey )
+				return gate;
+
+			var candidates = InstancesOf( TypeKey ).ToList();
+
+			for ( var scope = gate; scope.IsValid(); scope = scope.Parent )
 			{
-				invoked = false;
-				foreach ( var target in Targets )
-				{
-					if ( target.Key.IsAssignableTo( TypeKey ) )
-					{
-						var focusedTarget = target.Value.OrderByDescending( x => (x as Widget)?.IsFocused ?? false ).FirstOrDefault();
-						if ( focusedTarget == null ) continue;
-						invoked = true;
-						MethodDesc?.Invoke( focusedTarget );
-						if ( PassShortcut )
-						{
-							PassShortcut = false;
-							return false;
-						}
-						break;
-					}
-				}
+				var match = candidates.FirstOrDefault( w => w == scope || w.IsDescendantOf( scope ) );
+				if ( match is not null )
+					return match;
 			}
 
-			return invoked;
+			return null;
 		}
 
 		void ResetKeys()

@@ -1,0 +1,48 @@
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+@using Sandbox;
+@using Sandbox.UI;
+@attribute [Group( "Effects" )]
+@attribute [Title( "opacity" )]
+@attribute [Description( "opacity examples" )]
+@attribute [Icon( "opacity" )]
+<root>
+    <h2>Group opacity</h2>
+
+    <p>
+        The web composites a subtree once and then fades the result, so overlapping children don't
+        show through each other. Fading each child on its own is a different picture - if these
+        two cases match, we're doing it per child.
+    </p>
+
+    <div class="cases">
+        <UiTestCase Setup="@Frame" Rule="parent { opacity: 0.5 }" Caption="parent { opacity: 0.5 }" Note="One group at half opacity: the overlap should look the same as the rest.">
+            <ChildContent>
+                <div class="group-fade">
+                    <div class="ov red"></div><div class="ov green"></div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="each child { opacity: 0.5 }" Caption="each child { opacity: 0.5 }" Note="Each child faded separately, so the overlap is denser. This one is expected to differ from the case beside it.">
+            <ChildContent>
+                <div class="group">
+                    <div class="ov red half"></div><div class="ov green half"></div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="parent { opacity: 0.5 } with a filter inside" Caption="parent { opacity: 0.5 } with a filter inside" Note="Group opacity over a filtered child - the filter's layer mustn't be faded twice.">
+            <ChildContent>
+                <div class="group-fade">
+                    <div class="ov red"></div><div class="ov green blurred"></div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+    </div>
+
+
+</root>
+@code
+{
+    const string Glass = "width: 90px; height: 90px";
+    const string Frame = "width: 120px; height: 100px";
+}

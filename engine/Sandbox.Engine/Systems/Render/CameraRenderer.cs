@@ -21,12 +21,48 @@ internal ref struct CameraRenderer
 		Native.DeleteThis();
 	}
 
+	void AddTags( ITagSet tags, bool exclude )
+	{
+		// A scene camera's tags are already tokens. Those TryGetAll would give back (the ones with
+		// a known string) are the same tokens FindOrCreate makes, without the iterator per frame.
+		if ( tags is TokenBasedTagSet && tags.GetTokens() is HashSet<uint> tokens )
+		{
+			foreach ( var token in tokens )
+			{
+				if ( !StringToken.TryLookup( token, out _ ) ) continue;
+
+				if ( exclude ) Native.AddExcludeTag( token );
+				else Native.AddRenderTag( token );
+			}
+
+			return;
+		}
+
+		foreach ( var tag in tags.TryGetAll() )
+		{
+			var token = StringToken.FindOrCreate( tag );
+
+			if ( exclude ) Native.AddExcludeTag( token );
+			else Native.AddRenderTag( token );
+		}
+	}
+
 	internal void Configure( SceneCamera camera, ViewSetup config )
 	{
 		var _world = camera.World;
 		var Attributes = new RenderAttributes();
 
 		camera.Attributes.MergeTo( Attributes );
+		Attributes.Set( "LightModulatorsDisabled", config.EnableLightModulators == false );
+
+		if ( config.Reflection )
+		{
+			Attributes.Set( "IsReflection", true );
+			Attributes.Set( "ReflectionShadows", CommandList.ReflectionShadows );
+
+			// No screen-space effects run in a reflection, so nothing reads prepass normals.
+			Attributes.Set( "NeedsDepthNormals", false );
+		}
 
 		if ( _world.IsValid() && !Graphics.IsActive )
 		{
@@ -68,12 +104,32 @@ internal ref struct CameraRenderer
 			Attributes.Set( "ToolsVisMode", (int)DebugOverlay.ToolsVisualization.mat_toolsvis );
 		}
 
-		camera.GatherVolumetricFog( Attributes );
+		// Reflections skip volumetric fog, which would also share the camera's fog history with its main view.
+		if ( !config.Reflection )
+			camera.GatherVolumetricFog( Attributes );
 		camera.GatherTonemapper( Attributes );
 		camera.CubemapFog?.Write( Attributes );
 
+		// Bind an explicit zero-weight value too, so a previous view cannot leak its fog.
+		var fog = camera.ResolveFog( config ) ?? default( FogSetup );
+		var viewDirection = (config.Transform?.Rotation ?? camera.Rotation).Forward;
+		Attributes.SetData( FogConstants.BufferName, fog.ToConstants( viewDirection: viewDirection ) );
+
+		// Prepare the skybox from this submission's override, before the camera can be reused.
+		var skybox = camera.World?.native.Get3DSkyboxOriginAndScale() ?? default;
+		if ( skybox.w > 0 )
+		{
+			var skyFog = camera.ResolveFogForSkybox( config ) ?? default( FogSetup );
+			Attributes.SetData( "SkyboxFogConstants", skyFog.ToConstants( skybox.w, skybox.z, viewDirection ) );
+		}
+
 		// Set clear flags
 		Attributes.Set( "clearFlags", (int)camera.ClearFlags );
+
+		if ( config.Time is float renderTime )
+		{
+			Attributes.Set( "RenderTime", renderTime );
+		}
 
 		Native.ClearSceneWorlds();
 		Native.SetRenderAttributes( Attributes.Get() );
@@ -81,14 +137,12 @@ internal ref struct CameraRenderer
 		Native.ClearRenderTags();
 		Native.ClearExcludeTags();
 
-		foreach ( var tag in camera.RenderTags.TryGetAll() )
-		{
-			Native.AddRenderTag( StringToken.FindOrCreate( tag ) );
-		}
+		AddTags( config.RenderTags ?? camera.RenderTags, exclude: false );
+		AddTags( camera.ExcludeTags, exclude: true );
 
-		foreach ( var tag in camera.ExcludeTags.TryGetAll() )
+		if ( config.ExcludeTags is not null )
 		{
-			Native.AddExcludeTag( StringToken.FindOrCreate( tag ) );
+			AddTags( config.ExcludeTags, exclude: true );
 		}
 
 		Native.ViewUniqueId = HashCode.Combine( cameraId, config.ViewHash );
@@ -102,8 +156,9 @@ internal ref struct CameraRenderer
 		Native.Ortho = camera.Ortho;
 		Native.ClipSpaceBounds = config.ClipSpaceBounds ?? new Vector4( -1, -1, 1, 1 );
 		Native.EnablePostprocessing = config.EnablePostprocessing ?? camera.EnablePostProcessing;
-		Native.EnableEngineOverlays = camera.EnableEngineOverlays;
-		Native.EnableUI = camera.RenderUI;
+		Native.EnableEngineOverlays = config.EnableDebugOverlays ?? camera.EnableEngineOverlays;
+		Native.EnableUI = config.EnableUI ?? camera.RenderUI;
+		Native.UIOnly = camera.UIOnly;
 		Native.FlipX = config.FlipX ?? false;
 		Native.FlipY = config.FlipY ?? false;
 
@@ -127,6 +182,10 @@ internal ref struct CameraRenderer
 		if ( camera.ExcludeFromTextureStreaming )
 			Native.SceneViewFlags |= NativeEngine.SceneViewFlags.SVF_NO_TEXTURE_STREAMING;
 
+		// Native's bit (1 << 1): the managed enum's members aren't bit values, so SVF_TOOL_VIEW there is native's SVF_DEBUG_LAYERS
+		if ( camera.ToolsView )
+			Native.SceneViewFlags |= (NativeEngine.SceneViewFlags)(1 << 1);
+
 		//
 		// add worlds
 		//
@@ -140,6 +199,17 @@ internal ref struct CameraRenderer
 		{
 			if ( world is null ) continue;
 			if ( world == _world ) continue;
+
+			Native.AddSceneWorld( world );
+		}
+
+		if ( config.EnableDebugOverlays == false )
+			return;
+
+		foreach ( var world in camera.DebugWorlds )
+		{
+			if ( world is null ) continue;
+			if ( world == _world || camera.Worlds.Contains( world ) ) continue;
 
 			Native.AddSceneWorld( world );
 		}

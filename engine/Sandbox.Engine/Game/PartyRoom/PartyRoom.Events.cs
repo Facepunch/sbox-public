@@ -21,22 +21,22 @@ partial class PartyRoom
 		void OnLeftParty( PartyRoom party ) { }
 
 		/// <summary>
-		/// A lobby member has sent a chat message.
+		/// A party member has sent a chat message.
 		/// </summary>
 		void OnChatMessage( Friend sender, string message ) { }
 
 		/// <summary>
-		/// A lobby member has sent a voice packet.
+		/// A party member has sent a voice packet.
 		/// </summary>
 		void OnVoiceMessage( Friend sender, byte[] data ) { }
 
 		/// <summary>
-		/// A lobby member has joined.
+		/// A party member has joined.
 		/// </summary>
 		void OnMemberJoin( Friend sender ) { }
 
 		/// <summary>
-		/// A lobby member has left.
+		/// A party member has left.
 		/// </summary>
 		void OnMemberLeave( Friend sender ) { }
 	}

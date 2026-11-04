@@ -4,6 +4,10 @@
 /// List of CSS pseudo-classes used by the styling system for hover, active, etc.
 /// This acts as a bit-flag.
 /// </summary>
+/// <remarks>
+/// Disabled, Enabled, Checked, Root and FocusWithin are derived by selector matching.
+/// Setting these flags on a panel does not override its classes, parent or focus state.
+/// </remarks>
 [System.Flags]
 public enum PseudoClass
 {
@@ -72,4 +76,29 @@ public enum PseudoClass
 	/// <c>:after</c> - Creates an element on the parent element
 	/// </summary>
 	After = 1 << 12,
+
+	/// <summary>
+	/// <c>:disabled</c> - An element with the <c>disabled</c> CSS class.
+	/// </summary>
+	Disabled = 1 << 13,
+
+	/// <summary>
+	/// <c>:enabled</c> - An element without the <c>disabled</c> CSS class.
+	/// </summary>
+	Enabled = 1 << 14,
+
+	/// <summary>
+	/// <c>:checked</c> - An element with the <c>checked</c> CSS class.
+	/// </summary>
+	Checked = 1 << 15,
+
+	/// <summary>
+	/// <c>:root</c> - The topmost element in the styling tree.
+	/// </summary>
+	Root = 1 << 16,
+
+	/// <summary>
+	/// <c>:focus-within</c> - An element with input focus, or an ancestor of one.
+	/// </summary>
+	FocusWithin = 1 << 17,
 }

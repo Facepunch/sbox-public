@@ -750,6 +750,15 @@ public class TextFontPropertiesTest
 	}
 
 	[TestMethod]
+	public void TextDecoration_None()
+	{
+		var s = new Styles();
+		Assert.IsTrue( s.Set( "text-decoration", "underline" ) );
+		Assert.IsTrue( s.Set( "text-decoration", "none" ) );
+		Assert.AreEqual( TextDecoration.None, s.TextDecorationLine );
+	}
+
+	[TestMethod]
 	public void TextDecoration_Invalid()
 	{
 		// An unrecognised token that is neither a line/color/style/length fails.

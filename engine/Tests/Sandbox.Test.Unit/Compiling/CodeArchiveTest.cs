@@ -167,23 +167,23 @@ public partial class CodeArchiveTest
 	{
 		using var group = new CompileGroup( "Test" );
 
-		// Create base compiler
-		group.CreateCompiler( "base", System.IO.Path.GetFullPath( "data/code/base" ), new Compiler.Configuration() );
+		// Create a compiler to depend on
+		group.CreateCompiler( "dependency", System.IO.Path.GetFullPath( "data/code/base" ), new Compiler.Configuration() );
 
 		// Create dependent compiler
 		var dependantCompiler = group.CreateCompiler( "dependant", System.IO.Path.GetFullPath( "data/code/dependant" ), new Compiler.Configuration() );
 
-		// We haven't referenced base compiler yet
-		Assert.IsFalse( dependantCompiler.HasReference( "package.base", true ) );
+		// We haven't referenced the dependency yet
+		Assert.IsFalse( dependantCompiler.HasReference( "package.dependency", true ) );
 
-		// Update from archive with a reference to package.base
+		// Update from archive with a reference to it
 		var archive = new CodeArchive();
 
-		archive.References.Add( "package.base" );
+		archive.References.Add( "package.dependency" );
 
 		dependantCompiler.UpdateFromArchive( archive );
 
-		// We should have a reference to package.base now
-		Assert.IsTrue( dependantCompiler.HasReference( "package.base", true ) );
+		// We should have a reference now
+		Assert.IsTrue( dependantCompiler.HasReference( "package.dependency", true ) );
 	}
 }

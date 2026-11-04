@@ -50,11 +50,17 @@ public partial class GameTransform
 	{
 		get
 		{
-			// If we're a proxy let's try to find the latest networked tranform to interpolate to, or our local transform.
-			if ( GameObject.IsProxy )
-				return _networkTransformBuffer?.IsEmpty == false ? _networkTransformBuffer.Last.State.Transform : _interpolatedLocal;
+			if ( !GameObject.IsProxy )
+				return _targetLocal;
 
-			return _targetLocal;
+			var flags = GameObject.Network?.Flags ?? NetworkFlags.None;
+			var networkTarget = _networkTransformBuffer?.IsEmpty == false ? _networkTransformBuffer.Last.State.Transform : _interpolatedLocal;
+
+			var result = _interpolatedLocal;
+			result.Position = (flags & NetworkFlags.NoPositionSync) != 0 ? _targetLocal.Position : networkTarget.Position;
+			result.Rotation = (flags & NetworkFlags.NoRotationSync) != 0 ? _targetLocal.Rotation : networkTarget.Rotation;
+			result.Scale = (flags & NetworkFlags.NoScaleSync) != 0 ? _targetLocal.Scale : networkTarget.Scale;
+			return result;
 		}
 	}
 
@@ -66,9 +72,14 @@ public partial class GameTransform
 	{
 		// If we're headless, don't interpolate. Interpolation here is for visual purposes only and we
 		// have no graphics.
-		if ( Application.IsHeadless )
-			return false;
+		return !Application.IsHeadless && WouldInterpolate();
+	}
 
+	/// <summary>
+	/// <see cref="ShouldInterpolate"/> without the headless check.
+	/// </summary>
+	bool WouldInterpolate()
+	{
 		var isEnabled = GameObject?.Enabled ?? false;
 		var isFixedUpdate = GameObject?.Scene?.IsFixedUpdate ?? false;
 		var isStatic = GameObject?.IsStatic ?? false;
@@ -193,6 +204,7 @@ public partial class GameTransform
 	/// </summary>
 	internal void ClearLocalInterpolation()
 	{
+		GameObject?._net?.ClearStep();
 		Interpolate = false;
 		TransformChanged();
 	}
@@ -218,7 +230,7 @@ public partial class GameTransform
 	{
 		if ( GameObject.IsProxy )
 		{
-			InterpolateNetwork( now );
+			InterpolateProxy( now, cullBefore );
 			return;
 		}
 
@@ -250,24 +262,85 @@ public partial class GameTransform
 		}
 	}
 
-	void InterpolateNetwork( double now )
+	void InterpolateProxy( double now, double cullBefore )
 	{
+		var flags = GameObject.Network?.Flags ?? NetworkFlags.None;
+
 		if ( GameObject?.Flags.Contains( GameObjectFlags.NoInterpolation ) ?? false )
 		{
 			_networkTransformBuffer?.Clear();
+			_positionBuffer?.Clear();
+			_rotationBuffer?.Clear();
+			_scaleBuffer?.Clear();
 		}
 
-		if ( _networkTransformBuffer?.IsEmpty == false )
+		var hasNetwork = _networkTransformBuffer?.IsEmpty == false;
+		var networkState = _interpolatedLocal;
+		if ( hasNetwork )
 		{
 			var interpolationTime = Networking.InterpolationTime;
-			var state = _networkTransformBuffer.QueryAndCull( now - interpolationTime, now - (interpolationTime * 3f) );
-
-			_interpolatedLocal = state.Transform;
-			_targetLocal = _interpolatedLocal;
-			TransformChanged();
+			networkState = _networkTransformBuffer.QueryAndCull( now - interpolationTime, now - (interpolationTime * 3f) ).Transform;
 		}
 
-		if ( _networkTransformBuffer?.IsEmpty ?? true )
+		var tx = _interpolatedLocal;
+		var target = _targetLocal;
+
+		if ( (flags & NetworkFlags.NoPositionSync) == 0 )
+		{
+			_positionBuffer?.Clear();
+
+			if ( hasNetwork )
+			{
+				tx.Position = networkState.Position;
+				target.Position = networkState.Position;
+			}
+		}
+		else
+		{
+			tx.Position = _positionBuffer?.IsEmpty == false ? _positionBuffer.QueryAndCull( now, cullBefore ).Value : _targetLocal.Position;
+		}
+
+		if ( (flags & NetworkFlags.NoRotationSync) == 0 )
+		{
+			_rotationBuffer?.Clear();
+
+			if ( hasNetwork )
+			{
+				tx.Rotation = networkState.Rotation;
+				target.Rotation = networkState.Rotation;
+			}
+		}
+		else
+		{
+			tx.Rotation = _rotationBuffer?.IsEmpty == false ? _rotationBuffer.QueryAndCull( now, cullBefore ).Rotation : _targetLocal.Rotation;
+		}
+
+		if ( (flags & NetworkFlags.NoScaleSync) == 0 )
+		{
+			_scaleBuffer?.Clear();
+
+			if ( hasNetwork )
+			{
+				tx.Scale = networkState.Scale;
+				target.Scale = networkState.Scale;
+			}
+		}
+		else
+		{
+			tx.Scale = _scaleBuffer?.IsEmpty == false ? _scaleBuffer.QueryAndCull( now, cullBefore ).Value : _targetLocal.Scale;
+		}
+
+		var changed = tx != _interpolatedLocal || target != _targetLocal;
+		_interpolatedLocal = tx;
+		_targetLocal = target;
+
+		if ( changed )
+			TransformChanged();
+
+		var networkDone = _networkTransformBuffer?.IsEmpty ?? true;
+		var localDone = (_positionBuffer?.IsEmpty ?? true) && (_rotationBuffer?.IsEmpty ?? true) && (_scaleBuffer?.IsEmpty ?? true);
+
+		if ( networkDone && localDone )
 		{
 			Interpolate = false;
 		}

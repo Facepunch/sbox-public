@@ -1,5 +1,6 @@
-using Facepunch.ActionGraphs;
+﻿using Facepunch.ActionGraphs;
 using NativeEngine;
+using Sandbox.Clutter;
 using Sentry;
 using System.Text.Json.Nodes;
 using System.Threading;
@@ -57,6 +58,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 	string loadedMapName;
 	Package loadedMapPkg;
 	string sceneMapScenePath;
+	IDisposable _systemOverridesScope;
 
 	public MapInstance() : base()
 	{
@@ -92,6 +94,14 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 		Transform.OnTransformChanged -= OnTransformChanged;
 
 		UnloadMap();
+		CancelLoading();
+	}
+
+	internal override void OnDestroyInternal()
+	{
+		SceneMap.OnMapUpdated -= OnMapUpdated;
+
+		base.OnDestroyInternal();
 	}
 
 	private void OnTransformChanged()
@@ -147,6 +157,9 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 
 		Physics = null;
 
+		_systemOverridesScope?.Dispose();
+		_systemOverridesScope = null;
+
 		if ( GameObject.IsValid() && GameObject.Children is not null )
 		{
 			foreach ( var child in GameObject.Children )
@@ -156,7 +169,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 					continue;
 
 				// If I'm a client and this came from the snapshot.. don't fucking delete me
-				if ( Networking.IsClient && child.NetworkMode == NetworkMode.Snapshot )
+				if ( ContentComesFromSnapshot && child.NetworkMode == NetworkMode.Snapshot )
 					continue;
 
 				// If it's a fully networked object and I'm the owner, we can delete
@@ -169,8 +182,9 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 		{
 			OnMapUnloaded?.InvokeWithWarning();
 			g_pWorldRendererMgr.ServiceWorldRequests();
-			SceneMap.OnMapUpdated -= OnMapUpdated;
 		}
+
+		SceneMap.OnMapUpdated -= OnMapUpdated;
 
 		IsLoaded = false;
 	}
@@ -234,11 +248,15 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 		CancellationTokenSource tokenSource = new CancellationTokenSource();
 		tokenSources.Add( tokenSource );
 		var token = tokenSource.Token;
+		var snapshotContent = Networking.IsClient || (Scene?.IsLoadingSnapshot ?? false);
+		var acquired = false;
 
 		try
 		{
 			// wait for access
 			await mapLoadSemaphore.WaitAsync( token );
+			acquired = true;
+			_loadingSnapshotContent = snapshotContent;
 			GameObject.Flags |= GameObjectFlags.Loading;
 
 			token.ThrowIfCancellationRequested();
@@ -375,14 +393,20 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 		}
 		finally
 		{
-			mapLoadSemaphore.Release();
+			if ( acquired )
+			{
+				_loadingSnapshotContent = false;
+				mapLoadSemaphore.Release();
+			}
 
 			if ( GameObject.IsValid() )
 			{
 				GameObject.Flags &= ~GameObjectFlags.Loading;
 			}
 
-			SceneMap.OnMapUpdated += OnMapUpdated;
+			// static event, so never subscribe twice and never pin a destroyed component (and its scene)
+			SceneMap.OnMapUpdated -= OnMapUpdated;
+			if ( IsValid ) SceneMap.OnMapUpdated += OnMapUpdated;
 		}
 
 		tokenSources.Remove( tokenSource );
@@ -425,6 +449,8 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 
 		using var optionsScope = ActionGraph.PushSerializationOptions( sceneFile.SerializationOptions with { ForceUpdateCached = Scene.IsEditor } );
 		using var sceneScope = Scene.Push();
+		// Set up a blob context to resolve binary data in the map scene.
+		using var blobs = BlobDataSerializer.Load( sceneFile.BinaryData, path );
 		using var batchGroup = CallbackBatch.Batch();
 
 		foreach ( var json in sceneFile.GameObjects )
@@ -440,7 +466,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 			go.Deserialize( json );
 
 			// This is a failsafe for the above check for existing networked objects
-			if ( Networking.IsClient && go.NetworkMode != NetworkMode.Never )
+			if ( ContentComesFromSnapshot && go.NetworkMode != NetworkMode.Never )
 			{
 				go.DestroyImmediate();
 				continue;
@@ -452,8 +478,31 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 			}
 		}
 
+		// Apply scene-level GameObjectSystems data (e.g. painted clutter) to the host scene.
+		if ( sceneFile.SceneProperties is not null
+			&& sceneFile.SceneProperties.TryGetPropertyValue( "GameObjectSystems", out var systemsNode )
+			&& systemsNode is not null )
+		{
+			_systemOverridesScope = Scene.ApplyTransientGameObjectSystemOverrides( systemsNode );
+
+			if ( !NoOrigin
+				&& systemsNode is JsonObject systems
+				&& systems[typeof( ClutterGridSystem ).FullName] is JsonObject clutter
+				&& clutter.ContainsKey( nameof( ClutterGridSystem.Storage ) ) )
+			{
+				Scene.GetSystem<ClutterGridSystem>()?.Storage.ApplyWorldTransform( WorldTransform );
+			}
+		}
+
 		return true;
 	}
+
+	bool _loadingSnapshotContent;
+
+	/// <summary>
+	/// This map load is restoring content supplied by the network snapshot.
+	/// </summary>
+	internal bool ContentComesFromSnapshot => Networking.IsClient || _loadingSnapshotContent || (Scene?.IsLoadingSnapshot ?? false);
 
 	private bool ShouldIgnoreGameObject( JsonObject json )
 	{
@@ -466,7 +515,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 			}
 		}
 
-		if ( !Networking.IsClient || !json.TryGetPropertyValue( JsonKeys.Id, out var id ) )
+		if ( !ContentComesFromSnapshot || !json.TryGetPropertyValue( JsonKeys.Id, out var id ) )
 			return false;
 
 		var gameObject = Scene.Directory.FindByGuid( (Guid)id );
@@ -604,7 +653,9 @@ file class MapComponentMapLoader : SceneMapLoader
 
 	void CreateGradientFog( GameObject go, ObjectEntry kv )
 	{
+#pragma warning disable CS0618 // Retain legacy fog support for existing content.
 		var fog = go.Components.Create<GradientFog>();
+#pragma warning restore CS0618
 		fog.Enabled = kv.GetValue<bool>( "fogenabled" );
 		fog.Color = kv.GetValue<Color>( "fogcolor" ).WithAlpha( kv.GetValue<float>( "fogmaxopacity" ) );
 		fog.StartDistance = kv.GetValue<float>( "FogStart" );
@@ -616,7 +667,9 @@ file class MapComponentMapLoader : SceneMapLoader
 
 	void CreateCubemapFog( GameObject go, ObjectEntry kv )
 	{
+#pragma warning disable CS0618 // Retain legacy fog support for existing content.
 		var fog = go.Components.Create<CubemapFog>();
+#pragma warning restore CS0618
 		fog.Sky = kv.GetResource<Material>( "cubemapfogmaterial" );
 		fog.Blur = kv.GetValue<float>( "cubemapfoglodbiase" );
 		fog.StartDistance = kv.GetValue<float>( "cubemapfogstartdistance" );
@@ -639,7 +692,7 @@ file class MapComponentMapLoader : SceneMapLoader
 
 		// Don't spawn networked props, because they will be spawned by
 		// the network!
-		if ( isNetworked && Networking.IsClient )
+		if ( isNetworked && Map.ContentComesFromSnapshot )
 		{
 			go.Destroy();
 			return;
@@ -654,6 +707,7 @@ file class MapComponentMapLoader : SceneMapLoader
 			prop.Model = model;
 			prop.Tint = kv.GetValue( "rendercolor", Color.White );
 			prop.WorldScale = kv.GetValue( "scales", Vector3.One );
+			prop.MaterialGroup = kv.GetValue( "skin", "default" );
 		}
 
 		if ( model.Physics is null || model.Physics.Parts.Count == 0 )
@@ -725,7 +779,11 @@ file class MapComponentMapLoader : SceneMapLoader
 		}
 		else
 		{
-			light = go.Components.Create<DirectionalLight>();
+			var directional = go.Components.Create<DirectionalLight>();
+			var skyColor = kv.GetValue( "SkyColor", Color.White );
+			directional.SkyColor = (skyColor * kv.GetValue( "SkyIntensity", 1.0f )).WithAlpha( skyColor.a );
+
+			light = directional;
 		}
 
 		// Hammer lights have no concept of "hardness" — let's make them reasonably sharp by default.
@@ -833,10 +891,15 @@ file class MapComponentMapLoader : SceneMapLoader
 					break;
 				}
 
+			case "env_light_probe_volume":
+				{
+					LightProbeVolume.InitializeFromLegacy( go, kv );
+					break;
+				}
 			case "env_combined_light_probe_volume":
 				{
 					EnvmapProbe.InitializeFromLegacy( go, kv ); // create an envmap component
-					AddMapObjectComponent( go, kv ); // create the probe sceneobject (we don't have a component for it)
+					LightProbeVolume.InitializeFromLegacy( go, kv );
 					break;
 				}
 			case "snd_soundscape_box":

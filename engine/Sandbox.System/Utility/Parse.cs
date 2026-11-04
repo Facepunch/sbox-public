@@ -458,7 +458,7 @@ namespace Sandbox
 			if ( !p.IsLetter )
 				return false;
 
-			var w = p.ReadWord( null, true );
+			var w = p.ReadWord( null, true ).ToLowerInvariant();
 			switch ( w )
 			{
 				case "none":
@@ -543,8 +543,25 @@ namespace Sandbox
 			var color = Color.Parse( c );
 			if ( !color.HasValue ) return false;
 
-			Pointer = p.Pointer;
 			outval = color.Value;
+
+			// Optional "* N" brightness multiplier - "rgba( white * 4, 0.5 )"
+			var afterColor = p;
+			p = p.SkipWhitespaceAndNewlines();
+
+			if ( p.Current == '*' )
+			{
+				p.Pointer++;
+				p = p.SkipWhitespaceAndNewlines();
+
+				if ( p.TryReadFloat( out var scale ) )
+				{
+					outval = outval.ScaleBrightness( scale );
+					afterColor = p;
+				}
+			}
+
+			Pointer = afterColor.Pointer;
 			return true;
 		}
 
@@ -683,15 +700,7 @@ namespace Sandbox
 		/// <summary>
 		/// Get the line we're currently on
 		/// </summary>
-		public int CurrentLine
-		{
-			get
-			{
-				var substr = Text.Substring( 0, Math.Min( Pointer, Text.Length ) );
-				var lines = substr.Count( x => x == '\n' );
-				return lines + lineOffset;
-			}
-		}
+		public int CurrentLine => Text.AsSpan( 0, Math.Min( Pointer, Text.Length ) ).Count( '\n' ) + lineOffset;
 
 		public string FileAndLine => $"[{FileName}:{CurrentLine}]";
 	}

@@ -38,13 +38,19 @@ $rounding-large: 8px;
 
 $easing: ease;
 
-$screen-w-xl: 1920px;
+$screen-w-xl: 2560px;
 $screen-w-md: 1280px;
 
+// A 16:9 screen's width - the UI's scaled by height, 1080 tall, so this is 16:9 at any resolution
+$screen-w-16x9: 1920px;
+
 MainMenu {
-    font-size: $text-regular;
-    color: $default-text;
-    font-family: $font-default;
+	font-size: $text-regular;
+	color: $default-text;
+	font-family: $font-default;
+
+	max-width: $screen-w-xl;
+	margin: 0 auto;
 }
 
 label {

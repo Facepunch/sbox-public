@@ -1,0 +1,132 @@
+@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+
+// A row in the inbox list. Its own slab rather than a band in a big card, so a long list
+// reads as separate things that happened.
+NotificationCard
+{
+	@include front-card;
+
+	flex-direction: row;
+	align-items: center;
+	gap: 14px;
+	padding: 12px 16px;
+	// Unread gets a marker down this edge, so reserve it on every row or the list steps in and
+	// out. Painted in the card's own border colour when there's nothing to mark - transparent
+	// would leave the box with three sides.
+	border-left: 3px solid $front-border;
+	transition: all 0.1s ease;
+
+	.art
+	{
+		width: 44px;
+		height: 44px;
+		flex-shrink: 0;
+		align-items: center;
+		justify-content: center;
+		border-radius: 8px;
+		background-size: cover;
+		background-position: center;
+		background-color: rgba( 0, 0, 0, 0.35 );
+
+		icon
+		{
+			font-size: 22px;
+			color: $front-tertiary;
+		}
+	}
+
+	.body
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		min-width: 0;
+		gap: 3px;
+	}
+
+	.text
+	{
+		font-family: $front-font;
+		font-size: 13.5px;
+		font-weight: 600;
+		color: $front-body;
+	}
+
+	.meta
+	{
+		flex-direction: row;
+		align-items: center;
+		flex-shrink: 0;
+		gap: 8px;
+	}
+
+	.when
+	{
+		@include front-row-meta;
+	}
+
+	// How many times the same thing happened - a pill, so it doesn't read as more prose.
+	.times
+	{
+		flex-shrink: 0;
+		padding: 1px 7px;
+		border-radius: 999px;
+		background-color: rgba( 255, 255, 255, 0.07 );
+		font-size: 10px;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: $front-secondary;
+	}
+
+	.go
+	{
+		flex-shrink: 0;
+		font-size: 22px;
+		color: $front-tertiary;
+	}
+
+	&.unread
+	{
+		border-left: 3px solid $front-primary;
+
+		.text
+		{
+			color: $front-heading;
+			font-weight: 700;
+		}
+	}
+
+	// Still listed, just done with - dimmed rather than hidden, so the list keeps its shape.
+	// Not far dimmed: most of the list is read most of the time, and it still has to be read.
+	&.read
+	{
+		opacity: 0.78;
+	}
+
+	&.clicky
+	{
+		pointer-events: all;
+		cursor: pointer;
+
+		// The slab's fill is a gradient, so a hover colour would be painted over - lift the
+		// whole row instead.
+		&:hover
+		{
+			opacity: 1;
+			filter: brightness( 1.25 );
+			sound-in: "ui.button.over";
+
+			.go
+			{
+				color: $front-heading;
+			}
+		}
+
+		&:active
+		{
+			sound-in: "ui.button.press";
+		}
+	}
+}

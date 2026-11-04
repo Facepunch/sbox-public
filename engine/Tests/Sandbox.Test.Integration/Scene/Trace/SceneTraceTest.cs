@@ -702,6 +702,26 @@ public class SceneTraceTest
 	}
 
 	/// <summary>
+	/// Adopting a tag's collision rules walks every runtime tag, which must not box an enumerator per call.
+	/// </summary>
+	[TestMethod, TestCategory( Allocations.Category )]
+	public void WithCollisionRulesDoesNotAllocate()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var trace = scene.Trace.Ray( Vector3.Zero, new Vector3( 300, 0, 0 ) );
+
+		Allocations.AssertSettles( "100 WithCollisionRules calls", () =>
+		{
+			for ( int i = 0; i < 100; i++ )
+			{
+				trace.WithCollisionRules( "player" );
+			}
+		} );
+	}
+
+	/// <summary>
 	/// The ignore filters must also apply to RunAll, which uses a separate native
 	/// filter path from Run.
 	/// </summary>
@@ -809,6 +829,32 @@ public class SceneTraceTest
 	}
 
 	/// <summary>
+	/// FindBodiesInPhysics should also work in a 2D (Box2D) scene, overlapping bodies
+	/// in the XY plane and honouring the caller's buffer size.
+	/// </summary>
+	[TestMethod]
+	public void FindBodiesInPhysics2D()
+	{
+		var scene = new Scene { PhysicsMode = ScenePhysicsMode.Physics2D };
+		using var sceneScope = scene.Push();
+
+		var a = CreateBox( scene, new Vector3( 100, 0, 0 ) );
+		CreateBox( scene, new Vector3( 500, 0, 0 ) );
+
+		var buffer = new PhysicsBody[8];
+		var written = scene.FindBodiesInPhysics( new Vector3( 100, 0, 0 ), 10f, buffer );
+
+		Assert.AreEqual( 1, written );
+		Assert.IsTrue( buffer[0].IsValid() );
+		Assert.AreEqual( a, buffer[0].GameObject );
+
+		// A buffer smaller than the hit count must not overflow
+		var tiny = new PhysicsBody[1];
+		var clamped = scene.FindBodiesInPhysics( new Vector3( 300, 0, 0 ), 1000f, tiny );
+		Assert.AreEqual( 1, clamped );
+	}
+
+	/// <summary>
 	/// Systems implementing ITraceProvider should contribute hits: Run picks the
 	/// provider's result when it's nearer than physics, ignores it when it's further,
 	/// and RunAll merges it into the sorted result list.
@@ -820,10 +866,7 @@ public class SceneTraceTest
 		// test assembly by default - swap in one that does so TestTraceProviderSystem
 		// gets instantiated for this scene.
 		var oldTypeLibrary = Game.TypeLibrary;
-		var typeLibrary = new Sandbox.Internal.TypeLibrary();
-		typeLibrary.AddAssembly( typeof( ModelRenderer ).Assembly, false );
-		typeLibrary.AddAssembly( typeof( SceneTraceTest ).Assembly, false );
-		Game.TypeLibrary = typeLibrary;
+		Game.TypeLibrary = SharedTypeLibrary.EngineAndTests;
 
 		try
 		{

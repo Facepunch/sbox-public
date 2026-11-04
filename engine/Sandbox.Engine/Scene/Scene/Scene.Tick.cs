@@ -59,14 +59,14 @@ public partial class Scene : GameObject
 	{
 		// Only tick here if we're an editor scene
 		// The game will tick a game scene!
-		if ( !IsEditor || !IsValid )
+		if ( !IsEditor || !IsValid || IsSuspended )
 			return;
 
 		TimeNow = timeNow;
 		TimeDelta = timeDelta;
 
-		using var timeScope = Time.Scope( TimeNow, TimeDelta );
-		using var gizmoScope = gizmoInstance.Push();
+		using var timeScope = Time.PushScope( TimeNow, TimeDelta );
+		using var gizmoScope = gizmoInstance.PushScope();
 
 		SharedTick();
 
@@ -106,6 +106,7 @@ public partial class Scene : GameObject
 	}
 
 	List<CameraComponent> _cameraViewScratch = new();
+	List<ICameraModifier> _cameraModifierScratch = new();
 
 	/// <summary>
 	/// Composes every enabled camera's view - the one point in the frame where the camera moves.
@@ -118,7 +119,7 @@ public partial class Scene : GameObject
 		_cameraViewScratch.AddRange( Cameras );
 
 		// One sorted modifier set serves every camera this tick.
-		var modifiers = IsEditor ? null : CameraComponent.GatherModifiers( this );
+		var modifiers = IsEditor ? null : CameraComponent.GatherModifiers( this, _cameraModifierScratch );
 
 		foreach ( var camera in _cameraViewScratch )
 		{
@@ -127,9 +128,17 @@ public partial class Scene : GameObject
 
 			camera.ComposeView( modifiers );
 		}
+
+		_cameraModifierScratch.Clear();
 	}
 
 	List<IRenderThread> renderThreadEventTargets = new();
+
+	/// <summary>
+	/// Screen panels in draw order, captured in PreRender(). Sorted here so the render
+	/// thread neither walks the object index nor sorts every frame.
+	/// </summary>
+	internal List<ScreenPanel> renderScreenPanels = new();
 
 	internal void PreRender()
 	{
@@ -138,7 +147,33 @@ public partial class Scene : GameObject
 		renderThreadEventTargets.Clear();
 		GetAll( renderThreadEventTargets );
 
+		renderScreenPanels.Clear();
+		GetAll( renderScreenPanels );
+		SortScreenPanels( renderScreenPanels );
+
 		foreach ( var c in preRenderComponents.EnumerateLocked() ) c.OnPreRenderInternal();
+	}
+
+	/// <summary>
+	/// Sort by ZIndex, keeping scene order for equal ZIndex so overlapping panels draw
+	/// in a predictable order. List.Sort isn't stable; a stable insertion sort is fine
+	/// for the handful of panels a scene has and doesn't allocate.
+	/// </summary>
+	static void SortScreenPanels( List<ScreenPanel> panels )
+	{
+		for ( int i = 1; i < panels.Count; i++ )
+		{
+			var panel = panels[i];
+			int j = i - 1;
+
+			while ( j >= 0 && panels[j].ZIndex > panel.ZIndex )
+			{
+				panels[j + 1] = panels[j];
+				j--;
+			}
+
+			panels[j + 1] = panel;
+		}
 	}
 
 	static Superluminal _updateTimer = new Superluminal( "Scene.Update", Color.Cyan );
@@ -146,6 +181,8 @@ public partial class Scene : GameObject
 	static Superluminal _signalUpdateBones = new Superluminal( "Signal.UpdateBones", Color.Cyan );
 	static Superluminal _signalStarthUpdate = new Superluminal( "Signal.StartUpdate", Color.Cyan );
 	static Superluminal _signalFinishUpdate = new Superluminal( "Signal.FinishUpdate", Color.Cyan );
+
+	Action _internalFixedUpdate;
 
 	private void FixedUpdate()
 	{
@@ -158,7 +195,7 @@ public partial class Scene : GameObject
 			fixedUpdate.Frequency = ProjectSettings.Physics.FixedUpdateFrequency;
 
 			IsFixedUpdate = true;
-			fixedUpdate.Run( InternalFixedUpdate, Time.NowDouble, ProjectSettings.Physics.MaxFixedUpdates );
+			fixedUpdate.Run( _internalFixedUpdate ??= InternalFixedUpdate, Time.NowDouble, ProjectSettings.Physics.MaxFixedUpdates );
 			IsFixedUpdate = false;
 		}
 	}
@@ -224,6 +261,14 @@ public partial class Scene : GameObject
 			}
 		}
 
+		if ( !IsEditor )
+		{
+			using ( PerformanceStats.Timings.Network.Scope() )
+			{
+				SceneNetworkSnapshots();
+			}
+		}
+
 		Scene.RunEvent<ISceneStage>( x => x.End() );
 
 		if ( !IsEditor )
@@ -268,6 +313,8 @@ public partial class Scene : GameObject
 
 	public void GameTick( double timeDelta = 0.1 )
 	{
+		if ( IsSuspended ) return;
+
 		UpdateTime( timeDelta );
 
 		if ( Camera is not null )
@@ -277,8 +324,8 @@ public partial class Scene : GameObject
 			UpdateDefaultListener();
 		}
 
-		using var timeScope = Time.Scope( TimeNow, TimeDelta );
-		using var gizmoScope = gizmoInstance?.Push();
+		using var timeScope = Time.PushScope( TimeNow, TimeDelta );
+		using var gizmoScope = gizmoInstance?.PushScope();
 
 		using ( PerformanceStats.Timings.Async.Scope() )
 		{

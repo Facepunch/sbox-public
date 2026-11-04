@@ -7,7 +7,7 @@ public partial class Scene : GameObject
 	/// </summary>
 	public override void RunEvent<T>( Action<T> action, FindMode find = FindMode.EnabledInSelfAndDescendants )
 	{
-		foreach ( var c in GetAll<T>() )
+		foreach ( var c in Query<T>() )
 		{
 			try
 			{

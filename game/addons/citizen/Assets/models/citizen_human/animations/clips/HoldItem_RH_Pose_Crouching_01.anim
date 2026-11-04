@@ -1,0 +1,24 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:generic:version{7412167c-06e9-4698-aff2-e63eb59037e7} -->
+{
+	_class = "CClipDocument"
+	m_sourceFilename = "models/citizen_human/animations/retargeted/weapons/human@holditem_rh_pose_crouching_01.fbx"
+	m_animationSkeletonName = "models/citizen_human/animgraphs/human.skel"
+	m_nTake = 0
+	m_nStartFrame = -1
+	m_nEndFrame = -1
+	m_flImportScale = 1
+	m_additiveType = "None"
+	m_alignToClipFilename = "models/citizen_human/animations/rust@crouch_idle.fbx"
+	m_alignBone = "pelvis"
+	m_alignFrameType = "Number"
+	m_alignToFrameType = "Number"
+	m_nAlignFrameIdx = 0
+	m_nAlignToFrameIdx = 0
+	m_bAlignTX = true
+	m_bAlignTY = true
+	m_bAlignTZ = false
+	m_bAlignRX = false
+	m_bAlignRY = false
+	m_bAlignRZ = false
+	m_flImportFrameRate = -1
+}

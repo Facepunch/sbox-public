@@ -1,0 +1,908 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:animgraph2:version{0f7898b8-5471-45c4-9867-cd9c46bcfdb5} -->
+{
+	_class = "CAnimationSubGraph"
+	m_nodeManager =
+	{
+		_class = "CAnimNodeManager"
+		m_nodes =
+		[
+			{
+				key =
+				{
+					m_id = 6197018
+				}
+				value =
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "Punching poses"
+					m_vecPosition = [ 1440.0, 448.0 ]
+					m_nNodeID =
+					{
+						m_id = 6197018
+					}
+					m_sNote = "Absolute pose outputs feed center-pose selection and the shared compositor. Pose with breathing is still an absolute pose; the pelvis output is an additive delta. Preserve output IDs and existing timing/reset behavior."
+					m_inputNodeID =
+					{
+						m_id = 73105995
+					}
+					m_outputNodeID =
+					{
+						m_id = 1598702237
+					}
+					m_inputConnectionMap = [  ]
+					m_subGraphFilename = "models/citizen/subgraphs/citizen_holdtype_punch.vsubgrph"
+				}
+			},
+			{
+				key =
+				{
+					m_id = 57626763
+				}
+				value =
+				{
+					_class = "CSubtractAnimNode"
+					m_sName = "Build center-pose delta"
+					m_vecPosition = [ 2640.0, 0.0 ]
+					m_nNodeID =
+					{
+						m_id = 57626763
+					}
+					m_sNote = "Subtract the weaponless center reference from the selected absolute holdtype pose. Only this delta is added to the ground locomotion blendspaces."
+					m_baseInputConnection =
+					{
+						m_nodeID =
+						{
+							m_id = 2041856836
+						}
+						m_outputID =
+						{
+							m_id = 4294967295
+						}
+					}
+					m_subtractInputConnection =
+					{
+						m_nodeID =
+						{
+							m_id = 1166763061
+						}
+						m_outputID =
+						{
+							m_id = 1544598675
+						}
+					}
+					m_timingBehavior = "UseChild1"
+					m_flTimingBlend = 0.5
+					m_footMotionTiming = "Child1"
+					m_bResetBase = true
+					m_bResetSubtract = true
+					m_bApplyChannelsSeparately = true
+					m_bModelSpace = false
+				}
+			},
+			{
+				key =
+				{
+					m_id = 283342228
+				}
+				value =
+				{
+					_class = "CCommentAnimNode"
+					m_sName = "The problem with the center of 2D Blendspaces: we can't change them dynamically..."
+					m_vecPosition = [ 0.0, 1536.0 ]
+					m_nNodeID =
+					{
+						m_id = 283342228
+					}
+					m_sNote = ""
+					m_commentText = "In order to blend between being idle & moving around smoothly, we want the \"central pose\" of the movement 2D blendspaces (above us, in Section 02) to always match the pose that each holdtype branch is outputting.\n\nBut here's the big problem with this: we can't hook into 2D blendspace nodes to change their central pose...\n\nWe could maintain a different version of all movement 2D blendspaces for each new \"central pose\" — but that would be a fool's errand that'd quickly spiral out of control, and wouldn't even work in most cases. Besides, two of the biggest goals of this graph are to 1) allow easy extensibility, and 2) minimize the amount of work you have to do to add a new holdtype (or sub-variants)\n\nSo, to effectively \"override\" the \"central poses\" of the movement 2D blendspaces with new ones, we could \"fade in\" the different ones by using 1D blendspaces that modulate based on movement speed, because speed is effectively \"distance from center\" in these 2D blendspaces. This would be a decent implementation for most purposes. However, it has a subtle downside: the movement of footsteps would become more and more inaccurate as we approach 0 speed."
+					m_size = [ 864.0, 576.0 ]
+					m_color = [ 0, 50, 150, 255 ]
+				}
+			},
+			{
+				key =
+				{
+					m_id = 540852784
+				}
+				value =
+				{
+					_class = "CCommentAnimNode"
+					m_sName = "Simplification of \"pre-composite\" outputs?"
+					m_vecPosition = [ 1008.0, 1536.0 ]
+					m_nNodeID =
+					{
+						m_id = 540852784
+					}
+					m_sNote = ""
+					m_commentText = "A bunch of work can probably be had here to explain—or outright simplify—the need for three different outputs; this is caused by the interaction between the needs of the \"center delta\" and the additive breathing. Sorry, this is a bit confusing (including to myself) and was more of a stopgap solution to keep additive breathing working while I was renovating the center delta section."
+					m_size = [ 704.0, 208.0 ]
+					m_color = [ 178, 34, 34, 255 ]
+				}
+			},
+			{
+				key =
+				{
+					m_id = 792409217
+				}
+				value =
+				{
+					_class = "CCommentAnimNode"
+					m_sName = "What are holdtypes / weapon branches"
+					m_vecPosition = [ 2016.0, 1536.0 ]
+					m_nNodeID =
+					{
+						m_id = 792409217
+					}
+					m_sNote = ""
+					m_commentText = "Holdtypes are how something is held... usually a weapon.\n\nRight now, they are specifically reference weapons.\n\nThe LONG-TERM GOAL is to have fewer, but more universal+configurable types. Think something like selecting 1-handed vs 2-handed, which kind of attack and reload animations (if any) there should be, and how the pose should be (with hand poses and such also being configurable)\n\nThis way, it reduces the likelihood that someone would have to make extensive changes for their gamemode. The more use cases can be comfortably covered by this \"base\", the better."
+					m_size = [ 576.0, 544.0 ]
+					m_color = [ 100, 0, 50, 255 ]
+				}
+			},
+			{
+				key =
+				{
+					m_id = 998970008
+				}
+				value =
+				{
+					_class = "CCommentAnimNode"
+					m_sName = "Center delta"
+					m_vecPosition = [ 0.0, 2416.0 ]
+					m_nNodeID =
+					{
+						m_id = 998970008
+					}
+					m_sNote = ""
+					m_commentText = ""
+					m_size = [ 384.0, 32.0 ]
+					m_color = [ 0, 50, 150, 255 ]
+				}
+			},
+			{
+				key =
+				{
+					m_id = 1166763061
+				}
+				value =
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "Weaponless poses"
+					m_vecPosition = [ 0.0, 0.0 ]
+					m_nNodeID =
+					{
+						m_id = 1166763061
+					}
+					m_sNote = "Absolute weaponless poses. The center reference is subtracted from the selected holdtype pose to form the locomotion center-pose delta."
+					m_inputNodeID =
+					{
+						m_id = 2039850548
+					}
+					m_outputNodeID =
+					{
+						m_id = 2073354166
+					}
+					m_inputConnectionMap = [  ]
+					m_subGraphFilename = "models/citizen/subgraphs/citizen_holdtype_none.vsubgrph"
+				}
+			},
+			{
+				key =
+				{
+					m_id = 1311503302
+				}
+				value =
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "Pistol poses"
+					m_vecPosition = [ 720.0, 0.0 ]
+					m_nNodeID =
+					{
+						m_id = 1311503302
+					}
+					m_sNote = "Absolute pose outputs feed center-pose selection and the shared compositor. Pose with breathing is still an absolute pose; the pelvis output is an additive delta. Preserve output IDs and existing timing/reset behavior."
+					m_inputNodeID =
+					{
+						m_id = 73105995
+					}
+					m_outputNodeID =
+					{
+						m_id = 1598702237
+					}
+					m_inputConnectionMap = [  ]
+					m_subGraphFilename = "models/citizen/subgraphs/citizen_holdtype_pistol.vsubgrph"
+				}
+			},
+			{
+				key =
+				{
+					m_id = 1423286466
+				}
+				value =
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "Rifle poses"
+					m_vecPosition = [ 1440.0, 0.0 ]
+					m_nNodeID =
+					{
+						m_id = 1423286466
+					}
+					m_sNote = "Absolute pose outputs feed center-pose selection and the shared compositor. Pose with breathing is still an absolute pose; the pelvis output is an additive delta. Preserve output IDs and existing timing/reset behavior."
+					m_inputNodeID =
+					{
+						m_id = 73105995
+					}
+					m_outputNodeID =
+					{
+						m_id = 1598702237
+					}
+					m_inputConnectionMap = [  ]
+					m_subGraphFilename = "models/citizen/subgraphs/citizen_holdtype_rifle.vsubgrph"
+				}
+			},
+			{
+				key =
+				{
+					m_id = 1425406740
+				}
+				value =
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "Physgun poses"
+					m_vecPosition = [ 1440.0, 896.0 ]
+					m_nNodeID =
+					{
+						m_id = 1425406740
+					}
+					m_sNote = "Absolute pose outputs feed center-pose selection and the shared compositor. Pose with breathing is still an absolute pose; the pelvis output is an additive delta. Preserve output IDs and existing timing/reset behavior."
+					m_inputNodeID =
+					{
+						m_id = 73105995
+					}
+					m_outputNodeID =
+					{
+						m_id = 1598702237
+					}
+					m_inputConnectionMap = [  ]
+					m_subGraphFilename = "models/citizen/subgraphs/citizen_holdtype_physgun.vsubgrph"
+				}
+			},
+			{
+				key =
+				{
+					m_id = 1497193363
+				}
+				value =
+				{
+					_class = "CCommentAnimNode"
+					m_sName = "The 'center delta' solution: changing center poses additively!"
+					m_vecPosition = [ 1008.0, 2416.0 ]
+					m_nNodeID =
+					{
+						m_id = 1497193363
+					}
+					m_sNote = ""
+					m_commentText = "Instead, the ideal solution is to do exactly that... but with delta animation! (Delta meaning additive in this context.)\n\nAn additive is computed from the difference between the default set of center poses (the ones at the center of each 2D Blend) and the current center pose (from the output of the current holdtype branch), and that additive gets progressively added as the movement speed approaches 0.\n\nAs an added bonus, it can get dampened with slightly different values from the 2D Blendspace's own damping, helping make the animation feel a bit more natural.\n\nAnd because this is completely additive, you can have the 2D blendspace set to e.g. a mere quarter of the way between idle & walking, and you'll continue seeing appropriately-sized tiny strides that start from whichever position the holdtype has your legs in!"
+					m_size = [ 640.0, 576.0 ]
+					m_color = [ 0, 50, 150, 255 ]
+				}
+			},
+			{
+				key =
+				{
+					m_id = 1511144673
+				}
+				value =
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "RPG poses"
+					m_vecPosition = [ 720.0, 896.0 ]
+					m_nNodeID =
+					{
+						m_id = 1511144673
+					}
+					m_sNote = "Absolute pose outputs feed center-pose selection and the shared compositor. Pose with breathing is still an absolute pose; the pelvis output is an additive delta. Preserve output IDs and existing timing/reset behavior."
+					m_inputNodeID =
+					{
+						m_id = 73105995
+					}
+					m_outputNodeID =
+					{
+						m_id = 1598702237
+					}
+					m_inputConnectionMap = [  ]
+					m_subGraphFilename = "models/citizen/subgraphs/citizen_holdtype_rpg.vsubgrph"
+				}
+			},
+			{
+				key =
+				{
+					m_id = 1534474284
+				}
+				value =
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "Held item poses"
+					m_vecPosition = [ 720.0, 448.0 ]
+					m_nNodeID =
+					{
+						m_id = 1534474284
+					}
+					m_sNote = "Absolute pose outputs feed center-pose selection and the shared compositor. Pose with breathing is still an absolute pose; the pelvis output is an additive delta. Preserve output IDs and existing timing/reset behavior."
+					m_inputNodeID =
+					{
+						m_id = 1135720626
+					}
+					m_outputNodeID =
+					{
+						m_id = 2101085113
+					}
+					m_inputConnectionMap = [  ]
+					m_subGraphFilename = "models/citizen/subgraphs/citizen_holdtype_item.vsubgrph"
+				}
+			},
+			{
+				key =
+				{
+					m_id = 1767931671
+				}
+				value =
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "Shotgun poses"
+					m_vecPosition = [ 0.0, 448.0 ]
+					m_nNodeID =
+					{
+						m_id = 1767931671
+					}
+					m_sNote = "Absolute pose outputs feed center-pose selection and the shared compositor. Pose with breathing is still an absolute pose; the pelvis output is an additive delta. Preserve output IDs and existing timing/reset behavior."
+					m_inputNodeID =
+					{
+						m_id = 73105995
+					}
+					m_outputNodeID =
+					{
+						m_id = 1598702237
+					}
+					m_inputConnectionMap = [  ]
+					m_subGraphFilename = "models/citizen/subgraphs/citizen_holdtype_shotgun.vsubgrph"
+				}
+			},
+			{
+				key =
+				{
+					m_id = 1785142846
+				}
+				value =
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "Melee weapons poses"
+					m_vecPosition = [ 0.0, 896.0 ]
+					m_nNodeID =
+					{
+						m_id = 1785142846
+					}
+					m_sNote = "Absolute pose outputs feed center-pose selection and the shared compositor. Pose with breathing is still an absolute pose; the pelvis output is an additive delta. Preserve output IDs and existing timing/reset behavior."
+					m_inputNodeID =
+					{
+						m_id = 73105995
+					}
+					m_outputNodeID =
+					{
+						m_id = 1598702237
+					}
+					m_inputConnectionMap = [  ]
+					m_subGraphFilename = "models/citizen/subgraphs/citizen_holdtype_melee.vsubgrph"
+				}
+			},
+			{
+				key =
+				{
+					m_id = 2041856836
+				}
+				value =
+				{
+					_class = "CSelectorAnimNode"
+					m_sName = "Holdtype - Central Poses"
+					m_vecPosition = [ 2240.0, 0.0 ]
+					m_nNodeID =
+					{
+						m_id = 2041856836
+					}
+					m_sNote = ""
+					m_children =
+					[
+						{
+							m_nodeID =
+							{
+								m_id = 1166763061
+							}
+							m_outputID =
+							{
+								m_id = 711010685
+							}
+						},
+						{
+							m_nodeID =
+							{
+								m_id = 1311503302
+							}
+							m_outputID =
+							{
+								m_id = 1163963310
+							}
+						},
+						{
+							m_nodeID =
+							{
+								m_id = 1423286466
+							}
+							m_outputID =
+							{
+								m_id = 1963795575
+							}
+						},
+						{
+							m_nodeID =
+							{
+								m_id = 1767931671
+							}
+							m_outputID =
+							{
+								m_id = 1163963310
+							}
+						},
+						{
+							m_nodeID =
+							{
+								m_id = 1534474284
+							}
+							m_outputID =
+							{
+								m_id = 1466705675
+							}
+						},
+						{
+							m_nodeID =
+							{
+								m_id = 6197018
+							}
+							m_outputID =
+							{
+								m_id = 1163963310
+							}
+						},
+						{
+							m_nodeID =
+							{
+								m_id = 1785142846
+							}
+							m_outputID =
+							{
+								m_id = 1163963310
+							}
+						},
+						{
+							m_nodeID =
+							{
+								m_id = 1511144673
+							}
+							m_outputID =
+							{
+								m_id = 1163963310
+							}
+						},
+						{
+							m_nodeID =
+							{
+								m_id = 1425406740
+							}
+							m_outputID =
+							{
+								m_id = 1163963310
+							}
+						},
+					]
+					m_tags =
+					[
+						{
+							m_id = 4294967295
+						},
+						{
+							m_id = 4294967295
+						},
+						{
+							m_id = 4294967295
+						},
+						{
+							m_id = 4294967295
+						},
+						{
+							m_id = 4294967295
+						},
+						{
+							m_id = 4294967295
+						},
+						{
+							m_id = 4294967295
+						},
+						{
+							m_id = 4294967295
+						},
+						{
+							m_id = 4294967295
+						},
+					]
+					m_selectionSource = "SelectionSource_Enum"
+					m_boolParamID =
+					{
+						m_id = 4294967295
+					}
+					m_enumParamID =
+					{
+						m_id = 1322758033
+					}
+					m_intParamID =
+					{
+						m_id = 4294967295
+					}
+					m_intParamMinValue = 0
+					m_intParamMaxValue = 2
+					m_blendDuration = 0.3
+					m_tagBehavior = "SelectorTagBehavior_OffWhenFinished"
+					m_bResetOnChange = true
+					m_bSyncCyclesOnChange = false
+					m_blendCurve =
+					{
+						m_vControlPoint1 = [ 0.259259, 0.0 ]
+						m_vControlPoint2 = [ 0.12963, 1.0 ]
+					}
+					m_intParamNames = [  ]
+				}
+			},
+			{
+				key =
+				{
+					m_id = 2100000006
+				}
+				value =
+				{
+					_class = "CGroupInputAnimNode"
+					m_sName = "Stage inputs"
+					m_vecPosition = [ -416.0, 0.0 ]
+					m_nNodeID =
+					{
+						m_id = 2100000006
+					}
+					m_sNote = ""
+					m_proxyItems = [  ]
+				}
+			},
+			{
+				key =
+				{
+					m_id = 2100000012
+				}
+				value =
+				{
+					_class = "CGroupOutputAnimNode"
+					m_sName = "Stage outputs"
+					m_vecPosition = [ 3040.0, 0.0 ]
+					m_nNodeID =
+					{
+						m_id = 2100000012
+					}
+					m_sNote = ""
+					m_proxyItems =
+					[
+						{
+							m_name = "Shotgun / Aim pose"
+							m_outputID =
+							{
+								m_id = 2100000024
+							}
+							m_inputConnection =
+							{
+								m_nodeID =
+								{
+									m_id = 1767931671
+								}
+								m_outputID =
+								{
+									m_id = 2135496084
+								}
+							}
+						},
+						{
+							m_name = "Shotgun / Pelvis delta"
+							m_outputID =
+							{
+								m_id = 2100000025
+							}
+							m_inputConnection =
+							{
+								m_nodeID =
+								{
+									m_id = 1767931671
+								}
+								m_outputID =
+								{
+									m_id = 1557590250
+								}
+							}
+						},
+						{
+							m_name = "Center-pose delta"
+							m_outputID =
+							{
+								m_id = 2100000026
+							}
+							m_inputConnection =
+							{
+								m_nodeID =
+								{
+									m_id = 57626763
+								}
+								m_outputID =
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+						{
+							m_name = "RPG / Aim pose"
+							m_outputID =
+							{
+								m_id = 2100000032
+							}
+							m_inputConnection =
+							{
+								m_nodeID =
+								{
+									m_id = 1511144673
+								}
+								m_outputID =
+								{
+									m_id = 2135496084
+								}
+							}
+						},
+						{
+							m_name = "RPG / Pelvis delta"
+							m_outputID =
+							{
+								m_id = 2100000033
+							}
+							m_inputConnection =
+							{
+								m_nodeID =
+								{
+									m_id = 1511144673
+								}
+								m_outputID =
+								{
+									m_id = 1557590250
+								}
+							}
+						},
+						{
+							m_name = "Physgun / Aim pose"
+							m_outputID =
+							{
+								m_id = 2100000038
+							}
+							m_inputConnection =
+							{
+								m_nodeID =
+								{
+									m_id = 1425406740
+								}
+								m_outputID =
+								{
+									m_id = 2135496084
+								}
+							}
+						},
+						{
+							m_name = "Physgun / Pelvis delta"
+							m_outputID =
+							{
+								m_id = 2100000039
+							}
+							m_inputConnection =
+							{
+								m_nodeID =
+								{
+									m_id = 1425406740
+								}
+								m_outputID =
+								{
+									m_id = 1557590250
+								}
+							}
+						},
+						{
+							m_name = "Melee punching / Aim pose"
+							m_outputID =
+							{
+								m_id = 2100000045
+							}
+							m_inputConnection =
+							{
+								m_nodeID =
+								{
+									m_id = 6197018
+								}
+								m_outputID =
+								{
+									m_id = 2135496084
+								}
+							}
+						},
+						{
+							m_name = "Melee punching / Pelvis delta"
+							m_outputID =
+							{
+								m_id = 2100000046
+							}
+							m_inputConnection =
+							{
+								m_nodeID =
+								{
+									m_id = 6197018
+								}
+								m_outputID =
+								{
+									m_id = 1557590250
+								}
+							}
+						},
+						{
+							m_name = "Rifle / Aim pose"
+							m_outputID =
+							{
+								m_id = 2100000047
+							}
+							m_inputConnection =
+							{
+								m_nodeID =
+								{
+									m_id = 1423286466
+								}
+								m_outputID =
+								{
+									m_id = 2135496084
+								}
+							}
+						},
+						{
+							m_name = "Rifle / Pelvis delta"
+							m_outputID =
+							{
+								m_id = 2100000048
+							}
+							m_inputConnection =
+							{
+								m_nodeID =
+								{
+									m_id = 1423286466
+								}
+								m_outputID =
+								{
+									m_id = 1557590250
+								}
+							}
+						},
+						{
+							m_name = "Universal item hold / Aim pose"
+							m_outputID =
+							{
+								m_id = 2100000049
+							}
+							m_inputConnection =
+							{
+								m_nodeID =
+								{
+									m_id = 1534474284
+								}
+								m_outputID =
+								{
+									m_id = 1721810496
+								}
+							}
+						},
+						{
+							m_name = "Melee weapons / Aim pose"
+							m_outputID =
+							{
+								m_id = 2100000050
+							}
+							m_inputConnection =
+							{
+								m_nodeID =
+								{
+									m_id = 1785142846
+								}
+								m_outputID =
+								{
+									m_id = 2135496084
+								}
+							}
+						},
+						{
+							m_name = "Melee weapons / Pelvis delta"
+							m_outputID =
+							{
+								m_id = 2100000051
+							}
+							m_inputConnection =
+							{
+								m_nodeID =
+								{
+									m_id = 1785142846
+								}
+								m_outputID =
+								{
+									m_id = 1557590250
+								}
+							}
+						},
+						{
+							m_name = "Pistol / Aim pose"
+							m_outputID =
+							{
+								m_id = 2100000055
+							}
+							m_inputConnection =
+							{
+								m_nodeID =
+								{
+									m_id = 1311503302
+								}
+								m_outputID =
+								{
+									m_id = 2135496084
+								}
+							}
+						},
+						{
+							m_name = "Pistol / Pelvis delta"
+							m_outputID =
+							{
+								m_id = 2100000056
+							}
+							m_inputConnection =
+							{
+								m_nodeID =
+								{
+									m_id = 1311503302
+								}
+								m_outputID =
+								{
+									m_id = 1557590250
+								}
+							}
+						},
+					]
+				}
+			},
+		]
+	}
+	m_localParameters =
+	[
+		{
+			_class = "CEnumAnimParameter"
+			m_name = "holdtype"
+			m_id =
+			{
+				m_id = 1322758033
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = true
+			m_bAutoReset = false
+			m_defaultValue = 0
+			m_enumOptions = [ "none", "pistol", "rifle", "shotgun", "holditem", "melee_punch", "melee_weapons", "rpg", "physgun" ]
+		},
+	]
+	m_localTags = [  ]
+}

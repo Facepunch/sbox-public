@@ -1,0 +1,879 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:animgraph2:version{0f7898b8-5471-45c4-9867-cd9c46bcfdb5} -->
+{
+	_class = "CAnimationSubGraph"
+	m_nodeManager = 
+	{
+		_class = "CAnimNodeManager"
+		m_nodes = 
+		[
+			{
+				key = 
+				{
+					m_id = 83108677
+				}
+				value = 
+				{
+					_class = "CSequenceAnimNode"
+					m_sName = "Unnamed"
+					m_vecPosition = [ -832.0, -320.0 ]
+					m_nNodeID = 
+					{
+						m_id = 83108677
+					}
+					m_sNote = "This is a subtle idle layer that plays on top of everything else, which adds very small eye motions. The delta is precomputed in ModelDoc."
+					m_tagSpans = [  ]
+					m_sequenceName = "Eyes_Darts_delta"
+					m_playbackSpeed = 1.0
+					m_bLoop = true
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 159903924
+				}
+				value = 
+				{
+					_class = "CGroupOutputAnimNode"
+					m_sName = "Adjusted pose"
+					m_vecPosition = [ 832.0, 0.0 ]
+					m_nNodeID = 
+					{
+						m_id = 159903924
+					}
+					m_sNote = ""
+					m_proxyItems = 
+					[
+						{
+							m_name = "In"
+							m_outputID = 
+							{
+								m_id = 115577241
+							}
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 1925870048
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 234218107
+				}
+				value = 
+				{
+					_class = "CBoneMaskAnimNode"
+					m_sName = "Unnamed"
+					m_vecPosition = [ 192.0, 512.0 ]
+					m_nNodeID = 
+					{
+						m_id = 234218107
+					}
+					m_sNote = ""
+					m_weightListName = "EyeAM"
+					m_inputConnection1 = 
+					{
+						m_nodeID = 
+						{
+							m_id = 1022884264
+						}
+						m_outputID = 
+						{
+							m_id = 4294967295
+						}
+					}
+					m_inputConnection2 = 
+					{
+						m_nodeID = 
+						{
+							m_id = 2068284175
+						}
+						m_outputID = 
+						{
+							m_id = 4294967295
+						}
+					}
+					m_blendSpace = "BlendSpace_Parent"
+					m_bUseBlendScale = false
+					m_blendValueSource = "Parameter"
+					m_blendParameter = 
+					{
+						m_id = 4294967295
+					}
+					m_timingBehavior = "UseChild2"
+					m_flTimingBlend = 0.5
+					m_flRootMotionBlend = 0.0
+					m_footMotionTiming = "Child1"
+					m_bResetChild1 = true
+					m_bResetChild2 = true
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 621484906
+				}
+				value = 
+				{
+					_class = "CAimMatrixAnimNode"
+					m_sName = "Left eye aim matrix"
+					m_vecPosition = [ -192.0, -176.0 ]
+					m_nNodeID = 
+					{
+						m_id = 621484906
+					}
+					m_sNote = ""
+					m_inputConnection = 
+					{
+						m_nodeID = 
+						{
+							m_id = 1516170337
+						}
+						m_outputID = 
+						{
+							m_id = 4294967295
+						}
+					}
+					m_sequenceName = "Eyes_AimMatrix"
+					m_fAngleIncrement = 50.0
+					m_bCanLookStraightDown = false
+					m_target = "VectorParameter"
+					m_param = 
+					{
+						m_id = 1722198213
+					}
+					m_attachmentName = "eye_L_forward"
+					m_blendMode = "AimMatrixBlendMode_BoneMask"
+					m_boneMaskName = "EyeAM_L"
+					m_bResetBase = true
+					m_bLockWhenWaning = true
+					m_damping = 
+					{
+						_class = "CAnimInputDamping"
+						m_speedFunction = "NoDamping"
+						m_fSpeedScale = 40.0
+						m_fMinSpeed = 0.0
+						m_fMaxTension = 1000.0
+						m_fTension = 100.0
+						m_fDamping = 5.0
+					}
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 657611165
+				}
+				value = 
+				{
+					_class = "CCommentAnimNode"
+					m_sName = "Darts"
+					m_vecPosition = [ 576.0, -320.0 ]
+					m_nNodeID = 
+					{
+						m_id = 657611165
+					}
+					m_sNote = ""
+					m_commentText = "It\'s a bit inelegant but the eye darts are now cloned so that the human version can have them interact properly with the morphs.\n\nThey\'re also doubled up there because the aim matrices weaken them."
+					m_size = [ 368.0, 288.0 ]
+					m_color = [ 49, 139, 146, 255 ]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 708006518
+				}
+				value = 
+				{
+					_class = "CGroupInputAnimNode"
+					m_sName = "Incoming pose"
+					m_vecPosition = [ -832.0, 176.0 ]
+					m_nNodeID = 
+					{
+						m_id = 708006518
+					}
+					m_sNote = ""
+					m_proxyItems = 
+					[
+						{
+							m_name = "Out"
+							m_outputID = 
+							{
+								m_id = 1981291777
+							}
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 4294967295
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 855123086
+				}
+				value = 
+				{
+					_class = "CCommentAnimNode"
+					m_sName = "Eye look management off..."
+					m_vecPosition = [ 432.0, 448.0 ]
+					m_nNodeID = 
+					{
+						m_id = 855123086
+					}
+					m_sNote = ""
+					m_commentText = "Note the aim matrices down here are the same, except they have the parameter unhooked from them. That way, animation that takes control of the eyes still gets to enjoy the eyelid morphs reacting."
+					m_size = [ 368.0, 160.0 ]
+					m_color = [ 72, 61, 139, 255 ]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 971795499
+				}
+				value = 
+				{
+					_class = "CAimMatrixAnimNode"
+					m_sName = "Right eye aim matrix"
+					m_vecPosition = [ -32.0, -176.0 ]
+					m_nNodeID = 
+					{
+						m_id = 971795499
+					}
+					m_sNote = ""
+					m_inputConnection = 
+					{
+						m_nodeID = 
+						{
+							m_id = 621484906
+						}
+						m_outputID = 
+						{
+							m_id = 4294967295
+						}
+					}
+					m_sequenceName = "Eyes_AimMatrix"
+					m_fAngleIncrement = 50.0
+					m_bCanLookStraightDown = false
+					m_target = "VectorParameter"
+					m_param = 
+					{
+						m_id = 1722198213
+					}
+					m_attachmentName = "eye_R_forward"
+					m_blendMode = "AimMatrixBlendMode_BoneMask"
+					m_boneMaskName = "EyeAM_R"
+					m_bResetBase = true
+					m_bLockWhenWaning = true
+					m_damping = 
+					{
+						_class = "CAnimInputDamping"
+						m_speedFunction = "NoDamping"
+						m_fSpeedScale = 40.0
+						m_fMinSpeed = 0.0
+						m_fMaxTension = 1000.0
+						m_fTension = 100.0
+						m_fDamping = 5.0
+					}
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 977411723
+				}
+				value = 
+				{
+					_class = "CAimMatrixAnimNode"
+					m_sName = "Left eye aim matrix"
+					m_vecPosition = [ -144.0, 560.0 ]
+					m_nNodeID = 
+					{
+						m_id = 977411723
+					}
+					m_sNote = ""
+					m_inputConnection = 
+					{
+						m_nodeID = 
+						{
+							m_id = 1022884264
+						}
+						m_outputID = 
+						{
+							m_id = 4294967295
+						}
+					}
+					m_sequenceName = "Eyes_AimMatrix"
+					m_fAngleIncrement = 50.0
+					m_bCanLookStraightDown = false
+					m_target = "VectorParameter"
+					m_param = 
+					{
+						m_id = 4294967295
+					}
+					m_attachmentName = "eye_L_forward"
+					m_blendMode = "AimMatrixBlendMode_BoneMask"
+					m_boneMaskName = "EyeAM_L"
+					m_bResetBase = true
+					m_bLockWhenWaning = true
+					m_damping = 
+					{
+						_class = "CAnimInputDamping"
+						m_speedFunction = "NoDamping"
+						m_fSpeedScale = 40.0
+						m_fMinSpeed = 0.0
+						m_fMaxTension = 1000.0
+						m_fTension = 100.0
+						m_fDamping = 5.0
+					}
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1022884264
+				}
+				value = 
+				{
+					_class = "CAddAnimNode"
+					m_sName = "Add (eye darts)"
+					m_vecPosition = [ -352.0, 512.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1022884264
+					}
+					m_sNote = ""
+					m_baseInput = 
+					{
+						m_nodeID = 
+						{
+							m_id = 1326644959
+						}
+						m_outputID = 
+						{
+							m_id = 4294967295
+						}
+					}
+					m_additiveInput = 
+					{
+						m_nodeID = 
+						{
+							m_id = 1824624170
+						}
+						m_outputID = 
+						{
+							m_id = 4294967295
+						}
+					}
+					m_timingBehavior = "UseChild1"
+					m_flTimingBlend = 0.5
+					m_footMotionTiming = "Child1"
+					m_bResetBase = true
+					m_bResetAdditive = true
+					m_bApplyChannelsSeparately = true
+					m_bModelSpace = false
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1326644959
+				}
+				value = 
+				{
+					_class = "CSequenceAnimNode"
+					m_sName = "Unnamed"
+					m_vecPosition = [ -832.0, 512.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1326644959
+					}
+					m_sNote = "This is a subtle idle layer that plays on top of everything else, which adds very small eye motions. The delta is precomputed in ModelDoc."
+					m_tagSpans = [  ]
+					m_sequenceName = "Eyes_Darts_delta"
+					m_playbackSpeed = 1.0
+					m_bLoop = true
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1404046529
+				}
+				value = 
+				{
+					_class = "CAddAnimNode"
+					m_sName = "Add (eye darts)"
+					m_vecPosition = [ -640.0, -256.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1404046529
+					}
+					m_sNote = ""
+					m_baseInput = 
+					{
+						m_nodeID = 
+						{
+							m_id = 708006518
+						}
+						m_outputID = 
+						{
+							m_id = 1981291777
+						}
+					}
+					m_additiveInput = 
+					{
+						m_nodeID = 
+						{
+							m_id = 83108677
+						}
+						m_outputID = 
+						{
+							m_id = 4294967295
+						}
+					}
+					m_timingBehavior = "UseChild1"
+					m_flTimingBlend = 0.5
+					m_footMotionTiming = "Child1"
+					m_bResetBase = true
+					m_bResetAdditive = true
+					m_bApplyChannelsSeparately = true
+					m_bModelSpace = false
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1501235642
+				}
+				value = 
+				{
+					_class = "CBoneMaskAnimNode"
+					m_sName = "Unnamed"
+					m_vecPosition = [ 128.0, -320.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1501235642
+					}
+					m_sNote = ""
+					m_weightListName = "EyeAM"
+					m_inputConnection1 = 
+					{
+						m_nodeID = 
+						{
+							m_id = 1516170337
+						}
+						m_outputID = 
+						{
+							m_id = 4294967295
+						}
+					}
+					m_inputConnection2 = 
+					{
+						m_nodeID = 
+						{
+							m_id = 971795499
+						}
+						m_outputID = 
+						{
+							m_id = 4294967295
+						}
+					}
+					m_blendSpace = "BlendSpace_Parent"
+					m_bUseBlendScale = false
+					m_blendValueSource = "Parameter"
+					m_blendParameter = 
+					{
+						m_id = 4294967295
+					}
+					m_timingBehavior = "UseChild2"
+					m_flTimingBlend = 0.5
+					m_flRootMotionBlend = 0.0
+					m_footMotionTiming = "Child1"
+					m_bResetChild1 = true
+					m_bResetChild2 = true
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1516170337
+				}
+				value = 
+				{
+					_class = "CAddAnimNode"
+					m_sName = "Add (eye darts)"
+					m_vecPosition = [ -368.0, -320.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1516170337
+					}
+					m_sNote = ""
+					m_baseInput = 
+					{
+						m_nodeID = 
+						{
+							m_id = 83108677
+						}
+						m_outputID = 
+						{
+							m_id = 4294967295
+						}
+					}
+					m_additiveInput = 
+					{
+						m_nodeID = 
+						{
+							m_id = 1404046529
+						}
+						m_outputID = 
+						{
+							m_id = 4294967295
+						}
+					}
+					m_timingBehavior = "UseChild1"
+					m_flTimingBlend = 0.5
+					m_footMotionTiming = "Child1"
+					m_bResetBase = true
+					m_bResetAdditive = true
+					m_bApplyChannelsSeparately = true
+					m_bModelSpace = false
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1824624170
+				}
+				value = 
+				{
+					_class = "CAddAnimNode"
+					m_sName = "Add (eye darts)"
+					m_vecPosition = [ -560.0, 576.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1824624170
+					}
+					m_sNote = ""
+					m_baseInput = 
+					{
+						m_nodeID = 
+						{
+							m_id = 708006518
+						}
+						m_outputID = 
+						{
+							m_id = 1981291777
+						}
+					}
+					m_additiveInput = 
+					{
+						m_nodeID = 
+						{
+							m_id = 1326644959
+						}
+						m_outputID = 
+						{
+							m_id = 4294967295
+						}
+					}
+					m_timingBehavior = "UseChild1"
+					m_flTimingBlend = 0.5
+					m_footMotionTiming = "Child1"
+					m_bResetBase = true
+					m_bResetAdditive = true
+					m_bApplyChannelsSeparately = true
+					m_bModelSpace = false
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1925870048
+				}
+				value = 
+				{
+					_class = "CStateMachineAnimNode"
+					m_sName = "Eye Look management"
+					m_vecPosition = [ 560.0, 0.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1925870048
+					}
+					m_sNote = "Experimental: using the \"time in state\" condition as a way to not have to replicate every single check on one single \"arrow\" going back to \"enabled\""
+					m_states = 
+					[
+						{
+							_class = "CAnimState"
+							m_transitions = 
+							[
+								{
+									_class = "CAnimStateTransition"
+									m_conditions = 
+									[
+										{
+											_class = "CTagCondition"
+											m_comparisonOp = 0
+											m_tagID = 
+											{
+												m_id = 1826470211
+											}
+											m_comparisonValue = true
+										},
+									]
+									m_blendDuration = 0.2
+									m_destState = 
+									{
+										m_id = 1813932654
+									}
+									m_bReset = false
+									m_resetCycleOption = "Beginning"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve = 
+									{
+										m_vControlPoint1 = [ 0.5, 0.0 ]
+										m_vControlPoint2 = [ 0.5, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+								{
+									_class = "CAnimStateTransition"
+									m_conditions = 
+									[
+										{
+											_class = "CTagCondition"
+											m_comparisonOp = 0
+											m_tagID = 
+											{
+												m_id = 1763373061
+											}
+											m_comparisonValue = true
+										},
+									]
+									m_blendDuration = 0.2
+									m_destState = 
+									{
+										m_id = 1813932654
+									}
+									m_bReset = false
+									m_resetCycleOption = "Beginning"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve = 
+									{
+										m_vControlPoint1 = [ 0.5, 0.0 ]
+										m_vControlPoint2 = [ 0.5, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+								{
+									_class = "CAnimStateTransition"
+									m_conditions = 
+									[
+										{
+											_class = "CTagCondition"
+											m_comparisonOp = 0
+											m_tagID = 
+											{
+												m_id = 1866644473
+											}
+											m_comparisonValue = true
+										},
+									]
+									m_blendDuration = 0.2
+									m_destState = 
+									{
+										m_id = 1813932654
+									}
+									m_bReset = false
+									m_resetCycleOption = "Beginning"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve = 
+									{
+										m_vControlPoint1 = [ 0.5, 0.0 ]
+										m_vControlPoint2 = [ 0.5, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+							]
+							m_tags = [  ]
+							m_tagBehaviors = [  ]
+							m_name = "Enabled"
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 1501235642
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+							m_stateID = 
+							{
+								m_id = 1861590128
+							}
+							m_position = [ -80.0, -112.0 ]
+							m_bIsStartState = true
+							m_bIsEndtState = false
+							m_bIsPassthrough = false
+							m_bIsRootMotionExclusive = false
+							m_bAlwaysEvaluate = false
+						},
+						{
+							_class = "CAnimState"
+							m_transitions = 
+							[
+								{
+									_class = "CAnimStateTransition"
+									m_conditions = 
+									[
+										{
+											_class = "CTimeCondition"
+											m_comparisonOp = 3
+											m_comparisonValue = 0.5
+										},
+									]
+									m_blendDuration = 0.2
+									m_destState = 
+									{
+										m_id = 1861590128
+									}
+									m_bReset = false
+									m_resetCycleOption = "Beginning"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve = 
+									{
+										m_vControlPoint1 = [ 0.22, 0.0 ]
+										m_vControlPoint2 = [ 0.0, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+							]
+							m_tags = [  ]
+							m_tagBehaviors = [  ]
+							m_name = "Disabled"
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 234218107
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+							m_stateID = 
+							{
+								m_id = 1813932654
+							}
+							m_position = [ 176.0, -112.0 ]
+							m_bIsStartState = false
+							m_bIsEndtState = false
+							m_bIsPassthrough = false
+							m_bIsRootMotionExclusive = false
+							m_bAlwaysEvaluate = false
+						},
+					]
+					m_bBlockWaningTags = false
+					m_bLockStateWhenWaning = false
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 2068284175
+				}
+				value = 
+				{
+					_class = "CAimMatrixAnimNode"
+					m_sName = "Right eye aim matrix"
+					m_vecPosition = [ 16.0, 560.0 ]
+					m_nNodeID = 
+					{
+						m_id = 2068284175
+					}
+					m_sNote = ""
+					m_inputConnection = 
+					{
+						m_nodeID = 
+						{
+							m_id = 977411723
+						}
+						m_outputID = 
+						{
+							m_id = 4294967295
+						}
+					}
+					m_sequenceName = "Eyes_AimMatrix"
+					m_fAngleIncrement = 50.0
+					m_bCanLookStraightDown = false
+					m_target = "VectorParameter"
+					m_param = 
+					{
+						m_id = 4294967295
+					}
+					m_attachmentName = "eye_R_forward"
+					m_blendMode = "AimMatrixBlendMode_BoneMask"
+					m_boneMaskName = "EyeAM_R"
+					m_bResetBase = true
+					m_bLockWhenWaning = true
+					m_damping = 
+					{
+						_class = "CAnimInputDamping"
+						m_speedFunction = "NoDamping"
+						m_fSpeedScale = 40.0
+						m_fMinSpeed = 0.0
+						m_fMaxTension = 1000.0
+						m_fTension = 100.0
+						m_fDamping = 5.0
+					}
+				}
+			},
+		]
+	}
+	m_localParameters = [  ]
+	m_localTags = [  ]
+}

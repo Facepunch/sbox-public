@@ -1,0 +1,47 @@
+@import "/styles/_front.scss";
+
+JamPage Phase06Crowned
+{
+	.results-content
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		min-height: 0;
+		gap: 16px;
+		padding-bottom: 72px;
+	}
+
+	.winners
+	{
+		flex-shrink: 0;
+		gap: 16px;
+	}
+
+	.winner
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-basis: 0;
+		min-width: 0;
+		gap: 8px;
+
+		.placing
+		{
+			justify-content: space-between;
+			font-family: $front-font;
+			font-weight: 700;
+			color: $front-heading;
+		}
+
+		PackageCard
+		{
+			width: 100%;
+		}
+
+		&.champion .placing
+		{
+			color: $front-trophy;
+		}
+	}
+}

@@ -90,6 +90,16 @@ public partial class DockManager : Widget
 	}
 
 	/// <summary>
+	/// Adds a <see cref="DockWidget"/> as a floating window.
+	/// </summary>
+	public void AddDockFloating( DockWidget widget )
+	{
+		ArgumentNullException.ThrowIfNull( widget );
+
+		_nativeDockManager.addDockWidgetFloating( widget._nativeDockWidget );
+	}
+
+	/// <summary>
 	/// Adds a <see cref="DockWidget"/> into an area relative to an existing dock, splitting its space.
 	/// <see cref="DockArea.Center"/> docks it as a tab. Pass null to dock relative to the whole window.
 	/// </summary>
@@ -122,7 +132,14 @@ public partial class DockManager : Widget
 	{
 		ArgumentNullException.ThrowIfNull( widget );
 
-		docks[name] = new DockInfo { Title = name, Icon = icon, Area = area, CreateAction = () => widget };
+		if ( !docks.TryGetValue( name, out var info ) )
+		{
+			info = new DockInfo { Title = name, CreateAction = () => widget };
+			docks[name] = info;
+		}
+
+		info.Icon = icon;
+		info.Area = area;
 
 		if ( FindDockWidget( name ) is { } existing )
 		{

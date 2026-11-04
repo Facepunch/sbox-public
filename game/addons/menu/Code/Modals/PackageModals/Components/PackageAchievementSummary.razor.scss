@@ -37,11 +37,72 @@ AchievementSummary
     flex-shrink: 0;
 }
 
+// Heading on top, icons under it across the full width
+PackageAchievementSummary.with-header
+{
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    flex-shrink: 0;
+
+    .ach-head
+    {
+        flex-direction: row;
+        align-items: center;
+
+        .section-label
+        {
+            margin-bottom: 0;
+        }
+
+        .grow
+        {
+            flex-grow: 1;
+        }
+    }
+
+    // How many you've got - small, a trophy in front
+    .ach-count
+    {
+        flex-direction: row;
+        flex-shrink: 0;
+        align-items: center;
+        gap: 4px;
+
+        i
+        {
+            width: 13px;
+            height: 13px;
+            font-size: 13px;
+            text-align: center;
+            color: $primary-yellow;
+        }
+
+        label
+        {
+            font-size: 11px;
+            font-weight: 700;
+            color: $default-50;
+        }
+    }
+
+    .achievement-buttons
+    {
+        flex-basis: auto;
+        width: 100%;
+    }
+}
+
+// Takes the room left beside the count, whatever's in it - the code measures it to work out how
+// many icons fit, so its width mustn't depend on them
 .achievement-buttons
 {
     flex-direction: row;
     gap: 4px;
     flex-grow: 1;
+    flex-shrink: 1;
+    flex-basis: 0;
+    min-width: 0;
     overflow: hidden;
 }
 
@@ -59,5 +120,20 @@ AchievementSummary
     {
         filter: saturate( 0.2 ) brightness( 0.5 );
         opacity: 0.35;
+    }
+
+    // The last spot, when they don't all fit - how many more
+    &.more
+    {
+        align-items: center;
+        justify-content: center;
+        background-color: rgba( 255, 255, 255, 0.06 );
+
+        label
+        {
+            font-size: 12px;
+            font-weight: 700;
+            color: $default-50;
+        }
     }
 }

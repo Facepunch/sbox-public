@@ -487,6 +487,6 @@ file class EditorSubToolButton : Widget
 			Paint.SetPen( Theme.TextLight );
 		}
 
-		Paint.DrawIcon( LocalRect, Type.Icon, HeaderBarStyle.IconSize, TextFlag.Center );
+		Paint.DrawIcon( LocalRect, Type.Icon, HeaderBarStyle.LargeIconSize, TextFlag.Center );
 	}
 }

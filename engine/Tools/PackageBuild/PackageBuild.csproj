@@ -18,7 +18,7 @@
 
 	<ItemGroup>
 		<!-- Roslyn types (MetadataReference etc.) used directly here. Version must match Sandbox.Compiling. -->
-		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0-2.final" />
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
 	</ItemGroup>
 
 </Project>

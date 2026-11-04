@@ -11,7 +11,7 @@ namespace ResourceTests;
 public class SoundVisemeTests
 {
 	[TestMethod]
-	public async System.Threading.Tasks.Task SoundWithoutVisemesHasNoTrack()
+	public void SoundWithoutVisemesHasNoTrack()
 	{
 		// Load a copy of a shipped sound from a scratch directory - game/core is
 		// mounted at the VFS root so anything written there is loadable
@@ -36,18 +36,9 @@ public class SoundVisemeTests
 			if ( soundFile is null )
 				Assert.Inconclusive( "Native sound system can't precache sounds on this machine (no audio device?)" );
 
-			// An unloaded sound has no tracks yet
-			Assert.IsNull( soundFile.Visemes );
-			Assert.IsNull( soundFile.Subtitles );
-
-			// Async vsnd resource loads only complete while the engine is pumping
-			// frames, which this harness doesn't do - so the loaded path can only
-			// be pinned when the load manages to finish
-			if ( !await soundFile.LoadAsync() )
-				Assert.Inconclusive( "Sound resource load didn't complete in the test harness - can't verify the loaded path" );
-
-			// Loaded and still no tracks - this sound genuinely has no visemes or subtitles
-			Assert.IsTrue( soundFile.IsValidForPlayback, "A loaded sound should be valid for playback" );
+			// An unloaded sound has no tracks yet. The loaded path isn't checked here: async
+			// vsnd loads only finish while the engine pumps frames, which this harness doesn't
+			// do, so SoundFile.LoadAsync always spent its 3s timeout and skipped the test.
 			Assert.IsNull( soundFile.Visemes );
 			Assert.IsNull( soundFile.Subtitles );
 		}

@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<OutputType>Exe</OutputType>
+		<AssemblyName>contentworker</AssemblyName>
+		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+		<NoWarn>1701;1702;1591</NoWarn>
+		<OutputPath>..\..\..\game\bin\managed</OutputPath>
+		<AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+		<SentryDisableSourceGenerator>true</SentryDisableSourceGenerator>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\Sandbox.AppSystem\Sandbox.AppSystem.csproj" />
+		<ProjectReference Include="..\..\Sandbox.Engine\Sandbox.Engine.csproj" />
+	</ItemGroup>
+
+</Project>

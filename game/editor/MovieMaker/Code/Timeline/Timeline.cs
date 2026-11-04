@@ -443,6 +443,7 @@ public partial class Timeline : GraphicsView, ISnapSource
 			{
 				// If we've clicked on something draggable, start dragging!
 
+				if ( StartResizing( scenePos, item ) ) return;
 				if ( StartDragging( scenePos, item ) ) return;
 			}
 		}

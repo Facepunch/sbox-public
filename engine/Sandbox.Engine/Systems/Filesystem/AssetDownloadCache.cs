@@ -123,36 +123,38 @@ static class AssetDownloadCache
 	}
 
 	/// <summary>
-	/// Given a file with a crc, create a unique cache filename for it
+	/// <see cref="ResolveCached"/>'s answer for a file core content already has, so nothing needs mounting.
 	/// </summary>
-	internal static string CreateGameCacheFilename( string path, string crc )
+	internal static readonly string CoreContent = "core";
+
+	/// <summary>
+	/// Where a cached copy of this file is: the absolute path in the download cache,
+	/// <see cref="CoreContent"/>, or null when it has to be downloaded. Only reads, safe off the main thread.
+	/// </summary>
+	internal static string ResolveCached( string path, ulong crc )
 	{
-		return $"{path.ToLowerInvariant().Md5()}.{crc}.cache";
+		if ( !IsFileDownloaded( path, crc, out var wasCoreContent ) )
+			return null;
+
+		return wasCoreContent ? CoreContent : GetAbsolutePath( path, crc );
 	}
 
 	internal static bool TryMount( RedirectFileSystem fs, string path, ulong crc )
 	{
-		var gc = "/gamecache/" + CreateGameCacheFilename( path, crc.ToString( "x" ) );
-		if ( EngineFileSystem.Root.FileExists( gc ) )
-		{
-			//Log.Info( $"GAMECACHE: [{path}]" );
-			fs.AddAbsFile( path.NormalizeFilename( true ), EngineFileSystem.Root.GetFullPath( gc ) );
-			return true;
-		}
+		var resolved = ResolveCached( path, crc );
+		if ( resolved is null ) return false;
 
-		if ( IsFileDownloaded( path, crc, out var wasCoreContent ) )
-		{
-			if ( !wasCoreContent )
-			{
-				var cachePath = GetAbsolutePath( path, crc );
-				//Log.Info( $"DOWNLOAD: [{path}]" );
-				fs.AddAbsFile( path.NormalizeFilename( true ), cachePath );
-				return true;
-			}
+		Mount( fs, path, resolved );
+		return true;
+	}
 
-			return true;
-		}
+	/// <summary>
+	/// Mount a file at what <see cref="ResolveCached"/> found for it.
+	/// </summary>
+	internal static void Mount( RedirectFileSystem fs, string path, string resolved )
+	{
+		if ( ReferenceEquals( resolved, CoreContent ) ) return;
 
-		return false;
+		fs.AddAbsFile( path.NormalizeFilename( true ), resolved );
 	}
 }

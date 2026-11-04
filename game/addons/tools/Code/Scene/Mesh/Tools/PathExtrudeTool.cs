@@ -91,7 +91,8 @@ public partial class PathExtrudeTool( List<IGrouping<MeshComponent, MeshEdge>> e
 			var go = new GameObject( true, component.GameObject.Name )
 			{
 				WorldTransform = component.WorldTransform,
-				Parent = component.GameObject.Parent
+				Parent = component.GameObject.Parent,
+				IsStatic = component.GameObject.IsStatic
 			};
 
 			var meshComponent = go.Components.Create<MeshComponent>();

@@ -1,0 +1,41 @@
+@using Sandbox.PanelGallery;
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+@using Sandbox;
+@using Sandbox.UI;
+@attribute [Group( "Layout" )]
+@attribute [Title( "position: absolute" )]
+@attribute [Icon( "science" )]
+<root>
+    <h2>What absolute positions against</h2>
+
+    <p>
+        Like the web: the nearest positioned ancestor, not the parent. This catches people out
+        constantly, including me, twice, while building this section.
+    </p>
+
+    <div class="cases">
+        <UiTestCase Caption="Positioned parent" Setup="@Frame" Rule="parent { position: relative }  child { position: absolute; left: 0 }" Note="Anchored to the inner box, so it sits in its corner.">
+            <ChildContent>
+                <div class="outer"><div class="inner positioned"><div class="dot red at-origin"></div></div></div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase Caption="Positioned ancestor" Setup="@Frame" Rule="parent { }  child { position: absolute; left: 0 }" Note="The inner box isn't positioned, so the dot escapes to the outer one's corner.">
+            <ChildContent>
+                <div class="outer positioned"><div class="inner"><div class="dot red at-origin"></div></div></div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase Caption="Bottom-right corner" Setup="@Frame" Rule="position: absolute; right: 0; bottom: 0" Note="Anchored to the far corner.">
+            <ChildContent><div class="outer positioned"><div class="dot green at-far"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Caption="Stretch to all edges" Setup="@Frame" Rule="position: absolute; left: 0; right: 0; top: 0; bottom: 0" Note="All four sides pin it to fill the box.">
+            <ChildContent><div class="outer positioned"><div class="dot blue stretched"></div></div></ChildContent>
+        </UiTestCase>
+    </div>
+
+
+</root>
+@code
+{
+    const string Frame = "width: 120px; height: 110px";
+}

@@ -177,7 +177,12 @@ public static partial class Gizmo
 		/// Push this instance as the global Gizmo state. All Gizmo calls during this scope
 		/// will use this instance.
 		/// </summary>
-		public IDisposable Push()
+		public IDisposable Push() => PushScope();
+
+		/// <summary>
+		/// Allocation-free version of <see cref="Push"/>.
+		/// </summary>
+		internal DisposeAction<Instance, Instance> PushScope()
 		{
 			var oldInstance = Sandbox.Gizmo.Active;
 

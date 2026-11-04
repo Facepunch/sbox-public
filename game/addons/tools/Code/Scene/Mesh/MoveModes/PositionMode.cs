@@ -19,14 +19,14 @@ public sealed class PositionMode : MoveMode
 	public override void OnBegin( SelectionTool tool )
 	{
 		_basis = tool.CalculateSelectionBasis();
-		_origin = tool.Pivot;
+		_origin = tool.Pivot.Position;
 		_moveDelta = default;
-		_startPosition = tool.Pivot;
+		_startPosition = tool.Pivot.Position;
 	}
 
 	protected override void OnUpdate( SelectionTool tool )
 	{
-		var origin = tool.Pivot;
+		var origin = tool.Pivot.Position;
 
 		var meshTool = tool.Manager?.CurrentTool as MeshTool;
 		Vector3? snapTarget = null;
@@ -153,8 +153,6 @@ public sealed class PositionMode : MoveMode
 					moveDelta = snappedPosition;
 				}
 
-				tool.Pivot = moveDelta;
-
 				moveDelta -= _origin;
 
 				tool.StartDrag();
@@ -165,7 +163,7 @@ public sealed class PositionMode : MoveMode
 
 		if ( Gizmo.Pressed.Any && _moveDelta != Vector3.Zero )
 		{
-			DrawMovementLine( _startPosition, tool.Pivot, _basis );
+			DrawMovementLine( _startPosition, tool.Pivot.Position, _basis );
 		}
 	}
 

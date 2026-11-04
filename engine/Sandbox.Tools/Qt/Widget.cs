@@ -1,5 +1,6 @@
 ﻿using Sandbox.UI;
 using System;
+using System.Buffers;
 
 namespace Editor
 {
@@ -130,16 +131,36 @@ namespace Editor
 		/// </summary>
 		public IEnumerable<T> GetDescendants<T>() where T : Widget
 		{
-			if ( this is T t ) yield return t;
+			// Pre-order walk with an explicit stack. Children are pushed reversed so they pop left to right,
+			// and are read only once their parent has been yielded, same as the old recursive version.
+			// The stack list is pooled per thread: ViewportTools walks its toolbar every frame.
+			var pool = _descendantStacks ??= new();
+			var stack = pool.Count > 0 ? pool.Pop() : new List<Widget>( 32 );
+			stack.Add( this );
 
-			foreach ( var child in Children )
+			try
 			{
-				foreach ( var descendant in child.GetDescendants<T>() )
+				while ( stack.Count > 0 )
 				{
-					yield return descendant;
+					var widget = stack[^1];
+					stack.RemoveAt( stack.Count - 1 );
+
+					if ( widget is T t ) yield return t;
+
+					var start = stack.Count;
+					widget.AddChildren( stack );
+					stack.Reverse( start, stack.Count - start );
 				}
 			}
+			finally
+			{
+				// Only reached when the caller disposes the enumerator (foreach and LINQ do); otherwise the list is simply collected
+				stack.Clear();
+				pool.Push( stack );
+			}
 		}
+
+		[ThreadStatic] static Stack<List<Widget>> _descendantStacks;
 
 		/// <summary>
 		/// Returns whether or not the specified Widget is a descendent of this Widget.
@@ -732,19 +753,39 @@ namespace Editor
 		{
 			get
 			{
-				var childPointers = GetChildren();
-				var children = new List<Widget>( childPointers.Length );
+				var children = new List<Widget>();
+				AddChildren( children );
+				return children;
+			}
+		}
 
-				foreach ( var p in childPointers )
+		/// <summary>
+		/// Appends the valid child widgets to <paramref name="list"/> in native order.
+		/// </summary>
+		internal void AddChildren( List<Widget> list )
+		{
+			var count = GetChildrenCount();
+			if ( count <= 0 )
+				return;
+
+			var pointers = ArrayPool<Native.QObject>.Shared.Rent( count );
+
+			try
+			{
+				GetChildren( pointers.AsSpan( 0, count ) );
+				list.EnsureCapacity( list.Count + count );
+
+				for ( int i = 0; i < count; i++ )
 				{
-					var o = FindOrCreate( p );
-					if ( o is Widget w && w.IsValid )
+					if ( FindOrCreate( pointers[i] ) is Widget w && w.IsValid )
 					{
-						children.Add( w );
+						list.Add( w );
 					}
 				}
-
-				return children;
+			}
+			finally
+			{
+				ArrayPool<Native.QObject>.Shared.Return( pointers );
 			}
 		}
 

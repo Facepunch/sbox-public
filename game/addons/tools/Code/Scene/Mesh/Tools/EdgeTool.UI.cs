@@ -40,6 +40,9 @@ partial class EdgeTool
 			_edgeGroups = _edges.GroupBy( x => x.Component ).ToList();
 			_components = _edgeGroups.Select( x => x.Key ).ToList();
 
+			this.AddPivotGroup( tool );
+			this.AddPivotButtons( tool, _edges.Length > 0 );
+
 			{
 				var group = AddGroup( "Modify" );
 
@@ -312,34 +315,29 @@ partial class EdgeTool
 			if ( !CanBevel() )
 				return;
 
-			using ( SceneEditorSession.Active.UndoScope( "Bevel Edges" )
-				.WithComponentChanges( _components )
-				.Push() )
+			var bevelEdges = new List<BevelEdges>();
+
+			foreach ( var group in _edgeGroups )
 			{
-				var bevelEdges = new List<BevelEdges>();
+				var component = group.Key;
+				var mesh = component.Mesh;
 
-				foreach ( var group in _edgeGroups )
+				var newMesh = new PolygonMesh();
+				newMesh.Transform = mesh.Transform;
+				newMesh.MergeMesh( mesh, Transform.Zero, out _, out var newEdges, out _ );
+				var edges = group.Select( x => newEdges[x.Handle].Index ).ToList();
+
+				bevelEdges.Add( new BevelEdges()
 				{
-					var component = group.Key;
-					var mesh = component.Mesh;
-
-					var newMesh = new PolygonMesh();
-					newMesh.Transform = mesh.Transform;
-					newMesh.MergeMesh( mesh, Transform.Zero, out _, out var newEdges, out _ );
-					var edges = group.Select( x => newEdges[x.Handle].Index ).ToList();
-
-					bevelEdges.Add( new BevelEdges()
-					{
-						Component = component,
-						Mesh = newMesh,
-						Edges = edges,
-					} );
-				}
-
-				var tool = new BevelTool( [.. bevelEdges] );
-				tool.Manager = _tool.Manager;
-				_tool.CurrentTool = tool;
+					Component = component,
+					Mesh = newMesh,
+					Edges = edges,
+				} );
 			}
+
+			var tool = new BevelTool( [.. bevelEdges] );
+			tool.Manager = _tool.Manager;
+			_tool.CurrentTool = tool;
 		}
 
 		private bool CanMerge()
@@ -620,46 +618,56 @@ partial class EdgeTool
 			if ( groups.Count == 2 )
 				undo = undo.WithGameObjectDestructions( groups[1].Key.GameObject );
 
+			if ( groups.Count == 2 )
+			{
+				var compA = groups[0].Key;
+				var compB = groups[1].Key;
+
+				var meshA = new PolygonMesh();
+				meshA.Transform = compA.Mesh.Transform;
+				meshA.MergeMesh( compA.Mesh, Transform.Zero, out _, out var remapEdgesA, out _ );
+				var meshB = compB.Mesh;
+
+				var edgesA = groups[0].Select( e => remapEdgesA[e.Handle] ).ToList();
+				var edgesB = groups[1].Select( e => e.Handle ).ToList();
+
+				var transform = compA.WorldTransform.ToLocal( compB.WorldTransform );
+				meshA.MergeMesh( meshB, transform, out _, out var remapEdges, out _ );
+
+				for ( int i = 0; i < edgesB.Count; i++ )
+					edgesB[i] = remapEdges[edgesB[i]];
+
+				if ( !meshA.BridgeEdges( edgesA, edgesB ) )
+				{
+					Log.Warning( "Bridge Edges failed: select two matching open edge lists or loops." );
+					return;
+				}
+
+				using ( undo.Push() )
+				{
+					compA.Mesh = meshA;
+					compB.DestroyGameObject();
+				}
+
+				return;
+			}
+
 			using ( undo.Push() )
 			{
-				if ( groups.Count == 2 )
+				var comp = groups[0].Key;
+				var mesh = comp.Mesh;
+
+				var edges = groups[0].Select( e => e.Handle ).ToList();
+
+				mesh.FindOpenEdgeIslands( edges, out var fullIslands );
+
+				if ( fullIslands.Count == 2 )
 				{
-					var compA = groups[0].Key;
-					var compB = groups[1].Key;
-
-					var meshA = compA.Mesh;
-					var meshB = compB.Mesh;
-
-					var edgesA = groups[0].Select( e => e.Handle ).ToList();
-					var edgesB = groups[1].Select( e => e.Handle ).ToList();
-
-					var transform = compA.WorldTransform.ToLocal( compB.WorldTransform );
-					meshA.MergeMesh( meshB, transform, out _, out var remapEdges, out _ );
-
-					for ( int i = 0; i < edgesB.Count; i++ )
-						edgesB[i] = remapEdges[edgesB[i]];
-
-					compB.DestroyGameObject();
-
-					meshA.BridgeEdges( edgesA, edgesB );
+					mesh.BridgeEdges( fullIslands[0], fullIslands[1] );
 				}
-				else
+				else if ( edges.Count == 2 )
 				{
-					var comp = groups[0].Key;
-					var mesh = comp.Mesh;
-
-					var edges = groups[0].Select( e => e.Handle ).ToList();
-
-					mesh.FindOpenEdgeIslands( edges, out var fullIslands );
-
-					if ( fullIslands.Count == 2 )
-					{
-						mesh.BridgeEdges( fullIslands[0], fullIslands[1] );
-					}
-					else if ( edges.Count == 2 )
-					{
-						mesh.BridgeEdges( edges[0], edges[1], out _ );
-					}
+					mesh.BridgeEdges( edges[0], edges[1], out _ );
 				}
 			}
 		}
@@ -973,11 +981,11 @@ partial class EdgeTool
 
 				var originalMesh = new PolygonMesh();
 				originalMesh.Transform = mesh.Transform;
-				originalMesh.MergeMesh( mesh, Transform.Zero, out _, out _, out _ );
+				originalMesh.MergeMesh( mesh, Transform.Zero, out _, out var newEdges, out _ );
 
 				var openEdges = group
 					.Where( x => x.IsOpen )
-					.Select( x => x.Handle.Index )
+					.Select( x => newEdges[x.Handle].Index )
 					.ToList();
 
 				if ( openEdges.Count > 0 )

@@ -26,6 +26,13 @@ public class ArgEnum : Arg
 	{
 		code ??= Name;
 
-		return side == Side.Managed ? $"({ManagedType})({code})" : $"({NativeType})({code})";
+		if ( side == Side.Managed )
+			return $"({ManagedType})({code})";
+
+		// QFlags has several constructors under gcc, so its int64 conversion is ambiguous.
+		// Only these explicitly marked wrappers are 32-bit; ordinary enums can use all 64 bits.
+		return Type.HasAttribute( "QFlags" )
+			? $"({NativeType})(int)({code})"
+			: $"({NativeType})({code})";
 	}
 }

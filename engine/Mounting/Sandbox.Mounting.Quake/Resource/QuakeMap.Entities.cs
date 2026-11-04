@@ -38,6 +38,9 @@ partial class QuakeMap
 			case "info_player_start" or "info_player_start2" or "info_player_deathmatch" or "info_player_coop":
 				SpawnPlayerStart( entity );
 				return;
+			case "info_intermission":
+				SpawnPreview( entity );
+				return;
 		}
 
 		if ( entity.TypeName is not null && AmbientSounds.TryGetValue( entity.TypeName, out var ambient ) )
@@ -55,6 +58,17 @@ partial class QuakeMap
 		go.WorldPosition = entity.Position;
 		go.WorldRotation = Rotation.FromYaw( entity.Angle );
 		go.AddComponent<SpawnPoint>();
+	}
+
+	private static void SpawnPreview( Quake.BSP.File.ObjectEntry entity )
+	{
+		var go = new GameObject( true, entity.TypeName );
+		go.WorldTransform = entity.Transform;
+
+		if ( entity.TryGetValue( "mangle", out Angles angles ) )
+			go.WorldRotation = Rotation.From( angles );
+
+		go.Tags.Add( "map_preview" );
 	}
 
 	private static void LinkDoors( List<PendingDoor> doors )

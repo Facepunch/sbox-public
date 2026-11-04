@@ -17,7 +17,7 @@ public class ComponentSheetHeader : InspectorHeader
 		var t = target.Targets.FirstOrDefault();
 		TargetType = TypeLibrary.GetType( t.GetType() );
 
-		Title = TargetObject.TypeTitle;
+		Title = TargetObject.TypeTitle.AutoLocalize();
 		Icon = TargetObject.TypeIcon;
 		Color = Theme.Blue;
 
@@ -132,7 +132,7 @@ public class ComponentSheetHeader : InspectorHeader
 	string GetTooltip()
 	{
 		var str = "<strong>";
-		str += $"<span style=\"color: #9CDCFE;\">{TargetObject.TypeTitle}</span>";
+		str += $"<span style=\"color: #9CDCFE;\">{TargetObject.TypeTitle.AutoLocalize()}</span>";
 
 		if ( TargetType?.BaseType is TypeDescription baseType &&
 			 baseType.TargetType.IsSubclassOf( typeof( Component ) ) )

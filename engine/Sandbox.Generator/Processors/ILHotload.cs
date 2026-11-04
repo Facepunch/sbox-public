@@ -10,6 +10,7 @@ using System;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Threading;
+using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
 namespace Sandbox.Generator;
 
@@ -19,12 +20,12 @@ public static class ILHotloadProcessor
 	{
 		processor.ILHotloadSupported = false;
 
-		if ( processor.LastSuccessfulCompilation == null || processor.BeforeILHotloadProcessingTrees.IsDefault )
+		if ( processor.LastSuccessfulCompilation is null )
 		{
 			return;
 		}
 
-		var oldTrees = GetSyntaxTreeDict( processor.BeforeILHotloadProcessingTrees );
+		var oldTrees = GetSyntaxTreeDict( processor.LastSuccessfulCompilation.SyntaxTrees );
 		var newTrees = GetSyntaxTreeDict( processor.Compilation.SyntaxTrees );
 
 		//
@@ -61,7 +62,7 @@ public static class ILHotloadProcessor
 			{
 				var newTree = newTrees[oldTree.FilePath];
 
-				if ( !HaveOnlyBlocksChanged( oldTree, newTree, out var updatedNewTree ) )
+				if ( !HaveOnlyBlocksChanged( processor, oldTree, newTree, out var updatedNewTree ) )
 				{
 					Volatile.Write( ref onlyBlocksChanged, false );
 					return;
@@ -210,7 +211,7 @@ public static class ILHotloadProcessor
 		return false;
 	}
 
-	private static bool HaveOnlyBlocksChanged( SyntaxTree oldTree, SyntaxTree newTree, out SyntaxTree updatedNewTree )
+	private static bool HaveOnlyBlocksChanged( Processor processor, SyntaxTree oldTree, SyntaxTree newTree, out SyntaxTree updatedNewTree )
 	{
 		if ( oldTree == null && newTree == null )
 		{
@@ -231,6 +232,17 @@ public static class ILHotloadProcessor
 		{
 			return false;
 		}
+
+		// Old tree will have ILHotload attributes if a previous compile was ILHotloaded.
+		// New tree can also have attributes if we're doing an incremental compile and this
+		// file was touched (I think?)
+
+		// We need to strip them to be able to accurately look for changes between the trees
+
+		oldTree = StripHotloadAttributes( oldTree );
+		newTree = StripHotloadAttributes( newTree );
+
+		updatedNewTree = newTree;
 
 		if ( newTree.IsEquivalentTo( oldTree ) )
 		{
@@ -284,7 +296,7 @@ public static class ILHotloadProcessor
 			{
 				// Ignore SourceLocation attribute parameter changes
 
-				var sourceLocation = SyntaxFactory.ParseName( "Sandbox.Internal.SourceLocation" );
+				var sourceLocation = ParseName( "Sandbox.Internal.SourceLocation" );
 
 				var oldAttrib = oldNode.FirstAncestorOrSelf<AttributeListSyntax>( x => IsSingleAttribute( x, sourceLocation ) );
 				var newAttrib = newNode.FirstAncestorOrSelf<AttributeListSyntax>( x => IsSingleAttribute( x, sourceLocation ) );
@@ -302,12 +314,12 @@ public static class ILHotloadProcessor
 				return false;
 			}
 
-			if ( TryHandleMethodDecl( oldMethodBlock, newMethodBlock, replacements ) )
+			if ( TryHandleMethodDecl( processor, oldMethodBlock, newMethodBlock, replacements ) )
 			{
 				continue;
 			}
 
-			if ( TryHandlePropertyDecl( oldMethodBlock, newMethodBlock, replacements ) )
+			if ( TryHandlePropertyDecl( processor, oldMethodBlock, newMethodBlock, replacements ) )
 			{
 				continue;
 			}
@@ -324,6 +336,43 @@ public static class ILHotloadProcessor
 		}
 
 		return true;
+	}
+
+	private static SyntaxTree StripHotloadAttributes( SyntaxTree tree )
+	{
+		if ( !tree.TryGetRoot( out var root ) ) return tree;
+
+		var stripper = new HotloadAttributeStripper();
+
+		var strippedRoot = stripper.Visit( root );
+
+		return strippedRoot != root
+			? tree.WithRootAndOptions( strippedRoot, tree.Options )
+			: tree;
+	}
+
+	private static NameSyntax MethodBodyChangeAttributeNameSyntax { get; } = ParseName( "global::Sandbox.MethodBodyChangeAttribute" );
+	private static NameSyntax PropertyAccessorBodyChangeAttributeNameSyntax { get; } = ParseName( "global::Sandbox.PropertyAccessorBodyChangeAttribute" );
+
+	private sealed class HotloadAttributeStripper : CSharpSyntaxRewriter
+	{
+		public override SyntaxNode VisitMethodDeclaration( MethodDeclarationSyntax node )
+		{
+			if ( node.AttributeLists.Count == 0 ) return node;
+
+			var toRemove = node.AttributeLists.FirstOrDefault( x => IsSingleAttribute( x, MethodBodyChangeAttributeNameSyntax ) );
+
+			return toRemove is null ? node : node.WithAttributeLists( node.AttributeLists.Remove( toRemove ) );
+		}
+
+		public override SyntaxNode VisitPropertyDeclaration( PropertyDeclarationSyntax node )
+		{
+			if ( !node.AttributeLists.Any( x => IsSingleAttribute( x, PropertyAccessorBodyChangeAttributeNameSyntax ) ) ) return node;
+
+			return node.WithAttributeLists( List( node.AttributeLists.Where( x =>
+				!IsSingleAttribute( x, PropertyAccessorBodyChangeAttributeNameSyntax ) )
+			) );
+		}
 	}
 
 	/// <summary>
@@ -356,31 +405,32 @@ public static class ILHotloadProcessor
 			|| node.Parent.IsKind( SyntaxKind.SetAccessorDeclaration );
 	}
 
-	private static bool TryHandleMethodDecl( SyntaxNode oldBlock, SyntaxNode newBlock, Dictionary<SyntaxNode, SyntaxNode> replacements )
+	private static bool TryHandleMethodDecl( Processor processor, SyntaxNode oldBlock, SyntaxNode newBlock, Dictionary<SyntaxNode, SyntaxNode> replacements )
 	{
 		if ( oldBlock.Parent is not MethodDeclarationSyntax || newBlock.Parent is not MethodDeclarationSyntax newMethodDecl )
 		{
 			return false;
 		}
 
-		var replacingMethodDecl = newMethodDecl.WithAttributeLists(
-			newMethodDecl.AttributeLists.Add(
-				SyntaxFactory.AttributeList( SyntaxFactory.SingletonSeparatedList(
-					SyntaxFactory.Attribute( SyntaxFactory.QualifiedName(
-						SyntaxFactory.AliasQualifiedName(
-							SyntaxFactory.IdentifierName( SyntaxFactory.Token( SyntaxKind.GlobalKeyword ) ),
-							SyntaxFactory.IdentifierName( "Sandbox" ) ),
-						SyntaxFactory.IdentifierName( "MethodBodyChangeAttribute" )
+		var newAssemblyVersion = processor.Compilation.Assembly.Identity.Version;
+
+		var replacingMethodDecl = newMethodDecl.WithAttributeLists( newMethodDecl.AttributeLists.Add(
+			AttributeList( SingletonSeparatedList( Attribute(
+				MethodBodyChangeAttributeNameSyntax,
+				AttributeArgumentList( SingletonSeparatedList(
+					AttributeArgument( LiteralExpression(
+						SyntaxKind.StringLiteralExpression,
+						Literal( newAssemblyVersion.ToString() )
 					) )
 				) )
-			)
-		);
+			) ) )
+		) );
 
 		replacements[newMethodDecl] = replacingMethodDecl;
 		return true;
 	}
 
-	private static bool TryHandlePropertyDecl( SyntaxNode oldBlock, SyntaxNode newBlock, Dictionary<SyntaxNode, SyntaxNode> replacements )
+	private static bool TryHandlePropertyDecl( Processor processor, SyntaxNode oldBlock, SyntaxNode newBlock, Dictionary<SyntaxNode, SyntaxNode> replacements )
 	{
 		if ( !TryGetPropertyDeclarationFromBlock( oldBlock, out _, out _ ) )
 		{
@@ -392,27 +442,26 @@ public static class ILHotloadProcessor
 			return false;
 		}
 
-		var replacingPropertyDecl = newPropertyDecl.WithAttributeLists(
-			newPropertyDecl.AttributeLists.Add(
-				SyntaxFactory.AttributeList( SyntaxFactory.SingletonSeparatedList(
-					SyntaxFactory.Attribute(
-						SyntaxFactory.QualifiedName( SyntaxFactory.AliasQualifiedName(
-								SyntaxFactory.IdentifierName( SyntaxFactory.Token( SyntaxKind.GlobalKeyword ) ),
-								SyntaxFactory.IdentifierName( "Sandbox" ) ),
-							SyntaxFactory.IdentifierName( "PropertyAccessorBodyChangeAttribute" )
-						),
-						SyntaxFactory.AttributeArgumentList( SyntaxFactory.SingletonSeparatedList(
-							SyntaxFactory.AttributeArgument( SyntaxFactory.MemberAccessExpression(
-								SyntaxKind.SimpleMemberAccessExpression, SyntaxFactory.MemberAccessExpression(
-									SyntaxKind.SimpleMemberAccessExpression, SyntaxFactory.AliasQualifiedName(
-										SyntaxFactory.IdentifierName( SyntaxFactory.Token( SyntaxKind.GlobalKeyword ) ),
-										SyntaxFactory.IdentifierName( "Sandbox" ) ),
-									SyntaxFactory.IdentifierName( "PropertyAccessor" ) ),
-								SyntaxFactory.IdentifierName( accessor.ToString() ) ) ) ) )
-					)
-				) )
-			)
-		);
+		var newAssemblyVersion = processor.Compilation.Assembly.Identity.Version;
+
+		var replacingPropertyDecl = newPropertyDecl.WithAttributeLists( newPropertyDecl.AttributeLists.Add(
+			AttributeList( SingletonSeparatedList( Attribute(
+				PropertyAccessorBodyChangeAttributeNameSyntax,
+				AttributeArgumentList( SeparatedList( [
+					AttributeArgument( MemberAccessExpression(
+						SyntaxKind.SimpleMemberAccessExpression, MemberAccessExpression(
+							SyntaxKind.SimpleMemberAccessExpression, AliasQualifiedName(
+								IdentifierName( Token( SyntaxKind.GlobalKeyword ) ),
+								IdentifierName( "Sandbox" ) ),
+							IdentifierName( "PropertyAccessor" ) ),
+						IdentifierName( accessor.ToString() ) ) ),
+					AttributeArgument( LiteralExpression(
+						SyntaxKind.StringLiteralExpression,
+						Literal( newAssemblyVersion.ToString() )
+					) )
+				] ) )
+			) ) )
+		) );
 
 		replacements[newPropertyDecl] = replacingPropertyDecl;
 		return true;

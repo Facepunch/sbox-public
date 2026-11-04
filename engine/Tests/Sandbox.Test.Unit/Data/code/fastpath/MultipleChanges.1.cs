@@ -4,17 +4,13 @@ namespace TestPackage;
 
 public class Program : CompilingTests.IProgram
 {
-	public void Testing( StringWriter output )
+	public int Testing()
 	{
-		output.WriteLine( "Hello world!" );
-		output.WriteLine( "Here's a lot of statements" );
-		output.WriteLine( "that will be removed" );
+		return 100;
 	}
 
 	public int Main( StringWriter output )
 	{
-		output.Write( "Hello World!" );
-
-		return 0;
+		return Testing() + 1;
 	}
 }

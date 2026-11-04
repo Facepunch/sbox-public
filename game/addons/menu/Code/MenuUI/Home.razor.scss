@@ -1,65 +1,141 @@
 @import "/styles/_theme.scss";
+@import "/styles/_front.scss";
 
 Home
 {
-	align-items: center;
-	justify-content: center;
-
-	.page
-	{
-		flex-direction: row;
-		align-items: flex-end;
-		justify-content: space-between;
-		width: 100%;
-		max-width: $screen-w-xl;
-		padding: 50px;
-	}
-
-	column
-	{
-		height: 100%;
-		justify-content: space-between;
-		width: 400px;
-		gap: 1rem;
-	}
-}
-
-Home Card
-{
-	background: rgba( $default-950, 0.8 );
-	backdrop-filter: blur( 10px );
-	outline: 1px solid #000a;
 	width: 100%;
-	flex-direction: column;
-	padding: 2rem;
-	border-radius: $rounding-large;
-}
+	height: 100%;
+	flex-grow: 1;
 
-Home column.right
-{
-	// DesktopButtons hardcodes width: 50% and height: 100% (it used to be a
-	// direct child of .page). Inside this column that would eat the whole
-	// height and squash the feed - clamp it to its own content size and keep
-	// it full width so the buttons stay pinned bottom-right.
-	DesktopButtons
+	// A transparent strip, not a bar - the scene behind it is the backdrop, the rail
+	.tabs
 	{
-		width: 100%;
-		height: auto;
 		flex-shrink: 0;
-	}
+		align-items: center;
+		gap: 0;
+		padding: $front-chrome-gap 24px 4px 18px;
 
-	Card.feed
-	{
-		gap: 1rem;
-		flex-grow: 1;
-		min-height: 0;
-		overflow: hidden;
+		// Splits the sort feeds from the genre feeds.
+		separator.vertical
+		{
+			height: 16px;
+			width: 1px;
+			background-color: $front-hairline;
+			margin: 0 14px;
+		}
 
-		// Pinned header - only the list below it scrolls.
-		label.medium
+		.button
 		{
 			flex-shrink: 0;
+			align-items: center;
+			padding: 6px 0;
+			margin: 0 14px;
+			pointer-events: all;
+			cursor: pointer;
+			transition: all 0.15s ease;
+
+			Label
+			{
+				font-family: $front-font;
+				font-size: 16px;
+				font-weight: 500;
+				color: $front-secondary;
+				transition: all 0.15s ease;
+			}
+
+			&:hover
+			{
+				sound-in: "ui.button.over";
+
+				Label
+				{
+					color: $front-heading;
+				}
+			}
+
+			&.active
+			{
+				Label
+				{
+					color: #ffffff;
+					font-weight: 700;
+				}
+			}
+
+			&:active
+			{
+				sound-in: "ui.button.press";
+			}
+		}
+	}
+
+	.home-row
+	{
+		flex-direction: row;
+		flex-grow: 1;
+		overflow: hidden;
+	}
+
+	// width 0 + grow: take the leftover space, never the content's width -
+	// otherwise the wide content blocks shove the aside off screen.
+	.feed
+	{
+		position: relative;
+		flex-direction: column;
+		flex-grow: 1;
+		width: 0;
+		overflow: hidden;
+	}
+
+	// Sorted and genre feeds - a plain grid, the tab up top is the heading.
+	.feed PackageList
+	{
+		flex-grow: 1;
+	}
+
+	.feed PackageList VirtualGrid
+	{
+		padding: 12px 24px 48px 24px;
+		gap: 16px;
+	}
+
+	// Right-hand column - one card: your avatar, your stats, then your friends,
+	// split by hairlines rather than gaps.
+	.aside
+	{
+		flex-shrink: 0;
+		width: 400px;
+		flex-direction: column;
+		padding: $front-chrome-gap $front-chrome-gap $front-chrome-gap 0;
+		overflow: hidden;
+
+		.profile-card
+		{
+			@include front-card;
+
+			flex-grow: 1;
+			flex-shrink: 1;
+			height: 0;
+			box-shadow: $front-rail-shadow;
+
+			// The avatar and stats keep their natural height - the friends list takes the
+			// rest, so the card reaches the bottom of the screen and scrolls inside.
+			> *
+			{
+				flex-shrink: 0;
+			}
+
+			> ProfileStats, > FriendsRail
+			{
+				border-top: $front-border-width solid $front-hairline;
+			}
+
+			> FriendsRail
+			{
+				flex-grow: 1;
+				flex-shrink: 1;
+				height: 0;
+			}
 		}
 	}
 }
-

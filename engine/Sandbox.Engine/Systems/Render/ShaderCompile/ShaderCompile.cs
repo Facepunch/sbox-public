@@ -71,13 +71,6 @@ public static class ShaderCompile
 
 	static ShaderCompile()
 	{
-		if ( NativeEngine.EngineGlobal.AppIsDedicatedServer() )
-			return;
-
-		// Not outside of editor, we dont even resourcecompiler there
-		if ( !Application.IsEditor )
-			return;
-
 		string dllName = "vfx_vulkan.dll";
 
 		if ( !native.IsNull )
@@ -106,7 +99,9 @@ public static class ShaderCompile
 
 		shader.Read();
 
-		if ( !compileOptions.ForceRecompile && !shader.IsOutOfDate )
+		bool dumping = !string.IsNullOrEmpty( compileOptions.SpirvDumpPath );
+
+		if ( !compileOptions.ForceRecompile && !dumping && !shader.IsOutOfDate )
 			return new Results { Success = true, Skipped = true };
 
 		var results = await CompileShader( shader, compileOptions, token );
@@ -114,6 +109,10 @@ public static class ShaderCompile
 			return results;
 
 		token.ThrowIfCancellationRequested();
+
+		// The dump is the output; leave the checked in .shader_c alone
+		if ( dumping )
+			return results;
 
 		await System.IO.File.WriteAllBytesAsync( shader.AbsolutePath + "_c", results.CompiledShader );
 
@@ -127,6 +126,30 @@ public static class ShaderCompile
 	/// without the original source file. Returns <see cref="Results.Success"/> false (no <see cref="Results.CompiledShader"/>)
 	/// if the shader has no embedded source or fails to load. The result's bytes are written by the caller.
 	/// </summary>
+	/// <summary>
+	/// How many combos <see cref="RecompileFromCompiled"/> compiles for this file, 0 if it can't recompile it
+	/// </summary>
+	internal static int CountRecompileCombos( string compiledFilePath )
+	{
+		var embedded = ShaderSource.ReadEmbeddedSource( compiledFilePath );
+		if ( embedded is null || embedded.Count == 0 )
+			return 0;
+
+		var vfx = new Shader();
+		if ( !vfx.LoadCompiledForRecompile( compiledFilePath ) )
+			return 0;
+
+		var count = 0;
+
+		foreach ( var name in embedded.Keys )
+		{
+			if ( Enum.TryParse<ShaderProgramType>( name, out var programType ) )
+				count += vfx.GetProgram( programType ).EnumerateCombos( programType ).Count();
+		}
+
+		return count;
+	}
+
 	internal static async Task<Results> RecompileFromCompiled( string compiledFilePath, ShaderCompileOptions compileOptions, CancellationToken token )
 	{
 		var result = new Results();
@@ -203,7 +226,9 @@ public static class ShaderCompile
 		// Open the source file
 		var source = await System.IO.File.ReadAllTextAsync( s.AbsolutePath );
 
-		foreach ( var program in s.Programs )
+		// Snapshot - the loop awaits per program, so anything touching the list while a
+		// compile is in flight would invalidate a live enumerator.
+		foreach ( var program in s.Programs.ToArray() )
 		{
 			var success = await program.Compile( compileOptions, vfx, source, result, token, s.AbsolutePath, s.RelativePath );
 
@@ -234,6 +259,10 @@ public static class ShaderCompile
 	/// </summary>
 	static unsafe byte[] CompileResourceFile( string filename, byte[] data )
 	{
+		// resourcecompiler only loads in tools mode
+		if ( !Application.IsEditor )
+			return ShaderSource.WriteResourceFile( filename, data, ShaderTools.GetResourceVersion() );
+
 		fixed ( byte* dataPtr = data )
 		{
 			using CUtlBuffer buffer = IResourceCompilerSystem.GenerateResourceBytes( filename, (IntPtr)dataPtr, data.Length );
@@ -245,6 +274,17 @@ public static class ShaderCompile
 	{
 		var result = native.CompileShader( context.GetNative(), staticCombo, dynamicCombo, vfx.native, NativeEngine.VfxCompileTarget_t.SM_6_0_VULKAN, program.ProgramType, useShaderCache, 0 );
 		return new CompiledCombo( result, program, staticCombo, dynamicCombo );
+	}
+
+	/// <summary>
+	/// How many combos to compile at once: <see cref="ShaderCompileOptions.MaxThreads"/> if set, otherwise one per core
+	/// </summary>
+	internal static int ComboThreads( ShaderCompileOptions options )
+	{
+		if ( options.MaxThreads > 0 )
+			return options.MaxThreads;
+
+		return Environment.ProcessorCount;
 	}
 
 	internal static ShaderCompileContext GetSharedContext( ShaderProgramType programType )

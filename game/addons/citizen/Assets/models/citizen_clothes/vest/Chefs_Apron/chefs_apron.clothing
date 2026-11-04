@@ -11,16 +11,17 @@
   "Category": "Vest",
   "ConditionalModels": {},
   "Tags": null,
-  "Parent": null,
   "Model": "models/citizen_clothes/vest/chefs_apron/models/chefs_apron.vmdl",
   "HumanAltModel": "models/citizen_clothes/vest/chefs_apron/models/chefs_apron_m_human.vmdl",
   "HumanAltFemaleModel": null,
   "SkinMaterial": null,
   "EyesMaterial": null,
   "MaterialGroup": "",
+  "HeelHeight": 0,
   "SlotsUnder": 0,
   "SlotsOver": "LeftArm, RightArm",
   "HideBody": 0,
+  "DeformationMode": "Normal",
   "AllowTintSelect": false,
   "TintSelection": {
     "blend": "Linear",
@@ -37,7 +38,8 @@
   "Icon": {
     "Path": "models/citizen_clothes/vest/chefs_apron/chefs_apron.clothing.png",
     "Mode": "Chest",
-    "PositionOffset": "-57.50001,0,-4.699999"
+    "UsePositionOffset": false,
+    "PositionOffset": "-57.5000114,0,-4.69999886"
   },
   "__references": [],
   "__version": 0

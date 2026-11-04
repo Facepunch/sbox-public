@@ -1,0 +1,202 @@
+@import "/styles/_front.scss";
+
+JamPage JamHeader
+{
+	padding: 12px 24px;
+
+	.hero-row
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: stretch;
+		gap: 24px;
+	}
+
+	.intro
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		width: 0;
+		gap: 2px;
+	}
+
+	.side
+	{
+		flex-direction: column;
+		flex-shrink: 1;
+		align-items: flex-end;
+		max-width: 40%;
+		gap: 8px;
+	}
+
+	.head
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 10px;
+		min-height: 22px;
+	}
+
+	h2
+	{
+		flex-shrink: 0;
+		font-size: 15px;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: $front-heading;
+
+		i
+		{
+			color: $front-primary;
+			text-transform: none;
+			font-size: 21px;
+		}
+	}
+
+	.live-pill
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 6px;
+		height: 22px;
+		padding: 0 9px;
+		border-radius: 999px;
+		background-color: $front-danger * 1.2;
+		animation-name: jam-live-breathe;
+		animation-duration: 2.4s;
+		animation-timing-function: ease-in-out;
+		animation-iteration-count: infinite;
+
+		label
+		{
+			font-family: $front-font;
+			font-size: 9.5px;
+			font-weight: 800;
+			letter-spacing: 0.14em;
+			text-transform: uppercase;
+			color: #ffffff;
+		}
+
+		.pip
+		{
+			width: 6px;
+			height: 6px;
+			border-radius: 50%;
+			background-color: #ffffff * 3;
+			animation-name: jam-live-pulse;
+			animation-duration: 1.2s;
+			animation-timing-function: ease-in-out;
+			animation-iteration-count: infinite;
+		}
+	}
+
+	.kicker
+	{
+		flex-shrink: 1;
+		min-width: 0;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		line-height: 100%;
+		color: $front-primary;
+	}
+
+	.headline
+	{
+		flex-shrink: 0;
+		font-family: $front-font;
+		font-size: 30px;
+		font-weight: 800;
+		letter-spacing: -0.02em;
+		color: $front-heading;
+	}
+
+	.blurb
+	{
+		flex-shrink: 0;
+		flex-wrap: wrap;
+		column-gap: 4px;
+		font-size: 12.5px;
+		line-height: 100%;
+		color: $front-secondary;
+		max-width: 720px;
+
+		.blurb-lead
+		{
+			color: $front-trophy;
+			font-weight: 600;
+		}
+	}
+
+	.action
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
+		align-self: center;
+		padding: 0 18px;
+		height: 36px;
+		border-radius: 6px;
+		background-color: $front-primary;
+		transition: all 0.1s ease;
+
+		label
+		{
+			font-family: $front-font;
+			font-size: 12.5px;
+			font-weight: 700;
+			text-transform: uppercase;
+			letter-spacing: 0.07em;
+			color: #ffffff;
+		}
+
+		icon
+		{
+			font-size: 17px;
+			color: #ffffff;
+		}
+
+		&:hover
+		{
+			filter: brightness( 1.15 );
+		}
+	}
+}
+
+@keyframes jam-live-pulse
+{
+	0%
+	{
+		background-color: #ffffff * 1.5;
+	}
+	50%
+	{
+		background-color: #ffffff * 8;
+	}
+	100%
+	{
+		background-color: #ffffff * 1.5;
+	}
+}
+
+@keyframes jam-live-breathe
+{
+	0%
+	{
+		background-color: $front-danger * 1.1;
+	}
+	50%
+	{
+		background-color: $front-danger * 1.7;
+	}
+	100%
+	{
+		background-color: $front-danger * 1.1;
+	}
+}

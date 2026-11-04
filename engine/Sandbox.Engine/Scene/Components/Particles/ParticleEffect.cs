@@ -132,6 +132,24 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 	public ParticleFloat Roll { get; set; } = 0.0f;
 
 	/// <summary>
+	/// Pitch given to each particle when it is emitted, added to <see cref="Pitch"/>.
+	/// </summary>
+	[Property, Feature( "Rotation" ), Title( "Initial Pitch" )]
+	public ParticleFloat InitialPitch { get; set; } = 0.0f;
+
+	/// <summary>
+	/// Yaw given to each particle when it is emitted, added to <see cref="Yaw"/>.
+	/// </summary>
+	[Property, Feature( "Rotation" ), Title( "Initial Yaw" )]
+	public ParticleFloat InitialYaw { get; set; } = 0.0f;
+
+	/// <summary>
+	/// Roll given to each particle when it is emitted, added to <see cref="Roll"/>.
+	/// </summary>
+	[Property, Feature( "Rotation" ), Title( "Initial Roll" )]
+	public ParticleFloat InitialRoll { get; set; } = 0.0f;
+
+	/// <summary>
 	/// Enables or disables color application for particles.
 	/// </summary>
 	[Property, FeatureEnabled( "Color", Icon = "color_lens", Description = "The visual properties of each particle" )]
@@ -178,6 +196,12 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 	/// </summary>
 	[Property, Feature( "Shape" )]
 	public ParticleFloat Scale { get; set; } = 1.0f;
+
+	/// <summary>
+	/// Scale given to each particle when it is emitted, multiplied with <see cref="Scale"/>.
+	/// </summary>
+	[Property, Feature( "Shape" ), Title( "Initial Scale" )]
+	public ParticleFloat InitialScale { get; set; } = 1.0f;
 
 	/// <summary>
 	/// The stretch factor of particles, affecting their aspect ratio.
@@ -304,6 +328,13 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 	public bool SnapToFrame { get; set; } = false;
 
 	/// <summary>
+	/// Scale the sequence speed by the particle's lifetime, so at a <see cref="SequenceSpeed"/> of 1
+	/// a non-looping sequence finishes exactly as the particle dies, however long it lives.
+	/// </summary>
+	[Property, Feature( "SheetSequence" ), Title( "Fit To Lifetime" )]
+	public bool SequenceFitToLifetime { get; set; } = false;
+
+	/// <summary>
 	/// Enables or disables the use of prefabs for particles.
 	/// </summary>
 	[Property, FeatureEnabled( "Prefab", Icon = "widgets", Description = "Attach a prefab to a particle" )]
@@ -400,9 +431,11 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 	// The skinned models our live particles are following, ref-counted so PreStep knows exactly which
 	// snapshots to prime and when nobody needs them anymore. Empty == nothing follows a bone == zero cost.
 	// The bone transforms live on each renderer's shared snapshot; particles hold their own handle + index.
-	readonly Dictionary<SkinnedModelRenderer, int> _boneTargets = new();
+	// Null until the first particle follows a bone.
+	Dictionary<SkinnedModelRenderer, int> _boneTargets;
 
-	ConcurrentQueue<Particle> deleteList = new ConcurrentQueue<Particle>();
+	// Main thread only: particles flagged IsDead during the parallel update, released in PostStep.
+	List<(Particle particle, uint generation)> _deadParticles;
 
 	/// <summary>
 	/// Called before the particles are stepped.
@@ -436,7 +469,8 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 
 	Color ITintable.Color { get => Tint; set => Tint = value; }
 
-	List<GameObject> _spawnedGameObjects = new();
+	// Editor-only follower/collision prefabs to clean up in Clear(). Null until the first one spawns.
+	List<GameObject> _spawnedGameObjects;
 
 	public enum SimulationSpace
 	{
@@ -468,21 +502,27 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 
 	public void Clear()
 	{
+		// Callbacks can terminate other particles from the snapshot.
 		foreach ( var p in Particles.ToArray() )
 		{
-			Terminate( p );
+			if ( Particles.Contains( p ) )
+				Terminate( p );
 		}
 
 		Particles.Clear();
-		DelayedParticles.Clear();
-		_boneTargets.Clear();
 
-		foreach ( var go in _spawnedGameObjects )
+		DelayedParticles.Clear();
+		_boneTargets?.Clear();
+
+		if ( _spawnedGameObjects is not null )
 		{
-			if ( !go.IsValid() ) continue;
-			go.Destroy();
+			foreach ( var go in _spawnedGameObjects )
+			{
+				if ( !go.IsValid() ) continue;
+				go.Destroy();
+			}
+			_spawnedGameObjects.Clear();
 		}
-		_spawnedGameObjects.Clear();
 	}
 
 	public void ResetEmitters()
@@ -502,7 +542,7 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 	{
 		var p = Particles[index];
 
-		// keep updating deathtime, incase we're in the editor and they're changing shit
+		// Re-evaluate each step to support live edits and frame-based randomness.
 		p.DeathTime = p.BornTime + Lifetime.Evaluate( p.Rand( 155, 100 ), p.Rand( 145, 100 ) );
 
 		float delta = MathX.Remap( p.BornTime + p.Age, p.BornTime, p.DeathTime );
@@ -590,7 +630,7 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 
 			var hitTime = Time.Now - p.HitTime;
 
-			var collided = p.MoveWithCollision( bounce, friction, bumpiness, push, die, timeScale, radius, _trace, DeferredParticleForces );
+			var collided = p.MoveWithCollision( bounce, friction, bumpiness, push, die, timeScale, radius, _trace, push != 0 ? LazyInitializer.EnsureInitialized( ref _deferredForces ) : null );
 
 			if ( collided && hitTime > 0.3f && UsePrefabFeature && CollisionPrefabChance.Evaluate( delta, Random.Shared.Float( 0, 1 ) ) > Random.Shared.Float( 0, 1 ) )
 			{
@@ -611,7 +651,7 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 					}
 
 					// Queue the collision prefabs to spawn on the main thread
-					ParticleCollisionPrefabs.Add( new( prefabSource, position, angle ) );
+					LazyInitializer.EnsureInitialized( ref _collisionPrefabs ).Add( new( prefabSource, position, angle ) );
 				}
 			}
 		}
@@ -635,7 +675,7 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 
 		if ( ApplyShape )
 		{
-			p.Size = Scale.Evaluate( p, 6211 );
+			p.Size = p.StartScale * Scale.Evaluate( p, 6211 );
 
 			var aspect = Stretch.Evaluate( p, 62415 );
 			if ( aspect < 0 )
@@ -650,21 +690,28 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 
 		if ( ApplyRotation )
 		{
-			p.Angles.pitch = Pitch.Evaluate( p, 2363 );
-			p.Angles.yaw = Yaw.Evaluate( p, 8762 );
-			p.Angles.roll = Roll.Evaluate( p, 3675 );
+			p.Angles.pitch = p.StartAngles.pitch + Pitch.Evaluate( p, 2363 );
+			p.Angles.yaw = p.StartAngles.yaw + Yaw.Evaluate( p, 8762 );
+			p.Angles.roll = p.StartAngles.roll + Roll.Evaluate( p, 3675 );
 		}
 
 		if ( SheetSequence )
 		{
 			p.SequenceTime.x = SequenceTime.Evaluate( p, 7234 );
-			p.SequenceTime.y += SequenceSpeed.Evaluate( p, 1351 ) * timeScale;
+
+			var sequenceSpeed = SequenceSpeed.Evaluate( p, 1351 ) * timeScale;
+
+			// LifeTimeRemaining is DeathTime - BornTime, the particle's total lifetime
+			if ( SequenceFitToLifetime && p.LifeTimeRemaining > 0.0f )
+				sequenceSpeed /= p.LifeTimeRemaining;
+
+			p.SequenceTime.y += sequenceSpeed;
 			p.Sequence = (int)SequenceId.Evaluate( p, 1051 );
 		}
 
 		if ( delta >= 1.0f )
 		{
-			deleteList.Enqueue( p );
+			p.IsDead = true;
 
 			if ( p.hasUpdated )
 			{
@@ -765,9 +812,49 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 
 	internal void PostStep()
 	{
-		while ( deleteList.TryDequeue( out var delete ) )
+		// Callbacks and follower destruction can inspect or mutate Particles while a particle is released.
+		// Keep the old per-particle removal order in that case; otherwise compact in one pass.
+		bool needsIndividualRemoval = OnParticleDestroyed is not null;
+		foreach ( var p in Particles )
 		{
-			Terminate( delete );
+			if ( !p.IsDead ) continue;
+			(_deadParticles ??= new()).Add( (p, p.Generation) );
+			needsIndividualRemoval |= p.hasUpdated || p.Follower.IsValid();
+		}
+
+		if ( _deadParticles is { Count: > 0 } deadParticles )
+		{
+			// A callback can recursively step this effect; give that step its own buffer.
+			_deadParticles = null;
+			try
+			{
+				if ( needsIndividualRemoval )
+				{
+					foreach ( var (p, generation) in deadParticles )
+					{
+						// A callback may have already terminated and even reused this particle.
+						if ( p.Generation == generation && p.IsDead && !p.IsReleased )
+							Terminate( p );
+					}
+				}
+				else
+				{
+					int write = 0;
+					for ( int read = 0; read < Particles.Count; read++ )
+					{
+						var p = Particles[read];
+						if ( !p.IsDead ) Particles[write++] = p;
+					}
+					Particles.RemoveRange( write, Particles.Count - write );
+					foreach ( var (p, _) in deadParticles )
+						ReleaseParticle( p );
+				}
+			}
+			finally
+			{
+				deadParticles.Clear();
+				_deadParticles ??= deadParticles;
+			}
 		}
 
 		ParticleBounds = BBox.FromPositionAndSize( _worldTx.Position, _maxDistance * 2.0f );
@@ -809,14 +896,18 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 	}
 
 	readonly record struct ParticleCollisionPrefab( GameObject prefabSource, Vector3 position, Rotation rotation );
-	ConcurrentBag<ParticleCollisionPrefab> ParticleCollisionPrefabs = [];
+	// Filled from the parallel update; created on first use so idle effects carry no bags.
+	ConcurrentBag<ParticleCollisionPrefab> _collisionPrefabs;
 
 	internal readonly record struct DeferredParticleForce( PhysicsBody body, Vector3 position, Vector3 force );
-	ConcurrentBag<DeferredParticleForce> DeferredParticleForces = [];
+	ConcurrentBag<DeferredParticleForce> _deferredForces;
 
 	internal void SpawnDeferredParticleCollisionPrefabs()
 	{
-		foreach ( var collision in ParticleCollisionPrefabs )
+		if ( _collisionPrefabs is null || _collisionPrefabs.IsEmpty )
+			return;
+
+		foreach ( var collision in _collisionPrefabs )
 		{
 			if ( !collision.prefabSource.IsValid() )
 				continue;
@@ -826,16 +917,19 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 
 			if ( Scene.IsEditor )
 			{
-				_spawnedGameObjects.Add( go );
+				(_spawnedGameObjects ??= new()).Add( go );
 			}
 		}
 
-		ParticleCollisionPrefabs.Clear();
+		_collisionPrefabs.Clear();
 	}
 
 	internal void ApplyDeferredParticleForces()
 	{
-		foreach ( var force in DeferredParticleForces )
+		if ( _deferredForces is null || _deferredForces.IsEmpty )
+			return;
+
+		foreach ( var force in _deferredForces )
 		{
 			if ( force.body is not null && force.body.IsValid() )
 			{
@@ -843,18 +937,19 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 			}
 		}
 
-		DeferredParticleForces.Clear();
+		_deferredForces.Clear();
 	}
 
 	void AddBoneTarget( SkinnedModelRenderer target )
 	{
+		_boneTargets ??= new();
 		_boneTargets.TryGetValue( target, out var count );
 		_boneTargets[target] = count + 1;
 	}
 
 	void ReleaseBoneTarget( SkinnedModelRenderer target )
 	{
-		if ( !_boneTargets.TryGetValue( target, out var count ) )
+		if ( _boneTargets is null || !_boneTargets.TryGetValue( target, out var count ) )
 			return;
 
 		if ( count <= 1 )
@@ -870,6 +965,9 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 	/// </summary>
 	void PrimeBoneTargets()
 	{
+		if ( _boneTargets is null )
+			return;
+
 		foreach ( var target in _boneTargets.Keys )
 		{
 			target.EnsureBoneSnapshot();
@@ -916,7 +1014,7 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 		var localSpace = LocalSpace.Evaluate( 0, 254 ).Clamp( 0, 1 );
 		var delay = StartDelay.Evaluate( delta, Random.Shared.Float() );
 
-		var p = Particle.Create();
+		var p = Particle.Create( Scene?.ParticlePool );
 
 		p.Position = position;
 		p.StartPosition = position;
@@ -941,6 +1039,20 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 		var initialVelocity = InitialVelocity.Evaluate( delta, Random.Shared.Float(), Random.Shared.Float(), Random.Shared.Float() );
 		p.Velocity += initialVelocity.LerpTo( spaceTx.NormalToWorld( initialVelocity ) * initialVelocity.Length, localSpace );
 
+		if ( ApplyRotation )
+		{
+			p.StartAngles.pitch = InitialPitch.Evaluate( delta, Random.Shared.Float() );
+			p.StartAngles.yaw = InitialYaw.Evaluate( delta, Random.Shared.Float() );
+			p.StartAngles.roll = InitialRoll.Evaluate( delta, Random.Shared.Float() );
+			p.Angles = p.StartAngles;
+		}
+
+		if ( ApplyShape )
+		{
+			p.StartScale = InitialScale.Evaluate( delta, Random.Shared.Float() );
+			p.Size = p.StartScale;
+		}
+
 		p.BornTime += delay;
 		p.DeathTime = p.BornTime + Lifetime.Evaluate( delta, p.Rand( 145, 100 ) );
 
@@ -954,7 +1066,7 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 
 				if ( Scene.IsEditor )
 				{
-					_spawnedGameObjects.Add( p.Follower );
+					(_spawnedGameObjects ??= new()).Add( p.Follower );
 				}
 			}
 		}
@@ -983,6 +1095,18 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 
 	public void Terminate( Particle p )
 	{
+		if ( ReleaseParticle( p ) )
+			Particles.Remove( p );
+	}
+
+	/// <summary>
+	/// Tear down a particle that is leaving the effect and return it to the pool. Does not touch <see cref="Particles"/>.
+	/// </summary>
+	bool ReleaseParticle( Particle p )
+	{
+		if ( p.IsReleased ) return false;
+		p.IsReleased = true;
+
 		// Release by reference, not IsValid() - a destroyed renderer is still a valid dictionary key, so the
 		// ref-count stays balanced.
 		if ( p.AttachTarget is not null )
@@ -1019,12 +1143,11 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 			Log.Warning( e );
 		}
 
-		Particles.Remove( p );
-
-		if ( Particle.Pool.Count < 4096 )
-			Particle.Pool.Enqueue( p );
+		if ( Scene?.ParticlePool is { Count: < 4096 } pool )
+			pool.Enqueue( p );
 
 		SceneMetrics.ParticlesDestroyed++;
+		return true;
 	}
 
 	internal void OnControllerDisabled( Component c )

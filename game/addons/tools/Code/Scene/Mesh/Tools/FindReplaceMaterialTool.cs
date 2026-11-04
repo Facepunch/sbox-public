@@ -68,7 +68,7 @@ public partial class FindReplaceMaterialTool : SelectionTool<MeshFace>
 
 	void CreateFaceObject()
 	{
-		_faceObject = new SceneDynamicObject( Scene.SceneWorld );
+		_faceObject = new SceneDynamicObject( Scene.DebugSceneWorld );
 		_faceObject.Material = Material.Load( "materials/tools/vertex_color_translucent.vmat" );
 		_faceObject.Attributes.SetCombo( "D_DEPTH_BIAS", 1 );
 		_faceObject.Attributes.SetCombo( "D_NO_CULLING", 1 );
@@ -160,8 +160,7 @@ public partial class FindReplaceMaterialTool : SelectionTool<MeshFace>
 
 				var mesh = component.Mesh;
 
-				foreach ( var hFace in faces )
-					mesh.SetFaceMaterial( hFace, ReplaceMaterial );
+				mesh.AssignMaterialToFaces( faces, ReplaceMaterial );
 			}
 		}
 
@@ -210,7 +209,7 @@ public partial class FindReplaceMaterialTool : SelectionTool<MeshFace>
 
 	protected void UpdateFaceSelectionAndOverlay()
 	{
-		if ( _faceObject is null || (_faceObject.IsValid() && _faceObject.World != Scene.SceneWorld) )
+		if ( _faceObject is null || (_faceObject.IsValid() && _faceObject.World != Scene.DebugSceneWorld) )
 		{
 			_faceObject?.Delete();
 			CreateFaceObject();

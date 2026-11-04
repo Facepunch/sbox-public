@@ -20,11 +20,22 @@ public sealed class ColorAdjustments : BasePostProcess<ColorAdjustments>
 
 	public override void Render()
 	{
-		Attributes.Set( "blend", GetWeighted( x => x.Blend, 0 ) );
-		Attributes.Set( "saturate", GetWeighted( x => x.Saturation, 1 ) );
-		Attributes.Set( "hue_rotate", GetWeighted( x => x.HueRotate, 0, true ) );
-		Attributes.Set( "brightness", GetWeighted( x => x.Brightness, 1 ) );
-		Attributes.Set( "contrast", GetWeighted( x => x.Contrast, 1 ) );
+		var blend = GetWeighted( x => x.Blend, 0 );
+		if ( blend == 0.0f ) return;
+
+		var saturation = GetWeighted( x => x.Saturation, 1 );
+		var hueRotate = GetWeighted( x => x.HueRotate, 0, true );
+		var brightness = GetWeighted( x => x.Brightness, 1 );
+		var contrast = GetWeighted( x => x.Contrast, 1 );
+
+		// Neutral adjustments don't need a frame copy or a fullscreen pass.
+		if ( saturation == 1.0f && hueRotate == 0.0f && brightness == 1.0f && contrast == 1.0f ) return;
+
+		Attributes.Set( "blend", blend );
+		Attributes.Set( "saturate", saturation );
+		Attributes.Set( "hue_rotate", hueRotate );
+		Attributes.Set( "brightness", brightness );
+		Attributes.Set( "contrast", contrast );
 
 		var blit = BlitMode.WithBackbuffer( Shader, Stage.AfterPostProcess, 3000, false );
 		Blit( blit, "ColorAdjustments" );

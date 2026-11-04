@@ -1,0 +1,74 @@
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+
+@using Sandbox;
+@using Sandbox.UI;
+
+@attribute [Group( "/System" )]
+@attribute [Title( "Razor outro lifetime" )]
+@attribute [Description( "Razor markup and child fragments survive their parent's outro (#11175)" )]
+@attribute [Icon( "animation" )]
+
+<root>
+    <p>
+        Each card is removed from Razor every three seconds. Its two-second outro should keep all
+        text and nested content visible as it slides and fades, then leave an empty stage for one second.
+        An empty card sliding away, or children disappearing before its border, is a regression.
+    </p>
+    <label class="phase">@(shown ? "Mounted — content is alive" : "Removed from Razor — outro, then an empty stage")</label>
+
+    <h2>Inline Razor content</h2>
+    <p>Static markup, dynamic text, and nested panels have no outro of their own. They must follow the parent.</p>
+    <div class="outro-stage">
+        @if ( shown )
+        {
+            <div class="outro-card">
+                <label class="card-title">This text must stay alive</label>
+                <label>Razor generation @generation</label>
+                <div class="nested-content">
+                    <label class="icon">favorite</label>
+                    <label>Nested content fades with the card</label>
+                </div>
+            </div>
+        }
+    </div>
+
+    <h2>ChildContent fragment</h2>
+    <p>The same content is passed into a Razor component as a fragment. It must survive for the entire parent outro too.</p>
+    <div class="outro-stage">
+        @if ( shown )
+        {
+            <RazorOutroCard class="outro-card">
+                <ChildContent>
+                    <label class="card-title">This fragment must stay alive</label>
+                    <label>Razor generation @generation</label>
+                    <div class="nested-content">
+                        <label class="icon">favorite</label>
+                        <label>Nested fragment content fades with the card</label>
+                    </div>
+                </ChildContent>
+            </RazorOutroCard>
+        }
+    </div>
+</root>
+
+@code
+{
+    RealTimeUntil timeUntilToggle = 3;
+    bool shown = true;
+    int generation = 1;
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        if ( !IsVisible || timeUntilToggle > 0 ) return;
+
+        timeUntilToggle = 3;
+        shown = !shown;
+        if ( shown ) generation++;
+        StateHasChanged();
+    }
+
+    protected override int BuildHash() => System.HashCode.Combine( shown, generation );
+}

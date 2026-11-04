@@ -1,7 +1,7 @@
 ﻿@inherits Sandbox.UI.Panel
 @using Sandbox;
 @using Sandbox.UI;
-@namespace Menu
+@namespace SboxMenu
 
 <root>
     <div class="bottom">
@@ -21,8 +21,13 @@
 	[Parameter]
 	public Action<string> OnValueChanged { get; set; }
 
+	/// <summary>
+	/// Called after opening the map picker so its owner can track the selection being edited.
+	/// </summary>
+	[Parameter] public Action OnSelectorOpened { get; set; }
 
-	public string Thumb
+
+	public Texture Thumb
 	{
 		get => field;
 		set
@@ -32,7 +37,7 @@
 		}
 	}
 
-	public string Title { get; private set; } = "Default Map";
+	public string Title { get; private set; } = "#menu.home.default_map";
 
 
 	protected override void OnMouseUp(MousePanelEvent e)
@@ -56,21 +61,22 @@
 
 			OnValueChanged?.Invoke(pkg);
 		}, Map );
+		OnSelectorOpened?.Invoke();
 	}
 
 	public async Task OnMapChanged( string map )
 	{ 	
 		if ( string.IsNullOrWhiteSpace( map ) )
 		{
-			Thumb = "";
-			Title = "Default Map";
+			Thumb = null;
+			Title = "#menu.home.default_map";
 			StateHasChanged();
 			return;
 		}
 
 		if ( Sandbox.Mounting.Directory.GetMetadata( map ) is { } meta )
 		{
-			Thumb = null;
+			Thumb = meta.Thumbnail;
 			Title = meta.Name;
 
 			StateHasChanged();
@@ -80,15 +86,15 @@
 		var package = await Package.Fetch( map, true );
 		if ( package is not null )
 		{
-			Thumb = package.ThumbWide;
+			Thumb = Texture.Load( package.ThumbWide );
 			Title = package.Title;
 
 			StateHasChanged();
 			return;
 		}
 
-		Thumb = "";
-		Title = "Default Map";
+		Thumb = null;
+		Title = "#menu.home.default_map";
 
 		StateHasChanged();
 	}

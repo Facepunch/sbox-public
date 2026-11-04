@@ -39,7 +39,7 @@ public class GroupButtonControlWidget : ControlWidget
 			if ( !o.Browsable )
 				continue;
 
-			var b = Layout.Add( new MenuOption( o, property, IsFlagsMode ) );
+			var b = Layout.Add( new MenuOption( o, property, IsFlagsMode, property.GetAttributes<EnumButtonGroupAttribute>().FirstOrDefault()?.IconOnly ?? false ) );
 			b.Enabled = !IsControlDisabled;
 		}
 
@@ -64,7 +64,10 @@ file class MenuOption : Widget
 
 	Label _text;
 
-	public MenuOption( EnumDescription.Entry e, SerializedProperty p, bool flags ) : base( null )
+	/// <summary>
+	/// Creates an enum choice, optionally using its icon with a descriptive tooltip.
+	/// </summary>
+	public MenuOption( EnumDescription.Entry e, SerializedProperty p, bool flags, bool iconOnly ) : base( null )
 	{
 		info = e;
 		property = p;
@@ -76,19 +79,39 @@ file class MenuOption : Widget
 		FixedHeight = Theme.RowHeight;
 		Cursor = CursorShape.Finger;
 
+		iconOnly &= !string.IsNullOrWhiteSpace( e.Icon );
+		if ( iconOnly )
+		{
+			Layout.AddStretchCell();
+		}
+
 		if ( !string.IsNullOrWhiteSpace( e.Icon ) )
 		{
-			Layout.AddSpacingCell( 4 );
+			if ( !iconOnly )
+			{
+				Layout.AddSpacingCell( 4 );
+			}
 			Layout.Add( new IconButton( e.Icon ) { Background = Color.Transparent, TransparentForMouseEvents = true, IconSize = 12, FixedSize = Theme.RowHeight } );
 		}
 
-		var c = Layout.AddColumn();
-		c.Margin = new Sandbox.UI.Margin( 8, 4 );
-		_text = c.Add( new Label( e.Title ) );
+		if ( iconOnly )
+		{
+			Layout.AddStretchCell();
+		}
+		else
+		{
+			var c = Layout.AddColumn();
+			c.Margin = new Sandbox.UI.Margin( 8, 4 );
+			_text = c.Add( new Label( e.Title ) );
+		}
 
 		if ( !string.IsNullOrWhiteSpace( e.Description ) )
 		{
-			ToolTip = e.Description;
+			ToolTip = iconOnly ? $"{e.Title}\n{e.Description}" : e.Description;
+		}
+		else
+		{
+			ToolTip = e.Title;
 		}
 	}
 
@@ -144,7 +167,9 @@ file class MenuOption : Widget
 			value = info.IntegerValue;
 		}
 
+		property.NoteStartEdit( property );
 		property.SetValue( value );
+		property.NoteFinishEdit( property );
 		SignalValuesChanged();
 	}
 }

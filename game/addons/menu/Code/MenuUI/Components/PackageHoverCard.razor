@@ -1,0 +1,713 @@
+@using System;
+@using System.Collections.Generic;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.Services;
+@using Sandbox.UI;
+@namespace MenuProject.UI
+@inherits Panel
+
+<root class="package-hover-card" @onrightclick=@OpenMenu>
+    <div class="media" style="background-image: url(@(continuedVideo ? VideoUrl() : Package.ThumbWide ?? Package.Thumb ?? "/ui/sbox-logo-square.svg"))" onclick=@OpenDetails>
+        @if ( showVideo && !continuedVideo && !string.IsNullOrEmpty( Package.VideoThumb ) )
+        {
+            <div class="package-video" style="background-image: url(@VideoUrl())" />
+        }
+
+        @* The art's the card's own whichever it is - it grows out of it. What's over it is the backend's, workshop or not *@
+        @if ( decided && !Package.Flair.IsEmpty )
+        {
+            <MenuProject.UI.PackageFlairBar Flair="@Package.Flair" />
+        }
+
+        @if ( decided && Package.Usage.UsersNow > 0 )
+        {
+            <div class="facts">
+                <div class="fact live" tooltip="#menu.games.playing_now">
+                    <div class="live-dot" />
+                    <label>@Compact( Package.Usage.UsersNow )</label>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="body">
+        <div class="title-row">
+            <label class="title" onclick=@OpenDetails>@Package.Title</label>
+
+            @* Until it's known whose facts they are - the backend's, or its workshop item's - their shapes *@
+            @if ( Loading )
+            {
+                <div class="bone fact-bone"></div>
+                <div class="bone fact-bone"></div>
+            }
+            else
+            {
+                <div class="fact @RatingClass()" tooltip="@RatingText()">
+                    <icon>@RatingIcon()</icon>
+                    <label>@RatingPercentText()</label>
+                </div>
+
+                <div class="fact" tooltip="#menu.games.players_all_time">
+                    <icon>group</icon>
+                    <label>@Compact( Package.Usage.Total.Users )</label>
+                </div>
+
+                @if ( OnWorkshop )
+                {
+                    <div class="fact" tooltip="#menu.workshop.subscribers_tooltip">
+                        <icon>bookmark</icon>
+                        <label>@Compact( Workshop?.Subscriptions ?? 0 )</label>
+                    </div>
+                }
+            }
+        </div>
+
+        @* What kind of game and how it's played, on a line of their own. Just says so - none of it's a link *@
+        <div class="tags">
+            @{ var tags = !Loading ? Tags().ToList() : new List<string>(); }
+            @for ( int i = 0; i < tags.Count; i++ )
+            {
+                if ( i > 0 )
+                {
+                    <label class="sep">·</label>
+                }
+                <label class="tag">@TagLabel( tags[i] )</label>
+            }
+
+            @* After the genres, how it's played gets its own chip, so multiplayer stands out from them *@
+            @if ( !Loading && Modes is { Label: { } modeLabel } modes )
+            {
+                var fit = modes.FitFor( PlayerModes.PartySize );
+
+                <div class="mode @(fit.Fit == PlayerModes.FitKind.Poor ? "mismatch" : modes.Multiplayer ? "multiplayer" : "")" tooltip="@(fit.Why ?? modes.Hint)">
+                    <icon>@modes.Icon</icon>
+                    <label>@modeLabel</label>
+                </div>
+            }
+        </div>
+
+        @* The backend's summary - a workshop item hasn't got one *@
+        @if ( Backend && !string.IsNullOrWhiteSpace( Package.Summary ) )
+        {
+            <div class="summary">
+                <label>@Package.Summary</label>
+            </div>
+        }
+
+        @if ( ShowJam )
+        {
+            <div class="jam @( _nominated ? "on" : "" )">
+                <icon class="trophy">emoji_events</icon>
+                <div class="text">
+                    <label class="title">@_jam.Title entry</label>
+                    <label class="hint">@JamHint</label>
+                </div>
+                <div class="nominate @( _nominated ? "on" : "" ) @( _busy ? "busy" : "" ) @( CanToggleNomination ? "" : "locked" )" onclick=@( () => _ = ToggleNomination() )>
+                    <icon>@( _nominated ? "check" : CanToggleNomination ? "how_to_vote" : "lock" )</icon>
+                    <label>@( _nominated ? "#menu.games.nominated" : "#menu.games.nominate" )</label>
+                </div>
+            </div>
+        }
+
+        <div class="footer">
+            @if ( Loading )
+            {
+                <div class="actions">
+                    <div class="bone group-bone"></div>
+                </div>
+            }
+            else if ( OnWorkshop )
+            {
+                @* Its workshop item's votes, on Steam - and subscribing to it. The rest are the backend's *@
+                <div class="actions">
+                    <div class="group">
+                        <div class="button @( WorkshopVote == true ? "active" : "" )" onclick=@( () => _ = VoteOnWorkshop( true ) ) tooltip="#menu.workshop.vote_up">
+                            <icon>thumb_up</icon>
+                        </div>
+                        <div class="button @( WorkshopVote == false ? "active" : "" )" onclick=@( () => _ = VoteOnWorkshop( false ) ) tooltip="#menu.workshop.vote_down">
+                            <icon>thumb_down</icon>
+                        </div>
+                    </div>
+                    <div class="button subscribe @( Subscribed ? "active" : "" )" onclick=@ToggleSubscribed tooltip="@( Subscribed ? "#menu.workshop.unsubscribe_tooltip" : "#menu.workshop.subscribe_tooltip" )">
+                        <icon>@( Subscribed ? "check" : "add" )</icon>
+                    </div>
+                </div>
+            }
+            else
+            {
+            <div class="actions">
+                <div class="group">
+                    <div class="button @( Liked ? "active" : "" )" onclick=@( () => _ = Vote( true ) ) tooltip="#menu.games.like">
+                        <icon>thumb_up</icon>
+                    </div>
+                    <div class="button @( Disliked ? "active" : "" )" onclick=@( () => _ = Vote( false ) ) tooltip="#menu.games.dislike">
+                        <icon>thumb_down</icon>
+                    </div>
+                </div>
+                <div class="group">
+                    <div class="button fav @( Package.Interaction.Favourite ? "active" : "" )" onclick=@( () => _ = ToggleFavourite() ) tooltip="@( Package.Interaction.Favourite ? "#menu.games.remove_from_favourites_text" : "#menu.games.add_to_favourites_text" )">
+                        <icon>@( Package.Interaction.Favourite ? "favorite" : "favorite_border" )</icon>
+                    </div>
+                </div>
+                @if ( Package.TypeName == "game" )
+                {
+                    <div class="button @( _hiding ? "busy" : "" )" onclick=@( () => _ = Hide() ) tooltip="#menu.games.hide_this_game">
+                        <icon>block</icon>
+                    </div>
+                }
+            </div>
+            }
+
+            <div class="grow" />
+
+            @if ( Package.TypeName == "game" && MenuHelpers.HasAuthority )
+            {
+                <div class="actions">
+                    <div class="button primary" onclick=@Play>
+                        <icon>play_arrow</icon>
+                        <label>#menu.common.play</label>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</root>
+
+@code {
+    const float Scale = 1.35f;
+    const float MaxWidth = 420f;
+    const float MinLift = 1.2f;
+    const float IntroTime = 0.3f;
+    const float IntroOverhang = 0.01f;
+    const float VideoDelay = 0.2f;
+    const float HoverGrace = 0.35f;
+    const float ScreenPadding = 12f;
+
+    public static PackageHoverCard Current { get; private set; }
+
+    public Panel Source { get; private set; }
+    public Package Package { get; private set; }
+
+    float openedAt;
+    bool showVideo;
+    bool continuedVideo;
+    string videoUrl;
+    Rect placed;
+    bool introPending = true;
+    bool hoverReported;
+
+    Jam _jam;
+    JamEntryStatus _entry;
+    bool _nominated;
+    bool _busy;
+    bool _hiding;
+
+    bool ShowJam => Backend && _jam is not null && _entry.IsEntry;
+
+    //
+    // Whose facts these are - the backend's, or its Steam Workshop item's. A game's only known to be on the workshop
+    // from its full package, so until then neither's shown, rather than one swapped for the other
+    //
+
+    bool decided;
+
+    /// <summary>
+    /// A game on the Steam Workshop - its facts are its item's. Maps keep the backend's, like their page.
+    /// </summary>
+    bool OnWorkshop;
+
+    bool Backend => decided && !OnWorkshop;
+
+    /// <summary>
+    /// What the Steam Workshop says about it, once it's been asked - null before then, or if Steam couldn't say
+    /// </summary>
+    WorkshopItemDetails Workshop;
+    bool workshopLoaded;
+
+    bool Loading => !decided || (OnWorkshop && !workshopLoaded);
+
+    /// <summary>
+    /// How it's played - its workshop item says, for one on the workshop. One published before items said falls
+    /// back to the full package, if finding its item fetched that - a shelf result can leave the modes out.
+    /// </summary>
+    PlayerModes Modes => OnWorkshop
+        ? PlayerModes.For( Package.TryGetCached( Package.FullIdent, out var full, false ) ? full : Package, Workshop )
+        : PlayerModes.For( Package );
+
+    /// <summary>
+    /// How we've voted on its workshop item - true up, false down, null not at all
+    /// </summary>
+    bool? WorkshopVote;
+    bool voting;
+
+    async Task LoadSource()
+    {
+        if ( Package.TypeName != "game" )
+        {
+            decided = true;
+            StateHasChanged();
+            return;
+        }
+
+        // Known already, or its full package is in and it isn't - otherwise the full package says
+        var id = MenuUtility.KnownWorkshopId( Package );
+        if ( id == 0 && !Package.TryGetCached( Package.FullIdent, out _, false ) )
+            id = await MenuUtility.GetWorkshopIdAsync( Package );
+
+        if ( !this.IsValid() ) return;
+
+        OnWorkshop = id != 0;
+        decided = true;
+        StateHasChanged();
+
+        if ( !OnWorkshop )
+        {
+            _ = LoadPackage();
+            _ = LoadJam();
+            return;
+        }
+
+        var item = MenuUtility.FetchWorkshopItemAsync( id );
+        var vote = MenuUtility.GetWorkshopVoteAsync( id );
+
+        Workshop = await item;
+        WorkshopVote = await vote;
+        workshopLoaded = true;
+
+        if ( this.IsValid() ) StateHasChanged();
+    }
+
+    async Task VoteOnWorkshop( bool up )
+    {
+        if ( Workshop is not { } item || voting || WorkshopVote == up ) return;
+
+        voting = true;
+        var was = WorkshopVote;
+        WorkshopVote = up;
+        StateHasChanged();
+
+        var taken = await MenuUtility.VoteOnWorkshopAsync( item.Id, up );
+        voting = false;
+
+        if ( !this.IsValid() ) return;
+
+        if ( !taken )
+        {
+            WorkshopVote = was;
+            ShowToast( "#menu.workshop.vote_failed", "thumbs_up_down" );
+        }
+
+        StateHasChanged();
+    }
+
+    bool Subscribed => MenuUtility.IsSubscribed( Package );
+
+    void ToggleSubscribed()
+    {
+        if ( Subscribed ) _ = MenuUtility.UnsubscribeAsync( Package );
+        else _ = MenuUtility.SubscribeAsync( Package );
+    }
+    bool CanToggleNomination => _nominated || _entry.CanNominate;
+    string JamHint => _nominated ? "#menu.games.you_nominated_it_for_the_jam" : CanToggleNomination ? "#menu.games.liked_it_nominate_it_for_the_jam" : _entry.Reason;
+
+    static bool IsShowing( Panel source ) => Current.IsValid() && Current.Source == source;
+
+    /// <summary>
+    /// Its video at all - off for a card with its own off, so hovering doesn't start one either.
+    /// </summary>
+    bool videos = true;
+
+    // Same video url as the card = same player, so the preview continues the card's video.
+    public static PackageHoverCard Show( Panel source, Package package, string playingVideoUrl = null, bool videos = true )
+    {
+        if ( IsShowing( source ) )
+            return Current;
+
+        Current?.Delete( true );
+
+        var card = new PackageHoverCard
+        {
+            Source = source,
+            Package = package,
+            openedAt = RealTime.Now,
+            videoUrl = playingVideoUrl,
+            showVideo = playingVideoUrl is not null,
+            continuedVideo = playingVideoUrl is not null,
+            videos = videos,
+        };
+
+        // In whichever menu or modal it's in - the pause menu and the pickers are modals up in the
+        // overlay, and the overlay's own root would put the card under them
+        card.Parent = source.Ancestors.FirstOrDefault( x => x.HasClass( "mainmenu" ) || x is MenuProject.Modals.BaseModal ) ?? source.FindPopupPanel();
+        card.Reposition();
+
+        Current = card;
+
+        _ = card.LoadSource();
+
+        return card;
+    }
+
+    async Task LoadPackage()
+    {
+        // Shelf results can omit the game's declared player modes and limits. Use the
+        // same full package as the game page, keeping the preview visible while it loads.
+        // One on the workshop doesn't need it, its item says.
+        try
+        {
+            var full = await Package.FetchAsync( Package.FullIdent, false );
+            if ( !this.IsValid() || IsDeleting || full is null ) return;
+
+            Package = full;
+            StateHasChanged();
+        }
+        catch ( Exception e )
+        {
+            Log.Warning( $"Couldn't fetch hover card details for {Package.FullIdent}: {e.Message}" );
+        }
+    }
+
+    async Task LoadJam()
+    {
+        var jam = await Jam.GetActive();
+        if ( !this.IsValid() ) return;
+        if ( jam is null || !jam.CommunityVoting || !jam.HasStarted || jam.Now >= jam.NominationsEnd ) return;
+
+        var entry = await jam.GetEntryStatusAsync( Package );
+        if ( !this.IsValid() ) return;
+        if ( entry is not { IsEntry: true } status ) return;
+
+        _jam = jam;
+        _entry = status;
+        _nominated = status.Nominated;
+        StateHasChanged();
+    }
+
+    async Task ToggleNomination()
+    {
+        if ( _busy || !ShowJam || !CanToggleNomination ) return;
+
+        _busy = true;
+        StateHasChanged();
+
+        var removing = _nominated;
+        _nominated = !removing;
+        string reason;
+
+        try
+        {
+            reason = removing ? await _jam.WithdrawNominationAsync( Package ) : await _jam.NominateAsync( Package );
+        }
+        catch ( Exception e )
+        {
+            Log.Warning( e, $"Nominate {Package.FullIdent} failed" );
+            reason = "#menu.games.couldn_t_reach_the_jam_right_now";
+        }
+
+        if ( !this.IsValid() ) return;
+
+        _busy = false;
+
+        if ( reason is not null )
+        {
+            _nominated = removing;
+            ShowToast( reason, "how_to_vote" );
+        }
+
+        StateHasChanged();
+    }
+
+    async Task Hide()
+    {
+        if ( _hiding ) return;
+
+        _hiding = true;
+        StateHasChanged();
+
+        var hidden = await MenuHelpers.HidePackage( Source, Package );
+
+        if ( !this.IsValid() ) return;
+
+        _hiding = false;
+
+        if ( hidden )
+            Close();
+        else
+            StateHasChanged();
+    }
+
+    static void ShowToast( string title, string icon ) => MenuOverlay.Instance?.BottomRight?.Queue( new MenuProject.Toast() { Title = title, Icon = icon } );
+
+    void Grow( Rect art, Rect rest, float t )
+    {
+        var scale = ScaleFromScreen;
+        var transform = new PanelTransform();
+
+        var width = Math.Max( art.Width, art.Height * (16f / 9f) ) * (1f + IntroOverhang * 2f);
+        var from = new Rect( art.Center.x - width * 0.5f, art.Center.y - width * (9f / 16f) * 0.5f, width, width * (9f / 16f) );
+
+        transform.AddTranslate( MathX.Lerp( from.Left - rest.Left, 0f, t ) * scale, MathX.Lerp( from.Top - rest.Top, 0f, t ) * scale );
+        transform.AddScale( MathX.Lerp( from.Width / rest.Width, 1f, t ) );
+
+        Style.Transform = t < 1f ? transform : null;
+        Style.Dirty();
+    }
+
+    public void Close()
+    {
+        if ( Current == this )
+            Current = null;
+
+        introPending = false;
+        Style.Transform = null;
+
+        Delete();
+    }
+
+    public override void OnDeleted()
+    {
+        base.OnDeleted();
+
+        if ( Current == this )
+            Current = null;
+
+        if ( hoverReported )
+            Discovery.PreviewClosed( "hovercard", Package?.FullIdent );
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        if ( IsDeleting )
+            return;
+
+        if ( !Source.IsValid() || !Source.IsVisible || Source.Box.Rect.Width <= 0 )
+        {
+            Close();
+            return;
+        }
+
+        var age = RealTime.Now - openedAt;
+
+        if ( age > HoverGrace && !HasHovered && !Source.HasHovered )
+        {
+            Close();
+            return;
+        }
+
+        // Only a card that finished appearing counts - not one flown over on the way elsewhere
+        if ( !hoverReported && age >= IntroTime )
+        {
+            hoverReported = true;
+
+            var context = Discovery.Find( Source );
+            Discovery.PreviewOpened( "hovercard", Package.FullIdent, context, context.PositionOf( Package ) );
+        }
+
+        if ( videos && !showVideo && age >= VideoDelay )
+        {
+            showVideo = true;
+            StateHasChanged();
+        }
+
+        Reposition();
+    }
+
+    // Scale x the card, centred on its art; the intro scales up from there.
+    void Reposition()
+    {
+        var scale = ScaleFromScreen;
+        var src = Source.Box.Rect;
+        var art = Source.Children.FirstOrDefault( x => x.HasClass( "image" ) )?.Box.Rect ?? src;
+
+        var width = Math.Max( Math.Min( src.Width * Scale, MaxWidth * ScaleToScreen ), src.Width * MinLift );
+        var rect = new Rect( src.Center.x - width * 0.5f, art.Center.y - width * (9f / 16f) * 0.5f, width, width * (9f / 16f) );
+
+        var bounds = Bounds().Shrink( ScreenPadding * ScaleToScreen );
+        var height = Math.Max( Box.Rect.Height, rect.Height );
+        var lift = Math.Clamp( rect.Top + height - bounds.Bottom, 0f, Math.Max( rect.Top + height - art.Bottom, 0f ) );
+
+        rect.Position = new Vector2( Math.Clamp( rect.Left, bounds.Left, Math.Max( bounds.Right - rect.Width, bounds.Left ) ), rect.Top - lift );
+
+        if ( introPending )
+        {
+            var t = Math.Clamp( (RealTime.Now - openedAt) / IntroTime, 0f, 1f );
+
+            Grow( art, rect, 1f - (1f - t) * (1f - t) * (1f - t) );
+            introPending = t < 1f;
+        }
+
+        if ( rect.Equals( placed ) )
+            return;
+
+        placed = rect;
+
+        var origin = Parent.IsValid() ? Parent.Box.Rect.Position : Vector2.Zero;
+
+        Style.Width = rect.Width * scale;
+        Style.Left = (rect.Left - origin.x) * scale;
+        Style.Top = (rect.Top - origin.y) * scale;
+        Style.Dirty();
+    }
+
+    // Floats in the root, so hand the wheel to the card and let the feed scroll.
+    public override void OnMouseWheel( Vector2 value )
+    {
+        if ( Source.IsValid() )
+            Source.OnMouseWheel( value );
+        else
+            base.OnMouseWheel( value );
+    }
+
+    Rect Bounds()
+    {
+        var bounds = Source.Ancestors.FirstOrDefault( x => x.ComputedStyle?.Overflow is not (null or OverflowMode.Visible) )
+            ?.Box.ClipRect ?? new Rect( 0, 0, Screen.Width, Screen.Height );
+
+        // Keep clear of the party deck in the bottom right, if we'd run into it
+        if ( PartyDeck.Current?.Window is { Box.Rect: var dock } && dock.Left < Source.Box.Rect.Right && dock.Right > Source.Box.Rect.Left )
+            bounds.Bottom = Math.Min( bounds.Bottom, dock.Top );
+
+        return bounds;
+    }
+
+    string VideoUrl() => videoUrl ??= PackageCard.VideoUrl( Package, PackageCard.PickQuality( Box.Rect.Width ) );
+
+    void OpenDetails()
+    {
+        Discovery.Clicked( Source, Package );
+        Package.OpenModal();
+        Close();
+    }
+
+    void Play()
+    {
+        MenuHelpers.PlayGame( Package, via: "hovercard", source: Source );
+        Close();
+    }
+
+    void OpenMenu() => MenuHelpers.OpenPackageMenu( this, Package );
+
+    // Rating: 0 like, 1 dislike, null unrated
+    bool Liked => Package.Interaction.Rating == 0;
+    bool Disliked => Package.Interaction.Rating == 1;
+
+    async Task Vote( bool up )
+    {
+        await Package.SetVoteAsync( up );
+        if ( this.IsValid() ) StateHasChanged();
+    }
+
+    async Task ToggleFavourite()
+    {
+        await Package.SetFavouriteAsync( !Package.Interaction.Favourite );
+        if ( this.IsValid() ) StateHasChanged();
+    }
+
+    static string TagLabel( string tag ) => tag switch
+    {
+        "multiplayer" => "#menu.home.multiplayer",
+        "singleplayer" => "#menu.games.singleplayer",
+        _ => GenreLabels.GetValueOrDefault( tag, tag ),
+    };
+
+    // How much of its likes are up - its workshop item's on Steam when it has one, the package's otherwise. -1 = unrated.
+    (int Percent, int Count) Rating()
+    {
+        var (up, down) = Workshop is { } item ? (item.VotesUp, item.VotesDown) : (Package.VotesUp, Package.VotesDown);
+        var votes = up + down;
+        return (votes > 0 ? (int)(up * 100f / votes) : -1, votes);
+    }
+
+    string RatingText()
+    {
+        var (pct, count) = Rating();
+        if ( pct == -1 ) return "#menu.workshop.no_votes_yet";
+
+        return $"{pct}% liked ({Compact( count )})";
+    }
+
+    string RatingPercentText()
+    {
+        var pct = Rating().Percent;
+        return pct == -1 ? "#menu.games.unrated" : $"{pct}%";
+    }
+
+    string RatingClass() => Rating().Percent switch
+    {
+        -1 => "unrated",
+        >= 60 => "positive",
+        >= 40 => "mixed",
+        _ => "negative"
+    };
+
+    string RatingIcon() => Rating().Percent switch
+    {
+        -1 => "star_outline",
+        >= 60 => "thumb_up",
+        >= 40 => "thumbs_up_down",
+        _ => "thumb_down"
+    };
+
+    // Only genre-like tags are shown; the backend's genre facet isn't on Package yet.
+    static readonly Dictionary<string, string> GenreLabels = new( StringComparer.OrdinalIgnoreCase )
+    {
+        ["shooter"] = "#menu.home.shooter", ["fps"] = "#menu.games.fps", ["tps"] = "#menu.games.third_person_shooter",
+        ["puzzle"] = "#menu.home.puzzle", ["strategy"] = "#menu.home.strategy", ["sports"] = "#menu.home.sports",
+        ["roguelike"] = "#menu.home.roguelike", ["roguelite"] = "#menu.games.roguelite", ["horror"] = "#menu.games.horror",
+        ["racing"] = "#menu.games.racing", ["survival"] = "#menu.games.survival", ["sandbox"] = "#menu.games.sandbox",
+        ["rpg"] = "#menu.games.rpg", ["platformer"] = "#menu.games.platformer", ["adventure"] = "#menu.games.adventure",
+        ["simulation"] = "#menu.settings.simulation", ["sim"] = "#menu.settings.simulation", ["action"] = "#menu.games.action",
+        ["arcade"] = "#menu.games.arcade", ["party"] = "#party", ["fighting"] = "#menu.games.fighting",
+        ["rhythm"] = "#menu.games.rhythm", ["stealth"] = "#menu.games.stealth", ["towerdefense"] = "#menu.games.tower_defense",
+        ["socialdeduction"] = "#menu.games.social_deduction", ["deduction"] = "#menu.games.social_deduction",
+        ["deathmatch"] = "#menu.games.deathmatch", ["battleroyale"] = "#menu.games.battle_royale", ["parkour"] = "#menu.games.parkour",
+        ["tycoon"] = "#menu.games.tycoon", ["building"] = "#menu.games.building", ["roleplay"] = "#menu.games.roleplay", ["rp"] = "#menu.games.roleplay",
+        ["minigames"] = "#menu.games.minigames", ["coop"] = "#menu.games.co_op", ["pvp"] = "#menu.games.pvp", ["casual"] = "#menu.games.casual",
+        ["golf"] = "#menu.games.golf", ["driving"] = "#menu.games.driving", ["physics"] = "#menu.games.physics", ["zombies"] = "#menu.games.zombies",
+    };
+
+    IEnumerable<string> Tags()
+    {
+        // On the workshop they're the ones picked for its item - genres already, bar its type and how it's played
+        if ( OnWorkshop )
+            return (Workshop?.Tags ?? []).Where( x => !WorkshopOwnTags.Contains( x ) ).Take( Modes.IsUnknown ? 2 : 1 );
+
+        var tags = Package.Tags ?? Array.Empty<string>();
+
+        // The mode chip covers how it's played, so these are just what kind of game it is - and
+        // the chip takes one of the two places when there is one
+        return tags.Where( x => GenreLabels.ContainsKey( x ) && !ModeTags.Contains( x ) )
+            .Select( x => x.ToLowerInvariant() )
+            .DistinctBy( x => GenreLabels[x] )
+            .Take( Modes.IsUnknown ? 2 : 1 );
+    }
+
+    static readonly HashSet<string> ModeTags = new( StringComparer.OrdinalIgnoreCase ) { "singleplayer", "multiplayer", "coop", "versus", "pvp" };
+
+    /// <summary>
+    /// Tags a workshop item gets that aren't picked - its type, and how it's played
+    /// </summary>
+    static readonly HashSet<string> WorkshopOwnTags = new( StringComparer.OrdinalIgnoreCase ) { "game", "map", "singleplayer", "multiplayer", "co-op", "versus" };
+
+    static string Compact( long n )
+    {
+        if ( n >= 1_000_000 ) return $"{n / 1_000_000f:0.#}M";
+        if ( n >= 1_000 ) return $"{n / 1_000f:0.#}K";
+
+        return n.ToString();
+    }
+
+    protected override int BuildHash() => HashCode.Combine( Package?.FullIdent, Package?.Usage.UsersNow, showVideo, VideoUrl(), MenuHelpers.HasAuthority, ShowJam, HashCode.Combine( _nominated, _busy, Package?.Interaction.Rating, Package?.Interaction.Favourite, PlayerModes.PartySize, Modes ), HashCode.Combine( decided, OnWorkshop, Workshop, workshopLoaded, WorkshopVote, Subscribed ) );
+
+    /// <summary>
+    /// Rebuild composed text when translations change.
+    /// </summary>
+    public override void LanguageChanged()
+    {
+        base.LanguageChanged();
+        StateHasChanged();
+    }
+}

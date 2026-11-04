@@ -1,0 +1,130 @@
+﻿@using Sandbox
+@using Sandbox.UI
+@using System
+@namespace MenuProject.Settings
+@inherits Panel
+
+<root class="@RootClass" onmouseover=@( () => View?.SetFocused( Item ) )>
+
+	<div class="line">
+
+		<label class="name">@Item.Title</label>
+
+		<div class="control">
+			@if ( ReadOnly )
+			{
+				<label class="readonly-value">@ReadOnlyValue</label>
+			}
+			else if ( Item.Kind == SettingKind.Action )
+			{
+				<Button class="action" onclick=@( () => Item.Invoke?.Invoke() )>@Item.ActionLabel</Button>
+			}
+			else if ( Item.Kind == SettingKind.Slider )
+			{
+				<SliderControl Value:bind=@Item.FloatValue Min=@Item.Min Max=@Item.Max Step=@Item.Step NumberFormat=@Item.NumberFormat ShowTextEntry=@true></SliderControl>
+			}
+			else if ( Item.Kind == SettingKind.Custom )
+			{
+				<div class="custom" @ref="CustomHost"></div>
+			}
+			else if ( Item.Kind == SettingKind.Dropdown )
+			{
+				<DropDown Value:bind=@Item.Value BuildOptions=@( () => Item.CurrentOptions )></DropDown>
+			}
+			else
+			{
+				<ButtonGroup Value:bind=@Item.Value Options=@Item.CurrentOptions></ButtonGroup>
+			}
+		</div>
+
+	</div>
+
+	@if ( Disabled is not null )
+	{
+		<div class="note locked">
+			<i>lock</i>
+			<label>@Disabled</label>
+		</div>
+	}
+	else if ( Warning is not null )
+	{
+		<div class="note warn">
+			<i>warning</i>
+			<label>@Warning</label>
+		</div>
+	}
+
+</root>
+
+@code
+{
+	[Parameter] public SettingItem Item { get; set; }
+	[Parameter] public SettingsView View { get; set; }
+
+	/// <summary>
+	/// Show the current value without creating editable controls.
+	/// </summary>
+	[Parameter] public bool ReadOnly { get; set; }
+
+	/// <summary>The search that turned this row up.</summary>
+	[Parameter] public string Highlight { get; set; }
+
+	Panel CustomHost;
+	Panel customControl;
+	SettingItem customItem;
+
+	string Disabled => Item?.Disabled;
+	string Warning => Item?.Warning?.Invoke();
+
+	string ReadOnlyValue
+	{
+		get
+		{
+			var value = Item.Value?.ToString();
+			return Item.CurrentOptions?.FirstOrDefault( x => string.Equals( x.Value?.ToString(), value, StringComparison.OrdinalIgnoreCase ) )?.Title ?? value;
+		}
+	}
+
+	string RootClass
+	{
+		get
+		{
+			var classes = $"row kind-{Item?.Kind.ToString().ToLowerInvariant()}";
+
+			if ( Disabled is not null ) classes += " disabled";
+			if ( !string.IsNullOrEmpty( Highlight ) ) classes += " matched";
+
+			return classes;
+		}
+	}
+
+	protected override void OnAfterTreeRender( bool firstTime )
+	{
+		base.OnAfterTreeRender( firstTime );
+
+		if ( ReadOnly || Item.Kind != SettingKind.Custom || !CustomHost.IsValid() )
+		{
+			customControl?.Delete( true );
+			customControl = null;
+			return;
+		}
+
+		if ( customControl.IsValid() && customItem == Item && customControl.Parent == CustomHost ) return;
+
+		// Rebind when the row gets a different setting or becomes editable again.
+		customControl?.Delete( true );
+		customItem = Item;
+		customControl = Item.CreateControl?.Invoke( Item );
+		if ( customControl is not null ) customControl.Parent = CustomHost;
+	}
+
+	// A class rather than a rebuild, so dragging a slider outside its row doesn't tear it out.
+	public override void Tick()
+	{
+		base.Tick();
+
+		SetClass( "focused", View?.Focused == Item );
+	}
+
+	protected override int BuildHash() => HashCode.Combine( Item, Disabled, Warning, View?.Revision, ReadOnly, ReadOnly ? Item?.Value : null );
+}

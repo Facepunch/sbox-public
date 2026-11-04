@@ -1,4 +1,5 @@
-﻿using Sandbox.MovieMaker;
+﻿using System.Collections;
+using Sandbox.MovieMaker;
 using Sandbox.MovieMaker.Compiled;
 using Sandbox.MovieMaker.Properties;
 using System.Linq;
@@ -43,10 +44,12 @@ public static class TrackExtensions
 
 	public static IEnumerable<TrackView> GetSkinnedModelRendererTracksWithParameters( this TrackListView listView, MovieTimeRange timeRange )
 	{
+#pragma warning disable CS0618
 		return listView.UnlockedTracks
 			.Where( x => x is { Track: ProjectReferenceTrack<SkinnedModelRenderer> } )
 			.Where( x => x.Find( nameof( SkinnedModelRenderer.Parameters ) )?.Children.Any(
 				y => y.Track is IProjectPropertyTrack propertyTrack && propertyTrack.GetBlocks( timeRange ).Any() ) ?? false );
+#pragma warning restore CS0618
 	}
 
 	public static IReadOnlyList<ICompiledPropertyTrack> BakeAnimation( this SkinnedModelRenderer renderer, MovieTimeRange timeRange, BakeAnimationsOptions? options = null )
@@ -146,6 +149,24 @@ public static class TrackExtensions
 		finally
 		{
 			dummyWorld.Delete();
+		}
+	}
+
+	public static IEnumerable<TrackView> SelectDescendants( this IEnumerable<TrackView> trackViews )
+	{
+		var queue = new Queue<TrackView>( trackViews );
+		var set = new HashSet<TrackView>();
+
+		while ( queue.TryDequeue( out var next ) )
+		{
+			if ( !set.Add( next ) ) continue;
+
+			yield return next;
+
+			foreach ( var child in next.Children )
+			{
+				queue.Enqueue( child );
+			}
 		}
 	}
 }

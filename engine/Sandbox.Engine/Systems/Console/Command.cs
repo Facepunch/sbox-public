@@ -140,15 +140,40 @@ partial class ManagedCommand : Command
 		var type = member is PropertyInfo pi ? pi.PropertyType : member.DeclaringType;
 
 		var defaultValue = member.GetCustomAttribute<DefaultValueAttribute>()?.Value;
-		_defaultValue = defaultValue?.ToString()
-			?? (type.IsValueType ? Activator.CreateInstance( type )?.ToString() : null);
+		var isReplicated = attribute.Flags.Contains( ConVarFlags.Replicated );
+
+		using ( OwnerScope() )
+		{
+			_defaultValue = defaultValue?.ToString()
+				?? ReadInitialValue()
+				?? (type.IsValueType ? Activator.CreateInstance( type )?.ToString() : null);
+		}
+
+		// Property initializers have already run, so whatever it holds now is the default. Not for
+		// replicated convars though - reading one goes through the string table, so we'd risk
+		// baking the host's current value in as our default
+		string ReadInitialValue()
+		{
+			if ( member is not PropertyInfo || isReplicated ) return null;
+
+			try
+			{
+				return Value;
+			}
+			catch ( Exception e )
+			{
+				// Addon code owns these getters, one throwing can't stop the ConVar registering
+				Log.Warning( e, $"Couldn't read the default value of {Name}" );
+				return null;
+			}
+		}
 
 		if ( attribute is ConVarAttribute cv )
 		{
 			IsSaved = cv.Saved;
 			MinValue = cv.MinValue;
 			MaxValue = cv.MaxValue;
-			IsReplicated = cv.Flags.Contains( ConVarFlags.Replicated );
+			IsReplicated = isReplicated;
 			IsUserInfo = cv.Flags.Contains( ConVarFlags.UserInfo );
 		}
 
@@ -170,10 +195,13 @@ partial class ManagedCommand : Command
 		}
 	}
 
+	GlobalContext.GlobalContextScope OwnerScope() => _isMenu ? GlobalContext.MenuScope() : GlobalContext.GameScope();
+
 	public override void Run( string argstring )
 	{
-		using var contextLocal = _isMenu ? GlobalContext.MenuScope() : GlobalContext.GameScope();
-		using var scope = _isMenu ? IMenuDll.Current?.PushScope() : IGameInstanceDll.Current?.PushScope();
+		using var contextLocal = OwnerScope();
+		using var menuScope = _isMenu ? IMenuDll.Current?.PushScope() : null;
+		using var gameScope = _isMenu ? default : IGameInstanceDll.Current?.PushScope() ?? default;
 
 		var caller = Caller ?? Connection.Local;
 
@@ -274,6 +302,7 @@ partial class ManagedCommand : Command
 		{
 			if ( member is PropertyInfo propertyInfo )
 			{
+				using var scope = OwnerScope();
 				return propertyInfo.GetValue( null )?.ToString();
 			}
 
@@ -287,6 +316,8 @@ partial class ManagedCommand : Command
 				Log.Warning( $"Setting {Name} and it's not a variable" );
 				return;
 			}
+
+			using var scope = OwnerScope();
 
 			var oldValue = propertyInfo.GetValue( null );
 			var newValue = value.ToType( propertyInfo.PropertyType );

@@ -50,10 +50,20 @@ public class SceneSkyBox : SceneObject
 		base.OnNativeInit( ptr );
 
 		skyboxNative = (CSceneSkyBoxObject)ptr;
+
+		lock ( World.Skies )
+		{
+			World.Skies.Add( this );
+		}
 	}
 
 	internal override void OnNativeDestroy()
 	{
+		lock ( World.Skies )
+		{
+			World.Skies.Remove( this );
+		}
+
 		skyboxNative = default;
 		base.OnNativeDestroy();
 	}
@@ -63,8 +73,17 @@ public class SceneSkyBox : SceneObject
 	/// </summary>
 	public Material SkyMaterial
 	{
-		set => skyboxNative.SetMaterial( value?.native ?? default );
+		set
+		{
+			skyboxNative.SetMaterial( value?.native ?? default );
+			NotifyChanged( Rendering.SceneObjectChange.Settings );
+		}
 	}
+
+	/// <summary>
+	/// The actual native sky material, including skies created by native tools without a managed constructor.
+	/// </summary>
+	internal Material Material => this.IsValid() ? Sandbox.Material.FromNative( skyboxNative.GetMaterial() ) : null;
 
 	/// <summary>
 	/// Skybox color tint.
@@ -72,7 +91,7 @@ public class SceneSkyBox : SceneObject
 	public Color SkyTint
 	{
 		get => skyboxNative.GetSkyTint();
-		set => skyboxNative.SetSkyTint( value );
+		set { skyboxNative.SetSkyTint( value ); NotifyChanged( Rendering.SceneObjectChange.Settings ); }
 	}
 
 	/// <summary>
@@ -93,6 +112,7 @@ public class SceneSkyBox : SceneObject
 		{
 			skyboxNative.SetFogType( (int)value.FogType );
 			skyboxNative.SetAngularFogParams( value.FogMinStart, value.FogMinEnd, value.FogMaxStart, value.FogMaxEnd );
+			NotifyChanged( Rendering.SceneObjectChange.Settings );
 		}
 	}
 

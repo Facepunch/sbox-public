@@ -19,6 +19,8 @@ native class IAsset
 	string GetFriendlyName_Transient();
 	string GetRelativePath_Transient( AssetLocation_t source );
 	string GetAbsolutePath_Transient( AssetLocation_t source );
+	Guid GetGuid();
+
 	bool HasAnyFiles();
 	bool IsCached();
 	bool CanReload();
@@ -117,11 +119,6 @@ native class IAsset
 	inline bool IsCompileFailed()
 	{
 		return this->CompileState() == ASSET_FILE_COMPILE_FAILED;
-	}
-
-	inline bool CompileIfNeeded()
-	{
-		return this->RecompileAsset( COMPILE_AS_NEEDED );
 	}
 
 	inline int FindIntEditInfo( string name )

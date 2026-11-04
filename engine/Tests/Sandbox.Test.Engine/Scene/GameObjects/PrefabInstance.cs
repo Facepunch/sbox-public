@@ -44,7 +44,7 @@ public class PrefabInstanceExtraComponent : Component
 /// </summary>
 [TestClass]
 [DoNotParallelize]
-public class PrefabInstanceTest : SceneTest
+public partial class PrefabInstanceTest : SceneTest
 {
 	private const string BasicPrefabPath = "test_prefab_instance_basic.prefab";
 	private const string InnerPrefabPath = "test_prefab_instance_inner.prefab";

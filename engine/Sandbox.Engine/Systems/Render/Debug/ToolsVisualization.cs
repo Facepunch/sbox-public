@@ -7,7 +7,7 @@ internal static partial class DebugOverlay
 		[ConVar( "mat_toolsvis", Help = "Set the render debug visualization mode", Flags = ConVarFlags.Protected | ConVarFlags.Cheat )]
 		internal static SceneCameraDebugMode mat_toolsvis { get; set; }
 
-		internal static void Draw( ref Vector2 pos )
+		internal static void Draw( Painter painter, ref Vector2 pos )
 		{
 			var debugMode = mat_toolsvis;
 
@@ -18,13 +18,13 @@ internal static partial class DebugOverlay
 			{
 				Outline = new TextRendering.Outline { Color = Color.Black, Size = 3, Enabled = true }
 			};
-			var iconRect = Hud.DrawText( iconScope, pos, TextFlag.LeftTop );
+			var iconRect = DebugOverlay.DrawText( painter, iconScope, pos, TextFlag.LeftTop );
 
 			var labelScope = new TextRendering.Scope( $"Tools Visualization Mode: {title}", Color.White, 12, "Roboto Mono", 700 )
 			{
 				Outline = new TextRendering.Outline { Color = Color.Black, Size = 3, Enabled = true }
 			};
-			Hud.DrawText( labelScope, pos with { x = pos.x + iconRect.Width + 4 }, TextFlag.LeftTop );
+			DebugOverlay.DrawText( painter, labelScope, pos with { x = pos.x + iconRect.Width + 4 }, TextFlag.LeftTop );
 
 			pos.y += 20;
 		}

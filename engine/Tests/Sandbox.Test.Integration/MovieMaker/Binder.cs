@@ -177,6 +177,7 @@ public sealed class BinderTest : SceneTestBase
 	/// Tests accessing <see cref="SkinnedModelRenderer.Parameters"/>.
 	/// </summary>
 	[TestMethod]
+#pragma warning disable CS0618
 	public void AnimGraphParameters()
 	{
 		var goTrack = MovieClip.RootGameObject( "Example" );
@@ -189,6 +190,7 @@ public sealed class BinderTest : SceneTestBase
 
 		Assert.IsTrue( TrackBinder.Default.Get( paramTrack ).IsValid );
 	}
+#pragma warning restore CS0618
 
 	/// <summary>
 	/// Tests accessing <see cref="SkinnedModelRenderer.Morphs"/>.
@@ -658,6 +660,40 @@ public sealed class BinderTest : SceneTestBase
 		Assert.IsNull( go.GetComponent<PlayerController>() );
 	}
 
+
+	/// <summary>
+	/// Assume that <see cref="MapInstance"/> will create its own child objects, don't
+	/// create them with <see cref="TrackBinder.CreateTargets(IMovieClip,GameObject)"/>.
+	/// </summary>
+	[TestMethod]
+	public void SkipCreatingMapInstanceChildTargets()
+	{
+		var mapObjTrack = MovieClip.RootGameObject( "Map" );
+		var mapInstTrack = mapObjTrack.Component<MapInstance>();
+		var childObjTrack = mapObjTrack.GameObject( "Example Child" );
+
+		var clip = MovieClip.FromTracks( mapInstTrack, childObjTrack );
+
+		var binder = new TrackBinder();
+
+		var mapInstRef = binder.Get( mapInstTrack );
+		var childObjRef = binder.Get( childObjTrack );
+
+		// There are no game objects in the scene, these tracks shouldn't be bound to anything
+
+		Assert.IsFalse( mapInstRef.IsBound );
+		Assert.IsFalse( childObjRef.IsBound );
+
+		// Create any objects needed to play the clip
+
+		binder.CreateTargets( clip );
+
+		// MapInstance should be bound now, but the child object shouldn't
+
+		Assert.IsTrue( mapInstRef.IsBound );
+		Assert.IsFalse( childObjRef.IsBound );
+	}
+
 	/// <summary>
 	/// Test (de)serializing a <see cref="TrackBinder"/>.
 	/// </summary>
@@ -694,6 +730,46 @@ public sealed class BinderTest : SceneTestBase
 		binder.Deserialize( jsonNode );
 
 		Assert.IsTrue( target.IsBound );
+	}
+
+	/// <summary>
+	/// Edge case for multiple GameObject.Enabled tracks being bound to the same object.
+	/// Enabled tracks default to <c>false</c> outside of a block, but we need to make
+	/// sure this works across multiple tracks.
+	/// </summary>
+	[TestMethod]
+	public void MultipleEnableTracks()
+	{
+		var goTrack = MovieClip.RootGameObject( "Example" );
+
+		var track1 = goTrack
+			.Property<bool>( nameof( GameObject.Enabled ) )
+			.WithConstant( (1.0, 2.0), true );
+
+		var track2 = goTrack
+			.Property<bool>( nameof( GameObject.Enabled ) )
+			.WithConstant( (3.0, 4.0), true );
+
+		var clip = MovieClip.FromTracks( goTrack, track1, track2 );
+		var exampleObject = new GameObject( true, "Example" );
+
+		Assert.IsTrue( TrackBinder.Default.Get( track1 ).IsBound );
+		Assert.AreEqual( TrackBinder.Default.Get( track1 ), TrackBinder.Default.Get( track2 ) );
+
+		clip.Update( 0.5, TrackBinder.Default );
+		Assert.IsFalse( exampleObject.Enabled );
+
+		clip.Update( 1.5, TrackBinder.Default );
+		Assert.IsTrue( exampleObject.Enabled );
+
+		clip.Update( 2.5, TrackBinder.Default );
+		Assert.IsFalse( exampleObject.Enabled );
+
+		clip.Update( 3.5, TrackBinder.Default );
+		Assert.IsTrue( exampleObject.Enabled );
+
+		clip.Update( 4.5, TrackBinder.Default );
+		Assert.IsFalse( exampleObject.Enabled );
 	}
 }
 

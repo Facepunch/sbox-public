@@ -1,0 +1,37 @@
+@import "/styles/_front.scss";
+
+ChatMessage
+{
+	gap: 12px;
+	flex-shrink: 0;
+
+	.chat-avatar
+	{
+		@include front-row-media;
+		cursor: pointer;
+		border-radius: 50%;
+	}
+
+	.chat-message-body
+	{
+		flex-direction: column;
+		min-width: 0;
+		flex-grow: 1;
+		gap: 6px;
+		word-break: normal;
+	}
+
+	.chat-name
+	{
+		align-self: flex-start;
+		cursor: pointer;
+		font-weight: 600;
+		color: $front-heading;
+		font-size: 13px;
+
+		&:hover
+		{
+			color: $front-link;
+		}
+	}
+}

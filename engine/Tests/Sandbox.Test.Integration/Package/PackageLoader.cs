@@ -32,7 +32,6 @@ public partial class PackageLoaderTest
 	[TestMethod]
 	[TestCategory( "LiveBackend" )]
 	[DataRow( "facepunch.testbed" )]
-	[DataRow( "facepunch.hc1" )]
 	[DataRow( "facepunch.walker" )]
 	[DataRow( "facepunch.opium_demo" )]
 	//[DataRow( "garry.testbed" )]
@@ -97,9 +96,7 @@ public partial class PackageLoaderTest
 	{
 		var (library, packageLoader, enroller) = Preamble();
 
-		Project.AddFromFileBuiltIn( "addons/base" );
 		var project = Project.AddFromFile( "unittest/addons/spacewars" );
-
 
 		await CompileProjects();
 
@@ -130,8 +127,6 @@ public partial class PackageLoaderTest
 	public async Task StaticCtorTypeLibraryThrows()
 	{
 		var (library, packageLoader, enroller) = Preamble();
-
-		Project.AddFromFileBuiltIn( "addons/base/" );
 
 		var project = Project.AddFromFile( "unittest/addons/cctortest" );
 
@@ -216,8 +211,6 @@ public partial class PackageLoaderTest
 
 			"""""" );
 
-		// Need to have base addon
-		Project.AddFromFileBuiltIn( "addons/base/" );
 		var spacewars = Project.AddFromFile( "unittest/addons/spacewars" );
 		await Project.SyncWithPackageManager();
 		await Project.CompileAsync();

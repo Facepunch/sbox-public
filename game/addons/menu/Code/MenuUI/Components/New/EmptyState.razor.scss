@@ -1,0 +1,16 @@
+@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+
+EmptyState
+{
+	@include front-page-empty;
+
+	min-width: 360px;
+	max-width: 520px;
+	text-align: center;
+
+	.hint
+	{
+		text-align: center;
+	}
+}

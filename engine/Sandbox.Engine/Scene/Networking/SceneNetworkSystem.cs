@@ -21,7 +21,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	private bool IsBatchNetworkSpawning { get; set; }
 	private int BatchNetworkSpawnCount { get; set; }
 
-	internal override bool IsHostBusy => !Game.ActiveScene?.IsLoading ?? true;
+	internal override bool CanSnapshot => Game.ActiveScene.IsValid() && !Game.ActiveScene.IsLoading;
 
 	internal SceneNetworkSystem( Internal.TypeLibrary typeLibrary, NetworkSystem system )
 	{
@@ -41,11 +41,8 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		AddHandler<ObjectRefreshMsgAck>( OnObjectRefreshAck );
 		AddHandler<ObjectDestroyMsg>( OnObjectDestroy );
 		AddHandler<ObjectDetachMsg>( OnObjectDetach );
-		AddHandler<ObjectRpcMsg>( OnObjectMessage );
 		AddHandler<ObjectNetworkTableMsg>( OnNetworkTableChanges );
 		AddHandler<SceneNetworkTableMsg>( OnNetworkTableChanges );
-		AddHandler<SceneRpcMsg>( OnSceneRpc );
-		AddHandler<StaticRpcMsg>( OnStaticRpc );
 		AddHandler<LoadSceneBeginMsg>( OnLoadSceneMsg );
 		AddHandler<LoadSceneSnapshotMsg>( OnLoadSceneSnapshotMsg );
 		AddHandler<LoadSceneRequestSnapshotMsg>( OnLoadSceneRequestSnapshotMsg );
@@ -55,6 +52,16 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	internal void OnHotload()
 	{
 		DeltaSnapshots.Reset();
+	}
+
+	internal override void OnRpcMessage( ByteStream data, Connection source )
+	{
+		Rpc.IncomingRpc( data, source );
+	}
+
+	internal override void AfterIncomingMessages()
+	{
+		DeltaSnapshots.FlushAcks();
 	}
 
 	/// <summary>
@@ -265,6 +272,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	private async Task OnLoadSceneSnapshotMsg( LoadSceneSnapshotMsg msg, Connection connection, Guid msgId )
 	{
 		NetworkDebugSystem.Current?.Record( NetworkDebugSystem.MessageType.Snapshot, msg );
+		Diagnostics.DevTools.NetworkLog.Message( Diagnostics.DevTools.NetworkLog.Kind.Snapshot, "SceneSnapshot", msg, false, connection );
 
 		await SetSnapshotAsync( msg.Snapshot );
 
@@ -315,31 +323,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 		connection.State = Connection.ChannelState.Snapshot;
 
-		var output = new LoadSceneSnapshotMsg { SceneId = msg.SceneId, Id = msg.Id };
-		var snapshot = new SnapshotMsg
-		{
-			GameObjectSystems = [],
-			NetworkObjects = new List<object>( 64 )
-		};
-
-		GetSnapshot( connection, ref snapshot );
-		output.Snapshot = snapshot;
-
-		foreach ( var networkObjectData in snapshot.NetworkObjects )
-		{
-			if ( networkObjectData is not ObjectCreateMsg createMessage )
-				continue;
-
-			var networkGameObject = activeScene.Directory.FindByGuid( createMessage.Guid );
-			networkGameObject?._net?.MarkCreateMessageSent( connection );
-		}
-
-		var bs = ByteStream.Create( 256 );
-		bs.Write( InternalMessageType.Packed );
-
-		Networking.System.Serialize( output, ref bs );
-		connection.SendStream( bs );
-		bs.Dispose();
+		SendSnapshot( connection, snapshot => new LoadSceneSnapshotMsg { SceneId = msg.SceneId, Id = msg.Id, Snapshot = snapshot } );
 	}
 
 	/// <summary>
@@ -413,49 +397,92 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	}
 
 	private static readonly GameObject.SerializeOptions _snapshotSerializeOptions = new() { SceneForNetwork = true, SkipNulls = true };
+	private static readonly GameObject.SerializeOptions _handoffSerializeOptions = new() { SceneForNetwork = true, SkipNulls = true, IncludeLocalObjects = true };
 
 	/// <summary>
 	/// A client has joined and wants a snapshot of the world.
 	/// </summary>
 	public override void GetSnapshot( Connection source, ref SnapshotMsg msg )
 	{
+		GetSnapshot( source, ref msg, includeLocalObjects: false );
+	}
+
+	internal override SnapshotCapture CaptureSnapshot( Connection source, bool handoff = false, SnapshotCapture shared = null )
+	{
+		var capture = new SnapshotCapture();
+		GetSnapshot( handoff ? null : source, ref capture.Snapshot, handoff, shared?.Snapshot, capture );
+		if ( shared is not null )
+		{
+			capture.SceneJson = shared.SceneJson;
+			capture.SceneBlobs = shared.SceneBlobs;
+		}
+		return capture;
+	}
+
+	/// <summary>
+	/// Handoff snapshot: nothing culled, NetworkMode.Never objects included.
+	/// </summary>
+	internal override void GetHandoffSnapshot( ref SnapshotMsg msg )
+	{
+		GetSnapshot( null, ref msg, includeLocalObjects: true );
+	}
+
+	private void GetSnapshot( Connection source, ref SnapshotMsg msg, bool includeLocalObjects, SnapshotMsg? shared = null, SnapshotCapture capture = null )
+	{
 		ThreadSafe.AssertIsMainThread();
 		using var _ = PerformanceStats.Timings.Network.Scope();
 
-		msg.Time = Time.NowDouble;
+		msg.Time = shared?.Time ?? Time.NowDouble;
 
 		var analytic = new Api.Events.EventRecord( "SceneNetworkSystem.GetSnapshot" );
 
-		using ( analytic.ScopeTimer( "SceneTime" ) )
+		if ( shared is { } common )
 		{
-			using var blobs = BlobDataSerializer.Capture();
-			msg.SceneData = Game.ActiveScene.Serialize( _snapshotSerializeOptions ).ToJsonString();
-			msg.BlobData = blobs.ToByteArray();
+			msg.SceneData = common.SceneData;
+			msg.BlobData = common.BlobData;
+			msg.GameObjectSystems = common.GameObjectSystems;
+		}
+		else
+		{
+			using ( analytic.ScopeTimer( "SceneTime" ) )
+			{
+				using var blobs = BlobDataSerializer.Capture();
+				var json = Game.ActiveScene.Serialize( includeLocalObjects ? _handoffSerializeOptions : _snapshotSerializeOptions );
+				if ( capture is null )
+				{
+					msg.SceneData = json.ToJsonString();
+					msg.BlobData = blobs.ToByteArray();
+				}
+				else
+				{
+					var detached = SnapshotCapture.Detach( json );
+					capture.SceneJson = new Lazy<string>( () => detached.ToJsonString() );
+					var detachedBlobs = blobs.Detach();
+					capture.SceneBlobs = new Lazy<byte[]>( () => BlobDataSerializer.PackBlobs( detachedBlobs ) );
+				}
+			}
+
+			foreach ( var system in Game.ActiveScene.GetSystems() )
+			{
+				msg.GameObjectSystems.Add( new SnapshotMsg.GameObjectSystemData
+				{
+					SnapshotData = WriteGameObjectSystemSnapshot( system ),
+					TableData = system.WriteDataTable( true ),
+					Type = GlobalContext.Current.TypeLibrary.GetType( system.GetType() ).Identity,
+					Id = system.Id
+				} );
+			}
 		}
 
 		using ( analytic.ScopeTimer( "NetworkObjectTime" ) )
 		{
-			Game.ActiveScene.SerializeNetworkObjects( source, msg.NetworkObjects );
+			Game.ActiveScene.SerializeNetworkObjects( source, msg.NetworkObjects, includeLocalObjects, capture );
 		}
 
-		var systems = Game.ActiveScene.GetSystems();
-
-		foreach ( var system in systems )
+		if ( capture is null )
 		{
-			var snapshotData = WriteGameObjectSystemSnapshot( system );
-
-			var type = new SnapshotMsg.GameObjectSystemData
-			{
-				SnapshotData = snapshotData,
-				TableData = system.WriteDataTable( true ),
-				Type = Game.TypeLibrary.GetType( system.GetType() ).Identity,
-				Id = system.Id
-			};
-
-			msg.GameObjectSystems.Add( type );
+			analytic.SetValue( "SceneDataLength", msg.SceneData?.Length ?? 0 );
 		}
-
-		analytic.SetValue( "SceneDataLength", msg.SceneData?.Length ?? 0 );
 		analytic.SetValue( "NetworkObjectCount", msg.NetworkObjects?.Count ?? 0 );
 		analytic.SetValue( "GameObjectCount", Game.ActiveScene.Directory.GameObjectCount );
 		analytic.SetValue( "ComponentCount", Game.ActiveScene.Directory.ComponentCount );
@@ -578,18 +605,22 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	{
 		ThreadSafe.AssertIsMainThread();
 
-		if ( Game.ActiveScene is not null )
+		// Nothing we destroy here is news to anyone
+		using ( SuppressDestroyMessages() )
 		{
 			Game.ActiveScene?.Destroy();
 			Game.ActiveScene = null;
 		}
 
 		Game.ActiveScene = new();
+		using var snapshotScope = Game.ActiveScene.LoadingSnapshotScope();
 		Game.ActiveScene.StartLoading();
 
 		Time.Now = (float)msg.Time;
 		Time.NowDouble = msg.Time;
 		Game.ActiveScene.UpdateTimeFromHost( msg.Time );
+
+		var createdNetworkObjects = new List<(GameObject, ObjectCreateMsg)>();
 
 		{
 			using var blobs = BlobDataSerializer.LoadFromMemory( msg.BlobData );
@@ -600,8 +631,6 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 				var sceneData = JsonNode.Parse( msg.SceneData ).AsObject();
 				Game.ActiveScene.Deserialize( sceneData, networkDeserializeOptionsCreate );
 			}
-
-			var createdNetworkObjects = new List<Tuple<GameObject, ObjectCreateMsg>>();
 
 			foreach ( var nwo in msg.NetworkObjects )
 			{
@@ -614,7 +643,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 				var go = new GameObject();
 				go.Deserialize( JsonNode.Parse( oc.JsonData ).AsObject(), networkDeserializeOptionsCreate );
-				createdNetworkObjects.Add( new( go, oc ) );
+				createdNetworkObjects.Add( (go, oc) );
 			}
 
 			foreach ( var (go, oc) in createdNetworkObjects )
@@ -623,21 +652,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			}
 		}
 
-		foreach ( var s in msg.GameObjectSystems )
-		{
-			var type = Game.TypeLibrary.GetTypeByIdent( s.Type );
-			if ( type is null )
-				continue;
-
-			var system = Game.ActiveScene.GetSystemByType( type );
-			if ( system is null )
-				continue;
-
-			system.Id = s.Id;
-			system.ReadDataTable( s.TableData );
-
-			ReadGameObjectSystemSnapshot( system, s );
-		}
+		ReadGameObjectSystems( Game.ActiveScene, msg );
 
 		MountedVPKs?.Dispose();
 		MountedVPKs = null;
@@ -650,6 +665,8 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			await Game.ActiveScene.WaitForLoading();
 		}
 
+		ReapplyCreateTables( createdNetworkObjects );
+
 		if ( Game.ActiveScene.IsValid() )
 		{
 			Game.ActiveScene.Signal( GameObjectSystem.Stage.SceneLoaded );
@@ -658,6 +675,25 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		}
 
 		Game.IsPlaying = true;
+	}
+
+	private static void ReadGameObjectSystems( Scene scene, SnapshotMsg msg )
+	{
+		foreach ( var s in msg.GameObjectSystems )
+		{
+			var type = GlobalContext.Current.TypeLibrary.GetTypeByIdent( s.Type );
+			if ( type is null )
+				continue;
+
+			var system = scene.GetSystemByType( type );
+			if ( system is null )
+				continue;
+
+			system.Id = s.Id;
+			system.ReadDataTable( s.TableData );
+
+			ReadGameObjectSystemSnapshot( system, s );
+		}
 	}
 
 	/// <summary>
@@ -704,21 +740,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 	public override void OnConnected( Connection client )
 	{
-		Action queue = default;
-
-		foreach ( var c in Game.ActiveScene.GetAll<Component.INetworkListener>() )
-		{
-			queue += () => c.OnConnected( client );
-		}
-
-		try
-		{
-			queue?.Invoke();
-		}
-		catch ( Exception e )
-		{
-			Log.Error( e, "Exception when calling INetworkListener.OnConnected" );
-		}
+		NotifyListeners( nameof( Component.INetworkListener.OnConnected ), l => l.OnConnected( client ) );
 	}
 
 	public override void OnInitialize()
@@ -737,23 +759,9 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 	public override void OnJoined( Connection client )
 	{
-		Platform.Chat.BroadcastText( $"👋 {client.Name} has joined the game" );
+		Platform.Chat.BroadcastPlayerJoin( client );
 
-		Action queue = default;
-
-		foreach ( var c in Game.ActiveScene.GetAll<Component.INetworkListener>() )
-		{
-			queue += () => c.OnActive( client );
-		}
-
-		try
-		{
-			queue?.Invoke();
-		}
-		catch ( Exception e )
-		{
-			Log.Error( e, "Exception when calling INetworkListener.OnActive" );
-		}
+		NotifyListeners( nameof( Component.INetworkListener.OnActive ), l => l.OnActive( client ) );
 	}
 
 	public override void OnLeave( Connection client )
@@ -767,30 +775,11 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 				no.RemoveConnection( client.Id );
 			}
 
-			foreach ( var system in Game.ActiveScene.GetSystems() )
-			{
-				system.LocalSnapshotState.RemoveConnection( client.Id );
-			}
-
 			if ( Networking.IsHost )
 			{
-				Platform.Chat.BroadcastText( $"👋 {client.Name} left the game" );
+				Platform.Chat.BroadcastPlayerLeave( client );
 
-				Action queue = default;
-
-				foreach ( var c in Game.ActiveScene.GetAll<Component.INetworkListener>() )
-				{
-					queue += () => c.OnDisconnected( client );
-				}
-
-				try
-				{
-					queue?.Invoke();
-				}
-				catch ( Exception e )
-				{
-					Log.Error( e, "Exception when calling INetworkListener.OnDisconnected" );
-				}
+				NotifyListeners( nameof( Component.INetworkListener.OnDisconnected ), l => l.OnDisconnected( client ) );
 			}
 		}
 
@@ -800,7 +789,165 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		DoOrphanedActions( client );
 	}
 
-	public override void OnHostChanged( Connection previousHost, Connection newHost )
+	public override Task BecomeHostAsync( Connection previousHost, SnapshotMsg snapshot )
+	{
+		return ChangeHostAsync( snapshot, true, previousHost, Connection.Local, nameof( Component.INetworkListener.OnBecameHost ), l => l.OnBecameHost( previousHost ) );
+	}
+
+	public override Task ResyncFromHostAsync( Connection previousHost, Connection newHost, SnapshotMsg snapshot )
+	{
+		return ChangeHostAsync( snapshot, false, previousHost, newHost, nameof( Component.INetworkListener.OnHostChanged ), l => l.OnHostChanged( previousHost, newHost ) );
+	}
+
+	/// <summary>
+	/// Bring the scene in line with the new host's snapshot, forget who has seen what, tell the game.
+	/// </summary>
+	private async Task ChangeHostAsync( SnapshotMsg snapshot, bool hostOnlyObjects, Connection previousHost, Connection newHost, string name, Action<Component.INetworkListener> notify )
+	{
+		if ( Game.ActiveScene.IsValid() && !Game.ActiveScene.IsLoading )
+			ApplySnapshot( Game.ActiveScene, snapshot, hostOnlyObjects );
+		else
+			await SetSnapshotAsync( snapshot );
+
+		if ( !Networking.IsActive || !Game.ActiveScene.IsValid() )
+			return;
+
+		ResetForNewHost( previousHost, newHost );
+		NotifyListeners( name, notify );
+	}
+
+	/// <summary>
+	/// Update the running scene from a snapshot instead of replacing it. Networked objects are created,
+	/// updated or destroyed to match; everything local, and everything we own, is left alone so pending
+	/// invokes and running code survive a host change.
+	/// </summary>
+	private void ApplySnapshot( Scene scene, SnapshotMsg msg, bool hostOnlyObjects )
+	{
+		ThreadSafe.AssertIsMainThread();
+		using var snapshotScope = scene.LoadingSnapshotScope();
+
+		Time.Now = (float)msg.Time;
+		Time.NowDouble = msg.Time;
+		scene.UpdateTimeFromHost( msg.Time );
+
+		var created = new List<(GameObject, ObjectCreateMsg)>();
+		var spawn = new List<(GameObject, ObjectCreateMsg)>();
+		var keep = new HashSet<Guid>();
+
+		using ( SuppressDestroyMessages() )
+		using ( var blobs = BlobDataSerializer.LoadFromMemory( msg.BlobData ) )
+		using ( CallbackBatch.Batch() )
+		{
+			if ( hostOnlyObjects && !string.IsNullOrWhiteSpace( msg.SceneData ) && JsonNode.Parse( msg.SceneData )["GameObjects"] is JsonArray roots )
+			{
+				MergeLocalObjects( scene, roots, null );
+			}
+
+			foreach ( var nwo in msg.NetworkObjects )
+			{
+				if ( nwo is not ObjectCreateMsg oc )
+					continue;
+
+				keep.Add( oc.Guid );
+
+				var go = scene.Directory.FindByGuid( oc.Guid );
+
+				if ( go.IsValid() )
+				{
+					if ( hostOnlyObjects )
+					{
+						blobs.Load( oc.BlobData );
+						if ( JsonNode.Parse( oc.JsonData )[GameObject.JsonKeys.Children] is JsonArray children )
+							MergeLocalObjects( scene, children, go );
+					}
+
+					// The host's copy of what we own is older than ours
+					if ( go._net?.Owner == Connection.Local.Id )
+						continue;
+
+					spawn.Add( (go, oc) );
+					continue;
+				}
+
+				blobs.Load( oc.BlobData );
+
+				go = new GameObject();
+				go.Deserialize( JsonNode.Parse( oc.JsonData ).AsObject(), networkDeserializeOptionsCreate );
+				created.Add( (go, oc) );
+				spawn.Add( (go, oc) );
+			}
+
+			foreach ( var (go, oc) in spawn )
+			{
+				go.NetworkSpawnRemote( oc );
+
+				if ( go._net is not null && go._net.Owner != oc.Owner )
+					go._net.Owner = oc.Owner;
+			}
+
+			foreach ( var no in scene.networkedObjects.ToArray() )
+			{
+				if ( no.GameObject.IsValid() && !keep.Contains( no.GameObject.Id ) )
+					no.GameObject.DestroyImmediate();
+			}
+		}
+
+		ReadGameObjectSystems( scene, msg );
+		ReapplyCreateTables( created );
+	}
+
+	private static readonly GameObject.DeserializeOptions _hostOnlyRefreshOptions = new() { IsRefreshing = true, IsNetworkRefresh = true, ClearAbsentFields = true };
+
+	/// <summary>
+	/// Host-only objects from a handoff: create the ones we don't have, refresh the ones we share.
+	/// </summary>
+	static void MergeLocalObjects( Scene scene, JsonArray nodes, GameObject parent )
+	{
+		foreach ( var node in nodes )
+		{
+			if ( node is not JsonObject jso )
+				continue;
+
+			var existing = scene.Directory.FindByGuid( (Guid)jso[GameObject.JsonKeys.Id] );
+
+			if ( !existing.IsValid() )
+				new GameObject( parent, false ).Deserialize( jso, networkDeserializeOptionsCreate );
+			else if ( existing.NetworkMode == NetworkMode.Never )
+				existing.Deserialize( jso, _hostOnlyRefreshOptions );
+			else if ( jso[GameObject.JsonKeys.Children] is JsonArray children )
+				MergeLocalObjects( scene, children, existing );
+		}
+	}
+
+	void NotifyListeners( string name, Action<Component.INetworkListener> call )
+	{
+		var scene = Game.ActiveScene;
+		if ( !scene.IsValid() ) return;
+
+		// Callbacks can add or remove listeners. Preserve the list we started with.
+		foreach ( var listener in scene.GetAll<Component.INetworkListener>().ToArray() )
+		{
+			try
+			{
+				call( listener );
+			}
+			catch ( Exception e )
+			{
+				Log.Error( e, $"Exception when calling INetworkListener.{name}" );
+			}
+		}
+	}
+
+	// Lifecycle callbacks may have overwritten synced values; the host's win
+	static void ReapplyCreateTables( List<(GameObject go, ObjectCreateMsg msg)> created )
+	{
+		foreach ( var (go, msg) in created )
+		{
+			go._net?.ReapplyCreateTable( msg );
+		}
+	}
+
+	private void ResetForNewHost( Connection previousHost, Connection newHost )
 	{
 		var scene = Game.ActiveScene;
 
@@ -826,38 +973,6 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		UserCommand.Reset();
 	}
 
-	public override void OnBecameHost( Connection previousHost )
-	{
-		// Was the host at startup, so this call isn't needed
-		if ( previousHost is null || previousHost.Id == Guid.Empty )
-			return;
-
-		Log.Info( $"Became the host (previous host was {previousHost})" );
-		var scene = Game.ActiveScene;
-		if ( !scene.IsValid() ) return;
-
-		Action queue = default;
-		foreach ( var c in scene.GetAll<Component.INetworkListener>() )
-		{
-			queue += () => c.OnBecameHost( previousHost );
-		}
-
-		try
-		{
-			queue?.Invoke();
-		}
-		catch ( Exception e )
-		{
-			Log.Error( e, "Exception when calling INetworkListener.OnBecameHost" );
-		}
-
-		// Don't run orphaned actions if the previous host is still connected.
-		if ( previousHost.IsActive )
-			return;
-
-		DoOrphanedActions( previousHost );
-	}
-
 	internal void DoOrphanedActions( Connection connection )
 	{
 		Game.ActiveScene?.DoOrphanedActions( connection );
@@ -867,6 +982,11 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	{
 		return Game.ActiveScene is null ? null : Game.ActiveScene.Push();
 	}
+
+	/// <summary>
+	/// Allocation-free version of <see cref="Push"/>.
+	/// </summary>
+	internal ScenePushScope PushScope() => new( Game.ActiveScene );
 
 	private void OnObjectDestroyDescendant( ObjectDestroyDescendantMsg message, Connection source )
 	{
@@ -984,8 +1104,8 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			gameObject.PreserveFromHostSyncMembers( gameObjectJson );
 		}
 
-		using ( var _ = CallbackBatch.Batch() )
 		using ( BlobDataSerializer.LoadFromMemory( message.BlobData ) )
+		using ( var _ = CallbackBatch.Batch() )
 		{
 			gameObject?.Deserialize( gameObjectJson, new GameObject.DeserializeOptions
 			{
@@ -1036,7 +1156,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		if ( !component.IsValid() )
 		{
 			var componentTypeName = componentJson.GetPropertyValue( Component.JsonKeys.Type, "" );
-			var componentType = Game.TypeLibrary.GetType<Component>( componentTypeName, true );
+			var componentType = GlobalContext.Current.TypeLibrary.GetType<Component>( componentTypeName, true );
 
 			if ( componentType is null || componentType.TargetType.IsAbstract )
 			{
@@ -1063,8 +1183,8 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			component.PreserveFromHostSyncMembers( componentJson );
 		}
 
-		using ( CallbackBatch.Batch() )
 		using ( BlobDataSerializer.LoadFromMemory( message.BlobData ) )
+		using ( CallbackBatch.Batch() )
 		{
 			component?.DeserializeInternal( componentJson, true );
 			component?.PostDeserialize();
@@ -1125,6 +1245,11 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		if ( source is not null && !source.CanSpawnObjects )
 			return;
 
+		var created = new List<(GameObject, ObjectCreateMsg)>();
+
+		// Keep all blob data alive until CallbackBatch has flushed.
+		using var blobs = BlobDataSerializer.LoadFromMemory( [] );
+
 		using ( CallbackBatch.Batch() )
 		{
 			foreach ( var msg in message.CreateMsgs )
@@ -1133,14 +1258,25 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 				if ( source is not null && !source.IsHost && (msg.Owner != source.Id || msg.Creator != source.Id) )
 					continue;
 
-				using ( BlobDataSerializer.LoadFromMemory( msg.BlobData ) )
+				// Drop a create for an id we already have rather than spawning a duplicate under a reassigned GUID.
+				if ( scene.Directory.FindByGuid( msg.Guid ).IsValid() )
 				{
-					var go = new GameObject();
-					go.Deserialize( JsonNode.Parse( msg.JsonData ).AsObject(), networkDeserializeOptionsCreate );
-					go.NetworkSpawnRemote( msg );
+					Log.Warning( $"Ignoring batched ObjectCreateMsg for {msg.Guid} from {source}: an object with that id already exists." );
+					continue;
 				}
+
+				// Fold this object's blobs into the shared scope.
+				blobs.Load( msg.BlobData );
+
+				var go = new GameObject();
+				go.Deserialize( JsonNode.Parse( msg.JsonData ).AsObject(), networkDeserializeOptionsCreate );
+				go.NetworkSpawnRemote( msg );
+
+				created.Add( (go, msg) );
 			}
 		}
+
+		ReapplyCreateTables( created );
 	}
 
 	private void OnObjectCreate( ObjectCreateMsg message, Connection source, Guid msgId )
@@ -1161,14 +1297,24 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		if ( source is not null && !source.IsHost && (message.Owner != source.Id || message.Creator != source.Id) )
 			return;
 
+		// We already have an object with this id. Spawning another would create a duplicate and then
+		// silently reassign its GUID, turning a single stray create into an endless duplicate generator.
+		if ( scene.Directory.FindByGuid( message.Guid ).IsValid() )
+		{
+			Log.Warning( $"Ignoring ObjectCreateMsg for {message.Guid} from {source}: an object with that id already exists." );
+			return;
+		}
+
 		var go = new GameObject();
 
-		using ( CallbackBatch.Batch() )
 		using ( BlobDataSerializer.LoadFromMemory( message.BlobData ) )
+		using ( CallbackBatch.Batch() )
 		{
 			go.Deserialize( JsonNode.Parse( message.JsonData ).AsObject(), networkDeserializeOptionsCreate );
 			go.NetworkSpawnRemote( message );
 		}
+
+		go._net?.ReapplyCreateTable( message );
 	}
 
 	private void OnNetworkTableChanges( SceneNetworkTableMsg message, Connection source, Guid msgId )
@@ -1292,21 +1438,6 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		obj._net.OnNetworkDestroy();
 	}
 
-	private void OnObjectMessage( ObjectRpcMsg rpc, Connection source, Guid msgId )
-	{
-		Rpc.IncomingInstanceRpcMsg( rpc, source );
-	}
-
-	private void OnSceneRpc( SceneRpcMsg message, Connection source, Guid msgId )
-	{
-		Rpc.IncomingInstanceRpcMsg( message, source );
-	}
-
-	private void OnStaticRpc( StaticRpcMsg message, Connection source, Guid msgId )
-	{
-		Rpc.IncomingStaticRpcMsg( message, source );
-	}
-
 	/// <summary>
 	/// A heartbeat has been received from the host. We should make sure our times are in sync.
 	/// </summary>
@@ -1349,6 +1480,9 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	/// </summary>
 	internal override void OnDeltaSnapshotMessage( InternalMessageType type, ByteStream bs, Connection source )
 	{
+		// Acknowledgements measure the round trip, against a clock that's otherwise only updated when we send
+		DeltaSnapshots.UpdateTime();
+
 		if ( type == InternalMessageType.DeltaSnapshot )
 		{
 			NetworkDebugSystem.Current?.Record( NetworkDebugSystem.MessageType.SyncVars, bs.Length );
@@ -1522,31 +1656,4 @@ struct ObjectDetachMsg
 struct ObjectDestroyMsg
 {
 	public Guid Guid { get; set; }
-}
-
-[Expose]
-struct SceneRpcMsg
-{
-	public Guid Guid { get; set; }
-	public int MethodIdentity { get; set; }
-	public object[] Arguments { get; set; }
-	public int[] GenericArguments { get; set; }
-}
-
-[Expose]
-struct ObjectRpcMsg
-{
-	public Guid Guid { get; set; }
-	public Guid ComponentId { get; set; }
-	public int MethodIdentity { get; set; }
-	public object[] Arguments { get; set; }
-	public int[] GenericArguments { get; set; }
-}
-
-[Expose]
-struct StaticRpcMsg
-{
-	public int MethodIdentity { get; set; }
-	public object[] Arguments { get; set; }
-	public int[] GenericArguments { get; set; }
 }

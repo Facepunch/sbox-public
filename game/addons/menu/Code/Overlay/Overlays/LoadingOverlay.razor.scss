@@ -1,120 +1,756 @@
-@import "/styles/_vars.scss";
+@import "/styles/_front.scss";
+@import "/styles/_theme.scss";
 
 LoadingOverlay
 {
-    position: absolute;
-    top: 0px;
-    left: 0px;
-    right: 0px;
-    bottom: 0px;
-    background-color: #222;
-    z-index: 1000;
-    color: white;
-    pointer-events: all;
-    opacity: 0.0;
-    transition: all 0.3s 0.1s ease-in;
-    transform: scale( 1.1 );
+	position: absolute;
+	top: 0px;
+	left: 0px;
+	right: 0px;
+	bottom: 0px;
+	// The vignette's own colour - so with the art gone, the dark's one flat colour, not a lighter
+	// middle ringed by the vignette
+	background-color: rgb( 8, 10, 14 );
+	z-index: 1000;
+	color: white;
+	font-family: $front-font;
+	pointer-events: none;
+	opacity: 0.0;
 
-    .loading-panel
-    {
-        font-size: 30px;
-        font-weight: 200;
-        font-family: Poppins;
-        position: absolute;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        gap: 30px;
-        align-items: center;
-        padding: 50px 75px;
-        justify-content: flex-end;
-        background: linear-gradient(rgba(#1E2432,0), rgba(#1E2432,0.8));
+	// Put away, it shrinks back into a rounded card as it fades - clipped, so the art rounds off too.
+	// Easing in, it holds dark while the art goes (below), then fades to the menu
+	overflow: hidden;
+	transition: opacity 0.35s ease-in, transform 0.35s ease-out, border-radius 0.35s ease-out;
+	transform: scale( 1.1 );
+	border-radius: 32px;
 
-        .loading-info
-        {
-            flex-direction: column;
-            align-items: flex-end;
-        }
+	.content
+	{
+		position: relative;
+		width: 100%;
+		max-width: $screen-w-xl;
+		margin: 0 auto;
+	}
 
-        .status
-        {
-            color: #fff;
-            font-weight: 600;
-            font-family: Poppins;
-        }
+	&.visible
+	{
+		opacity: 1;
+		transition: all 0s linear;
+		transform: scale( 1 );
+		border-radius: 0;
+		pointer-events: all;
+	}
 
-        .eta
-        {
-            color: #ccc;
-            font-size: 18px;
-            font-weight: 300;
-            font-family: Poppins;
-        }
+	// Put away - the card and the rest of what's on it go first, quickly, and the art goes down to the
+	// dark. Every layer's faded on its own, not as one picture - left to the whole thing fading, the
+	// vignette went see-through as fast as the art, and the bright art washed out over the menu
+	&:not(.visible)
+	{
+		.corner, .footer
+		{
+			opacity: 0;
+			transition: opacity 0.12s ease-out;
+		}
 
-        .cancel-button
-        {
-            background-color: $primary;
-            color: #fff;
-            padding: 10px 40px;
-            border-radius: 100%;
-            font-size: 30px;
-            font-weight: bold;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
+		.background
+		{
+			opacity: 0;
+			transition: opacity 0.2s ease-out;
+		}
+	}
 
-            &:hover
-            {
-                background-color: $light-blue;
-            }
-        }
-    }
+	// The overlay doesn't get the main menu's theme, where glyphs get their font - without this
+	// they'd inherit Poppins from above and spell out their names
+	icon
+	{
+		font-family: "Material Icons";
+	}
 
-    &.visible
-    {
-        opacity: 1;
-        transition: all 0s linear;
-        background-color: #111;
-        transform: scale( 1 );
-    }
+	// The game's art, the whole screen, easing in from a little zoomed and blurred
+	.background
+	{
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		background-position: center;
+		background-size: cover;
+		opacity: 1;
+		transition: all 1.5s linear;
+		filter: blur( 0px );
+		animation: loading-background-zoom 20s linear forwards;
 
-    .background
-    {
-        width: 100%;
-        height: 100%;
-        background-position: center;
-        background-size: cover;
-        opacity: 1;
-        transition: all 1.5s linear, transform 20s linear;
-        transform: scale( 1 );
-        filter: blur( 0px);
-    }
+		&:intro
+		{
+			opacity: 0;
+			filter: blur( 10px );
+		}
 
-        .background:intro
-        {
-            opacity: 0;
-            filter: blur( 10px);
-            transform: scale( 1.1 );
-        }
+		&:outro
+		{
+			opacity: 0;
+			transition: all 0.5s linear;
+		}
+	}
 
-    .title
-    {
-        position: absolute;
-        left: 0;
-        bottom: 200px;
-        top: 0;
-        right: 0;
-        font-size: 100px;
-        font-weight: 700;
-        font-family: Poppins;
-        opacity: 0.1;
-        justify-content: center;
-        align-items: center;
-        transition: all 1s 1s linear;
-    }
+	// A vignette - the art clear in the middle, fading away towards the corners, where the cards sit
+	.scrim
+	{
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		background-image: radial-gradient( rgba( 8, 10, 14, 0 ) 25%, rgba( 8, 10, 14, 0.6 ) 60%, rgba( 8, 10, 14, 0.92 ) 90% );
+	}
 
-        .title:intro
-        {
-            opacity: 0;
-        }
+	// The same slab as the menu's panels - fill, hairline, rounding, the blur over what's behind
+	.card
+	{
+		@include front-slab;
+
+		border-radius: $front-radius;
+		border: $front-border-width solid $front-border;
+		box-shadow: 0 8px 32px rgba( 0, 0, 0, 0.35 );
+	}
+
+	//
+	// What it is - top left
+	//
+
+	// The game, and its latest update under it, down the top left
+	.corner
+	{
+		position: absolute;
+		top: 64px;
+		left: 64px;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: $front-chrome-gap;
+		max-width: 560px;
+	}
+
+	// No card - straight on the art, with a shadow under it all to keep it readable
+	.game
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 14px;
+	}
+
+	.game-icon
+	{
+		flex-shrink: 0;
+		width: 52px;
+		height: 52px;
+		border-radius: 8px;
+		background-size: cover;
+		background-position: center;
+		background-color: rgba( 0, 0, 0, 0.4 );
+		box-shadow: 0 4px 16px rgba( 0, 0, 0, 0.5 );
+	}
+
+	.game-text
+	{
+		flex-direction: column;
+		gap: 1px;
+
+		// The org snug under the name - the name's line height leaves a gap of its own
+		.game-org
+		{
+			margin-top: -5px;
+		}
+	}
+
+	.game-title-row
+	{
+		flex-direction: row;
+		align-items: center;
+	}
+
+	.game-title
+	{
+		font-size: 20px;
+		font-weight: 700;
+		color: $front-heading;
+		text-shadow: 0 2px 8px rgba( 0, 0, 0, 0.7 );
+	}
+
+	.game-org
+	{
+		font-size: 13px;
+		font-weight: 500;
+		color: $front-secondary;
+		text-shadow: 0 1px 6px rgba( 0, 0, 0, 0.7 );
+	}
+
+	//
+	// How it's going - bottom right
+	//
+
+	// Across the bottom - the update at the left end, the card at the right, bottoms level
+	.footer
+	{
+		position: absolute;
+		left: 64px;
+		right: 64px;
+		bottom: 64px;
+		flex-direction: row;
+		justify-content: flex-end;
+		align-items: flex-end;
+
+		.grow
+		{
+			flex-grow: 1;
+		}
+	}
+
+	// No card - straight on the art, bottom left. Its look's shared with the pause menu's latest update
+	.news
+	{
+		@include front-headline;
+
+		flex-shrink: 1;
+		max-width: 480px;
+	}
+
+	.progress
+	{
+		flex-direction: column;
+		flex-shrink: 1;
+		width: 520px;
+		gap: 14px;
+		padding: 18px 22px;
+	}
+
+	.progress-head, .progress-foot
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 12px;
+	}
+
+	// Tall enough for the title and the small print under it - both always there
+	.progress-head
+	{
+		height: 36px;
+	}
+
+	// The title, and the small print's line under it whether there's any or not
+	.head-text
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		min-width: 0;
+		height: 100%;
+		justify-content: center;
+	}
+
+	.progress-foot
+	{
+		gap: 8px;
+	}
+
+	// How long it's got left - quiet, like the speed and total under the bar
+	.eta
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 4px;
+
+		icon
+		{
+			font-size: 14px;
+			color: $front-tertiary;
+		}
+
+		label
+		{
+			font-size: 12px;
+			font-weight: 600;
+			color: $front-secondary;
+			white-space: nowrap;
+		}
+	}
+
+	// Under the bar - how much is down riding along centred on the end of the fill (left comes from
+	// MarkerLeft), and the total sat still at the far end
+	.marker-row
+	{
+		// Tucked right up under the bar - just text now, so it doesn't need a pill's height
+		position: relative;
+		flex-shrink: 0;
+		height: 16px;
+		margin-top: -9px;
+
+		// Its numbers sit in it absolutely - clipped to it
+		overflow: hidden;
+
+		// All just text under the bar - no pill round them, and the icon snug against its number
+		.stat.done, .stat.total, .stat.speed
+		{
+			height: 16px;
+			gap: 2px;
+			background-color: transparent;
+			border-width: 0;
+
+			icon
+			{
+				width: auto;
+			}
+		}
+
+		// How fast, at the start of the row - quiet, like the total at the other end
+		.stat.speed
+		{
+			position: absolute;
+			top: 0;
+			left: 0;
+			width: auto;
+			padding: 0;
+
+			label
+			{
+				color: $front-secondary;
+			}
+
+			// The icon's snug against the number, but the unit still wants a word's space after it
+			.unit
+			{
+				margin-left: 2px;
+				color: $front-tertiary;
+			}
+		}
+
+		// Following the bar, with its icon lit like it
+		.stat.done
+		{
+			position: absolute;
+			top: 0;
+			width: 88px;
+			margin-left: -44px;
+			justify-content: center;
+			transition: left 0.3s ease-out;
+
+			icon
+			{
+				color: $front-reward;
+			}
+
+			label
+			{
+				color: $front-heading;
+			}
+		}
+
+		// Where it's headed - quiet, and it doesn't move
+		.stat.total
+		{
+			position: absolute;
+			top: 0;
+			right: 0;
+			width: 60px;
+			padding: 0;
+			justify-content: flex-end;
+
+			label
+			{
+				font-weight: 500;
+				color: $front-secondary;
+			}
+		}
+	}
+
+	// One number each - how much, how fast, how long. Fixed widths, the icon pinned to the left, and
+	// the numbers that tick in slots of their own - so nothing moves while the digits change, not
+	// the pills, not the icons, not the words after the numbers
+	.stat
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		justify-content: flex-start;
+		gap: 5px;
+		height: 28px;
+		padding: 0 10px 0 10px;
+		border-radius: 999px;
+		background-color: rgba( 255, 255, 255, 0.06 );
+		border: 1px solid rgba( 255, 255, 255, 0.08 );
+
+		icon
+		{
+			flex-shrink: 0;
+			width: 14px;
+			text-align: center;
+			font-size: 13px;
+			color: $front-tertiary;
+		}
+
+		// Every digit the same width, so a number ticking over from 0.21 to 0.88 is always as wide -
+		// and the unit after it, and anything after that, stays exactly where it is. Inter, because
+		// Poppins has no tabular figures (its 1 is half the width of its 4); Inter has them
+		label
+		{
+			flex-shrink: 0;
+			font-family: Inter;
+			font-size: 11.5px;
+			font-weight: 600;
+			font-variant-numeric: tabular-nums;
+			color: $front-body;
+			white-space: nowrap;
+		}
+
+		// "135 Mbps" - like every pill, the number straight after the icon, the unit after that, quieter
+		&.speed
+		{
+			width: 96px;
+
+			.unit
+			{
+				margin-left: -1px;
+				font-weight: 500;
+				color: $front-tertiary;
+			}
+		}
+
+	}
+
+	// Stacked in the head's column - it keeps its own height, so centring in the column works
+	.status-text
+	{
+		flex-shrink: 0;
+		min-width: 0;
+		font-size: 15px;
+		font-weight: 600;
+		color: $front-heading;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	// Room for "100%" whatever it says, so the number ticking up doesn't nudge the title
+	.percent
+	{
+		flex-shrink: 0;
+		width: 52px;
+		text-align: right;
+		font-size: 15px;
+		font-family: Inter;
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+		color: $front-heading;
+	}
+
+	// The download bar - always there: an empty track with nothing coming down, and while a batch is,
+	// a segment for each download, side by side with a hairline between them
+	.track
+	{
+		@include front-track;
+
+		flex-direction: row;
+		gap: 2px;
+		height: 5px;
+
+		// The segments are the track now, each its own - the gaps between them show through
+		&.busy
+		{
+			background-color: transparent;
+			border-radius: 0;
+		}
+
+		// One download's share of the bar - as wide as its share of the bytes (flex-grow, set inline).
+		// Square-ish, not pills: a small one's only a few pixels wide, and rounded right off it's a dot.
+		// The bar's own ends are still round - the first segment's left, the last's right
+		.segment
+		{
+			flex-basis: 0;
+			flex-shrink: 1;
+			min-width: 0;
+			height: 100%;
+			border-radius: 1px;
+			background-color: $front-track;
+			overflow: hidden;
+
+			&:first-child
+			{
+				border-top-left-radius: 999px;
+				border-bottom-left-radius: 999px;
+			}
+
+			&:last-child
+			{
+				border-top-right-radius: 999px;
+				border-bottom-right-radius: 999px;
+			}
+
+			// The segment's shape does the clipping - the fill's own rounding would round it again
+			// inside it
+			.fill
+			{
+				border-radius: 0;
+			}
+
+			// Down - just full, nothing sweeping or pulsing along it any more (till the batch's finish
+			// flashes them all, below)
+			&.done .fill
+			{
+				.pulse
+				{
+					opacity: 0;
+					animation-name: none;
+				}
+
+				.shine
+				{
+					display: none;
+				}
+			}
+		}
+
+		.fill
+		{
+			position: relative;
+			height: 100%;
+			border-radius: 999px;
+			overflow: hidden;
+			background-image: linear-gradient( 90deg, $front-reward-deep, $front-reward );
+			transition: width 0.3s ease-out;
+
+			// A soft brightening through the whole fill, over and over - it never sits still, even
+			// when the download does
+			.pulse
+			{
+				position: absolute;
+				left: 0;
+				top: 0;
+				right: 0;
+				bottom: 0;
+				background-color: rgba( 255, 255, 255, 0.35 );
+				opacity: 0;
+				animation-name: loading-pulse;
+				animation-duration: 0.9s;
+				animation-timing-function: ease-in-out;
+				animation-iteration-count: infinite;
+				animation-direction: alternate;
+			}
+
+			// A bright streak sweeping along it, like it's working flat out
+			.shine
+			{
+				position: absolute;
+				top: 0;
+				bottom: 0;
+				width: 35%;
+				left: -35%;
+				background-image: linear-gradient( 90deg, rgba( 255, 255, 255, 0 ) 0%, rgba( 255, 255, 255, 0.7 ) 50%, rgba( 255, 255, 255, 0 ) 100% );
+				animation-name: loading-shine;
+				animation-duration: 1.1s;
+				animation-timing-function: ease-in-out;
+				animation-iteration-count: infinite;
+			}
+		}
+	}
+
+	//
+	// Finished - a moment of it before it folds away into what's next
+	//
+
+	// The card holds the finishing wipe in, and it's what the border glow lights up
+	.progress
+	{
+		position: relative;
+		overflow: hidden;
+		transition: border-color 0.4s ease-out, box-shadow 0.4s ease-out;
+
+		// Everything in the card draws over the wipe
+		> .progress-head, > .track, > .marker-row, > .progress-foot
+		{
+			z-index: 1;
+		}
+	}
+
+	// A quick wipe of green across the whole card, left to right like the bar filling it - a bright
+	// leading edge, a wash behind it - then it fades
+	.wipe
+	{
+		position: absolute;
+		left: 0;
+		top: 0;
+		bottom: 0;
+		width: 0%;
+		pointer-events: none;
+		background-image: linear-gradient( 90deg, rgba( $front-reward, 0.1 ) 0%, rgba( $front-reward, 0.28 ) 80%, rgba( 255, 255, 255, 0.45 ) 100% );
+		animation-name: loading-wipe;
+		animation-duration: 0.55s;
+		animation-timing-function: ease-out;
+		animation-iteration-count: 1;
+		animation-fill-mode: forwards;
+	}
+
+	.progress.complete
+	{
+		// The whole card lights up green round its edge
+		border-color: rgba( $front-reward, 0.7 );
+		box-shadow: 0 0 28px rgba( $front-reward, 0.35 ), 0 8px 32px rgba( 0, 0, 0, 0.35 );
+
+		// The bar's segments glow, flash bright once, and stop sweeping - it's done working. As specific as
+		// a finished segment's own rule, which stops its pulse, so this flash wins over it
+		.track .segment
+		{
+			box-shadow: 0 0 14px rgba( $front-reward, 0.55 );
+		}
+
+		.track .segment.done .fill
+		{
+			.pulse
+			{
+				background-color: rgba( 255, 255, 255, 0.8 );
+				animation-name: loading-complete-flash;
+				animation-duration: 0.5s;
+				animation-timing-function: ease-out;
+				animation-iteration-count: 1;
+				animation-direction: normal;
+				animation-fill-mode: forwards;
+			}
+
+			.shine
+			{
+				display: none;
+			}
+		}
+
+		// All of it's down - lit like the bar
+		.marker-row .stat.done label
+		{
+			color: $front-reward;
+		}
+	}
+
+	// Where the percentage was - pops in with a little overshoot
+	.done-badge
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 4px;
+		animation-name: loading-done-pop;
+		animation-duration: 0.45s;
+		animation-timing-function: ease-out;
+		animation-iteration-count: 1;
+		animation-fill-mode: forwards;
+
+		icon
+		{
+			font-size: 17px;
+			color: $front-reward;
+		}
+
+		label
+		{
+			font-size: 15px;
+			font-weight: 700;
+			color: $front-reward;
+		}
+	}
+
+	// Under the title, snapped in - no transition. Loading's synchronous, so frames come in lumps,
+	// and anything that slid or faded here stuttered and lagged behind the text
+	.detail
+	{
+		flex-shrink: 0;
+		min-width: 0;
+		height: 16px;
+		font-size: 12px;
+		font-weight: 500;
+		color: $front-secondary;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	// A real button, not a link - the way out has to be easy to find. Goes red when you point at it,
+	// like the menu's other stop / leave buttons
+	.cancel
+	{
+		@include front-pill;
+
+		// The same height as the pills beside it, so the row lines up
+		flex-shrink: 0;
+		gap: 6px;
+		height: 28px;
+		padding: 0 14px 0 10px;
+		border-color: rgba( 255, 255, 255, 0.2 );
+		background-color: rgba( 255, 255, 255, 0.08 );
+		cursor: pointer;
+
+		icon
+		{
+			font-size: 15px;
+			color: $front-body;
+		}
+
+		label
+		{
+			font-size: 13px;
+			font-weight: 700;
+			color: $front-heading;
+		}
+
+		&:hover
+		{
+			border-color: rgba( $front-danger, 0.6 );
+			background-color: rgba( $front-danger, 0.16 );
+			sound-in: "ui.button.over";
+
+			icon, label { color: $front-danger; }
+		}
+
+		&:active
+		{
+			sound-in: "ui.button.press";
+		}
+	}
+}
+
+@keyframes loading-pulse
+{
+	from { opacity: 0; }
+	to { opacity: 1; }
+}
+
+@keyframes loading-shine
+{
+	from { left: -35%; }
+	to { left: 100%; }
+}
+
+@keyframes loading-complete-flash
+{
+	0% { opacity: 1; }
+	100% { opacity: 0; }
+}
+
+// Across the card in the first ~0.3s, holds a beat, then fades
+@keyframes loading-wipe
+{
+	0% { width: 0%; opacity: 1; }
+	40% { width: 100%; opacity: 1; }
+	55% { width: 100%; opacity: 1; }
+	100% { width: 100%; opacity: 0; }
+}
+
+@keyframes loading-done-pop
+{
+	0% { opacity: 0; transform: scale( 0.6 ); }
+	60% { opacity: 1; transform: scale( 1.15 ); }
+	100% { opacity: 1; transform: scale( 1 ); }
+}
+
+@keyframes loading-background-zoom
+{
+	from { transform: scale( 1.1 ); }
+	to { transform: scale( 1 ); }
 }

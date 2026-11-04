@@ -255,6 +255,12 @@ public class GroupAttribute : System.Attribute, ICategoryProvider, IGroupAttribu
 	/// <inheritdoc cref="ICategoryProvider.Value"/>
 	public string Value { get; set; }
 
+	/// <summary>
+	/// Sorts this group before or after groups with the default order of zero, including ungrouped properties.
+	/// If members specify different group orders, the lowest value is used. Member ordering is unchanged.
+	/// </summary>
+	public int Order { get; set; }
+
 	public string Icon { get; set; }
 
 	/// <summary>
@@ -499,7 +505,7 @@ namespace Sandbox
 	/// <summary>
 	/// Add a header above this property
 	/// </summary>
-	[AttributeUsage( AttributeTargets.Property )]
+	[AttributeUsage( AttributeTargets.Property | AttributeTargets.Method )]
 	public sealed class HeaderAttribute : System.Attribute
 	{
 		public string Title { get; set; }

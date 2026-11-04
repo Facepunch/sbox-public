@@ -8,6 +8,8 @@ public abstract partial class GameMount : BaseGameMount
 	protected abstract long AppId { get; }
 	protected abstract string GroPath { get; }
 
+	public override long? SteamAppId => AppId;
+
 	string appDir;
 
 	protected override void Initialize( InitializeContext context )

@@ -5,9 +5,8 @@ namespace Editor;
 public class AssetEntry : IAssetListEntry
 {
 	private readonly Color TypeColor;
-
-	public readonly FileInfo FileInfo;
 	public readonly string TypeName;
+	public FileInfo FileInfo { get; private set; }
 	public Asset Asset { get; private set; }
 
 	public readonly Pixmap IconSmall;
@@ -173,18 +172,11 @@ public class AssetEntry : IAssetListEntry
 
 	public void Rename( string newName )
 	{
-		string compiledPath = Asset?.GetCompiledFile( true );
-		if ( !string.IsNullOrEmpty( compiledPath ) )
-		{
-			var compiled = new FileInfo( compiledPath );
-			compiled.MoveTo( compiled.GetNewPath( $"{newName}_c" ) );
+		string newPath = Path.Combine( Path.GetDirectoryName( Asset.AbsolutePath ), newName.GetFilenameSafe() );
 
-			var blob = new FileInfo( $"{compiledPath[..^2]}_d" );
-			if ( blob.Exists )
-				blob.MoveTo( compiled.GetNewPath( $"{newName}_d" ) );
-		}
+		EditorUtility.MoveAsset( Asset, newPath );
 
-		FileInfo.MoveTo( FileInfo.GetNewPath( newName ) );
+		FileInfo = new FileInfo( newPath );
 		Asset = AssetSystem.RegisterFile( FileInfo.FullName );
 	}
 

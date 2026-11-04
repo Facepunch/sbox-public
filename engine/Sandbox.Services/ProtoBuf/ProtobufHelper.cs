@@ -50,7 +50,8 @@ public static class ProtobufHelper
 	/// </summary>
 	public static object FromWire( Stream stream )
 	{
-		if ( stream.Length <= 4 )
+		// Messages with no fields contain only the two-byte message id.
+		if ( stream.Length < sizeof( ushort ) )
 			return default;
 
 		using var br = new BinaryReader( stream, System.Text.Encoding.UTF8, true );

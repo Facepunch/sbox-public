@@ -43,6 +43,29 @@ public class MiscPropertiesTest
 		Assert.IsFalse( s.Set( "pointer-events", "banana" ) );
 	}
 
+
+	[TestMethod]
+	public void Isolation_Isolate()
+	{
+		var s = new Styles();
+		Assert.IsTrue( s.Set( "isolation", "isolate" ) );
+		Assert.AreEqual( Isolation.Isolate, s.Isolation );
+	}
+
+	[TestMethod]
+	public void Isolation_Auto()
+	{
+		var s = new Styles();
+		Assert.IsTrue( s.Set( "isolation", "auto" ) );
+		Assert.AreEqual( Isolation.Auto, s.Isolation );
+	}
+
+	[TestMethod]
+	public void Isolation_Invalid()
+	{
+		var s = new Styles();
+		Assert.IsFalse( s.Set( "isolation", "banana" ) );
+	}
 	// ── text-filter (Rendering.FilterMode?) ────────────────────────────────────────
 
 	[TestMethod]

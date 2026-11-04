@@ -92,8 +92,7 @@ public class PaintTextureTool : BaseBrushTool
 				}
 			}
 
-			terrain.SyncGPUTexture();
-			terrain.UpdateCollision( Terrain.SyncFlags.Control, dirtyRegion );
+			terrain.ApplyStorageChanges( Terrain.SyncFlags.Control, dirtyRegion );
 		};
 
 		SceneEditorSession.Active.UndoSystem.Insert( $"Terrain {DisplayInfo.For( this ).Name}", CreateUndoAction( regionBefore ), CreateUndoAction( regionAfter ) );

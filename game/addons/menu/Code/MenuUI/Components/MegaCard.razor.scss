@@ -1,13 +1,27 @@
 @import "/styles/_theme.scss";
+@import "/styles/_front.scss";
 
 $header-height: 60px;
-$right-panel-width: 300px;
 
 .megacard
 {
-    width: 1300px;
-    max-width: 1300px;
-    height: 78%;
+    // A fifth narrower than it was (1300) - the gallery's 16:9, so narrower's shorter too, and the
+    // description under it comes up onto the page
+    width: 1040px;
+    max-width: 1040px;
+
+    // As tall as the page needs - a game's Overview scrolls its description in what room's left beside your
+    // time and achievements, so nothing else has to (PackageStore) - but never off the screen
+    height: auto;
+    max-height: 90%;
+    transition: margin-bottom 0.2s ease-out;
+
+    // The party deck's up in the bottom right - lifted clear of it (the margin's taken out of the
+    // space it's centred in, so it rides up by half of it). Centred the rest of the time
+    &.clear-deck
+    {
+        margin-bottom: 110px;
+    }
     font-family: $font-default;
 }
 
@@ -37,31 +51,25 @@ $right-panel-width: 300px;
     flex-wrap: wrap;
 }
 
+// One slab with one outline; panes inside are divided by hairlines.
 .megacard > .body-outer > .body
 {
+    @include front-card;
+
+    // The mixin pins flex-shrink to 0; the body must shrink to the modal height.
     flex-grow: 1;
-    flex-direction: column;
-    background-color: $default-900;
-    border: 1px solid $default-border;
-    border-radius: $rounding-large * 2;
-    box-shadow: 0px 0px 120px 60px rgba( $default-950, 0.8 );
+    flex-shrink: 1;
+    min-height: 0;
+    box-shadow: 0 30px 90px rgba( $default-950, 0.75 );
     pointer-events: all;
 }
 
-.megacard > .body-outer > .body > .row
-{
-    flex-grow: 1;
-    overflow: hidden;
-}
-
-// Main content area — LEFT
-.megacard > .body-outer > .body > .row > .content
+.megacard > .body-outer > .body > .content
 {
     flex-grow: 1;
     flex-shrink: 1;
-    background-color: $default-950;
-    margin: 2px 0px 0px 2px;
-    border-radius: $rounding-large 0px 0px 0px;
+    min-height: 0;
+    background-color: rgba( 0, 0, 0, 0.28 );
     flex-direction: column;
     overflow: hidden;
     overflow-y: scroll;
@@ -69,30 +77,18 @@ $right-panel-width: 300px;
     pointer-events: all;
 }
 
-// Info panel — RIGHT
-.megacard > .body-outer > .body > .row > .left
+// Where the tabs' pages go fills the page - they scroll in it once the page is as tall as it gets
+.megacard > .body-outer > .body > .content > PortalTarget
 {
-    flex-direction: column;
-    flex-grow: 0;
-    flex-shrink: 0;
-    width: $right-panel-width;
-    margin: 2px 2px 0px 0px;
-    border-radius: 0px $rounding-large 0px 0px;
-    overflow: hidden;
-    background-color: $default-900;
-}
-
-.megacard > .body-outer > .body > .row > .left > label.eyebrow
-{
-    padding: 12px 12px 4px 12px;
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-height: 0;
 }
 
 .megacard > .body-outer > .body > .footer
 {
     flex-shrink: 0;
-    background-color: $default-900;
-    margin: 0px 2px 2px 2px;
-    border-radius: 0px 0px $rounding-large $rounding-large;
-    padding: 16px 20px;
-    border-top: 1px solid $default-border;
+    padding: 14px 20px;
+    border-top: $front-border-width solid $front-hairline;
+    background-color: rgba( 0, 0, 0, 0.15 );
 }

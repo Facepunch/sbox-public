@@ -11,16 +11,17 @@
   "Category": "Skirt",
   "ConditionalModels": {},
   "Tags": null,
-  "Parent": "models/citizen_clothes/dress/denim_skirt/denim_skirt_black.clothing",
   "Model": "models/citizen_clothes/dress/denim_skirt/models/denim_skirt_leopard.vmdl",
   "HumanAltModel": "models/citizen_clothes/dress/denim_skirt/models/denim_skirt_leopard_m_human.vmdl",
   "HumanAltFemaleModel": null,
   "SkinMaterial": null,
   "EyesMaterial": null,
   "MaterialGroup": null,
+  "HeelHeight": 0,
   "SlotsUnder": "LeftThigh, RightThigh, LeftKnee, RightKnee",
   "SlotsOver": 0,
   "HideBody": 0,
+  "DeformationMode": "Normal",
   "AllowTintSelect": false,
   "TintSelection": {
     "blend": "Linear",
@@ -37,7 +38,8 @@
   "Icon": {
     "Path": "models/citizen_clothes/dress/denim_skirt/denim_skirt_leapard.clothing.png",
     "Mode": "Chest",
-    "PositionOffset": "125.2,0,-17.09999"
+    "UsePositionOffset": false,
+    "PositionOffset": "125.199997,0,-17.0999908"
   },
   "__references": [],
   "__version": 0

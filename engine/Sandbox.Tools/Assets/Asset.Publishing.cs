@@ -56,6 +56,13 @@ public partial class Asset
 		[Browsable( false )]
 		public Sandbox.DataModel.ProjectConfig ProjectConfig { get; set; }
 
+		/// <summary>
+		/// Package references added by Hammer, rather than explicitly configured by the user.
+		/// Kept in local publish metadata so unused automatic references can be removed on save.
+		/// </summary>
+		[JsonInclude]
+		internal string[] HammerAutoPackageReferences { get; set; }
+
 		internal void InitializeInternal( Asset asset )
 		{
 			this.asset = asset;
@@ -286,7 +293,7 @@ public partial class Asset
 			return new string( chars );
 		}
 
-		string PackageType()
+		internal string PackageType()
 		{
 			if ( asset.AssetType is null ) return default;
 
@@ -312,11 +319,11 @@ public partial class Asset
 		/// The project isn't stored or listed anywhere, so is considered a transient that you can load
 		/// up, edit, save and then throw away.
 		/// </summary>
-		public Project CreateTemporaryProject()
+		/// <param name="rootDirectory">Where the project's code comes from, if it's bundling any.</param>
+		public Project CreateTemporaryProject( System.IO.DirectoryInfo rootDirectory = null )
 		{
-			var lp = new Project();
+			var lp = new Project( rootDirectory );
 			lp.ProjectSourceObject = asset;
-			lp.IsTransient = true;
 			lp.OnSaveProject = () => asset.Publishing.Save();
 			lp.Config = asset.Publishing.ProjectConfig;
 

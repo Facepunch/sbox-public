@@ -21,20 +21,51 @@ namespace Editor
 		}
 
 		/// <summary>
-		/// Note - not caching anything here, and reading the whole json file
-		/// every time. Lets see how this turns out.
+		/// The last parsed contents of the file, along with the file state it was read from.
+		/// Immutable so it can be swapped atomically when assets update in parallel.
+		/// </summary>
+		sealed record Snapshot( bool Exists, System.DateTime WriteTimeUtc, long Length, JsonElement? Root );
+
+		Snapshot _snapshot;
+
+		/// <summary>
+		/// Returns the parsed root of the file. The parse is cached and only redone when the
+		/// file's write time or length changes, since assets read their meta many times.
 		/// </summary>
 		JsonElement? Read()
 		{
-			if ( !System.IO.File.Exists( FilePath ) )
+			var info = new System.IO.FileInfo( FilePath );
+			var exists = info.Exists;
+			var writeTime = exists ? info.LastWriteTimeUtc : default;
+			var length = exists ? info.Length : 0;
+
+			var snapshot = _snapshot;
+			if ( snapshot is not null && snapshot.Exists == exists && snapshot.WriteTimeUtc == writeTime && snapshot.Length == length )
+				return snapshot.Root;
+
+			if ( !exists )
+			{
+				_snapshot = new Snapshot( false, default, 0, null );
 				return null;
+			}
 
 			try
 			{
 				var json = System.IO.File.ReadAllText( FilePath );
 
-				var document = JsonDocument.Parse( json, new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip } );
-				return document.RootElement;
+				using var document = JsonDocument.Parse( json, new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip } );
+				var root = document.RootElement.Clone();
+
+				_snapshot = new Snapshot( true, writeTime, length, root );
+				return root;
+			}
+			catch ( JsonException e )
+			{
+				// Cache bad json too, so we only warn once until the file changes
+				_snapshot = new Snapshot( true, writeTime, length, null );
+
+				Log.Warning( e, $"Couldn't parse '{FilePath}' ({e.Message})" );
+				return null;
 			}
 			catch ( System.Exception e )
 			{
@@ -43,16 +74,13 @@ namespace Editor
 			}
 		}
 
-		/// <summary>
-		/// Note - not caching anything here, and reading the whole json file
-		/// every time. Lets see how this turns out.
-		/// </summary>
 		JsonObject StartWrite()
 		{
 			var o = new JsonNodeOptions { PropertyNameCaseInsensitive = true };
 
 			var e = Read();
-			if ( e == null ) return new JsonObject( o );
+			if ( e is null || e.Value.ValueKind == JsonValueKind.Null )
+				return new JsonObject( o );
 
 			return JsonObject.Create( e.Value, o );
 		}
@@ -72,6 +100,13 @@ namespace Editor
 						}
 					}
 
+					_snapshot = null;
+					return;
+				}
+				catch ( System.IO.DirectoryNotFoundException ex )
+				{
+					// Not a transient failure like a locked file - waiting won't make the folder appear
+					Log.Warning( $"Failed to save {FilePath} ({ex.Message})" );
 					return;
 				}
 				catch ( System.IO.IOException ex )
@@ -103,7 +138,7 @@ namespace Editor
 		{
 			try
 			{
-				// Handle errprs from Read() as well but only for reading.
+				// Handle errors from Read() as well but only for reading.
 				// If we do it for StartSave, we risk losing data..
 				var e = GetElement( keyName );
 				if ( e == null ) return defaultValue;
@@ -117,6 +152,27 @@ namespace Editor
 				// if it was the wrong type, we don't care
 				return defaultValue;
 			}
+		}
+
+		public bool TryGet<T>( string keyName, out T value )
+		{
+			try
+			{
+				// Handle errors from Read() as well but only for reading.
+				// If we do it for StartSave, we risk losing data..
+				if ( GetElement( keyName ) is { } e && e.Deserialize<T>( JsonSerializerOptions.Default ) is T result )
+				{
+					value = result;
+					return true;
+				}
+			}
+			catch
+			{
+				// if it was the wrong type, we don't care
+			}
+
+			value = default;
+			return false;
 		}
 
 		public string GetString( string keyName, string defaultValue = default ) => Get<string>( keyName, defaultValue );

@@ -42,6 +42,6 @@ public partial class Scene : GameObject
 
 		NavMesh.UpdateCache( PhysicsWorld );
 
-		NavMesh.crowd.Update( Time.Delta, new DotRecast.Detour.Crowd.DtCrowdAgentDebugInfo() );
+		NavMesh.Simulation.Update( Time.Delta );
 	}
 }

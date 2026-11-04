@@ -67,7 +67,9 @@ public static partial class PerformanceStats
 			if ( All.TryGetValue( stage, out var timing ) )
 				return timing;
 
-			return All.GetOrAdd( stage, f => new Timings( stage, color ?? Color.White ) );
+			// Static lambda with the colour passed as state. A capturing lambda here would allocate its closure on
+			// entry, before the lookup above, so every scope paid for it even on a hit.
+			return All.GetOrAdd( stage, static ( s, c ) => new Timings( s, c ?? Color.White ), color );
 		}
 
 		internal Timings( string name, Color color )
@@ -100,6 +102,12 @@ public static partial class PerformanceStats
 				milliseconds = 0;
 			}
 		}
+
+		/// <summary>
+		/// Time recorded since the last flip - the frame that's in progress. Read at the end of a frame, it's that frame's
+		/// whole time, where <see cref="History"/> only has it once the next frame starts.
+		/// </summary>
+		internal float CurrentMs => (float)(Interlocked.Read( ref ticks ) * (1_000.0 / Stopwatch.Frequency) + milliseconds);
 
 		public bool IsManualFlip { get; set; }
 

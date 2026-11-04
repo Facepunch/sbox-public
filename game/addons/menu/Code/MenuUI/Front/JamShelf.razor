@@ -1,0 +1,563 @@
+@using System;
+@using System.Collections.Generic;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.Services;
+@using Sandbox.UI;
+@using MenuProject.MenuUI.Jams;
+@inherits MenuProject.MenuUI.Jams.JamFinalistPhasePanel
+
+@if ( Jam is null ) return;
+
+<root class="stage-@StageClass @(Waiting ? "waiting" : "")">
+    <div class="jam-head">
+        <div class="event-mark"><icon>emoji_events</icon></div>
+        <div class="jam-copy">
+            <a class="jam-title" href="/jam">@Jam.Title</a>
+            @if ( Theme is not null )
+            {
+                <label class="jam-theme">@Theme</label>
+            }
+        </div>
+        <div class="grow" />
+        @if ( ClockLabel is not null )
+        {
+            <div class="jam-clock @(ClockUrgent ? "urgent" : "")">
+                <label class="clock-label">@ClockLabel</label>
+                <label class="clock-value">@ClockText</label>
+            </div>
+        }
+    </div>
+
+    @if ( !Waiting && Champion is null && !IsDuel )
+    {
+    <div class="jam-round">
+        <div class="round-copy">
+            <label class="jam-status">@Headline</label>
+            @if ( !string.IsNullOrEmpty( Subline ) )
+            {
+                <label class="jam-description">@Subline</label>
+            }
+        </div>
+    </div>
+    }
+
+    @if ( ShowArena && Categories is { Length: > 1 } )
+    {
+        <div class="category-tabs">
+            @foreach ( var category in Categories )
+            {
+                <Button Text=@category.Title Active=@(Category?.Id == category.Id) onclick=@(() => CategoryId = category.Id) />
+            }
+        </div>
+    }
+
+    @if ( ShowArena )
+    {
+        @if ( Category is null || Category.Nominees.Count == 0 )
+        {
+            <div class="arena-loading">
+                @if ( Error is null && (Loading || Categories is null) )
+                {
+                    <Spinner />
+                    <label>#menu.jam.loading_finalists</label>
+                }
+                else
+                {
+                    <label>@(Error ?? "#menu.jam.no_finalists_confirmed_yet")</label>
+                }
+            </div>
+        }
+        else if ( Champion is not null )
+        {
+            <div class="podium">
+                <div class="podium-leaders">
+                    @foreach ( var place in Enumerable.Range( 1, Math.Min( 2, Category.Nominees.Count ) ) )
+                    {
+                        var finalist = Category.GetFinalistAtPlace( place );
+                        var package = GetPackage( finalist?.PackageIdent );
+                        <div class="podium-place place-@place">
+                            <div class="podium-celebration">
+                                <div class="podium-glow" />
+                                <icon>@(place == 1 ? "emoji_events" : "workspace_premium")</icon>
+                                <label>@(place == 1 ? "#menu.jam.winner" : "#menu.jam.runner_up")</label>
+                            </div>
+                            <div class="podium-art">
+                                @if ( package is not null )
+                                {
+                                    <MenuProject.UI.PackageCard Package=@package HoverPreview=@false AlwaysPlayVideo=@(place == 1) Clicked=@(() => package.OpenModal()) RightClicked=@(() => OpenMenu( package )) />
+                                }
+                                else
+                                {
+                                    <div class="art-missing"><icon>videogame_asset</icon></div>
+                                }
+                                <div class="place-badge"><label>@place.FormatWithSuffix() place</label></div>
+                            </div>
+                            <div class="podium-body">
+                                <div class="winner-copy"><label class="podium-title">@(package?.Title ?? finalist?.PackageIdent ?? "#menu.jam.result_pending")</label></div>
+                                @if ( !string.IsNullOrEmpty( Prize( place ) ) )
+                                {
+                                    <label class="podium-prize">@Prize( place )</label>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+                @if ( Category.Nominees.Count > 2 )
+                {
+                    <div class="places">
+                        @foreach ( var place in Enumerable.Range( 3, Math.Min( 5, Category.Nominees.Count ) - 2 ) )
+                        {
+                            var finalist = Category.GetFinalistAtPlace( place );
+                            var package = GetPackage( finalist?.PackageIdent );
+                            <div class="place-row finish-@place" onclick=@(() => package?.OpenModal())>
+                                <label class="place-number">@place.FormatWithSuffix()</label>
+                                <div class="place-art" style="background-image: url(@(package?.ThumbWide ?? package?.Thumb))" />
+                                <div class="place-copy">
+                                    <label class="place-title">@(package?.Title ?? finalist?.PackageIdent ?? "#menu.jam.result_pending")</label>
+                                    <label class="place-prize">@Prize( place )</label>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="arena">
+                <div class="arena-main">
+                <div class="contenders @(IsDuel ? "duel" : "")">
+                    @for ( var i = 0; i < Standing.Length; i++ )
+                    {
+                        var finalist = Standing[i];
+                        var ident = finalist.PackageIdent;
+                        var package = GetPackage( ident );
+                        var mine = !Waiting && ident is not null && Category.MyVotes.Contains( ident );
+                        <div class="contender-slot side-@i">
+                            @if ( IsDuel && Tallied )
+                            {
+                                <JamVoteBar Votes=@Count( finalist ) VoteShare=@($"{Share( finalist )} of votes") Maximum=@ChartMaximum Selected=@mine Live=@VotingOpen GrandFinal=@true Urgent=@ClockUrgent Identity=@($"{Jam.Ident}/{Category.Id}/final/{ident}") Seed=@finalist.Seed />
+                            }
+                        <div class="contender @(Tallied && IsLeading( finalist ) ? "leading" : "") @(Tallied && IsLowest( finalist ) ? "last" : "") @(mine ? "mine" : "")">
+                            <div class="contender-content">
+                            <div class="contender-art">
+                                @if ( package is not null )
+                                {
+                                    <MenuProject.UI.PackageCard Package=@package HoverPreview=@false AlwaysPlayVideo=@IsDuel Clicked=@(() => package.OpenModal()) RightClicked=@(() => OpenMenu( package )) />
+                                }
+                                else
+                                {
+                                    <div class="art-missing"><icon>videogame_asset</icon></div>
+                                }
+                                @if ( Tallied )
+                                {
+                                    <div class="rank-badge"><label>@PositionText( finalist )</label></div>
+                                }
+                            </div>
+                            <div class="contender-body">
+                                <label class="contender-title">@(package?.Title ?? ident ?? "#menu.jam.game_unavailable")</label>
+                                @if ( Tallied && !IsDuel )
+                                {
+                                    <div class="vote-row">
+                                        <label class="vote-count">@Count( finalist ).ToString( "N0" )</label>
+                                        <label class="vote-unit">#menu.jam.votes</label>
+                                        <div class="grow" />
+                                        <label class="vote-share">@Share( finalist )</label>
+                                    </div>
+                                    <div class="vote-track"><div class="vote-fill" style="width: @(Fraction( finalist ) * 100)%;" /></div>
+                                }
+                                else if ( !Tallied )
+                                {
+                                    <label class="contender-note">@NominationText( finalist )</label>
+                                }
+                                <div class="contender-actions">
+                                    <Button class="play-button" Icon="play_arrow" Text="#menu.common.play" Disabled=@(package is null) onclick=@(() => Play( package )) />
+                                    <Button class="vote-button" Icon=@(mine ? "check" : "how_to_vote") Text=@VoteText( mine ) Disabled=@(Submitting || VoteCooldownSeconds > 0 || mine || !VotingOpen || ident is null) onclick=@(() => SubmitVote( ident )) />
+                                </div>
+                            </div>
+                            </div>
+                        </div>
+                        </div>
+                        @if ( IsDuel && i == 0 )
+                        {
+                            <div class="duel-divider"><label @ref="VersusLabel">#menu.jam.vs</label></div>
+                        }
+                    }
+                </div>
+                </div>
+
+                @if ( KnockedOut.Length > 0 )
+                {
+                    <div class="knocked-out">
+                        <div class="ko-head"><label class="ko-heading">#menu.jam.eliminated</label></div>
+                        <div class="ko-grid">
+                        @foreach ( var finalist in KnockedOut )
+                        {
+                            var package = GetPackage( finalist.PackageIdent );
+                            <div class="ko-card" tooltip="@($"{package?.Title ?? finalist.PackageIdent} · Out in round {finalist.EliminatedRound}")" onclick=@(() => package?.OpenModal())>
+                                <div class="ko-art" style="background-image: url(@(package?.ThumbWide ?? package?.Thumb))" />
+                            </div>
+                        }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    }
+    else
+    {
+        <div class="jam-entries">
+            @if ( CurrentPhase <= Jam.Phase.Teased )
+            {
+                @foreach ( var prize in Prizes )
+                {
+                    <div class="prize-tile @(prize.Place == 1 ? "top" : "")">
+                        <label class="prize-place">@prize.Label</label>
+                        <label class="prize-amount">@prize.Amount</label>
+                    </div>
+                }
+            }
+            else if ( Entries.Count == 0 )
+            {
+                <div class="entries-empty">
+                    @if ( EntriesLoading )
+                    {
+                        <Spinner />
+                    }
+                    <label>@(EntriesLoading ? "#menu.jam.loading_entries" : EntriesError ?? "#menu.jam.no_entries_yet")</label>
+                </div>
+            }
+            else
+            {
+                @foreach ( var package in Entries )
+                {
+                    <div class="entry">
+                        <MenuProject.UI.PackageCard Package=@package HoverPreview=@false ShowNominations=@NominationsOpen Clicked=@(() => package.OpenModal()) RightClicked=@(() => OpenMenu( package )) />
+                    </div>
+                }
+            }
+        </div>
+    }
+
+    <div class="jam-foot">
+        <label class="@(Error is not null && ShowArena ? "error" : "")">@(ShowArena && Error is not null ? Error : FootText)</label>
+        <a class="jam-open" href="/jam"><label>@(ShowArena ? "#menu.jam.view_standings" : "#menu.jam.view_jam")</label><icon>chevron_right</icon></a>
+    </div>
+    @if ( Jam.IsEditorPreview )
+    {
+        <JamPreviewHelper Jam=@Jam />
+    }
+</root>
+
+@code
+{
+    Jam.Phase CurrentPhase => Voting?.Phase ?? Jam?.CurrentPhase ?? Jam.Phase.Upcoming;
+
+    string StageClass => CurrentPhase switch
+    {
+        Jam.Phase.Upcoming or Jam.Phase.Teased => "teased",
+        Jam.Phase.Building or Jam.Phase.Judging => "building",
+        Jam.Phase.Nominations => "nominations",
+        Jam.Phase.Finals => "finals",
+        Jam.Phase.GrandFinal => Champion is not null ? "crowned" : "grand-final",
+        _ => "crowned",
+    };
+
+    bool NominationsOpen => Jam.CommunityVoting && Jam.HasStarted && Jam.Now < Jam.NominationsEnd;
+
+    /// <summary>
+    /// The finalist view takes over once there's a slate to show - before that it's entries.
+    /// </summary>
+    bool ShowArena => Jam.CommunityVoting && CurrentPhase >= Jam.Phase.Finals;
+
+    /// <summary>
+    /// Votes are only on screen once a round has run - the reveal shows nominations instead.
+    /// </summary>
+    bool Waiting => JamVotingPresentation.Waiting( Category );
+    bool Tallied => Category is not null && !Waiting && (Category.VotingOpen || Category.Decided || Category.Nominees.Any( x => x.EliminatedRound.HasValue ));
+
+    bool IsDuel => Category?.GrandFinal == true && Standing.Length == 2;
+
+    /// <summary>
+    /// The confirmed winner. Live tallies and an expired timer never crown anyone.
+    /// </summary>
+    JamFinalist Champion => Category?.Decided == true ? Category.GetFinalistAtPlace( 1 ) : null;
+
+    // Stable random order for the gallery's lifetime, like the jam page - ranking the cards by
+    // votes would hand the leader the best spot and tilt the vote.
+    readonly Dictionary<(string, int, int), Guid> displayOrder = new();
+    JamFinalistCategory orderedCategory;
+    JamFinalist[] Standing = [];
+    JamFinalist[] KnockedOut = [];
+
+    List<Package> Entries = new();
+    string entriesFor;
+    bool EntriesLoading;
+    string EntriesError;
+
+    record PrizeTier( int Place, string Label, string Amount );
+
+    IEnumerable<PrizeTier> Prizes
+    {
+        get
+        {
+            var category = Jam.Categories?.FirstOrDefault();
+            var places = category?.Places ?? [];
+            for ( var i = 0; i < places.Length; i++ )
+                yield return new PrizeTier( i + 1, $"{(i + 1).FormatWithSuffix()} place", places[i] );
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        SyncJam();
+        base.OnParametersSet();
+        RebuildStanding();
+    }
+
+    /// <summary>
+    /// Follow the menu's active jam rather than a parameter - it changes under us as phases move.
+    /// </summary>
+    bool SyncJam()
+    {
+        var active = Voting?.ActiveJam;
+        if ( active == Jam ) return false;
+
+        Jam = active;
+        Entries.Clear();
+        entriesFor = null;
+        EntriesError = null;
+        return true;
+    }
+
+    void RebuildStanding()
+    {
+        if ( Jam is null || Category is null )
+        {
+            orderedCategory = null;
+            Standing = [];
+            KnockedOut = [];
+            return;
+        }
+
+        if ( orderedCategory == Category ) return;
+
+        var survivors = Category.Contenders;
+        Standing = survivors.OrderBy( DisplayOrder ).ToArray();
+        KnockedOut = Category.Nominees.Where( x => x.EliminatedRound.HasValue && !survivors.Contains( x ) )
+            .OrderByDescending( x => x.EliminatedRound ).ToArray();
+
+        // Only once it's built - a throw above retries next tick instead of sticking empty.
+        orderedCategory = Category;
+    }
+
+    Guid DisplayOrder( JamFinalist finalist )
+    {
+        var key = (Jam.Ident, Category.Id, finalist.Seed);
+        if ( !displayOrder.TryGetValue( key, out var order ) )
+        {
+            order = Guid.NewGuid();
+            displayOrder.Add( key, order );
+        }
+
+        return order;
+    }
+
+    public override void Tick()
+    {
+        UpdateVersus();
+        SetClass( "compact", Box.Rect.Width * ScaleFromScreen < 950 );
+        if ( SyncJam() )
+        {
+            base.OnParametersSet();
+            StateHasChanged();
+        }
+
+        base.Tick();
+        RebuildStanding();
+
+        if ( Jam is not null && !ShowArena && CurrentPhase > Jam.Phase.Teased )
+        {
+            var query = $"{Jam.Query} {(NominationsOpen && Jam.Now >= Jam.Deadline ? "sort:popular" : "sort:newest")}";
+            if ( entriesFor != query )
+            {
+                entriesFor = query;
+                _ = LoadEntries( query );
+            }
+        }
+    }
+
+    Panel VersusLabel;
+
+    void UpdateVersus()
+    {
+        if ( !IsVisible || !VersusLabel.IsValid() || !IsDuel ) return;
+
+        // A gentle looping bob, with a quicker wobble and a little squash on each beat.
+        var phase = (float)(RealTime.Now % 2.4) / 2.4f * MathF.Tau;
+        var bob = MathF.Sin( phase );
+        var wobble = MathF.Sin( phase * 2f );
+
+        var transform = new PanelTransform();
+        transform.AddTranslate( 0, bob * 4f );
+        transform.AddRotation( 0, 0, -10f + wobble * 5f );
+        transform.AddScale( new Vector3( 1f + bob * 0.035f, 1f - bob * 0.035f, 1f ) );
+        VersusLabel.Style.Transform = transform;
+    }
+
+    async Task LoadEntries( string query )
+    {
+        EntriesLoading = true;
+        EntriesError = null;
+        try
+        {
+            var result = await Package.FindAsync( query, 4 );
+            if ( !this.IsValid() || entriesFor != query ) return;
+            Entries = result?.Packages?.ToList() ?? new();
+        }
+        catch ( Exception e )
+        {
+            if ( entriesFor == query ) EntriesError = "#menu.jam.couldn_t_load_entries_open_the_jam_to_try";
+            Log.Warning( $"Couldn't load jam entries ({e.Message})" );
+        }
+        finally
+        {
+            if ( this.IsValid() && entriesFor == query )
+            {
+                EntriesLoading = false;
+                StateHasChanged();
+            }
+        }
+    }
+
+    int Count( JamFinalist finalist ) => finalist.PackageIdent is null ? 0 : Category.Counts.GetValueOrDefault( finalist.PackageIdent );
+    int Maximum => Standing.Select( Count ).DefaultIfEmpty().Max();
+    int ChartMaximum => Math.Max( 10, (int)Math.Ceiling( Maximum / 100.0 ) * 100 );
+    int Minimum => Standing.Select( Count ).DefaultIfEmpty().Min();
+    float Fraction( JamFinalist finalist ) => Category.TotalVotes > 0 ? (float)Count( finalist ) / Category.TotalVotes : 0;
+    string Share( JamFinalist finalist ) => $"{Fraction( finalist ) * 100:0.0}%";
+    int Rank( JamFinalist finalist ) => 1 + Standing.Count( x => Count( x ) > Count( finalist ) );
+    bool IsLowest( JamFinalist finalist ) => VotingOpen && Category.TotalVotes > 0 && !IsDuel && Count( finalist ) == Minimum;
+    bool IsLeading( JamFinalist finalist ) => Category.TotalVotes > 0 && Count( finalist ) == Maximum && Standing.Count( x => Count( x ) == Maximum ) == 1;
+
+    string PositionText( JamFinalist finalist )
+    {
+        if ( IsDuel ) return IsLeading( finalist ) ? "#menu.jam.leading" : Count( Standing[0] ) == Count( Standing[1] ) ? "#menu.jam.tied" : "#menu.jam.trailing";
+        if ( IsLowest( finalist ) ) return Standing.Count( x => Count( x ) == Minimum ) > 1 ? "#menu.jam.tied_last" : "#menu.jam.last_place";
+        if ( IsLeading( finalist ) ) return "#menu.jam.leading";
+        return Rank( finalist ).FormatWithSuffix();
+    }
+
+    string NominationText( JamFinalist finalist ) => finalist.PackageIdent is not null
+        && Category.NominationCounts.TryGetValue( finalist.PackageIdent, out var count ) ? $"Finalist · {count:N0} nominations" : "#menu.jam.finalist";
+
+    string VoteText( bool mine )
+    {
+        if ( Waiting ) return "#menu.jam.voting_opens_soon";
+        if ( mine ) return "#menu.jam.you_voted";
+        if ( !VotingOpen ) return Tallied ? "#menu.jam.voting_closed" : "#menu.jam.voting_opens_soon";
+        if ( Submitting ) return "#menu.jam.voting";
+        if ( VoteCooldownSeconds > 0 ) return $"Vote in {VoteCooldownSeconds}s";
+        return "#menu.jam.vote";
+    }
+
+    string Prize( int place )
+    {
+        var category = Jam.Categories?.FirstOrDefault( x => x.Id == Category?.Id );
+        return category?.Places is { } prizes && place <= prizes.Length ? prizes[place - 1] : place == 1 ? category?.Prize : null;
+    }
+
+    string Theme => Jam.HasStarted && !string.IsNullOrWhiteSpace( Jam.Theme ) ? Jam.Theme : null;
+
+    string Headline
+    {
+        get
+        {
+            if ( Champion is not null ) return "#menu.jam.the_results_are_in";
+            if ( Waiting ) return IsDuel ? "#menu.jam.two_remain_the_final_is_next" : "#menu.jam.next_round_coming_up";
+
+            return CurrentPhase switch
+            {
+                Jam.Phase.Upcoming or Jam.Phase.Teased => "#menu.jam.coming_soon",
+                Jam.Phase.Building => "#menu.jam.entries_open",
+                Jam.Phase.Judging => "#menu.jam.judging_in_progress",
+                Jam.Phase.Nominations => "#menu.jam.nominations_open",
+                Jam.Phase.Finals when Category is null => "#menu.jam.finalists",
+                Jam.Phase.Finals when !Tallied => "#menu.jam.finalists_announced",
+                Jam.Phase.Finals when !VotingOpen => "#menu.jam.round_closed",
+                Jam.Phase.Finals => $"Knockout / Round {Category.Round}",
+                Jam.Phase.GrandFinal when Category is not null && !VotingOpen => "#menu.jam.final_voting_closed",
+                Jam.Phase.GrandFinal => "#menu.jam.grand_final_text",
+                _ => "#menu.games.results",
+            };
+        }
+    }
+
+    string Subline
+    {
+        get
+        {
+            if ( CurrentPhase <= Jam.Phase.Teased ) return "#menu.jam.theme_revealed_when_entries_open";
+
+            var parts = new List<string>();
+            if ( (!ShowArena || Champion is not null) && Jam.EntryCount > 0 ) parts.Add( $"{Jam.EntryCount:N0} entries" );
+            if ( CurrentPhase is Jam.Phase.Finals or Jam.Phase.GrandFinal && Tallied && Category is { TotalVotes: > 0 } && Champion is null )
+                parts.Add( $"{Category.TotalVotes:N0} votes this round" );
+            return string.Join( " · ", parts );
+        }
+    }
+
+    DateTimeOffset? ClockTarget => CurrentPhase switch
+    {
+        Jam.Phase.Upcoming or Jam.Phase.Teased => Jam.Starts,
+        Jam.Phase.Building => Jam.Deadline,
+        Jam.Phase.Judging or Jam.Phase.Nominations => Jam.NominationsEnd,
+        Jam.Phase.Finals when Jam.Now < Jam.FinalsStart => Jam.FinalsStart,
+        Jam.Phase.Finals or Jam.Phase.GrandFinal when Champion is null => Category?.VotingOpen == true ? Category.RoundEnds : Category?.NextRoundOpens,
+        _ => null,
+    };
+
+    string ClockLabel
+    {
+        get
+        {
+            if ( ClockTarget is null ) return null;
+
+            return CurrentPhase switch
+            {
+                Jam.Phase.Upcoming or Jam.Phase.Teased => "#menu.jam.starts_in",
+                Jam.Phase.Building => "#menu.jam.entries_close_in",
+                Jam.Phase.Judging => "#menu.jam.judging_ends_in",
+                Jam.Phase.Nominations => "#menu.jam.nominations_close_in",
+                Jam.Phase.Finals when Jam.Now < Jam.FinalsStart => "#menu.jam.voting_opens_in",
+                Jam.Phase.GrandFinal => Category?.VotingOpen == true ? "#menu.jam.final_vote_ends_in" : "#menu.jam.final_vote_opens_in",
+                _ => Category?.VotingOpen == true ? $"Round {Category.Round} ends in" : "#menu.jam.next_round_in",
+            };
+        }
+    }
+
+    string ClockText => ClockTarget is { } target
+        ? target > Jam.Now ? (target - Jam.Now).ToCountdownString() : Waiting ? "#menu.jam.opening_soon" : "#menu.jam.awaiting_update"
+        : "";
+
+    bool ClockUrgent => ClockTarget is { } target && target > Jam.Now && (target - Jam.Now).TotalMinutes < 60 && VotingOpen;
+
+    string FootText
+    {
+        get
+        {
+            if ( Champion is not null ) return "#menu.jam.browse_the_results_and_play_the_entries";
+            if ( Waiting ) return "#menu.jam.play_the_finalists_while_you_wait_votes_reset_when";
+            if ( ShowArena && Tallied && !VotingOpen ) return "#menu.jam.voting_is_closed_waiting_for_the_confirmed_result";
+            if ( ShowArena && Category is not null && !Tallied ) return "#menu.jam.play_the_finalists_before_voting_opens";
+            if ( ShowArena ) return IsDuel ? "#menu.jam.vote_for_the_winner" : "#menu.jam.one_vote_per_round_the_lowest_ranked_game_is";
+            if ( CurrentPhase <= Jam.Phase.Teased ) return "#menu.jam.the_theme_will_be_announced_when_entries_open";
+            if ( NominationsOpen ) return "#menu.jam.play_an_entry_to_nominate_it_for_the_finals";
+            return "#menu.jam.browse_and_play_the_entries";
+        }
+    }
+
+    protected override int BuildHash() => HashCode.Combine( base.BuildHash(), CurrentPhase, Entries.Count, Jam?.Now.Second,
+        HashCode.Combine( Champion?.PackageIdent, Tallied, orderedCategory, EntriesLoading, EntriesError ) );
+}

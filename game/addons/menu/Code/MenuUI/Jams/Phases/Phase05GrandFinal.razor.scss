@@ -1,0 +1,64 @@
+@import "/styles/_front.scss";
+
+JamPage Phase05GrandFinal
+{
+	&.grand-final-phase
+	{
+		JamHeader
+		{
+			border-color: rgba( $front-trophy, 0.25 );
+			animation: final-instruments-in 0.7s ease-out 1;
+
+			.kicker, .headline
+			{
+				color: $front-trophy;
+			}
+		}
+
+		JamEntryControls .entry-controls .entry-filter.active
+		{
+			background-color: #946726;
+			border-color: $front-trophy;
+
+			&:hover
+			{
+				background-color: #ab7728;
+				border-color: $front-trophy;
+			}
+		}
+	}
+
+	&.final-urgent JamSchedule .countdown
+	{
+		padding: 10px;
+		border: 1px solid rgba( $front-trophy, 0.5 );
+		border-radius: 6px;
+		background-color: rgba( $front-trophy, 0.07 );
+
+		.time
+		{
+			font-size: 27px;
+			animation: final-countdown-pulse 1s ease-in-out infinite;
+		}
+	}
+
+	.finalist-scroll
+	{
+		padding-bottom: 72px;
+		gap: 8px;
+		overflow: hidden;
+		min-height: 0;
+	}
+}
+@keyframes final-countdown-pulse
+{
+	0%, 100%
+	{
+		opacity: 0.8;
+	}
+
+	30%
+	{
+		opacity: 1;
+	}
+}

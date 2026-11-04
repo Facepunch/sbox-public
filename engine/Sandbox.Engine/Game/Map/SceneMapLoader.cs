@@ -51,6 +51,11 @@ public class SceneMapLoader : MapLoader
 	protected virtual void CreateLightProbeVolume( ObjectEntry kv )
 	{
 		var texture = kv.GetResource<Texture>( "lightprobetexture" );
+
+		// Unbaked volumes must not suppress realtime lighting with an empty probe.
+		if ( texture is null || texture.IsError )
+			return;
+
 		var indicesTexture = kv.GetResource<Texture>( "lightprobetexture_dli" );
 		var scalarsTexture = kv.GetResource<Texture>( "lightprobetexture_dls" );
 		var boundsMin = kv.GetValue( "box_mins", new Vector3( -72.0f, -72.0f, -72.0f ) );
@@ -153,7 +158,7 @@ public class SceneMapLoader : MapLoader
 			Attenuation0 = kv.GetValue( "attenuation0", 0.0f ),
 			Attenuation1 = kv.GetValue( "attenuation1", 0.0f ),
 			Attenuation2 = kv.GetValue( "attenuation2", 1.0f ),
-			// Default 1 matches Hammer ShadowType.Yes. 0 = none, 1 = realtime (+ baked), 2 = baked-only.
+			// Hammer's ShadowType is No/Yes and defaults to Yes.
 			CastShadows = kv.GetValue( "castshadows", 1 ) == 1,
 			LightCookie = kv.GetResource<Texture>( "lightcookie" ),
 			BakeLightIndex = kv.GetValue( "bakelightindex", -1 ),
@@ -174,7 +179,6 @@ public class SceneMapLoader : MapLoader
 		public readonly Light.LegacyLightData ToLegacyData() => new()
 		{
 			DirectLight = DirectLight,
-			CastShadows = CastShadows,
 			BakeLightIndex = BakeLightIndex,
 			BakeLightIndexScale = BakeLightIndexScale,
 			BakedLightIndexing = BakedLightIndexing,

@@ -90,8 +90,11 @@ public abstract partial class Collider
 
 	void DisconnectBody()
 	{
-		// destroy the shapes first
-		DestroyShapes();
+		// A body being destroyed takes its shapes with it, one at a time each removal rebuilds its mass
+		if ( Rigidbody is not null && Rigidbody.GameObject.IsDestroyed )
+			Shapes.Clear();
+		else
+			DestroyShapes();
 
 		if ( Rigidbody.IsValid() )
 		{

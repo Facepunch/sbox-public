@@ -1,0 +1,229 @@
+@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+
+Sidebar
+{
+	@include front-card;
+
+	position: relative;
+	z-index: 100;
+	flex-shrink: 0;
+	width: $front-rail-width;
+	align-items: center;
+	gap: 16px;
+	margin: $front-chrome-gap 0 $front-chrome-gap $front-chrome-gap;
+	// No side padding - entries run the full width of the rail so the active fill
+	// and its marker bar can reach the edge. The logo insets itself instead.
+	padding: 14px 0;
+	pointer-events: all;
+	box-shadow: $front-rail-shadow;
+
+	Logo
+	{
+		flex-shrink: 0;
+		height: 46px;
+		// The rail's 16 gap under it, less the 8 the first entry's background reaches up into it, and
+		// this 6 - the same 14 clear under it as the rail's padding leaves over it
+		margin: 0 10px 6px 10px;
+		border-radius: 8px;
+	}
+
+	.nav
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		width: 100%;
+		gap: 16px;
+	}
+
+	// Each entry's 62 tall in the layout, and its background reaches halfway into the gaps either
+	// side of it - into the next entry's, so there's no dead space between them - by growing past
+	// that and pulling its margins back in by the same. Its icon and label stay centred on the 62.
+	// Sizes written out - the stylesheet doesn't do sums of lengths.
+	.nav .button
+	{
+		@include front-nav-item;
+
+		height: 78px; // 62, and the 8 into each gap
+		margin: -8px 0;
+
+		pointer-events: all;
+		cursor: pointer;
+
+		&:hover
+		{
+			sound-in: "ui.button.over";
+		}
+
+		&:active
+		{
+			sound-in: "ui.button.press";
+		}
+	}
+
+	// Mid-game, where the mark goes - the game you're in, a tab like the entries under it (the same
+	// hover, the same blue when you're on its page), the game's icon the size of the mark. Its
+	// background reaches up over the rail's padding to the top, and down to meet the entry below
+	.game-tab
+	{
+		@include front-nav-item;
+
+		height: 84px; // 62, the 14 over the rail's padding and the 8 into the gap
+		margin: -14px 0 -8px 0;
+		// Even top and bottom - centred in the whole of its background, reach and all
+		padding-top: 10px;
+		padding-bottom: 10px;
+
+		cursor: pointer;
+
+		&:hover
+		{
+			sound-in: "ui.button.over";
+		}
+
+		&:active
+		{
+			sound-in: "ui.button.press";
+		}
+
+		.game-icon
+		{
+			flex-shrink: 0;
+			width: 46px;
+			height: 46px;
+			border-radius: 8px;
+			background-size: cover;
+			background-position: center;
+			// No outline of its own - only the one the calling pulse brings in. Always there, unseen, so
+			// the pulse doesn't change its size
+			border: 2px solid transparent;
+			cursor: pointer;
+			transition: width 0.25s ease, height 0.25s ease, border-color 0.25s ease;
+		}
+
+		// "Back to game", under the icon when it's calling you - tucked up into the icon, small and gone, the
+		// rest of the time, sliding back out when it calls again
+		.back
+		{
+			flex-shrink: 0;
+			height: 0;
+			margin-top: 0;
+			opacity: 0;
+			transform: translateY( -16px ) scale( 0.6 );
+			font-family: $front-font;
+			font-size: 9.5px;
+			font-weight: 700;
+			text-transform: uppercase;
+			letter-spacing: 0.03em;
+			white-space: nowrap;
+			color: linear-gradient( 180deg, #cfe3ff, $front-primary * 1.6 );
+			text-shadow: 0 0 8px rgba( $front-primary, 0.9 );
+			transition: height 0.25s ease, margin-top 0.25s ease, opacity 0.2s ease, transform 0.25s ease;
+		}
+
+		// Out in the menu's own pages mid-game - calling you back to it. The tab's blue breathing in
+		// and out, the icon swelling a touch with a glow round it, "Back to game" lit under it
+		&.calling
+		{
+			animation: game-tab-call 0.5s ease-in-out infinite alternate;
+
+			.game-icon
+			{
+				width: 40px;
+				height: 40px;
+				animation: game-icon-call 0.5s ease-in-out infinite alternate;
+			}
+
+			.back
+			{
+				height: 12px;
+				margin-top: 4px;
+				opacity: 1;
+				transform: translateY( 0 ) scale( 1 );
+			}
+
+			// Under the pointer, it's got your attention - still, and fully lit
+			&:hover
+			{
+				animation: none;
+				background-color: rgba( $front-primary, 0.22 );
+
+				.game-icon
+				{
+					animation: none;
+					transform: scale( 1.06 );
+					border-color: $front-primary;
+					box-shadow: 0 0 18px 4px rgba( $front-primary, 0.8 );
+				}
+			}
+		}
+	}
+
+	// Button stacks an icon above a column holding its label - centre that column too.
+	.button-right-column
+	{
+		flex-direction: column;
+		align-items: center;
+	}
+
+	// The last entry - Quit, or Leave mid-game - reaches down over the rail's padding to the bottom
+	// instead, so its background runs to the rail's own corners
+	.nav .quit
+	{
+		height: 84px; // 62, the 8 into the gap and the 14 over the rail's padding
+		margin: -8px 0 -14px 0;
+		// Even top and bottom - centred in the whole of its background, reach and all
+		padding-top: 10px;
+		padding-bottom: 10px;
+	}
+
+	.nav .quit:hover
+	{
+		// The rail's hover in red - its glow towards the marker's edge, and the marker
+		background-color: rgba( $front-danger, 0.18 );
+		background-image: linear-gradient( 90deg, rgba( $front-danger, 0 ), rgba( $front-danger, 0.16 ) );
+		border-right: 2px solid rgba( $front-danger, 0.7 );
+
+		iconpanel
+		{
+			color: linear-gradient( 180deg, $front-danger * 1.3, $front-danger );
+		}
+
+		label
+		{
+			color: $front-danger;
+		}
+	}
+}
+
+// The game tab calling you back - its blue tint breathing
+@keyframes game-tab-call
+{
+	0%
+	{
+		background-color: rgba( $front-primary, 0.04 );
+	}
+
+	100%
+	{
+		background-color: rgba( $front-primary, 0.2 );
+	}
+}
+
+// Its icon swelling a touch, its outline and a glow growing round it
+@keyframes game-icon-call
+{
+	0%
+	{
+		transform: scale( 1 );
+		border-color: rgba( $front-primary, 0 );
+		box-shadow: 0 0 0px 0px rgba( $front-primary, 0 );
+	}
+
+	100%
+	{
+		transform: scale( 1.08 );
+		border-color: rgba( $front-primary, 1 );
+		box-shadow: 0 0 20px 5px rgba( $front-primary, 0.75 );
+	}
+}

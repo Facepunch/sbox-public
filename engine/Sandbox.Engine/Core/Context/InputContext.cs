@@ -1,4 +1,4 @@
-﻿using NativeEngine;
+using NativeEngine;
 using Sandbox.Internal;
 using Sandbox.UI;
 
@@ -68,48 +68,117 @@ internal sealed class InputContext
 	}
 
 	/// <summary>
-	/// When true we've called StartTrapping and are waiting for the user to release keys
+	/// Set while <see cref="StartTrapping"/> is waiting for a button combination
 	/// </summary>
-	bool TrappingKeys { get; set; }
-	HashSet<string> TrappedKeys { get; set; }
-
-	static Action<string[]> TrapCallback;
+	Action<string[]> _trapCallback;
 
 	/// <summary>
-	/// Start trapping keys. When the user releases all keys the callback will be called
-	/// with a list of buttons that were pressed during the trap.
+	/// Buttons that went down since trapping started, in the order they went down
+	/// </summary>
+	readonly List<ButtonCode> _trapped = [];
+
+	/// <summary>
+	/// We've called <see cref="StartTrapping"/> and are waiting for the user to release a trapped button
+	/// </summary>
+	internal bool IsTrapping => _trapCallback is not null;
+
+	/// <summary>
+	/// Start trapping buttons. They stop reaching the game and UI until one of them is released, then the
+	/// callback is called with every button that went down during the trap. Trapping something else, or
+	/// <see cref="CancelTrapping"/>, calls the callback with no buttons. The callback runs during the next
+	/// UI tick, in the scope of whoever is ticking <see cref="TargetUISystem"/>.
 	/// </summary>
 	public void StartTrapping( Action<string[]> callback )
 	{
-		TrappingKeys = true;
-		TrappedKeys = new HashSet<string>();
-		TrapCallback = callback;
+		ArgumentNullException.ThrowIfNull( callback );
+
+		CancelTrapping();
+		_trapCallback = callback;
 	}
 
 	/// <summary>
-	/// Called when a key is released if we're trapping keys.
+	/// Stop trapping without a combination. Returns false if we weren't trapping.
 	/// </summary>
-	void EndTrapping()
+	public bool CancelTrapping()
 	{
-		TrappingKeys = false;
-		TrapCallback?.Invoke( TrappedKeys.ToArray() );
-		TrapCallback = null;
+		if ( !IsTrapping ) return false;
+
+		_trapped.Clear();
+		FinishTrapping();
+		return true;
 	}
 
-	internal void IN_Text( char input )
+	/// <summary>
+	/// Drop the trap without calling its callback - the game that started it is going away, and its callback
+	/// with it. This context outlives games, so a trap left armed would eat the next game's first combination.
+	/// </summary>
+	internal void ResetTrapping()
 	{
-		if ( TrappingKeys )
+		_trapCallback = null;
+		_trapped.Clear();
+	}
+
+	void FinishTrapping()
+	{
+		var callback = _trapCallback;
+		var buttons = _trapped.Select( Sandbox.Engine.KeyTranslation.CodeToString ).ToArray();
+
+		_trapCallback = null;
+		_trapped.Clear();
+
+		if ( TargetUISystem is null )
+		{
+			callback( buttons );
+			return;
+		}
+
+		TargetUISystem.InputEventQueue.QueueCallback( () => callback( buttons ) );
+	}
+
+	/// <summary>
+	/// Give a button to the trap. Returns true if the trap took it, so nothing else should see it.
+	/// </summary>
+	bool TrapButton( ButtonCode button, bool pressed )
+	{
+		if ( !IsTrapping ) return false;
+
+		if ( pressed )
+		{
+			// Still down from before trapping started, this is just key repeat - it isn't part of the combination
+			if ( _pressed.Contains( button ) )
+				return true;
+
+			if ( !_trapped.Contains( button ) && !string.IsNullOrWhiteSpace( Sandbox.Engine.KeyTranslation.CodeToString( button ) ) )
+				_trapped.Add( button );
+
+			return true;
+		}
+
+		// Held before trapping started - let the release through so the game doesn't think it's still down
+		if ( !_trapped.Contains( button ) )
+			return false;
+
+		FinishTrapping();
+		return true;
+	}
+
+	internal void IN_Text( string text )
+	{
+		if ( IsTrapping )
 			return;
 
 		// A button is being held that was down when we switched to UI mode
 		// so we just block text input until it's released
 		if ( _blockingTextInput.Any() )
 		{
-			//Log.Info( $"In_Text blocked [{input}] {string.Join( ",", _blockingTextInput )}" );
+			//Log.Info( $"In_Text blocked [{text}] {string.Join( ",", _blockingTextInput )}" );
 			return;
 		}
 
-		TargetUISystem.InputEventQueue.AddKeyTyped( (char)input );
+		foreach ( var c in text )
+		{
+			TargetUISystem.InputEventQueue.AddKeyTyped( c );
+		}
 	}
 
 	internal void IN_MouseWheel( Vector2 value, KeyboardModifiers modifiers )
@@ -132,19 +201,28 @@ internal sealed class InputContext
 		// Log.Info( $"BLOCKING TEXT UNTIL UP {string.Join( ",", _blockingTextInput )}" );
 	}
 
-	internal void IN_ImeStart()
+	bool _imeComposing;
+
+	internal void IN_ImeComposition( string text )
 	{
-		TargetUISystem.CurrentFocus?.CreateEvent( "onimestart" );
+		_imeComposing = ImeComposition.Update( TargetUISystem.CurrentFocus, _imeComposing, text );
 	}
 
-	internal void IN_ImeEnd()
+	/// <summary>
+	/// Files or text dropped in from the OS - lands as "ondrop" on the panel under the cursor.
+	/// </summary>
+	internal void IN_Drop( List<string> files, string text, Vector2 position )
 	{
-		TargetUISystem.CurrentFocus?.CreateEvent( "onimeend" );
-	}
+		var panel = TargetUISystem?.FindPanelAt( position );
+		if ( panel is null ) return;
 
-	internal void IN_ImeComposition( string text, bool final )
-	{
-		TargetUISystem.CurrentFocus?.CreateEvent( "onime", text );
+		panel.CreateEvent( new DropEvent( panel )
+		{
+			Files = files ?? (IReadOnlyList<string>)System.Array.Empty<string>(),
+			Text = text,
+			Position = position,
+			IsDrop = true,
+		} );
 	}
 
 	internal void In_MousePosition( Vector2 pos, Vector2 delta )
@@ -165,11 +243,9 @@ internal sealed class InputContext
 	/// </summary>
 	internal bool In_Escape()
 	{
-		if ( TrappingKeys )
-		{
-			EndTrapping();
+		// A drag belongs to the pointer, not to whatever has keyboard focus
+		if ( TryCancelDrag() )
 			return true;
-		}
 
 		if ( KeyboardState == InputState.Game )
 		{
@@ -187,6 +263,17 @@ internal sealed class InputContext
 		return true;
 	}
 
+	/// <summary>
+	/// Cancel a drag owned by this context's pointer and consume Escape when one is active.
+	/// </summary>
+	internal bool TryCancelDrag()
+	{
+		if ( TargetUISystem?.Input.CancelDrag() != true ) return false;
+
+		InputRouter.EscapeWasPressed = false;
+		return true;
+	}
+
 	internal void ReleaseAllButtons()
 	{
 		foreach ( var scanButtonCode in _pressed.ToArray() )
@@ -201,8 +288,12 @@ internal sealed class InputContext
 	/// </summary>
 	internal void IN_ButtonReleased( ButtonCode scanButtonCode, ButtonCode keyButtonCode, KeyboardModifiers modifiers )
 	{
-		if ( TrappingKeys )
+		// Released while something else has the keyboard (the pause menu or an overlay) - that isn't a combination
+		if ( IsTrapping && _trapped.Contains( scanButtonCode ) )
+		{
+			CancelTrapping();
 			return;
+		}
 
 		_blockingTextInput.Remove( scanButtonCode );
 
@@ -211,7 +302,7 @@ internal sealed class InputContext
 
 		TargetUISystem.InputEventQueue.AddButtonEvent( keyButtonCode, false, modifiers );
 
-		var name = InputSystem.CodeToString( scanButtonCode );
+		var name = Sandbox.Engine.KeyTranslation.CodeToString( scanButtonCode );
 		if ( !string.IsNullOrWhiteSpace( name ) )
 		{
 			OnGameButton?.Invoke( scanButtonCode, name, false );
@@ -220,21 +311,8 @@ internal sealed class InputContext
 
 	internal void IN_Button( bool pressed, ButtonCode scanButtonCode, ButtonCode keyButtonCode, bool repeat, KeyboardModifiers modifiers )
 	{
-		if ( TrappingKeys )
-		{
-			var name = InputSystem.CodeToString( scanButtonCode );
-			if ( !string.IsNullOrWhiteSpace( name ) )
-			{
-				TrappedKeys.Add( name );
-			}
-
-			if ( !pressed )
-			{
-				EndTrapping();
-			}
-
+		if ( TrapButton( scanButtonCode, pressed ) )
 			return;
-		}
 
 		if ( IsMouseButton( scanButtonCode ) )
 		{
@@ -269,12 +347,14 @@ internal sealed class InputContext
 
 		if ( MouseState == InputState.Game || gameToo || !pressed )
 		{
-			var name = InputSystem.CodeToString( button );
+			var name = Sandbox.Engine.KeyTranslation.CodeToString( button );
 			if ( !string.IsNullOrWhiteSpace( name ) )
 			{
 				OnGameButton?.Invoke( button, name, pressed );
 			}
 		}
+
+		int pressClickCount = 1;
 
 		// Slightly dodgy double/triple click handling
 		// lets hope no-one notices you can click with left and then right to double click
@@ -288,8 +368,9 @@ internal sealed class InputContext
 				clickCounter = 0;
 			}
 
-			if ( !pressed )
-				clickCounter++;
+			// Report the next click on press without advancing the release-driven gesture events.
+			if ( pressed ) pressClickCount = clickCounter + 1;
+			else clickCounter++;
 
 			timeSinceClick = 0;
 
@@ -301,8 +382,7 @@ internal sealed class InputContext
 
 			if ( !pressed && clickCounter == 3 )
 			{
-				//Log.Info( "Triple Click" );
-				//OnTripleClick?.Invoke( button.ToString() );
+				TargetUISystem.InputEventQueue.AddTripleClick( button.ToString() );
 			}
 		}
 
@@ -325,7 +405,7 @@ internal sealed class InputContext
 				TargetUISystem.InputEventQueue.AddButtonTyped( button, modifiers );
 			}
 
-			TargetUISystem.Input.AddMouseButton( button, pressed, modifiers );
+			TargetUISystem.Input.AddMouseButton( button, pressed, modifiers, pressClickCount );
 		}
 	}
 
@@ -349,42 +429,14 @@ internal sealed class InputContext
 		// not right now
 		if ( repeat ) return;
 
-		// equals is on purpose -
-		// we only want this if they don't have shift and alt etc
-		if ( modifiers == KeyboardModifiers.Ctrl && KeyboardState == InputState.UI )
-		{
-			if ( keyButtonCode == ButtonCode.KEY_C )
-			{
-				if ( !down ) return;
-				TargetUISystem.InputEventQueue.QueueInputEvent( new CopyEvent() );
-				return;
-			}
-
-			if ( keyButtonCode == ButtonCode.KEY_V )
-			{
-				if ( !down ) return;
-
-				if ( EngineGlobal.Plat_HasClipboardText() )
-				{
-					TargetUISystem.InputEventQueue.QueueInputEvent( new PasteEvent( EngineGlobal.Plat_GetClipboardText() ) );
-				}
-
-				return;
-			}
-
-			if ( keyButtonCode == ButtonCode.KEY_X )
-			{
-				if ( !down ) return;
-				TargetUISystem.InputEventQueue.QueueInputEvent( new CutEvent() );
-				return;
-			}
-		}
+		// Ctrl+C/V/X become clipboard events inside InputEventQueue.AddButtonTyped, the same
+		// place for every window
 
 		// always allow the actions to "release" when UI pops up,
 		// but don't allow new presses
 		if ( KeyboardState == InputState.Game || !down )
 		{
-			var name = InputSystem.CodeToString( scanButtonCode );
+			var name = Sandbox.Engine.KeyTranslation.CodeToString( scanButtonCode );
 			if ( !string.IsNullOrWhiteSpace( name ) )
 			{
 				OnGameButton?.Invoke( scanButtonCode, name, down );

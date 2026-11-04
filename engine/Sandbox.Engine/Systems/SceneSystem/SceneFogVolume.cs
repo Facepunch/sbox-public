@@ -108,6 +108,7 @@ public sealed class SceneFogVolume : IValid
 		if ( ID.HasValue )
 		{
 			NativeEngine.CSceneSystem.RemoveVolumetricFogVolume( World, ID.Value );
+			World.RemoveFogVolume( this );
 			ID = default;
 		}
 	}
@@ -120,6 +121,7 @@ public sealed class SceneFogVolume : IValid
 		if ( ID.HasValue )
 		{
 			NativeEngine.CSceneSystem.RemoveVolumetricFogVolume( World, ID.Value );
+			World.RemoveFogVolume( this );
 			ID = default;
 		}
 
@@ -138,5 +140,6 @@ public sealed class SceneFogVolume : IValid
 		};
 
 		ID = NativeEngine.CSceneSystem.AddVolumetricFogVolume( World, volume );
+		World.AddFogVolume( this );
 	}
 }

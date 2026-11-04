@@ -716,6 +716,65 @@ public class StyleSelectorUsageTest
 		Assert.IsFalse( plain.Style.HasAfterElement );
 	}
 
+
+	[TestMethod]
+	public void NestedCombinators()
+	{
+		var r = new RootPanel();
+		r.StyleSheet.Parse( "section { .par > .kid { background-color: red; } .a + .b { background-color: lime; } .c ~ .d { background-color: blue; } }" );
+
+		var section = new Panel { Parent = r };
+		section.ElementName = "section";
+
+		var par = new Panel { Parent = section };
+		par.AddClass( "par" );
+
+		var kid = new Panel { Parent = par };
+		kid.AddClass( "kid" );
+
+		// A grandchild of .par, so > must not reach it
+		var grandkid = new Panel { Parent = kid };
+		grandkid.AddClass( "kid" );
+
+		var a = new Panel { Parent = section };
+		a.AddClass( "a" );
+		var b = new Panel { Parent = section };
+		b.AddClass( "b" );
+
+		var c = new Panel { Parent = section };
+		c.AddClass( "c" );
+		var spacer = new Panel { Parent = section };
+		var d = new Panel { Parent = section };
+		d.AddClass( "d" );
+
+		r.Layout();
+
+		Assert.AreEqual( new Color( 1, 0, 0, 1 ), kid.ComputedStyle.BackgroundColor.Value );
+		Assert.IsTrue( grandkid.ComputedStyle.IsDefault( "background-color" ) );
+		Assert.AreEqual( new Color( 0, 1, 0, 1 ), b.ComputedStyle.BackgroundColor.Value );
+		Assert.AreEqual( new Color( 0, 0, 1, 1 ), d.ComputedStyle.BackgroundColor.Value );
+	}
+
+	[TestMethod]
+	public void NestedChildOfBlock()
+	{
+		var r = new RootPanel();
+		r.StyleSheet.Parse( "section { > .kid { background-color: red; } }" );
+
+		var section = new Panel { Parent = r };
+		section.ElementName = "section";
+
+		var kid = new Panel { Parent = section };
+		kid.AddClass( "kid" );
+
+		var deep = new Panel { Parent = kid };
+		deep.AddClass( "kid" );
+
+		r.Layout();
+
+		Assert.AreEqual( new Color( 1, 0, 0, 1 ), kid.ComputedStyle.BackgroundColor.Value );
+		Assert.IsTrue( deep.ComputedStyle.IsDefault( "background-color" ) );
+	}
 }
 
 public class MySpecialPanel : Panel

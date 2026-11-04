@@ -31,6 +31,7 @@ namespace NativeEngine
 		public TextureCreationConfig_t GetWithFixes()
 		{
 			var fix = this;
+			fix.m_nNumMipLevels = Math.Max( fix.m_nNumMipLevels, (short)1 );
 
 			bool isDepth = fix.m_nImageFormat.IsDepthFormat();
 			if ( isDepth )
@@ -275,6 +276,11 @@ namespace Sandbox
 			var faces = 1;
 			if ( _config.m_nFlags.Contains( RuntimeTextureSpecificationFlags.TSPEC_CUBE_TEXTURE ) )
 				faces *= 6;
+			if ( _config.m_nFlags.Contains( RuntimeTextureSpecificationFlags.TSPEC_TEXTURE_ARRAY ) )
+			{
+				faces *= depth;
+				depth = 1;
+			}
 
 			var mips = (_config.m_nNumMipLevels <= 0) ? 1 : _config.m_nNumMipLevels;
 			var memoryRequiredWithMips = ImageLoader.GetMemRequired( _config.m_nWidth, _config.m_nHeight, depth, mips, _config.m_nImageFormat ) * faces;
@@ -293,7 +299,7 @@ namespace Sandbox
 
 			// HERE'S WHERE WE SANITY CHECK EVERYTHING TO PREVENT FUCKUPS
 
-			var memoryRequired = ImageLoader.GetMemRequired( _config.m_nWidth, _config.m_nHeight, _config.m_nDepth, _config.m_nImageFormat, false ) * faces;
+			var memoryRequired = ImageLoader.GetMemRequired( _config.m_nWidth, _config.m_nHeight, depth, _config.m_nImageFormat, false ) * faces;
 			if ( dataLength != memoryRequired && dataLength != memoryRequiredWithMips )
 				throw new Exception( $"{dataLength} is wrong for this texture! {memoryRequired:n0} bytes are required (or {memoryRequiredWithMips:n0} with mips)! You sent {dataLength:n0} bytes!" );
 
@@ -304,7 +310,7 @@ namespace Sandbox
 		{
 			fixed ( byte* dataPtr = data )
 			{
-				return Texture.Create( string.IsNullOrEmpty( name ) ? "unnamed" : name, anonymous, this, data.IsEmpty ? IntPtr.Zero : (IntPtr)dataPtr, data.Length );
+				return Texture.Create( name, anonymous, this, data.IsEmpty ? IntPtr.Zero : (IntPtr)dataPtr, data.Length );
 			}
 		}
 	}

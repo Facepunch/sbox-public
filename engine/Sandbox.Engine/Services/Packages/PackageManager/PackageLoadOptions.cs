@@ -57,6 +57,11 @@ internal struct PackageLoadOptions
 	public bool ReloadResources { get; set; } = true;
 
 	/// <summary>
+	/// Set when installing a package's dependencies. The top-level install is already prefetching their files.
+	/// </summary>
+	internal bool IsDependency { get; set; }
+
+	/// <summary>
 	/// Loading progress callbacks
 	/// </summary>
 	internal ILoadingInterface Loading { get; set; }

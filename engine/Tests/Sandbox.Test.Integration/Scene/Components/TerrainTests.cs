@@ -201,6 +201,95 @@ public class TerrainComponentTest
 	}
 
 	/// <summary>
+	/// Loaded maps stay compressed until first read, and an untouched storage saves the bytes it was
+	/// loaded from. Reading and editing a map after load must still be what gets saved.
+	/// </summary>
+	[TestMethod]
+	public void LoadedStorageSavesUntouchedMapsAsIsAndEditedMapsAsEdited()
+	{
+		var storage = new TerrainStorage();
+		storage.SetResolution( 32 );
+		for ( int i = 0; i < storage.HeightMap.Length; i++ )
+		{
+			storage.HeightMap[i] = (ushort)((i * 7) % 65536);
+			storage.ControlMap[i] = (uint)(i * 13);
+		}
+
+		var json = storage.Serialize().ToJsonString();
+		var blob = storage.BinaryData;
+
+		static TerrainStorage Load( string j, byte[] b )
+		{
+			var loaded = new TerrainStorage();
+			loaded.BinaryData = b;
+			loaded.LoadFromJson( j );
+			return loaded;
+		}
+
+		var untouched = Load( json, blob );
+		Assert.AreEqual( 32, untouched.Resolution, "Loading keeps the stored resolution" );
+		var untouchedJson = untouched.Serialize().ToJsonString();
+		CollectionAssert.AreEqual( blob, untouched.BinaryData, "An untouched storage saves the same blob" );
+
+		var edited = Load( json, blob );
+		edited.HeightMap[5] = 12345;
+		edited.ControlMap[6] = 54321;
+		var editedJson = edited.Serialize().ToJsonString();
+		var reloaded = Load( editedJson, edited.BinaryData );
+
+		Assert.AreEqual( 12345, reloaded.HeightMap[5], "A height edit after load is saved" );
+		Assert.AreEqual( 54321u, reloaded.ControlMap[6], "A control edit after load is saved" );
+		Assert.AreEqual( storage.HeightMap[4], reloaded.HeightMap[4] );
+		Assert.AreEqual( untouchedJson, json, "Untouched settings serialize the same" );
+	}
+
+	/// <summary>
+	/// Version 2 terrains stored their maps as base64 deflate data in the json. Upgrading keeps that
+	/// data compressed instead of inflating it on every load; the maps must still read and save exactly.
+	/// </summary>
+	[TestMethod]
+	public void LegacyBase64TerrainLoadsAndResavesExactly()
+	{
+		const int resolution = 16;
+		var heights = Enumerable.Range( 0, resolution * resolution ).Select( i => (ushort)(i * 31) ).ToArray();
+		var controls = Enumerable.Range( 0, resolution * resolution ).Select( i => (uint)(i * 977) ).ToArray();
+
+		static string Deflate<T>( T[] data ) where T : unmanaged
+		{
+			using var output = new System.IO.MemoryStream();
+			using ( var deflate = new System.IO.Compression.DeflateStream( output, System.IO.Compression.CompressionMode.Compress ) )
+				deflate.Write( System.Runtime.InteropServices.MemoryMarshal.AsBytes( data.AsSpan() ) );
+			return System.Convert.ToBase64String( output.ToArray() );
+		}
+
+		var legacyJson = new System.Text.Json.Nodes.JsonObject
+		{
+			["__version"] = 2,
+			["Maps"] = new System.Text.Json.Nodes.JsonObject { ["heightmap"] = Deflate( heights ), ["splatmap"] = Deflate( controls ) },
+			["Resolution"] = resolution,
+			["TerrainSize"] = 1000.0f,
+			["TerrainHeight"] = 100.0f,
+		}.ToJsonString();
+
+		var legacy = new TerrainStorage();
+		legacy.LoadFromJson( legacyJson );
+
+		Assert.AreEqual( resolution, legacy.Resolution );
+
+		// Save before anything reads the maps, so the still-compressed legacy data is what gets written
+		var json = legacy.Serialize().ToJsonString();
+		var reloaded = new TerrainStorage();
+		reloaded.BinaryData = legacy.BinaryData;
+		reloaded.LoadFromJson( json );
+
+		CollectionAssert.AreEqual( heights, legacy.HeightMap );
+		CollectionAssert.AreEqual( controls, legacy.ControlMap );
+
+		CollectionAssert.AreEqual( heights, reloaded.HeightMap, "Saving an upgraded terrain keeps its heights" );
+		CollectionAssert.AreEqual( controls, reloaded.ControlMap, "Saving an upgraded terrain keeps its control map" );
+	}
+
+	/// <summary>
 	/// Terrain component defaults and property clamps, exercised on a disabled component so
 	/// no scene object or GPU resources are touched: it is always a concave static collider,
 	/// shadows default to Off (unlike ModelRenderer), the clipmap properties clamp to their
@@ -357,12 +446,20 @@ public class TerrainComponentTest
 		Assert.AreEqual( 1000.0f, terrain.LocalBounds.Maxs.y, 1.0f, "The plateau reaches the full terrain height" );
 		Assert.AreEqual( 6300.0f, terrain.LocalBounds.Maxs.z, 1.0f );
 
-		Assert.AreEqual( sceneObjectBaseline + 1, scene.SceneWorld.SceneObjects.Count(), "The clipmap scene object is created even on the empty render device" );
+		Assert.AreEqual( sceneObjectBaseline + (Graphics.IsAvailable ? 1 : 0), scene.SceneWorld.SceneObjects.Count() );
 
-		Assert.IsNotNull( terrain.HeightMap, "The CPU-side heightmap texture is created" );
-		Assert.AreEqual( 64, terrain.HeightMap.Width );
-		Assert.AreEqual( 64, terrain.HeightMap.Height );
-		Assert.IsNotNull( terrain.ControlMap );
+		if ( Graphics.IsAvailable )
+		{
+			Assert.IsNotNull( terrain.HeightMap );
+			Assert.AreEqual( 64, terrain.HeightMap.Width );
+			Assert.AreEqual( 64, terrain.HeightMap.Height );
+			Assert.IsNotNull( terrain.ControlMap );
+		}
+		else
+		{
+			Assert.IsNull( terrain.HeightMap );
+			Assert.IsNull( terrain.ControlMap );
+		}
 
 		scene.GameTick();
 
@@ -377,6 +474,67 @@ public class TerrainComponentTest
 
 		go.Destroy();
 		scene.ProcessDeletes();
+	}
+
+	/// <summary>
+	/// The heightfield collider follows the terrain's lifetime, and is solid to physics traces
+	/// rather than just present: enabling builds exactly one shape that a trace dropped onto the
+	/// plateau hits, disabling removes it, enabling again builds it again, and destroying the
+	/// terrain - the component or its GameObject - removes it for good. Enabling builds the shape
+	/// once, from the collider's own enable, so this pins that nothing relied on the second build
+	/// Terrain.OnEnabled used to do.
+	/// </summary>
+	[TestMethod]
+	[DataRow( false )]
+	[DataRow( true )]
+	public void ColliderFollowsEnableDisableAndDestroy( bool destroyGameObject )
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var storage = CreateSmallStorage();
+		RaiseCenterPlateau( storage );
+
+		var go = scene.CreateObject();
+		var terrain = go.Components.Create<Terrain>( false );
+		terrain.Storage = storage;
+
+		// Straight down onto the middle of the plateau, which is at the full terrain height
+		SceneTraceResult Drop() => scene.Trace.Ray( new Vector3( 3200, 3200, 2000 ), new Vector3( 3200, 3200, -500 ) ).Run();
+
+		Assert.IsFalse( Drop().Hit, "A disabled terrain has nothing to hit" );
+
+		terrain.Enabled = true;
+
+		Assert.AreEqual( 1, terrain.Shapes.Count, "Enabling builds one heightfield shape" );
+		var hit = Drop();
+		Assert.IsTrue( hit.Hit, "An enabled terrain is solid" );
+		Assert.AreEqual( 1000.0f, hit.HitPosition.z, 5.0f, "The trace lands on the plateau" );
+		Assert.AreSame( go, hit.GameObject );
+
+		var firstShape = terrain.Shapes[0];
+		terrain.Enabled = false;
+
+		Assert.AreEqual( 0, terrain.Shapes.Count, "Disabling removes the shape" );
+		Assert.IsFalse( firstShape.IsValid(), "The removed shape is gone from physics" );
+		Assert.IsFalse( Drop().Hit, "A disabled terrain isn't solid" );
+
+		terrain.Enabled = true;
+
+		Assert.AreEqual( 1, terrain.Shapes.Count, "Enabling again builds the shape again" );
+		Assert.IsTrue( Drop().Hit, "A re-enabled terrain is solid again" );
+		Assert.AreEqual( 1000.0f, Drop().HitPosition.z, 5.0f );
+
+		var lastShape = terrain.Shapes[0];
+		if ( destroyGameObject )
+			go.Destroy();
+		else
+			terrain.Destroy();
+
+		scene.ProcessDeletes();
+
+		Assert.IsFalse( lastShape.IsValid(), "Destroying the terrain removes its shape from physics" );
+		Assert.IsFalse( Drop().Hit, "A destroyed terrain isn't solid" );
 	}
 
 	/// <summary>
@@ -424,6 +582,53 @@ public class TerrainComponentTest
 		Assert.AreEqual( 1000.0f, terrain.LocalBounds.Maxs.y, 1.0f, "The rebuilt shape sees the raised heights" );
 		Assert.AreEqual( 1000.0f, terrain.LocalBounds.Mins.y, 1.0f, "A uniformly raised terrain has its floor at full height too" );
 		Assert.AreEqual( 6300.0f, terrain.LocalBounds.Maxs.x, 1.0f );
+
+		go.Destroy();
+		scene.ProcessDeletes();
+	}
+
+	/// <summary>
+	/// Applying CPU storage changes updates terrain dependencies and emits one notification.
+	/// Collision-only refreshes remain side-effect free for modification listeners.
+	/// </summary>
+	[TestMethod]
+	public void StorageChangesSynchronizeAndNotify()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var storage = CreateSmallStorage();
+		var go = scene.CreateObject();
+		var terrain = go.Components.Create<Terrain>( false );
+		terrain.Storage = storage;
+		terrain.Enabled = true;
+
+		var notificationCount = 0;
+		var notifiedFlags = default( Terrain.SyncFlags );
+		var notifiedRegion = default( RectInt );
+		var colliderHeightAtNotification = 0.0f;
+		terrain.OnTerrainModified += ( flags, region ) =>
+		{
+			notificationCount++;
+			notifiedFlags = flags;
+			notifiedRegion = region;
+			colliderHeightAtNotification = terrain.Shapes[0].LocalBounds.Maxs.y;
+		};
+
+		var dirtyRegion = new RectInt( -16, -16, 96, 96 );
+		terrain.UpdateCollision( Terrain.SyncFlags.Height, dirtyRegion );
+		Assert.AreEqual( 0, notificationCount, "Updating collision alone is not a terrain modification" );
+
+		storage.HeightMap[^1] = ushort.MaxValue;
+		terrain.ApplyStorageChanges( Terrain.SyncFlags.Height, dirtyRegion );
+
+		Assert.AreEqual( 1, notificationCount );
+		Assert.AreEqual( Terrain.SyncFlags.Height, notifiedFlags );
+		Assert.AreEqual( 0, notifiedRegion.Left );
+		Assert.AreEqual( 64, notifiedRegion.Right );
+		Assert.AreEqual( 0, notifiedRegion.Top );
+		Assert.AreEqual( 64, notifiedRegion.Bottom );
+		Assert.AreEqual( 1000.0f, colliderHeightAtNotification, 1.0f, "Storage changes reach the live collider before notification" );
 
 		go.Destroy();
 		scene.ProcessDeletes();
@@ -518,43 +723,131 @@ public class TerrainComponentTest
 	}
 
 	/// <summary>
-	/// FindClosestPoint resolves a query against the heightfield collider instead of falling
-	/// back to the body origin. A point high above the centre plateau snaps straight down onto
-	/// the plateau surface, keeping its horizontal position and landing at the full terrain
-	/// height, and a point over the flat base snaps down to height zero - two distinct world
-	/// queries return two distinct surface points rather than the same constant.
+	/// Closest-point queries agree with the Z-up heightmap before and after collider rebuilds.
 	/// </summary>
 	[TestMethod]
-	public void FindClosestPointSnapsToHeightfieldSurface()
+	[DataRow( 0.0f )]
+	[DataRow( 300.0f )]
+	public void FindClosestPointSnapsToHeightfieldSurface( float elevation )
 	{
 		var scene = new Scene();
 		using var sceneScope = scene.Push();
-
 		var storage = CreateSmallStorage();
 		RaiseCenterPlateau( storage );
-
 		var go = scene.CreateObject();
+		go.WorldPosition = Vector3.Up * elevation;
 		var terrain = go.Components.Create<Terrain>( false );
 		terrain.Storage = storage;
 		terrain.Enabled = true;
 
-		Assert.IsTrue( terrain.KeyBody.IsValid(), "The terrain needs a keyframe body to query against" );
+		for ( int stage = 0; stage < 3; stage++ )
+		{
+			if ( stage == 1 )
+			{
+				terrain.EnableCollision = false;
+				terrain.EnableCollision = true;
+			}
+			else if ( stage == 2 )
+			{
+				elevation += 200;
+				go.WorldPosition = Vector3.Up * elevation;
+				scene.GameTick();
+			}
 
-		var overPlateau = terrain.FindClosestPoint( new Vector3( 3150, 5000, 3150 ) );
+			Assert.IsTrue( terrain.KeyBody.IsValid() );
+			Assert.IsTrue( go.WorldPosition.AlmostEqual( Vector3.Up * elevation ), "Rebuilding must not move the terrain object" );
+			Assert.IsTrue( go.WorldRotation.AlmostEqual( Rotation.Identity ), "The heightfield's internal rotation must not rotate the terrain object" );
+			var plateauQuery = new Vector3( 3150, 3150, elevation + 5000 );
+			var overPlateau = terrain.FindClosestPoint( plateauQuery );
+			Assert.AreEqual( 3150.0f, overPlateau.x, 75.0f );
+			Assert.AreEqual( 3150.0f, overPlateau.y, 75.0f );
+			Assert.AreEqual( elevation + 1000, overPlateau.z, 25.0f, "The plateau height is measured along world Z" );
+			Assert.IsTrue( terrain.RayIntersects( new Ray( plateauQuery, Vector3.Down ), 6000, out var plateauHit ) );
+			Assert.IsTrue( overPlateau.AlmostEqual( go.WorldTransform.PointToWorld( plateauHit ), 75 ), "Physics and heightmap queries must agree" );
 
-		Assert.AreEqual( 3150.0f, overPlateau.x, 75.0f, "The closest point keeps the query's ground position" );
-		Assert.AreEqual( 1000.0f, overPlateau.y, 25.0f, "The closest point sits on the plateau surface, not the body origin" );
-		Assert.AreEqual( 3150.0f, overPlateau.z, 75.0f );
-
-		var overBase = terrain.FindClosestPoint( new Vector3( 800, 300, 800 ) );
-
-		Assert.AreEqual( 800.0f, overBase.x, 75.0f );
-		Assert.AreEqual( 0.0f, overBase.y, 25.0f, "The flat base sits at height zero" );
-		Assert.AreEqual( 800.0f, overBase.z, 75.0f );
-
-		Assert.AreNotEqual( overPlateau, overBase, "Distinct queries resolve to distinct surface points, not one constant" );
+			var overBase = terrain.FindClosestPoint( new Vector3( 800, 800, elevation + 300 ) );
+			Assert.AreEqual( 800.0f, overBase.x, 75.0f );
+			Assert.AreEqual( 800.0f, overBase.y, 75.0f );
+			Assert.AreEqual( elevation, overBase.z, 25.0f, "The flat base follows the terrain object's elevation" );
+			Assert.AreNotEqual( overPlateau, overBase );
+		}
 
 		go.Destroy();
 		scene.ProcessDeletes();
+	}
+
+	static readonly Transform[] CullTransforms =
+	[
+		Transform.Zero,
+		new( new Vector3( 100, -200, 300 ), Rotation.Identity, new Vector3( 2, 2, 4 ) ),
+		new( new Vector3( 100, -200, 300 ), Rotation.From( 45, 30, 60 ), new Vector3( 2, 3, 4 ) ),
+		new( new Vector3( -500, 250, 10 ), Rotation.From( -70, 140, 15 ), new Vector3( -2, 0.5f, -4 ) ),
+		new( new Vector3( 300, 100, -50 ), Rotation.From( 20, -110, 35 ), new Vector3( -1.5f, 2, 3 ) ),
+		new( new Vector3( 4, 8, 16 ), Rotation.From( 0, 90, 0 ), new Vector3( 0.25f, 3, 0 ) ),
+	];
+
+	static Frustum CreateCullFrustum( string view )
+	{
+		var camera = new Vector3( 0, 0, 100 );
+		var perspective = Frustum.FromCorners( new Ray( camera, new Vector3( 1, 0.6f, 0.4f ) ), new Ray( camera, new Vector3( 1, -0.6f, 0.4f ) ),
+			new Ray( camera, new Vector3( 1, -0.6f, -0.4f ) ), new Ray( camera, new Vector3( 1, 0.6f, -0.4f ) ), 1, 2000 );
+		var ortho = Frustum.FromOrtho( Vector2.Zero, Vector2.One, Vector3.One, camera, Rotation.From( 10, 20, 0 ), 1500, 1, 2000 );
+
+		// The terrain culls against a frustum scaled by r_terrain_meshlet_frustum_scale
+		return view switch
+		{
+			"perspective" => perspective,
+			"perspective scaled" => perspective.Scaled( 0.5f, camera, true ),
+			"ortho" => ortho,
+			"ortho scaled" => ortho.Scaled( 0.5f, camera, false ),
+			_ => throw new ArgumentException( view ),
+		};
+	}
+
+	/// <summary>
+	/// The local frustum test should match testing the box's eight world-space corners against the world planes.
+	/// </summary>
+	[TestMethod]
+	[DataRow( "perspective" )]
+	[DataRow( "perspective scaled" )]
+	[DataRow( "ortho" )]
+	[DataRow( "ortho scaled" )]
+	public void LocalCullFrustumTestsTheTransformedBox( string view )
+	{
+		var random = new Random( 1234 );
+		var frustum = CreateCullFrustum( view );
+		Plane[] planes = [frustum.RightPlane, frustum.LeftPlane, frustum.TopPlane, frustum.BottomPlane, frustum.NearPlane, frustum.FarPlane];
+
+		int visible = 0, hidden = 0;
+		foreach ( var transform in CullTransforms )
+		{
+			var local = TerrainClipmapSceneObject.ToLocal( frustum, transform );
+
+			for ( int i = 0; i < 4000; i++ )
+			{
+				var mins = new Vector3( random.Float( -1500, 1500 ), random.Float( -1500, 1500 ), random.Float( -300, 300 ) );
+				var box = new BBox( mins, mins + new Vector3( random.Float( 1, 200 ), random.Float( 1, 200 ), random.Float( 1, 200 ) ) );
+
+				bool expected = true;
+				float closest = float.MaxValue;
+				foreach ( var plane in planes )
+				{
+					float furthest = float.MinValue;
+					foreach ( var corner in box.Corners )
+						furthest = MathF.Max( furthest, plane.GetDistance( transform.PointToWorld( corner ) ) );
+
+					expected &= furthest > 0;
+					closest = MathF.Min( closest, MathF.Abs( furthest ) );
+				}
+
+				// Skip boxes right on a plane, float rounding differs there
+				if ( closest < 0.01f ) continue;
+
+				Assert.AreEqual( expected, local.IsInside( box, partially: true ), $"{transform} {box}" );
+				if ( expected ) visible++; else hidden++;
+			}
+		}
+
+		Assert.IsTrue( visible > 1000 && hidden > 1000, $"visible {visible}, hidden {hidden}" );
 	}
 }

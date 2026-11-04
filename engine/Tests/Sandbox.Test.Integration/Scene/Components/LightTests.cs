@@ -1,7 +1,9 @@
+using System;
+
 namespace SceneTests.Components;
 
 [TestClass]
-public class LightComponentTest
+public partial class LightComponentTest
 {
 	/// <summary>
 	/// Finds the scene object of the given type that was created by the given component,
@@ -33,6 +35,208 @@ public class LightComponentTest
 		clone.Enabled = true;
 
 		return clone;
+	}
+
+	/// <summary>
+	/// Legacy light data keeps its HDR tint and rendered brightness without any of the new properties.
+	/// </summary>
+	[TestMethod]
+	[DataRow( typeof( PointLight ) )]
+	[DataRow( typeof( SpotLight ) )]
+	[DataRow( typeof( DirectionalLight ) )]
+	public void LegacyLightColorIsPreserved( Type lightType )
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		var go = scene.CreateObject();
+		var light = (Light)go.Components.Create( lightType );
+		var tint = new Color( 4.0f, 2.0f, 0.5f, 0.35f );
+		light.LightColor = tint;
+
+		var json = go.Serialize();
+		var component = json["Components"][0].AsObject();
+		Assert.IsTrue( component.ContainsKey( "LightColor" ) );
+		Assert.IsFalse( component.ContainsKey( "Tint" ) );
+		component.Remove( "Intensity" );
+		Assert.IsFalse( component.ContainsKey( "UseTemperature" ) );
+		component.Remove( "Temperature" );
+		foreach ( var name in component.Select( x => x.Key ).Where( x => x.StartsWith( "Animation", StringComparison.Ordinal ) ).ToArray() )
+		{
+			component.Remove( name );
+		}
+
+		component.Remove( "__version" );
+		go.Destroy();
+		scene.ProcessDeletes();
+
+		SceneUtility.MakeIdGuidsUnique( json );
+		var clone = new GameObject( false );
+		clone.Deserialize( json );
+		clone.Enabled = true;
+		var loaded = clone.Components.Get<Light>();
+
+		Assert.AreEqual( tint, loaded.LightColor );
+		Assert.AreEqual( 1.0f, loaded.Intensity );
+		Assert.AreEqual( 6500.0f, loaded.Temperature );
+		Assert.IsFalse( loaded.AnimationEnabled );
+		Assert.AreEqual( (Vector3)tint, (Vector3)loaded.SceneObject.LightColor );
+
+		// Existing scripts and animation tracks still write LightColor directly.
+		loaded.LightColor = new Color( 8.0f, 0.25f, 1.0f );
+		Assert.AreEqual( loaded.LightColor, loaded.SceneObject.LightColor );
+
+		clone.Destroy();
+		scene.ProcessDeletes();
+	}
+
+	/// <summary>
+	/// New lights default to pure white, while omitted tints in legacy data retain the original color.
+	/// </summary>
+	[TestMethod]
+	[DataRow( typeof( PointLight ), 0 )]
+	[DataRow( typeof( SpotLight ), 0 )]
+	[DataRow( typeof( DirectionalLight ), 0 )]
+	[DataRow( typeof( PointLight ), 1 )]
+	[DataRow( typeof( SpotLight ), 1 )]
+	[DataRow( typeof( DirectionalLight ), 1 )]
+	public void LightTintDefaultsPreserveLegacyScenes( Type lightType, int version )
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		var go = scene.CreateObject();
+		var light = (Light)go.Components.Create( lightType );
+		Assert.AreEqual( Color.White, light.LightColor );
+		Assert.AreEqual( Vector3.One, (Vector3)light.SceneObject.LightColor );
+
+		var json = go.Serialize();
+		var component = json["Components"][0].AsObject();
+		Assert.AreEqual( 1, component["__version"].GetValue<int>() );
+		component.Remove( "LightColor" );
+		component["__version"] = version;
+		go.Destroy();
+		scene.ProcessDeletes();
+
+		SceneUtility.MakeIdGuidsUnique( json );
+		var clone = new GameObject( false );
+		clone.Deserialize( json );
+		clone.Enabled = true;
+		var loaded = clone.Components.Get<Light>();
+		var expected = version == 0 ? (Color)"#E9FAFF" : Color.White;
+		Assert.AreEqual( expected, loaded.LightColor );
+		Assert.AreEqual( (Vector3)expected, (Vector3)loaded.SceneObject.LightColor );
+
+		clone.Destroy();
+		scene.ProcessDeletes();
+	}
+
+	/// <summary>
+	/// Intensity and temperature affect live lights, including edits while disabled, without changing the tint.
+	/// </summary>
+	[TestMethod]
+	[DataRow( typeof( PointLight ) )]
+	[DataRow( typeof( SpotLight ) )]
+	[DataRow( typeof( DirectionalLight ) )]
+	public void LightIntensityAndTemperatureUpdateRenderedColor( Type lightType )
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		var light = (Light)scene.CreateObject().Components.Create( lightType, false );
+		light.LightColor = Color.White;
+		light.Intensity = 2.0f;
+		light.Enabled = true;
+
+		Assert.AreEqual( new Vector3( 2.0f ), (Vector3)light.SceneObject.LightColor );
+
+		foreach ( var kelvin in new[] { 6499.0f, 6501.0f } )
+		{
+			light.Temperature = kelvin;
+			var nearWhite = light.SceneObject.LightColor;
+			Assert.AreEqual( 2.0f, nearWhite.r, 0.005f );
+			Assert.AreEqual( 2.0f, nearWhite.g, 0.005f );
+			Assert.AreEqual( 2.0f, nearWhite.b, 0.005f );
+		}
+
+		light.Temperature = 3000.0f;
+		var warm = light.SceneObject.LightColor;
+		Assert.AreEqual( 2.0f, warm.r, 0.001f );
+		Assert.IsTrue( warm.r > warm.g && warm.g > warm.b );
+
+		var tint = new Color( 0.25f, 0.5f, 1.0f );
+		light.LightColor = tint;
+		Assert.AreEqual( warm * tint, light.SceneObject.LightColor );
+		light.Temperature = 12000.0f;
+		var cool = light.SceneObject.LightColor;
+		Assert.IsTrue( cool.b > cool.g && cool.g > cool.r );
+		light.Intensity = 0.0f;
+		Assert.AreEqual( Vector3.Zero, (Vector3)light.SceneObject.LightColor );
+
+		light.Enabled = false;
+		light.Intensity = 3.0f;
+		light.Temperature = 6500.0f;
+		light.Enabled = true;
+		Assert.AreEqual( (Vector3)tint * 3.0f, (Vector3)light.SceneObject.LightColor );
+		Assert.AreEqual( tint, light.LightColor );
+
+		light.GameObject.Destroy();
+		scene.ProcessDeletes();
+	}
+
+	/// <summary>
+	/// Saving and reloading light emission settings preserves both the authored tint and final rendered color.
+	/// </summary>
+	[TestMethod]
+	[DataRow( typeof( PointLight ) )]
+	[DataRow( typeof( SpotLight ) )]
+	[DataRow( typeof( DirectionalLight ) )]
+	public void LightEmissionSettingsRoundTrip( Type lightType )
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		var go = scene.CreateObject();
+		var light = (Light)go.Components.Create( lightType );
+		var tint = new Color( 4.0f, 0.75f, 0.5f );
+		light.LightColor = tint;
+		light.Intensity = 2.5f;
+		light.Temperature = 3200.0f;
+		var rendered = light.SceneObject.LightColor;
+
+		var loaded = SerializeRoundTrip( scene, go ).Components.Get<Light>();
+		Assert.AreEqual( tint, loaded.LightColor );
+		Assert.AreEqual( 2.5f, loaded.Intensity );
+		Assert.AreEqual( 3200.0f, loaded.Temperature );
+		Assert.AreEqual( rendered, loaded.SceneObject.LightColor );
+
+		loaded.GameObject.Destroy();
+		scene.ProcessDeletes();
+	}
+
+	/// <summary>
+	/// Invalid emission inputs cannot produce negative intensity or invalid temperature calculations.
+	/// </summary>
+	[TestMethod]
+	public void LightEmissionInputLimits()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		var light = scene.CreateObject().Components.Create<PointLight>();
+		light.LightColor = Color.White;
+		light.Intensity = -1.0f;
+		Assert.AreEqual( 0.0f, light.Intensity );
+		light.Intensity = float.NaN;
+		Assert.AreEqual( 1.0f, light.Intensity );
+		light.Intensity = 100.0f;
+		Assert.AreEqual( 100.0f, light.Intensity, "HDR intensity must not be capped at the inspector slider's maximum" );
+
+		foreach ( var (input, expected) in new[] { (0.0f, 1000.0f), (50000.0f, 40000.0f), (float.NaN, 6500.0f) } )
+		{
+			light.Temperature = input;
+			Assert.AreEqual( expected, light.Temperature );
+			var color = light.SceneObject.LightColor;
+			Assert.IsTrue( float.IsFinite( color.r ) && float.IsFinite( color.g ) && float.IsFinite( color.b ) );
+		}
+
+		light.GameObject.Destroy();
+		scene.ProcessDeletes();
 	}
 
 	/// <summary>
@@ -603,7 +807,7 @@ public class LightComponentTest
 
 	/// <summary>
 	/// IndirectLightVolume's probe grid math is pure component state: counts derive from
-	/// bounds size and density (ceil(size * density / 1024) + 1), clamped to 4..40 per axis,
+	/// bounds size and density (ceil(size * density / 1024) + 1), clamped to 4..128 per axis,
 	/// and spacing splits the bounds evenly between probes.
 	/// </summary>
 	[TestMethod]
@@ -617,8 +821,9 @@ public class LightComponentTest
 
 		Assert.AreEqual( BBox.FromPositionAndSize( Vector3.Zero, new Vector3( 512.0f ) ), volume.Bounds );
 		Assert.AreEqual( 8, volume.ProbeDensity );
-		Assert.AreEqual( 5.0f, volume.NormalBias );
-		Assert.AreEqual( 1.0f, volume.Contrast );
+		Assert.AreEqual( 10.0f, volume.NormalBias );
+		Assert.AreEqual( 20.0f, volume.ViewBias );
+		Assert.AreEqual( 0, volume.BakeVersion, "Unversioned probe data must use legacy visibility" );
 		Assert.AreEqual( IndirectLightVolume.InsideGeometryBehavior.Relocate, volume.InsideGeometry );
 
 		Assert.AreEqual( new Vector3Int( 5, 5, 5 ), volume.ProbeCounts, "512 units at density 8 should give 5 probes per axis" );
@@ -631,7 +836,7 @@ public class LightComponentTest
 		Assert.AreEqual( new Vector3Int( 4, 4, 4 ), volume.ProbeCounts, "Probe counts should clamp to a minimum of 4 per axis" );
 
 		volume.Bounds = BBox.FromPositionAndSize( Vector3.Zero, new Vector3( 100000.0f ) );
-		Assert.AreEqual( new Vector3Int( 40, 40, 40 ), volume.ProbeCounts, "Probe counts should clamp to a maximum of 40 per axis" );
+		Assert.AreEqual( new Vector3Int( 128, 128, 128 ), volume.ProbeCounts, "Probe counts should clamp to a maximum of 128 per axis" );
 
 		volume.Bounds = BBox.FromPositionAndSize( Vector3.Zero, new Vector3( 512.0f ) );
 		volume.ProbeDensity = 15;
@@ -639,6 +844,29 @@ public class LightComponentTest
 
 		go.Destroy();
 		scene.ProcessDeletes();
+	}
+
+	/// <summary>
+	/// Probe settings expose descriptions and runtime control titles to the inspector.
+	/// </summary>
+	[TestMethod]
+	public void IndirectLightVolumeInspectorDescriptions()
+	{
+		foreach ( var name in new[]
+		{
+			nameof( IndirectLightVolume.Bounds ), nameof( IndirectLightVolume.ProbeDensity ),
+			nameof( IndirectLightVolume.NormalBias ), nameof( IndirectLightVolume.ViewBias ),
+			nameof( IndirectLightVolume.RuntimeContrast ), nameof( IndirectLightVolume.RuntimeSaturation ),
+			nameof( IndirectLightVolume.RuntimeIntensity ), nameof( IndirectLightVolume.RuntimeTint ), nameof( IndirectLightVolume.BlendDistance ),
+			nameof( IndirectLightVolume.RenderExcludeTags ), nameof( IndirectLightVolume.InsideGeometry )
+		} )
+		{
+			var info = DisplayInfo.ForMember( typeof( IndirectLightVolume ).GetProperty( name ) );
+			Assert.IsFalse( string.IsNullOrWhiteSpace( info.Description ), $"{name} needs an inspector description" );
+		}
+
+		Assert.AreEqual( "Contrast", DisplayInfo.ForMember( typeof( IndirectLightVolume ).GetProperty( nameof( IndirectLightVolume.RuntimeContrast ) ) ).Name );
+		Assert.AreEqual( "Saturation", DisplayInfo.ForMember( typeof( IndirectLightVolume ).GetProperty( nameof( IndirectLightVolume.RuntimeSaturation ) ) ).Name );
 	}
 
 	/// <summary>
@@ -680,7 +908,7 @@ public class LightComponentTest
 	}
 
 	/// <summary>
-	/// An IndirectLightVolume's bounds, density, bias, contrast and inside-geometry behavior
+	/// An IndirectLightVolume's bounds, density, bias, runtime adjustments and inside-geometry behavior
 	/// survive a serialize/deserialize round trip; the baked texture slots stay empty.
 	/// </summary>
 	[TestMethod]
@@ -696,8 +924,13 @@ public class LightComponentTest
 		volume.Bounds = bounds;
 		volume.ProbeDensity = 12;
 		volume.NormalBias = 10.0f;
-		volume.Contrast = 1.5f;
+		volume.RuntimeContrast = 1.25f;
+		volume.RuntimeSaturation = 0.5f;
+		volume.RuntimeIntensity = 2.0f;
+		volume.RuntimeTint = new Color( 0.2f, 0.5f, 0.8f );
+		volume.BlendDistance = 64.0f;
 		volume.InsideGeometry = IndirectLightVolume.InsideGeometryBehavior.Deactivate;
+		volume.BakeVersion = 1;
 
 		var clone = SerializeRoundTrip( scene, go );
 		var loaded = clone.Components.Get<IndirectLightVolume>();
@@ -706,13 +939,225 @@ public class LightComponentTest
 		Assert.AreEqual( bounds, loaded.Bounds );
 		Assert.AreEqual( 12, loaded.ProbeDensity );
 		Assert.AreEqual( 10.0f, loaded.NormalBias );
-		Assert.AreEqual( 1.5f, loaded.Contrast );
+		Assert.AreEqual( 1.25f, loaded.RuntimeContrast );
+		Assert.AreEqual( 0.5f, loaded.RuntimeSaturation );
+		Assert.AreEqual( 2.0f, loaded.RuntimeIntensity );
+		Assert.AreEqual( new Color( 0.2f, 0.5f, 0.8f ), loaded.RuntimeTint );
+		Assert.AreEqual( 64.0f, loaded.BlendDistance );
 		Assert.AreEqual( IndirectLightVolume.InsideGeometryBehavior.Deactivate, loaded.InsideGeometry );
+		Assert.AreEqual( 1, loaded.BakeVersion );
 		Assert.IsNull( loaded.IrradianceTexture );
 		Assert.IsNull( loaded.DistanceTexture );
 		Assert.IsNull( loaded.RelocationTexture );
 
 		clone.Destroy();
 		scene.ProcessDeletes();
+	}
+
+	/// <summary>
+	/// Scenes saved before probe encoding was versioned must keep the legacy sampling path.
+	/// </summary>
+	[TestMethod]
+	public void IndirectLightVolumeLegacyBakeVersion()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var go = scene.CreateObject();
+		go.Components.Create<IndirectLightVolume>().BakeVersion = 1;
+		var json = go.Serialize();
+		var legacy = json["Components"].AsArray()[0].AsObject();
+		legacy.Remove( "BakeVersion" );
+		legacy.Remove( "__version" );
+		legacy.Remove( "RuntimeContrast" );
+		legacy.Remove( "RuntimeSaturation" );
+		legacy.Remove( "RuntimeIntensity" );
+		legacy.Remove( "RuntimeTint" );
+		legacy.Remove( "BlendDistance" );
+		legacy["Contrast"] = 1.5f;
+
+		go.Destroy();
+		scene.ProcessDeletes();
+		SceneUtility.MakeIdGuidsUnique( json );
+
+		var clone = new GameObject( false );
+		clone.Deserialize( json );
+
+		Assert.AreEqual( 0, clone.Components.Get<IndirectLightVolume>().BakeVersion );
+		Assert.AreEqual( 1.0f, clone.Components.Get<IndirectLightVolume>().RuntimeContrast );
+		Assert.AreEqual( 1.0f, clone.Components.Get<IndirectLightVolume>().RuntimeSaturation );
+		Assert.AreEqual( 1.0f, clone.Components.Get<IndirectLightVolume>().RuntimeIntensity );
+		Assert.AreEqual( Color.White, clone.Components.Get<IndirectLightVolume>().RuntimeTint );
+		Assert.AreEqual( 0.0f, clone.Components.Get<IndirectLightVolume>().BlendDistance );
+
+		clone.Destroy();
+		scene.ProcessDeletes();
+	}
+
+	/// <summary>
+	/// New volumes use the improved biases, while old scenes retain omitted defaults and authored values.
+	/// </summary>
+	[TestMethod]
+	[DataRow( 0 )]
+	[DataRow( 1 )]
+	public void IndirectLightVolumeLegacyBiasDefaults( int version )
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		var go = scene.CreateObject();
+		var volume = go.Components.Create<IndirectLightVolume>( false );
+		Assert.AreEqual( 10.0f, volume.NormalBias );
+		Assert.AreEqual( 20.0f, volume.ViewBias );
+
+		var legacy = volume.Serialize().AsObject();
+		legacy["__version"] = version;
+		legacy.Remove( "NormalBias" );
+		legacy.Remove( "ViewBias" );
+		volume.DeserializeImmediately( legacy );
+		Assert.AreEqual( 5.0f, volume.NormalBias );
+		Assert.AreEqual( 5.0f, volume.ViewBias );
+
+		legacy["NormalBias"] = 50.0f;
+		legacy["ViewBias"] = 21.0f;
+		legacy["__version"] = version;
+		volume.DeserializeImmediately( legacy );
+		Assert.AreEqual( 50.0f, volume.NormalBias );
+		Assert.AreEqual( 21.0f, volume.ViewBias );
+
+		go.Destroy();
+		scene.ProcessDeletes();
+	}
+
+	/// <summary>
+	/// Applying legacy data to an existing volume must reset its previous bake encoding.
+	/// </summary>
+	[TestMethod]
+	public void IndirectLightVolumeLegacyBakeVersionRefresh()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var go = scene.CreateObject();
+		var volume = go.Components.Create<IndirectLightVolume>();
+		var legacy = volume.Serialize().AsObject();
+		legacy.Remove( "BakeVersion" );
+		legacy.Remove( "__version" );
+
+		volume.BakeVersion = 1;
+		volume.DeserializeImmediately( legacy );
+
+		Assert.AreEqual( 0, volume.BakeVersion );
+
+		go.Destroy();
+		scene.ProcessDeletes();
+	}
+
+	/// <summary>
+	/// GPU grid transforms must match capture positions, including world-space relocation
+	/// offsets on rotated and nonuniformly scaled volumes.
+	/// </summary>
+	[TestMethod]
+	public void IndirectLightVolumeCaptureTransforms()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		using var texture = Texture.CreateVolume( 1, 1, 1 ).Finish();
+		var go = scene.CreateObject();
+		var volume = go.Components.Create<IndirectLightVolume>( false );
+		volume.IrradianceTexture = texture;
+		volume.DistanceTexture = texture;
+		volume.RelocationTexture = texture;
+		volume.BakeVersion = 1;
+		var counts = volume.ProbeCounts;
+		volume.Probes = Enumerable.Range( 0, counts.x * counts.y * counts.z )
+			.Select( _ => new IndirectLightVolume.Probe { Offset = new Vector3( 7, -3, 11 ) } ).ToArray();
+
+		foreach ( var transform in new[]
+		{
+			new Transform( new Vector3( 100, -50, 25 ), Rotation.Identity, 1 ),
+			new Transform( new Vector3( 100, -50, 25 ), Rotation.From( 20, 90, 10 ), 1 ),
+			new Transform( new Vector3( 100, -50, 25 ), Rotation.From( 20, 90, 10 ), new Vector3( 2, 0.5f, 3 ) )
+		} )
+		{
+			go.WorldTransform = transform;
+			Assert.IsTrue( volume.BuildData( out var data ) );
+			var index = new Vector3Int( 1, 2, 3 );
+			var local = volume.GetProbeLocalPosition( index );
+			var world = data.ProbeToWorldTransform.Transform( local );
+			Assert.IsTrue( world.Distance( volume.GetProbeWorldPosition( index ) ) < 0.001f );
+			Assert.IsTrue( data.Transform.Transform( world ).Distance( local ) < 0.001f );
+			Assert.IsTrue( (world + volume.GetProbe( index ).Offset).Distance( volume.GetRelocatedProbeWorldPosition( index ) ) < 0.001f );
+		}
+
+		Assert.AreEqual( 160, System.Runtime.InteropServices.Marshal.OffsetOf<IndirectLightVolume.DDGIVolumeGpuData>( nameof( IndirectLightVolume.DDGIVolumeGpuData.ProbeToWorldTransform ) ).ToInt32() );
+		Assert.AreEqual( 228, System.Runtime.InteropServices.Marshal.OffsetOf<IndirectLightVolume.DDGIVolumeGpuData>( nameof( IndirectLightVolume.DDGIVolumeGpuData.RuntimeContrast ) ).ToInt32() );
+		Assert.AreEqual( 232, System.Runtime.InteropServices.Marshal.OffsetOf<IndirectLightVolume.DDGIVolumeGpuData>( nameof( IndirectLightVolume.DDGIVolumeGpuData.RuntimeSaturation ) ).ToInt32() );
+		Assert.AreEqual( 236, System.Runtime.InteropServices.Marshal.OffsetOf<IndirectLightVolume.DDGIVolumeGpuData>( nameof( IndirectLightVolume.DDGIVolumeGpuData.RuntimeIntensity ) ).ToInt32() );
+		Assert.AreEqual( 240, System.Runtime.InteropServices.Marshal.OffsetOf<IndirectLightVolume.DDGIVolumeGpuData>( nameof( IndirectLightVolume.DDGIVolumeGpuData.RuntimeTint ) ).ToInt32() );
+		Assert.AreEqual( 252, System.Runtime.InteropServices.Marshal.OffsetOf<IndirectLightVolume.DDGIVolumeGpuData>( nameof( IndirectLightVolume.DDGIVolumeGpuData.BlendDistance ) ).ToInt32() );
+		Assert.AreEqual( 256, System.Runtime.InteropServices.Marshal.SizeOf<IndirectLightVolume.DDGIVolumeGpuData>() );
+		volume.RuntimeContrast = 1.5f;
+		volume.RuntimeSaturation = 0.0f;
+		volume.RuntimeIntensity = 2.0f;
+		volume.RuntimeTint = new Color( 0.25f, 0.5f, 1.0f, 0.0f );
+		volume.BlendDistance = 32.0f;
+		Assert.IsTrue( volume.BuildData( out var display ) );
+		Assert.AreEqual( 1.5f, display.RuntimeContrast );
+		Assert.AreEqual( 0.0f, display.RuntimeSaturation );
+		Assert.AreEqual( 2.0f, display.RuntimeIntensity );
+		Assert.AreEqual( new Vector3( 0.25f, 0.5f, 1.0f ), display.RuntimeTint );
+		Assert.AreEqual( 32.0f, display.BlendDistance );
+		Assert.IsTrue( volume.BuildData( out var capture, applyAdjustments: false ) );
+		Assert.AreEqual( 1.0f, capture.RuntimeContrast );
+		Assert.AreEqual( 1.0f, capture.RuntimeSaturation );
+		Assert.AreEqual( 1.0f, capture.RuntimeIntensity );
+		Assert.AreEqual( Vector3.One, capture.RuntimeTint );
+		Assert.AreEqual( 0.0f, capture.BlendDistance );
+
+		volume.RuntimeIntensity = -1.0f;
+		volume.BlendDistance = -32.0f;
+		Assert.IsTrue( volume.BuildData( out var clamped ) );
+		Assert.AreEqual( 0.0f, clamped.RuntimeIntensity );
+		Assert.AreEqual( 0.0f, clamped.BlendDistance );
+		go.Destroy();
+		scene.ProcessDeletes();
+	}
+
+	const int LightFlagsMixedShadows = 16; // LIGHTTYPE_FLAGS_MIXED_SHADOWS
+	const int LightFlagsBaked = 32;        // LIGHTTYPE_FLAGS_BAKED
+
+	static int MapLightFlags( Scene scene, int directLight )
+	{
+		var go = scene.CreateObject();
+		var light = go.Components.Create<PointLight>( false );
+		light.Shadows = true;
+		light.LegacyData = new Light.LegacyLightData { DirectLight = directLight };
+		light.Enabled = true;
+
+		return (int)FindSceneObjectFor<ScenePointLight>( scene, light ).lightNative.GetLightFlags();
+	}
+
+	/// <summary>
+	/// Hammer's direct light modes map onto the native light flags. Baked must not get MIXED_SHADOWS
+	/// - that's what makes the lightbinner allocate each baked map light a realtime shadow map.
+	/// </summary>
+	[TestMethod]
+	public void MapLightDirectLightModeFlags()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var dynamic = MapLightFlags( scene, 2 );  // HAMMER_DIRECT_LIGHT_DYNAMIC
+		var baked = MapLightFlags( scene, 1 );    // HAMMER_DIRECT_LIGHT_BAKED
+		var stationary = MapLightFlags( scene, 3 ); // HAMMER_DIRECT_LIGHT_STATIONARY
+
+		Assert.AreEqual( 0, dynamic & LightFlagsBaked, "Dynamic lights aren't baked" );
+		Assert.AreEqual( 0, dynamic & LightFlagsMixedShadows, "Dynamic lights shadow everything, not mixed" );
+
+		Assert.AreNotEqual( 0, baked & LightFlagsBaked, "Baked lights should be flagged baked" );
+		Assert.AreEqual( 0, baked & LightFlagsMixedShadows, "Baked lights must not get a realtime shadow map" );
+
+		Assert.AreNotEqual( 0, stationary & LightFlagsBaked, "Stationary lights should be flagged baked" );
+		Assert.AreNotEqual( 0, stationary & LightFlagsMixedShadows, "Stationary lights shadow dynamic objects in realtime" );
 	}
 }

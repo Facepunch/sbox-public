@@ -34,6 +34,9 @@ internal static class WorkerThread
 		_sWorkerTasks = new Task[workerThreads];
 		_sCts = new CancellationTokenSource();
 
+		// Don't let the workers inherit whichever context happened to start them
+		using var noFlow = ExecutionContext.SuppressFlow();
+
 		for ( var i = 0; i < workerThreads; i++ )
 		{
 			_sWorkerTasks[i] = Task.Run( WorkerTask );
@@ -44,15 +47,18 @@ internal static class WorkerThread
 	{
 		var ct = _sCts.Token;
 
+		// Unlike Task.Delay, waiting on a PeriodicTimer doesn't allocate every tick
+		using var timer = new PeriodicTimer( TimeSpan.FromMilliseconds( 1 ) );
+
 		while ( !ct.IsCancellationRequested )
 		{
 			SyncContext.WorkerThread.ProcessQueue();
 
 			try
 			{
-				await Task.Delay( 1, ct );
+				await timer.WaitForNextTickAsync( ct );
 			}
-			catch ( TaskCanceledException )
+			catch ( OperationCanceledException )
 			{
 				return;
 			}

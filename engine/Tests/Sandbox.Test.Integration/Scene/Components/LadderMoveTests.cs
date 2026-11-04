@@ -8,11 +8,10 @@ namespace SceneTests.Components;
 /// walk mode - the controller starts climbing (gravity off, velocity zeroed),
 /// ladders below the feet are ignored, the climb rotation faces the ladder from
 /// either side, and removing the ladder hands control back to walking. Climb
-/// movement itself reads Input.AnalogMove, which is silent headless, so actual
-/// up/down motion is out of scope.
+/// movement is driven headlessly through UpdateMove and WishVelocity.
 /// </summary>
 [TestClass]
-public class LadderMoveModeTest
+public partial class LadderMoveModeTest
 {
 	/// <summary>
 	/// Creates a large static floor whose top surface sits at z = 0.
@@ -81,7 +80,7 @@ public class LadderMoveModeTest
 	}
 
 	/// <summary>
-	/// Pins the defaults (priority 5, speed 1, the built-in "ladder" climbable tag)
+	/// Pins the defaults (priority 15, speed 1, the built-in "ladder" climbable tag)
 	/// and the Score contract: -100 without a climbing object, the configured
 	/// Priority with one.
 	/// </summary>
@@ -93,7 +92,7 @@ public class LadderMoveModeTest
 
 		var pc = CreatePlayer( scene, Vector3.Zero, out var ladderMode );
 
-		Assert.AreEqual( 5, ladderMode.Priority );
+		Assert.AreEqual( 15, ladderMode.Priority );
 		Assert.AreEqual( 1f, ladderMode.Speed );
 		Assert.IsTrue( ladderMode.ClimbableTags.Has( "ladder" ), "the ladder tag is climbable out of the box" );
 		Assert.IsNull( ladderMode.ClimbingObject );
@@ -101,7 +100,7 @@ public class LadderMoveModeTest
 		Assert.AreEqual( -100, ladderMode.Score( pc ), "without a ladder the mode rules itself out" );
 
 		ladderMode.ClimbingObject = scene.CreateObject();
-		Assert.AreEqual( 5, ladderMode.Score( pc ), "with a ladder the mode scores its priority" );
+		Assert.AreEqual( 15, ladderMode.Score( pc ), "with a ladder the mode scores its priority" );
 
 		ladderMode.Priority = 9;
 		Assert.AreEqual( 9, ladderMode.Score( pc ) );

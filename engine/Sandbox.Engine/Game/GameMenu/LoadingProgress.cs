@@ -24,6 +24,11 @@ public partial struct LoadingProgress
 	/// </summary>
 	public double TotalSize { get; set; }
 
+	/// <summary>
+	/// Includes the changing download values so UI panels update as progress changes.
+	/// </summary>
+	public override readonly int GetHashCode() => HashCode.Combine( Title, Fraction, Mbps, TotalSize );
+
 	internal static LoadingProgress Create( string title )
 	{
 		return new LoadingProgress { Title = title };

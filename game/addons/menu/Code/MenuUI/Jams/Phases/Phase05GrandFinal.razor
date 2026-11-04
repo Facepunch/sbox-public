@@ -1,0 +1,91 @@
+@using System;
+@using Sandbox;
+@using Sandbox.Services;
+@using Sandbox.UI;
+@namespace MenuProject.MenuUI.Jams
+@inherits JamFinalistPhasePanel
+
+<root class="jam-phase grand-final-phase @(FinalUrgent ? "final-urgent" : "")">
+	<JamPhaseLayout Jam=@Jam PhaseTitle=@Headline PhaseSubtitle=@(Waiting ? "#menu.jam.grand_final_coming_up" : "#menu.jam.grand_final") BlurbLead=@(RevealedWinner is not null ? "#menu.jam.champion_crowned" : Waiting ? "#menu.jam.the_finalists_are_confirmed" : "#menu.jam.every_vote_counts") Blurb=@(RevealedWinner is not null ? "#menu.jam.thanks_for_playing_and_voting" : Waiting ? "#menu.jam.play_both_games_before_voting_reopens_the_final_starts" : "#menu.jam.pick_your_winner") CountdownTarget=@CountdownTarget CountdownLabel=@CountdownLabel CountdownStatus=@CountdownStatus>
+		<StandingsContent>
+			<JamStandings Jam=@Jam Finalists=@Category Packages=@Packages WinnerIdent=@RevealedWinner HoldFinalResult=@(RevealedWinner is null) />
+		</StandingsContent>
+		<Content>
+			@if ( !Jam.CommunityVoting )
+			{
+				<JamEntries Jam=@Jam />
+			}
+			else
+			{
+				<div class="finalist-browser">
+					<JamEntryBrowser Jam=@Jam FeaturedTitle="#menu.jam.grand_final">
+						<FeaturedContent>
+							<div class="finalist-scroll">
+								@if ( Error is not null )
+								{
+									<div class="load-error"><label>@Error</label><Button Text="#menu.common.retry" onclick=@RequestRefresh /></div>
+								}
+								@if ( Categories is { Length: > 1 } )
+								{
+									<div class="category-tabs">
+										@foreach ( var category in Categories )
+										{
+											<Button Text=@category.Title Active=@(Category?.Id == category.Id) onclick=@(() => CategoryId = category.Id) />
+										}
+									</div>
+								}
+								@if ( Category is not null )
+								{
+									<JamEliminationGallery Jam=@Jam Category=@Category Packages=@Packages Submitting=@Submitting CooldownSeconds=@VoteCooldownSeconds Version=@Voting.Version Vote=@SubmitVote WinnerIdent=@RevealedWinner />
+								}
+								else if ( Loading )
+								{
+									<Spinner />
+								}
+								else
+								{
+									<EmptyState Icon="emoji_events" Title="#menu.jam.waiting_for_the_final" Subtitle="#menu.jam.the_confirmed_finalists_will_appear_here" />
+								}
+							</div>
+						</FeaturedContent>
+					</JamEntryBrowser>
+				</div>
+			}
+		</Content>
+	</JamPhaseLayout>
+</root>
+
+@code
+{
+	(Jam Jam, int? Category, string Winner) ResultIdentity;
+	string ResultCandidate;
+	RealTimeSince ResultAge;
+	string RevealedWinner => ResultAge >= 2 ? ResultCandidate : null;
+	bool FinalUrgent => VotingOpen && Category.RoundEnds is { } end && (end - Jam.Now).TotalSeconds <= 60;
+	bool Waiting => JamVotingPresentation.Waiting( Category );
+	string Headline => RevealedWinner is { } winner ? $"{GetPackage( winner )?.Title ?? Package.GetCachedTitle( winner )} wins!"
+		: Waiting ? "#menu.jam.two_remain_the_final_is_next" : Category is null ? "#menu.jam.meet_the_grand_finalists"
+		: VotingOpen ? "#menu.jam.two_remain_one_winner" : "#menu.jam.voting_closed_winner_incoming";
+	DateTimeOffset? CountdownTarget => RevealedWinner is not null ? Voting.FinalResultsUntil
+		: Waiting ? JamVotingPresentation.OpensAt( Jam, Category ) : Category?.RoundEnds ?? Jam.Results;
+	string CountdownLabel => RevealedWinner is not null ? "#menu.jam.explore_the_winners_in" : Waiting ? "#menu.jam.grand_final_voting_opens_in" : "#menu.jam.grand_final_ends_in";
+	string CountdownStatus => RevealedWinner is not null ? null : Waiting ? CountdownTarget <= Jam.Now ? "#menu.jam.opening_soon" : null
+		: Category is null ? "#menu.jam.loading_finalists_text" : !VotingOpen ? "#menu.jam.verifying_result" : null;
+
+	/// <summary>
+	/// Gives a confirmed winner a short reveal beat before displaying the final result.
+	/// </summary>
+	public override void Tick()
+	{
+		base.Tick();
+		var winner = Category?.GetFinalistAtPlace( 1 )?.PackageIdent;
+		var identity = (Jam, Category?.Id, winner);
+		if ( identity == ResultIdentity ) return;
+
+		ResultIdentity = identity;
+		ResultCandidate = winner;
+		ResultAge = 0;
+	}
+
+	protected override int BuildHash() => HashCode.Combine( base.BuildHash(), Headline, RevealedWinner, FinalUrgent, CountdownStatus, CountdownTarget, Waiting );
+}

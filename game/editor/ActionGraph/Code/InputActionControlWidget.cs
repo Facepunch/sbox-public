@@ -85,7 +85,7 @@ internal class InputActionControlWidget : ControlWidget
 		var useFilter = !string.IsNullOrEmpty( filter );
 		var truncated = 0;
 
-		_menu.AddOption( "Set to None", "clear_all", () => SerializedProperty.SetValue<string>( "" ) );
+		_menu.AddOption( "Set to None", "clear_all", () => SetAction( "" ) );
 
 		if ( useFilter )
 		{
@@ -112,7 +112,7 @@ internal class InputActionControlWidget : ControlWidget
 			var groupMenu = string.IsNullOrEmpty( filter ) ? menu.FindOrCreateMenu( group ) : menu;
 
 			var option = groupMenu.AddOption( action?.ToLower(), "gamepad" );
-			option.Triggered += () => SerializedProperty.SetValue( action );
+			option.Triggered += () => SetAction( action );
 		}
 
 		if ( truncated > 0 )
@@ -122,5 +122,12 @@ internal class InputActionControlWidget : ControlWidget
 
 		menu.AdjustSize();
 		menu.Update();
+	}
+
+	private void SetAction( string action )
+	{
+		PropertyStartEdit();
+		SerializedProperty.SetValue( action );
+		PropertyFinishEdit();
 	}
 }

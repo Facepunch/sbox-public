@@ -1,0 +1,99 @@
+﻿@using Sandbox
+@using Sandbox.UI
+@using System
+@namespace MenuProject.Settings
+@inherits Panel
+
+<root>
+	<i class="light" @ref="Light">mic</i>
+
+	<div class="meter" @ref="Meter">
+		<div class="cover" @ref="Cover"></div>
+		<div class="threshold" @ref="Line"></div>
+	</div>
+
+	<label class="readout">@($"{Value:0} dB")</label>
+</root>
+
+@code
+{
+	/// <summary>The setting holding the threshold in decibels, dragged by the line.</summary>
+	public SettingItem Item { get; set; }
+
+	float Value
+	{
+		get => Item?.FloatValue ?? Min;
+		set { if ( Item is not null ) Item.FloatValue = value; }
+	}
+
+	const float Min = -80;
+	const float Max = 0;
+
+	/// <summary>The microphone to listen to, empty for the system default. Read every frame so it follows the dropdown before it's applied.</summary>
+	public Func<string> Device { get; set; }
+
+	Panel Light;
+	Panel Meter;
+	Panel Cover;
+	Panel Line;
+
+	float shown = float.MinValue;
+	RealTimeSince timeSinceLoud = 10;
+
+	// Matches VoiceManager's gate, so the light is on exactly when voice would be sent
+	const float GateHoldTime = 0.3f;
+
+	// How fast the bar falls, in decibels a second. Rises instantly.
+	const float FallRate = 40.0f;
+
+	public override void Tick()
+	{
+		base.Tick();
+
+		// Keeps the mic open while we're on screen, it closes itself once we stop asking
+		Sandbox.Internal.AudioSettings.TestMicrophone( Device?.Invoke() ?? "" );
+		var level = Sandbox.Internal.AudioSettings.MicrophoneLevel;
+
+		shown = Math.Max( level, shown - FallRate * RealTime.Delta );
+
+		if ( level > Value )
+			timeSinceLoud = 0;
+
+		Light?.SetClass( "on", timeSinceLoud < GateHoldTime );
+
+		// Cover everything above the current level, so the gradient shows up to it
+		if ( Cover is not null ) Cover.Style.Left = Length.Percent( Fraction( shown ) * 100 );
+		if ( Line is not null ) Line.Style.Left = Length.Percent( Fraction( Value ) * 100 );
+	}
+
+	// The readout follows the value, which changes under us rather than through a parameter
+	protected override int BuildHash() => HashCode.Combine( Value );
+
+	float Fraction( float db ) => MathX.LerpInverse( db, Min, Max, true );
+
+	protected override void OnMouseDown( MousePanelEvent e )
+	{
+		base.OnMouseDown( e );
+
+		DragTo();
+		e.StopPropagation();
+	}
+
+	protected override void OnMouseMove( MousePanelEvent e )
+	{
+		base.OnMouseMove( e );
+
+		if ( !HasActive ) return;
+
+		DragTo();
+		e.StopPropagation();
+	}
+
+	void DragTo()
+	{
+		if ( Meter is null || Meter.Box.Rect.Width <= 0 ) return;
+
+		var fraction = Math.Clamp( Meter.MousePosition.x / Meter.Box.Rect.Width, 0, 1 );
+		Value = MathF.Round( MathX.Lerp( Min, Max, fraction ) );
+	}
+}

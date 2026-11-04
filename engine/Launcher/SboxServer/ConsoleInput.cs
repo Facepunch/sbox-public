@@ -1,11 +1,15 @@
 ﻿using Sandbox;
 using System;
+using System.Collections.Generic;
 
 public class ConsoleInput
 {
 	public Action<string> OnInputText { get; set; }
 
 	string inputString = "";
+	List<string> history = new();
+	int historyIndex = -1;
+	string historyDraft = "";
 	string[] statusText = new string[3] { "", "", "" };
 
 	public bool valid => Console.BufferWidth > 0;
@@ -84,6 +88,8 @@ public class ConsoleInput
 	internal void OnEscape()
 	{
 		inputString = "";
+		historyIndex = -1;
+		historyDraft = "";
 		RedrawInputLine();
 	}
 
@@ -95,10 +101,52 @@ public class ConsoleInput
 
 		var strtext = inputString;
 		inputString = "";
+		historyIndex = -1;
+		historyDraft = "";
+
+		if ( !string.IsNullOrWhiteSpace( strtext ) && (history.Count == 0 || history[^1] != strtext) )
+			history.Add( strtext );
 
 		if ( OnInputText != null )
 		{
 			OnInputText( strtext );
+		}
+
+		RedrawInputLine();
+	}
+
+	internal void OnHistoryUp()
+	{
+		if ( history.Count == 0 ) return;
+
+		if ( historyIndex == -1 )
+		{
+			historyDraft = inputString;
+			historyIndex = history.Count - 1;
+		}
+		else if ( historyIndex > 0 )
+		{
+			historyIndex--;
+		}
+
+		inputString = history[historyIndex];
+		RedrawInputLine();
+	}
+
+	internal void OnHistoryDown()
+	{
+		if ( historyIndex == -1 ) return;
+
+		historyIndex++;
+
+		if ( historyIndex >= history.Count )
+		{
+			historyIndex = -1;
+			inputString = historyDraft;
+		}
+		else
+		{
+			inputString = history[historyIndex];
 		}
 
 		RedrawInputLine();
@@ -146,7 +194,17 @@ public class ConsoleInput
 			return;
 		}
 
-		// TODO - UP/DOWN HISTORY ETC
+		if ( key.Key == ConsoleKey.UpArrow )
+		{
+			OnHistoryUp();
+			return;
+		}
+
+		if ( key.Key == ConsoleKey.DownArrow )
+		{
+			OnHistoryDown();
+			return;
+		}
 
 		if ( key.KeyChar != '\u0000' )
 		{

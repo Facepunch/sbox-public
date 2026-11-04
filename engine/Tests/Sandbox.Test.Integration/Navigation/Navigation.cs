@@ -241,4 +241,42 @@ public class MeshBuildingTest
 		sourceNavMesh.Dispose();
 		loadedNavMesh.Dispose();
 	}
+
+	[TestMethod]
+	public async Task BakeKeepsDeliberatelyEmptyTilesEmpty_11853()
+	{
+		// Tiles are 1024 units across, so these two boxes land in different tiles.
+		var world = new PhysicsWorld();
+		var keptCentre = Vector3.Zero;
+		var droppedCentre = new Vector3( 3000, 0, 0 );
+		var kept = new PhysicsBody( world );
+		kept.AddBoxShape( BBox.FromPositionAndSize( keptCentre, 500 ), Rotation.Identity );
+		var dropped = new PhysicsBody( world );
+		dropped.AddBoxShape( BBox.FromPositionAndSize( droppedCentre, 500 ), Rotation.Identity );
+
+		var source = new NavMesh { CustomBounds = true, Bounds = BBox.FromPositionAndSize( new Vector3( 1500, 0, 0 ), new Vector3( 5000, 2000, 2000 ) ) };
+		Assert.IsTrue( await source.Generate( world ), "Failed to generate source navmesh" );
+		Assert.IsNotNull( source.GetClosestPoint( droppedCentre, 400 ), "The region to exclude should start out walkable" );
+
+		// Exclude a region the way a project baking around water would.
+		source.UnloadTiles( BBox.FromPositionAndSize( droppedCentre, 600 ) );
+		Assert.IsNull( source.GetClosestPoint( droppedCentre, 400 ), "Unloading should have removed the excluded region" );
+
+		var baked = await source.BakeDataToBytes();
+		Assert.IsNotNull( baked, "Baked data should not be null" );
+
+		// Load into a navmesh facing the same world. The excluded geometry is still
+		// there, so only baked coverage can keep it out of the result.
+		var loaded = new NavMesh { CustomBounds = true, Bounds = source.Bounds, IsEnabled = true };
+		loaded.Init();
+		await loaded.LoadFromBakedData( baked );
+		Assert.IsTrue( await loaded.Generate( world ), "Failed to generate navmesh from loaded baked data" );
+
+		Assert.IsNotNull( loaded.GetClosestPoint( keptCentre, 400 ), "The baked region should be walkable" );
+		Assert.IsNull( loaded.GetClosestPoint( droppedCentre, 400 ), "A tile the bake left empty must not be regenerated from live geometry" );
+
+		source.Dispose();
+		loaded.Dispose();
+		world.Delete();
+	}
 }

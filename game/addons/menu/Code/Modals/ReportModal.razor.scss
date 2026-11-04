@@ -1,0 +1,73 @@
+@import "/styles/_formmodal.scss";
+
+ReportModal
+{
+	@include front-form-modal;
+
+	// What counts as reportable - a quiet box with a glyph, before the form
+	.notice
+	{
+		flex-direction: row;
+		gap: 12px;
+		padding: 12px 14px;
+		border-radius: $front-radius;
+		border: 1px solid rgba( 255, 255, 255, 0.08 );
+		background-color: rgba( 255, 255, 255, 0.03 );
+
+		i
+		{
+			flex-shrink: 0;
+			font-size: 20px;
+			color: $front-secondary;
+		}
+
+		.notice-text
+		{
+			flex-direction: column;
+			flex-shrink: 1;
+			min-width: 0;
+			gap: 4px;
+		}
+
+		.notice-title
+		{
+			font-size: 13.5px;
+			font-weight: 600;
+			color: $front-heading;
+			white-space: normal;
+		}
+
+		.notice-body
+		{
+			font-size: 12.5px;
+			color: $front-secondary;
+			white-space: normal;
+		}
+	}
+
+	// The heading, and a word on how to pick beside it
+	.tags-head
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 8px;
+
+		.hint
+		{
+			font-size: 12px;
+			color: $front-tertiary;
+		}
+	}
+
+	// Sending it - in the danger red, not the review's blue
+	.footer .button.post.danger
+	{
+		background-color: $front-danger;
+		border-color: $front-danger * 1.2;
+
+		&:hover
+		{
+			background-color: $front-danger * 1.15;
+		}
+	}
+}

@@ -1,3 +1,4 @@
+using Sandbox.Engine;
 using System.ComponentModel;
 
 namespace Sandbox;
@@ -15,7 +16,7 @@ public static class ChangeCallback
 	public static void OnPropertySet<T>( in WrappedPropertySet<T> p )
 	{
 		var attribute = p.GetAttribute<ChangeAttribute>();
-		var property = Game.TypeLibrary.GetMemberByIdent( p.MemberIdent ) as PropertyDescription;
+		var property = GlobalContext.Current.TypeLibrary.GetMemberByIdent( p.MemberIdent ) as PropertyDescription;
 
 		// The type system doesn't know this property - a private one needs [Expose] for the change
 		// callback to resolve. Still set the value, just skip the callback.

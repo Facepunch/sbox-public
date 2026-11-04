@@ -1,176 +1,196 @@
 @import "/styles/_theme.scss";
+@import "/styles/_front.scss";
 
+// A party that isn't what the game's made for
+$mode-warning: #f5a623;
+
+// A column of its own, as tall as what's in it
 PackageInfoPanel
 {
     flex-direction: column;
-    overflow: hidden;
-    overflow-y: scroll;
-    flex-grow: 1;
     flex-shrink: 0;
-}
+    gap: 12px;
+    font-family: $front-font;
 
-.media-wrapper
-{
-    padding: 10px 10px 0px 10px;
-    flex-shrink: 0;
-}
-
-.panel-media
-{
-    width: 100%;
-    aspect-ratio: 16 / 9;
-    background-size: cover;
-    background-position: center;
-    border-radius: $rounding-large;
-    border: 1px solid $default-border;
-    box-shadow: 0px 4px 20px rgba(0,0,0,0.4);
-}
-
-.panel-header
-{
-    flex-direction: column;
-    padding: 10px 12px 6px 12px;
-    gap: 3px;
-    flex-shrink: 0;
-}
-
-.game-title
-{
-    font-size: $text-medium;
-    font-weight: 700;
-    color: $default-text;
-    font-family: $font-heading;
-}
-
-.game-org
-{
-    flex-direction: row;
-    align-items: center;
-    gap: 5px;
-    font-size: $text-small;
-    color: $default-400;
-    cursor: pointer;
-    font-family: $font-default;
-
-    &:hover .org-name { color: $default-100; }
-}
-
-.org-thumb
-{
-    width: 16px;
-    height: 16px;
-    border-radius: $rounding-small;
-    flex-shrink: 0;
-}
-
-.org-name
-{
-    color: $default-300;
-    font-weight: 600;
-}
-
-.panel-sections
-{
-    flex-direction: column;
-    flex-grow: 1;
-    flex-shrink: 0;
-    padding: 4px 10px 10px 10px;
-    gap: 5px;
-}
-
-// Card content layout — info panel cards and achievements card share these.
-// Flat fill (no gradient) with a hairline border reads cleaner than the default Card.
-PackageInfoPanel Card,
-Card.achievements-card
-{
-    flex-direction: column;
-    padding: 11px 13px;
-    gap: 7px;
-    flex-grow: 0;
-    flex-shrink: 0;
-    background: $default-900;
-    border: 1px solid $default-border;
-    border-radius: $rounding-large;
-}
-
-// The achievements card is a button, so give it a clear interactive state
-Card.achievements-card
-{
-    transition: background-color 120ms $easing, border-color 120ms $easing;
-
-    &:hover
+    // A game's square, a map's wide - the column's width either way
+    .art
     {
-        background: $default-800;
-        border-color: rgba( $default-50, 0.18 );
-    }
-}
-
-.section-label
-{
-    font-size: $text-eyebrow;
-    font-weight: 700;
-    letter-spacing: 1.2px;
-    text-transform: uppercase;
-    color: $default-300;
-    font-family: $font-heading;
-    margin-bottom: 3px;
-}
-
-.info-row
-{
-    flex-direction: row;
-    align-items: center;
-    gap: 9px;
-    color: $default-100;
-    font-size: $text-small;
-    font-family: $font-default;
-    font-weight: 500;
-
-    i
-    {
-        font-size: 15px;
-        color: $default-400;
         flex-shrink: 0;
-        width: 16px;
-    }
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        border-radius: $front-radius;
+        border: $front-border-width solid $front-border;
+        background-size: cover;
+        background-position: center;
 
-    label { flex-grow: 1; }
-
-    &.clickable
-    {
-        cursor: pointer;
-
-        &:hover
+        &.square
         {
-            color: $default-text;
-
-            i { color: $primary-blue; }
+            aspect-ratio: 1;
         }
     }
-}
 
-.tag-list
-{
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 4px;
-}
-
-.tag
-{
-    padding: 3px 8px;
-    background-color: rgba( $default-50, 0.04 );
-    border: 1px solid $default-border;
-    border-radius: $rounding-small;
-    font-size: $text-eyebrow;
-    font-weight: 600;
-    color: $default-200;
-    font-family: $font-default;
-    transition: background-color 120ms $easing, color 120ms $easing;
-
-    &:hover
+    // Snug over its facts - its line height leaves room of its own
+    .title
     {
-        background-color: rgba( $default-50, 0.09 );
-        color: $default-100;
+        margin: -4px 0 -8px 0;
+        font-family: $front-font;
+        font-size: 20px;
+        font-weight: 700;
+        color: $front-heading;
     }
+
+    //
+    // Its numbers and who made it - the label on the left, the value on the right
+    //
+
+    .facts
+    {
+        flex-direction: column;
+        flex-shrink: 0;
+        gap: 3px;
+    }
+
+    .fact
+    {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+
+        .key
+        {
+            flex-shrink: 0;
+            @include front-section-label;
+        }
+
+        .value
+        {
+            flex-direction: row;
+            flex-shrink: 1;
+            min-width: 0;
+            align-items: center;
+            gap: 4px;
+
+            label
+            {
+                font-size: 13px;
+                font-weight: 600;
+                color: $front-heading;
+                white-space: nowrap;
+                text-overflow: ellipsis;
+                overflow: hidden;
+            }
+
+            i
+            {
+                font-family: "Material Icons";
+                font-size: 14px;
+            }
+        }
+
+        // Steam's colours - blue for good, amber for mixed, red for bad
+        .rating.positive label, .rating.positive i { color: $front-link; }
+        .rating.mixed label, .rating.mixed i { color: $front-trophy; }
+        .rating.negative label, .rating.negative i { color: $front-danger; }
+
+        .creator.link
+        {
+            color: $front-link;
+        }
+
+        &.clickable
+        {
+            cursor: pointer;
+
+            label { cursor: pointer; }
+
+            &:hover .creator.link
+            {
+                color: $front-heading;
+            }
+        }
+    }
+
+    .chip-rows
+    {
+        flex-direction: column;
+        gap: 5px;
+    }
+
+    .chips
+    {
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 5px;
+    }
+
+    .chip
+    {
+        @include front-pill;
+        padding: 2px 9px;
+        gap: 4px;
+        // Squarer than the menu's round pills
+        border-radius: 5px;
+
+        // Nothing to click - no lift under the pointer, as the pill's hover gives a button
+        &:hover
+        {
+            border-color: $front-hairline;
+            background-color: rgba( 255, 255, 255, 0.05 );
+
+            label { color: $front-body; }
+        }
+
+        label
+        {
+            font-size: 11.5px;
+            font-weight: 500;
+            text-transform: none;
+            letter-spacing: 0;
+            color: $front-body;
+        }
+
+        i
+        {
+            font-family: "Material Icons";
+            font-size: 14px;
+        }
+
+        // How many it's for - green when your party's what it's made for, orange when it isn't
+        &.mode.fits
+        {
+            background-color: rgba( $front-accent, 0.1 );
+            border-color: rgba( $front-accent, 0.4 );
+
+            label, i { color: $front-accent; }
+        }
+
+        &.mode.mismatch
+        {
+            background-color: rgba( $mode-warning, 0.1 );
+            border-color: rgba( $mode-warning, 0.45 );
+
+            label, i { color: $mode-warning; }
+        }
+    }
+
+    // Its shape while it's worked out what it says
+    .bone
+    {
+        flex-shrink: 0;
+        border-radius: 999px;
+        background-color: rgba( 255, 255, 255, 0.07 );
+        animation: info-bone 1.2s ease-in-out infinite alternate;
+    }
+
+    .art.bone { border-radius: $front-radius; }
+    .title-bone { width: 60%; height: 18px; }
+    .key-bone { width: 64px; height: 10px; }
+    .value-bone { width: 56px; height: 12px; }
+}
+
+@keyframes info-bone
+{
+    0% { opacity: 0.55; }
+    100% { opacity: 1; }
 }

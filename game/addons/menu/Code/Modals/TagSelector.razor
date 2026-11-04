@@ -1,0 +1,43 @@
+﻿@namespace MenuProject.Modals
+@inherits Panel
+@using Sandbox;
+@using Sandbox.UI;
+@using SboxMenu;
+@using System;
+@using Sandbox.Services;
+
+<root class="tag-selector">
+
+    @{
+
+        var enumType = MenuUtility.TypeLibrary.GetEnumDescription(Value.GetType());
+
+        foreach (var entry in enumType)
+        {
+            // "None" is having picked nothing, not something to pick
+            if ( entry.IntegerValue == 0 ) continue;
+
+            var active = (((int)Value) & entry.IntegerValue) != 0;
+
+            <div @onclick=@( () => Clicked( (int) entry.IntegerValue ) ) class="tag @(active ? "active" : "")">@entry.Title</div>
+        }
+
+    }    
+
+</root>
+
+@code
+{
+    [Property]
+    public object Value { get; set; }
+
+    void Clicked( int bit )
+    {
+        var intValue = (int)Value;
+        
+        if ( (intValue & bit) != 0 ) intValue &= ~bit;
+        else intValue |= bit;
+
+        Value = Enum.Parse( Value.GetType(), intValue.ToString() );
+    }
+}

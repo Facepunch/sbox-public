@@ -22,7 +22,9 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 
 	protected override void OnEnabled()
 	{
-		Create();
+		// Enabling the collider has just built the physics shape from this storage - building
+		// the heightfield again is the slowest part of loading a scene with a big terrain
+		Create( rebuildCollider: false );
 		Transform.OnTransformChanged += OnTerrainChanged;
 		Storage?.MaterialSettings?.OnChanged += OnTerrainChanged;
 	}
@@ -96,7 +98,7 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 
 		var cam = Scene.IsEditor ? Application.Editor.Camera : Scene.Camera;
 		if ( cam.IsValid() )
-			_so.UpdateView( GetCullFrustum( cam ), cam.WorldPosition );
+			_so.UpdateClipCamera( cam.WorldPosition );
 
 		if ( Storage is null )
 			return;
@@ -111,12 +113,6 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 			material.NHOTexture?.MarkUsed( 4096 );
 		}
 	}
-	private Frustum GetCullFrustum( CameraComponent cam )
-	{
-		float scale = Math.Clamp( MeshletFrustumScale, 0, 1 );
-		var sr = cam.ScreenRect;
-		return cam.GetFrustum( sr.Shrink( sr.Width * (1.0f - scale) * 0.5f, sr.Height * (1.0f - scale) * 0.5f ) );
-	}
 
 	protected override void OnTagsChanged()
 	{
@@ -127,7 +123,9 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 	/// <summary>
 	/// Call on enable or storage change
 	/// </summary>
-	public void Create()
+	public void Create() => Create( rebuildCollider: true );
+
+	void Create( bool rebuildCollider )
 	{
 		if ( !Active )
 			return;
@@ -137,7 +135,7 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 		if ( Storage is null )
 			return;
 
-		if ( !Application.IsHeadless )
+		if ( Graphics.IsAvailable )
 		{
 			CreateTextureMaps();
 			CreateClipmapSceneObject();
@@ -147,7 +145,8 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 		}
 
 		// Rebuild the collider
-		Rebuild();
+		if ( rebuildCollider )
+			Rebuild();
 	}
 
 	protected override void DrawGizmos()

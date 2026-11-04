@@ -6,6 +6,8 @@
 [SkipHotload]
 public sealed class StyleSelector
 {
+	const PseudoClass DerivedFlags = PseudoClass.Disabled | PseudoClass.Enabled | PseudoClass.Checked | PseudoClass.Root | PseudoClass.FocusWithin;
+
 	public StyleBlock Block;
 
 	public string AsString;
@@ -168,7 +170,22 @@ public sealed class StyleSelector
 	/// </summary>
 	public bool Test( IStyleTarget target, PseudoClass forceFlag = PseudoClass.None )
 	{
-		var pseudo = target.PseudoClass | forceFlag;
+		var pseudo = (target.PseudoClass & ~DerivedFlags) | forceFlag;
+
+		if ( (Flags & PseudoClass.Root) != 0 && target.Parent == null )
+			pseudo |= PseudoClass.Root;
+
+		// The existing focus state already propagates to ancestors.
+		if ( (Flags & PseudoClass.FocusWithin) != 0 && (pseudo & PseudoClass.Focus) != 0 )
+			pseudo |= PseudoClass.FocusWithin;
+
+		// Controls publish these states as classes. Read them when matching so class changes
+		// use the existing selector invalidation path without a second copy of the state.
+		if ( (Flags & (PseudoClass.Disabled | PseudoClass.Enabled)) != 0 )
+			pseudo |= target.HasClass( "disabled" ) ? PseudoClass.Disabled : PseudoClass.Enabled;
+
+		if ( (Flags & PseudoClass.Checked) != 0 && target.HasClass( "checked" ) )
+			pseudo |= PseudoClass.Checked;
 
 		// Not optional - need to match!
 		if ( pseudo.Contains( PseudoClass.Before ) && !Flags.Contains( PseudoClass.Before ) ) return false;

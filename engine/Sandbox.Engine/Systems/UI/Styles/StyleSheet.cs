@@ -80,6 +80,64 @@ public class StyleSheet
 		Watcher?.AddFile( filename );
 	}
 
+	/// <summary>
+	/// Applies an inline stylesheet to the Panel. The name identifies the sheet, so it
+	/// should be unique - the styles are parsed once and shared between all instances.
+	/// </summary>
+	[AttributeUsage( AttributeTargets.Class, AllowMultiple = false, Inherited = false )]
+	public sealed class InlineAttribute : System.Attribute
+	{
+		/// <summary>
+		/// A unique name identifying this stylesheet.
+		/// </summary>
+		public string Name;
+
+		/// <summary>
+		/// The stylesheet content.
+		/// </summary>
+		public string Styles;
+
+		public InlineAttribute( string name, string styles )
+		{
+			Name = name;
+			Styles = styles;
+		}
+	}
+
+	string InlineSource;
+
+	/// <summary>
+	/// Get a stylesheet parsed from an inline string. The parsed sheet is cached under
+	/// <paramref name="key"/> and shared - it only reparses if the content changes (hotload).
+	/// </summary>
+	public static StyleSheet FromInline( string content, string key )
+	{
+		var context = GlobalContext.Current;
+
+		var alreadyLoaded = Loaded.FirstOrDefault( x => x.FileName == key && ReferenceEquals( x.Context, context ) );
+		if ( alreadyLoaded != null )
+		{
+			if ( !ReferenceEquals( alreadyLoaded.InlineSource, content ) && alreadyLoaded.InlineSource != content )
+			{
+				alreadyLoaded.InlineSource = content;
+				alreadyLoaded.UpdateFromString( content, key );
+				context.UISystem?.DirtyAllStyles();
+			}
+
+			return alreadyLoaded;
+		}
+
+		var sheet = new StyleSheet();
+		sheet.Context = context;
+		sheet.InlineSource = content;
+		sheet.UpdateFromString( content, key );
+		sheet.FileName = key;
+
+		Loaded.Add( sheet );
+
+		return sheet;
+	}
+
 	public static StyleSheet FromString( string styles, string filename = "none", IEnumerable<(string key, string value)> variables = null )
 	{
 		try

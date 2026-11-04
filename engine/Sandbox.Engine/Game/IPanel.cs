@@ -49,16 +49,7 @@ public interface IPanel : IValid
 	public IPanel GetPanelAt( Vector2 point, bool visibleOnly, bool needPointerEvents = false );
 	public bool IsAncestor( IPanel panel );
 
-	public bool HasTooltip { get; }
-	public IPanel CreateTooltip();
-	public void UpdateTooltip( IPanel tooltipPanel );
 	public void Delete( bool immediate );
-
-	/// <summary>
-	/// Set the panel's absolute position. This wouldn't be needed if we could expose the styles. Which we should
-	/// do.
-	/// </summary>
-	public void SetAbsolutePosition( TextFlag alignment, Vector2 position, float offset );
 
 	internal static HashSet<IPanel> InspectablePanels = new();
 

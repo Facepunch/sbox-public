@@ -136,7 +136,7 @@ public struct TextureCubeBuilder
 	#endregion
 
 	/// <summary>
-	/// Provide a name to identify the texture by
+	/// Provide a name to identify the texture by, allowing it to be retrieved with <see cref="Texture.Load(string, bool)"/>.
 	/// </summary>
 	/// <param name="name">Desired texture name</param>
 	public TextureCubeBuilder WithName( string name )
@@ -260,10 +260,10 @@ public struct TextureCubeBuilder
 
 		if ( _dataPtr != IntPtr.Zero )
 		{
-			return Texture.Create( string.IsNullOrEmpty( _name ) ? "unnamed" : _name, _asAnonymous, builder, _dataPtr, _dataLength );
+			return Texture.Create( _name, _asAnonymous, builder, _dataPtr, _dataLength );
 		}
 
-		return builder.Create( string.IsNullOrEmpty( _name ) ? "unnamed" : _name, _asAnonymous, _data, _dataLength );
+		return builder.Create( _name, _asAnonymous, _data, _dataLength );
 	}
 
 	/// Custom methods

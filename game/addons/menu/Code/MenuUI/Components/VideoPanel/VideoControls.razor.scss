@@ -1,100 +1,186 @@
-﻿
+@import "/styles/_front.scss";
+
+// Over the foot of the video - no box, a scrim fading up from the bottom edge, so the controls sit
+// on the video rather than in a panel on top of it
 .videocontrols
 {
-	background-color: rgba( black, 0.6 );
-	backdrop-filter: blur( 10px );
-	min-width: 200px;
-	max-width: 700px;
+	flex-direction: column;
 	flex-grow: 1;
-	border-radius: 10px;
+	width: 100%;
+	gap: 4px;
+	padding: 36px 14px 10px 14px;
 	pointer-events: all;
-	flex-direction: row;
-	padding: 16px;
-	gap: 16px;
+	background-image: linear-gradient( to top, rgba( 0, 0, 0, 0.8 ) 0%, rgba( 0, 0, 0, 0.45 ) 55%, rgba( 0, 0, 0, 0 ) 100% );
+	font-family: $front-font;
 
-	> .left
+	i
 	{
-		.playbutton
-		{
-			font-size: 40px;
-			pointer-events: all;
-			justify-content: center;
-			align-items: center;
-		}
+		font-family: "Material Icons";
 	}
 
-	> .right
-	{
-		flex-grow: 1;
-		flex-direction: column;
-		padding-left: 0px;
-		gap: 16px;
-	}
-
-	.meta
-	{
-		align-items: center;
-
-		.left
-		{
-			flex-grow: 1;
-			gap: 16px;
-
-			i
-			{
-				position: relative;
-				font-size: 18px;
-			}
-
-			SliderControl
-			{
-				max-width: 100px;
-			}
-		}
-
-		.right
-		{
-			font-size: 11px;
-			opacity: 0.8;
-			gap: 5px;
-		}
-	}
-
-	.video-control-button
-	{
-		opacity: 0.8;
-		cursor: pointer;
-
-		&:hover
-		{
-			opacity: 1;
-		}
-
-		&.disabled
-		{
-			pointer-events: none;
-			opacity: 0.2;
-		}
-	}
+	//
+	// Sliders - thin rounded tracks, filled in the menu blue, a dot riding the end
+	//
 
 	.slidercontrol
 	{
-		.inner
-		{
-			min-height: 8px;
-		}
-
-		.thumb
+		.entry
 		{
 			display: none;
+		}
+
+		.inner
+		{
+			min-height: 14px;
+			justify-content: center;
 		}
 
 		.track
 		{
 			margin: 0;
-			height: 8px;
-			overflow: hidden;
-			background-color: rgba( white, 0.05 );
+			height: 4px;
+			border-radius: 999px;
+			background-color: rgba( 255, 255, 255, 0.22 );
+			transition: height 0.1s ease;
+		}
+
+		.track-active
+		{
+			border-radius: 999px;
+			background-color: $front-primary * 1.3;
+		}
+
+		.thumb
+		{
+			width: 12px;
+			height: 12px;
+			border-radius: 50%;
+			background-color: white;
+			box-shadow: 0 1px 4px rgba( 0, 0, 0, 0.5 );
+			opacity: 0;
+			transition: opacity 0.1s ease;
+		}
+
+		&:hover
+		{
+			.track
+			{
+				height: 6px;
+			}
+
+			.thumb
+			{
+				opacity: 1;
+			}
+		}
+	}
+
+	// The timeline, the full width
+	.timeline
+	{
+		flex-shrink: 0;
+		width: 100%;
+
+		.slidercontrol
+		{
+			flex-grow: 1;
+		}
+	}
+
+	//
+	// Under it: play, volume, the time
+	//
+
+	.meta
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 4px;
+	}
+
+	.control
+	{
+		flex-shrink: 0;
+		width: 34px;
+		height: 34px;
+		align-items: center;
+		justify-content: center;
+		border-radius: 50%;
+		cursor: pointer;
+		transition: background-color 0.1s ease;
+
+		i
+		{
+			width: 22px;
+			height: 22px;
+			font-size: 22px;
+			text-align: center;
+			color: white;
+			text-shadow: 0 1px 3px rgba( 0, 0, 0, 0.5 );
+		}
+
+		&:hover
+		{
+			background-color: rgba( 255, 255, 255, 0.14 );
+			sound-in: "ui.button.over";
+		}
+
+		&.play i
+		{
+			width: 26px;
+			height: 26px;
+			font-size: 26px;
+		}
+
+		&.disabled
+		{
+			pointer-events: none;
+			opacity: 0.35;
+		}
+	}
+
+	// The volume - its slider beside the speaker, short
+	.volume
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 2px;
+
+		.slidercontrol
+		{
+			width: 72px;
+		}
+	}
+
+	// 00:07 / 01:00 - the time so far white, the length dimmer; fixed-width digits so it doesn't
+	// shuffle as it counts
+	.time
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 5px;
+		margin-left: 10px;
+
+		label
+		{
+			font-family: Inter;
+			font-variant-numeric: tabular-nums;
+			font-size: 12px;
+			font-weight: 600;
+			text-shadow: 0 1px 3px rgba( 0, 0, 0, 0.6 );
+		}
+
+		.now
+		{
+			color: white;
+		}
+
+		.sep, .total
+		{
+			color: rgba( 255, 255, 255, 0.6 );
 		}
 	}
 }

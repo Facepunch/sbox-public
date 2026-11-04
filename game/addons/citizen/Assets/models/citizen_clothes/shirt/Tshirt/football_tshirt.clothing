@@ -11,16 +11,17 @@
   "Category": "TShirt",
   "ConditionalModels": {},
   "Tags": null,
-  "Parent": "models/citizen_clothes/shirt/tshirt/tshirt.clothing",
   "Model": "models/citizen_clothes/shirt/tshirt/models/football_tshirt.vmdl",
   "HumanAltModel": "models/citizen_clothes/shirt/tshirt/models/football_tshirt_m_human.vmdl",
   "HumanAltFemaleModel": null,
   "SkinMaterial": null,
   "EyesMaterial": null,
   "MaterialGroup": "",
+  "HeelHeight": 0,
   "SlotsUnder": "Chest, LeftArm, RightArm",
   "SlotsOver": 0,
   "HideBody": "Chest",
+  "DeformationMode": "Normal",
   "AllowTintSelect": false,
   "TintSelection": {
     "blend": "Linear",
@@ -37,6 +38,7 @@
   "Icon": {
     "Path": "models/citizen_clothes/shirt/tshirt/football_tshirt.clothing.png",
     "Mode": "Chest",
+    "UsePositionOffset": false,
     "PositionOffset": "0,0,0"
   },
   "__references": [],

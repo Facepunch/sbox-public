@@ -33,6 +33,9 @@ public class PlayerOverview
 	public PlayerPackageEntry[] RecentlyPlayed { get; set; }
 
 	public PackageWrapMinimal CurrentlyPlaying { get; set; }
+
+	/// <summary>Organizations this player is an accepted member of.</summary>
+	public OrganizationMinimal[] Organizations { get; set; }
 }
 
 public class PlayerPackageEntry
@@ -54,6 +57,12 @@ public class PlayerFeedEntry
 	public string Emoji { get; set; }
 	public Player Player { get; set; }
 	public PackageWrapMinimal Package { get; set; }
+
+	/// <summary>
+	/// How many underlying events this entry represents. >1 means it's a collapsed
+	/// group (e.g. several achievements unlocked in the same game).
+	/// </summary>
+	public int Count { get; set; } = 1;
 }
 
 
@@ -71,6 +80,31 @@ public class PlayerAchievementProgress
 
 public struct StorageEntry
 {
+	/// <summary>
+	/// Stable record ID.
+	/// </summary>
+	public long Id { get; set; }
+
+	/// <summary>
+	/// Optional group containing the record.
+	/// </summary>
+	public string GroupKey { get; set; }
+
+	/// <summary>
+	/// Whether the record is readable by other players and anonymous callers.
+	/// </summary>
+	public bool PublicRead { get; set; }
+
+	/// <summary>
+	/// Time the record was created.
+	/// </summary>
+	public DateTimeOffset CreatedAt { get; set; }
+
+	/// <summary>
+	/// Opaque concurrency token required by the record update and delete endpoints.
+	/// </summary>
+	public string Revision { get; set; }
+
 	public DateTimeOffset Updated { get; set; }
 	public long SteamId { get; set; }
 	public string Key { get; set; }

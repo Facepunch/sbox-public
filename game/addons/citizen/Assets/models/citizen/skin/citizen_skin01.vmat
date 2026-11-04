@@ -4,9 +4,6 @@ Layer0
 {
 	shader "shaders/skin.shader"
 
-	//---- Animation ----
-	F_MORPH_SUPPORTED 1
-
 	//---- Per-Instance Tint Mask ----
 	F_TINT_MASK 1
 
@@ -16,10 +13,10 @@ Layer0
 	F_USE_PER_VERTEX_CURVATURE 1
 
 	//---- Age ----
-	TextureAgeNormal "models/citizen/skin/citizen_skin_old_normal.png"
+	TextureAgeNormal "models/citizen/skin/citizen_skin_young_normal.png"
 
 	//---- Ambient Occlusion ----
-	g_flAmbientOcclusionDirectDiffuse "1.000"
+	g_flAmbientOcclusionDirectDiffuse "0.650"
 	g_flAmbientOcclusionDirectSpecular "1.000"
 	TextureAmbientOcclusion "models/citizen/skin/citizen_skin_young_ao.png"
 
@@ -45,16 +42,16 @@ Layer0
 	TextureDiffuseFalloff "materials/default/default_skin_diffusewarp.tga"
 
 	//---- Normal ----
-	g_flDiffuseNormalBlur "0.617"
+	g_flDiffuseNormalBlur "0.000"
 	TextureBentNormal "models/citizen/skin/citizen_skin_bentnormal.png"
 	TextureNormal "models/citizen/skin/citizen_skin_young_normal.png"
 
 	//---- Roughness ----
-	g_flRoughnessScale "1.000"
+	g_flRoughnessScale "1.272"
 	TextureRoughness "models/citizen/skin/citizen_skin_rough.png"
 
 	//---- Specular ----
-	g_flSecondSpecularLobeRatio "0.095"
+	g_flSecondSpecularLobeRatio "0.083"
 
 	//---- Tinting ----
 	g_bOverrideTinting "0"

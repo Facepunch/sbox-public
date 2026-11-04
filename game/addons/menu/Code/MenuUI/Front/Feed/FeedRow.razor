@@ -3,7 +3,7 @@
 @using Sandbox.UI;
 @using Sandbox.Html;
 @using Sandbox;
-@using Menu;
+@using SboxMenu;
 @inherits Panel;
 
 
@@ -46,6 +46,7 @@
 
     void OpenPackage()
     {
+        Discovery.Clicked( new DiscoveryContext { Surface = "feed" }, Entry.Package );
         Entry.Package?.OpenModal();
     }
 

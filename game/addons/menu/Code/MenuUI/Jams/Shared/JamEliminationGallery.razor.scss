@@ -1,0 +1,491 @@
+@import "/styles/_front.scss";
+
+JamPage JamEliminationGallery
+{
+	flex-direction: column;
+	flex-grow: 1;
+	flex-shrink: 1;
+	height: 0;
+	min-height: 0;
+	gap: 10px;
+	color: $front-secondary;
+	font-size: 12px;
+
+	.waiting-banner
+	{
+		flex-shrink: 0;
+		align-items: center;
+		gap: 14px;
+		padding: 18px 22px;
+		border: 1px solid rgba( $front-trophy, 0.25 );
+		border-radius: 8px;
+		background-color: rgba( $front-trophy, 0.05 );
+		> icon { font-size: 30px; color: $front-trophy; }
+		> div { flex-direction: column; gap: 4px; }
+		.waiting-title { font-size: 18px; font-weight: 700; color: $front-heading; }
+	}
+
+	&.waiting
+	{
+		.gallery-grid { align-items: center; overflow-y: scroll; }
+		.gallery-card
+		{
+			flex-shrink: 0;
+			padding: 24px 16px;
+			border-radius: 8px;
+			background-color: rgba( 255, 255, 255, 0.025 );
+		}
+		.card-actions { gap: 8px; flex-wrap: wrap; }
+		.play-action
+		{
+			height: 40px;
+			padding: 5px 22px;
+			background-color: $front-primary;
+			label { color: white; font-size: 13px; font-weight: 700; }
+		}
+	}
+
+	.round-heading
+	{
+		align-items: center;
+		justify-content: space-between;
+		gap: 16px;
+		flex-shrink: 0;
+
+		.round-summary
+		{
+			align-items: center;
+			gap: 8px;
+			min-width: 0;
+		}
+
+		.live-dot
+		{
+			width: 6px;
+			height: 6px;
+			flex-shrink: 0;
+			border-radius: 50%;
+			background-color: #76ffd2 * 2;
+			box-shadow: 0 0 8px rgba( #76ffd2, 0.4 );
+		}
+
+		.round-meta
+		{
+			font-size: 11px;
+			white-space: nowrap;
+		}
+
+		.round-tools
+		{
+			align-items: center;
+			gap: 12px;
+			min-width: 0;
+		}
+
+		.selection
+		{
+			font-size: 12px;
+			font-weight: 600;
+			color: $front-primary;
+			max-width: 260px;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+	}
+
+	.button
+	{
+		justify-content: center;
+		border-radius: 5px;
+		flex-shrink: 0;
+
+		&.disabled
+		{
+			opacity: 0.4;
+		}
+	}
+
+	.gallery-grid
+	{
+		position: relative;
+		gap: 14px;
+		flex-grow: 1;
+		flex-shrink: 1;
+		height: 0;
+		min-height: 0;
+	}
+
+	.gallery-card
+	{
+		// Equal columns expand naturally as the authoritative slate gets smaller.
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		flex-basis: 0;
+		min-width: 0;
+		min-height: 0;
+
+		.gallery-art
+		{
+			position: relative;
+			width: min(100%, 360px);
+			aspect-ratio: 16 / 9;
+			align-self: center;
+			flex-shrink: 0;
+			border: 0;
+			border-radius: 7px;
+			overflow: hidden;
+
+			PackageCard
+			{
+				width: 100%;
+				height: 100%;
+				// The outer art panel owns the frame; nested card borders inset the video.
+				border: 0;
+				border-radius: 0;
+
+				.image
+				{
+					height: 100%;
+					aspect-ratio: auto;
+					border: 0;
+					border-radius: 0;
+					background-size: contain;
+					background-repeat: no-repeat;
+					background-color: $front-card-deep;
+				}
+
+				.package-video
+				{
+					// Keep video previews intact as well as the static artwork underneath.
+					background-size: contain;
+					background-repeat: no-repeat;
+					background-color: $front-card-deep;
+				}
+
+				> column, .package-nominations, PackageFlairBar
+				{
+					display: none;
+				}
+			}
+
+			.unavailable
+			{
+				width: 100%;
+				height: 100%;
+				flex-direction: column;
+				align-items: center;
+				justify-content: center;
+				background-color: $front-card;
+			}
+		}
+
+		.gallery-details
+		{
+			flex-direction: column;
+			flex-shrink: 0;
+			height: 66px;
+			padding: 10px 0 6px;
+			gap: 4px;
+
+			.game-name
+			{
+				flex-shrink: 0;
+				font-size: 18px;
+				font-weight: 700;
+				line-height: 100%;
+				height: 24px;
+				white-space: nowrap;
+				text-align: center;
+				color: $front-heading;
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
+
+			.creator
+			{
+				flex-grow: 0;
+				flex-shrink: 1;
+				max-width: 70%;
+				min-width: 0;
+				white-space: nowrap;
+				text-align: center;
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
+		}
+
+		.creator-row
+		{
+			align-items: center;
+			justify-content: center;
+			gap: 6px;
+			font-size: 11px;
+		}
+
+		.position
+		{
+			flex-shrink: 0;
+			white-space: nowrap;
+		}
+
+		JamVoteBar
+		{
+			position: relative;
+			margin-bottom: 12px;
+			// Artwork and controls stay compact; the plot owns all remaining height.
+			height: 0;
+			min-height: 0;
+			width: 100%;
+			flex-grow: 1;
+			flex-shrink: 1;
+
+			.bar-labels
+			{
+				position: absolute;
+				top: 32px;
+				bottom: 1px;
+				left: 0;
+				right: 0;
+			}
+
+			.bar-count, .bar-change
+			{
+				position: absolute;
+				height: 30px;
+				font-family: $front-font;
+				font-weight: 700;
+				font-variant-numeric: tabular-nums;
+			}
+
+			.bar-count
+			{
+				width: 100%;
+				font-size: 23px;
+				color: $front-heading;
+				text-align: center;
+			}
+
+			.bar-change
+			{
+				left: 65%;
+				width: 35%;
+				font-size: 13px;
+				padding-top: 5px;
+			}
+
+			&.gaining
+			{
+				.bar-count, .bar-change
+				{
+					color: #76ffd2;
+				}
+			}
+
+			&.losing
+			{
+				.bar-count, .bar-change
+				{
+					color: #ff7795;
+				}
+			}
+		}
+
+		.card-actions
+		{
+			flex-shrink: 0;
+			justify-content: center;
+			margin-top: 8px;
+		}
+
+		.vote-action
+		{
+			width: min(100%, 220px);
+			height: 40px;
+			flex-shrink: 1;
+			min-width: 0;
+			gap: 9px;
+			padding: 5px 18px;
+			border: 1px solid rgba( $front-primary, 0.5 );
+			border-radius: 6px;
+			background-color: rgba( $front-primary, 0.15 );
+
+			label
+			{
+				font-size: 13px;
+				font-weight: 700;
+				text-transform: none;
+				letter-spacing: 0;
+				color: $front-heading;
+			}
+
+			&:hover
+			{
+				background-color: rgba( $front-primary, 0.3 );
+				border-color: $front-primary;
+			}
+
+			.icon-texture
+			{
+				width: 26px;
+				height: 26px;
+				flex-shrink: 0;
+				border-radius: 50%;
+				border: 1px solid rgba( white, 0.7 );
+				background-size: cover;
+				background-color: $front-card-deep;
+			}
+		}
+
+		// Keep the chosen game prominent while other games remain available after the cooldown.
+		transition: opacity 0.25s ease;
+
+		&.unselected
+		{
+			opacity: 0.45;
+
+			&:hover
+			{
+				opacity: 0.75;
+			}
+		}
+
+		&.selected
+		{
+			.gallery-art
+			{
+				outline-width: 2px;
+				outline-color: $front-primary;
+			}
+
+			.vote-action
+			{
+				// A confirmed vote stays bright even though clicking it again is disabled.
+				opacity: 1;
+				background-color: $front-primary;
+				border-color: $front-primary * 2;
+				box-shadow: 0 0 16px rgba( $front-primary, 0.3 );
+
+				label
+				{
+					color: white;
+				}
+			}
+		}
+
+		&.lowest .position
+		{
+			color: #ff8e9f;
+		}
+	}
+
+	&.grand-final .gallery-grid
+	{
+		// Bring the last two contenders together without shortening their bars or cropping artwork.
+		width: min(100%, 1040px);
+		align-self: center;
+	}
+
+	JamFinalDuel
+	{
+		position: absolute;
+		left: 0;
+		top: 0;
+		width: 100%;
+		height: 100%;
+		pointer-events: none;
+		z-index: 2;
+		animation: final-instruments-in 0.9s ease-out 1;
+	}
+
+	&.grand-final
+	{
+		.selection
+		{
+			color: $front-trophy;
+		}
+
+		.gallery-card
+		{
+			&:first-child
+			{
+				animation: final-contender-left 0.8s ease-out 1;
+			}
+
+			&:nth-child(2)
+			{
+				animation: final-contender-right 0.8s ease-out 1;
+			}
+
+			&.selected, &.winner
+			{
+				.gallery-art
+				{
+					outline-color: $front-trophy;
+					outline-width: 2px;
+				}
+
+				.vote-action
+				{
+					background-color: #ab7728;
+					border-color: $front-trophy * 1.6;
+					box-shadow: 0 0 18px rgba( $front-trophy, 0.25 );
+				}
+			}
+
+			&.winner .game-name, &.winner .position
+			{
+				color: $front-trophy * 1.25;
+			}
+
+			&.runner-up
+			{
+				opacity: 0.5;
+			}
+		}
+	}
+}
+
+@keyframes final-contender-left
+{
+	0%
+	{
+		transform: translateX(-36px);
+		opacity: 0;
+	}
+
+	100%
+	{
+		transform: translateX(0);
+		opacity: 1;
+	}
+}
+
+@keyframes final-contender-right
+{
+	0%
+	{
+		transform: translateX(36px);
+		opacity: 0;
+	}
+
+	100%
+	{
+		transform: translateX(0);
+		opacity: 1;
+	}
+}
+
+@keyframes final-instruments-in
+{
+	0%
+	{
+		opacity: 0;
+	}
+
+	100%
+	{
+		opacity: 1;
+	}
+}

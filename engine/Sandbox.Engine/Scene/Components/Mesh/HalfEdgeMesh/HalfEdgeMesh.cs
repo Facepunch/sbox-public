@@ -1093,6 +1093,8 @@ internal sealed partial class Mesh
 				{
 					return false;
 				}
+
+				CopyFaceVertexData( pEdge, pEdge.OppositeEdge );
 			}
 			else if ( pVerticesB[iVertex].Edge != HalfEdgeHandle.Invalid )
 			{
@@ -1952,10 +1954,11 @@ internal sealed partial class Mesh
 		return true;
 	}
 
-	public bool AddEdgeToFace( HalfEdgeHandle hIncomingEdgeA, HalfEdgeHandle hIncomingEdgeB, out HalfEdgeHandle hOutNewEdge )
+	/// <summary>
+	/// Would <see cref="AddEdgeToFace"/> succeed for these two incoming half edges? Does not modify the mesh.
+	/// </summary>
+	public bool CanAddEdgeToFace( HalfEdgeHandle hIncomingEdgeA, HalfEdgeHandle hIncomingEdgeB )
 	{
-		hOutNewEdge = HalfEdgeHandle.Invalid;
-
 		if ( !hIncomingEdgeA.IsValid || !hIncomingEdgeB.IsValid )
 			return false;
 
@@ -1976,6 +1979,20 @@ internal sealed partial class Mesh
 		// Make sure that an edge connecting the specified vertices does not already exist.
 		if ( FindFullEdgeConnectingVertices( hVertexA, hVertexB ).IsValid )
 			return false;
+
+		return true;
+	}
+
+	public bool AddEdgeToFace( HalfEdgeHandle hIncomingEdgeA, HalfEdgeHandle hIncomingEdgeB, out HalfEdgeHandle hOutNewEdge )
+	{
+		hOutNewEdge = HalfEdgeHandle.Invalid;
+
+		if ( !CanAddEdgeToFace( hIncomingEdgeA, hIncomingEdgeB ) )
+			return false;
+
+		var hFace = hIncomingEdgeA.Face;
+		var hVertexA = hIncomingEdgeA.Vertex;
+		var hVertexB = hIncomingEdgeB.Vertex;
 
 		// Create the new half edge pair
 		if ( AllocateHalfEdgePair( out var hNewEdgeAB, out var hNewEdgeBA, hIncomingEdgeB.Index, hIncomingEdgeA.Index ) == false )
@@ -2788,7 +2805,7 @@ internal sealed partial class Mesh
 
 				hFullEdge = FindFullEdgeConnectingVertices( hVertexA, hVertexB );
 				bool bSuccess = CollapseEdge( hFullEdge, out hOutNewVertex, bCheckOnly, out var _ );
-				if ( bCheckOnly )
+				if ( bCheckOnly || !bSuccess )
 				{
 					RemoveFace( hNewFace, false );
 				}
@@ -2810,7 +2827,7 @@ internal sealed partial class Mesh
 
 				hFullEdge = FindFullEdgeConnectingVertices( hVertexA, hVertexB );
 				var bSuccess = CollapseEdge( hFullEdge, out hOutNewVertex, bCheckOnly, out var _ );
-				if ( bCheckOnly )
+				if ( bCheckOnly || !bSuccess )
 				{
 					RemoveFace( hNewFace, false );
 				}

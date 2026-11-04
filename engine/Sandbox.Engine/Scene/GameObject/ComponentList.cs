@@ -1,4 +1,5 @@
-﻿namespace Sandbox;
+﻿using Sandbox.Engine;
+namespace Sandbox;
 
 /// <summary>
 /// Flags to search for Components.
@@ -166,7 +167,9 @@ public class ComponentList
 			return null;
 
 		using var batch = CallbackBatch.Batch();
-		var t = (Component)Activator.CreateInstance( type );
+
+		// TypeLibrary caches a compiled parameterless factory, much cheaper than Activator.CreateInstance
+		var t = GlobalContext.Current.TypeLibrary?.GetType( type )?.Create<Component>() ?? (Component)Activator.CreateInstance( type );
 
 		t.GameObject = go;
 		_list.Add( t );
@@ -183,7 +186,9 @@ public class ComponentList
 	/// </summary>
 	public T Get<T>( FindMode search )
 	{
-		return GetAll<T>( search ).FirstOrDefault();
+		if ( go.IsDestroyed ) return default;
+
+		return TryFindFirst<T>( search, out var found ) ? found : default;
 	}
 
 	/// <summary>
@@ -219,6 +224,15 @@ public class ComponentList
 		CollectAll( results, find );
 
 		return results;
+	}
+
+	/// <summary>
+	/// Append matching components to reusable engine-owned storage.
+	/// </summary>
+	internal void GetAll<T>( List<T> results, FindMode find )
+	{
+		if ( go.IsDestroyed ) return;
+		CollectAll( results, find );
 	}
 
 	// This is an incredibly hot code path, even the slightest change should be verified with benchmarks.
@@ -300,6 +314,66 @@ public class ComponentList
 				go.Parent.Components.CollectAll( results, parentFlags );
 			}
 		}
+	}
+
+	// First-match twin of CollectAll. Same traversal order, so Get<T> returns what
+	// GetAll<T>().FirstOrDefault() did, without building the list.
+	private bool TryFindFirst<T>( FindMode find, out T result )
+	{
+		result = default;
+
+		bool enabledOnly = find.Contains( FindMode.Enabled );
+		bool disabledOnly = find.Contains( FindMode.Disabled );
+
+		if ( enabledOnly == disabledOnly )
+		{
+			enabledOnly = false;
+			disabledOnly = false;
+		}
+
+		if ( enabledOnly && !go.Enabled ) return false;
+
+		if ( find.Contains( FindMode.InSelf ) && _internalList is not null )
+		{
+			for ( int i = 0; i < _list.Count; i++ )
+			{
+				var component = _list[i];
+				if ( component is null ) continue;
+				if ( enabledOnly && !component.Active ) continue;
+				if ( disabledOnly && component.Active ) continue;
+
+				if ( component is T c )
+				{
+					result = c;
+					return true;
+				}
+			}
+		}
+
+		if ( find.Contains( FindMode.InChildren ) || find.Contains( FindMode.InDescendants ) )
+		{
+			var childFlags = find | FindMode.InSelf;
+			childFlags &= ~(FindMode.InParent | FindMode.InAncestors);
+			if ( !find.Contains( FindMode.InDescendants ) ) childFlags &= ~FindMode.InChildren;
+
+			for ( int i = 0; i < go.Children.Count; i++ )
+			{
+				var child = go.Children[i];
+				if ( child.IsValid() && child.Components.TryFindFirst( childFlags, out result ) ) return true;
+			}
+		}
+
+		if ( find.Contains( FindMode.InParent ) || find.Contains( FindMode.InAncestors ) )
+		{
+			var parentFlags = find | FindMode.InSelf;
+			parentFlags &= ~(FindMode.InChildren | FindMode.InDescendants);
+			if ( !find.Contains( FindMode.InAncestors ) ) parentFlags &= ~FindMode.InParent;
+
+			if ( go.Parent is not null && go.Parent is PrefabScene or not Scene )
+				return go.Parent.Components.TryFindFirst( parentFlags, out result );
+		}
+
+		return false;
 	}
 
 	internal void Execute<T>( Action<T> action, FindMode find = FindMode.EnabledInSelfAndDescendants )
@@ -481,6 +555,11 @@ public class ComponentList
 	/// Amount of components - including disabled
 	/// </summary>
 	public int Count => _internalList is null ? 0 : _internalList.Count;
+
+	/// <summary>
+	/// Raw indexed access, including disabled components and nulls. Avoids the boxed enumerator you get from GetAll().
+	/// </summary>
+	internal Component this[int index] => _internalList[index];
 
 	public void ForEach<T>( string name, bool includeDisabled, Action<T> action )
 	{
@@ -719,7 +798,7 @@ public interface IComponentLister
 	[Pure, Title( "Get {T|Component}" )]
 	public T Get<[HasImplementation( typeof( Component ) )] T>( FindMode search = FindMode.EnabledInSelf )
 	{
-		return Components.GetAll<T>( search ).FirstOrDefault();
+		return Components.Get<T>( search );
 	}
 
 	[Pure, Title( "Try Get {T|Component}" )]

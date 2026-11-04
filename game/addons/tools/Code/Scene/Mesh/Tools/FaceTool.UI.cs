@@ -74,6 +74,9 @@ partial class FaceTool
 				_meshTool.CreateMoveModeButtons( row );
 			}
 
+			this.AddPivotGroup( tool );
+			this.AddPivotButtons( tool, _faces.Length > 0 );
+
 			{
 				var group = AddGroup( "Operations", collapsible: true );
 
@@ -196,6 +199,8 @@ partial class FaceTool
 				("Lasso Deselect", "Alt+Ctrl+Drag"),
 				("Grow Selection", "Numpad +"),
 				("Shrink Selection", "Numpad -"),
+				("Hide Faces", EditorShortcuts.GetDisplayKeys( "mesh.hide-faces" )),
+				("Unhide All Faces", EditorShortcuts.GetDisplayKeys( "mesh.unhide-faces" )),
 				("Apply Material", "Shift+T"),
 				("Wrap Material", "Alt+RMB"),
 				("Lift Material", "Shift+RMB")
@@ -247,13 +252,84 @@ partial class FaceTool
 
 			foreach ( var faceGroup in _faceGroups )
 			{
-				var faces = faceGroup.Key.Mesh.FaceHandles;
+				var mesh = faceGroup.Key.Mesh;
 
-				foreach ( var face in faces )
+				foreach ( var face in mesh.FaceHandles )
 				{
+					if ( mesh.IsFaceHidden( face ) )
+						continue;
+
 					selection.Add( new MeshFace( faceGroup.Key, face ) );
 				}
 			}
+		}
+
+		[Shortcut( "mesh.hide-faces", "H", typeof( SceneViewWidget ) )]
+		private void HideFaces()
+		{
+			using var scope = SceneEditorSession.Scope();
+
+			var faces = _faces.Where( x => x.IsValid() ).ToArray();
+			if ( faces.Length == 0 )
+				return;
+
+			HideFaces( faces );
+
+			SceneEditorSession.Active.UndoSystem.Insert( "Hide Faces",
+				() => UnhideFaces( faces ),
+				() => HideFaces( faces ) );
+		}
+
+		[Shortcut( "mesh.unhide-faces", "U", typeof( SceneViewWidget ) )]
+		private void UnhideFaces()
+		{
+			using var scope = SceneEditorSession.Scope();
+
+			var faces = SceneEditorSession.Active.Scene.GetAllComponents<MeshComponent>()
+				.Where( x => x.Mesh?.HasHiddenFaces is true )
+				.SelectMany( x => x.Mesh.FaceHandles
+					.Where( h => x.Mesh.IsFaceHidden( h ) )
+					.Select( h => new MeshFace( x, h ) ) )
+				.ToArray();
+
+			if ( faces.Length == 0 )
+				return;
+
+			UnhideFaces( faces );
+
+			SceneEditorSession.Active.UndoSystem.Insert( "Unhide All Faces",
+				() => HideFaces( faces ),
+				() => UnhideFaces( faces ) );
+		}
+
+		private static void HideFaces( MeshFace[] faces )
+		{
+			var selection = SceneEditorSession.Active.Selection;
+			var components = new HashSet<MeshComponent>();
+
+			foreach ( var face in faces.Where( x => x.IsValid() ) )
+			{
+				face.Component.Mesh.SetFaceHidden( face.Handle, true );
+				selection.Remove( face );
+				components.Add( face.Component );
+			}
+
+			foreach ( var component in components )
+				component.RebuildMesh();
+		}
+
+		private static void UnhideFaces( MeshFace[] faces )
+		{
+			var components = new HashSet<MeshComponent>();
+
+			foreach ( var face in faces.Where( x => x.IsValid() ) )
+			{
+				face.Component.Mesh.SetFaceHidden( face.Handle, false );
+				components.Add( face.Component );
+			}
+
+			foreach ( var component in components )
+				component.RebuildMesh();
 		}
 
 		[Shortcut( "mesh.open-clipping-tool", "SHIFT+X", typeof( SceneViewWidget ) )]
@@ -521,6 +597,7 @@ partial class FaceTool
 				{
 					var go = session.Scene.CreateObject();
 					go.Name = "Pasted Mesh";
+					go.IsStatic = true;
 
 					if ( options.RelativeToLast && allPasted.Count > 0 )
 					{
@@ -619,6 +696,7 @@ partial class FaceTool
 
 					var go = new GameObject( entry.Name );
 					go.WorldTransform = entry.WorldTransform;
+					go.IsStatic = entry.IsStatic;
 					go.MakeNameUnique();
 
 					entry.AddSibling( go, false );
@@ -956,6 +1034,95 @@ partial class FaceTool
 			}
 
 			SelectionFrameUtil.FramePoints( points );
+		}
+
+		[Shortcut( "mesh.select-loop", "L", typeof( SceneViewWidget ) )]
+		private void SelectLoop()
+		{
+			var faces = _faces
+				.Where( x => x.IsValid() )
+				.ToArray();
+
+			var loopFaces = faces.ToHashSet();
+			var hasDirection = false;
+
+			foreach ( var group in faces.GroupBy( x => x.Component ) )
+			{
+				var component = group.Key;
+				var mesh = component.Mesh;
+				var selectedHandles = group
+					.Select( x => x.Handle )
+					.ToHashSet();
+
+				foreach ( var face in group )
+				{
+					foreach ( var edge in mesh.GetFaceEdges( face.Handle ) )
+					{
+						mesh.GetFacesConnectedToEdge( edge, out var faceA, out var faceB );
+
+						var neighbor = faceA == face.Handle ? faceB : faceA;
+						if ( !neighbor.IsValid || !selectedHandles.Contains( neighbor ) )
+							continue;
+
+						hasDirection = true;
+						ExtendFaceLoop( component, face.Handle, neighbor, loopFaces );
+					}
+				}
+			}
+
+			if ( !hasDirection )
+				return;
+
+			using var scope = SceneEditorSession.Scope();
+			using var undoScope = SceneEditorSession.Active.UndoScope( "Select Face Loop" ).Push();
+
+			var selection = SceneEditorSession.Active.Selection;
+			selection.Clear();
+
+			foreach ( var face in loopFaces )
+				selection.Add( face );
+		}
+
+		private static void ExtendFaceLoop( MeshComponent component, FaceHandle current, FaceHandle previous, HashSet<MeshFace> loopFaces )
+		{
+			var mesh = component.Mesh;
+
+			while ( current.IsValid )
+			{
+				var edges = mesh.GetFaceEdges( current );
+				if ( edges.Length != 4 )
+					return;
+
+				var incomingEdgeIndex = -1;
+
+				for ( var i = 0; i < edges.Length; i++ )
+				{
+					mesh.GetFacesConnectedToEdge( edges[i], out var faceA, out var faceB );
+
+					if ( (faceA == current && faceB == previous) ||
+						(faceB == current && faceA == previous) )
+					{
+						incomingEdgeIndex = i;
+						break;
+					}
+				}
+
+				if ( incomingEdgeIndex < 0 )
+					return;
+
+				var oppositeEdge = edges[(incomingEdgeIndex + 2) % edges.Length];
+				mesh.GetFacesConnectedToEdge( oppositeEdge, out var oppositeFaceA, out var oppositeFaceB );
+
+				var next = oppositeFaceA == current ? oppositeFaceB : oppositeFaceA;
+				if ( !next.IsValid || mesh.IsFaceHidden( next ) )
+					return;
+
+				if ( !loopFaces.Add( new MeshFace( component, next ) ) )
+					return;
+
+				previous = current;
+				current = next;
+			}
 		}
 	}
 }

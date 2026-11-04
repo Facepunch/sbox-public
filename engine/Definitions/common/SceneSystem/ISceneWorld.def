@@ -28,4 +28,14 @@ native class ISceneWorld as NativeEngine.ISceneWorld
 	void Add3DSkyboxWorld( ISceneWorld world );
 	void Remove3DSkyboxWorld( ISceneWorld world );
 	void Set3DSkyboxParameters( Vector3 origin, Angles angle, float scale );
+
+	inline Vector4 Get3DSkyboxOriginAndScale()
+	{
+		ISceneWorld *world = nullptr;
+		Vector origin;
+		QAngle angles;
+		float scale;
+		self->Get3DSkybox( world, origin, angles, scale );
+		return world ? Vector4D( origin.x, origin.y, origin.z, scale ) : Vector4D( 0, 0, 0, 0 );
+	}
 }

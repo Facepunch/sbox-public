@@ -59,6 +59,19 @@ public static partial class MenuUtility
 	/// </summary>
 	public static class Rewards
 	{
+		static int GetOwnedCount( long itemDefId )
+		{
+			if ( itemDefId <= 0 )
+				return 0;
+
+			return Services.Inventory.Items.Count( x => x.DefinitionId == (int)itemDefId );
+		}
+
+		/// <summary>
+		/// Whether the current offer is a simulated editor-only offer (no real items are granted)
+		/// </summary>
+		internal static bool IsSimulated { get; set; }
+
 		/// <summary>
 		/// Get the player's reward state — their windows (requirements + progress) and any
 		/// pending unclaimed offer to resume. Poll after a session and after claiming.
@@ -66,20 +79,46 @@ public static partial class MenuUtility
 		public static async Task<RewardState> GetRewards()
 		{
 			var state = await Backend.Account.GetRewards();
-			return new RewardState( state );
+			var result = new RewardState( state );
+
+			// In the editor, if the backend didn't return anything claimable, we simulate a fake one
+			if ( Application.IsEditor && result.Windows.Length == 0 )
+			{
+				result.Windows = new[]
+				{
+					new RewardWindow
+					{
+						Key = "simulated",
+						Title = "Simulated Reward",
+						IsEligible = true,
+						Facets = Array.Empty<RewardFacet>()
+					}
+				};
+			}
+
+			return result;
 		}
 
 		/// <summary>
 		/// Open a reward claim: returns the items on offer to choose from (or the existing
 		/// unclaimed offer to resume), or null if there's nothing to claim right now.
+		/// Claiming reserves the current week's reward; its item can be chosen after the week ends.
 		/// </summary>
 		public static async Task<RewardOffer> ClaimReward()
 		{
-			var offer = await Backend.Account.ClaimReward();
-			if ( offer is null )
-				return null;
+			IsSimulated = false;
 
-			return new RewardOffer( offer );
+			var offer = await Backend.Account.ClaimReward();
+			if ( offer is not null )
+				return new RewardOffer( offer );
+
+			if ( Application.IsEditor )
+			{
+				IsSimulated = true;
+				return CreateSimulatedOffer();
+			}
+
+			return null;
 		}
 
 		/// <summary>
@@ -88,6 +127,12 @@ public static partial class MenuUtility
 		/// </summary>
 		public static async Task<RewardResult> ChooseReward( RewardChoice choice )
 		{
+			// For simulated editor offers, skip the backend and return success immediately
+			if ( IsSimulated )
+			{
+				IsSimulated = false;
+				return CreateSimulatedResult( choice );
+			}
 
 			var serviceChoice = new Services.RewardChoice();
 			serviceChoice.DropId = choice.DropId;
@@ -96,6 +141,65 @@ public static partial class MenuUtility
 			var result = await Backend.Account.ChooseReward( serviceChoice );
 			return new RewardResult( result );
 		}
+
+		/// <summary>
+		/// Item definition IDs to use for the simulated editor offer.
+		/// </summary>
+		public static long[] SimulatedItemDefIds { get; set; } = new long[] { 545937, 218193, 115629 };
+
+		static RewardOffer CreateSimulatedOffer()
+		{
+			var simulatedIds = SimulatedItemDefIds ?? Array.Empty<long>();
+			var items = new RewardItem[simulatedIds.Length];
+
+			for ( int i = 0; i < simulatedIds.Length; i++ )
+			{
+				var defId = simulatedIds[i];
+				var def = new Services.Inventory.ItemDefinition( (int)defId );
+
+				items[i] = new RewardItem
+				{
+					ItemDefId = defId,
+					Name = def.Name ?? $"Item {defId}",
+					Icon = def.IconUrl ?? "",
+					Rarity = ItemRarityExtensions.ParseRarity( def.Rarity ),
+					OwnedCount = GetOwnedCount( defId )
+				};
+			}
+
+			return new RewardOffer
+			{
+				DropId = -1,
+				PickCount = 1,
+				Items = items
+			};
+		}
+
+		static RewardResult CreateSimulatedResult( RewardChoice choice )
+		{
+			var items = new RewardItem[choice.ItemDefIds.Length];
+			for ( int i = 0; i < choice.ItemDefIds.Length; i++ )
+			{
+				var itemDefId = choice.ItemDefIds[i];
+				var def = new Services.Inventory.ItemDefinition( (int)itemDefId );
+
+				items[i] = new RewardItem
+				{
+					ItemDefId = itemDefId,
+					Name = def.Name ?? "Simulated Reward",
+					Icon = def.IconUrl ?? "",
+					Rarity = ItemRarityExtensions.ParseRarity( def.Rarity ),
+					OwnedCount = GetOwnedCount( itemDefId )
+				};
+			}
+
+			return new RewardResult
+			{
+				Success = true,
+				Items = items
+			};
+		}
+
 	}
 }
 
@@ -105,7 +209,14 @@ public static partial class MenuUtility
 /// </summary>
 public class RewardState
 {
+	/// <summary>
+	/// The reward challenges with the player's progress against each.
+	/// </summary>
 	public RewardWindow[] Windows { get; set; } = Array.Empty<RewardWindow>();
+
+	/// <summary>
+	/// An open, unclaimed offer to resume, including offers from earlier weeks.
+	/// </summary>
 	public RewardOffer Pending { get; set; }
 
 	internal RewardState() { }
@@ -132,14 +243,58 @@ public class RewardState
 }
 
 /// <summary>
-/// A reward track shown to the player: a set of requirements ("facets") with the player's
-/// current progress, and whether they can claim a reward right now.
+/// Current weekly challenge and the player's achievement progress.
 /// </summary>
 public class RewardWindow
 {
+	/// <summary>
+	/// Stable track identifier, retained as "drop" for existing clients.
+	/// </summary>
 	public string Key { get; set; }
+
+	/// <summary>
+	/// Display title of the challenge.
+	/// </summary>
 	public string Title { get; set; }
+
+	/// <summary>
+	/// Continuous week number, with zero beginning Sunday 4 January 2026 at 00:00 UTC.
+	/// </summary>
+	public int WeekNumber { get; set; }
+
+	/// <summary>
+	/// Inclusive Sunday opening time in UTC.
+	/// </summary>
+	public DateTimeOffset StartsAt { get; set; }
+
+	/// <summary>
+	/// Exclusive deadline for opening this week's reward.
+	/// </summary>
+	public DateTimeOffset EndsAt { get; set; }
+
+	/// <summary>
+	/// True when the player can open a new reward for this week.
+	/// </summary>
 	public bool IsEligible { get; set; }
+
+	/// <summary>
+	/// Eligibility reason, including disabled, not_game_owner, untrusted and already_claimed.
+	/// </summary>
+	public string Reason { get; set; }
+
+	/// <summary>
+	/// Offer already opened for this week, whether or not its item has been chosen.
+	/// </summary>
+	public long? RewardDropId { get; set; }
+
+	/// <summary>
+	/// True when this week's chosen reward has been granted through Steam.
+	/// </summary>
+	public bool IsClaimed { get; set; }
+
+	/// <summary>
+	/// Every listed objective is required to earn the weekly reward.
+	/// </summary>
 	public RewardFacet[] Facets { get; set; } = Array.Empty<RewardFacet>();
 
 	internal RewardWindow() { }
@@ -148,7 +303,13 @@ public class RewardWindow
 	{
 		Key = window.Key;
 		Title = window.Title;
+		WeekNumber = window.WeekNumber;
+		StartsAt = window.StartsAt;
+		EndsAt = window.EndsAt;
 		IsEligible = window.IsEligible;
+		Reason = window.Reason;
+		RewardDropId = window.RewardDropId;
+		IsClaimed = window.IsClaimed;
 
 		if ( window.Facets is not null )
 		{
@@ -162,16 +323,63 @@ public class RewardWindow
 }
 
 /// <summary>
-/// A single requirement of a <see cref="RewardWindow"/> together with the player's progress
-/// against it. Built for display — a checklist row / progress dots.
+/// An achievement objective and its game, including credit for an existing unlock.
 /// </summary>
 public class RewardFacet
 {
+	/// <summary>
+	/// Stable objective identifier.
+	/// </summary>
 	public string Key { get; set; }
+
+	/// <summary>
+	/// Combined game and achievement display name for older clients.
+	/// </summary>
 	public string Title { get; set; }
+
+	/// <summary>
+	/// Achievement's description of what the player must do.
+	/// </summary>
 	public string Description { get; set; }
+
+	/// <summary>
+	/// Published game identifier used for launch and detail links.
+	/// </summary>
+	public string GameIdent { get; set; }
+
+	/// <summary>
+	/// Display name of the game containing the achievement.
+	/// </summary>
+	public string GameTitle { get; set; }
+
+	/// <summary>
+	/// Achievement identifier within the game.
+	/// </summary>
+	public string AchievementName { get; set; }
+
+	/// <summary>
+	/// Achievement display name without the game title.
+	/// </summary>
+	public string AchievementTitle { get; set; }
+
+	/// <summary>
+	/// Achievement icon URL, when one is configured.
+	/// </summary>
+	public string Icon { get; set; }
+
+	/// <summary>
+	/// One if unlocked, otherwise zero.
+	/// </summary>
 	public double Current { get; set; }
+
+	/// <summary>
+	/// Required completion count, currently always one.
+	/// </summary>
 	public double Required { get; set; }
+
+	/// <summary>
+	/// Whether the player has unlocked this achievement.
+	/// </summary>
 	public bool Met { get; set; }
 
 	internal RewardFacet( Services.RewardFacet facet )
@@ -179,6 +387,11 @@ public class RewardFacet
 		Key = facet.Key;
 		Title = facet.Title;
 		Description = facet.Description;
+		GameIdent = facet.GameIdent;
+		GameTitle = facet.GameTitle;
+		AchievementName = facet.AchievementName;
+		AchievementTitle = facet.AchievementTitle;
+		Icon = facet.Icon;
 		Current = facet.Current;
 		Required = facet.Required;
 		Met = facet.Met;
@@ -191,8 +404,29 @@ public class RewardFacet
 /// </summary>
 public class RewardOffer
 {
+	/// <summary>
+	/// The drop this offer belongs to. Pass it back when choosing.
+	/// </summary>
 	public long DropId { get; set; }
+
+	/// <summary>
+	/// Week that produced this offer, or null for a reward from the previous system.
+	/// </summary>
+	public int? WeekNumber { get; set; }
+
+	/// <summary>
+	/// Choice already submitted to Steam. Retry these same items after a grant failure.
+	/// </summary>
+	public long[] ChosenItemDefIds { get; set; } = Array.Empty<long>();
+
+	/// <summary>
+	/// How many of <see cref="Items"/> the player gets to keep.
+	/// </summary>
 	public int PickCount { get; set; }
+
+	/// <summary>
+	/// The items on offer.
+	/// </summary>
 	public RewardItem[] Items { get; set; } = Array.Empty<RewardItem>();
 
 	internal RewardOffer() { }
@@ -200,6 +434,8 @@ public class RewardOffer
 	internal RewardOffer( Services.RewardOffer offer )
 	{
 		DropId = offer.DropId;
+		WeekNumber = offer.WeekNumber;
+		ChosenItemDefIds = offer.ChosenItemDefIds ?? Array.Empty<long>();
 		PickCount = offer.PickCount;
 
 		if ( offer.Items is not null )
@@ -220,6 +456,10 @@ public class RewardItem
 	public string Name { get; set; }
 	public string Icon { get; set; }
 	public ItemRarity Rarity { get; set; }
+	public int OwnedCount { get; set; }
+
+	/// <summary>True when the player already owns one or more copies of this item.</summary>
+	public bool IsOwned => OwnedCount > 0;
 
 	/// <summary>The hex colour for this item's rarity (e.g. "#8847ff"), or null if no rarity.</summary>
 	public string RarityColor => Rarity.GetColor();
@@ -231,6 +471,7 @@ public class RewardItem
 		ItemDefId = item.ItemDefId;
 		Name = item.Name;
 		Icon = item.Icon;
+		OwnedCount = Services.Inventory.Items.Count( x => x.DefinitionId == (int)item.ItemDefId );
 
 		// Resolve rarity from the Steam inventory definition
 		var def = Services.Inventory.FindDefinition( (int)item.ItemDefId );

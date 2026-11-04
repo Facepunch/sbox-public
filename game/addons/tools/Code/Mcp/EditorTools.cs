@@ -1,7 +1,4 @@
 using Microsoft.CodeAnalysis;
-using Sandbox;
-using System;
-using System.Linq;
 
 namespace Editor.Mcp;
 

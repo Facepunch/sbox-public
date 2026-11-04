@@ -127,6 +127,11 @@ partial class MovieEditor : EditorEvent.ISceneEdited
 
 		if ( Session?.EditMode?.PreChange( view ) is true )
 		{
+			// We've changed the movie by doing a temporary change to the scene,
+			// no need for the scene session to record it in undo history
+
+			SceneEditorSession.Active?.CancelUndoScope();
+
 			view.MarkValueChanged();
 			return true;
 		}
@@ -140,6 +145,11 @@ partial class MovieEditor : EditorEvent.ISceneEdited
 
 		if ( Session?.EditMode?.PostChange( view ) is true )
 		{
+			// We've changed the movie by doing a temporary change to the scene,
+			// no need for the scene session to record it in undo history
+
+			SceneEditorSession.Active?.CancelUndoScope();
+
 			view.MarkValueChanged();
 			return true;
 		}

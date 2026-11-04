@@ -6,9 +6,40 @@ namespace NetworkTests;
 public class NetworkFileRoutingTest
 {
 	[TestMethod]
+	public void OptedInNetworkRulesExpandFoldersAndIgnoreCommentsAndExclusions()
+	{
+		var paths = GameInstanceDll.GetNetworkIncludePaths( "sounds/\n UI\\ \n# note\n!sounds/dev*\n// ignored\nfonts/*.ttf\n  ", true ).ToArray();
+		CollectionAssert.AreEqual( new[] { "/resources/*", "/sounds/*", "/UI/*", "/fonts/*.ttf" }, paths, string.Join( ", ", paths ) );
+		Assert.IsTrue( "/sounds/ambient/birds.wav".WildcardMatch( paths[1] ) );
+	}
+
+	[TestMethod]
+	public void LegacyNetworkRulesKeepSpecialCharactersLiteral()
+	{
+		var paths = GameInstanceDll.GetNetworkIncludePaths( "sounds/\n#data.txt\n!data.txt\n// ignored", false ).ToArray();
+		CollectionAssert.AreEqual( new[] { "/sounds/", "/#data.txt", "/!data.txt" }, paths );
+	}
+
+	[TestMethod]
+	public void NetworkResourcesFolderRequiresOptIn()
+	{
+		Assert.AreEqual( 0, GameInstanceDll.GetNetworkIncludePaths( null, false ).Count() );
+		CollectionAssert.AreEqual( new[] { "/resources/*" }, GameInstanceDll.GetNetworkIncludePaths( null, true ).ToArray() );
+	}
+
+	[TestMethod]
 	public void SmallShaderUsesLargeDownload()
 	{
 		Assert.IsTrue( GameInstanceDll.ShouldUseLargeDownload( "shaders/toon_postprocess.shader_c", 1024 ) );
+	}
+
+	[DataTestMethod]
+	[DataRow( 0L )]
+	[DataRow( 1695L )]
+	[DataRow( 65535L )]
+	public void SmallPhysicsUsesLargeDownload( long size )
+	{
+		Assert.IsTrue( GameInstanceDll.ShouldUseLargeDownload( "scenes/world_scene_data/compiled/generation/collision_0.vphys_c", size ) );
 	}
 
 	[TestMethod]

@@ -1,75 +1,105 @@
 ﻿@using Sandbox.Modals
 @using Sandbox
-@using MenuProject.Social
+@using Sandbox.UI
+@using MenuProject.MenuUI.Front
 
 @namespace MenuProject.Modals
 @inherits MenuProject.Modals.BaseModal
 
-<root class="friendslist-modal">
-	<div class="inner">
-
-        <div class="header">
-            <h2><i>people</i>Friends</h2>
-        </div>
-
-		<div class="friends-list">			
-			@* TODO: It'd be really great if we could group together our friends in parties here *@
-			@foreach ( var friend in Friends )
-			{
-			    <FriendEntry Friend=@friend></FriendEntry>
-			}
-
-            @if( !Friends.Any() )
-            {
-                <p>Nothing to show!</p>
-            }
-
-		</div>
+@*
+    The friends list as a popup - the home page's own list (FriendsRail), the same search, groups, party
+    cards and rows, in a card of its own. Off the party deck it sits over it at the deck's width, so the
+    two line up as one column.
+*@
+<root class="friendslist-modal @(IsAnchored ? "anchored" : "")">
+	<div class="inner" @ref="Inner">
+		<FriendsRail />
 	</div>
 </root>
 
 @code
 {
-    public IEnumerable<Friend> Friends => MenuUtility.Friends.Where( ShouldShow )
-        .OrderBy( GetGroup )
-        .ThenBy( x => x.Name );
-
     FriendsListModalOptions Options;
+    Panel Inner;
+    int placementHash;
 
     public FriendsListModal(FriendsListModalOptions options)
     {
         Options = options;
+
+        // Before the first layout, not on first render - otherwise the base .modal styles land first
+        // and it visibly transitions out of them (the blur fading, the box sliding in from its
+        // -1000px insets) as it appears.
+        if ( IsAnchored )
+            AddClass( "anchored" );
     }
 
-    private bool ShouldShow(Friend friend)
+    /// <summary>
+    /// Follow the anchor and keep the friends list inside the current viewport after resizing or docking.
+    /// </summary>
+    public override void Tick()
     {
-        if (friend.IsMe) return false;
+        base.Tick();
 
-        if (friend.IsOnline && friend.IsPlayingThisGame)
-            return true;
-
-        if (Options.ShowOnlineMembers && friend.IsOnline)
-            return true;
-
-        if (Options.ShowOfflineMembers && !friend.IsOnline)
-            return true;
-
-        return false;
+        if ( IsAnchored && Inner.IsValid() )
+            PositionAnchored( Options.Anchor.Value.Panel, Options.Anchor.Value.Position, Options.Anchor.Value.Offset );
     }
 
-    private int GetGroup( Friend friend ) 
-    {
-        if ( friend.IsOnline && friend.IsPlayingThisGame ) return 1;
-        if ( friend.IsOnline && friend.IsPlayingAGame ) return 2;
-        if ( friend.IsAway || friend.IsBusy || friend.IsSnoozing ) return 4;
-        if ( friend.IsOnline ) return 3;
-        return 99;
-    }
+    bool IsAnchored => Options.Anchor.HasValue && Options.Anchor.Value.Panel is { IsValid: true };
 
+    /// <summary>
+    /// As narrow as it goes, anchored - names and what they're doing still read at this.
+    /// </summary>
+    const float MinWidth = 384;
 
-    [Event("friend.change")]
-    public void SteamFriends_OnPersonaStateChange(Friend friend)
+    /// <summary>
+    /// Prefer the requested side, flip when the other side has more room, and constrain the
+    /// scrolling list to the available space. All coordinates are local to this modal.
+    /// </summary>
+    void PositionAnchored( Panel source, ModalAnchorPosition position, float offset = 8.0f )
     {
-        StateHasChanged();
+        if ( Box.Rect.Width <= 0 || Box.Rect.Height <= 0 ) return;
+
+        const float margin = 12;
+        var scale = ScaleFromScreen;
+        var rect = source.Box.Rect * scale;
+        var bounds = Box.Rect * scale;
+        var hash = HashCode.Combine( rect, bounds, position, offset );
+        if ( hash == placementHash ) return;
+        placementHash = hash;
+
+        // The anchor's width - the party deck's, so the two line up - but never narrower than a list
+        // wants, off something small like a button
+        var width = Math.Min( Math.Max( rect.Width, MinWidth ), Math.Max( 0, bounds.Width - margin * 2 ) );
+        var above = Math.Max( 0, rect.Top - bounds.Top - offset - margin );
+        var below = Math.Max( 0, bounds.Bottom - rect.Bottom - offset - margin );
+        var preferAbove = position is ModalAnchorPosition.AboveLeft or ModalAnchorPosition.AboveRight;
+        var alignRight = position is ModalAnchorPosition.AboveRight or ModalAnchorPosition.BelowRight;
+
+        // A long friends list should use the larger side instead of disappearing above the screen.
+        if ( preferAbove ? above < 560 && below > above : below < 560 && above > below )
+        {
+            preferAbove = !preferAbove;
+        }
+
+        var height = Math.Min( 560, preferAbove ? above : below );
+        var left = (alignRight ? rect.Right - width : rect.Left) - bounds.Left;
+        Inner.Style.Width = width;
+        Inner.Style.MaxHeight = height;
+        Inner.Style.Left = Math.Clamp( left, margin, Math.Max( margin, bounds.Width - width - margin ) );
+        Inner.Style.Right = null;
+
+        if ( preferAbove )
+        {
+            Inner.Style.Top = null;
+            Inner.Style.Bottom = Math.Clamp( bounds.Bottom - rect.Top + offset, margin, Math.Max( margin, bounds.Height - height - margin ) );
+        }
+        else
+        {
+            Inner.Style.Bottom = null;
+            Inner.Style.Top = Math.Clamp( rect.Bottom - bounds.Top + offset, margin, Math.Max( margin, bounds.Height - height - margin ) );
+        }
+
+        Inner.Style.Position = PositionMode.Absolute;
     }
 }

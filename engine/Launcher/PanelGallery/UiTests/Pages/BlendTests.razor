@@ -1,0 +1,45 @@
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+
+@using Sandbox;
+@using Sandbox.UI;
+
+@attribute [Group( "Effects" )]
+@attribute [Title( "mix-blend-mode" )]
+@attribute [Description( "Blend modes and isolation" )]
+@attribute [Icon( "opacity" )]
+
+<root>
+
+    <h2>Blend modes</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Frame" Rule="mix-blend-mode: normal" Caption="mix-blend-mode: normal" Note="Reference: the pink square simply covers the gradient.">
+            <ChildContent><div class="under"><div class="blend normal"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="mix-blend-mode: multiply" Caption="mix-blend-mode: multiply" Note="Always darker.">
+            <ChildContent><div class="under"><div class="blend multiply"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="mix-blend-mode: screen" Caption="mix-blend-mode: screen" Note="Always lighter.">
+            <ChildContent><div class="under"><div class="blend screen"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="mix-blend-mode: overlay" Caption="mix-blend-mode: overlay" Note="Multiply or screen depending on the backdrop.">
+            <ChildContent><div class="under"><div class="blend overlay"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="mix-blend-mode: lighten" Caption="mix-blend-mode: lighten" Note="Per channel maximum.">
+            <ChildContent><div class="under"><div class="blend lighten"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="mix-blend-mode: difference" Caption="mix-blend-mode: difference" Note="Absolute difference - the most obvious one if the maths is off.">
+            <ChildContent><div class="under"><div class="blend difference"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="isolation: isolate on the parent" Caption="isolation: isolate on the parent" Note="Isolation stops the blend reaching past its group - the blended square should only see the gradient, not the page.">
+            <ChildContent><div class="under isolated"><div class="blend difference"></div></div></ChildContent>
+        </UiTestCase>
+    </div>
+
+</root>
+
+@code
+{
+    const string Frame = "width: 120px; height: 100px";
+}

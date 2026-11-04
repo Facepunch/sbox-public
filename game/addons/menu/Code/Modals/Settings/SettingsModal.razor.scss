@@ -1,20 +1,53 @@
-@import '/styles/_Theme.scss';
+﻿@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
 
+// Fills the screen, so this is the same screen as the /settings tab plus a way out.
 SettingsModal
 {
-    > .inner
-    {
-        width: 1000px;
-        height: 800px;
-        pointer-events: all;
-        z-index: 50;
-        backdrop-filter: blur(8px);
-        gap: 8px;
-        padding: 16px;
-        flex-direction: column;
-        flex-grow: 0;
-        flex-shrink: 0;
-        overflow: hidden;
-    }
-}
+	> .inner
+	{
+		flex-direction: column;
+		width: 100%;
+		height: 100%;
+		pointer-events: all;
+		z-index: 50;
+		overflow: hidden;
+	}
 
+	> .inner > .topbar
+	{
+		flex-direction: row;
+		align-items: center;
+		flex-shrink: 0;
+		gap: 10px;
+		padding: 18px 32px 0 32px;
+		font-family: $front-font;
+
+		i
+		{
+			font-size: 22px;
+			color: $front-primary;
+		}
+
+		.title
+		{
+			font-size: 20px;
+			font-weight: 700;
+			color: $front-heading;
+		}
+
+		.close
+		{
+			@include front-pill;
+
+			padding: 9px 18px;
+			pointer-events: all;
+			cursor: pointer;
+
+			&:hover
+			{
+				sound-in: "ui.button.over";
+			}
+		}
+	}
+}

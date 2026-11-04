@@ -15,16 +15,15 @@ using static GlobalGameNamespace;
 public class NetworkTest
 {
 	private TypeLibrary _oldTypeLibrary;
+	private Scene _oldActiveScene;
 
 	[TestInitialize]
 	public void TestInitialize()
 	{
 		_oldTypeLibrary = Game.TypeLibrary;
+		_oldActiveScene = Game.ActiveScene;
 
-		Game.TypeLibrary = new Sandbox.Internal.TypeLibrary();
-		Game.TypeLibrary.AddAssembly( typeof( PrefabFile ).Assembly, false );
-		Game.TypeLibrary.AddAssembly( typeof( ModelRenderer ).Assembly, false );
-		Game.TypeLibrary.AddAssembly( typeof( NetworkTestComponent ).Assembly, false );
+		Game.TypeLibrary = SharedTypeLibrary.EngineAndTests;
 
 		JsonUpgrader.UpdateUpgraders( Game.TypeLibrary );
 	}
@@ -33,6 +32,13 @@ public class NetworkTest
 	public void TestCleanup()
 	{
 		Game.TypeLibrary = _oldTypeLibrary;
+
+		// Applying a snapshot replaces the active scene, so the test's push scope won't restore it
+		if ( Game.ActiveScene != _oldActiveScene )
+		{
+			Game.ActiveScene?.Destroy();
+			Game.ActiveScene = _oldActiveScene;
+		}
 	}
 
 	[TestMethod]
@@ -67,8 +73,7 @@ public class NetworkTest
 		// Create a snapshot
 		IDeltaSnapshot networkObject = go._net;
 		var state = networkObject.WriteSnapshotState();
-		var snapshot = new DeltaSnapshot();
-		snapshot.CopyFrom( networkObject, state, 2 );
+		var snapshot = SceneNetworkSystem.Instance.DeltaSnapshots.GetFullSnapshotData( state );
 
 		// Become the host
 		clientAndHost.BecomeHost();
@@ -82,7 +87,7 @@ public class NetworkTest
 		go.Transform.Local = transform;
 
 		// Now we'll process the snapshot from the client
-		using ( var reader = ByteStream.CreateReader( SerializeSnapshot( snapshot ) ) )
+		using ( var reader = ByteStream.CreateReader( snapshot ) )
 		{
 			SceneNetworkSystem.Instance.DeltaSnapshots.OnDeltaSnapshot( clientAndHost.Client, reader );
 		}
@@ -90,6 +95,49 @@ public class NetworkTest
 		Assert.AreEqual( Rotation.Identity, go.Transform.Local.Rotation );
 		Assert.AreEqual( Vector3.Zero, go.Transform.Local.Position );
 		Assert.AreEqual( Vector3.One, go.Transform.Local.Scale );
+	}
+
+	[TestMethod]
+	[DataRow( NetworkFlags.None )]
+	[DataRow( NetworkFlags.NoPositionSync )]
+	[DataRow( NetworkFlags.NoRotationSync )]
+	[DataRow( NetworkFlags.NoScaleSync )]
+	public void ProxyKeepsUnsyncedComponentLocal( NetworkFlags flags )
+	{
+		Assert.IsNotNull( TypeLibrary.GetType<ModelRenderer>(), "TypeLibrary hasn't been given the game assembly" );
+
+		using var scope = new Scene().Push();
+
+		using var clientAndHost = new ClientAndHost( TypeLibrary );
+
+		clientAndHost.BecomeClient();
+
+		var go = new GameObject();
+		go.Network.Flags |= flags;
+
+		go.NetworkSpawn( clientAndHost.Host );
+		Assert.IsTrue( go.IsProxy );
+
+		var localTransform = new Transform( new Vector3( 100f, 0f, 0f ), Rotation.From( 0f, 45f, 0f ), Vector3.One * 2f );
+		var networkTransform = new Transform( new Vector3( -100f, 0f, 0f ), Rotation.From( 0f, 90f, 0f ), Vector3.One * 4f );
+
+		go.Transform.Local = localTransform;
+
+		var time = Time.NowDouble;
+		go.Transform.FromNetwork( networkTransform, false, time );
+
+		go.Transform.Update( time + Networking.InterpolationTime * 2f, time );
+
+		var expected = new Transform(
+			(flags & NetworkFlags.NoPositionSync) != 0 ? localTransform.Position : networkTransform.Position,
+			(flags & NetworkFlags.NoRotationSync) != 0 ? localTransform.Rotation : networkTransform.Rotation,
+			(flags & NetworkFlags.NoScaleSync) != 0 ? localTransform.Scale : networkTransform.Scale );
+
+		var local = go.Transform.InterpolatedLocal;
+
+		Assert.IsTrue( local.Position.AlmostEqual( expected.Position ), $"Position was {local.Position}" );
+		Assert.IsTrue( local.Rotation.Distance( expected.Rotation ) < 0.01f, $"Rotation was {local.Rotation}" );
+		Assert.IsTrue( local.Scale.AlmostEqual( expected.Scale ), $"Scale was {local.Scale}" );
 	}
 
 	[TestMethod]
@@ -260,6 +308,45 @@ public class NetworkTest
 		Assert.AreEqual( 1, comp1.SyncInt );
 		Assert.AreEqual( 2, comp2.SyncInt );
 		Assert.AreEqual( 3, comp3.SyncInt );
+	}
+
+	[TestMethod]
+	public void ObsoleteQueryFlagStillPollsProperty()
+	{
+		using var scope = new Scene().Push();
+		var go = new GameObject();
+		var component = go.Components.Create<QueryPropertyComponent>();
+		go.NetworkSpawn();
+
+		var table = go._net.dataTable;
+		var property = Game.TypeLibrary.GetType<QueryPropertyComponent>().GetProperty( nameof( QueryPropertyComponent.SyncInt ) );
+		var slot = NetworkObject.GetPropertySlot( property.Identity, component.Id );
+		Assert.IsTrue( table.IsRegistered( slot ) );
+
+		var data = ByteStream.Create( 32 );
+		try
+		{
+			table.WriteChanged( ref data );
+			Assert.IsFalse( table.HasAnyChanges );
+
+			component.Value = 2;
+			component.GetterCalls = 0;
+			table.QueryValues();
+			Assert.IsTrue( component.GetterCalls > 0 );
+			Assert.IsTrue( table.HasAnyChanges, "Existing Query properties must still synchronize backing value changes." );
+
+			data.Position = 0;
+			table.WriteChanged( ref data );
+			Assert.IsFalse( table.HasAnyChanges );
+
+			table.SetValue( slot, 3 );
+			Assert.AreEqual( 3, component.Value );
+			Assert.IsTrue( table.HasAnyChanges, "Explicit property updates must still synchronize." );
+		}
+		finally
+		{
+			data.Dispose();
+		}
 	}
 
 	[TestMethod]
@@ -490,8 +577,7 @@ public class NetworkTest
 
 		// client2 now owns it, let's have it record a snapshot in this state
 		var state = networkObject.WriteSnapshotState();
-		var snapshot = new DeltaSnapshot();
-		snapshot.CopyFrom( networkObject, state, 2 );
+		var snapshot = SceneNetworkSystem.Instance.DeltaSnapshots.GetFullSnapshotData( state );
 
 		// Become client1 again
 		Connection.Local = client1;
@@ -507,31 +593,13 @@ public class NetworkTest
 		go.Network.AssignOwnership( client2 );
 
 		// Now we'll process that old snapshot from client2
-		using ( var reader = ByteStream.CreateReader( SerializeSnapshot( snapshot ) ) )
+		using ( var reader = ByteStream.CreateReader( snapshot ) )
 		{
 			sceneSystem.DeltaSnapshots.OnDeltaSnapshot( client2, reader );
 		}
 
 		// These should be equal, because the old snapshot did NOT apply
 		Assert.AreEqual( new Vector3( 0f, 0f, 100f ), go.WorldPosition );
-	}
-
-	byte[] SerializeSnapshot( DeltaSnapshot snapshot )
-	{
-		using var writer = new ByteStream( DeltaSnapshotCluster.MaxSize * 4 );
-
-		writer.Write( snapshot.ObjectId );
-		writer.Write( snapshot.Version );
-		writer.Write( snapshot.SnapshotId );
-		writer.Write( (ushort)snapshot.Entries.Count );
-
-		foreach ( var entry in snapshot.Entries )
-		{
-			writer.Write( entry.Slot );
-			writer.WriteArray( entry.Value );
-		}
-
-		return writer.ToArray();
 	}
 
 	[TestMethod]
@@ -858,6 +926,142 @@ public class NetworkTest
 		Assert.AreEqual( expectedFaces, clientMesh.Mesh.FaceHandles.Count(), "Mesh geometry did not survive the snapshot" );
 	}
 
+	private static PolygonMesh CreateQuadMesh()
+	{
+		var mesh = new PolygonMesh();
+		var a = mesh.AddVertex( new Vector3( 0, 0, 0 ) );
+		var b = mesh.AddVertex( new Vector3( 64, 0, 0 ) );
+		var c = mesh.AddVertex( new Vector3( 64, 64, 0 ) );
+		var d = mesh.AddVertex( new Vector3( 0, 64, 0 ) );
+		mesh.AddFace( a, b, c, d );
+		return mesh;
+	}
+
+	private static void AssertReceivedMesh( Scene receiverScene, Guid id )
+	{
+		var go = receiverScene.Directory.FindByGuid( id );
+		Assert.IsTrue( go.IsValid(), "Mesh object missing on receiver" );
+
+		var meshComponent = go.GetComponent<MeshComponent>();
+		Assert.IsNotNull( meshComponent, "MeshComponent missing on receiver" );
+		Assert.IsNotNull( meshComponent.Mesh, "Mesh data missing on receiver" );
+		Assert.AreEqual( 1, meshComponent.Mesh.FaceHandles.Count(), "Mesh geometry did not survive" );
+	}
+
+	/// <summary>
+	/// A single networked object spawned while a client is connected goes through ObjectCreateMsg.
+	/// Its blob-backed properties are read when the callback batch flushes, so the blob data has to
+	/// still be loaded at that point.
+	/// </summary>
+	[TestMethod]
+	public void NetworkedMeshSurvivesSpawnToConnectedClient()
+	{
+		using var clientAndHost = new ClientAndHost( TypeLibrary );
+
+		var senderScene = new Scene();
+		var receiverScene = new Scene();
+
+		Guid id;
+
+		using ( senderScene.Push() )
+		{
+			clientAndHost.BecomeHost();
+
+			var go = new GameObject( "Floor" );
+			go.Components.Create<MeshComponent>().Mesh = CreateQuadMesh();
+			go.NetworkSpawn();
+
+			id = go.Id;
+		}
+
+		using ( receiverScene.Push() )
+		{
+			clientAndHost.BecomeClient();
+			clientAndHost.ProcessMessages();
+
+			AssertReceivedMesh( receiverScene, id );
+		}
+	}
+
+	/// <summary>
+	/// Spawning an object with networked children sends an ObjectCreateBatchMsg instead.
+	/// </summary>
+	[TestMethod]
+	public void NetworkedMeshSurvivesBatchedSpawnToConnectedClient()
+	{
+		using var clientAndHost = new ClientAndHost( TypeLibrary );
+
+		var senderScene = new Scene();
+		var receiverScene = new Scene();
+
+		Guid floorId;
+		Guid barrelId;
+
+		using ( senderScene.Push() )
+		{
+			clientAndHost.BecomeHost();
+
+			var root = new GameObject( "Root" );
+
+			var floor = new GameObject( root, true, "Floor" );
+			floor.Components.Create<MeshComponent>().Mesh = CreateQuadMesh();
+
+			var barrel = new GameObject( root, true, "Barrel" );
+			barrel.NetworkMode = NetworkMode.Object;
+
+			root.NetworkSpawn();
+
+			floorId = floor.Id;
+			barrelId = barrel.Id;
+		}
+
+		using ( receiverScene.Push() )
+		{
+			clientAndHost.BecomeClient();
+			clientAndHost.ProcessMessages();
+
+			Assert.IsTrue( receiverScene.Directory.FindByGuid( barrelId ).IsValid(), "Networked child missing on receiver" );
+			AssertReceivedMesh( receiverScene, floorId );
+		}
+	}
+
+	/// <summary>
+	/// Refreshing a single descendant sends an ObjectRefreshDescendantMsg, which deserializes the same way.
+	/// </summary>
+	[TestMethod]
+	public void NetworkedMeshSurvivesDescendantRefresh()
+	{
+		using var clientAndHost = new ClientAndHost( TypeLibrary );
+
+		var senderScene = new Scene();
+		var receiverScene = new Scene();
+
+		Guid floorId;
+
+		using ( senderScene.Push() )
+		{
+			clientAndHost.BecomeHost();
+
+			var root = new GameObject( "Root" );
+			root.NetworkSpawn();
+
+			var floor = new GameObject( root, true, "Floor" );
+			floor.Components.Create<MeshComponent>().Mesh = CreateQuadMesh();
+			root.Network.Refresh( floor );
+
+			floorId = floor.Id;
+		}
+
+		using ( receiverScene.Push() )
+		{
+			clientAndHost.BecomeClient();
+			clientAndHost.ProcessMessages();
+
+			AssertReceivedMesh( receiverScene, floorId );
+		}
+	}
+
+	[TestMethod]
 	[DataRow( false, false, false, DisplayName = "Cullable + hidden -> excluded" )]
 	[DataRow( false, true, true, DisplayName = "Cullable + visible -> included" )]
 	[DataRow( true, false, true, DisplayName = "AlwaysTransmit -> included when hidden" )]
@@ -874,6 +1078,53 @@ public class NetworkTest
 		Game.ActiveScene.SerializeNetworkObjects( clientAndHost.Client, collection );
 
 		Assert.AreEqual( included, collection.OfType<ObjectCreateMsg>().Any( m => m.Guid == go.Id ) );
+	}
+
+	[TestMethod]
+	public void JoinSnapshotIncludesNetworkedAncestorsOfIncludedObject()
+	{
+		using var scope = new Scene().Push();
+		using var clientAndHost = new ClientAndHost( TypeLibrary );
+		clientAndHost.BecomeHost();
+
+		// A cullable parent the joining client can't see, with a child it can. The parent must still
+		// ride along in the snapshot, otherwise the child resolves a null parent and gets reparented
+		// to the scene root on the client.
+		var parent = SpawnNetworked( visible: false );
+		var child = SpawnNetworked( visible: true );
+		child.SetParent( parent );
+
+		var collection = new List<object>();
+		Game.ActiveScene.SerializeNetworkObjects( clientAndHost.Client, collection );
+
+		var guids = collection.OfType<ObjectCreateMsg>().Select( m => m.Guid ).ToList();
+
+		Assert.IsTrue( guids.Contains( child.Id ), "Visible child should be included" );
+		Assert.IsTrue( guids.Contains( parent.Id ), "Hidden parent must be pulled in so the child can resolve it" );
+		// The parent's create message carries the child's real parent id.
+		var childMsg = collection.OfType<ObjectCreateMsg>().Single( m => m.Guid == child.Id );
+		Assert.AreEqual( parent.Id, childMsg.Parent, "Child create message should reference the real parent" );
+	}
+
+	[TestMethod]
+	public void JoinSnapshotDoesNotDuplicateSharedAncestors()
+	{
+		using var scope = new Scene().Push();
+		using var clientAndHost = new ClientAndHost( TypeLibrary );
+		clientAndHost.BecomeHost();
+
+		// One hidden parent, two visible children - the parent must appear exactly once.
+		var parent = SpawnNetworked( visible: false );
+		var childA = SpawnNetworked( visible: true );
+		var childB = SpawnNetworked( visible: true );
+		childA.SetParent( parent );
+		childB.SetParent( parent );
+
+		var collection = new List<object>();
+		Game.ActiveScene.SerializeNetworkObjects( clientAndHost.Client, collection );
+
+		var parentCount = collection.OfType<ObjectCreateMsg>().Count( m => m.Guid == parent.Id );
+		Assert.AreEqual( 1, parentCount, "Shared ancestor should be emitted exactly once" );
 	}
 
 	[TestMethod]
@@ -915,6 +1166,45 @@ public class NetworkTest
 		Assert.AreEqual( 0, CreateMsgCount( clientAndHost.Client ) );
 	}
 
+	[TestMethod]
+	public void EnsureCreateMessageSentOnlyEmitsFromHost()
+	{
+		using var scope = new Scene().Push();
+		using var clientAndHost = new ClientAndHost( TypeLibrary );
+		clientAndHost.BecomeClient();
+
+		NetworkObject net;
+		using ( SceneNetworkSystem.SuppressSpawnMessages() )
+			net = SpawnNetworked( visible: false )._net;
+
+		net.EnsureCreateMessageSent( clientAndHost.Host );
+
+		Assert.AreEqual( 0, CreateMsgCount( clientAndHost.Host ),
+			"A non-host machine must not emit an ObjectCreateMsg via EnsureCreateMessageSent" );
+	}
+
+	[TestMethod]
+	public void SerializeNetworkObjectsMarksCreateMessageSent()
+	{
+		using var scope = new Scene().Push();
+		using var clientAndHost = new ClientAndHost( TypeLibrary );
+		clientAndHost.BecomeHost();
+
+		GameObject go;
+		using ( SceneNetworkSystem.SuppressSpawnMessages() )
+			go = SpawnNetworked( visible: true );
+
+		var collection = new List<object>();
+		Game.ActiveScene.SerializeNetworkObjects( clientAndHost.Client, collection );
+
+		Assert.IsTrue( collection.OfType<ObjectCreateMsg>().Any( m => m.Guid == go.Id ),
+			"Object should have been serialized into the snapshot" );
+
+		go._net.EnsureCreateMessageSent( clientAndHost.Client );
+
+		Assert.AreEqual( 0, CreateMsgCount( clientAndHost.Client ) );
+	}
+
 	// Spawns a cullable (not AlwaysTransmit) networked object with controllable visibility.
 	private static GameObject SpawnNetworked( bool visible )
 	{
@@ -938,6 +1228,21 @@ public class NetworkTest
 	private class NetworkTestComponent : Component
 	{
 		[Sync] public int SyncInt { get; set; }
+	}
+
+	private class QueryPropertyComponent : Component
+	{
+		public int Value = 1;
+		public int GetterCalls;
+
+#pragma warning disable CS0618 // Published code can still use the obsolete flag.
+		[Sync( SyncFlags.Query )]
+#pragma warning restore CS0618
+		public int SyncInt
+		{
+			get { GetterCalls++; return Value; }
+			set { Value = value; }
+		}
 	}
 
 	private class FromHostPropertyComponent : Component

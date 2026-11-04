@@ -22,8 +22,6 @@ public partial class SceneViewportWidget : Widget
 
 	public SceneRenderingWidget Renderer;
 
-	ViewportOptions ViewportOptions;
-
 	/// <summary>
 	/// NOTE: You should not access position or rotation from here, get and set from  <see cref="State"/> instead.
 	/// </summary>
@@ -31,6 +29,13 @@ public partial class SceneViewportWidget : Widget
 
 	private CameraComponent _editorCamera;
 	private CameraComponent _ejectCamera;
+
+	private Action<EditorEvent.ISceneView> _drawGizmosInterface;
+
+	/// <summary>
+	/// If assigned, copy FoV / ZNear / ZFar etc from this camera.
+	/// </summary>
+	internal CameraComponent SourceCamera { get; set; }
 
 	internal RealTimeSince timeSinceCameraSpeedChange = 99;
 
@@ -80,10 +85,6 @@ public partial class SceneViewportWidget : Widget
 		Overlay.Position = ScreenPosition;
 		Overlay.Size = Size;
 		Overlay.Show();
-
-		ViewportOptions = new ViewportOptions( this );
-		Overlay.Header.Add( ViewportOptions );
-		ViewportOptions.Show();
 
 		FocusMode = FocusMode.None;
 	}
@@ -192,6 +193,46 @@ public partial class SceneViewportWidget : Widget
 	private static float SizeFromDistanceAndFieldOfView( float distance, float fov )
 		=> 2.0f * distance * MathF.Tan( 0.5f * MathX.DegreeToRadian( fov ) );
 
+	private Gizmo.GridAxis? _lastGridAxis;
+
+	private void EnterPerspectiveView()
+	{
+		var wasGizmoOrtho = _gizmoOrthoActive && !State.Is2D;
+
+		_gizmoOrthoActive = false;
+
+		if ( wasGizmoOrtho && _lastGridAxis is { } axis )
+		{
+			State.GridAxis = axis;
+			_lastGridAxis = null;
+		}
+
+		if ( State.Is2D )
+			State.View = ViewMode.Perspective;
+
+		cameraTargetPosition = null;
+	}
+
+	private void EnterOrthoView( Vector3 axisDir, Vector3 up, Vector3 pivot, float distance )
+	{
+		if ( !State.Is2D && !_gizmoOrthoActive )
+		{
+			_lastGridAxis = State.GridAxis;
+		}
+
+		State.CameraRotation = Rotation.LookAt( -axisDir, up );
+		State.CameraPosition = pivot + axisDir * distance;
+		State.CameraOrthoHeight = SizeFromDistanceAndFieldOfView( distance, EditorPreferences.CameraFieldOfView );
+		State.GridAxis = ViewportState.GridAxisForDirection( axisDir );
+
+		_activeCamera.WorldRotation = State.CameraRotation;
+		_activeCamera.WorldPosition = State.CameraPosition;
+
+		_gizmoOrthoActive = true;
+		_gizmoOrthoSnap = true;
+		cameraTargetPosition = null;
+	}
+
 	/// <summary>
 	/// Returns the distance the camera needs to be from the target to fit the ortho height in the view at the given FOV.
 	/// </summary>
@@ -220,11 +261,11 @@ public partial class SceneViewportWidget : Widget
 			Renderer.Camera = _activeCamera;
 		}
 
-		_activeCamera.BackgroundColor = EditorPreferences.CameraBackgroundColor;
+		_activeCamera.BackgroundColor = SourceCamera?.BackgroundColor ?? EditorPreferences.CameraBackgroundColor;
 		_activeCamera.WorldPosition = State.CameraPosition;
 		_activeCamera.WorldRotation = State.CameraRotation;
 
-		bool wantOrtho = WantOrtho;
+		var wantOrtho = SourceCamera?.Orthographic ?? WantOrtho;
 
 		// Snapping to an axis view enters ortho instantly
 		if ( _gizmoOrthoSnap )
@@ -264,31 +305,46 @@ public partial class SceneViewportWidget : Widget
 			MathX.Lerp( TransitionBlend, 1f, RealTime.Delta * TransitionSpeed ) :
 			MathX.Lerp( TransitionBlend, 0f, RealTime.Delta * TransitionSpeed );
 
-		_activeCamera.OrthographicHeight = CurrentOrthoHeight;
 
 		CurrentFOV = MathX.Lerp( CurrentFOV, TargetFOV, RealTime.Delta * TransitionSpeed );
 		CurrentOrthoHeight = MathX.Lerp( CurrentOrthoHeight, State.CameraOrthoHeight, RealTime.Delta * TransitionSpeed );
 		was2d = wantOrtho;
 
-		_activeCamera.ClearFlags = ClearFlags.Color | ClearFlags.Depth | ClearFlags.Stencil;
-		_activeCamera.ZNear = EditorPreferences.CameraZNear;
-		_activeCamera.ZFar = wantOrtho ? MASSIVEZFAR : EditorPreferences.CameraZFar;
-		_activeCamera.FieldOfView = CurrentFOV;
-		_activeCamera.EnablePostProcessing = State.EnablePostProcessing;
-		_activeCamera.Orthographic = wantOrtho && TransitionBlend.AlmostEqual( 1 );
-		_activeCamera.OrthographicHeight = CurrentOrthoHeight;
+		if ( SourceCamera is { } source )
+		{
+			_activeCamera.ClearFlags = source.ClearFlags;
+			_activeCamera.ZNear = source.ZNear;
+			_activeCamera.ZFar = source.ZFar;
+			_activeCamera.FieldOfView = source.FieldOfView;
+			_activeCamera.FovAxis = source.FovAxis;
+			_activeCamera.EnablePostProcessing = source.EnablePostProcessing;
+			_activeCamera.Orthographic = source.Orthographic;
+			_activeCamera.OrthographicHeight = source.OrthographicHeight;
+		}
+		else
+		{
+			_activeCamera.ClearFlags = ClearFlags.Color | ClearFlags.Depth | ClearFlags.Stencil;
+			_activeCamera.ZNear = EditorPreferences.CameraZNear;
+			_activeCamera.ZFar = wantOrtho ? MASSIVEZFAR : EditorPreferences.CameraZFar;
+			_activeCamera.FieldOfView = CurrentFOV;
+			_activeCamera.FovAxis = CameraComponent.Axis.Horizontal;
+			_activeCamera.EnablePostProcessing = State.EnablePostProcessing;
+			_activeCamera.Orthographic = wantOrtho && TransitionBlend.AlmostEqual( 1 );
+			_activeCamera.OrthographicHeight = CurrentOrthoHeight;
+
+			// If we're in 2D mode, we can optionally show the skybox
+			if ( State.Is2D )
+			{
+				if ( !State.ShowSkyIn2D )
+					_activeCamera.BackgroundColor = Color.Black;
+
+				_activeCamera.RenderExcludeTags.Set( "skybox", !State.ShowSkyIn2D );
+			}
+		}
+
 		_activeCamera.DebugMode = State.RenderMode;
 		_activeCamera.WireframeMode = State.WireframeMode;
 		_activeCamera.CustomSize = Renderer.Size * DpiScale;
-
-		// If we're in 2D mode, we can optionally show the skybox
-		if ( State.Is2D )
-		{
-			if ( !State.ShowSkyIn2D )
-				_activeCamera.BackgroundColor = Color.Black;
-
-			_activeCamera.RenderExcludeTags.Set( "skybox", !State.ShowSkyIn2D );
-		}
 
 		if ( cameraTargetPosition is not null )
 		{
@@ -296,7 +352,7 @@ public partial class SceneViewportWidget : Widget
 			var targetPos = cameraTargetPosition.Value;
 
 			// If camera position is fucked, just jump to target
-			if ( currentPos.IsNaN || currentPos.IsInfinity )
+			if ( !currentPos.IsFinite )
 			{
 				_activeCamera.WorldPosition = targetPos;
 				cameraTargetPosition = null;
@@ -305,7 +361,7 @@ public partial class SceneViewportWidget : Widget
 			}
 
 			// If target is fucked, just ignore it
-			if ( targetPos.IsNaN || targetPos.IsInfinity )
+			if ( !targetPos.IsFinite )
 			{
 				cameraTargetPosition = null;
 				cameraVelocity = Vector3.Zero;
@@ -537,7 +593,7 @@ public partial class SceneViewportWidget : Widget
 		if ( IsActiveWindow ) // don't update camera input if the editor window isn't active
 		{
 			// Block camera input when shift or ctrl was down first and right mouse pressed.
-			var rightDown = Application.MouseButtons.HasFlag( MouseButtons.Right );
+			var rightDown = SceneEditorExtensions.IsPilotingCamera;
 			var modifiers = Application.KeyboardModifiers;
 			var modifiersDown = modifiers.Contains( KeyboardModifiers.Shift ) || modifiers.HasFlag( KeyboardModifiers.Ctrl );
 
@@ -567,7 +623,7 @@ public partial class SceneViewportWidget : Widget
 				}
 			}
 
-			bool shouldBlockOrbit = blockCamera || (blockCameraForToolInput && GizmoInstance.Input.IsHovered) || gizmoInputUsed;
+			bool shouldBlockOrbit = blockCamera || (blockCameraForToolInput && GizmoInstance.Input.IsHovered) || gizmoInputUsed || Gizmo.Pressed.Any;
 
 			_activeCamera.OrthographicHeight = State.CameraOrthoHeight;
 
@@ -589,10 +645,14 @@ public partial class SceneViewportWidget : Widget
 				Renderer.Cursor = CursorShape.None;
 			}
 
-			State.CameraPosition = _activeCamera.WorldPosition;
-			State.CameraRotation = _activeCamera.WorldRotation;
 			State.CameraOrthoHeight = _activeCamera.OrthographicHeight;
 		}
+
+		// Framing smooths the camera over several frames, and it has to keep what it moved even
+		// when the editor isn't the active window - otherwise every frame starts over from the
+		// same stale state and the camera jitters on the spot until the viewport is focused again.
+		State.CameraPosition = _activeCamera.WorldPosition;
+		State.CameraRotation = _activeCamera.WorldRotation;
 
 		if ( WantOrtho )
 		{
@@ -641,13 +701,15 @@ public partial class SceneViewportWidget : Widget
 
 		Tools.Frame( _activeCamera, Session, GizmoInstance.Input.IsHovered );
 
-		EditorEvent.RunInterface<EditorEvent.ISceneView>( x => x.DrawGizmos( Session.Scene ) );
+		_drawGizmosInterface ??= x => x.DrawGizmos( Session.Scene );
+		EditorEvent.RunInterface( _drawGizmosInterface );
 		Session.Scene.EditorDraw();
 
 		DrawSelection();
 		UpdateDragDrops();
 
 		DrawCameraSpeedOverlay();
+		DrawOrientationGizmo();
 
 		Overlay?.Update();
 	}
@@ -837,6 +899,9 @@ public partial class SceneViewportWidget : Widget
 	public override void OnDestroyed()
 	{
 		Session.OnFrameTo -= FrameOn;
+
+		_gizmoSceneObject?.Delete();
+		_gizmoSceneObject = null;
 
 		_activeCamera?.GameObject?.Destroy();
 		_activeCamera = null;

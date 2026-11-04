@@ -1,4 +1,5 @@
-﻿using Refit;
+using Refit;
+using System.Text.Json.Serialization;
 
 namespace Sandbox.Services;
 
@@ -35,6 +36,17 @@ public partial class ServiceApi
 
 		[Post( "/package/manifest" )]
 		Task<PublishManifestResult> PublishManifest( [Body] PublishManifest manifest );
+
+		[Get( "/package/manifest/1/{packageIdent}/{revisionId}" )]
+		Task<PackageManifestDto> GetManifest( string packageIdent, long? revisionId = null );
+
+		/// <summary>
+		/// A revision's dll compiled against engine version <paramref name="ev"/>. The first request queues the
+		/// compile and is held open while it runs, then answers 202 Pending if it's still going. 422 when the compile
+		/// failed, 404 when there's nothing to compile.
+		/// </summary>
+		[Get( "/package/dll/1/{packageIdent}/{revisionId}" )]
+		Task<IApiResponse<PackageDllResult>> GetDll( string packageIdent, long revisionId, [Query] int ev, CancellationToken token = default );
 
 		[Post( "/package/update/1/{packageIdent}" )]
 		Task<PackageDto> Update( string packageIdent, [Query] string key, [Query] string value );
@@ -177,6 +189,12 @@ public struct PublishManifest
 	public bool Publish { get; set; }
 	public int EngineApi { get; set; }
 	public string Meta { get; set; }
+
+	/// <summary>
+	/// Have the backend compile the code before it publishes. It answers <c>compiling</c> until that's done, and
+	/// 400 with the compiler errors when it doesn't compile.
+	/// </summary>
+	public bool VerifyCompile { get; set; }
 }
 
 public record struct ManifestFile( string Name, int Size, string Hash );
@@ -197,4 +215,113 @@ public struct PublishManifestResult
 	public string Status { get; set; }
 	public string[] Files { get; set; }
 	public long VersionId { get; set; }
+}
+
+public class PackageDllResult
+{
+	/// <summary>
+	/// Compiled, Pending or Failed
+	/// </summary>
+	public string Status { get; set; }
+
+	/// <summary>
+	/// The package's own assembly and any libraries it bundles, when Compiled
+	/// </summary>
+	public PackageDllFile[] Dlls { get; set; }
+	public string Error { get; set; }
+}
+
+public class PackageDllFile
+{
+	/// <summary>
+	/// Where it goes in the package, like <c>.bin/package.org.ident.dll</c>
+	/// </summary>
+	public string Path { get; set; }
+	public string Url { get; set; }
+
+	/// <summary>
+	/// CRC64.ToString( "x" )
+	/// </summary>
+	public string Crc { get; set; }
+	public long Size { get; set; }
+}
+
+/// <summary>
+/// A package revision's download manifest - the list of files to download. Without a
+/// revision id you get the package's live version.
+/// </summary>
+public class PackageManifestDto
+{
+	public int Schema { get; set; }
+
+	/// <summary>
+	/// The package id
+	/// </summary>
+	public long Asset { get; set; }
+
+	public ManifestFileEntry[] Files { get; set; }
+
+	/// <summary>
+	/// The organization's short name
+	/// </summary>
+	public string Organization { get; set; }
+
+	/// <summary>
+	/// The package ident
+	/// </summary>
+	public string Package { get; set; }
+
+	public int EngineVersion { get; set; }
+	public long TotalSize { get; set; }
+	public long FileCount { get; set; }
+	public DateTimeOffset Created { get; set; }
+}
+
+// File entries are lowercase on the wire - manifests have always been written that way
+// and engines in the wild parse them case-sensitively.
+public record struct ManifestFileEntry(
+	[property: JsonPropertyName( "url" )] string Url,
+	[property: JsonPropertyName( "crc" )] string Crc,
+	[property: JsonPropertyName( "path" )] string Path,
+	[property: JsonPropertyName( "size" )] long Size )
+{
+	[JsonPropertyName( "texture" ), JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )]
+	public TextureWebStreamingInfo Texture { get; init; }
+}
+
+/// <summary>
+/// Cumulative partial download prefixes for a compiled texture. Clients choose the initial mip;
+/// full-resolution downloads use the ordinary file size and checksum instead.
+/// </summary>
+public sealed class TextureWebStreamingInfo
+{
+	public const int CurrentVersion = 2;
+
+	// Leave the default at zero so metadata without a version is reprocessed.
+	[JsonPropertyName( "version" )]
+	public int Version { get; set; }
+
+	[JsonPropertyName( "width" )]
+	public int Width { get; set; }
+
+	[JsonPropertyName( "height" )]
+	public int Height { get; set; }
+
+	[JsonPropertyName( "mips" )]
+	public Mip[] Mips { get; set; } = [];
+
+	public sealed class Mip
+	{
+		/// <summary>One is half resolution. Entries are ordered by level; full resolution (zero) is omitted.</summary>
+		[JsonPropertyName( "level" )]
+		public int Level { get; set; }
+
+		/// <summary>Bytes from the start of the file, including the header and all smaller mips.</summary>
+		[JsonPropertyName( "prefixSize" )]
+		public int PrefixSize { get; set; }
+
+		/// <summary>SHA-256 of that entire prefix.</summary>
+		[JsonPropertyName( "prefixHash" )]
+		public string PrefixHash { get; set; }
+	}
 }

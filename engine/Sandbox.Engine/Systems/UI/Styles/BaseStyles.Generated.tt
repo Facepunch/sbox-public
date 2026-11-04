@@ -29,10 +29,16 @@ var Members = new Dictionary<string, (string TypeName, string DefaultValue, bool
 	{ "BorderTopRightRadius",		("Length?",				"0",							false)},
 	{ "BorderBottomRightRadius",	("Length?",				"0",							false)},
 	{ "BorderBottomLeftRadius",		("Length?",				"0",							false)},
+	// Vertical corner radii, for elliptical corners. Null means the same as the horizontal one.
+	{ "BorderTopLeftRadiusV",		("Length?",				"null",							false)},
+	{ "BorderTopRightRadiusV",		("Length?",				"null",							false)},
+	{ "BorderBottomRightRadiusV",	("Length?",				"null",							false)},
+	{ "BorderBottomLeftRadiusV",	("Length?",				"null",							false)},
 	{ "BorderLeftWidth",			("Length?",				"0",							false)},
 	{ "BorderTopWidth",				("Length?",				"0",							false)},
 	{ "BorderRightWidth",			("Length?",				"0",							false)},
 	{ "BorderBottomWidth",			("Length?",				"0",							false)},
+	{ "BorderStyle",				("BorderStyle?",		"Sandbox.BorderStyle.Solid",		false)},
 	{ "BorderLeftColor",			("Color?",				"Color.White",					false)},
 	{ "BorderTopColor",				("Color?",				"Color.White",					false)},
 	{ "BorderRightColor",			("Color?",				"Color.White",					false)},
@@ -49,8 +55,20 @@ var Members = new Dictionary<string, (string TypeName, string DefaultValue, bool
 	{ "OverflowX",					("OverflowMode?",		"OverflowMode.Visible",			false)},
 	{ "OverflowY",					("OverflowMode?",		"OverflowMode.Visible",			false)},
 	{ "FlexDirection",				("FlexDirection?",		"UI.FlexDirection.Row",			false)},
-	{ "JustifyContent",				("Justify?",			"Justify.FlexStart",			false)},
+	{ "JustifyContent",				("Justify?",			"Justify.Stretch",				false)},
+	{ "JustifyItems",				("Align?",				"Align.Auto",					false)},
+	{ "JustifySelf",				("Align?",				"Align.Auto",					false)},
 	{ "Display",					("DisplayMode?",		"DisplayMode.Flex",				false)},
+	// Grid. Track lists and placements keep their CSS text; the layout engine parses them.
+	{ "GridTemplateColumns",		("string",				"\"none\"",						false)},
+	{ "GridTemplateRows",			("string",				"\"none\"",						false)},
+	{ "GridAutoColumns",			("string",				"\"auto\"",						false)},
+	{ "GridAutoRows",				("string",				"\"auto\"",						false)},
+	{ "GridAutoFlow",				("GridAutoFlow?",		"UI.GridAutoFlow.Row",			false)},
+	{ "GridColumnStart",			("string",				"\"auto\"",						false)},
+	{ "GridColumnEnd",				("string",				"\"auto\"",						false)},
+	{ "GridRowStart",				("string",				"\"auto\"",						false)},
+	{ "GridRowEnd",					("string",				"\"auto\"",						false)},
 	{ "FlexWrap",					("Wrap?",				"Wrap.NoWrap",					false)},
 	{ "AlignContent",				("Align?",				"Align.Auto",					false)},
 	{ "AlignSelf",					("Align?",				"Align.Auto",					false)},
@@ -117,6 +135,7 @@ var Members = new Dictionary<string, (string TypeName, string DefaultValue, bool
 	{ "BackgroundPositionX",		("Length?",				"Length.Percent( 0 ).Value",	false)},
 	{ "BackgroundPositionY",		("Length?",				"Length.Percent( 0 ).Value",	false)},
 	{ "BackgroundRepeat",			("BackgroundRepeat?",	"UI.BackgroundRepeat.Repeat",	false)},
+	{ "BackgroundClip",				("BackgroundClip?",		"UI.BackgroundClip.BorderBox",	false)},
 	{ "BorderImageWidthLeft",		("Length?",				"1",							false)},
 	{ "BorderImageWidthRight",		("Length?",				"1",							false)},
 	{ "BorderImageWidthTop",		("Length?",				"1",							false)},
@@ -145,7 +164,23 @@ var Members = new Dictionary<string, (string TypeName, string DefaultValue, bool
 	{ "ObjectFit",					("ObjectFit?",			"UI.ObjectFit.Cover",			false)},
 	{ "OutlineWidth",				("Length?",				"0",							false)},
 	{ "OutlineColor",				("Color?",				"Color.Transparent",			false)},
-	{ "OutlineOffset",				("Length?",				"0",							false)}
+	{ "OutlineOffset",				("Length?",				"0",							false)},
+	{ "Isolation",					("Isolation?",			"UI.Isolation.Auto",			false)},
+	{ "ScrollbarWidth",				("Length?",				"0",							true)},
+	{ "OverscrollBehaviorX", ("OverscrollBehavior?", "UI.OverscrollBehavior.Auto", false)},
+	{ "OverscrollBehaviorY", ("OverscrollBehavior?", "UI.OverscrollBehavior.Auto", false)},
+	{ "ScrollbarGutter",			("ScrollbarGutter?",	"UI.ScrollbarGutter.Auto",		false)},
+	{ "ScrollbarThumbColor",		("Color?",				"null",							true)},
+	{ "ScrollbarTrackColor",		("Color?",				"null",							true)}
+};
+
+// Members whose null means "same as this other member", so a transition lerps from that one
+var LerpFallbacks = new Dictionary<string, string>
+{
+	{ "BorderTopLeftRadiusV",		"BorderTopLeftRadius" },
+	{ "BorderTopRightRadiusV",		"BorderTopRightRadius" },
+	{ "BorderBottomRightRadiusV",	"BorderBottomRightRadius" },
+	{ "BorderBottomLeftRadiusV",	"BorderBottomLeftRadius" },
 };
 
 static bool IsTransitionable( string propertyName )
@@ -237,7 +272,7 @@ foreach ( var member in Members)
 		switch ( property )
 		{
 		<#
-			string? GetParsingFunction( string type ) 
+			string GetParsingFunction( string type )
 			{
 				if ( type.EndsWith( "?" ))
 					type = type.Substring( 0, type.Length - 1 );
@@ -329,10 +364,20 @@ foreach ( var member in Members )
 		var defaultValue = $"{member.Value.DefaultValue}";
 		if ( value.IsInherited )
 			defaultValue = $"from._{key} ?? {defaultValue}";
-			
+
+		var fromValue = $"from._{key}";
+		var toValue = $"to._{key}";
+		if ( LerpFallbacks.TryGetValue( member.Key, out var fallback ) )
+		{
+			var fallbackKey = fallback.ToLowerInvariant();
+			fromValue = $"{fromValue} ?? from._{fallbackKey}";
+			toValue = $"{toValue} ?? to._{fallbackKey}";
+			defaultValue = Members[fallback].DefaultValue;
+		}
+
 		if ( IsTransitionable( value.TypeName ) ) {
 			#>	case "<#=CSSName#>":
-				Lerp( ref _<#=key#>, from._<#=key#>, to._<#=key#>, <#=defaultValue#>, delta );
+				Lerp( ref _<#=key#>, <#=fromValue#>, <#=toValue#>, <#=defaultValue#>, delta );
 				break;
 		<#}}#>}
 	}
@@ -374,6 +419,13 @@ foreach ( var member in Members )
 		var (key, value) = (member.Key.ToLowerInvariant(), member.Value);
 #>
 		if ( !_<#=key#>.HasValue ) _<#=key#> = <#=member.Value.DefaultValue#>;
+<#
+	}
+	else if ( member.Value.TypeName == "string" && member.Key.StartsWith( "Grid" ) )
+	{
+#>
+
+		_<#=member.Key.ToLowerInvariant()#> ??= <#=member.Value.DefaultValue#>;
 <#
 	}
 }

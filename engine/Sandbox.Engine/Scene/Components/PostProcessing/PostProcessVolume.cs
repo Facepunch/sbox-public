@@ -39,11 +39,12 @@ public class PostProcessVolume : VolumeComponent, Component.ExecuteInEditor
 	public bool EditorPreview { get; set; } = true;
 
 	/// <summary>
-	/// Get weight based on position
+	/// Get weight based on position within the volume. Nonpositive blend distances use
+	/// the full blend weight for a hard edge; callers handle volume containment.
 	/// </summary>
 	public float GetWeight( Vector3 pos )
 	{
-		if ( IsInfinite )
+		if ( IsInfinite || BlendDistance <= 0 )
 		{
 			return BlendWeight;
 		}

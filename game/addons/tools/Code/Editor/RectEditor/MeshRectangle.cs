@@ -608,7 +608,7 @@ public partial class Document
 		/// <summary>
 		/// Gets the material's world space mapping dimensions.
 		/// </summary>
-		private (float width, float height) GetMaterialWorldScale()
+		internal (float width, float height) GetMaterialWorldScale()
 		{
 			var materialName = Session?.Settings?.ReferenceMaterial;
 			if ( string.IsNullOrEmpty( materialName ) )

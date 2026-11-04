@@ -1,10 +1,26 @@
 using HalfEdgeMesh;
+using Sandbox.Helpers;
 
 namespace Editor.MeshEditor;
+
+public enum PivotSpace
+{
+	/// <summary>Position relative to the pivot.</summary>
+	Local,
+
+	/// <summary>Position in world coordinates.</summary>
+	Global
+}
 
 public abstract class SelectionTool( MeshTool tool ) : EditorTool
 {
 	public MeshTool Tool { get; } = tool;
+
+	/// <summary>
+	/// Whether clicking in the scene should change the selection. The move mode can
+	/// be borrowing the cursor for something else, like picking a pivot point.
+	/// </summary>
+	public bool IsAllowedToSelect => Tool?.MoveMode?.AllowSceneSelection ?? true;
 
 	protected TextureLockTransform _transformKind = TextureLockTransform.Move;
 
@@ -30,7 +46,41 @@ public abstract class SelectionTool( MeshTool tool ) : EditorTool
 
 	public virtual void SetMoveMode( MoveMode mode ) { }
 
-	public Vector3 Pivot { get; set; }
+	SelectionPivot _pivot;
+
+	/// <summary>
+	/// The point transforms happen around.
+	/// </summary>
+	public SelectionPivot Pivot => _pivot ??= new SelectionPivot( this );
+
+	internal void OnPivotChanged() => Tool?.MoveMode?.OnBegin( this );
+
+	protected void SubscribeUndo()
+	{
+		UnsubscribeUndo();
+
+		Undo.OnUndo += OnUndoRedo;
+		Undo.OnRedo += OnUndoRedo;
+	}
+
+	protected void UnsubscribeUndo()
+	{
+		Undo.OnUndo -= OnUndoRedo;
+		Undo.OnRedo -= OnUndoRedo;
+	}
+
+	UndoSystem Undo => SceneEditorSession.Active.UndoSystem;
+
+	void OnUndoRedo( UndoSystem.Entry _ )
+	{
+		OnAfterUndoRedo();
+
+		Pivot.Update();
+
+		OnPivotChanged();
+	}
+
+	protected virtual void OnAfterUndoRedo() { }
 
 	public bool DragStarted { get; private set; }
 
@@ -58,6 +108,9 @@ public abstract class SelectionTool( MeshTool tool ) : EditorTool
 
 	public void StartDrag()
 	{
+		if ( !DragStarted )
+			Pivot.BeginDrag();
+
 		DragStarted = true;
 
 		OnStartDrag();
@@ -73,6 +126,9 @@ public abstract class SelectionTool( MeshTool tool ) : EditorTool
 		DragStarted = false;
 
 		OnEndDrag();
+
+		// After OnEndDrag, so the transform's undo entry exists for the pivot move to fold into.
+		Pivot.EndDrag();
 	}
 
 	protected virtual void OnStartDrag()
@@ -109,6 +165,10 @@ public abstract class SelectionTool( MeshTool tool ) : EditorTool
 	}
 
 	public virtual void Nudge( Vector2 delta )
+	{
+	}
+
+	public virtual void NudgeRotation( Vector2 direction )
 	{
 	}
 
@@ -188,6 +248,16 @@ public abstract class SelectionTool( MeshTool tool ) : EditorTool
 		get => EditorCookie.Get( $"mesh.{GetType().Name}.show-selection-bounds", ShowSelectionBoundsDefault );
 		set => EditorCookie.Set( $"mesh.{GetType().Name}.show-selection-bounds", value );
 	}
+
+	/// <summary>
+	/// The space the selection position is displayed and edited in, shared by all selection modes.
+	/// </summary>
+	[Title( "Space" )]
+	public PivotSpace PivotSpace
+	{
+		get => EditorCookie.Get( "mesh.pivot-space", PivotSpace.Global );
+		set => EditorCookie.Set( "mesh.pivot-space", value );
+	}
 }
 
 file class SelectionToolShortcutsWidget( SelectionTool tool ) : Widget
@@ -203,6 +273,30 @@ file class SelectionToolShortcutsWidget( SelectionTool tool ) : Widget
 
 	[Shortcut( "mesh.selection-nudge-right", "RIGHT", typeof( SceneViewWidget ) )]
 	public void NudgeRight() => tool.Nudge( Vector2.Right );
+
+	[Shortcut( "mesh.selection-rotate-up", "ALT+UP", typeof( SceneViewWidget ) )]
+	public void RotateUp() => tool.NudgeRotation( Vector2.Up );
+
+	[Shortcut( "mesh.selection-rotate-down", "ALT+DOWN", typeof( SceneViewWidget ) )]
+	public void RotateDown() => tool.NudgeRotation( Vector2.Down );
+
+	[Shortcut( "mesh.selection-rotate-left", "ALT+LEFT", typeof( SceneViewWidget ) )]
+	public void RotateLeft() => tool.NudgeRotation( Vector2.Left );
+
+	[Shortcut( "mesh.selection-rotate-right", "ALT+RIGHT", typeof( SceneViewWidget ) )]
+	public void RotateRight() => tool.NudgeRotation( Vector2.Right );
+
+	[Shortcut( "mesh.selection-rotate-duplicate-up", "ALT+SHIFT+UP", typeof( SceneViewWidget ) )]
+	public void RotateDuplicateUp() => tool.NudgeRotation( Vector2.Up );
+
+	[Shortcut( "mesh.selection-rotate-duplicate-down", "ALT+SHIFT+DOWN", typeof( SceneViewWidget ) )]
+	public void RotateDuplicateDown() => tool.NudgeRotation( Vector2.Down );
+
+	[Shortcut( "mesh.selection-rotate-duplicate-left", "ALT+SHIFT+LEFT", typeof( SceneViewWidget ) )]
+	public void RotateDuplicateLeft() => tool.NudgeRotation( Vector2.Left );
+
+	[Shortcut( "mesh.selection-rotate-duplicate-right", "ALT+SHIFT+RIGHT", typeof( SceneViewWidget ) )]
+	public void RotateDuplicateRight() => tool.NudgeRotation( Vector2.Right );
 
 	[Shortcut( "mesh.align-down-local", "CTRL+KP_1", typeof( SceneViewWidget ) )]
 	public void AlignDownLocal() => tool.AlignDown( useLocalDown: true );
@@ -255,6 +349,8 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 			var transform = entry.Key.Transform;
 			entry.Key.Component.Mesh.SetVertexPosition( entry.Key.Handle, transform.PointToLocal( position ) );
 		}
+
+		Pivot.Drag( delta );
 	}
 
 	public override void Rotate( Vector3 origin, Rotation basis, Rotation delta )
@@ -322,14 +418,12 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 		Selection.OnItemAdded += OnMeshSelectionChanged;
 		Selection.OnItemRemoved += OnMeshSelectionChanged;
 
-		var undo = SceneEditorSession.Active.UndoSystem;
-		undo.OnUndo += OnUndoRedo;
-		undo.OnRedo += OnUndoRedo;
-
 		RestorePreviousSelection<T>();
 		SelectElements();
 		CalculateSelectionVertices();
-		OnMeshSelectionChanged();
+		Pivot.Reset();
+
+		SubscribeUndo();
 	}
 
 	public override void OnDisabled()
@@ -337,19 +431,12 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 		Selection.OnItemAdded -= OnMeshSelectionChanged;
 		Selection.OnItemRemoved -= OnMeshSelectionChanged;
 
-		var undo = SceneEditorSession.Active.UndoSystem;
-		undo.OnUndo -= OnUndoRedo;
-		undo.OnRedo -= OnUndoRedo;
+		EndBoxSelectUndoScope();
+
+		UnsubscribeUndo();
 
 		SaveCurrentSelection<T>();
 	}
-
-	void OnUndoRedo( object _ )
-	{
-		OnMeshSelectionChanged();
-	}
-
-	public bool IsAllowedToSelect => Tool?.MoveMode?.AllowSceneSelection ?? true;
 
 	public override void BuildSceneContextMenu( Menu menu, Ray ray, SceneTraceResult? trace )
 	{
@@ -420,8 +507,6 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 
 			vertex.Component.Mesh.SetVertexPosition( vertex.Handle, transform.PointToLocal( trace.HitPosition ) );
 		}
-
-		Pivot = CalculateSelectionOrigin();
 	}
 
 	public override void AlignDown( bool useLocalDown )
@@ -459,15 +544,19 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 
 			vertex.Component.Mesh.SetVertexPosition( vertex.Handle, transform.PointToLocal( trace.HitPosition ) );
 		}
-
-		Pivot = CalculateSelectionOrigin();
 	}
 
 	public override void OnUpdate()
 	{
 		GlobalSpace = Gizmo.Settings.GlobalSpace;
 
+		Pivot.Update();
 		UpdateMoveMode();
+
+		if ( !IsBoxSelecting )
+		{
+			EndBoxSelectUndoScope();
+		}
 
 		if ( IsAllowedToSelect && Gizmo.WasLeftMouseReleased && !Gizmo.Pressed.Any && Gizmo.Pressed.CursorDelta.Length < 1 )
 		{
@@ -496,8 +585,14 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 
 		if ( _meshSelectionDirty )
 		{
+			var previous = _vertexSelection.ToArray();
+
 			CalculateSelectionVertices();
-			OnMeshSelectionChanged();
+
+			// Undo restores the selection, firing add and remove for the same elements.
+			// That isn't a change, so the pivot stays where it is.
+			if ( !_vertexSelection.SetEquals( previous ) )
+				Pivot.Reset();
 		}
 
 		HandleGlobalMaterialOperations();
@@ -637,20 +732,12 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 				Gizmo.Draw.LineThickness = 1;
 				Gizmo.Draw.IgnoreDepth = true;
 				Gizmo.Draw.Color = edgeColor.Darken( 0.3f ).WithAlpha( 0.1f );
-
-				foreach ( var v in mesh.Mesh.GetEdges() )
-				{
-					Gizmo.Draw.Line( v );
-				}
+				Gizmo.Draw.Lines( mesh.Mesh.GetVisibleEdges() );
 
 				Gizmo.Draw.Color = edgeColor;
 				Gizmo.Draw.IgnoreDepth = false;
 				Gizmo.Draw.LineThickness = 2;
-
-				foreach ( var v in mesh.Mesh.GetEdges() )
-				{
-					Gizmo.Draw.Line( v );
-				}
+				Gizmo.Draw.Lines( mesh.Mesh.GetVisibleEdges() );
 			}
 
 			if ( DrawVertices )
@@ -661,19 +748,11 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 				{
 					Gizmo.Draw.IgnoreDepth = true;
 					Gizmo.Draw.Color = vertexColor.Darken( 0.3f ).WithAlpha( 0.2f );
-
-					foreach ( var v in mesh.Mesh.GetVertexPositions() )
-					{
-						Gizmo.Draw.Sprite( v, 8, null, false );
-					}
+					Gizmo.Draw.Sprites( mesh.Mesh.GetVisibleVertexPositions(), 8, worldspace: false );
 
 					Gizmo.Draw.Color = vertexColor;
 					Gizmo.Draw.IgnoreDepth = false;
-
-					foreach ( var v in mesh.Mesh.GetVertexPositions() )
-					{
-						Gizmo.Draw.Sprite( v, 8, null, false );
-					}
+					Gizmo.Draw.Sprites( mesh.Mesh.GetVisibleVertexPositions(), 8, worldspace: false );
 				}
 			}
 		}
@@ -719,27 +798,111 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 		if ( components.Any() == false ) return;
 
 		using var scope = SceneEditorSession.Scope();
-		using var undoScope = SceneEditorSession.Active.UndoScope( "Nudge Vertices" ).WithComponentChanges( components ).Push();
 
 		var rotation = CalculateSelectionBasis();
 		var delta = Gizmo.Nudge( rotation, direction );
 
-		if ( Gizmo.IsShiftPressed )
+		Pivot.BeginDrag();
+
+		using ( SceneEditorSession.Active.UndoScope( "Nudge Vertices" ).WithComponentChanges( components ).Push() )
 		{
-			ExtrudeSelection( -delta );
-		}
-		else
-		{
-			foreach ( var vertex in _vertexSelection )
+			if ( Gizmo.IsShiftPressed )
 			{
-				var transform = vertex.Transform;
-				var position = vertex.Component.Mesh.GetVertexPosition( vertex.Handle );
-				position = transform.PointToWorld( position ) - delta;
-				vertex.Component.Mesh.SetVertexPosition( vertex.Handle, transform.PointToLocal( position ) );
+				ExtrudeSelection( -delta );
 			}
+			else
+			{
+				foreach ( var vertex in _vertexSelection )
+				{
+					var transform = vertex.Transform;
+					var position = vertex.Component.Mesh.GetVertexPosition( vertex.Handle );
+					position = transform.PointToWorld( position ) - delta;
+					vertex.Component.Mesh.SetVertexPosition( vertex.Handle, transform.PointToLocal( position ) );
+				}
+
+				UpdateTexturesAfterNudge();
+			}
+
+			Pivot.Translate( -delta );
 		}
 
-		Pivot -= delta;
+		Pivot.EndDrag();
+
+		Tool?.MoveMode?.OnBegin( this );
+	}
+
+	public override void NudgeRotation( Vector2 direction )
+	{
+		if ( !Selection.Any() ) return;
+
+		var viewport = SceneViewWidget.Current?.LastSelectedViewportWidget;
+		if ( !viewport.IsValid() ) return;
+
+		var gizmo = viewport.GizmoInstance;
+		if ( gizmo is null ) return;
+
+		using var gizmoScope = gizmo.Push();
+		if ( Gizmo.Pressed.Any ) return;
+
+		var basis = CalculateSelectionBasis();
+		var screenRight = -Gizmo.Nudge( basis, Vector2.Right ).Normal;
+		var screenUp = -Gizmo.Nudge( basis, Vector2.Up ).Normal;
+		var faceNormal = screenRight.Cross( screenUp ).Normal;
+
+		var axis = direction.x != 0.0f
+			? faceNormal
+			: screenRight;
+
+		var angle = direction.x != 0.0f
+			? direction.x * Gizmo.Settings.AngleSpacing
+			: -direction.y * Gizmo.Settings.AngleSpacing;
+
+		var delta = Rotation.FromAxis( axis, angle );
+
+		StartDrag();
+
+		try
+		{
+			Rotate( Pivot.Position, Rotation.Identity, delta );
+			UpdateDrag();
+		}
+		finally
+		{
+			EndDrag();
+		}
+
+		Tool?.MoveMode?.OnBegin( this );
+	}
+
+	private void UpdateTexturesAfterNudge()
+	{
+		if ( !ShouldLockTexture() )
+		{
+			foreach ( var mesh in _vertexSelection.Select( x => x.Component.Mesh ).Distinct() )
+			{
+				mesh.ComputeFaceTextureCoordinatesFromParameters();
+			}
+
+			return;
+		}
+
+		foreach ( var group in _vertexSelection.GroupBy( x => x.Component ) )
+		{
+			var mesh = group.Key.Mesh;
+			var faces = new HashSet<FaceHandle>();
+
+			foreach ( var vertex in group )
+			{
+				if ( mesh.GetFacesConnectedToVertex( vertex.Handle, out var connected ) )
+				{
+					foreach ( var face in connected )
+						faces.Add( face );
+				}
+			}
+
+			if ( faces.Count > 0 )
+				mesh.ComputeFaceTextureParametersFromCoordinates( faces );
+		}
 	}
 
 	public override BBox CalculateSelectionBounds()
@@ -753,6 +916,45 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 	{
 		var bounds = CalculateSelectionBounds();
 		return bounds.Center;
+	}
+
+	/// <summary>
+	/// Selection position, relative to the pivot in <see cref="PivotSpace.Local"/> space.
+	/// Setting it moves the selection; the pivot stays put, acting as the reference point.
+	/// </summary>
+	[Title( "Position" ), WideMode]
+	public Vector3 PivotPosition
+	{
+		get => CalculateSelectionOrigin() - PivotOrigin;
+		set => MoveSelection( PivotOrigin + value - CalculateSelectionOrigin() );
+	}
+
+	Vector3 PivotOrigin => PivotSpace == PivotSpace.Local ? Pivot.Position : Vector3.Zero;
+
+	/// <summary>
+	/// Move the selected vertices by a world space delta. The undo scope is held open
+	/// until <see cref="EndMoveSelection"/> so a drag records a single undo entry.
+	/// </summary>
+	public void MoveSelection( Vector3 delta )
+	{
+		if ( _vertexSelection.Count == 0 || delta.LengthSquared < 0.0001f )
+			return;
+
+		var components = _vertexSelection.Select( v => v.Component ).Distinct();
+
+		using var scope = SceneEditorSession.Scope();
+		_undoScope ??= SceneEditorSession.Active.UndoScope( "Move Selection" ).WithComponentChanges( components ).Push();
+
+		foreach ( var vertex in _vertexSelection )
+			vertex.Component.Mesh.SetVertexPosition( vertex.Handle, vertex.Transform.PointToLocal( vertex.PositionWorld + delta ) );
+
+		Tool?.MoveMode?.OnBegin( this );
+	}
+
+	public void EndMoveSelection()
+	{
+		_undoScope?.Dispose();
+		_undoScope = null;
 	}
 
 	public void CalculateSelectionVertices()
@@ -798,12 +1000,6 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 		_meshSelectionDirty = true;
 	}
 
-	private void OnMeshSelectionChanged()
-	{
-		Pivot = CalculateSelectionOrigin();
-		Tool?.MoveMode?.OnBegin( this );
-	}
-
 	protected void Select( IMeshElement element )
 	{
 		if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
@@ -845,6 +1041,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 	}
 
 	IDisposable _selectionUndoScope;
+	IMeshElement _pressedElement;
 
 	public void UpdateSelection( IMeshElement element )
 	{
@@ -853,6 +1050,8 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 
 		if ( Gizmo.WasLeftMousePressed )
 		{
+			_pressedElement = element;
+
 			if ( element.IsValid() )
 			{
 				Select( element );
@@ -870,7 +1069,8 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 
 		if ( Gizmo.IsLeftMouseDown )
 		{
-			if ( element.IsValid() )
+			// The press already selected this one, painting over it again would just undo that
+			if ( element.IsValid() && !Equals( element, _pressedElement ) )
 			{
 				if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
 				{
@@ -899,6 +1099,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 
 		_selectionUndoScope?.Dispose();
 		_selectionUndoScope = null;
+		_pressedElement = null;
 	}
 
 	protected override void OnStartDrag()
@@ -1027,11 +1228,32 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 	//All the meshtools want the lasso selection mode
 	public override bool HasLassoSelectionMode() => true;
 
+	public override bool HasBoxSelectionMode() => true;
+
 	protected override void OnLassoSelect( List<Vector2> lassoPoints, bool isFinal )
 	{
 		if ( !isFinal ) return;
 
+		using var undoScope = SceneEditorSession.Active.UndoScope( "Lasso Selection" ).Push();
+
 		LassoSelection( lassoPoints );
+	}
+
+	IDisposable _boxSelectUndoScope;
+
+	void EndBoxSelectUndoScope()
+	{
+		_boxSelectUndoScope?.Dispose();
+		_boxSelectUndoScope = null;
+	}
+
+	// A box is just a four point lasso, so vertices, edges and faces all select the same way. This
+	// runs every frame of the drag, so hold a single undo scope open for the whole thing
+	protected override void OnBoxSelect( Frustum frustum, Rect screenRect, bool isFinal )
+	{
+		_boxSelectUndoScope ??= SceneEditorSession.Active.UndoScope( "Box Selection" ).Push();
+
+		LassoSelection( [screenRect.TopLeft, screenRect.TopRight, screenRect.BottomRight, screenRect.BottomLeft] );
 	}
 
 	/// <summary>
@@ -1076,6 +1298,10 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 		HashSet<T> selection = [];
 		HashSet<T> previous = [];
 
+		// previous only exists to drop things that are already selected, so meshes the lasso can't
+		// reach don't need their topology walked at all
+		var selectedElements = Selection.OfType<T>().ToLookup( x => x.Component );
+
 		foreach ( var component in Scene.GetAllComponents<MeshComponent>() )
 		{
 			var mesh = component.Mesh;
@@ -1083,39 +1309,25 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 
 			if ( component.GameObject.Tags.Has( "hidden" ) ) continue;
 
-			var worldBounds = component.GetWorldBounds();
+			var transform = component.Transform.World;
+			var worldBounds = mesh.CalculateBounds( transform );
 			var meshScreenBounds = GetScreenRectFromBounds( worldBounds );
 
 			if ( !lassoBounds.IsInside( meshScreenBounds ) )
 			{
-				if ( typeof( T ) == typeof( MeshVertex ) )
-				{
-					foreach ( var h in mesh.VertexHandles )
-						previous.Add( (T)(object)new MeshVertex( component, h ) );
-				}
-				else if ( typeof( T ) == typeof( MeshEdge ) )
-				{
-					foreach ( var h in mesh.HalfEdgeHandles )
-					{
-						if ( h.Index > mesh.GetOppositeHalfEdge( h ).Index )
-							continue;
-						previous.Add( (T)(object)new MeshEdge( component, h ) );
-					}
-				}
-				else if ( typeof( T ) == typeof( MeshFace ) )
-				{
-					foreach ( var h in mesh.FaceHandles )
-						previous.Add( (T)(object)new MeshFace( component, h ) );
-				}
+				foreach ( var element in selectedElements[component] )
+					previous.Add( element );
+
 				continue;
 			}
-
-			var transform = component.Transform.World;
 
 			if ( typeof( T ) == typeof( MeshVertex ) )
 			{
 				foreach ( var h in mesh.VertexHandles )
 				{
+					if ( mesh.IsVertexHidden( h ) )
+						continue;
+
 					var worldPos = transform.PointToWorld( mesh.GetVertexPosition( h ) );
 					var vertex = (T)(object)new MeshVertex( component, h );
 
@@ -1126,18 +1338,19 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 						continue;
 					}
 
-					if ( !Tool.SelectionThrough && IsVertexOccluded( worldPos, cameraPos ) )
+					var screenPos = Gizmo.Camera.ToScreen( worldPos );
+
+					if ( !lassoBounds.IsInside( screenPos ) || !IsPointInLasso( screenPos, lassoPoints ) )
 					{
 						previous.Add( vertex );
 						continue;
 					}
 
-					var screenPos = Gizmo.Camera.ToScreen( worldPos );
-
-					if ( lassoBounds.IsInside( screenPos ) && IsPointInLasso( screenPos, lassoPoints ) )
-						selection.Add( vertex );
-					else
+					// An occlusion trace is expensive, only pay for it once we know it's a candidate
+					if ( !Tool.SelectionThrough && IsVertexOccluded( worldPos, cameraPos ) )
 						previous.Add( vertex );
+					else
+						selection.Add( vertex );
 				}
 			}
 			else if ( typeof( T ) == typeof( MeshEdge ) )
@@ -1145,6 +1358,9 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 				foreach ( var h in mesh.HalfEdgeHandles )
 				{
 					if ( h.Index > mesh.GetOppositeHalfEdge( h ).Index )
+						continue;
+
+					if ( mesh.IsEdgeHidden( h ) )
 						continue;
 
 					mesh.GetEdgeVertices( h, out var vA, out var vB );
@@ -1163,26 +1379,21 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 						continue;
 					}
 
-					if ( !Tool.SelectionThrough )
-					{
-						if ( aInFront && IsVertexOccluded( worldPosA, cameraPos ) )
-							aInFront = false;
-
-						if ( bInFront && IsVertexOccluded( worldPosB, cameraPos ) )
-							bInFront = false;
-
-						if ( !aInFront && !bInFront )
-						{
-							previous.Add( edge );
-							continue;
-						}
-					}
-
 					var screenPosA = Gizmo.Camera.ToScreen( worldPosA );
 					var screenPosB = Gizmo.Camera.ToScreen( worldPosB );
 
 					bool aInLasso = aInFront && lassoBounds.IsInside( screenPosA ) && IsPointInLasso( screenPosA, lassoPoints );
 					bool bInLasso = bInFront && lassoBounds.IsInside( screenPosB ) && IsPointInLasso( screenPosB, lassoPoints );
+
+					// Occlusion traces are expensive, only pay for them once we know it's a candidate
+					if ( !Tool.SelectionThrough )
+					{
+						if ( aInLasso && IsVertexOccluded( worldPosA, cameraPos ) )
+							aInLasso = false;
+
+						if ( bInLasso && IsVertexOccluded( worldPosB, cameraPos ) )
+							bInLasso = false;
+					}
 
 					bool isSelected = Tool.LassoPartialSelection ? (aInLasso || bInLasso) : (aInLasso && bInLasso);
 
@@ -1196,8 +1407,29 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 			{
 				foreach ( var h in mesh.FaceHandles )
 				{
+					if ( mesh.IsFaceHidden( h ) )
+						continue;
+
 					mesh.GetVerticesConnectedToFace( h, out var vertices );
 					var face = (T)(object)new MeshFace( component, h );
+
+					// A face with nothing in the lasso is never selected, whatever the occlusion
+					// traces below would say, so skip them entirely
+					var anyInLasso = false;
+
+					foreach ( var v in vertices )
+					{
+						if ( !IsInLasso( transform.PointToWorld( mesh.GetVertexPosition( v ) ) ) ) continue;
+
+						anyInLasso = true;
+						break;
+					}
+
+					if ( !anyInLasso )
+					{
+						previous.Add( face );
+						continue;
+					}
 
 					int inFrontCount = 0;
 					int inLassoCount = 0;
@@ -1238,40 +1470,24 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 			}
 		}
 
-		if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
-		{
-			foreach ( var element in selection )
-			{
-				if ( Selection.Contains( element ) )
-					Selection.Remove( element );
-			}
-		}
-		else
-		{
-			foreach ( var element in selection )
-			{
-				if ( !Selection.Contains( element ) )
-					Selection.Add( element );
-			}
+		ApplyDragSelection( selection, previous );
 
-			if ( !Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift ) )
-			{
-				foreach ( var element in previous )
-				{
-					if ( Selection.Contains( element ) )
-						Selection.Remove( element );
-				}
-			}
+		bool IsInLasso( Vector3 worldPos )
+		{
+			if ( Vector3.Dot( worldPos - cameraPos, cameraForward ) <= 0 )
+				return false;
+
+			var screenPos = Gizmo.Camera.ToScreen( worldPos );
+			return lassoBounds.IsInside( screenPos ) && IsPointInLasso( screenPos, lassoPoints );
 		}
 	}
 
 	private Rect GetScreenRectFromBounds( BBox bounds )
 	{
-		var corners = bounds.Corners.ToArray();
 		var min = new Vector2( float.MaxValue, float.MaxValue );
 		var max = new Vector2( float.MinValue, float.MinValue );
 
-		foreach ( var corner in corners )
+		foreach ( var corner in bounds.Corners )
 		{
 			var screenPos = Gizmo.Camera.ToScreen( corner );
 			min = Vector2.Min( min, screenPos );
@@ -1407,4 +1623,37 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 		new( 0, 0, -1 ),
 		new( 0, 0, -1 ),
 	};
+}
+
+public static class SelectionToolSidebarExtensions
+{
+	/// <summary>
+	/// Add a "Transform" group for moving the selection relative to its pivot.
+	/// </summary>
+	public static void AddPivotGroup<T>( this ToolSidebarWidget sidebar, SelectionTool<T> tool ) where T : IMeshElement
+	{
+		var group = sidebar.AddGroup( "Transform", collapsible: true );
+		var hasSelection = tool.Selection.OfType<T>().Any();
+
+		var so = tool.GetSerialized();
+		so.OnPropertyFinishEdit += _ => tool.EndMoveSelection();
+
+		var position = ControlWidget.Create( so.GetProperty( nameof( SelectionTool<T>.PivotPosition ) ) );
+		position.FixedHeight = Theme.ControlHeight;
+		position.Enabled = hasSelection;
+		group.Add( position );
+
+		var space = ControlWidget.Create( so.GetProperty( nameof( SelectionTool.PivotSpace ) ) );
+		space.Enabled = hasSelection;
+		group.Add( space );
+	}
+
+	/// <summary>
+	/// Add a "Pivot" group for moving the selection's pivot around.
+	/// </summary>
+	public static void AddPivotButtons( this ToolSidebarWidget sidebar, SelectionTool tool, bool enabled )
+	{
+		var group = sidebar.AddGroup( "Pivot" );
+		group.Add( new PivotButtonsWidget( sidebar, tool, enabled ) );
+	}
 }

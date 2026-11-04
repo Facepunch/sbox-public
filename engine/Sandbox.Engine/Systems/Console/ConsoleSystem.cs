@@ -12,8 +12,8 @@ public static partial class ConsoleSystem
 	/// </summary>
 	public static void SetValue( string name, object value )
 	{
-		// Menu is allowed to access engine ConVars for settings, games can not
-		ConVarSystem.SetValue( name, value?.ToString(), Game.IsMenu );
+		// The menu sets protected ConVars through MenuUtility
+		ConVarSystem.SetValue( name, value?.ToString(), false );
 	}
 
 	/// <summary>
@@ -21,8 +21,7 @@ public static partial class ConsoleSystem
 	/// </summary>
 	public static string GetValue( string name, string defaultValue = null )
 	{
-		// Menu is allowed to access engine ConVars for settings, games can not
-		return ConVarSystem.GetValue( name, defaultValue, Game.IsMenu );
+		return ConVarSystem.GetValue( name, defaultValue, false );
 	}
 
 	/// <summary>
@@ -72,7 +71,7 @@ public static partial class ConsoleSystem
 		//
 		// We have a replicated value in the string table, use it
 		//
-		if ( IGameInstanceDll.Current.TryGetReplicatedVarValue( convarName, out var replicatedValue ) )
+		if ( IGameInstanceDll.Current is { } dll && dll.TryGetReplicatedVarValue( convarName, out var replicatedValue ) )
 		{
 			return (T)replicatedValue.ToType( typeof( T ) );
 		}

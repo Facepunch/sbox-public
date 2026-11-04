@@ -8,7 +8,9 @@ public partial class SceneEditorSession
 {
 	public UndoSystem UndoSystem { get; } = new UndoSystem();
 
-	internal bool IsUndoScopeOpen = false;
+	internal SceneUndoSnapshot LastUndoSnapshot { get; set; }
+	internal bool IsUndoScopeOpen => LastUndoSnapshot is { IsOpen: true };
+
 	bool _suppressUndoSounds = false;
 
 	private void InitUndo()
@@ -18,21 +20,11 @@ public partial class SceneEditorSession
 		// annoy everyone as much as possible
 		UndoSystem.OnUndo = ( x ) =>
 		{
-			if ( !_suppressUndoSounds && EditorPreferences.UndoSounds )
-			{
-				EditorUtility.PlayRawSound( "sounds/editor/success.wav" );
-			}
-
 			HasUnsavedChanges = true;
 		};
 
 		UndoSystem.OnRedo = ( x ) =>
 		{
-			if ( !_suppressUndoSounds && EditorPreferences.UndoSounds )
-			{
-				EditorUtility.PlayRawSound( "sounds/editor/success.wav" );
-			}
-
 			HasUnsavedChanges = true;
 		};
 	}
@@ -92,6 +84,31 @@ public partial class SceneEditorSession
 	public ISceneUndoScope UndoScope( string name )
 	{
 		return new SceneUndoScope( this, name );
+	}
+
+	/// <summary>
+	/// Cancels any open undo scopes, because we don't want the most
+	/// recent change to appear in the undo stack.
+	/// </summary>
+	public void CancelUndoScope()
+	{
+		LastUndoSnapshot?.Cancel();
+	}
+
+	internal void SucceedUndoRedo()
+	{
+		if ( !_suppressUndoSounds && EditorPreferences.UndoSounds )
+		{
+			EditorUtility.PlayRawSound( "sounds/editor/success.wav" );
+		}
+	}
+
+	internal void FailUndoRedo()
+	{
+		if ( !_suppressUndoSounds && EditorPreferences.UndoSounds )
+		{
+			EditorUtility.PlayRawSound( "sounds/editor/fail.wav" );
+		}
 	}
 }
 
@@ -272,6 +289,13 @@ internal sealed class SceneUndoSnapshot : IDisposable
 		public readonly List<GameObjectReference> GameObjectRefs;
 		public readonly List<GameObjectReference> GameObjectNextSiblingRefs;
 		public readonly List<GameObjectReference> GameObjectParentRefs;
+		private readonly Dictionary<Guid, PrefabInstanceData.OwnershipSnapshot> PrefabOwnership = new();
+
+		private void CapturePrefabOwnership( GameObject go )
+		{
+			if ( go.IsPrefabInstanceRoot && !PrefabOwnership.ContainsKey( go.Id ) )
+				PrefabOwnership.Add( go.Id, go.PrefabInstance.CaptureOwnership() );
+		}
 
 		public GameObjectSnapshot( Dictionary<GameObject, GameObjectUndoFlags> gameObjects )
 		{
@@ -288,14 +312,29 @@ internal sealed class SceneUndoSnapshot : IDisposable
 					Log.Info( $"Undo GameObjectSnapshot: GameObject queued for snapshot is not valid" );
 					continue;
 				}
-				var serializeOptions = new GameObject.SerializeOptions { IgnoreChildren = !flags.HasFlag( GameObjectUndoFlags.Children ), IgnoreComponents = !flags.HasFlag( GameObjectUndoFlags.Components ) };
-				GameObjectRefs.Add( GameObjectReference.FromInstance( go ) );
-				if ( go.IsOutermostPrefabInstanceRoot ) go.PrefabInstance.RefreshPatch();
+				var serializeOptions = new GameObject.SerializeOptions
+				{
+					IgnoreChildren = !flags.HasFlag( GameObjectUndoFlags.Children ),
+					IgnoreComponents = !flags.HasFlag( GameObjectUndoFlags.Components ),
+					SerializeForUndo = true
+				};
 
 				using var blobs = BlobDataSerializer.Capture();
 
 				var json = go.Serialize( serializeOptions );
+				if ( json is null )
+					continue;
+
 				blobs.SaveTo( json );
+				if ( serializeOptions.IgnoreChildren )
+				{
+					// Reparenting can detach nested roots and remove mappings from their old owners.
+					for ( var ancestor = go.Parent; ancestor.IsValid(); ancestor = ancestor.Parent )
+						CapturePrefabOwnership( ancestor );
+					foreach ( var descendant in go.GetAllObjects( false ) )
+						CapturePrefabOwnership( descendant );
+				}
+				GameObjectRefs.Add( GameObjectReference.FromInstance( go ) );
 				State.Add( json );
 				GameObjectNextSiblingRefs.Add( go.GetNextSibling( false ).IsValid() ? GameObjectReference.FromInstance( go.GetNextSibling( false ) ) : GameObjectReference.FromId( Guid.Empty ) );
 				GameObjectParentRefs.Add( go.Parent.IsValid() ? GameObjectReference.FromInstance( go.Parent ) : GameObjectReference.FromId( Guid.Empty ) );
@@ -325,7 +364,7 @@ internal sealed class SceneUndoSnapshot : IDisposable
 			}
 		}
 
-		public void PostRestore( Scene scene )
+		public void PostRestore( Scene scene, BlobDataSerializer.BlobContext blobs )
 		{
 			// second pass fully desiarizes and restores hierachy
 			for ( int i = 0; i < State.Count; i++ )
@@ -337,11 +376,18 @@ internal sealed class SceneUndoSnapshot : IDisposable
 					continue;
 				}
 
-				using var blobs = BlobDataSerializer.LoadFrom( State[i] );
+				// Merge blobs into the shared context - component PostDeserialize is deferred to the
+				// batch flush, so a per-object context would be gone before its blob data (eg. mesh) is read.
+				blobs.LoadFrom( State[i] );
 				go.Deserialize( State[i], new GameObject.DeserializeOptions { IsRefreshing = true } );
 			}
 
 			RestoreHierachy( scene );
+			foreach ( var (id, ownership) in PrefabOwnership )
+			{
+				var root = scene.Directory.FindByGuid( id );
+				if ( root.IsValid() ) ownership.Restore( root );
+			}
 		}
 
 		private void RestoreHierachy( Scene scene )
@@ -415,6 +461,27 @@ internal sealed class SceneUndoSnapshot : IDisposable
 
 	private Dictionary<Component, ComponentReference> _destroyedComponents { get; } = new();
 
+	private readonly HashSet<Guid> _prefabRootsToRefresh = new();
+
+	private void TrackPrefabRoot( GameObject go )
+	{
+		if ( !go.IsValid() ) return;
+		if ( go.IsPrefabInstance )
+			_prefabRootsToRefresh.Add( go.OutermostPrefabInstanceRoot.Id );
+		if ( go.Parent.IsValid() && go.Parent.IsPrefabInstance )
+			_prefabRootsToRefresh.Add( go.Parent.OutermostPrefabInstanceRoot.Id );
+	}
+
+	private static void RefreshPrefabPatches( Scene scene, IEnumerable<Guid> rootIds )
+	{
+		foreach ( var id in rootIds )
+		{
+			var root = scene.Directory.FindByGuid( id );
+			if ( root.IsValid() && root.IsOutermostPrefabInstanceRoot )
+				root.PrefabInstance.RefreshPatch();
+		}
+	}
+
 	private bool _captureDestructions = false;
 
 	private bool _captureComponentCreations = false;
@@ -435,15 +502,14 @@ internal sealed class SceneUndoSnapshot : IDisposable
 
 		_name = builder.Name;
 
-		_session.IsUndoScopeOpen = true;
-
 		// resolve builder contents
 		foreach ( var (gos, flags) in builder.CapturedGameObjects )
 		{
 			foreach ( var go in gos )
 			{
-				// Need to capture the prefab root and only the prefab root if we edited an instance
-				if ( go.IsPrefabInstance )
+				TrackPrefabRoot( go );
+				// Keep full snapshots for hierarchy edits; property changes can be captured locally.
+				if ( go.IsPrefabInstance && flags.HasFlag( GameObjectUndoFlags.Children ) )
 				{
 					_initalCapturedGameObjects[go.OutermostPrefabInstanceRoot] = GameObjectUndoFlags.All;
 					continue;
@@ -463,6 +529,7 @@ internal sealed class SceneUndoSnapshot : IDisposable
 
 		foreach ( var destroyedGo in builder.DestroyedGameObjects )
 		{
+			TrackPrefabRoot( destroyedGo );
 			// if destroyed go is part of prefab we need to update it's instance cache
 			if ( destroyedGo.IsPrefabInstance && !destroyedGo.IsOutermostPrefabInstanceRoot )
 			{
@@ -479,6 +546,7 @@ internal sealed class SceneUndoSnapshot : IDisposable
 
 		foreach ( var destroyedComp in builder.DestroyedComponents )
 		{
+			TrackPrefabRoot( destroyedComp.GameObject );
 			// if destroyed component is part of prefab we need to update it's instance cache
 			if ( destroyedComp.GameObject.IsPrefabInstance )
 			{
@@ -489,12 +557,7 @@ internal sealed class SceneUndoSnapshot : IDisposable
 
 		foreach ( var comp in builder.CapturedComponents )
 		{
-			// Need to capture the prefab root and only the prefab root if we edited an instance
-			if ( comp.GameObject.IsPrefabInstance )
-			{
-				_initalCapturedGameObjects[comp.GameObject.OutermostPrefabInstanceRoot] = GameObjectUndoFlags.All;
-				continue;
-			}
+			TrackPrefabRoot( comp.GameObject );
 
 			// only add if parent is not already watched or does not have component flag
 			if ( !_initalCapturedGameObjects.ContainsKey( comp.GameObject ) || !_initalCapturedGameObjects[comp.GameObject].Contains( GameObjectUndoFlags.Components ) )
@@ -552,7 +615,15 @@ internal sealed class SceneUndoSnapshot : IDisposable
 		}
 	}
 
+	private bool _cancelled;
 	private bool _alreadyDisposed = false;
+
+	internal bool IsOpen => !_alreadyDisposed;
+
+	public void Cancel()
+	{
+		_cancelled = true;
+	}
 
 	public void Dispose()
 	{
@@ -561,14 +632,16 @@ internal sealed class SceneUndoSnapshot : IDisposable
 
 		try
 		{
-			DisposeInternal();
+			if ( !_cancelled )
+			{
+				DisposeInternal();
+			}
 		}
 		finally
 		{
 			_session?.Scene?.Directory?.OnComponentAdded -= OnComponentAdded;
 			_session?.Scene?.Directory?.OnGameObjectAdded -= OnGameObjectAdded;
 
-			_session?.IsUndoScopeOpen = false;
 			_alreadyDisposed = true;
 		}
 	}
@@ -592,21 +665,12 @@ internal sealed class SceneUndoSnapshot : IDisposable
 		// add all gos still valid and not destroyed
 		foreach ( var (go, flags) in _initalCapturedGameObjects )
 		{
-			if ( go.IsPrefabInstance )
-			{
-				disposeWatchedGameObjects[go.OutermostPrefabInstanceRoot] = GameObjectUndoFlags.All;
-			}
-
-			// We may have moved this object to a different prefab instance => update prefabroot instead of it 
-			if ( go.Parent.IsValid() && go.Parent.IsPrefabInstance )
-			{
-				disposeWatchedGameObjects[go.Parent.OutermostPrefabInstanceRoot] = GameObjectUndoFlags.All;
-				continue;
-			}
 			if ( !go.IsValid() || go.IsDestroyed )
 			{
 				continue;
 			}
+
+			TrackPrefabRoot( go );
 
 			if ( !disposeWatchedGameObjects.ContainsKey( go ) )
 			{
@@ -627,6 +691,7 @@ internal sealed class SceneUndoSnapshot : IDisposable
 				continue;
 			}
 
+			TrackPrefabRoot( go );
 			// Need to capture the prefab root and only the prefab root if we edited an instance
 			if ( go.IsPrefabInstance )
 			{
@@ -654,6 +719,7 @@ internal sealed class SceneUndoSnapshot : IDisposable
 				continue;
 			}
 
+			TrackPrefabRoot( component.GameObject );
 			// Need to capture the prefab root and only the prefab root if we edited an instance
 			if ( component.GameObject.IsPrefabInstance )
 			{
@@ -678,13 +744,9 @@ internal sealed class SceneUndoSnapshot : IDisposable
 				continue;
 			}
 
-			// Need to capture the prefab root and only the prefab root if we edited an instance
-			if ( comp.GameObject.IsPrefabInstance )
-			{
-				disposeWatchedGameObjects[comp.GameObject.OutermostPrefabInstanceRoot] = GameObjectUndoFlags.All;
-			}
+			TrackPrefabRoot( comp.GameObject );
 			// only add if parent is not already watched or does not have component flag
-			else if ( !_initalCapturedGameObjects.ContainsKey( comp.GameObject ) || !_initalCapturedGameObjects[comp.GameObject].Contains( GameObjectUndoFlags.Components ) )
+			if ( !disposeWatchedGameObjects.TryGetValue( comp.GameObject, out var flags ) || !flags.Contains( GameObjectUndoFlags.Components ) )
 			{
 				disposeWatchedComponents.Add( comp );
 			}
@@ -707,7 +769,12 @@ internal sealed class SceneUndoSnapshot : IDisposable
 		var destroyedGameObjectRefs = _destroyedGameObjects.Select( x => x.Value ).ToArray();
 		var destroyedComponentRefs = _destroyedComponents.Select( x => x.Value ).ToArray();
 
-		var prefabInstanceRootsRequiringRefresh = new HashSet<GameObject>();
+		var prefabRootsToRefresh = _prefabRootsToRefresh.ToArray();
+		// Full root snapshots already refreshed their patch during serialization.
+		var refreshedRoots = disposeWatchedGameObjects
+			.Where( x => x.Key.IsOutermostPrefabInstanceRoot && x.Value.HasFlag( GameObjectUndoFlags.Children ) )
+			.Select( x => x.Key.Id );
+		RefreshPrefabPatches( _session.Scene, prefabRootsToRefresh.Except( refreshedRoots ) );
 
 		// if nothing changed, don't add an undo
 		if ( _initialState == disposeState )
@@ -747,13 +814,15 @@ internal sealed class SceneUndoSnapshot : IDisposable
 				}
 				else
 				{
-					using var batch = CallbackBatch.Batch();
+					// Must outlive the callback batch: deferred PostDeserialize reads blob data on flush
+					using var blobs = BlobDataSerializer.LoadFromMemory( default );
+					using var batch = CallbackBatch.Isolated();
 
 					preChangeStateCopy.GameObjectSnapshot?.Restore( _session.Scene );
 					preChangeStateCopy.ComponentSnapshot?.Restore( _session.Scene );
 
 					preChangeStateCopy.ComponentSnapshot?.PostRestore( _session.Scene );
-					preChangeStateCopy.GameObjectSnapshot?.PostRestore( _session.Scene );
+					preChangeStateCopy.GameObjectSnapshot?.PostRestore( _session.Scene, blobs );
 
 					// delete created components
 					foreach ( var compRef in createdComponentRefs )
@@ -768,6 +837,8 @@ internal sealed class SceneUndoSnapshot : IDisposable
 					}
 				}
 
+				RefreshPrefabPatches( _session.Scene, prefabRootsToRefresh );
+
 				// At last restore selection
 				preChangeStateCopy.Selection?.Restore( _session.Scene );
 			},
@@ -780,27 +851,32 @@ internal sealed class SceneUndoSnapshot : IDisposable
 
 				using var sceneScope = _session.Scene.Push();
 
-				using var batch = CallbackBatch.Batch();
-
-				// delete destroyed components
-				foreach ( var compRef in destroyedComponentRefs )
+				// Must outlive the callback batch: deferred PostDeserialize reads blob data on flush
+				using var blobs = BlobDataSerializer.LoadFromMemory( default );
+				using ( CallbackBatch.Isolated() )
 				{
-					compRef.Resolve( _session.Scene )?.Destroy();
+					// delete destroyed components
+					foreach ( var compRef in destroyedComponentRefs )
+					{
+						compRef.Resolve( _session.Scene )?.Destroy();
+					}
+
+					// delete destroyed gos
+					foreach ( var goRef in destroyedGameObjectRefs )
+					{
+						goRef.Resolve( _session.Scene )?.Destroy();
+					}
+
+					// Restore Gos and pass created gos which need to be created first
+					disposeState.GameObjectSnapshot?.Restore( _session.Scene, createdGameObjectRefs );
+					disposeState.ComponentSnapshot?.Restore( _session.Scene );
+
+					// Do actual deserialization
+					disposeState.GameObjectSnapshot?.PostRestore( _session.Scene, blobs );
+					disposeState.ComponentSnapshot?.PostRestore( _session.Scene );
 				}
 
-				// delete destroyed gos
-				foreach ( var goRef in destroyedGameObjectRefs )
-				{
-					goRef.Resolve( _session.Scene )?.Destroy();
-				}
-
-				// Restore Gos and pass created gos which need to be created first
-				disposeState.GameObjectSnapshot?.Restore( _session.Scene, createdGameObjectRefs );
-				disposeState.ComponentSnapshot?.Restore( _session.Scene );
-
-				// Do actual deserialization
-				disposeState.GameObjectSnapshot?.PostRestore( _session.Scene );
-				disposeState.ComponentSnapshot?.PostRestore( _session.Scene );
+				RefreshPrefabPatches( _session.Scene, prefabRootsToRefresh );
 
 				// restore selection
 				if ( disposeState.Selection != null )
@@ -899,7 +975,6 @@ internal class SceneUndoScope : ISceneUndoScope
 	}
 	public IDisposable Push()
 	{
-		var snapshot = new SceneUndoSnapshot( this );
-		return snapshot;
+		return Session.LastUndoSnapshot = new SceneUndoSnapshot( this );
 	}
 }

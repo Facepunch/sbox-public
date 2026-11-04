@@ -1,66 +1,361 @@
+@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+
+// The same insets as the other tabs - the newest post big across the top, the rest as cards under it
 PackageNews
 {
-    padding: 2rem;
-    flex-direction: column;
-    overflow: hidden;
-    max-width: 100%;
-    overflow-y: scroll;
-    flex-shrink: 0;
+	padding: 24px 24px 64px 24px;
+	gap: 14px;
+	flex-direction: column;
+	overflow: hidden;
+	max-width: 100%;
+	overflow-y: scroll;
+	flex-shrink: 0;
+	font-family: $front-font;
+
+	i
+	{
+		font-family: "Material Icons";
+	}
+
+	.state
+	{
+		padding: 64px;
+		justify-content: center;
+		font-size: 13px;
+		color: $front-secondary;
+	}
+
+	.section-label
+	{
+		@include front-section-label;
+		margin-top: 8px;
+	}
+
+	// A post's picture, filling whatever holds it - it eases in a touch under the pointer
+	.picture
+	{
+		position: absolute;
+		left: 0;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		background-size: cover;
+		background-position: center;
+		background-color: rgba( 0, 0, 0, 0.35 );
+		transition: transform 0.3s ease-out;
+	}
+
+	//
+	// The newest - its picture across the width, what it's called laid over its foot on a shade
+	//
+
+	.feature
+	{
+		position: relative;
+		flex-shrink: 0;
+		height: 280px;
+		border-radius: $front-radius;
+		border: $front-border-width solid $front-hairline;
+		background-color: $front-card-deep;
+		overflow: hidden;
+		cursor: pointer;
+		transition: border-color 0.12s ease;
+
+		&:hover
+		{
+			sound-in: "ui.button.over";
+			border-color: rgba( 255, 255, 255, 0.24 );
+
+			.picture
+			{
+				transform: scale( 1.03 );
+			}
+
+			.feature-title
+			{
+				color: #ffffff;
+			}
+		}
+
+		&:active
+		{
+			sound-in: "ui.button.press";
+		}
+	}
+
+	// Clear at the top, dark by the foot - so the words over it read
+	.shade
+	{
+		position: absolute;
+		left: 0;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		background-image: linear-gradient( to bottom, rgba( 10, 12, 16, 0 ) 30%, rgba( 10, 12, 16, 0.92 ) 100% );
+		pointer-events: none;
+	}
+
+	.feature-text
+	{
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		flex-direction: column;
+		gap: 6px;
+		padding: 20px 22px;
+	}
+
+	.tags
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 8px;
+		margin-bottom: 2px;
+	}
+
+	.feature-title
+	{
+		font-size: 24px;
+		font-weight: 700;
+		color: $front-heading;
+		text-shadow: 0 2px 10px rgba( 0, 0, 0, 0.6 );
+		transition: color 0.12s ease;
+	}
+
+	.feature-summary
+	{
+		max-width: 80%;
+		font-size: 13.5px;
+		color: $front-body;
+		text-shadow: 0 1px 6px rgba( 0, 0, 0, 0.6 );
+	}
+
+	.author
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 6px;
+		margin-top: 4px;
+
+		label
+		{
+			font-size: 12px;
+			font-weight: 600;
+			color: $front-body;
+		}
+	}
+
+	.avatar
+	{
+		flex-shrink: 0;
+		width: 18px;
+		height: 18px;
+		border-radius: 50%;
+		background-size: cover;
+		background-position: center;
+		background-color: rgba( 0, 0, 0, 0.35 );
+	}
+
+	// The Changes tab's "Latest update" pill, brighter here - it's on a picture
+	.latest-pill
+	{
+		flex-shrink: 0;
+		padding: 3px 9px;
+		border-radius: 999px;
+		background-color: $front-primary;
+		font-size: 10px;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.07em;
+		color: #ffffff;
+	}
+
+	// How long ago - the one pill, on dark glass here so it reads over the picture
+	.ago
+	{
+		@include front-meta-pill;
+
+		background-color: rgba( 0, 0, 0, 0.45 );
+	}
+
+	//
+	// The rest - cards two to a row, each its picture over what it's called
+	//
+
+	.grid
+	{
+		flex-direction: row;
+		flex-wrap: wrap;
+		flex-shrink: 0;
+		gap: 12px;
+	}
+
+	.card
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		flex-basis: 45%;
+		min-width: 0;
+		// Half the row at most - a lone one on the end stays the size of the rest
+		max-width: 49%;
+		border-radius: $front-radius;
+		border: $front-border-width solid $front-hairline;
+		background-color: $front-card-deep;
+		overflow: hidden;
+		cursor: pointer;
+		transition: border-color 0.12s ease, background-color 0.12s ease;
+
+		&:hover
+		{
+			sound-in: "ui.button.over";
+			border-color: rgba( 255, 255, 255, 0.22 );
+			background-color: #1a1e26;
+
+			.picture
+			{
+				transform: scale( 1.04 );
+			}
+
+			.card-title
+			{
+				color: #ffffff;
+			}
+		}
+
+		&:active
+		{
+			sound-in: "ui.button.press";
+		}
+	}
+
+	.card-media
+	{
+		position: relative;
+		width: 100%;
+		aspect-ratio: 16 / 9;
+		flex-shrink: 0;
+		overflow: hidden;
+		background-color: rgba( 0, 0, 0, 0.35 );
+	}
+
+	.card-body
+	{
+		flex-direction: column;
+		gap: 5px;
+		padding: 12px 14px 14px 14px;
+	}
+
+	.card-title
+	{
+		font-size: 14px;
+		font-weight: 700;
+		color: $front-heading;
+		white-space: normal;
+		transition: color 0.12s ease;
+	}
+
+	.card-summary
+	{
+		font-size: 12.5px;
+		color: $front-secondary;
+		white-space: normal;
+	}
+
+	// Who wrote it and when, in a line
+	.meta
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 6px;
+		margin-top: 3px;
+
+		.name
+		{
+			font-size: 12px;
+			font-weight: 600;
+			color: $front-body;
+		}
+
+		.dot, .when
+		{
+			font-size: 12px;
+			color: $front-secondary;
+		}
+	}
+
+	//
+	// On their way - the same shapes, breathing
+	//
+
+	.feature.skeleton, .card.skeleton
+	{
+		cursor: default;
+		pointer-events: none;
+		border-color: $front-hairline;
+	}
+
+	.feature.skeleton
+	{
+		background-color: rgba( 255, 255, 255, 0.03 );
+		animation: news-bone 1.2s ease-in-out infinite alternate;
+	}
+
+	.card.skeleton .card-media
+	{
+		background-color: rgba( 255, 255, 255, 0.05 );
+		animation: news-bone 1.2s ease-in-out infinite alternate;
+	}
+
+	.bone
+	{
+		flex-shrink: 0;
+		height: 12px;
+		border-radius: 999px;
+		background-color: rgba( 255, 255, 255, 0.08 );
+		animation: news-bone 1.2s ease-in-out infinite alternate;
+	}
+
+	.pill-bone
+	{
+		width: 90px;
+		height: 18px;
+	}
+
+	.title-bone
+	{
+		width: 46%;
+		height: 22px;
+	}
+
+	.card-title-bone
+	{
+		width: 70%;
+		height: 14px;
+	}
+
+	.line-bone
+	{
+		width: 62%;
+
+		&.short
+		{
+			width: 45%;
+		}
+	}
 }
 
-PackageNews .entry
+@keyframes news-bone
 {
-    gap: 2rem;
-    cursor: pointer;
-    padding: 1rem;
-    opacity: 0.8;
-    flex-shrink: 0;
-}
+	0%
+	{
+		opacity: 0.55;
+	}
 
-PackageNews .entry:hover
-{
-    background-color: #ffffff05;
-    border-radius: 8px;
-    opacity: 1;
-}
-
-PackageNews .entry .media
-{
-    width: 200px;
-    height: 100px;
-    flex-shrink: 0;
-    flex-grow: 0;
-    background-size: cover;
-    background-position: center;
-    border-radius: 8px;
-}
-
-PackageNews .entry .meta
-{
-    gap: 1rem;
-    margin-bottom: 1rem;
-}
-
-PackageNews .entry .meta > *
-{
-    gap: 0.3rem;
-    align-items: center;
-    color: #4479de;
-    font-size: 12px;
-}
-
-PackageNews .entry .right
-{
-    flex-direction: column;
-}
-
-PackageNews .entry .title
-{
-    font-size: 18px;
-    font-weight: bold;
-}
-
-PackageNews .entry .summary
-{
-    color: #aab6cc;
+	100%
+	{
+		opacity: 1;
+	}
 }

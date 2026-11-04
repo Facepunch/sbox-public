@@ -51,6 +51,7 @@ public sealed partial class SceneModel
 
 		animNative.CalculateWorldSpaceBones();
 		animNative.FinishUpdate();
+		NotifyChanged( Rendering.SceneObjectChange.Bones );
 	}
 
 	/// <summary>
@@ -62,6 +63,7 @@ public sealed partial class SceneModel
 		Assert.False( parent == this );
 
 		animNative.MergeFrom( parent );
+		NotifyChanged( Rendering.SceneObjectChange.Bones );
 	}
 
 	/// <summary>
@@ -71,5 +73,9 @@ public sealed partial class SceneModel
 	/// <returns>The parent space transform, or an identity transform on failure.</returns>
 	public Transform GetParentSpaceBone( int i ) => animNative.GetParentSpaceBone( i );
 
-	internal void SetParentSpaceBone( int i, in Transform tx ) => animNative.SetParentSpaceBone( i, tx );
+	internal void SetParentSpaceBone( int i, in Transform tx )
+	{
+		animNative.SetParentSpaceBone( i, tx );
+		NotifyChanged( Rendering.SceneObjectChange.Bones );
+	}
 }

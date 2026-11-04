@@ -1,0 +1,348 @@
+@import "/styles/_front.scss";
+
+// Landscape tiles: the art is the whole card. Nearly every game has its name in its art, so the
+// title only fades in while a video covers it. The live count sits in the bottom right corner.
+// A mixin because "&.default, &.wide" nests as "PackageCard.default, PackageCard.wide column".
+@mixin landscape-band
+{
+	// The art is the whole card - no outline round it, which just reads as a see-through rim
+	border-width: 0;
+
+	.image
+	{
+		border-radius: $front-radius;
+	}
+
+	// Out-ranks the card's own hover below. No grow - it lifts: up a few pixels, its shadow
+	// deepening under it as if it's come off the page.
+	&.package-card:not(.list):hover
+	{
+		transform: translateY( -4px );
+		box-shadow: 0 14px 30px rgba( black, 0.65 );
+	}
+
+	// Covers the art: the title sits in its top left corner, the live count in its bottom right.
+	column
+	{
+		position: absolute;
+		left: 0;
+		right: 0;
+		top: 0;
+		bottom: 0;
+		flex-direction: column;
+		align-items: stretch;
+		justify-content: space-between;
+		gap: 0;
+		padding: 0;
+		background-color: transparent;
+		background-image: none;
+		pointer-events: none;
+
+		&::after
+		{
+			display: none;
+		}
+	}
+
+	// On the same dark pill as the nominations badge - a glow wasn't enough on busy video.
+	.package-title
+	{
+		align-self: flex-start;
+		flex-grow: 0;
+		flex-shrink: 1;
+		min-width: 0;
+		max-width: 100%;
+		// The base card caps the title at 24px tall, which the pill's padding would overflow.
+		// Not "none" - the style engine has no such length, so that left the cap in place.
+		max-height: 60px;
+		// At least the flair badges' height. Not a fixed height with a matching line-height - the
+		// ellipsis logic decides no line fits in that and draws nothing.
+		min-height: 22px;
+		padding: 1px 7px;
+		margin: 8px 8px 0 8px;
+		border-radius: 5px;
+		// A touch denser than the nominations badge - this sits on moving video
+		background-color: rgba( 14, 18, 26, 0.94 );
+		font-size: 13.5px;
+		color: #ffffff;
+		opacity: 0;
+		transition: opacity 0.6s ease-in-out;
+	}
+
+	&.playing .package-title
+	{
+		opacity: 1;
+		transition: opacity 1.2s ease-in-out 0.6s;
+	}
+
+	// The nominations badge shares the title's corner - it steps aside while the title's up.
+	.package-nominations
+	{
+		transition: opacity 0.6s ease-in-out;
+	}
+
+	&.playing .package-nominations
+	{
+		opacity: 0;
+	}
+
+	.package-meta
+	{
+		align-self: flex-end;
+		flex-shrink: 0;
+		gap: 0;
+	}
+
+	// Only the live count - the rating and all-time players are on the hover card
+	.package-stat
+	{
+		display: none;
+
+		// The same pill as the title, flair height, in the opposite corner. Wider than a badge,
+		// unavoidably - the dot is what says "live", so it stays.
+		&.live
+		{
+			display: flex;
+			gap: 4px;
+			min-height: 22px;
+			padding: 1px 6px;
+			margin: 0 8px 8px 0;
+			border-radius: 5px;
+			background-color: rgba( 14, 18, 26, 0.94 );
+		}
+
+		label
+		{
+			font-size: 12.5px;
+			font-weight: 600;
+		}
+	}
+}
+
+//
+// The front page's tile look, applied to the shared PackageCard. PackageCard lives in
+// the base addon and can't import these tokens, so the menu dresses it from here. It only
+// reaches cards under a stylesheet that imports it - the menus (_menushell) and the pickers
+// (_picker) do; anywhere else in the overlay gets the bare card.
+//
+// The image-on-top variants get the full treatment. .list is a horizontal row and
+// keeps its own layout; only its colours are touched.
+//
+
+PackageCard
+{
+	font-family: $front-font;
+
+	.package-nominations
+	{
+		position: absolute;
+		top: 8px;
+		left: 8px;
+		align-items: center;
+		gap: 5px;
+		padding: 4px 7px;
+		border-radius: 5px;
+		background-color: $front-tile-bar;
+		color: $front-heading;
+
+		icon
+		{
+			font-size: 14px;
+			color: $front-trophy;
+		}
+
+		label
+		{
+			font-size: 11px;
+			font-weight: 600;
+		}
+	}
+
+	// The rails' outline - the same hairline round every panel
+	border: $front-border-width solid $front-border;
+	border-radius: $front-radius;
+	overflow: hidden;
+	transition: all 0.12s ease;
+
+	.image
+	{
+		flex-shrink: 0;
+		overflow: hidden;
+		// Its own rounding, not just the card's - overflow here clips children to this
+		// box, so without it the hover video renders square corners over rounded art.
+		border-radius: $front-radius $front-radius 0 0;
+		border: 0;
+		// Darker than the page, so art-less cards read as intentional.
+		background-color: #0B0D14;
+		transition: all 0.12s ease;
+		background-tint: white;
+	}
+
+	.package-video
+	{
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		background-size: cover;
+		background-position: center;
+		pointer-events: none;
+
+		// The still art is underneath, so fading crossfades into it instead of cutting.
+		opacity: 1;
+		transition: opacity 1s ease-in-out;
+
+		&:intro
+		{
+			opacity: 0;
+		}
+
+		&:outro
+		{
+			opacity: 0;
+			transition: opacity 0.6s ease-in-out;
+		}
+	}
+
+	// A band below the art - the art stays unobstructed. The rails' fill and paper texture, so the
+	// cards read as the same material as the panels round them
+	column
+	{
+		position: relative;
+		flex-direction: column;
+		flex-shrink: 0;
+		gap: 4px;
+		padding: 9px 12px 11px 12px;
+		background-color: $front-card;
+		background-image: linear-gradient( 180deg, $front-card-top, $front-card-bottom );
+
+		@include front-grain;
+	}
+
+	.package-title
+	{
+		font-size: 14px;
+		font-weight: 600;
+		color: $front-heading;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	&.default { @include landscape-band; }
+	&.wide { @include landscape-band; }
+
+	// Icon+number pairs read as one unit, with clear air between the pairs.
+	.package-meta
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 12px;
+	}
+
+	.package-stat
+	{
+		flex-direction: row;
+		align-items: center;
+		flex-shrink: 0;
+		gap: 5px;
+
+		icon
+		{
+			font-size: 12px;
+			color: $front-secondary;
+		}
+
+		label
+		{
+			font-size: 12px;
+			font-weight: 500;
+			letter-spacing: 0;
+			text-transform: none;
+			color: $front-secondary;
+		}
+
+		.live-dot
+		{
+			width: 6px;
+			height: 6px;
+			border-radius: 3px;
+			background-color: $front-accent;
+		}
+
+		&.live label
+		{
+			color: $front-accent;
+		}
+	}
+
+	// The base card's grey hover plate (its ::after) - gone for good, not just while hovered. Hidden
+	// only on hover, it came back the moment the pointer left and faded out from grey, a flash of
+	// background behind the card on every unhover
+	&.package-card:not(.list)::after
+	{
+		display: none;
+	}
+
+	// Hover = a small lift. The extra class out-ranks the base :not(.list):hover scale/fill.
+	&.package-card:not(.list):hover
+	{
+		border-color: rgba( 255, 255, 255, 0.16 );
+		box-shadow: 0 10px 30px rgba( black, 0.6 );
+		// No grow for now - out-ranks the base card's scale up too
+		transform: none;
+		background-color: transparent;
+		z-index: 100;
+
+		// Tints past 1.0 bloom.
+		.image
+		{
+			background-tint: white;
+		}
+
+		.package-title
+		{
+			color: #ffffff;
+		}
+	}
+
+	&.package-card:not(.list):active
+	{
+		transform: scale( 1.0 );
+	}
+
+	// A row, not a tile - no art band, no rounding on the image's bottom corners.
+	&.list
+	{
+		border-radius: $front-radius;
+
+		.image
+		{
+			border-radius: $front-radius;
+		}
+
+		column
+		{
+			background-color: transparent;
+			background-image: none;
+			padding: 0;
+			justify-content: center;
+
+			&::after
+			{
+				display: none;
+			}
+		}
+
+		// A row sits in a list, not on its own - no outline until it's pointed at
+		border-color: transparent;
+
+		&:hover
+		{
+			border-color: $front-hairline;
+			box-shadow: none;
+			background-color: rgba( 255, 255, 255, 0.05 );
+		}
+	}
+}

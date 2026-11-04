@@ -132,6 +132,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 	public bool StartAsleep { get; set; }
 
 	[Property] public Action OnPropBreak { get; set; }
+	[Property] public Action<List<Gib>> OnGibsCreated { get; set; }
 	[Property] public Action<DamageInfo> OnPropTakeDamage { get; set; }
 
 	[Property, Hide]
@@ -139,6 +140,16 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 
 	[Property, Hide]
 	ModelRenderer ModelRenderer { get; set; }
+
+	/// <summary>
+	/// Override material carried over from the prop a gib broke off, applied to the renderer we create.
+	/// </summary>
+	internal Material InheritedMaterialOverride;
+
+	/// <summary>
+	/// Surface carried over from the prop a gib broke off, applied to the collider we create.
+	/// </summary>
+	internal Surface InheritedSurface;
 
 	void ClearProcedurals()
 	{
@@ -239,6 +250,11 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 		mr.MaterialGroup = MaterialGroup;
 		mr.Tint = Tint;
 
+		if ( InheritedMaterialOverride is not null )
+		{
+			mr.MaterialOverride = InheritedMaterialOverride;
+		}
+
 		AddProcedural( mr );
 
 		ModelRenderer = mr;
@@ -258,6 +274,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 			var collider = Components.GetOrCreate<ModelCollider>();
 			collider.Static = true;
 			collider.Model = Model;
+			ApplyInheritedSurface( collider );
 			AddProcedural( collider );
 
 			return;
@@ -269,6 +286,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 			var collider = Components.GetOrCreate<ModelCollider>();
 			collider.Static = false;
 			collider.Model = Model;
+			ApplyInheritedSurface( collider );
 
 			AddProcedural( collider );
 
@@ -330,6 +348,29 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 		physics.Model = Model;
 
 		AddProcedural( physics );
+	}
+
+	void ApplyInheritedSurface( Collider collider )
+	{
+		if ( InheritedSurface.IsValid() )
+		{
+			collider.Surface = InheritedSurface;
+		}
+	}
+
+	static Material GetGibMaterialOverride( ModelRenderer mr )
+	{
+		if ( !mr.IsValid() )
+			return null;
+
+		if ( mr.MaterialOverride is not null )
+			return mr.MaterialOverride;
+
+		var materials = mr.Materials;
+		if ( materials.Count == 1 && materials.HasOverride( 0 ) )
+			return materials.GetOverride( 0 );
+
+		return null;
 	}
 
 	/// <summary>
@@ -460,6 +501,8 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 		var force = Model.Data.ExplosionForce;
 		if ( force <= 0 ) force = 1;
 
+		CreateScorchDecal();
+
 		var explosionPrefab = Game.Resources.Get<PrefabFile>( "/prefabs/engine/explosion_med.prefab" );
 		if ( explosionPrefab == null )
 		{
@@ -478,12 +521,36 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 			x.PhysicsForceScale = force;
 			x.DamageAmount = damage;
 			x.Attacker = LastAttacker;
+			x.Weapon = GameObject;
 			x.DamageTags?.Add( "explosion" );
 
 		}, FindMode.EverythingInSelfAndDescendants );
 
 		go.Enabled = true;
 		go.NetworkSpawn( true, null );
+	}
+
+	[Rpc.Broadcast( NetFlags.OwnerOnly )]
+	private void CreateScorchDecal()
+	{
+		var tr = Scene.Trace.Ray( new Ray( WorldPosition + new Vector3( 0, 0, 8 ), Vector3.Down ), 40 )
+			.IgnoreDynamic()
+			.IgnoreGameObjectHierarchy( GameObject )
+			.UseHitPosition( true )
+			.Run();
+
+		if ( !tr.Hit ) return;
+
+		var scorchPrefab = GameObject.GetPrefab( "/prefabs/engine/scorch.prefab" );
+		if ( scorchPrefab == null )
+		{
+			Log.Warning( "Can't find /prefabs/engine/scorch.prefab" );
+			return;
+		}
+
+		var go = scorchPrefab.Clone( tr.HitPosition + tr.Normal, Rotation.LookAt( -tr.Normal, Vector3.Up ) );
+		go.SetParent( tr.GameObject, true );
+		go.Enabled = true;
 	}
 
 	private void PlayBreakSound()
@@ -538,6 +605,9 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 		var rb = Components.Get<Rigidbody>();
 		var mr = Components.Get<ModelRenderer>();
 
+		var materialOverride = GetGibMaterialOverride( mr );
+		var surface = Components.Get<Collider>()?.Surface;
+
 		gibs.EnsureCapacity( breaklist.Length );
 
 		// Batch anything we're spawning here
@@ -570,6 +640,8 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 				}
 
 				var c = gib.Components.Create<Gib>( false );
+				c.InheritedMaterialOverride = materialOverride;
+				c.InheritedSurface = surface;
 				c.FadeTime = breakModel.FadeTime;
 				c.Model = model;
 				c.Enabled = true;
@@ -628,6 +700,8 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 				gib.Ignite();
 			}
 		}
+
+		OnGibsCreated?.Invoke( gibs );
 
 		return gibs;
 	}

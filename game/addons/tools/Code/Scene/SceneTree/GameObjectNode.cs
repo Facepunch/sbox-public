@@ -325,7 +325,7 @@ partial class GameObjectNode : TreeNode<GameObject>
 	{
 		var undoName = selection != null && selection.Count > 1 ? $"Rename {selection.Count} Objects" : "Rename Object";
 		var gos = selection.Select( x => x.Value ).OfType<GameObject>().ToArray();
-		using ( SceneEditorSession.Active.UndoScope( undoName ).WithGameObjectChanges( gos, GameObjectUndoFlags.All ).Push() )
+		using ( SceneEditorSession.Active.UndoScope( undoName ).WithGameObjectChanges( gos, GameObjectUndoFlags.Properties ).Push() )
 		{
 			foreach ( var go in gos )
 			{
@@ -786,10 +786,11 @@ partial class GameObjectNode : TreeNode<GameObject>
 			}
 			prefabRoot.Name = System.IO.Path.GetFileNameWithoutExtension( saveLocation );
 
-			EditorUtility.Prefabs.ConvertGameObjectToPrefab( prefabRoot, saveLocation );
-			EditorUtility.InspectorObject = prefabRoot;
+			prefabRoot = EditorUtility.Prefabs.ConvertGameObjectToPrefab( prefabRoot, saveLocation );
+			if ( prefabRoot is null ) return;
 
-			EditorScene.Selection.Clear();
+			EditorUtility.InspectorObject = prefabRoot;
+			EditorScene.Selection.Set( prefabRoot );
 		}
 	}
 

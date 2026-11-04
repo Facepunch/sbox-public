@@ -22,6 +22,20 @@ public class DedicatedServerAppSystem : AppSystem
 
 	public override void Init()
 	{
+		// Redirecting console output (docker/wine/etc..) won't support this overlay, so don't bother with it
+		if ( !Console.IsOutputRedirected )
+		{
+			Console.Clear();
+
+			console = new DedicatedServerConsole();
+			console?.Update();
+		}
+
+		Log.Info( $"Welcome to the s&box Dedicated server ({Application.Version})" );
+		Log.Info( "Submit any issues to https://github.com/facepunch/sbox-public/issues" );
+
+		Log.Info( "Initializing s&box.." );
+
 		LoadSteamDll();
 		TestSystemRequirements();
 
@@ -43,12 +57,7 @@ public class DedicatedServerAppSystem : AppSystem
 			PrintHelp();
 		}
 
-		// Redirecting console output (docker/wine/etc..) won't support this overlay, so don't bother with it
-		if ( !Console.IsOutputRedirected )
-		{
-			console = new DedicatedServerConsole();
-			console.Update();
-		}
+		console?.Update();
 	}
 
 	protected override bool RunFrame()
@@ -65,9 +74,7 @@ public class DedicatedServerAppSystem : AppSystem
 
 	void PrintHelp()
 	{
-		Log.Info( "Welcome to the s&box dedicated server." );
-		Log.Info( "Submit any issues to https://github.com/facepunch/sbox-public/issues" );
-		Log.Info( "" );
+		Log.Error( "Server is idle. Start a game to start hosting:" );
 		Log.Info( "game <gameident> - load a game" );
 		Log.Info( "game <gameident> <mapident> - load a game with a map" );
 		Log.Info( "find <text> - find a concommand or convar" );

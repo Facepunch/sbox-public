@@ -24,8 +24,7 @@ namespace ActionGraphTests
 		[TestInitialize]
 		public void Initialize()
 		{
-			TypeLibrary = new TypeLibrary();
-			TypeLibrary.AddAssembly( typeof( LogNodes ).Assembly, false );
+			TypeLibrary = SharedTypeLibrary.Engine;
 
 			_oldNodeLibrary = Nodes;
 

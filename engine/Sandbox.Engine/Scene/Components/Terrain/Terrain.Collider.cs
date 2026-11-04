@@ -64,21 +64,25 @@ public partial class Terrain
 			}
 		}
 
-		var shape = targetBody.AddHeightFieldShape( Storage.HeightMap, surfaceMap, Storage.Resolution, Storage.Resolution, sizeScale, heightScale, 4 );
-		shape.Collider = this;
-		shape.Surface = Surface;
+		try
+		{
+			Span<int> surfaceIndices = stackalloc int[4];
+			surfaceIndices.Fill( Surface?.Index ?? -1 );
+			int index = 0;
+			foreach ( var material in Storage.Materials )
+			{
+				if ( index == surfaceIndices.Length ) break;
+				surfaceIndices[index++] = (material.Surface ?? Surface)?.Index ?? -1;
+			}
 
-		shape.Surfaces = Storage.Materials
-			.Select( x => x.Surface ?? Surface )
-			.Concat( Enumerable.Repeat( Surface, 4 ) )
-			.Take( 4 )
-			.ToArray();
+			_shape = targetBody.AddHeightFieldShape( Storage.HeightMap, surfaceMap, Storage.Resolution, Storage.Resolution, sizeScale, heightScale, 4, surfaceIndices );
+		}
+		finally
+		{
+			ArrayPool<byte>.Shared.Return( surfaceMap );
+		}
 
-		_shape = shape;
-
-		ArrayPool<byte>.Shared.Return( surfaceMap );
-
-		yield return shape;
+		yield return _shape;
 	}
 
 	private unsafe void UpdateColliderHeights( int x, int y, int w, int h )
@@ -86,18 +90,24 @@ public partial class Terrain
 		if ( !_shape.IsValid() )
 			return;
 
+		if ( _shape?._shape is not PhysicsShape3d shape3d )
+			return;
+
 		fixed ( ushort* heights = &Storage.HeightMap[0] )
 		{
 			var sizeScale = Storage.TerrainSize / Storage.Resolution;
 			var heightScale = Storage.TerrainHeight / ushort.MaxValue;
 
-			_shape.native.UpdateHeightShape( (IntPtr)heights, IntPtr.Zero, x, y, w, h, sizeScale, heightScale );
+			shape3d.native.UpdateHeightShape( (IntPtr)heights, IntPtr.Zero, x, y, w, h, sizeScale, heightScale );
 		}
 	}
 
 	private unsafe void UpdateColliderMaterials( int x, int y, int w, int h )
 	{
 		if ( !_shape.IsValid() )
+			return;
+
+		if ( _shape?._shape is not PhysicsShape3d shape3d )
 			return;
 
 		// Extract base texture IDs from the compact format for the specified region
@@ -130,7 +140,7 @@ public partial class Terrain
 			var sizeScale = Storage.TerrainSize / Storage.Resolution;
 			var heightScale = Storage.TerrainHeight / ushort.MaxValue;
 
-			_shape.native.UpdateHeightShape( IntPtr.Zero, (IntPtr)pMaterials, x, y, w, h, sizeScale, heightScale );
+			shape3d.native.UpdateHeightShape( IntPtr.Zero, (IntPtr)pMaterials, x, y, w, h, sizeScale, heightScale );
 		}
 	}
 }

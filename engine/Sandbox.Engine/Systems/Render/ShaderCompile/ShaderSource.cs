@@ -207,7 +207,7 @@ class ShaderSource
 	/// Pulls a single block's bytes out of a Source 2 resource container by its type id. Mirror of the layout
 	/// written by <see cref="Sandbox.Resources.ResourceWriter"/>.
 	/// </summary>
-	static bool TryGetResourceBlock( byte[] file, uint typeId, out byte[] block )
+	internal static bool TryGetResourceBlock( byte[] file, uint typeId, out byte[] block )
 	{
 		block = null;
 
@@ -246,6 +246,43 @@ class ShaderSource
 		}
 
 		return false;
+	}
+
+	const uint RESOURCE_BLOCK_ID_GUID = 0x44495547; // 'GUID'
+	const uint RESOURCE_BLOCK_ID_SPRV = 0x56525053; // 'SPRV'
+
+	/// <summary>
+	/// Write the blocks the resource compiler writes for <see cref="Serialize"/>'s payload (int size + SPIR-V,
+	/// int size + HLSL), minus REDI, which nothing outside the editor reads. For when there's no resourcecompiler,
+	/// which only loads in tools mode. The GUID is kept from the .shader_c being replaced, if it has one.
+	/// </summary>
+	internal static byte[] WriteResourceFile( string filename, byte[] data, int resourceVersion )
+	{
+		var spirvSize = BitConverter.ToInt32( data, 0 );
+		var spirv = data.AsSpan( 4, spirvSize );
+
+		var hlslSize = BitConverter.ToInt32( data, 4 + spirvSize );
+		var hlsl = data.AsSpan( 8 + spirvSize, Math.Max( 0, hlslSize ) );
+
+		// VFX_SHADER_RESOURCE_VERSION, CShaderTypeManager won't load anything older
+		var writer = new Sandbox.Resources.ResourceWriter { ResourceVersion = (ushort)resourceVersion };
+
+		var existing = filename + "_c";
+		if ( System.IO.File.Exists( existing ) && TryGetResourceBlock( System.IO.File.ReadAllBytes( existing ), RESOURCE_BLOCK_ID_GUID, out var guid ) )
+		{
+			writer.RegisterAdditionalBlock( RESOURCE_BLOCK_ID_GUID, guid );
+		}
+
+		// CVfx::CreateFromResourceFile reads the shader header through DATA, so it stays empty and lands on SPRV
+		writer.SetDataBlock( [] );
+		writer.RegisterAdditionalBlock( RESOURCE_BLOCK_ID_SPRV, spirv.ToArray() );
+
+		if ( hlsl.Length > 0 )
+		{
+			writer.RegisterAdditionalBlock( RESOURCE_BLOCK_ID_HLSL, hlsl.ToArray() );
+		}
+
+		return writer.ToArray();
 	}
 
 	class EmbeddedSource

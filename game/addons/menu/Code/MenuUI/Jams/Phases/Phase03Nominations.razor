@@ -1,0 +1,10 @@
+@namespace MenuProject.MenuUI.Jams
+@inherits JamPhasePanel
+
+<root class="jam-phase">
+	<JamPhaseLayout Jam=@Jam Blurb=@EntryGuidance CountdownTarget=@Jam.NominationsEnd CountdownLabel="#menu.jam.nominations_lock_in">
+		<Content>
+			<JamEntries Jam=@Jam />
+		</Content>
+	</JamPhaseLayout>
+</root>

@@ -1,4 +1,4 @@
-@import "/styles/_theme.scss";
+@import "/styles/_chat.scss";
 
 ChatPanel
 {
@@ -41,17 +41,12 @@ ChatPanel
 
 		.chat-entry
 		{
-			padding: 4px 10px;
-			gap: 8px;
-			border-radius: $rounding-large;
-			align-items: flex-start;
-			flex-shrink: 0;
 			transition: opacity 0.3s $easing;
 			opacity: 1;
+			align-items: flex-start;
 
 			&:hover
 			{
-				cursor: pointer;
 				background-color: rgba( white, 0.05 );
 			}
 
@@ -87,28 +82,17 @@ ChatPanel
 				margin-top: 3px;
 			}
 
-			.avatar
-			{
-				width: 24px;
-				height: 24px;
-				min-width: 24px;
-				min-height: 24px;
-				background-position: center;
-				background-size: cover;
-				border-radius: 100%;
-				box-shadow: 2px 2px 3px rgba( black, 0.65 );
-				flex-shrink: 0;
-			}
-
 			.name
 			{
-				color: #0094ff;
-				font-family: $font-heading;
-				font-weight: 800;
-				font-size: 18px;
-				white-space: nowrap;
-				flex-shrink: 0;
-				text-shadow: 1px 1px 0px rgba( black, 0.75 );
+				&.clickable
+				{
+					cursor: pointer;
+
+					&:hover
+					{
+						color: white;
+					}
+				}
 			}
 
 			.text

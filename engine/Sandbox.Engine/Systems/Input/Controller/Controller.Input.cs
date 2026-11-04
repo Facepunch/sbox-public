@@ -10,7 +10,16 @@ internal sealed partial class Controller
 	/// <summary>
 	/// Get the first controller that's connected (shortcut)
 	/// </summary>
-	internal static Controller First => All.FirstOrDefault();
+	internal static Controller First
+	{
+		get
+		{
+			foreach ( var controller in All )
+				return controller;
+
+			return null;
+		}
+	}
 
 	/// <summary>
 	/// The input context for this controller.
@@ -23,12 +32,17 @@ internal sealed partial class Controller
 	List<InputAxis> ControllerAxes { get; set; } = new();
 
 	/// <summary>
+	/// Triggers always use a fixed deadzone, they're not affected by <see cref="Preferences.ControllerJoystickDeadzone"/>.
+	/// </summary>
+	const float TriggerDeadzone = 0.125f;
+
+	/// <summary>
 	/// Get an axis
 	/// </summary>
 	/// <param name="axis"></param>
 	/// <param name="defaultValue"></param>
 	/// <returns></returns>
-	internal float GetAxis( NativeEngine.GameControllerAxis axis, float defaultValue = 0f )
+	internal float GetAxis( Sandbox.GameControllerAxis axis, float defaultValue = 0f )
 	{
 		var foundAxis = ControllerAxes.FirstOrDefault( x => x.Axis == axis );
 		if ( foundAxis is null )
@@ -39,14 +53,15 @@ internal sealed partial class Controller
 		return foundAxis.Value;
 	}
 
-	internal void SetAxis( NativeEngine.GameControllerAxis axis, int inputValue )
+	internal void SetAxis( Sandbox.GameControllerAxis axis, int inputValue )
 	{
 		float flValue = inputValue;
 		float normalizedAxis = flValue.Remap( Controller.AXIS_RANGE.x, Controller.AXIS_RANGE.y, -1, 1 );
 
-		// 12.5% deadzone
-		// todo: make this modifiable 
-		var deadzone = 0.125f;
+		var deadzone = axis < Sandbox.GameControllerAxis.TriggerLeft
+			? Preferences.ControllerJoystickDeadzone / 100.0f
+			: TriggerDeadzone;
+
 		if ( MathF.Abs( normalizedAxis ) <= deadzone ) normalizedAxis = 0f;
 
 		if ( normalizedAxis > 0f )
@@ -72,7 +87,7 @@ internal sealed partial class Controller
 	/// </summary>
 	internal record class InputAxis
 	{
-		internal NativeEngine.GameControllerAxis Axis { get; set; }
+		internal Sandbox.GameControllerAxis Axis { get; set; }
 		internal float Value { get; set; }
 	}
 

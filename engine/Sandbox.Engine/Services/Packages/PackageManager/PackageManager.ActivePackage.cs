@@ -1,4 +1,5 @@
 ﻿using System.IO;
+using Sandbox.Utility;
 using System.Net;
 using System.Threading;
 
@@ -38,34 +39,16 @@ internal static partial class PackageManager
 
 			if ( package is LocalPackage localPackage )
 			{
-				var projectSettingsPath = System.IO.Path.Combine( localPackage.Project.GetRootPath(), "ProjectSettings" );
+				// A local package mounts it's project's filesystems (don't use them directly!)
+				o.FileSystem = new AggregateFileSystem();
+				o.FileSystem.Mount( localPackage.Project.CodeFileSystem );
+				o.FileSystem.Mount( localPackage.Project.AssetsFileSystem );
 
 				o.ProjectSettings = new AggregateFileSystem();
-				if ( System.IO.Directory.Exists( projectSettingsPath ) )
-				{
-					o.ProjectSettings.CreateAndMount( projectSettingsPath );
-				}
+				o.ProjectSettings.Mount( localPackage.Project.ProjectSettingsFileSystem );
 
-				o.Localization ??= new AggregateFileSystem();
-				if ( System.IO.Directory.Exists( localPackage.LocalizationPath ) )
-				{
-					o.Localization.CreateAndMount( localPackage.LocalizationPath );
-				}
-
-				o.FileSystem = new AggregateFileSystem();
-
-				if ( System.IO.Directory.Exists( localPackage.CodePath ) )
-				{
-					if ( localPackage.CodePath != null )
-					{
-						o.FileSystem.CreateAndMount( localPackage.CodePath );
-					}
-				}
-
-				if ( System.IO.Directory.Exists( localPackage.ContentPath ) )
-				{
-					o.FileSystem.CreateAndMount( localPackage.ContentPath );
-				}
+				o.Localization = new AggregateFileSystem();
+				o.Localization.Mount( localPackage.Project.LocalizationFileSystem );
 
 				o.AssemblyFileSystem = new AggregateFileSystem();
 
@@ -120,6 +103,9 @@ internal static partial class PackageManager
 				throw new WebException( $"Unable to download package '{Package.FullIdent}'" );
 			}
 
+			// Before anything can load them: recompile shaders an older engine compiled
+			await Sandbox.Engine.Shaders.ShaderUpgrade.UpgradeAsync( PackageFileSystem.Redirect, Package.Title, token );
+
 			//
 			// Mount downloaded filesystem as our main filesystem
 			//
@@ -129,7 +115,7 @@ internal static partial class PackageManager
 			//
 			// Mount localization data from this package
 			//
-			Localization ??= new AggregateFileSystem();
+			Localization = new AggregateFileSystem();
 			if ( FileSystem.DirectoryExists( "localization" ) )
 			{
 				// Mount as a subsystem of the package's FileSystem
@@ -137,34 +123,168 @@ internal static partial class PackageManager
 			}
 
 			//
-			// If the ProjectSettings folder exists, we can create a filesystem for it.
-			// If not, just create a memory filesystem, which will be empty, but at least won't be null.
+			// Same for ProjectSettings. Empty if the package hasn't got the folder, so callers get
+			// a filesystem with nothing in it rather than a null.
 			//
+			ProjectSettings = new AggregateFileSystem();
 			if ( FileSystem.DirectoryExists( "ProjectSettings" ) )
 			{
-				ProjectSettings = FileSystem.CreateSubSystem( "ProjectSettings" );
-			}
-			else
-			{
-				ProjectSettings = new MemoryFileSystem();
+				ProjectSettings.Mount( FileSystem.CreateSubSystem( "ProjectSettings" ) );
 			}
 
 			//
 			// Mount assembly from this package
 			//
-			AssemblyFileSystem ??= new AggregateFileSystem();
+			AssemblyFileSystem = new AggregateFileSystem();
 			if ( FileSystem.DirectoryExists( ".bin" ) )
 			{
 				// Mount as a subsystem of the package's FileSystem
 				AssemblyFileSystem.Mount( FileSystem.CreateSubSystem( ".bin" ) );
 			}
 
-			var dllFs = await DownloadBinDllsAsync( Package.Revision, token );
+			MemoryFileSystem dllFs = null;
+
+			if ( CompilesOnBackend() )
+			{
+				// The dlls built for exactly our engine version. With code archives, anything short of that (failed,
+				// still compiling, unreachable) leaves them unmounted and the install compiles the archives here.
+				// Without any there's nothing else to run, so wait out the compile.
+				var hasArchives = HasCodeArchives();
+				(dllFs, var error) = await DownloadCompiledDllAsync( waitForCompile: !hasArchives, token );
+
+				if ( dllFs is null && !hasArchives )
+					throw new System.Exception( $"Couldn't get the code for '{Package.FullIdent}': {error}" );
+			}
+			else if ( !HasCodeArchives() )
+			{
+				// Everything that isn't a game compiles its code archives on install, older revisions
+				// without any only have the dlls in their manifest
+				dllFs = await DownloadBinDllsAsync( Package.Revision, token );
+			}
+
 			if ( dllFs != null )
 			{
-				AssemblyFileSystem ??= new AggregateFileSystem();
 				AssemblyFileSystem.Mount( dllFs );
 			}
+		}
+
+		/// <summary>
+		/// Only games compile on the backend. Everything else (addons, libraries, tools) compiles its code archives here.
+		/// </summary>
+		private bool CompilesOnBackend()
+		{
+			if ( Backend.Package is null || Package.Revision is not { VersionId: > 0 } )
+				return false;
+
+			if ( Package.TypeName != "game" )
+				return false;
+
+			return HasManifestDlls() || HasCodeArchives();
+		}
+
+		/// <summary>
+		/// How long one request to the backend for the compile can take. It answers Pending itself after ~20s.
+		/// </summary>
+		static readonly TimeSpan CompiledDllTimeout = TimeSpan.FromSeconds( 60 );
+
+		/// <summary>
+		/// How long to wait before asking again while it compiles, when the backend doesn't say.
+		/// </summary>
+		static readonly TimeSpan CompiledDllRetry = TimeSpan.FromSeconds( 10 );
+
+		/// <summary>
+		/// The package's dlls compiled by the backend against our engine version - its own and any libraries it bundles -
+		/// queueing the compile if nobody has asked for it yet. With <paramref name="waitForCompile"/> it keeps asking
+		/// until the compile is done, otherwise a compile that's still going counts as no dlls. Null dlls, and why, when
+		/// the compile failed, or the backend can't be reached and we haven't fetched them before.
+		/// </summary>
+		private async Task<(MemoryFileSystem Dlls, string Error)> DownloadCompiledDllAsync( bool waitForCompile, CancellationToken token )
+		{
+			var ident = Package.FullIdent;
+			var revision = Package.Revision.VersionId;
+			var engineVersion = Sandbox.Engine.Protocol.Api;
+
+			// A revision's dlls for a version never change, so the last answer is good for installing offline
+			var cacheKey = $"dlls.{ident}.{revision}.{engineVersion}";
+
+			ManifestSchema.File[] files;
+
+			try
+			{
+				LoadingScreen.Subtitle = "Fetching compiled code";
+
+				while ( true )
+				{
+					using var timeout = CancellationTokenSource.CreateLinkedTokenSource( token );
+					timeout.CancelAfter( CompiledDllTimeout );
+
+					var response = await Backend.Package.GetDll( ident, revision, engineVersion, timeout.Token );
+
+					if ( response.Content is { Status: "Compiled", Dlls.Length: > 0 } result )
+					{
+						files = result.Dlls.Select( x => new ManifestSchema.File { Url = x.Url, Crc = x.Crc, Size = x.Size, Path = x.Path } ).ToArray();
+						Services.ServiceCache.WriteDisk( cacheKey, files );
+						break;
+					}
+
+					var pending = response.Content?.Status == "Pending";
+					var reason = pending ? "it's still compiling" : $"{(int)response.StatusCode} {response.Content?.Error ?? response.Error?.Content}";
+
+					if ( !pending || !waitForCompile )
+					{
+						Log.Info( $"No compiled dll for {ident} on engine version {engineVersion} ({reason})" );
+						return (null, reason);
+					}
+
+					LoadingScreen.Subtitle = "Waiting for the server to compile it";
+					await Task.Delay( response.Headers.RetryAfter?.Delta ?? CompiledDllRetry, token );
+				}
+			}
+			catch ( Exception e ) when ( !token.IsCancellationRequested )
+			{
+				if ( !Services.ServiceCache.TryReadDisk( cacheKey, out files ) )
+				{
+					Log.Warning( e, $"Couldn't fetch the compiled dll for {ident} ({e.Message})" );
+					return (null, e.Message);
+				}
+			}
+			finally
+			{
+				LoadingScreen.Subtitle = null;
+			}
+
+			var memFs = new MemoryFileSystem();
+
+			foreach ( var file in files )
+			{
+				byte[] bytes;
+
+				try
+				{
+					LoadingScreen.Subtitle = System.IO.Path.GetFileName( file.Path );
+					bytes = await GetCachedDllAsync( file, token );
+				}
+				catch ( Exception e ) when ( !token.IsCancellationRequested )
+				{
+					Log.Warning( e, $"Couldn't download the compiled {file.Path} for {ident} ({e.Message})" );
+					return (null, $"couldn't download {file.Path}");
+				}
+				finally
+				{
+					LoadingScreen.Subtitle = null;
+				}
+
+				// All or nothing - compiling the code archives brings its own copy of every assembly
+				if ( bytes is null || Crc64.FromBytes( bytes ) != Convert.ToUInt64( file.Crc, 16 ) )
+				{
+					Log.Warning( $"Compiled {file.Path} for {ident} didn't download intact" );
+					return (null, $"{file.Path} didn't download intact");
+				}
+
+				memFs.WriteAllBytes( System.IO.Path.GetFileName( file.Path ), bytes );
+			}
+
+			return (memFs, null);
 		}
 
 		private static async Task<MemoryFileSystem> DownloadBinDllsAsync( Package.IRevision revision, CancellationToken token )
@@ -186,7 +306,7 @@ internal static partial class PackageManager
 				token.ThrowIfCancellationRequested();
 				LoadingScreen.Subtitle = System.IO.Path.GetFileName( file.Path );
 
-				var bytes = await Sandbox.Utility.Web.GrabFile( file.Url, token );
+				var bytes = await GetCachedDllAsync( file, token );
 				if ( bytes is not null )
 				{
 					memFs.WriteAllBytes( System.IO.Path.GetFileName( file.Path ), bytes );
@@ -195,6 +315,31 @@ internal static partial class PackageManager
 
 			LoadingScreen.Subtitle = null;
 			return memFs;
+		}
+
+		/// <summary>
+		/// The dll's bytes from the download cache, fetched into it first when they aren't there or
+		/// don't match the manifest's crc. The bytes still go through access control before they load.
+		/// </summary>
+		private static async Task<byte[]> GetCachedDllAsync( ManifestSchema.File file, CancellationToken token )
+		{
+			var crc = Convert.ToUInt64( file.Crc, 16 );
+			var cachePath = AssetDownloadCache.GetAbsolutePath( file.Path, crc );
+
+			if ( System.IO.File.Exists( cachePath ) )
+			{
+				var cached = await System.IO.File.ReadAllBytesAsync( cachePath, token );
+				if ( Crc64.FromBytes( cached ) == crc )
+					return cached;
+			}
+
+			var bytes = await Sandbox.Utility.Web.GrabFile( file.Url, token );
+			if ( bytes is not null && Crc64.FromBytes( bytes ) == crc )
+			{
+				AssetDownloadCache.StoreFile( file.Path, crc, bytes );
+			}
+
+			return bytes;
 		}
 
 		internal bool HasPrecompiledDlls()
@@ -335,6 +480,9 @@ internal static partial class PackageManager
 		{
 			MountedFileSystem.UnMount( FileSystem );
 
+			// Make sure we unmount the package from the global filesystem, so that any other packages that might have been mounted on top of it don't get broken.
+			Sandbox.FileSystem.Mounted?.UnMount( FileSystem );
+
 			FileSystem.Dispose();
 			FileSystem = default;
 
@@ -343,6 +491,14 @@ internal static partial class PackageManager
 
 			AssemblyFileSystem.Dispose();
 			AssemblyFileSystem = null;
+
+			// Ours as well - for a local package these are wrappers around the project's
+			// filesystems, and the project keeps those
+			ProjectSettings?.Dispose();
+			ProjectSettings = null;
+
+			Localization?.Dispose();
+			Localization = null;
 
 			// Reload any resident resources that were just unmounted (they shouldn't be used & will appear as an error, or a local variant)
 			NativeEngine.g_pResourceSystem.ReloadSymlinkedResidentResources();

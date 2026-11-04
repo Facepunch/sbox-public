@@ -7,6 +7,8 @@ public class EyeDropperTool : EditorTool
 	internal static SerializedProperty TargetProperty = null;
 	internal static Action OnBackToLastTool;
 
+	static bool MenuOpen;
+
 	string LastSelection;
 
 
@@ -97,7 +99,8 @@ public class EyeDropperTool : EditorTool
 	{
 		if ( obj is GameObject gameObject )
 		{
-			ProcessObject( gameObject );
+			if ( ProcessObject( gameObject ) )
+				return;
 		}
 		else if ( obj is Component component )
 		{
@@ -105,8 +108,7 @@ public class EyeDropperTool : EditorTool
 		}
 		else if ( obj is Asset asset )
 		{
-			// Process Prefabs as GameObjects
-			if ( asset.TryLoadResource( out PrefabFile prefabFile ) && TargetProperty.PropertyType == typeof( GameObject ) )
+			if ( TargetProperty is not null && asset.TryLoadResource( out PrefabFile prefabFile ) && TargetProperty.PropertyType == typeof( GameObject ) )
 			{
 				ProcessObject( SceneUtility.GetPrefabScene( prefabFile ) );
 			}
@@ -118,7 +120,10 @@ public class EyeDropperTool : EditorTool
 	{
 		base.OnUpdate();
 
-		if ( !TargetProperty.Parent.Contains( TargetProperty ) )
+		if ( MenuOpen )
+			return;
+
+		if ( TargetProperty is null || !TargetProperty.Parent.Contains( TargetProperty ) )
 		{
 			BackToLastTool();
 			return;
@@ -149,22 +154,76 @@ public class EyeDropperTool : EditorTool
 		//}
 	}
 
-	static void ProcessObject( GameObject obj )
+	/// <summary>
+	/// Assign from a picked GameObject. Returns true if the choice was handed off to a popup menu,
+	/// which does its own teardown, so the caller shouldn't tear the tool down again.
+	/// </summary>
+	static bool ProcessObject( GameObject obj )
 	{
-		if ( TargetProperty is null ) return;
+		if ( TargetProperty is null ) return false;
 		if ( TargetProperty.PropertyType == typeof( GameObject ) )
 		{
 			// GameObject Target
 			TargetProperty.SetValue( obj );
+			return false;
 		}
-		else
+
+		var candidates = obj.Components
+			.GetAll( TargetProperty.PropertyType, FindMode.EnabledInSelfAndDescendants )
+			.ToList();
+
+		if ( candidates.Count == 0 )
 		{
-			// Component Target, search for any enabled components first
-			var comp = obj.Components.Get( TargetProperty.PropertyType, FindMode.EnabledInSelfAndDescendants );
-			// If none found, search for any that are disabled
-			comp ??= obj.Components.Get( TargetProperty.PropertyType, FindMode.DisabledInSelfAndDescendants );
-			ProcessComponent( comp );
+			candidates = obj.Components
+				.GetAll( TargetProperty.PropertyType, FindMode.DisabledInSelfAndDescendants )
+				.ToList();
 		}
+
+		if ( candidates.Count > 1 )
+		{
+			OpenComponentMenu( obj, candidates );
+			return true;
+		}
+
+		ProcessComponent( candidates.FirstOrDefault() );
+		return false;
+	}
+
+	/// <summary>
+	/// Show a menu of every matching component on the picked object. Clicking one picks it.
+	/// </summary>
+	static void OpenComponentMenu( GameObject obj, List<Component> components )
+	{
+		MenuOpen = true;
+
+		var menu = new Menu();
+		menu.AddHeading( obj.Name );
+
+		Component picked = null;
+
+		foreach ( var component in components )
+		{
+			var type = EditorTypeLibrary.GetType( component.GetType() );
+			var name = type?.Title ?? component.GetType().Name;
+
+			if ( component.GameObject != obj )
+			{
+				name = $"{name} ({component.GameObject?.Name})";
+			}
+
+			menu.AddOption( name, type?.Icon, () => picked = component );
+		}
+
+		menu.OpenAtCursor( true );
+
+		MenuOpen = false;
+
+		if ( picked.IsValid() )
+		{
+			ProcessComponent( picked );
+		}
+
+		BackToLastTool();
 	}
 
 	static void ProcessComponent( Component comp )
@@ -179,7 +238,8 @@ public class EyeDropperTool : EditorTool
 
 		if ( obj.IsValid() )
 		{
-			ProcessObject( obj );
+			if ( ProcessObject( obj ) )
+				return;
 		}
 
 		BackToLastTool();
@@ -206,6 +266,7 @@ public class EyeDropperTool : EditorTool
 		EditorToolManager.SetTool( LastTool );
 		LastTool = null;
 		TargetProperty = null;
+		MenuOpen = false;
 
 		OnBackToLastTool?.Invoke();
 	}

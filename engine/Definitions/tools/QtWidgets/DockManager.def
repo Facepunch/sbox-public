@@ -24,6 +24,7 @@ native class ads::CDockManager as Native.CDockManager : QWidget
 		ads::CDockManager::setConfigFlag( ads::CDockManager::DoubleClickUndocksWidget, false );
 		ads::CDockManager::setConfigFlag( ads::CDockManager::OpaqueSplitterResize, true );
 		ads::CDockManager::setConfigFlag( ads::CDockManager::TabCloseButtonIsToolButton, true );
+		ads::CDockManager::setConfigFlag( ads::CDockManager::MiddleMouseButtonClosesTab, true );
 		ads::CDockManager::setConfigFlag( ads::CDockManager::DisableStylesheet, true );
 	}
 

@@ -1,0 +1,71 @@
+@using Sandbox.PanelGallery;
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+@using Sandbox;
+@using Sandbox.UI;
+@attribute [Group( "Layout" )]
+@attribute [Title( "scrollbar-gutter" )]
+@attribute [Icon( "science" )]
+<root>
+    <h2>Gutter</h2>
+
+    <div class="cases">
+        <UiTestCase Caption="Overlay" Setup="@Frame" Rule="scrollbar-gutter: auto" Note="The default: the bar lays over the content, which keeps the full width.">
+            <ChildContent><div class="box g-auto"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Caption="Reserve one edge" Setup="@Frame" Rule="scrollbar-gutter: stable" Note="The bar's width is kept free at the right, so the content is squeezed beside it - the cyan strip.">
+            <ChildContent><div class="box g-stable"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Caption="Reserve both edges" Setup="@Frame" Rule="scrollbar-gutter: stable both-edges" Note="Space at both edges so the content stays centred. The bar still only draws on the right.">
+            <ChildContent><div class="box g-both"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Caption="Content fits" Setup="@Frame" Rule="stable  (content fits)" Note="Stable means stable: the gutter is there whether or not there's a bar in it, so nothing shifts when one appears.">
+            <ChildContent><div class="box g-stable"><div class="short"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Caption="No scrollbar" Setup="@Frame" Rule="stable; scrollbar-width: none" Note="No bar, no gutter.">
+            <ChildContent><div class="box g-stable w-none"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Caption="With padding" Setup="@Frame" Rule="stable; padding: 10px" Note="The gutter is outside the padding: the padding scrolls with the content, the gutter doesn't.">
+            <ChildContent><div class="box g-stable padded10"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Caption="Both axes" Setup="@Frame" Rule="stable; overflow: scroll  (wide and tall)" Note="Only the vertical bar gets a gutter, like the web. The horizontal one still overlays.">
+            <ChildContent><div class="box g-stable both"><div class="big"></div></div></ChildContent>
+        </UiTestCase>
+    </div>
+    <div class="cases">
+        <UiTestCase Caption="Growing content" Setup="@Frame" Rule="content grows and shrinks, with a gutter" Note="Same, but nothing else moves: the gutter was there all along.">
+            <ChildContent><div class="box g-stable"><div class="grower"></div></div></ChildContent>
+        </UiTestCase>
+    </div>
+    <div class="cases">
+        <UiTestCase Caption="Animated gutter" Setup="@Frame" Rule="scrollbar-gutter flips between auto and stable" Note="The content squeezes and relaxes as the gutter comes and goes.">
+            <ChildContent><div class="box regutter"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+    </div>
+
+</root>
+@code
+{
+    const string Frame = "width: 120px; height: 110px";
+
+
+    public const float ToggleSeconds = 1.6f;
+
+    RealTimeUntil timeUntilToggle = 0.1f;
+    bool on;
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        if ( !IsVisible ) return;
+
+        if ( timeUntilToggle <= 0 )
+        {
+            timeUntilToggle = ToggleSeconds;
+            on = !on;
+            SetClass( "grown", on );
+        }
+    }
+
+}

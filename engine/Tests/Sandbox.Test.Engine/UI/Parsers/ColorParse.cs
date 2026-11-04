@@ -310,4 +310,44 @@ public class ColorParseTest
 		Assert.AreEqual( 0.4f, c.Value.a );
 	}
 
+	[TestMethod]
+	public void ParseHsl()
+	{
+		var c = Color.Parse( "hsl(0, 100%, 50%)" );
+
+		Assert.IsTrue( c.HasValue );
+		Assert.AreEqual( 1, c.Value.r );
+		Assert.AreEqual( 0, c.Value.g );
+		Assert.AreEqual( 0, c.Value.b );
+		Assert.AreEqual( 1, c.Value.a );
+
+		// Spaced out, like the rest of our css is written
+		c = Color.Parse( "hsl( 120, 100%, 50% )" );
+
+		Assert.IsTrue( c.HasValue );
+		Assert.AreEqual( 0, c.Value.r );
+		Assert.AreEqual( 1, c.Value.g );
+		Assert.AreEqual( 0, c.Value.b );
+		Assert.AreEqual( 1, c.Value.a );
+
+		// Alpha, however it is written
+		foreach ( var blue in new[] { "hsla( 240, 100%, 50%, 0.5 )", "hsl( 240, 100%, 50%, 0.5 )", "hsl( 240 100% 50% / 0.5 )" } )
+		{
+			c = Color.Parse( blue );
+
+			Assert.IsTrue( c.HasValue, blue );
+			Assert.AreEqual( 0, c.Value.r, blue );
+			Assert.AreEqual( 0, c.Value.g, blue );
+			Assert.AreEqual( 1, c.Value.b, blue );
+			Assert.AreEqual( 0.5f, c.Value.a, blue );
+		}
+
+		c = Color.Parse( "hsl( 0, 0%, 100% )" );
+
+		Assert.IsTrue( c.HasValue );
+		Assert.AreEqual( 1, c.Value.r );
+		Assert.AreEqual( 1, c.Value.g );
+		Assert.AreEqual( 1, c.Value.b );
+	}
+
 }

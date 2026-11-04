@@ -1,5 +1,4 @@
 ﻿using Sandbox.MovieMaker.Properties;
-using Sandbox.Utility;
 
 namespace Sandbox.MovieMaker;
 
@@ -131,6 +130,8 @@ public sealed partial class MoviePlayer : Component
 		UpdateTargets( null );
 	}
 
+	private MovieUpdateBuilder UpdateBuilder => field ??= new MovieUpdateBuilder( Binder );
+
 	/// <summary>
 	/// Apply the movie clip to the scene at the current time position.
 	/// </summary>
@@ -149,15 +150,16 @@ public sealed partial class MoviePlayer : Component
 
 		if ( Clip is not { } clip ) return;
 
+		var updateBuilder = UpdateBuilder;
+
 		foreach ( var renderer in Binder.GetComponents<SkinnedModelRenderer>( clip ) )
 		{
 			MovieBoneAnimatorSystem.Current?.ClearBones( renderer );
 		}
 
-		using ( BeginApplyFrameInternal() )
-		{
-			clip.Update( _position, Binder );
-		}
+		updateBuilder.Clear();
+		updateBuilder.Add( clip, Position );
+		updateBuilder.Apply();
 
 		if ( IsPlaying )
 		{
@@ -167,25 +169,6 @@ public sealed partial class MoviePlayer : Component
 		{
 			StopControllingRigidBodies();
 		}
-	}
-
-	internal IDisposable BeginApplyFrameInternal()
-	{
-		// TODO: move ClearBones / UpdateAnimationPlaybackRate etc here, avoid duplication in editor code
-
-		var sceneScope = Scene.Push();
-
-		// We need to batch any property changes in case we're setting Enabled on multiple
-		// components / game objects. This batch will make sure OnEnabled gets called in the
-		// correct order.
-
-		var batchScope = CallbackBatch.Batch();
-
-		return new DisposeAction( () =>
-		{
-			batchScope?.Dispose();
-			sceneScope?.Dispose();
-		} );
 	}
 
 	protected override void OnEnabled()

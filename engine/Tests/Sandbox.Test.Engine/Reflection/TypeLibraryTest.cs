@@ -1,9 +1,12 @@
 using Sandbox.Engine;
 using Sandbox.Internal;
 using System;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
+using System.Reflection.Emit;
+using System.Threading;
 using static ReflectionTests.TypeLibraryTest;
 
 namespace ReflectionTests;
@@ -290,6 +293,78 @@ public class TypeLibraryTest
 		var badboy = tl.GetType( typeof( ConstraintBreaker<> ) )
 									.CreateGeneric<IConstraintBreaker<TypeWrapper>>( [typeof( TypeWrapper )] );
 		Assert.IsNull( badboy );
+	}
+
+	const int MarkedTypes = 32;
+
+	/// <summary>
+	/// When one type throws while registering, the types that did register must still leave with the
+	/// assembly. Otherwise they survive the hotload next to the incoming versions, and the editor
+	/// lists every component and tool twice.
+	/// </summary>
+	[TestMethod]
+	public void TypesFromFailedRegistrationAreRemovedWithTheAssembly()
+	{
+		RegistrationMarkerAttribute.Seen.Clear();
+
+		var assembly = EmitPartiallyFailingAssembly();
+		var tl = new Sandbox.Internal.TypeLibrary();
+
+		var exception = Assert.ThrowsException<AggregateException>( () => tl.AddAssembly( assembly, true ) );
+		Assert.IsInstanceOfType<InvalidOperationException>( exception.GetBaseException() );
+
+		var registered = tl.GetTypes( null ).Where( x => x.TargetType.Assembly == assembly ).Select( x => x.TargetType ).ToArray();
+		Assert.AreNotEqual( 0, registered.Length, "expected the types that didn't throw to register" );
+		Assert.IsTrue( registered.All( tl.Types.Contains ), "registered types must be tracked in Types" );
+
+		tl.RemoveAssembly( assembly );
+
+		Assert.IsFalse( tl.GetTypes( null ).Any( x => x.TargetType.Assembly == assembly ) );
+		Assert.IsFalse( tl.Types.Any( x => x.Assembly == assembly ) );
+	}
+
+	/// <summary>
+	/// Many marked types and one whose registration throws - but only after every marked type has
+	/// started registering, so some always succeed first.
+	/// </summary>
+	static Assembly EmitPartiallyFailingAssembly()
+	{
+		var builder = AssemblyBuilder.DefineDynamicAssembly( new AssemblyName( $"PartialRegistration{Guid.NewGuid():N}" ), AssemblyBuilderAccess.Run );
+		var module = builder.DefineDynamicModule( "Module" );
+
+		var marker = typeof( RegistrationMarkerAttribute ).GetConstructor( [typeof( int )] );
+		var failing = typeof( FailsRegistrationAttribute ).GetConstructor( Type.EmptyTypes );
+
+		for ( int i = 0; i < MarkedTypes; i++ )
+		{
+			var type = module.DefineType( $"Marked{i}", TypeAttributes.Public | TypeAttributes.Class );
+			type.SetCustomAttribute( new CustomAttributeBuilder( marker, [i] ) );
+			type.CreateType();
+		}
+
+		var failingType = module.DefineType( "Failing", TypeAttributes.Public | TypeAttributes.Class );
+		failingType.SetCustomAttribute( new CustomAttributeBuilder( failing, [] ) );
+
+		// The created types report the runtime assembly, not the builder
+		return failingType.CreateType().Assembly;
+	}
+
+	[AttributeUsage( AttributeTargets.Class )]
+	public sealed class RegistrationMarkerAttribute : Attribute
+	{
+		public static readonly ConcurrentDictionary<int, bool> Seen = new();
+
+		public RegistrationMarkerAttribute( int index ) => Seen[index] = true;
+	}
+
+	[AttributeUsage( AttributeTargets.Class )]
+	public sealed class FailsRegistrationAttribute : Attribute
+	{
+		public FailsRegistrationAttribute()
+		{
+			SpinWait.SpinUntil( () => RegistrationMarkerAttribute.Seen.Count >= MarkedTypes, TimeSpan.FromSeconds( 10 ) );
+			throw new InvalidOperationException( "Registration failed" );
+		}
 	}
 }
 

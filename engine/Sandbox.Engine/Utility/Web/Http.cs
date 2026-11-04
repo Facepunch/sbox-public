@@ -26,11 +26,19 @@ public static partial class Http
 			PooledConnectionLifetime = TimeSpan.FromMinutes( 2 ),
 			// Must be false — SocketsHttpHandler bypasses DelegatingHandler on redirects, allowing SSRF.
 			AllowAutoRedirect = false,
+			// Opens another connection if the server's stream limit is below what we're asking for.
+			EnableMultipleHttp2Connections = true,
 		};
 
 		// Gives us 1 http client per game, so cookies don't persist etc.
 		Client = new HttpClient( new SboxHttpHandler( socketHttpHandler ) );
 		Client.Timeout = TimeSpan.FromMinutes( 120 );
+
+		// h2 so parallel requests share connections, ALPN falls back to 1.1. Without this
+		// HttpRequestMessage defaults to 1.1, which never offers h2 in ALPN, so something
+		// fetching many resources at once opens a TCP+TLS connection per request.
+		Client.DefaultRequestVersion = HttpVersion.Version20;
+		Client.DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrLower;
 	}
 
 	/// <summary>
@@ -39,14 +47,6 @@ public static partial class Http
 	/// </summary>
 	internal static bool IsLocalAllowed => ((Application.IsEditor || Application.IsDedicatedServer) && CommandLine.HasSwitch( "-allowlocalhttp" )) || Application.IsStandalone;
 
-	/// <summary>
-	/// Check if the given Uri matches the following requirements:
-	/// 1. Scheme is https/http or wss/ws
-	/// 2. If it's localhost, only allow ports 80/443/8080/8443
-	/// 3. Not an ip address
-	/// </summary>
-	/// <param name="uri">The Uri to check.</param>
-	/// <returns>True if the Uri can be accessed, false if the Uri will be blocked.</returns>
 	private static bool HasAllowedScheme( Uri uri ) =>
 		uri.Scheme is "http" or "https" or "wss" or "ws";
 
@@ -57,11 +57,30 @@ public static partial class Http
 	private static bool IsDirectIpAddress( Uri uri ) =>
 		uri.HostNameType is UriHostNameType.IPv4 or UriHostNameType.IPv6;
 
+	// Decides on the resolved addresses, never on the host text - a name can resolve to loopback,
+	// or to "0.0.0.0", which reaches loopback on Linux.
+	internal static bool IsResolvedAllowed( Uri uri, IPAddress[] addresses )
+	{
+		if ( addresses is null || addresses.Length == 0 ) return false;
+
+		// Only the dev-server ports, and only when every address really is loopback.
+		if ( uri.IsLoopback && addresses.All( IPAddress.IsLoopback ) )
+			return IsAllowedLoopbackPort( uri );
+
+		if ( IsDirectIpAddress( uri ) ) return false;
+
+		// don't allow any domains that resolve to private or loopback ip addresses
+		// shit routers and internet of shit devices are typically vulnerable
+		// https://medium.com/@brannondorsey/attacking-private-networks-from-the-internet-with-dns-rebinding-ea7098a2d325
+		return !addresses.Any( x => x.IsPrivate() );
+	}
+
 	/// <summary>
 	/// Check if the given Uri matches the following requirements:
 	/// 1. Scheme is https/http or wss/ws
-	/// 2. If it's localhost, only allow ports 80/443/8080/8443
+	/// 2. If it resolves to loopback, only allow ports 80/443/8080/8443
 	/// 3. Not an ip address
+	/// 4. Doesn't resolve to a private range
 	/// </summary>
 	/// <param name="uri">The Uri to check.</param>
 	/// <returns>True if the Uri can be accessed, false if the Uri will be blocked.</returns>
@@ -69,17 +88,12 @@ public static partial class Http
 	{
 		if ( !HasAllowedScheme( uri ) ) return false;
 		if ( IsLocalAllowed ) return true;
-		if ( uri.IsLoopback ) return IsAllowedLoopbackPort( uri );
-		if ( IsDirectIpAddress( uri ) ) return false;
 
 		try
 		{
-			// don't allow any domains that resolve to private or loopback ip addresses
-			// shit routers and internet of shit devices are typically vulnerable
-			// https://medium.com/@brannondorsey/attacking-private-networks-from-the-internet-with-dns-rebinding-ea7098a2d325
-			return !uri.IsPrivate();
+			return IsResolvedAllowed( uri, uri.ResolveAddresses() );
 		}
-		catch ( System.Net.Sockets.SocketException )
+		catch ( SocketException )
 		{
 			return false;
 		}
@@ -90,14 +104,12 @@ public static partial class Http
 	{
 		if ( !HasAllowedScheme( uri ) ) return false;
 		if ( IsLocalAllowed ) return true;
-		if ( uri.IsLoopback ) return IsAllowedLoopbackPort( uri );
-		if ( IsDirectIpAddress( uri ) ) return false;
 
 		try
 		{
-			return !await uri.IsPrivateAsync();
+			return IsResolvedAllowed( uri, await uri.ResolveAddressesAsync() );
 		}
-		catch ( System.Net.Sockets.SocketException )
+		catch ( SocketException )
 		{
 			return false;
 		}

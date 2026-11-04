@@ -81,6 +81,7 @@ internal class EditorToolButton : Widget
 		Paint.DrawIcon( LocalRect, GetIcon(), HeaderBarStyle.IconSize, TextFlag.Center );
 	}
 
+	[EditorEvent.Frame]
 	public void UpdateState()
 	{
 		SetContentHash( HashCode.Combine( IsActive?.Invoke() ?? false, Color ), 0.1f );

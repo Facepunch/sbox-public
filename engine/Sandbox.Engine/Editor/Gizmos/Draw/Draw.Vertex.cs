@@ -10,12 +10,13 @@ public static partial class Gizmo
 		ScopeState _lastState;
 
 
-		private bool CanReuseVertexObject( Graphics.PrimitiveType type, Material material )
+		private bool CanReuseVertexObject( Graphics.PrimitiveType type, Material material, Texture texture )
 		{
 			if ( !_vertexObject.IsValid() ) return false;
 			if ( !ReferenceEquals( _vertexObjectMaterial, material ) ) return false;
 			if ( _vertexObject.PrimitiveType != type ) return false;
 			if ( _vertexObjectPath != Path ) return false;
+			if ( _vertexObject.Transform != Transform ) return false;
 
 			//if ( type == Graphics.PrimitiveType.Lines )
 			{
@@ -23,14 +24,19 @@ public static partial class Gizmo
 				if ( _lastState.IgnoreDepth != IgnoreDepth ) return false;
 			}
 
+			if ( type == Graphics.PrimitiveType.Points )
+			{
+				if ( !ReferenceEquals( _vertexObjectTexture, texture ) ) return false;
+				if ( _lastState.Color != Color ) return false;
+			}
 
 			return true;
 		}
 
-		VertexSceneObject VertexObject( Graphics.PrimitiveType type, Material material, bool tryAdd = true )
+		VertexSceneObject VertexObject( Graphics.PrimitiveType type, Material material, Texture texture = null )
 		{
 			// Keep accumulating into the same object while it's reusable; flushing mid-batch would clobber it (Write does a native Begin that clears the buffer).
-			if ( CanReuseVertexObject( type, material ) && tryAdd )
+			if ( CanReuseVertexObject( type, material, texture ) )
 			{
 				return _vertexObject;
 			}
@@ -40,6 +46,7 @@ public static partial class Gizmo
 
 			_vertexObjectPath = Path;
 			_vertexObjectMaterial = material;
+			_vertexObjectTexture = texture;
 
 			var so = Active.FindOrCreate<VertexSceneObject>( $"line", () => new VertexSceneObject( World ) );
 			_vertexObject = so;
@@ -57,6 +64,7 @@ public static partial class Gizmo
 				!so.ConfigApplied ||
 				so.ConfigType != type ||
 				!ReferenceEquals( so.ConfigMaterial, material ) ||
+				!ReferenceEquals( so.ConfigTexture, texture ) ||
 				so.ConfigIgnoreDepth != IgnoreDepth ||
 				so.ConfigCullBackfaces != CullBackfaces ||
 				(type == Graphics.PrimitiveType.Lines && so.ConfigLineThickness != LineThickness);
@@ -80,6 +88,13 @@ public static partial class Gizmo
 					//so.Attributes.Set( "PatternType", LineSettings.Dashed ? 1.0f : 0.0f );
 				}
 
+				if ( type == Graphics.PrimitiveType.Points )
+				{
+					so.Flags.IsTranslucent = true;
+					so.Flags.IsOpaque = false;
+					so.Attributes.Set( "TextureColor", texture ?? Texture.White );
+				}
+
 				so.Attributes.SetCombo( "D_NO_ZTEST", IgnoreDepth ? 1 : 0 );
 				so.Attributes.SetCombo( "D_NO_CULLING", CullBackfaces ? 0 : 1 );
 				so.Attributes.SetCombo( "D_SNAP_TO_SCREEN_PIXELS", 0 );
@@ -89,6 +104,7 @@ public static partial class Gizmo
 				so.ConfigApplied = true;
 				so.ConfigType = type;
 				so.ConfigMaterial = material;
+				so.ConfigTexture = texture;
 				so.ConfigIgnoreDepth = IgnoreDepth;
 				so.ConfigCullBackfaces = CullBackfaces;
 				so.ConfigLineThickness = LineThickness;

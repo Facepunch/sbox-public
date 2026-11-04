@@ -113,6 +113,114 @@ public static class MountUtility
 		_activeJobs.Clear();
 		_cache.Clear();
 	}
+
+	[ConCmd( "mount_generatethumbs", Help = "Generate a thumbnail for all scenes from a mount", Flags = ConVarFlags.Protected )]
+	internal static async void GenerateThumbs( string ident )
+	{
+		var mount = Directory.Get( ident );
+		if ( mount is null )
+		{
+			Log.Error( $"Mount '{ident}' not found" );
+			return;
+		}
+
+		IEnumerable<ResourceLoader> scenes = mount.GetAll( ResourceType.Scene );
+		Log.Info( $"Generating thumbs for {scenes.Count()} scene(s) from {mount.Title}.." );
+
+		foreach ( var sceneLoader in scenes )
+		{
+			await GenerateMapThumb( sceneLoader );
+		}
+
+		Log.Info( "..complete!" );
+	}
+
+	[ConCmd( "mount_generatethumb", Help = @"Generate a thumbnail for a mount scene", Flags = ConVarFlags.Protected )]
+	internal static async void GenerateMapThumb( string path )
+	{
+		if ( !path.EndsWith( ".scene", StringComparison.OrdinalIgnoreCase ) )
+		{
+			path = $"{path}.scene";
+		}
+
+		var loader = FindLoader( path );
+		if ( loader is null || loader.Type != ResourceType.Scene )
+		{
+			Log.Error( $"Mount scene not found: '{path}'" );
+			return;
+		}
+
+		await GenerateMapThumb( loader );
+	}
+
+	static async Task<bool> GenerateMapThumb( ResourceLoader sceneLoader )
+	{
+		SceneFile sceneFile = null;
+		var scene = Scene.CreateEditorScene();
+
+		try
+		{
+			using var scope = scene.Push();
+
+			sceneFile = await sceneLoader.GetOrCreate() as SceneFile;
+			if ( sceneFile is null || !scene.Load( sceneFile ) )
+			{
+				Log.Error( $"Failed to load scene: '{sceneLoader.Path}'" );
+				return false;
+			}
+
+			await Task.Yield();
+
+			var go = new GameObject( true, "camera" );
+			var cc = go.AddComponent<CameraComponent>();
+			cc.BackgroundColor = Color.Transparent;
+			cc.WorldRotation = new Angles( 20, 180 + 45, 0 );
+			cc.FieldOfView = 90.0f;
+			cc.ZFar = 100000.0f;
+			cc.ZNear = 0.1f;
+
+			var transform = scene.FindAllWithTag( "map_preview" ).FirstOrDefault()
+				?? scene.GetComponentInChildren<SpawnPoint>()?.GameObject;
+			if ( transform.IsValid() )
+			{
+				cc.WorldTransform = transform.WorldTransform;
+			}
+
+			byte[] bytes;
+			using ( var bitmap = new Bitmap( 1280, 720 ) )
+			{
+				cc.RenderToBitmap( bitmap );
+				bytes = bitmap.ToPng();
+			}
+
+			var path = EngineFileSystem.Root.GetFullPath( "/" );
+			if ( string.IsNullOrWhiteSpace( path ) ) return false;
+
+			path += $"/mount/{sceneLoader._mount.Ident}/assets/thumbs/{sceneLoader._mount.Ident}/{System.IO.Path.GetDirectoryName( sceneLoader.RelativePath )}/";
+			System.IO.Directory.CreateDirectory( path );
+
+			path += System.IO.Path.GetFileName( sceneLoader.RelativePath ).WithExtension( ".png" );
+			System.IO.File.WriteAllBytes( path, bytes );
+
+			Log.Info( $"Written {path}" );
+		}
+		catch ( Exception ex )
+		{
+			Log.Error( ex, $"Failed to generate thumbnail for scene: '{sceneLoader.Path}'" );
+		}
+		finally
+		{
+			sceneFile?.Destroy();
+			scene?.Destroy();
+
+			// cleanup before we continue
+			GC.Collect();
+			GC.WaitForPendingFinalizers();
+			MainThread.RunQueues();
+		}
+
+		return true;
+	}
 }
 
 class RenderJob

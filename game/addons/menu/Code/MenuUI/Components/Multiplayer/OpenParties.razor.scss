@@ -1,0 +1,78 @@
+@import "/styles/_front.scss";
+
+OpenParties
+{
+	flex-direction: column;
+	flex-grow: 1;
+	width: 300px;
+	min-width: 300px;
+	max-width: 300px;
+	min-height: 0;
+	padding: 14px;
+	gap: 10px;
+	font-family: $front-font;
+	color: $front-body;
+
+	> .create-party, > .party-empty > button
+	{
+		@include front-button;
+		flex-shrink: 0;
+		padding: 9px 12px;
+		gap: 6px;
+		font-size: 12px;
+
+		&.disabled
+		{
+			opacity: 0.3;
+			pointer-events: none;
+		}
+	}
+
+	> .create-party
+	{
+		width: 100%;
+		cursor: pointer;
+	}
+
+	.party-list
+	{
+		flex-grow: 1;
+		min-height: 0;
+		gap: 4px;
+		scrollbar-width: thin;
+		scrollbar-color: $front-secondary transparent;
+	}
+
+	.party-error
+	{
+		flex-shrink: 0;
+		color: $front-danger;
+		font-size: 12px;
+	}
+
+	.party-empty
+	{
+		flex-grow: 1;
+		flex-direction: column;
+		justify-content: center;
+		align-items: center;
+		gap: 12px;
+		color: $front-secondary;
+		font-size: 12px;
+		text-align: center;
+		padding: 12px 0;
+
+		icon
+		{
+			font-size: 32px;
+			color: $front-link;
+		}
+
+		> label
+		{
+			font-size: 16px;
+			font-weight: 600;
+			color: $front-heading;
+		}
+	}
+}

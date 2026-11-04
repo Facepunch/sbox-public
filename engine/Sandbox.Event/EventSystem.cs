@@ -438,11 +438,17 @@ internal sealed class WeakHashSet<T> : IEnumerable<T>
 	#region IEnumerable
 
 	private readonly object _lock = new();
-	private WeakReference<IEnumerable<T>>? _liveItemCache;
+	private WeakReference<T[]>? _liveItemCache;
 
 	private void ClearCaches() => _liveItemCache = null;
 
-	public IEnumerator<T> GetEnumerator()
+	public IEnumerator<T> GetEnumerator() => ((IEnumerable<T>)GetLiveItems()).GetEnumerator();
+
+	/// <summary>
+	/// The live items, shared and cached - don't modify it. Iterating the array directly doesn't allocate,
+	/// unlike going through <see cref="GetEnumerator"/>.
+	/// </summary>
+	public T[] GetLiveItems()
 	{
 		// Enumerating using _weakTable.Select( x => x.Key ) is quite slow, so we cache it.
 
@@ -454,16 +460,16 @@ internal sealed class WeakHashSet<T> : IEnumerable<T>
 
 		if ( _lastGcCount == gcCount && _liveItemCache?.TryGetTarget( out var items ) is true )
 		{
-			return items.GetEnumerator();
+			return items;
 		}
 
 		lock ( _lock )
 		{
 			_lastGcCount = gcCount;
-			_liveItemCache = new WeakReference<IEnumerable<T>>( items = _weakTable.Select( x => x.Key ).ToArray() );
+			_liveItemCache = new WeakReference<T[]>( items = _weakTable.Select( x => x.Key ).ToArray() );
 		}
 
-		return items.GetEnumerator();
+		return items;
 	}
 
 	IEnumerator<T> IEnumerable<T>.GetEnumerator() => GetEnumerator();

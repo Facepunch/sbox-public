@@ -99,6 +99,11 @@ internal static class ReflectionUtility
 		if ( value is null ) return false;
 
 		var valueType = value.GetType();
+		// Default ImmutableArray<T> throws when accessed through IList.
+		if ( valueType.IsGenericType &&
+			valueType.GetGenericTypeDefinition() == typeof( System.Collections.Immutable.ImmutableArray<> ) &&
+			value.Equals( Activator.CreateInstance( valueType ) ) )
+			return false;
 
 		// Check if this is a generic collection whose element type matches
 		if ( HasGenericElementOfType( valueType, targetType ) )
@@ -267,6 +272,11 @@ internal static class ReflectionUtility
 						{
 							if ( method.IsAbstract ) continue;
 							if ( method.ContainsGenericParameters ) continue;
+
+							// Preparing a p/invoke resolves its native library right here, which
+							// throws for anything that isn't shipped on this platform. There's no
+							// managed code to JIT anyway, so there's nothing to gain by trying.
+							if ( (method.Attributes & MethodAttributes.PinvokeImpl) != 0 ) continue;
 
 							try
 							{

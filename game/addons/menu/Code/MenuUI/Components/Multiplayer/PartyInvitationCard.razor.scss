@@ -1,0 +1,79 @@
+@import "/styles/_front.scss";
+
+PartyInvitationCard
+{
+	align-self: flex-start;
+	max-width: 100%;
+	flex-direction: row;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 16px;
+	padding: 12px;
+	border: 1px solid $front-border;
+	border-radius: $front-radius;
+	background-color: $front-card-deep;
+	font-family: $front-font;
+	word-break: normal;
+
+	.invitation-summary
+	{
+		flex-direction: column;
+		flex-shrink: 1;
+		min-width: 0;
+		max-width: 100%;
+		gap: 4px;
+	}
+
+	.invitation-name
+	{
+		color: $front-heading;
+		font-weight: 600;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.invitation-details
+	{
+		color: $front-secondary;
+		font-size: 12px;
+	}
+
+	button
+	{
+		@include front-pill;
+		cursor: pointer;
+
+		&:hover
+		{
+			sound-in: "ui.button.over";
+		}
+
+		&:active
+		{
+			sound-in: "ui.button.press";
+		}
+	}
+
+	button.primary
+	{
+		background-color: $front-primary;
+		border-color: $front-primary;
+
+		label
+		{
+			color: $front-heading;
+		}
+
+		&:hover
+		{
+			background-color: lighten( $front-primary, 8% );
+		}
+	}
+
+	button.disabled
+	{
+		opacity: 0.3;
+		pointer-events: none;
+	}
+}

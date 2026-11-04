@@ -1,0 +1,187 @@
+@import "/styles/_front.scss";
+
+// Shared surfaces and controls use the page cascade, not per-component copies.
+JamHeader, JamSchedule, .jam-empty
+{
+	font-family: $front-font;
+	background-color: $front-card;
+	background-image: linear-gradient( 180deg, $front-card-top, $front-card-bottom );
+	backdrop-filter: blur( 8px );
+
+	flex-direction: column;
+	flex-shrink: 0;
+	overflow: hidden;
+	border-radius: $front-radius;
+	border: $front-border-width solid $front-border;
+}
+
+.columns, JamPhaseLayout
+{
+	flex-direction: row;
+	flex-grow: 1;
+	flex-shrink: 1;
+	gap: $front-chrome-gap;
+	padding: $front-chrome-gap;
+	overflow: hidden;
+}
+
+.jam-empty
+{
+	flex-grow: 1;
+	flex-shrink: 1;
+
+	align-items: center;
+	justify-content: center;
+	padding: 64px;
+	gap: 6px;
+
+	icon
+	{
+		font-size: 40px;
+		color: $front-tertiary;
+		margin-bottom: 8px;
+	}
+
+	.title
+	{
+		font-family: $front-font;
+		font-size: 18px;
+		font-weight: 700;
+		color: $front-heading;
+	}
+
+	.hint
+	{
+		font-size: 13px;
+		color: $front-secondary;
+	}
+}
+
+.category-tabs .button, .load-error .button,
+Phase04Finals .game-actions .button, JamEntryControls .entry-controls .button,
+JamPreviewHelper .actions .button, JamEliminationGallery .button
+{
+	flex-direction: row;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	gap: 5px;
+	padding: 4px 11px;
+	border-radius: 999px;
+	border: $front-border-width solid $front-hairline;
+	background-color: rgba( 255, 255, 255, 0.05 );
+	transition: all 0.1s ease;
+
+	label
+	{
+		font-size: 10.5px;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: $front-body;
+	}
+
+	icon
+	{
+		font-size: 14px;
+		color: $front-secondary;
+	}
+
+	&:hover
+	{
+		border-color: rgba( 255, 255, 255, 0.28 );
+		background-color: rgba( 255, 255, 255, 0.11 );
+
+		label, icon
+		{
+			color: $front-heading;
+		}
+	}
+}
+
+JamHeader .kicker, JamPrizes .section-label, JamSpine .spine-label,
+JamStandings .cutoff, JamEntryControls .entry-order > label,
+JamSchedule .what, Phase04Finals .voting-status JamCountdown .what
+{
+	font-size: 10.5px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.09em;
+	color: $front-label;
+}
+
+JamPage
+{
+	position: relative;
+	background-color: transparent;
+	align-items: center;
+	justify-content: center;
+
+	// Each phase fills the page; its layout owns the header, entries and schedule.
+	.jam-phase
+	{
+		flex-grow: 1;
+		flex-shrink: 1;
+		width: 100%;
+		height: 100%;
+	}
+
+	// Shared by the knockout, grand final and results views.
+	PackageList VirtualGrid
+	{
+		padding: 0 16px 0 4px;
+		scrollbar-width: thin;
+		scrollbar-color: $front-secondary transparent;
+		scrollbar-gutter: stable;
+	}
+
+	.finalist-browser
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		height: 0;
+		gap: 16px;
+		overflow: hidden;
+	}
+
+	.category-tabs
+	{
+		flex-shrink: 0;
+		flex-wrap: wrap;
+		gap: 8px;
+
+		.button
+		{
+			&.active
+			{
+				background-color: $front-primary;
+				border-color: $front-primary;
+
+				label
+				{
+					color: $front-heading;
+				}
+			}
+		}
+	}
+
+	.finalist-scroll
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		height: 0;
+		gap: 16px;
+		padding: 0 4px 8px;
+		overflow-y: scroll;
+	}
+
+	.load-error
+	{
+		flex-shrink: 0;
+		align-items: center;
+		gap: 12px;
+		color: $front-secondary;
+	}
+}

@@ -178,6 +178,18 @@ public partial class AssetList
 		popup.OpenAtCursor( false );
 	}
 
+	static async Task InstallPackageFromMenu( string ident )
+	{
+		try
+		{
+			await AssetSystem.InstallAsync( ident );
+		}
+		catch ( AggregateException ex )
+		{
+			Log.Warning( ex, $"Error installing package {ident}" );
+		}
+	}
+
 	private void OpenItemContextMenu( object item )
 	{
 		var packageEntries = SelectedItems.OfType<PackageEntry>();
@@ -194,7 +206,7 @@ public partial class AssetList
 			{
 				foreach ( var entry in packageEntries )
 				{
-					AssetSystem.InstallAsync( entry.Package.FullIdent );
+					_ = InstallPackageFromMenu( entry.Package.FullIdent );
 				}
 			} );
 
@@ -344,8 +356,16 @@ public partial class AssetList
 		if ( meshes.Count == 0 )
 			return;
 
-		var label = meshes.Count == 1 ? "Create Model.." : $"Create {meshes.Count} Models..";
-		e.Menu.AddOption( label, "open_in_new", () => _ = new CreateModelFromMeshDialog( meshes ) );
+		if ( meshes.Count == 1 )
+		{
+			e.Menu.AddOption( "Create Model", "open_in_new", () => _ = new CreateModelFromMeshDialog( meshes ) );
+		}
+		else
+		{
+			var menu = e.Menu.AddMenu( "Create Models", "open_in_new" );
+			menu.AddOption( "Separate Models", "call_split", () => _ = new CreateModelFromMeshDialog( meshes ) );
+			menu.AddOption( "Single Model", "join_inner", () => _ = new CreateSingleModelFromMeshDialog( meshes ) );
+		}
 	}
 
 	static void RebuildTagMenu( Menu tag_menu, List<AssetEntry> entries )

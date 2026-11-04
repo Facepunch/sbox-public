@@ -8,6 +8,12 @@ public class HullColliderTool : EditorTool<HullCollider>
 
 	public override void OnUpdate()
 	{
+		if ( !Gizmo.Pressed.Any )
+		{
+			_componentUndoScope?.Dispose();
+			_componentUndoScope = null;
+		}
+
 		var hullCollider = GetSelectedComponent<HullCollider>();
 		if ( hullCollider == null )
 			return;
@@ -20,18 +26,11 @@ public class HullColliderTool : EditorTool<HullCollider>
 			{
 				if ( Gizmo.Control.BoundingBox( "Bounds", currentBox, out var newBox ) )
 				{
-					if ( Gizmo.WasLeftMousePressed )
-					{
-						_componentUndoScope = SceneEditorSession.Active.UndoScope( "Resize Hull Collider" ).WithComponentChanges( hullCollider ).Push();
-					}
+					_componentUndoScope ??= SceneEditorSession.Active.UndoScope( "Resize Hull Collider" )
+						.WithComponentChanges( hullCollider ).Push();
+
 					hullCollider.Center = newBox.Center;
 					hullCollider.BoxSize = newBox.Size;
-				}
-
-				if ( Gizmo.WasLeftMouseReleased )
-				{
-					_componentUndoScope?.Dispose();
-					_componentUndoScope = null;
 				}
 			}
 		}

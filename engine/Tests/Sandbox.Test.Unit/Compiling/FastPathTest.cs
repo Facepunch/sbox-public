@@ -1,4 +1,11 @@
-﻿namespace CompilingTests;
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Runtime.Loader;
+
+namespace CompilingTests;
 
 /// <summary>
 /// <para>
@@ -96,30 +103,52 @@ public partial class FastPathTest
 		Assert.AreEqual( 0, TestProgram( program ) );
 	}
 
-	/// <summary>
-	/// Tests multiple changed methods in the same file.
-	/// </summary>
-	[TestMethod]
-	public async Task MultipleChanges()
+	private async Task MultipleChangesCore( bool sequential, params IEnumerable<string> sourceNames )
 	{
-		using var compiler = new FastPathTestCompiler( "MultipleChanges.cs" );
+		using var compiler = new FastPathTestCompiler( sourceNames );
 
 		var result = await compiler.BuildAsync( version: 1 );
+
+		var program = result.CreateProgram();
+
+		Assert.AreEqual( 101, TestProgram( program ) );
 
 		Assert.IsFalse( result.ILHotloadSupported );
 		Assert.AreEqual( 0, result.ChangedMethods.Length );
 
-		var program = result.CreateProgram();
+		if ( sequential )
+		{
+			result = await compiler.BuildAsync( version: 2 );
 
-		Assert.AreEqual( 0, TestProgram( program, "Hello World!" ) );
+			Assert.AreEqual( 102, TestProgram( program ) );
 
-		result = await compiler.BuildAsync( version: 2 );
+			Assert.IsTrue( result.ILHotloadSupported );
+			Assert.AreEqual( 1, result.ChangedMethods.Length );
+		}
+
+		result = await compiler.BuildAsync( version: 3 );
+
+		Assert.AreEqual( 202, TestProgram( program ) );
 
 		Assert.IsTrue( result.ILHotloadSupported );
-		Assert.AreEqual( 2, result.ChangedMethods.Length );
-
-		Assert.AreEqual( 1, TestProgram( program ) );
+		Assert.AreEqual( sequential ? 1 : 2, result.ChangedMethods.Length );
 	}
+
+	/// <summary>
+	/// Tests multiple changed methods in the same file.
+	/// </summary>
+	[TestMethod]
+	[DataRow( true, DisplayName = "Sequential" )]
+	[DataRow( false, DisplayName = "Simultaneous" )]
+	public Task MultipleChanges( bool sequential ) => MultipleChangesCore( sequential, "MultipleChanges.cs" );
+
+	/// <summary>
+	/// Tests multiple changed methods in separate files.
+	/// </summary>
+	[TestMethod]
+	[DataRow( true, DisplayName = "Sequential" )]
+	[DataRow( false, DisplayName = "Simultaneous" )]
+	public Task MultipleFileChanges( bool sequential ) => MultipleChangesCore( sequential, "MultipleFilesA.cs", "MultipleFilesB.cs" );
 
 	/// <summary>
 	/// Tests only a string changing in a method body, which doesn't cause any IL to change but
@@ -692,5 +721,64 @@ public partial class FastPathTest
 		Assert.AreEqual( 1, result.ChangedMethods.Length );
 
 		Assert.AreEqual( 0, TestProgram( program ) );
+	}
+
+	/// <summary>
+	/// Once a full hotload replaces a fast hotloaded assembly, removing its detours must let it unload.
+	/// </summary>
+	[TestMethod]
+	public void RemovedDetoursReleaseAssembly()
+	{
+		var (hotload, context) = FastHotloadAndRemoveDetours();
+
+		for ( var i = 0; context.IsAlive && i < 10; i++ )
+		{
+			GC.Collect();
+			GC.WaitForPendingFinalizers();
+		}
+
+		Assert.IsFalse( context.IsAlive );
+		GC.KeepAlive( hotload );
+	}
+
+	/// <summary>
+	/// Blocks on the async work so its state machine, which holds the loaded assemblies, is unreachable once this returns.
+	/// </summary>
+	[MethodImpl( MethodImplOptions.NoInlining )]
+	private static (ILHotload Hotload, WeakReference Context) FastHotloadAndRemoveDetours()
+	{
+		return FastHotloadAndRemoveDetoursAsync().GetAwaiter().GetResult();
+	}
+
+	private static async Task<(ILHotload Hotload, WeakReference Context)> FastHotloadAndRemoveDetoursAsync()
+	{
+		var contexts = new List<AssemblyLoadContext>();
+
+		using var compiler = new FastPathTestCompiler( "HelloWorld.cs" )
+		{
+			LoadAssembly = bytes =>
+			{
+				var context = new AssemblyLoadContext( "FastPathUnload", isCollectible: true );
+				contexts.Add( context );
+				return context.LoadFromStream( new MemoryStream( bytes ) );
+			}
+		};
+
+		var result = await compiler.BuildAsync( version: 1 );
+		var program = result.CreateProgram();
+
+		result = await compiler.BuildAsync( version: 2 );
+
+		Assert.IsTrue( result.ILHotloadSupported );
+		Assert.AreEqual( 0, TestProgram( program, "Hello World!" ) );
+
+		compiler.Hotload.RemoveDetours( result.Assembly );
+
+		foreach ( var context in contexts )
+		{
+			context.Unload();
+		}
+
+		return (compiler.Hotload, new WeakReference( contexts[0] ));
 	}
 }

@@ -157,30 +157,6 @@ namespace Topten.RichTextKit
 		}
 
 		/// <summary>
-		/// Paint this line's background
-		/// </summary>
-		/// <param name="ctx">The paint context</param>
-		internal void PaintBackground( PaintTextContext ctx )
-		{
-			foreach ( var r in Runs )
-			{
-				r.PaintBackground( ctx );
-			}
-		}
-
-		/// <summary>
-		/// Paint this line
-		/// </summary>
-		/// <param name="ctx">The paint context</param>
-		internal void Paint( PaintTextContext ctx )
-		{
-			foreach ( var r in Runs )
-			{
-				r.Paint( ctx );
-			}
-		}
-
-		/// <summary>
 		/// Code point index of start of this line
 		/// </summary>
 		public int Start
@@ -389,11 +365,11 @@ namespace Topten.RichTextKit
 			}
 		}
 
-		internal void UpdateOverhang( float right, ref float leftOverhang, ref float rightOverhang )
+		internal void UpdateOverhang( SKRect textRect, ref SKRect overhang )
 		{
 			foreach ( var r in Runs )
 			{
-				r.UpdateOverhang( right, ref leftOverhang, ref rightOverhang );
+				r.UpdateOverhang( textRect, ref overhang );
 			}
 		}
 

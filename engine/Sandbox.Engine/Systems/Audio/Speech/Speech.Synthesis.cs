@@ -41,7 +41,13 @@ public sealed class Synthesizer : IDisposable
 	{
 		Builder = new();
 		SpeechSynthesizer = new();
-		SpeechSynthesizer.VisemeReached += new EventHandler<VisemeReachedEventArgs>( ( object obj, VisemeReachedEventArgs e ) => OnVisemeReachedEvent?.Invoke( e.Viseme, e.AudioPosition ) );
+		// Weak: VoiceSynthesis stores this handler and its worker thread roots it, so capturing this would block our finalizer forever
+		var weakSelf = new WeakReference<Synthesizer>( this );
+		SpeechSynthesizer.VisemeReached += ( object obj, VisemeReachedEventArgs e ) =>
+		{
+			if ( weakSelf.TryGetTarget( out var self ) )
+				self.OnVisemeReachedEvent?.Invoke( e.Viseme, e.AudioPosition );
+		};
 
 		_installedVoices = SpeechSynthesizer.GetInstalledVoices()
 			.Where( x => x.Enabled )

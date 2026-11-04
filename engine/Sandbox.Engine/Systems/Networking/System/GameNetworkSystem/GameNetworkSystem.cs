@@ -34,6 +34,37 @@ public abstract partial class GameNetworkSystem : IDisposable
 
 	public virtual void GetSnapshot( Connection source, ref SnapshotMsg msg ) { }
 
+	internal virtual SnapshotCapture CaptureSnapshot( Connection source, bool handoff = false, SnapshotCapture shared = null ) => null;
+
+	internal SnapshotCapture SendSnapshot<T>( Connection target, Func<SnapshotMsg, T> envelope, bool handoff = false, SnapshotCapture shared = null,
+		NetFlags flags = NetFlags.Reliable )
+	{
+		var capture = CaptureSnapshot( target, handoff, shared );
+		if ( capture is not null )
+		{
+			target.SendSnapshot( capture, envelope, flags );
+		}
+		else
+		{
+			var snapshot = SnapshotMsg.Create();
+			if ( handoff )
+			{
+				GetHandoffSnapshot( ref snapshot );
+			}
+			else
+			{
+				GetSnapshot( target, ref snapshot );
+			}
+			target.SendMessage( envelope( snapshot ), flags );
+		}
+		return capture;
+	}
+
+	/// <summary>
+	/// Snapshot for the player taking over as host: nothing culled, local objects included.
+	/// </summary>
+	internal virtual void GetHandoffSnapshot( ref SnapshotMsg msg ) => GetSnapshot( null, ref msg );
+
 	public virtual Task SetSnapshotAsync( SnapshotMsg data ) => Task.CompletedTask;
 
 	public virtual Task MountVPKs( Connection source, MountedVPKsResponse msg ) => Task.CompletedTask;
@@ -63,12 +94,37 @@ public abstract partial class GameNetworkSystem : IDisposable
 	public virtual void OnLeave( Connection client ) { }
 
 	/// <summary>
-	/// The host left the server and you are now in charge.
+	/// Whether a snapshot of the game can be taken right now.
+	/// </summary>
+	internal virtual bool CanSnapshot => true;
+
+	/// <summary>
+	/// We're already the host; load the previous host's snapshot.
+	/// </summary>
+	public virtual Task BecomeHostAsync( Connection previousHost, SnapshotMsg snapshot )
+	{
+		OnBecameHost( previousHost );
+		return Task.CompletedTask;
+	}
+
+	/// <summary>
+	/// Rebuild the game from the new host's snapshot.
+	/// </summary>
+	public virtual Task ResyncFromHostAsync( Connection previousHost, Connection newHost, SnapshotMsg snapshot )
+	{
+		OnHostChanged( previousHost, newHost );
+		return Task.CompletedTask;
+	}
+
+	/// <summary>
+	/// Legacy host-change callback. Override BecomeHostAsync to apply the handoff snapshot.
+	/// The default BecomeHostAsync implementation calls this for existing subclasses.
 	/// </summary>
 	public virtual void OnBecameHost( Connection previousHost ) { }
 
 	/// <summary>
-	/// The current host has been changed.
+	/// Legacy host-change callback. Override ResyncFromHostAsync to apply the new host's snapshot.
+	/// The default ResyncFromHostAsync implementation calls this for existing subclasses.
 	/// </summary>
 	public virtual void OnHostChanged( Connection previousHost, Connection newHost ) { }
 
@@ -77,16 +133,12 @@ public abstract partial class GameNetworkSystem : IDisposable
 		NetworkSystem.Broadcast( msg, Connection.ChannelState.Snapshot, filter, flags );
 	}
 
-	/// <summary>
-	/// Whether the host is busy right now. This can be used to determine if
-	/// the host can be changed.
-	/// </summary>
-	internal virtual bool IsHostBusy => true;
-
 	internal IEnumerable<Connection> GetFilteredConnections( Connection.ChannelState minimumState = Connection.ChannelState.Snapshot, Connection.Filter? filter = null )
 	{
 		return NetworkSystem.GetFilteredConnections( minimumState, filter );
 	}
+
+	internal void CollectConnections( List<Connection> into, Connection.ChannelState minimumState ) => NetworkSystem.CollectConnections( into, minimumState );
 
 	public void BroadcastRaw( ByteStream msg, Connection.Filter? filter = null )
 	{
@@ -118,33 +170,13 @@ public abstract partial class GameNetworkSystem : IDisposable
 
 	internal void Send( Connection connection, InternalMessageType type, ReadOnlySpan<byte> data, NetFlags flags )
 	{
-		using var bs = ByteStream.Create( 512 );
+		// Sized for the payload, snapshot clusters are several KB and growing from 512 copies them repeatedly
+		using var bs = ByteStream.Create( data.Length + 16 );
 		bs.Write( type );
 		bs.Write( data.Length );
 		bs.Write( data );
 
-		// Do we really have a valid connection to this?
-		var targetConnection = NetworkSystem.FindConnection( connection.Id );
-
-		if ( targetConnection is null )
-		{
-			if ( NetworkSystem.Connection is null )
-				return;
-
-			var wrapper = new TargetedInternalMessage
-			{
-				SenderId = Connection.Local.Id,
-				TargetId = connection.Id,
-				Data = bs.ToArray(),
-				Flags = (byte)flags
-			};
-
-			NetworkSystem.Connection.SendMessage( wrapper, flags );
-		}
-		else
-		{
-			targetConnection.SendStream( bs, flags );
-		}
+		SendRaw( connection.Id, bs, flags );
 	}
 
 	internal void Send( Connection connection, InternalMessageType type, byte[] data, NetFlags flags )
@@ -172,38 +204,20 @@ public abstract partial class GameNetworkSystem : IDisposable
 
 	internal void Send<T>( Guid connectionId, T obj, NetFlags flags )
 	{
-		var connection = NetworkSystem.FindConnection( connectionId );
+		var bs = ByteStream.Create( 512 );
+		bs.Write( InternalMessageType.Packed );
 
-		if ( connection is not null )
+		try
 		{
-			var bs = ByteStream.Create( 512 );
-			bs.Write( InternalMessageType.Packed );
-
-			try
-			{
-				Library.ToBytes( obj, ref bs );
-			}
-			catch ( Exception e )
-			{
-				Log.Warning( e, $"Error when trying to network serialize object: {e.Message}" );
-			}
-
-			connection.SendStream( bs, flags );
-
-			bs.Dispose();
+			Library.ToBytes( obj, ref bs );
 		}
-		else if ( NetworkSystem.Connection is not null )
+		catch ( Exception e )
 		{
-			var wrapper = new TargetedMessage
-			{
-				SenderId = Connection.Local.Id,
-				TargetId = connectionId,
-				Message = obj,
-				Flags = (byte)flags
-			};
-
-			NetworkSystem.Connection.SendMessage( wrapper, flags );
+			Log.Warning( e, $"Error when trying to network serialize object: {e.Message}" );
 		}
+
+		SendRaw( connectionId, bs, flags );
+		bs.Dispose();
 	}
 
 	public void Send<T>( Guid connectionId, T obj )
@@ -235,6 +249,15 @@ public abstract partial class GameNetworkSystem : IDisposable
 	internal void TickInternal()
 	{
 		Tick();
+		AfterIncomingMessages();
+	}
+
+	/// <summary>
+	/// Called every frame after incoming messages were handled.
+	/// </summary>
+	internal virtual void AfterIncomingMessages()
+	{
+
 	}
 
 	/// <summary>
@@ -267,5 +290,24 @@ public abstract partial class GameNetworkSystem : IDisposable
 	internal virtual void OnDeltaSnapshotMessage( InternalMessageType type, ByteStream data, Connection source )
 	{
 
+	}
+
+	internal virtual void OnRpcMessage( ByteStream data, Connection source )
+	{
+
+	}
+
+	/// <summary>
+	/// Send a raw message, starting with its <see cref="InternalMessageType"/>, to one connection. Peers we have no
+	/// direct connection to get it through the host.
+	/// </summary>
+	internal void SendRaw( Guid connectionId, ByteStream message, NetFlags flags )
+	{
+		var connection = NetworkSystem.FindConnection( connectionId );
+
+		if ( connection is not null )
+			connection.SendStream( message, flags );
+		else
+			NetworkSystem.SendMulticast( [connectionId], message.ToSpan(), flags );
 	}
 }

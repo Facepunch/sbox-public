@@ -43,6 +43,7 @@ static class MixingThread
 	static readonly ConcurrentQueue<DirectSoundModel> _acousticModelDisposalQueue = new();
 	static readonly ConcurrentQueue<BinauralEffect> _binauralDisposalQueue = new();
 	static readonly ConcurrentQueue<NativeReverbEffect> _reverbDisposalQueue = new();
+	static readonly ConcurrentQueue<AudioProcessor> _processorRemovalQueue = new();
 	static readonly List<AudioSampler> _pendingSamplerDisposals = new();
 	static readonly List<DirectSoundModel> _pendingAcousticModelDisposals = new();
 	static readonly List<BinauralEffect> _pendingBinauralDisposals = new();
@@ -81,10 +82,31 @@ static class MixingThread
 			while ( _acousticModelDisposalQueue.TryDequeue( out var s ) ) s.Dispose();
 			while ( _binauralDisposalQueue.TryDequeue( out var b ) ) b.Dispose();
 			while ( _reverbDisposalQueue.TryDequeue( out var r ) ) r.Dispose();
+			DrainProcessorRemovals();
 		}
 
 
 		SoundHandle.LipSyncAccessor.DrainDestructionQueue();
+	}
+
+	internal static void QueueProcessorRemoval( AudioProcessor processor )
+	{
+		if ( processor is not null ) _processorRemovalQueue.Enqueue( processor );
+	}
+
+	static void DrainProcessorRemovals()
+	{
+		while ( _processorRemovalQueue.TryDequeue( out var processor ) )
+		{
+			try
+			{
+				processor.OnRemovedInternal();
+			}
+			catch ( Exception e )
+			{
+				Log.Warning( e, $"Exception removing processor: {processor} - {e.Message}" );
+			}
+		}
 	}
 
 	internal static void QueueSamplerDisposal( AudioSampler sampler )
@@ -145,6 +167,8 @@ static class MixingThread
 
 		foreach ( var listener in Listener.ActiveList )
 		{
+			if ( listener.Scene?.IsSuspended == true ) continue;
+
 			listener.MixTransform = listener.Transform;
 			snapshot.Listeners.Add( new ListenerState
 			{
@@ -234,6 +258,7 @@ static class MixingThread
 		while ( _acousticModelDisposalQueue.TryDequeue( out var source ) ) source.Dispose();
 		while ( _binauralDisposalQueue.TryDequeue( out var binaural ) ) binaural.Dispose();
 		while ( _reverbDisposalQueue.TryDequeue( out var reverb ) ) reverb.Dispose();
+		DrainProcessorRemovals();
 		SoundHandle.LipSyncAccessor.DrainDestructionQueue();
 	}
 

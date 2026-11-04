@@ -5,6 +5,7 @@ native static class globalSteam as NativeEngine.Steam
 	static void SteamAPI_RunCallbacks();
 	static void SteamGameServer_RunCallbacks();
 	static ISteamUser SteamUser();
+	static ISteamRemoteStorage SteamRemoteStorage();
 	static ISteamFriends SteamFriends();
 	static ISteamNetworkingMessages SteamNetworkingMessages();
 	static ISteamNetworkingUtils SteamNetworkingUtils();

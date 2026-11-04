@@ -79,7 +79,12 @@ public abstract partial class ResourceCompiler
 	protected bool CompileEmbeddedResource<T>( ref EmbeddedResource embed, string subfolder, string extension, BaseFileSystem fs ) where T : Resource
 	{
 		var generator = ResourceGenerator.Create<T>( embed );
-		if ( generator is null ) return false;
+		if ( generator is null )
+		{
+			// Named but not found: the resource would be missing what it was given
+			if ( !string.IsNullOrEmpty( embed.ResourceGenerator ) ) Context.Fail( $"No generator \"{embed.ResourceGenerator}\" for an embedded {typeof( T ).Name}" );
+			return false;
+		}
 
 		if ( !generator.CacheToDisk )
 			return false;
@@ -87,15 +92,27 @@ public abstract partial class ResourceCompiler
 		var transientPath = CreateGeneratedResourcePath<T>( embed, subfolder, extension );
 		if ( transientPath is null ) return false;
 
+		if ( fs is null )
+		{
+			Context.Fail( $"Nowhere to generate {transientPath}: nothing is mounted for generated resources" );
+			return false;
+		}
+
 		var absPath = fs.GetFullPath( transientPath );
+
+		// What the generator reads is known up front, so a content build can order it without generating
+		foreach ( var read in generator.CompiledReads ) Context.AddCompiledReference( read );
 
 		//
 		// generate a filename for the resource
 		//
-		var child = Context.CreateChild( absPath );
+		if ( !Context.Describing )
+		{
+			var child = Context.CreateChild( absPath );
 
-		child.SetInputData( JsonSerializer.Serialize( embed ) );
-		child.Compile();
+			child.SetInputData( JsonSerializer.Serialize( embed ) );
+			if ( !child.Compile() ) Context.Fail( $"Couldn't generate {transientPath}" );
+		}
 
 		//
 		// store it in the json, so the compiled json will load the resource

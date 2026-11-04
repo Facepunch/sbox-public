@@ -10,15 +10,21 @@ public sealed unsafe partial class CommandList
 	readonly Lock _lock = new Lock();
 
 	private string _debugName;
-	private string _markerName = "CommandList";
+	private ProfilingSampler _sampler = DefaultSampler;
+
+	static readonly ProfilingSampler DefaultSampler = new( "CommandList" );
 
 	public string DebugName
 	{
 		get => _debugName;
 		set
 		{
+			// Building a sampler encodes the name for native, so don't redo it for the same value
+			if ( _debugName == value )
+				return;
+
 			_debugName = value;
-			_markerName = string.IsNullOrEmpty( value ) ? "CommandList" : string.Concat( "CommandList: ", value );
+			_sampler = string.IsNullOrEmpty( value ) ? DefaultSampler : new ProfilingSampler( value );
 		}
 	}
 
@@ -55,10 +61,21 @@ public sealed unsafe partial class CommandList
 
 		public StringToken Token;
 
+		// Instance counts remain exact integers.
+		public int Count;
+
+		/// <summary>
+		/// Identifies a deferred view without boxing or allocating a key object.
+		/// </summary>
+		public long ViewId;
+
 		public Vector4 Data1;
 		public Vector4 Data2;
 		public Vector4 Data3;
+		// Matrix attributes are written across Data1..Data4 through a reinterpret of Data1.
+#pragma warning disable CS0649
 		public Vector4 Data4;
+#pragma warning restore CS0649
 	}
 
 	/// <summary>
@@ -76,16 +93,13 @@ public sealed unsafe partial class CommandList
 		data.Execute = execute;
 
 		lock ( _lock )
+		{
 			_entries.Add( data );
+		}
 	}
 
 	[Obsolete]
 	RenderAttributes attributes => Graphics.Attributes;
-
-	/// <summary>
-	/// Access to simple 2D painting functions to draw shapes and text.
-	/// </summary>
-	public HudPainter Paint => new HudPainter( this );
 
 	/// <summary>
 	/// This lives for the lifetime of the command list and is 
@@ -96,6 +110,14 @@ public sealed unsafe partial class CommandList
 		public Dictionary<string, RenderTarget> renderTargets = new();
 
 		/// <summary>
+		/// Resolved view metadata for this playback, shared with inserted command lists.
+		/// </summary>
+		public Dictionary<long, ViewData> views = new();
+
+		public Stack<(RenderTarget Target, NativeEngine.RenderViewport Viewport)> renderTargetStack = new();
+		public Stack<OpenScope> openScopes = new();
+
+		/// <summary>
 		/// Should be called at the end of usage
 		/// </summary>
 		public void Reset()
@@ -103,6 +125,11 @@ public sealed unsafe partial class CommandList
 			// We just clear the list - RenderTargets get freed and 
 			// re-added to the pool automatically.
 			renderTargets.Clear();
+			views.Clear();
+			renderTargetStack.Clear();
+
+			// Execution closes these itself, this is only here so a pooled state never carries one forward
+			openScopes.Clear();
 		}
 
 		/// <summary>
@@ -125,7 +152,15 @@ public sealed unsafe partial class CommandList
 		// another thread is mid-execute would corrupt them. The lock makes that safe.
 		lock ( _lock )
 		{
+			if ( _resources is not null )
+			{
+				foreach ( var resource in _resources )
+					resource.Reset();
+			}
+
 			Attributes.ClearRenderTargets();
+			drawAttributeAccess?.ClearRenderTargets();
+			drawAttributes?.Clear( false );
 			_entries.Clear();
 		}
 	}
@@ -435,6 +470,14 @@ public sealed unsafe partial class CommandList
 			// under us on another thread.
 			lock ( other._lock )
 			{
+				// Inserted lists need the same resource preparation as direct execution.
+				// In particular, Painter must invalidate its previous execution's GPU copy.
+				if ( other._resources is not null )
+				{
+					foreach ( var resource in other._resources )
+						resource.BeginExecute();
+				}
+
 				for ( int i = 0; i < other._entries.Count; i++ )
 				{
 					var e = other._entries[i];
@@ -456,50 +499,23 @@ public sealed unsafe partial class CommandList
 		if ( !Enabled )
 			return;
 
-		// lock - we only want to excute this once at a time, because
-		// we have local state (renderTargets). If this turns out to be
-		// a big problem we can probably create a system where we pass the
-		// stat around.
+		// One execution at a time: the render-target stack is per-list state.
 		lock ( _lock )
 		{
-			// Store previous state
-			var lastState = state;
+			var listScope = OpenScopeFor( _sampler );
 
-			// Get a new state
-			state = ObjectPool<State>.Get();
-
-			// Begin a debug marker scope so PIX/RenderDoc show this list
-			Graphics.Context.BeginPixEvent( _markerName );
-
-			// GPU profiler timing scope, closed after execution below. The profiler nests this under its
-			// containing layer by GPU-timestamp containment in the summary - no parent passed here.
-			var perfScope = NativeEngine.CSceneSystem.BeginManagedPerfMarker( Graphics.Context, _debugName ?? "CommandList" );
-
-			// Execute all commands
 			try
 			{
-				var span = System.Runtime.InteropServices.CollectionsMarshal.AsSpan( _entries );
-				for ( int i = 0; i < span.Length; i++ )
-				{
-					ref var entry = ref span[i];
-					entry.Execute( ref entry, this );
-				}
+				ExecuteEntries();
 			}
 			catch ( System.Exception e )
 			{
-				Log.Warning( e, "Error when executing CommandList" );
+				Log.Warning( e, $"Error when executing CommandList {_debugName}" );
 			}
-
-			Graphics.Context.EndPixEvent();
-
-			NativeEngine.CSceneSystem.EndManagedPerfMarker( Graphics.Context, perfScope );
-
-			// Reset the state and return to the pool
-			state.Reset();
-			ObjectPool<State>.Return( state );
-
-			// Restore to the previous state
-			state = lastState;
+			finally
+			{
+				CloseScope( Graphics.Context, listScope );
+			}
 		}
 	}
 
@@ -965,6 +981,34 @@ public sealed unsafe partial class CommandList
 	}
 
 	/// <summary>
+	/// Save the render target and viewport active when this command executes.
+	/// </summary>
+	internal void PushRenderTarget()
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			commandList.state.renderTargetStack.Push( (Graphics.RenderTarget, Graphics.Context.GetViewport()) );
+		}
+
+		AddEntry( &Execute, default );
+	}
+
+	/// <summary>
+	/// Restore the most recently saved render target and viewport.
+	/// </summary>
+	internal void PopRenderTarget()
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			var saved = commandList.state.renderTargetStack.Pop();
+			Graphics.RenderTarget = saved.Target;
+			Graphics.Context.SetViewport( saved.Viewport );
+		}
+
+		AddEntry( &Execute, default );
+	}
+
+	/// <summary>
 	/// Set the current render target. Setting this will bind the render target and change the viewport to match it.
 	/// </summary>
 	public void ClearRenderTarget()
@@ -1071,7 +1115,8 @@ public sealed unsafe partial class CommandList
 	public RenderTargetHandle.SizeHandle ViewportSize => new RenderTargetHandle.SizeHandle { Name = "$vp" };
 
 	/// <summary>
-	/// A handle to the viewport size divided by a factor. Useful for dispatching at half or quarter resolution.
+	/// A handle to the viewport size divided by a factor, rounded up so a thread for every <paramref name="divisor"/> pixels
+	/// covers them all. Useful for dispatching at half or quarter resolution.
 	/// </summary>
 	public RenderTargetHandle.SizeHandle ViewportSizeScaled( int divisor ) => new RenderTargetHandle.SizeHandle { Name = "$vp", Divisor = Math.Max( 1, divisor ) };
 
@@ -1128,8 +1173,8 @@ public sealed unsafe partial class CommandList
 
 		if ( divisor > 1 )
 		{
-			result.x = Math.Max( 1, result.x / divisor );
-			result.y = Math.Max( 1, result.y / divisor );
+			result.x = Math.Max( 1, (result.x + divisor - 1) / divisor );
+			result.y = Math.Max( 1, (result.y + divisor - 1) / divisor );
 		}
 
 		return result;
@@ -1166,7 +1211,7 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			((Texture)entry.Object1).Clear( new Color( entry.Data1.x, entry.Data1.y, entry.Data1.z, entry.Data1.w ) );
+			Graphics.Context.ClearTexture( ((Texture)entry.Object1).native, new Color( entry.Data1.x, entry.Data1.y, entry.Data1.z, entry.Data1.w ) );
 		}
 
 		AddEntry( &Execute, new Entry { Object1 = texture, Data1 = new Vector4( color.r, color.g, color.b, color.a ) } );
@@ -1187,7 +1232,7 @@ public sealed unsafe partial class CommandList
 				return;
 			}
 
-			target.ColorTarget.Clear( new Color( entry.Data1.x, entry.Data1.y, entry.Data1.z, entry.Data1.w ) );
+			Graphics.Context.ClearTexture( target.ColorTarget.native, new Color( entry.Data1.x, entry.Data1.y, entry.Data1.z, entry.Data1.w ) );
 		}
 
 		AddEntry( &Execute, new Entry { Object5 = handle.ColorTexture.Name, Data1 = new Vector4( color.r, color.g, color.b, color.a ) } );
@@ -1441,9 +1486,9 @@ public sealed unsafe partial class CommandList
 	}
 
 	/// <summary>
-	/// Sneaky way for extensions to add an action. This creates an allocation, so it should be used sparingly.
+	/// Records an action to execute on the render thread. Cache the delegate to avoid allocations when recording.
 	/// </summary>
-	private void AddAction( Action a )
+	internal void AddAction( Action a )
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
@@ -1485,6 +1530,25 @@ public sealed unsafe partial class CommandList
 	}
 
 	/// <summary>
+	/// Generates the mips below <paramref name="initialMip"/>, for when the levels above it were written directly.
+	/// </summary>
+	internal void GenerateMipMaps( RenderTargetHandle handle, Graphics.DownsampleMethod method, int initialMip )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			if ( !commandList.state.renderTargets.TryGetValue( (string)entry.Object5, out var target ) )
+			{
+				Log.Warning( $"[{commandList.DebugName ?? "CommandList"}] Unknown rt: {(string)entry.Object5}" );
+				return;
+			}
+
+			Graphics.GenerateMipMaps( target.ColorTarget, (Graphics.DownsampleMethod)(int)entry.Data1.x, (int)entry.Data1.y );
+		}
+
+		AddEntry( &Execute, new Entry { Object5 = handle.Name, Data1 = new Vector4( (int)method, initialMip, 0, 0 ) } );
+	}
+
+	/// <summary>
 	/// Generates a mip-map chain for the specified render target.
 	/// This will generate mipmaps for the color texture of the render target.
 	/// </summary>
@@ -1523,33 +1587,22 @@ public sealed unsafe partial class CommandList
 	{
 		// Resolve the TextBlock at entry-add time so we store a class reference instead of
 		// boxing the Scope struct and TextFlag enum into object fields.
-		var tb = TextRendering.GetOrCreateTextBlock( scope, flags, 8096 );
-		if ( tb is null ) return;
+		var tb = TextRendering.GetOrCreateTextBlock( scope, flags );
+		if ( tb is not null ) DrawText( tb, rect, flags, angleDegrees );
+	}
 
+	/// <summary>Draws an already resolved text block, for callers that measured it first.</summary>
+	internal void DrawText( TextRendering.TextBlock block, Rect rect, TextFlag flags, float angleDegrees = 0f )
+	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
 			var position = new Rect( entry.Data1.x, entry.Data1.y, entry.Data1.z, entry.Data1.w );
-			var flags = (TextFlag)(int)entry.Data2.x;
-			var angle = entry.Data2.y;
-			var tb = (TextRendering.TextBlock)entry.Object1;
-
-			// MakeReady resets TimeSinceUsed, preventing Tick() from evicting this block
-			tb.MakeReady();
-
-			Graphics.Attributes.Set( "Texture", tb.Texture );
-			Graphics.Attributes.Set( "SamplerIndex", SamplerState.GetBindlessIndex( new SamplerState() { Filter = tb.FilterMode } ) );
-
-			var rect = position.Align( tb.Texture.Size, flags );
-
-			if ( angle == 0f )
-				Graphics.DrawQuad( rect.Floor(), Material.UI.Text, Color.White );
-			else
-				Graphics.DrawQuad( rect.Floor(), angle, Material.UI.Text, Color.White );
+			Graphics.DrawText( (TextRendering.TextBlock)entry.Object1, position, (TextFlag)(int)entry.Data2.x, entry.Data2.y );
 		}
 
 		AddEntry( &Execute, new Entry
 		{
-			Object1 = tb,
+			Object1 = block,
 			Data1 = new Vector4( rect.Left, rect.Top, rect.Width, rect.Height ),
 			Data2 = new Vector4( (float)(int)flags, angleDegrees, 0, 0 )
 		} );

@@ -93,7 +93,6 @@ public class FastTextureWindow : Window
 		}
 
 		Settings.FastTextureSettings.Load();
-		Settings.GridSize = Settings.FastTextureSettings.GridSize;
 
 		var savedMin = Settings.FastTextureSettings.SavedRectMin;
 		var savedMax = Settings.FastTextureSettings.SavedRectMax;
@@ -265,7 +264,7 @@ public class FastTextureWindow : Window
 		}
 	}
 
-	[Shortcut( "editor.cancel", "ESC" )]
+	[Shortcut( "editor.cancel", "ESC", ShortcutType.Window )]
 	public void Cancel()
 	{
 		if ( MeshFaces != null && OriginalUVs != null && MeshFaces.Length == OriginalUVs.Count )
@@ -314,7 +313,6 @@ public class FastTextureWindow : Window
 			Settings.FastTextureSettings.SavedRectMax = meshRect.Max;
 		}
 
-		Settings.FastTextureSettings.GridSize = Settings.GridSize;
 		Settings.FastTextureSettings.Save();
 
 		_undoScope?.Dispose();
@@ -588,6 +586,9 @@ public class RectViewToolbar : Widget
 			{
 				CreateModeButton( layout, "grid_4x4", "Toggle Tile View", () => Settings.IsTileView, () => Settings.IsTileView = !Settings.IsTileView );
 				CreateModeButton( layout, "rectangle", "Show Atlas Rects", () => Settings.ShowRects, () => Settings.ShowRects = !Settings.ShowRects );
+				CreateModeButton( layout, "grid_on", "Toggle Grid (Ctrl+G)", () => Window.GridEnabled, () => Window.SetGridEnabled( !Window.GridEnabled ) );
+				CreateModeButton( layout, "keyboard_arrow_down", "Decrease Grid Size ([)", () => false, () => Window.SmallerGrid() );
+				CreateModeButton( layout, "keyboard_arrow_up", "Increase Grid Size (])", () => false, () => Window.BiggerGrid() );
 			} );
 
 			AddGroup( viewCol, "Actions", layout =>

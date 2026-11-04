@@ -1,0 +1,186 @@
+@import "/styles/_front.scss";
+
+// Games and forming parties share the same compact list entry.
+MenuShell MultiplayerListRow
+{
+	width: 100%;
+	height: 100%;
+	min-width: 0;
+	flex-shrink: 0;
+	align-items: center;
+	gap: 12px;
+	padding: 8px 10px;
+	border-radius: 6px;
+	background-color: rgba( 255, 255, 255, 0.025 );
+	font-family: $front-font;
+	color: $front-heading;
+
+	&:hover
+	{
+		background-color: rgba( $front-primary, 0.1 );
+
+		.row-chevron
+		{
+			color: $front-link;
+			opacity: 1;
+		}
+	}
+
+	&.clickable
+	{
+		cursor: pointer;
+	}
+
+	.row-image
+	{
+		width: 40px;
+		height: 40px;
+		flex-shrink: 0;
+		align-items: center;
+		justify-content: center;
+		border-radius: 7px;
+		background-color: rgba( 0, 0, 0, 0.2 );
+		overflow: hidden;
+
+		img
+		{
+			width: 100%;
+			height: 100%;
+			object-fit: cover;
+		}
+
+		icon
+		{
+			font-size: 24px;
+			color: $front-secondary;
+		}
+	}
+
+	.row-info
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		width: 0;
+		min-width: 0;
+		gap: 2px;
+	}
+
+	.row-heading, .row-details
+	{
+		align-items: center;
+		gap: 8px;
+		min-width: 0;
+
+		.row-title, .row-subtitle
+		{
+			flex-grow: 1;
+			width: 0;
+			min-width: 0;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+	}
+
+	.row-title
+	{
+		font-size: 14px;
+		font-weight: 600;
+	}
+
+	.row-subtitle
+	{
+		font-size: 11px;
+		color: $front-secondary;
+	}
+
+	.row-count, .row-caption
+	{
+		flex-shrink: 0;
+		white-space: nowrap;
+		color: $front-secondary;
+	}
+
+	.row-count
+	{
+		font-size: 12px;
+		font-weight: 500;
+	}
+
+	.row-caption
+	{
+		font-size: 10px;
+	}
+
+	.row-stat
+	{
+		min-width: 40px;
+		flex-shrink: 0;
+		align-items: center;
+		justify-content: center;
+		gap: 6px;
+		font-size: 13px;
+		font-weight: 500;
+
+		icon
+		{
+			flex-shrink: 0;
+			font-size: 16px;
+			color: $front-secondary;
+		}
+
+		label
+		{
+			flex-shrink: 0;
+			white-space: nowrap;
+		}
+
+		&.servers
+		{
+			color: $front-secondary;
+		}
+	}
+
+	.row-chevron
+	{
+		flex-shrink: 0;
+		font-size: 18px;
+		color: $front-secondary;
+		opacity: 0.5;
+	}
+
+	.row-actions
+	{
+		flex-shrink: 0;
+		align-items: center;
+
+		&:empty
+		{
+			display: none;
+		}
+
+		> .button
+		{
+			padding: 2px 6px;
+			border-radius: 4px;
+			font-size: 11px;
+			font-weight: 500;
+			text-transform: none;
+			letter-spacing: 0;
+			background-color: rgba( $front-primary, 0.12 );
+			color: $front-link;
+
+			&:hover
+			{
+				background-color: $front-primary;
+				color: white;
+			}
+
+			&.disabled
+			{
+				opacity: 0.3;
+				pointer-events: none;
+			}
+		}
+	}
+}

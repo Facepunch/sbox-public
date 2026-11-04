@@ -1,51 +1,45 @@
+@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+
 FriendsListModal
 {
-    font-family: Poppins;
+	// A card round the home page's friends list - the list is its own (FriendsRail), styles and all.
+	// A set height, as the rail's list only draws what fits in what it's given
+	.inner
+	{
+		@include front-card;
 
-    .inner
-    {
-        width: 450px;
-        max-height: 60%;
-        pointer-events: all;
-        overflow-y: scroll;
-        background: linear-gradient( to bottom, #1d212f, #1c202d );
-        flex-direction: column;
-        border-radius: 16px;
-        box-shadow: 2px 2px 20px #0005;
+		width: 384px;
+		height: 560px;
+		max-height: 70%;
+		box-shadow: 0 16px 40px rgba( 0, 0, 0, 0.55 );
+		pointer-events: all;
 
-        .friends-list
-        {
-            padding: 8px 16px 16px 16px;
-            flex-direction: column;
-            overflow-y: scroll;
-            gap: 8px;
-        }
-    }
-}
+		> FriendsRail
+		{
+			min-height: 0;
+			flex-grow: 1;
+			flex-shrink: 1;
+			height: 0;
+		}
+	}
 
-h2
-{
-    font-family: Poppins;
-    font-weight: 600;
-    font-size: 16px;
-    flex-shrink: 0;
-    margin: 8px 0;
-    align-items: center;
-    gap: 8px;
+	// Off something - the party deck - with the page left as it is behind it. Its width is set to the
+	// deck's from code
+	&.anchored
+	{
+		background-color: transparent;
+		backdrop-filter: none;
 
-    i
-    {
-        font-size: 24px;
-    }
-}
+		left: 0;
+		right: 0;
+		top: 0;
+		bottom: 0;
+		padding: 0;
 
-
-.header
-{
-    flex-shrink: 0;
-    margin: 2px;
-    border-radius: 16px 16px 0px 0px;
-    padding: 8px 16px;
-    color: white;
-    background-color: #323b5233;
+		.inner
+		{
+			position: absolute;
+		}
+	}
 }

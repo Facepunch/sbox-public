@@ -1,4 +1,4 @@
-﻿namespace Sandbox.UI;
+namespace Sandbox.UI;
 
 /// <summary>
 /// Mouse related <see cref="PanelEvent"/>.
@@ -15,10 +15,34 @@ public class MousePanelEvent : PanelEvent
 	/// </summary>
 	public new string Button;
 
+	/// <summary>Click count supplied by the input source for this mouse-down event. Defaults to one.</summary>
+	public int ClickCount { get; set; } = 1;
+
 	/// <summary>
 	/// Which button triggered the event, as a <see cref="MouseButtons"/> enum.
 	/// </summary>
 	public MouseButtons MouseButton { get; set; }
+
+	/// <summary>
+	/// The modifier keys held down when this happened - so a click can tell shift+click from
+	/// a plain one.
+	/// </summary>
+	public KeyboardModifiers KeyboardModifiers { get; set; }
+
+	/// <summary>
+	/// Whether <c>Shift</c> was held down at the time of the event.
+	/// </summary>
+	public bool HasShift => KeyboardModifiers.Contains( KeyboardModifiers.Shift );
+
+	/// <summary>
+	/// Whether <c>Control</c> was held down at the time of the event.
+	/// </summary>
+	public bool HasCtrl => KeyboardModifiers.Contains( KeyboardModifiers.Ctrl );
+
+	/// <summary>
+	/// Whether <c>Alt</c> was held down at the time of the event.
+	/// </summary>
+	public bool HasAlt => KeyboardModifiers.Contains( KeyboardModifiers.Alt );
 
 	public MousePanelEvent( string event_name, Panel active, string button ) : base( event_name, active )
 	{

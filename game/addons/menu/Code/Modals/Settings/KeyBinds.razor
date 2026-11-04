@@ -3,7 +3,6 @@
 @using MenuProject.Settings;
 @namespace MenuProject.Settings
 @inherits Panel
-@page "/settings/keybinds"
 
 <root class="page-inner">
 
@@ -22,7 +21,7 @@
             @foreach ( InputAction button in group )
             {
                 <row>
-                    <div class="is-label">@(button.Title ?? button.Name)</div>
+					<div class="is-label">@(string.IsNullOrEmpty(button.Title) ? button.Name : button.Title)</div>
 
                     <div>
                         <KeyBind BindGroup=@BindGroup Action=@button Slot=@(0) />

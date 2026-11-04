@@ -177,6 +177,6 @@ public static unsafe partial class Sound
 	public static void StopAll( float fade )
 	{
 		SoundHandle.StopAll( fade );
-
+		Game.Music.Stop( fade );
 	}
 }

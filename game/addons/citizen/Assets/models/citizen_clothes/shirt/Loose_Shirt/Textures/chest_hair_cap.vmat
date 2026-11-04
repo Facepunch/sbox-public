@@ -1,7 +1,7 @@
 "Layer0"
 {
 	"shader"		"shaders/complex.shader_c"
-	"F_ALPHA_TEST"		"1"
+	F_TRANSLUCENT 1
 	"g_flAmbientOcclusionDirectDiffuse"		"0.000000"
 	"g_flAmbientOcclusionDirectSpecular"		"0.000000"
 	"TextureAmbientOcclusion"		"materials/default/default_ao.tga"
@@ -20,7 +20,6 @@
 	"g_vTexCoordOffset"		"[0.000 0.000]"
 	"g_vTexCoordScale"		"[1.000 1.000]"
 	"g_vTexCoordScrollSpeed"		"[0.000 0.000]"
-	"g_flAlphaTestReference"		"0.726000"
-	"g_flAntiAliasedEdgeStrength"		"0.206000"
+	g_flOpacityScale "1.000"
 	"TextureTranslucency"		"models/citizen_clothes/shirt/Loose_Shirt/Textures/Chest_Hair_CAP_opacity.png"
 }

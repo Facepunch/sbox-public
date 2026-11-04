@@ -36,7 +36,7 @@ public class DragEvent : PanelEvent
 		ScreenGrabPosition = globalDragStart;
 
 		LocalPosition = Target.MousePosition + Target.ScrollOffset;
-		ScreenPosition = Mouse.Position;
+		ScreenPosition = Target.ScreenMousePosition;
 
 	}
 }

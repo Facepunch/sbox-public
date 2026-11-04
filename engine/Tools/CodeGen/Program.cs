@@ -20,6 +20,12 @@ class Program
 
 	static void Main( string[] args )
 	{
+		if ( args is ["--keep-ref", var compiled, var current] )
+		{
+			RefAssembly.KeepIfOnlyLinesMoved( compiled, current );
+			return;
+		}
+
 		//try
 		//{
 		Run( args );
@@ -59,6 +65,10 @@ class Program
 			AddTree( SyntaxTree, file, file );
 		} );
 
+		// The parse finishes in any order, and tree order decides things like which part of a
+		// partial class gets its [Description]. Keep it stable so unchanged sources give unchanged output.
+		SyntaxTree.Sort( ( a, b ) => StringComparer.OrdinalIgnoreCase.Compare( a.FilePath, b.FilePath ) );
+
 		Console.WriteLine( $"[{sw.Elapsed.TotalSeconds:0.00}] Built Syntax Trees" );
 
 		var optn = new CSharpCompilationOptions( OutputKind.DynamicallyLinkedLibrary )
@@ -75,27 +85,41 @@ class Program
 		refs.Add( MetadataReference.CreateFromFile( Path.Combine( path, "System.Runtime.dll" ) ) );
 		refs.Add( MetadataReference.CreateFromFile( typeof( Sandbox.CodeGeneratorAttribute ).Assembly.Location ) );
 
+		// Projects outside the engine pass their references, so the [Sync] and [Rpc] attributes they use resolve
+		var references = args.SelectMany( a => a.StartsWith( '@' ) ? File.ReadAllLines( a[1..] ) : [a] ).Select( a => a.Trim( '"' ) );
+		var added = new HashSet<string>( refs.Select( r => Path.GetFileName( r.Display ) ), StringComparer.OrdinalIgnoreCase );
+		foreach ( var reference in references.Where( File.Exists ) )
+		{
+			if ( added.Add( Path.GetFileName( reference ) ) )
+				refs.Add( MetadataReference.CreateFromFile( reference ) );
+		}
+
 		CSharpCompilation compiler = CSharpCompilation.Create( $"CodeGen", SyntaxTree, refs, optn );
 
 		//
-		// Process each file
+		// When only method bodies changed, nothing another file's generated code depends on has moved,
+		// so only the changed files need generating again.
 		//
-		{
-			Console.WriteLine( $"[{sw.Elapsed.TotalSeconds:0.00}] Processsing {SyntaxTree.Count:n0} files ({targetPaths.Count:n0} skipped)" );
-			var processor = new Sandbox.Generator.Processor();
-			processor.ILHotloadSupported = false;
-			processor.AddonName = "codegen";
-			processor.PackageAssetResolver = ( p ) => $"/{p}/model_mock.mdl";
-			processor.AddonFileMap = files.ToDictionary( x => x, x => GetRelativePath( x, Environment.CurrentDirectory ) );
-			processor.Run( compiler );
-			Console.WriteLine( $"[{sw.Elapsed.TotalSeconds:0.00}] Processed {SyntaxTree.Count:n0} files" );
+		var previous = State.Load();
+		var state = State.Create( SyntaxTree, previous );
+		var changedTrees = state.ChangedSince( previous, SyntaxTree );
 
-			compiler = processor.Compilation;
+		var generated = Generate( compiler, changedTrees ?? SyntaxTree, files, sw );
+
+		// Files the generator added rather than rewrote are made from every file at once, which a
+		// partial run can't do. Redo it in full, and don't save the state so it stays that way.
+		var addedTrees = generated.SyntaxTrees.Count() != SyntaxTree.Count;
+		if ( addedTrees && changedTrees is not null )
+		{
+			changedTrees = null;
+			generated = Generate( compiler, SyntaxTree, files, sw );
 		}
 
-		Parallel.ForEach( compiler.SyntaxTrees, tree =>
+		var processedPaths = (changedTrees ?? generated.SyntaxTrees.ToList()).Select( x => x.FilePath ).ToHashSet();
+
+		Parallel.ForEach( generated.SyntaxTrees, tree =>
 		{
-			var writtenPath = WriteFileToOutputFolder( tree.FilePath, tree );
+			var writtenPath = processedPaths.Contains( tree.FilePath ) ? WriteFileToOutputFolder( tree.FilePath, tree ) : GetTargetPath( tree.FilePath );
 			lock ( targetPaths )
 			{
 				targetPaths.Add( writtenPath );
@@ -103,6 +127,9 @@ class Program
 		} );
 
 		Console.WriteLine( $"[{sw.Elapsed.TotalSeconds:0.00}] Wrote files" );
+
+		if ( addedTrees ) State.Delete();
+		else state.Save();
 
 		foreach ( var file in looseFiles )
 		{
@@ -116,6 +143,23 @@ class Program
 		}
 
 		Console.WriteLine( $"[{sw.Elapsed.TotalSeconds:0.00}] Done" );
+	}
+
+	static CSharpCompilation Generate( CSharpCompilation compiler, List<SyntaxTree> trees, string[] files, Stopwatch sw )
+	{
+		var total = compiler.SyntaxTrees.Count();
+		Console.WriteLine( $"[{sw.Elapsed.TotalSeconds:0.00}] Processsing {trees.Count:n0} files ({total - trees.Count:n0} skipped)" );
+
+		var processor = new Sandbox.Generator.Processor();
+		processor.ILHotloadSupported = false;
+		processor.IgnoreDiagnostics = true;
+		processor.AddonName = "codegen";
+		processor.PackageAssetResolver = ( p ) => $"/{p}/model_mock.mdl";
+		processor.AddonFileMap = files.ToDictionary( x => x, x => GetRelativePath( x, Environment.CurrentDirectory ) );
+		processor.Run( compiler, trees.ToList() );
+		Console.WriteLine( $"[{sw.Elapsed.TotalSeconds:0.00}] Processed {trees.Count:n0} files" );
+
+		return processor.Compilation;
 	}
 
 	static string GetRelativePath( string filespec, string folder )
@@ -170,7 +214,7 @@ class Program
 		throw new System.Exception( $"Couldn't write {path} ({_e?.Message})" );
 	}
 
-	static string GetTargetPath( string file )
+	internal static string GetTargetPath( string file )
 	{
 		var relativePath = GetRelativePath( file, Environment.CurrentDirectory );
 		return $"{Environment.CurrentDirectory}/obj/.generated/{relativePath}";
@@ -198,6 +242,10 @@ class Program
 		var crc = Crc64.FromString( originalContent );
 
 		sourceContent = $"// <auto-generated>{crc}</auto-generated>\n{sourceContent}";
+
+		// Leave unchanged files alone, so their timestamps don't make msbuild recompile the project
+		if ( File.Exists( targetPath ) && ReadText( targetPath ) == sourceContent )
+			return targetPath;
 
 		System.IO.Directory.CreateDirectory( System.IO.Path.GetDirectoryName( targetPath ) );
 		WriteText( targetPath, sourceContent );

@@ -36,26 +36,38 @@ public class ProjectTest
 	}
 
 	/// <summary>
-	/// Find and load a local package
+	/// Games compile against every library. One installed while the game is open has to be referenced
+	/// straight away, or game code can't use it until the editor restarts.
 	/// </summary>
 	[TestMethod]
-	public async Task AddBaseAddon()
+	public void AddingALibraryReferencesItFromOpenGames()
 	{
-		var project = Project.AddFromFileBuiltIn( "addons/base/.sbproj" );
+		var game = Project.AddFromFile( "unittest/addons/spacewars/.sbproj" );
 
-		Assert.IsNotNull( project.ConfigFilePath );
-		Assert.IsNotNull( project.GetRootPath() );
-		Assert.IsNotNull( project.GetAssetsPath() );
+		var libraryFolder = System.IO.Path.Combine( System.IO.Path.GetTempPath(), $"sbox_library_{Guid.NewGuid():N}" );
+		System.IO.Directory.CreateDirectory( System.IO.Path.Combine( libraryFolder, "Code" ) );
+		System.IO.File.WriteAllText( System.IO.Path.Combine( libraryFolder, "testlibrary.sbproj" ),
+			"""{ "Title": "Test Library", "Type": "library", "Org": "local", "Ident": "testlibrary", "Schema": 1 }""" );
+		System.IO.File.WriteAllText( System.IO.Path.Combine( libraryFolder, "Code", "Library.cs" ), "public class TestLibraryType { }" );
 
-		await Project.SyncWithPackageManager();
-		await Project.CompileAsync();
+		try
+		{
+			var library = Project.AddFromFile( System.IO.Path.Combine( libraryFolder, "testlibrary.sbproj" ) );
+			Project.UpdateLibraryReferences();
+
+			Assert.IsTrue( game.Compiler.HasReference( library.Package.AssemblyName, deep: true ), "the game's compiler doesn't reference the new library" );
+		}
+		finally
+		{
+			Project.Clear();
+			System.IO.Directory.Delete( libraryFolder, true );
+		}
 	}
 
 	/*
 	[TestMethod]
 	public async Task OpenGameProject()
 	{
-		Project.AddFromFileBuiltIn( "addons/base/.sbproj" );
 
 		var project = Project.AddFromFile( "unittest/addons/spacewars", false );
 
@@ -77,33 +89,5 @@ public class ProjectTest
 	}
 	*/
 
-	/// <summary>
-	/// Initialize the menu addon
-	/// </summary>
-	[TestMethod]
-	public async Task MenuInitialization()
-	{
-		Project.AddFromFileBuiltIn( "addons/base/.sbproj" );
-
-		var project = Project.AddFromFile( "addons/menu/.sbproj" );
-
-		Assert.IsNotNull( project.ConfigFilePath );
-		Assert.IsNotNull( project.GetRootPath() );
-		Assert.IsNotNull( project.GetAssetsPath() );
-
-		await Project.SyncWithPackageManager();
-		await Project.CompileAsync();
-
-		var assemblies = PackageManager.ActivePackages
-			.SelectMany( ap => ap.AssemblyFileSystem.FindFile( "/", "*.dll", true ) )
-			.ToArray();
-
-		Assert.AreEqual( 2, assemblies.Length );
-
-		foreach ( var asm in assemblies )
-		{
-			Console.WriteLine( asm );
-		}
-
-	}
+	// The menu addon compile is covered by AddonTests.BuiltInTest.NoWarnings.
 }

@@ -15,6 +15,9 @@ public static class Launcher
 			Bootstrap.InitMinimal( Environment.CurrentDirectory );
 			Project.InitializeBuiltIn( false ).GetAwaiter().GetResult();
 			Project.GenerateSolution().GetAwaiter().GetResult();
+
+			// Stop crashpad and sentry's worker thread before unloading the native dlls they live in
+			NativeErrorReporter.Shutdown();
 			Managed.SandboxEngine.NativeInterop.Free();
 			EngineFileSystem.Shutdown();
 			return 0;
@@ -23,8 +26,11 @@ public static class Launcher
 		if ( !HasCommandLineSwitch( "-project" ) && !HasCommandLineSwitch( "-test" ) )
 		{
 			// we pass the command line, so we can pass it on to the sbox-launcher (for -game etc)
-			ProcessStartInfo info = new ProcessStartInfo( "sbox-launcher.exe", Environment.CommandLine );
-			info.UseShellExecute = true;
+			ProcessStartInfo info = new ProcessStartInfo( NetCore.GetExecutablePath( "sbox-launcher" ), Environment.CommandLine );
+
+			// Only let the shell start it on Windows - on Linux UseShellExecute goes through
+			// xdg-open, which opens the launcher in a web browser rather than running it.
+			info.UseShellExecute = OperatingSystem.IsWindows();
 			info.CreateNoWindow = true;
 			info.WorkingDirectory = System.Environment.CurrentDirectory;
 

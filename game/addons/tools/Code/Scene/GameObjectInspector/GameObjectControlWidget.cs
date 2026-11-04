@@ -11,6 +11,8 @@ public class GameObjectControlWidget : ControlWidget
 
 	public bool ShowFullName { get; set; } = true;
 
+	public string MissingName { get; set; } = "None (GameObject)";
+
 	public GameObjectControlWidget( SerializedProperty property ) : base( property )
 	{
 		if ( !property.IsEditable )
@@ -96,7 +98,7 @@ public class GameObjectControlWidget : ControlWidget
 			Paint.SetPen( Theme.TextControl.WithAlpha( 0.3f ) );
 			Paint.DrawIcon( rect, "radio_button_unchecked", 14, TextFlag.LeftCenter );
 			rect.Left += 22;
-			Paint.DrawText( rect, "None (GameObject)", TextFlag.LeftCenter );
+			Paint.DrawText( rect, MissingName, TextFlag.LeftCenter );
 		}
 		else if ( go is PrefabScene )
 		{

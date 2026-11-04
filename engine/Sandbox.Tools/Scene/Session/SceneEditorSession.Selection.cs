@@ -4,6 +4,11 @@ namespace Editor;
 
 public partial class SceneEditorSession
 {
+	/// <summary>
+	/// Only the active session contributes selection-driven previews.
+	/// </summary>
+	bool Scene.ISceneEditorSession.IsActive => Active == this;
+
 	public SelectionSystem Selection { get; } = new SelectionSystem();
 
 	/// <summary>

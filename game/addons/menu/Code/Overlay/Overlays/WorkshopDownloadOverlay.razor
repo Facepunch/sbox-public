@@ -1,0 +1,303 @@
+@using System;
+@using Sandbox;
+@using Sandbox.UI;
+@namespace MenuProject.Overlay.Overlays
+@inherits Panel
+
+@*
+    What's coming down from the Steam Workshop, bottom middle of the main menu. One row for all of it: what's coming down
+    now in a circle with its progress ringed round it, and "2 of 5" when there's a queue. When one's done
+    with more to come its circle slides out to the left; when the last is done the row shows it done, then
+    goes. Failures get a row each so you can read why.
+*@
+<root>
+
+    @foreach ( var row in Rows )
+    {
+        @* Each in a slot that grows from nothing and shrinks away, so the others glide rather than jump *@
+        <div class="slot" @key="row.Key">
+            <div class="download @row.State">
+
+                <div class="badge @( row.Thumbs.Length > 1 ? "stacked" : "" )">
+                    <div class="glow"></div>
+
+                    @* The rest of the queue, peeking out from behind *@
+                    @for ( var i = row.Thumbs.Length - 1; i >= 1; i-- )
+                    {
+                        <div class="behind behind-@i" style="@ImageStyle( row.Thumbs[i] )"></div>
+                    }
+
+                    <div class="ring" style="@RingStyle( row )"></div>
+                    <div class="thumb" style="@ImageStyle( row.Thumbs.FirstOrDefault() )">
+                        @if ( row.State == "failed" )
+                        {
+                            <icon>priority_high</icon>
+                        }
+                        else if ( string.IsNullOrEmpty( row.Thumbs.FirstOrDefault() ) )
+                        {
+                            <icon>download</icon>
+                        }
+                    </div>
+
+                    @if ( row.State == "complete" )
+                    {
+                        <div class="tick"><icon>check</icon></div>
+                    }
+
+                    @* Others done while this carries on - each slides out to the left *@
+                    @if ( row.Key == MainKey )
+                    {
+                        @foreach ( var done in bubbles )
+                        {
+                            <div class="done-bubble" @key="done.Id" style="@ImageStyle( done.Thumb )">
+                                <div class="tick"><icon>check</icon></div>
+                            </div>
+                        }
+                    }
+                </div>
+
+                <div class="text">
+                    <label class="title">@row.Title</label>
+                    <label class="detail">@row.Detail</label>
+
+                    @if ( row.Help is not null )
+                    {
+                        <label class="help">@row.Help</label>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+
+</root>
+
+@code
+{
+    const string MainKey = "main";
+    const string Fill = "#3fc76a";
+    const string Danger = "#ff5d6a";
+    const string Track = "rgba( 255, 255, 255, 0.13 )";
+
+    /// <summary>
+    /// How long the row shows the last one done before it goes - long enough for Steam to start the next in
+    /// its queue, so the row carries on rather than going and coming back
+    /// </summary>
+    const float DoneTime = 2.5f;
+
+    /// <summary>
+    /// How long a failed one stays up - long enough to read why
+    /// </summary>
+    const float FailedTime = 12f;
+
+    /// <summary>
+    /// How long a done one takes to slide out - the style's animation
+    /// </summary>
+    const float BubbleTime = 1.2f;
+
+    record struct Row( string Key, string State, string Title, string Detail, string Help, string[] Thumbs );
+
+    List<Row> Rows = new();
+    RealTimeSince sincePoll;
+
+    /// <summary>
+    /// What's in <see cref="Rows"/> and the circles sliding out, worked out when they change rather than every frame
+    /// </summary>
+    int rowsHash;
+
+    /// <summary>
+    /// Everything that's been coming down, and what of it's done, since the row last went - what "2 of 5" counts
+    /// </summary>
+    readonly HashSet<ulong> seen = new();
+    readonly HashSet<ulong> finished = new();
+
+    WorkshopDownload? lastDone;
+    RealTimeSince sinceDone;
+
+    readonly List<(ulong Id, string Thumb, RealTimeSince Age)> bubbles = new();
+    readonly List<(WorkshopDownload Download, RealTimeSince Age)> failures = new();
+
+    /// <summary>
+    /// What's coming down, as of the last time we asked
+    /// </summary>
+    WorkshopDownload[] active = Array.Empty<WorkshopDownload>();
+
+    /// <summary>
+    /// How fast it's all coming down - from how much more of it there is each time we ask, eased so the time
+    /// left doesn't jump about. Megabytes of 1024 x 1024, times eight, like the loading screen's.
+    /// </summary>
+    double mbps;
+    long lastBytes;
+
+    IDisposable endedSubscription;
+
+    protected override void OnAfterTreeRender( bool firstTime )
+    {
+        if ( firstTime )
+            endedSubscription = MenuUtility.OnWorkshopDownloadEnded( OnEnded );
+    }
+
+    public override void OnDeleted()
+    {
+        endedSubscription?.Dispose();
+        base.OnDeleted();
+    }
+
+    /// <summary>
+    /// A download's ended - a failure gets its own row; a finished one we saw coming down shows done, sliding
+    /// out of the row if there's more to come
+    /// </summary>
+    void OnEnded( WorkshopDownload ended )
+    {
+        if ( ended.Error is not null )
+        {
+            failures.RemoveAll( x => x.Download.Id == ended.Id );
+            failures.Add( (ended, 0) );
+            seen.Remove( ended.Id );
+            return;
+        }
+
+        // Never came down - an update check on something already up to date
+        if ( !seen.Contains( ended.Id ) || !finished.Add( ended.Id ) )
+            return;
+
+        lastDone = ended;
+        sinceDone = 0;
+
+        if ( active.Any( x => x.Id != ended.Id ) )
+            bubbles.Add( (ended.Id, ended.Thumb, 0) );
+    }
+
+    /// <summary>
+    /// The main row's ring as drawn - easing towards how far it's really got every frame, which only
+    /// changes when we ask Steam. It starts again from empty for each one that comes down.
+    /// </summary>
+    double ring, ringTarget;
+    ulong ringItem;
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        // Just in the main menu - in a game it'd be in the way, and the loading screen shows its own downloads.
+        // Hidden, we don't poll what's coming down - but failures still come in as they happen, so a recent one's
+        // shown when we're back.
+        var hidden = Game.InGame || LoadingScreen.IsVisible;
+        SetClass( "hidden", hidden );
+        if ( hidden ) return;
+
+        // Settles between asks, rather than chasing the last hundredth of a percent forever
+        ring = Math.Abs( ringTarget - ring ) < 0.002 ? ringTarget : MathX.Lerp( ring, ringTarget, RealTime.Delta * 8 );
+
+        // Asks Steam about each download, no need to every frame
+        var elapsed = (double)sincePoll;
+        if ( elapsed < 0.25 ) return;
+        sincePoll = 0;
+
+        active = MenuUtility.GetWorkshopDownloads();
+        seen.UnionWith( active.Select( x => x.Id ) );
+
+        bubbles.RemoveAll( x => x.Age > BubbleTime );
+        failures.RemoveAll( x => x.Age > FailedTime || active.Any( a => a.Id == x.Download.Id ) );
+
+        // Gone quiet - the next lot counts from scratch
+        if ( active.Length == 0 && sinceDone > DoneTime )
+        {
+            seen.Clear();
+            finished.Clear();
+            lastDone = null;
+        }
+
+        // Going backwards means one finished and the next started - start counting again from there
+        var bytes = active.Sum( x => x.Downloaded );
+        var speed = active.Length > 0 && bytes >= lastBytes ? (bytes - lastBytes) / elapsed / 1024 / 1024 * 8 : 0;
+        lastBytes = bytes;
+
+        mbps = speed <= 0 ? mbps * 0.8 : mbps <= 0 ? speed : MathX.Lerp( mbps, speed, 0.2 );
+        if ( active.Length == 0 ) mbps = 0;
+
+        Rows = failures.Select( x => new Row( x.Download.Id.ToString(), "failed", x.Download.Title, x.Download.Error, x.Download.ErrorHelp, [x.Download.Thumb] ) ).ToList();
+
+        if ( MainRow() is { } main )
+            Rows.Add( main );
+
+        var hash = new HashCode();
+        foreach ( var row in Rows )
+        {
+            hash.Add( HashCode.Combine( row.Key, row.State, row.Title, row.Detail, row.Help ) );
+            foreach ( var thumb in row.Thumbs ) hash.Add( thumb );
+        }
+
+        foreach ( var done in bubbles )
+            hash.Add( done.Id );
+
+        rowsHash = hash.ToHashCode();
+    }
+
+    /// <summary>
+    /// The one row for everything coming down - the ring's for what's coming down now, the words for the lot
+    /// </summary>
+    Row? MainRow()
+    {
+        if ( active.Length == 0 )
+        {
+            ringTarget = 1;
+
+            if ( lastDone is not { } done || sinceDone > DoneTime ) return null;
+            return new Row( MainKey, "complete", done.Title, Language.GetPhrase( "menu.workshop.downloaded" ), null, [done.Thumb] );
+        }
+
+        // Steam takes them one at a time - this is the one coming down
+        var current = active[0];
+
+        // A new one - its ring starts from empty, rather than winding back from the last one's
+        if ( current.Id != ringItem )
+        {
+            ringItem = current.Id;
+            ring = 0;
+        }
+
+        var thumbs = active.OrderBy( x => x.Id != current.Id ).Select( x => x.Thumb ).Take( 3 ).ToArray();
+        var queue = seen.Count > 1 ? $"{Language.GetPhrase( "menu.workshop.download_queue", new() { ["current"] = finished.Count + 1, ["total"] = seen.Count } )} · " : "";
+
+        ringTarget = current.Fraction;
+
+        var left = active.Sum( x => x.Total - x.Downloaded );
+        var amount = seen.Count > 1 ? LoadingOverlay.Size( left )
+            : Language.GetPhrase( "menu.workshop.download_progress", new() { ["percent"] = $"{current.Fraction * 100:0}", ["size"] = LoadingOverlay.Size( current.Total ) } );
+        var detail = Eta( left ) is { } eta ? $"{queue}{amount} · {Language.GetPhrase( "menu.workshop.time_left", new() { ["time"] = eta } )}" : $"{queue}{amount}";
+
+        return new Row( MainKey, "downloading", current.Title, detail, null, thumbs );
+    }
+
+    /// <summary>
+    /// Filled as far as it's got - only the main row has progress, the rest failed and are all red
+    /// </summary>
+    string RingStyle( Row row )
+    {
+        if ( row.State == "failed" )
+            return $"background-image: conic-gradient( {Danger} 0%, {Danger} 100% )";
+
+        var percent = Num( Math.Clamp( ring, 0, 1 ) * 100 );
+        return $"background-image: conic-gradient( {Fill} 0%, {Fill} {percent}%, {Track} {percent}% )";
+    }
+
+    static string ImageStyle( string image ) => string.IsNullOrEmpty( image ) ? "" : $"background-image: url( {image} )";
+
+    /// <summary>
+    /// How long what's left will take - short, "41s", "4m", "1h 05m", there's no room for more
+    /// </summary>
+    string Eta( long bytesLeft )
+    {
+        if ( bytesLeft <= 0 || mbps <= 0 ) return null;
+
+        var time = TimeSpan.FromSeconds( Math.Max( 1, Math.Round( bytesLeft / (mbps * 1024 * 1024 / 8) ) ) );
+
+        // Seconds only once it's under a minute
+        return time.ToCountdownString( includeSeconds: time.TotalMinutes < 1 );
+    }
+
+    static string Num( double value ) => value.ToString( "0.##", System.Globalization.CultureInfo.InvariantCulture );
+
+    // Redrawn as the ring eases, a percent at a time
+    protected override int BuildHash() => HashCode.Combine( rowsHash, Math.Round( ring * 100 ) );
+}

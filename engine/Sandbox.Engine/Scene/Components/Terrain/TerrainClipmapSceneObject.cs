@@ -15,8 +15,13 @@ internal sealed class TerrainClipmapSceneObject : SceneCustomObject
 	// A queued normal bake, run on the render thread before we draw so every pass this frame samples fresh data
 	public CommandList PendingBake;
 
-	private Frustum _cullFrustum;
+	private Frustum _cullFrustumLocal;
 	private Vector2 _clipCameraLocal;
+
+	// What the visible meshlets were culled for, so a view's later passes - its prepass, then its opaque pass - reuse them
+	// Native records a view's passes on job threads at once, so one culls while the others wait for it
+	private (Frustum Frustum, Vector2 Camera, Transform Transform, float UnitsPerTexel, float HeightScale, int BlockSize)? _culledFor;
+	private readonly System.Threading.Lock _cullLock = new();
 
 	private Tier[] _tiers = [];
 
@@ -25,7 +30,7 @@ internal sealed class TerrainClipmapSceneObject : SceneCustomObject
 		public Model Mesh;
 		public Meshlet[] Meshlets;
 		public GpuBuffer<Meshlet> FullBuffer;    // the whole layout, drawn by shadow passes
-		public GpuBuffer<Meshlet> VisibleBuffer; // frustum-culled subset, refreshed once per frame
+		public GpuBuffer<Meshlet> VisibleBuffer; // frustum-culled subset, refreshed for each camera view
 		public Meshlet[] Visible;
 		public int VisibleCount;
 	}
@@ -69,19 +74,36 @@ internal sealed class TerrainClipmapSceneObject : SceneCustomObject
 			tiers.Add( GenerateTierMesh( farMeshlets, 1, blockSize, material ) );
 
 		_tiers = [.. tiers];
+		lock ( _cullLock ) _culledFor = null;
 	}
 
-	public void UpdateView( Frustum frustum, Vector3 cameraWorld )
+	internal void UpdateClipCamera( Vector3 cameraWorld )
 	{
-		_cullFrustum = frustum;
-
 		var cameraLocal = Transform.PointToLocal( cameraWorld );
 		_clipCameraLocal = new Vector2( cameraLocal.x, cameraLocal.y );
-
 		Attributes.Set( "ClipCameraLocal", _clipCameraLocal );
+	}
 
-		foreach ( ref var tier in _tiers.AsSpan() )
-			Cull( ref tier );
+	private void UpdateView( Frustum frustum, Vector3 cameraWorld )
+	{
+		var cameraLocal = Transform.PointToLocal( cameraWorld );
+		var clipCamera = new Vector2( cameraLocal.x, cameraLocal.y );
+
+		// A view's passes all see the same meshlets: cull them once, not per pass
+		var key = (frustum, clipCamera, Transform, UnitsPerTexel, HeightScale, BlockSize);
+
+		lock ( _cullLock )
+		{
+			if ( _culledFor == key ) return;
+
+			_cullFrustumLocal = ToLocal( frustum, Transform );
+			_clipCameraLocal = clipCamera;
+
+			foreach ( ref var tier in _tiers.AsSpan() )
+				Cull( ref tier );
+
+			_culledFor = key;
+		}
 	}
 
 	public override void RenderSceneObject()
@@ -98,7 +120,13 @@ internal sealed class TerrainClipmapSceneObject : SceneCustomObject
 		// so these don't stomp other passes recording at the same time.
 		bool shadow = Graphics.LayerType == SceneLayerType.Shadow;
 
+		if ( !shadow )
+			UpdateView(
+				Graphics.Frustum.Scaled( Terrain.MeshletFrustumScale, Graphics.CameraPosition, Graphics.FieldOfView > 0.0f ),
+				Graphics.CameraPosition );
+
 		Attributes.MergeTo( Graphics.Attributes );
+		Graphics.Attributes.Set( "ClipCameraLocal", _clipCameraLocal );
 		Graphics.Attributes.Set( "TerrainShadowPass", shadow );
 
 		foreach ( ref var tier in _tiers.AsSpan() )
@@ -113,8 +141,6 @@ internal sealed class TerrainClipmapSceneObject : SceneCustomObject
 
 	private void Cull( ref Tier tier )
 	{
-		var terrainTransform = Transform;
-
 		// Meshlets are level-ordered, so per-level constants only need recomputing when the level changes
 		int level = -1;
 		float vertexStep = 0, increment = 0;
@@ -135,7 +161,7 @@ internal sealed class TerrainClipmapSceneObject : SceneCustomObject
 				center = _clipCameraLocal.SnapToGrid( increment );
 			}
 
-			if ( _cullFrustum.IsInside( GetMeshletAABB( in m, center, vertexStep, increment, terrainTransform ), partially: true ) )
+			if ( _cullFrustumLocal.IsInside( GetMeshletBounds( in m, center, vertexStep, increment ), partially: true ) )
 				tier.Visible[vis++] = m;
 		}
 
@@ -145,19 +171,38 @@ internal sealed class TerrainClipmapSceneObject : SceneCustomObject
 		tier.VisibleCount = vis;
 	}
 
-	private BBox GetMeshletAABB( in Meshlet m, Vector2 center, float vertexStep, float increment, in Transform terrainTransform )
+	private BBox GetMeshletBounds( in Meshlet m, Vector2 center, float vertexStep, float increment )
 	{
 		float ox = center.x + m.BlockOffset.x * vertexStep;
 		float oy = center.y + m.BlockOffset.y * vertexStep;
 		float ext = BlockSize * vertexStep;
 
 		// Grow by one snap increment so sub-cell rounding / vertex displacement never culls an on-screen block
-		var localBox = new BBox(
+		return new BBox(
 			new Vector3( ox - increment, oy - increment, -increment ),
 			new Vector3( ox + ext + increment, oy + ext + increment, HeightScale + increment ) );
-
-		return localBox.Transform( terrainTransform );
 	}
+
+	/// <summary>
+	/// Bring a world frustum into terrain space. Normals are left unnormalized since the box test only checks signs.
+	/// </summary>
+	internal static Frustum ToLocal( in Frustum frustum, in Transform transform )
+	{
+		var inverse = transform.Rotation.Inverse;
+		var scale = transform.Scale;
+		var position = transform.Position;
+
+		return new Frustum(
+			ToLocal( frustum.RightPlane, inverse, scale, position ), ToLocal( frustum.LeftPlane, inverse, scale, position ),
+			ToLocal( frustum.TopPlane, inverse, scale, position ), ToLocal( frustum.BottomPlane, inverse, scale, position ),
+			ToLocal( frustum.NearPlane, inverse, scale, position ), ToLocal( frustum.FarPlane, inverse, scale, position ) );
+	}
+
+	private static Plane ToLocal( in Plane plane, Rotation inverse, Vector3 scale, Vector3 position ) => new()
+	{
+		Normal = (inverse * plane.Normal) * scale,
+		Distance = plane.Distance - plane.Normal.Dot( position ),
+	};
 
 	private void DisposeBuffers()
 	{

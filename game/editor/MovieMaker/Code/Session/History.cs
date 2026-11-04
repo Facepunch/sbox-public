@@ -1,4 +1,7 @@
 ﻿using System.Collections;
+using System.Collections.Immutable;
+using System.Linq;
+using Sandbox.Helpers;
 using Sandbox.MovieMaker;
 
 namespace Editor.MovieMaker;
@@ -17,11 +20,13 @@ public interface IHistoryItem
 
 public interface IHistoryScope : IDisposable
 {
+	bool IsClosed { get; }
+
 	void PostChange();
 	void IDisposable.Dispose() => PostChange();
 }
 
-public sealed class SessionHistory : IReadOnlyList<IHistoryItem>
+public sealed class SessionHistory : IReadOnlyList<IHistoryItem>, IUndoSystem
 {
 	private readonly Session _session;
 
@@ -54,6 +59,8 @@ public sealed class SessionHistory : IReadOnlyList<IHistoryItem>
 
 			return _history._session.Restore( Snapshot );
 		}
+
+		public bool IsClosed => _history.Index != Index;
 
 		public void PostChange()
 		{
@@ -110,6 +117,20 @@ public sealed class SessionHistory : IReadOnlyList<IHistoryItem>
 	public bool Undo() => Previous?.Apply() ?? false;
 	public bool Redo() => Next?.Apply() ?? false;
 
+	DateTime? IUndoSystem.UndoTimestamp
+	{
+		get
+		{
+			// We want Current.Time because that was when we
+			// switched from Previous. We still check Previous
+			// for null because we need it to undo.
+
+			return Previous is null ? null : Current.Time;
+		}
+	}
+
+	DateTime? IUndoSystem.RedoTimestamp => Next?.Time;
+
 	public IEnumerator<IHistoryItem> GetEnumerator() => _items.GetEnumerator();
 	IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
@@ -119,7 +140,9 @@ public sealed class SessionHistory : IReadOnlyList<IHistoryItem>
 internal sealed record SessionProperties(
 	MovieTime? TimeOffset,
 	float? PixelsPerSecond,
-	int FrameRate );
+	int FrameRate,
+	MovieTime? PlayheadTime,
+	ImmutableHashSet<Guid>? SelectedTracks );
 
 internal sealed record EditModeSnapshot(
 	Type Type, EditMode.ISnapshot? Data );
@@ -139,7 +162,12 @@ partial class Session
 		return new SessionSnapshot(
 			Project.Snapshot(),
 			EditMode?.Snapshot(),
-			new SessionProperties( timeline?.TimeOffset, timeline?.PixelsPerSecond, FrameRate ) );
+			new SessionProperties(
+				timeline?.TimeOffset,
+				timeline?.PixelsPerSecond,
+				FrameRate,
+				PlayheadTime,
+				[..TrackList.SelectedTracks.Select( x => x.Track.Id )] ) );
 	}
 
 	internal bool Restore( SessionSnapshot snapshot )
@@ -161,7 +189,17 @@ partial class Session
 
 		TrackList.Update();
 
+		if ( snapshot.Properties.SelectedTracks is { } selected )
+		{
+			TrackList.SelectAll( selected.Select( x => Project.GetTrack( x ) ).OfType<IProjectTrack>() );
+		}
+
 		EditMode?.PostRestore();
+
+		if ( snapshot.Properties.PlayheadTime is { } time )
+		{
+			PlayheadTime = time;
+		}
 
 		return true;
 	}

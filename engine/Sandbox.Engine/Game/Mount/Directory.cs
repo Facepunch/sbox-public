@@ -140,6 +140,8 @@ public static class Directory
 	/// </summary>
 	static void TryMountFilesystem( string name )
 	{
+		using var scope = GlobalContext.MenuScope();
+
 		var path = EngineFileSystem.Root.GetFullPath( $"/mount/{name}/assets" );
 		if ( string.IsNullOrWhiteSpace( path ) ) return;
 		if ( !System.IO.Directory.Exists( path ) ) return;
@@ -147,7 +149,7 @@ public static class Directory
 		EngineFileSystem.AddAssetPath( $"mnt_{name}", path );
 	}
 
-	internal static bool TryLoad( string filename, ResourceType type, out object resource )
+	internal static bool TryLoad( string filename, out object resource )
 	{
 		resource = default;
 
@@ -168,7 +170,7 @@ public static class Directory
 			return false;
 		}
 
-		resource = SyncContext.RunBlocking( entry.GetOrCreate() );
+		resource = SyncContext.RunBlocking( LoadResource( entry ) );
 
 		if ( resource is null )
 		{
@@ -179,7 +181,7 @@ public static class Directory
 		return resource is not null;
 	}
 
-	internal static async Task<object> TryLoadAsync( string filename, ResourceType type )
+	internal static async Task<object> TryLoadAsync( string filename )
 	{
 		if ( !MountUtility.TryParse( filename, out string sourceName ) )
 			return null;
@@ -198,7 +200,7 @@ public static class Directory
 			return null;
 		}
 
-		var resource = await entry.GetOrCreate();
+		var resource = await LoadResource( entry );
 
 		if ( resource is null )
 		{
@@ -207,6 +209,49 @@ public static class Directory
 		}
 
 		return resource;
+	}
+
+	static async Task<object> LoadResource( ResourceLoader entry )
+	{
+		if ( entry.Type == ResourceType.GameResource )
+			ThreadSafe.AssertIsMainThread();
+
+		if ( entry.Type == ResourceType.GameResource
+			&& ResourceLibrary.TryGet<GameResource>( entry.Path, out var cached ) && !cached.IsPromise )
+			return cached;
+
+		var result = await entry.GetOrCreate();
+		if ( entry.Type != ResourceType.GameResource || result is null )
+			return result;
+
+		ThreadSafe.AssertIsMainThread();
+
+		if ( result is not GameResource resource )
+		{
+			Log.Warning( $"Mounted GameResource '{entry.Path}' returned '{result.GetType().FullName}'." );
+			return null;
+		}
+
+		if ( entry.IsShutdown )
+		{
+			resource.DestroyInternal();
+			Log.Warning( $"Mount shut down while loading GameResource '{entry.Path}'." );
+			return null;
+		}
+
+		if ( ResourceLibrary.TryGet<GameResource>( entry.Path, out cached ) && !cached.IsPromise )
+		{
+			if ( !ReferenceEquals( resource, cached ) )
+				resource.DestroyInternal();
+			return cached;
+		}
+
+		resource.RegisterMounted( entry );
+		if ( resource.PostLoadInternal() )
+			return resource;
+
+		resource.DestroyInternal();
+		return null;
 	}
 
 	internal static void AddAssembly( Assembly assembly )
@@ -233,6 +278,12 @@ class SteamIntegration : ISteamIntegration
 	{
 		if ( !NativeEngine.Steam.SteamApps().IsValid ) return false;
 		return NativeEngine.Steam.SteamApps().BIsAppInstalled( (int)appid );
+	}
+
+	public bool IsAppOwned( long appid )
+	{
+		if ( !NativeEngine.Steam.SteamApps().IsValid ) return false;
+		return NativeEngine.Steam.SteamApps().BIsSubscribedApp( (int)appid );
 	}
 
 	public bool IsDlcInstalled( long appid )

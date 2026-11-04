@@ -8,12 +8,10 @@ Layer0
 	F_MORPH_SUPPORTED 1
 
 	//---- PBR ----
-	F_ANISOTROPIC_GLOSS 1
-	F_SPECULAR 1
+	F_CLOTH_SHADING 1
 	F_TRANSMISSIVE_BACKFACE_NDOTL 1
 
 	//---- Rendering ----
-	F_DYNAMIC_REFLECTIONS 1
 	F_RENDER_BACKFACES 1
 
 	//---- Translucent ----
@@ -26,7 +24,7 @@ Layer0
 
 	//---- Color ----
 	g_flModelTintAmount "1.000"
-	g_vColorTint "[1.000000 1.000000 1.000000 0.000000]"
+	g_vColorTint "[0.831373 0.831373 0.831373 0.000000]"
 	TextureColor "models/citizen_clothes/hair/legacy_hair/textures/straight_hair/hair_01_color.png"
 
 	//---- Fade ----
@@ -36,25 +34,25 @@ Layer0
 	g_bFogEnabled "1"
 
 	//---- Metalness ----
-	g_flMetalness "0.962"
+	g_flMetalness "0.838"
 
 	//---- Normal ----
+	g_flLightRangeForSelfShadowNormals "0.707"
+	g_flNormalMapScaleFactor "1.000"
 	TextureNormal "models/citizen_clothes/hair/legacy_hair/textures/straight_hair/hair_01_normal.png"
 
 	//---- Roughness ----
-	g_flRoughnessScaleFactor "0.119"
-	TextureRoughness "models/citizen_clothes/hair/legacy_hair/Textures/straight_hair/hair_01_rough.png"
+	g_flRoughnessScaleFactor "1.000"
+	TextureRoughness "[0.150000 0.150000 0.150000 0.000000]"
 
 	//---- Texture Coordinates ----
-	g_nScaleTexCoordUByModelScaleAxis "0"
-	g_nScaleTexCoordVByModelScaleAxis "0"
 	g_vTexCoordOffset "[0.000 0.000]"
 	g_vTexCoordScale "[1.000 1.000]"
 	g_vTexCoordScrollSpeed "[0.000 0.000]"
 
 	//---- Translucent ----
-	g_flAlphaTestReference "0.087"
-	g_flAntiAliasedEdgeStrength "0.192"
+	g_flAlphaTestReference "0.518"
+	g_flAntiAliasedEdgeStrength "0.507"
 	TextureTranslucency "models/citizen_clothes/hair/legacy_hair/textures/straight_hair/hair_01_opacity.png"
 
 	//---- Transmission ----
@@ -64,7 +62,7 @@ Layer0
 	{
 		"State_0000"
 		{
-			"ThumbnailCRC32"		"0x98A1D03C"
+			"ThumbnailChecksum"		"0x00000000"
 			"Thumbnail"		"/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAAgACADASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDze3tLeSK0JVS0hIOe4AOf1ApEtIxHLM6p5cdwY8HHTcv9M1XWe5gFvIEUJChKD68En8SKYNQcwLE8ccmLg3DFx984HBx24P50rFFrUrdVvLtEhRFgjV2wuCOi/Tq4/IVTZIhEGO3LRF8++7GMfgasx/atb1C5KhRNcEyNtLYAz93r93OOueg/GKTT5/3IAQF4fMUZAO3rk9PU/wCRQIkmvIZIUh2khbbZkYHzcH+a/rVNJFjDZG8+XtQjGFJ65BHPBYdsHBB4qLgA8ZyOD6VL/o+cZcKWXkrkgY+buB16evtTAVHeCUPZzSg7fvL8rA4BboTwDnnuBnjoCS6ncqzS7j5QiHH3VHGB6cDt6n1NRuUKptBzt+b65P8ATFNBCnoG49/T+lMR/9k="
 			"Material"
 			{

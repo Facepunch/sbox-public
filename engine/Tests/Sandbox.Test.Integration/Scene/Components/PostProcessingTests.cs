@@ -105,7 +105,6 @@ public class PostProcessingComponentTest
 		CreateAndCycle<HighlightOutline>( scene );
 		CreateAndCycle<MotionBlur>( scene );
 		CreateAndCycle<Pixelate>( scene );
-		CreateAndCycle<ScreenSpaceReflections>( scene );
 		CreateAndCycle<Sharpen>( scene );
 		CreateAndCycle<Tonemapping>( scene );
 		CreateAndCycle<Vignette>( scene );
@@ -136,9 +135,7 @@ public class PostProcessingComponentTest
 		Assert.AreEqual( SceneCamera.BloomAccessor.BloomMode.Additive, bloom.Mode );
 		Assert.AreEqual( 1.0f, bloom.Strength );
 		Assert.AreEqual( 1.0f, bloom.Threshold );
-		Assert.AreEqual( 2.2f, bloom.Gamma );
 		Assert.AreEqual( Color.White, bloom.Tint );
-		Assert.AreEqual( Bloom.FilterMode.Bilinear, bloom.Filter );
 
 		var overlay = go.Components.Create<BlitOverlay>( false );
 		Assert.AreEqual( 0.1f, overlay.Blend );
@@ -173,7 +170,7 @@ public class PostProcessingComponentTest
 		var dof = go.Components.Create<DepthOfField>( false );
 		Assert.AreEqual( 30.0f, dof.BlurSize );
 		Assert.AreEqual( 200.0f, dof.FocalDistance );
-		Assert.AreEqual( 500.0f, dof.FocusRange );
+		Assert.AreEqual( 15000.0f, dof.FocusRange );
 		Assert.IsFalse( dof.FrontBlur );
 		Assert.IsTrue( dof.BackBlur );
 
@@ -196,9 +193,6 @@ public class PostProcessingComponentTest
 
 		var pixelate = go.Components.Create<Pixelate>( false );
 		Assert.AreEqual( 0.25f, pixelate.Scale );
-
-		var ssr = go.Components.Create<ScreenSpaceReflections>( false );
-		Assert.AreEqual( 0.5f, ssr.RoughnessCutoff, 0.001f, "SSR roughness cutoff is a hardcoded constant" );
 
 		var sharpen = go.Components.Create<Sharpen>( false );
 		Assert.AreEqual( 2.0f, sharpen.Scale );
@@ -364,9 +358,7 @@ public class PostProcessingComponentTest
 		bloom.Mode = SceneCamera.BloomAccessor.BloomMode.Screen;
 		bloom.Strength = 5.0f;
 		bloom.Threshold = 1.5f;
-		bloom.Gamma = 1.8f;
 		bloom.Tint = new Color( 0.1f, 0.2f, 0.3f );
-		bloom.Filter = Bloom.FilterMode.Biquadratic;
 
 		var dof = go.Components.Create<DepthOfField>();
 		dof.BlurSize = 50.0f;
@@ -397,7 +389,6 @@ public class PostProcessingComponentTest
 		outline.Width = 2.0f;
 		outline.OverrideTargets = true;
 
-		go.Components.Create<ScreenSpaceReflections>();
 		go.Components.Create<Highlight>();
 
 		var clone = SerializeRoundTrip( scene, go );
@@ -414,9 +405,7 @@ public class PostProcessingComponentTest
 		Assert.AreEqual( SceneCamera.BloomAccessor.BloomMode.Screen, loadedBloom.Mode );
 		Assert.AreEqual( 5.0f, loadedBloom.Strength );
 		Assert.AreEqual( 1.5f, loadedBloom.Threshold, 0.001f, "Threshold round trips untouched because the serialized version is current" );
-		Assert.AreEqual( 1.8f, loadedBloom.Gamma );
 		Assert.AreEqual( new Color( 0.1f, 0.2f, 0.3f ), loadedBloom.Tint );
-		Assert.AreEqual( Bloom.FilterMode.Biquadratic, loadedBloom.Filter );
 
 		var loadedDof = clone.Components.Get<DepthOfField>();
 		Assert.IsNotNull( loadedDof );
@@ -453,7 +442,6 @@ public class PostProcessingComponentTest
 		Assert.AreEqual( 2.0f, loadedOutline.Width );
 		Assert.IsTrue( loadedOutline.OverrideTargets );
 
-		Assert.IsNotNull( clone.Components.Get<ScreenSpaceReflections>(), "SSR should survive the round trip" );
 		Assert.IsNotNull( clone.Components.Get<Highlight>(), "Highlight should survive the round trip" );
 
 		clone.Destroy();
@@ -495,6 +483,48 @@ public class PostProcessingComponentTest
 
 		clone.Destroy();
 		scene.ProcessDeletes();
+	}
+
+	/// <summary>
+	/// Every camera renders screen-space reflections as part of the renderer, with no effect to add, and reads the
+	/// depth-normals G-buffer they trace from. The obsolete component adds nothing.
+	/// </summary>
+	[TestMethod]
+	public void ScreenSpaceReflectionsArePartOfEveryCamera()
+	{
+		var oldRatio = ScreenSpaceReflectionsPass.DownsampleRatio;
+		ScreenSpaceReflectionsPass.DownsampleRatio = 2;
+
+		var scene = new Scene();
+		try
+		{
+			using var sceneScope = scene.Push();
+
+			var camGo = scene.CreateObject();
+			var cam = camGo.Components.Create<CameraComponent>();
+
+			Update();
+			Assert.IsNotNull( cam.SceneCamera.ScreenSpaceReflections, "A camera should render screen-space reflections by default" );
+			Assert.AreEqual( 0, TotalLayerCount( cam ), "Screen-space reflections aren't a post process effect" );
+			Assert.IsTrue( cam.SceneCamera.Attributes.GetBool( "NeedsDepthNormals" ), "The trace reads the depth-normals G-buffer" );
+
+#pragma warning disable CS0618 // The obsolete component is what's being tested
+			camGo.Components.Create<ScreenSpaceReflections>();
+#pragma warning restore CS0618
+			Update();
+			Assert.AreEqual( 0, TotalLayerCount( cam ), "The obsolete component should add nothing" );
+
+			void Update()
+			{
+				scene.GameTick();
+				scene.PreCameraRender();
+			}
+		}
+		finally
+		{
+			ScreenSpaceReflectionsPass.DownsampleRatio = oldRatio;
+			scene.Destroy();
+		}
 	}
 
 	/// <summary>
@@ -624,7 +654,7 @@ public class PostProcessingComponentTest
 			camGo.Components.Create<AmbientOcclusion>();
 			camGo.Components.Create<DepthOfField>();
 			camGo.Components.Create<Bloom>();
-			camGo.Components.Create<ColorGrading>();
+			camGo.Components.Create<ColorGrading>().GradingMethod = ColorGrading.GradingType.TemperatureControl;
 
 			var tonemap = camGo.Components.Create<Tonemapping>();
 			tonemap.AutoExposureEnabled = true;
@@ -818,8 +848,8 @@ public class PostProcessingComponentTest
 	/// from zero at the edge to BlendWeight once the point is BlendDistance inside, using
 	/// the unsigned edge distance - so a point OUTSIDE the box at the same distance gets
 	/// the same weight (only volume containment via the volume system keeps that from
-	/// mattering in practice). A zero BlendDistance degenerates the remap to zero weight
-	/// everywhere rather than a hard edge, infinite volumes always return BlendWeight, and
+	/// mattering in practice). A nonpositive BlendDistance uses the full BlendWeight for
+	/// a hard edge, infinite volumes always return BlendWeight, and
 	/// the volume transform offsets the test position. The VolumeSystem lookup only finds
 	/// volumes that contain the queried position.
 	/// </summary>
@@ -845,7 +875,11 @@ public class PostProcessingComponentTest
 		Assert.AreEqual( 0.125f, volume.GetWeight( Vector3.Zero ), 0.001f, "A blend distance larger than the box means even the centre is partially blended" );
 
 		volume.BlendDistance = 0.0f;
-		Assert.AreEqual( 0.0f, volume.GetWeight( Vector3.Zero ), 0.001f, "Zero blend distance degenerates the remap to zero weight, not a hard edge" );
+		Assert.AreEqual( 0.5f, volume.GetWeight( Vector3.Zero ), 0.001f, "Zero blend distance applies the full authored weight" );
+		Assert.AreEqual( 0.5f, volume.GetWeight( new Vector3( 49.99f, 0, 0 ) ), 0.001f, "A hard edge does not fade just inside the boundary" );
+
+		volume.BlendDistance = -10.0f;
+		Assert.AreEqual( 0.5f, volume.GetWeight( Vector3.Zero ), 0.001f, "Negative blend distance also uses a hard edge" );
 
 		volume.BlendDistance = 50.0f;
 		volume.BlendWeight = 0.75f;
@@ -942,6 +976,23 @@ public class PostProcessingComponentTest
 			scene.GameTick();
 
 			Assert.AreEqual( 2.0f, cam.AutoExposure.Compensation, 0.001f, "The PostProcessAnchor position drives volume lookup instead of the camera position" );
+
+			volume.BlendDistance = 0;
+			anchorGo.WorldPosition = new Vector3( 49.99f, 0, 0 );
+			scene.GameTick();
+
+			Assert.AreEqual( 2.0f, cam.AutoExposure.Compensation, 0.001f, "Zero blend distance applies the full authored weight just inside the volume" );
+
+			anchorGo.WorldPosition = new Vector3( 50.01f, 0, 0 );
+			scene.GameTick();
+
+			Assert.AreEqual( 1.0f, cam.AutoExposure.Compensation, 0.001f, "A hard-edged volume contributes nothing just outside" );
+
+			anchorGo.WorldPosition = Vector3.Zero;
+			volume.BlendWeight = 0;
+			scene.GameTick();
+
+			Assert.AreEqual( 1.0f, cam.AutoExposure.Compensation, 0.001f, "Zero blend weight still disables a hard-edged volume" );
 		}
 		finally
 		{

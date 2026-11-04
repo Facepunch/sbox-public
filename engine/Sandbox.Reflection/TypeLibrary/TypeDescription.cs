@@ -62,6 +62,11 @@ public sealed class TypeDescription : ISourceLineProvider
 	public MethodDescription[] Methods { get; private set; }
 
 	/// <summary>
+	/// Overloaded operators and conversions exposed by this type. These are also included in Methods and Members.
+	/// </summary>
+	public MethodDescription[] Operators { get; private set; }
+
+	/// <summary>
 	/// All properties of this type.
 	/// </summary>
 	public PropertyDescription[] Properties { get; private set; }
@@ -172,6 +177,9 @@ public sealed class TypeDescription : ISourceLineProvider
 
 	private bool _useClassNameWhenSerializing;
 
+	// Assembly.GetName() allocates and takes a global culture lock, which is far too slow to call per member.
+	static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Assembly, string> AssemblyNames = new();
+
 	static bool ShouldExposeMember( MemberInfo member, Internal.TypeLibrary lib, TypeDescription source )
 	{
 		// |               |  public  | protected | private |
@@ -191,6 +199,10 @@ public sealed class TypeDescription : ISourceLineProvider
 			}
 		}
 
+		// Ignore compiler generated properties, such as a record's EqualityContract
+		if ( member is PropertyInfo propa && propa.HasAttribute( typeof( CompilerGeneratedAttribute ) ) )
+			return false;
+
 		if ( member is MethodInfo methodInfo )
 		{
 			// Very special case, destructors implement this as a virtual that automatically calls base destructors
@@ -198,8 +210,8 @@ public sealed class TypeDescription : ISourceLineProvider
 			// And there is no reason to explicitly call Object.Finalize for something
 			if ( methodInfo.Name == Microsoft.CodeAnalysis.WellKnownMemberNames.DestructorName ) return false;
 
-			// Ignore getter/setter methods
-			if ( methodInfo.IsSpecialName ) return false;
+			// Operators are callable members. Other special methods (such as accessors) are represented separately.
+			if ( methodInfo.IsSpecialName && MethodDescription.ClassifyOperator( methodInfo ) == OperatorKind.None ) return false;
 			if ( methodInfo.Name == "GetType" ) return false;
 			if ( methodInfo.Name == "ToString" ) return false;
 			if ( methodInfo.Name == "Equals" ) return false;
@@ -227,7 +239,7 @@ public sealed class TypeDescription : ISourceLineProvider
 			if ( dt is not null && dt.IsDynamicAssembly ) return true;
 		}
 
-		var asmName = assembly.GetName().Name!;
+		var asmName = AssemblyNames.GetValue( assembly, static a => a.GetName().Name! );
 
 		//
 		// Keeping this around because we can't totally rely on the above. But the above is needed.
@@ -368,6 +380,7 @@ public sealed class TypeDescription : ISourceLineProvider
 		Members = md.OrderBy( x => x.SourceLine ).ToArray();
 		DeclaredMembers = Members.Where( x => x.MemberInfo.DeclaringType == type ).ToArray();
 		Methods = Members.OfType<MethodDescription>().ToArray();
+		Operators = Methods.Where( x => x.IsOperator ).ToArray();
 		Properties = Members.OfType<PropertyDescription>().ToArray();
 		Fields = Members.OfType<FieldDescription>().ToArray();
 

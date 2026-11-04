@@ -1,17 +1,16 @@
-﻿using Sandbox.Html;
+using Sandbox.Html;
 using Sandbox.Rendering;
 using SkiaSharp;
-using System.Buffers;
 using Topten.RichTextKit;
 
 namespace Sandbox.UI;
 
-internal sealed class TextBlock : IDisposable
+internal sealed partial class TextBlock : IDisposable
 {
-	[ConVar( ConVarFlags.Protected, Help = "Enable rendering text to textures" )]
+	[ConVar( ConVarFlags.Protected, Help = "Draw UI text" )]
 	public static bool ui_rendertext { get; set; } = true;
 
-	public Action OnTextureChanged { get; set; }
+	public Action OnChanged { get; set; }
 
 	public string Text { get; internal set; }
 
@@ -27,10 +26,17 @@ internal sealed class TextBlock : IDisposable
 
 	public Vector2 BlockSize;
 
-	internal Texture Texture;
+	/// <summary>
+	/// The size the text measures to right now, before <see cref="BlockSize"/> is settled by layout, so
+	/// layout and scrolling can ask about size at any point.
+	/// </summary>
+	public Vector2 MeasuredSize => Block is null ? default : new Vector2( Block.MeasuredWidth, Block.MeasuredHeight );
 
-	// we keep the last texture around incase we can re-use it
-	Texture LastTexture;
+	/// <summary>
+	/// The text rendered to a texture, only made when a background-clip: text needs it as a mask
+	/// </summary>
+	internal Texture Texture;
+	bool textureDirty = true;
 
 	internal void SetText( string text )
 	{
@@ -62,16 +68,14 @@ internal sealed class TextBlock : IDisposable
 
 	Topten.RichTextKit.TextBlock Block;
 	Topten.RichTextKit.Style Style;
-	Topten.RichTextKit.TextGradient Gradient;
+	bool HasGradient;
 
 	int FontHash;
-	//int ParentHash;
 
 	float FontSize;
 	int? FontWeight;
 	TextAlign TextAlign;
 	TextOverflow TextOverflow;
-	FilterMode TextFilter;
 	TextDecoration TextDecoration;
 	FontStyle FontStyle;
 	FontVariantNumeric? FontVariantNumeric;
@@ -80,22 +84,42 @@ internal sealed class TextBlock : IDisposable
 	Length? LetterSpacing;
 	Length? WordSpacing;
 	Length? LineHeight;
-	Align AlignItems;
 	WhiteSpace? WhiteSpace;
-	GradientInfo GradientInfo;
+	TextGradientInfo GradientInfo;
 	FontSmooth Smooth;
 
+	/// <summary>
+	/// Room shadows and outlines need around the text
+	/// </summary>
 	Margin EffectMargin;
+
+	/// <summary>
+	/// Room around the text in the current texture: effects plus glyph ink overhang. Texture is placed at the
+	/// text rect minus this.
+	/// </summary>
+	Margin TextureMargin;
 
 
 	Dictionary<int, Vector2> SizeCache = new Dictionary<int, Vector2>();
+	Vector2? MinContentSize;
+
+	internal Vector2 MeasureMinContent( float? width = null )
+	{
+		if ( width is null && MinContentSize is { } cached ) return cached;
+
+		var size = Block.MeasureMinContent( width, WhiteSpace == UI.WhiteSpace.BreakSpaces, EndsWithNewline );
+		var result = new Vector2( size.Width.CeilToInt(), size.Height.CeilToInt() );
+		if ( width is null ) MinContentSize = result;
+		return result;
+	}
 
 	public Vector2 Measure( float width, float height )
 	{
 		if ( !float.IsNaN( width ) ) width = width.CeilToInt();
 		if ( !float.IsNaN( height ) ) height = height.CeilToInt();
 
-		var hash = (int)width;
+		// Height only matters when text-overflow clips to it
+		var hash = HashCode.Combine( (int)width, TextOverflow != TextOverflow.None ? (int)height : 0 );
 		if ( SizeCache.TryGetValue( hash, out var size ) )
 			return size;
 
@@ -106,73 +130,178 @@ internal sealed class TextBlock : IDisposable
 			Block.MaxHeight = float.IsNaN( height ) ? null : (height + 1);
 		}
 
-		var s = new Vector2( Block.MeasuredWidth.CeilToInt(), Block.MeasuredHeight.CeilToInt() );
+		var measuredHeight = Block.MeasuredHeight;
+
+		// The paragraph gives a trailing newline's empty line no height, but the caret can sit on it
+		if ( EndsWithNewline && Block.Lines.Count > 0 ) measuredHeight += Block.Lines[^1].Height;
+
+		var s = new Vector2( Block.MeasuredWidth.CeilToInt(), measuredHeight.CeilToInt() );
 
 		SizeCache[hash] = s;
 
 		return s;
 	}
 
-	void WaitTextureReady()
+	/// <summary>
+	/// The block's text ends with a line break. Checked on the collapsed text rather than <see cref="Text"/>,
+	/// since white-space collapsing can strip a trailing newline and leave the block with no line for it.
+	/// </summary>
+	bool EndsWithNewline;
+
+	static bool EndsWithLineBreak( string text ) => text is { Length: > 0 } && text[^1] is '\n' or '\u2029';
+
+	/// <summary>
+	/// Number of lines, including the empty one after a trailing newline
+	/// </summary>
+	public int LineCount => Block is null ? 0 : Block.Lines.Count + (EndsWithNewline ? 1 : 0);
+
+	/// <summary>
+	/// The line a caret position is on
+	/// </summary>
+	public int LineOf( int caretPosition )
 	{
-		if ( TextureRebuild == null ) return;
-		using var perfScope = Performance.Scope( "TextBlock.WaitRebuild" );
-		TextureRebuild.Wait();
-		TextureRebuild = null;
+		var codepoint = CaretToCodePointIndex( caretPosition );
+
+		if ( EndsWithNewline && codepoint > 0 && codepoint == Block.Length )
+			return Block.Lines.Count;
+
+		return Block.GetCaretInfo( new CaretPosition { CodePointIndex = codepoint } ).LineIndex;
 	}
 
 	/// <summary>
-	/// Build a text descriptor into the target RenderLayer.
+	/// The caret position nearest an x on a given line
 	/// </summary>
-	internal void BuildDescriptors( RenderLayer target, BlendMode blendMode, Styles currentStyle, Rect textrect, float opacity )
+	public int GetLetterAtLine( int line, float x )
 	{
-		WaitTextureReady();
+		if ( Block is null ) return -1;
+		if ( line >= Block.Lines.Count ) return Block.LookupCaretIndex( Block.Length );
 
-		if ( Texture is null ) return;
-		if ( BlockSize == 0 ) return;
+		return Block.LookupCaretIndex( Block.HitTestLine( line, x ).ClosestCodePointIndex );
+	}
 
-		if ( currentStyle.TextAlign == TextAlign.Center )
+	readonly List<GPUBoxInstance> Instances = new();
+
+	/// <summary>
+	/// Emit the text through Painter, drawn straight from the glyph outlines every frame.
+	/// </summary>
+	internal void Draw( Painter painter, BlendMode blendMode, Styles currentStyle, Rect textrect, float opacity )
+	{
+		if ( !ui_rendertext || Block is null || BlockSize == 0 || Text.Length == 0 ) return;
+		if ( opacity <= 0 ) return;
+
+		var options = GetOptions();
+		options.Opacity = opacity;
+
+		Instances.Clear();
+		GpuFontText.Build( Block, GetBlockOrigin( currentStyle, textrect ), options, Instances );
+		painter.Glyphs( Instances, blendMode, HasGradient ? GradientInfo : default );
+	}
+
+	/// <summary>
+	/// Emit only the text's shadows and outlines, for background-clip: text, which fills the glyphs with the background instead.
+	/// </summary>
+	internal void DrawEffects( Painter painter, BlendMode blendMode, Styles currentStyle, Rect textrect, float opacity )
+	{
+		if ( !ui_rendertext || Block is null || BlockSize == 0 || Text.Length == 0 ) return;
+		if ( opacity <= 0 || Style?.TextEffects?.Any() != true ) return;
+
+		var options = GetOptions();
+		options.Opacity = opacity;
+		options.HasGradient = false;
+		options.EffectsOnly = true;
+
+		Instances.Clear();
+		GpuFontText.Build( Block, GetBlockOrigin( currentStyle, textrect ), options, Instances );
+		painter.Glyphs( Instances, blendMode, default );
+	}
+
+	GpuFontText.Options GetOptions()
+	{
+		var options = GpuFontText.Options.Default;
+		options.Aliased = Smooth == FontSmooth.Never;
+		options.SelectionColor = SelectionColor;
+		options.HasGradient = HasGradient;
+
+		if ( ShouldDrawSelection && (SelectionStart > 0 || SelectionEnd > 0) )
+		{
+			options.SelectionStart = CaretToCodePointIndex( SelectionStart );
+			options.SelectionEnd = CaretToCodePointIndex( SelectionEnd );
+		}
+
+		return options;
+	}
+
+	/// <summary>
+	/// The text rect aligned to the block, given the rect the text is laid out in.
+	/// </summary>
+	Rect GetAlignedRect( Styles currentStyle, Rect textrect )
+	{
+		if ( currentStyle?.TextAlign == TextAlign.Center )
 		{
 			textrect.Left += (textrect.Width - BlockSize.x) * 0.5f;
 		}
-		else if ( currentStyle.TextAlign == TextAlign.Right )
+		else if ( currentStyle?.TextAlign == TextAlign.Right )
 		{
 			textrect.Left = textrect.Right - BlockSize.x;
 		}
 
-		if ( currentStyle.AlignItems == Align.Center )
+		if ( currentStyle?.AlignItems == Align.Center )
 		{
 			textrect.Top += (textrect.Height - BlockSize.y) * 0.5f;
 		}
-		else if ( currentStyle.AlignItems == Align.FlexEnd )
+		else if ( currentStyle?.AlignItems == Align.FlexEnd )
 		{
 			textrect.Top = textrect.Bottom - BlockSize.y;
 		}
 
-		textrect.Size = Texture.Size;
-		textrect.Position -= EffectMargin.Position;
-
-		var color = Color.White;
-		color.a *= opacity;
-
-		if ( color.a <= 0 ) return;
-
-		var rect = textrect.Floor();
-
-		var desc = new BoxDrawDescriptor( rect, new Color( 0, 0, 0, 0 ) )
-		{
-			BackgroundImage = Texture,
-			BackgroundRect = new Vector4( 0, 0, rect.Width, rect.Height ),
-			BackgroundTint = color,
-			OverrideBlendMode = blendMode == BlendMode.Normal ? BlendMode.PremultipliedAlpha : blendMode,
-			PremultiplyAlpha = true,
-			FilterMode = TextFilter,
-		};
-
-		target.AddBox( desc );
+		return textrect;
 	}
 
+	/// <summary>
+	/// Where the block's (0,0) lands in layout space
+	/// </summary>
+	Vector2 GetBlockOrigin( Styles currentStyle, Rect textrect )
+	{
+		var position = GetAlignedRect( currentStyle, textrect ).Floor().Position;
+		return position - new Vector2( Block.MeasuredPadding.Left, 0 );
+	}
 
+	/// <summary>
+	/// Where the rendered texture sits, given the rect the text is laid out in.
+	/// </summary>
+	Rect GetTextureRect( Styles currentStyle, Rect textrect )
+	{
+		textrect = GetAlignedRect( currentStyle, textrect );
+		textrect.Size = Texture.Size;
+		textrect.Position -= TextureMargin.Position;
+
+		return textrect.Floor();
+	}
+
+	/// <summary>
+	/// The rendered text and where it sits, for background-clip: text to use as its mask.
+	/// </summary>
+	internal bool GetMask( Styles currentStyle, Rect textrect, out Texture texture, out Rect rect )
+	{
+		texture = null;
+		rect = default;
+
+		if ( Block is null || BlockSize == 0 || Text.Length == 0 ) return false;
+
+		// Only background-clip: text needs the texture, so it's rendered here on demand
+		if ( textureDirty )
+		{
+			Texture = RebuildTexture();
+			textureDirty = false;
+		}
+
+		if ( Texture is null ) return false;
+
+		texture = Texture;
+		rect = GetTextureRect( currentStyle, textrect );
+
+		return true;
+	}
 
 	public Rect CaretRect( int caretPosition )
 	{
@@ -186,7 +315,7 @@ internal sealed class TextBlock : IDisposable
 		float xPosition = pos.CaretRectangle.Left;
 		float yPosition = pos.CaretRectangle.Top;
 
-		if ( codepoint > 0 && codepoint == Block.Length && Text.Length > 0 && Text[^1] == '\n' )
+		if ( codepoint > 0 && codepoint == Block.Length && EndsWithNewline )
 		{
 			xPosition = 0;
 			yPosition += Block.Lines[pos.LineIndex].Height;
@@ -202,6 +331,13 @@ internal sealed class TextBlock : IDisposable
 		var result = Block.HitTest( pos.x, pos.y );
 
 		return Block.LookupCaretIndex( result.ClosestCodePointIndex );
+	}
+
+	public int GetCharacterAt( Vector2 pos )
+	{
+		if ( Block == null ) return -1;
+		var index = Block.HitTest( pos.x, pos.y ).OverCodePointIndex;
+		return index < 0 ? -1 : Block.LookupCaretIndex( index );
 	}
 
 	public HtmlSpan GetSpanAt( Vector2 pos )
@@ -226,7 +362,6 @@ internal sealed class TextBlock : IDisposable
 		TextDecoration = style.TextDecorationLine.Value;
 		FontStyle = style.FontStyle.Value;
 		FontVariantNumeric = style.FontVariantNumeric;
-		AlignItems = style.AlignItems.Value;
 		LetterSpacing = style.LetterSpacing;
 		WordSpacing = style.WordSpacing;
 		LineHeight = style.LineHeight;
@@ -234,7 +369,6 @@ internal sealed class TextBlock : IDisposable
 		TextTransform = style.TextTransform;
 		GradientInfo = style.TextGradient;
 		TextOverflow = style.TextOverflow.Value;
-		TextFilter = style.TextFilter.Value;
 		WordBreak = style.WordBreak.Value;
 		Smooth = style.FontSmooth.Value;
 
@@ -243,7 +377,7 @@ internal sealed class TextBlock : IDisposable
 		hash = HashCode.Combine( hash, style.TextStrokeWidth, style.TextStrokeColor, style.TextDecorationColor, style.TextDecorationThickness, style.TextDecorationSkipInk, style.TextDecorationStyle );
 		hash = HashCode.Combine( hash, style.TextUnderlineOffset, style.TextOverlineOffset, style.TextLineThroughOffset, style.TextGradient, style.TextOverflow, style.WordBreak, style.LineHeight );
 		hash = HashCode.Combine( hash, style.WordSpacing );
-		hash = HashCode.Combine( hash, Smooth, FontVariantNumeric );
+		hash = HashCode.Combine( hash, Smooth, FontVariantNumeric, NoWrap, IsHtml );
 
 		if ( FontHash == hash && Block != null )
 			return false;
@@ -256,12 +390,13 @@ internal sealed class TextBlock : IDisposable
 
 		Style ??= new Style();
 
+
 		Style.FontFamily = fontFamily;
 		Style.FontSize = FontSize;
 		Style.FontWeight = FontWeight ?? 400;
 		Style.FontItalic = FontStyle != FontStyle.None;
 		Style.FontVariantNumeric = FontVariantNumeric ?? UI.FontVariantNumeric.Normal;
-		Style.TextColor = fontColor.ToSk();
+		Style.TextColor = fontColor.ToSkF();
 		Style.Underline = UnderlineStyle.None;
 		Style.StrokeInkSkip = style.TextDecorationSkipInk == TextSkipInk.All;
 		Style.UnderlineOffset = style.TextUnderlineOffset.Value.GetPixels( 100 );
@@ -290,7 +425,8 @@ internal sealed class TextBlock : IDisposable
 				break;
 		}
 
-		Style.UnderlineColor = (style.TextDecorationColor ?? fontColor).ToSk();
+		var decorationColor = style.TextDecorationColor ?? fontColor;
+		Style.UnderlineColor = decorationColor.ToSkF();
 		Style.StrokeThickness = style.TextDecorationThickness?.GetPixels( 100.0f );
 		Style.Underline |= (TextDecoration & UI.TextDecoration.Underline) != 0 ? UnderlineStyle.Gapped : UnderlineStyle.None;
 		Style.Underline |= (TextDecoration & UI.TextDecoration.Overline) != 0 ? UnderlineStyle.Overline : UnderlineStyle.None;
@@ -300,36 +436,20 @@ internal sealed class TextBlock : IDisposable
 		Style.LineHeight = GetLineHeightMultiplier();
 
 		Style.ClearEffects();
-		Gradient = null;
 
 		EffectMargin = default;
 
-		if ( !style.TextGradient.ColorOffsets.IsDefaultOrEmpty )
-		{
-			var colors = style.TextGradient.ColorOffsets.Select( x => SkiaCompat.ToSk( x.color ) ).ToArray();
-			var stops = style.TextGradient.ColorOffsets.Select( x => x.offset.Value ).ToArray();
-
-			if ( style.TextGradient.GradientType == GradientInfo.GradientTypes.Linear )
-			{
-				Gradient = TextGradient.Linear( colors, stops, style.TextGradient.Angle );
-			}
-
-			if ( style.TextGradient.GradientType == GradientInfo.GradientTypes.Radial )
-			{
-				Gradient = TextGradient.Radial( colors, stops, 0, new SKPoint( 0.5f, 0.5f ), (RadialSizeMode)style.TextGradient.SizeMode );
-			}
-		}
+		HasGradient = !style.TextGradient.ColorOffsets.IsDefaultOrEmpty && style.TextGradient.GradientType != Sandbox.UI.GradientInfo.GradientTypes.Conic;
 
 		if ( style.TextShadow != null && !style.TextShadow.IsNone )
 		{
 			foreach ( var shadow in style.TextShadow )
 			{
-				var effect = TextEffect.DropShadow( shadow.Color.ToSk(), shadow.OffsetX, shadow.OffsetY, shadow.Blur );
-				effect.Width = 0;
+				var effect = TextEffect.DropShadow( shadow.Color.ToSkF(), shadow.OffsetX, shadow.OffsetY, shadow.Blur );
 				effect.BlurSize = MathF.Max( effect.BlurSize, 0.01f );
 				Style.AddEffect( effect );
 
-				var shadowSize = (effect.Width + shadow.Blur) * 2.0f;
+				var shadowSize = shadow.Blur * 2.0f;
 
 				EffectMargin.Left = MathF.Max( EffectMargin.Left, shadowSize + -shadow.OffsetX ).CeilToInt();
 				EffectMargin.Right = MathF.Max( EffectMargin.Right, shadowSize + shadow.OffsetX ).CeilToInt();
@@ -343,10 +463,7 @@ internal sealed class TextBlock : IDisposable
 			var color = style.TextStrokeColor ?? style.FontColor ?? Color.Black;
 
 			var size = style.TextStrokeWidth.Value.GetPixels( 1.0f );
-			var effect = TextEffect.Outline( color.ToSk(), size );
-			effect.StrokeMiter = 2.0f;
-			effect.StrokeJoin = SKStrokeJoin.Round;
-			Style.AddEffect( effect );
+			Style.AddEffect( TextEffect.Outline( color.ToSkF(), size ) );
 
 			EffectMargin.Left = MathF.Max( EffectMargin.Left, size ).CeilToInt();
 			EffectMargin.Right = MathF.Max( EffectMargin.Right, size ).CeilToInt();
@@ -361,10 +478,11 @@ internal sealed class TextBlock : IDisposable
 		}
 
 		Block.Clear();
+		EndsWithNewline = false;
 		Block.Alignment = (Topten.RichTextKit.TextAlignment)TextAlign;
 		Block.Overflow = (Topten.RichTextKit.TextOverflow)TextOverflow;
 		Block.WordBreak = (Topten.RichTextKit.WordBreakMode)WordBreak;
-		Block.NoWrap = NoWrap || WhiteSpace == UI.WhiteSpace.NoWrap;
+		Block.NoWrap = NoWrap || WhiteSpace is UI.WhiteSpace.NoWrap or UI.WhiteSpace.Pre;
 
 		if ( IsHtml && !string.IsNullOrWhiteSpace( Text ) )
 		{
@@ -385,21 +503,7 @@ internal sealed class TextBlock : IDisposable
 						var s = LookupStyles( span.node );
 						if ( s is null ) continue;
 
-						var sty = Style.Copy();
-
-						sty.FontSize = (style.FontSize ?? Length.Pixels( 13 ).Value).GetPixels( 100 );
-						sty.FontSize = MathF.Round( FontSize * 32.0f ) / 32.0f;
-						sty.FontFamily = s.FontFamily;
-						sty.TextColor = s.FontColor?.ToSk() ?? sty.TextColor;
-						sty.BackgroundColor = s.BackgroundColor?.ToSk() ?? sty.BackgroundColor;
-						sty.FontWeight = s.FontWeight ?? sty.FontWeight;
-						sty.FontItalic = s.FontStyle == FontStyle.Italic;
-						sty.FontVariantNumeric = s.FontVariantNumeric ?? sty.FontVariantNumeric;
-						sty.Underline = s.TextDecorationLine == UI.TextDecoration.Underline ? UnderlineStyle.Solid : UnderlineStyle.None;
-						sty.UnderlineColor = sty.TextColor;
-						sty.LetterSpacing = s.LetterSpacing?.GetPixels( 1000.0f ) ?? sty.LetterSpacing;
-						sty.WordSpacing = s.WordSpacing?.GetPixels( 1000.0f ) ?? sty.WordSpacing;
-						sty.StrikeThrough = (s.TextDecorationLine?.Contains( UI.TextDecoration.LineThrough ) ?? false) ? StrikeThroughStyle.Solid : sty.StrikeThrough;
+						var sty = ResolveSpanStyle( s, 1 );
 
 						Block.ApplyStyle( span.from, span.to - span.from, sty );
 					}
@@ -410,14 +514,17 @@ internal sealed class TextBlock : IDisposable
 				Log.Warning( e );
 			}
 		}
-		else
+		else if ( !IsInlineParagraph )
 		{
-			Block.AddText( FixedText( Text ), Style );
+			var text = FixedText( Text );
+			AddStyledText( text );
+			EndsWithNewline = EndsWithLineBreak( text );
 		}
 
 
 		SizeCache.Clear();
-		ReleaseTexture();
+		MinContentSize = null;
+		Invalidate();
 
 		return true;
 	}
@@ -434,6 +541,7 @@ internal sealed class TextBlock : IDisposable
 		{
 			var startText = block.Length;
 			block.AddText( node.InnerHtml, style );
+			EndsWithNewline = EndsWithLineBreak( node.InnerHtml );
 			var endText = block.Length;
 
 			var span = new HtmlSpan( node?.ParentNode, startText, endText );
@@ -443,6 +551,7 @@ internal sealed class TextBlock : IDisposable
 		if ( node.Name == "br" )
 		{
 			block.AddText( "\n", style );
+			EndsWithNewline = true;
 			return;
 		}
 
@@ -452,29 +561,24 @@ internal sealed class TextBlock : IDisposable
 		}
 	}
 
-	void ReleaseTexture()
+	/// <summary>The text is about to change shape, so whoever draws it has to rebuild.</summary>
+	void Invalidate()
 	{
-		WaitTextureReady();
+		needsLayout = true;
+		textureDirty = true;
 
-		if ( Texture == null )
-			return;
-
-		LastTexture?.Dispose();
-		LastTexture = Texture;
-
-		Texture = null;
-		OnTextureChanged?.Invoke();
+		OnChanged?.Invoke();
 	}
 
 	int lastSizeHash = 0;
+	bool needsLayout = true;
+	Vector2 textureSize;
 
 	/// <summary>
-	/// Called on layout. We should decide here if we actually need to rebuild
+	/// Called on layout. We should decide here if we actually need to re-lay the text out
 	/// </summary>
 	public void SizeFinalized( float width, float height )
 	{
-		WaitTextureReady();
-
 		width = width.CeilToInt();
 		height = height.CeilToInt();
 
@@ -482,7 +586,7 @@ internal sealed class TextBlock : IDisposable
 
 		if ( lastSizeHash != sizeHash )
 		{
-			ReleaseTexture();
+			Invalidate();
 			lastSizeHash = sizeHash;
 
 			if ( Text.Length == 0 )
@@ -494,30 +598,18 @@ internal sealed class TextBlock : IDisposable
 		if ( Text.Length == 0 )
 			return;
 
-		if ( Texture == null )
+		if ( needsLayout )
 		{
-			// threaded
-			// TextureRebuild = Task.Run( () => RebuildTexture( width, height ) );
-
-			// blocking
-			RebuildTexture( width, height );
+			Relayout( width, height );
+			needsLayout = false;
 		}
 	}
 
-	Task TextureRebuild;
-
 	/// <summary>
-	/// Actually recreate the texture
+	/// Lay the block out at this size and work out how big the text is, effects and overhang included
 	/// </summary>
-	unsafe void RebuildTexture( float maxwidth, float maxheight )
+	void Relayout( float maxwidth, float maxheight )
 	{
-		if ( !ui_rendertext )
-			return;
-
-		//Log.Info( $"RenderText: {Text}" );
-
-		bool isEmpty = Text.Length == 0;
-
 		if ( TextOverflow != TextOverflow.None )
 		{
 			Block.MaxWidth = maxwidth;
@@ -525,7 +617,7 @@ internal sealed class TextBlock : IDisposable
 		}
 		else
 		{
-			Block.MaxWidth = WhiteSpace == UI.WhiteSpace.NoWrap ? null : (maxwidth.CeilToInt() + 1);
+			Block.MaxWidth = IsInlineParagraph ? _inlineWidth : WhiteSpace is UI.WhiteSpace.NoWrap or UI.WhiteSpace.Pre ? null : (maxwidth.CeilToInt() + 1);
 		}
 
 		int width = Block.MeasuredWidth.CeilToInt().Clamp( 2, 4096 );
@@ -537,82 +629,32 @@ internal sealed class TextBlock : IDisposable
 		BlockSize = new Vector2( width, height );
 		IsTruncated = Block.Truncated;
 
-		var marginEdge = EffectMargin.EdgeSize;
-		width += marginEdge.x.CeilToInt();
-		height += marginEdge.y.CeilToInt();
+		// Ink that reaches past the measured rect (italic tails, accents, tight bearings) needs room too
+		var overhang = Block.MeasuredOverhang;
+		TextureMargin = EffectMargin + new Margin( MathF.Ceiling( overhang.Left ), MathF.Ceiling( overhang.Top ), MathF.Ceiling( overhang.Right ), MathF.Ceiling( overhang.Bottom ) );
 
-		if ( isEmpty )
-			return;
+		var marginEdge = TextureMargin.EdgeSize;
+		textureSize = new Vector2( width + marginEdge.x.CeilToInt(), height + marginEdge.y.CeilToInt() );
+	}
 
-		if ( Gradient != null && Gradient.GradientType == Topten.RichTextKit.GradientType.Radial )
-		{
-			var centerX = GradientInfo.OffsetX.GetPixels( width ) / width;
-			var centerY = GradientInfo.OffsetY.GetPixels( height ) / height;
-			Gradient.Center = new SKPoint( centerX, centerY );
-		}
-
+	/// <summary>
+	/// Render the laid out text into a texture, for background-clip: text
+	/// </summary>
+	Texture RebuildTexture()
+	{
 		using var perfScope = Performance.Scope( "TextBlock.RebuildTexture" );
 
-		using ( var bitmap = new SKBitmap( width, height, SKColorType.Bgra8888, SKAlphaType.Premul ) )
-		using ( var canvas = new SKCanvas( bitmap ) )
-		{
-			var o = new Topten.RichTextKit.TextPaintOptions
-			{
-				Edging = Smooth switch
-				{
-					FontSmooth.Never => SKFontEdging.Alias,
-					_ => SKFontEdging.Antialias,
-				},
+		int width = (int)textureSize.x, height = (int)textureSize.y;
+		if ( width < 2 || height < 2 ) return null;
 
-				Hinting = SKFontHinting.Full,
-				TextGradient = Gradient
-			};
+		// Only the alpha is used, so colour and gradient don't matter here. Shadows and outlines
+		// aren't part of the mask, the label draws them itself under the clipped fill.
+		var options = GetOptions();
+		options.HasGradient = false;
+		options.SkipEffects = true;
 
-			canvas.Clear( Style.TextColor.WithAlpha( 0 ) );
-
-			if ( ShouldDrawSelection && (SelectionStart > 0 || SelectionEnd > 0) )
-			{
-				o.Selection = new TextRange( CaretToCodePointIndex( SelectionStart ), CaretToCodePointIndex( SelectionEnd ) );
-				o.SelectionColor = SelectionColor.ToSk();
-			}
-
-			Block.Paint( canvas, new SKPoint( EffectMargin.Left - Block.MeasuredPadding.Left, EffectMargin.Top ), o );
-
-			var debugName = Text;
-			if ( debugName.Length > 10 ) debugName = $"{debugName.Substring( 0, 8 )}..";
-			if ( debugName.Contains( ':' ) ) debugName = debugName.Replace( ':', '-' );
-
-			//
-			// Make a texture that big
-			//
-			int numMips = (int)Math.Log2( Math.Min( width, height ) ) + 1;
-
-			if ( LastTexture != null )
-			{
-				// we already have a texture that is the right size, lets just use that
-				if ( LastTexture.Size == new Vector2( width, height ) )
-				{
-					var span = new Span<byte>( bitmap.GetPixels().ToPointer(), width * height * bitmap.BytesPerPixel );
-					LastTexture.Update( span, 0, 0, width, height );
-					Texture = LastTexture;
-					LastTexture = null;
-					OnTextureChanged?.Invoke();
-					return;
-				}
-
-				LastTexture?.Dispose();
-				LastTexture = null;
-			}
-
-			Texture = Texture.Create( width, height, ImageFormat.BGRA8888 )
-									.WithName( $"skiatextblock[{debugName}]" )
-									.WithMips( numMips )
-									.WithData( bitmap.GetPixels(), width * height * bitmap.BytesPerPixel )
-									.WithDynamicUsage()
-									.Finish();
-
-			OnTextureChanged?.Invoke();
-		}
+		var origin = new Vector2( TextureMargin.Left - Block.MeasuredPadding.Left, TextureMargin.Top );
+		return GpuFontText.Render( Block, origin, width, height, false, int.MaxValue, options, Texture );
 	}
 
 	int CaretToCodePointIndex( int caretPos )
@@ -677,17 +719,29 @@ internal sealed class TextBlock : IDisposable
 		return 1.0f;
 	}
 
+	/// <summary>
+	/// How wide the drawn caret is, which has to fit on screen along with the glyph it sits against.
+	/// </summary>
+	const float CaretWidth = 2.0f;
+
+	/// <summary>
+	/// Move the scroll offset so the caret is inside the visible bounds, and never past the
+	/// ends of the text.
+	/// </summary>
 	internal void ScrollToCaret( int caretPosition, ref Vector2 scroll, Vector2 visibleBounds )
 	{
-		Rect caretRect = CaretRect( caretPosition - 1 );
+		if ( visibleBounds.x <= 0 || visibleBounds.y <= 0 )
+			return;
+
+		Rect caretRect = CaretRect( caretPosition );
 
 		if ( caretRect.Left < scroll.x )
 		{
 			scroll.x = caretRect.Left;
 		}
-		else if ( caretRect.Right > scroll.x + visibleBounds.x )
+		else if ( caretRect.Left + CaretWidth > scroll.x + visibleBounds.x )
 		{
-			scroll.x = caretRect.Right - visibleBounds.x + caretRect.Width;
+			scroll.x = caretRect.Left + CaretWidth - visibleBounds.x;
 		}
 
 		if ( caretRect.Top < scroll.y )
@@ -696,19 +750,38 @@ internal sealed class TextBlock : IDisposable
 		}
 		else if ( caretRect.Bottom > scroll.y + visibleBounds.y )
 		{
-			scroll.y = caretRect.Bottom - visibleBounds.y + caretRect.Height;
+			scroll.y = caretRect.Bottom - visibleBounds.y;
 		}
+
+		ClampScroll( ref scroll, visibleBounds );
+	}
+
+	/// <summary>
+	/// Keep the scroll offset inside the text. Editing can leave it pointing past the end -
+	/// deleting the second half of a line the entry was scrolled into, say.
+	/// </summary>
+	internal void ClampScroll( ref Vector2 scroll, Vector2 visibleBounds )
+	{
+		if ( visibleBounds.x <= 0 || visibleBounds.y <= 0 )
+			return;
+
+		if ( Block is null )
+			return;
+
+		// The measured size, not BlockSize - BlockSize is clamped to 4096 and rounded up, and scrolling
+		// wants the real extent
+		scroll.x = Math.Clamp( scroll.x, 0, Math.Max( 0, Block.MeasuredWidth + CaretWidth - visibleBounds.x ) );
+		scroll.y = Math.Clamp( scroll.y, 0, Math.Max( 0, Block.MeasuredHeight - visibleBounds.y ) );
 	}
 
 	public void Dispose()
 	{
-		ReleaseTexture();
-
-		LastTexture?.Dispose();
-		LastTexture = null;
+		Texture?.Dispose();
+		Texture = null;
 
 		Block = null;
 		Style = null;
 		SizeCache = null;
+		_inlineLayout = null;
 	}
 }

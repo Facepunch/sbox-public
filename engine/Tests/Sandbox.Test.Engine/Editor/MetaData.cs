@@ -160,4 +160,105 @@ public partial class MetaDataTest
 
 		Assert.IsTrue( System.IO.File.Exists( fn ) );
 	}
+
+	static string CreateTempMetaPath( string name )
+	{
+		var fn = Path.Combine( System.Environment.CurrentDirectory, ".source2", name );
+		System.IO.Directory.CreateDirectory( Path.GetDirectoryName( fn ) );
+
+		if ( System.IO.File.Exists( fn ) )
+			System.IO.File.Delete( fn );
+
+		return fn;
+	}
+
+	/// <summary>
+	/// Write the file from outside of MetaData, bumping the write time so the change is always visible
+	/// </summary>
+	static void WriteExternally( string fn, string json )
+	{
+		var previous = System.IO.File.Exists( fn ) ? System.IO.File.GetLastWriteTimeUtc( fn ) : System.DateTime.UtcNow;
+
+		System.IO.File.WriteAllText( fn, json );
+		System.IO.File.SetLastWriteTimeUtc( fn, previous.AddSeconds( 10 ) );
+	}
+
+	/// <summary>
+	/// A Set on the same instance is visible to the next Get, even though reads are cached
+	/// </summary>
+	[TestMethod]
+	public void SetThenGetSameInstance()
+	{
+		var fn = CreateTempMetaPath( "meta_cache_set.json" );
+		var md = new Editor.MetaData( fn );
+
+		Assert.AreEqual( "missing", md.Get( "Value", "missing" ) );
+
+		md.Set( "Value", "one" );
+		Assert.AreEqual( "one", md.GetString( "Value" ) );
+
+		// same length as before
+		md.Set( "Value", "two" );
+		Assert.AreEqual( "two", md.GetString( "Value" ) );
+
+		md.Set<string>( "Value", null );
+		Assert.AreEqual( "missing", md.Get( "Value", "missing" ) );
+	}
+
+	/// <summary>
+	/// Changes made to the file by something else are picked up
+	/// </summary>
+	[TestMethod]
+	public void ExternalChangeIsRead()
+	{
+		var fn = CreateTempMetaPath( "meta_cache_external.json" );
+		WriteExternally( fn, """{ "Value": "one" }""" );
+
+		var md = new Editor.MetaData( fn );
+		Assert.AreEqual( "one", md.GetString( "Value" ) );
+
+		// same length, only the write time tells them apart
+		WriteExternally( fn, """{ "Value": "two" }""" );
+		Assert.AreEqual( "two", md.GetString( "Value" ) );
+
+		// a different MetaData instance writing to the same file
+		new Editor.MetaData( fn ).Set( "Value", "three" );
+		Assert.AreEqual( "three", md.GetString( "Value" ) );
+	}
+
+	/// <summary>
+	/// Deleting the file and creating it again is picked up
+	/// </summary>
+	[TestMethod]
+	public void DeleteAndRecreateIsRead()
+	{
+		var fn = CreateTempMetaPath( "meta_cache_delete.json" );
+		WriteExternally( fn, """{ "Value": "one" }""" );
+
+		var md = new Editor.MetaData( fn );
+		Assert.AreEqual( "one", md.GetString( "Value" ) );
+
+		System.IO.File.Delete( fn );
+		Assert.IsNull( md.GetString( "Value" ) );
+
+		WriteExternally( fn, """{ "Value": "two" }""" );
+		Assert.AreEqual( "two", md.GetString( "Value" ) );
+	}
+
+	/// <summary>
+	/// A broken file reads as empty, and reads properly again once it's fixed
+	/// </summary>
+	[TestMethod]
+	public void InvalidJsonThenFixed()
+	{
+		var fn = CreateTempMetaPath( "meta_cache_invalid.json" );
+		WriteExternally( fn, """{ "Value": "one" """ );
+
+		var md = new Editor.MetaData( fn );
+		Assert.AreEqual( "missing", md.Get( "Value", "missing" ) );
+		Assert.AreEqual( "missing", md.Get( "Value", "missing" ) );
+
+		WriteExternally( fn, """{ "Value": "one" }""" );
+		Assert.AreEqual( "one", md.GetString( "Value" ) );
+	}
 }

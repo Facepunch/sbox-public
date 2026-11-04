@@ -112,7 +112,7 @@ internal class ExpirableSynchronizationContext : SynchronizationContext
 		}
 	}
 
-	public record struct Data( SendOrPostCallback Callback, object State, ExpirableSynchronizationContext Source );
+	public record struct Data( SendOrPostCallback Callback, object State, ExpirableSynchronizationContext Source, Sandbox.Engine.GlobalContext Context );
 
 	private readonly Channel<Data> m_queue = Channel.CreateUnbounded<Data>();
 
@@ -344,7 +344,7 @@ internal class ExpirableSynchronizationContext : SynchronizationContext
 		if ( !CheckValid( state, out var isCancelled ) ) return;
 
 		var target = GetCurrentContext();
-		var data = new Data( d, state, isCancelled ? this : target );
+		var data = new Data( d, state, isCancelled ? this : target, Sandbox.Engine.GlobalContext.Current );
 
 		target.m_queue.Writer.TryWrite( data );
 	}
@@ -357,7 +357,7 @@ internal class ExpirableSynchronizationContext : SynchronizationContext
 		{
 			if ( CheckValid( data.State, out var isCancelled ) )
 			{
-				newInstance.m_queue.Writer.TryWrite( new Data( data.Callback, data.State, isCancelled ? this : newInstance ) );
+				newInstance.m_queue.Writer.TryWrite( new Data( data.Callback, data.State, isCancelled ? this : newInstance, data.Context ) );
 			}
 		}
 	}
@@ -422,11 +422,14 @@ internal class ExpirableSynchronizationContext : SynchronizationContext
 					_executingJobs.Enqueue( job );
 				}
 
+				var enterContext = data.Context is not null && data.Context != Sandbox.Engine.GlobalContext.Current;
+				var contextScope = enterContext ? new Sandbox.Engine.GlobalContext.GlobalContextScope( data.Context ) : default;
+
 				try
 				{
 					data.Callback( data.State );
 				}
-				catch ( TaskCanceledException )
+				catch ( OperationCanceledException )
 				{
 					// fine
 				}
@@ -436,6 +439,8 @@ internal class ExpirableSynchronizationContext : SynchronizationContext
 				}
 				finally
 				{
+					if ( enterContext ) contextScope.Dispose();
+
 					job?.IsCompleted = true;
 
 					if ( data.Source != this )
@@ -463,14 +468,20 @@ internal class ExpirableSynchronizationContext : SynchronizationContext
 	{
 		const int WAIT_TIMEOUT = 0x102; // 258
 
-		var totalWait = 0;
+		// A zero timeout is a poll, and invalid timeouts should be rejected by the runtime.
+		if ( millisecondsTimeout != Timeout.Infinite && millisecondsTimeout <= 0 )
+			return base.Wait( waitHandles, waitAll, millisecondsTimeout );
+
+		var started = Stopwatch.GetTimestamp();
 
 		while ( true )
 		{
 			//
-			// Wait for max 2 seconds
+			// Wait for at most 2 milliseconds before pumping queued work.
 			//
-			var val = base.Wait( waitHandles, waitAll, 2 );
+			var waitTime = millisecondsTimeout == Timeout.Infinite ? 2
+				: (int)Math.Clamp( Math.Ceiling( millisecondsTimeout - Stopwatch.GetElapsedTime( started ).TotalMilliseconds ), 0, 2 );
+			var val = base.Wait( waitHandles, waitAll, waitTime );
 
 			//
 			// If we didn't time out, then we probably finished waiting, so just return
@@ -478,14 +489,10 @@ internal class ExpirableSynchronizationContext : SynchronizationContext
 			if ( val != WAIT_TIMEOUT ) return val;
 
 			//
-			// Keep track of how long we've waited
+			// Include time spent processing the queue in the timeout.
 			//
-			totalWait += 2;
-
-			//
-			// If the wait wasn't infinite and we surpassed that time, just return as normal
-			//
-			if ( millisecondsTimeout > 0 && totalWait <= millisecondsTimeout )
+			if ( millisecondsTimeout != Timeout.Infinite
+				&& Stopwatch.GetElapsedTime( started ).TotalMilliseconds >= millisecondsTimeout )
 				return val;
 
 			//

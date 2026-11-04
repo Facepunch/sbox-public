@@ -1,3 +1,5 @@
+using Sandbox.Engine;
+
 namespace Sandbox.Platform;
 
 /// <summary>
@@ -50,7 +52,14 @@ public static class Chat
 
 		if ( Networking.IsHost )
 		{
-			OnHostReceive( new ChatMsg { Message = message }, Connection.Host, Connection.Host.Id );
+			// The chat overlay calls Say from menu scope. Clients' messages reach OnHostReceive via the
+			// network handler in game scope, but the host's own is handled right here - so without this
+			// IChatEvent would dispatch to the menu's scene and the game would never see (or suppress) it.
+			using ( GlobalContext.GameScope() )
+			{
+				OnHostReceive( new ChatMsg { Message = message }, Connection.Host, Connection.Host.Id );
+			}
+
 			return;
 		}
 
@@ -70,9 +79,9 @@ public static class Chat
 			var friend = new Friend( sender.SteamId );
 			if ( friend.IsBlocked )
 				return;
-		}
 
-		message = Utility.Steam.FilterChat( message, sender?.SteamId );
+			message = Utility.Steam.FilterChat( message, sender.SteamId );
+		}
 
 		var e = new ChatMessageEvent
 		{
@@ -137,6 +146,35 @@ public static class Chat
 	{
 		system.AddHandler<ChatMsg>( OnHostReceive );
 		system.AddHandler<ChatBroadcastMsg>( OnClientReceive );
+		system.AddHandler<ChatPlayerNotificationMsg>( OnClientReceivePlayerNotification );
+	}
+
+	internal static void BroadcastPlayerJoin( Connection player ) => BroadcastPlayerNotification( player, joined: true );
+	internal static void BroadcastPlayerLeave( Connection player ) => BroadcastPlayerNotification( player, joined: false );
+	static void BroadcastPlayerNotification( Connection player, bool joined )
+	{
+		if ( !Networking.IsHost ) return;
+		if ( player is null ) return;
+
+		var msg = new ChatPlayerNotificationMsg
+		{
+			SenderId = player.Id,
+			Joined = joined
+		};
+
+		Networking.System?.Broadcast( msg );
+
+		// Show locally on the host too
+		OnClientReceivePlayerNotification( msg, Connection.Host, Connection.Host.Id );
+	}
+
+	static void OnClientReceivePlayerNotification( ChatPlayerNotificationMsg msg, Connection source, Guid guid )
+	{
+		var name = Connection.Find( msg.SenderId )?.Name ?? "Unknown Player";
+
+		AddText( msg.Joined
+			? $"👋 {name} has joined the game"
+			: $"👋 {name} left the game" );
 	}
 
 	/// <summary>
@@ -220,6 +258,11 @@ public static class Chat
 		{
 			Log.Info( $"{source?.Name ?? "Server"}: {e.Message}" );
 		}
+		else if ( source is not null )
+		{
+			// Filter the host's local copy after sending, so clients use their own preferences.
+			e.Message = Utility.Steam.FilterChat( e.Message, source.SteamId );
+		}
 
 		OnMessage?.Invoke( e );
 	}
@@ -262,4 +305,15 @@ internal struct ChatBroadcastMsg
 {
 	public string Message { get; set; }
 	public Guid SenderId { get; set; }
+}
+
+/// <summary>
+/// Net message broadcast from the host to all clients about a specific player joining/leaving.
+/// This is used so clients can individually resolve the player's name (for things like streamer mode)
+/// </summary>
+[Expose]
+internal struct ChatPlayerNotificationMsg
+{
+	public Guid SenderId { get; set; }
+	public bool Joined { get; set; }
 }

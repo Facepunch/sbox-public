@@ -23,7 +23,7 @@ public sealed class ScaleMode : MoveMode
 		_basis = tool.CalculateSelectionBasis();
 		var bounds = tool.CalculateLocalBounds();
 		_size = bounds.Size;
-		_origin = tool.Pivot;
+		_origin = tool.Pivot.Position;
 
 		if ( _size.x < 0.1f ) _size.x = 0;
 		if ( _size.y < 0.1f ) _size.y = 0;
@@ -41,7 +41,7 @@ public sealed class ScaleMode : MoveMode
 			{
 				_moveDelta += delta / 0.01f;
 
-				var size = _size + Gizmo.Snap( _moveDelta, _moveDelta ) * 2.0f;
+				var size = (_size + Gizmo.Snap( _moveDelta, _moveDelta ) * 2.0f).ComponentMax( Vector3.Zero );
 				var scale = new Vector3(
 						_size.x != 0 ? size.x / _size.x : 1,
 						_size.y != 0 ? size.y / _size.y : 1,

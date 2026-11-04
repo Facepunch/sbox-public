@@ -169,7 +169,12 @@ public sealed partial class MovieRecorder
 		{
 			// Create a new root recorder for this GameObject
 
-			var track = MovieClip.RootGameObject( trackName ?? gameObject.Name, metadata: new TrackMetadata( gameObject.Id, gameObject.PrefabInstanceSource ) );
+			var metadata = new TrackMetadata(
+				ReferenceId: gameObject.Id,
+				PrefabSource: gameObject.PrefabInstanceSource,
+				Order: 1_000 + RootTrackRecorders.Count );
+
+			var track = MovieClip.RootGameObject( trackName ?? gameObject.Name, metadata: metadata );
 
 			recorder = new MovieGameObjectTrackRecorder( this, track );
 

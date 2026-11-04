@@ -72,6 +72,20 @@ public partial class Project
 		}
 	}
 
+	/// <summary>
+	/// Game and addon compilers reference every library, and those references are only added when the
+	/// compiler is created. Call this after a library is added while projects are open so their compilers
+	/// are remade with it. Projects whose library references haven't changed are left alone.
+	/// </summary>
+	internal static void UpdateLibraryReferences()
+	{
+		foreach ( var project in All )
+		{
+			if ( project.Config.Type is "game" or "addon" )
+				project.UpdateCompiler();
+		}
+	}
+
 	static void OnCompileStarted()
 	{
 		IToolsDll.Current?.RunEvent( "compile.started", CompileGroup );
@@ -109,8 +123,6 @@ public partial class Project
 	/// </summary>
 	internal static async Task InitializeBuiltIn( bool syncPackageManager = true )
 	{
-		AddFromFileBuiltIn( "addons/base/.sbproj" );
-
 		if ( !Application.IsStandalone && !Application.IsHeadless )
 		{
 			AddFromFileBuiltIn( "addons/menu/.sbproj" );
@@ -124,6 +136,7 @@ public partial class Project
 			AddFromFileBuiltIn( "editor/MovieMaker/.sbproj" );
 			AddFromFileBuiltIn( "editor/Hammer/.sbproj" );
 			AddFromFileBuiltIn( "editor/DooEditor/DooEditor.sbproj" );
+			AddFromFileBuiltIn( "editor/AnimGraph/.sbproj" );
 		}
 
 		if ( syncPackageManager )
@@ -259,18 +272,14 @@ public partial class Project
 	internal static Project AddFromFile( string path, bool active = true, ProjectLoadFlags flags = ProjectLoadFlags.None )
 	{
 		// Need an project file
-		if ( !path.EndsWith( ".sbproj" ) )
-			path = System.IO.Path.Combine( path, ".sbproj" );
-
-		var cleanPath = System.IO.Path.GetFullPath( path );
+		var cleanPath = NormalizeConfigFilePath( path );
 
 		// Don't add the same project twice
 		if ( All.Where( a => a.ConfigFilePath == cleanPath ).FirstOrDefault() is Project lp )
 			return lp;
 
-		var project = new Project
+		var project = new Project( cleanPath )
 		{
-			ConfigFilePath = cleanPath,
 			Active = active,
 			IsBuiltIn = flags.HasFlag( ProjectLoadFlags.BuiltIn )
 		};
@@ -287,6 +296,31 @@ public partial class Project
 		if ( project.Config.Upgrade() )
 		{
 			project.Save();
+		}
+
+		All.Add( project );
+
+		return project;
+	}
+
+	/// <summary>
+	/// Add a project from config JSON rather than a .sbproj on disk, rooted at <paramref name="rootPath"/>.
+	/// This is how an exported standalone game loads itself: the config was embedded in its
+	/// executable at export time, so it's read-only and never upgraded or saved here.
+	/// </summary>
+	internal static Project AddFromEmbeddedConfig( string configJson, string rootPath )
+	{
+		var root = new DirectoryInfo( Path.GetFullPath( rootPath ) );
+
+		if ( All.FirstOrDefault( a => a.RootDirectory?.FullName == root.FullName ) is Project existing )
+			return existing;
+
+		var project = new Project( root, configJson ) { Active = true };
+		project.Load();
+
+		if ( project.Broken )
+		{
+			throw new System.Exception( $"Couldn't add embedded project rooted at {root.FullName}" );
 		}
 
 		All.Add( project );
@@ -321,9 +355,7 @@ public partial class Project
 
 	public static Project Load( string dir )
 	{
-		var cleanPath = System.IO.Path.GetFullPath( dir );
-
-		var project = new Project { ConfigFilePath = cleanPath, Active = false };
+		var project = new Project( NormalizeConfigFilePath( dir ) ) { Active = false };
 		project.Load();
 
 		// If it loaded broken, don't bother with it

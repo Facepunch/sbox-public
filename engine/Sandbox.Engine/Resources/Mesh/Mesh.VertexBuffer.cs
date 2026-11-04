@@ -182,6 +182,16 @@ namespace Sandbox
 			if ( !layout.IsValid )
 				throw new ArgumentException( $"{type} invalid vertex type" );
 
+			if ( layout.m_Size <= 0 )
+				throw new ArgumentException( "Creating vertex buffer with zero vertex size" );
+
+			if ( layout.m_Size > type.GetManagedSize() )
+				throw new ArgumentException( $"{type} vertex layout is larger than the vertex type" );
+
+			var elementMax = int.MaxValue / layout.m_Size;
+			if ( vertexCount > elementMax )
+				throw new ArgumentException( $"Too many elements for the vertex buffer. Maximum allowed is {elementMax}" );
+
 			var handle = MeshGlue.CreateVertexBuffer( vertexCount, layout, data );
 			if ( handle == IntPtr.Zero )
 				throw new Exception( $"Failed to create vertex buffer" );

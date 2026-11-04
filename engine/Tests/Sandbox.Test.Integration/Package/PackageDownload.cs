@@ -7,6 +7,29 @@ namespace PackageTests;
 public class PackageDownloadTest
 {
 	[TestMethod]
+	public async Task ReportsCompleteProgressIncludingCachedDownloads()
+	{
+		var package = await Package.FetchAsync( "facepunch.sandbox", false );
+		Assert.IsNotNull( package );
+
+		for ( var attempt = 0; attempt < 2; attempt++ )
+		{
+			using var progress = new DownloadProgress();
+			var filesystem = await package.Download( options: new PackageLoadOptions { Loading = progress } );
+			Assert.IsNotNull( filesystem );
+			Assert.IsNotNull( progress.Last );
+			Assert.AreEqual( 1.0, progress.Last.Value.Fraction, $"Download {attempt + 1} didn't report completion" );
+		}
+	}
+
+	sealed class DownloadProgress : Sandbox.Internal.ILoadingInterface
+	{
+		internal Sandbox.Menu.LoadingProgress? Last;
+		public void LoadingProgress( Sandbox.Menu.LoadingProgress progress ) => Last = progress;
+		public void Dispose() { }
+	}
+
+	[TestMethod]
 	[DataRow( "facepunch.sandbox" )]
 	[DataRow( "garry.grassworld" )]
 	public async Task SingleDownload( string packageIdent )

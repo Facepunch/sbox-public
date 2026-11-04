@@ -7,7 +7,7 @@ namespace Sandbox;
 ///
 /// Returned by <see cref="Internal.TypeLibrary"/> and <see cref="Sandbox.TypeDescription"/>.
 /// </summary>
-public sealed class MethodDescription : MemberDescription
+public sealed partial class MethodDescription : MemberDescription
 {
 	/// <summary>
 	/// Returns true - because this is a method
@@ -56,6 +56,7 @@ public sealed class MethodDescription : MemberDescription
 		IsFamily = x.IsFamily;
 		IsVirtual = x.IsVirtual;
 		IsSpecialName = x.IsSpecialName;
+		OperatorKind = ClassifyOperator( x );
 		parameters = x.GetParameters();
 
 		base.Init( x );
@@ -126,6 +127,7 @@ public sealed class MethodDescription : MemberDescription
 	public T CreateDelegate<T>()
 		where T : Delegate
 	{
+		ValidateDelegateSignature( typeof( T ), methodInfo );
 		return (T)Delegate.CreateDelegate( typeof( T ), methodInfo, true );
 	}
 
@@ -137,6 +139,7 @@ public sealed class MethodDescription : MemberDescription
 	public T CreateDelegate<T>( object target )
 		where T : Delegate
 	{
+		ValidateDelegateSignature( typeof( T ), methodInfo );
 		return (T)Delegate.CreateDelegate( typeof( T ), target, methodInfo, true );
 	}
 
@@ -146,6 +149,7 @@ public sealed class MethodDescription : MemberDescription
 	/// <param name="delegateType">Delegate type to create</param>
 	public Delegate CreateDelegate( Type delegateType )
 	{
+		ValidateDelegateSignature( delegateType, methodInfo );
 		return Delegate.CreateDelegate( delegateType, methodInfo, true );
 	}
 
@@ -156,6 +160,94 @@ public sealed class MethodDescription : MemberDescription
 	/// <param name="target">Value for the first parameter / target object</param>
 	public Delegate CreateDelegate( Type delegateType, object target )
 	{
+		ValidateDelegateSignature( delegateType, methodInfo );
 		return Delegate.CreateDelegate( delegateType, target, methodInfo, true );
+	}
+
+	// The runtime only matches T& types, so ref kinds and lifetime annotations must agree exactly.
+	private static void ValidateDelegateSignature( Type delegateType, MethodInfo method )
+	{
+		if ( delegateType is null || method is null || !delegateType.IsSubclassOf( typeof( Delegate ) ) )
+			return;
+
+		var invoke = delegateType.GetMethod( "Invoke" );
+		if ( invoke is null )
+			return;
+
+		var delegateParams = invoke.GetParameters();
+		var methodParams = method.GetParameters();
+		var thisCount = method.IsStatic ? 0 : 1;
+		var skip = methodParams.Length + thisCount - delegateParams.Length;
+
+		if ( skip is not (0 or 1) )
+			throw new ArgumentException( $"Delegate {delegateType} does not match the parameters of {method.Name}" );
+
+		var usesRefs = IsRefLike( invoke.ReturnType ) || IsRefLike( method.ReturnType );
+
+		if ( GetRefKind( invoke.ReturnParameter ) != GetRefKind( method.ReturnParameter ) )
+			throw new ArgumentException( $"Delegate {delegateType} return ref kind does not match {method.Name}" );
+
+		for ( var i = 0; i < delegateParams.Length; i++ )
+		{
+			var delegateParam = delegateParams[i];
+			var index = i + skip - thisCount;
+			usesRefs |= IsRefLike( delegateParam.ParameterType );
+
+			if ( index < 0 )
+			{
+				var thisByRef = method.DeclaringType.IsValueType;
+				usesRefs |= thisByRef;
+
+				if ( GetRefKind( delegateParam ) != (thisByRef, false, false, false, false, false, false) )
+					throw new ArgumentException( $"Delegate {delegateType} instance parameter ref kind does not match {method.Name}" );
+
+				continue;
+			}
+
+			var methodParam = methodParams[index];
+			usesRefs |= IsRefLike( methodParam.ParameterType );
+
+			if ( GetRefKind( delegateParam ) != GetRefKind( methodParam ) )
+				throw new ArgumentException( $"Delegate {delegateType} parameter '{delegateParam.Name}' ref kind does not match {method.Name}" );
+		}
+
+		if ( usesRefs && GetRefSafetyRules( invoke.Module ) != GetRefSafetyRules( method.Module ) )
+			throw new ArgumentException( $"Delegate {delegateType} was compiled with different ref safety rules than {method.Name}" );
+	}
+
+	private static bool IsRefLike( Type type ) => type.IsByRef || type.IsByRefLike;
+
+	private static (bool ByRef, bool In, bool Out, bool ReadOnly, bool RequiresLocation, bool Scoped, bool Unscoped) GetRefKind( ParameterInfo parameter )
+	{
+		var byRef = parameter.ParameterType.IsByRef;
+		bool readOnly = false, requiresLocation = false, scoped = false, unscoped = false;
+
+		foreach ( var attribute in parameter.CustomAttributes )
+		{
+			switch ( attribute.AttributeType.FullName )
+			{
+				case "System.Runtime.CompilerServices.IsReadOnlyAttribute": readOnly = true; break;
+				case "System.Runtime.CompilerServices.RequiresLocationAttribute": requiresLocation = true; break;
+				case "System.Runtime.CompilerServices.ScopedRefAttribute": scoped = true; break;
+				case "System.Diagnostics.CodeAnalysis.UnscopedRefAttribute": unscoped = true; break;
+			}
+		}
+
+		return (byRef, byRef && parameter.IsIn, byRef && parameter.IsOut, readOnly, requiresLocation, scoped, unscoped);
+	}
+
+	private static int GetRefSafetyRules( Module module )
+	{
+		foreach ( var attribute in module.CustomAttributes )
+		{
+			if ( attribute.AttributeType.FullName == "System.Runtime.CompilerServices.RefSafetyRulesAttribute"
+				&& attribute.ConstructorArguments.Count == 1
+				&& attribute.ConstructorArguments[0].Value is int version )
+			{
+				return version;
+			}
+		}
+
+		return 0;
 	}
 }

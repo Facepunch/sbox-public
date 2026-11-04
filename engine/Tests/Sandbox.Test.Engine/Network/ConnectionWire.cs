@@ -2,7 +2,11 @@ using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using Sandbox.Compression;
+using Sandbox.Internal;
+using Sandbox.Network;
+using System.Text.Json.Nodes;
 
 namespace NetworkTests;
 
@@ -13,17 +17,62 @@ namespace NetworkTests;
 public class ConnectionWireTest
 {
 	[TestMethod]
+	public void WorkerSnapshotRoundTripsThroughChunkReceiver()
+	{
+		var library = new TypeLibrary();
+		library.AddAssembly( typeof( Scene ).Assembly, false );
+		var capture = new SnapshotCapture { SceneJson = new Lazy<string>( () => "{}" ) };
+		capture.AddObject( new JsonObject { ["Name"] = "Worker snapshot" } );
+		var table = new byte[400 * 1024];
+		new Random( 42 ).NextBytes( table );
+		capture.Snapshot.NetworkObjects.Add( new ObjectCreateMsg { TableData = table } );
+		var serializer = library.CreateDetachedSerializer( typeof( InitialSnapshotResponse ), typeof( SnapshotMsg ),
+			typeof( SnapshotMsg.GameObjectSystemData ), typeof( ObjectCreateMsg ) );
+		var encoded = Task.Run( () => capture.Encode( serializer, s => new InitialSnapshotResponse { Snapshot = s }, NetFlags.Reliable ) ).GetAwaiter().GetResult();
+		serializer.Dispose();
+		Assert.IsTrue( encoded.Length > 2, "The worker retains the whole message and prepares its chunks" );
+		var packets = encoded.Skip( 1 ).ToArray();
+		byte[] received = null;
+		var connection = new StubConnection();
+		foreach ( var packet in packets )
+		{
+			connection.OnRawPacketReceived( packet, m => received = m.Data.ToArray() );
+		}
+		Assert.IsNotNull( received );
+		var stream = ByteStream.Create( 1024 );
+		try
+		{
+			stream.Write( InternalMessageType.Packed );
+			library.ToBytes( new InitialSnapshotResponse { Snapshot = capture.Materialize() }, ref stream );
+			CollectionAssert.AreEqual( stream.ToArray(), received );
+		}
+		finally
+		{
+			stream.Dispose();
+		}
+	}
+
+	[TestMethod]
+	public void ExactChunkSizeDoesNotProduceInvalidSingleChunk()
+	{
+		var encoded = new byte[Connection.MaxChunkSize];
+		var packets = Connection.CreatePackets( encoded, NetFlags.Reliable );
+		Assert.AreEqual( 1, packets.Length );
+		CollectionAssert.AreEqual( encoded, packets[0] );
+	}
+
+	[TestMethod]
 	public void RoundTrip_SmallPayload_UsesRawFlag()
 	{
 		using var stream = ByteStream.Create( 32 );
 		stream.Write( 42 );
 		stream.Write( "hello" );
 
-		var encoded = Connection.Encode( stream );
+		var encoded = Connection.EncodePacket( stream );
 
-		Assert.AreEqual( Connection.FlagRaw, encoded[0], "Small payload should use FlagRaw" );
+		Assert.AreEqual( Connection.FlagRaw, encoded.Span[0], "Small payload should use FlagRaw" );
 
-		var decoded = Connection.Decode( encoded );
+		var decoded = Connection.Decode( encoded.Span );
 		var original = stream.ToSpan();
 		Assert.IsTrue( decoded.SequenceEqual( original ) );
 	}
@@ -36,11 +85,11 @@ public class ConnectionWireTest
 		for ( int i = 0; i < 200; i++ )
 			stream.Write( 0x41414141 );
 
-		var encoded = Connection.Encode( stream );
+		var encoded = Connection.EncodePacket( stream );
 
-		Assert.AreEqual( Connection.FlagCompressed, encoded[0], "Large repetitive payload should compress" );
+		Assert.AreEqual( Connection.FlagCompressed, encoded.Span[0], "Large repetitive payload should compress" );
 
-		var decoded = Connection.Decode( encoded );
+		var decoded = Connection.Decode( encoded.Span );
 		var original = stream.ToSpan();
 		Assert.IsTrue( decoded.SequenceEqual( original ) );
 	}
@@ -49,7 +98,7 @@ public class ConnectionWireTest
 	public void BuildChunkPacket_HeaderFormat()
 	{
 		var payload = new byte[] { 0xAA, 0xBB, 0xCC };
-		var chunk = Connection.BuildChunkPacket( payload, 0, payload.Length, chunkIndex: 2, totalChunks: 5 );
+		var chunk = Connection.BuildChunkPacket( payload, chunkIndex: 2, totalChunks: 5 );
 
 		Assert.AreEqual( Connection.FlagChunk, chunk[0] );
 		Assert.AreEqual( 2u, BinaryPrimitives.ReadUInt32LittleEndian( chunk.AsSpan( 1 ) ) );
@@ -221,7 +270,7 @@ public class ConnectionWireTest
 	private sealed class StubConnection : Connection
 	{
 		public override bool IsHost => false;
-		internal override void InternalSend( byte[] data, NetFlags flags ) { }
+		internal override void InternalSend( NetPacket packet, NetFlags flags ) { }
 		internal override void InternalRecv( Sandbox.Network.NetworkSystem.MessageHandler handler ) { }
 		internal override void InternalClose( int closeCode, string closeReason ) { }
 	}

@@ -12,12 +12,27 @@ public abstract class TextureGenerator : ResourceGenerator<Texture>
 	public virtual ImageFormat? FormatOverride => null;
 
 	/// <summary>
-	/// Find an existing texture for this
+	/// The image this makes on the CPU, for the caller to dispose, or null if it makes its texture another way. Compiling a
+	/// generator that makes one needs no render device, so one that caches to disk should.
 	/// </summary>
-	protected virtual ValueTask<Texture> CreateTexture( Options options, CancellationToken ct )
+	protected virtual ValueTask<Bitmap> CreateBitmap( Options options, CancellationToken ct )
 	{
 		return default;
 	}
+
+	/// <summary>
+	/// Find an existing texture for this. By default, the texture of <see cref="CreateBitmap"/>'s image.
+	/// </summary>
+	protected virtual async ValueTask<Texture> CreateTexture( Options options, CancellationToken ct )
+	{
+		using var bitmap = await CreateBitmap( options, ct );
+		return bitmap?.ToTexture();
+	}
+
+	/// <summary>
+	/// The image a compile writes, or null if this only makes a texture (which takes a render device to read back).
+	/// </summary>
+	internal ValueTask<Bitmap> CreateImage( Options options, CancellationToken ct ) => CreateBitmap( options, ct );
 
 	/// <summary>
 	/// Create a texture. Will replace a placeholder texture, which will turn into the generated texture later, if it's not immediately available.
@@ -47,11 +62,11 @@ public abstract class TextureGenerator : ResourceGenerator<Texture>
 
 	/// <summary>
 	/// Create a texture. Will wait until the texture is fully loaded and return when done.
+	/// Runs in the caller's context; generators can explicitly offload work when needed.
 	/// </summary>
 	public sealed override async ValueTask<Texture> CreateAsync( Options options, CancellationToken token )
 	{
-		// Call it completely in a new thread
-		var output = await Task.Run( async () => await CreateTexture( options, token ) );
+		var output = await CreateTexture( options, token );
 		if ( output is null ) return default;
 
 		token.ThrowIfCancellationRequested();

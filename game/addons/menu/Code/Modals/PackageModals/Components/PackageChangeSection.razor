@@ -2,26 +2,27 @@
 @inherits Panel
 @using Sandbox;
 @using Sandbox.UI;
-@using Menu;
+@using SboxMenu;
 @using System.Collections.Immutable;
 
-@* One category within a changelist (Added / Improved / Fixed / ...). Mirrors the web's
-   ChangeListSection - an icon + title header above a bulleted list of entries. *@
+@* One kind of change within an update - Added, Improved, Fixed and so on. A small coloured
+   heading with its icon, then the entries under it, each with a dot in the same colour. *@
 
 @if (Entries.Length == 0) return;
 
 <root class="@ClassName">
 
     <div class="header">
-        <label class="emoji">@Icon</label>
+        <i class="kind-icon">@Icon</i>
         <label class="section-title">@Title</label>
+        <label class="count">@Entries.Length</label>
     </div>
 
     <div class="entries">
         @foreach (var entry in Entries)
         {
             <div class="entry">
-                <label class="bullet">•</label>
+                <div class="bullet"></div>
                 @if (!string.IsNullOrWhiteSpace(entry.Url) && entry.Url.StartsWith("https://"))
                 {
                     <label class="text link" @onclick="@(() => MenuUtility.OpenUrl(entry.Url))">@entry.Text</label>
@@ -40,6 +41,8 @@
 {
     [Parameter] public ImmutableArray<Package.ChangeListEntry> Entries { get; set; } = ImmutableArray<Package.ChangeListEntry>.Empty;
     [Parameter] public string ClassName { get; set; }
+
+    /// <summary>A Material icon name.</summary>
     [Parameter] public string Icon { get; set; }
     [Parameter] public string Title { get; set; }
 

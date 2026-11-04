@@ -1,0 +1,65 @@
+@import "/styles/_front.scss";
+
+MicrophoneMeter
+{
+	flex-direction: row;
+	align-items: center;
+	flex-grow: 1;
+	gap: 10px;
+	cursor: pointer;
+	pointer-events: all;
+
+	.light
+	{
+		flex-shrink: 0;
+		font-size: 20px;
+		color: $front-tertiary;
+		transition: color 0.1s ease-out;
+
+		&.on
+		{
+			color: $front-accent;
+		}
+	}
+
+	.meter
+	{
+		position: relative;
+		flex-grow: 1;
+		height: 14px;
+		border-radius: 3px;
+		overflow: hidden;
+		background-image: linear-gradient( to right, #3fc76a 0%, #8fd14f 55%, #f5a623 80%, #ff5d6a 100% );
+	}
+
+	// Darkens the part of the bar above the current level
+	.cover
+	{
+		position: absolute;
+		top: 0px;
+		bottom: 0px;
+		right: 0px;
+		background-color: #14171d;
+		opacity: 0.85;
+	}
+
+	.threshold
+	{
+		position: absolute;
+		top: 0px;
+		bottom: 0px;
+		width: 3px;
+		background-color: #fff;
+		box-shadow: 0 0 3px #000a;
+		transform: translateX( -50% );
+	}
+
+	.readout
+	{
+		flex-shrink: 0;
+		width: 46px;
+		font-size: 13px;
+		text-align: right;
+		color: $front-secondary;
+	}
+}

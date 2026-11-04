@@ -107,6 +107,7 @@ public partial class ModelRenderer : MaterialAccessor.ITarget
 		if ( !_sceneObject.IsValid() ) return;
 
 		_sceneObject.native.SetMaterialOverrideByIndex( index, material?.native ?? default );
+		_sceneObject.NotifyChanged( Rendering.SceneObjectChange.Material );
 	}
 
 	void MaterialAccessor.ITarget.ClearOverrides()
@@ -114,6 +115,7 @@ public partial class ModelRenderer : MaterialAccessor.ITarget
 		if ( !_sceneObject.IsValid() ) return;
 
 		_sceneObject.native.ClearMaterialOverrideList();
+		_sceneObject.NotifyChanged( Rendering.SceneObjectChange.Material );
 	}
 
 }

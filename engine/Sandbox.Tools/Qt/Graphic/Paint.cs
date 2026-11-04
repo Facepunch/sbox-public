@@ -566,14 +566,11 @@ namespace Editor
 		}
 
 
-		internal static IDisposable Start( QPainter e, StateFlag flags = StateFlag.None, float scale = 1.0f )
+		internal static PaintScope Start( QPainter e, StateFlag flags = StateFlag.None, float scale = 1.0f )
 		{
 			ThreadSafe.AssertIsMainThread();
 
-			var oldPtr = _painter;
-			var oldstate = state;
-			var oldPen = _pen;
-			var oldDpiScale = _dpiScale;
+			var scope = new PaintScope( _painter, state, _pen, _dpiScale );
 
 			_painter = e;
 			state = flags;
@@ -582,7 +579,28 @@ namespace Editor
 
 			fontInfo.Reset();
 
-			return DisposeAction.Create( () =>
+			return scope;
+		}
+
+		/// <summary>
+		/// Restores the paint state from before <see cref="Start"/>, without allocating.
+		/// </summary>
+		internal readonly struct PaintScope : IDisposable
+		{
+			readonly QPainter oldPtr;
+			readonly StateFlag oldstate;
+			readonly Color oldPen;
+			readonly float oldDpiScale;
+
+			internal PaintScope( QPainter painter, StateFlag state, Color pen, float dpiScale )
+			{
+				oldPtr = painter;
+				oldstate = state;
+				oldPen = pen;
+				oldDpiScale = dpiScale;
+			}
+
+			public void Dispose()
 			{
 				ThreadSafe.AssertIsMainThread();
 
@@ -590,7 +608,7 @@ namespace Editor
 				state = oldstate;
 				_pen = oldPen;
 				_dpiScale = oldDpiScale;
-			} );
+			}
 		}
 
 		public static Rect DrawIcon( Rect rect, string iconName, float pixelHeight, TextFlag alignment = TextFlag.Center )

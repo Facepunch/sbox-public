@@ -1,0 +1,37 @@
+@using Sandbox
+@namespace MenuProject.UI
+@inherits Panel
+
+<root>
+    <div class="avatar" style="background-image: url( avatar:@Speaker.Id )"></div>
+    <label class="icon">volume_up</label>
+    <label class="name">@Speaker.DisplayName</label>
+</root>
+
+@code
+{
+    // The row grows and lights up with it
+    private const float MaxScale = 1.05f;
+
+    internal VoiceChatPanel.Speaker Speaker { get; set; }
+
+    private float GetRowScale( float activity ) => 1f + (MaxScale - 1f) * activity;
+
+    private Color GetRowColor( float activity )
+    {
+        var alpha = MathX.Lerp( 0.3f, 0.5f, activity );
+
+        return Color.Black.WithAlpha( alpha );
+    }
+
+    public override void Tick()
+    {
+        var activity = Speaker?.Activity ?? 0f;
+        
+        var transform = new PanelTransform();
+        transform.AddScale( GetRowScale( activity ) );
+
+        Style.Transform = transform;
+        Style.BackgroundColor = GetRowColor( activity );
+    }
+}

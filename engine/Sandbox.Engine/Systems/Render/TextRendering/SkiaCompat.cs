@@ -1,4 +1,3 @@
-﻿using Sandbox.UI;
 using SkiaSharp;
 
 namespace Sandbox
@@ -30,15 +29,6 @@ namespace Sandbox
 		public static SKPoint ToSk( this in Vector2 c )
 		{
 			return new SKPoint( c.x, c.y );
-		}
-
-		public static SKTextAlign ToSk( this TextAlign c )
-		{
-			if ( c == TextAlign.Left ) return SKTextAlign.Left;
-			else if ( c == TextAlign.Right ) return SKTextAlign.Right;
-			else if ( c == TextAlign.Center ) return SKTextAlign.Center;
-
-			return SKTextAlign.Left;
 		}
 	}
 

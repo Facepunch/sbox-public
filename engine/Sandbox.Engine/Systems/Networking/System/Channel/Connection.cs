@@ -1,4 +1,4 @@
-using Sandbox.Network;
+﻿using Sandbox.Network;
 using System.Runtime.CompilerServices;
 using System.Threading;
 
@@ -8,9 +8,26 @@ namespace Sandbox;
 /// A connection, usually to a server or a client.
 /// </summary>
 [Expose, ActionGraphIgnore]
-public abstract partial class Connection
+public abstract partial class Connection : BytePack.ISerializer
 {
-	internal abstract void InternalSend( byte[] data, NetFlags flags );
+	/// <summary>
+	/// Travels as its id and resolves to the receiver's connection object.
+	/// </summary>
+	static void BytePack.ISerializer.BytePackWrite( object value, ref ByteStream bs )
+	{
+		bs.Write( value is Connection connection ? connection.Id : Guid.Empty );
+	}
+
+	static object BytePack.ISerializer.BytePackRead( ref ByteStream bs, Type targetType )
+	{
+		var id = bs.Read<Guid>();
+		return id == Guid.Empty ? null : Find( id );
+	}
+
+	/// <summary>
+	/// Send one wire packet. A transport that sends it later than this call takes a reference to it, see <see cref="NetPacket"/>.
+	/// </summary>
+	internal abstract void InternalSend( NetPacket packet, NetFlags flags );
 	internal abstract void InternalRecv( NetworkSystem.MessageHandler handler );
 	internal abstract void InternalClose( int closeCode, string closeReason );
 
@@ -181,7 +198,9 @@ public abstract partial class Connection
 	/// </summary>
 	/// <seealso cref="DisplayName"/>
 	[ActionGraphInclude]
-	public string Name => Info?.Name ?? "Unknown Player";
+	public string Name => Preferences.StreamerMode
+		? Utility.Steam.GetAnonymousName( SteamId )
+		: Info?.Name ?? "Unknown Player";
 
 	[ActionGraphInclude]
 	public virtual float Time => 0.0f;
@@ -190,7 +209,12 @@ public abstract partial class Connection
 	public virtual string Address => "unknown";
 
 	[ActionGraphInclude]
-	public virtual bool IsHost => false;
+	public virtual bool IsHost => System is not null && System.HostConnection == this;
+
+	/// <summary>
+	/// True if this connection was established and has since dropped.
+	/// </summary>
+	internal virtual bool IsConnectionLost => false;
 
 	/// <summary>
 	/// True if this channel is still currently connecting.
@@ -321,13 +345,20 @@ public abstract partial class Connection
 	}
 
 	/// <summary>
-	/// Virtual override point — exists so <see cref="MockConnection"/> can intercept the raw
-	/// <see cref="ByteStream"/> for routing through the host before encoding happens.
-	/// All other code should prefer calling <see cref="Send"/> with already-encoded bytes.
+	/// Encode and send a message. Peers behind the host get it through the host before it's encoded.
+	/// All other code should prefer calling <see cref="Send(NetPacket, NetFlags)"/> with an already-encoded packet.
 	/// </summary>
-	internal virtual void SendStream( ByteStream stream, NetFlags flags = NetFlags.Reliable )
+	internal void SendStream( ByteStream stream, NetFlags flags = NetFlags.Reliable )
 	{
-		Send( Encode( stream ), flags );
+		if ( RelayFor( flags ) && (!HasPendingSends || (flags & NetFlags.Reliable) == 0) )
+		{
+			System?.SendMulticast( [Id], stream.ToSpan(), flags );
+			return;
+		}
+
+		var packet = EncodePacket( stream );
+		Send( packet, flags );
+		packet.Release();
 	}
 
 	/// <summary>
@@ -336,24 +367,50 @@ public abstract partial class Connection
 	/// </summary>
 	internal const int MaxChunkSize = 128 * 1024; // ~quarter of Steam's k_cbMaxSteamNetworkingSocketsMessageSizeSend
 
-	internal virtual void Send( byte[] encoded, NetFlags flags )
+	internal void Send( NetPacket encoded, NetFlags flags )
 	{
+		byte[][] packets = null;
+		Send( encoded, flags, ref packets );
+	}
+
+	/// <summary>
+	/// Like <see cref="Send(NetPacket, NetFlags)"/>, but any chunks built for <paramref name="encoded"/> are kept in
+	/// <paramref name="packets"/> so a broadcast can hand the same ones to every recipient. The caller still owns
+	/// <paramref name="encoded"/>.
+	/// </summary>
+	internal void Send( NetPacket encoded, NetFlags flags, ref byte[][] packets )
+	{
+		if ( sendsClosed )
+		{
+			return;
+		}
+		if ( RelayFor( flags ) && (!HasPendingSends || (flags & NetFlags.Reliable) == 0) )
+		{
+			System?.SendMulticast( [Id], Decode( encoded.Span ), flags );
+			return;
+		}
+		if ( HasPendingSends )
+		{
+			// Keep the complete message so it can be sent through either route when drained.
+			QueueSend( Task.FromResult<byte[][]>( [encoded.Span.ToArray()] ), flags );
+			return;
+		}
+
 		var isReliable = (flags & NetFlags.Reliable) != 0;
 
-		if ( !isReliable || encoded.Length < MaxChunkSize )
+		if ( !isReliable || encoded.Length <= MaxChunkSize )
 		{
 			InternalSend( encoded, flags );
 			return;
 		}
 
-		var chunks = (encoded.Length / (float)MaxChunkSize).CeilToInt();
+		packets ??= CreatePackets( encoded.Span, flags );
 
-		for ( var i = 0; i < chunks; i++ )
+		foreach ( var chunk in packets )
 		{
-			var offset = i * MaxChunkSize;
-			var length = Math.Min( MaxChunkSize, encoded.Length - offset );
-			var chunk = BuildChunkPacket( encoded, offset, length, i, chunks );
-			InternalSend( chunk, flags );
+			var packet = NetPacket.Wrap( chunk );
+			InternalSend( packet, flags );
+			packet.Release();
 		}
 	}
 
@@ -372,6 +429,15 @@ public abstract partial class Connection
 
 	internal void Close( int reasonCode, string reasonString )
 	{
+		if ( sendsClosed )
+		{
+			return;
+		}
+		sendsClosed = true;
+		snapshotCancellation?.Cancel();
+		snapshotCancellation?.Dispose();
+		snapshotCancellation = null;
+		pendingSends.Clear();
 		_chunkBufferLength = -1;
 		InternalClose( reasonCode, reasonString );
 	}
@@ -461,6 +527,13 @@ public abstract partial class Connection
 	internal ConnectionInfo PreInfo { get; set; }
 
 	/// <summary>
+	/// Last <see cref="DisplayName"/> source and its filtered result. Steam's text filter is a native call,
+	/// and UI like nameplates and scoreboards reads the display name of every player every frame.
+	/// </summary>
+	sealed record FilteredName( string Source, ulong SteamId, string Value );
+	FilteredName _filteredName;
+
+	/// <summary>
 	/// The player's name but with any potential nicknames or naughty words filtered out.
 	/// You don't want to be using this in serverside logic really.
 	/// </summary>
@@ -470,19 +543,55 @@ public abstract partial class Connection
 	{
 		get
 		{
+			string source = null;
 			if ( Steamworks.SteamFriends.IsInstalled )
 			{
 				var personaName = FriendInfo.DisplayName;
 				if ( !string.IsNullOrWhiteSpace( personaName ) )
-					return Utility.Steam.FilterName( personaName, SteamId );
+					source = personaName;
 			}
 
-			return Utility.Steam.FilterName( Name, SteamId );
+			source ??= Name;
+			var steamId = SteamId;
+
+			// Filter again only when the name or account changes
+			var cached = _filteredName;
+			if ( cached is not null && cached.SteamId == steamId.ValueUnsigned && string.Equals( cached.Source, source, StringComparison.Ordinal ) )
+				return cached.Value;
+
+			var filtered = Utility.Steam.FilterName( source, steamId );
+			_filteredName = new FilteredName( source, steamId.ValueUnsigned, filtered );
+			return filtered;
 		}
 	}
 
+	/// <summary>
+	/// The Steam Id of this connection. For a dedicated server this is the game server's Steam Id.
+	/// Clients get the host's Steam Id from the host itself, so it isn't verified on IP connections.
+	/// </summary>
 	[ActionGraphInclude]
-	public SteamId SteamId => Info?.SteamId ?? default;
+	public SteamId SteamId => Info?.SteamId ?? FallbackSteamId;
+
+	/// <summary>
+	/// The Steam Id the host sent us in its <see cref="ServerInfo"/>. Dedicated servers have no
+	/// <see cref="ConnectionInfo"/>, so this is the only place clients get their Steam Id from.
+	/// </summary>
+	internal SteamId HostSteamId { get; set; }
+
+	SteamId FallbackSteamId
+	{
+		get
+		{
+			if ( this is LocalConnection && Application.IsDedicatedServer )
+			{
+				// Still the uninitialized default until the game server has logged on
+				var steamId = Utility.Steam.SteamId;
+				return steamId.AccountType == SteamId.AccountTypes.Invalid ? default : steamId;
+			}
+
+			return HostSteamId;
+		}
+	}
 
 	/// <summary>
 	/// Steam friend information for this connection.

@@ -1,22 +1,22 @@
 <!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:animgraph2:version{0f7898b8-5471-45c4-9867-cd9c46bcfdb5} -->
 {
 	_class = "CAnimationSubGraph"
-	m_nodeManager = 
+	m_nodeManager =
 	{
 		_class = "CAnimNodeManager"
-		m_nodes = 
+		m_nodes =
 		[
 			{
-				key = 
+				key =
 				{
 					m_id = 41780354
 				}
-				value = 
+				value =
 				{
 					_class = "CSingleFrameAnimNode"
 					m_sName = "Unnamed"
 					m_vecPosition = [ -912.0, 240.0 ]
-					m_nNodeID = 
+					m_nNodeID =
 					{
 						m_id = 41780354
 					}
@@ -27,35 +27,35 @@
 				}
 			},
 			{
-				key = 
+				key =
 				{
 					m_id = 47292656
 				}
-				value = 
+				value =
 				{
 					_class = "CGroupOutputAnimNode"
 					m_sName = "Unnamed"
 					m_vecPosition = [ 2176.0, -64.0 ]
-					m_nNodeID = 
+					m_nNodeID =
 					{
 						m_id = 47292656
 					}
 					m_sNote = ""
-					m_proxyItems = 
+					m_proxyItems =
 					[
 						{
 							m_name = "Global output"
-							m_outputID = 
+							m_outputID =
 							{
 								m_id = 1396696161
 							}
-							m_inputConnection = 
+							m_inputConnection =
 							{
-								m_nodeID = 
+								m_nodeID =
 								{
 									m_id = 481415535
 								}
-								m_outputID = 
+								m_outputID =
 								{
 									m_id = 4294967295
 								}
@@ -65,78 +65,78 @@
 				}
 			},
 			{
-				key = 
+				key =
 				{
 					m_id = 130942077
 				}
-				value = 
+				value =
 				{
 					_class = "CCommentAnimNode"
 					m_sName = "Scaling the position of foot IK targets"
 					m_vecPosition = [ 304.0, -960.0 ]
-					m_nNodeID = 
+					m_nNodeID =
 					{
 						m_id = 130942077
 					}
 					m_sNote = ""
-					m_commentText = "In order to reduce the stride length, I\'m stomping the feet IK targets with the bindPose on the feet IK targets, where 0 height would be full bindpose. So the result is an appropriate and proportional reduction in stride length at the same movement speed.\n\nTo scale it UP instead... it\'s a bit more galaxy-brained :) ... I\'m computing the difference between the previous two states (normal feet IK targets vs bindPose), and adding the delta of that BACK onto the 1.0 state, and using the result of THAT in the 1D Blend for 2.0 height... since this is effectively 1.0x2.\n\nThe downside of that scale-up method this also scales the height of the feet targets, not just the \"ground plane\" axises, but that\'s fine enough for now. And also I don\'t really have any other controls in Animgraph to do anything else anyway. (If I had access to individual anim channels this would be a different story etc)\n\nAll resulting changes out of that scaler are applied only in translation, any changes in orientation are discarded; the blending method is model-space translation only! (That\'s an important detail.)\n\n\nThis *does* mean that this is inducing \"feet skating\", and counteracting this would be up to the Player Animator code, by sending move values that correspond to the inverse proportion of the height scale. For example: if you\'re really moving at 200 u/s, but you have a height of 0.8, then 1/0.8=1.25 meaning the Animator needs to send speeds with +25%)\n\nIn practice, though, the small amount of foot scaling wouldn\'t be that noticeable in the 0.8-1.2 height range which I am \"officially\" \"supporting\".\n"
+					m_commentText = "In order to reduce the stride length, I'm stomping the feet IK targets with the bindPose on the feet IK targets, where 0 height would be full bindpose. So the result is an appropriate and proportional reduction in stride length at the same movement speed.\n\nTo scale it UP instead... it's a bit more galaxy-brained :) ... I'm computing the difference between the previous two states (normal feet IK targets vs bindPose), and adding the delta of that BACK onto the 1.0 state, and using the result of THAT in the 1D Blend for 2.0 height... since this is effectively 1.0x2.\n\nThe downside of that scale-up method this also scales the height of the feet targets, not just the \"ground plane\" axises, but that's fine enough for now. And also I don't really have any other controls in Animgraph to do anything else anyway. (If I had access to individual anim channels this would be a different story etc)\n\nAll resulting changes out of that scaler are applied only in translation, any changes in orientation are discarded; the blending method is model-space translation only! (That's an important detail.)\n\n\nThis *does* mean that this is inducing \"feet skating\", and counteracting this would be up to the Player Animator code, by sending move values that correspond to the inverse proportion of the height scale. For example: if you're really moving at 200 u/s, but you have a height of 0.8, then 1/0.8=1.25 meaning the Animator needs to send speeds with +25%)\n\nIn practice, though, the small amount of foot scaling wouldn't be that noticeable in the 0.8-1.2 height range which I am \"officially\" \"supporting\".\n"
 					m_size = [ 1120.0, 768.0 ]
 					m_color = [ 38, 42, 47, 255 ]
 				}
 			},
 			{
-				key = 
+				key =
 				{
 					m_id = 212119340
 				}
-				value = 
+				value =
 				{
 					_class = "CCommentAnimNode"
 					m_sName = "Handling special cases"
 					m_vecPosition = [ -1424.0, 240.0 ]
-					m_nNodeID = 
+					m_nNodeID =
 					{
 						m_id = 212119340
 					}
 					m_sNote = ""
-					m_commentText = "The input adjustment sequences inherently change the height of the pelvis; we don\'t want that in some cases... This SM uses a Tag to determine whether or not to remove the pelvis offset."
+					m_commentText = "The input adjustment sequences inherently change the height of the pelvis; we don't want that in some cases... This SM uses a Tag to determine whether or not to remove the pelvis offset."
 					m_size = [ 480.0, 192.0 ]
 					m_color = [ 38, 42, 47, 255 ]
 				}
 			},
 			{
-				key = 
+				key =
 				{
 					m_id = 274442502
 				}
-				value = 
+				value =
 				{
 					_class = "CAddAnimNode"
 					m_sName = "Unnamed"
 					m_vecPosition = [ -1936.0, -352.0 ]
-					m_nNodeID = 
+					m_nNodeID =
 					{
 						m_id = 274442502
 					}
 					m_sNote = ""
-					m_baseInput = 
+					m_baseInput =
 					{
-						m_nodeID = 
+						m_nodeID =
 						{
 							m_id = 1977465517
 						}
-						m_outputID = 
+						m_outputID =
 						{
 							m_id = 4294967295
 						}
 					}
-					m_additiveInput = 
+					m_additiveInput =
 					{
-						m_nodeID = 
+						m_nodeID =
 						{
 							m_id = 1977465517
 						}
-						m_outputID = 
+						m_outputID =
 						{
 							m_id = 4294967295
 						}
@@ -151,16 +151,16 @@
 				}
 			},
 			{
-				key = 
+				key =
 				{
 					m_id = 307693055
 				}
-				value = 
+				value =
 				{
 					_class = "CSingleFrameAnimNode"
 					m_sName = "Unnamed"
 					m_vecPosition = [ -912.0, 288.0 ]
-					m_nNodeID = 
+					m_nNodeID =
 					{
 						m_id = 307693055
 					}
@@ -171,35 +171,35 @@
 				}
 			},
 			{
-				key = 
+				key =
 				{
 					m_id = 433044021
 				}
-				value = 
+				value =
 				{
 					_class = "CGroupInputAnimNode"
 					m_sName = "Unnamed"
 					m_vecPosition = [ 416.0, -64.0 ]
-					m_nNodeID = 
+					m_nNodeID =
 					{
 						m_id = 433044021
 					}
 					m_sNote = ""
-					m_proxyItems = 
+					m_proxyItems =
 					[
 						{
 							m_name = "Global input"
-							m_outputID = 
+							m_outputID =
 							{
 								m_id = 401695544
 							}
-							m_inputConnection = 
+							m_inputConnection =
 							{
-								m_nodeID = 
+								m_nodeID =
 								{
 									m_id = 4294967295
 								}
-								m_outputID = 
+								m_outputID =
 								{
 									m_id = 4294967295
 								}
@@ -209,34 +209,34 @@
 				}
 			},
 			{
-				key = 
+				key =
 				{
 					m_id = 475317107
 				}
-				value = 
+				value =
 				{
 					_class = "CStateMachineAnimNode"
 					m_sName = "Scale Height pelvis offset management"
 					m_vecPosition = [ -640.0, -240.0 ]
-					m_nNodeID = 
+					m_nNodeID =
 					{
 						m_id = 475317107
 					}
 					m_sNote = ""
-					m_states = 
+					m_states =
 					[
 						{
 							_class = "CAnimState"
-							m_transitions = 
+							m_transitions =
 							[
 								{
 									_class = "CAnimStateTransition"
-									m_conditions = 
+									m_conditions =
 									[
 										{
 											_class = "CTagCondition"
 											m_comparisonOp = 0
-											m_tagID = 
+											m_tagID =
 											{
 												m_id = 169420729
 											}
@@ -244,7 +244,7 @@
 										},
 									]
 									m_blendDuration = 0.35
-									m_destState = 
+									m_destState =
 									{
 										m_id = 1843383735
 									}
@@ -252,7 +252,7 @@
 									m_resetCycleOption = "Beginning"
 									m_flFixedCycleValue = 0.0
 									m_bBlendCycle = false
-									m_blendCurve = 
+									m_blendCurve =
 									{
 										m_vControlPoint1 = [ 0.26, 0.0 ]
 										m_vControlPoint2 = [ 0.273333, 1.0 ]
@@ -267,18 +267,18 @@
 							m_tags = [  ]
 							m_tagBehaviors = [  ]
 							m_name = "Enabled"
-							m_inputConnection = 
+							m_inputConnection =
 							{
-								m_nodeID = 
+								m_nodeID =
 								{
 									m_id = 2099582625
 								}
-								m_outputID = 
+								m_outputID =
 								{
 									m_id = 4294967295
 								}
 							}
-							m_stateID = 
+							m_stateID =
 							{
 								m_id = 1553562974
 							}
@@ -291,16 +291,16 @@
 						},
 						{
 							_class = "CAnimState"
-							m_transitions = 
+							m_transitions =
 							[
 								{
 									_class = "CAnimStateTransition"
-									m_conditions = 
+									m_conditions =
 									[
 										{
 											_class = "CTagCondition"
 											m_comparisonOp = 0
-											m_tagID = 
+											m_tagID =
 											{
 												m_id = 169420729
 											}
@@ -308,7 +308,7 @@
 										},
 									]
 									m_blendDuration = 0.35
-									m_destState = 
+									m_destState =
 									{
 										m_id = 1553562974
 									}
@@ -316,7 +316,7 @@
 									m_resetCycleOption = "Beginning"
 									m_flFixedCycleValue = 0.0
 									m_bBlendCycle = false
-									m_blendCurve = 
+									m_blendCurve =
 									{
 										m_vControlPoint1 = [ 0.26, 0.0 ]
 										m_vControlPoint2 = [ 0.273333, 1.0 ]
@@ -331,18 +331,18 @@
 							m_tags = [  ]
 							m_tagBehaviors = [  ]
 							m_name = "Disabled"
-							m_inputConnection = 
+							m_inputConnection =
 							{
-								m_nodeID = 
+								m_nodeID =
 								{
 									m_id = 564896217
 								}
-								m_outputID = 
+								m_outputID =
 								{
 									m_id = 4294967295
 								}
 							}
-							m_stateID = 
+							m_stateID =
 							{
 								m_id = 1843383735
 							}
@@ -359,38 +359,38 @@
 				}
 			},
 			{
-				key = 
+				key =
 				{
 					m_id = 481415535
 				}
-				value = 
+				value =
 				{
 					_class = "CStateMachineAnimNode"
 					m_sName = "Optimisation"
 					m_vecPosition = [ 1904.0, -64.0 ]
-					m_nNodeID = 
+					m_nNodeID =
 					{
 						m_id = 481415535
 					}
 					m_sNote = ""
-					m_states = 
+					m_states =
 					[
 						{
 							_class = "CAnimState"
-							m_transitions = 
+							m_transitions =
 							[
 								{
 									_class = "CAnimStateTransition"
-									m_conditions = 
+									m_conditions =
 									[
 										{
 											_class = "CParameterAnimCondition"
 											m_comparisonOp = 1
-											m_paramID = 
+											m_paramID =
 											{
 												m_id = 1570594852
 											}
-											m_comparisonValue = 
+											m_comparisonValue =
 											{
 												m_nType = 4
 												m_data = 1.0
@@ -398,7 +398,7 @@
 										},
 									]
 									m_blendDuration = 0.0
-									m_destState = 
+									m_destState =
 									{
 										m_id = 1869014926
 									}
@@ -406,7 +406,7 @@
 									m_resetCycleOption = "SameCycleAsSource"
 									m_flFixedCycleValue = 0.0
 									m_bBlendCycle = false
-									m_blendCurve = 
+									m_blendCurve =
 									{
 										m_vControlPoint1 = [ 0.5, 0.0 ]
 										m_vControlPoint2 = [ 0.5, 1.0 ]
@@ -419,16 +419,16 @@
 								},
 								{
 									_class = "CAnimStateTransition"
-									m_conditions = 
+									m_conditions =
 									[
 										{
 											_class = "CParameterAnimCondition"
 											m_comparisonOp = 1
-											m_paramID = 
+											m_paramID =
 											{
 												m_id = 211489935
 											}
-											m_comparisonValue = 
+											m_comparisonValue =
 											{
 												m_nType = 4
 												m_data = 0.0
@@ -436,7 +436,7 @@
 										},
 									]
 									m_blendDuration = 0.0
-									m_destState = 
+									m_destState =
 									{
 										m_id = 791759344
 									}
@@ -444,7 +444,7 @@
 									m_resetCycleOption = "SameCycleAsSource"
 									m_flFixedCycleValue = 0.0
 									m_bBlendCycle = false
-									m_blendCurve = 
+									m_blendCurve =
 									{
 										m_vControlPoint1 = [ 0.5, 0.0 ]
 										m_vControlPoint2 = [ 0.5, 1.0 ]
@@ -457,16 +457,16 @@
 								},
 								{
 									_class = "CAnimStateTransition"
-									m_conditions = 
+									m_conditions =
 									[
 										{
 											_class = "CParameterAnimCondition"
 											m_comparisonOp = 1
-											m_paramID = 
+											m_paramID =
 											{
 												m_id = 211489935
 											}
-											m_comparisonValue = 
+											m_comparisonValue =
 											{
 												m_nType = 4
 												m_data = 0.0
@@ -474,7 +474,7 @@
 										},
 									]
 									m_blendDuration = 0.0
-									m_destState = 
+									m_destState =
 									{
 										m_id = 1869014926
 									}
@@ -482,7 +482,7 @@
 									m_resetCycleOption = "SameCycleAsSource"
 									m_flFixedCycleValue = 0.0
 									m_bBlendCycle = false
-									m_blendCurve = 
+									m_blendCurve =
 									{
 										m_vControlPoint1 = [ 0.5, 0.0 ]
 										m_vControlPoint2 = [ 0.5, 1.0 ]
@@ -495,16 +495,16 @@
 								},
 								{
 									_class = "CAnimStateTransition"
-									m_conditions = 
+									m_conditions =
 									[
 										{
 											_class = "CParameterAnimCondition"
 											m_comparisonOp = 1
-											m_paramID = 
+											m_paramID =
 											{
 												m_id = 1570594852
 											}
-											m_comparisonValue = 
+											m_comparisonValue =
 											{
 												m_nType = 4
 												m_data = 1.0
@@ -512,7 +512,7 @@
 										},
 									]
 									m_blendDuration = 0.0
-									m_destState = 
+									m_destState =
 									{
 										m_id = 791759344
 									}
@@ -520,7 +520,7 @@
 									m_resetCycleOption = "SameCycleAsSource"
 									m_flFixedCycleValue = 0.0
 									m_bBlendCycle = false
-									m_blendCurve = 
+									m_blendCurve =
 									{
 										m_vControlPoint1 = [ 0.5, 0.0 ]
 										m_vControlPoint2 = [ 0.5, 1.0 ]
@@ -535,18 +535,18 @@
 							m_tags = [  ]
 							m_tagBehaviors = [  ]
 							m_name = "Optimize!"
-							m_inputConnection = 
+							m_inputConnection =
 							{
-								m_nodeID = 
+								m_nodeID =
 								{
 									m_id = 433044021
 								}
-								m_outputID = 
+								m_outputID =
 								{
 									m_id = 401695544
 								}
 							}
-							m_stateID = 
+							m_stateID =
 							{
 								m_id = 933976417
 							}
@@ -559,20 +559,20 @@
 						},
 						{
 							_class = "CAnimState"
-							m_transitions = 
+							m_transitions =
 							[
 								{
 									_class = "CAnimStateTransition"
-									m_conditions = 
+									m_conditions =
 									[
 										{
 											_class = "CParameterAnimCondition"
 											m_comparisonOp = 0
-											m_paramID = 
+											m_paramID =
 											{
 												m_id = 1570594852
 											}
-											m_comparisonValue = 
+											m_comparisonValue =
 											{
 												m_nType = 4
 												m_data = 1.0
@@ -586,11 +586,11 @@
 										{
 											_class = "CParameterAnimCondition"
 											m_comparisonOp = 0
-											m_paramID = 
+											m_paramID =
 											{
 												m_id = 211489935
 											}
-											m_comparisonValue = 
+											m_comparisonValue =
 											{
 												m_nType = 4
 												m_data = 0.0
@@ -598,7 +598,7 @@
 										},
 									]
 									m_blendDuration = 0.0
-									m_destState = 
+									m_destState =
 									{
 										m_id = 933976417
 									}
@@ -606,7 +606,7 @@
 									m_resetCycleOption = "SameCycleAsSource"
 									m_flFixedCycleValue = 0.0
 									m_bBlendCycle = false
-									m_blendCurve = 
+									m_blendCurve =
 									{
 										m_vControlPoint1 = [ 0.5, 0.0 ]
 										m_vControlPoint2 = [ 0.5, 1.0 ]
@@ -619,16 +619,16 @@
 								},
 								{
 									_class = "CAnimStateTransition"
-									m_conditions = 
+									m_conditions =
 									[
 										{
 											_class = "CParameterAnimCondition"
 											m_comparisonOp = 1
-											m_paramID = 
+											m_paramID =
 											{
 												m_id = 1570594852
 											}
-											m_comparisonValue = 
+											m_comparisonValue =
 											{
 												m_nType = 4
 												m_data = 1.0
@@ -636,7 +636,7 @@
 										},
 									]
 									m_blendDuration = 0.0
-									m_destState = 
+									m_destState =
 									{
 										m_id = 1869014926
 									}
@@ -644,7 +644,7 @@
 									m_resetCycleOption = "SameCycleAsSource"
 									m_flFixedCycleValue = 0.0
 									m_bBlendCycle = false
-									m_blendCurve = 
+									m_blendCurve =
 									{
 										m_vControlPoint1 = [ 0.5, 0.0 ]
 										m_vControlPoint2 = [ 0.5, 1.0 ]
@@ -657,16 +657,16 @@
 								},
 								{
 									_class = "CAnimStateTransition"
-									m_conditions = 
+									m_conditions =
 									[
 										{
 											_class = "CParameterAnimCondition"
 											m_comparisonOp = 1
-											m_paramID = 
+											m_paramID =
 											{
 												m_id = 211489935
 											}
-											m_comparisonValue = 
+											m_comparisonValue =
 											{
 												m_nType = 4
 												m_data = 0.0
@@ -674,7 +674,7 @@
 										},
 									]
 									m_blendDuration = 0.0
-									m_destState = 
+									m_destState =
 									{
 										m_id = 1869014926
 									}
@@ -682,7 +682,7 @@
 									m_resetCycleOption = "SameCycleAsSource"
 									m_flFixedCycleValue = 0.0
 									m_bBlendCycle = false
-									m_blendCurve = 
+									m_blendCurve =
 									{
 										m_vControlPoint1 = [ 0.5, 0.0 ]
 										m_vControlPoint2 = [ 0.5, 1.0 ]
@@ -697,18 +697,18 @@
 							m_tags = [  ]
 							m_tagBehaviors = [  ]
 							m_name = "Time buffer"
-							m_inputConnection = 
+							m_inputConnection =
 							{
-								m_nodeID = 
+								m_nodeID =
 								{
 									m_id = 1812573164
 								}
-								m_outputID = 
+								m_outputID =
 								{
 									m_id = 4294967295
 								}
 							}
-							m_stateID = 
+							m_stateID =
 							{
 								m_id = 791759344
 							}
@@ -721,20 +721,20 @@
 						},
 						{
 							_class = "CAnimState"
-							m_transitions = 
+							m_transitions =
 							[
 								{
 									_class = "CAnimStateTransition"
-									m_conditions = 
+									m_conditions =
 									[
 										{
 											_class = "CParameterAnimCondition"
 											m_comparisonOp = 0
-											m_paramID = 
+											m_paramID =
 											{
 												m_id = 1570594852
 											}
-											m_comparisonValue = 
+											m_comparisonValue =
 											{
 												m_nType = 4
 												m_data = 1.0
@@ -743,11 +743,11 @@
 										{
 											_class = "CParameterAnimCondition"
 											m_comparisonOp = 0
-											m_paramID = 
+											m_paramID =
 											{
 												m_id = 211489935
 											}
-											m_comparisonValue = 
+											m_comparisonValue =
 											{
 												m_nType = 4
 												m_data = 0.0
@@ -755,7 +755,7 @@
 										},
 									]
 									m_blendDuration = 0.0
-									m_destState = 
+									m_destState =
 									{
 										m_id = 791759344
 									}
@@ -763,7 +763,7 @@
 									m_resetCycleOption = "SameCycleAsSource"
 									m_flFixedCycleValue = 0.0
 									m_bBlendCycle = false
-									m_blendCurve = 
+									m_blendCurve =
 									{
 										m_vControlPoint1 = [ 0.5, 0.0 ]
 										m_vControlPoint2 = [ 0.5, 1.0 ]
@@ -778,18 +778,18 @@
 							m_tags = [  ]
 							m_tagBehaviors = [  ]
 							m_name = "Things are active"
-							m_inputConnection = 
+							m_inputConnection =
 							{
-								m_nodeID = 
+								m_nodeID =
 								{
 									m_id = 1812573164
 								}
-								m_outputID = 
+								m_outputID =
 								{
 									m_id = 4294967295
 								}
 							}
-							m_stateID = 
+							m_stateID =
 							{
 								m_id = 1869014926
 							}
@@ -806,39 +806,39 @@
 				}
 			},
 			{
-				key = 
+				key =
 				{
 					m_id = 564896217
 				}
-				value = 
+				value =
 				{
 					_class = "CBoneMaskAnimNode"
 					m_sName = "Remove pelvis offset"
 					m_vecPosition = [ -816.0, -192.0 ]
-					m_nNodeID = 
+					m_nNodeID =
 					{
 						m_id = 564896217
 					}
 					m_sNote = ""
 					m_weightListName = "Only_Pelvis"
-					m_inputConnection1 = 
+					m_inputConnection1 =
 					{
-						m_nodeID = 
+						m_nodeID =
 						{
 							m_id = 2099582625
 						}
-						m_outputID = 
+						m_outputID =
 						{
 							m_id = 4294967295
 						}
 					}
-					m_inputConnection2 = 
+					m_inputConnection2 =
 					{
-						m_nodeID = 
+						m_nodeID =
 						{
 							m_id = 671515008
 						}
-						m_outputID = 
+						m_outputID =
 						{
 							m_id = 4294967295
 						}
@@ -846,7 +846,7 @@
 					m_blendSpace = "BlendSpace_Model_TranslationOnly"
 					m_bUseBlendScale = false
 					m_blendValueSource = "Parameter"
-					m_blendParameter = 
+					m_blendParameter =
 					{
 						m_id = 4294967295
 					}
@@ -859,16 +859,16 @@
 				}
 			},
 			{
-				key = 
+				key =
 				{
 					m_id = 567829979
 				}
-				value = 
+				value =
 				{
 					_class = "CCommentAnimNode"
 					m_sName = "Input adjustment sequences"
 					m_vecPosition = [ -2176.0, -400.0 ]
-					m_nNodeID = 
+					m_nNodeID =
 					{
 						m_id = 567829979
 					}
@@ -879,30 +879,30 @@
 				}
 			},
 			{
-				key = 
+				key =
 				{
 					m_id = 596843413
 				}
-				value = 
+				value =
 				{
 					_class = "CBlendAnimNode"
 					m_sName = "scale_height"
 					m_vecPosition = [ -1744.0, -288.0 ]
-					m_nNodeID = 
+					m_nNodeID =
 					{
 						m_id = 596843413
 					}
 					m_sNote = ""
-					m_children = 
+					m_children =
 					[
 						{
-							m_inputConnection = 
+							m_inputConnection =
 							{
-								m_nodeID = 
+								m_nodeID =
 								{
 									m_id = 274442502
 								}
-								m_outputID = 
+								m_outputID =
 								{
 									m_id = 4294967295
 								}
@@ -911,13 +911,13 @@
 							m_blendValue = 0.0
 						},
 						{
-							m_inputConnection = 
+							m_inputConnection =
 							{
-								m_nodeID = 
+								m_nodeID =
 								{
 									m_id = 1977465517
 								}
-								m_outputID = 
+								m_outputID =
 								{
 									m_id = 4294967295
 								}
@@ -926,13 +926,13 @@
 							m_blendValue = 0.5
 						},
 						{
-							m_inputConnection = 
+							m_inputConnection =
 							{
-								m_nodeID = 
+								m_nodeID =
 								{
 									m_id = 1801517477
 								}
-								m_outputID = 
+								m_outputID =
 								{
 									m_id = 4294967295
 								}
@@ -941,13 +941,13 @@
 							m_blendValue = 1.0
 						},
 						{
-							m_inputConnection = 
+							m_inputConnection =
 							{
-								m_nodeID = 
+								m_nodeID =
 								{
 									m_id = 1409763696
 								}
-								m_outputID = 
+								m_outputID =
 								{
 									m_id = 4294967295
 								}
@@ -956,13 +956,13 @@
 							m_blendValue = 2.0
 						},
 						{
-							m_inputConnection = 
+							m_inputConnection =
 							{
-								m_nodeID = 
+								m_nodeID =
 								{
 									m_id = 1710066668
 								}
-								m_outputID = 
+								m_outputID =
 								{
 									m_id = 4294967295
 								}
@@ -972,7 +972,7 @@
 						},
 					]
 					m_blendValueSource = "Parameter"
-					m_param = 
+					m_param =
 					{
 						m_id = 1570594852
 					}
@@ -981,7 +981,7 @@
 					m_bSyncCycles = true
 					m_bLoop = true
 					m_bLockWhenWaning = true
-					m_damping = 
+					m_damping =
 					{
 						_class = "CAnimInputDamping"
 						m_speedFunction = "Spring"
@@ -994,16 +994,16 @@
 				}
 			},
 			{
-				key = 
+				key =
 				{
 					m_id = 602652077
 				}
-				value = 
+				value =
 				{
 					_class = "CSingleFrameAnimNode"
 					m_sName = "Unnamed"
 					m_vecPosition = [ -2064.0, 48.0 ]
-					m_nNodeID = 
+					m_nNodeID =
 					{
 						m_id = 602652077
 					}
@@ -1014,16 +1014,16 @@
 				}
 			},
 			{
-				key = 
+				key =
 				{
 					m_id = 671515008
 				}
-				value = 
+				value =
 				{
 					_class = "CSingleFrameAnimNode"
 					m_sName = "Unnamed"
 					m_vecPosition = [ -992.0, -128.0 ]
-					m_nNodeID = 
+					m_nNodeID =
 					{
 						m_id = 671515008
 					}
@@ -1034,38 +1034,38 @@
 				}
 			},
 			{
-				key = 
+				key =
 				{
 					m_id = 681478857
 				}
-				value = 
+				value =
 				{
 					_class = "CAddAnimNode"
 					m_sName = "Add duck height corrective"
 					m_vecPosition = [ -304.0, 240.0 ]
-					m_nNodeID = 
+					m_nNodeID =
 					{
 						m_id = 681478857
 					}
 					m_sNote = ""
-					m_baseInput = 
+					m_baseInput =
 					{
-						m_nodeID = 
+						m_nodeID =
 						{
 							m_id = 475317107
 						}
-						m_outputID = 
+						m_outputID =
 						{
 							m_id = 4294967295
 						}
 					}
-					m_additiveInput = 
+					m_additiveInput =
 					{
-						m_nodeID = 
+						m_nodeID =
 						{
 							m_id = 1253649151
 						}
-						m_outputID = 
+						m_outputID =
 						{
 							m_id = 4294967295
 						}
@@ -1080,38 +1080,38 @@
 				}
 			},
 			{
-				key = 
+				key =
 				{
 					m_id = 782232189
 				}
-				value = 
+				value =
 				{
 					_class = "CAddAnimNode"
 					m_sName = "Add it on top of itself (doubling it)"
 					m_vecPosition = [ 1184.0, 288.0 ]
-					m_nNodeID = 
+					m_nNodeID =
 					{
 						m_id = 782232189
 					}
 					m_sNote = ""
-					m_baseInput = 
+					m_baseInput =
 					{
-						m_nodeID = 
+						m_nodeID =
 						{
 							m_id = 794788977
 						}
-						m_outputID = 
+						m_outputID =
 						{
 							m_id = 4294967295
 						}
 					}
-					m_additiveInput = 
+					m_additiveInput =
 					{
-						m_nodeID = 
+						m_nodeID =
 						{
 							m_id = 1524053666
 						}
-						m_outputID = 
+						m_outputID =
 						{
 							m_id = 4294967295
 						}
@@ -1126,58 +1126,58 @@
 				}
 			},
 			{
-				key = 
+				key =
 				{
 					m_id = 792409217
 				}
-				value = 
+				value =
 				{
 					_class = "CCommentAnimNode"
 					m_sName = "FACEPUNCH HACK WEEK (2022-W45): scale_height"
 					m_vecPosition = [ -960.0, -1168.0 ]
-					m_nNodeID = 
+					m_nNodeID =
 					{
 						m_id = 792409217
 					}
 					m_sNote = ""
-					m_commentText = "Hello! The scale_height feature was my \"hack week\" project this time around... here\'s what\'s going on. Conceptually, it\'s simpler than it looks: two additive sequences are used to scale the proportions of the body in such a way that it\'s made shorter or taller. (You could and should also combine this with a global scale on the entity itself for greater effect!)\n\nThe values on the input sequences go from 0.5 to 2.0; HOWEVER, THE RECOMMENDED (and \"officially supported\") RANGE is 0.8-1.2, which is 20% in either direction... but if you want to create a noodly horror creature by setting the value to 1.9 and it works for you, who am I to stop you\?\n\nThere is some minor jank that will be visible here and there but, thankfully, the rest of the graph and my previous rig-related decisions enabled me to go this far while keeping this feature entirely within this subgraph!\n\nI may or may not come back to this later."
+					m_commentText = "Hello! The scale_height feature was my \"hack week\" project this time around... here's what's going on. Conceptually, it's simpler than it looks: two additive sequences are used to scale the proportions of the body in such a way that it's made shorter or taller. (You could and should also combine this with a global scale on the entity itself for greater effect!)\n\nThe values on the input sequences go from 0.5 to 2.0; HOWEVER, THE RECOMMENDED (and \"officially supported\") RANGE is 0.8-1.2, which is 20% in either direction... but if you want to create a noodly horror creature by setting the value to 1.9 and it works for you, who am I to stop you?\n\nThere is some minor jank that will be visible here and there but, thankfully, the rest of the graph and my previous rig-related decisions enabled me to go this far while keeping this feature entirely within this subgraph!\n\nI may or may not come back to this later."
 					m_size = [ 672.0, 560.0 ]
 					m_color = [ 100, 0, 50, 255 ]
 				}
 			},
 			{
-				key = 
+				key =
 				{
 					m_id = 794788977
 				}
-				value = 
+				value =
 				{
 					_class = "CAddAnimNode"
 					m_sName = "Add scale_height"
 					m_vecPosition = [ 608.0, 48.0 ]
-					m_nNodeID = 
+					m_nNodeID =
 					{
 						m_id = 794788977
 					}
 					m_sNote = ""
-					m_baseInput = 
+					m_baseInput =
 					{
-						m_nodeID = 
+						m_nodeID =
 						{
 							m_id = 433044021
 						}
-						m_outputID = 
+						m_outputID =
 						{
 							m_id = 401695544
 						}
 					}
-					m_additiveInput = 
+					m_additiveInput =
 					{
-						m_nodeID = 
+						m_nodeID =
 						{
 							m_id = 2108229436
 						}
-						m_outputID = 
+						m_outputID =
 						{
 							m_id = 4294967295
 						}
@@ -1192,30 +1192,30 @@
 				}
 			},
 			{
-				key = 
+				key =
 				{
 					m_id = 822263150
 				}
-				value = 
+				value =
 				{
 					_class = "CBlendAnimNode"
 					m_sName = "scale_heel"
 					m_vecPosition = [ -1840.0, -32.0 ]
-					m_nNodeID = 
+					m_nNodeID =
 					{
 						m_id = 822263150
 					}
 					m_sNote = "Both ways result in the exact same change to the tibia length, but -1 does it in such a way that total character height is unchanged"
-					m_children = 
+					m_children =
 					[
 						{
-							m_inputConnection = 
+							m_inputConnection =
 							{
-								m_nodeID = 
+								m_nodeID =
 								{
 									m_id = 1310748415
 								}
-								m_outputID = 
+								m_outputID =
 								{
 									m_id = 4294967295
 								}
@@ -1224,13 +1224,13 @@
 							m_blendValue = -1.0
 						},
 						{
-							m_inputConnection = 
+							m_inputConnection =
 							{
-								m_nodeID = 
+								m_nodeID =
 								{
 									m_id = 1693816464
 								}
-								m_outputID = 
+								m_outputID =
 								{
 									m_id = 4294967295
 								}
@@ -1239,13 +1239,13 @@
 							m_blendValue = 0.0
 						},
 						{
-							m_inputConnection = 
+							m_inputConnection =
 							{
-								m_nodeID = 
+								m_nodeID =
 								{
 									m_id = 602652077
 								}
-								m_outputID = 
+								m_outputID =
 								{
 									m_id = 4294967295
 								}
@@ -1255,7 +1255,7 @@
 						},
 					]
 					m_blendValueSource = "Parameter"
-					m_param = 
+					m_param =
 					{
 						m_id = 211489935
 					}
@@ -1264,7 +1264,7 @@
 					m_bSyncCycles = true
 					m_bLoop = true
 					m_bLockWhenWaning = true
-					m_damping = 
+					m_damping =
 					{
 						_class = "CAnimInputDamping"
 						m_speedFunction = "Spring"
@@ -1277,16 +1277,16 @@
 				}
 			},
 			{
-				key = 
+				key =
 				{
 					m_id = 857823394
 				}
-				value = 
+				value =
 				{
 					_class = "CSingleFrameAnimNode"
 					m_sName = "Unnamed"
 					m_vecPosition = [ -912.0, 336.0 ]
-					m_nNodeID = 
+					m_nNodeID =
 					{
 						m_id = 857823394
 					}
@@ -1297,38 +1297,38 @@
 				}
 			},
 			{
-				key = 
+				key =
 				{
 					m_id = 957643723
 				}
-				value = 
+				value =
 				{
 					_class = "CAddAnimNode"
 					m_sName = "Unnamed"
 					m_vecPosition = [ -1520.0, -80.0 ]
-					m_nNodeID = 
+					m_nNodeID =
 					{
 						m_id = 957643723
 					}
 					m_sNote = ""
-					m_baseInput = 
+					m_baseInput =
 					{
-						m_nodeID = 
+						m_nodeID =
 						{
 							m_id = 596843413
 						}
-						m_outputID = 
+						m_outputID =
 						{
 							m_id = 4294967295
 						}
 					}
-					m_additiveInput = 
+					m_additiveInput =
 					{
-						m_nodeID = 
+						m_nodeID =
 						{
 							m_id = 822263150
 						}
-						m_outputID = 
+						m_outputID =
 						{
 							m_id = 4294967295
 						}
@@ -1343,30 +1343,30 @@
 				}
 			},
 			{
-				key = 
+				key =
 				{
 					m_id = 1176432092
 				}
-				value = 
+				value =
 				{
 					_class = "CBlendAnimNode"
 					m_sName = "1D Blend - Duck height corrective"
 					m_vecPosition = [ 0.0, 224.0 ]
-					m_nNodeID = 
+					m_nNodeID =
 					{
 						m_id = 1176432092
 					}
 					m_sNote = ""
-					m_children = 
+					m_children =
 					[
 						{
-							m_inputConnection = 
+							m_inputConnection =
 							{
-								m_nodeID = 
+								m_nodeID =
 								{
 									m_id = 475317107
 								}
-								m_outputID = 
+								m_outputID =
 								{
 									m_id = 4294967295
 								}
@@ -1375,13 +1375,13 @@
 							m_blendValue = 0.0
 						},
 						{
-							m_inputConnection = 
+							m_inputConnection =
 							{
-								m_nodeID = 
+								m_nodeID =
 								{
 									m_id = 681478857
 								}
-								m_outputID = 
+								m_outputID =
 								{
 									m_id = 4294967295
 								}
@@ -1390,13 +1390,13 @@
 							m_blendValue = 1.0
 						},
 						{
-							m_inputConnection = 
+							m_inputConnection =
 							{
-								m_nodeID = 
+								m_nodeID =
 								{
 									m_id = 681478857
 								}
-								m_outputID = 
+								m_outputID =
 								{
 									m_id = 4294967295
 								}
@@ -1406,7 +1406,7 @@
 						},
 					]
 					m_blendValueSource = "Parameter"
-					m_param = 
+					m_param =
 					{
 						m_id = 1596905024
 					}
@@ -1415,7 +1415,7 @@
 					m_bSyncCycles = false
 					m_bLoop = false
 					m_bLockWhenWaning = false
-					m_damping = 
+					m_damping =
 					{
 						_class = "CAnimInputDamping"
 						m_speedFunction = "Spring"
@@ -1428,50 +1428,50 @@
 				}
 			},
 			{
-				key = 
+				key =
 				{
 					m_id = 1213698709
 				}
-				value = 
+				value =
 				{
 					_class = "CCommentAnimNode"
 					m_sName = "TODO"
 					m_vecPosition = [ 1568.0, -464.0 ]
-					m_nNodeID = 
+					m_nNodeID =
 					{
 						m_id = 1213698709
 					}
 					m_sNote = ""
-					m_commentText = "The scaling of IK target distances is done linearly with height... but it probably shouldn\'t be. Should figure out what the scaling is according to leg length + pelvis offset instead, because right now it will break past 1.5 (which isn\'t that big of a deal; it\'s outside my \"supported range\", but it\'d still be nice to look at improving that regardless)"
+					m_commentText = "The scaling of IK target distances is done linearly with height... but it probably shouldn't be. Should figure out what the scaling is according to leg length + pelvis offset instead, because right now it will break past 1.5 (which isn't that big of a deal; it's outside my \"supported range\", but it'd still be nice to look at improving that regardless)"
 					m_size = [ 576.0, 272.0 ]
 					m_color = [ 255, 0, 0, 255 ]
 				}
 			},
 			{
-				key = 
+				key =
 				{
 					m_id = 1253649151
 				}
-				value = 
+				value =
 				{
 					_class = "CBlendAnimNode"
 					m_sName = "scale_height (pelvis duck height corrective)"
 					m_vecPosition = [ -640.0, 240.0 ]
-					m_nNodeID = 
+					m_nNodeID =
 					{
 						m_id = 1253649151
 					}
 					m_sNote = ""
-					m_children = 
+					m_children =
 					[
 						{
-							m_inputConnection = 
+							m_inputConnection =
 							{
-								m_nodeID = 
+								m_nodeID =
 								{
 									m_id = 41780354
 								}
-								m_outputID = 
+								m_outputID =
 								{
 									m_id = 4294967295
 								}
@@ -1480,13 +1480,13 @@
 							m_blendValue = 0.0
 						},
 						{
-							m_inputConnection = 
+							m_inputConnection =
 							{
-								m_nodeID = 
+								m_nodeID =
 								{
 									m_id = 307693055
 								}
-								m_outputID = 
+								m_outputID =
 								{
 									m_id = 4294967295
 								}
@@ -1495,13 +1495,13 @@
 							m_blendValue = 1.0
 						},
 						{
-							m_inputConnection = 
+							m_inputConnection =
 							{
-								m_nodeID = 
+								m_nodeID =
 								{
 									m_id = 857823394
 								}
-								m_outputID = 
+								m_outputID =
 								{
 									m_id = 4294967295
 								}
@@ -1511,7 +1511,7 @@
 						},
 					]
 					m_blendValueSource = "Parameter"
-					m_param = 
+					m_param =
 					{
 						m_id = 1570594852
 					}
@@ -1520,7 +1520,7 @@
 					m_bSyncCycles = true
 					m_bLoop = true
 					m_bLockWhenWaning = true
-					m_damping = 
+					m_damping =
 					{
 						_class = "CAnimInputDamping"
 						m_speedFunction = "Spring"
@@ -1533,16 +1533,16 @@
 				}
 			},
 			{
-				key = 
+				key =
 				{
 					m_id = 1310748415
 				}
-				value = 
+				value =
 				{
 					_class = "CSingleFrameAnimNode"
 					m_sName = "Unnamed"
 					m_vecPosition = [ -2064.0, -48.0 ]
-					m_nNodeID = 
+					m_nNodeID =
 					{
 						m_id = 1310748415
 					}
@@ -1553,16 +1553,16 @@
 				}
 			},
 			{
-				key = 
+				key =
 				{
 					m_id = 1409763696
 				}
-				value = 
+				value =
 				{
 					_class = "CSingleFrameAnimNode"
 					m_sName = "Unnamed"
 					m_vecPosition = [ -2144.0, -192.0 ]
-					m_nNodeID = 
+					m_nNodeID =
 					{
 						m_id = 1409763696
 					}
@@ -1573,38 +1573,38 @@
 				}
 			},
 			{
-				key = 
+				key =
 				{
 					m_id = 1524053666
 				}
-				value = 
+				value =
 				{
 					_class = "CSubtractAnimNode"
 					m_sName = "Compute difference of current foot IK vs. bindPose"
 					m_vecPosition = [ 800.0, 336.0 ]
-					m_nNodeID = 
+					m_nNodeID =
 					{
 						m_id = 1524053666
 					}
 					m_sNote = ""
-					m_baseInputConnection = 
+					m_baseInputConnection =
 					{
-						m_nodeID = 
+						m_nodeID =
 						{
 							m_id = 794788977
 						}
-						m_outputID = 
+						m_outputID =
 						{
 							m_id = 4294967295
 						}
 					}
-					m_subtractInputConnection = 
+					m_subtractInputConnection =
 					{
-						m_nodeID = 
+						m_nodeID =
 						{
 							m_id = 1957221979
 						}
-						m_outputID = 
+						m_outputID =
 						{
 							m_id = 4294967295
 						}
@@ -1619,16 +1619,16 @@
 				}
 			},
 			{
-				key = 
+				key =
 				{
 					m_id = 1693816464
 				}
-				value = 
+				value =
 				{
 					_class = "CSingleFrameAnimNode"
 					m_sName = "Unnamed"
 					m_vecPosition = [ -2064.0, 0.0 ]
-					m_nNodeID = 
+					m_nNodeID =
 					{
 						m_id = 1693816464
 					}
@@ -1639,38 +1639,38 @@
 				}
 			},
 			{
-				key = 
+				key =
 				{
 					m_id = 1710066668
 				}
-				value = 
+				value =
 				{
 					_class = "CAddAnimNode"
 					m_sName = "Unnamed"
 					m_vecPosition = [ -1936.0, -128.0 ]
-					m_nNodeID = 
+					m_nNodeID =
 					{
 						m_id = 1710066668
 					}
 					m_sNote = ""
-					m_baseInput = 
+					m_baseInput =
 					{
-						m_nodeID = 
+						m_nodeID =
 						{
 							m_id = 1409763696
 						}
-						m_outputID = 
+						m_outputID =
 						{
 							m_id = 4294967295
 						}
 					}
-					m_additiveInput = 
+					m_additiveInput =
 					{
-						m_nodeID = 
+						m_nodeID =
 						{
 							m_id = 1409763696
 						}
-						m_outputID = 
+						m_outputID =
 						{
 							m_id = 4294967295
 						}
@@ -1685,16 +1685,16 @@
 				}
 			},
 			{
-				key = 
+				key =
 				{
 					m_id = 1724427881
 				}
-				value = 
+				value =
 				{
 					_class = "CSingleFrameAnimNode"
 					m_sName = "Unnamed"
 					m_vecPosition = [ 1184.0, 192.0 ]
-					m_nNodeID = 
+					m_nNodeID =
 					{
 						m_id = 1724427881
 					}
@@ -1705,16 +1705,16 @@
 				}
 			},
 			{
-				key = 
+				key =
 				{
 					m_id = 1801517477
 				}
-				value = 
+				value =
 				{
 					_class = "CSingleFrameAnimNode"
 					m_sName = "Unnamed"
 					m_vecPosition = [ -2144.0, -240.0 ]
-					m_nNodeID = 
+					m_nNodeID =
 					{
 						m_id = 1801517477
 					}
@@ -1725,39 +1725,39 @@
 				}
 			},
 			{
-				key = 
+				key =
 				{
 					m_id = 1812573164
 				}
-				value = 
+				value =
 				{
 					_class = "CBoneMaskAnimNode"
 					m_sName = "Model space positions of foot IK"
 					m_vecPosition = [ 1648.0, 48.0 ]
-					m_nNodeID = 
+					m_nNodeID =
 					{
 						m_id = 1812573164
 					}
 					m_sNote = ""
 					m_weightListName = "Only_Foot_IK"
-					m_inputConnection1 = 
+					m_inputConnection1 =
 					{
-						m_nodeID = 
+						m_nodeID =
 						{
 							m_id = 794788977
 						}
-						m_outputID = 
+						m_outputID =
 						{
 							m_id = 4294967295
 						}
 					}
-					m_inputConnection2 = 
+					m_inputConnection2 =
 					{
-						m_nodeID = 
+						m_nodeID =
 						{
 							m_id = 2082029739
 						}
-						m_outputID = 
+						m_outputID =
 						{
 							m_id = 4294967295
 						}
@@ -1765,7 +1765,7 @@
 					m_blendSpace = "BlendSpace_Model_TranslationOnly"
 					m_bUseBlendScale = false
 					m_blendValueSource = "Parameter"
-					m_blendParameter = 
+					m_blendParameter =
 					{
 						m_id = 4294967295
 					}
@@ -1778,16 +1778,16 @@
 				}
 			},
 			{
-				key = 
+				key =
 				{
 					m_id = 1957221979
 				}
-				value = 
+				value =
 				{
 					_class = "CSingleFrameAnimNode"
 					m_sName = "Unnamed"
 					m_vecPosition = [ 608.0, 352.0 ]
-					m_nNodeID = 
+					m_nNodeID =
 					{
 						m_id = 1957221979
 					}
@@ -1798,16 +1798,16 @@
 				}
 			},
 			{
-				key = 
+				key =
 				{
 					m_id = 1977465517
 				}
-				value = 
+				value =
 				{
 					_class = "CSingleFrameAnimNode"
 					m_sName = "Unnamed"
 					m_vecPosition = [ -2144.0, -288.0 ]
-					m_nNodeID = 
+					m_nNodeID =
 					{
 						m_id = 1977465517
 					}
@@ -1818,50 +1818,50 @@
 				}
 			},
 			{
-				key = 
+				key =
 				{
 					m_id = 2024022203
 				}
-				value = 
+				value =
 				{
 					_class = "CCommentAnimNode"
 					m_sName = "Correct the height of the pelvis when ducking"
 					m_vecPosition = [ -1120.0, -544.0 ]
-					m_nNodeID = 
+					m_nNodeID =
 					{
 						m_id = 2024022203
 					}
 					m_sNote = ""
-					m_commentText = "This is a bit of a crude way to do things but I think it\'s the one that\'s the least likely to cause problems in the long run. This is doing two things: if your height is shorter, you need to crouch less (by raising the pelvis further), and if your height is taller, you need to crouch more (by lowering the pelvis further)."
+					m_commentText = "This is a bit of a crude way to do things but I think it's the one that's the least likely to cause problems in the long run. This is doing two things: if your height is shorter, you need to crouch less (by raising the pelvis further), and if your height is taller, you need to crouch more (by lowering the pelvis further)."
 					m_size = [ 1008.0, 128.0 ]
 					m_color = [ 38, 42, 47, 255 ]
 				}
 			},
 			{
-				key = 
+				key =
 				{
 					m_id = 2082029739
 				}
-				value = 
+				value =
 				{
 					_class = "CBlendAnimNode"
 					m_sName = "scale_height (scale foot IK pos.)"
 					m_vecPosition = [ 1440.0, 208.0 ]
-					m_nNodeID = 
+					m_nNodeID =
 					{
 						m_id = 2082029739
 					}
-					m_sNote = "The stride scaling doesn\'t match up exactly because the height change doesn\'t scale 1:1 with the length of the strides that can be achieved while avoiding IK pops. In lieu of being able define anything else than 3 points in a linear fashion, I have to bias it this way..."
-					m_children = 
+					m_sNote = "The stride scaling doesn't match up exactly because the height change doesn't scale 1:1 with the length of the strides that can be achieved while avoiding IK pops. In lieu of being able define anything else than 3 points in a linear fashion, I have to bias it this way..."
+					m_children =
 					[
 						{
-							m_inputConnection = 
+							m_inputConnection =
 							{
-								m_nodeID = 
+								m_nodeID =
 								{
 									m_id = 1724427881
 								}
-								m_outputID = 
+								m_outputID =
 								{
 									m_id = 4294967295
 								}
@@ -1870,13 +1870,13 @@
 							m_blendValue = -1.0
 						},
 						{
-							m_inputConnection = 
+							m_inputConnection =
 							{
-								m_nodeID = 
+								m_nodeID =
 								{
 									m_id = 794788977
 								}
-								m_outputID = 
+								m_outputID =
 								{
 									m_id = 4294967295
 								}
@@ -1885,13 +1885,13 @@
 							m_blendValue = 1.0
 						},
 						{
-							m_inputConnection = 
+							m_inputConnection =
 							{
-								m_nodeID = 
+								m_nodeID =
 								{
 									m_id = 782232189
 								}
-								m_outputID = 
+								m_outputID =
 								{
 									m_id = 4294967295
 								}
@@ -1901,7 +1901,7 @@
 						},
 					]
 					m_blendValueSource = "Parameter"
-					m_param = 
+					m_param =
 					{
 						m_id = 1570594852
 					}
@@ -1910,7 +1910,7 @@
 					m_bSyncCycles = false
 					m_bLoop = false
 					m_bLockWhenWaning = true
-					m_damping = 
+					m_damping =
 					{
 						_class = "CAnimInputDamping"
 						m_speedFunction = "Spring"
@@ -1923,38 +1923,38 @@
 				}
 			},
 			{
-				key = 
+				key =
 				{
 					m_id = 2099582625
 				}
-				value = 
+				value =
 				{
 					_class = "CStateMachineAnimNode"
 					m_sName = "Optimisation"
 					m_vecPosition = [ -1280.0, -288.0 ]
-					m_nNodeID = 
+					m_nNodeID =
 					{
 						m_id = 2099582625
 					}
 					m_sNote = ""
-					m_states = 
+					m_states =
 					[
 						{
 							_class = "CAnimState"
-							m_transitions = 
+							m_transitions =
 							[
 								{
 									_class = "CAnimStateTransition"
-									m_conditions = 
+									m_conditions =
 									[
 										{
 											_class = "CParameterAnimCondition"
 											m_comparisonOp = 1
-											m_paramID = 
+											m_paramID =
 											{
 												m_id = 211489935
 											}
-											m_comparisonValue = 
+											m_comparisonValue =
 											{
 												m_nType = 4
 												m_data = 0.0
@@ -1962,7 +1962,7 @@
 										},
 									]
 									m_blendDuration = 0.0
-									m_destState = 
+									m_destState =
 									{
 										m_id = 1869014926
 									}
@@ -1970,7 +1970,7 @@
 									m_resetCycleOption = "SameCycleAsSource"
 									m_flFixedCycleValue = 0.0
 									m_bBlendCycle = false
-									m_blendCurve = 
+									m_blendCurve =
 									{
 										m_vControlPoint1 = [ 0.5, 0.0 ]
 										m_vControlPoint2 = [ 0.5, 1.0 ]
@@ -1983,16 +1983,16 @@
 								},
 								{
 									_class = "CAnimStateTransition"
-									m_conditions = 
+									m_conditions =
 									[
 										{
 											_class = "CParameterAnimCondition"
 											m_comparisonOp = 1
-											m_paramID = 
+											m_paramID =
 											{
 												m_id = 211489935
 											}
-											m_comparisonValue = 
+											m_comparisonValue =
 											{
 												m_nType = 4
 												m_data = 0.0
@@ -2000,7 +2000,7 @@
 										},
 									]
 									m_blendDuration = 0.0
-									m_destState = 
+									m_destState =
 									{
 										m_id = 791759344
 									}
@@ -2008,7 +2008,7 @@
 									m_resetCycleOption = "SameCycleAsSource"
 									m_flFixedCycleValue = 0.0
 									m_bBlendCycle = false
-									m_blendCurve = 
+									m_blendCurve =
 									{
 										m_vControlPoint1 = [ 0.5, 0.0 ]
 										m_vControlPoint2 = [ 0.5, 1.0 ]
@@ -2023,18 +2023,18 @@
 							m_tags = [  ]
 							m_tagBehaviors = [  ]
 							m_name = "Optimize!"
-							m_inputConnection = 
+							m_inputConnection =
 							{
-								m_nodeID = 
+								m_nodeID =
 								{
 									m_id = 596843413
 								}
-								m_outputID = 
+								m_outputID =
 								{
 									m_id = 4294967295
 								}
 							}
-							m_stateID = 
+							m_stateID =
 							{
 								m_id = 933976417
 							}
@@ -2047,20 +2047,20 @@
 						},
 						{
 							_class = "CAnimState"
-							m_transitions = 
+							m_transitions =
 							[
 								{
 									_class = "CAnimStateTransition"
-									m_conditions = 
+									m_conditions =
 									[
 										{
 											_class = "CParameterAnimCondition"
 											m_comparisonOp = 0
-											m_paramID = 
+											m_paramID =
 											{
 												m_id = 211489935
 											}
-											m_comparisonValue = 
+											m_comparisonValue =
 											{
 												m_nType = 4
 												m_data = 0.0
@@ -2073,7 +2073,7 @@
 										},
 									]
 									m_blendDuration = 0.0
-									m_destState = 
+									m_destState =
 									{
 										m_id = 933976417
 									}
@@ -2081,7 +2081,7 @@
 									m_resetCycleOption = "SameCycleAsSource"
 									m_flFixedCycleValue = 0.0
 									m_bBlendCycle = false
-									m_blendCurve = 
+									m_blendCurve =
 									{
 										m_vControlPoint1 = [ 0.5, 0.0 ]
 										m_vControlPoint2 = [ 0.5, 1.0 ]
@@ -2094,16 +2094,16 @@
 								},
 								{
 									_class = "CAnimStateTransition"
-									m_conditions = 
+									m_conditions =
 									[
 										{
 											_class = "CParameterAnimCondition"
 											m_comparisonOp = 1
-											m_paramID = 
+											m_paramID =
 											{
 												m_id = 211489935
 											}
-											m_comparisonValue = 
+											m_comparisonValue =
 											{
 												m_nType = 4
 												m_data = 0.0
@@ -2111,7 +2111,7 @@
 										},
 									]
 									m_blendDuration = 0.0
-									m_destState = 
+									m_destState =
 									{
 										m_id = 1869014926
 									}
@@ -2119,7 +2119,7 @@
 									m_resetCycleOption = "SameCycleAsSource"
 									m_flFixedCycleValue = 0.0
 									m_bBlendCycle = false
-									m_blendCurve = 
+									m_blendCurve =
 									{
 										m_vControlPoint1 = [ 0.5, 0.0 ]
 										m_vControlPoint2 = [ 0.5, 1.0 ]
@@ -2134,18 +2134,18 @@
 							m_tags = [  ]
 							m_tagBehaviors = [  ]
 							m_name = "Time buffer"
-							m_inputConnection = 
+							m_inputConnection =
 							{
-								m_nodeID = 
+								m_nodeID =
 								{
 									m_id = 596843413
 								}
-								m_outputID = 
+								m_outputID =
 								{
 									m_id = 4294967295
 								}
 							}
-							m_stateID = 
+							m_stateID =
 							{
 								m_id = 791759344
 							}
@@ -2158,20 +2158,20 @@
 						},
 						{
 							_class = "CAnimState"
-							m_transitions = 
+							m_transitions =
 							[
 								{
 									_class = "CAnimStateTransition"
-									m_conditions = 
+									m_conditions =
 									[
 										{
 											_class = "CParameterAnimCondition"
 											m_comparisonOp = 0
-											m_paramID = 
+											m_paramID =
 											{
 												m_id = 211489935
 											}
-											m_comparisonValue = 
+											m_comparisonValue =
 											{
 												m_nType = 4
 												m_data = 0.0
@@ -2179,7 +2179,7 @@
 										},
 									]
 									m_blendDuration = 0.0
-									m_destState = 
+									m_destState =
 									{
 										m_id = 791759344
 									}
@@ -2187,7 +2187,7 @@
 									m_resetCycleOption = "SameCycleAsSource"
 									m_flFixedCycleValue = 0.0
 									m_bBlendCycle = false
-									m_blendCurve = 
+									m_blendCurve =
 									{
 										m_vControlPoint1 = [ 0.5, 0.0 ]
 										m_vControlPoint2 = [ 0.5, 1.0 ]
@@ -2202,18 +2202,18 @@
 							m_tags = [  ]
 							m_tagBehaviors = [  ]
 							m_name = "Things are active"
-							m_inputConnection = 
+							m_inputConnection =
 							{
-								m_nodeID = 
+								m_nodeID =
 								{
 									m_id = 957643723
 								}
-								m_outputID = 
+								m_outputID =
 								{
 									m_id = 4294967295
 								}
 							}
-							m_stateID = 
+							m_stateID =
 							{
 								m_id = 1869014926
 							}
@@ -2230,38 +2230,38 @@
 				}
 			},
 			{
-				key = 
+				key =
 				{
 					m_id = 2108229436
 				}
-				value = 
+				value =
 				{
 					_class = "CStateMachineAnimNode"
 					m_sName = "Sp. Mov. State duck safeguard"
 					m_vecPosition = [ 240.0, 32.0 ]
-					m_nNodeID = 
+					m_nNodeID =
 					{
 						m_id = 2108229436
 					}
-					m_sNote = "Don\'t apply the duck height corrective if we\'re in a special_movement_state, because none of them support ducking. I will come back and regret putting this here if one eventually does.\n\nNormally gameplay code shouldn\'t even allow you to duck in those states, but you never know. So I guess this is a safety feature"
-					m_states = 
+					m_sNote = "Don't apply the duck height corrective if we're in a special_movement_state, because none of them support ducking. I will come back and regret putting this here if one eventually does.\n\nNormally gameplay code shouldn't even allow you to duck in those states, but you never know. So I guess this is a safety feature"
+					m_states =
 					[
 						{
 							_class = "CAnimState"
-							m_transitions = 
+							m_transitions =
 							[
 								{
 									_class = "CAnimStateTransition"
-									m_conditions = 
+									m_conditions =
 									[
 										{
 											_class = "CParameterAnimCondition"
 											m_comparisonOp = 0
-											m_paramID = 
+											m_paramID =
 											{
 												m_id = 1043732780
 											}
-											m_comparisonValue = 
+											m_comparisonValue =
 											{
 												m_nType = 2
 												m_data = 0
@@ -2269,7 +2269,7 @@
 										},
 									]
 									m_blendDuration = 0.3
-									m_destState = 
+									m_destState =
 									{
 										m_id = 1522606968
 									}
@@ -2277,7 +2277,7 @@
 									m_resetCycleOption = "Beginning"
 									m_flFixedCycleValue = 0.0
 									m_bBlendCycle = false
-									m_blendCurve = 
+									m_blendCurve =
 									{
 										m_vControlPoint1 = [ 0.393333, 0.0 ]
 										m_vControlPoint2 = [ 0.26, 0.993333 ]
@@ -2292,18 +2292,18 @@
 							m_tags = [  ]
 							m_tagBehaviors = [  ]
 							m_name = "In a sp. mov. state"
-							m_inputConnection = 
+							m_inputConnection =
 							{
-								m_nodeID = 
+								m_nodeID =
 								{
 									m_id = 475317107
 								}
-								m_outputID = 
+								m_outputID =
 								{
 									m_id = 4294967295
 								}
 							}
-							m_stateID = 
+							m_stateID =
 							{
 								m_id = 1905685177
 							}
@@ -2316,20 +2316,20 @@
 						},
 						{
 							_class = "CAnimState"
-							m_transitions = 
+							m_transitions =
 							[
 								{
 									_class = "CAnimStateTransition"
-									m_conditions = 
+									m_conditions =
 									[
 										{
 											_class = "CParameterAnimCondition"
 											m_comparisonOp = 1
-											m_paramID = 
+											m_paramID =
 											{
 												m_id = 1043732780
 											}
-											m_comparisonValue = 
+											m_comparisonValue =
 											{
 												m_nType = 2
 												m_data = 0
@@ -2337,7 +2337,7 @@
 										},
 									]
 									m_blendDuration = 0.3
-									m_destState = 
+									m_destState =
 									{
 										m_id = 1905685177
 									}
@@ -2345,7 +2345,7 @@
 									m_resetCycleOption = "Beginning"
 									m_flFixedCycleValue = 0.0
 									m_bBlendCycle = false
-									m_blendCurve = 
+									m_blendCurve =
 									{
 										m_vControlPoint1 = [ 0.34, 0.0 ]
 										m_vControlPoint2 = [ 0.193333, 1.0 ]
@@ -2360,18 +2360,18 @@
 							m_tags = [  ]
 							m_tagBehaviors = [  ]
 							m_name = "Normal movement"
-							m_inputConnection = 
+							m_inputConnection =
 							{
-								m_nodeID = 
+								m_nodeID =
 								{
 									m_id = 1176432092
 								}
-								m_outputID = 
+								m_outputID =
 								{
 									m_id = 4294967295
 								}
 							}
-							m_stateID = 
+							m_stateID =
 							{
 								m_id = 1522606968
 							}
@@ -2389,12 +2389,12 @@
 			},
 		]
 	}
-	m_localParameters = 
+	m_localParameters =
 	[
 		{
 			_class = "CFloatAnimParameter"
 			m_name = "duck"
-			m_id = 
+			m_id =
 			{
 				m_id = 1596905024
 			}
@@ -2408,7 +2408,7 @@
 		{
 			_class = "CFloatAnimParameter"
 			m_name = "scale_height"
-			m_id = 
+			m_id =
 			{
 				m_id = 1570594852
 			}
@@ -2422,7 +2422,7 @@
 		{
 			_class = "CFloatAnimParameter"
 			m_name = "scale_heel"
-			m_id = 
+			m_id =
 			{
 				m_id = 211489935
 			}
@@ -2432,6 +2432,19 @@
 			m_fDefaultValue = 0.0
 			m_fMinValue = -1.0
 			m_fMaxValue = 1.0
+		},
+		{
+			_class = "CEnumAnimParameter"
+			m_name = "special_movement_states"
+			m_id =
+			{
+				m_id = 1043732780
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_defaultValue = 0
+			m_enumOptions = [ "none", "ledge_grab", "roll", "slide", "" ]
 		},
 	]
 	m_localTags = [  ]

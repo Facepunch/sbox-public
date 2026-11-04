@@ -3,4 +3,5 @@
 managed static class Sandbox.Diagnostics.Logging
 {
 	static void RegisterEngineLogger( int id, string name );
+	static void PrintNative( int severity, string logger, string message );
 }

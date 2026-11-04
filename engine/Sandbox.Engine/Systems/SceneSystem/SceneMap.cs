@@ -207,6 +207,9 @@ public sealed partial class SceneMap : IValid
 		{
 			WorldRef.Release();
 			WorldRef = IntPtr.Zero;
+
+			// The release is queued; tear the world down now, while the scene world holding its objects is still alive
+			g_pWorldRendererMgr.ServiceWorldRequests();
 		}
 
 		if ( PVS.IsValid )

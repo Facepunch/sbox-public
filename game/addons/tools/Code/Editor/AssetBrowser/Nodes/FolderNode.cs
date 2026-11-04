@@ -2,7 +2,7 @@
 
 namespace Editor;
 
-class FolderNode : TreeNode<LocalAssetBrowser.Location>
+partial class FolderNode : TreeNode<LocalAssetBrowser.Location>
 {
 	public override string Name => Value.Name;
 	public string Icon { get; set; }
@@ -11,8 +11,6 @@ class FolderNode : TreeNode<LocalAssetBrowser.Location>
 	public bool IsPresent { get; private set; } = true;
 
 	DirectoryEntry.FolderMetadata Metadata;
-
-	FileSystemWatcher watcher;
 
 	public FolderNode( LocalAssetBrowser.Location location ) : base( location )
 	{
@@ -23,22 +21,10 @@ class FolderNode : TreeNode<LocalAssetBrowser.Location>
 
 		if ( location is DiskLocation && IsPresent )
 		{
-			watcher = new FileSystemWatcher( location.Path );
-			watcher.EnableRaisingEvents = true;
-			watcher.Created += OnExternalChanges;
-			watcher.Deleted += OnExternalChanges;
-			watcher.Renamed += OnExternalChanges;
+			// Watched for as long as this node is alive - DirectoryWatcher holds us weakly, so
+			// there's nothing here to keep hold of or clean up
+			DirectoryWatcher.Watch( location.Path, this );
 		}
-	}
-
-	~FolderNode()
-	{
-		watcher?.Dispose();
-	}
-
-	private void OnExternalChanges( object sender, FileSystemEventArgs e )
-	{
-		Dirty();
 	}
 
 	protected override void BuildChildren()
@@ -95,6 +81,13 @@ class FolderNode : TreeNode<LocalAssetBrowser.Location>
 				ThisFolder = false,
 				Context = this
 			};
+
+			if ( AssetLocations.CanModifyFolder( diskLocation ) )
+			{
+				fcm.Menu.AddOption( "Delete", "delete", () => (TreeView as AssetLocations)?.DeleteFolder( diskLocation ), "editor.delete" );
+				fcm.Menu.AddOption( "Rename", "edit", () => AssetList.OpenRenameFlyout( fcm.Target, fcm.ScreenPosition ) );
+				fcm.Menu.AddSeparator();
+			}
 
 			EditorEvent.Run( "folder.contextmenu", fcm );
 

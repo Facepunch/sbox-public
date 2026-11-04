@@ -1,5 +1,6 @@
 ﻿using System.Threading;
 using System.Threading.Channels;
+using Sandbox.Engine;
 
 namespace Sandbox;
 
@@ -9,7 +10,7 @@ namespace Sandbox;
 public static class MainThread
 {
 	static Channel<IDisposable> Disposables = Channel.CreateUnbounded<IDisposable>();
-	static Channel<Action> Actions = Channel.CreateUnbounded<Action>();
+	static Channel<(Action Method, GlobalContext Context)> Actions = Channel.CreateUnbounded<(Action, GlobalContext)>();
 
 	/// <summary>
 	/// Wait to execute on the main thread
@@ -78,6 +79,7 @@ public static class MainThread
 
 	/// <summary>
 	/// When running in another thread you can queue a method to run in the main thread.
+	/// Queued methods retain the originating game or menu context.
 	/// If you are on the main thread we will execute the method immediately and return.
 	/// </summary>
 	public static void Queue( Action method )
@@ -88,7 +90,7 @@ public static class MainThread
 			return;
 		}
 
-		Actions.Writer.TryWrite( method );
+		Actions.Writer.TryWrite( (method, GlobalContext.Current) );
 	}
 
 	/// <summary>
@@ -102,7 +104,8 @@ public static class MainThread
 		{
 			try
 			{
-				action();
+				using var scope = new GlobalContext.GlobalContextScope( action.Context );
+				action.Method();
 			}
 			catch ( System.Exception e )
 			{

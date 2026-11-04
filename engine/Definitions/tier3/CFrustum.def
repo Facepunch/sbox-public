@@ -34,6 +34,7 @@ native class CFrustum
 	void WorldToView( Vector3 vWorld, out Vector2 pOutViewMinusOneToOne );
 	void ViewToWorld( Vector2 vViewMinusOneToOne, out Vector3 pOutWorld );
 
+	bool IsOrthographic();
 	Vector3 GetCameraPosition();
 	Angles GetCameraAngles();
 	float GetCameraNearPlane();

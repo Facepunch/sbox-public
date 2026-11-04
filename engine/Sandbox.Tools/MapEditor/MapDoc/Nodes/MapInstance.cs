@@ -52,4 +52,16 @@ public sealed class MapInstance : MapNode
 		get => instanceNative.GetTarget();
 		set => instanceNative.SetTarget( value );
 	}
+
+	/// <summary>
+	/// For a prefab, the map file it places, like "maps/prefabs/door.vmap". Null for an instance of a group in the same map.
+	/// </summary>
+	public string TargetMapPath
+	{
+		get
+		{
+			var path = instanceNative.GetTargetMapPath();
+			return string.IsNullOrEmpty( path ) ? null : path;
+		}
+	}
 }

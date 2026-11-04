@@ -1,0 +1,25 @@
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+@using Sandbox;
+@using Sandbox.UI;
+@attribute [Group( "Text" )]
+@attribute [Title( "font" )]
+@attribute [Description( "The font shorthand: style, weight, size, line height and family in one declaration." )]
+@attribute [Icon( "text_fields" )]
+
+<root>
+    <h2>font</h2>
+    <p>Set the font's style, weight, size, optional line height and family in one declaration. Each individual property has its own page.</p>
+    <div class="cases">
+        <UiTestCase Setup="@Text" Css="font: 16px Poppins" Caption="16px Poppins" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="font: bold 20px Poppins" Caption="bold 20px Poppins" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="font: italic 20px Poppins" Caption="italic 20px Poppins" Text="@Sample" Note="Italic tails should remain visible at the edge of the text box." />
+        <UiTestCase Setup="@Text" Css="font: italic bold 20px/1.5 Poppins" Caption="italic bold 20px/1.5 Poppins" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="font: 700 18px/2 Roboto" Caption="700 18px/2 Roboto" Text="@Sample" />
+    </div>
+</root>
+@code
+{
+    const string Text = UiTestCase.TextSetup;
+    const string Sample = "Sphinx of black quartz, judge my vow.";
+}

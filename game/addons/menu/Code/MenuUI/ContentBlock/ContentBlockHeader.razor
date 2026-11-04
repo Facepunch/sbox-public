@@ -3,13 +3,22 @@
 @using MenuProject.UI;
 @inherits Panel
 
-<root class="content-block-header">
+<root class="content-block-header @( IsJam ? "jam" : "" )">
     <row>
-        <a href=@url>
-            <label class="heading icon">@Group.Icon</label>
+        @if ( HasQuery )
+        {
+            <a href=@url>
+                <label class="heading icon">@Icon</label>
+                <label class="heading">@Group.Title</label>
+                <label class="heading icon chevron">chevron_right</label>
+            </a>
+        }
+        else
+        {
+            @* No link, so no chevron either. *@
+            <label class="heading icon">@Icon</label>
             <label class="heading">@Group.Title</label>
-            <label class="heading icon chevron">chevron_right</label>
-        </a>
+        }
     </row>
 </root>
 
@@ -18,5 +27,14 @@
     [Parameter]
     public Package.ListResult.Grouping Group { get; set; }
 
-    string url => $"/games/group?Query={Group.QueryString}&title={Group.Title}&icon={Group.Icon}";
+    // No query means the link would land on an unrelated list.
+    bool HasQuery => !string.IsNullOrEmpty( Group?.QueryString );
+
+    bool IsJam => MenuHelpers.IsJamQuery( Group?.QueryString );
+
+    string Icon => IsJam ? "emoji_events" : Group.Icon;
+
+	string url => IsJam ? "/jam" : $"/home/group?Query={Group.QueryString}&title={Group.Title}&subtitle={Group.Description}";
+
+    protected override int BuildHash() => System.HashCode.Combine( Group?.Title, Group?.Icon, HasQuery, IsJam );
 }

@@ -327,12 +327,38 @@ public static partial class EditorUtility
 			// Save instance transform for later
 			var instanceTransform = go.LocalTransform;
 
-			var prefabFile = ResourceLibrary.Get<PrefabFile>( saveLocation );
+			string relativePath = saveLocation.NormalizeFilename( false );
+
+			var asset = AssetSystem.FindByPath( saveLocation );
+			if ( !skipDiskWrite )
+			{
+				// create the asset if it doesn't exist yet, so we have it's GUID + relative path to register the prefab with
+				asset ??= AssetSystem.CreateResource( "prefab", saveLocation );
+			}
+
+			if ( asset is not null )
+			{
+				// The save dialog gives an absolute path, but a prefab loaded from disk is registered
+				// under its relative asset path - resolve it so we overwrite the live prefab file
+				// instead of building a fresh one that existing instances know nothing about.
+				saveLocation = asset.Path;
+				relativePath = asset.RelativePath;
+			}
+			else
+			{
+				if ( FileSystem.Mounted.GetRelativePath( relativePath ) is { } rp )
+					relativePath = rp;
+
+				if ( relativePath[0] == '/' ) relativePath = relativePath[1..];
+			}
+
+			var prefabFile = ResourceLibrary.Get<PrefabFile>( relativePath );
 			if ( !prefabFile.IsValid() )
 			{
 				prefabFile = new PrefabFile();
-				prefabFile.RegisterWeakResourceId( saveLocation );
-				prefabFile.Register( saveLocation );
+
+				prefabFile.RegisterWeakResourceId( relativePath, asset?.Guid );
+				prefabFile.Register( relativePath );
 			}
 
 			Dictionary<Guid, Guid> instanceToPrefabGuid = null;
@@ -349,11 +375,21 @@ public static partial class EditorUtility
 				// Zero instance location for serialization to prefab file
 				go.LocalPosition = Vector3.Zero;
 
+				// When overwriting an existing prefab, keep its root id so existing instances stay linked to it
+				var previousRootGuid = prefabFile.RootObject?.GetPropertyValue<Guid?>( "__guid", null );
+
 				prefabFile.RootObject = go.SerializeStandard( new GameObject.SerializeOptions() );
-				instanceToPrefabGuid = SceneUtility.MakeIdGuidsUnique( prefabFile.RootObject );
+				instanceToPrefabGuid = SceneUtility.MakeIdGuidsUnique( prefabFile.RootObject, previousRootGuid );
 
 				// Reset transform
 				go.LocalTransform = instanceTransform;
+
+				// The cached scene still holds the old content, refresh so instances validate against the new content
+				prefabFile.CachedScene?.Refresh( prefabFile );
+
+				// Refresh existing instances of the overwritten prefab in all open sessions,
+				// cascading through prefabs that embed it
+				EditorScene.UpdatePrefabInstances( prefabFile );
 			}
 
 			UpdatePrefabAfterModification( prefabFile.ResourcePath, skipDiskWrite );
@@ -395,14 +431,16 @@ public static partial class EditorUtility
 			// TODO this only reason for skipFileWrite exists is because we cannot easily spinup an asset system in tests
 			if ( !skipFileWrite )
 			{
+				// Sol: we're mixing up absolute and relative paths here? wtf?
 				WritePrefabToDisk( prefabFile, prefabFile.ResourcePath );
 			}
 		}
 
 		/// <summary>
 		/// Convert a GameObject to a prefab. This will write the newly created prefab to disk and set the prefab source on the GameObject.
+		/// Returns the converted GameObject, which may be a clone of the original if it was part of a prefab instance, or null on failure.
 		/// </summary>
-		public static void ConvertGameObjectToPrefab( GameObject go, string saveLocation, bool skipDiskWrite = false )
+		public static GameObject ConvertGameObjectToPrefab( GameObject go, string saveLocation, bool skipDiskWrite = false )
 		{
 			// We cannot convert the existing go in-place if it's part of a prefab instance.
 			if ( go.IsPrefabInstance )
@@ -430,11 +468,16 @@ public static partial class EditorUtility
 			if ( prefabFile is null )
 			{
 				Log.Warning( "Failed to convert GameObject to prefab, could not write file." );
-				return;
+				return null;
 			}
 
+			// Written back to the prefab it's already an instance of - lookups and patch
+			// were refreshed by the writeback, re-initializing here would wipe them.
+			if ( instanceToPrefabGuid is null )
+				return go;
+
 			// set or change prefab source
-			go.InitPrefabInstance( prefabFile.ResourcePath, false );
+			go.InitPrefabInstance( ResourceId.Get( prefabFile ), false );
 
 			// Invert lookup
 			var prefabToInstanceGuid = new Dictionary<Guid, Guid>( instanceToPrefabGuid.Count );
@@ -444,6 +487,8 @@ public static partial class EditorUtility
 			}
 			go.PrefabInstance.InitLookups( prefabToInstanceGuid );
 			go.PrefabInstance.RefreshPatch();
+
+			return go;
 		}
 
 		private static GameObject ResolveGameObject( object target )

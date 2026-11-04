@@ -1,4 +1,5 @@
 ﻿using Editor.MapDoc;
+using System;
 
 namespace Editor.MapEditor;
 
@@ -52,19 +53,29 @@ public static partial class Hammer
 		// used and then looking at the package they're from, and if the package is an addon we use it. We assume
 		// that if they're referencing a specific game then the map will always be run with that game.
 		//
-		{
-			mapAsset.Publishing.ProjectConfig.PackageReferences = new(); // maybe we shouldn't clear this? No reason why not right now.
-			mapAsset.Publishing.ProjectConfig.PackageReferences.AddRange( usedPackages.Where( x => x.TypeName == "addon" ).Select( x => x.FullIdent ) );
-
-			//
-			// Lowercase and remove duplicates
-			//
-			mapAsset.Publishing.ProjectConfig.PackageReferences = mapAsset.Publishing.ProjectConfig.PackageReferences.Select( x => x.ToLowerInvariant() ).Distinct().OrderBy( x => x ).ToList();
-		}
+		UpdatePackageReferences( mapAsset.Publishing, usedPackages.Where( x => x.TypeName == "addon" ).Select( x => x.FullIdent ) );
 
 
 		// Save the updated publish config
 		mapAsset.MetaData.Set( "publish", mapAsset.Publishing );
+	}
+
+	internal static void UpdatePackageReferences( Asset.PublishSettings settings, IEnumerable<string> addonReferences )
+	{
+		var config = settings.ProjectConfig;
+
+		// Only remove references we previously added. Older maps have no provenance, so keep their
+		// existing references rather than guessing which ones the user configured explicitly.
+		var manualReferences = (config.PackageReferences ?? [])
+			.Except( settings.HammerAutoPackageReferences ?? [], StringComparer.OrdinalIgnoreCase )
+			.Select( x => x.ToLowerInvariant() ).ToArray();
+
+		// Don't claim an existing manual reference just because an entity also needs that addon.
+		var automaticReferences = addonReferences.Select( x => x.ToLowerInvariant() )
+			.Except( manualReferences ).OrderBy( x => x ).ToArray();
+
+		config.PackageReferences = manualReferences.Concat( automaticReferences ).OrderBy( x => x ).ToList();
+		settings.HammerAutoPackageReferences = automaticReferences;
 	}
 
 	/// <summary>

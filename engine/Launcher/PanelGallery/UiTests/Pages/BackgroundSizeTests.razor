@@ -1,0 +1,40 @@
+@using Sandbox.PanelGallery;
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+@using Sandbox;
+@using Sandbox.UI;
+@attribute [Group( "Backgrounds" )]
+@attribute [Title( "background-size" )]
+@attribute [Icon( "science" )]
+<root>
+    <h2>Sizing</h2>
+
+    <div class="cases">
+        <UiTestCase Caption="Natural size" Setup="@Plate" Css="background-image: url( https://cdn.sbox.game/upload/b/9c9201ad/eff8/4b0c/81af/58c8a68667b9.png )"
+                    Note="No size given, so the image comes in at its own and repeats to fill." />
+        <UiTestCase Caption="cover" Setup="@Plate" Css="background-image: url( https://cdn.sbox.game/upload/b/9c9201ad/eff8/4b0c/81af/58c8a68667b9.png ); background-size: cover"
+                    Note="Fills the box, keeps the aspect, crops the overflow." />
+        <UiTestCase Caption="contain" Setup="@Plate" Css="background-image: url( https://cdn.sbox.game/upload/b/9c9201ad/eff8/4b0c/81af/58c8a68667b9.png ); background-size: contain"
+                    Note="Fits inside and keeps the aspect - and by default the leftover is filled by repeats." />
+        <UiTestCase Caption="Contain, no repeat" Setup="@Plate" Css="background-image: url( https://cdn.sbox.game/upload/b/9c9201ad/eff8/4b0c/81af/58c8a68667b9.png ); background-size: contain; background-repeat: no-repeat"
+                    Note="Contain as people usually mean it." />
+        <UiTestCase Caption="100% 100%" Setup="@Plate" Css="background-image: url( https://cdn.sbox.game/upload/b/9c9201ad/eff8/4b0c/81af/58c8a68667b9.png ); background-size: 100% 100%"
+                    Note="Stretched to the box, aspect ignored." />
+        <UiTestCase Caption="Cover, wide frame" Setup="@Wide" Css="background-image: url( https://cdn.sbox.game/upload/b/9c9201ad/eff8/4b0c/81af/58c8a68667b9.png ); background-size: cover"
+                    Note="Cover on a wide box crops top and bottom rather than letterboxing." />
+        <UiTestCase Caption="50px 50px" Setup="@Plate" Css="background-image: url( https://cdn.sbox.game/upload/b/9c9201ad/eff8/4b0c/81af/58c8a68667b9.png ); background-size: 50px 50px"
+                    Note="A fixed tile, so it repeats four times." />
+        <UiTestCase Caption="50%" Setup="@Plate" Css="background-image: url( https://cdn.sbox.game/upload/b/9c9201ad/eff8/4b0c/81af/58c8a68667b9.png ); background-size: 50%"
+                    Note="One value is the width; on the web the height then follows the aspect." />
+    </div>
+
+
+</root>
+@code
+{
+    // A dark plate behind each image, so transparency and letterboxing are visible
+    const string Plate = "width: 200px; height: 200px; background-color: #23262e";
+    const string Wide = "width: 400px; height: 200px; background-color: #23262e";
+
+
+}

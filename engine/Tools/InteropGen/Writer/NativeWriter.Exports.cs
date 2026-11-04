@@ -17,7 +17,8 @@ internal partial class NativeWriter
 
 		if ( c.Static && c.NativeName.StartsWith( "global" ) )
 		{
-			return "::";
+			var prefix = c.Attributes.FirstOrDefault( x => x.StartsWith( "NativePrefix:" ) );
+			return "::" + prefix?["NativePrefix:".Length..];
 		}
 
 		if ( c.Static || memberStatic )

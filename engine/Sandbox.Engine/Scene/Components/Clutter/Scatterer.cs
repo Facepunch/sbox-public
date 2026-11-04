@@ -1,3 +1,4 @@
+using Sandbox.Engine;
 namespace Sandbox.Clutter;
 
 /// <summary>
@@ -52,7 +53,7 @@ public abstract class Scatterer
 	public override int GetHashCode()
 	{
 		HashCode hash = new();
-		var typeDesc = Game.TypeLibrary.GetType( GetType() );
+		var typeDesc = GlobalContext.Current.TypeLibrary.GetType( GetType() );
 
 		if ( typeDesc == null )
 			return base.GetHashCode();
@@ -155,6 +156,19 @@ public abstract class Scatterer
 	protected static SceneTraceResult[] BatchTraceGround( Scene scene, IReadOnlyList<Vector3> positions, BBox sceneBounds )
 	{
 		var results = new SceneTraceResult[positions.Count];
+		BatchTraceGroundInto( scene, positions, sceneBounds, results );
+		return results;
+	}
+
+	internal static PooledSpan<SceneTraceResult> RentGroundTraces( Scene scene, IReadOnlyList<Vector3> positions, BBox sceneBounds )
+	{
+		var traces = new PooledSpan<SceneTraceResult>( positions.Count, clearOnReturn: true );
+		BatchTraceGroundInto( scene, positions, sceneBounds, traces.Array );
+		return traces;
+	}
+
+	private static void BatchTraceGroundInto( Scene scene, IReadOnlyList<Vector3> positions, BBox sceneBounds, SceneTraceResult[] results )
+	{
 		var physicsWorld = scene.PhysicsWorld;
 
 		// even though this is on the main thread, it's safe to do since nothing will change 
@@ -172,8 +186,6 @@ public abstract class Scatterer
 
 			results[i] = SceneTraceResult.From( scene, physicsResult );
 		} );
-
-		return results;
 	}
 
 	/// <summary>

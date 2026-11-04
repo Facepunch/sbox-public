@@ -91,9 +91,12 @@ partial class MapInstance : IHasPhysicsDescription
 		{
 			Assert.NotNull( part, "Physics part was null" );
 
-			var body = new PhysicsBody( Scene.PhysicsWorld );
+			var body = Scene.PhysicsWorld.CreateBody( new PhysicsBodySettings
+			{
+				Position = world.Position,
+				Rotation = world.Rotation
+			} );
 			body.Component = Collider;
-			body.Transform = world;
 			Bodies.Add( body );
 			CollisionEvents.Add( new CollisionEventSystem( body ) );
 
@@ -101,32 +104,31 @@ partial class MapInstance : IHasPhysicsDescription
 
 			foreach ( var sphere in part.Spheres )
 			{
+				using var surface = body._body.UseShapeSurface( sphere.Surface );
 				var shape = body.AddSphereShape( local.PointToWorld( sphere.Sphere.Center ), sphere.Sphere.Radius * local.UniformScale );
 				Assert.NotNull( shape, "Sphere shape was null" );
-				shape.Surface = sphere.Surface;
 			}
 
 			foreach ( var capsule in part.Capsules )
 			{
+				using var surface = body._body.UseShapeSurface( capsule.Surface );
 				var shape = body.AddCapsuleShape( local.PointToWorld( capsule.Capsule.CenterA ), local.PointToWorld( capsule.Capsule.CenterB ), capsule.Capsule.Radius * local.UniformScale );
 				Assert.NotNull( shape, "Capsule shape was null" );
-				shape.Surface = capsule.Surface;
 			}
 
 			foreach ( var hull in part.Hulls )
 			{
+				using var surface = body._body.UseShapeSurface( hull.Surface );
 				var shape = body.AddShape( hull, local );
 				Assert.NotNull( shape, "Hull shape was null" );
-				shape.Surface = hull.Surface;
 			}
 
 			foreach ( var mesh in part.Meshes )
 			{
+				using var surface = body._body.UseShapeSurface( mesh.Surface, mesh.Surfaces );
 				var shape = body.AddShape( mesh, local, false );
 				Assert.NotNull( shape, "Mesh shape was null" );
 
-				shape.Surface = mesh.Surface;
-				shape.Surfaces = mesh.Surfaces;
 			}
 
 			SetCollisionAttributes( body, part );
@@ -144,6 +146,9 @@ partial class MapInstance : IHasPhysicsDescription
 		var indicesCount = part.native.GetCollisionAttributeCount();
 		var attributeCount = Physics.CollisionAttributeCount;
 
+		if ( body?._body is not PhysicsBody3d body3d )
+			return;
+
 		if ( indicesCount > 0 )
 		{
 			if ( indicesCount != shapeCount )
@@ -156,7 +161,7 @@ partial class MapInstance : IHasPhysicsDescription
 				var index = part.native.GetCollisionAttributeIndex( i );
 				if ( index < attributeCount )
 				{
-					var shape = body.native.GetShape( i );
+					var shape = body3d.native.GetShape( i );
 					if ( !shape.IsValid() )
 						continue;
 
@@ -180,9 +185,12 @@ partial class MapInstance : IHasPhysicsDescription
 			var tags = Physics.GetTags( part.native.m_nCollisionAttributeIndex );
 			foreach ( var shape in body.Shapes )
 			{
+				if ( shape?._shape is not PhysicsShape3d shape3d )
+					continue;
+
 				foreach ( var tag in tags )
 				{
-					shape.native.AddTag( tag.Value );
+					shape3d.native.AddTag( tag.Value );
 				}
 			}
 		}

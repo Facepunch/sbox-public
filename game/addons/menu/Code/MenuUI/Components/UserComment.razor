@@ -1,10 +1,11 @@
-﻿@namespace Menu
+﻿@namespace SboxMenu
 @inherits Panel
 @using Sandbox
+@using MenuProject.MenuUI.Popups
 
 <root>
     <div class="left">
-        <img src=@Player?.Avatar onclick="@OpenUserPanel" />
+        <img src=@Player?.Avatar onclick=@( e => OpenUserPanel( e ) ) />
     </div>
 
     <div class="right">
@@ -15,7 +16,7 @@
                 if (Player.Online) playerclass += " online";
                 if (Player.IsFriend) playerclass += " friend";
 
-                <div class="@playerclass" onclick="@OpenUserPanel">@Player.Name</div>
+                <div class="@playerclass" onclick=@( e => OpenUserPanel( e ) )>@Player.Name</div>
             }
 
             @if (Date != null)
@@ -52,9 +53,14 @@
     [Parameter] public DateTimeOffset? Date { get; set; }
     [Parameter] public string TimePlayed { get; set; }
 
-    void OpenUserPanel()
+    /// <summary>
+    /// Their s&box profile card, over what was clicked - the same one the friends rail opens.
+    /// </summary>
+    void OpenUserPanel( PanelEvent e )
     {
-        Game.Overlay.ShowPlayer(Player.Id);
+        if ( Player is null ) return;
+
+        FriendCard.ShowFromClick( e, new Friend( Player.Id ) );
     }
 
 }

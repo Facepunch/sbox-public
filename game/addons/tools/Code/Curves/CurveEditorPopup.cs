@@ -60,20 +60,34 @@ public class CurveEditorPopup : Widget
 			Presets.OnCurveClicked = c =>
 			{
 				var existingCurve = serializedProperty.GetValue<Curve>();
+				c.UpdateTimeRange( InheritRange( existingCurve.TimeRange, c.TimeRange ), false );
+				c.UpdateValueRange( InheritRange( existingCurve.ValueRange, c.ValueRange ), false );
+				serializedProperty.SetValue( c );
+			};
+			Presets.OnCurveRangesClicked = c =>
+			{
+				var existingCurve = serializedProperty.GetValue<Curve>();
 				if ( !Editor.CanEditTimeRange )
 				{
-					c.UpdateTimeRange( existingCurve.TimeRange, false );
+					c.UpdateTimeRange( InheritRange( existingCurve.TimeRange, c.TimeRange ), false );
 				}
 				if ( !Editor.CanEditValueRange )
 				{
-					c.UpdateValueRange( existingCurve.ValueRange, false );
+					c.UpdateValueRange( InheritRange( existingCurve.ValueRange, c.ValueRange ), false );
 				}
 				serializedProperty.SetValue( c );
 			};
+			Presets.CanApplyRanges = () => Editor.CanEditTimeRange || Editor.CanEditValueRange;
 			Presets.GetCurveToSave = () => serializedProperty.GetValue<Curve>();
 			Layout.Add( Presets );
 		}
 	}
+
+	/// <summary>
+	/// Keep the range of the curve being edited, unless it's degenerate (an unset curve), in which
+	/// case the preset's own range is the only sane thing to use.
+	/// </summary>
+	static Vector2 InheritRange( Vector2 existing, Vector2 fallback ) => existing.x == existing.y ? fallback : existing;
 
 	/// <summary>
 	/// Set this editor to be a range editor

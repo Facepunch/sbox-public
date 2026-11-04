@@ -19,6 +19,14 @@ partial class PublishWizard
 
 		public override async Task OpenAsync()
 		{
+			ChangeTitle ??= DefaultChangeTitle();
+			Rebuild();
+			Visible = true;
+			await Task.CompletedTask;
+		}
+
+		public override void Rebuild()
+		{
 			BodyLayout?.Clear( true );
 			BodyLayout.Margin = new Sandbox.UI.Margin( 64, 0 );
 
@@ -27,8 +35,6 @@ partial class PublishWizard
 			//
 			BodyLayout.AddSpacingCell( 16 );
 			BodyLayout.AddStretchCell();
-
-			ChangeTitle = $"Changes on {DateTime.UtcNow.ToString( "yyyy-MM-dd" )}";
 
 			{
 				var sheet = new ControlSheet();
@@ -42,22 +48,22 @@ partial class PublishWizard
 			}
 
 			BodyLayout.AddStretchCell();
-			Visible = true;
-
-			await Task.CompletedTask;
 		}
 
 		public override async Task<bool> FinishAsync()
 		{
+			Publisher.SetChangeDetails( ChangeTitle, ChangeDetail );
+
 			try
 			{
-				Publisher.SetChangeDetails( ChangeTitle, ChangeDetail );
 				await Publisher.Publish();
 			}
 			catch ( System.Exception e )
 			{
-				// todo catch and show errors
+				// Stay here, so they can fix it and try again
 				Log.Error( e );
+				EditorUtility.DisplayDialog( "Publish Failed", e.Message );
+				return false;
 			}
 
 			return true;

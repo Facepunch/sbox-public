@@ -1,3 +1,5 @@
+#pragma warning disable CS0618 // Tests intentionally exercise legacy fog compatibility.
+
 using System.Collections.Generic;
 using Sandbox.Rendering;
 
@@ -75,7 +77,7 @@ public class RenderComponentTest
 
 	/// <summary>
 	/// Assigning a model to a live ModelRenderer pushes it straight through to the scene
-	/// object and enables rendering, because the citizen model has render meshes.
+	/// object and enables rendering, because the human model has render meshes.
 	/// </summary>
 	[TestMethod]
 	public void ModelRendererModelAssignment()
@@ -86,11 +88,11 @@ public class RenderComponentTest
 		var go = scene.CreateObject();
 		var mr = go.Components.Create<ModelRenderer>();
 
-		var citizen = Model.Load( "models/citizen/citizen.vmdl" );
-		mr.Model = citizen;
+		var human = Model.Load( "models/citizen_human/human.vmdl" );
+		mr.Model = human;
 
-		Assert.AreEqual( citizen, mr.Model );
-		Assert.AreEqual( citizen, mr.SceneObject.Model, "Model should propagate to the scene object" );
+		Assert.AreEqual( human, mr.Model );
+		Assert.AreEqual( human, mr.SceneObject.Model, "Model should propagate to the scene object" );
 		Assert.IsTrue( mr.SceneObject.RenderingEnabled, "A model with render meshes should be rendering" );
 
 		go.Destroy();
@@ -262,6 +264,8 @@ public class RenderComponentTest
 	[TestMethod]
 	public void LineRendererVectorPointsDriveSceneObject()
 	{
+		if ( !Graphics.IsAvailable ) Assert.Inconclusive( "Requires graphics." );
+
 		var scene = new Scene();
 		using var sceneScope = scene.Push();
 
@@ -307,6 +311,8 @@ public class RenderComponentTest
 	[TestMethod]
 	public void LineRendererGameObjectPoints()
 	{
+		if ( !Graphics.IsAvailable ) Assert.Inconclusive( "Requires graphics." );
+
 		var scene = new Scene();
 		using var sceneScope = scene.Push();
 
@@ -344,6 +350,8 @@ public class RenderComponentTest
 	[TestMethod]
 	public void LineRendererPropertyPropagation()
 	{
+		if ( !Graphics.IsAvailable ) Assert.Inconclusive( "Requires graphics." );
+
 		var scene = new Scene();
 		using var sceneScope = scene.Push();
 
@@ -519,15 +527,8 @@ public class RenderComponentTest
 
 	/// <summary>
 	/// A SpriteRenderer with no sprite assigned has pinned defaults, reports a transparent
-	/// texture and no animation. On tick the SceneSpriteSystem attempts to register it by
-	/// constructing a SpriteBatchSceneObject, but in the test host the GPU buffer creation
-	/// inside that constructor fails after the base SceneCustomObject constructor has
-	/// already added the object to the scene world - the FinishUpdate listener swallows the
-	/// exception, so a half-built batch object is left in the world and the sprite is never
-	/// registered into it. Suspected engine bug: GpuBuffer.Initialize does not validate the
-	/// handle CreateGPUBuffer returns and CreateRenderGroup is not exception-safe, leaking
-	/// one scene object per registration attempt. Disabled sprites are skipped entirely, so
-	/// no further batch objects appear.
+	/// texture and no animation. Registration creates a batch only when graphics are available;
+	/// the empty renderer must not leave partially constructed batch objects in the scene.
 	/// </summary>
 	[TestMethod]
 	public void SpriteRendererDefaultsAndRegistration()
@@ -543,6 +544,9 @@ public class RenderComponentTest
 		Assert.AreEqual( Color.White, sr.Color );
 		Assert.IsFalse( sr.Additive );
 		Assert.IsFalse( sr.Opaque );
+		Assert.IsFalse( sr.Refraction );
+		Assert.IsNull( sr.NormalTexture );
+		Assert.AreEqual( 8.0f, sr.RefractionStrength );
 		Assert.AreEqual( 0.5f, sr.AlphaCutoff );
 		Assert.AreEqual( FilterMode.Bilinear, sr.TextureFilter );
 		Assert.AreEqual( SpriteRenderer.BillboardMode.Always, sr.Billboard );
@@ -556,14 +560,16 @@ public class RenderComponentTest
 
 		scene.GameTick();
 
-		var batch = scene.SceneWorld.SceneObjects.OfType<SpriteBatchSceneObject>().Single();
-		Assert.IsFalse( batch.ContainsSprite( sr.Id ), "Registration aborts mid-construction in the test host, leaving the batch scene object empty" );
+		var batches = scene.SceneWorld.SceneObjects.OfType<SpriteBatchSceneObject>().ToArray();
+		Assert.AreEqual( Graphics.IsAvailable ? 1 : 0, batches.Length );
+		if ( Graphics.IsAvailable ) Assert.IsTrue( batches[0].ContainsSprite( sr.Id ) );
 
 		sr.Enabled = false;
 		scene.GameTick();
 
-		Assert.AreEqual( 1, scene.SceneWorld.SceneObjects.OfType<SpriteBatchSceneObject>().Count(), "A disabled sprite is skipped, so no further registration attempt creates another batch object" );
-		Assert.IsFalse( batch.ContainsSprite( sr.Id ), "The sprite never made it into the batch" );
+		Assert.IsFalse( scene.SceneWorld.SceneObjects.OfType<SpriteBatchSceneObject>().Any( batch => batch.ContainsSprite( sr.Id ) ) );
+		if ( !Graphics.IsAvailable )
+			Assert.AreEqual( 0, scene.SceneWorld.SceneObjects.OfType<SpriteBatchSceneObject>().Count() );
 
 		go.Destroy();
 		scene.ProcessDeletes();
@@ -594,6 +600,8 @@ public class RenderComponentTest
 		sr.TextureFilter = FilterMode.Point;
 		sr.Billboard = SpriteRenderer.BillboardMode.None;
 		sr.IsSorted = true;
+		sr.Refraction = true;
+		sr.RefractionStrength = 23.0f;
 
 		var clone = RenderTestUtility.SerializeRoundTrip( scene, go );
 		var loaded = clone.Components.Get<SpriteRenderer>();
@@ -612,9 +620,111 @@ public class RenderComponentTest
 		Assert.AreEqual( FilterMode.Point, loaded.TextureFilter );
 		Assert.AreEqual( SpriteRenderer.BillboardMode.None, loaded.Billboard );
 		Assert.IsTrue( loaded.IsSorted );
+		Assert.IsTrue( loaded.Refraction );
+		Assert.AreEqual( 23.0f, loaded.RefractionStrength );
 
 		clone.Destroy();
 		scene.ProcessDeletes();
+	}
+
+	/// <summary>
+	/// Sprite and particle renderers use the same batch classification regardless of refraction.
+	/// Refraction requires a normal map and translucent, non-additive blending; opacity does not affect it.
+	/// </summary>
+	[TestMethod]
+	[DataRow( false, false, false, true, false )]
+	[DataRow( true, false, false, false, false )]
+	[DataRow( true, true, false, true, false )]
+	[DataRow( true, false, true, true, false )]
+	[DataRow( true, false, false, true, true )]
+	public void SpriteRendererRefractionClassification( bool enabled, bool opaque, bool additive, bool hasNormal, bool expected )
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		var sprite = scene.CreateObject().Components.Create<SpriteRenderer>();
+		sprite.Refraction = enabled;
+		sprite.NormalTexture = hasNormal ? Texture.White : null;
+		sprite.Opaque = opaque;
+		sprite.Additive = additive;
+
+		var particle = scene.CreateObject().Components.Create<ParticleSpriteRenderer>();
+		particle.Refraction = enabled;
+		particle.NormalTexture = sprite.NormalTexture;
+		particle.Opaque = opaque;
+		particle.Additive = additive;
+
+		foreach ( float alpha in new[] { 0.0f, 0.5f, 1.0f } )
+		{
+			sprite.Color = Color.White.WithAlpha( alpha );
+			Assert.AreEqual( expected, sprite.IsRefractive );
+			Assert.AreEqual( expected, particle.IsRefractive );
+			var spriteFlags = SceneSpriteSystem.GetRenderGroupFlags( sprite );
+			var particleFlags = SceneSpriteSystem.GetRenderGroupFlags( particle );
+			Assert.AreEqual( particleFlags, spriteFlags );
+
+			sprite.Refraction = false;
+			particle.Refraction = false;
+			Assert.AreEqual( spriteFlags, SceneSpriteSystem.GetRenderGroupFlags( sprite ), "Refraction must not split the sprite batch." );
+			Assert.AreEqual( particleFlags, SceneSpriteSystem.GetRenderGroupFlags( particle ), "Refraction must not split the particle batch." );
+			sprite.Refraction = enabled;
+			particle.Refraction = enabled;
+		}
+	}
+
+	/// <summary>
+	/// Ordinary and refractive sprites and particles share one sorted batch. Its scene-color copy
+	/// follows the remaining readers when refraction is toggled or a particle renderer disappears.
+	/// </summary>
+	[TestMethod]
+	public void SpriteRefractionSharesSortedBatch()
+	{
+		if ( !Graphics.IsAvailable ) Assert.Inconclusive( "Requires graphics." );
+
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		var ordinary = scene.CreateObject().Components.Create<SpriteRenderer>();
+		ordinary.IsSorted = true;
+
+		var refractive = scene.CreateObject().Components.Create<SpriteRenderer>();
+		refractive.IsSorted = true;
+		refractive.NormalTexture = Texture.White;
+		refractive.Refraction = true;
+
+		var particle = scene.CreateObject().Components.Create<ParticleSpriteRenderer>();
+		particle.GameObject.Tags.Remove( "particles" );
+		particle.SortMode = ParticleSpriteRenderer.ParticleSortMode.ByDistance;
+		particle.NormalTexture = Texture.White;
+		particle.ParticleEffect.Emit( Vector3.Zero, 0 );
+
+		var system = scene.GetSystem<SceneSpriteSystem>();
+		system.UpdateSpriteRenderers();
+		system.UpdateParticleSprites();
+
+		var batch = scene.SceneWorld.SceneObjects.OfType<SpriteBatchSceneObject>().Single();
+		batch.UploadOnHost();
+		Assert.IsTrue( batch.Sorted );
+		Assert.IsTrue( batch.ContainsSprite( ordinary.Id ) );
+		Assert.IsTrue( batch.ContainsSprite( refractive.Id ) );
+		Assert.IsTrue( batch.SpriteGroups.ContainsKey( particle.Id ) );
+		Assert.IsTrue( batch.Flags.WantsFrameBufferCopy );
+
+		refractive.Refraction = false;
+		system.UpdateSpriteRenderers();
+		batch.UploadOnHost();
+		Assert.IsFalse( batch.Flags.WantsFrameBufferCopy );
+
+		particle.Refraction = true;
+		system.UpdateParticleSprites();
+		batch.UploadOnHost();
+		Assert.AreSame( batch, scene.SceneWorld.SceneObjects.OfType<SpriteBatchSceneObject>().Single() );
+		Assert.IsTrue( batch.Flags.WantsFrameBufferCopy );
+
+		particle.Enabled = false;
+		system.UpdateParticleSprites();
+		batch.UploadOnHost();
+		Assert.IsFalse( batch.Flags.WantsFrameBufferCopy );
+		Assert.IsTrue( batch.ContainsSprite( ordinary.Id ) );
+		Assert.IsTrue( batch.ContainsSprite( refractive.Id ) );
 	}
 
 	/// <summary>

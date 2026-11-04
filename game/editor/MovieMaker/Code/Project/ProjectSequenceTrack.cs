@@ -18,7 +18,7 @@ public sealed partial class ProjectSequenceTrack( MovieProject project, Guid id,
 	private readonly HashSet<IProjectSequencePropertyTrack> _propertyTracks = new();
 	private bool _tracksInvalid = true;
 
-	public override int Order => -2000;
+	public override int Order => -0x2000_0000;
 
 	public override bool IsEmpty => _blocks.Count == 0;
 	public override IEnumerable<MovieResource> References => _blocks.Select( x => x.Resource ).Distinct();
@@ -64,6 +64,9 @@ public sealed partial class ProjectSequenceTrack( MovieProject project, Guid id,
 
 		return block;
 	}
+
+	public ProjectSequenceBlock AddBlock( MovieTime startTime, MovieResource resource ) =>
+		AddBlock( (startTime, startTime + resource.GetDuration()), new MovieTransform( startTime ), resource );
 
 	public void RemoveBlock( ProjectSequenceBlock block )
 	{

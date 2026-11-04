@@ -22,7 +22,6 @@ public sealed partial class RenderTarget
 	public static RenderTarget GetTemporary( int width, int height, ImageFormat colorFormat = ImageFormat.Default, ImageFormat depthFormat = ImageFormat.Default, MultisampleAmount msaa = MultisampleAmount.MultisampleNone, int numMips = 1, string targetName = "" )
 	{
 		const int maxSize = 1024 * 16;
-		int maxMips = (int)Math.Log2( Math.Max( width, height ) );
 
 		if ( width <= 0 ) throw new ArgumentException( $"width should be higher than 0 (was {width}x{height})" );
 		if ( width > maxSize ) throw new ArgumentException( $"width should be lower than ({maxSize})" );
@@ -31,7 +30,7 @@ public sealed partial class RenderTarget
 		if ( numMips <= 0 ) throw new ArgumentException( $"numMips should be higher than 0 (was {width}x{height}x{numMips})" );
 		if ( numMips > 1 && msaa != MultisampleAmount.MultisampleNone ) throw new ArgumentException( $"Texture cannot have both msaa and mips at same time" );
 
-		numMips = Math.Min( numMips, maxMips );
+		numMips = Math.Min( numMips, CalculateMaxMipCount( width, height ) );
 
 		if ( colorFormat == ImageFormat.Default )
 			colorFormat = Graphics.IdealColorFormat;
@@ -39,13 +38,24 @@ public sealed partial class RenderTarget
 		if ( depthFormat == ImageFormat.Default )
 			depthFormat = g_pRenderDevice.IsUsing32BitDepthBuffer() ? ImageFormat.D32FS8 : ImageFormat.D24S8;
 
-		int hash = HashCode.Combine( width, height, colorFormat, depthFormat, numMips, msaa == MultisampleAmount.MultisampleScreen ? (MultisampleAmount)RenderService.GetMultisampleType() : msaa, targetName );
+		// Resolve this once, so the key matches the sample count the texture is created with
+		if ( msaa == MultisampleAmount.MultisampleScreen )
+			msaa = Graphics.IsActive ? Graphics.IdealMsaaLevel : CSceneSystem.GetMainSwapChainMultisampleType().FromEngine();
+
+		int hash = HashCode.Combine( width, height, colorFormat, depthFormat, numMips, msaa, targetName );
 
 		RenderTarget rt = null;
 
 		lock ( _lock )
 		{
-			rt = All.FirstOrDefault( x => !x.Loaned && x.CreationHash == hash );
+			// Not FirstOrDefault - the predicate would capture hash and allocate a closure every call.
+			foreach ( var candidate in All )
+			{
+				if ( candidate.Loaned || candidate.CreationHash != hash ) continue;
+
+				rt = candidate;
+				break;
+			}
 
 			if ( rt == null )
 			{
@@ -77,6 +87,11 @@ public sealed partial class RenderTarget
 		return rt;
 	}
 
+	internal static int CalculateMaxMipCount( int width, int height )
+	{
+		return (int)Math.Log2( Math.Max( width, height ) ) + 1; // matt: this is correct, do not fucking tocuh it
+	}
+
 	/// <summary>
 	/// Get a temporary render target. You should dispose the returned handle when you're done to return the textures to the pool.
 	/// </summary>
@@ -100,7 +115,22 @@ public sealed partial class RenderTarget
 			ss = 8;
 		}
 
-		return GetTemporary( (int)(ss.x / sizeFactor), (int)(ss.y / sizeFactor), colorFormat, depthFormat, msaa, numMips, targetName );
+		var (width, height) = ScaleDownSize( ss, sizeFactor );
+
+		return GetTemporary( width, height, colorFormat, depthFormat, msaa, numMips, targetName );
+	}
+
+	/// <summary>
+	/// A viewport divided by a downsample factor, never smaller than a pixel. A big factor
+	/// against a short viewport - the tail of a bloom chain, say - would otherwise round an
+	/// axis down to zero, which isn't a render target you can make.
+	/// </summary>
+	internal static (int Width, int Height) ScaleDownSize( Vector2 viewport, int sizeFactor )
+	{
+		var width = Math.Max( (int)(viewport.x / sizeFactor), 1 );
+		var height = Math.Max( (int)(viewport.y / sizeFactor), 1 );
+
+		return (width, height);
 	}
 
 	internal void Return( RenderTarget source )
@@ -125,21 +155,6 @@ public sealed partial class RenderTarget
 
 				All[i].Destroy();
 				All.RemoveAt( i );
-			}
-		}
-	}
-
-	/// <summary>
-	/// Flush all the render targets out. Useful to do when screen size changes.
-	/// </summary>
-	internal static void Flush()
-	{
-		lock ( _lock )
-		{
-			foreach ( var entry in All )
-			{
-				// Defer deletion
-				entry.Loaned = false;
 			}
 		}
 	}

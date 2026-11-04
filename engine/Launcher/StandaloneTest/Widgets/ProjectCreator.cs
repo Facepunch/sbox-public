@@ -162,7 +162,7 @@ public class ProjectCreator : Dialog
 
 		// If Location/my_project already exists, append 1, 2, etc.
 		int i = 1;
-		while ( Path.Exists( Path.Combine( LauncherPreferences.DefaultProjectLocation, ConvertToIdent( name ) ) ) )
+		while ( Path.Exists( Path.Combine( LauncherPreferences.DefaultProjectLocation, ProjectTemplateFiles.MakeIdent( name ) ) ) )
 		{
 			name = $"My Project {i++}";
 		}
@@ -170,16 +170,11 @@ public class ProjectCreator : Dialog
 		return name;
 	}
 
-	static string ConvertToIdent( string title )
-	{
-		return System.Text.RegularExpressions.Regex.Replace( title.ToLower(), "[^A-Za-z0-9_]", "_" ).Trim( '_' );
-	}
-
 	void Validate()
 	{
 		if ( !identEdited )
 		{
-			IdentEdit.Text = ConvertToIdent( TitleEdit.Text );
+			IdentEdit.Text = ProjectTemplateFiles.MakeIdent( TitleEdit.Text );
 		}
 
 		bool enabled = true;

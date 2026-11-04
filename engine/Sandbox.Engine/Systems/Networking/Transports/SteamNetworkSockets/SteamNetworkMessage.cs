@@ -35,6 +35,6 @@ internal struct OutgoingSteamMessage
 {
 	public HSteamNetConnection Connection { get; set; }
 	public int Channel { get; set; }
-	public byte[] Data { get; set; }
+	public NetPacket Packet { get; set; }
 	public int Flags { get; set; }
 }

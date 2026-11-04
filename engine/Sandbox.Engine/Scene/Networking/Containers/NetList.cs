@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using Sandbox.Engine;
+using System.Collections;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 
@@ -62,6 +63,15 @@ public sealed class NetList<T> : INetworkSerializer, INetworkReliable, INetworkP
 	{
 		_list.CollectionChanged += OnCollectionChanged;
 		AddResetChange();
+	}
+
+	/// <summary>
+	/// Creates a networked list containing the supplied items, in order.
+	/// </summary>
+	public NetList( IEnumerable<T> collection ) : this()
+	{
+		ArgumentNullException.ThrowIfNull( collection );
+		AddRange( collection );
 	}
 
 	public void Dispose()
@@ -196,6 +206,43 @@ public sealed class NetList<T> : INetworkSerializer, INetworkReliable, INetworkP
 	public bool Remove( T value )
 	{
 		return CanWriteChanges() && _list.Remove( value );
+	}
+
+	/// <summary>
+	/// Performs an action on each item, in order. The action must not modify the list.
+	/// </summary>
+	public void ForEach( Action<T> action )
+	{
+		ArgumentNullException.ThrowIfNull( action );
+		foreach ( var item in _list )
+			action( item );
+	}
+
+	/// <summary>
+	/// Removes matching items and returns the number removed. Evaluates the predicate in list order.
+	/// </summary>
+	public int RemoveAll( Predicate<T> match )
+	{
+		ArgumentNullException.ThrowIfNull( match );
+		if ( !CanWriteChanges() )
+			return 0;
+
+		// Evaluate before removing so predicates can inspect the original list. Remove backwards
+		// to keep the indices valid, recording every removal for network replication.
+		List<int> indices = null;
+		for ( var i = 0; i < _list.Count; i++ )
+		{
+			if ( match( _list[i] ) )
+				(indices ??= []).Add( i );
+		}
+
+		if ( indices is null )
+			return 0;
+
+		for ( var i = indices.Count - 1; i >= 0; i-- )
+			RemoveAt( indices[i] );
+
+		return indices.Count;
 	}
 
 	/// <summary>
@@ -430,6 +477,9 @@ public sealed class NetList<T> : INetworkSerializer, INetworkReliable, INetworkP
 		if ( !CanWriteChanges() )
 			return;
 
+		if ( Parent is INetworkWakeable networkWakeable )
+			networkWakeable.MarkDirty();
+
 		if ( e.Action == NotifyCollectionChangedAction.Add )
 		{
 			var change = new Change { Index = e.NewStartingIndex, Value = (T)e.NewItems[0], Type = e.Action };
@@ -458,13 +508,13 @@ public sealed class NetList<T> : INetworkSerializer, INetworkReliable, INetworkP
 
 	private static T ReadValue( ref ByteStream data )
 	{
-		var value = Game.TypeLibrary.FromBytes<object>( ref data );
+		var value = GlobalContext.Current.TypeLibrary.FromBytes<object>( ref data );
 		return (T)value;
 	}
 
 	private static void WriteValue( T value, ref ByteStream data )
 	{
-		Game.TypeLibrary.ToBytes( value, ref data );
+		GlobalContext.Current.TypeLibrary.ToBytes( value, ref data );
 	}
 
 	private bool CanWriteChanges() => !Parent?.IsProxy ?? true;

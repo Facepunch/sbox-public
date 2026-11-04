@@ -67,6 +67,11 @@ public record struct SamplerState
 
 	public SamplerState() { }
 
+	/// <summary>
+	/// Bindless index for this sampler state, for use with <c>Bindless::GetSampler( int nIndex )</c> in shaders.
+	/// </summary>
+	[Hide] public int Index => GetBindlessIndex( this );
+
 	static internal ConcurrentDictionary<SamplerState, int> _cachedSamplerIndex = [];
 
 	/// <summary>

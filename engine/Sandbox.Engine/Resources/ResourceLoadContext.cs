@@ -12,11 +12,13 @@ public readonly ref struct ResourceLoadContext
 {
 	readonly string _resourceName;
 	readonly IntPtr _header;
+	readonly int _dataSize;
 
-	internal ResourceLoadContext( string resourceName, IntPtr header )
+	internal ResourceLoadContext( string resourceName, IntPtr header, int dataSize )
 	{
 		_resourceName = resourceName;
 		_header = header;
+		_dataSize = dataSize;
 	}
 
 	/// <summary>
@@ -38,7 +40,7 @@ public readonly ref struct ResourceLoadContext
 		if ( _header == IntPtr.Zero || blockName is null || blockName.Length != 4 )
 			return default;
 
-		var pBlock = NativeEngine.EngineGlue.ReadCompiledResourceFileBlock( blockName, _header, out var size );
+		var pBlock = NativeEngine.EngineGlue.ReadCompiledResourceFileBlock( blockName, _header, _dataSize, out var size );
 		if ( pBlock == IntPtr.Zero || size <= 0 )
 			return default;
 

@@ -1,4 +1,6 @@
 using NativeEngine;
+using Sandbox.Diagnostics;
+using Sandbox.Modals;
 
 namespace Sandbox.Engine;
 
@@ -6,11 +8,17 @@ internal static partial class InputRouter
 {
 	static RealTimeSince timeSinceWindowActive;
 
-	internal static void OnMouseButton( ButtonCode button, bool down, int ikeymods )
+	internal static void OnMouseButton( ButtonCode button, bool down )
 	{
 		SetButtonState( button, down );
 
-		var mouse = Contexts.FirstOrDefault( x => x.MouseState != InputContext.InputState.Ignore );
+		var modifiers = GetCurrentModifiers();
+
+		// Dev tools docked in the window take the clicks on them, and the release of a click that started there
+		if ( DevTools.GameDockMouseButton( button, down, MouseCursorPosition, modifiers ) )
+			return;
+
+		var mouse = MouseTarget();
 
 		// if this was likely the click that made the window active - and we're not in UI mode
 		// then ignore it.. because we don't want people shooting guns every time they re-activate
@@ -20,8 +28,6 @@ internal static partial class InputRouter
 			if ( mouse is null || mouse.MouseState != InputContext.InputState.UI )
 				return;
 		}
-
-		var modifiers = GetCurrentModifiers();
 
 		if ( mouse is not null )
 		{
@@ -58,6 +64,8 @@ internal static partial class InputRouter
 
 			foreach ( var context in Contexts )
 			{
+				// The release of anything held during a capture won't reach us, so it could never finish
+				context.CancelTrapping();
 				context.ReleaseAllButtons();
 			}
 		}
@@ -74,7 +82,7 @@ internal static partial class InputRouter
 		MouseCursorPosition += delta;
 
 		// game or mouse capture
-		var mouse = Contexts.FirstOrDefault( x => x.MouseState != InputContext.InputState.Ignore );
+		var mouse = MouseTarget();
 		if ( mouse is not null )
 		{
 			mouse.In_MousePosition( MouseCursorPosition, delta );
@@ -89,7 +97,7 @@ internal static partial class InputRouter
 	{
 		MouseCursorPosition = new Vector2( x, y );
 
-		if ( InputSystem.GetRelativeMouseMode() )
+		if ( WindowInput.GetRelativeMouseMode() )
 		{
 			dx = dy = 0;
 		}
@@ -105,7 +113,7 @@ internal static partial class InputRouter
 
 		MouseCursorDelta += new Vector2( dx, dy );
 
-		var mouse = Contexts.FirstOrDefault( x => x.MouseState != InputContext.InputState.Ignore );
+		var mouse = MouseTarget();
 		mouse?.In_MousePosition( MouseCursorPosition, new Vector2( dx, dy ) );
 	}
 
@@ -132,12 +140,39 @@ internal static partial class InputRouter
 			EscapeWasPressed = true;
 			TimeSinceEscapePressed = 0;
 
+			// Escape backs out of a button capture on whichever context is taking the keyboard - never one under
+			// the pause menu or an overlay. The menu's own rebinding keeps the press, but a game's capture lets it
+			// carry on like any other escape, so it still opens the pause menu and can be held to leave.
+			var keyboard = Contexts.FirstOrDefault( x => x.KeyboardState != InputContext.InputState.Ignore );
+			if ( keyboard is not null && keyboard.CancelTrapping() && keyboard == IMenuDll.Current?.InputContext )
+			{
+				EscapeWasPressed = false;
+				return;
+			}
+
 			// Any focused UI? Let that swallow the escape button. This is for things like escaping from text areas
 			var escapeTarget = Contexts.FirstOrDefault( x => x.KeyboardState != InputContext.InputState.Ignore && x.KeyboardFocusPanel is not null );
 			if ( escapeTarget is not null && escapeTarget.In_Escape() )
 			{
 				return;
 			}
+
+			// The menu's up over the game - the pause menu, or something opened from it. Escape is the
+			// menu's, to close it with, before the game can take it: F1 opens the pause menu even in a
+			// game that keeps escape for itself, and there'd be no other way back out
+			if ( IGameInstance.Current is not null && !Application.IsEditor && IModalSystem.Current?.IsModalOpen == true )
+			{
+				EscapeWasPressed = false;
+
+				using var scope = GlobalContext.MenuScope();
+				IModalSystem.Current?.PauseMenu();
+				return;
+			}
+
+			// The pointer can own a UI drag without that UI having keyboard focus (for example, a tab reorder).
+			var pointerTarget = Contexts.FirstOrDefault( x => x.MouseState != InputContext.InputState.Ignore );
+			if ( pointerTarget?.MouseState == InputContext.InputState.UI && pointerTarget.TryCancelDrag() )
+				return;
 
 			// Let the game input get first dibs
 			if ( IGameInstance.Current is not null && IGameInstanceDll.Current.InputContext.In_Escape() )
@@ -205,9 +240,9 @@ internal static partial class InputRouter
 		OnGamepadCode( deviceId, code, ((float)value).Remap( 0, Controller.AXIS_RANGE.y, 0, 1 ) >= triggerDeadzone );
 	}
 
-	internal static void OnGameControllerConnected( int joystickId, int deviceId )
+	internal static void OnGameControllerConnected( int deviceId )
 	{
-		var controller = new Controller( joystickId, deviceId );
+		var controller = new Controller( deviceId );
 		Log.Info( $"New {controller} controller detected" );
 
 		Controller.All.Add( controller );
@@ -215,7 +250,7 @@ internal static partial class InputRouter
 
 	internal static void OnGameControllerDisconnected( int joystickId )
 	{
-		var controller = Controller.All.FirstOrDefault( x => x.SDLHandle == joystickId );
+		var controller = Controller.All.FirstOrDefault( x => x.DeviceId == joystickId );
 		if ( controller is not null )
 		{
 			Log.Info( $"{controller} controller removed" );
@@ -227,7 +262,7 @@ internal static partial class InputRouter
 		}
 	}
 
-	internal static void OnKey( ButtonCode scanButtonCode, ButtonCode keyButtonCode, bool down, bool repeat, int ikeymods )
+	internal static void OnKey( ButtonCode scanButtonCode, ButtonCode keyButtonCode, bool down, bool repeat )
 	{
 		if ( !repeat )
 		{
@@ -240,6 +275,18 @@ internal static partial class InputRouter
 		{
 			if ( repeat )
 				return;
+
+			// Escape leaves a focused text box in dev tools docked in the window, before the game or menu sees it
+			if ( down && DevTools.GameDockKey( scanButtonCode, true, modifiers ) )
+				return;
+
+			// Reserve Shift+Escape for the platform menu while testing in the editor.
+			// Capture the chord now, before Shift can be released or game UI can consume Escape.
+			if ( down && Application.IsEditor && Game.IsPlaying && modifiers.Contains( KeyboardModifiers.Shift ) )
+			{
+				EditorPauseMenuWasPressed = true;
+				return;
+			}
 
 			OnEscapePressed( down );
 			return;
@@ -254,7 +301,7 @@ internal static partial class InputRouter
 
 			IToolsDll.Current?.OnFunctionKey( scanButtonCode, modifiers );
 
-			var bind = g_pInputService.GetBinding( scanButtonCode );
+			var bind = Sandbox.Engine.KeyBindings.GetBinding( scanButtonCode );
 			if ( string.IsNullOrEmpty( bind ) ) return;
 
 			ConVarSystem.Run( bind );
@@ -275,7 +322,18 @@ internal static partial class InputRouter
 			return;
 		}
 
-		var keyboard = Contexts.FirstOrDefault( x => x.KeyboardState != InputContext.InputState.Ignore );
+		// Dev tools docked in the window have the keys while one of their panels has focus. A release still goes to the
+		// contexts below, which may have seen the key go down.
+		InputContext keyboard = null;
+		if ( DevTools.GameDockKey( keyButtonCode, down, modifiers ) )
+		{
+			if ( down ) return;
+		}
+		else
+		{
+			keyboard = Contexts.FirstOrDefault( x => x.KeyboardState != InputContext.InputState.Ignore );
+		}
+
 		if ( keyboard is not null )
 		{
 			keyboard.IN_Button( down, scanButtonCode, keyButtonCode, repeat, modifiers );
@@ -296,23 +354,33 @@ internal static partial class InputRouter
 		}
 	}
 
-	internal static void OnText( uint key )
+	internal static void OnText( string text )
 	{
+		if ( DevTools.GameDockText( text ) )
+			return;
+
 		var keyboard = Contexts.FirstOrDefault( x => x.KeyboardState == InputContext.InputState.UI );
 		if ( keyboard is not null )
 		{
-			keyboard.IN_Text( (char)key );
+			keyboard.IN_Text( text );
 		}
 	}
 
-	internal static void OnMouseWheel( int x, int y, int ikeymods )
+	internal static void OnMouseWheel( float x, float y )
 	{
 		var value = new Vector2( x, y );
-		var mouse = Contexts.FirstOrDefault( x => x.MouseState != InputContext.InputState.Ignore );
 		var modifiers = GetCurrentModifiers();
+
+		if ( DevTools.GameDockMouseWheel( value, MouseCursorPosition, modifiers ) )
+			return;
+
+		var mouse = MouseTarget();
 
 		if ( mouse is not null )
 		{
+			// The tick's release ends a capture, so ask now - a tick that went to the capture doesn't scroll anything
+			var trapping = mouse.IsTrapping;
+
 			if ( y < 0 )
 			{
 				mouse.IN_Button( true, ButtonCode.MouseWheelDown, ButtonCode.MouseWheelDown, false, default );
@@ -324,51 +392,46 @@ internal static partial class InputRouter
 				mouse.IN_Button( false, ButtonCode.MouseWheelUp, ButtonCode.MouseWheelUp, false, default );
 			}
 
-			mouse.IN_MouseWheel( value, modifiers );
+			if ( !trapping )
+				mouse.IN_MouseWheel( value, modifiers );
 		}
 	}
 
-	internal static void OnImeStart()
+	internal static void OnImeComposition( string text )
 	{
 		var keyboard = Contexts.FirstOrDefault( x => x.KeyboardState != InputContext.InputState.Ignore );
 		if ( keyboard is not null )
 		{
-			keyboard.IN_ImeStart();
+			keyboard.IN_ImeComposition( text );
 		}
 	}
 
-	internal static void OnImeComposition( string text, bool final )
+	// Gathered as the OS hands over an in-flight drop, delivered together on OnDropComplete
+	static List<string> _dropFiles;
+	static string _dropText;
+
+	internal static void OnDropFile( string path )
 	{
-		var keyboard = Contexts.FirstOrDefault( x => x.KeyboardState != InputContext.InputState.Ignore );
-		if ( keyboard is not null )
-		{
-			keyboard.IN_ImeComposition( text, final );
-		}
+		_dropFiles ??= new();
+		_dropFiles.Add( path );
 	}
 
-	internal static void OnImeEnd()
+	internal static void OnDropText( string text )
 	{
-		var keyboard = Contexts.FirstOrDefault( x => x.KeyboardState != InputContext.InputState.Ignore );
-		if ( keyboard is not null )
-		{
-			keyboard.IN_ImeEnd();
-		}
+		_dropText = text;
 	}
 
-	/// <summary>
-	/// Convert engine (IE_ShiftPressed etc) to our KeyboardModifiers enum
-	/// </summary>
-	static KeyboardModifiers EngineToModifier( int engine )
+	internal static void OnDropComplete( float x, float y )
 	{
-		KeyboardModifiers m = KeyboardModifiers.None;
+		var files = _dropFiles;
+		var text = _dropText;
+		_dropFiles = null;
+		_dropText = null;
 
-		if ( (engine & 1) == 1 ) m |= KeyboardModifiers.Shift;
-		if ( (engine & 2) == 2 ) m |= KeyboardModifiers.Ctrl;
-		if ( (engine & 4) == 4 ) m |= KeyboardModifiers.Alt;
-		//if ( (m_nData2 & 8) == 8 ) m |= KeyboardModifiers.Windows;
-		//if ( (m_nData2 & 16) == 8 ) m |= KeyboardModifiers.Finger;
+		if ( files is null && string.IsNullOrEmpty( text ) ) return;
 
-		return m;
+		var mouse = Contexts.FirstOrDefault( c => c.MouseState != InputContext.InputState.Ignore );
+		mouse?.IN_Drop( files, text, new Vector2( x, y ) );
 	}
 
 	/// <summary>

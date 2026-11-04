@@ -1,0 +1,1677 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:animgraph2:version{0f7898b8-5471-45c4-9867-cd9c46bcfdb5} -->
+{
+	_class = "CAnimationSubGraph"
+	m_nodeManager = 
+	{
+		_class = "CAnimNodeManager"
+		m_nodes = 
+		[
+			{
+				key = 
+				{
+					m_id = 165447400
+				}
+				value = 
+				{
+					_class = "CSequenceAnimNode"
+					m_sName = "Unnamed"
+					m_vecPosition = [ -960.0, -32.0 ]
+					m_nNodeID = 
+					{
+						m_id = 165447400
+					}
+					m_sNote = ""
+					m_tagSpans = [  ]
+					m_sequenceName = "FacialFidget_03"
+					m_playbackSpeed = 1.0
+					m_bLoop = false
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 169646791
+				}
+				value = 
+				{
+					_class = "CStateMachineAnimNode"
+					m_sName = "Human blinks"
+					m_vecPosition = [ 1056.0, -96.0 ]
+					m_nNodeID = 
+					{
+						m_id = 169646791
+					}
+					m_sNote = ""
+					m_states = 
+					[
+						{
+							_class = "CAnimState"
+							m_transitions = 
+							[
+								{
+									_class = "CAnimStateTransition"
+									m_conditions = 
+									[
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 0
+											m_paramID = 
+											{
+												m_id = 1522890659
+											}
+											m_comparisonValue = 
+											{
+												m_nType = 2
+												m_data = 6
+											}
+										},
+									]
+									m_blendDuration = 0.1
+									m_destState = 
+									{
+										m_id = 1110302409
+									}
+									m_bReset = false
+									m_resetCycleOption = "Beginning"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve = 
+									{
+										m_vControlPoint1 = [ 0.233333, 0.0 ]
+										m_vControlPoint2 = [ 0.0, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.05
+									m_flRandomTimeEnd = 5.0
+								},
+								{
+									_class = "CAnimStateTransition"
+									m_conditions = 
+									[
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 1
+											m_paramID = 
+											{
+												m_id = 1522890659
+											}
+											m_comparisonValue = 
+											{
+												m_nType = 2
+												m_data = 6
+											}
+										},
+									]
+									m_blendDuration = 0.09
+									m_destState = 
+									{
+										m_id = 1252790033
+									}
+									m_bReset = true
+									m_resetCycleOption = "Beginning"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve = 
+									{
+										m_vControlPoint1 = [ 0.213333, 0.0 ]
+										m_vControlPoint2 = [ 0.16, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = true
+									m_flRandomTimeStart = 0.3
+									m_flRandomTimeEnd = 5.0
+								},
+							]
+							m_tags = [  ]
+							m_tagBehaviors = [  ]
+							m_name = "Don\'t blink..."
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 998884633
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+							m_stateID = 
+							{
+								m_id = 1493225716
+							}
+							m_position = [ -224.0, 80.0 ]
+							m_bIsStartState = true
+							m_bIsEndtState = false
+							m_bIsPassthrough = false
+							m_bIsRootMotionExclusive = false
+							m_bAlwaysEvaluate = false
+						},
+						{
+							_class = "CAnimState"
+							m_transitions = 
+							[
+								{
+									_class = "CAnimStateTransition"
+									m_conditions = 
+									[
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 1
+											m_paramID = 
+											{
+												m_id = 1522890659
+											}
+											m_comparisonValue = 
+											{
+												m_nType = 2
+												m_data = 6
+											}
+										},
+										{
+											_class = "CTimeCondition"
+											m_comparisonOp = 3
+											m_comparisonValue = 0.12
+										},
+									]
+									m_blendDuration = 0.19
+									m_destState = 
+									{
+										m_id = 1493225716
+									}
+									m_bReset = false
+									m_resetCycleOption = "Beginning"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve = 
+									{
+										m_vControlPoint1 = [ 0.133333, 0.52 ]
+										m_vControlPoint2 = [ 0.0, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.05
+									m_flRandomTimeEnd = 5.0
+								},
+							]
+							m_tags = [  ]
+							m_tagBehaviors = [  ]
+							m_name = "Blink!"
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 252505796
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+							m_stateID = 
+							{
+								m_id = 1252790033
+							}
+							m_position = [ 48.0, 80.0 ]
+							m_bIsStartState = false
+							m_bIsEndtState = false
+							m_bIsPassthrough = false
+							m_bIsRootMotionExclusive = false
+							m_bAlwaysEvaluate = false
+						},
+						{
+							_class = "CAnimState"
+							m_transitions = 
+							[
+								{
+									_class = "CAnimStateTransition"
+									m_conditions = 
+									[
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 1
+											m_paramID = 
+											{
+												m_id = 1522890659
+											}
+											m_comparisonValue = 
+											{
+												m_nType = 2
+												m_data = 6
+											}
+										},
+									]
+									m_blendDuration = 0.1
+									m_destState = 
+									{
+										m_id = 1493225716
+									}
+									m_bReset = false
+									m_resetCycleOption = "Beginning"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve = 
+									{
+										m_vControlPoint1 = [ 0.233333, 0.0 ]
+										m_vControlPoint2 = [ 0.0, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.05
+									m_flRandomTimeEnd = 5.0
+								},
+							]
+							m_tags = [  ]
+							m_tagBehaviors = [  ]
+							m_name = "Force close"
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 252505796
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+							m_stateID = 
+							{
+								m_id = 1110302409
+							}
+							m_position = [ -96.0, 208.0 ]
+							m_bIsStartState = false
+							m_bIsEndtState = false
+							m_bIsPassthrough = false
+							m_bIsRootMotionExclusive = false
+							m_bAlwaysEvaluate = false
+						},
+					]
+					m_bBlockWaningTags = false
+					m_bLockStateWhenWaning = false
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 252505796
+				}
+				value = 
+				{
+					_class = "CSingleFrameAnimNode"
+					m_sName = "Unnamed"
+					m_vecPosition = [ 816.0, -16.0 ]
+					m_nNodeID = 
+					{
+						m_id = 252505796
+					}
+					m_sNote = ""
+					m_sequenceName = "Eyes_Closed"
+					m_nFrameIndex = 0
+					m_tagSpans = [  ]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 320640141
+				}
+				value = 
+				{
+					_class = "CGroupInputAnimNode"
+					m_sName = "Body pose input"
+					m_vecPosition = [ 64.0, -544.0 ]
+					m_nNodeID = 
+					{
+						m_id = 320640141
+					}
+					m_sNote = "Absolute body pose; facial masks replace only their selected channels."
+					m_proxyItems = 
+					[
+						{
+							m_name = "Body pose"
+							m_outputID = 
+							{
+								m_id = 179199366
+							}
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 4294967295
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 344991687
+				}
+				value = 
+				{
+					_class = "CSequenceAnimNode"
+					m_sName = "Unnamed"
+					m_vecPosition = [ -960.0, 16.0 ]
+					m_nNodeID = 
+					{
+						m_id = 344991687
+					}
+					m_sNote = ""
+					m_tagSpans = [  ]
+					m_sequenceName = "FacialFidget_04"
+					m_playbackSpeed = 1.0
+					m_bLoop = false
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 353944698
+				}
+				value = 
+				{
+					_class = "CSingleFrameAnimNode"
+					m_sName = "Unnamed"
+					m_vecPosition = [ -464.0, 64.0 ]
+					m_nNodeID = 
+					{
+						m_id = 353944698
+					}
+					m_sNote = ""
+					m_sequenceName = "Expressions_Sad_01"
+					m_nFrameIndex = 0
+					m_tagSpans = [  ]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 502886029
+				}
+				value = 
+				{
+					_class = "CBoneMaskAnimNode"
+					m_sName = "Lipsync weightlist"
+					m_vecPosition = [ 1808.0, -560.0 ]
+					m_nNodeID = 
+					{
+						m_id = 502886029
+					}
+					m_sNote = "Clear Human mouth morphs before lipsync; preserve brows, eye expressions and blinking."
+					m_weightListName = "Human_Lipsync"
+					m_inputConnection1 = 
+					{
+						m_nodeID = 
+						{
+							m_id = 861028884
+						}
+						m_outputID = 
+						{
+							m_id = 4294967295
+						}
+					}
+					m_inputConnection2 = 
+					{
+						m_nodeID = 
+						{
+							m_id = 320640141
+						}
+						m_outputID = 
+						{
+							m_id = 179199366
+						}
+					}
+					m_blendSpace = "BlendSpace_Parent"
+					m_bUseBlendScale = false
+					m_blendValueSource = "Parameter"
+					m_blendParameter = 
+					{
+						m_id = 4294967295
+					}
+					m_timingBehavior = "UseChild1"
+					m_flTimingBlend = 0.5
+					m_flRootMotionBlend = 0.0
+					m_footMotionTiming = "Child1"
+					m_bResetChild1 = true
+					m_bResetChild2 = true
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 571667285
+				}
+				value = 
+				{
+					_class = "CSequenceAnimNode"
+					m_sName = "bindPose timer"
+					m_vecPosition = [ -960.0, -192.0 ]
+					m_nNodeID = 
+					{
+						m_id = 571667285
+					}
+					m_sNote = "WARNING: Needs to be a sequence instead of a single frame because it needs a \"length\""
+					m_tagSpans = [  ]
+					m_sequenceName = "bindPose"
+					m_playbackSpeed = 0.2
+					m_bLoop = true
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 620816611
+				}
+				value = 
+				{
+					_class = "CSingleFrameAnimNode"
+					m_sName = "Unnamed"
+					m_vecPosition = [ -464.0, -32.0 ]
+					m_nNodeID = 
+					{
+						m_id = 620816611
+					}
+					m_sNote = ""
+					m_sequenceName = "Expressions_Frown_01"
+					m_nFrameIndex = 0
+					m_tagSpans = [  ]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 723029269
+				}
+				value = 
+				{
+					_class = "CSequenceAnimNode"
+					m_sName = "Unnamed"
+					m_vecPosition = [ -960.0, -80.0 ]
+					m_nNodeID = 
+					{
+						m_id = 723029269
+					}
+					m_sNote = ""
+					m_tagSpans = [  ]
+					m_sequenceName = "FacialFidget_02"
+					m_playbackSpeed = 1.0
+					m_bLoop = false
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 764362979
+				}
+				value = 
+				{
+					_class = "CSingleFrameAnimNode"
+					m_sName = "Unnamed"
+					m_vecPosition = [ -464.0, -80.0 ]
+					m_nNodeID = 
+					{
+						m_id = 764362979
+					}
+					m_sNote = ""
+					m_sequenceName = "Expressions_Smile_01"
+					m_nFrameIndex = 0
+					m_tagSpans = [  ]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 861028884
+				}
+				value = 
+				{
+					_class = "CBoneMaskAnimNode"
+					m_sName = "Human blink"
+					m_vecPosition = [ 1312.0, -320.0 ]
+					m_nNodeID = 
+					{
+						m_id = 861028884
+					}
+					m_sNote = ""
+					m_weightListName = "Human_Blink"
+					m_inputConnection1 = 
+					{
+						m_nodeID = 
+						{
+							m_id = 998884633
+						}
+						m_outputID = 
+						{
+							m_id = 4294967295
+						}
+					}
+					m_inputConnection2 = 
+					{
+						m_nodeID = 
+						{
+							m_id = 169646791
+						}
+						m_outputID = 
+						{
+							m_id = 4294967295
+						}
+					}
+					m_blendSpace = "BlendSpace_Parent"
+					m_bUseBlendScale = false
+					m_blendValueSource = "Parameter"
+					m_blendParameter = 
+					{
+						m_id = 4294967295
+					}
+					m_timingBehavior = "UseChild1"
+					m_flTimingBlend = 0.5
+					m_flRootMotionBlend = 0.0
+					m_footMotionTiming = "Child1"
+					m_bResetChild1 = false
+					m_bResetChild2 = false
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 902188303
+				}
+				value = 
+				{
+					_class = "CSingleFrameAnimNode"
+					m_sName = "Unnamed"
+					m_vecPosition = [ -464.0, 16.0 ]
+					m_nNodeID = 
+					{
+						m_id = 902188303
+					}
+					m_sNote = ""
+					m_sequenceName = "Expressions_Surprise_01"
+					m_nFrameIndex = 0
+					m_tagSpans = [  ]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 984887598
+				}
+				value = 
+				{
+					_class = "CSequenceAnimNode"
+					m_sName = "Unnamed"
+					m_vecPosition = [ -960.0, -128.0 ]
+					m_nNodeID = 
+					{
+						m_id = 984887598
+					}
+					m_sNote = ""
+					m_tagSpans = [  ]
+					m_sequenceName = "FacialFidget_01"
+					m_playbackSpeed = 1.0
+					m_bLoop = false
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 998884633
+				}
+				value = 
+				{
+					_class = "CBoneMaskAnimNode"
+					m_sName = "Mask expressions in"
+					m_vecPosition = [ 288.0, -384.0 ]
+					m_nNodeID = 
+					{
+						m_id = 998884633
+					}
+					m_sNote = ""
+					m_weightListName = "Only_Morphs_and_Eyelids"
+					m_inputConnection1 = 
+					{
+						m_nodeID = 
+						{
+							m_id = 320640141
+						}
+						m_outputID = 
+						{
+							m_id = 179199366
+						}
+					}
+					m_inputConnection2 = 
+					{
+						m_nodeID = 
+						{
+							m_id = 1617876364
+						}
+						m_outputID = 
+						{
+							m_id = 4294967295
+						}
+					}
+					m_blendSpace = "BlendSpace_Parent"
+					m_bUseBlendScale = false
+					m_blendValueSource = "Parameter"
+					m_blendParameter = 
+					{
+						m_id = 4294967295
+					}
+					m_timingBehavior = "UseChild1"
+					m_flTimingBlend = 0.5
+					m_flRootMotionBlend = 0.0
+					m_footMotionTiming = "Child1"
+					m_bResetChild1 = false
+					m_bResetChild2 = false
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1298859429
+				}
+				value = 
+				{
+					_class = "CSingleFrameAnimNode"
+					m_sName = "Unnamed"
+					m_vecPosition = [ -960.0, -448.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1298859429
+					}
+					m_sNote = ""
+					m_sequenceName = "Eyes_Open"
+					m_nFrameIndex = 0
+					m_tagSpans = [  ]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1348778745
+				}
+				value = 
+				{
+					_class = "CSubtractAnimNode"
+					m_sName = "Fidget pose minus bind pose"
+					m_vecPosition = [ -592.0, -208.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1348778745
+					}
+					m_sNote = "Convert the absolute fidget pose to a delta before adding it to the resting expression."
+					m_baseInputConnection = 
+					{
+						m_nodeID = 
+						{
+							m_id = 1407868694
+						}
+						m_outputID = 
+						{
+							m_id = 4294967295
+						}
+					}
+					m_subtractInputConnection = 
+					{
+						m_nodeID = 
+						{
+							m_id = 571667285
+						}
+						m_outputID = 
+						{
+							m_id = 4294967295
+						}
+					}
+					m_timingBehavior = "UseChild2"
+					m_flTimingBlend = 0.5
+					m_footMotionTiming = "Child1"
+					m_bResetBase = false
+					m_bResetSubtract = false
+					m_bApplyChannelsSeparately = true
+					m_bModelSpace = false
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1365759779
+				}
+				value = 
+				{
+					_class = "CAddAnimNode"
+					m_sName = "Add facial fidgets"
+					m_vecPosition = [ -368.0, -208.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1365759779
+					}
+					m_sNote = ""
+					m_baseInput = 
+					{
+						m_nodeID = 
+						{
+							m_id = 1868748547
+						}
+						m_outputID = 
+						{
+							m_id = 4294967295
+						}
+					}
+					m_additiveInput = 
+					{
+						m_nodeID = 
+						{
+							m_id = 1348778745
+						}
+						m_outputID = 
+						{
+							m_id = 4294967295
+						}
+					}
+					m_timingBehavior = "UseChild1"
+					m_flTimingBlend = 0.5
+					m_footMotionTiming = "Child1"
+					m_bResetBase = false
+					m_bResetAdditive = false
+					m_bApplyChannelsSeparately = true
+					m_bModelSpace = false
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1407868694
+				}
+				value = 
+				{
+					_class = "CChoiceAnimNode"
+					m_sName = "Randomize"
+					m_vecPosition = [ -752.0, -128.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1407868694
+					}
+					m_sNote = "Needs two Nothing inputs due to WeightedRandomNoRepeat. We want Nothing to be able to repeat, but we don\'t want any of the fidgets to repeat."
+					m_children = 
+					[
+						{
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 571667285
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+							m_name = "Nothing1"
+							m_weight = 10.0
+							m_blendTime = 0.2
+						},
+						{
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 571667285
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+							m_name = "Nothing2"
+							m_weight = 10.0
+							m_blendTime = 0.2
+						},
+						{
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 984887598
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+							m_name = "1"
+							m_weight = 1.0
+							m_blendTime = 0.2
+						},
+						{
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 723029269
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+							m_name = "2"
+							m_weight = 1.0
+							m_blendTime = 0.2
+						},
+						{
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 165447400
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+							m_name = "3"
+							m_weight = 1.0
+							m_blendTime = 0.2
+						},
+						{
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 344991687
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+							m_name = "4"
+							m_weight = 1.0
+							m_blendTime = 0.2
+						},
+					]
+					m_seed = 895362877
+					m_choiceMethod = "WeightedRandomNoRepeat"
+					m_choiceChangeMethod = "OnCycleEnd"
+					m_blendMethod = "SingleBlendTime"
+					m_blendTime = 0.2
+					m_bCrossFade = false
+					m_bResetChosen = true
+					m_bDontResetSameSelection = false
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1461986007
+				}
+				value = 
+				{
+					_class = "CBlendAnimNode"
+					m_sName = "Blend 1D - Voice"
+					m_vecPosition = [ 1984.0, -448.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1461986007
+					}
+					m_sNote = "Modulate voice float.\n"
+					m_children = 
+					[
+						{
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 861028884
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+							m_name = "0 (silent)"
+							m_blendValue = 0.0
+						},
+						{
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 502886029
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+							m_name = "1 (loudest)"
+							m_blendValue = 1.0
+						},
+					]
+					m_blendValueSource = "Parameter"
+					m_param = 
+					{
+						m_id = 2090880745
+					}
+					m_blendKeyType = "BlendKey_UserValue"
+					m_bLockBlendOnReset = false
+					m_bSyncCycles = false
+					m_bLoop = false
+					m_bLockWhenWaning = false
+					m_damping = 
+					{
+						_class = "CAnimInputDamping"
+						m_speedFunction = "Spring"
+						m_fSpeedScale = 50.0
+						m_fMinSpeed = 0.0
+						m_fMaxTension = 100.0
+						m_fTension = 200.0
+						m_fDamping = 10.0
+					}
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1544660428
+				}
+				value = 
+				{
+					_class = "CSequenceAnimNode"
+					m_sName = "Unnamed"
+					m_vecPosition = [ -960.0, -272.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1544660428
+					}
+					m_sNote = ""
+					m_tagSpans = [  ]
+					m_sequenceName = "Expressions_Default"
+					m_playbackSpeed = 1.0
+					m_bLoop = false
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1617876364
+				}
+				value = 
+				{
+					_class = "CBoneMaskAnimNode"
+					m_sName = "Only Eyelid & Eyelid Morphs"
+					m_vecPosition = [ 16.0, -208.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1617876364
+					}
+					m_sNote = ""
+					m_weightListName = "Only_Eyelids_and_Eyelid_Morphs"
+					m_inputConnection1 = 
+					{
+						m_nodeID = 
+						{
+							m_id = 1851882162
+						}
+						m_outputID = 
+						{
+							m_id = 4294967295
+						}
+					}
+					m_inputConnection2 = 
+					{
+						m_nodeID = 
+						{
+							m_id = 1365759779
+						}
+						m_outputID = 
+						{
+							m_id = 4294967295
+						}
+					}
+					m_blendSpace = "BlendSpace_Parent"
+					m_bUseBlendScale = false
+					m_blendValueSource = "Parameter"
+					m_blendParameter = 
+					{
+						m_id = 4294967295
+					}
+					m_timingBehavior = "UseChild2"
+					m_flTimingBlend = 0.5
+					m_flRootMotionBlend = 0.0
+					m_footMotionTiming = "Child2"
+					m_bResetChild1 = false
+					m_bResetChild2 = false
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1685181842
+				}
+				value = 
+				{
+					_class = "CCommentAnimNode"
+					m_sName = "Unnamed"
+					m_vecPosition = [ -288.0, -384.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1685181842
+					}
+					m_sNote = ""
+					m_commentText = "Kind of a mess with regards to how eyelids are managed... I\'ll have to fix this later"
+					m_size = [ 368.0, 96.0 ]
+					m_color = [ 49, 139, 146, 255 ]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1797122785
+				}
+				value = 
+				{
+					_class = "CSingleFrameAnimNode"
+					m_sName = "Unnamed"
+					m_vecPosition = [ -464.0, 96.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1797122785
+					}
+					m_sNote = ""
+					m_sequenceName = "Expressions_Angry_01"
+					m_nFrameIndex = 0
+					m_tagSpans = [  ]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1851882162
+				}
+				value = 
+				{
+					_class = "CSelectorAnimNode"
+					m_sName = "Select expression override"
+					m_vecPosition = [ -208.0, -48.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1851882162
+					}
+					m_sNote = "face_override chooses the full expression pose. NO_OVERRIDE uses the resting expression plus facial fidgets."
+					m_children = 
+					[
+						{
+							m_nodeID = 
+							{
+								m_id = 1365759779
+							}
+							m_outputID = 
+							{
+								m_id = 4294967295
+							}
+						},
+						{
+							m_nodeID = 
+							{
+								m_id = 764362979
+							}
+							m_outputID = 
+							{
+								m_id = 4294967295
+							}
+						},
+						{
+							m_nodeID = 
+							{
+								m_id = 620816611
+							}
+							m_outputID = 
+							{
+								m_id = 4294967295
+							}
+						},
+						{
+							m_nodeID = 
+							{
+								m_id = 902188303
+							}
+							m_outputID = 
+							{
+								m_id = 4294967295
+							}
+						},
+						{
+							m_nodeID = 
+							{
+								m_id = 353944698
+							}
+							m_outputID = 
+							{
+								m_id = 4294967295
+							}
+						},
+						{
+							m_nodeID = 
+							{
+								m_id = 1797122785
+							}
+							m_outputID = 
+							{
+								m_id = 4294967295
+							}
+						},
+						{
+							m_nodeID = 
+							{
+								m_id = 252505796
+							}
+							m_outputID = 
+							{
+								m_id = 4294967295
+							}
+						},
+					]
+					m_tags = 
+					[
+						{
+							m_id = 4294967295
+						},
+						{
+							m_id = 4294967295
+						},
+						{
+							m_id = 4294967295
+						},
+						{
+							m_id = 4294967295
+						},
+						{
+							m_id = 4294967295
+						},
+						{
+							m_id = 4294967295
+						},
+						{
+							m_id = 4294967295
+						},
+					]
+					m_selectionSource = "SelectionSource_Enum"
+					m_boolParamID = 
+					{
+						m_id = 4294967295
+					}
+					m_enumParamID = 
+					{
+						m_id = 1522890659
+					}
+					m_intParamID = 
+					{
+						m_id = 4294967295
+					}
+					m_intParamMinValue = 0
+					m_intParamMaxValue = 2
+					m_blendDuration = 0.2
+					m_tagBehavior = "SelectorTagBehavior_OffWhenFinished"
+					m_bResetOnChange = true
+					m_bSyncCyclesOnChange = false
+					m_blendCurve = 
+					{
+						m_vControlPoint1 = [ 0.388889, 0.0 ]
+						m_vControlPoint2 = [ 0.148148, 1.0 ]
+					}
+					m_intParamNames = [  ]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1855511115
+				}
+				value = 
+				{
+					_class = "CGroupOutputAnimNode"
+					m_sName = "Body and facial pose output"
+					m_vecPosition = [ 2512.0, -512.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1855511115
+					}
+					m_sNote = "Absolute composed pose; preserve expression, blink and voice composition order."
+					m_proxyItems = 
+					[
+						{
+							m_name = "Body and facial pose"
+							m_outputID = 
+							{
+								m_id = 1583786703
+							}
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 2099582625
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1868748547
+				}
+				value = 
+				{
+					_class = "CBoneMaskAnimNode"
+					m_sName = "Default expression with open eyes"
+					m_vecPosition = [ -544.0, -416.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1868748547
+					}
+					m_sNote = "Keep the eyelid bones and eyelid morphs from Eyes_Open. Expressions_Default supplies the remaining morphs; adding its bind-pose bones would displace the eyelids."
+					m_weightListName = "Only_Eyelids_and_Eyelid_Morphs"
+					m_inputConnection1 = 
+					{
+						m_nodeID = 
+						{
+							m_id = 1544660428
+						}
+						m_outputID = 
+						{
+							m_id = 4294967295
+						}
+					}
+					m_inputConnection2 = 
+					{
+						m_nodeID = 
+						{
+							m_id = 1298859429
+						}
+						m_outputID = 
+						{
+							m_id = 4294967295
+						}
+					}
+					m_blendSpace = "BlendSpace_Parent"
+					m_bUseBlendScale = false
+					m_blendValueSource = "Parameter"
+					m_blendParameter = 
+					{
+						m_id = 4294967295
+					}
+					m_timingBehavior = "UseChild1"
+					m_flTimingBlend = 0.5
+					m_flRootMotionBlend = 0.0
+					m_footMotionTiming = "Child1"
+					m_bResetChild1 = false
+					m_bResetChild2 = false
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 2099582625
+				}
+				value = 
+				{
+					_class = "CStateMachineAnimNode"
+					m_sName = "Bypass voice mask when silent"
+					m_vecPosition = [ 2224.0, -416.0 ]
+					m_nNodeID = 
+					{
+						m_id = 2099582625
+					}
+					m_sNote = "Preserve the existing voice threshold and zero-duration transitions."
+					m_states = 
+					[
+						{
+							_class = "CAnimState"
+							m_transitions = 
+							[
+								{
+									_class = "CAnimStateTransition"
+									m_conditions = 
+									[
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 0
+											m_paramID = 
+											{
+												m_id = 2090880745
+											}
+											m_comparisonValue = 
+											{
+												m_nType = 4
+												m_data = 0.0
+											}
+										},
+									]
+									m_blendDuration = 0.0
+									m_destState = 
+									{
+										m_id = 791759344
+									}
+									m_bReset = false
+									m_resetCycleOption = "SameCycleAsSource"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve = 
+									{
+										m_vControlPoint1 = [ 0.5, 0.0 ]
+										m_vControlPoint2 = [ 0.5, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+							]
+							m_tags = [  ]
+							m_tagBehaviors = [  ]
+							m_name = "Things are active"
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 1461986007
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+							m_stateID = 
+							{
+								m_id = 1869014926
+							}
+							m_position = [ -240.0, 48.0 ]
+							m_bIsStartState = true
+							m_bIsEndtState = true
+							m_bIsPassthrough = false
+							m_bIsRootMotionExclusive = false
+							m_bAlwaysEvaluate = false
+						},
+						{
+							_class = "CAnimState"
+							m_transitions = 
+							[
+								{
+									_class = "CAnimStateTransition"
+									m_conditions = 
+									[
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 0
+											m_paramID = 
+											{
+												m_id = 2090880745
+											}
+											m_comparisonValue = 
+											{
+												m_nType = 4
+												m_data = 0.0
+											}
+										},
+										{
+											_class = "CTimeCondition"
+											m_comparisonOp = 3
+											m_comparisonValue = 3.0
+										},
+									]
+									m_blendDuration = 0.0
+									m_destState = 
+									{
+										m_id = 933976417
+									}
+									m_bReset = false
+									m_resetCycleOption = "SameCycleAsSource"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve = 
+									{
+										m_vControlPoint1 = [ 0.5, 0.0 ]
+										m_vControlPoint2 = [ 0.5, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+								{
+									_class = "CAnimStateTransition"
+									m_conditions = 
+									[
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 1
+											m_paramID = 
+											{
+												m_id = 2090880745
+											}
+											m_comparisonValue = 
+											{
+												m_nType = 4
+												m_data = 0.0
+											}
+										},
+									]
+									m_blendDuration = 0.0
+									m_destState = 
+									{
+										m_id = 1869014926
+									}
+									m_bReset = false
+									m_resetCycleOption = "SameCycleAsSource"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve = 
+									{
+										m_vControlPoint1 = [ 0.5, 0.0 ]
+										m_vControlPoint2 = [ 0.5, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+							]
+							m_tags = [  ]
+							m_tagBehaviors = [  ]
+							m_name = "Time buffer"
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 1461986007
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+							m_stateID = 
+							{
+								m_id = 791759344
+							}
+							m_position = [ -64.0, -112.0 ]
+							m_bIsStartState = false
+							m_bIsEndtState = true
+							m_bIsPassthrough = false
+							m_bIsRootMotionExclusive = false
+							m_bAlwaysEvaluate = false
+						},
+						{
+							_class = "CAnimState"
+							m_transitions = 
+							[
+								{
+									_class = "CAnimStateTransition"
+									m_conditions = 
+									[
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 1
+											m_paramID = 
+											{
+												m_id = 2090880745
+											}
+											m_comparisonValue = 
+											{
+												m_nType = 4
+												m_data = 0.0
+											}
+										},
+									]
+									m_blendDuration = 0.0
+									m_destState = 
+									{
+										m_id = 1869014926
+									}
+									m_bReset = false
+									m_resetCycleOption = "SameCycleAsSource"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve = 
+									{
+										m_vControlPoint1 = [ 0.5, 0.0 ]
+										m_vControlPoint2 = [ 0.5, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+								{
+									_class = "CAnimStateTransition"
+									m_conditions = 
+									[
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 1
+											m_paramID = 
+											{
+												m_id = 2090880745
+											}
+											m_comparisonValue = 
+											{
+												m_nType = 4
+												m_data = 0.0
+											}
+										},
+									]
+									m_blendDuration = 0.0
+									m_destState = 
+									{
+										m_id = 791759344
+									}
+									m_bReset = false
+									m_resetCycleOption = "SameCycleAsSource"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve = 
+									{
+										m_vControlPoint1 = [ 0.5, 0.0 ]
+										m_vControlPoint2 = [ 0.5, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+							]
+							m_tags = [  ]
+							m_tagBehaviors = [  ]
+							m_name = "Optimize!"
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 861028884
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+							m_stateID = 
+							{
+								m_id = 933976417
+							}
+							m_position = [ 112.0, 48.0 ]
+							m_bIsStartState = false
+							m_bIsEndtState = true
+							m_bIsPassthrough = false
+							m_bIsRootMotionExclusive = false
+							m_bAlwaysEvaluate = false
+						},
+					]
+					m_bBlockWaningTags = false
+					m_bLockStateWhenWaning = false
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 2100100010
+				}
+				value = 
+				{
+					_class = "CCommentAnimNode"
+					m_sName = "Facial pose composition"
+					m_vecPosition = [ -960.0, -976.0 ]
+					m_nNodeID = 
+					{
+						m_id = 2100100010
+					}
+					m_sNote = ""
+					m_commentText = "Resting expression + fidget delta -> expression override -> facial masks -> character-specific blinking -> voice/lipsync mask.\n\nExpressions_Default and Eyes_Open contain absolute bone poses. Replace the eyelid channels with the open-eye mask; do not add these absolute poses together. Fidgets subtract bindPose before addition; Eyes_Blink_delta is already additive.\n\nBody pose comes from the selected holdtype. Masks control which bones and morphs are replaced. Preserve mask names, reset/timing flags and the bindPose sequence timer."
+					m_size = [ 1136.0, 368.0 ]
+					m_color = [ 0, 50, 100, 255 ]
+				}
+			},
+		]
+	}
+	m_localParameters = 
+	[
+		{
+			_class = "CFloatAnimParameter"
+			m_name = "voice"
+			m_id = 
+			{
+				m_id = 2090880745
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_fDefaultValue = 0.0
+			m_fMinValue = 0.0
+			m_fMaxValue = 1.0
+		},
+	]
+	m_localTags = [  ]
+}

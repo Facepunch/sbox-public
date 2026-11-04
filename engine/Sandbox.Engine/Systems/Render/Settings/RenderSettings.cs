@@ -16,14 +16,23 @@ public partial class RenderSettings
 	public event Action OnVideoSettingsChanged;
 	internal RenderQualityProfiles Config { get; } = new();
 
-	internal RenderSettings()
+	/// <summary>
+	/// Push the stored quality levels into their convars. Separate from the constructor because
+	/// the instance gets built the first time anything reads a setting, which is well before the
+	/// managed convars are registered.
+	/// </summary>
+	internal void ApplyQualityProfiles()
 	{
-		Config.SetDefaults( this );
+		MigrateStretchUpscaling();
+		MigratePostProcessSettings();
+		RenderScale = RenderScale;
+
+		Config.ApplyAll( this );
 	}
 
 	public int MaxFrameRate
 	{
-		get => ConVarSystem.GetInt( "fps_max", 100, true );
+		get => ConVarSystem.GetInt( "fps_max", 0, true );
 		set => ConVarSystem.SetInt( "fps_max", value, true );
 	}
 
@@ -35,7 +44,7 @@ public partial class RenderSettings
 
 	public int MaxFrameRateMenu
 	{
-		get => ConVarSystem.GetInt( "fps_max_menu", 120, true );
+		get => ConVarSystem.GetInt( "fps_max_menu", 0, true );
 		set => ConVarSystem.SetInt( "fps_max_menu", value, true );
 	}
 
@@ -57,21 +66,12 @@ public partial class RenderSettings
 
 	public VolumetricFogQuality VolumetricFogQuality
 	{
-		get => VideoSettings.Get<VolumetricFogQuality>( "volumetricfog.quality", VolumetricFogQuality.High );
+		get => (VolumetricFogQuality)Math.Min( (int)VideoSettings.Get<VolumetricFogQuality>( "volumetricfog.quality", VolumetricFogQuality.High ), (int)VolumetricFogQuality.High );
 		set
 		{
+			value = (VolumetricFogQuality)Math.Min( (int)value, (int)VolumetricFogQuality.High );
 			VideoSettings.Set<VolumetricFogQuality>( "volumetricfog.quality", value );
 			Config.SetGroupConVars( "VolumetricFogQuality", value.ToString() );
-		}
-	}
-
-	public PostProcessQuality PostProcessQuality
-	{
-		get => VideoSettings.Get<PostProcessQuality>( "postprocess.quality", PostProcessQuality.High );
-		set
-		{
-			VideoSettings.Set<PostProcessQuality>( "postprocess.quality", value );
-			Config.SetGroupConVars( "PostProcessQuality", value.ToString() );
 		}
 	}
 
@@ -85,38 +85,74 @@ public partial class RenderSettings
 		}
 	}
 
+	public WaterQuality WaterQuality
+	{
+		get => VideoSettings.Get<WaterQuality>( "water.quality", WaterQuality.High );
+		set
+		{
+			VideoSettings.Set<WaterQuality>( "water.quality", value );
+			Config.SetGroupConVars( "WaterQuality", value.ToString() );
+		}
+	}
+
 	public float MotionBlurScale
 	{
 		get => VideoSettings.Get<float>( "motionblur.scale", 1.0f );
 		set
 		{
 			VideoSettings.Set<float>( "motionblur.scale", value );
-			MotionBlur.UserScale = value;
+			ApplyMotionBlur();
 		}
 	}
+
+	const string UpscalerModeKey = "upscaler.mode";
 
 	public UpscalerMode UpscalerMode
 	{
-		get => VideoSettings.Get<UpscalerMode>( "upscaler.mode", UpscalerMode.Off );
+		get
+		{
+			var mode = VideoSettings.Get<UpscalerMode>( UpscalerModeKey, UpscalerMode.Off );
+			return mode == UpscalerMode.Stretch ? UpscalerMode.Off : mode;
+		}
 		set
 		{
-			VideoSettings.Set<UpscalerMode>( "upscaler.mode", value );
-			ConVarSystem.SetInt( "r_upscaling", (int)value, true );
+			var mode = value == UpscalerMode.Stretch ? UpscalerMode.Off : value;
+			VideoSettings.Set<UpscalerMode>( UpscalerModeKey, mode );
+			ConVarSystem.SetInt( "r_upscaling", (int)mode, true );
 		}
 	}
 
-	/// <summary>
-	/// Render-resolution scale used by Stretch (40-100%) and FSR1 (50-100%) modes.
-	/// </summary>
-	public float UpscalerRenderScale
+	void MigrateStretchUpscaling()
 	{
-		get => VideoSettings.Get<float>( "upscaler.render_scale", 0.75f );
+		if ( VideoSettings.Get<UpscalerMode>( UpscalerModeKey, UpscalerMode.Off ) != UpscalerMode.Stretch )
+			return;
+
+		UpscalerMode = UpscalerMode.Off;
+		VideoSettings.Save();
+	}
+
+	const string RenderScaleKey = "render.scale";
+
+	/// <summary>
+	/// Render-resolution scale used by Off (including MSAA and CMAA2) and FSR1 (40-100%).
+	/// </summary>
+	public float RenderScale
+	{
+		get => VideoSettings.Get<float>( RenderScaleKey, 1.0f );
 		set
 		{
 			float v = Math.Clamp( value, 0.4f, 1.0f );
-			VideoSettings.Set<float>( "upscaler.render_scale", v );
-			ConVarSystem.SetFloat( "r_upscaler_render_scale", v, true );
+			VideoSettings.Set<float>( RenderScaleKey, v );
+			ConVarSystem.SetFloat( "r_render_scale", v, true );
 		}
+	}
+
+	/// <summary>Render scale used by Off and FSR1 modes.</summary>
+	[Obsolete( "Use RenderScale" )]
+	public float UpscalerRenderScale
+	{
+		get => RenderScale;
+		set => RenderScale = value;
 	}
 
 	/// <summary>FSR1 RCAS sharpness in [0..1]. Only used when <see cref="UpscalerMode"/> is FSR1.</summary>
@@ -159,28 +195,76 @@ public partial class RenderSettings
 		}
 	}
 
+	/// <summary>
+	/// DLSS quality preset (Ultra Performance / Performance / Balanced / Quality / DLAA), maps
+	/// to a discrete render-resolution multiplier. Only used when <see cref="UpscalerMode"/>
+	/// is <see cref="UpscalerMode.DLSS"/>. DLSS has no sharpness control.
+	/// </summary>
+	public DlssQuality DlssQuality
+	{
+		get => VideoSettings.Get<DlssQuality>( "upscaler.dlss_quality", DlssQuality.Performance );
+		set
+		{
+			VideoSettings.Set<DlssQuality>( "upscaler.dlss_quality", value );
+			if ( value != DlssQuality.Off )
+				ConVarSystem.SetInt( "r_dlss_quality", (int)value, true );
+		}
+	}
+
+	/// <summary>
+	/// Returns whether the given <see cref="UpscalerMode"/> is usable on the current graphics
+	/// device. Off / FSR1 / FSR3 are always available; Stretch is legacy and not selectable.
+	/// DLSS requires NVIDIA hardware with NGX support and is queried from the native render device.
+	/// </summary>
+	public static bool IsUpscalerModeSupported( UpscalerMode mode )
+	{
+		// UpscalerType from src/public/rendersystem/iupscaler.h: NONE=0, AMD_FSR3=2, NVIDIA_DLSS=3.
+		const int UPSCALER_NVIDIA_DLSS = 3;
+
+		return mode switch
+		{
+			UpscalerMode.DLSS => NativeEngine.RenderDeviceManager.IsUpscalerSupported( UPSCALER_NVIDIA_DLSS ),
+			UpscalerMode.Stretch => false,
+			_ => true,
+		};
+	}
+
 	public void ResetVideoConfig()
 	{
-		int desktopWidth = 0;
-		int desktopHeight = 0;
-		uint desktopRefreshRate = 0;
-		EngineGlobal.Plat_GetDesktopResolution( EngineGlobal.Plat_GetDefaultMonitorIndex(), ref desktopWidth, ref desktopHeight, ref desktopRefreshRate );
-		ResolutionWidth = desktopWidth;
-		ResolutionHeight = desktopHeight;
+		ResetDisplayConfig();
+		ResetGraphicsConfig();
+	}
+
+	/// <summary>Window, resolution, vsync, frame rate caps and field of view.</summary>
+	public void ResetDisplayConfig()
+	{
+		var size = SdlDisplay.GetDesktopSize( SdlDisplay.Current );
+		ResolutionWidth = (int)size.x;
+		ResolutionHeight = (int)size.y;
 
 		Fullscreen = false;
 		Borderless = true;
 		VSync = true;
-		AntiAliasQuality = MultisampleAmount.Multisample8x;
-		MaxFrameRate = 300;
-		MaxFrameRateInactive = 60;
-		MaxFrameRateMenu = 120;
-		DefaultFOV = 75;
+		MaxFrameRate = 0;
+		MaxFrameRateInactive = 90;
+		MaxFrameRateMenu = 0;
+		DefaultFOV = 90;
+
+		VideoSettings.Save();
+	}
+
+	/// <summary>Quality and upscaling, back to whatever this machine detects.</summary>
+	public void ResetGraphicsConfig()
+	{
 		UpscalerMode = UpscalerMode.Off;
-		UpscalerRenderScale = 0.75f;
+		RenderScale = 1.0f;
 		Fsr1Sharpness = 0.25f;
 		Fsr3UpscalerQuality = Fsr3UpscalerQuality.Performance;
 		Fsr3Sharpness = 0.5f;
+		DlssQuality = DlssQuality.Performance;
+		MotionBlurScale = 1.0f;
+
+		ApplyPreset( DetectPreset() );
 
 		VideoSettings.Save();
 	}
@@ -202,6 +286,9 @@ public partial class RenderSettings
 	{
 		ResetVideoConfig();
 
+		// Fixed rung, so runs are comparable across machines.
+		ApplyPreset( GraphicsPreset.High );
+
 		Fullscreen = false;
 		Borderless = false;
 		VSync = false;
@@ -212,7 +299,7 @@ public partial class RenderSettings
 		ResolutionWidth = 1920;
 		ResolutionHeight = 1080;
 
-		NativeEngine.RenderDeviceManager.ChangeVideoMode( Fullscreen, Borderless, VSync, ResolutionWidth, ResolutionHeight, AntiAliasQuality.ToEngine() );
+		ApplyVideoMode();
 	}
 
 }

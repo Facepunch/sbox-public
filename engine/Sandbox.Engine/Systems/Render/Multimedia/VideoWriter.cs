@@ -161,6 +161,11 @@ public sealed class VideoWriter : IDisposable
 	public int Width => width;
 	public int Height => height;
 
+	/// <summary>
+	/// Do we have space in the encoding queue for another frame?
+	/// </summary>
+	public bool ReadyForVideoFrame => native.ReadyForVideoFrame();
+
 	internal VideoWriter( string path, Config config )
 	{
 		if ( !config.IsCodecSupported() )

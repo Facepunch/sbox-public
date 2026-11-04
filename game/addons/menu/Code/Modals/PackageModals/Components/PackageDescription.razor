@@ -4,12 +4,24 @@
 
 <root>
 
-    <HtmlPanel Html="@Package.Description"></HtmlPanel>
+    <HtmlPanel Html="@Trimmed( Html ?? Package?.Description )"></HtmlPanel>
 
 </root>
 
 @code
 {
    [Parameter] public Package Package {get;set;}
+
+   /// <summary>
+   /// Show this instead of the package's description - its Steam Workshop item's, for a package on the workshop
+   /// </summary>
+   [Parameter] public string Html {get;set;}
+
+   /// <summary>
+   /// Without the blank lines and empty paragraphs some start or end with - they showed as a gap over the words
+   /// </summary>
+   static string Trimmed( string html ) => html is null ? null : System.Text.RegularExpressions.Regex.Replace(
+       html, @"^(\s|<br\s*/?>|<p>(\s|&nbsp;|<br\s*/?>)*</p>)+|(\s|<br\s*/?>|<p>(\s|&nbsp;|<br\s*/?>)*</p>)+$", "",
+       System.Text.RegularExpressions.RegexOptions.IgnoreCase );
 
 }

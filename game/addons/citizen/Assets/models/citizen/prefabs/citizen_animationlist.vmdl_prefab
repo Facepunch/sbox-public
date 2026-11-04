@@ -1107,6 +1107,46 @@
 											},
 										]
 									},
+									{
+										_class = "MorphFrame"
+										name = "Expressions_Default"
+										activity_name = ""
+										activity_weight = 1
+										weight_list_name = ""
+										fade_in_time = 0.2
+										fade_out_time = 0.2
+										looping = false
+										delta = false
+										worldSpace = false
+										hidden = false
+										anim_markup_ordered = false
+										disable_compression = false
+										disable_interpolation = false
+										enable_scale = false
+										morph_weights = 
+										[
+											{
+												morph = "browlowererL"
+												weight = 0.004
+											},
+											{
+												morph = "innerbrowraiserL"
+												weight = 0.778
+											},
+											{
+												morph = "innerbrowraiserR"
+												weight = 0.778
+											},
+											{
+												morph = "lipcornerpullerL"
+												weight = 0.659
+											},
+											{
+												morph = "lipcornerpullerR"
+												weight = 0.664
+											},
+										]
+									},
 								]
 							},
 							{

@@ -1,0 +1,243 @@
+@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+
+// A heading and the rows under it - whatever holds it gives it its room and scrolls it
+PlayerList
+{
+	flex-direction: column;
+	flex-shrink: 0;
+	gap: 16px;
+	font-family: $front-font;
+
+	i
+	{
+		font-family: "Material Icons";
+	}
+
+	// On a tab page - the other tabs' insets
+	&.inset
+	{
+		padding: 20px 24px 64px 24px;
+	}
+
+	// The search taking the row, how they're sorted on the end of it
+	.toolbar
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 16px;
+	}
+
+	// The game page footer's split pills - one lit in the menu blue for how it's sorted
+	// Asking friends in - the menu's blue, on the end of the row
+	.invite
+	{
+		@include front-button;
+
+		flex-shrink: 0;
+		height: 40px;
+		padding: 0 16px;
+		border-radius: 999px;
+		cursor: pointer;
+
+		i
+		{
+			font-size: 17px;
+			color: #ffffff;
+		}
+
+		&:hover
+		{
+			sound-in: "ui.button.over";
+		}
+
+		&:active
+		{
+			sound-in: "ui.button.press";
+		}
+	}
+
+	.sort
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		height: 40px;
+		border-radius: 999px;
+		border: 1px solid rgba( 255, 255, 255, 0.1 );
+		background-color: rgba( 255, 255, 255, 0.05 );
+		overflow: hidden;
+
+		.option
+		{
+			flex-direction: row;
+			flex-shrink: 0;
+			align-items: center;
+			gap: 5px;
+			padding: 0 14px;
+			cursor: pointer;
+			transition: all 0.1s ease;
+
+			i
+			{
+				font-size: 16px;
+				color: $front-body;
+			}
+
+			label
+			{
+				font-size: 12px;
+				font-weight: 700;
+				color: $front-body;
+			}
+
+			// A fixed box, so the arrow swapping doesn't change the pill's width either
+			.direction
+			{
+				width: 14px;
+				font-size: 14px;
+				text-align: center;
+
+				&.unseen
+				{
+					opacity: 0;
+				}
+			}
+
+			&:hover
+			{
+				sound-in: "ui.button.over";
+				background-color: rgba( 255, 255, 255, 0.11 );
+
+				i, label
+				{
+					color: #ffffff;
+				}
+			}
+
+			&:active
+			{
+				sound-in: "ui.button.press";
+			}
+
+			&.active
+			{
+				background-color: rgba( $front-primary, 0.3 );
+
+				i
+				{
+					color: $front-primary * 1.6;
+				}
+
+				label
+				{
+					color: #ffffff;
+				}
+			}
+		}
+	}
+
+	// The friends list's search, in a recessed box of its own - magnifier on the left, text in the
+	// middle, clear button pinned to the right
+	.search
+	{
+		flex-direction: row;
+		flex-grow: 1;
+		flex-shrink: 1;
+		min-width: 0;
+		align-items: center;
+		gap: 8px;
+		height: 40px;
+		padding: 0 12px;
+		border-radius: $front-radius;
+		background-color: $front-card-deep;
+		border: $front-border-width solid $front-hairline;
+
+		> i
+		{
+			flex-shrink: 0;
+			font-size: 16px;
+			color: $front-tertiary;
+		}
+
+		TextEntry
+		{
+			flex-grow: 1;
+			font-size: 13px;
+			color: $front-heading;
+		}
+	}
+
+	.empty
+	{
+		justify-content: center;
+		padding: 32px;
+
+		label
+		{
+			font-size: 13px;
+			color: $front-secondary;
+		}
+	}
+
+	// A heading and its rows
+	.group
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		gap: 8px;
+	}
+
+	// The friends list's section heading - its name, and how many in a little pill after it
+	.group-head
+	{
+		flex-direction: row;
+		align-items: center;
+		flex-shrink: 0;
+		gap: 4px;
+		padding: 0 4px;
+
+		.group-title
+		{
+			@include front-section-label;
+		}
+
+		.group-count
+		{
+			flex-shrink: 0;
+			align-items: center;
+			justify-content: center;
+			min-width: 22px;
+			height: 18px;
+			margin-left: 4px;
+			padding: 0 7px;
+			border-radius: 999px;
+			background-color: rgba( 255, 255, 255, 0.07 );
+			font-size: 10px;
+			font-weight: 700;
+			color: $front-secondary;
+			text-align: center;
+		}
+	}
+
+	// The rows in one recessed box, a hairline between each - like the achievements tab's
+	.rows
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		overflow: hidden;
+		border-radius: $front-radius;
+		background-color: $front-card-deep;
+		border: $front-border-width solid $front-hairline;
+
+		> PlayerListRow
+		{
+			border-top: $front-border-width solid $front-hairline;
+		}
+
+		> PlayerListRow:first-child
+		{
+			border-top-width: 0px;
+		}
+	}
+}

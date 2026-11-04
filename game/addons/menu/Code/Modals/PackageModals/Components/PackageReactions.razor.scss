@@ -1,0 +1,151 @@
+@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+
+// Split pills in a row - the game page's footer, and the pause menu's
+PackageReactions
+{
+	flex-direction: row;
+	flex-shrink: 0;
+	align-items: center;
+	gap: 10px;
+
+	// The overlay doesn't get the main menu's theme, where glyphs get their font
+	icon
+	{
+		font-family: "Material Icons";
+	}
+}
+
+PackageReactions .group
+{
+	flex-direction: row;
+	flex-shrink: 0;
+	border-radius: 999px;
+	border: 1px solid rgba( 255, 255, 255, 0.1 );
+	background-color: rgba( 255, 255, 255, 0.05 );
+	overflow: hidden;
+
+	.pill
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 5px;
+		height: 34px;
+		min-width: 40px;
+		padding: 0 12px;
+		cursor: pointer;
+		transition: all 0.1s ease;
+
+		icon
+		{
+			font-size: 17px;
+			color: #c8cedb;
+		}
+
+		// Counts - Inter, which has figures all one width (Poppins hasn't), so a count going up by one
+		// doesn't nudge the pill's width
+		label
+		{
+			font-family: $font-default;
+			font-variant-numeric: tabular-nums;
+			font-size: 12px;
+			font-weight: 700;
+			color: #c8cedb;
+		}
+
+		&:hover
+		{
+			sound-in: "ui.button.over";
+			background-color: rgba( 255, 255, 255, 0.11 );
+
+			icon, label
+			{
+				color: $default-text;
+			}
+		}
+
+		&:active
+		{
+			sound-in: "ui.button.press";
+		}
+
+		&.active
+		{
+			background-color: rgba( $primary-blue, 0.3 );
+
+			icon
+			{
+				color: $primary-blue * 1.6;
+			}
+
+			label
+			{
+				color: $default-text;
+			}
+		}
+
+		&.fav.active
+		{
+			background-color: rgba( #e93b6d, 0.25 );
+
+			icon
+			{
+				color: #e93b6d;
+			}
+		}
+	}
+}
+
+PackageReactions .group.jam
+{
+	border-color: rgba( $front-trophy, 0.5 );
+	background-color: rgba( $front-trophy, 0.12 );
+
+	.pill
+	{
+		padding: 0 14px 0 12px;
+
+		icon
+		{
+			color: $front-trophy * 1.6;
+		}
+
+		label
+		{
+			color: $front-trophy * 1.6;
+		}
+
+		&:hover
+		{
+			background-color: rgba( $front-trophy, 0.2 );
+		}
+
+		&.on
+		{
+			background-color: $front-trophy;
+
+			icon
+			{
+				color: #1a1204;
+			}
+
+			label
+			{
+				color: #1a1204;
+			}
+		}
+
+		&.locked
+		{
+			opacity: 0.5;
+			cursor: default;
+		}
+
+		&.busy
+		{
+			opacity: 0.5;
+			pointer-events: none;
+		}
+	}
+}

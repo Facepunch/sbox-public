@@ -117,7 +117,18 @@ class MaterialDropTarget : IMapViewDropTarget
 	async Task GetMaterialFromPackage( Package package )
 	{
 		// Install our package ( Do we need any sort of loading indicator, it's gonna be fast surely )
-		var asset = await AssetSystem.InstallAsync( package );
+		Asset asset;
+		try
+		{
+			asset = await AssetSystem.InstallAsync( package );
+		}
+		catch ( System.AggregateException ex )
+		{
+			Log.Error( ex, $"Failed to install material package: {package.FullIdent}" );
+			return;
+		}
+
+		if ( asset is null ) return;
 		Material = Material.Load( asset.Path );
 
 		CreateNode();

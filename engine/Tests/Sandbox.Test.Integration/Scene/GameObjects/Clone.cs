@@ -17,9 +17,7 @@ public class CloneTest
 
 		_oldTypeLibrary = Game.TypeLibrary;
 
-		TypeLibrary = new Sandbox.Internal.TypeLibrary();
-		TypeLibrary.AddAssembly( typeof( ModelRenderer ).Assembly, false );
-		TypeLibrary.AddAssembly( typeof( ComponentWithPrefabSceneReference ).Assembly, false );
+		TypeLibrary = SharedTypeLibrary.EngineAndTests;
 		JsonUpgrader.UpdateUpgraders( TypeLibrary );
 
 		Game.TypeLibrary = TypeLibrary;

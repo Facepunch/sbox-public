@@ -1,0 +1,53 @@
+@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+
+// Its heading stays put, the description scrolls under it
+PackageAbout
+{
+	flex-direction: column;
+	gap: 8px;
+	font-family: $front-font;
+
+	.section-label
+	{
+		@include front-section-label;
+		flex-shrink: 0;
+	}
+
+	.body
+	{
+		position: relative;
+		flex-grow: 1;
+		min-height: 0;
+
+		// Engine masks use luminance: white shows, black hides
+		&.more
+		{
+			mask-image: linear-gradient( to bottom, white 0%, white 75%, black 100% );
+		}
+
+		> .scroll
+		{
+			position: absolute;
+			top: 0;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			flex-direction: column;
+			overflow-y: scroll;
+
+			// A thin bar down the right, so it's plain there's more - room kept for it, the words 8px clear of
+			// its 8px track, like the server list
+			scrollbar-width: thin;
+			scrollbar-color: $front-secondary transparent;
+			scrollbar-gutter: stable;
+			padding-right: 16px;
+		}
+	}
+
+	// Its own padding's the page's - here it's just the words
+	PackageDescription
+	{
+		padding: 0;
+	}
+}

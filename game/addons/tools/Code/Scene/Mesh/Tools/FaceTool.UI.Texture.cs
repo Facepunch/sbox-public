@@ -54,8 +54,12 @@ partial class FaceTool
 			{
 				var group = AddGroup( "Texture", collapsible: true );
 
+				var modeLabelRow = group.AddRow();
+				modeLabelRow.Add( new Label.Small( "Mode" ) );
+				modeLabelRow.AddStretchCell();
+
 				var row1 = group.AddRow();
-				row1.Spacing = 2;
+				row1.Spacing = 4;
 				row1.AddStretchCell();
 
 				AddToggleButton( "Align", "meshtools/texture_tool_buttons/texture_align.png", hasSelectedFaces, row1, "align" );
@@ -111,51 +115,58 @@ partial class FaceTool
 
 			_panelContainer.Layout.Clear( true );
 
-			if ( _faces.Length == 0 || _activePanel is null )
+			if ( _faces.Length == 0 )
 				return;
+
+			_activePanel ??= "align";
+
+			var submodeLabelRow = _panelContainer.Layout.AddRow();
+			submodeLabelRow.Add( new Label.Small( _activePanel switch
+			{
+				"align" => "Align",
+				"scale" => "Scale",
+				"shift" => "Shift",
+				"fit" => "Fit",
+				"justify" => "Justify",
+				"hotspot" => "Hotspot",
+				_ => "Align"
+			} ) );
+			submodeLabelRow.AddStretchCell();
+
+			var row = _panelContainer.Layout.AddRow();
+			row.Spacing = 4;
+			row.AddStretchCell();
 
 			if ( _activePanel == "align" )
 			{
-				var row = _panelContainer.Layout.AddRow();
-				row.Spacing = 2;
-				row.AddStretchCell();
-				AddIconBtn( "meshtools/texture_tool_buttons/align_to_grid.png", AlignToGrid, true, row, "Align to Grid" );
-				AddIconBtn( "meshtools/texture_tool_buttons/align_to_face.png", AlignToFace, true, row, "Align to Face" );
-				AddIconBtn( "meshtools/texture_tool_buttons/align_to_view.png", AlignToView, true, row, "Align to View" );
-				AddIconBtn( "meshtools/texture_tool_buttons/rotate_cw.png", () => DoRotate( true ), true, row, "Rotate CW" );
-				AddIconBtn( "meshtools/texture_tool_buttons/rotate_ccw.png", () => DoRotate( false ), true, row, "Rotate CCW" );
+				AddIconBtn( "meshtools/texture_tool_buttons/align_to_grid.png", AlignToGrid, true, row, "Align to Grid", "mesh.texture-align-grid" );
+				AddIconBtn( "meshtools/texture_tool_buttons/align_to_face.png", AlignToFace, true, row, "Align to Face", "mesh.texture-align-face" );
+				AddIconBtn( "meshtools/texture_tool_buttons/align_to_view.png", AlignToView, true, row, "Align to View", "mesh.texture-align-view" );
+				AddIconBtn( "meshtools/texture_tool_buttons/rotate_cw.png", RotateClockwise, true, row, "Rotate CW", "mesh.texture-rotate-clockwise" );
+				AddIconBtn( "meshtools/texture_tool_buttons/rotate_ccw.png", RotateCounterclockwise, true, row, "Rotate CCW", "mesh.texture-rotate-counterclockwise" );
 				row.AddStretchCell();
 			}
 			else if ( _activePanel == "scale" )
 			{
-				var row = _panelContainer.Layout.AddRow();
-				row.Spacing = 2;
-				row.AddStretchCell();
-				AddIconBtn( "meshtools/texture_tool_buttons/scale_x_up.png", () => DoScaleX( true ), true, row, "Scale X Up" );
-				AddIconBtn( "meshtools/texture_tool_buttons/scale_x_down.png", () => DoScaleX( false ), true, row, "Scale X Down" );
-				AddIconBtn( "meshtools/texture_tool_buttons/scale_y_up.png", () => DoScaleY( true ), true, row, "Scale Y Up" );
-				AddIconBtn( "meshtools/texture_tool_buttons/scale_y_down.png", () => DoScaleY( false ), true, row, "Scale Y Down" );
+				AddIconBtn( "meshtools/texture_tool_buttons/scale_x_up.png", ScaleXUp, true, row, "Scale X Up", "mesh.texture-scale-x-up" );
+				AddIconBtn( "meshtools/texture_tool_buttons/scale_x_down.png", ScaleXDown, true, row, "Scale X Down", "mesh.texture-scale-x-down" );
+				AddIconBtn( "meshtools/texture_tool_buttons/scale_y_up.png", ScaleYUp, true, row, "Scale Y Up", "mesh.texture-scale-y-up" );
+				AddIconBtn( "meshtools/texture_tool_buttons/scale_y_down.png", ScaleYDown, true, row, "Scale Y Down", "mesh.texture-scale-y-down" );
 				row.AddStretchCell();
 			}
 			else if ( _activePanel == "shift" )
 			{
-				var row = _panelContainer.Layout.AddRow();
-				row.Spacing = 2;
-				row.AddStretchCell();
-				AddIconBtn( "meshtools/texture_tool_buttons/shift_left.png", () => DoShiftX( true ), true, row, "Shift Left" );
-				AddIconBtn( "meshtools/texture_tool_buttons/shift_right.png", () => DoShiftX( false ), true, row, "Shift Right" );
-				AddIconBtn( "meshtools/texture_tool_buttons/shift_up.png", () => DoShiftY( true ), true, row, "Shift Up" );
-				AddIconBtn( "meshtools/texture_tool_buttons/shift_down.png", () => DoShiftY( false ), true, row, "Shift Down" );
+				AddIconBtn( "meshtools/texture_tool_buttons/shift_left.png", ShiftLeft, true, row, "Shift Left", "mesh.texture-shift-left" );
+				AddIconBtn( "meshtools/texture_tool_buttons/shift_right.png", ShiftRight, true, row, "Shift Right", "mesh.texture-shift-right" );
+				AddIconBtn( "meshtools/texture_tool_buttons/shift_up.png", ShiftUp, true, row, "Shift Up", "mesh.texture-shift-up" );
+				AddIconBtn( "meshtools/texture_tool_buttons/shift_down.png", ShiftDown, true, row, "Shift Down", "mesh.texture-shift-down" );
 				row.AddStretchCell();
 			}
 			else if ( _activePanel == "fit" )
 			{
-				var row = _panelContainer.Layout.AddRow();
-				row.Spacing = 2;
-				row.AddStretchCell();
-				AddIconBtn( "meshtools/texture_tool_buttons/fit_both.png", () => DoFit( TextureFit.x, TextureFit.y ), true, row, "Fit Both" );
-				AddIconBtn( "meshtools/texture_tool_buttons/fit_x.png", () => DoFit( TextureFit.x, -1 ), true, row, "Fit X" );
-				AddIconBtn( "meshtools/texture_tool_buttons/fit_y.png", () => DoFit( -1, TextureFit.y ), true, row, "Fit Y" );
+				AddIconBtn( "meshtools/texture_tool_buttons/fit_both.png", FitBoth, true, row, "Fit Both", "mesh.texture-fit-both" );
+				AddIconBtn( "meshtools/texture_tool_buttons/fit_x.png", FitX, true, row, "Fit X", "mesh.texture-fit-x" );
+				AddIconBtn( "meshtools/texture_tool_buttons/fit_y.png", FitY, true, row, "Fit Y", "mesh.texture-fit-y" );
 
 				var settingsBtn = new IconButton( "meshtools/additionals/settings.png" )
 				{
@@ -181,14 +192,11 @@ partial class FaceTool
 			}
 			else if ( _activePanel == "justify" )
 			{
-				var row = _panelContainer.Layout.AddRow();
-				row.Spacing = 2;
-				row.AddStretchCell();
-				AddIconBtn( "meshtools/texture_tool_buttons/justify_left.png", () => DoJustify( PolygonMesh.TextureJustification.Left ), true, row, "Left" );
-				AddIconBtn( "meshtools/texture_tool_buttons/justify_top.png", () => DoJustify( PolygonMesh.TextureJustification.Top ), true, row, "Top" );
-				AddIconBtn( "meshtools/texture_tool_buttons/justify_center.png", () => DoJustify( PolygonMesh.TextureJustification.Center ), true, row, "Center" );
-				AddIconBtn( "meshtools/texture_tool_buttons/justify_bottom.png", () => DoJustify( PolygonMesh.TextureJustification.Bottom ), true, row, "Bottom" );
-				AddIconBtn( "meshtools/texture_tool_buttons/justify_right.png", () => DoJustify( PolygonMesh.TextureJustification.Right ), true, row, "Right" );
+				AddIconBtn( "meshtools/texture_tool_buttons/justify_left.png", JustifyLeft, true, row, "Left", "mesh.texture-justify-left" );
+				AddIconBtn( "meshtools/texture_tool_buttons/justify_top.png", JustifyTop, true, row, "Top", "mesh.texture-justify-top" );
+				AddIconBtn( "meshtools/texture_tool_buttons/justify_center.png", JustifyCenter, true, row, "Center", "mesh.texture-justify-center" );
+				AddIconBtn( "meshtools/texture_tool_buttons/justify_bottom.png", JustifyBottom, true, row, "Bottom", "mesh.texture-justify-bottom" );
+				AddIconBtn( "meshtools/texture_tool_buttons/justify_right.png", JustifyRight, true, row, "Right", "mesh.texture-justify-right" );
 
 				var settingsBtn = new IconButton( "meshtools/additionals/settings.png" )
 				{
@@ -220,8 +228,8 @@ partial class FaceTool
 				var applyRow = _panelContainer.Layout.AddRow();
 				applyRow.Spacing = 2;
 				applyRow.AddStretchCell();
-				AddIconBtn( "meshtools/texture_tool_buttons/apply_by_hotspot.png", () => ApplyMaterialByHotspot( _meshTool.ActiveMaterial, false ), true, applyRow, "Apply Hotspot" );
-				AddIconBtn( "meshtools/texture_tool_buttons/apply_by_hotspot_(per_face).png", () => ApplyMaterialByHotspot( _meshTool.ActiveMaterial, true ), true, applyRow, "Apply Hotspot (Per Face)" );
+				AddIconBtn( "meshtools/texture_tool_buttons/apply_by_hotspot.png", ApplyMaterialByHotspot, true, applyRow, "Apply Hotspot", "mesh.apply-hotspot" );
+				AddIconBtn( "meshtools/texture_tool_buttons/apply_by_hotspot_(per_face).png", ApplyMaterialByHotspotPerFace, true, applyRow, "Apply Hotspot (Per Face)", "mesh.apply-hotspot-per-face" );
 
 				var settingsBtn = new IconButton( "meshtools/additionals/settings.png" )
 				{
@@ -282,12 +290,15 @@ partial class FaceTool
 			};
 			btn.OnClick = () =>
 			{
-				_activePanel = _activePanel == panelName ? null : panelName;
+				if ( _activePanel == panelName )
+					return;
+
+				_activePanel = panelName;
 				EditorCookie.Set( "TextureActivePanel", _activePanel );
 
 				foreach ( var sibling in btn.Parent.Children.OfType<IconButton>() )
 				{
-					sibling.IsActive = sibling == btn && _activePanel == panelName;
+					sibling.IsActive = sibling == btn;
 				}
 
 				RebuildPanel();
@@ -295,14 +306,15 @@ partial class FaceTool
 			row.Add( btn );
 		}
 
-		static void AddIconBtn( string icon, Action clicked, bool enabled, Layout row, string tooltip = null )
+		static void AddIconBtn( string icon, Action clicked, bool enabled, Layout row, string tooltip, string shortcut )
 		{
+			var keys = EditorShortcuts.GetDisplayKeys( shortcut );
 			var btn = new IconButton( icon, clicked )
 			{
 				Enabled = enabled,
 				IconSize = 24,
 				FixedSize = 32,
-				ToolTip = tooltip,
+				ToolTip = string.IsNullOrEmpty( keys ) ? tooltip : $"{tooltip} [{keys}]",
 			};
 			row.Add( btn );
 		}
@@ -319,10 +331,9 @@ partial class FaceTool
 				.WithComponentChanges( _components )
 				.Push() )
 			{
-				foreach ( var face in _faces )
+				foreach ( var group in _faces.GroupBy( x => x.Component.Mesh ) )
 				{
-					var mesh = face.Component.Mesh;
-					mesh.SetFaceMaterial( face.Handle, material );
+					group.Key.AssignMaterialToFaces( group.Select( x => x.Handle ), material );
 				}
 			}
 		}
@@ -374,10 +385,7 @@ partial class FaceTool
 					if ( HotspotUseActiveMaterial )
 					{
 						var faces = group.Select( x => x.Handle ).ToArray();
-						foreach ( var face in faces )
-						{
-							mesh.SetFaceMaterial( face, material );
-						}
+						mesh.AssignMaterialToFaces( faces, material );
 
 						ApplyHotspotForFaces( mesh, group.Key.WorldTransform, faces, material, perFace );
 					}
@@ -414,6 +422,7 @@ partial class FaceTool
 			_meshTool.CurrentTool = tool;
 		}
 
+		[Shortcut( "mesh.texture-align-grid", "CTRL+SHIFT+T", typeof( SceneViewWidget ) )]
 		private void AlignToGrid()
 		{
 			using var scope = SceneEditorSession.Scope();
@@ -429,6 +438,7 @@ partial class FaceTool
 			}
 		}
 
+		[Shortcut( "mesh.texture-align-face", "CTRL+SHIFT+F", typeof( SceneViewWidget ) )]
 		private void AlignToFace()
 		{
 			using var scope = SceneEditorSession.Scope();
@@ -444,6 +454,7 @@ partial class FaceTool
 			}
 		}
 
+		[Shortcut( "mesh.texture-align-view", "V", typeof( SceneViewWidget ) )]
 		private void AlignToView()
 		{
 			var sceneView = SceneViewWidget.Current?.LastSelectedViewportWidget;
@@ -457,6 +468,7 @@ partial class FaceTool
 			var uAxis = rotation.Right;
 			var vAxis = rotation.Up;
 			var offset = new Vector2( uAxis.Dot( position ), vAxis.Dot( position ) );
+			var scale = new Vector2( 0.25f, 0.25f );
 
 			using ( SceneEditorSession.Active.UndoScope( "Align to View" )
 				.WithComponentChanges( _components )
@@ -464,10 +476,65 @@ partial class FaceTool
 			{
 				foreach ( var face in _faces )
 				{
-					face.Component.Mesh.SetFaceTextureParameters( face.Handle, offset, uAxis, vAxis );
+					var mesh = face.Component.Mesh;
+					mesh.SetFaceTextureParameters( face.Handle, new Vector4( uAxis, offset.x ), new Vector4( vAxis, offset.y ), scale );
 				}
 			}
 		}
+
+		[Shortcut( "mesh.texture-rotate-clockwise", "ALT+S", typeof( SceneViewWidget ) )]
+		void RotateClockwise() => DoRotate( true );
+
+		[Shortcut( "mesh.texture-rotate-counterclockwise", "ALT+Q", typeof( SceneViewWidget ) )]
+		void RotateCounterclockwise() => DoRotate( false );
+
+		[Shortcut( "mesh.texture-scale-x-up", "", typeof( SceneViewWidget ) )]
+		void ScaleXUp() => DoScaleX( true );
+
+		[Shortcut( "mesh.texture-scale-x-down", "", typeof( SceneViewWidget ) )]
+		void ScaleXDown() => DoScaleX( false );
+
+		[Shortcut( "mesh.texture-scale-y-up", "", typeof( SceneViewWidget ) )]
+		void ScaleYUp() => DoScaleY( true );
+
+		[Shortcut( "mesh.texture-scale-y-down", "", typeof( SceneViewWidget ) )]
+		void ScaleYDown() => DoScaleY( false );
+
+		[Shortcut( "mesh.texture-shift-left", "", typeof( SceneViewWidget ) )]
+		void ShiftLeft() => DoShiftX( true );
+
+		[Shortcut( "mesh.texture-shift-right", "", typeof( SceneViewWidget ) )]
+		void ShiftRight() => DoShiftX( false );
+
+		[Shortcut( "mesh.texture-shift-up", "", typeof( SceneViewWidget ) )]
+		void ShiftUp() => DoShiftY( true );
+
+		[Shortcut( "mesh.texture-shift-down", "", typeof( SceneViewWidget ) )]
+		void ShiftDown() => DoShiftY( false );
+
+		[Shortcut( "mesh.texture-fit-both", "CTRL+SHIFT+KP_DEL", typeof( SceneViewWidget ) )]
+		void FitBoth() => DoFit( TextureFit.x, TextureFit.y );
+
+		[Shortcut( "mesh.texture-fit-x", "", typeof( SceneViewWidget ) )]
+		void FitX() => DoFit( TextureFit.x, -1 );
+
+		[Shortcut( "mesh.texture-fit-y", "", typeof( SceneViewWidget ) )]
+		void FitY() => DoFit( -1, TextureFit.y );
+
+		[Shortcut( "mesh.texture-justify-left", "CTRL+SHIFT+KP_4", typeof( SceneViewWidget ) )]
+		void JustifyLeft() => DoJustify( PolygonMesh.TextureJustification.Left );
+
+		[Shortcut( "mesh.texture-justify-top", "CTRL+SHIFT+KP_8", typeof( SceneViewWidget ) )]
+		void JustifyTop() => DoJustify( PolygonMesh.TextureJustification.Top );
+
+		[Shortcut( "mesh.texture-justify-center", "CTRL+SHIFT+KP_5", typeof( SceneViewWidget ) )]
+		void JustifyCenter() => DoJustify( PolygonMesh.TextureJustification.Center );
+
+		[Shortcut( "mesh.texture-justify-bottom", "CTRL+SHIFT+KP_2", typeof( SceneViewWidget ) )]
+		void JustifyBottom() => DoJustify( PolygonMesh.TextureJustification.Bottom );
+
+		[Shortcut( "mesh.texture-justify-right", "CTRL+SHIFT+KP_6", typeof( SceneViewWidget ) )]
+		void JustifyRight() => DoJustify( PolygonMesh.TextureJustification.Right );
 
 		private void DoRotate( bool clockwise )
 		{

@@ -96,11 +96,11 @@ partial class PropertySignalExtensions
 	/// </summary>
 	public static PropertySignal<T> AsSignal<T>( this T value ) => value;
 
-	public static IPropertySignal AsSignal( this object? value, Type targetType )
+	public static PropertySignal AsSignal( this object? value, Type targetType )
 	{
 		var signalType = typeof( ConstantSignal<> ).MakeGenericType( targetType );
 
-		return (IPropertySignal)Activator.CreateInstance( signalType, value )!;
+		return (PropertySignal)Activator.CreateInstance( signalType, value )!;
 	}
 
 	/// <inheritdoc cref="AsSignal{T}(IReadOnlyList{PropertyBlock{T}})"/>

@@ -1,5 +1,3 @@
-using System;
-
 namespace Editor.Mcp;
 
 [McpToolset( "log", "Write messages to the editor console" )]

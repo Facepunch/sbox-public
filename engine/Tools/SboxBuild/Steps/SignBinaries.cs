@@ -31,12 +31,28 @@ internal class SignBinaries
 			return ExitCode.Success;
 		}
 
+		// Installed (or updated) on every run as a global tool, and run from where that puts it:
+		// the tools folder isn't necessarily on this process's PATH.
+		if ( !Utility.RunProcess( "dotnet", "tool install --global sign --prerelease" ) )
+		{
+			Log.Error( "Failed to install the sign tool." );
+			return ExitCode.Failure;
+		}
+
+		var signPath = Path.Combine( Environment.GetFolderPath( Environment.SpecialFolder.UserProfile ), ".dotnet", "tools",
+			OperatingSystem.IsWindows() ? "sign.exe" : "sign" );
+		if ( !File.Exists( signPath ) )
+		{
+			Log.Error( $"The sign tool wasn't installed at {signPath}" );
+			return ExitCode.Failure;
+		}
+
 		Log.Info( $"Signing {filesToSign.Count} files..." );
 
 		var fileArgs = string.Join( " ", filesToSign.Select( f => $"\"{f}\"" ) );
 
 		bool success = Utility.RunProcess(
-			"sign",
+			signPath,
 			$"code artifact-signing -ase \"{endpointUrl}\" -asa \"{accountName}\" -ascp \"{certificateProfile}\" -v warning -m 16 {fileArgs}",
 			rootDir,
 			timeoutMs: 600000

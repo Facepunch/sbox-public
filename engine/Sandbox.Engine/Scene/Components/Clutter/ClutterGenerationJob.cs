@@ -150,10 +150,11 @@ class ClutterGenerationJob
 		var parts = model.Physics.Parts;
 		var referenceTransform = parts.Count > 0 ? parts[0].Transform : Transform.Zero;
 		var bodyTransform = transform.ToWorld( referenceTransform );
-		var body = new PhysicsBody( world );
-		body.BodyType = PhysicsBodyType.Static;
-		body.Position = bodyTransform.Position;
-		body.Rotation = bodyTransform.Rotation;
+		var body = world.CreateBody( new PhysicsBodySettings
+		{
+			Position = bodyTransform.Position,
+			Rotation = bodyTransform.Rotation
+		} );
 
 		var scaleOnly = new Transform( Vector3.Zero, Rotation.Identity, transform.Scale.x );
 		foreach ( var part in parts )
@@ -177,6 +178,24 @@ class ClutterGenerationJob
 	{
 		var isComponentOwned = Ownership == ClutterOwnership.Component;
 		var tileCoord = Tile?.Coordinates ?? Vector2Int.Zero;
+
+		if ( !isComponentOwned && Tile != null && Layer != null && instances.TrueForAll( static instance => instance.IsModel ) )
+		{
+			Layer.AdoptModelInstances( tileCoord, instances );
+			return;
+		}
+
+		if ( Layer != null )
+		{
+			int modelCount = 0;
+			foreach ( var instance in instances )
+			{
+				if ( instance.IsModel )
+					modelCount++;
+			}
+
+			Layer.ReserveModelInstances( tileCoord, modelCount );
+		}
 
 		using ( Parent.Scene.Push() )
 		{

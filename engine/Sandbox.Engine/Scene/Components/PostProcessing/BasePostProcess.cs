@@ -25,12 +25,26 @@ public abstract class BasePostProcess : Component, Component.ExecuteInEditor, Co
 	protected CameraComponent Camera => context.Camera;
 
 	/// <summary>
+	/// Build this effect when preparing a render camera, instead of building command lists at the end of the update.
+	/// Camera effects can supply settings through TargetCamera and use scene-wide defaults outside cameras and volumes.
+	/// This declaration must be the same for every instance of an effect type.
+	/// </summary>
+	public virtual bool IsCameraEffect => false;
+
+	/// <summary>
+	/// The render camera receiving this effect's settings. Only available during Render for camera effects.
+	/// This may be an editor viewport or capture rather than Camera.SceneCamera.
+	/// </summary>
+	protected SceneCamera TargetCamera => context.TargetCamera;
+
+	/// <summary>
 	/// The default attributes for this post process. This will be used by helper functions like Blit.
 	/// </summary>
 	protected readonly RenderAttributes Attributes = new();
 
 	internal void Build( PostProcessContext ctx )
 	{
+		var previousContext = _currentContext;
 		_currentContext = ctx;
 
 		try
@@ -41,12 +55,13 @@ public abstract class BasePostProcess : Component, Component.ExecuteInEditor, Co
 		}
 		finally
 		{
-			_currentContext = default;
+			_currentContext = previousContext;
 		}
 	}
 
 	/// <summary>
-	/// Override in your implementation to do your rendering
+	/// Build command lists, or apply settings to TargetCamera when IsCameraEffect is true.
+	/// Called on the main thread with the camera's weighted effect instances available through GetWeighted.
 	/// </summary>
 	public abstract void Render();
 
@@ -131,7 +146,23 @@ public abstract class BasePostProcess : Component, Component.ExecuteInEditor, Co
 		layer.Order = order;
 		layer.CommandList = cl;
 		layer.Name = debugName;
+		layer.NeedsDepthNormals = NeedsDepthNormals;
+		layer.EarlyQueue = stage == Sandbox.Rendering.Stage.AfterDepthPrepass ? EarlyQueue : null;
 	}
+
+	/// <summary>
+	/// Queue for an independent effect that can run before ordinary <c>AfterDepthPrepass</c> hooks. It may read prepass depth,
+	/// normals and its own history, but not other effects' results or shadow maps. Async compute lists must contain no draws
+	/// or clears. Graphics lists may run beside those compute effects once Hi-Z is ready. Serial frames retain the original
+	/// stage order. Null keeps a command list at its normal stage.
+	/// </summary>
+	internal virtual PostProcessQueue? EarlyQueue => null;
+
+	/// <summary>
+	/// Whether the effect reads the normals and roughness G-buffer the depth-normals prepass writes. Informational (perf hub):
+	/// both renderers draw it for any camera with post-process layers.
+	/// </summary>
+	internal virtual bool NeedsDepthNormals => false;
 }
 
 /// <summary>
@@ -147,16 +178,15 @@ public abstract class BasePostProcess<T> : BasePostProcess where T : BasePostPro
 		U v = defaultVal;
 		var lerper = Interpolator.GetDefault<U>();
 
-		int i = 0;
-		foreach ( var e in context.Components )
+		var components = context.Components;
+		for ( int i = 0; i < components.Count; i++ )
 		{
+			var e = components[i];
 			var target = value( (T)e.Effect );
 			v = lerper.Interpolate( v, target, e.Weight );
 
 			if ( onlyLerpBetweenVolumes && i == 0 )
 				v = target;
-
-			i++;
 		}
 
 		return v;

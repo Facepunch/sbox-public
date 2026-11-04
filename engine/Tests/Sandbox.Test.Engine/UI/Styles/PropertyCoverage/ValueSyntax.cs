@@ -9,6 +9,49 @@ namespace UITests.PropertyCoverage;
 [TestClass]
 public class ValueSyntaxTest
 {
+	[TestMethod]
+	public void BorderShape_Polygon()
+	{
+		var s = new Styles();
+		Assert.IsTrue( s.Set( "border-shape", "polygon(0% 0%, 100% 0%, calc(50% + 1px) 100%)" ) );
+		Assert.AreEqual( 3, s.BorderShape.Points.Count );
+		Assert.AreEqual( LengthUnit.Percentage, s.BorderShape.Points[0].X.Unit );
+		Assert.AreEqual( LengthUnit.Expression, s.BorderShape.Points[2].X.Unit );
+	}
+
+	[TestMethod]
+	public void BorderShape_RejectsInvalidPolygons()
+	{
+		var s = new Styles();
+		Assert.IsFalse( s.Set( "border-shape", "polygon(0% 0%, 100% 0%)" ) );
+		Assert.IsFalse( s.Set( "border-shape", "polygon(0% 0%, 100% 0%, 50%)" ) );
+		Assert.IsFalse( s.Set( "border-shape", "polygon(0 0, 1 0, 2 0, 3 0, 4 0, 5 0, 6 0, 7 0, 8 0)" ) );
+		Assert.IsFalse( s.Set( "border-shape", "ellipse(50%)" ) );
+	}
+
+	[TestMethod]
+	public void BorderShape_Circle()
+	{
+		var s = new Styles();
+		Assert.IsTrue( s.Set( "border-shape", "circle(40% at 25% 75%)" ) );
+		Assert.AreEqual( BorderShapeKind.Circle, s.BorderShape.Kind );
+		Assert.AreEqual( 40, s.BorderShape.CircleRadius.Value.Value );
+		Assert.AreEqual( 25, s.BorderShape.CircleCenterX.Value );
+		Assert.AreEqual( 75, s.BorderShape.CircleCenterY.Value );
+		Assert.IsTrue( new Styles().Set( "border-shape", "circle()" ) );
+		Assert.IsTrue( new Styles().Set( "border-shape", "circle(at 20px 30px)" ) );
+		Assert.IsFalse( new Styles().Set( "border-shape", "circle(-1px)" ) );
+		Assert.IsFalse( new Styles().Set( "border-shape", "circle(20px at 50%)" ) );
+	}
+
+	[TestMethod]
+	public void BorderShape_None()
+	{
+		var s = new Styles();
+		Assert.IsTrue( s.Set( "border-shape", "none" ) );
+		Assert.IsTrue( s.BorderShape.IsNone );
+	}
+
 	// ----------------------------------------------------------------------------
 	// COLOR - hex forms
 	// ----------------------------------------------------------------------------

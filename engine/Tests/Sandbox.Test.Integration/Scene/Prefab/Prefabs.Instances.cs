@@ -2,6 +2,7 @@
 using Sandbox;
 using Sandbox.Internal;
 using System;
+using System.Linq;
 
 namespace SceneTests.Prefab;
 
@@ -1150,6 +1151,144 @@ public partial class InstancesTest
 		{
 			if ( newPrefab is not null ) Game.Resources.Unregister( newPrefab );
 		}
+	}
+
+	/// <summary>
+	/// Regression test: converting a GameObject to a prefab and saving it over an existing
+	/// prefab file must keep the prefab's root guid and refresh the cached prefab scene.
+	/// Previously the root got a brand new guid and the cache stayed stale, so existing
+	/// instances pointed at dead guids — their refresh silently no-op'd, meshes disappeared
+	/// and "Unknown GameObject" errors followed.
+	/// </summary>
+	[TestMethod]
+	public void ConvertGameObjectToPrefab_OverwritingExistingPrefab_KeepsInstancesLinked()
+	{
+		var saveLocation = "___overwrite_existing.prefab";
+
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		// Create block A with a mesh and convert it to a new prefab
+		var goA = CreateMeshBlock( "BlockA" );
+		EditorUtility.Prefabs.ConvertGameObjectToPrefab( goA, saveLocation, true );
+
+		var prefabFile = ResourceLibrary.Get<PrefabFile>( saveLocation );
+
+		try
+		{
+			Assert.IsTrue( goA.IsPrefabInstanceRoot, "First conversion should make the object a prefab instance root" );
+			var originalRootGuid = prefabFile.RootObject["__guid"].GetValue<Guid>();
+
+			// Create block B with different content and save it over the same prefab file
+			var goB = CreateMeshBlock( "BlockB" );
+			goB.AddComponent<BoxCollider>();
+			EditorUtility.Prefabs.ConvertGameObjectToPrefab( goB, saveLocation, true );
+
+			// Root identity must be preserved so existing instances stay linked
+			Assert.AreEqual( originalRootGuid, prefabFile.RootObject["__guid"].GetValue<Guid>(),
+				"Overwriting an existing prefab must keep its root guid" );
+
+			// The cached prefab scene must be refreshed with the new content
+			var prefabScene = SceneUtility.GetPrefabScene( prefabFile );
+			Assert.IsNotNull( prefabScene.Components.Get<BoxCollider>(),
+				"Cached prefab scene must be refreshed with the overwritten content" );
+
+			// The pre-existing instance must resolve against the new prefab and receive its
+			// content. In the editor this runs automatically via UpdatePrefabInstancesInScene.
+			goA.UpdateFromPrefab();
+
+			Assert.IsNotNull( goA.Components.Get<BoxCollider>(),
+				"Existing instance must receive the new prefab content" );
+
+			var mesh = goA.Components.Get<MeshComponent>()?.Mesh;
+			Assert.IsNotNull( mesh, "Existing instance must keep a valid mesh after the overwrite" );
+			Assert.AreEqual( 4, mesh.VertexHandles.Count() );
+		}
+		finally
+		{
+			if ( prefabFile is not null ) Game.Resources.Unregister( prefabFile );
+		}
+	}
+
+	/// <summary>
+	/// Regression test: <see cref="PrefabInstanceData.RefreshPatch"/> re-serializes the instance to
+	/// compute its diff against the prefab. If this happens to run nested inside an unrelated,
+	/// already-active <see cref="BlobDataSerializer"/> capture context (e.g. a resource save
+	/// higher up the call stack), the mesh data would previously get written into the cached
+	/// patch as a "$blob" guid reference instead of self-contained inline bytes. That reference
+	/// is only resolvable while the ambient context that created it is still alive, so reapplying
+	/// the patch later (once that context is long gone) silently produced an empty mesh and the
+	/// MeshComponent deleted its scene object — the mesh "vanished". Meshes in prefab instances
+	/// must survive a RefreshPatch computed under an active, unrelated blob context.
+	/// </summary>
+	[TestMethod]
+	public void RefreshPatch_UnderActiveBlobContext_KeepsMeshSelfContained()
+	{
+		var saveLocation = "___mesh_patch_blob_context.prefab";
+
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var go = CreateMeshBlock( "MeshBlock" );
+		EditorUtility.Prefabs.ConvertGameObjectToPrefab( go, saveLocation, true );
+
+		var prefabFile = ResourceLibrary.Get<PrefabFile>( saveLocation );
+
+		try
+		{
+			Assert.IsTrue( go.IsPrefabInstanceRoot );
+
+			// Give the instance its own mesh, different from the prefab's, so RefreshPatch
+			// produces a MeshComponent.Mesh property override.
+			var component = go.Components.Get<MeshComponent>();
+			var overrideMesh = new PolygonMesh();
+			var a = overrideMesh.AddVertex( new Vector3( 0, 0, 0 ) );
+			var b = overrideMesh.AddVertex( new Vector3( 128, 0, 0 ) );
+			var c = overrideMesh.AddVertex( new Vector3( 128, 128, 0 ) );
+			var d = overrideMesh.AddVertex( new Vector3( 0, 128, 0 ) );
+			overrideMesh.AddFace( a, b, c, d );
+			component.Mesh = overrideMesh;
+
+			// Simulate RefreshPatch() running while an unrelated blob-capture context is active
+			// higher up the call stack, e.g. GameResource.Serialize() mid-save.
+			using ( BlobDataSerializer.Capture() )
+			{
+				go.PrefabInstance.RefreshPatch();
+			}
+
+			var patchJson = Json.ToNode( go.PrefabInstance.Patch )?.ToJsonString() ?? "";
+			Assert.IsFalse( patchJson.Contains( "$blob" ),
+				"A patch computed under an ambient blob context must stay self-contained, not reference a guid that only resolves within that context" );
+
+			// Reapplying the patch outside of any blob context (as happens later, e.g. when the
+			// prefab instance is refreshed after an unrelated save) must not lose the mesh.
+			go.UpdateFromPrefab();
+
+			var meshAfter = go.Components.Get<MeshComponent>()?.Mesh;
+			Assert.IsNotNull( meshAfter, "Instance must keep a valid mesh after reapplying the patch" );
+			Assert.AreEqual( 4, meshAfter.VertexHandles.Count() );
+			Assert.AreEqual( 1, meshAfter.FaceHandles.Count() );
+		}
+		finally
+		{
+			if ( prefabFile is not null ) Game.Resources.Unregister( prefabFile );
+		}
+	}
+
+	static GameObject CreateMeshBlock( string name )
+	{
+		var go = new GameObject( true, name );
+		var component = go.Components.Create<MeshComponent>();
+
+		var mesh = new PolygonMesh();
+		var a = mesh.AddVertex( new Vector3( 0, 0, 0 ) );
+		var b = mesh.AddVertex( new Vector3( 64, 0, 0 ) );
+		var c = mesh.AddVertex( new Vector3( 64, 64, 0 ) );
+		var d = mesh.AddVertex( new Vector3( 0, 64, 0 ) );
+		mesh.AddFace( a, b, c, d );
+
+		component.Mesh = mesh;
+		return go;
 	}
 
 	// Innermost prefab definition

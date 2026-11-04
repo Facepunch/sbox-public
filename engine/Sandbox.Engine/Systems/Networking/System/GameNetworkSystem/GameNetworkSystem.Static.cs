@@ -100,9 +100,14 @@ public struct LobbyInformation
 	public string Game;
 
 	/// <summary>
-	/// Ping in milliseconds. Only available for dedicated servers, -1 if unknown.
+	/// Round-trip latency in milliseconds, or -1 if unknown. Steam lobbies use a relay-route estimate.
 	/// </summary>
 	public int Ping;
+
+	/// <summary>
+	/// True when Ping is estimated from Steam relay locations rather than measured from a server query.
+	/// </summary>
+	public bool IsPingEstimated;
 
 	public Dictionary<string, string> Data;
 
@@ -115,6 +120,11 @@ public struct LobbyInformation
 	/// True if this lobby should be hidden from server lists.
 	/// </summary>
 	public bool IsHidden => Data.TryGetValue( "hdn", out var value ) && value == "1";
+
+	/// <summary>
+	/// True if you need a password to join this lobby or server.
+	/// </summary>
+	public bool IsPasswordProtected => Data.TryGetValue( "pw", out var value ) && value == "1";
 
 	/// <summary>
 	/// Return true if this lobby contains a friend.
@@ -134,10 +144,12 @@ internal static class DedicatedServer
 
 	private static bool IsGameServerActive { get; set; }
 	private static bool Initialized { get; set; }
+	private static Task<bool> _steamLogOn;
 
 	private static Dictionary<string, string> _data = new();
 	private static string _mapName;
 	private static string _name;
+	private static bool _passwordProtected;
 
 	/// <summary>
 	/// All metadata for this dedicated server.
@@ -166,6 +178,31 @@ internal static class DedicatedServer
 			sgs.SetAdvertiseServerActive( true );
 
 			_name = value;
+		}
+	}
+
+	/// <summary>
+	/// Whether the server browser shows this server needs a password (sv_password).
+	/// </summary>
+	public static bool PasswordProtected
+	{
+		get => _passwordProtected;
+		set
+		{
+			var sgs = Steam.SteamGameServer();
+			if ( !sgs.IsValid || !Networking.IsHost )
+			{
+				_passwordProtected = value;
+				return;
+			}
+
+			if ( _passwordProtected == value )
+				return;
+
+			sgs.SetPasswordProtected( value );
+			sgs.SetAdvertiseServerActive( true );
+
+			_passwordProtected = value;
 		}
 	}
 
@@ -252,7 +289,7 @@ internal static class DedicatedServer
 
 		if ( !IsGameServerActive )
 		{
-			Steam.SteamGameServer_Init( Networking.Port, Networking.QueryPort, "1.0.0.0" );
+			await LogOnToSteamAsync();
 			Networking.Bootstrap();
 
 			// Conna: we can abstract this stuff out later, but for now we only use Steam networking for dedicated servers.
@@ -310,11 +347,15 @@ internal static class DedicatedServer
 			sgs.SetServerName( hostname );
 			sgs.SetMapName( mapName );
 
+			var passwordProtected = Networking.System?.Access.HasPassword ?? false;
+			sgs.SetPasswordProtected( passwordProtected );
+
 			Networking.UpdateServerName( hostname );
 			Networking.MaxPlayers = config.MaxPlayers;
 
 			_mapName = mapName;
 			_name = hostname;
+			_passwordProtected = passwordProtected;
 
 			if ( !IsGameServerActive && !sgs.BLoggedOn() )
 			{
@@ -365,9 +406,60 @@ internal static class DedicatedServer
 		}
 	}
 
+	/// <summary>
+	/// Bring up the Steam game server and log on. The server's packages install from the workshop
+	/// before the server is started, so they call this too. Returns false if we couldn't log on.
+	/// </summary>
+	internal static Task<bool> LogOnToSteamAsync()
+	{
+		return _steamLogOn ??= LogOnToSteamInternalAsync();
+	}
+
+	static async Task<bool> LogOnToSteamInternalAsync()
+	{
+		Steam.SteamGameServer_Init( Networking.Port, Networking.QueryPort, "1.0.0.0" );
+
+		EngineFileSystem.DownloadedFiles.CreateDirectory( "/workshop" );
+		if ( !CUgcSubscriptions.InitWorkshopForGameServer( EngineFileSystem.DownloadedFiles.GetFullPath( "/workshop" ) ) )
+		{
+			Log.Warning( "Couldn't initialize the workshop for the game server" );
+		}
+
+		var sgs = Steam.SteamGameServer();
+		if ( !sgs.IsValid )
+			return false;
+
+		// These can only be set before logging on
+		sgs.SetProduct( "sbox" );
+		sgs.SetModDir( "sbox" );
+		sgs.SetDedicatedServer( true );
+		sgs.SetGameDescription( Application.GamePackage?.Title ?? "s&box" );
+
+		if ( !string.IsNullOrEmpty( Networking.GameServerToken ) )
+			sgs.LogOn( Networking.GameServerToken );
+		else
+			sgs.LogOnAnonymous();
+
+		var timeout = RealTime.Now + 10.0f;
+		while ( !sgs.BLoggedOn() )
+		{
+			if ( RealTime.Now > timeout )
+			{
+				Log.Warning( "Unable to log on to Steam in a reasonable time!" );
+				return false;
+			}
+
+			await Task.Delay( 100 );
+		}
+
+		return true;
+	}
+
 	private static void OnConnected( SteamServersConnected_t cb )
 	{
 		Log.Warning( $"Connected to Steam" );
+
+		Utility.Steam.InitializeClient();
 	}
 
 	private static void OnDisconnected( SteamServersDisconnected_t cb )
@@ -420,5 +512,6 @@ internal static class DedicatedServer
 
 		Steam.SteamGameServer_Shutdown();
 		IsGameServerActive = false;
+		_steamLogOn = null;
 	}
 }

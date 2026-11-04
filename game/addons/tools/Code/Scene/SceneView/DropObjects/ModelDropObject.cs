@@ -71,7 +71,7 @@ partial class ModelDropObject : BaseDropObject
 			GameObject.Name = model.ResourceName;
 			GameObject.WorldTransform = traceTransform;
 
-			bool isProp = (model.Physics?.Parts.Count ?? 0) > 0;
+			bool isProp = EditorPreferences.PlaceModelsAsProp && (model.Physics?.Parts.Count ?? 0) > 0;
 			if ( isProp )
 			{
 				var prop = GameObject.Components.Create<Prop>();

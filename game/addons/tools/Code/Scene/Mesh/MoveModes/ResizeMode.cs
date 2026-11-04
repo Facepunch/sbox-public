@@ -41,7 +41,6 @@ public sealed class ResizeMode : MoveMode
 			tool.StartDrag();
 			ResizeBBox( tool, _startBox, _box, _basis );
 			tool.UpdateDrag();
-			tool.Pivot = tool.CalculateSelectionOrigin();
 		}
 	}
 
@@ -61,7 +60,7 @@ public sealed class ResizeMode : MoveMode
 		}
 
 		var nearbyVertex = tool.MeshTrace.GetClosestVertex( 50 );
-		if ( nearbyVertex.IsValid() && Vector3.DistanceBetween( nearbyVertex.PositionWorld, tool.Pivot ) > 5f )
+		if ( nearbyVertex.IsValid() && Vector3.DistanceBetween( nearbyVertex.PositionWorld, tool.Pivot.Position ) > 5f )
 			DrawVertexIndicator( "VertexNearby", nearbyVertex.PositionWorld, gizmoSize, Color.Red );
 
 		return null;

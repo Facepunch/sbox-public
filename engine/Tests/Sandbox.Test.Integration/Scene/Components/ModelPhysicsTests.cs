@@ -5,7 +5,7 @@ namespace SceneTests.Components;
 [TestClass]
 public class ModelPhysicsTest
 {
-	private static Model CitizenModel => Model.Load( "models/citizen/citizen.vmdl" );
+	private static Model HumanModel => Model.Load( "models/citizen_human/human.vmdl" );
 
 	[TestMethod]
 	public void ComponentCreation()
@@ -31,7 +31,7 @@ public class ModelPhysicsTest
 		var modelPhysics = go.Components.Create<ModelPhysics>( false );
 
 		// Assign model
-		modelPhysics.Model = CitizenModel;
+		modelPhysics.Model = HumanModel;
 		modelPhysics.Enabled = true;
 
 		// Physics should be created when model is assigned and component is enabled
@@ -49,12 +49,12 @@ public class ModelPhysicsTest
 
 		// Create renderer first with a model
 		var renderer = go.Components.Create<SkinnedModelRenderer>();
-		renderer.Model = CitizenModel;
+		renderer.Model = HumanModel;
 
 		// Create ModelPhysics - should auto-assign model from renderer
 		var modelPhysics = go.Components.Create<ModelPhysics>();
 
-		Assert.AreEqual( CitizenModel, modelPhysics.Model, "Model should be auto-assigned from renderer" );
+		Assert.AreEqual( HumanModel, modelPhysics.Model, "Model should be auto-assigned from renderer" );
 		Assert.AreEqual( renderer, modelPhysics.Renderer, "Renderer should be auto-assigned" );
 	}
 
@@ -65,7 +65,7 @@ public class ModelPhysicsTest
 		using var sceneScope = scene.Push();
 		var go = scene.CreateObject();
 		var modelPhysics = go.Components.Create<ModelPhysics>();
-		modelPhysics.Model = CitizenModel;
+		modelPhysics.Model = HumanModel;
 
 		// Set flags before enabling
 		var testFlags = RigidbodyFlags.DisableCollisionSounds;
@@ -88,7 +88,7 @@ public class ModelPhysicsTest
 		using var sceneScope = scene.Push();
 		var go = scene.CreateObject();
 		var modelPhysics = go.Components.Create<ModelPhysics>();
-		modelPhysics.Model = CitizenModel;
+		modelPhysics.Model = HumanModel;
 
 		// Set locking before enabling
 		var testLocking = new PhysicsLock { Roll = true };
@@ -111,7 +111,7 @@ public class ModelPhysicsTest
 		using var sceneScope = scene.Push();
 		var go = scene.CreateObject();
 		var modelPhysics = go.Components.Create<ModelPhysics>();
-		modelPhysics.Model = CitizenModel;
+		modelPhysics.Model = HumanModel;
 		modelPhysics.Enabled = true;
 
 		// Default should be motion enabled
@@ -142,7 +142,7 @@ public class ModelPhysicsTest
 		using var sceneScope = scene.Push();
 		var go = scene.CreateObject();
 		var modelPhysics = go.Components.Create<ModelPhysics>( false );
-		modelPhysics.Model = CitizenModel;
+		modelPhysics.Model = HumanModel;
 		modelPhysics.StartAsleep = true;
 		modelPhysics.Enabled = true;
 
@@ -167,7 +167,7 @@ public class ModelPhysicsTest
 		using var sceneScope = scene.Push();
 		var go = scene.CreateObject();
 		var modelPhysics = go.Components.Create<ModelPhysics>();
-		modelPhysics.Model = CitizenModel;
+		modelPhysics.Model = HumanModel;
 
 		// Enable to create physics
 		modelPhysics.Enabled = true;
@@ -209,7 +209,7 @@ public class ModelPhysicsTest
 		using var sceneScope = scene.Push();
 		var go = scene.CreateObject();
 		var modelPhysics = go.Components.Create<ModelPhysics>();
-		modelPhysics.Model = CitizenModel;
+		modelPhysics.Model = HumanModel;
 		modelPhysics.IgnoreRoot = true;
 		modelPhysics.Enabled = true;
 
@@ -250,12 +250,12 @@ public class ModelPhysicsTest
 		var sourceGo = scene.CreateObject();
 		sourceGo.WorldPosition = new Vector3( 500, 0, 0 );
 		var sourceRenderer = sourceGo.Components.Create<SkinnedModelRenderer>();
-		sourceRenderer.Model = CitizenModel;
+		sourceRenderer.Model = HumanModel;
 
 		// Create target with ModelPhysics at the origin
 		var targetGo = scene.CreateObject();
 		var targetPhysics = targetGo.Components.Create<ModelPhysics>();
-		targetPhysics.Model = CitizenModel;
+		targetPhysics.Model = HumanModel;
 		targetPhysics.Enabled = true;
 
 		// Let the source renderer settle its bone transforms
@@ -288,7 +288,7 @@ public class ModelPhysicsTest
 		using var sceneScope = scene.Push();
 		var go = scene.CreateObject();
 		var modelPhysics = go.Components.Create<ModelPhysics>();
-		modelPhysics.Model = CitizenModel;
+		modelPhysics.Model = HumanModel;
 		modelPhysics.Enabled = true;
 
 		Assert.IsTrue( modelPhysics.Joints.Count > 0, "Should have joints to test scaling" );
@@ -321,7 +321,7 @@ public class ModelPhysicsTest
 		using var sceneScope = scene.Push();
 		var go = scene.CreateObject();
 		var modelPhysics = go.Components.Create<ModelPhysics>( false );
-		modelPhysics.Model = CitizenModel;
+		modelPhysics.Model = HumanModel;
 
 		// Enable/Disable multiple times
 		for ( int i = 0; i < 3; i++ )
@@ -361,7 +361,7 @@ public class ModelPhysicsTest
 		using var sceneScope = scene.Push();
 		var go = scene.CreateObject();
 		var modelPhysics = go.Components.Create<ModelPhysics>();
-		modelPhysics.Model = CitizenModel;
+		modelPhysics.Model = HumanModel;
 		modelPhysics.Enabled = true;
 
 		// All body components should be valid and accessible
@@ -381,7 +381,7 @@ public class ModelPhysicsTest
 		using var sceneScope = scene.Push();
 		var go = scene.CreateObject();
 		var modelPhysics = go.Components.Create<ModelPhysics>();
-		modelPhysics.Model = CitizenModel;
+		modelPhysics.Model = HumanModel;
 		modelPhysics.Enabled = true;
 
 		// Joints should maintain their configuration
@@ -404,8 +404,8 @@ public class ModelPhysicsTest
 		var go = scene.CreateObject();
 		var modelPhysics = go.Components.Create<ModelPhysics>();
 
-		// Assign the citizen model which should have a head bone
-		modelPhysics.Model = CitizenModel;
+		// Assign the human model which should have a head bone
+		modelPhysics.Model = HumanModel;
 		modelPhysics.Enabled = true;
 
 		// Find the head child GameObject
@@ -437,8 +437,8 @@ public class ModelPhysicsTest
 		var go = scene.CreateObject();
 		var modelPhysics = go.Components.Create<ModelPhysics>();
 
-		// Assign the citizen model which should have a neck_0 bone
-		modelPhysics.Model = CitizenModel;
+		// Assign the human model which should have a neck_0 bone
+		modelPhysics.Model = HumanModel;
 		modelPhysics.Enabled = true;
 
 		// Find the neck_0 child GameObject
@@ -471,7 +471,7 @@ public class ModelPhysicsTest
 		{
 			var go = sourceScene.CreateObject();
 			var modelPhysics = go.Components.Create<ModelPhysics>();
-			modelPhysics.Model = CitizenModel;
+			modelPhysics.Model = HumanModel;
 
 			sourceGo = go;
 		}
@@ -511,7 +511,7 @@ public class ModelPhysicsTest
 		{
 			var go = sourceScene.CreateObject();
 			var modelPhysics = go.Components.Create<ModelPhysics>();
-			modelPhysics.Model = CitizenModel;
+			modelPhysics.Model = HumanModel;
 
 			json = go.Serialize().ToJsonString();
 		}
@@ -557,7 +557,7 @@ public class ModelPhysicsTest
 		{
 			var go = sourceScene.CreateObject();
 			var modelPhysics = go.Components.Create<ModelPhysics>();
-			modelPhysics.Model = CitizenModel;
+			modelPhysics.Model = HumanModel;
 
 			sourceGo = go;
 		}
@@ -600,7 +600,7 @@ public class ModelPhysicsTest
 		{
 			var go = sourceScene.CreateObject();
 			var modelPhysics = go.Components.Create<ModelPhysics>();
-			modelPhysics.Model = CitizenModel;
+			modelPhysics.Model = HumanModel;
 
 			json = go.Serialize().ToJsonString();
 		}
@@ -650,10 +650,10 @@ public class ModelPhysicsTest
 		{
 			var go = sourceScene.CreateObject();
 			var modelRender = go.Components.Create<SkinnedModelRenderer>();
-			modelRender.Model = CitizenModel;
+			modelRender.Model = HumanModel;
 
 			var modelPhysics = go.Components.Create<ModelPhysics>();
-			modelPhysics.Model = CitizenModel;
+			modelPhysics.Model = HumanModel;
 
 			for ( int i = 0; i < 100; i++ )
 			{
@@ -711,7 +711,7 @@ public class ModelPhysicsTest
 		{
 			var go = sourceScene.CreateObject();
 			var modelPhysics = go.Components.Create<ModelPhysics>();
-			modelPhysics.Model = CitizenModel;
+			modelPhysics.Model = HumanModel;
 
 			json = go.Serialize().ToJsonString();
 		}
@@ -766,7 +766,7 @@ public class ModelPhysicsTest
 		{
 			var go = sourceScene.CreateObject();
 			var prop = go.Components.Create<Prop>();
-			prop.Model = CitizenModel;
+			prop.Model = HumanModel;
 
 			json = go.Serialize().ToJsonString();
 		}

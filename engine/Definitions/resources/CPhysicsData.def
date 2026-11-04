@@ -1,6 +1,6 @@
 
-#include "physicslib/physicsdata.h"
-#include "vphysx/vphysx_collisionmesh_resource.h"
+#include "physics/physicsdata.h"
+#include "physics/collision_resource.h"
 
 [ResourceHandle:HPhysicsData]
 native class CPhysicsData
@@ -207,6 +207,12 @@ native class RnMesh_t
 
 	int GetMaterialCount();
 
+	/// The surface table index of one triangle, or 0 when every triangle shares a surface.
+	inline int GetTriangleMaterial( int triangle )
+	{
+		return ( triangle >= 0 && triangle < self->GetMaterialCount() ) ? self->GetMaterial( triangle ) : 0;
+	}
+
 	inline void GetTriangleIndices( int triangle, out int a, out int b, out int c )
 	{
 		const RnTriangle_t *pTriangle = self->GetTriangle( triangle );
@@ -247,6 +253,7 @@ native class CPhysSurfaceProperties as NativeEngine.CPhysSurfaceProperties
 	int m_nIndex; 
 	int	m_nBaseIndex;
 	int	m_AudioSurface;
+	bool m_bHasScrapeSounds;
 
 	bool m_bHidden;
 
@@ -282,6 +289,14 @@ native class VPhysXJoint_t
 
 	float m_flLinearStrength;
 	float m_flAngularStrength;
+
+	bool m_bLinearMotorIsSpring;
+	bool m_bAngularMotorIsSpring;
+	float m_flLinearTargetPosition;
+	float m_flAngularTargetAngle;
+	Rotation m_qAngularTargetRotation;
+	bool m_bOverrideFriction;
+	float m_flFriction;
 
 	Transform m_Frame1;
 	Transform m_Frame2;

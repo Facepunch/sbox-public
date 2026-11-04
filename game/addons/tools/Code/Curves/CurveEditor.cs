@@ -258,6 +258,17 @@ public class CurveEditor : GraphicsView
 		}
 	}
 
+	/// <summary>
+	/// The multiselect handle drag in progress on this editor, if any
+	/// </summary>
+	internal GraphicsItems.EditableCurve.HandleDrag Drag { get; } = new();
+
+	[EditorEvent.Frame]
+	public void Frame()
+	{
+		Drag.Flush();
+	}
+
 	bool isDraggingBackground = false;
 	Vector2 dragStartPosition;
 	protected override void OnMousePress( MouseEvent e )
@@ -274,6 +285,9 @@ public class CurveEditor : GraphicsView
 	protected override void OnMouseReleased( MouseEvent e )
 	{
 		base.OnMouseReleased( e );
+
+		Drag.End();
+
 		if ( isDraggingBackground )
 		{
 			isDraggingBackground = false;

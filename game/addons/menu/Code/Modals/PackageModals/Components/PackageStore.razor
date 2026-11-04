@@ -1,0 +1,106 @@
+@namespace MenuProject.Modals.PackageModalComponents
+@inherits Panel
+@using Sandbox;
+@using Sandbox.UI;
+@using SboxMenu;
+@using System;
+
+@*
+    A package's Overview, laid out like a store page - two rows of two. On top, its gallery beside its
+    capsule (art, name, numbers, chips). Under them, what it says about itself beside you and it - your
+    time once you've played it, and your achievements. The page is as tall as all that but the description,
+    which scrolls in what room the side beside it leaves.
+*@
+<root>
+
+    <div class="row top">
+        <div class="main">@Gallery</div>
+        <div class="side">
+            <PackageInfoPanel Package=@Package Workshop=@Workshop OnWorkshop=@OnWorkshop Loading=@Loading OnChangelogClicked=@OnChangelogClicked />
+        </div>
+    </div>
+
+    <div class="row bottom">
+        @* What it says about itself is as tall as the side beside it, whatever its length - filling a box that counts
+           for nothing in how tall the row is, its description scrolling in it *@
+        <div class="main">
+            @if (!Loading)
+            {
+                <PackageAbout Package=@Package Workshop=@Workshop />
+            }
+        </div>
+        <div class="side">
+            @* Both always there, and always as tall - so the description beside them always has the same room *@
+            @if (!Loading)
+            {
+                <PackageYourRecord Package=@Package />
+            }
+
+            @if (!Loading && achList is null)
+            {
+                <Card class="achievements-card empty">
+                    <ChildContent>
+                        <label class="section-label">#menu.games.achievements</label>
+                        <div class="none"><label>None in this game</label></div>
+                    </ChildContent>
+                </Card>
+            }
+            else if (!Loading)
+            {
+                <PortalButton Portal=@Portal>
+                    <Button>
+                        <Card class="achievements-card">
+                            <ChildContent>
+                                <PackageAchievementSummary Package="@Package" Header=@true />
+                            </ChildContent>
+                        </Card>
+                    </Button>
+                    <Content>
+                        <AchievementList Package="@Package"></AchievementList>
+                    </Content>
+                </PortalButton>
+            }
+        </div>
+    </div>
+
+</root>
+
+@code
+{
+	[Parameter] public Package Package { get; set; }
+	[Parameter] public PortalTarget Portal { get; set; }
+
+	/// <summary>
+	/// What the Steam Workshop says about it, for a package on the workshop. Null when it isn't, or while it's being asked.
+	/// </summary>
+	[Parameter] public WorkshopItemDetails Workshop { get; set; }
+
+	/// <summary>
+	/// Say what the Steam Workshop says, not the backend - the game page, for a package on the workshop
+	/// </summary>
+	[Parameter] public bool OnWorkshop { get; set; }
+
+	/// <summary>
+	/// Still working out what it says - whether it's the backend's or its workshop item's. Bones in the meantime.
+	/// </summary>
+	[Parameter] public bool Loading { get; set; }
+
+	/// <summary>Called when its last update is clicked - opens the Changes tab.</summary>
+	[Parameter] public Action OnChangelogClicked { get; set; }
+
+	/// <summary>
+	/// Its gallery, top left - the page gives it, it knows which images
+	/// </summary>
+	[Parameter] public RenderFragment Gallery { get; set; }
+
+	AchievementCollection achList;
+
+	protected override async Task OnParametersSetAsync()
+	{
+		achList = await Package.GetAchievements();
+		if ( !achList.All.Any() ) achList = default;
+		if ( achList is not null ) StateHasChanged();
+	}
+
+	protected override int BuildHash() => HashCode.Combine( Package, Package?.Interaction.Used, Workshop, OnWorkshop, Loading, achList );
+}

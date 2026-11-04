@@ -14,7 +14,7 @@ public class ComputeShader
 	/// </summary>
 	public RenderAttributes Attributes { get; } = new RenderAttributes();
 
-	Material ComputeMaterial;
+	internal Material ComputeMaterial;
 
 	/// <summary>
 	/// Create a compute shader from the specified path.

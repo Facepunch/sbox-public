@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
+using System.Threading;
 using Editor;
 using Sandbox.Services;
+using Sandbox.Tasks;
 
 namespace PackageTests;
 
@@ -21,7 +24,7 @@ public class CloudAssetDirectoryTest
 	/// A fixed timestamp with second precision, so date fields survive LiteDB's date serialization
 	/// without needing tolerance checks.
 	/// </summary>
-	static readonly DateTimeOffset Stamp = new( 2021, 6, 1, 12, 0, 0, TimeSpan.Zero );
+	static DateTimeOffset Stamp = new( 2021, 6, 1, 12, 0, 0, TimeSpan.Zero );
 
 	/// <summary>
 	/// Per-test scratch folder for the LiteDB database files.
@@ -45,6 +48,291 @@ public class CloudAssetDirectoryTest
 	/// Returns a unique database path within the scratch folder for the given test.
 	/// </summary>
 	static string DbPath( string name ) => Path.Combine( TestDir, $"{name}.db" );
+
+	LocalFileSystem verificationFiles;
+
+	LocalFileSystem CreateVerificationFiles()
+	{
+		var folder = Path.Combine( TestDir, "files" );
+		Directory.CreateDirectory( folder );
+		return verificationFiles = new LocalFileSystem( folder );
+	}
+
+	[TestCleanup]
+	public void TestCleanup()
+	{
+		verificationFiles?.Dispose();
+	}
+
+	static ulong Crc( string text ) => Sandbox.Utility.Crc64.FromBytes( Encoding.UTF8.GetBytes( text ) );
+
+	sealed class ReadCallbackFileSystem : Zio.FileSystems.PhysicalFileSystem
+	{
+		public Action OnRead { get; set; }
+
+		protected override Stream OpenFileImpl( Zio.UPath path, FileMode mode, FileAccess access, FileShare share )
+		{
+			if ( access == FileAccess.Read )
+			{
+				var callback = OnRead;
+				OnRead = null;
+				callback?.Invoke();
+			}
+
+			return base.OpenFileImpl( path, mode, access, share );
+		}
+	}
+
+	[TestMethod]
+	public void Download_SupersededDuringVerification_DoesNotFailOrInvalidateNewRecord()
+	{
+		var folder = Path.Combine( TestDir, "files" );
+		Directory.CreateDirectory( folder );
+		using var physical = new ReadCallbackFileSystem();
+		using var rooted = new Zio.FileSystems.SubFileSystem( physical, physical.ConvertPathFromInternal( folder ) );
+		var fs = new BaseFileSystem( rooted );
+		using var directory = new CloudAssetDirectory( DbPath( "superseded_download" ), fs );
+		var previousDirectory = AssetSystem.CloudDirectory;
+		var previousFileSystem = Editor.FileSystem.Cloud;
+		AssetSystem.CloudDirectory = directory;
+		Editor.FileSystem.Cloud = fs;
+
+		try
+		{
+			AsyncPump.RunSynchronously( async () =>
+			{
+				var package = MakePackage( "clouddirtest", "older", "addon", 1 );
+				var newer = MakePackage( "clouddirtest", "newer", "addon", 2 );
+				((PackageRevision)newer.Revision).Created = Stamp.AddSeconds( 1 );
+				var entry = new ManifestSchema.File { Path = $"crc_test_{Guid.NewGuid():N}/shared", Crc = "0", Size = 0 };
+				// The missing file is written without a network request. Replace its record when
+				// post-download hashing opens it, after the verifier captured the original record.
+				physical.OnRead = () =>
+				{
+					Assert.IsTrue( directory.AddFile( entry.Path, "1", 0, newer ) );
+					Assert.IsTrue( directory.TryGetFile( entry.Path, out var replacement ) );
+					// Simulate verification already recorded by the concurrent install.
+					replacement.VerifiedCrc = "0";
+				};
+
+				var download = typeof( AssetSystem ).GetMethod( "DownloadFile", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic );
+				var written = await (Task<bool>)download.Invoke( null, new object[] { package, entry, CancellationToken.None } );
+				Assert.IsFalse( written, "A superseded download must not be registered by the older install." );
+				Assert.IsTrue( directory.TryGetFile( entry.Path, out var current ) );
+				Assert.AreEqual( "1", current.Crc );
+				Assert.AreEqual( "0", current.VerifiedCrc, "The older install must not invalidate the replacement's verification." );
+			} );
+		}
+		finally
+		{
+			AssetSystem.CloudDirectory = previousDirectory;
+			Editor.FileSystem.Cloud = previousFileSystem;
+			fs.Dispose();
+		}
+	}
+
+	[TestMethod]
+	[DataRow( 0 )]
+	[DataRow( 64 )]
+	public void Install_FileFailure_IsReportedAfterOtherFilesFinish( int failedIndex )
+	{
+		var fs = CreateVerificationFiles();
+		using var directory = new CloudAssetDirectory( DbPath( "install_failure" ), fs );
+		var previousDirectory = AssetSystem.CloudDirectory;
+		var previousFileSystem = Editor.FileSystem.Cloud;
+		AssetSystem.CloudDirectory = directory;
+		Editor.FileSystem.Cloud = fs;
+
+		try
+		{
+			AsyncPump.RunSynchronously( async () =>
+			{
+				var package = MakePackage( "clouddirtest", "failedinstall", "addon", 1 );
+				((PackageRevision)package.Revision).ManifestUrl = null;
+				await package.Revision.DownloadManifestAsync( default );
+				var prefix = $"crc_test_{Guid.NewGuid():N}";
+				var entries = Enumerable.Range( 0, Package.MaxParallelDownloads + 2 )
+					.Select( i => new ManifestSchema.File { Path = $"{prefix}/{i}.dll", Crc = "0", Size = 0 } ).ToArray();
+				// Empty files need no network. One deliberately wrong CRC fails after writing, while
+				// a valid file beyond the first concurrency window must still finish before we throw.
+				entries[failedIndex] = new ManifestSchema.File { Path = $"{prefix}/bad", Crc = "1", Size = 0 };
+				entries[^1] = new ManifestSchema.File { Path = $"{prefix}/good", Crc = "0", Size = 0 };
+				package.Revision.Manifest.Files = entries;
+
+				var error = await Assert.ThrowsExceptionAsync<AggregateException>( () => AssetSystem.InstallAsync( package, false ) );
+				Assert.AreEqual( 1, error.InnerExceptions.Count );
+				Assert.IsInstanceOfType<InvalidDataException>( error.InnerExceptions[0] );
+				Assert.IsTrue( directory.TryGetFile( $"{prefix}/good", out var good ) );
+				Assert.AreEqual( "0", good.VerifiedCrc, "The other download must finish before install failure is reported." );
+				Assert.IsNull( directory.FindPackage( package.FullIdent ), "A failed package must not be marked installed." );
+			} );
+		}
+		finally
+		{
+			AssetSystem.CloudDirectory = previousDirectory;
+			Editor.FileSystem.Cloud = previousFileSystem;
+		}
+	}
+
+	[TestMethod]
+	public void DragAsset_FailedInstall_ReturnsNullAndRemainsUninstalled()
+	{
+		var fs = CreateVerificationFiles();
+		using var directory = new CloudAssetDirectory( DbPath( "drag_failure" ), fs );
+		var previousDirectory = AssetSystem.CloudDirectory;
+		var previousFileSystem = Editor.FileSystem.Cloud;
+		AssetSystem.CloudDirectory = directory;
+		Editor.FileSystem.Cloud = fs;
+		var package = MakePackage( "clouddirtest", "dragfailure", "model", 1, "{\"PrimaryAsset\":\"failed.vmdl\"}" );
+
+		try
+		{
+			AsyncPump.RunSynchronously( async () =>
+			{
+				((PackageRevision)package.Revision).ManifestUrl = null;
+				await package.Revision.DownloadManifestAsync( default );
+				package.Revision.Manifest.Files = new[]
+				{
+					new ManifestSchema.File { Path = $"crc_test_{Guid.NewGuid():N}/bad", Crc = "1", Size = 0 }
+				};
+				Package.Cache( package, false );
+				var drag = DragAssetData.Parse( package.FullIdent );
+				Assert.IsNotNull( drag );
+				Assert.IsFalse( drag.IsInstalled );
+
+				Assert.IsNull( await drag.GetAssetAsync() );
+				Assert.IsFalse( drag.IsInstalled, "A handled install failure must not make a dragged asset appear installed." );
+				Assert.IsTrue( drag.DownloadProgress < 1f, "Failed downloads must not report completion." );
+				Assert.IsNull( directory.FindPackage( package.FullIdent ) );
+			} );
+		}
+		finally
+		{
+			Package.ClearCache( package.FullIdent );
+			AssetSystem.CloudDirectory = previousDirectory;
+			Editor.FileSystem.Cloud = previousFileSystem;
+		}
+	}
+
+	[TestMethod]
+	public async Task VerifiedCrc_SameSizeUpdate_DoesNotTrustManifestRecord()
+	{
+		var fs = CreateVerificationFiles();
+		fs.WriteAllText( "shader", "old" );
+		var package = MakePackage( "clouddirtest", "crc", "addon", 1 );
+		using var directory = new CloudAssetDirectory( DbPath( "crc" ), fs );
+
+		// Reproduce an old cache: AddFile already stored the new manifest CRC over the old bytes.
+		directory.AddFile( "shader", Crc( "new" ).ToString( "x" ), 3, package );
+		Assert.IsFalse( await directory.IsFileCurrentAsync( "shader", Crc( "new" ), 3 ) );
+		Assert.IsTrue( directory.TryGetFile( "shader", out var file ) );
+		Assert.AreEqual( Crc( "old" ).ToString( "x" ), file.VerifiedCrc );
+
+		// Registering another manifest must not turn its expected CRC into a verified one.
+		directory.AddFile( "shader", Crc( "yet" ).ToString( "x" ), 3, package );
+		using var locked = System.IO.File.Open( fs.GetFullPath( "shader" ), FileMode.Open, FileAccess.Read, FileShare.None );
+		Assert.IsFalse( await directory.IsFileCurrentAsync( "shader", Crc( "yet" ), 3 ) );
+	}
+
+	[TestMethod]
+	public async Task VerifiedCrc_Reopen_ReusesHashWithoutReadingFile()
+	{
+		var fs = CreateVerificationFiles();
+		fs.WriteAllText( "shader", "old" );
+		var fullPath = fs.GetFullPath( "shader" );
+		System.IO.File.SetLastWriteTimeUtc( fullPath, new DateTime( 2026, 1, 1, 0, 0, 0, DateTimeKind.Utc ).AddTicks( 1234 ) );
+		var package = MakePackage( "clouddirtest", "crc", "addon", 1 );
+		var dbPath = DbPath( "persistent_crc" );
+
+		using ( var directory = new CloudAssetDirectory( dbPath, fs ) )
+		{
+			directory.AddFile( "shader", Crc( "old" ).ToString( "x" ), 3, package );
+			directory.AddPackage( package );
+			Assert.IsTrue( await directory.IsFileCurrentAsync( "shader", Crc( "old" ), 3 ) );
+		}
+
+		using ( var directory = new CloudAssetDirectory( dbPath, fs ) )
+		{
+			// A second read would fail. The cached verification must survive both restart and AddFile.
+			using var locked = System.IO.File.Open( fullPath, FileMode.Open, FileAccess.Read, FileShare.None );
+			directory.AddFile( "shader", Crc( "old" ).ToString( "x" ), 3, package );
+			Assert.IsTrue( await directory.IsFileCurrentAsync( "shader", Crc( "old" ), 3 ) );
+		}
+	}
+
+	[TestMethod]
+	public async Task VerifiedCrc_ChangedTimestamp_RehashesSameSizeFile()
+	{
+		var fs = CreateVerificationFiles();
+		fs.WriteAllText( "shader", "old" );
+		using var directory = new CloudAssetDirectory( DbPath( "changed_crc" ), fs );
+		directory.AddFile( "shader", Crc( "old" ).ToString( "x" ), 3, MakePackage( "clouddirtest", "crc", "addon", 1 ) );
+		Assert.IsTrue( await directory.IsFileCurrentAsync( "shader", Crc( "old" ), 3 ) );
+
+		var fullPath = fs.GetFullPath( "shader" );
+		var changedTime = System.IO.File.GetLastWriteTimeUtc( fullPath ).AddSeconds( 1 );
+		fs.WriteAllText( "shader", "new" );
+		System.IO.File.SetLastWriteTimeUtc( fullPath, changedTime );
+		Assert.IsFalse( await directory.IsFileCurrentAsync( "shader", Crc( "old" ), 3 ) );
+		Assert.IsTrue( await directory.IsFileCurrentAsync( "shader", Crc( "new" ), 3 ) );
+	}
+
+	[TestMethod]
+	public async Task VerifiedCrc_InvalidatedDownload_DoesNotReuseOldHashAfterRestart()
+	{
+		var fs = CreateVerificationFiles();
+		fs.WriteAllText( "shader", "old" );
+		var package = MakePackage( "clouddirtest", "crc", "addon", 1 );
+		var dbPath = DbPath( "failed_download_crc" );
+		var fullPath = fs.GetFullPath( "shader" );
+		var originalTime = System.IO.File.GetLastWriteTimeUtc( fullPath );
+
+		using ( var directory = new CloudAssetDirectory( dbPath, fs ) )
+		{
+			directory.AddFile( "shader", Crc( "old" ).ToString( "x" ), 3, package );
+			directory.AddPackage( package );
+			Assert.IsTrue( await directory.IsFileCurrentAsync( "shader", Crc( "old" ), 3 ) );
+			directory.InvalidateFileVerification( "shader" );
+			// Simulate a failed replacement that even leaves matching size and timestamp behind.
+			fs.WriteAllText( "shader", "bad" );
+			System.IO.File.SetLastWriteTimeUtc( fullPath, originalTime );
+		}
+
+		using ( var directory = new CloudAssetDirectory( dbPath, fs ) )
+		{
+			Assert.IsFalse( await directory.IsFileCurrentAsync( "shader", Crc( "old" ), 3 ) );
+			// A successful retry is hashed and can then use the fast path.
+			directory.InvalidateFileVerification( "shader" );
+			fs.WriteAllText( "shader", "old" );
+			Assert.IsTrue( await directory.IsFileCurrentAsync( "shader", Crc( "old" ), 3 ) );
+			using var locked = System.IO.File.Open( fullPath, FileMode.Open, FileAccess.Read, FileShare.None );
+			Assert.IsTrue( await directory.IsFileCurrentAsync( "shader", Crc( "old" ), 3 ) );
+		}
+	}
+
+	[TestMethod]
+	public async Task VerifiedCrc_MissingOrWrongSize_SkipsHashing()
+	{
+		var fs = CreateVerificationFiles();
+		using var directory = new CloudAssetDirectory( DbPath( "size_crc" ), fs );
+		directory.AddFile( "shader", Crc( "old" ).ToString( "x" ), 3, MakePackage( "clouddirtest", "crc", "addon", 1 ) );
+		Assert.IsFalse( await directory.IsFileCurrentAsync( "shader", Crc( "old" ), 3 ) );
+		fs.WriteAllText( "shader", "longer" );
+		using var locked = System.IO.File.Open( fs.GetFullPath( "shader" ), FileMode.Open, FileAccess.Read, FileShare.None );
+		Assert.IsFalse( await directory.IsFileCurrentAsync( "shader", Crc( "old" ), 3 ) );
+	}
+
+	[TestMethod]
+	public async Task VerifiedCrc_CancelledCheck_DoesNotRecordVerification()
+	{
+		var fs = CreateVerificationFiles();
+		fs.WriteAllText( "shader", "old" );
+		using var directory = new CloudAssetDirectory( DbPath( "cancelled_crc" ), fs );
+		directory.AddFile( "shader", Crc( "old" ).ToString( "x" ), 3, MakePackage( "clouddirtest", "crc", "addon", 1 ) );
+		await Assert.ThrowsExceptionAsync<OperationCanceledException>( () => directory.IsFileCurrentAsync( "shader", Crc( "old" ), 3, new CancellationToken( true ) ) );
+		Assert.IsTrue( directory.TryGetFile( "shader", out var file ) );
+		Assert.IsNull( file.VerifiedCrc );
+	}
 
 	/// <summary>
 	/// Builds a remote package with a single revision and no registered files. The revision's Meta
@@ -297,12 +585,65 @@ public class CloudAssetDirectoryTest
 		using var directory = new CloudAssetDirectory( path );
 		directory.AddPackage( package );
 
-		directory.AddFile( "/cloud/withfiles/model.vmdl_c", "crc-a", 100, package.FullIdent, package.Revision.VersionId );
-		directory.AddFile( "/cloud/withfiles/texture.vtex_c", "crc-b", 200, package.FullIdent, package.Revision.VersionId );
+		directory.AddFile( "/cloud/withfiles/model.vmdl_c", "crc-a", 100, package );
+		directory.AddFile( "/cloud/withfiles/texture.vtex_c", "crc-b", 200, package );
 
 		var files = directory.GetPackageFiles( package ).ToList();
 
 		Assert.AreEqual( 2, files.Count );
+	}
+
+	/// <summary>
+	/// Package lookup from file
+	/// </summary>
+	[TestMethod]
+	public void AddFile_GetPackages()
+	{
+		var path = DbPath( "get_package" );
+		using var directory = new CloudAssetDirectory( path );
+
+		var packageA = MakePackage( "clouddirtest", "one", "material", 99 );
+		var packageB = MakePackage( "clouddirtest", "two", "material", 99, "{\"PrimaryAsset\":\"materials/plain.vmat\"}" );
+		var packageC = MakePackage( "clouddirtest", "three", "material", 99 );
+
+		directory.AddPackage( packageA );
+		directory.AddPackage( packageB );
+		directory.AddPackage( packageC );
+
+		directory.AddFile( "materials/plain.vmat", "crc-a", 100, packageA );
+		directory.AddPackageLink( "materials/plain.vmat", packageB );
+		directory.AddPackageLink( "materials/plain.vmat", packageC );
+
+		// FindPackage - multiple are registed, but should return the one where it's a PrimaryAsset
+		var package = directory.FindPackage( ".sbox/cloud/materials/plain.vmat", "materials/plain.vmat" );
+		Assert.AreEqual( package, packageB );
+
+		// FindPackages returns all packages that share the file
+		var packages = directory.FindPackages( ".sbox/cloud/materials/plain.vmat", "materials/plain.vmat" );
+		Assert.AreEqual( packages.Count(), 3 );
+	}
+
+	/// <summary>
+	/// When encountering a shared file with different versions, AddFile keeps the file from the package with the newer revision
+	/// </summary>
+	[TestMethod]
+	public void AddFile_VersionConflict()
+	{
+		var path = DbPath( "add_ver_conflict" );
+		using var directory = new CloudAssetDirectory( path );
+
+		var packageB = MakePackage( "clouddirtest", "two", "material", 99 );
+		Stamp = Stamp.AddSeconds( 1 ); // make sure the revision is newer
+		var packageA = MakePackage( "clouddirtest", "one", "material", 99 );
+
+		directory.AddPackage( packageA );
+		directory.AddPackage( packageB );
+
+		Assert.IsTrue( directory.AddFile( "materials/plain.vmat", "crc-a", 100, packageA ) );
+		Assert.IsFalse( directory.AddFile( "materials/plain.vmat", "crc-b", 200, packageB ) );
+
+		Assert.IsTrue( directory.TryGetFile( "materials/plain.vmat", out var file ) );
+		Assert.AreEqual( file.Size, 100 ); // the file from the newer revision is what's kept
 	}
 
 	/// <summary>
@@ -317,7 +658,7 @@ public class CloudAssetDirectoryTest
 
 		using var directory = new CloudAssetDirectory( path );
 		directory.AddPackage( v1 );
-		directory.AddFile( "/cloud/versioned/old.vmdl_c", "crc-old", 100, v1.FullIdent, 1 );
+		directory.AddFile( "/cloud/versioned/old.vmdl_c", "crc-old", 100, v1 );
 
 		Assert.AreEqual( 1, directory.GetPackageFiles( v1 ).Count() );
 
@@ -354,5 +695,25 @@ public class CloudAssetDirectoryTest
 		using var directory = new CloudAssetDirectory( path );
 
 		Assert.IsNull( directory.FindPackage( "C:/projects/mygame/models/thing.vmdl_c", "models/thing.vmdl_c" ) );
+	}
+
+	/// <summary>
+	/// A file inside the cloud folder that no package claims is an orphan left behind by an older
+	/// revision. The lookup deletes it so the "unable to determine package" warning doesn't repeat
+	/// on every scan. The absolute path arrives in native form (e.g. "C:/..."), which has to stay
+	/// deletable on Windows after normalization prefixes it with a slash.
+	/// </summary>
+	[TestMethod]
+	public void FindPackageByPath_UnclaimedCloudFile_DeletesFile()
+	{
+		var cloudFolder = Path.Combine( TestDir, ".sbox", "cloud" );
+		Directory.CreateDirectory( Path.Combine( cloudFolder, "jutsu" ) );
+		var orphan = Path.Combine( cloudFolder, "jutsu", "orphan.jutsu" );
+		System.IO.File.WriteAllText( orphan, "left over from an older revision" );
+
+		using var directory = new CloudAssetDirectory( DbPath( "orphan" ) );
+
+		Assert.IsNull( directory.FindPackage( orphan.Replace( '\\', '/' ), "jutsu/orphan.jutsu" ) );
+		Assert.IsFalse( System.IO.File.Exists( orphan ), "Unclaimed cloud file was not deleted" );
 	}
 }

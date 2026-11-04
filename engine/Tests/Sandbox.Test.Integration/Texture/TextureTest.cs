@@ -1,10 +1,124 @@
-﻿using System;
+using System;
+using Sandbox.UI;
 
 namespace TextureTests;
 
 [TestClass]
 public class TextureTest
 {
+	[TestMethod]
+	public void ArrayMipDataKeepsEverySlice()
+	{
+		using var texture = Texture.CreateArray( 4, 4, 3 )
+			.WithMips( 3 )
+			.WithData( new byte[3 * (16 + 4 + 1) * 4] )
+			.Finish();
+		Assert.IsTrue( texture.IsValid );
+	}
+
+	[TestMethod]
+	public void ArrayMipDataRejectsShrinkingSliceCount()
+	{
+		Assert.ThrowsException<Exception>( () => Texture.CreateArray( 4, 4, 3 )
+			.WithMips( 3 )
+			.WithData( new byte[(16 * 3 + 4 + 1) * 4] )
+			.Finish() );
+	}
+
+	[TestMethod]
+	public void VolumeMipDataShrinksDepth()
+	{
+		using var texture = Texture.CreateVolume( 4, 4, 3 )
+			.WithMips( 3 )
+			.WithData( new byte[(16 * 3 + 4 + 1) * 4] )
+			.Finish();
+		Assert.IsTrue( texture.IsValid );
+	}
+
+	[TestMethod]
+	public void VideoPresentationTrackingOverridesNativeUse()
+	{
+		using var player = new VideoPlayer();
+		var frame = Application.FrameCount;
+
+		try
+		{
+			player.TrackPresentation( false );
+			Application.FrameCount += 3;
+			player.Texture.MarkUsed();
+			Assert.IsTrue( player.LastPresented > 2 );
+
+			player.TrackPresentation( true );
+			Assert.AreEqual( 0, player.LastPresented );
+		}
+		finally
+		{
+			Application.FrameCount = frame;
+		}
+	}
+
+	[TestMethod]
+	public void BackgroundPlaybackStateControlsPresentation()
+	{
+		using var automaticVisible = new VideoPlayer();
+		using var automaticOffscreen = new VideoPlayer();
+		using var pausedVisible = new VideoPlayer();
+		using var runningOffscreen = new VideoPlayer();
+		var panel = new Panel();
+		panel.Box.Rect = new Rect( 0, 0, 100, 100 );
+		var scissor = Painter.Scissoring.Single( new Rect( 0, 0, 200, 200 ), BorderRadii.Zero, Matrix.Identity );
+		var frame = Application.FrameCount;
+
+		try
+		{
+			Application.FrameCount += 3;
+			bool? onScreen = null;
+			PainterBatcher.MarkPresented( automaticVisible.Texture, panel.Box.Rect, Matrix.Identity, scissor, ref onScreen );
+			Assert.AreEqual( 0, automaticVisible.LastPresented );
+
+			panel.Box.Rect = new Rect( 300, 0, 100, 100 );
+			onScreen = null;
+			PainterBatcher.MarkPresented( automaticOffscreen.Texture, panel.Box.Rect, Matrix.Identity, scissor, ref onScreen );
+			Assert.IsTrue( automaticOffscreen.LastPresented > 2 );
+
+			panel.Box.Rect = new Rect( 0, 0, 100, 100 );
+			onScreen = null;
+			PainterBatcher.MarkPresented( pausedVisible.Texture, panel.Box.Rect, Matrix.Identity, scissor, ref onScreen, playbackPaused: true );
+			Assert.IsTrue( pausedVisible.LastPresented > 2 );
+
+			panel.Box.Rect = new Rect( 300, 0, 100, 100 );
+			onScreen = null;
+			PainterBatcher.MarkPresented( runningOffscreen.Texture, panel.Box.Rect, Matrix.Identity, scissor, ref onScreen, playbackPaused: false );
+			Assert.AreEqual( 0, runningOffscreen.LastPresented );
+		}
+		finally
+		{
+			Application.FrameCount = frame;
+			panel.Delete( true );
+		}
+	}
+
+	[TestMethod]
+	public void AnimatedImageDoesNotUseVideoVisibilityPolicy()
+	{
+		using var texture = Texture.Create( 1, 1 ).Finish();
+		texture.IsAnimated = true;
+		var panel = new Panel();
+		panel.Box.Rect = new Rect( 300, 0, 100, 100 );
+		var scissor = Painter.Scissoring.Single( new Rect( 0, 0, 200, 200 ), BorderRadii.Zero, Matrix.Identity );
+		bool? onScreen = null;
+
+		try
+		{
+			PainterBatcher.MarkPresented( texture, panel.Box.Rect, Matrix.Identity, scissor, ref onScreen );
+			Assert.IsNull( onScreen );
+		}
+		finally
+		{
+			panel.Delete( true );
+		}
+	}
+
 	[TestMethod]
 	public void Copy()
 	{
@@ -157,6 +271,36 @@ public class TextureTest
 		Assert.ThrowsException<ArgumentException>( () =>
 		{
 			texture.GetPixelsAsync3D<Color32>( _ => { }, ImageFormat.RGBA8888, (0, 0, 0, 1, 1, -1), 0 );
+		} );
+	}
+
+	[TestMethod]
+	public void GetPixelsDestArrayBoundsCheck()
+	{
+		var texture = Texture.Create( 4, 4 ).Finish();
+
+		// Exactly-sized buffer for the whole texture should not trigger the bounds check.
+		// The native ReadTexturePixels fails in headless mode. However, we only want to
+		// validate that the ArgumentExcpetion does not get thrown for getting the entire
+		// texture.
+		var exactBuffer = new Color32[4 * 4];
+		try
+		{
+			texture.GetPixels( (0, 0, 4, 4), 0, 0, exactBuffer.AsSpan(), ImageFormat.RGBA8888, (0, 0, 4, 4), 4 );
+		}
+		catch ( ArgumentException )
+		{
+			Assert.Fail( "Should not reject a dest array that exactly fits the requested rect" );
+		}
+		catch ( Exception )
+		{
+		}
+
+		// Undersized buffer should throw
+		var tooSmallBuffer = new Color32[4 * 4 - 1];
+		Assert.ThrowsException<ArgumentException>( () =>
+		{
+			texture.GetPixels( (0, 0, 4, 4), 0, 0, tooSmallBuffer.AsSpan(), ImageFormat.RGBA8888, (0, 0, 4, 4), 4 );
 		} );
 	}
 }

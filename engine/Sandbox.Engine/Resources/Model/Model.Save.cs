@@ -31,11 +31,13 @@ sealed class VmdlWriter
 	const uint RESOURCE_BLOCK_ID_PHYS = 0x53594850; // 'PHYS'
 
 	readonly IModel _native;
+	readonly Model _model;
 	readonly ResourceWriter _resource;
 
 	public VmdlWriter( Model model )
 	{
 		_native = model.native;
+		_model = model;
 
 		_resource = new ResourceWriter
 		{
@@ -45,11 +47,22 @@ sealed class VmdlWriter
 
 	public byte[] Write()
 	{
+		WriteExternalReferences();
+
 		var physBlock = WritePHYSBlock();
 
 		WriteCTRLBlock( physBlock );
 		WriteDATABlock();
 		return _resource.ToArray();
+	}
+
+	void WriteExternalReferences()
+	{
+		foreach ( var material in _model.Materials )
+		{
+			if ( material.IsValid() )
+				_resource.AddExternalReference( material.ResourcePath );
+		}
 	}
 
 	void WriteCTRLBlock( int physBlock )

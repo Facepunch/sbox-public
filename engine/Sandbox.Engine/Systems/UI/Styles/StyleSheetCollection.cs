@@ -39,6 +39,15 @@ public struct StyleSheetCollection
 	}
 
 	/// <summary>
+	/// Add a stylesheet parsed from a string. The parsed sheet is cached under
+	/// <paramref name="key"/> and shared between all panels using the same key.
+	/// </summary>
+	public void AddInline( string content, string key )
+	{
+		Add( StyleSheet.FromInline( content, key ) );
+	}
+
+	/// <summary>
 	/// Load the stylesheet from a string.
 	/// </summary>
 	public void Parse( string stylesheet, bool inheritVariables = true )

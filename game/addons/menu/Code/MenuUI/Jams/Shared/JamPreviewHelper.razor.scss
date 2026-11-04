@@ -1,0 +1,75 @@
+@import "/styles/_front.scss";
+
+JamPreviewHelper
+{
+	flex-direction: column;
+	flex-shrink: 0;
+	gap: 8px;
+	padding: 10px 12px;
+	background-color: $front-card-deep;
+	border-bottom: 1px solid $front-hairline;
+	font-family: $front-font;
+	font-size: 11px;
+	color: $front-body;
+
+	.preview-stages, .preview-controls, .preview-actions
+	{
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 6px;
+	}
+
+	.preview-label
+	{
+		font-weight: 600;
+		margin-right: 6px;
+		color: $front-secondary;
+	}
+
+	.preview-controls { gap: 12px; }
+
+	.preview-info
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		gap: 2px;
+	}
+
+	.heading
+	{
+		font-weight: 600;
+		color: $front-body;
+	}
+
+	.date { color: $front-secondary; }
+
+	.button
+	{
+		flex-shrink: 0;
+		height: 28px;
+		padding: 0 9px;
+		border-radius: 3px;
+		background-color: rgba( white, 0.05 );
+		cursor: pointer;
+
+		label
+		{
+			font-size: 11px;
+			text-transform: none;
+			letter-spacing: 0;
+		}
+
+		&:hover { background-color: rgba( white, 0.12 ); }
+		&.selected { background-color: $front-primary; }
+		&.disabled { opacity: 0.35; }
+	}
+}
+
+JamPage JamPreviewHelper
+{
+	position: absolute;
+	left: 16px;
+	right: 16px;
+	bottom: 0;
+	z-index: 1000;
+}

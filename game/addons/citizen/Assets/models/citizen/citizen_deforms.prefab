@@ -1,0 +1,404 @@
+{
+  "RootObject": {
+    "__guid": "3e8f9b33-24d1-4efe-a006-41f90d906587",
+    "__version": 2,
+    "Flags": 0,
+    "Name": "citizen_deforms",
+    "Position": "0,0,0",
+    "Rotation": "0,0,0,1",
+    "Scale": "1,1,1",
+    "Tags": "",
+    "Enabled": true,
+    "NetworkMode": 0,
+    "NetworkFlags": 0,
+    "NetworkOrphaned": 0,
+    "NetworkTransmit": true,
+    "OwnerTransfer": 1,
+    "Components": [],
+    "Children": [
+      {
+        "__guid": "7d0bae9c-5c8c-47b4-be11-61af0c5d7234",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "deform_neck",
+        "Position": "-1.80435658,0,55.053112",
+        "Rotation": "0,0,0,1",
+        "Scale": "1,1,0.280000091",
+        "Tags": "",
+        "Enabled": true,
+        "NetworkMode": 0,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.ModelDeformer",
+            "__guid": "bf61d21b-0b1c-42f6-9571-ff4efd2e9325",
+            "__enabled": true,
+            "Flags": 0,
+            "ApplyToBoneMergedChildren": true,
+            "Falloff": 1,
+            "Inflation": 0,
+            "NormalMode": "Accurate",
+            "NormalSmoothingRadius": 0.39223108,
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Operation": "Suck",
+            "Priority": 0,
+            "RotationOffset": "0,0,0",
+            "ScaleFactor": "0,0,1",
+            "SceneVolume": {
+              "Type": "Sphere",
+              "Sphere": {
+                "Center": "0,0,0",
+                "Radius": 16.260162
+              },
+              "Box": {
+                "Mins": "-50,-50,-50",
+                "Maxs": "50,50,50"
+              },
+              "Capsule": {
+                "CenterA": "0,0,10",
+                "CenterB": "0,0,90",
+                "Radius": 10
+              }
+            },
+            "StretchRatio": 1.25,
+            "Translation": "0,0,0",
+            "Weight": 0.58565736
+          }
+        ],
+        "Children": []
+      },
+      {
+        "__guid": "2a0728cd-2aa4-4af7-98d2-6fbfcaedad2a",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "deform_waist",
+        "Position": "-0.288897753,0,37",
+        "Rotation": "0,0,0,1",
+        "Scale": "1,1,1",
+        "Tags": "",
+        "Enabled": true,
+        "NetworkMode": 0,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.ModelDeformer",
+            "__guid": "fcf9932c-f8cb-489f-9ee6-d2e4484651db",
+            "__enabled": true,
+            "Flags": 0,
+            "ApplyToBoneMergedChildren": true,
+            "Falloff": 0.75,
+            "Inflation": 0.6,
+            "NormalMode": "Accurate",
+            "NormalSmoothingRadius": 1,
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Operation": "Transform",
+            "Priority": 10,
+            "RotationOffset": "0,0,0",
+            "ScaleFactor": "1.5,1.5,1",
+            "SceneVolume": {
+              "Type": "Sphere",
+              "Sphere": {
+                "Center": "0,0,0",
+                "Radius": 17
+              },
+              "Box": {
+                "Mins": "-50,-50,-50",
+                "Maxs": "50,50,50"
+              },
+              "Capsule": {
+                "CenterA": "0,0,10",
+                "CenterB": "0,0,90",
+                "Radius": 10
+              }
+            },
+            "StretchRatio": 1.25,
+            "Translation": "0,0,0",
+            "Weight": 0
+          }
+        ],
+        "Children": []
+      },
+      {
+        "__guid": "4b920ddd-cffe-4280-baf3-24f8e5323708",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "deform_chest",
+        "Position": "6.25912619,0,48.3328323",
+        "Rotation": "0,0,0,1",
+        "Scale": "1,1,0.600000024",
+        "Tags": "",
+        "Enabled": true,
+        "NetworkMode": 0,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.ModelDeformer",
+            "__guid": "0a55cab2-708f-4147-8158-7c1f856d24ff",
+            "__enabled": true,
+            "Flags": 0,
+            "ApplyToBoneMergedChildren": true,
+            "Falloff": 1,
+            "Inflation": 0.5697211,
+            "NormalMode": "Accurate",
+            "NormalSmoothingRadius": 1,
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Operation": "Inflate",
+            "Priority": 20,
+            "RotationOffset": "0,0,0",
+            "ScaleFactor": "1,1,1",
+            "SceneVolume": {
+              "Type": "Sphere",
+              "Sphere": {
+                "Center": "0,0,0",
+                "Radius": 18.7251
+              },
+              "Box": {
+                "Mins": "-50,-50,-50",
+                "Maxs": "50,50,50"
+              },
+              "Capsule": {
+                "CenterA": "0,0,10",
+                "CenterB": "0,0,90",
+                "Radius": 10
+              }
+            },
+            "StretchRatio": 1.25,
+            "Translation": "0,0,0",
+            "Weight": 0
+          }
+        ],
+        "Children": []
+      },
+      {
+        "__guid": "d7e36795-e2e2-8b26-947e-6bcce1e4ab88",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "deform_head",
+        "Position": "1.15663481,0.185910746,62.325798",
+        "Rotation": "-0.70710665,0,0,0.707106888",
+        "Scale": "1,1,1",
+        "Tags": "",
+        "Enabled": true,
+        "NetworkMode": 0,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.ModelDeformer",
+            "__guid": "62b7dcb8-2fb7-8179-8a45-d1148034293a",
+            "__enabled": true,
+            "Flags": 0,
+            "ApplyToBoneMergedChildren": true,
+            "Falloff": 1,
+            "Inflation": 0.6,
+            "NormalMode": "Accurate",
+            "NormalSmoothingRadius": 1,
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Operation": "SquashStretch",
+            "Priority": 10,
+            "RotationOffset": "0,0,0",
+            "ScaleFactor": "1,1,1",
+            "SceneVolume": {
+              "Type": "Sphere",
+              "Sphere": {
+                "Center": "0,0,0",
+                "Radius": 10.358566
+              },
+              "Box": {
+                "Mins": "-50,-50,-50",
+                "Maxs": "50,50,50"
+              },
+              "Capsule": {
+                "CenterA": "0,0,0",
+                "CenterB": "0,0,10",
+                "Radius": 3
+              }
+            },
+            "StretchRatio": 2,
+            "Translation": "0,0,0",
+            "Weight": 0
+          }
+        ],
+        "Children": []
+      },
+      {
+        "__guid": "107c3202-85c3-88d1-ac24-6a9707bfe992",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "deform_nose",
+        "Position": "8.06340122,0.147055864,63.1016769",
+        "Rotation": "-0.70710665,-0,0,0.707106888",
+        "Scale": "1,1,1",
+        "Tags": "",
+        "Enabled": true,
+        "NetworkMode": 0,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.ModelDeformer",
+            "__guid": "c69a45cf-207e-8bfd-926d-f0bc85c644e0",
+            "__enabled": true,
+            "Flags": 0,
+            "ApplyToBoneMergedChildren": true,
+            "Falloff": 1,
+            "Inflation": 0.6095618,
+            "NormalMode": "Accurate",
+            "NormalSmoothingRadius": 1,
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Operation": "Inflate",
+            "Priority": 0,
+            "RotationOffset": "0,0,0",
+            "ScaleFactor": "1,1,1",
+            "SceneVolume": {
+              "Type": "Sphere",
+              "Sphere": {
+                "Center": "0,0,0",
+                "Radius": 3
+              },
+              "Box": {
+                "Mins": "-50,-50,-50",
+                "Maxs": "50,50,50"
+              },
+              "Capsule": {
+                "CenterA": "0,0,0",
+                "CenterB": "0,0,10",
+                "Radius": 4
+              }
+            },
+            "StretchRatio": 1.7131474,
+            "Translation": "0,0,0",
+            "Weight": 0
+          }
+        ],
+        "Children": []
+      },
+      {
+        "__guid": "7a14c063-f625-82b6-8a07-bd3399e68ccb",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "deform_chin",
+        "Position": "6.78777075,0.00946614612,57.2595825",
+        "Rotation": "-0.70710665,0,0,0.707106888",
+        "Scale": "1,0.840000153,1.19000077",
+        "Tags": "",
+        "Enabled": true,
+        "NetworkMode": 0,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.ModelDeformer",
+            "__guid": "c94a3630-77cb-8798-8606-bafb2c27e997",
+            "__enabled": true,
+            "Flags": 0,
+            "ApplyToBoneMergedChildren": true,
+            "Falloff": 0.6533865,
+            "Inflation": 1,
+            "NormalMode": "Smooth",
+            "NormalSmoothingRadius": 0.01,
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Operation": "Inflate",
+            "Priority": -1,
+            "RotationOffset": "0,0,0",
+            "ScaleFactor": "1,1,1",
+            "SceneVolume": {
+              "Type": "Sphere",
+              "Sphere": {
+                "Center": "0,0,0",
+                "Radius": 3
+              },
+              "Box": {
+                "Mins": "-50,-50,-50",
+                "Maxs": "50,50,50"
+              },
+              "Capsule": {
+                "CenterA": "0,0,0",
+                "CenterB": "0,0,10",
+                "Radius": 4
+              }
+            },
+            "StretchRatio": 1.7131474,
+            "Translation": "0,0,0",
+            "Weight": 0
+          }
+        ],
+        "Children": []
+      }
+    ],
+    "__properties": {
+      "NetworkInterpolation": true,
+      "PhysicsMode": "Physics3D",
+      "TimeScale": 1,
+      "WantsSystemScene": true,
+      "Metadata": {},
+      "NavMesh": {
+        "Enabled": false,
+        "IncludeStaticBodies": true,
+        "IncludeKeyframedBodies": true,
+        "EditorAutoUpdate": false,
+        "AgentHeight": 64,
+        "AgentRadius": 16,
+        "AgentStepSize": 18,
+        "AgentMaxSlope": 40,
+        "ExcludedBodies": "",
+        "IncludedBodies": "",
+        "DeferGeneration": false,
+        "CustomBounds": false
+      }
+    },
+    "__variables": []
+  },
+  "ResourceVersion": 2,
+  "ShowInMenu": false,
+  "MenuPath": null,
+  "MenuIcon": null,
+  "DontBreakAsTemplate": false,
+  "__references": [],
+  "__version": 2
+}

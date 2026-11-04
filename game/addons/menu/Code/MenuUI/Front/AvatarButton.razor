@@ -1,0 +1,45 @@
+@using System;
+@using Sandbox;
+@using Sandbox.UI;
+@using MenuProject.MenuUI.Front;
+@inherits Panel
+
+<root>
+
+    @* A scene behind your avatar, softened back so they stand out from it *@
+    <div class="backdrop"></div>
+
+    @* A soft light behind their head and shoulders, so dark hair doesn't sink into the backdrop *@
+    <div class="glow"></div>
+
+    @* Frame the Human higher in the card so their torso stays above the footer fade. *@
+    <div class="citizen-stage">
+        <CitizenPreview class="portrait" LocalUser="@true" Interactive="@true" FieldOfView="@(32f)" CameraDistance="@(90f)" HeadOffset="@(-20f)" />
+    </div>
+
+    @* Name on the left, edit on the right, along the bottom *@
+    <div class="footer">
+        <div class="info">
+            <label class="eyebrow">#menu.home.welcome_back</label>
+            <label class="name">@Sandbox.Utility.Steam.PersonaName</label>
+        </div>
+
+        <div class="edit clicky" tooltip="#menu.home.edit_your_avatar" @onclick="@OpenAvatarScene">
+            <icon>edit</icon>
+            <label>#menu.common.edit</label>
+        </div>
+    </div>
+
+</root>
+
+@code
+{
+    void OpenAvatarScene()
+    {
+        var options = new SceneLoadOptions();
+        options.ShowLoadingScreen = false;
+        options.SetScene( "/scenes/avatar.scene" );
+
+        Game.ActiveScene.Load( options );
+    }
+}

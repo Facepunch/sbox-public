@@ -13,6 +13,8 @@ partial class QuakeMap : SceneLoader<QuakeMount>
 	private Texture _lightstyleTex;
 	private FaceSurface[] Surfaces;
 
+	private bool _hasSkybox = false;
+
 	private float _waterAlpha = 0.5f;
 	private float _lavaAlpha = 1.0f;
 	private float _slimeAlpha = 0.5f;
@@ -38,11 +40,23 @@ partial class QuakeMap : SceneLoader<QuakeMount>
 	{
 		var file = new Quake.BSP.File( Host.GetFileStream( PakDir, FileName ) );
 
+		var world = new GameObject( true, "worldspawn" );
+		var worldspawn = file.Entities.First();
+		if ( worldspawn.TryGetValue( "_sky", out string skybox ) )
+		{
+			if ( skybox[skybox.Length - 1] == '_' )
+				skybox = skybox[..^1];
+
+			var skybox2d = world.AddComponent<SkyBox2D>();
+			skybox2d.SkyIndirectLighting = false;
+			skybox2d.SkyMaterial = Material.Load( $"mount://{Host.Ident}/{PakDir}/gfx/env/{skybox}.vmat" );
+			_hasSkybox = true;
+		}
+
 		_worldModel = BuildWorldModel( file );
 		if ( _worldModel is null )
 			return;
 
-		var world = new GameObject( true, "worldspawn" );
 		world.AddComponent<ModelRenderer>().Model = _worldModel;
 
 		var collider = world.AddComponent<ModelCollider>();

@@ -1,4 +1,5 @@
-﻿using Facepunch.ActionGraphs;
+﻿using Sandbox.Engine;
+using Facepunch.ActionGraphs;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -8,7 +9,7 @@ public partial class Scene : GameObject
 {
 	/// <summary>
 	/// Load from the provided <see cref="SceneFile"/>. This will not load the scene for other clients in a
-	/// multiplayer session, you should instead use <see cref="Game.ChangeScene"/>
+	/// multiplayer session, you should instead use <see cref="Game.ChangeScene(SceneFile)"/>
 	/// if you want to bring other clients.
 	/// </summary>
 	public virtual bool Load( GameResource resource )
@@ -28,7 +29,7 @@ public partial class Scene : GameObject
 
 	/// <summary>
 	/// Load from the provided <see cref="SceneLoadOptions"/>. This will not load the scene for other clients in a
-	/// multiplayer session, you should instead use <see cref="Game.ChangeScene"/>
+	/// multiplayer session, you should instead use <see cref="Game.ChangeScene(SceneFile)"/>
 	/// if you want to bring other clients.
 	/// </summary>
 	public bool Load( SceneLoadOptions options )
@@ -82,6 +83,17 @@ public partial class Scene : GameObject
 			}
 
 			ProcessDeletes();
+			NavMesh.Reset();
+
+			if ( HasPhysicsWorld )
+			{
+				var worldBody = _physicsWorld.Body;
+				if ( worldBody.IsValid() && _physicsWorld.BodyCount == 1 && worldBody.ShapeCount == 0 )
+				{
+					_physicsWorld.Delete();
+					_physicsWorld = null;
+				}
+			}
 		}
 
 		if ( !IsEditor && options.ShowLoadingScreen )
@@ -111,9 +123,6 @@ public partial class Scene : GameObject
 			// Depending on if we load a scene from file or from memory, we need to account for that here
 			using var blobs = BlobDataSerializer.Load( sceneFile.BinaryData, sceneFile.ResourcePath );
 			using var batchGroup = CallbackBatch.Batch();
-
-			// Clear cached binary data now that we've loaded it
-			sceneFile.BinaryData = null;
 
 			if ( sceneFile.GameObjects is not null )
 			{
@@ -171,7 +180,7 @@ public partial class Scene : GameObject
 
 	/// <summary>
 	/// Load from the provided file name. This will not load the scene for other clients in a
-	/// multiplayer session, you should instead use <see cref="Game.ChangeScene"/>
+	/// multiplayer session, you should instead use <see cref="Game.ChangeScene(SceneFile)"/>
 	/// if you want to bring other clients.
 	/// </summary>
 	public bool LoadFromFile( string filename )
@@ -214,6 +223,17 @@ public partial class Scene : GameObject
 		return json;
 	}
 
+	internal void Reload()
+	{
+		var json = Serialize();
+
+		_physicsWorld?.Delete();
+		_physicsWorld = null;
+
+		ReloadSystems();
+		Deserialize( json );
+	}
+
 	public override void Deserialize( JsonObject node, DeserializeOptions option )
 	{
 		if ( this is PrefabScene )
@@ -252,7 +272,7 @@ public partial class Scene : GameObject
 	{
 		var jso = new JsonObject();
 
-		foreach ( var prop in Game.TypeLibrary.GetType<Scene>()
+		foreach ( var prop in GlobalContext.Current.TypeLibrary.GetType<Scene>()
 			.Properties
 			.Where( x => x.HasAttribute<PropertyAttribute>() )
 			.OrderBy( x => x.Name ) )
@@ -286,7 +306,7 @@ public partial class Scene : GameObject
 
 		foreach ( var system in GetSystems() )
 		{
-			var systemType = Game.TypeLibrary.GetType( system.GetType() );
+			var systemType = GlobalContext.Current.TypeLibrary.GetType( system.GetType() );
 			if ( systemType is null ) continue;
 
 			var systemTypeName = systemType.FullName;
@@ -296,7 +316,9 @@ public partial class Scene : GameObject
 			{
 				if ( !property.CanWrite ) continue;
 
-				var currentValue = property.GetValue( system );
+				var currentValue = TryGetPreTransientValue( system, property, out var preTransientValue )
+					? preTransientValue
+					: property.GetValue( system );
 				var hasGlobalValue = ProjectSettings.Systems.TryGetPropertyValue( systemType, property, out var globalValue );
 				var compareValue = hasGlobalValue ? globalValue : SystemsConfig.GetDefaultValue( property );
 
@@ -338,7 +360,7 @@ public partial class Scene : GameObject
 
 	void DeserializeProperties( JsonObject data, bool isSystemScene = false )
 	{
-		var sceneType = Game.TypeLibrary.GetType<Scene>();
+		var sceneType = GlobalContext.Current.TypeLibrary.GetType<Scene>();
 		Assert.NotNull( sceneType, "Scene type is inaccessible!" );
 
 		foreach ( var prop in sceneType.Properties.Where( x => x.HasAttribute<PropertyAttribute>() ) )

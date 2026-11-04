@@ -30,6 +30,11 @@ public class ProjectInfo
 
 	public List<string> PackageReferences { get; set; } = new List<string>();
 
+	/// <summary>
+	/// MSBuild properties exposed to analyzers as build_property.Name.
+	/// </summary>
+	public Dictionary<string, string> CompilerProperties { get; set; } = new();
+
 	public List<string> GlobalStatic { get; set; } = new List<string>();
 	public List<string> GlobalUsing { get; set; } = new List<string>();
 	public List<string> IncludeFiles { get; set; } = new();
@@ -57,23 +62,4 @@ public class ProjectInfo
 		return Guid.ToString( "B" ).ToUpper();
 	}
 
-	public IEnumerable<ProjectInfo> GetDependencies( Dictionary<string, ProjectInfo> allProjects )
-	{
-		if ( Name == "base" )
-			yield break;
-
-		var seen = new HashSet<ProjectInfo>();
-
-		if ( !allProjects.TryGetValue( "base", out ProjectInfo p ) || !seen.Add( p ) )
-			yield break;
-
-		yield return p;
-
-		foreach ( var e in p.GetDependencies( allProjects ) )
-		{
-			if ( seen.Add( e ) )
-				yield return e;
-		}
-
-	}
 }

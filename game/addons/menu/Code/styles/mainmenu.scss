@@ -1,7 +1,6 @@
 
 @import 'vars';
 @import 'button';
-@import '/styles/base.scss';
 @import '/styles/form.scss';
 
 @import 'popup';
@@ -507,20 +506,6 @@ shrink, .shrink
 	color: $green;
 }
 
-.loading-status
-{
-	width: 100%;
-	justify-content: center;
-	margin: 100px 0px;
-	font-size: 30px;
-	opacity: 0.2;
-
-	i
-	{
-		font-size: 200px;
-	}
-}
-
 CurrentGame
 {
 	LogoAndTitle
@@ -535,38 +520,3 @@ CurrentGame
 		}
 	}
 }
-
-
-LoaderFullScreen
-{
-	width: 100%;
-	height: 100%;
-	justify-content: center;
-	align-items: center;
-	position: absolute;
-	pointer-events: none;
-
-	.indicator
-	{
-		border: 1px solid #fff2;
-		width: 300px;
-		height: 30px;
-		border-radius: 3px;
-		opacity: 1.0;
-		transition: all 1.0s 0.5s linear;
-		padding: 2px;
-
-		&:intro
-		{
-			opacity: 0.0;
-		}
-
-		.progress
-		{
-			background-color: #fff4;
-			border-radius: 2px;
-			height: 100%;
-		}
-	}
-}
-

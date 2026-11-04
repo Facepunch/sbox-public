@@ -1,11 +1,16 @@
-﻿using System.Text;
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
+using System.Text;
 
 namespace Sandbox.Utility;
 
 public static class Steam
 {
 	internal static ulong BaseFakeSteamId => 90071996842377216;
+
+	/// <summary>
+	/// Is this a fake SteamId? i.e. a bot or local (split-screen/local-instance) player rather than a real Steam account.
+	/// </summary>
+	internal static bool IsFakeSteamId( ulong steamId ) => steamId >= BaseFakeSteamId;
 
 	/// <summary>
 	/// Return what type os SteamId this is
@@ -29,10 +34,26 @@ public static class Steam
 		"Krusty", "Milhouse", "Nelson", "Ralph", "Wiggum"
 	];
 
+	/// <summary>
+	/// Get an anonymous alias name for a Steam ID used for Streamer Mode.
+	/// The same input always returns the same name output, using the same pool of names we assign to fake/bot players.
+	/// </summary>
+	internal static string GetAnonymousName( SteamId steamId )
+	{
+		var index = (int)(steamId.ValueUnsigned % (ulong)LocalInstanceNames.Length);
+		return LocalInstanceNames[index];
+	}
+
 	internal static void InitializeClient()
 	{
 		if ( Application.IsUnitTest )
 			return;
+
+		if ( Application.IsDedicatedServer )
+		{
+			SteamId = NativeEngine.Steam.SteamGameServer_GetSteamID();
+			return;
+		}
 
 		var sf = NativeEngine.Steam.SteamFriends();
 		var su = NativeEngine.Steam.SteamUser();

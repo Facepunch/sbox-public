@@ -1,55 +1,13 @@
-// THIS FILE IS AUTO-GENERATED
-
+// Procedural human eye: identity and mesh fit; surface defaults live in the shader.
 Layer0
 {
-	shader "shaders/eyeball.shader"
+	shader "shaders/citizen_eye.shader"
 
-	//---- Animation ----
-	F_MORPH_SUPPORTED 1
-
-	//---- Specular ----
-	F_SPECULAR_CUBE_MAP 1 // In-game Cube Map
-
-	//---- Color ----
-	g_flModelTintAmount "1.000"
-	g_vColorTint "[1.000000 1.000000 1.000000 0.000000]"
-	TextureColor "models/citizen/skin/citizen_eyes_advanced_color.png"
-
-	//---- Fade ----
-	g_flFadeExponent "1.000"
-
-	//---- Fog ----
-	g_bFogEnabled "1"
-
-	//---- Iris ----
-	g_flIrisBumpStrength "1.190"
-	g_flParallaxStrength "0.131"
-	g_vIrisAutoexposureRange "[0.718 0.250]"
-	IrisNormal "models/citizen/skin/citizen_eyes_advanced_iris_normal.png"
-	IrisRoughness "models/citizen/skin/Citizen_eyes_advanced_iris_rough.png"
-	TextureIrisMask "models/citizen/skin/citizen_eyes_advanced_iris_mask.psd"
-
-	//---- Lighting ----
-	g_vReflectanceRange "[0.000 0.287]"
-	TextureReflectance "models/citizen/skin/citizen_eyes_advanced_iris_refl.png"
-
-	//---- Normal ----
-	g_flCorneaScleraBumpStrength "0.770"
-	g_flScleraDiffuseExponent "1.407"
-	g_flScleraDiffuseWrap "1.000"
-	TextureNormal "models/citizen/skin/citizen_eyes_advanced_normal.png"
-
-	//---- Occlusion ----
-	g_flOcclusionStrength "1.000"
-	g_flOcclusionWidth "2.726"
-	TextureOcclusion "[1.000000 1.000000 1.000000 0.000000]"
-
-	//---- Texture Coordinates ----
-	g_nScaleTexCoordUByModelScaleAxis "0"
-	g_nScaleTexCoordVByModelScaleAxis "0"
-	g_vTexCoordOffset "[0.000 0.000]"
-	g_vTexCoordScale "[1.000 1.000]"
-	g_vTexCoordScrollSpeed "[0.000 0.000]"
+	g_vIrisColor "[0.32 0.23 0.16]"
+	g_flDetailSeed "25.444"
+	g_flPupilSize "0.30"
+	g_flIrisRadius "0.213"
+	g_vIrisCenter "[0.5 0.5]"
 
 	Attributes
 	{

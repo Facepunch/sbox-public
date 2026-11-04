@@ -23,6 +23,15 @@ namespace AddonTests
 			Assert.AreEqual( 0, warnings.Length,
 				$"Built-in projects had compile-time warnings.{Environment.NewLine}" +
 					string.Join( $"{Environment.NewLine}  ", warnings.Select( x => x.ToString() ) ) );
+
+			// The menu builds to one assembly, its editor code only builds when the menu project is open.
+			// Headless runs don't load the menu.
+			if ( !Application.IsHeadless )
+			{
+				var menu = Project.All.FirstOrDefault( x => x.Config.Ident == "menu" );
+				Assert.IsNotNull( menu, "Menu project wasn't loaded" );
+				Assert.AreEqual( 1, menu.AssemblyFileSystem.FindFile( "/", "*.dll", true ).Count() );
+			}
 		}
 	}
 }

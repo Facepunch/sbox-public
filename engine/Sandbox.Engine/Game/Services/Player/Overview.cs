@@ -23,6 +23,52 @@ public sealed class Overview
 	public Package MostPlayed { get; init; }
 	public Package LatestPlayed { get; init; }
 
+	/// <summary>
+	/// The games they've spent the most time in, most first - with how long, and how far they got.
+	/// </summary>
+	public IReadOnlyList<PlayedGame> TopPlayed { get; init; } = [];
+
+	/// <summary>
+	/// The games they've played lately, most recent first.
+	/// </summary>
+	public IReadOnlyList<PlayedGame> RecentlyPlayed { get; init; } = [];
+
+	/// <summary>
+	/// A game someone's played, and what they've done in it.
+	/// </summary>
+	public sealed class PlayedGame
+	{
+		public Package Package { get; init; }
+
+		/// <summary>
+		/// How long they've played it, in total.
+		/// </summary>
+		public long SecondsPlayed { get; init; }
+
+		/// <summary>
+		/// How many of its achievements they've unlocked.
+		/// </summary>
+		public int Achievements { get; init; }
+
+		/// <summary>
+		/// When they last played it.
+		/// </summary>
+		public DateTimeOffset LastPlayed { get; init; }
+
+		internal static PlayedGame From( Sandbox.Services.PlayerPackageEntry entry )
+		{
+			if ( entry?.Package is null ) return null;
+
+			return new PlayedGame
+			{
+				Package = RemotePackage.FromDto( entry.Package ),
+				SecondsPlayed = entry.SecondsPlayed,
+				Achievements = entry.AchUnlocked,
+				LastPlayed = entry.LastSeen,
+			};
+		}
+	}
+
 	public static async Task<Overview> Get( SteamId steamid )
 	{
 		return Overview.From( await Sandbox.Backend.Players.GetOverview( steamid ) );
@@ -46,6 +92,8 @@ public sealed class Overview
 			PositiveReviews = p.PositiveReviews,
 			MostPlayed = RemotePackage.FromDto( p.MostPlayed ),
 			LatestPlayed = RemotePackage.FromDto( p.LatestPlayed ),
+			TopPlayed = p.TopPlayed?.Select( PlayedGame.From ).Where( x => x is not null ).ToArray() ?? [],
+			RecentlyPlayed = p.RecentlyPlayed?.Select( PlayedGame.From ).Where( x => x is not null ).ToArray() ?? [],
 		};
 	}
 }

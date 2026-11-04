@@ -11,7 +11,7 @@ Layer0
 	//---- Ambient Occlusion ----
 	g_flAmbientOcclusionDirectDiffuse "1.000"
 	g_flAmbientOcclusionDirectSpecular "1.000"
-	TextureAmbientOcclusion "models/citizen_human/heads/citizen_human_malehead01/citizen_human_malehead01_ao.png"
+	TextureAmbientOcclusion "models/citizen_human/heads/citizen_human_malehead03/citizen_human_malehead03_ao.png"
 
 	//---- Color ----
 	g_flModelTintAmount "1.000"
@@ -45,10 +45,13 @@ Layer0
 	TextureRoughness "models/citizen_human/heads/citizen_human_malehead03/citizen_human_malehead03_rough.png"
 
 	//---- Specular ----
+	g_flSecondSpecularLobeGlossiness "0.500"
 	g_flSecondSpecularLobeRatio "0.008"
 
 	//---- Tinting ----
-	TextureTintLookup "models/citizen_human/heads/citizen_human_malehead01/citizen_human_malehead01_color.png"
+	g_bOverrideTinting "0"
+	g_flSkinAge "0.500"
+	TextureTintLookup "models/citizen_human/heads/citizen_human_malehead03/citizen_human_malehead03_color.png"
 
 	//---- Transmission ----
 	g_flTransmissionFalloff "0.759"
