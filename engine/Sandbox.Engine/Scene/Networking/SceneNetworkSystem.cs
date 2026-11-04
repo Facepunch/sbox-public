@@ -103,14 +103,10 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		// Clear all pending scene loads before we load a new scene
 		PendingSceneLoads.Clear();
 
-		var mounedVpks = Game.ActiveScene.GetAllComponents<MapInstance>()
-			.Select( x => x.MapName )
-			.ToList();
-
 		var loadMsg = new LoadSceneBeginMsg
 		{
 			ShowLoadingScreen = options.ShowLoadingScreen,
-			MountedVPKs = mounedVpks,
+			MountedVPKs = GetMapNames(),
 			SceneId = Game.ActiveScene.Id,
 			Id = Guid.NewGuid()
 		};
@@ -274,6 +270,13 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		NetworkDebugSystem.Current?.Record( NetworkDebugSystem.MessageType.Snapshot, msg );
 		Diagnostics.DevTools.NetworkLog.Message( Diagnostics.DevTools.NetworkLog.Kind.Snapshot, "SceneSnapshot", msg, false, connection );
 
+		// The maps sent with LoadSceneBeginMsg can be out of date, because the host's maps were still
+		// loading. Mount the final list before the snapshot creates objects that use files in them.
+		// Mount before releasing the old list, so a VPK in both stays mounted.
+		var previousVPKs = MountedVPKs;
+		MountedVPKs = await MountMaps( msg.MountedVPKs );
+		previousVPKs?.Dispose();
+
 		await SetSnapshotAsync( msg.Snapshot );
 
 		// Let them know we have now loaded this scene.
@@ -323,7 +326,8 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 		connection.State = Connection.ChannelState.Snapshot;
 
-		SendSnapshot( connection, snapshot => new LoadSceneSnapshotMsg { SceneId = msg.SceneId, Id = msg.Id, Snapshot = snapshot } );
+		var maps = GetMapNames();
+		SendSnapshot( connection, snapshot => new LoadSceneSnapshotMsg { SceneId = msg.SceneId, Id = msg.Id, Snapshot = snapshot, MountedVPKs = maps } );
 	}
 
 	/// <summary>
@@ -382,7 +386,12 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	/// </summary>
 	public override void GetMountedVPKs( Connection source, ref MountedVPKsResponse msg )
 	{
-		msg.MountedVPKs = Game.ActiveScene.GetAllComponents<MapInstance>().Select( x => x.MapName ).ToList();
+		msg.MountedVPKs = GetMapNames();
+	}
+
+	private static List<string> GetMapNames()
+	{
+		return Game.ActiveScene.GetAllComponents<MapInstance>().Select( x => x.MapName ).ToList();
 	}
 
 	/// <summary>
@@ -1599,6 +1608,7 @@ struct LoadSceneRequestSnapshotMsg
 struct LoadSceneSnapshotMsg
 {
 	public SnapshotMsg Snapshot { get; set; }
+	public List<string> MountedVPKs { get; set; }
 	public Guid SceneId { get; set; }
 	public Guid Id { get; set; }
 }
