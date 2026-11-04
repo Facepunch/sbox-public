@@ -101,8 +101,7 @@ public class PreviewSceneWidget : Widget
 	{
 		Layout = Layout.Column();
 
-		// A real game scene - components, physics and ragdolls behave exactly like in game
-		Scene = new Scene();
+		Scene = EditorUtility.CreatePreviewScene();
 		Scene.Name = sceneName;
 
 		using ( Scene.Push() )

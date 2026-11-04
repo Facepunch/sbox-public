@@ -166,7 +166,9 @@ public partial class Scene : GameObject
 		}
 	}
 
-	protected Scene( bool isEditor ) : base( true, "Scene" )
+	protected Scene( bool isEditor ) : this( isEditor, true ) { }
+
+	internal Scene( bool isEditor, bool includeGameSystems ) : base( true, "Scene" )
 	{
 		_all.Add( this );
 
@@ -177,7 +179,7 @@ public partial class Scene : GameObject
 
 		if ( this is not PrefabCacheScene )
 		{
-			InitSystems();
+			InitSystems( includeGameSystems );
 		}
 	}
 

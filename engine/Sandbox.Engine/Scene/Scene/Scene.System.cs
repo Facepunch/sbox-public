@@ -35,7 +35,7 @@ public partial class Scene
 	/// <summary>
 	/// Find all types of SceneHook, create an instance of each one and install it.
 	/// </summary>
-	void InitSystems()
+	void InitSystems( bool includeGameSystems )
 	{
 		using ( Push() )
 		{
@@ -43,6 +43,7 @@ public partial class Scene
 
 			var found = GlobalContext.Current.TypeLibrary.GetTypes<GameObjectSystem>()
 				.Where( x => !x.IsAbstract )
+				.Where( x => includeGameSystems || x.TargetType.Assembly == typeof( Scene ).Assembly )
 				.ToArray();
 
 			foreach ( var f in found )
