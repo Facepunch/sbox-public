@@ -126,7 +126,8 @@ public sealed class LightProbeVolume : Component, Component.ExecuteInEditor, Com
 		sceneObject?.Delete();
 		sceneObject = null;
 
-		if ( Texture is null ) return;
+		// A texture that failed to load would give black ambient lighting instead of none.
+		if ( Texture is null || Texture.IsError ) return;
 
 		var size = Bounds.Size;
 		if ( !Bounds.Mins.IsFinite || !Bounds.Maxs.IsFinite || size.x <= 0 || size.y <= 0 || size.z <= 0 )
