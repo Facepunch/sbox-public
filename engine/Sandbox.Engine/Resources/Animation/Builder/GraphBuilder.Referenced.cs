@@ -142,8 +142,8 @@ public sealed partial class GraphBuilder
 	}
 
 	/// <summary>
-	/// An empty child-graph slot filled at runtime by native integration using
-	/// <paramref name="slotName"/>. Plays <paramref name="fallback"/> (or nothing) while empty.
+	/// A child-graph slot filled at runtime through <see cref="AnimationAccessor.ExternalGraphs"/>
+	/// using <paramref name="slotName"/>. Plays <paramref name="fallback"/> (or nothing) while empty.
 	/// </summary>
 	public Node ExternalGraphSlot( string slotName, Node fallback = default )
 	{
