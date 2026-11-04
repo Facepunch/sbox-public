@@ -13,7 +13,7 @@ public static class Protocol
 	/// <summary>
 	/// We cannot talk to servers or clients with a network protocol different to this.
 	/// </summary>
-	public static int Network => 1114;
+	public static int Network => 1115;
 }
 
 // Api Versions
@@ -34,6 +34,7 @@ public static class Protocol
 
 
 // Network Versions
+// 1115. 29th October 2026 - Voice travels as VoiceChatBroadcastMsg instead of the Msg_Voice RPC
 // 1114. 29 October 2026 - ParticleFloat uses an explicit BytePack format
 // 1113. 26th October 2026 - ServerInfo says which version of the game's workshop item the host has
 // 1112. 25th October 2026 - ServerInfo carries the host's SteamId

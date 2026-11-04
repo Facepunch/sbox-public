@@ -64,6 +64,7 @@ internal partial class GameInstanceDll
 
 		NetworkedLargeFiles.NetworkInitialize( instance );
 		Platform.Chat.NetworkInitialize( instance );
+		Platform.VoiceChat.NetworkInitialize( instance );
 
 		if ( Networking.IsHost )
 		{
@@ -99,6 +100,7 @@ internal partial class GameInstanceDll
 
 		NetworkedLargeFiles.NetworkInitialize( instance );
 		Platform.Chat.NetworkInitialize( instance );
+		Platform.VoiceChat.NetworkInitialize( instance );
 
 		if ( Networking.IsHost )
 		{

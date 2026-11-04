@@ -15,7 +15,7 @@ public partial class SoundHandle
 		/// <summary>
 		/// A list of 15 lipsync viseme weights. Requires <see cref="Enabled"/> to be true.
 		/// </summary>
-		public IReadOnlyList<float> Visemes => _visemesReadOnly ?? (IReadOnlyList<float>)Array.Empty<float>();
+		public IReadOnlyList<float> Visemes => _visemesReadOnly ?? [];
 
 		/// <summary>
 		/// The viseme weights as a raw array for the engine's per-frame readers - no

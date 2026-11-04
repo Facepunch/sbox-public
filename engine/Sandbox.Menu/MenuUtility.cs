@@ -1,6 +1,7 @@
 using Sandbox.Engine;
 using Sandbox.Engine.Settings;
 using Sandbox.Modals;
+using Sandbox.Platform;
 using Sandbox.Services;
 using System;
 using System.Net;
@@ -71,6 +72,16 @@ public static partial class MenuUtility
 	public static void RemoveChatListener( Action<ChatMessageEvent> listener )
 	{
 		Platform.Chat.OnMessage -= listener;
+	}
+
+	public static void AddVoiceChatListener( Action<VoiceChat.PacketEvent> listener )
+	{
+		Platform.VoiceChat.OnPacket += listener;
+	}
+
+	public static void RemoveVoiceChatListener( Action<VoiceChat.PacketEvent> listener )
+	{
+		Platform.VoiceChat.OnPacket -= listener;
 	}
 
 	/// <summary>
@@ -327,6 +338,7 @@ public static partial class MenuUtility
 	/// <summary>
 	/// Listen to the voice
 	/// </summary>
+	[Obsolete( $"Use {nameof( PartyRoom.SetBroadcastVoice )}" )]
 	public static void SetVoiceListen( bool b )
 	{
 		if ( b )

@@ -2,6 +2,7 @@ using NativeEngine;
 using Sandbox.Utility;
 using System.Buffers;
 using System.Buffers.Binary;
+using Sandbox.Platform;
 
 namespace Sandbox;
 
@@ -17,6 +18,8 @@ internal static class VoiceManager
 	const int MaxFrameSamples = Rate * 120 / 1000; // largest frame Opus can decode
 	const int Bitrate = 32000;
 
+	internal const int MaxPacketLength = 1024 * 32;
+
 	/// <summary>
 	/// Keep capturing for a bit after a stop, people let go of push to talk early
 	/// </summary>
@@ -27,14 +30,17 @@ internal static class VoiceManager
 	/// </summary>
 	const float GateHoldTime = 0.3f;
 
+	/// <summary>
+	/// Frames from just before the gate opens that get sent with it, words start quieter than the threshold
+	/// </summary>
+	const int PreRollFrames = 3; // 60ms
+
 	public static int SampleRate => Rate;
 
 	/// <summary>
 	/// Most samples a single packet can decode to
 	/// </summary>
 	internal static int MaxPacketSamples => Rate;
-
-	public static Action<Memory<byte>> OnCompressedVoiceData { get; set; }
 
 	static IntPtr capture;
 	static string captureDevice;
@@ -44,7 +50,9 @@ internal static class VoiceManager
 	// 200ms is the most we'll read in one tick; native drops anything older than that
 	static float[] captureBuffer = new float[Rate / 5];
 	static int captureCount;
-	static byte[] packetBuffer = new byte[1024 * 32];
+	static float[] captureBufferPreRoll = new float[FrameSamples * PreRollFrames];
+	static int preRollCount;
+	static byte[] packetBuffer = new byte[MaxPacketLength];
 
 	static RealTimeSince timeSinceLastHear = 10;
 	static RealTimeSince timeSinceStopped = 10;
@@ -56,30 +64,16 @@ internal static class VoiceManager
 	static string failedDevice;
 
 	public static bool IsValid => !Application.IsHeadless;
+
+	/// <summary>
+	/// Does voice chat want the mic? Worked out each tick in the game's scope, so the menu can read it too.
+	/// </summary>
 	public static bool IsListening { get; private set; }
+
 	public static bool IsRecording => timeSinceLastHear < 0.2f;
 
 	/// <inheritdoc cref="Preferences.StreamlinedPushToTalk"/>
 	private static bool StreamlinedPushToTalk => Preferences.VoiceMode == VoiceMode.PushToTalk && Preferences.StreamlinedPushToTalk;
-
-	public static bool StartRecording()
-	{
-		if ( !IsValid ) return false;
-
-		IsListening = true;
-		return true;
-	}
-
-	public static bool StopRecording()
-	{
-		if ( !IsValid ) return false;
-
-		if ( IsListening )
-			timeSinceStopped = 0;
-
-		IsListening = false;
-		return true;
-	}
 
 	/// <summary>
 	/// Names of the microphones we can record from
@@ -103,12 +97,21 @@ internal static class VoiceManager
 	static RealTimeSince timeSinceLastTick = 0;
 	public static void Tick()
 	{
+		if ( !IsValid ) return;
+
 		using ( _voiceTick.Start() )
 		{
 			if ( timeSinceLastTick < (1.0f / 30.0f) )
 				return;
 
 			timeSinceLastTick = 0;
+
+			IsListening = VoiceChat.IsListening;
+
+			if ( IsListening )
+			{
+				timeSinceStopped = 0;
+			}
 
 			var sending = IsListening || timeSinceStopped < TailTime;
 			var testing = timeSinceTestRequested < 0.5f;
@@ -212,6 +215,7 @@ internal static class VoiceManager
 		VoiceGlue.CloseCapture( capture );
 		capture = IntPtr.Zero;
 		captureCount = 0;
+		preRollCount = 0;
 		timeSinceLoud = 10;
 		Level = MinLevel;
 	}
@@ -249,28 +253,28 @@ internal static class VoiceManager
 			loudest = MathF.Max( loudest, level );
 
 			if ( !send )
+			{
+				preRollCount = 0;
 				continue;
+			}
 
 			// Only send when it's louder than the threshold, Steam used to do this for us
 			if ( level > Preferences.VoiceThreshold )
 				timeSinceLoud = 0;
 
 			if ( timeSinceLoud > GateHoldTime )
-				continue;
-
-			// Encode straight into the packet after a ushort length prefix
-			int bytes;
-			fixed ( float* samples = frame )
-			fixed ( byte* dest = packetBuffer )
 			{
-				bytes = VoiceGlue.Encode( encoder, (IntPtr)samples, FrameSamples, (IntPtr)(dest + packetLength + 2), packetBuffer.Length - packetLength - 2 );
+				HoldPreRoll( frame );
+				continue;
 			}
 
-			if ( bytes <= 0 )
-				continue;
+			// Gate just opened, send the quiet start of the word first
+			for ( int i = 0; i < preRollCount; i++ )
+				packetLength = EncodeFrame( captureBufferPreRoll.AsSpan( i * FrameSamples, FrameSamples ), packetLength );
 
-			BinaryPrimitives.WriteUInt16LittleEndian( packetBuffer.AsSpan( packetLength ), (ushort)bytes );
-			packetLength += 2 + bytes;
+			preRollCount = 0;
+
+			packetLength = EncodeFrame( frame, packetLength );
 		}
 
 		// Keep the partial frame for next tick
@@ -285,7 +289,42 @@ internal static class VoiceManager
 			return;
 
 		timeSinceLastHear = 0;
-		OnCompressedVoiceData?.Invoke( new Memory<byte>( packetBuffer, 0, packetLength ) );
+
+		VoiceChat.BroadcastPacket( packetBuffer.AsSpan( 0, packetLength ) );
+	}
+
+	/// <summary>
+	/// Encode a frame straight into the packet after a ushort length prefix, returns the new packet length
+	/// </summary>
+	static unsafe int EncodeFrame( ReadOnlySpan<float> frame, int packetLength )
+	{
+		int bytes;
+		fixed ( float* samples = frame )
+		fixed ( byte* dest = packetBuffer )
+		{
+			bytes = VoiceGlue.Encode( encoder, (IntPtr)samples, FrameSamples, (IntPtr)(dest + packetLength + 2), packetBuffer.Length - packetLength - 2 );
+		}
+
+		if ( bytes <= 0 )
+			return packetLength;
+
+		BinaryPrimitives.WriteUInt16LittleEndian( packetBuffer.AsSpan( packetLength ), (ushort)bytes );
+		return packetLength + 2 + bytes;
+	}
+
+	/// <summary>
+	/// Keep the last few frames the gate held back, dropping the oldest
+	/// </summary>
+	static void HoldPreRoll( ReadOnlySpan<float> frame )
+	{
+		if ( preRollCount == PreRollFrames )
+		{
+			captureBufferPreRoll.AsSpan( FrameSamples ).CopyTo( captureBufferPreRoll );
+			preRollCount--;
+		}
+
+		frame.CopyTo( captureBufferPreRoll.AsSpan( preRollCount * FrameSamples ) );
+		preRollCount++;
 	}
 
 	/// <summary>

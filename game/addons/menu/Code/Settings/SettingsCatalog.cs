@@ -851,15 +851,29 @@ public class SettingsCatalog
 		AddVolume( "audio.game", "#menu.settings.audio.game.title", "#menu.settings.audio.game.description", "game_volume" );
 		AddVolume( "audio.music", "#menu.settings.audio.music.title", "#menu.settings.audio.music.description", "music_volume" );
 		AddVolume( "audio.menu_music", "#menu.settings.audio.menu_music.title", "#menu.settings.audio.menu_music.description", "music_volume_menu" );
-		AddVolume( "audio.voice", "#menu.settings.audio.voice.title", "#menu.settings.audio.voice.description", "voip_volume" );
+
+		Items.Add( new SettingItem
+		{
+			Id = "audio.voicechat",
+			Category = "audio",
+			Section = "#menu.settings.voice",
+			Title = "#menu.settings.audio.voicechat.title",
+			Description = "#menu.settings.audio.voicechat.description",
+			Options = OffOn,
+			Read = () => Preferences.VoiceEnabled,
+			Write = value => Preferences.VoiceEnabled = ToBool( value )
+		} );
+
+		AddVolume( "audio.voice", "#menu.settings.audio.voice_volume.title", "#menu.settings.audio.voice.description", "voip_volume", "#menu.settings.voice", IsVoiceChatOn );
 
 		Items.Add( new SettingItem
 		{
 			Id = "audio.voicemode",
 			Category = "audio",
 			Section = "#menu.settings.voice",
-			Title = "#menu.settings.voice_mode",
-			Description = "#menu.settings.audio.voicemode.description",
+			Title = "#menu.settings.microphone_mode",
+			Description = "#menu.settings.audio.microphone_mode.description",
+			IsVisible = IsVoiceChatOn,
 			Options =
 			[
 				new( "#menu.settings.push_to_talk", VoiceMode.PushToTalk ),
@@ -878,7 +892,7 @@ public class SettingsCatalog
 			Title = "#menu.settings.streamlined_push_to_talk",
 			Description = "#menu.settings.audio.streamlined.description",
 			Options = OffOn,
-			IsVisible = () => Find( "audio.voicemode" )?.As<VoiceMode>() == VoiceMode.PushToTalk,
+			IsVisible = () => IsVoiceChatOn() && Find( "audio.voicemode" )?.As<VoiceMode>() == VoiceMode.PushToTalk,
 			Read = () => MenuUtility.GetConsoleVariable( "voip_streamlined" ).ToBool(),
 			Write = value => MenuUtility.SetConsoleVariable( "voip_streamlined", ToBool( value ) )
 		} );
@@ -892,6 +906,7 @@ public class SettingsCatalog
 			Description = "#menu.settings.audio.microphone.description",
 			Kind = SettingKind.Dropdown,
 			OptionsBuilder = MicrophoneOptions,
+			IsVisible = IsVoiceChatOn,
 			Read = ReadMicrophone,
 			Write = value => MenuUtility.SetConsoleVariable( "voip_device", value?.ToString() ?? "" ),
 			Warning = () => IsMicrophoneMissing( Find( "audio.microphone" )?.Value?.ToString() )
@@ -912,6 +927,7 @@ public class SettingsCatalog
 				Item = item,
 				Device = () => Find( "audio.microphone" )?.Value?.ToString()
 			},
+			IsVisible = IsVoiceChatOn,
 			Read = () => MenuUtility.GetConsoleVariable( "voip_threshold" ).ToFloat(),
 			Write = value => MenuUtility.SetConsoleVariable( "voip_threshold", ToFloat( value ) )
 		} );
@@ -953,13 +969,18 @@ public class SettingsCatalog
 		} );
 	}
 
-	void AddVolume( string id, string title, string description, string convar )
+	/// <summary>
+	/// The rest of the Voice section only shows while voice chat is on.
+	/// </summary>
+	bool IsVoiceChatOn() => ToBool( Find( "audio.voicechat" )?.Value );
+
+	void AddVolume( string id, string title, string description, string convar, string section = "#menu.settings.volume", Func<bool> isVisible = null )
 	{
 		Items.Add( new SettingItem
 		{
 			Id = id,
 			Category = "audio",
-			Section = "#menu.settings.volume",
+			Section = section,
 			Title = title,
 			Description = description,
 			Kind = SettingKind.Slider,
@@ -967,6 +988,7 @@ public class SettingsCatalog
 			Max = 1,
 			Step = 0.01f,
 			NumberFormat = "0.##%",
+			IsVisible = isVisible,
 			Read = () => MenuUtility.GetConsoleVariable( convar ).ToFloat(),
 			Write = value => MenuUtility.SetConsoleVariable( convar, ToFloat( value ) )
 		} );
@@ -1134,6 +1156,8 @@ public class SettingsCatalog
 		var devices = Sandbox.Internal.AudioSettings.GetAudioDevices();
 		if ( devices.Any() )
 			Sandbox.Internal.AudioSettings.SetActiveDevice( devices.First().Id );
+
+		Preferences.VoiceEnabled = true;
 
 		MenuUtility.SetConsoleVariable( "snd_simulation_enable", true );
 		MenuUtility.SetConsoleVariable( "volume", 1.0f );

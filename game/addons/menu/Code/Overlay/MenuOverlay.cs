@@ -70,6 +70,8 @@ public partial class MenuOverlay : RootPanel
 		AddChild<MicOverlay>();
 		AddChild<SubtitleOverlay>();
 		AddChild<ChatOverlay>();
+		AddChild<VoiceChatOverlay>();
+
 		textureWebStreaming = AddChild<Panel>( "texture-web-streaming" );
 		textureWebStreaming.AddChild<Panel>( "spinner" );
 		textureWebStreaming.Add.Label( "Higher quality textures will download during gameplay", "label" );

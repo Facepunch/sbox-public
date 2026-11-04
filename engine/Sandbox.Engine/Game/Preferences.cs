@@ -85,6 +85,12 @@ public static class Preferences
 	public static bool ChatEnabled { get; set; } = true;
 
 	/// <summary>
+	/// Disabling this will turn off the UI, recording, and playback.
+	/// </summary>
+	[ConVar( "platform.voice.enabled", ConVarFlags.Saved, Help = "Do we want to enable the platform level voice chat system? The game also has to have it enabled." )]
+	public static bool VoiceEnabled { get; set; } = true;
+
+	/// <summary>
 	/// When enabled, player usernames/avatars are replaced with anonymous versions.
 	/// </summary>
 	[ConVar( "streamer_mode", ConVarFlags.Saved, Help = "Hide usernames and profile pictures in the built-in chat behind anonymous aliases." )]

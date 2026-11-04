@@ -1,0 +1,38 @@
+@import "/styles/_chat.scss";
+
+VoiceChatPanel {
+    flex-grow: 1;
+    flex-direction: column;
+    align-items: end;
+    overflow-x: hidden;
+    max-height: 400px;
+    gap: 5px;
+    padding: 10px;
+
+    .name {
+        text-overflow: ellipsis;
+        overflow: hidden;
+    }
+
+    .icon {
+        flex-shrink: 0;
+        font-family: "Material Icons";
+        font-size: 20px;
+        color: white;
+    }
+
+    // More people talking than we have rows for
+
+    .overflow {
+        align-items: center;
+        gap: 8px;
+        padding: 4px 10px;
+        border-radius: $rounding-large;
+        background-color: rgba( black, 0.3 );
+        color: white;
+        font-family: $font-heading;
+        font-weight: 600;
+        font-size: 16px;
+        text-shadow: 1px 1px 0px rgba( black, 0.75 );
+    }
+}
