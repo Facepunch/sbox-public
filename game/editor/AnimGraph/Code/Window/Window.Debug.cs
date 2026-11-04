@@ -431,7 +431,7 @@ public partial class Window
 			if ( !model.Animation.Debug.TryGetNode( clip.NodeIndex, out var info ) || !info.IsActive )
 				continue;
 
-			animations.Add( (clip.AnimationName, info.NormalizedTime, info.Duration) );
+			animations.Add( (System.IO.Path.GetFileNameWithoutExtension( clip.AnimationName ), info.NormalizedTime, info.Duration) );
 		}
 	}
 

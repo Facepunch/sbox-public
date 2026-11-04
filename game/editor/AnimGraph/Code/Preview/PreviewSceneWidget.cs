@@ -233,6 +233,17 @@ public class PreviewSceneWidget : Widget
 		return Camera.PointToScreenNormal( worldPosition, out isBehind ) * _renderView.Size * _renderView.DpiScale;
 	}
 
+	protected void DrawOverlayText( string text, Vector2 position, Color color, TextFlag alignment = TextFlag.LeftTop )
+	{
+		using var overlay = Camera.BeginOverlay();
+		overlay.TextStyle = new TextStyle( "Roboto Mono", 12, color.WithAlphaMultiplied( 0.85f ) )
+		{
+			Alignment = alignment | TextFlag.DontClip,
+			Outline = new TextRendering.Outline { Color = Color.Black, Enabled = true, Size = 3 },
+		};
+		overlay.Text( text, new Rect( position, Vector2.One ) );
+	}
+
 	/// <summary>
 	/// Frame the camera around the model's bounds.
 	/// </summary>
@@ -301,6 +312,8 @@ public class PreviewSceneWidget : Widget
 	{
 		if ( !Scene.IsValid() || Camera is null )
 			return;
+
+		Camera.CustomSize = _renderView.Size * _renderView.DpiScale;
 
 		var hasMouse = ViewIsHovered && !CameraDragging;
 		_renderView.GizmoInstance.Input.IsHovered = hasMouse;
@@ -390,21 +403,10 @@ public class PreviewSceneWidget : Widget
 			if ( isBehind )
 				continue;
 
-			using var overlay = Camera.BeginOverlay();
 			for ( var i = 0; i < _hoveredBones.Count; i++ )
 			{
-				overlay.TextStyle = new TextStyle
-				{
-					Color = Color.White.WithAlpha( i == 0 ? 1f : 0.7f ),
-					FontSize = 12,
-					FontName = "Roboto Mono",
-					FontWeight = 400,
-					LineHeight = 1,
-					Alignment = TextFlag.LeftCenter,
-					Outline = new TextRendering.Outline { Color = Color.Black, Enabled = true, Size = 3 },
-				};
-
-				overlay.Text( _hoveredBones[i], new Rect( pixel + new Vector2( 0f, i * 16f ), Vector2.One ) );
+				DrawOverlayText( _hoveredBones[i], pixel + new Vector2( 0f, i * 16f ),
+					Color.White.WithAlpha( i == 0 ? 1f : 0.7f ), TextFlag.LeftCenter );
 			}
 		}
 

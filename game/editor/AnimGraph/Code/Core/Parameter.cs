@@ -213,7 +213,7 @@ public class Parameter : IParameter
 	[Hide, JsonIgnore]
 	public bool PreviewTargetIsBone { get => _previewTargetIsBone ??= PreviewStartTargetIsBone; set => _previewTargetIsBone = value; }
 
-	[Hide, JsonIgnore]
+	[Hide, JsonIgnore, EnumDropdown]
 	public AnimTargetPreviewMode PreviewTargetMode
 	{
 		get => !PreviewTargetIsSet ? AnimTargetPreviewMode.Unset

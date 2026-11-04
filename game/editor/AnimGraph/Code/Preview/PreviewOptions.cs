@@ -124,7 +124,7 @@ internal sealed class PreviewOptions
 
 			FocusPicker = row.Add( new FocusBonePicker( so.GetProperty( nameof( FocusBoneSettings.Bone ) ), _preview )
 			{
-				FixedWidth = 160,
+				MaximumWidth = 160,
 				ToolTip = "Focus the camera on a bone",
 			} );
 		}
