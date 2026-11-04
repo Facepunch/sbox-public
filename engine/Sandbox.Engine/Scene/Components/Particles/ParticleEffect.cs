@@ -735,18 +735,23 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 			p.Follower.WorldTransform = new Transform( p.Position, p.Angles, p.Follower.WorldScale );
 		}
 
-		var distanceFromOrigin = (long)Vector3.DistanceBetween( _worldTx.Position, p.Position );
+		InterlockedMax( ref _maxDistance, (long)Vector3.DistanceBetween( _worldTx.Position, p.Position ) );
+		InterlockedMax( ref _maxSize, (long)float.Max( p.Size.x, p.Size.y ) );
+	}
 
-		if ( Interlocked.Read( ref _maxDistance ) <= distanceFromOrigin )
+	/// <summary>
+	/// Raises <paramref name="target"/> to <paramref name="value"/> if it's larger, safe across worker threads.
+	/// </summary>
+	internal static void InterlockedMax( ref long target, long value )
+	{
+		var current = Volatile.Read( ref target );
+		while ( current < value )
 		{
-			Interlocked.Exchange( ref _maxDistance, distanceFromOrigin );
-		}
+			var previous = Interlocked.CompareExchange( ref target, value, current );
+			if ( previous == current )
+				return;
 
-		var size = (long)float.Max( p.Size.x, p.Size.y );
-
-		if ( Interlocked.Read( ref _maxSize ) <= size )
-		{
-			Interlocked.Exchange( ref _maxSize, size );
+			current = previous;
 		}
 	}
 
