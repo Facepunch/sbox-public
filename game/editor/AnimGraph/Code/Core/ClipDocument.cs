@@ -92,6 +92,13 @@ public sealed class ClipDocument : IAnimationDocument
 		set => _root[DurationOverrideKey] = value ?? -1f;
 	}
 
+	[Property, Group( "Import Settings", StartFolded = true ), Title( "Disable Interpolation" ), Description( "Hold each pose until the next animation frame instead of blending between frames. Graph transitions and root motion remain smooth." )]
+	public bool DisableInterpolation
+	{
+		get => ReadBool( DisableInterpolationKey, false );
+		set => _root[DisableInterpolationKey] = value;
+	}
+
 	[Property, Group( "Loop Smoothing", StartFolded = true ), Title( "Enabled" )]
 	public bool SmoothLoop
 	{
@@ -926,7 +933,7 @@ public sealed class ClipDocument : IAnimationDocument
 	[SkipHotload]
 	private static readonly string[] ImportKeys =
 	[
-		SourceFilenameKey, SkeletonKey, TakeKey, StartFrameKey, EndFrameKey, ImportScaleKey, ImportFrameRateKey, DurationOverrideKey,
+		SourceFilenameKey, SkeletonKey, TakeKey, StartFrameKey, EndFrameKey, ImportScaleKey, ImportFrameRateKey, DurationOverrideKey, DisableInterpolationKey,
 		SmoothLoopKey, SmoothLoopFramesFromStartKey, SmoothLoopFramesFromEndKey,
 		StartLoopFrameKey, LinearDeltaKey, LinearDeltaSplineKey, MorphFrameWeightsKey,
 		AlignmentReferenceKey, AlignmentBoneKey, AlignmentFrameModeKey, AlignmentFrameKey,
@@ -952,6 +959,7 @@ public sealed class ClipDocument : IAnimationDocument
 	private const string ImportScaleKey = "m_flImportScale";
 	private const string ImportFrameRateKey = "m_flImportFrameRate";
 	private const string DurationOverrideKey = "m_flDurationOverrideSeconds";
+	private const string DisableInterpolationKey = "m_bDisableInterpolation";
 	private const string SmoothLoopKey = "m_bSmoothLoop";
 	private const string SmoothLoopFramesFromStartKey = "m_nSmoothLoopFramesFromStart";
 	private const string SmoothLoopFramesFromEndKey = "m_nSmoothLoopFramesFromEnd";

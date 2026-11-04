@@ -54,6 +54,7 @@ public class AssetInspector : InspectorWidget, AssetSystem.IEventListener
 		SetSizeMode( SizeMode.CanGrow, SizeMode.CanGrow );
 
 		Splitter = new Splitter( this );
+		Splitter.Name = "AssetInspectorSplitter";
 		Splitter.IsVertical = true;
 
 		Layout.Add( Splitter, 1 );
