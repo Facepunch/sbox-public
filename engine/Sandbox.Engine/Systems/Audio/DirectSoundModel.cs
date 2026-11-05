@@ -33,6 +33,9 @@ internal sealed class DirectSoundModel : IDisposable
 
 	bool _firstTraceApplied;
 
+	// Sim side state, only touched by the occlusion update for this source/listener pair.
+	internal AcousticOcclusion.DiffractionPath DiffractionPath;
+
 	internal static bool GlobalOcclusionEnabled { get; set; } = true;
 	internal FrequencyBands? SmoothedTransmission => _transmission;
 	internal FrequencyBands? SmoothedDiffraction => _smoothedDiffraction;
@@ -70,15 +73,16 @@ internal sealed class DirectSoundModel : IDisposable
 		if ( markTraced ) _firstTraceApplied = true;
 	}
 
-	public void Update( Transform transform )
+	public void Update( Transform transform ) => Update( transform, RealTime.Delta );
+
+	internal void Update( Transform transform, float dt )
 	{
 		Transform = transform;
 
-		var dt = RealTime.Delta;
 		if ( Occlusion && !ListenLocal && GlobalOcclusionEnabled && _firstTraceApplied )
 		{
 			_transmission = _transmission.Value.Decay( _targetTransmission, 0.15f, dt );
-			_smoothedDiffraction = _smoothedDiffraction.Value.Decay( _diffractionTarget, 0.8f, dt );
+			_smoothedDiffraction = _smoothedDiffraction.Value.Decay( _diffractionTarget, 0.3f, dt );
 		}
 		else if ( Occlusion && !ListenLocal && GlobalOcclusionEnabled )
 		{
