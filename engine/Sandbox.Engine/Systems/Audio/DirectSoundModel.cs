@@ -9,6 +9,7 @@ internal sealed class DirectSoundModel : IDisposable
 	const float AirAbsHigh = 0.00012f;
 
 	CDirectEffect _native;
+	CDirectEffect _nativeReverb;
 
 	public Transform Transform { get; private set; }
 
@@ -18,6 +19,12 @@ internal sealed class DirectSoundModel : IDisposable
 		{
 			MainThread.QueueDispose( _native );
 			_native = default;
+		}
+
+		if ( !_nativeReverb.IsNull )
+		{
+			MainThread.QueueDispose( _nativeReverb );
+			_nativeReverb = default;
 		}
 
 		GC.SuppressFinalize( this );
@@ -138,12 +145,8 @@ internal sealed class DirectSoundModel : IDisposable
 		var distInUnits = p.Position.Distance( listener.MixTransform.Position );
 		var gain = inputGain * (p.DistanceAttenuation ? SoundFalloff.Gain( p.FalloffMode, p.Falloff, p.MinDistance, p.Distance, distInUnits ) : 1f);
 
-		if ( p.OcclusionEnabled )
-		{
-			var mul = occlusionMultiplier.Clamp( 0f, 1f );
-			var tx = p.TransmissionBands;
-			gain *= (1f - mul) + mul * MathF.Max( tx.Low, MathF.Max( tx.Mid, tx.High ) );
-		}
+		OcclusionParams( occlusionMultiplier, in p, out var occlusion, out var txLow, out var txMid, out var txHigh );
+		gain *= occlusion + (1f - occlusion) * MathF.Max( txLow, MathF.Max( txMid, txHigh ) );
 
 		bool silent = gain < Inaudible;
 		bool skip = silent && _silent;
@@ -166,22 +169,7 @@ internal sealed class DirectSoundModel : IDisposable
 		var airMid = p.AirAbsorption ? MathF.Exp( -AirAbsMid * distInMeters ) : 1f;
 		var airHigh = p.AirAbsorption ? MathF.Exp( -AirAbsHigh * distInMeters ) : 1f;
 
-		var occlusion = 1f;
-		var txLow = 1f; var txMid = 1f; var txHigh = 1f;
-
-		if ( p.OcclusionEnabled )
-		{
-			var mul = occlusionMultiplier.Clamp( 0f, 1f );
-			var tx = p.TransmissionBands;
-
-			txLow = tx.Low;
-			txMid = tx.Mid;
-			txHigh = tx.High;
-
-			// SA formula: output = occlusion + (1-occlusion)*tx. We pass occlusion=1-mul so
-			// mul=1 (fully occluded) → SA sees occlusion=0 and applies transmission only.
-			occlusion = 1f - mul;
-		}
+		OcclusionParams( occlusionMultiplier, in p, out var occlusion, out var txLow, out var txMid, out var txHigh );
 
 		// Always call _native.Apply to keep SA's internal gain interpolator state warm.
 		// Skipping it freezes the interpolator, causing a pop when the sound becomes audible again.
@@ -190,5 +178,37 @@ internal sealed class DirectSoundModel : IDisposable
 		// Fold inputGain into distAtten so SA's GainEffect interpolates the combined gain
 		// per-sample rather than applying a coarse block-level scale that would click at frame boundaries.
 		_native.Apply( distAtten * inputGain, airLow, airMid, airHigh, occlusion, txLow, txMid, txHigh, input._native, output._native );
+	}
+
+	static void OcclusionParams( float occlusionMultiplier, in DirectSoundParams p, out float occlusion, out float txLow, out float txMid, out float txHigh )
+	{
+		occlusion = 1f;
+		txLow = 1f; txMid = 1f; txHigh = 1f;
+
+		if ( !p.OcclusionEnabled ) return;
+
+		var mul = occlusionMultiplier.Clamp( 0f, 1f );
+		var tx = p.TransmissionBands;
+
+		txLow = tx.Low;
+		txMid = tx.Mid;
+		txHigh = tx.High;
+
+		// SA formula: output = occlusion + (1-occlusion)*tx. We pass occlusion=1-mul so
+		// mul=1 (fully occluded) → SA sees occlusion=0 and applies transmission only.
+		occlusion = 1f - mul;
+	}
+
+	/// <summary>
+	/// The source room's reverb reaches the listener the way the direct sound does: muffled per band by the walls in between
+	/// or the path around them. Mono in, mono out, its own effect so its gain interpolation doesn't fight the direct path's.
+	/// </summary>
+	public void FilterReverbSend( MultiChannelBuffer input, MultiChannelBuffer output, float occlusionMultiplier, in DirectSoundParams p )
+	{
+		OcclusionParams( occlusionMultiplier, in p, out var occlusion, out var txLow, out var txMid, out var txHigh );
+
+		_nativeReverb = _nativeReverb.IsNull ? CDirectEffect.Create() : _nativeReverb;
+		output.Silence();
+		_nativeReverb.Apply( 1f, 1f, 1f, 1f, occlusion, txLow, txMid, txHigh, input._native, output._native );
 	}
 }
