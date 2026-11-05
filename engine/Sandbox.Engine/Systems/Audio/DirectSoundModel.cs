@@ -105,17 +105,17 @@ internal sealed class DirectSoundModel : IDisposable
 	public bool DistanceAttenuation { get; set; } = true;
 	public float ReverbAmount { get; set; } = 1.0f;
 	public float Distance { get; set; } = 15_000f;
-	public Curve Falloff { get; set; } = new(
-		new( 0, 1, 0, -1.8f ),
-		new( 0.05f, 0.22f, 3.5f, -3.5f ),
-		new( 0.2f, 0.04f, 0.16f, -0.16f ),
-		new( 1, 0 ) );
+	public Curve Falloff { get; set; } = SoundFalloff.ClassicCurve;
+	public SoundFalloffMode FalloffMode { get; set; } = SoundFalloffMode.Physical;
+	public float MinDistance { get; set; }
 
 	internal DirectSoundParams GetParams() => new()
 	{
 		Position = Transform.Position,
 		Distance = Distance,
 		Falloff = Falloff,
+		FalloffMode = FalloffMode,
+		MinDistance = MinDistance,
 		TransmissionBands = _transmission.HasValue && _smoothedDiffraction.HasValue
 			? FrequencyBands.Max( _transmission.Value, _smoothedDiffraction.Value )
 			: _transmission ?? _smoothedDiffraction ?? FrequencyBands.One,
@@ -136,7 +136,7 @@ internal sealed class DirectSoundModel : IDisposable
 	internal bool SkipSilent( in Listener listener, float inputGain, float occlusionMultiplier, in DirectSoundParams p )
 	{
 		var distInUnits = p.Position.Distance( listener.MixTransform.Position );
-		var gain = inputGain * (p.DistanceAttenuation ? p.Falloff.Evaluate( MathX.Clamp( distInUnits / p.Distance, 0f, 1f ) ) : 1f);
+		var gain = inputGain * (p.DistanceAttenuation ? SoundFalloff.Gain( p.FalloffMode, p.Falloff, p.MinDistance, p.Distance, distInUnits ) : 1f);
 
 		if ( p.OcclusionEnabled )
 		{
@@ -159,7 +159,7 @@ internal sealed class DirectSoundModel : IDisposable
 		var distInMeters = distInUnits * InchesToMeters;
 
 		var distAtten = p.DistanceAttenuation
-			? p.Falloff.Evaluate( MathX.Clamp( distInUnits / p.Distance, 0f, 1f ) )
+			? SoundFalloff.Gain( p.FalloffMode, p.Falloff, p.MinDistance, p.Distance, distInUnits )
 			: 1f;
 
 		var airLow = p.AirAbsorption ? MathF.Exp( -AirAbsLow * distInMeters ) : 1f;

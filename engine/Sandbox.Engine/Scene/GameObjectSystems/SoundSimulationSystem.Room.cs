@@ -89,7 +89,7 @@ partial class SoundSimulationSystem
 			{
 				est = SeedEstimator( handle.Position );
 				_estimators[handle] = est;
-				if ( est.HasBurst ) handle.SourceRoom = est.Snapshot = AcousticRoom.BuildSnapshot( est, handle.Position.Distance( _listenerEst.LastPos ), 1f - _listenerEst.SmoothedOpenness );
+				if ( est.HasBurst ) handle.SourceRoom = est.Snapshot = AcousticRoom.BuildSnapshot( est, true, 1f - _listenerEst.SmoothedOpenness );
 			}
 
 			var pos = handle.Position;
@@ -152,12 +152,12 @@ partial class SoundSimulationSystem
 
 			if ( u.Handle is null )
 			{
-				_listenerEst.Snapshot = AcousticRoom.BuildSnapshot( _listenerEst, null, 0f );
+				_listenerEst.Snapshot = AcousticRoom.BuildSnapshot( _listenerEst, false, 0f );
 				listenerEnclosure = 1f - _listenerEst.SmoothedOpenness;
 				continue;
 			}
 
-			u.Handle.SourceRoom = AcousticRoom.BuildSnapshot( u.Estimator, u.Estimator.LastPos.Distance( _listenerEst.LastPos ), listenerEnclosure );
+			u.Handle.SourceRoom = AcousticRoom.BuildSnapshot( u.Estimator, true, listenerEnclosure );
 			u.Estimator.Snapshot = u.Handle.SourceRoom;
 			u.Estimator.LastUpdateTick = _tick;
 		}

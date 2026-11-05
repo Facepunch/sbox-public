@@ -120,10 +120,10 @@ internal static class AcousticRoom
 	}
 
 	/// <summary>
-	/// Snapshot from the estimator. Sources pass their distance to the listener and how enclosed the listener is;
-	/// the listener's own room passes null.
+	/// Snapshot from the estimator. Sources pass how enclosed the listener is, which gates how much of their room's reverb
+	/// reaches it; the listener's own room has no mix.
 	/// </summary>
-	public static ReverbSnapshot BuildSnapshot( Estimator est, float? distToListener, float listenerEnclosure )
+	public static ReverbSnapshot BuildSnapshot( Estimator est, bool source, float listenerEnclosure )
 	{
 		var tone = est.SmoothedMaterialTone;
 		float toneLow = MathF.Max( tone.Low, 0.001f );
@@ -148,15 +148,11 @@ internal static class AcousticRoom
 			DecayTimeLow = decayLow,
 			DecayTimeMid = decayMid,
 			DecayTimeHigh = decayHigh,
+			CriticalDistanceMeters = mfpMeters * MathF.Sqrt( mfpMeters / MathF.Max( 90f * decayTime, 0.001f ) ),
 		};
 
-		if ( distToListener is { } dist )
-		{
-			float Dc = mfpMeters * MathF.Sqrt( mfpMeters / MathF.Max( 90f * decayTime, 0.001f ) );
-			float distMeters = dist / UnitsPerMeter;
-			float wetFraction = distMeters / MathF.Sqrt( Dc * Dc + distMeters * distMeters );
-			snapshot.Mix = (1f - est.SmoothedOpenness) * wetFraction * listenerEnclosure;
-		}
+		// How loud the reverb is against the direct sound depends on distance, that's done per voice in the mixer.
+		if ( source ) snapshot.Mix = (1f - est.SmoothedOpenness) * listenerEnclosure;
 
 		return snapshot;
 	}

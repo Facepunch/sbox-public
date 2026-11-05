@@ -478,7 +478,7 @@ public partial class Mixer
 			float mixerReverbScale = Reverb;
 			if ( vs.HasReverb && mixerReverbScale > 0f && vs.ReverbRoom.Mix > 0.09f )
 			{
-				var reverbSendLevel = sourceParams.ReverbAmount * mixerReverbScale * ComputeDistanceAtten( listener, in sourceParams ) * volume
+				var reverbSendLevel = sourceParams.ReverbAmount * mixerReverbScale * ReverbLevel( listener, in sourceParams, vs.ReverbRoom ) * volume
 					* (sourceParams.OcclusionEnabled ? sourceParams.TransmissionBands.Mid : 1f);
 
 				if ( reverbSendLevel * vs.ReverbRoom.Mix >= ReverbAudible )
@@ -510,13 +510,26 @@ public partial class Mixer
 		return _directBuffers[channels] ??= new MultiChannelBuffer( channels );
 	}
 
-	static float ComputeDistanceAtten( Listener listener, in DirectSoundParams p )
+	// Past the critical distance a room's reverb would match the source at full volume; held a little under so loud,
+	// sharp sounds heard from afar don't drown in it. Same idea as a max wet level elsewhere.
+	const float MaxReverbLevel = 0.7f;
+
+	/// <summary>
+	/// Reverb level of a source in its room. A diffuse field doesn't fall with distance like the direct sound does: it matches
+	/// the direct sound at the room's critical distance and stays there, closer in the direct sound dominates.
+	/// </summary>
+	static float ReverbLevel( Listener listener, in DirectSoundParams p, in ReverbSnapshot room )
 	{
 		if ( !p.DistanceAttenuation ) return 1f;
 
 		var dist = p.Position.Distance( listener.MixTransform.Position );
-		var t = MathX.Clamp( dist / MathF.Max( p.Distance, 1f ), 0f, 1f );
-		return p.Falloff.Evaluate( t );
+		float near = SoundFalloff.MinDistance( p.MinDistance, p.Distance );
+		float critical = MathF.Max( room.CriticalDistanceMeters * 39.37f, 1f );
+
+		// The direct sound's level at the critical distance by whichever falloff the sound uses, quieter still inside its size
+		float diffuse = SoundFalloff.Gain( p.FalloffMode, p.Falloff, p.MinDistance, p.Distance, critical ) * MathF.Min( 1f, dist / near );
+		float fade = p.FalloffMode == SoundFalloffMode.Physical ? SoundFalloff.RangeFade( dist, p.Distance ) : (dist < p.Distance ? 1f : 0f);
+		return MathF.Min( MaxReverbLevel, diffuse ) * fade;
 	}
 
 	/// <summary>

@@ -92,14 +92,36 @@ public partial class SoundHandle : IValid, IDisposable
 	public float SpacialBlend { get; set; } = 1.0f;
 
 	/// <summary>
-	/// How many units the sound can be heard from.
+	/// How many units the sound can be heard from. Past this it isn't considered at all.
 	/// </summary>
 	public float Distance { get; set; } = 15_000f;
 
 	/// <summary>
-	/// The falloff curve for the sound.
+	/// How the volume falls off with distance. Setting a custom <see cref="Falloff"/> curve switches this to <see cref="SoundFalloffMode.Curve"/>.
 	/// </summary>
-	public Curve Falloff { get; set; } = new Curve( new( 0, 1, 0, -1.8f ), new( 0.05f, 0.22f, 3.5f, -3.5f ), new( 0.2f, 0.04f, 0.16f, -0.16f ), new( 1, 0 ) );
+	public SoundFalloffMode FalloffMode { get; set; } = SoundFalloffMode.Physical;
+
+	/// <summary>
+	/// For <see cref="SoundFalloffMode.Physical"/>: the radius around the source at full volume, roughly the size of the source.
+	/// Beyond it the volume halves every time the distance doubles, so a bigger value also carries further.
+	/// 0 picks one from <see cref="Distance"/>, matching how sounds fell off before.
+	/// </summary>
+	public float MinDistance { get; set; }
+
+	Curve _falloff = Audio.SoundFalloff.ClassicCurve;
+
+	/// <summary>
+	/// The falloff curve for <see cref="SoundFalloffMode.Curve"/>, from the source (0) to <see cref="Distance"/> (1).
+	/// </summary>
+	public Curve Falloff
+	{
+		get => _falloff;
+		set
+		{
+			_falloff = value;
+			if ( !Audio.SoundFalloff.IsClassic( value ) ) FalloffMode = SoundFalloffMode.Curve;
+		}
+	}
 
 	/// <summary>
 	/// The fadeout curve for when the sound stops.

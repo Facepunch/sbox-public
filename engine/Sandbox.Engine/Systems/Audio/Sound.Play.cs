@@ -47,6 +47,8 @@ public static unsafe partial class Sound
 
 		handle.Distance = soundEvent.Distance;
 		handle.Falloff = soundEvent.Falloff;
+		handle.FalloffMode = soundEvent.FalloffMode;
+		handle.MinDistance = soundEvent.MinDistance;
 		handle.TargetMixer = soundEvent.DefaultMixer.Get();
 
 		if ( soundEvent.UI )
