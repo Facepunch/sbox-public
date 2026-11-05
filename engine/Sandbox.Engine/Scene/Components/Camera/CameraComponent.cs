@@ -408,11 +408,12 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		camera.World = Scene.SceneWorld;
 		camera.ClearFlags = ClearFlags;
 		camera.Worlds.Clear();
-		camera.Worlds.Add( Scene.DebugSceneWorld );
+		camera.DebugWorlds.Clear();
+		camera.DebugWorlds.Add( Scene.DebugSceneWorld );
 
 		// Also render any active gizmos
 		if ( Gizmo.Active is not null )
-			camera.Worlds.Add( Gizmo.Active.World );
+			camera.DebugWorlds.Add( Gizmo.Active.World );
 
 		// A camera (such as the editor viewport) might not want to take render tags into account
 		// from an existing camera source
@@ -428,6 +429,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		camera.DebugMode = DebugMode;
 		camera.WireframeMode = WireframeMode;
 		camera.EnablePostProcessing = EnablePostProcessing;
+		camera.UpdateScreenSpaceReflections();
 		camera.BackgroundColor = ClearFlags.Contains( ClearFlags.Color ) ? BackgroundColor : Color.Transparent;
 
 		CopyPostProcessing( camera, applyCameraEffects: false );
@@ -485,7 +487,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		// Set with the hooks: a view decides its G-buffer from the camera whose lists it runs (the editor viewport runs the
 		// main camera's). Unknown post effects and custom command lists may sample normals, so only omit them for an empty
 		// stack. Scene attributes can force the G-buffer for custom material consumers outside those stages.
-		camera.Attributes.Set( "NeedsDepthNormals", WantsDepthNormals() );
+		camera.Attributes.Set( "NeedsDepthNormals", WantsDepthNormals() || camera.ScreenSpaceReflections is not null );
 
 		//
 		// Hack because I don't want this to have to be on a camera. This
@@ -738,6 +740,9 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		return new Vector2( v.x, v.y );
 	}
 
+	/// <summary>
+	/// Returns a ray created from the specified cursor position on the screen, by conversion into 3D space.
+	/// </summary>
 	public Ray ScreenPixelToRay( Vector2 pixelPosition )
 	{
 		EnsureSceneCameraCreated();
@@ -888,39 +893,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 			InitializeRendering();
 		}
 
-		using var setup = new CameraRenderer( $"{GameObject.Name}.RenderToTexture", sceneCamera._cameraId );
-
-		// The lock only covers reading the scene camera into this call's renderer. A top-level render
-		// waits for the whole frame inside the native call, and a child view rendered through this
-		// camera from the render thread needs the lock during that wait.
-		lock ( this )
-		{
-			setup.Configure( sceneCamera, config );
-		}
-
-		//
-		// Adds the views to the scene system
-		//
-		var rendered = setup.Native.RenderToTexture( target.native, Graphics.SceneView, depthTarget?.native ?? default );
-
-		if ( rendered )
-		{
-			var depthRange = setup.Native.RenderedDepthRange;
-			viewData = new ViewData
-			{
-				IsValid = true,
-				ProjectionToView = setup.Native.RenderedProjectionToView,
-				Viewport = setup.Native.RenderedViewport,
-				DepthRange = new Vector2( depthRange.x, depthRange.y ),
-				DepthUvScaleBias = new Vector4(
-					setup.Native.FlipX ? -1 : 1, setup.Native.FlipY ? -1 : 1,
-					setup.Native.FlipX ? 1 : 0, setup.Native.FlipY ? 1 : 0 )
-			};
-		}
-
-		setup.Native.ClearSceneWorlds();
-
-		return rendered;
+		return sceneCamera.RenderToTexture( target, depthTarget, Graphics.SceneView, config, $"{GameObject.Name}.RenderToTexture", out viewData );
 	}
 
 	/// <summary>

@@ -57,6 +57,14 @@ public sealed partial class Fog
 		var result = fraction < 0.5f ? from : to;
 		result.Weight = weight;
 		result.Color = Color.Lerp( from.Color, to.Color, fraction );
+		// A constant layer supplies the same color at both endpoints without changing the active direction.
+		result.DirectionalColorEnabled = from.DirectionalColorEnabled || to.DirectionalColorEnabled;
+		result.SecondaryColor = Color.Lerp( from.DirectionalColorEnabled ? from.SecondaryColor : from.Color,
+			to.DirectionalColorEnabled ? to.SecondaryColor : to.Color, fraction );
+		result.ColorDirection = from.DirectionalColorEnabled && to.DirectionalColorEnabled
+			? Vector3.Lerp( from.ColorDirection, to.ColorDirection, fraction )
+			: from.DirectionalColorEnabled ? from.ColorDirection : to.ColorDirection;
+		result.ColorScale = float.Lerp( from.ColorScale, to.ColorScale, fraction );
 		result.StartDistance = float.Lerp( from.StartDistance, to.StartDistance, fraction );
 		result.EndDistance = float.Lerp( from.EndDistance, to.EndDistance, fraction );
 		result.FalloffExponent = float.Lerp( from.FalloffExponent, to.FalloffExponent, fraction );

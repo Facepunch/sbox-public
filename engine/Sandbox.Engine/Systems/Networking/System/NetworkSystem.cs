@@ -66,7 +66,30 @@ internal partial class NetworkSystem
 		AddHandler<ServerNameMsg>( OnReceiveServerName );
 		AddHandler<MapNameMsg>( OnReceiveMapName );
 		AddHandler<LogMsg>( OnLogMsg );
+		AddHandler<DirectRouteMsg>( OnDirectRoute );
+		AddHandler<DirectRouteAckMsg>( OnDirectRouteAck );
 	}
+
+	void OnDirectRoute( DirectRouteMsg msg, Connection source, Guid msgId )
+	{
+		var ack = new DirectRouteAckMsg { Token = msg.Token };
+
+		// A peer's outgoing barrier might be waiting for our marker too. Sending the ack through its normal
+		// queue would deadlock both barriers, so pass this control message through the host instead.
+		if ( !IsHost && !source.IsHost && Connection.Host is not null and not MockConnection )
+		{
+			var stream = ByteStream.Create( 256 );
+			stream.Write( InternalMessageType.Packed );
+			Serialize( ack, ref stream );
+			SendMulticast( [source.Id], stream.ToSpan(), NetFlags.Reliable );
+			stream.Dispose();
+			return;
+		}
+
+		source.SendMessage( ack );
+	}
+
+	void OnDirectRouteAck( DirectRouteAckMsg msg, Connection source, Guid msgId ) => source.OnDirectRouteAck( msg.Token );
 
 	/// <summary>
 	/// We have received a log message from another client.

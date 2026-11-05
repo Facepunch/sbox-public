@@ -2,6 +2,7 @@ using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using Sandbox.Compression;
 using Sandbox.Internal;
 using Sandbox.Network;
@@ -27,9 +28,10 @@ public class ConnectionWireTest
 		capture.Snapshot.NetworkObjects.Add( new ObjectCreateMsg { TableData = table } );
 		var serializer = library.CreateDetachedSerializer( typeof( InitialSnapshotResponse ), typeof( SnapshotMsg ),
 			typeof( SnapshotMsg.GameObjectSystemData ), typeof( ObjectCreateMsg ) );
-		var packets = Task.Run( () => capture.Encode( serializer, s => new InitialSnapshotResponse { Snapshot = s }, NetFlags.Reliable ) ).GetAwaiter().GetResult();
+		var encoded = Task.Run( () => capture.Encode( serializer, s => new InitialSnapshotResponse { Snapshot = s }, NetFlags.Reliable ) ).GetAwaiter().GetResult();
 		serializer.Dispose();
-		Assert.IsTrue( packets.Length > 1 );
+		Assert.IsTrue( encoded.Length > 2, "The worker retains the whole message and prepares its chunks" );
+		var packets = encoded.Skip( 1 ).ToArray();
 		byte[] received = null;
 		var connection = new StubConnection();
 		foreach ( var packet in packets )

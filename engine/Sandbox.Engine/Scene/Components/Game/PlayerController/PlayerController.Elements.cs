@@ -46,7 +46,7 @@ public sealed partial class PlayerController : Component
 	void UpdateBody()
 	{
 		var feetHeight = CurrentHeight * 0.5f;
-		var radius = (BodyRadius * MathF.Sqrt( 2 )) / 2;
+		var radius = BodyRadius * 0.5f;
 		var up = UpDirection;
 		var localUp = Rotation.FromYaw( -WorldRotation.Yaw() ) * up;
 		var localUpAbs = localUp.Abs();
@@ -87,10 +87,12 @@ public sealed partial class PlayerController : Component
 		BodyCollider.Start = localUp * bodyStart;
 		BodyCollider.End = localUp * bodyEnd;
 		BodyCollider.Friction = 0.0f;
+		BodyCollider.Elasticity = 0.0f;
 		BodyCollider.Enabled = bodyEnd < bodyStart;
 
 		var feetLength = BodyCollider.Enabled ? feetHeight : CurrentHeight;
 		FeetCollider.Friction = feetFriction;
+		FeetCollider.Elasticity = 0.0f;
 		FeetCollider.Enabled = true;
 
 		var locking = Body.Locking;

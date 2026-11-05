@@ -1898,20 +1898,67 @@ namespace Sandbox.UI
 
 		bool SetTransformOrigin( string value )
 		{
-			var p = new Parse( value );
-
-			if ( !p.TryReadLength( out var x ) )
+			if ( !TryParseOrigin( value, out var x, out var y ) )
 				return false;
 
 			TransformOriginX = x;
+			TransformOriginY = y;
+			return true;
+		}
 
-			if ( !p.TryReadLength( out var y ) )
+		enum OriginAxis
+		{
+			None,
+			Horizontal,
+			Vertical
+		}
+
+		static OriginAxis GetOriginAxis( Parse p )
+		{
+			p = p.SkipWhitespaceAndNewlines();
+			if ( p.IsEnd ) return OriginAxis.None;
+
+			return p.ReadWord( null, true ).ToLowerInvariant() switch
 			{
-				TransformOriginY = x;
+				"left" or "right" => OriginAxis.Horizontal,
+				"top" or "bottom" => OriginAxis.Vertical,
+				_ => OriginAxis.None
+			};
+		}
+
+		/// <summary>
+		/// Parses a transform-origin or perspective-origin position. Like CSS, keywords pick their own
+		/// axis, so "bottom left" and "left bottom" are the same point. A single length still sets both axes.
+		/// </summary>
+		static bool TryParseOrigin( string value, out Length x, out Length y )
+		{
+			var center = new Length { Unit = LengthUnit.Center };
+			var p = new Parse( value );
+
+			x = default;
+			y = default;
+
+			var axisA = GetOriginAxis( p );
+			if ( !p.TryReadLength( out var a ) )
+				return false;
+
+			var axisB = GetOriginAxis( p );
+			if ( !p.TryReadLength( out var b ) )
+			{
+				x = axisA == OriginAxis.Vertical ? center : a;
+				y = axisA == OriginAxis.Horizontal ? center : a;
 				return true;
 			}
 
-			TransformOriginY = y;
+			// "left right" or "top bottom" isn't a position
+			if ( axisA != OriginAxis.None && axisA == axisB )
+				return false;
+
+			if ( axisA == OriginAxis.Vertical || axisB == OriginAxis.Horizontal )
+				(a, b) = (b, a);
+
+			x = a;
+			y = b;
 			return true;
 		}
 
@@ -1935,21 +1982,10 @@ namespace Sandbox.UI
 
 		bool SetPerspectiveOrigin( string value )
 		{
-			var p = new Parse( value );
-
-			if ( !p.TryReadLength( out var x ) )
+			if ( !TryParseOrigin( value, out var x, out var y ) )
 				return false;
 
 			PerspectiveOriginX = x;
-
-			if ( !p.TryReadLength( out var y ) )
-			{
-				PerspectiveOriginY = x;
-				return true;
-			}
-
-			// Do we want to move away from standard and let us specify a Z too?
-
 			PerspectiveOriginY = y;
 			return true;
 		}

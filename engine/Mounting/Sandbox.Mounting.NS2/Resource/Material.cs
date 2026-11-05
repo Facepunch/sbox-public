@@ -4,20 +4,28 @@ using System;
 class MaterialLoader( string fullPath ) : ResourceLoader<GameMount>
 {
 	private string FullPath { get; init; } = fullPath;
-	private static Material ModelMaterial = Material.Create( "model", "model" );
-	private static Material EmissiveMaterial = Material.Create( "emissive", "emissive" );
+	// Made when a material first loads, not whenever this assembly does (mounted or not)
+	private static Material ModelMaterial => field ??= CreateModelMaterial();
+	private static Material EmissiveMaterial => field ??= CreateEmissiveMaterial();
 
-	static MaterialLoader()
+	static Material CreateModelMaterial()
 	{
 		var normalMap = Texture.Create( 1, 1 ).WithData( new byte[4] { 128, 128, 255, 255 } ).Finish();
 
-		ModelMaterial.Set( "g_tAlbedoMap", Texture.White );
-		ModelMaterial.Set( "g_tOpacityMap", Texture.White );
-		ModelMaterial.Set( "g_tSpecularMap", Texture.Black );
-		ModelMaterial.Set( "g_tEmissiveMap", Texture.Black );
-		ModelMaterial.Set( "g_tNormalMap", normalMap );
+		var material = Material.Create( "model", "model" );
+		material.Set( "g_tAlbedoMap", Texture.White );
+		material.Set( "g_tOpacityMap", Texture.White );
+		material.Set( "g_tSpecularMap", Texture.Black );
+		material.Set( "g_tEmissiveMap", Texture.Black );
+		material.Set( "g_tNormalMap", normalMap );
+		return material;
+	}
 
-		EmissiveMaterial.Set( "g_tEmissiveMap", Texture.Black );
+	static Material CreateEmissiveMaterial()
+	{
+		var material = Material.Create( "emissive", "emissive" );
+		material.Set( "g_tEmissiveMap", Texture.Black );
+		return material;
 	}
 
 	protected override object Load()

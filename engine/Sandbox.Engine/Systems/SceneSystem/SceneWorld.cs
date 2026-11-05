@@ -133,9 +133,10 @@ public sealed partial class SceneWorld : IHandle
 		if ( !IsTransient ) return;
 		if ( !native.IsValid ) return;
 
+		// Delete rather than detach, a map outliving its scene world would later tear down objects that are already gone
 		foreach ( var map in InternalSceneMaps.ToArray() )
 		{
-			RemoveSceneMap( map );
+			map.Delete();
 		}
 
 		InternalSceneMaps.Clear();

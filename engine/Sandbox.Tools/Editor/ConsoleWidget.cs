@@ -877,7 +877,7 @@ internal class ConsoleWidget : Widget
 	[Event( "scene.startplay" )]
 	private static void OnStartPlay()
 	{
-		if ( EditorPreferences.ClearConsoleOnPlay )
-			ConsoleWidget.Instance?.Clear();
+		if ( EditorPreferences.ClearConsoleOnPlay && Instance.IsValid() )
+			Instance.Clear();
 	}
 }

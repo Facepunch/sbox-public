@@ -65,7 +65,7 @@ namespace Sandbox.Internal
 	public interface IIconProvider
 	{
 		/// <summary>
-		/// The icon. Typically this is the name of a <a href="https://fonts.google.com/icons">material icon</a>.
+		/// The icon. Typically this is the name of a <a href="https://fonts.google.com/icons?icon.set=Material+Icons">material icon</a>.
 		/// </summary>
 		public string Value { get; }
 	}
@@ -255,6 +255,12 @@ public class GroupAttribute : System.Attribute, ICategoryProvider, IGroupAttribu
 	/// <inheritdoc cref="ICategoryProvider.Value"/>
 	public string Value { get; set; }
 
+	/// <summary>
+	/// Sorts this group before or after groups with the default order of zero, including ungrouped properties.
+	/// If members specify different group orders, the lowest value is used. Member ordering is unchanged.
+	/// </summary>
+	public int Order { get; set; }
+
 	public string Icon { get; set; }
 
 	/// <summary>
@@ -285,6 +291,7 @@ public class ToggleGroupAttribute : GroupAttribute
 /// <summary>
 /// Sets the icon of a type or a type member. Colors are expected in HTML formats, like "rgb(255,255,255)" or "#FFFFFF".
 /// This info can then be retrieved via DisplayInfo library.
+/// The icon is typically the name of a <a href="https://fonts.google.com/icons?icon.set=Material+Icons">material icon</a>.
 /// </summary>
 public sealed class IconAttribute : System.Attribute, IIconProvider, IIconAttribute, IUninheritable
 {

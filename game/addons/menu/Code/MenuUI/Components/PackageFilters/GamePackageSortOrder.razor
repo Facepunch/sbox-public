@@ -5,12 +5,12 @@
 @namespace MenuProject.UI
 
 @{
-    var current = orders.FirstOrDefault(x => x.Name == Value);
+    var current = Orders.FirstOrDefault(x => x.Name == Value);
 }
 
 <root>
 
-    @foreach (var entry in orders)
+    @foreach (var entry in Orders)
     {
         <Button Active="@(current == entry)" tooltip="@entry.Title" Icon=@entry.Icon onmousedown=@(() => SwitchTo(entry))></Button>
     }
@@ -24,22 +24,21 @@
     /// </summary>
     public string Value { get; set; }
 
-    List<Package.SortOrder> orders = new();
-
     /// <summary>
-    /// Creates the available game sort and favourites options.
+    /// The sorts there are, and the favourites filter - a handful, each its own glyph, so they fit a row. The Games
+    /// page's and the package picker's.
     /// </summary>
-    public GamePackageSortOrder()
-    {
-        orders.Add(new Package.SortOrder { Icon = "favorite", Name = "quality", Title = "#menu.games.most_loved_label" });
-        orders.Add(new Package.SortOrder { Icon = "today", Name = "rankday", Title = "#menu.games.popular_today_label" });
-        orders.Add(new Package.SortOrder { Icon = "calendar_month", Name = "rankmonth", Title = "#menu.games.popular_month" });
-        orders.Add(new Package.SortOrder { Icon = "trending_up", Name = "trending", Title = "#menu.games.trending" });
-        orders.Add(new Package.SortOrder { Icon = "new_releases", Name = "newest", Title = "#menu.games.newest" });
-        orders.Add(new Package.SortOrder { Icon = "schedule", Name = "updated", Title = "#menu.games.updated" });
-        orders.Add(new Package.SortOrder { Icon = "diamond", Name = "hiddengem", Title = "#menu.games.hidden_gems_label" });
-        orders.Add(new Package.SortOrder { Icon = "bookmarks", Name = "favourite", Title = "#menu.games.your_favourites_label" });
-    }
+    public static readonly Package.SortOrder[] Orders =
+    [
+        new() { Icon = "favorite", Name = "quality", Title = "#menu.games.most_loved_label" },
+        new() { Icon = "today", Name = "rankday", Title = "#menu.games.popular_today_label" },
+        new() { Icon = "calendar_month", Name = "rankmonth", Title = "#menu.games.popular_month" },
+        new() { Icon = "trending_up", Name = "trending", Title = "#menu.games.trending" },
+        new() { Icon = "new_releases", Name = "newest", Title = "#menu.games.newest" },
+        new() { Icon = "schedule", Name = "updated", Title = "#menu.games.updated" },
+        new() { Icon = "diamond", Name = "hiddengem", Title = "#menu.games.hidden_gems_label" },
+        new() { Icon = "bookmarks", Name = "favourite", Title = "#menu.games.your_favourites_label" },
+    ];
 
     void SwitchTo(Package.SortOrder entry)
     {

@@ -26,7 +26,6 @@ COMMON
 CS
 {
 	#include "common.fxc"
-    #define floatx float2
 
 	DynamicCombo( D_MSAA, 0..1, Sys( ALL ) );
 
@@ -34,12 +33,12 @@ CS
 	DynamicCombo( D_CONSERVATIVE_QUARTER, 0..1, Sys( ALL ) );
 
 #if D_MSAA
-	Texture2DMS<float>  g_tSourceDepth  < Attribute( "SourceDepth" ); >;
+	Texture2DMS<float> g_tSourceDepth < Attribute( "SourceDepth" ); >;
 #else
-	Texture2D<float>  g_tSourceDepth  < Attribute( "SourceDepth" ); >;
+	Texture2D<float> g_tSourceDepth < Attribute( "SourceDepth" ); >;
 #endif
 
-	RWTexture2D<floatx> g_tDestDepth    < Attribute( "DestDepth" ); >;
+	RWTexture2D<float2> g_tDestDepth < Attribute( "DestDepth" ); >;
 
 	float2 g_vSourceSize < Attribute( "DepthResolveSourceSize" ); >;
 
@@ -70,14 +69,7 @@ CS
 		groupshared float2 s_minMax[ 16 * 16 ];
 
 		[numthreads( 16, 16, 1 )]
-	#else
-		[numthreads( 8, 8, 1 )]
-	#endif
-	void MainCs( uint nGroupIndex : SV_GroupIndex, uint3 vThreadId : SV_DispatchThreadID, uint3 vGroupThreadId : SV_GroupThreadID )
-	{
-		floatx result;
-
-		#if D_CONSERVATIVE_QUARTER
+		void MainCs( uint nGroupIndex : SV_GroupIndex, uint3 vThreadId : SV_DispatchThreadID, uint3 vGroupThreadId : SV_GroupThreadID )
 		{
 			float2 minMax = float2( 1, 0 );
 			if ( vThreadId.x < (uint)g_vSourceSize.x && vThreadId.y < (uint)g_vSourceSize.y )
@@ -101,21 +93,28 @@ CS
 			}
 
 			g_tDestDepth[ vThreadId.xy / 4 ] = minMax;
-			return;
 		}
-		#else
+	#else
+		// Four texels a thread 8 apart, so each load and store covers a whole 8x8 block, and all the loads go out before any store
+		[numthreads( 8, 8, 1 )]
+		void MainCs( uint2 vGroupId : SV_GroupID, uint2 vGroupThreadId : SV_GroupThreadID )
 		{
-			//
-			// use min to get the closest depth to the camera
-			//
+			uint2 vTexel[4];
+			float flDepth[4];
+			[unroll]
+			for ( uint i = 0; i < 4; i++ )
+			{
+				vTexel[i] = vGroupId * 16 + vGroupThreadId + uint2( i & 1, i >> 1 ) * 8;
 			#if D_MSAA
-				result = g_tSourceDepth.Load( g_vViewportOffset + vThreadId.xy, 0 ).r;
+				flDepth[i] = g_tSourceDepth.Load( g_vViewportOffset + vTexel[i], 0 );
 			#else
-				result = g_tSourceDepth.Load( int3( g_vViewportOffset.xy + vThreadId.xy, 0 ) ).r;
+				flDepth[i] = g_tSourceDepth.Load( int3( g_vViewportOffset + vTexel[i], 0 ) );
 			#endif
-		}
-		#endif
+			}
 
-		g_tDestDepth[ vThreadId.xy ] = result;
-	}
+			[unroll]
+			for ( uint i = 0; i < 4; i++ )
+				g_tDestDepth[vTexel[i]] = flDepth[i];
+		}
+	#endif
 }

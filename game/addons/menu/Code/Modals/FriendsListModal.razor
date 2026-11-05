@@ -45,7 +45,7 @@
             PositionAnchored( Options.Anchor.Value.Panel, Options.Anchor.Value.Position, Options.Anchor.Value.Offset );
     }
 
-    bool IsAnchored => Options.Anchor.HasValue && Options.Anchor.Value.Panel.IsValid();
+    bool IsAnchored => Options.Anchor.HasValue && Options.Anchor.Value.Panel is { IsValid: true };
 
     /// <summary>
     /// As narrow as it goes, anchored - names and what they're doing still read at this.

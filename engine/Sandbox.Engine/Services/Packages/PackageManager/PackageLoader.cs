@@ -529,6 +529,7 @@ internal sealed partial class PackageLoader : IDisposable
 		{
 			Loaded.Remove( outgoing );
 			log.Trace( $"	Unloading {outgoing}" );
+			ILHotload?.RemoveDetours( outgoing.Assembly );
 			LoadContext?.UnloadChild( outgoing.Assembly );
 		}
 

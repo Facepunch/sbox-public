@@ -56,7 +56,11 @@ internal static class ScreenshotService
 				{
 					bitmap = new Bitmap( width, height );
 
-					pData.CopyTo( bitmap.GetBuffer() );
+					if ( !CopyReadbackToBitmap( pData, format, width, height, bitmap ) )
+					{
+						Log.Warning( $"Can't save screenshot, unsupported render target format {format}" );
+						return;
+					}
 
 					var rgbData = bitmap.ToFormat( ImageFormat.RGB888 );
 					Services.Screenshots.AddScreenshotToLibrary( rgbData, width, height );
@@ -80,6 +84,27 @@ internal static class ScreenshotService
 		catch ( Exception ex )
 		{
 			Log.Error( $"Error capturing screenshot: {ex.Message}" );
+		}
+	}
+
+	/// <summary>
+	/// Copies texture readback data into an RGBA8888 bitmap, converting from the source format if needed.
+	/// The swapchain isn't always RGBA8888, e.g. Linux surfaces are usually BGRA8888.
+	/// </summary>
+	internal static unsafe bool CopyReadbackToBitmap( ReadOnlySpan<byte> data, ImageFormat format, int width, int height, Bitmap bitmap )
+	{
+		var buffer = bitmap.GetBuffer();
+
+		if ( format is ImageFormat.RGBA8888 or ImageFormat.RGBA8888_LINEAR )
+		{
+			data.CopyTo( buffer );
+			return true;
+		}
+
+		fixed ( byte* src = data )
+		fixed ( byte* dst = buffer )
+		{
+			return ImageLoader.ConvertImageFormat( (IntPtr)src, format, (IntPtr)dst, ImageFormat.RGBA8888, width, height, 0, width * 4 );
 		}
 	}
 

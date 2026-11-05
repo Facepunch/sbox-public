@@ -22,6 +22,7 @@ public static partial class Graphics
 		IsAvailable = g_pRenderDevice.GetRenderDeviceAPI() != RenderDeviceAPI_t.RENDER_DEVICE_API_EMPTY;
 
 		_mipMapGeneratorShader = IsAvailable ? new ComputeShader( "downsample_cs" ) : null;
+		_spdShader = IsAvailable ? new ComputeShader( "downsample_spd" ) : null;
 
 		if ( IsAvailable )
 			Cmaa2Renderer.Initialize();
@@ -32,6 +33,7 @@ public static partial class Graphics
 		Cmaa2Renderer.Shutdown();
 		IsAvailable = false;
 		_mipMapGeneratorShader = null;
+		_spdShader = null;
 	}
 
 	public enum PrimitiveType

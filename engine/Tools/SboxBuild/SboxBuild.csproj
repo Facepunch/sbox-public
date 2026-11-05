@@ -42,6 +42,7 @@
   <ItemGroup>
 	<ProjectReference Include="..\InteropGen\InteropGen.csproj" />
 	<ProjectReference Include="..\ShaderProc\ShaderProc.csproj" />
+	<ProjectReference Include="..\..\Sandbox.ContentBuild\Sandbox.ContentBuild.csproj" />
   </ItemGroup>
 
    <ItemGroup>

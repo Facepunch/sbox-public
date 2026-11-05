@@ -160,8 +160,6 @@ public sealed partial class Dresser
 		_clothingRenderers.Clear();
 		outfit.Normalize();
 
-		body.Set( "scale_heel", outfit.Clothing?.Select( x => x.Clothing?.HeelHeight ?? 0.0f ).DefaultIfEmpty( 0 ).Max() ?? 0.0f );
-
 		// Clean the clothing. Remove any invalid items, any items with broken models
 		// any items that can't be worn with other items.
 		List<ClothingContainer.ClothingEntry> set = outfit.Clothing?
@@ -203,6 +201,14 @@ public sealed partial class Dresser
 			skinMaterial = set.Select( x => x.Clothing.SkinMaterial ).Where( x => !string.IsNullOrWhiteSpace( x ) ).Select( x => Material.Load( x ) ).FirstOrDefault();
 			eyesMaterial = set.Select( x => x.Clothing.EyesMaterial ).Where( x => !string.IsNullOrWhiteSpace( x ) ).Select( x => Material.Load( x ) ).FirstOrDefault();
 		}
+
+#pragma warning disable CS0618
+		var heelHeight = outfit.Clothing?.Select( x => x.Clothing?.HeelHeight ?? 0.0f ).DefaultIfEmpty( 0 ).Max() ?? 0.0f;
+		if ( body.Animation.Graph is not null )
+			body.Animation.Parameters.Set( "scale_heel", heelHeight, persist: true );
+		else
+			body.Set( "scale_heel", heelHeight );
+#pragma warning restore CS0618
 
 		body.SetMaterialOverride( skinMaterial, "skin" );
 		body.SetMaterialOverride( eyesMaterial, "eyes" );
@@ -290,7 +296,12 @@ public sealed partial class Dresser
 		//
 		// Start with defaults
 		//
-		body.Set( "scale_height", 1.0f );
+#pragma warning disable CS0618
+		if ( body.Animation.Graph is not null )
+			body.Animation.Parameters.Set( "scale_height", 1.0f, persist: true );
+		else
+			body.Set( "scale_height", 1.0f );
+#pragma warning restore CS0618
 		body.MaterialGroup = "default";
 		body.MaterialOverride = null;
 		body.BodyGroups = body.Model?.Parts.DefaultMask ?? 0;

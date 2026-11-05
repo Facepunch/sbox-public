@@ -93,6 +93,8 @@ public abstract partial class Component
 	[EditorBrowsable( EditorBrowsableState.Never )]
 	protected T __sync_GetValue<T>( WrappedPropertyGet<T> p )
 	{
+		if ( !IsValid ) return p.Value;
+
 		var attribute = p.GetAttribute<SyncAttribute>();
 		var interpolate = attribute is not null && (attribute.Flags & SyncFlags.Interpolate) != 0;
 		if ( !interpolate ) return p.Value;

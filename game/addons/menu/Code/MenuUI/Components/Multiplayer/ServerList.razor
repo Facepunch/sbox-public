@@ -70,11 +70,11 @@
         else
         {
             <div class="header row">
-                <h2 class="title" onclick="@(() => SetSort( "name" ))"><label>#menu.games.name</label> @SortIndicator( "name" )</h2>
-                <h2 class="map" onclick="@(() => SetSort( "map" ))"><label>#menu.games.map</label> @SortIndicator( "map" )</h2>
-                <h2 class="members" onclick="@(() => SetSort( "members" ))"><label>#menu.games.players</label> @SortIndicator( "members" )</h2>
+                <h2 class="title" onclick="@(() => SetSort( "name" ))"><label>#menu.games.name</label>@if ( SortIndicator( "name" ) is { Length: > 0 } nameSort ) { <label class="sort">@nameSort</label> }</h2>
+                <h2 class="map" onclick="@(() => SetSort( "map" ))"><label>#menu.games.map</label>@if ( SortIndicator( "map" ) is { Length: > 0 } mapSort ) { <label class="sort">@mapSort</label> }</h2>
+                <h2 class="members" onclick="@(() => SetSort( "members" ))"><label>#menu.games.players</label>@if ( SortIndicator( "members" ) is { Length: > 0 } membersSort ) { <label class="sort">@membersSort</label> }</h2>
                 <h2 class="ping-icon" />
-                <h2 class="ping-value" onclick="@(() => SetSort("ping"))"><label>#menu.friends.ping</label> @SortIndicator( "ping" )</h2>
+                <h2 class="ping-value" onclick="@(() => SetSort("ping"))"><label>#menu.friends.ping</label>@if ( SortIndicator( "ping" ) is { Length: > 0 } pingSort ) { <label class="sort">@pingSort</label> }</h2>
             </div>
             @if ( Virtual )
             {

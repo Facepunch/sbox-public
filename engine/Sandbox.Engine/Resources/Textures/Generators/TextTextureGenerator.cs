@@ -21,7 +21,8 @@ public class TextTextureGenerator : TextureGenerator
 	[Hide, JsonIgnore]
 	public override bool CacheToDisk => true;
 
-	protected override ValueTask<Texture> CreateTexture( Options options, CancellationToken ct )
+	[System.Diagnostics.CodeAnalysis.SuppressMessage( "Reliability", "CA2000", Justification = "The caller owns the bitmap returned through ValueTask; failures dispose it here." )]
+	protected override ValueTask<Bitmap> CreateBitmap( Options options, CancellationToken ct )
 	{
 		var w = Size.x.Clamp( 1, 1024 * 4 );
 		var h = Size.y.Clamp( 1, 1024 * 4 );
@@ -29,11 +30,19 @@ public class TextTextureGenerator : TextureGenerator
 		var rect = new Rect( 0, 0, w, h );
 		rect = rect.Shrink( Margin );
 
-		using var bitmap = new Bitmap( w, h, false );
-		bitmap.Clear( Color.Transparent );
-		bitmap.DrawText( TextScope, rect, TextFlags );
+		var bitmap = new Bitmap( w, h, false );
+		try
+		{
+			bitmap.Clear( Color.Transparent );
+			bitmap.DrawText( TextScope, rect, TextFlags );
+		}
+		catch
+		{
+			bitmap.Dispose();
+			throw;
+		}
 
-		return ValueTask.FromResult( bitmap.ToTexture() );
+		return ValueTask.FromResult( bitmap );
 	}
 
 	public override string ToString()

@@ -62,7 +62,9 @@ public class PlugIn : Plug
 			config = Connection.Output.HandleConfig;
 		}
 
-		var color = config.Color;
+		var color = isTarget && Node.Graph.Preview.IsInvalidPreview
+			? Theme.Red
+			: config.Color;
 
 		if ( !highlight )
 		{

@@ -69,6 +69,24 @@ public abstract class ResourceCompileContext
 	public abstract void AddGameFileReference( string path );
 
 	/// <summary>
+	/// Another asset's compiled output this compile reads, by the path of its source (a texture whose pixels are
+	/// copied, a model whose skeleton is used), before reading it. A content build compiles that asset first and
+	/// rebuilds this one when it changes. Declare every one even while <see cref="Describing"/>.
+	/// </summary>
+	public abstract void AddCompiledReference( string path );
+
+	/// <summary>
+	/// A content build is asking what this compile reads before anything is built: declare the compiled outputs it
+	/// reads with <see cref="AddCompiledReference"/>, then return without doing the work. Anything written is discarded.
+	/// </summary>
+	public abstract bool Describing { get; }
+
+	/// <summary>
+	/// The compile fails, whatever the compiler returns: something it had to do (a child, an embedded resource) didn't happen.
+	/// </summary>
+	internal abstract void Fail( string error );
+
+	/// <summary>
 	/// Get the streaming data to write to
 	/// </summary>
 	public DataStream StreamingData { get; internal set; }

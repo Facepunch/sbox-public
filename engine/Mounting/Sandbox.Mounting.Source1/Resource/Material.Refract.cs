@@ -7,9 +7,7 @@ internal sealed partial class SourceMaterialBuilder
 {
 	private Material CreateRefract( bool core, string resourceName, bool aftershock = false )
 	{
-		var material = CreateShaderMaterial( "shaders/source1/refract.shader", resourceName );
-		material.SetFeature( "F_SOURCE_CORE", core ? 1 : 0 );
-		material.SetFeature( "F_SOURCE_AFTERSHOCK", aftershock ? 1 : 0 );
+		var material = CreateShaderMaterial( $"shaders/source1/{shaderName}.shader", resourceName );
 		material.SetFeature( "F_SOURCE_DEPTH_WRITE", !aftershock && !parameters.Boolean( "$nowritez" ) ? 1 : 0 );
 		material.SetFeature( "F_RENDER_BACKFACES", parameters.Boolean( "$nocull" ) ? 1 : 0 );
 		var normalPath = parameters.String( "$normalmap", parameters.String( "$bumpmap" ) );

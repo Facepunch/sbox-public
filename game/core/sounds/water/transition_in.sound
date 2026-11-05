@@ -1,0 +1,18 @@
+{
+  "UI": false,
+  "Volume": "1",
+  "Pitch": "1",
+  "SelectionMode": "Random",
+  "Sounds": [
+    "sounds/water/transition_in_01.vsnd",
+    "sounds/water/transition_in_02.vsnd",
+    "sounds/water/transition_in_03.vsnd"
+  ],
+  "OcclusionEnabled": false,
+  "ReverbEnabled": true,
+  "AirAbsorption": false,
+  "DistanceAttenuation": false,
+  "Distance": 1024,
+  "__references": [],
+  "__version": 1
+}

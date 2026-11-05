@@ -113,7 +113,7 @@ partial class Graphics
 		if ( startVertex < 0 || startVertex >= vertexBuffer.ElementCount )
 			throw new ArgumentOutOfRangeException( nameof( startVertex ), $"{nameof( startVertex )} is out of bounds of the vertex buffer." );
 
-		if ( startVertex + vertexCount > vertexBuffer.ElementCount )
+		if ( (long)startVertex + vertexCount > vertexBuffer.ElementCount )
 			throw new ArgumentOutOfRangeException( nameof( vertexCount ), $"{nameof( vertexCount )} exceeds the bounds of the vertex buffer." );
 
 		Context.BindVertexBuffer( 0, vertexBuffer.native, 0 );
@@ -149,7 +149,7 @@ partial class Graphics
 		if ( startIndex < 0 || startIndex >= indexBuffer.ElementCount )
 			throw new ArgumentOutOfRangeException( nameof( startIndex ), $"{nameof( startIndex )} is out of bounds of the index buffer." );
 
-		if ( startIndex + indexCount > indexBuffer.ElementCount )
+		if ( (long)startIndex + indexCount > indexBuffer.ElementCount )
 			throw new ArgumentOutOfRangeException( nameof( indexCount ), $"{nameof( indexCount )} exceeds the bounds of the index buffer." );
 
 		Context.BindVertexBuffer( 0, vertexBuffer.native, 0 );

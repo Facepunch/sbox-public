@@ -36,7 +36,11 @@
 #if ( S_UNLIT )
 	BoolAttribute( unlit, true );
 #else
-	BoolAttribute( NeedsLightProbe, true );
+	// Allow lit shaders to opt out of legacy baked light-probe binding.
+	#ifndef NEEDS_LIGHT_PROBE
+		#define NEEDS_LIGHT_PROBE true
+	#endif
+	BoolAttribute( NeedsLightProbe, NEEDS_LIGHT_PROBE );
 #endif
 
 bool g_bFogEnabled < Default( 1.0f ); UiType( CheckBox ); UiGroup( "Fog,300" ); >;
@@ -313,9 +317,11 @@ PS_OUTPUT PS_FinalCombinerDoLighting( FinalCombinerInput_t f, inout LightingTerm
 		// Roughness adjusted to fix geometric specular aliasing
 		f.vRoughness.xy = AdjustRoughnessByGeometricNormal( f.vRoughness.xy, f.vNormalWs.xyz );
 
-		// Compute lighting
-		ComputeDirectLighting( lightingTerms, f );
-		CalculateIndirectLighting( lightingTerms, f );
+		// Compute lighting. The cluster index is taken once for both. Emissive rides in transmission, which is only added
+		// at the end, so it isn't live through the light loops; tools vis shows them apart.
+		uint nClusterIndex = Cluster::Index( f.vPositionSs );
+		ComputeDirectLighting( lightingTerms, f, nClusterIndex, ToolsVis::WantsToolsVis() ? float3( 0.0, 0.0, 0.0 ) : f.vEmissive.rgb );
+		CalculateIndirectLighting( lightingTerms, f, nClusterIndex );
 
 		//
 		// Diffuse AO
@@ -352,7 +358,12 @@ PS_OUTPUT PS_FinalCombinerDoLighting( FinalCombinerInput_t f, inout LightingTerm
 	//
 	// Emissive
 	//
-	o.vColor.rgb += f.vEmissive.rgb;
+	#if ( S_UNLIT )
+		o.vColor.rgb += f.vEmissive.rgb;
+	#else
+		if ( ToolsVis::WantsToolsVis() )
+			o.vColor.rgb += f.vEmissive.rgb;
+	#endif
 
 	//
 	// Add Specular Contribution
@@ -361,9 +372,9 @@ PS_OUTPUT PS_FinalCombinerDoLighting( FinalCombinerInput_t f, inout LightingTerm
 	o.vColor.rgb += lightingTerms.vIndirectSpecular.rgb; 
 
 	//
-	// Add transmissive
+	// Transmission contributions already include the material's mask.
 	//
-	o.vColor.rgb += lightingTerms.vTransmissive.rgb * f.vTransmissiveMask.rgb;
+	o.vColor.rgb += lightingTerms.vTransmissive.rgb;
 
 	return o;
 }

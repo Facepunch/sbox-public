@@ -103,6 +103,7 @@ public partial class ProjectPublisher
 			{
 				// Included rows need the full graph too, even with stripping disabled or no exclusions.
 				await BuildReviewSizes( candidates.Concat( publishedAssets ).Distinct(), included, cancel );
+				BuildInclusionReview();
 				var dependencySets = new[] { Assets.Select( x => x.Name ).ToArray(), ExcludedAssets.ToArray() };
 				// Match the UI's type grouping and warm Included/Excluded separately.
 				var groupExtensions = new Dictionary<string, string>( StringComparer.OrdinalIgnoreCase );

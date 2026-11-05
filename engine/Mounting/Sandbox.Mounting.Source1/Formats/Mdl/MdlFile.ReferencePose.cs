@@ -6,11 +6,32 @@ namespace Sandbox.Mounting.Source1;
 internal sealed partial class MdlFile
 {
 	internal Transform[] ReadPhysicsReferencePose( Stream stream, Func<string, Stream> openFile )
+		=> ReadReferencePose( stream, openFile, 0 );
+
+	internal Transform[] ReadSequenceReferencePose( Stream stream, Func<string, Stream> openFile )
+	{
+		if ( _header.NumLocalSeq == 0 || BoneCount == 0 )
+			return null;
+		var offset = _header.LocalSeqIndex;
+		ValidateRange<StudioSeqDesc>( stream, offset, 1 );
+		stream.Position = offset;
+		var sequence = LumpReader<StudioSeqDesc>.ReadSingleFromStream( stream );
+		if ( sequence.NumBlends != 1 || sequence.NumAutoLayers != 0 )
+			throw new NotSupportedException( "The initial sequence requires animation blends or layers." );
+		if ( sequence.AnimIndexIndex <= 0 )
+			throw new InvalidDataException( "Missing initial sequence animation index." );
+		using var data = new ReferencePoseData( stream, 0, _header.Length );
+		return ReadReferencePose( stream, openFile, data.Short( (long)offset + sequence.AnimIndexIndex ) );
+	}
+
+	private Transform[] ReadReferencePose( Stream stream, Func<string, Stream> openFile, int animationIndex )
 	{
 		if ( _header.NumLocalAnims == 0 || BoneCount == 0 )
 			return null;
+		if ( animationIndex < 0 || animationIndex >= _header.NumLocalAnims )
+			throw new InvalidDataException( "Invalid reference animation index." );
 		using var data = new ReferencePoseData( stream, 0, _header.Length );
-		var descriptorOffset = _header.LocalAnimIndex;
+		var descriptorOffset = _header.LocalAnimIndex + (long)animationIndex * System.Runtime.InteropServices.Marshal.SizeOf<StudioAnimDesc>();
 		ValidateRange<StudioAnimDesc>( stream, descriptorOffset, 1 );
 		stream.Position = descriptorOffset;
 		var animation = LumpReader<StudioAnimDesc>.ReadSingleFromStream( stream );
@@ -57,7 +78,7 @@ internal sealed partial class MdlFile
 				+ first.Rotation.z * first.Rotation.z + first.Rotation.w * first.Rotation.w;
 			if ( !float.IsFinite( first.Position.x ) || !float.IsFinite( first.Position.y ) || !float.IsFinite( first.Position.z )
 				|| !float.IsFinite( length ) || length < 1e-12f )
-				throw new InvalidDataException( "Non-finite or degenerate physics reference pose." );
+				throw new InvalidDataException( "Non-finite or degenerate reference pose." );
 			pose[i].Rotation = first.Rotation.Normal;
 		}
 		return pose;

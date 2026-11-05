@@ -172,27 +172,39 @@ internal sealed class NativeOcclusionCull : IDisposable
 		attributes.Set( "OcclusionRejectEarly", rejectEarly ? 1 : 0 );
 		attributes.SetCombo( "D_GPU_COUNT", true );
 
-		Graphics.ResourceBarrierTransition( instances, ResourceState.GenericRead );
-		Graphics.ResourceBarrierTransition( runs, ResourceState.GenericRead );
-		Graphics.ResourceBarrierTransition( args, ResourceState.UnorderedAccess );
-		Graphics.ResourceBarrierTransition( culledIds, ResourceState.UnorderedAccess );
-		Graphics.ResourceBarrierTransition( stats, ResourceState.UnorderedAccess );
+		// Real access masks: the single argument ResourceBarrierTransition has none, so the indirect draws read stale args on AMD
+		const RenderBarrierPipelineStageFlags_t Transfer = RenderBarrierPipelineStageFlags_t.TransferBit;
+		const RenderBarrierPipelineStageFlags_t ComputeStage = RenderBarrierPipelineStageFlags_t.ComputeShaderBit;
+		const RenderBarrierPipelineStageFlags_t DrawIndirect = RenderBarrierPipelineStageFlags_t.DrawIndirectBit;
+		const RenderBarrierPipelineStageFlags_t VertexInput = RenderBarrierPipelineStageFlags_t.VertexInputBit;
+		const RenderBarrierAccessFlags_t Read = RenderBarrierAccessFlags_t.ShaderReadBit;
+		const RenderBarrierAccessFlags_t Write = RenderBarrierAccessFlags_t.ShaderWriteBit;
+		const RenderBarrierAccessFlags_t Uploaded = RenderBarrierAccessFlags_t.TransferWriteBit;
 
-		Graphics.ResourceBarrierTransition( dispatchArgs, ResourceState.IndirectArgument );
+		var context = Graphics.Context;
+		context.BufferBarrierTransition( instances.native, Transfer, ComputeStage, Uploaded, Read );
+		context.BufferBarrierTransition( runs.native, Transfer, ComputeStage, Uploaded, Read );
+		context.BufferBarrierTransition( args.native, Transfer | ComputeStage | DrawIndirect, ComputeStage, Uploaded | Write, Read | Write );
+		context.BufferBarrierTransition( culledIds.native, VertexInput | ComputeStage, ComputeStage, Write, Write );
+		context.BufferBarrierTransition( stats.native, Transfer | ComputeStage, ComputeStage, Uploaded | Write, Read | Write );
+
+		// The GPU writes the instance count in dispatchArgs, and the dispatch reads it
+		context.BufferBarrierTransition( dispatchArgs.native, Transfer | ComputeStage, DrawIndirect, Uploaded | Write, RenderBarrierAccessFlags_t.IndirectCommandReadBit );
 
 		Compute.DispatchIndirectWithAttributes( attributes, dispatchArgs );
 
 		RenderAttributes.Pool.Return( attributes );
 
-		Graphics.ResourceBarrierTransition( args, ResourceState.IndirectArgument );
-		Graphics.ResourceBarrierTransition( culledIds, ResourceState.VertexOrIndexBuffer );
+		context.BufferBarrierTransition( args.native, ComputeStage, DrawIndirect, Write, RenderBarrierAccessFlags_t.IndirectCommandReadBit );
+		context.BufferBarrierTransition( culledIds.native, ComputeStage, VertexInput, Write, RenderBarrierAccessFlags_t.VertexAttributeReadBit );
 
 		if ( !earlyPass ) debug?.Resolve( Graphics.Context, current.Chain, native: true, frozen );
 	}
 
 	void ReadStats()
 	{
-		Graphics.ResourceBarrierTransition( stats, ResourceState.CopySource );
+		Graphics.Context.BufferBarrierTransition( stats.native, RenderBarrierPipelineStageFlags_t.ComputeShaderBit, RenderBarrierPipelineStageFlags_t.TransferBit,
+			RenderBarrierAccessFlags_t.ShaderWriteBit, RenderBarrierAccessFlags_t.TransferReadBit );
 		RenderPipeline.ReadOcclusionStats( Graphics.Context, stats );
 		debug?.ReadCounts( Graphics.Context );
 	}

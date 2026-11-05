@@ -1,0 +1,20 @@
+include "animationsystem2/animationclipresource.h"
+
+[ResourceHandle:HAnimClip]
+native class CAnimClipResource as NativeEngine.HAnimClip
+{
+	int GetNumFrames();
+	float GetDuration();
+	float GetFPS();
+	bool IsAdditive();
+
+	int GetNumTracks();
+	int GetNumSyncEvents();
+
+	string GetSkeletonName();
+
+	bool IsBound();
+	Transform GetBoneParentSpaceTransformS2( float percentageThrough, int boneIdx );
+	Transform GetRootMotionTransformS2( float percentageThrough );
+	float GetAverageLinearVelocity();
+}

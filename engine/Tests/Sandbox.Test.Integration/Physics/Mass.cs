@@ -7,6 +7,49 @@ namespace PhysicsTests;
 public class MassTest
 {
 	[TestMethod]
+	public void TranslationLocksPreserveMassAndUnlockLinearResponse()
+	{
+		var world = new PhysicsWorld();
+		try
+		{
+			world.Gravity = Vector3.Zero;
+			var body = new PhysicsBody( world )
+			{
+				BodyType = PhysicsBodyType.Dynamic,
+				Mass = 50,
+				Locking = new PhysicsLock { X = true, Y = true, Z = true }
+			};
+			var center = new Vector3( 10, 20, 30 );
+			body.AddSphereShape( center, 4 );
+			body.RebuildMass();
+			Assert.AreEqual( 50f, body.Mass );
+			Assert.IsTrue( body.LocalMassCenter.Distance( center ) < 0.001f );
+
+			body.Mass = 100;
+			body.ApplyImpulse( Vector3.Forward * 1000 );
+			Assert.IsTrue( body.Velocity.Length < 0.001f );
+			body.ApplyAngularImpulse( Vector3.Up * 1000 );
+			Assert.IsTrue( body.AngularVelocity.Length > 0 );
+
+			body.Locking = new PhysicsLock { Y = true, Z = true };
+			body.ApplyImpulse( Vector3.Forward * 1000 );
+			Assert.AreEqual( 10f, body.Velocity.x, 0.001f );
+			Assert.AreEqual( 100f, body.Mass );
+
+			body.Locking = new PhysicsLock { X = true, Y = true, Z = true };
+			body.RebuildMass();
+			body.ApplyImpulse( Vector3.Forward * 1000 );
+			Assert.IsTrue( body.Velocity.Length < 0.001f );
+			Assert.AreEqual( 100f, body.Mass );
+			Assert.IsTrue( body.LocalMassCenter.Distance( center ) < 0.001f );
+		}
+		finally
+		{
+			world.Delete();
+		}
+	}
+
+	[TestMethod]
 	public void InertiaImplementationIsInternal()
 	{
 		Assert.IsNull( typeof( PhysicsBody ).GetMethod( "ScaleInertia" ) );

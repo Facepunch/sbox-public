@@ -26,7 +26,7 @@ sealed class SceneSoundscapeSystem : GameObjectSystem<SceneSoundscapeSystem>
 
 		timeSinceUpdate = 0;
 
-		var head = Sound.Listener;
+		var head = Scene.GetPrimaryListenerTransform();
 
 		// Find the closest soundscape, sphere and box take priority over point.
 		var best = Scene.GetAllComponents<SoundscapeTrigger>()

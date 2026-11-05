@@ -1,7 +1,9 @@
+using System;
+
 namespace SceneTests.Components;
 
 [TestClass]
-public class LightComponentTest
+public partial class LightComponentTest
 {
 	/// <summary>
 	/// Finds the scene object of the given type that was created by the given component,
@@ -33,6 +35,208 @@ public class LightComponentTest
 		clone.Enabled = true;
 
 		return clone;
+	}
+
+	/// <summary>
+	/// Legacy light data keeps its HDR tint and rendered brightness without any of the new properties.
+	/// </summary>
+	[TestMethod]
+	[DataRow( typeof( PointLight ) )]
+	[DataRow( typeof( SpotLight ) )]
+	[DataRow( typeof( DirectionalLight ) )]
+	public void LegacyLightColorIsPreserved( Type lightType )
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		var go = scene.CreateObject();
+		var light = (Light)go.Components.Create( lightType );
+		var tint = new Color( 4.0f, 2.0f, 0.5f, 0.35f );
+		light.LightColor = tint;
+
+		var json = go.Serialize();
+		var component = json["Components"][0].AsObject();
+		Assert.IsTrue( component.ContainsKey( "LightColor" ) );
+		Assert.IsFalse( component.ContainsKey( "Tint" ) );
+		component.Remove( "Intensity" );
+		Assert.IsFalse( component.ContainsKey( "UseTemperature" ) );
+		component.Remove( "Temperature" );
+		foreach ( var name in component.Select( x => x.Key ).Where( x => x.StartsWith( "Animation", StringComparison.Ordinal ) ).ToArray() )
+		{
+			component.Remove( name );
+		}
+
+		component.Remove( "__version" );
+		go.Destroy();
+		scene.ProcessDeletes();
+
+		SceneUtility.MakeIdGuidsUnique( json );
+		var clone = new GameObject( false );
+		clone.Deserialize( json );
+		clone.Enabled = true;
+		var loaded = clone.Components.Get<Light>();
+
+		Assert.AreEqual( tint, loaded.LightColor );
+		Assert.AreEqual( 1.0f, loaded.Intensity );
+		Assert.AreEqual( 6500.0f, loaded.Temperature );
+		Assert.IsFalse( loaded.AnimationEnabled );
+		Assert.AreEqual( (Vector3)tint, (Vector3)loaded.SceneObject.LightColor );
+
+		// Existing scripts and animation tracks still write LightColor directly.
+		loaded.LightColor = new Color( 8.0f, 0.25f, 1.0f );
+		Assert.AreEqual( loaded.LightColor, loaded.SceneObject.LightColor );
+
+		clone.Destroy();
+		scene.ProcessDeletes();
+	}
+
+	/// <summary>
+	/// New lights default to pure white, while omitted tints in legacy data retain the original color.
+	/// </summary>
+	[TestMethod]
+	[DataRow( typeof( PointLight ), 0 )]
+	[DataRow( typeof( SpotLight ), 0 )]
+	[DataRow( typeof( DirectionalLight ), 0 )]
+	[DataRow( typeof( PointLight ), 1 )]
+	[DataRow( typeof( SpotLight ), 1 )]
+	[DataRow( typeof( DirectionalLight ), 1 )]
+	public void LightTintDefaultsPreserveLegacyScenes( Type lightType, int version )
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		var go = scene.CreateObject();
+		var light = (Light)go.Components.Create( lightType );
+		Assert.AreEqual( Color.White, light.LightColor );
+		Assert.AreEqual( Vector3.One, (Vector3)light.SceneObject.LightColor );
+
+		var json = go.Serialize();
+		var component = json["Components"][0].AsObject();
+		Assert.AreEqual( 1, component["__version"].GetValue<int>() );
+		component.Remove( "LightColor" );
+		component["__version"] = version;
+		go.Destroy();
+		scene.ProcessDeletes();
+
+		SceneUtility.MakeIdGuidsUnique( json );
+		var clone = new GameObject( false );
+		clone.Deserialize( json );
+		clone.Enabled = true;
+		var loaded = clone.Components.Get<Light>();
+		var expected = version == 0 ? (Color)"#E9FAFF" : Color.White;
+		Assert.AreEqual( expected, loaded.LightColor );
+		Assert.AreEqual( (Vector3)expected, (Vector3)loaded.SceneObject.LightColor );
+
+		clone.Destroy();
+		scene.ProcessDeletes();
+	}
+
+	/// <summary>
+	/// Intensity and temperature affect live lights, including edits while disabled, without changing the tint.
+	/// </summary>
+	[TestMethod]
+	[DataRow( typeof( PointLight ) )]
+	[DataRow( typeof( SpotLight ) )]
+	[DataRow( typeof( DirectionalLight ) )]
+	public void LightIntensityAndTemperatureUpdateRenderedColor( Type lightType )
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		var light = (Light)scene.CreateObject().Components.Create( lightType, false );
+		light.LightColor = Color.White;
+		light.Intensity = 2.0f;
+		light.Enabled = true;
+
+		Assert.AreEqual( new Vector3( 2.0f ), (Vector3)light.SceneObject.LightColor );
+
+		foreach ( var kelvin in new[] { 6499.0f, 6501.0f } )
+		{
+			light.Temperature = kelvin;
+			var nearWhite = light.SceneObject.LightColor;
+			Assert.AreEqual( 2.0f, nearWhite.r, 0.005f );
+			Assert.AreEqual( 2.0f, nearWhite.g, 0.005f );
+			Assert.AreEqual( 2.0f, nearWhite.b, 0.005f );
+		}
+
+		light.Temperature = 3000.0f;
+		var warm = light.SceneObject.LightColor;
+		Assert.AreEqual( 2.0f, warm.r, 0.001f );
+		Assert.IsTrue( warm.r > warm.g && warm.g > warm.b );
+
+		var tint = new Color( 0.25f, 0.5f, 1.0f );
+		light.LightColor = tint;
+		Assert.AreEqual( warm * tint, light.SceneObject.LightColor );
+		light.Temperature = 12000.0f;
+		var cool = light.SceneObject.LightColor;
+		Assert.IsTrue( cool.b > cool.g && cool.g > cool.r );
+		light.Intensity = 0.0f;
+		Assert.AreEqual( Vector3.Zero, (Vector3)light.SceneObject.LightColor );
+
+		light.Enabled = false;
+		light.Intensity = 3.0f;
+		light.Temperature = 6500.0f;
+		light.Enabled = true;
+		Assert.AreEqual( (Vector3)tint * 3.0f, (Vector3)light.SceneObject.LightColor );
+		Assert.AreEqual( tint, light.LightColor );
+
+		light.GameObject.Destroy();
+		scene.ProcessDeletes();
+	}
+
+	/// <summary>
+	/// Saving and reloading light emission settings preserves both the authored tint and final rendered color.
+	/// </summary>
+	[TestMethod]
+	[DataRow( typeof( PointLight ) )]
+	[DataRow( typeof( SpotLight ) )]
+	[DataRow( typeof( DirectionalLight ) )]
+	public void LightEmissionSettingsRoundTrip( Type lightType )
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		var go = scene.CreateObject();
+		var light = (Light)go.Components.Create( lightType );
+		var tint = new Color( 4.0f, 0.75f, 0.5f );
+		light.LightColor = tint;
+		light.Intensity = 2.5f;
+		light.Temperature = 3200.0f;
+		var rendered = light.SceneObject.LightColor;
+
+		var loaded = SerializeRoundTrip( scene, go ).Components.Get<Light>();
+		Assert.AreEqual( tint, loaded.LightColor );
+		Assert.AreEqual( 2.5f, loaded.Intensity );
+		Assert.AreEqual( 3200.0f, loaded.Temperature );
+		Assert.AreEqual( rendered, loaded.SceneObject.LightColor );
+
+		loaded.GameObject.Destroy();
+		scene.ProcessDeletes();
+	}
+
+	/// <summary>
+	/// Invalid emission inputs cannot produce negative intensity or invalid temperature calculations.
+	/// </summary>
+	[TestMethod]
+	public void LightEmissionInputLimits()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		var light = scene.CreateObject().Components.Create<PointLight>();
+		light.LightColor = Color.White;
+		light.Intensity = -1.0f;
+		Assert.AreEqual( 0.0f, light.Intensity );
+		light.Intensity = float.NaN;
+		Assert.AreEqual( 1.0f, light.Intensity );
+		light.Intensity = 100.0f;
+		Assert.AreEqual( 100.0f, light.Intensity, "HDR intensity must not be capped at the inspector slider's maximum" );
+
+		foreach ( var (input, expected) in new[] { (0.0f, 1000.0f), (50000.0f, 40000.0f), (float.NaN, 6500.0f) } )
+		{
+			light.Temperature = input;
+			Assert.AreEqual( expected, light.Temperature );
+			var color = light.SceneObject.LightColor;
+			Assert.IsTrue( float.IsFinite( color.r ) && float.IsFinite( color.g ) && float.IsFinite( color.b ) );
+		}
+
+		light.GameObject.Destroy();
+		scene.ProcessDeletes();
 	}
 
 	/// <summary>

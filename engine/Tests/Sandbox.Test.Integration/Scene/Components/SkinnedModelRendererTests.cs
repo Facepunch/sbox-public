@@ -4,6 +4,8 @@ using NativeEngine;
 
 namespace SceneTests.Components;
 
+#pragma warning disable CS0618
+
 [TestClass]
 public class SkinnedRendererTest
 {

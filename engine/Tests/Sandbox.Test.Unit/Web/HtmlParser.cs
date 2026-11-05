@@ -1,10 +1,55 @@
 using Sandbox.Html;
+using Sandbox.UI;
 
 namespace WebTests;
 
 [TestClass]
 public class HtmlParserTest
 {
+	[TestMethod]
+	[DataRow( "disabled", true )]
+	[DataRow( "checked", true )]
+	[DataRow( "other", true )]
+	[DataRow( "disable", false )]
+	[DataRow( "missing", false )]
+	[DataRow( "DISABLED", false )]
+	[DataRow( "", false )]
+	[DataRow( null, false )]
+	public void HasClassMatchesWholeTokens( string classname, bool expected )
+	{
+		IStyleTarget target = Node.Parse( "<div class=' \tdisabled\r\nchecked\fother  '></div>" ).ChildNodes.Single();
+		Assert.AreEqual( expected, target.HasClass( classname ) );
+		IStyleTarget empty = Node.Parse( "<div></div>" ).ChildNodes.Single();
+		Assert.IsFalse( empty.HasClass( classname ) );
+	}
+
+	[TestMethod]
+	public void HasClassesRequiresEveryClass()
+	{
+		IStyleTarget target = Node.Parse( "<div class='disabled checked other'></div>" ).ChildNodes.Single();
+		Assert.IsTrue( target.HasClasses( ["disabled", "checked"] ) );
+		Assert.IsTrue( target.HasClasses( ["checked", "disabled"] ) );
+		Assert.IsFalse( target.HasClasses( ["disabled", "missing"] ) );
+		Assert.IsFalse( target.HasClasses( ["missing", "checked"] ) );
+		Assert.IsFalse( target.HasClasses( ["disable", "checked"] ) );
+	}
+
+	[TestMethod]
+	[TestCategory( Allocations.Category )]
+	public void ClassLookupsDoNotAllocate()
+	{
+		IStyleTarget target = Node.Parse( "<div class='disabled checked'></div>" ).ChildNodes.Single();
+		string[] required = ["disabled", "checked"];
+		string[] missing = ["disabled", "missing"];
+		bool matched = false;
+		Allocations.AssertSettles( "Checking HTML classes", () =>
+		{
+			matched = target.HasClass( "disabled" ) && target.HasClass( "checked" ) && !target.HasClass( "missing" )
+				&& target.HasClasses( required ) && !target.HasClasses( missing );
+		} );
+		Assert.IsTrue( matched );
+	}
+
 	[TestMethod]
 	public void ParseBasic()
 	{

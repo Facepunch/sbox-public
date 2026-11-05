@@ -1238,7 +1238,7 @@ internal class DeltaSnapshotSystem
 			ref var shared = ref Share( message );
 
 			// Peers we only reach through the host go up together, see FlushShared
-			if ( connection is MockConnection )
+			if ( connection.RelayFor( ClusterFlags ) )
 				(shared.RelayTargets ??= _targetLists.TryPop( out var list ) ? list : new()).Add( connection );
 			else
 				connection.Send( shared.Encoded ??= TakeFitPacket( end ) ?? Connection.EncodePacket( message ), ClusterFlags );

@@ -83,6 +83,12 @@ QuestionModal
 		white-space: pre-line;
 	}
 
+	// A link to open - one long word, so it breaks anywhere rather than running out of the box
+	&.open-url .message
+	{
+		word-break: break-all;
+	}
+
 	// What's typed in, for a question that wants an answer
 	.entry
 	{

@@ -118,6 +118,15 @@ public class SnapshotEncodingTest
 	}
 
 	[TestMethod]
+	public void PreparedSnapshotUsesWorkerChunksOnDirectRoute()
+	{
+		var connection = new RecordingConnection();
+		connection.QueueSend( Task.FromResult<byte[][]>( [[1], [2], [3]] ), NetFlags.Reliable, preparedSnapshot: true );
+		connection.FlushPendingSends();
+		CollectionAssert.AreEqual( new byte[] { 2, 3 }, connection.Packets.Select( p => p[0] ).ToArray() );
+	}
+
+	[TestMethod]
 	public void CloseDiscardsPendingSnapshotAndUpdates()
 	{
 		var connection = new RecordingConnection();

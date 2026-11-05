@@ -702,6 +702,26 @@ public class SceneTraceTest
 	}
 
 	/// <summary>
+	/// Adopting a tag's collision rules walks every runtime tag, which must not box an enumerator per call.
+	/// </summary>
+	[TestMethod, TestCategory( Allocations.Category )]
+	public void WithCollisionRulesDoesNotAllocate()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var trace = scene.Trace.Ray( Vector3.Zero, new Vector3( 300, 0, 0 ) );
+
+		Allocations.AssertSettles( "100 WithCollisionRules calls", () =>
+		{
+			for ( int i = 0; i < 100; i++ )
+			{
+				trace.WithCollisionRules( "player" );
+			}
+		} );
+	}
+
+	/// <summary>
 	/// The ignore filters must also apply to RunAll, which uses a separate native
 	/// filter path from Run.
 	/// </summary>

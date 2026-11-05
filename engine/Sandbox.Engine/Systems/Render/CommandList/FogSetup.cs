@@ -9,7 +9,7 @@ namespace Sandbox.Rendering;
 public enum FogMode
 {
 	/// <summary>
-	/// An artistic distance ramp with a configurable exponent.
+	/// A signed start/end distance ramp with a configurable exponent.
 	/// </summary>
 	Distance,
 
@@ -17,6 +17,19 @@ public enum FogMode
 	/// Exponential extinction, with 63.2 percent attenuation at one attenuation distance.
 	/// </summary>
 	Exponential
+}
+
+/// <summary>
+/// How distance from the camera is measured for analytic fog.
+/// </summary>
+[Expose]
+public enum FogDistanceMetric
+{
+	/// <summary>Three-dimensional distance from the camera.</summary>
+	Radial,
+
+	/// <summary>Distance along the camera's forward axis.</summary>
+	ViewDepth
 }
 
 /// <summary>
@@ -37,6 +50,9 @@ public struct FogSetup
 		Weight = 1;
 		Mode = FogMode.Exponential;
 		Color = Color.White;
+		SecondaryColor = Color.White;
+		ColorDirection = Vector3.Forward;
+		ColorScale = 1;
 		EndDistance = 4096;
 		FalloffExponent = 1;
 		AttenuationDistance = 2000;
@@ -89,17 +105,42 @@ public struct FogSetup
 	public FogMode Mode { get; set; }
 
 	/// <summary>
+	/// Radial distance by default; ViewDepth measures along the camera's forward axis.
+	/// </summary>
+	public FogDistanceMetric DistanceMetric { get; set; }
+
+	/// <summary>
+	/// Blend the secondary color toward Color as the camera faces ColorDirection.
+	/// </summary>
+	public bool DirectionalColorEnabled { get; set; }
+
+	/// <summary>
+	/// Color used when looking opposite ColorDirection.
+	/// </summary>
+	public Color SecondaryColor { get; set; }
+
+	/// <summary>
+	/// World-space direction of the primary fog color.
+	/// </summary>
+	public Vector3 ColorDirection { get; set; }
+
+	/// <summary>
+	/// Nonnegative color multiplier applied after directional blending in linear space.
+	/// </summary>
+	public float ColorScale { get; set; }
+
+	/// <summary>
 	/// Distance fog color and sky tint. Alpha is ignored; use MaximumOpacity instead.
 	/// </summary>
 	public Color Color { get; set; }
 
 	/// <summary>
-	/// Clear distance before fog starts, in world units.
+	/// Clear endpoint of the distance ramp, or nonnegative exponential start distance, in world units.
 	/// </summary>
 	public float StartDistance { get; set; }
 
 	/// <summary>
-	/// Full-fog distance for the artistic distance model, in world units.
+	/// Full-fog endpoint of the distance ramp, in world units. Endpoints may be signed or reversed.
 	/// </summary>
 	public float EndDistance { get; set; }
 
@@ -144,7 +185,7 @@ public struct FogSetup
 	public Color HeightColor { get; set; }
 
 	/// <summary>
-	/// Upper limit on distance fog opacity, independent of color.
+	/// Upper limit on distance fog opacity after applying the curve, independent of color.
 	/// </summary>
 	public float MaximumOpacity { get; set; }
 
@@ -256,7 +297,7 @@ public struct FogSetup
 	/// <summary>
 	/// Packs settings directly into the per-view constant buffer, including scaled 3D skyboxes.
 	/// </summary>
-	internal FogConstants ToConstants( float worldUnitsPerUnit = 1, float heightOffset = 0 )
+	internal FogConstants ToConstants( float worldUnitsPerUnit = 1, float heightOffset = 0, Vector3 viewDirection = default )
 	{
 		// Native CCameraRenderer::CreateView accepts every positive skybox scale.
 		var scale = worldUnitsPerUnit > 0 ? worldUnitsPerUnit : 1.0f;
@@ -276,11 +317,15 @@ public struct FogSetup
 		constants.Control = new Vector4( weight, opacity, (float)Mode, HeightEnabled ? (HeightContribution ?? 1).Clamp( 0, 1 ) : 0 );
 		constants.OpacityScale = Enabled ? (EnabledContribution ?? 1).Clamp( 0, 1 ) : 0;
 		// Sanitize before dividing so small distances scale consistently into skybox space.
-		constants.Distance = new Vector4( MathF.Max( 0, StartDistance ) / scale, MathF.Max( 0, EndDistance ) / scale, MathF.Max( FalloffExponent, 0.001f ), MathF.Max( AttenuationDistance, 0.001f ) / scale );
+		constants.Distance = new Vector4( (Mode == FogMode.Distance ? StartDistance : MathF.Max( 0, StartDistance )) / scale,
+			(Mode == FogMode.Distance ? EndDistance : MathF.Max( 0, EndDistance )) / scale,
+			MathF.Max( FalloffExponent, 0.001f ), MathF.Max( AttenuationDistance, 0.001f ) / scale );
 		constants.Height = new Vector4( BaseHeight / scale + heightOffset, HeightFalloff / scale, MathF.Max( MaxDistance, 0.001f ) / scale, SkyAffect.Clamp( 0, 1 ) );
 		constants.LayerParams = new Vector2( DistanceEnabled ? (DistanceContribution ?? 1).Clamp( 0, 1 ) : 0, MathF.Max( HeightExponent, 0.001f ) );
 		constants.HeightColor = new Vector4( HeightColor.r, HeightColor.g, HeightColor.b, HeightColor.a.Clamp( 0, 1 ) );
-		constants.Color = new Vector3( Color.r, Color.g, Color.b );
+		var color = ResolveColor( viewDirection );
+		constants.Color = new Vector3( color.r, color.g, color.b );
+		constants.DistanceMetric = (float)DistanceMetric;
 
 		// Peak-normalized HG reaches half intensity at the authored lobe width.
 		// 2*sin(angle/2)^2 avoids cancellation at narrow angles; guard the zero-width singularity.
@@ -315,6 +360,19 @@ public struct FogSetup
 		constants.SkyTextureIndex = GetTextureIndex( texture );
 		constants.HeightSkyTextureIndex = GetTextureIndex( heightTexture );
 		return constants;
+	}
+
+	Color ResolveColor( Vector3 viewDirection )
+	{
+		var color = Color;
+		if ( DirectionalColorEnabled )
+		{
+			var forward = viewDirection.IsNearZeroLength ? Vector3.Forward : viewDirection.Normal;
+			var blend = (0.5f * forward.Dot( ColorDirection.Normal ) + 0.5f).Clamp( 0, 1 );
+			color = Color.Lerp( SecondaryColor, color, blend );
+		}
+
+		return color * MathF.Max( 0, ColorScale );
 	}
 
 	/// <summary>

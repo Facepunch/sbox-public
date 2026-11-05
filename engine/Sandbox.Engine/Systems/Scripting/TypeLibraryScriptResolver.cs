@@ -45,11 +45,28 @@ internal sealed class TypeLibraryScriptResolver( TypeLibrary library ) : Breen.I
 				// actual receiver type (for example List<int>, rather than List<T>).
 				if ( type.IsConstructedGenericType && info.DeclaringType.ContainsGenericParameters )
 					info = type.GetMemberWithSameMetadataDefinitionAs( info );
-				members.Add( info );
+				if ( IsScriptSafe( info ) )
+					members.Add( info );
 			}
 		}
 
 		// TypeDescription.Create exposes public constructors on registered types too.
-		members.AddRange( type.GetConstructors() );
+		if ( type.IsByRefLike ) return;
+		members.AddRange( type.GetConstructors().Where( IsScriptSafe ) );
 	}
+
+	// Breen can reuse argument temporaries, so nothing may hand a script a ref that outlives the call.
+	static bool IsScriptSafe( MemberInfo member ) => member switch
+	{
+		MethodBase method => (method is not MethodInfo info || !IsRefLike( info.ReturnType ))
+			&& method.GetParameters().All( p => !IsRefStruct( p.ParameterType ) ),
+		PropertyInfo property => !IsRefLike( property.PropertyType )
+			&& property.GetIndexParameters().All( p => !IsRefStruct( p.ParameterType ) ),
+		FieldInfo field => !IsRefLike( field.FieldType ),
+		_ => true
+	};
+
+	static bool IsRefLike( Type type ) => type.IsByRef || IsRefStruct( type );
+
+	static bool IsRefStruct( Type type ) => (type.IsByRef ? type.GetElementType() : type).IsByRefLike;
 }

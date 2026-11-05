@@ -177,6 +177,7 @@ public sealed class BinderTest : SceneTestBase
 	/// Tests accessing <see cref="SkinnedModelRenderer.Parameters"/>.
 	/// </summary>
 	[TestMethod]
+#pragma warning disable CS0618
 	public void AnimGraphParameters()
 	{
 		var goTrack = MovieClip.RootGameObject( "Example" );
@@ -189,6 +190,7 @@ public sealed class BinderTest : SceneTestBase
 
 		Assert.IsTrue( TrackBinder.Default.Get( paramTrack ).IsValid );
 	}
+#pragma warning restore CS0618
 
 	/// <summary>
 	/// Tests accessing <see cref="SkinnedModelRenderer.Morphs"/>.

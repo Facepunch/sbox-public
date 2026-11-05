@@ -161,7 +161,7 @@ public class CollisionRules : ConfigData
 	/// All known tags as <see cref="StringToken"/> values. Built during validation.
 	/// </summary>
 	[JsonIgnore]
-	internal IReadOnlySet<StringToken> RuntimeTags => _runtimeTags;
+	internal HashSet<StringToken> RuntimeTags => _runtimeTags;
 
 	/// <summary>
 	/// Gets or sets <see cref="Pairs"/> in its serialized form for JSON.

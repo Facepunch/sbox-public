@@ -1,5 +1,4 @@
 using NativeEngine;
-using System.Runtime.InteropServices;
 
 namespace Sandbox;
 
@@ -10,11 +9,6 @@ namespace Sandbox;
 public sealed partial class SceneModel : SceneObject
 {
 	internal CSceneAnimatableObject animNative;
-
-	DelegateFunctionPointer animGraphChangedCallback;
-
-	[UnmanagedFunctionPointer( CallingConvention.StdCall )]
-	internal delegate void AnimGraphChangedCallback( IntPtr p );
 
 	internal SceneModel() { }
 	internal SceneModel( HandleCreationData _ ) { }
@@ -44,19 +38,9 @@ public sealed partial class SceneModel : SceneObject
 			Tags.RemoveAll();
 			Transform = transform;
 
-			if ( animGraphChangedCallback == DelegateFunctionPointer.Null )
-			{
-				animGraphChangedCallback = DelegateFunctionPointer.Get<AnimGraphChangedCallback>( OnAnimGraphChanged );
-			}
-
-			// TODO
-			animNative.InitAnimGraph( animGraphChangedCallback );
+			RegisterLegacyAnimationCallback();
+			animNative.InitAnimation();
 		}
-	}
-
-	private void OnAnimGraphChanged( IntPtr p )
-	{
-		_animationGraph = AnimationGraph.FromNative( animNative.GetAnimGraph() );
 	}
 
 	internal override void OnNativeInit( CSceneObject ptr )
@@ -64,32 +48,13 @@ public sealed partial class SceneModel : SceneObject
 		base.OnNativeInit( ptr );
 
 		animNative = (NativeEngine.CSceneAnimatableObject)ptr;
+		RegisterAnimationControllerCallback();
 	}
 
 	internal override void OnNativeDestroy()
 	{
 		animNative = default;
 		base.OnNativeDestroy();
-	}
-
-	/// <summary>
-	/// Override the anim graph this scene model uses
-	/// </summary>
-	[System.Obsolete( "Can use AnimationGraph directly" )]
-	public void SetAnimGraph( string name )
-	{
-		animNative.SetAnimGraph( name );
-	}
-
-	private AnimationGraph _animationGraph;
-
-	public AnimationGraph AnimationGraph
-	{
-		get => _animationGraph;
-		set
-		{
-			animNative.SetAnimGraph( value?.native ?? default );
-		}
 	}
 
 	public float PlaybackRate
@@ -305,23 +270,6 @@ public sealed partial class SceneModel : SceneObject
 			_morphs ??= new SceneObjectMorphCollection( this );
 
 			return _morphs;
-		}
-	}
-
-	SceneObjectDirectPlayback _directPlayback;
-
-	/// <summary>
-	/// Access this sceneobject's direct playback. Direct playback is used to control the direct playback node in an animgraph
-	/// to play sequences directly in code
-	/// </summary>
-	public AnimGraphDirectPlayback DirectPlayback
-	{
-		get
-		{
-			// Create on first access
-			_directPlayback ??= new SceneObjectDirectPlayback( this );
-
-			return _directPlayback;
 		}
 	}
 }

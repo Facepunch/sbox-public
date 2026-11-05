@@ -2,7 +2,7 @@
 HEADER
 {
 	DevShader = true;
-	Description = "Compute Shader for accelerated mipmap generation, with support to multiple downsampling algorithms.";
+	Description = "Compute Shader for gaussian and GGX mipmap generation, downsample_spd does the other methods.";
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -24,12 +24,8 @@ COMMON
 	
 	enum DownsampleMethod
 	{
-		Box = 0,
 		GaussianBlur = 1,
 		GaussianBorder = 2,
-		Max = 3,
-		Min = 4,
-		MinMax = 5,
 		GGX = 6
 	};
 }
@@ -40,7 +36,7 @@ CS
 	// Includes -----------------------------------------------------------------------------------------------------------------------------------------------
 
 	// Combos -------------------------------------------------------------------------------------------------------------------------------------------------
-	DynamicCombo( D_DOWNSAMPLE_METHOD, 0..6, Sys( ALL ) );
+	DynamicCombo( D_DOWNSAMPLE_METHOD, 1..6, Sys( ALL ) );
 	
 	// System Textures ----------------------------------------------------------------------------------------------------------------------------------------
 	Texture2D 			MipLevel0 < Attribute( "MipLevel0" ); >;
@@ -56,7 +52,7 @@ CS
 	//---------------------------------------------------------------------------------------------------------------------------------------------------------
 	bool WantsSRGB()
 	{
-		return D_DOWNSAMPLE_METHOD == DownsampleMethod::GaussianBlur || D_DOWNSAMPLE_METHOD == DownsampleMethod::GaussianBorder || D_DOWNSAMPLE_METHOD == DownsampleMethod::GGX;
+		return D_DOWNSAMPLE_METHOD == DownsampleMethod::GaussianBlur || D_DOWNSAMPLE_METHOD == DownsampleMethod::GGX;
 	}
 
 	//---------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -66,14 +62,11 @@ CS
 		SamplerState sampler = D_DOWNSAMPLE_METHOD == DownsampleMethod::GaussianBorder ? BilinearBorder : BilinearClamp;
 
 		float4 color = max( MipLevel0.SampleLevel( sampler, ( pixelCoord + 0.5f ) * InvTextureSize, 0 ), 0.0f );
-		// Average linear colour in sRGB gamma
-		color.rgb = SrgbLinearToGamma( color.rgb );
+		// GaussianBorder is handed a premultiplied UI layer in whatever encoding the layer stores, and like CSS blurs
+		// the stored values as they are. The rest are handed linear colour and average it in sRGB gamma
+		if ( D_DOWNSAMPLE_METHOD != DownsampleMethod::GaussianBorder )
+			color.rgb = SrgbLinearToGamma( color.rgb );
 		return color;
-	}
-
-	float4 LoadColor( int2 pixelCoord )
-	{
-		return max( MipLevel0[ pixelCoord ], 0.0f );
 	}
 
 	void StoreColor( int2 pixelCoord, float4 color )
@@ -87,36 +80,6 @@ CS
 		MipLevel1[ pixelCoord ] = color;
 	}
 	
-	//---------------------------------------------------------------------------------------------------------------------------------------------------------
-
-	float4 FilterBilinear( int2 pixelCoord )
-	{
-		uint2 vCoord = pixelCoord * 2.0f;
-		return ( LoadColor( vCoord ) + LoadColor( vCoord + uint2( 1, 0 ) ) + LoadColor( vCoord + uint2( 0, 1 ) ) + LoadColor( vCoord + uint2( 1, 1 ) ) ) * 0.25f;
-	}
-
-	float3 FilterMax( int2 pixelCoord )
-	{
-		uint2 vCoord = pixelCoord * 2.0f;
-		float3 vColor = max( LoadColor( vCoord ).rgb, max( LoadColor( vCoord + uint2( 1, 0 ) ).rgb, max( LoadColor( vCoord + uint2( 0, 1 ) ).rgb, LoadColor( vCoord + uint2( 1, 1 ) ).rgb ) ) );
-		return vColor.rgb;
-	}
-
-	float3 FilterMin( int2 pixelCoord )
-	{
-		uint2 vCoord = pixelCoord * 2.0f;
-		float3 vColor = min( LoadColor( vCoord ).rgb, min( LoadColor( vCoord + uint2( 1, 0 ) ).rgb, min( LoadColor( vCoord + uint2( 0, 1 ) ).rgb, LoadColor( vCoord + uint2( 1, 1 ) ).rgb ) ) );
-		return vColor.rgb;
-	}
-
-	float2 FilterMinMax( int2 pixelCoord )
-	{
-		// Stores min in R and max in G
-		uint2 vCoord = pixelCoord * 2.0f;
-		float flMin = min( LoadColor( vCoord ).x, min( LoadColor( vCoord + uint2( 1, 0 ) ).x, min( LoadColor( vCoord + uint2( 0, 1 ) ).x, LoadColor( vCoord + uint2( 1, 1 ) ).x ) ) );
-		float flMax = max( LoadColor( vCoord ).y, max( LoadColor( vCoord + uint2( 1, 0 ) ).y, max( LoadColor( vCoord + uint2( 0, 1 ) ).y, LoadColor( vCoord + uint2( 1, 1 ) ).y ) ) );
-		return float2( flMin, flMax );	
-	}
 
 	//-------------------------------------------------------------------------------------------------------------------------------------------------------------
 	//
@@ -291,20 +254,10 @@ CS
 	[numthreads( 8, 8, 1 )]
 	void MainCs( uint2 vGroupID : SV_GroupID, uint2 vGroupThreadID : SV_GroupThreadID, uint2 vDispatchId : SV_DispatchThreadID )
 	{
-		if ( D_DOWNSAMPLE_METHOD == DownsampleMethod::Box )
-			StoreColor( vDispatchId.xy, FilterBilinear( vDispatchId.xy ) );
-		else if( D_DOWNSAMPLE_METHOD == DownsampleMethod::GaussianBlur )
-			StoreColor( vDispatchId.xy, FilterGaussianBlur( vGroupID, vGroupThreadID, vDispatchId ) );
-		else if( D_DOWNSAMPLE_METHOD == DownsampleMethod::GaussianBorder )
-			StoreColor( vDispatchId.xy, FilterGaussianBlur( vGroupID, vGroupThreadID, vDispatchId ) );
-		else if( D_DOWNSAMPLE_METHOD == DownsampleMethod::Max )
-			StoreColor( vDispatchId.xy, float4( FilterMax( vDispatchId.xy ), 1.0f ) );
-		else if( D_DOWNSAMPLE_METHOD == DownsampleMethod::Min )
-			StoreColor( vDispatchId.xy, float4( FilterMin( vDispatchId.xy ), 1.0f ) );
-		else if( D_DOWNSAMPLE_METHOD == DownsampleMethod::GGX )
+		if ( D_DOWNSAMPLE_METHOD == DownsampleMethod::GGX )
 			FilterGGX( vGroupID, vGroupThreadID );
-		else if( D_DOWNSAMPLE_METHOD == DownsampleMethod::MinMax )
-			StoreColor( vDispatchId.xy, float4( FilterMinMax( vDispatchId.xy ), 0.0f, 1.0f ) );
+		else
+			StoreColor( vDispatchId.xy, FilterGaussianBlur( vGroupID, vGroupThreadID, vDispatchId ) );
 	}
 	
 }

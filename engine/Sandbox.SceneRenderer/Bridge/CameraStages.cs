@@ -109,6 +109,33 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 		}
 	}
 
+	public ScreenSpaceReflectionsPass ScreenSpaceReflections => Camera?.ScreenSpaceReflections;
+
+	public void RenderScreenSpaceReflections( bool history, in StageTarget target )
+	{
+		if ( Camera?.ScreenSpaceReflections is not { } reflections ) return;
+
+		SetMainCamera();
+
+		var context = target.Context;
+		context.GetAttributesPtrForModify().SetParent( target.Attributes.Get() );
+
+		view.Color = history ? target.Color : default;
+		view.Depth = history ? target.Depth : default;
+		view.SrgbWrite = false;
+		view.Viewport = target.Viewport;
+		view.MinZ = target.MinZ;
+		view.MaxZ = target.MaxZ;
+		view.ColorFormat = target.ColorFormat;
+		view.Msaa = SampleCount( target.Samples );
+
+		using ( new Graphics.Scope( context, view ) )
+		{
+			if ( history ) reflections.CaptureHistory();
+			else reflections.Trace();
+		}
+	}
+
 	public void Render( Stage stage, in StageTarget target )
 	{
 		if ( Camera is null ) return;

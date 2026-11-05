@@ -109,6 +109,10 @@ internal sealed partial class GameWindow : IDisposable
 		}
 		Screen.UpdateFromEngine();
 
+		// The splash carries on over the menu until it's ready to be seen, then fades out
+		if ( splash.IsDrawable ) StartupScreen.Show( splash );
+		else splash.Dispose();
+
 		if ( renderingRequested ) InitializeRendering();
 	}
 

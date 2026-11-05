@@ -1,4 +1,5 @@
-﻿using Facepunch.ActionGraphs;
+﻿using Sandbox.Engine;
+using Facepunch.ActionGraphs;
 using Sandbox.ActionGraphs;
 using System.Buffers;
 using System.Text.Json;
@@ -57,6 +58,12 @@ public partial class GameObject
 		/// Makes sure TopLevel nested prefabs are flagged, so they can get converted to a full prefab instance in the prefab.
 		/// </summary>
 		internal bool SerializeForPrefabInstanceToPrefabUpdate { get; set; }
+
+		/// <summary>
+		/// Serialize prefab instances as plain GameObjects, with their full hierarchy and no prefab links.
+		/// Used for standalone snapshots that get loaded where the prefab files might not exist.
+		/// </summary>
+		internal bool BreakPrefabInstances { get; set; }
 
 		/// <summary>Capture shallow undo state while preserving existing prefab ownership on restore.</summary>
 		internal bool SerializeForUndo { get; set; }
@@ -164,7 +171,7 @@ public partial class GameObject
 
 		if ( !options.ShouldSave( this ) ) return null;
 
-		if ( IsOutermostPrefabInstanceRoot && !options.SerializePrefabForDiff && !(options.SerializeForUndo && options.IgnoreChildren) && !options.SingleNetworkObject && !options.SceneForNetwork )
+		if ( IsOutermostPrefabInstanceRoot && !options.BreakPrefabInstances && !options.SerializePrefabForDiff && !(options.SerializeForUndo && options.IgnoreChildren) && !options.SingleNetworkObject && !options.SceneForNetwork )
 		{
 			return SerializePrefabInstance();
 		}
@@ -228,7 +235,7 @@ public partial class GameObject
 		{
 			json[JsonKeys.EditorSkipPrefabBreakOnRefresh] = true;
 		}
-		else if ( (!options.SceneForNetwork && !options.SingleNetworkObject)
+		else if ( (!options.SceneForNetwork && !options.SingleNetworkObject && !options.BreakPrefabInstances)
 				&& (IsNestedPrefabInstanceRoot || (IsOutermostPrefabInstanceRoot && options.SerializePrefabForDiff)) )
 		{
 			// For prefab updates all existing nested roots keep their instance data, regardless of depth.
@@ -336,6 +343,10 @@ public partial class GameObject
 		{
 			JsonUpgrader.Upgrade( serializedVersion, node, GetType() );
 		}
+
+		// Error describes the result of loading this object (e.g. a missing prefab stub), start clean.
+		// The missing prefab path below sets it again if the source still can't be loaded.
+		Flags &= ~GameObjectFlags.Error;
 
 		if ( node[JsonKeys.EditorSkipPrefabBreakOnRefresh] is null )
 		{
@@ -512,7 +523,7 @@ public partial class GameObject
 				// This might also be useful to us when developing, where we can copy paste the component into our code
 				// and have it still work and be able to edit hotloading.
 				// This code chooses the type in a dynamic assembly (addon code) so they always have priority over the engine stuff.
-				var componentType = Game.TypeLibrary.GetType<Component>( componentTypeName, true );
+				var componentType = GlobalContext.Current.TypeLibrary.GetType<Component>( componentTypeName, true );
 
 				// We didn't find this component type. So lets cut them some slack by searching
 				// for it without the namespace - because maybe they refactored and didn't want
@@ -523,7 +534,7 @@ public partial class GameObject
 					if ( idx > 0 && idx < componentTypeName.Length - 1 )
 					{
 						var componentClassName = componentTypeName[(idx + 1)..];
-						componentType = Game.TypeLibrary.GetType<Component>( componentClassName, true );
+						componentType = GlobalContext.Current.TypeLibrary.GetType<Component>( componentClassName, true );
 					}
 				}
 
@@ -858,7 +869,7 @@ public partial class GameObject
 				var component = Scene.Directory.FindComponentByGuid( guid );
 				if ( component.IsValid() )
 				{
-					var t = Game.TypeLibrary.GetType( component.GetType() );
+					var t = GlobalContext.Current.TypeLibrary.GetType( component.GetType() );
 
 					if ( value is null )
 						return;
@@ -927,7 +938,7 @@ public partial class GameObject
 		if ( string.IsNullOrEmpty( componentTypeName ) )
 			return;
 
-		var componentType = Game.TypeLibrary.GetType<Component>( componentTypeName, true );
+		var componentType = GlobalContext.Current.TypeLibrary.GetType<Component>( componentTypeName, true );
 		if ( componentType is null || componentType.TargetType.IsAbstract )
 			return;
 

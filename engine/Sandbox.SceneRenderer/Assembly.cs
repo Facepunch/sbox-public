@@ -12,6 +12,7 @@ global using Sandbox.SceneRenderer.Shadows;
 using System.Runtime.CompilerServices;
 
 [assembly: InternalsVisibleTo( "Sandbox.Test.Unit" )]
+[assembly: InternalsVisibleTo( "Sandbox.Test.Integration" )]
 [assembly: InternalsVisibleTo( "Sandbox.AppSystem" )]
 [assembly: InternalsVisibleTo( "scenelab" )]
 [assembly: InternalsVisibleTo( "Benchmark" )]

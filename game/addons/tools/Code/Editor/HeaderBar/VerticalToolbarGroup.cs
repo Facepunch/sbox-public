@@ -52,18 +52,6 @@ public class VerticalToolbarGroup : Widget
 		Layout.Add( b );
 		return b;
 	}
-
-	[EditorEvent.Frame]
-	void ToolbarButtonFrame()
-	{
-		foreach ( var child in Children )
-		{
-			if ( child is EditorToolButton button )
-			{
-				button.UpdateState();
-			}
-		}
-	}
 }
 
 file class ToolbarIcon : Widget
@@ -137,6 +125,7 @@ file class EditorToolButton : Widget
 		Paint.DrawIcon( LocalRect, Icon, HeaderBarStyle.IconSize, TextFlag.Center );
 	}
 
+	[EditorEvent.Frame]
 	public void UpdateState()
 	{
 		if ( IsActive is null )

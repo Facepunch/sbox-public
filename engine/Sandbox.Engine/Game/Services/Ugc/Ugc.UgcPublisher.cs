@@ -52,6 +52,11 @@ internal static partial class Ugc
 		/// </summary>
 		public void AddPreviewImage( string value ) => native.AddPreviewFile( value, 0 );
 		public void SetKeyValue( string key, string value ) => native.AddKeyValueTag( key, value );
+
+		/// <summary>
+		/// Take every value off the item under this key. Values set in the same update stay.
+		/// </summary>
+		public void RemoveKeyValues( string key ) => native.RemoveKeyValueTags( key );
 		public void SetTag( string tag ) => native.SetTag( tag );
 		public void SetContentFile( string fullPath ) => native.SetContentFolder( fullPath );
 		public void SetMetaData( string metadata ) => native.SetMetadata( metadata );

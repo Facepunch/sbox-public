@@ -72,10 +72,12 @@ public partial class ProjectPublisher
 			ExclusionOverrides.Clear();
 			ExcludedByRules.Clear();
 			IncludedExclusionReasons.Clear();
+			inclusionReasons.Clear();
 			configuredPublishPaths.Clear();
 			reviewSizeGraph.Clear();
 			reviewIncludedFiles.Clear();
 			reviewImpactCache.Clear();
+			reviewFootprintCache.Clear();
 			reviewDependencyCache.Clear();
 			reviewAssetAliases.Clear();
 		}
@@ -90,16 +92,6 @@ public partial class ProjectPublisher
 			this.progress = progress;
 			IsPreview = previewOnly;
 			publishingOptions = options ?? new( project.Config.PublishUsedAssetsOnly, project.Config.Resources );
-
-			if ( !string.IsNullOrWhiteSpace( publishingOptions.Resources ) )
-			{
-				cancel.ThrowIfCancellationRequested();
-
-				foreach ( var path in AllAssetPaths( project ) )
-				{
-					await IncludeFiles( path, publishingOptions.Resources, cancel, matchAssetAliases: publishingOptions.PublishUsedAssetsOnly, legacyRules: !publishingOptions.PublishUsedAssetsOnly );
-				}
-			}
 
 			//
 			// Collect localization files
@@ -251,6 +243,17 @@ public partial class ProjectPublisher
 				assets = await FindAssetsToPublish( project, assets, cancel );
 
 			await CollectAssets( assets, cancel, referencesCollected: project.Config.Type == "game" && publishingOptions.PublishUsedAssetsOnly );
+
+			// Compile selected assets before copying loose resources, so a clean build cannot ship their sources.
+			if ( !string.IsNullOrWhiteSpace( publishingOptions.Resources ) )
+			{
+				cancel.ThrowIfCancellationRequested();
+
+				foreach ( var path in AllAssetPaths( project ) )
+				{
+					await IncludeFiles( path, publishingOptions.Resources, cancel, allowSourceFiles: IncludeSourceFiles, matchAssetAliases: true, legacyRules: !publishingOptions.PublishUsedAssetsOnly );
+				}
+			}
 
 			if ( project.Config.Type == "game" )
 			{
@@ -544,9 +547,16 @@ public partial class ProjectPublisher
 			{
 				cancel.ThrowIfCancellationRequested();
 				await YieldPreview( cancel );
-				// A compiled sidecar must not bypass an exclusion matching its source alias.
-				if ( matchAssetAliases && matches.HasExclusions && AssetSystem.FindByPath( absolute ) is { } asset
-					&& !matches.Matches( AssetPaths( asset ).Where( x => !string.IsNullOrWhiteSpace( x ) ).Select( NormalizePublishPath ) ) ) continue;
+				if ( matchAssetAliases && AssetSystem.FindByPath( absolute ) is { } asset )
+				{
+					// A compiled sidecar must not bypass an exclusion matching its source alias.
+					if ( matches.HasExclusions && !matches.Matches( AssetPaths( asset ).Where( x => !string.IsNullOrWhiteSpace( x ) ).Select( NormalizePublishPath ) ) ) continue;
+					// A matching standalone file (e.g. .ogg compiled to .vsnd_c) must also ship as-is.
+					// Other compilable assets still require the source option to publish their source files.
+					var compiled = asset.GetCompiledFile();
+					if ( !IncludeSourceFiles && !IsStandaloneSourceFile( asset ) && (asset.IsCompileFailed || !string.IsNullOrEmpty( compiled ))
+						&& !string.Equals( NormalizePublishPath( relative ), string.IsNullOrEmpty( compiled ) ? null : NormalizePublishPath( compiled ), StringComparison.OrdinalIgnoreCase ) ) continue;
+				}
 				await AddFile( absolute, relative );
 			}
 		}
@@ -572,6 +582,8 @@ public partial class ProjectPublisher
 				if ( file.EndsWith( ".cs", StringComparison.OrdinalIgnoreCase ) ) return false;
 				if ( file.EndsWith( ".razor", StringComparison.OrdinalIgnoreCase ) ) return false;
 				if ( file.EndsWith( ".fbx", StringComparison.OrdinalIgnoreCase ) ) return false;
+				// Editor sidecars can map a compiled resource GUID back to its raw source path.
+				if ( file.EndsWith( ".meta", StringComparison.OrdinalIgnoreCase ) ) return false;
 			}
 
 			if ( DissallowedExtensions.Any( x => file.EndsWith( x, StringComparison.OrdinalIgnoreCase ) ) )

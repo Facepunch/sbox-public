@@ -106,9 +106,9 @@ public class SvgSourceGenerator : TextureGenerator
 	public override bool CacheToDisk => true;
 
 	/// <summary>
-	/// Rasterizes the SVG on a worker and creates the texture on the caller's context.
+	/// Rasterizes the SVG on a worker.
 	/// </summary>
-	protected override async ValueTask<Texture> CreateTexture( Options options, CancellationToken ct )
+	protected override async ValueTask<Bitmap> CreateBitmap( Options options, CancellationToken ct )
 	{
 		var w = Size.x.Clamp( 1, 1024 * 4 );
 		var h = Size.y.Clamp( 1, 1024 * 4 );
@@ -121,7 +121,7 @@ public class SvgSourceGenerator : TextureGenerator
 		var flipHorizontal = FlipHorizontal;
 		var flipVertical = FlipVertical;
 
-		using var bitmap = await Task.Run( () =>
+		var bitmap = await Task.Run( () =>
 		{
 			ct.ThrowIfCancellationRequested();
 			var result = Bitmap.CreateFromSvgString( source, w, h, scale, offset, rotate );
@@ -157,7 +157,8 @@ public class SvgSourceGenerator : TextureGenerator
 			}
 		}, ct );
 
+		if ( ct.IsCancellationRequested ) bitmap?.Dispose();
 		ct.ThrowIfCancellationRequested();
-		return bitmap?.ToTexture();
+		return bitmap;
 	}
 }

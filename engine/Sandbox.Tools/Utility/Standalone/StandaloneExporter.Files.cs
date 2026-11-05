@@ -63,11 +63,42 @@ partial class StandaloneExporter
 
 		// Config files
 		"cfg/*",
+
+		// Physics surfaces - materials find these by name, so nothing references them as assets
+		"surfaces/*.surface_c",
 	];
 
 	private IEnumerable<string> GetCoreFiles( string engineDir )
 	{
 		return GetWhitelistedFiles( CoreWhitelist, Path.Combine( engineDir, "core" ) );
+	}
+
+	/// <summary>
+	/// Everything the core surfaces reference (impact sounds, decals, prefabs). Some of these
+	/// live outside core, so they're found through the asset system rather than a whitelist.
+	/// </summary>
+	private static IEnumerable<CodeResource> GetSurfaceReferences( IEnumerable<string> coreFiles )
+	{
+		foreach ( var file in coreFiles.Where( x => x.EndsWith( ".surface_c", StringComparison.OrdinalIgnoreCase ) ) )
+		{
+			var asset = AssetSystem.FindByPath( file );
+			if ( asset is null )
+			{
+				Logger.Warning( $"Couldn't find surface asset for {file}, its references won't be exported" );
+				continue;
+			}
+
+			foreach ( var reference in asset.GetReferences( true ) )
+			{
+				var relativePath = reference.GetCompiledFile( false );
+				var absolutePath = reference.GetCompiledFile( true );
+
+				if ( string.IsNullOrEmpty( relativePath ) || string.IsNullOrEmpty( absolutePath ) )
+					continue;
+
+				yield return new CodeResource( relativePath.TrimStart( '/', '\\' ), absolutePath );
+			}
+		}
 	}
 
 	private static IEnumerable<string> GetBlacklistedFiles( string[] blacklist, string absoluteDirectory )

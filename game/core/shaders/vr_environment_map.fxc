@@ -72,11 +72,19 @@ float3 SampleEnvironmentMapLevel( float3 vReflectionDirWs, float flLevel, uint n
 	return vEnvironmentMapTexel.rgb * EnvMapColor( nEnvMap );
 }
 
-// Fast path for a wave-uniform envmap, e.g. inside ClusterForEach
-float3 SampleEnvironmentMapLevel( float3 vReflectionDirWs, float flLevel, dynamic_uniform UniformIndex nEnvMap )
+// Fast path for a wave-uniform envmap, e.g. inside ClusterForEach:
+//   SampleEnvironmentMapLevel( dir, level, index, EnvMapTexture( asDynamicUniform( UniformIndex( index ) ) ) )
+// The cube is looked up on its own because Slang's uniformity check misreports a dynamic_uniform argument on any
+// call that also takes non-uniform ones (slang-ir-uniformity.cpp adds the worklist index, not the argument index)
+TextureCube EnvMapTexture( dynamic_uniform UniformIndex nEnvMap )
 {
-	TextureCube tEnvMap = Bindless::GetTextureCube( UniformIndex( BinnedEnvMapBuffer[ nEnvMap.index ].GetCubemapIndex() ) );
-	return SampleEnvMapLevel( vReflectionDirWs.xyz, flLevel, tEnvMap ).rgb * EnvMapColor( nEnvMap.index );
+	// Loaded at a uniform index, so uniform too
+	return Bindless::GetTextureCube( asDynamicUniform( UniformIndex( BinnedEnvMapBuffer[ nEnvMap.index ].GetCubemapIndex() ) ) );
+}
+
+float3 SampleEnvironmentMapLevel( float3 vReflectionDirWs, float flLevel, uint nEnvMap, TextureCube tEnvMap )
+{
+	return SampleEnvMapLevel( vReflectionDirWs.xyz, flLevel, tEnvMap ).rgb * EnvMapColor( nEnvMap );
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------

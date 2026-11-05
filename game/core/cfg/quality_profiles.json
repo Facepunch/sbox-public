@@ -128,6 +128,33 @@
             "volume_fog_depth": "64"
         }
     },
+    "WaterQuality":
+    {
+        "Low":
+        {
+            "r.water.detail": "0",
+            "r.water.planar.downsample": "0",
+            "r.water.refraction.downsample": "2"
+        },
+        "Medium":
+        {
+            "r.water.detail": "1",
+            "r.water.planar.downsample": "0",
+            "r.water.refraction.downsample": "2"
+        },
+        "High":
+        {
+            "r.water.detail": "2",
+            "r.water.planar.downsample": "1",
+            "r.water.refraction.downsample": "1"
+        },
+        "Ultra":
+        {
+            "r.water.detail": "2",
+            "r.water.planar.downsample": "1",
+            "r.water.refraction.downsample": "1"
+        }
+    },
     "ShadowQuality":
     {
         "Low":

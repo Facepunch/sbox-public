@@ -552,18 +552,34 @@ public partial class CloudAssetBrowser : Widget, IBrowser
 		}
 
 		int done = 0;
-		foreach ( var ident in toUpdate )
+		try
 		{
-			if ( !IsValid ) return;
-			_updateAllBtn.Text = $"Updating {++done}/{toUpdate.Count}...";
-			await AssetSystem.InstallAsync( ident, false );
+			foreach ( var ident in toUpdate )
+			{
+				if ( !IsValid ) return;
+				_updateAllBtn.Text = $"Updating {++done}/{toUpdate.Count}...";
+				try
+				{
+					await AssetSystem.InstallAsync( ident, false );
+				}
+				catch ( AggregateException ex )
+				{
+					Log.Warning( ex, $"Error updating package {ident}" );
+				}
+			}
+		}
+		finally
+		{
+			_updatingAll = false;
+			if ( _updateAllBtn.IsValid() )
+			{
+				_updateAllBtn.Text = "Update All";
+				_updateAllBtn.Enabled = true;
+			}
 		}
 
 		if ( !IsValid ) return;
 
-		_updatingAll = false;
-		_updateAllBtn.Text = "Update All";
-		_updateAllBtn.Enabled = true;
 		UpdateAssetList();
 	}
 

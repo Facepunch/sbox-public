@@ -23,7 +23,7 @@
 
         <PortalButton Name=@entry.Id Portal=@Portal>
             <Button><SearchlightTab Title=@entry.Title Icon=@entry.Icon /></Button>
-            <Content><PackagePage Package=@Package Page=@entry.Id /></Content>
+            <Content><PackagePage Package=@Package Page=@entry.Id WorkshopId=@WorkshopId /></Content>
         </PortalButton>
     }
 
@@ -49,6 +49,17 @@
     /// </summary>
     [Parameter] public bool ShowReviews { get; set; } = true;
 
+    /// <summary>
+    /// Changes and News tabs, when it has any - the backend's, so not for a package on the workshop.
+    /// </summary>
+    [Parameter] public bool ShowUpdates { get; set; } = true;
+
+    /// <summary>
+    /// Its Steam Workshop item, for a package on the workshop - its Changes tab is the item's change notes, and always
+    /// there (there's no knowing it has none until they're asked for). 0 for the backend's.
+    /// </summary>
+    [Parameter] public ulong WorkshopId { get; set; }
+
     PortalButton OverviewTab;
 
     /// <summary>
@@ -58,8 +69,8 @@
     {
         PackagePage.Reviews => ShowReviews,
         PackagePage.Players => ShowPlayers,
-        PackagePage.Changes => Package.LatestChangeLists.Length > 0,
-        PackagePage.News => Package.LatestNewsPost is not null,
+        PackagePage.Changes => WorkshopId != 0 || (ShowUpdates && Package.LatestChangeLists.Length > 0),
+        PackagePage.News => ShowUpdates && Package.LatestNewsPost is not null,
         PackagePage.Achievements => HasAchievements,
         _ => false
     };
@@ -97,5 +108,5 @@
         StateHasChanged();
     }
 
-    protected override int BuildHash() => HashCode.Combine( Package, Portal, ShowPlayers, ShowReviews, HasAchievements );
+    protected override int BuildHash() => HashCode.Combine( Package, Portal, ShowPlayers, ShowReviews, ShowUpdates, WorkshopId, HasAchievements );
 }

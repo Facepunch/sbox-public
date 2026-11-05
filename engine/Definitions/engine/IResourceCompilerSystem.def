@@ -38,6 +38,39 @@ native static accessor g_pResourceCompilerSystem as IResourceCompilerSystem
 		return outputData;
 	}
 
+	// Compiles one asset where it is, as the editor's asset system does: what it reads first, and only what's out of date
+	inline bool CompileFile( string path )
+	{
+		ResourceCompileSettings_t compileSettings;
+		return g_pResourceCompilerSystem->GenerateResourceFile( path, compileSettings );
+	}
+
+	bool RunBuildJob( string mode, string source, string staging, string report );
+	string GetLoadedAfterBuildJob();
+
+	// The main extension of the engine asset type a file extension is one of, or null
+	inline string FindAssetTypeExtension( string ext )
+	{
+		bool bIsImage = false;
+		return g_pResourceCompilerSystem->FindAssetTypeExtension( ext, &bIsImage );
+	}
+
+	// An engine asset type that compiles to nothing of its own (an image)
+	inline bool IsImageExtension( string ext )
+	{
+		bool bIsImage = false;
+		g_pResourceCompilerSystem->FindAssetTypeExtension( ext, &bIsImage );
+		return bIsImage;
+	}
+
+	// A special dependency's current fingerprint, or -1 if it can't be calculated here
+	inline long SpecialDependencyFingerprint( string compiler, string name, uint userData )
+	{
+		bool bCalculated = false;
+		uint32 nFingerprint = g_pResourceCompilerSystem->CalculateSpecialDependencyFingerprint( compiler, name, userData, &bCalculated );
+		return bCalculated ? (int64)nFingerprint : -1;
+	}
+
 	inline bool GenerateResourceFileForced( string path, string text )
 	{
 		CUtlBuffer inputData( 0, 0, CUtlBuffer::TEXT_BUFFER );

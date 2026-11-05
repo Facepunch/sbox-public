@@ -14,6 +14,7 @@ class InputEventQueue
 	Queue<string> TripleClicks = new();
 	Queue<ButtonEvent> ButtonTyped = new();
 	Queue<(char Character, KeyboardModifiers Modifiers)> KeyTyped = new();
+	Queue<Action> Callbacks = new();
 	KeyboardModifiers _keyboardModifiers;
 
 	Vector2 MouseMovement;
@@ -63,6 +64,19 @@ class InputEventQueue
 
 	internal void Tick( Panel hovered, Panel active )
 	{
+		// Results of input that was taken before it reached the UI (button trapping)
+		while ( Callbacks.TryDequeue( out var callback ) )
+		{
+			try
+			{
+				callback();
+			}
+			catch ( Exception e )
+			{
+				Log.Error( e );
+			}
+		}
+
 		if ( MouseMovement != 0 )
 		{
 			// If we're pressing down on a panel we send all the mouse move events to that
@@ -104,6 +118,14 @@ class InputEventQueue
 	internal void QueueInputEvent( PanelEvent e )
 	{
 		PanelEvents.Enqueue( e );
+	}
+
+	/// <summary>
+	/// Run this on the next <see cref="Tick"/>, in the scope of whoever ticks this UI system.
+	/// </summary>
+	internal void QueueCallback( Action callback )
+	{
+		Callbacks.Enqueue( callback );
 	}
 
 	internal void AddButtonEvent( ButtonCode button, bool down, KeyboardModifiers modifiers )

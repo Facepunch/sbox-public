@@ -209,12 +209,23 @@ ServerList
 			{
 				@include front-section-label;
 
+				// The sort arrow a little off its name
+				flex-direction: row;
+				align-items: center;
+				gap: 4px;
 				cursor: pointer;
 				transition: color 0.1s ease;
 
 				&:hover
 				{
 					color: $front-heading;
+				}
+
+				// Neither squashed into the other in a narrow column
+				label
+				{
+					flex-shrink: 0;
+					white-space: nowrap;
 				}
 			}
 		}

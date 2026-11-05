@@ -178,15 +178,27 @@ internal partial class ShadowMapper
 			viewFrustumCorners[i] = new Vector3( corner.X, corner.Y, corner.Z ) / corner.W;
 		}
 
-
-		// Compute camera forward from frustum geometry (near plane center → far plane center)
+		// Camera forward from the near plane's normal. Near center to far center gives NaN when the far corners
+		// are the ones at infinity, and tilts off the axis when the projection is asymmetric.
 		Vector3 nearCenter = (viewFrustumCorners[0] + viewFrustumCorners[1] + viewFrustumCorners[2] + viewFrustumCorners[3]) * 0.25f;
-		Vector3 farCenter = (viewFrustumCorners[4] + viewFrustumCorners[5] + viewFrustumCorners[6] + viewFrustumCorners[7]) * 0.25f;
-		var fwd = farCenter - nearCenter;
-		Vector3 camForward = fwd / fwd.Length;
+		Vector3 camForward = Vector3.Cross( viewFrustumCorners[3] - viewFrustumCorners[0], viewFrustumCorners[1] - viewFrustumCorners[0] ).Normal;
+		if ( Vector3.Dot( camForward, nearCenter ) < 0 )
+			camForward = -camForward;
+
+		float cameraNearDepth = Vector3.Dot( camForward, nearCenter );
+
+		// Not every projection has a far plane to unproject: a stereo eye's is built from FOV tangents with
+		// nothing finite at clip depth 0, so its corners there come back with w = 0 and land at infinity. Only
+		// a perspective projection can do that, and its corners run on lines from the camera at the origin, so
+		// the near corners point the way out to the shadow range - which is as far as cascades go anyway.
+		if ( !float.IsFinite( viewFrustumCorners[4].LengthSquared ) )
+		{
+			for ( int i = 0; i < 4; i++ )
+				viewFrustumCorners[i + 4] = viewFrustumCorners[i] * (FarClip / cameraNearDepth);
+		}
 
 		// View-space depth of the camera's actual near/far clip planes
-		float cameraNearDepth = Vector3.Dot( camForward, nearCenter );
+		Vector3 farCenter = (viewFrustumCorners[4] + viewFrustumCorners[5] + viewFrustumCorners[6] + viewFrustumCorners[7]) * 0.25f;
 		float cameraFarDepth = Vector3.Dot( camForward, farCenter );
 		float cameraDepthRange = cameraFarDepth - cameraNearDepth;
 
@@ -334,8 +346,9 @@ internal partial class ShadowMapper
 		gpuShadowData.Color = new Vector4( light.Color, light.FogStrength );
 		gpuShadowData.Direction = new Vector4( light.Direction, 0 );
 
-		// 3D skybox is fully static with baked light, keep the directional light for shading but skip shadow cascades
-		if ( View.IsSkybox )
+		// 3D skybox is fully static with baked light, keep the directional light for shading but skip shadow cascades.
+		// Reflections without shadows skip them too, so they don't wait on this frame's cascades.
+		if ( View.IsSkybox || View.NoShadows )
 		{
 			gpuShadowData.CascadeCount = 0;
 			GPUDirectionalLightData = gpuShadowData;
@@ -345,7 +358,8 @@ internal partial class ShadowMapper
 		float viewportArea = View.ViewportSize.x * View.ViewportSize.y;
 		var cameraPosition = View.CameraPosition;
 
-		if ( LastCascades.Frame == Application.FrameCount && LastCascades.Light == light.Key && viewportArea <= LastCascades.ViewportArea
+		// A reflection's mirrored camera neither reuses another view's cascades nor shares its own
+		if ( !View.IsReflection && LastCascades.Frame == Application.FrameCount && LastCascades.Light == light.Key && viewportArea <= LastCascades.ViewportArea
 			&& LastCascades.ExcludedFlags == excludeFlags
 			&& cameraPosition.DistanceSquared( LastCascades.CameraPosition ) <= LastCascades.RadiusSquared )
 		{
@@ -377,8 +391,6 @@ internal partial class ShadowMapper
 			if ( rt.HasTexture )
 				DirectionalShadowMemorySize += (int)g_pRenderDevice.ComputeTextureMemorySize( rt.Texture.native );
 
-			// Render shadow view. After the first, skip what's inside the largest square inscribed in the
-			// previous cascade's bounding sphere - that cascade has it already.
 			var shadowView = new ShadowViewDesc
 			{
 				Name = CascadeNames[i],
@@ -394,9 +406,6 @@ internal partial class ShadowMapper
 				ExcludedFlags = excludeFlags,
 				DepthBias = ShadowDepthBias,
 				SlopeScaledDepthBias = ShadowSlopeScale,
-				HasExclusion = i > 0,
-				ExclusionCenter = i > 0 ? cascades[i - 1].SphereCenter : default,
-				ExclusionSize = i > 0 ? cascades[i - 1].SphereRadius / MathF.Sqrt( 2.0f ) : 0,
 			};
 
 			Matrix viewProjection = Renderer.RenderShadowView( shadowView );
@@ -443,11 +452,11 @@ internal partial class ShadowMapper
 		CascadeDebugCount = cascadeCount;
 		CascadeShadowMapCount = cascadeCount;
 
-		gpuShadowData.CascadeCount = (uint)numCascades;
+		gpuShadowData.CascadeCount = (uint)cascadeCount;
 		gpuShadowData.InverseShadowMapSize = 1.0f / shadowmapSize;
 
 		float outerRadius = cascadeCount > 0 ? cascades[cascadeCount - 1].SphereRadius : 0f;
-		LastCascades = new CascadeCache
+		if ( !View.IsReflection ) LastCascades = new CascadeCache
 		{
 			Frame = Application.FrameCount,
 			Light = light.Key,

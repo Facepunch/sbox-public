@@ -6,7 +6,7 @@ namespace Sandbox;
 public abstract partial class Connection
 {
 	// Owned and drained by the main thread. Workers never access the connection or transport.
-	readonly Queue<(Task<byte[][]> Packets, NetFlags Flags)> pendingSends = new();
+	readonly Queue<(Task<byte[][]> Packets, NetFlags Flags, bool PreparedSnapshot)> pendingSends = new();
 	bool sendsClosed;
 	CancellationTokenSource snapshotCancellation;
 	internal bool HasPendingSends => pendingSends.Count > 0;
@@ -17,7 +17,7 @@ public abstract partial class Connection
 		{
 			return;
 		}
-		if ( this is MockConnection )
+		if ( RoutesThroughHost && !HasPendingSends )
 		{
 			SendMessage( envelope( capture.Materialize() ), flags );
 			return;
@@ -33,28 +33,30 @@ public abstract partial class Connection
 			{
 				cancellation.ThrowIfCancellationRequested();
 				var packets = capture.Encode( serializer, envelope, flags );
-				if ( logAs is not null ) Diagnostics.DevTools.NetworkLog.Message( Diagnostics.DevTools.NetworkLog.Kind.Snapshot, "SceneSnapshot", packets.Sum( x => x.Length ), true, logAs );
+				if ( logAs is not null ) Diagnostics.DevTools.NetworkLog.Message( Diagnostics.DevTools.NetworkLog.Kind.Snapshot, "SceneSnapshot", packets[0].Length, true, logAs );
 				return packets;
 			}
 			finally
 			{
 				serializer.Dispose();
 			}
-		} ), flags );
+		} ), flags, preparedSnapshot: true );
 	}
 
-	internal void QueueSend( Task<byte[][]> packets, NetFlags flags )
+	internal void QueueSend( Task<byte[][]> packets, NetFlags flags, bool preparedSnapshot = false )
 	{
 		// Observe failures even when the connection closes before the job completes.
 		_ = packets.ContinueWith( t => { _ = t.Exception; }, TaskContinuationOptions.OnlyOnFaulted );
 		if ( !sendsClosed )
 		{
-			pendingSends.Enqueue( (packets, flags) );
+			pendingSends.Enqueue( (packets, flags, preparedSnapshot) );
 		}
 	}
 
 	internal void FlushPendingSends()
 	{
+		CheckDirectRouteBarrier();
+
 		while ( pendingSends.TryPeek( out var pending ) && pending.Packets.IsCompleted )
 		{
 			pendingSends.Dequeue();
@@ -64,11 +66,39 @@ public abstract partial class Connection
 				Close( 0, "Snapshot encoding failed" );
 				return;
 			}
-			foreach ( var data in pending.Packets.Result )
+			var prepared = pending.Packets.Result;
+			if ( pending.PreparedSnapshot )
 			{
-				var packet = NetPacket.Wrap( data );
-				InternalSend( packet, pending.Flags );
-				packet.Release();
+				if ( RoutesThroughHost )
+				{
+					System?.SendMulticast( [Id], Decode( prepared[0] ), pending.Flags );
+					continue;
+				}
+
+				// The worker kept the complete message at index zero and prepared its chunks afterwards.
+				for ( var i = prepared.Length > 1 ? 1 : 0; i < prepared.Length; i++ )
+				{
+					var packet = NetPacket.Wrap( prepared[i] );
+					InternalSend( packet, pending.Flags );
+					packet.Release();
+				}
+				continue;
+			}
+
+			foreach ( var data in prepared )
+			{
+				if ( RoutesThroughHost )
+				{
+					System?.SendMulticast( [Id], Decode( data ), pending.Flags );
+					continue;
+				}
+
+				foreach ( var chunk in CreatePackets( data, pending.Flags ) )
+				{
+					var packet = NetPacket.Wrap( chunk );
+					InternalSend( packet, pending.Flags );
+					packet.Release();
+				}
 			}
 		}
 	}

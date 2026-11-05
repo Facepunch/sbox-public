@@ -24,6 +24,22 @@ public class Skybox3D : Component, Component.ExecuteInEditor
 		}
 	}
 
+	/// <summary>
+	/// Optional settings for skybox fog, authored in main-world units.
+	/// The referenced Fog can be disabled to keep it from affecting the main world.
+	/// </summary>
+	[Property, Advanced]
+	public Fog FogOverride
+	{
+		get;
+		set
+		{
+			field = value;
+			if ( sceneSkybox is not null )
+				sceneSkybox.FogOverride = value;
+		}
+	}
+
 	Scene skyboxScene;
 	SceneSkybox3D sceneSkybox;
 
@@ -77,6 +93,7 @@ public class Skybox3D : Component, Component.ExecuteInEditor
 			}
 
 			sceneSkybox = new SceneSkybox3D( Scene.SceneWorld, skyboxScene.SceneWorld );
+			sceneSkybox.FogOverride = FogOverride;
 			UpdateTransform();
 		}
 		finally

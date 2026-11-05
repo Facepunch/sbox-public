@@ -205,7 +205,6 @@ public static class SceneUtility
 				sharpen.Scale = 0.2f;
 
 				go.AddComponent<AmbientOcclusion>( true );
-				go.AddComponent<ScreenSpaceReflections>( true ); // I don't think this'll work?
 				go.AddComponent<Bloom>( true );
 
 			}

@@ -39,8 +39,6 @@ internal sealed partial class SourceMaterialBuilder
 		// Either flag enables the entire RGBA vertex modulation in this shader family.
 		material.Set( "g_flSourceVertexColor", parameters.Boolean( "$vertexcolor" ) || parameters.Boolean( "$vertexalpha" ) );
 		material.Set( "g_flSourceTextureAlphaPresent", color == null || color.HasAlpha );
-		material.Set( "g_bFogEnabled", !parameters.Boolean( "$nofog" ) );
-		material.Set( "g_flSourceFogEnabled", !parameters.Boolean( "$nofog" ) );
 		transforms.Get( "$basetexturetransform" ).Bind( material, "Base" );
 
 		if ( cloakEnabled )

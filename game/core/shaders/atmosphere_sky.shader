@@ -47,6 +47,13 @@ COMMON
 		);
 	}
 
+	// Underground samples get huge densities, cap the exponent so a step can't overflow to inf
+	// (inf * zero transmittance is NaN). Transmittance is already zero long before the cap.
+	float AtmosDensity( float height, float scaleHeight )
+	{
+		return exp( min( -height / scaleHeight, 60.0f ) );
+	}
+
 	float3 atmosphere( float3 viewDir, float3 rayOrigin, float3 sunDirection, float sunIntensity, float planetRadius, float atmosphereRadius, float3 rayleighCoefficients, float mieCoefficient, float rayleighScaleHeight, float mieScaleHeight, float miePreferredScatteringDirection )
 	{
 		sunDirection = normalize( sunDirection );
@@ -83,8 +90,8 @@ COMMON
 			float3 samplePosition = rayOrigin + viewDir * ( primaryTime + primaryStepSize * 0.5f );
 			float sampleHeight = length( samplePosition ) - planetRadius;
 
-			float rayleighStep = exp( -sampleHeight / rayleighScaleHeight ) * primaryStepSize;
-			float mieStep = exp( -sampleHeight / mieScaleHeight ) * primaryStepSize;
+			float rayleighStep = AtmosDensity( sampleHeight, rayleighScaleHeight ) * primaryStepSize;
+			float mieStep = AtmosDensity( sampleHeight, mieScaleHeight ) * primaryStepSize;
 
 			rayleighOpticalDepth += rayleighStep;
 			mieOpticalDepth += mieStep;
@@ -100,8 +107,8 @@ COMMON
 				float3 secondaryPosition = samplePosition + sunDirection * ( secondaryTime + secondaryStepSize * 0.5f );
 				float secondaryHeight = length( secondaryPosition ) - planetRadius;
 
-				secondaryRayleighOpticalDepth += exp( -secondaryHeight / rayleighScaleHeight ) * secondaryStepSize;
-				secondaryMieOpticalDepth += exp( -secondaryHeight / mieScaleHeight ) * secondaryStepSize;
+				secondaryRayleighOpticalDepth += AtmosDensity( secondaryHeight, rayleighScaleHeight ) * secondaryStepSize;
+				secondaryMieOpticalDepth += AtmosDensity( secondaryHeight, mieScaleHeight ) * secondaryStepSize;
 
 				secondaryTime += secondaryStepSize;
 			}

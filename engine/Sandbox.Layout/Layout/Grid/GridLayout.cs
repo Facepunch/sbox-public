@@ -200,9 +200,7 @@ internal static partial class GridLayout
 				child.ProcessDimensions();
 				if ( child.Style.Display == Display.None )
 				{
-					LayoutAlgorithm.ZeroOutLayoutRecursively( child );
-					child.HasNewLayout = true;
-					child.SetDirty( false );
+					LayoutAlgorithm.LayoutHiddenChild( child );
 				}
 			}
 

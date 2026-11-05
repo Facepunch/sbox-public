@@ -59,6 +59,9 @@ internal static class CubemapRendering
 			camera.ExcludeTags.SetFrom( excludeTags );
 		}
 
+		// Hide In Game meshes are still visible in the editor, keep them out of bakes
+		camera.ExcludeTags.Add( MeshComponent.HideInGameTag );
+
 		// We need to filter with GGX after rendering is done so that roughness levels sample correctly.
 		// SceneCameras don't abstract Command Lists directly, so we hook into the render stage for same behavior.
 		//

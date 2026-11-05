@@ -34,22 +34,38 @@ internal static class SharedPasses
 	/// downsampled into the rest. <paramref name="sourceDepth"/> is the depth to read, or null for what the native layer
 	/// binds as <c>SourceDepth</c>.
 	/// </summary>
-	public static void BuildDepthChain( IRenderContext context, Texture sourceDepth, Texture destDepth, bool msaaInput, int width, int height, DepthResolveMode resolve = DepthResolveMode.Sample0 )
+	public static void BuildDepthChain( IRenderContext context, Texture sourceDepth, Texture destDepth, bool msaaInput, int width, int height, DepthResolveMode resolve = DepthResolveMode.Sample0, bool fuseResolve = true )
 	{
+		// The first six mips come from the depth itself in one dispatch, no pass resolving it first. Not on the async compute
+		// queue, where the one heavy dispatch left graphics slower than the resolve and downsample as two lighter ones
+		if ( resolve == DepthResolveMode.Sample0 && Math.Min( width, height ) >= 2 && destDepth.Mips > 1 && fuseResolve )
+		{
+			Graphics.DownsampleSpd( context, destDepth, Graphics.DownsampleMethod.MinMax, fuseDepth: true, depth: sourceDepth, multisampled: msaaInput );
+			return;
+		}
+
 		var attributes = RenderAttributes.Pool.Get();
 		if ( sourceDepth is not null ) attributes.Set( "SourceDepth", sourceDepth );
 		attributes.Set( "DestDepth", destDepth );
 		attributes.SetCombo( "D_MSAA", msaaInput );
 		attributes.SetCombo( "D_CONSERVATIVE_QUARTER", resolve == DepthResolveMode.ConservativeQuarter );
 
-		if ( resolve == DepthResolveMode.ConservativeQuarter ) attributes.Set( "DepthResolveSourceSize", new Vector2( width, height ) );
-
-		RenderTools.Compute( context, attributes.Get(), DepthResolveCompute.ComputeMaterial.native.GetMode(), width, height, 1 );
+		if ( resolve == DepthResolveMode.ConservativeQuarter )
+		{
+			attributes.Set( "DepthResolveSourceSize", new Vector2( width, height ) );
+			RenderTools.Compute( context, attributes.Get(), DepthResolveCompute.ComputeMaterial.native.GetMode(), width, height, 1 );
+		}
+		else
+		{
+			// Four texels a thread
+			RenderTools.Compute( context, attributes.Get(), DepthResolveCompute.ComputeMaterial.native.GetMode(), (width + 1) / 2, (height + 1) / 2, 1 );
+		}
 
 		RenderAttributes.Pool.Return( attributes );
+		Graphics.ComputeUavBarrier( context, destDepth );
 
-		// Downsample using min max
-		CSceneSystem.DownsampleTexture( context, destDepth.native, 5 ); /* DOWNSAMPLE_METHOD_MINMAX ( None of it is enumed properly? ) */
+		// Min/max into the rest of the mips
+		Graphics.DownsampleSpd( context, destDepth, Graphics.DownsampleMethod.MinMax );
 	}
 
 	/// <summary>

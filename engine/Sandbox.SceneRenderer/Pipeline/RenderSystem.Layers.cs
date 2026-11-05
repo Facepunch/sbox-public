@@ -39,6 +39,7 @@ public sealed partial class RenderSystem
 			new EarlyStageLayer( Stage.AfterDepthPrepass, PostProcessQueue.AsyncCompute ),
 			contactShadows,
 			new EarlyStageLayer( Stage.AfterDepthPrepass, PostProcessQueue.Graphics ),
+			new ScreenSpaceReflectionsLayer(),
 			new ShadowLayer(),
 			new ShadowsReadyLayer(),
 
@@ -57,6 +58,7 @@ public sealed partial class RenderSystem
 			// Tools-only materials.
 			new ToolsUtilLayer( translucent: false ),
 			new StaticOverlayLayer(),
+			new ScreenSpaceReflectionsHistoryLayer(),
 			new StageLayer( Stage.AfterOpaque ),
 
 			new Skybox3DLayer(),

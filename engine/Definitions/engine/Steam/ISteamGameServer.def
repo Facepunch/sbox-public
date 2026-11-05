@@ -16,7 +16,19 @@ native class ISteamGameServer
 	void SetProduct( string productName );
 	void SetModDir( string modDir );
 	bool BLoggedOn();
-	
+
+	inline string GetPublicIP()
+	{
+		CUtlString result;
+		SteamIPAddress_t ip = self->GetPublicIP();
+		if ( ip.m_eType != k_ESteamIPTypeIPv4 || ip.m_unIPv4 == 0 )
+			return result;
+
+		uint32 v = ip.m_unIPv4;
+		result += CFmtStr( "%u.%u.%u.%u", ( v >> 24 ) & 0xFF, ( v >> 16 ) & 0xFF, ( v >> 8 ) & 0xFF, v & 0xFF ).Get();
+		return result;
+	}
+
 	inline HAuthTicket GetAuthSessionTicket( ulong targetSteamId, void* buffer, out uint ticketLength )
 	{
 	    SteamNetworkingIdentity ident;

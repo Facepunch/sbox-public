@@ -231,10 +231,10 @@ public partial class MoveModeLadder : MoveMode
 		var right = ClimbingRotation.Right.Dot( velocity );
 		var up = ClimbingRotation.Up.Dot( velocity );
 
-		renderer.Set( "move_x", forward );
-		renderer.Set( "move_y", right );
-		renderer.Set( "move_z", up );
-		renderer.Set( "move_groundspeed", new Vector2( forward, right ).Length );
+		SetAnimatorParameter( renderer, "move_x", forward );
+		SetAnimatorParameter( renderer, "move_y", right );
+		SetAnimatorParameter( renderer, "move_z", up );
+		SetAnimatorParameter( renderer, "move_groundspeed", new Vector2( forward, right ).Length );
 	}
 
 	protected override void OnRotateRenderBody( SkinnedModelRenderer renderer )

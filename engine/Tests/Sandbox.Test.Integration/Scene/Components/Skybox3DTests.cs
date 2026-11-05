@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using Sandbox.Diagnostics;
 using Sandbox.Internal;
+using Sandbox.Rendering;
 
 namespace SceneTests.Components;
 
@@ -135,6 +136,41 @@ public class Skybox3DTests
 		Assert.AreEqual( 1, AwakeProbe.Count );
 		Assert.AreEqual( 1, AwakeProbe.EnabledCount );
 		AssertMeshLoaded( skybox );
+
+		using var scope = parent.Push();
+		var camera = parent.CreateObject().Components.Create<CameraComponent>();
+		camera.SceneCamera.World = parent.SceneWorld;
+		var fog = parent.CreateObject().Components.Create<Fog>( false );
+		fog.ColorSource = FogColorSource.Constant;
+		fog.Color = Color.Red;
+		fog.DistanceRange = new Vector2( -160, 1600 );
+		fog.Mode = FogMode.Distance;
+		skybox.FogOverride = fog;
+		var settings = parent.SceneWorld.GetRenderingSkybox().ResolveFog( camera.SceneCamera ).Value;
+		Assert.AreEqual( fog.GetSettings( camera ), settings, "Disabled fog components still supply independent skybox settings" );
+		Assert.AreEqual( -160f, settings.StartDistance );
+		Assert.AreEqual( 1600f, settings.EndDistance );
+		camera.SceneCamera.Fog = new FogSetup { Color = Color.Green };
+		Assert.AreEqual( Color.Green, camera.SceneCamera.ResolveFog( default ).Value.Color );
+		Assert.AreEqual( settings, camera.SceneCamera.ResolveFogForSkybox( default ).Value );
+		Assert.AreEqual( Color.Yellow, camera.SceneCamera.ResolveFogForSkybox( new ViewSetup { Fog = new FogSetup { Color = Color.Yellow } } ).Value.Color );
+		Assert.IsNull( camera.SceneCamera.ResolveFogForSkybox( new ViewSetup { GradientFog = new GradientFogSetup { Enabled = false } } ) );
+		camera.SceneCamera.EnablePostProcessing = false;
+		Assert.IsNull( camera.SceneCamera.ResolveFogForSkybox( default ) );
+		camera.SceneCamera.EnablePostProcessing = true;
+
+		fog.Color = Color.Blue;
+		Assert.AreEqual( Color.Blue, parent.SceneWorld.GetRenderingSkybox().ResolveFog( camera.SceneCamera ).Value.Color );
+		skybox.FogOverride = null;
+		Assert.IsNull( parent.SceneWorld.GetRenderingSkybox().ResolveFog( camera.SceneCamera ) );
+		Assert.AreEqual( camera.SceneCamera.Fog, camera.SceneCamera.ResolveFogForSkybox( default ) );
+
+		skybox.FogOverride = fog;
+		skybox.Enabled = false;
+		skybox.Enabled = true;
+		Assert.AreEqual( fog.GetSettings( camera ), parent.SceneWorld.GetRenderingSkybox().ResolveFog( camera.SceneCamera ).Value );
+		fog.GameObject.DestroyImmediate();
+		Assert.IsNull( parent.SceneWorld.GetRenderingSkybox().ResolveFog( camera.SceneCamera ), "Destroyed overrides restore inherited fog" );
 	}
 
 	[TestMethod]

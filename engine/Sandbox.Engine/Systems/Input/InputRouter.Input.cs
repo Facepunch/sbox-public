@@ -64,6 +64,8 @@ internal static partial class InputRouter
 
 			foreach ( var context in Contexts )
 			{
+				// The release of anything held during a capture won't reach us, so it could never finish
+				context.CancelTrapping();
 				context.ReleaseAllButtons();
 			}
 		}
@@ -137,6 +139,16 @@ internal static partial class InputRouter
 		{
 			EscapeWasPressed = true;
 			TimeSinceEscapePressed = 0;
+
+			// Escape backs out of a button capture on whichever context is taking the keyboard - never one under
+			// the pause menu or an overlay. The menu's own rebinding keeps the press, but a game's capture lets it
+			// carry on like any other escape, so it still opens the pause menu and can be held to leave.
+			var keyboard = Contexts.FirstOrDefault( x => x.KeyboardState != InputContext.InputState.Ignore );
+			if ( keyboard is not null && keyboard.CancelTrapping() && keyboard == IMenuDll.Current?.InputContext )
+			{
+				EscapeWasPressed = false;
+				return;
+			}
 
 			// Any focused UI? Let that swallow the escape button. This is for things like escaping from text areas
 			var escapeTarget = Contexts.FirstOrDefault( x => x.KeyboardState != InputContext.InputState.Ignore && x.KeyboardFocusPanel is not null );
@@ -366,6 +378,9 @@ internal static partial class InputRouter
 
 		if ( mouse is not null )
 		{
+			// The tick's release ends a capture, so ask now - a tick that went to the capture doesn't scroll anything
+			var trapping = mouse.IsTrapping;
+
 			if ( y < 0 )
 			{
 				mouse.IN_Button( true, ButtonCode.MouseWheelDown, ButtonCode.MouseWheelDown, false, default );
@@ -377,7 +392,8 @@ internal static partial class InputRouter
 				mouse.IN_Button( false, ButtonCode.MouseWheelUp, ButtonCode.MouseWheelUp, false, default );
 			}
 
-			mouse.IN_MouseWheel( value, modifiers );
+			if ( !trapping )
+				mouse.IN_MouseWheel( value, modifiers );
 		}
 	}
 

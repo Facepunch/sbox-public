@@ -2,6 +2,8 @@ namespace Sandbox;
 
 public partial class BaseCombatWeapon
 {
+	private bool _attackAnimationPending;
+
 	//
 	// Shot presentation, modelled on GMod's ShootEffects / DoImpactEffect. ShootEffects plays the
 	// muzzle/fire presentation and relays it across the network; ImpactEffect is a static utility that
@@ -109,12 +111,19 @@ public partial class BaseCombatWeapon
 		// pellet flies its own, so a shotgun blast is a fan of them.
 		Vector3? hitPoint = shot.Hit || shot.HitPosition != default ? shot.HitPosition : null;
 		if ( hitPoint.HasValue )
+		{
+			WaterBody.CreateBulletSplash( Scene, GetShotOrigin( shot ), hitPoint.Value );
 			WeaponModel?.DoTracerEffect( hitPoint.Value, shot.Origin );
+		}
 
 		if ( shot.NoEvents ) return;
 
 		PlayAttackSound();
-		HolderRenderer?.Set( "b_attack", true );
+		_attackAnimationPending = true;
+#pragma warning disable CS0618
+		if ( HolderRenderer is { Animation.Graph: null } renderer )
+			renderer.Set( "b_attack", true );
+#pragma warning restore CS0618
 		WeaponModel?.OnAttack( hitPoint, shot.Origin );
 	}
 
@@ -132,14 +141,15 @@ public partial class BaseCombatWeapon
 	/// Worked out on each peer rather than sent with the shot.
 	/// </summary>
 	protected Vector3 GetShotDirection( in ShotEffect shot )
+		=> (shot.HitPosition - GetShotOrigin( shot )).Normal;
+
+	Vector3 GetShotOrigin( in ShotEffect shot )
 	{
 		var owner = Owner;
-		var from = shot.Origin
+		return shot.Origin
 			?? (!IsProxy ? AimRay.Position
 			: owner.IsValid() ? owner.EyeTransform.Position
 			: GetMuzzleTransform().Position);
-
-		return (shot.HitPosition - from).Normal;
 	}
 
 	/// <summary>

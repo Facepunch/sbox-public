@@ -91,6 +91,9 @@ public static class LibrarySystem
 		await PackageManager.InstallAsync( new PackageLoadOptions( project.Project.Package.FullIdent, "local", token ) );
 		await PackageManager.InstallAsync( new PackageLoadOptions( project.Project.Package.FullIdent, "gamemenu", token ) );
 
+		// open game/addon compilers were made before this library existed
+		Project.UpdateLibraryReferences();
+
 		// update the sln with the new projects
 		await Project.GenerateSolution();
 

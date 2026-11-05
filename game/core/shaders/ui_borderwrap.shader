@@ -44,7 +44,6 @@ PS
 	// Filter
 	//
 	float4 FilterBorderWrapColor< UiType( Color ); Default4( 1.0f, 1.0f, 1.0f, 1.0f ); Attribute( "FilterBorderWrapColor" ); >;
-	float2 FilterBorderWrapColorScale < UiType( Slider ); Default2( 1.0f, 1.0f ); Attribute( "FilterBorderWrapColorScale" ); >;
 	float FilterBorderWrapWidth< UiType( Slider ); Default( 0.0f ); Attribute( "FilterBorderWrapWidth" ); >;
 
 	// Always write rgba
@@ -66,8 +65,7 @@ PS
 
 	float GetBorder( float2 uv )
 	{
-		float2 pixelSize = 1.0 / BoxSize;
-		pixelSize *= FilterBorderWrapWidth;
+		float2 pixelSize = g_vInvTextureDim.xy * FilterBorderWrapWidth;
 
 		float Pi = M_PI * 2;
 		float Directions = 32.0; // works well with larger border sizes
@@ -92,23 +90,8 @@ PS
 
 		UI_CommonProcessing_Pre( i );
 
-		//
-		// Calculate texcoords
-		// 
-		float2 texCoord = i.vTexCoord.xy;
-		
-		// Scale down UVs based on the blur
-		if ( FilterBorderWrapWidth > 0 )
-		{
-			float2 scale = FilterBorderWrapColorScale;
-
-			// Center texcoords
-			texCoord = texCoord - ( 1.0f - scale ) * 0.5f;
-			texCoord = texCoord / scale;
-		}
-
-		// Sample
-		float edge = GetBorder( texCoord );
+		// The layer is padded by at least the border width, so the quad and the layer line up one to one
+		float edge = GetBorder( i.vTexCoord.xy );
 
 		// For smooth edges, we want to blend nothing with the border color
 		float4 colorTransparent = FilterBorderWrapColor;

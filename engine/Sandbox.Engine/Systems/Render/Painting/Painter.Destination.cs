@@ -1,4 +1,5 @@
 using Sandbox.Rendering;
+using System.Runtime.CompilerServices;
 
 namespace Sandbox;
 
@@ -126,31 +127,43 @@ public readonly ref partial struct Painter
 		}
 	}
 
-	internal TargetScope Target( string name, Rect bounds ) => new( this, name, bounds );
+	internal TargetScope Target( string name, Rect bounds, int numMips, ref (int Hash, ulong Frame) cache ) => new( this, name, bounds, numMips, ref cache );
+	internal TargetScope Target( string name, Rect bounds, int numMips = 1 ) => new( this, name, bounds, numMips, ref Unsafe.NullRef<(int Hash, ulong Frame)>() );
 
 	internal ref struct TargetScope
 	{
 		Context _context;
 		readonly long _recording;
 		readonly int _index;
+		readonly RenderTargetHandle _target;
+		readonly int _numMips;
+		readonly int _checkpoint;
+		readonly int _start, _volatile;
+		readonly ref (int Hash, ulong Frame) _cache;
 
-		internal TargetScope( Painter painter, string name, Rect bounds )
+		internal TargetScope( Painter painter, string name, Rect bounds, int numMips, ref (int Hash, ulong Frame) cache )
 		{
 			_context = painter.GetActiveContext();
 			_recording = _context.Recording;
+			_numMips = numMips;
+			_cache = ref cache;
 			var output = _context.Batcher;
 			output.Flush();
+			// The bounds and mip count ride along in the content hash: either changing means a different pooled texture
+			_start = output.ContentSum - HashCode.Combine( bounds, numMips );
+			_volatile = output.Volatile;
 			_index = output.PushTarget();
 			var commands = output.CommandList;
-			int checkpoint = commands.GetCheckpoint();
+			_target = commands.GetRenderTarget( name, (int)bounds.Width, (int)bounds.Height, ImageFormat.RGBA8888, ImageFormat.None, numMips: numMips );
+			_checkpoint = commands.GetCheckpoint();
 			try
 			{
 				commands.PushRenderTarget();
-				var handle = commands.GetRenderTarget( name, (int)bounds.Width, (int)bounds.Height, ImageFormat.RGBA8888, ImageFormat.None );
-				commands.SetRenderTarget( handle );
+				commands.SetRenderTarget( _target );
 				commands.Clear( Color.Transparent );
 				output.Destination.MapScreenPixels = false;
 				output.Destination.Layered = true;
+				output.Destination.ForgetSpatial();
 				// Draws inside keep their screen transforms and clips. This cancels the layer's own share,
 				// which the composite applies again, and moves the layer's bounds onto the target.
 				output.Destination.LayerMatrix = output.Destination.Transform.Inverted * Matrix.CreateTranslation( bounds.Position * -1.0f );
@@ -160,7 +173,7 @@ public readonly ref partial struct Painter
 			catch
 			{
 				output.PopTarget( _index );
-				commands.Rewind( checkpoint );
+				commands.Rewind( _checkpoint );
 				throw;
 			}
 		}
@@ -178,13 +191,26 @@ public readonly ref partial struct Painter
 			var output = context.Batcher;
 			try
 			{
-				output.Flush();
+				try
+				{
+					output.Flush();
+					if ( _numMips > 1 )
+						output.CommandList.GenerateMipMaps( _target, Graphics.DownsampleMethod.GaussianBorder );
+				}
+				finally
+				{
+					output.CommandList.PopRenderTarget();
+				}
+				if ( Unsafe.IsNullRef( ref _cache ) ) return;
+				// Same content as last frame: drop the draws, the pooled texture still holds them. A skipped frame may have recycled it
+				var hash = output.ContentSum - _start;
+				if ( _cache == (hash, Application.FrameCount - 1) && output.Volatile == _volatile ) output.CommandList.Rewind( _checkpoint );
+				_cache = output.Volatile == _volatile ? (hash, Application.FrameCount) : default; // A volatile layer can't vouch for next frame
 			}
 			finally
 			{
 				output.PopTarget( _index );
 				_context = null;
-				output.CommandList.PopRenderTarget();
 				output.ApplyDestinationAttributes();
 			}
 		}
@@ -195,14 +221,15 @@ public readonly ref partial struct Painter
 		var output = Output;
 		output.Flush();
 		output.ApplyDestinationAttributes( objectSpace );
+		output.Volatile++;
 		return output.CommandList;
 	}
 
 	internal void ApplyDestinationAttributes( bool objectSpace = false ) => Output.ApplyDestinationAttributes( objectSpace );
 
-	internal void FilterBackdrop( Rect rect, Filter filter, BorderRadii radii )
+	internal void FilterBackdrop( Rect rect, Filter filter, BorderRadii radii, in UICssBoxBatched.BorderShape shape = default )
 	{
-		var data = new BackdropData( rect, filter, radii, InheritedOpacity );
+		var data = new BackdropData( rect, filter, radii, InheritedOpacity, shape );
 		Output.AddBackdrop( data, InheritedBlendMode );
 	}
 }

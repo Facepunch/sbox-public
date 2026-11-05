@@ -417,6 +417,9 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		Analytics.GameClosed();
 		using var scope = GlobalContext.GameScope();
 
+		// A capture the game left armed - the pause menu took escape, or we got dropped
+		InputContext?.ResetTrapping();
+
 		if ( gameInstance is not null )
 		{
 			ConVarSystem.SaveAll();
@@ -555,6 +558,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 	public void ClosePopups( object panelClickedOn )
 	{
+		using var scope = GlobalContext.GameScope();
 		BasePopup.CloseAll( panelClickedOn as Panel );
 	}
 
@@ -655,18 +659,27 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		}
 		catch ( System.Exception e )
 		{
-			launch.End( e is OperationCanceledException ? "cancel" : "fail", e is OperationCanceledException ? null : e.Message );
+			var cancelled = e is OperationCanceledException;
+			string message = null;
+
+			if ( !cancelled )
+			{
+				try { message = e.Message; }
+				catch { message = e.GetType().FullName; }
+			}
+
+			launch.End( cancelled ? "cancel" : "fail", message );
 
 			ResetEnvironment();
 
-			if ( e is not OperationCanceledException )
+			if ( !cancelled )
 			{
 				using ( IMenuDll.Current?.PushScope() )
 				{
-					IModalSystem.Current?.Notice( "Loading Error", $"An error occurred when loading this game.\n\n{e.Message}", "error" );
+					IModalSystem.Current?.Notice( "Loading Error", $"An error occurred when loading this game.\n\n{message}", "error" );
 				}
 
-				Log.Warning( e, e.Message );
+				Log.Warning( e, message );
 
 				if ( Application.IsEditor )
 				{

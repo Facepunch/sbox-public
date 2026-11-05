@@ -20,6 +20,10 @@ public class SoundResourceCompiler : ResourceCompiler
 {
 	protected override Task<bool> Compile()
 	{
+		// Reads no compiled outputs, so there is nothing to describe, and nothing to encode for a description
+		if ( Context.Describing )
+			return Task.FromResult( true );
+
 		var visemes = Context.ReadMeta<List<VisemeFrame>>( "visemes" );
 		if ( visemes is not null && visemes.Count > 0 )
 		{

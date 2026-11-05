@@ -22,6 +22,18 @@ internal readonly struct VmtParameters( IReadOnlyDictionary<string, string> valu
 	public string String( string key, string fallback = null ) => values.TryGetValue( key, out var value ) ? value : fallback;
 	public bool Contains( string key ) => values.ContainsKey( key );
 
+	internal float[] Components( string key )
+	{
+		if ( !values.TryGetValue( key, out var text ) ) return [];
+		Span<float> components = stackalloc float[4];
+		var count = ReadComponents( text, key, components, out var byteColor );
+		if ( count is < 1 or > 4 ) throw Invalid( key, "expected one to four components" );
+		var result = components[..count].ToArray();
+		if ( byteColor )
+			for ( var i = 0; i < result.Length; i++ ) result[i] /= 255;
+		return result;
+	}
+
 	public float Float( string key, float fallback = 0 )
 	{
 		if ( !values.TryGetValue( key, out var value ) ) return fallback;

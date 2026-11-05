@@ -98,6 +98,8 @@ public partial class PlayerControllerTest
 		using var scope = scene.Push();
 		var body = CreateOverlappingHullPlayerSupport( scene, seesaw, pitch, yaw, 64, rise );
 		var pc = CreatePlayer( scene, body.PhysicsBody.Transform.PointToWorld( new Vector3( -180, 0, 8 ) ) + Vector3.Up * 8 );
+		// Keep the original player footprint for this dynamic-support fixture.
+		pc.BodyRadius = 16;
 		var decisions = ObserveStepDecisions( pc );
 		TickUntilGrounded( scene, pc );
 		Assert.IsTrue( pc.IsOnGround );
@@ -115,7 +117,7 @@ public partial class PlayerControllerTest
 		{
 			var position = body.PhysicsBody.Transform.PointToLocal( pc.Body.PhysicsBody.Position );
 			var normal = body.PhysicsBody.Rotation.Up;
-			var feetSupport = 8 * (MathF.Abs( normal.x ) + MathF.Abs( normal.y ));
+			var feetSupport = pc.FeetCollider.Scale.x * 0.5f * (MathF.Abs( normal.x ) + MathF.Abs( normal.y ));
 			return position.z - (8 + rise + feetSupport);
 		}
 
@@ -416,7 +418,7 @@ public partial class PlayerControllerTest
 			loadLocking.Roll = true;
 			passive.Locking = loadLocking;
 			var collider = load.Components.Create<BoxCollider>();
-			collider.Scale = new Vector3( 16, 16, 72 );
+			collider.Scale = new Vector3( 32, 32, 72 );
 			collider.Center = Vector3.Up * 36;
 			collider.Friction = 101;
 		}
@@ -493,6 +495,7 @@ public partial class PlayerControllerTest
 		Assert.AreEqual( body.GameObject, hit.GameObject );
 		var pc = CreatePlayer( scene, hit.EndPosition + Vector3.Up );
 		pc.BodyHeight = 64;
+		pc.BodyRadius = 16;
 		for ( int i = 0; i < 30; ++i )
 			scene.GameTick( 1.0 / 50 );
 		Assert.IsTrue( pc.IsOnGround );
@@ -531,6 +534,8 @@ public partial class PlayerControllerTest
 		var pc = CreatePlayer( scene, hit.EndPosition + Vector3.Up );
 		pc.BodyHeight = 64;
 		var decisions = ObserveStepDecisions( pc );
+		// Match the player footprint in the reproduced scene, not the Source-sized helper.
+		pc.BodyRadius = 16;
 		for ( int i = 0; i < 60; ++i )
 			scene.GameTick( 1.0 / 50 );
 		for ( int crossing = 0; crossing < 3; ++crossing )

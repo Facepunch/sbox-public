@@ -35,7 +35,7 @@ internal partial class NetworkSystem
 		foreach ( var c in recipients )
 		{
 			// Peers we reach through the host get one message between them, see below
-			if ( c is MockConnection )
+			if ( c.RelayFor( flags ) && (!c.HasPendingSends || (flags & NetFlags.Reliable) == 0) )
 			{
 				_relayed.Add( c );
 				continue;

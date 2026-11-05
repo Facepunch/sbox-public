@@ -22,6 +22,11 @@ internal sealed class Skybox3DPipeline
 		var color = setup.m_hColor;
 		var depth = setup.m_hDepth;
 
+		if ( setup.m_pAttributes.GetBoolValue( "cubeCapture", false ) )
+		{
+			view.SetDefaultLayerObjectExcludedFlags( view.GetDefaultLayerObjectExcludedFlags() | StandardPipeline.CaptureExcludedObjects );
+		}
+
 		ViewSetup.SetSkybox3D( setup );
 		view.GetRenderAttributesPtr().SetBoolValue( "IsSkybox", true );
 
@@ -48,6 +53,7 @@ internal sealed class Skybox3DPipeline
 
 		var translucent = NativeLayers.Add( view, "3DSkybox Translucent Forward", viewport, ForwardMode, color, depth, RenderColorSpace.RENDER_SRGB,
 			LayerFlags.NeedsFullSort | LayerFlags.NeedsPerViewLightingConstants | LayerFlags.CountArtistTriangles );
+		translucent.LayerEnum = SceneLayerType.Translucent;
 		translucent.AddObjectFlagsRequiredMask( SceneObjectFlags.IsTranslucent );
 		var attributes = translucent.GetRenderAttributesPtr();
 		attributes.SetComboValue( "D_SKYBOX", 1 );

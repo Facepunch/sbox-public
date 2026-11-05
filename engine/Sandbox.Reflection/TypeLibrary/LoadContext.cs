@@ -16,6 +16,11 @@ class IsolatedAssemblyContext : AssemblyLoadContext
 	{
 	}
 
+	/// <summary>
+	/// True for types from package code (games, libraries, the menu addon), false for the engine and .NET
+	/// </summary>
+	internal static bool IsPackageType( Type type ) => type is not null && GetLoadContext( type.Assembly ) is IsolatedAssemblyContext;
+
 	protected override Assembly Load( AssemblyName assemblyName )
 	{
 

@@ -37,6 +37,11 @@ internal static partial class Workshop
 		public int AdditionalPreviews { get; init; }
 
 		/// <summary>
+		/// The images and videos on its page besides its preview image, in the order they're shown there
+		/// </summary>
+		public IReadOnlyList<Preview> Previews { get; init; } = Array.Empty<Preview>();
+
+		/// <summary>
 		/// Does its page have any images - its preview, or others added to it
 		/// </summary>
 		public bool HasImages => !string.IsNullOrEmpty( Thumb ) || AdditionalPreviews > 0;
@@ -97,6 +102,32 @@ internal static partial class Workshop
 	}
 
 	/// <summary>
+	/// What a preview on an item's page is - Steam's EItemPreviewType
+	/// </summary>
+	internal enum PreviewType
+	{
+		Image = 0,
+		YouTubeVideo = 1,
+		Sketchfab = 2,
+		EnvironmentMapHorizontalCross = 3,
+		EnvironmentMapLatLong = 4,
+		Clip = 5,
+	}
+
+	/// <summary>
+	/// One of the images or videos on an item's page
+	/// </summary>
+	internal sealed class Preview
+	{
+		/// <summary>
+		/// The image's url - or for a YouTube video, its id
+		/// </summary>
+		public string Url { get; init; }
+
+		public PreviewType Type { get; init; }
+	}
+
+	/// <summary>
 	/// Where an item's at on this machine, when <see cref="GetState(ulong)"/> asked
 	/// </summary>
 	/// <param name="IsSubscribed">The user's subscribed to it - so Steam keeps it downloaded and up to date</param>
@@ -139,10 +170,27 @@ internal static partial class Workshop
 	/// <summary>
 	/// <see cref="DownloadAsync"/>, to the folder it's installed in - telling <paramref name="progress"/> how it's going
 	/// </summary>
-	internal static Task<string> InstallAsync( ulong id, Action<State> progress = null, CancellationToken token = default )
+	internal static async Task<string> InstallAsync( ulong id, Action<State> progress = null, CancellationToken token = default )
 	{
-		return Ugc.InstallAsync( id, progress is null ? null : x => progress( GetState( id, x ) ), token );
+		var folder = await Ugc.InstallAsync( id, progress is null ? null : x => progress( GetState( id, x ) ), token );
+		return folder ?? InstallFallback?.Invoke( id );
 	}
+
+	/// <summary>
+	/// Where an item is installed when Steam couldn't install it - for apps without Steam's workshop, like SceneLab, which
+	/// points it at what the game installed. Null in a game.
+	/// </summary>
+	internal static Func<ulong, string> InstallFallback { get; set; }
+
+	/// <summary>
+	/// How we've voted on this item - true for up, false for down, null if we haven't, or Steam couldn't be asked
+	/// </summary>
+	internal static Task<bool?> GetVoteAsync( ulong id, CancellationToken token = default ) => Ugc.GetVoteAsync( id, token );
+
+	/// <summary>
+	/// Vote this item up or down. There's no taking a vote back, only changing it. False if Steam didn't take it.
+	/// </summary>
+	internal static Task<bool> VoteAsync( ulong id, bool up, CancellationToken token = default ) => Ugc.SetVoteAsync( id, up, token );
 
 	/// <summary>
 	/// Are we subscribed to this item? Cheap - it's kept up to date as subscriptions change.

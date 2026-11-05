@@ -34,7 +34,7 @@
 				{
 					_packages.TryGetValue( ident, out var package );
 
-					<div class="row hidden-row" @key=@ident onclick=@( () => package?.OpenModal() )>
+					<div class="row hidden-row opens" @key=@ident onclick=@( () => package?.OpenModal() )>
 						<div class="line">
 							<div class="thumb" style="background-image: url( @package?.Thumb );"></div>
 							<div class="text">
@@ -57,7 +57,7 @@
 				{
 					_organizations.TryGetValue( ident, out var org );
 
-					<div class="row hidden-row" @key=@ident onclick=@( () => OpenOrganization( ident ) )>
+					<div class="row hidden-row" @key=@ident>
 						<div class="line">
 							<div class="thumb logo" style="background-image: url( @org?.Thumb );"></div>
 							<div class="text">
@@ -120,22 +120,6 @@
 
 		await Task.WhenAll( packages.Concat( organizations ) );
 		if ( this.IsValid() ) StateHasChanged();
-	}
-
-	/// <summary>
-	/// The creator's page - from what was fetched about them, or just their ident if that never came.
-	/// </summary>
-	void OpenOrganization( string ident )
-	{
-		_organizations.TryGetValue( ident, out var org );
-
-		Game.Overlay.ShowOrganizationModal( new Package.Organization
-		{
-			Ident = ident,
-			Title = org?.Title ?? ident,
-			Thumb = org?.Thumb,
-			Description = org?.Summary,
-		} );
 	}
 
 	async Task UnhidePackage( string ident )

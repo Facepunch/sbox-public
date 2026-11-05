@@ -238,11 +238,12 @@ internal static partial class Logging
 	internal static void RegisterEngineLogger( int id, string v )
 	{
 		v = $"engine/{v}";
-		Loggers.Add( v );
+		lock ( Loggers ) Loggers.Add( v );
 	}
 
+	// Loggers are constructed from any thread
 	internal static void RegisterLogger( string name )
 	{
-		Loggers.Add( name );
+		lock ( Loggers ) Loggers.Add( name );
 	}
 }

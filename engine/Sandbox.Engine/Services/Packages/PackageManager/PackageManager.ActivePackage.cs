@@ -142,7 +142,7 @@ internal static partial class PackageManager
 				AssemblyFileSystem.Mount( FileSystem.CreateSubSystem( ".bin" ) );
 			}
 
-			MemoryFileSystem dllFs;
+			MemoryFileSystem dllFs = null;
 
 			if ( CompilesOnBackend() )
 			{
@@ -155,8 +155,10 @@ internal static partial class PackageManager
 				if ( dllFs is null && !hasArchives )
 					throw new System.Exception( $"Couldn't get the code for '{Package.FullIdent}': {error}" );
 			}
-			else
+			else if ( !HasCodeArchives() )
 			{
+				// Everything that isn't a game compiles its code archives on install, older revisions
+				// without any only have the dlls in their manifest
 				dllFs = await DownloadBinDllsAsync( Package.Revision, token );
 			}
 
@@ -167,14 +169,14 @@ internal static partial class PackageManager
 		}
 
 		/// <summary>
-		/// The backend compiles every package's code apart from libraries and tools, which their consumers compile.
+		/// Only games compile on the backend. Everything else (addons, libraries, tools) compiles its code archives here.
 		/// </summary>
 		private bool CompilesOnBackend()
 		{
 			if ( Backend.Package is null || Package.Revision is not { VersionId: > 0 } )
 				return false;
 
-			if ( Package.TypeName is "library" or "tool" )
+			if ( Package.TypeName != "game" )
 				return false;
 
 			return HasManifestDlls() || HasCodeArchives();

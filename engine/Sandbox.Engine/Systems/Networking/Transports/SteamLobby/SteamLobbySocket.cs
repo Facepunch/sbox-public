@@ -558,7 +558,7 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 	{
 		if ( Connections.TryGetValue( steamId, out var connection ) )
 		{
-			connection.SessionFailure = new( ConnectionState.ProblemDetectedLocally, reasonCode, reason );
+			connection.OnSessionFailed( new( ConnectionState.ProblemDetectedLocally, reasonCode, reason ) );
 			Log.Warning( $"Steam session failed in lobby {Id}, peer {steamId}: {connection.SessionFailure}" );
 			return;
 		}

@@ -178,6 +178,18 @@ public partial class AssetList
 		popup.OpenAtCursor( false );
 	}
 
+	static async Task InstallPackageFromMenu( string ident )
+	{
+		try
+		{
+			await AssetSystem.InstallAsync( ident );
+		}
+		catch ( AggregateException ex )
+		{
+			Log.Warning( ex, $"Error installing package {ident}" );
+		}
+	}
+
 	private void OpenItemContextMenu( object item )
 	{
 		var packageEntries = SelectedItems.OfType<PackageEntry>();
@@ -194,7 +206,7 @@ public partial class AssetList
 			{
 				foreach ( var entry in packageEntries )
 				{
-					AssetSystem.InstallAsync( entry.Package.FullIdent );
+					_ = InstallPackageFromMenu( entry.Package.FullIdent );
 				}
 			} );
 

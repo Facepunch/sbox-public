@@ -159,14 +159,7 @@ WorkshopPackageDetail
 	.org
 	{
 		flex-shrink: 0;
-		cursor: pointer;
-		pointer-events: all;
 		opacity: 0.7;
-
-		&:hover
-		{
-			opacity: 1;
-		}
 	}
 
 	.created

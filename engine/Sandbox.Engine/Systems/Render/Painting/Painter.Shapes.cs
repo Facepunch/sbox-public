@@ -541,10 +541,19 @@ public readonly ref partial struct Painter
 
 	static float ValidRadius( float radius ) => float.IsFinite( radius ) ? MathF.Max( radius, 0 ) : 0;
 
-	static int CurveSegments( float radius, float sweep )
+	/// <summary>
+	/// How many segments a curve of <paramref name="radius"/> drawing pixels needs, measured on screen:
+	/// through the drawing transform and the destination's (a panel's CSS transform, such as a zoomed
+	/// canvas). Sampling in drawing pixels alone leaves visible facets once the result is scaled up.
+	/// </summary>
+	int CurveSegments( float radius, float sweep )
 	{
-		// Sagitta <= 0.25px. Double precision keeps the angle useful for large radii.
-		var step = 2 * Math.Acos( Math.Clamp( 1 - 0.25 / radius, -1, 1 ) );
+		var m = ActiveContext.State.Transform * Output.Destination.Transform;
+		var scale = MathF.Max( MathF.Sqrt( m.M11 * m.M11 + m.M12 * m.M12 ), MathF.Sqrt( m.M21 * m.M21 + m.M22 * m.M22 ) );
+		if ( !float.IsFinite( scale ) || scale <= 0 ) scale = 1;
+
+		// Sagitta <= 0.25px on screen. Double precision keeps the angle useful for large radii.
+		var step = 2 * Math.Acos( Math.Clamp( 1 - 0.25 / (radius * scale), -1, 1 ) );
 		step = Math.Clamp( step, Math.PI / 8192, Math.PI / 2 );
 		return (int)Math.Clamp( Math.Ceiling( Math.Abs( sweep ) * (Math.PI / 180) / step ), 1, 4096 );
 	}

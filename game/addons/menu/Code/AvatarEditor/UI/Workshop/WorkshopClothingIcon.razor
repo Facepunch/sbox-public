@@ -63,7 +63,6 @@
         menu.AddOption("content_copy", "#menu.avatar.copy_ident", () => Clipboard.SetText(Package.FullIdent));
 
         menu.AddSpacer();
-        menu.AddOption("corporate_fare", "#menu.avatar.view_creator", () => Game.Overlay.ShowOrganizationModal(Package.Org));
         menu.AddOption("star", "#menu.avatar.review", () => Game.Overlay.ShowReviewModal(Package));
         menu.AddOption("flag", "#menu.avatar.report", () => Game.Overlay.ShowReportModal(Package.FullIdent));
     }

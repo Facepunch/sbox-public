@@ -1,0 +1,56 @@
+@using Sandbox;
+@using Sandbox.UI;
+@using Sandbox.Platform;
+@using MenuProject.UI;
+
+@inherits Panel
+@namespace MenuProject.Overlay.Overlays
+
+<root style="display: @(ChatAvailable ? "flex" : "none")">
+    <VoiceChatPanel @ref="Panel" />
+</root>
+
+@code
+{
+    VoiceChatPanel Panel;
+
+    /// <summary>
+    /// Does our game / menu context want to show the chat UI?
+    /// - Local preferences
+    /// - Game preferences
+    /// </summary>
+    bool WantsChat => Preferences.VoiceEnabled && VoiceChat.ShowSpeakers;
+
+    /// <summary>
+    /// Are we in a game that supports voice chat, and are we connected to a server?
+    /// </summary>
+    bool InGame => Game.InGame && Networking.IsActive && WantsChat;
+
+    /// <summary>
+    /// Is the chat available for us?
+    /// </summary>
+    bool ChatAvailable => InGame;
+
+    protected override void OnAfterTreeRender( bool firstTime )
+    {
+        if ( firstTime )
+        {
+            MenuUtility.AddVoiceChatListener( OnVoicePacket );
+        }
+    }
+
+    public override void OnDeleted()
+    {
+        MenuUtility.RemoveVoiceChatListener( OnVoicePacket );
+    }
+
+    void OnVoicePacket( VoiceChat.PacketEvent e )
+    {
+        if ( !InGame ) return;
+        if ( e.Sender is null ) return;
+
+        Panel?.PacketReceived( e.Sender, e.Sound );
+    }
+
+    protected override int BuildHash() => System.HashCode.Combine( InGame );
+}

@@ -127,6 +127,17 @@ public static partial class Graphics
 	}
 
 	/// <summary>
+	/// A UAV barrier between compute dispatches only, so it's valid on an async compute queue too
+	/// </summary>
+	internal static void ComputeUavBarrier( IRenderContext context, Texture texture )
+	{
+		var stage = RenderBarrierPipelineStageFlags_t.ComputeShaderBit;
+		var access = RenderBarrierAccessFlags_t.ShaderReadBit | RenderBarrierAccessFlags_t.ShaderWriteBit;
+
+		context.TextureBarrierTransition( texture.native, -1, stage, stage, RenderImageLayout_t.RENDER_IMAGE_LAYOUT_GENERAL, access, access );
+	}
+
+	/// <summary>
 	/// Issues a UAV barrier for the given GPU buffer, ensuring writes from prior shader invocations
 	/// are visible to subsequent ones.
 	/// </summary>

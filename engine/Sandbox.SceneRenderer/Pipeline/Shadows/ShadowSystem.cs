@@ -27,7 +27,6 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 
 	readonly ShadowMap[] cascadeTargets = new ShadowMap[MaxCascades];
 	readonly List<Texture> targets = new();
-	readonly RenderView exclusionView = new();
 
 	// Group shared queries after all views are known, then cull chunks in parallel.
 	readonly List<int> groupStarts = new();
@@ -201,20 +200,6 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		view.ZFar = desc.ZFar;
 		view.Viewport = new Rect( 0, 0, desc.Resolution, desc.Resolution );
 		view.Update();
-
-		if ( desc.HasExclusion )
-		{
-			var size = desc.ExclusionSize;
-			exclusionView.Position = desc.ExclusionCenter;
-			exclusionView.Rotation = desc.Rotation;
-			exclusionView.Orthographic = true;
-			exclusionView.OrthoSize = new Vector2( size );
-			exclusionView.ZNear = -size * 0.5f;
-			exclusionView.ZFar = size * 0.5f;
-			exclusionView.Viewport = new Rect( 0, 0, 1, 1 );
-			exclusionView.Update();
-			pass.Exclusion = exclusionView.Frustum;
-		}
 
 		// Local-light views share a sphere query during CullPasses.
 		pass.LightSphere = desc.Orthographic ? null : (desc.Position, desc.ZFar);

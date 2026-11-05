@@ -116,12 +116,6 @@ public static class FileSystem
 			{
 				asset.IsDeleted = true;
 			}
-
-			// Source file for a gameresource was edited, let's compile it (for detecting changes from version control)
-			if ( asset.TryLoadResource<GameResource>( out var gameResource ) )
-			{
-				asset.Compile( false );
-			}
 		}
 
 		EditorEvent.Run( "content.changed", filename );

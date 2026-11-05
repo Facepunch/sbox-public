@@ -27,7 +27,7 @@ internal struct FogConstants
 	internal int SkyTextureIndex;
 	internal int HeightSkyTextureIndex;
 	internal float HeightSkyShared;
-	internal float Padding;
+	internal float DistanceMetric;
 	internal Matrix SkyTransform;
 	internal Matrix HeightSkyTransform;
 }

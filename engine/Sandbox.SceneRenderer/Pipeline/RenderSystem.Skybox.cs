@@ -123,7 +123,7 @@ public sealed partial class RenderSystem
 		into.Viewport = main.Viewport;
 		into.ClearColor = main.ClearColor;
 		into.ToneMapScalar = main.ToneMapScalar;
-		into.Fog = main.Fog;
+		into.Fog = sky.Fog ?? main.Fog;
 		into.SizeCullThreshold = 0;
 	}
 }

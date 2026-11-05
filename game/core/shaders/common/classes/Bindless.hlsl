@@ -11,7 +11,8 @@ TextureCubeArray g_bindless_TextureCubeArray[] EXTERNAL_DESC_SET( t, g_globalLat
 SamplerState g_bindless_Sampler[2048] EXTERNAL_DESC_SET( s, g_globalLateBoundBindlessSet, 15 );
 SamplerComparisonState g_bindless_SamplerComparison[2048] EXTERNAL_DESC_SET( s, g_globalLateBoundBindlessSet, 15 );
 
-#if PROGRAM == VFX_PROGRAM_CS
+// PROGRAM is only undefined in editor tooling (Slang language server), so expose the compute API there
+#if !defined( PROGRAM ) || PROGRAM == VFX_PROGRAM_CS
 RWTexture2D<float4> g_bindless_RWTexture2D[] EXTERNAL_DESC_SET( u, g_globalLateBoundBindlessSet, 16 );
 RWTexture3D<float4> g_bindless_RWTexture3D[] EXTERNAL_DESC_SET( u, g_globalLateBoundBindlessSet, 16 );
 RWTexture2DArray<float4> g_bindless_RWTexture2DArray[] EXTERNAL_DESC_SET( u, g_globalLateBoundBindlessSet, 16 );
@@ -91,7 +92,7 @@ struct Bindless
         return asDynamicUniform( g_PipelineTextureIndices[slot] );
     }
 
-#if PROGRAM == VFX_PROGRAM_CS
+#if !defined( PROGRAM ) || PROGRAM == VFX_PROGRAM_CS
     // No non-uniform variants: storage images are a separate Vulkan capability
     // (shaderStorageImageArrayNonUniformIndexing) and we don't enable it - see renderdevicevulkan.cpp.
     // Keep UAV indices wave-uniform.
@@ -111,7 +112,7 @@ struct Bindless
 #define GetBindlessSampler( nIndex ) g_bindless_Sampler[ nIndex ]
 #define GetBindlessSamplerComparison( nIndex ) g_bindless_SamplerComparison[ nIndex ]
 
-#if PROGRAM == VFX_PROGRAM_CS
+#if !defined( PROGRAM ) || PROGRAM == VFX_PROGRAM_CS
 #define GetBindlessRWTexture2D( nIndex ) g_bindless_RWTexture2D[ nIndex ]
 #define GetBindlessRWTexture3D( nIndex ) g_bindless_RWTexture3D[ nIndex ]
 #define GetBindlessRWTexture2DArray( nIndex ) g_bindless_RWTexture2DArray[ nIndex ]

@@ -2,8 +2,6 @@
 @import "/styles/_front.scss";
 
 $header-height: 60px;
-// The info column - the game's art, name, blurb and facts
-$right-panel-width: 375px;
 
 .megacard
 {
@@ -12,7 +10,10 @@ $right-panel-width: 375px;
     width: 1040px;
     max-width: 1040px;
 
-    height: 77%;
+    // As tall as the page needs - a game's Overview scrolls its description in what room's left beside your
+    // time and achievements, so nothing else has to (PackageStore) - but never off the screen
+    height: auto;
+    max-height: 90%;
     transition: margin-bottom 0.2s ease-out;
 
     // The party deck's up in the bottom right - lifted clear of it (the margin's taken out of the
@@ -22,18 +23,6 @@ $right-panel-width: 375px;
         margin-bottom: 110px;
     }
     font-family: $font-default;
-
-    // A page, not a modal - as big as what it's in. A cap of the whole of it, not "none", which
-    // isn't taken and leaves the modal's cap in place
-    &.fills-page
-    {
-        width: auto;
-        max-width: 100%;
-        height: auto;
-        flex-grow: 1;
-        flex-shrink: 1;
-        min-width: 0;
-    }
 }
 
 .megacard > .body-outer
@@ -75,34 +64,11 @@ $right-panel-width: 375px;
     pointer-events: all;
 }
 
-.megacard > .body-outer > .body > .row
-{
-    flex-grow: 1;
-    overflow: hidden;
-    position: relative;
-
-    // Fades the page on the left out along its bottom, like the info column beside it. Here, not
-    // on the page - that's the thing scrolling, and it'd scroll away with it. The page's own colour,
-    // sampled - clear to solid
-    &::after
-    {
-        content: "";
-        position: absolute;
-        left: 0;
-        bottom: 0;
-        right: $right-panel-width;
-        height: 56px;
-        background-image: linear-gradient( to bottom, rgba( 17, 19, 25, 0 ), rgb( 17, 19, 25 ) );
-        pointer-events: none;
-        z-index: 10;
-    }
-}
-
-// Main content area - LEFT
-.megacard > .body-outer > .body > .row > .content
+.megacard > .body-outer > .body > .content
 {
     flex-grow: 1;
     flex-shrink: 1;
+    min-height: 0;
     background-color: rgba( 0, 0, 0, 0.28 );
     flex-direction: column;
     overflow: hidden;
@@ -111,51 +77,12 @@ $right-panel-width: 375px;
     pointer-events: all;
 }
 
-// Info panel - RIGHT
-.megacard > .body-outer > .body > .row > .left
+// Where the tabs' pages go fills the page - they scroll in it once the page is as tall as it gets
+.megacard > .body-outer > .body > .content > PortalTarget
 {
-    flex-direction: column;
-    flex-grow: 0;
-    flex-shrink: 0;
-    width: $right-panel-width;
-    overflow: hidden;
-    border-left: $front-border-width solid $front-hairline;
-    position: relative;
-
-    // Fades the column out along its bottom, so it reads as more below. On this box, not the
-    // scrolling one inside - it stays put while the column scrolls under it. The card's own bottom
-    // colour, clear to solid, so it fades into the card rather than through grey
-    &::after
-    {
-        content: "";
-        position: absolute;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        height: 56px;
-        background-image: linear-gradient( to bottom, rgba( 23, 26, 33, 0 ), $front-card-bottom );
-        pointer-events: none;
-        z-index: 10;
-    }
-}
-
-// No info column - the page runs the width, its fade with it
-.megacard > .body-outer > .body > .row.no-left
-{
-    > .left
-    {
-        display: none;
-    }
-
-    &::after
-    {
-        right: 0;
-    }
-}
-
-.megacard > .body-outer > .body > .row > .left > label.eyebrow
-{
-    padding: 12px 12px 4px 12px;
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-height: 0;
 }
 
 .megacard > .body-outer > .body > .footer

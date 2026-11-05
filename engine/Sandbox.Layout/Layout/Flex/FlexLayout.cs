@@ -212,9 +212,7 @@ internal static partial class FlexLayout
 			child.ProcessDimensions();
 			if ( child.Style.Display == Display.None )
 			{
-				ZeroOutLayoutRecursively( child );
-				child.HasNewLayout = true;
-				child.SetDirty( false );
+				LayoutHiddenChild( child );
 				continue;
 			}
 

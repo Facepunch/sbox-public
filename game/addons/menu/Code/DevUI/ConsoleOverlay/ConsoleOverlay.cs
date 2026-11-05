@@ -15,7 +15,7 @@ public class ConsoleOverlay : Panel
 
 	private void OnConsoleMessage( LogEvent e )
 	{
-		if ( ConsoleSystem.GetValue( "consoleoverlay" ) != "True" )
+		if ( MenuUtility.GetConsoleVariable( "consoleoverlay" ) != "True" )
 			return;
 
 		var entry = Output.AddChild<ConsoleEntry>();

@@ -1,6 +1,7 @@
 ﻿using LiteDB;
 using System;
 using System.Collections.Concurrent;
+using System.Threading;
 
 namespace Editor;
 
@@ -11,6 +12,7 @@ namespace Editor;
 internal class CloudAssetDirectory : IDisposable
 {
 	LiteDatabase db;
+	readonly BaseFileSystem fileSystem;
 
 	// one row per on-disk file
 	ILiteCollection<File> files;
@@ -39,6 +41,12 @@ internal class CloudAssetDirectory : IDisposable
 		public long Size { get; set; }
 		public DateTimeOffset CreationDate { get; set; }
 		public DateTimeOffset InstallDate { get; set; }
+
+		// Verified disk contents, independent of the manifest metadata above. Old records have no
+		// VerifiedCrc and are hashed once. Store ticks as a long: LiteDB dates lose sub-ms precision.
+		public string VerifiedCrc { get; set; }
+		public long VerifiedSize { get; set; }
+		public long VerifiedLastWriteUtcTicks { get; set; }
 	}
 
 	/// <summary>
@@ -163,8 +171,10 @@ internal class CloudAssetDirectory : IDisposable
 		};
 	}
 
-	public CloudAssetDirectory( string filename )
+	public CloudAssetDirectory( string filename, BaseFileSystem fileSystem = null )
 	{
+		this.fileSystem = fileSystem ?? FileSystem.Cloud;
+
 		ConnectionString cs = new();
 		cs.Connection = ConnectionType.Shared;
 		cs.Filename = filename;
@@ -402,7 +412,10 @@ internal class CloudAssetDirectory : IDisposable
 			Crc = crc,
 			Size = size,
 			CreationDate = package.Revision.Created,
-			InstallDate = DateTime.UtcNow
+			InstallDate = DateTime.UtcNow,
+			VerifiedCrc = existing?.VerifiedCrc,
+			VerifiedSize = existing?.VerifiedSize ?? 0,
+			VerifiedLastWriteUtcTicks = existing?.VerifiedLastWriteUtcTicks ?? 0
 		};
 
 		db.BeginTrans();
@@ -421,6 +434,53 @@ internal class CloudAssetDirectory : IDisposable
 
 		AddPackageLink( path, package );
 		return true;
+	}
+
+	/// <summary>
+	/// Compare the actual disk contents with a manifest entry. Reuse a verified CRC while size and
+	/// last-write time are unchanged; otherwise hash off-thread within the caller's download slot.
+	/// </summary>
+	internal async Task<bool> IsFileCurrentAsync( string path, ulong crc, long size, CancellationToken token = default )
+	{
+		token.ThrowIfCancellationRequested();
+		if ( !TryGetFile( path, out var file ) )
+			return false;
+
+		var info = new System.IO.FileInfo( fileSystem.GetFullPath( path ) );
+		if ( !info.Exists || info.Length != size )
+			return false;
+
+		var lastWrite = info.LastWriteTimeUtc.Ticks;
+		if ( file.VerifiedCrc is not null && file.VerifiedSize == size && file.VerifiedLastWriteUtcTicks == lastWrite )
+			return Convert.ToUInt64( file.VerifiedCrc, 16 ) == crc;
+
+		var actualCrc = await fileSystem.GetCrcAsync( path );
+		token.ThrowIfCancellationRequested();
+
+		info.Refresh();
+		if ( !info.Exists || info.Length != size || info.LastWriteTimeUtc.Ticks != lastWrite )
+			return false; // changed while hashing - don't certify the new contents with the old CRC
+
+		if ( !TryGetFile( path, out var current ) || !ReferenceEquals( file, current ) )
+			return false; // another install replaced the record while we were hashing
+
+		file.VerifiedCrc = actualCrc.ToString( "x" );
+		file.VerifiedSize = size;
+		file.VerifiedLastWriteUtcTicks = lastWrite;
+		files.Update( file );
+		return actualCrc == crc;
+	}
+
+	/// <summary>
+	/// Forget verification before replacing a file, including when the following download fails.
+	/// </summary>
+	internal void InvalidateFileVerification( string path )
+	{
+		if ( !TryGetFile( path, out var file ) || file.VerifiedCrc is null )
+			return;
+
+		file.VerifiedCrc = null;
+		files.Update( file );
 	}
 
 	/// <summary>
@@ -504,7 +564,7 @@ internal class CloudAssetDirectory : IDisposable
 		var badFiles = new ConcurrentBag<string>();
 		files.FindAll().ToArray().AsParallel().ForAll( file =>
 		{
-			if ( !FileSystem.Cloud.FileExists( file.Path ) || FileSystem.Cloud.FileSize( file.Path ) != file.Size )
+			if ( !fileSystem.FileExists( file.Path ) || fileSystem.FileSize( file.Path ) != file.Size )
 				badFiles.Add( file.Path );
 		} );
 
@@ -529,10 +589,10 @@ internal class CloudAssetDirectory : IDisposable
 			if ( !filesByPath.TryGetValue( link.Path, out var f ) )
 				return false; // link to nonexistent file?
 
-			if ( !FileSystem.Cloud.FileExists( f.Path ) )
+			if ( !fileSystem.FileExists( f.Path ) )
 				return false;
 
-			if ( FileSystem.Cloud.FileSize( f.Path ) != f.Size )
+			if ( fileSystem.FileSize( f.Path ) != f.Size )
 				return false;
 
 			// crc?
@@ -548,6 +608,8 @@ internal class CloudAssetDirectory : IDisposable
 	/// </summary>
 	internal Package FindPackage( string absolutePath, string relativePath )
 	{
+		// Normalizing adds a leading slash ("/c:/...") that Windows can't open, so delete with the original path
+		var filePath = absolutePath;
 		absolutePath = absolutePath.NormalizeFilename( true );
 		relativePath = relativePath.NormalizeFilename( true );
 
@@ -560,7 +622,7 @@ internal class CloudAssetDirectory : IDisposable
 
 			try
 			{
-				System.IO.File.Delete( absolutePath );
+				System.IO.File.Delete( filePath );
 			}
 			catch { } // ignore errors, we'll try again next time
 

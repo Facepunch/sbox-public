@@ -6,10 +6,11 @@ namespace Sandbox.Mounting.Source1;
 
 internal sealed partial class SourceMaterialBuilder
 {
-	private Material CreateSurface( string shader, VmtParameters parameters, TextureTransforms transforms, MaterialAlpha alpha, TextureAnimation? animation, string resourceName )
+	private Material CreateSurface( string shader, VmtParameters parameters, TextureTransforms transforms, MaterialAlpha alpha, TextureAnimation? animation, string resourceName, bool mapSurface = false )
 	{
 		var name = resourceName ?? $"{FullPath}.vmat";
 		var warp = shader == "vortwarp";
+		var worldBlend = shader == "worldtwotextureblend";
 		var unlit = shader == "unlitgeneric" || (warp && parameters.Boolean( "$unlit" ));
 
 		var modelSurface = shader is "vertexlitgeneric" or "unlitgeneric" or "vortwarp";
@@ -17,18 +18,32 @@ internal sealed partial class SourceMaterialBuilder
 		var framebuffer = IsFramebufferTexture( parameters.String( "$basetexture" ) );
 		if ( framebuffer && (parameters.Integer( "$frame" ) != 0 || animation is { FrameRate: > 0 }) )
 			throw new NotSupportedException( $"{FullPath}: framebuffer textures do not support frames or animation." );
-		var color = framebuffer ? null : Load( "$basetexture", "$frame" );
 		var normal = Load( "$bumpmap", "$bumpframe" );
+		var albedo = worldBlend && normal != null && !parameters.Boolean( "$nodiffusebumplighting" )
+			&& !string.IsNullOrWhiteSpace( parameters.String( "$basetexture" ) )
+			&& !string.IsNullOrWhiteSpace( parameters.String( "$albedo" ) );
+		var color = framebuffer ? null : Load( albedo ? "$albedo" : "$basetexture", "$frame" );
 		var detail = Load( "$detail", "$detailframe" );
-		var selfIllumMask = parameters.Boolean( "$selfillum" ) ? Load( "$selfillummask" ) : null;
+		var seamless = shader == "lightmappedgeneric" && shaderName != "monitorscreen"
+			? parameters.Float( "$seamless_scale" ) : 0;
+		if ( seamless != 0 && detail != null )
+			throw new NotSupportedException( $"{name}: Source's seamless LightmappedGeneric shader does not have a detail-texture combination." );
+		if ( worldBlend && parameters.Float( "$seamless_scale" ) != 0 )
+			throw new NotSupportedException( $"{name}: $seamless_scale is not implemented for WorldTwoTextureBlend." );
+		var detailMask = worldBlend && parameters.Boolean( "$detail_alpha_mask_base_texture" );
+		if ( worldBlend && normal != null && detail != null && !detailMask )
+			throw new NotSupportedException( $"{name}: Source's WorldTwoTextureBlend requires $detail_alpha_mask_base_texture to combine detail and bump textures." );
+		if ( worldBlend && normal != null && parameters.Boolean( "$vertexcolor" ) )
+			throw new NotSupportedException( $"{name}: Source's WorldTwoTextureBlend does not have a vertex-color and bump-texture combination." );
+		var selfIllumMask = !worldBlend && parameters.Boolean( "$selfillum" ) ? Load( "$selfillummask" ) : null;
 		var exponent = skin ? Load( "$phongexponenttexture" ) : null;
 		var warpFlow = warp ? Load( "$flowmap" ) : null;
 		var warpEmission = warp ? Load( "$selfillummap" ) : null;
 
 		var normalEnvMask = parameters.Boolean( "$normalmapalphaenvmapmask" ) && (normal != null || skin);
 		var baseEnvMask = !normalEnvMask && parameters.Boolean( "$basealphaenvmapmask" ) && color?.HasAlpha == true;
-		var envMask = !skin && !normalEnvMask && !baseEnvMask ? Load( "$envmapmask", "$envmapmaskframe" ) : null;
-		var environmentPath = parameters.String( "$envmap" );
+		var envMask = !worldBlend && !skin && !normalEnvMask && !baseEnvMask ? Load( "$envmapmask", "$envmapmaskframe" ) : null;
+		var environmentPath = worldBlend ? null : parameters.String( "$envmap" );
 		var environment = !string.IsNullOrWhiteSpace( environmentPath );
 		if ( !skin && normal != null && !normalEnvMask && (baseEnvMask || envMask != null) )
 		{
@@ -58,13 +73,13 @@ internal sealed partial class SourceMaterialBuilder
 			throw new InvalidDataException( $"{name}: generic $blendtintbybasealpha cannot share alpha with $selfillum or $basealphaenvmapmask." );
 
 		// Keep opacity ownership consistent with the shader's independent mask selection.
-		var ownsAlpha = selfIllum || (skin && phongMask == 1)
+		var ownsAlpha = selfIllum || (worldBlend && baseEnvMask) || (skin && phongMask == 1)
 			|| (environment && (skin ? envMaskMode != 2 || phongMask == 1 : envMaskMode == 1));
 		var additive = parameters.Boolean( "$additive" );
-		var detailMode = parameters.Integer( "$detailblendmode" );
-		if ( detail != null && (detail.Header.Flags & VtfFlags.SSBUMP) != 0 )
+		var detailMode = worldBlend ? detailMask ? 12 : 13 : parameters.Integer( "$detailblendmode" );
+		if ( !worldBlend && detail != null && (detail.Header.Flags & VtfFlags.SSBUMP) != 0 )
 			detailMode = normal != null ? 10 : 11;
-		if ( detailMode is < 0 or > 11 )
+		if ( !worldBlend && (detailMode is < 0 or > 11) )
 			throw new NotSupportedException( $"{name}: unsupported $detailblendmode {detailMode}." );
 		var detailAlpha = detail?.HasAlpha == true && detailMode is 3 or 4 or 8 or 9;
 		var hasOpacity = !ownsAlpha && ((!blendTint && (color?.HasAlpha == true))
@@ -74,16 +89,17 @@ internal sealed partial class SourceMaterialBuilder
 		var translucent = framebuffer || additive || alpha.CanBeTranslucent || vertexAlpha
 			|| (parameters.Boolean( "$translucent" ) && hasOpacity);
 
-		var material = CreateShaderMaterial( "shaders/source1/surface.shader", resourceName );
+		var material = CreateShaderMaterial( $"shaders/source1/{shaderName}.shader", resourceName );
 		material.Set( "g_flSourceReceiveDecals", !parameters.Boolean( "$nodecal" ) );
+		material.Set( "g_flSourceSeamlessScale", seamless );
 		animation.GetValueOrDefault().Bind( material, color );
-		material.SetFeature( "F_SOURCE_UNLIT", unlit ? 1 : 0 );
+		if ( warp )
+			material.SetFeature( "F_SOURCE_UNLIT", unlit ? 1 : 0 );
 		material.SetFeature( "F_TRANSLUCENT", translucent ? 1 : 0 );
 		material.SetFeature( "F_ADDITIVE_BLEND", additive ? 1 : 0 );
 		material.SetFeature( "F_ALPHA_TEST", alphaTest ? 1 : 0 );
 		material.SetFeature( "F_RENDER_BACKFACES", parameters.Boolean( "$nocull" ) ? 1 : 0 );
 		material.SetFeature( "F_SOURCE_FRAMEBUFFER", framebuffer ? 1 : 0 );
-		material.SetFeature( "F_SOURCE_VORTWARP", warp ? 1 : 0 );
 
 		Bind( color, "g_tColor" );
 		Bind( normal, "g_tNormal", "g_flSourceHasNormal" );
@@ -115,8 +131,8 @@ internal sealed partial class SourceMaterialBuilder
 		material.Set( "g_flSourceVertexAlpha", vertexAlpha );
 		material.Set( "g_nSourceNormalEncoding", normal?.Header.HiResFormat == VtfFormat.UV88 ? 1 : 0 );
 		material.Set( "g_flSourceDiffuseBumpLighting", !parameters.Boolean( "$nodiffusebumplighting" ) );
-		material.Set( "g_flSourceSsBump", parameters.Boolean( "$ssbump" ) || IsSsBump( normal ) );
-		material.Set( "g_flSourceNormalScale", parameters.Float( "$bumpstrength", 1 ) );
+		material.Set( "g_flSourceSsBump", !worldBlend && (parameters.Boolean( "$ssbump" ) || IsSsBump( normal )) );
+		material.Set( "g_flSourceNormalScale", worldBlend ? 1 : parameters.Float( "$bumpstrength", 1 ) );
 		material.Set( "g_flSourceSkin", skin );
 		material.Set( "g_flSourcePhong", skin );
 		material.Set( "g_nSourcePhongMask", phongMask );
@@ -126,13 +142,21 @@ internal sealed partial class SourceMaterialBuilder
 		SetFloat( "g_flSourcePhongBoost", "$phongboost", 1 );
 		SetVector( "g_vSourcePhongTint", "$phongtint", Vector3.Zero );
 		material.Set( "g_flSourcePhongAlbedoTint", parameters.Boolean( "$phongalbedotint" ) );
+		SetFloat( "g_flSourcePhongAlbedoBoost", "$phongalbedoboost", 1 );
+		SetVector( "g_vSourcePhongFresnelRanges", "$phongfresnelranges", new Vector3( 0, 0.5f, 1 ) );
+		SetFloat( "g_flSourceEnvFresnel", "$envmapfresnel", 0 );
+		SetFloat( "g_flSourceFresnelReflection", "$fresnelreflection", 1 );
+		material.Set( "g_flSourceLightmappedGeneric", !modelSurface && shaderName != "monitorscreen" );
 		material.Set( "g_flSourceSelfIllum", selfIllum );
-		SetVector( "g_vSourceSelfIllumTint", "$selfillumtint", Vector3.One );
-		material.Set( "g_flSourceSelfIllumFresnel", selfIllum && parameters.Boolean( "$selfillumfresnel" ) );
+		SetVector( "g_vSourceSelfIllumTint", "$selfillumtint", Vector3.One, linearize: worldBlend );
+		material.Set( "g_flSourceSelfIllumFresnel", !worldBlend && selfIllum && parameters.Boolean( "$selfillumfresnel" ) );
 		SetVector( "g_vSourceSelfIllumFresnel", "$selfillumfresnelminmaxexp", new Vector3( 0, 1, 1 ) );
 		material.Set( "g_nSourceDetailMode", detailMode );
 		SetFloat( "g_flSourceDetailBlendFactor", "$detailblendfactor", 1 );
-		SetVector( "g_vSourceDetailTint", "$detailtint", Vector3.One, linearize: true );
+		if ( worldBlend )
+			material.Set( "g_vSourceDetailTint", Vector3.One );
+		else
+			SetVector( "g_vSourceDetailTint", "$detailtint", Vector3.One, linearize: true );
 		material.Set( "g_flSourceDetailSrgb", detailMode is > 0 and < 10 );
 		material.Set( "g_flSourceEnvMap", environment );
 		material.Set( "g_nSourceEnvMask", envMaskMode );
@@ -145,33 +169,39 @@ internal sealed partial class SourceMaterialBuilder
 
 		var baseTransform = transforms.Get( "$basetexturetransform" );
 		var bumpTransform = transforms.Get( "$bumptransform", baseTransform );
+		var detailTransform = worldBlend ? baseTransform : transforms.Get( "$detailtexturetransform", baseTransform );
+		var detailScale = parameters.Float( "$detailscale", 4 );
 		baseTransform.Bind( material, "Base" );
-		bumpTransform.Bind( material, "Normal" );
-		transforms.Get( "$detailtexturetransform", baseTransform ).Bind( material, "Detail", parameters.Float( "$detailscale", 4 ) );
+		if ( worldBlend && detail != null )
+			detailTransform.Bind( material, "Normal", detailScale );
+		else
+			bumpTransform.Bind( material, "Normal" );
+		detailTransform.Bind( material, "Detail", detailScale );
 		transforms.Get( "$envmapmasktransform", baseTransform ).Bind( material, "EnvMask" );
-		foreach ( var key in new[] { "$seamless_scale", "$distancealpha" } )
-		{
-			if ( parameters.Boolean( key ) )
-				Log.Trace( $"{name}: {key} is not implemented by the surface shader." );
-		}
+		if ( shaderName == "worldvertextransition" )
+			BindWorldTransition( material, color, normal );
+		if ( parameters.Boolean( "$distancealpha" ) )
+			Log.Trace( $"{name}: $distancealpha is not implemented by the surface shader." );
+		if ( parameters.Float( "$seamless_scale" ) != 0 && seamless == 0 )
+			Log.Trace( $"{name}: $seamless_scale is not implemented by '{shaderName}'." );
 		if ( !string.IsNullOrWhiteSpace( parameters.String( "$parallaxmap" ) ) )
 			Log.Trace( $"{name}: $parallaxmap is not implemented by the surface shader." );
 		if ( !skin && parameters.Boolean( "$phong" ) )
 			Log.Trace( $"{name}: $phong is only implemented for VertexLitGeneric." );
 		if ( !modelSurface && parameters.Boolean( "$blendtintbybasealpha" ) )
 			Log.Trace( $"{name}: $blendtintbybasealpha is only implemented for VertexLitGeneric and UnlitGeneric." );
-		if ( !unlit && (parameters.Boolean( "$halflambert" ) || parameters.Boolean( "$rimlight" )
-			|| parameters.Contains( "$phongfresnelranges" ) || parameters.Contains( "$envmapfresnel" )
+		if ( parameters.Boolean( "$halflambert" ) || parameters.Boolean( "$rimlight" )
 			|| !string.IsNullOrWhiteSpace( parameters.String( "$lightwarptexture" ) )
-			|| !string.IsNullOrWhiteSpace( parameters.String( "$phongwarptexture" ) )) )
-			Log.Trace( $"{name}: using s&box standard lighting; Source Half-Lambert, lighting warps, rim lighting and custom lighting Fresnel curves are not reproduced." );
+			|| !string.IsNullOrWhiteSpace( parameters.String( "$phongwarptexture" ) ) )
+			Log.Trace( $"{name}: native s&box lighting replaces Source Half-Lambert, light/specular warps and rim lighting." );
 		return material;
 
 		SurfaceTexture Load( string key, string frameKey = null, bool cube = false )
 		{
 			var path = parameters.String( key );
 			if ( string.IsNullOrWhiteSpace( path ) ) return null;
-			var loaded = LoadSurfaceTexture( path, frameKey == null ? 0 : parameters.Integer( frameKey ), key == "$basetexture" ? animation : null );
+			var loaded = LoadSurfaceTexture( path, frameKey == null ? 0 : parameters.Integer( frameKey ),
+				key is "$basetexture" or "$albedo" ? animation : null );
 			if ( loaded.IsCube != cube )
 				throw new InvalidDataException( $"{name}: {key} requires a {(cube ? "cube" : "2D")} texture: '{path}'." );
 			return loaded;

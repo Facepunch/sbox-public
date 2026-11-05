@@ -24,7 +24,7 @@
                     <div class="chips">
                         @foreach ( var tag in Package.Reviews.PositiveTags.Where( x => x.Value > 0 ).OrderByDescending( x => x.Value ) )
                         {
-                            var di = Game.TypeLibrary.GetEnumDescription( tag.Key );
+                            var di = MenuUtility.TypeLibrary.GetEnumDescription( tag.Key );
                             <div class="chip good"><icon>@di.Icon</icon><label>@di.Title</label><label class="n">@tag.Value</label></div>
                         }
                     </div>
@@ -38,7 +38,7 @@
                     <div class="chips">
                         @foreach ( var tag in Package.Reviews.NegativeTags.Where( x => x.Value > 0 ).OrderByDescending( x => x.Value ) )
                         {
-                            var di = Game.TypeLibrary.GetEnumDescription( tag.Key );
+                            var di = MenuUtility.TypeLibrary.GetEnumDescription( tag.Key );
                             <div class="chip bad"><icon>@di.Icon</icon><label>@di.Title</label><label class="n">@tag.Value</label></div>
                         }
                     </div>
@@ -115,12 +115,12 @@
                             <div class="chips">
                                 @foreach ( var flag in GetPositiveFlags( review.Positives ) )
                                 {
-                                    var di = Game.TypeLibrary.GetEnumDescription( flag );
+                                    var di = MenuUtility.TypeLibrary.GetEnumDescription( flag );
                                     <div class="chip good small"><icon>@di.Icon</icon><label>@di.Title</label></div>
                                 }
                                 @foreach ( var flag in GetNegativeFlags( review.Negatives ) )
                                 {
-                                    var di = Game.TypeLibrary.GetEnumDescription( flag );
+                                    var di = MenuUtility.TypeLibrary.GetEnumDescription( flag );
                                     <div class="chip bad small"><icon>@di.Icon</icon><label>@di.Title</label></div>
                                 }
                             </div>

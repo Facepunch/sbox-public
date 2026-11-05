@@ -1,0 +1,1635 @@
+include "animationsystem2/tasksystem/animation_tasksystem.h"
+include "animationsystem2/floatcurve.h"
+include "animationsystem2/floatrange.h"
+include "../animationsystem2/graph/nodes/animation_runtimegraphnode_aimik.h"
+include "../animationsystem2/graph/nodes/animation_runtimegraphnode_animationclip.h"
+include "../animationsystem2/graph/nodes/animation_runtimegraphnode_blend1d.h"
+include "../animationsystem2/graph/nodes/animation_runtimegraphnode_blend2d.h"
+include "../animationsystem2/graph/nodes/animation_runtimegraphnode_bonemasks.h"
+include "../animationsystem2/graph/nodes/animation_runtimegraphnode_bools.h"
+include "../animationsystem2/graph/nodes/animation_runtimegraphnode_cachedvalues.h"
+include "../animationsystem2/graph/nodes/animation_runtimegraphnode_constvalues.h"
+include "../animationsystem2/graph/nodes/animation_runtimegraphnode_controlparameters.h"
+include "../animationsystem2/graph/nodes/animation_runtimegraphnode_events.h"
+include "../animationsystem2/graph/nodes/animation_runtimegraphnode_externalpose.h"
+include "../animationsystem2/graph/nodes/animation_runtimegraphnode_floats.h"
+include "../animationsystem2/graph/nodes/animation_runtimegraphnode_footik.h"
+include "../animationsystem2/graph/nodes/animation_runtimegraphnode_ids.h"
+include "../animationsystem2/graph/nodes/animation_runtimegraphnode_layers.h"
+include "../animationsystem2/graph/nodes/animation_runtimegraphnode_lookat.h"
+include "../animationsystem2/graph/nodes/animation_runtimegraphnode_orientationwarp.h"
+include "../animationsystem2/graph/nodes/animation_runtimegraphnode_passthrough.h"
+include "../animationsystem2/graph/nodes/animation_runtimegraphnode_pose.h"
+include "../animationsystem2/graph/nodes/animation_runtimegraphnode_referencedgraph.h"
+include "../animationsystem2/graph/nodes/animation_runtimegraphnode_rootmotionoverride.h"
+include "../animationsystem2/graph/nodes/animation_runtimegraphnode_scale.h"
+include "../animationsystem2/graph/nodes/animation_runtimegraphnode_selector.h"
+include "../animationsystem2/graph/nodes/animation_runtimegraphnode_speedscale.h"
+include "../animationsystem2/graph/nodes/animation_runtimegraphnode_state.h"
+include "../animationsystem2/graph/nodes/animation_runtimegraphnode_stateconditions.h"
+include "../animationsystem2/graph/nodes/animation_runtimegraphnode_statemachine.h"
+include "../animationsystem2/graph/nodes/animation_runtimegraphnode_targets.h"
+include "../animationsystem2/graph/nodes/animation_runtimegraphnode_targetselector.h"
+include "../animationsystem2/graph/nodes/animation_runtimegraphnode_targetwarp.h"
+include "../animationsystem2/graph/nodes/animation_runtimegraphnode_timecontrolledanimationclip.h"
+include "../animationsystem2/graph/nodes/animation_runtimegraphnode_transition.h"
+include "../animationsystem2/graph/nodes/animation_runtimegraphnode_twoboneik.h"
+include "../animationsystem2/graph/nodes/animation_runtimegraphnode_vectors.h"
+include "../animationsystem2/graph/nodes/animation_runtimegraphnode_virtualparameters.h"
+
+native class CGraphNode::Definition as NativeEngine.AnimationGraphNodeDefinition
+{
+}
+
+native class CAimIKNode::Definition as NativeEngine.GraphAimIKNode : AnimationGraphNodeDefinition
+{
+	inline static GraphAimIKNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CAimIKNode>();
+	}
+	short m_childNodeIdx;
+	short m_targetNodeIdx;
+}
+
+native class CAndNode::Definition as NativeEngine.GraphAndNode : AnimationGraphNodeDefinition
+{
+	inline static GraphAndNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CAndNode>();
+	}
+	inline GraphCUtlVectorint16 GetConditionNodeIndices()
+	{
+		return &self->m_conditionNodeIndices;
+	}
+}
+
+native class CAnimationPoseNode::Definition as NativeEngine.GraphAnimationPoseNode : AnimationGraphNodeDefinition
+{
+	inline static GraphAnimationPoseNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CAnimationPoseNode>();
+	}
+	short m_dataSlotIdx;
+	inline GraphFloatRange_t GetInputTimeRemapRange()
+	{
+		return &self->m_inputTimeRemapRange;
+	}
+	short m_poseTimeValueNodeIdx;
+	bool m_useFramesAsInput;
+	float m_userSpecifiedTime;
+}
+
+native class CBlend1DNode::Definition as NativeEngine.GraphBlend1DNode : AnimationGraphNodeDefinition
+{
+	inline static GraphBlend1DNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CBlend1DNode>();
+	}
+	bool m_allowLooping;
+	inline GraphCUtlVectorCParameterizedBlendNodeBlendRange GetBlendRanges()
+	{
+		return &self->m_blendRanges;
+	}
+	short m_parameterValueNodeIdx;
+	inline GraphCUtlVectorint16 GetSourceNodeIndices()
+	{
+		return &self->m_sourceNodeIndices;
+	}
+}
+
+native class CBlend2DNode::Definition as NativeEngine.GraphBlend2DNode : AnimationGraphNodeDefinition
+{
+	inline static GraphBlend2DNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CBlend2DNode>();
+	}
+	bool m_allowLooping;
+	inline GraphCUtlVectoruint8 GetHullIndices()
+	{
+		return &self->m_hullIndices;
+	}
+	inline GraphCUtlVectoruint8 GetIndices()
+	{
+		return &self->m_indices;
+	}
+	short m_inputParameterNodeIdx0;
+	short m_inputParameterNodeIdx1;
+	inline GraphCUtlVectorint16 GetSourceNodeIndices()
+	{
+		return &self->m_sourceNodeIndices;
+	}
+	inline GraphCUtlVectorVector2D GetValues()
+	{
+		return &self->m_values;
+	}
+}
+
+native class CBoneMaskBlendNode::Definition as NativeEngine.GraphBoneMaskBlendNode : AnimationGraphNodeDefinition
+{
+	inline static GraphBoneMaskBlendNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CBoneMaskBlendNode>();
+	}
+	short m_blendWeightValueNodeIdx;
+	short m_sourceMaskNodeIdx;
+	short m_targetMaskNodeIdx;
+}
+
+native class CBoneMaskNode::Definition as NativeEngine.GraphBoneMaskNode : AnimationGraphNodeDefinition
+{
+	inline static GraphBoneMaskNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CBoneMaskNode>();
+	}
+	inline void SetBoneMaskID( uint value )
+	{
+		self->m_boneMaskID.m_nHashCode = value;
+	}
+}
+
+native class CBoneMaskSelectorNode::Definition as NativeEngine.GraphBoneMaskSelectorNode : AnimationGraphNodeDefinition
+{
+	inline static GraphBoneMaskSelectorNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CBoneMaskSelectorNode>();
+	}
+	float m_blendTime;
+	short m_defaultMaskNodeIdx;
+	inline GraphCUtlVectorint16 GetMaskNodeIndices()
+	{
+		return &self->m_maskNodeIndices;
+	}
+	short m_parameterValueNodeIdx;
+	inline GraphCUtlVectorStringID GetParameterValues()
+	{
+		return &self->m_parameterValues;
+	}
+	bool m_switchDynamically;
+}
+
+native class CBoneMaskSwitchNode::Definition as NativeEngine.GraphBoneMaskSwitchNode : AnimationGraphNodeDefinition
+{
+	inline static GraphBoneMaskSwitchNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CBoneMaskSwitchNode>();
+	}
+	float m_blendTime;
+	short m_falseMaskNodeIdx;
+	bool m_switchDynamically;
+	short m_switchValueNodeIdx;
+	short m_trueMaskNodeIdx;
+}
+
+native class CCachedBoolNode::Definition as NativeEngine.GraphCachedBoolNode : AnimationGraphNodeDefinition
+{
+	inline static GraphCachedBoolNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CCachedBoolNode>();
+	}
+	bool m_cacheOnInit;
+	short m_sourceNodeIdx;
+}
+
+native class CCachedFloatNode::Definition as NativeEngine.GraphCachedFloatNode : AnimationGraphNodeDefinition
+{
+	inline static GraphCachedFloatNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CCachedFloatNode>();
+	}
+	bool m_cacheOnInit;
+	short m_sourceNodeIdx;
+}
+
+native class CCachedIDNode::Definition as NativeEngine.GraphCachedIDNode : AnimationGraphNodeDefinition
+{
+	inline static GraphCachedIDNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CCachedIDNode>();
+	}
+	bool m_cacheOnInit;
+	short m_sourceNodeIdx;
+}
+
+native class CCachedTargetNode::Definition as NativeEngine.GraphCachedTargetNode : AnimationGraphNodeDefinition
+{
+	inline static GraphCachedTargetNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CCachedTargetNode>();
+	}
+	bool m_cacheOnInit;
+	short m_sourceNodeIdx;
+}
+
+native class CCachedVectorNode::Definition as NativeEngine.GraphCachedVectorNode : AnimationGraphNodeDefinition
+{
+	inline static GraphCachedVectorNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CCachedVectorNode>();
+	}
+	bool m_cacheOnInit;
+	short m_sourceNodeIdx;
+}
+
+native class CClipNode::Definition as NativeEngine.GraphClipNode : AnimationGraphNodeDefinition
+{
+	inline static GraphClipNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CClipNode>();
+	}
+	bool m_allowLooping;
+	short m_dataSlotIdx;
+	inline GraphCUtlVectorStringID GetGraphEvents()
+	{
+		return &self->m_graphEvents;
+	}
+	short m_playInReverseValueNodeIdx;
+	short m_resetTimeValueNodeIdx;
+	bool m_sampleRootMotion;
+	float m_speedMultiplier;
+	int m_startSyncEventOffset;
+}
+
+native class CClipSelectorNode::Definition as NativeEngine.GraphClipSelectorNode : AnimationGraphNodeDefinition
+{
+	inline static GraphClipSelectorNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CClipSelectorNode>();
+	}
+	inline GraphCUtlVectorint16 GetConditionNodeIndices()
+	{
+		return &self->m_conditionNodeIndices;
+	}
+	inline GraphCUtlVectorint16 GetOptionNodeIndices()
+	{
+		return &self->m_optionNodeIndices;
+	}
+}
+
+native class CConstBoolNode::Definition as NativeEngine.GraphConstBoolNode : AnimationGraphNodeDefinition
+{
+	inline static GraphConstBoolNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CConstBoolNode>();
+	}
+	bool m_value;
+}
+
+native class CConstFloatNode::Definition as NativeEngine.GraphConstFloatNode : AnimationGraphNodeDefinition
+{
+	inline static GraphConstFloatNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CConstFloatNode>();
+	}
+	float m_value;
+}
+
+native class CConstIDNode::Definition as NativeEngine.GraphConstIDNode : AnimationGraphNodeDefinition
+{
+	inline static GraphConstIDNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CConstIDNode>();
+	}
+	inline void SetValue( uint value )
+	{
+		self->m_value.m_nHashCode = value;
+	}
+}
+
+native class CConstTargetNode::Definition as NativeEngine.GraphConstTargetNode : AnimationGraphNodeDefinition
+{
+	inline static GraphConstTargetNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CConstTargetNode>();
+	}
+	inline void SetBoneID( uint value )
+	{
+		self->m_boneID.m_nHashCode = value;
+	}
+	bool m_isBoneTarget;
+	bool m_isSet;
+	Rotation m_rotation;
+	Vector3 m_translation;
+}
+
+native class CConstVectorNode::Definition as NativeEngine.GraphConstVectorNode : AnimationGraphNodeDefinition
+{
+	inline static GraphConstVectorNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CConstVectorNode>();
+	}
+	Vector3 m_value;
+}
+
+native class CControlParameterBoolNode::Definition as NativeEngine.GraphControlParameterBoolNode : AnimationGraphNodeDefinition
+{
+	inline static GraphControlParameterBoolNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CControlParameterBoolNode>();
+	}
+	bool m_defaultValue;
+}
+
+native class CControlParameterFloatNode::Definition as NativeEngine.GraphControlParameterFloatNode : AnimationGraphNodeDefinition
+{
+	inline static GraphControlParameterFloatNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CControlParameterFloatNode>();
+	}
+	float m_defaultValue;
+}
+
+native class CControlParameterIDNode::Definition as NativeEngine.GraphControlParameterIDNode : AnimationGraphNodeDefinition
+{
+	inline static GraphControlParameterIDNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CControlParameterIDNode>();
+	}
+	inline void SetDefaultValue( uint value )
+	{
+		self->m_defaultValue.m_nHashCode = value;
+	}
+}
+
+native class CControlParameterTargetNode::Definition as NativeEngine.GraphControlParameterTargetNode : AnimationGraphNodeDefinition
+{
+	inline static GraphControlParameterTargetNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CControlParameterTargetNode>();
+	}
+}
+
+native class CControlParameterVectorNode::Definition as NativeEngine.GraphControlParameterVectorNode : AnimationGraphNodeDefinition
+{
+	inline static GraphControlParameterVectorNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CControlParameterVectorNode>();
+	}
+	Vector3 m_defaultValue;
+}
+
+native class CCurrentSyncEventIDNode::Definition as NativeEngine.GraphCurrentSyncEventIDNode : AnimationGraphNodeDefinition
+{
+	inline static GraphCurrentSyncEventIDNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CCurrentSyncEventIDNode>();
+	}
+	short m_sourceStateNodeIdx;
+}
+
+native class CCurrentSyncEventNode::Definition as NativeEngine.GraphCurrentSyncEventNode : AnimationGraphNodeDefinition
+{
+	inline static GraphCurrentSyncEventNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CCurrentSyncEventNode>();
+	}
+	inline void SetInfoType( int value )
+	{
+		self->m_infoType = static_cast<decltype(self->m_infoType)>( value );
+	}
+	short m_sourceStateNodeIdx;
+}
+
+native class CDurationScaleNode::Definition as NativeEngine.GraphDurationScaleNode : AnimationGraphNodeDefinition
+{
+	inline static GraphDurationScaleNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CDurationScaleNode>();
+	}
+	short m_childNodeIdx;
+	float m_defaultInputValue;
+	short m_inputValueNodeIdx;
+}
+
+native class CExternalPoseNode::Definition as NativeEngine.GraphExternalPoseNode : AnimationGraphNodeDefinition
+{
+	inline static GraphExternalPoseNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CExternalPoseNode>();
+	}
+}
+
+native class CFixedWeightBoneMaskNode::Definition as NativeEngine.GraphFixedWeightBoneMaskNode : AnimationGraphNodeDefinition
+{
+	inline static GraphFixedWeightBoneMaskNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CFixedWeightBoneMaskNode>();
+	}
+	float m_boneWeight;
+}
+
+native class CFloatAngleMathNode::Definition as NativeEngine.GraphFloatAngleMathNode : AnimationGraphNodeDefinition
+{
+	inline static GraphFloatAngleMathNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CFloatAngleMathNode>();
+	}
+	short m_inputValueNodeIdx;
+	inline void SetOperation( int value )
+	{
+		self->m_operation = static_cast<decltype(self->m_operation)>( value );
+	}
+}
+
+native class CFloatClampNode::Definition as NativeEngine.GraphFloatClampNode : AnimationGraphNodeDefinition
+{
+	inline static GraphFloatClampNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CFloatClampNode>();
+	}
+	float m_clampMax;
+	float m_clampMin;
+	short m_inputValueNodeIdx;
+}
+
+native class CFloatComparisonNode::Definition as NativeEngine.GraphFloatComparisonNode : AnimationGraphNodeDefinition
+{
+	inline static GraphFloatComparisonNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CFloatComparisonNode>();
+	}
+	short m_comparandValueNodeIdx;
+	inline void SetComparison( int value )
+	{
+		self->m_comparison = static_cast<decltype(self->m_comparison)>( value );
+	}
+	float m_comparisonValue;
+	float m_epsilon;
+	short m_inputValueNodeIdx;
+}
+
+native class CFloatCurveEventNode::Definition as NativeEngine.GraphFloatCurveEventNode : AnimationGraphNodeDefinition
+{
+	inline static GraphFloatCurveEventNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CFloatCurveEventNode>();
+	}
+	float m_defaultValue;
+	short m_defaultValueNodeIdx;
+	inline void SetMatchEventID( uint value )
+	{
+		self->m_matchEventID.m_nHashCode = value;
+	}
+	inline void SetRules( uint value )
+	{
+		self->m_rules.m_flags = value;
+	}
+}
+
+native class CFloatCurveNode::Definition as NativeEngine.GraphFloatCurveNode : AnimationGraphNodeDefinition
+{
+	inline static GraphFloatCurveNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CFloatCurveNode>();
+	}
+	inline GraphFloatCurve_t GetCurve()
+	{
+		return &self->m_curve;
+	}
+	short m_inputValueNodeIdx;
+}
+
+native class CFloatEaseNode::Definition as NativeEngine.GraphFloatEaseNode : AnimationGraphNodeDefinition
+{
+	inline static GraphFloatEaseNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CFloatEaseNode>();
+	}
+	float m_easeTime;
+	inline void SetEasingOp( int value )
+	{
+		self->m_easingOp = static_cast<decltype(self->m_easingOp)>( value );
+	}
+	short m_inputValueNodeIdx;
+	float m_startValue;
+	bool m_useStartValue;
+}
+
+native class CFloatMathNode::Definition as NativeEngine.GraphFloatMathNode : AnimationGraphNodeDefinition
+{
+	inline static GraphFloatMathNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CFloatMathNode>();
+	}
+	short m_inputValueNodeIdxA;
+	short m_inputValueNodeIdxB;
+	inline void SetOperator( int value )
+	{
+		self->m_operator = static_cast<decltype(self->m_operator)>( value );
+	}
+	bool m_returnAbsoluteResult;
+	bool m_returnNegatedResult;
+	float m_valueB;
+}
+
+native class CFloatRandomNode::Definition as NativeEngine.GraphFloatRandomNode : AnimationGraphNodeDefinition
+{
+	inline static GraphFloatRandomNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CFloatRandomNode>();
+	}
+	float m_max;
+	float m_min;
+}
+
+native class CFloatRangeComparisonNode::Definition as NativeEngine.GraphFloatRangeComparisonNode : AnimationGraphNodeDefinition
+{
+	inline static GraphFloatRangeComparisonNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CFloatRangeComparisonNode>();
+	}
+	short m_inputValueNodeIdx;
+	bool m_isInclusiveCheck;
+	float m_rangeMax;
+	float m_rangeMin;
+}
+
+native class CFloatRemapNode::Definition as NativeEngine.GraphFloatRemapNode : AnimationGraphNodeDefinition
+{
+	inline static GraphFloatRemapNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CFloatRemapNode>();
+	}
+	float m_inputRangeMax;
+	float m_inputRangeMin;
+	short m_inputValueNodeIdx;
+	float m_outputRangeMax;
+	float m_outputRangeMin;
+}
+
+native class CFloatSelectorNode::Definition as NativeEngine.GraphFloatSelectorNode : AnimationGraphNodeDefinition
+{
+	inline static GraphFloatSelectorNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CFloatSelectorNode>();
+	}
+	inline GraphCUtlVectorint16 GetConditionNodeIndices()
+	{
+		return &self->m_conditionNodeIndices;
+	}
+	float m_defaultValue;
+	float m_easeTime;
+	inline void SetEasingOp( int value )
+	{
+		self->m_easingOp = static_cast<decltype(self->m_easingOp)>( value );
+	}
+	inline CUtlVectorFloat GetValues()
+	{
+		return &self->m_values;
+	}
+}
+
+native class CFloatSpringNode::Definition as NativeEngine.GraphFloatSpringNode : AnimationGraphNodeDefinition
+{
+	inline static GraphFloatSpringNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CFloatSpringNode>();
+	}
+	float m_dampingRatio;
+	float m_hertz;
+	short m_inputValueNodeIdx;
+	float m_startValue;
+	bool m_useStartValue;
+}
+
+native class CFloatSwitchNode::Definition as NativeEngine.GraphFloatSwitchNode : AnimationGraphNodeDefinition
+{
+	inline static GraphFloatSwitchNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CFloatSwitchNode>();
+	}
+	float m_falseValue;
+	short m_falseValueNodeIdx;
+	short m_switchValueNodeIdx;
+	float m_trueValue;
+	short m_trueValueNodeIdx;
+}
+
+native class CFootEventConditionNode::Definition as NativeEngine.GraphFootEventConditionNode : AnimationGraphNodeDefinition
+{
+	inline static GraphFootEventConditionNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CFootEventConditionNode>();
+	}
+	inline void SetPhaseCondition( int value )
+	{
+		self->m_phaseCondition = static_cast<decltype(self->m_phaseCondition)>( value );
+	}
+	inline void SetRules( uint value )
+	{
+		self->m_rules.m_flags = value;
+	}
+	short m_sourceStateNodeIdx;
+}
+
+native class CFootIKNode::Definition as NativeEngine.GraphFootIKNode : AnimationGraphNodeDefinition
+{
+	inline static GraphFootIKNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CFootIKNode>();
+	}
+	inline void SetBlendMode( int value )
+	{
+		self->m_blendMode = static_cast<decltype(self->m_blendMode)>( value );
+	}
+	float m_blendTime;
+	short m_childNodeIdx;
+	short m_enableNodeIdx;
+	bool m_isTargetInWorldSpace;
+	inline void SetLeftFootBoneID( uint value )
+	{
+		self->m_leftFootBoneID.m_nHashCode = value;
+	}
+	short m_leftTargetNodeIdx;
+	inline void SetRightFootBoneID( uint value )
+	{
+		self->m_rightFootBoneID.m_nHashCode = value;
+	}
+	short m_rightTargetNodeIdx;
+}
+
+native class CFootstepEventIDNode::Definition as NativeEngine.GraphFootstepEventIDNode : AnimationGraphNodeDefinition
+{
+	inline static GraphFootstepEventIDNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CFootstepEventIDNode>();
+	}
+	inline void SetRules( uint value )
+	{
+		self->m_rules.m_flags = value;
+	}
+	short m_sourceStateNodeIdx;
+}
+
+native class CFootstepEventPercentageThroughNode::Definition as NativeEngine.GraphFootstepEventPercentageThroughNode : AnimationGraphNodeDefinition
+{
+	inline static GraphFootstepEventPercentageThroughNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CFootstepEventPercentageThroughNode>();
+	}
+	inline void SetPhaseCondition( int value )
+	{
+		self->m_phaseCondition = static_cast<decltype(self->m_phaseCondition)>( value );
+	}
+	inline void SetRules( uint value )
+	{
+		self->m_rules.m_flags = value;
+	}
+	short m_sourceStateNodeIdx;
+}
+
+native class CGraphEventConditionNode::Condition as NativeEngine.GraphGraphEventConditionNodeCondition
+{
+	inline void SetEventID( uint value )
+	{
+		self->m_eventID.m_nHashCode = value;
+	}
+	inline void SetEventTypeCondition( int value )
+	{
+		self->m_eventTypeCondition = static_cast<decltype(self->m_eventTypeCondition)>( value );
+	}
+}
+
+native class CGraphEventConditionNode::Definition as NativeEngine.GraphGraphEventConditionNode : AnimationGraphNodeDefinition
+{
+	inline static GraphGraphEventConditionNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CGraphEventConditionNode>();
+	}
+	inline GraphCUtlVectorCGraphEventConditionNodeCondition GetConditions()
+	{
+		return &self->m_conditions;
+	}
+	inline void SetRules( uint value )
+	{
+		self->m_rules.m_flags = value;
+	}
+	short m_sourceStateNodeIdx;
+}
+
+native class CIDBasedClipSelectorNode::Definition as NativeEngine.GraphIDBasedClipSelectorNode : AnimationGraphNodeDefinition
+{
+	inline static GraphIDBasedClipSelectorNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CIDBasedClipSelectorNode>();
+	}
+	short m_fallbackNodeIdx;
+	bool m_ignoreInvalidOptions;
+	inline GraphCUtlVectorStringID GetOptionIDs()
+	{
+		return &self->m_optionIDs;
+	}
+	inline GraphCUtlVectorint16 GetOptionNodeIndices()
+	{
+		return &self->m_optionNodeIndices;
+	}
+	short m_parameterNodeIdx;
+}
+
+native class CIDBasedSelectorNode::Definition as NativeEngine.GraphIDBasedSelectorNode : AnimationGraphNodeDefinition
+{
+	inline static GraphIDBasedSelectorNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CIDBasedSelectorNode>();
+	}
+	short m_fallbackNodeIdx;
+	bool m_ignoreInvalidOptions;
+	inline GraphCUtlVectorStringID GetOptionIDs()
+	{
+		return &self->m_optionIDs;
+	}
+	inline GraphCUtlVectorint16 GetOptionNodeIndices()
+	{
+		return &self->m_optionNodeIndices;
+	}
+	short m_parameterNodeIdx;
+}
+
+native class CIDComparisonNode::Definition as NativeEngine.GraphIDComparisonNode : AnimationGraphNodeDefinition
+{
+	inline static GraphIDComparisonNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CIDComparisonNode>();
+	}
+	inline GraphCUtlVectorStringID GetComparisionIDs()
+	{
+		return &self->m_comparisionIDs;
+	}
+	inline void SetComparison( int value )
+	{
+		self->m_comparison = static_cast<decltype(self->m_comparison)>( value );
+	}
+	short m_inputValueNodeIdx;
+}
+
+native class CIDEventConditionNode::Definition as NativeEngine.GraphIDEventConditionNode : AnimationGraphNodeDefinition
+{
+	inline static GraphIDEventConditionNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CIDEventConditionNode>();
+	}
+	inline GraphCUtlVectorStringID GetEventIDs()
+	{
+		return &self->m_eventIDs;
+	}
+	inline void SetRules( uint value )
+	{
+		self->m_rules.m_flags = value;
+	}
+	short m_sourceStateNodeIdx;
+}
+
+native class CIDEventNode::Definition as NativeEngine.GraphIDEventNode : AnimationGraphNodeDefinition
+{
+	inline static GraphIDEventNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CIDEventNode>();
+	}
+	inline void SetDefaultValue( uint value )
+	{
+		self->m_defaultValue.m_nHashCode = value;
+	}
+	inline void SetRules( uint value )
+	{
+		self->m_rules.m_flags = value;
+	}
+	short m_sourceStateNodeIdx;
+}
+
+native class CIDEventPercentageThroughNode::Definition as NativeEngine.GraphIDEventPercentageThroughNode : AnimationGraphNodeDefinition
+{
+	inline static GraphIDEventPercentageThroughNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CIDEventPercentageThroughNode>();
+	}
+	inline void SetEventID( uint value )
+	{
+		self->m_eventID.m_nHashCode = value;
+	}
+	inline void SetRules( uint value )
+	{
+		self->m_rules.m_flags = value;
+	}
+	short m_sourceStateNodeIdx;
+}
+
+native class CIDSelectorNode::Definition as NativeEngine.GraphIDSelectorNode : AnimationGraphNodeDefinition
+{
+	inline static GraphIDSelectorNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CIDSelectorNode>();
+	}
+	inline GraphCUtlVectorint16 GetConditionNodeIndices()
+	{
+		return &self->m_conditionNodeIndices;
+	}
+	inline void SetDefaultValue( uint value )
+	{
+		self->m_defaultValue.m_nHashCode = value;
+	}
+	inline GraphCUtlVectorStringID GetValues()
+	{
+		return &self->m_values;
+	}
+}
+
+native class CIDSwitchNode::Definition as NativeEngine.GraphIDSwitchNode : AnimationGraphNodeDefinition
+{
+	inline static GraphIDSwitchNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CIDSwitchNode>();
+	}
+	inline void SetFalseValue( uint value )
+	{
+		self->m_falseValue.m_nHashCode = value;
+	}
+	short m_falseValueNodeIdx;
+	short m_switchValueNodeIdx;
+	inline void SetTrueValue( uint value )
+	{
+		self->m_trueValue.m_nHashCode = value;
+	}
+	short m_trueValueNodeIdx;
+}
+
+native class CIDToFloatNode::Definition as NativeEngine.GraphIDToFloatNode : AnimationGraphNodeDefinition
+{
+	inline static GraphIDToFloatNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CIDToFloatNode>();
+	}
+	float m_defaultValue;
+	inline GraphCUtlVectorStringID GetIDs()
+	{
+		return &self->m_IDs;
+	}
+	short m_inputValueNodeIdx;
+	inline CUtlVectorFloat GetValues()
+	{
+		return &self->m_values;
+	}
+}
+
+native class CIsExternalGraphSlotFilledNode::Definition as NativeEngine.GraphIsExternalGraphSlotFilledNode : AnimationGraphNodeDefinition
+{
+	inline static GraphIsExternalGraphSlotFilledNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CIsExternalGraphSlotFilledNode>();
+	}
+	short m_externalGraphNodeIdx;
+}
+
+native class CIsTargetSetNode::Definition as NativeEngine.GraphIsTargetSetNode : AnimationGraphNodeDefinition
+{
+	inline static GraphIsTargetSetNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CIsTargetSetNode>();
+	}
+	short m_inputValueNodeIdx;
+}
+
+native class CLayerBlendNode::Definition as NativeEngine.GraphLayerBlendNode : AnimationGraphNodeDefinition
+{
+	inline static GraphLayerBlendNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CLayerBlendNode>();
+	}
+	short m_baseNodeIdx;
+	inline GraphCUtlVectorCLayerBlendNodeLayerDefinition GetLayerDefinitions()
+	{
+		return &self->m_layerDefinitions;
+	}
+	bool m_onlySampleBaseRootMotion;
+}
+
+native class CLayerBlendNode::LayerDefinition as NativeEngine.GraphLayerBlendNodeLayerDefinition
+{
+	inline void SetBlendMode( int value )
+	{
+		self->m_blendMode = static_cast<decltype(self->m_blendMode)>( value );
+	}
+	short m_boneMaskValueNodeIdx;
+	bool m_ignoreEvents;
+	short m_inputNodeIdx;
+	bool m_isStateMachineLayer;
+	bool m_isSynchronized;
+	short m_rootMotionWeightValueNodeIdx;
+	short m_weightValueNodeIdx;
+}
+
+native class CLookAtChainNode::Definition as NativeEngine.GraphLookAtChainNode : AnimationGraphNodeDefinition
+{
+	inline static GraphLookAtChainNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CLookAtChainNode>();
+	}
+	inline GraphCUtlVectorStringID GetBoneIDs()
+	{
+		return &self->m_boneIDs;
+	}
+	short m_childNodeIdx;
+	float m_pitchLimit;
+	short m_pitchNodeIdx;
+	inline void SetReferenceBoneID( uint value )
+	{
+		self->m_referenceBoneID.m_nHashCode = value;
+	}
+	Rotation m_referenceRotation;
+	short m_weightNodeIdx;
+	inline CUtlVectorFloat GetWeights()
+	{
+		return &self->m_weights;
+	}
+	float m_yawLimit;
+	short m_yawNodeIdx;
+}
+
+native class CNotNode::Definition as NativeEngine.GraphNotNode : AnimationGraphNodeDefinition
+{
+	inline static GraphNotNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CNotNode>();
+	}
+	short m_inputValueNodeIdx;
+}
+
+native class COrientationWarpNode::Definition as NativeEngine.GraphOrientationWarpNode : AnimationGraphNodeDefinition
+{
+	inline static GraphOrientationWarpNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<COrientationWarpNode>();
+	}
+	inline void SetAlignmentMode( int value )
+	{
+		self->m_alignmentMode = static_cast<decltype(self->m_alignmentMode)>( value );
+	}
+	short m_clipReferenceNodeIdx;
+	bool m_isOffsetNode;
+	bool m_isOffsetRelativeToCharacter;
+	inline void SetSamplingMode( int value )
+	{
+		self->m_samplingMode = static_cast<decltype(self->m_samplingMode)>( value );
+	}
+	short m_targetValueNodeIdx;
+}
+
+native class COrNode::Definition as NativeEngine.GraphOrNode : AnimationGraphNodeDefinition
+{
+	inline static GraphOrNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<COrNode>();
+	}
+	inline GraphCUtlVectorint16 GetConditionNodeIndices()
+	{
+		return &self->m_conditionNodeIndices;
+	}
+}
+
+native class CParameterizedBlendNode::BlendRange as NativeEngine.GraphParameterizedBlendNodeBlendRange
+{
+	short m_inputIdx0;
+	short m_inputIdx1;
+	float m_paramRangeEnd;
+	float m_paramRangeStart;
+}
+
+native class CParameterizedClipSelectorNode::Definition as NativeEngine.GraphParameterizedClipSelectorNode : AnimationGraphNodeDefinition
+{
+	inline static GraphParameterizedClipSelectorNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CParameterizedClipSelectorNode>();
+	}
+	bool m_hasWeightsSet;
+	bool m_ignoreInvalidOptions;
+	inline GraphCUtlVectorint16 GetOptionNodeIndices()
+	{
+		return &self->m_optionNodeIndices;
+	}
+	inline GraphCUtlVectoruint8 GetOptionWeights()
+	{
+		return &self->m_optionWeights;
+	}
+	short m_parameterNodeIdx;
+}
+
+native class CParameterizedSelectorNode::Definition as NativeEngine.GraphParameterizedSelectorNode : AnimationGraphNodeDefinition
+{
+	inline static GraphParameterizedSelectorNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CParameterizedSelectorNode>();
+	}
+	bool m_hasWeightsSet;
+	bool m_ignoreInvalidOptions;
+	inline GraphCUtlVectorint16 GetOptionNodeIndices()
+	{
+		return &self->m_optionNodeIndices;
+	}
+	inline GraphCUtlVectoruint8 GetOptionWeights()
+	{
+		return &self->m_optionWeights;
+	}
+	short m_parameterNodeIdx;
+}
+
+native class CPassthroughNode::Definition as NativeEngine.GraphPassthroughNode : AnimationGraphNodeDefinition
+{
+	inline static GraphPassthroughNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CPassthroughNode>();
+	}
+	short m_childNodeIdx;
+}
+
+native class CReferencedGraphNode::Definition as NativeEngine.GraphReferencedGraphNode : AnimationGraphNodeDefinition
+{
+	inline static GraphReferencedGraphNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CReferencedGraphNode>();
+	}
+	short m_fallbackNodeIdx;
+	short m_referencedGraphIdx;
+}
+
+native class CReferencePoseNode::Definition as NativeEngine.GraphReferencePoseNode : AnimationGraphNodeDefinition
+{
+	inline static GraphReferencePoseNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CReferencePoseNode>();
+	}
+}
+
+native class CRootMotionOverrideNode::Definition as NativeEngine.GraphRootMotionOverrideNode : AnimationGraphNodeDefinition
+{
+	inline static GraphRootMotionOverrideNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CRootMotionOverrideNode>();
+	}
+	short m_angularVelocityLimitNodeIdx;
+	short m_childNodeIdx;
+	short m_desiredFacingDirectionNodeIdx;
+	short m_desiredMovingVelocityNodeIdx;
+	short m_linearVelocityLimitNodeIdx;
+	float m_maxAngularVelocity;
+	float m_maxLinearVelocity;
+	byte m_overrideFlags;
+}
+
+native class CScaleNode::Definition as NativeEngine.GraphScaleNode : AnimationGraphNodeDefinition
+{
+	inline static GraphScaleNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CScaleNode>();
+	}
+	short m_childNodeIdx;
+	short m_enableNodeIdx;
+	short m_maskNodeIdx;
+}
+
+native class CSelectorNode::Definition as NativeEngine.GraphSelectorNode : AnimationGraphNodeDefinition
+{
+	inline static GraphSelectorNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CSelectorNode>();
+	}
+	inline GraphCUtlVectorint16 GetConditionNodeIndices()
+	{
+		return &self->m_conditionNodeIndices;
+	}
+	inline GraphCUtlVectorint16 GetOptionNodeIndices()
+	{
+		return &self->m_optionNodeIndices;
+	}
+}
+
+native class CSpeedScaleNode::Definition as NativeEngine.GraphSpeedScaleNode : AnimationGraphNodeDefinition
+{
+	inline static GraphSpeedScaleNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CSpeedScaleNode>();
+	}
+	short m_childNodeIdx;
+	short m_inputValueNodeIdx;
+}
+
+native class CStateCompletedConditionNode::Definition as NativeEngine.GraphStateCompletedConditionNode : AnimationGraphNodeDefinition
+{
+	inline static GraphStateCompletedConditionNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CStateCompletedConditionNode>();
+	}
+	short m_sourceStateNodeIdx;
+	float m_transitionDuration;
+	short m_transitionDurationOverrideNodeIdx;
+}
+
+native class CStateMachineNode::Definition as NativeEngine.GraphStateMachineNode : AnimationGraphNodeDefinition
+{
+	inline static GraphStateMachineNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CStateMachineNode>();
+	}
+	short m_defaultStateIndex;
+	inline GraphCUtlVectorCStateMachineNodeStateDefinition GetStateDefinition()
+	{
+		return &self->m_stateDefinition;
+	}
+}
+
+native class CStateMachineNode::StateDefinition as NativeEngine.GraphStateMachineNodeStateDefinition
+{
+	short m_entryConditionNodeIdx;
+	short m_stateNodeIdx;
+	inline GraphCUtlVectorCStateMachineNodeTransitionDefinition GetTransitionDefinition()
+	{
+		return &self->m_transitionDefinition;
+	}
+}
+
+native class CStateMachineNode::TransitionDefinition as NativeEngine.GraphStateMachineNodeTransitionDefinition
+{
+	bool m_canBeForced;
+	short m_conditionNodeIdx;
+	short m_targetStateIdx;
+	short m_transitionNodeIdx;
+}
+
+native class CStateNode::Definition as NativeEngine.GraphStateNode : AnimationGraphNodeDefinition
+{
+	inline static GraphStateNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CStateNode>();
+	}
+	short m_childNodeIdx;
+	inline GraphCUtlVectorStringID GetEntryEvents()
+	{
+		return &self->m_entryEvents;
+	}
+	inline GraphCUtlVectorStringID GetExitEvents()
+	{
+		return &self->m_exitEvents;
+	}
+	inline GraphCUtlVectorStringID GetFullyInStateEvents()
+	{
+		return &self->m_fullyInStateEvents;
+	}
+	bool m_isOffState;
+	short m_layerBoneMaskNodeIdx;
+	short m_layerRootMotionWeightNodeIdx;
+	short m_layerWeightNodeIdx;
+	inline GraphCUtlVectorCStateNodeTimedEvent GetTimedElapsedEvents()
+	{
+		return &self->m_timedElapsedEvents;
+	}
+	inline GraphCUtlVectorCStateNodeTimedEvent GetTimedRemainingEvents()
+	{
+		return &self->m_timedRemainingEvents;
+	}
+	bool m_useActualElapsedTimeInStateForTimedEvents;
+}
+
+native class CStateNode::TimedEvent as NativeEngine.GraphStateNodeTimedEvent
+{
+	inline void SetComparisonOperator( int value )
+	{
+		self->m_comparisonOperator = static_cast<decltype(self->m_comparisonOperator)>( value );
+	}
+	inline void SetID( uint value )
+	{
+		self->m_ID.m_nHashCode = value;
+	}
+	float m_timeValue;
+}
+
+native class CSyncEventIndexConditionNode::Definition as NativeEngine.GraphSyncEventIndexConditionNode : AnimationGraphNodeDefinition
+{
+	inline static GraphSyncEventIndexConditionNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CSyncEventIndexConditionNode>();
+	}
+	short m_sourceStateNodeIdx;
+	int m_syncEventIdx;
+	inline void SetTriggerMode( int value )
+	{
+		self->m_triggerMode = static_cast<decltype(self->m_triggerMode)>( value );
+	}
+}
+
+native class CTargetInfoNode::Definition as NativeEngine.GraphTargetInfoNode : AnimationGraphNodeDefinition
+{
+	inline static GraphTargetInfoNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CTargetInfoNode>();
+	}
+	inline void SetInfoType( int value )
+	{
+		self->m_infoType = static_cast<decltype(self->m_infoType)>( value );
+	}
+	short m_inputValueNodeIdx;
+	bool m_isWorldSpaceTarget;
+}
+
+native class CTargetOffsetNode::Definition as NativeEngine.GraphTargetOffsetNode : AnimationGraphNodeDefinition
+{
+	inline static GraphTargetOffsetNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CTargetOffsetNode>();
+	}
+	short m_inputValueNodeIdx;
+	bool m_isBoneSpaceOffset;
+	Rotation m_rotationOffset;
+	Vector3 m_translationOffset;
+	short m_translationOffsetNodeIdx;
+}
+
+native class CTargetPointNode::Definition as NativeEngine.GraphTargetPointNode : AnimationGraphNodeDefinition
+{
+	inline static GraphTargetPointNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CTargetPointNode>();
+	}
+	short m_inputValueNodeIdx;
+	bool m_isWorldSpaceTarget;
+}
+
+native class CTargetSelectorNode::Definition as NativeEngine.GraphTargetSelectorNode : AnimationGraphNodeDefinition
+{
+	inline static GraphTargetSelectorNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CTargetSelectorNode>();
+	}
+	inline void SetAlignmentBoneID( uint value )
+	{
+		self->m_alignmentBoneID.m_nHashCode = value;
+	}
+	bool m_ignoreInvalidOptions;
+	bool m_isWorldSpaceTarget;
+	inline GraphCUtlVectorint16 GetOptionNodeIndices()
+	{
+		return &self->m_optionNodeIndices;
+	}
+	float m_orientationScoreWeight;
+	short m_parameterNodeIdx;
+	float m_positionScoreWeight;
+}
+
+native class CTargetWarpNode::Definition as NativeEngine.GraphTargetWarpNode : AnimationGraphNodeDefinition
+{
+	inline static GraphTargetWarpNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CTargetWarpNode>();
+	}
+	inline void SetAlignmentBoneID( uint value )
+	{
+		self->m_alignmentBoneID.m_nHashCode = value;
+	}
+	bool m_alignWithTargetAtLastWarpEvent;
+	bool m_allowTargetUpdate;
+	short m_clipReferenceNodeIdx;
+	float m_lerpFallbackDistanceThreshold;
+	float m_maxTangentLength;
+	inline void SetSamplingMode( int value )
+	{
+		self->m_samplingMode = static_cast<decltype(self->m_samplingMode)>( value );
+	}
+	float m_samplingPositionErrorThresholdSq;
+	float m_targetUpdateAngleThresholdRadians;
+	float m_targetUpdateDistanceThreshold;
+	inline void SetTargetUpdateRule( int value )
+	{
+		self->m_targetUpdateRule = static_cast<decltype(self->m_targetUpdateRule)>( value );
+	}
+	short m_targetValueNodeIdx;
+}
+
+native class CTimeConditionNode::Definition as NativeEngine.GraphTimeConditionNode : AnimationGraphNodeDefinition
+{
+	inline static GraphTimeConditionNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CTimeConditionNode>();
+	}
+	float m_comparand;
+	short m_inputValueNodeIdx;
+	inline void SetOperator( int value )
+	{
+		self->m_operator = static_cast<decltype(self->m_operator)>( value );
+	}
+	short m_sourceStateNodeIdx;
+	inline void SetType( int value )
+	{
+		self->m_type = static_cast<decltype(self->m_type)>( value );
+	}
+}
+
+native class CTimeControlledClipNode::Definition as NativeEngine.GraphTimeControlledClipNode : AnimationGraphNodeDefinition
+{
+	inline static GraphTimeControlledClipNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CTimeControlledClipNode>();
+	}
+	short m_dataSlotIdx;
+	inline GraphCUtlVectorStringID GetGraphEvents()
+	{
+		return &self->m_graphEvents;
+	}
+	short m_playInReverseValueNodeIdx;
+	bool m_sampleRootMotion;
+	short m_timeValueNodeIdx;
+}
+
+native class CTransitionEventConditionNode::Definition as NativeEngine.GraphTransitionEventConditionNode : AnimationGraphNodeDefinition
+{
+	inline static GraphTransitionEventConditionNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CTransitionEventConditionNode>();
+	}
+	inline void SetRequireRuleID( uint value )
+	{
+		self->m_requireRuleID.m_nHashCode = value;
+	}
+	inline void SetRuleCondition( int value )
+	{
+		self->m_ruleCondition = static_cast<decltype(self->m_ruleCondition)>( value );
+	}
+	inline void SetRules( uint value )
+	{
+		self->m_rules.m_flags = value;
+	}
+	short m_sourceStateNodeIdx;
+}
+
+native class CTransitionNode::Definition as NativeEngine.GraphTransitionNode : AnimationGraphNodeDefinition
+{
+	inline static GraphTransitionNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CTransitionNode>();
+	}
+	inline void SetBlendWeightEasingOp( int value )
+	{
+		self->m_blendWeightEasingOp = static_cast<decltype(self->m_blendWeightEasingOp)>( value );
+	}
+	float m_boneMaskBlendInTimePercentage;
+	float m_duration;
+	short m_durationOverrideNodeIdx;
+	inline void SetRootMotionBlend( int value )
+	{
+		self->m_rootMotionBlend = static_cast<decltype(self->m_rootMotionBlend)>( value );
+	}
+	short m_startBoneMaskNodeIdx;
+	short m_targetStateNodeIdx;
+	short m_targetSyncIDNodeIdx;
+	float m_timeOffset;
+	short m_timeOffsetOverrideNodeIdx;
+	uint m_transitionOptions;
+}
+
+native class CTwoBoneIKNode::Definition as NativeEngine.GraphTwoBoneIKNode : AnimationGraphNodeDefinition
+{
+	inline static GraphTwoBoneIKNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CTwoBoneIKNode>();
+	}
+	inline void SetBlendMode( int value )
+	{
+		self->m_blendMode = static_cast<decltype(self->m_blendMode)>( value );
+	}
+	float m_blendTime;
+	float m_chainRotationWeight;
+	short m_childNodeIdx;
+	inline void SetEffectorBoneID( uint value )
+	{
+		self->m_effectorBoneID.m_nHashCode = value;
+	}
+	short m_effectorTargetNodeIdx;
+	short m_enableNodeIdx;
+	bool m_isTargetInWorldSpace;
+	short m_weightNodeIdx;
+}
+
+native class CUtlVector<CGraphEventConditionNode::Condition> as NativeEngine.GraphCUtlVectorCGraphEventConditionNodeCondition
+{
+	inline GraphGraphEventConditionNodeCondition Add()
+	{
+		return &self->Element( self->AddToTail() );
+	}
+}
+
+native class CUtlVector<CLayerBlendNode::LayerDefinition> as NativeEngine.GraphCUtlVectorCLayerBlendNodeLayerDefinition
+{
+	inline GraphLayerBlendNodeLayerDefinition Add()
+	{
+		return &self->Element( self->AddToTail() );
+	}
+}
+
+native class CUtlVector<CParameterizedBlendNode::BlendRange> as NativeEngine.GraphCUtlVectorCParameterizedBlendNodeBlendRange
+{
+	inline GraphParameterizedBlendNodeBlendRange Add()
+	{
+		return &self->Element( self->AddToTail() );
+	}
+}
+
+native class CUtlVector<CStateMachineNode::StateDefinition> as NativeEngine.GraphCUtlVectorCStateMachineNodeStateDefinition
+{
+	inline GraphStateMachineNodeStateDefinition Add()
+	{
+		return &self->Element( self->AddToTail() );
+	}
+}
+
+native class CUtlVector<CStateMachineNode::TransitionDefinition> as NativeEngine.GraphCUtlVectorCStateMachineNodeTransitionDefinition
+{
+	inline GraphStateMachineNodeTransitionDefinition Add()
+	{
+		return &self->Element( self->AddToTail() );
+	}
+}
+
+native class CUtlVector<CStateNode::TimedEvent> as NativeEngine.GraphCUtlVectorCStateNodeTimedEvent
+{
+	inline GraphStateNodeTimedEvent Add()
+	{
+		return &self->Element( self->AddToTail() );
+	}
+}
+
+native class CUtlVector<FloatCurve_t::Point> as NativeEngine.GraphCUtlVectorFloatCurve_tPoint
+{
+	inline GraphFloatCurve_tPoint Add()
+	{
+		return &self->Element( self->AddToTail() );
+	}
+}
+
+native class CUtlVector<int16> as NativeEngine.GraphCUtlVectorint16
+{
+	inline void Add( int value )
+	{
+		self->AddToTail( static_cast<int16>( value ) );
+	}
+}
+
+native class CUtlVector<StringID> as NativeEngine.GraphCUtlVectorStringID
+{
+	inline void Add( uint value )
+	{
+		self->AddToTail( StringTokenFromHashCode( value ) );
+	}
+}
+
+native class CUtlVector<uint8> as NativeEngine.GraphCUtlVectoruint8
+{
+	inline void Add( int value )
+	{
+		self->AddToTail( static_cast<uint8>( value ) );
+	}
+}
+
+native class CUtlVector<Vector2D> as NativeEngine.GraphCUtlVectorVector2D
+{
+	inline void Add( Vector2 value )
+	{
+		self->AddToTail( value );
+	}
+}
+
+native class CVectorCreateNode::Definition as NativeEngine.GraphVectorCreateNode : AnimationGraphNodeDefinition
+{
+	inline static GraphVectorCreateNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CVectorCreateNode>();
+	}
+	short m_inputValueXNodeIdx;
+	short m_inputValueYNodeIdx;
+	short m_inputValueZNodeIdx;
+	short m_inputVectorValueNodeIdx;
+}
+
+native class CVectorInfoNode::Definition as NativeEngine.GraphVectorInfoNode : AnimationGraphNodeDefinition
+{
+	inline static GraphVectorInfoNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CVectorInfoNode>();
+	}
+	inline void SetDesiredInfo( int value )
+	{
+		self->m_desiredInfo = static_cast<decltype(self->m_desiredInfo)>( value );
+	}
+	short m_inputValueNodeIdx;
+}
+
+native class CVectorNegateNode::Definition as NativeEngine.GraphVectorNegateNode : AnimationGraphNodeDefinition
+{
+	inline static GraphVectorNegateNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CVectorNegateNode>();
+	}
+	short m_inputValueNodeIdx;
+}
+
+native class CVelocityBasedSpeedScaleNode::Definition as NativeEngine.GraphVelocityBasedSpeedScaleNode : AnimationGraphNodeDefinition
+{
+	inline static GraphVelocityBasedSpeedScaleNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CVelocityBasedSpeedScaleNode>();
+	}
+	short m_childNodeIdx;
+	float m_defaultInputValue;
+	short m_inputValueNodeIdx;
+}
+
+native class CVelocityBlendNode::Definition as NativeEngine.GraphVelocityBlendNode : AnimationGraphNodeDefinition
+{
+	inline static GraphVelocityBlendNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CVelocityBlendNode>();
+	}
+	short m_parameterValueNodeIdx;
+	inline GraphCUtlVectorint16 GetSourceNodeIndices()
+	{
+		return &self->m_sourceNodeIndices;
+	}
+}
+
+native class CVirtualParameterBoneMaskNode::Definition as NativeEngine.GraphVirtualParameterBoneMaskNode : AnimationGraphNodeDefinition
+{
+	inline static GraphVirtualParameterBoneMaskNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CVirtualParameterBoneMaskNode>();
+	}
+	short m_childNodeIdx;
+}
+
+native class CVirtualParameterBoolNode::Definition as NativeEngine.GraphVirtualParameterBoolNode : AnimationGraphNodeDefinition
+{
+	inline static GraphVirtualParameterBoolNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CVirtualParameterBoolNode>();
+	}
+	short m_childNodeIdx;
+}
+
+native class CVirtualParameterFloatNode::Definition as NativeEngine.GraphVirtualParameterFloatNode : AnimationGraphNodeDefinition
+{
+	inline static GraphVirtualParameterFloatNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CVirtualParameterFloatNode>();
+	}
+	short m_childNodeIdx;
+}
+
+native class CVirtualParameterIDNode::Definition as NativeEngine.GraphVirtualParameterIDNode : AnimationGraphNodeDefinition
+{
+	inline static GraphVirtualParameterIDNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CVirtualParameterIDNode>();
+	}
+	short m_childNodeIdx;
+}
+
+native class CVirtualParameterTargetNode::Definition as NativeEngine.GraphVirtualParameterTargetNode : AnimationGraphNodeDefinition
+{
+	inline static GraphVirtualParameterTargetNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CVirtualParameterTargetNode>();
+	}
+	short m_childNodeIdx;
+}
+
+native class CVirtualParameterVectorNode::Definition as NativeEngine.GraphVirtualParameterVectorNode : AnimationGraphNodeDefinition
+{
+	inline static GraphVirtualParameterVectorNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CVirtualParameterVectorNode>();
+	}
+	short m_childNodeIdx;
+}
+
+native class CZeroPoseNode::Definition as NativeEngine.GraphZeroPoseNode : AnimationGraphNodeDefinition
+{
+	inline static GraphZeroPoseNode Add( AnimationGraphBuilder builder )
+	{
+		return builder->AddNode<CZeroPoseNode>();
+	}
+}
+
+native class FloatCurve_t as NativeEngine.GraphFloatCurve_t
+{
+	inline GraphCUtlVectorFloatCurve_tPoint GetPoints()
+	{
+		return &self->m_points;
+	}
+}
+
+native class FloatCurve_t::Point as NativeEngine.GraphFloatCurve_tPoint
+{
+	float m_inTangent;
+	float m_outTangent;
+	float m_parameter;
+	float m_value;
+}
+
+native class FloatRange_t as NativeEngine.GraphFloatRange_t
+{
+	float m_begin;
+	float m_end;
+}

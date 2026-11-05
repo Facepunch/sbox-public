@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Components;
+﻿using Sandbox.Engine;
+using Microsoft.AspNetCore.Components;
 using Sandbox.Diagnostics;
 using System;
 using System.Collections.Generic;
@@ -106,7 +107,7 @@ public class NavigationHost : Panel
 	/// </summary>
 	public void AddDestination( string url, Type type )
 	{
-		var td = Sandbox.Internal.GlobalGameNamespace.TypeLibrary.GetType( type );
+		var td = GlobalContext.Current.TypeLibrary.GetType( type );
 		Assert.NotNull( td );
 		destinations[url] = td;
 	}
@@ -278,7 +279,7 @@ public class NavigationHost : Panel
 			return (destination.Key, destination.Value);
 		}
 
-		var attr = RouteAttribute.FindValidTarget( url, currentUrl );
+		var attr = RouteAttribute.FindValidTarget( GlobalContext.Current.TypeLibrary, url, currentUrl );
 		if ( attr == null ) return default;
 
 		return (attr.Value.Attribute.Url, attr.Value.Type);

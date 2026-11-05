@@ -391,6 +391,17 @@ namespace Sandbox.UI
 			return _textBlock.GetMask( ComputedStyle, TextLayoutRect, out texture, out rect );
 		}
 
+		/// <summary>
+		/// Draw the text's shadows and outlines, which a background-clip: text fill goes on top of.
+		/// </summary>
+		internal void DrawTextEffects( Painter painter, BlendMode blendMode, float opacity )
+		{
+			if ( !clipsBackgroundToText || ComputedStyle is null ) return;
+			if ( LayoutTree?.IsInlineParticipant == true ) return;
+
+			_textBlock?.DrawEffects( painter, blendMode, ComputedStyle, TextLayoutRect, opacity );
+		}
+
 		private Styles HtmlStyleLookup( INode node )
 		{
 			// Seed with the label's own computed styles so inherited properties are present.

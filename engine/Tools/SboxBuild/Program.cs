@@ -138,7 +138,9 @@ internal class Program
 	private static void AddBuildContentCommand( RootCommand rootCommand )
 	{
 		var cmd = new Command( "build-content", "Build game content" );
-		cmd.SetHandler( () => { Environment.ExitCode = (int)new BuildContent().Run(); } );
+		var rootOption = new Option<string>( "--root", description: "Only build the content root at this path under game/, with whatever it reads from the others", getDefaultValue: () => null );
+		cmd.AddOption( rootOption );
+		cmd.SetHandler( ( string root ) => Environment.ExitCode = (int)new BuildContent( root ).Run(), rootOption );
 		rootCommand.Add( cmd );
 	}
 

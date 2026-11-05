@@ -54,6 +54,7 @@ public class AssetInspector : InspectorWidget, AssetSystem.IEventListener
 		SetSizeMode( SizeMode.CanGrow, SizeMode.CanGrow );
 
 		Splitter = new Splitter( this );
+		Splitter.Name = "AssetInspectorSplitter";
 		Splitter.IsVertical = true;
 
 		Layout.Add( Splitter, 1 );
@@ -135,7 +136,6 @@ public class AssetInspector : InspectorWidget, AssetSystem.IEventListener
 		Enabled = true;
 	}
 
-	[EditorEvent.Hotload]
 	void RebuildUI()
 	{
 		if ( SerializedObject.IsMultipleTargets )
@@ -148,17 +148,30 @@ public class AssetInspector : InspectorWidget, AssetSystem.IEventListener
 		}
 	}
 
+	[EditorEvent.Hotload]
+	void OnHotload()
+	{
+		if ( _assetInspectors.Count == 1 && _assetInspectors[0].RebuildOnHotload() )
+			return;
+
+		RebuildUI();
+	}
+
 	/// <summary>
 	/// (Re)create the widget hosting the asset preview inside the preview tab.
 	/// </summary>
 	private void BuildPreviewWidget()
 	{
+		var custom = AssetPreview is null ? null : _assetInspectors
+			.Select( inspector => inspector.CreatePreviewWidget( PreviewContainer, AssetPreview ) )
+			.FirstOrDefault( widget => widget is not null );
+
 		// destroying the old AssetPreviewWidget disposes the old AssetPreview with it
 		PreviewContainer.Layout.Clear( true );
 
 		if ( AssetPreview is not null )
 		{
-			Preview = new AssetPreviewWidget( AssetPreview );
+			Preview = new AssetPreviewWidget( AssetPreview, custom );
 		}
 		else
 		{
@@ -171,6 +184,8 @@ public class AssetInspector : InspectorWidget, AssetSystem.IEventListener
 		PreviewContainer.Layout.Add( Preview, 1 );
 	}
 
+	bool _previewOutOfDate;
+
 	/// <summary>
 	/// The asset was recompiled or changed on disk. Recreate the preview widget so it shows the
 	/// latest compiled content, and hand the fresh preview to anyone holding the old one.
@@ -179,6 +194,23 @@ public class AssetInspector : InspectorWidget, AssetSystem.IEventListener
 	{
 		if ( asset != Asset )
 			return;
+
+		_previewOutOfDate = true;
+		RefreshPreview();
+	}
+
+	[EditorEvent.Frame]
+	void RefreshPreview()
+	{
+		if ( !_previewOutOfDate )
+			return;
+
+		// Rebuilding creates a new native rendering widget, which brings the editor window in front of
+		// whatever tool window is active (e.g. saving in ModelDoc or the Material Editor). Wait until we're active.
+		if ( !IsActiveWindow && !(EditorWindow?.IsActiveWindow ?? false) )
+			return;
+
+		_previewOutOfDate = false;
 
 		AssetPreview = AssetPreview.CreateForAsset( Asset );
 		BuildPreviewWidget();
@@ -196,6 +228,9 @@ public class AssetInspector : InspectorWidget, AssetSystem.IEventListener
 	}
 
 	protected override bool OnInspectorClose( object newObj = null )
+		=> ConfirmClose( () => EditorUtility.InspectorObject = newObj );
+
+	public bool ConfirmClose( Action onClose )
 	{
 		var generic = !Asset.TryLoadResource<GameResource>( out var gameResource ) || !gameResource.HasUnsavedChanges;
 		if ( generic && !Asset.HasUnsavedChanges )
@@ -215,12 +250,15 @@ public class AssetInspector : InspectorWidget, AssetSystem.IEventListener
 			Clicked = () =>
 			{
 				if ( generic )
+				{
 					OnSave?.Invoke();
+					if ( Asset.HasUnsavedChanges )
+						return;
+				}
 				else
 					SaveAsset( Asset, gameResource );
 				popup.Destroy();
-				// After we are done with the popup, retrigger the inspector change since we previously blocked it.
-				EditorUtility.InspectorObject = newObj;
+				onClose();
 			}
 		} );
 
@@ -233,7 +271,7 @@ public class AssetInspector : InspectorWidget, AssetSystem.IEventListener
 				else
 					ResetAsset( Asset, gameResource );
 				popup.Destroy();
-				EditorUtility.InspectorObject = newObj;
+				onClose();
 			}
 		} );
 		popup.ButtonLayout.Add( new Button( "Cancel" ) { Clicked = () => { popup.Destroy(); } } );
@@ -668,12 +706,19 @@ public class AssetInspector : InspectorWidget, AssetSystem.IEventListener
 		/// or react to the preview. Optional - the default does nothing.
 		/// </summary>
 		public void SetAssetPreview( AssetPreview preview ) { }
+		public Widget CreatePreviewWidget( Widget parent, AssetPreview preview ) => null;
 
 		/// <summary>
 		/// Gives the inspector a reference back to the hosting <see cref="AssetInspector"/>, e.g. to toggle its
 		/// Save option or read its context. Optional - the default does nothing.
 		/// </summary>
 		public void SetInspector( AssetInspector inspector ) { }
+
+		/// <summary>
+		/// Rebuild around an existing document without losing its edits or undo history.
+		/// Return true when handled; otherwise the host recreates the inspector.
+		/// </summary>
+		public bool RebuildOnHotload() => false;
 	}
 
 }

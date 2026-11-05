@@ -203,6 +203,27 @@ public class LightProbeVolumeTests
 		AssertTexture( scalars, native.m_hLightProbeDirectLightScalarsTexture );
 	}
 
+	/// <summary>
+	/// A client can load a probe before the map VPK holding its textures is mounted. The engine
+	/// then hands back an error texture, and the probe must not render black ambient lighting from it.
+	/// </summary>
+	[TestMethod]
+	public void ErrorTextureCreatesNoProbe()
+	{
+		using var scope = scene.Push();
+		using var texture = Texture.CreateVolume( 2, 2, 12 ).Finish();
+		var missing = Texture.FromNative( NativeGlue.Resources.GetTexture( $"maps/{Guid.NewGuid():N}/lightmaps/env_light_probe_volume_1.vtex", Guid.Empty ) );
+		Assert.IsNotNull( missing );
+		Assert.IsTrue( missing.IsError );
+
+		var component = scene.CreateObject().Components.Create<LightProbeVolume>();
+		component.Texture = missing;
+		Assert.IsNull( FindProbe( scene, component ) );
+
+		component.Texture = texture;
+		Assert.IsNotNull( FindProbe( scene, component ) );
+	}
+
 	[TestMethod]
 	[DataRow( false, false )]
 	[DataRow( false, true )]

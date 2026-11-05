@@ -25,16 +25,18 @@ class ShaderPreprocessor
 		}
 
 		var fileSystem = Options.FileSystem ?? ShaderCompile.FileSystem;
-		var path = $"{Path.GetDirectoryName( parentFile ).Replace( '\\', '/' )}/{includeFile}";
+		// Relative to the including file, then from the root, then in shaders/ - the same order as the native include
+		// handler. Anything not expanded here is left out of the source embedded in the .shader_c, and won't be found
+		// when a player's client recompiles it.
+		string[] candidates =
+		[
+			$"{Path.GetDirectoryName( parentFile ).Replace( '\\', '/' )}/{includeFile}",
+			includeFile,
+			$"shaders/{includeFile}",
+		];
 
-		// Try searching relative
-		if ( !fileSystem.FileExists( path ) )
-		{
-			path = $"shaders/{includeFile}";
-		}
-
-		// Maybe it's in base, otherwise give up
-		if ( !fileSystem.FileExists( path ) )
+		var path = candidates.FirstOrDefault( fileSystem.FileExists );
+		if ( path is null )
 		{
 			return false;
 		}

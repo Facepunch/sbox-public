@@ -10,6 +10,7 @@
     <Project Path="Sandbox.CodeUpgrader/Sandbox.CodeUpgrader.csproj" />
     <Project Path="Sandbox.Generator/Sandbox.Generator.csproj" />
     <Project Path="Tools/CodeGen/CodeGen.csproj" />
+    <Project Path="Tools/ContentWorker/ContentWorker.csproj" />
     <Project Path="Tools/MenuBuild/MenuBuild.csproj" />
     <Project Path="Tools/PackageBuild/PackageBuild.csproj" />
     <Project Path="Tools/ShaderCompiler/ShaderCompiler.csproj" />
@@ -46,6 +47,7 @@
   </Folder>
   <Folder Name="/Engine/Tier0/Compiling/">
     <Project Path="Sandbox.Compiling/Sandbox.Compiling.csproj" />
+    <Project Path="Sandbox.ContentBuild/Sandbox.ContentBuild.csproj" />
   </Folder>
   <Folder Name="/Engine/Tier0/Mounting/">
     <Project Path="Mounting/Sandbox.Mounting.GoldSrc/Sandbox.Mounting.GoldSrc.csproj" />

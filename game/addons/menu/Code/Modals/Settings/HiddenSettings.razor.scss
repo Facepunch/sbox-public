@@ -15,22 +15,26 @@ HiddenSettings
 
 	.hidden-row
 	{
-		cursor: pointer;
-
 		.line
 		{
 			min-height: 56px;
 			padding: 6px 0;
 		}
 
-		&:hover
+		// A game opens its page - a creator's just a name, with its unhide button
+		&.opens
 		{
-			sound-in: "ui.button.over";
-		}
+			cursor: pointer;
 
-		&:active
-		{
-			sound-in: "ui.button.press";
+			&:hover
+			{
+				sound-in: "ui.button.over";
+			}
+
+			&:active
+			{
+				sound-in: "ui.button.press";
+			}
 		}
 	}
 

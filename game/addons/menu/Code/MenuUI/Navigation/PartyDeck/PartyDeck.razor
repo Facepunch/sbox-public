@@ -1,8 +1,6 @@
-@using System;
 @using Sandbox;
 @using Sandbox.Menu;
 @using Sandbox.UI;
-@using MenuProject;
 @inherits Panel
 @namespace MenuProject
 
@@ -403,7 +401,7 @@
 
 	static string Percent( double fraction ) => (Math.Clamp( fraction, 0, 1 ) * 100).ToString( "0.0", System.Globalization.CultureInfo.InvariantCulture );
 
-	bool Talking => Preferences.VoiceMode == VoiceMode.OpenMicrophone || (Preferences.VoiceMode == VoiceMode.PushToTalk && Input.Down( "voice" ));
+	bool Talking => Application.IsMicrophoneListening;
 
 	string VoiceClass => Preferences.VoiceMode == VoiceMode.Disabled ? "disabled" : Talking ? "talking" : "";
 
@@ -428,13 +426,13 @@
 	}
 
 	/// <summary>
-	/// Open party setup and wait for Create or cancellation before continuing.
+	/// Open party setup, or create immediately when inviting a friend, before continuing.
 	/// </summary>
-	public static Task<bool> EnsurePartyExists( bool isPublic = false )
+	public static Task<bool> EnsurePartyExists( bool isPublic = false, bool createImmediately = false )
 	{
 		if ( PartyRoom.Current is not null ) return System.Threading.Tasks.Task.FromResult( true );
 		if ( !Instance.IsValid() ) throw new InvalidOperationException( Language.GetPhrase( "menu.party.party_settings_are_not_available_yet" ) );
-		return Instance.BeginCreate( isPublic );
+		return Instance.BeginCreate( isPublic, createImmediately: createImmediately );
 	}
 
 	void OpenFriends()
@@ -474,12 +472,14 @@
 	public override void Tick()
 	{
 		base.Tick();
+
 		UpdateSettings();
 		UpdateWindow();
 
 		if ( InParty )
 		{
-			if ( Draft is null ) MenuUtility.SetVoiceListen( Talking );
+			if ( Draft is null ) PartyView.SetBroadcastVoice();
+
 			UpdateGameArt();
 			UpdateMapTitle();
 		}

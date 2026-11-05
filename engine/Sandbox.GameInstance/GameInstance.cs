@@ -339,6 +339,14 @@ internal class GameInstance : IGameInstance
 			await ResourceLoader.LoadAllGameResourceAsync( FileSystem.Mounted, token );
 		}
 
+		// Dedicated servers install packages that GameResources reference as they load, wait
+		// for them so their resources are registered before the game starts using them
+		if ( Application.IsDedicatedServer )
+		{
+			Log.Trace( $"Waiting for referenced packages" );
+			await Game.Resources.WaitForReferencedPackagesAsync( token );
+		}
+
 		LoadingScreen.Title = $"Loading Fonts";
 		Api.Activity.LoadStage( "fonts" );
 		await Task.Yield(); // make frame

@@ -43,6 +43,7 @@ partial class ViewportTools
 			cs.AddRow( so.GetProperty( nameof( RenderSettings.TextureQuality ) ) );
 			cs.AddRow( so.GetProperty( nameof( RenderSettings.ShadowQuality ) ) );
 			cs.AddRow( so.GetProperty( nameof( RenderSettings.VolumetricFogQuality ) ) );
+			cs.AddRow( so.GetProperty( nameof( RenderSettings.WaterQuality ) ) );
 			cs.AddRow( so.GetProperty( nameof( RenderSettings.PostProcessQuality ) ) );
 			cs.AddRow( so.GetProperty( nameof( RenderSettings.AntiAliasQuality ) ) );
 

@@ -186,6 +186,28 @@ public class PanelDirectDrawingTest
 		}
 	}
 
+	[TestMethod]
+	public void BackdropFilterIsClippedToBorderShape()
+	{
+		var system = new UISystem();
+		var root = new RootPanel( system ) { PanelBounds = Bounds };
+		root.AddChild<Panel>().Style.Set( "position: absolute; width: 64px; height: 64px; background-color: red;" );
+		root.AddChild<Panel>().Style.Set( "position: absolute; width: 64px; height: 64px; backdrop-filter: invert(1); border-shape: circle(50%);" );
+		try
+		{
+			root.Layout();
+			using var bitmap = Render( root );
+			var inside = bitmap.GetPixel( 32, 32 );
+			var corner = bitmap.GetPixel( 62, 62 );
+			Assert.IsTrue( inside.r < 0.05f && inside.g > 0.95f, $"Inside the circle should be inverted, got {inside}" );
+			Assert.IsTrue( corner.r > 0.95f && corner.g < 0.05f, $"Outside the circle should be untouched, got {corner}" );
+		}
+		finally
+		{
+			system.Clear();
+		}
+	}
+
 	sealed class LegacyCustomPanel : Panel, IPanelDraw
 	{
 		public override void OnDraw( Painter painter )

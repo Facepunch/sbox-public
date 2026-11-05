@@ -66,12 +66,6 @@ internal static class LumpReader<TLump> where TLump : struct
 		return array;
 	}
 
-	public static void ReadLumpToList( byte[] src, int offset, int length, List<TLump> dstList )
-	{
-		ArgumentNullException.ThrowIfNull( dstList );
-		dstList.AddRange( ReadLump( src, offset, length ) );
-	}
-
 	public static TLump ReadSingleFromStream( Stream stream )
 	{
 		ValidateRange( stream, stream.CanSeek ? stream.Position : 0, 1 );
@@ -109,14 +103,6 @@ internal static class LumpReader<TLump> where TLump : struct
 		if ( reseekPerItem ) stream.Seek( end, SeekOrigin.Begin );
 	}
 
-	public static void ReadLumpFromStream( Stream stream, int count, TLump[] dst, int dstOffset = 0 )
-	{
-		ArgumentNullException.ThrowIfNull( dst );
-		if ( dstOffset < 0 || count < 0 || dstOffset > dst.Length - count )
-			throw new ArgumentOutOfRangeException( nameof( dstOffset ) );
-		ReadLumpFromStream( stream, count ).CopyTo( dst, dstOffset );
-	}
-
 	public static TLump[] ReadLumpFromStream( Stream stream, int count )
 	{
 		ValidateRange( stream, stream.CanSeek ? stream.Position : 0, count );
@@ -135,18 +121,4 @@ internal static class LumpReader<TLump> where TLump : struct
 		return ReadLump( bytes, 0, bytes.Length );
 	}
 
-	public static TValue[] ReadLumpFromStream<TValue>( Stream stream, int count, Func<TLump, TValue> selectFunc )
-	{
-		var items = ReadLumpFromStream( stream, count );
-		var output = new TValue[count];
-		for ( var i = 0; i < count; ++i )
-			output[i] = selectFunc( items[i] );
-		return output;
-	}
-
-	public static void ReadLumpFromStream( Stream stream, int count, List<TLump> dstList )
-	{
-		ArgumentNullException.ThrowIfNull( dstList );
-		dstList.AddRange( ReadLumpFromStream( stream, count ) );
-	}
 }

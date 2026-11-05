@@ -12,6 +12,7 @@ public sealed class LightModulator : Component, Component.ExecuteInEditor
 	/// <summary>
 	/// Limits how the processed texture can change each colour channel of direct light.
 	/// </summary>
+	[Expose]
 	public enum ModulationBlendMode
 	{
 		/// <summary>
@@ -749,8 +750,20 @@ public sealed class LightModulator : Component, Component.ExecuteInEditor
 		}
 
 		data = cachedData;
+		if ( AnimationTime is float time && float.IsFinite( time ) )
+		{
+			data.EffectParameters.x = 0;
+			data.EffectParameters.w = time;
+		}
 		return cachedDataValid;
 	}
+
+	/// <summary>
+	/// Optional procedural-effect clock supplied by an owner, independent of the viewing camera's render time.
+	/// Null uses the camera's render clock. Does not affect texture scrolling.
+	/// Geometry and appearance packing remain cached.
+	/// </summary>
+	internal float? AnimationTime { get; set; }
 
 	bool dataDirty = true;
 	bool cachedDataValid;

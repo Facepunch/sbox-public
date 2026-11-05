@@ -12,7 +12,8 @@ using System.Text;
 public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 {
 	private string FullPath { get; } = fullPath;
-	private static readonly Material DefaultMaterial = Material.Load( "materials/dev/primary_white.vmat" );
+	// Loaded when a model first loads, not whenever this assembly does (mounted or not)
+	private static Material DefaultMaterial => field ??= Material.Load( "materials/dev/primary_white.vmat" );
 
 	enum ChunkType
 	{

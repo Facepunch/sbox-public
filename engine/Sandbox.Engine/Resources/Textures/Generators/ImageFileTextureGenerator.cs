@@ -1,4 +1,5 @@
 ﻿using Sandbox.UI;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Threading;
 
@@ -24,6 +25,12 @@ public class ImageFileGenerator : TextureGenerator
 	/// The maximum size of the image in pixels. If the imported image is larger than this (after cropping), it will be downscaled to fit.
 	/// </summary>
 	public int MaxSize { get; set; } = 4096;
+
+	/// <summary>
+	/// Store the image losslessly, without block compression or mips. For pixel art and UI that compression artifacts would spoil;
+	/// otherwise the texture is compressed, which is much smaller on disk and in memory.
+	/// </summary>
+	public bool Lossless { get; set; }
 
 	/// <summary>
 	/// When enabled, the output texture will be a normal map generated from the heightmap of the image.
@@ -127,7 +134,14 @@ public class ImageFileGenerator : TextureGenerator
 	public override bool CacheToDisk => true;
 
 	[Hide]
-	public override ImageFormat? FormatOverride => ConvertHeightToNormals ? null : ImageFormat.RGBA8888;
+	public override ImageFormat? FormatOverride => Lossless && !ConvertHeightToNormals ? ImageFormat.RGBA8888 : null;
+
+	public override void Deserialize( JsonObject obj )
+	{
+		// Saved before lossless was opt-in, when every image file was stored losslessly
+		Lossless = obj is not null && !obj.ContainsKey( nameof( Lossless ) );
+		base.Deserialize( obj );
+	}
 
 	// Don't continually load from disk, cache that shit
 	[JsonIgnore, Hide]
@@ -199,20 +213,21 @@ public class ImageFileGenerator : TextureGenerator
 		}, ct );
 	}
 
+	internal override IEnumerable<string> CompiledReads
+	{
+		get
+		{
+			var path = FilePath?.Trim();
+			if ( path is not null && path.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) ) path = path[..^2];
+			if ( path is not null && path.EndsWith( ".vtex", StringComparison.OrdinalIgnoreCase ) ) yield return path;
+		}
+	}
+
 	protected override async ValueTask<Texture> CreateTexture( Options options, CancellationToken ct )
 	{
-		var filePath = FilePath;
+		var filePath = TrimCompiledName();
 		if ( string.IsNullOrWhiteSpace( filePath ) )
 			return null;
-
-		// Keep an in-flight generation independent of edits to the generator.
-		var settings = (Cropping, Padding, Rotate, MaxSize, Tint, Sharpen, Blur,
-			Brightness, Contrast, Saturation, Hue, InvertColor, Colorize, TargetColor,
-			FlipHorizontal, FlipVertical, ConvertHeightToNormals, NormalScale);
-
-		// Trim compiled names!
-		if ( filePath.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) )
-			FilePath = filePath = filePath[..^2];
 
 		if ( filePath.EndsWith( ".vtex", StringComparison.OrdinalIgnoreCase ) )
 		{
@@ -220,18 +235,59 @@ public class ImageFileGenerator : TextureGenerator
 			return Texture.Load( filePath );
 		}
 
+		using var bitmap = await LoadImage( filePath, options, ct );
+		return bitmap?.ToTexture() ?? Texture.Invalid;
+	}
+
+	/// <summary>
+	/// The processed image file. Missing, it's the 1x1 magenta of <see cref="Texture.Invalid"/>. A compiled texture has no
+	/// image here: its pixels are read back from the texture, which takes a render device.
+	/// </summary>
+	protected override async ValueTask<Bitmap> CreateBitmap( Options options, CancellationToken ct )
+	{
+		var filePath = TrimCompiledName();
+		if ( string.IsNullOrWhiteSpace( filePath ) || filePath.EndsWith( ".vtex", StringComparison.OrdinalIgnoreCase ) )
+			return null;
+
+		var bitmap = await LoadImage( filePath, options, ct );
+		if ( bitmap is not null ) return bitmap;
+
+		var missing = new Bitmap( 1, 1 );
+		missing.Clear( new Color( 1, 0, 1 ) );
+		return missing;
+	}
+
+	/// <summary>
+	/// The path, without a compiled file's "_c", which is trimmed from the generator too.
+	/// </summary>
+	string TrimCompiledName()
+	{
+		var filePath = FilePath;
+		if ( filePath is not null && filePath.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) )
+			FilePath = filePath = filePath[..^2];
+
+		return filePath;
+	}
+
+	/// <summary>
+	/// The image file with every adjustment applied, or null if it isn't there.
+	/// </summary>
+	async Task<Bitmap> LoadImage( string filePath, Options options, CancellationToken ct )
+	{
+		// Keep an in-flight generation independent of edits to the generator.
+		var settings = (Cropping, Padding, Rotate, MaxSize, Tint, Sharpen, Blur,
+			Brightness, Contrast, Saturation, Hue, InvertColor, Colorize, TargetColor,
+			FlipHorizontal, FlipVertical, ConvertHeightToNormals, NormalScale);
+
+		// Before reading: an image that isn't there yet rebuilds this once it is
+		options.Compiler?.Context.AddCompileReference( filePath, optional: true );
+
 		var bitmap = await LoadCached( filePath, settings.Cropping, ct );
-		if ( bitmap is null ) return Texture.Invalid;
+		if ( bitmap is null ) return null;
 
 		try
 		{
 			ct.ThrowIfCancellationRequested();
-
-			// Native compiler and texture operations belong to the caller's context.
-			if ( options.Compiler is not null )
-			{
-				options.Compiler.Context.AddCompileReference( filePath );
-			}
 
 			await Task.Run( () =>
 			{
@@ -304,11 +360,12 @@ public class ImageFileGenerator : TextureGenerator
 			}, ct );
 
 			ct.ThrowIfCancellationRequested();
-			return bitmap.ToTexture();
+			return bitmap;
 		}
-		finally
+		catch
 		{
 			bitmap.Dispose();
+			throw;
 		}
 	}
 

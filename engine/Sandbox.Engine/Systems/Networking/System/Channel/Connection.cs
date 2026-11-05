@@ -345,12 +345,17 @@ public abstract partial class Connection : BytePack.ISerializer
 	}
 
 	/// <summary>
-	/// Virtual override point — exists so <see cref="MockConnection"/> can intercept the raw
-	/// <see cref="ByteStream"/> for routing through the host before encoding happens.
+	/// Encode and send a message. Peers behind the host get it through the host before it's encoded.
 	/// All other code should prefer calling <see cref="Send(NetPacket, NetFlags)"/> with an already-encoded packet.
 	/// </summary>
-	internal virtual void SendStream( ByteStream stream, NetFlags flags = NetFlags.Reliable )
+	internal void SendStream( ByteStream stream, NetFlags flags = NetFlags.Reliable )
 	{
+		if ( RelayFor( flags ) && (!HasPendingSends || (flags & NetFlags.Reliable) == 0) )
+		{
+			System?.SendMulticast( [Id], stream.ToSpan(), flags );
+			return;
+		}
+
 		var packet = EncodePacket( stream );
 		Send( packet, flags );
 		packet.Release();
@@ -373,15 +378,21 @@ public abstract partial class Connection : BytePack.ISerializer
 	/// <paramref name="packets"/> so a broadcast can hand the same ones to every recipient. The caller still owns
 	/// <paramref name="encoded"/>.
 	/// </summary>
-	internal virtual void Send( NetPacket encoded, NetFlags flags, ref byte[][] packets )
+	internal void Send( NetPacket encoded, NetFlags flags, ref byte[][] packets )
 	{
 		if ( sendsClosed )
 		{
 			return;
 		}
-		if ( pendingSends.Count > 0 )
+		if ( RelayFor( flags ) && (!HasPendingSends || (flags & NetFlags.Reliable) == 0) )
 		{
-			QueueSend( Task.FromResult( packets ??= CreatePackets( encoded.Span, flags ) ), flags );
+			System?.SendMulticast( [Id], Decode( encoded.Span ), flags );
+			return;
+		}
+		if ( HasPendingSends )
+		{
+			// Keep the complete message so it can be sent through either route when drained.
+			QueueSend( Task.FromResult<byte[][]>( [encoded.Span.ToArray()] ), flags );
 			return;
 		}
 
@@ -516,6 +527,13 @@ public abstract partial class Connection : BytePack.ISerializer
 	internal ConnectionInfo PreInfo { get; set; }
 
 	/// <summary>
+	/// Last <see cref="DisplayName"/> source and its filtered result. Steam's text filter is a native call,
+	/// and UI like nameplates and scoreboards reads the display name of every player every frame.
+	/// </summary>
+	sealed record FilteredName( string Source, ulong SteamId, string Value );
+	FilteredName _filteredName;
+
+	/// <summary>
 	/// The player's name but with any potential nicknames or naughty words filtered out.
 	/// You don't want to be using this in serverside logic really.
 	/// </summary>
@@ -525,19 +543,55 @@ public abstract partial class Connection : BytePack.ISerializer
 	{
 		get
 		{
+			string source = null;
 			if ( Steamworks.SteamFriends.IsInstalled )
 			{
 				var personaName = FriendInfo.DisplayName;
 				if ( !string.IsNullOrWhiteSpace( personaName ) )
-					return Utility.Steam.FilterName( personaName, SteamId );
+					source = personaName;
 			}
 
-			return Utility.Steam.FilterName( Name, SteamId );
+			source ??= Name;
+			var steamId = SteamId;
+
+			// Filter again only when the name or account changes
+			var cached = _filteredName;
+			if ( cached is not null && cached.SteamId == steamId.ValueUnsigned && string.Equals( cached.Source, source, StringComparison.Ordinal ) )
+				return cached.Value;
+
+			var filtered = Utility.Steam.FilterName( source, steamId );
+			_filteredName = new FilteredName( source, steamId.ValueUnsigned, filtered );
+			return filtered;
 		}
 	}
 
+	/// <summary>
+	/// The Steam Id of this connection. For a dedicated server this is the game server's Steam Id.
+	/// Clients get the host's Steam Id from the host itself, so it isn't verified on IP connections.
+	/// </summary>
 	[ActionGraphInclude]
-	public SteamId SteamId => Info?.SteamId ?? default;
+	public SteamId SteamId => Info?.SteamId ?? FallbackSteamId;
+
+	/// <summary>
+	/// The Steam Id the host sent us in its <see cref="ServerInfo"/>. Dedicated servers have no
+	/// <see cref="ConnectionInfo"/>, so this is the only place clients get their Steam Id from.
+	/// </summary>
+	internal SteamId HostSteamId { get; set; }
+
+	SteamId FallbackSteamId
+	{
+		get
+		{
+			if ( this is LocalConnection && Application.IsDedicatedServer )
+			{
+				// Still the uninitialized default until the game server has logged on
+				var steamId = Utility.Steam.SteamId;
+				return steamId.AccountType == SteamId.AccountTypes.Invalid ? default : steamId;
+			}
+
+			return HostSteamId;
+		}
+	}
 
 	/// <summary>
 	/// Steam friend information for this connection.

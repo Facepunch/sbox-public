@@ -46,7 +46,7 @@ public static partial class MenuUtility
 		}
 
 		/// <summary>
-		/// For binding reasons, get a list of buttons that are currently pressed
+		/// For binding reasons, get the buttons pressed until one of them is released. Called with no buttons if escape backs out.
 		/// </summary>
 		public static void TrapButtons( Action<string[]> callback )
 		{

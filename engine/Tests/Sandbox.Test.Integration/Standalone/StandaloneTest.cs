@@ -93,6 +93,9 @@ public class StandaloneTest
 					Assert.IsTrue( image.AsSpan().IndexOf( System.Text.Encoding.Unicode.GetBytes( resource ) ) >= 0, $"Executable has no {resource} resource" );
 				}
 				Assert.IsTrue( image.AsSpan().IndexOf( System.Text.Encoding.UTF8.GetBytes( $"\"Ident\":\"{project.Config.Ident}\"" ) ) >= 0, "Executable's manifest doesn't name the game" );
+
+				// Nothing references surfaces as assets, without them every MeshComponent fails to build
+				Assert.IsTrue( File.Exists( Path.Combine( config.TargetDir, "core", "surfaces", "default.surface_c" ) ), "Export is missing core/surfaces/default.surface_c" );
 			}
 
 			//

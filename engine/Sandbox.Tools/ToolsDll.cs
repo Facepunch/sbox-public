@@ -14,6 +14,11 @@ internal class ToolsDll : IToolsDll
 
 	PackageLoader.Enroller AssemblyEnroller { get; set; }
 
+	/// <summary>
+	/// The tool and project assemblies the editor compiled and loaded, with their compiled bytes and code archives.
+	/// </summary>
+	internal static LoadedAssembly[] LoadedAssemblies => (IToolsDll.Current as ToolsDll)?.AssemblyEnroller?.GetLoadedAssemblies() ?? [];
+
 	public ToolsDll()
 	{
 		Global.Assembly = GetType().Assembly;
@@ -32,14 +37,7 @@ internal class ToolsDll : IToolsDll
 
 		Game.IsPlaying = false;
 
-		EditorTypeLibrary = new Sandbox.Internal.TypeLibrary();
-		EditorTypeLibrary.AddIntrinsicTypes();
-		EditorTypeLibrary.AddAssembly( typeof( Vector3 ).Assembly, false );
-		EditorTypeLibrary.AddAssembly( Global.Assembly, true ); // editor can access everything anyway
-		EditorTypeLibrary.AddAssembly( typeof( EngineLoop ).Assembly, false );
-		EditorTypeLibrary.AddAssembly( typeof( Facepunch.ActionGraphs.ActionGraph ).Assembly, false );
-
-		Sandbox.Internal.TypeLibrary.Editor = EditorTypeLibrary;
+		CreateEditorTypeLibrary();
 
 		Sandbox.Generator.Processor.DefaultPackageAssetResolver = ResolvePackageAsset;
 
@@ -49,6 +47,22 @@ internal class ToolsDll : IToolsDll
 		Mixer.ResetToDefault();
 
 		EditorShortcuts.RegisterShortcuts();
+	}
+
+	/// <summary>
+	/// The type library of the editor and its compilers: the engine, the tools, and the tool and project assemblies
+	/// added to it later.
+	/// </summary>
+	internal static void CreateEditorTypeLibrary()
+	{
+		EditorTypeLibrary = new Sandbox.Internal.TypeLibrary();
+		EditorTypeLibrary.AddIntrinsicTypes();
+		EditorTypeLibrary.AddAssembly( typeof( Vector3 ).Assembly, false );
+		EditorTypeLibrary.AddAssembly( typeof( ToolsDll ).Assembly, true ); // editor can access everything anyway
+		EditorTypeLibrary.AddAssembly( typeof( EngineLoop ).Assembly, false );
+		EditorTypeLibrary.AddAssembly( typeof( Facepunch.ActionGraphs.ActionGraph ).Assembly, false );
+
+		Sandbox.Internal.TypeLibrary.Editor = EditorTypeLibrary;
 	}
 
 	public void Exiting()

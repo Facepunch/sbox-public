@@ -49,14 +49,6 @@ internal sealed class VmtNode
 		return null;
 	}
 
-	public IEnumerable<VmtNode> GetBlocks( string name )
-	{
-		foreach ( var child in Children )
-		{
-			if ( child.IsBlock && child.Name.Equals( name, StringComparison.OrdinalIgnoreCase ) )
-				yield return child;
-		}
-	}
 }
 
 internal enum VmtDiagnosticKind

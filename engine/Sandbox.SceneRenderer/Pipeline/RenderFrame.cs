@@ -246,6 +246,19 @@ internal sealed class RenderFrame
 		StagesMs += Stopwatch.GetElapsedTime( start ).TotalMilliseconds;
 	}
 
+	/// <summary>
+	/// Trace screen-space reflections without frame targets bound, or keep their history with colour bound.
+	/// </summary>
+	internal void RunScreenSpaceReflections( RenderContext rc, bool history )
+	{
+		if ( Stages is null ) return;
+
+		var start = Stopwatch.GetTimestamp();
+		Stages.RenderScreenSpaceReflections( history, Target( rc, color: history, final: false ) );
+		rc.Invalidate();
+		StagesMs += Stopwatch.GetElapsedTime( start ).TotalMilliseconds;
+	}
+
 	internal void RunStage( RenderContext rc, Stage stage, bool color = true, bool final = false )
 	{
 		if ( Stages is null ) return;

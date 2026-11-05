@@ -134,7 +134,7 @@ public class CircularBuffer<T> : IEnumerable<T>
 	/// valid interval is [0;Size[
 	/// </summary>
 	/// <param name="index">Index of element to access.</param>
-	/// <exception cref="IndexOutOfRangeException">Thrown when index is outside of [; Size[ interval.</exception>
+	/// <exception cref="IndexOutOfRangeException">Thrown when index is outside of [0; Size[ interval.</exception>
 	public T this[int index]
 	{
 		get
@@ -143,7 +143,7 @@ public class CircularBuffer<T> : IEnumerable<T>
 			{
 				throw new IndexOutOfRangeException( string.Format( "Cannot access index {0}. Buffer is empty", index ) );
 			}
-			if ( index >= _size )
+			if ( index < 0 || index >= _size )
 			{
 				throw new IndexOutOfRangeException( string.Format( "Cannot access index {0}. Buffer size is {1}", index, _size ) );
 			}
@@ -156,7 +156,7 @@ public class CircularBuffer<T> : IEnumerable<T>
 			{
 				throw new IndexOutOfRangeException( string.Format( "Cannot access index {0}. Buffer is empty", index ) );
 			}
-			if ( index >= _size )
+			if ( index < 0 || index >= _size )
 			{
 				throw new IndexOutOfRangeException( string.Format( "Cannot access index {0}. Buffer size is {1}", index, _size ) );
 			}

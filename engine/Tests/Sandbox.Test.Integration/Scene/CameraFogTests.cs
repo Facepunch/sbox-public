@@ -18,10 +18,13 @@ public class CameraFogTests
 		camera.Fog = new FogSetup { Enabled = true, Color = Color.Blue, Weight = 1 };
 
 		Assert.AreEqual( Color.Blue, camera.ResolveFog( default ).Value.Color );
+		Assert.AreEqual( Color.Blue, camera.ResolveFogForSkybox( default ).Value.Color );
 		Assert.AreEqual( Color.Blue, camera.ResolveFog( new ViewSetup { EnablePostprocessing = false } ).Value.Color,
 			"Reflections disabling fullscreen effects retain material fog" );
+		Assert.AreEqual( Color.Blue, camera.ResolveFogForSkybox( new ViewSetup { EnablePostprocessing = false } ).Value.Color );
 		Assert.IsNull( camera.ResolveFog( new ViewSetup { GradientFog = new GradientFogSetup { Enabled = false } } ),
 			"Existing captures explicitly disabling legacy fog must not acquire new camera fog" );
+		Assert.IsNull( camera.ResolveFogForSkybox( new ViewSetup { GradientFog = new GradientFogSetup { Enabled = false } } ) );
 
 		var capture = new ViewSetup
 		{
@@ -32,6 +35,7 @@ public class CameraFogTests
 		var resolved = camera.ResolveFog( capture );
 
 		Assert.IsNotNull( resolved );
+		Assert.AreEqual( resolved, camera.ResolveFogForSkybox( capture ) );
 		Assert.IsFalse( resolved.Value.Enabled );
 		Assert.AreEqual( 1.0f, resolved.Value.Weight );
 		Assert.AreEqual( Color.Blue, camera.Fog.Value.Color );
@@ -39,6 +43,8 @@ public class CameraFogTests
 
 		camera.EnablePostProcessing = false;
 		Assert.IsNull( camera.ResolveFog( default ) );
+		Assert.IsNull( camera.ResolveFogForSkybox( default ) );
 		Assert.IsNotNull( camera.ResolveFog( capture ), "An explicit capture override wins even when its camera has post processing disabled" );
+		Assert.AreEqual( camera.ResolveFog( capture ), camera.ResolveFogForSkybox( capture ) );
 	}
 }

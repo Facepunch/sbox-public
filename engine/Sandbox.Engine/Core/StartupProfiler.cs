@@ -10,6 +10,11 @@ internal static class StartupProfiler
 
 	public static bool Enabled => CommandLine.HasSwitch( Switch );
 
+	/// <summary>
+	/// When startup reached a point, measured from the process launching, rather than how long a stage took.
+	/// </summary>
+	static bool IsMilestone( string name ) => name is "TimeToWindow" or "TimeToMenu";
+
 	public static void Write( Api.Events.EventRecord timing )
 	{
 		if ( !Enabled )
@@ -19,13 +24,14 @@ internal static class StartupProfiler
 			.Where( x => x.Value is int )
 			.Select( x => new Entry( x.Key, (int)x.Value ) )
 			.Where( x => x.Milliseconds > 0 )
-			.OrderByDescending( x => x.Milliseconds )
 			.ToArray();
 
 		var total = entries.FirstOrDefault( x => x.Name == "Time" ).Milliseconds;
-		var report = new Report( DateTime.UtcNow, Environment.ProcessPath, timing.Mode, timing.Version, total, entries );
+		var milestones = entries.Where( x => IsMilestone( x.Name ) ).OrderBy( x => x.Milliseconds ).ToArray();
+		var stages = entries.Where( x => x.Name != "Time" && !IsMilestone( x.Name ) ).OrderByDescending( x => x.Milliseconds ).ToArray();
+		var report = new Report( DateTime.UtcNow, Environment.ProcessPath, timing.Mode, timing.Version, total, milestones, stages );
 		var json = JsonSerializer.Serialize( report, new JsonSerializerOptions { WriteIndented = true } );
-		var markdown = BuildMarkdown( timing, entries, total );
+		var markdown = BuildMarkdown( timing, milestones, stages, total );
 
 		var data = FileSystem.Data ?? EngineFileSystem.Data;
 		data.WriteAllText( "startup-profile.json", json );
@@ -33,7 +39,7 @@ internal static class StartupProfiler
 		Log.Info( "Startup profile written to data/startup-profile.json and data/startup-profile.md" );
 	}
 
-	static string BuildMarkdown( Api.Events.EventRecord timing, Entry[] entries, double total )
+	static string BuildMarkdown( Api.Events.EventRecord timing, Entry[] milestones, Entry[] stages, double total )
 	{
 		var builder = new StringBuilder();
 		builder.AppendLine( "# Startup Profile" );
@@ -43,23 +49,38 @@ internal static class StartupProfiler
 		builder.AppendLine( $"- Mode: `{timing.Mode}`" );
 		builder.AppendLine( $"- Version: `{timing.Version}`" );
 		builder.AppendLine( $"- Total measured startup time: **{total:0} ms**" );
+
+		if ( milestones.Length > 0 )
+		{
+			builder.AppendLine();
+			builder.AppendLine( "## Milestones" );
+			builder.AppendLine();
+			builder.AppendLine( "| Milestone | Since launch |" );
+			builder.AppendLine( "| --- | ---: |" );
+
+			foreach ( var entry in milestones )
+			{
+				builder.AppendLine( $"| `{entry.Name}` | {entry.Milliseconds:0} ms |" );
+			}
+		}
+
 		builder.AppendLine();
 		builder.AppendLine( "## Measured stages" );
 		builder.AppendLine();
 		builder.AppendLine( "| Stage | Time | Share |" );
 		builder.AppendLine( "| --- | ---: | ---: |" );
 
-		foreach ( var entry in entries.Where( x => x.Name != "Time" ) )
+		foreach ( var entry in stages )
 		{
 			var share = total > 0 ? entry.Milliseconds / total * 100 : 0;
 			builder.AppendLine( $"| `{entry.Name}` | {entry.Milliseconds:0} ms | {share:0.0}% |" );
 		}
 
 		builder.AppendLine();
-		builder.AppendLine( "The stages are ordered by measured duration. Use the largest rows as the next optimization targets; values are captured from the same process and do not include time before the managed bootstrap timer starts." );
+		builder.AppendLine( "The stages are ordered by measured duration. Use the largest rows as the next optimization targets; the total runs from the process launching until startup finished." );
 		return builder.ToString();
 	}
 
-	readonly record struct Report( DateTime GeneratedUtc, string Process, string Mode, string Version, double TotalMilliseconds, Entry[] Stages );
+	readonly record struct Report( DateTime GeneratedUtc, string Process, string Mode, string Version, double TotalMilliseconds, Entry[] Milestones, Entry[] Stages );
 	readonly record struct Entry( string Name, double Milliseconds );
 }

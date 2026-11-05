@@ -10,16 +10,17 @@ public partial class RenderSettings
 		ShadowQuality Shadow,
 		PostProcessQuality PostProcess,
 		VolumetricFogQuality Fog,
+		WaterQuality Water,
 		MultisampleAmount AntiAliasQuality,
 		AntiAliasMode AntiAliasMode
 	);
 
 	static PresetValues ValuesFor( GraphicsPreset preset ) => preset switch
 	{
-		GraphicsPreset.Low => new( TextureQuality.Low, ShadowQuality.Low, PostProcessQuality.Off, VolumetricFogQuality.Off, MultisampleAmount.MultisampleNone, AntiAliasMode.Cmaa2 ),
-		GraphicsPreset.Medium => new( TextureQuality.Medium, ShadowQuality.Medium, PostProcessQuality.Low, VolumetricFogQuality.Medium, MultisampleAmount.Multisample2x, AntiAliasMode.Cmaa2 ),
-		GraphicsPreset.High => new( TextureQuality.High, ShadowQuality.High, PostProcessQuality.Medium, VolumetricFogQuality.High, MultisampleAmount.Multisample4x, AntiAliasMode.None ),
-		GraphicsPreset.Ultra => new( TextureQuality.Ultra, ShadowQuality.Ultra, PostProcessQuality.High, VolumetricFogQuality.High, MultisampleAmount.Multisample4x, AntiAliasMode.None ),
+		GraphicsPreset.Low => new( TextureQuality.Low, ShadowQuality.Low, PostProcessQuality.Off, VolumetricFogQuality.Off, WaterQuality.Low, MultisampleAmount.MultisampleNone, AntiAliasMode.Cmaa2 ),
+		GraphicsPreset.Medium => new( TextureQuality.Medium, ShadowQuality.Medium, PostProcessQuality.Low, VolumetricFogQuality.Medium, WaterQuality.Medium, MultisampleAmount.Multisample2x, AntiAliasMode.Cmaa2 ),
+		GraphicsPreset.High => new( TextureQuality.High, ShadowQuality.High, PostProcessQuality.Medium, VolumetricFogQuality.High, WaterQuality.High, MultisampleAmount.Multisample4x, AntiAliasMode.None ),
+		GraphicsPreset.Ultra => new( TextureQuality.Ultra, ShadowQuality.Ultra, PostProcessQuality.High, VolumetricFogQuality.High, WaterQuality.Ultra, MultisampleAmount.Multisample4x, AntiAliasMode.None ),
 		_ => default
 	};
 
@@ -30,7 +31,7 @@ public partial class RenderSettings
 	/// </summary>
 	internal GraphicsPreset MatchPreset()
 	{
-		var current = new PresetValues( TextureQuality, ShadowQuality, PostProcessQuality, VolumetricFogQuality, AntiAliasQuality, AntiAliasMode );
+		var current = new PresetValues( TextureQuality, ShadowQuality, PostProcessQuality, VolumetricFogQuality, WaterQuality, AntiAliasQuality, AntiAliasMode );
 
 		foreach ( var preset in Presets )
 		{
@@ -50,6 +51,7 @@ public partial class RenderSettings
 		settings[nameof( TextureQuality )] = values.Texture.ToString();
 		settings[nameof( ShadowQuality )] = values.Shadow.ToString();
 		settings[nameof( VolumetricFogQuality )] = values.Fog.ToString();
+		settings[nameof( WaterQuality )] = values.Water.ToString();
 		settings[nameof( AntiAliasQuality )] = GetSupportedAntiAliasQuality( values.AntiAliasQuality ).ToString();
 		settings[nameof( AntiAliasMode )] = values.AntiAliasMode.ToString();
 
@@ -71,6 +73,7 @@ public partial class RenderSettings
 		ShadowQuality = values.Shadow;
 		PostProcessQuality = values.PostProcess;
 		VolumetricFogQuality = values.Fog;
+		WaterQuality = values.Water;
 		AntiAliasQuality = values.AntiAliasQuality;
 		AntiAliasMode = values.AntiAliasMode;
 	}
@@ -120,7 +123,11 @@ public partial class RenderSettings
 		var preset = DetectPreset();
 		ApplyPreset( preset );
 
-		Apply();
+		// Not Apply(): the window was created from the command line, and switching it to the saved
+		// mode here would drop -sw/-w/-h (e.g. windowed local instances going borderless).
+		ApplyVideoMode( honourCommandLine: true );
+		OnVideoSettingsChanged?.Invoke();
+		VideoSettings.Save();
 
 		log.Info( $"Detected graphics preset: {preset} (gpu: {SystemInfo.Gpu}, vram: {SystemInfo.GpuMemory / (1024 * 1024)}MB, integrated: {SystemInfo.GpuIntegrated}, cores: {SystemInfo.ProcessorCount}, ram: {SystemInfo.TotalMemory / (1024 * 1024)}MB)" );
 	}

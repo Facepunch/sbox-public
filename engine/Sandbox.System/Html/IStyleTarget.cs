@@ -13,6 +13,7 @@ public interface IStyleTarget
 	IReadOnlyList<IStyleTarget> Children { get; }
 	int SiblingIndex { get; }
 
+	bool HasClass( string classname );
 	bool HasClasses( string[] classes );
 
 	/// <summary>

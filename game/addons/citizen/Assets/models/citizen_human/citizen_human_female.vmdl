@@ -176,6 +176,22 @@
 								to = "models/citizen_human/heads/citizen_human_femalehead02/citizen_human_femalehead02.vmat"
 							},
 							{
+								from = "m_femaleheadld03.vmat"
+								to = "models/citizen_human/heads/citizen_human_femalehead03/citizen_human_femalehead03.vmat"
+							},
+							{
+								from = "m_playermodelhf03.vmat"
+								to = "models/citizen_human/heads/citizen_human_femalehead03/citizen_human_femalehead03.vmat"
+							},
+							{
+								from = "m_femaleheadld04.vmat"
+								to = "models/citizen_human/heads/citizen_human_femalehead04/citizen_human_femalehead04.vmat"
+							},
+							{
+								from = "m_playermodelhead04.vmat"
+								to = "models/citizen_human/heads/citizen_human_femalehead04/citizen_human_femalehead04.vmat"
+							},
+							{
 								from = "m_playermodelhead.vmat"
 								to = "models/citizen_human/heads/citizen_human_femalehead01/citizen_human_femalehead01.vmat"
 							},
@@ -797,6 +813,221 @@
 							]
 						}
 					},
+					{
+						_class = "RenderMeshFile"
+						name = "head_03"
+						filename = "models/citizen_human/heads/citizen_human_femalehead03/citizen_human_femalehead03.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = false
+							exception_list = [  ]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "eyes_03"
+						filename = "models/citizen_human/heads/citizen_human_femalehead01/citizen_human_femalehead01_eyes.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"FemaleModel_low",
+								"citizen_human_femalehead01",
+								"PlayerEyesMale_Adam_LOD0",
+								"human_female_eyes_01",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "jaw_03"
+						filename = "models/citizen_human/heads/citizen_human_malehead01/citizen_human_malehead01_jaw.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"FemaleModel_low",
+								"citizen_human_femalehead01",
+								"PlayerMouthMale_Adam_LOD0",
+								"human_female_jaw_01",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "head_03_lod2"
+						filename = "models/citizen_human/heads/citizen_human_femalehead03/citizen_human_femalehead03_LOD2.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"PlayerModelHeadAmy_LOD2",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "head_03_lod3"
+						filename = "models/citizen_human/heads/citizen_human_femalehead03/citizen_human_femalehead03_LOD3.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"PlayerModelHeadAmy_LOD3",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "head_04"
+						filename = "models/citizen_human/heads/citizen_human_femalehead04/citizen_human_femalehead04.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"FemaleModel_low",
+								"citizen_human_femalehead01",
+								"citizen_human_femalehead04",
+								"PlayerModelHeadBarbara_LOD0",
+								"PlayerModelHeadAmy_LOD0",
+								"PlayerModelHeadBetty_LOD0",
+								"eyelashes_01",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "eyes_04"
+						filename = "models/citizen_human/heads/citizen_human_femalehead01/citizen_human_femalehead01_eyes.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"FemaleModel_low",
+								"citizen_human_femalehead01",
+								"PlayerEyesMale_Adam_LOD0",
+								"human_female_eyes_01",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "jaw_04"
+						filename = "models/citizen_human/heads/citizen_human_malehead01/citizen_human_malehead01_jaw.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"FemaleModel_low",
+								"citizen_human_femalehead01",
+								"PlayerMouthMale_Adam_LOD0",
+								"human_female_jaw_01",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "head_04_lod2"
+						filename = "models/citizen_human/heads/citizen_human_femalehead04/citizen_human_femalehead04_LOD2.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"PlayerModelHeadAmy_LOD2",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "head_04_lod3"
+						filename = "models/citizen_human/heads/citizen_human_femalehead04/citizen_human_femalehead04_LOD3.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"PlayerModelHeadAmy_LOD3",
+							]
+						}
+					},
 				]
 			},
 			{
@@ -828,6 +1059,12 @@
 							"jaw_01",
 							"eyes_02",
 							"jaw_02",
+							"head_03",
+							"eyes_03",
+							"jaw_03",
+							"head_04",
+							"eyes_04",
+							"jaw_04",
 						]
 						material_culls = [  ]
 					},
@@ -857,6 +1094,12 @@
 							"jaw_01",
 							"eyes_02",
 							"jaw_02",
+							"head_03",
+							"eyes_03",
+							"jaw_03",
+							"head_04",
+							"eyes_04",
+							"jaw_04",
 						]
 						material_culls = [  ]
 					},
@@ -882,8 +1125,12 @@
 							"feet_lod2",
 							"head_01_lod2",
 							"head_02_lod2",
+							"head_03_lod2",
+							"head_04_lod2",
 							"eyes_01",
 							"eyes_02",
+							"eyes_03",
+							"eyes_04",
 						]
 						material_culls = [  ]
 					},
@@ -909,6 +1156,8 @@
 							"feet_lod3",
 							"head_01_lod3",
 							"head_02_lod3",
+							"head_03_lod3",
+							"head_04_lod3",
 						]
 						material_culls = [  ]
 					},

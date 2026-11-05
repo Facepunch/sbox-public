@@ -18,6 +18,7 @@ internal unsafe class SteamLobbyConnection : Connection, IValid
 	{
 		Lobby = lobby;
 		Friend = steamId;
+		CloseDirectRoute();
 	}
 
 	public void Dispose()
@@ -83,5 +84,50 @@ internal unsafe class SteamLobbyConnection : Connection, IValid
 	internal void UpdateFromInfo( ConnectionInfo info )
 	{
 		Id = info.ConnectionId;
+	}
+
+	/// <summary>
+	/// Steam couldn't keep or set up a session with this peer, which happens between some pairs of peers.
+	/// </summary>
+	internal void OnSessionFailed( SteamSessionStatus failure )
+	{
+		SessionFailure = failure;
+		CloseDirectRoute();
+	}
+
+	RealTimeUntil timeUntilDirectProbe;
+	const float DirectProbeInterval = 5;
+
+	/// <summary>
+	/// Clients only talk to each other directly once Steam has a session up. Until then Steam would queue everything
+	/// as reliable, and drop it all if the session fails, so it goes through the host instead.
+	/// </summary>
+	internal override void Tick( NetworkSystem parent )
+	{
+		if ( _disposed || parent.IsHost )
+			return;
+
+		var state = SteamSessionStatus.Read( Friend.Id ).State;
+
+		if ( state == Steamworks.ConnectionState.Connected )
+		{
+			OpenDirectRoute();
+			return;
+		}
+
+		CloseDirectRoute();
+
+		if ( state is Steamworks.ConnectionState.Connecting or Steamworks.ConnectionState.FindingRoute )
+			return;
+
+		if ( timeUntilDirectProbe > 0 )
+			return;
+
+		timeUntilDirectProbe = DirectProbeInterval;
+
+		// Empty, so receivers drop it. It only gets Steam to set up a session.
+		var probe = NetPacket.Rent( 0 );
+		InternalSend( probe, NetFlags.Unreliable );
+		probe.Release();
 	}
 }

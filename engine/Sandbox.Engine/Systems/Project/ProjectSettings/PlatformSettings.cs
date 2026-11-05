@@ -43,6 +43,24 @@ public class PlatformSettings : ConfigData
 	public int ChatMaxMessageLength { get; set; } = 255;
 
 	/// <summary>
+	/// Whether players without a <see cref="Voice"/> component can talk to everyone in multiplayer.
+	/// It stops once the scene has any <see cref="Voice"/> components. They work whether this is on or off.
+	/// </summary>
+	/// <remarks>
+	/// On for existing games too, lots of published multiplayer games never added <see cref="Voice"/> components.
+	/// </remarks>
+	[Group( "Voice Chat Settings" ), Title( "Enabled" )]
+	public bool VoiceChatEnabled { get; set; } = true;
+
+	/// <summary>
+	/// Show the built-in list of who's talking. Turn this off if your game shows its own.
+	/// Never shown once the scene has <see cref="Voice"/> components, those games show their own.
+	/// The microphone indicator is always shown.
+	/// </summary>
+	[Group( "Voice Chat Settings" ), Title( "Show Speaker List" )]
+	public bool VoiceChatShowSpeakers { get; set; } = true;
+
+	/// <summary>
 	/// Show the default subtitle UI overlay for sounds with subtitle tracks. When
 	/// false, the tracks still load and <see cref="SubtitlesGameObjectSystem.GetActive"/>
 	/// still works, but the built-in overlay is hidden. Use this when implementing

@@ -41,4 +41,33 @@ public class SmokeTests
 			Assert.AreEqual( new Vector3( 1, 2, 3 ), position, $"{client} has a stale position" );
 		}
 	}
+
+	/// <summary>
+	/// A dedicated server has no ConnectionInfo of its own, so clients only know its Steam Id from the handshake.
+	/// </summary>
+	[TestMethod]
+	public void ClientsSeeDedicatedServerSteamId()
+	{
+		var dedicated = typeof( Application ).GetProperty( nameof( Application.IsDedicatedServer ) );
+		var steamId = typeof( Sandbox.Utility.Steam ).GetProperty( nameof( Sandbox.Utility.Steam.SteamId ) );
+		var previousSteamId = Sandbox.Utility.Steam.SteamId;
+		var serverSteamId = new SteamId( 0x0140000000000001UL );
+
+		try
+		{
+			dedicated.SetValue( null, true );
+			steamId.SetValue( null, serverSteamId );
+
+			using var sim = new NetSimulation();
+			var client = sim.Join();
+
+			Assert.AreEqual( serverSteamId, sim.As( sim.Host, () => Connection.Local.SteamId ) );
+			Assert.AreEqual( serverSteamId, sim.As( client, () => Connection.Host.SteamId ) );
+		}
+		finally
+		{
+			dedicated.SetValue( null, false );
+			steamId.SetValue( null, previousSteamId );
+		}
+	}
 }

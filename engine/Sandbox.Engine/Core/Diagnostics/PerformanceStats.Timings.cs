@@ -69,8 +69,21 @@ public static partial class PerformanceStats
 
 			// Static lambda with the colour passed as state. A capturing lambda here would allocate its closure on
 			// entry, before the lookup above, so every scope paid for it even on a hit.
-			return All.GetOrAdd( stage, static ( s, c ) => new Timings( s, c ?? Color.White ), color );
+			timing = All.GetOrAdd( stage, static ( s, c ) => new Timings( s, c ?? Color.White ), color );
+
+			// Counted once it's in All, so a reader who sees the count change finds it there. Two threads racing to make
+			// the same one count it twice, which only costs the reader a look that finds nothing new.
+			Interlocked.Increment( ref _created );
+			return timing;
 		}
+
+		static int _created;
+
+		/// <summary>
+		/// How many timings have been made, so a reader can tell when there are new ones without counting
+		/// <see cref="All"/>, which takes every lock it has.
+		/// </summary>
+		internal static int Created => Volatile.Read( ref _created );
 
 		internal Timings( string name, Color color )
 		{
@@ -109,6 +122,38 @@ public static partial class PerformanceStats
 		/// </summary>
 		internal float CurrentMs => (float)(Interlocked.Read( ref ticks ) * (1_000.0 / Stopwatch.Frequency) + milliseconds);
 
+		/// <summary>
+		/// Scopes opened since the last flip.
+		/// </summary>
+		internal int CurrentCalls => Volatile.Read( ref calls );
+
+		/// <summary>
+		/// The scope this one was first seen opened inside, on the same thread - so the dev tools can show what a category
+		/// is made of. Null for one opened at the top.
+		/// </summary>
+		internal Timings Parent { get; private set; }
+
+		/// <summary>
+		/// The scope open on this thread, if any.
+		/// </summary>
+		[ThreadStatic] static Timings _open;
+
+		/// <summary>
+		/// This scope opened on this thread: note what it's inside, and return the scope to go back to when it closes.
+		/// </summary>
+		internal Timings Opened()
+		{
+			var outer = _open;
+			if ( outer is not null && outer != this && Parent is null ) Parent = outer;
+			_open = this;
+			return outer;
+		}
+
+		/// <summary>
+		/// A scope closed: the one it was opened inside is open again.
+		/// </summary>
+		internal static void Closed( Timings outer ) => _open = outer;
+
 		public bool IsManualFlip { get; set; }
 
 		int calls;
@@ -124,6 +169,7 @@ public static partial class PerformanceStats
 			return new Performance.ScopeSection()
 			{
 				Source = this,
+				Outer = Opened(),
 				Timer = FastTimer.StartNew(),
 				// Only snapshot on main thread — GC.GetTotalPauseDuration() is process-wide,
 				// attributing from multiple threads simultaneously would double-subtract.
@@ -134,6 +180,7 @@ public static partial class PerformanceStats
 		internal void ScopeFinished( ScopeSection section )
 		{
 			var elapsedTicks = section.Timer.ElapsedTicks;
+			Closed( section.Outer );
 
 			// Subtract any GC pause that occurred during this scope so per-system
 			// timings aren't inflated by GC.

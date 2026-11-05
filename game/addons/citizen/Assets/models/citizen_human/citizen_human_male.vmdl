@@ -184,6 +184,22 @@
 								to = "models/citizen_human/heads/citizen_human_malehead05/citizen_human_malehead05.vmat"
 							},
 							{
+								from = "m_playermodelhd06.vmat"
+								to = "models/citizen_human/heads/citizen_human_malehead06/citizen_human_malehead06.vmat"
+							},
+							{
+								from = "citizen_human_malehead07.vmat"
+								to = "models/citizen_human/heads/citizen_human_malehead07/citizen_human_malehead07.vmat"
+							},
+							{
+								from = "m_playermodelhd07.vmat"
+								to = "models/citizen_human/heads/citizen_human_malehead07/citizen_human_malehead07.vmat"
+							},
+							{
+								from = "pasted__m_playermodel_lightskin_06.vmat"
+								to = "models/citizen_human/heads/citizen_human_malehead06/citizen_human_malehead06.vmat"
+							},
+							{
 								from = "male_body.vmat"
 								to = "models/citizen_human/bodies/male/body_mode_dark.vmat"
 							},
@@ -257,6 +273,155 @@
 							},
 						]
 					},
+					{
+						_class = "MaterialGroup"
+						name = "body_01"
+						remaps = 
+						[
+							{
+								from = "models/citizen_human/bodies/male/body_mode_dark.vmat"
+								to = "models/citizen_human/bodies/male/body_mode_dark_03.vmat"
+							},
+							{
+								from = "m_playermodel_lightskin_02.vmat"
+								to = "models/citizen_human/heads/citizen_human_malehead03/citizen_human_malehead03.vmat"
+							},
+							{
+								from = "m_playermodel_darkskin_02.vmat"
+								to = "models/citizen_human/heads/citizen_human_malehead04/citizen_human_malehead04.vmat"
+							},
+						]
+					},
+					{
+						_class = "MaterialGroup"
+						name = "body_02"
+						remaps = 
+						[
+							{
+								from = "models/citizen_human/bodies/male/body_mode_dark.vmat"
+								to = "models/citizen_human/bodies/male/body_male_light_02.vmat"
+							},
+							{
+								from = "models/citizen_human/heads/citizen_human_malehead01/eyes_dark.vmat"
+								to = "models/citizen_human/heads/citizen_human_malehead01/eyes_light.vmat"
+							},
+							{
+								from = "m_playermodel_lightskin_02.vmat"
+								to = "models/citizen_human/heads/citizen_human_malehead03/citizen_human_malehead03.vmat"
+							},
+							{
+								from = "m_playermodel_darkskin_02.vmat"
+								to = "models/citizen_human/heads/citizen_human_malehead04/citizen_human_malehead04.vmat"
+							},
+						]
+					},
+					{
+						_class = "MaterialGroup"
+						name = "body_03"
+						remaps = 
+						[
+							{
+								from = "models/citizen_human/bodies/male/body_mode_dark.vmat"
+								to = "models/citizen_human/bodies/male/body_male_light.vmat"
+							},
+							{
+								from = "models/citizen_human/heads/citizen_human_malehead01/eyes_dark.vmat"
+								to = "models/citizen_human/heads/citizen_human_malehead01/eyes_light.vmat"
+							},
+							{
+								from = "m_playermodel_lightskin_02.vmat"
+								to = "models/citizen_human/heads/citizen_human_malehead03/citizen_human_malehead03.vmat"
+							},
+							{
+								from = "m_playermodel_darkskin_02.vmat"
+								to = "models/citizen_human/heads/citizen_human_malehead04/citizen_human_malehead04.vmat"
+							},
+						]
+					},
+					{
+						_class = "MaterialGroup"
+						name = "body_04"
+						remaps = 
+						[
+							{
+								from = "models/citizen_human/bodies/male/body_mode_dark.vmat"
+								to = "models/citizen_human/bodies/male/body_mode_dark.vmat"
+							},
+							{
+								from = "m_playermodel_lightskin_02.vmat"
+								to = "models/citizen_human/heads/citizen_human_malehead03/citizen_human_malehead03.vmat"
+							},
+							{
+								from = "m_playermodel_darkskin_02.vmat"
+								to = "models/citizen_human/heads/citizen_human_malehead04/citizen_human_malehead04.vmat"
+							},
+						]
+					},
+					{
+						_class = "MaterialGroup"
+						name = "body_05"
+						remaps = 
+						[
+							{
+								from = "models/citizen_human/bodies/male/body_mode_dark.vmat"
+								to = "models/citizen_human/bodies/male/body_male_light_03.vmat"
+							},
+							{
+								from = "models/citizen_human/heads/citizen_human_malehead01/eyes_dark.vmat"
+								to = "models/citizen_human/heads/citizen_human_malehead01/eyes_light.vmat"
+							},
+							{
+								from = "m_playermodel_lightskin_02.vmat"
+								to = "models/citizen_human/heads/citizen_human_malehead03/citizen_human_malehead03.vmat"
+							},
+							{
+								from = "m_playermodel_darkskin_02.vmat"
+								to = "models/citizen_human/heads/citizen_human_malehead04/citizen_human_malehead04.vmat"
+							},
+						]
+					},
+					{
+						_class = "MaterialGroup"
+						name = "body_06"
+						remaps = 
+						[
+							{
+								from = "models/citizen_human/bodies/male/body_mode_dark.vmat"
+								to = "models/citizen_human/bodies/male/body_mode_dark_02.vmat"
+							},
+							{
+								from = "m_playermodel_lightskin_02.vmat"
+								to = "models/citizen_human/heads/citizen_human_malehead03/citizen_human_malehead03.vmat"
+							},
+							{
+								from = "m_playermodel_darkskin_02.vmat"
+								to = "models/citizen_human/heads/citizen_human_malehead04/citizen_human_malehead04.vmat"
+							},
+						]
+					},
+					{
+						_class = "MaterialGroup"
+						name = "body_07"
+						remaps = 
+						[
+							{
+								from = "models/citizen_human/bodies/male/body_mode_dark.vmat"
+								to = "models/citizen_human/bodies/male/body_male_light_04.vmat"
+							},
+							{
+								from = "models/citizen_human/heads/citizen_human_malehead01/eyes_dark.vmat"
+								to = "models/citizen_human/heads/citizen_human_malehead01/eyes_light.vmat"
+							},
+							{
+								from = "m_playermodel_lightskin_02.vmat"
+								to = "models/citizen_human/heads/citizen_human_malehead03/citizen_human_malehead03.vmat"
+							},
+							{
+								from = "m_playermodel_darkskin_02.vmat"
+								to = "models/citizen_human/heads/citizen_human_malehead04/citizen_human_malehead04.vmat"
+							},
+						]
+					},
 				]
 			},
 			{
@@ -307,6 +472,12 @@
 							"head_05",
 							"eyes_05",
 							"jaw_05",
+							"head_06",
+							"eyes_06",
+							"jaw_06",
+							"head_07",
+							"eyes_07",
+							"jaw_07",
 						]
 						material_culls = [  ]
 					},
@@ -345,6 +516,12 @@
 							"head_05",
 							"eyes_05",
 							"jaw_05",
+							"head_06",
+							"eyes_06",
+							"jaw_06",
+							"head_07",
+							"eyes_07",
+							"jaw_07",
 						]
 						material_culls = [  ]
 					},
@@ -373,11 +550,15 @@
 							"head_03_lod2",
 							"head_04_lod2",
 							"head_05_lod2",
+							"head_06_lod2",
+							"head_07_lod2",
 							"eyes_01",
 							"eyes_02",
 							"eyes_03",
 							"eyes_04",
 							"eyes_05",
+							"eyes_06",
+							"eyes_07",
 						]
 						material_culls = [  ]
 					},
@@ -406,6 +587,8 @@
 							"head_03_lod3",
 							"head_04_lod3",
 							"head_05_lod3",
+							"head_06_lod3",
+							"head_07_lod3",
 						]
 						material_culls = [  ]
 					},

@@ -24,7 +24,7 @@ public abstract partial class Asset
 
 	public override string ToString() => Path;
 
-	internal abstract void UpdateInternals( bool compileImmediately = true );
+	internal abstract void UpdateInternals();
 
 	/// <summary>
 	/// Tags for this asset, for filtering purposes in the Asset Browser.
@@ -115,6 +115,12 @@ public abstract partial class Asset
 	/// Can this asset be recompiled?
 	/// </summary>
 	public abstract bool CanRecompile { get; }
+
+	/// <summary>
+	/// Before loading it: compiles it if it changed, as the asset system does for any resource it loads. False if
+	/// it failed to compile.
+	/// </summary>
+	internal virtual bool EnsureCurrentForLoad() => true;
 
 	internal virtual void OnRemoved()
 	{
@@ -433,11 +439,10 @@ public abstract partial class Asset
 		if ( !attribute.TargetType.IsAssignableTo( t ) || attribute.TargetType.IsAbstract )
 			return false;
 
-		// Make sure we have an up to date compiled version
-		if ( CanRecompile )
-		{
-			Compile( false );
-		}
+		// Compiled first if it changed, as any resource is. One that fails to compile still loads as it last compiled (a
+		// failed compile publishes nothing), so its editor can open it to fix it; building it still fails.
+		if ( !EnsureCurrentForLoad() )
+			Log.Warning( $"{this} failed to compile, loading it as it last compiled" );
 
 		obj = GameResource.GetPromise( attribute.TargetType, new ResourceId() { Guid = Guid, Path = Path } );
 		if ( obj != null && !obj.IsPromise )

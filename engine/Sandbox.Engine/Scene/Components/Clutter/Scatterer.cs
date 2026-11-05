@@ -1,3 +1,4 @@
+using Sandbox.Engine;
 namespace Sandbox.Clutter;
 
 /// <summary>
@@ -52,7 +53,7 @@ public abstract class Scatterer
 	public override int GetHashCode()
 	{
 		HashCode hash = new();
-		var typeDesc = Game.TypeLibrary.GetType( GetType() );
+		var typeDesc = GlobalContext.Current.TypeLibrary.GetType( GetType() );
 
 		if ( typeDesc == null )
 			return base.GetHashCode();

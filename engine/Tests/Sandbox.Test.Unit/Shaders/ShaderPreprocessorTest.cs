@@ -9,21 +9,36 @@ namespace EngineTests;
 [TestClass]
 public class ShaderPreprocessorTest
 {
-	static string Preprocess( string source )
+	static string Preprocess( string source, string shaderPath = "shaders/test.shader" )
 	{
 		var fs = FileSystem.CreateMemoryFileSystem();
 		fs.CreateDirectory( "shaders" );
 		fs.WriteAllText( "shaders/tint.hlsl", "float4 Tint;" );
 		fs.WriteAllText( "secret.hlsl", "float4 Secret;" );
+		fs.CreateDirectory( "materials/shaders" );
+		fs.WriteAllText( "materials/shaders/infection.hlsl", "float4 Infection;" );
 
 		var preprocessor = new ShaderPreprocessor( new ShaderPreprocessorOptions { ExpandIncludes = true, IgnoreCoreIncludes = true, FileSystem = fs } );
-		return preprocessor.Preprocess( source, null, "shaders/test.shader", addHeader: false );
+		return preprocessor.Preprocess( source, null, shaderPath, addHeader: false );
 	}
 
 	[TestMethod]
 	public void ExpandsRelativeIncludes()
 	{
 		Assert.IsTrue( Preprocess( "#include \"tint.hlsl\"" ).Contains( "float4 Tint;" ) );
+	}
+
+	/// <summary>
+	/// A path from the root, which native would find on GAME, has to be expanded here too or the embedded source
+	/// can't recompile without the project
+	/// </summary>
+	[TestMethod]
+	public void ExpandsRootIncludes()
+	{
+		var output = Preprocess( "#include \"materials/shaders/infection.hlsl\"", "materials/shaders/test.shader" );
+
+		Assert.IsTrue( output.Contains( "float4 Infection;" ) );
+		Assert.IsFalse( output.Contains( "#include \"materials/shaders/infection.hlsl\"" ) );
 	}
 
 	[TestMethod]

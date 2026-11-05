@@ -9,8 +9,7 @@
 @namespace MenuProject.Overlay.Overlays
 
 <root style="display: @(ChatAvailable ? "flex" : "none")">
-
-	<ChatPanel @ref="Panel" ShowInput="@IsOpen" MessageFadeTime="@(8f)" ShowChannelLabel="@(InGame && InParty)" InputPrefix="@(IsOpen ? Channel : "")" OnSubmit="@OnChatSubmit" OnDismiss="@Close" />
+    <ChatPanel @ref="Panel" ShowInput="@IsOpen" MessageFadeTime="@(8f)" ShowChannelLabel="@(InGame && InParty)" InputPrefix="@(IsOpen ? Channel : "")" OnSubmit="@OnChatSubmit" OnDismiss="@Close" />
 </root>
 
 @code
@@ -194,8 +193,8 @@
             Chat.Say( text );
         }
 
-		Close();
-	}
+        Close();
+    }
 
-	protected override int BuildHash() => System.HashCode.Combine( IsOpen, InGame, InParty, Channel );
+    protected override int BuildHash() => System.HashCode.Combine( IsOpen, InGame, InParty, Channel );
 }

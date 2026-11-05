@@ -256,11 +256,18 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		UpdateSpriteRenderers();
 		UpdateParticleSprites();
 
+		LitBounds = null;
 		foreach ( var rg in RenderGroups )
 		{
 			rg.Value.UploadOnHost();
+			if ( rg.Value.HasLitSprites ) LitBounds = LitBounds?.AddBBox( rg.Value.Bounds ) ?? rg.Value.Bounds;
 		}
 	}
+
+	/// <summary>
+	/// Around every lit sprite as of the last upload, or null without any: where <see cref="ParticleLightingSystem"/> lights.
+	/// </summary>
+	internal BBox? LitBounds { get; private set; }
 
 	private static ulong GetRenderGroupKey( ISpriteRenderGroup component, GameTags tags, RenderOptions renderOptions, Guid isolatedComponent = default )
 	{

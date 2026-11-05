@@ -131,6 +131,34 @@ public class MeshComponentBuildTests
 		}
 	}
 
+	/// <summary>
+	/// Standalone exports used to ship no surfaces, which threw in AddSurface and left every mesh without a model.
+	/// </summary>
+	[TestMethod]
+	public void BuildsWithoutAnySurfacesLoaded()
+	{
+		var surfaces = Surface.All.ToArray();
+		Surface.All.Clear();
+
+		var scene = Scene.CreateEditorScene();
+		try
+		{
+			using var scope = scene.Push();
+			var component = scene.CreateObject().AddComponent<MeshComponent>();
+			component.Mesh = CreateBox();
+			component.Collision = MeshComponent.CollisionType.Mesh;
+
+			AssertCollision( component, MeshComponent.CollisionType.Mesh );
+		}
+		finally
+		{
+			scene.Destroy();
+
+			foreach ( var (index, surface) in surfaces )
+				Surface.All[index] = surface;
+		}
+	}
+
 	[TestMethod]
 	[DataRow( true, true )]
 	[DataRow( true, false )]
@@ -197,6 +225,35 @@ public class MeshComponentBuildTests
 			component.Collision = MeshComponent.CollisionType.Hull;
 			AssertCollision( component, MeshComponent.CollisionType.Hull );
 			Assert.IsFalse( scene.SceneWorld.SceneObjects.Any( x => x.Component == component && x.IsValid() ) );
+		}
+		finally
+		{
+			scene.Destroy();
+		}
+	}
+
+	[TestMethod]
+	public void EditorHideInGameTagsSceneObject()
+	{
+		var scene = Scene.CreateEditorScene();
+		try
+		{
+			using var scope = scene.Push();
+			var component = scene.CreateObject().AddComponent<MeshComponent>();
+			component.Mesh = CreateBox();
+			var so = scene.SceneWorld.SceneObjects.Single( x => x.Component == component && x.IsValid() );
+			Assert.IsFalse( so.Tags.Has( MeshComponent.HideInGameTag ) );
+
+			component.HideInGame = true;
+			Assert.IsTrue( so.Tags.Has( MeshComponent.HideInGameTag ) );
+
+			component.GameObject.Tags.Add( "test" );
+			Assert.IsTrue( so.Tags.Has( "test" ) );
+			Assert.IsTrue( so.Tags.Has( MeshComponent.HideInGameTag ) );
+			Assert.IsFalse( component.GameObject.Tags.Has( MeshComponent.HideInGameTag ) );
+
+			component.HideInGame = false;
+			Assert.IsFalse( so.Tags.Has( MeshComponent.HideInGameTag ) );
 		}
 		finally
 		{

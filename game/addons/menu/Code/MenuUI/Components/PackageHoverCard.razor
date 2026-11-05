@@ -14,12 +14,13 @@
             <div class="package-video" style="background-image: url(@VideoUrl())" />
         }
 
-        @if ( !Package.Flair.IsEmpty )
+        @* The art's the card's own whichever it is - it grows out of it. What's over it is the backend's, workshop or not *@
+        @if ( decided && !Package.Flair.IsEmpty )
         {
             <MenuProject.UI.PackageFlairBar Flair="@Package.Flair" />
         }
 
-        @if ( Package.Usage.UsersNow > 0 )
+        @if ( decided && Package.Usage.UsersNow > 0 )
         {
             <div class="facts">
                 <div class="fact live" tooltip="#menu.games.playing_now">
@@ -34,25 +35,37 @@
         <div class="title-row">
             <label class="title" onclick=@OpenDetails>@Package.Title</label>
 
-            <div class="fact @ReviewClass()" tooltip="@ReviewText()">
-                <icon>@ReviewIcon()</icon>
-                <label>@ReviewPercentText()</label>
-            </div>
+            @* Until it's known whose facts they are - the backend's, or its workshop item's - their shapes *@
+            @if ( Loading )
+            {
+                <div class="bone fact-bone"></div>
+                <div class="bone fact-bone"></div>
+            }
+            else
+            {
+                <div class="fact @RatingClass()" tooltip="@RatingText()">
+                    <icon>@RatingIcon()</icon>
+                    <label>@RatingPercentText()</label>
+                </div>
 
-            <div class="fact" tooltip="#menu.games.players_all_time">
-                <icon>group</icon>
-                <label>@Compact( Package.Usage.Total.Users )</label>
-            </div>
+                <div class="fact" tooltip="#menu.games.players_all_time">
+                    <icon>group</icon>
+                    <label>@Compact( Package.Usage.Total.Users )</label>
+                </div>
+
+                @if ( OnWorkshop )
+                {
+                    <div class="fact" tooltip="#menu.workshop.subscribers_tooltip">
+                        <icon>bookmark</icon>
+                        <label>@Compact( Workshop?.Subscriptions ?? 0 )</label>
+                    </div>
+                }
+            }
         </div>
 
-        <div class="byline">
-            <label>@Byline()</label>
-        </div>
-
-        @* What kind of game and how it's played, on a line of their own under who made it - sharing
-           that line, a long name or a long genre cut the other short. Just says so - none of it's a link *@
+        @* What kind of game and how it's played, on a line of their own. Just says so - none of it's a link *@
         <div class="tags">
-            @{ var tags = Tags().ToList(); }
+            @{ var tags = !Loading ? Tags().ToList() : new List<string>(); }
             @for ( int i = 0; i < tags.Count; i++ )
             {
                 if ( i > 0 )
@@ -63,7 +76,7 @@
             }
 
             @* After the genres, how it's played gets its own chip, so multiplayer stands out from them *@
-            @if ( PlayerModes.For( Package ) is { Label: { } modeLabel } modes )
+            @if ( !Loading && Modes is { Label: { } modeLabel } modes )
             {
                 var fit = modes.FitFor( PlayerModes.PartySize );
 
@@ -74,7 +87,8 @@
             }
         </div>
 
-        @if ( !string.IsNullOrWhiteSpace( Package.Summary ) )
+        @* The backend's summary - a workshop item hasn't got one *@
+        @if ( Backend && !string.IsNullOrWhiteSpace( Package.Summary ) )
         {
             <div class="summary">
                 <label>@Package.Summary</label>
@@ -97,6 +111,31 @@
         }
 
         <div class="footer">
+            @if ( Loading )
+            {
+                <div class="actions">
+                    <div class="bone group-bone"></div>
+                </div>
+            }
+            else if ( OnWorkshop )
+            {
+                @* Its workshop item's votes, on Steam - and subscribing to it. The rest are the backend's *@
+                <div class="actions">
+                    <div class="group">
+                        <div class="button @( WorkshopVote == true ? "active" : "" )" onclick=@( () => _ = VoteOnWorkshop( true ) ) tooltip="#menu.workshop.vote_up">
+                            <icon>thumb_up</icon>
+                        </div>
+                        <div class="button @( WorkshopVote == false ? "active" : "" )" onclick=@( () => _ = VoteOnWorkshop( false ) ) tooltip="#menu.workshop.vote_down">
+                            <icon>thumb_down</icon>
+                        </div>
+                    </div>
+                    <div class="button subscribe @( Subscribed ? "active" : "" )" onclick=@ToggleSubscribed tooltip="@( Subscribed ? "#menu.workshop.unsubscribe_tooltip" : "#menu.workshop.subscribe_tooltip" )">
+                        <icon>@( Subscribed ? "check" : "add" )</icon>
+                    </div>
+                </div>
+            }
+            else
+            {
             <div class="actions">
                 <div class="group">
                     <div class="button @( Liked ? "active" : "" )" onclick=@( () => _ = Vote( true ) ) tooltip="#menu.games.like">
@@ -110,9 +149,6 @@
                     <div class="button fav @( Package.Interaction.Favourite ? "active" : "" )" onclick=@( () => _ = ToggleFavourite() ) tooltip="@( Package.Interaction.Favourite ? "#menu.games.remove_from_favourites_text" : "#menu.games.add_to_favourites_text" )">
                         <icon>@( Package.Interaction.Favourite ? "favorite" : "favorite_border" )</icon>
                     </div>
-                    <div class="button" onclick=@Review tooltip="#menu.games.write_a_review">
-                        <icon>rate_review</icon>
-                    </div>
                 </div>
                 @if ( Package.TypeName == "game" )
                 {
@@ -121,6 +157,7 @@
                     </div>
                 }
             </div>
+            }
 
             <div class="grow" />
 
@@ -166,7 +203,111 @@
     bool _busy;
     bool _hiding;
 
-    bool ShowJam => _jam is not null && _entry.IsEntry;
+    bool ShowJam => Backend && _jam is not null && _entry.IsEntry;
+
+    //
+    // Whose facts these are - the backend's, or its Steam Workshop item's. A game's only known to be on the workshop
+    // from its full package, so until then neither's shown, rather than one swapped for the other
+    //
+
+    bool decided;
+
+    /// <summary>
+    /// A game on the Steam Workshop - its facts are its item's. Maps keep the backend's, like their page.
+    /// </summary>
+    bool OnWorkshop;
+
+    bool Backend => decided && !OnWorkshop;
+
+    /// <summary>
+    /// What the Steam Workshop says about it, once it's been asked - null before then, or if Steam couldn't say
+    /// </summary>
+    WorkshopItemDetails Workshop;
+    bool workshopLoaded;
+
+    bool Loading => !decided || (OnWorkshop && !workshopLoaded);
+
+    /// <summary>
+    /// How it's played - its workshop item says, for one on the workshop. One published before items said falls
+    /// back to the full package, if finding its item fetched that - a shelf result can leave the modes out.
+    /// </summary>
+    PlayerModes Modes => OnWorkshop
+        ? PlayerModes.For( Package.TryGetCached( Package.FullIdent, out var full, false ) ? full : Package, Workshop )
+        : PlayerModes.For( Package );
+
+    /// <summary>
+    /// How we've voted on its workshop item - true up, false down, null not at all
+    /// </summary>
+    bool? WorkshopVote;
+    bool voting;
+
+    async Task LoadSource()
+    {
+        if ( Package.TypeName != "game" )
+        {
+            decided = true;
+            StateHasChanged();
+            return;
+        }
+
+        // Known already, or its full package is in and it isn't - otherwise the full package says
+        var id = MenuUtility.KnownWorkshopId( Package );
+        if ( id == 0 && !Package.TryGetCached( Package.FullIdent, out _, false ) )
+            id = await MenuUtility.GetWorkshopIdAsync( Package );
+
+        if ( !this.IsValid() ) return;
+
+        OnWorkshop = id != 0;
+        decided = true;
+        StateHasChanged();
+
+        if ( !OnWorkshop )
+        {
+            _ = LoadPackage();
+            _ = LoadJam();
+            return;
+        }
+
+        var item = MenuUtility.FetchWorkshopItemAsync( id );
+        var vote = MenuUtility.GetWorkshopVoteAsync( id );
+
+        Workshop = await item;
+        WorkshopVote = await vote;
+        workshopLoaded = true;
+
+        if ( this.IsValid() ) StateHasChanged();
+    }
+
+    async Task VoteOnWorkshop( bool up )
+    {
+        if ( Workshop is not { } item || voting || WorkshopVote == up ) return;
+
+        voting = true;
+        var was = WorkshopVote;
+        WorkshopVote = up;
+        StateHasChanged();
+
+        var taken = await MenuUtility.VoteOnWorkshopAsync( item.Id, up );
+        voting = false;
+
+        if ( !this.IsValid() ) return;
+
+        if ( !taken )
+        {
+            WorkshopVote = was;
+            ShowToast( "#menu.workshop.vote_failed", "thumbs_up_down" );
+        }
+
+        StateHasChanged();
+    }
+
+    bool Subscribed => MenuUtility.IsSubscribed( Package );
+
+    void ToggleSubscribed()
+    {
+        if ( Subscribed ) _ = MenuUtility.UnsubscribeAsync( Package );
+        else _ = MenuUtility.SubscribeAsync( Package );
+    }
     bool CanToggleNomination => _nominated || _entry.CanNominate;
     string JamHint => _nominated ? "#menu.games.you_nominated_it_for_the_jam" : CanToggleNomination ? "#menu.games.liked_it_nominate_it_for_the_jam" : _entry.Reason;
 
@@ -203,10 +344,28 @@
 
         Current = card;
 
-        if ( package.TypeName == "game" )
-            _ = card.LoadJam();
+        _ = card.LoadSource();
 
         return card;
+    }
+
+    async Task LoadPackage()
+    {
+        // Shelf results can omit the game's declared player modes and limits. Use the
+        // same full package as the game page, keeping the preview visible while it loads.
+        // One on the workshop doesn't need it, its item says.
+        try
+        {
+            var full = await Package.FetchAsync( Package.FullIdent, false );
+            if ( !this.IsValid() || IsDeleting || full is null ) return;
+
+            Package = full;
+            StateHasChanged();
+        }
+        catch ( Exception e )
+        {
+            Log.Warning( $"Couldn't fetch hover card details for {Package.FullIdent}: {e.Message}" );
+        }
     }
 
     async Task LoadJam()
@@ -431,12 +590,6 @@
 
     void OpenMenu() => MenuHelpers.OpenPackageMenu( this, Package );
 
-    void Review()
-    {
-        Game.Overlay.ShowReviewModal( Package );
-        Close();
-    }
-
     // Rating: 0 like, 1 dislike, null unrated
     bool Liked => Package.Interaction.Rating == 0;
     bool Disliked => Package.Interaction.Rating == 1;
@@ -460,48 +613,29 @@
         _ => GenreLabels.GetValueOrDefault( tag, tag ),
     };
 
-    string Byline()
-    {
-        var org = Package.Org?.Title;
-        var updated = Package.Updated.LocalDateTime.ToRelativeTimeString();
-
-        return string.IsNullOrEmpty( org ) ? $"Updated {updated}" : $"by {org}  ·  Updated {updated}";
-    }
-
-    // Review stats when there are any, else the up/down votes. -1 = unrated.
+    // How much of its likes are up - its workshop item's on Steam when it has one, the package's otherwise. -1 = unrated.
     (int Percent, int Count) Rating()
     {
-        var reviews = Package.Reviews;
-        if ( reviews.Total > 0 )
-            return ((int)Math.Round( reviews.PositiveRatings * 100.0 / reviews.Total ), reviews.Total);
-
-        var votes = Package.VotesUp + Package.VotesDown;
-        return (votes > 0 ? (int)(Package.VotesUp * 100f / votes) : -1, votes);
+        var (up, down) = Workshop is { } item ? (item.VotesUp, item.VotesDown) : (Package.VotesUp, Package.VotesDown);
+        var votes = up + down;
+        return (votes > 0 ? (int)(up * 100f / votes) : -1, votes);
     }
 
-    string ReviewText()
+    string RatingText()
     {
         var (pct, count) = Rating();
-        if ( pct == -1 ) return "#menu.games.no_reviews_yet";
+        if ( pct == -1 ) return "#menu.workshop.no_votes_yet";
 
-        var verdict = pct switch
-        {
-            >= 80 => Language.GetPhrase( "menu.games.very_positive" ),
-            >= 60 => Language.GetPhrase( "menu.games.positive" ),
-            >= 40 => Language.GetPhrase( "menu.games.mixed" ),
-            _ => Language.GetPhrase( "menu.games.negative" )
-        };
-
-        return $"{verdict} ({Compact( count )})";
+        return $"{pct}% liked ({Compact( count )})";
     }
 
-    string ReviewPercentText()
+    string RatingPercentText()
     {
         var pct = Rating().Percent;
         return pct == -1 ? "#menu.games.unrated" : $"{pct}%";
     }
 
-    string ReviewClass() => Rating().Percent switch
+    string RatingClass() => Rating().Percent switch
     {
         -1 => "unrated",
         >= 60 => "positive",
@@ -509,7 +643,7 @@
         _ => "negative"
     };
 
-    string ReviewIcon() => Rating().Percent switch
+    string RatingIcon() => Rating().Percent switch
     {
         -1 => "star_outline",
         >= 60 => "thumb_up",
@@ -537,6 +671,10 @@
 
     IEnumerable<string> Tags()
     {
+        // On the workshop they're the ones picked for its item - genres already, bar its type and how it's played
+        if ( OnWorkshop )
+            return (Workshop?.Tags ?? []).Where( x => !WorkshopOwnTags.Contains( x ) ).Take( Modes.IsUnknown ? 2 : 1 );
+
         var tags = Package.Tags ?? Array.Empty<string>();
 
         // The mode chip covers how it's played, so these are just what kind of game it is - and
@@ -544,10 +682,15 @@
         return tags.Where( x => GenreLabels.ContainsKey( x ) && !ModeTags.Contains( x ) )
             .Select( x => x.ToLowerInvariant() )
             .DistinctBy( x => GenreLabels[x] )
-            .Take( PlayerModes.For( Package ).IsUnknown ? 2 : 1 );
+            .Take( Modes.IsUnknown ? 2 : 1 );
     }
 
     static readonly HashSet<string> ModeTags = new( StringComparer.OrdinalIgnoreCase ) { "singleplayer", "multiplayer", "coop", "versus", "pvp" };
+
+    /// <summary>
+    /// Tags a workshop item gets that aren't picked - its type, and how it's played
+    /// </summary>
+    static readonly HashSet<string> WorkshopOwnTags = new( StringComparer.OrdinalIgnoreCase ) { "game", "map", "singleplayer", "multiplayer", "co-op", "versus" };
 
     static string Compact( long n )
     {
@@ -557,7 +700,7 @@
         return n.ToString();
     }
 
-    protected override int BuildHash() => HashCode.Combine( Package?.FullIdent, Package?.Usage.UsersNow, showVideo, VideoUrl(), MenuHelpers.HasAuthority, ShowJam, HashCode.Combine( _nominated, _busy, Package?.Interaction.Rating, Package?.Interaction.Favourite, PlayerModes.PartySize ) );
+    protected override int BuildHash() => HashCode.Combine( Package?.FullIdent, Package?.Usage.UsersNow, showVideo, VideoUrl(), MenuHelpers.HasAuthority, ShowJam, HashCode.Combine( _nominated, _busy, Package?.Interaction.Rating, Package?.Interaction.Favourite, PlayerModes.PartySize, Modes ), HashCode.Combine( decided, OnWorkshop, Workshop, workshopLoaded, WorkshopVote, Subscribed ) );
 
     /// <summary>
     /// Rebuild composed text when translations change.

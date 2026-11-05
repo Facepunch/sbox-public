@@ -18,6 +18,23 @@ public sealed partial class ModelBuilder
 	private static unsafe void SetMorphTargets( Mesh mesh )
 	{
 		var targets = mesh.MorphTargets;
+
+		if ( !Mesh.TryGetMorphAtlasSize( mesh.VertexCount, targets.Count, out _, out _ ) )
+		{
+			Log.Warning( $"Skipping {targets.Count} morph targets on a mesh with {mesh.VertexCount} vertices, they exceed the maximum morph texture size" );
+			return;
+		}
+
+		long totalDeltas = 0;
+		foreach ( var deltas in targets.Values )
+			totalDeltas += deltas.Length;
+
+		if ( totalDeltas > Mesh.MaxMorphDeltas )
+		{
+			Log.Warning( $"Skipping morph targets with {totalDeltas} deltas, the maximum is {Mesh.MaxMorphDeltas}" );
+			return;
+		}
+
 		var morphNameBuilder = new StringBuilder();
 		var morphDescs = new Mesh.MorphNativeDesc[targets.Count];
 		var allDeltas = new List<MorphDelta>();

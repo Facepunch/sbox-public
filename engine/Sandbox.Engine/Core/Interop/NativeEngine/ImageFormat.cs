@@ -143,6 +143,7 @@ public enum ImageFormat : int
 	I16F,
 
 	RG3232,
+	R11G11B10F,
 }
 
 internal static class ImageFormatExtensions

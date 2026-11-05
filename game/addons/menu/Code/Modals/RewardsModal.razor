@@ -14,21 +14,23 @@
 
 		<div class="header">
 			<i>redeem</i>
-			<h2>#menu.rewards.item_drops</h2>
+			<h2>#menu.rewards.weekly_rewards</h2>
 			<div class="grow" />
 
-			@if ( Window is not null )
-			{
-				<div class="refresh @( IsLoading ? "busy" : "" )" onclick=@Refresh>
-					<icon>refresh</icon>
-					<label>@( IsLoading ? "#menu.common.loading" : "#menu.common.refresh" )</label>
-				</div>
-			}
+			<div class="refresh @( IsLoading ? "busy" : "" )" onclick=@Refresh>
+				<icon>refresh</icon>
+				<label>@( IsLoading ? "#menu.common.loading" : "#menu.common.refresh" )</label>
+			</div>
 		</div>
 
 		<div class="rewards-list">
 
-			@if ( Window is null )
+			@if ( LoadFailed )
+			{
+				<label class="load-error">#menu.rewards.load_failed</label>
+			}
+
+			@if ( Window is null && State?.Pending is null )
 			{
 				<div class="rewards-empty">
 					@if ( IsLoading )
@@ -40,7 +42,7 @@
 						<icon>redeem</icon>
 					}
 					<label class="title">@( IsLoading ? "#menu.rewards.checking_your_progress" : "#menu.rewards.no_drop_right_now" )</label>
-					<label class="hint">@( IsLoading ? "#menu.rewards.one_moment" : "#menu.rewards.nothing_is_being_tracked_for_you_at_the_moment" )</label>
+					<label class="hint">@( IsLoading ? "#menu.rewards.one_moment" : "#menu.rewards.no_active_week" )</label>
 				</div>
 			}
 			else
@@ -51,20 +53,30 @@
 					<div class="ring">
 						<div class="ring-fill" style="background-image: @RingGradient" />
 						<div class="ring-inner">
-							<label class="percent">@PercentText</label>
-							<label class="percent-label">@( CanOpen ? "ready" : "done" )</label>
+							@if ( State?.Pending is not null || Window?.IsClaimed == true )
+							{
+								<icon class="reward-status">@( State?.Pending is not null ? "inventory_2" : "check" )</icon>
+								<label class="progress-label">@( State?.Pending is not null ? "#menu.rewards.ready" : "#menu.rewards.collected" )</label>
+							}
+							else
+							{
+								<label class="progress-count">@Language.GetPhrase( "menu.rewards.progress_count", new() { ["complete"] = MetCount, ["total"] = Facets.Length } )</label>
+								<label class="progress-label">#menu.rewards.progress_unlocked</label>
+							}
 						</div>
 					</div>
 
 					<div class="hero-body">
-						<label class="eyebrow">@( CanOpen ? "#menu.rewards.your_drop_is_waiting" : "#menu.rewards.next_drop" )</label>
 						<label class="hero-title">@Title</label>
 						<label class="hero-hint">@StatusText</label>
 
-						<div class="open @( CanOpen ? "reward" : "locked" )" onclick=@OpenReward>
-							<icon>@( CanOpen ? "inventory_2" : "lock" )</icon>
-							<label>@( CanOpen ? "#menu.rewards.open_your_drop" : "#menu.rewards.keep_playing" )</label>
-						</div>
+						@if ( CanOpen )
+						{
+							<div class="open reward" onclick=@OpenReward>
+								<icon>inventory_2</icon>
+								<label>#menu.rewards.open_your_drop</label>
+							</div>
+						}
 					</div>
 
 				</div>
@@ -73,7 +85,6 @@
 				{
 					<div class="section-head">
 						<label class="title">#menu.rewards.objectives</label>
-						<label class="count">@MetCount of @Facets.Length met</label>
 					</div>
 
 					@foreach ( var facet in Facets )
@@ -81,10 +92,19 @@
 						<div class="objective @( facet.Met ? "met" : "" )">
 
 							<div class="objective-head">
-								<icon>@( facet.Met ? "check_circle" : "radio_button_unchecked" )</icon>
+								<div class="achievement-icon">
+									@if ( !string.IsNullOrWhiteSpace( facet.Icon ) )
+									{
+										<img src=@facet.Icon />
+									}
+									else
+									{
+										<icon>emoji_events</icon>
+									}
+								</div>
 
 								<div class="objective-body">
-									<label class="objective-title">@facet.Title</label>
+									<label class="objective-title">@AchievementTitle( facet )</label>
 
 									@if ( !string.IsNullOrWhiteSpace( facet.Description ) )
 									{
@@ -92,24 +112,23 @@
 									}
 								</div>
 
-								<label class="objective-count">@CountText( facet )</label>
+								<icon class="completion" tooltip="@( facet.Met ? "#menu.rewards.unlocked" : "#menu.rewards.not_unlocked" )">@( facet.Met ? "check_circle" : "radio_button_unchecked" )</icon>
 							</div>
 
-							<div class="track" style="background-image: @TrackGradient( facet )"></div>
+							@if ( !string.IsNullOrWhiteSpace( facet.GameIdent ) )
+							{
+								<div class="objective-game" onclick=@(() => OpenGame( facet )) tooltip="#menu.party.view_game_details">
+									<icon>sports_esports</icon>
+									<label>@( string.IsNullOrWhiteSpace( facet.GameTitle ) ? facet.GameIdent : facet.GameTitle )</label>
+									<icon class="game-arrow">arrow_forward</icon>
+								</div>
+							}
 
 						</div>
 					}
 				}
 			}
 
-		</div>
-
-		<div class="footer">
-			<label class="note">#menu.rewards.play_games_and_every_objective_ticks_itself_off_meet</label>
-			@if ( MenuHelpers.ShowMicrotransactions )
-			{
-				<label class="docs-link" onclick=@OpenStore>#menu.rewards.browse_the_item_store</label>
-			}
 		</div>
 
 	</div>
@@ -124,7 +143,9 @@
 	const string FillColor = "#3fc76a * 3";
 	const string TrackColor = "rgba( 255, 255, 255, 0.13 )";
 
-	/// <summary>Gap between the rail entry and the popup.</summary>
+	/// <summary>
+	/// Gap between the rail entry and the popup.
+	/// </summary>
 	const float AnchorOffset = 20f;
 
 	Panel Inner;
@@ -133,35 +154,62 @@
 	RewardState State { get; set; }
 
 	bool IsLoading { get; set; }
+	bool LoadFailed { get; set; }
 
-	/// <summary>Only one window exists today.</summary>
+	/// <summary>
+	/// The current weekly challenge, independent of any pending offer from an earlier week.
+	/// </summary>
 	RewardWindow Window => State?.Windows.FirstOrDefault();
 
 	RewardFacet[] Facets => Window?.Facets ?? Array.Empty<RewardFacet>();
 
-	bool CanOpen => Window is not null && (Window.IsEligible || State.Pending is not null);
+	bool WeekEnded => Window is not null && Window.EndsAt != default && Window.EndsAt <= DateTimeOffset.UtcNow;
+
+	bool CanOpen => State?.Pending is not null || (Window?.IsEligible == true && !WeekEnded);
 
 	int MetCount => Window?.MetCount ?? 0;
 
 	string Title => string.IsNullOrWhiteSpace( Window?.Title ) ? "#menu.rewards.item_drop" : Window.Title;
 
-	/// <summary>Every objective averaged - one arc stands in for all of them.</summary>
-	float Fraction => Window is null ? 0f : (CanOpen ? 1f : Window.Progress);
+	/// <summary>
+	/// Every objective averaged into one arc; reserved or collected rewards are complete.
+	/// </summary>
+	float Fraction => CanOpen || Window?.IsClaimed == true ? 1f : Window?.Progress ?? 0f;
 
-	string PercentText => $"{(int)(Fraction * 100f)}%";
+	/// <summary>
+	/// Prefer the separate achievement title; older servers still supply a combined title.
+	/// </summary>
+	static string AchievementTitle( RewardFacet facet )
+	{
+		if ( !string.IsNullOrWhiteSpace( facet.AchievementTitle ) ) return facet.AchievementTitle;
+
+		return string.IsNullOrWhiteSpace( facet.Title ) ? facet.AchievementName : facet.Title;
+	}
 
 	string StatusText
 	{
 		get
 		{
 			if ( State?.Pending is not null ) return "#menu.rewards.you_started_opening_this_one_go_back_and_pick_your_item";
+			if ( Window?.IsClaimed == true || Window?.Reason == "already_claimed" ) return "#menu.rewards.week_claimed";
+			if ( WeekEnded ) return "#menu.rewards.week_ended";
 			if ( CanOpen ) return "#menu.rewards.everything_s_met_open_it_and_choose_what_you_keep";
-			if ( Facets.Length == 0 ) return "#menu.rewards.nothing_to_do_here_yet";
 
-			return $"{Facets.Length - MetCount} left to go.";
+			return Window?.Reason switch
+			{
+				"disabled" => "#menu.rewards.disabled",
+				"not_game_owner" => "#menu.rewards.not_game_owner",
+				"untrusted" => "#menu.rewards.unavailable",
+				"no_active_week" => "#menu.rewards.no_active_week",
+				"week_ended" => "#menu.rewards.week_ended",
+				_ => Facets.Length == 0 ? "#menu.rewards.no_active_week" : "#menu.rewards.unlock_objectives"
+			};
 		}
 	}
 
+	/// <summary>
+	/// Create the weekly rewards popup beside its sidebar button.
+	/// </summary>
 	public RewardsModal( Panel anchor )
 	{
 		Anchor = anchor;
@@ -171,12 +219,9 @@
 		AddClass( "anchored" );
 	}
 
-	static string CountText( RewardFacet facet )
-	{
-		return facet.Met ? "#menu.common.done" : $"{(int)facet.Current}/{(int)facet.Required}";
-	}
-
-	/// <summary>Two hard stops - filled arc up to the percentage, empty track the rest of the way.</summary>
+	/// <summary>
+	/// Two hard stops: filled arc up to the percentage, empty track the rest of the way.
+	/// </summary>
 	string RingGradient
 	{
 		get
@@ -185,14 +230,6 @@
 
 			return $"conic-gradient( {FillColor} 0%, {FillColor} {pct}%, {TrackColor} {pct}%, {TrackColor} 100% )";
 		}
-	}
-
-	/// <summary>The same two stops along a bar instead of around a circle.</summary>
-	static string TrackGradient( RewardFacet facet )
-	{
-		var pct = (facet.Progress * 100f).ToString( "0.#", CultureInfo.InvariantCulture );
-
-		return $"linear-gradient( 90deg, {FillColor} 0%, {FillColor} {pct}%, {TrackColor} {pct}%, {TrackColor} 100% )";
 	}
 
 	protected override void OnAfterTreeRender( bool firstTime )
@@ -207,6 +244,9 @@
 		_ = Load();
 	}
 
+	/// <summary>
+	/// Keep the popup aligned with its sidebar anchor.
+	/// </summary>
 	public override void Tick()
 	{
 		base.Tick();
@@ -254,17 +294,41 @@
 		if ( IsLoading ) return;
 
 		IsLoading = true;
+		LoadFailed = false;
 		StateHasChanged();
 
-		State = await MenuUtility.Rewards.GetRewards();
+		try
+		{
+			var state = await MenuUtility.Rewards.GetRewards();
+			if ( !this.IsValid() ) return;
 
-		if ( !this.IsValid() ) return;
+			State = state;
+			Sidebar.InvalidateBadges();
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( $"Unable to load weekly rewards: {e.Message}" );
+			if ( this.IsValid() ) LoadFailed = true;
+		}
+		finally
+		{
+			if ( this.IsValid() )
+			{
+				IsLoading = false;
+				StateHasChanged();
+			}
+		}
+	}
 
-		IsLoading = false;
-		StateHasChanged();
+	/// <summary>
+	/// Open the objective's game using the normal game details and Play flow.
+	/// </summary>
+	void OpenGame( RewardFacet facet )
+	{
+		if ( string.IsNullOrWhiteSpace( facet.GameIdent ) ) return;
 
-		// The rail's bar and pip are decided by the same state.
-		Sidebar.InvalidateBadges();
+		CloseModal( true );
+		MenuHelpers.LaunchGame( facet.GameIdent );
 	}
 
 	void OpenReward()
@@ -276,12 +340,5 @@
 		SceneTransition.Load( "/scenes/reward-unbox.scene" );
 	}
 
-	void OpenStore()
-	{
-		// We live under the overlay, not the navigator - the store in whichever menu's up
-		MenuHelpers.Navigate( "/itemstore" );
-		CloseModal( true );
-	}
-
-	protected override int BuildHash() => HashCode.Combine( State, IsLoading, MetCount, Fraction, CanOpen );
+	protected override int BuildHash() => HashCode.Combine( State, IsLoading, LoadFailed, MetCount, Fraction, CanOpen, WeekEnded );
 }

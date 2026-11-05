@@ -219,6 +219,7 @@ int TextureDimensionsCubeArray( TextureCubeArray tex, int nMipLevel )
 #define UiType( arg1 ) string uitype = #arg1 // Not quoted so it looks like a known token
 #define UiGroup( arg1 ) string uigroup = arg1 // Quoted
 #define UiStep( arg1 ) float uistep = { arg1 }
+#define SpecializedConstant() float specializedconstant = { 1 } // Specialization constant from Attribute(), the pipeline is rebuilt when it changes
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Render State

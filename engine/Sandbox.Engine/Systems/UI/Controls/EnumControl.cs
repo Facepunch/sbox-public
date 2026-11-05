@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Components;
+﻿using Sandbox.Engine;
+using Microsoft.AspNetCore.Components;
 using Sandbox.Diagnostics;
 using System;
 using System.Collections.Generic;
@@ -105,7 +106,7 @@ public partial class EnumControl : BaseControl
 		if ( Property == null ) return;
 		if ( !Property.PropertyType.IsEnum ) return;
 
-		var options = Sandbox.Internal.GlobalGameNamespace.TypeLibrary.GetEnumDescription( Property.PropertyType );
+		var options = GlobalContext.Current.TypeLibrary.GetEnumDescription( Property.PropertyType );
 		if ( options == null )
 		{
 			Log.Warning( $"Couldn't get enum description for {Property.PropertyType}" );

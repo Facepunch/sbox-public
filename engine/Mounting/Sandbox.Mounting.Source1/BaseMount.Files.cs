@@ -1,6 +1,7 @@
 using System;
 using System.Globalization;
 using System.IO;
+using System.Threading;
 using Sandbox.Mounting;
 
 namespace Sandbox.Mounting.Source1;
@@ -10,6 +11,7 @@ public abstract partial class BaseMount
 	internal readonly record struct SourceFile( string Filename, IContentArchive Package )
 	{
 		public Stream Open() => Package is null ? File.OpenRead( Filename ) : Package.OpenFile( Filename );
+		public Stream OpenHeader( int length ) => Package is null ? File.OpenRead( Filename ) : Package.OpenFileHeader( Filename, length );
 	}
 
 	internal readonly record struct ContentSource( string Path, bool IsArchive, bool Recursive = true,
@@ -68,7 +70,7 @@ public abstract partial class BaseMount
 		{
 			var name = Path.GetFileName( folder );
 			// Asset folders at the installation root are not separate game/content roots.
-			var prefix = name.ToLowerInvariant() is "materials" or "models" or "sound" or "scripts" ? $"{name}/" : "";
+			var prefix = name.ToLowerInvariant() is "materials" or "models" or "sound" or "scripts" or "maps" ? $"{name}/" : "";
 			sources.Add( new( folder, false, Prefix: prefix ) );
 		}
 		sources.Add( new( root, false, false, Files: entries.OfType<FileInfo>().Select( entry => entry.FullName ).ToArray() ) );
@@ -118,10 +120,16 @@ public abstract partial class BaseMount
 
 	private sealed class FileIndex : IDisposable
 	{
+		private int references = 1;
 		public readonly object SourceScope = new();
 		public readonly List<IContentArchive> Packages = [];
 		public readonly Dictionary<string, SourceFile> Files = new( StringComparer.OrdinalIgnoreCase );
+		public readonly Dictionary<string, string> ContentParents = new( StringComparer.OrdinalIgnoreCase );
+		public readonly HashSet<string> SoundscapeRoots = new( StringComparer.OrdinalIgnoreCase );
+		public readonly HashSet<string> PackedAudioRoots = new( StringComparer.OrdinalIgnoreCase );
+		public readonly List<(string Path, string Root)> MapDecals = [];
 		public readonly List<(string Path, ResourceFactory Factory)> Resources = [];
+		public readonly List<string> Errors = [];
 		public readonly Dictionary<string, SourceSurfaceDefinition> Surfaces = new( StringComparer.OrdinalIgnoreCase );
 		public readonly Dictionary<string, SourceSoundDefinition> SurfaceSounds = new( StringComparer.OrdinalIgnoreCase );
 		public SourceDecalLibrary Decals = new();
@@ -131,6 +139,7 @@ public abstract partial class BaseMount
 		public readonly Dictionary<string, Lazy<SourceMaterial>> MaterialSources = new( StringComparer.OrdinalIgnoreCase );
 		public readonly Dictionary<string, Lazy<SourceTexture>> TextureSources = new( StringComparer.OrdinalIgnoreCase );
 		public readonly Dictionary<Material, SourceMaterialVariant> MaterialVariants = new( ReferenceEqualityComparer.Instance );
+		public readonly Dictionary<string, MapImportEntry> MapImports = new( StringComparer.OrdinalIgnoreCase );
 		public Texture CameraRenderTarget;
 
 		public bool Add( string path, IContentArchive package = null, string physicalPath = null )
@@ -142,8 +151,25 @@ public abstract partial class BaseMount
 				&& path.EndsWith( ".txt", StringComparison.OrdinalIgnoreCase ) )
 				PropDataScripts.Add( path );
 
-			if ( FileTypes.TryGetValue( Path.GetExtension( path ), out var resource ) )
+			var extension = Path.GetExtension( path );
+			if ( FileTypes.TryGetValue( extension, out var resource ) )
+			{
+				if ( extension.Equals( ".raw", StringComparison.OrdinalIgnoreCase ) )
+				{
+					try
+					{
+						using var stream = Files[path].OpenHeader( SourceColorLookup.DataLength + 1 );
+						if ( stream.Length != SourceColorLookup.DataLength )
+							return true;
+					}
+					catch ( Exception e ) when ( e is IOException or InvalidDataException or UnauthorizedAccessException or NotSupportedException )
+					{
+						Errors.Add( $"{path}: color-correction texture was not registered: {e.Message}" );
+						return true;
+					}
+				}
 				Resources.Add( (path, resource) );
+			}
 			return true;
 		}
 
@@ -167,8 +193,12 @@ public abstract partial class BaseMount
 			return diagnostics;
 		}
 
+		public void Retain() => Interlocked.Increment( ref references );
+
 		public void Dispose()
 		{
+			if ( Interlocked.Decrement( ref references ) != 0 )
+				return;
 			foreach ( var source in TextureSources.Values )
 				if ( source.IsValueCreated ) source.Value.Dispose();
 			foreach ( var source in MaterialSources.Values )
@@ -189,27 +219,29 @@ public abstract partial class BaseMount
 		{
 			if ( source.IsArchive )
 			{
-				IContentArchive package;
-				IContentArchive pendingPackage = null;
+				IContentArchive indexed;
+				IContentArchive package = null;
 				try
 				{
-					pendingPackage = source.Path.EndsWith( ".gma", StringComparison.OrdinalIgnoreCase )
+					package = source.Path.EndsWith( ".gma", StringComparison.OrdinalIgnoreCase )
 						? new GmaArchive( source.Path ) : new VpkArchive( source.Path );
-					files.Packages.Add( pendingPackage );
-					package = pendingPackage;
-					pendingPackage = null;
+					files.Packages.Add( package );
+					indexed = package;
+					package = null;
 				}
 				catch ( Exception e ) when ( e is IOException or InvalidDataException or UnauthorizedAccessException or NotSupportedException )
 				{
-					Log.Warning( $"{source.Path}: archive was not indexed: {e.Message}" );
+					var error = $"{source.Path}: archive was not indexed: {e.Message}";
+					files.Errors.Add( error );
+					Log.Warning( error );
 					continue;
 				}
 				finally
 				{
-					pendingPackage?.Dispose();
+					package?.Dispose();
 				}
-				foreach ( var path in package.GetFilePaths() )
-					files.Add( path, package );
+				foreach ( var path in indexed.GetFilePaths() )
+					files.Add( path, indexed );
 				continue;
 			}
 
@@ -262,17 +294,59 @@ public abstract partial class BaseMount
 	internal bool TryOpenContentFile( string filename, string contentRoot, out Stream stream )
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace( filename );
-		lock ( indexLock )
+		var files = AcquireIndex();
+		try
 		{
-			var path = FindContentFile( index, filename, contentRoot );
+			var path = FindContentFile( files, filename, contentRoot );
 			if ( path is not null )
 			{
-				stream = index.Files[path].Open();
+				stream = new ContentStream( files.Files[path], files );
+				files = null;
 				return true;
 			}
 			stream = null;
 			return false;
 		}
+		finally
+		{
+			files?.Dispose();
+		}
 	}
 
+	private static Stream OpenContentFile( FileIndex files, string filename, string contentRoot = "" ) =>
+		files.Files[ResolveContentFile( files, filename, contentRoot )].Open();
+
+	private sealed class ContentStream( SourceFile source, FileIndex files ) : Stream
+	{
+		private readonly Stream stream = source.Open();
+		private FileIndex snapshot = files;
+		public override bool CanRead => stream.CanRead;
+		public override bool CanSeek => stream.CanSeek;
+		public override bool CanWrite => false;
+		public override long Length => stream.Length;
+		public override long Position { get => stream.Position; set => stream.Position = value; }
+		public override int Read( byte[] buffer, int offset, int count ) => stream.Read( buffer, offset, count );
+		public override int Read( Span<byte> buffer ) => stream.Read( buffer );
+		public override int ReadByte() => stream.ReadByte();
+		public override long Seek( long offset, SeekOrigin origin ) => stream.Seek( offset, origin );
+		public override void Flush() => stream.Flush();
+		public override void SetLength( long value ) => throw new NotSupportedException();
+		public override void Write( byte[] buffer, int offset, int count ) => throw new NotSupportedException();
+
+		protected override void Dispose( bool disposing )
+		{
+			if ( disposing && Interlocked.Exchange( ref snapshot, null ) is { } owner )
+			{
+				try
+				{
+					stream.Dispose();
+				}
+				finally
+				{
+					owner.Dispose();
+				}
+			}
+			base.Dispose( disposing );
+		}
+	}
 }

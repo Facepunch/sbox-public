@@ -170,12 +170,21 @@ public partial class ProjectPublisher
 						cancel.ThrowIfCancellationRequested();
 						var relative = Path.GetRelativePath( root, file ).NormalizeFilename( true, false );
 						if ( !ResourceFileAllowed( relative ) ) continue;
-						// Compilable assets have already been collected. Don't also ship their sources.
-						if ( AssetSystem.FindByPath( file ) is { } asset && !string.IsNullOrEmpty( asset.GetCompiledFile() ) ) continue;
+						// Keep standalone files; resource definitions have already been collected as compiled assets.
+						if ( AssetSystem.FindByPath( file ) is { } asset && !IsStandaloneSourceFile( asset ) && (asset.IsCompileFailed || !string.IsNullOrEmpty( asset.GetCompiledFile() )) ) continue;
 						await AddFile( file, relative );
 					}
 				}
 			}
+		}
+
+		// Native resource definitions use the resource extension (.vmat -> .vmat_c).
+		// Alternate source formats (.ogg -> .vsnd_c, .png -> .vtex_c) can also be used directly.
+		static bool IsStandaloneSourceFile( Asset asset )
+		{
+			var compiled = asset.GetCompiledFile();
+			var resource = compiled?.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) == true ? compiled[..^2] : asset.Path;
+			return !string.Equals( Path.GetExtension( asset.GetSourceFile() ?? asset.RelativePath ), Path.GetExtension( resource ), StringComparison.OrdinalIgnoreCase );
 		}
 
 		internal static bool ResourceFileAllowed( string path ) => LooseFileAllowed( path, false )

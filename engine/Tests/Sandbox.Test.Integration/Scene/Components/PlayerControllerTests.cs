@@ -5,10 +5,7 @@ using System.Collections.Generic;
 namespace SceneTests.Components;
 
 /// <summary>
-/// Pins the PlayerController contract that's reachable without live input: the
-/// rigidbody/collider rig it builds on awake, body dimensions, grounding against a
-/// static floor, WishVelocity driven movement, jumping, ducking, the move-mode
-/// state machine and serialization. Anything needing real Input is out of scope.
+/// PlayerController integration coverage without live input.
 /// </summary>
 [TestClass]
 public partial class PlayerControllerTest
@@ -48,21 +45,30 @@ public partial class PlayerControllerTest
 	}
 
 	/// <summary>
-	/// Creates a PlayerController at the given position, configured for headless
-	/// ticking: input controls off (there's no input to read) and footstep sounds
-	/// off (no audio assets mounted).
+	/// Creates a headless player with a Source-sized feet footprint.
 	/// </summary>
 	static PlayerController CreatePlayer( Scene scene, Vector3 position )
 	{
-		var go = scene.CreateObject();
+		var go = scene.CreateObject( false );
 		go.Name = "Player";
 		go.WorldPosition = position;
 
 		var pc = go.Components.Create<PlayerController>();
+		pc.BodyRadius = 32;
 		pc.UseInputControls = false;
 		pc.EnableFootstepSounds = false;
+		go.Enabled = true;
 
 		return pc;
+	}
+
+	internal static void SimulateControllerPhysics( Scene scene, PlayerController player, float delta )
+	{
+		((IScenePhysicsEvents)player.Body).PrePhysicsStep();
+		((IScenePhysicsEvents)player).PrePhysicsStep();
+		scene.PhysicsWorld.Step( delta );
+		player.Body.UpdateTransformFromBody();
+		((IScenePhysicsEvents)player).PostPhysicsStep();
 	}
 
 	/// <summary>
@@ -196,13 +202,20 @@ public partial class PlayerControllerTest
 		Assert.AreEqual( 72f, pc.BodyHeight );
 		Assert.AreEqual( 500f, pc.BodyMass );
 		Assert.AreEqual( 1f, pc.BrakePower );
-		Assert.AreEqual( 0.1f, pc.AirFriction );
+		Assert.AreEqual( 0f, pc.AirFriction );
+		var walk = (MoveModeWalk)pc.Mode;
+		Assert.IsTrue( walk.EnableAirStrafing );
+		Assert.IsTrue( walk.EnableBunnyHopping );
+		Assert.AreEqual( 0.1f, walk.BunnyHopRecoveryTime );
+		Assert.AreEqual( 1f, walk.JumpMomentumRetention );
 
 		Assert.IsTrue( pc.UseInputControls );
 		Assert.AreEqual( 110f, pc.WalkSpeed );
 		Assert.AreEqual( 320f, pc.RunSpeed );
 		Assert.AreEqual( 70f, pc.DuckedSpeed );
-		Assert.AreEqual( 300f, pc.JumpSpeed );
+		Assert.AreEqual( MovementMath.JumpSpeed, pc.JumpSpeed );
+		Assert.AreEqual( 0f, pc.CoyoteTime );
+		Assert.IsFalse( pc.HoldToJump );
 		Assert.AreEqual( 36f, pc.DuckedHeight );
 		Assert.AreEqual( "run", pc.AltMoveButton );
 		Assert.IsFalse( pc.RunByDefault );
@@ -232,8 +245,7 @@ public partial class PlayerControllerTest
 	}
 
 	/// <summary>
-	/// The collider rig is sized from BodyRadius/BodyHeight: the capsule covers the
-	/// upper half, the feet box the lower half - and resizing reapplies on tick.
+	/// The capsule diameter matches the feet width; BodyRadius retains its width convention.
 	/// </summary>
 	[TestMethod]
 	public void BodyDimensionsFollowProperties()
@@ -244,7 +256,7 @@ public partial class PlayerControllerTest
 		var go = scene.CreateObject();
 		var pc = go.Components.Create<PlayerController>();
 
-		var capsuleRadius = (16f * MathF.Sqrt( 2f )) / 2f;
+		var capsuleRadius = 8f;
 		Assert.AreEqual( capsuleRadius, pc.BodyCollider.Radius, 0.001f );
 		Assert.AreEqual( 72f - capsuleRadius, pc.BodyCollider.Start.z, 0.001f );
 		Assert.AreEqual( 36f, pc.BodyCollider.End.z, 0.001f );
@@ -254,7 +266,7 @@ public partial class PlayerControllerTest
 		Assert.AreEqual( new Vector3( 0, 0, 18 ), pc.FeetCollider.Center );
 		Assert.IsTrue( pc.FeetCollider.Enabled );
 
-		// BodyBox is the trace hull: half-radius footprint, full height
+		// BodyBox uses the feet footprint and full standing height.
 		var hull = pc.BodyBox();
 		Assert.AreEqual( new Vector3( -8, -8, 0 ), hull.Mins );
 		Assert.AreEqual( new Vector3( 8, 8, 72 ), hull.Maxs );
@@ -338,6 +350,172 @@ public partial class PlayerControllerTest
 		}
 
 		Assert.IsTrue( pc.Velocity.Length < 10f, $"the brakes should have stopped it: {pc.Velocity}" );
+	}
+
+	/// <summary>
+	/// Source's fixed stop speed deliberately makes low-speed braking independent of wish speed.
+	/// </summary>
+	[TestMethod]
+	[DataRow( 10f, 0.02 )]
+	[DataRow( 35f, 0.02 )]
+	[DataRow( 70f, 0.02 )]
+	[DataRow( 140f, 0.02 )]
+	[DataRow( 640f, 0.02 )]
+	[DataRow( 10f, 0.01 )]
+	[DataRow( 140f, 0.01 )]
+	public void GroundMovementUsesSourceStopSpeed( float speed, double delta )
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		CreateFloor( scene );
+		var scaled = CreatePlayer( scene, new Vector3( 0, 100, 1 ) );
+		TickUntilGrounded( scene, scaled );
+		Assert.IsTrue( scaled.IsOnGround );
+
+		scaled.GroundFriction = 0.8f;
+		using var timeScope = Time.Scope( 1.0, delta );
+		scaled.Body.Velocity = Vector3.Forward * speed;
+		scaled.WishVelocity = Vector3.Zero;
+		scaled.Mode.AddVelocity();
+		var expected = MathF.Max( 0, speed - MathF.Max( speed, 100 ) * 4 * (float)delta );
+		if ( expected < 1 ) expected = 0;
+		Assert.AreEqual( expected, scaled.Body.Velocity.x, 0.001f );
+	}
+
+	[TestMethod]
+	[DataRow( 0.01, 16f )]
+	[DataRow( 0.02, 30f )]
+	public void AirAccelerationCapsProjectionNotTotalSpeed( double delta, float expectedSideSpeed )
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		var pc = CreatePlayer( scene, Vector3.Up * 1000 );
+		using var timeScope = Time.Scope( 1.0, delta );
+		pc.Body.Velocity = new Vector3( 500, 0, -200 );
+		pc.WishVelocity = new Vector3( 0, 160, 400 );
+		pc.GroundFriction = 0; // previous ground must not affect air acceleration
+		pc.Mode.AddVelocity();
+
+		Assert.AreEqual( 500f, pc.Body.Velocity.x, 0.001f );
+		Assert.AreEqual( expectedSideSpeed, pc.Body.Velocity.y, 0.001f );
+		Assert.AreEqual( -200f, pc.Body.Velocity.z, 0.001f );
+		for ( int i = 0; i < 10; i++ ) pc.Mode.AddVelocity();
+		Assert.AreEqual( 30f, pc.Body.Velocity.y, 0.001f );
+
+		pc.WishVelocity = Vector3.Forward * 320;
+		pc.Mode.AddVelocity();
+		Assert.AreEqual( 500f, pc.Body.Velocity.x, 0.001f, "holding forward must not clamp existing speed" );
+		pc.WishVelocity = Vector3.Zero;
+		var coasting = pc.Body.Velocity;
+		pc.Mode.AddVelocity();
+		Assert.AreEqual( coasting, pc.Body.Velocity );
+	}
+
+	[TestMethod]
+	public void AirStrafingBuildsSpeedBeyondRunSpeed()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		var pc = CreatePlayer( scene, Vector3.Up * 1000 );
+		using var timeScope = Time.Scope( 1.0, 0.015 );
+		pc.Body.Velocity = Vector3.Forward * 320;
+		for ( int i = 0; i < 100; i++ )
+		{
+			var velocity = pc.Body.Velocity;
+			pc.WishVelocity = new Vector3( -velocity.y, velocity.x, 0 ).Normal * 320;
+			pc.Mode.AddVelocity();
+		}
+
+		Assert.AreEqual( MathF.Sqrt( 320 * 320 + 100 * 30 * 30 ), pc.Body.Velocity.Length, 0.1f );
+	}
+
+	[TestMethod]
+	public void AirAccelerationRespectsAnalogInputAndTuning()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		var pc = CreatePlayer( scene, Vector3.Up * 1000 );
+		var walk = (MoveModeWalk)pc.Mode;
+		using var timeScope = Time.Scope( 1.0, 0.02 );
+		pc.WishVelocity = Vector3.Forward * 10;
+		pc.Mode.AddVelocity();
+		Assert.AreEqual( 2f, pc.Body.Velocity.x, 0.001f );
+		for ( int i = 0; i < 10; i++ ) pc.Mode.AddVelocity();
+		Assert.AreEqual( 10f, pc.Body.Velocity.x, 0.001f );
+
+		walk.AirAcceleration = 100;
+		walk.AirSpeedCap = 60;
+		pc.WishVelocity = Vector3.Forward * 320;
+		pc.Mode.AddVelocity();
+		Assert.AreEqual( 60f, pc.Body.Velocity.x, 0.001f );
+		walk.AirAcceleration = 0;
+		pc.WishVelocity = Vector3.Left * 320;
+		pc.Mode.AddVelocity();
+		Assert.AreEqual( 0f, pc.Body.Velocity.y, 0.001f );
+	}
+
+	[TestMethod]
+	[DataRow( 60f )]
+	[DataRow( -60f )]
+	public void SteepRampsSurfWithoutGroundingOrLosingLateralMomentum( float pitch )
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		var ramp = CreateFloor( scene );
+		ramp.Components.Get<BoxCollider>().Scale = new Vector3( 16000, 16000, 100 );
+		ramp.WorldRotation = Rotation.FromPitch( pitch );
+		var normal = ramp.WorldRotation * Vector3.Up;
+		ramp.WorldPosition = normal * -50;
+		var pc = CreatePlayer( scene, Vector3.Up * 40 );
+		pc.Body.Velocity = new Vector3( 0, 300, -100 );
+		bool touchedRamp = false;
+		for ( int i = 0; i < 30; i++ )
+		{
+			scene.GameTick();
+			Assert.IsFalse( pc.IsOnGround, "a surf ramp must not engage ground braking or snapping" );
+			Assert.IsFalse( pc.Body.Gravity, "walk mode integrates gravity in two half-steps" );
+			Assert.AreEqual( 0f, pc.Body.LinearDamping );
+			Assert.AreEqual( 0f, pc.FeetCollider.Friction );
+			Assert.AreEqual( 300f, pc.Body.Velocity.y, 1f, "ramp contact must preserve tangential momentum" );
+			touchedRamp |= MathF.Abs( pc.Body.Velocity.x ) > 20;
+		}
+
+		Assert.IsTrue( touchedRamp, "gravity and ramp contact should generate downhill velocity" );
+		Assert.IsTrue( pc.WorldPosition.Dot( normal ) > 0, "the player must remain above the ramp plane" );
+		// The final half-gravity step follows contact resolution.
+		Assert.IsTrue( MathF.Abs( pc.Body.Velocity.Dot( normal ) ) < 10, $"the rigidbody must slide along the ramp: {pc.Body.Velocity.Dot( normal )}" );
+	}
+
+	[TestMethod]
+	[DataRow( 0f, 0f )]
+	[DataRow( 0.4f, 0.5f )]
+	[DataRow( 0.8f, 1f )]
+	[DataRow( 1f, 1f )]
+	public void GroundTractionIsNormalizedToDefaultSurface( float friction, float traction )
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		CreateFloor( scene );
+		var pc = CreatePlayer( scene, new Vector3( 0, 0, 1 ) );
+		TickUntilGrounded( scene, pc );
+		Assert.IsTrue( pc.IsOnGround );
+		pc.GroundFriction = friction;
+		using var timeScope = Time.Scope( 1.0, 0.02 );
+
+		pc.Body.Velocity = Vector3.Zero;
+		pc.WishVelocity = Vector3.Forward * 100;
+		pc.Mode.AddVelocity();
+		Assert.AreEqual( 20 * traction, pc.Body.Velocity.x, 0.001f );
+
+		pc.Body.Velocity = Vector3.Forward * 100;
+		pc.WishVelocity = Vector3.Zero;
+		pc.Mode.AddVelocity();
+		Assert.AreEqual( 100 - 8 * traction, pc.Body.Velocity.x, 0.001f );
+
+		pc.BrakePower = 0;
+		pc.Body.Velocity = Vector3.Forward * 100;
+		pc.Mode.AddVelocity();
+		Assert.AreEqual( 100f, pc.Body.Velocity.x, 0.001f, "zero brake power must preserve momentum" );
 	}
 
 	[TestMethod]
@@ -468,17 +646,19 @@ public partial class PlayerControllerTest
 		var surface = scene.Trace.Ray( new Vector3( 48, 0, 128 ), new Vector3( 48, 0, -128 ) ).Run();
 		Assert.IsTrue( surface.Hit );
 		var height = surface.EndPosition.z + 8;
-		CreateStep( scene, 48, 256, height, Rotation.Identity );
+		var step = CreateStep( scene, 48, 256, height, Rotation.Identity );
 		var pc = CreatePlayer( scene, Vector3.Up * 40 );
 		TickUntilGrounded( scene, pc );
 		Assert.IsTrue( pc.IsOnGround );
 		pc.WishVelocity = Vector3.Forward * 160;
-		for ( int i = 0; i < 120 && pc.WorldPosition.x < 80; ++i )
+		// Stop before the rising floor overtakes the step.
+		for ( int i = 0; i < 120 && pc.WorldPosition.x < 64; ++i )
 			scene.GameTick( 1.0 / 60 );
 
-		Assert.IsTrue( pc.WorldPosition.x >= 80, $"stuck on a sloped approach: {pc.WorldPosition}" );
+		Assert.IsTrue( pc.WorldPosition.x >= 64, $"stuck on a sloped approach: {pc.WorldPosition}" );
 		Assert.AreEqual( height, pc.WorldPosition.z, 1.0f );
-		Assert.IsTrue( pc.IsOnGround );
+		Assert.AreEqual( step, pc.GroundObject );
+		Assert.IsTrue( pc.IsOnGround, $"position {pc.WorldPosition}: {DescribeGround( pc )}" );
 		Assert.IsTrue( MathF.Abs( pc.Body.Velocity.z ) < 1 );
 	}
 
@@ -539,7 +719,8 @@ public partial class PlayerControllerTest
 		using var scope = scene.Push();
 		CreateFloor( scene );
 		CreateStep( scene, 48, 256, 8, Rotation.Identity );
-		var pc = CreatePlayer( scene, new Vector3( 39.95f, 0, 1 ) );
+		var pc = CreatePlayer( scene, Vector3.Up );
+		pc.WorldPosition = new Vector3( 48 - pc.BodyRadius * 0.5f - 0.05f, 0, 1 );
 		TickUntilGrounded( scene, pc );
 		Assert.IsTrue( pc.IsOnGround );
 		pc.WishVelocity = Vector3.Forward * speed;
@@ -585,8 +766,9 @@ public partial class PlayerControllerTest
 
 	[TestMethod]
 	[DataRow( 8f )]
+	[DataRow( 17.5f )]
 	[DataRow( 18f )]
-	public void WalksDownSuccessiveStepsWithoutFalling( float height )
+	public void WalkingDownStepsRespectsSnapLimit( float height )
 	{
 		var scene = new Scene();
 		using var scope = scene.Push();
@@ -598,13 +780,18 @@ public partial class PlayerControllerTest
 		TickUntilGrounded( scene, pc );
 		Assert.IsTrue( pc.IsOnGround );
 		pc.WishVelocity = Vector3.Forward * 160;
-		for ( int i = 0; i < 150 && pc.WorldPosition.x < 176; ++i )
+		var fell = false;
+		for ( int i = 0; i < 150 && (pc.WorldPosition.x < 176 || !pc.IsOnGround); ++i )
 		{
 			scene.GameTick( 1.0 / 60 );
-			Assert.IsTrue( pc.IsOnGround, $"fell between steps at {pc.WorldPosition}: {DescribeGround( pc )}" );
+			fell |= !pc.IsOnGround;
+			if ( height < 18 ) Assert.IsTrue( pc.IsOnGround, $"fell between steps at {pc.WorldPosition}: {DescribeGround( pc )}" );
 		}
 
+		Assert.AreEqual( height >= 18, fell );
+		scene.GameTick( 1.0 / 60 );
 		Assert.IsTrue( pc.WorldPosition.x >= 176, $"stuck at {pc.WorldPosition}" );
+		Assert.IsTrue( pc.IsOnGround );
 		Assert.AreEqual( 0f, pc.WorldPosition.z, 1.0f );
 	}
 
@@ -714,6 +901,108 @@ public partial class PlayerControllerTest
 		}
 
 		Assert.IsTrue( pc.WorldPosition.x >= 256, $"mesh seam stopped the character at {pc.WorldPosition}" );
+	}
+
+	[TestMethod]
+	[DataRow( 0.01f, 1f )]
+	[DataRow( 0.015f, 1f )]
+	[DataRow( 0.02f, 1f )]
+	[DataRow( 0.01f, 0f )]
+	[DataRow( 0.015f, 0f )]
+	[DataRow( 0.02f, 0f )]
+	[DataRow( 0.02f, 0.5f )]
+	public void PhysicalFreeFlightUsesScaledSplitGravity( float delta, float gravityScale )
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		scene.PhysicsWorld.Gravity = Vector3.Down * 800;
+		var pc = CreatePlayer( scene, Vector3.Up * 1000 );
+		pc.Body.GravityScale = gravityScale;
+		pc.Body.Velocity = new Vector3( 320, 0, 200 );
+		var expectedPosition = pc.WorldPosition;
+		var expectedVelocity = pc.Body.Velocity;
+		for ( int tick = 0; tick < 30; tick++ )
+		{
+			using var timeScope = Time.Scope( tick * delta, delta );
+			// Check physical displacement as well as split-gravity velocity.
+			expectedVelocity.z -= 800 * gravityScale * delta * 0.5f;
+			expectedPosition += expectedVelocity * delta;
+			expectedVelocity.z -= 800 * gravityScale * delta * 0.5f;
+			((IScenePhysicsEvents)pc).PrePhysicsStep();
+			scene.PhysicsWorld.Step( delta );
+			pc.Body.UpdateTransformFromBody();
+			((IScenePhysicsEvents)pc).PostPhysicsStep();
+			Assert.IsTrue( (pc.WorldPosition - expectedPosition).Length < 0.01f, $"tick {tick}: {pc.WorldPosition} vs {expectedPosition}" );
+			Assert.IsTrue( (pc.Body.Velocity - expectedVelocity).Length < 0.01f, $"tick {tick}: {pc.Body.Velocity} vs {expectedVelocity}" );
+		}
+	}
+
+	[TestMethod]
+	[DataRow( false, 0f )]
+	[DataRow( true, 0f )]
+	[DataRow( false, 0.1f )]
+	[DataRow( true, 0.1f )]
+	public void AirborneCollisionTransfersRealMomentum( bool besideStaticWall, float airFriction )
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		scene.PhysicsWorld.Gravity = 0;
+		if ( besideStaticWall )
+		{
+			var wall = scene.CreateObject();
+			wall.WorldPosition = new Vector3( 128, 24.03125f, 36 );
+			var collider = wall.Components.Create<BoxCollider>();
+			collider.Scale = new Vector3( 512, 16, 256 );
+			collider.Static = true;
+			collider.Friction = 0;
+		}
+		var pc = CreatePlayer( scene, Vector3.Zero );
+		pc.BodyMass = 100;
+		pc.AirFriction = airFriction;
+		var prop = scene.CreateObject();
+		prop.WorldPosition = new Vector3( 80, 0, 36 );
+		var box = prop.Components.Create<BoxCollider>();
+		box.Scale = new Vector3( 32, besideStaticWall ? 32 : 100, 100 );
+		box.Friction = 0;
+		box.Elasticity = 0;
+		var body = prop.Components.Create<Rigidbody>();
+		body.MassOverride = 100;
+		body.LinearDamping = 0;
+		body.Gravity = false;
+		pc.Body.Velocity = Vector3.Forward * 300;
+		var expectedMomentum = 30000f;
+		for ( int tick = 0; tick < 25; tick++ )
+		{
+			using var time = Time.Scope( tick * 0.02, 0.02f );
+			expectedMomentum -= pc.BodyMass * pc.Body.Velocity.x * (1 - 1 / (1 + airFriction * 0.02f));
+			scene.InternalFixedUpdate();
+		}
+		Assert.IsTrue( body.Velocity.x > 100, $"the actual prop should receive momentum: {body.Velocity}" );
+		Assert.IsTrue( pc.Body.Velocity.x < 200, $"the player must receive the reaction impulse: {pc.Body.Velocity}" );
+		Assert.AreEqual( expectedMomentum, pc.Body.Mass * pc.Body.Velocity.x + body.Mass * body.Velocity.x, 300f );
+	}
+
+	[TestMethod]
+	public void DynamicPlatformCarriesPlayerWeight()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		scene.PhysicsWorld.Gravity = Vector3.Down * 800;
+		var platform = scene.CreateObject();
+		platform.WorldPosition = Vector3.Down * 8;
+		var box = platform.Components.Create<BoxCollider>();
+		box.Scale = new Vector3( 256, 256, 16 );
+		box.Elasticity = 0;
+		var body = platform.Components.Create<Rigidbody>();
+		body.MassOverride = 500;
+		body.Gravity = false;
+		body.LinearDamping = 0;
+		var pc = CreatePlayer( scene, Vector3.Up );
+		pc.BodyMass = 500;
+		for ( int tick = 0; tick < 20; tick++ ) scene.GameTick( 0.02 );
+		Assert.IsTrue( body.Velocity.z < -50, $"a gravity-disabled platform must still accelerate under player weight: {body.Velocity}" );
+		Assert.IsTrue( MathF.Abs( pc.Body.Velocity.z - body.Velocity.z ) < 20, "player and support must move together through contact impulses" );
+		Assert.IsTrue( pc.GroundIsDynamic );
 	}
 
 	/// <summary>
@@ -853,7 +1142,13 @@ public partial class PlayerControllerTest
 		pc.RunSpeed = 456;
 		pc.BodyHeight = 80;
 		pc.RunByDefault = true;
+		pc.HoldToJump = true;
 		pc.UseInputControls = false;
+		var walk = (MoveModeWalk)pc.Mode;
+		walk.EnableAirStrafing = false;
+		walk.EnableBunnyHopping = false;
+		walk.BunnyHopRecoveryTime = 0.25f;
+		walk.JumpMomentumRetention = 0.4f;
 
 		var json = go.Serialize().ToJsonString();
 		var jsonObject = Json.ParseToJsonObject( json );
@@ -870,6 +1165,7 @@ public partial class PlayerControllerTest
 		Assert.AreEqual( 456f, pc2.RunSpeed );
 		Assert.AreEqual( 80f, pc2.BodyHeight );
 		Assert.IsTrue( pc2.RunByDefault );
+		Assert.IsTrue( pc2.HoldToJump );
 		Assert.IsFalse( pc2.UseInputControls );
 
 		Assert.IsTrue( pc2.Body.IsValid() );
@@ -878,6 +1174,11 @@ public partial class PlayerControllerTest
 		Assert.IsTrue( pc2.BodyCollider.IsValid() );
 		Assert.IsTrue( pc2.FeetCollider.IsValid() );
 		Assert.IsTrue( pc2.Mode is MoveModeWalk );
+		var walk2 = (MoveModeWalk)pc2.Mode;
+		Assert.IsFalse( walk2.EnableAirStrafing );
+		Assert.IsFalse( walk2.EnableBunnyHopping );
+		Assert.AreEqual( 0.25f, walk2.BunnyHopRecoveryTime );
+		Assert.AreEqual( 0.4f, walk2.JumpMomentumRetention );
 
 		Assert.AreEqual( 1, copy.Children.Count( x => x.Name == "Colliders" ),
 			"awake must reuse the serialized colliders child, not duplicate it" );

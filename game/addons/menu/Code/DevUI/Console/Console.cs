@@ -178,7 +178,7 @@ public class Console : Panel
 		var e = new LogEvent() { Message = $"> {line}", Level = LogLevel.Info, Logger = "in", Time = DateTime.Now };
 		Entries.Add( e );
 		Output.AddItem( e );
-		ConsoleSystem.Run( line );
+		MenuUtility.RunCommand( line );
 	}
 
 	void OnSubmit()

@@ -33,7 +33,7 @@ VS
 PS
 {
 	#include "ui/pixel.hlsl"
-	#include "ui/blur.hlsl"  
+	#include "ui/blur.hlsl"
 
 	float4 g_vViewport < Source( Viewport ); >; 
 
@@ -47,7 +47,6 @@ PS
 	float2 FilterDropShadowOffset < UiType( Slider ); Default2( 0.0f, 0.0f ); Attribute( "FilterDropShadowOffset" ); >;
 	float FilterDropShadowBlur < UiType( Slider ); Default( 0.0f ); Attribute( "FilterDropShadowBlur" ); >;
 	float4 FilterDropShadowColor < UiType( Color ); Default4( 0.0f, 0.0f, 0.0f, 1.0f ); Attribute( "FilterDropShadowColor" ); >;
-	float2 FilterDropShadowScale < UiType( Slider ); Default2( 1.0f, 1.0f ); Attribute( "FilterDropShadowScale" ); >;
 
 	// Always write rgba
 	RenderState( ColorWriteEnable0, RGBA );
@@ -67,25 +66,10 @@ PS
 
 		UI_CommonProcessing_Pre( i );
 
-		//
-		// Calculate texcoords
-		// 
-		float2 texCoord = i.vTexCoord.xy;
-
-		// Scale down UVs based on the overgrow
-		float2 scale = FilterDropShadowScale;
-		
-		// Center texcoords
-		texCoord = texCoord - ( 1.0f - scale ) * 0.5f;
-		texCoord = texCoord / scale;
-		
-		//
-		// Drop shadow
-		//
-		
 		// filter: drop-shadow( x y blur color ) - the layer's alpha, offset and blurred. Unlike box-shadow, the blur
-		// value here is the gaussian's standard deviation itself, so a drop-shadow reads softer than the same box-shadow
-		float2 vShadowUv = texCoord - FilterDropShadowOffset * g_vInvTextureDim.xy;
+		// value here is the gaussian's standard deviation itself, so a drop-shadow reads softer than the same box-shadow.
+		// The layer is padded by the offset and the blur's reach, so the quad and the layer line up one to one.
+		float2 vShadowUv = i.vTexCoord.xy - FilterDropShadowOffset * g_vInvTextureDim.xy;
 		float4 vShadowColor = FilterDropShadowColor;
 		vShadowColor.rgb = SrgbGammaToLinear( vShadowColor.rgb );
 		vShadowColor.a *= GaussianBlurTexture( g_tColor, g_sTrilinearBorder, vShadowUv, FilterDropShadowBlur, g_vInvTextureDim.xy ).a;

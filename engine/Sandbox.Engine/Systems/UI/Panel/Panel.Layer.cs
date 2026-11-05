@@ -23,13 +23,16 @@ public partial class Panel
 
 	sealed class LayerPaint
 	{
-		internal Rect Bounds;
+		internal Rect Bounds; // The panel box padded by the filters' reach
 		internal Painter.Filter Filter;
 		internal Painter.Mask? Mask;
 		internal MaskScope MaskScope;
 		internal ShadowList DropShadows;
 		internal float BorderWidth;
 		internal Color BorderColor;
+		internal int Mips = 1;
+		internal (int Hash, ulong Frame) Cache;
+		float _padding;
 		Texture _maskImage;
 		Vector2 _maskSize;
 		int _maskVersion;
@@ -44,7 +47,6 @@ public partial class Panel
 		internal void Update( Panel panel, FilterMode sampling )
 		{
 			var style = panel.ComputedStyle;
-			Bounds = CalculateBounds( panel );
 			Filter = new Painter.Filter
 			{
 				Blur = style.FilterBlur.Value.GetPixels( 1 ),
@@ -79,6 +81,18 @@ public partial class Panel
 			DropShadows = style.FilterDropShadow;
 			BorderWidth = style.FilterBorderWidth.Value.GetPixels( 1 ) * panel.ScaleToScreen;
 			BorderColor = style.FilterBorderColor.Value;
+			var padding = MathF.Max( Filter.Blur * 3, BorderWidth );
+			var sigma = Filter.Blur;
+			foreach ( var shadow in DropShadows )
+			{
+				padding = MathF.Max( padding, MathF.Max( MathF.Abs( shadow.OffsetX ), MathF.Abs( shadow.OffsetY ) ) + shadow.Blur * 3 + 1 );
+				sigma = MathF.Max( sigma, shadow.Blur );
+			}
+			// Pad in power of two steps so a changing blur only reallocates when it crosses one, and the padding follows it back down.
+			// Back to no blur and no padding, drop both
+			_padding = padding > 0 ? MathF.Min( 1024, MathF.Max( 64, MathF.Pow( 2, MathF.Ceiling( MathF.Log2( padding ) ) ) ) ) : 0;
+			Bounds = CalculateBounds( panel ).Grow( _padding );
+			Mips = sigma > 0 ? 16 : 1;
 			_maskImage = style.MaskImage;
 			_maskSize = _maskImage?.Size ?? default;
 			_maskVersion = _maskImage?.DirtyVersion ?? 0;

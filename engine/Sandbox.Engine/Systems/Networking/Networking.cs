@@ -577,7 +577,17 @@ public static partial class Networking
 				System.AddSocket( new TcpSocket( "127.0.0.1", LocalPort ) );
 			}
 
-			return !token.IsCancellationRequested;
+			if ( token.IsCancellationRequested )
+				return false;
+
+			Log.Info( $"Server started! (SteamID: {Steam.SteamGameServer_GetSteamID()})" );
+			if ( !HideAddress )
+			{
+				var publicIp = Steam.SteamGameServer().GetPublicIP();
+				Log.Info( $"\tPublic IP is {(string.IsNullOrEmpty( publicIp ) ? "unknown" : $"{publicIp}:{Port}")}" );
+			}
+
+			return true;
 		}
 	}
 

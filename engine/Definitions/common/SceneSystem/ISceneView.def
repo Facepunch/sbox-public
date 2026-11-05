@@ -14,6 +14,7 @@ native class ISceneView as NativeEngine.ISceneView
 	void AddDependentView( ISceneView pView );
 	CRenderAttributes GetRenderAttributesPtr();
 	ISceneLayer AddRenderLayer( string pszDebugName, RenderViewport viewport, StringToken eShaderMode, ISceneLayer pAddBefore );
+	ISceneLayer AddClearLayer( string pszDebugName, RenderViewport viewport, int nClearFlags, ISceneLayer pAddBefore );
 	ISceneLayer AddLabelLayer( string pLabelName );
 	ISceneLayer AddManagedProceduralLayer( string pszDebugName, RenderViewport viewport, SboxProceduralLayerCallback renderCallback, ISceneLayer pAddBefore, bool bDeleteWhenDone );
 	void SetOcclusionCull( RenderBufferHandle_t hInstances, RenderBufferHandle_t hRuns, RenderBufferHandle_t hArgs, RenderBufferHandle_t hCulledIds, RenderBufferHandle_t hStats, RenderBufferHandle_t hDispatchArgs, int nCapacity, int nAggregateMode );
@@ -38,6 +39,7 @@ native class ISceneView as NativeEngine.ISceneView
 	ISceneView GetParent();
 	int GetPriority();
 	void SetPriority( int nPriority );
+	void SetIssueSortIndex( int nIndex );
 
 	inline CFrustum GetFrustum()
 	{

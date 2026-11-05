@@ -58,6 +58,34 @@ public unsafe class SdlEventsTests
 	public void MouseButtonsMatchSdl( int button, int expected ) => Assert.AreEqual( (ButtonCode)expected, SdlEvents.MouseButton( (byte)button ) );
 
 	[TestMethod]
+	[DataRow( false )]
+	[DataRow( true )]
+	public void MouseButtonSyncsCursorPositionOutsideRelativeMode( bool relativeMode ) => WithEvents( () =>
+	{
+		var relative = typeof( WindowInput ).GetField( "relative", BindingFlags.NonPublic | BindingFlags.Static );
+		var wasRelative = relative.GetValue( null );
+		var position = InputRouter.MouseCursorPosition;
+		try
+		{
+			relative.SetValue( null, false );
+			InputRouter.OnMousePositionChange( 10, 10, 0, 0 );
+			relative.SetValue( null, relativeMode );
+
+			// Motion is dropped while the window is unfocused, so the activating click is the first event with the real position.
+			SdlEvents.Dispatch( new Sdl.Event { Type = Sdl.EventType.MouseButtonDown, Button = { Button = 1, X = 300, Y = 200 } } );
+			SdlEvents.Dispatch( new Sdl.Event { Type = Sdl.EventType.MouseButtonUp, Button = { Button = 1, X = 300, Y = 200 } } );
+
+			Assert.AreEqual( relativeMode ? new Vector2( 10, 10 ) : new Vector2( 300, 200 ), InputRouter.MouseCursorPosition );
+		}
+		finally
+		{
+			relative.SetValue( null, false );
+			InputRouter.OnMousePositionChange( position.x, position.y, 0, 0 );
+			relative.SetValue( null, wasRelative );
+		}
+	} );
+
+	[TestMethod]
 	public void WheelDirectionAndModifierSidesAreNormalized()
 	{
 		Assert.AreEqual( new Vector2( -2, 3 ), SdlEvents.WheelDelta( new Sdl.MouseWheelEvent { X = 2, Y = -3, Direction = 1 } ) );

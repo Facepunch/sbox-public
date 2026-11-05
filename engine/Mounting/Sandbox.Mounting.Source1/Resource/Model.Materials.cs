@@ -5,13 +5,37 @@ namespace Sandbox.Mounting.Source1;
 
 internal sealed partial class SourceModelBuilder
 {
-	private sealed class MaterialSlots( SourceModelBuilder loader, MdlFile source, VtxFile triangles )
+	private sealed class MaterialSlots( SourceModelBuilder loader, MdlFile source, VtxFile triangles, StaticPropLighting lighting = null )
 	{
 		private readonly Dictionary<string, Material> resources = new( StringComparer.OrdinalIgnoreCase );
 		private readonly Dictionary<(int Slot, int Lod), Material> defaults = [];
 		private readonly Dictionary<Material, (int Slot, int Lod)> defaultOwners = new( ReferenceEqualityComparer.Instance );
 		private readonly List<(int Slot, int Lod)> slots = [];
 		private readonly Dictionary<(int Slot, int Lod, string Shader), bool> shaders = [];
+		private readonly List<(Material Material, int Slot, (int BodyPart, int Model, int Lod, int Mesh) Mesh)> litSlots = [];
+		private readonly HashSet<Material> litMaterials = new( ReferenceEqualityComparer.Instance );
+
+		public Material GetForMesh( int slot, int lod, (int BodyPart, int Model, int Lod, int Mesh) mesh )
+		{
+			var original = Get( slot, lod );
+			if ( lighting is null ) return original;
+			var material = lighting.CreateMaterial( loader.Host, original, slot, mesh, 0 );
+			if ( litMaterials.Add( material ) ) litSlots.Add( (material, slot, mesh) );
+			return material;
+		}
+
+		public bool UsesBumpMapping()
+		{
+			for ( var i = 0; i < source.MaterialCount; i++ )
+				if ( LoadName( source.GetMaterialName( i ) ).GetVector4( "g_flSourceHasNormal" ).x > 0.5f )
+					return true;
+			foreach ( var mesh in triangles.LightingMeshes )
+				for ( var skin = 0; skin < Math.Max( 1, source.SkinFamilyCount ); skin++ )
+					if ( Load( (source.GetMesh( mesh.BodyPart, mesh.Model, mesh.Mesh ).Material, mesh.Lod), skin )
+						.GetVector4( "g_flSourceHasNormal" ).x > 0.5f )
+						return true;
+			return false;
+		}
 
 		public Material Get( int slot, int lod )
 		{
@@ -58,6 +82,13 @@ internal sealed partial class SourceModelBuilder
 			for ( var skin = 0; skin < source.SkinFamilyCount; skin++ )
 			{
 				var group = builder.AddMaterialGroup( $"Skin {skin}" );
+				if ( lighting is not null )
+				{
+					foreach ( var slot in litSlots )
+						group.AddMaterial( skin == 0 ? slot.Material
+							: lighting.CreateMaterial( loader.Host, Load( (slot.Slot, slot.Mesh.Lod), skin ), slot.Slot, slot.Mesh, skin ) );
+					continue;
+				}
 				foreach ( var slot in slots )
 					group.AddMaterial( skin == 0 ? defaults[slot] : Load( slot, skin ) );
 			}
@@ -103,7 +134,7 @@ internal sealed partial class SourceModelBuilder
 				Log.Trace( $"{loader.FullPath}: material '{name}' was not found in its MDL search paths or the materials root of mount '{loader.Host.Ident}'; using the error material." );
 				path = "materials/error.vmat";
 			}
-			material = path == "materials/error.vmat" ? Material.Load( path ) : loader.Host.LoadContentMaterial( path, loader.ContentRoot );
+			material = path == "materials/error.vmat" ? Material.Load( path ) : loader.Host.LoadContentMaterial( path, lighting?.ContentRoot ?? loader.ContentRoot );
 			if ( material == null || !material.IsValid || material.IsError )
 				throw new InvalidDataException( $"{loader.FullPath}: material '{path}' could not be loaded." );
 			resources.Add( name, material );
@@ -124,7 +155,7 @@ internal sealed partial class SourceModelBuilder
 			string Find( string path )
 			{
 				path = VmtFile.NormalizePath( path, ".vmt" );
-				var resource = loader.Host.GetContentPath( path, loader.ContentRoot );
+				var resource = loader.Host.GetContentPath( path, lighting?.ContentRoot ?? loader.ContentRoot );
 				return resource is null ? null : path;
 			}
 		}

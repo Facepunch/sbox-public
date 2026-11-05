@@ -5,6 +5,7 @@ namespace Sandbox;
 public sealed partial class PlayerController : Component
 {
 	SkinnedModelRenderer _renderer;
+	bool _jumpAnimationPending;
 
 	[Property, FeatureEnabled( "Animator", Icon = "sports_martial_arts", Description = "Automatically derive animations from Velocity/Inputs" )]
 	public bool UseAnimatorControls { get; set; } = true;
@@ -100,6 +101,16 @@ public sealed partial class PlayerController : Component
 		bodyDuckOffset = bodyDuckOffset.LerpTo( 0, Time.Delta * 5.0f );
 
 		Mode?.UpdateAnimator( renderer );
+
+		if ( renderer.Animation.Graph is not null )
+		{
+			if ( !renderer.Animation.IsValid )
+				return;
+
+			renderer.Animation.Parameters.TrySet( "b_jump", _jumpAnimationPending );
+		}
+
+		_jumpAnimationPending = false;
 	}
 
 	void UpdateBodyVisibility()

@@ -4,6 +4,8 @@ namespace Sandbox.MovieMaker.Properties;
 
 #nullable enable
 
+#pragma warning disable CS0618
+
 /// <summary>
 /// Reads / writes an anim graph parameter on a <see cref="SkinnedModelRenderer"/>.
 /// </summary>

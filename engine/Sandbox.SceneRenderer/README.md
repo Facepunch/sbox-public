@@ -19,6 +19,7 @@ native equivalents, performance investigations and debugging history.
 ## What it renders
 
 - Static and skinned meshes, with LOD selection, instancing, morphs and model deformers.
+- Map world geometry in aggregates, culled per fragment and drawn as one multi-draw each.
 - Opaque, translucent and faded geometry, decals, glass, viewmodels and screen overlays.
 - Clustered point and spot lights; directional, spot and point shadows; contact shadows.
 - Environment maps, baked lighting, light probe volumes, 2D and 3D skies, and gradient, cubemap and volumetric fog.

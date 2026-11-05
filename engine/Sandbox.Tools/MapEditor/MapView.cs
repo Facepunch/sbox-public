@@ -187,6 +187,9 @@ public partial class MapView : IHandle
 
 		using var sceneScope = scene.PushScope();
 
+		if ( !IsOrthographic )
+			UpdateViewer( scene );
+
 		{
 			GizmoInstance.Selection.Clear();
 
@@ -242,6 +245,30 @@ public partial class MapView : IHandle
 		{
 			sceneView.AddWorldToRenderList( world );
 		}
+	}
+
+	static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Scene, CameraComponent> _viewers = [];
+
+	/// <summary>
+	/// Keep an editor-only camera in the map's scene matching the 3D view about to render, like the scene editor's
+	/// viewport camera. Components that follow the viewer, like an ocean's surface, use it.
+	/// </summary>
+	void UpdateViewer( Scene scene )
+	{
+		if ( !_viewers.TryGetValue( scene, out var viewer ) || !viewer.IsValid() )
+		{
+			var go = new GameObject( false, "Hammer View" );
+			go.Flags = GameObjectFlags.EditorOnly | GameObjectFlags.NotSaved | GameObjectFlags.Hidden | GameObjectFlags.NotNetworked;
+			viewer = go.Components.Create<CameraComponent>();
+			viewer.IsMainCamera = false;
+			go.Enabled = true;
+			_viewers.AddOrUpdate( scene, viewer );
+		}
+
+		viewer.WorldPosition = SceneCamera.Position;
+		viewer.WorldRotation = SceneCamera.Rotation;
+		viewer.FieldOfView = SceneCamera.FieldOfView;
+		viewer.CustomSize = SceneCamera.Size;
 	}
 
 	void UpdateHovered()

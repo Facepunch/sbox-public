@@ -150,9 +150,7 @@ public sealed class MapWorld : MapNode
 	{
 		var referencedResources = Scene.GetAllObjects( false )
 			.SelectMany( x => x.Components.GetAll() )
-			.SelectMany( x => x.GetSerialized().Where( x => x.PropertyType.IsSubclassOf( typeof( Resource ) ) ) )
-			.Select( x => x.GetValue<Resource>() )
-			.Where( x => x is not null );
+			.SelectMany( x => GetReferencedResources( x.GetSerialized() ) );
 
 		foreach ( var x in referencedResources )
 		{
@@ -165,6 +163,27 @@ public sealed class MapWorld : MapNode
 		foreach ( var x in referencedPrefabs )
 		{
 			references.AddString( x.PrefabInstanceSource );
+		}
+	}
+
+	internal static IEnumerable<Resource> GetReferencedResources( IEnumerable<SerializedProperty> properties )
+	{
+		foreach ( var property in properties )
+		{
+			if ( typeof( Resource ).IsAssignableFrom( property.PropertyType ) )
+			{
+				if ( property.GetValue<Resource>() is { } resource )
+					yield return resource;
+			}
+			else if ( typeof( IEnumerable<Resource> ).IsAssignableFrom( property.PropertyType ) )
+			{
+				// Components such as Decal store their resources in a list instead of a single property.
+				foreach ( var resource in property.GetValue<IEnumerable<Resource>>() ?? [] )
+				{
+					if ( resource is not null )
+						yield return resource;
+				}
+			}
 		}
 	}
 

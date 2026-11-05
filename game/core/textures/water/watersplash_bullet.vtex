@@ -1,0 +1,28 @@
+{
+  "Images": null,
+  "Sequences": [
+    {
+      "Source": "textures/water/watersplash_bullet.png",
+      "IsLooping": true,
+      "FlipBook": true,
+      "Columns": 5,
+      "Rows": 10,
+      "StartFrame": 0,
+      "Frames": 25
+    },
+    {
+      "Source": "textures/water/watersplash_bullet.png",
+      "IsLooping": false,
+      "FlipBook": true,
+      "Columns": 5,
+      "Rows": 10,
+      "StartFrame": 25,
+      "Frames": 25
+    }
+  ],
+  "InputColorSpace": "Linear",
+  "OutputFormat": "DXT5",
+  "OutputColorSpace": "Linear",
+  "OutputMipAlgorithm": "None",
+  "OutputTypeString": "2D"
+}

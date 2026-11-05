@@ -117,10 +117,25 @@ partial class Compiler
 	{
 		_references.Clear();
 
-		foreach ( var reference in a.References )
+		foreach ( var reference in a.References.ToArray() )
 		{
+			if ( !IsPermittedArchiveReference( reference ) )
+			{
+				log.Warning( $"Ignoring invalid assembly reference '{reference}' in code archive" );
+				a.References.Remove( reference );
+				continue;
+			}
+
 			_references.Add( reference );
 		}
+	}
+
+	bool IsPermittedArchiveReference( string reference )
+	{
+		if ( reference.StartsWith( "package.", StringComparison.OrdinalIgnoreCase ) )
+			return Configuration.IsSimpleAssemblyName( reference );
+
+		return _config.IsPermittedAssemblyReference( reference );
 	}
 
 	CodeArchive BuildArchive( CompilerOutput output )
@@ -230,6 +245,9 @@ partial class Compiler
 
 		bool ilHotloadSupported;
 
+		// An archive update from a host can rebind unchanged trees, so those rescan every source tree
+		var sourceTreePaths = _currentArchive is null ? null : compiler.SyntaxTrees.Select( x => x.FilePath ).ToHashSet();
+
 		{
 			var processor = RunGenerators( compiler, modifiedSyntaxTrees, output );
 
@@ -249,7 +267,7 @@ partial class Compiler
 		// run this after generators because they can contain user inputs too
 		if ( _config.Whitelist )
 		{
-			RunBlacklistWalker( compiler, modifiedSyntaxTrees, output );
+			RunBlacklistWalker( compiler, _currentArchive is null ? modifiedSyntaxTrees : compiler.SyntaxTrees.Where( x => sourceTreePaths.Contains( x.FilePath ) ).ToList(), output );
 
 			// Errors, fail
 			if ( output.Diagnostics.Any( x => x.Severity == DiagnosticSeverity.Error ) )

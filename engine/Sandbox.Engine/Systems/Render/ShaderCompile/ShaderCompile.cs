@@ -277,27 +277,14 @@ public static class ShaderCompile
 	}
 
 	/// <summary>
-	/// Free memory each combo thread needs. A full compile peaks around 9 GB on 26 threads, about a third
-	/// of a gig each, so this leaves plenty of headroom for heavier shaders.
-	/// </summary>
-	const long MemoryPerComboThread = 768L * 1024 * 1024;
-
-	/// <summary>
-	/// How many combos to compile at once: <see cref="ShaderCompileOptions.MaxThreads"/> if set, otherwise
-	/// one per core, cut back if free memory can't cover that many. Machines with the memory for their
-	/// cores get one per core as before; big shared build boxes stop running out.
+	/// How many combos to compile at once: <see cref="ShaderCompileOptions.MaxThreads"/> if set, otherwise one per core
 	/// </summary>
 	internal static int ComboThreads( ShaderCompileOptions options )
 	{
 		if ( options.MaxThreads > 0 )
 			return options.MaxThreads;
 
-		var threads = Environment.ProcessorCount;
-
-		if ( SystemMemory.AvailablePhysicalBytes() is long available )
-			threads = (int)Math.Min( threads, available / MemoryPerComboThread );
-
-		return Math.Max( 1, threads );
+		return Environment.ProcessorCount;
 	}
 
 	internal static ShaderCompileContext GetSharedContext( ShaderProgramType programType )

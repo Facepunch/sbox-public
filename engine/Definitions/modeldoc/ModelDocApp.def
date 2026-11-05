@@ -12,8 +12,13 @@
 #include "modeldoc_lib/modeldoc_physicsmeshfile.h"
 #include "modeldoc_lib/modeldoc_physicshullfile.h"
 #include "modeldoc_lib/modeldoc_singletons.h"
+#include "modeldoc_lib/modeldoc_anim.h"
+#include "modeldoc_lib/modeldoc_animfile.h"
+#include "modeldoc_lib/modeldoc_errors.h"
 #include "modeldoc_utils/imodeldocutils.h"
+#include "modeldoc_utils/imodeldocloaderutils.h"
 #include "tier0/fmtstr.h"
+#include "QtCore/qstringlist.h"
 
 native class CModelDocEditorApp as NativeModelDoc.CModelDocEditorApp
 {
@@ -35,8 +40,43 @@ managed static class Editor.ModelEditor.ModelDoc
 
 native static class NativeEngine.ModelDoc
 {
+	inline QStringList GetAnimationTakes( string pFilename, int nTake, out int nFrameCount )
+	{
+		QStringList names;
+		*nFrameCount = 0;
+		if ( !IsModelDocLibInitialized() || !g_pModelDocUtils )
+		{
+			Warning( "Cannot read animation takes: ModelDoc is not initialized.\n" );
+			return names;
+		}
+
+		IModelDocLoaderUtils *pLoaderUtils = g_pModelDocUtils->LoaderUtils();
+		CModelDocErrorList errors;
+		LoaderDataHandle_t hData = pLoaderUtils->LoadDataFromFile( pFilename, LOADER_DATA_ANIMATION, &errors, LOADER_FORWARD_NODE_PTR_FALSE, true );
+		CUtlVector< const CModelDocAnim * > animations;
+		if ( CModelDocAnimFile::GetSourceAnims( &animations, pLoaderUtils, hData, &errors ) )
+		{
+			for ( const CModelDocAnim *pAnimation : animations )
+				names.append( QString::fromUtf8( pAnimation->GetName() ) );
+
+			if ( animations.IsValidIndex( nTake ) )
+				*nFrameCount = animations[nTake]->GetFrameCount();
+		}
+		pLoaderUtils->ReleaseLoaderData( hData );
+
+		CUtlString errorText;
+		errors.GetAllErrorsAndWarningsAsString( &errorText );
+		if ( !errorText.IsEmpty() )
+			Warning( "Animation takes for '%s': %s\n", pFilename, errorText.Get() );
+
+		return names;
+	}
+
 	inline bool CreateModelFromMeshFile( string pVmdlFileFullPath, string meshRelativePath, string material )
 	{
+		if ( !IsModelDocLibInitialized() )
+			return false;
+
 		CModelDoc modelFile;
 		CModelDocRenderMeshFile *pRenderMeshFile = modelFile.CreateNode< CModelDocRenderMeshFile >( "", nullptr, MODELDOC_CREATE_NODE_DEFAULT );
 		pRenderMeshFile->SetFilename( meshRelativePath );
@@ -49,6 +89,9 @@ native static class NativeEngine.ModelDoc
 
 	inline bool CreateModelFromMesh( string pVmdlFileFullPath, CModelMesh pMesh )
 	{
+		if ( !IsModelDocLibInitialized() )
+			return false;
+
 		CModelDoc modelFile;
 		CModelDocRenderPrimitiveMesh *pRenderPrimitiveMesh = modelFile.CreateNode< CModelDocRenderPrimitiveMesh >( "", nullptr, MODELDOC_CREATE_NODE_DEFAULT );
 		pRenderPrimitiveMesh->CopyFrom( pMesh );
@@ -58,6 +101,9 @@ native static class NativeEngine.ModelDoc
 
 	inline bool CreateModelFromMeshes( string pVmdlFileFullPath, CastTo[CModelMesh**] void* pMeshes, int nMeshCount )
 	{
+		if ( !IsModelDocLibInitialized() )
+			return false;
+
 		CModelDoc modelFile;
 		for ( int i = 0; i < nMeshCount; ++i )
 		{
@@ -72,6 +118,9 @@ native static class NativeEngine.ModelDoc
 	// nCollisionTypes: 0 = None, 1 = Mesh, 2 = Hull
 	inline bool CreateModelFromMeshesWithCollision( string pVmdlFileFullPath, CastTo[CModelMesh**] void* pMeshes, CastTo[int*] void* pCollisionTypes, int nMeshCount )
 	{
+		if ( !IsModelDocLibInitialized() )
+			return false;
+
 		CModelDoc modelFile;
 
 		bool bHasMeshCollision = false;

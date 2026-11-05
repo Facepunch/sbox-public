@@ -32,6 +32,23 @@ public static partial class MenuUtility
 	}
 
 	/// <summary>
+	/// Install this package's workshop item and take its meta from it - a game's settings are the ones it ships
+	/// with, not the backend's. <paramref name="progress"/> is told how it's coming down, if it needs to.
+	/// False if it isn't on the workshop, or couldn't be installed.
+	/// </summary>
+	public static async Task<bool> InstallWorkshopItemAsync( Package package, Action<WorkshopDownload> progress = null, CancellationToken token = default )
+	{
+		if ( package is not { InstallsFromWorkshop: true } ) return false;
+
+		var folder = await Workshop.InstallAsync( package.WorkshopId,
+			progress is null ? null : x => progress( new WorkshopDownload( package.WorkshopId, package.Title, package.Thumb, x.Downloaded, x.Total ) ), token );
+		if ( folder is null ) return false;
+
+		package.UseWorkshopMeta( folder );
+		return true;
+	}
+
+	/// <summary>
 	/// Unsubscribe from this package's workshop item. Steam uninstalls it when the game quits.
 	/// </summary>
 	public static async Task<bool> UnsubscribeAsync( Package package )
@@ -56,6 +73,62 @@ public static partial class MenuUtility
 			OpenUrl( $"steam://url/CommunityFilePage/{id}" );
 
 		return true;
+	}
+
+	/// <summary>
+	/// What the Steam Workshop says about this item - its page, votes and who made it. Null if there isn't one, or
+	/// Steam couldn't be asked.
+	/// </summary>
+	public static async Task<WorkshopItemDetails> FetchWorkshopItemAsync( ulong id )
+	{
+		if ( id == 0 ) return null;
+
+		var item = await Workshop.FetchAsync( id );
+		return item is null ? null : WorkshopItemDetails.From( item );
+	}
+
+	/// <summary>
+	/// A page of this workshop item's change notes, from 1 - newest first, <see cref="ChangeNotesPerPage"/> to a page.
+	/// Null if they couldn't be got.
+	/// </summary>
+	public static async Task<WorkshopChangeNotes> FetchWorkshopChangeNotesAsync( ulong id, int page = 1 )
+	{
+		var notes = await Workshop.GetChangeNotesAsync( id, page );
+		return notes is null ? null : new WorkshopChangeNotes( notes.Notes.Select( x => new WorkshopChangeNote( x.Time, x.Text ) ).ToArray(), notes.Total );
+	}
+
+	/// <summary>
+	/// How many change notes come in a page from <see cref="FetchWorkshopChangeNotesAsync"/>
+	/// </summary>
+	public const int ChangeNotesPerPage = Workshop.ChangeNotesPerPage;
+
+	/// <summary>
+	/// How we've voted on this workshop item - true for up, false for down, null if we haven't, or Steam couldn't be asked
+	/// </summary>
+	public static async Task<bool?> GetWorkshopVoteAsync( ulong id )
+	{
+		return id == 0 ? null : await Workshop.GetVoteAsync( id );
+	}
+
+	/// <summary>
+	/// Vote this workshop item up or down, on Steam. There's no taking a vote back, only changing it. False if Steam
+	/// didn't take it.
+	/// </summary>
+	public static async Task<bool> VoteOnWorkshopAsync( ulong id, bool up )
+	{
+		return id != 0 && await Workshop.VoteAsync( id, up );
+	}
+
+	/// <summary>
+	/// Play a YouTube video in this web panel, in YouTube's embedded player filling it with its own controls off - the
+	/// <see cref="YouTubePlayer"/> is how to drive it. Null if that's not a YouTube video id.
+	/// </summary>
+	public static YouTubePlayer PlayYouTubeVideo( Sandbox.UI.WebPanel panel, string videoId )
+	{
+		if ( panel?.Surface is null || !YouTubePlayer.IsVideoId( videoId ) )
+			return null;
+
+		return new YouTubePlayer( panel, videoId );
 	}
 
 	/// <summary>
@@ -115,9 +188,15 @@ public static partial class MenuUtility
 	}
 
 	/// <summary>
+	/// This package's workshop item, if it's known without asking - it's the full package, or we've seen that. 0 if it
+	/// isn't on the workshop, or we can't tell yet (<see cref="GetWorkshopIdAsync"/> finds out).
+	/// </summary>
+	public static ulong KnownWorkshopId( Package package ) => package?.WorkshopFilesId ?? 0;
+
+	/// <summary>
 	/// This package's workshop item - fetching the full package if all we've got is a search result. 0 if it isn't on the workshop.
 	/// </summary>
-	static async Task<ulong> GetWorkshopIdAsync( Package package )
+	public static async Task<ulong> GetWorkshopIdAsync( Package package )
 	{
 		if ( package is null ) return 0;
 

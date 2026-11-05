@@ -40,7 +40,7 @@ internal static partial class AudioEngine
 
 	static AudioEngine()
 	{
-		if ( Application.IsUnitTest )
+		if ( Application.IsUnitTest && (!Application.IsInitialized || !IsValid) )
 			return;
 
 		if ( IsValid )

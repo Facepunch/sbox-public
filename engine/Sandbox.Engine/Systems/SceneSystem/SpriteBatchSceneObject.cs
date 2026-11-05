@@ -26,6 +26,11 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 
 	private static Material SpriteMaterial = Material.FromShader( "sprite/sprite_ps.shader" );
 
+	/// <summary>
+	/// Whether any sprite in the batch is lit, as of its last upload.
+	/// </summary>
+	internal bool HasLitSprites { get; private set; }
+
 	internal Dictionary<Guid, SpriteGroup> SpriteGroups = [];
 
 	internal readonly SamplerState sampler = new()
@@ -359,6 +364,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		int componentCount = Components.Count;
 
 		bool hasRefraction = false;
+		bool hasLighting = false;
 
 		// Resize GPU buffers here on the main thread, not in OnChanged,
 		// because RenderSceneObject may be using them concurrently on a render thread.
@@ -398,6 +404,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 			{
 				_componentBuffer[index++] = component;
 				hasRefraction |= component.IsRefractive;
+				hasLighting |= component.Lighting;
 			}
 
 			object boundsLock = _boundsLock;
@@ -517,7 +524,10 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 			// A group is one particle renderer, so its first sprite describes text and refraction for the whole group.
 			_pendingHasText |= spriteGroup.Count > 0 && (spriteGroup.SharedSprites[spriteGroup.Offset].RenderFlags & (int)SpriteFlags.Text) != 0;
 			hasRefraction |= spriteGroup.Count > 0 && spriteGroup.SharedSprites[spriteGroup.Offset].NormalTextureHandle != 0;
+			hasLighting |= spriteGroup.Count > 0 && (spriteGroup.SharedSprites[spriteGroup.Offset].Lighting & 0xFF) != 0;
 		}
+
+		HasLitSprites = hasLighting;
 
 		// Mixed batches keep a single sort order. Only request the shared copy and stencil while a sprite needs them.
 		Flags.WantsFrameBufferCopy = hasRefraction;
@@ -654,7 +664,6 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 			attributes.Set( "Sprites", (GpuBuffer)SpriteBufferOut );
 			attributes.Set( "SortLUT", (GpuBuffer)GPUSortingBuffer );
 			attributes.Set( "Vertices", (GpuBuffer)VertexBuffer );
-			attributes.Set( "g_bNonDirectionalDiffuseLighting", true );
 			if ( _renderHasText ) GpuFontText.Bind( attributes, _renderFrame );
 
 			Graphics.DrawIndexedInstanced( (GpuBuffer)IndexBuffer, SpriteMaterial, _renderInstanceCount, attributes );

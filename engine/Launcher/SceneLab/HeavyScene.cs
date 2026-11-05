@@ -59,7 +59,6 @@ internal static class HeavyScene
 	{
 		var scene = BuildWithOcclusion();
 		using var _ = scene.Push();
-		scene.Directory.FindByName( "Camera" ).First().Components.Create<ScreenSpaceReflections>();
 		scene.Directory.FindByName( "Floor" ).First().Components.Get<ModelRenderer>().MaterialOverride = Material.Load( "materials/dev/dev_metal_rough10.vmat" );
 		return scene;
 	}

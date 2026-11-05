@@ -14,8 +14,10 @@ sealed class ScenePhysicsSystem : GameObjectSystem<ScenePhysicsSystem>
 
 	PhysicsWorld3d GetWorld()
 	{
-		if ( _world is not null )
+		if ( _world.IsValid() )
 			return _world;
+
+		DisconnectWorld();
 
 		if ( Scene is null || !Scene.HasPhysicsWorld )
 			return null;
@@ -50,6 +52,11 @@ sealed class ScenePhysicsSystem : GameObjectSystem<ScenePhysicsSystem>
 	{
 		base.Dispose();
 
+		DisconnectWorld();
+	}
+
+	void DisconnectWorld()
+	{
 		if ( _world is null )
 			return;
 
@@ -93,6 +100,9 @@ sealed class ScenePhysicsSystem : GameObjectSystem<ScenePhysicsSystem>
 		//
 		IScenePhysicsEvents.Post( x => x.PrePhysicsStep() );
 
+		if ( !world.IsValid() )
+			return;
+
 		//
 		// Tell all the keyframe colliders to "move" their keyframes to their new position
 		// - we do this right before the physics step
@@ -107,6 +117,9 @@ sealed class ScenePhysicsSystem : GameObjectSystem<ScenePhysicsSystem>
 
 		// The actual physics step
 		world.Step( Time.NowDouble, Time.Delta, steps );
+
+		if ( !world.IsValid() )
+			return;
 
 		//
 		// Update the positions of the rigidbodies based on the new physics positions

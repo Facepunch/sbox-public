@@ -2,7 +2,7 @@
 
 namespace Editor;
 
-[CustomEditor( typeof( SkinnedModelRenderer.ParameterAccessor ) )]
+[CustomEditor( typeof( Sandbox.Animation.GraphParameters ) )]
 public class ParametersControlWidget : ControlWidget
 {
 	public override bool IncludeLabel => false;
@@ -14,16 +14,20 @@ public class ParametersControlWidget : ControlWidget
 		Rebuild();
 	}
 
-	protected override void OnPaint()
+	protected override int ValueHash
 	{
-
+		get
+		{
+			var graph = SerializedProperty.GetValue<Sandbox.Animation.GraphParameters>()?.Graph;
+			return HashCode.Combine( base.ValueHash, graph, graph?.Parameters );
+		}
 	}
 
 	public void Rebuild()
 	{
 		Layout.Clear( true );
 
-		var accessor = SerializedProperty.GetValue<SkinnedModelRenderer.ParameterAccessor>();
+		var accessor = SerializedProperty.GetValue<Sandbox.Animation.GraphParameters>();
 		var parameterList = new AnimationParameterList( this );
 		parameterList.SetGraph( accessor.Graph );
 		parameterList.SetAccessor( new AnimationParameterCollection( SerializedProperty, accessor ) );
@@ -39,11 +43,11 @@ public class ParametersControlWidget : ControlWidget
 
 file class AnimationParameterCollection : AnimationParameterList.IAccessor
 {
-	private readonly SkinnedModelRenderer.ParameterAccessor accessor;
+	private readonly Sandbox.Animation.GraphParameters accessor;
 
 	public SerializedProperty ParentProperty { get; }
 
-	public AnimationParameterCollection( SerializedProperty parentProperty, SkinnedModelRenderer.ParameterAccessor accessor )
+	public AnimationParameterCollection( SerializedProperty parentProperty, Sandbox.Animation.GraphParameters accessor )
 	{
 		ParentProperty = parentProperty;
 
@@ -52,15 +56,13 @@ file class AnimationParameterCollection : AnimationParameterList.IAccessor
 
 	public bool GetBool( string name ) => accessor.GetBool( name );
 	public float GetFloat( string name ) => accessor.GetFloat( name );
-	public int GetInt( string name ) => accessor.GetInt( name );
-	public Rotation GetRotation( string name ) => accessor.GetRotation( name );
 	public Vector3 GetVector( string name ) => accessor.GetVector( name );
+	public string GetString( string name ) => accessor.GetString( name );
 
-	public void Set( string name, bool value ) => accessor.Set( name, value );
-	public void Set( string name, float value ) => accessor.Set( name, value );
-	public void Set( string name, Vector3 value ) => accessor.Set( name, value );
-	public void Set( string name, int value ) => accessor.Set( name, value );
-	public void Set( string name, Rotation value ) => accessor.Set( name, value );
+	public void Set( string name, bool value ) => accessor.Set( name, value, persist: true );
+	public void Set( string name, float value ) => accessor.Set( name, value, persist: true );
+	public void Set( string name, Vector3 value ) => accessor.Set( name, value, persist: true );
+	public void Set( string name, string value ) => accessor.Set( name, value, persist: true );
 
 	public void Clear() => accessor.Clear();
 	public void Clear( string name ) => accessor.Clear( name );

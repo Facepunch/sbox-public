@@ -15,7 +15,7 @@ internal sealed partial class SourceMaterialBuilder
 		var color = Load( "$basetexture", "$frame" );
 		var color2 = Load( "$texture2", "$frame2" );
 		var alpha = parameters.Boolean( "$noalphamod" ) ? 1 : Math.Clamp( parameters.Float( "$alpha", 1 ), 0, 1 );
-		var alphaModulating = alpha < 1;
+		var alphaModulating = alpha < 1 || this.alpha.CanBeTranslucent;
 		var alphaTest = parameters.Boolean( "$alphatest" );
 		var textureAlpha = !parameters.Boolean( "$opaquetexture" )
 			&& !parameters.Boolean( "$selfillum" ) && !parameters.Boolean( "$basealphaenvmapmask" )
@@ -31,7 +31,7 @@ internal sealed partial class SourceMaterialBuilder
 		if ( !float.IsFinite( tint.x ) || !float.IsFinite( tint.y ) || !float.IsFinite( tint.z ) )
 			throw new InvalidDataException( $"{name}: UnlitTwoTexture color modulation overflows." );
 
-		var material = CreateShaderMaterial( "shaders/source1/two_texture.shader", resourceName );
+		var material = CreateShaderMaterial( "shaders/source1/unlittwotexture.shader", resourceName );
 		animation.GetValueOrDefault().Bind( material, color );
 		material.SetFeature( "F_TRANSLUCENT", blended || additive ? 1 : 0 );
 		material.SetFeature( "F_SOURCE_ALPHA_BLEND", blended ? 1 : 0 );
@@ -43,7 +43,6 @@ internal sealed partial class SourceMaterialBuilder
 		color2.Bind( material, "g_tTexture2" );
 		material.Set( "g_vSourceColorTint", tint );
 		material.Set( "g_flSourceAlpha", alpha );
-		material.Set( "g_flSourceFogEnabled", !parameters.Boolean( "$nofog" ) );
 		transforms.Get( "$basetexturetransform" ).Bind( material, "Base" );
 		transforms.Get( "$texture2transform" ).Bind( material, "Texture2" );
 

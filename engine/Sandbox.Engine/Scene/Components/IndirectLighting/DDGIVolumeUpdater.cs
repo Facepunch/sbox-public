@@ -1,3 +1,4 @@
+using NativeEngine;
 using Sandbox.Rendering;
 using System.Threading;
 
@@ -58,18 +59,25 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 			_camera.ExcludeTags.SetFrom( volume.RenderExcludeTags );
 		}
 
+		// Hide In Game meshes are still visible in the editor, keep them out of bakes
+		_camera.ExcludeTags.Add( MeshComponent.HideInGameTag );
+
 		_camera.OnRenderStageHook += ( stage, camera ) =>
 		{
 			if ( stage != Stage.AfterTransparent )
 				return;
 
 			// We don't render depth to cubemap, so we copy it manually using a compute shader
-			var depth = Texture.FromNative( Graphics.SceneLayer.GetDepthTarget() );
-
 			int face = Graphics.SceneView.GetRenderTargetArrayIndex();
-			CopyDepthToColor( depth, _captureDepth, face );
-
-			depth.Dispose();
+			var depth = Graphics.GetDepthTarget( out var owned );
+			try
+			{
+				CopyDepthToColor( depth, _captureDepth, face );
+			}
+			finally
+			{
+				if ( owned && !depth.IsNull ) depth.DestroyStrongHandle();
+			}
 
 			// Recording order is arbitrary; GPU submission follows the face order.
 			if ( face == 5 )
@@ -88,10 +96,10 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 	/// <summary>
 	/// Copies depth texture values to a color texture array slice using a compute shader.
 	/// </summary>
-	void CopyDepthToColor( Texture srcDepth, Texture dstColor, int dstArraySlice )
+	void CopyDepthToColor( ITexture srcDepth, Texture dstColor, int dstArraySlice )
 	{
-		var width = srcDepth.Width;
-		var height = srcDepth.Height;
+		var width = dstColor.Width;
+		var height = dstColor.Height;
 
 		var attrs = RenderAttributes.Pool.Get();
 		attrs.Set( "SourceDepth", srcDepth );
@@ -231,7 +239,7 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 			return false;
 
 		foreach ( var texture in _captureTextures )
-			texture.MarkUsed();
+			texture.MarkUsed( ushort.MaxValue );
 
 		_camera.RenderToCubeTexture( _captureTexture );
 

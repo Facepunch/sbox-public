@@ -248,6 +248,11 @@ internal sealed class NetSimulation : IDisposable
 			foreach ( var pending in (System.Collections.IEnumerable)PendingSends.GetValue( connection ) )
 			{
 				var task = (Task)pending.GetType().GetField( "Item1" ).GetValue( pending );
+
+				// Not work on another thread but a wait for a message, like a direct route's acknowledgement
+				if ( task.Status == TaskStatus.WaitingForActivation )
+					break;
+
 				((IAsyncResult)task).AsyncWaitHandle.WaitOne();
 			}
 		}

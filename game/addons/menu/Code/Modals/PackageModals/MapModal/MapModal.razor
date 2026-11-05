@@ -13,40 +13,19 @@
 
     <MegaCard>
         <Metrics>
-            @* Just report - rating's along the bottom now, the rest is in the info column *@
-            <PackageMetrics Package="@Package" ShowRatings="@false" ShowStats="@false" />
+            @* Just report - rating's along the bottom now, the rest is on the Overview *@
+            <PackageMetrics Package="@Package" />
         </Metrics>
         <Tabs>
             @* A game's tabs - the Overview's the gallery and the map's own write-up *@
-            <PackageTabs @ref=MapTabs Package=@Package Portal=@Portal>
+            <PackageTabs @ref=MapTabs Package=@Package Portal=@Portal ShowReviews=@false>
                 <Overview>
-                    <Media Package=@Package Loaded=@HasFullPackage></Media>
-                    <PackageDescription Package=@Package />
+                    <PackageStore Package=@Package Portal=@Portal OnChangelogClicked="@(() => MapTabs?.OpenChanges())">
+                        <Gallery><Media Package=@Package Loaded=@HasFullPackage></Media></Gallery>
+                    </PackageStore>
                 </Overview>
             </PackageTabs>
         </Tabs>
-        <Left>
-            <PackageInfoPanel Package="@Package" OnChangelogClicked="@(() => MapTabs?.OpenChanges())" OnReviewsClicked="@(() => MapTabs?.OpenReviews())" />
-
-            @if (achList is not null)
-            {
-                <PortalButton Portal=@Portal>
-                    <Button>
-                        <Card class="achievements-card">
-                            <ChildContent>
-                                <Label class="section-label">#menu.games.achievements</Label>
-                                <PackageAchievementSummary Package="@Package" />
-                            </ChildContent>
-                        </Card>
-                    </Button>
-                    <Content>
-                        <AchievementList Package="@Package"></AchievementList>
-                    </Content>
-                </PortalButton>
-            }
-
-        </Left>
-
         <Content><PortalTarget @ref=Portal></PortalTarget></Content>
 
         <Footer>
@@ -62,7 +41,6 @@
     public string PackageIdent { get; set; }
     public bool HasFullPackage { get; set; }
 
-    AchievementCollection achList;
     PortalTarget Portal = default;
     PackageTabs MapTabs = default;
 
@@ -81,7 +59,6 @@
 	{
         MenuUtility.Connect( lobby.LobbyId );
 		CloseModal(true);
-		OrganizationModal.LastOpened?.CloseModal( true );
 	}
 
     protected override async Task OnParametersSetAsync()
@@ -95,10 +72,6 @@
         // Get Full Package info
         Package = await Package.FetchAsync(PackageIdent, false);
         HasFullPackage = true;
-
-        achList = await Package.GetAchievements();
-        if (!achList.All.Any()) achList = default;
-        if (achList is not null) StateHasChanged();
 
         await RefreshLobbies();
     }

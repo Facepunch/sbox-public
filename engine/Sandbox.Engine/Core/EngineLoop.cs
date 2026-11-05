@@ -8,6 +8,7 @@ using Sandbox.UI;
 using Sandbox.Utility;
 using Sandbox.VR;
 using System.Threading.Channels;
+using Sandbox.Platform;
 
 namespace Sandbox;
 
@@ -91,6 +92,7 @@ internal static class EngineLoop
 					FrameEnd();
 				}
 				IToolsDll.Current?.RunFrame();
+				Bootstrap.TryFinishStartup();
 			}
 			catch ( System.Exception e )
 			{
@@ -135,11 +137,7 @@ internal static class EngineLoop
 	{
 		ThreadSafe.AssertIsMainThread();
 
-		//
-		// Let the Steam API and Steam Game Server API think
-		//
-		NativeEngine.Steam.SteamGameServer_RunCallbacks();
-		NativeEngine.Steam.SteamAPI_RunCallbacks();
+		RunSteamCallbacks();
 
 		//
 		// Update performance stats (should be called every frame)
@@ -200,7 +198,7 @@ internal static class EngineLoop
 		{
 			using ( IGameInstanceDll.Current?.PushScope() ?? default )
 			{
-				VoiceManager.Tick();
+				VoiceChat.Tick();
 				Sandbox.TextRendering.Tick();
 			}
 		}
@@ -245,6 +243,15 @@ internal static class EngineLoop
 		PartyRoom.Current?.Tick();
 
 		Audio.AudioEngine.Tick();
+	}
+
+	/// <summary>
+	/// Let the Steam API and Steam Game Server API think
+	/// </summary>
+	internal static void RunSteamCallbacks()
+	{
+		NativeEngine.Steam.SteamGameServer_RunCallbacks();
+		NativeEngine.Steam.SteamAPI_RunCallbacks();
 	}
 
 	public static void RunAsyncTasks()

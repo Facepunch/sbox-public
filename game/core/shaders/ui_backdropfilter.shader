@@ -47,6 +47,15 @@ PS
 	float4 CornerRadiusV < Attribute( "BorderRadiusV" ); >;	// vertical radii, same order
 	float BoxBloat < Default( 0.0 ); Attribute( "BoxBloat" ); >;	// pixels the quad is grown by on each side, so the edge antialiasing has room
 
+	// CSS border-shape, relative to the box's top-left. Kind 0 is none, 1 a polygon of up to 8 points, 2 a circle (centre.xy, radius)
+	int ShapeKind < Default( 0 ); Attribute( "BackdropShapeKind" ); >;
+	int ShapeCount < Default( 0 ); Attribute( "BackdropShapeCount" ); >;
+	float4 ShapePoints01 < Default4( 0, 0, 0, 0 ); Attribute( "BackdropShape01" ); >;
+	float4 ShapePoints23 < Default4( 0, 0, 0, 0 ); Attribute( "BackdropShape23" ); >;
+	float4 ShapePoints45 < Default4( 0, 0, 0, 0 ); Attribute( "BackdropShape45" ); >;
+	float4 ShapePoints67 < Default4( 0, 0, 0, 0 ); Attribute( "BackdropShape67" ); >;
+	float4 ShapeCircle < Default4( 0, 0, 0, 0 ); Attribute( "BackdropShapeCircle" ); >;
+
 	float Brightness < Attribute( "Brightness" ); Default( 1 ); >;
 	float Contrast < Attribute( "Contrast" );  Default( 1 ); >;
 	float Saturate < Attribute( "Saturate" );  Default( 1 ); >;
@@ -111,6 +120,33 @@ PS
 		return mul(mColorMatrix, float4( color, 1.0f )).rgb;
 	}
 
+	// Polygon and circle branches of ShapeSdf in ui_cssbox_batched.shader
+	float2 ShapePoint( int i )
+	{
+		if ( i < 2 ) return i == 0 ? ShapePoints01.xy : ShapePoints01.zw;
+		if ( i < 4 ) return i == 2 ? ShapePoints23.xy : ShapePoints23.zw;
+		if ( i < 6 ) return i == 4 ? ShapePoints45.xy : ShapePoints45.zw;
+		return i == 6 ? ShapePoints67.xy : ShapePoints67.zw;
+	}
+
+	float ShapeSdf( float2 p )
+	{
+		if ( ShapeKind == 2 ) return length( p - ShapeCircle.xy ) - ShapeCircle.z;
+		float2 first = ShapePoint( 0 );
+		float d = dot( p - first, p - first ), s = 1.0; int j = ShapeCount - 1;
+		for ( int i = 0; i < 8; i++ )
+		{
+			if ( i >= ShapeCount ) break;
+			float2 vi = ShapePoint( i ), vj = ShapePoint( j );
+			float2 e = vj - vi, w = p - vi;
+			float2 b = w - e * clamp( dot( w, e ) / max( dot( e, e ), 0.000001 ), 0.0, 1.0 );
+			d = min( d, dot( b, b ) );
+			bool3 c = bool3( p.y >= vi.y, p.y < vj.y, e.x * w.y > e.y * w.x );
+			if ( all( c ) || all( !c ) ) s *= -1.0; j = i;
+		}
+		return s * sqrt( d );
+	}
+
 	float4 DoBackdropFilter( float2 uv )
 	{
 		// transform the uv by the g_vFBCopyTextureRect
@@ -171,7 +207,7 @@ PS
 
 		// The quad may be the box grown by BoxBloat; make texcoords 0..1 across the box itself
 		float2 boxUv = ( i.vTexCoord.xy - 0.5 ) * ( BoxSize + BoxBloat * 2.0 ) / max( BoxSize, 0.0001 ) + 0.5;
-		float edge = SdfCoverage( RoundedRectSdfUv( boxUv, BoxSize, CornerRadius, CornerRadiusV ) );
+		float edge = SdfCoverage( ShapeKind != 0 ? ShapeSdf( boxUv * BoxSize ) : RoundedRectSdfUv( boxUv, BoxSize, CornerRadius, CornerRadiusV ) );
 		edge *= ScissorCoverage( PainterScissorIndex, i.vPositionPanelSpace.xy / i.vPositionPanelSpace.w );
 		o.vColor.rgb *= i.vColor.rgb;
 		o.vColor.a = edge * i.vColor.a;

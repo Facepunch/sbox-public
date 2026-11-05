@@ -15,41 +15,53 @@ internal sealed class PublishResourceRulesWidget : PublishSection
 	readonly LineEdit input;
 	readonly Button apply;
 	readonly Button cancel;
-	readonly Button recommended;
+	readonly Button textMode;
 	readonly Button agent;
 	readonly Project project;
-	bool agentDetected;
 	readonly Button includeMode;
 	readonly Button excludeMode;
 	bool excluding;
-	const string RecommendationHelp = "Include files whose exact paths appear in code, using compact folder/type rules where safe. Intentional exclusions are respected. GetAll queries require manual review. Wildcards also include future matching files.";
-	int recommendationRevision;
 	readonly Button cleanup;
 	readonly Label.Small count;
 	readonly Label.Small validation;
 	readonly Label.Body empty;
 	readonly WarningBox wildcardWarning;
-	string[] recommendations = [];
 	int? editingLine;
 	public Action ValueChanged { get; set; }
-	public string Value => rules.Value;
+	public string Value { get => rules.Value; set => rules.Value = value; }
 
-	public PublishResourceRulesWidget( Widget parent, Project project, string value ) : base( parent, "Resource Files", Theme.Text, "folder" )
+	// The publisher always copies fonts/* as loose files. A rule can still select registered
+	// assets and their dependencies, so only remove these includes when the folder has no assets.
+	internal static ResourceRuleCleanup CleanPublishingRules( string value, IEnumerable<string> assetPaths )
+	{
+		if ( assetPaths.Any( path => path.Replace( '\\', '/' ).TrimStart( '/' ).StartsWith( "fonts/", StringComparison.OrdinalIgnoreCase ) ) )
+			return CleanResourceRules( value );
+
+		var automatic = (value ?? "").Split( '\n' ).Select( ( text, line ) => new RuleEntry( line, text.Trim() ) )
+			.Where( rule => !rule.IsComment && !rule.IsExclusion
+				&& rule.Text.Replace( '\\', '/' ).TrimStart( '/' ).StartsWith( "fonts/", StringComparison.OrdinalIgnoreCase )
+				&& !rule.Text.Replace( '\\', '/' ).Split( '/' ).Contains( ".." ) )
+			.Select( rule => rule.Line ).ToHashSet();
+		var withoutAutomatic = automatic.Count == 0 ? value
+			: string.Join( "\n", value.Split( '\n' ).Where( ( _, index ) => !automatic.Contains( index ) ) );
+		var result = CleanResourceRules( withoutAutomatic );
+		return result with { Removed = result.Removed + automatic.Count };
+	}
+
+	public PublishResourceRulesWidget( Widget parent, Project project, string value, Layout actions, Layout agentText, Layout agentActions ) : base( parent, "Resource Files", Theme.Text, "folder" )
 	{
 		this.project = project;
-		var textMode = Header.Add( new Button( "Edit as text", "code" ) );
+		textMode = Header.Add( new PublishButton( "Edit as text", "code" ) );
 		Layout.Add( new Label.Body( "Include or exclude files using the buttons below. Example: include scenes/*.scene, then exclude scenes/dev*.scene. Exclusions are saved with !; the last matching rule wins. Configured scenes, Resources folders and required dependencies still ship." ) ).SetStyles( "margin-bottom: 0px;" );
 		var toolbar = Layout.AddRow();
 		toolbar.Spacing = 6;
-		recommended = toolbar.Add( new Button.Primary( "Add recommended", "playlist_add" ) { Enabled = false } );
-		recommended.ToolTip = $"Checking for missing runtime resources…\n{RecommendationHelp}";
-		recommended.Clicked = () => _ = AddRecommendedAsync();
-		agent = toolbar.Add( new Button( "Copy agent prompt", "smart_toy" ) { Visible = false } );
+		agentText.Add( new Label( "AI is good at figuring out which assets your game needs to run. Paste this prompt into your preferred AI tool with access to your project. Or use the suggestions and file lists below to adjust what’s included yourself." ) { Color = Theme.TextLight, WordWrap = true, Alignment = TextFlag.LeftTop } );
+		agent = agentActions.Add( new PublishButton( "Copy agent prompt", "smart_toy", primary: true ) );
 		agent.ToolTip = "Copy a request to review these publishing rules with your coding agent. Includes the current rules, including unsaved edits.";
 		agent.Clicked = () => _ = CopyAgentPrompt();
-		cleanup = toolbar.Add( new Button( "Clean up rules", "cleaning_services" ) );
-		cleanup.ToolTip = "Remove duplicate rules and rules already covered by another include. Keeps the same files included; never removes files just because they appear unused.";
-		cleanup.Clicked = () => rules.Value = CleanResourceRules( Value ).Rules;
+		cleanup = actions.Add( new PublishButton( "Clean up rules", "cleaning_services" ) );
+		cleanup.ToolTip = "Remove duplicate rules, rules covered by another include, and redundant includes for automatically packaged font files. Keeps exclusions and rules that may select asset dependencies.";
+		cleanup.Clicked = () => rules.Value = CleanPublishingRules( Value, AssetSystem.All.Select( x => x.Path ) ).Rules;
 		toolbar.AddStretchCell();
 		count = toolbar.Add( new Label.Small( "" ) { Alignment = TextFlag.RightCenter } );
 
@@ -59,15 +71,15 @@ internal sealed class PublishResourceRulesWidget : PublishSection
 		empty = listEditor.Layout.Add( new Label.Body( "No extra include rules. Add a path below, or use + in the preview." ) );
 		var entry = listEditor.Layout.AddRow();
 		entry.Spacing = 6;
-		includeMode = entry.Add( new Button( "Include", "add_circle_outline" ) { Tint = Theme.Primary } );
-		excludeMode = entry.Add( new Button( "Exclude", "remove_circle_outline" ) );
+		includeMode = entry.Add( new PublishButton( "Include", "add_circle_outline", primary: true ) );
+		excludeMode = entry.Add( new PublishButton( "Exclude", "remove_circle_outline" ) );
 		includeMode.ToolTip = "Add matching files and their dependencies.";
 		excludeMode.ToolTip = "Exclude matches from earlier rules. For example, scenes/dev*.scene is stored as !scenes/dev*.scene. Required dependencies still ship.";
 		includeMode.Clicked = () => SelectRuleMode( false );
 		excludeMode.Clicked = () => SelectRuleMode( true );
 		input = entry.Add( new LineEdit { PlaceholderText = "Path or wildcard, e.g. scenes/*.scene" }, 1 );
-		apply = entry.Add( new Button( "Add include", "add" ) { Enabled = false } );
-		cancel = entry.Add( new Button( "Cancel" ) { Visible = false } );
+		apply = entry.Add( new PublishButton( "Add include", "add" ) { Enabled = false } );
+		cancel = entry.Add( new PublishButton( "Cancel" ) { Visible = false } );
 		validation = listEditor.Layout.Add( new Label.Small( "" ) { Color = Theme.Yellow, Visible = false } );
 		input.TextChanged += _ =>
 		{
@@ -89,90 +101,42 @@ internal sealed class PublishResourceRulesWidget : PublishSection
 			UpdateRules();
 			ValueChanged?.Invoke();
 		};
-		textMode.Clicked = () =>
-		{
-			CancelEdit();
-			rules.Visible = !rules.Visible;
-			listEditor.Visible = !rules.Visible;
-			textMode.Text = rules.Visible ? "Use list" : "Edit as text";
-			textMode.Icon = rules.Visible ? "list" : "code";
-		};
+		textMode.Clicked = () => SetTextMode( !rules.Visible );
 		UpdateRules();
-		_ = DetectAgent();
-	}
-
-	async Task DetectAgent()
-	{
-		try
-		{
-			// Reuse Preferences > AI Agents detection; never infer usage from MCP being enabled.
-			var targets = await Task.Run( AgentSkill.Status );
-			if ( !IsValid ) return;
-			agentDetected = targets?.Any( x => x.Detected && x.State is "current" or "outdated" ) == true;
-			UpdateAgentVisibility();
-		}
-		catch
-		{
-			// No detected installation means no agent action, including a failed status check.
-		}
-	}
-
-	[EditorEvent.Frame]
-	void UpdateAgentVisibility()
-	{
-		agent.Visible = agentDetected && project.Config.AI?.EnableMcpCommunication != false;
 	}
 
 	async Task CopyAgentPrompt()
 	{
-		UpdateAgentVisibility();
-		if ( !agent.Visible ) return;
 		var cli = Path.GetFullPath( Path.Combine( Environment.CurrentDirectory, "bin", "managed", "sbox-cli.exe" ) );
 		var arguments = JsonSerializer.Serialize( new { resources = Value ?? "", publishUsedAssetsOnly = true } );
 		EditorUtility.Clipboard.Copy( $"""
 			Check that everything needed by this s&box project is included when publishing: {project.ConfigFilePath}
 			Read the publishing skill with: "{cli}" --skill sbox-publishing
-			Use this current UI snapshot (including unsaved rules) for publishing_preview:
+			Start from these publishing settings, including unsaved changes:
 			{arguments}
 
-			Return proposed rules for me to paste into the UI. Flag unusually large assets for review, even if referenced.
-			Don't save settings, delete assets or publish.
+			Preview proposed changes and flag unusually large assets, even if referenced.
+			Ask for my confirmation and for Project Settings to be closed before saving the agreed changes directly to the .sbproj. Keep the editor open.
+			Don't delete assets or publish.
 			""" );
 		agent.Text = "Prompt copied";
 		await Task.Delay( 1500 );
 		if ( IsValid ) agent.Text = "Copy agent prompt";
 	}
 
-	public void SetRecommendations( string[] patterns, int fileCount = 0 )
+	public void StartRule( bool exclude )
 	{
-		recommendationRevision++;
-		recommendations = patterns ?? [];
-		recommended.Enabled = recommendations.Length > 0;
-		recommended.Text = fileCount > 0 ? $"Add recommended · {fileCount:n0} files" : "Add recommended";
-		var summary = patterns is null ? "Recommendations update with the preview."
-			: fileCount == 0 ? "No resource references to recommend. Queries and dynamic loads may still need review."
-			: $"{fileCount:n0} files in {patterns.Length:n0} include rules. Folder/type wildcards are used when they don't include other excluded files.";
-		recommended.ToolTip = $"{summary}\n{RecommendationHelp}";
+		SetTextMode( false );
+		SelectRuleMode( exclude );
 	}
 
-	async Task AddRecommendedAsync()
+	void SetTextMode( bool text )
 	{
-		if ( recommendations.Length == 0 ) return;
-		var revision = recommendationRevision;
-		var patterns = recommendations;
-		recommended.Enabled = false;
-		recommended.Text = "Adding recommended…";
-		// Paint feedback before applying the single bulk edit and starting the next preview.
-		await Task.Delay( 32 );
-		if ( !IsValid || revision != recommendationRevision ) return;
-		AddRules( patterns );
-	}
-
-	public void AddRules( IEnumerable<string> patterns )
-	{
-		// Apply bulk actions as one edit and trigger one preview refresh.
-		var updated = AddResourceRules( Value, patterns );
-		if ( updated != Value ) rules.Value = updated;
+		CancelEdit();
+		rules.Visible = text;
+		listEditor.Visible = !text;
+		textMode.Text = text ? "Use list" : "Edit as text";
+		textMode.Icon = text ? "list" : "code";
 	}
 
 	void SelectRuleMode( bool exclude )
@@ -185,8 +149,8 @@ internal sealed class PublishResourceRulesWidget : PublishSection
 	void SetRuleMode( bool exclude )
 	{
 		excluding = exclude;
-		includeMode.Tint = exclude ? Theme.ButtonBackground : Theme.Primary;
-		excludeMode.Tint = exclude ? Theme.Yellow : Theme.ButtonBackground;
+		includeMode.Tint = exclude ? PublishButton.SecondaryTint : Theme.Primary;
+		excludeMode.Tint = exclude ? Theme.Yellow : PublishButton.SecondaryTint;
 		input.PlaceholderText = exclude ? "Exclude pattern, e.g. scenes/dev*.scene" : "Path or wildcard, e.g. scenes/*.scene";
 		apply.Text = editingLine is not null ? "Save rule" : exclude ? "Add exclusion" : "Add include";
 	}
@@ -196,7 +160,6 @@ internal sealed class PublishResourceRulesWidget : PublishSection
 		editingLine = rule.Line;
 		input.Text = rule.IsExclusion ? rule.Text[1..].TrimStart() : rule.Text;
 		SetRuleMode( rule.IsExclusion );
-		apply.Text = "Save rule";
 		apply.Icon = "check";
 		cancel.Visible = true;
 		input.Focus();
@@ -263,8 +226,8 @@ internal sealed class PublishResourceRulesWidget : PublishSection
 		list.FixedHeight = Math.Clamp( entries.Length, 1, 6 ) * 28 + 4;
 		list.Visible = entries.Length > 0;
 		empty.Visible = entries.Length == 0;
-		count.Text = $"{entries.Count( x => !x.IsComment && !x.IsExclusion ):n0} includes · {entries.Count( x => x.IsExclusion ):n0} exclusions";
-		var redundant = CleanResourceRules( Value ).Removed;
+		count.Text = $"{entries.Count( x => !x.IsComment && !x.IsExclusion ):n0} includes, {entries.Count( x => x.IsExclusion ):n0} exclusions";
+		var redundant = CleanPublishingRules( Value, AssetSystem.All.Select( x => x.Path ) ).Removed;
 		cleanup.Enabled = redundant > 0;
 		cleanup.Text = $"Clean up rules ({redundant:n0})";
 		var blanket = entries.Where( x => !x.IsComment && !x.IsExclusion ).Select( x => x.Text ).Where( x =>
@@ -317,7 +280,7 @@ internal sealed class PublishResourceRulesWidget : PublishSection
 			Paint.DrawIcon( icon, rule.IsComment ? "notes" : rule.IsExclusion ? "remove_circle_outline" : rule.IsPattern ? "filter_alt" : "insert_drive_file", 16 );
 			var text = item.Rect.Shrink( 30, 0, 110, 0 );
 			Paint.SetPen( rule.IsComment ? Theme.TextLight : Theme.TextControl );
-			Paint.DrawText( text, Paint.GetElidedText( rule.IsComment ? rule.Text : $"{(rule.IsExclusion ? "Exclude" : "Include")} · {rule.Text.TrimStart( '!' )}", text.Width ), TextFlag.LeftCenter | TextFlag.SingleLine );
+			Paint.DrawText( text, Paint.GetElidedText( rule.IsComment ? rule.Text : $"{(rule.IsExclusion ? "Exclude" : "Include")}: {rule.Text.TrimStart( '!' )}", text.Width ), TextFlag.LeftCenter | TextFlag.SingleLine );
 			Paint.SetPen( Theme.TextLight );
 			Paint.DrawIcon( ButtonRect( item, 3 ), "arrow_upward", 15 );
 			Paint.DrawIcon( ButtonRect( item, 2 ), "arrow_downward", 15 );

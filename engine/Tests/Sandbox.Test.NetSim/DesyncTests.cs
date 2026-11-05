@@ -256,6 +256,31 @@ public class DesyncTests
 	}
 
 	[TestMethod]
+	[DataRow( true )]
+	[DataRow( false )]
+	public void DirectLinkNeverWorks( bool hostSpawns )
+	{
+		using var game = new Game( Lobby() ) { HostSpawnsPlayers = hostSpawns };
+
+		var a = game.Join();
+		SimPeer b = null;
+		game.Sim.Transport.DownUntil = c => (c.Owner == a && c.RemotePeer == b) || (c.Owner == b && c.RemotePeer == a) ? double.PositiveInfinity : 0;
+
+		// Like a Steam lobby, where these two never get a session up
+		b = game.Sim.Join();
+		game.Sim.As( a, () => Networking.System.FindConnection( b.Local.Id ).CloseDirectRoute() );
+		game.Sim.As( b, () => Networking.System.FindConnection( a.Local.Id ).CloseDirectRoute() );
+		game.AddPlayer( b );
+		game.Join();
+
+		game.Run( 3 );
+		game.ResetWorst();
+		game.Run( 5 );
+
+		AssertNoneStuck( game );
+	}
+
+	[TestMethod]
 	[DataRow( "client", 1f )]
 	[DataRow( "client", 5f )]
 	[DataRow( "host", 1f )]

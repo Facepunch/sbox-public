@@ -30,14 +30,14 @@ internal class TerrainMaterialCompiler : ResourceCompiler
 		var bcrPath = $"{path}/{file}_tmat_bcr.generated.vtex";
 		var nhoPath = $"{path}/{file}_tmat_nho.generated.vtex";
 
+		// Its textures are made from source images only, so a describe has nothing to learn from them
+		if ( !Context.Describing )
 		{
 			var childContext = Context.CreateChild( bcrPath );
 			childContext.SetInputData( string.Format( BCRTextureDefinition, albedo, roughness ) );
 			childContext.Compile();
-		}
 
-		{
-			var childContext = Context.CreateChild( nhoPath );
+			childContext = Context.CreateChild( nhoPath );
 			childContext.SetInputData( string.Format( NHOTextureDefinition, normal, height, ao ) );
 			childContext.Compile();
 		}

@@ -82,15 +82,11 @@ public static partial class Game
 		}
 
 		/// <summary>
-		/// Opens a modal for the specified organization. 
-		/// This is most likely called from a Package - so get the organization from there.
+		/// Used to open a modal for the specified organization. There isn't one any more - this does nothing.
 		/// </summary>
-		/// <param name="org"></param>
+		[Obsolete( "Organizations no longer have a modal - this does nothing." )]
 		public static void ShowOrganizationModal( Package.Organization org )
 		{
-			using var scope = GlobalContext.MenuScope();
-
-			IModalSystem.Current?.Organization( org );
 		}
 
 		/// <summary>
@@ -99,6 +95,12 @@ public static partial class Game
 		/// <param name="package"></param>
 		public static void ShowReviewModal( Package package )
 		{
+			if ( !IsEnginePackage( package ) )
+			{
+				Log.Warning( "ShowReviewModal: needs a package from Package.FetchAsync" );
+				return;
+			}
+
 			using var scope = GlobalContext.MenuScope();
 
 			IModalSystem.Current?.Review( package );
@@ -119,6 +121,9 @@ public static partial class Game
 		/// </summary>
 		public static void ShowPackageSelector( string query, Action<Package> onSelect, Action<string> onFilterChanged = null )
 		{
+			onSelect = InCallerContext( onSelect );
+			onFilterChanged = InCallerContext( onFilterChanged );
+
 			using var scope = GlobalContext.MenuScope();
 
 			IModalSystem.Current?.PackageSelect( query, onSelect, onFilterChanged );
@@ -130,6 +135,8 @@ public static partial class Game
 		/// </summary>
 		public static void ShowMapSelector( Action<string> onSelect, string selected = null )
 		{
+			onSelect = InCallerContext( onSelect );
+
 			using var scope = GlobalContext.MenuScope();
 
 			IModalSystem.Current?.MapSelect( onSelect, selected );
@@ -198,9 +205,24 @@ public static partial class Game
 		/// </summary>
 		public static void CreateGame( in CreateGameOptions options )
 		{
+			if ( options.Package is not null && !IsEnginePackage( options.Package ) )
+			{
+				Log.Warning( "CreateGame: needs a package from Package.FetchAsync" );
+				return;
+			}
+
+			var safe = options;
+			safe.OnComplete = InCallerContext( options.OnComplete );
+
+			if ( options.InitialSettings is { } initial )
+			{
+				initial.GameSettings = initial.GameSettings is null ? null : new Dictionary<string, string>( initial.GameSettings );
+				safe.InitialSettings = initial;
+			}
+
 			using var scope = GlobalContext.MenuScope();
 
-			IModalSystem.Current?.CreateGame( options );
+			IModalSystem.Current?.CreateGame( safe );
 		}
 
 		/// <summary>
@@ -228,8 +250,30 @@ public static partial class Game
 		/// </summary>
 		public static void WorkshopPublish( in WorkshopPublishOptions options )
 		{
+			var safe = options;
+			safe.OnComplete = InCallerContext( options.OnComplete );
+			safe.KeyValues = options.KeyValues is null ? null : new Dictionary<string, string>( options.KeyValues );
+			safe.Tags = options.Tags is null ? null : new HashSet<string>( options.Tags );
+			safe.Categories = new();
+
+			if ( options.Categories?.Keys.Except( (options.CategoryFactories ?? []).Select( x => x.Name ) ).Any() == true )
+				Log.Warning( "WorkshopPublish: only categories added with AddCategory are shown" );
+
+			// Only categories from AddCategory, rebuilt by the engine over our copy of the keyvalues
+			foreach ( var (name, enumType, create) in options.CategoryFactories ?? [] )
+			{
+				if ( UsesGameAttributes( enumType ) )
+				{
+					Log.Warning( $"WorkshopPublish: skipping category {name}, its enum uses attributes from game code" );
+					continue;
+				}
+
+				safe.KeyValues ??= [];
+				safe.Categories[name] = create( safe.KeyValues );
+			}
+
 			using var scope = GlobalContext.MenuScope();
-			IModalSystem.Current?.WorkshopPublish( options );
+			IModalSystem.Current?.WorkshopPublish( safe );
 		}
 
 		/// <summary>
@@ -247,8 +291,10 @@ public static partial class Game
 		/// </summary>
 		public static void ShowBenchmarkResults( Guid batchId, IReadOnlyList<BenchmarkTestSummary> summaries )
 		{
+			var copy = summaries?.ToArray() ?? [];
+
 			using var scope = GlobalContext.MenuScope();
-			IModalSystem.Current?.BenchmarkResults( batchId, summaries );
+			IModalSystem.Current?.BenchmarkResults( batchId, copy );
 		}
 
 		/// <summary>
@@ -294,5 +340,82 @@ public static partial class Game
 		/// Returns true if the pause menu overlay is open
 		/// </summary>
 		public bool IsPauseMenuOpen => IModalSystem.Current?.IsPauseMenuOpen ?? false;
+
+		/// <summary>
+		/// Asks the user whether they want to open this web page in their browser.
+		/// Only http and https links are allowed.
+		/// </summary>
+		/// <example>
+		/// <code>
+		/// Game.Overlay.OpenUrl( "https://discord.gg/sbox" );
+		/// </code>
+		/// </example>
+		public static void OpenUrl( string url )
+		{
+			if ( !TryGetExternalUrl( url, out var safeUrl ) )
+			{
+				Log.Warning( $"Game.Overlay.OpenUrl: not an http(s) url: {url}" );
+				return;
+			}
+
+			using var scope = GlobalContext.MenuScope();
+
+			IModalSystem.Current?.OpenUrl( safeUrl );
+		}
+
+		// A subclass from anywhere else would run its overrides in the menu
+		static bool IsEnginePackage( Package package ) => package?.GetType().Assembly == typeof( Package ).Assembly;
+
+		// The menu builds the enum's description, which constructs its attributes, and a game's would run game code there
+		static bool UsesGameAttributes( Type enumType )
+		{
+			return enumType.GetCustomAttributesData()
+				.Concat( enumType.GetFields().SelectMany( x => x.GetCustomAttributesData() ) )
+				.Any( x => Sandbox.Internal.IsolatedAssemblyContext.IsPackageType( x.AttributeType ) );
+		}
+
+		internal static Action<T> InCallerContext<T>( Action<T> callback )
+		{
+			if ( callback is null ) return null;
+
+			var context = GlobalContext.Current;
+			return value =>
+			{
+				using var scope = new GlobalContext.GlobalContextScope( context );
+				callback( value );
+			};
+		}
+
+		/// <summary>
+		/// Checks that <paramref name="url"/> is an absolute http(s) link with a host and no user info,
+		/// and gives it back normalized, with the host in punycode so look-alike domains are visible.
+		/// </summary>
+		internal static bool TryGetExternalUrl( string url, out string safeUrl )
+		{
+			safeUrl = null;
+
+			if ( string.IsNullOrWhiteSpace( url ) || url.Length > 2048 )
+				return false;
+
+			if ( !Uri.TryCreate( url, UriKind.Absolute, out var uri ) )
+				return false;
+
+			if ( uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps )
+				return false;
+
+			if ( !string.IsNullOrEmpty( uri.UserInfo ) || string.IsNullOrEmpty( uri.Host ) )
+				return false;
+
+			// A host can parse but still not be valid IDN (e.g. a lone zero width joiner), which throws here
+			try
+			{
+				safeUrl = new UriBuilder( uri ) { Host = uri.IdnHost }.Uri.AbsoluteUri;
+				return true;
+			}
+			catch ( UriFormatException )
+			{
+				return false;
+			}
+		}
 	}
 }
