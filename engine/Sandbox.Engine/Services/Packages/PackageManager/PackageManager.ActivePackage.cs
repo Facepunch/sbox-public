@@ -21,6 +21,11 @@ internal static partial class PackageManager
 		public BaseFileSystem AssemblyFileSystem { get; private set; }
 
 		/// <summary>
+		/// Access control running over its assemblies ahead of them loading, see <see cref="PackageLoader.PreVerifyAsync(ActivePackage)"/>
+		/// </summary>
+		internal Task Verification { get; set; }
+
+		/// <summary>
 		/// The project settings folder
 		/// </summary>
 		public BaseFileSystem ProjectSettings { get; private set; }
@@ -67,6 +72,9 @@ internal static partial class PackageManager
 			else
 			{
 				await o.DownloadAsync( token, options );
+
+				// Its code can get checked while the rest of the install happens, ready for when it loads
+				if ( package.TypeName is "game" or "library" ) _ = PackageLoader.PreVerifyAsync( o );
 			}
 
 			ActivePackages.Add( o );

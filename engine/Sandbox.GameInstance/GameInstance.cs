@@ -276,6 +276,13 @@ internal class GameInstance : IGameInstance
 		await Task.Yield(); // make frame
 		token.ThrowIfCancellationRequested();
 
+		// Access control is most of the cost of loading the assemblies, check them on a worker while the screen draws
+		if ( !IsDeveloperHost )
+		{
+			await PackageLoader.PreVerifyAsync( Package.FullIdent );
+			token.ThrowIfCancellationRequested();
+		}
+
 		try
 		{
 			// Load the package. Mount it and add it to the file system. Only load the assemblies
