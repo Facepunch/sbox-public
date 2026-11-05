@@ -182,7 +182,13 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 		Screen.UpdateFromEngine();
 
-		if ( !firstStartup ) Game.InitTypeLibrary();
+		if ( !firstStartup )
+		{
+			Game.InitTypeLibrary();
+
+			// The upgraders are the last game's until an assembly loads, and they hold on to its whole type library.
+			JsonUpgrader.UpdateUpgraders( TypeLibrary );
+		}
 
 		UserPermission.Load();
 
@@ -262,8 +268,9 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 		if ( hadPreviousEnvironment )
 		{
-			// Run GC and finalizers to clear any native resources held
-			GC.Collect();
+			// Collect what the last game left so finalizers release its native resources. In the background: a blocking
+			// collection of the whole heap freezes every managed thread, the audio mixer included, for a third of a second.
+			GC.Collect( GC.MaxGeneration, GCCollectionMode.Forced, blocking: false );
 			GC.WaitForPendingFinalizers();
 
 			// Run the queue one more time, since some finalizers queue tasks
