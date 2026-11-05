@@ -47,20 +47,32 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	internal readonly record struct Run( RenderMesh Mesh, int Lod, Material Override, bool OverrideBlends, DrawFilter Filter, int FirstInstance, int Count, bool Skinned = false, RenderAttributes Attributes = null, CustomObject Custom = null, RenderAttributes Lightmap = null, bool ReadsFrameBuffer = false, RenderAttributes Probe = null, bool Tinted = false, bool Deformed = false, bool Morphable = false, int CullDraw = -1 );
 
 	/// <summary>
+	/// One draw of a run: the unit a layer records. A run groups instances; its draws can go out apart from each other, as
+	/// native's batch lists sort single draws (<c>CMeshDrawPrimitive_t</c>), so draws of one material follow each other.
+	/// <see cref="Draw"/> indexes the run's LOD draws, and is 0 for a custom object.
+	/// </summary>
+	internal readonly record struct DrawItem( int Run, int Draw );
+
+	/// <summary>
 	/// A view's runs, each list in draw order: what native's opaque, fade and translucent layers would hold.
 	/// </summary>
 	internal sealed class RunLists
 	{
 		/// <summary>
-		/// Every list, by the bit of <see cref="MeshRuns"/> it's drawn for - in draw order.
+		/// Every list, by the bit of <see cref="MeshRuns"/> it's drawn for - its instance groups.
 		/// </summary>
-		public readonly List<Run>[] ByBit = NewLists();
+		public readonly List<Run>[] ByBit = NewLists<Run>();
 
-		static List<Run>[] NewLists()
+		/// <summary>
+		/// Every list's draws, by the same bit, in draw order (<see cref="BuildItems"/>).
+		/// </summary>
+		public readonly List<DrawItem>[] ItemsByBit = NewLists<DrawItem>();
+
+		static List<T>[] NewLists<T>()
 		{
-			var lists = new List<Run>[Lists.Length];
+			var lists = new List<T>[Lists.Length];
 			for ( int i = 0; i < lists.Length; i++ )
-				lists[i] = new List<Run>();
+				lists[i] = new List<T>();
 			return lists;
 		}
 
@@ -117,6 +129,8 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		{
 			foreach ( var list in ByBit )
 				list.Clear();
+			foreach ( var list in ItemsByBit )
+				list.Clear();
 			Custom = 0;
 			FrameBufferReads = 0;
 		}
@@ -167,6 +181,44 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	/// Probe attributes by world index, selected only for the main view's non-lightmapped draws.
 	/// </summary>
 	RenderAttributes[] probes = new RenderAttributes[256];
+
+	/// <summary>
+	/// What <see cref="Classify"/> made of each visible object, by its place in the visible list.
+	/// </summary>
+	Classified[] classified = new Classified[256];
+
+	/// <summary>
+	/// The view <see cref="Classify"/> is working on while it runs.
+	/// </summary>
+	(RenderWorld World, ViewPass Pass, List<int> Visible, Vector3 Camera, float TanHalfFov, float ScreenWidth, Vector3 SortCamera, List<LightProbeVolume> Volumes, long VolumesKey) classifying;
+
+	struct Classified
+	{
+		public MeshRuns Runs;
+		public MeshRuns FrameBufferReads;
+		public ulong OpaqueKey;
+		public uint Distance;
+		public int RenderOrder;
+		public bool OnlyTranslucent;
+
+		/// <summary>
+		/// A custom object, left for the main thread: it isn't classified like a mesh.
+		/// </summary>
+		public bool Custom;
+	}
+
+	/// <summary>
+	/// Whether <see cref="Prepare"/> may classify a big view's objects across the job dispatcher's threads
+	/// (<see cref="RenderSystem.ParallelRecording"/>).
+	/// </summary>
+	internal bool Parallel { get; set; } = true;
+
+	/// <summary>
+	/// Visible objects a view needs before classifying them is split across threads. Classifying on one thread leaves
+	/// the objects in its cache for emitting them after; split, emitting fetches them again, which costs as much as the
+	/// split saves until there are too many objects to stay in cache anyway: even at 10-20k objects, 15% faster from 35k.
+	/// </summary>
+	internal static int MinParallelClassify { get; set; } = 32_000;
 
 	Material defaultMaterial;
 	Material depthOnlyMaterial;
@@ -225,15 +277,29 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 
 		if ( lods.Length < objects.Length ) Array.Resize( ref lods, Math.Max( objects.Length, lods.Length * 2 ) );
 		if ( probes.Length < lods.Length ) Array.Resize( ref probes, lods.Length );
+		if ( classified.Length < visible.Count ) Array.Resize( ref classified, Math.Max( visible.Count, classified.Length * 2 ) );
 		var volumes = world.LightProbeVolumes;
 		var volumesKey = volumes.Count > 0 && !pass.IsShadow ? LightProbeVolume.Key( volumes ) : 0;
 
-		foreach ( var index in CollectionsMarshal.AsSpan( visible ) )
+		// Each object's LOD, probe, lists and sort keys are its own, so a big view classifies across threads
+		classifying = (world, pass, visible, camera, tanHalfFov, screenWidth, sortCamera, volumes, volumesKey);
+		if ( Parallel && visible.Count >= MinParallelClassify && JobDispatcher.MaxDegreeOfParallelism > 1 )
+			JobDispatcher.ForBatched( visible.Count, this, static ( feature, start, end ) => feature.Classify( start, end ) );
+		else
+			Classify( 0, visible.Count );
+		classifying = default;
+
+		// Then into the buckets in visible order, whichever thread classified what
+		var visibleSpan = CollectionsMarshal.AsSpan( visible );
+		for ( int k = 0; k < visibleSpan.Length; k++ )
 		{
+			var index = visibleSpan[k];
+			ref var c = ref classified[k];
+
 			// Membership comes from MeshRenderFeature.Lists.cs.
-			var renderObject = objects[index];
-			if ( renderObject is CustomObject custom )
+			if ( c.Custom )
 			{
+				var custom = (CustomObject)objects[index];
 				var customRuns = ListsFor( custom, pass.IsShadow );
 				if ( customRuns == 0 ) continue;
 
@@ -244,33 +310,154 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 				continue;
 			}
 
+			if ( c.Runs == 0 ) continue;
+
+			layers.FrameBufferReads |= c.FrameBufferReads;
+			AddToLists( c.Runs, index, c.OpaqueKey, c.Distance, c.OnlyTranslucent, c.RenderOrder );
+		}
+
+		for ( int bit = 0; bit < buckets.Length; bit++ )
+		{
+			Emit( buckets[bit], Lists[bit].Draws, layers.ByBit[bit], world, transforms, lods, bit == 0 && !pass.IsShadow ? Occlusion : null );
+			BuildItems( layers.ByBit[bit], layers.ItemsByBit[bit], Lists[bit].Sort == ListSort.Batched );
+		}
+	}
+
+	/// <summary>
+	/// Classify visible objects [<paramref name="start"/>, <paramref name="end"/>) of the view in <see cref="classifying"/>:
+	/// each mesh's LOD, probe, lists and sort keys. Writes only what's the object's own, so ranges can run on any thread.
+	/// </summary>
+	void Classify( int start, int end )
+	{
+		var (world, pass, visible, camera, tanHalfFov, screenWidth, sortCamera, volumes, volumesKey) = classifying;
+		var objects = world.Objects;
+		var centers = world.BoundsCenter;
+		var extents = world.BoundsExtents;
+		var shadow = pass.IsShadow;
+
+		for ( int k = start; k < end; k++ )
+		{
+			var index = visible[k];
+			ref var c = ref classified[k];
+			c = default;
+
+			var renderObject = objects[index];
+			if ( renderObject is CustomObject )
+			{
+				c.Custom = true;
+				continue;
+			}
+
 			var obj = (MeshObject)renderObject;
 			if ( obj.Mesh is null ) continue;
 
 			var lod = ChooseLod( obj, centers[index], camera, tanHalfFov, screenWidth );
 			var blend = obj.BlendForLod( lod );
 			lods[index] = (byte)lod;
-			if ( !pass.IsShadow ) obj.DrawnLod = lod;
+
+			// Written only when it changes: a write from a worker would leave the object's memory on that core, for the
+			// main thread to fetch back when it emits the object
+			if ( !shadow && obj.DrawnLod != lod ) obj.DrawnLod = lod;
 
 			// Probe lighting is forward-only (CBaseSceneObjectDesc::GeneratePrimitives).
 			var probe = -1;
-			if ( obj.NeedsLightProbe && !pass.IsShadow && volumes.Count > 0 ) probe = ProbeFor( obj, volumes, volumesKey, centers[index], extents[index] );
+			if ( obj.NeedsLightProbe && !shadow && volumes.Count > 0 ) probe = ProbeFor( obj, volumes, volumesKey, centers[index], extents[index] );
 			probes[index] = probe >= 0 ? volumes[probe].Attributes : null;
 
-			var runs = ListsFor( obj, blend, pass.IsShadow );
+			var runs = ListsFor( obj, blend, shadow );
 			if ( runs == 0 ) continue;
 
+			c.Runs = runs;
+
 			// A translucent layer copies the frame for what reads it
-			if ( obj.WantsFrameBufferCopy && !pass.IsShadow ) layers.FrameBufferReads |= runs & FrameBufferCopyingLists;
+			if ( obj.WantsFrameBufferCopy && !shadow ) c.FrameBufferReads = runs & FrameBufferCopyingLists;
 
 			// Only the sort keys its lists use
-			var opaqueKey = (runs & BatchedLists) != 0 ? OpaqueKey( obj, lod ) : 0;
-			var distance = (runs & DistanceSortedLists) != 0 ? TranslucentSortDistance( centers[index], extents[index], sortCamera ) : 0;
-			AddToLists( runs, index, opaqueKey, distance, blend == MeshBlend.Translucent, obj.RenderOrder );
+			c.OpaqueKey = (runs & (BatchedLists | RenderOrderLists)) != 0 ? OpaqueKey( obj, lod ) : 0;
+			c.Distance = (runs & DistanceSortedLists) != 0 ? TranslucentSortDistance( centers[index], extents[index], sortCamera ) : 0;
+			c.OnlyTranslucent = blend == MeshBlend.Translucent;
+			c.RenderOrder = obj.RenderOrder;
+		}
+	}
+
+	ulong[] itemKeys = new ulong[256];
+	DrawItem[] itemScratch = new DrawItem[256];
+
+	/// <summary>
+	/// A list's draws: each run's, in run order, or for a batched list sorted so draws that bind the same state follow each
+	/// other (<see cref="ItemKey"/>), however their runs were grouped for instancing.
+	/// </summary>
+	void BuildItems( List<Run> runs, List<DrawItem> items, bool sorted )
+	{
+		var runSpan = CollectionsMarshal.AsSpan( runs );
+		for ( int r = 0; r < runSpan.Length; r++ )
+		{
+			ref readonly var run = ref runSpan[r];
+			if ( run.Custom is not null )
+			{
+				items.Add( new DrawItem( r, 0 ) );
+				continue;
+			}
+
+			// A partially blended object draws only the list's part of its draws (ListDefinition.Draws)
+			var draws = run.Mesh.DrawsForLod( run.Lod );
+			for ( int d = 0; d < draws.Length; d++ )
+			{
+				if ( run.Filter == DrawFilter.Opaque && draws[d].Translucent ) continue;
+				if ( run.Filter == DrawFilter.Translucent && !draws[d].Translucent ) continue;
+				items.Add( new DrawItem( r, d ) );
+			}
 		}
 
-		for ( int bit = 0; bit < buckets.Length; bit++ )
-			Emit( buckets[bit], Lists[bit].Draws, layers.ByBit[bit], world, transforms, lods, bit == 0 && !pass.IsShadow ? Occlusion : null );
+		var count = items.Count;
+		if ( !sorted || count < 2 ) return;
+
+		if ( itemKeys.Length < count )
+		{
+			itemKeys = new ulong[Math.Max( count, itemKeys.Length * 2 )];
+			itemScratch = new DrawItem[itemKeys.Length];
+		}
+
+		// The low 24 bits are the item's index, so sorting the keys orders the items
+		var itemSpan = CollectionsMarshal.AsSpan( items );
+		var keys = itemKeys.AsSpan( 0, count );
+		for ( int i = 0; i < count; i++ )
+			keys[i] = ItemKey( runSpan[itemSpan[i].Run], itemSpan[i].Draw ) | (uint)i;
+
+		if ( !IsSorted( keys ) ) keys.Sort();
+
+		var scratch = itemScratch.AsSpan( 0, count );
+		itemSpan.CopyTo( scratch );
+		for ( int i = 0; i < count; i++ )
+			itemSpan[i] = scratch[(int)(keys[i] & 0xFFFFFF)];
+	}
+
+	/// <summary>
+	/// A batched draw's sort key, above its 24 index bits, as native's batch lists sort single draws by what they bind
+	/// (<c>CBaseSceneObjectDesc::BindMaterial</c>): depth-only draws first, as the prepass draws them all with one material
+	/// (<see cref="MaterialFor"/>), then skinned apart from rigid, then similarity (13 bits), material (16) and the run's
+	/// attributes, lightmap and probe (8), which a change of rebinds. Custom objects go first, where their runs always sorted.
+	/// Collisions only cost binds.
+	/// </summary>
+	static ulong ItemKey( in Run run, int drawIndex )
+	{
+		if ( run.Custom is not null ) return 0;
+
+		ref readonly var draw = ref run.Mesh.DrawsForLod( run.Lod )[drawIndex];
+		var material = run.Override ?? draw.Material;
+		var depthOnly = run.Override is null && draw.ShadowFastPath;
+
+		var similarity = run.Override is null ? run.Mesh.SimilarityForDraw( run.Lod, drawIndex ) : 0;
+		similarity ^= similarity >> 24 ^ similarity >> 48;
+
+		var materialBits = (uint)RuntimeHelpers.GetHashCode( material );
+		materialBits = (materialBits ^ materialBits >> 16) & 0xFFFF;
+
+		var state = (uint)RuntimeHelpers.GetHashCode( run.Attributes ) ^ (uint)RuntimeHelpers.GetHashCode( run.Lightmap ) * 0x9E3779B1u
+			^ (uint)RuntimeHelpers.GetHashCode( run.Probe ) * 0x85EBCA77u;
+		state = (state ^ state >> 16 ^ state >> 8) & 0xFF;
+
+		return (depthOnly ? 0 : 1UL << 62) | (run.Skinned ? 1UL << 61 : 0) | (similarity & 0x1FFF) << 48 | (ulong)materialBits << 32 | (ulong)state << 24;
 	}
 
 	/// <summary>
@@ -287,7 +474,8 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 				ListSort.BackToFront => (ulong)(uint.MaxValue - distance) << 32 | (uint)index,
 				ListSort.Full => FullSortKey( distance, onlyTranslucent, index ),
 				ListSort.NearestFirst => FullSortKey( distance, false, index ),
-				_ => (ulong)(uint)(renderOrder ^ int.MinValue) << 32 | (uint)index,
+				// Then by material, as native breaks sort key ties (SortLessFunc), and world index
+				_ => (ulong)(uint)(renderOrder ^ int.MinValue) << 32 | (opaqueKey >> 24 & 0xFFFF) << 16 | (uint)index & 0xFFFF,
 			};
 
 			buckets[bit].Add( key, index );
@@ -556,38 +744,22 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	internal override bool ReadsFrameBuffer( ViewPass view, MeshRuns runs ) => (view.State<RunLists>( this ).FrameBufferReads & runs) != 0;
 
 	/// <summary>
-	/// Count runs in the layer's selected lists, in list order.
+	/// Count draws in the layer's selected lists, in list order: a layer records draws, not runs.
 	/// </summary>
 	internal override int RunCount( ViewPass view, MeshLayer layer )
 	{
 		var lists = view.State<RunLists>( this );
-		var runs = 0;
-		for ( int bit = 0; bit < lists.ByBit.Length; bit++ )
+		var items = 0;
+		for ( int bit = 0; bit < lists.ItemsByBit.Length; bit++ )
 		{
-			if ( ((int)layer.Runs & (1 << bit)) != 0 ) runs += lists.ByBit[bit].Count;
+			if ( ((int)layer.Runs & (1 << bit)) != 0 ) items += lists.ItemsByBit[bit].Count;
 		}
 
-		return runs;
+		return items;
 	}
 
 	/// <summary>
-	/// A run costs a draw for each of its LOD's draws: one mesh of a map's world geometry can be hundreds.
-	/// </summary>
-	internal override void RunWeights( ViewPass view, MeshLayer layer, Span<int> weights )
-	{
-		var lists = view.State<RunLists>( this );
-		var i = 0;
-		for ( int bit = 0; bit < lists.ByBit.Length; bit++ )
-		{
-			if ( ((int)layer.Runs & (1 << bit)) == 0 ) continue;
-
-			foreach ( ref readonly var run in CollectionsMarshal.AsSpan( lists.ByBit[bit] ) )
-				weights[i++] = run.Custom is not null ? 1 : Math.Max( 1, run.Mesh.DrawsForLod( run.Lod ).Length );
-		}
-	}
-
-	/// <summary>
-	/// Draw a run range, applying each list's fade combo.
+	/// Draw a range of the layer's draws, applying each list's fade combo.
 	/// </summary>
 	internal override void Draw( RenderContext context, ViewPass view, MeshLayer layer, int first, int count, ref RenderStats stats )
 	{
@@ -599,23 +771,23 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		for ( int bit = 0; bit < lists.ByBit.Length; bit++ )
 		{
 			if ( (layer.Runs & Lists[bit].Runs) == 0 ) continue;
-			DrawListRange( context, view, CollectionsMarshal.AsSpan( lists.ByBit[bit] ), layer, first, end, ref start, Lists[bit].Fade, ref stats );
+			DrawListRange( context, view, CollectionsMarshal.AsSpan( lists.ByBit[bit] ), CollectionsMarshal.AsSpan( lists.ItemsByBit[bit] ), layer, first, end, ref start, Lists[bit].Fade, ref stats );
 		}
 	}
 
-	void DrawListRange( RenderContext context, ViewPass view, ReadOnlySpan<Run> runs, MeshLayer layer, int first, int end, ref int start, bool fade, ref RenderStats stats )
+	void DrawListRange( RenderContext context, ViewPass view, ReadOnlySpan<Run> runs, ReadOnlySpan<DrawItem> items, MeshLayer layer, int first, int end, ref int start, bool fade, ref RenderStats stats )
 	{
 		var from = Math.Max( first - start, 0 );
-		var to = Math.Min( end - start, runs.Length );
-		start += runs.Length;
+		var to = Math.Min( end - start, items.Length );
+		start += items.Length;
 		if ( from >= to ) return;
 
 		if ( fade ) context.SetCombo( OpaqueFade, 1 );
-		DrawRuns( context, view, runs[from..to], layer, ref stats );
+		DrawItems( context, view, runs, items[from..to], layer, ref stats );
 		if ( fade ) context.SetCombo( OpaqueFade, 0 );
 	}
 
-	void DrawRuns( RenderContext context, ViewPass view, ReadOnlySpan<Run> runs, MeshLayer layer, ref RenderStats stats )
+	void DrawItems( RenderContext context, ViewPass view, ReadOnlySpan<Run> runs, ReadOnlySpan<DrawItem> items, MeshLayer layer, ref RenderStats stats )
 	{
 		var depth = layer.Depth;
 
@@ -632,8 +804,12 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		var phase = context.Occlusion is { } occlusion && (layer.OcclusionPhase != OcclusionPhase.Early || occlusion.CullsEarly) ? layer.OcclusionPhase : OcclusionPhase.None;
 		var culledOnly = layer.OcclusionPhase == OcclusionPhase.Late;
 
-		foreach ( var run in runs )
+		// Skinned draws' vertex-cache combo, set only when it changes: setting it costs the material bind
+		var vertexAnimation = 0;
+
+		foreach ( var item in items )
 		{
+			ref readonly var run = ref runs[item.Run];
 			if ( culledOnly && run.CullDraw < 0 ) continue;
 
 			// Bind the custom transform, draw, then restore frame targets.
@@ -645,8 +821,13 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 				// Same first-reader copy as mesh batches (CRenderBatchList::DrawCurrentPrimitives).
 				if ( run.ReadsFrameBuffer && !depth ) context.CopyFrameBuffer();
 
+				// Custom objects draw without the vertex-cache combo, and may leave it set either way (SceneObjectDrawer
+				// sets it per draw): so it's clear on both sides of them
+				if ( vertexAnimation != 0 ) context.SetCombo( CsVertexAnimation, vertexAnimation = 0 );
+
 				context.BindInstances( 1, run.FirstInstance );
 				custom.Render( context, view, layer );
+				context.SetCombo( CsVertexAnimation, 0 );
 				context.RestoreBound();
 				stats.CustomDraws++;
 				continue;
@@ -656,81 +837,74 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			if ( run.ReadsFrameBuffer && !depth ) context.CopyFrameBuffer();
 
 			var mesh = run.Mesh;
+			var drawIndex = item.Draw;
+			ref readonly var draw = ref mesh.DrawsForLod( run.Lod )[drawIndex];
 
 			// Forward draws use lightmaps or probes (CBaseSceneObjectDesc::DrawArray, CalculateBatchFlags).
-			// Shared attributes preserve material binds between runs.
-			var lightmap = depth ? null : run.Lightmap;
-			var probe = depth ? null : run.Probe;
+			// Shared attributes preserve material binds between draws.
+			var material = MaterialFor( run, draw, depth && !normals, layer.ForceDepthFastPath, out var stripPixelShader );
+			var probe = depth || run.Probe is null || !RenderMesh.NeedsLightProbe( material ) ? null : run.Probe;
+			context.SetObjectAttributes( run.Attributes, draw.Lightmapped ? (depth ? null : run.Lightmap) : probe );
 
-			var lodDraws = mesh.DrawsForLod( run.Lod );
-			for ( int drawIndex = 0; drawIndex < lodDraws.Length; drawIndex++ )
-			{
-				var draw = lodDraws[drawIndex];
-				if ( run.Filter == DrawFilter.Opaque && draw.Translucent ) continue;
-				if ( run.Filter == DrawFilter.Translucent && !draw.Translucent ) continue;
+			// Skinned draws select per-mesh instance blocks and optional cached vertices.
+			var first = run.FirstInstance;
+			var vertexCache = false;
 
-				var material = MaterialFor( run, draw, depth && !normals, layer.ForceDepthFastPath, out var stripPixelShader );
-				var drawProbe = probe is not null && RenderMesh.NeedsLightProbe( material ) ? probe : null;
-				context.SetObjectAttributes( run.Attributes, draw.Lightmapped ? lightmap : drawProbe );
-
-				// Skinned draws select per-mesh instance blocks and optional cached vertices.
-				var first = run.FirstInstance;
-				var vertexCache = false;
-
-				// Tinted draws select per-draw instance blocks.
-				if ( run.Tinted ) first += drawIndex * run.Count;
-
-				if ( run.Skinned )
-				{
-					first += mesh.BlockForLod( run.Lod, draw.Mesh ) * run.Count;
-					// Deformation and morphs force vertex-cache skinning.
-					vertexCache = mesh.SkinFor( draw.Mesh ) is { } drawSkin && (drawSkin.UsesVertexCache || run.Deformed || (run.Morphable && drawSkin.Morphs));
-					context.SetCombo( CsVertexAnimation, vertexCache ? 1 : 0 );
-				}
-
-				if ( vertexCache )
-				{
-					if ( !context.BindGeometry( mesh, draw ) ) continue;
-					if ( !context.SetRenderState( material, mode, mesh, draw, depthBias, slopeBias, stripPixelShader, vertexCache ) ) continue;
-
-					// Override model stream 1 with instance IDs before binding cache IDs.
-					context.BindInstances( 1, first );
-					context.BindVertexCacheIds( mesh, draw );
-					context.DrawIndexedInstanced( draw, run.Count );
-				}
-				else
-				{
-					var drawn = run.CullDraw >= 0 && phase != OcclusionPhase.None
-						? context.DrawModelCulled( material, mode, mesh, draw, phase, first, run.CullDraw + drawIndex, depthBias, slopeBias, stripPixelShader )
-						: context.DrawModel( material, mode, mesh, draw, first, run.Count, depthBias, slopeBias, stripPixelShader );
-					if ( !drawn ) continue;
-				}
-
-				if ( shadow )
-				{
-					stats.ShadowDraws++;
-					continue;
-				}
-
-				if ( depth )
-				{
-					stats.DepthDraws++;
-					continue;
-				}
-
-				if ( translucentLayer ) stats.TranslucentDraws++;
-
-				stats.Draws++;
-				stats.Instances += run.Count;
-				stats.Triangles += (long)(draw.IndexCount / 3) * run.Count;
-			}
+			// Tinted draws select per-draw instance blocks.
+			if ( run.Tinted ) first += drawIndex * run.Count;
 
 			if ( run.Skinned )
 			{
-				context.SetCombo( CsVertexAnimation, 0 );
+				first += mesh.BlockForLod( run.Lod, draw.Mesh ) * run.Count;
+				// Deformation and morphs force vertex-cache skinning.
+				vertexCache = mesh.SkinFor( draw.Mesh ) is { } drawSkin && (drawSkin.UsesVertexCache || run.Deformed || (run.Morphable && drawSkin.Morphs));
 			}
+
+			if ( (vertexCache ? 1 : 0) != vertexAnimation )
+			{
+				vertexAnimation = vertexCache ? 1 : 0;
+				context.SetCombo( CsVertexAnimation, vertexAnimation );
+			}
+
+			if ( vertexCache )
+			{
+				if ( !context.BindGeometry( mesh, draw ) ) continue;
+				if ( !context.SetRenderState( material, mode, mesh, draw, depthBias, slopeBias, stripPixelShader, vertexCache ) ) continue;
+
+				// Override model stream 1 with instance IDs before binding cache IDs.
+				context.BindInstances( 1, first );
+				context.BindVertexCacheIds( mesh, draw );
+				context.DrawIndexedInstanced( draw, run.Count );
+			}
+			else
+			{
+				var drawn = run.CullDraw >= 0 && phase != OcclusionPhase.None
+					? context.DrawModelCulled( material, mode, mesh, draw, phase, first, run.CullDraw + drawIndex, depthBias, slopeBias, stripPixelShader, run.Skinned )
+					: context.DrawModel( material, mode, mesh, draw, first, run.Count, depthBias, slopeBias, stripPixelShader, run.Skinned );
+				if ( !drawn ) continue;
+			}
+
+			stats.DrawnTriangles += (long)(draw.IndexCount / 3) * run.Count;
+			if ( shadow )
+			{
+				stats.ShadowDraws++;
+				continue;
+			}
+
+			if ( depth )
+			{
+				stats.DepthDraws++;
+				continue;
+			}
+
+			if ( translucentLayer ) stats.TranslucentDraws++;
+
+			stats.Draws++;
+			stats.Instances += run.Count;
+			stats.Triangles += (long)(draw.IndexCount / 3) * run.Count;
 		}
 
+		if ( vertexAnimation != 0 ) context.SetCombo( CsVertexAnimation, 0 );
 		context.SetObjectAttributes( null );
 	}
 

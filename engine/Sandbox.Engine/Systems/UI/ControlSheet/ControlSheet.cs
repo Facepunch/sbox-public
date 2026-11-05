@@ -1,3 +1,4 @@
+using Sandbox.Engine;
 using Microsoft.AspNetCore.Components;
 using Sandbox.Diagnostics;
 using System;
@@ -70,7 +71,7 @@ public class ControlSheet : Panel, IControlSheet
 		}
 		else
 		{
-			var so = Game.TypeLibrary.GetSerializedObject( Target );
+			var so = GlobalContext.Current.TypeLibrary.GetSerializedObject( Target );
 			IControlSheet.FilterSortAndAdd( sheet, so.ToList() );
 		}
 	}

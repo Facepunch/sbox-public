@@ -64,7 +64,10 @@ public sealed partial class SoundStream : IHandle, IDisposable
 		MainThread.QueueDispose( this );
 	}
 
-	public unsafe void WriteData( Span<short> data )
+	/// <inheritdoc cref="WriteData(ReadOnlySpan{short})"/>
+	public void WriteData( Span<short> data ) => WriteData( (ReadOnlySpan<short>)data );
+
+	public unsafe void WriteData( ReadOnlySpan<short> data )
 	{
 		if ( !native.IsValid )
 			throw new ArgumentException( "Invalid sound stream" );

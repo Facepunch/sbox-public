@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json.Nodes;
 
 namespace SceneTests.Components;
@@ -169,6 +171,34 @@ public class ComponentReferenceTest : SceneTest
 		var reference = Json.FromNode<ComponentReference>( node );
 
 		Assert.IsNull( reference.Resolve( scene ) );
+	}
+
+	/// <summary>
+	/// References to different components hash apart and match by value in a HashSet.
+	/// </summary>
+	[TestMethod]
+	public void ReferencesHashByIdentity()
+	{
+		static ComponentReference Make( Guid componentId, Guid gameObjectId ) => Json.FromNode<ComponentReference>( new JsonObject
+		{
+			["_type"] = "component",
+			["component_id"] = componentId,
+			["go"] = gameObjectId
+		} );
+
+		var goId = Guid.NewGuid();
+		var ids = Enumerable.Range( 0, 1000 ).Select( _ => Guid.NewGuid() ).ToArray();
+		var refs = ids.Select( id => Make( id, goId ) ).ToArray();
+
+		Assert.IsTrue( refs.Select( r => r.GetHashCode() ).Distinct().Count() > 990 );
+
+		var set = new HashSet<ComponentReference>( refs );
+		Assert.AreEqual( ids.Length, set.Count );
+		Assert.IsTrue( set.Contains( Make( ids[500], goId ) ) );
+		Assert.IsFalse( set.Contains( Make( ids[500], Guid.NewGuid() ) ) );
+
+		Assert.IsTrue( Make( ids[0], goId ) == Make( ids[0], goId ) );
+		Assert.IsTrue( Make( ids[0], goId ) != Make( ids[1], goId ) );
 	}
 
 	/// <summary>

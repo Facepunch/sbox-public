@@ -144,8 +144,6 @@ partial class SoundHandle
 			_binauralEffects = default;
 		}
 
-		Audio.MixingThread.QueueReverbDisposal( _reverb );
-		_reverb = null;
 		SourceRoom = default;
 	}
 }

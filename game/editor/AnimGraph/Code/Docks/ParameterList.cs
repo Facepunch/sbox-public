@@ -289,7 +289,7 @@ public class ParameterList : Widget
 				HorizontalSizeMode = SizeMode.Flexible,
 				VerticalSizeMode = SizeMode.CanShrink
 			};
-			body.Layout.Margin = new Sandbox.UI.Margin( 4, 4, 12, 4 );
+			body.Layout.Margin = new Sandbox.UI.Margin( 4, 2, 4, 4 );
 			body.Layout.Spacing = 2;
 			body.OnPaintOverride = () =>
 			{
@@ -691,22 +691,7 @@ public class ParameterList : Widget
 
 internal static class AnimParameterUI
 {
-	internal static Rect PaintUsageCount( Widget row, Rect rect, int count, AnimParameterType type )
-	{
-		var text = $"×{count}";
-		var color = count > 0 ? Color( type ) : Theme.TextControl;
-		Paint.SetDefaultFont();
-		rect.Left = rect.Right - Paint.MeasureText( text ).x - 8;
-		var hovered = rect.IsInside( row.FromScreen( Application.CursorPosition ) );
-		Paint.ClearPen();
-		Paint.SetBrush( color.WithAlpha( hovered ? 0.2f : 0.07f ) );
-		Paint.DrawRect( rect.Shrink( 0, 3 ), Theme.ControlRadius );
-		Paint.SetPen( color.WithAlpha( hovered ? 1f : count > 0 ? 0.75f : 0.4f ) );
-		Paint.DrawText( rect, text, TextFlag.Center | TextFlag.SingleLine );
-		return rect;
-	}
-
-	private const float TypeLabelWidth = 68f;
+	public const float NameInset = 26f;
 	public const float RowSpacing = 4f;
 
 	public static IReadOnlyList<AnimParameterType> ControlTypes { get; } =
@@ -743,36 +728,29 @@ internal static class AnimParameterUI
 
 	public static string TypeName( AnimParameterType type ) => type == AnimParameterType.BoneMask ? "Bone Mask" : type.ToString();
 
-	public static void PaintIcon( Rect row, AnimParameterType type, bool isVirtual )
+	public static void PaintRow( Rect rect, bool selected, bool hovered )
 	{
-		var color = Color( type );
-		var badge = new Rect( 8, row.Center.y - 7, 14, 14 );
-
+		Paint.Antialiasing = true;
 		Paint.ClearPen();
-		Paint.SetBrush( Theme.TextControl.WithAlpha( 0.14f ) );
-		Paint.DrawRect( badge, 3 );
-
-		Paint.SetPen( Theme.TextControl.WithAlpha( 0.75f ) );
-		Paint.SetDefaultFont( 8, 700 );
-		Paint.DrawText( badge, isVirtual ? "V" : "C", TextFlag.Center );
-
-		var iconRect = row;
-		iconRect.Left += 27;
-
-		Paint.SetPen( color );
-		Paint.DrawIcon( iconRect, Icon( type ), 16, TextFlag.LeftCenter );
+		Paint.SetBrush( selected ? Theme.Primary.WithAlpha( 0.2f )
+			: hovered ? Theme.ControlBackground : Theme.WidgetBackground.Darken( 0.1f ) );
+		Paint.DrawRect( rect.Shrink( 0, 1 ), Theme.ControlRadius );
 	}
 
-	public static Rect PaintTypeLabel( Rect row, AnimParameterType type )
+	public static Rect PaintName( Rect rect, IParameter parameter, bool renaming )
 	{
-		var rect = row;
-		rect.Left = rect.Right - 22f - TypeLabelWidth;
-		rect.Right -= 22f;
+		Paint.SetPen( Color( parameter.Type ) );
+		Paint.DrawIcon( new Rect( rect.Left + 4, rect.Top, 16, rect.Height ),
+			parameter.IsVirtual ? "functions" : Icon( parameter.Type ), 14, TextFlag.Center );
 
-		Paint.SetPen( Color( type ).WithAlpha( 0.7f ) );
-		Paint.SetDefaultFont( 8, 500 );
-		Paint.DrawText( rect, TypeName( type ), TextFlag.RightCenter | TextFlag.SingleLine );
-		return rect;
+		if ( renaming )
+			return default;
+
+		rect = rect.Shrink( NameInset, 0, 6, 0 );
+		Paint.SetPen( Theme.Text );
+		Paint.SetDefaultFont();
+		var name = Paint.GetElidedText( parameter.Name, Math.Max( 0, rect.Width ), ElideMode.Right );
+		return Paint.DrawText( rect, name, TextFlag.LeftCenter | TextFlag.SingleLine );
 	}
 }
 
@@ -928,12 +906,8 @@ internal class ParameterRow : Widget, IParameterRow
 	private Widget _targetBoneControl;
 	private Widget _targetPositionControl;
 	private Widget _targetRotationControl;
-	private float _headerHeight = Theme.RowHeight;
 	private Vector2? _dragStart;
 	private LineEdit _renameEdit;
-	private Rect _usageRect;
-
-	private const float NameX = 49;
 
 	public ParameterRow( Window window, ParameterList list, Parameter parameter ) : base( list )
 	{
@@ -946,23 +920,30 @@ internal class ParameterRow : Widget, IParameterRow
 		BuiltRange = parameter.HasRange ? new Vector2( parameter.Min, parameter.Max ) : null;
 		BuiltOptions = OptionsKey( parameter );
 
-		FixedHeight = Theme.RowHeight + 6;
+		FixedHeight = Theme.RowHeight + 2;
 		Cursor = CursorShape.None;
 		MouseTracking = true;
 		FocusMode = FocusMode.Click;
-		ToolTip = $"{parameter.Type} parameter\nDrag onto the graph to create a node\nDouble-click the parameter pill to rename\nClick the usage count to find references";
+		Layout = Layout.Column();
+		Layout.Margin = new Sandbox.UI.Margin( 0, 1 );
+		Layout.Spacing = 2;
 
-		Layout = Layout.Row();
-		Layout.Margin = new Sandbox.UI.Margin( NameX, 3, 0, 3 );
-		Layout.Spacing = AnimParameterUI.RowSpacing;
-		Layout.Alignment = TextFlag.LeftTop;
+		var header = Layout.AddRow();
+		header.Margin = new Sandbox.UI.Margin( AnimParameterUI.NameInset, 0, 0, 0 );
+		header.Spacing = AnimParameterUI.RowSpacing;
 
 		_renameEdit = new LineEdit( this ) { Visible = false, FixedHeight = Theme.RowHeight };
 		_renameEdit.SetStyles( $"background-color: {Theme.ControlBackground.Hex}; selection-background-color: {Theme.Primary.Hex}; selection-color: white; border: none;" );
 		_renameEdit.EditingFinished += FinishRename;
 
-		// The rename edit lives in the name area cell so the layout owns its geometry
-		_nameCell = Layout.Add( new Widget( this ) { Layout = Layout.Column(), TransparentForMouseEvents = true, FixedHeight = Theme.RowHeight }, 2 );
+		_nameCell = header.Add( new Widget( this )
+		{
+			Layout = Layout.Column(),
+			TransparentForMouseEvents = true,
+			FixedHeight = Theme.RowHeight,
+			MinimumWidth = 80,
+			HorizontalSizeMode = SizeMode.Flexible
+		}, 2 );
 		_nameCell.Layout.Margin = new Sandbox.UI.Margin( 0, 0, 2, 0 );
 		_nameCell.Layout.AddStretchCell( 1 );
 		_nameCell.Layout.Add( _renameEdit );
@@ -985,25 +966,21 @@ internal class ParameterRow : Widget, IParameterRow
 
 			_window.SetPreviewParameter( parameter );
 
-			if ( p.Name == nameof( Parameter.PreviewTargetMode ) )
+			if ( p?.Name == nameof( Parameter.PreviewTargetMode ) )
 				UpdateTargetControls();
 		};
 
 		if ( parameter.Type == AnimParameterType.Target )
 		{
-			var column = Layout.AddColumn( 2 );
-			column.Spacing = 4;
-			_control = column.Add( new GroupButtonControlWidget( so.GetProperty( nameof( Parameter.PreviewTargetMode ) ) ) );
+			_control = header.Add( new EnumControlWidget( so.GetProperty( nameof( Parameter.PreviewTargetMode ) ) )
+			{
+				MinimumWidth = 0,
+				HorizontalSizeMode = SizeMode.Flexible
+			}, 3 );
 			_control.ToolTip = "Target mode";
-			_headerHeight = Theme.RowHeight + 2;
-			_nameCell.FixedHeight = _headerHeight;
-			_targetBoneControl = column.Add( ControlWidget.Create( so.GetProperty( nameof( Parameter.PreviewBone ) ) ) );
-			_targetBoneControl.ToolTip = "Target bone";
-			_targetPositionControl = column.Add( ControlWidget.Create( so.GetProperty( nameof( Parameter.PreviewPosition ) ) ) );
-			_targetPositionControl.ToolTip = "Target position";
-			_targetRotationControl = column.Add( ControlWidget.Create( so.GetProperty( nameof( Parameter.PreviewRotation ) ) ) );
-			_targetRotationControl.ToolTip = "Target rotation";
-			AddActionColumn();
+			_targetBoneControl = AddTargetControl( so, nameof( Parameter.PreviewBone ), "Bone" );
+			_targetPositionControl = AddTargetControl( so, nameof( Parameter.PreviewPosition ), "Position" );
+			_targetRotationControl = AddTargetControl( so, nameof( Parameter.PreviewRotation ), "Rotation" );
 			UpdateTargetControls();
 			return;
 		}
@@ -1016,36 +993,54 @@ internal class ParameterRow : Widget, IParameterRow
 			_ => nameof( Parameter.PreviewVector ),
 		};
 
-		// IDs backed by an enum get a dropdown instead of free text
-		if ( parameter.IsOptionsID )
-		{
-			_control = Layout.Add( new IDOptionsControlWidget( so.GetProperty( nameof( Parameter.PreviewID ) ) ), 2 );
-			AddActions();
-			return;
-		}
+		_control = parameter.IsOptionsID
+			? new IDOptionsControlWidget( so.GetProperty( defaultProperty ) )
+			: ControlWidget.Create( so.GetProperty( defaultProperty ) );
+		_control.MinimumWidth = 0;
+		_control.HorizontalSizeMode = SizeMode.Flexible;
+		_control.ToolTip = $"{parameter.Name} - preview value";
 
-		_control = ControlWidget.Create( so.GetProperty( defaultProperty ) );
-
-		if ( _control is FloatControlWidget floatControl && parameter.HasRange )
+		if ( _control is FloatControlWidget floatControl )
 		{
-			floatControl.MakeRanged( new Vector2( parameter.Min, parameter.Max ), 0.01f, clamped: true, slider: true );
-			floatControl.Prime();
+			floatControl.Label = null;
+			if ( parameter.HasRange )
+			{
+				floatControl.MakeRanged( new Vector2( parameter.Min, parameter.Max ), 0.01f, clamped: true, slider: true );
+				floatControl.Prime();
+			}
 		}
 
 		if ( parameter.Type == AnimParameterType.Bool )
 		{
-			// Fixed-size checkbox sits at the left of the control column so the chip matches other rows
-			var cell = Layout.AddRow( 2 );
+			var cell = header.AddRow( 3 );
 			_control.FixedWidth = Theme.RowHeight;
 			cell.Add( _control );
 			cell.AddStretchCell( 1 );
 		}
+		else if ( parameter.Type == AnimParameterType.Vector )
+		{
+			_control.FixedHeight = Theme.RowHeight;
+			Layout.Add( _control );
+			FixedHeight += Theme.RowHeight + 2;
+		}
 		else
 		{
-			Layout.Add( _control, 2 );
+			header.Add( _control, 3 );
 		}
+	}
 
-		AddActions();
+	private Widget AddTargetControl( SerializedObject so, string propertyName, string title )
+	{
+		var row = Layout.Add( new Widget( this ) { Layout = Layout.Row(), FixedHeight = Theme.RowHeight } );
+		row.Layout.Margin = new Sandbox.UI.Margin( AnimParameterUI.NameInset, 0, 0, 0 );
+		row.Layout.Spacing = AnimParameterUI.RowSpacing;
+		row.Layout.Add( new Label( title, row ) { FixedWidth = 52, Color = Theme.TextControl } );
+		var control = ControlWidget.Create( so.GetProperty( propertyName ) );
+		control.MinimumWidth = 0;
+		control.HorizontalSizeMode = SizeMode.Flexible;
+		control.ToolTip = $"Target {title.ToLowerInvariant()}";
+		row.Layout.Add( control, 1 );
+		return row;
 	}
 
 	private void UpdateTargetControls()
@@ -1063,39 +1058,7 @@ internal class ParameterRow : Widget, IParameterRow
 		_targetRotationControl.Visible = showTransform;
 
 		var extraRows = showBone ? 1 : showTransform ? 2 : 0;
-		FixedHeight = _headerHeight + 6 + (Theme.RowHeight + 4) * extraRows;
-	}
-
-	private void AddActions()
-	{
-		var actionsWidget = Layout.Add( new Widget( this ) { Layout = Layout.Row(), FixedHeight = _headerHeight } );
-		var actions = actionsWidget.Layout;
-		actions.Alignment = TextFlag.LeftTop;
-		AddActions( actions );
-	}
-
-	private void AddActionColumn()
-	{
-		var column = Layout.AddColumn();
-		AddActions( column.AddRow() );
-		column.AddStretchCell();
-	}
-
-	private void AddActions( Layout actions )
-	{
-		actions.Spacing = AnimParameterUI.RowSpacing;
-		actions.Add( new IconButton( "restart_alt", () => _list.ResetPreview( Parameter ), this )
-		{
-			ToolTip = "Reset preview to start value",
-			IconSize = 16
-		} );
-
-		actions.Add( new IconButton( "delete", () => _list.Remove( Parameter ), this )
-		{
-			ToolTip = "Delete parameter",
-			IconSize = 16,
-			Foreground = Theme.Red
-		} );
+		FixedHeight = Theme.RowHeight + 2 + (Theme.RowHeight + 2) * extraRows;
 	}
 
 	internal static string OptionsKey( Parameter parameter )
@@ -1124,15 +1087,12 @@ internal class ParameterRow : Widget, IParameterRow
 		Update();
 	}
 
-	private int UsageCount => _list.UsageCount( Parameter );
-
-	private Rect PillRect
+	private Rect NameRect
 	{
 		get
 		{
 			var rect = LocalRect;
-			rect.Height = _headerHeight + 6;
-			rect = rect.Shrink( 0, 1 );
+			rect.Height = Theme.RowHeight + 2;
 			rect.Right = _nameCell.Position.x + _nameCell.Width;
 
 			return rect;
@@ -1142,57 +1102,24 @@ internal class ParameterRow : Widget, IParameterRow
 	protected override void OnPaint()
 	{
 		var selected = _window.IsSelected( Parameter );
-		var hovered = PillRect.IsInside( FromScreen( Application.CursorPosition ) );
-		var color = AnimParameterUI.Color( Parameter.Type );
+		var hovered = NameRect.IsInside( FromScreen( Application.CursorPosition ) );
+		AnimParameterUI.PaintRow( LocalRect, selected, hovered );
+		AnimParameterUI.PaintName( NameRect, Parameter, _renameEdit.Visible );
+	}
 
-		var chip = PillRect;
-
-		Paint.Antialiasing = true;
-		Paint.ClearPen();
-		Paint.SetBrush( color.WithAlpha( selected ? 0.25f : hovered ? 0.18f : 0.1f ) );
-		Paint.DrawRect( chip, Theme.ControlRadius );
-
-		if ( selected )
-		{
-			Paint.ClearBrush();
-			Paint.SetPen( color.WithAlpha( 0.8f ) );
-			Paint.DrawRect( chip.Shrink( 0.5f ), Theme.ControlRadius );
-		}
-
-		AnimParameterUI.PaintIcon( chip, Parameter.Type, false );
-
-		_usageRect = default;
-		if ( _renameEdit.Visible )
-			return;
-
-		var typeRect = AnimParameterUI.PaintTypeLabel( chip, Parameter.Type );
-		var r = chip;
-		r.Left += NameX;
-		r.Right = typeRect.Left - 6;
-		_usageRect = AnimParameterUI.PaintUsageCount( this, r, UsageCount, Parameter.Type );
-		r.Right = _usageRect.Left - 6;
-
-		Paint.SetPen( Theme.TextControl.WithAlpha( hovered ? 0.45f : 0.25f ) );
-		Paint.DrawIcon( chip.Shrink( 4, 0 ), "drag_indicator", 14, TextFlag.RightCenter );
-
-		Paint.SetPen( Theme.TextControl.WithAlpha( selected || hovered ? 0.9f : 0.8f ) );
-		Paint.SetDefaultFont();
-		Paint.DrawText( r, Parameter.Name, TextFlag.LeftCenter | TextFlag.SingleLine );
+	protected override void OnMouseEnter()
+	{
+		ToolTip = $"{Parameter.Name}\n{AnimParameterUI.TypeName( Parameter.Type )} parameter\nDrag onto the graph. Double-click to rename. Right-click for actions.";
+		Update();
 	}
 
 	protected override void OnMousePress( MouseEvent e )
 	{
-		if ( !PillRect.IsInside( e.LocalPosition ) )
+		if ( !NameRect.IsInside( e.LocalPosition ) )
 			return;
 
 		if ( e.LeftMouseButton )
 		{
-			if ( _usageRect.IsInside( e.LocalPosition ) )
-			{
-				_window.FindParameterUsages( Parameter );
-				return;
-			}
-
 			_dragStart = e.LocalPosition;
 			_window.OnParameterSelected( Parameter );
 		}
@@ -1205,7 +1132,7 @@ internal class ParameterRow : Widget, IParameterRow
 
 	protected override void OnDoubleClick( MouseEvent e )
 	{
-		if ( !e.LeftMouseButton || !PillRect.IsInside( e.LocalPosition ) || _usageRect.IsInside( e.LocalPosition ) )
+		if ( !e.LeftMouseButton || !NameRect.IsInside( e.LocalPosition ) )
 			return;
 
 		_dragStart = null;
@@ -1216,7 +1143,7 @@ internal class ParameterRow : Widget, IParameterRow
 
 	protected override void OnMouseMove( MouseEvent e )
 	{
-		Cursor = PillRect.IsInside( e.LocalPosition ) ? CursorShape.Finger : CursorShape.None;
+		Cursor = NameRect.IsInside( e.LocalPosition ) ? CursorShape.Finger : CursorShape.None;
 		Update();
 
 		if ( _dragStart is null || !e.ButtonState.HasFlag( MouseButtons.Left ) )
@@ -1266,7 +1193,7 @@ internal class ParameterRow : Widget, IParameterRow
 	private void OpenContextMenu()
 	{
 		var menu = _list.CreateMenu();
-		menu.AddOption( "Find Usages", "manage_search", () => _window.FindParameterUsages( Parameter ) );
+		menu.AddOption( $"Find Usages ({_list.UsageCount( Parameter )})", "manage_search", () => _window.FindParameterUsages( Parameter ) );
 		menu.AddOption( "Rename", "edit", StartRename, "F2" );
 		menu.AddOption( "Duplicate", "content_copy", () => _list.Duplicate( Parameter ), "Ctrl+D" );
 		_list.AddGroupOptions( menu, Parameter );
@@ -1306,10 +1233,9 @@ internal sealed class VirtualParameterRow : Widget, IParameterRow
 	private readonly ParameterList _list;
 	private readonly Widget _nameCell;
 	private readonly LineEdit _renameEdit;
-	private readonly IconButton _deleteButton;
+	private readonly IconButton _editButton;
 	private Vector2? _dragStart;
 	private Rect _labelRect;
-	private Rect _usageRect;
 
 	public VirtualParameterRow( Window window, ParameterList list, VirtualParameter parameter ) : base( list )
 	{
@@ -1318,14 +1244,12 @@ internal sealed class VirtualParameterRow : Widget, IParameterRow
 		Parameter = parameter;
 		BuiltGroup = ParameterList.GroupName( parameter );
 
-		FixedHeight = Theme.RowHeight + 6;
+		FixedHeight = Theme.RowHeight + 2;
 		Cursor = CursorShape.Finger;
 		MouseTracking = true;
 		FocusMode = FocusMode.Click;
-		ToolTip = $"{parameter.Type} virtual parameter\nDouble-click to edit\nDrag onto the graph to create a reference\nClick the usage count to find references";
-
 		Layout = Layout.Row();
-		Layout.Margin = new Sandbox.UI.Margin( 49, 3, 0, 3 );
+		Layout.Margin = new Sandbox.UI.Margin( AnimParameterUI.NameInset, 1, 0, 1 );
 		Layout.Spacing = AnimParameterUI.RowSpacing;
 
 		_renameEdit = new LineEdit( this ) { Visible = false, FixedHeight = Theme.RowHeight };
@@ -1338,11 +1262,13 @@ internal sealed class VirtualParameterRow : Widget, IParameterRow
 		_nameCell.Layout.Add( _renameEdit );
 		_nameCell.Layout.AddStretchCell();
 
-		_deleteButton = Layout.Add( new IconButton( "delete", () => _list.Remove( Parameter ), this )
+		_editButton = Layout.Add( new IconButton( "account_tree", () => _window.NavigateInto( Parameter ), this )
 		{
-			ToolTip = "Delete virtual parameter",
-			IconSize = 16,
-			Foreground = Theme.Red
+			ToolTip = "Edit virtual parameter graph",
+			IconSize = 14,
+			FixedSize = Theme.RowHeight,
+			Foreground = Theme.TextControl,
+			Background = Color.Transparent
 		} );
 	}
 
@@ -1369,61 +1295,26 @@ internal sealed class VirtualParameterRow : Widget, IParameterRow
 		Update();
 	}
 
-	private int UsageCount => _list.UsageCount( Parameter );
-
 	protected override void OnPaint()
 	{
 		var selected = _window.IsSelected( Parameter );
 		var hovered = Paint.HasMouseOver;
-		var chip = LocalRect.Shrink( 0, 1 );
-		chip.Right = _deleteButton.Position.x - AnimParameterUI.RowSpacing;
-		var color = AnimParameterUI.Color( Parameter.Type );
+		var name = LocalRect;
+		name.Right = _editButton.Position.x - AnimParameterUI.RowSpacing;
+		AnimParameterUI.PaintRow( LocalRect, selected, hovered );
+		_labelRect = AnimParameterUI.PaintName( name, Parameter, _renameEdit.Visible );
+	}
 
-		Paint.Antialiasing = true;
-		Paint.ClearPen();
-		Paint.SetBrush( color.WithAlpha( selected ? 0.25f : hovered ? 0.18f : 0.1f ) );
-		Paint.DrawRect( chip, Theme.ControlRadius );
-
-		if ( selected )
-		{
-			Paint.ClearBrush();
-			Paint.SetPen( color.WithAlpha( 0.8f ) );
-			Paint.DrawRect( chip.Shrink( 0.5f ), Theme.ControlRadius );
-		}
-
-		AnimParameterUI.PaintIcon( chip, Parameter.Type, true );
-
-		_usageRect = default;
-		if ( _renameEdit.Visible )
-			return;
-
-		var typeRect = AnimParameterUI.PaintTypeLabel( chip, Parameter.Type );
-		var text = chip;
-		text.Left = 49;
-		text.Right = typeRect.Left - 6;
-		_usageRect = AnimParameterUI.PaintUsageCount( this, text, UsageCount, Parameter.Type );
-		text.Right = _usageRect.Left - 6;
-		Paint.SetPen( Theme.TextControl.WithAlpha( selected || hovered ? 0.9f : 0.8f ) );
-		Paint.SetDefaultFont();
-		_labelRect = Paint.DrawText( text, Parameter.Name, TextFlag.LeftCenter | TextFlag.SingleLine );
-
-		if ( hovered )
-		{
-			Paint.SetPen( Theme.TextControl.WithAlpha( 0.3f ) );
-			Paint.DrawIcon( chip.Shrink( 4, 0 ), "drag_indicator", 14, TextFlag.RightCenter );
-		}
+	protected override void OnMouseEnter()
+	{
+		ToolTip = $"{Parameter.Name}\n{AnimParameterUI.TypeName( Parameter.Type )} virtual parameter\nDrag onto the graph. Press Enter to edit. Right-click for actions.";
+		Update();
 	}
 
 	protected override void OnMousePress( MouseEvent e )
 	{
 		if ( e.LeftMouseButton )
 		{
-			if ( _usageRect.IsInside( e.LocalPosition ) )
-			{
-				_window.FindParameterUsages( Parameter );
-				return;
-			}
-
 			_dragStart = e.LocalPosition;
 			_window.OnParameterSelected( Parameter );
 		}
@@ -1436,7 +1327,7 @@ internal sealed class VirtualParameterRow : Widget, IParameterRow
 
 	protected override void OnDoubleClick( MouseEvent e )
 	{
-		if ( !e.LeftMouseButton || _usageRect.IsInside( e.LocalPosition ) )
+		if ( !e.LeftMouseButton )
 			return;
 
 		_dragStart = null;
@@ -1490,7 +1381,7 @@ internal sealed class VirtualParameterRow : Widget, IParameterRow
 	private void OpenContextMenu()
 	{
 		var menu = _list.CreateMenu();
-		menu.AddOption( "Find Usages", "manage_search", () => _window.FindParameterUsages( Parameter ) );
+		menu.AddOption( $"Find Usages ({_list.UsageCount( Parameter )})", "manage_search", () => _window.FindParameterUsages( Parameter ) );
 		menu.AddOption( "Edit", "edit", () => _window.NavigateInto( Parameter ), "Enter" );
 		menu.AddOption( "Rename", "drive_file_rename_outline", StartRename, "F2" );
 		menu.AddOption( "Duplicate", "content_copy", () => _list.Duplicate( Parameter ), "Ctrl+D" );

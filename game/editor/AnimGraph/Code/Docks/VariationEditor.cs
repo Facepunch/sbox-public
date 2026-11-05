@@ -223,6 +223,7 @@ public class VariationEditor : Widget
 	private void AddPicker( SerializedObject so, string propertyName, string toolTip )
 	{
 		var picker = ControlWidget.Create( so.GetProperty( propertyName ) );
+		picker.MinimumWidth = Theme.RowHeight;
 		picker.HorizontalSizeMode = SizeMode.Flexible;
 		picker.FixedHeight = Theme.RowHeight;
 		picker.ToolTip = toolTip;

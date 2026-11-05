@@ -1,3 +1,4 @@
+using Sandbox.Engine;
 using System;
 using Sandbox.UI.Construct;
 
@@ -88,7 +89,7 @@ public partial class ScriptControl
 		var description = symbol?.Description;
 		if ( symbol?.Kind == Script.SymbolKind.Type && symbol?.Type is { } symbolType )
 		{
-			var type = Game.TypeLibrary.GetType( symbolType );
+			var type = GlobalContext.Current.TypeLibrary.GetType( symbolType );
 			if ( type is not null )
 			{
 				var kind = type.IsInterface ? "interface"

@@ -171,7 +171,7 @@ file sealed class MemberPropertyFactory : ITrackPropertyFactory
 
 	IEnumerable<string> ITrackPropertyFactory.GetPropertyNames( ITrackTarget parent )
 	{
-		if ( TypeLibrary.GetType( parent.TargetType ) is not { } typeDesc ) return Enumerable.Empty<string>();
+		if ( Sandbox.Engine.GlobalContext.Current.TypeLibrary.GetType( parent.TargetType ) is not { } typeDesc ) return Enumerable.Empty<string>();
 		if ( !CanMakeTrackFromProperties( typeDesc.TargetType ) ) return Enumerable.Empty<string>();
 
 		return typeDesc.Members
@@ -181,7 +181,7 @@ file sealed class MemberPropertyFactory : ITrackPropertyFactory
 
 	private MemberDescription? GetMember( ITrackTarget parent, string name )
 	{
-		if ( TypeLibrary.GetType( parent.TargetType ) is not { } typeDesc ) return null;
+		if ( Sandbox.Engine.GlobalContext.Current.TypeLibrary.GetType( parent.TargetType ) is not { } typeDesc ) return null;
 		if ( !CanMakeTrackFromProperties( typeDesc.TargetType ) ) return null;
 
 		return typeDesc.Members
@@ -303,7 +303,7 @@ file sealed class MemberPropertyFactory : ITrackPropertyFactory
 
 		if ( AccessorTypes.Contains( type ) ) return true;
 
-		return TypeLibrary.GetType( type ) is { IsDynamicAssembly: true };
+		return Sandbox.Engine.GlobalContext.Current.TypeLibrary.GetType( type ) is { IsDynamicAssembly: true };
 	}
 
 	private static bool CanMakeTrackFromMember( MemberDescription member )
@@ -367,7 +367,7 @@ file sealed class MemberPropertyFactory : ITrackPropertyFactory
 			return IsValidPropertyType( type.GetGenericArguments()[0] );
 		}
 
-		if ( TypeLibrary.GetType( type ) is null ) return false;
+		if ( Sandbox.Engine.GlobalContext.Current.TypeLibrary.GetType( type ) is null ) return false;
 		if ( type.IsValueType ) return true;
 		if ( type.IsAssignableTo( typeof( Component ) ) ) return true;
 		if ( type.IsAssignableTo( typeof( Resource ) ) ) return true;

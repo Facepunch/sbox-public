@@ -1,3 +1,4 @@
+using Sandbox.Engine;
 using System.Text.Json;
 
 namespace Sandbox;
@@ -48,7 +49,7 @@ public partial class Doo
 		public Type GetComponentType()
 		{
 			if ( Type == TargetType.Direct ) return ComponentValue?.GetType();
-			return Game.TypeLibrary.GetType( ComponentType )?.TargetType;
+			return GlobalContext.Current.TypeLibrary.GetType( ComponentType )?.TargetType;
 		}
 
 		public enum TargetType

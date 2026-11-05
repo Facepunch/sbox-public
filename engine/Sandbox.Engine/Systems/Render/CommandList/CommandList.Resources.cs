@@ -47,6 +47,15 @@ public sealed unsafe partial class CommandList
 		}
 	}
 
+	/// <summary>
+	/// Clear the list and free the GPU buffers its painter draws from.
+	/// </summary>
+	internal void DisposePainter()
+	{
+		Reset();
+		FindResource<Painter.Context>()?.Batcher.Dispose();
+	}
+
 	internal void RegisterResource( IResource resource )
 	{
 		lock ( _lock )

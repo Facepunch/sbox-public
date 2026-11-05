@@ -55,7 +55,7 @@ internal static partial class ManagedSceneRendering
 	/// Render cameras through Sandbox.SceneRenderer. Experimental: it draws models, skinned models, lights,
 	/// environment probes, fog and ambient, and nothing else yet.
 	/// </summary>
-	[ConVar( "r_managed_scene", ConVarFlags.Protected, Help = "Render cameras through the managed scene renderer (experimental: no post processing, UI, particles, decals or map geometry yet)" )]
+	[ConVar( "r_managed_scene", ConVarFlags.Protected, Help = "Render cameras through the managed scene renderer (experimental)" )]
 	public static bool Enabled { get; set; }
 
 	/// <summary>

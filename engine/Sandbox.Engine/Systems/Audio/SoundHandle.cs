@@ -20,20 +20,11 @@ public partial class SoundHandle : IValid, IDisposable
 	Transform _transform = Transform.Zero;
 
 	static SoundHandle _empty;
-	internal NativeReverbEffect _reverb;
 
 	/// <summary>Source room reverb estimate. Written by SoundSimulationSystem on the main thread.</summary>
 	internal ReverbSnapshot SourceRoom { get; set; }
 	internal int OcclusionPhase { get; set; } = -1;
 	internal int DiffractionTick;
-	internal RealTimeUntil ReverbTailUntil;
-	internal bool SamplerEnded;
-
-	internal NativeReverbEffect GetOrCreateReverb()
-	{
-		_reverb ??= new NativeReverbEffect();
-		return _reverb;
-	}
 
 	/// <summary>
 	/// RealTime that this sound was created
@@ -583,8 +574,6 @@ public partial class SoundHandle : IValid, IDisposable
 			}
 		}
 
-		var reverb = isLocal ? null : GetOrCreateReverb();
-
 		return new Audio.VoiceState
 		{
 			Sampler = sampler,
@@ -608,8 +597,8 @@ public partial class SoundHandle : IValid, IDisposable
 			HasLipSync = LipSync.Enabled,
 			LipSync = LipSync,
 			Handle = this,
-			Reverb = reverb,
-			ReverbRoom = ReverbEnabled && reverb is not null ? SourceRoom : default,
+			HasReverb = !isLocal,
+			ReverbRoom = ReverbEnabled && !isLocal ? SourceRoom : default,
 		};
 	}
 

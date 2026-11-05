@@ -26,6 +26,17 @@ internal class ClipEditor : PreviewSceneWidget
 	private string _previewAnimation;
 	private bool _previewLoop;
 	private float _previewSpeed;
+	private Transform[] _skeletonPose;
+	private IReadOnlyList<Skeleton.Bone> _skeletonBones;
+	private float _sampledPosition = -1f;
+
+	protected virtual bool AllowSkeletonPreview => false;
+	public float PlaybackPosition => _preview.TimeNormalized;
+	public bool IsPlaying
+	{
+		get => _playButton.IsActive;
+		set => SetPlaying( value );
+	}
 
 	/// <summary>
 	/// Where playback has got to, so a timeline alongside can line up with the pose on screen.
@@ -44,7 +55,8 @@ internal class ClipEditor : PreviewSceneWidget
 	public ClipEditor( Widget parent, string sceneName ) : base( parent, sceneName )
 	{
 		// Root motion is what the treadmill under the model is already showing
-		Toolbar.Add( new PreviewOptions( this, "clip", PreviewOption.All & ~PreviewOption.RootMotion ).CreateBar( this ), 1 );
+		Toolbar.Add( new PreviewOptions( this, AllowSkeletonPreview ? "clip-asset" : "clip",
+			PreviewOption.All & ~PreviewOption.RootMotion, AllowSkeletonPreview ).CreateBar( this ), 1 );
 
 		_hint = new Label( this )
 		{
@@ -116,14 +128,22 @@ internal class ClipEditor : PreviewSceneWidget
 		_speed = speed;
 	}
 
+	protected void QueueRebuild() => _rebuild = true;
+
 	/// <summary>
 	/// Jump playback to a point in the clip, as a fraction of it. Pauses, since something else is
 	/// driving the time now.
 	/// </summary>
 	public void ScrubTo( float normalized )
 	{
+		if ( !float.IsFinite( normalized ) )
+			throw new ArgumentOutOfRangeException( nameof( normalized ) );
+
+		if ( _rebuild )
+			Rebuild();
+
 		SetPlaying( false );
-		_preview.TimeNormalized = normalized;
+		_preview.TimeNormalized = normalized.Clamp( 0f, 1f );
 	}
 
 	private void Rebuild()
@@ -136,8 +156,11 @@ internal class ClipEditor : PreviewSceneWidget
 		_previewSpeed = _speed;
 
 		SetModel( _model );
+		SetSkeleton( AllowSkeletonPreview && _model is null && !string.IsNullOrWhiteSpace( _animation ) ? Clip.Load( _animation )?.Skeleton : null );
+		_skeletonBones = null;
+		_skeletonPose = null;
 
-		if ( !Renderer.IsValid() )
+		if ( !Renderer.IsValid() && PreviewSkeleton is null )
 		{
 			_preview.Clear();
 			_hint.Text = NoModelHint;
@@ -160,7 +183,7 @@ internal class ClipEditor : PreviewSceneWidget
 		_preview.Play( Renderer, _animation );
 		_preview.TimeNormalized = 0f;
 
-		if ( _preview.Duration <= 0f )
+		if ( _preview.FrameCount == 0 )
 		{
 			_hint.Text = "This animation isn't compiled for the target skeleton.";
 			_hint.Visible = true;
@@ -169,7 +192,7 @@ internal class ClipEditor : PreviewSceneWidget
 		}
 
 		_hint.Visible = false;
-		SetTransportEnabled( true );
+		SetTransportEnabled( _preview.FrameCount > 1 );
 		SetPlaying( _playButton.IsActive );
 	}
 
@@ -194,8 +217,35 @@ internal class ClipEditor : PreviewSceneWidget
 		if ( _playButton.IsActive && !_scrubbing )
 			_preview.Advance( RealTime.Delta );
 
+		if ( PreviewSkeleton is { } skeleton && _preview.Clip is { } clip )
+		{
+			if ( !ReferenceEquals( _skeletonBones, skeleton.Bones ) )
+			{
+				_skeletonBones = skeleton.Bones;
+				_skeletonPose = _skeletonBones.Select( bone => bone.Transform ).ToArray();
+				_sampledPosition = -1f;
+			}
+
+			var problem = !clip.IsBound ? "Waiting for the clip's skeleton to load."
+				: clip.TrackCount < _skeletonBones.Count ? "Recompile this clip against its current skeleton."
+				: null;
+			_hint.Text = problem ?? "";
+			_hint.Visible = problem is not null;
+			_transport.Enabled = problem is null && _preview.FrameCount > 1;
+
+			if ( problem is null && _sampledPosition != _preview.TimeNormalized )
+			{
+				Editor.Assets.PreviewClip.SamplePose( clip, _preview.TimeNormalized, _skeletonBones, _skeletonPose );
+				_sampledPosition = _preview.TimeNormalized;
+			}
+		}
+
 		UpdateTransport();
 	}
+
+	protected override Transform GetSkeletonBoneTransform( int index )
+		=> _skeletonPose is not null && ReferenceEquals( _skeletonBones, PreviewSkeleton.Bones )
+			? _skeletonPose[index] : base.GetSkeletonBoneTransform( index );
 
 	private static IconButton AddTransportButton( Layout row, string icon, string tooltip, Action action )
 	{

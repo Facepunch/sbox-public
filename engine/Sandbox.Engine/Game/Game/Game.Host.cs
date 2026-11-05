@@ -7,7 +7,7 @@ namespace Sandbox;
 public static partial class Game
 {
 	/// <summary>
-	/// Provides access to the global <see cref="Sandbox.Internal.TypeLibrary"/> for the current game context.
+	/// Provides access to the global <see cref="Sandbox.Internal.TypeLibrary"/> for the game.
 	/// <para>
 	/// The <c>TypeLibrary</c> is a runtime reflection system that describes types, their members, and relationships in the game and engine assemblies. It allows you to
 	/// find and create types by name and id. It's basically a sandboxed version of the .net reflection system.
@@ -15,8 +15,9 @@ public static partial class Game
 	/// </summary>
 	public static Sandbox.Internal.TypeLibrary TypeLibrary
 	{
-		get => GlobalContext.Current.TypeLibrary;
-		internal set => GlobalContext.Current.TypeLibrary = value;
+		// Always the game's, whichever context is current, so game code never reaches the menu's types
+		get => GlobalContext.Game.TypeLibrary;
+		internal set => GlobalContext.Game.TypeLibrary = value;
 	}
 
 	/// <summary>

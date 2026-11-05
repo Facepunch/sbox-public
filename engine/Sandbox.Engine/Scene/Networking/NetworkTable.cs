@@ -1,3 +1,4 @@
+using Sandbox.Engine;
 using System.Collections;
 using System.Reflection;
 using Sandbox;
@@ -373,7 +374,7 @@ internal class NetworkTable : IDisposable
 
 		public override void Read( Entry entry, ref ByteStream bs )
 		{
-			var value = Game.TypeLibrary.FromBytes<T>( ref bs );
+			var value = GlobalContext.Current.TypeLibrary.FromBytes<T>( ref bs );
 			if ( EqualityComparer<T>.Default.Equals( _get(), value ) )
 				return;
 
@@ -382,7 +383,7 @@ internal class NetworkTable : IDisposable
 			_set( value );
 		}
 
-		public override void Write( ref ByteStream bs ) => Game.TypeLibrary.ToBytes( _get(), ref bs );
+		public override void Write( ref ByteStream bs ) => GlobalContext.Current.TypeLibrary.ToBytes( _get(), ref bs );
 	}
 
 	// A value type that's hashed and compared as itself, not a network property, serializer or collection
@@ -685,7 +686,7 @@ internal class NetworkTable : IDisposable
 		}
 		else
 		{
-			Game.TypeLibrary.ToBytes( value, ref bs );
+			GlobalContext.Current.TypeLibrary.ToBytes( value, ref bs );
 		}
 	}
 
@@ -885,7 +886,7 @@ internal class NetworkTable : IDisposable
 		}
 		else
 		{
-			var value = Game.TypeLibrary.FromBytes<object>( ref bs );
+			var value = GlobalContext.Current.TypeLibrary.FromBytes<object>( ref bs );
 			SetValue( slot, value );
 		}
 	}

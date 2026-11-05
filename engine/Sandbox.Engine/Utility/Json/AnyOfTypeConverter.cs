@@ -1,3 +1,4 @@
+using Sandbox.Engine;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -33,11 +34,11 @@ internal sealed class AnyOfTypeConverter<T> : JsonConverter<AnyOfType<T>> where 
 			return default;
 
 		var typeName = typeProp.GetString();
-		var instance = Game.TypeLibrary.GetType<T>( typeName )?.Create<T>();
+		var instance = GlobalContext.Current.TypeLibrary.GetType<T>( typeName )?.Create<T>();
 		if ( instance is null )
 			return default;
 
-		var instanceType = Game.TypeLibrary.GetType( instance.GetType() );
+		var instanceType = GlobalContext.Current.TypeLibrary.GetType( instance.GetType() );
 		if ( instanceType is not null )
 		{
 			DeserializeProperties( instance, instanceType, root, options );
@@ -75,7 +76,7 @@ internal sealed class AnyOfTypeConverter<T> : JsonConverter<AnyOfType<T>> where 
 		}
 
 		var concreteType = value.Value.GetType();
-		var typeDesc = Game.TypeLibrary.GetType( concreteType );
+		var typeDesc = GlobalContext.Current.TypeLibrary.GetType( concreteType );
 
 		writer.WriteStartObject();
 		writer.WriteString( "Type", typeDesc?.ClassName ?? concreteType.Name );

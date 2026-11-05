@@ -311,7 +311,8 @@ public partial class Window
 			case AnimParameterType.ID: parameters.Set( parameter.Name, parameter.PreviewID ?? "", persist: true ); break;
 			case AnimParameterType.Vector: parameters.Set( parameter.Name, parameter.PreviewVector, persist: true ); break;
 			case AnimParameterType.Target:
-				if ( !parameter.PreviewTargetIsSet )
+				if ( !parameter.PreviewTargetIsSet
+					|| (parameter.PreviewTargetIsBone && string.IsNullOrWhiteSpace( parameter.PreviewBone )) )
 					parameters.UnsetTarget( parameter.Name, persist: true );
 				else if ( parameter.PreviewTargetIsBone )
 					parameters.SetTargetBone( parameter.Name, parameter.PreviewBone, persist: true );

@@ -1,24 +1,21 @@
 using Editor.Assets;
 using Editor.Inspectors;
-using Sandbox.Helpers;
 
 namespace Editor.AnimGraph;
 
 [CanEdit( "asset:anim" )]
 public sealed class ClipInspector : Widget, AssetInspector.IAssetInspector
 {
-	private readonly UndoSystem _undo = new();
+	private AnimationDocumentSession _session;
 	private Asset _asset;
-	private ClipDocument _document;
+	private ClipDocument _document => (ClipDocument)_session?.Document;
+	private bool _readOnly => _session?.ReadOnly ?? true;
 	private ClipEventTimeline _events;
 	private ClipProperties _properties;
-	private PreviewClip _preview;
+	private ClipAssetPreview _preview;
 	private Option _undoOption;
 	private Option _redoOption;
 	private Label _error;
-	private string _committed;
-	private string _saved;
-	private bool _readOnly;
 
 	public ClipInspector( Widget parent ) : base( parent )
 	{
@@ -28,38 +25,28 @@ public sealed class ClipInspector : Widget, AssetInspector.IAssetInspector
 		VerticalSizeMode = SizeMode.CanGrow;
 	}
 
-	[EditorForAssetType( "anim" )]
-	public static void Open( Asset asset ) => EditorUtility.InspectorObject = asset;
-
 	public void SetAsset( Asset asset )
 	{
 		_asset = asset;
-		_readOnly = !asset.HasSourceFile || AssetSystem.IsCloudInstalled( asset.Package );
-		_document = asset.HasSourceFile ? ClipDocument.Load( asset.GetSourceFile( true ) ) : null;
-		_saved = _committed = _document?.Snapshot();
-		_undo.Initialize();
+		_session = AnimationDocumentSession.Acquire( asset, ClipDocument.Load );
+		_session.Changed += OnDocumentChanged;
 		BuildUI();
 	}
 
 	public void SetInspector( AssetInspector inspector )
 	{
-		if ( _readOnly || _document is null )
-			return;
-
 		inspector.BindSaveToUnsavedChanges();
 		inspector.OnSave += Save;
 		inspector.OnReset += Reset;
 	}
 
-	public void SetAssetPreview( AssetPreview preview )
+	public Widget CreatePreviewWidget( Widget parent, AssetPreview preview )
 	{
-		var replacement = preview as PreviewClip;
-		if ( _preview is not null && replacement is not null && _preview != replacement )
+		var replacement = new ClipAssetPreview( parent, _asset, () => Commit( "Set Preview Model" ) );
+		if ( _preview.IsValid() )
 		{
-			replacement.Seek( _preview.Position );
+			replacement.ScrubTo( _preview.PlaybackPosition );
 			replacement.IsPlaying = _preview.IsPlaying;
-			replacement.Looping = _preview.Looping;
-			replacement.PlaybackRate = _preview.PlaybackRate;
 		}
 		if ( _preview is not null )
 			_preview.PlayheadMoved = null;
@@ -67,6 +54,7 @@ public sealed class ClipInspector : Widget, AssetInspector.IAssetInspector
 		_preview = replacement;
 		BindPreview();
 		BindEvents();
+		return replacement;
 	}
 
 	public bool RebuildOnHotload()
@@ -108,7 +96,7 @@ public sealed class ClipInspector : Widget, AssetInspector.IAssetInspector
 			Edited = Commit,
 			Scrubbed = position =>
 			{
-				_preview?.Seek( position );
+				_preview?.ScrubTo( position );
 				_events.Playhead = position;
 			}
 		};
@@ -131,6 +119,7 @@ public sealed class ClipInspector : Widget, AssetInspector.IAssetInspector
 
 	private void BindPreview()
 	{
+		_preview?.SetDocument( _document, _readOnly );
 		if ( _preview is not null )
 			_preview.PlayheadMoved = position =>
 			{
@@ -147,41 +136,35 @@ public sealed class ClipInspector : Widget, AssetInspector.IAssetInspector
 		var frames = Clip.Load( _asset.Path )?.FrameCount ?? 0;
 		_events.SetClip( frames > 1 ? _document : null, frames,
 			"Compile this clip with at least two frames to edit events." );
-		_events.Playhead = _preview?.Position ?? 0f;
+		_events.Playhead = _preview?.PlaybackPosition ?? 0f;
 	}
 
-	private void Commit( string name )
+	private void Commit( string name ) => _session.Commit( name, this );
+
+	private void OnDocumentChanged( object source )
 	{
-		if ( _readOnly || _document is null )
+		if ( source == _session )
+		{
+			BuildUI();
 			return;
+		}
 
-		var before = _committed;
-		var after = _document.Snapshot();
-		if ( before == after )
-			return;
-
-		_committed = after;
-		_undo.Insert( name, () => Restore( before ), () => Restore( after ) );
+		if ( source != this )
+		{
+			_events?.Refresh();
+			_properties?.SetDocument( _document );
+		}
+		_error.Visible = false;
 		UpdateOptions();
-	}
-
-	private void Restore( string snapshot )
-	{
-		_document.Restore( snapshot );
-		_committed = _document.Snapshot();
-		_events?.Refresh();
-		_properties?.SetDocument( _document );
-		UpdateOptions();
+		BindPreview();
 	}
 
 	private void UpdateOptions()
 	{
 		if ( _undoOption is not null )
-			_undoOption.Enabled = !_readOnly && _undo.Back.Count > 0;
+			_undoOption.Enabled = _session.CanUndo;
 		if ( _redoOption is not null )
-			_redoOption.Enabled = !_readOnly && _undo.Forward.Count > 0;
-
-		_asset.HasUnsavedChanges = !_readOnly && _committed != _saved;
+			_redoOption.Enabled = _session.CanRedo;
 	}
 
 	private void Save()
@@ -189,51 +172,33 @@ public sealed class ClipInspector : Widget, AssetInspector.IAssetInspector
 		if ( _readOnly || _document is null )
 			return;
 
-		if ( !_document.Save() )
+		if ( !_session.Save( this ) )
 		{
 			_error.Text = "Couldn't save this clip. See the console for details.";
 			_error.Visible = true;
 			return;
 		}
 
-		_error.Visible = false;
-		_saved = _committed = _document.Snapshot();
-		UpdateOptions();
 		_asset.Compile( false );
 	}
 
-	private void Reset()
-	{
-		Restore( _saved );
-		_undo.Initialize();
-		_error.Visible = false;
-		UpdateOptions();
-	}
+	private void Reset() => _session.Reset();
 
 	[Shortcut( "editor.undo", "CTRL+Z", ShortcutType.Widget )]
-	private void Undo()
-	{
-		if ( _readOnly )
-			return;
-
-		_undo.Undo();
-		UpdateOptions();
-	}
+	private void Undo() => _session?.Undo();
 
 	[Shortcut( "editor.redo", "CTRL+Y", ShortcutType.Widget )]
-	private void Redo()
-	{
-		if ( _readOnly )
-			return;
-
-		_undo.Redo();
-		UpdateOptions();
-	}
+	private void Redo() => _session?.Redo();
 
 	public override void OnDestroyed()
 	{
 		if ( _preview is not null )
 			_preview.PlayheadMoved = null;
+		if ( _session is not null )
+		{
+			_session.Changed -= OnDocumentChanged;
+			_session.Release();
+		}
 		base.OnDestroyed();
 	}
 }

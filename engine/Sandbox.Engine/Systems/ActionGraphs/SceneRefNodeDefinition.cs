@@ -141,7 +141,7 @@ internal partial class SceneRefNodeDefinition : NodeDefinition
 		if ( surface.Properties.TryGetValue( ComponentProperty.Name, out var compRefObj ) && compRefObj is ComponentReference compRef )
 		{
 			var compType = compRef.ResolveComponentType() ?? typeof( Component );
-			var typeDesc = Game.TypeLibrary.GetType( compType );
+			var typeDesc = GlobalContext.Current.TypeLibrary.GetType( compType );
 
 			var desc = $"References a {typeDesc.Title} from the scene this graph is embedded in.";
 

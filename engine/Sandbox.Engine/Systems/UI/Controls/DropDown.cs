@@ -200,7 +200,7 @@ namespace Sandbox.UI
 
 			if ( type.IsEnum )
 			{
-				foreach ( var item in TypeLibrary.GetEnumDescription( type ) )
+				foreach ( var item in Sandbox.Engine.GlobalContext.Current.TypeLibrary.GetEnumDescription( type ) )
 				{
 					Options.Add( new Option( item.Title, item.Icon, item.ObjectValue ) );
 				}

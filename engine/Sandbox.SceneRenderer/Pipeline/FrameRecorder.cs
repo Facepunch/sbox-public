@@ -62,6 +62,10 @@ internal sealed partial class FrameRecorder : IDisposable
 		public RenderContext Context;
 		public RenderStats Stats;
 		public double Ms;
+
+		/// <summary>When it was recorded, and on which thread.</summary>
+		public long StartedAt, EndedAt;
+		public int Thread;
 	}
 
 	/// <summary>
@@ -88,7 +92,36 @@ internal sealed partial class FrameRecorder : IDisposable
 
 		/// <summary>Where its runs' draws start in <see cref="draws"/>: <see cref="Runs"/> + 1 running totals, from 0.</summary>
 		public int DrawsFrom;
+
+		/// <summary>The planned layer it's the work of, in <see cref="layers"/>.</summary>
+		public int Owner;
 	}
+
+	/// <summary>
+	/// What recording one layer's share of a segment cost, while <see cref="Measuring"/>.
+	/// </summary>
+	struct LayerCost
+	{
+		public int Layer;
+		public long Ticks;
+		public int Draws, Binds, SimilarBinds;
+		public long Triangles;
+	}
+
+	/// <summary>
+	/// Each segment's layer costs, by segment slot. The lists are kept frame to frame.
+	/// </summary>
+	readonly List<List<LayerCost>> costs = new();
+
+	/// <summary>
+	/// Time each layer's recording and count what it recorded, for a plan's <see cref="FillTimes"/>.
+	/// </summary>
+	public bool Measuring { get; set; }
+
+	/// <summary>
+	/// Where each planned layer is in the last <see cref="Snapshot"/>'s frames and layers.
+	/// </summary>
+	(int Frame, int Layer)[] snapshotLayers = [];
 
 	// Per-work prefix sums of draw counts.
 	int[] draws = new int[256];
@@ -144,7 +177,6 @@ internal sealed partial class FrameRecorder : IDisposable
 	/// <summary>
 	/// Segments recorded on the thread pool: <see cref="workerSegments"/>, claimed heaviest first.
 	/// </summary>
-	JobBatch recordJobs;
 	int[] workerSegments = new int[16];
 
 	/// <summary>
@@ -204,9 +236,14 @@ internal sealed partial class FrameRecorder : IDisposable
 				if ( owners[n] < 0 ) owners[n] = i;
 		}
 
+		if ( snapshotLayers.Length < layerCount ) snapshotLayers = new (int, int)[Math.Max( layerCount, snapshotLayers.Length * 2 )];
+		Array.Fill( snapshotLayers, (-1, -1) );
+
 		// A frame's records are together: a child frame's come after its parent's
 		Sandbox.Rendering.ManagedFramePlan.Frame current = null;
 		RenderFrame currentFrame = null;
+		var frameIndex = new Dictionary<RenderFrame, int>();
+		var hosts = new List<(int Frame, int Layer, RenderFrame Child)>();
 		for ( int i = 0; i < recordCount; i++ )
 		{
 			ref var record = ref records[i];
@@ -214,6 +251,7 @@ internal sealed partial class FrameRecorder : IDisposable
 			{
 				currentFrame = record.Frame;
 				current = new Sandbox.Rendering.ManagedFramePlan.Frame { Name = record.Frame.View?.Name ?? "", Skybox = record.Frame.IsSkybox };
+				frameIndex[currentFrame] = plan.Frames.Count;
 				plan.Frames.Add( current );
 			}
 
@@ -230,6 +268,8 @@ internal sealed partial class FrameRecorder : IDisposable
 				Reads = (uint)record.Reads,
 				NotMade = (uint)record.Missing,
 				Segment = -1,
+				Order = record.Decision == LayerDecision.Kept ? record.Planned : -1,
+				ChildFrame = -1,
 			};
 
 			if ( record.Planned >= 0 && record.Planned < layerCount && layers[record.Planned].Layer == record.Layer )
@@ -250,9 +290,24 @@ internal sealed partial class FrameRecorder : IDisposable
 				{
 					layer.Segment = layerSegment[record.Planned];
 				}
+
+				snapshotLayers[record.Planned] = (plan.Frames.Count - 1, current.Layers.Count);
+			}
+			else if ( record.Decision == LayerDecision.Kept && record.Planned >= 0 && record.Planned < layerCount && layers[record.Planned].Frame != record.Frame )
+			{
+				// It planned a child frame's layers in its place
+				hosts.Add( (plan.Frames.Count - 1, current.Layers.Count, layers[record.Planned].Frame) );
 			}
 
 			current.Layers.Add( layer );
+		}
+
+		foreach ( var (f, l, child) in hosts )
+		{
+			if ( !frameIndex.TryGetValue( child, out var index ) ) continue;
+			var host = plan.Frames[f].Layers[l];
+			host.ChildFrame = index;
+			plan.Frames[f].Layers[l] = host;
 		}
 
 		return plan;
@@ -267,7 +322,29 @@ internal sealed partial class FrameRecorder : IDisposable
 		{
 			var segment = plan.Segments[i];
 			segment.Ms = segments[i].Ms;
+			segment.StartTicks = segments[i].StartedAt;
+			segment.EndTicks = segments[i].EndedAt;
+			segment.Thread = segments[i].Thread;
 			plan.Segments[i] = segment;
+
+			if ( !Measuring || i >= costs.Count ) continue;
+
+			// Each layer's pieces, added up
+			foreach ( var cost in costs[i] )
+			{
+				if ( cost.Layer < 0 || cost.Layer >= layerCount ) continue;
+				var (f, l) = snapshotLayers[cost.Layer];
+				if ( f < 0 ) continue;
+
+				var layer = plan.Frames[f].Layers[l];
+				layer.CpuMs += cost.Ticks * 1000.0 / Stopwatch.Frequency;
+				layer.Pieces++;
+				layer.Recorded += cost.Draws;
+				layer.Triangles += cost.Triangles;
+				layer.Binds += cost.Binds;
+				layer.SimilarBinds += cost.SimilarBinds;
+				plan.Frames[f].Layers[l] = layer;
+			}
 		}
 	}
 
@@ -369,7 +446,8 @@ internal sealed partial class FrameRecorder : IDisposable
 	{
 		if ( workCount == work.Length ) Array.Resize( ref work, work.Length * 2 );
 		var runs = frame.System.RunCount( view, layer );
-		work[workCount++] = new DrawWork { View = view, Layer = layer, Runs = runs, DrawsFrom = drawCount };
+		// The layer adding its work is planned next (AddLayer)
+		work[workCount++] = new DrawWork { View = view, Layer = layer, Runs = runs, DrawsFrom = drawCount, Owner = layerCount };
 
 		// Prefix sums give constant-time draw counts for any range.
 		if ( drawCount + runs + 1 > draws.Length ) Array.Resize( ref draws, Math.Max( drawCount + runs + 1, draws.Length * 2 ) );
@@ -390,6 +468,7 @@ internal sealed partial class FrameRecorder : IDisposable
 	{
 		if ( segmentCount == segments.Length ) Array.Resize( ref segments, segments.Length * 2 );
 		if ( segmentCount == contexts.Count ) contexts.Add( new RenderContext( frame.System.FrameContext ) );
+		if ( segmentCount == costs.Count ) costs.Add( new List<LayerCost>() );
 		contexts[segmentCount].AsyncCompute = false;
 		segments[segmentCount] = new Segment
 		{
@@ -508,8 +587,8 @@ internal sealed partial class FrameRecorder : IDisposable
 			workerSegments[j + 1] = slot;
 		}
 
-		recordJobs ??= new JobBatch( claim => RecordSegment( workerSegments[claim] ) );
-		recordJobs.Start( workers, MaxRecordThreads );
+		// Heaviest first, one at a time, on up to MaxRecordThreads workers beside this thread
+		var recording = JobDispatcher.Begin( workers, this, static ( recorder, claim ) => recorder.RecordSegment( recorder.workerSegments[claim] ), itemsPerBatch: 1, maxDegreeOfParallelism: MaxRecordThreads + 1 );
 
 		// Record main-thread work, then help workers. Always join before accessing their output.
 		foreach ( var frame in frames )
@@ -524,11 +603,11 @@ internal sealed partial class FrameRecorder : IDisposable
 			}
 
 			mainDone = Stopwatch.GetTimestamp();
-			recordJobs.Help();
 		}
 		finally
 		{
-			using ( Zones.RecordWait.Start() ) recordJobs.Wait();
+			// Joining records whatever workers haven't claimed yet on this thread
+			using ( Zones.RecordWait.Start() ) recording.Join();
 		}
 
 		stats.RecordMs = Stopwatch.GetElapsedTime( start ).TotalMilliseconds;
@@ -552,6 +631,8 @@ internal sealed partial class FrameRecorder : IDisposable
 		ref var segment = ref segments[slot];
 		var start = Stopwatch.GetTimestamp();
 		var stats = new RenderStats();
+		var layerCosts = Measuring ? costs[slot] : null;
+		layerCosts?.Clear();
 		var rc = segment.Context;
 		var frame = segment.Frame;
 
@@ -596,7 +677,7 @@ internal sealed partial class FrameRecorder : IDisposable
 				rc.EndGpuScope( takeBackScope );
 			}
 
-			RecordSegment( ref segment, rc, frame, ref stats );
+			RecordSegment( ref segment, rc, frame, ref stats, layerCosts );
 		}
 		finally
 		{
@@ -604,10 +685,42 @@ internal sealed partial class FrameRecorder : IDisposable
 		}
 
 		segment.Stats = stats;
-		segment.Ms = Stopwatch.GetElapsedTime( start ).TotalMilliseconds;
+		segment.StartedAt = start;
+		segment.EndedAt = Stopwatch.GetTimestamp();
+		segment.Thread = Environment.CurrentManagedThreadId;
+		segment.Ms = Stopwatch.GetElapsedTime( start, segment.EndedAt ).TotalMilliseconds;
 	}
 
-	void RecordSegment( ref Segment segment, RenderContext rc, RenderFrame frame, ref RenderStats stats )
+	/// <summary>
+	/// Where a layer's recording started: the time, and the counts it's measured against.
+	/// </summary>
+	readonly record struct CostMark( long Ticks, int Draws, long Triangles, int Binds, int SimilarBinds )
+	{
+		public static CostMark Of( RenderContext rc, in RenderStats stats )
+		{
+			var (full, similar) = rc.MaterialBinds;
+			return new( Stopwatch.GetTimestamp(), stats.Draws + stats.DepthDraws + stats.ShadowDraws + stats.CustomDraws, stats.DrawnTriangles, full, similar );
+		}
+
+		/// <summary>
+		/// What recording <paramref name="layer"/> since this mark cost.
+		/// </summary>
+		public LayerCost Since( int layer, RenderContext rc, in RenderStats stats )
+		{
+			var now = Of( rc, stats );
+			return new LayerCost
+			{
+				Layer = layer,
+				Ticks = now.Ticks - Ticks,
+				Draws = now.Draws - Draws,
+				Triangles = now.Triangles - Triangles,
+				Binds = now.Binds - Binds,
+				SimilarBinds = now.SimilarBinds - SimilarBinds,
+			};
+		}
+	}
+
+	void RecordSegment( ref Segment segment, RenderContext rc, RenderFrame frame, ref RenderStats stats, List<LayerCost> layerCosts )
 	{
 		switch ( segment.Kind )
 		{
@@ -620,12 +733,14 @@ internal sealed partial class FrameRecorder : IDisposable
 						var from = w == segment.Index ? segment.First : 0;
 						var to = w == last ? segment.End : item.Runs;
 
+						var mark = layerCosts is null ? default : CostMark.Of( rc, stats );
 						var scope = rc.BeginGpuScope( item.Layer.Name );
 						item.Layer.Begin( frame, rc, item.View, start: from == 0 );
 						frame.System.DrawRange( rc, item.View, item.Layer, from, to - from, ref stats );
 						rc.EndPass();
 						rc.EndGpuScope( scope );
 						if ( from == 0 && item.View.IsShadow ) stats.ShadowViews++;
+						layerCosts?.Add( mark.Since( item.Owner, rc, stats ) );
 					}
 					break;
 				}
@@ -635,11 +750,13 @@ internal sealed partial class FrameRecorder : IDisposable
 					// Reset constants per layer; each layer binds its own targets.
 					for ( int l = segment.Index; l < segment.Index + segment.Count; l++ )
 					{
+						var mark = layerCosts is null ? default : CostMark.Of( rc, stats );
 						var scope = rc.BeginGpuScope( layers[l].Layer.Name );
 						frame.UseFrameConstants( rc );
 						layers[l].Layer.Record( frame, rc, ref stats );
 						rc.EndPass();
 						rc.EndGpuScope( scope );
+						layerCosts?.Add( mark.Since( l, rc, stats ) );
 					}
 					break;
 				}

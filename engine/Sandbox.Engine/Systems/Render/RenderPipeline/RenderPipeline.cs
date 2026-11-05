@@ -63,7 +63,7 @@ internal static class RenderPipeline
 	internal static bool OcclusionCulling { get; set; } = true;
 
 	/// <summary>
-	/// How native occlusion culling handles aggregate fragments. Must match <c>CSceneViewOcclusionCull::AggregateMode_t</c>.
+	/// How occlusion culling handles aggregate fragments, in both renderers. Must match <c>CSceneViewOcclusionCull::AggregateMode_t</c>.
 	/// </summary>
 	internal enum AggregateOcclusion
 	{
@@ -76,7 +76,7 @@ internal static class RenderPipeline
 		Compact,
 	}
 
-	[ConVar( "r_occlusion_aggregates", Min = 0, Max = 2, Help = "Occlusion cull aggregate fragments in the native renderer (0: off, 1: draw hidden ones empty, 2: compact, needs drawIndirectCount)" )]
+	[ConVar( "r_occlusion_aggregates", Min = 0, Max = 2, Help = "Occlusion cull aggregate fragments (0: off, 1: draw hidden ones empty, 2: compact, needs drawIndirectCount)" )]
 	internal static int AggregateMode { get; set; } = (int)AggregateOcclusion.Compact;
 
 	internal static AggregateOcclusion OcclusionAggregates => (AggregateOcclusion)AggregateMode;

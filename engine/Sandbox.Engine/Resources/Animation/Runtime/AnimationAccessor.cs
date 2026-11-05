@@ -25,6 +25,7 @@ public sealed class AnimationAccessor : IJsonPopulator
 	private GraphParameters _parameters;
 	private GraphRecording _recording;
 	private GraphDebug _debug;
+	private GraphExternalSlots _externalGraphs;
 
 	internal SceneModel Model => _renderer is null ? _model : _renderer.SceneModel;
 	internal NativeEngine.AnimationGraph2Controller Controller => Model?.animGraph2Native ?? default;
@@ -66,6 +67,10 @@ public sealed class AnimationAccessor : IJsonPopulator
 	public GraphRecording Recording => _recording ??= new( this );
 	[Hide]
 	public GraphDebug Debug => _debug ??= new( this );
+
+	/// <summary>Named External Graph slots for runtime-selected animation behavior.</summary>
+	[Hide]
+	public GraphExternalSlots ExternalGraphs => _externalGraphs ??= new( this );
 
 	/// <summary>Evaluation time of the last graph update.</summary>
 	[Hide]

@@ -21,4 +21,6 @@ internal struct GpuTimestampEventData
 	public double EndMs;
 	public int Parent;
 	public int Queue;
+	public ulong HostTicks;
+	public ulong SubmitTag;
 }

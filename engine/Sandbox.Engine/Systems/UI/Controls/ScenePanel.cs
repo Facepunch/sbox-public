@@ -68,7 +68,7 @@ namespace Sandbox.UI
 
 		public ScenePanel()
 		{
-			_renderScene = new() { WantsSystemScene = false };
+			_renderScene = new() { WantsSystemScene = false, IsUnlisted = true };
 			_ownsScene = true;
 
 			Camera.FieldOfView = 60;
@@ -197,6 +197,7 @@ namespace Sandbox.UI
 			// Deleting a parent only calls OnDeleted on its children, never Delete,
 			// so a ScenePanel inside a deleted tree has to release its scene here too.
 			ReleaseRenderResources();
+			Camera.Dispose();
 		}
 
 		void ReleaseRenderResources()

@@ -28,6 +28,16 @@ QSplitter::handle:vertical {
 	background-color: transparent;
 }
 
+QSplitter#AssetInspectorSplitter::handle:vertical {
+	height: 8px;
+	background-color: $BorderLight;
+}
+
+QSplitter#AssetInspectorSplitter::handle:vertical:hover,
+QSplitter#AssetInspectorSplitter::handle:vertical:pressed {
+	background-color: $Primary;
+}
+
 QToolTip {
 	max-width: 640px;
 	white-space: wrap;

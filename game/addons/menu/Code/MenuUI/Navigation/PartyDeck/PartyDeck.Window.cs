@@ -162,6 +162,7 @@ public partial class PartyDeck : Panel
 	{
 		SaveWindowPosition();
 		Draft?.Cancel();
+
 		if ( Current == this ) Current = null;
 		if ( Instance == this ) Instance = null;
 

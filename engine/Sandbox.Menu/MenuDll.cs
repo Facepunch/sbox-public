@@ -97,7 +97,7 @@ internal sealed class MenuDll : IMenuDll
 
 		Enroller.OnAssemblyAdded += ( a ) =>
 		{
-			Game.TypeLibrary.AddAssembly( a.Assembly, true );
+			GlobalContext.Menu.TypeLibrary.AddAssembly( a.Assembly, true );
 			GlobalContext.Current.AddNodeAssemblyLater( a.Assembly, logErrors: false );
 			ConVarSystem.AddAssembly( a.Assembly, "menu", "menu" );
 			Event.RegisterAssembly( a.Assembly );
@@ -105,15 +105,15 @@ internal sealed class MenuDll : IMenuDll
 
 			// While this technically doesn't belong here, it means that there will be upgraders available
 			// in the menu, before the game has even started. It should get over-ridden by the game's typelibrary.
-			JsonUpgrader.UpdateUpgraders( Game.TypeLibrary );
+			JsonUpgrader.UpdateUpgraders( GlobalContext.Menu.TypeLibrary );
 		};
 
 		Enroller.OnAssemblyRemoved += ( a ) =>
 		{
 			ConVarSystem.RemoveAssembly( a.Assembly );
 			Event.UnregisterAssembly( a.Assembly );
-			Game.NodeLibrary.RemoveAssembly( a.Assembly );
-			Game.TypeLibrary.RemoveAssembly( a.Assembly );
+			GlobalContext.Current.RemoveNodeAssembly( a.Assembly );
+			GlobalContext.Menu.TypeLibrary.RemoveAssembly( a.Assembly );
 		};
 
 		ConVarSystem.AddAssembly( Game.GameAssembly, "menu", "menu" );
@@ -174,7 +174,7 @@ internal sealed class MenuDll : IMenuDll
 		if ( !Application.IsEditor )
 			SetupMenuScene();
 
-		IMenuSystem.Current = TypeLibrary.Create<IMenuSystem>( "MenuSystem", true );
+		IMenuSystem.Current = GlobalContext.Menu.TypeLibrary.Create<IMenuSystem>( "MenuSystem", true );
 
 		if ( IMenuSystem.Current == null )
 		{
@@ -403,6 +403,7 @@ internal sealed class MenuDll : IMenuDll
 
 	public void ClosePopups( object panelClickedOn )
 	{
+		using var scope = GlobalContext.MenuScope();
 		BasePopup.CloseAll( panelClickedOn as Panel );
 	}
 

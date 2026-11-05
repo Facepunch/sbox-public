@@ -30,6 +30,11 @@ internal static partial class PackageManager
 	}
 
 	public static BaseFileSystem MountedFileSystem { get; private set; } = new AggregateFileSystem();
+
+	/// <summary>
+	/// Goes up whenever a package's files are mounted or unmounted, so a reset can tell nothing's changed since the last.
+	/// </summary>
+	internal static int MountGeneration;
 	public static HashSet<ActivePackage> ActivePackages { get; private set; } = new HashSet<ActivePackage>();
 
 	/// <summary>

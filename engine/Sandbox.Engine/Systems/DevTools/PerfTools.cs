@@ -234,7 +234,8 @@ internal static class PerfTools
 		var rs = RenderSettings.Instance;
 
 		var issues = new List<DevTools.Issue>();
-		DevToolsRenderingTab.FindIssues( f, issues );
+		DevTools.FindRenderingIssues( f, issues );
+		issues.Sort( static ( a, b ) => b.Severity.CompareTo( a.Severity ) );
 
 		var camera = Application.GetActiveScene()?.Camera;
 		var layers = camera?.PostProcess.Layers;
@@ -418,11 +419,11 @@ internal static class PerfTools
 	{
 		if ( DevTools.WantsGpuTimings && GpuProfilerStats.RowCount > 0 )
 		{
-			DevTools.CollectFor( "gpu", Linger );
+			DevTools.CollectFor( "rendering", Linger );
 			return;
 		}
 
-		await CollectFor( "gpu", 1, Linger );
+		await CollectFor( "rendering", 1, Linger );
 	}
 
 	/// <summary>

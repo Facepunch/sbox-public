@@ -24,11 +24,14 @@ public class WebPanel : Panel
 	}
 
 
+	// Only the menu's MenuWebPanel overrides this, game code can't
+	internal virtual bool IsTrusted => false;
+
 	public WebPanel()
 	{
 		AcceptsFocus = true;
 
-		Surface = Game.CreateWebSurface();
+		Surface = new WebSurface( !IsTrusted );
 		Surface.Size = Box.Rect.Size;
 		Surface.OnTexture = BrowserDataChanged;
 	}
@@ -127,7 +130,7 @@ public class WebPanel : Panel
 
 	private string AddAdditionalQueryProperties( string url )
 	{
-		if ( !Game.IsMenu ) return url;
+		if ( !IsTrusted ) return url;
 		if ( !WouldLikeAuthHeader( url ) ) return url;
 
 		var sessionCookie = AccountInformation.Session;

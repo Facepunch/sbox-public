@@ -1,4 +1,5 @@
-﻿using Sandbox.Internal;
+﻿using Sandbox.Engine;
+using Sandbox.Internal;
 using Sandbox.Utility;
 using System.Collections.Concurrent;
 using System.Text.Json.Nodes;
@@ -46,7 +47,7 @@ public abstract class ResourceGenerator
 	/// </summary>
 	public static ResourceGenerator<T> Create<T>( string generatorName ) where T : Resource
 	{
-		var typeLibrary = TypeLibrary.Editor ?? Game.TypeLibrary;
+		var typeLibrary = TypeLibrary.Editor ?? GlobalContext.Current.TypeLibrary;
 		if ( typeLibrary is null ) return default;
 
 		var t = typeLibrary.GetType<ResourceGenerator<T>>( generatorName );
@@ -92,7 +93,7 @@ public abstract class ResourceGenerator
 	/// <returns></returns>
 	public static Resource CreateResource( EmbeddedResource obj, Options options, Type type )
 	{
-		var typeLibrary = TypeLibrary.Editor ?? Game.TypeLibrary;
+		var typeLibrary = TypeLibrary.Editor ?? GlobalContext.Current.TypeLibrary;
 		if ( typeLibrary is null ) return default;
 
 		var t = typeLibrary.GetType<ResourceGenerator>( obj.ResourceGenerator );

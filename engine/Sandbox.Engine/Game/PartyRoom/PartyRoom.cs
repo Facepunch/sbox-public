@@ -1,10 +1,8 @@
-using NativeEngine;
 using Sandbox.Engine;
 using Sandbox.Modals;
 using Sandbox.Network;
 using Steamworks;
 using Steamworks.Data;
-using System.Runtime.CompilerServices;
 using System.Globalization;
 using System.Text.Json;
 
@@ -103,8 +101,6 @@ public partial class PartyRoom : ILobby
 	/// </summary>
 	public int MemberCount => steamLobby.MemberCount;
 
-	internal int NetworkChannel => (int)(Id % int.MaxValue);
-
 	PartyRoom( Lobby value )
 	{
 		steamLobby = value;
@@ -121,7 +117,6 @@ public partial class PartyRoom : ILobby
 		}
 
 		LobbyManager.Register( this );
-		VoiceManager.OnCompressedVoiceData += OnVoiceRecorded;
 	}
 
 	/// <summary>
@@ -131,6 +126,8 @@ public partial class PartyRoom : ILobby
 	{
 		_join?.Dispose();
 		_join = null;
+
+		RemoveVoiceSpeakers();
 
 		using ( GlobalContext.MenuScope() )
 		{
@@ -148,8 +145,6 @@ public partial class PartyRoom : ILobby
 		// this is no longer needed, we don't need to get messages about it
 		// we don't need to know when people enter and leave, so forget about it.
 		LobbyManager.Unregister( this );
-
-		VoiceManager.OnCompressedVoiceData -= OnVoiceRecorded;
 	}
 
 	/// <summary>
@@ -181,65 +176,7 @@ public partial class PartyRoom : ILobby
 		steamLobby.InviteOverlay();
 	}
 
-	/// <summary>
-	/// Allow communication via voice when in the main menu.
-	/// </summary>
-	public bool VoiceCommunicationAllowed => IGameInstance.Current is null;
-
 	RealTimeSince timeSinceUpdate = 0;
-
-	bool _voiceRecording;
-
-	/// <summary>
-	/// Whether we are recording voice for the party.
-	/// </summary>
-	public bool VoiceRecording
-	{
-		get => _voiceRecording;
-		set
-		{
-			if ( _voiceRecording == value ) return;
-			_voiceRecording = value;
-
-			if ( _voiceRecording )
-			{
-				VoiceManager.StartRecording();
-			}
-			else
-			{
-				VoiceManager.StopRecording();
-			}
-		}
-	}
-
-	/// <summary>
-	/// Voice data has been recieved. Send it to everyone.
-	/// </summary>
-	private void OnVoiceRecorded( Memory<byte> memory )
-	{
-		// Don't send 
-		if ( !VoiceCommunicationAllowed )
-			return;
-
-		using var bs = ByteStream.Create( 32 );
-		bs.Write( MessageIdentity.VoiceMessage );
-		bs.WriteArray( memory.ToArray() );
-
-		foreach ( var friend in Members )
-		{
-			int flags = 0;
-			flags = 8; // k_nSteamNetworkingSend_Reliable
-			flags |= 32; // k_nSteamNetworkingSend_AutoRestartBrokenSession
-
-			unsafe
-			{
-				fixed ( byte* pData = bs.ToSpan() )
-				{
-					Steam.SteamNetworkingMessages().SendMessageToUser( friend.Id, (IntPtr)pData, bs.Length, flags, NetworkChannel );
-				}
-			}
-		}
-	}
 
 	/// <summary>
 	/// Determine our state to be sent to other party members
@@ -271,10 +208,7 @@ public partial class PartyRoom : ILobby
 
 	internal void Tick()
 	{
-		// Record the voice if voice button less than 0.3 seconds old
-		VoiceRecording = VoiceCommunicationAllowed && timeSinceWantVoiceSend < 0.1f;
-
-		ReadVoiceChannel();
+		TickVoice();
 
 		if ( timeSinceUpdate < 0.5f ) return;
 		timeSinceUpdate = 0;
@@ -313,52 +247,6 @@ public partial class PartyRoom : ILobby
 		else
 		{
 			UpdateFollowing();
-		}
-	}
-
-	unsafe void ReadVoiceChannel()
-	{
-		var net = Steam.SteamNetworkingMessages();
-
-		int batchSize = 8;
-		IntPtr* ptr = stackalloc IntPtr[batchSize];
-
-		while ( true )
-		{
-			int count = net.ReceiveMessagesOnChannel( NetworkChannel, (IntPtr)ptr, batchSize );
-			if ( count == 0 )
-				break;
-
-			for ( int i = 0; i < count; i++ )
-			{
-				var msg = Unsafe.Read<Sandbox.Network.SteamNetworkMessage>( (void*)ptr[i] );
-
-				if ( !Members.Any( x => x.Id == msg.IdentitySteamId ) )
-				{
-					Log.Trace( $"Dropping message from {msg.IdentitySteamId} not in party" );
-					continue;
-				}
-
-				using var data = new ByteStream( msg.Data, msg.Size );
-
-				var iMessageType = data.Read<MessageIdentity>();
-
-
-				if ( iMessageType == MessageIdentity.VoiceMessage )
-				{
-					var message = data.ReadArraySpan<byte>( 1024 * 1024 );
-					var voiceData = message.ToArray();
-
-					OnVoiceData?.Invoke( new Friend( msg.IdentitySteamId ), voiceData );
-
-					using ( GlobalContext.MenuScope() )
-					{
-						Event.EventSystem.RunInterface<IEventListener>( x => x.OnVoiceMessage( new Friend( msg.IdentitySteamId ), voiceData ) );
-					}
-				}
-
-				net.ReleaseMessage( ptr[i] );
-			}
 		}
 	}
 
@@ -481,8 +369,6 @@ public partial class PartyRoom : ILobby
 	/// The current party leader.
 	/// </summary>
 	public Friend Owner { get; private set; }
-
-
 
 	/// <summary>
 	/// Find open parties with space for another member.
@@ -665,15 +551,6 @@ public partial class PartyRoom : ILobby
 		if ( Owner.IsMe && previousOwner.Id != Owner.Id ) ResetReadiness();
 	}
 
-	RealTimeSince timeSinceWantVoiceSend = 60;
-
-	/// <summary>
-	/// Called each frame that a client wants to broadcast their voice
-	/// </summary>
-	internal void SetBroadcastVoice()
-	{
-		timeSinceWantVoiceSend = 0;
-	}
 
 	/// <summary>
 	/// A discoverable party with its current membership and game details.

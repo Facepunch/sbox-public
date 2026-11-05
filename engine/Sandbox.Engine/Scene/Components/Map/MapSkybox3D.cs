@@ -32,6 +32,7 @@ public class MapSkybox3D : Component, Component.ExecuteInEditor
 		Transform.OnTransformChanged -= OnTransformChanged;
 
 		sceneSkybox3D?.Delete();
+		sceneSkybox3D?.SkyboxWorld.Delete(); // ours, made in OnEnabled
 		sceneSkybox3D = null;
 	}
 

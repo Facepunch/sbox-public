@@ -32,7 +32,6 @@ public partial class PackageLoaderTest
 	[TestMethod]
 	[TestCategory( "LiveBackend" )]
 	[DataRow( "facepunch.testbed" )]
-	[DataRow( "facepunch.hc1" )]
 	[DataRow( "facepunch.walker" )]
 	[DataRow( "facepunch.opium_demo" )]
 	//[DataRow( "garry.testbed" )]

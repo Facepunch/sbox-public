@@ -1,4 +1,5 @@
-﻿using System.ComponentModel;
+﻿using Sandbox.Engine;
+using System.ComponentModel;
 
 namespace Sandbox;
 
@@ -45,7 +46,7 @@ public class AssetTypeAttribute : System.Attribute, ITypeAttribute, IUninheritab
 	/// </summary>
 	public static TypeDescription FindTypeByExtension( string extension )
 	{
-		foreach ( var t in Game.TypeLibrary.GetTypesWithAttribute<AssetTypeAttribute>() )
+		foreach ( var t in GlobalContext.Current.TypeLibrary.GetTypesWithAttribute<AssetTypeAttribute>() )
 		{
 			if ( string.Equals( t.Attribute.Extension, extension, StringComparison.OrdinalIgnoreCase ) )
 				return t.Type;
@@ -85,7 +86,7 @@ public class GameResourceAttribute : AssetTypeAttribute
 	/// <summary>
 	/// Icon to be used for this asset
 	/// Can be an absolute path of a PNG
-	/// Or a <a href="https://fonts.google.com/icons">material icon</a> for this game resource's thumbnail.
+	/// Or a <a href="https://fonts.google.com/icons?icon.set=Material+Icons">material icon</a> for this game resource's thumbnail.
 	/// </summary>
 	public string Icon { get; set; } = "question_mark";
 

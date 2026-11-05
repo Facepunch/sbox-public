@@ -51,7 +51,7 @@ public class Properties : Widget
 		Name = "Properties";
 		WindowTitle = "Properties";
 		SetWindowIcon( "edit" );
-		MinimumWidth = 400;
+		MinimumWidth = 200;
 
 		Layout = Layout.Column();
 		Layout.Margin = 0;
@@ -166,7 +166,7 @@ public class Properties : Widget
 	{
 		var scroller = new ScrollArea( parent );
 		scroller.VerticalScrollbarMode = ScrollbarMode.Auto;
-		scroller.HorizontalScrollbarMode = ScrollbarMode.Off;
+		scroller.HorizontalScrollbarMode = ScrollbarMode.Auto;
 		scroller.TranslucentBackground = true;
 		scroller.NoSystemBackground = true;
 		// Scope to the scroll area itself, otherwise the rules cascade into every

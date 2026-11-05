@@ -16,7 +16,7 @@ public partial class TextEntry
 	public IconPanel IconPanel { get; protected set; }
 
 	/// <summary>
-	/// If set, will display a <a href="https://fonts.google.com/icons">material icon</a> at the end of the text entry.
+	/// If set, will display a <a href="https://fonts.google.com/icons?icon.set=Material+Icons">material icon</a> at the end of the text entry.
 	/// </summary>
 	[Property]
 	public string Icon

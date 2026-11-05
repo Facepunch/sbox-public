@@ -28,7 +28,7 @@ public class ScriptAnalysisTests
 	public void MemberAndLocalInformationSurvivesUnresolvedArguments()
 	{
 		const string source = "var x = State.Get(missing, 1.0f); return x;";
-		var analysis = Game.Scripting.Analyze( source, [new Script.Input( "State", typeof( StateHost ) )] );
+		var analysis = GlobalContext.Current.Scripting.Analyze( source, [new Script.Input( "State", typeof( StateHost ) )] );
 		var method = analysis.GetSymbol( source.IndexOf( "Get", StringComparison.Ordinal ) );
 		Assert.AreEqual( typeof( StateHost ), analysis.GetSymbol( source.IndexOf( "State", StringComparison.Ordinal ) )?.Type );
 		Assert.IsTrue( analysis.GetCompletions( source.IndexOf( "Get", StringComparison.Ordinal ) + 3 ).Items.Any( x => x.Label == "Get" ) );
@@ -41,7 +41,7 @@ public class ScriptAnalysisTests
 	public void InterpolatedSlotNamesPreserveMemberAndLocalTypes()
 	{
 		const string source = "for (var i = 0; i < 10; i++) { var ball = $\"ball{i}.\"; var x = State.Get(ball + \"x\", 20.0f + i * 73.0f); x += 1; }";
-		var analysis = Game.Scripting.Analyze( source, [new Script.Input( "State", typeof( StateHost ) )] );
+		var analysis = GlobalContext.Current.Scripting.Analyze( source, [new Script.Input( "State", typeof( StateHost ) )] );
 		Assert.AreEqual( typeof( float ), analysis.GetSymbol( source.IndexOf( "Get", StringComparison.Ordinal ) )?.Type );
 		Assert.AreEqual( typeof( float ), analysis.GetSymbol( source.LastIndexOf( "x +=", StringComparison.Ordinal ) )?.Type );
 	}
@@ -50,7 +50,7 @@ public class ScriptAnalysisTests
 	public void MethodHoverIncludesParameterNames()
 	{
 		const string source = "return MathF.Sin(1.0f);";
-		var analysis = Game.Scripting.Analyze( source );
+		var analysis = GlobalContext.Current.Scripting.Analyze( source );
 		StringAssert.Contains( analysis.GetSymbol( source.IndexOf( "Sin", StringComparison.Ordinal ) ).Value.Detail, "float MathF.Sin(float x)" );
 	}
 
@@ -58,7 +58,7 @@ public class ScriptAnalysisTests
 	public void SignatureHelpTracksNestedIncompleteCalls()
 	{
 		const string source = "return MathF.FusedMultiplyAdd(MathF.Sin(1), 0, ";
-		var analysis = Game.Scripting.Analyze( source );
+		var analysis = GlobalContext.Current.Scripting.Analyze( source );
 		Assert.AreEqual( 0, analysis.GetSignatureHelp( source.IndexOf( "1)", StringComparison.Ordinal ) )?.Argument );
 		var outer = analysis.GetSignatureHelp( source.Length ).Value;
 		Assert.AreEqual( 2, outer.Argument );

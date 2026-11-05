@@ -43,10 +43,9 @@ sealed class ParticleGameSystem : GameObjectSystem
 			p.CollectWork( workList );
 		}
 
-		if ( workList.Count > 0 )
-		{
-			System.Threading.Tasks.Parallel.ForEach( workList, ProcessWork );
-		}
+		// Work items are only 16 particles each, so threads claim many at a time: claiming one at a
+		// time spends more on the shared counter than on the particles
+		JobDispatcher.For( workList.Count, this, static ( system, i ) => system.ProcessWork( system.workList[i] ) );
 
 		foreach ( var p in _effects )
 		{

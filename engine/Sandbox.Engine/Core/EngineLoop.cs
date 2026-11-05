@@ -8,6 +8,7 @@ using Sandbox.UI;
 using Sandbox.Utility;
 using Sandbox.VR;
 using System.Threading.Channels;
+using Sandbox.Platform;
 
 namespace Sandbox;
 
@@ -197,7 +198,7 @@ internal static class EngineLoop
 		{
 			using ( IGameInstanceDll.Current?.PushScope() ?? default )
 			{
-				VoiceManager.Tick();
+				VoiceChat.Tick();
 				Sandbox.TextRendering.Tick();
 			}
 		}

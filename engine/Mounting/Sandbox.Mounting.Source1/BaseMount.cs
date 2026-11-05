@@ -22,6 +22,7 @@ public abstract partial class BaseMount : BaseGameMount
 		{ ".mdl", new( ResourceType.Model, static path => new ModelLoader( path ) ) },
 		{ ".vmt", new( ResourceType.Material, static path => new MaterialLoader( path ) ) },
 		{ ".vtf", new( ResourceType.Texture, static path => new TextureLoader( path ) ) },
+		{ ".png", new( ResourceType.Texture, static path => new PngTextureLoader( path ) ) },
 		{ ".raw", new( ResourceType.Texture, static path => new SourceColorLookupLoader( path ) ) },
 		{ ".wav", new( ResourceType.Sound, static path => new WavSoundLoader( path ) ) },
 		{ ".mp3", new( ResourceType.Sound, static path => new Mp3SoundLoader( path ) ) }

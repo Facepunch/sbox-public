@@ -40,6 +40,30 @@ internal static class DevToolsStyles
 	];
 
 	/// <summary>
+	/// A GPU pass's colour, by what it does (<see cref="DevTools.KindOf"/>): from the series palette, so the timeline and the
+	/// pass tree's swatches agree.
+	/// </summary>
+	internal static Color PassColor( DevTools.PassKind kind ) => kind switch
+	{
+		DevTools.PassKind.Depth => Series[0],
+		DevTools.PassKind.Opaque => Series[1],
+		DevTools.PassKind.Translucent => Series[2],
+		DevTools.PassKind.Post => Series[4],
+		DevTools.PassKind.Ui => Series[7],
+		_ => Series[6],
+	};
+
+	internal static string PassKindName( DevTools.PassKind kind ) => kind switch
+	{
+		DevTools.PassKind.Depth => "depth, shadows",
+		DevTools.PassKind.Opaque => "opaque",
+		DevTools.PassKind.Translucent => "translucent",
+		DevTools.PassKind.Post => "post, compute",
+		DevTools.PassKind.Ui => "ui",
+		_ => "other",
+	};
+
+	/// <summary>
 	/// The main thread categories, muted like the rest. The ones that usually carry the frame get colours of their own;
 	/// the rest share greys.
 	/// </summary>
@@ -130,13 +154,19 @@ internal static class DevToolsStyles
 			border-bottom: 1px solid $line;
 		}
 
-		.devtools .strip .title
+		// The frame rate at the right of the tabs, on every tab
+		.devtools .strip-fps
 		{
+			flex-shrink: 0;
 			align-items: center;
 			padding: 0px 10px;
-			color: $dim;
-			font-weight: 600;
+			color: $text;
+			font-family: Roboto Mono;
+			white-space: nowrap;
 		}
+
+		.devtools .strip-fps.warning { color: $warn; }
+		.devtools .strip-fps.bad { color: $bad; }
 
 		.devtools .tabs
 		{
@@ -401,7 +431,7 @@ internal static class DevToolsStyles
 
 		.devtools .section-title.bad { color: $bad; }
 
-		// The budget ruler, and the strip of recent frames under it
+		// The budget ruler
 		.devtools .budget
 		{
 			flex-shrink: 0;
@@ -409,157 +439,209 @@ internal static class DevToolsStyles
 			cursor: pointer;
 		}
 
-		.devtools .dock-history
+		// Overview: the frame on one line, recent frames, what's out of line, the counters, then the ruler
+		.devtools .page.glance
 		{
+			grid-template-columns: minmax(0, 1fr);
+		}
+
+		.devtools .stat-line
+		{
+			flex-direction: row;
 			flex-shrink: 0;
-			height: 34px;
-			margin: 0px 64px 0px 56px;
-			cursor: pointer;
-		}
-
-		.devtools .gauge
-		{
-			flex-grow: 1;
-			flex-shrink: 1;
-			flex-basis: 0px;
 			min-width: 0px;
-			flex-direction: column;
-			padding: 8px 12px 10px 12px;
+			border-bottom: 1px solid $line;
+		}
+
+		.devtools .stat
+		{
+			flex-direction: row;
+			align-items: flex-end;
+			gap: 6px;
+			min-width: 0px;
+			padding: 8px 18px 8px 12px;
 			border-right: 1px solid $line-soft;
-			border-top: 2px solid transparent;
+		}
+
+		.devtools .stat.link
+		{
 			cursor: pointer;
 		}
 
-		.devtools .gauge:hover
+		.devtools .stat.link:hover
 		{
 			background-color: $hover;
 		}
 
-		.devtools .gauge.warning { border-top: 2px solid $warn; }
-		.devtools .gauge.bad { border-top: 2px solid $bad; }
-
-		.devtools .gauge-key
+		.devtools .stat-key
 		{
 			color: $dim;
-			font-size: 11px;
+			padding-bottom: 5px;
+			margin-right: 4px;
 			white-space: nowrap;
 		}
 
-		.devtools .gauge-line
-		{
-			align-items: flex-end;
-			gap: 4px;
-			height: 38px;
-		}
-
-		.devtools .gauge-value
+		.devtools .stat-value
 		{
 			font-family: Roboto Mono;
-			font-size: 28px;
+			font-size: 24px;
 			font-weight: 600;
 			color: $bright;
 			white-space: nowrap;
 		}
 
-		.devtools .gauge.warning .gauge-value { color: $warn; }
-		.devtools .gauge.bad .gauge-value { color: $bad; }
-
-		.devtools .gauge-unit
+		.devtools .stat-unit
 		{
 			color: $dim;
-			padding-bottom: 6px;
+			padding-bottom: 5px;
 			white-space: nowrap;
 		}
 
-		.devtools .gauge-chart
+		.devtools .stat.warning .stat-value { color: $warn; }
+		.devtools .stat.bad .stat-value { color: $bad; }
+
+		.devtools .stat.stat-verdict
 		{
 			flex-grow: 1;
-			flex-direction: column;
-			justify-content: flex-end;
-			gap: 6px;
-			margin-top: 8px;
-			min-height: 40px;
+			border-right: 0px solid transparent;
 		}
 
-		.devtools .gauge-chart .sparkline
+		.devtools .stat.stat-verdict .stat-value
 		{
-			height: 40px;
+			font-family: Inter;
+			font-size: 18px;
+			padding-bottom: 2px;
 		}
 
-		.devtools .gauge-chart .histogram
-		{
-			height: 56px;
-			background-color: transparent;
-		}
-
-		.devtools .stack-bar
+		.devtools .glance-history
 		{
 			flex-shrink: 0;
-			height: 8px;
+			height: 40px;
+			margin: 6px 12px;
+			cursor: pointer;
 		}
 
-		// Glance: a row of gauges - a name, a number, a chart - over the budget ruler. The words are in tooltips.
-		.devtools .page.dock-glance
+		// Rendering: GPU history, the pass tree beside the picked pass, the timeline, the counters
+		.devtools .render-history
+		{
+			flex-direction: row;
+			flex-shrink: 0;
+			align-items: flex-end;
+			height: 48px;
+			padding: 6px 12px 6px 10px;
+			gap: 10px;
+			border-bottom: 1px solid $line;
+		}
+
+		.devtools .render-history-key
+		{
+			flex-shrink: 0;
+			width: 44px;
+			color: $dim;
+			font-size: 11px;
+		}
+
+		.devtools .render-history .sparkline
+		{
+			flex-grow: 1;
+			height: 36px;
+			cursor: pointer;
+		}
+
+		.devtools .pass-split
+		{
+			display: grid;
+			grid-template-columns: minmax(0, 1fr) 340px;
+			min-width: 0px;
+		}
+
+		.devtools.narrow .pass-split
 		{
 			grid-template-columns: minmax(0, 1fr);
 		}
 
-		.devtools .glance-gauges
+		.devtools .pass-detail
 		{
-			flex-direction: row;
+			border-left: 1px solid $line;
+		}
+
+		.devtools .pass-detail .facts
+		{
+			grid-template-columns: minmax(0, 1fr);
+			border-bottom: 0px solid transparent;
+		}
+
+		.devtools .pass-chart
+		{
 			flex-shrink: 0;
-			height: 92px;
-			min-width: 0px;
-			border-bottom: 1px solid $line;
+			flex-direction: column;
+			height: 44px;
+			padding: 6px 10px;
 		}
 
-		.devtools .glance-gauges .gauge
+		.devtools .pass-chart .sparkline
 		{
-			padding: 6px 12px 8px 12px;
+			flex-grow: 1;
 		}
 
-		.devtools .glance-gauges .gauge-line
+		.devtools .pass-filter
 		{
-			height: 34px;
-		}
-
-		.devtools .glance-gauges .gauge-value
-		{
-			font-size: 26px;
-		}
-
-		.devtools .glance-gauges .gauge-unit
-		{
-			padding-bottom: 5px;
+			flex-shrink: 0;
+			width: 160px;
+			height: 18px;
+			padding: 0px 6px;
+			background-color: $bg;
+			border: 1px solid $line;
+			font-family: Roboto Mono;
 			font-size: 11px;
+			color: $text;
+			align-items: center;
 		}
 
-		.devtools .glance-gauges .gauge-chart
+		.devtools .pass-filter:focus
 		{
-			margin-top: 4px;
-			min-height: 22px;
-			gap: 3px;
+			border: 1px solid $faint;
 		}
 
-		.devtools .glance-gauges .gauge-chart .sparkline,
-		.devtools .glance-gauges .gauge-chart .histogram
-		{
-			height: 22px;
-		}
-
-		.devtools .gpu-zoom
+		.devtools .head-button
 		{
 			flex-shrink: 0;
-			margin: 4px 0px 6px 0px;
-			border-top: 1px solid $line;
+			padding: 1px 8px;
+			color: $dim;
+			font-size: 11px;
+			border: 1px solid $line;
 			cursor: pointer;
 		}
 
-		.devtools .glance-ruler
+		.devtools .head-button:hover
 		{
-			flex-direction: column;
+			color: $bright;
+			background-color: $hover;
+		}
+
+		.devtools .data-row.heading > .cell
+		{
+			color: $text;
+			font-weight: 600;
+		}
+
+		.devtools .pass-skipped
+		{
 			flex-shrink: 0;
-			padding-top: 6px;
+			padding: 4px 10px;
+			color: $faint;
+			cursor: pointer;
+		}
+
+		.devtools .pass-skipped:hover
+		{
+			color: $bright;
+		}
+
+		.devtools .frame-timeline
+		{
+			flex-shrink: 0;
+			margin: 6px 0px 6px 0px;
 		}
 
 		.devtools .page-scroll
@@ -618,16 +700,6 @@ internal static class DevToolsStyles
 		.devtools .span-all
 		{
 			grid-column: 1 / -1;
-		}
-
-		.devtools .render-submission
-		{
-			grid-column: 1 / -1;
-		}
-
-		.devtools.wide .render-submission
-		{
-			grid-column: span 2;
 		}
 
 		.devtools .good { color: $good; }

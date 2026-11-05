@@ -62,7 +62,7 @@ public sealed class PartyDraft
 			}
 
 			if ( IsPublic ) party.SetPublic( true );
-			ConsoleSystem.SetValue( "party_name", name );
+			MenuUtility.SetConsoleVariable( "party_name", name );
 			Completion.TrySetResult( true );
 		}
 		catch

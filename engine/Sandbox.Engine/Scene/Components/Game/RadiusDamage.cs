@@ -145,19 +145,20 @@ public sealed class RadiusDamage : Component
 
 			if ( damage.Weapon.IsValid() ) losTrace = losTrace.IgnoreGameObjectHierarchy( damage.Weapon );
 
-			System.Threading.Tasks.Parallel.For( 0, traceCount, idx =>
+			var traces = (Trace: losTrace, Point: point, Ignore: ignore, Roots: rootList, PassedLos: passedLos, HitPositions: traceHitPositions);
+			JobDispatcher.For( traceCount, traces, static ( s, idx ) =>
 			{
-				if ( ignore.IsValid() && ignore.IsDescendant( rootList[idx] ) )
+				if ( s.Ignore.IsValid() && s.Ignore.IsDescendant( s.Roots[idx] ) )
 				{
-					passedLos[idx] = false;
+					s.PassedLos[idx] = false;
 					return;
 				}
 
-				var tr = losTrace.Ray( point, rootList[idx].WorldPosition ).Run();
-				traceHitPositions[idx] = tr.HitPosition;
+				var tr = s.Trace.Ray( s.Point, s.Roots[idx].WorldPosition ).Run();
+				s.HitPositions[idx] = tr.HitPosition;
 
 				var hitObject = tr.Body?.GameObject;
-				passedLos[idx] = !tr.Hit || hitObject is null || rootList[idx].IsDescendant( hitObject );
+				s.PassedLos[idx] = !tr.Hit || hitObject is null || s.Roots[idx].IsDescendant( hitObject );
 			} );
 		}
 

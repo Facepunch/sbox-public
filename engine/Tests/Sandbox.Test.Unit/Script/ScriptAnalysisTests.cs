@@ -59,7 +59,7 @@ public class ScriptAnalysisTests
 	public void TokensPreserveSourceAndUtf16Offsets()
 	{
 		const string source = "// 😀 comment\r\nvar x = Math.Sin(1.0); return \"text\";";
-		var analysis = Game.Scripting.Analyze( source );
+		var analysis = GlobalContext.Current.Scripting.Analyze( source );
 		Assert.AreEqual( source, analysis.Source );
 		foreach ( var kind in Enum.GetValues<Script.TokenKind>() )
 			Assert.IsTrue( analysis.Tokens.Any( t => t.Kind == kind ), kind.ToString() );
@@ -75,14 +75,14 @@ public class ScriptAnalysisTests
 	[TestMethod]
 	public void TypeAndMemberCompletionsHaveExactReplacementRanges()
 	{
-		var types = Game.Scripting.Analyze( "ma" ).GetCompletions( 2 );
+		var types = GlobalContext.Current.Scripting.Analyze( "ma" ).GetCompletions( 2 );
 		Assert.IsTrue( types.Items.Any( item => item.Label == "Math" && item.Kind == Script.SymbolKind.Type ) );
 		Assert.AreEqual( new Script.SourceSpan( 0, 2 ), types.ReplacementSpan );
-		var members = Game.Scripting.Analyze( "Math." ).GetCompletions( 5 );
+		var members = GlobalContext.Current.Scripting.Analyze( "Math." ).GetCompletions( 5 );
 		Assert.IsTrue( members.Items.Any( item => item.Label == "Sin" ) );
 		Assert.AreEqual( new Script.SourceSpan( 5, 0 ), members.ReplacementSpan );
 		const string source = "Math.Sinn";
-		var filtered = Game.Scripting.Analyze( source ).GetCompletions( 6 );
+		var filtered = GlobalContext.Current.Scripting.Analyze( source ).GetCompletions( 6 );
 		var sin = filtered.Items.First( item => item.Label == "Sin" );
 		Assert.AreEqual( new Script.SourceSpan( 5, 4 ), filtered.ReplacementSpan );
 		Assert.AreEqual( "Math.Sin", source.Remove( filtered.ReplacementSpan.Start, filtered.ReplacementSpan.Length ).Insert( filtered.ReplacementSpan.Start, sin.InsertText ) );
@@ -94,7 +94,7 @@ public class ScriptAnalysisTests
 	{
 		var inputs = new[] { new Script.Input( "Player", typeof( AnalysisHost ), "The current player" ) };
 		const string source = "var health = Player.Health; return Player.Heal(health);";
-		var analysis = Game.Scripting.Analyze( source, inputs );
+		var analysis = GlobalContext.Current.Scripting.Analyze( source, inputs );
 		var player = analysis.GetSymbol( source.IndexOf( "Player", StringComparison.Ordinal ) ).Value;
 		Assert.AreEqual( typeof( AnalysisHost ), player.Type );
 		Assert.AreEqual( "The current player", player.Description );
@@ -102,7 +102,7 @@ public class ScriptAnalysisTests
 		Assert.AreEqual( Script.SymbolKind.Local, local.Kind );
 		Assert.AreEqual( typeof( float ), local.Type );
 		Assert.IsNotNull( local.Declaration );
-		var suggestions = Game.Scripting.Analyze( "Player.He", inputs ).GetCompletions( 9 );
+		var suggestions = GlobalContext.Current.Scripting.Analyze( "Player.He", inputs ).GetCompletions( 9 );
 		Assert.IsTrue( suggestions.Items.Any( item => item.Label == "Health" ) );
 		Assert.IsTrue( suggestions.Items.Any( item => item.Label == "Heal" ) );
 		Assert.AreEqual( 0, AnalysisHost.Calls );
@@ -111,25 +111,25 @@ public class ScriptAnalysisTests
 	[TestMethod]
 	public void UnknownInputsAndSyntaxErrorsAreAvailableInIncompleteCode()
 	{
-		var analysis = Game.Scripting.Analyze( "return Player.Health + Unknown;" );
+		var analysis = GlobalContext.Current.Scripting.Analyze( "return Player.Health + Unknown;" );
 		Assert.IsTrue( analysis.Inputs.Any( input => input.Name == "Player" && input.Type is null ) );
 		Assert.IsTrue( analysis.Inputs.Any( input => input.Name == "Unknown" && input.Type is null ) );
-		var broken = Game.Scripting.Analyze( "return (;" );
+		var broken = GlobalContext.Current.Scripting.Analyze( "return (;" );
 		Assert.IsTrue( broken.Diagnostics.Any( d => d.Severity == Script.DiagnosticSeverity.Error ) );
 		Assert.IsTrue( broken.Diagnostics.All( d => d.Span.Start >= 0 && d.Span.Start + d.Span.Length <= broken.Source.Length ) );
-		Assert.IsTrue( Game.Scripting.Analyze( "Math." ).Tokens.Count > 0 );
+		Assert.IsTrue( GlobalContext.Current.Scripting.Analyze( "Math." ).Tokens.Count > 0 );
 	}
 
 	[TestMethod]
 	public void CompletionPermissionsMatchTheRuntime()
 	{
-		var permitted = Game.Scripting.Analyze( "Player.", [new( "Player", typeof( AnalysisHost ) )] ).GetCompletions( 7 );
+		var permitted = GlobalContext.Current.Scripting.Analyze( "Player.", [new( "Player", typeof( AnalysisHost ) )] ).GetCompletions( 7 );
 		Assert.IsTrue( permitted.Items.Any( item => item.Label == "Health" ) );
 		Assert.IsFalse( permitted.Items.Any( item => item.Label == "Hidden" || item.Label == "GetType" ) );
-		var denied = Game.Scripting.Analyze( "Target.", [new( "Target", typeof( UnexposedHost ) )] ).GetCompletions( 7 );
+		var denied = GlobalContext.Current.Scripting.Analyze( "Target.", [new( "Target", typeof( UnexposedHost ) )] ).GetCompletions( 7 );
 		Assert.AreEqual( 0, denied.Items.Count );
-		Assert.IsFalse( Game.Scripting.Analyze( "Unexposed" ).GetCompletions( 9 ).Items.Any( item => item.Label == nameof( UnexposedHost ) ) );
-		var generic = Game.Scripting.Analyze( "Items.Co", [new( "Items", typeof( List<int> ) )] ).GetCompletions( 8 );
+		Assert.IsFalse( GlobalContext.Current.Scripting.Analyze( "Unexposed" ).GetCompletions( 9 ).Items.Any( item => item.Label == nameof( UnexposedHost ) ) );
+		var generic = GlobalContext.Current.Scripting.Analyze( "Items.Co", [new( "Items", typeof( List<int> ) )] ).GetCompletions( 8 );
 		Assert.IsTrue( generic.Items.Any( item => item.Label == "Count" ) );
 	}
 
@@ -137,7 +137,7 @@ public class ScriptAnalysisTests
 	public void SnapshotsStayImmutableAfterInputAndContextChanges()
 	{
 		UseOwnLibrary();
-		var system = Game.Scripting;
+		var system = GlobalContext.Current.Scripting;
 		var inputs = new List<Script.Input> { new( "Player", typeof( AnalysisHost ) ) };
 		var old = system.Analyze( "Player.", inputs );
 		inputs[0] = new( "Player", typeof( UnexposedHost ) );
@@ -156,13 +156,13 @@ public class ScriptAnalysisTests
 	public void TextAndCommentsDoNotOfferCompletions()
 	{
 		foreach ( string source in new[] { "// Math.S", "\"Math.S", "123" } )
-			Assert.AreEqual( 0, Game.Scripting.Analyze( source ).GetCompletions( source.Length ).Items.Count );
+			Assert.AreEqual( 0, GlobalContext.Current.Scripting.Analyze( source ).GetCompletions( source.Length ).Items.Count );
 	}
 
 	[TestMethod, TestCategory( Allocations.Category )]
 	public void SymbolAndTokenQueriesAllocateNothing()
 	{
-		var analysis = Game.Scripting.Analyze( "return Math.Sin(0);" );
+		var analysis = GlobalContext.Current.Scripting.Analyze( "return Math.Sin(0);" );
 		Allocations.AssertSettles( "1,000 symbol and token queries", () =>
 		{
 			for ( int i = 0; i < 1000; i++ ) { analysis.GetSymbol( 7 ); analysis.GetToken( 7 ); }

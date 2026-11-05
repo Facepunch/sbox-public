@@ -145,7 +145,7 @@ public class MemberDescription : ISourceLineProvider, IMemberNameProvider, ITitl
 	protected void Init( MemberInfo x )
 	{
 		MemberInfo = x;
-		Name = MemberInfo.Name;
+		Name = StringPool.Get( MemberInfo.Name );
 
 		CaptureAttributes( MemberInfo );
 

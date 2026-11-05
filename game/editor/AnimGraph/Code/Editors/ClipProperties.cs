@@ -48,7 +48,7 @@ internal sealed class ClipProperties : Widget
 
 		var sheet = new ControlSheet();
 		string[] groups = ["Import", "Import Settings", "Loop Smoothing", "Additive", "Alignment", "Animation Offsets", "Motion Extraction", "Morph Frame"];
-		foreach ( var group in serialized.Where( property => property.HasAttribute<PropertyAttribute>() )
+		foreach ( var group in serialized.Where( property => property.HasAttribute<PropertyAttribute>() && !property.HasAttribute<HideAttribute>() )
 			.GroupBy( property => property.GroupName )
 			.OrderBy( group => Array.IndexOf( groups, group.Key ) is var index && index >= 0 ? index : int.MaxValue ) )
 		{

@@ -1,4 +1,5 @@
-﻿namespace Sandbox;
+﻿using Sandbox.Engine;
+namespace Sandbox;
 
 public partial class GameObject
 {
@@ -53,7 +54,7 @@ public partial class GameObject
 			if ( c is null )
 				continue;
 
-			var typeDesc = Game.TypeLibrary.GetType( c.GetType() );
+			var typeDesc = GlobalContext.Current.TypeLibrary.GetType( c.GetType() );
 			if ( typeDesc is null )
 				continue;
 
@@ -285,7 +286,7 @@ public partial class GameObject
 	/// </summary>
 	GameObject FindSelectionBase()
 	{
-		var isSelectionBase = IsNetworkRoot || IsOutermostPrefabInstanceRoot || Components.GetAll().Any( x => Game.TypeLibrary.GetType( x?.GetType() )?.HasAttribute<SelectionBaseAttribute>() == true );
+		var isSelectionBase = IsNetworkRoot || IsOutermostPrefabInstanceRoot || Components.GetAll().Any( x => GlobalContext.Current.TypeLibrary.GetType( x?.GetType() )?.HasAttribute<SelectionBaseAttribute>() == true );
 
 		if ( isSelectionBase ) return this;
 

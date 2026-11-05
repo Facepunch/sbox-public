@@ -1,24 +1,21 @@
 using Editor.Assets;
 using Editor.Inspectors;
-using Sandbox.Helpers;
 
 namespace Editor.AnimGraph;
 
 [CanEdit( "asset:skel" )]
 public sealed class SkeletonInspector : Widget, AssetInspector.IAssetInspector
 {
-	private readonly UndoSystem _undo = new();
+	private AnimationDocumentSession _session;
 	private Asset _asset;
-	private SkeletonDocument _document;
+	private SkeletonDocument _document => (SkeletonDocument)_session?.Document;
+	private bool _readOnly => _session?.ReadOnly ?? true;
 	private SkeletonEditor _editor;
-	private PreviewSkeleton _preview;
+	private SkeletonAssetPreview _preview;
 	private SkeletonDocument.BoneMask _mask;
 	private Option _undoOption;
 	private Option _redoOption;
 	private Label _error;
-	private string _committed;
-	private string _saved;
-	private bool _readOnly;
 
 	public SkeletonInspector( Widget parent ) : base( parent )
 	{
@@ -28,36 +25,31 @@ public sealed class SkeletonInspector : Widget, AssetInspector.IAssetInspector
 		VerticalSizeMode = SizeMode.CanGrow;
 	}
 
-	[EditorForAssetType( "skel" )]
-	public static void Open( Asset asset ) => EditorUtility.InspectorObject = asset;
-
 	public void SetAsset( Asset asset )
 	{
 		_asset = asset;
-		_readOnly = !asset.HasSourceFile || AssetSystem.IsCloudInstalled( asset.Package );
-		_document = asset.HasSourceFile ? SkeletonDocument.Load( asset.GetSourceFile( true ) ) : null;
+		_session = AnimationDocumentSession.Acquire( asset, SkeletonDocument.Load );
+		_session.Changed += OnDocumentChanged;
 		if ( _document is not null )
 			_document.SourceSkeleton = Skeleton.Load( asset.Path );
-		_saved = _committed = _document?.Snapshot();
-		_undo.Initialize();
 		BuildUI();
 	}
 
 	public void SetInspector( AssetInspector inspector )
 	{
-		if ( _readOnly || _document is null )
-			return;
-
 		inspector.BindSaveToUnsavedChanges();
 		inspector.OnSave += Save;
 		inspector.OnReset += Reset;
 	}
 
-	public void SetAssetPreview( AssetPreview preview )
+	public Widget CreatePreviewWidget( Widget parent, AssetPreview preview )
 	{
-		_preview = preview as PreviewSkeleton;
+		_preview = new SkeletonAssetPreview( parent, (PreviewSkeleton)preview, () => Commit( "Set Preview Model" ) );
+		if ( _document is not null )
+			_document.SourceSkeleton = _preview.PreviewSkeleton;
 		_editor?.Refresh();
 		UpdatePreview();
+		return _preview;
 	}
 
 	public bool RebuildOnHotload()
@@ -97,27 +89,20 @@ public sealed class SkeletonInspector : Widget, AssetInspector.IAssetInspector
 		UpdateOptions();
 	}
 
-	private void Commit( string name )
+	private void Commit( string name ) => _session.Commit( name, this );
+
+	private void OnDocumentChanged( object source )
 	{
-		if ( _readOnly || _document is null )
+		if ( source == _session )
+		{
+			_document.SourceSkeleton = Skeleton.Load( _asset.Path );
+			BuildUI();
 			return;
+		}
 
-		var before = _committed;
-		var after = _document.Snapshot();
-		if ( before == after )
-			return;
-
-		_committed = after;
-		_undo.Insert( name, () => Restore( before ), () => Restore( after ) );
-		UpdateOptions();
-		UpdatePreview();
-	}
-
-	private void Restore( string snapshot )
-	{
-		_document.Restore( snapshot );
-		_committed = _document.Snapshot();
-		_editor.SetDocument( _asset, _document, _mask?.Name );
+		if ( source != this )
+			_editor.SetDocument( _asset, _document, _mask?.Name );
+		_error.Visible = false;
 		UpdateOptions();
 		UpdatePreview();
 	}
@@ -125,15 +110,14 @@ public sealed class SkeletonInspector : Widget, AssetInspector.IAssetInspector
 	private void UpdateOptions()
 	{
 		if ( _undoOption is not null )
-			_undoOption.Enabled = !_readOnly && _undo.Back.Count > 0;
+			_undoOption.Enabled = _session.CanUndo;
 		if ( _redoOption is not null )
-			_redoOption.Enabled = !_readOnly && _undo.Forward.Count > 0;
-
-		_asset.HasUnsavedChanges = !_readOnly && _committed != _saved;
+			_redoOption.Enabled = _session.CanRedo;
 	}
 
 	private void UpdatePreview()
 	{
+		_preview?.SetDocument( _document, _readOnly );
 		var bones = BoneMaskWeights.GetBones( _document?.SourceSkeleton );
 		_preview?.SetBoneWeights( BoneMaskWeights.Build( bones, _mask ), _mask is not null, _document?.RootBone );
 	}
@@ -153,38 +137,31 @@ public sealed class SkeletonInspector : Widget, AssetInspector.IAssetInspector
 			return;
 		}
 
-		if ( !_document.Save() )
+		if ( !_session.Save( this ) )
 		{
 			_error.Text = "Couldn't save this skeleton. See the console for details.";
 			_error.Visible = true;
 			return;
 		}
 
-		_error.Visible = false;
-		_saved = _committed = _document.Snapshot();
-		UpdateOptions();
 		_asset.Compile( false );
 	}
 
-	private void Reset()
-	{
-		Restore( _saved );
-		_undo.Initialize();
-		_error.Visible = false;
-		UpdateOptions();
-	}
+	private void Reset() => _session.Reset();
 
 	[Shortcut( "editor.undo", "CTRL+Z", ShortcutType.Widget )]
-	private void Undo()
-	{
-		_undo.Undo();
-		UpdateOptions();
-	}
+	private void Undo() => _session?.Undo();
 
 	[Shortcut( "editor.redo", "CTRL+Y", ShortcutType.Widget )]
-	private void Redo()
+	private void Redo() => _session?.Redo();
+
+	public override void OnDestroyed()
 	{
-		_undo.Redo();
-		UpdateOptions();
+		if ( _session is not null )
+		{
+			_session.Changed -= OnDocumentChanged;
+			_session.Release();
+		}
+		base.OnDestroyed();
 	}
 }

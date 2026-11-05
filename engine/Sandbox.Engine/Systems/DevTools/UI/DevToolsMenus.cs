@@ -1,3 +1,4 @@
+using Sandbox.Rendering;
 using Sandbox.UI;
 
 namespace Sandbox.Diagnostics;
@@ -85,6 +86,22 @@ internal static class DevToolsMenus
 			row.Tooltip = locked ? $"{name} - needs sv_cheats" : name;
 		}
 
+		// Occlusion culling's switches, which the Rendering tab used to carry. Each click steps to the next value
+		menu.AddChild( new Label( "Occlusion", "menu-section" ) );
+		if ( ManagedSceneRendering.Enabled )
+		{
+			Cycle( menu, "Culling", "r_managed_occlusion", () => ManagedSceneRendering.Occlusion ? 1 : 0, OnOff );
+		}
+		else
+		{
+			Cycle( menu, "Culling", "r_occlusion_culling", () => RenderPipeline.OcclusionCulling ? 1 : 0, OnOff );
+			Cycle( menu, "Aggregates", "r_occlusion_aggregates", () => RenderPipeline.AggregateMode, AggregateModes );
+		}
+
+		Cycle( menu, "Debug boxes", "r_occlusion_debug", () => OcclusionDebug.DebugMode, DebugModes );
+		Cycle( menu, "Freeze", "r_occlusion_freeze", () => OcclusionDebug.Freeze ? 1 : 0, OnOff );
+		Cycle( menu, "Early cull", "r_occlusion_early", () => OcclusionDebug.EarlyMode, EarlyModes );
+
 		menu.AddChild( new Label( "Dev tools", "menu-section" ) );
 
 		var scale = menu.AddChild( new Panel( null, "menu-row stepper" ) );
@@ -101,12 +118,37 @@ internal static class DevToolsMenus
 			DevTools.WindowScale = MathF.Round( Math.Clamp( DevTools.WindowScale + by, 0.5f, 3f ) * 10f ) / 10f;
 			value.Text = $"{DevTools.WindowScale:0.0}x";
 		}
+	}
 
-		// Always on in the editor and with cheats, so there's nothing to choose there
-		var forced = Application.IsEditor || Application.CheatsEnabled;
-		var advanced = Toggle( menu, "All tabs", () => DevTools.ShowAdvanced, () => DevTools.AdvancedEnabled = !DevTools.AdvancedEnabled );
-		advanced.SetClass( "disabled", forced );
-		advanced.Tooltip = forced ? "Always on in the editor and with sv_cheats" : "Every tab, not just the overview (devtools_advanced)";
+	static readonly string[] OnOff = ["off", "on"];
+	static readonly string[] AggregateModes = ["off", "draw empty", "compact"];
+	static readonly string[] DebugModes = ["off", "hidden", "all", "on depth"];
+	static readonly string[] EarlyModes = ["off", "on", "reject all"];
+
+	/// <summary>
+	/// A setting with a few values: its name and the current one. Clicking steps to the next through the console, so cheat
+	/// convars stay locked without sv_cheats, and leaves the menu open.
+	/// </summary>
+	static void Cycle( Panel menu, string text, string convar, Func<int> value, string[] names )
+	{
+		var row = menu.AddChild( new Panel( null, "menu-row" ) );
+		row.AddChild( new Label( "", "menu-check" ) );
+		row.AddChild( new Label( text, "menu-text" ) );
+		var shown = row.AddChild( new Label( "", "menu-value" ) );
+
+		var locked = ConVarSystem.Find( convar ) is { IsCheat: true } && !Game.CheatsEnabled;
+		row.SetClass( "disabled", locked );
+		row.Tooltip = locked ? $"{convar} - needs sv_cheats" : convar;
+
+		void Show() => shown.Text = names[Math.Clamp( value(), 0, names.Length - 1 )];
+		Show();
+
+		row.AddEventListener( "onclick", () =>
+		{
+			if ( row.HasClass( "disabled" ) ) return;
+			ConVarSystem.Run( $"{convar} {(value() + 1) % names.Length}" );
+			Show();
+		} );
 	}
 
 	static bool IsOn( string value ) =>

@@ -203,17 +203,18 @@ struct ToolsVis
     void HandleLightingComplexity(inout float4 vColor, float3 WorldPosition, float4 PositionSs, float3 Normal)
     {
         uint nNumLights = 0;
-        const float3 vReceiverNormalWs = ComputeShadowReceiverNormal( WorldPosition );
 
         ClusterRange lightRange = Cluster::Query( ClusterItemType_Light, PositionSs );
 
+        // Lights that reach and face this pixel, shadowed or not: a shadowed light still costs its shadow lookup.
+        // Light.Init would also evaluate shadows, cookies and modulators, a whole extra copy of the light code.
         for (uint index = 0; index < lightRange.Count; index++)
         {
             uint lightIndex = Cluster::LoadItem( lightRange, index );
             Light light;
-            light.Init( WorldPosition, DynamicLightConstantByIndex( lightIndex ), PositionSs, vReceiverNormalWs );
-        
-            if (light.Visibility > 0.0f && light.Attenuation > 0.0f && dot(light.Direction, Normal) > 0.0f)
+            light.LightData = DynamicLightConstantByIndex( lightIndex );
+
+            if (light.GetLightAttenuation( WorldPosition ) > 0.0f && dot(light.GetLightDirection( WorldPosition ), Normal) > 0.0f)
                 nNumLights++;
         }
 
