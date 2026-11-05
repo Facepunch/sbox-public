@@ -126,11 +126,12 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 	/// </summary>
 	public void ResetEnvironment()
 	{
-		var hadPreviousEnvironment = gameInstance is not null || AssemblyEnroller is not null || DidMountNetworkedFiles;
+		// An empty enroller is the one the last reset made, so no game has used it since
+		var hadPreviousEnvironment = gameInstance is not null || AssemblyEnroller?.GetLoadedAssemblies().Length > 0 || DidMountNetworkedFiles;
 
-		// The menu loaded its resources moments ago during startup, so there is nothing to reset yet.
+		// Nothing has touched the menu's resources since the last reset, so there is nothing to reset yet.
 		var menuResourcesCurrent = !hadPreviousEnvironment && !Application.IsEditor;
-		// Bootstrap and the menu just built their type libraries, so the first game start has none to rebuild.
+		// Bootstrap or the last reset built the type libraries, so a clean environment has none to rebuild.
 		var firstStartup = !hadPreviousEnvironment && !Application.IsEditor;
 
 		using var scope = GlobalContext.GameScope();
