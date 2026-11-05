@@ -432,6 +432,7 @@ internal sealed partial class PackageLoader : IDisposable
 
 			// Make sure we load the loose content as well
 			FileSystem.Mounted.Mount( ap.FileSystem );
+			System.Threading.Interlocked.Increment( ref PackageManager.MountGeneration );
 		}
 		catch
 		{

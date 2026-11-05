@@ -468,6 +468,7 @@ internal static partial class PackageManager
 		private void Mount( bool reloadResources = true )
 		{
 			MountedFileSystem.Mount( FileSystem );
+			Interlocked.Increment( ref MountGeneration );
 
 			if ( reloadResources )
 			{
@@ -487,6 +488,7 @@ internal static partial class PackageManager
 		public void Delete()
 		{
 			MountedFileSystem.UnMount( FileSystem );
+			Interlocked.Increment( ref MountGeneration );
 
 			// Make sure we unmount the package from the global filesystem, so that any other packages that might have been mounted on top of it don't get broken.
 			Sandbox.FileSystem.Mounted?.UnMount( FileSystem );

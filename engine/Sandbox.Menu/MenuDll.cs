@@ -112,7 +112,7 @@ internal sealed class MenuDll : IMenuDll
 		{
 			ConVarSystem.RemoveAssembly( a.Assembly );
 			Event.UnregisterAssembly( a.Assembly );
-			Game.NodeLibrary.RemoveAssembly( a.Assembly );
+			GlobalContext.Current.RemoveNodeAssembly( a.Assembly );
 			GlobalContext.Menu.TypeLibrary.RemoveAssembly( a.Assembly );
 		};
 

@@ -21,6 +21,12 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 	PackageLoader.Enroller AssemblyEnroller { get; set; }
 
 	private bool _isAssemblyLoadingPaused;
+
+	// Nothing but the engine has been added to the type library since it was last built
+	bool typeLibraryEngineOnly;
+
+	// PackageManager.MountGeneration when the last reset finished
+	int resetMountGeneration = -1;
 	private CancellationTokenSource _loadGameCts;
 	private Task<bool> _loadGameTask;
 
@@ -128,8 +134,10 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 	{
 		var hadPreviousEnvironment = gameInstance is not null || AssemblyEnroller is not null || DidMountNetworkedFiles;
 
-		// The menu loaded its resources moments ago during startup, so there is nothing to reset yet.
-		var menuResourcesCurrent = !hadPreviousEnvironment && !Application.IsEditor;
+		// The menu loaded its resources moments ago during startup, so there is nothing to reset yet. Nor when no package
+		// has been mounted or unmounted since the last reset: closing a game resets and starting the next one does again.
+		var menuResourcesCurrent = !Application.IsEditor && (!hadPreviousEnvironment
+			|| (!DidMountNetworkedFiles && PackageManager.MountGeneration == resetMountGeneration));
 		// Bootstrap and the menu just built their type libraries, so the first game start has none to rebuild.
 		var firstStartup = !hadPreviousEnvironment && !Application.IsEditor;
 
@@ -182,13 +190,19 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 		Screen.UpdateFromEngine();
 
-		if ( !firstStartup )
+		// Closing a game resets, and so does starting the next one: the second finds the type library as the first left it,
+		// with nothing but the engine in it, and building that again is a third of a second and 100 MB of garbage.
+		var typeLibraryCurrent = typeLibraryEngineOnly && !Application.IsEditor;
+
+		if ( !firstStartup && !typeLibraryCurrent )
 		{
 			Game.InitTypeLibrary();
 
 			// The upgraders are the last game's until an assembly loads, and they hold on to its whole type library.
 			JsonUpgrader.UpdateUpgraders( TypeLibrary );
 		}
+
+		typeLibraryEngineOnly = true;
 
 		UserPermission.Load();
 
@@ -227,6 +241,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			if ( a.IsEditorAssembly )
 				return;
 
+			typeLibraryEngineOnly = false;
 			Game.TypeLibrary.AddAssembly( a.Assembly, true );
 			GlobalContext.Current.AddNodeAssemblyLater( a.Assembly, logErrors: false );
 			ConVarSystem.AddAssembly( a.Assembly, "game" );
@@ -248,7 +263,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 			Assert.NotNull( a.Assembly );
 
-			Game.NodeLibrary.RemoveAssembly( a.Assembly );
+			GlobalContext.Current.RemoveNodeAssembly( a.Assembly );
 			Game.TypeLibrary.RemoveAssembly( a.Assembly );
 			ConVarSystem.RemoveAssembly( a.Assembly );
 			JsonUpgrader.UpdateUpgraders( TypeLibrary );
@@ -265,6 +280,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		};
 
 		if ( !menuResourcesCurrent ) IMenuDll.Current?.Reset();
+		resetMountGeneration = PackageManager.MountGeneration;
 
 		if ( hadPreviousEnvironment )
 		{
