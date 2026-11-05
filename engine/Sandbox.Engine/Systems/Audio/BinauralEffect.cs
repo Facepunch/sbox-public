@@ -43,7 +43,7 @@ class BinauralEffect : IDisposable
 		{
 			if ( spatialBlend <= 0 )
 			{
-				output.CopyFrom( input );
+				output.CopyFromUpmix( input );
 				return;
 			}
 
@@ -51,7 +51,8 @@ class BinauralEffect : IDisposable
 
 			if ( spatialBlend < 1 )
 			{
-				output.MixFrom( input, 1 - spatialBlend );
+				output.CopyFromUpmix( input );
+				output.Scale( 1 - spatialBlend );
 			}
 
 			// Normalize direction
