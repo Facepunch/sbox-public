@@ -310,6 +310,9 @@ internal sealed partial class PackageLoader : IDisposable
 		//
 		else
 		{
+			// The check started when it downloaded may still be running: let it finish, then this finds the bytes passed.
+			ap.Verification?.Wait();
+
 			if ( !TestAccessControl( dll_stream, out trustedDll ) )
 			{
 				trustedDll?.Dispose();

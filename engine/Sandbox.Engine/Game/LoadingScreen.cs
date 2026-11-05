@@ -20,6 +20,7 @@ public static class LoadingScreen
 			_loading = value;
 			_shown = 0;
 			TextureWebStreaming.UpdateDownloadState();
+			Audio.AudioEngine.SetLoading( value );
 
 			// Each load's downloads are its own
 			_downloads.Clear();

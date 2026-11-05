@@ -8,7 +8,7 @@ namespace Sandbox.Audio;
 /// <summary>
 /// Bridges the native audio callback and the managed mixing graph.
 /// Main thread calls UpdateGlobals, ApplyWritebacks, QueueSamplerDisposal, QueueAcousticModelDisposal.
-/// Mix thread calls MixOneBuffer from the native audio callback.
+/// The native feeder thread calls MixOneBuffer to stay ahead of the device, the device callback when it falls behind.
 /// </summary>
 static class MixingThread
 {

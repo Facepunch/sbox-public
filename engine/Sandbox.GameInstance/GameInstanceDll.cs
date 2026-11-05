@@ -284,13 +284,13 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 		if ( hadPreviousEnvironment )
 		{
-			// Collect what the last game left so finalizers release its native resources. In the background: a blocking
-			// collection of the whole heap freezes every managed thread, the audio mixer included, for a third of a second.
-			GC.Collect( GC.MaxGeneration, GCCollectionMode.Forced, blocking: false );
-			GC.WaitForPendingFinalizers();
+			// Its type library's strings needn't be kept around for the next game
+			StringPool.Clear();
 
-			// Run the queue one more time, since some finalizers queue tasks
-			MainThread.RunQueues();
+			// Start collecting what the last game left, in the background: a blocking collection of the whole heap freezes
+			// every managed thread, the audio mixer included, for a third of a second. It returns at once, so the last
+			// game's finalizers run during the next load and the native releases they queue run between its frames.
+			GC.Collect( GC.MaxGeneration, GCCollectionMode.Forced, blocking: false );
 		}
 	}
 

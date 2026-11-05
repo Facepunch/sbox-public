@@ -16,6 +16,7 @@ native accessor g_pAudioDevice
 	void MuteDevice( bool bMuteDevice );
 	void ClearBuffer();
 	void OutputDebugInfo();
+	void SetMixAhead( float flSeconds );
 
 	inline bool IsValid()
 	{
