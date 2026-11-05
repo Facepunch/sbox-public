@@ -102,14 +102,17 @@ internal sealed partial class TextBlock : IDisposable
 
 	Dictionary<int, Vector2> SizeCache = new Dictionary<int, Vector2>();
 	Vector2? MinContentSize;
+	(float Width, Vector2 Size)? MinContentAtWidth;
 
 	internal Vector2 MeasureMinContent( float? width = null )
 	{
 		if ( width is null && MinContentSize is { } cached ) return cached;
+		if ( width is { } w && MinContentAtWidth is { } atWidth && atWidth.Width.Equals( w ) ) return atWidth.Size;
 
 		var size = Block.MeasureMinContent( width, WhiteSpace == UI.WhiteSpace.BreakSpaces, EndsWithNewline );
 		var result = new Vector2( size.Width.CeilToInt(), size.Height.CeilToInt() );
 		if ( width is null ) MinContentSize = result;
+		else MinContentAtWidth = (width.Value, result);
 		return result;
 	}
 
@@ -524,6 +527,7 @@ internal sealed partial class TextBlock : IDisposable
 
 		SizeCache.Clear();
 		MinContentSize = null;
+		MinContentAtWidth = null;
 		Invalidate();
 
 		return true;
