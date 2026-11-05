@@ -296,7 +296,10 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		MemoryMarshal.Write( buf[5..], in isolatedComponent );
 		var tokenSlice = MemoryMarshal.Cast<byte, uint>( buf[21..] );
 		int i = 0;
-		foreach ( var token in tokens ) tokenSlice[i++] = token;
+		if ( tokens is HashSet<uint> tokenSet )
+			foreach ( var token in tokenSet ) tokenSlice[i++] = token;
+		else
+			foreach ( var token in tokens ) tokenSlice[i++] = token;
 		MemoryExtensions.Sort( tokenSlice );
 
 		return XxHash3.HashToUInt64( buf );
