@@ -334,12 +334,70 @@ public partial class Mixer
 		_sortedVoices.Sort( static ( a, b ) => b.CreatedTime.CompareTo( a.CreatedTime ) );
 
 		var limit = Math.Min( _sortedVoices.Count, _maxVoices );
+		if ( limit < MinParallelVoices || JobDispatcher.MaxDegreeOfParallelism <= 1 )
+		{
+			for ( var si = 0; si < limit; si++ )
+			{
+				MixVoice( snapshot, voices, _sortedVoices[si].Index, _voiceMix, ownOutputs: false );
+				Interlocked.Add( ref _voiceCount, 1 );
+			}
+
+			return;
+		}
+
+		// Each voice mixes into buffers of its own on whichever thread, then they're added to the listeners' in voice
+		// order: the same sum however the voices were shared out
+		if ( _voiceMixes.Length < limit )
+		{
+			var old = _voiceMixes.Length;
+			Array.Resize( ref _voiceMixes, limit );
+			for ( var i = old; i < limit; i++ ) _voiceMixes[i] = new VoiceMix();
+		}
+
+		// Native effects and buffers are made here, on the mixing thread: Steam Audio can't create them on several at once
+		var models = CollectionsMarshal.AsSpan( snapshot.AllModels );
+		var listenerCount = snapshot.Listeners.Count + 1;
 		for ( var si = 0; si < limit; si++ )
 		{
-			MixVoice( snapshot, voices, _sortedVoices[si].Index );
-			Interlocked.Add( ref _voiceCount, 1 );
+			ref readonly var vs = ref voices[_sortedVoices[si].Index];
+			for ( var i = 0; i < vs.SourceCount; i++ )
+				models[vs.SourceOffset + i]?.EnsureNative();
+
+			_voiceMixes[si].Reserve( listenerCount );
 		}
+
+		_mixingSnapshot = snapshot;
+		try
+		{
+			JobDispatcher.For( limit, this, static ( mixer, si ) =>
+			{
+				var mix = mixer._voiceMixes[si];
+				mix.OutputCount = 0;
+				var snapshot = mixer._mixingSnapshot;
+				mixer.MixVoice( snapshot, CollectionsMarshal.AsSpan( snapshot.Voices ), mixer._sortedVoices[si].Index, mix, ownOutputs: true );
+			}, itemsPerBatch: 1 );
+		}
+		finally
+		{
+			_mixingSnapshot = null;
+		}
+
+		for ( var si = 0; si < limit; si++ )
+		{
+			var mix = _voiceMixes[si];
+			for ( var o = 0; o < mix.OutputCount; o++ )
+				GetListenerBuffer( mix.ListenerAt( o ) ).MixFrom( mix.OutputAt( o ), 1.0f );
+
+			mix.ForgetListeners();
+		}
+
+		Interlocked.Add( ref _voiceCount, limit );
 	}
+
+	/// <summary>
+	/// Voices a mixer has before mixing them is split across the job dispatcher's threads.
+	/// </summary>
+	internal static int MinParallelVoices { get; set; } = 8;
 
 	private bool ShouldMixVoices()
 	{
@@ -412,16 +470,116 @@ public partial class Mixer
 	}
 
 	static Superluminal _mixVoice = new( "Mix Voice", "#4d5e73" );
-	MultiChannelBuffer mixBuffer = new( AudioEngine.ChannelCount );
-	readonly MultiChannelBuffer _reverbSendBuffer = new( AudioEngine.ChannelCount );
-	readonly MultiChannelBuffer _reverbOutputBuffer = new( AudioEngine.ChannelCount );
-	readonly MultiChannelBuffer _reverbDryBuffer = new( AudioEngine.ChannelCount );
+
+	/// <summary>
+	/// A voice's working buffers and, when it mixes alongside others, its own output for each listener, added to the
+	/// mixer's after.
+	/// </summary>
+	sealed class VoiceMix
+	{
+		public readonly MultiChannelBuffer Mix = new( AudioEngine.ChannelCount );
+		public readonly MultiChannelBuffer ReverbSend = new( AudioEngine.ChannelCount );
+		public readonly MultiChannelBuffer ReverbOutput = new( AudioEngine.ChannelCount );
+		public readonly MultiChannelBuffer ReverbDry = new( AudioEngine.ChannelCount );
+		MultiChannelBuffer input = new( AudioEngine.ChannelCount );
+		MultiChannelBuffer binauralInput = new( 2 );
+
+		readonly List<Listener> listeners = new();
+		readonly List<MultiChannelBuffer> outputs = new();
+
+		/// <summary>
+		/// How many listeners this voice has written output for.
+		/// </summary>
+		public int OutputCount;
+
+		public MultiChannelBuffer Input( int channelCount )
+		{
+			if ( input?.ChannelCount != channelCount )
+			{
+				input?.Dispose();
+				input = new MultiChannelBuffer( channelCount );
+			}
+
+			return input;
+		}
+
+		public MultiChannelBuffer BinauralInput( int channelCount )
+		{
+			if ( binauralInput?.ChannelCount != channelCount )
+			{
+				binauralInput?.Dispose();
+				binauralInput = new MultiChannelBuffer( channelCount );
+			}
+
+			return binauralInput;
+		}
+
+		/// <summary>
+		/// Make output buffers for <paramref name="listenerCount"/> listeners ahead of mixing, on the mixing thread.
+		/// </summary>
+		public void Reserve( int listenerCount )
+		{
+			while ( outputs.Count < listenerCount )
+			{
+				listeners.Add( null );
+				outputs.Add( new MultiChannelBuffer( AudioEngine.ChannelCount ) );
+			}
+		}
+
+		/// <summary>
+		/// This voice's output for <paramref name="listener"/>, silenced the first time it's asked for.
+		/// </summary>
+		public MultiChannelBuffer Output( Listener listener )
+		{
+			for ( var i = 0; i < OutputCount; i++ )
+			{
+				if ( ReferenceEquals( listeners[i], listener ) ) return outputs[i];
+			}
+
+			if ( OutputCount == outputs.Count )
+			{
+				listeners.Add( listener );
+				outputs.Add( new MultiChannelBuffer( AudioEngine.ChannelCount ) );
+			}
+			else
+			{
+				listeners[OutputCount] = listener;
+			}
+
+			var buffer = outputs[OutputCount++];
+			buffer.Silence();
+			return buffer;
+		}
+
+		public Listener ListenerAt( int i ) => listeners[i];
+		public MultiChannelBuffer OutputAt( int i ) => outputs[i];
+
+		/// <summary>
+		/// Let go of this frame's listeners, so a removed one isn't kept alive.
+		/// </summary>
+		public void ForgetListeners()
+		{
+			for ( var i = 0; i < OutputCount; i++ ) listeners[i] = null;
+			OutputCount = 0;
+		}
+	}
+
+	/// <summary>
+	/// The buffers voices mix through one at a time on the mixing thread.
+	/// </summary>
+	readonly VoiceMix _voiceMix = new();
+
+	/// <summary>
+	/// Each voice's buffers when they mix across threads, by priority.
+	/// </summary>
+	VoiceMix[] _voiceMixes = [];
+	VoiceFrameSnapshot _mixingSnapshot;
 
 	/// <summary>
 	/// Mix one voice described by the snapshot. No locks, all inputs come from the snapshot,
 	/// outputs go to snapshot.Voices[voiceIndex].Output* fields.
 	/// </summary>
-	void MixVoice( VoiceFrameSnapshot snapshot, Span<VoiceState> voices, int voiceIndex )
+	void MixVoice( VoiceFrameSnapshot snapshot, Span<VoiceState> voices, int voiceIndex, VoiceMix mix, bool ownOutputs )
 	{
 		using var _ = _mixVoice.Start();
 
@@ -469,7 +627,9 @@ public partial class Mixer
 
 			if ( source is null ) continue;
 
-			var targetBuffer = GetListenerBuffer( listener );
+			// Mixed alongside other voices, it writes its own output, which the mixer adds after
+			var targetBuffer = ownOutputs ? mix.Output( listener ) : GetListenerBuffer( listener );
+			var mixBuffer = mix.Mix;
 
 			mixBuffer.CopyFromUpmix( samples );
 
@@ -485,13 +645,13 @@ public partial class Mixer
 				var distAtten = ComputeDistanceAtten( listener, in srcParams );
 				reverbSendLevel = srcParams.ReverbAmount * mixerReverbScale * distAtten * volume * (srcParams.OcclusionEnabled ? srcParams.TransmissionBands.Mid : 1f);
 				// Capture dry signal before DirectEffect so reverb send bypasses distance attenuation.
-				if ( reverbSendLevel >= 0.175f ) _reverbDryBuffer.CopyFrom( mixBuffer );
+				if ( reverbSendLevel >= 0.175f ) mix.ReverbDry.CopyFrom( mixBuffer );
 			}
 
 			var sourceParams = allParams[vs.SourceOffset + i];
 			// Always run SA DirectEffect to keep its internal gain interpolator warm; skipping causes a pop on re-audibility.
-			ApplyDirectMix( source, listener, mixBuffer, volume, in sourceParams );
-			ConvertToBinaural( allBinaurals[vs.SourceOffset + i], mixTransform, in vs, mixBuffer );
+			ApplyDirectMix( source, listener, mix, volume, in sourceParams );
+			ConvertToBinaural( allBinaurals[vs.SourceOffset + i], mixTransform, in vs, mix );
 
 			if ( willRunReverb )
 			{
@@ -499,10 +659,10 @@ public partial class Mixer
 				if ( reverbSendLevel >= 0.175f )
 				{
 					var room = vs.ReverbRoom;
-					FillReverbSend( _reverbDryBuffer, reverbSendLevel );
-					_reverbOutputBuffer.Silence();
-					vs.Reverb.Apply( room.DecayTimeLow, room.DecayTimeMid, room.DecayTimeHigh, _reverbSendBuffer, _reverbOutputBuffer );
-					targetBuffer.MixFrom( _reverbOutputBuffer, room.Mix );
+					FillReverbSend( mix.ReverbDry, mix.ReverbSend, reverbSendLevel );
+					mix.ReverbOutput.Silence();
+					vs.Reverb.Apply( room.DecayTimeLow, room.DecayTimeMid, room.DecayTimeHigh, mix.ReverbSend, mix.ReverbOutput );
+					targetBuffer.MixFrom( mix.ReverbOutput, room.Mix );
 				}
 			}
 
@@ -519,57 +679,39 @@ public partial class Mixer
 		return p.Falloff.Evaluate( t );
 	}
 
-	void FillReverbSend( MultiChannelBuffer source, float scale )
+	static void FillReverbSend( MultiChannelBuffer source, MultiChannelBuffer send, float scale )
 	{
 		var weight = scale / source.ChannelCount;
-		for ( var outCh = 0; outCh < _reverbSendBuffer.ChannelCount; outCh++ )
+		for ( var outCh = 0; outCh < send.ChannelCount; outCh++ )
 		{
-			_reverbSendBuffer.Get( outCh ).Silence();
+			send.Get( outCh ).Silence();
 			for ( var inCh = 0; inCh < source.ChannelCount; inCh++ )
 			{
-				_reverbSendBuffer.Get( outCh ).MixFrom( source.Get( inCh ), weight );
+				send.Get( outCh ).MixFrom( source.Get( inCh ), weight );
 			}
 		}
 	}
 
-	MultiChannelBuffer _input;
-	MultiChannelBuffer _binauralInput;
-
-	void EnsureInputBuffer( int channelCount )
-	{
-		if ( _input?.ChannelCount != channelCount )
-		{
-			_input?.Dispose();
-			_input = new MultiChannelBuffer( channelCount );
-		}
-	}
-
-	void EnsureBinauralInputBuffer( int channelCount )
-	{
-		if ( _binauralInput?.ChannelCount != channelCount )
-		{
-			_binauralInput?.Dispose();
-			_binauralInput = new MultiChannelBuffer( channelCount );
-		}
-	}
-
-	void ApplyDirectMix( DirectSoundModel source, Listener listener, MultiChannelBuffer inputoutput, float volume,
+	void ApplyDirectMix( DirectSoundModel source, Listener listener, VoiceMix mix, float volume,
 		in DirectSoundParams sourceParams )
 	{
 		if ( source is null )
 			return;
 
-		EnsureInputBuffer( inputoutput.ChannelCount );
-		_input.CopyFrom( inputoutput );
-		source.Apply( listener, _input, inputoutput, Occlusion, volume, in sourceParams );
+		var inputoutput = mix.Mix;
+		var input = mix.Input( inputoutput.ChannelCount );
+		input.CopyFrom( inputoutput );
+		source.Apply( listener, input, inputoutput, Occlusion, volume, in sourceParams );
 	}
 
 	/// <summary>
 	/// Spatialize the voice based on its snapshotted position and spatialization parameters.
 	/// </summary>
-	void ConvertToBinaural( BinauralEffect binaural, Transform mixTransform, in VoiceState vs, MultiChannelBuffer inputoutput )
+	void ConvertToBinaural( BinauralEffect binaural, Transform mixTransform, in VoiceState vs, VoiceMix mix )
 	{
 		if ( binaural is null ) return;
+
+		var inputoutput = mix.Mix;
 
 		if ( vs.ListenLocal )
 		{
@@ -581,10 +723,10 @@ public partial class Mixer
 			var pos = vs.Position;
 			while ( pos.Length < 0.5f ) pos += new Vector3( 1, 0, 0 );
 
-			EnsureBinauralInputBuffer( 2 );
-			_binauralInput.CopyFrom( inputoutput );
+			var localInput = mix.BinauralInput( 2 );
+			localInput.CopyFrom( inputoutput );
 
-			binaural.Apply( pos, localSpatial, useNearestInterpolation: true, _binauralInput, inputoutput );
+			binaural.Apply( pos, localSpatial, useNearestInterpolation: true, localInput, inputoutput );
 			return;
 		}
 
@@ -600,11 +742,11 @@ public partial class Mixer
 				: soundDirectionLocal.Normal * soundDistance;
 		}
 
-		EnsureBinauralInputBuffer( 2 );
-		_binauralInput.CopyFrom( inputoutput );
+		var binauralInput = mix.BinauralInput( 2 );
+		binauralInput.CopyFrom( inputoutput );
 
 		bool useNearest = vs.IsVoice || vs.Loopback || spacial < 0.5f || soundDistance > 1500f;
-		binaural.Apply( soundDirectionLocal, spacial, useNearest, _binauralInput, inputoutput );
+		binaural.Apply( soundDirectionLocal, spacial, useNearest, binauralInput, inputoutput );
 	}
 
 	/// <summary>

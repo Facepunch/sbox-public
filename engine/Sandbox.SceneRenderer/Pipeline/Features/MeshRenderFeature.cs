@@ -182,6 +182,44 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	/// </summary>
 	RenderAttributes[] probes = new RenderAttributes[256];
 
+	/// <summary>
+	/// What <see cref="Classify"/> made of each visible object, by its place in the visible list.
+	/// </summary>
+	Classified[] classified = new Classified[256];
+
+	/// <summary>
+	/// The view <see cref="Classify"/> is working on while it runs.
+	/// </summary>
+	(RenderWorld World, ViewPass Pass, List<int> Visible, Vector3 Camera, float TanHalfFov, float ScreenWidth, Vector3 SortCamera, List<LightProbeVolume> Volumes, long VolumesKey) classifying;
+
+	struct Classified
+	{
+		public MeshRuns Runs;
+		public MeshRuns FrameBufferReads;
+		public ulong OpaqueKey;
+		public uint Distance;
+		public int RenderOrder;
+		public bool OnlyTranslucent;
+
+		/// <summary>
+		/// A custom object, left for the main thread: it isn't classified like a mesh.
+		/// </summary>
+		public bool Custom;
+	}
+
+	/// <summary>
+	/// Whether <see cref="Prepare"/> may classify a big view's objects across the job dispatcher's threads
+	/// (<see cref="RenderSystem.ParallelRecording"/>).
+	/// </summary>
+	internal bool Parallel { get; set; } = true;
+
+	/// <summary>
+	/// Visible objects a view needs before classifying them is split across threads. Classifying on one thread leaves
+	/// the objects in its cache for emitting them after; split, emitting fetches them again, which costs as much as the
+	/// split saves until there are too many objects to stay in cache anyway: even at 10-20k objects, 15% faster from 35k.
+	/// </summary>
+	internal static int MinParallelClassify { get; set; } = 32_000;
+
 	Material defaultMaterial;
 	Material depthOnlyMaterial;
 
@@ -239,15 +277,29 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 
 		if ( lods.Length < objects.Length ) Array.Resize( ref lods, Math.Max( objects.Length, lods.Length * 2 ) );
 		if ( probes.Length < lods.Length ) Array.Resize( ref probes, lods.Length );
+		if ( classified.Length < visible.Count ) Array.Resize( ref classified, Math.Max( visible.Count, classified.Length * 2 ) );
 		var volumes = world.LightProbeVolumes;
 		var volumesKey = volumes.Count > 0 && !pass.IsShadow ? LightProbeVolume.Key( volumes ) : 0;
 
-		foreach ( var index in CollectionsMarshal.AsSpan( visible ) )
+		// Each object's LOD, probe, lists and sort keys are its own, so a big view classifies across threads
+		classifying = (world, pass, visible, camera, tanHalfFov, screenWidth, sortCamera, volumes, volumesKey);
+		if ( Parallel && visible.Count >= MinParallelClassify && JobDispatcher.MaxDegreeOfParallelism > 1 )
+			JobDispatcher.ForBatched( visible.Count, this, static ( feature, start, end ) => feature.Classify( start, end ) );
+		else
+			Classify( 0, visible.Count );
+		classifying = default;
+
+		// Then into the buckets in visible order, whichever thread classified what
+		var visibleSpan = CollectionsMarshal.AsSpan( visible );
+		for ( int k = 0; k < visibleSpan.Length; k++ )
 		{
+			var index = visibleSpan[k];
+			ref var c = ref classified[k];
+
 			// Membership comes from MeshRenderFeature.Lists.cs.
-			var renderObject = objects[index];
-			if ( renderObject is CustomObject custom )
+			if ( c.Custom )
 			{
+				var custom = (CustomObject)objects[index];
 				var customRuns = ListsFor( custom, pass.IsShadow );
 				if ( customRuns == 0 ) continue;
 
@@ -258,35 +310,73 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 				continue;
 			}
 
-			var obj = (MeshObject)renderObject;
-			if ( obj.Mesh is null ) continue;
+			if ( c.Runs == 0 ) continue;
 
-			var lod = ChooseLod( obj, centers[index], camera, tanHalfFov, screenWidth );
-			var blend = obj.BlendForLod( lod );
-			lods[index] = (byte)lod;
-			if ( !pass.IsShadow ) obj.DrawnLod = lod;
-
-			// Probe lighting is forward-only (CBaseSceneObjectDesc::GeneratePrimitives).
-			var probe = -1;
-			if ( obj.NeedsLightProbe && !pass.IsShadow && volumes.Count > 0 ) probe = ProbeFor( obj, volumes, volumesKey, centers[index], extents[index] );
-			probes[index] = probe >= 0 ? volumes[probe].Attributes : null;
-
-			var runs = ListsFor( obj, blend, pass.IsShadow );
-			if ( runs == 0 ) continue;
-
-			// A translucent layer copies the frame for what reads it
-			if ( obj.WantsFrameBufferCopy && !pass.IsShadow ) layers.FrameBufferReads |= runs & FrameBufferCopyingLists;
-
-			// Only the sort keys its lists use
-			var opaqueKey = (runs & (BatchedLists | RenderOrderLists)) != 0 ? OpaqueKey( obj, lod ) : 0;
-			var distance = (runs & DistanceSortedLists) != 0 ? TranslucentSortDistance( centers[index], extents[index], sortCamera ) : 0;
-			AddToLists( runs, index, opaqueKey, distance, blend == MeshBlend.Translucent, obj.RenderOrder );
+			layers.FrameBufferReads |= c.FrameBufferReads;
+			AddToLists( c.Runs, index, c.OpaqueKey, c.Distance, c.OnlyTranslucent, c.RenderOrder );
 		}
 
 		for ( int bit = 0; bit < buckets.Length; bit++ )
 		{
 			Emit( buckets[bit], Lists[bit].Draws, layers.ByBit[bit], world, transforms, lods, bit == 0 && !pass.IsShadow ? Occlusion : null );
 			BuildItems( layers.ByBit[bit], layers.ItemsByBit[bit], Lists[bit].Sort == ListSort.Batched );
+		}
+	}
+
+	/// <summary>
+	/// Classify visible objects [<paramref name="start"/>, <paramref name="end"/>) of the view in <see cref="classifying"/>:
+	/// each mesh's LOD, probe, lists and sort keys. Writes only what's the object's own, so ranges can run on any thread.
+	/// </summary>
+	void Classify( int start, int end )
+	{
+		var (world, pass, visible, camera, tanHalfFov, screenWidth, sortCamera, volumes, volumesKey) = classifying;
+		var objects = world.Objects;
+		var centers = world.BoundsCenter;
+		var extents = world.BoundsExtents;
+		var shadow = pass.IsShadow;
+
+		for ( int k = start; k < end; k++ )
+		{
+			var index = visible[k];
+			ref var c = ref classified[k];
+			c = default;
+
+			var renderObject = objects[index];
+			if ( renderObject is CustomObject )
+			{
+				c.Custom = true;
+				continue;
+			}
+
+			var obj = (MeshObject)renderObject;
+			if ( obj.Mesh is null ) continue;
+
+			var lod = ChooseLod( obj, centers[index], camera, tanHalfFov, screenWidth );
+			var blend = obj.BlendForLod( lod );
+			lods[index] = (byte)lod;
+
+			// Written only when it changes: a write from a worker would leave the object's memory on that core, for the
+			// main thread to fetch back when it emits the object
+			if ( !shadow && obj.DrawnLod != lod ) obj.DrawnLod = lod;
+
+			// Probe lighting is forward-only (CBaseSceneObjectDesc::GeneratePrimitives).
+			var probe = -1;
+			if ( obj.NeedsLightProbe && !shadow && volumes.Count > 0 ) probe = ProbeFor( obj, volumes, volumesKey, centers[index], extents[index] );
+			probes[index] = probe >= 0 ? volumes[probe].Attributes : null;
+
+			var runs = ListsFor( obj, blend, shadow );
+			if ( runs == 0 ) continue;
+
+			c.Runs = runs;
+
+			// A translucent layer copies the frame for what reads it
+			if ( obj.WantsFrameBufferCopy && !shadow ) c.FrameBufferReads = runs & FrameBufferCopyingLists;
+
+			// Only the sort keys its lists use
+			c.OpaqueKey = (runs & (BatchedLists | RenderOrderLists)) != 0 ? OpaqueKey( obj, lod ) : 0;
+			c.Distance = (runs & DistanceSortedLists) != 0 ? TranslucentSortDistance( centers[index], extents[index], sortCamera ) : 0;
+			c.OnlyTranslucent = blend == MeshBlend.Translucent;
+			c.RenderOrder = obj.RenderOrder;
 		}
 	}
 

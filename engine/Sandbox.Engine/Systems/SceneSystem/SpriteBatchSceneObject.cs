@@ -309,7 +309,102 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 
 	// Pre-allocated buffer to avoid GC allocations in hot path
 	private SpriteRenderer[] _componentBuffer = new SpriteRenderer[16];
-	private readonly object _boundsLock = new();
+	private (Vector3 mins, Vector3 maxs)[] _componentBounds = new (Vector3, Vector3)[16];
+
+	/// <summary>
+	/// Write component sprite <paramref name="i"/> into the staging buffer, and its bounds into <see cref="_componentBounds"/>.
+	/// </summary>
+	void WriteComponentSprite( int i )
+	{
+		var c = _componentBuffer[i];
+		var transform = c.WorldTransform;
+		var spriteSize = c.Size;
+		var rotation = c.WorldRotation.Angles().AsVector3();
+
+		if ( c.Billboard == SpriteRenderer.BillboardMode.Always || c.Billboard == SpriteRenderer.BillboardMode.YOnly )
+		{
+			// We only care about roll in this case
+			rotation.x = 0;
+			rotation.y = 0;
+		}
+
+		spriteSize = spriteSize.Abs();
+
+		// Adjust for aspect ratio
+		var aspectRatio = (c.Texture?.Width ?? 1) / (float)(c.Texture?.Height ?? 1);
+		var size = spriteSize / 2f;
+		var pos = transform.Position;
+		var scale = new Vector3( transform.Scale.x * size.x, transform.Scale.y, transform.Scale.z * size.y );
+		if ( aspectRatio < 1f )
+			scale *= new Vector3( aspectRatio, 1f, 1f );
+		else
+			scale *= new Vector3( 1f, 1f, 1f / aspectRatio );
+
+		pos = pos.RotateAround( transform.Position, transform.Rotation );
+		transform = transform.WithScale( scale ).WithPosition( pos );
+
+		var renderFlags = SpriteFlags.None;
+		if ( c.FlipHorizontal ) renderFlags |= SpriteFlags.FlipX;
+		if ( c.FlipVertical ) renderFlags |= SpriteFlags.FlipY;
+
+		var rgbe = c.Color.ToRgbe();
+		var alpha = (byte)(c.Color.a.Clamp( 0.0f, 1.0f ) * 255.0f);
+		var tintColor = new Color32( rgbe.r, rgbe.g, rgbe.b, alpha );
+
+		var overlayRgbe = c.OverlayColor.ToRgbe();
+		var overlayAlpha = (byte)(c.OverlayColor.a.Clamp( 0.0f, 1.0f ) * 255.0f);
+		var overlayColor = new Color32( overlayRgbe.r, overlayRgbe.g, overlayRgbe.b, overlayAlpha );
+
+		int lightingFlag = c.Lighting ? 1 : 0;
+		uint packedExponent = (uint)(((byte)lightingFlag) | rgbe.a << 16);
+
+		uint packedFogAndAlpha = SpriteData.PackFogAndAlphaCutout( c.FogStrength, c.AlphaCutoff );
+
+		var spritePos = transform.Position;
+		var spriteScale = new Vector2( transform.Scale.x, transform.Scale.z );
+
+		SpriteDataBuffer[i] = new SpriteData
+		{
+			Position = spritePos,
+			Rotation = new( rotation.x, rotation.y, rotation.z ),
+			Scale = spriteScale,
+			TextureHandle = c.Texture is null ? Texture.Invalid.Index : c.Texture.Index,
+			TintColor = tintColor.RawInt,
+			OverlayColor = overlayColor.RawInt,
+			RenderFlags = (int)renderFlags,
+			BillboardMode = (uint)c.Billboard,
+			FogStrengthCutout = packedFogAndAlpha,
+			Lighting = packedExponent,
+			DepthFeather = c.DepthFeather,
+			CameraFade = SpriteData.PackCameraFade( c.CameraFadeNear, c.CameraFadeFar ),
+			NormalTextureHandle = c.IsRefractive ? c.NormalTexture.Index : 0,
+			RefractionStrength = MathF.Max( c.RefractionStrength, 0.0f ),
+			SamplerIndex = SamplerState.GetBindlessIndex( sampler with { Filter = c.TextureFilter } ),
+			Offset = c.Pivot
+		};
+
+		var pivot = c.Pivot;
+		if ( c.Billboard == SpriteRenderer.BillboardMode.None )
+		{
+			var right = transform.Rotation.Right;
+			var up = transform.Rotation.Up;
+			var center = spritePos
+				+ right * ((pivot.x - 0.5f) * 2.0f * spriteScale.x)
+				+ up * ((pivot.y - 0.5f) * 2.0f * spriteScale.y);
+			var extent = right.Abs() * spriteScale.x
+				+ up.Abs() * spriteScale.y
+				+ transform.Rotation.Forward.Abs() * 0.01f;
+			_componentBounds[i] = (center - extent, center + extent);
+			return;
+		}
+
+		float halfSize = MathF.Max(
+			MathF.Max( pivot.x, 1f - pivot.x ) * 2f * spriteScale.x,
+			MathF.Max( pivot.y, 1f - pivot.y ) * 2f * spriteScale.y
+		);
+		var expand = new Vector3( halfSize, halfSize, halfSize );
+		_componentBounds[i] = (spritePos - expand, spritePos + expand);
+	}
 
 	public void RegisterSprite( Guid ownerId, SpriteData[] sharedSprites, int offset, int count, int splotCount, BBox bounds )
 	{
@@ -421,110 +516,19 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 				hasLighting |= component.Lighting;
 			}
 
-			object boundsLock = _boundsLock;
-			Parallel.For<(Vector3 mins, Vector3 maxs)>(
-				0, componentCount,
-				() => (new Vector3( float.MaxValue, float.MaxValue, float.MaxValue ),
-					   new Vector3( float.MinValue, float.MinValue, float.MinValue )),
-				( i, _, local ) =>
-				{
-					var c = _componentBuffer[i];
-					var transform = c.WorldTransform;
-					var spriteSize = c.Size;
-					var rotation = c.WorldRotation.Angles().AsVector3();
+			if ( _componentBounds.Length < componentCount )
+			{
+				_componentBounds = new (Vector3, Vector3)[componentCount * 2];
+			}
 
-					if ( c.Billboard == SpriteRenderer.BillboardMode.Always || c.Billboard == SpriteRenderer.BillboardMode.YOnly )
-					{
-						// We only care about roll in this case
-						rotation.x = 0;
-						rotation.y = 0;
-					}
+			JobDispatcher.For( componentCount, this, static ( batch, i ) => batch.WriteComponentSprite( i ) );
 
-					spriteSize = spriteSize.Abs();
-
-					// Adjust for aspect ratio
-					var aspectRatio = (c.Texture?.Width ?? 1) / (float)(c.Texture?.Height ?? 1);
-					var size = spriteSize / 2f;
-					var pos = transform.Position;
-					var scale = new Vector3( transform.Scale.x * size.x, transform.Scale.y, transform.Scale.z * size.y );
-					if ( aspectRatio < 1f )
-						scale *= new Vector3( aspectRatio, 1f, 1f );
-					else
-						scale *= new Vector3( 1f, 1f, 1f / aspectRatio );
-
-					pos = pos.RotateAround( transform.Position, transform.Rotation );
-					transform = transform.WithScale( scale ).WithPosition( pos );
-
-					var renderFlags = SpriteFlags.None;
-					if ( c.FlipHorizontal ) renderFlags |= SpriteFlags.FlipX;
-					if ( c.FlipVertical ) renderFlags |= SpriteFlags.FlipY;
-
-					var rgbe = c.Color.ToRgbe();
-					var alpha = (byte)(c.Color.a.Clamp( 0.0f, 1.0f ) * 255.0f);
-					var tintColor = new Color32( rgbe.r, rgbe.g, rgbe.b, alpha );
-
-					var overlayRgbe = c.OverlayColor.ToRgbe();
-					var overlayAlpha = (byte)(c.OverlayColor.a.Clamp( 0.0f, 1.0f ) * 255.0f);
-					var overlayColor = new Color32( overlayRgbe.r, overlayRgbe.g, overlayRgbe.b, overlayAlpha );
-
-					int lightingFlag = c.Lighting ? 1 : 0;
-					uint packedExponent = (uint)(((byte)lightingFlag) | rgbe.a << 16);
-
-					uint packedFogAndAlpha = SpriteData.PackFogAndAlphaCutout( c.FogStrength, c.AlphaCutoff );
-
-					var spritePos = transform.Position;
-					var spriteScale = new Vector2( transform.Scale.x, transform.Scale.z );
-
-					SpriteDataBuffer[i] = new SpriteData
-					{
-						Position = spritePos,
-						Rotation = new( rotation.x, rotation.y, rotation.z ),
-						Scale = spriteScale,
-						TextureHandle = c.Texture is null ? Texture.Invalid.Index : c.Texture.Index,
-						TintColor = tintColor.RawInt,
-						OverlayColor = overlayColor.RawInt,
-						RenderFlags = (int)renderFlags,
-						BillboardMode = (uint)c.Billboard,
-						FogStrengthCutout = packedFogAndAlpha,
-						Lighting = packedExponent,
-						DepthFeather = c.DepthFeather,
-						CameraFade = SpriteData.PackCameraFade( c.CameraFadeNear, c.CameraFadeFar ),
-						NormalTextureHandle = c.IsRefractive ? c.NormalTexture.Index : 0,
-						RefractionStrength = MathF.Max( c.RefractionStrength, 0.0f ),
-						SamplerIndex = SamplerState.GetBindlessIndex( sampler with { Filter = c.TextureFilter } ),
-						Offset = c.Pivot
-					};
-
-					var pivot = c.Pivot;
-					if ( c.Billboard == SpriteRenderer.BillboardMode.None )
-					{
-						var right = transform.Rotation.Right;
-						var up = transform.Rotation.Up;
-						var center = spritePos
-							+ right * ((pivot.x - 0.5f) * 2.0f * spriteScale.x)
-							+ up * ((pivot.y - 0.5f) * 2.0f * spriteScale.y);
-						var extent = right.Abs() * spriteScale.x
-							+ up.Abs() * spriteScale.y
-							+ transform.Rotation.Forward.Abs() * 0.01f;
-						return (Vector3.Min( local.mins, center - extent ), Vector3.Max( local.maxs, center + extent ));
-					}
-
-					float halfSize = MathF.Max(
-						MathF.Max( pivot.x, 1f - pivot.x ) * 2f * spriteScale.x,
-						MathF.Max( pivot.y, 1f - pivot.y ) * 2f * spriteScale.y
-					);
-					var expand = new Vector3( halfSize, halfSize, halfSize );
-					return (Vector3.Min( local.mins, spritePos - expand ), Vector3.Max( local.maxs, spritePos + expand ));
-				},
-				local =>
-				{
-					lock ( boundsLock )
-					{
-						boundsMin = Vector3.Min( boundsMin, local.mins );
-						boundsMax = Vector3.Max( boundsMax, local.maxs );
-					}
-				}
-			);
+			// Combine in a fixed order, so the bounds are the same whichever threads wrote them.
+			for ( int i = 0; i < componentCount; i++ )
+			{
+				boundsMin = Vector3.Min( boundsMin, _componentBounds[i].mins );
+				boundsMax = Vector3.Max( boundsMax, _componentBounds[i].maxs );
+			}
 
 		}
 
