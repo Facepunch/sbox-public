@@ -2,63 +2,52 @@ namespace Sandbox.Audio;
 
 internal static class AcousticMaterial
 {
-	static readonly FrequencyBands[] Transmission =
+	// Indexed by AudioSurface, measured per band at 250 Hz, 1 kHz and 4 kHz: Steam Audio's presets where it has one,
+	// standard tables and the mass law otherwise. Transmission is the gain through one wall, absorption the energy a
+	// bounce loses.
+	static readonly (FrequencyBands Transmission, FrequencyBands Absorption)[] Materials =
 	[
-		new( 0.46f, 0.29f, 0.17f ),  // Generic
-		new( 0.40f, 0.22f, 0.12f ),  // Brick
-		new( 0.27f, 0.16f, 0.09f ),  // Concrete
-		new( 0.58f, 0.26f, 0.14f ),  // Dirt
-		new( 0.82f, 0.65f, 0.44f ),  // Foliage
-		new( 0.76f, 0.59f, 0.38f ),  // Gravel
-		new( 0.55f, 0.34f, 0.22f ),  // Grate
-		new( 0.65f, 0.32f, 0.14f ),  // Metal
-		new( 0.65f, 0.32f, 0.18f ),  // Metal (panel)
-		new( 0.49f, 0.29f, 0.14f ),  // Mud
-		new( 0.27f, 0.12f, 0.07f ),  // Rock
-		new( 0.76f, 0.59f, 0.38f ),  // Sand
-		new( 0.72f, 0.54f, 0.34f ),  // Slime
-		new( 0.81f, 0.66f, 0.45f ),  // Snow
-		new( 0.83f, 0.69f, 0.49f ),  // Tile
-		new( 0.79f, 0.56f, 0.36f ),  // Water
-		new( 0.76f, 0.59f, 0.38f ),  // Wood
-		new( 0.49f, 0.29f, 0.14f ),  // Wood (panel)
-		new( 0.70f, 0.51f, 0.29f ),  // Plastic
-		new( 0.72f, 0.48f, 0.25f ),  // Rubber
-		new( 0.72f, 0.45f, 0.21f ),  // Glass (thick)
-		new( 0.44f, 0.22f, 0.12f ),  // Plaster
-		new( 0.60f, 0.42f, 0.25f ),  // Carpet
-		new( 0.27f, 0.12f, 0.07f ),  // Stone
-		new( 0.83f, 0.69f, 0.53f ),  // Ceiling tile
+		(new( 0.1f, 0.05f, 0.03f ), new( 0.08f, 0.1f, 0.12f )), // Generic
+		(new( 0.015f, 0.015f, 0.015f ), new( 0.03f, 0.04f, 0.07f )), // Brick
+		(new( 0.015f, 0.002f, 0.001f ), new( 0.05f, 0.07f, 0.08f )), // Concrete
+		(new( 0.06f, 0.044f, 0.011f ), new( 0.01f, 0.01f, 0.02f )), // Ceramic
+		(new( 0.031f, 0.012f, 0.008f ), new( 0.6f, 0.7f, 0.8f )), // Gravel
+		(new( 0.02f, 0.005f, 0.003f ), new( 0.24f, 0.69f, 0.73f )), // Carpet
+		(new( 0.06f, 0.044f, 0.011f ), new( 0.06f, 0.03f, 0.02f )), // Glass
+		(new( 0.056f, 0.056f, 0.004f ), new( 0.12f, 0.06f, 0.04f )), // Plaster
+		(new( 0.07f, 0.014f, 0.005f ), new( 0.11f, 0.07f, 0.06f )), // Wood
+		(new( 0.2f, 0.025f, 0.01f ), new( 0.2f, 0.07f, 0.06f )), // Metal
+		(new( 0.015f, 0.002f, 0.001f ), new( 0.03f, 0.04f, 0.05f )), // Rock
+		(new( 0.5f, 0.3f, 0.15f ), new( 0.15f, 0.45f, 0.6f )), // Fabric
+		(new( 0.5f, 0.3f, 0.2f ), new( 0.3f, 0.9f, 0.95f )), // Foam
+		(new( 0.015f, 0.002f, 0.001f ), new( 0.2f, 0.45f, 0.6f )), // Sand
+		(new( 0.03f, 0.01f, 0.005f ), new( 0.45f, 0.85f, 0.9f )), // Snow
+		(new( 0.015f, 0.002f, 0.001f ), new( 0.15f, 0.35f, 0.55f )), // Soil
+		(new( 0.5f, 0.3f, 0.15f ), new( 0.3f, 0.65f, 0.7f )), // Curtain
+		(new( 0.018f, 0.0045f, 0.002f ), new( 0.1f, 0.05f, 0.05f )), // Steel
+		(new( 0.2f, 0.08f, 0.04f ), new( 0.45f, 0.75f, 0.85f )), // AcousticTile
+		(new( 0.3f, 0.15f, 0.08f ), new( 0.2f, 0.45f, 0.55f )), // Leather
+		(new( 0.015f, 0.002f, 0.001f ), new( 0.02f, 0.03f, 0.04f )), // Linoleum
+		(new( 0.015f, 0.002f, 0.001f ), new( 0.03f, 0.05f, 0.08f )), // Asphalt
+		(new( 0.015f, 0.002f, 0.001f ), new( 0.01f, 0.015f, 0.02f )), // Water
+		(new( 0.015f, 0.002f, 0.001f ), new( 0.01f, 0.01f, 0.02f )), // Marble
+		(new( 0.4f, 0.25f, 0.15f ), new( 0.1f, 0.25f, 0.35f )), // Paper
 	];
 
-	static readonly FrequencyBands[] Reflectivity =
-	[
-		new( 0.85f, 0.79f, 0.63f ),
-		new( 0.85f, 0.80f, 0.65f ),
-		new( 0.90f, 0.85f, 0.72f ),
-		new( 0.85f, 0.80f, 0.67f ),
-		new( 0.65f, 0.45f, 0.25f ),
-		new( 0.55f, 0.30f, 0.08f ),
-		new( 0.88f, 0.85f, 0.78f ),
-		new( 0.80f, 0.72f, 0.57f ),
-		new( 0.78f, 0.65f, 0.48f ),
-		new( 0.88f, 0.85f, 0.82f ),
-		new( 0.90f, 0.85f, 0.72f ),
-		new( 0.60f, 0.40f, 0.20f ),
-		new( 0.35f, 0.18f, 0.05f ),
-		new( 0.65f, 0.48f, 0.28f ),
-		new( 0.70f, 0.52f, 0.30f ),
-		new( 0.65f, 0.50f, 0.30f ),
-		new( 0.65f, 0.45f, 0.28f ),
-		new( 0.88f, 0.85f, 0.82f ),
-		new( 0.50f, 0.35f, 0.20f ),
-		new( 0.75f, 0.62f, 0.48f ),
-		new( 0.80f, 0.72f, 0.52f ),
-		new( 0.83f, 0.76f, 0.60f ),
-		new( 0.80f, 0.70f, 0.55f ),
-		new( 0.88f, 0.83f, 0.70f ),
-		new( 0.40f, 0.28f, 0.15f ),
-	];
+	// Real rooms are full of furniture, clutter, openings and uneven surfaces that maps rarely model, all of which shorten
+	// the reverb. Every bounce loses this much energy on top of the surface's own absorption.
+	const float Clutter = 0.1f;
+
+	// Games need to hear through walls more than real walls allow: we keep three quarters of the measured loss in dB.
+	const float TransmissionLoss = 0.75f;
+
+	static readonly FrequencyBands[] Transmission = Materials
+		.Select( m => new FrequencyBands( MathF.Pow( m.Transmission.Low, TransmissionLoss ), MathF.Pow( m.Transmission.Mid, TransmissionLoss ), MathF.Pow( m.Transmission.High, TransmissionLoss ) ) )
+		.ToArray();
+
+	static readonly FrequencyBands[] Reflectivity = Materials
+		.Select( m => new FrequencyBands( 1f - m.Absorption.Low, 1f - m.Absorption.Mid, 1f - m.Absorption.High ) * (1f - Clutter) )
+		.ToArray();
 
 	public static FrequencyBands GetTransmission( AudioSurface surface )
 	{
@@ -66,6 +55,9 @@ internal static class AcousticMaterial
 		return (uint)idx < (uint)Transmission.Length ? Transmission[idx] : Transmission[0];
 	}
 
+	/// <summary>
+	/// Energy kept per bounce, after the surface's absorption and the clutter loss.
+	/// </summary>
 	public static FrequencyBands GetReflectivity( AudioSurface surface )
 	{
 		var idx = (int)surface;
