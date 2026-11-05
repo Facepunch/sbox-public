@@ -77,7 +77,8 @@ LoadingOverlay
 		background-position: center;
 		background-size: cover;
 		opacity: 1;
-		transition: all 1.5s linear;
+		// The engine holds the load this long so it comes in smoothly (LoadingScreen.IntroSeconds)
+		transition: all 0.6s ease-out;
 		filter: blur( 0px );
 		animation: loading-background-zoom 20s linear forwards;
 

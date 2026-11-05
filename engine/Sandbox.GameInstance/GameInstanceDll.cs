@@ -757,6 +757,19 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 			await Task.Yield();
 			LoadingScreen.Title ??= "Loading..";
+
+			// Let the loading screen and the game's art come in before the main thread starts blocking
+			if ( !Application.IsEditor )
+			{
+				if ( await Package.FetchAsync( ident, false ) is { TypeName: "game" } package && !ct.IsCancellationRequested )
+				{
+					LoadingScreen.Media = package.LoadingScreen.MediaUrl;
+					LoadingScreen.Package = package;
+				}
+
+				await LoadingScreen.WaitForIntro( ct );
+				if ( ct.IsCancellationRequested ) return;
+			}
 		}
 
 		GameInstance newInstance = default;
