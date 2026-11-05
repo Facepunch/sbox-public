@@ -11,7 +11,7 @@ namespace Sandbox;
 /// <see cref="GameObject.Id"/>, and their <see cref="TypeDescription.ClassName"/> if available.
 /// </summary>
 [ActionGraphExposeWhenCached]
-internal readonly struct ComponentReference
+internal readonly struct ComponentReference : IEquatable<ComponentReference>
 {
 	private const string ExpectedReferenceType = "component";
 
@@ -65,6 +65,24 @@ internal readonly struct ComponentReference
 		GameObjectId = gameObjectId;
 		ComponentTypeName = componentTypeName;
 	}
+
+	public bool Equals( ComponentReference other )
+	{
+		return ComponentId == other.ComponentId
+			&& GameObjectId == other.GameObjectId
+			&& string.Equals( ComponentTypeName, other.ComponentTypeName, StringComparison.Ordinal )
+			&& string.Equals( ReferenceType, other.ReferenceType, StringComparison.Ordinal );
+	}
+
+	public override bool Equals( object? obj ) => obj is ComponentReference other && Equals( other );
+
+	/// <summary>
+	/// Leaves out <see cref="ReferenceType"/>: it's the same for every reference, so it adds nothing to the hash.
+	/// </summary>
+	public override int GetHashCode() => HashCode.Combine( ComponentId, GameObjectId );
+
+	public static bool operator ==( ComponentReference left, ComponentReference right ) => left.Equals( right );
+	public static bool operator !=( ComponentReference left, ComponentReference right ) => !left.Equals( right );
 
 	/// <summary>
 	/// Attempt to resolve <see cref="ComponentTypeName"/> into a <see cref="Type"/>. Returns <see langword="null"/> if not resolved.
