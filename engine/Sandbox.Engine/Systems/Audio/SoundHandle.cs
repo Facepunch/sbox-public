@@ -143,6 +143,14 @@ public partial class SoundHandle : IValid, IDisposable
 	public float Pitch { get; set; } = 1.0f;
 
 	/// <summary>
+	/// How strongly the sound shifts in pitch when it and the listener move toward or away from each other (Doppler).
+	/// 1 is physical, 0 turns it off.
+	/// </summary>
+	public float DopplerScale { get; set; } = 1.0f;
+
+	VelocityTracker _motion;
+
+	/// <summary>
 	/// Whether the sound is currently playing or not.
 	/// </summary>
 	public bool IsPlaying => !IsStopped;
@@ -596,10 +604,26 @@ public partial class SoundHandle : IValid, IDisposable
 			}
 		}
 
+		// One pitch per voice, so the Doppler shift follows the first listener in the sound's scene. Not for streams (voice
+		// chat, video, music): they have to be read as fast as they arrive.
+		var pitch = Pitch;
+		if ( !isLocal && !IsVoice && SoundFile is not null )
+		{
+			_motion.Update( Position, RealTime.NowDouble );
+
+			// Not before the sound's speed is known: a new sound moving with the listener would start off pitch
+			foreach ( var listener in _motion.Known ? snap.Listeners : [] )
+			{
+				if ( listener.Scene != Scene ) continue;
+				pitch *= Audio.Doppler.Factor( Position, _motion.Velocity, listener.MixTransform.Position, listener.Listener.Motion.Velocity, DopplerScale );
+				break;
+			}
+		}
+
 		return new Audio.VoiceState
 		{
 			Sampler = sampler,
-			Pitch = Pitch,
+			Pitch = pitch,
 			Volume = Volume,
 			FadeVolume = fadeVolume,
 			IsFadingOut = IsFadingOut,
