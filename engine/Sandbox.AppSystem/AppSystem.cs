@@ -224,6 +224,9 @@ public class AppSystem
 		SoundHandle.Shutdown();
 		DedicatedServer.Shutdown();
 
+		// Game and menu code can keep scenes alive in statics, along with the models and textures they draw
+		Scene.DestroyAll();
+
 		// Flush queued scene object/world deletes that normally run at
 		// end-of-frame. During shutdown no frame is rendered, so native
 		// never fires FreeHandle for these — leaving HandleIndex entries
@@ -267,6 +270,7 @@ public class AppSystem
 				continue;
 
 			ReflectionUtility.NullStaticReferencesOfType( asm, typeof( Texture ) );
+			ReflectionUtility.NullStaticReferencesOfType( asm, typeof( GpuBuffer ) );
 			ReflectionUtility.NullStaticReferencesOfType( asm, typeof( Model ) );
 			ReflectionUtility.NullStaticReferencesOfType( asm, typeof( Material ) );
 			ReflectionUtility.NullStaticReferencesOfType( asm, typeof( ComputeShader ) );
@@ -280,6 +284,7 @@ public class AppSystem
 
 		// Renderpipeline may hold onto native resources, clear them out
 		RenderPipeline.Shutdown();
+		ShadowMapperCallbacks.Shutdown();
 
 		// So may the managed scene renderer, if r_managed_scene loaded it
 		Rendering.ManagedSceneRendering.Shutdown();
@@ -317,8 +322,10 @@ public class AppSystem
 		GC.WaitForPendingFinalizers();
 
 		NativeResourceCache.HandleShutdownLeaks();
+		MainThread.RunQueues();
+		SceneWorld.FlushQueuedDeletes();
 
-		// print each scene that is leaked
+		// Print each scene that is leaked
 		foreach ( var leakedScene in Scene.AllIncludingUnlisted )
 		{
 			log.Warning( $"Leaked scene {leakedScene.Id} during shutdown." );

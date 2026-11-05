@@ -259,6 +259,20 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 	}
 
 
+	internal void Destroy()
+	{
+		Delete(); // native removal waits for frame end, so also empty what RenderSceneObject replays
+		_pendingSpriteCount = 0;
+		_commandList.Reset();
+		SpriteAtomicCounter.Dispose();
+		VertexBuffer.Dispose();
+		IndexBuffer.Dispose();
+		SpriteBuffer?.Dispose();
+		SpriteBufferOut?.Dispose();
+		GPUSortingBuffer?.Dispose();
+		GPUDistanceBuffer?.Dispose();
+	}
+
 	/// <summary>
 	/// Resizes GPU buffers to the nearest power of 2
 	/// </summary>

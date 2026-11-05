@@ -107,7 +107,7 @@ public partial class RootPanel : Panel
 		base.OnDeleted();
 		fixedOverlays.Clear();
 		PanelCommandList.Enabled = false;
-		PanelCommandList.Reset();
+		PanelCommandList.DisposePainter(); // tasks can keep a deleted root alive
 
 		UISystem.RemoveRoot( this );
 	}

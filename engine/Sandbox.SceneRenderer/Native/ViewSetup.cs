@@ -21,9 +21,6 @@ internal static class ViewSetup
 	static readonly StringToken FogVolume = "FogVolume";
 	static readonly StringToken AmbientColor = "ambientColor";
 	static readonly StringToken ToolsAmbientLighting = "ToolsAmbientLighting";
-	static readonly StringToken DynamicAmbientOcclusion = "DynamicAmbientOcclusion";
-	static readonly StringToken DynamicAmbientOcclusionDepth = "DynamicAmbientOcclusionDepth";
-	static readonly StringToken ReflectionTextureColor = "ReflectionTextureColor";
 	static readonly StringToken InvalidLightMaps = "invalidLightMaps";
 	static readonly StringToken PreviewLightMaps = "previewLightMaps";
 	static readonly StringToken RenderTime = "renderTime";
@@ -62,11 +59,6 @@ internal static class ViewSetup
 
 		var ambient = viewAttributes.GetVector4DValue( AmbientColor, setup.m_pAttributes.GetVector4DValue( AmbientColor, default ) );
 		viewAttributes.SetVector4DValue( ToolsAmbientLighting, ambient );
-
-		// Unused but referenced in old shaders
-		viewAttributes.SetTextureValue( DynamicAmbientOcclusion, CSceneSystem.GetWellKnownTexture( SceneSystemWellKnownTextureObjectID.SCENE_TXTR_WHITE_1x1 ), -1 );
-		viewAttributes.SetTextureValue( DynamicAmbientOcclusionDepth, CSceneSystem.GetWellKnownTexture( SceneSystemWellKnownTextureObjectID.SCENE_TXTR_ONE_16_BIT_1x1 ), -1 );
-		viewAttributes.SetTextureValue( ReflectionTextureColor, CSceneSystem.GetWellKnownTexture( SceneSystemWellKnownTextureObjectID.SCENE_TXTR_TRANSPARENT_BLACK_1x1 ), -1 );
 	}
 
 	/// <summary>
@@ -79,7 +71,10 @@ internal static class ViewSetup
 		viewAttributes.SetBoolValue( DisableScreenSpaceEffects, true );
 
 		var black = CSceneSystem.GetWellKnownTexture( SceneSystemWellKnownTextureObjectID.SCENE_TXTR_OPAQUE_BLACK_2x2x2 );
-		viewAttributes.SetTextureValue( FogVolume, setup.m_pAttributes.GetTextureValue( FogVolume, black ), -1 );
+		var fogVolume = setup.m_pAttributes.GetTextureValue( FogVolume, black );
+		viewAttributes.SetTextureValue( FogVolume, fogVolume, -1 );
+		fogVolume.DestroyStrongHandle();
+		black.DestroyStrongHandle();
 	}
 
 	/// <summary>
@@ -126,6 +121,7 @@ internal static class ViewSetup
 
 		var black = CSceneSystem.GetWellKnownTexture( SceneSystemWellKnownTextureObjectID.SCENE_TXTR_BLACK_1x1 );
 		RenderPipelineTools.AddTextureDebugLayer( view, "BackgroundForShaderIDs", color, new RenderViewport( 6, startY - 6, 270, y - startY + 6 ), black );
+		black.DestroyStrongHandle();
 	}
 
 	static bool IsExcludedFromLegend( string shaderName )

@@ -172,8 +172,13 @@ internal static class QuadOverdraw
 	static void ClearCounters( ManagedRenderSetup_t setup )
 	{
 		var attributes = setup.sceneView.GetRenderAttributesPtr();
-		setup.renderContext.ClearTextureUint( attributes.GetTextureValue( Counters, default ), 0 );
-		setup.renderContext.ClearTextureUint( attributes.GetTextureValue( Locks, default ), 0xffffffff );
+		// Each getter hands back a new strong handle
+		var counters = attributes.GetTextureValue( Counters, default );
+		var locks = attributes.GetTextureValue( Locks, default );
+		setup.renderContext.ClearTextureUint( counters, 0 );
+		setup.renderContext.ClearTextureUint( locks, 0xffffffff );
+		counters.DestroyStrongHandle();
+		locks.DestroyStrongHandle();
 	}
 
 	static void Draw( ManagedRenderSetup_t setup )

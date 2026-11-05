@@ -194,17 +194,9 @@ internal static partial class NativeResourceCache
 	}
 
 	/// <summary>
-	/// Clear the cache when games are closed etc. ready for a <see cref="GC.Collect()"/>
+	/// Drop the strong references, ready for a <see cref="GC.Collect()"/>. The WeakTable stays so a resource still
+	/// referenced keeps its one wrapper and stays visible to <see cref="HandleShutdownLeaks"/>.
 	/// </summary>
-	internal static void Clear()
-	{
-		ClearCache();
-
-		// When leak tracking is enabled, preserve the WeakTable and CallstackTable across
-		// game resets so that resources allocated before the reset remain visible to HandleShutdownLeaks() at shutdown.
-		if ( !LeakTracking ) ClearWeakTable();
-	}
-
 	internal static void ClearCache()
 	{
 		retained = new ConcurrentDictionary<long, object>();

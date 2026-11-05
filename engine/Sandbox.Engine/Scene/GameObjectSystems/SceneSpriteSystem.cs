@@ -29,6 +29,8 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 			ArrayPool<SpriteBatchSceneObject.SpriteData>.Shared.Return( _sharedSprites );
 			_sharedSprites = null;
 		}
+		foreach ( var group in RenderGroups.Values ) group.Destroy();
+		RenderGroups.Clear();
 		base.Dispose();
 	}
 
@@ -351,7 +353,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		if ( group.Components.Count > 0 || !_isolatedRenderGroups.Remove( renderGroup ) )
 			return;
 
-		group.Delete();
+		group.Destroy();
 		RenderGroups.Remove( renderGroup );
 	}
 

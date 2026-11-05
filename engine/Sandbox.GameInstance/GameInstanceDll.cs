@@ -191,7 +191,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		Networking.Reset();
 		Connection.Reset();
 		GlobalContext.Current.Reset();
-		NativeResourceCache.Clear();
+		NativeResourceCache.ClearCache();
 		Speech.Recognition.Reset();
 		Json.Initialize();
 		VRSystem.Reset();
