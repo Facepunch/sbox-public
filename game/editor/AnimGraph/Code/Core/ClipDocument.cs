@@ -549,6 +549,25 @@ public sealed class ClipDocument : IAnimationDocument
 
 		internal JsonObject Json { get; }
 
+		internal bool IsTypedEvent => Name == ClipEventTypes.ManagedName;
+		internal string DataTypeName => ReadData( "Type" )?.GetValue<string>() ?? string.Empty;
+		internal TypeDescription DataType => EditorTypeLibrary.GetType<AnimationEvent>( DataTypeName );
+
+		internal AnyOfType<AnimationEvent> Data
+		{
+			get => DataType is { IsAbstract: false } type
+				? new( (AnimationEvent)Sandbox.Json.FromNode( ReadData( "Data" ), type.TargetType ) )
+				: default;
+			set
+			{
+				Json["m_eventData"] = value.HasValue ? new JsonObject
+				{
+					["Type"] = value.Value.GetType().FullName,
+					["Data"] = Sandbox.Json.ToNode( value.Value )
+				} : null;
+			}
+		}
+
 		/// <summary>
 		/// Frame the event starts on. The compiler normalizes this against the clip's length, so
 		/// an event stays where it was put if the clip's duration is overridden.
@@ -591,6 +610,8 @@ public sealed class ClipDocument : IAnimationDocument
 			get => ReadString( NameKey );
 			set => Json[NameKey] = value ?? string.Empty;
 		}
+
+		private JsonNode ReadData( string key ) => Json["m_eventData"]?[key];
 
 		/// <summary>
 		/// Stored as its number rather than its name - that's what the runtime reads it as.

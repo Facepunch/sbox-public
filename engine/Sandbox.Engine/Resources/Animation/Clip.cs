@@ -6,7 +6,7 @@ namespace Sandbox.Animation;
 /// A compiled animation clip (.anim) - a compressed pose stream authored against a
 /// <see cref="Skeleton"/>.
 /// </summary>
-public sealed class Clip : Resource
+public sealed partial class Clip : Resource
 {
 	internal HAnimClip native;
 
@@ -88,6 +88,7 @@ public sealed class Clip : Resource
 	internal override void OnReloaded()
 	{
 		_skeleton = default;
+		_events = default;
 		base.OnReloaded();
 	}
 

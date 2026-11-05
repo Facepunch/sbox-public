@@ -1,3 +1,4 @@
+using Sandbox.Animation;
 using System.Runtime.InteropServices;
 
 namespace Sandbox;
@@ -105,6 +106,30 @@ public sealed partial class SceneModel : SceneObject
 	{
 		string name = Interop.GetString( typeName );
 		KeyValues3 kv = data;
+
+		if ( name == "AE_MANAGED_EVENT" )
+		{
+			var renderer = Component as SkinnedModelRenderer;
+			if ( !renderer.IsValid() || !renderer.Active )
+				return;
+
+			if ( renderer.Components.Get<Component.IAnimationEvent>( FindMode.EnabledInSelf | FindMode.InAncestors ) is null )
+				return;
+
+			try
+			{
+				if ( kv.IsNull )
+					throw new InvalidOperationException( "Animation event has no payload." );
+
+				var payload = AnimationEvent.Deserialize<AnimationEvent>( kv.GetMemberString( "Type" ), kv.GetMemberString( "Data" ) );
+				renderer.DispatchAnimationEvent( payload );
+			}
+			catch ( Exception e )
+			{
+				Log.Warning( e, "Couldn't dispatch animation event" );
+			}
+			return;
+		}
 
 		if ( name == "AE_FOOTSTEP" )
 		{

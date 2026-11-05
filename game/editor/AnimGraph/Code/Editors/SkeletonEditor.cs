@@ -1,7 +1,7 @@
 namespace Editor.AnimGraph;
 
 /// <summary>
-/// Compact skeleton settings and mask editing, hosted by the asset inspector.
+/// Skeleton settings, bone masks and float channels.
 /// </summary>
 public sealed class SkeletonEditor : Widget
 {
@@ -22,6 +22,32 @@ public sealed class SkeletonEditor : Widget
 	public Action<string> Committed { get; set; }
 	public Action<SkeletonDocument.BoneMask> MaskPreviewed { get; set; }
 
+	[Editor( "animgraph.bone-masks" )]
+	public List<SkeletonDocument.BoneMask> Masks
+	{
+		get => _document.Masks;
+		set
+		{
+			if ( ReadOnly )
+				return;
+			_document.Masks = value;
+			Rebuild();
+		}
+	}
+
+	[Editor( "animgraph.float-channels" )]
+	public List<SkeletonDocument.FloatChannelSet> FloatChannelSets
+	{
+		get => _document.FloatChannelSets;
+		set
+		{
+			if ( ReadOnly )
+				return;
+			_document.FloatChannelSets = value;
+			Rebuild();
+		}
+	}
+
 	public SkeletonEditor( Widget parent ) : base( parent )
 	{
 		Layout = Layout.Column();
@@ -39,14 +65,11 @@ public sealed class SkeletonEditor : Widget
 		Rebuild();
 	}
 
-	public void Refresh() => Rebuild();
-
 	private void Rebuild()
 	{
 		RememberWeightFilters();
 		if ( _channels.IsValid() )
 			_channelsFilter = _channels.SearchText;
-		using var suspend = SuspendUpdates.For( this );
 		Layout.Clear( true );
 		_weights = null;
 		_channelWeights = null;
@@ -64,11 +87,35 @@ public sealed class SkeletonEditor : Widget
 		if ( _document.SourceSkeleton is null )
 			Layout.Add( Hint( "Compile this skeleton to choose bones and edit mask weights." ) );
 
-		var settings = AddSection( "Skeleton", "polyline" );
-		settings.Enabled = !ReadOnly;
-		settings.Layout.Add( MakeSheet() );
+		Layout.Add( new Widget( this )
+		{
+			Layout = MakeSheet(),
+			Enabled = !ReadOnly,
+			VerticalSizeMode = SizeMode.CanGrow
+		} );
 
-		var masks = AddSection( "Bone Masks", "layers" );
+		AddSection( "Bone Masks", nameof( SkeletonDocument.Masks ) );
+		AddSection( "Float Channels", nameof( SkeletonDocument.FloatChannelSets ) );
+		Layout.AddStretchCell();
+	}
+
+	internal void BuildFloatChannels( Widget section )
+	{
+		if ( _channels.IsValid() )
+			_channelsFilter = _channels.SearchText;
+		_channels = section.Layout.Add( new FloatChannels( section, _document )
+		{
+			Committed = name =>
+			{
+				Committed?.Invoke( name );
+				_channelWeights?.Rebuild();
+			}
+		} );
+		_channels.SearchText = _channelsFilter;
+	}
+
+	internal void BuildMasks( Widget masks )
+	{
 		masks.ToolTip = "Unweighted chains feather between authored weights. Terminal chains inherit their nearest authored ancestor.";
 		var row = masks.Layout.AddRow();
 		row.Spacing = 4;
@@ -97,23 +144,11 @@ public sealed class SkeletonEditor : Widget
 		_maskDetails = masks.Layout.Add( new Widget( masks ) { Layout = Layout.Column() } );
 		_maskDetails.Layout.Spacing = 4;
 		RebuildMaskDetails();
-
-		var channels = AddSection( "Float Channels", "tune" );
-		_channels = channels.Layout.Add( new FloatChannels( channels, _document )
-		{
-			Committed = name =>
-			{
-				Committed?.Invoke( name );
-				_channelWeights?.Rebuild();
-			}
-		} );
-		_channels.SearchText = _channelsFilter;
 	}
 
 	private void RebuildMaskDetails()
 	{
 		RememberWeightFilters();
-		using var suspend = SuspendUpdates.For( _maskDetails );
 		_maskDetails.Layout.Clear( true );
 		_weights = null;
 		_channelWeights = null;
@@ -257,7 +292,14 @@ public sealed class SkeletonEditor : Widget
 
 	private Layout MakeSheet()
 	{
-		var so = _document.GetSerialized();
+		var sheet = new ControlSheet();
+		var so = MakeSerialized( _document.GetSerialized() );
+		sheet.AddGroup( "Skeleton", so.Where( property => property.HasAttribute<PropertyAttribute>() && !property.HasAttribute<HideAttribute>() ).ToArray() );
+		return sheet;
+	}
+
+	private SerializedObject MakeSerialized( SerializedObject so )
+	{
 		var editing = false;
 		so.OnPropertyStartEdit += _ => editing = true;
 		so.OnPropertyFinishEdit += property =>
@@ -271,13 +313,7 @@ public sealed class SkeletonEditor : Widget
 				CommitProperty( property );
 		};
 
-		var sheet = new ControlSheet();
-		foreach ( var property in so.Where( property => property.HasAttribute<PropertyAttribute>() && !property.HasAttribute<HideAttribute>() ) )
-		{
-			if ( sheet.AddRow( property ) is { } control )
-				control.MinimumWidth = 0;
-		}
-		return sheet;
+		return so;
 	}
 
 	private void CommitProperty( SerializedProperty property )
@@ -295,14 +331,47 @@ public sealed class SkeletonEditor : Widget
 		MaskPreviewed?.Invoke( _selected );
 	}
 
-	private Widget AddSection( string title, string icon )
+	private void AddSection( string title, string propertyName )
 	{
-		var body = new Widget( this ) { Layout = Layout.Column() };
-		body.Layout.Margin = 4;
-		body.Layout.Spacing = 4;
-		Layout.Add( new AnimationInspectorSection( title, icon, body, $"SkeletonInspector.{title}" ) );
-		Layout.Add( body );
-		return body;
+		var sheet = new ControlSheet();
+		sheet.AddGroup( title, [MakeSerialized( this.GetSerialized() ).GetProperty( propertyName )] );
+		Layout.Add( sheet );
+	}
+
+	[CustomEditor( typeof( List<SkeletonDocument.BoneMask> ), NamedEditor = "animgraph.bone-masks" )]
+	public sealed class SkeletonBoneMasksControlWidget : ControlWidget
+	{
+		public override bool IsWideMode => true;
+		public override bool IncludeLabel => false;
+
+		public SkeletonBoneMasksControlWidget( SerializedProperty property ) : base( property )
+		{
+			Layout = Layout.Column();
+			Layout.Spacing = 4;
+			Layout.Alignment = TextFlag.Top;
+			PaintBackground = false;
+			MinimumWidth = 0;
+			var owner = property.Parent.Targets.OfType<SkeletonEditor>().Single();
+			ReadOnly = owner.ReadOnly;
+			owner.BuildMasks( this );
+		}
+	}
+
+	[CustomEditor( typeof( List<SkeletonDocument.FloatChannelSet> ), NamedEditor = "animgraph.float-channels" )]
+	public sealed class SkeletonFloatChannelsControlWidget : ControlWidget
+	{
+		public override bool IsWideMode => true;
+		public override bool IncludeLabel => false;
+
+		public SkeletonFloatChannelsControlWidget( SerializedProperty property ) : base( property )
+		{
+			Layout = Layout.Column();
+			PaintBackground = false;
+			MinimumWidth = 0;
+			var owner = property.Parent.Targets.OfType<SkeletonEditor>().Single();
+			ReadOnly = owner.ReadOnly;
+			owner.BuildFloatChannels( this );
+		}
 	}
 
 	private Label Hint( string text ) => new( text, this ) { Color = Theme.TextControl.WithAlpha( 0.5f ), WordWrap = true };
