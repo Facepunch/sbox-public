@@ -272,4 +272,29 @@ public class DestroyTest : SceneTest
 		Assert.AreEqual( 1, scene.Directory.Count );
 	}
 
+	/// <summary>
+	/// Removing children from the front, back and middle (by destroying or reparenting them) takes
+	/// out exactly that child and leaves the remaining siblings in their original order.
+	/// </summary>
+	[TestMethod]
+	public void Remove_Child_Keeps_Sibling_Order()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var parent = scene.CreateObject();
+		var other = scene.CreateObject();
+		var children = Enumerable.Range( 0, 6 ).Select( i => new GameObject( parent, true, $"child {i}" ) ).ToArray();
+
+		children[0].DestroyImmediate();
+		children[5].DestroyImmediate();
+		children[3].Parent = other;
+		children[2].DestroyImmediate();
+
+		CollectionAssert.AreEqual( new[] { children[1], children[4] }, parent.Children.ToArray() );
+		CollectionAssert.AreEqual( new[] { children[3] }, other.Children.ToArray() );
+		Assert.AreSame( other, children[3].Parent );
+		Assert.IsTrue( children[3].IsValid );
+	}
+
 }
