@@ -259,6 +259,7 @@ internal class GameInstance : IGameInstance
 		};
 
 		activePackage = await PackageManager.InstallAsync( downloadOptions );
+		LoadingScreen.CompleteDownloads();
 
 		if ( activePackage is null )
 		{

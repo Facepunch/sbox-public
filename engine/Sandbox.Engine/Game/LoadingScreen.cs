@@ -69,6 +69,29 @@ public static class LoadingScreen
 	static double _stepFraction = double.NaN;
 
 	/// <summary>
+	/// How far the whole game load is, 0 to 1, across all its stages - for a bar that keeps moving once the
+	/// downloads are done. 1 once it's made it into the game, so the screen can finish its bar on the way out; null
+	/// when no game is loading and the last one didn't make it.
+	/// </summary>
+	public static double? LoadFraction => Api.Activity.CurrentLoad is { Ended: false } ? LoadProgress.Fraction : LoadProgress.Completed ? 1 : null;
+
+	/// <summary>
+	/// The downloads are all done: anything still waiting in <see cref="Downloads"/> was sized up in advance but turned
+	/// out not to need fetching, and would otherwise hold the bar where it was.
+	/// </summary>
+	internal static void CompleteDownloads()
+	{
+		ThreadSafe.AssertIsMainThread();
+
+		foreach ( var download in _downloads )
+		{
+			if ( download.IsComplete ) continue;
+			download.IsComplete = true;
+			download.Mbps = 0;
+		}
+	}
+
+	/// <summary>
 	/// Every package downloaded for the load under way, in the order they became known - for one bar
 	/// across all of them, rather than <see cref="Progress"/>'s one download at a time. Packages known in
 	/// advance (a server's, the game and its map) are added with their sizes before anything starts

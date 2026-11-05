@@ -140,7 +140,12 @@ public sealed partial class NavMesh
 		var maxConcurrency = Math.Max( 1, HeightFieldGenerationThreadCount );
 		using var concurrencySemaphore = new SemaphoreSlim( maxConcurrency, maxConcurrency );
 
-		await Task.WhenAll( tilesToProcess.Select( ProcessTileAsync ) );
+		int tilesDone = 0;
+		await Task.WhenAll( tilesToProcess.Select( async tile =>
+		{
+			await ProcessTileAsync( tile );
+			if ( LoadingScreen.IsVisible ) LoadProgress.Report( (double)Interlocked.Increment( ref tilesDone ) / tilesToProcess.Count );
+		} ) );
 
 		async Task ProcessTileAsync( NavMeshTile tile )
 		{
