@@ -52,6 +52,9 @@ CS
 
 	static const float PI = 3.14159265359f;
 
+	static const uint STRIP_START = 1;
+	static const uint STRIP_END = 2;
+
 	int FaceMode < Attribute("FaceMode"); Default(0); >;
 	int StartCap < Attribute("StartCap"); Default(0); >;
 	int EndCap < Attribute("EndCap"); Default(0); >;
@@ -405,19 +408,23 @@ CS
 		
 		Point prev, cur, next;
 		cur = PointBuffer[i];
-		prev = PointBuffer[i > 0 ? i - 1 : 0];
-		next = PointBuffer[i < PointCount - 1 ? i + 1 : i];
+
+		bool isStripStart = i == 0 || ( cur.Offset & STRIP_START ) != 0;
+		bool isStripEnd = i == PointCount - 1 || ( cur.Offset & STRIP_END ) != 0;
+
+		prev = isStripStart ? cur : PointBuffer[i - 1];
+		next = isStripEnd ? cur : PointBuffer[i + 1];
 
 		// If first or last one, extrapolate next/prev point
-		if( i == 0 && PointCount > 1)
+		if ( isStripStart && !isStripEnd )
 		{
 			// Generate fake point, so we can calculate a tangent for the first point
-			prev.Position = cur.Position + (cur.Position - PointBuffer[1].Position);
+			prev.Position = cur.Position + (cur.Position - next.Position);
 		}
-		else if (i == PointCount - 1)
+		else if ( isStripEnd && !isStripStart )
 		{
 			// Generate fake point, so we can calculate a tangent for the last point
-			next.Position = next.Position - ( prev.Position - cur.Position );
+			next.Position = cur.Position + (cur.Position - prev.Position);
 		}
 
 		// Generate tessellated vertices for this point
@@ -431,12 +438,21 @@ CS
 			
 			for (uint t = 0; t < TessellationLevel; t++)
 			{
+				uint idxOffset = baseIndexOffset + t * 6;
+
+				if ( isStripEnd )
+				{
+					uint v = i * (TessellationLevel + 1);
+					for ( uint k = 0; k < 6; k++ )
+						IndexBuffer[idxOffset + k] = v;
+
+					continue;
+				}
+
 				uint v0 = i * (TessellationLevel + 1) + t;
 				uint v1 = i * (TessellationLevel + 1) + t + 1;
 				uint v2 = (i + 1) * (TessellationLevel + 1) + t;
 				uint v3 = (i + 1) * (TessellationLevel + 1) + t + 1;
-				
-				uint idxOffset = baseIndexOffset + t * 6;
 				
 				// First triangle
 				IndexBuffer[idxOffset] = v0;

@@ -131,7 +131,7 @@ public class SceneLineObject : SceneCustomObject
 		set => _tessellationLevel = Math.Max( 1, value );
 	}
 
-	private struct LinePoint( uint offset, in Vector3 position, in Vector3 normal, Color color, float width, float textureCoord )
+	internal struct LinePoint( uint offset, in Vector3 position, in Vector3 normal, Color color, float width, float textureCoord )
 	{
 		public uint Offset = offset;
 		public Vector3 Position = position;
@@ -163,6 +163,17 @@ public class SceneLineObject : SceneCustomObject
 
 	private int _pointCount;
 	private int _pointCapacity;
+	private bool _multiStrip;
+
+	/// <summary>
+	/// <see cref="LinePoint.Offset"/> flag: this point starts a new strip, it isn't joined to the previous point.
+	/// </summary>
+	internal const uint StripStart = 1;
+
+	/// <summary>
+	/// <see cref="LinePoint.Offset"/> flag: this point ends a strip, it isn't joined to the next point.
+	/// </summary>
+	internal const uint StripEnd = 2;
 
 	private int _indexCapacity;
 	private int _vertexCapacity;
@@ -177,6 +188,7 @@ public class SceneLineObject : SceneCustomObject
 	public void StartLine()
 	{
 		_pointCount = 0;
+		_multiStrip = false;
 
 		_bounds = BBox.FromPositionAndSize( Transform.Position, 10 );
 	}
@@ -237,6 +249,43 @@ public class SceneLineObject : SceneCustomObject
 		};
 	}
 
+	/// <summary>
+	/// Get a point array with room for at least <paramref name="count"/> points, to be filled directly and
+	/// then submitted with <see cref="SetStrips"/>. Lets callers write many strips in parallel.
+	/// </summary>
+	internal LinePoint[] ReservePoints( int count )
+	{
+		if ( _points.Length < count )
+		{
+			Array.Resize( ref _points, Math.Max( count, _points.Length * 2 ) );
+		}
+
+		return _points;
+	}
+
+	/// <summary>
+	/// Submit <paramref name="pointCount"/> points written into <see cref="ReservePoints"/>, as any number of
+	/// independent strips, all drawn with a single dispatch and draw call. Each strip must have at least 2 points,
+	/// with its first point flagged <see cref="StripStart"/> and its last flagged <see cref="StripEnd"/>.
+	/// Caps aren't supported.
+	/// </summary>
+	internal void SetStrips( int pointCount, BBox bounds )
+	{
+		_pointCount = pointCount;
+		_bounds = bounds;
+		_multiStrip = true;
+
+		if ( _pointCount < 2 )
+		{
+			_pointCount = 0;
+			Bounds = _bounds;
+			_commandList.Reset();
+			return;
+		}
+
+		EndLine();
+	}
+
 	public void EndLine()
 	{
 		Bounds = _bounds;
@@ -244,8 +293,8 @@ public class SceneLineObject : SceneCustomObject
 		if ( _pointCount == 0 )
 			return;
 
-		var startCap = StartCap;
-		var endCap = EndCap;
+		var startCap = _multiStrip ? CapStyle.None : StartCap;
+		var endCap = _multiStrip ? CapStyle.None : EndCap;
 
 		if ( _pointCount > _pointCapacity )
 		{
@@ -316,7 +365,7 @@ public class SceneLineObject : SceneCustomObject
 		int lineIndices = (_pointCount - 1) * indicesPerSegment;
 
 		// Add indices for caps
-		int capIndices = GetCapIndexCount( StartCap ) + GetCapIndexCount( EndCap );
+		int capIndices = _multiStrip ? 0 : GetCapIndexCount( StartCap ) + GetCapIndexCount( EndCap );
 
 		return lineIndices + capIndices;
 	}
@@ -327,7 +376,7 @@ public class SceneLineObject : SceneCustomObject
 		int lineVertices = _pointCount * (_tessellationLevel + 1);
 
 		// Add vertices for caps
-		int capVertices = GetCapVertexCount( StartCap ) + GetCapVertexCount( EndCap );
+		int capVertices = _multiStrip ? 0 : GetCapVertexCount( StartCap ) + GetCapVertexCount( EndCap );
 
 		return lineVertices + capVertices;
 	}
