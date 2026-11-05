@@ -42,10 +42,12 @@ internal sealed class DepthDownsampleLayer : NativeProceduralLayer
 				RenderBarrierPipelineStageFlags_t.ComputeShaderBit, RenderBarrierPipelineStageFlags_t.ComputeShaderBit,
 				RenderImageLayout_t.RENDER_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 				RenderBarrierAccessFlags_t.ShaderWriteBit, RenderBarrierAccessFlags_t.ShaderReadBit );
-			Graphics.Context.TextureBarrierTransition( Graphics.SceneLayer.GetTextureValue( "NormalsGBuffer" ), -1,
+			var normals = Graphics.SceneLayer.GetTextureValue( "NormalsGBuffer" );
+			Graphics.Context.TextureBarrierTransition( normals, -1,
 				RenderBarrierPipelineStageFlags_t.ColorAttachmentOutputBit, RenderBarrierPipelineStageFlags_t.ComputeShaderBit,
 				RenderImageLayout_t.RENDER_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 				RenderBarrierAccessFlags_t.ColorAttachmentWriteBit, RenderBarrierAccessFlags_t.ShaderReadBit );
+			normals.DestroyStrongHandle();
 			Graphics.SceneLayer.SetSemaphore( Graphics.Context.SemaphoreSignalAtEnd() );
 		}
 	}

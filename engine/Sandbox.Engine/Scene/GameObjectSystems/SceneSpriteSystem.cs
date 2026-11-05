@@ -24,6 +24,32 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		Listen( Stage.FinishUpdate, 1, UpdateSprites, "UpdateSprites" ); // We want to upload after particles update
 	}
 
+	/// <summary>
+	/// Write one batched particle renderer's sprites into its range of the shared block.
+	/// </summary>
+	void ProcessSystem( int i )
+	{
+		var systemInfo = _systemOffsets[i];
+		if ( systemInfo.ParticleCount == 0 ) return;
+
+		var particleRenderer = (ParticleRenderer)systemInfo.System;
+		var particleSystemID = particleRenderer.Id;
+		_activeParticleEmitters[i] = particleSystemID;
+
+		var rendergroup = GetRenderGroupKey( systemInfo.System, (GameTags)particleRenderer.Tags, particleRenderer.RenderOptions );
+
+		// This is a very hot codepath, beware!
+		// Create span from the managed array starting at the correct offset with the correct length
+		var destSpan = _sharedSprites.AsSpan( systemInfo.Offset, systemInfo.ParticleCount );
+
+		// Call the common ProcessParticlesDirectly interface method
+		var result = systemInfo.System.ProcessParticlesDirectly( destSpan );
+
+		if ( result.SpriteCount == 0 ) return;
+
+		_particleProcessingResults[i] = new ParticleResult( particleSystemID, rendergroup, systemInfo.System, systemInfo.Offset, result.SpriteCount, result.SplotCount, result.Bounds );
+	}
+
 	public override void Dispose()
 	{
 		if ( _sharedSprites != null )
@@ -31,6 +57,8 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 			ArrayPool<SpriteBatchSceneObject.SpriteData>.Shared.Return( _sharedSprites );
 			_sharedSprites = null;
 		}
+		foreach ( var group in RenderGroups.Values ) group.Destroy();
+		RenderGroups.Clear();
 		base.Dispose();
 	}
 
@@ -127,28 +155,8 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 
 		// Parallel processing to write simulated particles to the data block that will be copied to the GPU
 		// Process all batched particle renderers
-		Parallel.For( 0, _systemOffsets.Count, i =>
-		{
-			var systemInfo = _systemOffsets[i];
-			if ( systemInfo.ParticleCount == 0 ) return;
-
-			var particleRenderer = (ParticleRenderer)systemInfo.System;
-			var particleSystemID = particleRenderer.Id;
-			_activeParticleEmitters[i] = particleSystemID;
-
-			var rendergroup = GetRenderGroupKey( systemInfo.System, (GameTags)particleRenderer.Tags, particleRenderer.RenderOptions );
-
-			// This is a very hot codepath, beware!
-			// Create span from the managed array starting at the correct offset with the correct length
-			var destSpan = _sharedSprites.AsSpan( systemInfo.Offset, systemInfo.ParticleCount );
-
-			// Call the common ProcessParticlesDirectly interface method
-			var result = systemInfo.System.ProcessParticlesDirectly( destSpan );
-
-			if ( result.SpriteCount == 0 ) return;
-
-			_particleProcessingResults[i] = new ParticleResult( particleSystemID, rendergroup, systemInfo.System, systemInfo.Offset, result.SpriteCount, result.SplotCount, result.Bounds );
-		} );
+		// One system at a time: they differ a lot in size
+		JobDispatcher.For( _systemOffsets.Count, this, static ( system, i ) => system.ProcessSystem( i ), itemsPerBatch: 1 );
 
 		// Cleanup inactive particle emitters
 		_activeParticleIds.Clear();
@@ -374,7 +382,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		if ( group.Components.Count > 0 || !_transientRenderGroups.Remove( renderGroup ) )
 			return;
 
-		group.Delete();
+		group.Destroy();
 		RenderGroups.Remove( renderGroup );
 	}
 

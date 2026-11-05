@@ -304,7 +304,11 @@ internal partial class PainterBatcher
 
 		public void Dispose()
 		{
-			foreach ( var buffer in _buffers ) buffer?.Dispose();
+			for ( int i = 0; i < _buffers.Length; i++ )
+			{
+				_buffers[i]?.Dispose();
+				_buffers[i] = null; // painting again makes new ones
+			}
 		}
 	}
 

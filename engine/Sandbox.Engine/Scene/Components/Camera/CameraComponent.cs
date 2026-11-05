@@ -232,6 +232,8 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		Rendering.ManagedSceneRendering.Forget( this );
 		sceneCamera?.Dispose();
 		sceneCamera = null;
+		_hudCommandList.DisposePainter();
+		_overlayCommandList.DisposePainter();
 	}
 
 	protected override void DrawGizmos()

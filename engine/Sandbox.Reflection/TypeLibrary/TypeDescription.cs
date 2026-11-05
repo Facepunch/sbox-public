@@ -355,7 +355,7 @@ public sealed class TypeDescription : ISourceLineProvider
 		ConcurrentBag<MemberDescription> md = new();
 		System.Threading.Tasks.Parallel.ForEach( members, x =>
 		{
-			var ident = GetMemberIdentity( x );
+			var ident = StringPool.Get( GetMemberIdentity( x ) );
 
 			MemberDescription previous = null;
 			previousPool?.TryGetValue( ident, out previous );

@@ -543,7 +543,25 @@ public sealed partial class RenderSystem : IDisposable
 		Occlusion.Begin();
 		meshes.Occlusion = wanted ? Occlusion : null;
 		aggregates.Occlusion = meshes.Occlusion;
-		Prepare( world, mainPass, transforms );
+		meshes.Parallel = ParallelRecording;
+
+		// Lights first: shadow views are chosen from them. The shadow views then cull on workers while the main view's
+		// other features prepare here - culling only reads what preparing doesn't write
+		lightBinner.Prepare( world, mainPass, transforms );
+		shadows.Select( world, mainPass, lightBinner, features.Count, Shadows, isSkybox );
+		var shadowCull = shadows.BeginCull();
+		try
+		{
+			for ( int i = 0; i < features.Count; i++ )
+			{
+				if ( features[i] != lightBinner ) features[i].Prepare( world, mainPass, transforms );
+			}
+		}
+		finally
+		{
+			shadowCull.Join();
+		}
+
 		meshes.Occlusion = null;
 		aggregates.Occlusion = null;
 		OcclusionActive = wanted && Occlusion.InstanceCount > 0;
@@ -551,7 +569,7 @@ public sealed partial class RenderSystem : IDisposable
 		Occlusion.Previous = OcclusionHistory.EarlyDepth;
 		Occlusion.RejectEarly = OcclusionHistory.RejectsEarly;
 
-		shadows.Prepare( world, mainPass, lightBinner, transforms, features.Count, Shadows, isSkybox );
+		shadows.PreparePasses( transforms );
 
 		// Skyboxes use their own system and view.
 		PrepareSkybox( world, view );

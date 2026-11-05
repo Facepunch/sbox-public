@@ -428,11 +428,11 @@ internal sealed partial class PackageLoader : IDisposable
 
 		try
 		{
-			using var gr = new HeavyGarbageRegion();
 			LoadAllAssembliesFromPackage( ap );
 
 			// Make sure we load the loose content as well
 			FileSystem.Mounted.Mount( ap.FileSystem );
+			System.Threading.Interlocked.Increment( ref PackageManager.MountGeneration );
 		}
 		catch
 		{

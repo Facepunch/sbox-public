@@ -78,6 +78,11 @@ internal sealed class ViewPass
 	public List<int> Visible( RenderFeature feature ) => visible[feature.Index];
 
 	/// <summary>
+	/// Every feature's <see cref="Visible"/> list, by feature index.
+	/// </summary>
+	internal List<int>[] VisibleByFeature => visible;
+
+	/// <summary>
 	/// Lazily created per-feature state retained with this pass.
 	/// </summary>
 	public T State<T>( RenderFeature feature ) where T : class, new()

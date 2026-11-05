@@ -25,6 +25,15 @@ internal sealed class DirectSoundModel : IDisposable
 
 	~DirectSoundModel() => Dispose();
 
+	/// <summary>
+	/// Create the native effect if it isn't yet. Steam Audio can't create effects on several threads at once, so voices
+	/// mixed across threads have theirs made first.
+	/// </summary>
+	internal void EnsureNative()
+	{
+		if ( _native.IsNull ) _native = CDirectEffect.Create();
+	}
+
 	FrequencyBands? _transmission;
 	FrequencyBands _targetTransmission = FrequencyBands.One;
 
@@ -155,7 +164,7 @@ internal sealed class DirectSoundModel : IDisposable
 
 		// Always call _native.Apply to keep SA's internal gain interpolator state warm.
 		// Skipping it freezes the interpolator, causing a pop when the sound becomes audible again.
-		_native = _native.IsNull ? CDirectEffect.Create() : _native;
+		EnsureNative();
 		output.Silence();
 		// Fold inputGain into distAtten so SA's GainEffect interpolates the combined gain
 		// per-sample rather than applying a coarse block-level scale that would click at frame boundaries.

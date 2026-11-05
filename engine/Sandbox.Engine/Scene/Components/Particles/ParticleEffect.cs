@@ -754,7 +754,7 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 	{
 		PreStep( timeDelta );
 
-		System.Threading.Tasks.Parallel.For( 0, Particles.Count, UpdateParticle );
+		JobDispatcher.For( Particles.Count, this, static ( effect, i ) => effect.UpdateParticle( i ) );
 		PostStep();
 	}
 

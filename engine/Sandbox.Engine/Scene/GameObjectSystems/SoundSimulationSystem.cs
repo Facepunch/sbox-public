@@ -128,8 +128,7 @@ internal sealed partial class SoundSimulationSystem : GameObjectSystem<SoundSimu
 			_parallelOccCount = occCount;
 			_parallelRoomCount = roomCount;
 			_parallelInterleave = Math.Min( occCount, roomCount ) * 2;
-			_parallelDispatchAction ??= ParallelDispatch;
-			System.Threading.Tasks.Parallel.For( 0, total, _parallelDispatchAction );
+			JobDispatcher.For( total, this, static ( system, i ) => system.ParallelDispatch( i ) );
 		}
 
 		ApplyOcclusionResults();
@@ -142,7 +141,6 @@ internal sealed partial class SoundSimulationSystem : GameObjectSystem<SoundSimu
 	int _parallelOccCount;
 	int _parallelRoomCount;
 	int _parallelInterleave;
-	Action<int> _parallelDispatchAction;
 
 	void ParallelDispatch( int i )
 	{

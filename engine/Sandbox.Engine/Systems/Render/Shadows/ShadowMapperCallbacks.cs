@@ -41,6 +41,14 @@ internal static class ShadowMapperCallbacks
 		return snapshot.Mappers;
 	}
 
+	/// <summary>
+	/// Free every mapper's GPU buffers. Called at quit, after the last frame.
+	/// </summary>
+	internal static void Shutdown()
+	{
+		foreach ( var mapper in ShadowMappers.Values ) mapper.DisposeBuffers();
+	}
+
 	internal static void InitForView( IntPtr handle, ISceneView sceneView ) => Get( handle ).InitForView( sceneView );
 	internal static void SetShaderAttributes( IntPtr handle, CRenderAttributes renderAttr )
 	{

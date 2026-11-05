@@ -19,6 +19,18 @@ partial class Scene
 	internal bool IsUnlisted { get; init; }
 
 	/// <summary>
+	/// Destroy every scene still alive, whatever still references it. Called during shutdown.
+	/// </summary>
+	internal static void DestroyAll()
+	{
+		foreach ( var scene in _all.GetLiveItems() )
+		{
+			try { scene.DestroyInternal(); } // Destroy() throws on a PrefabCacheScene
+			catch ( Exception e ) { Log.Warning( e, $"Exception destroying scene {scene.Name} at shutdown" ); }
+		}
+	}
+
+	/// <summary>
 	/// <see cref="RenderEnvmaps"/> on each scene in <see cref="All"/>, without allocating.
 	/// </summary>
 	internal static void RenderAllEnvmaps()

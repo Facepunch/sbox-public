@@ -30,6 +30,14 @@ internal partial class ShadowMapper
 
 	GpuBuffer<GPUProjectedShadow> GPUProjectedShadowsBuffer { get; set; }
 
+	internal void DisposeBuffers()
+	{
+		GPUProjectedShadowsBuffer?.Dispose();
+		GPUProjectedCubeShadowsBuffer?.Dispose();
+		GPUProjectedShadowsBuffer = null;
+		GPUProjectedCubeShadowsBuffer = null;
+	}
+
 	/// <summary>
 	/// Finds a cached shadow map or creates a new one.
 	/// This is for a single shadow map like a spot light

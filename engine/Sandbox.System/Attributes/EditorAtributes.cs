@@ -93,7 +93,7 @@ namespace Sandbox.Internal
 
 		public ClassFileLocationAttribute( string value )
 		{
-			Path = value;
+			Path = StringPool.Get( value );
 		}
 	}
 
@@ -226,7 +226,7 @@ public class DescriptionAttribute : System.Attribute, IDescriptionProvider, IDes
 
 	public DescriptionAttribute( string value )
 	{
-		Value = value;
+		Value = Sandbox.StringPool.Get( value );
 	}
 }
 

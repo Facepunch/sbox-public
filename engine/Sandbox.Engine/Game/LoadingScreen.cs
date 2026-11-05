@@ -18,6 +18,7 @@ public static class LoadingScreen
 			//Log.Info( $"Loading: {value}\n{new StackTrace( true ).ToString()}" );
 
 			_loading = value;
+			_shown = 0;
 			TextureWebStreaming.UpdateDownloadState();
 
 			// Each load's downloads are its own
@@ -37,7 +38,37 @@ public static class LoadingScreen
 	/// art and what's new in it. Null before then, and when what's loading isn't a game.
 	/// Cleared when the loading screen is hidden.
 	/// </summary>
-	public static Package Package { get; internal set; }
+	public static Package Package
+	{
+		get => _package;
+		internal set
+		{
+			// The game's art comes in when it's known
+			if ( _package is null && value is not null ) _shown = 0;
+			_package = value;
+		}
+	}
+
+	static Package _package;
+	static RealTimeSince _shown;
+
+	/// <summary>
+	/// How long the loading screen and the game's art take to come in, matching the menu's loading overlay.
+	/// </summary>
+	const float IntroSeconds = 0.6f;
+
+	/// <summary>
+	/// Waits until the loading screen and the game's art have come in. Loading blocks the main thread in chunks, which
+	/// would stutter them.
+	/// </summary>
+	internal static async Task WaitForIntro( System.Threading.CancellationToken token = default )
+	{
+		var remaining = IntroSeconds - _shown;
+		if ( !IsVisible || remaining <= 0 ) return;
+
+		try { await Task.Delay( TimeSpan.FromSeconds( remaining ), token ); }
+		catch ( OperationCanceledException ) { }
+	}
 
 	/// <summary>
 	/// A title to show
@@ -67,6 +98,29 @@ public static class LoadingScreen
 	}
 
 	static double _stepFraction = double.NaN;
+
+	/// <summary>
+	/// How far the whole game load is, 0 to 1, across all its stages - for a bar that keeps moving once the
+	/// downloads are done. 1 once it's made it into the game, so the screen can finish its bar on the way out; null
+	/// when no game is loading and the last one didn't make it.
+	/// </summary>
+	public static double? LoadFraction => Api.Activity.CurrentLoad is { Ended: false } ? LoadProgress.Fraction : LoadProgress.Completed ? 1 : null;
+
+	/// <summary>
+	/// The downloads are all done: anything still waiting in <see cref="Downloads"/> was sized up in advance but turned
+	/// out not to need fetching, and would otherwise hold the bar where it was.
+	/// </summary>
+	internal static void CompleteDownloads()
+	{
+		ThreadSafe.AssertIsMainThread();
+
+		foreach ( var download in _downloads )
+		{
+			if ( download.IsComplete ) continue;
+			download.IsComplete = true;
+			download.Mbps = 0;
+		}
+	}
 
 	/// <summary>
 	/// Every package downloaded for the load under way, in the order they became known - for one bar

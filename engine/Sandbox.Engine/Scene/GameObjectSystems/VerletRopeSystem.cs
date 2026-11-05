@@ -1,6 +1,4 @@
-﻿using System.Collections.Concurrent;
-
-namespace Sandbox;
+﻿namespace Sandbox;
 
 /// <summary>
 /// Simulates VerletRope components in parallel during PrePhysicsStep
@@ -8,6 +6,7 @@ namespace Sandbox;
 internal sealed class VerletRopeGameSystem : GameObjectSystem
 {
 	private readonly List<VerletRope> _ropes = new();
+	private float _timeDelta;
 
 	public VerletRopeGameSystem( Scene scene ) : base( scene )
 	{
@@ -23,7 +22,7 @@ internal sealed class VerletRopeGameSystem : GameObjectSystem
 		Scene.GetAll<VerletRope>( _ropes );
 		if ( _ropes.Count == 0 ) return;
 
-		var timeDelta = Time.Delta;
-		System.Threading.Tasks.Parallel.ForEach( Partitioner.Create( _ropes, loadBalance: true ), rope => rope.Simulate( timeDelta ) );
+		_timeDelta = Time.Delta;
+		JobDispatcher.For( _ropes.Count, this, static ( system, i ) => system._ropes[i].Simulate( system._timeDelta ) );
 	}
 }

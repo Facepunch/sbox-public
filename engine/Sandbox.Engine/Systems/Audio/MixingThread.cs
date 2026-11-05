@@ -284,17 +284,30 @@ static class MixingThread
 		_mixOutput.SendToOutput();
 	}
 
+	static VoiceFrameSnapshot _sampling;
+
 	/// <summary>Decode one buffer of audio from every active sampler (parallelized).</summary>
 	static void SampleVoices( VoiceFrameSnapshot snapshot )
 	{
 		using var _ = _sampleVoices.Start();
 
-		System.Threading.Tasks.Parallel.For( 0, snapshot.Voices.Count, i =>
+		_sampling = snapshot;
+
+		try
 		{
-			var v = snapshot.Voices[i];
-			if ( v.Sampler is null ) return;
-			v.Handle.SampleWithSeek( v.Sampler, v.Pitch );
-		} );
+			JobDispatcher.For( snapshot.Voices.Count, 0, static ( _, i ) => SampleVoice( i ) );
+		}
+		finally
+		{
+			_sampling = null;
+		}
+	}
+
+	static void SampleVoice( int i )
+	{
+		var v = _sampling.Voices[i];
+		if ( v.Sampler is null ) return;
+		v.Handle.SampleWithSeek( v.Sampler, v.Pitch );
 	}
 
 	static void FinishVoices( VoiceFrameSnapshot snapshot )
