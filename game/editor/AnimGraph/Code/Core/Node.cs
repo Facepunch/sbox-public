@@ -72,12 +72,21 @@ public abstract class Node : INode, INodeHighlight
 	public virtual Data SecondaryGraph => null;
 
 	/// <summary>
-	/// The node connected to one of this node's inputs, or null.
+	/// The source node connected to an input, following reroutes, or null.
 	/// </summary>
 	public Node GetConnectedNode( NodeInput input )
 	{
 		var graph = Graph as Data;
-		return input.IsValid ? graph?.FindNode( input.Identifier ) : null;
+		var node = input.IsValid ? graph?.FindNode( input.Identifier ) : null;
+		return node is RerouteNode reroute ? reroute.SourceOutput?.Node as Node : node;
+	}
+
+	public IPlugOut GetConnectedOutput( NodeInput input )
+	{
+		if ( !input.IsValid || Graph is not Data graph )
+			return null;
+
+		return graph.FindNode( input.Identifier )?.Outputs.FirstOrDefault( output => output.Identifier == input.Output );
 	}
 
 	private List<IPlugIn> _propertyInputs;
@@ -134,7 +143,7 @@ public abstract class Node : INode, INodeHighlight
 	public bool IsLive => HasLiveDebugInfo && LiveDebugInfo.IsActive;
 
 	[JsonIgnore, Hide, Browsable( false )]
-	public GraphValueKind OutputKind => _outputKind;
+	public virtual GraphValueKind OutputKind => _outputKind;
 
 	[JsonIgnore, Hide, Browsable( false )]
 	public bool HasPoseOutput => OutputKind == GraphValueKind.Pose;
@@ -676,8 +685,10 @@ public class AnimPlugInfo
 /// <summary>
 /// Base plug record shared by inputs and outputs.
 /// </summary>
-public record AnimPlug( Node Node, AnimPlugInfo Info, Type Type ) : IPlug
+public record AnimPlug( Node Node, AnimPlugInfo Info, Type ValueType ) : IPlug
 {
+	public Type Type => Node is RerouteNode reroute ? reroute.SourceOutput?.Type ?? typeof( object ) : ValueType;
+
 	INode IPlug.Node => Node;
 	public string Identifier => Info.Name;
 	public virtual DisplayInfo DisplayInfo => Info.DisplayInfo;
@@ -696,25 +707,11 @@ public record AnimPlug( Node Node, AnimPlugInfo Info, Type Type ) : IPlug
 /// <summary>
 /// Input plug that reads/writes NodeInput connections from node properties.
 /// </summary>
-public record AnimPlugIn( Node Node, AnimPlugInfo Info, Type Type ) : AnimPlug( Node, Info, Type ), IPlugIn
+public record AnimPlugIn( Node Node, AnimPlugInfo Info, Type ValueType ) : AnimPlug( Node, Info, ValueType ), IPlugIn
 {
 	IPlugOut IPlugIn.ConnectedOutput
 	{
-		get
-		{
-			if ( !Info.CanConnect )
-				return null;
-
-			var value = Info.GetInput( Node );
-			if ( !value.IsValid )
-				return null;
-
-			if ( Node.Graph is not Data graph )
-				return null;
-
-			var sourceNode = graph.FindNode( value.Identifier );
-			return sourceNode?.Outputs.FirstOrDefault( x => x.Identifier == value.Output );
-		}
+		get => Info.CanConnect ? Node.GetConnectedOutput( Info.GetInput( Node ) ) : null;
 		set
 		{
 			if ( !Info.CanConnect )
@@ -753,7 +750,7 @@ public record AnimPlugIn( Node Node, AnimPlugInfo Info, Type Type ) : AnimPlug( 
 /// Output plug. Lets the owning node override its displayed label - parameter nodes
 /// substitute their live value for the pin name.
 /// </summary>
-public record AnimPlugOut( Node Node, AnimPlugInfo Info, Type Type ) : AnimPlug( Node, Info, Type ), IPlugOut
+public record AnimPlugOut( Node Node, AnimPlugInfo Info, Type ValueType ) : AnimPlug( Node, Info, ValueType ), IPlugOut
 {
 	public override DisplayInfo DisplayInfo
 	{

@@ -41,10 +41,15 @@ native static class RenderTools as NativeEngine.RenderTools
 	IMaterial GetSceneObjectDraw( CSceneObject sceneObject, int nIndex, CastTo[int*] void* pMeshIndex, CastTo[int*] void* pDrawCall, CastTo[int*] void* pFlags );
 	float TonemapFrameUpdate( ITonemapSystem tonemapSystem, bool bUpdate );
 	void RenderAutoExposure( IRenderContext renderContext, ITonemapSystem tonemapSystem, ITexture hColor, int nX, int nY, int nWidth, int nHeight );
-	bool DrawModelDrawCall( IRenderContext renderContext, CRenderAttributes attributes, IMaterial material, StringToken nMode, IModel hModel, int nMesh, int nDrawCall, int nDepthBias, float flSlopeScaledDepthBias, bool bStripPixelShader, int nOverlayStencil, RenderBufferHandle_t hInstanceIds, int nFirstSlot, int nInstances, void* pBind );
-	bool DrawModelDrawCallIndirect( IRenderContext renderContext, CRenderAttributes attributes, IMaterial material, StringToken nMode, IModel hModel, int nMesh, int nDrawCall, int nDepthBias, float flSlopeScaledDepthBias, bool bStripPixelShader, int nOverlayStencil, RenderBufferHandle_t hInstanceIds, int nFirstSlot, RenderBufferHandle_t hArgs, int nArgsOffset, void* pBind );
+	bool DrawModelDrawCall( IRenderContext renderContext, CRenderAttributes attributes, IMaterial material, StringToken nMode, IModel hModel, int nMesh, int nDrawCall, int nDepthBias, float flSlopeScaledDepthBias, bool bStripPixelShader, int nOverlayStencil, bool bSkinned, RenderBufferHandle_t hInstanceIds, int nFirstSlot, int nInstances, void* pBind );
+	bool DrawModelDrawCallIndirect( IRenderContext renderContext, CRenderAttributes attributes, IMaterial material, StringToken nMode, IModel hModel, int nMesh, int nDrawCall, int nDepthBias, float flSlopeScaledDepthBias, bool bStripPixelShader, int nOverlayStencil, bool bSkinned, RenderBufferHandle_t hInstanceIds, int nFirstSlot, RenderBufferHandle_t hArgs, int nArgsOffset, void* pBind );
+	bool DrawModelDrawCallMultiIndirect( IRenderContext renderContext, CRenderAttributes attributes, IMaterial material, StringToken nMode, IModel hModel, int nMesh, int nDrawCall, int nDepthBias, float flSlopeScaledDepthBias, bool bStripPixelShader, int nOverlayStencil, RenderBufferHandle_t hInstanceIds, int nFirstSlot, RenderBufferHandle_t hArgs, int nArgsOffset, int nMaxDraws, RenderBufferHandle_t hCount, int nCountOffset, void* pBind );
+	bool SupportsDrawIndirectCount();
+	IModel GetAggregateModel( CSceneObject sceneObject, CastTo[bool*] void* pLightmapped );
+	int GetAggregateFragments( CSceneObject sceneObject, void* pOut, int nMaxFragments );
 	int GetMaterialBindSize();
 	void ResetMaterialBind( void* pBind );
+	void GetMaterialBindCounts( void* pBind, CastTo[int*] void* pFull, CastTo[int*] void* pSimilar );
 	ulong GetMaterialSimilarityKey( IMaterial material );
 	int PackSceneLight( CSceneLightObject light, void* pOut, CastTo[int*] void* pBakeLightIndex );
 	bool SetSceneObjectLightmapAttributes( CSceneObject sceneObject, CRenderAttributes attributes );

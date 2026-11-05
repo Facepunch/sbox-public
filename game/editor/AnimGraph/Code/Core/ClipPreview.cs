@@ -3,7 +3,7 @@ using System;
 namespace Editor.AnimGraph;
 
 /// <summary>
-/// Plays a single animation clip on a preview model.
+/// Tracks playback of an animation clip, optionally posing a preview model.
 ///
 /// A clip is its own resource rather than something baked into a model, so a model renderer
 /// can't play one on its own - the animation graph runtime is what samples clips. This wraps a
@@ -29,9 +29,9 @@ public sealed class ClipPreview : IDisposable
 	public Clip Clip { get; private set; }
 
 	/// <summary>
-	/// Whether a clip is bound and posing the renderer.
+	/// Whether a clip is loaded and, when a renderer is supplied, bound to it.
 	/// </summary>
-	public bool HasClip => _graph is not null;
+	public bool HasClip => Clip is not null && (_renderer is null || _graph is not null);
 
 	/// <summary>
 	/// Length of the clip in seconds. Zero when nothing is playing.
@@ -71,7 +71,7 @@ public sealed class ClipPreview : IDisposable
 		get => _time;
 		set
 		{
-			_time = Looping ? value - MathF.Floor( value ) : value.Clamp( 0f, 1f );
+			_time = value.Clamp( 0f, 1f );
 			Apply();
 		}
 	}
@@ -89,13 +89,13 @@ public sealed class ClipPreview : IDisposable
 	/// Play a clip on a renderer. Passing no clip, or one that won't load, leaves the renderer in
 	/// its reference pose - the model's legacy animgraph is never played here.
 	/// </summary>
-	/// <param name="renderer">The model to pose.</param>
+	/// <param name="renderer">The model to pose, or null to track playback without a model.</param>
 	/// <param name="clipName">Resource path of the .anim to play.</param>
 	public void Play( SkinnedModelRenderer renderer, string clipName )
 	{
 		// Nothing to do when we're already showing this, but a clip that failed to bind is
 		// retried in case it has compiled since
-		if ( _renderer == renderer && ClipName == clipName && ( _graph is not null || string.IsNullOrWhiteSpace( clipName ) ) )
+		if ( _renderer == renderer && ClipName == clipName && ( HasClip || string.IsNullOrWhiteSpace( clipName ) ) )
 			return;
 
 		Detach();
@@ -104,11 +104,14 @@ public sealed class ClipPreview : IDisposable
 		ClipName = clipName;
 		_time = 0f;
 
-		if ( !renderer.IsValid() || string.IsNullOrWhiteSpace( clipName ) )
+		if ( string.IsNullOrWhiteSpace( clipName ) )
 			return;
 
 		Clip = Sandbox.Animation.Clip.Load( clipName );
 		if ( Clip is null )
+			return;
+
+		if ( !renderer.IsValid() )
 			return;
 
 		var builder = Graph.Builder;
@@ -138,10 +141,11 @@ public sealed class ClipPreview : IDisposable
 	/// </summary>
 	public void Advance( float delta )
 	{
-		if ( _graph is null || Duration <= 0f )
+		if ( !HasClip || Duration <= 0f )
 			return;
 
-		TimeNormalized = _time + delta * PlaybackRate / Duration;
+		var next = _time + delta * PlaybackRate / Duration;
+		TimeNormalized = Looping ? next - MathF.Floor( next ) : next;
 	}
 
 	/// <summary>

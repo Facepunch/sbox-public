@@ -98,7 +98,8 @@ public class Preview : PreviewSceneWidget
 			Maximum = 2f,
 			Step = 0.05f,
 			Value = 1f,
-			FixedWidth = 90,
+			MinimumWidth = Theme.RowHeight,
+			MaximumWidth = 90,
 			ToolTip = "Playback speed",
 			HighlightColor = Theme.Blue,
 		} );
@@ -415,18 +416,8 @@ public class Preview : PreviewSceneWidget
 			peak = Math.Max( peak, _samples[i] );
 		}
 
-		var scope = new TextRendering.Scope
-		{
-			Text = $"graph {ms:0.00} ms   avg {total / _sampleCount:0.00}   peak {peak:0.00}",
-			TextColor = Color.White.WithAlpha( 0.9f ),
-			FontSize = 12,
-			FontName = "Roboto Mono",
-			FontWeight = 400,
-			LineHeight = 1,
-			Outline = new TextRendering.Outline { Color = Color.Black, Enabled = true, Size = 3 },
-		};
-
-		Scene.DebugOverlay.ScreenText( new Vector2( 6, 6 ), scope, TextFlag.LeftTop );
+		DrawOverlayText( $"graph {ms:0.00} ms   avg {total / _sampleCount:0.00}   peak {peak:0.00}",
+			new Vector2( 6, 6 ), Color.White.WithAlpha( 0.9f ) );
 	}
 
 	private void DrawActiveAnimations()
@@ -443,18 +434,8 @@ public class Preview : PreviewSceneWidget
 			$"{animation.Name.PadRight( nameWidth )}   {animation.Cycle,5:0.00}   {animation.Cycle * animation.Duration,5:0.00}/{animation.Duration:0.00}s" );
 		var header = "animation".PadRight( nameWidth ) + "   cycle          time";
 
-		var scope = new TextRendering.Scope
-		{
-			Text = $"{header}\n{string.Join( '\n', lines )}",
-			TextColor = Color.White.WithAlpha( 0.9f ),
-			FontSize = 12,
-			FontName = "Roboto Mono",
-			FontWeight = 400,
-			LineHeight = 1,
-			Outline = new TextRendering.Outline { Color = Color.Black, Enabled = true, Size = 3 },
-		};
-
-		Scene.DebugOverlay.ScreenText( new Vector2( 6, 24 ), scope, TextFlag.LeftTop );
+		DrawOverlayText( $"{header}\n{string.Join( '\n', lines )}",
+			new Vector2( 6, 24 ), Color.White.WithAlpha( 0.9f ) );
 	}
 
 	internal void ClearRecording() => _recorder.Clear();

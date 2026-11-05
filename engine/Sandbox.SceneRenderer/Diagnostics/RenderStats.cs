@@ -55,6 +55,11 @@ public struct RenderStats
 	public long Triangles;
 
 	/// <summary>
+	/// Triangles every pass drew - depth and shadow too, not only the forward pass's <see cref="Triangles"/>.
+	/// </summary>
+	public long DrawnTriangles;
+
+	/// <summary>
 	/// Lights binned for the view.
 	/// </summary>
 	public int Lights;
@@ -100,6 +105,7 @@ public struct RenderStats
 		into.CustomDraws += from.CustomDraws;
 		into.Instances += from.Instances;
 		into.Triangles += from.Triangles;
+		into.DrawnTriangles += from.DrawnTriangles;
 		into.ShadowViews += from.ShadowViews;
 		into.ShadowDraws += from.ShadowDraws;
 		into.Lights = Math.Max( into.Lights, from.Lights );

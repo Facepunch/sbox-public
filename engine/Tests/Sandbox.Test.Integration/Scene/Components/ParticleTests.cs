@@ -834,7 +834,7 @@ public class ParticleEffectTest
 		CollectionAssert.AreEqual( new[] { 2, 2 }, counts );
 		Assert.AreEqual( 1, effect.Particles.Count );
 		Assert.AreSame( replacement, effect.Particles[0] );
-		Assert.IsFalse( Particle.Pool.Contains( replacement ), "A live replacement must not be pooled" );
+		Assert.IsFalse( scene.ParticlePool.Contains( replacement ), "A live replacement must not be pooled" );
 	}
 
 	/// <summary>

@@ -13,7 +13,7 @@ public class SystemsConfig : ConfigData
 	/// Stores GameObjectSystems to property names to property values
 	/// </summary>
 	[JsonInclude]
-	protected Dictionary<string, Dictionary<string, object>> Systems { get; set; } = new();
+	private Dictionary<string, Dictionary<string, object>> Systems { get; set; } = new();
 
 	/// <summary>
 	/// Quick utility method to get the type name from a TypeDescription
@@ -66,45 +66,12 @@ public class SystemsConfig : ConfigData
 		if ( !Systems.TryGetValue( typeName, out var properties ) )
 			return false;
 
-		if ( !properties.TryGetValue( property.Name, out var rawValue ) )
+		if ( !properties.TryGetValue( property.Name, out var rawValue ) || rawValue is not JsonElement je )
 			return false;
 
 		try
 		{
-			if ( rawValue is JsonElement je )
-			{
-				value = je.Deserialize( property.PropertyType, Json.options );
-				properties[property.Name] = value;
-				return true;
-			}
-
-			// If the value is already assignable to the target type, use it directly
-			if ( rawValue?.GetType().IsAssignableTo( property.PropertyType ) == true )
-			{
-				value = rawValue;
-				return true;
-			}
-
-			// Handle enums explicitly
-			if ( property.PropertyType.IsEnum && rawValue is IConvertible )
-			{
-				value = Enum.ToObject( property.PropertyType, Convert.ToInt32( rawValue ) );
-				properties[property.Name] = value;
-				return true;
-			}
-
-			// Only use Convert.ChangeType for primitive/convertible types
-			if ( rawValue is IConvertible && property.PropertyType.IsAssignableTo( typeof( IConvertible ) ) )
-			{
-				value = Convert.ChangeType( rawValue, property.PropertyType );
-				properties[property.Name] = value;
-				return true;
-			}
-
-			// Fall back to JSON serialization for complex types
-			var json = JsonSerializer.Serialize( rawValue, Json.options );
-			value = JsonSerializer.Deserialize( json, property.PropertyType, Json.options );
-			properties[property.Name] = value;
+			value = je.Deserialize( property.PropertyType, Json.options );
 			return true;
 		}
 		catch ( Exception ex )
@@ -127,12 +94,11 @@ public class SystemsConfig : ConfigData
 	public void SetPropertyValue( TypeDescription systemType, PropertyDescription property, object value )
 	{
 		var typeName = GetTypeName( systemType );
+		var snapshot = JsonSerializer.SerializeToElement( value, value?.GetType() ?? typeof( object ), Json.options );
 
-		if ( !Systems.ContainsKey( typeName ) )
-		{
-			Systems[typeName] = new Dictionary<string, object>();
-		}
+		if ( !Systems.TryGetValue( typeName, out var properties ) )
+			Systems[typeName] = properties = new();
 
-		Systems[typeName][property.Name] = value;
+		properties[property.Name] = snapshot;
 	}
 }

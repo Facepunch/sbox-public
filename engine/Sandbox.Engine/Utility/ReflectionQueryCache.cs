@@ -1,4 +1,5 @@
-﻿using System.Collections.Immutable;
+﻿using Sandbox.Engine;
+using System.Collections.Immutable;
 using System.Reflection;
 using System.Text.Json.Serialization;
 
@@ -115,7 +116,7 @@ internal static class ReflectionQueryCache
 			return members;
 		}
 
-		var type = Game.TypeLibrary.GetType( t );
+		var type = GlobalContext.Current.TypeLibrary.GetType( t );
 
 		if ( type is null )
 		{
@@ -170,7 +171,7 @@ internal static class ReflectionQueryCache
 			return members;
 		}
 
-		var type = Game.TypeLibrary.GetType( t );
+		var type = GlobalContext.Current.TypeLibrary.GetType( t );
 
 		if ( type is null )
 		{

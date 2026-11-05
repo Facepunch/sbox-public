@@ -7,6 +7,26 @@ namespace SceneTests.UI;
 public class ScenePanelTest
 {
 	[TestMethod]
+	public void OwnedSceneIsNotInAll()
+	{
+		var preview = new ScenePanel();
+		var assigned = new Scene();
+		var other = new ScenePanel { RenderScene = assigned };
+
+		try
+		{
+			Assert.IsFalse( Scene.All.Contains( preview.RenderScene ), "A preview scene, like the menu's, was visible to game code" );
+			Assert.IsTrue( Scene.All.Contains( assigned ), "A scene given to a ScenePanel lost its visibility" );
+		}
+		finally
+		{
+			preview.Delete();
+			other.Delete();
+			assigned.Destroy();
+		}
+	}
+
+	[TestMethod]
 	public void Delete_DestroysOwnedScene()
 	{
 		var panel = new ScenePanel();

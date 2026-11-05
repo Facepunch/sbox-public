@@ -30,6 +30,7 @@ public class PreviewSkeleton( Asset asset ) : AssetPreview( asset )
 
 	public void SetBoneWeights( IReadOnlyDictionary<string, float> weights, bool showWeights, string rootBone = null )
 	{
+		_bones ??= Skeleton.Load( Asset.Path )?.Bones;
 		_weights = weights;
 		_showWeights = showWeights;
 		if ( _rootBone == rootBone )
@@ -37,6 +38,16 @@ public class PreviewSkeleton( Asset asset ) : AssetPreview( asset )
 
 		_rootBone = rootBone;
 		RebuildIncludedBones();
+	}
+
+	public Color GetBoneColor( string name, bool hovered )
+	{
+		if ( _included is not null && !_included.Contains( name ) )
+			return Theme.TextControl.WithAlpha( 0.15f );
+
+		return _showWeights
+			? Color.Lerp( Theme.Red, Theme.Green, _weights?.GetValueOrDefault( name ) ?? 0f )
+			: Color.White.WithAlpha( hovered ? 1f : 0.25f );
 	}
 
 	private void RebuildIncludedBones()
@@ -115,12 +126,8 @@ public class PreviewSkeleton( Asset asset ) : AssetPreview( asset )
 			using var scope = Gizmo.Scope( $"Bone{bone.Index}", tx );
 
 			var radius = Math.Min( 1f, tx.Position.Distance( Gizmo.CameraTransform.Position ) / 64f );
-			var boneColor = _showWeights
-				? Color.Lerp( Theme.Red, Theme.Green, _weights?.GetValueOrDefault( bone.Name ) ?? 0f )
-				: Theme.Blue;
 			var excluded = _included is not null && !_included.Contains( bone.Name );
-			if ( excluded )
-				boneColor = Theme.TextControl.WithAlpha( 0.15f );
+			var boneColor = _showWeights || excluded ? GetBoneColor( bone.Name, false ) : Theme.Blue;
 
 			Gizmo.Draw.IgnoreDepth = true;
 			Gizmo.Draw.LineThickness = 1f;

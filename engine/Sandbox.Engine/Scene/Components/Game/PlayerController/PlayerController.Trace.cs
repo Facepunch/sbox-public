@@ -166,7 +166,10 @@ public sealed partial class PlayerController : Component
 	{
 		var result = TraceMovement( from, to, includeGroundClearance: true );
 		// Uneven ground can overlap the nominal feet while the raised movement shape is clear.
-		return result.StartedSolid || (result.Hit && Mode.IsStandableSurface( result )) ? TraceMovement( from, to ) : result;
+		if ( result.StartedSolid || (result.Hit && Mode.IsStandableSurface( result )) )
+			result = TraceMovement( from, to );
+
+		return !result.Hit && !Scene.Is2D && GroundUsesContactFriction ? TraceMovement( from, to, 0 ) : result;
 	}
 
 	bool TryFindContactStepLift( Vector3 from, Vector3 direction, float maxLift, SceneTraceResult obstruction, out float lift, out float groundOffset )

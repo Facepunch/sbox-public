@@ -15,11 +15,13 @@ using static GlobalGameNamespace;
 public class NetworkTest
 {
 	private TypeLibrary _oldTypeLibrary;
+	private Scene _oldActiveScene;
 
 	[TestInitialize]
 	public void TestInitialize()
 	{
 		_oldTypeLibrary = Game.TypeLibrary;
+		_oldActiveScene = Game.ActiveScene;
 
 		Game.TypeLibrary = SharedTypeLibrary.EngineAndTests;
 
@@ -30,6 +32,13 @@ public class NetworkTest
 	public void TestCleanup()
 	{
 		Game.TypeLibrary = _oldTypeLibrary;
+
+		// Applying a snapshot replaces the active scene, so the test's push scope won't restore it
+		if ( Game.ActiveScene != _oldActiveScene )
+		{
+			Game.ActiveScene?.Destroy();
+			Game.ActiveScene = _oldActiveScene;
+		}
 	}
 
 	[TestMethod]

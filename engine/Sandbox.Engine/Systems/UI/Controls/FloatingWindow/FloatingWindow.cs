@@ -144,7 +144,7 @@ public partial class FloatingWindow : Panel
 		if ( !IsMinimized || IsAnimating ) return;
 		animationDockRect = Box.Rect;
 		IsMinimized = false;
-		minimizedWindows.Remove( this );
+		minimizedWindows.RemoveAll( x => ReferenceEquals( x, this ) );
 		Style.Width = restoreWidth;
 		Style.Height = restoreHeight;
 		SetClass( "minimized", false );
@@ -236,7 +236,7 @@ public partial class FloatingWindow : Panel
 		// Share the bottom edge in minimize order, even when windows have different parents.
 		foreach ( var window in minimizedWindows )
 		{
-			if ( !window.IsValid() || !window.IsVisible || window.FindRootPanel() != root ) continue;
+			if ( window.FindRootPanel() != root || window is not { IsValid: true } || !window.IsVisible ) continue;
 			if ( window == this ) index = count;
 			count++;
 		}
@@ -296,7 +296,7 @@ public partial class FloatingWindow : Panel
 	/// </summary>
 	public override void OnDeleted()
 	{
-		minimizedWindows.Remove( this );
+		minimizedWindows.RemoveAll( x => ReferenceEquals( x, this ) );
 		base.OnDeleted();
 	}
 

@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Components;
+﻿using Sandbox.Engine;
+using Microsoft.AspNetCore.Components;
 using Sandbox.Diagnostics;
 using System;
 using System.Collections.Generic;
@@ -120,10 +121,10 @@ public class BaseControl : Panel
 	/// </summary>
 	static IEnumerable<(TypeDescription Type, CustomEditorAttribute Attribute)> EditorTypes()
 	{
-		var game = Game.TypeLibrary.GetTypesWithAttribute<CustomEditorAttribute>( false );
+		var game = GlobalContext.Current.TypeLibrary.GetTypesWithAttribute<CustomEditorAttribute>( false );
 		var editor = Sandbox.Internal.TypeLibrary.Editor;
 
-		if ( editor is null || editor == Game.TypeLibrary )
+		if ( editor is null || editor == GlobalContext.Current.TypeLibrary )
 			return game;
 
 		return game.Concat( editor.GetTypesWithAttribute<CustomEditorAttribute>( false ) )

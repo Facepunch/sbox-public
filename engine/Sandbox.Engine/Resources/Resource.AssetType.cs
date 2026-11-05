@@ -1,4 +1,5 @@
-﻿namespace Sandbox;
+﻿using Sandbox.Engine;
+namespace Sandbox;
 
 public partial class Resource
 {
@@ -18,7 +19,7 @@ public partial class Resource
 	{
 		// backwards compatibility
 #pragma warning disable CS0618
-		var gr = Game.TypeLibrary.GetAttribute<GameResourceAttribute>( this.GetType() );
+		var gr = GlobalContext.Current.TypeLibrary.GetAttribute<GameResourceAttribute>( this.GetType() );
 
 		var icon = gr?.Icon ?? "question_mark";
 		Color fg = gr?.IconFgColor ?? "#1a2c17";

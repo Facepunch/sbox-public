@@ -54,6 +54,8 @@ public abstract class BonePickerControlWidget : ControlWidget
 	/// The model the graph, or the variation being edited, animates.
 	/// </summary>
 	protected virtual Model TargetModel => TargetGraph?.TargetModel;
+	protected virtual Skeleton TargetSkeleton => Owners.OfType<SkeletonDocument>().FirstOrDefault()?.SourceSkeleton
+		?? Owners.OfType<ClipDocument>().FirstOrDefault()?.SourceSkeleton;
 
 	protected override void PaintControl()
 	{
@@ -61,6 +63,7 @@ public abstract class BonePickerControlWidget : ControlWidget
 		if ( IsControlDisabled ) color = color.WithAlpha( 0.5f );
 
 		var rect = new Rect( 0, 0, Width, Theme.RowHeight ).Shrink( 8, 0 );
+		var textRect = rect.Shrink( 0, 0, 20, 0 );
 		var value = SerializedProperty.GetValue<string>();
 
 		Paint.SetDefaultFont();
@@ -68,12 +71,12 @@ public abstract class BonePickerControlWidget : ControlWidget
 		if ( SerializedProperty.IsMultipleDifferentValues )
 		{
 			Paint.SetPen( Theme.MultipleValues );
-			Paint.DrawText( rect, "Multiple Values", TextFlag.LeftCenter );
+			Paint.DrawText( textRect, Paint.GetElidedText( "Multiple Values", Math.Max( 0, textRect.Width ), ElideMode.Right ), TextFlag.LeftCenter );
 		}
 		else
 		{
 			Paint.SetPen( string.IsNullOrEmpty( value ) ? color.WithAlpha( 0.5f ) : color );
-			Paint.DrawText( rect, string.IsNullOrEmpty( value ) ? "None" : value, TextFlag.LeftCenter );
+			Paint.DrawText( textRect, Paint.GetElidedText( string.IsNullOrEmpty( value ) ? "None" : value, Math.Max( 0, textRect.Width ), ElideMode.Right ), TextFlag.LeftCenter );
 		}
 
 		Paint.SetPen( color );
@@ -105,8 +108,7 @@ public abstract class BonePickerControlWidget : ControlWidget
 			return;
 
 		var model = TargetModel;
-		var skeleton = Owners.OfType<SkeletonDocument>().FirstOrDefault()?.SourceSkeleton
-			?? Owners.OfType<ClipDocument>().FirstOrDefault()?.SourceSkeleton;
+		var skeleton = TargetSkeleton;
 		if ( model is null && skeleton is null )
 			return;
 

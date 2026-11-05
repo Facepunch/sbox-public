@@ -1,3 +1,4 @@
+using Sandbox.Engine;
 using System.Text.Json.Nodes;
 
 namespace Sandbox;
@@ -34,14 +35,15 @@ public partial class Scene
 	/// <summary>
 	/// Find all types of SceneHook, create an instance of each one and install it.
 	/// </summary>
-	void InitSystems()
+	void InitSystems( bool includeGameSystems )
 	{
 		using ( Push() )
 		{
 			ShutdownSystems();
 
-			var found = Game.TypeLibrary.GetTypes<GameObjectSystem>()
+			var found = GlobalContext.Current.TypeLibrary.GetTypes<GameObjectSystem>()
 				.Where( x => !x.IsAbstract )
+				.Where( x => includeGameSystems || x.TargetType.Assembly == typeof( Scene ).Assembly )
 				.ToArray();
 
 			foreach ( var f in found )
@@ -72,7 +74,7 @@ public partial class Scene
 
 			foreach ( var type in types )
 			{
-				var e = Game.TypeLibrary.GetType( type )?.Create<GameObjectSystem>( [this] );
+				var e = GlobalContext.Current.TypeLibrary.GetType( type )?.Create<GameObjectSystem>( [this] );
 				if ( e is null ) continue;
 
 				ApplyGameObjectSystemConfig( e );
@@ -91,7 +93,7 @@ public partial class Scene
 	/// </summary>
 	void ApplyGameObjectSystemConfig( GameObjectSystem system )
 	{
-		var systemType = Game.TypeLibrary.GetType( system.GetType() );
+		var systemType = GlobalContext.Current.TypeLibrary.GetType( system.GetType() );
 		if ( systemType is null ) return;
 
 		using ( Push() )

@@ -403,7 +403,8 @@ void ComputeDirectLightingForLight( const FinalCombinerInput_t f, float3 vReceiv
 	#endif
 	
 	// Apply transmission after range, cone and shadow rejection, to this light alone.
-	// bModulators is constant in each copy of the caller's light loop, so the copy without it is the plain loop.
+	// bModulators is uniform: the clustered loop passes its wave's cluster features
+	[branch]
 	if ( bModulators )
 	{
 		if ( lightData.Type == LightType::LightTypeDirectional )
@@ -493,11 +494,14 @@ void ComputeDirectionalLight( const FinalCombinerInput_t f, float3 vReceiverNorm
 }
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------------
-void ComputeDirectLighting( inout LightingTerms_t o, const FinalCombinerInput_t f )
+// nClusterIndex is Cluster::Index( f.vPositionSs ), taken once by callers that also light indirectly. Transmission starts
+// at vTransmissiveStart: it is only ever added to the final colour, so a caller can park emissive in it rather than
+// keep emissive live through the light loops.
+void ComputeDirectLighting( inout LightingTerms_t o, const FinalCombinerInput_t f, uint nClusterIndex, float3 vTransmissiveStart )
 {
 	o.vDiffuse 		= float3( 0.0, 0.0, 0.0 );
 	o.vSpecular 	= float3( 0.0, 0.0, 0.0 );
-	o.vTransmissive = float3( 0.0, 0.0, 0.0 );
+	o.vTransmissive = vTransmissiveStart;
 
 	// Receiver normal for the shadow normal offset. It comes from screen-space derivatives, which are only
 	// defined in uniform control flow: take it once here, never inside the per-light loop below, where the
@@ -518,7 +522,7 @@ void ComputeDirectLighting( inout LightingTerms_t o, const FinalCombinerInput_t 
 	}
 
 	// Dynamic lights from cluster culling
-	ClusterRange lightRange = Cluster::Query( ClusterItemType_Light, f.vPositionSs );
+	ClusterRange lightRange = Cluster::Query( ClusterItemType_Light, nClusterIndex );
 
 	// Waves with no lights skip the loop with a ballot. On the RX 580 this cut the forward pass by a third even in
 	// scenes with no local lights, far more than the instructions it skips: it changes register allocation, so
@@ -526,22 +530,18 @@ void ComputeDirectLighting( inout LightingTerms_t o, const FinalCombinerInput_t 
 	if ( !WaveActiveAnyTrue( lightRange.Count > 0 ) )
 		return;
 
-	// Two copies of the loop, picked once per wave: waves whose clusters have no modulated light run the plain one.
-	// Combined without short-circuiting, so the plain loop is reached from one branch: a second path into it made the
-	// compiler wrap both loops in a flow loop whose state spilled scalar registers inside the plain loop.
+	// Whether any lane's cluster has a modulated light, uniform across the wave. One loop with a uniform branch inside:
+	// a second copy of the loop without modulators doubled the light code in every combo (compile time, and a wave of
+	// occupancy on the heaviest combos) for a few percent in light-heavy scenes.
 	uint features = Cluster::WaveFeatures( lightRange ) & ( LightModulators::Active() ? ClusterFeature_LightModulators : 0 );
 
-	[branch]
-	if ( features != 0 )
-	{
-		ClusterForEach( lightRange )
-			ComputeDirectLightingForLight( f, vReceiverNormalWs, DynamicLightConstantByIndex( lightRange.Item ), o.vDiffuse.rgb, o.vSpecular.rgb, o.vTransmissive.rgb, false, true );
-	}
-	else
-	{
-		ClusterForEach( lightRange )
-			ComputeDirectLightingForLight( f, vReceiverNormalWs, DynamicLightConstantByIndex( lightRange.Item ), o.vDiffuse.rgb, o.vSpecular.rgb, o.vTransmissive.rgb, false, false );
-	}
+	ClusterForEach( lightRange )
+		ComputeDirectLightingForLight( f, vReceiverNormalWs, DynamicLightConstantByIndex( lightRange.Item ), o.vDiffuse.rgb, o.vSpecular.rgb, o.vTransmissive.rgb, false, features != 0 );
+}
+
+void ComputeDirectLighting( inout LightingTerms_t o, const FinalCombinerInput_t f )
+{
+	ComputeDirectLighting( o, f, Cluster::Index( f.vPositionSs ), float3( 0.0, 0.0, 0.0 ) );
 }
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -587,10 +587,42 @@ void ComputeBakedLighting( inout LightingTerms_t o, const FinalCombinerInput_t f
 
 	// Derivatives must be evaluated before the per-light branch diverges.
 	const float3 vReceiverNormalWs = ComputeShadowReceiverNormal( f.vPositionWs.xyz );
-	for ( int j = 0; j < 4; j++ )
+
+	// Slots this lane still has to add, a bit each
+	uint nPending = 0;
+	[unroll]
+	for ( uint j = 0; j < 4; j++ )
+		nPending |= ( vLightStrengths[j] > 0.0001 ) ? ( 1u << j ) : 0u;
+
+	// Walk the wave's baked lights lowest index first, as ClusterForEach walks a cluster's, so each light's data is
+	// the same for the whole wave and loads once into scalar registers instead of per lane
+	for ( ;; )
 	{
-		CalcBakedLightingForLight( f, vReceiverNormalWs, vLightIndices[j], vLightStrengths[j],
-			o.vDiffuse, o.vSpecular, o.vTransmissive );
+		uint nLaneLowest = 0xFFFFFFFF;
+		[unroll]
+		for ( uint j = 0; j < 4; j++ )
+		{
+			if ( nPending & ( 1u << j ) )
+				nLaneLowest = min( nLaneLowest, uint( vLightIndices[j] ) );
+		}
+
+		const uint nLight = WaveActiveMin( nLaneLowest );
+		if ( nLight == 0xFFFFFFFF )
+			break;
+
+		// This lane's strength for it, from every slot that holds it
+		float flStrength = 0.0;
+		[unroll]
+		for ( uint k = 0; k < 4; k++ )
+		{
+			if ( ( nPending & ( 1u << k ) ) && uint( vLightIndices[k] ) == nLight )
+			{
+				flStrength += vLightStrengths[k];
+				nPending &= ~( 1u << k );
+			}
+		}
+
+		CalcBakedLightingForLight( f, vReceiverNormalWs, nLight, flStrength, o.vDiffuse, o.vSpecular, o.vTransmissive );
 	}
 }
 
@@ -612,7 +644,7 @@ float NormalizeCubeBrightness( uint iCubeID, TextureCube tCube, float3 vNormalCu
 }
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------------
-void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const FinalCombinerInput_t finalCombinerData )
+void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const FinalCombinerInput_t finalCombinerData, uint nClusterIndex )
 {
 	// Finish the baked light loop before indirect lighting results have to stay live.
 	ComputeBakedLighting( lightingTerms, finalCombinerData );
@@ -697,7 +729,7 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 
 		if ( g_bNonDirectionalDiffuseLighting )
 		{
-			[ForceUnroll] for ( int a = 0; a < 6; a++ )
+			[unroll] for ( int a = 0; a < 6; a++ )
 			{
 				lightingTerms.vIndirectDiffuse.rgb += vAmbientCube[a].rgb;
 			}
@@ -778,7 +810,7 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 		
         float flDistAccumulated = 0;
 
-		ClusterRange envRange = Cluster::Query( ClusterItemType_EnvMap, finalCombinerData.vPositionSs );
+		ClusterRange envRange = Cluster::Query( ClusterItemType_EnvMap, nClusterIndex );
 
 		float2 vLevel = vSQRTRoughness.xy;
 
@@ -936,6 +968,11 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 		lightingTerms.vSpecular.rgb *= flTexelMod;
 		lightingTerms.vDiffuse.rgb *= flTexelMod;
 	}
+}
+
+void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const FinalCombinerInput_t finalCombinerData )
+{
+	CalculateIndirectLighting( lightingTerms, finalCombinerData, Cluster::Index( finalCombinerData.vPositionSs ) );
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------

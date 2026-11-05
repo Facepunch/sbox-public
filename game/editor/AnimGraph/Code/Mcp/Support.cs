@@ -201,7 +201,8 @@ public static partial class McpTools
 	private static IEnumerable<TypeDescription> NodeTypesForAuthoring()
 		=> EditorTypeLibrary.GetTypes<Node>()
 			.Where( type => !type.IsAbstract && (!type.HasAttribute<HideAttribute>()
-				|| typeof( Editor.NodeEditor.ICommentNode ).IsAssignableFrom( type.TargetType )) );
+				|| typeof( Editor.NodeEditor.ICommentNode ).IsAssignableFrom( type.TargetType )
+				|| typeof( Editor.NodeEditor.IRerouteNode ).IsAssignableFrom( type.TargetType )) );
 
 	private static TypeDescription FindNodeType( string name )
 	{

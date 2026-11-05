@@ -381,7 +381,7 @@ public sealed class Compiler
 		if ( node is ITransitionScopedNode )
 			CheckTransitionScope( node );
 
-		if ( _emitted.TryGetValue( node, out var cached ) )
+		if ( node is not RerouteNode && _emitted.TryGetValue( node, out var cached ) )
 			return cached;
 
 		if ( !_emitting.Add( node ) )
@@ -453,10 +453,10 @@ public sealed class Compiler
 
 	internal GraphBuilder.Node EmitPose( Node owner, NodeInput input, string title = null, bool synchronized = false )
 	{
-		if ( owner.GetConnectedNode( input ) is { } node )
+		var output = owner.GetConnectedOutput( input );
+		if ( output?.Node is Node node )
 		{
-			var output = node.Outputs.FirstOrDefault( x => x.Identifier == input.Output );
-			if ( output?.Type != typeof( PoseLink ) )
+			if ( output.Type != typeof( PoseLink ) )
 			{
 				Warn( $"{title ?? owner.DisplayInfo.Name} is connected to a non-pose output", owner );
 				return ReferencePose();
@@ -509,10 +509,10 @@ public sealed class Compiler
 
 	internal GraphBuilder.Node EmitMask( Node owner, NodeInput input, string title = null )
 	{
-		if ( owner.GetConnectedNode( input ) is { } node )
+		var output = owner.GetConnectedOutput( input );
+		if ( output?.Node is Node node )
 		{
-			var output = node.Outputs.FirstOrDefault( output => output.Identifier == input.Output );
-			if ( output?.Type != typeof( BoneMaskLink ) )
+			if ( output.Type != typeof( BoneMaskLink ) )
 			{
 				Warn( $"{title ?? owner.DisplayInfo.Name} is connected to a non-bone-mask output", owner );
 				return FixedWeightBoneMask( 1.0f );
@@ -527,10 +527,10 @@ public sealed class Compiler
 
 	internal GraphBuilder.Node EmitValue( Node owner, NodeInput input )
 	{
-		if ( owner.GetConnectedNode( input ) is not { } node )
+		var output = owner.GetConnectedOutput( input );
+		if ( output?.Node is not Node node )
 			return default;
 
-		var output = node.Outputs.FirstOrDefault( output => output.Identifier == input.Output );
 		var isCompatible = owner.Inputs
 			.OfType<AnimPlugIn>()
 			.Any( candidate => candidate.Info.GetInput( owner ) == input && candidate.Type == output?.Type );

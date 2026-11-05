@@ -11,7 +11,7 @@ public partial class ScriptControl
 	/// </summary>
 	public void RefreshAnalysis()
 	{
-		Analysis = Game.Scripting.Analyze( Source, _inputs );
+		Analysis = Sandbox.Engine.GlobalContext.Current.Scripting.Analyze( Source, _inputs );
 		Entry.RebuildColors();
 		UpdateSignature();
 		CloseHover();

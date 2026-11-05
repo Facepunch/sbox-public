@@ -91,6 +91,15 @@ internal static partial class DevTools
 		int _head;
 
 		/// <summary>
+		/// Every named scope's time and calls, frame by frame, in the order each was first seen - so a picked frame's scopes
+		/// can be shown, and averages taken over the same frames as everything else. Grows as scopes appear.
+		/// </summary>
+		PerformanceStats.Timings[] _scopes = [];
+		float[][] _scopeMs = [];
+		int[][] _scopeCalls = [];
+		int _scopesCreated;
+
+		/// <summary>
 		/// How many frames are recorded, up to <see cref="Capacity"/>.
 		/// </summary>
 		public int Count { get; private set; }
@@ -114,11 +123,57 @@ internal static partial class DevTools
 			// The GC pause category is only booked when the next frame starts; this frame's pause is measured here
 			if ( CategoryList.GcPause >= 0 ) _categories[at + CategoryList.GcPause] = gcMs;
 
+			// Every scope, the same way, GC pause included
+			if ( PerformanceStats.Timings.Created != _scopesCreated ) AddScopes();
+			for ( int i = 0; i < _scopes.Length; i++ )
+			{
+				var scope = _scopes[i];
+				_scopeMs[i][_head] = scope == PerformanceStats.Timings.GcPause ? gcMs : scope.CurrentMs;
+				_scopeCalls[i][_head] = scope.CurrentCalls;
+			}
+
 			_head = (_head + 1) % Capacity;
 			if ( Count < Capacity ) Count++;
 		}
 
+		/// <summary>
+		/// Take on scopes that appeared since the last frame. Only when there are new ones, so it doesn't allocate every frame.
+		/// </summary>
+		void AddScopes()
+		{
+			_scopesCreated = PerformanceStats.Timings.Created;
+			var known = new HashSet<PerformanceStats.Timings>( _scopes );
+			var added = PerformanceStats.Timings.All.Values.Where( x => !known.Contains( x ) ).ToArray();
+			if ( added.Length == 0 ) return;
+
+			var count = _scopes.Length + added.Length;
+			var start = _scopes.Length;
+			Array.Resize( ref _scopes, count );
+			Array.Resize( ref _scopeMs, count );
+			Array.Resize( ref _scopeCalls, count );
+			for ( int i = 0; i < added.Length; i++ )
+			{
+				_scopes[start + i] = added[i];
+				_scopeMs[start + i] = new float[Capacity];
+				_scopeCalls[start + i] = new int[Capacity];
+			}
+		}
+
 		int Index( int age ) => (_head - 1 - age + Capacity * 2) % Capacity;
+
+		/// <summary>
+		/// The named scopes recorded, by index.
+		/// </summary>
+		public int ScopeCount => _scopes.Length;
+
+		public PerformanceStats.Timings Scope( int index ) => _scopes[index];
+
+		/// <summary>
+		/// A scope's time and calls <paramref name="age"/> frames ago.
+		/// </summary>
+		public float ScopeMs( int age, int index ) => _scopeMs[index][Index( age )];
+
+		public int ScopeCalls( int age, int index ) => _scopeCalls[index][Index( age )];
 
 		/// <summary>
 		/// Whole frame time, <paramref name="age"/> frames ago. 0 is the newest.
@@ -196,6 +251,10 @@ internal static partial class DevTools
 			Array.Copy( _gcGen, copy._gcGen, Capacity );
 			Array.Copy( _categories, copy._categories, _categories.Length );
 			Array.Copy( _number, copy._number, Capacity );
+			copy._scopes = (PerformanceStats.Timings[])_scopes.Clone();
+			copy._scopeMs = _scopeMs.Select( x => (float[])x.Clone() ).ToArray();
+			copy._scopeCalls = _scopeCalls.Select( x => (int[])x.Clone() ).ToArray();
+			copy._scopesCreated = _scopesCreated;
 			copy._pushed = _pushed;
 			copy._head = _head;
 			copy.Count = Count;

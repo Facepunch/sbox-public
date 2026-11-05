@@ -5,7 +5,7 @@ namespace Editor.AnimGraph.Nodes;
 /// <summary>
 /// Exposes a named runtime slot into which game code can connect another AnimGraph instance, using the fallback pose while disconnected.
 /// <br/><br/><b>Use when:</b>&#160;Dynamically attaching or replacing animation behavior at runtime.
-/// <br/><b>Important:</b>&#160;Connecting a graph shuts down the fallback and resets the child graph; disconnecting reinitializes the fallback. Matching control parameters are copied to the child each update, and slot names must be unique.
+/// <br/><b>Important:</b>&#160;Use renderer.Animation.ExternalGraphs.Connect with this slot name. Connecting shuts down the fallback and resets the child; disconnecting reinitializes the fallback. Unlike Referenced Graph, parent parameters are not copied into external graphs. Slot names must be unique.
 /// </summary>
 [Title( "External Graph" ), Group( "Graphs" ), Icon( "extension" )]
 [AvailableIn( GraphKind.BlendTree )]

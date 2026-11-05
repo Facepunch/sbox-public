@@ -1,3 +1,4 @@
+using Sandbox.Engine;
 namespace Sandbox.Diagnostics;
 
 internal static partial class DevTools
@@ -112,7 +113,7 @@ internal static partial class DevTools
 			var bs = ByteStream.Create( 256 );
 			try
 			{
-				Game.TypeLibrary.ToBytes( message, ref bs );
+				GlobalContext.Current.TypeLibrary.ToBytes( message, ref bs );
 				Message( kind, name, bs.Length, outbound, peer );
 			}
 			finally

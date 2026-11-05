@@ -5,9 +5,11 @@ using static Sandbox.Mounting.Source1.BspGeometry;
 
 namespace Sandbox.Mounting.Source1;
 
-internal sealed partial class MapLoader( string fileName, bool skybox = false ) : SceneLoader<BaseMount>
+internal sealed partial class MapLoader : SceneLoader<BaseMount>
 {
-	internal string FullPath { get; } = fileName;
+	internal string FullPath { get; }
+	private bool skybox;
+
 	private string ContentRoot => BaseMount.GetMapPakRoot( FullPath );
 	private string ResourcePrefix => $"source1/{Host.Ident}/{FullPath}{(skybox ? "_skybox" : "")}";
 
@@ -18,6 +20,20 @@ internal sealed partial class MapLoader( string fileName, bool skybox = false ) 
 	private FaceSurface[] _faceSurfaces;
 	private SourceMaterialOverrides _bakedShadowBindings;
 	private BspLightingContext _lighting;
+
+	protected override Texture GetThumbnail() =>
+		Texture.Load( $"mount://{Host.Ident}/maps/thumb/{Name.WithExtension( "png" )}.vtex", false )
+		?? Texture.Load( $"mount://{Host.Ident}/maps/{Name.WithExtension( "png" )}.vtex", false );
+
+	public MapLoader( string fileName, bool skybox = false )
+	{
+		FullPath = fileName;
+		this.skybox = skybox;
+
+		// hide skyboxes
+		Flags = Flags.WithFlag( ResourceFlags.DeveloperOnly, skybox );
+	}
+
 	protected override void BuildScene()
 	{
 		_waterModels.Clear();

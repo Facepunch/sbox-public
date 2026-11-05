@@ -21,6 +21,7 @@ public sealed partial class RenderSystem : IDisposable
 	readonly ViewEnvironment environment = new();
 	readonly LightBinnerFeature lightBinner = new();
 	readonly MeshRenderFeature meshes = new();
+	readonly AggregateRenderFeature aggregates = new();
 	readonly ViewPass mainPass = new();
 	readonly RenderFrame frame;
 	readonly ShadowSystem shadows;
@@ -100,12 +101,14 @@ public sealed partial class RenderSystem : IDisposable
 		LightBinnerFeature.GpuLight.ValidateLayout();
 		LightBinnerFeature.GpuEnvMap.ValidateLayout();
 		LightBinnerFeature.GpuDecal.ValidateLayout();
+		AggregateObject.FragmentDraw.ValidateLayout();
 		shadows = new ShadowSystem( this );
 		frame = new RenderFrame( this );
 
 		// Lights first - they're binned before anything draws
 		AddFeature( lightBinner );
 		AddFeature( meshes );
+		AddFeature( aggregates );
 	}
 
 	/// <summary>
@@ -248,7 +251,13 @@ public sealed partial class RenderSystem : IDisposable
 		recorder.Plan( frame, ParallelRecording, Sandbox.Rendering.ManagedSceneRendering.AsyncCompute );
 
 		// The dev tools's frame plan, or SceneLab's plan overlay: frames drawn into a window show their plan, published with its times
-		var plan = Sandbox.Rendering.ManagedFramePlan.Wanted && (IntPtr)output.SwapChain != IntPtr.Zero ? recorder.Snapshot( view.Name ) : null;
+		var plan = Sandbox.Rendering.ManagedFramePlan.Due && (IntPtr)output.SwapChain != IntPtr.Zero ? recorder.Snapshot( view.Name ) : null;
+		recorder.Measuring = plan is not null;
+		if ( plan is not null )
+		{
+			plan.StartTicks = start;
+			plan.MainThread = Environment.CurrentManagedThreadId;
+		}
 
 		context.Begin();
 		var submitted = false;
@@ -278,7 +287,21 @@ public sealed partial class RenderSystem : IDisposable
 			Lap();
 
 			using var _ = Zones.Submit.Start();
-			recorder.Submit( (IntPtr)output.SwapChain != IntPtr.Zero ? output.SwapChain : TimingSwapChain );
+			var handedOver = Stopwatch.GetTimestamp();
+
+			// The submission carries a tag through the render thread to the GPU's timings, so the dev tools can pair a
+			// GPU frame with the plan of the frame that made it
+			var tag = (IntPtr)output.SwapChain != IntPtr.Zero ? Sandbox.Rendering.ManagedFramePlan.NoteHandedOver( handedOver, view ) : 0;
+			if ( plan is not null ) { plan.SubmitTicks = handedOver; plan.SubmitTag = tag; plan.View = view; }
+			g_pRenderDevice.SetSubmitTag( (ulong)tag );
+			try
+			{
+				recorder.Submit( (IntPtr)output.SwapChain != IntPtr.Zero ? output.SwapChain : TimingSwapChain );
+			}
+			finally
+			{
+				g_pRenderDevice.SetSubmitTag( 0 );
+			}
 			submitted = true;
 		}
 		finally
@@ -519,8 +542,10 @@ public sealed partial class RenderSystem : IDisposable
 		var wanted = Sandbox.Rendering.ManagedSceneRendering.Occlusion && DepthPrepass && !isSkybox;
 		Occlusion.Begin();
 		meshes.Occlusion = wanted ? Occlusion : null;
+		aggregates.Occlusion = meshes.Occlusion;
 		Prepare( world, mainPass, transforms );
 		meshes.Occlusion = null;
+		aggregates.Occlusion = null;
 		OcclusionActive = wanted && Occlusion.InstanceCount > 0;
 		OcclusionHistory.BeginFrame( OcclusionActive, view.Viewport );
 		Occlusion.Previous = OcclusionHistory.EarlyDepth;

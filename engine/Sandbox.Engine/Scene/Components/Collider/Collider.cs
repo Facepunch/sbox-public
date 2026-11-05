@@ -1,4 +1,5 @@
-﻿namespace Sandbox;
+﻿using Sandbox.Engine;
+namespace Sandbox;
 
 [Expose]
 public abstract partial class Collider : Component, Component.ExecuteInEditor, Component.IHasBounds
@@ -535,7 +536,7 @@ public abstract partial class Collider : Component, Component.ExecuteInEditor, C
 
 	internal void OnResize<T>( in WrappedPropertySet<T> p )
 	{
-		var property = Game.TypeLibrary.GetMemberByIdent( p.MemberIdent ) as PropertyDescription;
+		var property = GlobalContext.Current.TypeLibrary.GetMemberByIdent( p.MemberIdent ) as PropertyDescription;
 		var oldValue = property.GetValue( p.Object );
 		var isTheSame = Equals( p.Value, oldValue );
 

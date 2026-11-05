@@ -554,7 +554,7 @@ public class ResourceSystem
 		if ( TypeCache.TryGetValue( extension, out resourceAttribute ) )
 			return true;
 
-		resourceAttribute = Game.TypeLibrary.GetAttributes<AssetTypeAttribute>()
+		resourceAttribute = GlobalContext.Current.TypeLibrary.GetAttributes<AssetTypeAttribute>()
 			.FirstOrDefault( x => string.Equals( x.Extension, extension, StringComparison.OrdinalIgnoreCase ) );
 
 		if ( resourceAttribute != null )

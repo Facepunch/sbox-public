@@ -229,7 +229,7 @@
             Message = "#menu.home.are_you_sure_you_want_to_close_s_box",
             ConfirmText = "#menu.home.quit_to_desktop_sentence",
             ConfirmIcon = "power_settings_new",
-            OnConfirm = () => ConsoleSystem.Run( "quit" )
+            OnConfirm = () => MenuUtility.RunCommand( "quit" )
         } );
     }
 

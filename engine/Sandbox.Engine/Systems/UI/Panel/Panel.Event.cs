@@ -1,3 +1,4 @@
+using Sandbox.Engine;
 using System.Reflection;
 
 namespace Sandbox.UI;
@@ -25,7 +26,7 @@ public partial class Panel
 	{
 		EventListeners?.RemoveAll( x => x.Automatic );
 
-		if ( Game.TypeLibrary == null || !Game.TypeLibrary.TryGetType( GetType(), out var typeDescription ) )
+		if ( GlobalContext.Current.TypeLibrary == null || !GlobalContext.Current.TypeLibrary.TryGetType( GetType(), out var typeDescription ) )
 			return;
 
 

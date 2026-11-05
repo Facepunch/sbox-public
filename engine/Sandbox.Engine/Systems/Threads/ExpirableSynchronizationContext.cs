@@ -112,7 +112,7 @@ internal class ExpirableSynchronizationContext : SynchronizationContext
 		}
 	}
 
-	public record struct Data( SendOrPostCallback Callback, object State, ExpirableSynchronizationContext Source );
+	public record struct Data( SendOrPostCallback Callback, object State, ExpirableSynchronizationContext Source, Sandbox.Engine.GlobalContext Context );
 
 	private readonly Channel<Data> m_queue = Channel.CreateUnbounded<Data>();
 
@@ -344,7 +344,7 @@ internal class ExpirableSynchronizationContext : SynchronizationContext
 		if ( !CheckValid( state, out var isCancelled ) ) return;
 
 		var target = GetCurrentContext();
-		var data = new Data( d, state, isCancelled ? this : target );
+		var data = new Data( d, state, isCancelled ? this : target, Sandbox.Engine.GlobalContext.Current );
 
 		target.m_queue.Writer.TryWrite( data );
 	}
@@ -357,7 +357,7 @@ internal class ExpirableSynchronizationContext : SynchronizationContext
 		{
 			if ( CheckValid( data.State, out var isCancelled ) )
 			{
-				newInstance.m_queue.Writer.TryWrite( new Data( data.Callback, data.State, isCancelled ? this : newInstance ) );
+				newInstance.m_queue.Writer.TryWrite( new Data( data.Callback, data.State, isCancelled ? this : newInstance, data.Context ) );
 			}
 		}
 	}
@@ -422,6 +422,9 @@ internal class ExpirableSynchronizationContext : SynchronizationContext
 					_executingJobs.Enqueue( job );
 				}
 
+				var enterContext = data.Context is not null && data.Context != Sandbox.Engine.GlobalContext.Current;
+				var contextScope = enterContext ? new Sandbox.Engine.GlobalContext.GlobalContextScope( data.Context ) : default;
+
 				try
 				{
 					data.Callback( data.State );
@@ -436,6 +439,8 @@ internal class ExpirableSynchronizationContext : SynchronizationContext
 				}
 				finally
 				{
+					if ( enterContext ) contextScope.Dispose();
+
 					job?.IsCompleted = true;
 
 					if ( data.Source != this )

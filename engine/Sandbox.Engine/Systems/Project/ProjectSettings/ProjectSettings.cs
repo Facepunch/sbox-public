@@ -61,8 +61,8 @@ public class ProjectSettings
 	/// </summary>
 	public static T Get<T>( string filename ) where T : ConfigData, new()
 	{
-		if ( _cache.TryGetValue( filename, out var result ) && result is T t )
-			return t;
+		if ( _cache.TryGetValue( filename, out var result ) && result.GetType() == typeof( T ) )
+			return (T)result;
 
 		var config = Load<T>( EngineFileSystem.ProjectSettings, filename );
 		_cache[filename] = config;

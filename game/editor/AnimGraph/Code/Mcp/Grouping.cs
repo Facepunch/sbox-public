@@ -83,8 +83,7 @@ public static partial class McpTools
 			.Where( input => input.ConnectedOutput?.Node is GroupInputNode )
 			.Select( input => (Input: input, Boundary: (GroupInputNode)input.ConnectedOutput.Node) ).ToArray();
 
-		IPlugOut Resolve( GroupInputNode input ) => group.GetConnectedNode( input.Source )?.Outputs
-			.FirstOrDefault( plug => plug.Identifier == input.Source.Output );
+		IPlugOut Resolve( GroupInputNode input ) => group.GetConnectedOutput( input.Source );
 
 		if ( source?.Node is GroupInputNode sourceInput )
 			source = Resolve( sourceInput );

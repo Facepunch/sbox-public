@@ -403,6 +403,15 @@ public static partial class EditorUtility
 		return new SceneWorld() { IsTransient = false };
 	}
 
+	/// <summary>
+	/// Creates an isolated scene for editor previews, with runtime animation and physics
+	/// but without game-defined systems or the project's system scene.
+	/// </summary>
+	public static Scene CreatePreviewScene()
+	{
+		return new Scene( isEditor: false, includeGameSystems: false ) { WantsSystemScene = false };
+	}
+
 	static SoundHandle lastSound;
 
 	/// <summary>

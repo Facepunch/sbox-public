@@ -23,6 +23,12 @@ native class CAnimGraph2Controller as NativeEngine.AnimationGraph2Controller
 	bool IsTagActive( StringToken tag );
 	bool GetFloatChannelValue( StringToken setId, StringToken channelId, out float value );
 
+	bool HasExternalGraphSlot( StringToken slot );
+	bool IsExternalGraphSlotConnected( StringToken slot );
+	bool ConnectExternalGraph( StringToken slot, HAnimGraph2 graph );
+	bool DisconnectExternalGraph( StringToken slot );
+	bool GetExternalGraphTiming( StringToken slot, out float duration, out float normalizedTime, out int active );
+
 	bool IsGraphNodeActive( CastTo[int16] int nodeIndex );
 	bool GetNodeDebugInfo( int nodeIndex, out int flags, out int valueType, out float duration, out float currentTime, out float previousTime, out int syncEventCount, out int currentSyncEvent, out float currentSyncEventPercentage );
 	bool GetNodeDebugValue( int nodeIndex, out int boolValue, out float floatValue, out uint idValue, out Vector vectorValue, out Transform targetTransform, out int targetFlags, out uint targetBoneID );

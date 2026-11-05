@@ -101,11 +101,28 @@ internal sealed class RenderContext : IDisposable
 		if ( materialBind != IntPtr.Zero ) RenderTools.ResetMaterialBind( materialBind );
 	}
 
-	public void Dispose()
+	/// <summary>
+	/// Full and similar-material binds this context's draws have made, ever (<c>RenderTools.GetMaterialBindCounts</c>). A
+	/// range of draws made the difference.
+	/// </summary>
+	internal unsafe (int Full, int Similar) MaterialBinds
+	{
+		get
+		{
+			if ( materialBind == IntPtr.Zero ) return default;
+			int full, similar;
+			RenderTools.GetMaterialBindCounts( materialBind, (IntPtr)(&full), (IntPtr)(&similar) );
+			return (full, similar);
+		}
+	}
+
+	static unsafe IntPtr AllocMaterialBind() => (IntPtr)NativeMemory.AllocZeroed( (nuint)RenderTools.GetMaterialBindSize() );
+
+	public unsafe void Dispose()
 	{
 		if ( materialBind != IntPtr.Zero )
 		{
-			Marshal.FreeHGlobal( materialBind );
+			NativeMemory.Free( (void*)materialBind );
 			materialBind = IntPtr.Zero;
 		}
 
@@ -633,8 +650,8 @@ internal sealed class RenderContext : IDisposable
 		ViewConstants = null;
 		passStateCount = 0;
 
-		// Material binds cannot survive across frames.
-		if ( materialBind == IntPtr.Zero ) materialBind = Marshal.AllocHGlobal( RenderTools.GetMaterialBindSize() );
+		// Material binds cannot survive across frames. Zeroed, so its bind counts start at nothing.
+		if ( materialBind == IntPtr.Zero ) materialBind = AllocMaterialBind();
 		ResetMaterialBind();
 
 		borrowed = shared is not null;
@@ -930,23 +947,83 @@ internal sealed class RenderContext : IDisposable
 
 	/// <summary>
 	/// Bind and draw instances in one native call (<c>RenderTools.DrawModelDrawCall</c>), reusing similar-material state.
-	/// Vertex-cache draws use the separate binding path.
+	/// Vertex-cache draws use the separate binding path. <paramref name="skinned"/> draws pick bones by blend index, so they
+	/// keep their own input layout depth-only too.
 	/// </summary>
-	public bool DrawModel( Material material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false )
+	public bool DrawModel( Material material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false )
 	{
 		return RenderTools.DrawModelDrawCall( context, drawAttributes, material.native, shaderMode, mesh.Model.native, draw.Mesh, draw.DrawCall,
-			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, InstanceIds.native, firstInstance, instances, materialBind );
+			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, skinned, InstanceIds.native, firstInstance, instances, materialBind );
 	}
 
 	/// <summary>
 	/// <see cref="DrawModel"/> with only the instances the occlusion cull kept for <paramref name="phase"/>
 	/// (<c>RenderTools.DrawModelDrawCallIndirect</c>).
 	/// </summary>
-	public bool DrawModelCulled( Material material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int argsIndex, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false )
+	public bool DrawModelCulled( Material material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int argsIndex, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false )
 	{
 		return RenderTools.DrawModelDrawCallIndirect( context, drawAttributes, material.native, shaderMode, mesh.Model.native, draw.Mesh, draw.DrawCall,
-			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, Occlusion.CulledIds.native, Occlusion.IdOffset( phase ) + firstInstance,
+			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, skinned, Occlusion.CulledIds.native, Occlusion.IdOffset( phase ) + firstInstance,
 			Occlusion.Args.native, (Occlusion.ArgOffset( phase ) + argsIndex) * OcclusionCuller.ArgsStride, materialBind );
+	}
+
+	/// <summary>
+	/// Draw <paramref name="count"/> draws of a model's buffers as one multi-draw, with <paramref name="draw"/>'s buffers and
+	/// material (<c>RenderTools.DrawModelDrawCallMultiIndirect</c>): an aggregate's fragments. Each draw's base instance
+	/// indexes the instance ids from <paramref name="firstInstance"/>.
+	/// </summary>
+	public bool DrawModelFragments( Material material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, GpuBuffer args, int firstArg, int count, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false )
+	{
+		return RenderTools.DrawModelDrawCallMultiIndirect( context, drawAttributes, material.native, shaderMode, mesh.Model.native, draw.Mesh, draw.DrawCall,
+			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, InstanceIds.native, firstInstance,
+			args.native, firstArg * OcclusionCuller.ArgsStride, count, default, 0, materialBind );
+	}
+
+	/// <summary>
+	/// <see cref="DrawModelFragments"/> with the fragments the occlusion cull kept for <paramref name="phase"/>: compacted, only the
+	/// survivors, counted on the GPU; otherwise every fragment, the hidden ones with no instances.
+	/// </summary>
+	public bool DrawModelFragmentsCulled( Material material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int cullArg, int count, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false )
+	{
+		var args = Occlusion.Args;
+		var compact = Occlusion.CompactFragments;
+		return RenderTools.DrawModelDrawCallMultiIndirect( context, drawAttributes, material.native, shaderMode, mesh.Model.native, draw.Mesh, draw.DrawCall,
+			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, InstanceIds.native, firstInstance,
+			args.native, Occlusion.FragmentArgs( phase, cullArg, count ) * OcclusionCuller.ArgsStride, count,
+			compact ? args.native : default, compact ? Occlusion.FragmentCountArg( phase, cullArg, count ) * OcclusionCuller.ArgsStride : 0, materialBind );
+	}
+
+	/// <summary>
+	/// Whether a multi-draw can take its count from the GPU (<c>RenderTools.SupportsDrawIndirectCount</c>).
+	/// </summary>
+	public static bool SupportsDrawIndirectCount => supportsDrawIndirectCount ??= RenderTools.SupportsDrawIndirectCount();
+	static bool? supportsDrawIndirectCount;
+
+	/// <summary>
+	/// A native aggregate's model, and whether its draws are lit from lightmaps; null if the object isn't an aggregate
+	/// (<c>RenderTools.GetAggregateModel</c>).
+	/// </summary>
+	public static unsafe Model AggregateModel( SceneObject sceneObject, out bool lightmapped )
+	{
+		bool lit = false;
+		var model = RenderTools.GetAggregateModel( sceneObject, (IntPtr)(&lit) );
+		lightmapped = lit;
+		return model.IsNull ? null : Model.FromNative( model );
+	}
+
+	/// <summary>
+	/// A native aggregate's fragments as it draws them (<c>RenderTools.GetAggregateFragments</c>).
+	/// </summary>
+	public static unsafe AggregateObject.FragmentDraw[] ReadAggregateFragments( SceneObject sceneObject )
+	{
+		var count = RenderTools.GetAggregateFragments( sceneObject, IntPtr.Zero, 0 );
+		var fragments = new AggregateObject.FragmentDraw[count];
+		fixed ( AggregateObject.FragmentDraw* ptr = fragments )
+		{
+			RenderTools.GetAggregateFragments( sceneObject, (IntPtr)ptr, count );
+		}
+
+		return fragments;
 	}
 
 	/// <summary>

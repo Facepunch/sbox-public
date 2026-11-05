@@ -78,9 +78,8 @@ public sealed class GroupInputNode : Node
 			return compiler.ConstDefault( LinkType );
 		}
 
-		var source = owner.GetConnectedNode( Source );
-		var output = source?.Outputs.FirstOrDefault( output => output.Identifier == Source.Output );
-		if ( output?.Type != LinkType )
+		var output = owner.GetConnectedOutput( Source );
+		if ( output?.Node is not Node source || output.Type != LinkType )
 		{
 			compiler.Error( $"Group input '{Name}' requires a {ValueType} connection", owner );
 			return compiler.ConstDefault( LinkType );

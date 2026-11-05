@@ -1,3 +1,4 @@
+using Sandbox.Engine;
 using Sandbox.Internal;
 using Sandbox.Network;
 using Sandbox.Utility;
@@ -35,7 +36,7 @@ public static partial class Rpc
 	{
 		bs.Write( m.MethodIdentity );
 
-		var generics = Game.TypeLibrary.ToIdentities( m.GenericArguments );
+		var generics = GlobalContext.Current.TypeLibrary.ToIdentities( m.GenericArguments );
 		bs.Write( (byte)(generics?.Length ?? 0) );
 
 		if ( generics is not null )
@@ -48,7 +49,7 @@ public static partial class Rpc
 			throw new ArgumentException( $"RPC {m.TypeName}.{m.MethodName} has too many arguments" );
 
 		bs.Write( (byte)args.Count );
-		args.Write( Game.TypeLibrary, ref bs );
+		args.Write( GlobalContext.Current.TypeLibrary, ref bs );
 	}
 
 	/// <summary>
@@ -160,10 +161,10 @@ public static partial class Rpc
 				}
 			}
 
-			typeDesc = Game.TypeLibrary.GetType( instance.GetType() );
+			typeDesc = GlobalContext.Current.TypeLibrary.GetType( instance.GetType() );
 		}
 
-		var member = Game.TypeLibrary.GetMemberByIdent( methodIdentity ) as MethodDescription;
+		var member = GlobalContext.Current.TypeLibrary.GetMemberByIdent( methodIdentity ) as MethodDescription;
 		var method = member?.MemberInfo as MethodInfo;
 
 		// A method declared on a generic type is called on the constructed type of the target
@@ -202,12 +203,12 @@ public static partial class Rpc
 			{
 				if ( generics is not null )
 				{
-					var genericMethod = method.MakeGenericMethod( Game.TypeLibrary.FromIdentities( generics ) );
+					var genericMethod = method.MakeGenericMethod( GlobalContext.Current.TypeLibrary.FromIdentities( generics ) );
 					genericMethod.Invoke( instance, ReadArguments( ref bs, argCount ) );
 				}
 				else if ( RpcInvoker.Get( method ) is { } invoker && invoker.ParameterCount == argCount )
 				{
-					invoker.Invoke( instance, Game.TypeLibrary, ref bs );
+					invoker.Invoke( instance, GlobalContext.Current.TypeLibrary, ref bs );
 				}
 				else
 				{
@@ -229,12 +230,12 @@ public static partial class Rpc
 		var args = new object[count];
 
 		for ( var i = 0; i < count; i++ )
-			args[i] = Game.TypeLibrary.FromBytes<object>( ref bs );
+			args[i] = GlobalContext.Current.TypeLibrary.FromBytes<object>( ref bs );
 
 		return args;
 	}
 
-	static string MethodName( int identity ) => (Game.TypeLibrary.GetMemberByIdent( identity )?.MemberInfo as MethodInfo)?.Name ?? "Unknown";
+	static string MethodName( int identity ) => (GlobalContext.Current.TypeLibrary.GetMemberByIdent( identity )?.MemberInfo as MethodInfo)?.Name ?? "Unknown";
 
 	/// <summary>
 	/// Whether the method is an RPC. The description caches its attributes, the MethodInfo would reflect them.

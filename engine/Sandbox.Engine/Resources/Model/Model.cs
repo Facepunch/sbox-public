@@ -91,7 +91,7 @@ public sealed partial class Model : Resource
 
 		IToolsDll.Current?.RunEvent( "model.reload", this );
 
-		foreach ( var scene in Scene.All )
+		foreach ( var scene in Scene.AllIncludingUnlisted )
 		{
 			using var scope = scene.Push();
 

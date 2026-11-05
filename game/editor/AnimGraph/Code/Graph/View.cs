@@ -9,6 +9,8 @@ public class View : GraphView, Nodes.IInternalGraphEditorActions
 
 	protected override INodeType CommentNodeType { get; } = new NodeType( EditorTypeLibrary.GetType<Nodes.CommentNode>() );
 
+	protected override INodeType RerouteNodeType { get; } = new NodeType( EditorTypeLibrary.GetType<RerouteNode>() );
+
 	private static bool? _cachedConnectionStyle;
 
 	public static bool EnableGridAlignedWires
@@ -26,8 +28,7 @@ public class View : GraphView, Nodes.IInternalGraphEditorActions
 	protected override bool CanDisconnectByDroppingConnection => false;
 	protected override bool UseSmoothZoom => true;
 
-	protected override bool CanConnect( PlugOut output, PlugIn input )
-		=> output.PropertyType == input.PropertyType;
+	protected override bool AreConnectionTypesCompatible( Type a, Type b ) => a == b;
 
 	protected override void OnContextMenu( ContextMenuEvent e )
 	{

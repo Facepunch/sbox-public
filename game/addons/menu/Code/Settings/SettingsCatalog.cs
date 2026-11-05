@@ -130,11 +130,11 @@ public class SettingsCatalog
 			case "game":
 				Preferences.ChatEnabled = true;
 				Preferences.StreamerMode = false;
-				ConsoleSystem.Run( "language", "en" );
+				MenuUtility.RunCommand( "language", "en" );
 				break;
 
 			case "developer":
-				ConsoleSystem.SetValue( "consoleoverlay", false );
+				MenuUtility.SetConsoleVariable( "consoleoverlay", false );
 				break;
 		}
 
@@ -851,23 +851,37 @@ public class SettingsCatalog
 		AddVolume( "audio.game", "#menu.settings.audio.game.title", "#menu.settings.audio.game.description", "game_volume" );
 		AddVolume( "audio.music", "#menu.settings.audio.music.title", "#menu.settings.audio.music.description", "music_volume" );
 		AddVolume( "audio.menu_music", "#menu.settings.audio.menu_music.title", "#menu.settings.audio.menu_music.description", "music_volume_menu" );
-		AddVolume( "audio.voice", "#menu.settings.audio.voice.title", "#menu.settings.audio.voice.description", "voip_volume" );
+
+		Items.Add( new SettingItem
+		{
+			Id = "audio.voicechat",
+			Category = "audio",
+			Section = "#menu.settings.voice",
+			Title = "#menu.settings.audio.voicechat.title",
+			Description = "#menu.settings.audio.voicechat.description",
+			Options = OffOn,
+			Read = () => Preferences.VoiceEnabled,
+			Write = value => Preferences.VoiceEnabled = ToBool( value )
+		} );
+
+		AddVolume( "audio.voice", "#menu.settings.audio.voice_volume.title", "#menu.settings.audio.voice.description", "voip_volume", "#menu.settings.voice", IsVoiceChatOn );
 
 		Items.Add( new SettingItem
 		{
 			Id = "audio.voicemode",
 			Category = "audio",
 			Section = "#menu.settings.voice",
-			Title = "#menu.settings.voice_mode",
-			Description = "#menu.settings.audio.voicemode.description",
+			Title = "#menu.settings.microphone_mode",
+			Description = "#menu.settings.audio.microphone_mode.description",
+			IsVisible = IsVoiceChatOn,
 			Options =
 			[
 				new( "#menu.settings.push_to_talk", VoiceMode.PushToTalk ),
 				new( "#menu.settings.open_mic", VoiceMode.OpenMicrophone ),
 				new( "#menu.settings.off", VoiceMode.Disabled )
 			],
-			Read = () => Enum.TryParse<VoiceMode>( ConsoleSystem.GetValue( "voip_mode" ), true, out var mode ) ? mode : VoiceMode.PushToTalk,
-			Write = value => ConsoleSystem.SetValue( "voip_mode", (int)ToEnum<VoiceMode>( value ) )
+			Read = () => Enum.TryParse<VoiceMode>( MenuUtility.GetConsoleVariable( "voip_mode" ), true, out var mode ) ? mode : VoiceMode.PushToTalk,
+			Write = value => MenuUtility.SetConsoleVariable( "voip_mode", (int)ToEnum<VoiceMode>( value ) )
 		} );
 
 		Items.Add( new SettingItem
@@ -878,9 +892,9 @@ public class SettingsCatalog
 			Title = "#menu.settings.streamlined_push_to_talk",
 			Description = "#menu.settings.audio.streamlined.description",
 			Options = OffOn,
-			IsVisible = () => Find( "audio.voicemode" )?.As<VoiceMode>() == VoiceMode.PushToTalk,
-			Read = () => ConsoleSystem.GetValue( "voip_streamlined" ).ToBool(),
-			Write = value => ConsoleSystem.SetValue( "voip_streamlined", ToBool( value ) )
+			IsVisible = () => IsVoiceChatOn() && Find( "audio.voicemode" )?.As<VoiceMode>() == VoiceMode.PushToTalk,
+			Read = () => MenuUtility.GetConsoleVariable( "voip_streamlined" ).ToBool(),
+			Write = value => MenuUtility.SetConsoleVariable( "voip_streamlined", ToBool( value ) )
 		} );
 
 		Items.Add( new SettingItem
@@ -892,8 +906,9 @@ public class SettingsCatalog
 			Description = "#menu.settings.audio.microphone.description",
 			Kind = SettingKind.Dropdown,
 			OptionsBuilder = MicrophoneOptions,
+			IsVisible = IsVoiceChatOn,
 			Read = ReadMicrophone,
-			Write = value => ConsoleSystem.SetValue( "voip_device", value?.ToString() ?? "" ),
+			Write = value => MenuUtility.SetConsoleVariable( "voip_device", value?.ToString() ?? "" ),
 			Warning = () => IsMicrophoneMissing( Find( "audio.microphone" )?.Value?.ToString() )
 				? "#menu.settings.microphone_missing"
 				: null
@@ -912,8 +927,9 @@ public class SettingsCatalog
 				Item = item,
 				Device = () => Find( "audio.microphone" )?.Value?.ToString()
 			},
-			Read = () => ConsoleSystem.GetValue( "voip_threshold" ).ToFloat(),
-			Write = value => ConsoleSystem.SetValue( "voip_threshold", ToFloat( value ) )
+			IsVisible = IsVoiceChatOn,
+			Read = () => MenuUtility.GetConsoleVariable( "voip_threshold" ).ToFloat(),
+			Write = value => MenuUtility.SetConsoleVariable( "voip_threshold", ToFloat( value ) )
 		} );
 
 		Items.Add( new SettingItem
@@ -924,8 +940,8 @@ public class SettingsCatalog
 			Title = "#menu.settings.acoustic_simulation",
 			Description = "#menu.settings.audio.acoustics.description",
 			Options = OffOn,
-			Read = () => ConsoleSystem.GetValue( "snd_simulation_enable" ).ToBool(),
-			Write = value => ConsoleSystem.SetValue( "snd_simulation_enable", ToBool( value ) )
+			Read = () => MenuUtility.GetConsoleVariable( "snd_simulation_enable" ).ToBool(),
+			Write = value => MenuUtility.SetConsoleVariable( "snd_simulation_enable", ToBool( value ) )
 		} );
 
 		Items.Add( new SettingItem
@@ -936,8 +952,8 @@ public class SettingsCatalog
 			Title = "#menu.settings.background_audio",
 			Description = "#menu.settings.audio.background.description",
 			Options = OffOn,
-			Read = () => !ConsoleSystem.GetValue( "snd_mute_losefocus" ).ToBool(),
-			Write = value => ConsoleSystem.SetValue( "snd_mute_losefocus", !ToBool( value ) )
+			Read = () => !MenuUtility.GetConsoleVariable( "snd_mute_losefocus" ).ToBool(),
+			Write = value => MenuUtility.SetConsoleVariable( "snd_mute_losefocus", !ToBool( value ) )
 		} );
 
 		Items.Add( new SettingItem
@@ -948,18 +964,23 @@ public class SettingsCatalog
 			Title = "#menu.settings.subtitles",
 			Description = "#menu.settings.audio.subtitles.description",
 			Options = OffOn,
-			Read = () => ConsoleSystem.GetValue( "snd_subtitles" ).ToBool(),
-			Write = value => ConsoleSystem.SetValue( "snd_subtitles", ToBool( value ) )
+			Read = () => MenuUtility.GetConsoleVariable( "snd_subtitles" ).ToBool(),
+			Write = value => MenuUtility.SetConsoleVariable( "snd_subtitles", ToBool( value ) )
 		} );
 	}
 
-	void AddVolume( string id, string title, string description, string convar )
+	/// <summary>
+	/// The rest of the Voice section only shows while voice chat is on.
+	/// </summary>
+	bool IsVoiceChatOn() => ToBool( Find( "audio.voicechat" )?.Value );
+
+	void AddVolume( string id, string title, string description, string convar, string section = "#menu.settings.volume", Func<bool> isVisible = null )
 	{
 		Items.Add( new SettingItem
 		{
 			Id = id,
 			Category = "audio",
-			Section = "#menu.settings.volume",
+			Section = section,
 			Title = title,
 			Description = description,
 			Kind = SettingKind.Slider,
@@ -967,8 +988,9 @@ public class SettingsCatalog
 			Max = 1,
 			Step = 0.01f,
 			NumberFormat = "0.##%",
-			Read = () => ConsoleSystem.GetValue( convar ).ToFloat(),
-			Write = value => ConsoleSystem.SetValue( convar, ToFloat( value ) )
+			IsVisible = isVisible,
+			Read = () => MenuUtility.GetConsoleVariable( convar ).ToFloat(),
+			Write = value => MenuUtility.SetConsoleVariable( convar, ToFloat( value ) )
 		} );
 	}
 
@@ -986,8 +1008,8 @@ public class SettingsCatalog
 			Max = 20,
 			Step = 0.1f,
 			NumberFormat = "0.#",
-			Read = () => ConsoleSystem.GetValue( "sensitivity" ).ToFloat(),
-			Write = value => ConsoleSystem.SetValue( "sensitivity", ToFloat( value ) )
+			Read = () => MenuUtility.GetConsoleVariable( "sensitivity" ).ToFloat(),
+			Write = value => MenuUtility.SetConsoleVariable( "sensitivity", ToFloat( value ) )
 		} );
 
 		AddConVarToggle( "input.invert_pitch", "controls", "#menu.settings.mouse", "#menu.settings.input.invert_pitch.title", "#menu.settings.input.invert_pitch.description", "mouse_pitch_inverted" );
@@ -1012,8 +1034,8 @@ public class SettingsCatalog
 			Max = max,
 			Step = step,
 			NumberFormat = step < 1 ? "0.#" : "0",
-			Read = () => ConsoleSystem.GetValue( convar ).ToFloat(),
-			Write = value => ConsoleSystem.SetValue( convar, ToFloat( value ) )
+			Read = () => MenuUtility.GetConsoleVariable( convar ).ToFloat(),
+			Write = value => MenuUtility.SetConsoleVariable( convar, ToFloat( value ) )
 		} );
 	}
 
@@ -1029,7 +1051,7 @@ public class SettingsCatalog
 			Kind = SettingKind.Dropdown,
 			OptionsBuilder = () => Sandbox.Localization.Languages.List.Select( x => new Option( x.Title, x.Abbreviation ) ).ToList(),
 			Read = () => Sandbox.Language.Current.Abbreviation,
-			Write = value => ConsoleSystem.Run( "language", value?.ToString() )
+			Write = value => MenuUtility.RunCommand( "language", value?.ToString() )
 		} );
 
 		Items.Add( new SettingItem
@@ -1088,8 +1110,8 @@ public class SettingsCatalog
 			Title = title,
 			Description = description,
 			Options = OffOn,
-			Read = () => ConsoleSystem.GetValue( convar ).ToBool(),
-			Write = value => ConsoleSystem.SetValue( convar, ToBool( value ) )
+			Read = () => MenuUtility.GetConsoleVariable( convar ).ToBool(),
+			Write = value => MenuUtility.SetConsoleVariable( convar, ToBool( value ) )
 		} );
 	}
 
@@ -1106,7 +1128,7 @@ public class SettingsCatalog
 		options.AddRange( microphones.Where( x => x != systemDefault ).Select( x => new Option( x, x ) ) );
 
 		// Keep the saved one listed, so the dropdown shows what's picked rather than nothing
-		var saved = ConsoleSystem.GetValue( "voip_device" );
+		var saved = MenuUtility.GetConsoleVariable( "voip_device" );
 		if ( IsMicrophoneMissing( saved ) )
 			options.Add( new Option( $"{saved} (not connected)", saved ) );
 
@@ -1116,7 +1138,7 @@ public class SettingsCatalog
 	/// <summary>A saved device that's now the system default shows as the merged default entry.</summary>
 	static object ReadMicrophone()
 	{
-		var saved = ConsoleSystem.GetValue( "voip_device" ) ?? "";
+		var saved = MenuUtility.GetConsoleVariable( "voip_device" ) ?? "";
 		return saved == Sandbox.Internal.AudioSettings.GetDefaultRecordingDevice() ? "" : saved;
 	}
 
@@ -1135,28 +1157,30 @@ public class SettingsCatalog
 		if ( devices.Any() )
 			Sandbox.Internal.AudioSettings.SetActiveDevice( devices.First().Id );
 
-		ConsoleSystem.SetValue( "snd_simulation_enable", true );
-		ConsoleSystem.SetValue( "volume", 1.0f );
-		ConsoleSystem.SetValue( "game_volume", 1.0f );
-		ConsoleSystem.SetValue( "music_volume", 1.0f );
-		ConsoleSystem.SetValue( "music_volume_menu", 1.0f );
-		ConsoleSystem.SetValue( "voip_volume", 1.0f );
-		ConsoleSystem.SetValue( "voip_mode", (int)VoiceMode.PushToTalk );
-		ConsoleSystem.SetValue( "voip_streamlined", false );
-		ConsoleSystem.SetValue( "voip_device", "" );
-		ConsoleSystem.SetValue( "voip_threshold", -50.0f );
-		ConsoleSystem.SetValue( "snd_mute_losefocus", false );
-		ConsoleSystem.SetValue( "snd_subtitles", false );
+		Preferences.VoiceEnabled = true;
+
+		MenuUtility.SetConsoleVariable( "snd_simulation_enable", true );
+		MenuUtility.SetConsoleVariable( "volume", 1.0f );
+		MenuUtility.SetConsoleVariable( "game_volume", 1.0f );
+		MenuUtility.SetConsoleVariable( "music_volume", 1.0f );
+		MenuUtility.SetConsoleVariable( "music_volume_menu", 1.0f );
+		MenuUtility.SetConsoleVariable( "voip_volume", 1.0f );
+		MenuUtility.SetConsoleVariable( "voip_mode", (int)VoiceMode.PushToTalk );
+		MenuUtility.SetConsoleVariable( "voip_streamlined", false );
+		MenuUtility.SetConsoleVariable( "voip_device", "" );
+		MenuUtility.SetConsoleVariable( "voip_threshold", -50.0f );
+		MenuUtility.SetConsoleVariable( "snd_mute_losefocus", false );
+		MenuUtility.SetConsoleVariable( "snd_subtitles", false );
 	}
 
 	static void RestoreControlDefaults()
 	{
-		ConsoleSystem.SetValue( "sensitivity", 5 );
-		ConsoleSystem.SetValue( "controller_look_speed_yaw", 270 );
-		ConsoleSystem.SetValue( "controller_look_speed_pitch", 160 );
-		ConsoleSystem.SetValue( "controller_joystick_deadzone", 12.5f );
-		ConsoleSystem.SetValue( "mouse_pitch_inverted", false );
-		ConsoleSystem.SetValue( "mouse_yaw_inverted", false );
+		MenuUtility.SetConsoleVariable( "sensitivity", 5 );
+		MenuUtility.SetConsoleVariable( "controller_look_speed_yaw", 270 );
+		MenuUtility.SetConsoleVariable( "controller_look_speed_pitch", 160 );
+		MenuUtility.SetConsoleVariable( "controller_joystick_deadzone", 12.5f );
+		MenuUtility.SetConsoleVariable( "mouse_pitch_inverted", false );
+		MenuUtility.SetConsoleVariable( "mouse_yaw_inverted", false );
 	}
 
 	static bool ToBool( object value ) => value switch

@@ -3,7 +3,6 @@ using Sandbox.MovieMaker;
 using Sandbox.Rendering;
 using Sandbox.Utility;
 using System.IO;
-using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text.Json.Serialization;
@@ -312,8 +311,10 @@ public sealed class SessionRenderer
 
 			// Render a (sub)frame!
 
-			var viewSetup = new ViewSetup { Time = (float)nextTime.TotalSeconds };
-			RenderToTextureMethod.Invoke( captureCamera, [subFrameTex, (Vector2?)null, viewSetup] );
+			captureCamera.RenderToTexture( subFrameTex, null, new ViewSetup
+			{
+				Time = (float)nextTime.TotalSeconds
+			} );
 
 			if ( !isWarmup && subFrameCount > 1 )
 			{
@@ -411,9 +412,6 @@ public sealed class SessionRenderer
 				: camera.FieldOfView;
 		}
 	}
-
-	private static MethodInfo RenderToTextureMethod { get; } = typeof( SceneCamera ).GetMethod( "RenderToTexture",
-		BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic )!;
 }
 
 partial class Session

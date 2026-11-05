@@ -211,10 +211,18 @@ internal partial class GlobalContext
 	{
 		DisposeScripting();
 		var oldCts = CancellationTokenSource;
-		CancellationTokenSource = new CancellationTokenSource();
 
-		oldCts?.Cancel();
+		try
+		{
+			oldCts?.Cancel();
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( e, "Exception in cancellation callback during context reset" );
+		}
+
 		oldCts?.Dispose();
+		CancellationTokenSource = new CancellationTokenSource();
 
 		ActiveScene = null;
 

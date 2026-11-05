@@ -1,4 +1,5 @@
-﻿using System.Collections.Immutable;
+﻿using Sandbox.Engine;
+using System.Collections.Immutable;
 using System.Reflection;
 using static Sandbox.Internal.GlobalGameNamespace;
 
@@ -21,7 +22,7 @@ public readonly record struct DisplayInfo(
 	{
 		var enumType = value.GetType();
 
-		if ( Game.TypeLibrary.GetEnumDescription( enumType ) is not { } desc )
+		if ( GlobalContext.Current.TypeLibrary.GetEnumDescription( enumType ) is not { } desc )
 		{
 			return FromName( value.ToString()! );
 		}
@@ -153,7 +154,7 @@ public static class TrackProperty
 	private static ImmutableArray<ITrackPropertyFactory>? _factories;
 
 	private static IReadOnlyList<ITrackPropertyFactory> Factories => _factories ??=
-		TypeLibrary.GetTypes<ITrackPropertyFactory>()
+		GlobalContext.Current.TypeLibrary.GetTypes<ITrackPropertyFactory>()
 			.Where( x => x is { IsAbstract: false, IsInterface: false, IsGenericType: false } )
 			.Select( CreateFactory )
 			.OfType<ITrackPropertyFactory>()

@@ -1,3 +1,4 @@
+using Sandbox.Engine;
 using System.Text.Json.Nodes;
 
 namespace Sandbox;
@@ -62,7 +63,7 @@ public partial class Scene
 
 		foreach ( var system in systems.Values )
 		{
-			var systemType = Game.TypeLibrary.GetType( system.GetType() );
+			var systemType = GlobalContext.Current.TypeLibrary.GetType( system.GetType() );
 			if ( systemType is null ) continue;
 
 			if ( !overrides.TryGetValue( systemType.FullName, out var properties ) )

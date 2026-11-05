@@ -110,9 +110,9 @@ public sealed class Graph : Resource, IDisposable
 	}
 
 	/// <summary>
-	/// Releases a graph built at runtime. Nothing else holds it - a renderer only keeps a weak
-	/// handle - so disposing frees it right away instead of waiting for the garbage collector,
-	/// which happens anyway if you don't. Only dispose a graph nothing is playing any more.
+	/// Releases the caller's handle to a graph built at runtime. A renderer's main graph assignment
+	/// only keeps a weak handle, so keep that graph alive while it is playing. External graph slots
+	/// retain their own strong handles until disconnected (or until a recording using them is cleared).
 	/// Graphs loaded from disk are shared, so this does nothing for those.
 	/// </summary>
 	public void Dispose()

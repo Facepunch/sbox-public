@@ -31,7 +31,7 @@ namespace Sandbox;
 public static partial class Game
 {
 	/// <summary>Creates scripts using the current menu or game's exposed types and cached code.</summary>
-	public static ScriptSystem Scripting => GlobalContext.Current.Scripting;
+	public static ScriptSystem Scripting => GlobalContext.Game.Scripting;
 
 	/// <summary>
 	/// The input context for this context (menu, gamemenu, client)
@@ -111,7 +111,7 @@ public static partial class Game
 	/// </summary>
 	public static WebSurface CreateWebSurface()
 	{
-		return new WebSurface( !IsMenu );
+		return new WebSurface( true );
 	}
 
 	/// <summary>
