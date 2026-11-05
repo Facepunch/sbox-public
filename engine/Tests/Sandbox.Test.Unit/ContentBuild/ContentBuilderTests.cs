@@ -884,14 +884,20 @@ public class ContentBuilderTests
 	[TestMethod]
 	public void WhatTookLongestLastTimeCompilesFirst()
 	{
-		// The first build goes by type (material before texture); after it, by what each actually took
+		// The first build goes by type (material before texture); after it, by what each actually took. The first job
+		// of a cold run on a slow machine can take longer than the sleep, so the times compared come from a warm build.
+		// The material sleeps too: a time that rounds to zero isn't recorded, and the material falls back to its typical.
 		using var fx = new Fixture();
-		fx.Write( "a.vmat", "red" );
-		fx.Write( "z.vtex", "blue", "sleep 300" );
+		fx.Write( "a.vmat", "red", "sleep 50" );
+		fx.Write( "z.vtex", "blue", "sleep 1000" );
 		CollectionAssert.AreEqual( new[] { "a.vmat", "z.vtex" }, fx.Build( maxJobs: 1 ).Jobs.ToArray() );
 
-		fx.Write( "a.vmat", "red", "edited" );
-		fx.Write( "z.vtex", "blue", "sleep 300", "edited" );
+		fx.Write( "a.vmat", "red", "sleep 50", "edited" );
+		fx.Write( "z.vtex", "blue", "sleep 1000", "edited" );
+		fx.Build( maxJobs: 1 );
+
+		fx.Write( "a.vmat", "red", "sleep 50" );
+		fx.Write( "z.vtex", "blue", "sleep 1000" );
 		CollectionAssert.AreEqual( new[] { "z.vtex", "a.vmat" }, fx.Build( maxJobs: 1 ).Jobs.ToArray() );
 	}
 
@@ -1764,6 +1770,24 @@ public class ContentBuilderTests
 		AssertJobs( report, "r1:a.vmat" );
 		StringAssert.Contains( File.ReadAllText( Path.Combine( fx.Dir, "r1/a.vmat_c" ) ), "blue" );
 		AssertJobs( BuildRoots( fx, ["r1", "r2"] ) );
+	}
+
+	[TestMethod]
+	public void OrderOnlyReadOfAnotherProjectsCopyIsRebuiltWithoutThatProject()
+	{
+		// Which copy an order only read finds still matters, only edits to it don't
+		using var fx = new Fixture();
+		WriteIn( fx, "r1/m.vmat", "red" );
+		WriteIn( fx, "r1/a.vmdl", "orders *m.vmat" );
+		WriteIn( fx, "r2/m.vmat", "blue" );
+		Assert.IsTrue( BuildRoots( fx, ["r1", "r2"] ).Success );
+
+		AssertJobs( BuildRoots( fx, ["r1"] ), "m.vmat", "a.vmdl" );
+		AssertJobs( BuildRoots( fx, ["r1"] ) );
+
+		AssertJobs( BuildRoots( fx, ["r1", "r2"] ), "r1:a.vmdl" );
+		WriteIn( fx, "r2/m.vmat", "green" );
+		AssertJobs( BuildRoots( fx, ["r1", "r2"] ), "r2:m.vmat" );
 	}
 
 	[TestMethod]

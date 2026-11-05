@@ -1,0 +1,36 @@
+@import "/styles/_theme.scss";
+
+//
+// Shared styles between the platform text and voice chat overlays
+//
+
+.avatar
+{
+    cursor: pointer;
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
+    min-height: 24px;
+    background-position: center;
+    background-size: cover;
+    border-radius: 100%;
+    box-shadow: 2px 2px 3px rgba( black, 0.65 );
+    flex-shrink: 0;
+}
+
+.name {
+    color: #0094ff;
+    font-family: $font-heading;
+    font-weight: 800;
+    font-size: 18px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    text-shadow: 1px 1px 0px rgba( black, 0.75 );
+}
+
+ChatPanel .messages .chat-entry, VoiceChatRow {
+    padding: 4px 10px;
+    gap: 8px;
+    border-radius: $rounding-large;
+    flex-shrink: 0;
+}

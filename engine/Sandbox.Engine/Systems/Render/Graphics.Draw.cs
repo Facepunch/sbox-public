@@ -23,11 +23,14 @@ public static partial class Graphics
 		var vertexType = VertexLayout.Get<T>();
 		if ( !vertexType.IsValid ) return;
 
+		if ( vertexType.m_Size > sizeof( T ) )
+			throw new ArgumentException( $"{typeof( T )} vertex layout is larger than the vertex type" );
+
 		// Set the material etc
 		if ( !RenderTools.SetRenderState( Context, attributes.Get(), ModeFor( material ), vertexType, Graphics.Stats ) )
 			return;
 
-		var totalSize = sizeof( T ) * vertCount;
+		var totalSize = (long)sizeof( T ) * vertCount;
 		if ( indices is not null || totalSize < maxDynamicVertexBuffer )
 		{
 			RenderTools.Draw( Context, (NativeEngine.RenderPrimitiveType)primitiveType, vertexType, (IntPtr)vertices, vertCount, (IntPtr)indices, indexCount, Graphics.Stats );
@@ -54,11 +57,22 @@ public static partial class Graphics
 		}
 	}
 
+	internal static void ValidateDrawCounts( int vertCount, int vertexLength, int indexCount = 0, int indexLength = 0 )
+	{
+		if ( vertCount < 0 || vertCount > vertexLength )
+			throw new ArgumentOutOfRangeException( nameof( vertCount ), $"{nameof( vertCount )} ({vertCount}) must be between 0 and the number of vertices ({vertexLength})" );
+
+		if ( indexCount < 0 || indexCount > indexLength )
+			throw new ArgumentOutOfRangeException( nameof( indexCount ), $"{nameof( indexCount )} ({indexCount}) must be between 0 and the number of indices ({indexLength})" );
+	}
+
 	/// <summary>
 	/// Draw a bunch of vertices
 	/// </summary>
 	public static unsafe void Draw( Span<Vertex> vertices, int vertCount, Material material, RenderAttributes attributes = null, PrimitiveType primitiveType = PrimitiveType.Triangles )
 	{
+		ValidateDrawCounts( vertCount, vertices.Length );
+
 		fixed ( Vertex* ptr = vertices )
 		{
 			DrawInternal( ptr, vertCount, default, default, material, attributes, primitiveType );
@@ -73,6 +87,8 @@ public static partial class Graphics
 	/// </summary>
 	internal static unsafe void Draw<T>( Span<T> vertices, int vertCount, Material material, RenderAttributes attributes = null, PrimitiveType primitiveType = PrimitiveType.Triangles ) where T : unmanaged
 	{
+		ValidateDrawCounts( vertCount, vertices.Length );
+
 		fixed ( T* ptr = vertices )
 		{
 			DrawInternal( ptr, vertCount, default, default, material, attributes, primitiveType );
@@ -103,6 +119,8 @@ public static partial class Graphics
 	/// </summary>
 	public static unsafe void Draw( Span<Vertex> vertices, int vertCount, Span<ushort> indices, int indexCount, Material material, RenderAttributes attributes = null, PrimitiveType primitiveType = PrimitiveType.Triangles )
 	{
+		ValidateDrawCounts( vertCount, vertices.Length, indexCount, indices.Length );
+
 		fixed ( Vertex* vptr = vertices )
 		fixed ( ushort* iptr = indices )
 		{

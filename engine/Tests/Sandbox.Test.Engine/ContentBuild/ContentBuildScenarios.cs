@@ -1077,8 +1077,8 @@ public class ManagedContentBuild : ContentBuildScenarios
 	[TestMethod]
 	public void ProjectMaterialShadowingALibraryOneIsWhatTheModelReads()
 	{
-		// The compiler mounts the project after the library, so the project's copy of a material wins; the model reads it
-		// order only, by name, so neither copy changing rebuilds it
+		// The compiler mounts the project after the library, so the project's copy of a material wins, and adding it
+		// rebuilds a model that read the library's; editing either copy doesn't, the model reads it order only
 		using var fx = new ContentFixture();
 		var lib = new ContentRoot( fx.Mod + "lib", Path.Combine( fx.Parent, "lib" ), Path.Combine( fx.Parent, "libstate" ) );
 		var roots = new[] { lib, new ContentRoot( fx.Mod, fx.Root, Path.Combine( fx.Parent, "state" ) ) };
@@ -1096,7 +1096,7 @@ public class ManagedContentBuild : ContentBuildScenarios
 		var report = Build();
 		Assert.IsTrue( report.Success, report.Log.ToString() );
 		Assert.AreEqual( 0, report.DescribeMisses, report.Log.ToString() );
-		CollectionAssert.AreEqual( new[] { ProjM }, report.Jobs.ToArray(), report.Log.ToString() );
+		CollectionAssert.AreEqual( new[] { ProjM, Box }, report.Jobs.ToArray(), report.Log.ToString() );
 
 		// The library's copy is hidden now: it isn't built
 		WriteLib( Sources.Material( "shaders/unlit.shader", ["TextureColor", "materials/m_color.tga"] ) );

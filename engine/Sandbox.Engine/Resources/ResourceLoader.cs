@@ -9,7 +9,7 @@ internal static class ResourceLoader
 	// Native resource extensions (with _c suffix) not covered by AssetTypeAttribute.
 	private static readonly HashSet<string> NativeExtensions = new( StringComparer.OrdinalIgnoreCase )
 	{
-		".vmat_c", ".vmdl_c", ".vtex_c", ".shader_c", ".vanmgrph_c"
+		".vmat_c", ".vmdl_c", ".vtex_c", ".shader_c", ".vanmgrph_c", ".ag_c"
 	};
 
 	/// Registers resource paths into PathIndex without loading them, for any file whose
@@ -29,7 +29,7 @@ internal static class ResourceLoader
 	internal static void LoadAllGameResource( BaseFileSystem fileSystem, bool reloadExisting = false, Package sourcePackage = null )
 	{
 		var sw = Stopwatch.StartNew();
-		var types = Game.TypeLibrary.GetAttributes<AssetTypeAttribute>().DistinctBy( x => x.Extension )
+		var types = GlobalContext.Current.TypeLibrary.GetAttributes<AssetTypeAttribute>().DistinctBy( x => x.Extension )
 			.ToDictionary( x => $".{x.Extension}_c", x => x, StringComparer.OrdinalIgnoreCase );
 
 		var allFiles = fileSystem.FindFile( "/", "*", true ).ToArray();
@@ -87,7 +87,7 @@ internal static class ResourceLoader
 	internal static async Task LoadAllGameResourceAsync( BaseFileSystem fileSystem, CancellationToken ct = default, bool reloadExisting = false, Package sourcePackage = null, Task<List<string>> preEnumeratedFiles = null, Func<string, bool> includeExtension = null )
 	{
 		var sw = Stopwatch.StartNew();
-		var types = Game.TypeLibrary.GetAttributes<AssetTypeAttribute>().DistinctBy( x => x.Extension )
+		var types = GlobalContext.Current.TypeLibrary.GetAttributes<AssetTypeAttribute>().DistinctBy( x => x.Extension )
 			.ToDictionary( x => $".{x.Extension}_c", x => x, StringComparer.OrdinalIgnoreCase );
 
 		var allExtensions = new HashSet<string>( types.Keys, StringComparer.OrdinalIgnoreCase );
@@ -106,9 +106,11 @@ internal static class ResourceLoader
 
 		var allResources = new List<GameResource>();
 
-		foreach ( var file in allFiles )
+		for ( int i = 0; i < allFiles.Count; i++ )
 		{
+			var file = allFiles[i];
 			ct.ThrowIfCancellationRequested();
+			LoadProgress.Report( (double)i / allFiles.Count );
 			var extension = System.IO.Path.GetExtension( file );
 			if ( !types.TryGetValue( extension, out var type ) ) continue;
 			if ( includeExtension is not null && !includeExtension( extension ) ) continue;

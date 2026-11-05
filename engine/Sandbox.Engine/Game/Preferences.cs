@@ -64,6 +64,12 @@ public static class Preferences
 	public static VoiceMode VoiceMode { get; internal set; } = VoiceMode.PushToTalk;
 
 	/// <summary>
+	/// Keep the recording device open between push-to-talk presses, in case opening it causes a delay.
+	/// </summary>
+	[ConVar( "voip_streamlined", ConVarFlags.Protected, Help = "Keep the recording device open between push-to-talk presses, in case opening it causes a delay", Saved = true )]
+	public static bool StreamlinedPushToTalk { get; internal set; }
+
+	/// <summary>
 	/// Name of the microphone used for voice chat, empty for the system default.
 	/// </summary>
 	[ConVar( "voip_device", ConVarFlags.Protected, Help = "Microphone used for voice chat, empty for the system default", Saved = true )]
@@ -77,6 +83,12 @@ public static class Preferences
 
 	[ConVar( "platform.chat.enabled", ConVarFlags.Saved, Help = "Do we want to enable the platform level chat system? The game also has to have it enabled." )]
 	public static bool ChatEnabled { get; set; } = true;
+
+	/// <summary>
+	/// Disabling this will turn off the UI, recording, and playback.
+	/// </summary>
+	[ConVar( "platform.voice.enabled", ConVarFlags.Saved, Help = "Do we want to enable the platform level voice chat system? The game also has to have it enabled." )]
+	public static bool VoiceEnabled { get; set; } = true;
 
 	/// <summary>
 	/// When enabled, player usernames/avatars are replaced with anonymous versions.

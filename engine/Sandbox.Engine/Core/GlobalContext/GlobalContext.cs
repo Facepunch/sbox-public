@@ -108,6 +108,16 @@ internal partial class GlobalContext
 		lock ( pendingNodeAssemblies ) pendingNodeAssemblies.Add( (assembly, logErrors) );
 	}
 
+	/// <summary>
+	/// Take an assembly out of the node library without adding everything still queued first, which is what reading
+	/// <see cref="NodeLibrary"/> would do: a game closed before anything read its action graphs added them all on the way out.
+	/// </summary>
+	internal void RemoveNodeAssembly( System.Reflection.Assembly assembly )
+	{
+		lock ( pendingNodeAssemblies ) pendingNodeAssemblies.RemoveAll( x => x.Assembly == assembly );
+		nodeLibrary?.RemoveAssembly( assembly );
+	}
+
 	void FlushPendingNodeAssemblies()
 	{
 		lock ( pendingNodeAssemblies )
@@ -211,10 +221,18 @@ internal partial class GlobalContext
 	{
 		DisposeScripting();
 		var oldCts = CancellationTokenSource;
-		CancellationTokenSource = new CancellationTokenSource();
 
-		oldCts?.Cancel();
+		try
+		{
+			oldCts?.Cancel();
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( e, "Exception in cancellation callback during context reset" );
+		}
+
 		oldCts?.Dispose();
+		CancellationTokenSource = new CancellationTokenSource();
 
 		ActiveScene = null;
 

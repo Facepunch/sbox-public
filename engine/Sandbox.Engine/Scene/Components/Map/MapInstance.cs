@@ -891,13 +891,17 @@ file class MapComponentMapLoader : SceneMapLoader
 					break;
 				}
 
+			// Never network probe volumes. Their textures live in the map VPK, so a snapshot copy can
+			// arrive before the VPK is mounted and render black. Every client builds them from the VPK.
 			case "env_light_probe_volume":
 				{
+					go.NetworkMode = NetworkMode.Never;
 					LightProbeVolume.InitializeFromLegacy( go, kv );
 					break;
 				}
 			case "env_combined_light_probe_volume":
 				{
+					go.NetworkMode = NetworkMode.Never;
 					EnvmapProbe.InitializeFromLegacy( go, kv ); // create an envmap component
 					LightProbeVolume.InitializeFromLegacy( go, kv );
 					break;

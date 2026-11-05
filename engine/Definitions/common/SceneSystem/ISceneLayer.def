@@ -80,11 +80,13 @@ native class ISceneLayer as NativeEngine.ISceneLayer
     inline void SetOverlayStencil( bool bOverlay )
     {
 		constexpr uint8 GAME_OVERLAY_STENCIL_MASK = 0x80;
+		// Stock shaders skip pixels with this bit set, e.g. a fake clip plane's mask
+		constexpr uint8 SHADER_SKIP_STENCIL_MASK = 0x01;
 
 		RsStencilStateOverride_t stencilOverride;
 		stencilOverride.m_nStencilRefValue = bOverlay ? GAME_OVERLAY_STENCIL_MASK : 0;
 		stencilOverride.m_stencilState = RsStencilStateDesc_t(
-			true, bOverlay ? 0 : GAME_OVERLAY_STENCIL_MASK, bOverlay ? GAME_OVERLAY_STENCIL_MASK : 0,
+			true, bOverlay ? 0 : ( GAME_OVERLAY_STENCIL_MASK | SHADER_SKIP_STENCIL_MASK ), bOverlay ? GAME_OVERLAY_STENCIL_MASK : 0,
 			RS_STENCIL_OP_KEEP, RS_STENCIL_OP_KEEP, bOverlay ? RS_STENCIL_OP_REPLACE : RS_STENCIL_OP_KEEP, RS_CMP_ALWAYS,
 			RS_STENCIL_OP_KEEP, RS_STENCIL_OP_KEEP, bOverlay ? RS_STENCIL_OP_REPLACE : RS_STENCIL_OP_KEEP, RS_CMP_ALWAYS );
 		if ( !bOverlay )

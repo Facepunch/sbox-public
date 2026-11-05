@@ -64,7 +64,9 @@ struct Cluster
         return coord.x + d.x * ( coord.y + d.y * coord.z );
     }
 
-    static ClusterRange Query( ClusterItemType type, float4 positionSs )
+    // The flattened cluster a pixel falls in. A shader that queries more than one item type should take this once
+    // and pass it to each query: otherwise the pieces of the coordinate stay live from the first query to the last
+    static uint Index( float4 positionSs )
     {
         // Snap positionSs to the top-left pixel of the 2x2 quad to avoid cluster divergence
         // Todo: Z still diverges within the quad and cant derive it without reading from neighbour lanes
@@ -90,7 +92,12 @@ struct Cluster
 
         depth = clamp( depth, ClusterZParams.z, ClusterZParams.w );
         uint3 d = max( uint3( ClusterCounts.xyz ), 1 );
-        return Query( type, Flatten( clamp( uint3( uv * d.xy, DepthToSlice( depth ) ), 0, d - 1 ) ) );
+        return Flatten( clamp( uint3( uv * d.xy, DepthToSlice( depth ) ), 0, d - 1 ) );
+    }
+
+    static ClusterRange Query( ClusterItemType type, float4 positionSs )
+    {
+        return Query( type, Index( positionSs ) );
     }
 
     // The cluster at a flattened index, for callers that already know which

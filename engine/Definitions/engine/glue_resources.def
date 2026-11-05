@@ -24,5 +24,10 @@ native static class Glue.Resources as NativeGlue.Resources
 
 	CPhysicsData GetPhysics( string name, Guid guid );
 	HAnimationGraph GetAnimationGraph( string name, Guid guid );
+	HAnimGraph2 GetAnimGraph2( string name );
+	HAnimGraph2 CreateCompiledAnimGraph2( string name, void* data, int size );
+	HAnimGraph2 CreateBuiltAnimGraph2( string name, AnimationGraphBuilder builder, int rootNodeIndex );
+	HAnimSkeleton GetAnimSkeleton( string name );
+	HAnimClip GetAnimClip( string name );
 	CVfx GetShader( string name, Guid guid );
 }

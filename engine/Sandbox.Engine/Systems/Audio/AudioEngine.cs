@@ -51,6 +51,18 @@ internal static partial class AudioEngine
 		DspFactory.CreateBuiltIn();
 	}
 
+	/// <summary>
+	/// Loading stalls the managed mixer for whole garbage collections, so keep enough mixed ahead to play through them.
+	/// Back to the device's usual lead when loading ends.
+	/// </summary>
+	internal static void SetLoading( bool loading )
+	{
+		if ( Application.IsUnitTest && !Application.IsInitialized ) return;
+		if ( !IsValid ) return;
+
+		g_pAudioDevice.SetMixAhead( loading ? 0.5f : 0f );
+	}
+
 	public static void ClearBuffer()
 	{
 		if ( !IsValid )

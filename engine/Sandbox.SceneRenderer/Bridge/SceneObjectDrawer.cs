@@ -112,7 +112,7 @@ internal sealed class SceneObjectDrawer : IDisposable
 				}
 				else
 				{
-					context.DrawModel( drawMaterial, mode, mesh, draw, firstId + d, 1 );
+					context.DrawModel( drawMaterial, mode, mesh, draw, firstId + d, 1, skinned: skinned );
 				}
 			}
 		}

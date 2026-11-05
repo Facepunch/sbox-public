@@ -261,6 +261,8 @@ public partial class Mixer
 		{
 			if ( _outputBuffers.Remove( removed, out var buf ) ) buf.Dispose();
 		}
+
+		StartReverbs( snapshot );
 	}
 
 	/// <summary>
@@ -385,6 +387,10 @@ public partial class Mixer
 	/// </summary>
 	internal void FinishMixing()
 	{
+		// A muted mixer, or one another's solo silenced, goes quiet at once, tails included
+		if ( ShouldMixVoices() ) MixReverbs();
+		else StopReverbs();
+
 		ApplyProcessors();
 
 		var volume = Volume;
@@ -413,9 +419,8 @@ public partial class Mixer
 
 	static Superluminal _mixVoice = new( "Mix Voice", "#4d5e73" );
 	MultiChannelBuffer mixBuffer = new( AudioEngine.ChannelCount );
-	readonly MultiChannelBuffer _reverbSendBuffer = new( AudioEngine.ChannelCount );
-	readonly MultiChannelBuffer _reverbOutputBuffer = new( AudioEngine.ChannelCount );
-	readonly MultiChannelBuffer _reverbDryBuffer = new( AudioEngine.ChannelCount );
+	readonly MultiChannelBuffer[] _directBuffers = new MultiChannelBuffer[AudioEngine.ChannelCount + 1];
+	readonly MultiChannelBuffer _reverbSendBuffer = new( 1 );
 
 	/// <summary>
 	/// Mix one voice described by the snapshot. No locks, all inputs come from the snapshot,
@@ -443,7 +448,6 @@ public partial class Mixer
 		var allModels = CollectionsMarshal.AsSpan( snapshot.AllModels );
 		var allBinaurals = CollectionsMarshal.AsSpan( snapshot.AllBinaurals );
 		var allParams = CollectionsMarshal.AsSpan( snapshot.AllParams );
-		var reverbApplied = false;
 
 		for ( var i = 0; i < vs.SourceCount; i++ )
 		{
@@ -469,45 +473,41 @@ public partial class Mixer
 
 			if ( source is null ) continue;
 
-			var targetBuffer = GetListenerBuffer( listener );
-
-			mixBuffer.CopyFromUpmix( samples );
-
-			// Evaluate reverb gate up front so we can skip the dry-buffer copy when the send won't fire.
-			float mixerReverbScale = Reverb;
-			bool willRunReverb = !reverbApplied && vs.Reverb is not null && vs.Reverb.IsValid
-					&& vs.ReverbRoom.Mix > 0.09f
-					&& mixerReverbScale > 0f;
-			float reverbSendLevel = 0f;
-			if ( willRunReverb )
-			{
-				var srcParams = allParams[vs.SourceOffset + (vs.ListenLocal ? 0 : i)];
-				var distAtten = ComputeDistanceAtten( listener, in srcParams );
-				reverbSendLevel = srcParams.ReverbAmount * mixerReverbScale * distAtten * volume * (srcParams.OcclusionEnabled ? srcParams.TransmissionBands.Mid : 1f);
-				// Capture dry signal before DirectEffect so reverb send bypasses distance attenuation.
-				if ( reverbSendLevel >= 0.175f ) _reverbDryBuffer.CopyFrom( mixBuffer );
-			}
-
 			var sourceParams = allParams[vs.SourceOffset + i];
-			// Always run SA DirectEffect to keep its internal gain interpolator warm; skipping causes a pop on re-audibility.
-			ApplyDirectMix( source, listener, mixBuffer, volume, in sourceParams );
-			ConvertToBinaural( allBinaurals[vs.SourceOffset + i], mixTransform, in vs, mixBuffer );
 
-			if ( willRunReverb )
+			float mixerReverbScale = Reverb;
+			if ( vs.HasReverb && mixerReverbScale > 0f && vs.ReverbRoom.Mix > 0.09f )
 			{
-				reverbApplied = true;
-				if ( reverbSendLevel >= 0.175f )
+				var reverbSendLevel = sourceParams.ReverbAmount * mixerReverbScale * ComputeDistanceAtten( listener, in sourceParams ) * volume
+					* (sourceParams.OcclusionEnabled ? sourceParams.TransmissionBands.Mid : 1f);
+
+				if ( reverbSendLevel * vs.ReverbRoom.Mix >= ReverbAudible )
 				{
-					var room = vs.ReverbRoom;
-					FillReverbSend( _reverbDryBuffer, reverbSendLevel );
-					_reverbOutputBuffer.Silence();
-					vs.Reverb.Apply( room.DecayTimeLow, room.DecayTimeMid, room.DecayTimeHigh, _reverbSendBuffer, _reverbOutputBuffer );
-					targetBuffer.MixFrom( _reverbOutputBuffer, room.Mix );
+					FillReverbSend( samples, reverbSendLevel );
+					GetReverb( listener, in vs.ReverbRoom )?.Feed( _reverbSendBuffer, vs.ReverbRoom.Mix );
 				}
 			}
 
-			targetBuffer.MixFrom( mixBuffer, 1.0f );
+			if ( source.SkipSilent( listener, volume, Occlusion, in sourceParams ) ) continue;
+
+			// Mono sources stay mono until the binaural effect makes them stereo.
+			var direct = DirectBuffer( samples.ChannelCount );
+			source.Apply( listener, samples, direct, Occlusion, volume, in sourceParams );
+
+			if ( !ConvertToBinaural( allBinaurals[vs.SourceOffset + i], mixTransform, in vs, direct, mixBuffer ) )
+				mixBuffer.CopyFromUpmix( direct );
+
+			GetListenerBuffer( listener ).MixFrom( mixBuffer, 1.0f );
 		}
+	}
+
+	// Below this a voice's send isn't worth mixing into its room's reverb. Cheap now the reverb is shared.
+	const float ReverbAudible = 0.005f;
+
+	MultiChannelBuffer DirectBuffer( int channels )
+	{
+		channels = Math.Clamp( channels, 1, _directBuffers.Length - 1 );
+		return _directBuffers[channels] ??= new MultiChannelBuffer( channels );
 	}
 
 	static float ComputeDistanceAtten( Listener listener, in DirectSoundParams p )
@@ -519,73 +519,38 @@ public partial class Mixer
 		return p.Falloff.Evaluate( t );
 	}
 
-	void FillReverbSend( MultiChannelBuffer source, float scale )
+	/// <summary>
+	/// Mono mix of the dry voice into <see cref="_reverbSendBuffer"/>, the send to its room's reverb.
+	/// </summary>
+	void FillReverbSend( MultiChannelBuffer dry, float scale )
 	{
-		var weight = scale / source.ChannelCount;
-		for ( var outCh = 0; outCh < _reverbSendBuffer.ChannelCount; outCh++ )
-		{
-			_reverbSendBuffer.Get( outCh ).Silence();
-			for ( var inCh = 0; inCh < source.ChannelCount; inCh++ )
-			{
-				_reverbSendBuffer.Get( outCh ).MixFrom( source.Get( inCh ), weight );
-			}
-		}
-	}
-
-	MultiChannelBuffer _input;
-	MultiChannelBuffer _binauralInput;
-
-	void EnsureInputBuffer( int channelCount )
-	{
-		if ( _input?.ChannelCount != channelCount )
-		{
-			_input?.Dispose();
-			_input = new MultiChannelBuffer( channelCount );
-		}
-	}
-
-	void EnsureBinauralInputBuffer( int channelCount )
-	{
-		if ( _binauralInput?.ChannelCount != channelCount )
-		{
-			_binauralInput?.Dispose();
-			_binauralInput = new MultiChannelBuffer( channelCount );
-		}
-	}
-
-	void ApplyDirectMix( DirectSoundModel source, Listener listener, MultiChannelBuffer inputoutput, float volume,
-		in DirectSoundParams sourceParams )
-	{
-		if ( source is null )
-			return;
-
-		EnsureInputBuffer( inputoutput.ChannelCount );
-		_input.CopyFrom( inputoutput );
-		source.Apply( listener, _input, inputoutput, Occlusion, volume, in sourceParams );
+		var weight = scale / dry.ChannelCount;
+		var mono = _reverbSendBuffer.Get( 0 );
+		mono.Silence();
+		for ( var inCh = 0; inCh < dry.ChannelCount; inCh++ )
+			mono.MixFrom( dry.Get( inCh ), weight );
 	}
 
 	/// <summary>
-	/// Spatialize the voice based on its snapshotted position and spatialization parameters.
+	/// Spatialize the voice based on its snapshotted position and spatialization parameters. False when it isn't
+	/// spatialized and <paramref name="output"/> wasn't written.
 	/// </summary>
-	void ConvertToBinaural( BinauralEffect binaural, Transform mixTransform, in VoiceState vs, MultiChannelBuffer inputoutput )
+	bool ConvertToBinaural( BinauralEffect binaural, Transform mixTransform, in VoiceState vs, MultiChannelBuffer input, MultiChannelBuffer output )
 	{
-		if ( binaural is null ) return;
+		if ( binaural is null ) return false;
 
 		if ( vs.ListenLocal )
 		{
 			var localSpatial = 0.1f * Spatializing;
 			// ListenLocal voices on mixers with Spatializing==0 (music/UI default) would just
 			// run a near-identity HRIR convolution; inputoutput already holds the desired output.
-			if ( localSpatial <= 0f ) return;
+			if ( localSpatial <= 0f ) return false;
 
 			var pos = vs.Position;
 			while ( pos.Length < 0.5f ) pos += new Vector3( 1, 0, 0 );
 
-			EnsureBinauralInputBuffer( 2 );
-			_binauralInput.CopyFrom( inputoutput );
-
-			binaural.Apply( pos, localSpatial, useNearestInterpolation: true, _binauralInput, inputoutput );
-			return;
+			binaural.Apply( pos, localSpatial, useNearestInterpolation: true, input, output );
+			return true;
 		}
 
 		var soundDirectionLocal = mixTransform.PointToLocal( vs.Position );
@@ -600,11 +565,10 @@ public partial class Mixer
 				: soundDirectionLocal.Normal * soundDistance;
 		}
 
-		EnsureBinauralInputBuffer( 2 );
-		_binauralInput.CopyFrom( inputoutput );
-
-		bool useNearest = vs.IsVoice || vs.Loopback || spacial < 0.5f || soundDistance > 1500f;
-		binaural.Apply( soundDirectionLocal, spacial, useNearest, _binauralInput, inputoutput );
+		// Bilinear costs no more than nearest and switching between them changes the timbre.
+		bool useNearest = vs.IsVoice || vs.Loopback;
+		binaural.Apply( soundDirectionLocal, spacial, useNearest, input, output );
+		return true;
 	}
 
 	/// <summary>

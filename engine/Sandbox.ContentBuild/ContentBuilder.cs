@@ -1034,8 +1034,6 @@ public static class ContentBuilder
 		{
 			foreach ( var prerequisite in node.Record?.Prerequisites ?? [] )
 			{
-				if ( prerequisite.OrderOnly ) continue;
-
 				// Older records only have the file: one outside every root here can't be checked, so read again
 				var output = prerequisite.Output ?? roots.Select( x => x.InRoot( prerequisite.File ) ).FirstOrDefault( x => x is not null );
 				if ( output is null ) return $"{prerequisite.File} is outside every root of this build";

@@ -1,3 +1,4 @@
+using Sandbox.Engine;
 namespace Sandbox.Clutter;
 
 /// <summary>
@@ -52,7 +53,7 @@ public abstract class Scatterer
 	public override int GetHashCode()
 	{
 		HashCode hash = new();
-		var typeDesc = Game.TypeLibrary.GetType( GetType() );
+		var typeDesc = GlobalContext.Current.TypeLibrary.GetType( GetType() );
 
 		if ( typeDesc == null )
 			return base.GetHashCode();
@@ -168,22 +169,20 @@ public abstract class Scatterer
 
 	private static void BatchTraceGroundInto( Scene scene, IReadOnlyList<Vector3> positions, BBox sceneBounds, SceneTraceResult[] results )
 	{
-		var physicsWorld = scene.PhysicsWorld;
+		// The filter is built once rather than for every trace
+		var trace = scene.PhysicsWorld.Trace.WithoutTags( "player", "trigger", "clutter" );
 
-		// even though this is on the main thread, it's safe to do since nothing will change 
+		// even though this is on the main thread, it's safe to do since nothing will change
 		// the physics world between now and when this completes
-		Parallel.For( 0, positions.Count, i =>
+		var state = (Scene: scene, Trace: trace, Positions: positions, Bounds: sceneBounds, Results: results);
+		JobDispatcher.For( positions.Count, state, static ( s, i ) =>
 		{
-			var position = positions[i];
-			var traceStart = position.WithZ( sceneBounds.Maxs.z );
-			var traceEnd = position.WithZ( sceneBounds.Mins.z );
+			var position = s.Positions[i];
+			var traceStart = position.WithZ( s.Bounds.Maxs.z );
+			var traceEnd = position.WithZ( s.Bounds.Mins.z );
 
-			var physicsResult = physicsWorld.Trace
-				.Ray( traceStart, traceEnd )
-				.WithoutTags( "player", "trigger", "clutter" )
-				.Run();
-
-			results[i] = SceneTraceResult.From( scene, physicsResult );
+			var physicsResult = s.Trace.Ray( traceStart, traceEnd ).Run();
+			s.Results[i] = SceneTraceResult.From( s.Scene, physicsResult );
 		} );
 	}
 

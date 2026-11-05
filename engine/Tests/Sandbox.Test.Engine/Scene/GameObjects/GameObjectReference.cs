@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 
@@ -262,6 +264,26 @@ public class GameObjectReferenceTest : SceneTest
 
 		Assert.IsTrue( compJson.ContainsKey( "Target" ) );
 		Assert.IsNull( compJson["Target"], "the destroyed reference must serialize as JSON null" );
+	}
+
+	/// <summary>
+	/// References to different objects hash apart and match by value in a HashSet.
+	/// </summary>
+	[TestMethod]
+	public void ReferencesHashByIdentity()
+	{
+		var ids = Enumerable.Range( 0, 1000 ).Select( _ => Guid.NewGuid() ).ToArray();
+		var refs = ids.Select( GameObjectReference.FromId ).ToArray();
+
+		Assert.IsTrue( refs.Select( r => r.GetHashCode() ).Distinct().Count() > 990 );
+
+		var set = new HashSet<GameObjectReference>( refs );
+		Assert.AreEqual( ids.Length, set.Count );
+		Assert.IsTrue( set.Contains( GameObjectReference.FromId( ids[500] ) ) );
+		Assert.IsFalse( set.Contains( GameObjectReference.FromId( Guid.NewGuid() ) ) );
+
+		Assert.IsTrue( GameObjectReference.FromId( ids[0] ) == GameObjectReference.FromId( ids[0] ) );
+		Assert.IsTrue( GameObjectReference.FromPrefabPath( "a.prefab" ) != GameObjectReference.FromPrefabPath( "b.prefab" ) );
 	}
 }
 

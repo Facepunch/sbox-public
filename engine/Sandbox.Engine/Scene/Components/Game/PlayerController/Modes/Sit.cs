@@ -29,6 +29,8 @@ public sealed class SitMoveMode : MoveMode, PlayerController.IEvents
 
 		OnUpdateAnimatorVelocity( renderer );
 		chair.UpdatePlayerAnimator( Controller, renderer );
+		if ( renderer.Animation.Graph is not null )
+			OnUpdateAnimationGraph( renderer );
 	}
 
 	/// <summary>

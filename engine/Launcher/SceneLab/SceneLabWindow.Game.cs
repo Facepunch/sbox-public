@@ -14,7 +14,8 @@ internal sealed partial class SceneLabWindow
 	/// <summary>
 	/// Where GameObject scenes' cameras look, and orbit around.
 	/// </summary>
-	static readonly Vector3 GameFocus = new( 0, 0, 30 );
+	// What the orbit turns about: -camera-lookat moves it, so a map preset can face anywhere
+	static readonly Vector3 GameFocus = Args.String( "-camera-lookat" ) is { } at ? Vector3.Parse( at ) : new( 0, 0, 30 );
 
 	Scene game;
 	(float Yaw, float Pitch, float Distance) gameCamera;

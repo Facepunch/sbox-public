@@ -40,21 +40,17 @@ public interface INodeType
 
 	private static Type GetPlugType( IPlug? plug )
 	{
-		var plugType = plug?.Type ?? typeof( object );
-
-		if ( plugType == typeof( object ) )
+		HashSet<INode>? visited = null;
+		while ( plug?.Type == typeof( object ) && plug is IPlugOut { Node: IRerouteNode reroute } )
 		{
-			if ( plug is IPlugOut plugOut && plugOut.Node is IRerouteNode reroute )
-			{
-				var connected = reroute.Inputs.FirstOrDefault()?.ConnectedOutput;
-				if ( connected is not null )
-				{
-					return GetPlugType( connected );
-				}
-			}
+			visited ??= [];
+			if ( !visited.Add( reroute ) )
+				break;
+
+			plug = reroute.Inputs.FirstOrDefault()?.ConnectedOutput;
 		}
 
-		return plugType;
+		return plug?.Type ?? typeof( object );
 	}
 
 	/// <summary>
@@ -103,9 +99,50 @@ public interface INode
 	Action? GoToDefinition => null;
 }
 
+public interface INodeHighlight
+{
+	Color HighlightOutlineColor { get; }
+}
+
 public interface IRerouteNode : INode
 {
 	string? Comment { get; set; }
+
+	public static bool CanConnect<TPlug>(
+		TPlug output, TPlug input,
+		Func<TPlug, IPlug> getPlug,
+		Func<TPlug, TPlug, IEnumerable<TPlug>> getConnectedPlugs,
+		Func<Type, Type, bool> areTypesCompatible )
+	{
+		Type? requiredType = null;
+		var visited = new HashSet<INode>();
+		var pending = new Stack<TPlug>( [input, output] );
+
+		while ( pending.TryPop( out var plug ) )
+		{
+			var inner = getPlug( plug );
+			if ( EqualityComparer<TPlug>.Default.Equals( plug, input ) && visited.Contains( inner.Node ) )
+				return false;
+
+			if ( inner.Node is not IRerouteNode )
+			{
+				var type = inner.Type;
+				requiredType ??= type;
+				if ( !areTypesCompatible( requiredType, type ) )
+					return false;
+
+				continue;
+			}
+
+			if ( !visited.Add( inner.Node ) )
+				continue;
+
+			foreach ( var connected in getConnectedPlugs( plug, input ) )
+				pending.Push( connected );
+		}
+
+		return true;
+	}
 }
 
 public interface IPlug

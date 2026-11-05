@@ -148,6 +148,7 @@ internal static partial class Api
 				request = null;
 
 				runLoads++;
+				LoadProgress.Begin();
 				CurrentLoad = new Load( ident, remote, origin, waited );
 				return CurrentLoad;
 			}
@@ -262,6 +263,7 @@ internal static partial class Api
 				CloseStage();
 				_stage = name;
 				_stageTimer = FastTimer.StartNew();
+				LoadProgress.Stage( name );
 			}
 
 			void CloseStage()
@@ -320,7 +322,10 @@ internal static partial class Api
 				Log.Info( $"game.load {outcome} {Ident} {data["ms"]}ms [{string.Join( ", ", _stages.Select( x => $"{x.Key}={x.Value}" ) )}]" );
 
 				if ( outcome == "success" )
+				{
+					LoadProgress.Complete();
 					LoadCompleted( this, data );
+				}
 				else
 					LoadDiscarded( this );
 			}

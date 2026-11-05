@@ -129,6 +129,56 @@ public class PhysicsJointTest
 	[DataTestMethod]
 	[DataRow( false )]
 	[DataRow( true )]
+	public void TranslationLockedBodiesRetainAngularJointFriction( bool ball )
+	{
+		var world = new PhysicsWorld();
+		try
+		{
+			world.Gravity = Vector3.Down * 850;
+			world.SleepingEnabled = false;
+			var anchor = new PhysicsBody( world ) { BodyType = PhysicsBodyType.Static };
+			var body = new PhysicsBody( world )
+			{
+				BodyType = PhysicsBodyType.Dynamic,
+				Mass = 1,
+				GravityEnabled = true,
+				Locking = new PhysicsLock { X = true, Y = true, Z = true }
+			};
+			body.AddSphereShape( Vector3.Zero, 4 );
+			body.RebuildMass();
+			Action<float> setFriction;
+			if ( ball )
+			{
+				var joint = Sandbox.Physics.PhysicsJoint.CreateBallSocket( anchor, body, Vector3.Zero );
+				setFriction = value => joint.Friction = value;
+			}
+			else
+			{
+				var joint = Sandbox.Physics.PhysicsJoint.CreateHinge( anchor, body, Transform.Zero, Transform.Zero );
+				setFriction = value => joint.Friction = value;
+			}
+
+			setFriction( 0 );
+			body.ApplyImpulse( Vector3.Forward );
+			Assert.IsTrue( body.Velocity.IsNearZeroLength, $"Locked body moved: {body.Velocity}" );
+			body.AngularVelocity = Vector3.Up * 2;
+			world.Step( 1f / 60 );
+			Assert.AreEqual( 2, body.AngularVelocity.z, 0.01f );
+
+			setFriction( 0.25f );
+			for ( var i = 0; i < 60; i++ ) world.Step( 1f / 120 );
+			Assert.IsTrue( body.AngularVelocity.Length < 0.01f,
+				$"Joint friction did not stop the translation-locked body: {body.AngularVelocity}" );
+		}
+		finally
+		{
+			world.Delete();
+		}
+	}
+
+	[DataTestMethod]
+	[DataRow( false )]
+	[DataRow( true )]
 	public void SliderFrictionReplacesSpringAndStopsMotion( bool twoDimensional )
 	{
 		var world = twoDimensional ? new PhysicsWorld( new PhysicsWorld2d() ) : new PhysicsWorld();

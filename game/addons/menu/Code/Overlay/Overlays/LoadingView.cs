@@ -83,6 +83,11 @@ public static class LoadingView
 	/// </summary>
 	public static double? StepFraction => IsMocking ? null : LoadingScreen.StepFraction;
 
+	/// <summary>
+	/// How far the whole load is across its stages, 0 to 1. Null when no game is loading.
+	/// </summary>
+	public static double? LoadFraction => IsMocking ? null : LoadingScreen.LoadFraction;
+
 	public static string FirstTask => IsMocking ? null : LoadingScreen.Tasks.FirstOrDefault()?.Title;
 
 	/// <summary>

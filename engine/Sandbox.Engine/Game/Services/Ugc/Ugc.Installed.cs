@@ -71,6 +71,12 @@ internal static partial class Ugc
 	const double StartGrace = 15.0;
 
 	/// <summary>
+	/// How old an answer Steam can give when checking an installed item is the latest. A load asks twice in a few
+	/// seconds, prefetching then installing, and each fresh query took a third of a second.
+	/// </summary>
+	const int OutdatedCheckAge = 30;
+
+	/// <summary>
 	/// Get what Steam knows about this item, without downloading anything. Null if there's no Steam.
 	/// </summary>
 	internal static ItemInfo GetItem( ulong id )
@@ -342,7 +348,7 @@ internal static partial class Ugc
 	{
 		if ( !item.IsInstalled ) return false;
 
-		var latest = await Workshop.FetchAsync( [item.PublishedFileId], token, 0 );
+		var latest = await Workshop.FetchAsync( [item.PublishedFileId], token, OutdatedCheckAge );
 		return latest.Length > 0 && IsOutdated( item, latest[0] );
 	}
 

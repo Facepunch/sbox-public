@@ -170,10 +170,17 @@ internal static partial class Workshop
 	/// <summary>
 	/// <see cref="DownloadAsync"/>, to the folder it's installed in - telling <paramref name="progress"/> how it's going
 	/// </summary>
-	internal static Task<string> InstallAsync( ulong id, Action<State> progress = null, CancellationToken token = default )
+	internal static async Task<string> InstallAsync( ulong id, Action<State> progress = null, CancellationToken token = default )
 	{
-		return Ugc.InstallAsync( id, progress is null ? null : x => progress( GetState( id, x ) ), token );
+		var folder = await Ugc.InstallAsync( id, progress is null ? null : x => progress( GetState( id, x ) ), token );
+		return folder ?? InstallFallback?.Invoke( id );
 	}
+
+	/// <summary>
+	/// Where an item is installed when Steam couldn't install it - for apps without Steam's workshop, like SceneLab, which
+	/// points it at what the game installed. Null in a game.
+	/// </summary>
+	internal static Func<ulong, string> InstallFallback { get; set; }
 
 	/// <summary>
 	/// How we've voted on this item - true for up, false for down, null if we haven't, or Steam couldn't be asked

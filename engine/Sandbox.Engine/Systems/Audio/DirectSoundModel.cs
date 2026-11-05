@@ -121,6 +121,32 @@ internal sealed class DirectSoundModel : IDisposable
 		ReverbAmount = ReverbAmount,
 	};
 
+	// Below this the direct sound can't be heard (-80 dB).
+	const float Inaudible = 1e-4f;
+	bool _silent;
+
+	/// <summary>
+	/// True while the direct sound is too quiet to hear and its effects already settled on silence last buffer, so this
+	/// one can skip them. Coming back, the direct effect ramps up from that silence.
+	/// </summary>
+	internal bool SkipSilent( in Listener listener, float inputGain, float occlusionMultiplier, in DirectSoundParams p )
+	{
+		var distInUnits = p.Position.Distance( listener.MixTransform.Position );
+		var gain = inputGain * (p.DistanceAttenuation ? p.Falloff.Evaluate( MathX.Clamp( distInUnits / p.Distance, 0f, 1f ) ) : 1f);
+
+		if ( p.OcclusionEnabled )
+		{
+			var mul = occlusionMultiplier.Clamp( 0f, 1f );
+			var tx = p.TransmissionBands;
+			gain *= (1f - mul) + mul * MathF.Max( tx.Low, MathF.Max( tx.Mid, tx.High ) );
+		}
+
+		bool silent = gain < Inaudible;
+		bool skip = silent && _silent;
+		_silent = silent;
+		return skip;
+	}
+
 	public void Apply( in Listener listener, MultiChannelBuffer input, MultiChannelBuffer output,
 		float occlusionMultiplier, float inputGain, in DirectSoundParams p )
 	{

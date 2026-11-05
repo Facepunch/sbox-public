@@ -253,7 +253,7 @@ public class CommentUI : NodeUI
 		{
 			e.Accepted = true;
 
-			Graph?.PushUndo( "Resize Comment" );
+			Graph?.PushLayoutUndo( "Resize Comment" );
 
 			UpdateResize( e );
 			_resizing = false;

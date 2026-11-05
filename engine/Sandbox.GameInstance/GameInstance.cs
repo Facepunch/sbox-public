@@ -259,6 +259,7 @@ internal class GameInstance : IGameInstance
 		};
 
 		activePackage = await PackageManager.InstallAsync( downloadOptions );
+		LoadingScreen.CompleteDownloads();
 
 		if ( activePackage is null )
 		{
@@ -274,6 +275,13 @@ internal class GameInstance : IGameInstance
 		Api.Activity.LoadStage( "assemblies" );
 		await Task.Yield(); // make frame
 		token.ThrowIfCancellationRequested();
+
+		// Access control is most of the cost of loading the assemblies, check them on a worker while the screen draws
+		if ( !IsDeveloperHost )
+		{
+			await PackageLoader.PreVerifyAsync( Package.FullIdent );
+			token.ThrowIfCancellationRequested();
+		}
 
 		try
 		{

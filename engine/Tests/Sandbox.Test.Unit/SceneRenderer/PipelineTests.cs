@@ -56,6 +56,10 @@ public class PipelineTests
 			world.Add( new EffectsTests.TestCustom( new Vector3( 100 + i * 5, -10, 0 ) ) { IsOpaque = i % 2 == 0, CastShadows = i % 4 == 0 } );
 		}
 
+		// Aggregates, culled fragment by fragment
+		for ( int i = 0; i < 4; i++ )
+			world.Add( AggregateTests.TestAggregate() );
+
 		// A 3D skybox, collected and prepared through its own render system
 		var sky = new RenderWorld();
 		for ( int i = 0; i < 200; i++ )
@@ -83,10 +87,99 @@ public class PipelineTests
 			stats = new RenderStats();
 		}, everyThread: true );
 
-		Assert.AreEqual( 5096, stats.ObjectsVisible );
+		Assert.AreEqual( 5100, stats.ObjectsVisible );
 		Assert.AreEqual( 64, system.GetFeature<LightBinnerFeature>().Count );
 		Assert.AreEqual( 16, system.GetFeature<LightBinnerFeature>().DecalCount );
 		Assert.IsTrue( system.SkyboxStats?.ObjectsVisible > 0, "the skybox was prepared" );
+	}
+
+	/// <summary>
+	/// A batched list's draws go out sorted by what they bind, not object by object: two meshes, each with a depth-only draw
+	/// and another, draw both depth-only draws first, so the prepass binds its material once.
+	/// </summary>
+	[TestMethod]
+	public void BatchedDrawsAreSortedAcrossRuns()
+	{
+		RenderMesh.Draw[] draws = [new( 0, 0, 0, 36, 24, 0, null, ShadowFastPath: true ), new( 0, 1, 0, 36, 24, 0, null )];
+
+		// Two meshes, so they don't instance together
+		var world = new RenderWorld();
+		world.Add( new MeshObject( new RenderMesh( UnitBox, [draws] ), new Transform( new Vector3( 20, 0, 0 ) ) ) );
+		world.Add( new MeshObject( new RenderMesh( UnitBox, [draws] ), new Transform( new Vector3( 30, 0, 0 ) ) ) );
+
+		using var system = new RenderSystem();
+		Sandbox.Rendering.ShadowMapper.ResetCache();
+		CollectAndPrepare( system, world, LookingDownX() );
+
+		var lists = system.GetFeature<MeshRenderFeature>().RunsFor( system.MainPass );
+		Assert.AreEqual( 2, lists.Opaque.Count, "a run each" );
+
+		var items = lists.ItemsByBit[0];
+		CollectionAssert.AreEqual( new[] { 0, 0, 1, 1 }, items.Select( x => x.Draw ).ToArray(), "depth-only draws first" );
+		CollectionAssert.AreEquivalent( new[] { 0, 1 }, items.Take( 2 ).Select( x => x.Run ).ToArray(), "one from each run" );
+		Assert.AreEqual( 4, system.RunCount( system.MainPass, new OpaqueLayer() ), "the layer records draws" );
+	}
+
+	/// <summary>
+	/// A big view culls and classifies across threads, in chunks merged back in order: what it draws, and in what order,
+	/// is the same as doing it all on one thread.
+	/// </summary>
+	[TestMethod]
+	public void ParallelCullAndPrepareMatchSerial()
+	{
+		RenderMesh[] meshes = [TestMesh( false ), TestMesh( true ), TestMesh( false, true ), TestSkinnedMesh( 4 )];
+		var world = new RenderWorld();
+		for ( int i = 0; i < 20_000; i++ )
+		{
+			world.Add( new MeshObject( meshes[i % 4], new Transform( new Vector3( 100 + i % 200, (i / 200) - 50, i % 13 ) ) )
+			{
+				Tint = i % 7 == 0 ? Color.White.WithAlpha( 0.5f ) : Color.White,
+				RenderOrder = i % 3,
+			} );
+		}
+
+		for ( int i = 0; i < 16; i++ )
+			world.Add( new EffectsTests.TestCustom( new Vector3( 100 + i * 5, -10, 0 ) ) { IsOpaque = i % 2 == 0 } );
+
+		var view = LookingDownX();
+
+		(List<int>[] Visible, List<MeshRenderFeature.Run>[] Runs) Frame( bool parallel )
+		{
+			using var system = new RenderSystem { ParallelRecording = parallel };
+			var stats = new RenderStats();
+			system.Collect( world, view, ref stats );
+			system.Prepare( world, view );
+
+			var pass = system.MainPass;
+			var meshFeature = system.GetFeature<MeshRenderFeature>();
+			var visible = pass.VisibleByFeature.Select( x => x.ToList() ).ToArray();
+			var runs = pass.State<MeshRenderFeature.RunLists>( meshFeature ).ByBit.Select( x => x.ToList() ).ToArray();
+			return (visible, runs);
+		}
+
+		// Split however small the view, so this one is
+		var cullThreshold = RenderSystem.MinParallelCullCandidates;
+		var classifyThreshold = MeshRenderFeature.MinParallelClassify;
+		RenderSystem.MinParallelCullCandidates = 0;
+		MeshRenderFeature.MinParallelClassify = 0;
+		(List<int>[] Visible, List<MeshRenderFeature.Run>[] Runs) serial, parallel;
+		try
+		{
+			serial = Frame( false );
+			parallel = Frame( true );
+		}
+		finally
+		{
+			RenderSystem.MinParallelCullCandidates = cullThreshold;
+			MeshRenderFeature.MinParallelClassify = classifyThreshold;
+		}
+
+		Assert.IsTrue( serial.Visible.Sum( x => x.Count ) > 10_000, "most of it is in view" );
+		for ( int f = 0; f < serial.Visible.Length; f++ )
+			CollectionAssert.AreEqual( serial.Visible[f], parallel.Visible[f], $"feature {f}'s visible objects" );
+
+		for ( int bit = 0; bit < serial.Runs.Length; bit++ )
+			CollectionAssert.AreEqual( serial.Runs[bit], parallel.Runs[bit], $"list {bit}'s runs" );
 	}
 
 	/// <summary>

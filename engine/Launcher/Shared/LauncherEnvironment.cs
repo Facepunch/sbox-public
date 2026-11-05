@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
@@ -110,6 +110,14 @@ public static class LauncherEnvironment
 
 		// dlls with resources inside appear as a different name
 		name = name.Replace( ".resources.dll", ".dll" );
+
+		// Assembly names can come from untrusted code archives, never load from outside the managed folder
+		if ( string.IsNullOrEmpty( ManagedDllPath ) )
+			return null;
+
+		name = System.IO.Path.GetFullPath( name );
+		if ( !name.StartsWith( System.IO.Path.TrimEndingDirectorySeparator( System.IO.Path.GetFullPath( ManagedDllPath ) ) + System.IO.Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase ) )
+			return null;
 
 		if ( System.IO.File.Exists( name ) )
 		{

@@ -34,7 +34,7 @@ public static partial class Json
 	/// </summary>
 	internal static void Initialize()
 	{
-		var typeLibrary = Game.TypeLibrary;
+		var typeLibrary = GlobalContext.Current.TypeLibrary;
 
 		GlobalContext.Current.JsonSerializerOptions = new JsonSerializerOptions( JsonSerializerOptions.Default );
 		options.WriteIndented = true;

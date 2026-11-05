@@ -55,7 +55,7 @@ internal static class SteamCallbacks
 	{
 		using var scope = GlobalContext.MenuScope();
 		Api.Activity.GameRequested( new( "invite" ) );
-		ConsoleSystem.Run( "connect", connectStr.Split( ' ' ).Last() );
+		MenuUtility.RunCommand( "connect", connectStr.Split( ' ' ).Last() );
 	}
 
 	private static void SteamFriends_OnGameLobbyJoinRequested( Sandbox.SteamId steamId )
@@ -101,7 +101,7 @@ internal static class SteamCallbacks
 
 		PartyRoom.Current?.Leave();
 		Api.Activity.GameRequested( new( "invite" ) );
-		ConsoleSystem.Run( "connect", steamId.Value );
+		MenuUtility.RunCommand( "connect", steamId.Value );
 	}
 
 	private static void SteamFriends_OnPersonaStateChange( Steamworks.Friend obj )

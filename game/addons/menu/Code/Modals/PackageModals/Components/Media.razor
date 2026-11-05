@@ -43,7 +43,7 @@
                doesn't start a browser just by opening *@
             if ( IsYouTube( selectedShot ) && _playRequested )
             {
-                <WebPanel @ref="YouTubePanel" class="youtube" />
+                <MenuWebPanel @ref="YouTubePanel" class="youtube" />
 
                 @* The controls are ours - YouTube's are off, and the page gets no clicks. A click on the picture plays or pauses it *@
                 <div class="yt-surface" onclick=@( () => Player?.TogglePlaying() )></div>

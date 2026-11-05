@@ -38,6 +38,45 @@ public class GameObjectSystemCoverageTest
 		}
 	}
 
+	[TestMethod]
+	public void PreviewScenesOnlyRunEngineSystems()
+	{
+		WithTestSystems( scene =>
+		{
+			var library = Game.TypeLibrary;
+			var gameSystem = scene.GetSystem<StageRecorderSystem>();
+			Assert.IsNotNull( gameSystem );
+			var preview = Editor.EditorUtility.CreatePreviewScene();
+			try
+			{
+				Assert.AreSame( library, Game.TypeLibrary );
+				Assert.IsNull( preview.GetSystem<StageRecorderSystem>() );
+				var animation = preview.GetSystem<SceneAnimationSystem>();
+				Assert.IsNotNull( animation );
+
+				preview.PhysicsWorld.Gravity = new Vector3( 0, 0, -100 );
+				var go = preview.CreateObject();
+				go.Components.Create<SphereCollider>();
+				var body = go.Components.Create<Rigidbody>();
+				var frame = animation.BoneFrame;
+
+				preview.GameTick( 1.0 / 30 );
+
+				Assert.IsTrue( animation.BoneFrame > frame );
+				Assert.IsTrue( body.PhysicsBody.Velocity.z < 0 );
+
+				preview.ReloadSystems();
+				Assert.IsNull( preview.GetSystem<StageRecorderSystem>() );
+				Assert.IsNotNull( preview.GetSystem<SceneAnimationSystem>() );
+				Assert.AreSame( gameSystem, scene.GetSystem<StageRecorderSystem>() );
+			}
+			finally
+			{
+				preview.Destroy();
+			}
+		} );
+	}
+
 	/// <summary>
 	/// One GameTick signals the stages in the documented order: the fixed update
 	/// block (StartFixedUpdate, PhysicsStep, FinishFixedUpdate) runs first, then the

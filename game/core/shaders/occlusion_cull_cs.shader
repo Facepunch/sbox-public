@@ -48,9 +48,9 @@ CS
 	#define PHASE_LATE 2 // late prepass
 	#define PHASE_FINAL 4 // forward pass
 
-	// Aggregate fragment runs, native only. Each instance is a fragment: Id is its index in the run, its args are at
-	// FirstArg + Id. RUN_COMPACT args are laid out as [ survivors ][ fragments ][ count ], so the fragments start at
-	// FirstArg + DrawCount and the survivor count is the IndexCount at FirstArg + 2 * DrawCount.
+	// Aggregate fragment runs. Each instance is a fragment: Id is its index in the run, its args are at FirstArg + Id
+	// in its phase's args. RUN_COMPACT args are laid out as [ survivors ][ fragments ][ count ], so the fragments start
+	// at FirstArg + DrawCount and the survivor count is the IndexCount at FirstArg + 2 * DrawCount.
 	#define RUN_FRAGMENTS 8
 	#define RUN_COMPACT 16
 
@@ -240,27 +240,28 @@ CS
 		return run.FirstArg + index + ( ( run.Phases & RUN_COMPACT ) ? run.DrawCount : 0 );
 	}
 
-	// Draws the fragment once: in place, or appended to the survivors and counted
-	void EmitFragment( CullRun run, uint index )
+	// Draws the fragment once in the phase's args: in place, or appended to the survivors and counted
+	void EmitFragment( CullRun run, uint phase, uint index )
 	{
+		uint phaseArgs = phase * (uint)OcclusionPhaseStride.x;
 		if ( ( run.Phases & RUN_COMPACT ) == 0 )
 		{
-			OcclusionArgs[run.FirstArg + index].InstanceCount = 1;
+			OcclusionArgs[phaseArgs + run.FirstArg + index].InstanceCount = 1;
 			return;
 		}
 
 		uint slot;
-		InterlockedAdd( OcclusionArgs[run.FirstArg + 2 * run.DrawCount].IndexCount, 1, slot ); // the survivor count
+		InterlockedAdd( OcclusionArgs[phaseArgs + run.FirstArg + 2 * run.DrawCount].IndexCount, 1, slot ); // the survivor count
 
-		DrawArgs args = OcclusionArgs[FragmentArg( run, index )];
+		DrawArgs args = OcclusionArgs[phaseArgs + FragmentArg( run, index )];
 		args.InstanceCount = 1;
-		OcclusionArgs[run.FirstArg + slot] = args;
+		OcclusionArgs[phaseArgs + run.FirstArg + slot] = args;
 	}
 
 	void Emit( CullRun run, uint phase, CullInstance inst )
 	{
 		if ( run.Phases & RUN_FRAGMENTS )
-			EmitFragment( run, inst.Id );
+			EmitFragment( run, phase, inst.Id );
 		else
 			EmitInstance( run, phase, inst.Id );
 	}

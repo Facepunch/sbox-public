@@ -310,6 +310,9 @@ internal sealed partial class PackageLoader : IDisposable
 		//
 		else
 		{
+			// The check started when it downloaded may still be running: let it finish, then this finds the bytes passed.
+			ap.Verification?.Wait();
+
 			if ( !TestAccessControl( dll_stream, out trustedDll ) )
 			{
 				trustedDll?.Dispose();
@@ -428,11 +431,11 @@ internal sealed partial class PackageLoader : IDisposable
 
 		try
 		{
-			using var gr = new HeavyGarbageRegion();
 			LoadAllAssembliesFromPackage( ap );
 
 			// Make sure we load the loose content as well
 			FileSystem.Mounted.Mount( ap.FileSystem );
+			System.Threading.Interlocked.Increment( ref PackageManager.MountGeneration );
 		}
 		catch
 		{

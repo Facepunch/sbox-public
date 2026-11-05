@@ -403,6 +403,15 @@ public static partial class EditorUtility
 		return new SceneWorld() { IsTransient = false };
 	}
 
+	/// <summary>
+	/// Creates an isolated scene for editor previews, with runtime animation and physics
+	/// but without game-defined systems or the project's system scene.
+	/// </summary>
+	public static Scene CreatePreviewScene()
+	{
+		return new Scene( isEditor: false, includeGameSystems: false ) { WantsSystemScene = false };
+	}
+
 	static SoundHandle lastSound;
 
 	/// <summary>
@@ -781,6 +790,21 @@ public static partial class EditorUtility
 		kv.DeleteThis();
 
 		return json;
+	}
+
+	/// <summary>
+	/// Write json back out as kv3, so an asset we read with <see cref="KeyValues3ToJson"/> stays
+	/// in the format the rest of the tools expect.
+	/// </summary>
+	public static bool JsonToKeyValues3File( string filePath, string json )
+	{
+		var kv = EngineGlue.JsonToKeyValues3( json );
+		if ( kv.IsNull ) return false;
+
+		var saved = kv.SaveToFile( filePath );
+		kv.DeleteThis();
+
+		return saved;
 	}
 
 	/// <summary>

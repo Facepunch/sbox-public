@@ -1,4 +1,5 @@
-﻿using Sandbox.Internal;
+﻿using Sandbox.Engine;
+using Sandbox.Internal;
 
 namespace Sandbox.MovieMaker;
 
@@ -92,7 +93,7 @@ partial class TrackBinder
 		}
 		else if ( target.Parent is not null && parentGo is not null )
 		{
-			var typeDesc = GlobalGameNamespace.TypeLibrary.GetType( target.TargetType );
+			var typeDesc = GlobalContext.Current.TypeLibrary.GetType( target.TargetType );
 			if ( typeDesc is null ) return;
 
 			var cmp = parentGo.Components.Create( typeDesc );

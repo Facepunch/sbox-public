@@ -109,14 +109,15 @@ public partial class Particle : IDynamicFloatContext
 
 	private Dictionary<string, object> _data;
 
+	[System.Obsolete( "Particles are pooled per scene" )]
 	public static Queue<Particle> Pool = new( 512 );
 
-	public static Particle Create()
+	public static Particle Create() => Create( null );
+
+	internal static Particle Create( Queue<Particle> pool )
 	{
-		if ( !Pool.TryDequeue( out Particle p ) )
-		{
+		if ( pool is null || !pool.TryDequeue( out var p ) )
 			p = new Particle();
-		}
 
 		p.RandomSeed = Random.Shared.Int( 0, 10000 );
 		p.BornTime = Time.Now;

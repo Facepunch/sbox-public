@@ -529,6 +529,7 @@ public sealed partial class TrackView : IComparable<TrackView>
 
 			// TODO: Hack for anim graph parameters including periods
 
+#pragma warning disable CS0618
 			if ( parent.Track.TargetType != typeof( SkinnedModelRenderer.ParameterAccessor ) && propertyPath.IndexOf( '.' ) is var index and > -1 )
 			{
 				propertyName = propertyPath[..index];
@@ -538,6 +539,7 @@ public sealed partial class TrackView : IComparable<TrackView>
 			{
 				propertyPath = string.Empty;
 			}
+#pragma warning restore CS0618
 
 			parent = parent.Children.FirstOrDefault( x => x.Track.Name == propertyName );
 		}

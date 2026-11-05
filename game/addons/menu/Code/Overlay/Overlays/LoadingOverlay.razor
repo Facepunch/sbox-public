@@ -83,19 +83,20 @@
 					}
 					else
 					{
-						<label class="percent">@(ShowBar ? $"{BatchFraction * 100:0}%" : Stepping ? $"{Step * 100:0}%" : "")</label>
+						<label class="percent">@(ShowBar ? $"{BatchFraction * 100:0}%" : Stepping ? $"{Step * 100:0}%" : Loading ? $"{Load * 100:0}%" : "")</label>
 					}
 				</div>
 
 				@* One bar for everything coming down - a segment each, sized by what it's fetching, each
 				   filling as its own download goes. Always there: empty with nothing coming down. A shine
 				   sweeping along and a pulse through what's filling, so it always looks hard at work *@
-				<div class="track @(ShowBar || Stepping ? "busy" : "idle")">
-					@if ( Stepping )
+				<div class="track @(ShowBar || Stepping || Loading ? "busy" : "idle")">
+					@if ( Stepping || Loading )
 					{
-						@* A step that isn't a download, like updating shaders - one segment, the whole bar *@
+						@* A step that isn't a download, like updating shaders, or the load as a whole once the downloads
+						   are done - one segment, the whole bar *@
 						<div class="segment" style="flex-grow: 100;">
-							<div class="fill" style="width: @Num( Step.Value * 100 )%;">
+							<div class="fill" style="width: @Num( (Stepping ? Step.Value : Load.Value) * 100 )%;">
 								<div class="pulse"></div>
 								<div class="shine"></div>
 							</div>
@@ -208,6 +209,14 @@
     /// The bar's showing the step - when there isn't a download to show.
     /// </summary>
     bool Stepping => !ShowBar && Step is not null;
+
+    //
+    // The load as a whole, across its stages - what the bar shows when nothing else has anything to say
+    //
+
+    static double? Load => LoadingView.LoadFraction;
+
+    bool Loading => !ShowBar && !Stepping && Load is not null;
 
     /// <summary>
     /// When the step got going - timed afresh when one starts, or when the fraction goes back down
@@ -581,12 +590,24 @@
     }
 
     int _hash;
+    int _builtLoad = -1;
 
     protected override int BuildHash()
     {
         // Put away - it fades out still showing what it was, rather than emptying out under the fade
         // (the art fading on its own, the game and bar gone) as the load's cleared
-        if ( !LoadingView.IsVisible ) return _hash;
+        if ( !LoadingView.IsVisible )
+        {
+            // A load that made it fills its bar on the way out, rather than fading at wherever the last frame drawn had it -
+            // the scene stage is mostly one long frame, then the screen goes the moment it's done
+            if ( _builtLoad is >= 0 and < 1000 && Load is >= 1 )
+            {
+                _builtLoad = 1000;
+                return _hash = HashCode.Combine( _hash, _builtLoad );
+            }
+
+            return _hash;
+        }
 
         // Settle whether the batch has just finished before anything's drawn from it
         TickCompletion();
@@ -597,8 +618,9 @@
 
         // The step by tenths of a percent - enough to move the bar, not a rebuild every combo
         var step = Step is { } fraction ? (int)(fraction * 1000) : -1;
+        var load = _builtLoad = Load is { } loaded ? (int)(loaded * 1000) : -1;
 
-        return _hash = HashCode.Combine( StatusText, HeadDetail, Background, Package?.FullIdent, batch, Batch.Count, HashCode.Combine( LoadingView.TaskCount, Completing, Eta, step ) );
+        return _hash = HashCode.Combine( StatusText, HeadDetail, Background, Package?.FullIdent, batch, Batch.Count, HashCode.Combine( LoadingView.TaskCount, Completing, Eta, step, load ) );
     }
 
     public override void Tick()

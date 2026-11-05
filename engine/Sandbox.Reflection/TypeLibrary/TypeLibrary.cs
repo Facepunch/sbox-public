@@ -246,7 +246,12 @@ public partial class TypeLibrary
 
 		// If we're a nested type, defer to the class we're declared in
 		if ( t.DeclaringType != null )
+		{
+			if ( System.Attribute.IsDefined( t, typeof( System.Runtime.CompilerServices.CompilerGeneratedAttribute ) ) )
+				return false;
+
 			return ShouldExposeType( t.DeclaringType );
+		}
 
 		return false;
 	}

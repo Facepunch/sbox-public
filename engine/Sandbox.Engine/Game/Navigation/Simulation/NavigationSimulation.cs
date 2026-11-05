@@ -21,17 +21,11 @@ internal sealed class NavigationSimulation
 	internal long Revision;
 	private long update;
 	private float stepDelta;
-	private readonly Action<int> stepWorker;
-	private readonly Action<int> separationWorker;
-	private readonly Action<int> constrainWorker;
 	internal int Count { get { lock ( Gate ) return agents.Count; } }
 
 	internal NavigationSimulation( NavMeshGraph mesh, object gate, float radius, float height )
 	{
 		this.mesh = mesh;
-		stepWorker = index => Step( index, stepDelta );
-		separationWorker = index => agents[index].HadOverlap = ResolveOverlap( index );
-		constrainWorker = index => ConstrainPosition( agents[index] );
 		planningQuery = new MeshQuery( mesh );
 		Gate = gate;
 		PlacementExtents = new Vector3( radius * 2.1f, height * 1.51f, radius * 2.1f );
@@ -87,7 +81,7 @@ internal sealed class NavigationSimulation
 				}
 				else
 				{
-					Parallel.For( 0, agents.Count, stepWorker );
+					JobDispatcher.For( agents.Count, this, static ( sim, i ) => sim.Step( i, sim.stepDelta ) );
 				}
 				if ( agents.Count > 1 ) ResolveOverlaps();
 			}
@@ -315,7 +309,7 @@ internal sealed class NavigationSimulation
 			}
 			else
 			{
-				Parallel.For( 0, agents.Count, separationWorker );
+				JobDispatcher.For( agents.Count, this, static ( sim, i ) => sim.agents[i].HadOverlap = sim.ResolveOverlap( i ) );
 				foreach ( var agent in agents ) overlap |= agent.HadOverlap;
 			}
 			if ( !overlap ) break;
@@ -325,7 +319,7 @@ internal sealed class NavigationSimulation
 		{
 			foreach ( var agent in agents ) ConstrainPosition( agent );
 		}
-		else Parallel.For( 0, agents.Count, constrainWorker );
+		else JobDispatcher.For( agents.Count, this, static ( sim, i ) => sim.ConstrainPosition( sim.agents[i] ) );
 	}
 
 	private void ConstrainPosition( SimulationAgent agent )

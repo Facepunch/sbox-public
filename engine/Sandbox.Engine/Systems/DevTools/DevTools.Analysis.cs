@@ -1,5 +1,6 @@
 using Sandbox.Engine;
 using Sandbox.Engine.Settings;
+using Sandbox.Rendering;
 
 namespace Sandbox.Diagnostics;
 
@@ -159,13 +160,22 @@ internal static partial class DevTools
 				if ( worst is null || issue.Severity > worst ) worst = issue.Severity;
 			}
 
-			if ( !MeetingTarget && Frames > 0 && (tab == "cpu" && Limiter == Limiter.Cpu || tab == "gpu" && Limiter == Limiter.Gpu) )
+			if ( !MeetingTarget && Frames > 0 && (tab == "cpu" && Limiter == Limiter.Cpu || tab == "rendering" && Limiter == Limiter.Gpu) )
 				worst = worst is { } w && w > Rating ? w : Rating;
 
 			return worst;
 		}
 
 		public int CountIssues( Severity severity ) => Issues.Count( x => x.Severity == severity );
+
+		/// <summary>
+		/// About what a frame would take without the dev tools: its main thread time taken out, but no shorter than the
+		/// GPU's frame - which the dev tools barely adds to. Capped or on vsync, the frame waits anyway and the dev tools only
+		/// eats into the wait, so the frame's the same.
+		/// </summary>
+		public float FrameWithoutSelf => Limiter is Limiter.Capped or Limiter.VSync ? FrameAvg : MathF.Max( FrameAvg - SelfAvg, GpuAvg );
+
+		public float FpsWithoutSelf => FrameWithoutSelf > 0 ? 1000f / FrameWithoutSelf : 0;
 	}
 
 	/// <summary>
@@ -201,7 +211,9 @@ internal static partial class DevTools
 	internal static FrameHistory ShownFrames => _frozenFrames ?? Frames;
 
 	const float AnalysisWindowMs = 2000f;
-	const float AnalysisInterval = 0.25f;
+	// Twice a second: what tool readouts settle on (frame counters and profilers update once or twice a second). Faster,
+	// the numbers churn as single frames enter and leave the window, without saying anything new
+	const float AnalysisInterval = 0.5f;
 	static RealTimeSince _sinceAnalysis = AnalysisInterval;
 	static readonly float[] _sorted = new float[FrameHistory.Capacity];
 	static long _prevLoopFrames, _prevRenderedFrames;
@@ -218,12 +230,14 @@ internal static partial class DevTools
 		if ( Paused )
 			return;
 
+		SampleGpuTimeline( force );
+
 		if ( !force && _sinceAnalysis < AnalysisInterval )
 			return;
 
 		_sinceAnalysis = 0;
 		Current = Summarise();
-		UpdateGpuTimeline();
+		GpuTimeline = BuildGpuLayout();
 	}
 
 	/// <summary>
@@ -241,22 +255,56 @@ internal static partial class DevTools
 	}
 
 	/// <summary>
-	/// Every named main thread scope with time in it, not just the categories, biggest first. Scopes nest, so they overlap.
+	/// A named scope's time: in one frame, or its average and max over the analysis window, and how often it ran.
 	/// </summary>
-	internal static void GetScopes( List<Cost> into )
+	internal readonly record struct ScopeCost( PerformanceStats.Timings Timing, float AvgMs, float MaxMs, float Calls )
+	{
+		public string Name => Timing.Name;
+	}
+
+	/// <summary>
+	/// Every named scope with time in it, not just the categories, biggest first: in the frame <paramref name="age"/>
+	/// frames back in <see cref="ShownFrames"/>, or averaged over the same frames as the rest of the analysis. Scopes nest,
+	/// so they overlap.
+	/// </summary>
+	internal static void GetScopes( List<ScopeCost> into, int age = -1 )
 	{
 		into.Clear();
-		foreach ( var (_, timing) in PerformanceStats.Timings.All )
+		var frames = ShownFrames;
+		var n = age >= 0 ? 1 : frames.FramesCovering( AnalysisWindowMs );
+		var from = age >= 0 ? age : 0;
+		if ( n == 0 || from + n > frames.Count ) return;
+
+		for ( int i = 0; i < frames.ScopeCount; i++ )
 		{
+			var timing = frames.Scope( i );
 			if ( timing == PerformanceStats.Timings.Idle ) continue;
 
-			var m = timing.GetMetric( 120 );
-			if ( m.Avg < 0.01f ) continue;
+			float sum = 0, max = 0, calls = 0;
+			for ( int a = from; a < from + n; a++ )
+			{
+				var ms = frames.ScopeMs( a, i );
+				sum += ms;
+				max = MathF.Max( max, ms );
+				calls += frames.ScopeCalls( a, i );
+			}
 
-			into.Add( new Cost( timing.Name, timing.Color, m.Avg, m.Max ) );
+			if ( sum / n < 0.01f ) continue;
+			into.Add( new ScopeCost( timing, sum / n, max, calls / n ) );
 		}
 
 		into.Sort( static ( a, b ) => b.AvgMs.CompareTo( a.AvgMs ) );
+	}
+
+	/// <summary>
+	/// <see cref="GetScopes(List{ScopeCost}, int)"/> as costs, averaged over the analysis window, for the MCP tools.
+	/// </summary>
+	internal static void GetScopes( List<Cost> into )
+	{
+		var scopes = new List<ScopeCost>();
+		GetScopes( scopes );
+		into.Clear();
+		into.AddRange( scopes.Select( x => new Cost( x.Name, x.Timing.Color, x.AvgMs, x.MaxMs, $"{x.Name}: {x.AvgMs:0.00} ms avg, {x.MaxMs:0.00} ms max, {x.Calls:0.#} calls a frame" ) ) );
 	}
 
 	/// <summary>
@@ -536,17 +584,7 @@ internal static partial class DevTools
 			}
 		}
 
-		var stats = FrameStats.Current;
-		if ( stats.TexturePoolLimitBytes > 0 && stats.TexturePoolUsedBytes > stats.TexturePoolLimitBytes * 0.95 )
-		{
-			issues.Add( new Issue( Severity.Warning, "Texture pool full",
-				$"{DevToolsFormat.BytesOf( stats.TexturePoolUsedBytes, stats.TexturePoolLimitBytes )}, streaming will drop mips", "rendering" ) );
-		}
-
-		if ( stats.PendingStreamingRequests > 32 )
-		{
-			issues.Add( new Issue( Severity.Info, "Streaming backlog", $"{stats.PendingStreamingRequests} pending", "rendering" ) );
-		}
+		FindRenderingIssues( FrameStats.Current, issues );
 
 		if ( s.NotRendered > 0.05f )
 		{
@@ -569,6 +607,60 @@ internal static partial class DevTools
 		}
 
 		issues.Sort( static ( a, b ) => b.Severity.CompareTo( a.Severity ) );
+	}
+
+	// Where a rendering number starts to be worth a look. Rules of thumb carried over from the old frame stats overlay.
+	const double DrawCallsWarn = 3000, DrawCallsBad = 5000;
+	const double MatChangesPerDrawWarn = 0.5;
+	const double TrisPerDrawWarn = 1000;
+	const double TexturePoolWarn = 0.85, TexturePoolBad = 0.95;
+	const int StreamingWarn = 32;
+
+	/// <summary>
+	/// Batching ratios only mean something once there are enough draws for them to add up.
+	/// </summary>
+	const double BatchingMattersAbove = 300;
+
+	/// <summary>
+	/// What's out of line in last frame's rendering numbers, added to <paramref name="into"/>.
+	/// </summary>
+	internal static void FindRenderingIssues( FrameStats f, List<Issue> into )
+	{
+		static double Ratio( double a, double b ) => b > 0 ? a / b : 0;
+
+		var isManaged = f.Managed.Renders > 0;
+		var drawCalls = isManaged ? f.Managed.TotalDraws : f.DrawCalls;
+		var trisPerDraw = Ratio( isManaged ? f.Managed.Triangles : f.TrianglesRendered, drawCalls );
+		var batchingMatters = drawCalls > BatchingMattersAbove;
+
+		if ( drawCalls >= DrawCallsWarn )
+			into.Add( new( drawCalls >= DrawCallsBad ? Severity.Bad : Severity.Warning, "Draw calls",
+				$"{drawCalls:N0}, over {DrawCallsWarn:N0}. Merge meshes, instance repeats, use LODs", "rendering" ) );
+
+		if ( batchingMatters && trisPerDraw < TrisPerDrawWarn )
+			into.Add( new( Severity.Warning, "Small draws", $"{trisPerDraw:N0} triangles per draw, under {TrisPerDrawWarn:N0}", "rendering" ) );
+
+		if ( !isManaged )
+		{
+			var matPerDraw = Ratio( f.MaterialChanges + f.ShadowMaterialChanges, f.DrawCalls );
+			if ( batchingMatters && matPerDraw > MatChangesPerDrawWarn )
+				into.Add( new( Severity.Info, "Material changes", $"{matPerDraw:0.00} per draw, over {MatChangesPerDrawWarn}. Share materials so draws batch", "rendering" ) );
+		}
+
+		var pool = Ratio( f.TexturePoolUsedBytes, f.TexturePoolLimitBytes );
+		if ( pool >= TexturePoolWarn )
+			into.Add( new( pool >= TexturePoolBad ? Severity.Bad : Severity.Warning, "Texture pool",
+				$"{pool * 100:0}% used, {DevToolsFormat.BytesOf( f.TexturePoolUsedBytes, f.TexturePoolLimitBytes )}, streaming drops mips when it's full", "memory" ) );
+
+		if ( f.PendingStreamingRequests > StreamingWarn )
+			into.Add( new( Severity.Info, "Streaming backlog", $"{f.PendingStreamingRequests:N0} pending", "memory" ) );
+
+		// Debug settings that change what renders, easy to forget about
+		if ( OcclusionDebug.Freeze )
+			into.Add( new( Severity.Warning, "Occlusion frozen", "r_occlusion_freeze is on, culling ignores the camera", null ) );
+
+		if ( OcclusionDebug.EarlyCull != OcclusionEarlyCull.On )
+			into.Add( new( Severity.Info, "Early occlusion cull", $"r_occlusion_early is {OcclusionDebug.EarlyMode}", null ) );
 	}
 }
 

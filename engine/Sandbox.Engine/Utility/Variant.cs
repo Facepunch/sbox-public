@@ -1,3 +1,4 @@
+using Sandbox.Engine;
 using System.Text.Json;
 
 namespace Sandbox;
@@ -116,7 +117,7 @@ public struct Variant : IJsonConvert, IEquatable<Variant>
 			if ( reader.TokenType == JsonTokenType.PropertyName && reader.GetString() == "t" )
 			{
 				reader.Read();
-				var typeDesc = Game.TypeLibrary.GetType( reader.GetString(), true );
+				var typeDesc = GlobalContext.Current.TypeLibrary.GetType( reader.GetString(), true );
 
 				if ( typeDesc is null )
 				{

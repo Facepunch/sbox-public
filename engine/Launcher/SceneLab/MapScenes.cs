@@ -15,6 +15,10 @@ internal static class MapScenes
 		var scene = new Scene();
 		using var _ = scene.Push();
 
+		// -camera-pos x,y,z and -camera-lookat x,y,z move any map preset's camera
+		if ( Args.String( "-camera-pos" ) is { } pos ) cameraPosition = Vector3.Parse( pos );
+		if ( Args.String( "-camera-lookat" ) is { } at ) lookAt = Vector3.Parse( at );
+
 		var cameraObject = new GameObject( true, "Camera" );
 		cameraObject.WorldPosition = cameraPosition;
 		cameraObject.WorldRotation = Rotation.LookAt( lookAt - cameraPosition );
@@ -59,6 +63,12 @@ internal static class MapScenes
 	public static Scene ConstructSkyline() => Map( "facepunch.construct", new Vector3( 864, -608, 67 ), new Vector3( -136, -608, 67 ) );
 
 	/// <summary>
+	/// facepunch.construct from high over its north-east corner, looking across the whole map: its most expensive view to
+	/// draw found so far (2026-10-28: ~665 depth prepass draws, 4.8 ms a frame natively).
+	/// </summary>
+	public static Scene ConstructOverview() => Map( "facepunch.construct", new Vector3( 3000, 2500, 1200 ), new Vector3( 0, 0, 30 ) );
+
+	/// <summary>
 	/// The skyline through volumetric fog: a fog volume between the camera and the 3D skybox, which the skybox is fogged by too -
 	/// native copies the main view's fog to its skybox view, taking its positions into the main world (<c>Add3DSkyboxLayers</c>).
 	/// </summary>
@@ -99,10 +109,38 @@ internal static class MapScenes
 	{
 		if ( ServerPackages.Current is not null ) return;
 
+		// A panel app has no Steam workshop, so maps published there (Construct) come from what a game installed
+		Workshop.InstallFallback = InstalledWorkshopItem;
+
 		if ( EngineFileSystem.DownloadedFiles is null ) EngineFileSystem.InitializeDownloadsFolder();
 		EngineFileSystem.DownloadedFiles.CreateDirectory( "/assets" );
 		AssetDownloadCache.Initialize( EngineFileSystem.DownloadedFiles.GetFullPath( "/assets" ) );
 		_ = new ServerPackages();
+	}
+
+	/// <summary>
+	/// An s&box workshop item a game installed, in any of Steam's libraries, or null.
+	/// </summary>
+	static string InstalledWorkshopItem( ulong id )
+	{
+		var steam = (OperatingSystem.IsWindows() ? Microsoft.Win32.Registry.GetValue( @"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null ) as string : null)
+			?? @"C:\Program Files (x86)\Steam";
+
+		var libraries = new List<string> { steam };
+		var vdf = System.IO.Path.Combine( steam, "steamapps", "libraryfolders.vdf" );
+		if ( System.IO.File.Exists( vdf ) )
+		{
+			foreach ( System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches( System.IO.File.ReadAllText( vdf ), @"""path""\s+""([^""]+)""" ) )
+				libraries.Add( m.Groups[1].Value.Replace( @"\\", @"\" ) );
+		}
+
+		foreach ( var library in libraries )
+		{
+			var folder = System.IO.Path.Combine( library, "steamapps", "workshop", "content", "590830", id.ToString() );
+			if ( System.IO.Directory.Exists( folder ) ) return folder;
+		}
+
+		return null;
 	}
 
 	/// <summary>

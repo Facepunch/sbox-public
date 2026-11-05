@@ -219,9 +219,9 @@ internal partial class AssemblyAccess
 			Touch( $"System.Private.CoreLib/System.Runtime.InteropServices.ComImportAttribute", "attribute" );
 		}
 
-		if ( type.FullName == IgnoresAccessChecksTo )
+		if ( RuntimeHonouredTypes.Contains( type.FullName ) )
 		{
-			Touch( $"System.Private.CoreLib/{IgnoresAccessChecksTo}", "attribute" );
+			Touch( $"System.Private.CoreLib/{type.FullName}", "attribute" );
 		}
 
 		TestAttributes( type.CustomAttributes );
@@ -242,6 +242,11 @@ internal partial class AssemblyAccess
 		foreach ( var member in type.Properties )
 		{
 			TestProperty( member );
+			TestAttributes( member.CustomAttributes );
+		}
+
+		foreach ( var member in type.Events )
+		{
 			TestAttributes( member.CustomAttributes );
 		}
 
@@ -331,9 +336,6 @@ internal partial class AssemblyAccess
 
 	private void TestField( FieldDefinition member )
 	{
-		if ( member.ContainsGenericParameter )
-			return;
-
 		if ( member.HasLayoutInfo )
 		{
 			Touch( $"System.Private.CoreLib/System.Runtime.InteropServices.FieldOffset", "attribute" );
@@ -384,11 +386,10 @@ internal partial class AssemblyAccess
 
 		foreach ( var parameter in member.Parameters )
 		{
-			foreach ( var attribute in parameter.CustomAttributes )
-			{
-				Touch( attribute.AttributeType );
-			}
+			TestAttributes( parameter.CustomAttributes );
 		}
+
+		TestAttributes( member.MethodReturnType.CustomAttributes );
 
 	}
 
@@ -398,16 +399,59 @@ internal partial class AssemblyAccess
 	/// </summary>
 	const string IgnoresAccessChecksTo = "System.Runtime.CompilerServices.IgnoresAccessChecksToAttribute";
 
+	// Honoured by name from any assembly by the runtime or compiler, so a self-defined copy must not pass as our own type
+	static readonly HashSet<string> RuntimeHonouredTypes = new()
+	{
+		IgnoresAccessChecksTo,
+		"System.Runtime.CompilerServices.UnsafeAccessorAttribute",
+		"System.Runtime.CompilerServices.UnsafeAccessorKind",
+		"System.Runtime.CompilerServices.UnsafeAccessorTypeAttribute",
+		"System.Runtime.CompilerServices.ModuleInitializerAttribute",
+	};
+
 	private void TestAttribute( CustomAttribute attr )
 	{
-		if ( attr.AttributeType.FullName == IgnoresAccessChecksTo )
-			Touch( $"System.Private.CoreLib/{IgnoresAccessChecksTo}", "attribute" );
+		if ( RuntimeHonouredTypes.Contains( attr.AttributeType.FullName ) )
+			Touch( $"System.Private.CoreLib/{attr.AttributeType.FullName}", "attribute" );
 
 		Touch( attr.AttributeType );
 
 		foreach ( var arg in attr.ConstructorArguments )
 		{
-			Touch( arg.Type );
+			TestAttributeArgument( arg );
+		}
+
+		foreach ( var named in attr.Fields )
+		{
+			TestAttributeArgument( named.Argument );
+		}
+
+		foreach ( var named in attr.Properties )
+		{
+			TestAttributeArgument( named.Argument );
+		}
+	}
+
+	private void TestAttributeArgument( CustomAttributeArgument arg )
+	{
+		Touch( arg.Type );
+
+		switch ( arg.Value )
+		{
+			case TypeReference typeRef:
+				Touch( typeRef );
+				break;
+
+			case CustomAttributeArgument boxed:
+				TestAttributeArgument( boxed );
+				break;
+
+			case CustomAttributeArgument[] items:
+				foreach ( var item in items )
+				{
+					TestAttributeArgument( item );
+				}
+				break;
 		}
 	}
 
@@ -519,6 +563,7 @@ internal partial class AssemblyAccess
 		if ( instruction.Operand is FieldReference fieldRef )
 		{
 			Touch( fieldRef.FieldType );
+			TouchFieldOwner( fieldRef );
 			return;
 		}
 
@@ -541,6 +586,39 @@ internal partial class AssemblyAccess
 	}
 
 
+
+	void TouchFieldOwner( FieldReference fieldRef )
+	{
+		if ( fieldRef.DeclaringType is GenericInstanceType git )
+		{
+			foreach ( var arg in git.GenericArguments )
+			{
+				Touch( arg );
+			}
+		}
+
+		var field = fieldRef.Resolve();
+		if ( field is null )
+			throw new Exception( $"FieldDefinition was null - couldn't resolve {fieldRef}" );
+
+		var owner = field.DeclaringType;
+
+		if ( owner.Module.Assembly == Assembly )
+			return;
+
+		if ( Global.Assemblies.Any( x => x.Value == owner.Module.Assembly ) )
+			return;
+
+		// Whitelisted either as a member (Type.* or Type*) or as an exact type entry
+		var fieldName = $"{AccessSignature.Type( owner )}.{field.Name}";
+		if ( Global.Rules.IsInWhitelist( fieldName ) )
+		{
+			Touch( fieldName, "field" );
+			return;
+		}
+
+		Touch( owner );
+	}
 
 	private bool ShouldSkipExploration( AssemblyDefinition candidate )
 	{

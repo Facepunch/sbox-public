@@ -8,7 +8,7 @@ namespace Sandbox.Audio;
 /// <summary>
 /// Bridges the native audio callback and the managed mixing graph.
 /// Main thread calls UpdateGlobals, ApplyWritebacks, QueueSamplerDisposal, QueueAcousticModelDisposal.
-/// Mix thread calls MixOneBuffer from the native audio callback.
+/// The native feeder thread calls MixOneBuffer to stay ahead of the device, the device callback when it falls behind.
 /// </summary>
 static class MixingThread
 {
@@ -42,12 +42,10 @@ static class MixingThread
 	static readonly ConcurrentQueue<AudioSampler> _samplerDisposalQueue = new();
 	static readonly ConcurrentQueue<DirectSoundModel> _acousticModelDisposalQueue = new();
 	static readonly ConcurrentQueue<BinauralEffect> _binauralDisposalQueue = new();
-	static readonly ConcurrentQueue<NativeReverbEffect> _reverbDisposalQueue = new();
 	static readonly ConcurrentQueue<AudioProcessor> _processorRemovalQueue = new();
 	static readonly List<AudioSampler> _pendingSamplerDisposals = new();
 	static readonly List<DirectSoundModel> _pendingAcousticModelDisposals = new();
 	static readonly List<BinauralEffect> _pendingBinauralDisposals = new();
-	static readonly List<NativeReverbEffect> _pendingReverbDisposals = new();
 
 	static readonly List<SoundHandle> _buildVoiceList = new();
 	static readonly Dictionary<Mixer, int> _voicesPerMixer = new( ReferenceEqualityComparer.Instance );
@@ -57,11 +55,9 @@ static class MixingThread
 		foreach ( var s in _pendingSamplerDisposals ) _samplerDisposalQueue.Enqueue( s );
 		foreach ( var s in _pendingAcousticModelDisposals ) _acousticModelDisposalQueue.Enqueue( s );
 		foreach ( var b in _pendingBinauralDisposals ) _binauralDisposalQueue.Enqueue( b );
-		foreach ( var r in _pendingReverbDisposals ) _reverbDisposalQueue.Enqueue( r );
 		_pendingSamplerDisposals.Clear();
 		_pendingAcousticModelDisposals.Clear();
 		_pendingBinauralDisposals.Clear();
-		_pendingReverbDisposals.Clear();
 	}
 
 	internal static void DrainDisposals()
@@ -81,7 +77,6 @@ static class MixingThread
 			while ( _samplerDisposalQueue.TryDequeue( out var s ) ) s.Dispose();
 			while ( _acousticModelDisposalQueue.TryDequeue( out var s ) ) s.Dispose();
 			while ( _binauralDisposalQueue.TryDequeue( out var b ) ) b.Dispose();
-			while ( _reverbDisposalQueue.TryDequeue( out var r ) ) r.Dispose();
 			DrainProcessorRemovals();
 		}
 
@@ -122,11 +117,6 @@ static class MixingThread
 	internal static void QueueBinauralDisposal( BinauralEffect binaural )
 	{
 		if ( binaural is not null ) _pendingBinauralDisposals.Add( binaural );
-	}
-
-	internal static void QueueReverbDisposal( NativeReverbEffect reverb )
-	{
-		if ( reverb is not null ) _pendingReverbDisposals.Add( reverb );
 	}
 
 	internal static void ApplyWritebacks()
@@ -257,12 +247,12 @@ static class MixingThread
 		while ( _samplerDisposalQueue.TryDequeue( out var sampler ) ) sampler.Dispose();
 		while ( _acousticModelDisposalQueue.TryDequeue( out var source ) ) source.Dispose();
 		while ( _binauralDisposalQueue.TryDequeue( out var binaural ) ) binaural.Dispose();
-		while ( _reverbDisposalQueue.TryDequeue( out var reverb ) ) reverb.Dispose();
 		DrainProcessorRemovals();
 		SoundHandle.LipSyncAccessor.DrainDestructionQueue();
 	}
 
 	static readonly MultiChannelBuffer _mixOutput = new( AudioEngine.ChannelCount );
+	static readonly MasterLimiter _limiter = new();
 
 	static void Mix( VoiceFrameSnapshot snapshot )
 	{
@@ -280,21 +270,25 @@ static class MixingThread
 
 		_mixOutput.Silence();
 		_mixOutput.MixFrom( Mixer.Master.Output, snapshot.MasterVolume );
+		_limiter.Process( _mixOutput );
 		_mixOutput.HardLimit();
 		_mixOutput.SendToOutput();
 	}
 
-	/// <summary>Decode one buffer of audio from every active sampler (parallelized).</summary>
+	/// <summary>
+	/// Decode one buffer of audio from every active sampler. One after another: a buffer's worth of decoding is a few
+	/// microseconds a voice, less than handing it out to other threads costs, and the mix doesn't wait on threads the
+	/// game is busy with.
+	/// </summary>
 	static void SampleVoices( VoiceFrameSnapshot snapshot )
 	{
 		using var _ = _sampleVoices.Start();
 
-		System.Threading.Tasks.Parallel.For( 0, snapshot.Voices.Count, i =>
+		foreach ( var v in CollectionsMarshal.AsSpan( snapshot.Voices ) )
 		{
-			var v = snapshot.Voices[i];
-			if ( v.Sampler is null ) return;
+			if ( v.Sampler is null ) continue;
 			v.Handle.SampleWithSeek( v.Sampler, v.Pitch );
-		} );
+		}
 	}
 
 	static void FinishVoices( VoiceFrameSnapshot snapshot )
@@ -307,19 +301,7 @@ static class MixingThread
 			ref var v = ref voices[i];
 			if ( v.Sampler is null ) continue;
 
-			bool samplerDone = !v.Sampler.ShouldContinueMixing;
-			if ( samplerDone && v.Handle is not null && !v.Handle.SamplerEnded )
-			{
-				v.Handle.SamplerEnded = true;
-				if ( v.Reverb is not null && v.Reverb.IsValid && v.ReverbRoom.Mix > 0.08f )
-				{
-					float tail = MathF.Max( v.ReverbRoom.DecayTimeMid, v.ReverbRoom.DecayTimeHigh );
-					if ( tail > 0.1f ) v.Handle.ReverbTailUntil = tail;
-				}
-			}
-
-			if ( v.Handle is not null && !v.Handle.ReverbTailUntil ) continue;
-
+			// Reverb tails ring out in the mixer's shared reverbs, the voice is done when its sound is.
 			if ( v.Sampler.ShouldContinueMixing && !v.IsFadingOut ) continue;
 			if ( v.FadeOutTimer == false ) continue;
 

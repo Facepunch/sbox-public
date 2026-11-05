@@ -12,6 +12,57 @@ public interface IGridSizeView
 	float GridSize { get; }
 }
 
+public static class GraphClipboard
+{
+	public static void Copy( string ident, string value )
+	{
+		using var stream = new MemoryStream();
+		using ( var compressed = new GZipStream( stream, CompressionMode.Compress ) )
+		{
+			var data = Encoding.UTF8.GetBytes( value );
+			compressed.Write( data, 0, data.Length );
+		}
+
+		EditorUtility.Clipboard.Copy( $"{ident}:{Convert.ToBase64String( stream.ToArray() )}" );
+	}
+
+	public static bool CanPaste( string ident )
+	{
+		var value = EditorUtility.Clipboard.Paste();
+		return value?.StartsWith( $"{ident}:", StringComparison.Ordinal ) == true;
+	}
+
+	public static bool TryPaste( string ident, out string value )
+	{
+		value = null;
+
+		var buffer = EditorUtility.Clipboard.Paste();
+		var prefix = $"{ident}:";
+		if ( buffer?.StartsWith( prefix, StringComparison.Ordinal ) != true )
+			return false;
+
+		try
+		{
+			using var stream = new MemoryStream( Convert.FromBase64String( buffer[prefix.Length..] ) );
+			using var compressed = new GZipStream( stream, CompressionMode.Decompress );
+			using var output = new MemoryStream();
+			compressed.CopyTo( output );
+			value = Encoding.UTF8.GetString( output.ToArray() );
+			return true;
+		}
+		catch ( FormatException )
+		{
+			Log.Warning( "Clipboard data is not valid base64" );
+			return false;
+		}
+		catch ( InvalidDataException )
+		{
+			Log.Warning( "Clipboard data is not valid compressed data" );
+			return false;
+		}
+	}
+}
+
 public class GraphView : GraphicsView, IGridSizeView
 {
 	IGraph _graph;
@@ -32,12 +83,43 @@ public class GraphView : GraphicsView, IGridSizeView
 	protected virtual INodeType RerouteNodeType { get; }
 	protected virtual INodeType CommentNodeType { get; }
 
+	/// <summary>
+	/// Whether this graph provides a reroute node type.
+	/// </summary>
+	protected bool CanCreateReroute => RerouteNodeType is not null;
+
 	Vector2 lastMouseScenePosition;
 
 	internal Plug DropTarget { get; set; }
 	internal Connection Preview { get; set; }
 
 	public virtual ConnectionStyle ConnectionStyle => ConnectionStyle.Default;
+	protected virtual bool CanDisconnectByDroppingConnection => true;
+	protected virtual bool UseSmoothZoom => false;
+
+	protected virtual bool AreConnectionTypesCompatible( Type a, Type b ) => true;
+
+	protected virtual bool CanConnect( PlugOut output, PlugIn input, Connection source = null )
+	{
+		if ( output.Inner.Node is not IRerouteNode && input.Inner.Node is not IRerouteNode )
+			return AreConnectionTypesCompatible( output.Inner.Type, input.Inner.Type );
+
+		return IRerouteNode.CanConnect<Plug>( output, input, plug => plug.Inner,
+			( plug, replacingInput ) => GetRerouteConnections( plug, replacingInput, source ), AreConnectionTypesCompatible );
+	}
+
+	private static IEnumerable<Plug> GetRerouteConnections( Plug plug, Plug replacingInput, Connection source )
+	{
+		var upstream = plug.Node.Inputs[0];
+		if ( upstream != replacingInput && upstream.Connection.IsValid() && upstream.Connection != source )
+			yield return upstream.Connection.Output;
+
+		foreach ( var connection in plug.Node.Outputs[0].Connections )
+		{
+			if ( connection.Input != replacingInput && connection != source )
+				yield return connection.Input;
+		}
+	}
 
 	public float GridSize { get; set; } = 12f;
 	public virtual bool FadeOutBackground => true;
@@ -91,12 +173,19 @@ public class GraphView : GraphicsView, IGridSizeView
 	private Vector2 _lastCenter;
 	private Vector2 _lastScale;
 
+	private float _zoomTarget;
+	private Vector2 _zoomAnchor;
+	private Vector2 _zoomAnchorScene;
+
 	private bool _hasDropped;
 
 	[EditorEvent.Frame]
 	private void Frame()
 	{
 		_hasDropped = false;
+
+		if ( UseSmoothZoom )
+			SmoothZoom();
 
 		var center = Center;
 		var scale = Scale;
@@ -144,6 +233,8 @@ public class GraphView : GraphicsView, IGridSizeView
 	{
 	}
 
+	public virtual void PushLayoutUndo( string name ) => PushUndo( name );
+
 	public virtual void PushRedo()
 	{
 	}
@@ -163,7 +254,7 @@ public class GraphView : GraphicsView, IGridSizeView
 		{
 			_moveableMoved = true;
 
-			PushUndo( "Move Item" );
+			PushLayoutUndo( "Move Item" );
 		}
 	}
 
@@ -179,12 +270,64 @@ public class GraphView : GraphicsView, IGridSizeView
 
 	protected override void OnMouseWheel( WheelEvent e )
 	{
-		Zoom( e.Delta > 0 ? 1.1f : 0.90f, e.Position );
+		if ( !UseSmoothZoom )
+		{
+			Zoom( e.Delta > 0 ? 1.1f : 0.90f, e.Position );
+
+			if ( FadeOutBackground )
+				SetBackgroundImage( Scale.x < 0.5f ? _backgroundPixmapClear : _backgroundPixmap );
+
+			e.Accept();
+			return;
+		}
+
+		if ( _zoomTarget <= 0 )
+			_zoomTarget = Scale.x;
+
+		_zoomTarget = Math.Clamp( _zoomTarget * (e.Delta > 0 ? 1.15f : 1 / 1.15f), MinZoom, MaxZoom );
+		_zoomAnchor = e.Position;
+		_zoomAnchorScene = ToScene( e.Position );
+		e.Accept();
+	}
+
+	/// <summary>
+	/// Jump the view to the given center and scale, cancelling any zoom animation.
+	/// </summary>
+	public void SetView( Vector2 center, float scale )
+	{
+		_zoomTarget = 0;
+		Scale = Math.Clamp( scale, MinZoom, MaxZoom );
+		CenterOn( center );
+
 		if ( FadeOutBackground )
 		{
 			SetBackgroundImage( Scale.x < 0.5f ? _backgroundPixmapClear : _backgroundPixmap );
 		}
-		e.Accept();
+	}
+
+	private void SmoothZoom()
+	{
+		if ( _zoomTarget <= 0 )
+			return;
+
+		var zoom = Scale.x;
+
+		if ( MathF.Abs( MathF.Log( _zoomTarget / zoom ) ) < 0.002f )
+		{
+			_zoomTarget = 0;
+			return;
+		}
+
+		var t = 1f - MathF.Exp( -RealTime.Delta * 20f );
+		Scale = MathF.Exp( MathX.Lerp( MathF.Log( zoom ), MathF.Log( _zoomTarget ), t ) );
+
+		// Keep the scene point under the cursor pinned while the zoom eases in
+		Translate( ToScene( _zoomAnchor ) - _zoomAnchorScene );
+
+		if ( FadeOutBackground )
+		{
+			SetBackgroundImage( Scale.x < 0.5f ? _backgroundPixmapClear : _backgroundPixmap );
+		}
 	}
 
 	public class SelectionBox : GraphicsItem
@@ -302,64 +445,24 @@ public class GraphView : GraphicsView, IGridSizeView
 
 	public void CopySelection()
 	{
-		var nodes = SelectedItems.OfType<NodeUI>().ToArray();
+		var nodes = SelectedItems.OfType<NodeUI>().Select( x => x.Node ).Where( x => x.CanClone ).ToArray();
 		if ( !nodes.Any() )
 			return;
 
-		using var ms = new MemoryStream();
-		using ( var zs = new GZipStream( ms, CompressionMode.Compress ) )
-		{
-			var data = Encoding.UTF8.GetBytes( _graph.SerializeNodes( nodes.Select( x => x.Node ) ) );
-			zs.Write( data, 0, data.Length );
-		}
-
-		var sb = new StringBuilder();
-		sb.Append( $"{ClipboardIdent}:" );
-		sb.Append( Convert.ToBase64String( ms.ToArray() ) );
-
-		EditorUtility.Clipboard.Copy( sb.ToString() );
+		GraphClipboard.Copy( ClipboardIdent, _graph.SerializeNodes( nodes ) );
 	}
 
-	public bool CanPasteSelection()
-	{
-		var buffer = EditorUtility.Clipboard.Paste();
-		if ( string.IsNullOrWhiteSpace( buffer ) )
-			return false;
-		return buffer.StartsWith( $"{ClipboardIdent}:" );
-	}
+	public bool CanPasteSelection() => GraphClipboard.CanPaste( ClipboardIdent );
 
 	public void PasteSelection()
 	{
-		var buffer = EditorUtility.Clipboard.Paste();
-		if ( string.IsNullOrWhiteSpace( buffer ) )
+		if ( !GraphClipboard.TryPaste( ClipboardIdent, out var decompressed ) )
 			return;
-
-		var ident = $"{ClipboardIdent}:";
-		if ( !buffer.StartsWith( ident ) )
-			return;
-
-		buffer = buffer.Substring( ident.Length );
-
-		byte[] decompressedData;
 
 		try
 		{
-			using var ms = new MemoryStream( Convert.FromBase64String( buffer ) );
-			using var zs = new GZipStream( ms, CompressionMode.Decompress );
-			using var outStream = new MemoryStream();
-			zs.CopyTo( outStream );
-			decompressedData = outStream.ToArray();
-		}
-		catch
-		{
-			Log.Warning( "Paste is not valid base64" );
-			return;
-		}
-
-		try
-		{
-			var decompressed = Encoding.UTF8.GetString( decompressedData );
-			var nodes = _graph.DeserializeNodes( decompressed ).ToArray();
+			// Old clipboard data can hold nodes that can't be duplicated (e.g. result nodes)
+			var nodes = _graph.DeserializeNodes( decompressed ).Where( x => x.CanClone ).ToArray();
 
 			if ( !nodes.Any() )
 				return;
@@ -376,7 +479,7 @@ public class GraphView : GraphicsView, IGridSizeView
 
 	public void DuplicateSelection()
 	{
-		var selected = SelectedItems.OfType<NodeUI>().Select( x => x.Node ).ToArray();
+		var selected = SelectedItems.OfType<NodeUI>().Select( x => x.Node ).Where( x => x.CanClone ).ToArray();
 		if ( !selected.Any() )
 			return;
 
@@ -525,7 +628,7 @@ public class GraphView : GraphicsView, IGridSizeView
 				CreateNewComment( "Untitled", CommentColor.Green, clickPos, 300 );
 			} );
 		}
-		else
+		else if ( CanCreateReroute )
 		{
 			menu.AddOption( "Add Reroute", "route", () =>
 			{
@@ -725,6 +828,8 @@ public class GraphView : GraphicsView, IGridSizeView
 
 	public void CreateNewReroute( Vector2 position )
 	{
+		if ( !CanCreateReroute ) return;
+
 		using var undoScope = UndoScope( "Add Reroute" );
 
 		CreateNewNode( RerouteNodeType, position );
@@ -898,6 +1003,7 @@ public class GraphView : GraphicsView, IGridSizeView
 		{
 			var delta = scenePosition - lastMouseScenePosition;
 			Translate( delta );
+			_zoomTarget = 0;
 			e.Accepted = true;
 			Cursor = CursorShape.ClosedHand;
 		}
@@ -994,8 +1100,15 @@ public class GraphView : GraphicsView, IGridSizeView
 		if ( plug is PlugIn ) dropTarget = dropTarget as PlugOut;
 		else dropTarget = dropTarget as PlugIn;
 
+		if ( dropTarget?.Node == plug.Node )
+			dropTarget = null;
+
+		var output = plug as PlugOut ?? dropTarget as PlugOut;
+		var input = plug as PlugIn ?? dropTarget as PlugIn;
+		var isInvalid = output.IsValid() && input.IsValid() && !CanConnect( output, input, source );
+
 		DropTarget?.Update();
-		DropTarget = dropTarget?.Node != plug.Node ? dropTarget : null;
+		DropTarget = dropTarget;
 		DropTarget?.Update();
 
 		if ( !Preview.IsValid() )
@@ -1004,6 +1117,7 @@ public class GraphView : GraphicsView, IGridSizeView
 			Add( Preview );
 		}
 
+		Preview.IsInvalidPreview = isInvalid;
 		Preview.LayoutForPreview( plug, scenePosition, DropTarget );
 	}
 
@@ -1011,6 +1125,19 @@ public class GraphView : GraphicsView, IGridSizeView
 	{
 		bool disconnected = false;
 		bool connected = false;
+
+		var output = plug as PlugOut ?? DropTarget as PlugOut;
+		var input = plug as PlugIn ?? DropTarget as PlugIn;
+		var canConnect = DropTarget.IsValid() && DropTarget.Node != plug.Node && CanConnect( output, input, source );
+
+		if ( source.IsValid() && !canConnect && (DropTarget.IsValid() || !CanDisconnectByDroppingConnection) )
+		{
+			DropTarget?.Update();
+			DropTarget = null;
+			Preview?.Destroy();
+			Preview = null;
+			return;
+		}
 
 		if ( source.IsValid() )
 		{
@@ -1037,7 +1164,7 @@ public class GraphView : GraphicsView, IGridSizeView
 			source.Destroy();
 		}
 
-		if ( DropTarget.IsValid() && DropTarget.Node != plug.Node )
+		if ( canConnect )
 		{
 			connected = true;
 
@@ -1053,7 +1180,7 @@ public class GraphView : GraphicsView, IGridSizeView
 				connection.Destroy();
 			}
 
-			CreateConnection( plug as PlugOut ?? DropTarget as PlugOut, plug as PlugIn ?? DropTarget as PlugIn );
+			CreateConnection( output, input );
 		}
 
 		DropTarget?.Update();
@@ -1066,7 +1193,7 @@ public class GraphView : GraphicsView, IGridSizeView
 
 		if ( !disconnected && !connected )
 		{
-			if ( _createReroute )
+			if ( _createReroute && CanCreateReroute )
 			{
 				CreateNewNode( RerouteNodeType, scenePosition, plug, false );
 			}
@@ -1092,6 +1219,12 @@ public class GraphView : GraphicsView, IGridSizeView
 
 		if ( !uiOnly )
 		{
+			if ( !CanConnect( nodeOutput, dropTarget ) )
+			{
+				Log.Warning( "Cannot connect incompatible pin types or create a reroute cycle" );
+				return null;
+			}
+
 			dropTarget.Inner.ConnectedOutput = nodeOutput.Inner;
 		}
 
@@ -1148,6 +1281,14 @@ public class GraphView : GraphicsView, IGridSizeView
 
 	internal void RerouteConnection( Connection c, Vector2 scenePosition )
 	{
+		if ( !CanCreateReroute ) return;
+
+		if ( !CanConnect( c.Output, c.Input ) )
+		{
+			Log.Warning( "Cannot reroute incompatible pin types or a reroute cycle" );
+			return;
+		}
+
 		using var undoScope = UndoScope( "Reroute Connection" );
 
 		var nodeUI = CreateNewNode( RerouteNodeType, scenePosition );

@@ -32,7 +32,6 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 	readonly List<int> groupStarts = new();
 	readonly List<int> chunkStarts = new();
 	List<int>[] chunkCandidates = [];
-	JobBatch cullJobs;
 
 	/// <summary>
 	/// The most jobs the shadow views are culled in.
@@ -74,9 +73,10 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 	public ref readonly GPUDirectionalLight Directional => ref mapper.DirectionalLightData;
 
 	/// <summary>
-	/// Select, cull and prepare shadow views after main-view light packing. Skybox suns have no cascades.
+	/// Choose this frame's shadow views after main-view light packing, on the main thread, as the shadow mapper makes
+	/// shadow maps. Then <see cref="BeginCull"/> and <see cref="PreparePasses"/>. Skybox suns have no cascades.
 	/// </summary>
-	public void Prepare( RenderWorld world, ViewPass main, LightBinnerFeature lightBinner, TransformBuffer transforms, int featureCount, bool enabled, bool skybox = false )
+	public void Select( RenderWorld world, ViewPass main, LightBinnerFeature lightBinner, int featureCount, bool enabled, bool skybox = false )
 	{
 		this.world = world;
 		this.main = main;
@@ -97,9 +97,32 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 
 		PrepareSun( world.Lighting, enabled || skybox );
 		if ( enabled ) PrepareLocalLights( lightBinner );
+	}
 
-		// Cull in parallel, then prepare serially because transforms share one buffer.
-		CullPasses();
+	/// <summary>
+	/// Start culling the selected views on the job dispatcher's workers, so the caller can prepare the main view
+	/// meanwhile. Culling reads the world and writes only the shadow views. Join before <see cref="PreparePasses"/>.
+	/// </summary>
+	public JobHandle BeginCull()
+	{
+		if ( passes.Count == 0 ) return default;
+
+		if ( !system.ParallelRecording )
+		{
+			CullPasses();
+			return default;
+		}
+
+		// Lookups that miss write the shared cache, which the main view's features mustn't race
+		system.WarmFeatureTypes( world );
+		return JobDispatcher.Begin( 1, this, static ( shadows, _ ) => shadows.CullPasses() );
+	}
+
+	/// <summary>
+	/// Prepare the culled views, serially because transforms share one buffer.
+	/// </summary>
+	public void PreparePasses( TransformBuffer transforms )
+	{
 		foreach ( var pass in Passes )
 			system.Prepare( world, pass, transforms );
 
@@ -253,17 +276,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		system.WarmFeatureTypes( world );
 
 		// Workers and the caller share chunk claiming.
-		cullJobs ??= new JobBatch( CullChunk );
-		cullJobs.Start( chunkCount, chunkCount - 1 );
-
-		try
-		{
-			cullJobs.Help();
-		}
-		finally
-		{
-			cullJobs.Wait();
-		}
+		JobDispatcher.For( chunkCount, this, static ( shadows, chunk ) => shadows.CullChunk( chunk ), itemsPerBatch: 1 );
 	}
 
 	/// <summary>

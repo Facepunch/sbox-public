@@ -1,4 +1,5 @@
-﻿using Facepunch.ActionGraphs;
+﻿using Sandbox.Engine;
+using Facepunch.ActionGraphs;
 using Sandbox.ActionGraphs;
 using System.Buffers;
 using System.Text.Json;
@@ -522,7 +523,7 @@ public partial class GameObject
 				// This might also be useful to us when developing, where we can copy paste the component into our code
 				// and have it still work and be able to edit hotloading.
 				// This code chooses the type in a dynamic assembly (addon code) so they always have priority over the engine stuff.
-				var componentType = Game.TypeLibrary.GetType<Component>( componentTypeName, true );
+				var componentType = GlobalContext.Current.TypeLibrary.GetType<Component>( componentTypeName, true );
 
 				// We didn't find this component type. So lets cut them some slack by searching
 				// for it without the namespace - because maybe they refactored and didn't want
@@ -533,7 +534,7 @@ public partial class GameObject
 					if ( idx > 0 && idx < componentTypeName.Length - 1 )
 					{
 						var componentClassName = componentTypeName[(idx + 1)..];
-						componentType = Game.TypeLibrary.GetType<Component>( componentClassName, true );
+						componentType = GlobalContext.Current.TypeLibrary.GetType<Component>( componentClassName, true );
 					}
 				}
 
@@ -868,7 +869,7 @@ public partial class GameObject
 				var component = Scene.Directory.FindComponentByGuid( guid );
 				if ( component.IsValid() )
 				{
-					var t = Game.TypeLibrary.GetType( component.GetType() );
+					var t = GlobalContext.Current.TypeLibrary.GetType( component.GetType() );
 
 					if ( value is null )
 						return;
@@ -937,7 +938,7 @@ public partial class GameObject
 		if ( string.IsNullOrEmpty( componentTypeName ) )
 			return;
 
-		var componentType = Game.TypeLibrary.GetType<Component>( componentTypeName, true );
+		var componentType = GlobalContext.Current.TypeLibrary.GetType<Component>( componentTypeName, true );
 		if ( componentType is null || componentType.TargetType.IsAbstract )
 			return;
 

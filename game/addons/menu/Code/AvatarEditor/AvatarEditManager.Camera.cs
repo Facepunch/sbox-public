@@ -34,9 +34,11 @@ public sealed partial class AvatarEditManager
 			targetPos = eyePos + new Vector3( 1000, -500, 0 );
 		}
 
+#pragma warning disable CS0618
 		renderer.SetLookDirection( "aim_eyes", targetPos - eyePos, 1 );
 		renderer.SetLookDirection( "aim_body", targetPos - eyePos, 0.5f );
 		renderer.SetLookDirection( "aim_head", targetPos - eyePos, 0.8f );
+#pragma warning restore CS0618
 	}
 
 	//float _fovVelocity;

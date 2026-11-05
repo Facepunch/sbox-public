@@ -29,7 +29,7 @@ public class ModelInspector : Widget, IAssetInspector
 		_infoGroup = AddGroup( "Stats", "info" );
 		_meshGroup = AddGroup( "Meshes", "view_in_ar" );
 		_animationGroup = AddGroup( "Animations", "directions_run" );
-		_parameterGroup = AddGroup( "Parameters", "account_tree" );
+		_parameterGroup = AddGroup( "Parameters", "tune" );
 		_skeletonGroup = AddGroup( "Skeleton", "accessibility" );
 		_attachmentGroup = AddGroup( "Attachments", "hub" );
 
@@ -68,46 +68,19 @@ public class ModelInspector : Widget, IAssetInspector
 		}
 	}
 
-	private class AnimationParameterCollection : AnimationParameterList.IAccessor
-	{
-		public SerializedProperty ParentProperty => null;
-
-		private readonly AssetPreview preview;
-		private SkinnedModelRenderer SceneModel => preview?.PrimaryObject?.GetComponent<SkinnedModelRenderer>();
-
-		private readonly HashSet<string> _parameters = new( StringComparer.OrdinalIgnoreCase );
-
-		public AnimationParameterCollection( AssetPreview preview )
-		{
-			this.preview = preview;
-		}
-
-		public bool GetBool( string name ) => SceneModel.IsValid() && SceneModel.GetBool( name );
-		public float GetFloat( string name ) => SceneModel.IsValid() ? SceneModel.GetFloat( name ) : default;
-		public int GetInt( string name ) => SceneModel.IsValid() ? SceneModel.GetInt( name ) : default;
-		public Rotation GetRotation( string name ) => SceneModel.IsValid() ? SceneModel.GetRotation( name ) : default;
-		public Vector3 GetVector( string name ) => SceneModel.IsValid() ? SceneModel.GetVector( name ) : default;
-
-		public void Set( string name, bool value ) { SceneModel?.Set( name, value ); _parameters.Add( name ); }
-		public void Set( string name, float value ) { SceneModel?.Set( name, value ); _parameters.Add( name ); }
-		public void Set( string name, Vector3 value ) { SceneModel?.Set( name, value ); _parameters.Add( name ); }
-		public void Set( string name, int value ) { SceneModel?.Set( name, value ); _parameters.Add( name ); }
-		public void Set( string name, Rotation value ) { SceneModel?.Set( name, value ); _parameters.Add( name ); }
-
-		public void Clear()
-		{
-			SceneModel?.Reset();
-			_parameters.Clear();
-		}
-
-		public void Clear( string name ) => _parameters.Remove( name );
-		public bool Contains( string name ) => _parameters.Contains( name );
-	}
-
 	public void SetAssetPreview( AssetPreview preview )
 	{
 		_assetPreview = preview;
-		_parameters.SetAccessor( new AnimationParameterCollection( preview ) );
+		RebuildParameters();
+	}
+
+	private void RebuildParameters()
+	{
+		var graph = _model?.AnimationGraph;
+		_parameterGroup.Visible = graph is { Parameters.Count: > 0 };
+		_parameters.SetGraph( graph );
+		_parameters.SetAccessor( new ModelPreviewParameters( () =>
+			_assetPreview?.PrimaryObject?.GetComponent<SkinnedModelRenderer>() ) );
 	}
 
 	public void SetAsset( Asset asset )
@@ -115,6 +88,8 @@ public class ModelInspector : Widget, IAssetInspector
 		_model = asset.LoadResource<Model>();
 		if ( _model == null || _model.IsError )
 			return;
+
+		RebuildParameters();
 
 		var meshInfo = _model.MeshInfo;
 
@@ -134,13 +109,6 @@ public class ModelInspector : Widget, IAssetInspector
 		{
 			_animationGroup.Visible = true;
 			_animations.SetModel( _model );
-		}
-
-		var animgraph = _model.AnimGraph;
-		if ( animgraph != null && animgraph.ParamCount > 0 )
-		{
-			_parameterGroup.Visible = true;
-			_parameters.SetGraph( animgraph );
 		}
 
 		if ( _model.Attachments.Count > 0 )
@@ -679,31 +647,53 @@ public class ModelInspector : Widget, IAssetInspector
 	}
 }
 
+file class ModelPreviewParameters( Func<SkinnedModelRenderer> getRenderer ) : AnimationParameterList.IAccessor
+{
+	private Sandbox.Animation.GraphParameters Accessor => getRenderer()?.Animation.Parameters;
+
+	public SerializedProperty ParentProperty => null;
+
+	public bool GetBool( string name ) => Accessor?.GetBool( name ) ?? false;
+	public float GetFloat( string name ) => Accessor?.GetFloat( name ) ?? 0f;
+	public Vector3 GetVector( string name ) => Accessor?.GetVector( name ) ?? Vector3.Zero;
+	public string GetString( string name ) => Accessor?.GetString( name ) ?? "";
+
+	public void Set( string name, bool value ) => Accessor?.Set( name, value, persist: true );
+	public void Set( string name, float value ) => Accessor?.Set( name, value, persist: true );
+	public void Set( string name, Vector3 value ) => Accessor?.Set( name, value, persist: true );
+	public void Set( string name, string value ) => Accessor?.Set( name, value, persist: true );
+
+	public void Clear() => Accessor?.Clear();
+	public void Clear( string name ) => Accessor?.Clear( name );
+	public bool Contains( string name ) => Accessor?.Contains( name ) ?? false;
+}
+
 public class AnimationParameterList : Widget
 {
 	private readonly ControlSheet Sheet;
-	private AnimationGraph Graph;
+	private readonly LineEdit Search;
+	private readonly Label Empty;
+	private readonly Widget Toolbar;
+	private Sandbox.Animation.Graph Graph;
 	private IAccessor Accessor;
 
 	public interface IAccessor
 	{
 		/// <summary>
 		/// Optional property that contains the parameter list when inspecting,
-		/// for example <see cref="SkinnedModelRenderer.Parameters"/>.
+		/// for example <see cref="Sandbox.Animation.AnimationAccessor.Parameters"/>.
 		/// </summary>
 		SerializedProperty ParentProperty { get; }
 
 		void Set( string name, bool value );
 		void Set( string name, float value );
 		void Set( string name, Vector3 value );
-		void Set( string name, int value );
-		void Set( string name, Rotation value );
+		void Set( string name, string value );
 
-		Rotation GetRotation( string name );
 		Vector3 GetVector( string name );
 		bool GetBool( string name );
 		float GetFloat( string name );
-		int GetInt( string name );
+		string GetString( string name );
 
 		void Clear();
 		void Clear( string name );
@@ -712,54 +702,114 @@ public class AnimationParameterList : Widget
 
 	public void SetAccessor( IAccessor accessor )
 	{
-		if ( Graph is null )
-			return;
-
 		Accessor = accessor;
-
-		Sheet.Clear( true );
-		Sheet.AddObject( new GraphParamsObject( Graph, Accessor ) );
+		Rebuild();
 	}
 
-	public void SetGraph( AnimationGraph graph )
+	private void Rebuild()
+	{
+		Sheet.Clear( true );
+		Toolbar.Enabled = Graph is not null && Accessor is not null;
+		Empty.Visible = false;
+
+		if ( Graph is null || Accessor is null )
+			return;
+
+		var properties = new GraphParamsObject( Graph, Accessor );
+		var filter = Search.Text.Trim();
+		bool Matches( SerializedProperty property ) => property.Name.Contains( filter, StringComparison.OrdinalIgnoreCase );
+		Sheet.AddObject( properties, Matches );
+		Empty.Visible = !properties.Any( Matches );
+	}
+
+	public void SetGraph( Sandbox.Animation.Graph graph )
 	{
 		Graph = graph;
+		Rebuild();
+	}
+
+	private void EditParameters( Action edit )
+	{
+		if ( ReadOnly || Graph is null || Accessor is null )
+			return;
+
+		var property = Accessor?.ParentProperty;
+		property?.Parent.NoteStartEdit( property );
+		edit();
+		property?.Parent.NoteFinishEdit( property );
+		Rebuild();
+	}
+
+	private void Randomize()
+	{
+		foreach ( var parameter in Graph.Parameters )
+		{
+			if ( parameter.Type == typeof( float ) )
+				Accessor.Set( parameter.Name, parameter.HasRange ? Random.Shared.Float( parameter.MinValue, parameter.MaxValue ) : Random.Shared.Float() );
+			else if ( parameter.Type == typeof( bool ) )
+				Accessor.Set( parameter.Name, Random.Shared.Float() > 0.5f );
+			else if ( parameter.Type == typeof( Vector3 ) )
+				Accessor.Set( parameter.Name, Random.Shared.VectorInSphere() );
+			else if ( parameter.Type == typeof( string ) && parameter.Options.Count > 0 )
+				Accessor.Set( parameter.Name, parameter.Options[Random.Shared.Next( parameter.Options.Count )] );
+		}
 	}
 
 	public AnimationParameterList( Widget parent ) : base( parent )
 	{
+		Name = "AnimationParameterList";
+		SetStyles( $"#AnimationParameterList {{ background-color: {Theme.SurfaceBackground.Hex}; }}" );
 		Layout = Layout.Column();
+		Layout.Spacing = 2;
+		Layout.Alignment = TextFlag.LeftTop;
 
-		var headerButtons = Layout.AddRow();
-		headerButtons.Spacing = 8;
+		Toolbar = Layout.Add( new Widget( this ) { FixedHeight = Theme.RowHeight, Enabled = false } );
+		var toolbar = Toolbar.Layout = Layout.Row();
+		toolbar.Spacing = 2;
+		Search = toolbar.Add( new LineEdit { PlaceholderText = "Search parameters...", ClearButtonEnabled = true, FixedHeight = Theme.RowHeight }, 1 );
+		Search.TextChanged += _ => Rebuild();
 
+		toolbar.Add( new IconButton( "restart_alt", () => EditParameters( () => Accessor.Clear() ) )
 		{
-			var btn = headerButtons.Add( new Button( "Clear" ) );
-			btn.Clicked = () =>
-			{
-				Accessor?.Clear();
-				Update();
-			};
-		}
+			ToolTip = "Clear all parameter overrides",
+			IconSize = 14,
+			Background = Theme.ControlBackground,
+			Foreground = Theme.Primary
+		} );
+		toolbar.Add( new IconButton( "casino", () => EditParameters( Randomize ) )
+		{
+			ToolTip = "Randomize all parameters",
+			IconSize = 14,
+			Background = Theme.ControlBackground,
+			Foreground = Theme.Primary
+		} );
 
+		var scroller = Layout.Add( new ScrollArea( this )
+		{
+			Name = "AnimationParameterScroll",
+			MaximumHeight = 300,
+			VerticalSizeMode = SizeMode.CanShrink | SizeMode.CanGrow
+		} );
+		scroller.SetStyles( $"#AnimationParameterScroll, #AnimationParameterScroll > QWidget {{ border: none; background-color: {Theme.SurfaceBackground.Hex}; }}" );
+		scroller.Canvas = new Widget( scroller ) { Layout = Layout.Column() };
 		Sheet = new ControlSheet();
-		Layout.Add( Sheet, 1 );
+		scroller.Canvas.Layout.Add( Sheet );
+		Empty = scroller.Canvas.Layout.Add( new Label( "No matching parameters" ) { Color = Theme.TextLight, Visible = false } );
 	}
 }
 
-#region Serialized Object
-
 /// <summary>
-/// <see cref="SerializedObject"/> with properties for each parameter of an <see cref="AnimationGraph"/>.
+/// <see cref="SerializedObject"/> with properties for each parameter of an
+/// <see cref="Sandbox.Animation.Graph"/>.
 /// </summary>
 file class GraphParamsObject : SerializedObject
 {
-	public AnimationGraph Graph { get; }
+	public Sandbox.Animation.Graph Graph { get; }
 	public AnimationParameterList.IAccessor Accessor { get; }
 
 	public override IEnumerable<object> Targets => [Accessor];
 
-	public GraphParamsObject( AnimationGraph graph, AnimationParameterList.IAccessor accessor )
+	public GraphParamsObject( Sandbox.Animation.Graph graph, AnimationParameterList.IAccessor accessor )
 	{
 		Graph = graph;
 		Accessor = accessor;
@@ -772,12 +822,9 @@ file class GraphParamsObject : SerializedObject
 	{
 		PropertyList = new List<SerializedProperty>();
 
-		var parameterIndices = Enumerable.Range( 0, Graph.ParamCount )
-			.OrderBy( Graph.GetParameterName );
-
-		foreach ( var index in parameterIndices )
+		foreach ( var parameter in Graph.Parameters.OrderBy( p => p.Name ) )
 		{
-			if ( ParamProperty.Create( this, index ) is { } property )
+			if ( ParamProperty.Create( this, parameter ) is { } property )
 			{
 				PropertyList.Add( property );
 			}
@@ -790,29 +837,14 @@ file class GraphParamsObject : SerializedObject
 /// </summary>
 file abstract class ParamProperty( GraphParamsObject parent, string name, Type type ) : SerializedProperty
 {
-	public static ParamProperty Create( GraphParamsObject parent, int index )
+	public static ParamProperty Create( GraphParamsObject parent, Sandbox.Animation.Graph.Parameter parameter )
 	{
-		var name = parent.Graph.GetParameterName( index );
-		var type = parent.Graph.GetParameterType( index );
+		var type = parameter.Type;
+		var name = parameter.Name;
 
 		if ( type == typeof( float ) )
 		{
-			return new FloatParamProperty( parent, name );
-		}
-
-		if ( type == typeof( int ) )
-		{
-			return new IntParamProperty( parent, name );
-		}
-
-		if ( type == typeof( Vector3 ) )
-		{
-			return new Vector3ParamProperty( parent, name );
-		}
-
-		if ( type == typeof( Rotation ) )
-		{
-			return new RotationParamProperty( parent, name );
+			return new FloatParamProperty( parent, name, parameter.HasRange ? new Vector2( parameter.MinValue, parameter.MaxValue ) : null );
 		}
 
 		if ( type == typeof( bool ) )
@@ -820,9 +852,14 @@ file abstract class ParamProperty( GraphParamsObject parent, string name, Type t
 			return new BoolParamProperty( parent, name );
 		}
 
-		if ( type == typeof( byte ) )
+		if ( type == typeof( Vector3 ) )
 		{
-			return new EnumParamProperty( parent, name );
+			return new Vector3ParamProperty( parent, name );
+		}
+
+		if ( type == typeof( string ) )
+		{
+			return new IdParamProperty( parent, name, parameter.Options );
 		}
 
 		return null;
@@ -847,19 +884,11 @@ file abstract class ParamProperty( GraphParamsObject parent, string name, Type t
 /// <summary>
 /// Typed <see cref="ParamProperty"/> that implements getting / setting.
 /// </summary>
-file abstract class ParamProperty<TValue> : ParamProperty
+file abstract class ParamProperty<TValue>( GraphParamsObject parent, string name ) : ParamProperty( parent, name, typeof( TValue ) )
 {
 	private IReadOnlyList<Attribute> _attributes;
 
-	protected AnimParam<TValue> Parameter { get; }
-
 	public abstract TValue Value { get; set; }
-
-	protected ParamProperty( GraphParamsObject parent, string name )
-		: base( parent, name, typeof( TValue ) )
-	{
-		Parameter = parent.Graph.GetParameter<TValue>( name );
-	}
 
 	protected void SetAttributes( params Attribute[] attributes )
 	{
@@ -877,7 +906,6 @@ file abstract class ParamProperty<TValue> : ParamProperty
 	{
 		if ( value is null )
 		{
-			SetValue( GetDefault() );
 			Accessor.Clear( Name );
 
 			return;
@@ -898,12 +926,13 @@ file class FloatParamProperty : ParamProperty<float>
 {
 	public Vector2 Range { get; private init; }
 
-	public FloatParamProperty( GraphParamsObject parent, string name )
+	public FloatParamProperty( GraphParamsObject parent, string name, Vector2? range )
 		: base( parent, name )
 	{
-		Range = new Vector2( Parameter.MinValue, Parameter.MaxValue );
+		Range = range ?? default;
 
-		SetAttributes( new RangeAttribute( Range.x, Range.y ), new DefaultValueAttribute( Parameter.DefaultValue ) );
+		if ( range is { } r )
+			SetAttributes( new RangeAttribute( r.x, r.y ) );
 	}
 
 	public override float Value
@@ -913,26 +942,7 @@ file class FloatParamProperty : ParamProperty<float>
 	}
 }
 
-file class IntParamProperty : ParamProperty<int>
-{
-	public Vector2 Range { get; private init; }
-
-	public override int Value
-	{
-		get => Accessor.GetInt( Name );
-		set => Accessor.Set( Name, value );
-	}
-
-	public IntParamProperty( GraphParamsObject parent, string name )
-		: base( parent, name )
-	{
-		Range = new Vector2( Parameter.MinValue, Parameter.MaxValue );
-
-		SetAttributes( new RangeAttribute( Range.x, Range.y ), new DefaultValueAttribute( Parameter.DefaultValue ) );
-	}
-}
-
-file class Vector3ParamProperty : ParamProperty<Vector3>
+file class Vector3ParamProperty( GraphParamsObject parent, string name ) : ParamProperty<Vector3>( parent, name )
 {
 	public override Vector3 Value
 	{
@@ -940,29 +950,9 @@ file class Vector3ParamProperty : ParamProperty<Vector3>
 		set => Accessor.Set( Name, value );
 	}
 
-	public Vector3ParamProperty( GraphParamsObject parent, string name )
-		: base( parent, name )
-	{
-		SetAttributes( new DefaultValueAttribute( Parameter.DefaultValue ) );
-	}
 }
 
-file class RotationParamProperty : ParamProperty<Rotation>
-{
-	public override Rotation Value
-	{
-		get => Accessor.GetRotation( Name );
-		set => Accessor.Set( Name, value );
-	}
-
-	public RotationParamProperty( GraphParamsObject parent, string name )
-		: base( parent, name )
-	{
-		SetAttributes( new DefaultValueAttribute( Parameter.DefaultValue ) );
-	}
-}
-
-file class BoolParamProperty : ParamProperty<bool>
+file class BoolParamProperty( GraphParamsObject parent, string name ) : ParamProperty<bool>( parent, name )
 {
 	public override bool Value
 	{
@@ -970,38 +960,32 @@ file class BoolParamProperty : ParamProperty<bool>
 		set => Accessor.Set( Name, value );
 	}
 
-	public BoolParamProperty( GraphParamsObject parent, string name )
-		: base( parent, name )
-	{
-		SetAttributes( new DefaultValueAttribute( Parameter.DefaultValue ) );
-	}
 }
 
-file sealed class EnumParamAttribute : Attribute;
+file sealed class IdOptionsAttribute : Attribute;
 
-file class EnumParamProperty : ParamProperty<byte>
+file class IdParamProperty : ParamProperty<string>
 {
 	public string[] Options { get; private init; }
 
-	public override byte Value
+	public override string Value
 	{
-		get => (byte)Accessor.GetInt( Name );
+		get => Accessor.GetString( Name ) ?? "";
 		set => Accessor.Set( Name, value );
 	}
 
-	public EnumParamProperty( GraphParamsObject parent, string name )
+	public IdParamProperty( GraphParamsObject parent, string name, IReadOnlyList<string> options )
 		: base( parent, name )
 	{
-		Options = Parameter.OptionNames;
+		Options = options?.ToArray() ?? [];
 
-		SetAttributes( new EnumParamAttribute(), new DefaultValueAttribute( Parameter.DefaultValue ) );
+		if ( Options.Length > 0 )
+			SetAttributes( new IdOptionsAttribute() );
 	}
 }
 
-#endregion
-
-[CustomEditor( typeof( byte ), WithAllAttributes = [typeof( EnumParamAttribute )] )]
-file class EnumParamControlWidget : ControlWidget
+[CustomEditor( typeof( string ), WithAllAttributes = [typeof( IdOptionsAttribute )] )]
+file class IdParamControlWidget : ControlWidget
 {
 	public override bool IsControlActive => base.IsControlActive || _menu.IsValid();
 	public override bool IsControlButton => true;
@@ -1010,14 +994,14 @@ file class EnumParamControlWidget : ControlWidget
 
 	public string[] Options { get; set; }
 
-	public EnumParamControlWidget( SerializedProperty property ) : base( property )
+	public IdParamControlWidget( SerializedProperty property ) : base( property )
 	{
 		Cursor = CursorShape.Finger;
 
 		Layout = Layout.Row();
 		Layout.Spacing = 2;
 
-		Options = (SerializedProperty as EnumParamProperty)?.Options;
+		Options = (SerializedProperty as IdParamProperty)?.Options;
 	}
 
 	protected override void PaintControl()
@@ -1025,7 +1009,7 @@ file class EnumParamControlWidget : ControlWidget
 		if ( Options is null )
 			return;
 
-		var value = SerializedProperty.GetValue<byte>();
+		var value = SerializedProperty.GetValue<string>();
 
 		var color = IsControlHovered ? Theme.Blue : Theme.TextControl;
 		if ( IsControlDisabled ) color = color.WithAlpha( 0.5f );
@@ -1035,7 +1019,7 @@ file class EnumParamControlWidget : ControlWidget
 		rect = rect.Shrink( 8, 0 );
 
 		Paint.SetPen( color );
-		Paint.DrawText( rect, Options[value] ?? "Unset", TextFlag.LeftCenter );
+		Paint.DrawText( rect, string.IsNullOrEmpty( value ) ? "Unset" : value, TextFlag.LeftCenter );
 
 		Paint.SetPen( color );
 		Paint.DrawIcon( rect, "Arrow_Drop_Down", 17, TextFlag.RightCenter );
@@ -1086,9 +1070,9 @@ file class EnumParamControlWidget : ControlWidget
 			VerticalSizeMode = SizeMode.CanGrow | SizeMode.Expand
 		};
 
-		for ( var i = 0; i < Options.Length; ++i )
+		foreach ( var option in Options )
 		{
-			var b = scroller.Canvas.Layout.Add( new MenuOption( Options[i], (byte)i, SerializedProperty ) );
+			var b = scroller.Canvas.Layout.Add( new IdMenuOption( option, SerializedProperty ) );
 			b.MouseLeftPress = () =>
 			{
 				SerializedProperty.SetValue( b.Value );
@@ -1115,31 +1099,29 @@ file class EnumParamControlWidget : ControlWidget
 	}
 }
 
-file class MenuOption : Widget
+file class IdMenuOption : Widget
 {
 	private SerializedProperty _property;
-	private byte _value;
 
-	public byte Value => _value;
+	public string Value { get; }
 
-	public MenuOption( string name, byte value, SerializedProperty p ) : base( null )
+	public IdMenuOption( string value, SerializedProperty p ) : base( null )
 	{
 		_property = p;
-		_value = value;
+		Value = value;
 
 		Layout = Layout.Row();
 		Layout.Margin = 8;
 
 		Layout.AddSpacingCell( 8 );
 		var c = Layout.AddColumn();
-		var title = c.Add( new Label( name ) );
+		var title = c.Add( new Label( value ) );
 		title.SetStyles( "font-size: 12px; font-weight: bold; font-family: Poppins; color: white;" );
 	}
 
 	bool HasValue()
 	{
-		var value = _property.GetValue<byte>( 0 );
-		return value == _value;
+		return _property.GetValue<string>() == Value;
 	}
 
 	protected override void OnPaint()

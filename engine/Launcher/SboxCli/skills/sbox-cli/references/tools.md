@@ -58,6 +58,18 @@ textures), `create_asset`, `asset_compile`, `asset_thumbnail` (image).
 
 **`play`** — `play_start`, `play_stop`, `play_pause`.
 
+**`animgraph`** — `animgraph_inspect`, `animgraph_node_types`, `animgraph_create`,
+`animgraph_edit`, `animgraph_compile`. Inspect first, then pass the returned revision to edits.
+`group_nodes` and `ungroup_node` preserve connections across pose-group boundaries;
+`layout_graph` arranges nodes, optionally recursively. Group contents use locators such as
+`root/node:<id>/graph:0`. Pose groups compile inline, without a child runtime graph.
+Reroutes are discoverable with `animgraph_node_types`: use `add_node` with `Type: "RerouteNode"`
+and `Values` containing `Position` and `Comment`. Connect through `Input` and `Result`, including
+chains and multiple consumers. Use `set_node` to reposition or label them. To insert a reroute,
+connect the existing source to its `Input`, then reconnect the destination to its `Result`;
+to remove one without breaking wires, reconnect its consumers before `remove_node`. Batch these
+operations in one `animgraph_edit`. The same type and reroute-cycle checks apply as in the UI.
+
 **`editor`** — `editor_status`, `compile_status` (every compiler's errors and warnings with file
 and line), `console_command`.
 

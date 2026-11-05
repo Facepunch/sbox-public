@@ -82,3 +82,12 @@ internal sealed partial class TextureLoader( string filename, int? frame = 0 ) :
 			.Finish();
 	}
 }
+
+internal sealed class PngTextureLoader( string fullPath ) : ResourceLoader<BaseMount>
+{
+	protected override object Load()
+	{
+		using var bitmap = Bitmap.CreateFromBytes( Host.GetFileBytes( fullPath ) );
+		return bitmap.ToTexture();
+	}
+}
