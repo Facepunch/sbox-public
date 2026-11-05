@@ -252,6 +252,7 @@ static class MixingThread
 	}
 
 	static readonly MultiChannelBuffer _mixOutput = new( AudioEngine.ChannelCount );
+	static readonly MasterLimiter _limiter = new();
 
 	static void Mix( VoiceFrameSnapshot snapshot )
 	{
@@ -269,6 +270,7 @@ static class MixingThread
 
 		_mixOutput.Silence();
 		_mixOutput.MixFrom( Mixer.Master.Output, snapshot.MasterVolume );
+		_limiter.Process( _mixOutput );
 		_mixOutput.HardLimit();
 		_mixOutput.SendToOutput();
 	}
