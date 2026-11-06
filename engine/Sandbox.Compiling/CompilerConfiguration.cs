@@ -130,6 +130,15 @@ partial class Compiler
 			var symbols = DefineConstants.Split( ";", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries )
 							.ToHashSet();
 
+			if ( !Whitelist )
+			{
+				symbols.Add( "NO_WHITELIST" );
+			}
+			else
+			{
+				symbols.Remove( "NO_WHITELIST" );
+			}
+
 			if ( ReleaseMode == ReleaseMode.Debug )
 			{
 				symbols.Add( "DEBUG" );
