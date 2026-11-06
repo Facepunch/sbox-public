@@ -208,6 +208,7 @@ namespace Sandbox
 		/// <param name="format">Texture format</param>
 		public TextureBuilder WithFormat( ImageFormat format )
 		{
+			format.ThrowIfInvalid( allowDefault: true );
 			_config.m_nImageFormat = format;
 			return this;
 		}
@@ -271,6 +272,15 @@ namespace Sandbox
 
 			if ( _config.m_nWidth <= 0 || _config.m_nHeight <= 0 )
 				throw new ArgumentException( $"Couldn't create texture - invalid size - {_config.m_nWidth} x {_config.m_nHeight}" );
+
+			if ( _config.m_nImageFormat == ImageFormat.Default )
+			{
+				var builder = this;
+				builder._config.m_nImageFormat = ImageFormat.RGBA8888;
+				return builder.Create( name, anonymous, data, dataLength );
+			}
+
+			_config.m_nImageFormat.ThrowIfInvalid();
 
 			var depth = _config.m_nDepth;
 			var faces = 1;
