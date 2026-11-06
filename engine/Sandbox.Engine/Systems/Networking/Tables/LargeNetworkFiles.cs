@@ -189,22 +189,35 @@ internal class LargeNetworkFiles
 				throw new TaskCanceledException( "Connection became null" );
 			}
 
-			// download the file
-			var response = await Connection.Host.SendRequest( new RequestFile { filename = file } );
-
-			token.ThrowIfCancellationRequested();
-
-			if ( response is not byte[] data || data.Length == 0 )
+			var fn = AssetDownloadCache.GetAbsolutePath( file, info.CRC );
+			Directory.CreateDirectory( Path.GetDirectoryName( fn ) );
+			var temporary = fn + "." + Guid.NewGuid().ToString( "N" ) + ".partial";
+			FileStream output = null;
+			try
 			{
-				Log.Warning( $"Failed to download file {file}! (response: {response})" );
-				currentCount++;
-				continue;
-			}
+				// Closed before the rename, or unconditionally in finally on failure/cancellation.
+#pragma warning disable CA2000
+				output = File.Open( temporary, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None );
+#pragma warning restore CA2000
+				await NetworkFileTransfer.DownloadAsync( output, info.Size, info.CRC, async ( offset, length, cancellation ) =>
+				{
+					var host = Connection.Host ?? throw new TaskCanceledException( "Connection became null" );
+					using var timeout = CancellationTokenSource.CreateLinkedTokenSource( cancellation );
+					timeout.CancelAfter( TimeSpan.FromSeconds( 60 ) );
+					var response = await host.SendRequest( new RequestFilePart( file, offset, length, info.CRC ), timeout.Token );
+					return response as byte[];
+				}, token );
+				output.Dispose();
+				output = null;
 
-			var fn = AssetDownloadCache.StoreFile( file, info.CRC, data );
-			if ( fn is not null )
-			{
+				token.ThrowIfCancellationRequested();
+				File.Move( temporary, fn, overwrite: true );
 				RedirectFileSystem.AddAbsFile( file, fn );
+			}
+			finally
+			{
+				output?.Dispose();
+				if ( File.Exists( temporary ) ) File.Delete( temporary );
 			}
 
 			currentCount++;
@@ -219,6 +232,7 @@ internal class LargeNetworkFiles
 	internal void NetworkInitialize( GameNetworkSystem instance )
 	{
 		instance.AddHandler<RequestFile>( OnRequestNetworkFile );
+		instance.AddHandler<RequestFilePart>( OnRequestNetworkFilePart );
 	}
 
 	async Task OnRequestNetworkFile( RequestFile file, Connection connection, Guid msgGuid )
@@ -234,6 +248,39 @@ internal class LargeNetworkFiles
 
 		connection.SendResponse( msgGuid, contents );
 	}
+
+	async Task OnRequestNetworkFilePart( RequestFilePart file, Connection connection, Guid msgGuid )
+	{
+		if ( !AssetDownloadCache.IsLegalDownload( file.Filename )
+			|| !StringTable.Entries.TryGetValue( file.Filename, out var entry ) )
+		{
+			connection.SendResponse( msgGuid, Array.Empty<byte>() );
+			return;
+		}
+
+		var info = entry.Read<LargeFileInfo>();
+		if ( file.Crc != info.CRC || !NetworkFileTransfer.IsValidRange( info.Size, file.Offset, file.Length ) )
+		{
+			connection.SendResponse( msgGuid, Array.Empty<byte>() );
+			return;
+		}
+
+		try
+		{
+			using var stream = EngineFileSystem.Mounted.OpenRead( file.Filename );
+			if ( stream is null || stream.Length != info.Size ) throw new IOException( "Network file changed" );
+			var data = await NetworkFileTransfer.ReadPartAsync( stream, file.Offset, file.Length );
+			connection.SendResponse( msgGuid, data );
+		}
+		catch ( IOException e )
+		{
+			Log.Warning( e, $"Failed to read network file part: {file.Filename}" );
+			connection.SendResponse( msgGuid, Array.Empty<byte>() );
+		}
+	}
+
+	[Expose]
+	public record struct RequestFilePart( string Filename, long Offset, int Length, ulong Crc );
 
 	[Expose]
 	public record struct RequestFile( string filename );
