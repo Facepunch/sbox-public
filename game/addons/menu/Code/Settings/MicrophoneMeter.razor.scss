@@ -32,7 +32,7 @@ MicrophoneMeter
 		background-image: linear-gradient( to right, #3fc76a 0%, #8fd14f 55%, #f5a623 80%, #ff5d6a 100% );
 	}
 
-	// Darkens the part of the bar above the current level
+	// Darkens the part of the bar above the microphone level, before AGC
 	.cover
 	{
 		position: absolute;
@@ -43,15 +43,41 @@ MicrophoneMeter
 		opacity: 0.85;
 	}
 
-	.threshold
+	.noise, .processed, .threshold
 	{
 		position: absolute;
 		top: 0px;
 		bottom: 0px;
 		width: 3px;
-		background-color: #fff;
 		box-shadow: 0 0 3px #000a;
 		transform: translateX( -50% );
+	}
+
+	// The level that's sent after AGC, and the background noise it's heard. Only while AGC is on
+	// and there's something to show.
+	.noise, .processed
+	{
+		display: none;
+
+		&.visible
+		{
+			display: flex;
+		}
+	}
+
+	.noise
+	{
+		background-color: $front-danger;
+	}
+
+	.processed
+	{
+		background-color: $front-primary;
+	}
+
+	.threshold
+	{
+		background-color: #fff;
 	}
 
 	.readout

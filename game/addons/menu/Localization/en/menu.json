@@ -877,6 +877,8 @@
     "menu.settings.anti_aliasing": "Anti-Aliasing",
     "menu.settings.audio": "Audio",
     "menu.settings.audio.acoustics.description": "Traces the room to work out reverb and occlusion rather than using a fixed effect. Costs a little CPU.",
+    "menu.settings.audio.agc.description": "Evens out how loud you are, so a quiet or distant microphone still comes through clearly. You should turn this off if your mic has its own AGC enabled.",
+    "menu.settings.audio.agc.title": "Automatic Gain Control",
     "menu.settings.audio.background.description": "Keeps playing sound while the window isn't focused.",
     "menu.settings.audio.blurb": "Output device, volumes and voice.",
     "menu.settings.audio.device.description": "Where sound is played. Follows Windows' default unless you pick something here.",
