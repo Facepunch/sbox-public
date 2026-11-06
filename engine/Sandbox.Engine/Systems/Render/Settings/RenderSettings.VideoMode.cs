@@ -65,7 +65,8 @@ public partial class RenderSettings
 	{
 		get
 		{
-			var defaultMode = UpscalerMode == UpscalerMode.Off ? AntiAliasMode.Cmaa2 : AntiAliasMode.None;
+			// Settings saved before CMAA2 existed chose MSAA alone, so CMAA2 is only the default without MSAA
+			var defaultMode = UpscalerMode == UpscalerMode.Off && AntiAliasQuality == MultisampleAmount.MultisampleNone ? AntiAliasMode.Cmaa2 : AntiAliasMode.None;
 			var value = VideoSettings.Get<int>( "aa.mode", (int)defaultMode );
 			return Enum.IsDefined( (AntiAliasMode)value ) ? (AntiAliasMode)value : defaultMode;
 		}
