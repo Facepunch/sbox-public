@@ -27,6 +27,10 @@ public sealed class SceneCompileSession
 	bool _notifying;
 	FastTimer _elapsed;
 	FastTimer _phaseElapsed;
+	readonly record struct FileStamp( DateTime Time, long Length );
+
+	(FileStamp, FileStamp, FileStamp) _compiledStamp;
+	bool _compiledOutput;
 
 	public Scene Scene { get; private set; }
 	public string Name => _sources?.Report.Name ?? Scene?.Name ?? "No scene";
@@ -51,6 +55,11 @@ public sealed class SceneCompileSession
 		&& _scanError is null && _settingsError is null
 		&& SceneEditorSession.Active is { IsPrefabSession: false, HasUnsavedChanges: false } editor
 		&& editor.Scene == Scene;
+
+	/// <summary>
+	/// True when .scene_c holds baked geometry made from the scene as it is saved: recompiles rebuild it from the bake kept beside the scene.
+	/// </summary>
+	public bool HasCompiledOutput => _compiledOutput;
 
 	public float AggregateCost
 	{
@@ -89,6 +98,26 @@ public sealed class SceneCompileSession
 		if ( scene != Scene || scene?.Source?.ResourcePath != _path
 			|| (scene?.Editor?.HasUnsavedChanges ?? false) != _unsaved || Game.IsPlaying != _playing )
 			Refresh();
+		RefreshCompiledOutput();
+	}
+
+	void RefreshCompiledOutput()
+	{
+		var asset = _sources?.Asset;
+		var source = asset?.GetSourceFile( true );
+		var stamp = (Stamp( asset?.GetCompiledFile( true ) ), Stamp( source ), Stamp( string.IsNullOrEmpty( source ) ? null : SceneBake.FilePath( source ) ));
+		if ( stamp == _compiledStamp )
+			return;
+
+		_compiledStamp = stamp;
+		_compiledOutput = SceneCompiler.HasCompiledOutput( asset ) && SceneBake.IsCurrent( source );
+		Notify();
+	}
+
+	static FileStamp Stamp( string path )
+	{
+		var info = string.IsNullOrEmpty( path ) ? null : new FileInfo( path );
+		return info?.Exists == true ? new( info.LastWriteTimeUtc, info.Length ) : new( default, -1 );
 	}
 
 	public void Refresh()
@@ -127,6 +156,8 @@ public sealed class SceneCompileSession
 			ClearResult();
 			_settings = new();
 			_settingsError = null;
+			_compiledStamp = default;
+			_compiledOutput = false;
 			try
 			{
 				_settings = SceneCompilerSettings.Load( path is null ? null : AssetSystem.FindByPath( path ) );
