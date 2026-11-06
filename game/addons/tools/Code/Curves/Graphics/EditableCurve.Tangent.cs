@@ -15,6 +15,7 @@ public partial class EditableCurve
 		float CurveValueRange => System.MathF.Abs( EditableCurve.ValueRange.y - EditableCurve.ValueRange.x );
 
 		public bool IsIncoming { get; }
+		IDisposable dragScope;
 
 		public Tangent( Handle parent, bool incoming, float value ) : base( parent )
 		{
@@ -56,6 +57,9 @@ public partial class EditableCurve
 		{
 			base.OnMousePressed( e );
 
+			if ( e.LeftMouseButton )
+				dragScope ??= EditableCurve?.History?.Push( "Move Tangent" );
+
 			e.Accepted = true;
 			Update();
 		}
@@ -63,6 +67,9 @@ public partial class EditableCurve
 		protected override void OnMouseReleased( GraphicsMouseEvent e )
 		{
 			base.OnMouseReleased( e );
+
+			dragScope?.Dispose();
+			dragScope = null;
 
 			e.Accepted = true;
 			Update();

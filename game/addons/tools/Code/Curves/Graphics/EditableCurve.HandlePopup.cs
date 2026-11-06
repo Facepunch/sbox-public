@@ -14,6 +14,7 @@ public partial class EditableCurve
 		const float ArrowHeight = 8;
 
 		Handle Handle;
+		IDisposable editScope;
 
 		float HandleTime
 		{
@@ -53,6 +54,13 @@ public partial class EditableCurve
 
 			var so = this.GetSerialized();
 
+			so.OnPropertyStartEdit += _ => editScope ??= Handle?.EditableCurve?.History?.Push( "Move Keyframe" );
+			so.OnPropertyFinishEdit += _ =>
+			{
+				editScope?.Dispose();
+				editScope = null;
+			};
+
 			{
 				X = new Widget( this );
 				X.Layout = Layout.Row();
@@ -88,6 +96,14 @@ public partial class EditableCurve
 
 				row.Add( b );
 			}
+		}
+
+		public override void OnDestroyed()
+		{
+			editScope?.Dispose();
+			editScope = null;
+
+			base.OnDestroyed();
 		}
 
 		public void UpdateFrom( Handle handle )
