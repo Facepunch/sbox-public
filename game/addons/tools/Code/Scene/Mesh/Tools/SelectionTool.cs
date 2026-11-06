@@ -55,21 +55,26 @@ public abstract class SelectionTool( MeshTool tool ) : EditorTool
 
 	internal void OnPivotChanged() => Tool?.MoveMode?.OnBegin( this );
 
+	UndoSystem _subscribedUndo;
+
 	protected void SubscribeUndo()
 	{
 		UnsubscribeUndo();
 
-		Undo.OnUndo += OnUndoRedo;
-		Undo.OnRedo += OnUndoRedo;
+		_subscribedUndo = Manager.CurrentSession.UndoSystem;
+		_subscribedUndo.OnUndo += OnUndoRedo;
+		_subscribedUndo.OnRedo += OnUndoRedo;
 	}
 
 	protected void UnsubscribeUndo()
 	{
-		Undo.OnUndo -= OnUndoRedo;
-		Undo.OnRedo -= OnUndoRedo;
-	}
+		if ( _subscribedUndo is null )
+			return;
 
-	UndoSystem Undo => SceneEditorSession.Active.UndoSystem;
+		_subscribedUndo.OnUndo -= OnUndoRedo;
+		_subscribedUndo.OnRedo -= OnUndoRedo;
+		_subscribedUndo = null;
+	}
 
 	void OnUndoRedo( UndoSystem.Entry _ )
 	{
