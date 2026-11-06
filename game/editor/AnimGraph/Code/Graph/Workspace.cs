@@ -259,7 +259,12 @@ internal sealed class Workspace : Widget
 			try
 			{
 				using ( _secondaryView.SuppressSelectionForwarding() )
-					_secondaryView.Graph = secondary.Graph;
+				{
+					if ( ReferenceEquals( _secondaryView.Graph, secondary.Graph ) )
+						_secondaryView.RebuildFromGraph();
+					else
+						_secondaryView.Graph = secondary.Graph;
+				}
 			}
 			finally
 			{
