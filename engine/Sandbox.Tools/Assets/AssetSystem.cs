@@ -173,9 +173,11 @@ public static partial class AssetSystem
 		{
 			EditorEvent.RunInterface<IEventListener>( x => x.OnAssetChanged( asset ) );
 
+			// Only drop it: the next draw renders it. A scene's thumbnail loads the whole scene, so rendering it on every
+			// save blocked the editor for as long as the scene takes to load, even with no thumbnail on screen.
 			if ( asset.HasCachedThumbnail )
 			{
-				asset.RebuildThumbnail( true );
+				asset.RebuildThumbnail( false );
 			}
 		}
 
