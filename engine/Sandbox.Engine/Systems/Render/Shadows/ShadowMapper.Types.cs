@@ -69,6 +69,11 @@ internal struct ShadowLight
 
 	public int Cascades;
 	public float CascadeSplitRatio;
+
+	/// <summary>
+	/// Directional: caps <see cref="ShadowMapper.CascadeDistance"/> for this light; 0 for no cap.
+	/// </summary>
+	public float CascadeMaxDistance;
 }
 
 /// <summary>
