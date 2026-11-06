@@ -248,6 +248,15 @@ public partial class RenderAttributes
 		attributes.SetBufferValue( k, value is not null ? value.native : default );
 	}
 
+	// Largest pooled dynamic constant buffer bucket, 512 float4s
+	internal const int MaxConstantBufferSize = 8 * 1024;
+
+	static void ThrowIfConstantBufferTooLarge( long size )
+	{
+		if ( size > MaxConstantBufferSize )
+			throw new ArgumentOutOfRangeException( "value", $"Constant buffer data is {size} bytes, the maximum is {MaxConstantBufferSize}" );
+	}
+
 	/// <summary>
 	/// Set a constant buffer to a specific value
 	/// </summary>
@@ -256,10 +265,11 @@ public partial class RenderAttributes
 		if ( !SandboxedUnsafe.IsAcceptablePod<T>() )
 			throw new ArgumentException( $"{nameof( T )} must be a POD type" );
 
-		int actualSize = value.Length * Unsafe.SizeOf<T>();
+		long actualSize = (long)value.Length * Unsafe.SizeOf<T>();
 		if ( actualSize <= 0 ) return;
+		ThrowIfConstantBufferTooLarge( actualSize );
 		fixed ( T* ptr = value )
-			RenderTools.SetDynamicConstantBufferData( attributes, k, Graphics.Context, (IntPtr)ptr, actualSize );
+			RenderTools.SetDynamicConstantBufferData( attributes, k, Graphics.Context, (IntPtr)ptr, (int)actualSize );
 	}
 
 	/// <summary>
@@ -273,6 +283,7 @@ public partial class RenderAttributes
 		if ( !attributes.IsValid ) return;
 		int actualSize = Unsafe.SizeOf<T>();
 		if ( actualSize <= 0 ) return;
+		ThrowIfConstantBufferTooLarge( actualSize );
 		RenderTools.SetDynamicConstantBufferData( attributes, k, Graphics.Context, (IntPtr)(&value), actualSize );
 	}
 

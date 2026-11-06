@@ -18,4 +18,12 @@ public class GpuBufferBoundsTests
 		Assert.ThrowsException<ArgumentOutOfRangeException>( () => buffer.SetData( new int[2], 3 ) );
 		Assert.ThrowsException<ArgumentOutOfRangeException>( () => append.CopyStructureCount( buffer, 16 ) );
 	}
+
+	[TestMethod]
+	public void OversizedConstantBufferIsRejected()
+	{
+		var attributes = new RenderAttributes();
+		Assert.ThrowsException<ArgumentOutOfRangeException>( () => attributes.SetData( "Data", new byte[RenderAttributes.MaxConstantBufferSize + 16] ) );
+		Assert.ThrowsException<ArgumentOutOfRangeException>( () => attributes.SetData( "Data", new Vector4[4096] ) );
+	}
 }
