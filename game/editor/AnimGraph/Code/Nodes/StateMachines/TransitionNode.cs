@@ -94,7 +94,7 @@ public class TransitionNode : Node
 	{
 		get
 		{
-			var info = DisplayInfo.For( this );
+			var info = TypeDisplayInfo;
 			if ( !string.IsNullOrWhiteSpace( TransitionName ) )
 				info.Name = TransitionName;
 			return info;

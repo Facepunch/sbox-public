@@ -609,7 +609,7 @@ public class Data : IGraph
 	/// <summary> How node data is written, so anything copying it round trips the same way. </summary>
 	internal static JsonSerializerOptions SerializerOptions => _options;
 
-	public string Serialize()
+	public string Serialize( bool indented = true )
 	{
 		var doc = new JsonObject
 		{
@@ -624,8 +624,8 @@ public class Data : IGraph
 		{
 			doc["Model"] = _variations.GetVariation( Variation.DefaultVariationID ).TargetModelPath;
 			doc["Skeleton"] = _variations.GetVariation( Variation.DefaultVariationID ).ResolveTargetSkeletonPath();
-			doc["parameters"] = JsonSerializer.SerializeToNode( Parameters, _indentedOptions );
-			doc["virtualParameters"] = JsonSerializer.SerializeToNode( VirtualParameters, _indentedOptions );
+			doc["parameters"] = JsonSerializer.SerializeToNode( Parameters, _options );
+			doc["virtualParameters"] = JsonSerializer.SerializeToNode( VirtualParameters, _options );
 
 			// The default variation lives in "Model" above, the rest carry their own model
 			var variations = new JsonArray();
@@ -651,7 +651,7 @@ public class Data : IGraph
 			WritePreviewState( doc, DefaultVariation );
 		}
 
-		return doc.ToJsonString( _indentedOptions );
+		return doc.ToJsonString( indented ? _indentedOptions : _options );
 	}
 
 	/// <summary>
@@ -732,12 +732,15 @@ public class Data : IGraph
 
 	public void Deserialize( string json )
 	{
+		using var doc = JsonDocument.Parse( json, new() { CommentHandling = JsonCommentHandling.Skip } );
+		Deserialize( doc.RootElement );
+	}
+
+	internal void Deserialize( JsonElement root )
+	{
 		_nodes.Clear();
 		Parameters.Clear();
 		VirtualParameters.Clear();
-
-		using var doc = JsonDocument.Parse( json, new() { CommentHandling = JsonCommentHandling.Skip } );
-		var root = doc.RootElement;
 
 		if ( root.TryGetProperty( "Version", out var ver ) )
 			Version = ver.GetInt32();
@@ -1003,12 +1006,12 @@ public sealed class DataConverter : JsonConverter<Data>
 	{
 		using var doc = JsonDocument.ParseValue( ref reader );
 		var graph = new Data { IsSubGraph = true };
-		graph.Deserialize( doc.RootElement.GetRawText() );
+		graph.Deserialize( doc.RootElement );
 		return graph;
 	}
 
 	public override void Write( Utf8JsonWriter writer, Data value, JsonSerializerOptions options )
 	{
-		writer.WriteRawValue( value.Serialize() );
+		writer.WriteRawValue( value.Serialize( indented: options.WriteIndented ) );
 	}
 }

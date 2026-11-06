@@ -157,9 +157,6 @@ public class VariationEditor : Widget
 
 	public void Rebuild()
 	{
-		// Only the rows, so a filter being typed into isn't hidden along with them and loses focus
-		using var _ = SuspendUpdates.For( _rowsCanvas );
-
 		var graph = _window.Graph;
 		var variationID = _window.SelectedVariationID;
 		var isDefault = variationID == Variation.DefaultVariationID;
@@ -232,15 +229,9 @@ public class VariationEditor : Widget
 
 	private void RebuildRows( Data graph, string variationID )
 	{
-		_rows.Clear( true );
-		_rowWidgets.Clear();
 		_hasVisibleNodes = false;
-		_hasNodes = false;
 
-		if ( graph is null )
-			return;
-
-		var nodes = graph.AllNodes
+		var nodes = (graph?.AllNodes ?? [])
 			.OfType<VariationDataNode>()
 			.Select( node => (Node: node, Path: _window.GetNodePath( node )) )
 			.ToList();
@@ -251,8 +242,20 @@ public class VariationEditor : Widget
 		// animation, so sorting by it would reshuffle the list every time you picked a new one
 		var sorted = nodes
 			.OrderBy( entry => entry.Path, StringComparer.OrdinalIgnoreCase )
-			.ThenBy( entry => DisplayInfo.ForType( entry.Node.GetType() ).Name, StringComparer.OrdinalIgnoreCase )
-			.ThenBy( entry => entry.Node.Identifier, StringComparer.OrdinalIgnoreCase );
+			.ThenBy( entry => entry.Node.TypeDisplayInfo.Name, StringComparer.OrdinalIgnoreCase )
+			.ThenBy( entry => entry.Node.Identifier, StringComparer.OrdinalIgnoreCase )
+			.ToArray();
+
+		if ( sorted.Select( entry => entry.Node.Identifier ).SequenceEqual( _rowWidgets.Select( row => row.Node.Identifier ) ) )
+		{
+			for ( var i = 0; i < sorted.Length; i++ )
+				_rowWidgets[i].Bind( sorted[i].Node, sorted[i].Path, variationID );
+			return;
+		}
+
+		using var _ = SuspendUpdates.For( _rowsCanvas );
+		_rows.Clear( true );
+		_rowWidgets.Clear();
 
 		foreach ( var (node, path) in sorted )
 		{
@@ -513,59 +516,79 @@ internal sealed class VariationNodeRow : Widget
 
 	private readonly Window _window;
 	private readonly VariationEditor _editor;
-	private readonly VariationDataNode _node;
-	private readonly string _path;
-	private readonly string _variationID;
-	private readonly string _source;
-	private readonly string _icon;
-	private readonly Color _color;
-	private readonly bool _hasOverride;
-	private readonly bool _isDefault;
+	private VariationDataNode _node;
+	private string _path;
+	private string _variationID;
+	private string _source;
+	private string _icon;
+	private Color _color;
+	private bool _hasOverride;
+	private bool _isDefault;
+	private IconButton _overrideButton;
 
 	public VariationNodeRow( Window window, VariationEditor editor, VariationDataNode node, string path, string variationID ) : base( editor )
 	{
 		_window = window;
 		_editor = editor;
-		_node = node;
-		_path = path;
-		_variationID = variationID;
-		_isDefault = variationID == Variation.DefaultVariationID;
-		_hasOverride = node.HasVariationOverride( variationID );
-		_source = _isDefault ? null : window.GetVariationDataSource( node, variationID );
-		_icon = node.DisplayInfo.Icon ?? DisplayInfo.ForType( node.GetType() ).Icon ?? "account_tree";
-		_color = node.PrimaryColor;
 
 		FixedHeight = VariationEditor.PillHeight;
 		Cursor = CursorShape.Finger;
-		Refresh();
 
 		Layout = Layout.Row();
 		Layout.Margin = new Sandbox.UI.Margin( 6, 0, 12, 0 );
 		Layout.Spacing = 4;
 		Layout.AddStretchCell();
 
-		if ( _isDefault )
-			return;
+		Bind( node, path, variationID );
+	}
 
-		var button = Layout.Add( new IconButton( _hasOverride ? "undo" : "edit_note" ) );
-		button.ToolTip = _hasOverride
-			? $"Remove the override so '{variationID}' inherits this data again"
-			: $"Give '{variationID}' its own copy of this data";
-		button.IconSize = 14;
-		button.FixedSize = Theme.RowHeight - 2;
-		button.Background = Color.Transparent;
-		button.Foreground = _hasOverride ? Theme.TextControl.WithAlpha( 0.6f ) : Theme.Green;
-		button.OnClick = () => _window.SetVariationOverride( _node, _variationID, !_hasOverride );
+	internal void Bind( VariationDataNode node, string path, string variationID )
+	{
+		_node = node;
+		_path = path;
+		_variationID = variationID;
+		Refresh();
 	}
 
 	internal void Refresh()
 	{
+		_isDefault = _variationID == Variation.DefaultVariationID;
+		_hasOverride = _node.HasVariationOverride( _variationID );
+		_source = _isDefault ? null : _window.GetVariationDataSource( _node, _variationID );
+		_icon = _node.DisplayInfo.Icon ?? _node.TypeDisplayInfo.Icon ?? "account_tree";
+		_color = _node.PrimaryColor;
+
 		ToolTip = _isDefault
 			? $"{_path} / {_node.DisplayInfo.Name}\nClick to edit its data in the inspector, double-click to jump to the node"
 			: _hasOverride
 				? $"{_path} / {_node.DisplayInfo.Name}\nOverridden for '{_variationID}' - click to edit its data in the inspector"
 				: $"{_path} / {_node.DisplayInfo.Name}\nInherits its data from '{_source}'";
+		UpdateOverrideButton();
 		Update();
+	}
+
+	private void UpdateOverrideButton()
+	{
+		if ( !_isDefault )
+		{
+			_overrideButton ??= Layout.Add( new IconButton( "edit_note" )
+			{
+				IconSize = 14,
+				FixedSize = Theme.RowHeight - 2,
+				Background = Color.Transparent,
+				OnClick = () => _window.SetVariationOverride( _node, _variationID, !_hasOverride )
+			} );
+		}
+
+		if ( _overrideButton is null )
+			return;
+
+		_overrideButton.Visible = !_isDefault;
+		_overrideButton.Icon = _hasOverride ? "undo" : "edit_note";
+		_overrideButton.ToolTip = _hasOverride
+			? $"Remove the override so '{_variationID}' inherits this data again"
+			: $"Give '{_variationID}' its own copy of this data";
+		_overrideButton.Foreground = _hasOverride ? Theme.TextControl.WithAlpha( 0.6f ) : Theme.Green;
 	}
 
 	protected override void OnMouseEnter() => Update();
