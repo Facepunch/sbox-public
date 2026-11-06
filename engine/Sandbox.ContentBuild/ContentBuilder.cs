@@ -69,7 +69,13 @@ public sealed class BuildRequest
 	/// Whether another compile may start beside the ones running, asked again as each finishes; one always runs.
 	/// </summary>
 	public Func<bool> CanStartJob { get; init; }
-	public Action<string> JobFinished { get; init; }
+
+	/// <summary>
+	/// Called on the thread that settles jobs as each compile finishes: its source, the compiles finished so far, and
+	/// the compiles known so far (started or queued). Assets are checked once their prerequisites settle, so the total
+	/// grows as the build reaches them.
+	/// </summary>
+	public Action<string, int, int> JobFinished { get; init; }
 
 	/// <summary>
 	/// The files a publication just replaced, added or deleted, as soon as it has, on the thread that settles jobs.
@@ -826,7 +832,7 @@ public static class ContentBuilder
 				try { Finish( finished, done.Result, finishedJob.Staging ); }
 				finally { ReleaseStaging( finishedJob.Staging ); }
 
-				request.JobFinished?.Invoke( finished.Name );
+				request.JobFinished?.Invoke( finished.Name, report.Jobs.Count - running.Count, report.Jobs.Count + queue.Count );
 			}
 		}
 

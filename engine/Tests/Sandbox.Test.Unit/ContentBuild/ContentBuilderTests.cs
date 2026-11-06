@@ -351,7 +351,7 @@ public class ContentBuilderTests
 				Roots = [new ContentRoot( "unit", fx.Root, fx.State )],
 				MaxJobs = 1,
 				Published = _ => { Assert.AreEqual( caller, Environment.CurrentManagedThreadId ); calls++; },
-				JobFinished = _ => Assert.AreEqual( caller, Environment.CurrentManagedThreadId )
+				JobFinished = ( _, _, _ ) => Assert.AreEqual( caller, Environment.CurrentManagedThreadId )
 			};
 			var build = ContentBuilder.BuildAsync( request, fx.Compiler );
 			Assert.IsFalse( build.IsCompleted );
@@ -360,6 +360,24 @@ public class ContentBuilderTests
 			Assert.IsTrue( report.Success, report.Log.ToString() );
 			Assert.AreEqual( 1, calls );
 		} );
+	}
+
+	[TestMethod]
+	public void ProgressTotalGrowsAsAssetsWaitingOnPrerequisitesAreChecked()
+	{
+		using var fx = new Fixture();
+		fx.Write( "a.vtex", "red" );
+		fx.Write( "b.vmat", "reads a.vtex" );
+		Assert.IsTrue( fx.Build().Success );
+		fx.Write( "a.vtex", "blue" );
+		fx.Write( "b.vmat", "reads a.vtex", "shiny" );
+
+		// b is only checked, and counted, once a settles
+		var calls = new List<(int Done, int Total)>();
+		var report = ContentBuilder.Build( new BuildRequest { Roots = [new ContentRoot( "unit", fx.Root, fx.State )], MaxJobs = 1, JobFinished = ( _, done, total ) => calls.Add( (done, total) ) }, fx.Compiler );
+
+		Assert.IsTrue( report.Success, report.Log.ToString() );
+		CollectionAssert.AreEqual( new[] { (1, 1), (2, 2) }, calls.ToArray() );
 	}
 
 	[TestMethod]
