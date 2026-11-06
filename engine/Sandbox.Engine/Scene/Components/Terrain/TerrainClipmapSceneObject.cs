@@ -131,11 +131,29 @@ internal sealed class TerrainClipmapSceneObject : SceneCustomObject
 
 		foreach ( ref var tier in _tiers.AsSpan() )
 		{
-			int count = shadow ? tier.Meshlets.Length : tier.VisibleCount;
+			int count = shadow ? tier.Meshlets.Length : UploadVisible( ref tier );
 			if ( count <= 0 ) continue;
 
 			Graphics.Attributes.Set( "TerrainMeshlets", shadow ? tier.FullBuffer : tier.VisibleBuffer );
 			Graphics.DrawModelInstanced( tier.Mesh, count );
+		}
+	}
+
+	/// <summary>
+	/// Upload the view's culled meshlets into this pass, and return how many there are. The cull runs once per view,
+	/// but every pass uploads: an upload lands in the command list of the pass that makes it, and the passes of a view
+	/// are recorded at once on job threads, so a single upload in whichever pass culled first could run on the GPU
+	/// after the prepass. That prepass then drew the previous frame's meshlets and the opaque pass, depth testing
+	/// equal against it, left holes in the terrain while the camera turned.
+	/// </summary>
+	private int UploadVisible( ref Tier tier )
+	{
+		lock ( _cullLock )
+		{
+			if ( tier.VisibleCount > 0 )
+				tier.VisibleBuffer.SetData( tier.Visible.AsSpan( 0, tier.VisibleCount ) );
+
+			return tier.VisibleCount;
 		}
 	}
 
@@ -164,9 +182,6 @@ internal sealed class TerrainClipmapSceneObject : SceneCustomObject
 			if ( _cullFrustumLocal.IsInside( GetMeshletBounds( in m, center, vertexStep, increment ), partially: true ) )
 				tier.Visible[vis++] = m;
 		}
-
-		if ( vis > 0 )
-			tier.VisibleBuffer.SetData( tier.Visible.AsSpan( 0, vis ) );
 
 		tier.VisibleCount = vis;
 	}
