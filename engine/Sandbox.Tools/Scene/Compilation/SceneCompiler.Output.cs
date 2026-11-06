@@ -96,27 +96,41 @@ internal static partial class SceneCompiler
 		if ( editor.HasUnsavedChanges || !HasSourceRevision( sourcePath, sourceRevision ) )
 			throw new InvalidOperationException( "The source scene changed during compilation. Save it and compile again." );
 
+		file.IsCompiled = true;
 		var json = file.Serialize();
 		json["__blobdata"] = System.Convert.ToBase64String( file.BinaryData ?? [] );
 		var previousOutput = asset.GetCompiledFile( true );
 		var previousBytes = !string.IsNullOrEmpty( previousOutput ) && File.Exists( previousOutput ) ? File.ReadAllBytes( previousOutput ) : null;
 
+		var bakePath = SceneBake.FilePath( sourcePath );
+		var previousBake = File.Exists( bakePath ) ? File.ReadAllBytes( bakePath ) : null;
+		var jsonText = json.ToJsonString( new JsonSerializerOptions( JsonSerializerOptions.Default ) { MaxDepth = 512 } );
+
 		try
 		{
-			if ( !IResourceCompilerSystem.GenerateResourceFileForced( sourcePath, json.ToJsonString( new JsonSerializerOptions( JsonSerializerOptions.Default ) { MaxDepth = 512 } ) ) )
+			// Recompiles from source (save, checkout, publish) build the scene from this file, so the bake survives them.
+			SceneBake.Write( sourcePath, jsonText );
+			if ( !IResourceCompilerSystem.GenerateResourceFileForced( sourcePath, jsonText ) )
 				throw new InvalidOperationException( $"Could not write compiled scene '{asset.Path}'." );
 
 			var outputPath = asset.GetCompiledFile( true );
 			if ( string.IsNullOrEmpty( outputPath ) )
 				throw new InvalidOperationException( $"Could not find the compiled output path for '{asset.Path}'." );
 
-			var bytes = File.ReadAllBytes( outputPath );
-			using var compiledJson = JsonDocument.Parse( Game.Resources.ReadCompiledResourceJson( bytes ), new JsonDocumentOptions { MaxDepth = 512 } );
-			if ( compiledJson.RootElement.TryGetProperty( "__blobdata", out _ ) )
-				throw new InvalidOperationException( $"The scene resource compiler did not process '{asset.Path}'." );
+			void VerifyBaked( string reason )
+			{
+				using var compiledJson = JsonDocument.Parse( Game.Resources.ReadCompiledResourceJson( File.ReadAllBytes( outputPath ) ), new JsonDocumentOptions { MaxDepth = 512 } );
+				var root = compiledJson.RootElement;
+				if ( root.TryGetProperty( "__blobdata", out _ ) || !root.TryGetProperty( "__compiled", out var compiled ) || compiled.ValueKind != JsonValueKind.True )
+					throw new InvalidOperationException( $"The scene resource compiler did not keep the compiled geometry of '{asset.Path}' ({reason})." );
+			}
+
+			VerifyBaked( "write" );
 
 			if ( !asset.Compile( false ) )
 				throw new InvalidOperationException( $"Could not refresh compiled scene '{asset.Path}'." );
+
+			VerifyBaked( "refresh" );
 
 			if ( editor.HasUnsavedChanges || !HasSourceRevision( sourcePath, sourceRevision ) )
 				throw new InvalidOperationException( "The source scene changed during compilation. Save it and compile again." );
@@ -146,7 +160,39 @@ internal static partial class SceneCompiler
 				Log.Warning( $"Could not restore the last compiled scene '{asset.Path}': {e.Message}" );
 			}
 
+			try
+			{
+				if ( previousBake is not null )
+					File.WriteAllBytes( bakePath, previousBake );
+				else if ( File.Exists( bakePath ) )
+					File.Delete( bakePath );
+			}
+			catch ( Exception e )
+			{
+				Log.Warning( $"Could not restore the last scene bake of '{asset.Path}': {e.Message}" );
+			}
+
 			throw;
+		}
+	}
+
+	/// <summary>
+	/// Whether the asset's .scene_c on disk carries baked geometry. Reads the file: callers cache on its write time.
+	/// </summary>
+	internal static bool HasCompiledOutput( Asset asset )
+	{
+		var path = asset?.GetCompiledFile( true );
+		if ( string.IsNullOrEmpty( path ) || !File.Exists( path ) )
+			return false;
+
+		try
+		{
+			using var json = JsonDocument.Parse( Game.Resources.ReadCompiledResourceJson( File.ReadAllBytes( path ) ), new JsonDocumentOptions { MaxDepth = 512 } );
+			return json.RootElement.TryGetProperty( "__compiled", out var compiled ) && compiled.ValueKind == JsonValueKind.True;
+		}
+		catch ( Exception e ) when ( e is IOException or InvalidDataException or JsonException or UnauthorizedAccessException )
+		{
+			return false;
 		}
 	}
 }

@@ -450,6 +450,41 @@ public class SceneLoadSaveTest : SceneTest
 	}
 
 	/// <summary>
+	/// Compile Scene marks its output with "__compiled"; source scenes and plain compiles never carry it.
+	/// </summary>
+	[TestMethod]
+	public void CompiledMarkerRoundtrip()
+	{
+		var scene = new Scene();
+		scene.WantsSystemScene = false;
+
+		using ( scene.Push() )
+			scene.CreateObject().Name = "Marked Object";
+
+		var sceneFile = scene.CreateSceneFile();
+		sceneFile.RegisterWeakResourceId( "loadsave_compiled_marker.scene" );
+
+		static SceneFile Compile( SceneFile file )
+		{
+			var writer = new ResourceWriter();
+			writer.SetDataBlock( Encoding.UTF8.GetBytes( file.Serialize().ToJsonString() ) );
+			return SceneFile.FromCompiled( file.ResourcePath, file.Guid, writer.ToArray() );
+		}
+
+		Assert.IsFalse( sceneFile.Serialize().ContainsKey( "__compiled" ) );
+		Assert.IsFalse( Compile( sceneFile ).IsCompiled );
+
+		sceneFile.IsCompiled = true;
+		Assert.IsTrue( sceneFile.Serialize().ContainsKey( "__compiled" ) );
+
+		var compiled = Compile( sceneFile );
+		Assert.IsTrue( compiled.IsCompiled );
+		Assert.AreEqual( sceneFile.GameObjects.Length, compiled.GameObjects.Length );
+
+		scene.Destroy();
+	}
+
+	/// <summary>
 	/// Components implementing ISceneMetadata contribute their entries to the
 	/// "Metadata" block of the serialized scene properties.
 	/// </summary>

@@ -15,16 +15,21 @@ internal class SceneResourceCompiler : ResourceCompiler
 		if ( Context is not ResourceCompileContextImp context )
 			throw new InvalidOperationException( "Scene compilation requires an editor resource context." );
 
-		if ( !context.TryReadOverrideInput( out var input ) )
+		JsonObject json;
+		if ( context.TryReadOverrideInput( out var input ) )
 		{
-			AssetSystem.CompileGameResource( context );
-			return Task.FromResult( true );
+			using var reader = new StreamReader( new MemoryStream( input ) );
+			json = JsonNode.Parse( reader.ReadToEnd(), documentOptions: new() { MaxDepth = 512, CommentHandling = JsonCommentHandling.Skip } ) as JsonObject
+				?? throw new JsonException( "Scene compile input must be a JSON object." );
+		}
+		else
+		{
+			// A compile from source (save, checkout, publish) keeps the bake while the scene is the one it was made from.
+			context.AddCompileReference( SceneBake.FilePath( context.AbsolutePath ), optional: true );
+			json = SceneBake.TryRead( context.AbsolutePath );
 		}
 
-		using var reader = new StreamReader( new MemoryStream( input ) );
-		var json = JsonNode.Parse( reader.ReadToEnd(), documentOptions: new() { MaxDepth = 512, CommentHandling = JsonCommentHandling.Skip } ) as JsonObject
-			?? throw new JsonException( "Scene compile input must be a JSON object." );
-		if ( !json.Remove( "__blobdata", out var inlineBlob ) )
+		if ( json is null || !json.Remove( "__blobdata", out var inlineBlob ) )
 		{
 			AssetSystem.CompileGameResource( context );
 			return Task.FromResult( true );

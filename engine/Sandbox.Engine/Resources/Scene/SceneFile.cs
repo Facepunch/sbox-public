@@ -34,6 +34,23 @@ public partial class SceneFile : GameResource
 
 	public override int ResourceVersion => 3;
 
+	/// <summary>
+	/// True when this file was produced by Compile Scene: static geometry is baked and MeshComponents are gone.
+	/// Source scenes and plain compiles are false.
+	/// </summary>
+	[Hide, JsonIgnore]
+	public bool IsCompiled { get; internal set; }
+
+	protected override void OnJsonSerialize( JsonObject node )
+	{
+		if ( IsCompiled ) node["__compiled"] = true;
+	}
+
+	protected override void OnJsonDeserialize( JsonObject node )
+	{
+		IsCompiled = node["__compiled"] is JsonValue value && value.TryGetValue<bool>( out var compiled ) && compiled;
+	}
+
 	[Hide, JsonIgnore]
 	protected override Type ActionGraphTargetType => null;
 
