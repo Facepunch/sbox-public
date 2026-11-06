@@ -1,5 +1,6 @@
 using NativeEngine;
 using System;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 
 namespace EngineTests;
@@ -62,7 +63,6 @@ public class InputContextTests
 		}
 		finally
 		{
-			PressA( controller, false );
 			Controller.All.Clear();
 			foreach ( var c in saved )
 				Controller.All.Add( c );
@@ -73,14 +73,34 @@ public class InputContextTests
 
 	static bool IsSet( ulong actions, string name ) => (actions & (1UL << Input.GetActionIndex( name ))) != 0;
 
+	/// <summary>
+	/// Input state the test swaps for empty collections, so its presses can't reach other contexts and nothing held or bound
+	/// outside the test can change the result.
+	/// </summary>
+	static readonly FieldInfo[] SharedInputState =
+	[
+		typeof( Input ).GetField( "contexts", BindingFlags.NonPublic | BindingFlags.Static ),
+		typeof( Input ).GetField( "activeButtons", BindingFlags.NonPublic | BindingFlags.Static ),
+		typeof( Sandbox.Engine.InputBinds ).GetField( "Collections", BindingFlags.NonPublic | BindingFlags.Static ),
+		typeof( Sandbox.Engine.InputRouter ).GetField( "PressedControllerButtons", BindingFlags.NonPublic | BindingFlags.Static ),
+	];
+
 	static void WithInput( Action<Input.Context> test )
 	{
 		var settings = Input.InputSettings;
 		var ident = Application.GameIdent;
 		var usingController = Input.UsingController;
+		var config = EngineFileSystem.Config;
+		var state = SharedInputState.Select( x => x.GetValue( null ) ).ToArray();
 
 		try
 		{
+			foreach ( var field in SharedInputState )
+				field.SetValue( null, Activator.CreateInstance( field.FieldType ) );
+
+			// no saved binds, so the default binds are the ones under test
+			SetConfig( new MemoryFileSystem() );
+
 			Application.GameIdent = "test.inputcontext";
 			Input.ReadConfig( new InputSettings() );
 
@@ -88,10 +108,15 @@ public class InputContextTests
 		}
 		finally
 		{
-			Input.OnButton( ButtonCode.KEY_W, "w", false );
+			for ( int i = 0; i < SharedInputState.Length; i++ )
+				SharedInputState[i].SetValue( null, state[i] );
+
+			SetConfig( config );
 			Application.GameIdent = ident;
 			Input.InputSettings = settings;
 			Input.UsingController = usingController;
 		}
 	}
+
+	static void SetConfig( BaseFileSystem fs ) => typeof( EngineFileSystem ).GetProperty( nameof( EngineFileSystem.Config ) ).SetValue( null, fs );
 }
