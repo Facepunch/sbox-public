@@ -44,6 +44,7 @@ public partial class FileSystemTest
 			System.IO.Directory.Delete( ".source2/TestFolder", true );
 
 		Sandbox.EngineFileSystem.Initialize( Environment.CurrentDirectory );
+		Sandbox.EngineFileSystem.InitializeConfigFolder();
 	}
 
 	[TestMethod]

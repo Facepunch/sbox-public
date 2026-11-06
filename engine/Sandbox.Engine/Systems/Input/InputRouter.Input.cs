@@ -201,6 +201,7 @@ internal static partial class InputRouter
 			if ( down )
 			{
 				controllerContext.AccumActionsPressed |= 1UL << i;
+				controllerContext.AccumActionsReleased &= ~(1UL << i);
 			}
 			else
 			{
