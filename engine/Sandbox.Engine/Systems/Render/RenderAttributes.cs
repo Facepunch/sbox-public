@@ -245,7 +245,14 @@ public partial class RenderAttributes
 	public void Set( in StringToken k, in GpuBuffer value )
 	{
 		if ( !attributes.IsValid ) return;
-		attributes.SetBufferValue( k, value is not null ? value.native : default );
+		attributes.SetBufferValue( k, SetUsedBuffer( k, value ) );
+	}
+
+	// For attributes that only live for one draw, whoever owns the buffer keeps it bound
+	internal void SetUntracked( in StringToken k, GpuBuffer value )
+	{
+		if ( !attributes.IsValid ) return;
+		attributes.SetBufferValue( k, value?.native ?? default );
 	}
 
 	// Largest pooled dynamic constant buffer bucket, 512 float4s
@@ -403,6 +410,14 @@ public partial class RenderAttributes
 	internal void MergeTo( RenderAttributes renderAttributes )
 	{
 		if ( renderAttributes is null ) throw new ArgumentNullException( nameof( renderAttributes ) );
+		if ( !attributes.IsValid || !renderAttributes.attributes.IsValid ) return;
+		attributes.MergeToPtr( renderAttributes.attributes );
+		MergeUsedBuffersTo( renderAttributes );
+	}
+
+	// For attributes that only live for one draw, the source keeps its buffers bound
+	internal void MergeToUntracked( RenderAttributes renderAttributes )
+	{
 		if ( !attributes.IsValid || !renderAttributes.attributes.IsValid ) return;
 		attributes.MergeToPtr( renderAttributes.attributes );
 	}

@@ -11,6 +11,61 @@ public partial class RenderAttributes
 
 	private Dictionary<StringToken, ITexture> usedTextures; // lazy allocated
 
+	// CRenderAttributes stores raw buffer pointers, hold a binding so Dispose can't free them while bound
+	private Dictionary<StringToken, GpuBuffer> usedBuffers; // lazy allocated
+
+	private RenderBufferHandle_t SetUsedBuffer( StringToken k, GpuBuffer buffer )
+	{
+		usedBuffers ??= [];
+
+		if ( usedBuffers.TryGetValue( k, out var old ) )
+		{
+			// Same buffer again keeps the binding we already hold
+			if ( buffer is not null && ReferenceEquals( old, buffer ) )
+				return buffer.native;
+
+			old?.ReleaseAttributeBinding();
+		}
+
+		var native = buffer?.AddAttributeBinding() ?? default;
+
+		// Null entries are kept so merging this into other attributes releases their old binding too
+		usedBuffers[k] = native != IntPtr.Zero ? buffer : null;
+
+		return native;
+	}
+
+	// MergeToPtr copies the raw buffer pointers, so the target needs its own bindings
+	internal void MergeUsedBuffersTo( RenderAttributes target )
+	{
+		if ( target == this || usedBuffers is null )
+			return;
+
+		foreach ( var (k, buffer) in usedBuffers )
+		{
+			target.usedBuffers ??= [];
+			target.usedBuffers.TryGetValue( k, out var old );
+			if ( ReferenceEquals( old, buffer ) )
+				continue;
+
+			buffer?.RetainAttributeBinding();
+			old?.ReleaseAttributeBinding();
+			target.usedBuffers[k] = buffer;
+		}
+	}
+
+	private void ClearUsedBuffers()
+	{
+		if ( usedBuffers is null )
+			return;
+
+		foreach ( var buffer in usedBuffers.Values )
+		{
+			buffer?.ReleaseAttributeBinding();
+		}
+		usedBuffers.Clear();
+	}
+
 	private void SetUsedTexture( StringToken k, Texture texture )
 	{
 		usedTextures ??= [];
@@ -46,6 +101,8 @@ public partial class RenderAttributes
 	/// </summary>
 	private void ClearUsedTextures()
 	{
+		ClearUsedBuffers();
+
 		if ( usedTextures is null )
 			return;
 

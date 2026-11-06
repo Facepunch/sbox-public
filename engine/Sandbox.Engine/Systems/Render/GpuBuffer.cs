@@ -67,6 +67,10 @@ public partial class GpuBuffer : IValid, IDisposable
 {
 	internal RenderBufferHandle_t native;
 
+	readonly System.Threading.Lock lifetimeLock = new();
+	int attributeBindings;
+	RenderBufferHandle_t pendingDestroy;
+
 	/// <summary>
 	/// Number of elements in the buffer.
 	/// </summary>
@@ -171,18 +175,71 @@ public partial class GpuBuffer : IValid, IDisposable
 
 	void Dispose( bool disposing )
 	{
-		if ( native == IntPtr.Zero )
-			return;
+		RenderBufferHandle_t copy;
 
-		// Set our pointer to default immediately, keep a copy so we can dispose on main thread
-		var copy = native;
-		native = IntPtr.Zero;
+		lock ( lifetimeLock )
+		{
+			if ( native == IntPtr.Zero )
+				return;
 
+			// Set our pointer to default immediately, keep a copy so we can dispose on main thread
+			copy = native;
+			native = IntPtr.Zero;
+
+			// Still bound to RenderAttributes, destroyed when the last binding is released
+			if ( attributeBindings > 0 )
+			{
+				pendingDestroy = copy;
+				return;
+			}
+		}
+
+		QueueDestroy( copy );
+	}
+
+	static void QueueDestroy( RenderBufferHandle_t handle )
+	{
 		// Queue on the main thread in-case this is disposed from GC (different thread)
 		MainThread.Queue( () =>
 		{
-			g_pRenderDevice.DestroyGPUBuffer( copy );
+			g_pRenderDevice.DestroyGPUBuffer( handle );
 		} );
+	}
+
+	internal RenderBufferHandle_t AddAttributeBinding()
+	{
+		lock ( lifetimeLock )
+		{
+			if ( native == IntPtr.Zero )
+				return default;
+
+			attributeBindings++;
+			return native;
+		}
+	}
+
+	internal void RetainAttributeBinding()
+	{
+		lock ( lifetimeLock )
+		{
+			attributeBindings++;
+		}
+	}
+
+	internal void ReleaseAttributeBinding()
+	{
+		RenderBufferHandle_t destroy;
+
+		lock ( lifetimeLock )
+		{
+			if ( --attributeBindings > 0 || pendingDestroy == IntPtr.Zero )
+				return;
+
+			destroy = pendingDestroy;
+			pendingDestroy = default;
+		}
+
+		QueueDestroy( destroy );
 	}
 
 	/// <summary>
