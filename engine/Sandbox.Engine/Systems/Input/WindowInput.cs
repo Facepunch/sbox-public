@@ -9,7 +9,7 @@ namespace Sandbox.Engine;
 [SkipHotload]
 internal static class WindowInput
 {
-	static bool initialized, active, focused, relative, imeAllowed, noIme;
+	static bool initialized, active, focused, relative, imeAllowed, noIme, forceFocus;
 	static IntPtr editorWindow, focusWindow;
 	static IntPtr InputWindow => editorWindow != IntPtr.Zero ? editorWindow : GameWindow.Current?.Handle ?? IntPtr.Zero;
 
@@ -21,6 +21,20 @@ internal static class WindowInput
 		editorWindow = focusWindow = IntPtr.Zero;
 		noIme = CommandLine.HasSwitch( "-noime" );
 		imeAllowed = !noIme;
+
+		// Gamescope (Steam Deck Game Mode, under Proton) never gives the game window keyboard focus, so a
+		// standalone game ignored all input. It only ever shows the one game and handles the Steam overlay
+		// itself, so treat the game window as always focused there. -forcefocus / -noforcefocus override it.
+		forceFocus = CommandLine.HasSwitch( "-forcefocus" )
+			|| (Application.IsStandalone && IsGamescope() && !CommandLine.HasSwitch( "-noforcefocus" ));
+		if ( forceFocus )
+		{
+			Log.Info( "WindowInput: the game window is always treated as focused" );
+
+			// SDL also drops gamepad events while no window has keyboard focus - which under gamescope is always
+			Sdl.SetHint( "SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS", "1" );
+		}
+
 		Sdl.SetHint( "SDL_TOUCH_MOUSE_EVENTS", "0" );
 		// Each window owns its close policy, including panels which cancel or hide on close.
 		Sdl.SetHint( "SDL_QUIT_ON_LAST_WINDOW_CLOSE", "0" );
@@ -31,6 +45,18 @@ internal static class WindowInput
 			SdlCursors.Initialize();
 		}
 		InputSystem.SetGameFocus( focused );
+	}
+
+	/// <summary>
+	/// Running inside gamescope - Steam Deck Game Mode or another Steam gamescope session. Proton passes
+	/// the Linux environment through, so this works for Windows builds too.
+	/// </summary>
+	static bool IsGamescope()
+	{
+		if ( !string.IsNullOrEmpty( Environment.GetEnvironmentVariable( "GAMESCOPE_WAYLAND_DISPLAY" ) ) ) return true;
+
+		var desktop = Environment.GetEnvironmentVariable( "XDG_CURRENT_DESKTOP" );
+		return desktop is not null && desktop.Contains( "gamescope", StringComparison.OrdinalIgnoreCase );
 	}
 
 	internal static bool HasMouseFocus() => focused;
@@ -64,6 +90,13 @@ internal static class WindowInput
 		var isActive = hostActive || panelFocused;
 		var gameWindow = GameWindow.Current?.Handle ?? IntPtr.Zero;
 		var hasFocus = hostActive && !panelFocused && (tools is not null ? focusWindow != IntPtr.Zero : gameWindow != IntPtr.Zero && window == gameWindow);
+
+		if ( forceFocus && tools is null && gameWindow != IntPtr.Zero && !panelFocused )
+		{
+			isActive = true;
+			hasFocus = true;
+		}
+
 		if ( !forceFocusUpdate && active == isActive && focused == hasFocus ) return;
 		active = isActive;
 		if ( !active ) Sdl.SetModState( 0 );
