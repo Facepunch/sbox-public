@@ -107,6 +107,7 @@ public partial class GpuBuffer : IValid, IDisposable
 	{
 		if ( elementCount <= 0 ) throw new ArgumentException( "Element count must be greater than zero." );
 		if ( elementSize <= 0 ) throw new ArgumentException( "Element size must be greater than zero." );
+		if ( ElementCount != 0 ) throw new InvalidOperationException( "GpuBuffer is already initialized." );
 
 		// Structured buffers element size must be 4 byte aligned
 		if ( usageFlags.HasFlag( UsageFlags.Structured ) )
@@ -268,17 +269,19 @@ public partial class GpuBuffer : IValid, IDisposable
 		if ( !SandboxedUnsafe.IsAcceptablePod( typeof( T ) ) )
 			throw new InvalidOperationException( $"{typeof( T )} is not allowed in GPU buffers" );
 
-		ThrowIfOutOfRange( (long)start * ElementSize, (long)count * ElementSize );
+		long offsetInBytes = (long)start * ElementSize;
+		long sizeInBytes = (long)count * ElementSize;
+		ThrowIfOutOfRange( offsetInBytes, sizeInBytes );
 
-		var offsetInBytes = start * ElementSize;
-		var sizeInBytes = count * ElementSize;
+		if ( offsetInBytes + sizeInBytes > int.MaxValue )
+			throw new ArgumentOutOfRangeException( nameof( count ), "GetDataAsync can't read past the first 2GB of a GpuBuffer" );
 
 		Graphics.Context.ReadBufferAsync( this, bytes =>
 		{
 			// Reinterpret the byte span as a span of T
 			var typedSpan = MemoryMarshal.Cast<byte, T>( bytes );
 			callback( typedSpan );
-		}, offsetInBytes, sizeInBytes );
+		}, (int)offsetInBytes, (int)sizeInBytes );
 	}
 
 	/// <summary>
@@ -436,6 +439,8 @@ public class GpuBuffer<T> : GpuBuffer where T : unmanaged
 		if ( elementCount == 0 ) return;
 
 		var elementSize = Unsafe.SizeOf<T>();
+		ThrowIfOutOfRange( (long)srcElementOffset * elementSize, (long)elementCount * elementSize );
+		dst.ThrowIfOutOfRange( (long)destElementOffset * elementSize, (long)elementCount * elementSize );
 
 		RenderTools.CopyGPUBuffer( Graphics.Context, native, dst.native,
 			checked((uint)(srcElementOffset * elementSize)),

@@ -19,6 +19,17 @@ public class GpuBufferBoundsTests
 		Assert.ThrowsException<ArgumentOutOfRangeException>( () => append.CopyStructureCount( buffer, 16 ) );
 	}
 
+	class ReinitializedBuffer : GpuBuffer<Matrix>
+	{
+		public ReinitializedBuffer() : base( 1 ) => Initialize( 1024, 4 );
+	}
+
+	[TestMethod]
+	public void InitializeTwiceThrows()
+	{
+		Assert.ThrowsException<InvalidOperationException>( () => new ReinitializedBuffer() );
+	}
+
 	[TestMethod]
 	public void OversizedConstantBufferIsRejected()
 	{
