@@ -218,6 +218,10 @@ internal partial class ShadowMapper
 		public ulong RenderedFrame;
 		public ulong UsedFrame;
 		public bool Scheduled;
+
+		// Point light cube faces with up to date shadows, a bit per face
+		public byte ValidFaces;
+
 		internal GPUProjectedShadow Projected;
 		internal GPUProjectedCubeShadow Cube;
 	}
@@ -284,6 +288,7 @@ internal partial class ShadowMapper
 			entry.StaticCache = null;
 			entry.CurrentResolution = desiredResolution;
 			entry.RenderedFrame = 0;
+			entry.ValidFaces = 0;
 		}
 
 		// The static cache is only valid for the transform it was rendered at, and a moved light must re-render
@@ -293,6 +298,7 @@ internal partial class ShadowMapper
 			ReleaseTexture( entry.StaticCache, entry.CurrentResolution, entry.IsCube );
 			entry.StaticCache = null;
 			entry.RenderedFrame = 0;
+			entry.ValidFaces = 0;
 		}
 
 		return entry;

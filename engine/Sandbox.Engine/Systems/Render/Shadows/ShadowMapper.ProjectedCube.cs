@@ -63,14 +63,23 @@ internal partial class ShadowMapper
 
 		var cacheEntry = GetOrCreateCacheEntry( light, desiredResolution, isCube: true, flScreenSize );
 
+		// Static lights copy their whole static cache into the map, so they render every face
+		var faces = isStaticLight && !isBakedLight ? (byte)0b111111 : VisibleFaces( light );
+
 		// Already rendered this frame, or not this light's turn. A light filling the view never waits its turn.
-		if ( cacheEntry.RenderedFrame == Application.FrameCount || (cacheEntry.RenderedFrame != 0 && !cacheEntry.Scheduled && cacheEntry.ScreenSize < 1f) )
+		var reusable = cacheEntry.RenderedFrame == Application.FrameCount || (cacheEntry.RenderedFrame != 0 && !cacheEntry.Scheduled && cacheEntry.ScreenSize < 1f);
+
+		// The cached map only holds the faces earlier views needed.
+		var hasNeededFaces = (faces & ~cacheEntry.ValidFaces) == 0;
+
+		if ( reusable && hasNeededFaces )
 			return AddProjectedCubeShadow( cacheEntry );
 
 		// The entry may keep a bigger map than this view asked for
 		desiredResolution = cacheEntry.CurrentResolution;
 
-		GPUProjectedCubeShadow shadow = new();
+		// Get cached matrices so culled faces use their last ones
+		GPUProjectedCubeShadow shadow = cacheEntry.Cube;
 
 		float biasScale = ComputeBiasScale( 45f, light.Radius, desiredResolution );
 
@@ -120,6 +129,11 @@ internal partial class ShadowMapper
 
 		for ( int i = 0; i < 6; i++ )
 		{
+			// Culled: nothing this face shadows is in the view, so don't render it
+			var culled = (faces & (1 << i)) == 0;
+			if ( culled )
+				continue;
+
 			shadowView.Rotation = CubeRotations[i];
 			shadowView.Slice = i;
 			Matrix viewProjection = Renderer.RenderShadowView( shadowView );
@@ -134,10 +148,59 @@ internal partial class ShadowMapper
 		shadow.ShadowHardness = 1.0f + light.Hardness * 4.0f;
 
 		cacheEntry.Cube = shadow;
+		cacheEntry.ValidFaces |= faces;
 		cacheEntry.RenderedFrame = Application.FrameCount;
 		ProjectedShadowsRendered++;
 
 		return AddProjectedCubeShadow( cacheEntry );
+	}
+
+	/// <summary>
+	/// The cube faces this light can shadow in the current view, a bit per face.
+	/// </summary>
+	byte VisibleFaces( in ShadowLight light )
+	{
+		// Slightly wider than the face, so filtering at its edges stays covered
+		const float EdgeMargin = 1.1f;
+		Span<System.Numerics.Vector4> pyramid = stackalloc System.Numerics.Vector4[5];
+		byte faces = 0;
+
+		for ( int i = 0; i < 6; i++ )
+		{
+			var face = CubeRotations[i];
+			var forward = light.Position + face.Forward * light.Radius;
+			var right = face.Right * light.Radius * EdgeMargin;
+			var up = face.Up * light.Radius * EdgeMargin;
+			pyramid[0] = Clip( light.Position );
+			pyramid[1] = Clip( forward + right + up );
+			pyramid[2] = Clip( forward + right - up );
+			pyramid[3] = Clip( forward - right + up );
+			pyramid[4] = Clip( forward - right - up );
+
+			if ( !OutsideOneSide( pyramid ) ) faces |= (byte)(1 << i);
+		}
+
+		return faces;
+
+		System.Numerics.Vector4 Clip( Vector3 world ) => System.Numerics.Vector4.Transform( new System.Numerics.Vector4( world, 1 ), View.WorldToProjection );
+	}
+
+	/// <summary>
+	/// Whether all the points are past the same edge of the view (left, right, top, bottom, or in front of the near plane), so nothing between them can be on screen.
+	/// </summary>
+	static bool OutsideOneSide( ReadOnlySpan<System.Numerics.Vector4> points )
+	{
+		bool left = true, right = true, bottom = true, top = true, near = true;
+		foreach ( var p in points )
+		{
+			left &= p.X < -p.W;
+			right &= p.X > p.W;
+			bottom &= p.Y < -p.W;
+			top &= p.Y > p.W;
+			near &= p.Z > p.W;
+		}
+
+		return left || right || bottom || top || near;
 	}
 
 	uint AddProjectedCubeShadow( LightEntry cacheEntry )
