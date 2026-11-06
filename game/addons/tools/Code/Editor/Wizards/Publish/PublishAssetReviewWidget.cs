@@ -218,6 +218,9 @@ internal sealed class PublishAssetReviewWidget : Widget
 		foreach ( var message in manifest.Errors )
 			content.Layout.Add( new WarningBox( WebUtility.HtmlEncode( message ), content ) );
 
+		foreach ( var message in manifest.Warnings )
+			content.Layout.Add( new WarningBox( WebUtility.HtmlEncode( message ), content ) );
+
 		var includedPaths = files.Select( x => x.Path ).ToHashSet( StringComparer.OrdinalIgnoreCase );
 		var warningEntries = manifest.SceneWarnings.Where( scene => scene.Missing ).Select( scene => new WarningEntry(
 			$"Missing scene: {ReviewAssetPath( scene.Path )}", "Update Game Setup or restore this configured scene.", null, 0, null, null ) )

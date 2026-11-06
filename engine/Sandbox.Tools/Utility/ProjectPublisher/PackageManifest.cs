@@ -28,6 +28,9 @@ public partial class ProjectPublisher
 
 		public List<string> Errors = new List<string>();
 
+		/// <summary>Non-blocking review messages. Unlike <see cref="Errors"/> these do not stop publishing.</summary>
+		public List<string> Warnings = new List<string>();
+
 		/// <summary>Snapshot of publishing settings, including unsaved edits used by the settings preview.</summary>
 		public sealed record PublishOptions( bool PublishUsedAssetsOnly, string Resources );
 
@@ -62,6 +65,7 @@ public partial class ProjectPublisher
 
 		void ClearAssets()
 		{
+			Warnings.Clear();
 			Assets.Clear();
 			previewFileNames.Clear();
 			SceneWarnings.Clear();
@@ -237,6 +241,17 @@ public partial class ProjectPublisher
 			}
 
 			assets = assets.Distinct().ToList();
+
+			// Must run before any CompileIfNeededAsync on these assets: a stale native state makes that call replace the bake with a plain compile.
+			foreach ( var asset in assets )
+			{
+				if ( asset.AssetType?.ResourceType != typeof( SceneFile ) || asset.IsCompiled || !SceneCompiler.HasCompiledOutput( asset ) || SceneBake.IsCurrent( asset.GetSourceFile( true ) ) )
+					continue;
+
+				var message = $"Compiled scene '{asset.Path}' is out of date; it will be published without compiled geometry. Compile it again in the editor before publishing.";
+				Warnings.Add( message );
+				Log.Warning( message );
+			}
 			var candidates = assets;
 
 			if ( project.Config.Type == "game" )

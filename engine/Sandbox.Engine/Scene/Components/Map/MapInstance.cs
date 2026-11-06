@@ -442,6 +442,8 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 		if ( sceneFile is null )
 			return false;
 
+		Log.Info( $"Map scene '{path}': {(sceneFile.IsCompiled ? "compiled" : "source")} scene, {sceneFile.GameObjects?.Length ?? 0} objects" );
+
 		// Wouldn't this be nice? Doesn't make sense within a MapInstance, but when we switch away
 		// SceneLoadOptions options = new() { IsAdditive = true };
 		// options.SetScene( sceneFile );
