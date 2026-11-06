@@ -808,6 +808,23 @@ public class ParticleEffectTest
 		Assert.IsTrue( p.Velocity.y > 0, "Small force should still affect velocity" );
 	}
 
+	/// <summary>
+	/// Workers fold every particle into the bounds maxima at the same time, so a smaller value must never overwrite a
+	/// larger one another worker wrote in between. Ascending values make nearly every update a new max.
+	/// </summary>
+	[TestMethod]
+	public void InterlockedMax_KeepsLargestValueUnderContention()
+	{
+		const int count = 2_000_000;
+
+		for ( int trial = 0; trial < 50; trial++ )
+		{
+			long max = 0;
+			System.Threading.Tasks.Parallel.For( 0, count, i => ParticleEffect.InterlockedMax( ref max, i ) );
+			Assert.AreEqual( count - 1, max, $"trial {trial}" );
+		}
+	}
+
 	[TestMethod]
 	public void Expiry_CallbackCanTerminateAndReuseAnotherDeadParticle()
 	{
