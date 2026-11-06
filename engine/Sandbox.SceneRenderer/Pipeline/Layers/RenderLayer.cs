@@ -44,6 +44,11 @@ internal abstract class RenderLayer
 	public virtual bool IsShared => false;
 
 	/// <summary>
+	/// Whether an unshared layer can record on a worker thread. Off unless a layer opts in, since layers may run game code.
+	/// </summary>
+	public virtual bool RecordsOffMainThread( RenderFrame frame ) => false;
+
+	/// <summary>
 	/// Whether this layer can execute entirely on compute. The scheduler chooses async execution only when
 	/// declared resource dependencies leave independent graphics work to overlap. Draw layers stay on graphics.
 	/// </summary>
