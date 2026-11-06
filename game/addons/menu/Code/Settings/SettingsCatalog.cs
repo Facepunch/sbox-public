@@ -128,8 +128,8 @@ public class SettingsCatalog
 				break;
 
 			case "game":
-				Preferences.ChatEnabled = true;
-				Preferences.StreamerMode = false;
+				MenuUtility.SetConsoleVariable( "platform.chat.enabled", true );
+				MenuUtility.SetConsoleVariable( "streamer_mode", false );
 				MenuUtility.RunCommand( "language", "en" );
 				break;
 
@@ -861,7 +861,7 @@ public class SettingsCatalog
 			Description = "#menu.settings.audio.voicechat.description",
 			Options = OffOn,
 			Read = () => Preferences.VoiceEnabled,
-			Write = value => Preferences.VoiceEnabled = ToBool( value )
+			Write = value => MenuUtility.SetConsoleVariable( "platform.voice.enabled", ToBool( value ) )
 		} );
 
 		AddVolume( "audio.voice", "#menu.settings.audio.voice_volume.title", "#menu.settings.audio.voice.description", "voip_volume", "#menu.settings.voice", IsVoiceChatOn );
@@ -1077,7 +1077,7 @@ public class SettingsCatalog
 			Description = "#menu.settings.game.chat.description",
 			Options = OffOn,
 			Read = () => Preferences.ChatEnabled,
-			Write = value => Preferences.ChatEnabled = ToBool( value )
+			Write = value => MenuUtility.SetConsoleVariable( "platform.chat.enabled", ToBool( value ) )
 		} );
 
 		Items.Add( new SettingItem
@@ -1089,7 +1089,7 @@ public class SettingsCatalog
 			Description = "#menu.settings.game.streamer.description",
 			Options = OffOn,
 			Read = () => Preferences.StreamerMode,
-			Write = value => Preferences.StreamerMode = ToBool( value )
+			Write = value => MenuUtility.SetConsoleVariable( "streamer_mode", ToBool( value ) )
 		} );
 	}
 
@@ -1171,7 +1171,7 @@ public class SettingsCatalog
 		if ( devices.Any() )
 			Sandbox.Internal.AudioSettings.SetActiveDevice( devices.First().Id );
 
-		Preferences.VoiceEnabled = true;
+		MenuUtility.SetConsoleVariable( "platform.voice.enabled", true );
 
 		MenuUtility.SetConsoleVariable( "snd_simulation_enable", true );
 		MenuUtility.SetConsoleVariable( "volume", 1.0f );

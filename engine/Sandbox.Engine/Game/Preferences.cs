@@ -87,20 +87,41 @@ public static class Preferences
 	[ConVar( "voip_agc", ConVarFlags.Protected, Help = "Automatically adjust the microphone's volume so voice is sent at a consistent level", Saved = true )]
 	public static bool VoiceAutomaticGainControl { get; internal set; } = true;
 
-	[ConVar( "platform.chat.enabled", ConVarFlags.Saved, Help = "Do we want to enable the platform level chat system? The game also has to have it enabled." )]
-	public static bool ChatEnabled { get; set; } = true;
+	public static bool ChatEnabled
+	{
+		get => ChatEnabledSetting;
+		[Obsolete( "Only the player can change this, in the settings menu" )]
+		set { }
+	}
+
+	[ConVar( "platform.chat.enabled", ConVarFlags.Protected | ConVarFlags.Saved, Help = "Do we want to enable the platform level chat system? The game also has to have it enabled." )]
+	internal static bool ChatEnabledSetting { get; set; } = true;
 
 	/// <summary>
 	/// Disabling this will turn off the UI, recording, and playback.
 	/// </summary>
-	[ConVar( "platform.voice.enabled", ConVarFlags.Saved, Help = "Do we want to enable the platform level voice chat system? The game also has to have it enabled." )]
-	public static bool VoiceEnabled { get; set; } = true;
+	public static bool VoiceEnabled
+	{
+		get => VoiceEnabledSetting;
+		[Obsolete( "Only the player can change this, in the settings menu" )]
+		set { }
+	}
+
+	[ConVar( "platform.voice.enabled", ConVarFlags.Protected | ConVarFlags.Saved, Help = "Do we want to enable the platform level voice chat system? The game also has to have it enabled." )]
+	internal static bool VoiceEnabledSetting { get; set; } = true;
 
 	/// <summary>
 	/// When enabled, player usernames/avatars are replaced with anonymous versions.
 	/// </summary>
-	[ConVar( "streamer_mode", ConVarFlags.Saved, Help = "Hide usernames and profile pictures in the built-in chat behind anonymous aliases." )]
-	public static bool StreamerMode { get; set; } = false;
+	public static bool StreamerMode
+	{
+		get => StreamerModeSetting;
+		[Obsolete( "Only the player can change this, in the settings menu" )]
+		set { }
+	}
+
+	[ConVar( "streamer_mode", ConVarFlags.Protected | ConVarFlags.Saved, Help = "Hide usernames and profile pictures in the built-in chat behind anonymous aliases." )]
+	internal static bool StreamerModeSetting { get; set; } = false;
 
 	/// <summary>
 	/// Whether the user wants to see subtitles for sounds that have them. Off by
