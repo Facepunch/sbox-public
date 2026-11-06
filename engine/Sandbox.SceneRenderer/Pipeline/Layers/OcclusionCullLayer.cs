@@ -37,6 +37,9 @@ internal sealed class OcclusionCullLayer : RenderLayer
 	// The prepasses and OpaqueLayer read our output through indirect draws, which the planner can't see
 	public override bool HasSideEffects => true;
 
+	// Main thread under r_occlusion_debug: both culls write the same debug grid
+	public override bool RecordsOffMainThread( RenderFrame frame ) => frame.System.OcclusionHistory.Debug is null;
+
 	public override void BeforeSegments( RenderFrame frame, RenderContext frameContext )
 	{
 		shader ??= Material.FromShader( "shaders/occlusion_cull_cs.shader" );
