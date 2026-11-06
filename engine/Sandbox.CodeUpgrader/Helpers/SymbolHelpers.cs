@@ -36,4 +36,24 @@ static class SymbolHelpers
 
 		return false;
 	}
+
+	public static bool Implements( ITypeSymbol type, Compilation compilation, params string[] metadataNames )
+	{
+		foreach ( var name in metadataNames )
+		{
+			if ( FindInterface( type, compilation, name ) is not null ) return true;
+		}
+		return false;
+	}
+
+	public static INamedTypeSymbol? FindInterface( ITypeSymbol type, Compilation compilation, string metadataName )
+	{
+		var contract = compilation.GetTypeByMetadataName( metadataName );
+		if ( contract is null ) return null;
+
+		if ( type is INamedTypeSymbol named && SymbolEqualityComparer.Default.Equals( named.OriginalDefinition, contract ) )
+			return named;
+
+		return type.AllInterfaces.FirstOrDefault( x => SymbolEqualityComparer.Default.Equals( x.OriginalDefinition, contract ) );
+	}
 }
