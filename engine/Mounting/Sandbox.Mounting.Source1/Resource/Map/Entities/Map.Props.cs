@@ -28,8 +28,8 @@ partial class MapLoader
 				return;
 			}
 
-			if ( !float.IsFinite( prop.Scale ) || prop.Scale <= 0 || prop.Skin < 0 )
-				throw new InvalidDataException( $"{owner.FullPath}: prop '{prop.Name}' has invalid scale or skin." );
+			if ( !float.IsFinite( prop.Scale ) || prop.Scale <= 0 || prop.Skin < 0 || prop.Body < 0 )
+				throw new InvalidDataException( $"{owner.FullPath}: prop '{prop.Name}' has invalid scale, skin or body." );
 			if ( !float.IsFinite( prop.MassScale ) )
 				throw new InvalidDataException( $"{owner.FullPath}: prop '{prop.Name}' has invalid mass scale." );
 			var path = prop.Model.Replace( '\\', '/' ).TrimStart( '/' );
@@ -78,9 +78,10 @@ partial class MapLoader
 			if ( isStatic )
 				instance.Tags.Add( "world" );
 			var materialGroup = GetSkin( model, prop.Skin, path );
+			var bodyGroups = GetBodyGroups( prop, model, path );
 			if ( useGameplay )
 			{
-				AddGameplayProp( prop, instance, model, materialGroup );
+				AddGameplayProp( prop, instance, model, materialGroup, bodyGroups );
 				return;
 			}
 
@@ -90,9 +91,40 @@ partial class MapLoader
 			renderer.Tint = prop.Tint;
 			renderer.Enabled = prop.Visible;
 			renderer.MaterialGroup = materialGroup;
+			renderer.BodyGroups = bodyGroups;
 			if ( prop.StaticPropIndex >= 0 && (prop.StaticPropFlags & 0x10) != 0 )
 				renderer.RenderType = ModelRenderer.ShadowRenderType.Off;
 			AddPhysics( prop, renderer, ragdollRenderer, path );
+		}
+
+		private ulong GetBodyGroups( MapProp prop, Model model, string path )
+		{
+			var parts = model.Parts.All;
+			if ( parts.Count == 0 )
+				return ulong.MaxValue;
+
+			var bodyGroups = 0UL;
+			var body = (uint)Math.Max( 0, prop.Body );
+			long sourceBase = 1;
+			for ( var partIndex = 0; partIndex < parts.Count; partIndex++ )
+			{
+				var part = parts[partIndex];
+				if ( part.Choices.Count == 0 )
+					continue;
+
+				var choiceIndex = (int)(body / sourceBase % part.Choices.Count);
+
+				if ( (uint)choiceIndex >= (uint)part.Choices.Count )
+				{
+					warnings.Add( $"Prop '{prop.Name}' model '{path}' requested bodygroup choice {choiceIndex} for '{part.Name}', which only has {part.Choices.Count}; using the first choice." );
+					choiceIndex = 0;
+				}
+
+				bodyGroups |= part.Choices[choiceIndex].Mask;
+				sourceBase *= part.Choices.Count;
+			}
+
+			return bodyGroups;
 		}
 
 		public void Finish()

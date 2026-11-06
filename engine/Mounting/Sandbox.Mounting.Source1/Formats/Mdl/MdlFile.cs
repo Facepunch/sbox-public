@@ -1,4 +1,5 @@
 using System;
+using System.Text;
 
 namespace Sandbox.Mounting.Source1;
 
@@ -84,6 +85,13 @@ internal sealed partial class MdlFile
 	public StudioModel GetModel( int bodyPartIndex, int index )
 	{
 		return _models[_bodyParts[bodyPartIndex].ModelIndex + index];
+	}
+
+	public string GetModelName( int bodyPartIndex, int index )
+	{
+		var name = GetModel( bodyPartIndex, index )._name;
+		var length = Array.IndexOf( name, (byte)0 );
+		return Encoding.Latin1.GetString( name, 0, length < 0 ? name.Length : length );
 	}
 
 	public StudioEyeball GetEyeball( int bodyPartIndex, int modelIndex, int eyeIndex )

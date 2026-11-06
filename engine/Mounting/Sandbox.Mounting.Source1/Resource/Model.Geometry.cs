@@ -90,7 +90,7 @@ internal sealed partial class SourceModelBuilder
 
 					var lightingKey = (bodyPartIndex, modelIndex, lod, meshIndex);
 					var material = materials.GetForMesh( mesh.Material, lod, lightingKey );
-					var renderMesh = new Mesh( material );
+					var renderMesh = new Mesh( $"{bodyGroupNames[bodyPartIndex]}/{mdl.GetModelName( bodyPartIndex, modelIndex )}", material );
 					var morphBounds = mesh.NumFlexes > 0
 						? AddMeshMorphs( mdl, mesh, originalToOutput, flexNames, renderMesh, uniqueVerts.Length, vertexTransforms )
 						: null;
