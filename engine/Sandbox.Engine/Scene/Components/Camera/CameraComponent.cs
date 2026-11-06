@@ -218,6 +218,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		sceneCamera.HasEarlyPostProcessHook = HasEarlyPostProcess;
 		sceneCamera.ScheduleEarlyPostProcessHook = ScheduleEarlyPostProcess;
 		sceneCamera.RenderEarlyPostProcessHook = RenderEarlyPostProcess;
+		sceneCamera.PublishesPipelineTexturesHook = PublishesPipelineTextures;
 	}
 
 	protected override void OnAwake()
@@ -396,6 +397,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	Func<Stage, PostProcessQueue, bool> hasEarlyPostProcessHook;
 	Action<Stage, bool> scheduleEarlyPostProcessHook;
 	Action<Stage, PostProcessQueue> renderEarlyPostProcessHook;
+	Func<bool> publishesPipelineTexturesHook;
 
 	public void UpdateSceneCamera( SceneCamera camera, bool includeTags = true )
 	{
@@ -485,6 +487,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		camera.HasEarlyPostProcessHook = hasEarlyPostProcessHook ??= HasEarlyPostProcess;
 		camera.ScheduleEarlyPostProcessHook = scheduleEarlyPostProcessHook ??= ScheduleEarlyPostProcess;
 		camera.RenderEarlyPostProcessHook = renderEarlyPostProcessHook ??= RenderEarlyPostProcess;
+		camera.PublishesPipelineTexturesHook = publishesPipelineTexturesHook ??= PublishesPipelineTextures;
 
 		// Set with the hooks: a view decides its G-buffer from the camera whose lists it runs (the editor viewport runs the
 		// main camera's). Unknown post effects and custom command lists may sample normals, so only omit them for an empty

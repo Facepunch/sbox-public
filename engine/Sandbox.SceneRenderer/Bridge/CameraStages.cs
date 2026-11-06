@@ -111,6 +111,9 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 
 	public ScreenSpaceReflectionsPass ScreenSpaceReflections => Camera?.ScreenSpaceReflections;
 
+	public bool PublishesScreenSpaceEffects => Camera is { } camera
+		&& (camera.ScreenSpaceReflections is not null || (camera.EnablePostProcessing && camera.PublishesPipelineTextures));
+
 	public void RenderScreenSpaceReflections( bool history, in StageTarget target )
 	{
 		if ( Camera?.ScreenSpaceReflections is not { } reflections ) return;

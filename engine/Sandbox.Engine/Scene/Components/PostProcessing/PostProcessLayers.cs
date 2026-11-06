@@ -80,6 +80,22 @@ internal class PostProcessLayers
 	}
 
 	/// <summary>
+	/// Whether a layer publishes a pipeline texture, such as ambient occlusion (<see cref="CommandList.PublishesPipelineTextures"/>).
+	/// </summary>
+	public bool PublishesPipelineTextures()
+	{
+		foreach ( var list in Layers.Values )
+		{
+			foreach ( var entry in list )
+			{
+				if ( entry.CommandList?.PublishesPipelineTextures == true ) return true;
+			}
+		}
+
+		return false;
+	}
+
+	/// <summary>
 	/// Whether a layer can run ahead of <paramref name="stage"/> on <paramref name="queue"/>.
 	/// </summary>
 	public bool HasEarlyPostProcess( Stage stage, PostProcessQueue queue )
