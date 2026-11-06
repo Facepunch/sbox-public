@@ -326,6 +326,14 @@ public class FloatControlWidget : StringControlWidget
 			dragging = false;
 			PropertyFinishEdit();
 		}
+
+		if ( e.MiddleMouseButton && !ReadOnly )
+		{
+			SerializedProperty.SetValue( SerializedProperty.GetDefault() );
+			LineEdit.Text = ValueToString();
+			LineEdit.Blur();
+			Update();
+		}
 	}
 
 	protected virtual void OnDragValue( decimal add ) { /*Value = add;*/ }
