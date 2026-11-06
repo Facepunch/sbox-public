@@ -227,6 +227,23 @@ internal static partial class SceneCompiler
 			processed.UnionWith( leftovers.Select( mesh => mesh.Id ) );
 		}
 
+		// A cable recreates its MeshComponent on its first runtime update, so once its mesh is compiled the
+		// cable and its nodes have to go too, or the game ends up with live meshes and cables ticking every frame.
+		foreach ( var cable in compiled.Components.GetAll<CableComponent>( FindMode.EverythingInSelfAndDescendants ).ToArray() )
+		{
+			var mesh = cable.GameObject.Components.Get<MeshComponent>( FindMode.EverythingInSelf );
+			if ( mesh is null || !processed.Contains( mesh.Id ) )
+				continue;
+
+			processed.Add( cable.Id );
+
+			foreach ( var child in cable.GameObject.Children )
+			{
+				if ( child.Components.Get<CableNodeComponent>( FindMode.EverythingInSelf ) is { } node )
+					processed.Add( node.Id );
+			}
+		}
+
 		session.Phase( "Stripping compiled geometry" );
 		await Task.Delay( 1, session.Cancel );
 
