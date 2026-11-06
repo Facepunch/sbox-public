@@ -6,7 +6,8 @@ ships its shaders in `game\mount\source1\Assets\shaders\source1`.
 The `gmod` mount registers supported resources by scanning GMA/VPK archives and
 loose files inside the Garry's Mod installation, including bundled Source game content.
 The mount prioritizes its main game folder (`garrysmod`).
-There is no gameinfo, depot, external Workshop or gamemode discovery.
+There is no gameinfo, depot or gamemode discovery. Workshop content installed
+by Steam for the game is indexed alongside its installation.
 Every installation subdirectory is scanned, including loose addons, gamemode
 content, downloads and cache folders; there is no folder-name allowlist.
 Directory links/reparse points are skipped to avoid cycles and content outside
@@ -17,9 +18,9 @@ within a mount. Dependencies are registered through the mounting API and request
 through the normal model, material, texture and sound resource APIs. The mount
 loaders own resource caching; there is no private dependency resource cache or
 requirement for another game mount to be active.
-Installation paths come from the mount host. GMod scans stay inside its
-installation; addons referencing content found only in another game's installation
-cannot resolve it through the GMod mount.
+Installation and Workshop paths come from the mount host. GMod scans stay inside
+its installation and the game's Workshop content folder; addons referencing content
+found only in another game's installation cannot resolve it through the GMod mount.
 
 For example: `mount://gmod/models/props_c17/oildrum001.mdl.vmdl`.
 
