@@ -179,13 +179,25 @@ public partial class PolygonMesh
 		// serialized because they are world-space dependent and derived at runtime.
 		// MeshComponent sets Mesh.Transform = WorldTransform on enable/transform change, which
 		// triggers ComputeFaceTextureParametersFromCoordinates() to recompute them from TextureCoord.
-		var data = MeshBlob.Write( mesh );
 		writer.WritePropertyName( "Data" );
 
 		if ( BlobDataSerializer.IsActive )
-			Json.Serialize( writer, new MeshBlob { Written = data } );
+		{
+			Json.Serialize( writer, new MeshBlob { Written = MeshBlob.Write( mesh ) } );
+		}
 		else
-			writer.WriteBase64StringValue( data );
+		{
+			// Straight from the rented buffer: prefab instances write their meshes this way on every save, to diff them.
+			var stream = MeshBlob.WriteStream( mesh );
+			try
+			{
+				writer.WriteBase64StringValue( stream.ToSpan() );
+			}
+			finally
+			{
+				stream.Dispose();
+			}
+		}
 
 		if ( mesh._materialsById.Count > 0 )
 		{
@@ -240,6 +252,22 @@ public partial class PolygonMesh
 		/// </summary>
 		public static byte[] Write( PolygonMesh mesh )
 		{
+			var stream = WriteStream( mesh );
+			try
+			{
+				return stream.ToArray();
+			}
+			finally
+			{
+				stream.Dispose();
+			}
+		}
+
+		/// <summary>
+		/// <see cref="Write"/> into a rented stream, which the caller disposes.
+		/// </summary>
+		public static ByteStream WriteStream( PolygonMesh mesh )
+		{
 			var topology = mesh.Topology.SerializedSize;
 			var size = 256 + topology + Bytes( mesh.Positions.AsSpan() ) + Bytes( mesh.Blends.AsSpan() ) + Bytes( mesh.Colors.AsSpan() )
 				+ Bytes( mesh.TextureCoord.AsSpan() ) + Bytes( mesh.MaterialIndex.AsSpan() ) + Bytes( mesh.EdgeFlags.AsSpan() );
@@ -260,11 +288,12 @@ public partial class PolygonMesh
 				WriteSection( ref stream, SectionTextureCoord, mesh.TextureCoord.AsSpan() );
 				WriteSection( ref stream, SectionMaterialIndex, mesh.MaterialIndex.AsSpan() );
 				WriteSection( ref stream, SectionEdgeFlags, mesh.EdgeFlags.AsSpan() );
-				return stream.ToArray();
+				return stream;
 			}
-			finally
+			catch
 			{
 				stream.Dispose();
+				throw;
 			}
 		}
 
