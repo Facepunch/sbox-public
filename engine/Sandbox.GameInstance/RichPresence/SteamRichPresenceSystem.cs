@@ -23,12 +23,20 @@ internal sealed class SteamRichPresenceSystem : IRichPresenceSystem
 
 	void Clear()
 	{
-		Steam.SteamFriends().ClearRichPresence();
+		var friends = Steam.SteamFriends();
+		if ( friends.IsValid )
+		{
+			friends.ClearRichPresence();
+		}
+
 		_values.Clear();
 	}
 
 	void IRichPresenceSystem.Poll()
 	{
+		if ( !Steam.SteamFriends().IsValid )
+			return;
+
 		// Friends' menus group everyone sharing a party_id, and use the rest to label it "X's party 2/16"
 		if ( PartyRoom.Current is PartyRoom party )
 		{
