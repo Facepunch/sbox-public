@@ -119,7 +119,7 @@ internal static class Avatar
 			//
 			// Bots and Streamer Mode users get a deterministic, generated avatar
 			//
-			if ( Preferences.StreamerMode || Utility.Steam.IsFakeSteamId( steamid ) )
+			if ( Preferences.StreamerMode || Utility.Steam.IsFakeSteamId( steamid ) || !Steam.SteamFriends().IsValid )
 			{
 				var generated = _generatedCache.GetOrAdd( steamid, GenerateAvatar );
 				placeholder.CopyFrom( generated );
