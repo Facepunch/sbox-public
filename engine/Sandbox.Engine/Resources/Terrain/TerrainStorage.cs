@@ -123,18 +123,29 @@ public partial class TerrainStorage : GameResource
 {
 	[JsonInclude, JsonPropertyName( "Maps" )] private TerrainMapBlob Maps { get; set; } = new();
 
+	/// <summary>
+	/// Bumped whenever the maps change. The editor writes a terrain only when this moved.
+	/// </summary>
+	[JsonIgnore, Hide]
+	public int MapsRevision { get; private set; }
+
+	/// <summary>
+	/// Records a change made in place, which the setters below don't see.
+	/// </summary>
+	public void MapsChanged() => MapsRevision++;
+
 	[JsonIgnore, Hide]
 	public ushort[] HeightMap
 	{
 		get => Maps.HeightMap;
-		set => Maps.HeightMap = value;
+		set { Maps.HeightMap = value; MapsChanged(); }
 	}
 
 	[JsonIgnore, Hide]
 	public UInt32[] ControlMap
 	{
 		get => Maps.SplatMap;
-		set => Maps.SplatMap = value;
+		set { Maps.SplatMap = value; MapsChanged(); }
 	}
 
 	[JsonInclude]
