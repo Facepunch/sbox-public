@@ -140,8 +140,10 @@ internal class Program
 	{
 		var cmd = new Command( "build-content", "Build game content" );
 		var rootOption = new Option<string>( "--root", description: "Only build the content root at this path under game/, with whatever it reads from the others", getDefaultValue: () => null );
+		var forceOption = new Option<bool>( "--force", description: "Compile everything again, current or not", getDefaultValue: () => false );
 		cmd.AddOption( rootOption );
-		cmd.SetHandler( ( string root ) => Environment.ExitCode = (int)new BuildContent( root ).Run(), rootOption );
+		cmd.AddOption( forceOption );
+		cmd.SetHandler( ( string root, bool force ) => Environment.ExitCode = (int)new BuildContent( root, force ).Run(), rootOption, forceOption );
 		rootCommand.Add( cmd );
 	}
 

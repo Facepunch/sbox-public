@@ -320,16 +320,17 @@ public static partial class AssetSystem
 		}
 	}
 
-	internal static void InitializeCompilerForFilename( IResourceCompilerContext context, string filename )
+	internal static void InitializeCompilerForFilename( IResourceCompilerContext context, string filename ) => ContentCompilerHost.OnMainThread( () =>
 	{
+		// On the main thread, where the type library changes (see TryManagedCompile)
 		var ext = System.IO.Path.GetExtension( filename )[1..].ToLowerInvariant();
-
 		if ( !IsGameResource( ext ) )
-			return;
+			return false;
 
 		context.SetCompiler( $"ManagedResourceCompiler" );
 		context.SetExtension( ext );
-	}
+		return true;
+	} );
 
 	/// <summary>
 	/// Create an empty <see cref="GameResource"/>.

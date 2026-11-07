@@ -695,12 +695,20 @@ internal sealed partial class PackageLoader : IDisposable
 		HotloadManager.Ignore( assembly );
 	}
 
+	/// <summary>
+	/// While this says so, changed assemblies wait to load: code that runs across frames (a content build's managed
+	/// compile in the editor) finishes with the code it started with.
+	/// </summary>
+	internal static Func<bool> HoldHotload { get; set; }
+
 	public void Tick()
 	{
 		if ( !changedPackageDlls.Any() && IncomingThisHotload.Count == 0 )
 		{
 			return;
 		}
+
+		if ( HoldHotload?.Invoke() == true ) return;
 
 		LoadPendingChanges();
 

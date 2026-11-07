@@ -164,6 +164,12 @@ internal static partial class Logging
 	public static bool Enabled { get; set; } = true;
 	internal static bool PrintToConsole { get; set; } = true;
 
+	/// <summary>
+	/// Where what the current thread logs is also written, if anywhere: the log of the content build job it works for
+	/// (ContentCompilerHost).
+	/// </summary>
+	internal static Func<StringBuilder> Capture;
+
 	internal static event Action<LogEvent> OnMessage;
 	internal static Action<Exception> OnException;
 

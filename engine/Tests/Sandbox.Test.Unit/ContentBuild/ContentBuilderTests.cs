@@ -25,6 +25,9 @@ public class ContentBuilderTests
 	{
 		public ConcurrentDictionary<string, uint> Versions { get; } = new() { ["version"] = 1 };
 		public ConcurrentQueue<string> Compiled { get; } = new();
+
+		/// <summary>Compiles started ("compile b.vmat") and outputs published ("published a.vtex_c"), in order.</summary>
+		public ConcurrentQueue<string> Events { get; } = new();
 		public ConcurrentQueue<int> Threads { get; } = new();
 		public int MaxConcurrent;
 		int running;
@@ -111,6 +114,7 @@ public class ContentBuilderTests
 		{
 			var rel = Path.GetRelativePath( job.Root.Path, job.Source ).Replace( '\\', '/' );
 			Compiled.Enqueue( rel );
+			Events.Enqueue( $"compile {rel}" );
 
 			var content = new StringBuilder( $"compiled {rel}\n" );
 			var sourceHash = SourceHash( job );
@@ -156,6 +160,11 @@ public class ContentBuilderTests
 
 		public IReadOnlyList<uint?> Fingerprints( IReadOnlyList<SpecialDependency> dependencies ) =>
 			dependencies.Select( x => Versions.TryGetValue( x.Name, out var v ) ? v : (uint?)null ).ToArray();
+
+		public void Published( IReadOnlyList<string> paths )
+		{
+			foreach ( var path in paths ) Events.Enqueue( $"published {Path.GetFileName( path )}" );
+		}
 
 		/// <summary>
 		/// A path in the job's root, "mod:path" in another root of the build, or "*path" in the last-mounted
@@ -385,6 +394,23 @@ public class ContentBuilderTests
 		Assert.IsTrue( report.Success, report.Log.ToString() );
 		CollectionAssert.AreEqual( new[] { "a.vtex", "b.vmat" }, report.Jobs.ToArray() );
 		StringAssert.Contains( fx.Read( "b.vmat_c" ), "blue" );
+	}
+
+	[TestMethod]
+	public void CompilerHearsOfAPublishedOutputBeforeWhatReadsItCompiles()
+	{
+		using var fx = new Fixture();
+		fx.Write( "a.vtex", "red" );
+		fx.Write( "b.vmat", "reads a.vtex" );
+		Assert.IsTrue( fx.Build().Success );
+
+		fx.Write( "a.vtex", "blue" );
+		while ( fx.Compiler.Events.TryDequeue( out _ ) ) { }
+		Assert.IsTrue( fx.Build().Success );
+
+		var events = fx.Compiler.Events.ToList();
+		var published = events.IndexOf( "published a.vtex_c" );
+		Assert.IsTrue( published >= 0 && published < events.IndexOf( "compile b.vmat" ), string.Join( "; ", events ) );
 	}
 
 	[TestMethod]

@@ -660,7 +660,10 @@ public static class ContentBuilder
 		{
 			var list = paths.Where( x => x is not null ).ToList();
 			report.Changed.AddRange( list );
-			if ( list.Count > 0 ) request.Published?.Invoke( list );
+			if ( list.Count == 0 ) return;
+
+			compiler.Published( list );
+			request.Published?.Invoke( list );
 		}
 
 		static IEnumerable<string> Unshared( RootState root, IEnumerable<string> outputs, string owner ) =>
@@ -744,8 +747,9 @@ public static class ContentBuilder
 					node.Launched = DateTime.UtcNow;
 					report.Jobs.Add( node.Name );
 
+					// A thread of its own, not the pool's, as it waits for the whole compile
 					var job = Job( node, JobMode.Compile );
-					var task = !asynchronous && request.MaxJobs <= 1 ? Task.FromResult( Compile( job, keep: true ) ) : Task.Run( () => Compile( job, keep: true ) );
+					var task = !asynchronous && request.MaxJobs <= 1 ? Task.FromResult( Compile( job, keep: true ) ) : Task.Factory.StartNew( () => Compile( job, keep: true ), CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default );
 					running[task] = (node, job);
 				}
 

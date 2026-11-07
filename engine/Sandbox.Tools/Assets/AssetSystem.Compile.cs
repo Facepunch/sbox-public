@@ -6,7 +6,13 @@ namespace Editor;
 
 public static partial class AssetSystem
 {
-	internal unsafe static bool TryManagedCompile( IResourceCompilerContext _context )
+	/// <summary>
+	/// A compile of a type managed code compiles. On the main thread, where the type library changes (a hotload), as are
+	/// managed compiles of build jobs running on threads of their own (<see cref="ContentCompilerHost.CompileOnMainThread"/>).
+	/// </summary>
+	internal static bool TryManagedCompile( IResourceCompilerContext context ) => ContentCompilerHost.CompileOnMainThread( () => ManagedCompile( context ) );
+
+	static async Task<bool> ManagedCompile( IResourceCompilerContext _context )
 	{
 		using var context = new ResourceCompileContextImp( _context );
 
@@ -24,13 +30,13 @@ public static partial class AssetSystem
 		{
 			var compiler = chosen.Create<ResourceCompiler>();
 			compiler.SetContext( context );
-			return compiler.CompileInternal();
+			return await compiler.CompileInternalAsync();
 		}
 
 		if ( !IsGameResource( extension ) )
 			return false;
 
-		CompileGameResource( context );
+		await CompileGameResource( context );
 		return true;
 	}
 
@@ -105,7 +111,7 @@ public static partial class AssetSystem
 		return map.TryGetValue( extension, out var found ) ? found : null;
 	}
 
-	internal static void CompileGameResource( ResourceCompileContextImp context )
+	internal static async Task CompileGameResource( ResourceCompileContextImp context )
 	{
 		// Get the json contents: the file's, or what a parent compile gave a child it generated
 		var jsonString = context.TryReadOverrideInput( out var input ) ? System.Text.Encoding.UTF8.GetString( input ) : System.IO.File.ReadAllText( context.AbsolutePath );
@@ -122,7 +128,7 @@ public static partial class AssetSystem
 			kv.DeleteThis();
 		}
 
-		jsonString = context.ScanJson( jsonString );
+		jsonString = await context.ScanJsonAsync( jsonString );
 
 		context.Data.Write( jsonString );
 
