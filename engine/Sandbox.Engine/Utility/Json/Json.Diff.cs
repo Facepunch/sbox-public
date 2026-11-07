@@ -1,5 +1,6 @@
 ﻿using System.Data;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Sandbox.Hashing;
@@ -471,6 +472,37 @@ public static partial class Json
 			: trackedObj.Data.DeepClone().AsObject();
 	}
 
+	[ThreadStatic] private static System.Buffers.ArrayBufferWriter<byte> _valueBuffer;
+	[ThreadStatic] private static Utf8JsonWriter _valueWriter;
+
+	/// <summary>
+	/// <see cref="JsonNode.DeepEquals"/>, but a string value made from a .NET value (a GameObject's transform) is
+	/// written once, into a reused buffer: DeepEquals serializes it to find its kind, then again into a document to
+	/// compare it.
+	/// </summary>
+	private static bool PropertyEquals( JsonNode a, JsonNode b )
+	{
+		if ( a is JsonValue va && b is JsonValue vb && va.TryGetValue<JsonElement>( out var element ) && element.ValueKind == JsonValueKind.String && !vb.TryGetValue<JsonElement>( out _ ) )
+		{
+			var buffer = _valueBuffer ??= new System.Buffers.ArrayBufferWriter<byte>( 256 );
+			buffer.ResetWrittenCount();
+			if ( _valueWriter is null )
+				_valueWriter = new Utf8JsonWriter( buffer );
+			else
+				_valueWriter.Reset( buffer );
+
+			vb.WriteTo( _valueWriter );
+			_valueWriter.Flush();
+
+			// A string written without escapes is its value, between the quotes
+			var written = buffer.WrittenSpan;
+			if ( written.Length >= 2 && written[0] == (byte)'"' && written.IndexOf( (byte)'\\' ) < 0 )
+				return element.ValueEquals( written[1..^1] );
+		}
+
+		return JsonNode.DeepEquals( a, b );
+	}
+
 	/// <summary>
 	/// Builds a new JsonObject containing only the non-tracked own properties of
 	/// <paramref name="source"/>. Tracked child paths are omitted; nested non-tracked
@@ -755,7 +787,7 @@ public static partial class Json
 					if ( oldObjValue.TryGetPropertyValue( propName, out var oldValue ) )
 					{
 						// Property exists in both - check for differences
-						if ( !JsonNode.DeepEquals( oldValue, newValue ) )
+						if ( !PropertyEquals( oldValue, newValue ) )
 						{
 							patch.PropertyOverrides.Add( new PropertyOverride
 							{
