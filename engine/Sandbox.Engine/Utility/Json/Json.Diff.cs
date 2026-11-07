@@ -428,9 +428,9 @@ public static partial class Json
 		// (Parent == null), so ToJson() can reparent them freely.
 		foreach ( var (_, trackedObj) in result.IdToTrackedObject )
 		{
-			// Leaves have no tracked descendants to strip. Diffing only reads them,
-			// so defer copying until an addition or property override needs owned data.
-			if ( forDiff && !trackedObj.HasChildren )
+			// Diffing only reads data and skips tracked properties, so it can borrow it unless a tracked descendant
+			// sits inside an untracked container (which would be compared). Copies are made when a patch needs them.
+			if ( forDiff && !HasNestedTrackedChildren( trackedObj ) )
 			{
 				trackedObj.BorrowsData = true;
 				continue;
@@ -442,6 +442,33 @@ public static partial class Json
 		}
 
 		return result;
+	}
+
+	private static bool HasNestedTrackedChildren( TrackedObject trackedObj )
+	{
+		if ( !trackedObj.HasChildren )
+			return false;
+
+		foreach ( var child in trackedObj.Children )
+		{
+			if ( child.ContainerProperty.Contains( '.' ) )
+				return true;
+		}
+
+		return false;
+	}
+
+	/// <summary>
+	/// The object's data without its tracked descendants, owned by the caller.
+	/// </summary>
+	private static JsonObject OwnedData( TrackedObject trackedObj, HashSet<ulong> trackedPaths )
+	{
+		if ( !trackedObj.BorrowsData )
+			return trackedObj.Data;
+
+		return trackedObj.HasChildren
+			? CopyStrippedData( trackedObj.Data, trackedObj.PathHash, trackedPaths )
+			: trackedObj.Data.DeepClone().AsObject();
 	}
 
 	/// <summary>
@@ -692,7 +719,7 @@ public static partial class Json
 						Parent = newObj.Value.Parent.Id,
 						ContainerProperty = newObj.Value.ContainerProperty,
 						IsContainerArray = newObj.Value.IsContainedInArray,
-						Data = newObj.Value.BorrowsData ? newObj.Value.Data.DeepClone().AsObject() : newObj.Value.Data,
+						Data = OwnedData( newObj.Value, newObjects.TrackedPaths ),
 						PreviousElement = newObj.Value.PreviousElement?.Id
 					} );
 				}
