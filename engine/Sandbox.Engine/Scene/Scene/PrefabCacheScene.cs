@@ -35,8 +35,14 @@ internal partial class PrefabCacheScene : PrefabScene
 		// The cached snapshot outlives both the resource's loading scope and any ambient capture.
 		using var sourceScope = ActionGraph.PushSerializationOptions( resource.SerializationOptions with { ForceUpdateCached = IsEditor } );
 		using var suppressBlobs = BlobDataSerializer.Suppress();
-		FullPrefabInstanceJson = Serialize( new SerializeOptions { SerializePrefabForDiff = true } );
-		calculateDifferences = Json.CreateDifferenceCalculator( FullPrefabInstanceJson, TrackedDiffDefinitions );
+
+		// The diff gets meshes as hashes (it only compares them); everything else gets their data back
+		using ( var meshes = new PolygonMesh.DiffScope() )
+		{
+			FullPrefabInstanceJson = Serialize( new SerializeOptions { SerializePrefabForDiff = true } );
+			calculateDifferences = Json.CreateDifferenceCalculator( FullPrefabInstanceJson, TrackedDiffDefinitions );
+			meshes.Restore( FullPrefabInstanceJson );
+		}
 
 		// Iterate all gameobjects in scene and find prefab instances, add them to reference set
 		referencedPrefabs = GetAllObjects( false ).Where( o => o.IsPrefabInstanceRoot ).Select( p => ResourceLibrary.Get<PrefabFile>( p.PrefabInstanceSource ) ).ToHashSet();

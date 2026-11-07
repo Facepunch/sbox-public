@@ -3,6 +3,8 @@ using System.IO.Compression;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using Sandbox.Hashing;
 
 namespace Sandbox;
 
@@ -187,11 +189,13 @@ public partial class PolygonMesh
 		}
 		else
 		{
-			// Straight from the rented buffer: prefab instances write their meshes this way on every save, to diff them.
 			var stream = MeshBlob.WriteStream( mesh );
 			try
 			{
-				writer.WriteBase64StringValue( stream.ToSpan() );
+				if ( DiffScope.Current is { } diff )
+					writer.WriteStringValue( diff.Token( mesh, stream.ToSpan() ) );
+				else
+					writer.WriteBase64StringValue( stream.ToSpan() );
 			}
 			finally
 			{
@@ -209,6 +213,96 @@ public partial class PolygonMesh
 	}
 
 	IEnumerable<string> MaterialNames() => Enumerable.Range( 0, _materialsById.Count ).Select( x => _materialsById[x].Name );
+
+	/// <summary>
+	/// While one is active, meshes written outside a blob context write a hash of their data instead of the data as
+	/// base64. Diffing a prefab instance against its prefab (every scene save) only needs to know whether two meshes are
+	/// equal; writing, parsing and comparing all of them as text was most of the cost. <see cref="Restore(JsonNode)"/>
+	/// puts the data back into anything that's kept.
+	/// </summary>
+	internal sealed class DiffScope : IDisposable
+	{
+		[ThreadStatic] static DiffScope _current;
+
+		readonly DiffScope _previous;
+		readonly Dictionary<string, PolygonMesh> _meshes = new();
+
+		public DiffScope()
+		{
+			_previous = _current;
+			_current = this;
+		}
+
+		public void Dispose() => _current = _previous;
+
+		internal static DiffScope Current => _current;
+
+		internal string Token( PolygonMesh mesh, ReadOnlySpan<byte> data )
+		{
+			// 128 bits: a collision would silently drop an edit from the patch
+			var token = $"mesh:{data.Length:x}:{XxHash3.HashToUInt64( data ):x16}{XxHash3.HashToUInt64( data, 1 ):x16}";
+			_meshes.TryAdd( token, mesh );
+			return token;
+		}
+
+		/// <summary>
+		/// Puts the data of the meshes this scope hashed back into what a patch keeps: overridden values and added objects.
+		/// </summary>
+		public void Restore( Json.Patch patch )
+		{
+			foreach ( var change in patch.PropertyOverrides )
+				Restore( change.Value );
+
+			foreach ( var added in patch.AddedObjects )
+				Restore( added.Data );
+		}
+
+		/// <summary>
+		/// Puts the data of every mesh this scope hashed back into <paramref name="node"/> and its descendants.
+		/// </summary>
+		public void Restore( JsonNode node )
+		{
+			if ( node is JsonArray array )
+			{
+				foreach ( var item in array )
+					Restore( item );
+				return;
+			}
+
+			if ( node is not JsonObject obj ) return;
+
+			// Only the data: equal data can come from meshes with other materials
+			if ( obj.TryGetPropertyValue( "Data", out var data ) && data is JsonValue value && value.TryGetValue<string>( out var token ) && _meshes.TryGetValue( token, out var mesh ) )
+			{
+				obj["Data"] = Base64( mesh );
+				return;
+			}
+
+			foreach ( var (_, child) in obj )
+				Restore( child );
+		}
+
+		/// <summary>
+		/// The mesh's data as a base64 JSON string, held as UTF-8 in its own document like the parsed values around it.
+		/// </summary>
+		static JsonValue Base64( PolygonMesh mesh )
+		{
+			var stream = MeshBlob.WriteStream( mesh );
+			try
+			{
+				var data = stream.ToSpan();
+				var json = new byte[System.Buffers.Text.Base64.GetMaxEncodedToUtf8Length( data.Length ) + 2];
+				json[0] = (byte)'"';
+				System.Buffers.Text.Base64.EncodeToUtf8( data, json.AsSpan( 1 ), out _, out var written );
+				json[written + 1] = (byte)'"';
+				return JsonValue.Create( JsonDocument.Parse( json.AsMemory( 0, written + 2 ) ).RootElement );
+			}
+			finally
+			{
+				stream.Dispose();
+			}
+		}
+	}
 
 	/// <summary>
 	/// Heavy <see cref="PolygonMesh"/> data (topology + per-element streams) serialized as a
