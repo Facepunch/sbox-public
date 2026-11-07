@@ -420,7 +420,8 @@ public partial class Mixer
 	static Superluminal _mixVoice = new( "Mix Voice", "#4d5e73" );
 	MultiChannelBuffer mixBuffer = new( AudioEngine.ChannelCount );
 	readonly MultiChannelBuffer[] _directBuffers = new MultiChannelBuffer[AudioEngine.ChannelCount + 1];
-	readonly MultiChannelBuffer _reverbSendBuffer = new( 1 );
+	readonly MultiChannelBuffer _reverbMonoBuffer = new( 1 );
+	readonly MultiChannelBuffer _reverbFilteredBuffer = new( 1 );
 
 	/// <summary>
 	/// Mix one voice described by the snapshot. No locks, all inputs come from the snapshot,
@@ -478,13 +479,14 @@ public partial class Mixer
 			float mixerReverbScale = Reverb;
 			if ( vs.HasReverb && mixerReverbScale > 0f && vs.ReverbRoom.Mix > 0.09f )
 			{
-				var reverbSendLevel = sourceParams.ReverbAmount * mixerReverbScale * ComputeDistanceAtten( listener, in sourceParams ) * volume
-					* (sourceParams.OcclusionEnabled ? sourceParams.TransmissionBands.Mid : 1f);
+				var reverbSendLevel = sourceParams.ReverbAmount * mixerReverbScale * ReverbLevel( listener, in sourceParams, vs.ReverbRoom ) * volume;
 
-				if ( reverbSendLevel * vs.ReverbRoom.Mix >= ReverbAudible )
+				// The send is filtered by the occlusion per band, the gate guesses with the mid band.
+				if ( reverbSendLevel * vs.ReverbRoom.Mix * (sourceParams.OcclusionEnabled ? sourceParams.TransmissionBands.Mid : 1f) >= ReverbAudible )
 				{
-					FillReverbSend( samples, reverbSendLevel );
-					GetReverb( listener, in vs.ReverbRoom )?.Feed( _reverbSendBuffer, vs.ReverbRoom.Mix );
+					// From the dry samples: the reverb doesn't follow the direct sound's distance attenuation.
+					FillReverbSend( samples, reverbSendLevel, source, in sourceParams );
+					GetReverb( listener, in vs.ReverbRoom )?.Feed( _reverbFilteredBuffer, vs.ReverbRoom.Mix );
 				}
 			}
 
@@ -510,25 +512,41 @@ public partial class Mixer
 		return _directBuffers[channels] ??= new MultiChannelBuffer( channels );
 	}
 
-	static float ComputeDistanceAtten( Listener listener, in DirectSoundParams p )
+	// Past the critical distance a room's reverb would match the source at full volume; held a little under so loud,
+	// sharp sounds heard from afar don't drown in it. Same idea as a max wet level elsewhere.
+	const float MaxReverbLevel = 0.7f;
+
+	/// <summary>
+	/// Reverb level of a source in its room. A diffuse field doesn't fall with distance like the direct sound does: it matches
+	/// the direct sound at the room's critical distance and stays there, closer in the direct sound dominates.
+	/// </summary>
+	static float ReverbLevel( Listener listener, in DirectSoundParams p, in ReverbSnapshot room )
 	{
 		if ( !p.DistanceAttenuation ) return 1f;
 
 		var dist = p.Position.Distance( listener.MixTransform.Position );
-		var t = MathX.Clamp( dist / MathF.Max( p.Distance, 1f ), 0f, 1f );
-		return p.Falloff.Evaluate( t );
+		float near = SoundFalloff.MinDistance( p.MinDistance, p.Distance );
+		float critical = MathF.Max( room.CriticalDistanceMeters * 39.37f, 1f );
+
+		// The direct sound's level at the critical distance by whichever falloff the sound uses, quieter still inside its size
+		float diffuse = SoundFalloff.Gain( p.FalloffMode, p.Falloff, p.MinDistance, p.Distance, critical ) * MathF.Min( 1f, dist / near );
+		float fade = p.FalloffMode == SoundFalloffMode.Physical ? SoundFalloff.RangeFade( dist, p.Distance ) : (dist < p.Distance ? 1f : 0f);
+		return MathF.Min( MaxReverbLevel, diffuse ) * fade;
 	}
 
 	/// <summary>
-	/// Mono mix of the dry voice into <see cref="_reverbSendBuffer"/>, the send to its room's reverb.
+	/// Mono mix of the dry voice into <see cref="_reverbFilteredBuffer"/>, filtered by the voice's occlusion: the send to its
+	/// room's reverb.
 	/// </summary>
-	void FillReverbSend( MultiChannelBuffer dry, float scale )
+	void FillReverbSend( MultiChannelBuffer dry, float scale, DirectSoundModel model, in DirectSoundParams p )
 	{
 		var weight = scale / dry.ChannelCount;
-		var mono = _reverbSendBuffer.Get( 0 );
+		var mono = _reverbMonoBuffer.Get( 0 );
 		mono.Silence();
 		for ( var inCh = 0; inCh < dry.ChannelCount; inCh++ )
 			mono.MixFrom( dry.Get( inCh ), weight );
+
+		model.FilterReverbSend( _reverbMonoBuffer, _reverbFilteredBuffer, Occlusion, in p );
 	}
 
 	/// <summary>

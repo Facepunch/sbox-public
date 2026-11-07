@@ -54,7 +54,31 @@ public static class LaunchArguments
 	/// <summary>
 	/// The game settings to apply on join. These are a list of convars.
 	/// </summary>
-	public static Dictionary<string, string> GameSettings { get; set; }
+	public static Dictionary<string, string> GameSettings
+	{
+		get => _gameSettings;
+		set
+		{
+			_gameSettings = value;
+			_trustedGameSettings = null;
+		}
+	}
+
+	static Dictionary<string, string> _gameSettings;
+
+	// Snapshot taken when the engine or menu set the settings, since anyone can still edit the live dictionary
+	static Dictionary<string, string> _trustedGameSettings;
+
+	internal static void SetTrustedGameSettings( Dictionary<string, string> value )
+	{
+		_gameSettings = value;
+		_trustedGameSettings = value is null ? null : new( value );
+	}
+
+	internal static bool CanSetProtected( string name, string value )
+	{
+		return _trustedGameSettings is not null && _trustedGameSettings.TryGetValue( name, out var trusted ) && trusted == value;
+	}
 
 	/// <summary>
 	/// The hostname for the server.

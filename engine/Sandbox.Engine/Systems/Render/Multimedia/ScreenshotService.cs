@@ -11,7 +11,7 @@ namespace Sandbox;
 /// </summary>
 internal static class ScreenshotService
 {
-	[ConVar( "screenshot_prefix", Help = "Prefix for auto-generated screenshot filenames" )]
+	[ConVar( "screenshot_prefix", ConVarFlags.Protected, Help = "Prefix for auto-generated screenshot filenames" )]
 	public static string ScreenshotPrefix { get; set; } = "sbox";
 
 	private record ScreenshotRequest( string FilePath );

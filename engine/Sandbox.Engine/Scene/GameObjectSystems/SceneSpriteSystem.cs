@@ -6,7 +6,7 @@ using System.Buffers;
 using System.Collections.Frozen;
 using System.Runtime.InteropServices;
 
-public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
+public sealed partial class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 {
 	private readonly record struct SystemOffset( IBatchedParticleSpriteRenderer System, int Offset, int ParticleCount );
 
@@ -50,6 +50,8 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 
 	public override void Dispose()
 	{
+		foreach ( var group in _textBatches.Values ) group.Batch?.Destroy();
+		_textBatches.Clear();
 		if ( _sharedSprites != null )
 		{
 			ArrayPool<SpriteBatchSceneObject.SpriteData>.Shared.Return( _sharedSprites );
@@ -263,6 +265,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 
 		UpdateSpriteRenderers();
 		UpdateParticleSprites();
+		UpdateTextRenderers();
 
 		LitBounds = null;
 		foreach ( var rg in RenderGroups )
@@ -296,7 +299,10 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		MemoryMarshal.Write( buf[5..], in isolatedComponent );
 		var tokenSlice = MemoryMarshal.Cast<byte, uint>( buf[21..] );
 		int i = 0;
-		foreach ( var token in tokens ) tokenSlice[i++] = token;
+		if ( tokens is HashSet<uint> tokenSet )
+			foreach ( var token in tokenSet ) tokenSlice[i++] = token;
+		else
+			foreach ( var token in tokens ) tokenSlice[i++] = token;
 		MemoryExtensions.Sort( tokenSlice );
 
 		return XxHash3.HashToUInt64( buf );

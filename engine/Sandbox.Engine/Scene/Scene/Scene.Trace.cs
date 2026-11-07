@@ -12,7 +12,18 @@ public partial class Scene : GameObject
 
 	internal List<SceneTraceResult> RunTraceAll( SceneTrace trace )
 	{
+		var results = new List<SceneTraceResult>();
+		RunTraceAll( trace, results );
+		return results;
+	}
+
+	/// <summary>
+	/// Run the trace into <paramref name="results"/>, which is cleared first, sorted by distance.
+	/// </summary>
+	internal void RunTraceAll( SceneTrace trace, List<SceneTraceResult> results )
+	{
 		SceneMetrics.RayTraceAll++;
+		results.Clear();
 
 		if ( trace.NeedsFilterCallback )
 		{
@@ -31,7 +42,7 @@ public partial class Scene : GameObject
 
 		// Sized up front. Physics hits are usually all of them, and growing from empty reallocates the backing
 		// array several times per trace.
-		var results = new List<SceneTraceResult>( physicsResults?.Count ?? 0 );
+		results.EnsureCapacity( physicsResults?.Count ?? 0 );
 
 		if ( physicsResults is not null )
 		{
@@ -67,7 +78,6 @@ public partial class Scene : GameObject
 
 		SceneTrace.ClearTraceFilter();
 		results.Sort( static ( a, b ) => a.Fraction.CompareTo( b.Fraction ) );
-		return results;
 	}
 
 	internal unsafe SceneTraceResult RunTrace( SceneTrace trace )

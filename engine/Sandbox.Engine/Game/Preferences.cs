@@ -81,6 +81,12 @@ public static class Preferences
 	[ConVar( "voip_threshold", ConVarFlags.Protected, Help = "Voice is only sent while the microphone is louder than this, in decibels", Min = -96.0f, Max = 0.0f, Saved = true )]
 	public static float VoiceThreshold { get; internal set; } = -50.0f;
 
+	/// <summary>
+	/// Automatically adjust the microphone's volume so voice is sent at a consistent level.
+	/// </summary>
+	[ConVar( "voip_agc", ConVarFlags.Protected, Help = "Automatically adjust the microphone's volume so voice is sent at a consistent level", Saved = true )]
+	public static bool VoiceAutomaticGainControl { get; internal set; } = true;
+
 	[ConVar( "platform.chat.enabled", ConVarFlags.Saved, Help = "Do we want to enable the platform level chat system? The game also has to have it enabled." )]
 	public static bool ChatEnabled { get; set; } = true;
 

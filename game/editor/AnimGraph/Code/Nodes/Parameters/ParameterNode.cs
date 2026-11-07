@@ -31,7 +31,7 @@ public abstract class ParameterNode : Node, IParameterReference
 	{
 		get
 		{
-			var info = DisplayInfo.For( this );
+			var info = TypeDisplayInfo;
 			if ( !string.IsNullOrWhiteSpace( ParameterName ) )
 				info.Name = ParameterName;
 			return info;

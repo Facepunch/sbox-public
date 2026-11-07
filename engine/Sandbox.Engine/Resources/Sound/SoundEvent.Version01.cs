@@ -5,7 +5,6 @@ namespace Sandbox;
 
 public partial class SoundEvent
 {
-	[Hide, JsonIgnore] public override int ResourceVersion => 1;
 	[Expose, JsonUpgrader( typeof( SoundEvent ), 1 )]
 	static void Upgrader_v1( JsonObject json )
 	{

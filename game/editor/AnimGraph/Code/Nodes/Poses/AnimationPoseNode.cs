@@ -83,7 +83,7 @@ public class AnimationPoseNode : VariationDataNode<AnimationPoseNode.Data>
 	{
 		get
 		{
-			var info = DisplayInfo.For( this );
+			var info = TypeDisplayInfo;
 			if ( !string.IsNullOrWhiteSpace( AnimationName ) )
 				info.Name = $"Pose: {AnimationName}";
 			return info;

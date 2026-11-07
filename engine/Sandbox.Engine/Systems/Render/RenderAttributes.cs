@@ -170,9 +170,17 @@ public partial class RenderAttributes
 		if ( !attributes.IsValid ) return;
 
 		var native = value?.native ?? default;
-		Set( k, native, mip );
+		Set( k, native, ClampMip( value, mip ) );
 
 		SetUsedTexture( k, value );
+	}
+
+	internal static int ClampMip( Texture texture, int mip )
+	{
+		if ( texture is null || mip == -1 )
+			return mip;
+
+		return Math.Clamp( mip, 0, Math.Max( texture.Mips - 1, 0 ) );
 	}
 
 	public void Set( in StringToken k, in SamplerState value )

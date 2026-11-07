@@ -187,15 +187,15 @@ public sealed partial class SceneWorld : IHandle
 	/// </summary>
 	internal void UpdateObjectsForRendering( Vector3 eyePos = default, float farPlane = 5000.0f )
 	{
-		if ( InternalSceneMaps is null )
+		if ( InternalSceneMaps is null || InternalSceneMaps.Count == 0 )
 			return;
 
-		if ( !InternalSceneMaps.Any() )
-			return;
-
-		foreach ( var worldGroup in InternalSceneMaps.Select( x => x.WorldGroup ).Distinct() )
+		foreach ( var map in InternalSceneMaps )
 		{
-			g_pWorldRendererMgr.UpdateObjectsForRendering( worldGroup, eyePos, 1.0f, farPlane );
+			if ( !IsFirstMapInWorldGroup( map ) )
+				continue;
+
+			g_pWorldRendererMgr.UpdateObjectsForRendering( map.WorldGroup, eyePos, 1.0f, farPlane );
 		}
 
 		// If we have a 3D skybox, update its objects too
@@ -203,6 +203,17 @@ public sealed partial class SceneWorld : IHandle
 		{
 			world?.SkyboxWorld.UpdateObjectsForRendering( world.Origin, farPlane );
 		}
+	}
+
+	bool IsFirstMapInWorldGroup( SceneMap map )
+	{
+		foreach ( var other in InternalSceneMaps )
+		{
+			if ( other == map ) return true;
+			if ( other.WorldGroup == map.WorldGroup ) return false;
+		}
+
+		return true;
 	}
 
 	/// <summary>

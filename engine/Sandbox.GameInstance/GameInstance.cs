@@ -320,7 +320,7 @@ internal class GameInstance : IGameInstance
 		{
 			foreach ( var cvar in LaunchArguments.GameSettings )
 			{
-				ConVarSystem.SetValue( cvar.Key, cvar.Value, true );
+				ConVarSystem.SetValue( cvar.Key, cvar.Value, LaunchArguments.CanSetProtected( cvar.Key, cvar.Value ) );
 			}
 		}
 

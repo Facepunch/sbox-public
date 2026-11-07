@@ -443,7 +443,7 @@ public partial class GameObject
 			Assert.IsValid( prefabScene );
 
 			var fullPrefabData = prefabScene.FullPrefabInstanceJson;
-			node = Json.ApplyPatch( fullPrefabData, instancePatch, DiffObjectDefinitions );
+			node = Json.ApplyPatch( fullPrefabData, instancePatch, TrackedDiffDefinitions );
 			PrefabInstance.InitLookups( nodePrefabToInstanceId );
 			PrefabInstance.InitPatch( instancePatch );
 			PrefabInstance.RemapPrefabIdsToInstanceIds( ref node );

@@ -540,7 +540,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	{
 		if ( Game.ActiveScene is null ) return "<empty>";
 
-		foreach ( var map in Game.ActiveScene.GetAllComponents<MapInstance>() )
+		foreach ( var map in Game.ActiveScene.Query<MapInstance>() )
 		{
 			if ( !map.Active ) continue;
 			if ( !map.IsLoaded ) continue;

@@ -55,6 +55,11 @@ internal class Listener : IValid, IDisposable
 	internal Transform MixTransform { get; set; }
 
 	/// <summary>
+	/// How fast the listener moves, for the Doppler shift.
+	/// </summary>
+	internal VelocityTracker Motion;
+
+	/// <summary>
 	/// Listener's world position, where we are listening to sounds from.
 	/// </summary>
 	public Vector3 Position => Transform.Position;

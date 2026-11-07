@@ -68,9 +68,9 @@ public sealed class FieldDescription : MemberDescription
 	/// </summary>
 	public void SetValue( object obj, object value )
 	{
-		if ( IsStatic && !TypeDescription.IsDynamicAssembly )
+		if ( (IsStatic || IsInitOnly) && !IsDeclaredInDynamicAssembly )
 		{
-			log.Warning( $"Can't set static field {TypeDescription.FullName}.{Name}, it's on an engine type" );
+			log.Warning( $"Can't set field {TypeDescription.FullName}.{Name}, it's static or readonly on an engine type" );
 			return;
 		}
 

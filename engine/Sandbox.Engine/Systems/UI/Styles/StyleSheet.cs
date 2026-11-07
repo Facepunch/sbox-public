@@ -4,7 +4,9 @@ namespace Sandbox.UI;
 
 public class StyleSheet
 {
-	public static List<StyleSheet> Loaded { get; internal set; } = new List<StyleSheet>();
+	public static List<StyleSheet> Loaded => AllLoaded.Where( x => ReferenceEquals( x?.Context, GlobalContext.Game ) ).ToList();
+
+	internal static readonly List<StyleSheet> AllLoaded = new();
 
 	/// <summary>
 	/// Between sessions we clear the stylesheets, so one gamemode can't accidentally
@@ -15,14 +17,14 @@ public class StyleSheet
 		// Only reset sheets belonging to the current context, so we don't stomp another context (eg the menu)
 		var context = GlobalContext.Current;
 
-		for ( int i = Loaded.Count - 1; i >= 0; i-- )
+		for ( int i = AllLoaded.Count - 1; i >= 0; i-- )
 		{
-			var sheet = Loaded[i];
+			var sheet = AllLoaded[i];
 			if ( sheet == null || !ReferenceEquals( sheet.Context, context ) )
 				continue;
 
 			sheet.Release();
-			Loaded.RemoveAt( i );
+			AllLoaded.RemoveAt( i );
 		}
 	}
 
@@ -57,7 +59,7 @@ public class StyleSheet
 		filename = BaseFileSystem.NormalizeFilename( filename );
 		var context = GlobalContext.Current;
 
-		var alreadyLoaded = Loaded.FirstOrDefault( x => x.FileName == filename && ReferenceEquals( x.Context, context ) );
+		var alreadyLoaded = AllLoaded.FirstOrDefault( x => x.FileName == filename && ReferenceEquals( x.Context, context ) );
 		if ( alreadyLoaded != null )
 			return alreadyLoaded;
 
@@ -69,7 +71,7 @@ public class StyleSheet
 		sheet.FileName = filename;
 		sheet.AddWatcher( filename );
 
-		Loaded.Add( sheet );
+		AllLoaded.Add( sheet );
 
 		return sheet;
 	}
@@ -114,7 +116,7 @@ public class StyleSheet
 	{
 		var context = GlobalContext.Current;
 
-		var alreadyLoaded = Loaded.FirstOrDefault( x => x.FileName == key && ReferenceEquals( x.Context, context ) );
+		var alreadyLoaded = AllLoaded.FirstOrDefault( x => x.FileName == key && ReferenceEquals( x.Context, context ) );
 		if ( alreadyLoaded != null )
 		{
 			if ( !ReferenceEquals( alreadyLoaded.InlineSource, content ) && alreadyLoaded.InlineSource != content )
@@ -133,7 +135,7 @@ public class StyleSheet
 		sheet.UpdateFromString( content, key );
 		sheet.FileName = key;
 
-		Loaded.Add( sheet );
+		AllLoaded.Add( sheet );
 
 		return sheet;
 	}

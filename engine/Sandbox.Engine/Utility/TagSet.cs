@@ -11,6 +11,9 @@ public class TagSet : ITagSet, BytePack.ISerializer
 
 	public bool IsEmpty => Tags.Count == 0;
 
+	// Iterated as a HashSet so the enumerator isn't boxed
+	internal HashSet<uint> TokenSet => _tokens;
+
 	public TagSet() { }
 
 	public TagSet( IEnumerable<string> tags )
@@ -32,6 +35,36 @@ public class TagSet : ITagSet, BytePack.ISerializer
 	public override IEnumerable<string> TryGetAll() => Tags.AsEnumerable();
 
 	public override bool Has( string tag ) => Tags.Contains( tag );
+
+	public override bool HasAny( ITagSet other )
+	{
+		if ( other is TagSet ) return AnyHasIn( other );
+
+		// Same tags as GameTags.TryGetAll, which stops at the scene
+		if ( other is GameTags gameTags )
+		{
+			var tokens = gameTags.GetTokens();
+			foreach ( var token in _tokens )
+			{
+				if ( tokens.Contains( token ) ) return true;
+			}
+
+			return false;
+		}
+
+		return base.HasAny( other );
+	}
+
+	// Ask the other set about ours, enumerating it would box an enumerator
+	internal bool AnyHasIn( ITagSet other )
+	{
+		foreach ( var tag in Tags )
+		{
+			if ( other.Has( tag ) ) return true;
+		}
+
+		return false;
+	}
 
 	public override void Remove( string tag )
 	{

@@ -12,9 +12,15 @@ namespace Sandbox;
 [Category( "Rendering" )]
 [Icon( "font_download" )]
 [EditorHandle( "materials/gizmo/text_renderer.png" )]
-public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
+public sealed class TextRenderer : Renderer, Component.ExecuteInEditor, ISpriteRenderGroup
 {
+	const int FaceCameraPosition = 0x20; // Matches the text-facing flag in sprite_ps.shader.
 	TextSceneObject _so;
+
+	bool ISpriteRenderGroup.Opaque => false;
+	bool ISpriteRenderGroup.Additive => false;
+	bool ISpriteRenderGroup.Shadows => false;
+	bool ISpriteRenderGroup.IsSorted => true;
 
 	/// <summary>
 	/// Represents the horizontal alignment of the text.
@@ -230,6 +236,7 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 	protected override void OnDisabled()
 	{
 		Transform.OnTransformChanged -= TransformChanged;
+		_so?.Batch?.Invalidate();
 
 		BackupRenderAttributes( _so?.Attributes );
 		_so?.Delete();
@@ -240,6 +247,7 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 	{
 		if ( _so.IsValid() )
 		{
+			_so.Batch?.Invalidate();
 			RenderOptions.Apply( _so );
 		}
 	}
@@ -276,12 +284,105 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 	}
 
 	/// <summary>
+	/// Skip the individual draw while this frame's text is present in a sprite batch.
+	/// </summary>
+	internal void SetBatch( SceneSpriteSystem.TextBatch batch )
+	{
+		if ( _so.IsValid() )
+			_so.Batch = batch;
+	}
+
+	/// <summary>
+	/// Prepare one quad in the same glyph buffers used by particle text. Layout stays cached;
+	/// its placement must be refreshed each frame because the GPU font buffers rotate.
+	/// </summary>
+	internal bool TryGetTextSprite( out SpriteBatchSceneObject.SpriteData sprite, out BBox bounds )
+	{
+		sprite = default;
+		bounds = default;
+
+		if ( !_so.IsValid() )
+			return false;
+		if ( !_so.RenderingEnabled )
+			return false;
+
+		if ( ExecuteBefore is not null || ExecuteAfter is not null )
+			return false;
+		if ( _so.CreatedAttributes?.Get().IsEmpty() == false )
+			return false;
+		if ( BlendMode != BlendMode.Normal )
+			return false;
+		if ( _so.TextScope.IsHdr )
+			return false;
+		// The legacy billboard applies signed XYZ scale after facing the camera.
+		// Sprite quads only carry two axes, so leave nonuniform billboards on that path.
+		var worldScale = _so.Transform.Scale;
+		if ( Billboard != BillboardMode.None && (worldScale.x != worldScale.y || worldScale.x != worldScale.z) )
+			return false;
+		if ( string.IsNullOrWhiteSpace( _so.TextScope.Text ) )
+			return false;
+
+		var block = TextRendering.GetOrCreateTextBlock( _so.TextScope, _so.TextFlags );
+		if ( block is null || block.IsEmpty )
+			return false;
+
+		var placement = block.Upload();
+		var rect = new Rect( 0 ).Align( block.Size, _so.TextFlags ).Floor();
+		var transform = _so.Transform;
+		var size = rect.Size * new Vector2( -transform.Scale.y, transform.Scale.z ) * 0.5f;
+		var offset = new Vector2( 0.5f ) - rect.Center / rect.Size;
+
+		if ( Billboard == BillboardMode.None )
+		{
+			// Fixed sprite quads use the opposite horizontal axis to UI text.
+			offset.x = 1 - offset.x;
+		}
+		else
+		{
+			size.x = -size.x;
+		}
+
+		var white = Color.White.ToRgbe();
+		// Use the actual floored quad, including mirrored scale, for batching and culling.
+		var topLeft = new Vector3( -1, -rect.Left * transform.Scale.y, -rect.Top * transform.Scale.z );
+		var bottomRight = new Vector3( 1, -rect.Right * transform.Scale.y, -rect.Bottom * transform.Scale.z );
+		bounds = Billboard == BillboardMode.None
+			? new BBox( topLeft, bottomRight ).Transform( transform.WithScale( 1 ) )
+			: _so.Bounds;
+		sprite = new SpriteBatchSceneObject.SpriteData
+		{
+			Position = transform.Position,
+			Rotation = transform.Rotation.Angles().AsVector3(),
+			Scale = size,
+			Offset = offset,
+			BillboardMode = Billboard switch
+			{
+				BillboardMode.Always => (uint)SpriteRenderer.BillboardMode.Always,
+				BillboardMode.YOnly => (uint)SpriteRenderer.BillboardMode.YOnly,
+				_ => (uint)SpriteRenderer.BillboardMode.None
+			},
+			RenderFlags = (int)SpriteBatchSceneObject.SpriteFlags.Text | FaceCameraPosition,
+			TintColor = new Color32( white.r, white.g, white.b, 255 ).RawInt,
+			Lighting = (uint)white.a << 16,
+			FogStrengthCutout = SpriteBatchSceneObject.SpriteData.PackFogAndAlphaCutout( FogStrength, 0 ),
+			// The existing particle text shader reads glyph placement from these four fields.
+			TextureHandle = placement.InstanceOffset,
+			SamplerIndex = placement.TileOffset,
+			Sequence = placement.TilesX,
+			SequenceTime = BitConverter.Int32BitsToSingle( placement.Width | (placement.Height << 16) )
+		};
+
+		return true;
+	}
+
+	/// <summary>
 	/// Tags have been updated - lets update our scene object tags
 	/// </summary>
 	protected override void OnTagsChanged()
 	{
 		if ( !_so.IsValid() ) return;
 
+		_so.Batch?.Invalidate();
 		_so.Tags.SetFrom( GameObject.Tags );
 	}
 
@@ -397,8 +498,10 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 		}
 	}
 
-	class TextSceneObject : SceneCustomObject
+	internal class TextSceneObject : SceneCustomObject
 	{
+		internal SceneSpriteSystem.TextBatch Batch { get; set; }
+
 		public TextFlag TextFlags { get; set; } = TextFlag.DontClip | TextFlag.Center;
 		public BlendMode BlendMode { get; set; } = BlendMode.Normal;
 		public float FogStrength { get; set; } = 1.0f;
@@ -439,6 +542,7 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 
 		public void BuildCommandList()
 		{
+			Batch?.Invalidate();
 			_commandList.Reset();
 
 			if ( string.IsNullOrWhiteSpace( TextScope.Text ) )
@@ -452,6 +556,8 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 
 		public override void RenderSceneObject()
 		{
+			if ( Batch?.CanRender == true ) return;
+
 			var worldMat = PanelMatrix;
 
 			if ( Billboard != BillboardMode.None )

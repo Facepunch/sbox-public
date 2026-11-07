@@ -96,7 +96,7 @@ public class AnimationClipNode : VariationDataNode<AnimationClipNode.Data>
 	{
 		get
 		{
-			var info = DisplayInfo.For( this );
+			var info = TypeDisplayInfo;
 			if ( !string.IsNullOrWhiteSpace( SelectedData.AnimationName ) )
 				info.Name = SelectedData.AnimationName;
 			return info;

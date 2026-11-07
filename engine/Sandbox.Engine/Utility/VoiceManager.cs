@@ -11,7 +11,7 @@ namespace Sandbox;
 /// something wants to record, or between presses with <see cref="Preferences.StreamlinedPushToTalk"/>.
 /// A packet is a run of Opus frames, each prefixed with a ushort length.
 /// </summary>
-internal static class VoiceManager
+internal static partial class VoiceManager
 {
 	const int Rate = 48000;
 	const int FrameSamples = Rate / 50; // 20ms
@@ -28,7 +28,7 @@ internal static class VoiceManager
 	/// <summary>
 	/// Keep sending for a bit after it goes quiet, so we don't clip the end of words
 	/// </summary>
-	const float GateHoldTime = 0.3f;
+	internal const float GateHoldTime = 0.3f;
 
 	/// <summary>
 	/// Frames from just before the gate opens that get sent with it, words start quieter than the threshold
@@ -114,8 +114,11 @@ internal static class VoiceManager
 			}
 
 			var sending = IsListening || timeSinceStopped < TailTime;
-			var testing = timeSinceTestRequested < 0.5f;
+			var testing = !sending && timeSinceTestRequested < 0.5f;
 			var wanted = sending || testing;
+
+			// A test shows the AGC it asked for, unless we're actually talking
+			levelGainControl = testing ? testGainControl : Preferences.VoiceAutomaticGainControl;
 
 			// Nobody wants the mic, let it go
 			if ( !wanted && !StreamlinedPushToTalk )
@@ -126,7 +129,7 @@ internal static class VoiceManager
 
 			// Picked a different mic in the settings. A test listens to the one it asked for,
 			// unless we're actually talking. Held open between presses, it's the one we'll talk on.
-			var device = (testing && !sending ? testDevice : Preferences.VoiceDevice) ?? "";
+			var device = (testing ? testDevice : Preferences.VoiceDevice) ?? "";
 			if ( capture != IntPtr.Zero && captureDevice != device )
 				CloseCapture();
 
@@ -150,23 +153,47 @@ internal static class VoiceManager
 	public const float MinLevel = -96.0f;
 
 	/// <summary>
-	/// How loud the microphone was over the last tick, in decibels. Only meaningful while
-	/// something is recording or testing.
+	/// How loud the microphone was over the last tick, in decibels, before AGC. Measured by
+	/// <see cref="LevelMeter"/>, without the rumble, which is also what the gate compares against
+	/// <see cref="Preferences.VoiceThreshold"/>. Only meaningful while something is recording or testing.
+	/// </summary>
+	public static float InputLevel { get; private set; } = MinLevel;
+
+	/// <summary>
+	/// Roughly how loud the microphone was over the last tick, in decibels, after AGC: <see cref="InputLevel"/>
+	/// plus its gain, ignoring the limiter, so loud frames can read a little high. While testing, AGC is
+	/// whatever the test asked for rather than <see cref="Preferences.VoiceAutomaticGainControl"/>.
+	/// Only meaningful while something is recording or testing.
 	/// </summary>
 	public static float Level { get; private set; } = MinLevel;
 
+	/// <summary>
+	/// How loud AGC thinks the background noise is, in decibels, before any gain, measured the same way as
+	/// <see cref="InputLevel"/>. <see cref="MinLevel"/> until it's heard anything. Kept across closes of the same mic.
+	/// </summary>
+	public static float NoiseLevel => gainControl.NoiseLevel;
+
+	/// <summary>
+	/// Does <see cref="Level"/> include AGC? Worked out each tick, from the test or the preference.
+	/// </summary>
+	static bool levelGainControl;
+
 	static RealTimeSince timeSinceTestRequested = 10;
 	static string testDevice;
+	static bool testGainControl;
 
 	/// <summary>
 	/// Keep this microphone open so <see cref="Level"/> can be shown, without sending anything.
 	/// Call it every frame while testing, the mic closes shortly after you stop.
 	/// </summary>
-	public static void TestMicrophone( string device )
+	/// <param name="device">Microphone to listen to, empty for the system default</param>
+	/// <param name="gainControl">Should <see cref="Level"/> include AGC, so a setting can be previewed before it's applied</param>
+	public static void TestMicrophone( string device, bool gainControl )
 	{
 		if ( !IsValid ) return;
 
 		testDevice = device;
+		testGainControl = gainControl;
 		timeSinceTestRequested = 0;
 	}
 
@@ -185,6 +212,10 @@ internal static class VoiceManager
 		}
 
 		captureDevice = device;
+
+		// AGC should reset if we've changed device
+		gainControl.SetDevice( string.IsNullOrEmpty( device ) ? GetDefaultRecordingDevice() : device );
+
 		return true;
 	}
 
@@ -196,9 +227,16 @@ internal static class VoiceManager
 	{
 		failedDevice = null;
 
-		// The default device follows whatever the system picks, SDL handles that
-		if ( capture == IntPtr.Zero || string.IsNullOrEmpty( captureDevice ) )
+		if ( capture == IntPtr.Zero )
 			return;
+
+		// The default device follows whatever the system picks, SDL handles that.
+		// AGC should still start over if it's now a different mic.
+		if ( string.IsNullOrEmpty( captureDevice ) )
+		{
+			gainControl.SetDevice( GetDefaultRecordingDevice() );
+			return;
+		}
 
 		if ( !GetRecordingDevices().Contains( captureDevice ) )
 			CloseCapture();
@@ -217,7 +255,9 @@ internal static class VoiceManager
 		captureCount = 0;
 		preRollCount = 0;
 		timeSinceLoud = 10;
+		InputLevel = MinLevel;
 		Level = MinLevel;
+		levelMeter.Reset();
 	}
 
 	/// <summary>
@@ -232,7 +272,11 @@ internal static class VoiceManager
 
 		captureCount = 0;
 		timeSinceLoud = 10;
+		InputLevel = MinLevel;
 		Level = MinLevel;
+
+		// What's read next won't follow on from what we measured last
+		levelMeter.Reset();
 	}
 
 	static unsafe void ReadVoice( bool send )
@@ -249,7 +293,11 @@ internal static class VoiceManager
 		for ( ; captureCount - offset >= FrameSamples; offset += FrameSamples )
 		{
 			var frame = captureBuffer.AsSpan( offset, FrameSamples );
-			var level = FrameLevel( frame );
+			var level = levelMeter.Measure( frame );
+
+			// Even with AGC off, so it's already settled if it gets turned on
+			gainControl.Learn( level );
+
 			loudest = MathF.Max( loudest, level );
 
 			if ( !send )
@@ -270,11 +318,11 @@ internal static class VoiceManager
 
 			// Gate just opened, send the quiet start of the word first
 			for ( int i = 0; i < preRollCount; i++ )
-				packetLength = EncodeFrame( captureBufferPreRoll.AsSpan( i * FrameSamples, FrameSamples ), packetLength );
+				packetLength = ProcessAndEncodeFrame( captureBufferPreRoll.AsSpan( i * FrameSamples, FrameSamples ), packetLength );
 
 			preRollCount = 0;
 
-			packetLength = EncodeFrame( frame, packetLength );
+			packetLength = ProcessAndEncodeFrame( frame, packetLength );
 		}
 
 		// Keep the partial frame for next tick
@@ -283,7 +331,12 @@ internal static class VoiceManager
 
 		// No whole frame this tick, keep showing the last one
 		if ( offset > 0 )
-			Level = loudest;
+		{
+			InputLevel = loudest;
+
+			// Near enough for a meter: the limiter only ever turns it down from here
+			Level = levelGainControl && loudest > MinLevel ? MathF.Min( loudest + gainControl.Gain, 0.0f ) : loudest;
+		}
 
 		if ( packetLength == 0 )
 			return;
@@ -294,10 +347,14 @@ internal static class VoiceManager
 	}
 
 	/// <summary>
-	/// Encode a frame straight into the packet after a ushort length prefix, returns the new packet length
+	/// Apply pre-processing like AGC in place, then encode the resulting frame.
+	/// Encodes into the packet after a ushort length prefix, returns the new packet length.
 	/// </summary>
-	static unsafe int EncodeFrame( ReadOnlySpan<float> frame, int packetLength )
+	static unsafe int ProcessAndEncodeFrame( Span<float> frame, int packetLength )
 	{
+		// Note that AGC will gradually ease out when you turn it off
+		gainControl.Apply( frame, Preferences.VoiceAutomaticGainControl );
+
 		int bytes;
 		fixed ( float* samples = frame )
 		fixed ( byte* dest = packetBuffer )
@@ -325,19 +382,6 @@ internal static class VoiceManager
 
 		frame.CopyTo( captureBufferPreRoll.AsSpan( preRollCount * FrameSamples ) );
 		preRollCount++;
-	}
-
-	/// <summary>
-	/// RMS loudness of a frame in decibels, 0 being full scale
-	/// </summary>
-	static float FrameLevel( ReadOnlySpan<float> frame )
-	{
-		float sum = 0;
-		foreach ( var s in frame )
-			sum += s * s;
-
-		var db = 20.0f * MathF.Log10( MathF.Sqrt( sum / frame.Length ) + 1e-9f );
-		return MathF.Max( db, MinLevel );
 	}
 
 	internal static IntPtr CreateDecoder() => VoiceGlue.CreateDecoder( Rate );

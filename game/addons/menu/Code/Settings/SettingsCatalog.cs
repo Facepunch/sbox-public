@@ -916,6 +916,19 @@ public class SettingsCatalog
 
 		Items.Add( new SettingItem
 		{
+			Id = "audio.agc",
+			Category = "audio",
+			Section = "#menu.settings.voice",
+			Title = "#menu.settings.audio.agc.title",
+			Description = "#menu.settings.audio.agc.description",
+			Options = OffOn,
+			IsVisible = IsVoiceChatOn,
+			Read = () => MenuUtility.GetConsoleVariable( "voip_agc" ).ToBool(),
+			Write = value => MenuUtility.SetConsoleVariable( "voip_agc", ToBool( value ) )
+		} );
+
+		Items.Add( new SettingItem
+		{
 			Id = "audio.threshold",
 			Category = "audio",
 			Section = "#menu.settings.voice",
@@ -925,7 +938,8 @@ public class SettingsCatalog
 			CreateControl = item => new MicrophoneMeter
 			{
 				Item = item,
-				Device = () => Find( "audio.microphone" )?.Value?.ToString()
+				Device = () => Find( "audio.microphone" )?.Value?.ToString(),
+				GainControl = () => ToBool( Find( "audio.agc" )?.Value )
 			},
 			IsVisible = IsVoiceChatOn,
 			Read = () => MenuUtility.GetConsoleVariable( "voip_threshold" ).ToFloat(),
@@ -1169,6 +1183,7 @@ public class SettingsCatalog
 		MenuUtility.SetConsoleVariable( "voip_streamlined", false );
 		MenuUtility.SetConsoleVariable( "voip_device", "" );
 		MenuUtility.SetConsoleVariable( "voip_threshold", -50.0f );
+		MenuUtility.SetConsoleVariable( "voip_agc", true );
 		MenuUtility.SetConsoleVariable( "snd_mute_losefocus", false );
 		MenuUtility.SetConsoleVariable( "snd_subtitles", false );
 	}

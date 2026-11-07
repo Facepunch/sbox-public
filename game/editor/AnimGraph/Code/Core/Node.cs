@@ -1,5 +1,6 @@
 using Editor.NodeEditor;
 using Sandbox.Animation;
+using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Reflection;
 using System.Text.Json.Serialization;
@@ -32,6 +33,8 @@ public abstract class Node : INode, INodeHighlight
 	public virtual DisplayInfo DisplayInfo => _displayInfo;
 
 	private DisplayInfo _displayInfo;
+
+	internal DisplayInfo TypeDisplayInfo => _displayInfo;
 
 	[JsonIgnore, Hide, Browsable( false )]
 	public IGraph Graph { get; set; }
@@ -223,7 +226,7 @@ public abstract class Node : INode, INodeHighlight
 
 	internal void RefreshMetadata()
 	{
-		_displayInfo = DisplayInfo.For( this );
+		_displayInfo = GetTypeDisplayInfo( GetType() );
 		DiscoverPlugs();
 	}
 
@@ -551,6 +554,20 @@ public abstract class Node : INode, INodeHighlight
 		}
 	}
 
+	private sealed record PlugDefinition( PropertyInfo Property, Type InputType, Type OutputType );
+
+	private static readonly ConcurrentDictionary<Type, PlugDefinition[]> _plugDefinitions = new();
+	private static readonly ConcurrentDictionary<Type, DisplayInfo> _displayInfos = new();
+
+	internal static DisplayInfo GetTypeDisplayInfo( Type type ) => _displayInfos.GetOrAdd( type, type => DisplayInfo.ForType( type ) );
+
+	[EditorEvent.Hotload]
+	internal static void InvalidateMetadataCache()
+	{
+		_plugDefinitions.Clear();
+		_displayInfos.Clear();
+	}
+
 	/// <summary>
 	/// Discovers [Input] and [Output] properties via reflection and creates plugs.
 	/// </summary>
@@ -559,18 +576,25 @@ public abstract class Node : INode, INodeHighlight
 		var inputs = new List<IPlugIn>();
 		var outputs = new List<IPlugOut>();
 
-		foreach ( var prop in GetType().GetProperties() )
+		var definitions = _plugDefinitions.GetOrAdd( GetType(), type => type.GetProperties()
+			.Select( property => new PlugDefinition( property,
+				property.GetCustomAttribute<InputAttribute>() is { } input ? input.Type ?? typeof( object ) : null,
+				property.GetCustomAttribute<OutputAttribute>() is { } output ? output.Type ?? typeof( object ) : null ) )
+			.Where( definition => definition.InputType is not null || definition.OutputType is not null )
+			.ToArray() );
+
+		foreach ( var definition in definitions )
 		{
-			if ( prop.GetCustomAttribute<InputAttribute>() is { } inputAttr )
+			if ( definition.InputType is { } inputType )
 			{
-				var info = new AnimPlugInfo( prop );
-				inputs.Add( new AnimPlugIn( this, info, inputAttr.Type ?? typeof( object ) ) );
+				var info = new AnimPlugInfo( definition.Property );
+				inputs.Add( new AnimPlugIn( this, info, inputType ) );
 			}
 
-			if ( prop.GetCustomAttribute<OutputAttribute>() is { } outputAttr )
+			if ( definition.OutputType is { } outputType )
 			{
-				var info = new AnimPlugInfo( prop );
-				outputs.Add( new AnimPlugOut( this, info, outputAttr.Type ?? typeof( object ) ) );
+				var info = new AnimPlugInfo( definition.Property );
+				outputs.Add( new AnimPlugOut( this, info, outputType ) );
 			}
 		}
 

@@ -24,7 +24,7 @@ public class GlobalTransitionNode : TransitionNode
 	{
 		get
 		{
-			var info = DisplayInfo.For( this );
+			var info = TypeDisplayInfo;
 			info.Name = $"Global → {StateName}";
 			return info;
 		}
