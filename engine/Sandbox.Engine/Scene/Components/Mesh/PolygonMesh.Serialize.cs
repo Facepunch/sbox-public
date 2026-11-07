@@ -46,6 +46,10 @@ public partial class PolygonMesh
 						? MeshBlob.FromBytes( reader.GetBytesFromBase64() )
 						: Json.Deserialize<MeshBlob>( ref reader );
 
+					// Read back in the context that wrote it, it's the instance holding only its written data
+					if ( blob?.Written is { } written )
+						blob = MeshBlob.FromBytes( written );
+
 					if ( blob is not null )
 					{
 						blob.ApplyTo( mesh );
@@ -175,24 +179,24 @@ public partial class PolygonMesh
 		// serialized because they are world-space dependent and derived at runtime.
 		// MeshComponent sets Mesh.Transform = WorldTransform on enable/transform change, which
 		// triggers ComputeFaceTextureParametersFromCoordinates() to recompute them from TextureCoord.
-		var blob = MeshBlob.FromMesh( mesh );
+		var data = MeshBlob.Write( mesh );
 		writer.WritePropertyName( "Data" );
 
 		if ( BlobDataSerializer.IsActive )
-			Json.Serialize( writer, blob );
+			Json.Serialize( writer, new MeshBlob { Written = data } );
 		else
-			writer.WriteBase64StringValue( blob.ToBytes() );
+			writer.WriteBase64StringValue( data );
 
 		if ( mesh._materialsById.Count > 0 )
 		{
 			writer.WritePropertyName( "Materials" );
-			JsonSerializer.Serialize( writer, Enumerable.Range( 0, mesh._materialsById.Count )
-				.Select( x => mesh._materialsById[x] )
-				.Select( x => x.Name ) );
+			JsonSerializer.Serialize( writer, mesh.MaterialNames() );
 		}
 
 		writer.WriteEndObject();
 	}
+
+	IEnumerable<string> MaterialNames() => Enumerable.Range( 0, _materialsById.Count ).Select( x => _materialsById[x].Name );
 
 	/// <summary>
 	/// Heavy <see cref="PolygonMesh"/> data (topology + per-element streams) serialized as a
@@ -203,7 +207,14 @@ public partial class PolygonMesh
 	/// </summary>
 	private sealed class MeshBlob : BlobData
 	{
-		public override int Version => 1;
+		const int CurrentVersion = 1;
+		public override int Version => CurrentVersion;
+
+		/// <summary>
+		/// For saving: the data <see cref="Write"/> made, which is what's saved.
+		/// </summary>
+		public byte[] Written { get; init; }
+		internal override byte[] PendingData => Written;
 
 		public byte[] Topology { get; set; } = Array.Empty<byte>();
 		public Vector3[] Positions { get; set; } = Array.Empty<Vector3>();
@@ -223,16 +234,41 @@ public partial class PolygonMesh
 
 		const int SectionCount = 7;
 
-		public static MeshBlob FromMesh( PolygonMesh mesh ) => new()
+		/// <summary>
+		/// The blob's data (version prefix + payload) straight from the mesh's streams, in the layout
+		/// <see cref="Serialize"/> writes, without copying the streams first.
+		/// </summary>
+		public static byte[] Write( PolygonMesh mesh )
 		{
-			Topology = mesh.Topology.Serialize(),
-			Positions = mesh.Positions.ToArray(),
-			Blends = mesh.Blends.ToArray(),
-			Colors = mesh.Colors.ToArray(),
-			TextureCoord = mesh.TextureCoord.ToArray(),
-			MaterialIndex = mesh.MaterialIndex.ToArray(),
-			EdgeFlags = mesh.EdgeFlags.ToArray(),
-		};
+			var topology = mesh.Topology.SerializedSize;
+			var size = 256 + topology + Bytes( mesh.Positions.AsSpan() ) + Bytes( mesh.Blends.AsSpan() ) + Bytes( mesh.Colors.AsSpan() )
+				+ Bytes( mesh.TextureCoord.AsSpan() ) + Bytes( mesh.MaterialIndex.AsSpan() ) + Bytes( mesh.EdgeFlags.AsSpan() );
+
+			var stream = ByteStream.Create( size );
+			try
+			{
+				stream.Write( CurrentVersion );
+				stream.Write( SectionCount );
+
+				stream.Write( SectionTopology );
+				stream.Write( topology );
+				mesh.Topology.Serialize( ref stream );
+
+				WriteSection( ref stream, SectionPositions, mesh.Positions.AsSpan() );
+				WriteSection( ref stream, SectionBlends, mesh.Blends.AsSpan() );
+				WriteSection( ref stream, SectionColors, mesh.Colors.AsSpan() );
+				WriteSection( ref stream, SectionTextureCoord, mesh.TextureCoord.AsSpan() );
+				WriteSection( ref stream, SectionMaterialIndex, mesh.MaterialIndex.AsSpan() );
+				WriteSection( ref stream, SectionEdgeFlags, mesh.EdgeFlags.AsSpan() );
+				return stream.ToArray();
+			}
+			finally
+			{
+				stream.Dispose();
+			}
+		}
+
+		static int Bytes<T>( ReadOnlySpan<T> data ) where T : unmanaged => MemoryMarshal.AsBytes( data ).Length;
 
 		public void ApplyTo( PolygonMesh mesh )
 		{
@@ -316,23 +352,6 @@ public partial class PolygonMesh
 			var result = new T[byteLength / size];
 			stream.Read( MemoryMarshal.AsBytes( result.AsSpan() ) );
 			return result;
-		}
-
-		public byte[] ToBytes()
-		{
-			var stream = ByteStream.Create( 4096 );
-			try
-			{
-				stream.Write( Version );
-				var writer = new Writer { Stream = stream };
-				Serialize( ref writer );
-				stream = writer.Stream;
-				return stream.ToArray();
-			}
-			finally
-			{
-				stream.Dispose();
-			}
 		}
 
 		public static MeshBlob FromBytes( byte[] data )
