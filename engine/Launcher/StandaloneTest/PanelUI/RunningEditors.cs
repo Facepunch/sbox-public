@@ -22,7 +22,7 @@ static class RunningEditors
 		{
 			try
 			{
-				var path = ProjectFromCommandLine( GetCommandLine( process ) );
+				var path = ProjectFromProcess( process );
 				if ( path is not null ) running.Add( System.IO.Path.GetFullPath( path ) );
 			}
 			catch ( Exception )
@@ -38,35 +38,57 @@ static class RunningEditors
 		return running;
 	}
 
+	static string ProjectFromProcess( Process process )
+	{
+		if ( OperatingSystem.IsWindows() ) return ProjectFromCommandLine( GetCommandLineWindows( process.Id ) );
+		if ( OperatingSystem.IsLinux() ) return ProjectFromArguments( System.IO.File.ReadAllText( $"/proc/{process.Id}/cmdline" ).Split( '\0' ) );
+		return null;
+	}
+
+	/// <summary>
+	/// The value after the last -project. The launcher forwards its own arguments, which can carry one too.
+	/// </summary>
+	internal static string ProjectFromArguments( string[] args )
+	{
+		var i = Array.FindLastIndex( args, x => x.Equals( "-project", StringComparison.OrdinalIgnoreCase ) );
+		return i >= 0 && i + 1 < args.Length && args[i + 1].Length > 0 ? args[i + 1] : null;
+	}
+
 	/// <summary>
 	/// The path handed to -project, from a full command line. The last one wins - the launcher
 	/// forwards its own arguments, which can carry a -project of their own.
 	/// </summary>
-	static string ProjectFromCommandLine( string commandLine )
+	internal static string ProjectFromCommandLine( string commandLine )
 	{
 		if ( commandLine is null ) return null;
 
-		var index = commandLine.LastIndexOf( "-project", StringComparison.OrdinalIgnoreCase );
-		if ( index < 0 ) return null;
-
-		var rest = commandLine.Substring( index + "-project".Length ).TrimStart();
-		if ( rest.Length == 0 ) return null;
-
-		if ( rest[0] == '"' )
+		var searchFrom = commandLine.Length;
+		while ( searchFrom > 0 )
 		{
-			var end = rest.IndexOf( '"', 1 );
-			return end > 1 ? rest.Substring( 1, end - 1 ) : null;
+			var index = commandLine.LastIndexOf( "-project", searchFrom - 1, searchFrom, StringComparison.OrdinalIgnoreCase );
+			if ( index < 0 ) return null;
+
+			var after = index + "-project".Length;
+			var boundaryBefore = index == 0 || char.IsWhiteSpace( commandLine[index - 1] );
+			var boundaryAfter = after < commandLine.Length && char.IsWhiteSpace( commandLine[after] );
+			if ( !boundaryBefore || !boundaryAfter )
+			{
+				searchFrom = index;
+				continue;
+			}
+
+			var rest = commandLine.Substring( after ).TrimStart();
+			if ( rest.Length == 0 ) return null;
+
+			if ( rest[0] == '"' )
+			{
+				var end = rest.IndexOf( '"', 1 );
+				return end > 1 ? rest.Substring( 1, end - 1 ) : null;
+			}
+
+			var space = rest.IndexOf( ' ' );
+			return space > 0 ? rest.Substring( 0, space ) : rest;
 		}
-
-		var space = rest.IndexOf( ' ' );
-		return space > 0 ? rest.Substring( 0, space ) : rest;
-	}
-
-	static string GetCommandLine( Process process )
-	{
-		if ( OperatingSystem.IsWindows() ) return GetCommandLineWindows( process.Id );
-
-		if ( OperatingSystem.IsLinux() ) return System.IO.File.ReadAllText( $"/proc/{process.Id}/cmdline" ).Replace( '\0', ' ' );
 
 		return null;
 	}

@@ -531,8 +531,40 @@ public static partial class EditorUtility
 		if ( fullPath == null )
 			return false;
 
+		if ( OperatingSystem.IsLinux() )
+		{
+			// The native path shells out to aplay, which can hang forever in snd_pcm_drain under pipewire-alsa
+			_ = PlayWithLinuxPlayer( fullPath );
+			return true;
+		}
+
 		g_pSoundSystem.PlaySoundAtOSLevel( fullPath );
 		return true;
+	}
+
+	static async Task PlayWithLinuxPlayer( string path )
+	{
+		foreach ( var player in new[] { "pw-play", "paplay" } )
+		{
+			try
+			{
+				using var process = Process.Start( player, [path] );
+				if ( process is null ) continue;
+
+				using var timeout = new CancellationTokenSource( TimeSpan.FromSeconds( 10 ) );
+				try { await process.WaitForExitAsync( timeout.Token ); }
+				catch ( OperationCanceledException ) { try { process.Kill(); } catch { } }
+				return;
+			}
+			catch ( System.ComponentModel.Win32Exception )
+			{
+				// Not installed, try the next player
+			}
+			catch ( Exception )
+			{
+				return;
+			}
+		}
 	}
 
 	/// <summary>
