@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Runtime.ExceptionServices;
 using System.Text;
 
 namespace Sandbox.ContentBuild;
@@ -188,8 +189,9 @@ public static class ContentBuilder
 	}
 
 	/// <summary>
-	/// The same build, yielding while compilers run. Planning, publication and callbacks resume on the caller's
-	/// synchronization context, so the editor can keep ticking without moving engine calls to worker threads.
+	/// The same build, yielding while compilers run and while it reads records and lists sources. Planning, publication
+	/// and callbacks resume on the caller's synchronization context, so the editor can keep ticking without moving engine
+	/// calls to worker threads.
 	/// </summary>
 	public static async Task<BuildReport> BuildAsync( BuildRequest request, IAssetCompiler compiler, CancellationToken token = default )
 	{
@@ -329,12 +331,23 @@ public static class ContentBuilder
 					}
 				}
 
-				foreach ( var root in roots )
+				void Load()
 				{
-					root.Store = new RecordStore( root.Resolve, root.Def.StateDirectory );
-					DeleteStaging( Path.Combine( root.Def.StateDirectory, "staging" ) );
-					Inventory( root );
-					if ( request.Select is null ) RemoveDeletedSources( root );
+					foreach ( var root in roots )
+					{
+						root.Store = new RecordStore( root.Resolve, root.Def.StateDirectory );
+						DeleteStaging( Path.Combine( root.Def.StateDirectory, "staging" ) );
+						Inventory( root );
+					}
+				}
+
+				// Every record read and every file listed: not on the caller's thread when it's the editor's
+				if ( asynchronous ) await Task.Run( Load );
+				else Load();
+
+				if ( request.Select is null )
+				{
+					foreach ( var root in roots ) RemoveDeletedSources( root );
 				}
 
 				// A source whose output a later root also builds is hidden (sounds/x.wav under sounds/x.mp3 too):
@@ -505,7 +518,9 @@ public static class ContentBuilder
 			{
 				LoadFingerprints( pending );
 
-				var describe = pending.Where( x => x.Kind == AssetKind.Described && (SelfDirty( x ) ?? Shadowed( x )) is not null ).ToList();
+				var describable = pending.Where( x => x.Kind == AssetKind.Described ).ToList();
+				var self = await CheckAll( describable, x => SelfDirty( x ) ?? Shadowed( x ) );
+				var describe = describable.Where( x => self[x] is not null ).ToList();
 				var results = await RunJobs( describe, node => Compile( Job( node, JobMode.Describe ) ) );
 				var described = new Dictionary<Node, IReadOnlyList<PrerequisiteRead>>();
 				for ( var i = 0; i < describe.Count; i++ )
@@ -554,7 +569,10 @@ public static class ContentBuilder
 		/// </summary>
 		async Task Adopt( List<Node> pending, Dictionary<Node, IReadOnlyList<PrerequisiteRead>> described )
 		{
-			var candidates = request.Force ? [] : pending.Where( x => x.State == State.Waiting && (x.Record is null || RebuiltOutside( x )) && File.Exists( x.Root.Resolve( x.Output ) ) && (x.Kind != AssetKind.Described || described.ContainsKey( x ) || x.Record is not null) ).ToList();
+			if ( request.Force ) return;
+
+			var rebuilt = await CheckAll( pending.Where( x => x.State == State.Waiting && x.Record is not null ).ToList(), OutputRebuilt );
+			var candidates = pending.Where( x => x.State == State.Waiting && (x.Record is null || (rebuilt[x] && RebuiltOutside( x ))) && File.Exists( x.Root.Resolve( x.Output ) ) && (x.Kind != AssetKind.Described || described.ContainsKey( x ) || x.Record is not null) ).ToList();
 			var results = await RunJobs( candidates, node => Compile( Job( node, JobMode.Adopt ) ) );
 
 			var adopted = new List<Node>();
@@ -565,7 +583,7 @@ public static class ContentBuilder
 
 				// Owned outputs only: a child found in another root or mount isn't this asset's to adopt
 				var root = node.Root;
-				var outputs = result.Outputs.Select( root.Key ).Distinct( StringComparer.OrdinalIgnoreCase ).ToList();
+				var outputs = result.Outputs.Select( x => AdoptedKey( root, x ) ).Distinct( StringComparer.OrdinalIgnoreCase ).ToList();
 				if ( outputs.Any( x => x is null || root.Locate( x ) is null ) || !outputs.Contains( node.Output, StringComparer.OrdinalIgnoreCase ) ) continue;
 
 				// An output only it owned that this build of it doesn't make is a compile's to remove
@@ -573,12 +591,12 @@ public static class ContentBuilder
 
 				// Its own outputs (its generated textures) aren't reads
 				var reads = (described.TryGetValue( node, out var fresh ) ? fresh.Select( Read ).Where( x => x.File is not null && x.Producer != node ).ToList() : (node.Record?.Prerequisites ?? []).Select( x => (Producer: ProducerOfOutput( x.File ), File: Path.GetFullPath( x.File ), x.OrderOnly) ).ToList())
-					.Where( x => !outputs.Contains( root.Key( x.File ), StringComparer.OrdinalIgnoreCase ) ).ToList();
+					.Where( x => !outputs.Contains( AdoptedKey( root, x.File ), StringComparer.OrdinalIgnoreCase ) ).ToList();
 				var checkedReads = result.Inputs.Where( x => x.Game ).Select( x => Path.GetFullPath( x.Path ) ).ToHashSet( StringComparer.OrdinalIgnoreCase );
 				if ( reads.Any( x => !x.OrderOnly && !checkedReads.Contains( x.File ) ) ) continue;
 
 				// Whatever else the output says it read (more than its description lists) is a read too, built first
-				reads.AddRange( checkedReads.Where( x => !reads.Any( r => string.Equals( r.File, x, StringComparison.OrdinalIgnoreCase ) ) && !outputs.Contains( root.Key( x ), StringComparer.OrdinalIgnoreCase ) ).Select( x => (ProducerOfOutput( x ), x, false) ) );
+				reads.AddRange( checkedReads.Where( x => !reads.Any( r => string.Equals( r.File, x, StringComparison.OrdinalIgnoreCase ) ) && !outputs.Contains( AdoptedKey( root, x ), StringComparer.OrdinalIgnoreCase ) ).Select( x => (ProducerOfOutput( x ), x, false) ) );
 				foreach ( var producer in reads.Select( x => x.Producer ).Where( x => x is not null && x != node ) ) node.Prerequisites.Add( producer );
 
 				var prerequisites = reads.Select( x => new RecordedPrerequisite( x.File, File.Exists( x.File ) ? Hashing.File( x.File ) : "0", ReadOutput( x.Producer, x.File ), x.OrderOnly ) ).ToList();
@@ -596,6 +614,21 @@ public static class ContentBuilder
 		}
 
 		/// <summary>
+		/// An adopted output's key: a generated child the compiler found in another mount first (a shared default
+		/// texture) is the asset's own copy, as compiling it writes one (see KeepPublishedGenerated), if that's the same
+		/// file. A generated name is its recipe's, not its pixels', so another copy may be older.
+		/// </summary>
+		string AdoptedKey( RootState root, string output )
+		{
+			if ( root.Key( output ) is { } key ) return key;
+			if ( !Path.GetFileName( output ).Contains( ".generated.", StringComparison.OrdinalIgnoreCase ) ) return null;
+
+			var full = Path.GetFullPath( output );
+			var own = mounts.Select( x => Path.GetRelativePath( x.Path, full ).Replace( '\\', '/' ) ).FirstOrDefault( x => !Path.IsPathRooted( x ) && x != ".." && !x.StartsWith( "../" ) );
+			return own is not null && root.Locate( own ) is { } mine && Hashing.File( mine ) == Hashing.File( full ) ? own : null;
+		}
+
+		/// <summary>
 		/// The compiled file a described read finds: its producer's output in this build, or whatever the compiler found.
 		/// </summary>
 		(Node Producer, string File, bool OrderOnly) Read( PrerequisiteRead read ) => Producer( read.Source ) is { } producer
@@ -607,17 +640,22 @@ public static class ContentBuilder
 			.FirstOrDefault( x => !Path.IsPathRooted( x ) && x != ".." && !x.StartsWith( "../" ) ) ?? "";
 
 		/// <summary>
-		/// An output it owns isn't what its record says this build published, and something it was built from
-		/// changed since, so another compile may have rebuilt it. Changed bytes with nothing else changed are damage,
-		/// which the record's hash catches and a compile repairs.
+		/// Of a node with an output that isn't what its record says (see <see cref="OutputRebuilt"/>): something it was
+		/// built from changed since, so another compile may have rebuilt it. Changed bytes with nothing else changed
+		/// are damage, which the record's hash catches and a compile repairs.
 		/// </summary>
-		bool RebuiltOutside( Node node ) => node.Record.Outputs.Any( x =>
+		bool RebuiltOutside( Node node ) => (SelfDirty( node ) ?? Shadowed( node ) ?? ReadChanged( node, Producers( node ) )) is not null;
+
+		/// <summary>
+		/// An output it owns has other bytes than its record says (see <see cref="RebuiltOutside"/>).
+		/// </summary>
+		static bool OutputRebuilt( Node node ) => node.Record.Outputs.Any( x =>
 		{
 			if ( Shared( x.Key ) || node.Root.Resolve( x.Key ) is not { } path ) return false;
 
 			var file = new FileInfo( path );
 			return file.Exists && (file.Length != x.Value.Size || file.LastWriteTimeUtc.Ticks != x.Value.Time) && Hashing.File( path ) != x.Value.Hash;
-		} ) && (SelfDirty( node ) ?? Shadowed( node ) ?? ReadChanged( node )) is not null;
+		} );
 
 		/// <summary>
 		/// A record of a compile: what it read, stamped as it is now, and the outputs it published.
@@ -717,17 +755,23 @@ public static class ContentBuilder
 				// make others ready, so repeat until nothing changes
 				for ( var ready = Ready(); ready.Count > 0; ready = Ready() )
 				{
+					static Node Blocker( Node node ) => node.Prerequisites.FirstOrDefault( p => p.State is State.Failed or State.Blocked );
+					var dirty = await Dirty( ready.Where( x => Blocker( x ) is null ).ToList() );
 					foreach ( var node in ready )
 					{
-						var blocker = node.Prerequisites.FirstOrDefault( p => p.State is State.Failed or State.Blocked );
-						if ( blocker is not null )
+						if ( Blocker( node ) is { } blocker )
 						{
 							Block( node, $"blocked by {blocker.Name}" );
 							continue;
 						}
 
-						var reason = Dirty( node );
-						if ( reason is null ) { node.State = State.Clean; continue; }
+						var (reason, restamp) = dirty[node];
+						if ( reason is null )
+						{
+							node.State = State.Clean;
+							if ( restamp is not null ) Restamp( node, restamp );
+							continue;
+						}
 
 						report.Log.AppendLine( $"{node.Name}: {reason}" );
 						node.State = State.Queued;
@@ -1051,35 +1095,88 @@ public static class ContentBuilder
 		}
 
 		/// <summary>
-		/// Why a node must compile, or null if its record still holds.
+		/// Why each node must compile, or null where its record still holds, with the new stamps of outputs whose bytes
+		/// are still what it records (a copy or a checkout moved their time). The producers of what they read are found
+		/// between the checks, as finding one adds it.
 		/// </summary>
-		string Dirty( Node node )
+		async Task<Dictionary<Node, (string Reason, List<(string Key, FileStamp Stamp)> Restamp)>> Dirty( List<Node> nodes )
 		{
-			if ( request.Force ) return "forced";
-			if ( (SelfDirty( node ) ?? Shadowed( node )) is { } reason ) return reason;
+			if ( request.Force ) return nodes.ToDictionary( x => x, _ => ("forced", (List<(string Key, FileStamp Stamp)>)null) );
 
+			var own = await CheckAll( nodes, x => (SelfDirty( x ) ?? Shadowed( x )) is { } reason ? (reason, null) : ChangedOutput( x ) );
+			var current = nodes.Where( x => own[x].Reason is null ).ToList();
+			var producers = current.ToDictionary( x => x, Producers );
+			var reads = await CheckAll( current, x => ReadChanged( x, producers[x] ) );
+			return nodes.ToDictionary( x => x, x => own[x].Reason is null && reads[x] is { } reason ? (reason, null) : own[x] );
+		}
+
+		/// <summary>
+		/// Why an output it owns isn't what its record says, or null, with the new stamps of those whose bytes are.
+		/// </summary>
+		static (string Reason, List<(string Key, FileStamp Stamp)> Restamp) ChangedOutput( Node node )
+		{
+			List<(string Key, FileStamp Stamp)> restamp = null;
 			foreach ( var (key, stamp) in node.Record.Outputs )
 			{
 				// An output in a root this build doesn't mount can't be checked or rebuilt here
 				if ( node.Root.Resolve( key ) is not { } path ) continue;
 
-				if ( node.Root.Locate( key ) is null ) return $"{key} is missing";
+				if ( node.Root.Locate( key ) is null ) return ($"{key} is missing", null);
 				if ( Shared( key ) ) continue;
 
 				var file = new FileInfo( path );
-				if ( (file.Length != stamp.Size || file.LastWriteTimeUtc.Ticks != stamp.Time) && Hashing.File( file.FullName ) != stamp.Hash ) return $"{key} was modified";
+				if ( file.Length == stamp.Size && file.LastWriteTimeUtc.Ticks == stamp.Time ) continue;
+				if ( Hashing.File( file.FullName ) != stamp.Hash ) return ($"{key} was modified", null);
+				(restamp ??= []).Add( (key, stamp with { Size = file.Length, Time = file.LastWriteTimeUtc.Ticks }) );
 			}
 
-			return ReadChanged( node );
+			return (null, restamp);
 		}
+
+		/// <summary>
+		/// A current node's record with its outputs' new stamps, so they aren't hashed again next build. Nothing moves; a
+		/// record that can't be written is only hashed again.
+		/// </summary>
+		static void Restamp( Node node, List<(string Key, FileStamp Stamp)> restamp )
+		{
+			foreach ( var (key, stamp) in restamp ) node.Record.Outputs[key] = stamp;
+			try { node.Root.Store.Rewrite( node.Source, node.Record ); }
+			catch ( Exception e ) when ( e is IOException or UnauthorizedAccessException ) { }
+		}
+
+		/// <summary>
+		/// Checks each node at once. Each file it checks is a file system call (~0.5 ms behind an antivirus filter, tens of
+		/// thousands a build), so they run on worker threads, off the caller's (the editor's) when the build is
+		/// asynchronous. A check reads the disk, the records and the graph, and changes none of them.
+		/// </summary>
+		async Task<Dictionary<Node, T>> CheckAll<T>( List<Node> nodes, Func<Node, T> check )
+		{
+			var results = new T[nodes.Count];
+			void All()
+			{
+				// A check that throws fails the build as it did when they ran one at a time
+				try { Parallel.For( 0, nodes.Count, i => results[i] = check( nodes[i] ) ); }
+				catch ( AggregateException e ) { ExceptionDispatchInfo.Throw( e.InnerExceptions[0] ); }
+			}
+
+			if ( asynchronous ) await Task.Run( All );
+			else All();
+			return nodes.Select( ( x, i ) => (x, i) ).ToDictionary( x => x.x, x => results[x.i] );
+		}
+
+		/// <summary>
+		/// The node that publishes each compiled file a node read, by its record (null for an order-only read).
+		/// </summary>
+		List<Node> Producers( Node node ) => node.Record.Prerequisites.Select( x => x.OrderOnly ? null : ProducerOfOutput( x.File ) ).ToList();
 
 		/// <summary>
 		/// Why a compiled file a node read is no longer what it read, or null.
 		/// </summary>
-		string ReadChanged( Node node )
+		string ReadChanged( Node node, List<Node> producers )
 		{
-			foreach ( var prerequisite in node.Record.Prerequisites )
+			for ( var i = 0; i < node.Record.Prerequisites.Count; i++ )
 			{
+				var prerequisite = node.Record.Prerequisites[i];
 				var file = new FileInfo( prerequisite.File );
 				if ( prerequisite.OrderOnly )
 				{
@@ -1087,7 +1184,7 @@ public static class ContentBuilder
 					continue;
 				}
 
-				var producer = ProducerOfOutput( prerequisite.File );
+				var producer = producers[i];
 				var stamp = producer?.Record?.Outputs.GetValueOrDefault( producer.Output );
 				// The producer already records these bytes. Reuse that hash only while the file still matches
 				// its stamp; external edits and reads without a producer still check the actual contents.

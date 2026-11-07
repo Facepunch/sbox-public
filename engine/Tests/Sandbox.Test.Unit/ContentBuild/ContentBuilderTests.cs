@@ -286,6 +286,25 @@ public class ContentBuilderTests
 	}
 
 	[TestMethod]
+	public void OutputTouchedWithSameBytesIsHashedOnce()
+	{
+		using var fx = new Fixture();
+		fx.Write( "a.vtex", "red" );
+		Assert.IsTrue( fx.Build().Success );
+
+		// A checkout or copy moves its time, not its bytes: still current, and its new stamp is recorded
+		var output = Path.Combine( fx.Root, "a.vtex_c" );
+		File.SetLastWriteTimeUtc( output, File.GetLastWriteTimeUtc( output ).AddHours( 1 ) );
+		AssertJobs( fx.Build() );
+
+		// Hashing it again would fail on Windows while it's held
+		using var held = new FileStream( output, FileMode.Open, FileAccess.Read, FileShare.None );
+		var warm = fx.Build();
+		Assert.IsTrue( warm.Success, warm.Log.ToString() );
+		AssertJobs( warm );
+	}
+
+	[TestMethod]
 	[DataRow( JobMode.Describe )]
 	[DataRow( JobMode.Adopt )]
 	[DataRow( JobMode.Compile )]
@@ -1391,6 +1410,30 @@ public class ContentBuilderTests
 		File.Delete( Path.Combine( fx.Root, "a.vtex" ) );
 		fx.Build();
 		Assert.AreEqual( "someone else's", File.ReadAllText( Path.Combine( fx.Dir, "other.vtex_c" ) ) );
+	}
+
+	[TestMethod]
+	public void GeneratedChildFoundInAnotherRootIsAdoptedAsItsOwnCopy()
+	{
+		// Shared default textures: the compiler finds another root's copy first, the asset has its own as compiling writes it
+		using var fx = new Fixture();
+		WriteIn( fx, "r1/m.vmat", "child t.generated.vtex_c pixels" );
+		WriteIn( fx, "r2/n.vmat", "child t.generated.vtex_c pixels", "foreign r1/t.generated.vtex_c" );
+		Assert.IsTrue( BuildRoots( fx, ["r1", "r2"] ).Success );
+		Directory.Delete( Path.Combine( fx.Dir, "state-r2", "records" ), true );
+
+		var report = BuildRoots( fx, ["r1", "r2"] );
+
+		Assert.IsTrue( report.Success, report.Log.ToString() );
+		CollectionAssert.AreEqual( new[] { "r2:n.vmat" }, report.Adopted.ToArray(), report.Log.ToString() );
+		AssertJobs( report );
+
+		// Its own copy isn't the one the compiler vouched for (older pixels under the same recipe name): compiled
+		File.WriteAllText( Path.Combine( fx.Dir, "r2", "t.generated.vtex_c" ), "older pixels" );
+		Directory.Delete( Path.Combine( fx.Dir, "state-r2", "records" ), true );
+		report = BuildRoots( fx, ["r1", "r2"] );
+		Assert.AreEqual( 0, report.Adopted.Count, report.Log.ToString() );
+		AssertJobs( report, "r2:n.vmat" );
 	}
 
 	[TestMethod]
