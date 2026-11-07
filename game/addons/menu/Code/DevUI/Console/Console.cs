@@ -3,6 +3,10 @@
 [Library( "console" )]
 public class Console : Panel
 {
+	// Same cap as the editor console. Kept for the whole session, so an error logged every frame grew this without
+	// bound: about a million entries and 3 GB of messages and stack text in a long editor session.
+	const int MaxEntries = 10000;
+
 	internal List<LogEvent> Entries = new();
 	internal VirtualList Output;
 	internal TextEntry Input;
@@ -110,7 +114,13 @@ public class Console : Panel
 		e.Arguments = null;
 		Entries.Add( e );
 
-		if ( ShouldShowEvent( e ) )
+		// Trim in batches like the dev tools console, so a busy log doesn't rebuild the shown items every line
+		if ( Entries.Count > MaxEntries * 2 )
+		{
+			Entries.RemoveRange( 0, Entries.Count - MaxEntries );
+			OnFilter();
+		}
+		else if ( ShouldShowEvent( e ) )
 		{
 			Output.AddItem( e );
 		}
