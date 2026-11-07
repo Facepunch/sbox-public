@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Text.Json;
 
 namespace Editor;
@@ -109,6 +109,15 @@ internal static class SceneSource
 			return null;
 		}
 	}
+
+	/// <summary>
+	/// The saved scene hasn't been compiled yet and a content build is running, so it can't be compiled now: on-demand
+	/// compiles are suspended until the build ends. Playing should wait for it rather than play without the bake.
+	/// </summary>
+	internal static bool WaitsForBuild( SceneEditorSession editor ) =>
+		EditorContentBuild.IsBuilding && !editor.HasUnsavedChanges && !editor.IsMounted
+		&& editor.Scene.Source is SceneFile { ResourcePath: { Length: > 0 } } source
+		&& FindAsset( source ) is { } asset && IsStale( asset, asset.GetCompiledFile( true ) );
 
 	/// <summary>
 	/// The compiled scene is older than its source: saved since it was last compiled.

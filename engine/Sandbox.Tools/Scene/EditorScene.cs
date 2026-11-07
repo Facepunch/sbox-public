@@ -192,7 +192,9 @@ public static class EditorScene
 	{
 		EditorShortcuts.ReleaseAll();
 
-		if ( !Game.IsPlaying )
+		if ( pendingPlay is not null )
+			CancelPendingPlay();
+		else if ( !Game.IsPlaying )
 			Play();
 		else
 			Stop();
@@ -241,6 +243,17 @@ public static class EditorScene
 	{
 		playableSession ??= FindPlayableSession();
 		if ( playableSession is null ) return;
+
+		// Play right after a save: the content build is compiling the scene and the main thread can't wait for it, since
+		// the build needs editor frames to finish. Play once it's done (PlayWhenBuilt) instead of without the bake.
+		if ( !playMode && SceneSource.WaitsForBuild( playableSession ) )
+		{
+			pendingPlay = playableSession;
+			pendingPlayToast ??= new PopupToast { Title = "Playing once the scene has compiled", Icon = "play_arrow" };
+			return;
+		}
+
+		CancelPendingPlay();
 
 		var current = playMode ? null : SceneSource.LoadForPlay( playableSession );
 		if ( !playMode && current is null )
@@ -320,6 +333,8 @@ public static class EditorScene
 		// Close any open overlay modals so they don't persist in the next play session
 		IModalSystem.Current?.CloseAll( true );
 
+		CancelPendingPlay();
+
 		Game.IsClosing = true;
 
 		SceneEditorSession.Playing?.StopPlaying();
@@ -350,6 +365,37 @@ public static class EditorScene
 		Mouse.Visibility = MouseVisibility.Auto;
 
 		OnPlayRestore();
+	}
+
+	static SceneEditorSession pendingPlay;
+	static PopupToast pendingPlayToast;
+
+	[EditorEvent.Frame]
+	static void PlayWhenBuilt()
+	{
+		if ( pendingPlay is null ) return;
+
+		if ( pendingPlayToast?.GetCancel().IsCancellationRequested == true )
+		{
+			CancelPendingPlay();
+			return;
+		}
+
+		if ( EditorContentBuild.IsBuilding ) return;
+
+		var session = pendingPlay;
+		CancelPendingPlay();
+
+		// The session may have been closed while the build ran
+		if ( SceneEditorSession.All.Contains( session ) )
+			Play( false, session );
+	}
+
+	static void CancelPendingPlay()
+	{
+		pendingPlay = null;
+		pendingPlayToast?.Dispose();
+		pendingPlayToast = null;
 	}
 
 	/// <summary>
