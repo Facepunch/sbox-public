@@ -76,6 +76,14 @@ internal partial class Test( bool noBuild = true, string filter = null )
 			string engineDir = Path.Combine( rootDir, "engine" );
 			string gameDir = Path.Combine( rootDir, "game" );
 
+			// Built once, here: the projects are shared between shards, so nine `dotnet test` builds at the same time
+			// copy over output another shard's testhost still has open (MSB3027, "the file is locked by testhost")
+			if ( !noBuild && !Utility.RunDotnetCommand( engineDir, "build -c Release Sandbox-Engine.slnx" ) )
+			{
+				Log.Error( "Building the test projects failed!" );
+				return ExitCode.Failure;
+			}
+
 			Log.Info( $"Running {Projects.Length} test processes at the same time..." );
 
 			var tasks = Projects
@@ -128,13 +136,12 @@ internal partial class Test( bool noBuild = true, string filter = null )
 	{
 		var csproj = Path.Combine( "Tests", project.Name, $"{project.Name}.csproj" );
 
-		// --no-build: BuildManaged already compiled all projects in Sandbox-Engine.slnx (including test projects).
-		var noBuildFlag = noBuild ? " --no-build" : string.Empty;
+		// Never builds here: everything these shards need was built before they started, by BuildManaged in CI or by Run
 		var filters = new[] { filter, project.ShardFilter }.Where( x => !string.IsNullOrEmpty( x ) ).Select( x => $"({x})" ).ToArray();
 		var filterFlag = filters.Length == 0 ? string.Empty : $" --filter \"{string.Join( "&", filters )}\"";
 		// Run settings after the --, overriding the assembly's [Parallelize]
 		var isolatedFlag = project.Isolated ? " -- MSTest.Parallelize.Workers=1" : string.Empty;
-		var testArgs = $"test {csproj} --logger \"console;verbosity=normal;consoleLoggerParameters=ErrorsOnly\" -c Release{noBuildFlag}{filterFlag}{isolatedFlag}";
+		var testArgs = $"test {csproj} --logger \"console;verbosity=normal;consoleLoggerParameters=ErrorsOnly\" -c Release --no-build{filterFlag}{isolatedFlag}";
 
 		var output = new List<string>();
 		var failedTests = new List<string>();
