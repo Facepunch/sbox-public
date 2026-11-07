@@ -178,13 +178,28 @@ internal sealed partial class PackageLoader : IDisposable
 			}
 		}
 
+		// Package order alone can load an assembly before one it references: a library whose code references its game
+		// (compiler AssemblyReferences) sorts ahead of that game, because the game depends on its libraries. Loaded
+		// first, it resolves the game by name to the previous version and keeps those stale types. Ordering the whole
+		// batch by assembly references fixes that; package order is kept wherever assemblies don't depend on each other.
+		var batch = new List<(PackageManager.ActivePackage ap, string filename)>();
+		var orderer = new AssemblyOrderer();
+
 		foreach ( var e in Package.SortByReferences( changedPackageDlls, x => x.ap.Package ) )
 		{
 			// don't load editor dlls here unless we're in tools mode
 			if ( e.filename.EndsWith( ".editor.dll", StringComparison.OrdinalIgnoreCase ) && !ToolsMode )
 				continue;
 
-			var result = LoadAssemblyFromPackage( e.ap, e.filename, skipUnchanged: true );
+			orderer.Add( batch.Count.ToString(), e.ap.AssemblyFileSystem.ReadAllBytes( e.filename ).ToArray() );
+			batch.Add( e );
+		}
+
+		foreach ( var (index, bytes) in orderer.GetDependencyOrdered() )
+		{
+			var e = batch[int.Parse( index )];
+
+			var result = LoadAssemblyFromPackage( e.ap, e.filename, bytes, skipUnchanged: true );
 			if ( result is not null )
 				changedPackages.Add( e.ap );
 
