@@ -386,6 +386,13 @@ public class AppSystem
 
 		if ( createInfo.Flags.HasFlag( AppSystemFlags.IsEditor ) )
 		{
+			if ( OperatingSystem.IsLinux() )
+			{
+				// Qt runs on xcb, and SDL has to wrap its X11 windows and select input events on them
+				NativeEngine.Sdl.SetHint( "SDL_VIDEO_DRIVER", "x11" );
+				NativeEngine.Sdl.SetHint( "SDL_VIDEO_X11_EXTERNAL_WINDOW_INPUT", "1" );
+			}
+
 			_appSystem.SetInToolsMode();
 		}
 

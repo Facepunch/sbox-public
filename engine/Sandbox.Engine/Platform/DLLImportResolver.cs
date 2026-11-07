@@ -51,6 +51,13 @@ internal static class DLLImportResolver
 			libraryName = "libsteam_api";
 		}
 
+		// Qt pulls in the system libharfbuzz.so.0, whose hb_* exports would otherwise win over our own copy's (#11770)
+		if ( OperatingSystem.IsLinux() && libraryName == "libHarfBuzzSharp" )
+		{
+			var deep = dlopen( Path.Combine( NetCore.NativeDllPath, "libHarfBuzzSharp.so" ), RTLD_NOW | RTLD_DEEPBIND );
+			if ( deep != IntPtr.Zero ) return deep;
+		}
+
 		var nativeName = true switch
 		{
 			_ when OperatingSystem.IsWindows() => $"{libraryName}.dll",
@@ -66,4 +73,10 @@ internal static class DLLImportResolver
 
 		return IntPtr.Zero;
 	}
+
+	const int RTLD_NOW = 2;
+	const int RTLD_DEEPBIND = 8;
+
+	[DllImport( "libdl.so.2" )]
+	private static extern IntPtr dlopen( string file, int mode );
 }

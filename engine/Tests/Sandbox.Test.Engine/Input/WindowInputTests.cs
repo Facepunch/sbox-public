@@ -23,6 +23,7 @@ public unsafe class WindowInputTests
 	static bool failColor;
 	static (int, int) hotspot;
 	static (int, float, float) warp;
+	static uint globalButtons;
 
 	[TestMethod]
 	public void PlayFocusDoesNotControlApplicationActivation() => WithInput( () =>
@@ -101,6 +102,24 @@ public unsafe class WindowInputTests
 		WindowInput.SetRelativeMouseMode( true );
 		Assert.IsFalse( WindowInput.GetRelativeMouseMode() );
 		Assert.AreEqual( 0, overrideCalls );
+	} );
+
+	[TestMethod]
+	public void LinuxEditorCaptureWaitsForMouseRelease() => WithInput( () =>
+	{
+		if ( !OperatingSystem.IsLinux() ) return;
+
+		SetActivation( true );
+		WindowInput.OnEditorGameFocusChange( 20, true );
+		globalButtons = 1;
+		WindowInput.SetRelativeMouseMode( true );
+		Assert.IsFalse( WindowInput.GetRelativeMouseMode() );
+		Assert.AreEqual( 0, overrideCalls );
+
+		globalButtons = 0;
+		WindowInput.SetRelativeMouseMode( true );
+		Assert.IsTrue( WindowInput.GetRelativeMouseMode() );
+		Assert.AreEqual( 1, overrideCalls );
 	} );
 
 	[TestMethod]
@@ -267,6 +286,7 @@ public unsafe class WindowInputTests
 		var destroySurface = Sdl.__N.globalSdl_DestroySurface;
 		var createColor = Sdl.__N.globalSdl_CreateColorCursor;
 		var mouseState = Sdl.__N.globalSdl_GetMouseState;
+		var globalMouseState = Sdl.__N.globalSdl_GetGlobalMouseState;
 		var warpMouse = Sdl.__N.globalSdl_WarpMouseInWindow;
 		var unitTest = Application.IsUnitTest;
 		var wasMainThread = ThreadSafe.IsMainThread;
@@ -302,12 +322,14 @@ public unsafe class WindowInputTests
 			Sdl.__N.globalSdl_DestroySurface = &DestroySurface;
 			Sdl.__N.globalSdl_CreateColorCursor = &CreateColor;
 			Sdl.__N.globalSdl_GetMouseState = (delegate* unmanaged< out float, out float, uint >)(delegate* unmanaged< float*, float*, uint >)&MouseState;
+			Sdl.__N.globalSdl_GetGlobalMouseState = (delegate* unmanaged< out float, out float, uint >)(delegate* unmanaged< float*, float*, uint >)&GlobalMouseState;
 			Sdl.__N.globalSdl_WarpMouseInWindow = &WarpMouse;
 			PanelWindows.CaptureWindow = null;
 			PanelWindows.SkipNextCaptureDelta = false;
 			surfacesDestroyed = 0;
 			failColor = false;
 			relative = failCapture = false;
+			globalButtons = 0;
 			creates = destroys = shows = hides = overrideCalls = stops = starts = 0;
 			WindowInput.Initialize();
 			WindowInput.SetEditorMainWindow( 10 );
@@ -338,6 +360,7 @@ public unsafe class WindowInputTests
 			Sdl.__N.globalSdl_DestroySurface = destroySurface;
 			Sdl.__N.globalSdl_CreateColorCursor = createColor;
 			Sdl.__N.globalSdl_GetMouseState = mouseState;
+			Sdl.__N.globalSdl_GetGlobalMouseState = globalMouseState;
 			Sdl.__N.globalSdl_WarpMouseInWindow = warpMouse;
 			PanelWindows.CaptureWindow = null;
 			PanelWindows.CaptureDelta = 0;
@@ -352,6 +375,7 @@ public unsafe class WindowInputTests
 	}
 
 	[UnmanagedCallersOnly] static uint MouseState( float* x, float* y ) { *x = 12; *y = 34; return 0; }
+	[UnmanagedCallersOnly] static uint GlobalMouseState( float* x, float* y ) { *x = 12; *y = 34; return globalButtons; }
 	[UnmanagedCallersOnly] static void WarpMouse( IntPtr window, float x, float y ) => warp = ((int)window, x, y);
 	[UnmanagedCallersOnly] static int DisableScreensaver() { screensaverDisables++; return 1; }
 	[UnmanagedCallersOnly] static int EnableScreensaver() { screensaverEnables++; return 1; }
