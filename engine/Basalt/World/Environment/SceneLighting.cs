@@ -85,12 +85,12 @@ public sealed class SceneLighting
 	/// <summary>
 	/// Distance and height fog (<c>SceneWorld.GradientFog</c>).
 	/// </summary>
-	public GradientFogSetup GradientFog { get; set; }
+	public GradientFogSettings GradientFog { get; set; }
 
 	/// <summary>
 	/// Cubemap-coloured fog (<c>SceneCamera.CubemapFog</c>).
 	/// </summary>
-	public CubemapFogController CubemapFog { get; } = new();
+	public CubemapFogSettings CubemapFog { get; } = new();
 
 	/// <summary>
 	/// 2D sky material (<c>SceneSkyBox</c>); null shows clear colour. Add an <see cref="EnvMapObject"/> for sky lighting.

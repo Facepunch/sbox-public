@@ -136,7 +136,7 @@ internal sealed class ViewEnvironment : IDisposable
 		SetupGradientFog( ref vr, viewLighting.GradientFog, scale, space.OffsetZ );
 		var fogCube = SetupCubemapFog( ref vr, viewLighting.CubemapFog, scale, space.OffsetZ );
 		// Match CameraRenderer.Configure and native Add3DSkyboxLayers without mutating world lighting.
-		context.SetConstants( FogConstants.BufferName, (view?.Fog ?? default( FogSetup )).ToConstants( scale, space.OffsetZ, view?.Rotation.Forward ?? Vector3.Forward ) );
+		context.SetConstants( FogConstants.BufferName, (view?.Fog ?? default( FogSettings )).ToConstants( scale, space.OffsetZ, view?.Rotation.Forward ?? Vector3.Forward ) );
 		var fogSun = space.Lighting is null ? sun : space.FogSun;
 		attributes.Set( "FogSunColor", fogSun.Enabled ? (Vector3)fogSun.Color : Vector3.Zero );
 		attributes.Set( "FogSunDirection", -(Vector3)fogSun.Direction );
@@ -209,7 +209,7 @@ internal sealed class ViewEnvironment : IDisposable
 	/// Pack gradient fog (<c>SetupGradientFog</c>), scaling distances and offsetting heights for skyboxes.
 	/// Disabled fog must reject all pixels; zero culling parameters fog everything.
 	/// </summary>
-	internal static void SetupGradientFog( ref ViewConstantsVRData vr, in GradientFogSetup fog, float scale = 1.0f, float offsetZ = 0.0f )
+	internal static void SetupGradientFog( ref ViewConstantsVRData vr, in GradientFogSettings fog, float scale = 1.0f, float offsetZ = 0.0f )
 	{
 		if ( !fog.Enabled )
 		{
@@ -233,7 +233,7 @@ internal sealed class ViewEnvironment : IDisposable
 	/// <summary>
 	/// Pack scaled/offset cubemap fog (<c>SetupCubemapFog</c>). Returns its cubemap, or null when disabled.
 	/// </summary>
-	static Texture SetupCubemapFog( ref ViewConstantsVRData vr, CubemapFogController fog, float scale, float offsetZ )
+	static Texture SetupCubemapFog( ref ViewConstantsVRData vr, CubemapFogSettings fog, float scale, float offsetZ )
 	{
 		if ( !fog.Enabled || !RenderContext.HasData( fog.Texture ) )
 		{

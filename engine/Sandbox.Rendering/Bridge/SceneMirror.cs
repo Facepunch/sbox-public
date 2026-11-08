@@ -724,7 +724,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		}
 
 		lighting.AmbientColor = source.AmbientLightColor + camera.AmbientLightColor;
-		lighting.GradientFog = source.GradientFog;
+		lighting.GradientFog = source.GradientFog.ToBasalt();
 
 		// Per-view wind (SetWindParams).
 		SceneNative.ReadWorldWind( source, out var windStrength, out var windDirection );

@@ -18,7 +18,7 @@ internal sealed class NativeScene : IDisposable
 	{
 		var lighting = world.Lighting;
 		sceneWorld.AmbientLightColor = lighting.AmbientColor;
-		sceneWorld.GradientFog = lighting.GradientFog;
+		sceneWorld.GradientFog = Rendering.Bridge.FogConversion.ToEngine( lighting.GradientFog );
 
 		var sunColor = lighting.SunColor;
 		if ( sunColor.r > 0 || sunColor.g > 0 || sunColor.b > 0 )

@@ -168,7 +168,7 @@ internal sealed class SceneBridge : IManagedSceneRenderer
 		if ( skybox?.World != skyMirror.World ) skybox = mirror.World.Skybox3D = new Basalt.Skybox3D( skyMirror.World );
 		skybox.Origin = source.Origin;
 		skybox.Scale = source.Scale;
-		skybox.Fog = camera.EnablePostProcessing ? source.ResolveFog( camera ) : null;
+		skybox.Fog = camera.EnablePostProcessing ? source.ResolveFog( camera ).ToBasalt() : null;
 	}
 
 	/// <summary>
@@ -185,7 +185,7 @@ internal sealed class SceneBridge : IManagedSceneRenderer
 		view.ClearColor = camera.BackgroundColor;
 		view.CameraAttributes = camera.Attributes;
 		// Captures with ViewSetup overrides use CameraRenderer; this bridge draws the camera's resolved view.
-		view.Fog = camera.ResolveFog( default );
+		view.Fog = camera.ResolveFog( default ).ToBasalt();
 
 		// mat_toolsvis overrides camera debug mode (CameraRenderer.Configure).
 		view.ToolsView = camera.ToolsView;

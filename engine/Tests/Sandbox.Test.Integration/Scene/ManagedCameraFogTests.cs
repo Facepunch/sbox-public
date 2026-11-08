@@ -1,4 +1,5 @@
 using Sandbox.Rendering;
+using Sandbox.Rendering.Bridge;
 using Basalt;
 using System.Reflection;
 
@@ -23,7 +24,7 @@ public class ManagedCameraFogTests
 		var fillView = bridge.GetMethod( "FillView", BindingFlags.Static | BindingFlags.NonPublic );
 
 		fillView.Invoke( null, [view, first, new Vector2( 1280, 720 )] );
-		Assert.AreEqual( first.Fog, view.Fog );
+		Assert.AreEqual( first.Fog.ToBasalt(), view.Fog );
 		first.Fog = new FogSetup { Color = Color.Blue };
 		Assert.AreEqual( Color.Red, view.Fog.Value.Color, "A prepared view holds its own value snapshot" );
 

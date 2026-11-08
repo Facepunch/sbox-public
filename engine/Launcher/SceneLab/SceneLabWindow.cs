@@ -422,7 +422,7 @@ internal sealed partial class SceneLabWindow : PanelWindow
 		var size = scene.Grid * spacing;
 		if ( scene.GradientFog )
 		{
-			world.Lighting.GradientFog = new Rendering.GradientFogSetup
+			world.Lighting.GradientFog = new Basalt.GradientFogSettings
 			{
 				Enabled = true,
 				StartDistance = size * 0.05f,

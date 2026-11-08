@@ -34,7 +34,7 @@ public class SkyboxTests
 			ZFar = 30000,
 			Viewport = new Rect( 0, 0, 1280, 720 ),
 			SizeCullThreshold = 0.0025f,
-			Fog = new FogSetup { Enabled = true, Weight = 0.5f, BaseHeight = 320, AttenuationDistance = 800 },
+			Fog = new FogSettings { Enabled = true, Weight = 0.5f, BaseHeight = 320, AttenuationDistance = 800 },
 		};
 
 		var view = new RenderView();
@@ -49,7 +49,7 @@ public class SkyboxTests
 		Assert.AreEqual( 0, view.SizeCullThreshold );
 		Assert.AreEqual( main.Fog, view.Fog, "Skybox views inherit the fog snapshot; coordinate conversion happens when binding attributes" );
 
-		var sky = new Skybox3D( new RenderWorld() ) { Scale = 16, Fog = new FogSetup { Mode = FogMode.Distance, StartDistance = -160, EndDistance = 1600 } };
+		var sky = new Skybox3D( new RenderWorld() ) { Scale = 16, Fog = new FogSettings { Mode = Basalt.FogMode.Distance, StartDistance = -160, EndDistance = 1600 } };
 		RenderSystem.FillSkyboxView( view, main, sky );
 		Assert.AreEqual( sky.Fog, view.Fog, "Independent skybox fog replaces the inherited snapshot" );
 		sky.Fog = null;
@@ -173,7 +173,7 @@ public class SkyboxTests
 	public void GradientFogIsInSkyboxSpace()
 	{
 		var vr = new ViewEnvironment.ViewConstantsVRData();
-		ViewEnvironment.SetupGradientFog( ref vr, new GradientFogSetup
+		ViewEnvironment.SetupGradientFog( ref vr, new GradientFogSettings
 		{
 			Enabled = true,
 			StartDistance = 160,

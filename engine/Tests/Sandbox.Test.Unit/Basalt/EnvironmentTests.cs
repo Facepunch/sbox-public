@@ -101,7 +101,7 @@ public class EnvironmentTests
 	public void GradientFogConstants()
 	{
 		var vr = new ViewEnvironment.ViewConstantsVRData();
-		ViewEnvironment.SetupGradientFog( ref vr, new GradientFogSetup
+		ViewEnvironment.SetupGradientFog( ref vr, new GradientFogSettings
 		{
 			Enabled = true,
 			StartDistance = 100,

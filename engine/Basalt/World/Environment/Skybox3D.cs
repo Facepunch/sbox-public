@@ -34,5 +34,5 @@ public sealed class Skybox3D
 	/// <summary>
 	/// Optional analytic fog in main-world units. Null inherits the main camera's fog.
 	/// </summary>
-	public Sandbox.Rendering.FogSetup? Fog { get; set; }
+	public FogSettings? Fog { get; set; }
 }
