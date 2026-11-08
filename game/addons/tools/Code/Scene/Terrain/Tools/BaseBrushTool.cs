@@ -142,6 +142,13 @@ public abstract class BaseBrushTool : EditorTool
 		_lastHitWorldPos = tx.PointToWorld( hitPosition );
 		_lastHitTx = tx;
 
+		// Alt + click picks instead of painting, for tools that have something to pick
+		if ( Gizmo.IsAltPressed && !_dragging && OnPick( terrain, _lastHitWorldPos ) )
+		{
+			DrawBrushPreviewAt( _lastHitWorldPos, _lastHitTx, terrain );
+			return;
+		}
+
 		if ( Gizmo.IsLeftMouseDown )
 		{
 			bool shouldSculpt = !_dragging || !Application.CursorDelta.IsNearZeroLength;
@@ -185,6 +192,12 @@ public abstract class BaseBrushTool : EditorTool
 		DrawBrushPreviewAt( _lastHitWorldPos, _lastHitTx, terrain );
 		DrawToolPreview( terrain, _lastHitWorldPos );
 	}
+
+	/// <summary>
+	/// Alt is held over the terrain at <paramref name="worldPos"/>: pick from it on click. Return true to keep the click
+	/// from painting. Most tools have nothing to pick.
+	/// </summary>
+	protected virtual bool OnPick( Terrain terrain, Vector3 worldPos ) => false;
 
 	void DrawBrushPreviewAt( Vector3 worldPos, Transform tx, Terrain terrain = null )
 	{

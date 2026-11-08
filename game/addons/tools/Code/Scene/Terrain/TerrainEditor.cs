@@ -154,7 +154,8 @@ public partial class TerrainEditorTool : EditorTool
 			("Adjust Size", "Shift+MMB ↔"),
 			("Adjust Opacity", "Shift+MMB ↕"),
 			("Rotate", "CTRL+MMB ↔"),
-			("Switch brush preview", "Capslock")
+			("Switch brush preview", "Capslock"),
+			("Pick material (Paint)", "Alt+LMB")
 			);
 
 		return sidebar;
