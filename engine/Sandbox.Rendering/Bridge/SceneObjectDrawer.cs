@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace Basalt.Bridge;
+namespace Sandbox.Rendering.Bridge;
 
 /// <summary>
 /// Implements mid-frame <c>Graphics.Render( SceneObject )</c> from mirrored draw state (<c>RenderTools::DrawSceneObject</c>).

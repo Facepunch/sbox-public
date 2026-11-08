@@ -3,7 +3,7 @@ using Sandbox.Rendering;
 using System.Runtime.InteropServices;
 using IntVector3 = global::Vector3Int;
 
-namespace Basalt.Native;
+namespace Sandbox.Rendering.Pipeline;
 
 /// <summary>
 /// Clustered light culling: builds the frame's clustered light, envmap and decal lists from what the light binner packed.

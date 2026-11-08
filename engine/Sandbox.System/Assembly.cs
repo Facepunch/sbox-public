@@ -23,6 +23,7 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo( "Facepunch.Interopgen" )]
 [assembly: InternalsVisibleTo( "Sandbox.AppSystem" )]
 [assembly: InternalsVisibleTo( "Basalt" )]
+[assembly: InternalsVisibleTo( "Sandbox.Rendering" )]
 [assembly: InternalsVisibleTo( "scenelab" )]
 [assembly: InternalsVisibleTo( "Sbox-Server" )]
 

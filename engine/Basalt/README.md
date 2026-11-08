@@ -4,9 +4,9 @@ A C# scene renderer for s&box, intended to replace the native scenesystem's worl
 It manages render objects, visibility, lighting and frame execution while using the engine's existing
 materials, shaders and graphics backend.
 
-It also holds the layers of native's rendering pipeline ([Native](Native/)): native sets each view up and
-this adds its layers, for every camera that isn't rendered here. See the
-[render pipeline doc](../../docs/managed/render-pipeline.md).
+Basalt knows nothing about GameObject scenes, cameras or native's scene views. s&box connects to it from
+[Sandbox.Rendering](../Sandbox.Rendering/README.md), which mirrors scenes into Basalt and also holds the layers of
+native's own rendering pipeline. Keep it that way: code that needs `SceneObject`, `SceneWorld` or `ISceneView` goes there.
 
 The renderer is experimental. To use it for GameObject scenes, enable `r_managed_scene 1`.
 It is disabled by default. [SceneLab](../Launcher/SceneLab/) runs the managed and native renderers
@@ -27,7 +27,7 @@ native equivalents, performance investigations and debugging history.
 - Camera command lists, post processing, auto exposure and UI through the existing camera stages.
 - Render-to-texture targets, MSAA, tools materials and debug views.
 
-The GameObject bridge mirrors scene changes into the renderer, including material overrides,
+The GameObject bridge in Sandbox.Rendering mirrors scene changes into the renderer, including material overrides,
 body groups, tags, per-object attributes and camera settings.
 
 ## Architecture
@@ -54,13 +54,11 @@ system, shader code, shadow-map policy and skinning vertex cache.
 | [Pipeline/Shadows](Pipeline/Shadows/) | Integration with the engine's shared `ShadowMapper`. |
 | [Pipeline/Fog](Pipeline/Fog/) | Volumetric fog lighting, temporal accumulation and integration. |
 | [Gpu](Gpu/) | Native rendering access, GPU uploads, transform buffers and shader constants. |
-| [Bridge](Bridge/) | Synchronization with GameObject scenes and execution of existing camera stages. |
 | [Diagnostics](Diagnostics/) | Frame comparison, rendering statistics and profiler instrumentation. |
-| [Native](Native/) | Native's rendering pipeline: the layers of its standard and 3D skybox views (`NativeRenderPipeline`). |
 
 Folders describe responsibilities; they do not all introduce namespaces. Public types use
-`Basalt`. Internal subsystems also use `.Features`, `.Culling`, `.Shadows`, `.Gpu`,
-`.Bridge` and `.Native`; the first four are imported within the project by [Assembly.cs](Assembly.cs).
+`Basalt`. Internal subsystems also use `.Features`, `.Culling`, `.Shadows` and `.Gpu`,
+which are imported within the project by [Assembly.cs](Assembly.cs).
 
 Shared math belongs in `Sandbox.System`. In particular,
 [Matrix3x4](../Sandbox.System/Math/Matrix3x4.cs) lives alongside `Matrix` and represents the native affine
@@ -128,8 +126,8 @@ that already exist before the batch. Early camera effects stay at their normal s
 ### Connections to the rest of the engine
 
 - [ManagedScene](../Sandbox.Engine/Systems/Render/ManagedScene/) owns the convars, scene-change notifications
-  and shutdown integration. The app system registers this assembly with the engine at startup
-  ([EngineHooks.cs](EngineHooks.cs)).
+  and shutdown integration. The app system registers Sandbox.Rendering's bridge with the engine at startup
+  ([EngineHooks.cs](../Sandbox.Rendering/EngineHooks.cs)).
 - [ShadowMapper](../Sandbox.Engine/Systems/Render/Shadows/) supplies shared shadow allocation, caching
   and time-slicing policy for both renderers.
 - [Graphics.IFrameView](../Sandbox.Engine/Systems/Render/Graphics.FrameView.cs) lets camera effects and
@@ -276,7 +274,7 @@ members (`CS1591` is an error here), and give internal types a summary explainin
 2. Add its preparation and drawing in `Pipeline/Features/`, using the `RenderFeature` contract.
    Include shadow support and the main-thread recording requirement where applicable.
 3. Register the feature in `RenderSystem`. Registration order matters; light binning runs first.
-4. Add bridge synchronization where needed, a SceneLab preset, and its native equivalent in `NativeScene`.
+4. Add bridge synchronization in Sandbox.Rendering where needed, a SceneLab preset, and its native equivalent in `NativeScene`.
 
 ### Add a layer
 

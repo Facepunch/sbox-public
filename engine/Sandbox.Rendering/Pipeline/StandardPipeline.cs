@@ -1,7 +1,7 @@
 using NativeEngine;
 using Sandbox.Rendering;
 
-namespace Basalt.Native;
+namespace Sandbox.Rendering.Pipeline;
 
 /// <summary>
 /// The standard pipeline's layers for one view, in the order they render. Native sets up the view's render targets and

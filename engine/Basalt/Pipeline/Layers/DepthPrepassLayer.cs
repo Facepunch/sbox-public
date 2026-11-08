@@ -44,7 +44,7 @@ internal class DepthPrepassLayer : MeshLayer
 	/// <summary>
 	/// Take the frame's G-buffer and name it on the frame's attributes, before any segment records - or say there's none
 	/// (<c>NormalsTextureIndex</c> -1, which <c>Normals::Sample</c> answers from depth), since the frame's attributes outlive
-	/// the frame. Native's is the full target's size at its sample count (<see cref="Native.StandardPipeline"/>).
+	/// the frame. Native's is the full target's size at its sample count (<c>StandardPipeline</c>).
 	/// </summary>
 	public override void BeforeSegments( RenderFrame frame, RenderContext frameContext )
 	{

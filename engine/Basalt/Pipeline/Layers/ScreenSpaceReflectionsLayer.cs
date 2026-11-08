@@ -4,7 +4,7 @@ namespace Basalt;
 
 /// <summary>
 /// Screen-space reflections (<see cref="ScreenSpaceReflectionsPass.Trace"/>), traced right after the depth chain from the
-/// depth-normals G-buffer, as native's <see cref="Native.ScreenSpaceReflectionsLayer"/> does.
+/// depth-normals G-buffer, as native's <c>ScreenSpaceReflectionsLayer</c> does.
 /// </summary>
 internal sealed class ScreenSpaceReflectionsLayer : RenderLayer
 {

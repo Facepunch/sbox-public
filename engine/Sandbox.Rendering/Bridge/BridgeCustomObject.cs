@@ -1,4 +1,4 @@
-namespace Basalt.Bridge;
+namespace Sandbox.Rendering.Bridge;
 
 /// <summary>
 /// Mirrored custom object drawn in a Graphics scope, including shadow views (<c>CManagedRendererDesc::DrawArray</c>).
@@ -80,7 +80,7 @@ internal sealed class BridgeCustomObject : CustomObject
 		var extents = bounds.Size * 0.5f;
 		var lightGroup = (uint)sceneObject.native.GetIntValue( LightGroupName, 0 );
 
-		var choice = LightProbeVolume.Choose( volumes, center, center, extents, lightGroup );
+		var choice = Basalt.LightProbeVolume.Choose( volumes, center, center, extents, lightGroup );
 		if ( choice >= 0 ) volumes[choice].Attributes.MergeTo( attributes );
 	}
 

@@ -3,7 +3,7 @@ using Sandbox.Rendering;
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 
-namespace Basalt.Native;
+namespace Sandbox.Rendering.Pipeline;
 
 /// <summary>
 /// The layers of native's rendering pipelines. Native sets up each view's render targets and attributes

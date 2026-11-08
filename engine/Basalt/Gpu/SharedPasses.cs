@@ -12,7 +12,7 @@ internal enum DepthResolveMode
 }
 
 /// <summary>
-/// Passes and targets this renderer and native's pipeline (<see cref="Native.NativeRenderPipeline"/>) share, so the two
+/// Passes and targets this renderer and native's pipeline (<c>NativeRenderPipeline</c>) share, so the two
 /// build them the same way: the depth chain, quarter-resolution depth, and the bloom and refraction stencil targets.
 /// </summary>
 internal static class SharedPasses

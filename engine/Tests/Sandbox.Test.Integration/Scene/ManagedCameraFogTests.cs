@@ -19,7 +19,7 @@ public class ManagedCameraFogTests
 		using var first = new SceneCamera { Fog = new FogSetup { Color = Color.Red } };
 		using var second = new SceneCamera();
 		var view = new RenderView();
-		var bridge = typeof( RenderView ).Assembly.GetType( "Basalt.Bridge.SceneBridge", true );
+		var bridge = System.Type.GetType( "Sandbox.Rendering.Bridge.SceneBridge, Sandbox.Rendering", true );
 		var fillView = bridge.GetMethod( "FillView", BindingFlags.Static | BindingFlags.NonPublic );
 
 		fillView.Invoke( null, [view, first, new Vector2( 1280, 720 )] );

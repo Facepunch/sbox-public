@@ -1,7 +1,7 @@
 using NativeEngine;
 using Sandbox.Rendering;
 
-namespace Basalt.Native;
+namespace Sandbox.Rendering.Pipeline;
 
 /// <summary>
 /// Independent camera effects in the native pipeline, before the ordinary AfterDepthPrepass hook.

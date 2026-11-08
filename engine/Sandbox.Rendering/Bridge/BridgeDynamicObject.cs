@@ -1,4 +1,4 @@
-namespace Basalt.Bridge;
+namespace Sandbox.Rendering.Bridge;
 
 /// <summary>
 /// Draws mirrored dynamic objects from live native vertices (<c>RenderTools.DrawDynamicSceneObject</c>).
@@ -20,6 +20,6 @@ internal sealed class BridgeDynamicObject : CustomObject
 		var native = context.Native;
 		native.GetAttributesPtrForModify().SetParent( context.Attributes.Get() );
 
-		context.DrawDynamicObject( Source, layer.ShaderMode );
+		SceneNative.DrawDynamicObject( context, Source, layer.ShaderMode );
 	}
 }

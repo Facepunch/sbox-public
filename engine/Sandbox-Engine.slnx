@@ -65,6 +65,7 @@
     <Project Path="Sandbox.GameInstance/Sandbox.GameInstance.csproj" />
     <Project Path="Sandbox.Menu/Sandbox.Menu.csproj" />
     <Project Path="Basalt/Basalt.csproj" />
+    <Project Path="Sandbox.Rendering/Sandbox.Rendering.csproj" />
     <Project Path="Sandbox.Tools/Sandbox.Tools.csproj" />
   </Folder>
   <Folder Name="/Solution Items/">

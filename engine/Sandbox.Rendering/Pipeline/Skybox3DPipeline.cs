@@ -1,7 +1,7 @@
 using NativeEngine;
 using Sandbox.Rendering;
 
-namespace Basalt.Native;
+namespace Sandbox.Rendering.Pipeline;
 
 /// <summary>
 /// The layers of a 3D skybox's view: the view native embeds in the main one, drawing the skybox world from the camera's

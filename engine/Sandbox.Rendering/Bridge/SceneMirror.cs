@@ -2,7 +2,7 @@ using Sandbox.Rendering;
 using System.Linq;
 using System.Runtime.InteropServices;
 
-namespace Basalt.Bridge;
+namespace Sandbox.Rendering.Bridge;
 
 /// <summary>
 /// Incremental <see cref="SceneWorld"/> mirror for <c>r_managed_scene</c>.
@@ -158,7 +158,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		}
 	}
 
-	readonly Dictionary<SceneLightProbe, LightProbeVolume> lightProbes = new();
+	readonly Dictionary<SceneLightProbe, Basalt.LightProbeVolume> lightProbes = new();
 
 	readonly Dictionary<ulong, SharedLightmap> lightmaps = new();
 	readonly Dictionary<RenderAttributes, ulong> lightmapKeys = new( ReferenceEqualityComparer.Instance );
@@ -175,12 +175,12 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 	/// </summary>
 	RenderAttributes AcquireLightmap( SceneObject sceneObject )
 	{
-		var key = RenderContext.LightmapKey( sceneObject );
+		var key = SceneNative.LightmapKey( sceneObject );
 		if ( key == 0 ) return null;
 
 		if ( !lightmaps.TryGetValue( key, out var shared ) )
 		{
-			var attributes = RenderContext.CreateLightmapAttributes( sceneObject );
+			var attributes = SceneNative.CreateLightmapAttributes( sceneObject );
 			if ( attributes is null ) return null;
 
 			shared = new SharedLightmap { Attributes = attributes };
@@ -204,7 +204,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 	/// <summary>
 	/// Mirror probe placement and selection data; create attributes once (<c>CLightBinner2::GetLightProbeVolumeData</c>).
 	/// </summary>
-	static void ApplyLightProbe( SceneLightProbe probe, LightProbeVolume volume, SceneObjectChange change )
+	static void ApplyLightProbe( SceneLightProbe probe, Basalt.LightProbeVolume volume, SceneObjectChange change )
 	{
 		if ( (change & SceneObjectChange.Transform) != 0 )
 			volume.Transform = probe.Transform;
@@ -214,8 +214,8 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 
 		if ( volume.Attributes is not null ) return;
 
-		RenderContext.ReadLightProbeVolume( probe, volume );
-		volume.Attributes = RenderContext.CreateLightProbeAttributes( probe );
+		SceneNative.ReadLightProbeVolume( probe, volume );
+		volume.Attributes = SceneNative.CreateLightProbeAttributes( probe );
 	}
 
 	/// <summary>
@@ -226,7 +226,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		// Probe volumes belong to the world's lighting list, not its draw list.
 		if ( sceneObject is SceneLightProbe probe )
 		{
-			var volume = new LightProbeVolume();
+			var volume = new Basalt.LightProbeVolume();
 			lightProbes[probe] = volume;
 			World.LightProbeVolumes.Add( volume );
 			objects[sceneObject] = null;
@@ -357,7 +357,8 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 			mesh.SetBones( span );
 
 			// Native evaluates morph flex rules each frame.
-			mesh.MorphSource = model.Model is { MorphCount: > 0 } ? model : null;
+			mesh.MorphSource = model.Model is not { MorphCount: > 0 } ? null
+				: mesh.MorphSource is SceneModelMorphs morphs && morphs.Source == model ? morphs : new SceneModelMorphs( model );
 
 			// Native bounds include deformation padding.
 			var volumes = model.DeformationVolumes;
@@ -374,10 +375,10 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 	/// </summary>
 	AggregateObject AggregateFor( SceneObject sceneObject )
 	{
-		var model = RenderContext.AggregateModel( sceneObject, out var lightmapped );
+		var model = SceneNative.AggregateModel( sceneObject, out var lightmapped );
 		if ( MeshFor( model ) is not { } mesh ) return null;
 
-		return new AggregateObject( mesh, RenderContext.ReadAggregateFragments( sceneObject ) ) { Lightmapped = lightmapped };
+		return new AggregateObject( mesh, SceneNative.ReadAggregateFragments( sceneObject ) ) { Lightmapped = lightmapped };
 	}
 
 	/// <summary>
@@ -415,7 +416,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 	{
 		if ( mesh is null ) return null;
 
-		RenderContext.ReadSceneObjectDraws( sceneObject, drawStates );
+		SceneNative.ReadSceneObjectDraws( sceneObject, drawStates );
 		if ( drawStates.Count == 0 ) return mesh;
 
 		// Compare hash matches against scratch data; allocate only for new variants.
@@ -480,7 +481,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		}
 
 		// Pack native light descriptions; map attenuation/falloff/baking may bypass managed properties (Light.LegacyLightData).
-		if ( (change & (SceneObjectChange.Settings | SceneObjectChange.Transform)) != 0 && RenderContext.PackSceneLight( sceneLight, out var packed, out var flags, out var bakeIndex ) )
+		if ( (change & (SceneObjectChange.Settings | SceneObjectChange.Transform)) != 0 && SceneNative.PackSceneLight( sceneLight, out var packed, out var flags, out var bakeIndex ) )
 		{
 			light.NativePacked = packed;
 			light.Baked = (flags & LightTypeFlagsBaked) != 0;
@@ -691,7 +692,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 				lighting.SunShadowBias = sun.ShadowBias;
 
 				// Lightmaps and probes reference the sun by bake index.
-				var packs = RenderContext.PackSceneLight( sun, out var packed, out var flags, out var bakeIndex );
+				var packs = SceneNative.PackSceneLight( sun, out var packed, out var flags, out var bakeIndex );
 				lighting.SunBakeIndex = packs ? bakeIndex : -1;
 				lighting.SunBaked = packs && bakeIndex >= 0 ? packed : null;
 
@@ -719,14 +720,14 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		{
 			lighting.SkyTint = sky.SkyTint;
 			lighting.SkyRotation = sky.Transform.Rotation;
-			lighting.SkyFog = sky.FogParams;
+			lighting.SkyFog = new SkyFog( (SkyFogType)sky.FogParams.FogType, sky.FogParams.FogMinStart, sky.FogParams.FogMinEnd, sky.FogParams.FogMaxStart, sky.FogParams.FogMaxEnd );
 		}
 
 		lighting.AmbientColor = source.AmbientLightColor + camera.AmbientLightColor;
 		lighting.GradientFog = source.GradientFog;
 
 		// Per-view wind (SetWindParams).
-		RenderContext.ReadWorldWind( source, out var windStrength, out var windDirection );
+		SceneNative.ReadWorldWind( source, out var windStrength, out var windDirection );
 		lighting.WindStrengthFreq = windStrength;
 		lighting.WindDirection = windDirection;
 
@@ -818,12 +819,12 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		{
 			if ( renderObject is not EnvMapObject envMap ) continue;
 			probes++;
-			if ( RenderContext.PacksAsNative( sceneObject, envMap ) ) probesAsNative++;
+			if ( SceneNative.PacksAsNative( sceneObject, envMap ) ) probesAsNative++;
 		}
 		text.Append( $"; {probesAsNative} of {probes} envmap probes packed as native packs them" );
 
 		var volumes = World.LightProbeVolumes;
-		text.Append( $"; {volumes.Count} light probe volumes ({volumes.Count( x => x.Attributes is not null )} with constants, light groups {string.Join( " ", volumes.SelectMany( x => x.LightGroups ).Distinct() )}), {meshes.Count( x => x.NeedsLightProbe )} meshes need one, {meshes.Count( x => x.NeedsLightProbe && LightProbeVolume.Choose( volumes, World.BoundsCenter[x.Index], World.BoundsCenter[x.Index], World.BoundsExtents[x.Index], x.LightGroup ) >= 0 )} find one" );
+		text.Append( $"; {volumes.Count} light probe volumes ({volumes.Count( x => x.Attributes is not null )} with constants, light groups {string.Join( " ", volumes.SelectMany( x => x.LightGroups ).Distinct() )}), {meshes.Count( x => x.NeedsLightProbe )} meshes need one, {meshes.Count( x => x.NeedsLightProbe && Basalt.LightProbeVolume.Choose( volumes, World.BoundsCenter[x.Index], World.BoundsCenter[x.Index], World.BoundsExtents[x.Index], x.LightGroup ) >= 0 )} find one" );
 
 		// Report unusual layer membership per model.
 		foreach ( var group in meshes.GroupBy( x => (x.Mesh?.Model?.ResourcePath ?? "(hidden)", LayerDescription( x )) ) )

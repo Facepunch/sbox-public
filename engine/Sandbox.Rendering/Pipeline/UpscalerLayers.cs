@@ -1,7 +1,7 @@
 using NativeEngine;
 using Sandbox.Rendering;
 
-namespace Basalt.Native;
+namespace Sandbox.Rendering.Pipeline;
 
 /// <summary>
 /// The camera's motion vectors (<c>MotionVectors</c>), for the temporal upscalers (FSR3, DLSS).

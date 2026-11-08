@@ -108,9 +108,9 @@ public sealed class SceneLighting
 	public Rotation SkyRotation { get; set; } = Rotation.Identity;
 
 	/// <summary>
-	/// The sky's own fog - <c>SceneSkyBox.FogParams</c>.
+	/// The sky's own fog (<c>SceneSkyBox.FogParams</c>).
 	/// </summary>
-	public SceneSkyBox.FogParamInfo SkyFog { get; set; }
+	public SkyFog SkyFog { get; set; }
 
 	/// <summary>
 	/// Wind strength, grass/tree frequencies and high-frequency strength (<c>g_vWindStrengthFreqMulHighStrength</c>).

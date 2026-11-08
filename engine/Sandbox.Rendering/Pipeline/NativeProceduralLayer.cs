@@ -2,7 +2,7 @@ using NativeEngine;
 using Sandbox.Rendering;
 using System.Runtime.InteropServices;
 
-namespace Basalt.Native;
+namespace Sandbox.Rendering.Pipeline;
 
 /// <summary>
 /// A native scene layer that calls back into managed code when it renders, in <see cref="Graphics"/>'s scope for the view.

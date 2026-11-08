@@ -394,7 +394,7 @@ public sealed partial class RenderSystem : IDisposable
 		// Per-view debug mode (ToolsVis.hlsl, SetupShadingMode).
 		context.Attributes.Set( ToolsVisModeName, view.ToolsVisMode );
 
-		// Glass reads the native 3D skybox pipeline's combo (Native.Skybox3DPipeline).
+		// Glass reads the native 3D skybox pipeline's combo (Skybox3DPipeline).
 		if ( isSkybox ) context.Attributes.SetCombo( SkyboxCombo, 1 );
 
 		for ( int i = 0; i < features.Count; i++ )

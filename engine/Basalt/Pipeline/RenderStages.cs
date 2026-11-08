@@ -4,7 +4,7 @@ using Sandbox.Rendering;
 namespace Basalt;
 
 /// <summary>
-/// Camera commands, effects and UI at native hook points (<see cref="Native.HookLayers"/>).
+/// Camera commands, effects and UI at native hook points (<c>HookLayers</c>).
 /// Stages through tonemapping use HDR; later stages use the final output. Targets are bound on entry.
 /// </summary>
 internal interface IRenderStages

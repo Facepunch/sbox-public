@@ -45,7 +45,7 @@ internal sealed partial class MeshRenderFeature
 		public int AnchorOffset;
 
 		/// <summary>
-		/// Its morphs' handle this frame (<see cref="RenderContext.QueueMorph"/>), or -1 when it doesn't morph.
+		/// Its morphs' handle this frame (<see cref="IMorphSource.Queue"/>), or -1 when it doesn't morph.
 		/// </summary>
 		public int Morph;
 
@@ -135,7 +135,7 @@ internal sealed partial class MeshRenderFeature
 			transforms.SetVertexCacheOffset( job.Slot, job.VertexCacheOffset );
 
 			// Evaluate and queue morphs (FindOrAllocateTransforms).
-			job.Morph = skin.Morphs && job.Object.MorphSource is { } source && source.IsValid() ? RenderContext.QueueMorph( source, job.Object.Mesh.Model, job.ModelMesh ) : -1;
+			job.Morph = skin.Morphs && job.Object.MorphSource is { } source ? source.Queue( job.Object.Mesh.Model, job.ModelMesh ) : -1;
 			morphs |= job.Morphed;
 		}
 

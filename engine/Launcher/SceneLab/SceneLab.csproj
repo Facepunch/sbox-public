@@ -36,6 +36,7 @@
 		<ProjectReference Include="..\..\Sandbox.AppSystem\Sandbox.AppSystem.csproj" Private="false" />
 		<ProjectReference Include="..\..\Sandbox.Engine\Sandbox.Engine.csproj" Private="false" />
 		<ProjectReference Include="..\..\Basalt\Basalt.csproj" Private="false" />
+		<ProjectReference Include="..\..\Sandbox.Rendering\Sandbox.Rendering.csproj" Private="false" />
 		<ProjectReference Include="..\..\Sandbox.Filesystem\Sandbox.Filesystem.csproj" Private="false" />
 		<ProjectReference Include="..\..\Sandbox.Reflection\Sandbox.Reflection.csproj" Private="false" />
 		<ProjectReference Include="..\..\Sandbox.System\Sandbox.System.csproj" Private="false" />

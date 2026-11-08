@@ -636,7 +636,7 @@ internal sealed partial class SceneLabWindow : PanelWindow
 		System.IO.Directory.CreateDirectory( folder );
 
 		// One bridge for both, as a game has: its mirror keeps listening between them
-		gameBridge ??= new Basalt.Bridge.SceneBridge();
+		gameBridge ??= new Sandbox.Rendering.Bridge.SceneBridge();
 		var changed = frame == changedFrame;
 		Log.Info( $"Scene Lab: {gameScenePath}{(changed ? ", changed" : "")}: {gameBridge.Compare( camera, folder, changed ? "changed" : "camera" )}" );
 		if ( gameBridge.LastParity is { Matches: false } ) Environment.ExitCode = 2;
@@ -650,7 +650,7 @@ internal sealed partial class SceneLabWindow : PanelWindow
 		Finished = true;
 	}
 
-	Basalt.Bridge.SceneBridge gameBridge;
+	Sandbox.Rendering.Bridge.SceneBridge gameBridge;
 
 	// The frame plan over the viewport
 	PlanOverlay planOverlay;

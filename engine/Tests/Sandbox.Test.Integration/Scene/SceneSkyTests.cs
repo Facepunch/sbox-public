@@ -138,7 +138,7 @@ public class SceneSkyTests
 			var last = new SceneSkyBox( world, material ) { SkyTint = Color.Blue };
 			last.Tags.Add( "last" );
 			using var camera = new SceneCamera { World = world };
-			var mirrorType = typeof( Basalt.RenderWorld ).Assembly.GetType( "Basalt.Bridge.SceneMirror", true );
+			var mirrorType = System.Type.GetType( "Sandbox.Rendering.Bridge.SceneMirror, Sandbox.Rendering", true );
 			using var mirror = (IDisposable)Activator.CreateInstance( mirrorType, [world] );
 			var renderWorld = (Basalt.RenderWorld)mirrorType.GetProperty( "World" ).GetValue( mirror );
 			var sync = mirrorType.GetMethod( "Sync" );

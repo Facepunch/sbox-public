@@ -1,11 +1,11 @@
 using NativeEngine;
 using Sandbox.Rendering;
 
-namespace Basalt.Bridge;
+namespace Sandbox.Rendering.Bridge;
 
 /// <summary>
 /// Dispatches camera stages through <c>IManagedCamera.OnRenderStage</c> using a managed Graphics view.
-/// Handles auto exposure and gamma-space UI blending (<see cref="Native.HookLayers.AddUI"/>).
+/// Handles auto exposure and gamma-space UI blending (<see cref="Pipeline.HookLayers.AddUI"/>).
 /// </summary>
 internal sealed class CameraStages : IRenderStages, IDisposable
 {

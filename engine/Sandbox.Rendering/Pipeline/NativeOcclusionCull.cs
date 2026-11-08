@@ -1,7 +1,7 @@
 using NativeEngine;
 using Sandbox.Rendering;
 
-namespace Basalt.Native;
+namespace Sandbox.Rendering.Pipeline;
 
 /// <summary>
 /// Native pipeline counterpart of <see cref="OcclusionCullLayer"/>.

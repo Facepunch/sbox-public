@@ -62,12 +62,12 @@ public class AppSystem
 	}
 
 	/// <summary>
-	/// Native's rendering pipeline gets its layers from Basalt, which also renders cameras when
+	/// Native's rendering pipeline gets its layers from Sandbox.Rendering, which also renders cameras through Basalt when
 	/// <c>r_managed_scene</c> is on. It references the engine, so it's registered with it here.
 	/// </summary>
 	protected static void InstallRenderers()
 	{
-		Basalt.EngineHooks.Install();
+		Rendering.EngineHooks.Install();
 	}
 
 	void SetupEnvironment()

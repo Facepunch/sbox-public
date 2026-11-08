@@ -1,6 +1,6 @@
 using NativeEngine;
 
-namespace Basalt.Native;
+namespace Sandbox.Rendering.Pipeline;
 
 /// <summary>
 /// The scene's colour and depth targets for a standard view. The camera hands over its output; the scene renders into an HDR

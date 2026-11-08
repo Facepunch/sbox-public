@@ -2,7 +2,7 @@ using NativeEngine;
 using System.Linq;
 using Sandbox.Rendering;
 
-namespace Basalt.Bridge;
+namespace Sandbox.Rendering.Bridge;
 
 /// <summary>
 /// <c>r_managed_scene</c> backend: one world mirror per scene and render system per camera.
@@ -165,7 +165,7 @@ internal sealed class SceneBridge : IManagedSceneRenderer
 		skyMirror.Sync( camera, skyboxView: true );
 
 		var skybox = mirror.World.Skybox3D;
-		if ( skybox?.World != skyMirror.World ) skybox = mirror.World.Skybox3D = new Skybox3D( skyMirror.World );
+		if ( skybox?.World != skyMirror.World ) skybox = mirror.World.Skybox3D = new Basalt.Skybox3D( skyMirror.World );
 		skybox.Origin = source.Origin;
 		skybox.Scale = source.Scale;
 		skybox.Fog = camera.EnablePostProcessing ? source.ResolveFog( camera ) : null;

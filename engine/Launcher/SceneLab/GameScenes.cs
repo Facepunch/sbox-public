@@ -495,7 +495,7 @@ internal static partial class GameScenes
 	/// <summary>
 	/// UI drawn before post processing (<c>ScreenPanel.RenderTiming.BeforePostProcess</c>): into the HDR frame, so the
 	/// tonemapping and bloom after it apply to it too. Native blends it in gamma space through a float scratch target
-	/// seeded from the frame (<c>Basalt.Native.HookLayers.AddUI</c>).
+	/// seeded from the frame (<c>Sandbox.Rendering.Pipeline.HookLayers.AddUI</c>).
 	/// </summary>
 	public static Scene EarlyUI()
 	{

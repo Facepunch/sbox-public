@@ -2,7 +2,7 @@
 
 //
 // One view's standard (or 3D skybox) pipeline: native set up its targets and attributes, and
-// Basalt's NativeRenderPipeline adds its layers
+// Sandbox.Rendering's NativeRenderPipeline adds its layers
 //
 native class CRenderPipelineSetup as NativeEngine.CRenderPipelineSetup
 {
@@ -82,7 +82,7 @@ native static class RenderPipelineTools as NativeEngine.RenderPipelineTools
 }
 
 //
-// What native's rendering pipelines and the camera renderer call. The pipeline itself is in Basalt, which
+// What native's rendering pipelines and the camera renderer call. The pipeline itself is in Sandbox.Rendering, which
 // installs it at startup.
 //
 managed static class Sandbox.Rendering.RenderPipeline

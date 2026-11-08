@@ -3,7 +3,7 @@ using Sandbox.Rendering;
 namespace Basalt;
 
 /// <summary>
-/// Quarter-resolution glass depth for <c>depthaware_mask_cs</c> (native: <see cref="Native.StandardPipeline"/>).
+/// Quarter-resolution glass depth for <c>depthaware_mask_cs</c> (native: <c>StandardPipeline</c>).
 /// The mask uses reprojected history to keep foreground objects out of refraction.
 /// Draws unfaded translucent readers with forced depth material and both faces; runs only when a frame copy is needed.
 /// </summary>

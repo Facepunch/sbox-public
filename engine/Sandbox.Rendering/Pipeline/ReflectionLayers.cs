@@ -1,7 +1,7 @@
 using NativeEngine;
 using Sandbox.Rendering;
 
-namespace Basalt.Native;
+namespace Sandbox.Rendering.Pipeline;
 
 /// <summary>
 /// Screen-space reflections (<see cref="ScreenSpaceReflectionsPass.Trace"/>), traced on graphics right after the Hi-Z chain

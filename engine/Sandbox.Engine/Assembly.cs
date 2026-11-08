@@ -24,6 +24,7 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo( "panelgallery" )]
 [assembly: InternalsVisibleTo( "scenelab" )]
 [assembly: InternalsVisibleTo( "Basalt" )]
+[assembly: InternalsVisibleTo( "Sandbox.Rendering" )]
 [assembly: InternalsVisibleTo( "sbox-server" )]
 [assembly: InternalsVisibleTo( "sbox-dev" )]
 [assembly: InternalsVisibleTo( "sbox" )]

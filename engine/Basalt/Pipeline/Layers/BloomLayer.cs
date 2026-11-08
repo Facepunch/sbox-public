@@ -3,7 +3,7 @@ using Sandbox.Rendering;
 namespace Basalt;
 
 /// <summary>
-/// Draws bloom-flagged objects into quarter-resolution colour and scene depth (native: <see cref="Native.StandardPipeline"/>).
+/// Draws bloom-flagged objects into quarter-resolution colour and scene depth (native: <c>StandardPipeline</c>).
 /// Excludes faded draws and translucent draws of mixed objects. Runs before <c>AfterDepthPrepass</c> only when needed;
 /// otherwise the bloom input is black. Each pass needs quarter-resolution view constants for light clustering.
 /// </summary>
@@ -101,7 +101,7 @@ internal sealed class BloomLayer : MeshLayer
 }
 
 /// <summary>
-/// Downsamples scene depth for bloom occlusion using <see cref="SharedPasses.DownsampleQuarterDepth"/>, as native's <see cref="Native.BloomDepthLayer"/> does.
+/// Downsamples scene depth for bloom occlusion using <see cref="SharedPasses.DownsampleQuarterDepth"/>, as native's <c>BloomDepthLayer</c> does.
 /// </summary>
 internal sealed class QuarterDepthDownsampleLayer : RenderLayer
 {

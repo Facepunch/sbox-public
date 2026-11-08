@@ -24,7 +24,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Sandbox.GameInstance\Sandbox.GameInstance.csproj" />
     <ProjectReference Include="..\Sandbox.Menu\Sandbox.Menu.csproj" />
-    <ProjectReference Include="..\Basalt\Basalt.csproj" />
+    <ProjectReference Include="..\Sandbox.Rendering\Sandbox.Rendering.csproj" />
     <ProjectReference Include="..\Sandbox.Tools\Sandbox.Tools.csproj" />
   </ItemGroup>
 

@@ -3,7 +3,7 @@ using Sandbox.Rendering;
 namespace Basalt;
 
 /// <summary>
-/// Builds resolved min/max depth mips for <c>Depth::Get</c> using <see cref="SharedPasses.BuildDepthChain"/>, as native's <see cref="Native.DepthDownsampleLayer"/> does.
+/// Builds resolved min/max depth mips for <c>Depth::Get</c> using <see cref="SharedPasses.BuildDepthChain"/>, as native's <c>DepthDownsampleLayer</c> does.
 /// Runs before <c>AfterDepthPrepass</c>, after a prepass, when a later layer reads it: stages, glass, volumetric fog,
 /// contact shadows (<see cref="FrameResources.DepthChain"/>). On the async compute queue where there is one, beside the shadow maps.
 /// </summary>

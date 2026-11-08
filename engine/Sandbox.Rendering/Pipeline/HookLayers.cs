@@ -2,7 +2,7 @@ using NativeEngine;
 using Sandbox.Rendering;
 using System.Runtime.InteropServices;
 
-namespace Basalt.Native;
+namespace Sandbox.Rendering.Pipeline;
 
 /// <summary>
 /// The camera's managed render stages as native layers: each calls <see cref="Graphics.OnLayer"/> for its stage, which runs

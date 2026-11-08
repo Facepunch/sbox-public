@@ -1,8 +1,8 @@
 using Sandbox.Rendering;
-using Basalt.Bridge;
-using Basalt.Native;
+using Sandbox.Rendering.Bridge;
+using Sandbox.Rendering.Pipeline;
 
-namespace Basalt;
+namespace Sandbox.Rendering;
 
 /// <summary>
 /// What this assembly gives the engine, installed by the app system at startup: the layers of native's rendering pipeline,

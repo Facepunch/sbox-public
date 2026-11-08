@@ -201,9 +201,9 @@ public sealed class MeshObject : RenderObject
 	internal bool IsDeformed => DeformationVolumes.Length > 0 && IsSkinned;
 
 	/// <summary>
-	/// Native model supplying evaluated morph weights; null when unused.
+	/// Supplies this frame's evaluated morphs; null when it doesn't morph.
 	/// </summary>
-	internal SceneObject MorphSource { get; set; }
+	public IMorphSource MorphSource { get; set; }
 
 	/// <summary>
 	/// Per-mesh skinning slots shared by all views this frame.

@@ -1,7 +1,7 @@
 using NativeEngine;
 using Sandbox.Rendering;
 
-namespace Basalt.Native;
+namespace Sandbox.Rendering.Pipeline;
 
 /// <summary>
 /// Layers both native pipelines (<see cref="StandardPipeline"/>, <see cref="Skybox3DPipeline"/>) add, and the helpers

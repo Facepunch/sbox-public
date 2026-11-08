@@ -1,7 +1,7 @@
 using NativeEngine;
 using Sandbox.Rendering;
 
-namespace Basalt.Native;
+namespace Sandbox.Rendering.Pipeline;
 
 /// <summary>
 /// The Hi-Z depth chain (<c>DepthChainDownsample</c>): the depth resolved and min/max downsampled through every mip, for

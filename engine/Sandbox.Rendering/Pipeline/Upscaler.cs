@@ -2,7 +2,7 @@ using NativeEngine;
 using Sandbox.Rendering;
 using System.Runtime.InteropServices;
 
-namespace Basalt.Native;
+namespace Sandbox.Rendering.Pipeline;
 
 /// <summary>
 /// Upscaling to full resolution before post processing. Native makes the targets and picks the mode; the temporal upscalers

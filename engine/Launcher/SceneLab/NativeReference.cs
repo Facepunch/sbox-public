@@ -92,7 +92,7 @@ internal sealed class NativeScene : IDisposable
 			{
 				SkyTint = lighting.SkyTint,
 				Transform = new Transform( Vector3.Zero, lighting.SkyRotation ),
-				FogParams = lighting.SkyFog,
+				FogParams = new SceneSkyBox.FogParamInfo { FogType = (SceneSkyBox.FogType)lighting.SkyFog.Type, FogMinStart = lighting.SkyFog.MinStart, FogMinEnd = lighting.SkyFog.MinEnd, FogMaxStart = lighting.SkyFog.MaxStart, FogMaxEnd = lighting.SkyFog.MaxEnd },
 			};
 		}
 
