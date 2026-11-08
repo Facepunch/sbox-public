@@ -9,7 +9,6 @@ namespace AccessTests;
 // Regression test for the IgnoresAccessChecksTo sandbox escape: the runtime honours a self-defined
 // IgnoresAccessChecksToAttribute, so a package could apply one naming Sandbox.Engine and call its private methods.
 [TestClass]
-[DoNotParallelize]
 public class IgnoresAccessChecksEscapeTest
 {
 	const string AttributeDefinition = """

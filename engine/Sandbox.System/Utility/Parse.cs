@@ -700,15 +700,7 @@ namespace Sandbox
 		/// <summary>
 		/// Get the line we're currently on
 		/// </summary>
-		public int CurrentLine
-		{
-			get
-			{
-				var substr = Text.Substring( 0, Math.Min( Pointer, Text.Length ) );
-				var lines = substr.Count( x => x == '\n' );
-				return lines + lineOffset;
-			}
-		}
+		public int CurrentLine => Text.AsSpan( 0, Math.Min( Pointer, Text.Length ) ).Count( '\n' ) + lineOffset;
 
 		public string FileAndLine => $"[{FileName}:{CurrentLine}]";
 	}

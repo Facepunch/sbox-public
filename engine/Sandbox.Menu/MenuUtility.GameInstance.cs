@@ -13,7 +13,7 @@ public static partial class MenuUtility
 		CloseAllModals();
 		Api.Activity.GameRequested( new( "menu", ident ), replace: false );
 
-		if ( gameSettings is not null ) LaunchArguments.GameSettings = gameSettings;
+		if ( gameSettings is not null ) LaunchArguments.SetTrustedGameSettings( gameSettings );
 		_ = LoadAsync( ident, allowLaunchOverride );
 	}
 
@@ -23,7 +23,7 @@ public static partial class MenuUtility
 	public static void OpenGameWithMap( string gameident, string mapName, Dictionary<string, string> gameSettings = null )
 	{
 		LaunchArguments.Map = mapName;
-		if ( gameSettings is not null ) LaunchArguments.GameSettings = gameSettings;
+		if ( gameSettings is not null ) LaunchArguments.SetTrustedGameSettings( gameSettings );
 
 		OpenGame( gameident, false );
 	}
@@ -85,7 +85,7 @@ public static partial class MenuUtility
 
 			foreach ( var lobby in orderedLobbies )
 			{
-				if ( lobby.IsFull ) continue;
+				if ( lobby.IsFull || lobby.IsPasswordProtected ) continue;
 
 				// We might be in a game now
 				if ( Game.InGame ) return false;

@@ -75,7 +75,6 @@ public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 		}
 
 		_box = null;
-		_dragStarted = false;
 		_rotation = Rotation.Identity;
 	}
 
@@ -109,20 +108,24 @@ public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 
 		var rotation = Gizmo.IsShiftPressed ? RotationFromNormal( tr.Normal ) : Rotation.Identity;
 
-		tr.EndPosition = rotation * GridSnap( rotation.Inverse * tr.EndPosition, Vector3.Up );
+		tr.EndPosition = rotation * SnapToSurface( rotation.Inverse * tr.EndPosition, rotation.Inverse * tr.Normal );
 
 		if ( Gizmo.WasLeftMousePressed )
 		{
+			_dragStarted = true;
+
 			if ( _box.HasValue )
 			{
+				_dragStarted = true;
 				Tool.Create();
 			}
+
+			SceneEditorSession.Active.Selection.Clear();
 
 			_rotation = rotation;
 			_dragStartPos = rotation.Inverse * tr.EndPosition;
 
 			_box = null;
-			_dragStarted = true;
 			_undoStartCount = SceneEditorSession.Active.UndoSystem.Back.Count;
 		}
 		else
@@ -322,6 +325,20 @@ public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 
 			Gizmo.Draw.Model( _previewModel );
 		}
+	}
+
+	static Vector3 SnapToSurface( Vector3 point, Vector3 normal )
+	{
+		normal = normal.Normal;
+		var snapped = GridSnap( point, normal );
+
+		var n = normal.Abs();
+		var axis = n.x >= n.y && n.x >= n.z ? Vector3.Forward : n.y >= n.z ? Vector3.Left : Vector3.Up;
+		var denom = normal.Dot( axis );
+		if ( denom.AlmostEqual( 0.0f ) ) return snapped;
+
+		var t = normal.Dot( point - snapped ) / denom;
+		return snapped + axis * t;
 	}
 
 	static Vector3 GridSnap( Vector3 point, Vector3 normal )

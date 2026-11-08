@@ -8,15 +8,15 @@
 <root class="presets">
 
 	<div class="head">
-		<div class="section-label"><label>Quality Preset</label></div>
-		<label class="hint">Sets everything under Quality in one go. Change any of them and you're on Custom.</label>
+		<div class="section-label"><label>#menu.settings.quality_preset</label></div>
+		<label class="hint">#menu.settings.sets_everything_under_quality_in_one_go_change_any</label>
 	</div>
 
 	<div class="line">
 
-		<div class="tier detect" onclick=@Detect tooltip="Pick the preset that suits this machine">
+		<div class="tier detect" onclick=@Detect tooltip="#menu.settings.pick_the_preset_that_suits_this_machine">
 			<i>auto_fix_high</i>
-			<label>Auto-Detect</label>
+			<label>#menu.settings.auto_detect</label>
 		</div>
 
 		<div class="grow"></div>
@@ -26,14 +26,14 @@
 			@foreach ( var preset in Tiers )
 			{
 				<div class="tier @(Current == preset ? "active" : "")" onclick=@( () => Pick( preset ) )>
-					<label>@preset.ToString()</label>
+					<label>@SettingsCatalog.QualityLabel( preset )</label>
 				</div>
 			}
 
 			@if ( Current == GraphicsPreset.Custom )
 			{
 				<div class="tier custom active">
-					<label>Custom</label>
+					<label>#menu.settings.custom</label>
 				</div>
 			}
 		</div>

@@ -311,7 +311,7 @@ public sealed partial class PhysicsBody : IValid
 	/// </summary>
 	public PhysicsShape AddHeightFieldShape( ushort[] heights, byte[] materials, int sizeX, int sizeY, float sizeScale, float heightScale ) => _body.AddHeightFieldShape( heights, materials, sizeX, sizeY, sizeScale, heightScale );
 
-	internal PhysicsShape AddHeightFieldShape( ushort[] heights, byte[] materials, int sizeX, int sizeY, float sizeScale, float heightScale, int materialCount ) => _body.AddHeightFieldShape( heights, materials, sizeX, sizeY, sizeScale, heightScale, materialCount );
+	internal PhysicsShape AddHeightFieldShape( ushort[] heights, byte[] materials, int sizeX, int sizeY, float sizeScale, float heightScale, int materialCount, ReadOnlySpan<int> surfaceIndices = default ) => _body.AddHeightFieldShape( heights, materials, sizeX, sizeY, sizeScale, heightScale, materialCount, surfaceIndices );
 
 	[Obsolete]
 	public PhysicsShape AddCloneShape( PhysicsShape shape ) => null;
@@ -331,7 +331,6 @@ public sealed partial class PhysicsBody : IValid
 	/// </summary>
 	public void ClearShapes() => _body.ClearShapes();
 
-	internal IDisposable TriggerScope() => _body.TriggerScope();
 
 	internal void RemoveShape( PhysicsShape shape ) => _body.RemoveShape( shape );
 
@@ -484,6 +483,17 @@ public sealed partial class PhysicsBody : IValid
 	/// The orientation of the principal axes of local inertia tensor matrix.
 	/// </summary>
 	public Rotation InertiaRotation => _body.InertiaRotation;
+
+	/// <summary>
+	/// Sets the multiplier for calculated inertia. Explicit inertia tensors take precedence.
+	/// </summary>
+	internal void ScaleInertia( float scale )
+	{
+		if ( !float.IsFinite( scale ) || scale <= 0 )
+			throw new ArgumentOutOfRangeException( nameof( scale ) );
+
+		_body.ScaleInertia( scale );
+	}
 
 	/// <summary>
 	/// Sets the inertia tensor using the given moments and rotation.
@@ -639,6 +649,11 @@ public sealed partial class PhysicsBody : IValid
 	}
 
 	// --- internal surface used by the engine through the public body type ---
+
+	internal bool ContactRecycling
+	{
+		set => _body.ContactRecycling = value;
+	}
 
 	internal object Hitbox
 	{

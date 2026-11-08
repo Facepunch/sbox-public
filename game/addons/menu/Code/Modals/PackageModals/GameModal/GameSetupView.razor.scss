@@ -63,12 +63,14 @@ GameSetupView
 	{
 		height: 124px;
 		border-radius: $front-radius;
+		border: none;
 		outline: 0px solid transparent;
 		overflow: hidden;
 		transition: all 0.15s ease;
 
 		&:hover
 		{
+			border: none;
 			outline: 0px solid transparent;
 			transform: translateY( -3px );
 			box-shadow: 0 12px 26px rgba( 0, 0, 0, 0.6 );

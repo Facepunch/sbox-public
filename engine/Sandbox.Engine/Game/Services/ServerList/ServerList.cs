@@ -51,6 +51,7 @@ public class ServerList : List<ServerList.Entry>, IDisposable, IWeakInteropHandl
 			MaxPlayers = item.m_nMaxPlayers - item.m_nBotPlayers,
 			Ping = item.m_nPing,
 			Game = Marshal.PtrToStringUTF8( (IntPtr)item.m_szGameDescription ),
+			HasPassword = item.m_bPassword != 0,
 			Tick = 0
 		};
 
@@ -127,6 +128,7 @@ public class ServerList : List<ServerList.Entry>, IDisposable, IWeakInteropHandl
 		public int MaxPlayers { get; set; }
 		public int Ping { get; set; }
 		public int Tick { get; set; }
+		public bool HasPassword { get; set; }
 	}
 }
 

@@ -3,6 +3,7 @@ using Sandbox.UI.Construct;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 
 namespace Sandbox.LauncherUI;
@@ -15,7 +16,9 @@ namespace Sandbox.LauncherUI;
 class LauncherWindow : Panel
 {
 	readonly Editor.PanelWindow Window;
-	readonly Editor.ProjectList ProjectList = new();
+	readonly Editor.ProjectList ProjectList;
+	readonly string samplesPath = Path.GetFullPath( "samples" ) + Path.DirectorySeparatorChar;
+	List<Project> samples;
 
 	Panel content;
 	Panel projectsPanel;
@@ -48,11 +51,23 @@ class LauncherWindow : Panel
 	public LauncherWindow( Editor.PanelWindow window )
 	{
 		Window = window;
+		var profile = Environment.GetCommandLineArgs().Contains( "-startup-profile", StringComparer.OrdinalIgnoreCase ) ? Stopwatch.StartNew() : null;
+		ProjectList = new Editor.ProjectList();
+		if ( profile is not null )
+		{
+			Log.Info( $"Startup profile (launcher): Project list {profile.Elapsed.TotalMilliseconds:F3} ms" );
+			profile.Restart();
+		}
 
 		AddClass( "editor-window" );
 		SetClass( "style-light", LauncherPreferences.LightTheme );
 		StyleSheet.Load( "/styles/editor.scss" );
 		StyleSheet.Load( "/styles/launcher.scss" );
+		if ( profile is not null )
+		{
+			Log.Info( $"Startup profile (launcher): Stylesheets {profile.Elapsed.TotalMilliseconds:F3} ms" );
+			profile.Restart();
+		}
 
 		AddBackdrop();
 		BuildSidebar();
@@ -66,6 +81,10 @@ class LauncherWindow : Panel
 		content.AddClass( "content" );
 
 		ShowHome();
+		if ( profile is not null )
+		{
+			Log.Info( $"Startup profile (launcher): Home UI {profile.Elapsed.TotalMilliseconds:F3} ms" );
+		}
 
 		// Dropping a .sbproj - or a folder holding one - adds it, same as the Add button.
 		// While the drag hovers we answer whether we'd take it - the cursor shows it, and
@@ -240,6 +259,8 @@ class LauncherWindow : Panel
 
 		page = newPage;
 		filter = "";
+		ProjectList.Refresh();
+		samples = null;
 		SetNavActive();
 		ShowHome();
 	}
@@ -509,12 +530,9 @@ class LauncherWindow : Panel
 		rowProjects.Clear();
 		animIndex = 0;
 
-		ProjectList.Refresh();
-
 		var projects = ProjectList.GetAll().Where( x => !x.IsBuiltIn ).ToList();
 
-		// Samples ride along without being saved to the list
-		var samples = FindSamples();
+		var samples = page == Page.Samples ? this.samples ??= FindSamples() : [];
 
 		projects = sort switch
 		{
@@ -533,7 +551,8 @@ class LauncherWindow : Panel
 			samples = samples.Where( Matches ).ToList();
 		}
 
-		var local = projects.Where( x => !samples.Any( y => x.ConfigFilePath == y.ConfigFilePath ) ).ToList();
+		var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+		var local = projects.Where( x => !x.ConfigFilePath.StartsWith( samplesPath, comparison ) ).ToList();
 
 		if ( page == Page.Samples )
 		{
@@ -831,6 +850,7 @@ class LauncherWindow : Panel
 		items.Add( new( "Remove From List", () =>
 		{
 			ProjectList.Remove( project );
+			samples = null;
 			ProjectList.SaveList();
 			RefreshProjects();
 		}, "delete" ) );

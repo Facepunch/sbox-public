@@ -21,10 +21,16 @@ public sealed partial class RenderSystem : IDisposable
 	readonly ViewEnvironment environment = new();
 	readonly LightBinnerFeature lightBinner = new();
 	readonly MeshRenderFeature meshes = new();
+	readonly AggregateRenderFeature aggregates = new();
 	readonly ViewPass mainPass = new();
 	readonly RenderFrame frame;
 	readonly ShadowSystem shadows;
 	readonly VolumetricFog fog = new();
+
+	internal readonly OcclusionCuller Occlusion = new();
+	internal readonly OcclusionHistory OcclusionHistory = new();
+
+	internal bool OcclusionActive { get; private set; }
 
 	/// <summary>
 	/// Persistent camera fog and history.
@@ -95,12 +101,14 @@ public sealed partial class RenderSystem : IDisposable
 		LightBinnerFeature.GpuLight.ValidateLayout();
 		LightBinnerFeature.GpuEnvMap.ValidateLayout();
 		LightBinnerFeature.GpuDecal.ValidateLayout();
+		AggregateObject.FragmentDraw.ValidateLayout();
 		shadows = new ShadowSystem( this );
 		frame = new RenderFrame( this );
 
 		// Lights first - they're binned before anything draws
 		AddFeature( lightBinner );
 		AddFeature( meshes );
+		AddFeature( aggregates );
 	}
 
 	/// <summary>
@@ -242,8 +250,14 @@ public sealed partial class RenderSystem : IDisposable
 		recorder ??= new FrameRecorder();
 		recorder.Plan( frame, ParallelRecording, Sandbox.Rendering.ManagedSceneRendering.AsyncCompute );
 
-		// overlay_scene_plan, or SceneLab's plan overlay: frames drawn into a window show their plan, published with its times
-		var plan = Sandbox.Rendering.ManagedFramePlan.Wanted && (IntPtr)output.SwapChain != IntPtr.Zero ? recorder.Snapshot( view.Name ) : null;
+		// The dev tools's frame plan, or SceneLab's plan overlay: frames drawn into a window show their plan, published with its times
+		var plan = Sandbox.Rendering.ManagedFramePlan.Due && (IntPtr)output.SwapChain != IntPtr.Zero ? recorder.Snapshot( view.Name ) : null;
+		recorder.Measuring = plan is not null;
+		if ( plan is not null )
+		{
+			plan.StartTicks = start;
+			plan.MainThread = Environment.CurrentManagedThreadId;
+		}
 
 		context.Begin();
 		var submitted = false;
@@ -254,7 +268,7 @@ public sealed partial class RenderSystem : IDisposable
 			// Submit skybox setup after main setup, before draws.
 			if ( skyFrame is not null )
 			{
-				skybox.context.Begin( recorder.Parallel ? null : context );
+				skybox.context.Begin( recorder.SeparateContexts ? null : context );
 				skybox.Setup( skyFrame );
 			}
 			stats.SetupMs = Lap();
@@ -273,7 +287,21 @@ public sealed partial class RenderSystem : IDisposable
 			Lap();
 
 			using var _ = Zones.Submit.Start();
-			recorder.Submit( (IntPtr)output.SwapChain != IntPtr.Zero ? output.SwapChain : TimingSwapChain );
+			var handedOver = Stopwatch.GetTimestamp();
+
+			// The submission carries a tag through the render thread to the GPU's timings, so the dev tools can pair a
+			// GPU frame with the plan of the frame that made it
+			var tag = (IntPtr)output.SwapChain != IntPtr.Zero ? Sandbox.Rendering.ManagedFramePlan.NoteHandedOver( handedOver, view ) : 0;
+			if ( plan is not null ) { plan.SubmitTicks = handedOver; plan.SubmitTag = tag; plan.View = view; }
+			g_pRenderDevice.SetSubmitTag( (ulong)tag );
+			try
+			{
+				recorder.Submit( (IntPtr)output.SwapChain != IntPtr.Zero ? output.SwapChain : TimingSwapChain );
+			}
+			finally
+			{
+				g_pRenderDevice.SetSubmitTag( 0 );
+			}
 			submitted = true;
 		}
 		finally
@@ -302,6 +330,8 @@ public sealed partial class RenderSystem : IDisposable
 		stats.CollectMs = Stopwatch.GetElapsedTime( start, collected ).TotalMilliseconds;
 		stats.PrepareMs = Stopwatch.GetElapsedTime( collected, prepared ).TotalMilliseconds;
 		stats.DrawMs = Stopwatch.GetElapsedTime( prepared, drawn ).TotalMilliseconds;
+		if ( OcclusionActive )
+			stats.ObjectsOcclusionCulled = Occlusion.Culled;
 		Stats = stats;
 
 		if ( plan is not null )
@@ -316,13 +346,14 @@ public sealed partial class RenderSystem : IDisposable
 			plan.Publish();
 		}
 
-		// Native counters omit managed draws; report them for overlay_frame.
+		// Native counters omit managed draws; report them for the frame stats.
 		Sandbox.Rendering.ManagedSceneRendering.Report( new Sandbox.Rendering.ManagedFrameCounters
 		{
 			Renders = 1,
 			Objects = stats.Objects,
 			ObjectsVisible = stats.ObjectsVisible,
 			ObjectsSizeCulled = stats.ObjectsSizeCulled,
+			ObjectsOcclusionCulled = stats.ObjectsOcclusionCulled,
 			Draws = stats.Draws,
 			DepthDraws = stats.DepthDraws,
 			TranslucentDraws = stats.TranslucentDraws,
@@ -363,7 +394,7 @@ public sealed partial class RenderSystem : IDisposable
 		// Per-view debug mode (ToolsVis.hlsl, SetupShadingMode).
 		context.Attributes.Set( ToolsVisModeName, view.ToolsVisMode );
 
-		// Glass reads the native Skybox3DPipeline combo.
+		// Glass reads the native 3D skybox pipeline's combo (Native.Skybox3DPipeline).
 		if ( isSkybox ) context.Attributes.SetCombo( SkyboxCombo, 1 );
 
 		for ( int i = 0; i < features.Count; i++ )
@@ -373,6 +404,12 @@ public sealed partial class RenderSystem : IDisposable
 		transforms.Upload( context );
 		context.Attributes.Set( TransformBufferName, transforms.Current );
 		context.InstanceIds = transforms.InstanceIds;
+		context.Occlusion = null;
+		if ( OcclusionActive )
+		{
+			Occlusion.Upload( context, transforms.InstanceCount );
+			context.Occlusion = Occlusion;
+		}
 
 		for ( int i = 0; i < features.Count; i++ )
 			features[i].Setup( context, world, mainPass );
@@ -500,9 +537,39 @@ public sealed partial class RenderSystem : IDisposable
 	internal void Prepare( RenderWorld world, RenderView view )
 	{
 		transforms.Clear();
-		Prepare( world, mainPass, transforms );
 
-		shadows.Prepare( world, mainPass, lightBinner, transforms, features.Count, Shadows, isSkybox );
+		// Shadows, skyboxes and views without a prepass never cull
+		var wanted = Sandbox.Rendering.ManagedSceneRendering.Occlusion && DepthPrepass && !isSkybox;
+		Occlusion.Begin();
+		meshes.Occlusion = wanted ? Occlusion : null;
+		aggregates.Occlusion = meshes.Occlusion;
+		meshes.Parallel = ParallelRecording;
+
+		// Lights first: shadow views are chosen from them. The shadow views then cull on workers while the main view's
+		// other features prepare here - culling only reads what preparing doesn't write
+		lightBinner.Prepare( world, mainPass, transforms );
+		shadows.Select( world, mainPass, lightBinner, features.Count, Shadows, isSkybox );
+		var shadowCull = shadows.BeginCull();
+		try
+		{
+			for ( int i = 0; i < features.Count; i++ )
+			{
+				if ( features[i] != lightBinner ) features[i].Prepare( world, mainPass, transforms );
+			}
+		}
+		finally
+		{
+			shadowCull.Join();
+		}
+
+		meshes.Occlusion = null;
+		aggregates.Occlusion = null;
+		OcclusionActive = wanted && Occlusion.InstanceCount > 0;
+		OcclusionHistory.BeginFrame( OcclusionActive, view.Viewport );
+		Occlusion.Previous = OcclusionHistory.EarlyDepth;
+		Occlusion.RejectEarly = OcclusionHistory.RejectsEarly;
+
+		shadows.PreparePasses( transforms );
 
 		// Skyboxes use their own system and view.
 		PrepareSkybox( world, view );
@@ -535,6 +602,8 @@ public sealed partial class RenderSystem : IDisposable
 		frameBufferCopy = null;
 		transforms.Dispose();
 		environment.Dispose();
+		Occlusion.Dispose();
+		OcclusionHistory.Dispose();
 
 		foreach ( var feature in features )
 			feature.Dispose();

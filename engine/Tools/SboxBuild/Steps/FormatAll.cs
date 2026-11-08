@@ -18,6 +18,7 @@ internal static class FormatAll
 		if ( new Format( Solutions.BuildTools, Format.Mode.Full, verifyOnly ).Run() != ExitCode.Success )
 			return ExitCode.Failure;
 
+		if ( verifyOnly ) GitHubActions.Note( "no changes needed" );
 		return ExitCode.Success;
 	}
 }

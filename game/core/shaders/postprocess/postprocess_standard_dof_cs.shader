@@ -123,10 +123,12 @@ CS
     float3 GetColor( uint2 screenPos, int sampleIndex )
     {
         #if D_MSAA
-        return Color.Load( screenPos, sampleIndex ).rgb;
+        float3 color = Color.Load( screenPos, sampleIndex ).rgb;
         #else
-        return Color.Load( int3( screenPos, 0 ) ).rgb;
+        float3 color = Color.Load( int3( screenPos, 0 ) ).rgb;
         #endif
+
+        return select( isnan( color ), 0.0f, min( color, HALF_MAX ) );
     }
 
     //
@@ -317,8 +319,10 @@ CS
         if ( total <= 0.0f )
             return center;
 
+        // Clamp the average, not the float accumulator, to preserve HDR highlight energy.
+        finalColor /= total;
         finalColor.xyz = min( finalColor.xyz, HALF_MAX );
-        return finalColor / total;
+        return finalColor;
     }
 
     // Maps an indirect group to its tile's pixel + per-tile sample budget
@@ -349,7 +353,8 @@ CS
         float4 vertical = BlurTexture( FinalSRV, uv, blurDir, nSamples );
         float4 diagonal = BlurTexture( FinalSRV, uv, blurDir2, nSamples );
 
-        diagonal.xyz += vertical.xyz;
+        // Store an average so adding two valid HDR colors cannot overflow the half-float target.
+        diagonal.xyz = ( diagonal.xyz + vertical.xyz ) * 0.5f;
 
         OutColor0[vPixel] = vertical;
         OutColor1[vPixel] = diagonal;
@@ -367,7 +372,11 @@ CS
         float4 color = BlurTexture( VerticalSRV, uv, blurDir, nSamples );
 
         float2 blurDir2 = InvDimensions * float2( cos( -5 * PI / 6 ), sin( -5 * PI / 6 ) );
-        color += BlurTexture( DiagonalSRV, uv, blurDir2, nSamples );
+        float4 diagonal = BlurTexture( DiagonalSRV, uv, blurDir2, nSamples );
+
+        // Restore the two RGB contributions while retaining the original CoC alpha weighting.
+        color.xyz += diagonal.xyz * 2.0f;
+        color.a += diagonal.a;
 
         OutColor0[vPixel] = color / 3;
     }

@@ -56,6 +56,7 @@ PS
 	#define floatx float
 
 	DynamicCombo( D_MSAA, 0..1, Sys( ALL ) );
+	DynamicCombo( D_UPSCALE, 0..1, Sys( ALL ) );
 
 #if D_MSAA
 	Texture2DMS<float>  g_tSourceDepth  < Attribute( "SourceDepth" ); >;
@@ -64,21 +65,34 @@ PS
 #endif
 
 	int DownsampleFactor < Attribute( "DownsampleFactor" ); Default( 1 ); >;
+	float2 OutputToSourceScale < Attribute( "OutputToSourceScale" ); Default2( 1.0f, 1.0f ); >;
 
 	floatx MainPs( float4 vPositionPs : SV_Position, float2 vTexCoord : TEXCOORD0 ) : SV_Depth
 	{
-		// Calculate source coordinate with proper downsampling
+		#if D_UPSCALE
+		uint sourceWidth, sourceHeight;
+		#if D_MSAA
+		uint sampleCount;
+		g_tSourceDepth.GetDimensions( sourceWidth, sourceHeight, sampleCount );
+		#else
+		g_tSourceDepth.GetDimensions( sourceWidth, sourceHeight );
+		#endif
+		uint2 sourceCoord = min( uint2( (vPositionPs.xy - g_vViewportOffset.xy) * OutputToSourceScale ), uint2( sourceWidth - 1, sourceHeight - 1 ) );
+		#else
 		uint2 sourceCoord = (g_vViewportOffset.xy + uint2(vPositionPs.xy)) * DownsampleFactor;
-		
+		#endif
+
 		floatx result;
 		#if D_MSAA
-		{
-			result = g_tSourceDepth.Load( sourceCoord, 0 ).r;
-		}
+		#if D_UPSCALE
+		result = 0.0f;
+		for ( uint sample = 0; sample < sampleCount; sample++ )
+			result = max( result, g_tSourceDepth.Load( sourceCoord, sample ).r );
 		#else
-		{
-			result = g_tSourceDepth.Load( int3( sourceCoord, 0 ) ).r;
-		}
+		result = g_tSourceDepth.Load( sourceCoord, 0 ).r;
+		#endif
+		#else
+		result = g_tSourceDepth.Load( int3( sourceCoord, 0 ) ).r;
 		#endif
  
 		return result;

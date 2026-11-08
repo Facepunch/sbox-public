@@ -1,4 +1,4 @@
-@using System;
+﻿@using System;
 @using Sandbox;
 @using Sandbox.UI;
 
@@ -28,20 +28,20 @@
 
 	@if ( !Player.IsMe && !Player.IsFriend )
 	{
-		<div class="add" tooltip="Send a friend request" onclick=@( ( e ) => AddFriend( e ) )><i>person_add</i></div>
+		<div class="add" tooltip="#menu.friends.send_a_friend_request" onclick=@( ( e ) => AddFriend( e ) )><i>person_add</i></div>
 	}
 
 	@* The host's ping is always nothing - its pill says whose server it is instead *@
 	@if ( Player.IsHost )
 	{
-		<div class="ping host" tooltip="Running the server">
+		<div class="ping host" tooltip="#menu.friends.running_the_server">
 			<i>dns</i>
-			<label>Host</label>
+			<label>#menu.friends.host</label>
 		</div>
 	}
 	else
 	{
-		<div class="ping @PingClass" tooltip="Ping">
+		<div class="ping @PingClass" tooltip="#menu.friends.ping">
 			<i>signal_cellular_alt</i>
 			<label>@($"{Player.Ping:0} ms")</label>
 		</div>
@@ -62,8 +62,8 @@
 	{
 		get
 		{
-			if ( Player.IsMe ) return "You";
-			return Player.IsFriend ? "Friend" : "Player";
+			if ( Player.IsMe ) return "#menu.friends.you";
+			return Player.IsFriend ? "#menu.friends.friend" : "#menu.friends.player";
 		}
 	}
 
@@ -112,20 +112,20 @@
 
 		// Their Steam profile - their s&box one is the card a click brings up
 		var friend = Friend;
-		menu.AddOption( "View Profile", () => friend.OpenInOverlay() );
+		menu.AddOption( "#menu.friends.view_profile", () => friend.OpenInOverlay() );
 
 		// Anything below is for other players
 		if ( Player.IsMe )
 			return;
 
 		if ( !Player.IsFriend )
-			menu.AddOption( "Send Friend Request", () => friend.OpenAddFriendOverlay() );
+			menu.AddOption( "#menu.friends.send_friend_request", () => friend.OpenAddFriendOverlay() );
 
 		// Only the host can kick - and only someone who's really here
 		if ( !Networking.IsHost || Player.Connection is not { } connection )
 			return;
 
-		menu.AddOption( "Kick", "", () => connection.Kick( "Kicked" ) );
+		menu.AddOption( "#menu.friends.kick", "", () => connection.Kick( Language.GetPhrase( "menu.friends.kicked" ) ) );
 	}
 
 	/// <summary>

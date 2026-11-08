@@ -22,7 +22,7 @@
             break;
 
         case Changes:
-            <PackageChanges Package=@Package />
+            <PackageChanges Package=@Package WorkshopId=@WorkshopId />
             break;
 
         case News:
@@ -53,11 +53,11 @@
     /// </summary>
     public static readonly Info[] All =
     {
-        new( Reviews, "Reviews", "reviews" ),
-        new( Players, "Players", "groups" ),
-        new( Changes, "Changes", "history" ),
-        new( News, "News", "newspaper" ),
-        new( Achievements, "Achievements", "emoji_events" ),
+        new( Reviews, "#menu.games.reviews", "reviews" ),
+        new( Players, "#menu.games.players", "groups" ),
+        new( Changes, "#menu.games.changes", "history" ),
+        new( News, "#menu.games.news", "newspaper" ),
+        new( Achievements, "#menu.games.achievements", "emoji_events" ),
     };
 
     public static Info Find( string id ) => All.FirstOrDefault( x => x.Id == id );
@@ -70,5 +70,10 @@
     /// </summary>
     [Parameter] public string Page { get; set; }
 
-    protected override int BuildHash() => HashCode.Combine( Package, Page );
+    /// <summary>
+    /// Its Steam Workshop item - its Changes are the item's change notes. 0 for the backend's.
+    /// </summary>
+    [Parameter] public ulong WorkshopId { get; set; }
+
+    protected override int BuildHash() => HashCode.Combine( Package, Page, WorkshopId );
 }

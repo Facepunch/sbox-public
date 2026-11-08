@@ -29,9 +29,8 @@ float2 ComputeGGXBRDF(float2 vRoughness, float flNdotL, float flNdotV, float flN
 {
     float2 vAlpha = vRoughness.xy * vRoughness.xy;
 
-    // GGX D
-    float2 vD = vAlpha.xy / (flNdotH * flNdotH * (vAlpha.xy * vAlpha.xy - float2(1.0, 1.0)) + float2(1.0, 1.0));
-    vD.xy = vD.xy * vD.xy;
+    // GGX D, without its divide: alpha^2 / denom^2, folded into the one divide below
+    float2 vDenom = flNdotH * flNdotH * (vAlpha.xy * vAlpha.xy - float2(1.0, 1.0)) + float2(1.0, 1.0);
 
     // Schlick-Smith G
     float2 vK = vRoughness.xy + float2(1.0, 1.0);
@@ -40,7 +39,8 @@ float2 ComputeGGXBRDF(float2 vRoughness, float flNdotL, float flNdotV, float flN
     vOoG *= (flNdotL.xx * (float2(1.0, 1.0) - vK.xy) + vK.xy);
     vOoG *= (flNdotV.xx * (float2(1.0, 1.0) - vK.xy) + vK.xy);
 
-    return vD.xy / vOoG.xy;
+    // denom^2 reaches alpha^4 at N.H = 1 and flushes to zero below roughness ~1e-5; clamp so it can't go inf
+    return (vAlpha.xy * vAlpha.xy) / (max(vDenom.xy * vDenom.xy, 1e-30) * vOoG.xy);
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------

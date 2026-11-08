@@ -12,6 +12,16 @@ partial class PhysicsShape3d
 			this.shape = shape;
 		}
 
+		internal void Initialize( ITagSet tags ) => all.UnionWith( tags.TryGetAll() );
+
+		public override void SetFrom( ITagSet set )
+		{
+			if ( set is null || set == this || (set is GameTags && all.SetEquals( set.TryGetAll() )) )
+				return;
+
+			base.SetFrom( set );
+		}
+
 		public override void Add( string tag )
 		{
 			if ( all.Add( tag ) )

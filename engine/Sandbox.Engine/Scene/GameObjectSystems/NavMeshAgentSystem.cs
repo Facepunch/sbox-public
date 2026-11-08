@@ -1,6 +1,4 @@
-﻿using System.Collections.Concurrent;
-
-namespace Sandbox;
+﻿namespace Sandbox;
 
 /// <summary>
 /// Updates NavMeshAgent ground positions in parallel during PrePhysicsStep.
@@ -23,7 +21,7 @@ internal sealed class NavMeshGameSystem : GameObjectSystem
 		Scene.GetAll<NavMeshAgent>( _agents );
 		if ( _agents.Count == 0 ) return;
 
-		System.Threading.Tasks.Parallel.ForEach( Partitioner.Create( _agents, loadBalance: true ), FindPhysicsGroundZ );
+		JobDispatcher.For( _agents.Count, this, static ( system, i ) => system.FindPhysicsGroundZ( system._agents[i] ) );
 	}
 
 	/// <summary>

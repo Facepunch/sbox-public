@@ -58,6 +58,11 @@ internal static partial class Api
 			FpsMax = ConVarSystem.GetInt( "fps_max", 0, true ),
 			MSAA = NativeEngine.CSceneSystem.GetMainSwapChainMultisampleType(),
 			VolumeFogDepth = ConVarSystem.GetInt( "volume_fog_depth", 0, true ),
+			AoQuality = AmbientOcclusion.UserQuality,
+			AoResolution = AmbientOcclusion.UserResolution,
+			AoDenoisePasses = AmbientOcclusion.UserDenoisePasses,
+			ManagedSceneRenderer = Rendering.ManagedSceneRendering.Enabled,
+			ManagedAsyncCompute = Rendering.ManagedSceneRendering.AsyncCompute,
 			Application.ExceptionCount,
 
 			// Display mode, so presentation problems can be told apart by how the swapchain was set up
@@ -101,7 +106,8 @@ public class CachingHandler : DelegatingHandler
 		{
 			var response = await base.SendAsync( request, cancellationToken );
 
-			if ( response.IsSuccessStatusCode )
+			// Not 202 Accepted and the like - those mean ask again, and the cached copy would come back as a 200
+			if ( response.StatusCode == System.Net.HttpStatusCode.OK )
 			{
 				var content = await response.Content.ReadAsStringAsync();
 				_cache.Set( cacheKey, content, TimeSpan.FromMinutes( 1 ) );

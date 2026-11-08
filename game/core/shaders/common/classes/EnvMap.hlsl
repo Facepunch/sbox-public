@@ -24,10 +24,11 @@ struct EnvMap
         const float2 vLevel = sqrt(Roughness.xy);
 
         // Accumulate contributions from each environment map
-        for (uint i = 0; i < range.Count; i++)
+        ClusterForEach( range )
         {
             // Get the environment map index
-            const uint index = Cluster::LoadItem( range, i );
+            // Wave-uniform by construction (WaveActiveMin in Cluster::Next), but Slang can't prove it, hence asDynamicUniform
+            const uint index = range.Item;
 
             // Transform world position to local cubemap space
             const float3 vCubePos = mul(float4(WorldPosition.xyz, 1.0f), EnvMapWorldToLocal(index)).xyz;
@@ -54,10 +55,11 @@ struct EnvMap
 
             // Calculate parallax reflection in local cubemap space
             float3 vParallaxReflectionCubemapLocal = CalcParallaxReflectionCubemapLocal(WorldPosition, WorldNormal, index);
+            float3 vNormalCubemapLocal = normalize(mul(float4(WorldNormal, 0.0f), EnvMapWorldToLocal(index)).xyz);
 
             // Specular environment map sampling
-            float3 vNormalWarpWs = normalize(lerp(vParallaxReflectionCubemapLocal, WorldNormal, vLevel.x)); // Used to reduce specular aliasing
-            float3 vCubeSample = SampleEnvironmentMapLevel(vNormalWarpWs, vLevel.x, index);
+            float3 vNormalWarpWs = normalize(lerp(vParallaxReflectionCubemapLocal, vNormalCubemapLocal, vLevel.x)); // Used to reduce specular aliasing
+            float3 vCubeSample = SampleEnvironmentMapLevel(vNormalWarpWs, vLevel.x, index, EnvMapTexture(asDynamicUniform(UniformIndex(index))));
 
             // Accumulate color contribution
             vColor = lerp(vColor, vCubeSample, 1.0f - flDistAccumulated);
@@ -88,6 +90,9 @@ float3 CubeMapBoxProjection(float3 vReflectionCubemapLocal, float3 vPositionCube
     float3 vIntersectB = (vBoxMins - vPositionCubemapLocal) / vReflectionCubemapLocal;
 
     float3 vIntersect = max(vIntersectA, vIntersectB);
+
+    // Axes parallel to the reflection never exit, a position on that face would otherwise give 0/0
+    vIntersect = select(vReflectionCubemapLocal != 0.0f, vIntersect, 3.402823466e+38f);
     float flDistance = min(vIntersect.x, min(vIntersect.y, vIntersect.z));
 
     // Compute the reflected direction in world space
@@ -130,7 +135,7 @@ float3 CalcParallaxReflectionCubemapLocal( float3 vPositionWs, float3 vNormalWs,
 	vPositionCubemapLocal = mul( float4( vPositionWs.xyz, 1.0 ), EnvMapWorldToLocal( nEnvMap ) ).xyz;
 	vReflectionCubemapLocal = mul( float4( vReflectionWs.xyz, 0.0 ), EnvMapWorldToLocal( nEnvMap ) ).xyz;
 
-	return CubeMapBoxProjection( vReflectionCubemapLocal.xyz, vPositionCubemapLocal.xyz, EnvMapBoxMins( nEnvMap ).xyz, EnvMapBoxMaxs( nEnvMap ).xyz, EnvMapFeathering( nEnvMap ) );
+	return CubeMapBoxProjection( vReflectionCubemapLocal.xyz, vPositionCubemapLocal.xyz, EnvMapBoxMins( nEnvMap ).xyz, EnvMapBoxMaxs( nEnvMap ).xyz );
 }
 
 
@@ -153,8 +158,7 @@ float3 CalcParallaxReflectionCubemapLocal(float3 vPositionWs, float3 vNormalWs, 
         vReflectionCubemapLocal,
         vPositionCubemapLocal,
         EnvMapBoxMins(nEnvMap),
-        EnvMapBoxMaxs(nEnvMap),
-        EnvMapFeathering(nEnvMap)
+        EnvMapBoxMaxs(nEnvMap)
     );
 }
 

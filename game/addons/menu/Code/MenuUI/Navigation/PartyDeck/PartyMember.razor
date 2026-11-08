@@ -45,7 +45,7 @@
 	/// </summary>
 	public bool Ready { get; set; }
 
-	string Name => Friend.IsMe ? "You" : Friend.Name;
+	string Name => Friend.IsMe ? Language.GetPhrase( "menu.friends.you" ) : Friend.Name;
 
 	string Badge => Ready ? "check" : Status.Stage switch
 	{
@@ -78,10 +78,7 @@
 
 	public bool IsOwner => PartyView.Owner.Id == Friend.Id;
 
-	public bool IsTalking => soundHandle?.Amplitude > 0;
-
-	private SoundStream soundStream;
-	private SoundHandle soundHandle;
+	public bool IsTalking => PartyView.IsMemberTalking( Friend );
 
 	protected override int BuildHash() => System.HashCode.Combine( IsOwner, IsTalking, Status, Ready );
 
@@ -136,25 +133,12 @@
 		Style.TransformOriginY = Length.Percent( 50 );
 	}
 
-	void PartyRoom.IEventListener.OnVoiceMessage(Friend friend, byte[] data)
+	/// <summary>
+	/// Rebuild composed text when translations change.
+	/// </summary>
+	public override void LanguageChanged()
 	{
-		if (friend != Friend) return;
-
-		if (soundStream is null)
-		{
-			soundStream = new SoundStream(Sound.VoiceSampleRate);
-		}
-
-		if (!soundHandle.IsValid())
-		{
-			soundHandle = soundStream.Play();
-		}
-
-		soundHandle.LipSync.Enabled = true;
-		soundHandle.Position = 0;
-		soundHandle.ListenLocal = true;
-		soundHandle.Loopback = friend.IsMe;
-		soundStream.WriteVoiceData(data);
+		base.LanguageChanged();
+		StateHasChanged();
 	}
-
 }

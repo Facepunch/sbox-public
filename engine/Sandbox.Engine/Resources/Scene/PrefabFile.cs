@@ -23,7 +23,7 @@ public partial class PrefabFile : GameResource
 
 		if ( !string.IsNullOrWhiteSpace( id.Path ) )
 		{
-			if ( Mounting.Directory.TryLoad( id.Path, Mounting.ResourceType.PrefabFile, out var mounted ) && mounted is PrefabFile pf )
+			if ( Mounting.Directory.TryLoad( id.Path, out var mounted ) && mounted is PrefabFile pf )
 				return pf;
 		}
 

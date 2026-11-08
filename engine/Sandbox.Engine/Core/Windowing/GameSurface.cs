@@ -19,13 +19,14 @@ internal readonly record struct GameSurface( IntPtr Window, SwapChainHandle_t Sw
 	/// </summary>
 	internal float RefreshRate => SdlDisplay.GetCurrentMode( Display ).RefreshRate;
 	/// <summary>
-	/// Actual swapchain size in pixels, or zero when there is no swapchain.
+	/// Actual swapchain size in pixels. Before the swapchain exists the window's size is used, or zero without a window.
 	/// </summary>
 	internal Vector2 Size
 	{
 		get
 		{
-			if ( SwapChain == default ) return default;
+			if ( SwapChain == default )
+				return Window != default && Sdl.GetWindowSizeInPixels( Window, out var width, out var height ) ? new Vector2( width, height ) : default;
 			var mode = g_pRenderDevice.GetSwapChainInfo( SwapChain ).m_DisplayMode;
 			return new Vector2( mode.m_nWidth, mode.m_nHeight );
 		}

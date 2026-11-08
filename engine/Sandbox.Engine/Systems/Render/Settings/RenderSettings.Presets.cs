@@ -4,23 +4,23 @@ namespace Sandbox.Engine.Settings;
 
 public partial class RenderSettings
 {
-	/// <summary>
-	/// What a preset writes. No upscaler, because ghosting is a taste call. No rung turns
-	/// anti-aliasing off either, since without it foliage and hair go to a hard cutout.
-	/// </summary>
+	/// <summary>Quality levels a preset writes. Upscaling is a taste call; every tier uses CMAA2.</summary>
 	readonly record struct PresetValues(
 		TextureQuality Texture,
 		ShadowQuality Shadow,
 		PostProcessQuality PostProcess,
 		VolumetricFogQuality Fog,
-		MultisampleAmount AntiAlias );
+		WaterQuality Water,
+		MultisampleAmount AntiAliasQuality,
+		AntiAliasMode AntiAliasMode
+	);
 
 	static PresetValues ValuesFor( GraphicsPreset preset ) => preset switch
 	{
-		GraphicsPreset.Low => new( TextureQuality.Low, ShadowQuality.Low, PostProcessQuality.Off, VolumetricFogQuality.Off, MultisampleAmount.Multisample2x ),
-		GraphicsPreset.Medium => new( TextureQuality.Medium, ShadowQuality.Medium, PostProcessQuality.Low, VolumetricFogQuality.Medium, MultisampleAmount.Multisample2x ),
-		GraphicsPreset.High => new( TextureQuality.High, ShadowQuality.High, PostProcessQuality.Medium, VolumetricFogQuality.High, MultisampleAmount.Multisample4x ),
-		GraphicsPreset.Ultra => new( TextureQuality.Ultra, ShadowQuality.Ultra, PostProcessQuality.High, VolumetricFogQuality.Ultra, MultisampleAmount.Multisample8x ),
+		GraphicsPreset.Low => new( TextureQuality.Low, ShadowQuality.Low, PostProcessQuality.Off, VolumetricFogQuality.Off, WaterQuality.Low, MultisampleAmount.MultisampleNone, AntiAliasMode.Cmaa2 ),
+		GraphicsPreset.Medium => new( TextureQuality.Medium, ShadowQuality.Medium, PostProcessQuality.Low, VolumetricFogQuality.Medium, WaterQuality.Medium, MultisampleAmount.Multisample2x, AntiAliasMode.Cmaa2 ),
+		GraphicsPreset.High => new( TextureQuality.High, ShadowQuality.High, PostProcessQuality.Medium, VolumetricFogQuality.High, WaterQuality.High, MultisampleAmount.Multisample4x, AntiAliasMode.None ),
+		GraphicsPreset.Ultra => new( TextureQuality.Ultra, ShadowQuality.Ultra, PostProcessQuality.High, VolumetricFogQuality.High, WaterQuality.Ultra, MultisampleAmount.Multisample4x, AntiAliasMode.None ),
 		_ => default
 	};
 
@@ -31,7 +31,7 @@ public partial class RenderSettings
 	/// </summary>
 	internal GraphicsPreset MatchPreset()
 	{
-		var current = new PresetValues( TextureQuality, ShadowQuality, PostProcessQuality, VolumetricFogQuality, AntiAliasQuality );
+		var current = new PresetValues( TextureQuality, ShadowQuality, PostProcessQuality, VolumetricFogQuality, WaterQuality, AntiAliasQuality, AntiAliasMode );
 
 		foreach ( var preset in Presets )
 		{
@@ -51,7 +51,9 @@ public partial class RenderSettings
 		settings[nameof( TextureQuality )] = values.Texture.ToString();
 		settings[nameof( ShadowQuality )] = values.Shadow.ToString();
 		settings[nameof( VolumetricFogQuality )] = values.Fog.ToString();
-		settings[nameof( AntiAliasQuality )] = GetSupportedAntiAliasQuality( values.AntiAlias ).ToString();
+		settings[nameof( WaterQuality )] = values.Water.ToString();
+		settings[nameof( AntiAliasQuality )] = GetSupportedAntiAliasQuality( values.AntiAliasQuality ).ToString();
+		settings[nameof( AntiAliasMode )] = values.AntiAliasMode.ToString();
 
 		return settings;
 	}
@@ -71,7 +73,9 @@ public partial class RenderSettings
 		ShadowQuality = values.Shadow;
 		PostProcessQuality = values.PostProcess;
 		VolumetricFogQuality = values.Fog;
-		AntiAliasQuality = values.AntiAlias;
+		WaterQuality = values.Water;
+		AntiAliasQuality = values.AntiAliasQuality;
+		AntiAliasMode = values.AntiAliasMode;
 	}
 
 	/// <summary>Pick the rung this machine should start on. A starting point, not a benchmark.</summary>
@@ -84,7 +88,7 @@ public partial class RenderSettings
 		var cores = SystemInfo.ProcessorCount;
 
 		// Integrated parts report the shared system heap as video memory, so VRAM says nothing.
-		if ( IsIntegratedGpu( SystemInfo.Gpu ) )
+		if ( SystemInfo.GpuIntegrated )
 			return GraphicsPreset.Low;
 
 		if ( vram >= Class( 12, GB ) && ram >= 16 * GB && cores >= 12 )
@@ -105,19 +109,6 @@ public partial class RenderSettings
 	/// </summary>
 	static ulong Class( ulong gigabytes, ulong gb ) => gigabytes * gb - (gb * 3 / 4);
 
-	static bool IsIntegratedGpu( string name )
-	{
-		if ( string.IsNullOrEmpty( name ) )
-			return false;
-
-		// Discrete Intel is Arc; AMD's integrated parts have no model number after "Radeon".
-		if ( name.Contains( "Intel", StringComparison.OrdinalIgnoreCase ) && !name.Contains( "Arc", StringComparison.OrdinalIgnoreCase ) )
-			return true;
-
-		return name.Contains( "Radeon(TM) Graphics", StringComparison.OrdinalIgnoreCase )
-			|| name.Contains( "Vega", StringComparison.OrdinalIgnoreCase );
-	}
-
 	/// <summary>
 	/// Pick for the user on first launch. Runs once and leaves a marker; after that the stored
 	/// settings are theirs.
@@ -132,11 +123,13 @@ public partial class RenderSettings
 		var preset = DetectPreset();
 		ApplyPreset( preset );
 
-		// Anti-aliasing is baked into the window in Source2PreInit, from a config that doesn't
-		// exist yet on a first run, so without this it wouldn't apply until the next launch.
-		Apply();
+		// Not Apply(): the window was created from the command line, and switching it to the saved
+		// mode here would drop -sw/-w/-h (e.g. windowed local instances going borderless).
+		ApplyVideoMode( honourCommandLine: true );
+		OnVideoSettingsChanged?.Invoke();
+		VideoSettings.Save();
 
-		log.Info( $"Detected graphics preset: {preset} (gpu: {SystemInfo.Gpu}, vram: {SystemInfo.GpuMemory / (1024 * 1024)}MB, cores: {SystemInfo.ProcessorCount}, ram: {SystemInfo.TotalMemory / (1024 * 1024)}MB)" );
+		log.Info( $"Detected graphics preset: {preset} (gpu: {SystemInfo.Gpu}, vram: {SystemInfo.GpuMemory / (1024 * 1024)}MB, integrated: {SystemInfo.GpuIntegrated}, cores: {SystemInfo.ProcessorCount}, ram: {SystemInfo.TotalMemory / (1024 * 1024)}MB)" );
 	}
 
 	const string AutoDetectedKey = "quality.autodetected";

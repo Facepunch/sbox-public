@@ -302,10 +302,10 @@ namespace Sandbox
 		/// <summary>
 		/// Adds a surface that can be referenced by collision mesh material indices.
 		/// </summary>
-		/// <param name="surface">The surface to add. Null uses the default surface.</param>
+		/// <param name="surface">The surface to add. Null uses the default surface, or a generic fallback if no surfaces are loaded.</param>
 		public ModelBuilder AddSurface( Surface surface )
 		{
-			surface ??= Surface.FindByName( "default" );
+			surface ??= Surface.FindByName( "default" ) ?? Surface.FindByIndex( 0 );
 			_surfaces.Add( surface.Index );
 			return this;
 		}

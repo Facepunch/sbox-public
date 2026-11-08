@@ -19,10 +19,10 @@ public abstract class JamPhasePanel : Panel
 	/// Guidance for browsing entries in the current voting window.
 	/// </summary>
 	protected string EntryGuidance => !Jam.CommunityVoting
-		? "Play the entries."
+		? "#menu.jam.play_the_entries"
 		: Jam.Now < Jam.NominationsEnd
-			? "Play the entries as they land and nominate the ones you rate. Nominations decide who makes the finals."
-			: "Nominations are closed. The finalists go head to head.";
+			? "#menu.jam.play_the_entries_as_they_land_and_nominate_the"
+			: "#menu.jam.nominations_are_closed_the_finalists_go_head_to_head";
 
 	protected override int BuildHash() => System.HashCode.Combine( Jam, Jam?.HasStarted, Jam?.AcceptingEntries,
 		Jam is not null && Jam.Now < Jam.NominationsEnd, Jam?.CurrentStepIndex );

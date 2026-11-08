@@ -25,7 +25,7 @@
                 <label class="large">@Package.Title</label>
                 @if (Package.Org != null)
                 {
-                    <div class="hero-org" onclick="@OrgClicked">
+                    <div class="hero-org">
                         <img src="@Package.Org.Thumb" />
                         <label class="eyebrow">@Package.Org.Title</label>
                     </div>
@@ -119,14 +119,6 @@
         StaticMediaUrl = Package.ThumbWide ?? "";
 
         Tags = Package.Tags?.Take(MaxTags).ToList() ?? new();
-    }
-
-    void OrgClicked()
-    {
-        if (Package?.Org != null)
-        {
-            Game.Overlay.ShowOrganizationModal(Package.Org);
-        }
     }
 
     protected override int BuildHash() => System.HashCode.Combine(Package?.FullIdent);

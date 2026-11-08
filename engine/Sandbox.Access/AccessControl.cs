@@ -14,6 +14,13 @@ namespace Sandbox;
 public partial class AccessControl : IAssemblyResolver
 {
 	internal ConcurrentDictionary<string, string> SafeAssemblies = new();
+
+	/// <summary>
+	/// Hash of every assembly that passed, to the name its definition is registered under.
+	/// </summary>
+	readonly ConcurrentDictionary<string, AssemblyNameReference> VerifiedBytes = new();
+
+	static string Hash( byte[] data ) => Convert.ToBase64String( SHA256.HashData( data ) );
 	internal ConcurrentDictionary<AssemblyNameReference, AssemblyDefinition> Assemblies = new( AssemblyNameComparer.Instance );
 	internal AccessRules Rules;
 
@@ -36,9 +43,16 @@ public partial class AccessControl : IAssemblyResolver
 	/// Dangerous! Create a <see cref="TrustedBinaryStream"/> of the given stream
 	/// without actually passing it through access control.
 	/// </summary>
-	public TrustedBinaryStream TrustUnsafe( byte[] dll )
+	/// <param name="dll">The assembly bytes.</param>
+	/// <param name="resolvable">Parse the assembly now so verified assemblies can reference it. This is slow, so
+	/// skip it when nothing is verified against this assembly.</param>
+	public TrustedBinaryStream TrustUnsafe( byte[] dll, bool resolvable = true )
 	{
-		var instance = new AssemblyAccess( this, dll );
+		if ( resolvable )
+		{
+			_ = new AssemblyAccess( this, dll );
+		}
+
 		return TrustedBinaryStream.CreateInternal( dll );
 	}
 
@@ -56,12 +70,23 @@ public partial class AccessControl : IAssemblyResolver
 		var bytes = ms.ToArray();
 		ms.Dispose();
 
+		// These exact bytes passed before, are still the trusted version of their name, and their definition is still
+		// registered for resolving: there's nothing to read or check again.
+		var hash = Hash( bytes );
+		if ( addToWhitelist && VerifiedBytes.TryGetValue( hash, out var verified ) && Assemblies is not null && Assemblies.ContainsKey( verified )
+			&& SafeAssemblies.TryGetValue( verified.Name, out var safeHash ) && safeHash == hash )
+		{
+			outStream = TrustedBinaryStream.CreateInternal( bytes );
+			return new AccessControlResult { Success = true };
+		}
+
 		var instance = new AssemblyAccess( this, bytes );
 		instance.Verify( out outStream );
 
 		if ( addToWhitelist && instance.Result.Success )
 		{
 			AddSafeAssembly( instance.Assembly.Name.Name, bytes );
+			VerifiedBytes[hash] = instance.Assembly.Name;
 		}
 
 		return instance.Result;

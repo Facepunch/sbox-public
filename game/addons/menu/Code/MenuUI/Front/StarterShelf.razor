@@ -8,8 +8,8 @@
 <root class="@(AllDone ? "complete" : "")">
     <div class="guide-blueprint-background" />
     <div class="guide-top">
-        <label>Getting started</label>
-        <Button class="guide-dismiss" Text="Yeah, yeah, I got it" Icon="close" onclick=@(() => Dismissed?.Invoke()) />
+        <label>#menu.home.getting_started</label>
+        <Button class="guide-dismiss" Text="#menu.home.yeah_yeah_i_got_it" Icon="close" onclick=@(() => Dismissed?.Invoke()) />
     </div>
     <div class="guide-content">
         <div class="guide-intro">
@@ -17,7 +17,7 @@
                 <label>Welcome</label>
                 <label>to s&box.</label>
             </div>
-            <label class="guide-description">Everything here is made by the community. Nothing to install or subscribe to. Click a game and you're playing. Here are four good places to start.</label>
+            <label class="guide-description">#menu.home.everything_here_is_made_by_the_community_nothing_to</label>
             <div class="guide-progress">
                 <div class="progress-marks">
                     @foreach ( var step in steps )
@@ -40,13 +40,13 @@
                                      RightClicked=@(() => MenuHelpers.OpenPackageMenu( this, step.Package )) />
                         @if ( done )
                         {
-                            <div class="step-stamp"><icon>check</icon><label>Played</label></div>
+                            <div class="step-stamp"><icon>check</icon><label>#menu.home.played</label></div>
                         }
                     </div>
                     <div class="step-body">
                         <label class="step-game">@step.Package.Title</label>
                         <label class="step-description">@step.Task</label>
-                        <Button class="step-open" Text="@(done ? "Play again" : "Check it out")" Icon="arrow_forward" onclick=@(() => step.Package.OpenModal()) />
+                        <Button class="step-open" Text="@(done ? "#menu.home.play_again" : "#menu.home.check_it_out")" Icon="arrow_forward" onclick=@(() => OpenStep( step )) />
                     </div>
                 </div>
             }
@@ -55,8 +55,8 @@
 
     <div class="guide-foot">
         <div class="creator-icon"><icon>construction</icon></div>
-        <div class="creator-copy"><label class="creator-title">Create your own game.</label><label class="creator-description">The editor is included. We’ll help you get started.</label></div>
-        <a class="guide-learn" onclick=@(() => MenuUtility.OpenUrl( "https://sbox.game/learn" ))><label>Learn to create</label><icon>arrow_outward</icon></a>
+        <div class="creator-copy"><label class="creator-title">#menu.home.create_your_own_game</label><label class="creator-description">#menu.home.the_editor_is_included_we_ll_help_you_get_started</label></div>
+        <a class="guide-learn" onclick=@(() => MenuUtility.OpenUrl( "https://sbox.game/learn" ))><label>#menu.home.learn_to_create</label><icon>arrow_outward</icon></a>
     </div>
 </root>
 
@@ -69,10 +69,10 @@
     /// </summary>
     readonly (string Ident, string Title, string Task, string Icon, string Style)[] Guide =
     {
-        ( "jco.drill", "Go solo", "Make another run and beat your best in this singleplayer shooter.", "person", "solo" ),
-        ( "glag.ex_zone", "Team up", "Grab your friends and head out on a co-op mission.", "groups", "together" ),
-        ( "priceless.deliveryhopper", "Take it easy", "Hop across busy roads and get dinner to the door while it's hot.", "weekend", "casual" ),
-        ( "facepunch.blockparty", "Just one more", "Dodge deadly blocks and chase a new best in this 2D platformer.", "sports_esports", "twod" ),
+        ( "jco.drill", "#menu.home.go_solo", "#menu.home.make_another_run_and_beat_your_best_in_this_singleplayer_shooter", "person", "solo" ),
+        ( "glag.ex_zone", "#menu.home.team_up", "#menu.home.grab_your_friends_and_head_out_on_a_co_op_mission", "groups", "together" ),
+        ( "priceless.deliveryhopper", "#menu.home.take_it_easy", "#menu.home.hop_across_busy_roads_and_get_dinner_to_the_door_while_it_s_hot", "weekend", "casual" ),
+        ( "facepunch.blockparty", "#menu.home.just_one_more", "#menu.home.dodge_deadly_blocks_and_chase_a_new_best_in_this_2d_platformer", "sports_esports", "twod" ),
     };
 
     record Step( Package Package, string Title, string Task, string Icon, string Style )
@@ -86,6 +86,12 @@
 
     int DoneCount => steps.Count( x => x.Done );
     bool AllDone => steps.Count > 0 && DoneCount == steps.Count;
+
+    void OpenStep( Step step )
+    {
+        Discovery.Clicked( discovery, step.Package );
+        step.Package.OpenModal();
+    }
 
     bool refreshing;
     float nextRefresh;

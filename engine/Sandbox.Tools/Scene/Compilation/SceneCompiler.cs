@@ -12,6 +12,9 @@ namespace Editor;
 /// </summary>
 internal static partial class SceneCompiler
 {
+	static readonly object GenerationGate = new();
+	static readonly HashSet<string> ActiveGenerations = new( StringComparer.OrdinalIgnoreCase );
+
 	/// <summary>
 	/// What a compile is going to work on, worked out up front so it can be shown before anything
 	/// is built.
@@ -99,6 +102,7 @@ internal static partial class SceneCompiler
 			session.Cancel.ThrowIfCancellationRequested();
 			var sceneFolder = scene.Editor.GetSceneFolder()
 				?? throw new InvalidOperationException( "This scene has nowhere to write its compiled resources." );
+			var sourceRevision = CaptureSourceRevision( sourcePath );
 			session.Phase( "Copying scene" );
 			var sourceFile = scene.CreateSceneFile();
 
@@ -111,7 +115,7 @@ internal static partial class SceneCompiler
 					throw new InvalidOperationException( "Could not load the editable scene for compilation." );
 			}
 
-			return await Run( sources.Asset, sceneFolder, compiled, sourceFile.Id, sourcePath, settings, session );
+			return await Run( sources.Asset, sceneFolder, compiled, sourceFile.Id, sourcePath, editor, sourceRevision, settings, session );
 		}
 		finally
 		{
@@ -120,9 +124,40 @@ internal static partial class SceneCompiler
 	}
 
 	static async Task<string[]> Run( Asset sourceAsset, SceneFolder sceneFolder, Scene compiled, Guid sceneId, string sourcePath,
-		SceneCompilerSettings settings, SceneCompileSession session )
+		SceneEditorSession editor, SourceRevision sourceRevision, SceneCompilerSettings settings, SceneCompileSession session )
 	{
-		const string outputFolder = "/compiled";
+		var generation = Guid.NewGuid().ToString( "N" );
+		var outputFolder = $"/compiled/{generation}";
+		var generationPath = GetGenerationPath( sourceAsset, generation );
+
+		lock ( GenerationGate )
+			ActiveGenerations.Add( generationPath );
+
+		var published = false;
+		try
+		{
+			var result = await RunGeneration( sourceAsset, sceneFolder, compiled, sceneId, sourcePath, editor, sourceRevision, outputFolder, settings, session );
+			published = true;
+			CleanupPreviousGenerations( generationPath, GenerationGate, ActiveGenerations );
+			settings.SaveDefaults();
+			return result;
+		}
+		catch
+		{
+			if ( !published )
+				CleanupGeneration( generationPath );
+			throw;
+		}
+		finally
+		{
+			lock ( GenerationGate )
+				ActiveGenerations.Remove( generationPath );
+		}
+	}
+
+	static async Task<string[]> RunGeneration( Asset sourceAsset, SceneFolder sceneFolder, Scene compiled, Guid sceneId, string sourcePath,
+		SceneEditorSession editor, SourceRevision sourceRevision, string outputFolder, SceneCompilerSettings settings, SceneCompileSession session )
+	{
 		var resourceFolder = $"{System.IO.Path.ChangeExtension( sourceAsset.Path, null )}_scene_data{outputFolder}";
 		var discovered = DiscoverSources( compiled ).ToArray();
 		var meshes = Gather<MeshComponent>( discovered ).ToArray();
@@ -272,9 +307,6 @@ internal static partial class SceneCompiler
 
 		session.Phase( "Writing runtime scene" );
 		session.Cancel.ThrowIfCancellationRequested();
-		WriteScene( sourceAsset, sourcePath, file, settings );
-		settings.SaveDefaults();
-		session.Statistics = statistics;
 
 		var translucent = plans.Count( x => x.Translucent );
 		var aggregateCount = plans.Length - translucent;
@@ -284,7 +316,11 @@ internal static partial class SceneCompiler
 		if ( converted > 0 ) summary.Add( $"{converted:n0} converted {(converted == 1 ? "mesh" : "meshes")}" );
 		if ( collision.Count > 0 ) summary.Add( $"{collision.Count:n0} collision {(collision.Count == 1 ? "group" : "groups")}" );
 
-		return [.. summary];
+		var result = summary.ToArray();
+		WriteScene( sourceAsset, sourcePath, editor, sourceRevision, file, settings );
+		session.Statistics = statistics;
+
+		return result;
 	}
 
 	/// <summary>

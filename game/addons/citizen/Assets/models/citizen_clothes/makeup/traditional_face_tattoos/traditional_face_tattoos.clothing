@@ -13,8 +13,8 @@
   "Tags": null,
   "Parent": null,
   "Model": "models/citizen_clothes/makeup/traditional_face_tattoos/models/traditional_face_tattoos.vmdl",
-  "HumanAltModel": null,
-  "HumanAltFemaleModel": null,
+  "HumanAltModel": "models/citizen_clothes/makeup/traditional_face_tattoos/models/traditional_face_tattoos_human.vmdl",
+  "HumanAltFemaleModel": "models/citizen_clothes/makeup/traditional_face_tattoos/models/traditional_face_tattoos_human.vmdl",
   "SkinMaterial": null,
   "EyesMaterial": null,
   "MaterialGroup": null,
@@ -36,8 +36,9 @@
   "SteamItemDefinitionId": 445303,
   "Icon": {
     "Path": "models/citizen_clothes/makeup/traditional_face_tattoos/traditional_face_tattoos.clothing.png",
-    "Mode": "CitizenSkin",
-    "PositionOffset": "8.700002,0,0"
+    "Mode": "Head",
+    "PositionOffset": "8.700002,0,0",
+    "UsePositionOffset": false
   },
   "__references": [],
   "__version": 0

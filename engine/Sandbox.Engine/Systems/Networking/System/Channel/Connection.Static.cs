@@ -100,19 +100,20 @@ public abstract partial class Connection
 	/// </summary>
 	internal static void Reset()
 	{
-		_mockConnections.Clear();
+		Networking.System?.MockConnections.Clear();
 	}
 
-	static readonly Dictionary<Guid, Connection> _mockConnections = new();
 	private static Connection FindOrCreateMockConnection( ConnectionInfo info )
 	{
-		if ( _mockConnections.TryGetValue( info.ConnectionId, out var connection ) )
+		// Mocks route through their system's host, so each system keeps its own
+		var mocks = Networking.System.MockConnections;
+		if ( mocks.TryGetValue( info.ConnectionId, out var connection ) )
 			return connection;
 
 		connection = new MockConnection( info.ConnectionId );
 		connection.InitializeSystem( Networking.System );
 
-		_mockConnections[info.ConnectionId] = connection;
+		mocks[info.ConnectionId] = connection;
 		return connection;
 	}
 }

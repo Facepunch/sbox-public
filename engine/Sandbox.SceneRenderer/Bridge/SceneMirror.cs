@@ -31,8 +31,6 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 	internal RenderObject Find( SceneObject sceneObject ) => sceneObject is not null && objects.TryGetValue( sceneObject, out var obj ) ? obj : null;
 	readonly HashSet<SceneDirectionalLight> suns = new();
 
-	// Newest sky wins (CSceneSystem::CreateSkyBox).
-	readonly List<SceneSkyBox> skies = new();
 	readonly Dictionary<Model, RenderMesh> meshes = new();
 	// Shared draw-state variants; hash collisions are checked by value.
 	readonly Dictionary<(RenderMesh Mesh, int Hash), List<(RenderMesh.DrawState[] States, RenderMesh Mesh)>> variants = new();
@@ -48,7 +46,6 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 
 	Transform[] bones = new Transform[256];
 	bool sunDirty = true;
-	bool skyDirty = true;
 
 	const SceneObjectChange Everything = (SceneObjectChange)~0 & ~SceneObjectChange.Removed;
 
@@ -89,7 +86,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 	/// <summary>
 	/// Apply what changed since the last sync, for a camera about to render the world.
 	/// </summary>
-	public void Sync( SceneCamera camera )
+	public void Sync( SceneCamera camera, bool skyboxView = false )
 	{
 		lock ( gate )
 		{
@@ -102,7 +99,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		applying.Clear();
 
 		SyncAttributes();
-		SyncLighting( camera );
+		SyncLighting( camera, skyboxView );
 	}
 
 	void Apply( SceneObject sceneObject, SceneObjectChange change )
@@ -147,12 +144,12 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 				ApplyDecal( (DecalSceneObject)sceneObject, decal, change );
 				break;
 
-			case null when sceneObject is SceneDirectionalLight:
-				sunDirty = true;
+			case AggregateObject aggregate:
+				ApplyAggregate( sceneObject, aggregate, change );
 				break;
 
-			case null when sceneObject is SceneSkyBox:
-				skyDirty = true;
+			case null when sceneObject is SceneDirectionalLight:
+				sunDirty = true;
 				break;
 
 			case null when sceneObject is SceneLightProbe probe && lightProbes.TryGetValue( probe, out var volume ):
@@ -176,17 +173,15 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 	/// Reference-counted lightmap attributes shared by lighting key to preserve material batching.
 	/// Remove on last use to prevent reuse after map unload.
 	/// </summary>
-	void SetLightmap( MeshObject mesh, SceneObject sceneObject )
+	RenderAttributes AcquireLightmap( SceneObject sceneObject )
 	{
-		ReleaseLightmap( mesh );
-
 		var key = RenderContext.LightmapKey( sceneObject );
-		if ( key == 0 ) return;
+		if ( key == 0 ) return null;
 
 		if ( !lightmaps.TryGetValue( key, out var shared ) )
 		{
 			var attributes = RenderContext.CreateLightmapAttributes( sceneObject );
-			if ( attributes is null ) return;
+			if ( attributes is null ) return null;
 
 			shared = new SharedLightmap { Attributes = attributes };
 			lightmaps[key] = shared;
@@ -194,13 +189,11 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		}
 
 		shared.Users++;
-		mesh.LightmapAttributes = shared.Attributes;
+		return shared.Attributes;
 	}
 
-	void ReleaseLightmap( MeshObject mesh )
+	void ReleaseLightmap( RenderAttributes attributes )
 	{
-		var attributes = mesh.LightmapAttributes;
-		mesh.LightmapAttributes = null;
 		if ( attributes is null || !lightmapKeys.TryGetValue( attributes, out var key ) || !lightmaps.TryGetValue( key, out var shared ) ) return;
 		if ( --shared.Users > 0 ) return;
 
@@ -251,7 +244,10 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 			SceneCustomObject custom => new BridgeCustomObject( custom ),
 			SceneDynamicObject dynamic => new BridgeDynamicObject( dynamic ),
 			DecalSceneObject => new DecalObject( sceneObject.Transform ),
-			_ when sceneObject.GetType() == typeof( SceneObject ) => new MeshObject( null, sceneObject.Transform ),
+			SceneAggregateObject => AggregateFor( sceneObject ),
+
+			// A map's world geometry is native aggregates, which have no managed type of their own
+			_ when sceneObject.GetType() == typeof( SceneObject ) => AggregateFor( sceneObject ) ?? (RenderObject)new MeshObject( null, sceneObject.Transform ),
 			_ => null,
 		};
 
@@ -259,8 +255,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 
 		if ( obj is not null ) World.Add( obj );
 		else if ( sceneObject is SceneDirectionalLight sun ) suns.Add( sun );
-		else if ( sceneObject is SceneSkyBox sky ) skies.Add( sky );
-		else Count( sceneObject, 1 );
+		else if ( sceneObject is not SceneSkyBox ) Count( sceneObject, 1 );
 
 		return obj;
 	}
@@ -272,14 +267,19 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		if ( obj is MeshObject mesh )
 		{
 			attributed.Remove( mesh );
-			ReleaseLightmap( mesh );
+			ReleaseLightmap( mesh.LightmapAttributes );
+			mesh.LightmapAttributes = null;
+		}
+		else if ( obj is AggregateObject aggregate )
+		{
+			ReleaseLightmap( aggregate.LightmapAttributes );
+			aggregate.LightmapAttributes = null;
 		}
 
 		if ( sceneObject is SceneLightProbe probe && lightProbes.Remove( probe, out var volume ) ) World.LightProbeVolumes.Remove( volume );
 		else if ( obj is not null ) World.Remove( obj );
 		else if ( sceneObject is SceneDirectionalLight sun ) sunDirty |= suns.Remove( sun );
-		else if ( sceneObject is SceneSkyBox sky ) skyDirty |= skies.Remove( sky );
-		else Count( sceneObject, -1 );
+		else if ( sceneObject is not SceneSkyBox ) Count( sceneObject, -1 );
 	}
 
 	void Count( SceneObject sceneObject, int by )
@@ -305,8 +305,8 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 				meshChanged = true;
 
 				// Shared world lightmap attributes.
-				if ( drawn is { HasLightmappedDraws: true } ) SetLightmap( mesh, sceneObject );
-				else ReleaseLightmap( mesh );
+				ReleaseLightmap( mesh.LightmapAttributes );
+				mesh.LightmapAttributes = drawn is { HasLightmappedDraws: true } ? AcquireLightmap( sceneObject ) : null;
 			}
 		}
 
@@ -366,6 +366,45 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 			if ( !anchors.SequenceEqual( mesh.DeformationAnchors ) ) mesh.DeformationAnchors = anchors.ToArray();
 
 			mesh.LocalBounds = ToLocal( model.Bounds, mesh.Transform );
+		}
+	}
+
+	/// <summary>
+	/// An aggregate's model and fragments as native draws them, or null if the object isn't one.
+	/// </summary>
+	AggregateObject AggregateFor( SceneObject sceneObject )
+	{
+		var model = RenderContext.AggregateModel( sceneObject, out var lightmapped );
+		if ( MeshFor( model ) is not { } mesh ) return null;
+
+		return new AggregateObject( mesh, RenderContext.ReadAggregateFragments( sceneObject ) ) { Lightmapped = lightmapped };
+	}
+
+	/// <summary>
+	/// Mirror an aggregate's flags, tint and lightmaps. Its fragments are fixed when it's made.
+	/// </summary>
+	void ApplyAggregate( SceneObject sceneObject, AggregateObject aggregate, SceneObjectChange change )
+	{
+		if ( (change & SceneObjectChange.Visibility) != 0 )
+			aggregate.Visible = sceneObject.RenderingEnabled;
+
+		if ( (change & SceneObjectChange.Tint) != 0 )
+			aggregate.Tint = sceneObject.ColorTint;
+
+		if ( (change & SceneObjectChange.Flags) != 0 )
+		{
+			var flags = sceneObject.Flags;
+			ApplyLayerFlags( aggregate, flags );
+			aggregate.CastShadows = flags.CastShadows;
+			aggregate.IsStatic = flags.IsStatic;
+			aggregate.IsWorld = aggregate.IsStatic || flags.HasFlag( SceneObjectFlags.IsHammerGeometry );
+			aggregate.OcclusionCulling = !flags.HasFlag( SceneObjectFlags.NoOcclusionCulling );
+		}
+
+		if ( (change & SceneObjectChange.Added) != 0 && aggregate.Lightmapped )
+		{
+			ReleaseLightmap( aggregate.LightmapAttributes );
+			aggregate.LightmapAttributes = AcquireLightmap( sceneObject );
 		}
 	}
 
@@ -479,6 +518,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		{
 			custom.Tint = sceneObject.ColorTint;
 			custom.IsOpaque = sceneObject.Flags.IsOpaque && !sceneObject.Flags.IsTranslucent;
+			custom.WantsFrameBufferCopy = sceneObject.Flags.WantsFrameBufferCopy;
 			custom.DepthPrepass = !sceneObject.Flags.HasFlag( SceneObjectFlags.NoZPrepass );
 			custom.CastShadows = sceneObject.Flags.CastShadows;
 			custom.Visible = sceneObject.RenderingEnabled;
@@ -504,6 +544,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		mesh.DrawsOpaque = flags.HasFlag( SceneObjectFlags.IsOpaque );
 		mesh.DrawsTranslucent = flags.HasFlag( SceneObjectFlags.IsTranslucent );
 		mesh.DepthPrepass = !flags.HasFlag( SceneObjectFlags.NoZPrepass );
+		mesh.OcclusionCulling = !flags.HasFlag( SceneObjectFlags.NoOcclusionCulling );
 		mesh.WantsFrameBufferCopy = flags.HasFlag( SceneObjectFlags.WantsFrameBufferCopyTexture );
 		mesh.Decal = flags.HasFlag( SceneObjectFlags.IsDecal );
 		mesh.NeedsLightProbe = flags.HasFlag( SceneObjectFlags.NeedsLightProbe );
@@ -580,6 +621,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 			decal.EmissionEnergy = source.EmissionEnergy;
 			decal.SequenceIndex = source.SequenceIndex;
 			decal.ColorMix = source.ColorMix;
+			decal.BlendMode = source.BlendMode;
 			decal.ParallaxStrength = source.ParallaxStrength;
 			decal.SamplerIndex = source.SamplerIndex;
 			decal.CoverageAmount = source.CoverageAmount;
@@ -616,10 +658,10 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 	}
 
 	/// <summary>
-	/// Refresh dirty sun/sky state and camera lighting (<c>CameraRenderer.Configure</c>).
+	/// Refresh dirty sun state, per-view sky selection and camera lighting (<c>CameraRenderer.Configure</c>).
 	/// Uses the first enabled sun; native uses the last encountered by its binner.
 	/// </summary>
-	void SyncLighting( SceneCamera camera )
+	void SyncLighting( SceneCamera camera, bool skyboxView )
 	{
 		var lighting = World.Lighting;
 
@@ -653,8 +695,9 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 				lighting.SunBakeIndex = packs ? bakeIndex : -1;
 				lighting.SunBaked = packs && bakeIndex >= 0 ? packed : null;
 
-				// Baked suns exclude static casters (ShadowMapper.FromNative).
-				lighting.SunShadowsBaked = packs && (flags & LightTypeFlagsBaked) != 0;
+				var baked = packs && (flags & LightTypeFlagsBaked) != 0;
+				lighting.SunShadowsBaked = baked && !sun.IncludeStaticShadowCasters;
+				lighting.SunShadows &= !baked || (flags & LightTypeFlagsMixedShadows) != 0;
 				lighting.SunContactShadows = sun.ContactShadows;
 				lighting.SunFogStrength = sun.FogStrength;
 			}
@@ -668,23 +711,15 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 			}
 		}
 
-		if ( skyDirty )
+		// Sky selection is per view: cameras can exclude different skies without changing the world.
+		// Native's child skybox view does not inherit the parent camera's object-tag filters.
+		var sky = skyboxView ? source.GetSky() : source.GetSky( camera.RenderTags, camera.ExcludeTags );
+		lighting.SkyMaterial = sky?.Material;
+		if ( sky is not null )
 		{
-			skyDirty = false;
-
-			SceneSkyBox sky = null;
-			for ( int i = skies.Count - 1; i >= 0 && sky is null; i-- )
-			{
-				if ( skies[i].IsValid() && skies[i].RenderingEnabled ) sky = skies[i];
-			}
-
-			lighting.SkyMaterial = sky?.Material;
-			if ( sky is not null )
-			{
-				lighting.SkyTint = sky.SkyTint;
-				lighting.SkyRotation = sky.Transform.Rotation;
-				lighting.SkyFog = sky.FogParams;
-			}
+			lighting.SkyTint = sky.SkyTint;
+			lighting.SkyRotation = sky.Transform.Rotation;
+			lighting.SkyFog = sky.FogParams;
 		}
 
 		lighting.AmbientColor = source.AmbientLightColor + camera.AmbientLightColor;

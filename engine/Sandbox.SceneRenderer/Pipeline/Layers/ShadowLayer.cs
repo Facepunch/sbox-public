@@ -20,8 +20,16 @@ internal sealed class ShadowLayer : MeshLayer
 
 	public override bool IsNeeded( RenderFrame frame ) => frame.System.ShadowMaps.Passes.Length > 0;
 
-	// Shadow maps only: nothing the depth chain or contact shadows touch
-	public override bool BesideAsyncCompute => true;
+	// Custom shadow casters may run arbitrary command lists, so keep those behind the compute join.
+	public override FrameResources Reads( RenderFrame frame )
+	{
+		foreach ( var pass in frame.System.ShadowMaps.Passes )
+			if ( !frame.System.CanRecordOffMainThread( pass, this ) ) return FrameResources.Untracked;
+
+		return FrameResources.None;
+	}
+
+	public override FrameResources Writes => FrameResources.ShadowMaps;
 
 	public override void AddWork( FrameRecorder recorder, RenderFrame frame )
 	{
@@ -45,8 +53,7 @@ internal sealed class ShadowsReadyLayer : RenderLayer
 	public ShadowsReadyLayer() : base( "Shadows Ready" ) { }
 
 	public override bool IsNeeded( RenderFrame frame ) => frame.System.ShadowMaps.Passes.Length > 0;
-
-	public override bool BesideAsyncCompute => true;
+	public override FrameResources Reads( RenderFrame frame ) => FrameResources.ShadowMaps;
 
 	public override void Record( RenderFrame frame, RenderContext rc, ref RenderStats stats ) => frame.System.ShadowMaps.BarrierToRead( rc );
 }

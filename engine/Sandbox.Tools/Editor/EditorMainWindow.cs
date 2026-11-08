@@ -17,8 +17,23 @@ public class EditorMainWindow : DockWindow, IUndoSystemProvider
 
 	internal ConsoleWidget Console => ConsoleWidget.Instance;
 
+	bool _isExiting;
+
+	/// <summary>
+	/// Native window teardown happens after the resource libraries have been released.
+	/// The application's exit decision has already been made at this point.
+	/// </summary>
+	[Event( "app.exit" )]
+	void OnApplicationExit()
+	{
+		_isExiting = true;
+	}
+
 	protected override bool OnClose()
 	{
+		if ( _isExiting )
+			return true;
+
 		// Check the editor scenes for one with unsaved changes
 		if ( GetUnsavedScenes().Any() || GetUnsavedResources().Any() )
 		{
@@ -324,6 +339,9 @@ public class EditorMainWindow : DockWindow, IUndoSystemProvider
 		// Register our menu bar and dock options, doesn't open anything
 		MenuBar.RegisterNamed( "Editor", MenuBar );
 		DockAttribute.RegisterWindow( "Editor", this );
+
+		// Dev tools open in a dock here, not a window of their own
+		DevToolsDock.Install( this );
 
 		// Reopen last session's scenes so their docks exist before the layout is restored
 		SceneEditorSession.RestoreOpenSessions();

@@ -175,11 +175,6 @@ class ProjectCreatorPanel : Panel
 		}
 	}
 
-	static string MakeIdent( string title )
-	{
-		return System.Text.RegularExpressions.Regex.Replace( title.ToLower(), "[^A-Za-z0-9_]", "_" ).Trim( '_' );
-	}
-
 	string ProjectTitle => string.IsNullOrWhiteSpace( _nameBox.Text ) ? "My Project" : _nameBox.Text.Trim();
 
 	string ProjectFolder => string.IsNullOrWhiteSpace( _folderBox.Text ) ? LauncherPreferences.DefaultProjectLocation : _folderBox.Text.Trim();
@@ -188,7 +183,7 @@ class ProjectCreatorPanel : Panel
 	{
 		get
 		{
-			var ident = MakeIdent( ProjectTitle );
+			var ident = ProjectTemplateFiles.MakeIdent( ProjectTitle );
 			return ident.Length == 0 ? "my_project" : ident;
 		}
 	}
@@ -235,7 +230,7 @@ class ProjectCreatorPanel : Panel
 
 		if ( _selected is not null )
 		{
-			CopyTemplate( _selected.Path, projectPath, config.Ident, config.Title );
+			ProjectTemplateFiles.Copy( _selected.Path, projectPath, config.Ident, config.Title );
 		}
 
 		var configPath = Path.Combine( projectPath, $"{config.Ident}.sbproj" );
@@ -252,36 +247,5 @@ class ProjectCreatorPanel : Panel
 		}
 
 		OnDone?.Invoke( configPath );
-	}
-
-	/// <summary>
-	/// Copy a template into place, replacing $ident and $title the way the Qt creator does. The
-	/// template's own $ident.sbproj is skipped - we write our own.
-	/// </summary>
-	static void CopyTemplate( string from, string to, string ident, string title )
-	{
-		foreach ( var file in Directory.EnumerateFiles( from ) )
-		{
-			if ( Path.GetFileName( file ) == "$ident.sbproj" ) continue;
-
-			var target = Path.Combine( to, Path.GetFileName( file ).Replace( "$ident", ident ) );
-
-			if ( file.EndsWith( ".cs" ) || file.EndsWith( ".json" ) )
-			{
-				var text = File.ReadAllText( file ).Replace( "$title", title ).Replace( "$ident", ident );
-				File.WriteAllText( target, text );
-			}
-			else
-			{
-				File.Copy( file, target, true );
-			}
-		}
-
-		foreach ( var directory in Directory.EnumerateDirectories( from ) )
-		{
-			var target = Path.Combine( to, Path.GetFileName( directory ) );
-			Directory.CreateDirectory( target );
-			CopyTemplate( directory, target, ident, title );
-		}
 	}
 }

@@ -1,0 +1,27 @@
+
+include "animationsystem2/animationskeleton.h"
+
+[ResourceHandle:HAnimSkeleton]
+native class CAnimSkeletonResource as NativeEngine.HAnimSkeleton
+{
+	int GetNumBones();
+	int GetLowLODBoneCount();
+
+	string GetBoneName( int idx );
+
+	int GetParentBoneIndex( int idx );
+	Transform GetBoneParentSpaceTransformS2( int idx );
+	Transform GetBoneModelSpaceTransformS2( int idx );
+
+	bool IsPropSkeleton();
+
+	bool HasSyntheticRootBone();
+
+	int GetNumSecondarySkeletons();
+
+	string GetSecondarySkeletonName( int idx );
+
+	int GetNumMaskDefinitions();
+
+	string GetMaskDefinitionName( int idx );
+}

@@ -302,7 +302,11 @@ public partial class Panel
 		if ( SiblingIndex != index && Parent is { } parent )
 		{
 			parent._renderChildrenDirty = true;
-			if ( FindRootPanel() is { } root ) root.FixedOverlaysDirty = true;
+			if ( FindRootPanel() is { } root )
+			{
+				root.FixedOverlaysDirty = true;
+				StyleSelectorsChanged( true, true, root );
+			}
 		}
 		SiblingIndex = index;
 

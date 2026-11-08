@@ -37,7 +37,7 @@ public class GlobalContextScopeTests
 	/// Entering the same context from the same place again lands on the same execution context,
 	/// so a scope in a loop doesn't allocate.
 	/// </summary>
-	[TestMethod]
+	[TestMethod, TestCategory( Allocations.Category )]
 	public void RepeatedScopesReuseTheExecutionContext()
 	{
 		ExecutionContext first;
@@ -45,16 +45,15 @@ public class GlobalContextScopeTests
 			first = ExecutionContext.Capture();
 
 		var outside = ExecutionContext.Capture();
-		Assert.AreSame( first, first ); // warm up
-
-		long before = GC.GetAllocatedBytesForCurrentThread();
-		for ( int i = 0; i < 100; i++ )
+		Allocations.AssertSettles( "100 scopes", () =>
 		{
-			using var scope = new GlobalContext.GlobalContextScope( GlobalContext.Menu );
-			Assert.AreSame( first, ExecutionContext.Capture() );
-		}
+			for ( int i = 0; i < 100; i++ )
+			{
+				using var scope = new GlobalContext.GlobalContextScope( GlobalContext.Menu );
+				Assert.AreSame( first, ExecutionContext.Capture() );
+			}
+		} );
 
-		Assert.AreEqual( 0L, GC.GetAllocatedBytesForCurrentThread() - before );
 		Assert.AreSame( outside, ExecutionContext.Capture() );
 	}
 

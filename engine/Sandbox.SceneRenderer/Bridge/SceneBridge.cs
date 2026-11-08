@@ -1,21 +1,15 @@
 using NativeEngine;
 using System.Linq;
 using Sandbox.Rendering;
-using System.Runtime.CompilerServices;
 
 namespace Sandbox.SceneRenderer.Bridge;
 
 /// <summary>
 /// <c>r_managed_scene</c> backend: one world mirror per scene and render system per camera.
-/// Registered on assembly load; <see cref="CameraStages"/> runs camera effects and UI at native hook points.
+/// Registered at startup (<see cref="EngineHooks"/>); <see cref="CameraStages"/> runs camera effects and UI at native hook points.
 /// </summary>
 internal sealed class SceneBridge : IManagedSceneRenderer
 {
-#pragma warning disable CA2255 // Register on demand when the engine loads this assembly.
-	[ModuleInitializer]
-	internal static void Register() => ManagedSceneRendering.Renderer = new SceneBridge();
-#pragma warning restore CA2255
-
 	/// <summary>
 	/// Strongly owned world/camera state requires explicit disposal of native resources.
 	/// Released on deletion or shutdown; unreported invalid entries are swept next frame.
@@ -159,15 +153,7 @@ internal sealed class SceneBridge : IManagedSceneRenderer
 	/// </summary>
 	void SyncSkybox( SceneMirror mirror, SceneCamera camera )
 	{
-		SceneSkybox3D source = null;
-		foreach ( var candidate in camera.World.InternalSkyboxWorlds )
-		{
-			if ( candidate is not null && candidate.IsValid )
-			{
-				source = candidate;
-				break;
-			}
-		}
+		var source = camera.World.GetRenderingSkybox();
 
 		if ( source is null )
 		{
@@ -176,12 +162,13 @@ internal sealed class SceneBridge : IManagedSceneRenderer
 		}
 
 		var skyMirror = MirrorFor( source.SkyboxWorld );
-		skyMirror.Sync( camera );
+		skyMirror.Sync( camera, skyboxView: true );
 
 		var skybox = mirror.World.Skybox3D;
 		if ( skybox?.World != skyMirror.World ) skybox = mirror.World.Skybox3D = new Skybox3D( skyMirror.World );
 		skybox.Origin = source.Origin;
 		skybox.Scale = source.Scale;
+		skybox.Fog = camera.EnablePostProcessing ? source.ResolveFog( camera ) : null;
 	}
 
 	/// <summary>
@@ -197,6 +184,8 @@ internal sealed class SceneBridge : IManagedSceneRenderer
 		view.ZFar = camera.ZFar;
 		view.ClearColor = camera.BackgroundColor;
 		view.CameraAttributes = camera.Attributes;
+		// Captures with ViewSetup overrides use CameraRenderer; this bridge draws the camera's resolved view.
+		view.Fog = camera.ResolveFog( default );
 
 		// mat_toolsvis overrides camera debug mode (CameraRenderer.Configure).
 		view.ToolsView = camera.ToolsView;

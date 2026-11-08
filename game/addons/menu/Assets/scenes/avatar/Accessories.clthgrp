@@ -311,7 +311,7 @@
         },
         {
           "Name": "pendant",
-          "Title": "Trousers",
+          "Title": "Pendant",
           "Icon": {
             "$compiler": "texture",
             "$source": "svgsource",

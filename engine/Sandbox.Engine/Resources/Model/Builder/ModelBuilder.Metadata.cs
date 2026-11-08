@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace Sandbox;
 
 public sealed partial class ModelBuilder
@@ -6,6 +8,7 @@ public sealed partial class ModelBuilder
 	private BBox viewBounds;
 	private Vector3 eyePosition;
 	private float maxEyeDeflection;
+	private Dictionary<string, object> modelData;
 
 	private void ApplyMetadata( NativeEngine.ModelBuilder modelBuilder )
 	{
@@ -13,6 +16,37 @@ public sealed partial class ModelBuilder
 		modelBuilder.SetViewBounds( viewBounds.Mins, viewBounds.Maxs );
 		modelBuilder.SetEyePosition( eyePosition );
 		modelBuilder.SetMaxEyeDeflection( maxEyeDeflection );
+
+		if ( modelData is null )
+			return;
+
+		var json = JsonSerializer.Serialize( modelData, Model.DataJsonOptions );
+		var data = NativeEngine.EngineGlue.JsonToKeyValues3( json );
+		if ( !data.IsValid )
+			throw new InvalidOperationException( "Could not convert model game data to KeyValues3." );
+
+		try
+		{
+			if ( !modelBuilder.SetModelKeyValues( data ) )
+				throw new InvalidOperationException( "Could not serialize model game data." );
+		}
+		finally
+		{
+			data.DeleteThis();
+		}
+	}
+
+	/// <summary>
+	/// Sets game data read by <see cref="Model.GetData{T}"/>. Replaces any data for the same node.
+	/// Use an array for types whose GameData attribute allows multiple entries.
+	/// </summary>
+	public ModelBuilder WithData<T>( T data )
+	{
+		ArgumentNullException.ThrowIfNull( data );
+		var key = Model.DeduceKeyName( typeof( T ) );
+		modelData ??= new();
+		modelData[key] = data;
+		return this;
 	}
 
 	/// <summary>

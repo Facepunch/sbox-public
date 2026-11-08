@@ -227,34 +227,41 @@ internal class ConsoleWidget : Widget
 
 	void ClearStatusBar()
 	{
-		if ( EditorWindow is null )
-			return;
+		var statusBar = EditorWindow.IsValid() ? EditorWindow.StatusBar : null;
 
-		if ( CurrentStatusBarLog != null )
+		if ( CurrentStatusBarLog.IsValid() )
 		{
-			EditorWindow.StatusBar.RemoveWidget( CurrentStatusBarLog );
-			CurrentStatusBarLog?.Destroy();
-			CurrentStatusBarLog = null;
+			if ( statusBar.IsValid() )
+				statusBar.RemoveWidget( CurrentStatusBarLog );
+
+			CurrentStatusBarLog.Destroy();
 		}
 
-		EditorWindow.StatusBar.RemoveWidget( Message.Button );
-		EditorWindow.StatusBar.RemoveWidget( Warning.Button );
-		EditorWindow.StatusBar.RemoveWidget( Error.Button );
+		CurrentStatusBarLog = null;
 
-		// Get rid of old buttons
-		Message.Button?.Destroy();
+		foreach ( var button in new[] { Message.Button, Warning.Button, Error.Button } )
+		{
+			if ( !button.IsValid() )
+				continue;
+
+			if ( statusBar.IsValid() )
+				statusBar.RemoveWidget( button );
+
+			button.Destroy();
+		}
+
 		Message.Button = default;
-
-		Warning.Button?.Destroy();
 		Warning.Button = default;
-
-		Error.Button?.Destroy();
 		Error.Button = default;
 	}
 
 	void UpdateStatusBar( LogEvent e )
 	{
-		if ( CurrentStatusBarLog == null )
+		// The status bar and its children can be destroyed before this dock widget.
+		if ( !EditorWindow.IsValid() || !EditorWindow.StatusBar.IsValid() )
+			return;
+
+		if ( !CurrentStatusBarLog.IsValid() )
 		{
 			CurrentStatusBarLog = new StatusBarLog( this, e );
 			EditorWindow.StatusBar.AddWidgetLeft( CurrentStatusBarLog, 2 );
@@ -870,7 +877,7 @@ internal class ConsoleWidget : Widget
 	[Event( "scene.startplay" )]
 	private static void OnStartPlay()
 	{
-		if ( EditorPreferences.ClearConsoleOnPlay )
-			ConsoleWidget.Instance?.Clear();
+		if ( EditorPreferences.ClearConsoleOnPlay && Instance.IsValid() )
+			Instance.Clear();
 	}
 }

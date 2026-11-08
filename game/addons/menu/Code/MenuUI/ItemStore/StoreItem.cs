@@ -42,13 +42,13 @@ public static class StoreItem
 			{
 				var days = item.DaysLeft;
 				if ( days is null ) return null;
-				if ( days <= 0 ) return "Leaving now";
+				if ( days <= 0 ) return "#menu.store.leaving_now";
 				if ( days < 1 )
 				{
 					var hours = System.Math.Max( 1, (int)(days * 24) );
-					return hours == 1 ? "Leaving in 1 hour" : $"Leaving in {hours} hours";
+					return hours == 1 ? "#menu.store.leaving_in_1_hour" : $"Leaving in {hours} hours";
 				}
-				if ( days < 2 ) return "Leaving tomorrow";
+				if ( days < 2 ) return "#menu.store.leaving_tomorrow";
 				return $"Leaving in {System.Math.Floor( days.Value )} days";
 			}
 		}
@@ -58,7 +58,7 @@ public static class StoreItem
 		{
 			get
 			{
-				if ( string.IsNullOrEmpty( item.Category ) ) return "Other";
+				if ( string.IsNullOrEmpty( item.Category ) ) return Language.GetPhrase( "menu.store.other" );
 
 				var sb = new System.Text.StringBuilder();
 				foreach ( var c in item.Category )

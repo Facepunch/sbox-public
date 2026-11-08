@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.CommandLine;
 using Facepunch.Steps;
 using static Facepunch.Constants;
@@ -24,13 +25,13 @@ internal class Program
 		AddTestCommand( rootCommand );
 		AddBuildShadersCommand( rootCommand );
 		AddShaderStatsCommand( rootCommand );
+		AddRenderTestsCommand( rootCommand );
 		AddGenerateSolutionsCommand( rootCommand );
 		AddSyncPublicRepoCommand( rootCommand );
 		AddWriteVersionCommand( rootCommand );
 		AddNvPatchCommand( rootCommand );
 		AddSignBinariesCommand( rootCommand );
 		AddBuildAddonsCommand( rootCommand );
-		AddGameCacheCommand( rootCommand );
 		AddUploadSymbolsCommand( rootCommand );
 		AddUploadDocsCommand( rootCommand );
 		AddSentryReleaseCommand( rootCommand );
@@ -40,7 +41,9 @@ internal class Program
 		AddInstallGitHooksCommand( rootCommand );
 		AddDownloadThirdPartyCommand( rootCommand );
 		AddUploadBuildArtifactsCommand( rootCommand );
-		AddCheckNativeTouchedCommand( rootCommand );
+		AddPullRequestNativeCommand( rootCommand );
+		AddPublishBuildCommand( rootCommand );
+		AddSummaryCommand( rootCommand );
 		AddShaderSpecializationExperimentCommand( rootCommand );
 		var complexSpecialization = new Command( "test-complex-specialization", "Compare full complex.shader macro/specialized compiles and rendered bent-normal output (requires built engine/tests)" );
 		complexSpecialization.SetHandler( () => Environment.ExitCode = (int)new TestComplexSpecialization().Run() );
@@ -48,8 +51,13 @@ internal class Program
 		AddNotifySlackCommand( rootCommand );
 		AddReportBuildCommand( rootCommand );
 
+		var timer = Stopwatch.StartNew();
 		var result = rootCommand.Invoke( args );
-		return result != 0 ? result : Environment.ExitCode;
+		var exitCode = result != 0 ? result : Environment.ExitCode;
+
+		GitHubActions.EndGroup();
+		GitHubActions.RecordStep( args.FirstOrDefault(), timer.Elapsed, exitCode == 0 );
+		return exitCode;
 	}
 
 	// ── Compound commands ─────────────────────────────────────────────────────
@@ -63,16 +71,32 @@ internal class Program
 		var cleanOption = new Option<bool>( "--clean", getDefaultValue: () => false );
 		var skipNativeOption = new Option<bool>( "--skip-native", getDefaultValue: () => false );
 		var skipManagedOption = new Option<bool>( "--skip-managed", getDefaultValue: () => false );
+		var nvpatchOption = new Option<bool>( "--nvpatch",
+			description: "Apply NvPatch to the game executables once they're built",
+			getDefaultValue: () => false );
+		var writeVersionOption = new Option<bool>( "--write-version",
+			description: "Stamp game/.version with this build's version first, as write-version does",
+			getDefaultValue: () => false );
 
 		cmd.AddOption( configOption );
 		cmd.AddOption( cleanOption );
 		cmd.AddOption( skipNativeOption );
 		cmd.AddOption( skipManagedOption );
+		cmd.AddOption( nvpatchOption );
+		cmd.AddOption( writeVersionOption );
 
-		cmd.SetHandler( ( BuildConfiguration config, bool clean, bool skipNative, bool skipManaged ) =>
+		cmd.SetHandler( ( BuildConfiguration config, bool clean, bool skipNative, bool skipManaged, bool nvpatch, bool writeVersion ) =>
 		{
-			Environment.ExitCode = (int)Build.Run( config, clean, skipNative, skipManaged );
-		}, configOption, cleanOption, skipNativeOption, skipManagedOption );
+			GitHubActions.Title = skipNative == skipManaged ? "Build" : skipNative ? "Managed" : "Native";
+
+			var result = writeVersion ? new WriteVersion().Run() : ExitCode.Success;
+			if ( result == ExitCode.Success )
+				result = Build.Run( config, clean, skipNative, skipManaged );
+			if ( result == ExitCode.Success && nvpatch )
+				result = new NvPatch().Run();
+
+			Environment.ExitCode = (int)result;
+		}, configOption, cleanOption, skipNativeOption, skipManagedOption, nvpatchOption, writeVersionOption );
 
 		rootCommand.Add( cmd );
 	}
@@ -115,7 +139,9 @@ internal class Program
 	private static void AddBuildContentCommand( RootCommand rootCommand )
 	{
 		var cmd = new Command( "build-content", "Build game content" );
-		cmd.SetHandler( () => { Environment.ExitCode = (int)new BuildContent().Run(); } );
+		var rootOption = new Option<string>( "--root", description: "Only build the content root at this path under game/, with whatever it reads from the others", getDefaultValue: () => null );
+		cmd.AddOption( rootOption );
+		cmd.SetHandler( ( string root ) => Environment.ExitCode = (int)new BuildContent( root ).Run(), rootOption );
 		rootCommand.Add( cmd );
 	}
 
@@ -143,17 +169,21 @@ internal class Program
 		var forcedOption = new Option<bool>( "--forced",
 			description: "Force rebuild all shaders",
 			getDefaultValue: () => false );
+		var seedOption = new Option<bool>( "--seed",
+			description: "Start from the newest published compiled shaders, so only changed shaders compile",
+			getDefaultValue: () => false );
 		cmd.AddOption( forcedOption );
-		cmd.SetHandler( ( bool forced ) =>
+		cmd.AddOption( seedOption );
+		cmd.SetHandler( ( bool forced, bool seed ) =>
 		{
-			Environment.ExitCode = (int)new BuildShaders( forced ).Run();
-		}, forcedOption );
+			Environment.ExitCode = (int)new BuildShaders( forced, seed ).Run();
+		}, forcedOption, seedOption );
 		rootCommand.Add( cmd );
 	}
 
 	private static void AddShaderStatsCommand( RootCommand rootCommand )
 	{
-		var cmd = new Command( "shader-stats", "Compile every shader combo with AMD's Radeon GPU Analyzer and write register use and occupancy to docs/shaders/shader-stats.md" );
+		var cmd = new Command( "shader-stats", "Compile every shader combo with AMD's Radeon GPU Analyzer and write register use and occupancy to docs/reference/shader-stats.md" );
 		var asicOption = new Option<string[]>( "--asic",
 			description: "Target to analyze, repeatable. The first one gets the detailed tables",
 			getDefaultValue: () => ShaderStats.DefaultAsics )
@@ -168,6 +198,45 @@ internal class Program
 		{
 			Environment.ExitCode = (int)new ShaderStats( asics, shaders ).Run();
 		}, asicOption, shaderOption );
+		rootCommand.Add( cmd );
+	}
+
+	private static void AddRenderTestsCommand( RootCommand rootCommand )
+	{
+		var cmd = new Command( "render-tests", "Render SceneLab presets on Lavapipe (software Vulkan, no GPU needed) and check them against the golden truth images in engine/Tests/GoldenTruth" );
+		var suiteOption = new Option<string>( "--suite",
+			description: "Which presets: core (the renderer), extended (features built on it) or all",
+			getDefaultValue: () => "all" );
+		var presetOption = new Option<string[]>( "--preset",
+			description: "Preset to render, repeatable, instead of a suite",
+			getDefaultValue: () => [] )
+		{ AllowMultipleArgumentsPerToken = true };
+		var updateOption = new Option<bool>( "--update",
+			description: "Write each frame as its preset's golden truth image",
+			getDefaultValue: () => false );
+		var pullRequestOption = new Option<bool>( "--pull-request",
+			description: "On a pull request, run only with the render-tests label, or when it changes rendering (which adds the label); skip with skip-render-tests",
+			getDefaultValue: () => false );
+		var slackOption = new Option<bool>( "--notify-slack",
+			description: "Tell Slack when they fail",
+			getDefaultValue: () => false );
+		cmd.AddOption( suiteOption );
+		cmd.AddOption( presetOption );
+		cmd.AddOption( updateOption );
+		cmd.AddOption( pullRequestOption );
+		cmd.AddOption( slackOption );
+		cmd.SetHandler( ( string suite, string[] presets, bool update, bool pullRequest, bool notifySlack ) =>
+		{
+			if ( presets.Length == 0 ) presets = RenderTests.Suite( suite );
+			if ( presets is null )
+			{
+				Log.Error( $"Unknown suite '{suite}': core, extended or all." );
+				Environment.ExitCode = (int)ExitCode.Failure;
+				return;
+			}
+
+			Environment.ExitCode = (int)new RenderTests( presets, update, pullRequest, notifySlack ).Run();
+		}, suiteOption, presetOption, updateOption, pullRequestOption, slackOption );
 		rootCommand.Add( cmd );
 	}
 
@@ -226,13 +295,6 @@ internal class Program
 	{
 		var cmd = new Command( "build-addons", "Build addons and menu" );
 		cmd.SetHandler( () => { Environment.ExitCode = (int)new BuildAddons().Run(); } );
-		rootCommand.Add( cmd );
-	}
-
-	private static void AddGameCacheCommand( RootCommand rootCommand )
-	{
-		var cmd = new Command( "game-cache", "Create game cache" );
-		cmd.SetHandler( () => { Environment.ExitCode = (int)new GameCache().Run(); } );
 		rootCommand.Add( cmd );
 	}
 
@@ -301,11 +363,15 @@ internal class Program
 		var nativeOnlyOption = new Option<bool>( "--native-only",
 			description: "Download only native binaries",
 			getDefaultValue: () => false );
+		var shadersOnlyOption = new Option<bool>( "--shaders-only",
+			description: "Download only compiled shaders, to seed build-shaders",
+			getDefaultValue: () => false );
 		cmd.AddOption( nativeOnlyOption );
-		cmd.SetHandler( ( bool nativeOnly ) =>
+		cmd.AddOption( shadersOnlyOption );
+		cmd.SetHandler( ( bool nativeOnly, bool shadersOnly ) =>
 		{
-			Environment.ExitCode = (int)new DownloadPublicArtifacts( nativeOnly ).Run();
-		}, nativeOnlyOption );
+			Environment.ExitCode = (int)new DownloadPublicArtifacts( nativeOnly, shadersOnly ).Run();
+		}, nativeOnlyOption, shadersOnlyOption );
 		rootCommand.Add( cmd );
 	}
 
@@ -337,13 +403,60 @@ internal class Program
 		rootCommand.Add( cmd );
 	}
 
-	private static void AddCheckNativeTouchedCommand( RootCommand rootCommand )
+	private static void AddPullRequestNativeCommand( RootCommand rootCommand )
 	{
-		var cmd = new Command( "check-native-touched", "Check if the PR touches native code; writes native_touched output" );
+		var cmd = new Command( "pr-native", "Native binaries for a pull request: reuse the public ones when the PR doesn't touch native code, otherwise build them" );
+		var configOption = new Option<BuildConfiguration>( "--config",
+			getDefaultValue: () => BuildConfiguration.Developer );
+		var cleanOption = new Option<bool>( "--clean", getDefaultValue: () => false );
+		cmd.AddOption( configOption );
+		cmd.AddOption( cleanOption );
+		cmd.SetHandler( ( BuildConfiguration config, bool clean ) =>
+		{
+			Environment.ExitCode = (int)PullRequestNative.Run( config, clean );
+		}, configOption, cleanOption );
+		rootCommand.Add( cmd );
+	}
+
+	private static void AddPublishBuildCommand( RootCommand rootCommand )
+	{
+		var cmd = new Command( "publish-build", "Upload the runnable build zip to R2, then report the build to the backend" );
 		cmd.SetHandler( () =>
 		{
-			Environment.ExitCode = (int)CheckNativeTouched.Run();
+			if ( new UploadBuildArtifacts().Run() != ExitCode.Success )
+			{
+				Environment.ExitCode = (int)ExitCode.Failure;
+				return;
+			}
+
+			// The build is already published; a backend hiccup shouldn't fail the job.
+			if ( new ReportBuild().Run() != ExitCode.Success )
+			{
+				Log.Warning( "Couldn't report the build to the backend." );
+				GitHubActions.Note( "not reported to the backend" );
+			}
 		} );
+		rootCommand.Add( cmd );
+	}
+
+	private static void AddSummaryCommand( RootCommand rootCommand )
+	{
+		var cmd = new Command( "summary", "Write the GitHub Actions job summary from the steps run so far" );
+		var jobStatusOption = new Option<string>( "--job-status",
+			description: "The job's status so far (job.status), to notify Slack about failures",
+			getDefaultValue: () => null );
+		var slackOption = new Option<bool>( "--notify-slack",
+			description: "Send a Slack notification when the job status is failure",
+			getDefaultValue: () => false );
+		cmd.AddOption( jobStatusOption );
+		cmd.AddOption( slackOption );
+		cmd.SetHandler( ( string jobStatus, bool notifySlack ) =>
+		{
+			GitHubActions.WriteSummary();
+
+			if ( notifySlack && jobStatus == "failure" )
+				Environment.ExitCode = (int)NotifySlack.Run();
+		}, jobStatusOption, slackOption );
 		rootCommand.Add( cmd );
 	}
 

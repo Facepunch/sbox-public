@@ -10,6 +10,20 @@ public class SceneLight : SceneObject
 {
 	internal CSceneLightObject lightNative;
 
+	/// <summary>
+	/// Changes when the light moves or its range changes, invalidating cached spatial queries.
+	/// </summary>
+	internal int BoundsVersion { get; private set; }
+
+	/// <summary>
+	/// Updates the scene-owned modulation candidates and the managed renderer's light mirror.
+	/// </summary>
+	internal void SetModulatorRange( uint offset, uint count )
+	{
+		lightNative.SetLightModulatorRange( offset, count );
+		NotifyChanged( Rendering.SceneObjectChange.Settings );
+	}
+
 	internal SceneLight() { }
 	internal SceneLight( HandleCreationData _ ) { }
 
@@ -32,6 +46,7 @@ public class SceneLight : SceneObject
 		{
 			if ( Radius == value ) return;
 			lightNative.SetRadius( value ); NotifyChanged( Rendering.SceneObjectChange.Settings );
+			BoundsVersion++;
 		}
 	}
 
@@ -61,6 +76,24 @@ public class SceneLight : SceneObject
 		// Note: to make these numbers sane I'm doing some calculation here
 		get { return lightNative.GetQuadraticAttn() * 10000.0f; }
 		set { lightNative.SetQuadraticAttn( value / 10000.0f ); NotifyChanged( Rendering.SceneObjectChange.Settings ); }
+	}
+
+	/// <summary>
+	/// Makes this a baked light addressed by probe/lightmap index textures (0-254).
+	/// Pass -1 to restore dynamic lighting. Index 255 is reserved for an empty texture channel.
+	/// </summary>
+	public void SetBakedLightIndex( int index, bool mixedShadows = false )
+	{
+		if ( index is < -1 or > 254 )
+			throw new ArgumentOutOfRangeException( nameof( index ) );
+		lightNative.SetBakeLightIndex( index );
+		lightNative.SetBakeLightIndexScale( 1.0f );
+		lightNative.SetUsesIndexedBakedLighting( index >= 0 );
+		var flags = lightNative.GetLightFlags();
+		flags &= ~(16u | 32u);
+		if ( index >= 0 ) flags |= 32u | (mixedShadows ? 16u : 0u);
+		lightNative.SetLightFlags( flags );
+		NotifyChanged( Rendering.SceneObjectChange.Settings );
 	}
 
 	/// <summary>
@@ -244,6 +277,7 @@ public class SceneLight : SceneObject
 
 		lightNative.SetWorldDirection( tx.Rotation );
 		lightNative.SetWorldPosition( tx.Position );
+		BoundsVersion++;
 	}
 
 	[Obsolete( "Use ScenePointLight (or stop fucking using SceneObjects at all)" )]
@@ -273,10 +307,20 @@ public class SceneLight : SceneObject
 		base.OnNativeInit( ptr );
 
 		lightNative = (CSceneLightObject)ptr;
+
+		lock ( World.InternalSceneObjects )
+		{
+			World.InternalSceneLights.Add( this );
+		}
 	}
 
 	internal override void OnNativeDestroy()
 	{
+		lock ( World.InternalSceneObjects )
+		{
+			World.InternalSceneLights.Remove( this );
+		}
+
 		// Return any cached shadow map to the pool before this object becomes
 		// eligible for GC. Without this the ConditionalWeakTable silently drops
 		// the entry on collection and the shadow texture is orphaned.

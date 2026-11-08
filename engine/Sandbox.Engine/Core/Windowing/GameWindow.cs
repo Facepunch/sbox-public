@@ -13,11 +13,15 @@ internal sealed partial class GameWindow : IDisposable
 {
 	internal static GameWindow Current { get; private set; }
 
-	readonly SdlWindow window;
+	SdlWindow window;
+	readonly string title;
+	GameStartupWindow startupWindow;
 	WindowMode? windowMode;
 	VideoMode? pendingMode;
 	bool attached;
+	bool renderingRequested;
 	bool renderingInitialized;
+	VideoMode startupVideoMode;
 
 	internal IntPtr Handle => window.Handle;
 
@@ -28,56 +32,44 @@ internal sealed partial class GameWindow : IDisposable
 		set => window.Title = value;
 	}
 
-	internal GameWindow( string title )
+	internal GameWindow( string title, GameStartupWindow startupWindow = null )
 	{
 		ThreadSafe.AssertIsMainThread();
-
 		var mode = VideoMode.FromCommandLine( RenderSettings.Instance );
 		var fullscreen = mode.Window.Fullscreen;
 
 		Sdl.SetHint( "SDL_MOUSE_FOCUS_CLICKTHROUGH", "1" );
 		if ( OperatingSystem.IsLinux() )
 		{
-			// Match ApplyWindowMode's desktop-fullscreen policy before SDL applies the request.
-			if ( mode.Window.Borderless )
-			{
-				fullscreen = true;
-			}
-
-			// Loading can park the event loop long enough for X11 to report a hung application.
+			if ( mode.Window.Borderless ) fullscreen = true;
 			Sdl.SetHint( "SDL_VIDEO_X11_NET_WM_PING", "0" );
 		}
-		window = new SdlWindow( Sdl.CreateWindow( title, Math.Max( mode.Window.Width, 1 ), Math.Max( mode.Window.Height, 1 ), Sdl.WindowFlags.Hidden | Sdl.WindowFlags.Resizable | Sdl.WindowFlags.Vulkan ) );
+		var initialStartupProgress = startupWindow?.Progress ?? 0.02f;
+		var initialStartupStatus = startupWindow?.Status ?? "Initializing Vulkan";
+
+		// The splash owns the window's software surface, which can't coexist with a swapchain. It keeps
+		// drawing until the first frame, then CompleteStartup promotes the same window.
+		this.startupWindow = startupWindow is { CanTransferToVulkan: true } ? startupWindow : null;
+		if ( this.startupWindow is null ) startupWindow?.Dispose();
+		startupVideoMode = mode;
+
+		this.title = title;
+		window = this.startupWindow is not null ? new SdlWindow( this.startupWindow.Handle ) : CreateVulkanWindow( title, mode );
 
 		try
 		{
-			if ( !ApplyWindowMode( mode.Window ) ) pendingMode = mode;
-
-			if ( CommandLine.HasSwitch( "-x" ) || CommandLine.HasSwitch( "-y" ) )
+			if ( this.startupWindow is not null )
 			{
-				WarnIfFailed( Sdl.GetWindowPosition( window.Handle, out var x, out var y ) );
-				WarnIfFailed( Sdl.SetWindowPosition( window.Handle, CommandLine.GetSwitchInt( "-x", x ), CommandLine.GetSwitchInt( "-y", y ) ) );
-				window.Sync();
+				windowMode = null;
+				Screen.Size = window.PixelSize;
+				if ( fullscreen ) pendingMode = mode;
+				Current = this;
+				UpdateStartupProgress( initialStartupProgress, initialStartupStatus );
+				return;
+
 			}
 
-			window.CreateSwapChain( "GameWindow", mode.Multisample, mode.VSync, mainWindow: true );
-
-			GameWindowNative.Attach( window.Handle, window.SwapChain );
-			attached = true;
-			WarnIfFailed( Sdl.StartTextInput( window.Handle ) );
-
-			Current = this;
-			if ( !CommandLine.HasSwitch( "-nowindow" ) )
-			{
-				if ( fullscreen && window.Show() )
-				{
-					// SDL applies fullscreen geometry when shown. Match it before drawing the splash.
-					pendingMode = mode;
-					ApplyPendingMode();
-				}
-				UpdateStartupProgress( 0.02f );
-				if ( !fullscreen ) window.Show();
-			}
+			InitializeVulkanWindow( mode );
 		}
 		catch
 		{
@@ -86,6 +78,79 @@ internal sealed partial class GameWindow : IDisposable
 		}
 	}
 
+	void AttachSwapChain( VideoMode mode )
+	{
+		window.CreateSwapChain( "GameWindow", mode.Multisample, mode.VSync, mainWindow: true );
+
+		GameWindowNative.Attach( window.Handle, window.SwapChain );
+		attached = true;
+		WarnIfFailed( Sdl.StartTextInput( window.Handle ) );
+	}
+
+	/// <summary>Promote the splash's window to the main swapchain. Must run before the first frame.</summary>
+	internal void CompleteStartup()
+	{
+		if ( startupWindow is not { } splash ) return;
+		ThreadSafe.AssertIsMainThread();
+
+		startupFinished = true;
+		startupWindow = null;
+		if ( splash.TransferToVulkan() == IntPtr.Zero )
+		{
+			// The splash window can't be promoted, e.g. it was closed during startup, so start over with a fresh one
+			splash.Detach();
+			window.Dispose();
+			window = CreateVulkanWindow( title, startupVideoMode );
+			InitializeVulkanWindow( startupVideoMode );
+		}
+		else
+		{
+			AttachSwapChain( startupVideoMode );
+		}
+		Screen.UpdateFromEngine();
+
+		// The splash carries on over the menu until it's ready to be seen, then fades out
+		if ( splash.IsDrawable ) StartupScreen.Show( splash );
+		else splash.Dispose();
+
+		if ( renderingRequested ) InitializeRendering();
+	}
+
+	static SdlWindow CreateVulkanWindow( string title, VideoMode mode )
+	{
+		var width = Math.Max( mode.Window.Width, 1 );
+		var height = Math.Max( mode.Window.Height, 1 );
+		return new SdlWindow( Sdl.CreateWindow( title, width, height, Sdl.WindowFlags.Hidden | Sdl.WindowFlags.Resizable | Sdl.WindowFlags.Vulkan ) );
+	}
+
+	void InitializeVulkanWindow( VideoMode mode )
+	{
+		var fullscreen = mode.Window.Fullscreen || (OperatingSystem.IsLinux() && mode.Window.Borderless);
+
+		if ( !ApplyWindowMode( mode.Window ) )
+		{
+			pendingMode = mode;
+		}
+
+		if ( CommandLine.HasSwitch( "-x" ) || CommandLine.HasSwitch( "-y" ) )
+		{
+			WarnIfFailed( Sdl.GetWindowPosition( window.Handle, out var x, out var y ) );
+			WarnIfFailed( Sdl.SetWindowPosition( window.Handle, CommandLine.GetSwitchInt( "-x", x ), CommandLine.GetSwitchInt( "-y", y ) ) );
+			window.Sync();
+		}
+
+		AttachSwapChain( mode );
+
+		Current = this;
+		if ( CommandLine.HasSwitch( "-nowindow" ) ) return;
+
+		if ( fullscreen && window.Show() )
+		{
+			pendingMode = mode;
+			ApplyPendingMode();
+		}
+		if ( !fullscreen ) window.Show();
+	}
 	internal void QueueVideoMode( VideoMode mode )
 	{
 		ThreadSafe.AssertIsMainThread();
@@ -152,6 +217,8 @@ internal sealed partial class GameWindow : IDisposable
 		if ( window.Handle == IntPtr.Zero ) return;
 
 		if ( Current == this ) Current = null;
+		startupWindow?.Detach();
+		startupWindow = null;
 		if ( renderingInitialized )
 		{
 			CSceneSystem.SetMainSwapChain( default );

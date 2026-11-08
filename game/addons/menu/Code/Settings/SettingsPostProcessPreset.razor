@@ -12,8 +12,8 @@
 	<div class="line">
 
 		<div class="preset-head">
-			<label class="name">Quality Preset</label>
-			<label class="hint">Sets every effect below in one go.</label>
+			<label class="name">#menu.settings.quality_preset</label>
+			<label class="hint">#menu.settings.gfx.postprocess.description</label>
 		</div>
 
 		<div class="control">
@@ -21,7 +21,7 @@
 				@foreach ( var preset in Tiers )
 				{
 					<div class="tier @(Current == preset ? "active" : "")" onclick=@( () => Pick( preset ) )>
-						<label>@preset.ToString()</label>
+						<label>@SettingsCatalog.QualityLabel( preset )</label>
 					</div>
 				}
 
@@ -29,7 +29,7 @@
 				@if ( Current == PostProcessQuality.Custom )
 				{
 					<div class="tier custom active">
-						<label>Custom</label>
+						<label>#menu.settings.custom</label>
 					</div>
 				}
 			</div>

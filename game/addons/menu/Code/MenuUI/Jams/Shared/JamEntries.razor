@@ -7,7 +7,7 @@
 
 <root>
 	<div class="section-head">
-		<label class="title">Entries</label>
+		<label class="title">#menu.jam.entries</label>
 		<label class="description">@EntriesText</label>
 	</div>
 
@@ -16,7 +16,7 @@
 		<div class="jam-empty">
 			<icon>lock_clock</icon>
 			<label class="title">Theme drops @Jam.Starts.UtcDateTime.ToString( "ddd d MMM", CultureInfo.InvariantCulture )</label>
-			<label class="hint">Entries open the moment it does.</label>
+			<label class="hint">#menu.jam.entries_open_the_moment_it_does</label>
 		</div>
 	}
 	else
@@ -41,8 +41,8 @@
 
 	string EntriesText => Jam.EntryCount switch
 	{
-		0 => Jam.HasStarted ? "none yet" : "not open yet",
-		1 => "1 so far",
+		0 => Jam.HasStarted ? "#menu.jam.none_yet" : "#menu.jam.not_open_yet",
+		1 => "#menu.jam.1_so_far",
 		_ => $"{Jam.EntryCount:N0} so far",
 	};
 

@@ -32,23 +32,27 @@ public class RadialGradient : TextureGenerator
 	[Hide, JsonIgnore]
 	public override bool CacheToDisk => true;
 
-	protected override ValueTask<Texture> CreateTexture( Options options, CancellationToken ct )
+	[System.Diagnostics.CodeAnalysis.SuppressMessage( "Reliability", "CA2000", Justification = "The caller owns the bitmap returned through ValueTask; failures and the intermediate heightmap are disposed here." )]
+	protected override ValueTask<Bitmap> CreateBitmap( Options options, CancellationToken ct )
 	{
 		var w = Size.x.Clamp( 1, 1024 * 4 );
 		var h = Size.y.Clamp( 1, 1024 * 4 );
 
-		using var bitmap = new Bitmap( w, h, IsHdr && !ConvertHeightToNormals );
-		bitmap.Clear( Color.Transparent );
-
-		bitmap.SetRadialGradient( bitmap.Rect.Size * Center, Scale * bitmap.Width, Gradient );
-		bitmap.DrawRect( bitmap.Rect );
-
-		if ( ConvertHeightToNormals )
+		var bitmap = new Bitmap( w, h, IsHdr && !ConvertHeightToNormals );
+		try
 		{
-			using var normalMap = bitmap.HeightmapToNormalMap( NormalScale );
-			return ValueTask.FromResult( normalMap.ToTexture() );
+			bitmap.Clear( Color.Transparent );
+			bitmap.SetRadialGradient( bitmap.Rect.Size * Center, Scale * bitmap.Width, Gradient );
+			bitmap.DrawRect( bitmap.Rect );
+		}
+		catch
+		{
+			bitmap.Dispose();
+			throw;
 		}
 
-		return ValueTask.FromResult( bitmap.ToTexture() );
+		if ( !ConvertHeightToNormals ) return ValueTask.FromResult( bitmap );
+
+		using ( bitmap ) return ValueTask.FromResult( bitmap.HeightmapToNormalMap( NormalScale ) );
 	}
 }

@@ -9,6 +9,7 @@ internal ref struct CameraRenderer
 {
 	public CCameraRenderer Native;
 	int cameraId;
+	RenderAttributes attributes;
 
 	public CameraRenderer( string name, int cameraId )
 	{
@@ -19,6 +20,9 @@ internal ref struct CameraRenderer
 	public void Dispose()
 	{
 		Native.DeleteThis();
+
+		if ( attributes is not null )
+			RenderAttributes.Pool.Return( attributes );
 	}
 
 	void AddTags( ITagSet tags, bool exclude )
@@ -50,9 +54,19 @@ internal ref struct CameraRenderer
 	internal void Configure( SceneCamera camera, ViewSetup config )
 	{
 		var _world = camera.World;
-		var Attributes = new RenderAttributes();
+		var Attributes = attributes ??= RenderAttributes.Pool.Get();
 
 		camera.Attributes.MergeTo( Attributes );
+		Attributes.Set( "LightModulatorsDisabled", config.EnableLightModulators == false );
+
+		if ( config.Reflection )
+		{
+			Attributes.Set( "IsReflection", true );
+			Attributes.Set( "ReflectionShadows", CommandList.ReflectionShadows );
+
+			// No screen-space effects run in a reflection, so nothing reads prepass normals.
+			Attributes.Set( "NeedsDepthNormals", false );
+		}
 
 		if ( _world.IsValid() && !Graphics.IsActive )
 		{
@@ -94,9 +108,24 @@ internal ref struct CameraRenderer
 			Attributes.Set( "ToolsVisMode", (int)DebugOverlay.ToolsVisualization.mat_toolsvis );
 		}
 
-		camera.GatherVolumetricFog( Attributes );
+		// Reflections skip volumetric fog, which would also share the camera's fog history with its main view.
+		if ( !config.Reflection )
+			camera.GatherVolumetricFog( Attributes );
 		camera.GatherTonemapper( Attributes );
 		camera.CubemapFog?.Write( Attributes );
+
+		// Bind an explicit zero-weight value too, so a previous view cannot leak its fog.
+		var fog = camera.ResolveFog( config ) ?? default( FogSetup );
+		var viewDirection = (config.Transform?.Rotation ?? camera.Rotation).Forward;
+		Attributes.SetData( FogConstants.BufferName, fog.ToConstants( viewDirection: viewDirection ) );
+
+		// Prepare the skybox from this submission's override, before the camera can be reused.
+		var skybox = camera.World?.native.Get3DSkyboxOriginAndScale() ?? default;
+		if ( skybox.w > 0 )
+		{
+			var skyFog = camera.ResolveFogForSkybox( config ) ?? default( FogSetup );
+			Attributes.SetData( "SkyboxFogConstants", skyFog.ToConstants( skybox.w, skybox.z, viewDirection ) );
+		}
 
 		// Set clear flags
 		Attributes.Set( "clearFlags", (int)camera.ClearFlags );
@@ -174,6 +203,17 @@ internal ref struct CameraRenderer
 		{
 			if ( world is null ) continue;
 			if ( world == _world ) continue;
+
+			Native.AddSceneWorld( world );
+		}
+
+		if ( config.EnableDebugOverlays == false )
+			return;
+
+		foreach ( var world in camera.DebugWorlds )
+		{
+			if ( world is null ) continue;
+			if ( world == _world || camera.Worlds.Contains( world ) ) continue;
 
 			Native.AddSceneWorld( world );
 		}

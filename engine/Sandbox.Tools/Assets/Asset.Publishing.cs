@@ -11,6 +11,13 @@ public partial class Asset
 	PublishSettings _publishConfig;
 
 	/// <summary>
+	/// The meta file had no publish settings when last read. Asset updates re-read it through
+	/// <see cref="UpdateAutoTags"/>; until then there's no need to read it again, the same way
+	/// <see cref="_publishConfig"/> is kept once it exists.
+	/// </summary>
+	bool _publishSettingsAbsent;
+
+	/// <summary>
 	/// Access the asset publisher config.
 	/// </summary>
 	public PublishSettings Publishing => GetPublishSettings( true );
@@ -23,7 +30,9 @@ public partial class Asset
 		if ( _publishConfig is not null )
 			return _publishConfig;
 
-		var settings = MetaData?.Get<PublishSettings>( "publish" );
+		var settings = _publishSettingsAbsent ? null : MetaData?.Get<PublishSettings>( "publish" );
+		_publishSettingsAbsent = settings is null;
+
 		if ( createNew ) settings ??= new PublishSettings();
 
 		if ( settings is not null )
@@ -55,6 +64,13 @@ public partial class Asset
 		/// </summary>
 		[Browsable( false )]
 		public Sandbox.DataModel.ProjectConfig ProjectConfig { get; set; }
+
+		/// <summary>
+		/// Package references added by Hammer, rather than explicitly configured by the user.
+		/// Kept in local publish metadata so unused automatic references can be removed on save.
+		/// </summary>
+		[JsonInclude]
+		internal string[] HammerAutoPackageReferences { get; set; }
 
 		internal void InitializeInternal( Asset asset )
 		{
@@ -286,7 +302,7 @@ public partial class Asset
 			return new string( chars );
 		}
 
-		string PackageType()
+		internal string PackageType()
 		{
 			if ( asset.AssetType is null ) return default;
 

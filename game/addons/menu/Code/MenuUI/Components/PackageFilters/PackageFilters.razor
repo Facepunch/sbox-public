@@ -14,7 +14,7 @@
 
     <div class="left">
 
-    @foreach ( var facet in Result.Facets )
+    @foreach ( var facet in Result.Facets.Where( x => !global::MenuHelpers.IsRatingFacet( x ) ) )
     {
         filterFacets.TryGetValue( facet.Name, out var value );
 
@@ -26,7 +26,7 @@
     <div class="right">
         @if ( ShowSearch )
         {
-		    <TextEntry Icon="search" Placeholder="Search" OnTextEdited=@Search></TextEntry>
+		    <TextEntry Icon="search" Placeholder="#menu.common.search" OnTextEdited=@Search></TextEntry>
         }
         <MenuProject.UI.PackageFilterOrder Orders="@Result.Orders" Value="@filterOrder" OnChange="@OnOrderChanged"></MenuProject.UI.PackageFilterOrder>
     </div>

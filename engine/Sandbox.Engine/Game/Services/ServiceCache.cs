@@ -64,7 +64,7 @@ internal static class ServiceCache
 		return TryReadDisk<T>( cacheKey, out var diskValue ) ? diskValue : default;
 	}
 
-	static bool TryReadDisk<T>( string cacheKey, out T value )
+	internal static bool TryReadDisk<T>( string cacheKey, out T value )
 	{
 		value = default;
 
@@ -89,7 +89,7 @@ internal static class ServiceCache
 		}
 	}
 
-	static void WriteDisk<T>( string cacheKey, T value )
+	internal static void WriteDisk<T>( string cacheKey, T value )
 	{
 		try
 		{

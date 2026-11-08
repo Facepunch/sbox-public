@@ -40,7 +40,7 @@ internal class SceneLightProbe : SceneObject
 		if ( indicesTexture != null )
 			lightProbeVolume.m_hLightProbeDirectLightIndicesTexture = indicesTexture.native;
 
-		if ( indicesTexture != null )
+		if ( scalarsTexture != null )
 			lightProbeVolume.m_hLightProbeDirectLightScalarsTexture = scalarsTexture.native;
 
 		LocalBounds = bounds;

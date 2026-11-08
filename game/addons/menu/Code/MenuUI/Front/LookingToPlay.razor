@@ -7,7 +7,7 @@
     <div class="looking-head">
         <div class="section-toggle" onclick=@ToggleCollapsed>
             <icon>expand_more</icon>
-            <label class="title">Looking to play</label>
+            <label class="title">#menu.home.looking_to_play</label>
             <label class="count">@Rows.Length</label>
         </div>
         @if ( Rows.Length > 0 )
@@ -28,7 +28,7 @@
     <div class="looking-body" @ref="BodyPanel">
         @if ( Rows.Length == 0 )
         {
-            <label class="empty-state">@(Loading && !Loaded ? "Looking for open parties…" : "No open parties right now.")</label>
+            <label class="empty-state">@(Loading && !Loaded ? "#menu.home.looking_for_open_parties" : "#menu.home.no_open_parties_right_now")</label>
         }
         else
         {
@@ -61,11 +61,11 @@
                         </div>
                         @if ( CanJoin )
                         {
-                            <div class="action join" tooltip="Join this open party"><icon>play_arrow</icon></div>
+                            <div class="action join" tooltip="#menu.home.join_this_open_party"><icon>play_arrow</icon></div>
                         }
                         else
                         {
-                            <label class="party-state">@(current ? "Your party" : "Open")</label>
+                            <label class="party-state">@(current ? "#menu.home.your_party" : "#menu.home.open")</label>
                         }
                     </div>
                 }
@@ -224,7 +224,7 @@
             }
 
             Rows = parties.Select( x => new PartyRow( x.Id, x.OwnerId, x.Name,
-                string.IsNullOrWhiteSpace( x.GameTitle ) ? "Deciding together" : x.GameTitle, x.Package, x.Members, x.MaxMembers, Faces( x ) ) ).ToArray();
+                string.IsNullOrWhiteSpace( x.GameTitle ) ? "#menu.home.deciding_together" : x.GameTitle, x.Package, x.Members, x.MaxMembers, Faces( x ) ) ).ToArray();
             Loaded = true;
             Error = null;
         }

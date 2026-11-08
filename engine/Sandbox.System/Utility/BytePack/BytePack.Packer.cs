@@ -4,6 +4,15 @@ namespace Sandbox;
 
 internal partial class BytePack
 {
+	/// <summary>
+	/// A packer that can write and read its value type without boxing it.
+	/// </summary>
+	internal interface IValuePacker<T>
+	{
+		void Write( ref ByteStream bs, T value );
+		T Read( ref ByteStream bs );
+	}
+
 	public class Packer
 	{
 		protected static readonly ThreadLocal<HashSet<object>> _visited = new( () => new HashSet<object>( ReferenceEqualityComparer.Instance ) );

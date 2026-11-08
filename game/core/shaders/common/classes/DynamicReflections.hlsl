@@ -21,10 +21,15 @@ struct DynamicReflections
         int nLevels;
         ReflectionColor.GetDimensions(0, nDim.x, nDim.y, nLevels);
 
-        float flLevel = ( Roughness * (nLevels - 1) );
+        float flLevel = (Roughness * (nLevels - 1) );
 
         // Sample the reflection color at the specified screen position and roughness level
-        return ReflectionColor.SampleLevel( g_sTrilinearClamp, ScreenPosition * g_vInvViewportSize, flLevel ); // Could probably use SampleScreenSsMSAA
+        float4 vReflection = ReflectionColor.SampleLevel( g_sTrilinearClamp, ScreenPosition * g_vInvViewportSize, flLevel ); // Could probably use SampleScreenSsMSAA
+
+        // SSR stores premultiplied color so misses don't darken the mip chain
+        vReflection.rgb /= max( vReflection.a, 1e-4 );
+        vReflection = select( isnan( vReflection ), 0.0f, min( vReflection, 65504.0f ) ); // The lit frame becomes next frame's SSR source
+        return vReflection;
     }
 
     static bool IsEnabled()

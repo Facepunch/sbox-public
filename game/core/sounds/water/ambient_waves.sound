@@ -1,0 +1,25 @@
+{
+  "UI": false,
+  "Volume": "1",
+  "Pitch": "1",
+  "SelectionMode": "Random",
+  "Sounds": [
+    "sounds/ambience/waves/waves_walkway_accent_01.vsnd",
+    "sounds/ambience/waves/waves_walkway_accent_02.vsnd",
+    "sounds/ambience/waves/waves_walkway_accent_03.vsnd",
+    "sounds/ambience/waves/waves_walkway_accent_04.vsnd",
+    "sounds/ambience/waves/waves_walkway_accent_05.vsnd",
+    "sounds/ambience/waves/waves_walkway_accent_06.vsnd",
+    "sounds/ambience/waves/waves_walkway_accent_07.vsnd",
+    "sounds/ambience/waves/waves_walkway_accent_08.vsnd",
+    "sounds/ambience/waves/waves_walkway_accent_09.vsnd",
+    "sounds/ambience/waves/waves_walkway_accent_10.vsnd"
+  ],
+  "OcclusionEnabled": true,
+  "ReverbEnabled": true,
+  "AirAbsorption": true,
+  "DistanceAttenuation": true,
+  "Distance": 1024,
+  "__references": [],
+  "__version": 1
+}

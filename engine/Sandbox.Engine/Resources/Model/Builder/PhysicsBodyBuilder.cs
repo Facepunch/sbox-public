@@ -12,6 +12,21 @@ public sealed class PhysicsBodyBuilder
 	public float Mass { get; set; }
 
 	/// <summary>
+	/// Multiplier for the calculated inertia tensor, independent of mass.
+	/// </summary>
+	public float InertiaScale { get; set; } = 1.0f;
+
+	/// <summary>
+	/// Linear velocity damping per second.
+	/// </summary>
+	public float LinearDamping { get; set; }
+
+	/// <summary>
+	/// Angular velocity damping per second.
+	/// </summary>
+	public float AngularDamping { get; set; }
+
+	/// <summary>
 	/// The surface properties applied to this body.
 	/// </summary>
 	public Surface Surface { get; set; }
@@ -47,6 +62,21 @@ public sealed class PhysicsBodyBuilder
 	public PhysicsBodyBuilder SetMass( float mass )
 	{
 		Mass = mass;
+		return this;
+	}
+
+	/// <inheritdoc cref="InertiaScale"/>
+	public PhysicsBodyBuilder SetInertiaScale( float scale )
+	{
+		InertiaScale = scale;
+		return this;
+	}
+
+	/// <summary>Sets linear and angular velocity damping per second.</summary>
+	public PhysicsBodyBuilder SetDamping( float linear, float angular )
+	{
+		LinearDamping = linear;
+		AngularDamping = angular;
 		return this;
 	}
 

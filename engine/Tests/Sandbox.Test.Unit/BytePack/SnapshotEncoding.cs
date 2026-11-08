@@ -98,7 +98,7 @@ public class SnapshotEncodingTest
 	{
 		internal readonly List<byte[]> Packets = new();
 		internal int Closes;
-		internal override void InternalSend( byte[] data, NetFlags flags ) => Packets.Add( data );
+		internal override void InternalSend( NetPacket packet, NetFlags flags ) => Packets.Add( packet.Span.ToArray() );
 		internal override void InternalRecv( NetworkSystem.MessageHandler handler ) { }
 		internal override void InternalClose( int code, string reason ) => Closes++;
 	}
@@ -109,7 +109,7 @@ public class SnapshotEncodingTest
 		var connection = new RecordingConnection();
 		var pending = new TaskCompletionSource<byte[][]>();
 		connection.QueueSend( pending.Task, NetFlags.Reliable );
-		connection.Send( [3], NetFlags.Reliable );
+		connection.Send( NetPacket.Wrap( [3] ), NetFlags.Reliable );
 		connection.FlushPendingSends();
 		Assert.AreEqual( 0, connection.Packets.Count );
 		pending.SetResult( [[1], [2]] );
@@ -118,16 +118,25 @@ public class SnapshotEncodingTest
 	}
 
 	[TestMethod]
+	public void PreparedSnapshotUsesWorkerChunksOnDirectRoute()
+	{
+		var connection = new RecordingConnection();
+		connection.QueueSend( Task.FromResult<byte[][]>( [[1], [2], [3]] ), NetFlags.Reliable, preparedSnapshot: true );
+		connection.FlushPendingSends();
+		CollectionAssert.AreEqual( new byte[] { 2, 3 }, connection.Packets.Select( p => p[0] ).ToArray() );
+	}
+
+	[TestMethod]
 	public void CloseDiscardsPendingSnapshotAndUpdates()
 	{
 		var connection = new RecordingConnection();
 		var pending = new TaskCompletionSource<byte[][]>();
 		connection.QueueSend( pending.Task, NetFlags.Reliable );
-		connection.Send( [2], NetFlags.Reliable );
+		connection.Send( NetPacket.Wrap( [2] ), NetFlags.Reliable );
 		connection.Close( 0, "Closed" );
 		pending.SetResult( [[1]] );
 		connection.FlushPendingSends();
-		connection.Send( [3], NetFlags.Reliable );
+		connection.Send( NetPacket.Wrap( [3] ), NetFlags.Reliable );
 		Assert.AreEqual( 0, connection.Packets.Count );
 		Assert.IsFalse( connection.HasPendingSends );
 	}
@@ -137,7 +146,7 @@ public class SnapshotEncodingTest
 	{
 		var connection = new RecordingConnection();
 		connection.QueueSend( Task.FromException<byte[][]>( new InvalidOperationException( "Synthetic failure" ) ), NetFlags.Reliable );
-		connection.Send( [2], NetFlags.Reliable );
+		connection.Send( NetPacket.Wrap( [2] ), NetFlags.Reliable );
 		connection.FlushPendingSends();
 		Assert.AreEqual( 0, connection.Packets.Count );
 		Assert.AreEqual( 1, connection.Closes );

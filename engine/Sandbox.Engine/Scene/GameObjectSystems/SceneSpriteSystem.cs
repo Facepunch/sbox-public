@@ -6,7 +6,7 @@ using System.Buffers;
 using System.Collections.Frozen;
 using System.Runtime.InteropServices;
 
-public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
+public sealed partial class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 {
 	private readonly record struct SystemOffset( IBatchedParticleSpriteRenderer System, int Offset, int ParticleCount );
 
@@ -22,13 +22,43 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		Listen( Stage.FinishUpdate, 1, UpdateSprites, "UpdateSprites" ); // We want to upload after particles update
 	}
 
+	/// <summary>
+	/// Write one batched particle renderer's sprites into its range of the shared block.
+	/// </summary>
+	void ProcessSystem( int i )
+	{
+		var systemInfo = _systemOffsets[i];
+		if ( systemInfo.ParticleCount == 0 ) return;
+
+		var particleRenderer = (ParticleRenderer)systemInfo.System;
+		var particleSystemID = particleRenderer.Id;
+		_activeParticleEmitters[i] = particleSystemID;
+
+		var rendergroup = GetRenderGroupKey( systemInfo.System, (GameTags)particleRenderer.Tags, particleRenderer.RenderOptions );
+
+		// This is a very hot codepath, beware!
+		// Create span from the managed array starting at the correct offset with the correct length
+		var destSpan = _sharedSprites.AsSpan( systemInfo.Offset, systemInfo.ParticleCount );
+
+		// Call the common ProcessParticlesDirectly interface method
+		var result = systemInfo.System.ProcessParticlesDirectly( destSpan );
+
+		if ( result.SpriteCount == 0 ) return;
+
+		_particleProcessingResults[i] = new ParticleResult( particleSystemID, rendergroup, systemInfo.System, systemInfo.Offset, result.SpriteCount, result.SplotCount, result.Bounds );
+	}
+
 	public override void Dispose()
 	{
+		foreach ( var group in _textBatches.Values ) group.Batch?.Destroy();
+		_textBatches.Clear();
 		if ( _sharedSprites != null )
 		{
 			ArrayPool<SpriteBatchSceneObject.SpriteData>.Shared.Return( _sharedSprites );
 			_sharedSprites = null;
 		}
+		foreach ( var group in RenderGroups.Values ) group.Destroy();
+		RenderGroups.Clear();
 		base.Dispose();
 	}
 
@@ -85,6 +115,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		foreach ( var particleSystem in spriteRenderers )
 		{
 			particleSystem.RenderTexture?.MarkUsed( ushort.MaxValue );
+			particleSystem.RefractionNormalTexture?.MarkUsed( ushort.MaxValue );
 			if ( particleSystem is ParticleTextRenderer text ) text.PrepareText();
 
 			var particleRenderer = (ParticleRenderer)particleSystem;
@@ -119,28 +150,8 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 
 		// Parallel processing to write simulated particles to the data block that will be copied to the GPU
 		// Process all batched particle renderers
-		Parallel.For( 0, _systemOffsets.Count, i =>
-		{
-			var systemInfo = _systemOffsets[i];
-			if ( systemInfo.ParticleCount == 0 ) return;
-
-			var particleRenderer = (ParticleRenderer)systemInfo.System;
-			var particleSystemID = particleRenderer.Id;
-			_activeParticleEmitters[i] = particleSystemID;
-
-			var rendergroup = GetRenderGroupKey( systemInfo.System, (GameTags)particleRenderer.Tags, particleRenderer.RenderOptions );
-
-			// This is a very hot codepath, beware!
-			// Create span from the managed array starting at the correct offset with the correct length
-			var destSpan = _sharedSprites.AsSpan( systemInfo.Offset, systemInfo.ParticleCount );
-
-			// Call the common ProcessParticlesDirectly interface method
-			var result = systemInfo.System.ProcessParticlesDirectly( destSpan );
-
-			if ( result.SpriteCount == 0 ) return;
-
-			_particleProcessingResults[i] = new ParticleResult( particleSystemID, rendergroup, systemInfo.System, systemInfo.Offset, result.SpriteCount, result.SplotCount, result.Bounds );
-		} );
+		// One system at a time: they differ a lot in size
+		JobDispatcher.For( _systemOffsets.Count, this, static ( system, i ) => system.ProcessSystem( i ), itemsPerBatch: 1 );
 
 		// Cleanup inactive particle emitters
 		_activeParticleIds.Clear();
@@ -214,6 +225,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 			if ( sprite.Enabled && sprite.GameObject.Active )
 			{
 				sprite.Texture?.MarkUsed( ushort.MaxValue );
+				if ( sprite.IsRefractive ) sprite.NormalTexture.MarkUsed( ushort.MaxValue );
 
 				// This is used to clean up inactive sprites
 				_currentEnabledSprites.Add( sprite.Id );
@@ -253,12 +265,20 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 
 		UpdateSpriteRenderers();
 		UpdateParticleSprites();
+		UpdateTextRenderers();
 
+		LitBounds = null;
 		foreach ( var rg in RenderGroups )
 		{
 			rg.Value.UploadOnHost();
+			if ( rg.Value.HasLitSprites ) LitBounds = LitBounds?.AddBBox( rg.Value.Bounds ) ?? rg.Value.Bounds;
 		}
 	}
+
+	/// <summary>
+	/// Around every lit sprite as of the last upload, or null without any: where <see cref="ParticleLightingSystem"/> lights.
+	/// </summary>
+	internal BBox? LitBounds { get; private set; }
 
 	private static ulong GetRenderGroupKey( ISpriteRenderGroup component, GameTags tags, RenderOptions renderOptions, Guid isolatedComponent = default )
 	{
@@ -279,13 +299,19 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		MemoryMarshal.Write( buf[5..], in isolatedComponent );
 		var tokenSlice = MemoryMarshal.Cast<byte, uint>( buf[21..] );
 		int i = 0;
-		foreach ( var token in tokens ) tokenSlice[i++] = token;
+		if ( tokens is HashSet<uint> tokenSet )
+			foreach ( var token in tokenSet ) tokenSlice[i++] = token;
+		else
+			foreach ( var token in tokens ) tokenSlice[i++] = token;
 		MemoryExtensions.Sort( tokenSlice );
 
 		return XxHash3.HashToUInt64( buf );
 	}
 
-	private static InstanceGroupFlags GetRenderGroupFlags( ISpriteRenderGroup component )
+	/// <summary>
+	/// Classify a renderer's effective settings for sprite batching.
+	/// </summary>
+	internal static InstanceGroupFlags GetRenderGroupFlags( ISpriteRenderGroup component )
 	{
 		var flags = InstanceGroupFlags.None;
 		if ( !component.Opaque ) flags |= InstanceGroupFlags.Transparent;
@@ -339,7 +365,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		if ( group.Components.Count > 0 || !_isolatedRenderGroups.Remove( renderGroup ) )
 			return;
 
-		group.Delete();
+		group.Destroy();
 		RenderGroups.Remove( renderGroup );
 	}
 

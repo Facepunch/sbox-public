@@ -19,6 +19,8 @@ public static unsafe class Performance
 	public ref struct ScopeSection
 	{
 		internal Timings Source;
+		// The scope that was open on this thread when this one opened, open again once this one closes.
+		internal Timings Outer;
 		internal FastTimer Timer;
 		// Snapshot of total GC pause ticks at scope open so we can subtract
 		// GC pause time from this scope's elapsed (keeping per-system times accurate).

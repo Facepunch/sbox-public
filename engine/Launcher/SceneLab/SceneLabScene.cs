@@ -24,6 +24,11 @@ internal sealed record SceneLabScene
 	public Action<Scene> ChangeGame { get; init; }
 
 	/// <summary>
+	/// Check rendered behavior after a compare. Return an error to fail the capture even when both renderers agree.
+	/// </summary>
+	public Func<Scene, string> ValidateGame { get; init; }
+
+	/// <summary>
 	/// Runs every frame on a <see cref="Game"/> scene, after it ticks and before it renders - for drawing that's redone
 	/// each frame, like a HUD.
 	/// </summary>
@@ -49,6 +54,11 @@ internal sealed record SceneLabScene
 	/// </summary>
 	public bool Isolated { get; init; }
 
+	/// <summary>
+	/// The benchmark measures it with occlusion culling off and then on, through each renderer.
+	/// </summary>
+	public bool CompareOcclusion { get; init; }
+
 	public bool IsGame => Game is not null;
 
 	/// <summary>
@@ -57,6 +67,18 @@ internal sealed record SceneLabScene
 	public string[] Models { get; init; } = ["models/dev/box.vmdl"];
 
 	public int Grid { get; init; } = 1;
+
+	/// <summary>
+	/// Places the objects by hand instead of the grid, for cases a grid can't show: runtime textures and materials, scaled
+	/// and mirrored transforms, extreme depth ranges (<see cref="CoreScenes"/>). The floor, lights, fog and sun settings
+	/// still apply, fitted to what it placed.
+	/// </summary>
+	public Action<LabLayout> Build { get; init; }
+
+	/// <summary>
+	/// Moves the whole scene - objects, lights and camera - this far from the world's origin, for float precision.
+	/// </summary>
+	public Vector3 Origin { get; init; }
 
 	/// <summary>
 	/// Coloured point lights circling over a floor.
@@ -190,6 +212,26 @@ internal sealed record SceneLabScene
 		new() { Name = "Reflections", Group = "Environment", Models = ["models/dev/sphere.vmdl"], Grid = 4, Floor = true, Material = "materials/dev/dev_metal_rough10.vmat", EnvMap = true, SunDirection = SideSun },
 		new() { Name = "Gradient Fog", Group = "Environment", Grid = 30, Floor = true, GradientFog = true, SunDirection = SideSun },
 		new() { Name = "Cubemap Fog", Group = "Environment", Grid = 30, Floor = true, CubemapFog = true, SunDirection = SideSun },
+		new() { Name = "Legacy Combined Fog", Group = "Environment", Grid = 30, Floor = true, GradientFog = true, CubemapFog = true, SunDirection = SideSun },
+		new() { Name = "Better Fog Distance", Group = "Environment", Game = GameScenes.BetterFogDistance, ChangeGame = GameScenes.DisableBetterFog },
+		new() { Name = "Better Fog Height", Group = "Environment", Game = GameScenes.BetterFogHeight, ChangeGame = GameScenes.DisableBetterFog },
+		new() { Name = "Better Fog Height Only", Group = "Environment", Game = GameScenes.BetterFogHeightOnly, ChangeGame = GameScenes.ReverseBetterFogHeight },
+		new() { Name = "Better Fog Sky", Group = "Environment", Game = GameScenes.BetterFogSky, ChangeGame = GameScenes.DisableBetterFog },
+		new() { Name = "Better Fog Shared Sky", Group = "Environment", Game = GameScenes.BetterFogSharedSky, ChangeGame = GameScenes.ChangeBetterFogHeightSky },
+		new() { Name = "Better Fog Height Skybox", Group = "Environment", Game = GameScenes.BetterFogHeightSkybox, ChangeGame = GameScenes.DisableBetterFog },
+		new() { Name = "Better Fog Height Sky", Group = "Environment", Game = GameScenes.BetterFogHeightSky, ChangeGame = GameScenes.RotateBetterFogSky },
+		new() { Name = "Better Fog Rotated Sky", Group = "Environment", Game = GameScenes.BetterFogRotatedSky, ChangeGame = GameScenes.RotateBetterFogSky },
+		new() { Name = "Better Fog Skybox World", Group = "Environment", Game = GameScenes.BetterFogSkyboxWorld, ChangeGame = GameScenes.RotateBetterFogSkyboxWorld },
+		new() { Name = "Better Fog Sky Selection", Group = "Environment", Game = GameScenes.BetterFogSkySelection, ChangeGame = GameScenes.ExcludeBetterFogLastSky },
+		new() { Name = "Better Fog Blend", Group = "Environment", Game = GameScenes.BetterFogBlend, ChangeGame = GameScenes.ClearBetterFogBlend },
+		new() { Name = "Better Fog Orthographic", Group = "Environment", Game = GameScenes.BetterFogOrthographic, ChangeGame = GameScenes.DisableBetterFog },
+		new() { Name = "Better Fog 3D Skybox", Group = "Environment", Game = GameScenes.BetterFog3DSkybox, ChangeGame = GameScenes.DisableBetterFog },
+		new() { Name = "Better Fog Overlay Off", Group = "Environment", Game = GameScenes.BetterFogOverlayOff, ChangeGame = GameScenes.RemoveBetterFogOverlay },
+		new() { Name = "Better Fog Overlay On", Group = "Environment", Game = GameScenes.BetterFogOverlayOn, ChangeGame = GameScenes.RemoveBetterFogOverlay },
+		new() { Name = "Better Fog Additive Sprites", Group = "Environment", Game = GameScenes.BetterFogAdditiveSprites, ChangeGame = GameScenes.DisableBetterFog },
+		new() { Name = "Better Fog Lines", Group = "Environment", Game = GameScenes.BetterFogLines, ChangeGame = GameScenes.DisableBetterFog },
+		new() { Name = "Better Fog Water", Group = "Environment", Game = GameScenes.BetterFogWater, ChangeGame = GameScenes.DisableBetterFog },
+		new() { Name = "Better Fog Text", Group = "Environment", Game = GameScenes.BetterFogText, ChangeGame = GameScenes.DisableBetterFog },
 		new() { Name = "Image Based Ambient", Group = "Environment", Models = ["models/dev/sphere.vmdl"], Grid = 4, Floor = true, EnvMap = true, ImageBasedAmbient = true, SunDirection = SideSun },
 		new() { Name = "Sky", Group = "Environment", Models = ["models/dev/sphere.vmdl"], Grid = 4, Floor = true, Material = "materials/dev/dev_metal_rough10.vmat", Sky = "materials/skybox/skybox_day_01.vmat", ImageBasedAmbient = true, SunDirection = SideSun },
 
@@ -202,11 +244,25 @@ internal sealed record SceneLabScene
 			Checker = [(null, 0.5f)] },
 
 		// Skinned: citizens posed from a few sequences, frozen, under the sun's cascades and a spot's shadow
-		new() { Name = "Citizens", Group = "Skinning", Models = ["models/citizen/citizen.vmdl"], Grid = 3, Floor = true, Spot = true, LightShadows = true, Sun = 0.6f, SunDirection = SideSun,
+		new() { Name = "Citizens", Group = "Skinning", Models = ["models/citizen_human/human.vmdl"], Grid = 3, Floor = true, Spot = true, LightShadows = true, Sun = 0.6f, SunDirection = SideSun,
 			Sequences = CitizenSequences },
 
 		// A model whose LODs are different shapes, so LOD choices can be seen and compared with native
 		new() { Name = "LOD Test", Group = "Basics", Models = [LodTestModel.Path], Grid = 40 },
+
+		// Placed by hand (CoreScenes): runtime textures in each format, then sampled with each filter at a grazing angle;
+		// stretched meshes, and mirrored ones (not in the render tests yet: the managed renderer doesn't flip their winding);
+		// the same shadowed scene 100 km from the origin; extreme near and far planes; one model with a material per pass;
+		// casters near contact, and with the sun's bias at its extreme
+		new() { Name = "Texture Formats", Group = "Textures", Build = CoreScenes.TextureFormats, SunDirection = new Vector3( 0.7f, -0.2f, -0.65f ).Normal },
+		new() { Name = "Texture Filtering", Group = "Textures", Build = CoreScenes.TextureFiltering },
+		new() { Name = "Non-Uniform Scale", Group = "Basics", Build = CoreScenes.NonUniformScale, Spot = true, Lights = 2, LightShadows = true, Sun = 0.5f, SunDirection = SideSun },
+		new() { Name = "Mirrored", Group = "Basics", Build = CoreScenes.Mirrored, Spot = true, Lights = 2, LightShadows = true, Sun = 0.5f, SunDirection = SideSun },
+		new() { Name = "Far From Origin", Group = "Precision", Grid = 4, Lights = 8, Spot = true, LightShadows = true, Sun = 0.3f, SunDirection = SideSun, Origin = new Vector3( 2_800_000, -2_800_000, 40_000 ) },
+		new() { Name = "Depth Range", Group = "Precision", Build = CoreScenes.DepthRange, SunDirection = SideSun },
+		new() { Name = "Material Mix", Group = "Blending", Build = CoreScenes.MaterialMix, Floor = true, Lights = 3, Spot = true, LightShadows = true, Sun = 0.5f, SunDirection = SideSun },
+		new() { Name = "Shadow Casters", Group = "Shadows", Build = CoreScenes.ShadowCasters, Spot = true, LightShadows = true, Sun = 0.6f, SunDirection = SideSun },
+		new() { Name = "Shadow Bias", Group = "Shadows", Build = CoreScenes.ShadowBias, Spot = true, LightShadows = true, Sun = 0.6f, SunDirection = SideSun },
 
 		// Big enough to measure - see the -benchmark switch
 		new() { Name = "10k Boxes", Group = "Stress", Grid = 100 },
@@ -215,7 +271,7 @@ internal sealed record SceneLabScene
 		new() { Name = "10k Boxes, 64 Shadowed Lights", Group = "Stress", Grid = 100, Lights = 64, LightRadius = 0.05f, LightShadows = true },
 		new() { Name = "10k Boxes, 64 Still Shadowed Lights", Group = "Stress", Grid = 100, Lights = 64, LightRadius = 0.05f, LightShadows = true, Orbit = false },
 		new() { Name = "50k LOD Test", Group = "Stress", Models = [LodTestModel.Path], Grid = 224 },
-		new() { Name = "100 Citizens", Group = "Stress", Models = ["models/citizen/citizen.vmdl"], Grid = 10, Floor = true, Sun = 0.6f, SunDirection = SideSun,
+		new() { Name = "100 Citizens", Group = "Stress", Models = ["models/citizen_human/human.vmdl"], Grid = 10, Floor = true, Sun = 0.6f, SunDirection = SideSun,
 			Sequences = CitizenSequences },
 
 		// GameObject scenes, through the managed renderer's GameObject bridge (r_managed_scene) - see GameScenes
@@ -223,6 +279,9 @@ internal sealed record SceneLabScene
 		new() { Name = "Post Processing", Group = "Post Processing", Game = GameScenes.PostProcessing, ChangeGame = GameScenes.ChangePostProcessing },
 		new() { Name = "Depth of Field", Group = "Post Processing", Game = GameScenes.DepthOfField },
 		new() { Name = "Auto Exposure", Group = "Post Processing", Game = GameScenes.AutoExposure },
+		new() { Name = "Blur 0.25", Group = "Post Processing", Game = GameScenes.Blur( 0.25f ) },
+		new() { Name = "Blur 0.5", Group = "Post Processing", Game = GameScenes.Blur( 0.5f ) },
+		new() { Name = "Blur 0.75", Group = "Post Processing", Game = GameScenes.Blur( 0.75f ) },
 		new() { Name = "Highlight Outlines", Group = "Post Processing", Game = GameScenes.HighlightOutlines, ChangeGame = GameScenes.ChangeHighlightOutlines },
 		new() { Name = "Screen UI", Group = "UI", Game = GameScenes.ScreenUI, ChangeGame = GameScenes.ChangeScreenUI, Frame = GameScenes.DrawHud },
 		new() { Name = "Early UI", Group = "UI", Game = GameScenes.EarlyUI },
@@ -230,18 +289,22 @@ internal sealed record SceneLabScene
 		new() { Name = "Output Overlays", Group = "UI", Game = GameScenes.OutputOverlays, ChangeGame = GameScenes.ChangeOutputOverlays },
 		new() { Name = "Sprites and Particles", Group = "Effects", Game = GameScenes.SpritesAndParticles, ChangeGame = GameScenes.ChangeSpritesAndParticles },
 		new() { Name = "Decals", Group = "Effects", Game = GameScenes.Decals, ChangeGame = GameScenes.ChangeDecals },
+		new() { Name = "EnvMaps and Decals", Group = "Stress", Game = GameScenes.EnvMapsAndDecals },
 		new() { Name = "Tools View", Group = "Tools", Game = GameScenes.ToolsView, ChangeGame = GameScenes.ChangeToolsView },
 		new() { Name = "Debug Views", Group = "Tools", Game = GameScenes.DebugViews, ChangeGame = GameScenes.ChangeDebugViews },
 		new() { Name = "Volumetric Fog", Group = "Effects", Game = GameScenes.VolumetricFog, ChangeGame = GameScenes.ChangeVolumetricFog, NativeAlongside = true },
+		new() { Name = "Dense Smoke", Group = "Effects", Game = GameScenes.DenseSmoke },
 		new() { Name = "Contact Shadows", Group = "Shadows", Game = GameScenes.ContactShadows, ChangeGame = GameScenes.ChangeContactShadows },
 		new() { Name = "Decal Geometry", Group = "Effects", Game = GameScenes.DecalGeometry, ChangeGame = GameScenes.ChangeDecalGeometry },
 		new() { Name = "Soft Particles", Group = "Effects", Game = GameScenes.SoftParticles },
+		new() { Name = "Particle Refraction", Group = "Effects", Game = GameScenes.ParticleRefraction, ChangeGame = GameScenes.ChangeParticleRefraction },
 		new() { Name = "Scene Attributes", Group = "GameObject", Game = GameScenes.SceneAttributes, ChangeGame = GameScenes.ChangeSceneAttributes },
 		new() { Name = "Scene Object Children", Group = "GameObject", Game = GameScenes.SceneObjectChildren, ChangeGame = GameScenes.ChangeSceneObjectChildren },
 		new() { Name = "Morphs", Group = "GameObject", Game = GameScenes.Morphs, ChangeGame = GameScenes.ChangeMorphs },
 		new() { Name = "Model Deformers", Group = "GameObject", Game = GameScenes.ModelDeformers, ChangeGame = GameScenes.ChangeModelDeformers },
 		new() { Name = "Ambient Occlusion", Group = "Post Processing", Game = GameScenes.AmbientOcclusion, ChangeGame = GameScenes.ChangeOcclusionStage, Isolated = true },
 		new() { Name = "Screen Space Reflections", Group = "Post Processing", Game = GameScenes.ScreenSpaceReflections, ChangeGame = GameScenes.ChangeOcclusionStage, Isolated = true },
+		new() { Name = "AO and Reflections", Group = "Post Processing", Game = GameScenes.OcclusionAndReflections, ChangeGame = GameScenes.ChangeOcclusionStage, Isolated = true },
 		new() { Name = "Bone Merged Deformers", Group = "GameObject", Game = GameScenes.BoneMergedDeformers, ChangeGame = GameScenes.ChangeBoneMergedDeformers, Frame = GameScenes.AnimateBoneMergedDeformers },
 		new() { Name = "All Outfits", Group = "Avatar", Game = OutfitScenes.AllOutfits, Frame = OutfitScenes.DressAll, Ready = OutfitScenes.AllDressed },
 		new() { Name = "Hotdog Costume", Group = "Avatar", Game = OutfitScenes.HotdogCostume.Build, Frame = OutfitScenes.HotdogCostume.DressWhenLoaded, Ready = OutfitScenes.HotdogCostume.Dressed },
@@ -251,6 +314,10 @@ internal sealed record SceneLabScene
 		new() { Name = "Pearl Necklace", Group = "Avatar", Game = OutfitScenes.PearlNecklace.Build, Frame = OutfitScenes.PearlNecklace.DressWhenLoaded, Ready = OutfitScenes.PearlNecklace.Dressed },
 		new() { Name = "Fried Onion Earrings", Group = "Avatar", Game = OutfitScenes.FriedOnionEarrings.Build, Frame = OutfitScenes.FriedOnionEarrings.DressWhenLoaded, Ready = OutfitScenes.FriedOnionEarrings.Dressed },
 		new() { Name = "Light Cookie", Group = "GameObject", Game = GameScenes.LightCookie, ChangeGame = GameScenes.ChangeLightCookie },
+		new() { Name = "Light Modulation", Group = "GameObject", Game = GameScenes.LightModulation, ChangeGame = GameScenes.ChangeLightModulation },
+		new() { Name = "Light Modulation Baked Sun", Group = "Effects", Game = () => LightModulatorScenes.Sun( 0 ), ValidateGame = LightModulatorScenes.ValidateSun },
+		new() { Name = "Light Modulation Dynamic Sun", Group = "Effects", Game = () => LightModulatorScenes.Sun( -1 ), ValidateGame = LightModulatorScenes.ValidateSun },
+		new() { Name = "Light Modulation Gallery", Group = "Effects", Game = LightModulatorScenes.Gallery, ChangeGame = LightModulatorScenes.ChangeGallery, Isolated = true },
 		new() { Name = "Debug Overlay", Group = "GameObject", Game = GameScenes.DebugOverlay, ChangeGame = GameScenes.ChangeDebugOverlay, Frame = GameScenes.DrawDebugOverlay },
 		new() { Name = "Terrain and Clutter", Group = "GameObject", Game = TerrainScenes.TerrainAndClutter, ChangeGame = TerrainScenes.ChangeTerrainAndClutter, Ready = TerrainScenes.ClutterReady },
 		new() { Name = "Terrain Ambient Occlusion", Group = "GameObject", Game = TerrainScenes.TerrainAmbientOcclusion, ChangeGame = TerrainScenes.ChangeTerrainAndClutter, Ready = TerrainScenes.ClutterReady, Isolated = true },
@@ -261,11 +328,14 @@ internal sealed record SceneLabScene
 		new() { Name = "Dynamic", Group = "Stress", Game = DynamicScene.Build, Frame = DynamicScene.Animate },
 		new() { Name = "Heavy Scene", Group = "Stress", Game = HeavyScene.Build, Frame = HeavyScene.Animate },
 		new() { Name = "Heavy Scene AO", Group = "Stress", Game = HeavyScene.BuildWithOcclusion, Frame = HeavyScene.Animate, Isolated = true },
+		new() { Name = "Heavy Scene AO SSR", Group = "Stress", Game = HeavyScene.BuildWithReflectionsAndOcclusion, Frame = HeavyScene.Animate, Isolated = true },
+		new() { Name = "Occlusion City", Group = "Stress", Game = OcclusionScene.BuildCity, Frame = OcclusionScene.Drive, CompareOcclusion = true },
 		new() { Name = "Flatgrass", Group = "Maps", Game = MapScenes.Flatgrass, Frame = MapScenes.StartWhenOnline, Ready = MapScenes.Loaded },
 		new() { Name = "Flatgrass Skyline", Group = "Maps", Game = MapScenes.FlatgrassSkyline, Frame = MapScenes.StartWhenOnline, Ready = MapScenes.Loaded },
 		new() { Name = "Flatgrass Interior", Group = "Maps", Game = MapScenes.FlatgrassInterior, Frame = MapScenes.StartWhenOnline, Ready = MapScenes.Loaded },
 		new() { Name = "Flatgrass Props", Group = "Maps", Game = MapScenes.FlatgrassProps, Frame = MapScenes.StartWhenOnline, Ready = MapScenes.Loaded },
 		new() { Name = "Construct Skyline", Group = "Maps", Game = MapScenes.ConstructSkyline, Frame = MapScenes.StartWhenOnline, Ready = MapScenes.Loaded },
+		new() { Name = "Construct Overview", Group = "Maps", Game = MapScenes.ConstructOverview, Frame = MapScenes.StartWhenOnline, Ready = MapScenes.Loaded },
 		new() { Name = "Construct Skyline Fog", Group = "Maps", Game = MapScenes.ConstructSkylineFog, Frame = MapScenes.StartWhenOnline, Ready = MapScenes.Loaded, NativeAlongside = true },
 	];
 

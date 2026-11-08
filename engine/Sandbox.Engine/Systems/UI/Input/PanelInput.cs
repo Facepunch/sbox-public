@@ -528,6 +528,9 @@ internal class PanelInput
 
 		void OnPressed( Panel hovered )
 		{
+			// Any press puts the tooltip away - it would otherwise pop up over a menu the press opened
+			hovered?.UISystem?.Tooltips.Dismiss();
+
 			if ( MouseButton == ButtonCode.MouseBack )
 			{
 				hovered?.CreateEvent( new PanelEvent( "onback", hovered ) );

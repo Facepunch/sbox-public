@@ -89,7 +89,7 @@ public class CollectionAddButton : IconButton
 			if ( dataAsset.AssetPath.EndsWith( ".sound" ) ) continue;
 			if ( !dataAsset.IsInstalled )
 			{
-				await dataAsset.GetAssetAsync();
+				if ( await dataAsset.GetAssetAsync() is null ) continue;
 			}
 			var sound = SoundFile.Load( dataAsset.AssetPath );
 			if ( sound is null ) continue;

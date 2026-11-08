@@ -4,7 +4,7 @@ using Sandbox.Modals;
 namespace MenuProject;
 
 /// <summary>
-/// Local party choices, kept off Steam until the player presses Create.
+/// Local party choices, kept off Steam until the player creates the party or invites a friend.
 /// </summary>
 public sealed class PartyDraft
 {
@@ -16,6 +16,7 @@ public sealed class PartyDraft
 	internal bool Creating;
 	internal bool Cancelled;
 	internal TaskCompletionSource<bool> Completion = new();
+	Task creation;
 
 	internal void Cancel()
 	{
@@ -23,14 +24,22 @@ public sealed class PartyDraft
 		Completion.TrySetResult( false );
 	}
 
-	internal async Task Create()
+	internal Task Create()
 	{
-		if ( Creating || Cancelled ) return;
-		if ( PartyRoom.Current is not null ) throw new InvalidOperationException( "You are already in a party." );
+		// Several invites can arrive while Steam creates the lobby. All must wait for the
+		// same attempt, including its failure, rather than creating separate parties.
+		if ( Creating ) return creation;
+		if ( Cancelled ) return Task.CompletedTask;
+		return creation = CreateCore();
+	}
+
+	async Task CreateCore()
+	{
+		if ( PartyRoom.Current is not null ) throw new InvalidOperationException( Language.GetPhrase( "menu.settings.you_are_already_in_a_party" ) );
 
 		var name = Name?.Trim();
 		if ( string.IsNullOrWhiteSpace( name ) || name.Length > PartyRoom.MaxNameLength || name.Any( char.IsControl ) )
-			throw new InvalidOperationException( "Enter a party name." );
+			throw new InvalidOperationException( Language.GetPhrase( "menu.party.enter_a_party_name" ) );
 
 		Creating = true;
 		PartyRoom party = null;
@@ -39,7 +48,7 @@ public sealed class PartyDraft
 		{
 			// Configure the lobby before making a public party discoverable.
 			party = await PartyRoom.Create( MaxMembers, name, false );
-			if ( party is null ) throw new InvalidOperationException( "Could not create the party. Please try again." );
+			if ( party is null ) throw new InvalidOperationException( Language.GetPhrase( "menu.party.could_not_create_the_party_please_try_again" ) );
 			if ( Cancelled )
 			{
 				party.Leave();
@@ -53,7 +62,7 @@ public sealed class PartyDraft
 			}
 
 			if ( IsPublic ) party.SetPublic( true );
-			ConsoleSystem.SetValue( "party_name", name );
+			MenuUtility.SetConsoleVariable( "party_name", name );
 			Completion.TrySetResult( true );
 		}
 		catch

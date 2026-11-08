@@ -44,7 +44,7 @@ public class ConvarToggleButton : Button
 
 		if ( ConVar == null ) return;
 
-		var val = ConsoleSystem.GetValue( ConVar );
+		var val = MenuUtility.GetConsoleVariable( ConVar );
 		if ( val == null ) return;
 
 		SetClass( "active", String.Equals( val, ValueOn, StringComparison.OrdinalIgnoreCase ) );
@@ -58,10 +58,10 @@ public class ConvarToggleButton : Button
 	{
 		if ( ConVar == null ) return;
 
-		var val = ConsoleSystem.GetValue( ConVar );
+		var val = MenuUtility.GetConsoleVariable( ConVar );
 		var status = String.Equals( val, ValueOn, StringComparison.OrdinalIgnoreCase );
 
-		ConsoleSystem.Run( ConVar, status ? ValueOff : ValueOn );
+		MenuUtility.RunCommand( ConVar, status ? ValueOff : ValueOn );
 	}
 
 	public override void SetProperty( string name, string value )

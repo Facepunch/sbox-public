@@ -82,8 +82,14 @@ internal sealed class RemotePackage : Package
 		}
 	}
 
+	/// <summary>
+	/// What the backend last told us about this package, kept so it can be installed offline
+	/// </summary>
+	internal PackageDto Dto { get; private set; }
+
 	public void UpdateFromDto( PackageDto p )
 	{
+		Dto = p;
 		Org = Package.Organization.FromDto( p.Org );
 
 		Ident = p.Ident;
@@ -162,6 +168,20 @@ internal sealed class RemotePackage : Package
 				}
 			};
 		}
+	}
+
+	/// <summary>
+	/// Use this meta rather than the backend's - remembered offline with the rest of the package
+	/// </summary>
+	internal void UseMeta( string meta )
+	{
+		if ( Version is null ) return;
+
+		Version.Meta = meta;
+		if ( Dto?.Version is not null ) Dto.Version.Meta = meta;
+
+		cachedJson = null;
+		ClearMetaCache();
 	}
 
 	internal override JsonElement? GetJson()

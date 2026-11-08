@@ -6,9 +6,9 @@
 <root>
 	<Sandbox.UI.Toolbar>
 		<ChildContent>
-			<TextEntry class="toolbar-search" Placeholder="Search parties" Value:bind=@search HasClearButton=@true />
+			<TextEntry class="toolbar-search" Placeholder="#menu.multiplayer.search_parties" Value:bind=@search HasClearButton=@true />
 			<div class="pill-group">
-				<Button class="refresh icon-only" Icon="refresh" disabled=@loading onclick=@Refresh title="Refresh parties" tooltip="Refresh parties" />
+				<Button class="refresh icon-only" Icon="refresh" disabled=@loading onclick=@Refresh title="#menu.multiplayer.refresh_parties" tooltip="#menu.multiplayer.refresh_parties" />
 			</div>
 		</ChildContent>
 	</Sandbox.UI.Toolbar>
@@ -20,11 +20,11 @@
 	{
 		<div class="party-empty">
 			<icon>group_add</icon>
-			<label>@(loading && !loaded ? "Looking for parties…" : string.IsNullOrWhiteSpace( search ) ? "No open parties right now" : "No matching parties")</label>
-			<span>@(string.IsNullOrWhiteSpace( search ) ? "Start a party, invite friends, and find something to play." : "Try another party, host, or game name.")</span>
+			<label>@(loading && !loaded ? "#menu.multiplayer.looking_for_parties" : string.IsNullOrWhiteSpace( search ) ? "#menu.multiplayer.no_open_parties_right_now" : "#menu.multiplayer.no_matching_parties")</label>
+			<span>@(string.IsNullOrWhiteSpace( search ) ? "#menu.multiplayer.start_a_party_invite_friends_and_find_something_to_play" : "#menu.multiplayer.try_another_party_host_or_game_name")</span>
 			@if ( !string.IsNullOrWhiteSpace( search ) )
 			{
-				<Button class="clear-search" onclick=@(() => search = "")>Clear search</Button>
+				<Button class="clear-search" onclick=@(() => search = "")>#menu.multiplayer.clear_search</Button>
 			}
 		</div>
 	}
@@ -35,12 +35,12 @@
 				@if ( item is PartyRow party )
 				{
 					<MultiplayerListRow Title=@party.Name Image=@($"avatar:{party.OwnerId}")
-						Subtitle=@(string.IsNullOrWhiteSpace( party.GameTitle ) ? "Deciding together" : party.GameTitle)
-						PlayerCount=@party.Members CountCaption=@(party.IsCurrentParty ? "Your party" : null)>
+						Subtitle=@(string.IsNullOrWhiteSpace( party.GameTitle ) ? "#menu.multiplayer.deciding_together" : party.GameTitle)
+						PlayerCount=@party.Members CountCaption=@(party.IsCurrentParty ? "#menu.multiplayer.your_party" : null)>
 						<Actions>
 							@if ( !party.IsCurrentParty )
 							{
-								<Button disabled=@party.JoinDisabled onclick=@(() => PartyService.Join( party.Id )) tooltip="@(PartyRoom.Current is null ? "Join this party" : "Leave your current party before joining another")">Join</Button>
+								<Button disabled=@party.JoinDisabled onclick=@(() => PartyService.Join( party.Id )) tooltip="@(PartyRoom.Current is null ? "#menu.party.join_this_party" : "#menu.party.leave_your_current_party_before_joining_another")">#menu.common.join</Button>
 							}
 						</Actions>
 					</MultiplayerListRow>
@@ -50,7 +50,7 @@
 	}
 	@if ( PartyRoom.Current is null )
 	{
-		<Button class="create-party" Icon="add" disabled=@PartyService.Busy onclick=@PartyService.Create>Create a party</Button>
+		<Button class="create-party" Icon="add" disabled=@PartyService.Busy onclick=@PartyService.Create>#menu.multiplayer.create_a_party</Button>
 	}
 </root>
 

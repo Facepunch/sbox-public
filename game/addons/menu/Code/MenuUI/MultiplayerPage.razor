@@ -33,9 +33,9 @@
 		chat = new GlobalChat();
 		servers = new MultiplayerServers { OnGameSelected = OpenGame };
 		parties = new OpenParties();
-		dock.Register( "servers", "Active Games", servers, canClose: false, icon: "sports_esports" );
-		dock.Register( "parties", "Open Parties", parties, canClose: false, icon: "groups" );
-		dock.Register( "chat", "Global Chat", chat, canClose: false, icon: "chat_bubble" );
+		dock.Register( "servers", "#menu.multiplayer.active_games", servers, canClose: false, icon: "sports_esports" );
+		dock.Register( "parties", "#menu.multiplayer.open_parties", parties, canClose: false, icon: "groups" );
+		dock.Register( "chat", "#menu.multiplayer.global_chat", chat, canClose: false, icon: "chat_bubble" );
 
 		dock.Dock( "servers" );
 		dock.Dock( "parties", "servers", DockPosition.Right, 2f / 3f );
@@ -56,6 +56,8 @@
 				{
 					"Open Parties" => "groups",
 					"Global Chat" => "chat_bubble",
+					var title when title == Language.GetPhrase( "menu.multiplayer.open_parties" ) => "groups",
+					var title when title == Language.GetPhrase( "menu.multiplayer.global_chat" ) => "chat_bubble",
 					_ => "sports_esports"
 				};
 			}

@@ -25,11 +25,38 @@ internal static partial class Ugc
 		public bool IsPublishing => native.m_submitted;
 		public bool IsFinished => native.m_complete;
 		public float PercentComplete => native.GetProgressPercent();
+		public ulong BytesProcessed => native.GetBytesProcessed();
+		public ulong BytesTotal => native.GetBytesTotal();
+
+		/// <summary>
+		/// Steam's EItemUpdateStatus - what the upload's doing right now
+		/// </summary>
+		public enum UpdateStatus
+		{
+			Invalid,
+			PreparingConfig,
+			PreparingContent,
+			UploadingContent,
+			UploadingPreviewFile,
+			CommittingChanges
+		}
+
+		public UpdateStatus Status => (UpdateStatus)native.GetUpdateStatus();
 
 		public void SetTitle( string value ) => native.SetTitle( value );
 		public void SetDescription( string value ) => native.SetDescription( value );
 		public void SetPreviewImage( string value ) => native.SetPreviewImage( value );
+
+		/// <summary>
+		/// Add another image to the item's previews, after the main one. Steam wants it under 1MB.
+		/// </summary>
+		public void AddPreviewImage( string value ) => native.AddPreviewFile( value, 0 );
 		public void SetKeyValue( string key, string value ) => native.AddKeyValueTag( key, value );
+
+		/// <summary>
+		/// Take every value off the item under this key. Values set in the same update stay.
+		/// </summary>
+		public void RemoveKeyValues( string key ) => native.RemoveKeyValueTags( key );
 		public void SetTag( string tag ) => native.SetTag( tag );
 		public void SetContentFile( string fullPath ) => native.SetContentFolder( fullPath );
 		public void SetMetaData( string metadata ) => native.SetMetadata( metadata );
@@ -45,7 +72,7 @@ internal static partial class Ugc
 				await Task.Delay( 10 );
 			}
 
-			return true;
+			return native.m_success;
 		}
 	}
 

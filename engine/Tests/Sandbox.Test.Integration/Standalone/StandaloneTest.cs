@@ -24,7 +24,9 @@ public class StandaloneTest
 		Project.Clear();
 	}
 
+	// Slow: full export plus booting a second engine. PR runs skip it, master runs it.
 	[TestMethod]
+	[TestCategory( "Slow" )]
 	public async Task ExportAndRun()
 	{
 		var config = new ExportConfig();
@@ -32,6 +34,10 @@ public class StandaloneTest
 		config.TargetDir = Path.Combine( Path.GetTempPath(), tempFolderName, "sboxexportest" );
 		config.AppId = 480; // SpaceWar AppID
 		config.TargetIcon = "core/tools/images/hammer/appicon.ico"; // the wizard always offers one, so exercise the icon path
+
+		// We'll test to make sure this env var isn't changed by running the exported game
+		var oldEnginePath = Environment.GetEnvironmentVariable( "FACEPUNCH_ENGINE", EnvironmentVariableTarget.User );
+		var newEnginePath = oldEnginePath;
 
 		try
 		{
@@ -87,6 +93,9 @@ public class StandaloneTest
 					Assert.IsTrue( image.AsSpan().IndexOf( System.Text.Encoding.Unicode.GetBytes( resource ) ) >= 0, $"Executable has no {resource} resource" );
 				}
 				Assert.IsTrue( image.AsSpan().IndexOf( System.Text.Encoding.UTF8.GetBytes( $"\"Ident\":\"{project.Config.Ident}\"" ) ) >= 0, "Executable's manifest doesn't name the game" );
+
+				// Nothing references surfaces as assets, without them every MeshComponent fails to build
+				Assert.IsTrue( File.Exists( Path.Combine( config.TargetDir, "core", "surfaces", "default.surface_c" ) ), "Export is missing core/surfaces/default.surface_c" );
 			}
 
 			//
@@ -138,7 +147,17 @@ public class StandaloneTest
 		finally
 		{
 			CleanOutput( config );
+
+			newEnginePath = Environment.GetEnvironmentVariable( "FACEPUNCH_ENGINE", EnvironmentVariableTarget.User );
+
+			if ( oldEnginePath != newEnginePath )
+			{
+				// Put it back so other tests still work
+				Environment.SetEnvironmentVariable( "FACEPUNCH_ENGINE", oldEnginePath, EnvironmentVariableTarget.User );
+			}
 		}
+
+		Assert.AreEqual( oldEnginePath, newEnginePath, "The standalone exe overwrote the user-level FACEPUNCH_ENGINE" );
 	}
 
 	private void CleanOutput( ExportConfig config )

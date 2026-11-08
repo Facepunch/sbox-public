@@ -396,6 +396,53 @@ public class TooltipTests
 	}
 
 	/// <summary>
+	/// A press takes the tooltip down, and it stays down until the cursor leaves and comes back.
+	/// </summary>
+	[TestMethod]
+	public void PressTakesItDownUntilTheCursorReturns()
+	{
+		var panel = Add( "Press me" );
+
+		tooltips.SetHovered( panel );
+		tooltips.Frame( default, true );
+		Assert.AreEqual( 1, host.ShowCount );
+
+		surface.Input.MouseStates[0].Update( true, panel );
+		Assert.IsFalse( tooltips.IsShowing );
+
+		tooltips.SetHovered( panel );
+		tooltips.Frame( default, true );
+		Assert.AreEqual( 1, host.ShowCount, "not put straight back" );
+
+		tooltips.SetHovered( null );
+		tooltips.SetHovered( panel );
+		tooltips.Frame( default, true );
+		Assert.AreEqual( 2, host.ShowCount, "back after leaving and returning" );
+	}
+
+	/// <summary>
+	/// A press before the delay runs out calls the pending tooltip off, so it can't appear over a
+	/// menu the press opened.
+	/// </summary>
+	[TestMethod]
+	public void PressCallsOffAPendingTooltip()
+	{
+		tooltips.Delay = 10;
+		var panel = Add( "Add parameter" );
+
+		tooltips.SetHovered( panel );
+		tooltips.Frame( default, true );
+		Assert.AreEqual( 0, host.ShowCount );
+
+		surface.Input.MouseStates[0].Update( true, panel );
+
+		// Past the delay now - it still doesn't come
+		tooltips.Delay = 0;
+		tooltips.Frame( default, true );
+		Assert.AreEqual( 0, host.ShowCount );
+	}
+
+	/// <summary>
 	/// Without a host of its own, a tooltip lands in the hovered panel's root - the game path.
 	/// </summary>
 	[TestMethod]

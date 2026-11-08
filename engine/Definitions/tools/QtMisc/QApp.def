@@ -90,6 +90,13 @@ native accessor qApp as Native.QApp
 		{
 			qputenv( "QT_QPA_PLATFORM", "xcb" );
 		}
+
+		// The editor draws its menus in its own title bar. Without this, Qt hands every QMenuBar to a
+		// DBus global menu (and hides it) whenever an AppMenu registrar is running.
+		if ( IsPlatformLinux() )
+		{
+			QApplication::setAttribute( Qt::AA_DontUseNativeMenuBar );
+		}
 		#endif
 
 		QApplication::setAttribute( Qt::AA_EnableHighDpiScaling );
@@ -132,7 +139,7 @@ native accessor qApp as Native.QApp
 
 	inline QWidget HoveredWidget()
 	{
-		return qApp->widgetAt( QCursor::pos() );
+		return CQUtils::GetWidgetUnderCursor();
 	}
 
     inline int ScreenCount() 

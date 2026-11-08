@@ -23,4 +23,38 @@ public partial class RoundTripTest
 	[TestMethod] public void TimeSince() => DoRoundTrip( (global::Sandbox.TimeSince)10.0f );
 	[TestMethod] public void TimeUntil() => DoRoundTrip( (global::Sandbox.TimeUntil)10.0f );
 
+	[TestMethod]
+	public void ParticleFloatCurvesRoundTrip()
+	{
+		var a = Curve.Linear;
+		a.TimeRange = new Vector2( -1, 2 );
+		a.ValueRange = new Vector2( -3, 4 );
+		var frame = a[0];
+		frame.Mode = Curve.HandleMode.Stepped;
+		a[0] = frame;
+		var value = new ParticleFloat
+		{
+			Type = ParticleFloat.ValueType.CurveRange,
+			Evaluation = ParticleFloat.EvaluationType.Frame,
+			Constants = new Vector4( 1, 2, 3, 4 ),
+			CurveA = a,
+			CurveB = Curve.Ease
+		};
+
+		var result = typeLibrary.FromBytes<ParticleFloat>( typeLibrary.ToBytes( value ) );
+		Assert.AreEqual( value.Type, result.Type );
+		Assert.AreEqual( value.Evaluation, result.Evaluation );
+		Assert.AreEqual( value.Constants, result.Constants );
+		Assert.AreEqual( a.TimeRange, result.CurveA.TimeRange );
+		Assert.AreEqual( a.ValueRange, result.CurveA.ValueRange );
+		CollectionAssert.AreEqual( a.Frames.ToArray(), result.CurveA.Frames.ToArray() );
+		CollectionAssert.AreEqual( value.CurveB.Frames.ToArray(), result.CurveB.Frames.ToArray() );
+
+		ParticleFloat constant = 42;
+		var constantResult = typeLibrary.FromBytes<ParticleFloat>( typeLibrary.ToBytes( constant ) );
+		Assert.AreEqual( 42f, constantResult.ConstantValue );
+		Assert.IsTrue( constantResult.CurveA.Frames.IsDefault );
+		Assert.IsTrue( constantResult.CurveB.Frames.IsDefault );
+	}
+
 }

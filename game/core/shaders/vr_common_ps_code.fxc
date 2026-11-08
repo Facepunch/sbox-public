@@ -23,8 +23,7 @@
 
 #include "math_general.fxc"
 #include "encoded_normals.fxc"
-#include "vr_gradient_fog.fxc"
-#include "vr_cubemap_fog.fxc"
+#include "common/classes/Fog.hlsl"
 #include "vr_lighting.fxc"
 #include "volumetric_fog.fxc"
 
@@ -37,7 +36,11 @@
 #if ( S_UNLIT )
 	BoolAttribute( unlit, true );
 #else
-	BoolAttribute( NeedsLightProbe, true );
+	// Allow lit shaders to opt out of legacy baked light-probe binding.
+	#ifndef NEEDS_LIGHT_PROBE
+		#define NEEDS_LIGHT_PROBE true
+	#endif
+	BoolAttribute( NeedsLightProbe, NEEDS_LIGHT_PROBE );
 #endif
 
 bool g_bFogEnabled < Default( 1.0f ); UiType( CheckBox ); UiGroup( "Fog,300" ); >;
@@ -314,9 +317,11 @@ PS_OUTPUT PS_FinalCombinerDoLighting( FinalCombinerInput_t f, inout LightingTerm
 		// Roughness adjusted to fix geometric specular aliasing
 		f.vRoughness.xy = AdjustRoughnessByGeometricNormal( f.vRoughness.xy, f.vNormalWs.xyz );
 
-		// Compute lighting
-		ComputeDirectLighting( lightingTerms, f );
-		CalculateIndirectLighting( lightingTerms, f );
+		// Compute lighting. The cluster index is taken once for both. Emissive rides in transmission, which is only added
+		// at the end, so it isn't live through the light loops; tools vis shows them apart.
+		uint nClusterIndex = Cluster::Index( f.vPositionSs );
+		ComputeDirectLighting( lightingTerms, f, nClusterIndex, ToolsVis::WantsToolsVis() ? float3( 0.0, 0.0, 0.0 ) : f.vEmissive.rgb );
+		CalculateIndirectLighting( lightingTerms, f, nClusterIndex );
 
 		//
 		// Diffuse AO
@@ -353,7 +358,12 @@ PS_OUTPUT PS_FinalCombinerDoLighting( FinalCombinerInput_t f, inout LightingTerm
 	//
 	// Emissive
 	//
-	o.vColor.rgb += f.vEmissive.rgb;
+	#if ( S_UNLIT )
+		o.vColor.rgb += f.vEmissive.rgb;
+	#else
+		if ( ToolsVis::WantsToolsVis() )
+			o.vColor.rgb += f.vEmissive.rgb;
+	#endif
 
 	//
 	// Add Specular Contribution
@@ -362,9 +372,9 @@ PS_OUTPUT PS_FinalCombinerDoLighting( FinalCombinerInput_t f, inout LightingTerm
 	o.vColor.rgb += lightingTerms.vIndirectSpecular.rgb; 
 
 	//
-	// Add transmissive
+	// Transmission contributions already include the material's mask.
 	//
-	o.vColor.rgb += lightingTerms.vTransmissive.rgb * f.vTransmissiveMask.rgb;
+	o.vColor.rgb += lightingTerms.vTransmissive.rgb;
 
 	return o;
 }
@@ -377,30 +387,9 @@ PS_OUTPUT PS_FinalCombinerDoPostProcessing( FinalCombinerInput_t f, LightingTerm
 
 	if ( g_bFogEnabled )
 	{
-		// S_ADDITIVE_BLEND This is only used in one mode of static_overlay!!! Can ffuck off soon
 		#if ( S_ADDITIVE_BLEND )
 		{
-			//
-			// When blending additively, dest pixel contains the fog term.
-			// Therefore, we want to scale alpha with fog amount in front of us,
-			// rather than double-adding the fog
-			//
-			const float3 vPositionToCameraWs = vPositionWs.xyz - g_vCameraPositionWs;
-
-			if ( g_bGradientFogEnabled )
-			{
-				o.vColor.a *= 1.0 - CalculateGradientFog( vPositionWs, vPositionToCameraWs ).a;
-			}
-
-			if ( g_bCubemapFogEnabled )
-			{
-				o.vColor.a *= 1.0 - CalculateCubemapFog( vPositionWs, vPositionToCameraWs ).a;
-			}
-
-			if ( g_bVolumetricFogEnabled )
-			{
-				o.vColor.a *= CalculateVolumetricFog( vPositionWs.xyz, vPositionSs.xy ).a;
-			}
+			o.vColor.a *= Fog::Transmittance( vPositionWs, vPositionSs.xy );
 		}
 		#else
 		{

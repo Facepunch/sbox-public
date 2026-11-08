@@ -77,9 +77,15 @@ internal struct ShadowLight
 internal struct ShadowViewInfo
 {
 	/// <summary>
-	/// Inverse of the view's reverse-Z world to projection, row-vector convention, absolute world space.
+	/// Inverse of the view's reverse-Z projection: clip space to camera-relative view space, row-vector convention.
+	/// Sun cascades are fit in view space so they don't pick up float error from where the camera is in the world.
 	/// </summary>
-	public System.Numerics.Matrix4x4 InverseViewProjection;
+	public System.Numerics.Matrix4x4 ProjectionToView;
+
+	/// <summary>
+	/// Turns view space directions into world space directions, row-vector convention. Rotation only.
+	/// </summary>
+	public System.Numerics.Matrix4x4 ViewToWorldRotation;
 
 	public Vector3 CameraPosition;
 
@@ -92,6 +98,17 @@ internal struct ShadowViewInfo
 	/// A 3D skybox view: fully static and baked, so the sun lights it but casts no cascades.
 	/// </summary>
 	public bool IsSkybox;
+
+	/// <summary>
+	/// A reflection view: no contact shadows, and its cascades fit a mirrored camera, so no other view may reuse them.
+	/// </summary>
+	public bool IsReflection;
+
+	/// <summary>
+	/// A reflection without shadows (<c>r.reflections.shadows</c> off): lit but unshadowed, so it never waits on a
+	/// shadow map and can render before every view.
+	/// </summary>
+	public bool NoShadows;
 }
 
 /// <summary>
@@ -138,14 +155,6 @@ internal struct ShadowViewDesc
 	/// </summary>
 	public int DepthBias;
 	public float SlopeScaledDepthBias;
-
-	/// <summary>
-	/// Casters entirely inside an orthographic box <see cref="ExclusionSize"/> across at
-	/// <see cref="ExclusionCenter"/>, turned like this view, are left out - they're in an earlier cascade.
-	/// </summary>
-	public bool HasExclusion;
-	public Vector3 ExclusionCenter;
-	public float ExclusionSize;
 
 	/// <summary>
 	/// Static casters already rendered into this map: it's copied in instead of clearing, and only

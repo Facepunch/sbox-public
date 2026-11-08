@@ -35,7 +35,8 @@ internal static partial class Logging
 
 		var appName = Process.GetCurrentProcess().ProcessName.Split( '.' )[0];
 
-		var gamePath = System.Environment.GetEnvironmentVariable( "FACEPUNCH_ENGINE", EnvironmentVariableTarget.User );
+		var gamePath = System.Environment.GetEnvironmentVariable( "FACEPUNCH_ENGINE" );
+		gamePath ??= System.Environment.GetEnvironmentVariable( "FACEPUNCH_ENGINE", EnvironmentVariableTarget.User );
 		gamePath ??= AppContext.BaseDirectory;
 
 #pragma warning disable CA2000 // Dispose objects before losing scope
@@ -237,11 +238,12 @@ internal static partial class Logging
 	internal static void RegisterEngineLogger( int id, string v )
 	{
 		v = $"engine/{v}";
-		Loggers.Add( v );
+		lock ( Loggers ) Loggers.Add( v );
 	}
 
+	// Loggers are constructed from any thread
 	internal static void RegisterLogger( string name )
 	{
-		Loggers.Add( name );
+		lock ( Loggers ) Loggers.Add( name );
 	}
 }

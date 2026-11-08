@@ -28,6 +28,8 @@ internal partial class PainterBatcher
 			destination[i] = points[i] - origin;
 		}
 
+		_polygonPointTable.Fold( destination );
+
 		return AddShape( new UICssBoxBatched.BorderShape
 		{
 			Kind = UICssBoxBatched.ShapeKind.PolygonPath,

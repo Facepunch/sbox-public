@@ -1,4 +1,5 @@
-﻿using Sandbox;
+﻿using Sandbox.Engine;
+using Sandbox;
 using Sandbox.Internal;
 
 /// <summary>
@@ -71,7 +72,7 @@ public class ValidateAttribute : Attribute
 	{
 		if ( _methodOwnerType != null )
 		{
-			td = GlobalGameNamespace.TypeLibrary.GetType( _methodOwnerType );
+			td = GlobalContext.Current.TypeLibrary.GetType( _methodOwnerType );
 		}
 
 		var methodDesc = td.GetMethod( _methodName );

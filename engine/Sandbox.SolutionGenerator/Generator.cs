@@ -116,7 +116,7 @@ namespace Sandbox.SolutionGenerator
 					var propertiesPath = Path.Combine( p.Path, "Properties" );
 					Directory.CreateDirectory( propertiesPath );
 
-					var absoluteExePath = Path.Combine( relativePath, "sbox-dev.exe" );
+					var absoluteExePath = Path.Combine( relativePath, OperatingSystem.IsWindows() ? "sbox-dev.exe" : "sbox-dev" );
 					var relativeExePath = AttemptAbsoluteToRelative( propertiesPath, absoluteExePath );
 
 					var launchSettings = new LaunchSettings { Profiles = new() };

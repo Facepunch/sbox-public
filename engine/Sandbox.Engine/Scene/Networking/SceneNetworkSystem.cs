@@ -41,11 +41,8 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		AddHandler<ObjectRefreshMsgAck>( OnObjectRefreshAck );
 		AddHandler<ObjectDestroyMsg>( OnObjectDestroy );
 		AddHandler<ObjectDetachMsg>( OnObjectDetach );
-		AddHandler<ObjectRpcMsg>( OnObjectMessage );
 		AddHandler<ObjectNetworkTableMsg>( OnNetworkTableChanges );
 		AddHandler<SceneNetworkTableMsg>( OnNetworkTableChanges );
-		AddHandler<SceneRpcMsg>( OnSceneRpc );
-		AddHandler<StaticRpcMsg>( OnStaticRpc );
 		AddHandler<LoadSceneBeginMsg>( OnLoadSceneMsg );
 		AddHandler<LoadSceneSnapshotMsg>( OnLoadSceneSnapshotMsg );
 		AddHandler<LoadSceneRequestSnapshotMsg>( OnLoadSceneRequestSnapshotMsg );
@@ -55,6 +52,16 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	internal void OnHotload()
 	{
 		DeltaSnapshots.Reset();
+	}
+
+	internal override void OnRpcMessage( ByteStream data, Connection source )
+	{
+		Rpc.IncomingRpc( data, source );
+	}
+
+	internal override void AfterIncomingMessages()
+	{
+		DeltaSnapshots.FlushAcks();
 	}
 
 	/// <summary>
@@ -96,14 +103,10 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		// Clear all pending scene loads before we load a new scene
 		PendingSceneLoads.Clear();
 
-		var mounedVpks = Game.ActiveScene.GetAllComponents<MapInstance>()
-			.Select( x => x.MapName )
-			.ToList();
-
 		var loadMsg = new LoadSceneBeginMsg
 		{
 			ShowLoadingScreen = options.ShowLoadingScreen,
-			MountedVPKs = mounedVpks,
+			MountedVPKs = GetMapNames(),
 			SceneId = Game.ActiveScene.Id,
 			Id = Guid.NewGuid()
 		};
@@ -265,6 +268,14 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	private async Task OnLoadSceneSnapshotMsg( LoadSceneSnapshotMsg msg, Connection connection, Guid msgId )
 	{
 		NetworkDebugSystem.Current?.Record( NetworkDebugSystem.MessageType.Snapshot, msg );
+		Diagnostics.DevTools.NetworkLog.Message( Diagnostics.DevTools.NetworkLog.Kind.Snapshot, "SceneSnapshot", msg, false, connection );
+
+		// The maps sent with LoadSceneBeginMsg can be out of date, because the host's maps were still
+		// loading. Mount the final list before the snapshot creates objects that use files in them.
+		// Mount before releasing the old list, so a VPK in both stays mounted.
+		var previousVPKs = MountedVPKs;
+		MountedVPKs = await MountMaps( msg.MountedVPKs );
+		previousVPKs?.Dispose();
 
 		await SetSnapshotAsync( msg.Snapshot );
 
@@ -315,7 +326,8 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 		connection.State = Connection.ChannelState.Snapshot;
 
-		SendSnapshot( connection, snapshot => new LoadSceneSnapshotMsg { SceneId = msg.SceneId, Id = msg.Id, Snapshot = snapshot } );
+		var maps = GetMapNames();
+		SendSnapshot( connection, snapshot => new LoadSceneSnapshotMsg { SceneId = msg.SceneId, Id = msg.Id, Snapshot = snapshot, MountedVPKs = maps } );
 	}
 
 	/// <summary>
@@ -374,7 +386,12 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	/// </summary>
 	public override void GetMountedVPKs( Connection source, ref MountedVPKsResponse msg )
 	{
-		msg.MountedVPKs = Game.ActiveScene.GetAllComponents<MapInstance>().Select( x => x.MapName ).ToList();
+		msg.MountedVPKs = GetMapNames();
+	}
+
+	private static List<string> GetMapNames()
+	{
+		return Game.ActiveScene.GetAllComponents<MapInstance>().Select( x => x.MapName ).ToList();
 	}
 
 	/// <summary>
@@ -460,7 +477,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 				{
 					SnapshotData = WriteGameObjectSystemSnapshot( system ),
 					TableData = system.WriteDataTable( true ),
-					Type = Game.TypeLibrary.GetType( system.GetType() ).Identity,
+					Type = GlobalContext.Current.TypeLibrary.GetType( system.GetType() ).Identity,
 					Id = system.Id
 				} );
 			}
@@ -523,7 +540,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	{
 		if ( Game.ActiveScene is null ) return "<empty>";
 
-		foreach ( var map in Game.ActiveScene.GetAllComponents<MapInstance>() )
+		foreach ( var map in Game.ActiveScene.Query<MapInstance>() )
 		{
 			if ( !map.Active ) continue;
 			if ( !map.IsLoaded ) continue;
@@ -673,7 +690,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	{
 		foreach ( var s in msg.GameObjectSystems )
 		{
-			var type = Game.TypeLibrary.GetTypeByIdent( s.Type );
+			var type = GlobalContext.Current.TypeLibrary.GetTypeByIdent( s.Type );
 			if ( type is null )
 				continue;
 
@@ -765,11 +782,6 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			foreach ( var no in Game.ActiveScene.networkedObjects )
 			{
 				no.RemoveConnection( client.Id );
-			}
-
-			foreach ( var system in Game.ActiveScene.GetSystems() )
-			{
-				system.LocalSnapshotState.RemoveConnection( client.Id );
 			}
 
 			if ( Networking.IsHost )
@@ -980,6 +992,11 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		return Game.ActiveScene is null ? null : Game.ActiveScene.Push();
 	}
 
+	/// <summary>
+	/// Allocation-free version of <see cref="Push"/>.
+	/// </summary>
+	internal ScenePushScope PushScope() => new( Game.ActiveScene );
+
 	private void OnObjectDestroyDescendant( ObjectDestroyDescendantMsg message, Connection source )
 	{
 		var scene = Game.ActiveScene;
@@ -1060,14 +1077,16 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 		var parentObject = scene.Directory.FindByGuid( message.ParentId );
 		if ( !parentObject.IsValid() )
-			return;
-
-		var root = parentObject.Network.RootGameObject;
-		if ( !root.IsValid() ) return;
-
-		if ( root._net is null )
 		{
-			Log.Warning( $"ObjectRefreshDescendant: Object {root} is not networked" );
+			UpdateFromUnappliedRefresh( scene, source, message.TableData, message.Snapshot );
+			return;
+		}
+
+		// The parent might not be under the root the refresh was sent for, like an object only we put somewhere else.
+		var root = parentObject.Network.RootGameObject;
+		if ( !root.IsValid() || root._net is null || root.Id != DeltaSnapshotSystem.ReadObjectId( message.Snapshot ) )
+		{
+			UpdateFromUnappliedRefresh( scene, source, message.TableData, message.Snapshot );
 			return;
 		}
 
@@ -1096,8 +1115,8 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			gameObject.PreserveFromHostSyncMembers( gameObjectJson );
 		}
 
-		using ( var _ = CallbackBatch.Batch() )
 		using ( BlobDataSerializer.LoadFromMemory( message.BlobData ) )
+		using ( var _ = CallbackBatch.Batch() )
 		{
 			gameObject?.Deserialize( gameObjectJson, new GameObject.DeserializeOptions
 			{
@@ -1123,14 +1142,16 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		var gameObject = scene.Directory.FindByGuid( message.GameObjectId );
 
 		if ( !gameObject.IsValid() )
-			return;
-
-		var root = gameObject.Network.RootGameObject;
-		if ( !root.IsValid() ) return;
-
-		if ( root._net is null )
 		{
-			Log.Warning( $"ObjectRefreshComponent: Object {root} is not networked" );
+			UpdateFromUnappliedRefresh( scene, source, message.TableData, message.Snapshot );
+			return;
+		}
+
+		// The object might not be under the root the refresh was sent for, like an object only we put somewhere else.
+		var root = gameObject.Network.RootGameObject;
+		if ( !root.IsValid() || root._net is null || root.Id != DeltaSnapshotSystem.ReadObjectId( message.Snapshot ) )
+		{
+			UpdateFromUnappliedRefresh( scene, source, message.TableData, message.Snapshot );
 			return;
 		}
 
@@ -1148,11 +1169,12 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		if ( !component.IsValid() )
 		{
 			var componentTypeName = componentJson.GetPropertyValue( Component.JsonKeys.Type, "" );
-			var componentType = Game.TypeLibrary.GetType<Component>( componentTypeName, true );
+			var componentType = GlobalContext.Current.TypeLibrary.GetType<Component>( componentTypeName, true );
 
 			if ( componentType is null || componentType.TargetType.IsAbstract )
 			{
 				Log.Warning( $"TypeLibrary couldn't find {nameof( Component )} type {componentTypeName}" );
+				UpdateFromUnappliedRefresh( scene, source, message.TableData, message.Snapshot );
 				return;
 			}
 
@@ -1163,10 +1185,13 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			catch ( Exception e )
 			{
 				Log.Error( e );
+				UpdateFromUnappliedRefresh( scene, source, message.TableData, message.Snapshot );
+				return;
 			}
 		}
 		else if ( component.GameObject != gameObject )
 		{
+			UpdateFromUnappliedRefresh( scene, source, message.TableData, message.Snapshot );
 			return;
 		}
 
@@ -1175,14 +1200,30 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			component.PreserveFromHostSyncMembers( componentJson );
 		}
 
-		using ( CallbackBatch.Batch() )
 		using ( BlobDataSerializer.LoadFromMemory( message.BlobData ) )
+		using ( CallbackBatch.Batch() )
 		{
 			component?.DeserializeInternal( componentJson, true );
 			component?.PostDeserialize();
 		}
 
 		root._net.UpdateFromRefresh( source, message.TableData, message.Snapshot );
+	}
+
+	/// <summary>
+	/// A refresh we can't apply, like one naming an object only its sender has, still has to move its root object
+	/// to the version it was sent at. Every snapshot sent after it would be turned away for good otherwise. Its
+	/// snapshot is the root's, so that's applied too.
+	/// </summary>
+	private static void UpdateFromUnappliedRefresh( Scene scene, Connection source, byte[] tableData, byte[] snapshotData )
+	{
+		var root = scene.Directory.FindByGuid( DeltaSnapshotSystem.ReadObjectId( snapshotData ) );
+		if ( root?._net is null ) return;
+
+		if ( !root._net.HasControl( source ) && !source.IsHost )
+			return;
+
+		root._net.UpdateFromRefresh( source, tableData, snapshotData );
 	}
 
 
@@ -1299,8 +1340,8 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 		var go = new GameObject();
 
-		using ( CallbackBatch.Batch() )
 		using ( BlobDataSerializer.LoadFromMemory( message.BlobData ) )
+		using ( CallbackBatch.Batch() )
 		{
 			go.Deserialize( JsonNode.Parse( message.JsonData ).AsObject(), networkDeserializeOptionsCreate );
 			go.NetworkSpawnRemote( message );
@@ -1430,21 +1471,6 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		obj._net.OnNetworkDestroy();
 	}
 
-	private void OnObjectMessage( ObjectRpcMsg rpc, Connection source, Guid msgId )
-	{
-		Rpc.IncomingInstanceRpcMsg( rpc, source );
-	}
-
-	private void OnSceneRpc( SceneRpcMsg message, Connection source, Guid msgId )
-	{
-		Rpc.IncomingInstanceRpcMsg( message, source );
-	}
-
-	private void OnStaticRpc( StaticRpcMsg message, Connection source, Guid msgId )
-	{
-		Rpc.IncomingStaticRpcMsg( message, source );
-	}
-
 	/// <summary>
 	/// A heartbeat has been received from the host. We should make sure our times are in sync.
 	/// </summary>
@@ -1487,6 +1513,9 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	/// </summary>
 	internal override void OnDeltaSnapshotMessage( InternalMessageType type, ByteStream bs, Connection source )
 	{
+		// Acknowledgements measure the round trip, against a clock that's otherwise only updated when we send
+		DeltaSnapshots.UpdateTime();
+
 		if ( type == InternalMessageType.DeltaSnapshot )
 		{
 			NetworkDebugSystem.Current?.Record( NetworkDebugSystem.MessageType.SyncVars, bs.Length );
@@ -1603,6 +1632,7 @@ struct LoadSceneRequestSnapshotMsg
 struct LoadSceneSnapshotMsg
 {
 	public SnapshotMsg Snapshot { get; set; }
+	public List<string> MountedVPKs { get; set; }
 	public Guid SceneId { get; set; }
 	public Guid Id { get; set; }
 }
@@ -1660,31 +1690,4 @@ struct ObjectDetachMsg
 struct ObjectDestroyMsg
 {
 	public Guid Guid { get; set; }
-}
-
-[Expose]
-struct SceneRpcMsg
-{
-	public Guid Guid { get; set; }
-	public int MethodIdentity { get; set; }
-	public object[] Arguments { get; set; }
-	public int[] GenericArguments { get; set; }
-}
-
-[Expose]
-struct ObjectRpcMsg
-{
-	public Guid Guid { get; set; }
-	public Guid ComponentId { get; set; }
-	public int MethodIdentity { get; set; }
-	public object[] Arguments { get; set; }
-	public int[] GenericArguments { get; set; }
-}
-
-[Expose]
-struct StaticRpcMsg
-{
-	public int MethodIdentity { get; set; }
-	public object[] Arguments { get; set; }
-	public int[] GenericArguments { get; set; }
 }

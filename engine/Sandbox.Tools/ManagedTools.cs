@@ -83,17 +83,14 @@ internal static class ManagedTools
 		Log.Info( "Compiling Tools" );
 		RunFrame();
 
-		while ( !AccountLoginTask.IsCompleted )
+		while ( AccountLoginTask is not null && !AccountLoginTask.IsCompleted )
 		{
 			Sandbox.Engine.IToolsDll.Current?.Spin();
 			System.Threading.Thread.Sleep( 16 );
 		}
 
-		// If the avatar was found on the backend, replace the cookie one
 		if ( !string.IsNullOrWhiteSpace( AccountInformation.AvatarJson ) )
-		{
 			Avatar.AvatarJson = AccountInformation.AvatarJson;
-		}
 	}
 
 	static bool _wasActiveWindow;
@@ -134,6 +131,7 @@ internal static class ManagedTools
 		// Panel UI windows and their swap chains, before the render device goes away
 		PanelWindow.DisposeAll();
 		SceneRenderingWidget.ShutdownRendering();
+		PanelSurfaceWidget.ShutdownRendering();
 		EngineLoop.DrainFrameEndDisposables();
 
 		AssetSystem.Shutdown();

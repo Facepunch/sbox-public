@@ -127,11 +127,17 @@ internal sealed class PhysicsJoint3d : PhysicsJointInternal, IHandle
 
 	public override float Angle => native.GetAngle();
 
-	public override void SetLimit( string name, Vector2 limit ) => native.SetLimit( name, limit );
-	public override void SetLimitEnabled( string name, bool state ) => native.SetLimitEnabled( name, state );
+	public override void SetSwingLimit( float angleDegrees ) => native.SetSwingLimit( angleDegrees );
+	public override void SetSwingLimitEnabled( bool enabled ) => native.SetSwingLimitEnabled( enabled );
+	public override void SetTwistLimits( float minDegrees, float maxDegrees ) => native.SetTwistLimits( minDegrees, maxDegrees );
+	public override void SetTwistLimitEnabled( bool enabled ) => native.SetTwistLimitEnabled( enabled );
+	public override void SetLinearLimits( float min, float max ) => native.SetLinearLimits( min, max );
+	public override void SetLinearLimitEnabled( bool enabled ) => native.SetLinearLimitEnabled( enabled );
 
 	public override void SetAngularSpring( Vector3 parameters ) => native.SetAngularSpring( parameters );
 	public override void SetAngularMotor( float targetVelocity, float maxTorque ) => native.SetAngularMotor( targetVelocity, maxTorque );
+	public override void SetLinearMotor( float targetVelocity, float maxForce ) => native.SetLinearMotor( targetVelocity, maxForce );
+	public override void SetLinearSpring( Vector3 parameters ) => native.SetLinearSpring( parameters );
 	public override void SetTargetRotation( Rotation rotation, float hertz, float damping ) => native.SetTargetRotation( rotation, hertz, damping );
 	public override void SetMotorVelocity( Vector3 velocity, float maxTorque ) => native.SetMotorVelocity( velocity, maxTorque );
 

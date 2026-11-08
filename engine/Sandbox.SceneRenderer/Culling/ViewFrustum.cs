@@ -69,27 +69,6 @@ internal readonly struct ViewFrustum
 		return true;
 	}
 
-	/// <summary>
-	/// Whether a world space box is entirely inside.
-	/// </summary>
-	public bool Contains( in Vector3 center, in Vector3 extents )
-	{
-		return Contained( _left, center, extents )
-			&& Contained( _right, center, extents )
-			&& Contained( _bottom, center, extents )
-			&& Contained( _top, center, extents )
-			&& Contained( _near, center, extents )
-			&& Contained( _far, center, extents );
-	}
-
-	static bool Contained( in Vector4 plane, in Vector3 center, in Vector3 extents )
-	{
-		var normal = new Vector3( plane.x, plane.y, plane.z );
-		var distance = Vector3.Dot( normal, center ) + plane.w;
-		var radius = Vector3.Dot( extents, normal.Abs() );
-		return distance - radius >= 0;
-	}
-
 	static bool Inside( in Vector4 plane, in Vector3 center, in Vector3 extents )
 	{
 		var normal = new Vector3( plane.x, plane.y, plane.z );

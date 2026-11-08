@@ -98,6 +98,9 @@ struct BinnedLight
 
     // Custom shadow techniques precomputed on compute shader, RT, Screenspace shadows, Capsules, etc, 0xFFFFFFFF if no shadow mask, otherwise index in bindless array
     uint ShadowMaskTextureIndex;
+
+    uint LightModulatorOffset;
+    uint LightModulatorCount;
     
 	// ---------------------------------
 

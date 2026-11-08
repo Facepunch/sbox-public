@@ -1,0 +1,88 @@
+
+include "animationsystem2/animgraph2resource.h"
+include "animationsystem2/graph/animation_graph_builder.h"
+
+native class CGraphBuilder as NativeEngine.AnimationGraphBuilder
+{
+	static AnimationGraphBuilder Create(); [new]
+	void DeleteThis(); [delete]
+	string GetErrorString();
+	CUtlBuffer Compile( int rootNodeIndex, string model, string variation );
+	int AddAnimation( string path );
+	int AddReferencedGraph( string path );
+
+	inline uint InternID( string name )
+	{
+		return self->InternID( name ).m_nHashCode;
+	}
+
+	inline void SetSkeleton( string path )
+	{
+		self->Resource().m_skeleton = path;
+	}
+
+	inline void AddPersistentNode( int index )
+	{
+		self->Definition().m_persistentNodeIndices.AddToTail( (int16)index );
+	}
+
+	inline void AddControlParameter( string name )
+	{
+		self->Definition().m_controlParameterIDs.AddToTail( self->InternID( name ) );
+	}
+
+	inline void AddParameterDescription( string name, GraphValueType_t type, float min, float max )
+	{
+		auto& parameter = self->Resource().m_parameters[ self->Resource().m_parameters.AddToTail() ];
+		parameter.m_name = name;
+		parameter.m_type = type;
+		parameter.m_min = min;
+		parameter.m_max = max;
+	}
+
+	inline void AddParameterOption( string option )
+	{
+		self->Resource().m_parameters.Tail().m_options.AddToTail( CUtlString( option ) );
+	}
+
+	inline void AddVirtualParameter( string name, int index )
+	{
+		self->Definition().m_virtualParameterIDs.AddToTail( self->InternID( name ) );
+		self->Definition().m_virtualParameterNodeIndices.AddToTail( (int16)index );
+	}
+
+	inline void AddExternalGraphSlot( string name, int index )
+	{
+		CGraphDefinition::ExternalGraphSlot slot;
+		slot.m_nodeIdx = (int16)index;
+		slot.m_slotID = self->InternID( name );
+		self->Definition().m_externalGraphSlots.AddToTail( slot );
+	}
+
+	inline void AddExternalPoseSlot( string name, int index )
+	{
+		CGraphDefinition::ExternalPoseSlot slot;
+		slot.m_nodeIdx = (int16)index;
+		slot.m_slotID = self->InternID( name );
+		self->Definition().m_externalPoseSlots.AddToTail( slot );
+	}
+}
+
+[ResourceHandle:HAnimGraph2]
+native class CAnimGraph2Resource as NativeEngine.HAnimGraph2
+{
+	int GetNumAnimationSlots();
+	string GetAnimationSlotName( int idx );
+
+	string GetVariationID();
+	string GetModelName();
+
+	int GetNumParameters();
+
+	string GetParameterName( int idx );
+	int GetParameterType( int idx );
+	float GetParameterMin( int idx );
+	float GetParameterMax( int idx );
+	int GetParameterOptionCount( int idx );
+	string GetParameterOption( int idx, int optionIdx );
+}

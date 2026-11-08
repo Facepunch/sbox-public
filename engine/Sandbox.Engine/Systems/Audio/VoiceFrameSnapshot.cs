@@ -50,7 +50,6 @@ sealed class VoiceFrameSnapshot
 		{
 			voices[i].Sampler = null;
 			voices[i].SourceCount = 0;
-			voices[i].Reverb = null;
 		}
 
 		AllModels.Clear();
@@ -92,7 +91,7 @@ internal struct VoiceState
 	public bool HasLipSync;
 	public SoundHandle.LipSyncAccessor LipSync;
 	public SoundHandle Handle;
-	public NativeReverbEffect Reverb;
+	public bool HasReverb;
 	public ReverbSnapshot ReverbRoom;
 
 	public float OutputAmplitude;
@@ -112,6 +111,8 @@ internal struct DirectSoundParams
 	public Vector3 Position;
 	public float Distance;
 	public Curve Falloff;
+	public SoundFalloffMode FalloffMode;
+	public float MinDistance;
 	public FrequencyBands TransmissionBands;
 	public bool DistanceAttenuation;
 	public bool OcclusionEnabled;

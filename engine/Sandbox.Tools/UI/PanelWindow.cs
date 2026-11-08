@@ -1,6 +1,5 @@
 using NativeEngine;
 using Sandbox.Engine;
-using Sandbox.Engine.Settings;
 using Sandbox.UI;
 using System;
 
@@ -9,571 +8,308 @@ namespace Editor;
 /// <summary>
 /// An OS window whose entire contents are panel UI. It owns the window, its swap chain and the UI
 /// inside it. Its input comes straight from SDL and never touches the engine's input system -
-/// there's no widget toolkit involved anywhere. A <see cref="PopupWindow"/> is one that hangs off
-/// another, the way a menu does.
+/// there's no widget toolkit involved anywhere. A popup is one that hangs off another, the way a
+/// menu does - see <see cref="Popup"/>.
 /// <para>
-/// Editor only. A game has one window and draws its UI into that.
+/// Editor only. A game has one window and draws its UI into that. The window itself is the engine's
+/// internal <c>SurfaceWindow</c>; this is the public face of it for tools, and lives in Sandbox.Tools so
+/// game code can't open windows.
 /// </para>
 /// </summary>
-public partial class PanelWindow : IDisposable, IPanelWindow
+public partial class PanelWindow : IDisposable
 {
+	/// <summary>
+	/// The engine window behind this one.
+	/// </summary>
+	internal SurfaceWindow Core { get; }
+
+	/// <summary>
+	/// The window an engine window is shown through. Windows opened here have one from the start;
+	/// those the engine opened itself - popups, tooltips - get a plain one the first time they're asked for.
+	/// </summary>
+	internal static PanelWindow FromCore( SurfaceWindow core )
+	{
+		if ( core is null ) return null;
+		if ( core.Facade is PanelWindow window ) return window;
+
+		// The engine window owns its facade, which lives exactly as long as it does - handing it over here is what
+		// tells callers they aren't the ones to dispose it
+		window = new PanelWindow( core );
+		core.Facade = window;
+		return window;
+	}
+
+	/// <summary>
+	/// Wrap a window the engine opened.
+	/// </summary>
+	PanelWindow( SurfaceWindow core )
+	{
+		Core = core;
+	}
+
+	/// <summary>
+	/// True when this wraps a window the engine opened itself, rather than one opened here - the hooks
+	/// below then belong to that window, not to us. False while our own window is still being made: the
+	/// engine asks about it from inside its constructor, before <see cref="Core"/> is set.
+	/// </summary>
+	bool WrapsEngineWindow => Core is { } core && core is not Hooks;
+
 	static readonly List<PanelWindow> _all = new();
+	static int _allVersion = -1;
 
 	/// <summary>
 	/// Every window that's currently open.
 	/// </summary>
-	public static IReadOnlyList<PanelWindow> All => _all;
+	public static IReadOnlyList<PanelWindow> All
+	{
+		get
+		{
+			if ( _allVersion != SurfaceWindow.AllVersion )
+			{
+				_all.Clear();
+				foreach ( var window in SurfaceWindow.All ) _all.Add( FromCore( window ) );
+				_allVersion = SurfaceWindow.AllVersion;
+			}
+
+			return _all;
+		}
+	}
 
 	/// <summary>
 	/// The window the OS is giving keyboard input to, if it's one of ours.
 	/// </summary>
-	public static PanelWindow Focused
-	{
-		get
-		{
-			for ( int i = 0; i < _all.Count; i++ )
-			{
-				if ( _all[i].IsFocused ) return _all[i];
-			}
-
-			return null;
-		}
-	}
+	public static PanelWindow Focused => FromCore( SurfaceWindow.Focused );
 
 	/// <summary>
 	/// The window a panel is being shown in, if it's one of ours.
 	/// </summary>
-	public static PanelWindow FromPanel( Panel panel )
-	{
-		var root = panel?.FindRootPanel();
-		if ( root is null ) return null;
-
-		foreach ( var window in _all )
-		{
-			if ( window.Root == root ) return window;
-		}
-
-		return null;
-	}
+	public static PanelWindow FromPanel( Panel panel ) => FromCore( SurfaceWindow.FromPanel( panel ) );
 
 	/// <summary>
 	/// Close every window.
 	/// </summary>
-	internal static void DisposeAll()
-	{
-		foreach ( var window in _all.ToArray() )
-		{
-			window.Dispose();
-		}
-	}
+	internal static void DisposeAll() => SurfaceWindow.DisposeAll();
 
-	private protected SdlWindow Window { get; set; }
-	SceneCamera _camera;
-	SceneWorld _world;
+	private protected SdlWindow Window => Core.Window;
 
 	/// <summary>
 	/// The OS window. Zero until it exists - a popup makes its own at the first frame boundary.
 	/// </summary>
-	internal IntPtr Handle => Window?.Handle ?? IntPtr.Zero;
+	internal IntPtr Handle => Core.Handle;
 
 	/// <summary>
 	/// A popup - a transient window like a menu, dismissed by a click anywhere else.
 	/// </summary>
-	public virtual bool IsPopup => false;
+	public virtual bool IsPopup => WrapsEngineWindow && Core.IsPopup;
 
 	/// <summary>
 	/// A window that never takes the keyboard or the mouse.
 	/// </summary>
-	public virtual bool IgnoresInput => false;
+	public virtual bool IgnoresInput => WrapsEngineWindow && Core.IgnoresInput;
 
 	/// <summary>
-	/// Whether a popup redirects typing from its parent window.
+	/// The window this one hangs off, if it's a popup or a floating tool window.
 	/// </summary>
-	internal virtual bool TakesKeyboardFocus => !IgnoresInput;
-
-	/// <summary>
-	/// The window this one hangs off, if it's a popup.
-	/// </summary>
-	internal virtual IPanelWindow ParentWindow => null;
+	internal virtual PanelWindow ParentWindow => WrapsEngineWindow ? FromCore( Core.ParentWindow as SurfaceWindow ) : null;
 
 	/// <summary>
 	/// The UI running in this window. Engine machinery - tool code wants <see cref="Root"/>.
 	/// </summary>
-	internal UISurface Surface { get; private set; }
+	internal UISurface Surface => Core.Surface;
 
 	/// <summary>
 	/// The panel everything in this window hangs off.
 	/// </summary>
-	public RootPanel Root => Surface?.Root;
+	public RootPanel Root => Core.Root;
 
 	/// <summary>
 	/// Where the cursor is, in this window's pixels.
 	/// </summary>
-	public Vector2 MousePosition => Surface?.MousePosition ?? 0;
-
-	IntPtr IPanelWindow.Handle => Handle;
-	UISurface IPanelWindow.Surface => Surface;
-	bool IPanelWindow.IsPopup => IsPopup;
-	bool IPanelWindow.IgnoresInput => IgnoresInput;
-	bool IPanelWindow.TakesKeyboardFocus => TakesKeyboardFocus;
-	IPanelWindow IPanelWindow.Parent => ParentWindow;
+	public Vector2 MousePosition => Core.MousePosition;
 
 	/// <summary>
 	/// The user asked to close the window. Return false to keep it open - an unsaved changes
 	/// prompt, say. Otherwise it's disposed, or hidden when <see cref="HideOnClose"/> is set.
 	/// </summary>
-	public Func<bool> OnCloseRequested { get; set; }
+	public Func<bool> OnCloseRequested { get => Core.OnCloseRequested; set => Core.OnCloseRequested = value; }
 
 	/// <summary>
 	/// When the user closes the window, hide it instead of disposing it, so it can be shown again
 	/// with everything still in it. Off by default: closing disposes.
 	/// </summary>
-	public bool HideOnClose { get; set; }
+	public bool HideOnClose { get => Core.HideOnClose; set => Core.HideOnClose = value; }
 
 	/// <summary>
 	/// The window moved, whether the user dragged it or code set <see cref="Position"/>.
 	/// </summary>
-	public Action OnMoved { get; set; }
+	public Action OnMoved { get => Core.OnMoved; set => Core.OnMoved = value; }
 
 	/// <summary>
 	/// The window is on a different display than it was. Its scale may have changed with it.
 	/// </summary>
-	public Action OnDisplayChanged { get; set; }
-
-	void IPanelWindow.Moved() => OnMoved?.InvokeWithWarning();
+	public Action OnDisplayChanged { get => Core.OnDisplayChanged; set => Core.OnDisplayChanged = value; }
 
 	/// <summary>
 	/// The window's client size changed, whether the user dragged an edge or code set <see cref="Size"/>.
 	/// </summary>
-	public Action OnResized { get; set; }
+	public Action OnResized { get => Core.OnResized; set => Core.OnResized = value; }
 
 	/// <summary>
 	/// The window was minimized to the taskbar.
 	/// </summary>
-	public Action OnMinimized { get; set; }
+	public Action OnMinimized { get => Core.OnMinimized; set => Core.OnMinimized = value; }
 
 	/// <summary>
 	/// The window was maximized.
 	/// </summary>
-	public Action OnMaximized { get; set; }
+	public Action OnMaximized { get => Core.OnMaximized; set => Core.OnMaximized = value; }
 
 	/// <summary>
 	/// The window came back from being minimized or maximized.
 	/// </summary>
-	public Action OnRestored { get; set; }
-
-	Vector2 _lastPixelSize;
-
-	void IPanelWindow.Resized()
-	{
-		// SDL sends these for exposes too, and a resize drag sends several per frame
-		var size = PixelSize;
-		if ( size == _lastPixelSize ) return;
-
-		_lastPixelSize = size;
-		OnResized?.InvokeWithWarning();
-	}
+	public Action OnRestored { get => Core.OnRestored; set => Core.OnRestored = value; }
 
 	/// <summary>
 	/// The window became the active one - it has the keyboard, its title bar lit up.
 	/// </summary>
-	public Action OnActivated { get; set; }
+	public Action OnActivated { get => Core.OnActivated; set => Core.OnActivated = value; }
 
 	/// <summary>
 	/// The window stopped being the active one: the user went to another window, ours or
 	/// someone else's.
 	/// </summary>
-	public Action OnDeactivated { get; set; }
-
-	void IPanelWindow.FocusChanged( bool focused )
-	{
-		// Alt-tabbing out of a look drag never sends the mouse up that would end it
-		if ( !focused ) ReleaseMouseCapture();
-
-		if ( focused ) OnActivated?.InvokeWithWarning();
-		else OnDeactivated?.InvokeWithWarning();
-	}
-
-	void IPanelWindow.StateChanged( int state )
-	{
-		switch ( state )
-		{
-			case 1: OnMinimized?.InvokeWithWarning(); break;
-			case 2: OnMaximized?.InvokeWithWarning(); break;
-			default: OnRestored?.InvokeWithWarning(); break;
-		}
-	}
-	void IPanelWindow.DisplayChanged() => OnDisplayChanged?.InvokeWithWarning();
+	public Action OnDeactivated { get => Core.OnDeactivated; set => Core.OnDeactivated = value; }
 
 	/// <summary>
 	/// What the window clears to before the UI is drawn.
 	/// </summary>
-	public Color BackgroundColor
-	{
-		get => _camera?.BackgroundColor ?? Color.Black;
-		set { if ( _camera is not null ) _camera.BackgroundColor = value; }
-	}
+	public Color BackgroundColor { get => Core.BackgroundColor; set => Core.BackgroundColor = value; }
 
 	/// <summary>
 	/// The window's title bar text.
 	/// </summary>
-	public string Title
-	{
-		get => field;
-		set
-		{
-			field = value;
-			Window?.Title = value;
-		}
-	}
+	public string Title { get => Core.Title; set => Core.Title = value; }
 
 	/// <summary>
 	/// Size of the window's client area, in the units the UI inside it is authored in. The window
 	/// on the desktop is this much again bigger on a display that scales.
 	/// </summary>
-	public Vector2 Size
-	{
-		get
-		{
-			if ( Handle == IntPtr.Zero ) return default;
-
-			return PixelSize / Surface.DpiScale;
-		}
-
-		set
-		{
-			if ( Handle == IntPtr.Zero ) return;
-
-			var window = UiToWindow( value );
-			Sdl.SetWindowSize( Handle, (int)MathF.Ceiling( window.x ), (int)MathF.Ceiling( window.y ) );
-		}
-	}
+	public Vector2 Size { get => Core.Size; set => Core.Size = value; }
 
 	/// <summary>
 	/// Size of the window's client area in real pixels - what the swap chain is sized to, and what
-	/// the surface lays its panels out in. Zero until there's an OS window to measure: a popup
-	/// waits for a frame boundary to make one.
+	/// the surface lays its panels out in. Zero until there's an OS window to measure.
 	/// </summary>
-	internal Vector2 PixelSize => Window?.PixelSize ?? default;
+	internal Vector2 PixelSize => Core.PixelSize;
 
-	//
-	// Three spaces meet at a window, and SDL hands us the one number that isn't obvious:
-	//
-	//   ui      - what panels are authored in, and what everything public here is measured in
-	//   pixels  - what the surface lays out in and what the swap chain is sized to
-	//   window  - what SDL reports input in and takes geometry in
-	//
-	// pixels = ui * Surface.DpiScale, and pixels = window * PixelDensity. On Windows a window
-	// coordinate is already a pixel and the display scale carries everything; on a retina Mac the
-	// density carries it instead. The three conversions below are the only places this matters -
-	// nothing outside this class has to know either number exists.
-	//
-
-	/// <summary>
-	/// Pixels to one of SDL's window coordinates. One on Windows, two on a retina Mac. This is not
-	/// the display scale - a 1.75x Windows display has a display scale of 1.75 and a density of 1.
-	/// </summary>
-	float PixelDensity => Sandbox.Engine.SdlDisplay.GetPixelDensity( Handle );
-
-	private protected float DisplayScale => Sandbox.Engine.SdlDisplay.GetWindowScale( Handle );
-
-	Sdl.WindowFlags WindowFlags => Window.Flags;
-
-	/// <summary>
-	/// Authored UI units to window coordinates, for handing the OS a size or a size limit. Uses the
-	/// same scale the surface lays out with, so a window can't disagree with what's inside it.
-	/// </summary>
-	Vector2 UiToWindow( Vector2 ui ) => ui * Surface.DpiScale / PixelDensity;
+	private protected float DisplayScale => Core.DisplayScale;
 
 	/// <summary>
 	/// Surface pixels to window coordinates, for handing the OS a position or a size.
 	/// </summary>
-	internal Vector2 PixelsToWindow( Vector2 pixels ) => pixels / PixelDensity;
-
-	/// <summary>
-	/// Window coordinates to surface pixels, for input arriving from SDL.
-	/// </summary>
-	Vector2 WindowToPixels( Vector2 window ) => window * PixelDensity;
+	internal Vector2 PixelsToWindow( Vector2 pixels ) => Core.PixelsToWindow( pixels );
 
 	/// <summary>
 	/// Position of the window on the desktop, in the OS's own coordinates - desktop pixels on
 	/// Windows. Deliberately not the units <see cref="Size"/> is in: a desktop spanning displays
 	/// that scale differently has no single UI unit to measure it in.
 	/// </summary>
-	public Vector2 Position
-	{
-		get
-		{
-			if ( Handle == IntPtr.Zero ) return default;
-
-			Sdl.GetWindowPosition( Handle, out var x, out var y );
-			return new Vector2( x, y );
-		}
-
-		set
-		{
-			if ( Handle == IntPtr.Zero ) return;
-
-			Sdl.SetWindowPosition( Handle, (int)value.x, (int)value.y );
-		}
-	}
+	public Vector2 Position { get => Core.Position; set => Core.Position = value; }
 
 	/// <summary>
 	/// The smallest the user can resize the window to. Zero means no limit.
 	/// </summary>
-	public Vector2 MinSize
-	{
-		get => field;
-		set
-		{
-			field = value;
-			ApplySizeLimits();
-		}
-	}
+	public Vector2 MinSize { get => Core.MinSize; set => Core.MinSize = value; }
 
 	/// <summary>
 	/// The largest the user can resize the window to. Zero means no limit.
 	/// </summary>
-	public Vector2 MaxSize
-	{
-		get => field;
-		set
-		{
-			field = value;
-			ApplySizeLimits();
-		}
-	}
-
-	/// <summary>
-	/// Hand the size limits to the OS in its own units. Re-applied when the display scale changes,
-	/// because the same limit is a different number of window coordinates on a display that scales
-	/// differently. Zero means no limit, which is what SDL wants too.
-	/// </summary>
-	void ApplySizeLimits()
-	{
-		if ( Handle == IntPtr.Zero ) return;
-
-		var min = UiToWindow( MinSize );
-		var max = UiToWindow( MaxSize );
-
-		Sdl.SetWindowMinimumSize( Handle, (int)min.x, (int)min.y );
-		Sdl.SetWindowMaximumSize( Handle, (int)max.x, (int)max.y );
-	}
+	public Vector2 MaxSize { get => Core.MaxSize; set => Core.MaxSize = value; }
 
 	/// <summary>
 	/// Whether the OS is allowed to maximize the window - the caption button, double clicking
 	/// the title bar, Win+Up, snap. Windows drawing their own chrome check this for their
 	/// maximize button too.
 	/// </summary>
-	public bool CanMaximize
-	{
-		get => field;
-		set
-		{
-			field = value;
-			if ( Handle != IntPtr.Zero ) Sdl.SetWindowCanMaximize( Handle, value );
-		}
-	} = true;
+	public bool CanMaximize { get => Core.CanMaximize; set => Core.CanMaximize = value; }
 
 	/// <summary>
 	/// Whether the compositor draws its shadow around the window. A decorated window has one from
 	/// its frame; a borderless window or a popup has to ask, and both do by default.
 	/// </summary>
-	public bool DropShadow
-	{
-		get => field;
-		set
-		{
-			field = value;
-			if ( Handle != IntPtr.Zero ) Sdl.SetWindowHasShadow( Handle, value );
-		}
-	}
+	public bool DropShadow { get => Core.DropShadow; set => Core.DropShadow = value; }
 
 	/// <summary>
 	/// Whether the compositor rounds the window's corners, the way it rounds the OS's own menus.
 	/// Popups ask for it. Windows 10 and earlier stay square.
 	/// </summary>
-	public bool RoundedCorners
-	{
-		get => field;
-		set
-		{
-			field = value;
-			if ( Handle != IntPtr.Zero ) Sdl.SetWindowRoundedCorners( Handle, value );
-		}
-	}
+	public bool RoundedCorners { get => Core.RoundedCorners; set => Core.RoundedCorners = value; }
 
 	/// <summary>
 	/// Whether the native window exists and is not hidden. Minimized windows can still be visible.
 	/// </summary>
-	public bool IsVisible => Handle != IntPtr.Zero && (WindowFlags & Sdl.WindowFlags.Hidden) == 0;
+	public bool IsVisible => Core.IsVisible;
 
 	/// <summary>
 	/// Is the window minimized to the taskbar?
 	/// </summary>
-	public bool IsMinimized => Handle != IntPtr.Zero && (WindowFlags & Sdl.WindowFlags.Minimized) != 0;
+	public bool IsMinimized => Core.IsMinimized;
 
 	/// <summary>
 	/// Keep the window above every window that isn't. Palettes, overlays, a video you want to
 	/// keep watching while working in something else.
 	/// </summary>
-	public bool KeepOnTop
-	{
-		get => field;
-		set
-		{
-			field = value;
-			if ( Handle != IntPtr.Zero ) Sdl.SetWindowAlwaysOnTop( Handle, value );
-		}
-	}
+	public bool KeepOnTop { get => Core.KeepOnTop; set => Core.KeepOnTop = value; }
 
 	/// <summary>
 	/// How see-through the whole window is, contents included. 1 is opaque, 0 is invisible.
 	/// </summary>
-	public float Opacity
-	{
-		get => field;
-		set
-		{
-			field = Math.Clamp( value, 0, 1 );
-			if ( Handle != IntPtr.Zero ) Sdl.SetWindowOpacity( Handle, field );
-		}
-	} = 1;
+	public float Opacity { get => Core.Opacity; set => Core.Opacity = value; }
 
 	/// <summary>
 	/// Whether the window gets a button in the taskbar. On by default; a palette or a floating
 	/// panel that belongs to another window usually turns it off.
 	/// </summary>
-	public bool ShowInTaskbar
-	{
-		get => field;
-		set
-		{
-			if ( field == value ) return;
-
-			field = value;
-			if ( Handle != IntPtr.Zero ) Sdl.SetWindowInTaskbar( Handle, value );
-		}
-	} = true;
+	public bool ShowInTaskbar { get => Core.ShowInTaskbar; set => Core.ShowInTaskbar = value; }
 
 	/// <summary>
 	/// Whether the user can resize the window by its edges. Off makes the size whatever code says.
 	/// </summary>
-	public bool Resizable
-	{
-		get => field;
-		set
-		{
-			field = value;
-			if ( Handle != IntPtr.Zero ) Sdl.SetWindowResizable( Handle, value );
-		}
-	} = true;
+	public bool Resizable { get => Core.Resizable; set => Core.Resizable = value; }
 
 	/// <summary>
 	/// Fill the window's display. Borderless over the desktop unless <see cref="ExclusiveFullscreen"/>
 	/// is set. Turning it off puts the window back where it was.
 	/// </summary>
-	public bool Fullscreen
-	{
-		get => field;
-		set
-		{
-			if ( field == value ) return;
-			field = value;
-			_fullscreenPending = true;
-		}
-	}
+	public bool Fullscreen { get => Core.Fullscreen; set => Core.Fullscreen = value; }
 
 	/// <summary>
 	/// Whether <see cref="Fullscreen"/> takes the display over with a real display mode, the way
 	/// a game does, instead of a borderless window over the desktop. Off by default: borderless
 	/// switches instantly and plays well with other windows and displays.
 	/// </summary>
-	public bool ExclusiveFullscreen
-	{
-		get => field;
-		set
-		{
-			if ( field == value ) return;
-			field = value;
-			if ( Fullscreen ) _fullscreenPending = true;
-		}
-	}
-
-	bool _fullscreenPending;
-	bool _applyingFullscreen;
-
-	bool ApplyFullscreen()
-	{
-		if ( !_fullscreenPending ) return true;
-		_fullscreenPending = false;
-		_applyingFullscreen = true;
-		try
-		{
-			Window.Flush();
-			var desktop = Fullscreen && ExclusiveFullscreen ? SdlDisplay.GetDesktopMode( SdlDisplay.ForWindow( Handle ) ) : default;
-			if ( Window.SetFullscreen( Fullscreen, desktop.Width, desktop.Height, desktop.RefreshRate ) ) return true;
-			_fullscreenPending = true;
-			return false;
-		}
-		catch ( Exception e )
-		{
-			// A rejected request must not leave the property stuck at a mode we never entered.
-			Fullscreen = IsFullscreen;
-			_fullscreenPending = false;
-			Log.Warning( e, "Couldn't change panel window fullscreen mode" );
-			return false;
-		}
-		finally
-		{
-			_applyingFullscreen = false;
-		}
-	}
+	public bool ExclusiveFullscreen { get => Core.ExclusiveFullscreen; set => Core.ExclusiveFullscreen = value; }
 
 	/// <summary>
 	/// Is the window fullscreen right now, either way?
 	/// </summary>
-	public bool IsFullscreen => Handle != IntPtr.Zero && (WindowFlags & Sdl.WindowFlags.Fullscreen) != 0;
+	public bool IsFullscreen => Core.IsFullscreen;
 
 	/// <summary>
 	/// The whole of the display the window is on, in the same desktop coordinates as <see cref="Position"/>.
 	/// </summary>
-	public Rect DisplayBounds
-	{
-		get
-		{
-			if ( Handle == IntPtr.Zero ) return default;
-
-			return Sandbox.Engine.SdlDisplay.GetBounds( Sandbox.Engine.SdlDisplay.ForWindow( Handle ) );
-		}
-	}
+	public Rect DisplayBounds => Core.DisplayBounds;
 
 	/// <summary>
 	/// The part of the window's display that isn't under the taskbar or a dock, in desktop coordinates.
 	/// </summary>
-	public Rect DisplayWorkArea
-	{
-		get
-		{
-			if ( Handle == IntPtr.Zero ) return default;
-
-			return Sandbox.Engine.SdlDisplay.GetBounds( Sandbox.Engine.SdlDisplay.ForWindow( Handle ), usable: true );
-		}
-	}
+	public Rect DisplayWorkArea => Core.DisplayWorkArea;
 
 	/// <summary>
 	/// Hold the window at this width to height ratio while the user resizes it - 16f / 9 keeps a
 	/// video window the shape of its video. Null lets it be any shape.
 	/// </summary>
-	public float? AspectRatioLock
-	{
-		get => field;
-		set
-		{
-			field = value is > 0 ? value : null;
-			if ( Handle != IntPtr.Zero ) Sdl.SetWindowAspectRatio( Handle, field ?? 0, field ?? 0 );
-		}
-	}
+	public float? AspectRatioLock { get => Core.AspectRatioLock; set => Core.AspectRatioLock = value; }
 
 	/// <summary>
 	/// The window this one belongs to. An owned window stays above its owner, minimizes with it,
@@ -581,92 +317,55 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	/// </summary>
 	public PanelWindow Owner
 	{
-		get => field;
-		set
-		{
-			if ( value == this ) return;
-
-			field = value;
-			if ( Handle != IntPtr.Zero )
-			{
-				Sdl.SetWindowModal( Handle, false );
-				Sdl.SetWindowParent( Handle, value?.Handle ?? IntPtr.Zero );
-				Sdl.SetWindowModal( Handle, Modal && value is not null );
-			}
-		}
+		get => FromCore( Core.Owner );
+		set => Core.Owner = value?.Core;
 	}
 
 	/// <summary>
 	/// Block the <see cref="Owner"/> from taking input while this window is open, the way a
 	/// dialog does. Does nothing without an owner. Cleared on close, so the owner isn't left dead.
 	/// </summary>
-	public bool Modal
-	{
-		get => field;
-		set
-		{
-			field = value;
-			if ( Handle != IntPtr.Zero ) Sdl.SetWindowModal( Handle, value && Owner is not null );
-		}
-	}
+	public bool Modal { get => Core.Modal; set => Core.Modal = value; }
 
 	/// <summary>
 	/// Whether the user can close the window: the caption button greys out and Alt+F4 does
 	/// nothing. Code can still close it. Windows drawing their own chrome check this for their
 	/// close button too.
 	/// </summary>
-	public bool CanClose
-	{
-		get => field;
-		set
-		{
-			field = value;
-			if ( Handle != IntPtr.Zero ) Sdl.SetWindowCanClose( Handle, value );
-		}
-	} = true;
+	public bool CanClose { get => Core.CanClose; set => Core.CanClose = value; }
 
 	/// <summary>
 	/// Does this window have keyboard focus?
 	/// </summary>
-	public bool IsFocused => Window?.IsFocused ?? false;
+	public bool IsFocused => Core.IsFocused;
 
 	/// <summary>
 	/// Keep drawing at the display's frame rate even when nobody is looking at this window.
 	/// Idle windows are paced right down - set this for one with something moving in it that
 	/// has to keep moving, like a video or a live preview.
 	/// </summary>
-	public bool AlwaysFullFrameRate { get; set; }
+	public bool AlwaysFullFrameRate { get => Core.AlwaysFullFrameRate; set => Core.AlwaysFullFrameRate = value; }
 
 	/// <summary>
 	/// Is this window still open?
 	/// </summary>
-	public bool IsOpen => Surface is not null;
+	public bool IsOpen => Core.IsOpen;
 
 	/// <summary>
 	/// True if we're drawing the title bar and borders ourselves. Popups always are.
 	/// </summary>
-	public bool Borderless => IsPopup || _borderless;
-
-	readonly bool _borderless;
+	public bool Borderless => Core.Borderless;
 
 	/// <summary>
 	/// Does this window's present wait for the display? Changing it takes effect at the start of the
 	/// window's next frame, when the swap chain is matched to the window.
 	/// </summary>
-	public bool VSync { get; set; }
+	public bool VSync { get => Core.VSync; set => Core.VSync = value; }
 
 	/// <summary>
 	/// Is the window maximized?
 	/// </summary>
-	public bool IsMaximized => Handle != IntPtr.Zero && (WindowFlags & Sdl.WindowFlags.Maximized) != 0;
-
-	/// <summary>
-	/// For a window that makes its OS window later - see <see cref="CreateNativeWindow"/>.
-	/// </summary>
-	private protected PanelWindow()
-	{
-		ThreadSafe.AssertIsMainThread();
-	}
+	public bool IsMaximized => Core.IsMaximized;
 
 	/// <summary>
 	/// Open a window and start running UI in it. The size is in the units the UI inside it is
@@ -699,78 +398,8 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	/// </summary>
 	public PanelWindow( string title, Vector2 size, Vector2? position, bool borderless, bool vsync )
 	{
-		ThreadSafe.AssertIsMainThread();
-
-		VSync = vsync;
-		_borderless = borderless;
-		Title = title;
-
-		// The size asked for is in the units the UI is authored in, and the UI is drawn at the
-		// display scale - the window has to carry that same scale or the contents it was sized
-		// for do not fit. There is no window to ask yet, so ask the display it will open on.
-		var displayScale = Sandbox.Engine.SdlDisplay.GetScaleAt( position );
-		var width = (int)MathF.Ceiling( size.x * displayScale );
-		var height = (int)MathF.Ceiling( size.y * displayScale );
-
-		Window = new SdlWindow( CreateWindow( title ?? "", position, width, height, borderless ) );
-
-		try
-		{
-			PanelWindowInput.SetupWindow( Handle, customChrome: borderless, dropTarget: true );
-			if ( borderless ) DropShadow = true;
-
-			CreateRenderer( "PanelWindow", VSync );
-
-			var surface = new UISurface();
-
-			// Before the first frame, so anything set on the window between here and then - a size
-			// limit, say - converts against the scale the surface will actually lay out with
-			surface.DpiScale = DisplayScale;
-
-			Attach( surface );
-		}
-		catch
-		{
-			Dispose();
-			throw;
-		}
-	}
-
-	static IntPtr CreateWindow( string title, Vector2? position, int width, int height, bool borderless )
-	{
-		// Hidden until the first frame is drawn. Set position at creation so SDL selects the right display.
-		var flags = Sdl.WindowFlags.Vulkan | Sdl.WindowFlags.Resizable | Sdl.WindowFlags.HighPixelDensity | Sdl.WindowFlags.Hidden;
-		if ( borderless ) flags |= Sdl.WindowFlags.Borderless;
-		var props = Sdl.CreateProperties();
-		try
-		{
-			Sdl.SetStringProperty( props, "SDL.window.create.title", title );
-			Sdl.SetNumberProperty( props, "SDL.window.create.x", position is { } x ? (int)x.x : Sdl.WindowPositionCentered );
-			Sdl.SetNumberProperty( props, "SDL.window.create.y", position is { } y ? (int)y.y : Sdl.WindowPositionCentered );
-			Sdl.SetNumberProperty( props, "SDL.window.create.width", width );
-			Sdl.SetNumberProperty( props, "SDL.window.create.height", height );
-			Sdl.SetNumberProperty( props, "SDL.window.create.flags", (long)flags );
-			return Sdl.CreateWindowWithProperties( props );
-		}
-		finally
-		{
-			Sdl.DestroyProperties( props );
-		}
-	}
-
-	/// <summary>
-	/// Take the UI this window will run, and join the open windows.
-	/// </summary>
-	private protected void Attach( UISurface surface )
-	{
-		Surface = surface;
-		if ( _camera is not null ) _camera.OnRenderUI = Surface.Render;
-		Surface.OnCursorChanged = x => _cursor = x;
-		Surface.Tooltips.Host = this;
-		Surface.System.PopupHost = this;
-
-		_all.Add( this );
-		PanelWindows.Register( this );
+		Core = new Hooks( this, title, size, position, borderless, vsync );
+		Core.Facade = this;
 	}
 
 	/// <summary>
@@ -781,36 +410,6 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	internal virtual RenderMultisampleType SwapChainMultisample => RenderMultisampleType.RENDER_MULTISAMPLE_NONE;
 
 	/// <summary>
-	/// The swap chain and the camera that draws the surface into it. Needs <see cref="Handle"/>.
-	/// </summary>
-	private protected void CreateRenderer( string name, bool vsync )
-	{
-		Window.CreateSwapChain( name, SwapChainMultisample, vsync );
-
-		_world = new SceneWorld();
-
-		_camera = new SceneCamera( name )
-		{
-			World = _world,
-			BackgroundColor = Color.Black,
-			ClearFlags = ClearFlags.All,
-			EnablePostProcessing = false,
-			ZNear = 1,
-			ZFar = 1000,
-
-			// A window is panels and nothing else - it doesn't need the scene pipeline
-			UIOnly = true,
-		};
-		if ( Surface is not null ) _camera.OnRenderUI = Surface.Render;
-	}
-
-	/// <summary>
-	/// Make the OS window at a frame boundary, for a window that couldn't at construction. Returns
-	/// whether there's a window to draw now.
-	/// </summary>
-	private protected virtual bool CreateNativeWindow() => false;
-
-	/// <summary>
 	/// The window is closing. Its surface and popups are still there.
 	/// </summary>
 	private protected virtual void OnClosing() { }
@@ -818,269 +417,216 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	/// <summary>
 	/// Close the window and delete its panels.
 	/// </summary>
-	public void Dispose()
-	{
-		if ( Surface is null && Handle == IntPtr.Zero )
-			return;
-
-		// Popups hanging off this window go first. The OS destroys owned windows with their
-		// owner, and a swap chain has to be destroyed before its window - never after.
-		CloseTooltip();
-		OnClosing();
-		ReleaseMouseCapture();
-
-		if ( Modal && Handle != IntPtr.Zero ) Sdl.SetWindowModal( Handle, false );
-		if ( Handle != IntPtr.Zero ) Sdl.HideWindow( Handle );
-
-		foreach ( var child in _all.ToArray() )
-		{
-			if ( child.ParentWindow == this || child.Owner == this ) child.Dispose();
-		}
-
-		_all.Remove( this );
-		PanelWindows.Unregister( this );
-
-		Surface?.Dispose();
-		Surface = null;
-
-		_camera?.Dispose();
-		_camera = null;
-
-		_world?.Delete();
-		_world = null;
-
-		var window = Window;
-		Window = null;
-
-		if ( window is null )
-			return;
-
-		// Both go at frame end, the swap chain first - destroying it waits for its last present,
-		// which needs the window it presented to still there
-		EngineLoop.DisposeAtFrameEnd( new Sandbox.Utility.DisposeAction( () =>
-		{
-			PanelWindowInput.DetachWindow( window.Handle );
-			window.Dispose();
-		} ) );
-	}
+	public void Dispose() => Core.Dispose();
 
 	/// <summary>
 	/// The user clicked the window's close button.
 	/// </summary>
-	public void RequestClose()
-	{
-		if ( !CanClose )
-			return;
-
-		if ( OnCloseRequested is not null )
-		{
-			try
-			{
-				if ( !OnCloseRequested() ) return;
-			}
-			catch ( Exception e )
-			{
-				// A broken close guard shouldn't leave a window that can't be closed
-				Log.Warning( e, e.Message );
-			}
-		}
-
-		if ( HideOnClose )
-		{
-			Hide();
-			return;
-		}
-
-		Dispose();
-	}
+	public void RequestClose() => Core.RequestClose();
 
 	/// <summary>
 	/// Minimize the window.
 	/// </summary>
-	public void Minimize()
-	{
-		if ( Handle != IntPtr.Zero ) Sdl.MinimizeWindow( Handle );
-	}
+	public void Minimize() => Core.Minimize();
 
 	/// <summary>
 	/// Fill the display.
 	/// </summary>
-	public void Maximize()
-	{
-		if ( Handle == IntPtr.Zero ) return;
-		if ( !CanMaximize ) return;
-
-		Sdl.MaximizeWindow( Handle );
-	}
+	public void Maximize() => Core.Maximize();
 
 	/// <summary>
 	/// Maximize the window, or put it back if it already is.
 	/// </summary>
-	public void ToggleMaximized()
-	{
-		if ( Handle == IntPtr.Zero ) return;
-
-		if ( IsMaximized ) Sdl.RestoreWindow( Handle );
-		else Maximize();
-	}
+	public void ToggleMaximized() => Core.ToggleMaximized();
 
 	/// <summary>
 	/// Take the window off screen without closing it. Everything in it stays; <see cref="Show"/>
 	/// brings it back where it was.
 	/// </summary>
-	public void Hide()
-	{
-		if ( Handle == IntPtr.Zero ) return;
-		Sdl.HideWindow( Handle );
-	}
+	public void Hide() => Core.Hide();
 
 	/// <summary>
 	/// Put a hidden window back on screen.
 	/// </summary>
-	public void Show()
-	{
-		Window?.Show();
-	}
+	public void Show() => Core.Show();
 
 	/// <summary>
 	/// Put the window behind every other window. Focus stays where it is.
 	/// </summary>
-	public void SendToBack()
-	{
-		if ( Handle == IntPtr.Zero ) return;
-		Sdl.SendWindowToBack( Handle );
-	}
+	public void SendToBack() => Core.SendToBack();
 
 	/// <summary>
 	/// Raise the window above the others without taking focus. <see cref="Focus"/> is the one
 	/// that focuses it too.
 	/// </summary>
-	public void BringToFront()
-	{
-		if ( Handle == IntPtr.Zero ) return;
-		Sdl.RaiseWindowWithoutFocus( Handle );
-	}
+	public void BringToFront() => Core.BringToFront();
 
 	/// <summary>
 	/// The icon in the title bar and on the taskbar button. The OS scales it, so 32 or 64 pixels
 	/// square is plenty; it's copied, so the bitmap can go afterwards.
 	/// </summary>
-	public void SetIcon( Bitmap icon )
-	{
-		if ( Handle == IntPtr.Zero || icon is null ) return;
-
-		var pixels = icon.GetPixels32();
-
-		unsafe
-		{
-			fixed ( Color32* p = pixels )
-			{
-				// SDL_PIXELFORMAT_RGBA32 is byte-ordered RGBA on either endian.
-				var format = Sdl.PixelFormatRgba32;
-				var surface = Sdl.CreateSurfaceFrom( icon.Width, icon.Height, format, (IntPtr)p, icon.Width * 4 );
-				if ( surface == IntPtr.Zero ) return;
-				try { Sdl.SetWindowIcon( Handle, surface ); }
-				finally { Sdl.DestroySurface( surface ); }
-			}
-		}
-	}
-
-	/// <summary>
-	/// The window's content rectangle in desktop coordinates, excluding native borders.
-	/// </summary>
-	Rect DesktopBounds
-	{
-		get
-		{
-			Sdl.GetWindowPosition( Handle, out var x, out var y );
-			Sdl.GetWindowSize( Handle, out var w, out var h );
-			return new Rect( x, y, w, h );
-		}
-	}
+	public void SetIcon( Bitmap icon ) => Core.SetIcon( icon );
 
 	/// <summary>
 	/// Centre the window on its <see cref="Owner"/>, or on the usable part of its display when
 	/// it has none. Either way it ends up on screen.
 	/// </summary>
-	public void MoveToCenter()
-	{
-		if ( Handle == IntPtr.Zero ) return;
-
-		var area = Owner is { IsOpen: true } owner ? owner.DesktopBounds : DisplayWorkArea;
-		var bounds = DesktopBounds;
-		Position = area.Position + (area.Size - bounds.Size) * 0.5f;
-
-		SnapToDisplay();
-	}
+	public void MoveToCenter() => Core.MoveToCenter();
 
 	/// <summary>
 	/// Move the window the least distance that puts all of it on the usable part of its display.
 	/// A window taller or wider than the display keeps its top left on screen.
 	/// </summary>
-	public void SnapToDisplay()
-	{
-		if ( Handle == IntPtr.Zero ) return;
-
-		var area = DisplayWorkArea;
-		var bounds = DesktopBounds;
-
-		var x = Math.Max( area.Left, Math.Min( bounds.Left, area.Right - bounds.Width ) );
-		var y = Math.Max( area.Top, Math.Min( bounds.Top, area.Bottom - bounds.Height ) );
-
-		if ( x == bounds.Left && y == bounds.Top ) return;
-		Position = new Vector2( x, y );
-	}
+	public void SnapToDisplay() => Core.SnapToDisplay();
 
 	/// <summary>
 	/// Flash the taskbar button to get the user's attention. Briefly by default; until focused
 	/// keeps going until they click the window.
 	/// </summary>
-	public void FlashTaskbar( bool untilFocused = false )
-	{
-		if ( Handle == IntPtr.Zero ) return;
-		Sdl.FlashWindow( Handle, untilFocused ? Sdl.FlashOperation.UntilFocused : Sdl.FlashOperation.Briefly );
-	}
+	public void FlashTaskbar( bool untilFocused = false ) => Core.FlashTaskbar( untilFocused );
 
 	/// <summary>
 	/// Stop a <see cref="FlashTaskbar"/> that's still going.
 	/// </summary>
-	public void StopFlashing()
-	{
-		if ( Handle == IntPtr.Zero ) return;
-		Sdl.FlashWindow( Handle, Sdl.FlashOperation.Cancel );
-	}
+	public void StopFlashing() => Core.StopFlashing();
 
 	/// <summary>
 	/// A small icon over the corner of the window's taskbar button - a badge for a count, a
 	/// status. 16 pixels square is what the taskbar shows. Null clears it. The description is
 	/// what a screen reader says for it.
 	/// </summary>
-	public void SetOverlayIcon( Bitmap icon, string description = null )
-	{
-		if ( Handle == IntPtr.Zero ) return;
-
-		if ( icon is null )
-		{
-			Sdl.SetWindowTaskbarOverlayIcon( Handle, 0, 0, IntPtr.Zero, "" );
-			return;
-		}
-
-		var pixels = icon.GetPixels32();
-
-		unsafe
-		{
-			fixed ( Color32* p = pixels )
-			{
-				Sdl.SetWindowTaskbarOverlayIcon( Handle, icon.Width, icon.Height, (IntPtr)p, description ?? "" );
-			}
-		}
-	}
+	public void SetOverlayIcon( Bitmap icon, string description = null ) => Core.SetOverlayIcon( icon, description );
 
 	/// <summary>
 	/// Bring the window to the front.
 	/// </summary>
-	public void Focus()
+	public void Focus() => Core.Focus();
+
+	//
+	// Input
+	//
+
+	/// <summary>
+	/// How far from the edge of a borderless window counts as a resize handle, in the same units
+	/// the UI is authored in - it grows with the display scale so the grab stays the same size.
+	/// </summary>
+	public float ResizeBorder { get => Core.ResizeBorder; set => Core.ResizeBorder = value; }
+
+	/// <summary>
+	/// Ask the OS to pick a folder, starting at <paramref name="defaultPath"/>. Null when the
+	/// user cancels or the dialog fails. Call on the main thread. Any pending dialog is joined,
+	/// including requests from other windows or for a different dialog kind.
+	/// </summary>
+	public System.Threading.Tasks.Task<string> PickFolder( string defaultPath = null ) => Core.PickFolder( defaultPath );
+
+	/// <summary>
+	/// Ask the OS for a file to open. The filter is name and extension list pairs, like
+	/// "Scene files|scene;prefab|All files|*". Null on cancellation or error. Call on the main thread.
+	/// Joins any pending dialog, including another window or dialog kind.
+	/// </summary>
+	public System.Threading.Tasks.Task<string> PickOpenFile( string defaultPath = null, string filters = null ) => Core.PickOpenFile( defaultPath, filters );
+
+	/// <summary>
+	/// Ask the OS where to save a file. <paramref name="defaultPath"/> can end in a suggested
+	/// file name. Filters as in <see cref="PickOpenFile"/>. Null on cancellation or error. Call on the main thread.
+	/// Joins any pending dialog, including another window or dialog kind.
+	/// </summary>
+	public System.Threading.Tasks.Task<string> PickSaveFile( string defaultPath = null, string filters = null ) => Core.PickSaveFile( defaultPath, filters );
+
+	internal Sdl.HitTestResult HitTest( Vector2 position ) => Core.HitTest( position );
+
+	//
+	// Popups and tooltips
+	//
+
+	/// <summary>
+	/// Open a popup - a borderless window that sits above this one and can hang outside it, the
+	/// way an OS menu does. The position is in this window's client pixels, which is what a panel's
+	/// <c>Box.Rect</c> is already in.
+	/// <para>
+	/// There is no size to pass. The popup is born hidden at the parent's size, shrinks to whatever
+	/// is put in it, and only then appears - so what it ends up as is the size of its contents.
+	/// </para>
+	/// </summary>
+	public static PanelWindow Popup( PanelWindow parent, Vector2 position, bool ignoresInput = false )
 	{
-		if ( Handle != IntPtr.Zero ) Sdl.RaiseWindow( Handle );
+		ArgumentNullException.ThrowIfNull( parent );
+
+		return FromCore( SurfaceWindow.Popup( parent.Core, position, ignoresInput ) );
+	}
+
+	/// <summary>
+	/// The tooltip window open over this one, if there is one.
+	/// </summary>
+	public PanelWindow TooltipWindow => FromCore( Core.TooltipWindow );
+
+	//
+	// Frames
+	//
+
+	/// <summary>
+	/// Whether the OS window is on screen. A window is born hidden and appears once it has drawn
+	/// its contents, so this is false for its first frame or two.
+	/// </summary>
+	public bool IsShown => Core.IsShown;
+
+	/// <summary>
+	/// Resize the window to fit the first thing on the surface. Popups use this so a menu is
+	/// exactly as big as its contents, however far outside the parent window that ends up.
+	/// </summary>
+	public bool SizeToContents { get => Core.SizeToContents; set => Core.SizeToContents = value; }
+
+	/// <summary>
+	/// Simulate and draw. Called once a frame by the engine loop, and again from resize events
+	/// while a drag has the main thread parked in a modal loop.
+	/// </summary>
+	internal bool Frame() => Core.Frame();
+
+	/// <summary>
+	/// Let frames run inside a frame that's already running - see IPanelWindow.
+	/// </summary>
+	public bool AllowNestedFrame { get => Core.AllowNestedFrame; set => Core.AllowNestedFrame = value; }
+
+	/// <summary>
+	/// Draw into the swap chain before the panels do - they're drawn over it. Turn
+	/// <see cref="ClearsBackground"/> off and whatever this draws shows through the panels
+	/// wherever they're transparent.
+	/// </summary>
+	private protected virtual void OnRenderBackground( SwapChainHandle_t swapChain, Vector2 size ) { }
+
+	/// <summary>
+	/// Whether the swap chain is cleared to <see cref="BackgroundColor"/> before the panels draw.
+	/// Off for a window that fills it itself in <see cref="OnRenderBackground"/>.
+	/// </summary>
+	private protected bool ClearsBackground { get => Core.ClearsBackground; set => Core.ClearsBackground = value; }
+
+	/// <summary>
+	/// Whether the window follows its display's scale as it's dragged between displays.
+	/// </summary>
+	private protected virtual bool FollowsDisplayScale => true;
+
+	/// <summary>
+	/// The window has drawn its first frame and is about to be shown.
+	/// </summary>
+	private protected virtual void OnFirstShow() { }
+
+	/// <summary>
+	/// The engine window behind a window opened here. Carries the engine's hooks back up to this
+	/// class, so a tool window overrides them the same way it always has.
+	/// </summary>
+	sealed class Hooks( PanelWindow owner, string title, Vector2 size, Vector2? position, bool borderless, bool vsync )
+		: SurfaceWindow( title, size, position, borderless, vsync )
+	{
+		// Initialized before the base constructor runs, which reads SwapChainMultisample
+		readonly PanelWindow _owner = owner;
+
+		public override bool IsPopup => _owner.IsPopup;
+		public override bool IgnoresInput => _owner.IgnoresInput;
+		internal override IPanelWindow ParentWindow => _owner.ParentWindow?.Core;
+		internal override RenderMultisampleType SwapChainMultisample => _owner.SwapChainMultisample;
+		internal override bool FollowsDisplayScale => _owner.FollowsDisplayScale;
+		internal override void OnClosing() => _owner.OnClosing();
+		internal override void OnRenderBackground( SwapChainHandle_t swapChain, Vector2 size ) => _owner.OnRenderBackground( swapChain, size );
+		internal override void OnFirstShow() => _owner.OnFirstShow();
 	}
 }

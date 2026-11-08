@@ -85,12 +85,14 @@ public partial class PartyRoom
 
 	void UpdateFollowing()
 	{
-		_join ??= new PartyJoinController( PreloadAsync, ConnectAsync, StopConnecting );
+		_join ??= new PartyJoinController( PreloadAsync, ConnectAsync, StopConnecting, IsInGame );
 		var target = new PartyJoinController.Target( JoinState, PackageIdent, GameAddress );
 		_join.Update( target, RealTime.Now, HostDownloadProgress );
 		if ( JoiningStage == JoinStage.Connected && !Networking.IsActive )
 			_join.Fail( "Disconnected from the game. Retry to rejoin the party leader." );
 	}
+
+	static bool IsInGame( string address ) => GetGameAddress() == address;
 
 	static void StopConnecting()
 	{
@@ -105,9 +107,12 @@ public partial class PartyRoom
 	{
 		token.ThrowIfCancellationRequested();
 		Api.Activity.GameRequested( new( "party" ) );
-		string failure = null;
-		if ( !await Networking.TryConnect( address, token: token, onFailure: message => failure = message ) )
-			throw new InvalidOperationException( failure ?? "Unable to connect to the party leader's game." );
+		var result = await Networking.TryConnectInternal( address, token: token );
+		if ( !result.Success )
+		{
+			if ( result.Status == Networking.ConnectStatus.Failed ) IGameInstanceDll.Current.Disconnect();
+			throw new InvalidOperationException( result.Error ?? "Unable to connect to the party leader's game." );
+		}
 
 		var system = Networking.System;
 		while ( system is not null && ReferenceEquals( system, Networking.System ) )

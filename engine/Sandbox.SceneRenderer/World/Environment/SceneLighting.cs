@@ -23,12 +23,12 @@ public sealed class SceneLighting
 	public bool SunShadows { get; set; } = true;
 
 	/// <summary>
-	/// Sun cascade count, clamped to 1–4. Defaults to four.
+	/// Sun cascade count, clamped to 0–4. Zero retains lighting without shadow maps. Defaults to four.
 	/// </summary>
 	public int SunShadowCascades
 	{
 		get;
-		set => field = Math.Clamp( value, 1, ShadowSystem.MaxCascades );
+		set => field = Math.Clamp( value, 0, ShadowSystem.MaxCascades );
 	} = 4;
 
 	/// <summary>

@@ -31,7 +31,7 @@ partial class CollisionSoundSystem
 	readonly List<ScrapeKey> _finished = [];
 	double _lastScrapeStep = double.NegativeInfinity;
 
-	void IScenePhysicsEvents.PostPhysicsStep()
+	void IScenePhysicsEvents.PrePhysicsStep()
 	{
 		if ( Application.IsHeadless || Time.Delta <= 0.0f )
 			return;
@@ -41,17 +41,15 @@ partial class CollisionSoundSystem
 
 		foreach ( var voice in _scrapeVoices.Values )
 			voice.TargetVolume = 0.0f;
+	}
 
-		var world = Scene?.HasPhysicsWorld == true ? Scene.PhysicsWorld : null;
-		if ( world.IsValid() )
-		{
-			Span<PhysicsBody3d.ScrapeContact> contacts = stackalloc PhysicsBody3d.ScrapeContact[MaxContacts];
-			foreach ( var body in world._world.RegisteredBodies )
-			{
-				if ( body is PhysicsBody3d body3d && body.EnableCollisionSounds && body.IsValid )
-					Evaluate( body3d, contacts );
-			}
-		}
+	internal void OnBodyActive( PhysicsBody3d body, in Vector3 linearVelocity, in Vector3 angularVelocity )
+	{
+		if ( Application.IsHeadless || Time.Delta <= 0.0f || !body.IsValid || !body.EnableCollisionSounds )
+			return;
+
+		Span<PhysicsBody3d.ScrapeContact> contacts = stackalloc PhysicsBody3d.ScrapeContact[MaxContacts];
+		Evaluate( body, contacts, linearVelocity, angularVelocity );
 	}
 
 	void UpdateFriction()
@@ -63,15 +61,14 @@ partial class CollisionSoundSystem
 		UpdateVoices( Time.Delta );
 	}
 
-	void Evaluate( PhysicsBody3d body3d, Span<PhysicsBody3d.ScrapeContact> contacts )
+	void Evaluate( PhysicsBody3d body3d, Span<PhysicsBody3d.ScrapeContact> contacts, in Vector3 linearVelocity, in Vector3 angularVelocity )
 	{
 		var count = body3d.GetScrapeContacts( contacts );
 		if ( count == 0 )
 			return;
 		var body = body3d.Owner;
 		GameObject owner = null;
-		var bodyVelocity = Vector3.Zero;
-		var rotating = false;
+		var rotating = angularVelocity.LengthSquared > 1e-8f;
 		var initialized = false;
 		var scrapePower = 0.0f;
 		var dominantPower = 0.0f;
@@ -90,8 +87,6 @@ partial class CollisionSoundSystem
 			if ( !initialized )
 			{
 				owner = BodySource( body );
-				bodyVelocity = body.Velocity;
-				rotating = body.AngularVelocity.LengthSquared > 1e-8f;
 				initialized = true;
 			}
 			var other = contact.OtherBody;
@@ -99,8 +94,11 @@ partial class CollisionSoundSystem
 				continue;
 
 			var otherVelocity = other.IsValid() ? other.GetVelocityAtPoint( contact.Point ) : Vector3.Zero;
-			var bodyVelAtPoint = rotating ? body.GetVelocityAtPoint( contact.Point ) : bodyVelocity;
-			var relative = bodyVelAtPoint - otherVelocity;
+			var bodyVelAtPoint = rotating ? body.GetVelocityAtPoint( contact.Point ) : linearVelocity;
+			var surfaceVelocity = body3d.GetSurfaceVelocity( contact.SelfSurfaceIndex );
+			if ( other.IsValid() && other._body is PhysicsBody3d otherBody3d )
+				surfaceVelocity -= otherBody3d.GetSurfaceVelocity( contact.OtherSurfaceIndex );
+			var relative = bodyVelAtPoint - otherVelocity - surfaceVelocity;
 			var slipSquared = (relative - contact.Normal * Vector3.Dot( relative, contact.Normal )).LengthSquared;
 			if ( slipSquared <= SlipEpsilon * SlipEpsilon )
 				continue;

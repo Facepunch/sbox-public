@@ -73,7 +73,7 @@ public readonly ref partial struct Painter
 			InitialBlendMode = blendMode;
 		}
 
-		internal Painter Begin( Rect bounds, bool legacy = false )
+		internal Painter Begin( Rect bounds, bool legacy = false, bool mapScreenPixels = false )
 		{
 			lock ( CommandList.SyncRoot )
 			{
@@ -82,7 +82,7 @@ public readonly ref partial struct Painter
 					_nested ??= new Context( Batcher );
 					_nested.LegacyTransform = LegacyTransform;
 					_nested.LegacyBlendMode = LegacyBlendMode;
-					return _nested.Begin( bounds, legacy );
+					return _nested.Begin( bounds, legacy, mapScreenPixels );
 				}
 
 				if ( IsPainting )
@@ -97,6 +97,7 @@ public readonly ref partial struct Painter
 				_target = Batcher.Destination;
 				Batcher.Destination = new();
 				_commandStart = CommandList.GetCheckpoint();
+				Batcher.Destination.MapScreenPixels = mapScreenPixels;
 				ResetDrawingState( legacy ? LegacyBlendMode : BlendMode.Normal );
 				InitializeState();
 				Recording++;

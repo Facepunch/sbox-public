@@ -14,6 +14,10 @@ public partial class SceneTreeWidget : Widget
 
 	IDisposable _selectionUndoScope = null;
 
+	// The selection as it was when the tree last changed it, so OnInspect doesn't scroll for those changes
+	SelectionSystem _treeSelection;
+	int _treeSelectionHash;
+
 	public static SceneTreeWidget Current { get; private set; }
 
 	public SceneTreeWidget( Widget parent ) : base( parent )
@@ -77,6 +81,9 @@ public partial class SceneTreeWidget : Widget
 		{
 			_selectionUndoScope?.Dispose();
 			_selectionUndoScope = null;
+
+			_treeSelection = TreeView.Selection;
+			_treeSelectionHash = TreeView.Selection.GetHashCode();
 		};
 
 		TreeView.OnPaintOverride = () =>
@@ -280,11 +287,15 @@ public partial class SceneTreeWidget : Widget
 
 	public void OnInspect( EditorUtility.OnInspectArgs args )
 	{
+		// Selected from the tree itself, those rows are already in view
+		if ( TreeView.Selection == _treeSelection && TreeView.Selection.GetHashCode() == _treeSelectionHash )
+			return;
+
 		foreach ( var item in TreeView.Selection )
 		{
 			TreeView.ExpandPathTo( item );
 		}
-		var scrollTarget = TreeView.Selection.FirstOrDefault();
+		var scrollTarget = TreeView.Selection.LastOrDefault();
 		if ( scrollTarget is not null )
 		{
 			TreeView.ScrollTo( scrollTarget );

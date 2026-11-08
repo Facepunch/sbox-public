@@ -152,6 +152,28 @@ public class ClassifierTests
 		Assert.AreEqual( (MeshRuns)0, MeshRenderFeature.ListsFor( custom, shadow: false ) );
 	}
 
+	/// <summary>
+	/// Custom framebuffer readers enter refraction depth only in eligible main views.
+	/// </summary>
+	[TestMethod]
+	public void CustomRefractionRespectsLayerAndVisibility()
+	{
+		var custom = new TestCustomObject { WantsFrameBufferCopy = true };
+		Assert.AreEqual( MeshRuns.Translucent | MeshRuns.Refraction, MeshRenderFeature.ListsFor( custom, shadow: false ) );
+		Assert.AreEqual( MeshRuns.Translucent, MeshRenderFeature.ListsFor( custom, shadow: true ) );
+
+		custom.IsOpaque = true;
+		Assert.AreEqual( MeshRuns.Opaque, MeshRenderFeature.ListsFor( custom, shadow: false ) );
+
+		custom.IsOpaque = false;
+		custom.LayerMatch = LayerMatch.OverlayWithoutDepth;
+		Assert.AreEqual( MeshRuns.OverlayWithoutDepth, MeshRenderFeature.ListsFor( custom, shadow: false ) );
+
+		custom.LayerMatch = LayerMatch.None;
+		custom.Visible = false;
+		Assert.AreEqual( (MeshRuns)0, MeshRenderFeature.ListsFor( custom, shadow: false ) );
+	}
+
 	sealed class TestCustomObject : CustomObject
 	{
 		internal override void Render( Sandbox.SceneRenderer.Gpu.RenderContext context, ViewPass view, MeshLayer layer ) { }

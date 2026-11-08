@@ -142,9 +142,12 @@ partial class ManagedCommand : Command
 		var defaultValue = member.GetCustomAttribute<DefaultValueAttribute>()?.Value;
 		var isReplicated = attribute.Flags.Contains( ConVarFlags.Replicated );
 
-		_defaultValue = defaultValue?.ToString()
-			?? ReadInitialValue()
-			?? (type.IsValueType ? Activator.CreateInstance( type )?.ToString() : null);
+		using ( OwnerScope() )
+		{
+			_defaultValue = defaultValue?.ToString()
+				?? ReadInitialValue()
+				?? (type.IsValueType ? Activator.CreateInstance( type )?.ToString() : null);
+		}
 
 		// Property initializers have already run, so whatever it holds now is the default. Not for
 		// replicated convars though - reading one goes through the string table, so we'd risk
@@ -192,9 +195,11 @@ partial class ManagedCommand : Command
 		}
 	}
 
+	GlobalContext.GlobalContextScope OwnerScope() => _isMenu ? GlobalContext.MenuScope() : GlobalContext.GameScope();
+
 	public override void Run( string argstring )
 	{
-		using var contextLocal = _isMenu ? GlobalContext.MenuScope() : GlobalContext.GameScope();
+		using var contextLocal = OwnerScope();
 		using var menuScope = _isMenu ? IMenuDll.Current?.PushScope() : null;
 		using var gameScope = _isMenu ? default : IGameInstanceDll.Current?.PushScope() ?? default;
 
@@ -297,6 +302,7 @@ partial class ManagedCommand : Command
 		{
 			if ( member is PropertyInfo propertyInfo )
 			{
+				using var scope = OwnerScope();
 				return propertyInfo.GetValue( null )?.ToString();
 			}
 
@@ -310,6 +316,8 @@ partial class ManagedCommand : Command
 				Log.Warning( $"Setting {Name} and it's not a variable" );
 				return;
 			}
+
+			using var scope = OwnerScope();
 
 			var oldValue = propertyInfo.GetValue( null );
 			var newValue = value.ToType( propertyInfo.PropertyType );

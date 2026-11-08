@@ -59,10 +59,13 @@ public class PanelAppSystem : AppSystem
 		{
 			throw new Exception( "SourceEnginePreInit failed" );
 		}
+		Phase( "SourceEnginePreInit" );
 
 		WindowInput.Initialize();
+		Phase( "Window input" );
+
 		Graphics.Initialize();
-		Phase( "SourceEnginePreInit" );
+		Phase( "Graphics init" );
 
 		if ( !NativeEngine.EngineGlobal.SourceEnginePanelAppInit( _appSystem, DrawsScenes ) )
 		{
@@ -116,10 +119,10 @@ public class PanelAppSystem : AppSystem
 
 		Diagnostics.Logging.Enabled = true;
 		Diagnostics.Logging.OnException = ErrorReporter.ReportException;
-
 		EngineFileSystem.Initialize( Environment.CurrentDirectory );
 		EngineFileSystem.InitializeConfigFolder();
 		EngineFileSystem.InitializeDataFolder();
+		Phase( "Managed filesystem" );
 
 		// The UI reads files - stylesheets, images - through the context's mount. Core has
 		// the engine styles, and this is an editor app so the editor's assets are part of it
@@ -132,10 +135,12 @@ public class PanelAppSystem : AppSystem
 		Game.TypeLibrary.AddIntrinsicTypes();
 		Game.TypeLibrary.AddAssembly( typeof( Vector3 ).Assembly, false );
 		Game.TypeLibrary.AddAssembly( typeof( Sandbox.UI.Panel ).Assembly, false );
+		Phase( "Managed types" );
 
 		Application.TryLoadVersionInfo( Environment.CurrentDirectory );
 
 		ErrorReporter.Initialize();
+		Phase( "Managed diagnostics" );
 	}
 
 	/// <summary>
@@ -167,18 +172,14 @@ public class PanelAppSystem : AppSystem
 	/// <summary>
 	/// The render pipeline's layers hold shaders and materials in static fields, and creating
 	/// those asserts the main thread - but in an app like this their first touch is on a render
-	/// job. Run every layer's static constructor here, where it's allowed.
+	/// job. Make them here, where it's allowed.
 	/// </summary>
 	static void WarmRenderLayers()
 	{
-		var baseType = typeof( Sandbox.Rendering.ProceduralRenderLayer );
+		Sandbox.Rendering.RenderPipeline.WarmUp();
 
-		foreach ( var type in baseType.Assembly.GetTypes() )
-		{
-			if ( !baseType.IsAssignableFrom( type ) ) continue;
-
-			System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor( type.TypeHandle );
-		}
+		// Native's shadow callback reads its convar mid-render, so its compute shader would be made there otherwise
+		System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor( typeof( Sandbox.Rendering.ContactShadows ).TypeHandle );
 	}
 
 	/// <summary>

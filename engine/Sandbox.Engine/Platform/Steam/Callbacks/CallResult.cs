@@ -52,7 +52,10 @@ namespace Steamworks
 
 			var t = default( T );
 			var size = t.DataSize;
-			var ptr = Marshal.AllocHGlobal( size );
+
+			// DataSize is the native size, which can be smaller than the managed struct
+			// when a layout differs per platform (see LobbyCreated_t), so never read past the buffer.
+			var ptr = Marshal.AllocHGlobal( Math.Max( size, Marshal.SizeOf<T>() ) );
 
 			try
 			{

@@ -131,39 +131,11 @@ partial class PublishWizard
 
 		public async Task Refresh()
 		{
-			Publisher = await ProjectPublisher.FromProject( Project );
-
-			if ( Project.Config.Type == "game" )
-			{
-				var settings = Publisher.GetGameSettings( PublishConfig.CompilerOutput );
-				Publisher.SetMeta( "GameSettings", settings );
-			}
-
-			if ( PublishConfig.AssemblyFiles is not null )
-			{
-				foreach ( var f in PublishConfig.AssemblyFiles )
-				{
-					if ( f.Value is byte[] bytes )
-					{
-						await Publisher.AddFile( bytes, f.Key );
-					}
-
-					if ( f.Value is string json )
-					{
-						await Publisher.AddFile( json, f.Key );
-					}
-				}
-			}
-
-			// Add assets from Cloud.Model( .. ) etc
-			foreach ( var package in PublishConfig.CodePackages )
-			{
-				await Publisher.AddCodePackageReference( package );
-			}
-
-			UpdateFileList();
-
-			await Publisher.PrePublish();
+			Publisher = Project.Config.Type == "game" ? PublishConfig.Publisher : null;
+			if ( Publisher is null )
+				Publisher = await CreatePublisher( Project, PublishConfig );
+			else
+				await Publisher.PrePublish();
 
 			UpdateFileList();
 		}
@@ -300,7 +272,7 @@ partial class PublishWizard
 		{
 			// we need SOME files to upload, even if they've already been uploaded
 			// having no files here indicates an error.
-			if ( Publisher.Files.Count() == 0 ) return false;
+			if ( Publisher is null || Publisher.Files.Count() == 0 ) return false;
 
 			return true;
 		}

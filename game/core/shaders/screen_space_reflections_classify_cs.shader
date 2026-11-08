@@ -21,6 +21,8 @@ COMMON
 {
 	#include "system.fxc" // This should always be the first include in COMMON
 	#include "common.fxc"
+
+	DynamicCombo( D_MSAA_NORMALS, 0..1, Sys( PC ) );
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -32,12 +34,10 @@ CS
     static const uint TILE_COORD_MASK = 0xFFFFu;
     static const uint TILE_COORD_SHIFT = 16u;
 
-	// Scale factor between full-res screen and SSR buffers: 1 = full, 2 = half, 4 = quarter
-	float Scale 	< Attribute("Scale"); Default(1); >;
-	float ScaleInv 	< Attribute("ScaleInv"); Default(1); >;
+    float RoughnessCutoff < Attribute( "RoughnessCutoff" ); Default( 0.5 ); >;
 
-    // SSR (scaled) dimensions helpers
-    #define SSRSize ( g_vViewportSize.xy * Scale )
+	// Scale factor between full-res screen and SSR buffers: 1 = full, 2 = half, 4 = quarter
+	float ScaleInv 	< Attribute("ScaleInv"); Default(1); >;
 
     struct IndirectDispatchArguments
     {
@@ -46,8 +46,9 @@ CS
         uint z;
     };
 
-    RWStructuredBuffer<uint> 					ClassifiedTilesRW 		< Attribute("ClassifiedTilesRW"); >;
+    RWTexture2D<uint> 							ClassifiedTilesRW 		< Attribute("ClassifiedTilesRW"); >;
     RWStructuredBuffer<IndirectDispatchArguments> DispatchArgsRW 	< Attribute("IntersectDispatchArgsRW"); >;
+    RWTexture2D<float4>                         OutRadiance 		< Attribute("OutRadiance"); >;
 
     uint PackTileCoord( uint2 tileCoord )
     {
@@ -65,11 +66,18 @@ CS
 
         GroupMemoryBarrierWithGroupSync();
 
-        if ( vDispatch.x < SSRSize.x && vDispatch.y < SSRSize.y )
+        uint radianceWidth, radianceHeight;
+        OutRadiance.GetDimensions( radianceWidth, radianceHeight );
+        if ( all( uint2( vDispatch ) < uint2( radianceWidth, radianceHeight ) ) )
         {
-            float roughness = Roughness::Sample( vDispatch * ScaleInv );
-            float depth = Depth::GetNormalized( vDispatch * ScaleInv );
-            if ( roughness < 0.5f && depth > 0.0001f )
+            // Clear the trace mip, the intersect only writes classified tiles
+            OutRadiance[vDispatch] = 0;
+
+            // Same representative full-res pixel as the intersect pass
+            int2 vPixel = min( vDispatch * (int)ScaleInv + (int)ScaleInv / 2, int2( g_vViewportSize ) - 1 );
+            float roughness = Roughness::Sample( vPixel );
+            float depth = Depth::GetNormalized( vPixel );
+            if ( roughness < RoughnessCutoff && depth > 0.0001f )
             {
                 InterlockedOr( groupHasReflection, 1u );
             }
@@ -88,7 +96,11 @@ CS
         uint groupsPerTile = groupsPerAxis * groupsPerAxis;
         InterlockedAdd( DispatchArgsRW[1].x, groupsPerTile );
 
-        ClassifiedTilesRW[writeIndex] = PackTileCoord( vGroupCoord );
+        uint width, height;
+        ClassifiedTilesRW.GetDimensions( width, height );
+        if ( writeIndex >= width * height )
+            return;
+        ClassifiedTilesRW[uint2( writeIndex % width, writeIndex / width )] = PackTileCoord( vGroupCoord );
     }
 
     [numthreads(8, 8, 1)]

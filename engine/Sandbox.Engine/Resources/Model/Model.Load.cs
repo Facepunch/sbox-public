@@ -29,7 +29,7 @@ public partial class Model
 		{
 			id.Path = id.Path?.Replace( ".vmdl_c", ".vmdl" );
 
-			if ( Sandbox.Mounting.Directory.TryLoad( id.Path, ResourceType.Model, out object model ) && model is Model m )
+			if ( Sandbox.Mounting.Directory.TryLoad( id.Path, out object model ) && model is Model m )
 				return m;
 
 			if ( Game.Resources.TryGet<Model>( id.Path, out var resource ) )
@@ -55,7 +55,7 @@ public partial class Model
 
 		filename = filename?.Replace( ".vmdl_c", ".vmdl" );
 
-		if ( await Sandbox.Mounting.Directory.TryLoadAsync( filename, ResourceType.Model ) is Model m )
+		if ( await Sandbox.Mounting.Directory.TryLoadAsync( filename ) is Model m )
 			return m;
 
 		if ( Game.Resources.TryGet<Model>( filename, out var resource ) )

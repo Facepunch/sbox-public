@@ -23,9 +23,8 @@ public class JsonUpgrader02Test : SceneTest
 
 		_oldTypeLibrary = Game.TypeLibrary;
 
-		TypeLibrary = new Sandbox.Internal.TypeLibrary();
-		TypeLibrary.AddAssembly( typeof( ModelRenderer ).Assembly, false );
-		TypeLibrary.AddAssembly( typeof( PrefabFile ).Assembly, false );
+		// Engine only, built once and shared
+		TypeLibrary = SharedTypeLibrary.Engine;
 		JsonUpgrader.UpdateUpgraders( TypeLibrary );
 
 		Game.TypeLibrary = TypeLibrary;

@@ -27,6 +27,8 @@ public sealed class FieldDescription : MemberDescription
 		return o;
 	}
 
+	static Logger log = new Logger( "FieldDescription" );
+
 	internal FieldDescription( TypeLibrary tl ) : base( tl )
 	{
 
@@ -66,6 +68,12 @@ public sealed class FieldDescription : MemberDescription
 	/// </summary>
 	public void SetValue( object obj, object value )
 	{
+		if ( (IsStatic || IsInitOnly) && !IsDeclaredInDynamicAssembly )
+		{
+			log.Warning( $"Can't set field {TypeDescription.FullName}.{Name}, it's static or readonly on an engine type" );
+			return;
+		}
+
 		if ( FieldInfo.FieldType.IsEnum && value is not null && value.GetType() != FieldInfo.FieldType )
 		{
 			value = Enum.ToObject( FieldInfo.FieldType, value );

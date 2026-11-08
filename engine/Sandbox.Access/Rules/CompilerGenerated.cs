@@ -45,7 +45,8 @@ internal static partial class Rules
 		"System.Private.CoreLib/System.Runtime.CompilerServices.InlineArrayAttribute..ctor( System.Int32 )",
 		"System.Private.CoreLib/System.Runtime.CompilerServices.InlineArrayAttribute.get_Length()",
 		"System.Private.CoreLib/System.Runtime.CompilerServices.DecimalConstantAttribute",
-		"System.Private.CoreLib/System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan*",
+		// Only the ref overload; the compiler never emits the pointer based FromNullTerminated ones.
+		"System.Private.CoreLib/System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan<T>(*",
 
 		"System.Private.CoreLib/System.Runtime.CompilerServices.IAsyncStateMachine*",
 	};

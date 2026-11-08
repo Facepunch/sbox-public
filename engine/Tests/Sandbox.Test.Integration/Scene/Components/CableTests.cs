@@ -7,11 +7,9 @@ namespace SceneTests.Components;
 /// children every update and regenerates a PolygonMesh on a sibling MeshComponent,
 /// node data (position / radius scale / roll) feeds the parent cable, property setters
 /// clamp and mark the mesh dirty, and legacy ControlPoints migrate to node children.
-/// The render model only builds inside MeshComponent.OnEnabled with a mesh assigned,
-/// but in the headless test host the native render mesh cannot be created (the same
-/// GPU limitation RendererTests pins for SpriteRenderer) and the CallbackBatch swallows
-/// the failure - so the cable stays pure mesh data in every runtime path here: Model,
-/// scene object and physics shapes never appear.
+/// The render model only builds inside MeshComponent.OnEnabled with a mesh assigned, so
+/// paths that enable before the mesh exists stay pure mesh data, while re-enabling with
+/// the mesh set builds the Model, its scene object and physics shapes.
 /// </summary>
 [TestClass]
 public class CableComponentTest
@@ -356,16 +354,13 @@ public class CableComponentTest
 	/// <summary>
 	/// Re-enabling the generated MeshComponent while its mesh is assigned takes the
 	/// render-model build path (RebuildRenderMesh runs from OnEnabled with a mesh set),
-	/// but the headless test host cannot create native render meshes - the failure is
-	/// swallowed by the CallbackBatch dispatch, like the SpriteRenderer GPU buffer case -
-	/// so the component stays pure data: no render Model, no scene object, no physics
-	/// shapes, and a ray dropped onto the cable passes straight through. Disabling the
-	/// CableComponent does not touch the MeshComponent - the cable is only a generator,
-	/// so the mesh simply stops regenerating - while destroying the GameObject
-	/// invalidates the generated component.
+	/// building the Model, a scene object and mesh collision, so a ray dropped onto the
+	/// cable hits it. Disabling the CableComponent does not touch the MeshComponent - the
+	/// cable is only a generator, so the mesh simply stops regenerating - while destroying
+	/// the GameObject invalidates the generated component.
 	/// </summary>
 	[TestMethod]
-	public void MeshEnableDoesNotBuildRenderModelInTestHost()
+	public void MeshEnableBuildsRenderModel()
 	{
 		var scene = new Scene();
 		using var sceneScope = scene.Push();
@@ -384,12 +379,12 @@ public class CableComponentTest
 		meshComponent.Enabled = true;
 
 		Assert.IsNotNull( meshComponent.Mesh, "The generated mesh data survives the enable cycle" );
-		Assert.IsNull( meshComponent.Model, "The render model still cannot build in the headless test host" );
-		Assert.IsNull( FindSceneObjectFor<SceneObject>( scene, meshComponent ), "No render model means no scene object" );
-		Assert.AreEqual( 0, meshComponent.Shapes.Count, "No model means no physics shapes" );
+		Assert.IsNotNull( meshComponent.Model, "Enabling with the mesh assigned builds the render model" );
+		Assert.IsNotNull( FindSceneObjectFor<SceneObject>( scene, meshComponent ), "The render model gets a scene object" );
+		Assert.AreNotEqual( 0, meshComponent.Shapes.Count, "Mesh collision builds physics shapes from the model" );
 
 		var hit = scene.Trace.Ray( new Vector3( 50, 0, 100 ), new Vector3( 50, 0, -100 ) ).Run();
-		Assert.IsFalse( hit.Hit, "With no physics shapes a ray dropped onto the cable passes straight through" );
+		Assert.IsTrue( hit.Hit, "A ray dropped onto the cable hits its collision" );
 
 		cable.Enabled = false;
 		var meshBefore = meshComponent.Mesh;
@@ -408,10 +403,8 @@ public class CableComponentTest
 	/// Dropping below two nodes tears the cable down: the rebuild produces a null mesh,
 	/// which nulls the MeshComponent's mesh and disables it (without destroying it).
 	/// Adding a second node back regenerates the mesh data and re-enables the component.
-	/// That re-enable with the mesh already assigned is the path that builds the render
-	/// model in game, but the headless test host cannot create native render meshes -
-	/// the swallowed failure leaves the regrown cable data-only: no Model, no physics
-	/// shapes, no scene object.
+	/// That re-enable with the mesh already assigned builds the render model, so the
+	/// regrown cable gets a Model, physics shapes and a scene object.
 	/// </summary>
 	[TestMethod]
 	public void TearsDownAndRegrowsWithNodeCount()
@@ -439,9 +432,9 @@ public class CableComponentTest
 		TickUntil( scene, () => meshComponent.Enabled, "Regaining two nodes should rebuild and re-enable the mesh component" );
 
 		Assert.IsNotNull( meshComponent.Mesh );
-		Assert.IsNull( meshComponent.Model, "Even re-enabling with the mesh already assigned, the render model cannot build in the headless test host" );
-		Assert.AreEqual( 0, meshComponent.Shapes.Count, "No model means the regrown cable has no physics shapes" );
-		Assert.IsNull( FindSceneObjectFor<SceneObject>( scene, meshComponent ), "No render model means the regrown cable has no scene object" );
+		Assert.IsNotNull( meshComponent.Model, "Re-enabling with the mesh already assigned builds the render model" );
+		Assert.AreNotEqual( 0, meshComponent.Shapes.Count, "The regrown cable has physics shapes" );
+		Assert.IsNotNull( FindSceneObjectFor<SceneObject>( scene, meshComponent ), "The regrown cable has a scene object" );
 
 		go.Destroy();
 		scene.ProcessDeletes();
@@ -493,9 +486,7 @@ public class CableComponentTest
 	/// children carrying radius scale and roll, survives a serialize/deserialize round
 	/// trip. The generated MeshComponent round trips its PolygonMesh too. The clone
 	/// enables with the mesh already deserialized - the path real saved scenes take in
-	/// game, where the render model would build immediately - but the headless test
-	/// host cannot create native render meshes, so the clone stays data-only with no
-	/// Model, scene object or physics shapes.
+	/// game - so its render model, scene object and physics shapes build immediately.
 	/// </summary>
 	[TestMethod]
 	public void SerializationRoundTrip()
@@ -557,9 +548,9 @@ public class CableComponentTest
 		Assert.IsNotNull( loadedMesh, "The generated MeshComponent serializes with the cable" );
 		Assert.IsTrue( loadedMesh.Enabled );
 		Assert.AreEqual( vertexCount, loadedMesh.Mesh.VertexHandles.Count(), "The PolygonMesh should round trip its topology" );
-		Assert.IsNull( loadedMesh.Model, "Even enabling with the mesh already deserialized, the render model cannot build in the headless test host" );
-		Assert.IsNull( FindSceneObjectFor<SceneObject>( scene, loadedMesh ), "No render model means the clone has no scene object" );
-		Assert.AreEqual( 0, loadedMesh.Shapes.Count, "No model means the clone has no physics shapes" );
+		Assert.IsNotNull( loadedMesh.Model, "Enabling with the mesh already deserialized builds the render model" );
+		Assert.IsNotNull( FindSceneObjectFor<SceneObject>( scene, loadedMesh ), "The clone has a scene object" );
+		Assert.AreNotEqual( 0, loadedMesh.Shapes.Count, "The clone has physics shapes" );
 
 		clone.Destroy();
 		scene.ProcessDeletes();

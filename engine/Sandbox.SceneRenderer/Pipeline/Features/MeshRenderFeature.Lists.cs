@@ -32,7 +32,7 @@ internal sealed partial class MeshRenderFeature
 		NearestFirst,
 
 		/// <summary>
-		/// By <see cref="MeshObject.RenderOrder"/>, lowest first: a map's static overlays.
+		/// By <see cref="MeshObject.RenderOrder"/>, lowest first, then material: a map's static overlays.
 		/// </summary>
 		RenderOrder,
 	}
@@ -79,6 +79,7 @@ internal sealed partial class MeshRenderFeature
 
 	// Compute only the sort keys an object's lists need.
 	static readonly MeshRuns BatchedLists = ListsWhere( static list => list.Sort == ListSort.Batched );
+	static readonly MeshRuns RenderOrderLists = ListsWhere( static list => list.Sort == ListSort.RenderOrder );
 	static readonly MeshRuns DistanceSortedLists = ListsWhere( static list => list.Sort is ListSort.BackToFront or ListSort.Full or ListSort.NearestFirst );
 
 	static MeshRuns ListsWhere( Func<ListDefinition, bool> predicate )
@@ -172,6 +173,9 @@ internal sealed partial class MeshRenderFeature
 		if ( obj.Overlay ) runs |= opaque ? MeshRuns.OverlayOpaque : MeshRuns.OverlayTranslucent;
 		if ( obj.Bloom ) runs |= MeshRuns.Bloom;
 		if ( obj.AfterUI ) runs |= MeshRuns.AfterUI;
+
+		// Native's refraction stencil takes translucent frame-copy readers, including custom objects.
+		if ( obj.WantsFrameBufferCopy && !opaque ) runs |= MeshRuns.Refraction;
 		return runs;
 	}
 

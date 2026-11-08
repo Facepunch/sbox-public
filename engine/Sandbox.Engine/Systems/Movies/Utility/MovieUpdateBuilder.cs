@@ -91,7 +91,7 @@ public sealed class MovieUpdateBuilder( TrackBinder? binder = null )
 
 		// TODO: move ClearBones / UpdateAnimationPlaybackRate etc here, avoid duplication in editor code
 
-		using var sceneScope = Binder.Scene.Push();
+		using var sceneScope = Binder.Scene.PushScope();
 
 		// We need to batch any property changes in case we're setting Enabled on multiple
 		// components / game objects. This batch will make sure OnEnabled gets called in the

@@ -615,7 +615,7 @@ public partial class AssetList : ListView, AssetSystem.IEventListener
 				{
 					if ( item is DirectoryEntry directoryEntry )
 					{
-						System.IO.Directory.Delete( directoryEntry.DirectoryInfo.FullName, true );
+						DeleteDirectory( directoryEntry.DirectoryInfo.FullName );
 					}
 					else if ( item is AssetEntry entry )
 					{
@@ -628,6 +628,44 @@ public partial class AssetList : ListView, AssetSystem.IEventListener
 		);
 
 		confirm.Show();
+	}
+
+	/// <summary>
+	/// Ask for confirmation, then delete a folder and everything in it.
+	/// </summary>
+	internal static void ConfirmDeleteFolder( DirectoryInfo directory, Action onDeleted = null )
+	{
+		var destination = OperatingSystem.IsWindows() ? "moved to your Recycle Bin" : "permanently deleted";
+
+		var confirm = new PopupWindow(
+			"Deleting 1 items...",
+			$"Are you sure you wish to delete folder \"{directory.Name}\"?\nEVERYTHING including recursive directories and files will be {destination}.", "No",
+			new Dictionary<string, Action>() { { "Yes", () => {
+				if ( DeleteDirectory( directory.FullName ) )
+					onDeleted?.Invoke();
+			} } }
+		);
+
+		confirm.Show();
+	}
+
+	/// <summary>
+	/// Sends a folder to the Recycle Bin on Windows, other platforms don't have one so it's deleted outright.
+	/// </summary>
+	static bool DeleteDirectory( string path )
+	{
+		if ( OperatingSystem.IsWindows() )
+			EditorUtility.SendToRecycleBin( path );
+		else
+			System.IO.Directory.Delete( path, true );
+
+		if ( System.IO.Directory.Exists( path ) )
+		{
+			Log.Warning( $"Couldn't delete folder {path}" );
+			return false;
+		}
+
+		return true;
 	}
 
 	[Shortcut( "editor.duplicate", "CTRL+D" )]
@@ -748,24 +786,32 @@ public partial class AssetList : ListView, AssetSystem.IEventListener
 	private void OnDropGameObject( DragEvent ev )
 	{
 		if ( Browser?.CurrentLocation == null ) return;
-		if ( ev.Data.Object is not GameObject[] gos || gos.Length != 1 ) return;
+		if ( ev.Data.Object is not GameObject[] gos ) return;
 
-		var target = gos[0];
-		var location = Path.Combine( Browser.CurrentLocation.Path, $"{target.Name}.prefab" );
+		bool assetListRequiresRefresh = false;
 
-		if ( AssetSystem.FindByPath( location ) != null )
+		foreach ( GameObject target in gos )
 		{
-			Log.Warning( "A prefab already exists at " + location );
-			return;
+			var location = Path.Combine( Browser.CurrentLocation.Path, $"{target.Name}.prefab" );
+
+			if ( AssetSystem.FindByPath( location ) != null )
+			{
+				Log.Warning( "A prefab already exists at " + location );
+				continue;
+			}
+
+			var session = SceneEditorSession.Resolve( target );
+			using var scene = session.Scene.Push();
+			using ( session.UndoScope( "Convert GameObject To Prefab" ).WithGameObjectChanges( target, GameObjectUndoFlags.All ).Push() )
+			{
+				EditorUtility.Prefabs.ConvertGameObjectToPrefab( target, location );
+				EditorUtility.InspectorObject = target;
+			}
+
+			assetListRequiresRefresh = true;
 		}
 
-		var session = SceneEditorSession.Resolve( target );
-		using var scene = session.Scene.Push();
-		using ( session.UndoScope( "Convert GameObject To Prefab" ).WithGameObjectChanges( target, GameObjectUndoFlags.All ).Push() )
-		{
-			EditorUtility.Prefabs.ConvertGameObjectToPrefab( target, location );
-			EditorUtility.InspectorObject = target;
-		}
+		if ( !assetListRequiresRefresh ) return;
 
 		Refresh();
 	}

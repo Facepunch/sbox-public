@@ -64,6 +64,11 @@ public sealed unsafe partial class CommandList
 		// Instance counts remain exact integers.
 		public int Count;
 
+		/// <summary>
+		/// Identifies a deferred view without boxing or allocating a key object.
+		/// </summary>
+		public long ViewId;
+
 		public Vector4 Data1;
 		public Vector4 Data2;
 		public Vector4 Data3;
@@ -103,6 +108,12 @@ public sealed unsafe partial class CommandList
 	private class State
 	{
 		public Dictionary<string, RenderTarget> renderTargets = new();
+
+		/// <summary>
+		/// Resolved view metadata for this playback, shared with inserted command lists.
+		/// </summary>
+		public Dictionary<long, ViewData> views = new();
+
 		public Stack<(RenderTarget Target, NativeEngine.RenderViewport Viewport)> renderTargetStack = new();
 		public Stack<OpenScope> openScopes = new();
 
@@ -114,6 +125,7 @@ public sealed unsafe partial class CommandList
 			// We just clear the list - RenderTargets get freed and 
 			// re-added to the pool automatically.
 			renderTargets.Clear();
+			views.Clear();
 			renderTargetStack.Clear();
 
 			// Execution closes these itself, this is only here so a pooled state never carries one forward
@@ -1103,7 +1115,8 @@ public sealed unsafe partial class CommandList
 	public RenderTargetHandle.SizeHandle ViewportSize => new RenderTargetHandle.SizeHandle { Name = "$vp" };
 
 	/// <summary>
-	/// A handle to the viewport size divided by a factor. Useful for dispatching at half or quarter resolution.
+	/// A handle to the viewport size divided by a factor, rounded up so a thread for every <paramref name="divisor"/> pixels
+	/// covers them all. Useful for dispatching at half or quarter resolution.
 	/// </summary>
 	public RenderTargetHandle.SizeHandle ViewportSizeScaled( int divisor ) => new RenderTargetHandle.SizeHandle { Name = "$vp", Divisor = Math.Max( 1, divisor ) };
 
@@ -1160,8 +1173,8 @@ public sealed unsafe partial class CommandList
 
 		if ( divisor > 1 )
 		{
-			result.x = Math.Max( 1, result.x / divisor );
-			result.y = Math.Max( 1, result.y / divisor );
+			result.x = Math.Max( 1, (result.x + divisor - 1) / divisor );
+			result.y = Math.Max( 1, (result.y + divisor - 1) / divisor );
 		}
 
 		return result;
@@ -1514,6 +1527,25 @@ public sealed unsafe partial class CommandList
 		}
 
 		AddEntry( &Execute, new Entry { Object5 = handle.Name, Data1 = new Vector4( (int)method, 0, 0, 0 ) } );
+	}
+
+	/// <summary>
+	/// Generates the mips below <paramref name="initialMip"/>, for when the levels above it were written directly.
+	/// </summary>
+	internal void GenerateMipMaps( RenderTargetHandle handle, Graphics.DownsampleMethod method, int initialMip )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			if ( !commandList.state.renderTargets.TryGetValue( (string)entry.Object5, out var target ) )
+			{
+				Log.Warning( $"[{commandList.DebugName ?? "CommandList"}] Unknown rt: {(string)entry.Object5}" );
+				return;
+			}
+
+			Graphics.GenerateMipMaps( target.ColorTarget, (Graphics.DownsampleMethod)(int)entry.Data1.x, (int)entry.Data1.y );
+		}
+
+		AddEntry( &Execute, new Entry { Object5 = handle.Name, Data1 = new Vector4( (int)method, initialMip, 0, 0 ) } );
 	}
 
 	/// <summary>

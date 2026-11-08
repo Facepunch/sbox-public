@@ -90,16 +90,11 @@ PackageHero {
     .hero-org {
         align-items: center;
         gap: 6px;
-        cursor: pointer;
 
         img {
             width: 16px;
             height: 16px;
             border-radius: $rounding-small;
-        }
-
-        &:hover {
-            opacity: 0.8;
         }
     }
 

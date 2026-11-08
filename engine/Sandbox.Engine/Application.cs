@@ -198,6 +198,7 @@ public static class Application
 
 	internal static void ClearGame()
 	{
+		TextureWebStreaming.ClearPrefetch();
 		GameIdent = default;
 		GamePackage = default;
 		ExceptionCount = default;

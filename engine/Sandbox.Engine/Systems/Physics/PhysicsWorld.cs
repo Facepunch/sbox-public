@@ -54,6 +54,7 @@ public sealed partial class PhysicsWorld : IValid
 	public PhysicsBody CreateBody() => _world.CreateBody();
 
 	internal PhysicsBodyInternal CreateBodyInternal() => _world.CreateBodyInternal();
+	internal PhysicsBody CreateBody( in PhysicsBodySettings settings ) => _world.CreateBodyInternal( settings ).Owner;
 
 	/// <summary>
 	/// The world's static reference body, used as a default anchor for joints.

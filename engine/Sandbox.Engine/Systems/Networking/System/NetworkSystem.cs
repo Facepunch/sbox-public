@@ -31,6 +31,11 @@ internal partial class NetworkSystem
 	internal bool IsDisconnecting { get; set; }
 
 	public LobbyConfig Config { get; internal init; }
+
+	/// <summary>
+	/// Who the host lets in. Only means anything while we're the host.
+	/// </summary>
+	internal JoinAccess Access { get; } = new();
 	public ConnectionInfoManager ConnectionInfo { get; }
 	public HostStats HostStats { get; private set; }
 	public string DebugName { get; }
@@ -49,11 +54,10 @@ internal partial class NetworkSystem
 
 		InstallHandshakeMessages();
 		InstallHostMigrationMessages();
+		InstallJoinAccessMessages();
 
 		AddHandler( InternalMessageType.TableSnapshot, TableMessage );
 		AddHandler( InternalMessageType.TableUpdated, TableMessage );
-		AddHandler<TargetedInternalMessage>( OnTargetedInternalMessage );
-		AddHandler<TargetedMessage>( OnTargetedMessage );
 		AddHandler<ServerCommand>( OnServerCommand );
 		AddHandler<UserInfoUpdate>( OnUserInfoUpdate );
 		AddHandler<HostStats>( OnReceiveHostStats );
@@ -62,7 +66,30 @@ internal partial class NetworkSystem
 		AddHandler<ServerNameMsg>( OnReceiveServerName );
 		AddHandler<MapNameMsg>( OnReceiveMapName );
 		AddHandler<LogMsg>( OnLogMsg );
+		AddHandler<DirectRouteMsg>( OnDirectRoute );
+		AddHandler<DirectRouteAckMsg>( OnDirectRouteAck );
 	}
+
+	void OnDirectRoute( DirectRouteMsg msg, Connection source, Guid msgId )
+	{
+		var ack = new DirectRouteAckMsg { Token = msg.Token };
+
+		// A peer's outgoing barrier might be waiting for our marker too. Sending the ack through its normal
+		// queue would deadlock both barriers, so pass this control message through the host instead.
+		if ( !IsHost && !source.IsHost && Connection.Host is not null and not MockConnection )
+		{
+			var stream = ByteStream.Create( 256 );
+			stream.Write( InternalMessageType.Packed );
+			Serialize( ack, ref stream );
+			SendMulticast( [source.Id], stream.ToSpan(), NetFlags.Reliable );
+			stream.Dispose();
+			return;
+		}
+
+		source.SendMessage( ack );
+	}
+
+	void OnDirectRouteAck( DirectRouteAckMsg msg, Connection source, Guid msgId ) => source.OnDirectRouteAck( msg.Token );
 
 	/// <summary>
 	/// We have received a log message from another client.
@@ -199,100 +226,71 @@ internal partial class NetworkSystem
 	}
 
 	/// <summary>
-	/// We have received a message intended for a different connection.
+	/// A message for several peers. The host passes it on to the others it's for, encoded once.
 	/// </summary>
-	void OnTargetedInternalMessage( TargetedInternalMessage data, Connection source, Guid msgId, int depth )
+	void OnMulticastMessage( ByteStream data, Connection source, int depth )
 	{
-		// A targeted message is only trusted from the host or if the sender is saying he's the sender
-		if ( data.SenderId != source.Id && !source.IsHost )
+		var senderId = data.Read<Guid>();
+		var flags = (NetFlags)data.Read<byte>();
+		var targets = data.ReadArraySpan<Guid>( 4096 );
+		var message = data.GetRemainingBytes();
+
+		// Only trusted from the host or if the sender is saying he's the sender
+		if ( senderId != source.Id && !source.IsHost )
 		{
-			Log.Warning( $"Connection {source.Id} tried to send a TargetedMessage with invalid SenderId {data.SenderId}" );
-			source.Kick( "Invalid TargetedMessage.SenderId" ); // If we're the host, kick them
+			Log.Warning( $"Connection {source.Id} tried to send a Multicast with invalid SenderId {senderId}" );
+			source.Kick( "Invalid Multicast sender" );
 
 			return;
 		}
 
-		// This targeted message is intended for us!
-		if ( data.TargetId == Guid.Empty || data.TargetId == Connection.Local.Id )
+		if ( IsHost )
 		{
-			var senderConnection = Connection.Find( data.SenderId );
-			senderConnection ??= source;
+			NetPacket encoded = null;
+			byte[][] packets = null;
+			_multicastTargets.Clear();
 
-			DispatchNested( data.Data, senderConnection, depth );
+			foreach ( var id in targets )
+			{
+				// Each peer once, however often the sender listed it
+				if ( id == Connection.Local.Id || id == senderId || !_multicastTargets.Add( id ) )
+					continue;
+
+				var target = FindConnection( id );
+				if ( target is null )
+					continue;
+
+				// Passed on without the targets, the host only sends it to who it's for
+				encoded ??= EncodeMulticast( senderId, flags, [], message );
+				target.Send( encoded, flags, ref packets );
+			}
+
+			encoded?.Release();
 		}
-		else
+
+		var forUs = targets.IndexOf( Connection.Local.Id ) >= 0 || (targets.Length == 0 && source.IsHost);
+
+		if ( forUs )
 		{
-			// It's not for us, let's have a look to see if we have a connection with this id and forward it to them.
-			var target = FindConnection( data.TargetId );
-			target?.SendMessage( data, (NetFlags)data.Flags );
+			var senderConnection = Connection.Find( senderId ) ?? source;
+			DispatchNested( message, senderConnection, depth );
 		}
 	}
 
-	/// <summary>
-	/// We have received a message intended for a different connection.
-	/// </summary>
-	void OnTargetedMessage( TargetedMessage data, Connection source, Guid msgId, int depth )
+	readonly HashSet<Guid> _multicastTargets = new();
+
+	internal static NetPacket EncodeMulticast( Guid senderId, NetFlags flags, ReadOnlySpan<Guid> targets, ReadOnlySpan<byte> message )
 	{
-		// A targeted message is only trusted from the host or if the sender is saying he's the sender
-		if ( data.SenderId != source.Id && !source.IsHost )
-		{
-			Log.Warning( $"Connection {source.Id} tried to send a TargetedMessage with invalid SenderId {data.SenderId}" );
-			source.Kick( "Invalid TargetedMessage.SenderId" ); // If we're the host, kick them
+		var bs = ByteStream.Create( message.Length + 32 + targets.Length * 16 );
+		bs.Write( InternalMessageType.Multicast );
+		bs.Write( senderId );
+		bs.Write( (byte)flags );
+		bs.WriteArray( targets );
+		bs.Write( message );
 
-			return;
-		}
-
-		// This targeted message is intended for us!
-		if ( data.TargetId == Guid.Empty || data.TargetId == Connection.Local.Id )
-		{
-			var senderConnection = Connection.Find( data.SenderId );
-			senderConnection ??= source;
-
-			object messageData = data.Message;
-
-			if ( messageData is byte[] arr )
-			{
-				var stream = ByteStream.CreateReader( arr );
-
-				if ( stream.TryRead<InternalMessageType>( out var type ) )
-				{
-					if ( type == InternalMessageType.Packed )
-						messageData = TypeLibrary.FromBytes<object>( ref stream );
-				}
-				else
-				{
-					Log.Warning( "Failed to read InternalMessageType from targeted message data" );
-					stream.Dispose();
-					return;
-				}
-
-				stream.Dispose();
-			}
-
-			if ( messageData is null )
-				return;
-
-			if ( !typeMessageHandlers.TryGetValue( messageData.GetType(), out var h ) )
-				return;
-
-			if ( !CanDispatchAtDepth( depth + 1, source ) ) return;
-
-			try
-			{
-				// We wanna call the message handler for the contained type now, but with the sender's connection instead.
-				h( messageData, senderConnection, msgId, depth + 1 );
-			}
-			catch ( Exception e )
-			{
-				Log.Warning( e );
-			}
-		}
-		else
-		{
-			// It's not for us, let's have a look to see if we have a connection with this id and forward it to them.
-			var target = FindConnection( data.TargetId );
-			target?.SendMessage( data, (NetFlags)data.Flags );
-		}
+		var encoded = Connection.EncodePacket( bs );
+		bs.Dispose();
+		return encoded;
 	}
 
 	RealTimeSince timeSinceTick = 100f;
@@ -325,27 +323,33 @@ internal partial class NetworkSystem
 			}
 
 			Connection?.Tick( this );
+
+			ResendPendingInvites();
 		}
 	}
 
 	public void SendHeartbeat()
 	{
 		if ( !IsHost ) return;
-		if ( timeSinceHeartbeat < 0.33f ) return;
+		if ( timeSinceHeartbeat < HeartbeatInterval ) return;
 
 		timeSinceHeartbeat = 0f;
 
-		var targets = GetFilteredConnections( Connection.ChannelState.Welcome );
-		foreach ( var c in targets )
-		{
-			var bs = ByteStream.Create( 32 );
-			bs.Write( InternalMessageType.HeartbeatPing );
-			bs.Write( RealTime.Now ); // Real time
-			bs.Write( Time.NowDouble ); // Game time
-			c.SendStream( bs, NetFlags.Reliable | NetFlags.SendImmediate );
-			bs.Dispose();
-		}
+		var bs = ByteStream.Create( 32 );
+		bs.Write( InternalMessageType.HeartbeatPing );
+		bs.Write( RealTime.Now ); // Real time
+		bs.Write( Time.NowDouble ); // Game time
+		var packet = Connection.EncodePacket( bs );
+		bs.Dispose();
+
+		foreach ( var c in GetFilteredConnections( Connection.ChannelState.Welcome ) )
+			c.Send( packet, NetFlags.Reliable | NetFlags.SendImmediate );
+
+		packet.Release();
 	}
+
+	// Measures ping and corrects clients' game time, which they advance themselves in between
+	const float HeartbeatInterval = 1.0f;
 
 	public void SendHostStats()
 	{
@@ -391,6 +395,7 @@ internal partial class NetworkSystem
 		}
 
 		Connection.Local.State = Connection.ChannelState.Unconnected;
+		Sandbox.Diagnostics.DevTools.NetworkLog.Session( "Ended: left", Connection.Local, ends: true );
 
 		log.Trace( "Disconnect" );
 		IsDisconnected = true;

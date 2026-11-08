@@ -11,16 +11,17 @@
   "Category": "HairUpdo",
   "ConditionalModels": {},
   "Tags": null,
-  "Parent": null,
   "Model": "models/citizen_clothes/hair/hair_pigtails/models/hair_pigtails.vmdl",
   "HumanAltModel": "models/citizen_clothes/hair/hair_pigtails/models/hair_pigtails_m_human.vmdl",
   "HumanAltFemaleModel": null,
   "SkinMaterial": null,
   "EyesMaterial": null,
   "MaterialGroup": null,
+  "HeelHeight": 0,
   "SlotsUnder": "HeadTop",
   "SlotsOver": 0,
   "HideBody": 0,
+  "DeformationMode": "Normal",
   "AllowTintSelect": true,
   "TintSelection": {
     "blend": "Linear",
@@ -57,6 +58,7 @@
   "Icon": {
     "Path": "models/citizen_clothes/hair/hair_pigtails/hair_pigtails.clothing.png",
     "Mode": "Eyes",
+    "UsePositionOffset": false,
     "PositionOffset": "0,0,0"
   },
   "__references": [],

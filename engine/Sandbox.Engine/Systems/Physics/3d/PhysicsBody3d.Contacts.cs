@@ -4,6 +4,16 @@ namespace Sandbox;
 
 internal sealed partial class PhysicsBody3d
 {
+	internal override void OnActive( in Transform transform, in Vector3 linearVelocity, in Vector3 angularVelocity, bool fellAsleep, bool wentOutOfBounds )
+	{
+		base.OnActive( transform, linearVelocity, angularVelocity, fellAsleep, wentOutOfBounds );
+
+		if ( fellAsleep || wentOutOfBounds || !IsValid || BodyType != PhysicsBodyType.Dynamic )
+			return;
+
+		CollisionSoundSystem.Get( World.Scene )?.OnBodyActive( this, linearVelocity, angularVelocity );
+	}
+
 	[StructLayout( LayoutKind.Sequential )]
 	internal struct ScrapeContact
 	{
@@ -24,5 +34,27 @@ internal sealed partial class PhysicsBody3d
 			return 0;
 		fixed ( ScrapeContact* pointer = buffer )
 			return native.GetScrapeContacts( (IntPtr)pointer, buffer.Length );
+	}
+
+	internal Vector3 GetSurfaceVelocity( int surfaceIndex )
+	{
+		var found = false;
+		var velocity = Vector3.Zero;
+		var bodyRotation = Transform.Rotation;
+
+		foreach ( var shape in Shapes )
+		{
+			if ( shape.Surface?.Index != surfaceIndex )
+				continue;
+
+			var shapeVelocity = bodyRotation * shape.SurfaceVelocity;
+			if ( found && shapeVelocity != velocity )
+				return Vector3.Zero;
+
+			velocity = shapeVelocity;
+			found = true;
+		}
+
+		return found ? velocity : Vector3.Zero;
 	}
 }

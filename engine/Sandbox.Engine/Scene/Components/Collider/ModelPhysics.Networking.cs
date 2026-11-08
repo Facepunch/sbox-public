@@ -16,12 +16,12 @@ partial class ModelPhysics
 	/// <summary>
 	/// Networked list of bodies.
 	/// </summary>
-	[Sync, Property, Hide] public List<Body> Bodies { get; set; } = [];
+	[Sync, Property, Hide] public NetList<Body> Bodies { get; set; } = [];
 
 	/// <summary>
 	/// Networked list of joints.
 	/// </summary>
-	[Sync, Property, Hide] public List<Joint> Joints { get; set; } = [];
+	[Sync, Property, Hide] public NetList<Joint> Joints { get; set; } = [];
 
 	/// <summary>
 	/// Networked <see cref="Rigidbody"/> transforms.
@@ -42,8 +42,9 @@ partial class ModelPhysics
 
 		var world = WorldTransform;
 
-		foreach ( var (component, boneIndex, _) in Bodies )
+		for ( var i = 0; i < Bodies.Count; i++ )
 		{
+			var (component, boneIndex, _) = Bodies[i];
 			if ( !component.IsValid() )
 				continue;
 

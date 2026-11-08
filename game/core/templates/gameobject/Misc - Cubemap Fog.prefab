@@ -45,7 +45,7 @@
       }
     }
   },
-  "ShowInMenu": true,
+  "ShowInMenu": false,
   "MenuPath": "Misc/Cubemap Fog",
   "MenuIcon": "foggy",
   "DontBreakAsTemplate": false,

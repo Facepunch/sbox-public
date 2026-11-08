@@ -18,20 +18,20 @@ public partial class PartyDeck
 	{
 		get
 		{
-			if ( string.IsNullOrWhiteSpace( PartyView.SelectedGameIdent ) ) return "Choose a game in party settings";
-			if ( !PartyView.IsGameSelected( DisplayGamePackage ) ) return "Loading game details";
-			if ( DisplayGamePackage.Info.IsDedicatedServerOnly ) return "Choose a server from the game's server list";
-			if ( DisplayGamePackage.Info.IsVrOnly && !Application.IsVR ) return "This game requires VR";
-			if ( PartyView.SelectedGameSettings is not { } settings ) return "Configure the game in party settings";
-			if ( settings.MaxPlayers < MemberCount ) return "Add more server slots in party settings";
-			if ( DisplayGamePackage.Info.MaxPlayers > 0 && DisplayGamePackage.Info.MaxPlayers < MemberCount ) return "This game cannot fit everyone in the party";
+			if ( string.IsNullOrWhiteSpace( PartyView.SelectedGameIdent ) ) return "#menu.party.choose_a_game_in_party_settings";
+			if ( !PartyView.IsGameSelected( DisplayGamePackage ) ) return "#menu.party.loading_game_details";
+			if ( DisplayGamePackage.Info.IsDedicatedServerOnly ) return "#menu.party.choose_a_server_from_the_game_s_server_list";
+			if ( DisplayGamePackage.Info.IsVrOnly && !Application.IsVR ) return "#menu.party.this_game_requires_vr";
+			if ( PartyView.SelectedGameSettings is not { } settings ) return "#menu.party.configure_the_game_in_party_settings";
+			if ( settings.MaxPlayers < MemberCount ) return "#menu.party.add_more_server_slots_in_party_settings";
+			if ( DisplayGamePackage.Info.MaxPlayers > 0 && DisplayGamePackage.Info.MaxPlayers < MemberCount ) return "#menu.party.this_game_cannot_fit_everyone_in_the_party";
 			return null;
 		}
 	}
 
 	bool CanStartGame => ShowPlayControls && PartyView.OwnerIsMe && !StartingGame && !LoadingScreen.IsVisible && SetupProblem is null;
 
-	string PlayHint => StartingGame ? "Starting game…" : SetupProblem ?? (FollowersCount == 0 ? "Your game is ready to start" : $"{ReadyCount} / {FollowersCount} ready");
+	string PlayHint => StartingGame ? "#menu.party.starting_game" : SetupProblem ?? (FollowersCount == 0 ? "#menu.party.your_game_is_ready_to_start" : $"{ReadyCount} / {FollowersCount} ready");
 
 	void ToggleReady()
 	{

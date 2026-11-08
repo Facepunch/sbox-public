@@ -186,6 +186,13 @@ static class AssetThumbnail
 		ThreadSafe.AssertIsMainThread();
 
 		//
+		// The type would rather show its icon than anything we could render, so
+		// leave the thumbnail unset and let the callers fall back to the icon
+		//
+		if ( asset.AssetType.PrefersIconThumbnail )
+			return null;
+
+		//
 		// If it's a resource, let it generate itself the thumbnail!
 		//
 		{

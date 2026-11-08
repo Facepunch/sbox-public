@@ -97,23 +97,23 @@ internal sealed class MenuDll : IMenuDll
 
 		Enroller.OnAssemblyAdded += ( a ) =>
 		{
-			Game.TypeLibrary.AddAssembly( a.Assembly, true );
-			Game.NodeLibrary.AddAssembly( a.Assembly );
+			GlobalContext.Menu.TypeLibrary.AddAssembly( a.Assembly, true );
+			GlobalContext.Current.AddNodeAssemblyLater( a.Assembly, logErrors: false );
 			ConVarSystem.AddAssembly( a.Assembly, "menu", "menu" );
 			Event.RegisterAssembly( a.Assembly );
 			Cloud.UpdateTypes( a.Assembly );
 
 			// While this technically doesn't belong here, it means that there will be upgraders available
 			// in the menu, before the game has even started. It should get over-ridden by the game's typelibrary.
-			JsonUpgrader.UpdateUpgraders( Game.TypeLibrary );
+			JsonUpgrader.UpdateUpgraders( GlobalContext.Menu.TypeLibrary );
 		};
 
 		Enroller.OnAssemblyRemoved += ( a ) =>
 		{
 			ConVarSystem.RemoveAssembly( a.Assembly );
 			Event.UnregisterAssembly( a.Assembly );
-			Game.NodeLibrary.RemoveAssembly( a.Assembly );
-			Game.TypeLibrary.RemoveAssembly( a.Assembly );
+			GlobalContext.Current.RemoveNodeAssembly( a.Assembly );
+			GlobalContext.Menu.TypeLibrary.RemoveAssembly( a.Assembly );
 		};
 
 		ConVarSystem.AddAssembly( Game.GameAssembly, "menu", "menu" );
@@ -123,7 +123,7 @@ internal sealed class MenuDll : IMenuDll
 
 	public async Task Initialize()
 	{
-		using var _ = EnterScope();
+		using var scope = EnterScope();
 
 		//
 		// LoopEvent.Init
@@ -155,32 +155,26 @@ internal sealed class MenuDll : IMenuDll
 			FontManager.Instance.LoadAll( FileSystem.Mounted );
 		}
 
-		// We can wait right up until we start the menu scene to want valid account info
-		if ( AccountUpdateTask != null )
-		{
-			//
-			// TODO - handle not logged in, api down etc
-			//
-
-			using var tx = Sandbox.Engine.Bootstrap.StartupTiming?.ScopeTimer( "Menu - Account Update Task" );
-			await AccountUpdateTask;
-		}
-
-		// If the avatar was found on the backend, replace the cookie one
-		if ( !string.IsNullOrWhiteSpace( AccountInformation.AvatarJson ) )
-		{
-			Avatar.AvatarJson = AccountInformation.AvatarJson;
-		}
-
 		if ( !Application.IsEditor )
 		{
 			using ( Sandbox.Engine.Bootstrap.StartupTiming?.ScopeTimer( "Menu - Resources" ) )
 				await LoadResourcesAsync();
-
-			SetupMenuScene();
 		}
 
-		IMenuSystem.Current = TypeLibrary.Create<IMenuSystem>( "MenuSystem", true );
+		// The account request has been in flight since Bootstrap, so loading resources hides most of its latency.
+		if ( AccountUpdateTask is not null )
+		{
+			using var tx = Sandbox.Engine.Bootstrap.StartupTiming?.ScopeTimer( "Menu - Account Update Task" );
+			await AccountUpdateTask;
+		}
+
+		if ( !string.IsNullOrWhiteSpace( AccountInformation.AvatarJson ) )
+			Avatar.AvatarJson = AccountInformation.AvatarJson;
+
+		if ( !Application.IsEditor )
+			SetupMenuScene();
+
+		IMenuSystem.Current = GlobalContext.Menu.TypeLibrary.Create<IMenuSystem>( "MenuSystem", true );
 
 		if ( IMenuSystem.Current == null )
 		{
@@ -254,10 +248,33 @@ internal sealed class MenuDll : IMenuDll
 		ResourceLoader.LoadAllGameResource( FileSystem.Mounted );
 	}
 
-	Task LoadResourcesAsync()
+	// Nothing in the menu draws decals, so they can finish loading after it is on screen.
+	static bool IsDeferredResource( string extension ) => extension.Equals( ".decal_c", StringComparison.OrdinalIgnoreCase );
+
+	Func<Task> startDeferredResources;
+
+	async Task LoadResourcesAsync()
 	{
-		g_pResourceSystem.InvalidateDatabase();
-		return ResourceLoader.LoadAllGameResourceAsync( FileSystem.Mounted );
+		// Listing the files doesn't depend on the resource database, so overlap it with the rescan.
+		var fileSystem = FileSystem.Mounted;
+		var files = Task.Run( () => fileSystem.FindFile( "/", "*", true ).ToList() );
+
+		// The scan normally started when the native file system came up, so it is usually already finished.
+		var scan = Sandbox.Engine.Bootstrap.TakeResourceScan();
+		if ( scan is null ) g_pResourceSystem.InvalidateDatabase();
+		else
+		{
+			try { await scan; }
+			catch ( Exception e )
+			{
+				Log.Warning( e, "Resource scan failed, scanning again" );
+				g_pResourceSystem.InvalidateDatabase();
+			}
+		}
+
+		await ResourceLoader.LoadAllGameResourceAsync( fileSystem, preEnumeratedFiles: files, includeExtension: e => !IsDeferredResource( e ) );
+
+		startDeferredResources = () => ResourceLoader.LoadAllGameResourceAsync( fileSystem, preEnumeratedFiles: files, includeExtension: IsDeferredResource );
 	}
 
 	private void SetupMenuScene()
@@ -310,6 +327,12 @@ internal sealed class MenuDll : IMenuDll
 		}
 
 		using var _ = EnterScope();
+
+		if ( startDeferredResources is { } startDeferred && Application.FrameCount > 120 )
+		{
+			startDeferredResources = null;
+			var loading = startDeferred();
+		}
 
 		try
 		{
@@ -380,6 +403,7 @@ internal sealed class MenuDll : IMenuDll
 
 	public void ClosePopups( object panelClickedOn )
 	{
+		using var scope = GlobalContext.MenuScope();
 		BasePopup.CloseAll( panelClickedOn as Panel );
 	}
 

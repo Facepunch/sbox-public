@@ -10,7 +10,7 @@ Layer0
 	//---- Ambient Occlusion ----
 	g_flAmbientOcclusionDirectDiffuse "1.000"
 	g_flAmbientOcclusionDirectSpecular "1.000"
-	TextureAmbientOcclusion "models/citizen_human/bodies/female/female_body_ao.png"
+	TextureAmbientOcclusion "models/citizen_human/bodies/female/female_body_mode_light_ao.png"
 
 	//---- Color ----
 	g_flModelTintAmount "1.000"
@@ -34,7 +34,7 @@ Layer0
 	//---- Normal ----
 	g_flDiffuseNormalBlur "2.000"
 	TextureBentNormal "models/citizen_human/bodies/male/body_mode_dark_bentnormal.png"
-	TextureNormal "models/citizen_human/bodies/female/female_body_mode_dark_normal.png"
+	TextureNormal "models/citizen_human/bodies/female/female_body_mode_light_normal.png"
 
 	//---- Roughness ----
 	g_flRoughnessScale "1.000"
@@ -44,6 +44,8 @@ Layer0
 	g_flSecondSpecularLobeRatio "0.008"
 
 	//---- Tinting ----
+	g_bOverrideTinting "0"
+	g_flSkinAge "0.500"
 	TextureTintLookup "models/citizen_human/bodies/female/female_body_mode_light_color.png"
 
 	//---- Transmission ----

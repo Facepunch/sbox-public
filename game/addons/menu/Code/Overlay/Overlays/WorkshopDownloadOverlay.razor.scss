@@ -1,0 +1,358 @@
+@import "/styles/_front.scss";
+@import "/styles/_theme.scss";
+
+// The pills' width, and half of it to centre them by - keep them together
+$pill-width: 290px;
+$pill-half: 145px;
+
+// From where the circle sits in a pill (its padding and half its width in) to the middle of the pill
+$badge-to-middle: 118px;
+
+// Round art in the circle - the item's thumb, or one fanned out behind it
+@mixin round-art
+{
+	position: absolute;
+	border-radius: 50%;
+	background-color: rgb( 20, 23, 30 );
+	background-size: cover;
+	background-position: center;
+}
+
+// Small, bottom middle - the art in a circle with a ring round it filling up, and a glow behind it so
+// it's still noticed. One row for what's coming down, and one for each that failed above it.
+WorkshopDownloadOverlay
+{
+	// Half its width back from the middle
+	position: absolute;
+	left: 50%;
+	margin-left: -$pill-half;
+	bottom: 24px;
+	width: $pill-width;
+	flex-direction: column;
+	z-index: 5101;
+	pointer-events: none;
+	color: white;
+	font-family: $front-font;
+
+	// Where a pill goes - grows from nothing as it arrives and shrinks away as it leaves, so the ones
+	// above slide down to fill the space instead of jumping. The gap's in its top.
+	.slot
+	{
+		flex-direction: column;
+		justify-content: flex-end;
+		flex-shrink: 0;
+		height: 64px;
+		transition: height 0.35s cubic-bezier( 0.34, 1.3, 0.64, 1 );
+
+		&:intro
+		{
+			height: 0px;
+		}
+
+		&:outro
+		{
+			height: 0px;
+			transition: height 0.3s ease-in;
+		}
+	}
+
+	// Fixed size, so nothing shifts about as the numbers tick
+	.download
+	{
+		flex-shrink: 0;
+		width: 100%;
+		height: 56px;
+		flex-direction: row;
+		align-items: center;
+		gap: 10px;
+		padding: 5px 14px 5px 5px;
+		border-radius: 999px;
+		background-color: rgba( 8, 10, 14, 0.82 );
+		border: $front-border-width solid $front-border;
+		backdrop-filter: blur( 8px );
+		box-shadow: 0 6px 24px rgba( 0, 0, 0, 0.35 );
+		transform-origin: 28px 50%;
+		transition: border-color 0.3s ease, transform 0.35s cubic-bezier( 0.34, 1.56, 0.64, 1 ), opacity 0.25s ease;
+
+		// Pops in from its circle, with a little overshoot
+		&:intro
+		{
+			opacity: 0;
+			transform: scale( 0.6 ) translateX( -12px );
+		}
+	}
+
+	// Shrinks back into its circle on the way out
+	.slot:outro .download
+	{
+		opacity: 0;
+		transform: scale( 0.7 ) translateX( -8px );
+		transition: transform 0.25s ease-in, opacity 0.2s ease-in;
+	}
+
+	// Done, it's only the circle left, in the middle - that just fades where it is
+	.slot:outro .download.complete
+	{
+		transform: none;
+		transition: opacity 0.3s ease-in;
+	}
+
+	// The circle - glow, ring, art, stacked
+	.badge
+	{
+		position: relative;
+		flex-shrink: 0;
+		width: 44px;
+		height: 44px;
+		transition: transform 0.45s cubic-bezier( 0.34, 1.3, 0.64, 1 );
+	}
+
+	// A queue - the rest of its art fanned out behind, so it takes a little more room
+	.badge.stacked
+	{
+		margin-right: 14px;
+	}
+
+	.behind
+	{
+		@include round-art;
+
+		top: 6px;
+		width: 32px;
+		height: 32px;
+	}
+
+	.behind-1
+	{
+		left: 20px;
+	}
+
+	.behind-2
+	{
+		left: 27px;
+		opacity: 0.6;
+	}
+
+	// Behind it all, soft and breathing - what catches your eye
+	.glow
+	{
+		position: absolute;
+		left: -14px;
+		top: -14px;
+		right: -14px;
+		bottom: -14px;
+		border-radius: 50%;
+		background-image: radial-gradient( rgba( $front-reward, 0.55 ) 0%, rgba( $front-reward, 0 ) 70% );
+		animation-name: workshop-download-glow;
+		animation-duration: 1.4s;
+		animation-timing-function: ease-in-out;
+		animation-iteration-count: infinite;
+		animation-direction: alternate;
+	}
+
+	// The progress - a conic gradient, set inline, with the art sat over its middle
+	.ring
+	{
+		position: absolute;
+		left: 0;
+		top: 0;
+		width: 100%;
+		height: 100%;
+		border-radius: 50%;
+	}
+
+	.thumb
+	{
+		@include round-art;
+
+		left: 4px;
+		top: 4px;
+		right: 4px;
+		bottom: 4px;
+		align-items: center;
+		justify-content: center;
+		border: 2px solid rgb( 8, 10, 14 );
+
+		icon
+		{
+			font-size: 18px;
+			color: $front-tertiary;
+		}
+	}
+
+	// Three short lines at most fit the fixed height - title, what's happening, and what to do if it failed
+	.text
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		min-width: 0;
+		transition: opacity 0.25s ease;
+	}
+
+	.title
+	{
+		font-size: 13px;
+		font-weight: 600;
+		color: $front-heading;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	// Inter for the numbers - every digit the same width, so they don't shuffle as they tick
+	.detail
+	{
+		font-family: Inter;
+		font-size: 11.5px;
+		font-weight: 600;
+		font-variant-numeric: tabular-nums;
+		color: $front-secondary;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	// Down - the pill fades away round its circle, which slides to the middle, pops with a tick on it, and
+	// flares once before it goes. It's the same row it was, so nothing gets pushed about.
+	.download.complete
+	{
+		background-color: rgba( 8, 10, 14, 0 );
+		border-color: rgba( 255, 255, 255, 0 );
+		box-shadow: none;
+		backdrop-filter: blur( 0px );
+		transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+
+		.text
+		{
+			opacity: 0;
+		}
+
+		.badge
+		{
+			transform: translateX( $badge-to-middle );
+		}
+
+		.glow
+		{
+			animation-name: workshop-download-done;
+			animation-duration: 0.6s;
+			animation-timing-function: ease-out;
+			animation-iteration-count: 1;
+		}
+
+		.thumb
+		{
+			animation-name: workshop-download-pop;
+			animation-duration: 0.45s;
+			animation-timing-function: ease-out;
+			animation-iteration-count: 1;
+		}
+	}
+
+	// A little green tick on the corner of something that's done
+	.tick
+	{
+		position: absolute;
+		right: -2px;
+		bottom: -2px;
+		width: 18px;
+		height: 18px;
+		border-radius: 50%;
+		background-color: $front-reward;
+		border: 2px solid rgb( 8, 10, 14 );
+		align-items: center;
+		justify-content: center;
+
+		icon
+		{
+			font-size: 12px;
+			font-weight: 700;
+			color: white;
+		}
+	}
+
+	// Something else done - its art, ringed green with a tick, slides out to the left of this circle and fades
+	.done-bubble
+	{
+		@include round-art;
+
+		left: 4px;
+		top: 4px;
+		width: 36px;
+		height: 36px;
+		border: 2px solid $front-reward;
+		opacity: 0;
+		animation-name: workshop-download-fly;
+		animation-duration: 1.2s;
+		animation-timing-function: ease-out;
+		animation-iteration-count: 1;
+	}
+
+	// Didn't work out - red, with what it means under it
+	.failed
+	{
+		border-color: rgba( $front-danger, 0.45 );
+
+		.glow
+		{
+			background-image: radial-gradient( rgba( $front-danger, 0.5 ) 0%, rgba( $front-danger, 0 ) 70% );
+			animation-name: none;
+		}
+
+		.thumb icon
+		{
+			color: $front-danger;
+		}
+
+		.detail
+		{
+			color: $front-danger;
+		}
+	}
+
+	// What to do about it - a few words, one line
+	.help
+	{
+		font-size: 11.5px;
+		font-weight: 500;
+		color: $front-body;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+}
+
+@keyframes workshop-download-glow
+{
+	from { opacity: 0.45; }
+	to { opacity: 1; }
+}
+
+@keyframes workshop-download-done
+{
+	0% { opacity: 1; transform: scale( 1 ); }
+	40% { opacity: 1; transform: scale( 1.35 ); }
+	100% { opacity: 0.8; transform: scale( 1 ); }
+}
+
+@keyframes workshop-download-pop
+{
+	0% { transform: scale( 1 ); }
+	40% { transform: scale( 1.25 ); }
+	100% { transform: scale( 1 ); }
+}
+
+@keyframes workshop-download-fly
+{
+	0% { opacity: 0; transform: translateX( 0px ) scale( 0.6 ); }
+	20% { opacity: 1; transform: translateX( -14px ) scale( 1.1 ); }
+	70% { opacity: 1; transform: translateX( -58px ) scale( 1 ); }
+	100% { opacity: 0; transform: translateX( -72px ) scale( 0.9 ); }
+}
+
+// In a game, or while the loading screen's up
+WorkshopDownloadOverlay.hidden
+{
+	display: none;
+}

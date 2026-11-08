@@ -19,7 +19,7 @@ partial class PublishWizard
 
 		public override async Task OpenAsync()
 		{
-			ChangeTitle ??= $"Changes on {DateTime.UtcNow.ToString( "yyyy-MM-dd" )}";
+			ChangeTitle ??= DefaultChangeTitle();
 			Rebuild();
 			Visible = true;
 			await Task.CompletedTask;
@@ -52,15 +52,18 @@ partial class PublishWizard
 
 		public override async Task<bool> FinishAsync()
 		{
+			Publisher.SetChangeDetails( ChangeTitle, ChangeDetail );
+
 			try
 			{
-				Publisher.SetChangeDetails( ChangeTitle, ChangeDetail );
 				await Publisher.Publish();
 			}
 			catch ( System.Exception e )
 			{
-				// todo catch and show errors
+				// Stay here, so they can fix it and try again
 				Log.Error( e );
+				EditorUtility.DisplayDialog( "Publish Failed", e.Message );
+				return false;
 			}
 
 			return true;

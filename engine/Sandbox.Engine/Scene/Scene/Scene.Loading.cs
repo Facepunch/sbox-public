@@ -101,7 +101,7 @@ public partial class Scene : GameObject
 				// Run pending startups
 				RunPendingStarts();
 
-				if ( WantsSystemScene && this is not PrefabScene )
+				if ( WantsSystemScene && this is not PrefabScene && !Application.IsUnitTest )
 					g_pRenderDevice.FlushPipelineCache();
 
 				// Tell networking we've finished loading, lets players join

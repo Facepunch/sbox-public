@@ -92,15 +92,20 @@ namespace Sandbox.UI
 		[Category( "Selection" )]
 		public Color SelectionColor
 		{
-			get => _textBlock?.SelectionColor ?? Color.Cyan.WithAlpha( 0.39f );
+			get => _textBlock?.SelectionColor ?? _selectionColor ?? Color.Cyan.WithAlpha( 0.39f );
 			set
 			{
+				// Kept for when the text block is made, on the first layout
+				_selectionColor = value;
+
 				if ( _textBlock == null ) return;
 				if ( _textBlock.SelectionColor == value ) return;
 
 				_textBlock.SelectionColor = value;
 			}
 		}
+
+		Color? _selectionColor;
 
 		public Label()
 		{
@@ -335,6 +340,7 @@ namespace Sandbox.UI
 			{
 				_textBlock = new TextBlock();
 				_textBlock.LookupStyles = HtmlStyleLookup;
+				if ( _selectionColor is { } selectionColor ) _textBlock.SelectionColor = selectionColor;
 			}
 
 			_textBlock.NoWrap = !Multiline;
@@ -383,6 +389,17 @@ namespace Sandbox.UI
 			if ( !clipsBackgroundToText || _textBlock is null || ComputedStyle is null ) return false;
 
 			return _textBlock.GetMask( ComputedStyle, TextLayoutRect, out texture, out rect );
+		}
+
+		/// <summary>
+		/// Draw the text's shadows and outlines, which a background-clip: text fill goes on top of.
+		/// </summary>
+		internal void DrawTextEffects( Painter painter, BlendMode blendMode, float opacity )
+		{
+			if ( !clipsBackgroundToText || ComputedStyle is null ) return;
+			if ( LayoutTree?.IsInlineParticipant == true ) return;
+
+			_textBlock?.DrawEffects( painter, blendMode, ComputedStyle, TextLayoutRect, opacity );
 		}
 
 		private Styles HtmlStyleLookup( INode node )

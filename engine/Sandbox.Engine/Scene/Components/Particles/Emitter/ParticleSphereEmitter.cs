@@ -50,7 +50,7 @@ public sealed class ParticleSphereEmitter : ParticleEmitter
 
 	public override bool Emit( ParticleEffect target )
 	{
-		var random = Vector3.Random;
+		var random = ParticleRandom.Shared.VectorInSphere();
 
 		if ( OneSidedAxes.HasFlag( EmitAxes.X ) ) random.x = MathF.Abs( random.x );
 		if ( OneSidedAxes.HasFlag( EmitAxes.Y ) ) random.y = MathF.Abs( random.y );

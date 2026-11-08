@@ -52,14 +52,29 @@ public sealed partial class ModelPhysics
 		PhysicsWereCreated = true;
 	}
 
+	int[] _partBodyIndex;
+
+	bool TryGetPartBody( int partIndex, out Body body )
+	{
+		body = default;
+		if ( _partBodyIndex is null || partIndex < 0 || partIndex >= _partBodyIndex.Length ) return false;
+
+		var index = _partBodyIndex[partIndex];
+		if ( index < 0 || index >= Bodies.Count ) return false;
+
+		body = Bodies[index];
+		return true;
+	}
+
 	private void CreateJoints( PhysicsGroupDescription physics, ComponentFlags componentFlags )
 	{
 		var jointFlags = componentFlags;
 
 		foreach ( var jointDesc in physics.Joints )
 		{
-			var body1 = Bodies[jointDesc.Body1];
-			var body2 = Bodies[jointDesc.Body2];
+			// Skip joints to parts that weren't created (e.g. their bone is missing)
+			if ( !TryGetPartBody( jointDesc.Body1, out var body1 ) || !TryGetPartBody( jointDesc.Body2, out var body2 ) )
+				continue;
 
 			var localFrame1 = jointDesc.Frame1;
 			var localFrame2 = jointDesc.Frame2;
@@ -69,6 +84,8 @@ public sealed partial class ModelPhysics
 			if ( jointDesc.Type == PhysicsGroupDescription.JointType.Hinge )
 			{
 				var hingeJoint = body1.Component.AddComponent<HingeJoint>( false );
+				hingeJoint.LimitEnabled = jointDesc.EnableTwistLimit;
+				if ( jointDesc.Friction is float hingeFriction ) hingeJoint.Friction = hingeFriction;
 
 				if ( jointDesc.EnableTwistLimit )
 				{
@@ -78,12 +95,22 @@ public sealed partial class ModelPhysics
 
 				if ( jointDesc.EnableAngularMotor )
 				{
-					var worldFrame1 = body1.Component.WorldTransform.ToWorld( localFrame1 );
-					var hingeAxis = worldFrame1.Rotation.Up;
-					var targetVelocity = hingeAxis.Dot( jointDesc.AngularTargetVelocity );
+					if ( jointDesc.AngularMotorIsSpring )
+					{
+						hingeJoint.Motor = HingeJoint.MotorMode.TargetAngle;
+						hingeJoint.TargetAngle = jointDesc.AngularTargetAngle;
+						hingeJoint.Frequency = jointDesc.AngularFrequency;
+						hingeJoint.DampingRatio = jointDesc.AngularDampingRatio;
+					}
+					else
+					{
+						var worldFrame1 = body1.Component.WorldTransform.ToWorld( localFrame1 );
+						var hingeAxis = worldFrame1.Rotation.Up;
+						var targetVelocity = hingeAxis.Dot( jointDesc.AngularTargetVelocity );
 
-					hingeJoint.Motor = HingeJoint.MotorMode.TargetVelocity;
-					hingeJoint.TargetVelocity = targetVelocity.RadianToDegree();
+						hingeJoint.Motor = HingeJoint.MotorMode.TargetVelocity;
+						hingeJoint.TargetVelocity = targetVelocity.RadianToDegree();
+					}
 					hingeJoint.MaxTorque = jointDesc.MaxTorque;
 				}
 
@@ -92,6 +119,7 @@ public sealed partial class ModelPhysics
 			else if ( jointDesc.Type == PhysicsGroupDescription.JointType.Ball )
 			{
 				var ballJoint = body1.Component.AddComponent<BallJoint>( false );
+				if ( jointDesc.Friction is float ballFriction ) ballJoint.Friction = ballFriction;
 
 				if ( jointDesc.EnableSwingLimit )
 				{
@@ -103,6 +131,23 @@ public sealed partial class ModelPhysics
 				{
 					ballJoint.TwistLimitEnabled = true;
 					ballJoint.TwistLimit = new Vector2( jointDesc.TwistMin, jointDesc.TwistMax );
+				}
+
+				if ( jointDesc.EnableAngularMotor )
+				{
+					if ( jointDesc.AngularMotorIsSpring )
+					{
+						ballJoint.Motor = BallJoint.MotorMode.TargetRotation;
+						ballJoint.TargetRotation = jointDesc.AngularTargetRotation;
+						ballJoint.Frequency = jointDesc.AngularFrequency;
+						ballJoint.DampingRatio = jointDesc.AngularDampingRatio;
+					}
+					else
+					{
+						ballJoint.Motor = BallJoint.MotorMode.TargetVelocity;
+						ballJoint.TargetVelocity = jointDesc.AngularTargetVelocity;
+					}
+					ballJoint.MaxTorque = jointDesc.MaxTorque;
 				}
 
 				joint = ballJoint;
@@ -120,6 +165,8 @@ public sealed partial class ModelPhysics
 			else if ( jointDesc.Type == PhysicsGroupDescription.JointType.Slider )
 			{
 				var sliderJoint = body1.Component.AddComponent<SliderJoint>( false );
+				sliderJoint.LimitEnabled = jointDesc.EnableLinearLimit;
+				if ( jointDesc.Friction is float sliderFriction ) sliderJoint.Friction = sliderFriction;
 
 				if ( jointDesc.EnableLinearLimit )
 				{
@@ -127,9 +174,27 @@ public sealed partial class ModelPhysics
 					sliderJoint.MaxLength = jointDesc.LinearMax;
 				}
 
+				if ( jointDesc.EnableLinearMotor )
+				{
+					if ( jointDesc.LinearMotorIsSpring )
+					{
+						sliderJoint.Motor = SliderJoint.MotorMode.TargetPosition;
+						sliderJoint.TargetPosition = jointDesc.LinearTargetPosition;
+						sliderJoint.Frequency = jointDesc.LinearFrequency;
+						sliderJoint.DampingRatio = jointDesc.LinearDampingRatio;
+					}
+					else
+					{
+						var worldFrame1 = body1.Component.WorldTransform.ToWorld( localFrame1 );
+						sliderJoint.Motor = SliderJoint.MotorMode.TargetVelocity;
+						sliderJoint.TargetVelocity = worldFrame1.Rotation.Up.Dot( jointDesc.LinearTargetVelocity );
+					}
+					sliderJoint.MaxForce = jointDesc.MaxForce;
+				}
+
 				var rot = Rotation.FromPitch( -90 );
-				localFrame1 = localFrame1.WithRotation( rot * localFrame1.Rotation );
-				localFrame2 = localFrame2.WithRotation( rot * localFrame2.Rotation );
+				localFrame1 = localFrame1.WithRotation( localFrame1.Rotation * rot );
+				localFrame2 = localFrame2.WithRotation( localFrame2.Rotation * rot );
 
 				joint = sliderJoint;
 			}
@@ -170,8 +235,14 @@ public sealed partial class ModelPhysics
 		var bodyFlags = componentFlags;
 		var colliderFlags = componentFlags;
 
+		// Joints reference parts by index, but parts can be skipped below
+		_partBodyIndex = new int[physics.Parts.Count];
+		Array.Fill( _partBodyIndex, -1 );
+		var partIndex = -1;
+
 		foreach ( var part in physics.Parts )
 		{
+			partIndex++;
 			var bone = bones.GetBone( part.BoneName );
 
 			if ( bone is null )
@@ -206,6 +277,7 @@ public sealed partial class ModelPhysics
 			body.MotionEnabled = MotionEnabled;
 			body.LinearDamping = part.LinearDamping;
 			body.AngularDamping = part.AngularDamping;
+			body.InertiaScale = part.InertiaScale;
 			body.StartAsleep = StartAsleep;
 			body.MassOverride = part.Mass;
 			body.OverrideMassCenter = part.OverrideMassCenter;
@@ -214,6 +286,7 @@ public sealed partial class ModelPhysics
 			body.GameObjectSource = GameObject;
 
 			BodyTransforms.Set( Bodies.Count, boneWorld );
+			_partBodyIndex[partIndex] = Bodies.Count;
 			Bodies.Add( new Body( body, bone.Index, world.ToLocal( boneWorld ) ) );
 
 			foreach ( var sphere in part.Spheres )
@@ -297,6 +370,7 @@ public sealed partial class ModelPhysics
 
 		Bodies.Clear();
 		Joints.Clear();
+		_appliedJointScales = null;
 
 		PhysicsWereCreated = false;
 	}

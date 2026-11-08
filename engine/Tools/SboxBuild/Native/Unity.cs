@@ -14,13 +14,23 @@ public static class Unity
 
 	public static void Apply( Module module )
 	{
-		if ( !module.Unity ) return;
+		if ( module.Unity )
+		{
+			Schema( module );
+			Sources( module, _ => true );
+			return;
+		}
 
-		Schema( module );
-		Sources( module );
+		// Moc output is generated and never edited, and each file is little more than an include of the
+		// header it came from, which tends to pull in the module's heaviest headers. Batching it is what
+		// CMake's AUTOMOC does too. Unity modules already batch it with everything else.
+		// Not in a static library: a consumer links the objects it needs out of one, and a batch would
+		// drag in every class it holds, with everything those need.
+		if ( module.Qt && module.Kind != ModuleKind.Lib && NativePlatform.Current.IsWindows )
+			Sources( module, f => f.Path.StartsWith( $"{module.Dir}/{Qt.Generated}/", StringComparison.OrdinalIgnoreCase ) );
 	}
 
-	private static void Sources( Module module )
+	private static void Sources( Module module, Func<SourceFile, bool> include )
 	{
 		var configs = module.Configs.Select( c => c.Name ).ToList();
 		int index = 0;
@@ -28,7 +38,7 @@ public static class Unity
 		// Grouped by directory: files that live together were written to live together, and merging across
 		// a whole module runs into duplicate file local names.
 		var folders = module.ResolvedFiles
-			.Where( f => Eligible( module, f ) )
+			.Where( f => include( f ) && Eligible( module, f ) )
 			.GroupBy( f => Path.GetDirectoryName( f.Path )?.Replace( '\\', '/' ) ?? "", StringComparer.OrdinalIgnoreCase )
 			.OrderBy( g => g.Key, StringComparer.OrdinalIgnoreCase );
 

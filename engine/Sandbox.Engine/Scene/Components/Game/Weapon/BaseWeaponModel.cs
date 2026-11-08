@@ -120,6 +120,7 @@ public partial class BaseWeaponModel : Component
 	/// Called when this weapon model is deployed (drawn). Base sets the "b_deploy" animation parameter
 	/// and plays <see cref="DeploySound"/>. Override to extend.
 	/// </summary>
+#pragma warning disable CS0618
 	public virtual void OnDeploy()
 	{
 		Renderer?.Set( "b_deploy", true );
@@ -144,6 +145,14 @@ public partial class BaseWeaponModel : Component
 	}
 
 	/// <summary>
+	/// Called when the weapon attacks, but has no ammo.
+	/// </summary>
+	public virtual void OnDryFire()
+	{
+		Renderer?.Set( "b_attack_dry", true );
+	}
+
+	/// <summary>
 	/// Called when the weapon starts reloading. Base sets the "b_reload" animation parameter. Override to
 	/// extend (incremental animations, timed reload sounds).
 	/// </summary>
@@ -165,6 +174,7 @@ public partial class BaseWeaponModel : Component
 	{
 		Renderer?.Set( "b_reload", false );
 	}
+#pragma warning restore CS0618
 
 	/// <summary>
 	/// Called when a reload is cancelled part-way through. Base does nothing - override to stop timed

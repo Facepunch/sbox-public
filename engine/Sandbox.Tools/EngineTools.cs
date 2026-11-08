@@ -13,7 +13,6 @@
 			new ToolDescription( "Hammer",                  "For editing maps",                 "hammer",               "handyman" ),
 			new ToolDescription( "Material Editor",         "For editing materials",            "met",                  "insert_photo" ),
 			new ToolDescription( "Model Editor",            "For editing models",               "modeldoc_editor",      "view_in_ar" ),
-			new ToolDescription( "Animgraph Editor",        "For editing animation graphs",     "animgraph_editor",     "directions_run" ),
 		}.AsReadOnly();
 
 		static readonly HashSet<string> UnavailableTools = new( System.StringComparer.OrdinalIgnoreCase );

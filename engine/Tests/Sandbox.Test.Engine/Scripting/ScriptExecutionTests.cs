@@ -15,10 +15,10 @@ public class ScriptExecutionTests
 			var types = new TypeLibrary();
 			types.AddIntrinsicTypes();
 			GlobalContext.Current = new GlobalContext { TypeLibrary = types };
-			var finite = Game.Scripting.CreateScript( "var count = 0; for (var i = 0; i < 100000; i++) count++; return count;" );
+			var finite = GlobalContext.Current.Scripting.CreateScript( "var count = 0; for (var i = 0; i < 100000; i++) count++; return count;" );
 			Assert.AreEqual( 100000, finite.RunAndReturn<int>() );
 			Assert.IsNull( finite.LastError );
-			var infinite = Game.Scripting.CreateScript( "while (true) { }" );
+			var infinite = GlobalContext.Current.Scripting.CreateScript( "while (true) { }" );
 			Assert.IsFalse( infinite.Run() );
 			StringAssert.Contains( infinite.LastError.Message.ToLowerInvariant(), "instruction limit" );
 		}

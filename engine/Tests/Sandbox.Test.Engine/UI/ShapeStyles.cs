@@ -266,24 +266,20 @@ public class ShapeStylesTest : PainterTestBase
 		Assert.AreEqual( 0, batcher.GpuBufferCount );
 	}
 
-	[TestMethod]
+	[TestMethod, TestCategory( Allocations.Category )]
 	public void TransientPathSubmissionDoesNotAllocateAfterWarmup()
 	{
 		var batcher = new PainterBatcher( new Sandbox.Rendering.CommandList() );
 		var shape = new UICssBoxBatched.BorderShape { Kind = UICssBoxBatched.ShapeKind.StrokePath, Circle = new Vector4( 0, 0, 2, 0 ) };
 		UICssBoxBatched.PathPrimitive[] primitives = [new() { Kind = UICssBoxBatched.PathPrimitiveKind.Segment, A = new Vector4( 0, 0, 10, 10 ) }];
-		for ( int i = 0; i < 10; i++ )
+		Allocations.AssertSettles( "1,000 frames of a transient path", () =>
 		{
-			batcher.AddPath( shape, primitives );
-			batcher.AdvanceFrame();
-		}
-		long before = GC.GetAllocatedBytesForCurrentThread();
-		for ( int i = 0; i < 1000; i++ )
-		{
-			batcher.AddPath( shape, primitives );
-			batcher.AdvanceFrame();
-		}
-		Assert.AreEqual( 0L, GC.GetAllocatedBytesForCurrentThread() - before );
+			for ( int i = 0; i < 1000; i++ )
+			{
+				batcher.AddPath( shape, primitives );
+				batcher.AdvanceFrame();
+			}
+		} );
 	}
 
 	[TestMethod]

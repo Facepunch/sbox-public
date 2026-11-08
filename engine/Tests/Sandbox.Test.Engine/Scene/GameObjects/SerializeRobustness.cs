@@ -57,10 +57,7 @@ public class SerializeRobustnessTest : SceneTest
 	public void ComponentTypeFallsBackToShortName()
 	{
 		var oldTypeLibrary = Game.TypeLibrary;
-		var typeLibrary = new Sandbox.Internal.TypeLibrary();
-		typeLibrary.AddAssembly( typeof( ModelRenderer ).Assembly, false );
-		typeLibrary.AddAssembly( typeof( SerializeRobustnessTest ).Assembly, false );
-		Game.TypeLibrary = typeLibrary;
+		Game.TypeLibrary = SharedTypeLibrary.EngineAndTests;
 
 		try
 		{
@@ -102,10 +99,7 @@ public class SerializeRobustnessTest : SceneTest
 	public void ThrowingComponentDoesNotBreakSiblings()
 	{
 		var oldTypeLibrary = Game.TypeLibrary;
-		var typeLibrary = new Sandbox.Internal.TypeLibrary();
-		typeLibrary.AddAssembly( typeof( ModelRenderer ).Assembly, false );
-		typeLibrary.AddAssembly( typeof( SerializeRobustnessTest ).Assembly, false );
-		Game.TypeLibrary = typeLibrary;
+		Game.TypeLibrary = SharedTypeLibrary.EngineAndTests;
 
 		try
 		{

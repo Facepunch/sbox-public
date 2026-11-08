@@ -122,6 +122,40 @@ public sealed partial class ParticleSpriteRenderer : ParticleRenderer, Component
 	[Property, Range( 0, 1 )] public float FogStrength { get; set; } = 1.0f;
 
 	/// <summary>
+	/// Draw the sprite artwork over a refracted background in one pass. Alpha controls the artwork only.
+	/// Requires a normal texture and translucent, non-additive rendering. The captured scene is already lit and fogged.
+	/// </summary>
+	[Property, ToggleGroup( "Refraction" )]
+	public bool Refraction { get; set; }
+
+	/// <summary>
+	/// Tangent-space normal map sampled in linear space. Use the same UV layout as the sprite texture:
+	/// particle sheet sequences, frame blending and rotation are shared with the alpha mask.
+	/// For sprites that change texture between frames, this map is shared by every frame.
+	/// </summary>
+	[Property, ToggleGroup( "Refraction" )]
+	public Texture NormalTexture { get; set; }
+
+	/// <summary>
+	/// Maximum refraction offset in render pixels before the normal is applied. Alpha, depth feathering
+	/// and camera fading affect artwork opacity only, never the refraction.
+	/// Supports constants, random ranges and lifetime curves, like particle alpha.
+	/// Zero leaves the captured background undistorted. Refraction must be disabled to return to ordinary sprite rendering.
+	/// </summary>
+	[Property, ToggleGroup( "Refraction" ), Range( 0, 64 )]
+	public ParticleFloat RefractionStrength { get; set; } = 8.0f;
+
+	/// <summary>
+	/// Whether this renderer can use scene-color refraction with its current blend settings and normal map.
+	/// </summary>
+	internal bool IsRefractive => Refraction && NormalTexture is not null && !Opaque && !Additive;
+
+	/// <summary>
+	/// Supply the normal map to the batch only when this renderer uses refraction.
+	/// </summary>
+	Texture IBatchedParticleSpriteRenderer.RefractionNormalTexture => IsRefractive ? NormalTexture : null;
+
+	/// <summary>
 	/// Aligns the sprite to face its velocity direction.
 	/// </summary>
 	[Property, ToggleGroup( "FaceVelocity" ), Order( 2 )]

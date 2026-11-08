@@ -21,6 +21,20 @@ native class CVfx as NativeEngine.CVfx
 		return t;
 	}
 
+	// An anonymous shader from a whole compiled .shader_c, kept in memory
+	inline static CVfx CreateAnonymous( string debugName, void* pData, int size )
+	{
+		auto ptr = new CVfx();
+		if ( !ptr->CreateFromCompiledResource( debugName, pData, size, SM_6_0_VULKAN ) )
+		{
+			delete ptr;
+			return HShader();
+		}
+
+		CResourceName name( debugName, RESOURCE_TYPE_SHADER );
+		return g_pResourceSystem->FindOrCreateProceduralResource<RESOURCE_TYPE_SHADER>( name, ptr, PROCEDURAL_RESOURCE_ANONYMOUS );
+	}
+
 	string GetFilename();
 
 	bool CreateFromResourceFile( string pShaderFile, VfxCompileTarget_t compileTarget, uint nCreateFlags, bool bFailSilently );
@@ -90,6 +104,29 @@ native class CVfx as NativeEngine.CVfx
 
 native static class ShaderTools
 {
+	// What compiled .shader_c files have to be stamped with to load
+	inline static int GetResourceVersion()
+	{
+		return VFX_SHADER_RESOURCE_VERSION;
+	}
+
+	// The VCS version compiled programs are written with, and the oldest that still loads
+	inline static int GetVcsVersion()
+	{
+		return VFX_VCS_VERSION;
+	}
+
+	inline static int GetMinVcsVersion()
+	{
+		return VFX_VCS_VERSION_MIN_SUPPORTED;
+	}
+
+	// Compiled programs from any other ABI epoch don't load
+	inline static int GetAbiVersion()
+	{
+		return VFX_ABI_CURRENT_VERSION;
+	}
+
 	inline static string GetShaderSource( string pShaderFile )
 	{
 		CUtlBuffer shaderFileBuf;

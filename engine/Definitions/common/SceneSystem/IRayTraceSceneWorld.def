@@ -12,8 +12,6 @@ native class IRayTraceSceneWorld as NativeEngine.IRayTraceSceneWorld
 
         this->BeginBuild();
         this->AddSceneWorldToBuild( pWorld, pRenderContext );
-        this->EndBuild( pRenderContext, attrs );
-
-        return true;
+        return this->EndBuild( pRenderContext, attrs );
     } 
 }

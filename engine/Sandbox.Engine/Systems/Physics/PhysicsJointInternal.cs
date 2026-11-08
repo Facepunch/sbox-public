@@ -64,12 +64,18 @@ internal abstract class PhysicsJointInternal : IValid
 	public virtual float Friction { set { } }
 	public virtual float Angle => 0;
 
-	public virtual void SetLimit( string name, Vector2 limit ) { }
-	public virtual void SetLimitEnabled( string name, bool state ) { }
+	public virtual void SetSwingLimit( float angleDegrees ) { }
+	public virtual void SetSwingLimitEnabled( bool enabled ) { }
+	public virtual void SetTwistLimits( float minDegrees, float maxDegrees ) { }
+	public virtual void SetTwistLimitEnabled( bool enabled ) { }
+	public virtual void SetLinearLimits( float min, float max ) { }
+	public virtual void SetLinearLimitEnabled( bool enabled ) { }
 
 
 	public virtual void SetAngularSpring( Vector3 parameters ) { }
 	public virtual void SetAngularMotor( float targetVelocity, float maxTorque ) { }
+	public virtual void SetLinearMotor( float targetVelocity, float maxForce ) => throw new NotSupportedException();
+	public virtual void SetLinearSpring( Vector3 parameters ) => throw new NotSupportedException();
 	public virtual void SetTargetRotation( Rotation rotation, float hertz, float damping ) { }
 	public virtual void SetMotorVelocity( Vector3 velocity, float maxTorque ) { }
 

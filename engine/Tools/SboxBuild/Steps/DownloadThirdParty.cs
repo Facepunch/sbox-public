@@ -23,42 +23,62 @@ internal class DownloadThirdParty( bool force = false )
 	private ExitCode Restore()
 	{
 		var platform = NativePlatform.Current.DirectoryName;
-		var downloaded = 0;
 		var skipped = 0;
+		var pending = new List<(RemoteDeps.Dep Dep, string TargetDir, string Marker, string Stamp)>();
+
+		var dependencies = RemoteDeps.All.Where( dep => dep.SupportsPlatform( platform ) ).ToArray();
+		BuildDisplay.Status( $"Checking {dependencies.Length} dependencies ({platform})" );
+
+		foreach ( var dep in dependencies )
+		{
+			var targetDir = Paths.Absolute( dep.Dir );
+
+			// Per dependency, not per directory: several share game/bin. The platform is
+			// in the stamp because a dependency's headers can differ between platforms.
+			var marker = Path.Combine( targetDir, $".sbox-thirdparty-{dep.Name}" );
+			var stamp = $"{dep.Tag} {platform} r{dep.Rebuild}";
+
+			if ( !force && IsCurrent( marker, stamp ) )
+			{
+				Log.Detail( $"{dep.Tag} ({platform}) is already current." );
+				skipped++;
+				continue;
+			}
+
+			pending.Add( (dep, targetDir, marker, stamp) );
+		}
+
+		var fetched = new Fetched[pending.Count];
 
 		try
 		{
 			using var httpClient = CreateHttpClient();
 
-			var dependencies = RemoteDeps.All.Where( dep => dep.SupportsPlatform( platform ) ).ToArray();
-			for ( var index = 0; index < dependencies.Length; index++ )
+			// Downloading and extracting is network and decompression into a folder of its own, so the
+			// dependencies do it side by side; a clean checkout fetches all of them. Installing writes into
+			// shared folders like game/bin, so that stays one at a time and in order.
+			var done = 0;
+			BuildDisplay.Status( $"Downloading {pending.Count} dependencies ({platform})" );
+			Parallel.For( 0, pending.Count, new ParallelOptions { MaxDegreeOfParallelism = 8 }, i =>
 			{
-				var dep = dependencies[index];
-				var status = $"Dependency {index + 1}/{dependencies.Length}: {dep.Tag} ({platform})";
-				BuildDisplay.Status( $"{status} - checking installation" );
-				BuildDisplay.Progress( 0, 0, "Checking installed files" );
-				var targetDir = Paths.Absolute( dep.Dir );
+				Log.Detail( $"Downloading {pending[i].Dep.Tag} ({platform})..." );
+				fetched[i] = Prepare( httpClient, pending[i].Dep, platform );
 
-				// Per dependency, not per directory: several share game/bin. The platform is
-				// in the stamp because a dependency's headers can differ between platforms.
-				var marker = Path.Combine( targetDir, $".sbox-thirdparty-{dep.Name}" );
-				var stamp = $"{dep.Tag} {platform} r{dep.Rebuild}";
+				var count = Interlocked.Increment( ref done );
+				BuildDisplay.Progress( count, pending.Count, $"{count}/{pending.Count} downloaded and extracted" );
+			} );
 
-				if ( !force && IsCurrent( marker, stamp ) )
-				{
-					Log.Detail( $"{dep.Tag} ({platform}) is already current." );
-					skipped++;
-					continue;
-				}
+			if ( fetched.Any( f => f is null ) )
+				return ExitCode.Failure;
 
-				Log.Detail( $"Downloading {dep.Tag} ({platform})..." );
+			for ( var i = 0; i < pending.Count; i++ )
+			{
+				var (dep, targetDir, marker, stamp) = pending[i];
+				BuildDisplay.Status( $"Installing {dep.Tag} ({platform})" );
+				BuildDisplay.Progress( i, pending.Count, $"{i}/{pending.Count} installed" );
 
-				if ( !Fetch( httpClient, dep, platform, targetDir, status, out var written ) )
-					return ExitCode.Failure;
-
-				BuildDisplay.Status( $"{status} - recording installation" );
+				var written = Install( dep, platform, targetDir, fetched[i].Extracted );
 				WriteMarker( marker, stamp, written );
-				downloaded++;
 			}
 		}
 		catch ( Exception ex )
@@ -66,8 +86,23 @@ internal class DownloadThirdParty( bool force = false )
 			Log.Error( $"Third party download failed with error: {ex}" );
 			return ExitCode.Failure;
 		}
+		finally
+		{
+			foreach ( var f in fetched )
+			{
+				try
+				{
+					if ( f is not null && Directory.Exists( f.TempRoot ) )
+						Directory.Delete( f.TempRoot, recursive: true );
+				}
+				catch ( IOException )
+				{
+					// A leftover temp directory is not worth failing the build over.
+				}
+			}
+		}
 
-		Log.Summary( $"Third party dependencies up to date ({downloaded} downloaded, {skipped} already current)." );
+		Log.Summary( $"Third party dependencies up to date ({pending.Count} downloaded, {skipped} already current)." );
 		return ExitCode.Success;
 	}
 
@@ -103,11 +138,12 @@ internal class DownloadThirdParty( bool force = false )
 		File.WriteAllLines( marker, manifest.Prepend( stamp ) );
 	}
 
-	private static bool Fetch( HttpClient httpClient, RemoteDeps.Dep dep, string platform, string targetDir, string status,
-		out List<string> written )
-	{
-		written = [];
+	/// <summary>A dependency downloaded and extracted into a temporary folder, ready to install.</summary>
+	private sealed record Fetched( string TempRoot, string Extracted );
 
+	/// <summary>Downloads and extracts a dependency into a temporary folder of its own. Null on failure.</summary>
+	private static Fetched Prepare( HttpClient httpClient, RemoteDeps.Dep dep, string platform )
+	{
 		// The packaging action archives Windows as .zip and everything else as .tar.gz.
 		var isZip = NativePlatform.Current.IsWindows;
 		var asset = $"{dep.Name}-{dep.Version}-{platform}.{(isZip ? "zip" : "tar.gz")}";
@@ -122,26 +158,25 @@ internal class DownloadThirdParty( bool force = false )
 		var tempRoot = Path.Combine( temp, $"sbox-thirdparty-{Guid.NewGuid():N}" );
 		var archive = Path.Combine( tempRoot, asset );
 		var extracted = Path.Combine( tempRoot, "extracted" );
+		var fetched = new Fetched( tempRoot, extracted );
+
+		Directory.CreateDirectory( tempRoot );
+
+		if ( !Download( httpClient, cdnUrl, archive ) )
+		{
+			Log.Detail( $"CDN download unavailable for {asset}; trying the GitHub release API." );
+			var apiUrl = ResolveAssetUrl( httpClient, dep.Tag, asset );
+
+			if ( apiUrl is null || !Download( httpClient, apiUrl, archive ) )
+			{
+				Log.Error( $"Unable to download {asset} from {Repo}. Has its workflow published {dep.Tag}?" );
+				Directory.Delete( tempRoot, recursive: true );
+				return null;
+			}
+		}
 
 		try
 		{
-			Directory.CreateDirectory( tempRoot );
-
-			if ( !Download( httpClient, cdnUrl, archive, status ) )
-			{
-				BuildDisplay.Status( $"{status} - looking up GitHub API fallback" );
-				Log.Detail( $"CDN download unavailable for {asset}; trying the GitHub release API." );
-				var apiUrl = ResolveAssetUrl( httpClient, dep.Tag, asset );
-
-				if ( apiUrl is null || !Download( httpClient, apiUrl, archive, status ) )
-				{
-					Log.Error( $"Unable to download {asset} from {Repo}. Has its workflow published {dep.Tag}?" );
-					return false;
-				}
-			}
-
-			BuildDisplay.Status( $"{status} - extracting {asset}" );
-			BuildDisplay.Progress( 0, 0, "Archive downloaded; extracting files" );
 			Directory.CreateDirectory( extracted );
 
 			if ( isZip )
@@ -154,75 +189,75 @@ internal class DownloadThirdParty( bool force = false )
 				using var gzip = new GZipStream( file, CompressionMode.Decompress );
 				TarFile.ExtractToDirectory( gzip, extracted, overwriteFiles: true );
 			}
-
-			BuildDisplay.Status( $"{status} - installing" );
-			BuildDisplay.Progress( 0, 0, "Installing extracted files" );
-			// Clear the previous release first, or files it had and this one does not will
-			// survive.
-			foreach ( var stale in new[]
-			{
-				Path.Combine( targetDir, "lib", platform ),
-				Path.Combine( targetDir, "bin", platform ),
-			} )
-			{
-				if ( Directory.Exists( stale ) )
-					Directory.Delete( stale, recursive: true );
-			}
-
-			// lib and bin nest per platform to match the .build.cs paths. Everything else,
-			// include and plugins, is platform neutral.
-			foreach ( var directory in Directory.EnumerateDirectories( extracted ) )
-			{
-				var name = Path.GetFileName( directory );
-
-				// A release that builds more than we ship names the shipped set itself, already
-				// laid out the way it lands beside the engine, so take it as it comes.
-				if ( name.Equals( dep.RuntimeTree, StringComparison.OrdinalIgnoreCase ) )
-				{
-					foreach ( var runtimeDir in dep.RuntimeDir )
-						CopyDirectory( directory, Path.Combine( Paths.Absolute( runtimeDir ), platform ), written );
-
-					continue;
-				}
-
-				var isPlatformSpecific = name.Equals( "lib", StringComparison.OrdinalIgnoreCase )
-					|| name.Equals( "bin", StringComparison.OrdinalIgnoreCase );
-
-				var destination = isPlatformSpecific
-					? Path.Combine( targetDir, name, platform )
-					: Path.Combine( targetDir, name );
-
-				// Split by file, not directory: oidn ships its runtime binary and its import
-				// library in the same lib/. A dependency with its own runtime tree has already
-				// said what ships, so nothing here is diverted.
-				if ( isPlatformSpecific && dep.RuntimeTree is null )
-				{
-					var runtimeDirs = dep.RuntimeDir
-						.Select( d => Path.Combine( Paths.Absolute( d ), platform ) )
-						.ToArray();
-
-					CopyDirectory( directory, destination, written,
-						f => IsRuntimeBinary( f, dep.RuntimeExecutables ), runtimeDirs );
-					continue;
-				}
-
-				CopyDirectory( directory, destination, written );
-			}
-
-			return true;
 		}
-		finally
+		catch ( Exception ex )
 		{
-			try
-			{
-				if ( Directory.Exists( tempRoot ) )
-					Directory.Delete( tempRoot, recursive: true );
-			}
-			catch ( IOException )
-			{
-				// A leftover temp directory is not worth failing the build over.
-			}
+			Log.Error( $"Extracting {asset} failed: {ex.Message}" );
+			Directory.Delete( tempRoot, recursive: true );
+			return null;
 		}
+
+		return fetched;
+	}
+
+	/// <summary>Installs an extracted dependency and returns every file it placed.</summary>
+	private static List<string> Install( RemoteDeps.Dep dep, string platform, string targetDir, string extracted )
+	{
+		var written = new List<string>();
+
+		// Clear the previous release first, or files it had and this one does not will
+		// survive.
+		foreach ( var stale in new[]
+		{
+			Path.Combine( targetDir, "lib", platform ),
+			Path.Combine( targetDir, "bin", platform ),
+		} )
+		{
+			if ( Directory.Exists( stale ) )
+				Directory.Delete( stale, recursive: true );
+		}
+
+		// lib and bin nest per platform to match the .build.cs paths. Everything else,
+		// include and plugins, is platform neutral.
+		foreach ( var directory in Directory.EnumerateDirectories( extracted ) )
+		{
+			var name = Path.GetFileName( directory );
+
+			// A release that builds more than we ship names the shipped set itself, already
+			// laid out the way it lands beside the engine, so take it as it comes.
+			if ( name.Equals( dep.RuntimeTree, StringComparison.OrdinalIgnoreCase ) )
+			{
+				foreach ( var runtimeDir in dep.RuntimeDir )
+					CopyDirectory( directory, Path.Combine( Paths.Absolute( runtimeDir ), platform ), written );
+
+				continue;
+			}
+
+			var isPlatformSpecific = name.Equals( "lib", StringComparison.OrdinalIgnoreCase )
+				|| name.Equals( "bin", StringComparison.OrdinalIgnoreCase );
+
+			var destination = isPlatformSpecific
+				? Path.Combine( targetDir, name, platform )
+				: Path.Combine( targetDir, name );
+
+			// Split by file, not directory: oidn ships its runtime binary and its import
+			// library in the same lib/. A dependency with its own runtime tree has already
+			// said what ships, so nothing here is diverted.
+			if ( isPlatformSpecific && dep.RuntimeTree is null )
+			{
+				var runtimeDirs = dep.RuntimeDir
+					.Select( d => Path.Combine( Paths.Absolute( d ), platform ) )
+					.ToArray();
+
+				CopyDirectory( directory, destination, written,
+					f => IsRuntimeBinary( f, dep.RuntimeExecutables ), runtimeDirs );
+				continue;
+			}
+
+			CopyDirectory( directory, destination, written );
+		}
+
+		return written;
 	}
 
 	private static string ResolveAssetUrl( HttpClient httpClient, string tag, string asset )
@@ -262,7 +297,11 @@ internal class DownloadThirdParty( bool force = false )
 		return null;
 	}
 
-	private static bool Download( HttpClient httpClient, string url, string destination, string status )
+	/// <summary>
+	/// Several of these run at once, so they report through the log rather than the status line, which
+	/// the caller keeps for overall progress.
+	/// </summary>
+	private static bool Download( HttpClient httpClient, string url, string destination )
 	{
 		var archiveName = Path.GetFileName( destination );
 		Log.Detail( $"Downloading {archiveName} from {url}" );
@@ -270,8 +309,6 @@ internal class DownloadThirdParty( bool force = false )
 		{
 			try
 			{
-				BuildDisplay.Status( $"{status} - downloading {archiveName} (attempt {attempt}/{MaxDownloadAttempts})" );
-				BuildDisplay.Progress( 0, 0, "Connecting" );
 				using var request = new HttpRequestMessage( HttpMethod.Get, url );
 				request.Headers.Accept.Add( new MediaTypeWithQualityHeaderValue( "application/octet-stream" ) );
 
@@ -284,7 +321,6 @@ internal class DownloadThirdParty( bool force = false )
 				if ( RateLimitDelay( response ) is { } delay )
 				{
 					Log.Warning( $"GitHub rate limited {archiveName}, waiting {delay.TotalSeconds:0}s (attempt {attempt} of {MaxDownloadAttempts})." );
-					BuildDisplay.Status( $"{status} - rate limited; retry wait {delay.TotalSeconds:0}s" );
 					Thread.Sleep( delay );
 					continue;
 				}
@@ -294,40 +330,15 @@ internal class DownloadThirdParty( bool force = false )
 				using var stream = response.Content.ReadAsStream();
 				using var target = File.Create( destination );
 				var length = response.Content.Headers.ContentLength;
-				long received = 0;
 				var clock = Stopwatch.StartNew();
-				var lastReport = TimeSpan.Zero;
-				var buffer = new byte[81920];
-				ReportProgress( false );
-				int read;
-				while ( (read = stream.Read( buffer, 0, buffer.Length )) > 0 )
-				{
-					target.Write( buffer, 0, read );
-					received += read;
-					if ( clock.Elapsed - lastReport >= TimeSpan.FromMilliseconds( 100 ) )
-					{
-						ReportProgress( false );
-						lastReport = clock.Elapsed;
-					}
-				}
-
-				if ( length.HasValue && received != length.Value )
-					throw new IOException( $"Downloaded {archiveName} has {received} bytes, expected {length.Value}." );
-
+				stream.CopyTo( target, 81920 );
 				target.Flush();
-				ReportProgress( true );
-				return true;
 
-				void ReportProgress( bool complete )
-				{
-					var bytes = length.HasValue
-						? $"{Utility.FormatSize( received )} / {Utility.FormatSize( length.Value )} ({received:N0} / {length.Value:N0} bytes)"
-						: $"{Utility.FormatSize( received )} received ({received:N0} bytes, size unknown)";
-					var speed = received / Math.Max( clock.Elapsed.TotalSeconds, 0.001 );
-					var detail = $"{bytes} | {Utility.FormatSize( (long)speed )}/s" + (complete ? " | Download complete" : "");
-					BuildDisplay.Progress( length > 0 ? complete ? received : Math.Min( received, length.Value * 0.99 ) : 0,
-						length.GetValueOrDefault(), detail );
-				}
+				if ( length.HasValue && target.Length != length.Value )
+					throw new IOException( $"Downloaded {archiveName} has {target.Length} bytes, expected {length.Value}." );
+
+				Log.Detail( $"Downloaded {archiveName}: {Utility.FormatSize( target.Length )} in {clock.Elapsed.TotalSeconds:0.0}s" );
+				return true;
 			}
 			catch ( Exception ex )
 			{
@@ -336,8 +347,6 @@ internal class DownloadThirdParty( bool force = false )
 				// Backing off in seconds rather than milliseconds, with jitter, so a whole build
 				// matrix retrying at once does not line up on the same instant.
 				var delay = TimeSpan.FromSeconds( attempt * attempt ) + TimeSpan.FromMilliseconds( Random.Shared.Next( 500 ) );
-				BuildDisplay.Status( $"{status} - attempt {attempt} failed; retry wait {delay.TotalSeconds:0.0}s" );
-				BuildDisplay.Progress( 0, 0, "Waiting after failed download" );
 				Thread.Sleep( delay );
 			}
 		}

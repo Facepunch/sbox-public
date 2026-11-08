@@ -15,7 +15,7 @@
 			<div class="left">@Left</div>
 		}
 
-		<div class="game-thumb @(CanOpenGame ? "game-link" : "")" onclick=@OpenGame tooltip="@(CanOpenGame ? "View game details" : "")">
+		<div class="game-thumb @(CanOpenGame ? "game-link" : "")" onclick=@OpenGame tooltip="@(CanOpenGame ? "#menu.party.view_game_details" : "")">
 			@if ( string.IsNullOrEmpty( GamePackage?.Thumb ) )
 			{
 				<i>sports_esports</i>
@@ -29,27 +29,27 @@
 		<div class="game-info">
 			@Navigation
 			<div class="game-title-row">
-				<div class="game-title @(CanOpenGame ? "game-link" : "")" onclick=@OpenGame tooltip="@(CanOpenGame ? "View game details" : "")">@(GamePackage?.Title ?? GameIdent)</div>
+				<div class="game-title @(CanOpenGame ? "game-link" : "")" onclick=@OpenGame tooltip="@(CanOpenGame ? "#menu.party.view_game_details" : "")">@(GamePackage?.Title ?? GameIdent)</div>
 				@if ( CanOpenGame )
 				{
-					<Button class="favourite" Icon="@(IsFavourite ? "favorite" : "favorite_border")" Active=@IsFavourite disabled=@favouriteBusy onclick=@ToggleFavourite tooltip="@(IsFavourite ? "Remove from favourites" : "Add to favourites")" />
+					<Button class="favourite" Icon="@(IsFavourite ? "favorite" : "favorite_border")" Active=@IsFavourite disabled=@favouriteBusy onclick=@ToggleFavourite tooltip="@(IsFavourite ? "#menu.games.remove_from_favourites_text" : "#menu.games.add_to_favourites_text")" />
 				}
 			</div>
 			<div class="game-summary">
 				<span>@TotalPlayers.ToString( "N0" ) @(TotalPlayers == 1 ? "player" : "players")</span>
 				<span class="summary-divider">·</span>
-				<span>@(ServerCount == 1 ? "1 server" : $"{ServerCount:N0} servers")</span>
+				<span>@(ServerCount == 1 ? "#menu.multiplayer.1_server" : $"{ServerCount:N0} servers")</span>
 			</div>
 			@if ( Friends.Count > 0 || FriendsOnly )
 			{
-				<button class="friends-playing @(FriendsOnly ? "active" : "")" onclick=@OnFriendsClick tooltip="@(FriendsOnly ? "Show all servers" : "Only show servers with friends")">
+				<button class="friends-playing @(FriendsOnly ? "active" : "")" onclick=@OnFriendsClick tooltip="@(FriendsOnly ? "#menu.multiplayer.show_all_servers" : "#menu.multiplayer.only_show_servers_with_friends")">
 					<div class="friend-avatars">
 						@foreach ( var friend in Friends.Take( 3 ) )
 						{
 							<img src="avatar:@friend.Id" tooltip="@friend.Name" />
 						}
 					</div>
-					<label>@(Friends.Count == 1 ? "1 friend playing" : $"{Friends.Count} friends playing")</label>
+					<label>@(Friends.Count == 1 ? "#menu.multiplayer.1_friend_playing" : $"{Friends.Count} friends playing")</label>
 					@if ( FriendsOnly )
 					{
 						<icon>close</icon>

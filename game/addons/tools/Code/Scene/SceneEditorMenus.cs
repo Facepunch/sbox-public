@@ -112,7 +112,7 @@ public static class SceneEditorMenus
 					nextSelect = nextSelect.GetNextSibling( false );
 
 				for ( var p = lastSelected.Parent; !nextSelect.IsValid() && p.IsValid(); p = p.Parent )
-					if ( !p.Flags.Contains( GameObjectFlags.Hidden ) )
+					if ( p is not Scene && !p.Flags.Contains( GameObjectFlags.Hidden ) )
 						nextSelect = p;
 
 				if ( SceneEditorSession.Active.Selection.Contains( lastSelected ) )
@@ -426,10 +426,8 @@ public static class SceneEditorMenus
 					SceneUtility.MakeIdGuidsUnique( prefabInstanceJson, gameObject.Id );
 					gameObject.Clear();
 					var originalTransform = gameObject.WorldTransform;
-					var originalName = gameObject.Name;
 					gameObject.Deserialize( prefabInstanceJson );
 					gameObject.WorldTransform = originalTransform;
-					gameObject.Name = originalName;
 				}
 			}
 		};

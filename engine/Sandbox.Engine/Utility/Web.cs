@@ -113,6 +113,9 @@ internal static class Web
 				read = await bodyStream.ReadAsync( buffer.Memory, stall.Token );
 				if ( read <= 0 ) break;
 
+				// Automatic decompression clears Content-Length; don't mistake expanded bytes for bandwidth.
+				if ( response.Content.Headers.ContentLength.HasValue ) TextureWebStreaming.RecordNetworkBytes( read );
+
 				// Only the network counts towards a stall, not a slow disk
 				stall.CancelAfter( Timeout.InfiniteTimeSpan );
 				await fileStream.WriteAsync( buffer.Memory[..read], cancelToken );

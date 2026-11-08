@@ -1,3 +1,5 @@
+#pragma warning disable CS0618 // Tests intentionally exercise legacy fog compatibility.
+
 using Sandbox.Audio;
 using Sandbox.Volumes;
 using Sandbox.VR;

@@ -8,4 +8,5 @@ native class CMapGameObject as NativeMapDoc.CMapGameObject : CMapNode
 {
 	void SetGUID( string json );
 	string GetGUID();
+	void SetHideUnselectedChildren( bool bHide );
 }

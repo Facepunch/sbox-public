@@ -9,13 +9,14 @@ public class DresserTests
 	private static SkinnedModelRenderer CreateBody( Scene scene )
 	{
 		var body = scene.CreateObject().AddComponent<SkinnedModelRenderer>( false );
-		body.Model = Model.Load( "models/citizen/citizen.vmdl" );
+		body.Model = Model.Load( "models/citizen_human/human.vmdl" );
+		Assert.IsFalse( body.Model.IsError, "The Human model must load for dressing tests" );
 		body.Enabled = true;
 		return body;
 	}
 
-	private static GameObject Deforms( SkinnedModelRenderer body ) =>
-		body.GameObject.Children.Single( x => !x.IsDestroyed && x.Name == "citizen_deforms" );
+	private static GameObject LegacyDeforms( SkinnedModelRenderer body ) =>
+		body.GameObject.Children.SingleOrDefault( x => !x.IsDestroyed && x.Name == "citizen_deforms" );
 
 	/// <summary>
 	/// Explicit outfit requests remain supported on remote bodies through both public APIs.
@@ -37,7 +38,7 @@ public class DresserTests
 		Assert.IsTrue( body.IsProxy );
 
 		var outfit = new ClothingContainer { Age = 0.8f };
-		outfit.Add( new Clothing { Model = "models/citizen/citizen.vmdl" } );
+		outfit.Add( new Clothing { HumanAltModel = "models/citizen_human/human.vmdl" } );
 
 		if ( useLegacyApi )
 		{
@@ -99,7 +100,7 @@ public class DresserTests
 	}
 
 	/// <summary>
-	/// An inactive body's existing Dresser and deformation instance survive a clothing reset.
+	/// An inactive Human body's existing Dresser and appearance survive a clothing reset.
 	/// </summary>
 	[TestMethod]
 	public void LegacyResetPreservesExistingAppearance()
@@ -109,10 +110,10 @@ public class DresserTests
 		var body = CreateBody( scene );
 		var dresser = Dresser.GetOrCreate( body );
 		var outfit = new ClothingContainer { Age = 0.9f, NeckSize = 0.8f, EyeColor = 0.7f };
-		outfit.Add( new Clothing { Model = "models/citizen/citizen.vmdl" } );
+		outfit.Add( new Clothing { HumanAltModel = "models/citizen_human/human.vmdl" } );
 		dresser.UpdateAppearance( outfit );
 		dresser.Apply( outfit );
-		var deforms = Deforms( body );
+		Assert.IsNull( LegacyDeforms( body ), "Human bodies must not create Citizen deformation prefabs" );
 		body.GameObject.Enabled = false;
 
 #pragma warning disable CS0618 // Exercise the compatibility entry point.
@@ -121,7 +122,7 @@ public class DresserTests
 		scene.ProcessDeletes();
 
 		Assert.AreSame( dresser, Dresser.Find( body ) );
-		Assert.AreSame( deforms, Deforms( body ) );
+		Assert.IsNull( LegacyDeforms( body ), "Human appearance updates must not create Citizen deformation prefabs" );
 		Assert.IsFalse( body.GameObject.Children.Any( x => x.Tags.Has( "clothing" ) ) );
 		Assert.AreEqual( 0.9f, body.Attributes.GetFloat( "skin_age" ) );
 		Assert.AreEqual( 0.8f, dresser.NeckSize );
@@ -145,7 +146,7 @@ public class DresserTests
 	}
 
 	/// <summary>
-	/// Appearance edits retain clothing renderers and the deformation prefab, updating their values in place.
+	/// Human appearance edits retain clothing renderers and update their values without Citizen deforms.
 	/// </summary>
 	[TestMethod]
 	public void AppearanceEditsPreserveOutfitObjects()
@@ -157,7 +158,7 @@ public class DresserTests
 		var outfit = new ClothingContainer();
 		var item = new Clothing
 		{
-			Model = "models/citizen/citizen.vmdl",
+			HumanAltModel = "models/citizen_human/human.vmdl",
 			AllowTintSelect = true,
 			TintSelection = new Gradient( new Gradient.ColorFrame( 0, Color.Red ), new Gradient.ColorFrame( 1, Color.Blue ) )
 		};
@@ -165,7 +166,7 @@ public class DresserTests
 		dresser.UpdateAppearance( outfit );
 		dresser.Apply( outfit );
 		var clothing = body.GameObject.Children.Single( x => !x.IsDestroyed && x.Tags.Has( "clothing" ) );
-		var deforms = Deforms( body );
+		Assert.IsNull( LegacyDeforms( body ), "Human bodies must not create Citizen deformation prefabs" );
 
 		outfit.Age = 0.8f;
 		outfit.Height = 0.9f;
@@ -174,7 +175,7 @@ public class DresserTests
 		entry.Tint = 1;
 		dresser.UpdateAppearance( outfit );
 
-		Assert.AreSame( deforms, Deforms( body ) );
+		Assert.IsNull( LegacyDeforms( body ), "Human appearance updates must not create Citizen deformation prefabs" );
 		Assert.AreSame( clothing, body.GameObject.Children.Single( x => !x.IsDestroyed && x.Tags.Has( "clothing" ) ) );
 		Assert.AreEqual( 0.8f, body.Attributes.GetFloat( "skin_age" ) );
 		Assert.AreEqual( Color.Blue, clothing.GetComponent<SkinnedModelRenderer>().Tint );
@@ -203,7 +204,7 @@ public class DresserTests
 	}
 
 	/// <summary>
-	/// Retargeting releases the previous prefab and callback while retaining the live values.
+	/// Retargeting transfers the model callback to the new Human body while retaining live values.
 	/// </summary>
 	[TestMethod]
 	public void RetargetingReleasesPreviousBody()
@@ -214,40 +215,41 @@ public class DresserTests
 		var second = CreateBody( scene );
 		var dresser = Dresser.GetOrCreate( first );
 		dresser.NeckSize = 0.8f;
-		var oldDeforms = Deforms( first );
+		Assert.IsTrue( first.ModelChanged?.GetInvocationList().Any( x => x.Target == dresser ) ?? false );
 
 		dresser.BodyTarget = second;
 		scene.ProcessDeletes();
 
-		Assert.IsTrue( oldDeforms.IsDestroyed );
+		Assert.IsNull( LegacyDeforms( first ) );
 		Assert.IsFalse( first.ModelChanged?.GetInvocationList().Any( x => x.Target == dresser ) ?? false );
 		Assert.IsTrue( second.ModelChanged?.GetInvocationList().Any( x => x.Target == dresser ) ?? false );
-		Assert.IsNotNull( Deforms( second ) );
+		Assert.IsNull( LegacyDeforms( second ), "Retargeting to Human must not create Citizen deformation prefabs" );
 		Assert.AreEqual( 0.8f, dresser.NeckSize );
 	}
 
 	/// <summary>
-	/// Destroying the Dresser releases generated state even when its body remains alive.
+	/// Destroying the Dresser releases its model callback while the Human body remains alive.
 	/// </summary>
 	[TestMethod]
-	public void DestructionReleasesGeneratedState()
+	public void DestructionReleasesBodyCallback()
 	{
 		var scene = new Scene();
 		using var scope = scene.Push();
 		var body = CreateBody( scene );
 		var dresser = Dresser.GetOrCreate( body );
-		var deforms = Deforms( body );
+		Assert.IsTrue( body.ModelChanged?.GetInvocationList().Any( x => x.Target == dresser ) ?? false );
+		Assert.IsNull( LegacyDeforms( body ), "Human bodies must not create Citizen deformation prefabs" );
 
 		dresser.Destroy();
 		scene.ProcessDeletes();
 
 		Assert.IsTrue( body.IsValid() );
-		Assert.IsTrue( deforms.IsDestroyed );
+		Assert.IsNull( LegacyDeforms( body ) );
 		Assert.IsFalse( body.ModelChanged?.GetInvocationList().Any( x => x.Target == dresser ) ?? false );
 	}
 
 	/// <summary>
-	/// A prefab authored in the scene is borrowed and must survive destruction of the Dresser.
+	/// An authored deformation child on a Human body must survive destruction of the Dresser.
 	/// </summary>
 	[TestMethod]
 	public void AuthoredDeformsAreNotDestroyed()
@@ -280,9 +282,9 @@ public class DresserTests
 #pragma warning disable CS0618 // Exercise the compatibility entry points.
 		outfit.Apply( body );
 		var dresser = Dresser.GetOrCreate( body );
-		var deforms = Deforms( body );
+		Assert.IsNull( LegacyDeforms( body ), "Human bodies must not create Citizen deformation prefabs" );
 		await outfit.ApplyAsync( body, default );
-		Assert.AreSame( deforms, outfit.ApplyDeforms( body ) );
+		Assert.IsNull( outfit.ApplyDeforms( body ), "The legacy deformation API must leave Human bodies unchanged" );
 		outfit.ApplyEyes( body );
 		var cancelled = outfit.ApplyAsync( body, new System.Threading.CancellationToken( true ) );
 		Assert.IsTrue( cancelled.IsCanceled, "Cancellation should return a cancelled task, not throw synchronously." );

@@ -11,16 +11,17 @@
   "Category": "HatCostume",
   "ConditionalModels": {},
   "Tags": null,
-  "Parent": null,
   "Model": "models/citizen_clothes/seasonal/2025/easter_farmer/easter_bonnet/models/easter_bonnet.vmdl",
   "HumanAltModel": "models/citizen_clothes/seasonal/2025/easter_farmer/easter_bonnet/models/easter_bonnet_m_human.vmdl",
   "HumanAltFemaleModel": null,
   "SkinMaterial": null,
   "EyesMaterial": null,
   "MaterialGroup": null,
+  "HeelHeight": 0,
   "SlotsUnder": "HeadTop",
   "SlotsOver": 0,
   "HideBody": 0,
+  "DeformationMode": "Normal",
   "AllowTintSelect": false,
   "TintSelection": {
     "blend": "Linear",
@@ -37,7 +38,8 @@
   "Icon": {
     "Path": "models/citizen_clothes/seasonal/2025/easter_farmer/easter_bonnet/easter_bonnet.clothing.png",
     "Mode": "Eyes",
-    "PositionOffset": "-75.99987,0,-0.4000007"
+    "UsePositionOffset": false,
+    "PositionOffset": "-75.9998703,0,-0.400000691"
   },
   "__references": [],
   "__version": 0

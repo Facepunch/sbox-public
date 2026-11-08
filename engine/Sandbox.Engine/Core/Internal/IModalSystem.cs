@@ -1,4 +1,5 @@
-﻿using Sandbox.UI;
+﻿using Sandbox.Engine;
+using Sandbox.UI;
 
 namespace Sandbox.Modals;
 
@@ -11,7 +12,6 @@ public interface IModalSystem
 	public void Game( string packageIdent );
 	public void Map( string packageIdent );
 	public void Package( string packageIdent, string page );
-	public void Organization( Package.Organization org );
 	public void Review( Package package );
 	public void Report( string packageIdent );
 	public void PackageSelect( string query, Action<Package> onPackageSelected, Action<string> onFilterChanged = null );
@@ -26,7 +26,17 @@ public interface IModalSystem
 	public void PlayerList();
 	public void WorkshopPublish( in WorkshopPublishOptions options );
 	public void Notice( string title, string message, string icon );
+
+	/// <summary>
+	/// Ask for the password of a server we're joining. Null or empty if they'd rather not join.
+	/// </summary>
+	public Task<string> ServerPassword( string serverName ) => Task.FromResult<string>( null );
 	public void ServiceConnector();
+
+	/// <summary>
+	/// Ask whether to open this url in the browser. It's already been checked to be http(s).
+	/// </summary>
+	public void OpenUrl( string url ) { }
 
 	/// <summary>
 	/// The menu that is shown when escape is pressed while playing.
@@ -180,6 +190,11 @@ public struct CreateGameResults
 	public string ServerName { get; set; }
 
 	public Sandbox.Network.LobbyPrivacy Privacy { get; set; }
+
+	/// <summary>
+	/// Players need this to join. Empty for none.
+	/// </summary>
+	public string Password { get; set; }
 }
 
 /// <summary>
@@ -252,7 +267,9 @@ public struct WorkshopPublishOptions
 	/// <summary>
 	/// Defined categories to show in the workshop publish modal
 	/// </summary>
-	public Dictionary<string, SerializedProperty> Categories { get; } = [];
+	public Dictionary<string, SerializedProperty> Categories { get; internal set; } = [];
+
+	internal List<(string Name, Type EnumType, Func<Dictionary<string, string>, SerializedProperty> Create)> CategoryFactories { get; } = [];
 
 	/// <summary>
 	/// Adds a new category associated with the specified enum type to the collection. 
@@ -261,18 +278,18 @@ public struct WorkshopPublishOptions
 	/// </summary>
 	public void AddCategory<TEnum>( string name ) where TEnum : struct, Enum
 	{
-		var t = Game.TypeLibrary.GetEnumDescription( typeof( TEnum ) );
-		if ( t == null )
-			throw new Exception( $"Type {typeof( TEnum ).FullName} is not registered in the TypeLibrary" );
-
 		KeyValues ??= [];
-		var kv = KeyValues;
+
+		Categories[name] = CreateCategory<TEnum>( name, KeyValues );
+		CategoryFactories.Add( (name, typeof( TEnum ), kv => CreateCategory<TEnum>( name, kv )) );
+	}
+
+	static SerializedProperty CreateCategory<TEnum>( string name, Dictionary<string, string> kv ) where TEnum : struct, Enum
+	{
 		var get = () => kv.TryGetValue( name, out string val ) ? (Enum.TryParse( val, true, out TEnum r ) ? r : default) : default;
 		var set = ( TEnum x ) => { kv[name] = x.ToString(); };
 
-		var prop = Game.TypeLibrary.CreateProperty( name, get, set );
-
-		Categories[name] = prop;
+		return GlobalContext.Current.TypeLibrary.CreateProperty( name, get, set );
 	}
 }
 

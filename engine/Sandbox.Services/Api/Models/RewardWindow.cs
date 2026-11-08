@@ -1,47 +1,118 @@
 namespace Sandbox.Services;
 
 /// <summary>
-/// A reward track shown to the player: a set of requirements ("facets") with the
-/// player's current progress, and whether they can claim a reward right now. The
-/// reward window API returns an array of these — today there's one, but the shape
-/// lets us add more tracks (daily/seasonal/event) without breaking the contract.
+/// Current weekly challenge and the player's achievement progress.
 /// </summary>
 public class RewardWindow
 {
-	/// <summary>Stable identifier for this window (eg "drop").</summary>
+	/// <summary>
+	/// Stable track identifier, retained as "drop" for existing clients.
+	/// </summary>
 	public string Key { get; set; }
 
-	/// <summary>Display title (eg "Reward Drop").</summary>
+	/// <summary>
+	/// Display title of the challenge.
+	/// </summary>
 	public string Title { get; set; }
 
-	/// <summary>True when every facet is met and the player can claim a reward.</summary>
+	/// <summary>
+	/// Continuous week number, with zero beginning Sunday 4 January 2026 at 00:00 UTC.
+	/// </summary>
+	public int WeekNumber { get; set; }
+
+	/// <summary>
+	/// Inclusive Sunday opening time in UTC.
+	/// </summary>
+	public DateTimeOffset StartsAt { get; set; }
+
+	/// <summary>
+	/// Exclusive deadline for opening this week's reward.
+	/// </summary>
+	public DateTimeOffset EndsAt { get; set; }
+
+	/// <summary>
+	/// True when the player can open a new reward for this week.
+	/// </summary>
 	public bool IsEligible { get; set; }
 
-	/// <summary>The individual requirements and the player's progress against each.</summary>
+	/// <summary>
+	/// Eligibility reason, including disabled, not_game_owner, untrusted and already_claimed.
+	/// </summary>
+	public string Reason { get; set; }
+
+	/// <summary>
+	/// Offer already opened for this week, whether or not its item has been chosen.
+	/// </summary>
+	public long? RewardDropId { get; set; }
+
+	/// <summary>
+	/// True when this week's chosen reward has been granted through Steam.
+	/// </summary>
+	public bool IsClaimed { get; set; }
+
+	/// <summary>
+	/// Every listed objective is required to earn the weekly reward.
+	/// </summary>
 	public RewardFacet[] Facets { get; set; }
 }
 
 /// <summary>
-/// A single requirement of a <see cref="RewardWindow"/> together with the player's
-/// progress against it. Built for display — a checklist row / progress dots.
+/// An achievement objective and its game, including credit for an existing unlock.
 /// </summary>
 public class RewardFacet
 {
-	/// <summary>Stable identifier — matches the eligibility reason codes.</summary>
+	/// <summary>
+	/// Stable objective identifier.
+	/// </summary>
 	public string Key { get; set; }
 
-	/// <summary>Short human title (eg "Play on 7 days").</summary>
+	/// <summary>
+	/// Combined game and achievement display name for older clients.
+	/// </summary>
 	public string Title { get; set; }
 
-	/// <summary>One-line explanation of what's required.</summary>
+	/// <summary>
+	/// Achievement's description of what the player must do.
+	/// </summary>
 	public string Description { get; set; }
 
-	/// <summary>The player's current value towards the requirement (capped at <see cref="Required"/>).</summary>
+	/// <summary>
+	/// Published game identifier used for launch and detail links.
+	/// </summary>
+	public string GameIdent { get; set; }
+
+	/// <summary>
+	/// Display name of the game containing the achievement.
+	/// </summary>
+	public string GameTitle { get; set; }
+
+	/// <summary>
+	/// Achievement identifier within the game.
+	/// </summary>
+	public string AchievementName { get; set; }
+
+	/// <summary>
+	/// Achievement display name without the game title.
+	/// </summary>
+	public string AchievementTitle { get; set; }
+
+	/// <summary>
+	/// Achievement icon URL, when one is configured.
+	/// </summary>
+	public string Icon { get; set; }
+
+	/// <summary>
+	/// One if unlocked, otherwise zero.
+	/// </summary>
 	public double Current { get; set; }
 
-	/// <summary>The value needed to satisfy this facet.</summary>
+	/// <summary>
+	/// Required completion count, currently always one.
+	/// </summary>
 	public double Required { get; set; }
 
-	/// <summary>Whether the player currently meets this requirement.</summary>
+	/// <summary>
+	/// Whether the player has unlocked this achievement.
+	/// </summary>
 	public bool Met { get; set; }
 }

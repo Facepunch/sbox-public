@@ -2,6 +2,8 @@
 
 public sealed partial class PlayerController : Component
 {
+	const float _groundedFeetLift = 1.0f;
+
 	/// <summary>
 	/// Make sure the body and our components are created
 	/// </summary>
@@ -44,7 +46,7 @@ public sealed partial class PlayerController : Component
 	void UpdateBody()
 	{
 		var feetHeight = CurrentHeight * 0.5f;
-		var radius = (BodyRadius * MathF.Sqrt( 2 )) / 2;
+		var radius = BodyRadius * 0.5f;
 		var up = UpDirection;
 		var localUp = Rotation.FromYaw( -WorldRotation.Yaw() ) * up;
 		var localUpAbs = localUp.Abs();
@@ -85,12 +87,12 @@ public sealed partial class PlayerController : Component
 		BodyCollider.Start = localUp * bodyStart;
 		BodyCollider.End = localUp * bodyEnd;
 		BodyCollider.Friction = 0.0f;
+		BodyCollider.Elasticity = 0.0f;
 		BodyCollider.Enabled = bodyEnd < bodyStart;
 
 		var feetLength = BodyCollider.Enabled ? feetHeight : CurrentHeight;
-		FeetCollider.Scale = new Vector3( BodyRadius ) + localUpAbs * (feetLength - BodyRadius);
-		FeetCollider.Center = localUp * feetLength * 0.5f;
 		FeetCollider.Friction = feetFriction;
+		FeetCollider.Elasticity = 0.0f;
 		FeetCollider.Enabled = true;
 
 		var locking = Body.Locking;
@@ -100,6 +102,12 @@ public sealed partial class PlayerController : Component
 		Body.Locking = locking;
 
 		Body.MassOverride = BodyMass;
+		Body.EnhancedCcd = false;
+		if ( Body.PhysicsBody is { IsValid: true } physicsBody )
+		{
+			physicsBody.AutoSleep = false;
+			physicsBody.ContactRecycling = false;
+		}
 
 		//
 		// When trying to move, we move the mass center up to the waist so the player can "step" over smaller shit
@@ -110,5 +118,16 @@ public sealed partial class PlayerController : Component
 		Body.OverrideMassCenter = true;
 
 		Mode?.UpdateRigidBody( Body );
+
+		//
+		// Small lips are absorbed by Reground, and larger "steps" by TryStep.
+		//
+		// Keep the feet outside Box3D's speculative mesh contacts while ground probes maintain support.
+		var feetLift = IsOnGround && !GroundIsDynamic && !Body.Gravity
+			? MathF.Min( _groundedFeetLift / MathF.Abs( WorldTransform.UniformScale ), feetLength * 0.5f )
+			: 0.0f;
+		var feetBoxLength = feetLength - feetLift;
+		FeetCollider.Scale = new Vector3( BodyRadius ) + localUpAbs * (feetBoxLength - BodyRadius);
+		FeetCollider.Center = localUp * (feetLift + feetBoxLength * 0.5f);
 	}
 }

@@ -336,7 +336,16 @@ public class ResourceControlWidget : ControlWidget
 
 	async Task DroppedUrl( string identUrl )
 	{
-		var asset = await AssetSystem.InstallAsync( identUrl );
+		Asset asset;
+		try
+		{
+			asset = await AssetSystem.InstallAsync( identUrl );
+		}
+		catch ( AggregateException ex )
+		{
+			Log.Warning( ex, $"Error installing dropped package {identUrl}" );
+			return;
+		}
 
 		if ( !CanAssignAssetType( asset ) )
 			return;

@@ -10,7 +10,7 @@
 {
 	<root>
 		<div class="inner progress">
-			<h1>Publishing File..</h1>
+			<h1>#menu.workshop.publishing_file</h1>
 
 			<div class="progress-bar">
 				<div class="fill" style="width: @( MathX.Clamp( item.PercentComplete, 0, 100 ) )%;"></div>
@@ -24,13 +24,13 @@
 {
 	<root>
 		<div class="inner progress">
-			<h1>Publishing Complete!</h1>
+			<h1>#menu.workshop.publishing_complete</h1>
 
 			<div class="success">😎👍</div>
 
 			<div class="actions">
-				<Button class="clicky" Icon="link" @onclick=@ViewOnWeb>View On Web</Button>
-				<Button class="clicky" @onclick=@( () => CloseModal( true ) )>Done</Button>
+				<Button class="clicky" Icon="link" @onclick=@ViewOnWeb>#menu.workshop.view_on_web</Button>
+				<Button class="clicky" @onclick=@( () => CloseModal( true ) )>#menu.common.done</Button>
 			</div>
 		</div>
 	</root>
@@ -48,17 +48,17 @@
 
 		<div class="right">
 			
-			<h1>Publish to Workshop</h1>
+			<h1>#menu.workshop.publish_to_workshop</h1>
 
 			<div class="form-group">
 
 				<div class="row">
-					<label>Title</label>
+					<label>#menu.workshop.title</label>
 					<TextEntry Value:bind="@Title"></TextEntry>
 				</div>
 
 				<div class="row">
-					<label>Description</label>
+					<label>#menu.workshop.description</label>
 					<TextEntry Multiline style="height: 100px;" Value:bind="@Description"></TextEntry>
 				</div>
 
@@ -71,15 +71,15 @@
                 }
 
 				<div class="row">
-					<label>Visibility</label>
+					<label>#menu.workshop.visibility</label>
 					
 					<ButtonGroup Value:bind="@Visibility" class="bg-round">
 
 					<ChildContent>
-						<Button class="clicky" Icon="public" Text="Public" Value="@Storage.Visibility.Public"></Button>
-						<Button class="clicky" Icon="handshake" Text="Friends" Value="@Storage.Visibility.FriendsOnly"></Button>
-						<Button class="clicky" Icon="lock" Text="Private" Value="@Storage.Visibility.Private"></Button>
-						<Button class="clicky" Icon="visibility_off" Text="Unlisted" Value="@Storage.Visibility.Unlisted"></Button>
+						<Button class="clicky" Icon="public" Text="#menu.workshop.public" Value="@Storage.Visibility.Public"></Button>
+						<Button class="clicky" Icon="handshake" Text="#menu.workshop.friends" Value="@Storage.Visibility.FriendsOnly"></Button>
+						<Button class="clicky" Icon="lock" Text="#menu.workshop.private" Value="@Storage.Visibility.Private"></Button>
+						<Button class="clicky" Icon="visibility_off" Text="#menu.workshop.unlisted" Value="@Storage.Visibility.Unlisted"></Button>
 					</ChildContent>
 
 			</ButtonGroup>
@@ -88,7 +88,7 @@
 			</div>
 
 			<div class="actions">
-                <Button class="clicky" Icon="people" Text="Publish To Workshop" @onclick="@PublishItem"></Button>
+                <Button class="clicky" Icon="people" Text="#menu.workshop.publish_to_workshop_label" @onclick="@PublishItem"></Button>
 			</div>
 
 		</div>

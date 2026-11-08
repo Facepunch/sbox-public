@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using NativeEngine;
+using Sandbox.Rendering;
 
 namespace Sandbox.SceneRenderer.Features;
 
@@ -159,7 +160,7 @@ internal sealed partial class LightBinnerFeature
 			uint emissionIndex = 0;
 			var emissionEnergy = 1.0f;
 			uint coverage = 0xFF;
-			var hasExtra = false;
+			var hasExtra = decal.BlendMode != DecalBlendMode.Alpha;
 
 			if ( decal.Height is { } height )
 			{
@@ -212,7 +213,7 @@ internal sealed partial class LightBinnerFeature
 			extra[3] = BitConverter.SingleToUInt32Bits( sheet.w );
 			extra[4] = sequence;
 			extra[5] = BitConverter.SingleToUInt32Bits( colorMix );
-			extra[6] = 0; // FeatureFlags
+			extra[6] = (uint)decal.BlendMode;
 			extra[7] = heightIndex;
 			extra[8] = BitConverter.SingleToUInt32Bits( parallax );
 			extra[9] = (uint)sampler;

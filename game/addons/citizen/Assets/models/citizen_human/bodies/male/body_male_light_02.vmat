@@ -1,0 +1,61 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "shaders/skin.shader"
+
+	//---- Skin ----
+	F_USE_BENT_NORMALS 1
+
+	//---- Ambient Occlusion ----
+	g_flAmbientOcclusionDirectDiffuse "1.000"
+	g_flAmbientOcclusionDirectSpecular "1.000"
+	TextureAmbientOcclusion "models/citizen_human/bodies/male/body_male_light_ao.png"
+
+	//---- Color ----
+	g_flModelTintAmount "1.000"
+	g_vColorTint "[1.000000 1.000000 1.000000 0.000000]"
+	TextureColor "models/citizen_human/bodies/male/body_male_light_02_color.png"
+
+	//---- Curvature ----
+	g_flCurvatureScale "0.263"
+
+	//---- Face Occlusion ----
+	g_flMouthInteriorBrightnessScale "1.000"
+	TextureInsideMouth "materials/default/default_black_mask.tga"
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+
+	//---- Lookup Textures ----
+	g_vAmbientNormalSoftness "[1.000000 0.301961 0.000000 0.000000]"
+	TextureDiffuseFalloff "materials/default/default_skin_diffusewarp.tga"
+
+	//---- Normal ----
+	g_flDiffuseNormalBlur "0.463"
+	TextureBentNormal "models/citizen_human/bodies/male/body_male_light_bentnormal.png"
+	TextureNormal "models/citizen_human/bodies/male/body_male_light_normal.png"
+
+	//---- Roughness ----
+	g_flRoughnessScale "1.000"
+	TextureRoughness "models/citizen_human/bodies/male/body_male_light_rough.png"
+
+	//---- Specular ----
+	g_flSecondSpecularLobeGlossiness "0.392"
+	g_flSecondSpecularLobeRatio "0.008"
+
+	//---- Tinting ----
+	g_bOverrideTinting "0"
+	g_flSkinAge "0.500"
+	TextureTintLookup "models/citizen_human/bodies/male/body_male_light_02_color.png"
+
+	//---- Transmission ----
+	g_flTransmissionFalloff "0.800"
+	g_vTransmissionColor "[0.749020 0.388235 0.007843 1.000000]"
+	TextureTransmissiveMask "[0.000000 0.000000 0.000000 0.000000]"
+
+	Attributes
+	{
+		skin "1"
+	}
+}

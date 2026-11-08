@@ -5,7 +5,7 @@ namespace Sandbox.SceneRenderer.Gpu;
 
 /// <summary>
 /// Per-frame transforms and per-view instance IDs (<c>transform_buffer.fxc</c>).
-/// Objects write entries once; views reference them through <c>ids[first + i]</c>. See <c>docs/native/instancing.md</c>.
+/// Objects write entries once; views reference them through <c>ids[first + i]</c>. See <c>docs/reference/rendering.md</c>.
 /// </summary>
 internal sealed class TransformBuffer : IDisposable
 {
@@ -120,6 +120,17 @@ internal sealed class TransformBuffer : IDisposable
 		if ( Count == entries.Length ) Array.Resize( ref entries, entries.Length * 2 );
 
 		entries[Count] = MakeEntry( m, tint );
+		return Count++;
+	}
+
+	/// <summary>
+	/// Write a transform already in native's row layout (<c>matrix3x4_t</c>) and a tint, returning its slot.
+	/// </summary>
+	public int Add( in Matrix3x4 m, Color tint )
+	{
+		if ( Count == entries.Length ) Array.Resize( ref entries, entries.Length * 2 );
+
+		entries[Count] = new Entry { Row0 = m.Row0, Row1 = m.Row1, Row2 = m.Row2, Alpha = tint.a, TintRgb888 = PackRgb888( tint ) };
 		return Count++;
 	}
 

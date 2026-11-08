@@ -88,4 +88,23 @@ public class LabelEditingRegressionTests
 		Assert.AreEqual( caret, label.CaretPosition );
 		Assert.IsFalse( label.HasSelection() );
 	}
+
+	/// <summary>
+	/// With nothing selected, replacing inserts at the caret: typed keys stay in order rather
+	/// than each landing at the start, where the empty selection is stored.
+	/// </summary>
+	[TestMethod]
+	public void ReplacementWithoutSelectionInsertsAtCaret()
+	{
+		var label = CreateLabel( "" );
+
+		foreach ( var key in "ev" ) label.ReplaceSelection( key.ToString() );
+		Assert.AreEqual( "ev", label.Text );
+		Assert.AreEqual( 2, label.CaretPosition );
+
+		label.SetCaretPosition( 1 );
+		label.ReplaceSelection( "x" );
+		Assert.AreEqual( "exv", label.Text );
+		Assert.AreEqual( 2, label.CaretPosition );
+	}
 }

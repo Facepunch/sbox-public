@@ -42,7 +42,6 @@ internal sealed partial class PackageLoader : IDisposable
 	{
 		log = new Logger( $"PackageLoader/{name}" );
 		LoadContext = new LoadContext( parentAssembly );
-		LoadContext.OnDemandResolver = ResolveAssemblyOnDemand;
 		// ILHotload only makes sense for the editor
 		if ( Application.IsEditor || Application.IsUnitTest )
 		{
@@ -55,6 +54,19 @@ internal sealed partial class PackageLoader : IDisposable
 
 		loadedPackages.Clear();
 		changedPackageDlls.Clear();
+	}
+
+	internal void QueueCompiledAssemblies( IReadOnlyList<CompilerOutput> outputs )
+	{
+		foreach ( var output in outputs )
+		{
+			var package = loadedPackages.FirstOrDefault( x => x.Package is LocalPackage local
+				&& (local.Compiler == output.Compiler || local.EditorCompiler == output.Compiler) );
+			if ( package is null )
+				continue;
+
+			changedPackageDlls.Add( (package, $"/.bin/{output.Compiler.AssemblyName}.dll") );
+		}
 	}
 
 	public void Dispose()
@@ -141,10 +153,7 @@ internal sealed partial class PackageLoader : IDisposable
 										.Where( x => x.ap is not null )
 										.ToArray();
 
-		var changedPackages = changedPackageDlls
-									.Select( x => x.ap )
-									.Distinct()
-									.ToArray();
+		var changedPackages = new HashSet<PackageManager.ActivePackage>();
 
 		//
 		// We need to force-reload any package assemblies that depend on a changed package.
@@ -175,7 +184,9 @@ internal sealed partial class PackageLoader : IDisposable
 			if ( e.filename.EndsWith( ".editor.dll", StringComparison.OrdinalIgnoreCase ) && !ToolsMode )
 				continue;
 
-			var result = LoadAssemblyFromPackage( e.ap, e.filename );
+			var result = LoadAssemblyFromPackage( e.ap, e.filename, skipUnchanged: true );
+			if ( result is not null )
+				changedPackages.Add( e.ap );
 
 			if ( result is not null && !result.FastHotload )
 			{
@@ -245,7 +256,7 @@ internal sealed partial class PackageLoader : IDisposable
 		return assembly is not null;
 	}
 
-	private LoadedAssembly LoadAssemblyFromPackage( PackageManager.ActivePackage ap, string filename, byte[] bytes = null )
+	private LoadedAssembly LoadAssemblyFromPackage( PackageManager.ActivePackage ap, string filename, byte[] bytes = null, bool skipUnchanged = false )
 	{
 		log.Trace( $"Loading \"{filename}\" from {ap.Package.Title}" );
 
@@ -259,6 +270,13 @@ internal sealed partial class PackageLoader : IDisposable
 		Assert.True( ap.AssemblyFileSystem.FileExists( filename ), "File doesn't exist? Maybe a case sensitivity issue??" );
 
 		bytes ??= ap.AssemblyFileSystem.ReadAllBytes( filename ).ToArray();
+		if ( skipUnchanged )
+		{
+			var loaded = Loaded.FirstOrDefault( x => string.Equals( x.Name, assmName, StringComparison.OrdinalIgnoreCase ) );
+			if ( loaded?.CompiledAssemblyBytes is { } previous && bytes.AsSpan().SequenceEqual( previous ) )
+				return null;
+		}
+
 		var dll_stream = new System.IO.MemoryStream( bytes );
 
 		TrustedBinaryStream trustedDll = null;
@@ -281,7 +299,10 @@ internal sealed partial class PackageLoader : IDisposable
 		//
 		if ( !needsAccessControl )
 		{
-			trustedDll = PackageManager.AccessControl.TrustUnsafe( bytes );
+			// Nothing is verified against a loader's first assemblies when access control is disabled, but a reload
+			// needs its cached metadata refreshed or later hotloads resolve the old version.
+			var isReload = Loaded.Any( x => string.Equals( x.Name, assmName, StringComparison.OrdinalIgnoreCase ) );
+			trustedDll = PackageManager.AccessControl.TrustUnsafe( bytes, resolvable: !DisableAccessControl || isReload );
 		}
 
 		//
@@ -289,6 +310,9 @@ internal sealed partial class PackageLoader : IDisposable
 		//
 		else
 		{
+			// The check started when it downloaded may still be running: let it finish, then this finds the bytes passed.
+			ap.Verification?.Wait();
+
 			if ( !TestAccessControl( dll_stream, out trustedDll ) )
 			{
 				trustedDll?.Dispose();
@@ -407,11 +431,11 @@ internal sealed partial class PackageLoader : IDisposable
 
 		try
 		{
-			using var gr = new HeavyGarbageRegion();
 			LoadAllAssembliesFromPackage( ap );
 
 			// Make sure we load the loose content as well
 			FileSystem.Mounted.Mount( ap.FileSystem );
+			System.Threading.Interlocked.Increment( ref PackageManager.MountGeneration );
 		}
 		catch
 		{
@@ -429,37 +453,25 @@ internal sealed partial class PackageLoader : IDisposable
 	{
 		ArgumentNullException.ThrowIfNull( package );
 
-		var assemblyList = package.AssemblyFileSystem.FindFile( "", "*.dll", true ).ToArray();
+		// An assembly runs its static constructors as soon as it's added, so everything it references has to be
+		// loaded first. The filesystem lists them alphabetically, which can put a game ahead of its libraries.
+		var ordered = new AssemblyOrderer();
 
-		foreach ( var assemblyName in assemblyList )
+		foreach ( var assemblyName in package.AssemblyFileSystem.FindFile( "", "*.dll", true ) )
 		{
 			if ( assemblyName.EndsWith( ".editor.dll", StringComparison.OrdinalIgnoreCase ) && !ToolsMode )
 				continue;
 
-			var result = LoadAssemblyFromPackage( package, assemblyName );
+			ordered.Add( assemblyName, package.AssemblyFileSystem.ReadAllBytes( assemblyName ).ToArray() );
+		}
+
+		foreach ( var (assemblyName, bytes) in ordered.GetDependencyOrdered() )
+		{
+			var result = LoadAssemblyFromPackage( package, assemblyName, bytes );
 
 			if ( result?.Assembly == null )
 				throw new System.Exception( $"Error loading {assemblyName}" );
 		}
-	}
-
-	/// <summary>
-	/// Called by <see cref="LoadContext"/> when a dependency assembly can't be resolved through
-	/// normal means. Searches all active packages' assembly filesystems so imports are satisfied
-	/// on demand rather than requiring every dep to be pre-loaded upfront.
-	/// </summary>
-	private Assembly ResolveAssemblyOnDemand( string assemblyName )
-	{
-		foreach ( var ap in PackageManager.ActivePackages )
-		{
-			var filename = $"{assemblyName}.dll";
-			if ( ap.AssemblyFileSystem?.FileExists( filename ) != true ) continue;
-
-			var result = LoadAssemblyFromPackage( ap, filename );
-			return result?.Assembly;
-		}
-
-		return null;
 	}
 
 	LoadedAssembly AddAssembly( Package package, string assemblyName, TrustedBinaryStream dllStream, byte[] codeArchive )
@@ -520,6 +532,7 @@ internal sealed partial class PackageLoader : IDisposable
 		{
 			Loaded.Remove( outgoing );
 			log.Trace( $"	Unloading {outgoing}" );
+			ILHotload?.RemoveDetours( outgoing.Assembly );
 			LoadContext?.UnloadChild( outgoing.Assembly );
 		}
 
@@ -604,6 +617,7 @@ internal sealed partial class PackageLoader : IDisposable
 		outgoing.FastHotload = true;
 		outgoing.ModifiedAssembly = incoming?.Assembly;
 		outgoing.CodeArchiveBytes = incoming.CodeArchiveBytes;
+		outgoing.CompiledAssemblyBytes = incoming.CompiledAssemblyBytes;
 		outgoing.Version = incoming.Assembly.GetName().Version;
 		return true;
 	}

@@ -6,14 +6,16 @@ namespace SerializedObjectTests;
 [TestClass]
 public partial class SerializedObjectTest
 {
-	TypeLibrary typeLibrary;
-
-	public SerializedObjectTest()
+	// Scanning the assemblies is slow, so build it once. Tests only read through it, which is safe in parallel.
+	static readonly System.Lazy<TypeLibrary> SharedLibrary = new( () =>
 	{
-		typeLibrary = new Sandbox.Internal.TypeLibrary();
-		typeLibrary.AddAssembly( GetType().Assembly, true );
-		typeLibrary.AddAssembly( typeof( Vector3 ).Assembly, true );
-	}
+		var library = new TypeLibrary();
+		library.AddAssembly( typeof( SerializedObjectTest ).Assembly, true );
+		library.AddAssembly( typeof( Vector3 ).Assembly, true );
+		return library;
+	} );
+
+	TypeLibrary typeLibrary => SharedLibrary.Value;
 
 	class MyClass
 	{

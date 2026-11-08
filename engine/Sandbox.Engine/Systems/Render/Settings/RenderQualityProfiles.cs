@@ -30,6 +30,7 @@ class RenderQualityProfiles
 		SetGroupConVars( "TextureQuality", settings.TextureQuality.ToString() );
 		SetGroupConVars( "VolumetricFogQuality", settings.VolumetricFogQuality.ToString() );
 		SetGroupConVars( "ShadowQuality", settings.ShadowQuality.ToString() );
+		SetGroupConVars( "WaterQuality", settings.WaterQuality.ToString() );
 
 		// Post processing is per effect. The preset over them is derived, so there's no group for it.
 		SetGroupConVars( "AmbientOcclusionQuality", settings.AmbientOcclusionQuality.ToString() );

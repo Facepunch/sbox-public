@@ -136,10 +136,10 @@ public class PanelHierarchyTest
 
 	/// <summary>
 	/// MoveAfterSibling places a panel directly after the given sibling when
-	/// moving forwards, and throws when the panel has no parent at all.
+	/// moving forwards or backwards, and throws when the panel has no parent at all.
 	/// </summary>
 	[TestMethod]
-	public void MoveAfterSiblingForward()
+	public void MoveAfterSiblingReorders()
 	{
 		var parent = new Panel();
 		var a = parent.AddChild<Panel>();
@@ -149,6 +149,17 @@ public class PanelHierarchyTest
 		b.MoveAfterSibling( c );
 
 		CollectionAssert.AreEqual( new[] { a, c, b }, parent.Children.ToArray() );
+
+		var reverseParent = new Panel();
+		var reverseA = reverseParent.AddChild<Panel>();
+		var reverseB = reverseParent.AddChild<Panel>();
+		var reverseC = reverseParent.AddChild<Panel>();
+
+		reverseParent._renderChildrenDirty = false;
+		reverseC.MoveAfterSibling( reverseA );
+
+		CollectionAssert.AreEqual( new[] { reverseA, reverseC, reverseB }, reverseParent.Children.ToArray() );
+		Assert.IsTrue( reverseParent._renderChildrenDirty );
 
 		var orphan = new Panel();
 		Assert.ThrowsException<ArgumentException>( () => orphan.MoveAfterSibling( a ) );

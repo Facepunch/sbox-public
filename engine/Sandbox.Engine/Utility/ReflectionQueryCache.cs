@@ -1,4 +1,5 @@
-﻿using System.Collections.Immutable;
+﻿using Sandbox.Engine;
+using System.Collections.Immutable;
 using System.Reflection;
 using System.Text.Json.Serialization;
 
@@ -20,7 +21,15 @@ internal static class ReflectionQueryCache
 	private static Dictionary<Type, MemberCloner[]> _clonePlanCache = new();
 	private static Dictionary<Type, PropertyDescription[]> _requiredComponentMemberCache = new();
 
-	public record SyncVarPropertyAndAttribute( PropertyInfo Property, SyncAttribute Attribute );
+	public record SyncVarPropertyAndAttribute( PropertyInfo Property, SyncAttribute Attribute )
+	{
+		/// <summary>
+		/// Hash of the declaring type and property name, used to build network slots.
+		/// </summary>
+		public int NameHash { get; init; }
+
+		public string DebugName { get; init; }
+	}
 	private static Dictionary<Type, SyncVarPropertyAndAttribute[]> _syncVarMemberCache = new();
 
 	internal static bool IsEmpty => _isTypeCloneableByCopy.Count == 0
@@ -107,7 +116,7 @@ internal static class ReflectionQueryCache
 			return members;
 		}
 
-		var type = Game.TypeLibrary.GetType( t );
+		var type = GlobalContext.Current.TypeLibrary.GetType( t );
 
 		if ( type is null )
 		{
@@ -162,7 +171,7 @@ internal static class ReflectionQueryCache
 			return members;
 		}
 
-		var type = Game.TypeLibrary.GetType( t );
+		var type = GlobalContext.Current.TypeLibrary.GetType( t );
 
 		if ( type is null )
 		{
@@ -212,7 +221,13 @@ internal static class ReflectionQueryCache
 				var syncAttribute = prop.GetCustomAttributes( typeof( SyncAttribute ), inherit: true ).FirstOrDefault() as SyncAttribute;
 				if ( syncAttribute != null )
 				{
-					return new SyncVarPropertyAndAttribute( prop, syncAttribute );
+					var originType = prop.DeclaringType ?? t;
+
+					return new SyncVarPropertyAndAttribute( prop, syncAttribute )
+					{
+						NameHash = $"{originType.FullName}.{prop.Name}".FastHash(),
+						DebugName = $"{originType.Name}.{prop.Name}"
+					};
 				}
 				return null;
 			} )

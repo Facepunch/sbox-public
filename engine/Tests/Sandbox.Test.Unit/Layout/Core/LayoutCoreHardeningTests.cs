@@ -252,4 +252,58 @@ public class LayoutCoreHardeningTests
 
 		Assert.AreEqual( 1, measureCalls );
 	}
+
+	[TestMethod]
+	public void SubtreeMovedIntoHiddenNodeIsZeroed()
+	{
+		var root = new LayoutNode();
+		root.Style.Width = 200;
+		var hidden = new LayoutNode();
+		hidden.Style.Display = Display.None;
+		var hiddenChild = new LayoutNode();
+		hidden.AddChild( hiddenChild );
+		var panel = new LayoutNode();
+		var label = new LayoutNode { MeasureFunc = static ( _, _, _, _, _ ) => new LayoutSize( 30, 10 ) };
+		panel.AddChild( label );
+		root.AddChild( hidden );
+		root.AddChild( panel );
+
+		root.CalculateLayout();
+		Assert.AreEqual( 30, label.LayoutWidth );
+		root.CalculateLayout();
+
+		// The hidden subtree is unchanged since it was zeroed; moving laid out nodes into it must still zero them
+		root.RemoveChild( panel );
+		hiddenChild.AddChild( panel );
+		root.CalculateLayout();
+
+		Assert.AreEqual( 0, panel.LayoutWidth );
+		Assert.AreEqual( 0, panel.LayoutHeight );
+		Assert.AreEqual( 0, label.LayoutWidth );
+		Assert.AreEqual( 0, label.LayoutHeight );
+	}
+
+	[TestMethod]
+	public void HiddenNodeIsZeroedAgainAfterBeingShown()
+	{
+		var root = new LayoutNode();
+		root.Style.Width = 200;
+		var child = new LayoutNode();
+		child.Style.Display = Display.None;
+		child.Style.Width = 50;
+		child.Style.Height = 20;
+		root.AddChild( child );
+
+		root.CalculateLayout();
+		Assert.AreEqual( 0, child.LayoutWidth );
+
+		child.Style.Display = Display.Flex;
+		root.CalculateLayout();
+		Assert.AreEqual( 50, child.LayoutWidth );
+
+		child.Style.Display = Display.None;
+		root.CalculateLayout();
+		Assert.AreEqual( 0, child.LayoutWidth );
+		Assert.AreEqual( 0, child.LayoutHeight );
+	}
 }

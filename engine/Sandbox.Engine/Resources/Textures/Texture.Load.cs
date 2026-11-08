@@ -61,7 +61,7 @@ public partial class Texture
 
 		filepath = filepath.Replace( ".vtex_c", ".vtex" );
 
-		if ( Sandbox.Mounting.Directory.TryLoad( filepath, ResourceType.Texture, out object model ) && model is Texture m )
+		if ( Sandbox.Mounting.Directory.TryLoad( filepath, out object model ) && model is Texture m )
 			return m;
 
 		if ( !TextureLoader.ImageUrl.IsAppropriate( filepath ) && !TextureLoader.ImageDataUri.IsAppropriate( filepath ) )
@@ -140,7 +140,7 @@ public partial class Texture
 			// SVGs can have query parameters appended to them, find the ones
 			// that match and reload with the same parameters
 			var svgPath = filepath.TrimStart( '/' );
-			foreach ( var svgTarget in Game.Resources.FindWeakByPathPrefix<Texture>( svgPath ) )
+			foreach ( var svgTarget in Game.Resources.FindWeakByPathPrefix<Texture>( svgPath ).ToArray() )
 			{
 				svgTarget.TryReload( filesystem, svgTarget.ResourcePath );
 			}
@@ -154,7 +154,7 @@ public partial class Texture
 
 	internal static Texture TryToLoad( BaseFileSystem filesystem, string filepath, bool warnOnMissing = true )
 	{
-		if ( Application.IsUnitTest )
+		if ( Application.IsUnitTest && !Graphics.IsAvailable )
 			return null;
 
 		// if no filesystem provided
@@ -193,6 +193,15 @@ public partial class Texture
 		}
 
 		//
+		// Thumb loader - before the image loader, which goes by extension and would take a
+		// thumb: of a .png for a file path
+		//
+		if ( TextureLoader.ThumbLoader.IsAppropriate( filepath ) )
+		{
+			return TextureLoader.ThumbLoader.Load( filepath );
+		}
+
+		//
 		// Image loader
 		//
 		if ( TextureLoader.Image.IsAppropriate( filepath ) )
@@ -206,14 +215,6 @@ public partial class Texture
 		if ( TextureLoader.Avatar.IsAppropriate( filepath ) )
 		{
 			return TextureLoader.Avatar.Load( filepath );
-		}
-
-		//
-		// Thumb loader
-		//
-		if ( TextureLoader.ThumbLoader.IsAppropriate( filepath ) )
-		{
-			return TextureLoader.ThumbLoader.Load( filepath );
 		}
 
 		//Precache.Add( filename );

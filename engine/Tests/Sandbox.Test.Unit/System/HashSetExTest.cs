@@ -112,7 +112,7 @@ public class HashSetExTest
 	/// <see cref="HashSetEx{T}.EnumerateLocked"/> returns a struct enumerable, so iterating it
 	/// mustn't allocate. This is the whole reason it isn't a normal iterator method.
 	/// </summary>
-	[TestMethod]
+	[TestMethod, TestCategory( Allocations.Category )]
 	public void EnumerationIsAllocationFree()
 	{
 		var hashSet = new HashSetEx<object>();
@@ -123,25 +123,12 @@ public class HashSetExTest
 		}
 
 		var count = 0;
-
-		// Warm up, so the list is built and everything is jitted
-
-		for ( var i = 0; i < 4; ++i )
+		Allocations.AssertSettles( "Enumeration", () =>
 		{
 			foreach ( var item in hashSet.EnumerateLocked() ) count++;
 			foreach ( var item in hashSet.EnumerateLocked( true ) ) count++;
-		}
+		}, beforePass: () => count = 0 );
 
-		count = 0;
-
-		var before = GC.GetAllocatedBytesForCurrentThread();
-
-		foreach ( var item in hashSet.EnumerateLocked() ) count++;
-		foreach ( var item in hashSet.EnumerateLocked( true ) ) count++;
-
-		var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-
-		Assert.AreEqual( 0, allocated, $"Enumeration allocated {allocated} bytes" );
 		Assert.AreEqual( 64 + 64, count );
 	}
 

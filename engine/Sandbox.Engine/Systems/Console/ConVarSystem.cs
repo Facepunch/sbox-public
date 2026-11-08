@@ -37,43 +37,57 @@ internal static partial class ConVarSystem
 		if ( assembly == null )
 			return;
 
-		foreach ( var t in assembly.GetTypes() )
+		// Reading attributes for every member is slow, so do the scan in parallel and register in the original order.
+		var candidates = assembly.GetTypes()
+			.AsParallel()
+			.AsOrdered()
+			.SelectMany( t => t.GetMembers( BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public )
+				.Select( member =>
+				{
+					try
+					{
+						return (member, attribute: member.GetCustomAttribute<ConVarAttribute>());
+					}
+					catch ( Exception e )
+					{
+						Log.Error( e );
+						return (member, attribute: (ConVarAttribute)null);
+					}
+				} )
+				.Where( x => x.attribute is not null ) )
+			.ToArray();
+
+		foreach ( var (member, attribute) in candidates )
 		{
-			var methods = t.GetMembers( BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public );
-			foreach ( var member in methods )
+			if ( attribute.Context != context ) continue;
+
+			try
 			{
-				var attribute = member.GetCustomAttribute<ConVarAttribute>();
-				if ( attribute == null ) continue;
-				if ( attribute.Context != context ) continue;
-
-				try
+				if ( member is PropertyInfo prop )
 				{
-					if ( member is PropertyInfo prop )
-					{
-						var get = prop.GetGetMethod( true );
-						var set = prop.GetSetMethod( true );
+					var get = prop.GetGetMethod( true );
+					var set = prop.GetSetMethod( true );
 
-						if ( get == null || set == null )
-							continue;
+					if ( get == null || set == null )
+						continue;
 
-						if ( !get.IsStatic )
-							continue;
+					if ( !get.IsStatic )
+						continue;
 
-						AddConVar( new ManagedCommand( assembly, member, attribute, GetCookies( cookies ) ) );
-					}
-
-					if ( member is MethodInfo method )
-					{
-						if ( !method.IsStatic )
-							continue;
-
-						AddCommand( new ManagedCommand( assembly, member, attribute, GetCookies( cookies ) ) );
-					}
+					AddConVar( new ManagedCommand( assembly, member, attribute, GetCookies( cookies ) ) );
 				}
-				catch ( Exception e )
+
+				if ( member is MethodInfo method )
 				{
-					Log.Error( e );
+					if ( !method.IsStatic )
+						continue;
+
+					AddCommand( new ManagedCommand( assembly, member, attribute, GetCookies( cookies ) ) );
 				}
+			}
+			catch ( Exception e )
+			{
+				Log.Error( e );
 			}
 		}
 	}

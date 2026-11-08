@@ -45,6 +45,9 @@ sealed partial class ScenePhysics2dSystem : GameObjectSystem<ScenePhysics2dSyste
 
 		IScenePhysicsEvents.Post( x => x.PrePhysicsStep() );
 
+		if ( !world.IsValid() )
+			return;
+
 		UpdateKeyframeTransforms();
 
 		world.Step( Time.Delta, 1 );
@@ -53,9 +56,14 @@ sealed partial class ScenePhysics2dSystem : GameObjectSystem<ScenePhysics2dSyste
 		Scene.GetAll( CollisionEvents );
 
 		ProcessContactEvents();
-		ProcessSensorEvents();
+		if ( !world.IsValid() )
+			return;
 
-		foreach ( var rb in Scene.GetAll<Rigidbody>() )
+		ProcessSensorEvents();
+		if ( !world.IsValid() )
+			return;
+
+		foreach ( var rb in Scene.Query<Rigidbody>() )
 		{
 			rb.UpdateTransformFromBody();
 		}

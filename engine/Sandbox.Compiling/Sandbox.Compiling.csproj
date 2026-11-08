@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Sandbox.Access\Sandbox.Access.csproj" />
+    <ProjectReference Include="..\Sandbox.CodeUpgrader\Sandbox.CodeUpgrader.csproj" />
     <ProjectReference Include="..\Sandbox.Filesystem\Sandbox.Filesystem.csproj" />
     <ProjectReference Include="..\Sandbox.Generator\Sandbox.Generator.csproj" />
     <ProjectReference Include="..\Sandbox.Razor\Sandbox.Razor.csproj" />

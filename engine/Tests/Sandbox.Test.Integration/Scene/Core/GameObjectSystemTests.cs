@@ -21,10 +21,7 @@ public class GameObjectSystemCoverageTest
 	static void WithTestSystems( System.Action<Scene> body )
 	{
 		var oldTypeLibrary = Game.TypeLibrary;
-		var typeLibrary = new Sandbox.Internal.TypeLibrary();
-		typeLibrary.AddAssembly( typeof( ModelRenderer ).Assembly, false );
-		typeLibrary.AddAssembly( typeof( GameObjectSystemCoverageTest ).Assembly, false );
-		Game.TypeLibrary = typeLibrary;
+		Game.TypeLibrary = SharedTypeLibrary.EngineAndTests;
 
 		Scene scene = null;
 
@@ -39,6 +36,45 @@ public class GameObjectSystemCoverageTest
 			scene?.Destroy();
 			Game.TypeLibrary = oldTypeLibrary;
 		}
+	}
+
+	[TestMethod]
+	public void PreviewScenesOnlyRunEngineSystems()
+	{
+		WithTestSystems( scene =>
+		{
+			var library = Game.TypeLibrary;
+			var gameSystem = scene.GetSystem<StageRecorderSystem>();
+			Assert.IsNotNull( gameSystem );
+			var preview = Editor.EditorUtility.CreatePreviewScene();
+			try
+			{
+				Assert.AreSame( library, Game.TypeLibrary );
+				Assert.IsNull( preview.GetSystem<StageRecorderSystem>() );
+				var animation = preview.GetSystem<SceneAnimationSystem>();
+				Assert.IsNotNull( animation );
+
+				preview.PhysicsWorld.Gravity = new Vector3( 0, 0, -100 );
+				var go = preview.CreateObject();
+				go.Components.Create<SphereCollider>();
+				var body = go.Components.Create<Rigidbody>();
+				var frame = animation.BoneFrame;
+
+				preview.GameTick( 1.0 / 30 );
+
+				Assert.IsTrue( animation.BoneFrame > frame );
+				Assert.IsTrue( body.PhysicsBody.Velocity.z < 0 );
+
+				preview.ReloadSystems();
+				Assert.IsNull( preview.GetSystem<StageRecorderSystem>() );
+				Assert.IsNotNull( preview.GetSystem<SceneAnimationSystem>() );
+				Assert.AreSame( gameSystem, scene.GetSystem<StageRecorderSystem>() );
+			}
+			finally
+			{
+				preview.Destroy();
+			}
+		} );
 	}
 
 	/// <summary>
@@ -182,10 +218,7 @@ public class GameObjectSystemCoverageTest
 	public void SystemsDisposeWhenSceneDestroyed()
 	{
 		var oldTypeLibrary = Game.TypeLibrary;
-		var typeLibrary = new Sandbox.Internal.TypeLibrary();
-		typeLibrary.AddAssembly( typeof( ModelRenderer ).Assembly, false );
-		typeLibrary.AddAssembly( typeof( GameObjectSystemCoverageTest ).Assembly, false );
-		Game.TypeLibrary = typeLibrary;
+		Game.TypeLibrary = SharedTypeLibrary.EngineAndTests;
 
 		try
 		{
@@ -249,9 +282,7 @@ public class GameObjectSystemCoverageTest
 
 		// a scene built from a TypeLibrary without the test assembly doesn't have the system
 		var oldTypeLibrary = Game.TypeLibrary;
-		var engineOnly = new Sandbox.Internal.TypeLibrary();
-		engineOnly.AddAssembly( typeof( ModelRenderer ).Assembly, false );
-		Game.TypeLibrary = engineOnly;
+		Game.TypeLibrary = SharedTypeLibrary.Engine;
 
 		Scene bare = null;
 

@@ -58,7 +58,8 @@ BorderContour RoundedBorderContour( float2 p, BoxInstanceData inst )
 	float2 radii[4] = { float2( v.y, h.y ), float2( h.w, v.w ), float2( v.z, h.z ), float2( h.x, v.x ) };
 	BorderContour result = (BorderContour)0;
 	float nearest = 1e30;
-	[unroll] for ( int i = 0; i < 4; i++ )
+	// [unroll] is only a hint to the driver, a rolled loop would index these arrays at runtime and put them in local memory
+	[ForceUnroll] for ( int i = 0; i < 4; i++ )
 	{
 		float2 delta = ends[i] - starts[i];
 		float extent = length( delta );
@@ -197,10 +198,11 @@ float4 StyledShapeBorder( float2 p, BoxInstanceData inst, BorderShapeData shape,
 		float2 points[8] = { shape.Polygon01.xy, shape.Polygon01.zw, shape.Polygon23.xy, shape.Polygon23.zw,
 			shape.Polygon45.xy, shape.Polygon45.zw, shape.Polygon67.xy, shape.Polygon67.zw };
 		float nearest = 1e30;
-		[unroll] for ( int i = 0; i < 8; i++ )
+		[ForceUnroll] for ( int i = 0; i < 8; i++ )
 		{
 			if ( i >= shape.PolygonCount ) break;
-			float2 a = points[i], delta = points[( i + 1 ) % shape.PolygonCount] - a;
+			float2 next = ( i + 1 < shape.PolygonCount ) ? points[min( i + 1, 7 )] : points[0];
+			float2 a = points[i], delta = next - a;
 			float t = saturate( dot( p - a, delta ) / max( dot( delta, delta ), 0.000001 ) );
 			float2 q = p - a - delta * t;
 			float length = sqrt( dot( delta, delta ) );

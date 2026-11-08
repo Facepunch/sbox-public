@@ -74,6 +74,11 @@ public sealed class MeshComponent : Collider, ExecuteInEditor, ITintable, IMater
 		}
 	}
 
+	/// <summary>
+	/// Scene object tag for Hide In Game meshes in the editor, excluded from envmap and indirect light volume bakes.
+	/// </summary>
+	internal const string HideInGameTag = "hide_in_game";
+
 	[Property, Order( 4 )]
 	public bool HideInGame
 	{
@@ -86,7 +91,10 @@ public sealed class MeshComponent : Collider, ExecuteInEditor, ITintable, IMater
 			field = value;
 
 			if ( Scene.IsEditor )
+			{
+				UpdateSceneObjectTags();
 				return;
+			}
 
 			if ( HideInGame )
 			{
@@ -208,10 +216,7 @@ public sealed class MeshComponent : Collider, ExecuteInEditor, ITintable, IMater
 	{
 		base.OnTagsChanged();
 
-		if ( _sceneObject.IsValid() )
-		{
-			_sceneObject.Tags.SetFrom( Tags );
-		}
+		UpdateSceneObjectTags();
 	}
 
 	internal override void TransformChanged( GameTransform root )
@@ -250,11 +255,12 @@ public sealed class MeshComponent : Collider, ExecuteInEditor, ITintable, IMater
 			{
 				foreach ( var mesh in part.Meshes )
 				{
-					var shape = targetBody.AddShape( mesh, bx, false, true );
+					PhysicsShape shape;
+					using ( targetBody._body.UseShapeSurface( mesh.Surface, mesh.Surfaces ) )
+					{
+						shape = targetBody.AddShape( mesh, bx, false, true );
+					}
 					Assert.NotNull( shape, "Mesh shape was null" );
-
-					shape.Surface = mesh.Surface;
-					shape.Surfaces = mesh.Surfaces;
 
 					yield return shape;
 				}
@@ -263,9 +269,12 @@ public sealed class MeshComponent : Collider, ExecuteInEditor, ITintable, IMater
 			{
 				foreach ( var hull in part.Hulls )
 				{
-					var shape = targetBody.AddShape( hull, bx );
+					PhysicsShape shape;
+					using ( targetBody._body.UseShapeSurface( hull.Surface ) )
+					{
+						shape = targetBody.AddShape( hull, bx );
+					}
 					Assert.NotNull( shape, "Hull shape was null" );
-					shape.Surface = hull.Surface;
 					yield return shape;
 				}
 			}
@@ -336,10 +345,23 @@ public sealed class MeshComponent : Collider, ExecuteInEditor, ITintable, IMater
 		if ( !_sceneObject.IsValid() ) return;
 
 		_sceneObject.Component = this;
-		_sceneObject.Tags.SetFrom( GameObject.Tags );
+		UpdateSceneObjectTags();
 		_sceneObject.ColorTint = Color;
 		_sceneObject.Flags.CastShadows = RenderType == ShadowRenderType.On || RenderType == ShadowRenderType.ShadowsOnly;
 		_sceneObject.Flags.ExcludeGameLayer = RenderType == ShadowRenderType.ShadowsOnly;
 		_sceneObject.Flags.IsStatic = GameObject.IsStatic;
+	}
+
+	/// <summary>
+	/// Hide In Game meshes still render in the editor, tag them so editor bakes (envmaps, indirect light volumes) can leave them out.
+	/// </summary>
+	void UpdateSceneObjectTags()
+	{
+		if ( !_sceneObject.IsValid() ) return;
+
+		_sceneObject.Tags.SetFrom( GameObject.Tags );
+
+		if ( HideInGame )
+			_sceneObject.Tags.Add( HideInGameTag );
 	}
 }

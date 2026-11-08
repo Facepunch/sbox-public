@@ -5,6 +5,9 @@
 // rule = ELEMENT.Class.Class.Class:hover:and:stuff
 //
 
+using System.Globalization;
+using System.Text.RegularExpressions;
+
 namespace Sandbox.UI;
 
 internal static partial class StyleParser
@@ -254,9 +257,8 @@ internal static partial class StyleParser
 		{
 			p.Pointer += "nth-child".Length;
 			var inner = p.ReadInnerBrackets();
-			if ( string.IsNullOrEmpty( inner ) ) return;
 
-			ParseNthChild( rule, inner.Trim() );
+			ParseNthChild( rule, inner?.Trim() ?? string.Empty );
 
 			return;
 		}
@@ -275,6 +277,26 @@ internal static partial class StyleParser
 
 			case "focus":
 				rule.Flags |= PseudoClass.Focus;
+				break;
+
+			case "focus-within":
+				rule.Flags |= PseudoClass.FocusWithin;
+				break;
+
+			case "root":
+				rule.Flags |= PseudoClass.Root;
+				break;
+
+			case "disabled":
+				rule.Flags |= PseudoClass.Disabled;
+				break;
+
+			case "enabled":
+				rule.Flags |= PseudoClass.Enabled;
+				break;
+
+			case "checked":
+				rule.Flags |= PseudoClass.Checked;
 				break;
 
 			case "intro":
@@ -316,25 +338,50 @@ internal static partial class StyleParser
 
 	private static void ParseNthChild( StyleSelector rule, string inner )
 	{
-		if ( int.TryParse( inner, out int intValue ) )
+		if ( int.TryParse( inner, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out int intValue ) )
 		{
-			rule.NthChild = ( p ) => (p.SiblingIndex + 1) == intValue;
+			rule.NthChild = p => intValue > 0 && p.SiblingIndex + 1 == intValue;
 			return;
 		}
 
 		if ( string.Equals( inner, "odd", StringComparison.OrdinalIgnoreCase ) )
 		{
-			rule.NthChild = ( p ) => p.SiblingIndex % 2 == 0;
+			rule.NthChild = p => p.SiblingIndex % 2 == 0;
 			return;
 		}
 
 		if ( string.Equals( inner, "even", StringComparison.OrdinalIgnoreCase ) )
 		{
-			rule.NthChild = ( p ) => p.SiblingIndex % 2 == 1;
+			rule.NthChild = p => p.SiblingIndex % 2 == 1;
 			return;
 		}
 
-		throw new System.Exception( $"unsupported NthChild \"{inner}\"" );
+		// Allow whitespace around the offset sign, but reject forms such as "2 n" and "n+-1".
+		var match = Regex.Match( inner, @"^([+-]?[0-9]*)[nN](?:\s*([+-])\s*([0-9]+))?$" );
+		if ( !match.Success )
+			throw new System.Exception( $"Invalid nth-child expression \"{inner}\"" );
+
+		var coefficient = match.Groups[1].Value switch
+		{
+			"" or "+" => "1",
+			"-" => "-1",
+			var value => value
+		};
+
+		int b = 0;
+		if ( !int.TryParse( coefficient, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out int a )
+			|| (match.Groups[2].Success && !int.TryParse( match.Groups[2].Value + match.Groups[3].Value,
+				NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out b )) )
+			throw new System.Exception( $"Invalid nth-child expression \"{inner}\"" );
+
+		rule.NthChild = p =>
+		{
+			// n must be a non-negative integer and the resulting child index must be positive.
+			// Widen before subtracting so large signed coefficients and offsets cannot overflow.
+			long index = (long)p.SiblingIndex + 1;
+			long difference = index - b;
+			return index > 0 && (a == 0 ? difference == 0 : difference % a == 0 && difference / a >= 0);
+		};
 	}
 
 	private static StyleSelector[] ParseHasSelectors( string inner )

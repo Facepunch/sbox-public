@@ -121,19 +121,19 @@ public partial class TerrainStorage
 		if ( !mapsJson.ContainsKey( "heightmap" ) || !mapsJson.ContainsKey( "splatmap" ) )
 			return;
 
-		// Read base64 data
-		var heightmapBase64 = mapsJson["heightmap"].Deserialize<string>();
-		var splatmapBase64 = mapsJson["splatmap"].Deserialize<string>();
+		// The base64 payload is already deflate-compressed in the blob's format. Every load of an
+		// unconverted file runs this, so keep the maps compressed instead of inflating them up front.
+		var heightmap = Convert.FromBase64String( mapsJson["heightmap"].Deserialize<string>() );
+		var splatmap = Convert.FromBase64String( mapsJson["splatmap"].Deserialize<string>() );
+		var resolution = obj["Resolution"]?.Deserialize<int>() ?? 0;
 
-		var heightmap = TerrainMapBlob.Decompress<ushort>( Convert.FromBase64String( heightmapBase64 ) ).ToArray();
-		var splatmap = TerrainMapBlob.Decompress<uint>( Convert.FromBase64String( splatmapBase64 ) ).ToArray();
-
-		// Create blob and register it
-		var blob = new TerrainMapBlob
-		{
-			HeightMap = heightmap,
-			SplatMap = splatmap
-		};
+		var blob = resolution > 0
+			? TerrainMapBlob.FromCompressed( heightmap, splatmap, resolution * resolution )
+			: new TerrainMapBlob
+			{
+				HeightMap = TerrainMapBlob.Decompress<ushort>( heightmap ).ToArray(),
+				SplatMap = TerrainMapBlob.Decompress<uint>( splatmap ).ToArray()
+			};
 
 		// BlobDataSerializer is now active during upgrades!
 		var guid = BlobDataSerializer.RegisterBlob( blob );

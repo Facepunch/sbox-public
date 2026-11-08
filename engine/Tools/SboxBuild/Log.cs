@@ -85,6 +85,10 @@ public static class Log
 	}
 
 	internal static void Detail( string message ) => Write( message, "dim" );
+	/// <summary>
+	/// Always printed, in order with everything else, such as GitHub Actions workflow commands.
+	/// </summary>
+	internal static void Raw( string message ) => Write( message, "", true );
 	internal static void Summary( string message ) => Write( message, "", true );
 	internal static void ClearTail() { lock ( sync ) tail.Clear(); }
 

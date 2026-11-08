@@ -21,7 +21,12 @@ public readonly struct SyncTask : INotifyCompletion
 		_cancellation = cancellation;
 	}
 
-	public bool IsCompleted => _context == SynchronizationContext.Current && _frame < _context.Frame;
+	/// <summary>
+	/// Main-thread switches can complete inside a private synchronization context without
+	/// posting to the engine queue. Frame waits still require their target context to advance.
+	/// </summary>
+	public bool IsCompleted => (_allowSynchronous && _context == SyncContext.MainThread && ThreadSafe.IsMainThread)
+		|| (_context == SynchronizationContext.Current && _frame < _context.Frame);
 
 	public void OnCompleted( Action continuation )
 	{

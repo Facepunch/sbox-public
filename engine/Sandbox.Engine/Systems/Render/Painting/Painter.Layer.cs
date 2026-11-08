@@ -57,9 +57,9 @@ public readonly ref partial struct Painter
 			_baseTransform = context.BaseTransform;
 			_inheritedOpacity = context.InheritedOpacity;
 			_opacity = opacity;
-			_layerBounds = bounds;
 			_filter = filter;
 			_mask = mask;
+			_layerBounds = bounds.Grow( MathF.Min( MathF.Ceiling( filter.Blur * 3 ), 1024 ) );
 
 			var output = context.Batcher;
 			output.Flush();
@@ -69,12 +69,13 @@ public readonly ref partial struct Painter
 			context.ActiveLayer = _name;
 			var commands = output.CommandList;
 			commands.PushRenderTarget();
-			var target = commands.GetRenderTarget( _name, (int)MathF.Ceiling( bounds.Width ), (int)MathF.Ceiling( bounds.Height ), ImageFormat.RGBA8888, ImageFormat.None );
+			var target = commands.GetRenderTarget( _name, (int)MathF.Ceiling( _layerBounds.Width ), (int)MathF.Ceiling( _layerBounds.Height ),
+				ImageFormat.RGBA8888, ImageFormat.None, numMips: filter.Blur > 0 ? 16 : 1 );
 			commands.SetRenderTarget( target );
 			commands.Clear( Color.Transparent, clearDepth: false, clearStencil: false );
 			output.Destination = new() { GammaOutput = true };
 			context.Bounds = bounds;
-			context.BaseTransform = Matrix.CreateTranslation( new Vector3( -bounds.Left, -bounds.Top, 0 ) );
+			context.BaseTransform = Matrix.CreateTranslation( new Vector3( -_layerBounds.Left, -_layerBounds.Top, 0 ) );
 			context.InheritedOpacity = 1;
 			context.State.Transform = Matrix.Identity;
 			context.State.Opacity = 1;
@@ -103,6 +104,8 @@ public readonly ref partial struct Painter
 				try
 				{
 					output.Flush();
+					if ( _filter.Blur > 0 )
+						output.CommandList.GenerateMipMaps( source, Graphics.DownsampleMethod.GaussianBorder );
 				}
 				finally
 				{

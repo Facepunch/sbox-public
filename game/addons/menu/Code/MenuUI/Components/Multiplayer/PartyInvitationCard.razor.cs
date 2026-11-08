@@ -16,7 +16,7 @@ public partial class PartyInvitationCard : Panel
 	GlobalChatService.PartyInvitation Invitation => GlobalChatService.GetInvitation( PartyId );
 	bool IsCurrentParty => PartyRoom.Current?.Id.ValueUnsigned == PartyId;
 	bool JoinDisabled => Invitation is not { Available: true, IsFull: false } || PartyService.Busy || PartyRoom.Current is not null;
-	string JoinTooltip => PartyRoom.Current is not null && !IsCurrentParty ? "Leave your current party before joining another" : "";
+	string JoinTooltip => PartyRoom.Current is not null && !IsCurrentParty ? "#menu.party.leave_your_current_party_before_joining_another" : "";
 
 	Task Join() => PartyService.Join( PartyId );
 

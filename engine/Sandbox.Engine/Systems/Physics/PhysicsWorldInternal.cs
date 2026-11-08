@@ -32,6 +32,7 @@ internal abstract partial class PhysicsWorldInternal : IValid
 	/// Create the internal implementation body for this world (2D or 3D).
 	/// </summary>
 	internal abstract PhysicsBodyInternal CreateBodyInternal();
+	internal abstract PhysicsBodyInternal CreateBodyInternal( in PhysicsBodySettings settings );
 
 	/// <summary>
 	/// The world's static reference body, used as a default anchor for joints.
@@ -46,7 +47,6 @@ internal abstract partial class PhysicsWorldInternal : IValid
 	public IEnumerable<PhysicsBody> Bodies => bodies.Where( x => x.IsValid ).Select( x => x.Owner );
 
 	internal int BodyCount => bodies.Count;
-	internal HashSet<PhysicsBodyInternal> RegisteredBodies => bodies;
 
 	/// <summary>
 	/// Set or retrieve the collision rules for this <see cref="PhysicsWorld"/>.

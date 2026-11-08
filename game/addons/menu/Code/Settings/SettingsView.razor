@@ -10,7 +10,7 @@
 
 	<div class="rail">
 
-		<TextEntry @ref=SearchEntry class="settings-search" Icon="search" Placeholder="Search settings..." OnTextEdited=@OnSearchEdited></TextEntry>
+		<TextEntry @ref=SearchEntry class="settings-search" Icon="search" Placeholder="#menu.settings.search_settings" OnTextEdited=@OnSearchEdited></TextEntry>
 
 		<div class="cats">
 			@foreach ( var cat in Catalog.Categories )
@@ -33,7 +33,7 @@
 	<div class="body">
 
 		<div class="head">
-			<label class="title">@(Searching ? "Search" : Current?.Title)</label>
+			<label class="title">@(Searching ? "#menu.common.search" : Current?.Title)</label>
 			<label class="blurb">@(Searching ? MatchSummary : Current?.Blurb)</label>
 		</div>
 
@@ -94,7 +94,7 @@
 					<div class="section" @key=@section.Key>
 						<div class="section-label"><label>@section.Key</label></div>
 
-						@if ( section.Key == "Post Processing" )
+						@if ( section.Key == Catalog.PostProcessInfo.Section )
 						{
 							<SettingsPostProcessPreset View=@this />
 						}
@@ -192,6 +192,21 @@
 	{
 		Revision++;
 		StateHasChanged();
+	}
+
+	/// <summary>
+	/// Refresh search results and controls when their displayed language changes.
+	/// </summary>
+	public override void LanguageChanged()
+	{
+		base.LanguageChanged();
+
+		foreach ( var item in Catalog.Items )
+		{
+			item.InvalidateSearch();
+		}
+
+		Invalidate();
 	}
 
 	public void SetFocused( SettingItem item )

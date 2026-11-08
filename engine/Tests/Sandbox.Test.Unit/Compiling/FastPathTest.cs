@@ -1,5 +1,9 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Runtime.Loader;
 
 namespace CompilingTests;
 
@@ -717,5 +721,64 @@ public partial class FastPathTest
 		Assert.AreEqual( 1, result.ChangedMethods.Length );
 
 		Assert.AreEqual( 0, TestProgram( program ) );
+	}
+
+	/// <summary>
+	/// Once a full hotload replaces a fast hotloaded assembly, removing its detours must let it unload.
+	/// </summary>
+	[TestMethod]
+	public void RemovedDetoursReleaseAssembly()
+	{
+		var (hotload, context) = FastHotloadAndRemoveDetours();
+
+		for ( var i = 0; context.IsAlive && i < 10; i++ )
+		{
+			GC.Collect();
+			GC.WaitForPendingFinalizers();
+		}
+
+		Assert.IsFalse( context.IsAlive );
+		GC.KeepAlive( hotload );
+	}
+
+	/// <summary>
+	/// Blocks on the async work so its state machine, which holds the loaded assemblies, is unreachable once this returns.
+	/// </summary>
+	[MethodImpl( MethodImplOptions.NoInlining )]
+	private static (ILHotload Hotload, WeakReference Context) FastHotloadAndRemoveDetours()
+	{
+		return FastHotloadAndRemoveDetoursAsync().GetAwaiter().GetResult();
+	}
+
+	private static async Task<(ILHotload Hotload, WeakReference Context)> FastHotloadAndRemoveDetoursAsync()
+	{
+		var contexts = new List<AssemblyLoadContext>();
+
+		using var compiler = new FastPathTestCompiler( "HelloWorld.cs" )
+		{
+			LoadAssembly = bytes =>
+			{
+				var context = new AssemblyLoadContext( "FastPathUnload", isCollectible: true );
+				contexts.Add( context );
+				return context.LoadFromStream( new MemoryStream( bytes ) );
+			}
+		};
+
+		var result = await compiler.BuildAsync( version: 1 );
+		var program = result.CreateProgram();
+
+		result = await compiler.BuildAsync( version: 2 );
+
+		Assert.IsTrue( result.ILHotloadSupported );
+		Assert.AreEqual( 0, TestProgram( program, "Hello World!" ) );
+
+		compiler.Hotload.RemoveDetours( result.Assembly );
+
+		foreach ( var context in contexts )
+		{
+			context.Unload();
+		}
+
+		return (compiler.Hotload, new WeakReference( contexts[0] ));
 	}
 }

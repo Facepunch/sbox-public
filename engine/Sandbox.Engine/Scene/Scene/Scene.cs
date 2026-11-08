@@ -6,6 +6,8 @@ namespace Sandbox;
 
 public partial class Scene : GameObject
 {
+	internal Queue<Particle> ParticlePool { get; } = new();
+
 	public bool IsEditor { get; private set; }
 
 	/// <summary>
@@ -131,7 +133,7 @@ public partial class Scene : GameObject
 	/// </summary>
 	internal int ReloadHash => HashCode.Combine( PhysicsMode );
 
-	public PhysicsWorld PhysicsWorld => _physicsWorld ??= CreatePhysicsWorld();
+	public PhysicsWorld PhysicsWorld => _physicsWorld ??= _destroyed ? null : CreatePhysicsWorld();
 
 	/// <summary>
 	/// Creates the physics world for this scene, matching <see cref="PhysicsMode"/>.
@@ -164,7 +166,9 @@ public partial class Scene : GameObject
 		}
 	}
 
-	protected Scene( bool isEditor ) : base( true, "Scene" )
+	protected Scene( bool isEditor ) : this( isEditor, true ) { }
+
+	internal Scene( bool isEditor, bool includeGameSystems ) : base( true, "Scene" )
 	{
 		_all.Add( this );
 
@@ -175,7 +179,7 @@ public partial class Scene : GameObject
 
 		if ( this is not PrefabCacheScene )
 		{
-			InitSystems();
+			InitSystems( includeGameSystems );
 		}
 	}
 
@@ -231,6 +235,8 @@ public partial class Scene : GameObject
 
 		NavMesh?.Dispose();
 		NavMesh = default;
+
+		RenderAttributes.Clear();
 
 		DisposeListeners();
 	}
@@ -406,6 +412,12 @@ public partial class Scene : GameObject
 	/// </summary>
 	internal void PreCameraRender()
 	{
+		// Prepare scene-owned rendering data before cameras copy it. Child views reuse the snapshot.
+		if ( ThreadSafe.IsMainThread )
+		{
+			Signal( GameObjectSystem.Stage.PrepareRender );
+		}
+
 		// We want to initialize all cameras (enabled & disabled) incase they're used to render manually
 		// we need to make sure the SceneCamera is created etc.
 		var cameras = RentSortedCameras();

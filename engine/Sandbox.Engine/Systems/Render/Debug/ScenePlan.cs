@@ -4,9 +4,6 @@ namespace Sandbox;
 
 internal static partial class DebugOverlay
 {
-	[ConVar( "overlay_scene_plan", Help = "Draws the managed scene renderer's frame plan: each layer, whether it runs and why not, what it makes and reads, and how recording splits across threads. 1 = layers that ran or were culled, 2 = every layer" )]
-	internal static int overlay_scene_plan { get; set; } = 0;
-
 	/// <summary>
 	/// An ordered event list, resource-access matrix and recording-cost histogram.
 	/// Segment durations have no start timestamps or worker identities, so they

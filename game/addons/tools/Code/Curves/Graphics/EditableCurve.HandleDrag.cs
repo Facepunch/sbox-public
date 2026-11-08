@@ -4,110 +4,104 @@ public partial class EditableCurve
 {
 	/// <summary>
 	/// Moves the <see cref="Handle"/>s being dragged in one <see cref="CurveEditor"/> as a group:
-	/// they all stop as soon as one of them reaches the edge of its chart, so the shape of the
-	/// selection is kept.
+	/// they all move by the same offset from where they started, and stop together as soon as one
+	/// of them reaches the edge of its chart, so the shape of the selection is kept. Each handle
+	/// corrects only itself as the view moves it, and the curves are updated once per frame from
+	/// <see cref="Flush"/> rather than once per handle.
 	/// </summary>
 	internal class HandleDrag
 	{
+		readonly Dictionary<Handle, Vector2> _startPositions = new();
 		readonly List<Handle> _dragged = new();
-		readonly List<EditableCurve> _curves = new();
+		readonly HashSet<EditableCurve> _dirty = new();
 
 		Handle _pressed;
 		bool _applying;
-		bool _pending;
+		Vector2 _minOffset;
+		Vector2 _maxOffset;
 
 		/// <summary>
 		/// True if this handle is part of the drag in progress
 		/// </summary>
-		public bool IsDragging( Handle handle ) => _pressed.IsValid() && (handle == _pressed || handle.Selected);
+		public bool IsDragging( Handle handle )
+		{
+			if ( !_pressed.IsValid() ) return false;
+			if ( _dragged.Count > 0 ) return _dragged.Contains( handle );
 
-		public void Begin( Handle pressed ) => _pressed = pressed;
+			return handle == _pressed || handle.Selected;
+		}
+
+		/// <summary>
+		/// A handle has been pressed. The selection isn't updated until after this, so remember
+		/// where every handle started and work out which ones are dragged on the first move.
+		/// </summary>
+		public void Begin( Handle pressed )
+		{
+			End();
+
+			if ( pressed.GraphicsView is not { } view ) return;
+
+			foreach ( var curve in view.Items.OfType<EditableCurve>() )
+			{
+				foreach ( var handle in curve.Handles )
+				{
+					if ( !handle.IsValid() ) continue;
+
+					_startPositions[handle] = handle.Position;
+				}
+			}
+
+			if ( _startPositions.ContainsKey( pressed ) )
+			{
+				_pressed = pressed;
+			}
+		}
 
 		public void End()
 		{
+			Flush();
+
+			_startPositions.Clear();
+			_dragged.Clear();
+
 			_pressed = null;
-			_pending = false;
+			_applying = false;
 		}
 
 		/// <summary>
 		/// A handle has been moved. Returns false if it isn't part of the drag, in which case it
-		/// should clamp itself to its chart. Dragged handles are corrected as a group instead,
-		/// once per mouse event, from <see cref="ApplyPending"/>.
+		/// should clamp itself to its chart. Dragged handles are corrected right away, because the
+		/// view sets their positions from where the drag started on every mouse move.
 		/// </summary>
 		public bool Moved( Handle handle )
 		{
+			if ( !_pressed.IsValid() ) return false;
 			if ( _applying ) return true;
-			if ( !IsDragging( handle ) ) return false;
 
-			_pending = true;
-			return true;
-		}
-
-		/// <summary>
-		/// The view has moved all the dragged handles for this mouse event. Push the group back
-		/// so every handle is inside its chart, snap it to the grid if Ctrl is held, then update
-		/// the keyframes.
-		/// </summary>
-		public void ApplyPending()
-		{
-			if ( !_pending ) return;
-			_pending = false;
-
-			if ( !_pressed.IsValid() )
+			if ( _dragged.Count == 0 )
 			{
-				End();
-				return;
+				Resolve( handle );
 			}
 
-			_dragged.Clear();
-			_curves.Clear();
+			if ( !_dragged.Contains( handle ) ) return false;
+			if ( !_startPositions.TryGetValue( handle, out var start ) ) return false;
 
-			foreach ( var curve in _pressed.GraphicsView.Items.OfType<EditableCurve>() )
+			var offset = handle.Position - start;
+
+			if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) && _startPositions.TryGetValue( _pressed, out var pressedStart ) )
 			{
-				foreach ( var handle in curve.Handles )
-				{
-					if ( !handle.IsValid() || !IsDragging( handle ) ) continue;
-
-					_dragged.Add( handle );
-
-					if ( !_curves.Contains( curve ) )
-					{
-						_curves.Add( curve );
-					}
-				}
+				offset = _pressed.SnapToGridPosition( pressedStart + offset ) - pressedStart;
 			}
 
-			// One correction for the whole group, so the selection keeps its shape. Snap by the
-			// pressed handle, then push everyone back in by the largest overshoot on each side.
-			var correction = Vector2.Zero;
+			var position = start + Vector2.Clamp( offset, _minOffset, _maxOffset );
 
-			if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
-			{
-				correction = _pressed.SnapToGridPosition( _pressed.Position ) - _pressed.Position;
-			}
-
-			var pushIn = Vector2.Zero;
-			var pushBack = Vector2.Zero;
-
-			foreach ( var handle in _dragged )
-			{
-				var target = handle.Position + correction;
-				pushIn = Vector2.Max( pushIn, -target );
-				pushBack = Vector2.Max( pushBack, target - handle.EditableCurve.Size );
-			}
-
-			correction += pushIn - pushBack;
-
-			if ( correction != Vector2.Zero )
+			if ( handle.Position != position )
 			{
 				_applying = true;
 
 				try
 				{
-					foreach ( var handle in _dragged )
-					{
-						handle.Position += correction;
-					}
+					handle.Position = position;
 				}
 				finally
 				{
@@ -115,15 +109,44 @@ public partial class EditableCurve
 				}
 			}
 
-			foreach ( var handle in _dragged )
-			{
-				handle.UpdateValueFromPosition();
-			}
+			handle.UpdateValueFromPosition();
+			_dirty.Add( handle.EditableCurve );
 
-			foreach ( var curve in _curves )
+			return true;
+		}
+
+		void Resolve( Handle moved )
+		{
+			_minOffset = new Vector2( float.NegativeInfinity );
+			_maxOffset = new Vector2( float.PositiveInfinity );
+
+			foreach ( var (handle, start) in _startPositions )
 			{
+				if ( !handle.IsValid() ) continue;
+				if ( handle != moved && handle != _pressed && !handle.Selected ) continue;
+
+				_dragged.Add( handle );
+
+				_minOffset = Vector2.Max( _minOffset, -start );
+				_maxOffset = Vector2.Min( _maxOffset, handle.EditableCurve.Size - start );
+			}
+		}
+
+		/// <summary>
+		/// Update the curves whose handles were moved since the last flush
+		/// </summary>
+		public void Flush()
+		{
+			if ( _dirty.Count == 0 ) return;
+
+			foreach ( var curve in _dirty )
+			{
+				if ( !curve.IsValid() ) continue;
+
 				curve.OnHandleMoved();
 			}
+
+			_dirty.Clear();
 		}
 	}
 }

@@ -48,6 +48,10 @@ internal class BuildNative( BuildConfiguration configuration = BuildConfiguratio
 
 		foreach ( var (name, alwaysRebuild) in platform.Solutions( options ) )
 		{
+			// Always-rebuild parts exist to undo stale incremental output. A clean build (and CI, which
+			// builds a fresh checkout) has none, and would compile the same sources twice.
+			if ( alwaysRebuild && clean ) continue;
+
 			BuildDisplay.Status( $"Build {name}" );
 			if ( platform.Build( name, force || alwaysRebuild ) ) continue;
 

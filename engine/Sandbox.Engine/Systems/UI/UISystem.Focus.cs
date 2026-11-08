@@ -37,16 +37,18 @@ partial class UISystem
 	/// </summary>
 	internal void SetFocusFromClick( Panel panel )
 	{
+		var focusSystem = this;
 		for ( var target = panel; target is not null; target = target.FocusOwner )
 		{
+			focusSystem = target.UISystem;
 			if ( target.AcceptsFocus && target.FocusOnClick )
 			{
-				SetFocus( target );
+				focusSystem.SetFocus( target );
 				return;
 			}
 		}
 
-		ClearFocus();
+		focusSystem.ClearFocus();
 	}
 
 	/// <summary>

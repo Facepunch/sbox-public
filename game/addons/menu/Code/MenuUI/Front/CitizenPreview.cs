@@ -7,7 +7,7 @@ using System.Threading;
 namespace MenuProject.MenuUI.Front;
 
 /// <summary>
-/// A little portrait of a citizen - yours, or someone else's dressed from the json their profile shares.
+/// A little portrait using the Human model - yours, or someone else's dressed from the json their profile shares.
 /// Hands on hips, turned a touch to the side. The front page's one can be spun and watches the cursor;
 /// others just stand there.
 /// </summary>
@@ -80,6 +80,12 @@ public sealed class CitizenPreview : Panel
 	/// </summary>
 	RealTimeUntil _settleUntil;
 	bool _settling;
+
+	/// <summary>
+	/// Keeps the startup screen up until we've first appeared, so we don't pop in after it has faded.
+	/// </summary>
+	IDisposable _startupHold;
+	static bool _appearedOnce;
 	bool _dressed;
 
 	/// <summary>
@@ -96,6 +102,10 @@ public sealed class CitizenPreview : Panel
 
 	public override void Tick()
 	{
+		// The first time, the startup screen waits for us to appear
+		if ( !_appearedOnce && !_built && _startupHold is null && (LocalUser || !string.IsNullOrWhiteSpace( _avatarJson )) )
+			_startupHold = MenuUtility.HoldStartupScreen( "Preparing your character" );
+
 		base.Tick();
 
 		if ( !_built && (LocalUser || !string.IsNullOrWhiteSpace( _avatarJson )) )
@@ -164,12 +174,12 @@ public sealed class CitizenPreview : Panel
 				body.WorldRotation = Rotation.FromYaw( Yaw );
 
 				var renderer = body.AddComponent<SkinnedModelRenderer>();
-				renderer.Model = Model.Load( clothing.PrefersHuman
-					? "models/citizen_human/citizen_human_male.vmdl"
-					: "models/citizen/citizen.vmdl" );
+				renderer.Model = Model.Load( "models/citizen_human/human.vmdl" );
 
 				// The hands-on-hips pose the garage character used
+#pragma warning disable CS0618
 				renderer.Set( "special_idle_states", 1 );
+#pragma warning restore CS0618
 
 				if ( !PlayIntro )
 				{
@@ -191,6 +201,12 @@ public sealed class CitizenPreview : Panel
 				if ( token.IsCancellationRequested || !cameraObject.IsValid() )
 					return;
 
+				// A human skin swaps the body model, which rebuilds the anim graph with default
+				// parameters - put the pose back so the entry animation plays
+#pragma warning disable CS0618
+				renderer.Set( "special_idle_states", 1 );
+#pragma warning restore CS0618
+
 				// Taller people need the camera a little higher - a rough guess, and all we've got unless
 				// we're framing on their head, which takes over once they're posed
 				var height = clothing.Height.Remap( 0, 1, 0.8f, 1.2f, true );
@@ -201,6 +217,10 @@ public sealed class CitizenPreview : Panel
 				// Dressed - give the pose a moment more at speed, then show them
 				_dressed = true;
 				_settleUntil = SettleSeconds;
+
+				// Shown straight away when playing the intro, so they've appeared
+				if ( !_settling )
+					Appeared();
 
 				// Line up on their head once the pose has played - the same moment they're shown, or a
 				// beat longer if they're striking it for real
@@ -215,6 +235,12 @@ public sealed class CitizenPreview : Panel
 		catch ( Exception e )
 		{
 			Log.Warning( $"Couldn't dress citizen preview: {e.Message}" );
+		}
+		finally
+		{
+			// However dressing ended, if they never got dressed there's nothing for the startup screen to wait for
+			if ( !_dressed )
+				ReleaseStartupHold();
 		}
 	}
 
@@ -236,11 +262,24 @@ public sealed class CitizenPreview : Panel
 		_camera.WorldPosition = position.WithZ( eyes.Position.z + HeadOffset.Value );
 	}
 
+	void Appeared()
+	{
+		_appearedOnce = true;
+		ReleaseStartupHold();
+	}
+
+	void ReleaseStartupHold()
+	{
+		_startupHold?.Dispose();
+		_startupHold = null;
+	}
+
 	void UpdateSettle()
 	{
 		if ( !_settling || !_dressed || _settleUntil > 0 ) return;
 
 		_settling = false;
+		Appeared();
 
 		if ( _renderer.IsValid() )
 			_renderer.PlaybackRate = 1;
@@ -442,12 +481,15 @@ public sealed class CitizenPreview : Panel
 		_eyeDirection = Vector3.Lerp( _eyeDirection, wantDirection, RealTime.Delta * 8f ).Normal;
 		_eyeWeight = _eyeWeight.LerpTo( wantWeight, RealTime.Delta * 6f );
 
+#pragma warning disable CS0618
 		_renderer.SetLookDirection( "aim_eyes", _eyeDirection, _eyeWeight );
+#pragma warning restore CS0618
 	}
 
 	public override void OnDeleted()
 	{
 		_cancel?.Cancel();
+		ReleaseStartupHold();
 		base.OnDeleted();
 	}
 }

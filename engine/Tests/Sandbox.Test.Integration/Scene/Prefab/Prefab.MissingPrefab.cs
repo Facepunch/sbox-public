@@ -139,6 +139,45 @@ public class MissingPrefabTest
 		Assert.AreEqual( 1, overrides.Count );
 	}
 
+	/// <summary>
+	/// Deserializing a real prefab instance into the stub in place (like Replace with Prefab does)
+	/// should clear the stub's error flag.
+	/// </summary>
+	[TestMethod]
+	public void MissingPrefab_ReplacedInPlaceClearsError()
+	{
+		using var _ = SceneTests.Helpers.RegisterPrefabFromJson( "replacement.prefab", """
+		{
+			"__guid": "33333333-0000-4000-8000-000000000003",
+			"Name": "Replacement",
+			"Enabled": true,
+			"Components": [],
+			"Children": []
+		}
+		""" );
+
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var root = scene.CreateObject();
+		root.Deserialize( Json.ParseToJsonObject( SceneWithMissingPrefab( "x.prefab" ) ) );
+
+		var stub = root.Children[0];
+		Assert.IsTrue( stub.Flags.Contains( GameObjectFlags.Error ) );
+
+		var prefabScene = SceneUtility.GetPrefabScene( ResourceLibrary.Get<PrefabFile>( "replacement.prefab" ) );
+		var temp = prefabScene.Clone();
+		var json = temp.Serialize();
+		temp.DestroyImmediate();
+
+		SceneUtility.MakeIdGuidsUnique( json, stub.Id );
+		stub.Clear();
+		stub.Deserialize( json );
+
+		Assert.IsTrue( stub.IsPrefabInstanceRoot );
+		Assert.IsFalse( stub.Flags.Contains( GameObjectFlags.Error ) );
+	}
+
 	[TestMethod]
 	public void MissingPrefab_RefreshPatchDoesNotThrow()
 	{

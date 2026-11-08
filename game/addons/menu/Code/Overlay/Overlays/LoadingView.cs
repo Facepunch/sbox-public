@@ -77,6 +77,17 @@ public static class LoadingView
 
 	public static int TaskCount => IsMocking ? 0 : LoadingScreen.Tasks.Count;
 
+	/// <summary>
+	/// How far through the step in the title it is, 0 to 1, when it isn't a download - updating a
+	/// package's shaders. Null when the step can't say.
+	/// </summary>
+	public static double? StepFraction => IsMocking ? null : LoadingScreen.StepFraction;
+
+	/// <summary>
+	/// How far the whole load is across its stages, 0 to 1. Null when no game is loading.
+	/// </summary>
+	public static double? LoadFraction => IsMocking ? null : LoadingScreen.LoadFraction;
+
 	public static string FirstTask => IsMocking ? null : LoadingScreen.Tasks.FirstOrDefault()?.Title;
 
 	/// <summary>
@@ -97,6 +108,10 @@ public static class LoadingView
 		get
 		{
 			if ( IsMocking ) return MockDownloads;
+
+			// Polled every frame by the overlay, nothing to build while nothing is loading
+			if ( LoadingScreen.Downloads.Count == 0 && LoadingScreen.Progress is not { Fraction: > 0 and < 1 } )
+				return [];
 
 			var downloads = LoadingScreen.Downloads
 				.Where( x => x.TotalSize > 0 )
@@ -290,7 +305,7 @@ public static class LoadingView
 				return new( string.Format( phase.Title, title ), subtitle );
 			}
 
-			return new( "Starting Game", null );
+			return new( "#menu.loading.starting_game", null );
 		}
 	}
 }

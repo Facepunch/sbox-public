@@ -32,4 +32,22 @@ public partial class SliderJoint : PhysicsJoint
 	{
 		set => _joint?.Friction = value;
 	}
+
+	/// <summary>Sets and enables a linear velocity motor, in units per second.</summary>
+	public void SetLinearMotor( float targetVelocity, float maxForce ) => _joint?.SetLinearMotor( targetVelocity, maxForce );
+
+	/// <summary>Sets and enables a position spring motor.</summary>
+	public void SetTargetPosition( float position, float frequency, float dampingRatio )
+	{
+		_joint?.SetLinearSpring( new Vector3( frequency, dampingRatio, position ) );
+	}
+
+	internal void ConfigureLimits( Vector2 limits, bool? enabled )
+	{
+		_joint?.SetLinearLimits( limits.x, limits.y );
+		if ( enabled is bool state )
+			_joint?.SetLinearLimitEnabled( state );
+		else
+			MinLength = limits.x;
+	}
 }

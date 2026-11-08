@@ -8,7 +8,7 @@ public static class MenuScene
 	{
 		Log.Info( $"Loading startup scene: {sceneName}" );
 
-		Scene = new Scene();
+		Scene = new Scene { IsUnlisted = true };
 
 		using ( Scene.Push() )
 		{
@@ -38,7 +38,7 @@ public static class MenuScene
 		Scene.Camera?.SceneCamera.EnableEngineOverlays = true;
 		SceneCamera.RecordingCamera = Scene.Camera?.SceneCamera;
 
-		using ( Scene.Push() )
+		using ( Scene.PushScope() )
 		{
 			Scene.Render( swapChain, default );
 		}

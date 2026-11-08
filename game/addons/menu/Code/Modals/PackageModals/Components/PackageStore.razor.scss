@@ -1,0 +1,140 @@
+@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+
+// 16 everywhere - round the outside, between the columns, the rows and the cards
+$space: 16px;
+
+// The side column narrow, the main one the rest - narrow enough that its square art and facts come out about
+// as tall as the 16:9 gallery beside them
+$side-width: 230px;
+
+// As tall as what's in it - the page sizes itself to fit
+PackageStore
+{
+	flex-direction: column;
+	flex-shrink: 0;
+	background-color: rgba( 255, 255, 255, 0.025 );
+
+	> .row
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: flex-start;
+		gap: $space;
+		padding: 0 $space;
+
+		> .main
+		{
+			flex-direction: column;
+			flex-grow: 1;
+			flex-shrink: 1;
+			min-width: 0;
+		}
+
+		> .side
+		{
+			flex-direction: column;
+			flex-shrink: 0;
+			width: $side-width;
+			gap: $space;
+		}
+	}
+
+	// The top a shade brighter, edge to edge
+	> .row.top
+	{
+		padding: $space;
+	}
+
+	// The rest of the page under it, back in the page's own colour (17,19,25, sampled), its top corners rounded
+	// into the brighter top. As tall as your time and achievements on the right - the description fits in
+	// beside them, scrolling, the only thing that does
+	> .row.bottom
+	{
+		flex-shrink: 0;
+		align-items: stretch;
+		// Some room for the description when there's nothing beside it - not played, no achievements
+		min-height: 140px;
+		padding: $space;
+		background-color: rgb( 17, 19, 25 );
+		border-top-left-radius: 12px;
+		border-top-right-radius: 12px;
+
+		> .main
+		{
+			position: relative;
+
+			> PackageAbout
+			{
+				position: absolute;
+				top: 0;
+				left: 0;
+				right: 0;
+				bottom: 0;
+			}
+		}
+	}
+
+	// The grid's padding is the page's - the gallery and the words just fill their cells
+	Media
+	{
+		padding: 0;
+	}
+
+
+	Card,
+	Card.achievements-card
+	{
+		flex-direction: column;
+		padding: 12px 14px;
+		gap: 8px;
+		flex-shrink: 0;
+		background: $front-card-deep;
+		border: $front-border-width solid $front-hairline;
+		border-radius: $front-radius;
+		cursor: pointer;
+
+		label, .achievement-icon, badge
+		{
+			cursor: pointer;
+		}
+
+		transition: background-color 120ms $easing, border-color 120ms $easing;
+
+		// A solid colour, a shade up from the resting one - not a see-through white, which flashed grey on the
+		// way back
+		&:hover
+		{
+			background: #1c2029;
+			border-color: rgba( 255, 255, 255, 0.18 );
+		}
+	}
+
+	// A game without any - the same shape as one with, its heading over a row the icons' height
+	Card.achievements-card.empty
+	{
+		gap: 10px;
+		cursor: default;
+
+		label { cursor: default; }
+
+		&:hover
+		{
+			background: $front-card-deep;
+			border-color: $front-hairline;
+		}
+
+		.none
+		{
+			height: 36px;
+			align-items: center;
+
+			label
+			{
+				font-size: 12px;
+				font-weight: 500;
+				color: $front-tertiary;
+			}
+		}
+	}
+}

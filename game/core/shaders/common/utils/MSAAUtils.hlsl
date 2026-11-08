@@ -28,11 +28,15 @@ struct MSAAUtils
         return (int)dot( float2( lerp( sel.x, sel.y, pair ), pair ), float2( 1, 2 ) );
     }
 
-    // Composites a non-MSAA single-channel texture into an MSAA target: GatherRed at the
-    // correctly offset uv, then return the depth/position-matched lane for this sample.
+    // Samples a full-resolution single-channel texture, matching depth at MSAA edges.
     static float SampleRed( Texture2D tTex, float4 vPositionSs )
     {
         float2 uv = GetGatherUv( vPositionSs );
+
+        // Without MSAA, the texture already has a value for this pixel; no depth match is needed.
+        if ( g_nMSAASampleCount == 1 )
+            return tTex.SampleLevel( g_sPointClamp, uv, 0 ).r;
+
         return tTex.GatherRed( g_sBilinearClamp, uv )[ GetSampleIndex( vPositionSs, uv ) ];
     }
 };

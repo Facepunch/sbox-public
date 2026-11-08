@@ -119,6 +119,8 @@ internal class GameInstance : IGameInstance
 		// Destroy resource manifests before unmounting their package or network-backed files.
 		Game.Resources.Clear();
 
+		Sandbox.Engine.Shaders.GameShaders.Shutdown();
+
 		if ( activePackage != null && !Application.IsStandalone )
 		{
 			Game.Language?.Shutdown();
@@ -257,6 +259,7 @@ internal class GameInstance : IGameInstance
 		};
 
 		activePackage = await PackageManager.InstallAsync( downloadOptions );
+		LoadingScreen.CompleteDownloads();
 
 		if ( activePackage is null )
 		{
@@ -272,6 +275,13 @@ internal class GameInstance : IGameInstance
 		Api.Activity.LoadStage( "assemblies" );
 		await Task.Yield(); // make frame
 		token.ThrowIfCancellationRequested();
+
+		// Access control is most of the cost of loading the assemblies, check them on a worker while the screen draws
+		if ( !IsDeveloperHost )
+		{
+			await PackageLoader.PreVerifyAsync( Package.FullIdent );
+			token.ThrowIfCancellationRequested();
+		}
 
 		try
 		{
@@ -310,7 +320,7 @@ internal class GameInstance : IGameInstance
 		{
 			foreach ( var cvar in LaunchArguments.GameSettings )
 			{
-				ConVarSystem.SetValue( cvar.Key, cvar.Value, true );
+				ConVarSystem.SetValue( cvar.Key, cvar.Value, LaunchArguments.CanSetProtected( cvar.Key, cvar.Value ) );
 			}
 		}
 
@@ -335,6 +345,14 @@ internal class GameInstance : IGameInstance
 		{
 			Log.Trace( $"Loading GameResources" );
 			await ResourceLoader.LoadAllGameResourceAsync( FileSystem.Mounted, token );
+		}
+
+		// Dedicated servers install packages that GameResources reference as they load, wait
+		// for them so their resources are registered before the game starts using them
+		if ( Application.IsDedicatedServer )
+		{
+			Log.Trace( $"Waiting for referenced packages" );
+			await Game.Resources.WaitForReferencedPackagesAsync( token );
 		}
 
 		LoadingScreen.Title = $"Loading Fonts";
@@ -444,6 +462,12 @@ internal class GameInstance : IGameInstance
 				Texture.Hotload( FileSystem.Mounted, file );
 			}
 		};
+
+		// The editor's asset system compiles shaders
+		if ( !Application.IsEditor && !Application.IsHeadless )
+		{
+			Sandbox.Engine.Shaders.ShaderHotload.Watch( FileSystem.Mounted );
+		}
 
 		var settingsWatcher = EngineFileSystem.ProjectSettings.Watch();
 		settingsWatcher.OnChanges += x =>

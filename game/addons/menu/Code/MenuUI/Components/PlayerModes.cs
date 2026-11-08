@@ -42,13 +42,45 @@ public readonly record struct PlayerModes( bool Solo, bool Multiplayer, bool Coo
 		var coop = Flag( "Coop" ) || Has( "coop" );
 		var versus = Flag( "Versus" ) || Has( "versus" ) || Has( "pvp" );
 
+		return Make( Has( "singleplayer" ), Has( "multiplayer" ), coop, versus, recommendedMin, recommendedMax, maxPlayers );
+	}
+
+	/// <summary>
+	/// From its Steam Workshop item - the tags and player counts it was published with. Unknown for an item
+	/// published before they were, see <see cref="For(Package, WorkshopItemDetails)"/>.
+	/// </summary>
+	public static PlayerModes For( WorkshopItemDetails item )
+	{
+		if ( item is null ) return default;
+
+		bool Has( string tag ) => item.Tags.Contains( tag, StringComparer.OrdinalIgnoreCase );
+		int Count( string key ) => item.KeyValues.TryGetValue( key, out var value ) && int.TryParse( value, out var n ) ? n : 0;
+
+		return Make( Has( "Singleplayer" ), Has( "Multiplayer" ), Has( "Co-op" ), Has( "Versus" ), Count( "RecommendedMinPlayers" ), Count( "RecommendedMaxPlayers" ), Count( "MaxPlayers" ) );
+	}
+
+	/// <summary>
+	/// From its Steam Workshop item when that says, otherwise from the package - an item published before it had
+	/// the tags doesn't.
+	/// </summary>
+	public static PlayerModes For( Package package, WorkshopItemDetails workshop )
+	{
+		var modes = For( workshop );
+		return modes.IsUnknown && !modes.HasRecommendedPlayers ? For( package ) : modes;
+	}
+
+	/// <summary>
+	/// What it's meant for decides, when it says - otherwise whether it says it's singleplayer or multiplayer
+	/// </summary>
+	static PlayerModes Make( bool solo, bool multiplayer, bool coop, bool versus, int recommendedMin, int recommendedMax, int maxPlayers )
+	{
 		if ( recommendedMin > 0 || recommendedMax > 0 )
 		{
 			var min = recommendedMin > 0 ? recommendedMin : 1;
 			return new PlayerModes( min <= 1, recommendedMax == 0 || recommendedMax > 1 || coop || versus, coop, versus, recommendedMin, recommendedMax, maxPlayers );
 		}
 
-		return new PlayerModes( Has( "singleplayer" ), Has( "multiplayer" ) || coop || versus, coop, versus, 0, 0, maxPlayers );
+		return new PlayerModes( solo, multiplayer || coop || versus, coop, versus, 0, 0, maxPlayers );
 	}
 
 	/// <summary>
@@ -65,10 +97,19 @@ public readonly record struct PlayerModes( bool Solo, bool Multiplayer, bool Coo
 		get
 		{
 			if ( IsUnknown ) return null;
-			if ( !Multiplayer ) return "Singleplayer";
+			if ( !Multiplayer ) return "#menu.games.singleplayer";
 
-			var kind = Coop && Versus ? "Co-op & Versus" : Coop ? "Co-op" : Versus ? "Versus" : "Multiplayer";
-			return Solo ? $"Solo or {kind}" : kind;
+			return (Solo, Coop, Versus) switch
+			{
+				(true, true, true ) => "#menu.games.solo_or_co_op_versus",
+				(true, true, false ) => "#menu.games.solo_or_co_op",
+				(true, false, true ) => "#menu.games.solo_or_versus",
+				(true, false, false ) => "#menu.games.solo_or_multiplayer",
+				(false, true, true ) => "#menu.games.co_op_versus",
+				(false, true, false ) => "#menu.games.co_op",
+				(false, false, true ) => "#menu.games.versus",
+				_ => "#menu.home.multiplayer",
+			};
 		}
 	}
 
@@ -80,15 +121,26 @@ public readonly record struct PlayerModes( bool Solo, bool Multiplayer, bool Coo
 		get
 		{
 			if ( IsUnknown ) return null;
-			if ( !Multiplayer ) return "Played on your own";
+			if ( !Multiplayer ) return Language.GetPhrase( "menu.games.played_on_your_own" );
 
-			var with = Coop && Versus ? "team up with friends or take them on" : Coop ? "team up with friends" : Versus ? "take on other players" : "play with other people";
-			return Solo ? $"Play on your own, or {with}" : char.ToUpper( with[0] ) + with[1..];
+			var phrase = (Solo, Coop, Versus) switch
+			{
+				(true, true, true ) => "menu.games.play_on_your_own_or_team_up_with_friends_or_take_them_on",
+				(true, true, false ) => "menu.games.play_on_your_own_or_team_up_with_friends",
+				(true, false, true ) => "menu.games.play_on_your_own_or_take_on_other_players",
+				(true, false, false ) => "menu.games.play_on_your_own_or_play_with_other_people",
+				(false, true, true ) => "menu.games.team_up_with_friends_or_take_them_on",
+				(false, true, false ) => "menu.games.team_up_with_friends",
+				(false, false, true ) => "menu.games.take_on_other_players",
+				_ => "menu.games.play_with_other_people",
+			};
+
+			return Language.GetPhrase( phrase );
 		}
 	}
 
 	/// <summary>
-	/// How many it's meant for - "1 player", "2 - 4 players", "4+ players". Null when it doesn't say.
+	/// How many it's meant for - "1 player", "2 to 4 players", "4+ players". Null when it doesn't say.
 	/// </summary>
 	public string PlayersText
 	{
@@ -101,7 +153,7 @@ public readonly record struct PlayerModes( bool Solo, bool Multiplayer, bool Coo
 
 			if ( max <= 0 ) return $"{min}+ players";
 			if ( min == max ) return min == 1 ? "1 player" : $"{min} players";
-			return $"{min} - {max} players";
+			return $"{min} to {max} players";
 		}
 	}
 
@@ -131,7 +183,7 @@ public readonly record struct PlayerModes( bool Solo, bool Multiplayer, bool Coo
 		if ( players <= 1 ) return (FitKind.Good, null);
 
 		if ( !Multiplayer )
-			return (FitKind.Poor, "This game is singleplayer.");
+			return (FitKind.Poor, "#menu.games.this_game_is_singleplayer");
 
 		if ( MaxPlayers > 0 && players > MaxPlayers )
 			return (FitKind.Poor, $"This game holds up to {MaxPlayers} players. You have {players}.");

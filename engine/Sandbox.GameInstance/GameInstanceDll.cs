@@ -21,6 +21,12 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 	PackageLoader.Enroller AssemblyEnroller { get; set; }
 
 	private bool _isAssemblyLoadingPaused;
+
+	// Nothing but the engine has been added to the type library since it was last built
+	bool typeLibraryEngineOnly;
+
+	// PackageManager.MountGeneration when the last reset finished
+	int resetMountGeneration = -1;
 	private CancellationTokenSource _loadGameCts;
 	private Task<bool> _loadGameTask;
 
@@ -126,6 +132,15 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 	/// </summary>
 	public void ResetEnvironment()
 	{
+		var hadPreviousEnvironment = gameInstance is not null || AssemblyEnroller is not null || DidMountNetworkedFiles;
+
+		// The menu loaded its resources moments ago during startup, so there is nothing to reset yet. Nor when no package
+		// has been mounted or unmounted since the last reset: closing a game resets and starting the next one does again.
+		var menuResourcesCurrent = !Application.IsEditor && (!hadPreviousEnvironment
+			|| (!DidMountNetworkedFiles && PackageManager.MountGeneration == resetMountGeneration));
+		// Bootstrap and the menu just built their type libraries, so the first game start has none to rebuild.
+		var firstStartup = !hadPreviousEnvironment && !Application.IsEditor;
+
 		using var scope = GlobalContext.GameScope();
 
 		Log.Trace( "Game Menu - ResetEnvironment" );
@@ -143,7 +158,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			PackageLoader.OnAfterHotload = OnAfterHotload;
 		}
 
-		ResourceLoader.Clear();
+		if ( !menuResourcesCurrent ) ResourceLoader.Clear();
 
 		if ( DidMountNetworkedFiles )
 		{
@@ -175,7 +190,19 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 		Screen.UpdateFromEngine();
 
-		Game.InitTypeLibrary();
+		// Closing a game resets, and so does starting the next one: the second finds the type library as the first left it,
+		// with nothing but the engine in it, and building that again is a third of a second and 100 MB of garbage.
+		var typeLibraryCurrent = typeLibraryEngineOnly && !Application.IsEditor;
+
+		if ( !firstStartup && !typeLibraryCurrent )
+		{
+			Game.InitTypeLibrary();
+
+			// The upgraders are the last game's until an assembly loads, and they hold on to its whole type library.
+			JsonUpgrader.UpdateUpgraders( TypeLibrary );
+		}
+
+		typeLibraryEngineOnly = true;
 
 		UserPermission.Load();
 
@@ -184,7 +211,8 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		Networking.Reset();
 		Connection.Reset();
 		GlobalContext.Current.Reset();
-		NativeResourceCache.Clear();
+		PartyRoom.Current?.ClearCallbacks();
+		NativeResourceCache.ClearCache();
 		Speech.Recognition.Reset();
 		Json.Initialize();
 		VRSystem.Reset();
@@ -214,8 +242,9 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			if ( a.IsEditorAssembly )
 				return;
 
+			typeLibraryEngineOnly = false;
 			Game.TypeLibrary.AddAssembly( a.Assembly, true );
-			Game.NodeLibrary.AddAssembly( a.Assembly );
+			GlobalContext.Current.AddNodeAssemblyLater( a.Assembly, logErrors: false );
 			ConVarSystem.AddAssembly( a.Assembly, "game" );
 			Cloud.UpdateTypes( a.Assembly );
 			JsonUpgrader.UpdateUpgraders( TypeLibrary );
@@ -235,7 +264,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 			Assert.NotNull( a.Assembly );
 
-			Game.NodeLibrary.RemoveAssembly( a.Assembly );
+			GlobalContext.Current.RemoveNodeAssembly( a.Assembly );
 			Game.TypeLibrary.RemoveAssembly( a.Assembly );
 			ConVarSystem.RemoveAssembly( a.Assembly );
 			JsonUpgrader.UpdateUpgraders( TypeLibrary );
@@ -251,14 +280,19 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			}
 		};
 
-		IMenuDll.Current?.Reset();
+		if ( !menuResourcesCurrent ) IMenuDll.Current?.Reset();
+		resetMountGeneration = PackageManager.MountGeneration;
 
-		// Run GC and finalizers to clear any native resources held
-		GC.Collect();
-		GC.WaitForPendingFinalizers();
+		if ( hadPreviousEnvironment )
+		{
+			// Its type library's strings needn't be kept around for the next game
+			StringPool.Clear();
 
-		// Run the queue one more time, since some finalizers queue tasks
-		MainThread.RunQueues();
+			// Start collecting what the last game left, in the background: a blocking collection of the whole heap freezes
+			// every managed thread, the audio mixer included, for a third of a second. It returns at once, so the last
+			// game's finalizers run during the next load and the native releases they queue run between its frames.
+			GC.Collect( GC.MaxGeneration, GCCollectionMode.Forced, blocking: false );
+		}
 	}
 
 	/// <summary>
@@ -407,6 +441,9 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		Analytics.GameClosed();
 		using var scope = GlobalContext.GameScope();
 
+		// A capture the game left armed - the pause menu took escape, or we got dropped
+		InputContext?.ResetTrapping();
+
 		if ( gameInstance is not null )
 		{
 			ConVarSystem.SaveAll();
@@ -545,6 +582,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 	public void ClosePopups( object panelClickedOn )
 	{
+		using var scope = GlobalContext.GameScope();
 		BasePopup.CloseAll( panelClickedOn as Panel );
 	}
 
@@ -645,18 +683,27 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		}
 		catch ( System.Exception e )
 		{
-			launch.End( e is OperationCanceledException ? "cancel" : "fail", e is OperationCanceledException ? null : e.Message );
+			var cancelled = e is OperationCanceledException;
+			string message = null;
+
+			if ( !cancelled )
+			{
+				try { message = e.Message; }
+				catch { message = e.GetType().FullName; }
+			}
+
+			launch.End( cancelled ? "cancel" : "fail", message );
 
 			ResetEnvironment();
 
-			if ( e is not OperationCanceledException )
+			if ( !cancelled )
 			{
 				using ( IMenuDll.Current?.PushScope() )
 				{
-					IModalSystem.Current?.Notice( "Loading Error", $"An error occurred when loading this game.\n\n{e.Message}", "error" );
+					IModalSystem.Current?.Notice( "Loading Error", $"An error occurred when loading this game.\n\n{message}", "error" );
 				}
 
-				Log.Warning( e, e.Message );
+				Log.Warning( e, message );
 
 				if ( Application.IsEditor )
 				{
@@ -711,6 +758,19 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 			await Task.Yield();
 			LoadingScreen.Title ??= "Loading..";
+
+			// Let the loading screen and the game's art come in before the main thread starts blocking
+			if ( !Application.IsEditor )
+			{
+				if ( await Package.FetchAsync( ident, false ) is { TypeName: "game" } package && !ct.IsCancellationRequested )
+				{
+					LoadingScreen.Media = package.LoadingScreen.MediaUrl;
+					LoadingScreen.Package = package;
+				}
+
+				await LoadingScreen.WaitForIntro( ct );
+				if ( ct.IsCancellationRequested ) return;
+			}
 		}
 
 		GameInstance newInstance = default;
@@ -954,8 +1014,9 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 		Api.Activity.GameRequested( new( "console", gameIdent ), replace: false );
 
-		// We can load and run projects if we're a Dedicated Server.
-		if ( Application.IsDedicatedServer && gameIdent.ToLower().Contains( ".sbproj" ) )
+		// Local automation can launch a project directly, just like a dedicated server.
+		if ( (Application.IsDedicatedServer || Sandbox.Utility.CommandLine.HasSwitch( "-mcp" ))
+			&& gameIdent.EndsWith( ".sbproj", StringComparison.OrdinalIgnoreCase ) )
 		{
 			await Project.InitializeBuiltIn( false );
 
@@ -966,7 +1027,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			var libraries = Path.Combine( project.RootDirectory.FullName, "Libraries" );
 
 			// We should iterate all available libraries and add their projects
-			foreach ( var folder in Directory.EnumerateDirectories( libraries ) )
+			foreach ( var folder in Directory.Exists( libraries ) ? Directory.EnumerateDirectories( libraries ) : [] )
 			{
 				var configs = Directory.EnumerateFiles( folder, "*.sbproj" ).ToArray();
 				if ( configs.Length != 1 ) continue;

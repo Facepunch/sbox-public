@@ -238,4 +238,33 @@ public class AudioTest
 			Mixer.ResetToDefault();
 		}
 	}
+
+	/// <summary>
+	/// Mixers saved before the filters took a frequency in Hz still have a 0 to 1 Cutoff.
+	/// </summary>
+	[TestMethod]
+	public void FilterProcessorsMigrateLegacyCutoff()
+	{
+		var lowPass = new LowPassProcessor();
+		var defaultLowPassFrequency = lowPass.Frequency;
+		lowPass.Deserialize( new System.Text.Json.Nodes.JsonObject { ["Cutoff"] = 0.5f } );
+		Assert.AreEqual( defaultLowPassFrequency, lowPass.Frequency, 0.01f );
+		Assert.AreEqual( 4865f, lowPass.Frequency, 10f );
+
+		var highPass = new HighPassProcessor();
+		var defaultHighPassFrequency = highPass.Frequency;
+		highPass.Deserialize( new System.Text.Json.Nodes.JsonObject { ["Cutoff"] = 0.5f } );
+		Assert.AreEqual( defaultHighPassFrequency, highPass.Frequency, 0.01f );
+		Assert.AreEqual( 7019f, highPass.Frequency, 10f );
+
+		// A saved Frequency wins, and Cutoff is never written again
+		lowPass.Frequency = 300;
+		var saved = lowPass.Serialize();
+		Assert.IsFalse( saved.ContainsKey( "Cutoff" ) );
+
+		var loaded = new LowPassProcessor();
+		saved["Cutoff"] = 0.9f;
+		loaded.Deserialize( saved );
+		Assert.AreEqual( 300f, loaded.Frequency );
+	}
 }

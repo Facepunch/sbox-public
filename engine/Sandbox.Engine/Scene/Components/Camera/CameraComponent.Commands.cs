@@ -106,6 +106,27 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	static Superluminal _executeCommandList = new Superluminal( "ExecuteCommandList", Color.Cyan );
 
 	/// <summary>
+	/// Custom command lists may read the normals G-buffer without declaring it. Keep it for those cameras.
+	/// The built-in HUD and overlay commands don't read it.
+	/// </summary>
+	bool HasCustomCommandLists()
+	{
+		lock ( _commandListLock )
+		{
+			foreach ( var list in commandlists.Values )
+			{
+				foreach ( var entry in list )
+				{
+					if ( entry.List != _hudCommandList && entry.List != _overlayCommandList )
+						return true;
+				}
+			}
+		}
+
+		return false;
+	}
+
+	/// <summary>
 	/// Called during the render pipeline on a worker thread.
 	/// </summary>
 	private void ExecuteCommandLists( Stage stage, SceneCamera currentCamera )
@@ -132,7 +153,9 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 				var entry = entries[i];
 				using ( _executeCommandList.Start( entry.List.DebugName ) )
 				{
-					if ( entry.List.Flags.Contains( CommandList.Flag.PostProcess ) && !currentCamera.EnablePostProcessing )
+					// The view decides too: a reflection or other secondary view can turn post processing off.
+					if ( entry.List.Flags.Contains( CommandList.Flag.PostProcess )
+						&& (!currentCamera.EnablePostProcessing || (Graphics.IsActive && !Graphics.PostProcessEnabled)) )
 						continue;
 
 					entry.List.ExecuteOnRenderThread();

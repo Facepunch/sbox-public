@@ -22,11 +22,10 @@ internal static partial class HammerTools
 			string.IsNullOrWhiteSpace( position ) ? Vector3.Zero : Vector3.Parse( position ),
 			string.IsNullOrWhiteSpace( angles ) ? Rotation.Identity : Rotation.From( Angles.Parse( angles ) ) );
 
-		// Resolve every type and property before creating anything
-		var edits = ResolveComponentEdits( components );
-
 		using var sceneScope = scene.Push();
 
+		// Resolve every type and property before creating anything
+		var edits = ResolveComponentEdits( components );
 		GameObject go;
 
 		if ( !string.IsNullOrWhiteSpace( prefab ) )
@@ -66,16 +65,16 @@ internal static partial class HammerTools
 		if ( !go.IsValid() )
 			throw new Exception( $"Node {id} has lost its game object" );
 
-		var edits = ResolveComponentEdits( components );
-		var removals = (remove ?? []).Select( type =>
-		{
-			var td = FindComponentType( type );
-			return go.Components.GetAll().FirstOrDefault( x => x.GetType() == td.TargetType )
-				?? throw new Exception( $"'{go.Name}' has no {td.Name} to remove" );
-		} ).ToArray();
-
 		using ( map.World.Scene.Push() )
 		{
+			var edits = ResolveComponentEdits( components );
+			var removals = (remove ?? []).Select( type =>
+			{
+				var td = FindComponentType( type );
+				return go.Components.GetAll().FirstOrDefault( x => x.GetType() == td.TargetType )
+					?? throw new Exception( $"'{go.Name}' has no {td.Name} to remove" );
+			} ).ToArray();
+
 			ApplyComponentEdits( go, edits );
 
 			foreach ( var component in removals )
@@ -83,7 +82,6 @@ internal static partial class HammerTools
 				component.Destroy();
 			}
 		}
-
 		MarkModified( map );
 
 		return GetNode( id, true );

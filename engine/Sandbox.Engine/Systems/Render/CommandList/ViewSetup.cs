@@ -8,6 +8,11 @@
 public struct ViewSetup
 {
 	/// <summary>
+	/// Enables world-space light modulators for this view. Null uses the scene's normal lighting.
+	/// </summary>
+	public bool? EnableLightModulators;
+
+	/// <summary>
 	/// Overrides shader time (g_flTime), in seconds, for this view and its child views.
 	/// Null inherits the parent view's time, or the normal frame time for a top-level view.
 	/// </summary>
@@ -63,6 +68,13 @@ public struct ViewSetup
 	public GradientFogSetup? GradientFog;
 
 	/// <summary>
+	/// Overrides camera-local fog for this view, even when post processing is disabled.
+	/// Null inherits the camera when its post processing is enabled and GradientFog has no explicit override.
+	/// A full-weight setup replaces both legacy gradient and cubemap fog; volumetric fog is separate.
+	/// </summary>
+	public FogSetup? Fog;
+
+	/// <summary>
 	/// If set then the regular scene's ambient light will be multiplied by this
 	/// </summary>
 	public Color? AmbientLightTint;
@@ -100,8 +112,9 @@ public struct ViewSetup
 	public bool? EnableUI;
 
 	/// <summary>
-	/// Whether engine debug overlays should be rendered in this view. Null inherits the camera's setting.
-	/// This controls engine overlays, not scene geometry such as editor gizmos.
+	/// Whether debug drawing is rendered in this view: engine overlays, editor gizmos and the scene's
+	/// debug world. False renders the game only. Null keeps the debug worlds and inherits the camera's
+	/// engine overlay setting.
 	/// </summary>
 	public bool? EnableDebugOverlays;
 
@@ -109,6 +122,13 @@ public struct ViewSetup
 	/// If you're rendering a subview this will allow the renderer to find the same view again next frame
 	/// </summary>
 	public int ViewHash;
+
+	/// <summary>
+	/// Render as a reflection, which nobody looks at closely: no planar reflections of its own, a depth-only prepass,
+	/// and no contact shadows, volumetric fog, auto exposure or bloom objects. It's unshadowed unless
+	/// <c>r.reflections.shadows</c> is on.
+	/// </summary>
+	internal bool Reflection;
 }
 
 /// <summary>

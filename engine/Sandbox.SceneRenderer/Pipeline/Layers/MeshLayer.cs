@@ -103,6 +103,11 @@ internal abstract class MeshLayer : RenderLayer
 	public bool ForceDepthFastPath { get; protected init; }
 
 	/// <summary>
+	/// Which occlusion cull result this layer draws with.
+	/// </summary>
+	public OcclusionPhase OcclusionPhase { get; protected init; }
+
+	/// <summary>
 	/// The runs it draws.
 	/// </summary>
 	public MeshRuns Runs { get; protected init; }
@@ -125,8 +130,8 @@ internal abstract class MeshLayer : RenderLayer
 	/// <see cref="RenderFrame.DrawLayer"/> copies (<see cref="MeshRenderFeature.FrameBufferCopyingLists"/>).
 	/// </summary>
 	public override FrameResources Reads( RenderFrame frame ) => LayerType == SceneLayerType.Translucent && !Depth && frame.ReadsFrameBuffer( Runs & MeshRenderFeature.FrameBufferCopyingLists )
-		? FrameResources.DepthChain | FrameResources.RefractionStencil
-		: FrameResources.None;
+		? FrameResources.DepthChain | FrameResources.RefractionStencil | FrameResources.Untracked
+		: FrameResources.Untracked;
 
 	/// <summary>
 	/// Native layer type used by custom objects.

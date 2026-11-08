@@ -21,6 +21,9 @@ internal sealed class RenderContext : IDisposable
 	bool mergedValid;
 	bool borrowed;
 	RenderContext frame;
+	bool debugMarkers;
+
+	internal bool GpuScopesEnabled => Sandbox.Diagnostics.GpuProfilerStats.Enabled || debugMarkers;
 
 	/// <summary>
 	/// A frame's own context.
@@ -98,11 +101,28 @@ internal sealed class RenderContext : IDisposable
 		if ( materialBind != IntPtr.Zero ) RenderTools.ResetMaterialBind( materialBind );
 	}
 
-	public void Dispose()
+	/// <summary>
+	/// Full and similar-material binds this context's draws have made, ever (<c>RenderTools.GetMaterialBindCounts</c>). A
+	/// range of draws made the difference.
+	/// </summary>
+	internal unsafe (int Full, int Similar) MaterialBinds
+	{
+		get
+		{
+			if ( materialBind == IntPtr.Zero ) return default;
+			int full, similar;
+			RenderTools.GetMaterialBindCounts( materialBind, (IntPtr)(&full), (IntPtr)(&similar) );
+			return (full, similar);
+		}
+	}
+
+	static unsafe IntPtr AllocMaterialBind() => (IntPtr)NativeMemory.AllocZeroed( (nuint)RenderTools.GetMaterialBindSize() );
+
+	public unsafe void Dispose()
 	{
 		if ( materialBind != IntPtr.Zero )
 		{
-			Marshal.FreeHGlobal( materialBind );
+			NativeMemory.Free( (void*)materialBind );
 			materialBind = IntPtr.Zero;
 		}
 
@@ -275,27 +295,47 @@ internal sealed class RenderContext : IDisposable
 	}
 
 	/// <summary>
-	/// Start a GPU timing scope for the engine's GPU profiler (native's managed perf markers, which command lists use too),
-	/// while it's on. Zero when it's off, and on the async compute queue, which native's timestamps don't support
-	/// (<c>CSceneSystem::SubmitViews</c>).
+	/// Start an explicitly bounded GPU pass on the current graphics or compute context.
 	/// </summary>
-	public IntPtr BeginGpuScope( string name )
+	public GpuScope BeginGpuScope( string name )
 	{
-		if ( !Sandbox.Diagnostics.GpuProfilerStats.Enabled || AsyncCompute ) return IntPtr.Zero;
+		if ( !GpuScopesEnabled )
+		{
+			return default;
+		}
 
 		// Native takes the name as UTF-8, which a sampler holds; one per name, kept, since layers record on several threads
 		var sampler = gpuScopeNames.GetOrAdd( name, static n => new Sandbox.Rendering.ProfilingSampler( n ) );
-		return CSceneSystem.BeginManagedPerfMarker( context, sampler.NamePtr );
+		var pix = debugMarkers;
+		if ( pix )
+		{
+			context.BeginPixEvent( sampler.NamePtr );
+		}
+
+		var marker = Sandbox.Diagnostics.GpuProfilerStats.Enabled
+			? CSceneSystem.BeginManagedPerfMarker( context, sampler.NamePtr, true, true )
+			: IntPtr.Zero;
+		return new( marker, pix );
 	}
+
+	public readonly record struct GpuScope( IntPtr Marker, bool Pix );
 
 	static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Sandbox.Rendering.ProfilingSampler> gpuScopeNames = new();
 
 	/// <summary>
 	/// End a scope <see cref="BeginGpuScope"/> started.
 	/// </summary>
-	public void EndGpuScope( IntPtr scope )
+	public void EndGpuScope( GpuScope scope )
 	{
-		if ( scope != IntPtr.Zero ) CSceneSystem.EndManagedPerfMarker( context, scope );
+		if ( scope.Marker != IntPtr.Zero )
+		{
+			CSceneSystem.EndManagedPerfMarker( context, scope.Marker );
+		}
+
+		if ( scope.Pix )
+		{
+			context.EndPixEvent();
+		}
 	}
 
 	/// <summary>
@@ -495,9 +535,14 @@ internal sealed class RenderContext : IDisposable
 	public static int QueueMorph( SceneObject sceneObject, Model model, int modelMesh ) => RenderTools.QueueModelMeshMorph( sceneObject, model.native, modelMesh );
 
 	/// <summary>
-	/// Composite queued morphs before managed submission; native's end-of-frame update is too late (<c>GenerateCompositeMorphTextureAtlas</c>).
+	/// Record queued morphs into this setup context, before skinning, sharing the frame's descriptor set.
 	/// </summary>
-	public static void GenerateMorphs() => RenderTools.GenerateMorphs();
+	public void GenerateMorphs()
+	{
+		RenderTools.GenerateMorphs( context );
+		boundValid = false;
+		ResetMaterialBind();
+	}
 
 	/// <summary>
 	/// Where a queued morph is in the atlas, once generated: u offset, u range, v offset, v range, for the mesh's morph entry.
@@ -589,6 +634,7 @@ internal sealed class RenderContext : IDisposable
 			nativeAttributes.Clear( false, true );
 			nativeAttributes.SetParent( frame.nativeAttributes );
 			InstanceIds = frame.InstanceIds;
+			Occlusion = frame.Occlusion;
 		}
 
 		drawAttributes.Clear( false, false );
@@ -604,13 +650,14 @@ internal sealed class RenderContext : IDisposable
 		ViewConstants = null;
 		passStateCount = 0;
 
-		// Material binds cannot survive across frames.
-		if ( materialBind == IntPtr.Zero ) materialBind = Marshal.AllocHGlobal( RenderTools.GetMaterialBindSize() );
+		// Material binds cannot survive across frames. Zeroed, so its bind counts start at nothing.
+		if ( materialBind == IntPtr.Zero ) materialBind = AllocMaterialBind();
 		ResetMaterialBind();
 
 		borrowed = shared is not null;
 		if ( borrowed && AsyncCompute ) throw new InvalidOperationException( "An async compute context records into its own native context" );
 		context = borrowed ? shared.context : g_pRenderDevice.CreateRenderContext( AsyncCompute ? AsyncComputeQueue : 0 );
+		debugMarkers = borrowed ? shared.debugMarkers : g_pRenderDevice.AreDebugMarkersEnabled();
 
 		// The frame's bindless texture set, as CSceneSystem::InitializeRenderAttributes does for a view
 		if ( frame is null ) Attributes.Get().SetGlobalBindlessDescriptorSet();
@@ -900,12 +947,83 @@ internal sealed class RenderContext : IDisposable
 
 	/// <summary>
 	/// Bind and draw instances in one native call (<c>RenderTools.DrawModelDrawCall</c>), reusing similar-material state.
-	/// Vertex-cache draws use the separate binding path.
+	/// Vertex-cache draws use the separate binding path. <paramref name="skinned"/> draws pick bones by blend index, so they
+	/// keep their own input layout depth-only too.
 	/// </summary>
-	public bool DrawModel( Material material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false )
+	public bool DrawModel( Material material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false )
 	{
 		return RenderTools.DrawModelDrawCall( context, drawAttributes, material.native, shaderMode, mesh.Model.native, draw.Mesh, draw.DrawCall,
-			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, InstanceIds.native, firstInstance, instances, materialBind );
+			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, skinned, InstanceIds.native, firstInstance, instances, materialBind );
+	}
+
+	/// <summary>
+	/// <see cref="DrawModel"/> with only the instances the occlusion cull kept for <paramref name="phase"/>
+	/// (<c>RenderTools.DrawModelDrawCallIndirect</c>).
+	/// </summary>
+	public bool DrawModelCulled( Material material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int argsIndex, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false )
+	{
+		return RenderTools.DrawModelDrawCallIndirect( context, drawAttributes, material.native, shaderMode, mesh.Model.native, draw.Mesh, draw.DrawCall,
+			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, skinned, Occlusion.CulledIds.native, Occlusion.IdOffset( phase ) + firstInstance,
+			Occlusion.Args.native, (Occlusion.ArgOffset( phase ) + argsIndex) * OcclusionCuller.ArgsStride, materialBind );
+	}
+
+	/// <summary>
+	/// Draw <paramref name="count"/> draws of a model's buffers as one multi-draw, with <paramref name="draw"/>'s buffers and
+	/// material (<c>RenderTools.DrawModelDrawCallMultiIndirect</c>): an aggregate's fragments. Each draw's base instance
+	/// indexes the instance ids from <paramref name="firstInstance"/>.
+	/// </summary>
+	public bool DrawModelFragments( Material material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, GpuBuffer args, int firstArg, int count, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false )
+	{
+		return RenderTools.DrawModelDrawCallMultiIndirect( context, drawAttributes, material.native, shaderMode, mesh.Model.native, draw.Mesh, draw.DrawCall,
+			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, InstanceIds.native, firstInstance,
+			args.native, firstArg * OcclusionCuller.ArgsStride, count, default, 0, materialBind );
+	}
+
+	/// <summary>
+	/// <see cref="DrawModelFragments"/> with the fragments the occlusion cull kept for <paramref name="phase"/>: compacted, only the
+	/// survivors, counted on the GPU; otherwise every fragment, the hidden ones with no instances.
+	/// </summary>
+	public bool DrawModelFragmentsCulled( Material material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int cullArg, int count, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false )
+	{
+		var args = Occlusion.Args;
+		var compact = Occlusion.CompactFragments;
+		return RenderTools.DrawModelDrawCallMultiIndirect( context, drawAttributes, material.native, shaderMode, mesh.Model.native, draw.Mesh, draw.DrawCall,
+			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, InstanceIds.native, firstInstance,
+			args.native, Occlusion.FragmentArgs( phase, cullArg, count ) * OcclusionCuller.ArgsStride, count,
+			compact ? args.native : default, compact ? Occlusion.FragmentCountArg( phase, cullArg, count ) * OcclusionCuller.ArgsStride : 0, materialBind );
+	}
+
+	/// <summary>
+	/// Whether a multi-draw can take its count from the GPU (<c>RenderTools.SupportsDrawIndirectCount</c>).
+	/// </summary>
+	public static bool SupportsDrawIndirectCount => supportsDrawIndirectCount ??= RenderTools.SupportsDrawIndirectCount();
+	static bool? supportsDrawIndirectCount;
+
+	/// <summary>
+	/// A native aggregate's model, and whether its draws are lit from lightmaps; null if the object isn't an aggregate
+	/// (<c>RenderTools.GetAggregateModel</c>).
+	/// </summary>
+	public static unsafe Model AggregateModel( SceneObject sceneObject, out bool lightmapped )
+	{
+		bool lit = false;
+		var model = RenderTools.GetAggregateModel( sceneObject, (IntPtr)(&lit) );
+		lightmapped = lit;
+		return model.IsNull ? null : Model.FromNative( model );
+	}
+
+	/// <summary>
+	/// A native aggregate's fragments as it draws them (<c>RenderTools.GetAggregateFragments</c>).
+	/// </summary>
+	public static unsafe AggregateObject.FragmentDraw[] ReadAggregateFragments( SceneObject sceneObject )
+	{
+		var count = RenderTools.GetAggregateFragments( sceneObject, IntPtr.Zero, 0 );
+		var fragments = new AggregateObject.FragmentDraw[count];
+		fixed ( AggregateObject.FragmentDraw* ptr = fragments )
+		{
+			RenderTools.GetAggregateFragments( sceneObject, (IntPtr)ptr, count );
+		}
+
+		return fragments;
 	}
 
 	/// <summary>
@@ -948,18 +1066,48 @@ internal sealed class RenderContext : IDisposable
 	/// </summary>
 	public GpuBuffer<uint> InstanceIds { get; set; }
 
+	/// <summary>
+	/// This frame's occlusion cull, or null when not culling.
+	/// </summary>
+	public OcclusionCuller Occlusion { get; set; }
+
 	public void BufferBarrier( GpuBuffer buffer, RenderBarrierPipelineStageFlags_t srcStage, RenderBarrierAccessFlags_t srcAccess, RenderBarrierPipelineStageFlags_t dstStage, RenderBarrierAccessFlags_t dstAccess )
 	{
 		context.BufferBarrierTransition( buffer.native, srcStage, dstStage, srcAccess, dstAccess );
 	}
 
 	/// <summary>
-	/// Resolve depth and build min/max mips using <c>DepthDownsampleLayer</c>.
+	/// Resolve depth and build min/max mips, as native's pipeline does (<see cref="SharedPasses.BuildDepthChain"/>).
 	/// </summary>
-	public void BuildDepthChain( Texture depth, bool multisampled, Texture chain, int width, int height )
+	public void BuildDepthChain( Texture depth, bool multisampled, Texture chain, int width, int height, DepthResolveMode resolve = DepthResolveMode.Sample0 )
 	{
 		Invalidate();
-		Sandbox.Rendering.DepthDownsampleLayer.Render( context, depth, chain, multisampled, width, height );
+		SharedPasses.BuildDepthChain( context, depth, chain, multisampled, width, height, resolve, fuseResolve: !AsyncCompute );
+		// Finish the producer's layout transition before graphics and compute sample the chain concurrently.
+		if ( AsyncCompute )
+		{
+			context.TextureBarrierTransition( chain.native, -1, RenderBarrierPipelineStageFlags_t.ComputeShaderBit,
+				RenderBarrierPipelineStageFlags_t.ComputeShaderBit, RenderImageLayout_t.RENDER_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+				RenderBarrierAccessFlags_t.ShaderWriteBit, RenderBarrierAccessFlags_t.ShaderReadBit );
+		}
+	}
+
+	/// <summary>
+	/// Zero an occlusion debug grid before the frame's first cull.
+	/// </summary>
+	public void ClearOcclusionDebug( Sandbox.Rendering.OcclusionDebugTarget debug )
+	{
+		Invalidate();
+		debug.Clear( context );
+	}
+
+	/// <summary>
+	/// Resolve an occlusion debug grid for the overlay after the late cull.
+	/// </summary>
+	public void ResolveOcclusionDebug( Sandbox.Rendering.OcclusionDebugTarget debug, Texture chain, bool frozen )
+	{
+		Invalidate();
+		debug.Resolve( context, chain, native: false, frozen );
 	}
 
 	static readonly StringToken SourceDepth = new( "SourceDepth" );
@@ -1004,7 +1152,7 @@ internal sealed class RenderContext : IDisposable
 	}
 
 	/// <summary>
-	/// Quarter-resolution depth blit using <c>QuarterDepthDownsampleLayer</c>, with isolated combos and context view constants.
+	/// Quarter-resolution depth blit (<see cref="SharedPasses.DownsampleQuarterDepth"/>), with isolated combos and context view constants.
 	/// </summary>
 	public void DownsampleQuarterDepth( Graphics.ManagedView target, Texture depth, bool multisampled )
 	{
@@ -1014,7 +1162,7 @@ internal sealed class RenderContext : IDisposable
 		attributes.Set( SourceDepth, depth );
 		using ( new Graphics.Scope( context, target ) )
 		{
-			Sandbox.Rendering.QuarterDepthDownsampleLayer.Render( attributes, multisampled );
+			SharedPasses.DownsampleQuarterDepth( attributes, multisampled );
 		}
 
 		RenderAttributes.Pool.Return( attributes );

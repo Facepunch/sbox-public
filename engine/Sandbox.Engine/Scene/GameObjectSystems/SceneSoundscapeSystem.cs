@@ -26,12 +26,22 @@ sealed class SceneSoundscapeSystem : GameObjectSystem<SceneSoundscapeSystem>
 
 		timeSinceUpdate = 0;
 
-		var head = Sound.Listener;
+		var head = Scene.GetPrimaryListenerTransform();
 
 		// Find the closest soundscape, sphere and box take priority over point.
-		var best = Scene.GetAllComponents<SoundscapeTrigger>()
-								.Where( x => x.TestListenerPosition( head.Position ) )
-								.MinBy( x => (x.Type == SoundscapeTrigger.TriggerType.Point ? 1 : 0, x.WorldPosition.DistanceSquared( head.Position )) );
+		SoundscapeTrigger best = null;
+		(int, float) bestKey = default;
+
+		foreach ( var trigger in Scene.Query<SoundscapeTrigger>() )
+		{
+			if ( !trigger.TestListenerPosition( head.Position ) ) continue;
+
+			var key = (trigger.Type == SoundscapeTrigger.TriggerType.Point ? 1 : 0, trigger.WorldPosition.DistanceSquared( head.Position ));
+			if ( best is not null && key.CompareTo( bestKey ) >= 0 ) continue;
+
+			best = trigger;
+			bestKey = key;
+		}
 
 		if ( best == active )
 			return;

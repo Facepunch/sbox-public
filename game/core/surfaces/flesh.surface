@@ -5,10 +5,39 @@
   "Friction": 0.6,
   "Elasticity": 0.2,
   "Density": 900,
-  "Thickness": 0.3,
   "RollingResistance": 0,
   "BounceThreshold": 40,
+  "FluidLinearDrag": 0.1,
+  "FluidAngularDrag": 0.1,
+  "ScrapeEffects": {
+    "RoughnessFactor": 1,
+    "RoughThreshold": 0.5,
+    "SmoothParticles": null,
+    "RoughParticles": null,
+    "SmoothDecal": null,
+    "RoughDecal": null
+  },
   "Dampening": 0,
+  "ImpactEffects": {
+    "Regular": null,
+    "Bullet": null,
+    "BulletDecal": null,
+    "SoftParticles": null,
+    "SoftDecal": null,
+    "HardParticles": null,
+    "HardDecal": null
+  },
+  "Sounds": {
+    "FootLeft": null,
+    "FootRight": null,
+    "FootLaunch": null,
+    "FootLand": null,
+    "Bullet": null,
+    "ImpactHard": null,
+    "ImpactSoft": null,
+    "ScrapeRough": null,
+    "ScrapeSmooth": null
+  },
   "PrefabCollection": {
     "BulletImpact": {
       "_type": "gameobject",
@@ -25,12 +54,40 @@
     "FootRight": null,
     "FootLaunch": null,
     "FootLand": null,
-    "Bullet": "sounds/impacts/bullets/impact-bullet-flesh.sound",
-    "ImpactHard": "sounds/impacts/melee/impact-melee-flesh.sound",
-    "ImpactSoft": "sounds/impacts/melee/impact-melee-flesh.sound",
+    "Bullet": {
+      "Id": "d096f8bc-0532-4e35-88b8-a2b009a81ae1",
+      "Path": "sounds/impacts/bullets/impact-bullet-flesh.sound"
+    },
+    "ImpactHard": {
+      "Id": "8e10b533-bae3-4665-b420-7cc60514c677",
+      "Path": "sounds/impacts/melee/impact-melee-flesh.sound"
+    },
+    "ImpactSoft": {
+      "Id": "8e10b533-bae3-4665-b420-7cc60514c677",
+      "Path": "sounds/impacts/melee/impact-melee-flesh.sound"
+    },
     "ScrapeRough": null,
     "ScrapeSmooth": null,
     "Break": null
+  },
+  "Splatter": {
+    "Decals": [
+      {
+        "Id": "68929585-d2a1-48d0-b420-84bdde975bf1",
+        "Path": "decals/blood/blood_splatter_02.decal"
+      },
+      {
+        "Id": "d86483f1-c079-48d4-be9f-00f0fe3b4d41",
+        "Path": "decals/blood/blood_splatter_03.decal"
+      },
+      {
+        "Id": "580a004f-9791-44d9-8322-ca90cd5778b1",
+        "Path": "decals/blood/blood_splatter_04.decal"
+      }
+    ],
+    "Distance": 82,
+    "Scale": "1.5 2.0999999",
+    "FadeIn": 0.37
   },
   "Tags": null,
   "__references": [],

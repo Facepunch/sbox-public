@@ -17,10 +17,7 @@ public class ComponentIdsTest
 
 		_oldTypeLibrary = Game.TypeLibrary;
 
-		TypeLibrary = new Sandbox.Internal.TypeLibrary();
-		TypeLibrary.AddAssembly( typeof( PrefabFile ).Assembly, false );
-		TypeLibrary.AddAssembly( typeof( ModelRenderer ).Assembly, false );
-		TypeLibrary.AddAssembly( typeof( ComponentIdsTest ).Assembly, false );
+		TypeLibrary = SharedTypeLibrary.EngineAndTests;
 		JsonUpgrader.UpdateUpgraders( TypeLibrary );
 
 		Game.TypeLibrary = TypeLibrary;

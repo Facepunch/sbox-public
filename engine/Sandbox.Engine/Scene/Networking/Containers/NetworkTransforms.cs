@@ -72,7 +72,7 @@ internal class NetworkTransforms : NetworkTable<Transform>
 				continue;
 
 			Table[key] = transform;
-			Serialized[key] = Game.TypeLibrary.ToBytes( transform );
+			Serialized.Remove( key );
 		}
 	}
 

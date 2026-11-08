@@ -214,3 +214,9 @@ PackageCard
 {
 	display: none;
 }
+
+// The workshop subscribe button on the art (map picker) - shown while you point at the card
+.package-card:hover workshopcardactions
+{
+	opacity: 1;
+}

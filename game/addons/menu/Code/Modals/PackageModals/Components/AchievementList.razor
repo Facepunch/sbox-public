@@ -23,7 +23,7 @@
     {
         @if (Closest == 0)
         {
-            <div class="state">This game doesn't have any achievements.</div>
+            <div class="state">#menu.games.this_game_doesn_t_have_any_achievements</div>
         }
     }
     else
@@ -79,8 +79,8 @@
                             <div class="main">
                                 <div class="head">
                                     <div class="body">
-                                        <label class="name">@(hidden ? "Hidden achievement" : a.Title)</label>
-                                        <label class="description">@(hidden ? "Keep playing to find out what it is." : a.Description)</label>
+                                        <label class="name">@(hidden ? "#menu.games.hidden_achievement" : a.Title)</label>
+                                        <label class="description">@(hidden ? "#menu.games.keep_playing_to_find_out_what_it_is" : a.Description)</label>
                                     </div>
 
                                     <div class="side">
@@ -156,14 +156,14 @@
     /// <summary>The groups with anything in them, in order - or just the closest few.</summary>
     IEnumerable<Section> Groups => Closest > 0 ? ClosestGroup : new[]
     {
-        new Section( "Unlocked", "group-unlocked", Unlocked.ToList() ),
-        new Section( "In progress", "group-progress", InProgress.ToList() ),
-        new Section( "Locked", "group-locked", Locked.ToList() ),
+        new Section( "#menu.games.unlocked", "group-unlocked", Unlocked.ToList() ),
+        new Section( "#menu.games.in_progress", "group-progress", InProgress.ToList() ),
+        new Section( "#menu.games.locked", "group-locked", Locked.ToList() ),
     }.Where( x => x.Items.Count > 0 );
 
     IEnumerable<Section> ClosestGroup => new[]
     {
-        new Section( "Almost there", "group-progress", InProgress.Concat( Locked.Where( x => x.IsVisible ) ).Take( Closest ).ToList() ),
+        new Section( "#menu.games.almost_there", "group-progress", InProgress.Concat( Locked.Where( x => x.IsVisible ) ).Take( Closest ).ToList() ),
     }.Where( x => x.Items.Count > 0 );
 
     static string RarityText( float fraction )

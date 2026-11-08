@@ -12,7 +12,7 @@ public partial class HingeJoint : PhysicsJoint
 	/// </summary>
 	public float MaxAngle
 	{
-		get => _joint?.MaxLength ?? 0;
+		get => (_joint?.MaxLength ?? 0).RadianToDegree();
 		set => _joint?.MaxLength = value.DegreeToRadian();
 	}
 
@@ -21,7 +21,7 @@ public partial class HingeJoint : PhysicsJoint
 	/// </summary>
 	public float MinAngle
 	{
-		get => _joint?.MinLength ?? 0;
+		get => (_joint?.MinLength ?? 0).RadianToDegree();
 		set => _joint?.MinLength = value.DegreeToRadian();
 	}
 
@@ -56,4 +56,13 @@ public partial class HingeJoint : PhysicsJoint
 	/// Set the angular motor (target velocity in radians/sec, max torque).
 	/// </summary>
 	public void SetAngularMotor( float targetVelocity, float maxTorque ) => _joint?.SetAngularMotor( targetVelocity, maxTorque );
+
+	internal void ConfigureLimits( Vector2 limits, bool? enabled )
+	{
+		_joint?.SetTwistLimits( limits.x, limits.y );
+		if ( enabled is bool state )
+			_joint?.SetTwistLimitEnabled( state );
+		else
+			MinAngle = limits.x;
+	}
 }

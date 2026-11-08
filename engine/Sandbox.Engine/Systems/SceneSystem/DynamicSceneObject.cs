@@ -62,13 +62,21 @@ public class SceneDynamicObject : SceneObject
 
 	public IDisposable Write( Graphics.PrimitiveType type, int vertices, int indices )
 	{
+		ThrowIfUndefined( type );
 		managedNative.Begin( (RenderPrimitiveType)type, vertices );
 		return null;
 	}
 
 	public void Init( Graphics.PrimitiveType type )
 	{
+		ThrowIfUndefined( type );
 		managedNative.Begin( (RenderPrimitiveType)type, 0 );
+	}
+
+	internal static void ThrowIfUndefined( Graphics.PrimitiveType type )
+	{
+		if ( !Enum.IsDefined( type ) )
+			throw new ArgumentOutOfRangeException( nameof( type ), $"Unknown primitive type {(int)type}" );
 	}
 }
 

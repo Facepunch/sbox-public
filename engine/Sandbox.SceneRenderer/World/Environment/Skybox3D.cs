@@ -30,4 +30,9 @@ public sealed class Skybox3D
 	/// Main-world units per skybox unit. Defaults to 16; nonpositive values disable drawing.
 	/// </summary>
 	public float Scale { get; set; } = 16.0f;
+
+	/// <summary>
+	/// Optional analytic fog in main-world units. Null inherits the main camera's fog.
+	/// </summary>
+	public Sandbox.Rendering.FogSetup? Fog { get; set; }
 }

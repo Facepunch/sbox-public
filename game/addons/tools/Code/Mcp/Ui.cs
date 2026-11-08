@@ -107,7 +107,7 @@ public static partial class UiTools
 
 			await NextFrame();
 
-			var frame = CaptureFrame();
+			using var frame = CaptureFrame();
 
 			var measured = new
 			{
@@ -179,7 +179,7 @@ public static partial class UiTools
 
 			await NextFrame();
 
-			var frame = CaptureFrame();
+			using var frame = CaptureFrame();
 
 			var measured = new
 			{
@@ -220,12 +220,14 @@ public static partial class UiTools
 		if ( rect.Width < 1 || rect.Height < 1 )
 			throw new Exception( $"'{Signature( found.Panel )}' has no size - it isn't laid out, or it's hidden" );
 
+		using var frame = CaptureFrame();
+
 		return new
 		{
 			found.Path,
 			Panel = Signature( found.Panel ),
 			Rect = Describe( rect ),
-			Pixels = ReadPixels( CaptureFrame(), rect, points )
+			Pixels = ReadPixels( frame, rect, points )
 		};
 	}
 
@@ -498,7 +500,12 @@ public static partial class UiTools
 		return frame;
 	}
 
-	static Bitmap Capture( Rect rect, int padding ) => Crop( CaptureFrame(), rect, padding );
+	static Bitmap Capture( Rect rect, int padding )
+	{
+		using var frame = CaptureFrame();
+
+		return Crop( frame, rect, padding );
+	}
 
 	static Bitmap Crop( Bitmap frame, Rect rect, int padding )
 	{

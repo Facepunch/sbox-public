@@ -1,0 +1,184 @@
+{
+  "version": 1,
+  "reference": {
+    "engine": "Source SDK 2013 HL2MP",
+    "revision": "be57e3d01ac7d7aa6a2cacbfef187c0b46616db0",
+    "kind": "Recorded authoritative server state; no SDK implementation included",
+    "frameConvention": "State N follows command N-1. Original source tick numbers are retained.",
+    "geometryOrigin": "Locally authored synthetic comparison courses; no imported game-map assets"
+  },
+  "settings": {
+    "tickInterval": 0.015,
+    "gravity": 600,
+    "maxSpeed": 190,
+    "jumpSpeed": 160,
+    "duckSpeed": 63.333333333333336,
+    "bodyRadius": 16,
+    "bodyHeight": 72,
+    "duckedHeight": 36,
+    "bodyMass": 500,
+    "airFriction": 0,
+    "groundFriction": 0.8
+  },
+  "cases": [
+    {
+      "name": "curved-surf-course",
+      "sourceCourse": "curved_surf",
+      "sourceCourseSha256": "82393a723d48da29034debd5574183d2819fe465b342bf6bf4e83ed5534df886",
+      "states": "curved-surf-course.csv",
+      "firstTick": 0,
+      "lastTick": 1200,
+      "observationStride": 20,
+      "positionTolerance": 1,
+      "velocityTolerance": 50,
+      "airAcceleration": 10,
+      "previousDuckInput": false,
+      "input": { "yaw": 0, "yawPerTick": 1.02058107257678, "forward": 0, "side": 320, "jump": false, "duck": false, "movementEndTick": 1120 },
+      "geometry": [
+        { "type": "box", "mins": [-1600,-1600,-32], "maxs": [1600,1600,0] },
+        { "type": "curved-bank", "radius": 512, "width": 256, "segments": 96, "overlapDegrees": 0.1, "startDegrees": -90 }
+      ]
+    },
+    {
+      "name": "grounded-bank-rim",
+      "sourceCourse": "curved_surf",
+      "sourceCourseSha256": "82393a723d48da29034debd5574183d2819fe465b342bf6bf4e83ed5534df886",
+      "states": "grounded-bank-rim.csv",
+      "firstTick": 780,
+      "lastTick": 810,
+      "positionTolerance": 0.1,
+      "velocityTolerance": 0.01,
+      "airAcceleration": 10,
+      "previousDuckInput": false,
+      "input": { "yaw": 0, "yawPerTick": 1.02058107257678, "forward": 0, "side": 320, "jump": false, "duck": false },
+      "geometry": [
+        { "type": "box", "mins": [-1600,-1600,-32], "maxs": [1600,1600,0] },
+        { "type": "curved-bank", "radius": 512, "width": 256, "segments": 96, "overlapDegrees": 0.1, "startDegrees": -90 }
+      ]
+    },
+    {
+      "name": "surf-platform-landing",
+      "sourceCourse": "combo_surf_finish",
+      "sourceCourseSha256": "86617aefeb7a839da601258eeae88a6c161660f0b8de4a08b13dc2cf4c5160d0",
+      "states": "surf-platform-landing.csv",
+      "firstTick": 160,
+      "lastTick": 180,
+      "positionTolerance": 0.1,
+      "velocityTolerance": 0.01,
+      "airAcceleration": 100,
+      "previousDuckInput": false,
+      "input": { "yaw": -8, "yawPerTick": 0, "forward": 0, "side": -320, "jump": false, "duck": false },
+      "geometry": [
+        { "type": "hull", "points": [[-256,-256,0],[768,-256,0],[768,0,0],[-256,0,0],[-256,0,443.40500673763256],[768,0,443.40500673763256]] },
+        { "type": "box", "mins": [800,-320,0], "maxs": [2048,128,128] }
+      ]
+    },
+    {
+      "name": "stair-descent-limit",
+      "sourceCourse": "stair_switchback",
+      "sourceCourseSha256": "e6c7bb6d87b37c5751da99efe8db0eabeb2fb8cb20b36faea42c01cc1bb40620",
+      "states": "stair-descent-limit.csv",
+      "firstTick": 775,
+      "lastTick": 800,
+      "positionTolerance": 0.1,
+      "velocityTolerance": 0.01,
+      "airAcceleration": 10,
+      "previousDuckInput": false,
+      "input": { "yaw": 180, "yawPerTick": 0, "forward": 320, "side": 0, "jump": false, "duck": false },
+      "geometry": [
+        { "type": "box", "mins": [-768,-1024,-32], "maxs": [2304,1024,0] },
+        { "type": "box", "mins": [576,-256,-32], "maxs": [624,256,114] },
+        { "type": "box", "mins": [624,-256,-32], "maxs": [672,256,122] },
+        { "type": "box", "mins": [672,-256,-32], "maxs": [720,256,140] },
+        { "type": "box", "mins": [720,-256,-32], "maxs": [768,256,152] }
+      ]
+    },
+    {
+      "name": "stair-ascent-timing",
+      "sourceCourse": "stairs",
+      "sourceCourseSha256": "c732c04ae3aac0a521bda9d43a81c8553d4090436692230e0b4f39567617eb5e",
+      "states": "stair-ascent-timing.csv",
+      "firstTick": 140,
+      "lastTick": 165,
+      "positionTolerance": 0.1,
+      "velocityTolerance": 0.01,
+      "airAcceleration": 10,
+      "previousDuckInput": false,
+      "input": { "yaw": 0, "yawPerTick": 0, "forward": 320, "side": 0, "jump": false, "duck": false },
+      "geometry": [
+        { "type": "box", "mins": [-512,-768,-32], "maxs": [2048,768,0] },
+        { "type": "box", "mins": [320,-256,-32], "maxs": [384,256,54] },
+        { "type": "box", "mins": [384,-256,-32], "maxs": [448,256,72] },
+        { "type": "box", "mins": [448,-256,-32], "maxs": [512,256,90] }
+      ]
+    },
+    {
+      "name": "curved-surf-entry",
+      "sourceCourse": "curved_surf",
+      "sourceCourseSha256": "82393a723d48da29034debd5574183d2819fe465b342bf6bf4e83ed5534df886",
+      "states": "curved-surf-entry.csv",
+      "firstTick": 0,
+      "lastTick": 160,
+      "positionTolerance": 0.1,
+      "velocityTolerance": 0.01,
+      "airAcceleration": 10,
+      "previousDuckInput": false,
+      "input": { "yaw": 0, "yawPerTick": 1.02058107257678, "forward": 0, "side": 320, "jump": false, "duck": false },
+      "geometry": [
+        { "type": "box", "mins": [-1600,-1600,-32], "maxs": [1600,1600,0] },
+        { "type": "curved-bank", "radius": 512, "width": 256, "segments": 96, "overlapDegrees": 0.1, "startDegrees": -90 }
+      ]
+    },
+    {
+      "name": "grounded-duck-entry",
+      "sourceCourse": "combo_drop_course",
+      "sourceCourseSha256": "66dc3e502af796de5fb164632ba6e8dec1ea003574603b4ba87b4feb68eca72b",
+      "states": "grounded-duck-entry.csv",
+      "firstTick": 40,
+      "lastTick": 80,
+      "positionTolerance": 0.1,
+      "velocityTolerance": 0.005,
+      "airAcceleration": 100,
+      "previousDuckInput": false,
+      "input": { "yaw": 0, "yawPerTick": 0, "forward": 320, "side": 0, "jump": false, "duck": true },
+      "geometry": [
+        { "type": "box", "mins": [-128,-320,0], "maxs": [1024,128,256] },
+        { "type": "box", "mins": [192,-256,304], "maxs": [320,0,320] }
+      ]
+    },
+    {
+      "name": "grounded-unduck-exit",
+      "sourceCourse": "combo_drop_course",
+      "sourceCourseSha256": "66dc3e502af796de5fb164632ba6e8dec1ea003574603b4ba87b4feb68eca72b",
+      "states": "grounded-unduck-exit.csv",
+      "firstTick": 340,
+      "lastTick": 360,
+      "positionTolerance": 0.1,
+      "velocityTolerance": 0.005,
+      "airAcceleration": 100,
+      "previousDuckInput": true,
+      "input": { "yaw": 0, "yawPerTick": 0, "forward": 320, "side": 0, "jump": false, "duck": false },
+      "geometry": [
+        { "type": "box", "mins": [-128,-320,0], "maxs": [1024,128,256] },
+        { "type": "box", "mins": [192,-256,304], "maxs": [320,0,320] }
+      ]
+    },
+    {
+      "name": "static-ramp-speed",
+      "sourceCourse": "ramp_crests",
+      "sourceCourseSha256": "e6b1baca6299eda1429c212871cea4c78cec97ca92001de0288ce631dd495812",
+      "states": "static-ramp-speed.csv",
+      "firstTick": 125,
+      "lastTick": 145,
+      "positionTolerance": 1.5,
+      "velocityTolerance": 0.01,
+      "airAcceleration": 10,
+      "previousDuckInput": false,
+      "input": { "yaw": 0, "yawPerTick": 0, "forward": 320, "side": 0, "jump": false, "duck": false },
+      "geometry": [
+        { "type": "box", "mins": [-768,-1024,-32], "maxs": [2304,1024,0] },
+        { "type": "hull", "points": [[192,-256,-32],[576,-256,-32],[576,256,-32],[192,256,-32],[192,-256,0],[576,-256,192],[576,256,192],[192,256,0]] }
+      ]
+    }
+  ]
+}

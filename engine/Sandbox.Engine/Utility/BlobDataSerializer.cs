@@ -50,6 +50,10 @@ internal static class BlobDataSerializer
 	/// </summary>
 	private static byte[] SerializeBlob( BlobData blob )
 	{
+		// Never loaded: its stored bytes are its serialization, no deserialize/serialize round trip
+		if ( blob.PendingData is { } pending )
+			return pending;
+
 		var stream = ByteStream.Create( DefaultStreamSize );
 		try
 		{
@@ -97,6 +101,18 @@ internal static class BlobDataSerializer
 		if ( Activator.CreateInstance( expectedType ) is not BlobData instance )
 			return null;
 
+		if ( !instance.TryDeferLoad( blobData ) )
+			LoadInto( instance, blobData );
+
+		return instance;
+	}
+
+	/// <summary>
+	/// Deserialize stored blob data (version prefix + payload) into <paramref name="instance"/>,
+	/// upgrading it if it's an older version.
+	/// </summary>
+	internal static void LoadInto( BlobData instance, byte[] blobData )
+	{
 		var stream = ByteStream.CreateReader( blobData );
 		try
 		{
@@ -112,8 +128,6 @@ internal static class BlobDataSerializer
 		{
 			stream.Dispose();
 		}
-
-		return instance;
 	}
 
 	internal readonly record struct CapturedBlob( Guid Id, int Version, byte[] Data );
@@ -283,9 +297,8 @@ internal static class BlobDataSerializer
 	/// </summary>
 	public static BlobContext LoadFrom( string filePath )
 	{
-		var binaryData = ResolveBlobData( filePath );
-
-		var context = new BlobContext( _current, binaryData );
+		// Most resources have no blobs, so only go looking for the blob data once something asks for it.
+		var context = new BlobContext( _current, () => ResolveBlobData( filePath ) );
 		_current = context;
 		return context;
 	}
@@ -343,13 +356,23 @@ internal static class BlobDataSerializer
 	public sealed class BlobContext : IDisposable
 	{
 		internal readonly Dictionary<Guid, RegisteredBlob> Blobs;
-		internal readonly Dictionary<Guid, byte[]> BinaryData;
+		private Dictionary<Guid, byte[]> _binaryData;
+		private Func<Dictionary<Guid, byte[]>> _resolveBinaryData;
 		private readonly BlobContext _previous;
+
+		internal Dictionary<Guid, byte[]> BinaryData => _binaryData ??= _resolveBinaryData?.Invoke() ?? new();
 
 		internal BlobContext( BlobContext previous, Dictionary<Guid, byte[]> binaryData = null )
 		{
 			Blobs = new();
-			BinaryData = binaryData ?? new();
+			_binaryData = binaryData ?? new();
+			_previous = previous;
+		}
+
+		internal BlobContext( BlobContext previous, Func<Dictionary<Guid, byte[]>> resolveBinaryData )
+		{
+			Blobs = new();
+			_resolveBinaryData = resolveBinaryData;
 			_previous = previous;
 		}
 

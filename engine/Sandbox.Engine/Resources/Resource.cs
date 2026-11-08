@@ -111,7 +111,12 @@ public abstract partial class Resource : IValid, IJsonConvert, BytePack.ISeriali
 		if ( t == typeof( Texture ) ) return Texture.Load( id );
 		if ( t == typeof( Model ) ) return Model.Load( id );
 		if ( t == typeof( SoundFile ) ) return SoundFile.Load( id.Path ); // todo: guid me
+#pragma warning disable CS0618
 		if ( t == typeof( AnimationGraph ) ) return AnimationGraph.Load( id );
+#pragma warning restore CS0618
+		if ( t == typeof( Animation.Graph ) ) return Animation.Graph.Load( id.Path );
+		if ( t == typeof( Animation.Clip ) ) return Animation.Clip.Load( id.Path );
+		if ( t == typeof( Animation.Skeleton ) ) return Animation.Skeleton.Load( id.Path );
 		if ( t == typeof( Shader ) ) return Shader.Load( id );
 		if ( t == typeof( PhysicsGroupDescription ) ) return PhysicsGroupDescription.Load( id );
 
@@ -178,6 +183,27 @@ public abstract partial class Resource : IValid, IJsonConvert, BytePack.ISeriali
 	/// Native dataabse has updated a GUID for a resource, update this side to match.
 	/// </summary>
 	internal static void OnGuidChanged( string resourceName, Guid guid )
+	{
+		var version = GuidChangeVersions.AddOrUpdate( resourceName, 1, ( _, v ) => v + 1 );
+
+		// The startup scan runs on a worker thread, and the resource system isn't thread-safe
+		if ( !ThreadSafe.IsMainThread )
+		{
+			// By the time this runs a newer change for the same resource may have been applied
+			MainThread.Queue( () =>
+			{
+				if ( GuidChangeVersions.TryGetValue( resourceName, out var latest ) && latest == version )
+					ApplyGuidChange( resourceName, guid );
+			} );
+			return;
+		}
+
+		ApplyGuidChange( resourceName, guid );
+	}
+
+	static readonly System.Collections.Concurrent.ConcurrentDictionary<string, long> GuidChangeVersions = new();
+
+	static void ApplyGuidChange( string resourceName, Guid guid )
 	{
 		// This fires from the engine frame, outside any context scope - the wrapper
 		// could be registered in either context's resource system, so check both.

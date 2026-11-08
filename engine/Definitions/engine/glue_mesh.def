@@ -2,7 +2,7 @@
 include "sbox/glue_mesh.h"
 include "modellib/modelbuilder.h"
 include "meshutils/simplifyparams.h"
-include "vphysx/vphysx_collisionmesh_resource.h"
+include "physics/collision_resource.h"
 include "meshutils/uvparamlscm.h"
 
 native struct SboxVertex_t is Sandbox.Vertex
@@ -58,6 +58,9 @@ native class CPhysBodyDescArray
 native class CPhysBodyDesc
 {
 	float m_flMass;
+	float m_flInertiaScale;
+	float m_flLinearDamping;
+	float m_flAngularDamping;
 
 	inline void SetBoneName( string boneName )
 	{
@@ -98,7 +101,7 @@ native class CPhysBodyDesc
 
 	inline void AddHull( CastTo[Vector*] void* pPoints, int nNumPoints, Transform transform, float flPrecisionDegrees, float flPrecisionInches, int nMaxFaces, int nMaxEdges, int nMaxVerts, int nAlgo )
 	{
-		RnHullSimplificationParams_t params;
+		PhysicsHullSimplificationParams_t params;
 		params.m_flPrecisionDegrees = flPrecisionDegrees;
 		params.m_flPrecisionInches = flPrecisionInches;
 		params.m_nMaxFaces = nMaxFaces;
@@ -132,6 +135,7 @@ native class CModelBuilder as NativeEngine.ModelBuilder
 	void SetViewBounds( Vector3 mins, Vector3 maxs );
 	void SetEyePosition( Vector3 position );
 	void SetMaxEyeDeflection( float degrees );
+	bool SetModelKeyValues( KeyValues3 data );
 	void SetLODSwitchDistance( int lod, float distance );
 	void AddRunTimeMesh( IMesh mesh, CastTo[MeshGroupMask_t] ulong meshGroupMask, CastTo[LODGroupMask_t] int lodGroupMask );
 	void AddRunTimeBone( string boneName, string parentName, Vector3 position, Rotation rotation, BBox bounds );

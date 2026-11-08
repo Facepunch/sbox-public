@@ -86,8 +86,6 @@ PS
 
 	float4 MainPs( PixelInput i ) : SV_Target
 	{
-		float3 worldPos = g_vCameraPositionWs + i.vPositionWithOffsetWs;
-
 		Material a = GetWave( i, BigWaveTime, BigWaveSize, BigWaveScale );
 		Material b = GetWave( i, BigWaveTime, BigWaveSize, BigWaveScale * -1 );
 
@@ -125,7 +123,6 @@ PS
         }
 
 		float4 outCol = ShadingModelStandard::Shade( i, m );
-		outCol.rgb = Fog::Apply( worldPos, i.vPositionSs.xy, outCol.rgb );
 
 		//
 		// Add refraction

@@ -11,7 +11,13 @@
 
     @* What you thought of it, bottom left - the game page's pills *@
     <div class="left">
-        <PackageReactions Package=@Package OnHidden=@(() => Modal?.CloseModal( false )) />
+        <PackageReactions Package=@Package ShowReviews=@false OnHidden=@(() => Modal?.CloseModal( false )) />
+
+        @* Subscribing, by its votes - like the game page *@
+        @if (Modal.HasFullPackage && Package.InstallsFromWorkshop)
+        {
+            <WorkshopSubscribe Package=@Package />
+        }
     </div>
 
     <div class="right">
@@ -26,18 +32,18 @@
 		{
 			@if(GamePackage is null)
 			{
-                <Button icon="sports_esports" onclick=@SelectGame>Select Game</Button>
+                <Button icon="sports_esports" onclick=@SelectGame>#menu.games.select_game</Button>
 			}
 			else
 			{
                 <Button icon="sports_esports" onclick=@SelectGame>@GamePackage.Title</Button>
 			}
 
-			<Button icon="play_arrow" class="play" Disabled=@(GamePackage is null || !MenuHelpers.HasAuthority) onclick=@OnPlay>Launch Map</Button>
+			<Button icon="play_arrow" class="play" Disabled=@(GamePackage is null || !MenuHelpers.HasAuthority) onclick=@OnPlay>#menu.games.launch_map</Button>
 		}
 		else
 		{
-            <Button icon="play_arrow" class="play disabled" onclick=@OnPlay>Launch Map</Button>
+            <Button icon="play_arrow" class="play disabled" onclick=@OnPlay>#menu.games.launch_map</Button>
 		}
 
 

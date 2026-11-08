@@ -57,7 +57,7 @@ internal static class GameComponentTestUtils
 public class PropDamageTest
 {
 	static Model ArrowModel => Model.Load( "models/arrow.vmdl" );
-	static Model CitizenModel => Model.Load( "models/citizen/citizen.vmdl" );
+	static Model HumanModel => Model.Load( "models/citizen_human/human.vmdl" );
 
 	/// <summary>
 	/// A model with a single physics part builds a renderer, a non-static
@@ -124,13 +124,13 @@ public class PropDamageTest
 
 		var go = scene.CreateObject();
 		var prop = go.Components.Create<Prop>();
-		prop.Model = CitizenModel;
+		prop.Model = HumanModel;
 
 		Assert.IsNotNull( go.Components.Get<SkinnedModelRenderer>(), "a skinned model needs a skinned renderer" );
 
 		var physics = go.Components.Get<ModelPhysics>();
 		Assert.IsNotNull( physics, "a multi-part model should create ModelPhysics" );
-		Assert.AreEqual( CitizenModel, physics.Model );
+		Assert.AreEqual( HumanModel, physics.Model );
 		Assert.IsTrue( physics.Bodies.Count > 0 );
 	}
 
@@ -1182,7 +1182,7 @@ public class MapLogicTest
 [TestClass]
 public class WorldComponentTest
 {
-	static Model CitizenModel => Model.Load( "models/citizen/citizen.vmdl" );
+	static Model HumanModel => Model.Load( "models/citizen_human/human.vmdl" );
 
 	/// <summary>
 	/// A rope with slack between two anchors keeps its endpoints attached and its
@@ -1221,6 +1221,7 @@ public class WorldComponentTest
 		Assert.IsTrue( minZ > 0f, $"the sag should stay sane: {minZ}" );
 	}
 
+#pragma warning disable CS0618 // Exercises the obsolete WaterVolume, which existing scenes still use.
 	/// <summary>
 	/// A dynamic body inside a WaterVolume receives buoyancy and ends up far above
 	/// an identical free-falling body, while bodies carrying an ignore tag fall
@@ -1274,6 +1275,7 @@ public class WorldComponentTest
 		Assert.IsTrue( corked.WorldPosition.z < floater.WorldPosition.z - 500f,
 			$"ignored tags fall like there's no water: {corked.WorldPosition} vs {floater.WorldPosition}" );
 	}
+#pragma warning restore CS0618
 
 	/// <summary>
 	/// A manual hitbox only registers on traces with UseHitboxes - a plain physics
@@ -1370,12 +1372,12 @@ public class WorldComponentTest
 
 		var go = scene.CreateObject();
 		var renderer = go.Components.Create<SkinnedModelRenderer>();
-		renderer.Model = CitizenModel;
+		renderer.Model = HumanModel;
 
 		var hitboxes = go.Components.Create<ModelHitboxes>();
 		hitboxes.Renderer = renderer;
 
-		Assert.IsTrue( hitboxes.Hitboxes.Count > 0, "the citizen model should produce hitboxes" );
+		Assert.IsTrue( hitboxes.Hitboxes.Count > 0, "the human model should produce hitboxes" );
 		Assert.IsTrue( hitboxes.Hitboxes.All( h => h.Bone is not null ), "every hitbox hangs off a bone" );
 
 		// Straight down through the body - this only hits via the hitbox path
@@ -1391,6 +1393,7 @@ public class WorldComponentTest
 		Assert.IsFalse( after.Hit, "no hitboxes remain to be hit" );
 	}
 
+#pragma warning disable CS0618 // Exercises the obsolete WaterVolume, which existing scenes still use.
 	/// <summary>
 	/// VerletRope, WaterVolume and ManualHitbox keep their configured values through
 	/// a serialization round trip; the rope's attachment reference resolves back to
@@ -1452,4 +1455,5 @@ public class WorldComponentTest
 		Assert.AreEqual( new Vector3( 1, 2, 3 ), hb2.CenterA );
 		Assert.AreEqual( new Vector3( 4, 5, 6 ), hb2.CenterB );
 	}
+#pragma warning restore CS0618
 }

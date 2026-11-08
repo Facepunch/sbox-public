@@ -30,6 +30,10 @@ public sealed class RenderMesh
 	/// </summary>
 	internal static bool ReadsFrameBuffer( Material material ) => material is not null && material.native.GetIntAttributeOrDefault( "bWantsFBCopyTexture", 0 ) != 0;
 
+	internal static bool NeedsLightProbe( Material material ) => material is not null
+		&& material.Flags.GetBool( "NeedsLightProbe", true )
+		&& material.Flags.GetBool( "UsesBakedLightingFromProbe", true );
+
 	/// <summary>
 	/// Model owning the draw buffers.
 	/// </summary>
@@ -89,12 +93,18 @@ public sealed class RenderMesh
 	readonly int[][] lodMeshes;
 	readonly int[][] lodMeshBlocks;
 	readonly ulong[] lodSimilarity;
+	readonly ulong[][] drawSimilarity;
 	MeshSkin[] skins = [];
 
 	/// <summary>
 	/// Cached first-material similarity key for sorting runs and reducing rebinds (<c>IMaterial2::GetSimilarityKey</c>).
 	/// </summary>
 	internal ulong SimilarityForLod( int lod ) => lodSimilarity[lod];
+
+	/// <summary>
+	/// A draw's material's similarity key, cached for sorting draws by bind state (<c>IMaterial2::GetSimilarityKey</c>).
+	/// </summary>
+	internal ulong SimilarityForDraw( int lod, int draw ) => drawSimilarity[lod][draw];
 
 	/// <summary>
 	/// The model's bones in bind pose, in model space - where a skinned object with no bones of its own is posed.
@@ -234,7 +244,8 @@ public sealed class RenderMesh
 		triangles = lods.Select( l => l.Sum( x => x.IndexCount / 3 ) ).ToArray();
 		blends = lods.Select( BlendOf ).ToArray();
 		lodMeshes = lods.Select( l => l.Select( d => d.Mesh ).Distinct().ToArray() ).ToArray();
-		lodSimilarity = lods.Select( l => l.Length > 0 && l[0].Material is { } material ? RenderContext.SimilarityKey( material ) : 0 ).ToArray();
+		drawSimilarity = lods.Select( l => l.Select( d => d.Material is { } material ? RenderContext.SimilarityKey( material ) : 0 ).ToArray() ).ToArray();
+		lodSimilarity = drawSimilarity.Select( l => l.Length > 0 ? l[0] : 0 ).ToArray();
 		tintOffsets = new int[lods.Length];
 		for ( int lod = 0; lod < lods.Length; lod++ )
 		{

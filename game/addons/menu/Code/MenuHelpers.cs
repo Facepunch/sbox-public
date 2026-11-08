@@ -79,9 +79,19 @@ public static class MenuHelpers
 	{
 		Assert.True( HasAuthority, "You do not have authority to start a game, only the party owner can do that." );
 
-		// Your party isn't what it's made for - say so, and only go on if you want to
-		if ( !fitChecked && !ConfirmPartyFit( package, () => PlayGame( package, mapPackage, via, source, fitChecked: true ) ) )
-			return;
+		// List results (hover cards, shelves) come without the package's meta - LaunchMode, MaxPlayers,
+		// GameSettings - so get the full package before deciding how to launch it
+		if ( package.IsRemote )
+			package = await Package.FetchAsync( package.FullIdent, false ) ?? package;
+
+		// Your party isn't what it's made for - say so, and only go on if you want to. On your own it always is, so
+		// its workshop item's only asked about for a party.
+		if ( !fitChecked && MenuProject.PlayerModes.PartySize > 1 )
+		{
+			var workshop = await MenuUtility.FetchWorkshopItemAsync( MenuUtility.KnownWorkshopId( package ) );
+			if ( !ConfirmPartyFit( package, () => PlayGame( package, mapPackage, via, source, fitChecked: true ), workshop ) )
+				return;
+		}
 
 		// VR-only game but not in VR
 		if ( package.Info.IsVrOnly && !Application.IsVR )
@@ -101,7 +111,7 @@ public static class MenuHelpers
 			ReportPlay( package, via, source );
 			via = null;
 
-			await PrepareForLoad( "Finding Game..", "Please wait while we find a game for you to join." );
+			await PrepareForLoad( "#menu.games.finding_game", "#menu.games.please_wait_while_we_find_a_game_for_you_to_join" );
 
 			if ( await MenuUtility.TryJoinLobby( package.FullIdent ) )
 				return;
@@ -163,7 +173,7 @@ public static class MenuHelpers
 		if ( PartyRoom.Current != startingParty )
 		{
 			LoadingScreen.IsVisible = false;
-			throw new InvalidOperationException( "Your party has changed. Check the game setup and try again." );
+			throw new InvalidOperationException( Language.GetPhrase( "menu.common.your_party_has_changed_check_the_game_setup_and" ) );
 		}
 
 		if ( party is not null && (PartyRoom.Current != party || !party.Owner.IsMe || !party.IsGameSelected( package )
@@ -171,7 +181,7 @@ public static class MenuHelpers
 			|| serverSlots < party.MemberCount) )
 		{
 			LoadingScreen.IsVisible = false;
-			throw new InvalidOperationException( "The party or game setup changed. Check the game settings and try again." );
+			throw new InvalidOperationException( Language.GetPhrase( "menu.common.the_party_or_game_setup_changed_check_the_game" ) );
 		}
 
 		if ( !HasAuthority )
@@ -184,6 +194,9 @@ public static class MenuHelpers
 
 		if ( !string.IsNullOrEmpty( settings.ServerName ) ) LaunchArguments.ServerName = settings.ServerName;
 		LaunchArguments.Privacy = settings.Privacy;
+
+		// A party's copy of the setup leaves the password out - it's in the leader's own
+		LaunchArguments.Password = settings.Password ?? GameSetup.GetInitialSettings( package ).Password;
 		LaunchArguments.Map = null;
 
 		if ( !string.IsNullOrEmpty( settings.Map ) )
@@ -198,12 +211,13 @@ public static class MenuHelpers
 
 	/// <summary>
 	/// Whether your party's what the game's made for - true to go straight on. If it isn't, pops up why,
-	/// with Play anyway (which runs <paramref name="playAnyway"/>) and Return, and gives false.
+	/// with Play anyway (which runs <paramref name="playAnyway"/>) and Return, and gives false. Its
+	/// <paramref name="workshop"/> item says how it's played, for one on the workshop.
 	/// </summary>
-	public static bool ConfirmPartyFit( Package package, Action playAnyway )
+	public static bool ConfirmPartyFit( Package package, Action playAnyway, WorkshopItemDetails workshop = null )
 	{
 		var size = MenuProject.PlayerModes.PartySize;
-		var modes = MenuProject.PlayerModes.For( package );
+		var modes = MenuProject.PlayerModes.For( package, workshop );
 		var (fit, why) = modes.FitFor( size );
 		if ( fit != MenuProject.PlayerModes.FitKind.Poor ) return true;
 
@@ -213,11 +227,11 @@ public static class MenuHelpers
 		ModalSystem.Instance?.Open( new MenuProject.Modals.QuestionModal
 		{
 			Color = Color.Parse( "#f5a623" ) ?? Color.Orange,
-			Title = tooSmall ? "Your party is too small" : "Your party is too big",
+			Title = tooSmall ? "#menu.games.your_party_is_too_small" : "#menu.games.your_party_is_too_big",
 			Message = why,
-			ConfirmText = "Play anyway",
+			ConfirmText = "#menu.games.play_anyway",
 			ConfirmIcon = "play_arrow",
-			CancelText = "Return",
+			CancelText = "#menu.games.return",
 			OnConfirm = playAnyway
 		} );
 
@@ -241,7 +255,7 @@ public static class MenuHelpers
 	/// for a while, and anything still animating when it does (a modal halfway through closing)
 	/// freezes on screen until it lets go.
 	/// </summary>
-	public static async Task PrepareForLoad( string title = "Loading..", string subtitle = "" )
+	public static async Task PrepareForLoad( string title = "#menu.common.loading_dots", string subtitle = "" )
 	{
 		MenuUtility.CloseAllModals();
 
@@ -296,6 +310,21 @@ public static class MenuHelpers
 	}
 
 	/// <summary>
+	/// A size in bytes to read - "201.63 MB", with a space before the unit and the unit in capitals
+	/// </summary>
+	/// <summary>
+	/// The backend's 1 to 5 star rating filter - not offered, the rest of its filters are
+	/// </summary>
+	public static bool IsRatingFacet( Package.Facet facet ) => facet.Name.Contains( "rating", StringComparison.OrdinalIgnoreCase ) || facet.Title.Contains( "rating", StringComparison.OrdinalIgnoreCase );
+
+	public static string FormatSize( long bytes )
+	{
+		var formatted = bytes.FormatBytes();
+		var suffixLength = bytes >= 1024 ? 2 : 1;
+		return $"{formatted[..^suffixLength]} {formatted[^suffixLength..].ToUpperInvariant()}";
+	}
+
+	/// <summary>
 	/// "3 days ago", "2 weeks ago", "5 months ago", "2 years ago" - the biggest unit that fits, so
 	/// half a year reads as months, not 26 weeks.
 	/// </summary>
@@ -306,7 +335,7 @@ public static class MenuHelpers
 
 		static string Plural( int n, string unit ) => $"{n} {unit}{(n == 1 ? "" : "s")} ago";
 
-		if ( span.TotalMinutes < 1 ) return "just now";
+		if ( span.TotalMinutes < 1 ) return Language.GetPhrase( "menu.common.just_now" );
 		if ( span.TotalHours < 1 ) return Plural( (int)span.TotalMinutes, "minute" );
 		if ( span.TotalDays < 1 ) return Plural( (int)span.TotalHours, "hour" );
 		if ( span.TotalDays < 7 ) return Plural( (int)span.TotalDays, "day" );
@@ -324,11 +353,11 @@ public static class MenuHelpers
 	{
 		var menu = MenuPanel.Open( source );
 
-		menu.AddOption( "contact_page", "View Profile", () => Game.Overlay.ShowPlayer( (long)friend.Id ) );
+		menu.AddOption( "contact_page", "#menu.games.view_profile", () => Game.Overlay.ShowPlayer( (long)friend.Id ) );
 
 		if ( !friend.IsFriend && !friend.IsMe )
 		{
-			menu.AddOption( "person_add", "Send Friend Request", friend.OpenAddFriendOverlay );
+			menu.AddOption( "person_add", "#menu.games.send_friend_request", friend.OpenAddFriendOverlay );
 		}
 
 		var me = new Friend( Game.SteamId );
@@ -339,7 +368,7 @@ public static class MenuHelpers
 
 		if ( canJoinGame && !inSameGame )
 		{
-			menu.AddOption( "sports_esports", "Join Game", () => MenuUtility.JoinFriendGame( friend ) );
+			menu.AddOption( "sports_esports", "#menu.games.join_game", () => MenuUtility.JoinFriendGame( friend ) );
 		}
 
 		return menu;
@@ -359,7 +388,7 @@ public static class MenuHelpers
 	{
 		var menu = MenuPanel.Open( source );
 
-		menu.AddOption( "play_arrow", "Open Game", () =>
+		menu.AddOption( "play_arrow", "#menu.games.open_game", () =>
 		{
 			Discovery.Clicked( source, package );
 			LaunchGame( package.FullIdent );
@@ -367,7 +396,7 @@ public static class MenuHelpers
 
 		if ( package.Tags.Contains( "maplaunch" ) )
 		{
-			menu.AddOption( "folder", "Open With Map..", () =>
+			menu.AddOption( "folder", "#menu.games.open_with_map", () =>
 			{
 				Game.Overlay.ShowPackageSelector( $"type:map sort:trending target:{package.FullIdent}", ( p ) => MenuUtility.OpenGameWithMap( package.FullIdent, p.FullIdent ) );
 			} );
@@ -376,7 +405,7 @@ public static class MenuHelpers
 		if ( multiplayerOverride || package.Tags.Contains( "multiplayer" ) || package.Info.MaxPlayers > 1 )
 		{
 			menu.AddSpacer();
-			menu.AddOption( "list", "View servers", () =>
+			menu.AddOption( "list", "#menu.games.view_servers", () =>
 			{
 				Game.Overlay.ShowServerList( new Sandbox.Modals.ServerListConfig( package.FullIdent ) );
 			} );
@@ -386,15 +415,14 @@ public static class MenuHelpers
 		var liked = package.Interaction.Rating == 0;
 		var disliked = package.Interaction.Rating == 1;
 		var favourite = package.Interaction.Favourite;
-		menu.AddOption( "thumb_up", liked ? "Liked" : "Like", () => _ = package.SetVoteAsync( true ) );
-		menu.AddOption( "thumb_down", disliked ? "Disliked" : "Dislike", () => _ = package.SetVoteAsync( false ) );
-		menu.AddOption( favourite ? "favorite" : "favorite_border", favourite ? "Remove from Favourites" : "Add to Favourites", () => _ = package.SetFavouriteAsync( !favourite ) );
+		menu.AddOption( "thumb_up", liked ? "#menu.games.liked" : "#menu.games.like", () => _ = package.SetVoteAsync( true ) );
+		menu.AddOption( "thumb_down", disliked ? "#menu.games.disliked" : "#menu.games.dislike", () => _ = package.SetVoteAsync( false ) );
+		menu.AddOption( favourite ? "favorite" : "favorite_border", favourite ? "#menu.games.remove_from_favourites" : "#menu.games.add_to_favourites", () => _ = package.SetFavouriteAsync( !favourite ) );
 
 		menu.AddSpacer();
-		menu.AddOption( "corporate_fare", $"View Creator", () => Game.Overlay.ShowOrganizationModal( package.Org ) );
-		menu.AddOption( "rate_review", "Review Game", () => Game.Overlay.ShowReviewModal( package ) );
-		menu.AddOption( "flag", "Report Game", () => Game.Overlay.ShowReportModal( package.FullIdent ) );
-		menu.AddOption( "block", "Hide Game", () => _ = HidePackage( source, package ) );
+		menu.AddOption( "rate_review", "#menu.games.review_game", () => Game.Overlay.ShowReviewModal( package ) );
+		menu.AddOption( "flag", "#menu.games.report_game", () => Game.Overlay.ShowReportModal( package.FullIdent ) );
+		menu.AddOption( "block", "#menu.games.hide_game", () => _ = HidePackage( source, package ) );
 	}
 
 	/// <summary>
@@ -421,7 +449,7 @@ public static class MenuHelpers
 			{
 				Title = $"{package.Title} hidden",
 				Icon = "visibility_off",
-				ActionText = "Undo",
+				ActionText = "#menu.games.undo",
 				OnAction = () => _ = UnhidePackage( package, putBack )
 			}, duration: UndoSeconds );
 		}
@@ -479,7 +507,7 @@ public static class MenuHelpers
 
 			foreach ( var lobby in lobbies ) // TODO - order by most attractive
 			{
-				if ( lobby.IsFull ) continue;
+				if ( lobby.IsFull || lobby.IsPasswordProtected ) continue;
 
 				if ( await MenuUtility.TryJoinLobby( lobby.LobbyId ) )
 					return;
@@ -495,18 +523,17 @@ public static class MenuHelpers
 
 		if ( HasAuthority )
 		{
-			menu.AddOption( "play_arrow", "Join existing session", () => OnPackageSelected( package ) );
-			menu.AddOption( "playlist_add", "Create own game", () => CreateGameWithMap( SANDBOX_IDENT, package ) );
+			menu.AddOption( "play_arrow", "#menu.games.join_existing_session", () => OnPackageSelected( package ) );
+			menu.AddOption( "playlist_add", "#menu.games.create_own_game", () => CreateGameWithMap( SANDBOX_IDENT, package ) );
 
 			menu.AddSpacer();
 		}
 
-		menu.AddOption( "list", "View servers", () => ViewGameList( package ) );
+		menu.AddOption( "list", "#menu.games.view_servers", () => ViewGameList( package ) );
 
 		menu.AddSpacer();
-		menu.AddOption( "info", $"View Map Details", () => Game.Overlay.ShowPackageModal( package.FullIdent ) );
-		menu.AddOption( "corporate_fare", $"View Creator", () => Game.Overlay.ShowOrganizationModal( package.Org ) );
-		menu.AddOption( "star", "Rate Map", () => Game.Overlay.ShowReviewModal( package ) );
+		menu.AddOption( "info", "#menu.games.view_map_details", () => Game.Overlay.ShowPackageModal( package.FullIdent ) );
+		menu.AddOption( "star", "#menu.games.rate_map", () => Game.Overlay.ShowReviewModal( package ) );
 	}
 
 	public static void CreateGameWithMap( string gameIdent, Package mapPackage )

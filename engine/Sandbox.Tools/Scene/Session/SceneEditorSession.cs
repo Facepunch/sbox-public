@@ -9,7 +9,7 @@ namespace Editor;
 /// A SceneEditorSession holds a Scene that is open in the editor.
 /// It creates a widget, has a selection and undo system.
 /// </summary>
-public partial class SceneEditorSession : Scene.ISceneEditorSession
+public partial class SceneEditorSession : Scene.ISceneEditorSession, AssetSystem.IEventListener
 {
 	/// <summary>
 	/// All open editor sessions
@@ -179,6 +179,20 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		}
 	}
 
+	void AssetSystem.IEventListener.OnAssetChanged( Asset asset )
+	{
+		if ( asset is null || asset.Guid == Guid.Empty )
+			return;
+
+		foreach ( var session in All )
+		{
+			if ( session.IsMounted || session.Scene?.Source is not SceneFile source || source.Guid != asset.Guid )
+				continue;
+
+			SceneSource.FindAsset( source );
+		}
+	}
+
 	internal void UpdateEditorTitle()
 	{
 		if ( !SceneDock.IsValid() )
@@ -285,7 +299,9 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		var source = Scene.Source;
 		if ( source is SceneFile sceneFile && SceneSource.FindAsset( sceneFile ) is Asset asset && File.Exists( asset.GetSourceFile( true ) ) )
 		{
-			source = SceneSource.LoadForEditing( asset );
+			var file = SceneSource.LoadForEditing( asset );
+			SceneSource.TrackSource( file );
+			source = file;
 		}
 
 		InitUndo();
@@ -444,6 +460,12 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	/// </summary>
 	internal static void SaveOpenSessions()
 	{
+		foreach ( var session in All )
+		{
+			if ( !session.IsMounted && session.Scene?.Source is SceneFile source )
+				SceneSource.FindAsset( source );
+		}
+
 		var open = All
 			.Where( x => x is not GameEditorSession )
 			.Select( x => x.Scene.Source?.ResourcePath )
@@ -537,6 +559,7 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 			using var _ = openingScene.Push();
 
 			openingScene.Load( sceneFile );
+			SceneSource.TrackSource( sceneFile );
 
 			var session = new SceneEditorSession( openingScene );
 			return session;

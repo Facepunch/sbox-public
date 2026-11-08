@@ -59,6 +59,7 @@ public sealed partial class GameSetup
 
 	public SettingItem ServerNameItem { get; }
 	public SettingItem PrivacyItem { get; }
+	public SettingItem PasswordItem { get; }
 	public SettingItem PlayersItem { get; }
 
 	/// <summary>
@@ -68,6 +69,7 @@ public sealed partial class GameSetup
 
 	public string ServerName => ServerNameItem.Value?.ToString();
 	public LobbyPrivacy Privacy => PrivacyItem.As<LobbyPrivacy>();
+	public string Password => PasswordItem.Value?.ToString();
 	public int MaxPlayers => (int)PlayersItem.FloatValue;
 
 	/// <summary>
@@ -98,7 +100,7 @@ public sealed partial class GameSetup
 	/// </summary>
 	const int MaxSideBySide = 4;
 
-	static readonly List<Option> OffOn = [new( "Off", false ), new( "On", true )];
+	static readonly List<Option> OffOn = [new( "#menu.games.off", false ), new( "#menu.games.on", true )];
 
 	/// <summary>
 	/// Start from the supplied setup, or restore the player's previous choices for this game.
@@ -117,7 +119,7 @@ public sealed partial class GameSetup
 		ServerNameItem = Loaded( new SettingItem
 		{
 			Id = "server.name",
-			Title = "Name",
+			Title = "#menu.games.name",
 			Kind = SettingKind.Custom,
 			CreateControl = TextControl,
 			Read = () => serverName
@@ -126,15 +128,24 @@ public sealed partial class GameSetup
 		PrivacyItem = Loaded( new SettingItem
 		{
 			Id = "server.privacy",
-			Title = "Who Can Join",
+			Title = "#menu.games.who_can_join",
 			Options = Enum.GetValues<LobbyPrivacy>().Select( x => new Option( TitleOf( x ), x ) { Icon = IconOf( x ) } ).ToList(),
 			Read = () => saved.Privacy
+		} );
+
+		PasswordItem = Loaded( new SettingItem
+		{
+			Id = "server.password",
+			Title = "#menu.games.password",
+			Kind = SettingKind.Custom,
+			CreateControl = TextControl,
+			Read = () => saved.Password ?? ""
 		} );
 
 		PlayersItem = Loaded( new SettingItem
 		{
 			Id = "server.players",
-			Title = "Max Players",
+			Title = "#menu.games.max_players",
 			Kind = SettingKind.Slider,
 			Min = MinPlayerCount,
 			Max = MaxPlayerCount,
@@ -275,9 +286,9 @@ public sealed partial class GameSetup
 
 	static string TitleOf( LobbyPrivacy privacy ) => privacy switch
 	{
-		LobbyPrivacy.Public => "Public",
-		LobbyPrivacy.Private => "Private",
-		_ => "Friends Only"
+		LobbyPrivacy.Public => "#menu.workshop.public",
+		LobbyPrivacy.Private => "#menu.workshop.private",
+		_ => "#menu.games.friends_only"
 	};
 
 	static string IconOf( LobbyPrivacy privacy ) => privacy switch
@@ -287,7 +298,7 @@ public sealed partial class GameSetup
 		_ => "people"
 	};
 
-	public string PrivacyTitle => TitleOf( Privacy );
+	public string PrivacyTitle => Language.GetPhrase( TitleOf( Privacy )[1..] );
 	public string PrivacyIcon => IconOf( Privacy );
 
 	/// <summary>
@@ -296,7 +307,7 @@ public sealed partial class GameSetup
 	/// </summary>
 	async Task ResolveMap( string map )
 	{
-		MapTitle = string.IsNullOrWhiteSpace( map ) ? "Default map" : MapName( map );
+		MapTitle = string.IsNullOrWhiteSpace( map ) ? "#menu.games.default_map" : MapName( map );
 		MapThumb = null;
 
 		if ( string.IsNullOrWhiteSpace( map ) ) return;
@@ -342,6 +353,7 @@ public sealed partial class GameSetup
 			MaxPlayers = MaxPlayers,
 			ServerName = ServerName,
 			Privacy = Privacy,
+			Password = Password,
 			GameSettings = GameItems.ToDictionary( x => x.Setting.Name, x => ToText( x.Setting, x.Item ) ),
 		};
 

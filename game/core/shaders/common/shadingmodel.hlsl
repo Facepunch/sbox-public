@@ -4,37 +4,23 @@
 #include "common/material.hlsl"
 #include "common/GBuffer.hlsl"
 #include "common/classes/Decals.hlsl"
+#include "common/classes/Fog.hlsl"
 
+/// <summary>
+/// Obsolete, kept so shaders written before the fog rework still compile.
+/// Use Fog::Apply, or Fog::Transmittance for additive blending.
+/// </summary>
+[deprecated( "DoAtmospherics is obsolete, use Fog::Apply, or Fog::Transmittance for additive blending" )]
 float4 DoAtmospherics( float3 vPositionWs, float2 vPositionSs, float4 vColor, bool bAdditiveBlending = false )
 {
-    vPositionWs = vPositionWs.xyz;
-    float3 vPositionToCameraWs = vPositionWs.xyz - g_vCameraPositionWs.xyz;
+    if ( !g_bFogEnabled )
+        return vColor;
 
-    if ( g_bFogEnabled )
-	{
-		if( bAdditiveBlending )
-		{
-			//
-			// When blending additively, dest pixel contains the fog term.
-			// Therefore, we want to scale alpha with fog amount in front of us,
-			// rather than double-adding the fog
-			//
-			if ( g_bGradientFogEnabled )
-				vColor.a *= 1.0 - CalculateGradientFog( vPositionWs, vPositionToCameraWs ).a;
-
-			if ( g_bCubemapFogEnabled )
-				vColor.a *= 1.0 - CalculateCubemapFog( vPositionWs, vPositionToCameraWs ).a;
-
-			if ( g_bVolumetricFogEnabled )
-				vColor.a *= CalculateVolumetricFog( vPositionWs.xyz, vPositionSs.xy ).a;
-		}
-        else
-		{
-			vColor.rgb = ApplyGradientFog( vColor.rgb, vPositionWs.xyz, vPositionToCameraWs.xyz );
-			vColor.rgb = ApplyCubemapFog( vColor.rgb, vPositionWs.xyz, vPositionToCameraWs.xyz );
-			vColor.rgb = ApplyVolumetricFog( vColor.rgb, vPositionWs.xyz, vPositionSs.xy );
-		}
-	}
+    // When blending additively the destination already contains fog, so fade the source instead of adding fog twice
+    if ( bAdditiveBlending )
+        vColor.a *= Fog::Transmittance( vPositionWs, vPositionSs );
+    else
+        vColor.rgb = Fog::Apply( vPositionWs, vPositionSs, vColor.rgb );
 
     return vColor;
 }
@@ -103,7 +89,7 @@ struct ShadingModelStandard
 
         // Normal and tangent space
         o.vNormalWs = m.Normal;
-        o.vNormalTs = NormalWorldToTangent( m.Normal, m.WorldTangentU, m.WorldTangentV );
+        o.vNormalTs = NormalWorldToTangent( m.Normal, m.WorldTangentU, m.WorldTangentV, m.GeometricNormal );
         o.vTangentUWs = m.WorldTangentU;
         o.vTangentVWs = m.WorldTangentV;
 
@@ -175,8 +161,10 @@ struct ShadingModelStandard
         if( ToolsVis::WantsToolsVis() )
             return DoToolsVis( color, m, lightingTerms );
 
-        // Composite atmospherics after lighting
-        color = DoAtmospherics( m.WorldPosition, m.ScreenPosition.xy, color );
+        if ( g_bFogEnabled )
+        {
+            color.rgb = Fog::Apply( m.WorldPosition, m.ScreenPosition.xy, color.rgb );
+        }
         
         return color;
     }
@@ -194,6 +182,7 @@ struct ShadingModelStandard
         m.WorldPositionWithOffset = i.vPositionWithOffsetWs;
         m.WorldPosition = i.vPositionWithOffsetWs + g_vHighPrecisionLightingOffsetWs.xyz;
         m.ScreenPosition = i.vPositionSs;
+        m.GeometricNormal = i.vNormalWs.xyz;
 
         return Shade( m );
     }

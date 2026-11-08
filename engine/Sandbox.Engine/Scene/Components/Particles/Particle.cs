@@ -36,6 +36,13 @@ public partial class Particle : IDynamicFloatContext
 	int RandomSeed;
 	internal bool hasUpdated;
 
+	/// <summary>
+	/// Set by the parallel update when the particle reached the end of its life; swept in PostStep.
+	/// </summary>
+	internal bool IsDead;
+	internal bool IsReleased;
+	internal uint Generation;
+
 	[System.Obsolete]
 	public float Random01;
 
@@ -102,16 +109,17 @@ public partial class Particle : IDynamicFloatContext
 
 	private Dictionary<string, object> _data;
 
+	[System.Obsolete( "Particles are pooled per scene" )]
 	public static Queue<Particle> Pool = new( 512 );
 
-	public static Particle Create()
-	{
-		if ( !Pool.TryDequeue( out Particle p ) )
-		{
-			p = new Particle();
-		}
+	public static Particle Create() => Create( null );
 
-		p.RandomSeed = Random.Shared.Int( 0, 10000 );
+	internal static Particle Create( Queue<Particle> pool )
+	{
+		if ( pool is null || !pool.TryDequeue( out var p ) )
+			p = new Particle();
+
+		p.RandomSeed = ParticleRandom.Shared.Int( 0, 10000 );
 		p.BornTime = Time.Now;
 		p.Age = 0;
 		p.Angles = Angles.Zero;
@@ -132,6 +140,9 @@ public partial class Particle : IDynamicFloatContext
 		p._data?.Clear();
 		p._controllers?.Clear();
 		p.hasUpdated = false;
+		p.IsDead = false;
+		p.IsReleased = false;
+		p.Generation++;
 		p.AttachBoneIndex = -1;
 		p.AttachTarget = null;
 

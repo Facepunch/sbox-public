@@ -10,7 +10,7 @@ public struct RenderStats
 	/// </summary>
 	public int Objects;
 	/// <summary>
-	/// Objects the main view drew - in its frustum and big enough on screen. Lights and probes count.
+	/// Objects submitted after CPU culling - in the main view's frustum and big enough on screen. Lights and probes count.
 	/// </summary>
 	public int ObjectsVisible;
 
@@ -18,6 +18,12 @@ public struct RenderStats
 	/// In the frustum, but too small on screen to draw.
 	/// </summary>
 	public int ObjectsSizeCulled;
+
+	/// <summary>
+	/// Hidden behind other objects and skipped on the GPU. Read back a frame or two late.
+	/// </summary>
+	public int ObjectsOcclusionCulled;
+
 	/// <summary>
 	/// Forward draws, including instanced runs.
 	/// </summary>
@@ -47,6 +53,11 @@ public struct RenderStats
 	/// Triangles the forward pass drew, after LODs.
 	/// </summary>
 	public long Triangles;
+
+	/// <summary>
+	/// Triangles every pass drew - depth and shadow too, not only the forward pass's <see cref="Triangles"/>.
+	/// </summary>
+	public long DrawnTriangles;
 
 	/// <summary>
 	/// Lights binned for the view.
@@ -94,6 +105,7 @@ public struct RenderStats
 		into.CustomDraws += from.CustomDraws;
 		into.Instances += from.Instances;
 		into.Triangles += from.Triangles;
+		into.DrawnTriangles += from.DrawnTriangles;
 		into.ShadowViews += from.ShadowViews;
 		into.ShadowDraws += from.ShadowDraws;
 		into.Lights = Math.Max( into.Lights, from.Lights );

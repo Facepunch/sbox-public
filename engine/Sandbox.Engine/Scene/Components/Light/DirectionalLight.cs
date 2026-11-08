@@ -88,6 +88,24 @@ public class DirectionalLight : Light
 		}
 	} = true;
 
+	/// <summary>
+	/// Include static casters even when this light is indexed for baked lighting.
+	/// Enable when realtime shadows are intentionally overlaid on existing baked lighting.
+	/// </summary>
+	[Property, Group( "Shadows" ), Advanced]
+	public bool IncludeStaticShadowCasters
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+
+			if ( _so.IsValid() )
+				_so.IncludeStaticShadowCasters = value;
+		}
+	}
+
 	protected override SceneLight CreateSceneObject()
 	{
 		return _so = new SceneDirectionalLight( Scene.SceneWorld, WorldRotation, LightColor )
@@ -95,6 +113,7 @@ public class DirectionalLight : Light
 			ShadowCascadeCount = ShadowCascadeCount,
 			ShadowCascadeSplitRatio = ShadowCascadeSplitRatio,
 			ContactShadows = ContactShadows,
+			IncludeStaticShadowCasters = IncludeStaticShadowCasters,
 		};
 	}
 

@@ -13,6 +13,7 @@ internal class Format( Constants.Solutions solution, Format.Mode mode = Format.M
 	internal ExitCode Run()
 	{
 		var solutionDir = Constants.GetSolutionDir( solution );
+		GitHubActions.Group( $"{solution} ({mode.ToString().ToLowerInvariant()})" );
 
 		var modeArgs = mode == Mode.Whitespace ? "whitespace --folder" : "";
 		if ( verifyOnly )
@@ -21,10 +22,13 @@ internal class Format( Constants.Solutions solution, Format.Mode mode = Format.M
 		}
 		if ( !Utility.RunDotnetCommand( solutionDir, $"format {modeArgs}" ) )
 		{
+			GitHubActions.EndGroup();
+			Log.Error( verifyOnly ? $"{solution} needs formatting. Run tools/FormatAll.bat and commit the result." : $"Formatting {solution} failed." );
+			if ( verifyOnly ) GitHubActions.Note( $"{solution} needs formatting" );
 			return ExitCode.Failure;
 		}
 
-		Log.Error( $"Format completed successfully for {solution} in mode {mode}" );
+		Log.Info( $"Format completed successfully for {solution} in mode {mode}" );
 		return ExitCode.Success;
 	}
 }

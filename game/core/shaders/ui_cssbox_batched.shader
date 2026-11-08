@@ -26,6 +26,7 @@ COMMON
 	DynamicCombo( D_NO_ZTEST, 0..1, Sys( ALL ) );
 	DynamicCombo( D_PANEL_OPACITY, 0..1, Sys( ALL ) );
 	DynamicCombo( D_POLYGON_POINTS, 0..1, Sys( ALL ) );
+	DynamicCombo( D_PAINTER_SCREENPIXELS, 0..1, Sys( ALL ) );
 	float g_flUIPanelOpacity < Attribute( "UIPanelOpacity" ); Default( 1 ); >;
 
 	#define BoxInstanceData TextInstanceData
@@ -187,21 +188,31 @@ VS
 	#define EPSILON 0.000001
 
 	float4 g_vViewport < Source( Viewport ); >;
+	float4 g_vPainterScreenViewport < Attribute( "PainterScreenViewport" ); Default4( 0, 0, 0, 0 ); >;
 	float4x4 g_matTransform < Attribute( "TransformMat" ); >;
 	float4x4 LayerMat < Attribute( "LayerMat" ); >;
 	float4x4 g_matWorldPanel < Attribute( "WorldMat" ); >;
 	int InstanceOffset < Attribute( "InstanceOffset" ); Default( 0 ); >;
 
+	// Rebase default Painter screen pixels from the view's output viewport into the active raster viewport.
+	float4 MapPainterScreenPixels( float4 position, float4 viewport )
+	{
+	#if D_PAINTER_SCREENPIXELS && !( D_WORLDPANEL )
+		float2 logicalSize = g_vPainterScreenViewport.zw;
+		if ( all( logicalSize > EPSILON ) && all( viewport.zw > EPSILON ) )
+			position.xy = viewport.xy * position.w + ( position.xy - g_vPainterScreenViewport.xy * position.w ) * ( viewport.zw / logicalSize );
+	#endif
+		return position;
+	}
+
 	BoolAttribute( ui, true );
 	BoolAttribute( ScreenSpaceVertices, true );
 
-	static const float2 QuadPositions[4] =
+	// Corners 0..3 as (0,0) (1,0) (1,1) (0,1). Computed, a constant table indexed at runtime would live in local memory.
+	float2 QuadPosition( uint i )
 	{
-		float2( 0, 0 ),
-		float2( 1, 0 ),
-		float2( 1, 1 ),
-		float2( 0, 1 ),
-	};
+		return float2( ( i == 1 || i == 2 ) ? 1 : 0, i >= 2 ? 1 : 0 );
+	}
 
 	#include "ui/path_quad.hlsl"
 
@@ -213,7 +224,7 @@ VS
 		PixelInput o;
 
 		uint instanceIndex = nInstanceID + InstanceOffset;
-		float2 corner = QuadPositions[nVertexID];
+		float2 corner = QuadPosition( nVertexID );
 		BoxInstanceData inst = BoxInstances[instanceIndex];
 		float4x4 instTransform = TransformBuffer[inst.TransformIndex].Mat;
 		if ( inst.ShapeIndex >= 0 )
@@ -229,6 +240,7 @@ VS
 
 		float4 vViewport = g_vViewport;
 		float4 vMatrix = mul( LayerMat, mul( instTransform, float4( vPositionSs, 0, 1 ) ) );
+		vMatrix = MapPainterScreenPixels( vMatrix, vViewport );
 
 		#if !( D_WORLDPANEL )
 		{
@@ -659,7 +671,7 @@ PS
 		float gradLength;
 		float t = GradientPosition( g, texCoord, boxSize, gradLength );
 
-		int last = g.Count - 1;
+		int last = clamp( g.Count, 1, 8 ) - 1;
 
 		if ( t <= GradientStop( g, 0, gradLength ) )
 			return g.StopColors[0];

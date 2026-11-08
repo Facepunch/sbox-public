@@ -9,7 +9,7 @@ internal partial class ShadowMapper
 {
 	internal void RenderScreenSpaceShadows( ISceneView view )
 	{
-		if ( SceneView != view || DirectionalLight is null )
+		if ( SceneView != view || DirectionalLight is null || View.IsReflection )
 			return;
 
 		var light = DirectionalLight;

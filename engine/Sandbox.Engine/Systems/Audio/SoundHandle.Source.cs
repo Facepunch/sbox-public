@@ -34,6 +34,8 @@ partial class SoundHandle
 		source.ReverbAmount = Reverb;
 		source.Distance = Distance;
 		source.Falloff = Falloff;
+		source.FalloffMode = FalloffMode;
+		source.MinDistance = MinDistance;
 		source.Update( Transform );
 	}
 
@@ -144,8 +146,6 @@ partial class SoundHandle
 			_binauralEffects = default;
 		}
 
-		Audio.MixingThread.QueueReverbDisposal( _reverb );
-		_reverb = null;
 		SourceRoom = default;
 	}
 }

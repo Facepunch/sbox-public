@@ -45,6 +45,7 @@ internal sealed partial class PhysicsWorld3d : PhysicsWorldInternal, IHandle
 	}
 
 	internal override PhysicsBodyInternal CreateBodyInternal() => new PhysicsBody3d( this );
+	internal override PhysicsBodyInternal CreateBodyInternal( in PhysicsBodySettings settings ) => new PhysicsBody3d( this, settings );
 
 	internal struct VPhysIntersectionNotification_t
 	{
@@ -119,6 +120,15 @@ internal sealed partial class PhysicsWorld3d : PhysicsWorldInternal, IHandle
 
 	[UnmanagedFunctionPointer( CallingConvention.StdCall )]
 	unsafe delegate void ProcessIntersectionsDelegate_t( VPhysIntersectionNotification_t* notifications, int count );
+
+	/// <summary>
+	/// Step simulation of this physics world. You can only do this on physics worlds that you manually create.
+	/// </summary>
+	public override void Step( float delta, int subSteps )
+	{
+		CurrentTime += delta;
+		Step( CurrentTime, delta, subSteps );
+	}
 
 	/// <summary>
 	/// Step simulation of this physics world. You can only do this on physics worlds that you manually create.

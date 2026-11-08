@@ -419,16 +419,18 @@ struct Terrain
             float3 geoNormal = NormalBasis( uv, tangentU, tangentV );
 
             // Transform to world space
-            geoNormal = mul( Get().Transform, float4( geoNormal, 0.0 ) ).xyz;
+            // Row-vector multiplication by the inverse applies its transpose to the normal.
+            geoNormal = mul( geoNormal, (float3x3)Get().TransformInv );
             tangentU = mul( Get().Transform, float4( tangentU, 0.0 ) ).xyz;
-            tangentV = mul( Get().Transform, float4( tangentV, 0.0 ) ).xyz;
 
             // Re-orthonormalize in case transform had scaling
             geoNormal = normalize( geoNormal );
             tangentU = normalize( tangentU - geoNormal * dot( tangentU, geoNormal ) );
-            tangentV = normalize( cross( geoNormal, tangentU ) );
+            float flTransformSign = determinant( (float3x3)Get().Transform ) < 0.0f ? -1.0f : 1.0f;
+            tangentV = normalize( cross( geoNormal, tangentU ) ) * flTransformSign;
 
             m.Normal = TransformNormal( m.Normal, geoNormal, tangentU, tangentV );
+            m.GeometricNormal = geoNormal;
             m.WorldTangentU = tangentU;
             m.WorldTangentV = tangentV;
         }

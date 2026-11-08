@@ -117,7 +117,7 @@
 
         _suball = new();
         _suball.Name = "all";
-        _suball.Title = "All";
+        _suball.Title = "#menu.common.all";
         _suball.Categories = main.SubCategories.SelectMany(x => x.Categories).ToArray();
 
         var cookieValue = Game.Cookies.GetString($"clothing;{Category.Name};{main.Name};lasttab");
@@ -162,13 +162,13 @@
 
     enum Group
     {
-        [Title("Purchased")]
+        [Title("#menu.avatar.purchased")]
         Purchased,
 
-        [Title("Available")]
+        [Title("#menu.avatar.available")]
         Available,
 
-        [Title("Unowned")]
+        [Title("#menu.avatar.unowned")]
         Unowned,
     }
 

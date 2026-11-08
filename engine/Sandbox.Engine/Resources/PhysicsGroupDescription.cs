@@ -49,7 +49,7 @@ public sealed class PhysicsGroupDescription : Resource
 		Dispose();
 		Refresh();
 
-		foreach ( var scene in Scene.All )
+		foreach ( var scene in Scene.AllIncludingUnlisted )
 		{
 			using var scope = scene.Push();
 
@@ -258,6 +258,19 @@ public sealed class PhysicsGroupDescription : Resource
 		public float AngularDampingRatio => native.m_flAngularDampingRatio;
 		public float AngularStrength => native.m_flAngularStrength;
 
+		/// <summary>Whether the enabled linear motor drives a spring target instead of velocity.</summary>
+		public bool LinearMotorIsSpring => native.m_bLinearMotorIsSpring;
+		/// <summary>Whether the enabled angular motor drives a spring target instead of velocity.</summary>
+		public bool AngularMotorIsSpring => native.m_bAngularMotorIsSpring;
+		/// <summary>Linear spring motor target offset.</summary>
+		public float LinearTargetPosition => native.m_flLinearTargetPosition;
+		/// <summary>Hinge spring motor target angle in degrees.</summary>
+		public float AngularTargetAngle => native.m_flAngularTargetAngle.RadianToDegree();
+		/// <summary>Ball spring motor target rotation.</summary>
+		public Rotation AngularTargetRotation => native.m_qAngularTargetRotation;
+		/// <summary>Component-style friction override, or null to retain the creation path's default.</summary>
+		public float? Friction => native.m_bOverrideFriction ? native.m_flFriction : null;
+
 		public float LinearMin => native.GetLinearLimitMin();
 		public float LinearMax => native.GetLinearLimitMax();
 
@@ -297,6 +310,14 @@ public sealed class PhysicsGroupDescription : Resource
 		private List<Part> All { get; } = new();
 
 		public float Mass => native.m_flMass;
+		internal float InertiaScale
+		{
+			get
+			{
+				var scale = native.m_flInertiaScale;
+				return scale == 0 ? 1.0f : scale;
+			}
+		}
 		public float LinearDamping => native.m_flLinearDamping;
 		public float AngularDamping => native.m_flAngularDamping;
 		public bool OverrideMassCenter => native.m_bOverrideMassCenter;

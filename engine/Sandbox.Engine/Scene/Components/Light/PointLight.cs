@@ -15,7 +15,38 @@ public class PointLight : Light
 {
 	ScenePointLight _so;
 
-	[Property]
+	/// <summary>
+	/// Constant term in the light's distance attenuation denominator.
+	/// </summary>
+	[Property, Group( "Influence", Order = 0 ), Order( 3 ), Advanced]
+	public float ConstantAttenuation
+	{
+		get;
+		set
+		{
+			field = value;
+			if ( _so.IsValid() ) _so.ConstantAttenuation = value;
+		}
+	}
+
+	/// <summary>
+	/// Linear term in the light's distance attenuation denominator.
+	/// </summary>
+	[Property, Group( "Influence", Order = 0 ), Order( 4 ), Advanced]
+	public float LinearAttenuation
+	{
+		get;
+		set
+		{
+			field = value;
+			if ( _so.IsValid() ) _so.LinearAttenuation = value;
+		}
+	}
+
+	/// <summary>
+	/// Maximum distance reached by this light.
+	/// </summary>
+	[Property, Group( "Influence", Order = 0 ), Order( 0 )]
 	public float Radius
 	{
 		get;
@@ -29,7 +60,10 @@ public class PointLight : Light
 		}
 	} = 400;
 
-	[Property, Range( 0, 10 )]
+	/// <summary>
+	/// Quadratic term controlling how this light fades with distance.
+	/// </summary>
+	[Property, Range( 0, 10 ), Group( "Influence", Order = 0 ), Order( 1 )]
 	public float Attenuation
 	{
 		get;
@@ -48,6 +82,8 @@ public class PointLight : Light
 		return _so = new ScenePointLight( Scene.SceneWorld, WorldPosition, Radius, LightColor )
 		{
 			Radius = Radius,
+			ConstantAttenuation = ConstantAttenuation,
+			LinearAttenuation = LinearAttenuation,
 			QuadraticAttenuation = Attenuation
 		};
 	}

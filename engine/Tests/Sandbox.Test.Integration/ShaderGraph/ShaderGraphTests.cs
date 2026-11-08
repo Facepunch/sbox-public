@@ -114,28 +114,8 @@ public class ShaderGraphTest
 	}
 
 	/// <summary>
-	/// Test that we can create a minimal shader graph and compile it to
-	/// </summary>
-	[TestMethod]
-	public async Task GraphToShader()
-	{
-		await InitializePackageLoader();
-		var (shaderGraphType, resultNodeType, graphCompilerType) = FindShaderGraphTypes();
-
-		var shaderGraph = CreateMinimalShaderGraph( shaderGraphType, resultNodeType, "Test shader graph" );
-		var shaderCode = GenerateShaderCode( shaderGraph, shaderGraphType, graphCompilerType );
-
-		// Basic validation that it looks like shader code
-		Assert.IsTrue( shaderCode.Contains( "HEADER" ), "Generated shader doesn't contain expected HEADER section" );
-		Assert.IsTrue( shaderCode.Contains( "MainPs" ), "Generated shader doesn't contain expected MainPs function" );
-
-		Console.WriteLine( $"Generated shader code length: {shaderCode.Length} characters" );
-		Console.WriteLine( "First 500 characters of generated shader:" );
-		Console.WriteLine( shaderCode.Substring( 0, Math.Min( 500, shaderCode.Length ) ) );
-	}
-
-	/// <summary>
-	/// Test that we can create a shader graph, generate shader code, and compile it using shadercompiler.exe
+	/// Test that we can create a shader graph, generate shader code, and compile it using shadercompiler.exe.
+	/// This also covers generating the code on its own, so the tools addon is only compiled once.
 	/// </summary>
 	[TestMethod]
 	public async Task ShaderCompilation()
@@ -145,6 +125,10 @@ public class ShaderGraphTest
 
 		var shaderGraph = CreateMinimalShaderGraph( shaderGraphType, resultNodeType, "Test shader graph for unit testing" );
 		var shaderCode = GenerateShaderCode( shaderGraph, shaderGraphType, graphCompilerType );
+
+		// Basic validation that it looks like shader code
+		Assert.IsTrue( shaderCode.Contains( "HEADER" ), "Generated shader doesn't contain expected HEADER section" );
+		Assert.IsTrue( shaderCode.Contains( "MainPs" ), "Generated shader doesn't contain expected MainPs function" );
 
 		// Write the shader code to a file in the game directory
 		var gameDir = Directory.GetCurrentDirectory();

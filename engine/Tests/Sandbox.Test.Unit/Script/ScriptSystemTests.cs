@@ -12,16 +12,29 @@ public class ScriptSystemTests
 	private GlobalContext previous;
 	private GlobalContext context;
 
-	[TestInitialize]
-	public void Initialize()
+	// Scanning the assemblies is slow, so tests share one library unless they mutate it
+	static readonly Lazy<TypeLibrary> SharedLibrary = new( CreateLibrary );
+
+	static TypeLibrary CreateLibrary()
 	{
-		previous = GlobalContext.Current;
 		var library = new TypeLibrary();
 		library.AddIntrinsicTypes();
 		library.AddAssembly( typeof( Vector3 ).Assembly, false );
 		library.AddAssembly( typeof( Script ).Assembly, false );
 		library.AddAssembly( typeof( ScriptSystemTests ).Assembly, false );
-		GlobalContext.Current = context = new GlobalContext { TypeLibrary = library };
+		return library;
+	}
+
+	/// <summary>
+	/// Swap in a private library for tests that add or remove assemblies.
+	/// </summary>
+	private void UseOwnLibrary() => GlobalContext.Current = context = new GlobalContext { TypeLibrary = CreateLibrary() };
+
+	[TestInitialize]
+	public void Initialize()
+	{
+		previous = GlobalContext.Current;
+		GlobalContext.Current = context = new GlobalContext { TypeLibrary = SharedLibrary.Value };
 	}
 
 	[TestCleanup]
@@ -42,7 +55,7 @@ public class ScriptSystemTests
 		public string NestedError { get; private set; }
 		public void Cascade()
 		{
-			var next = Game.Scripting.CreateScript( "Host.Cascade();" );
+			var next = GlobalContext.Current.Scripting.CreateScript( "Host.Cascade();" );
 			next.SetArgument( "Host", this );
 			if ( !next.Run() ) NestedError = next.LastError.Message;
 		}
@@ -56,7 +69,7 @@ public class ScriptSystemTests
 	[TestMethod]
 	public void InputsExpireOnSuccessAndFailure()
 	{
-		var script = Game.Scripting.CreateScript( "return Number * 2;" );
+		var script = GlobalContext.Current.Scripting.CreateScript( "return Number * 2;" );
 		script.SetArgument( "Number", 3 );
 		Assert.AreEqual( 6, script.RunAndReturn<int>() );
 		Assert.IsNull( script.LastError );
@@ -65,7 +78,7 @@ public class ScriptSystemTests
 		script.SetArgument( "Number", 4L );
 		Assert.AreEqual( 8L, script.RunAndReturn<long>() );
 
-		var failure = Game.Scripting.CreateScript( "Host.Value++; Host.Fail();" );
+		var failure = GlobalContext.Current.Scripting.CreateScript( "Host.Value++; Host.Fail();" );
 		var host = new Host();
 		failure.SetArgument( "Host", host );
 		Assert.IsFalse( failure.Run() );
@@ -78,7 +91,7 @@ public class ScriptSystemTests
 	[TestMethod]
 	public void MissingReceiversReportBindingErrorsAndScriptWritesExpire()
 	{
-		var script = Game.Scripting.CreateScript( "if (Skip) return 7; return Player.Read(1);" );
+		var script = GlobalContext.Current.Scripting.CreateScript( "if (Skip) return 7; return Player.Read(1);" );
 		script.SetArgument( "Skip", true );
 		// rc.1 needs receiver types before compiling even an untaken branch.
 		Assert.IsFalse( script.Run() );
@@ -93,7 +106,7 @@ public class ScriptSystemTests
 		script.SetArgument<Host>( "Player", null );
 		Assert.IsFalse( script.Run() );
 
-		var writes = Game.Scripting.CreateScript( "if (Write) X = 42; return X;" );
+		var writes = GlobalContext.Current.Scripting.CreateScript( "if (Write) X = 42; return X;" );
 		writes.SetArgument( "Write", true );
 		writes.SetArgument( "X", 0 );
 		Assert.AreEqual( 42, writes.RunAndReturn<int>(), writes.LastError?.Message );
@@ -104,7 +117,7 @@ public class ScriptSystemTests
 	[TestMethod]
 	public void ErrorsHaveSourceRangesAndReturnConversionFailures()
 	{
-		var script = Game.Scripting.CreateScript( "return Missing;" );
+		var script = GlobalContext.Current.Scripting.CreateScript( "return Missing;" );
 		Assert.IsFalse( script.Run() );
 		Assert.AreEqual( 7, script.LastError.Start );
 		Assert.AreEqual( 7, script.LastError.Length );
@@ -112,27 +125,27 @@ public class ScriptSystemTests
 		script.SetArgument( "Missing", new Host() );
 		Assert.AreEqual( 0, script.RunAndReturn<int>() );
 		Assert.AreEqual( "SCR_RETURN_TYPE", script.LastError.Code );
-		Assert.AreEqual( 0, Game.Scripting.CreateScript( "var local = 1;" ).RunAndReturn<int>() );
-		Assert.ThrowsException<Script.ScriptException>( () => Game.Scripting.Run<int>( "return (;" ) );
-		Assert.ThrowsException<Script.ScriptException>( () => Game.Scripting.Run<int>( "var local = 1;" ) );
-		Assert.ThrowsException<InvalidCastException>( () => Game.Scripting.Run<int>( "return 1.0;" ) );
+		Assert.AreEqual( 0, GlobalContext.Current.Scripting.CreateScript( "var local = 1;" ).RunAndReturn<int>() );
+		Assert.ThrowsException<Script.ScriptException>( () => GlobalContext.Current.Scripting.Run<int>( "return (;" ) );
+		Assert.ThrowsException<Script.ScriptException>( () => GlobalContext.Current.Scripting.Run<int>( "var local = 1;" ) );
+		Assert.ThrowsException<InvalidCastException>( () => GlobalContext.Current.Scripting.Run<int>( "return 1.0;" ) );
 	}
 
 	[TestMethod]
 	public void LocalsLoopsOperatorsAndHostMetadataWork()
 	{
-		var script = Game.Scripting.CreateScript( "long total = 0; for (var i = 0; i < 10; i++) { if (i < 5) total += i; else total += 2; } return total;" );
+		var script = GlobalContext.Current.Scripting.CreateScript( "long total = 0; for (var i = 0; i < 10; i++) { if (i < 5) total += i; else total += 2; } return total;" );
 		Assert.AreEqual( 20L, script.RunAndReturn<long>() );
 		Assert.AreEqual( 20L, script.RunAndReturn<long>() );
-		Assert.IsTrue( Game.Scripting.CreateScript( "return true || Missing.Read();" ).RunAndReturn<bool>() );
-		Assert.IsFalse( Game.Scripting.CreateScript( "return false && Missing.Read();" ).RunAndReturn<bool>() );
-		var vector = Game.Scripting.CreateScript( "return new Vector3(4, 5, 6) * 100;" );
+		Assert.IsTrue( GlobalContext.Current.Scripting.CreateScript( "return true || Missing.Read();" ).RunAndReturn<bool>() );
+		Assert.IsFalse( GlobalContext.Current.Scripting.CreateScript( "return false && Missing.Read();" ).RunAndReturn<bool>() );
+		var vector = GlobalContext.Current.Scripting.CreateScript( "return new Vector3(4, 5, 6) * 100;" );
 		var result = vector.RunAndReturn<Vector3>();
 		Assert.IsNull( vector.LastError, vector.LastError?.ToString() );
 		Assert.AreEqual( new Vector3( 400, 500, 600 ), result );
-		Assert.AreEqual( 10.0, Game.Scripting.Run<double>( "return Math.Cos(0) * 10;" ) );
-		Assert.IsTrue( Game.Scripting.CreateScript( "return Time.Now + RealTime.Now;" ).Run() );
-		var member = Game.Scripting.CreateScript( "return Player.Read(1);" );
+		Assert.AreEqual( 10.0, GlobalContext.Current.Scripting.Run<double>( "return Math.Cos(0) * 10;" ) );
+		Assert.IsTrue( GlobalContext.Current.Scripting.CreateScript( "return Time.Now + RealTime.Now;" ).Run() );
+		var member = GlobalContext.Current.Scripting.CreateScript( "return Player.Read(1);" );
 		member.SetArgument( "Player", new Host { Value = 2 } );
 		Assert.AreEqual( 3, member.RunAndReturn<int>(), member.LastError?.Message );
 	}
@@ -143,7 +156,7 @@ public class ScriptSystemTests
 	[DataRow( "return new Vector3(4, 5, 6) * 100.0f;" )]
 	public void VectorMultiplicationSelectsTheScalarOverload( string source )
 	{
-		var script = Game.Scripting.CreateScript( source );
+		var script = GlobalContext.Current.Scripting.CreateScript( source );
 		Assert.IsTrue( script.Compile(), script.LastError?.Message );
 		var result = script.RunAndReturn<Vector3>();
 		Assert.IsNull( script.LastError, script.LastError?.Message );
@@ -155,22 +168,22 @@ public class ScriptSystemTests
 	{
 		foreach ( var source in new[] { "Host.Hidden();", "Host.ReadOnly = 10;", "return Host.WriteOnly;", "Host.Field = 8;" } )
 		{
-			var script = Game.Scripting.CreateScript( source );
+			var script = GlobalContext.Current.Scripting.CreateScript( source );
 			script.SetArgument( "Host", new Host() );
 			Assert.IsFalse( script.Run(), source );
 		}
-		var denied = Game.Scripting.CreateScript( "return Target.Value;" );
+		var denied = GlobalContext.Current.Scripting.CreateScript( "return Target.Value;" );
 		denied.SetArgument( "Target", new UnexposedHost() );
 		Assert.IsFalse( denied.Run() );
-		Assert.IsFalse( Game.Scripting.CreateScript( "return System.IO.File.ReadAllText(\"secret\");" ).Run() );
-		Assert.IsFalse( Game.Scripting.CreateScript( "return new UnexposedHost();" ).Run() );
+		Assert.IsFalse( GlobalContext.Current.Scripting.CreateScript( "return System.IO.File.ReadAllText(\"secret\");" ).Run() );
+		Assert.IsFalse( GlobalContext.Current.Scripting.CreateScript( "return new UnexposedHost();" ).Run() );
 	}
 
 	[TestMethod]
 	public void ConstructedGenericInputsUseApprovedMembers()
 	{
 		var items = new System.Collections.Generic.List<int> { 2, 3 };
-		var script = Game.Scripting.CreateScript( "Items.Add(4); return Items[0] + Items.Count;" );
+		var script = GlobalContext.Current.Scripting.CreateScript( "Items.Add(4); return Items[0] + Items.Count;" );
 		script.SetArgument( "Items", items );
 		Assert.AreEqual( 5, script.RunAndReturn<int>(), script.LastError?.Message );
 		Assert.AreEqual( 3, items.Count );
@@ -179,8 +192,9 @@ public class ScriptSystemTests
 	[TestMethod]
 	public void InstancesAreIndependentAndHotloadInvalidatesPermissions()
 	{
-		var first = Game.Scripting.CreateScript( "return Host.Read(1);" );
-		var second = Game.Scripting.CreateScript( "return Host.Read(1);" );
+		UseOwnLibrary();
+		var first = GlobalContext.Current.Scripting.CreateScript( "return Host.Read(1);" );
+		var second = GlobalContext.Current.Scripting.CreateScript( "return Host.Read(1);" );
 		first.SetArgument( "Host", new Host { Value = 10 } );
 		second.SetArgument( "Host", new Host { Value = 20 } );
 		Assert.AreEqual( 11, first.RunAndReturn<int>(), first.LastError?.Message );
@@ -198,7 +212,7 @@ public class ScriptSystemTests
 	[TestMethod]
 	public void OptionalArgumentsUseTheirDeclaredDefaults()
 	{
-		var script = Game.Scripting.CreateScript( "return Player.Read();" );
+		var script = GlobalContext.Current.Scripting.CreateScript( "return Player.Read();" );
 		script.SetArgument( "Player", new Host() );
 		Assert.AreEqual( 1, script.RunAndReturn<int>() );
 		Assert.IsNull( script.LastError );
@@ -207,7 +221,7 @@ public class ScriptSystemTests
 	[TestMethod]
 	public void ContextsAreIsolatedAndOldScriptsDispose()
 	{
-		var script = Game.Scripting.CreateScript( "return 42;" );
+		var script = GlobalContext.Current.Scripting.CreateScript( "return 42;" );
 		var other = new GlobalContext { TypeLibrary = context.TypeLibrary };
 		GlobalContext.Current = other;
 		Assert.IsFalse( script.Run() );
@@ -217,7 +231,7 @@ public class ScriptSystemTests
 		context.TypeLibrary = new TypeLibrary();
 		Assert.IsFalse( script.Run() );
 		StringAssert.Contains( script.LastError.Message, "ended" );
-		var fresh = Game.Scripting.CreateScript( "return 1;" );
+		var fresh = GlobalContext.Current.Scripting.CreateScript( "return 1;" );
 		context.Shutdown();
 		Assert.IsFalse( fresh.Run() );
 	}
@@ -225,13 +239,13 @@ public class ScriptSystemTests
 	[TestMethod]
 	public void BudgetsAndReentryAreBounded()
 	{
-		var budget = Assert.ThrowsException<Script.ScriptException>( () => Game.Scripting.Run<int>( "while (true) { } return 0;" ) );
+		var budget = Assert.ThrowsException<Script.ScriptException>( () => GlobalContext.Current.Scripting.Run<int>( "while (true) { } return 0;" ) );
 		Assert.AreEqual( "SCR_BUDGET", budget.Code );
 		var host = new Host();
-		host.Recursive = Game.Scripting.CreateScript( "return Host.Reenter();" );
+		host.Recursive = GlobalContext.Current.Scripting.CreateScript( "return Host.Reenter();" );
 		host.Recursive.SetArgument( "Host", host );
 		Assert.IsFalse( host.Recursive.RunAndReturn<bool>() );
-		var cascade = Game.Scripting.CreateScript( "Host.Cascade();" );
+		var cascade = GlobalContext.Current.Scripting.CreateScript( "Host.Cascade();" );
 		cascade.SetArgument( "Host", host );
 		Assert.IsTrue( cascade.Run() );
 		StringAssert.Contains( host.NestedError, "depth limit" );
@@ -240,7 +254,7 @@ public class ScriptSystemTests
 	[TestMethod]
 	public void DirectRunsPreserveContextAndReleaseDepthAfterFailure()
 	{
-		var system = Game.Scripting;
+		var system = GlobalContext.Current.Scripting;
 		for ( int i = 0; i < 40; i++ )
 			Assert.ThrowsException<Script.ScriptException>( () => system.Run<int>( "return Missing;" ) );
 		Assert.AreEqual( 100000, system.Run<int>( "var total = 0; for (var i = 0; i < 100000; i++) total++; return total;" ) );
@@ -286,7 +300,7 @@ public class ScriptSystemTests
 	[TestMethod]
 	public void ForeignThreadsCannotConsumeArguments()
 	{
-		var script = Game.Scripting.CreateScript( "return Number;" );
+		var script = GlobalContext.Current.Scripting.CreateScript( "return Number;" );
 		script.SetArgument( "Number", 42 );
 		Exception failure = null;
 		var thread = new System.Threading.Thread( () =>
@@ -300,22 +314,18 @@ public class ScriptSystemTests
 		Assert.AreEqual( 42, script.RunAndReturn<int>() );
 	}
 
-	[TestMethod]
+	[TestMethod, TestCategory( Allocations.Category )]
 	public void WarmedCallsIncludingArgumentExpiryAllocateNothing()
 	{
-		var script = Game.Scripting.CreateScript( "return Math.Sin(Number) * 10.0;" );
-		for ( int i = 0; i < 10_000; i++ )
+		var script = GlobalContext.Current.Scripting.CreateScript( "return Math.Sin(Number) * 10.0;" );
+		Allocations.AssertSettles( "10,000 calls", () =>
 		{
-			script.SetArgument( "Number", (double)i );
-			script.RunAndReturn<double>();
-		}
-		long before = GC.GetAllocatedBytesForCurrentThread();
-		for ( int i = 0; i < 10_000; i++ )
-		{
-			script.SetArgument( "Number", (double)i );
-			script.RunAndReturn<double>();
-		}
-		Assert.AreEqual( 0L, GC.GetAllocatedBytesForCurrentThread() - before );
+			for ( int i = 0; i < 10_000; i++ )
+			{
+				script.SetArgument( "Number", (double)i );
+				script.RunAndReturn<double>();
+			}
+		} );
 		Assert.IsNull( script.LastError );
 	}
 }

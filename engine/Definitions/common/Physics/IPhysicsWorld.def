@@ -1,12 +1,14 @@
 
-#include "vphysics2/iphysicsbody.h"
+#include "physics/iphysicsbody.h"
 
 native enum JointMotion_t is Sandbox.JointMotion;
 native enum PhysicsBodyType_t is Sandbox.PhysicsBodyType;
 native enum PhysicsJointType_t is Sandbox.PhysicsJointType;
 native enum PhysicsShapeType_t is Sandbox.PhysicsShapeType;
 native enum PhysicsSimulation_t is Sandbox.PhysicsSimulationMode;
-native enum VPhysicsMotionType_t is Sandbox.PhysicsMotionType;
+native enum PhysicsMotionType_t is Sandbox.PhysicsMotionType;
+native struct PhysicsBodySettings_t is Sandbox.PhysicsBodySettings;
+native struct PhysicsShapeSettings_t is Sandbox.PhysicsShapeSettings;
 
 delegate ProcessIntersectionsDelegate_t;
 delegate DebugDrawDelegate_t;
@@ -16,6 +18,7 @@ native class IPhysicsWorld
 {
 	// Bodies
 	IPhysicsBody AddBody();
+	IPhysicsBody AddBody( PhysicsBodySettings_t settings );
 	void RemoveBody( IPhysicsBody pBody );
 
 	IPhysicsBody GetWorldReferenceBody();
@@ -86,7 +89,7 @@ native class IPhysicsWorld
 		return self;
 	}
 
-	void Query( cref CQueryResult result, Vector3 vCenter, float flRadius, CastTo[RnQueryObjectSet] ushort nObjectSetMask );
-	void Query( cref CQueryResult result, AABB_t bounds, CastTo[RnQueryObjectSet] ushort nObjectSetMask );
-	void Query( cref CQueryResult result, CastTo[Vector*] void* pPoints, int nPoints, CastTo[RnQueryObjectSet] ushort nObjectSetMask );
+	void Query( cref CQueryResult result, Vector3 vCenter, float flRadius, CastTo[PhysicsQueryObjectSet_t] ushort nObjectSetMask );
+	void Query( cref CQueryResult result, AABB_t bounds, CastTo[PhysicsQueryObjectSet_t] ushort nObjectSetMask );
+	void Query( cref CQueryResult result, CastTo[Vector*] void* pPoints, int nPoints, CastTo[PhysicsQueryObjectSet_t] ushort nObjectSetMask );
 }

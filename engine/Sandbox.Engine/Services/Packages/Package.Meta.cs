@@ -79,6 +79,11 @@ public partial class Package
 	}
 
 	/// <summary>
+	/// The meta's changed - forget what GetCachedMeta remembered
+	/// </summary>
+	protected void ClearMetaCache() => metaCache = null;
+
+	/// <summary>
 	/// Get the full ident with your choice of fidelity
 	/// </summary>
 	internal string GetIdent( bool withLocal, bool withVersion )

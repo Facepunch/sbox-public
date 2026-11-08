@@ -5,7 +5,7 @@ namespace Sandbox.SceneRenderer.Bridge;
 
 /// <summary>
 /// Dispatches camera stages through <c>IManagedCamera.OnRenderStage</c> using a managed Graphics view.
-/// Handles auto exposure and gamma-space UI blending (<c>CManagedRenderPipeline::OnUIHook</c>).
+/// Handles auto exposure and gamma-space UI blending (<see cref="Native.HookLayers.AddUI"/>).
 /// </summary>
 internal sealed class CameraStages : IRenderStages, IDisposable
 {
@@ -40,6 +40,7 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 	public float BeginFrame( SceneCamera camera, RenderView renderView, bool updateExposure )
 	{
 		Camera = camera;
+		camera.ScheduleEarlyPostProcess( Stage.AfterDepthPrepass, false );
 		view.PostProcessEnabled = camera.EnablePostProcessing;
 		view.ToolsVisMode = renderView.ToolsVisMode;
 
@@ -70,13 +71,13 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 
 	static readonly StringToken ForwardMode = new( "Forward" );
 
-	public bool HasAsyncCompute( Stage stage ) => Camera?.HasAsyncCompute( stage ) ?? false;
+	public bool HasEarlyPostProcess( Stage stage, PostProcessQueue queue ) => Camera?.HasEarlyPostProcess( stage, queue ) ?? false;
 
 	/// <summary>
-	/// The camera's compute-only effects at <paramref name="stage"/> (AO), on the async compute queue: a view with the frame's
-	/// viewport and format but no targets, whose barriers name compute stages (<see cref="Graphics.ManagedView.ComputeQueue"/>).
+	/// Independent camera effects on their selected queue, with the frame's viewport and format but no targets bound.
+	/// Compute-queue barriers name compute stages only (<see cref="Graphics.ManagedView.ComputeQueue"/>).
 	/// </summary>
-	public void RenderAsyncCompute( Stage stage, in StageTarget target )
+	public void RenderEarlyPostProcess( Stage stage, PostProcessQueue queue, in StageTarget target )
 	{
 		if ( Camera is null ) return;
 
@@ -93,18 +94,45 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 		view.MaxZ = target.MaxZ;
 		view.ColorFormat = target.ColorFormat;
 		view.Msaa = SampleCount( target.Samples );
-		view.ComputeQueue = true;
+		view.ComputeQueue = queue == PostProcessQueue.AsyncCompute;
 
 		try
 		{
 			using ( new Graphics.Scope( context, view ) )
 			{
-				Camera.RenderAsyncCompute( stage );
+				Camera.RenderEarlyPostProcess( stage, queue );
 			}
 		}
 		finally
 		{
 			view.ComputeQueue = false;
+		}
+	}
+
+	public ScreenSpaceReflectionsPass ScreenSpaceReflections => Camera?.ScreenSpaceReflections;
+
+	public void RenderScreenSpaceReflections( bool history, in StageTarget target )
+	{
+		if ( Camera?.ScreenSpaceReflections is not { } reflections ) return;
+
+		SetMainCamera();
+
+		var context = target.Context;
+		context.GetAttributesPtrForModify().SetParent( target.Attributes.Get() );
+
+		view.Color = history ? target.Color : default;
+		view.Depth = history ? target.Depth : default;
+		view.SrgbWrite = false;
+		view.Viewport = target.Viewport;
+		view.MinZ = target.MinZ;
+		view.MaxZ = target.MaxZ;
+		view.ColorFormat = target.ColorFormat;
+		view.Msaa = SampleCount( target.Samples );
+
+		using ( new Graphics.Scope( context, view ) )
+		{
+			if ( history ) reflections.CaptureHistory();
+			else reflections.Trace();
 		}
 	}
 
@@ -140,10 +168,10 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 		view.ColorFormat = target.ColorFormat;
 		view.Msaa = SampleCount( target.Samples );
 
-		// Gamma UI uses a linear view of sRGB bytes (CManagedRenderPipeline::OnUIHook).
+		// Gamma UI uses a linear view of sRGB bytes (Native.HookLayers.AddUI).
 		// Float targets need encoded scratch, decoded back after UI drawing.
 		var ui = stage is Stage.UI or Stage.EarlyUI;
-		var gamma = ui && ConsoleSystem.GetValue( "ui_gamma_blend", "1" ) != "0";
+		var gamma = ui && RenderPipeline.UIGammaBlend;
 		RenderTarget scratch = null;
 
 		if ( gamma && ViewTarget.IsFloatFormat( target.ColorFormat ) )

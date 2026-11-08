@@ -47,6 +47,20 @@ public sealed class SceneDirectionalLight : SceneLight
 	}
 
 	/// <summary>
+	/// Include static shadow casters independently of the light's baked-light index.
+	/// </summary>
+	public bool IncludeStaticShadowCasters
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			NotifyChanged( Rendering.SceneObjectChange.Settings );
+		}
+	}
+
+	/// <summary>
 	/// Set the max distance of the shadow cascade
 	/// </summary>
 	public void SetCascadeDistanceScale( float distance )

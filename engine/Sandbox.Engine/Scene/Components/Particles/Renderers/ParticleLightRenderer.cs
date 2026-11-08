@@ -44,7 +44,7 @@ public sealed class ParticleLightRenderer : ParticleController
 
 	protected override void OnParticleCreated( Particle p )
 	{
-		if ( Random.Shared.Float( 0, 1 ) > Ratio )
+		if ( ParticleRandom.Shared.Float( 0, 1 ) > Ratio )
 			return;
 
 		if ( currentLightCount > MaximumLights )

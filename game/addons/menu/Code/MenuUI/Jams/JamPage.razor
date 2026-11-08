@@ -25,8 +25,8 @@
 						{
 							<icon>emoji_events</icon>
 						}
-						<label class="title">@(IsLoading ? "Checking for a jam" : "No jam right now")</label>
-						<label class="hint">@(IsLoading ? "One moment." : "Nothing is running at the moment. Check back later.")</label>
+						<label class="title">@(IsLoading ? "#menu.jam.checking_for_a_jam" : "#menu.jam.no_jam_right_now")</label>
+						<label class="hint">@(IsLoading ? "#menu.notifications.one_moment" : "#menu.jam.nothing_is_running_at_the_moment_check_back_later")</label>
 					</div>
 				</div>
 			}
@@ -109,17 +109,17 @@
 	{
 		var title = CurrentPhase switch
 		{
-			Jam.Phase.Finals => "The knockout begins",
-			Jam.Phase.GrandFinal => WaitingForFinal ? "The grand finalists are confirmed" : "It's time for the grand final",
-			Jam.Phase.Crowned => "The results are in",
-			_ => Jam.CurrentStepIndex >= 0 ? $"{Jam.Timeline[Jam.CurrentStepIndex].Name} begins" : "The jam is coming"
+			Jam.Phase.Finals => "#menu.jam.the_knockout_begins",
+			Jam.Phase.GrandFinal => WaitingForFinal ? "#menu.jam.the_grand_finalists_are_confirmed" : "#menu.jam.it_s_time_for_the_grand_final",
+			Jam.Phase.Crowned => "#menu.jam.the_results_are_in",
+			_ => Jam.CurrentStepIndex >= 0 ? $"{Jam.Timeline[Jam.CurrentStepIndex].Name} begins" : "#menu.jam.the_jam_is_coming"
 		};
 		var detail = CurrentPhase switch
 		{
-			Jam.Phase.Finals => "Meet the contenders. Every round starts fresh.",
-			Jam.Phase.GrandFinal => WaitingForFinal ? "Play the final pair before voting reopens." : "The final showdown is here.",
-			Jam.Phase.Crowned => "Meet the winners of this jam.",
-			_ => "The next stage is now open."
+			Jam.Phase.Finals => "#menu.jam.meet_the_contenders_every_round_starts_fresh",
+			Jam.Phase.GrandFinal => WaitingForFinal ? "#menu.jam.play_the_final_pair_before_voting_reopens" : "#menu.jam.the_final_showdown_is_here",
+			Jam.Phase.Crowned => "#menu.jam.meet_the_winners_of_this_jam",
+			_ => "#menu.jam.the_next_stage_is_now_open"
 		};
 		MenuOverlay.Instance?.BottomRight?.Queue( new MenuProject.Toast()
 		{
@@ -144,10 +144,10 @@
 
 			var title = eliminated.Length == 1 ? $"{Package.GetCachedTitle( eliminated[0].PackageIdent )} is knocked out"
 				: eliminated.Length > 1 ? $"{eliminated.Length} games are knocked out"
-				: current.GrandFinal ? "The grand final is open" : $"Round {current.Round} is open";
-			var detail = current.Decided ? "The final result is confirmed."
-				: opened ? current.GrandFinal ? "Pick your winner." : $"{current.Contenders.Count} remain. Choose your favourite again."
-				: "Voting is closed. Waiting for the next round.";
+				: current.GrandFinal ? "#menu.jam.the_grand_final_is_open" : $"Round {current.Round} is open";
+			var detail = current.Decided ? "#menu.jam.the_final_result_is_confirmed"
+				: opened ? current.GrandFinal ? "#menu.jam.pick_your_winner" : $"{current.Contenders.Count} remain. Choose your favourite again."
+				: "#menu.jam.voting_is_closed_waiting_for_the_next_round";
 			MenuOverlay.Instance?.BottomRight?.Queue( new MenuProject.Toast()
 			{
 				Title = title,

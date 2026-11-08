@@ -20,6 +20,19 @@ public sealed class HingeJoint : Joint
 		TargetVelocity
 	}
 
+	/// <summary>Explicit limit state. Null retains automatic limits from the angle range.</summary>
+	[Property, Group( "Limit" )]
+	public bool? LimitEnabled
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			ApplyLimits();
+		}
+	}
+
 	/// <summary>
 	/// Minimum angle it should be allowed to go
 	/// </summary>
@@ -34,12 +47,7 @@ public sealed class HingeJoint : Joint
 				return;
 
 			field = value;
-
-			if ( _joint.IsValid() )
-			{
-				_joint.MinAngle = value;
-				_joint.WakeBodies();
-			}
+			ApplyLimits();
 		}
 	}
 
@@ -57,12 +65,7 @@ public sealed class HingeJoint : Joint
 				return;
 
 			field = value;
-
-			if ( _joint.IsValid() )
-			{
-				_joint.MaxAngle = value;
-				_joint.WakeBodies();
-			}
+			ApplyLimits();
 		}
 	}
 
@@ -268,14 +271,20 @@ public sealed class HingeJoint : Joint
 
 		_joint = PhysicsJoint.CreateHinge( point1, point2 );
 
-		_joint.MinAngle = MinAngle;
-		_joint.MaxAngle = MaxAngle;
+		ApplyLimits();
 
 		ApplyMotor();
 
 		_joint.WakeBodies();
 
 		return _joint;
+	}
+
+	void ApplyLimits()
+	{
+		if ( !_joint.IsValid() ) return;
+		_joint.ConfigureLimits( new Vector2( MinAngle, MaxAngle ), LimitEnabled );
+		_joint.WakeBodies();
 	}
 
 	void ApplyMotor()

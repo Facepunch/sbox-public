@@ -39,29 +39,37 @@ public readonly struct PackageInfo
 	public bool ShowsPlayerList => _package?.GetValue( "ShowPlayerList", true ) ?? true;
 
 	/// <summary>
+	/// The game's <see cref="Sandbox.MapSettings"/>, from its meta. Null for a game published before it had them - its
+	/// map settings are the ones set on the website.
+	/// </summary>
+	MapSettings Maps => _package?.GetMeta<MapSettings>( "MapSettings", null );
+
+	/// <summary>
 	/// Should the pause menu offer a "change map" button? Defaults to false.
 	/// </summary>
-	public bool ShowsChangeMap => _package?.GetValue( "ShowChangeMap", false ) ?? false;
+	public bool ShowsChangeMap => Maps?.ShowChangeMap ?? _package?.GetValue( "ShowChangeMap", false ) ?? false;
 
 	/// <summary>
 	/// Does this game require a map to be chosen before it can launch?
 	/// </summary>
-	public bool NeedsMap => _package?.GetValue( "NeedsMap", false ) ?? false;
+	public bool NeedsMap => Maps?.NeedsMap ?? _package?.GetValue( "NeedsMap", false ) ?? false;
 
 	/// <summary>
 	/// Should launching this game go through the create-game modal rather than starting directly?
 	/// </summary>
-	public bool UsesCreateGameModal => _package?.GetValue( "UseCreateGameModal", false ) ?? false;
+	public bool UsesCreateGameModal => Maps?.UseCreateGameModal ?? _package?.GetValue( "UseCreateGameModal", false ) ?? false;
 
 	/// <summary>
 	/// The map this game launches with by default, or empty if none is configured.
 	/// </summary>
-	public string DefaultMap => _package?.GetValue( "DefaultMap", "" ) ?? "";
+	public string DefaultMap => (Maps is { } maps ? maps.DefaultMap : _package?.GetValue( "DefaultMap", "" )) ?? "";
 
 	/// <summary>
 	/// The package whose maps this game pulls from, defaulting to the game's own ident.
 	/// </summary>
-	public string MapTarget => _package?.GetValue( "MapTarget", _package.FullIdent );
+	public string MapTarget => Maps is { } maps
+		? (string.IsNullOrWhiteSpace( maps.MapTarget ) ? _package.FullIdent : maps.MapTarget)
+		: _package?.GetValue( "MapTarget", _package.FullIdent );
 
 	/// <summary>
 	/// The maximum number of players this game supports. Defaults to 1.

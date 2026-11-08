@@ -181,7 +181,7 @@ public partial class PartySettings
 
 			SelectedPackage = package;
 			GameThumbnail = string.IsNullOrEmpty( package?.Thumb ) ? null : Texture.Load( package.Thumb );
-			Error = package is null ? "Could not load this game's details. Choose the game again to retry." : null;
+			Error = package is null ? "#menu.party.could_not_load_this_game_s_details_choose_the_game_again_to_retry" : null;
 
 			RefreshGameSummary();
 		}

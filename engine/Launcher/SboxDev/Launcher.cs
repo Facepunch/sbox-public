@@ -15,6 +15,9 @@ public static class Launcher
 			Bootstrap.InitMinimal( Environment.CurrentDirectory );
 			Project.InitializeBuiltIn( false ).GetAwaiter().GetResult();
 			Project.GenerateSolution().GetAwaiter().GetResult();
+
+			// Stop crashpad and sentry's worker thread before unloading the native dlls they live in
+			NativeErrorReporter.Shutdown();
 			Managed.SandboxEngine.NativeInterop.Free();
 			EngineFileSystem.Shutdown();
 			return 0;

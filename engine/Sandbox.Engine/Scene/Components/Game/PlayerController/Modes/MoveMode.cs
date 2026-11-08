@@ -42,7 +42,7 @@ public abstract partial class MoveMode : Component
 		if ( !Controller.IsOnGround ) wantsGravity = true;
 		if ( Controller.WithoutVertical( Controller.Velocity ).Length > 1 ) wantsGravity = true;
 		if ( Controller.GroundVelocity.Length > 1 ) wantsGravity = true;
-		if ( Controller.GroundIsDynamic ) wantsGravity = true;
+		if ( Controller.GroundUsesContactFriction ) wantsGravity = true;
 
 		body.Gravity = wantsGravity;
 
@@ -111,6 +111,13 @@ public abstract partial class MoveMode : Component
 	}
 
 	/// <summary>
+	/// Called before a jump is applied, allowing the mode to release its attachment.
+	/// </summary>
+	public virtual void OnJump()
+	{
+	}
+
+	/// <summary>
 	/// If we're approaching a step, step up if possible
 	/// </summary>
 	protected void TrySteppingUp( float maxDistance )
@@ -139,6 +146,11 @@ public abstract partial class MoveMode : Component
 	Vector3.SmoothDamped smoothedMovement;
 
 	/// <summary>
+	/// Whether to ease input speed using the controller's acceleration times.
+	/// </summary>
+	protected virtual bool SmoothInput => true;
+
+	/// <summary>
 	/// Read inputs, return WishVelocity
 	/// </summary>
 	public virtual Vector3 UpdateMove( Rotation eyes, Vector3 input )
@@ -157,8 +169,8 @@ public abstract partial class MoveMode : Component
 		// if we're running, use run speed, if not use walk speed
 		var velocity = run ? Controller.RunSpeed : Controller.WalkSpeed;
 
-		// if we're ducking, always use duck walk speed
-		if ( Controller.IsDucking ) velocity = Controller.DuckedSpeed;
+		// Walking crops crouched input only on ground; air strafing keeps its wish speed.
+		if ( Controller.IsDucking && (this is not MoveModeWalk || Controller.IsOnGround) ) velocity = Controller.DuckedSpeed;
 
 		if ( direction.IsNearlyZero( 0.1f ) )
 		{
@@ -174,6 +186,12 @@ public abstract partial class MoveMode : Component
 		// Smooth the wish velocity
 		//
 		smoothedMovement.Target = direction * velocity;
+		if ( !SmoothInput )
+		{
+			smoothedMovement.Current = smoothedMovement.Target;
+			return smoothedMovement.Current;
+		}
+
 		smoothedMovement.SmoothTime = smoothedMovement.Target.Length < smoothedMovement.Current.Length ? Controller.DeaccelerationTime : Controller.AccelerationTime;
 		smoothedMovement.Update( Time.Delta );
 

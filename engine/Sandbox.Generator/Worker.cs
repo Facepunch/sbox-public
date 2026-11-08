@@ -194,16 +194,47 @@ namespace Sandbox.Generator
 		public override SyntaxNode VisitInvocationExpression( InvocationExpressionSyntax node )
 		{
 			var location = node.GetLocation();
-			var symbolInfo = Model.GetSymbolInfo( node.Expression );
+			var symlist = NeedsInvokedSymbols( node ) ? GetInvokedSymbols( node ) : ImmutableArray<ISymbol>.Empty;
 			node = base.VisitInvocationExpression( node ) as InvocationExpressionSyntax;
-
-			var symlist = symbolInfo.CandidateSymbols;
-			if ( symbolInfo.Symbol is not null ) symlist = ImmutableArray.Create( symbolInfo.Symbol );
 
 			CloudAssetProvider.VisitInvocation( ref node, location, symlist, this );
 			StringTokenUpgrader.VisitInvocation( ref node, location, symlist, this );
 
 			return node;
+		}
+
+		/// <summary>
+		/// Binding every call is most of the generator's time, and the units that look at the invoked
+		/// method only rewrite calls with a literal argument. Without one, the symbol can only feed a
+		/// CloudAssetProvider diagnostic, so skip it when nobody reads those.
+		/// </summary>
+		bool NeedsInvokedSymbols( InvocationExpressionSyntax node )
+		{
+			if ( !Processor.IgnoreDiagnostics ) return true;
+
+			foreach ( var argument in node.ArgumentList.Arguments )
+			{
+				if ( argument.Expression is LiteralExpressionSyntax ) return true;
+			}
+
+			return false;
+		}
+
+		/// <summary>
+		/// The method an invocation calls, or the candidates if it didn't bind. Asking about the
+		/// method group (node.Expression) makes Roslyn collect every extension method in scope on
+		/// each call, which was most of the generator's time. Asking about the invocation gives the
+		/// same method when overload resolution picked one, so only fall back for everything else.
+		/// </summary>
+		ImmutableArray<ISymbol> GetInvokedSymbols( InvocationExpressionSyntax node )
+		{
+			if ( Model.GetSymbolInfo( node ).Symbol is IMethodSymbol { MethodKind: not MethodKind.DelegateInvoke } method )
+				return ImmutableArray.Create<ISymbol>( method );
+
+			var symbolInfo = Model.GetSymbolInfo( node.Expression );
+			if ( symbolInfo.Symbol is not null ) return ImmutableArray.Create( symbolInfo.Symbol );
+
+			return symbolInfo.CandidateSymbols;
 		}
 
 		public override SyntaxNode VisitIdentifierName( IdentifierNameSyntax node )

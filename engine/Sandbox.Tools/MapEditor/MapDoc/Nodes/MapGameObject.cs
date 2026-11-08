@@ -212,6 +212,25 @@ public sealed class MapGameObject : MapNode
 		GameObject.Enabled = enabled;
 	}
 
+	bool _hideUnselectedMeshes;
+
+	/// <summary>
+	/// Draw the meshes tied to this object only while they or it are selected, for meshes that only mark out a
+	/// volume a component draws itself, like a <see cref="WaterBody"/>. Not saved.
+	/// </summary>
+	internal bool HideUnselectedMeshes
+	{
+		get => _hideUnselectedMeshes;
+		set
+		{
+			if ( _hideUnselectedMeshes == value || mapGameObjectNative.IsNull )
+				return;
+
+			_hideUnselectedMeshes = value;
+			mapGameObjectNative.SetHideUnselectedChildren( value );
+		}
+	}
+
 	/// <summary>
 	/// Called when meshes are tied to this GameObject
 	/// </summary>

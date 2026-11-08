@@ -58,8 +58,8 @@ AvatarButton
 		pointer-events: none;
 	}
 
-	// Room either side for their arms as they spin. The fade to their feet goes on the scene render
-	// itself, not a wrapper round it - masking the wrapper left their legs solid.
+	// Keep the upper body solid, then fade behind the footer. Apply the mask to the
+	// scene render itself so the rendered avatar fades with it.
 	.portrait
 	{
 		flex-shrink: 0;
@@ -68,7 +68,7 @@ AvatarButton
 
 		.render
 		{
-			mask-image: linear-gradient( to bottom, white 0%, white 58%, black 92% );
+			mask-image: linear-gradient( to bottom, white 0%, white 70%, black 95% );
 		}
 	}
 

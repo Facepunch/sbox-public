@@ -16,8 +16,8 @@
         @* Nobody on the list at all - say what it's for, and give them a way to fill it *@
         <div class="no-friends">
             <icon>group_add</icon>
-            <label class="title">No friends yet</label>
-            <label class="hint">Friends you add on Steam show up here - see what they're playing, and jump into their game or party.</label>
+            <label class="title">#menu.friends.no_friends_yet</label>
+            <label class="hint">#menu.friends.friends_you_add_on_steam_show_up_here_see</label>
         </div>
     }
     else
@@ -25,7 +25,7 @@
         <div class="head">
             <div class="search">
                 <icon>search</icon>
-                <TextEntry Placeholder="Search friends.." HasClearButton=@true OnTextEdited=@OnSearchEdited />
+                <TextEntry Placeholder="#menu.friends.search_friends" HasClearButton=@true OnTextEdited=@OnSearchEdited />
             </div>
         </div>
     }
@@ -73,7 +73,7 @@
                                     @if ( party.Joinable is not null )
                                     {
                                         <label class="sep">·</label>
-                                        <label class="state">Joinable</label>
+                                        <label class="state">#menu.friends.joinable</label>
                                     }
                                 </div>
                             </div>
@@ -99,7 +99,7 @@
                         @* Beside all of it, halfway down the card *@
                         @if ( party.Joinable is { } host )
                         {
-                            <div class="action join" tooltip="Join" onmousedown=@( ( e ) => Join( e, host ) )><icon>play_arrow</icon></div>
+                            <div class="action join" tooltip="#menu.common.join" onmousedown=@( ( e ) => Join( e, host ) )><icon>play_arrow</icon></div>
                         }
                     </div>
                 }
@@ -125,18 +125,18 @@
                         <div class="grow" />
                         @if ( row.Joinable )
                         {
-                            <div class="action join" tooltip="Join" onmousedown=@( ( e ) => Join( e, row ) )><icon>play_arrow</icon></div>
+                            <div class="action join" tooltip="#menu.common.join" onmousedown=@( ( e ) => Join( e, row ) )><icon>play_arrow</icon></div>
                         }
                         else if ( PartyInvites.IsPending( row.Id ) )
                         {
                             @* Asked in and not here yet - stays up until they join or it lapses, like Dota *@
-                            <div class="invite pending" tooltip="Invite sent - waiting for them to join" onmousedown=@( ( e ) => e.StopPropagation() )>
+                            <div class="invite pending" tooltip="#menu.friends.invite_sent_waiting_for_them_to_join" onmousedown=@( ( e ) => e.StopPropagation() )>
                                 <icon>hourglass_top</icon>
                             </div>
                         }
                         else if ( row.CanInvite )
                         {
-                            <div class="invite" tooltip="Invite to party" onmousedown=@( ( e ) => Invite( e, row ) )>
+                            <div class="invite" tooltip="#menu.friends.invite_to_party" onmousedown=@( ( e ) => Invite( e, row ) )>
                                 <icon>add</icon>
                             </div>
                         }
@@ -414,19 +414,19 @@
 
             // Parties get a section of their own, first - the friends playing on their own come after
             if ( parties.Count > 0 )
-                sections.Add( new Section( "parties", "Parties", parties.Count, parties, new() ) );
+                sections.Add( new Section( "parties", "#menu.friends.parties", parties.Count, parties, new() ) );
 
             if ( solo.Count > 0 )
-                sections.Add( new Section( "playing", "Playing s&box", solo.Count, new(), solo ) );
+                sections.Add( new Section( "playing", "#menu.friends.playing_s_box", solo.Count, new(), solo ) );
         }
 
         var online = friends.Where( x => RailPresence.IsOnline( x ) && !RailPresence.IsPlayingThisGame( x ) ).OrderBy( x => x.Name ).Select( ToRow ).Where( IsSearchMatch ).ToList();
         if ( online.Count > 0 )
-            sections.Add( new Section( "online", "Online", online.Count, new(), online ) );
+            sections.Add( new Section( "online", "#menu.friends.online", online.Count, new(), online ) );
 
         var offline = friends.Where( x => !RailPresence.IsOnline( x ) ).OrderBy( x => x.Name ).Select( ToRow ).Where( IsSearchMatch ).ToList();
         if ( offline.Count > 0 )
-            sections.Add( new Section( "offline", "Offline", offline.Count, new(), offline ) );
+            sections.Add( new Section( "offline", "#menu.friends.offline", offline.Count, new(), offline ) );
 
         Items = Flatten( sections );
         StateHasChanged();
@@ -524,7 +524,7 @@
             size = Math.Max( size, rows.Count );
 
             parties.Add( new PartyGroup(
-                Title: isMine ? "Your party" : PartyTitle( first ),
+                Title: isMine ? "#menu.home.your_party" : PartyTitle( first ),
                 Size: size,
                 Max: RailPresence.Get( first, "party_max" ).ToInt( PartyDeck.MAX_MEMBERS ),
                 Members: rows,
@@ -542,7 +542,7 @@
         // Joinable first, then whoever's in a game, then the menu idlers
         solo = solo
             .OrderByDescending( x => x.Joinable )
-            .ThenBy( x => x.Status == "In main menu" )
+            .ThenBy( x => x.Status == "#menu.friends.in_main_menu" )
             .ThenBy( x => x.Name )
             .ToList();
 
@@ -555,7 +555,7 @@
         if ( owner == 0 ) return $"{member.Name}'s party";
 
         var friend = new Friend( owner );
-        if ( friend.IsMe ) return "Your party";
+        if ( friend.IsMe ) return "#menu.home.your_party";
 
         // Steam only tells us names for friends and people we've crossed paths with
         var name = friend.Name;
@@ -566,10 +566,10 @@
 
     static string GameTitle( Friend friend )
     {
-        if ( InEditor( friend ) ) return "In the editor";
+        if ( InEditor( friend ) ) return "#menu.friends.in_the_editor";
 
         var game = RailPresence.Get( friend, "gametitle" );
-        if ( string.IsNullOrWhiteSpace( game ) || game == "menu" ) return "Main menu";
+        if ( string.IsNullOrWhiteSpace( game ) || game == "menu" ) return "#menu.friends.main_menu";
         return game;
     }
 
@@ -645,14 +645,14 @@
         if ( RailPresence.IsPlayingThisGame( friend ) )
         {
             var game = GameTitle( friend );
-            return game is "Main menu" ? "In main menu" : game is "In the editor" ? game : $"Playing {game}";
+            return game is "#menu.friends.main_menu" ? "#menu.friends.in_main_menu" : game is "#menu.friends.in_the_editor" ? game : $"Playing {game}";
         }
 
-        if ( !RailPresence.IsOnline( friend ) ) return "Offline";
-        if ( RailPresence.IsPlayingAGame( friend ) ) return "Playing another game";
-        if ( RailPresence.IsAway( friend ) ) return "Away";
-        if ( RailPresence.IsBusy( friend ) ) return "Busy";
-        return "Online";
+        if ( !RailPresence.IsOnline( friend ) ) return "#menu.friends.offline";
+        if ( RailPresence.IsPlayingAGame( friend ) ) return "#menu.friends.playing_another_game";
+        if ( RailPresence.IsAway( friend ) ) return "#menu.friends.away";
+        if ( RailPresence.IsBusy( friend ) ) return "#menu.friends.busy";
+        return "#menu.friends.online";
     }
 
     static string StatusClass( Friend friend )

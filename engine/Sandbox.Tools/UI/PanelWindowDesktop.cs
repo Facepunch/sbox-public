@@ -59,7 +59,7 @@ internal static class PanelWindowDesktop
 		var x = (int)desktopPoint.x;
 		var y = (int)desktopPoint.y;
 		EngineGlobal.Plat_ScreenToWindowCoords( window.Handle, ref x, ref y );
-		return ((IPanelWindow)window).ToSurface( new Vector2( x, y ) );
+		return ((IPanelWindow)window.Core).ToSurface( new Vector2( x, y ) );
 	}
 
 	/// <summary>

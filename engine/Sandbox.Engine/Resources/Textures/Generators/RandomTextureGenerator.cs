@@ -51,7 +51,7 @@ public class RandomTextureGenerator : TextureGenerator
 	[Hide]
 	public override bool CacheToDisk => true;
 
-	protected override async ValueTask<Texture> CreateTexture( Options options, CancellationToken ct )
+	protected override async ValueTask<Bitmap> CreateBitmap( Options options, CancellationToken ct )
 	{
 		var w = Size.x.Clamp( 1, 1024 * 4 );
 		var h = Size.y.Clamp( 1, 1024 * 4 );
@@ -112,15 +112,22 @@ public class RandomTextureGenerator : TextureGenerator
 			return ValueTask.CompletedTask;
 		} );
 
-		using var bitmap = new Bitmap( w, h, false );
-		bitmap.SetPixels( pixels );
-
-		using var normalMap = ConvertHeightToNormals ? bitmap.HeightmapToNormalMap( NormalScale ) : null;
-		var target = normalMap ?? bitmap;
-
 		ct.ThrowIfCancellationRequested();
 
-		return target.ToTexture();
+		var bitmap = new Bitmap( w, h, false );
+		try
+		{
+			bitmap.SetPixels( pixels );
+		}
+		catch
+		{
+			bitmap.Dispose();
+			throw;
+		}
+
+		if ( !ConvertHeightToNormals ) return bitmap;
+
+		using ( bitmap ) return bitmap.HeightmapToNormalMap( NormalScale );
 	}
 
 	public static float IntToRandomFloat( long seed )

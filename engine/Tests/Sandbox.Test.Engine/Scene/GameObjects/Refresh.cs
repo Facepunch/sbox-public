@@ -18,10 +18,8 @@ public class RefreshTest : SceneTest
 	{
 		_oldTypeLibrary = Game.TypeLibrary;
 
-		TypeLibrary = new Sandbox.Internal.TypeLibrary();
-		TypeLibrary.AddAssembly( typeof( ModelRenderer ).Assembly, false );
-		TypeLibrary.AddAssembly( typeof( RefreshTestComponent ).Assembly, false );
-		TypeLibrary.AddAssembly( typeof( ComponentIdTest ).Assembly, false );
+		// Engine + this assembly, built once and shared
+		TypeLibrary = SharedTypeLibrary.EngineAndTests;
 
 		Game.TypeLibrary = TypeLibrary;
 	}

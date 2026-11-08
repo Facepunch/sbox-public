@@ -69,8 +69,9 @@ internal sealed class SteamRichPresenceSystem : IRichPresenceSystem
 
 			if ( gameLobby is not null )
 			{
-				SetValue( "connect", $"+connect {gameLobby.LobbySteamId}" );
-				SetValue( "steam_player_group", $"{gameLobby.LobbySteamId}" );
+				// Anyone with the lobby id can try to join, so keep it from people who'd just get kicked
+				SetValue( "connect", gameLobby.AdvertiseJoin ? $"+connect {gameLobby.LobbySteamId}" : null );
+				SetValue( "steam_player_group", gameLobby.PresenceGroup );
 				SetValue( "steam_player_group_size", $"{gameLobby.LobbyMemberCount}" );
 			}
 			else

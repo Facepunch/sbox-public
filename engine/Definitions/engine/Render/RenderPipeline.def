@@ -1,0 +1,96 @@
+#include "renderingpipelines/renderpipelinesetup.h"
+
+//
+// One view's standard (or 3D skybox) pipeline: native set up its targets and attributes, and
+// Sandbox.SceneRenderer's NativeRenderPipeline adds its layers
+//
+native class CRenderPipelineSetup as NativeEngine.CRenderPipelineSetup
+{
+	ISceneView m_pView;
+	CRenderAttributes m_pAttributes;
+
+	RenderViewport m_viewport;
+	RenderViewport m_skyViewport;
+	RenderViewport m_screenViewport;
+
+	HSceneViewRenderTarget m_hColor;
+	HSceneViewRenderTarget m_hDepth;
+	HSceneViewRenderTarget m_hFinalColor;
+	HSceneViewRenderTarget m_hFinalDepth;
+	int m_nWidth;
+	int m_nHeight;
+	RenderMultisampleType_t m_nOutputMSAA;
+	ImageFormat m_nDepthFormat;
+	HSceneViewRenderTarget m_hRefractColor;
+
+	RenderMultisampleType_t m_nMSAA;
+	RenderColorSpace_t m_colorSpace;
+
+	int m_nClearFlags;
+	Vector4 m_vClearColor;
+
+	bool m_bToolsView;
+	bool m_bRenderSky;
+	bool m_bRenderOpaque;
+	bool m_bRenderDynamicObjects;
+	bool m_bDrawOverlays;
+	bool m_bRenderDecals;
+	bool m_bRenderTranslucent;
+	bool m_bWireframe;
+	bool m_bResolveToFinal;
+	bool m_bManagedHooks;
+	bool m_bDepthPrepass;
+	float m_flDepthPrepassCullThreshold;
+
+	int m_nUpscalerMode;
+	RenderViewport m_upscaleViewport;
+	int m_nUpscaleRenderWidth;
+	int m_nUpscaleRenderHeight;
+	HSceneViewRenderTarget m_hUpscaleColor;
+	HSceneViewRenderTarget m_hUpscaleDepth;
+	HSceneViewRenderTarget m_hFsr1IntermediateColor;
+	float m_flFsr1Sharpness;
+
+	void AddVolumetricFog();
+	bool Add3DSkybox();
+	void AddTemporalUpscale();
+	void AddAutoExposure( HSceneViewRenderTarget hColor, RenderViewport viewport );
+	void SortByRenderOrder( ISceneLayer pLayer );
+	bool RendersTag( StringToken tag );
+
+	inline uint GetShadingMode()
+	{
+		return self->m_shadingMode.GetHashCode();
+	}
+}
+
+native static class RenderPipelineTools as NativeEngine.RenderPipelineTools
+{
+	ImageFormat GetTargetFormat( ISceneView view, HSceneViewRenderTarget hTarget );
+	int GetTargetWidth( ISceneView view, HSceneViewRenderTarget hTarget );
+	int GetTargetHeight( ISceneView view, HSceneViewRenderTarget hTarget );
+	bool TargetSupportsSrgbWrite( ISceneView view, HSceneViewRenderTarget hTarget );
+	void ScreenText( ISceneView view, float x, float y, string text, int r, int g, int b, int a );
+	int CollectLoadedShaderNames();
+	string GetLoadedShaderName( int index );
+	Vector4 GetShaderIDColor( string shaderName );
+	void AddTextureDebugLayer( ISceneView view, string name, HSceneViewRenderTarget hColor, RenderViewport viewport, ITexture hTexture );
+	HSceneViewRenderTarget FindOrCreateScratchTarget( ISceneView view, string pName, int nWidth, int nHeight, ImageFormat nFormat, RenderMultisampleType_t nMSAA, bool bUAV );
+	bool IsFloatFormat( ImageFormat nFormat );
+	ImageFormat GetHdrFormat();
+	ImageFormat GetBackBufferFormat();
+}
+
+//
+// What native's rendering pipelines and the camera renderer call. The pipeline itself is in Sandbox.SceneRenderer, which
+// installs it at startup.
+//
+managed static class Sandbox.Rendering.RenderPipeline
+{
+	void AddLayersToView( CRenderPipelineSetup setup );
+	void AddSkybox3DLayersToView( CRenderPipelineSetup setup );
+	void OnSceneViewSubmitted( ISceneView view );
+
+	// The screen-space UI layers for a stage over hColor; returns the layer that writes it
+	ISceneLayer AddUIHook( string name, ManagedRenderHookStage stage, ISceneView view, RenderViewport viewport, HSceneViewRenderTarget hColor );
+}

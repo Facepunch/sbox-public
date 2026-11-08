@@ -12,9 +12,10 @@ public enum SyncFlags : uint
 	FromHost = 1,
 
 	/// <summary>
-	/// Query this value for changes rather than counting on set being called. This is appropriate
-	/// if the value returned by its getter can change without calling its setter.
+	/// Poll the getter for changes that occur without calling the setter.
+	/// Retained for compatibility; prefer assigning synchronized values through their property setters.
 	/// </summary>
+	[Obsolete( "SyncFlags.Query polling is obsolete. Assign synchronized values through their property setters instead." )]
 	Query = 2,
 
 	/// <summary>

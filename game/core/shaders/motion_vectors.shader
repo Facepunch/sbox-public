@@ -20,6 +20,9 @@ FEATURES
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 COMMON
 {
+	// We want absolute motion vectors even without viewmodel correction
+	#define ABSOLUTE_MOTION 1
+	
 	#include "system.fxc"
 	#include "common.fxc"
 	#include "sbox_shared.fxc"

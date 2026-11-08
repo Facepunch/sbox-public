@@ -25,36 +25,38 @@ public abstract partial class Connection
 	static byte[] _decodeBuffer;
 
 	/// <summary>
-	/// Encode a <see cref="ByteStream"/> into a wire-ready packet, applying LZ4 when beneficial.
-	/// Wire format: <c>[FlagRaw][data]</c> or <c>[FlagCompressed][origLen:4][lz4data]</c>.
-	/// Returns a heap-allocated <see cref="byte"/>[] that transports may store beyond the call.
+	/// Encode a message into a wire-ready packet, applying LZ4 when beneficial, into a pooled <see cref="NetPacket"/>
+	/// the caller releases. Wire format: <c>[FlagRaw][data]</c> or <c>[FlagCompressed][origLen:4][lz4data]</c>.
 	/// </summary>
-	internal static byte[] Encode( ByteStream stream )
+	internal static NetPacket EncodePacket( ReadOnlySpan<byte> src )
 	{
-		var src = stream.ToSpan();
+		const int header = 1 + sizeof( int );
+		var compress = src.Length > MinimumCompressionByteCount;
 
-		if ( src.Length > MinimumCompressionByteCount )
+		// Big enough for the raw bytes too, in case compression doesn't help
+		var packet = NetPacket.Rent( compress ? header + LZ4.MaxCompressedSize( src.Length ) : 1 + src.Length );
+
+		if ( compress )
 		{
-			// Compress into a pooled scratch buffer; only the exactly-sized output packet is allocated.
-			using var compressed = new PooledSpan<byte>( LZ4.MaxCompressedSize( src.Length ) );
-			var compressedLength = LZ4.CompressBlock( src, compressed.Span );
+			var compressedLength = LZ4.CompressBlock( src, packet.Buffer.AsSpan( header ) );
 
 			if ( compressedLength < src.Length )
 			{
-				var outputSize = 1 + sizeof( int ) + compressedLength;
-				var output = GC.AllocateUninitializedArray<byte>( outputSize );
-				output[0] = FlagCompressed;
-				BinaryPrimitives.WriteInt32LittleEndian( output.AsSpan( 1 ), src.Length );
-				compressed.Span.Slice( 0, compressedLength ).CopyTo( output.AsSpan( 1 + sizeof( int ) ) );
-				return output;
+				packet.Buffer[0] = FlagCompressed;
+				BinaryPrimitives.WriteInt32LittleEndian( packet.Buffer.AsSpan( 1 ), src.Length );
+				packet.SetLength( header + compressedLength );
+				return packet;
 			}
 		}
 
-		var result = GC.AllocateUninitializedArray<byte>( 1 + src.Length );
-		result[0] = FlagRaw;
-		src.CopyTo( result.AsSpan( 1 ) );
-		return result;
+		packet.Buffer[0] = FlagRaw;
+		src.CopyTo( packet.Buffer.AsSpan( 1 ) );
+		packet.SetLength( 1 + src.Length );
+		return packet;
 	}
+
+	/// <inheritdoc cref="EncodePacket(ReadOnlySpan{byte})"/>
+	internal static NetPacket EncodePacket( ByteStream stream ) => EncodePacket( stream.ToSpan() );
 
 	/// <summary>
 	/// Decode a wire payload (<see cref="FlagRaw"/> or <see cref="FlagCompressed"/>).
@@ -105,13 +107,13 @@ public abstract partial class Connection
 	/// Chunks carry raw slices of an already-encoded (possibly compressed) payload.
 	/// Chunk header is 9 bytes vs the old 14-byte envelope.
 	/// </summary>
-	internal static byte[] BuildChunkPacket( byte[] encoded, int offset, int length, int chunkIndex, int totalChunks )
+	internal static byte[] BuildChunkPacket( ReadOnlySpan<byte> chunk, int chunkIndex, int totalChunks )
 	{
-		var result = GC.AllocateUninitializedArray<byte>( 1 + sizeof( uint ) + sizeof( uint ) + length ); // 9-byte header
+		var result = GC.AllocateUninitializedArray<byte>( 1 + sizeof( uint ) + sizeof( uint ) + chunk.Length ); // 9-byte header
 		result[0] = FlagChunk;
 		BinaryPrimitives.WriteUInt32LittleEndian( result.AsSpan( 1 ), (uint)chunkIndex );
 		BinaryPrimitives.WriteUInt32LittleEndian( result.AsSpan( 5 ), (uint)totalChunks );
-		encoded.AsSpan( offset, length ).CopyTo( result.AsSpan( 9 ) );
+		chunk.CopyTo( result.AsSpan( 9 ) );
 		return result;
 	}
 }

@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Runtime.CompilerServices;
 using Sandbox.MovieMaker.Properties;
 using static Sandbox.Component;
@@ -94,6 +94,7 @@ file sealed class SkinnedModelRendererCapturer : ComponentCapturer<SkinnedModelR
 		}
 		else if ( component.UseAnimGraph )
 		{
+#pragma warning disable CS0618
 			if ( component.Parameters.Graph is not { } graph ) return;
 
 			var parametersTrack = recorder.Property( nameof( SkinnedModelRenderer.Parameters ) );
@@ -107,6 +108,7 @@ file sealed class SkinnedModelRendererCapturer : ComponentCapturer<SkinnedModelR
 					parametersTrack.Property( paramName ).Capture();
 				}
 			}
+#pragma warning restore CS0618
 		}
 		else
 		{
@@ -466,6 +468,15 @@ file sealed class LightCapturer : ComponentCapturer<Light>
 	protected override void OnCapture( IMovieTrackRecorder recorder, Light component )
 	{
 		recorder.Property( nameof( Light.LightColor ) ).Capture();
+		recorder.Property( nameof( Light.Intensity ) ).Capture();
+		recorder.Property( nameof( Light.Temperature ) ).Capture();
+		recorder.Property( nameof( Light.AnimationEnabled ) ).Capture();
+		recorder.Property( nameof( Light.AnimationPattern ) ).Capture();
+		recorder.Property( nameof( Light.AnimationSpeed ) ).Capture();
+		recorder.Property( nameof( Light.AnimationTimeOffset ) ).Capture();
+		recorder.Property( nameof( Light.AnimationDuration ) ).Capture();
+		recorder.Property( nameof( Light.AnimationCurve ) ).Capture();
+		recorder.Property( nameof( Light.AnimationGradient ) ).Capture();
 		recorder.Property( nameof( Light.FogMode ) ).Capture();
 		recorder.Property( nameof( Light.FogStrength ) ).Capture();
 		recorder.Property( nameof( Light.Shadows ) ).Capture();
@@ -528,6 +539,49 @@ file sealed class AmbientLightCapturer : ComponentCapturer<AmbientLight>
 	}
 }
 
+/// <summary>
+/// Records the complete authored fog settings, including inactive layers that may be enabled during playback.
+/// </summary>
+[Expose]
+file sealed class FogCapturer : ComponentCapturer<Fog>
+{
+	protected override void OnCapture( IMovieTrackRecorder recorder, Fog component )
+	{
+		recorder.Property( nameof( Fog.FogEnabled ) ).Capture();
+		recorder.Property( nameof( Fog.DistanceEnabled ) ).Capture();
+		recorder.Property( nameof( Fog.Mode ) ).Capture();
+		recorder.Property( nameof( Fog.StartDistance ) ).Capture();
+		recorder.Property( nameof( Fog.DistanceRange ) ).Capture();
+		recorder.Property( nameof( Fog.FalloffExponent ) ).Capture();
+		recorder.Property( nameof( Fog.AttenuationDistance ) ).Capture();
+		recorder.Property( nameof( Fog.MaximumOpacity ) ).Capture();
+		recorder.Property( nameof( Fog.HeightEnabled ) ).Capture();
+		recorder.Property( nameof( Fog.HeightOffset ) ).Capture();
+		recorder.Property( nameof( Fog.HeightGradientLength ) ).Capture();
+		recorder.Property( nameof( Fog.HeightExponent ) ).Capture();
+		recorder.Property( nameof( Fog.HeightColorSource ) ).Capture();
+		recorder.Property( nameof( Fog.HeightSky ) ).Capture();
+		recorder.Property( nameof( Fog.HeightSkyBlur ) ).Capture();
+		recorder.Property( nameof( Fog.HeightColor ) ).Capture();
+		recorder.Property( nameof( Fog.ColorSource ) ).Capture();
+		recorder.Property( nameof( Fog.Color ) ).Capture();
+		recorder.Property( nameof( Fog.Sky ) ).Capture();
+		recorder.Property( nameof( Fog.SkyBlur ) ).Capture();
+		recorder.Property( nameof( Fog.SkyBlurDistanceEnabled ) ).Capture();
+		recorder.Property( nameof( Fog.SkyBlurDistanceRange ) ).Capture();
+		recorder.Property( nameof( Fog.SkyBlurFar ) ).Capture();
+		recorder.Property( nameof( Fog.SunLightingEnabled ) ).Capture();
+		recorder.Property( nameof( Fog.SunIntensity ) ).Capture();
+		recorder.Property( nameof( Fog.SunLobeWidth ) ).Capture();
+		recorder.Property( nameof( Fog.SunStartDistance ) ).Capture();
+		recorder.Property( nameof( Fog.SunFadeDistance ) ).Capture();
+		recorder.Property( nameof( Fog.SunSaturation ) ).Capture();
+		recorder.Property( nameof( Fog.SkyAffect ) ).Capture();
+		recorder.Property( nameof( Fog.MaxDistance ) ).Capture();
+	}
+}
+
+#pragma warning disable CS0618 // Existing movies still capture the legacy fog components.
 [Expose]
 file sealed class GradientFogCapturer : ComponentCapturer<GradientFog>
 {
@@ -558,6 +612,8 @@ file sealed class CubemapFogCapturer : ComponentCapturer<CubemapFog>
 		recorder.Property( nameof( CubemapFog.Tint ) ).Capture();
 	}
 }
+
+#pragma warning restore CS0618
 
 [Expose]
 file sealed class VolumetricFogVolumeCapturer : ComponentCapturer<VolumetricFogVolume>

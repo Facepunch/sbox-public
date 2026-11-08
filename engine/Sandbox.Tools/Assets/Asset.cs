@@ -24,7 +24,7 @@ public abstract partial class Asset
 
 	public override string ToString() => Path;
 
-	internal abstract void UpdateInternals( bool compileImmediately = true );
+	internal abstract void UpdateInternals();
 
 	/// <summary>
 	/// Tags for this asset, for filtering purposes in the Asset Browser.
@@ -116,6 +116,12 @@ public abstract partial class Asset
 	/// </summary>
 	public abstract bool CanRecompile { get; }
 
+	/// <summary>
+	/// Before loading it: compiles it if it changed, as the asset system does for any resource it loads. False if
+	/// it failed to compile.
+	/// </summary>
+	internal virtual bool EnsureCurrentForLoad() => true;
+
 	internal virtual void OnRemoved()
 	{
 		CachedThumbnail = default;
@@ -165,18 +171,15 @@ public abstract partial class Asset
 	/// <summary>
 	/// Returns the .meta file path, if enabled for this asset.
 	/// </summary>
-	internal string GetMetadataFile( bool absolute = false )
+	internal string GetMetadataFile()
 	{
-		var f = GetSourceFile( absolute );
+		var f = AbsoluteSourcePath;
 		if ( string.IsNullOrEmpty( f ) ) return null;
 
 		// tony: Don't make metadata for cloud assets.. not my favourite addition ever
 		// we're mounting all the downloaded cloud assets first, and checking their tags, which is making fake metadata
 		// using the wrong paths
 		if ( IsCloud || IsTransient ) return null;
-
-		// no metadata for .meta files for fuck sake
-		if ( f.EndsWith( ".meta" ) ) return null;
 
 		// modelname.vmdl_c -> modelname.vmdl
 		if ( f.EndsWith( "_c" ) )
@@ -317,7 +320,7 @@ public abstract partial class Asset
 		{
 			if ( _metadata != null ) return _metadata;
 
-			var f = GetMetadataFile( true );
+			var f = GetMetadataFile();
 			if ( string.IsNullOrEmpty( f ) ) return null;
 
 			_metadata = new MetaData( f );
@@ -436,11 +439,10 @@ public abstract partial class Asset
 		if ( !attribute.TargetType.IsAssignableTo( t ) || attribute.TargetType.IsAbstract )
 			return false;
 
-		// Make sure we have an up to date compiled version
-		if ( CanRecompile )
-		{
-			Compile( false );
-		}
+		// Compiled first if it changed, as any resource is. One that fails to compile still loads as it last compiled (a
+		// failed compile publishes nothing), so its editor can open it to fix it; building it still fails.
+		if ( !EnsureCurrentForLoad() )
+			Log.Warning( $"{this} failed to compile, loading it as it last compiled" );
 
 		obj = GameResource.GetPromise( attribute.TargetType, new ResourceId() { Guid = Guid, Path = Path } );
 		if ( obj != null && !obj.IsPromise )

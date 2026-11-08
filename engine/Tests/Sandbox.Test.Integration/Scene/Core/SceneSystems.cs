@@ -20,10 +20,7 @@ public class SceneSystemOverridesTest
 	static void WithTestSystems( System.Action<Scene> body )
 	{
 		var oldTypeLibrary = Game.TypeLibrary;
-		var typeLibrary = new Sandbox.Internal.TypeLibrary();
-		typeLibrary.AddAssembly( typeof( ModelRenderer ).Assembly, false );
-		typeLibrary.AddAssembly( typeof( SceneSystemOverridesTest ).Assembly, false );
-		Game.TypeLibrary = typeLibrary;
+		Game.TypeLibrary = SharedTypeLibrary.EngineAndTests;
 
 		Scene scene = null;
 

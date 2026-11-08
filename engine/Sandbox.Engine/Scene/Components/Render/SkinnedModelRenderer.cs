@@ -67,28 +67,6 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 		}
 	}
 
-	AnimationGraph _animationGraph;
-
-	/// <summary>
-	/// Override animgraph, otherwise uses animgraph of the model.
-	/// </summary>
-	[Property, Group( "Animation" ), ShowIf( nameof( UseAnimGraph ), true )]
-	public AnimationGraph AnimationGraph
-	{
-		get => _animationGraph;
-		set
-		{
-			if ( _animationGraph == value ) return;
-
-			_animationGraph = value;
-
-			if ( SceneModel.IsValid() )
-			{
-				SceneModel.AnimationGraph = value;
-			}
-		}
-	}
-
 	/// <summary>
 	/// Allows playback of sequences directly, rather than using an animation graph.
 	/// Requires <see cref="UseAnimGraph"/> disabled if the scene model has one.
@@ -187,7 +165,7 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 
 	internal bool IsRootRenderer => _skinnedParent == null;
 
-	internal IEnumerable<SkinnedModelRenderer> SkinnedChildren => _skinnedChildren;
+	internal HashSet<SkinnedModelRenderer> SkinnedChildren => _skinnedChildren;
 
 	private void UpdateSkinnedRendererParent()
 	{
@@ -233,11 +211,10 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 
 		var so = new SceneModel( Scene.SceneWorld, model, WorldTransform );
 		_sceneObject = so;
+		so.AnimationControllerCreated += OnAnimationControllerCreated;
 
-		if ( AnimationGraph is not null )
-		{
-			so.AnimationGraph = AnimationGraph;
-		}
+		ApplyLegacyAnimationGraph( so );
+		ApplyAnimationGraph( so );
 
 		if ( so.UseAnimGraph != UseAnimGraph )
 		{
@@ -245,6 +222,7 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 		}
 
 		so.PlaybackRate = PlaybackRate;
+		so.LowDetailAnimation = LowDetailAnimation;
 
 		OnSceneObjectCreated( _sceneObject );
 
@@ -265,7 +243,8 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 	{
 		base.OnSceneObjectCreated( o );
 
-		ApplyStoredAnimParameters();
+		ApplyStoredLegacyParameters();
+		_animation?.ApplyStoredParameters();
 
 		Morphs.Apply();
 		Sequence.Apply();
@@ -384,7 +363,7 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 		if ( PlayAnimationsInEditorScene ) return true;
 
 		// Do we have any modified animgraph parameters?
-		if ( StoredParameterCount > 0 )
+		if ( (_animation?.StoredParameterCount ?? 0) > 0 || StoredLegacyParameterCount > 0 )
 			return true;
 
 		// If we're not using animgraph, do we have a sequence selected?
@@ -393,6 +372,14 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 
 		// Have we procedurally moved any bones?
 		return SceneModel.IsValid() && SceneModel.HasBoneOverrides();
+	}
+
+	private void UpdateAnimationAfterParameterChange()
+	{
+		if ( Scene.IsEditor && !CanUpdateInEditor() )
+			SceneModel.UpdateToBindPose( ReadBonesFromGameObjects );
+		else
+			SceneModel.Update( Time.Delta, ReadBonesFromGameObjects );
 	}
 
 	internal bool AnimationUpdate( bool previewBindPose = false )

@@ -17,6 +17,12 @@ public abstract class CustomObject : RenderObject
 	public bool IsOpaque { get; set; }
 
 	/// <summary>
+	/// Read FrameBufferCopyTexture in translucent layers and contribute to the refraction stencil.
+	/// Mirrors <c>SceneObject.Flags.WantsFrameBufferCopy</c>.
+	/// </summary>
+	public bool WantsFrameBufferCopy { get; set; }
+
+	/// <summary>
 	/// Draw an opaque one in the depth prepass too, as native's prepass does (<c>DepthNormalPrepassLayer</c>); off for
 	/// <c>NoZPrepass</c>.
 	/// </summary>

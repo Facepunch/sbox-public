@@ -51,7 +51,7 @@ public interface IPanel : IValid
 
 	public void Delete( bool immediate );
 
-	internal static HashSet<IPanel> InspectablePanels = new();
+	internal static HashSet<IPanel> InspectablePanels = new( ReferenceEqualityComparer.Instance );
 
 	internal static HashSet<IPanel> GetAllRootPanels() => InspectablePanels;
 

@@ -25,7 +25,7 @@
                 <div class="latest-text">
                     <div class="headline">
                         <div class="news-eyebrow">
-                            <div class="eyebrow"><icon>campaign</icon><label>Latest news</label></div>
+                            <div class="eyebrow"><icon>campaign</icon><label>#menu.pause.latest_news</label></div>
                             <div class="ago"><icon>schedule</icon><label>@MenuHelpers.TimeAgo( news.Created )</label></div>
                         </div>
                         <label class="news-title">@news.Title</label>
@@ -54,7 +54,7 @@
                 <div class="latest-text">
                     <div class="headline">
                         <div class="news-eyebrow">
-                            <div class="eyebrow"><icon>campaign</icon><label>Latest update</label></div>
+                            <div class="eyebrow"><icon>campaign</icon><label>#menu.pause.latest_update</label></div>
                             <div class="ago"><icon>schedule</icon><label>@MenuHelpers.TimeAgo( update.Created )</label></div>
                         </div>
                         <label class="news-title">@UpdateTitle( update )</label>
@@ -69,7 +69,7 @@
             <div class="achievements" onclick=@( () => PauseHome.Show( PackagePage.Achievements ) )>
                 @* Headed like the news up top, how many you've got out of how many on the end *@
                 <div class="head">
-                    <div class="eyebrow"><icon>emoji_events</icon><label>Achievements</label></div>
+                    <div class="eyebrow"><icon>emoji_events</icon><label>#menu.pause.achievements</label></div>
                     <div class="grow"></div>
                     <label class="count">@Unlocked of @all.Count</label>
                 </div>

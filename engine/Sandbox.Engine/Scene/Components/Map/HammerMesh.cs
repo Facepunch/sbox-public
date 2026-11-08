@@ -20,6 +20,12 @@ public class HammerMesh : Component, Component.ExecuteInEditor
 	[Property, Hide]
 	public Model Model { get; set; }
 
+	/// <summary>
+	/// Local bounds of the tied meshes while they're edited in Hammer, before a compile fills <see cref="Model"/>.
+	/// Hammer only measures them for components that take their extent from the mesh, like a <see cref="WaterBody"/>.
+	/// </summary>
+	internal BBox? EditorBounds { get; set; }
+
 	[Property, FeatureEnabled( "Renderer" )] public bool UseRenderer { get; set; } = true;
 	[Property, FeatureEnabled( "Collision" )] public bool UseCollision { get; set; } = true;
 

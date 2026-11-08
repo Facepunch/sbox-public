@@ -192,8 +192,8 @@ public class StyleSheetParseTest
 	public void RecoversFromMalformedRule()
 	{
 		// The runtime loader (FromString) should skip a single broken rule rather than discarding the
-		// whole sheet. The middle rule uses an unsupported nth-child form and throws while parsing.
-		var sheet = StyleSheet.FromString( ".a { width: 100%; } .b:nth-child(2n+1) { width: 50%; } .c { height: 10%; }" );
+		// whole sheet. The middle rule uses a malformed nth-child expression and throws while parsing.
+		var sheet = StyleSheet.FromString( ".a { width: 100%; } .b:nth-child(2n++1) { width: 50%; } .c { height: 10%; }" );
 
 		Assert.IsNotNull( sheet );
 		Assert.AreEqual( 2, sheet.Nodes.Count );

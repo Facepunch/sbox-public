@@ -9,30 +9,30 @@
 
 <root class=@(IsKnockout ? "knockout" : "")>
 	<div class="heading">
-		<label class="title">@(IsKnockout ? "Standings" : "Nominations")</label>
+		<label class="title">@(IsKnockout ? "#menu.jam.standings" : "#menu.jam.nominations_text")</label>
 		@if ( IsKnockout )
 		{
-			<label class="@(Finalists.IsVotingAt( Jam.Now ) ? "live" : "closed")">@(WinnerIdent is not null || Finalists.Decided && !HoldFinalResult ? "Final" : Finalists.IsVotingAt( Jam.Now ) ? "Live" : JamVotingPresentation.Waiting( Finalists ) ? "Waiting" : "Closed")</label>
+			<label class="@(Finalists.IsVotingAt( Jam.Now ) ? "live" : "closed")">@(WinnerIdent is not null || Finalists.Decided && !HoldFinalResult ? "#menu.jam.final" : Finalists.IsVotingAt( Jam.Now ) ? "#menu.jam.live" : JamVotingPresentation.Waiting( Finalists ) ? "#menu.jam.waiting" : "#menu.jam.closed")</label>
 		}
 		else if ( Entries is not null )
 		{
-			<label class="closed">Closed</label>
+			<label class="closed">#menu.jam.closed</label>
 		}
 		else if ( Nominations is not null && Voting.Error is null )
 		{
-			<label class="live">● Live</label>
+			<label class="live">#menu.jam.live_label</label>
 		}
 	</div>
 
 	@if ( !IsKnockout && Entries is null && Nominations is null )
 	{
-		<label class="hint">@(Voting?.Error is null ? "Loading standings…" : "Standings unavailable")</label>
+		<label class="hint">@(Voting?.Error is null ? "#menu.jam.loading_standings" : "#menu.jam.standings_unavailable")</label>
 	}
 	else if ( IsKnockout || Entries is not null || Category is not null )
 	{
 		@if ( Rows.Length == 0 )
 		{
-			<label class="hint">@(IsKnockout ? "No finalists available." : Entries is not null ? "Nomination totals unavailable." : "No nominations yet. Play an entry and nominate your favourites.")</label>
+			<label class="hint">@(IsKnockout ? "#menu.jam.no_finalists_available_text" : Entries is not null ? "#menu.jam.nomination_totals_unavailable_text" : "#menu.jam.no_nominations_yet_play_an_entry_and_nominate_your")</label>
 		}
 		else
 		{
@@ -49,7 +49,7 @@
 						<div class="game">
 							@if ( entry.Pending )
 							{
-								<div class="unknown" tooltip="This place is still being decided">
+								<div class="unknown" tooltip="#menu.jam.this_place_is_still_being_decided">
 									@for ( var character = 0; character < 6; character++ )
 									{
 										<label style=@($"animation-delay: {-(entry.Rank * 0.19f + character * 0.12f)}s")>?</label>
@@ -62,7 +62,7 @@
 							}
 							@if ( entry.Nominated )
 							{
-								<label class="nominated">✓ Your nomination</label>
+								<label class="nominated">#menu.jam.your_nomination</label>
 							}
 							@if ( entry.Prize is { } prize )
 							{
@@ -75,20 +75,20 @@
 						}
 						else if ( entry.Confirmed )
 						{
-							<icon class="locked" tooltip="Place confirmed">lock</icon>
+							<icon class="locked" tooltip="#menu.jam.place_confirmed">lock</icon>
 						}
 					</div>
 				}
 			</div>
 			@if ( !IsKnockout && Rows.Length > Slots + 1 )
 			{
-				<Button class="view-all" Text=@(Expanded ? "Show fewer" : "View full standings") onclick=@(() => Expanded = !Expanded) />
+				<Button class="view-all" Text=@(Expanded ? "#menu.jam.show_fewer" : "#menu.jam.view_full_standings") onclick=@(() => Expanded = !Expanded) />
 			}
 		}
 	}
 	else
 	{
-		<label class="hint">No open nomination categories.</label>
+		<label class="hint">#menu.jam.no_open_nomination_categories</label>
 	}
 </root>
 
@@ -140,7 +140,7 @@
 	int VisibleCount => IsKnockout || Expanded ? Rows.Length : Math.Min( Rows.Length, Slots + 1 );
 	bool TiedAtCutoff => Slots > 0 && Rows.Length > Slots
 		&& Rows[Slots - 1].Votes.HasValue && Rows[Slots - 1].Votes == Rows[Slots].Votes;
-	string Title( string ident ) => ident is null ? "Game unavailable"
+	string Title( string ident ) => ident is null ? "#menu.jam.game_unavailable"
 		: Packages?.GetValueOrDefault( ident )?.Title ?? Package.GetCachedTitle( ident );
 
 	/// <summary>

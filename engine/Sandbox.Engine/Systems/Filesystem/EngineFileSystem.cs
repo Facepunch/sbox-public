@@ -143,7 +143,7 @@ internal static class EngineFileSystem
 
 	internal static void AddAssetPath( string ident, string path )
 	{
-		Mounted.Mount( new LocalFileSystem( path ) );
+		(Mounted ?? Assets).Mount( new LocalFileSystem( path ) );
 		NativeEngine.FullFileSystem.AddProjectPath( "xxx", path );
 	}
 }

@@ -9,5 +9,7 @@ public enum VolumetricFogQuality
 	Low = 0,
 	Medium = 1,
 	High = 2,
+
+	/// <summary>Same as <see cref="High"/>, kept so existing code and saved settings still resolve.</summary>
 	Ultra = 3
 }

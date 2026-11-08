@@ -1,9 +1,9 @@
-﻿using Sandbox.Audio;
+using Sandbox.Audio;
 
 namespace Sandbox;
 
 /// <summary>
-/// Apply DSP to mixer when listener is inside a DspVolume
+/// Apply DSP to the global mixer and optional listener-specific groups when their listeners enter volumes.
 /// </summary>
 [Expose]
 sealed class DspVolumeGameSystem : GameObjectSystem<DspVolumeGameSystem>
@@ -18,13 +18,19 @@ sealed class DspVolumeGameSystem : GameObjectSystem<DspVolumeGameSystem>
 		base.Dispose();
 
 		foreach ( var entry in _entries.Values )
-		{
-			entry.mixerHandle.Get()?.RemoveProcessor( entry.processor );
-		}
+			entry.Mixer.RemoveProcessor( entry.Processor );
+		_entries.Clear();
+		_listenerVolumes.Clear();
+		_active.Clear();
+		_finished.Clear();
 	}
 
-	record class Entry( DspProcessor processor, MixerHandle mixerHandle );
-	Dictionary<(string effect, MixerHandle mixer), Entry> _entries = new();
+	readonly record struct Key( string Effect, Mixer Mixer, Listener Listener );
+	record class Entry( DspProcessor Processor, Mixer Mixer );
+	readonly Dictionary<Key, Entry> _entries = [];
+	readonly Dictionary<Listener, DspVolume> _listenerVolumes = [];
+	readonly HashSet<Key> _active = [];
+	readonly List<Key> _finished = [];
 
 	internal static bool IsActive { get; private set; }
 
@@ -35,68 +41,77 @@ sealed class DspVolumeGameSystem : GameObjectSystem<DspVolumeGameSystem>
 		if ( Scene.IsEditor )
 			return;
 
-		int lastPriority = int.MinValue;
-		string found = default;
-		MixerHandle foundMixer = default;
-
-		// VolumeSystem.FindAll without its iterator - same volumes, same order
-		var listenerPosition = Sound.Listener.Position;
+		DspVolume global = null;
+		_listenerVolumes.Clear();
+		var position = Sound.Listener.Position;
 		foreach ( var volume in Scene.Query<DspVolume>() )
 		{
-			if ( !((Volumes.VolumeSystem.IVolume)volume).Test( listenerPosition ) )
+			var listener = volume.TargetListener;
+			if ( listener is not null && !listener.IsValid() )
+				continue;
+			if ( !((Volumes.VolumeSystem.IVolume)volume).Test( listener?.Position ?? position ) )
 				continue;
 
-			int priority = volume.Priority;
-
-			if ( priority < lastPriority )
-				continue;
-
-			lastPriority = priority;
-			found = volume.Dsp.Name;
-			foundMixer = volume.TargetMixer;
-		}
-
-		IsActive = !string.IsNullOrWhiteSpace( found );
-
-		var activeKey = (found, foundMixer);
-
-		if ( !string.IsNullOrWhiteSpace( found ) && !_entries.ContainsKey( activeKey ) )
-		{
-			var mixer = foundMixer.Get() ?? Mixer.FindMixerByName( "Game" );
-			if ( mixer is not null )
+			if ( listener is null )
 			{
-				var processor = new DspProcessor();
-
-				processor.Effect = found;
-				processor.Mix = 0;
-
-				mixer.AddProcessor( processor );
-				_entries[activeKey] = new Entry( processor, foundMixer );
+				if ( !global.IsValid() || volume.Priority >= global.Priority )
+					global = volume;
+			}
+			else if ( !_listenerVolumes.TryGetValue( listener, out var previous ) || volume.Priority >= previous.Priority )
+			{
+				_listenerVolumes[listener] = volume;
 			}
 		}
 
-		foreach ( var entry in _entries )
-		{
-			var mixTarget = entry.Key == activeKey ? 1 : 0;
-
-			entry.Value.processor.Mix = entry.Value.processor.Mix.Approach( mixTarget, Time.Delta );
-		}
-
-		_finished.Clear();
-		foreach ( var entry in _entries )
-		{
-			if ( entry.Value.processor.Mix <= 0 )
-				_finished.Add( entry );
-		}
-
-		foreach ( var entry in _finished )
-		{
-			entry.Value.mixerHandle.Get()?.RemoveProcessor( entry.Value.processor );
-			_entries.Remove( entry.Key );
-		}
+		_active.Clear();
+		IsActive = global.IsValid() && !string.IsNullOrWhiteSpace( global.Dsp.Name );
+		Activate( global );
+		foreach ( var volume in _listenerVolumes.Values )
+			Activate( volume );
+		_listenerVolumes.Clear();
 
 		_finished.Clear();
+		foreach ( var entry in _entries )
+		{
+			var target = _active.Contains( entry.Key ) ? 1 : 0;
+			entry.Value.Processor.Mix = entry.Value.Processor.Mix.Approach( target, Time.Delta );
+			if ( entry.Value.Processor.Mix <= 0 )
+				_finished.Add( entry.Key );
+		}
+		foreach ( var key in _finished )
+		{
+			_entries[key].Mixer.RemoveProcessor( _entries[key].Processor );
+			_entries.Remove( key );
+		}
+		_finished.Clear();
+		_active.Clear();
 	}
 
-	readonly List<KeyValuePair<(string effect, MixerHandle mixer), Entry>> _finished = new();
+	/// <summary>
+	/// Maintain one effect per resolved mixer and listener. Targeted groups add to the existing global group.
+	/// Retain the actual mixer so fading or disposal removes the processor from its original owner.
+	/// </summary>
+	void Activate( DspVolume volume )
+	{
+		if ( !volume.IsValid() || string.IsNullOrWhiteSpace( volume.Dsp.Name ) )
+			return;
+
+		var mixer = volume.TargetMixer.Get() ?? Mixer.FindMixerByName( "Game" );
+		if ( mixer is null )
+			return;
+
+		var key = new Key( volume.Dsp.Name, mixer, volume.TargetListener );
+		_active.Add( key );
+		if ( _entries.ContainsKey( key ) )
+			return;
+
+		var processor = new DspProcessor
+		{
+			Effect = volume.Dsp,
+			Mix = 0,
+			TargetListener = volume.TargetListener
+		};
+		mixer.AddProcessor( processor );
+		_entries[key] = new Entry( processor, mixer );
+	}
 }

@@ -57,10 +57,8 @@ public class ScriptControlTests
 		ScriptControl control = null;
 		try
 		{
-			var types = new TypeLibrary();
-			types.AddIntrinsicTypes();
-			types.AddAssembly( typeof( ScriptControl ).Assembly, false );
-			GlobalContext.Current = new GlobalContext { TypeLibrary = types };
+			// Intrinsics and engine, built once and shared
+			GlobalContext.Current = new GlobalContext { TypeLibrary = SharedTypeLibrary.Scripting };
 			control = new ScriptControl { Parent = surface.Root, Inputs = [new( "speed", typeof( float ) )] };
 			UiTesting.Frame( surface );
 			check( control, surface );
@@ -82,10 +80,7 @@ public class ScriptControlTests
 		ScriptControl control = null;
 		try
 		{
-			var types = new TypeLibrary();
-			types.AddIntrinsicTypes();
-			types.AddAssembly( typeof( ScriptControl ).Assembly, false );
-			GlobalContext.Current = new GlobalContext { TypeLibrary = types };
+			GlobalContext.Current = new GlobalContext { TypeLibrary = SharedTypeLibrary.Scripting };
 			control = new ScriptControl { Parent = surface.Root, Source = "sp", Inputs = [new( "speed", typeof( float ) )] };
 			control.Style.Width = 300;
 			control.Style.Height = 100;
@@ -148,10 +143,7 @@ public class ScriptControlTests
 		ScriptControl control = null;
 		try
 		{
-			var types = new TypeLibrary();
-			types.AddIntrinsicTypes();
-			types.AddAssembly( typeof( ScriptControl ).Assembly, false );
-			GlobalContext.Current = new GlobalContext { TypeLibrary = types };
+			GlobalContext.Current = new GlobalContext { TypeLibrary = SharedTypeLibrary.Scripting };
 
 			// PanelGallery constructs controls before attaching them to a window's UI system.
 			control = new ScriptControl();
@@ -183,10 +175,7 @@ public class ScriptControlTests
 		ScriptControl control = null;
 		try
 		{
-			var types = new TypeLibrary();
-			types.AddIntrinsicTypes();
-			types.AddAssembly( typeof( ScriptControl ).Assembly, false );
-			GlobalContext.Current = new GlobalContext { TypeLibrary = types };
+			GlobalContext.Current = new GlobalContext { TypeLibrary = SharedTypeLibrary.Scripting };
 			control = new ScriptControl { Parent = surface.Root, Source = "sp", Inputs = [new( "speed", typeof( float ) )] };
 			control.Style.Width = 300;
 			control.Style.Height = 100;

@@ -1,4 +1,3 @@
-
 <Project>
 
 	<PropertyGroup Condition="'$(OS)' == 'Windows_NT'">
@@ -9,19 +8,42 @@
         <CodeGeneratorExe Condition="'$(CodeGeneratorExe)' == ''">../Tools/CodeGen/bin/CodeGen</CodeGeneratorExe>
     </PropertyGroup>
 
+	<PropertyGroup>
+		<CodeGenSourceList>obj/codegen.sources</CodeGenSourceList>
+		<!-- Next to the output, so wiping .generated also reruns the generator -->
+		<CodeGenStamp>obj/.generated/codegen.stamp</CodeGenStamp>
+		<CodeGenRefCheck>obj/$(Configuration)/codegen.refcheck</CodeGenRefCheck>
+	</PropertyGroup>
+
 	<Target Name="CleanCodeGen" AfterTargets="Clean">
 		<RemoveDir Directories="obj/.generated" />
+		<Delete Files="$(CodeGenSourceList);$(CodeGenRefCheck)" />
 	</Target>
 
 	<ItemGroup>
 		<ProjectReference Include="../Tools/CodeGen/CodeGen.csproj" OutputItemType="CodeGenTool" ReferenceOutputAssembly="false" Private="true" />
 	</ItemGroup>
-	
-	<Target Name="CodeGenFiles" BeforeTargets="CoreCompile" Condition="'$(DesignTimeBuild)' != 'true'">
 
+	<!--
+		Only run the generator when a source or the generator itself changed. The source list is an input
+		too, so deleting or renaming a file reruns it and its generated copy gets removed.
+	-->
+	<Target Name="CodeGenSourceList" Condition="'$(DesignTimeBuild)' != 'true'">
+		<WriteLinesToFile File="$(CodeGenSourceList)" Lines="@(Compile)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+		<ItemGroup>
+			<CodeGenInputs Include="@(Compile);$(CodeGenSourceList)" />
+			<CodeGenInputs Include="$(MSBuildThisFileDirectory)Tools/CodeGen/bin/*.dll" />
+		</ItemGroup>
+	</Target>
+
+	<Target Name="CodeGenRun" DependsOnTargets="CodeGenSourceList" Inputs="@(CodeGenInputs)" Outputs="$(CodeGenStamp)" Condition="'$(DesignTimeBuild)' != 'true'">
 		<Message Importance="high" Text="Running Code Generation.."></Message>
 		<Exec Command="$(CodeGeneratorExe)"  />
 		<Message Importance="high" Text="Code Generation Complete"></Message>
+		<Touch Files="$(CodeGenStamp)" AlwaysCreate="true" />
+	</Target>
+
+	<Target Name="CodeGenFiles" BeforeTargets="CoreCompile" DependsOnTargets="CodeGenRun" Condition="'$(DesignTimeBuild)' != 'true'">
 
 		<ItemGroup>
 			<!-- Include all files in .generated directory but exclude assembly info files -->
@@ -32,12 +54,22 @@
 		<ItemGroup>
 			<Compile Remove="@(GeneratedFiles->'%(RecursiveDir)%(Filename)%(Extension)')" />
 		</ItemGroup>
-		
+
 		<!-- Build -->
 		<ItemGroup>
 			<Compile Include="@(GeneratedFiles)" />
 		</ItemGroup>
-		
+
+	</Target>
+
+	<!--
+		Generated code gives every member a [SourceLocation( file, line )], so adding a line to a method
+		changes the reference assembly and everything downstream compiles again. When that's all that
+		changed, CodeGen puts the old reference assembly back before it's copied, so it's left alone.
+	-->
+	<Target Name="CodeGenKeepRefAssembly" AfterTargets="CoreCompile" BeforeTargets="CopyFilesToOutputDirectory" Inputs="@(IntermediateRefAssembly)" Outputs="$(CodeGenRefCheck)" Condition="'$(DesignTimeBuild)' != 'true' and '$(ProduceReferenceAssembly)' == 'true' and Exists('$(TargetRefPath)')">
+		<Exec Command="$(CodeGeneratorExe) --keep-ref &quot;@(IntermediateRefAssembly->'%(FullPath)')&quot; &quot;$(TargetRefPath)&quot;" />
+		<Touch Files="$(CodeGenRefCheck)" AlwaysCreate="true" />
 	</Target>
 
 </Project>

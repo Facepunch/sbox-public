@@ -141,6 +141,7 @@ internal sealed class PhysicsJoint2d : PhysicsJointInternal
 		if ( Box2d.b2Joint_GetType( JointId ) != b2JointType.b2_revoluteJoint )
 			return;
 
+		Box2d.b2RevoluteJoint_EnableSpring( JointId, false );
 		Box2d.b2RevoluteJoint_EnableMotor( JointId, true );
 		Box2d.b2RevoluteJoint_SetMotorSpeed( JointId, targetVelocity );
 		Box2d.b2RevoluteJoint_SetMaxMotorTorque( JointId, maxTorque );
@@ -151,10 +152,90 @@ internal sealed class PhysicsJoint2d : PhysicsJointInternal
 		if ( Box2d.b2Joint_GetType( JointId ) != b2JointType.b2_revoluteJoint )
 			return;
 
+		Box2d.b2RevoluteJoint_EnableMotor( JointId, false );
 		Box2d.b2RevoluteJoint_EnableSpring( JointId, true );
 		Box2d.b2RevoluteJoint_SetTargetAngle( JointId, parameters.x );
 		Box2d.b2RevoluteJoint_SetSpringHertz( JointId, parameters.y );
 		Box2d.b2RevoluteJoint_SetSpringDampingRatio( JointId, parameters.z );
+	}
+
+	public override void SetMotorVelocity( Vector3 velocity, float maxTorque ) => SetAngularMotor( velocity.z, maxTorque );
+
+	public override void SetTargetRotation( Rotation rotation, float hertz, float damping )
+		=> SetAngularSpring( new Vector3( rotation.Angles().yaw.DegreeToRadian(), hertz, damping ) );
+
+	public override void SetLinearMotor( float targetVelocity, float maxForce )
+	{
+		if ( Box2d.b2Joint_GetType( JointId ) != b2JointType.b2_prismaticJoint )
+			throw new NotSupportedException( "Linear motors require a slider joint." );
+
+		Box2d.b2PrismaticJoint_EnableSpring( JointId, false );
+		Box2d.b2PrismaticJoint_EnableMotor( JointId, true );
+		Box2d.b2PrismaticJoint_SetMotorSpeed( JointId, targetVelocity );
+		Box2d.b2PrismaticJoint_SetMaxMotorForce( JointId, maxForce );
+	}
+
+	public override float Friction
+	{
+		set
+		{
+			var type = Box2d.b2Joint_GetType( JointId );
+			if ( type != b2JointType.b2_revoluteJoint && type != b2JointType.b2_prismaticJoint ) return;
+
+			var body = Box2d.b2Joint_GetBodyB( JointId );
+			var mass = Box2d.b2Body_GetMass( body );
+			Vector2 gravity = Box2d.b2World_GetGravity( Box2d.b2Joint_GetWorld( JointId ) );
+			var force = value * mass * gravity.Length;
+			if ( type == b2JointType.b2_prismaticJoint )
+			{
+				SetLinearMotor( 0, force );
+			}
+			else
+			{
+				var inertia = Box2d.b2Body_GetRotationalInertia( body );
+				Vector2 center = Box2d.b2Body_GetLocalCenterOfMass( body );
+				Transform frame = Box2d.b2Joint_GetLocalFrameB( JointId );
+				var jointLever = center.Distance( new Vector2( frame.Position.x, frame.Position.y ) );
+				var inertiaLever = mass > 0 ? MathF.Sqrt( inertia / mass ) : 0;
+				SetAngularMotor( 0, force * Box2d.b2Body_GetGravityScale( body ) * MathF.Max( inertiaLever, jointLever ) );
+			}
+		}
+	}
+
+	public override void SetTwistLimits( float minDegrees, float maxDegrees )
+	{
+		if ( Box2d.b2Joint_GetType( JointId ) == b2JointType.b2_revoluteJoint )
+			Box2d.b2RevoluteJoint_SetLimits( JointId, minDegrees.DegreeToRadian(), maxDegrees.DegreeToRadian() );
+	}
+
+	public override void SetLinearLimits( float min, float max )
+	{
+		if ( Box2d.b2Joint_GetType( JointId ) == b2JointType.b2_prismaticJoint )
+			Box2d.b2PrismaticJoint_SetLimits( JointId, min, max );
+	}
+
+	public override void SetLinearSpring( Vector3 parameters )
+	{
+		if ( Box2d.b2Joint_GetType( JointId ) != b2JointType.b2_prismaticJoint )
+			throw new NotSupportedException( "Linear spring motors require a slider joint." );
+
+		Box2d.b2PrismaticJoint_EnableMotor( JointId, false );
+		Box2d.b2PrismaticJoint_EnableSpring( JointId, true );
+		Box2d.b2PrismaticJoint_SetSpringHertz( JointId, parameters.x );
+		Box2d.b2PrismaticJoint_SetSpringDampingRatio( JointId, parameters.y );
+		Box2d.b2PrismaticJoint_SetTargetTranslation( JointId, parameters.z );
+	}
+
+	public override void SetTwistLimitEnabled( bool enabled )
+	{
+		if ( Box2d.b2Joint_GetType( JointId ) == b2JointType.b2_revoluteJoint )
+			Box2d.b2RevoluteJoint_EnableLimit( JointId, enabled );
+	}
+
+	public override void SetLinearLimitEnabled( bool enabled )
+	{
+		if ( Box2d.b2Joint_GetType( JointId ) == b2JointType.b2_prismaticJoint )
+			Box2d.b2PrismaticJoint_EnableLimit( JointId, enabled );
 	}
 
 

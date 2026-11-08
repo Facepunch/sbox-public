@@ -86,6 +86,7 @@ public static class CreateAsset
 			entries.Add( new Entry { Name = "Shader Graph Function", Icon = "account_tree", Default = "subgraph.shdrfunc", Category = "Shader" } );
 
 			entries.AddRange( gameResources );
+			EditorEvent.Run( "asset.createoptions", entries );
 		}
 
 		foreach ( var entry in entries.Where( x => x.Pinned ).OrderBy( x => x.Name ) )

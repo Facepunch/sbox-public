@@ -40,6 +40,34 @@ class MySerializedClass : BytePack.ISerializer
 	}
 }
 
+struct MySerializedStruct : BytePack.ISerializer
+{
+	public Guid SenderId { get; set; }
+	public Guid TargetId { get; set; }
+	public byte[] Data { get; set; }
+	public byte Flags { get; set; }
+
+	static object BytePack.ISerializer.BytePackRead( ref ByteStream bs, Type targetType )
+	{
+		return new MySerializedStruct
+		{
+			SenderId = bs.Read<Guid>(),
+			TargetId = bs.Read<Guid>(),
+			Data = bs.ReadArray<byte>(),
+			Flags = bs.Read<byte>(),
+		};
+	}
+
+	static void BytePack.ISerializer.BytePackWrite( object value, ref ByteStream bs )
+	{
+		var msg = (MySerializedStruct)value;
+		bs.Write( msg.SenderId );
+		bs.Write( msg.TargetId );
+		bs.WriteArray<byte>( msg.Data ?? [] );
+		bs.Write( msg.Flags );
+	}
+}
+
 abstract class PolymorphicSerializerBase : BytePack.ISerializer
 {
 	public int Value { get; set; }
@@ -202,14 +230,14 @@ public class CustomSerializerTest : BaseRoundTrip
 	[TestMethod]
 	public void CustomStructSerializerRoundTrips()
 	{
-		var sender = new TargetedInternalMessage
+		var sender = new MySerializedStruct
 		{
 			SenderId = Guid.NewGuid(),
 			TargetId = Guid.NewGuid(),
 			Data = [1, 2, 3],
 			Flags = 7
 		};
-		var result = tlB.FromBytes<TargetedInternalMessage>( tlA.ToBytes( sender ) );
+		var result = tlB.FromBytes<MySerializedStruct>( tlA.ToBytes( sender ) );
 		Assert.AreEqual( sender.SenderId, result.SenderId );
 		Assert.AreEqual( sender.TargetId, result.TargetId );
 		Assert.AreEqual( sender.Flags, result.Flags );

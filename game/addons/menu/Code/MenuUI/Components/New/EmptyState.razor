@@ -16,7 +16,7 @@
 @code
 {
     [Parameter] public string Icon { get; set; } = "search_off";
-    [Parameter] public string Title { get; set; } = "Nothing found";
+    [Parameter] public string Title { get; set; } = "#menu.home.nothing_found";
     [Parameter] public string Subtitle { get; set; }
 
     protected override int BuildHash() => System.HashCode.Combine( Icon, Title, Subtitle );

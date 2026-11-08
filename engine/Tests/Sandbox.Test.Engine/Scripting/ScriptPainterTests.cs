@@ -13,11 +13,8 @@ public partial class ScriptPainterTests
 	public void Initialize()
 	{
 		previous = GlobalContext.Current;
-		var types = new TypeLibrary();
-		types.AddIntrinsicTypes();
-		types.AddAssembly( typeof( Painter ).Assembly, false );
-		types.AddAssembly( typeof( Vector2 ).Assembly, false );
-		GlobalContext.Current = new GlobalContext { TypeLibrary = types };
+		// Intrinsics, engine and system, built once and shared
+		GlobalContext.Current = new GlobalContext { TypeLibrary = SharedTypeLibrary.ScriptingWithSystem };
 	}
 
 	[TestCleanup]
@@ -36,8 +33,8 @@ public partial class ScriptPainterTests
 	public void UnusedHostInputsAreNotScriptArguments()
 	{
 		const string source = "return painter.Bounds.Width;";
-		var script = Game.Scripting.CreateScript( source );
-		var analysis = Game.Scripting.Analyze( source,
+		var script = GlobalContext.Current.Scripting.CreateScript( source );
+		var analysis = GlobalContext.Current.Scripting.Analyze( source,
 			[new Script.Input( "painter", typeof( Painter ) ), new Script.Input( "size", typeof( Vector2 ) ),
 				new Script.Input( "time", typeof( float ) )] );
 		Assert.IsTrue( analysis.Inputs.Any( x => x.Name == "size" ) );
@@ -58,7 +55,7 @@ public partial class ScriptPainterTests
 	{
 		var context = new Painter.Context( new CommandList() );
 		var painter = context.Begin( new Rect( 0, 0, 400, 300 ) );
-		var script = Game.Scripting.CreateScript( "painter.Fill = Fill.Solid( Color.Red ); painter.Translate(10.0f, 20.0f); return painter.Bounds.Width;" );
+		var script = GlobalContext.Current.Scripting.CreateScript( "painter.Fill = Fill.Solid( Color.Red ); painter.Translate(10.0f, 20.0f); return painter.Bounds.Width;" );
 		try
 		{
 			Assert.AreEqual( 400.0f, script.With( "painter", painter ).RunAndReturn<float>(), script.LastError?.Message );
@@ -91,10 +88,10 @@ public partial class ScriptPainterTests
 				painter.Stroke = new Stroke(Fill.Solid(Color.White), 3.0f);
 				painter.Line(new Vector2(30, 260), new Vector2(370, 260));
 				""";
-			var analysis = Game.Scripting.Analyze( source, [new Script.Input( "painter", typeof( Painter ) )] );
+			var analysis = GlobalContext.Current.Scripting.Analyze( source, [new Script.Input( "painter", typeof( Painter ) )] );
 			Assert.IsFalse( analysis.Diagnostics.Any( x => x.Severity == Script.DiagnosticSeverity.Error ),
 				string.Join( "\n", analysis.Diagnostics.Select( x => x.Message ) ) );
-			var script = Game.Scripting.CreateScript( source );
+			var script = GlobalContext.Current.Scripting.CreateScript( source );
 			Assert.IsTrue( script.With( "painter", painter ).Run(), script.LastError?.Message );
 			Assert.IsTrue( context.Batcher.Instances.Count >= 3 );
 			Assert.AreEqual( new Vector4( 30, 30, 160, 80 ), context.Batcher.Instances[0].Rect );
@@ -116,7 +113,7 @@ public partial class ScriptPainterTests
 		Assert.IsTrue( typeof( Painter ).IsByRefLike );
 		var context = new Painter.Context( new CommandList() );
 		using var painter = context.Begin( default );
-		var script = Game.Scripting.CreateScript( source );
+		var script = GlobalContext.Current.Scripting.CreateScript( source );
 		Assert.IsFalse( script.With( "painter", painter ).Run() );
 		Assert.IsNotNull( script.LastError );
 		Assert.AreEqual( Fill.None, painter.Fill );
@@ -131,10 +128,10 @@ public partial class ScriptPainterTests
 		var painter = context.Begin( new Rect( 0, 0, 400, 300 ) );
 		try
 		{
-			var analysis = Game.Scripting.Analyze( source, [new Script.Input( "painter", typeof( Painter ) )] );
+			var analysis = GlobalContext.Current.Scripting.Analyze( source, [new Script.Input( "painter", typeof( Painter ) )] );
 			Assert.IsFalse( analysis.Diagnostics.Any( x => x.Severity == Script.DiagnosticSeverity.Error ),
 				string.Join( "\n", analysis.Diagnostics.Select( x => x.Message ) ) );
-			var script = Game.Scripting.CreateScript( source );
+			var script = GlobalContext.Current.Scripting.CreateScript( source );
 			painter.Stroke = new Stroke( Color.White, 3 );
 			Assert.IsTrue( script.With( "painter", painter ).Run(), script.LastError?.Message );
 			Assert.IsTrue( context.Batcher.Instances.Count > 0 );
@@ -150,9 +147,9 @@ public partial class ScriptPainterTests
 	public void CompileChecksInputsWithoutDrawing()
 	{
 		const string source = "var unused = missing; painter.Opacity = 0.5f;";
-		var analysis = Game.Scripting.Analyze( source, [new Script.Input( "painter", typeof( Painter ) )] );
+		var analysis = GlobalContext.Current.Scripting.Analyze( source, [new Script.Input( "painter", typeof( Painter ) )] );
 		Assert.IsFalse( analysis.Diagnostics.Any( x => x.Severity == Script.DiagnosticSeverity.Error ) );
-		var script = Game.Scripting.CreateScript( source );
+		var script = GlobalContext.Current.Scripting.CreateScript( source );
 		Assert.IsFalse( script.With( "painter", default( Painter ) ).Compile() );
 		Assert.IsNotNull( script.LastError );
 		script.SetArgument( "missing", 0.5f );
@@ -166,7 +163,7 @@ public partial class ScriptPainterTests
 	[TestMethod]
 	public void CompletionDistinguishesTimeTypeFromTimeInput()
 	{
-		var analysis = Game.Scripting.Analyze( "Time", [new Script.Input( "time", typeof( float ) )] );
+		var analysis = GlobalContext.Current.Scripting.Analyze( "Time", [new Script.Input( "time", typeof( float ) )] );
 		var items = analysis.GetCompletions( 4 ).Items;
 		Assert.AreEqual( "Time", items[0].Label );
 		Assert.IsTrue( items.Any( item => item.Label == "time" ) );
@@ -175,7 +172,7 @@ public partial class ScriptPainterTests
 	[TestMethod]
 	public void PainterMembersAreAvailableToEditorAnalysis()
 	{
-		var analysis = Game.Scripting.Analyze( "painter.", [new Script.Input( "painter", typeof( Painter ) )] );
+		var analysis = GlobalContext.Current.Scripting.Analyze( "painter.", [new Script.Input( "painter", typeof( Painter ) )] );
 		var members = analysis.GetCompletions( analysis.Source.Length ).Items;
 		Assert.IsTrue( members.Any( x => x.Label == "Circle" ), string.Join( ", ", members.Select( x => x.Label ) ) );
 		Assert.IsTrue( members.Any( x => x.Label == "Rect" ) );

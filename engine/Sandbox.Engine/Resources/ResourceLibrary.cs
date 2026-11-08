@@ -3,6 +3,7 @@ using Sandbox.Engine;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Threading;
 using static Sandbox.ResourceLibrary;
 
 namespace Sandbox;
@@ -261,6 +262,10 @@ public class ResourceSystem
 		PathIndex.Clear();
 
 		TypeCache.Clear();
+
+		_referenceInstallCancel.Cancel();
+		_referenceInstallCancel = new();
+		_pendingReferenceInstalls.Clear();
 	}
 
 	/// <summary>
@@ -549,7 +554,7 @@ public class ResourceSystem
 		if ( TypeCache.TryGetValue( extension, out resourceAttribute ) )
 			return true;
 
-		resourceAttribute = Game.TypeLibrary.GetAttributes<AssetTypeAttribute>()
+		resourceAttribute = GlobalContext.Current.TypeLibrary.GetAttributes<AssetTypeAttribute>()
 			.FirstOrDefault( x => string.Equals( x.Extension, extension, StringComparison.OrdinalIgnoreCase ) );
 
 		if ( resourceAttribute != null )
@@ -617,8 +622,9 @@ public class ResourceSystem
 
 	/// <summary>
 	/// Loads a Gameresource from disk. Doesn't look at cache. Registers the resource if successful.
+	/// Pass <c>knownToExist</c> for files that came from a directory listing, to skip checking they exist.
 	/// </summary>
-	internal GameResource LoadGameResource( AssetTypeAttribute type, string file, BaseFileSystem fs, bool deferPostload = false, Package sourcePackage = null )
+	internal GameResource LoadGameResource( AssetTypeAttribute type, string file, BaseFileSystem fs, bool deferPostload = false, Package sourcePackage = null, bool knownToExist = false )
 	{
 		Assert.NotNull( type );
 		Assert.NotNull( file );
@@ -629,7 +635,7 @@ public class ResourceSystem
 
 		try
 		{
-			if ( fs.FileExists( file ) )
+			if ( knownToExist || fs.FileExists( file ) )
 			{
 				data = fs.ReadAllBytes( file );
 			}
@@ -703,7 +709,19 @@ public class ResourceSystem
 	}
 
 	/// <summary>
-	/// Installs all references for a GameResource 
+	/// Reference installs started by <see cref="InstallReferences"/> that haven't finished yet
+	/// </summary>
+	private readonly List<Task> _pendingReferenceInstalls = new();
+
+	/// <summary>
+	/// Cancelled when this resource system is cleared, so reference installs from a game that's
+	/// closing don't keep going and load their resources into the next one
+	/// </summary>
+	private CancellationTokenSource _referenceInstallCancel = new();
+
+	/// <summary>
+	/// Installs all references for a GameResource. This goes through <see cref="ServerPackages.DownloadAndMount"/>
+	/// so the package's GameResources get loaded too, not just its files mounted.
 	/// </summary>
 	private void InstallReferences( GameResource se )
 	{
@@ -711,7 +729,22 @@ public class ResourceSystem
 
 		foreach ( var r in references )
 		{
-			_ = PackageManager.InstallAsync( new PackageLoadOptions() { PackageIdent = r, ContextTag = "server" } );
+			_pendingReferenceInstalls.Add( ServerPackages.DownloadAndMount( r, _referenceInstallCancel.Token ).AsTask() );
+		}
+	}
+
+	/// <summary>
+	/// Wait for every package install started by <see cref="InstallReferences"/>. Loading a referenced
+	/// package's resources can start more installs, so keep going until there's nothing left.
+	/// </summary>
+	internal async Task WaitForReferencedPackagesAsync( CancellationToken token = default )
+	{
+		while ( _pendingReferenceInstalls.Count > 0 )
+		{
+			var pending = _pendingReferenceInstalls.ToArray();
+			_pendingReferenceInstalls.Clear();
+
+			await Task.WhenAll( pending ).WaitAsync( token );
 		}
 	}
 }
@@ -775,8 +808,18 @@ public static class ResourceLibrary
 
 		// Check if the type is a GameResource, and handle it accordingly
 		var type = typeof( T );
-		if ( type.IsSubclassOf( typeof( GameResource ) ) )
+		if ( type.IsAssignableTo( typeof( GameResource ) ) )
 		{
+			if ( Mounting.MountUtility.IsMountPath( path ) )
+			{
+				var mounted = await Mounting.Directory.TryLoadAsync( path );
+				if ( mounted is null || mounted is T )
+					return mounted as T;
+
+				Log.Warning( $"Mounted resource '{path}' is not a '{type.FullName}'." );
+				return null;
+			}
+
 			if ( type == typeof( PrefabFile ) )
 			{
 				return (T)(object)PrefabFile.Load( path );

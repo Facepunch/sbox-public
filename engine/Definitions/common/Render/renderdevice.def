@@ -49,6 +49,9 @@ native accessor g_pRenderDevice
 	// Starts a swap chain's frame for GPU timing (GetGPUFrameTimeMS) - call before the frame's first submit
 	void BeginSubmittingDisplayLists( SwapChainHandle_t hSwapChain );
 
+	// Tags the display lists submitted until it's set back to 0, so GPU timings can tell whose frame a submission was
+	void SetSubmitTag( ulong nTag );
+
 	bool ReadTexturePixels( ITexture hTexture, ref Rect_t pSrcRect, int nSrcSlice, int nSrcMip, ref Rect_t pDstRect, void* pData, ImageFormat dstFormat, int nDstStride );
 
 	SwapChainHandle_t CreateSwapChain( CastTo[PlatWindow_t] IntPtr window, RenderDeviceInfo_t mode, string debugName );

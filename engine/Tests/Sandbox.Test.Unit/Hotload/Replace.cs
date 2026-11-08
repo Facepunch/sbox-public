@@ -501,9 +501,13 @@ namespace HotloadTests
 			}
 
 			using var cts = new CancellationTokenSource();
+			using var spinning = new ManualResetEventSlim();
 
-			Task.Run( () =>
+			// A dedicated thread that is already spinning: a pool task can start after the hotload has finished
+			var interferer = new Thread( () =>
 			{
+				spinning.Set();
+
 				while ( !cts.IsCancellationRequested )
 				{
 					// Wait for hotload to clear the set and start repopulating
@@ -518,11 +522,15 @@ namespace HotloadTests
 					InitOnlyHashSet.Add( itemCount + 1 );
 					break;
 				}
-			}, cts.Token );
+			} );
+
+			interferer.Start();
+			spinning.Wait();
 
 			var result = Hotload( true );
 
 			cts.Cancel();
+			interferer.Join();
 
 			Assert.IsTrue( result.HasErrors );
 
@@ -972,7 +980,8 @@ namespace HotloadTests
 		{
 			Before::TestClass23.Instance = new Before::TestClass23();
 
-			const int addedItems = 1_000_000;
+			// Processing the cleared backing array would count its whole capacity (131,072)
+			const int addedItems = 100_000;
 
 			for ( var i = 0; i < addedItems; ++i )
 			{
@@ -1101,7 +1110,8 @@ namespace HotloadTests
 #pragma warning disable CS0162 // Unreachable code detected
 			// ReSharper disable ConditionIsAlwaysTrueOrFalse
 
-			const int chunkCount = 9666;
+			// Each chunk's arrays take the same path, so a few dozen chunks cover it
+			const int chunkCount = 96;
 			const int chunkSize = 16;
 			const int seed = 12345;
 

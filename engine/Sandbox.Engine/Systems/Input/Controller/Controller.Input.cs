@@ -10,7 +10,16 @@ internal sealed partial class Controller
 	/// <summary>
 	/// Get the first controller that's connected (shortcut)
 	/// </summary>
-	internal static Controller First => All.FirstOrDefault();
+	internal static Controller First
+	{
+		get
+		{
+			foreach ( var controller in All )
+				return controller;
+
+			return null;
+		}
+	}
 
 	/// <summary>
 	/// The input context for this controller.
@@ -35,13 +44,17 @@ internal sealed partial class Controller
 	/// <returns></returns>
 	internal float GetAxis( Sandbox.GameControllerAxis axis, float defaultValue = 0f )
 	{
-		var foundAxis = ControllerAxes.FirstOrDefault( x => x.Axis == axis );
-		if ( foundAxis is null )
+		return FindAxis( axis )?.Value ?? defaultValue;
+	}
+
+	InputAxis FindAxis( Sandbox.GameControllerAxis axis )
+	{
+		foreach ( var a in ControllerAxes )
 		{
-			return defaultValue;
+			if ( a.Axis == axis ) return a;
 		}
 
-		return foundAxis.Value;
+		return null;
 	}
 
 	internal void SetAxis( Sandbox.GameControllerAxis axis, int inputValue )
@@ -60,7 +73,7 @@ internal sealed partial class Controller
 			Sandbox.Input.UsingController = true;
 		}
 
-		var current = ControllerAxes.FirstOrDefault( x => x.Axis == axis );
+		var current = FindAxis( axis );
 		if ( current is null )
 		{
 			current = new InputAxis

@@ -28,7 +28,7 @@
 				{
 					<div class="action" onclick=@OpenInstall>
 						<icon>download</icon>
-						<label>Install</label>
+						<label>#menu.mounts.install</label>
 					</div>
 				}
 				else
@@ -111,7 +111,7 @@
 			if ( busyLabel is not null ) return busyLabel;
 			if ( Mount.IsMounted ) return $"{Mount.Resources.Count:N0} assets ready to use";
 
-			return "Ready to mount";
+			return "#menu.mounts.ready_to_mount";
 		}
 	}
 
@@ -124,7 +124,7 @@
 
 		var enable = !Mount.IsMounted;
 
-		busyLabel = enable ? "Mounting..." : "Unmounting...";
+		busyLabel = enable ? "#menu.mounts.mounting" : "#menu.mounts.unmounting";
 		StateHasChanged();
 
 		await Mount.SetMounted( enable );

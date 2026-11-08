@@ -70,6 +70,7 @@ native static class globalSdl as NativeEngine.Sdl
 	uint GetDisplayForWindow( CastTo[SDL_Window*] IntPtr window );
 	bool SetWindowFullscreenMode( CastTo[SDL_Window*] IntPtr window, CastTo[SDL_DisplayMode*] IntPtr mode );
 	void* CreateWindow( string title, int width, int height, SDL_WindowFlags flags );
+	void* CreateStartupWindow( string title, int width, int height, SDL_WindowFlags flags );
 	void DestroyWindow( CastTo[SDL_Window*] IntPtr window );
 	bool SetHint( string name, string value );
 	bool GetWindowPosition( CastTo[SDL_Window*] IntPtr window, out int x, out int y );
@@ -160,6 +161,11 @@ native static class globalSdl as NativeEngine.Sdl
 	void* CreateSurfaceFrom( int width, int height, CastTo[SDL_PixelFormat] uint format, CastTo[void*] IntPtr pixels, int pitch );
 	void DestroySurface( CastTo[SDL_Surface*] IntPtr surface );
 	bool SetWindowIcon( CastTo[SDL_Window*] IntPtr window, CastTo[SDL_Surface*] IntPtr surface );
+	bool WindowHasSurface( CastTo[SDL_Window*] IntPtr window );
+	bool DestroyWindowSurface( CastTo[SDL_Window*] IntPtr window );
+
+	bool FillWindowColor( CastTo[SDL_Window*] IntPtr window, byte red, byte green, byte blue, byte alpha );
+	bool PresentWindowPixels( CastTo[SDL_Window*] IntPtr window, int width, int height, CastTo[void*] IntPtr pixels, int pitch );
 
 	// Dialogs
 	void ShowOpenFolderDialogAt( CastTo[SDL_DialogFileCallback] IntPtr callback, CastTo[void*] IntPtr userdata, CastTo[SDL_Window*] IntPtr window, CastTo[char*] IntPtr defaultPath );

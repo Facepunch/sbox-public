@@ -20,7 +20,79 @@ public sealed partial class RenderSystem
 
 		var inFrustum = FindCandidates( world, mainPass, candidates, out var inTree, out var rejected );
 		stats.ObjectsSizeCulled += rejected;
-		Cull( world, mainPass, candidates, inTree, inFrustum, ref stats );
+
+		if ( ParallelRecording && candidates.Count >= MinParallelCullCandidates && JobDispatcher.MaxDegreeOfParallelism > 1 )
+			CullInChunks( world, mainPass, candidates, inTree, inFrustum, ref stats );
+		else
+			Cull( world, mainPass, candidates, inTree, inFrustum, ref stats );
+	}
+
+	/// <summary>
+	/// Candidates a main view has before culling splits them across threads. 2,500 broke even; 5,000 took 20-30% off
+	/// collecting, the serial tree query being the rest.
+	/// </summary>
+	internal static int MinParallelCullCandidates { get; set; } = 4096;
+
+	// Candidates in each chunk of a split cull; enough chunks that threads finishing early can take another
+	const int CullChunkCandidates = 1024;
+
+	// Each chunk's visible objects by feature, and its counts, merged in candidate order after
+	List<int>[][] chunkVisible = [];
+	RenderStats[] chunkStats = [];
+	(RenderWorld World, ViewPass Pass, List<int> Candidates, int InTree, bool InFrustum) chunkCull;
+
+	/// <summary>
+	/// <see cref="Cull"/> split into chunks of candidates across the job dispatcher's threads, each into its own lists,
+	/// then joined in candidate order - the same visible lists and counts as culling them in one go.
+	/// </summary>
+	void CullInChunks( RenderWorld world, ViewPass pass, List<int> candidates, int inTree, bool inFrustum, ref RenderStats stats )
+	{
+		// Feature lookups that miss write the shared cache
+		WarmFeatureTypes( world );
+
+		var chunks = (candidates.Count + CullChunkCandidates - 1) / CullChunkCandidates;
+		if ( chunkVisible.Length < chunks )
+		{
+			var old = chunkVisible.Length;
+			Array.Resize( ref chunkVisible, chunks );
+			Array.Resize( ref chunkStats, chunks );
+			for ( int c = old; c < chunks; c++ ) chunkVisible[c] = [];
+		}
+
+		for ( int c = 0; c < chunks; c++ )
+		{
+			if ( chunkVisible[c].Length < features.Count )
+			{
+				var old = chunkVisible[c].Length;
+				Array.Resize( ref chunkVisible[c], features.Count );
+				for ( int f = old; f < features.Count; f++ ) chunkVisible[c][f] = new List<int>();
+			}
+
+			for ( int f = 0; f < features.Count; f++ ) chunkVisible[c][f].Clear();
+			chunkStats[c] = default;
+		}
+
+		chunkCull = (world, pass, candidates, inTree, inFrustum);
+		JobDispatcher.For( chunks, this, static ( system, c ) =>
+		{
+			var (world, pass, candidates, inTree, inFrustum) = system.chunkCull;
+			var start = c * CullChunkCandidates;
+			var end = Math.Min( start + CullChunkCandidates, candidates.Count );
+			system.CullRange( world, pass, candidates, start, end, inTree, inFrustum, system.chunkVisible[c], ref system.chunkStats[c] );
+		}, itemsPerBatch: 1 );
+		chunkCull = default;
+
+		for ( int f = 0; f < features.Count; f++ )
+		{
+			var visible = pass.Visible( features[f] );
+			for ( int c = 0; c < chunks; c++ ) visible.AddRange( chunkVisible[c][f] );
+		}
+
+		for ( int c = 0; c < chunks; c++ )
+		{
+			stats.ObjectsSizeCulled += chunkStats[c].ObjectsSizeCulled;
+			stats.ObjectsVisible += chunkStats[c].ObjectsVisible;
+		}
 	}
 
 	/// <summary>
@@ -60,22 +132,28 @@ public sealed partial class RenderSystem
 
 	/// <summary>
 	/// Filter candidates by frustum, root-view size and tags, then feature support.
-	/// Shadow views also apply caster, static and exclusion-frustum filters.
+	/// Shadow views also apply caster and static filters.
 	/// </summary>
 	internal void Cull( RenderWorld world, ViewPass pass, List<int> candidates, int inTree, bool inFrustum, ref RenderStats stats )
+		=> CullRange( world, pass, candidates, 0, candidates.Count, inTree, inFrustum, pass.VisibleByFeature, ref stats );
+
+	/// <summary>
+	/// <see cref="Cull"/> candidates [<paramref name="start"/>, <paramref name="end"/>) into <paramref name="visible"/>, by
+	/// feature index.
+	/// </summary>
+	void CullRange( RenderWorld world, ViewPass pass, List<int> candidates, int start, int end, int inTree, bool inFrustum, List<int>[] visible, ref RenderStats stats )
 	{
 		var frustum = pass.View.Frustum;
 		var root = pass.Root;
 		var sizeCull = new SizeCull( root );
 		var shadow = pass.IsShadow;
 		var filter = pass.StaticFilter;
-		var exclusion = pass.Exclusion;
 		var objects = world.Objects;
 		var centers = world.BoundsCenter;
 		var extents = world.BoundsExtents;
 
 		var entries = System.Runtime.InteropServices.CollectionsMarshal.AsSpan( candidates );
-		for ( int k = 0; k < entries.Length; k++ )
+		for ( int k = start; k < end; k++ )
 		{
 			var entry = entries[k];
 			var i = entry >> 1;
@@ -100,10 +178,9 @@ public sealed partial class RenderSystem
 				if ( !f.DrawsShadows || !f.CastsShadow( obj ) ) continue;
 				if ( filter == StaticFilter.OnlyStatic && !obj.IsStatic ) continue;
 				if ( filter == StaticFilter.NoStatic && obj.IsStatic ) continue;
-				if ( exclusion.HasValue && exclusion.Value.Contains( centers[i], extents[i] ) ) continue;
 			}
 
-			pass.Visible( f ).Add( i );
+			visible[feature].Add( i );
 			stats.ObjectsVisible++;
 		}
 	}

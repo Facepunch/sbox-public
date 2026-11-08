@@ -408,11 +408,30 @@ public sealed partial class Clothing : GameResource
 	[Feature( "Icon", Description = "Generate the icon used for the clothing thumbnail" )]
 	public IconSetup Icon { get; set; }
 
+	/// <summary>
+	/// Camera framing and output settings for a clothing icon.
+	/// </summary>
 	public struct IconSetup
 	{
+		/// <summary>
+		/// Saved icon image path.
+		/// </summary>
 		[Hide]
 		public string Path { get; set; }
+		/// <summary>
+		/// View angle preset. Generic chooses a suitable view from the clothing category.
+		/// </summary>
 		public IconModes Mode { get; set; }
+
+		/// <summary>
+		/// Apply a custom offset after fitting the item. Disabled by default so legacy Citizen offsets do not affect Human framing.
+		/// </summary>
+		public bool UsePositionOffset { get; set; }
+
+		/// <summary>
+		/// Camera-relative adjustment to the automatically framed item.
+		/// </summary>
+		[ShowIf( nameof( UsePositionOffset ), true )]
 		public Vector3 PositionOffset { get; set; }
 
 		[Expose]

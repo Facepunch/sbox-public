@@ -42,20 +42,46 @@ public class FilterPage : GalleryPage
 		var comparisons = Examples( "Reference: unchanged and maximum" );
 		AddPreview( comparisons, 0, 0, unfiltered: true );
 		AddPreview( comparisons, maximum, 30 );
+		if ( kind != Kind.Blur ) return;
+
+		// Layers whose content changes every frame: the cached layer texture must not go stale
+		var live = Examples( "Live: content that changes every frame" );
+		AddPreview( live, amount, 0, wave: true );
+		var video = new GalleryExample( live, "Video", "A playing video keeps updating under the blur.", 260 );
+		video.Result.AddClass( "filter-surface" );
+		video.Result.AddChild( new VideoPreview() );
 	}
 
-	void AddPreview( Panel row, float strength, float rotation, bool unfiltered = false )
+	void AddPreview( Panel row, float strength, float rotation, bool unfiltered = false, bool wave = false )
 	{
-		var preview = new Preview( kind, strength, rotation, unfiltered );
+		var preview = new Preview( kind, strength, rotation, unfiltered, wave );
 		preview.Update();
-		var entry = new GalleryExample( row, unfiltered ? "Unfiltered" : "Filtered", unfiltered
-			? "Original colors and edges for comparison." : "Inspect the effect on color, text and translucent edges.", 260 );
+		var entry = new GalleryExample( row, unfiltered ? "Unfiltered" : wave ? "Breathing" : "Filtered", unfiltered
+			? "Original colors and edges for comparison." : wave ? "The blur follows a sine wave." : "Inspect the effect on color, text and translucent edges.", 260 );
 		entry.Result.AddClass( "filter-surface" );
 		entry.Result.AddChild( preview );
 	}
 
-	sealed class Preview( Kind kind, float amount, float angle, bool unfiltered ) : Panel
+	sealed class VideoPreview : Panel
 	{
+		public VideoPreview()
+		{
+			Style.Width = Length.Percent( 100 );
+			Style.Height = Length.Percent( 100 );
+			Style.Set( "background-image", "url( https://cdn.sbox.game/org/facepunch/sandbox/video/42714/medium.webm )" );
+			Style.Set( "background-size", "cover" );
+			Style.Set( "filter", "blur(6px)" );
+		}
+	}
+
+	sealed class Preview( Kind kind, float amount, float angle, bool unfiltered, bool wave ) : Panel
+	{
+		public override void Tick()
+		{
+			if ( !wave ) return;
+			amount = 8 + 8 * MathF.Sin( RealTime.Now * 2 );
+			Update();
+		}
 
 		public void Update()
 		{

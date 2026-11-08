@@ -38,6 +38,7 @@ public static class PartyView
 	static Package mockGame;
 	static CreateGameResults? mockGameSettings;
 	static bool mockReady;
+	static RealTimeSince mockSendVoice;
 
 	/// <summary>
 	/// The last name saved for one of your parties, reused when creating a new party.
@@ -53,7 +54,7 @@ public static class PartyView
 	/// <summary>
 	/// The party name, with the local player's chat filter applied.
 	/// </summary>
-	public static string Name => IsMocking ? Sandbox.Utility.Steam.FilterChat( mockName ?? $"{Owner.Name}'s Party", Owner.Id ) : Party?.Name ?? "Party";
+	public static string Name => IsMocking ? Sandbox.Utility.Steam.FilterChat( mockName ?? $"{Owner.Name}'s Party", Owner.Id ) : Party?.Name ?? "#party";
 
 	/// <summary>
 	/// Whether anyone can discover and join the party.
@@ -74,7 +75,7 @@ public static class PartyView
 		else
 		{
 			Party.Name = name;
-			ConsoleSystem.SetValue( "party_name", name.Trim() );
+			MenuUtility.SetConsoleVariable( "party_name", name.Trim() );
 		}
 	}
 
@@ -205,6 +206,29 @@ public static class PartyView
 		return IsMocking
 			? member.Id != Owner.Id && (member.IsMe ? mockReady : SelectedGameSettings is not null)
 			: Party?.IsMemberReady( member ) ?? false;
+	}
+
+	internal static bool IsMemberTalking( Friend member )
+	{
+		return IsMocking
+			? member.IsMe ? mockSendVoice < 0.1f : MockIsMemberTalking( member )
+			: Party?.IsMemberTalking( member ) ?? false;
+	}
+
+	/// <summary>
+	/// Allow the local user to transmit their voice for a short time window.
+	/// We'll still check voice mode (push to talk etc) elsewhere.
+	/// </summary>
+	internal static void SetBroadcastVoice()
+	{
+		if ( IsMocking )
+		{
+			mockSendVoice = 0;
+		}
+		else
+		{
+			Party?.SetBroadcastVoice();
+		}
 	}
 
 	/// <summary>
@@ -367,5 +391,14 @@ public static class PartyView
 		return t < 0.75
 			? new PartyRoom.MemberStatus( PartyRoom.JoinStage.Downloading, (float)(t / 0.75) )
 			: new PartyRoom.MemberStatus( PartyRoom.JoinStage.WaitingForHost, null );
+	}
+
+	static bool MockIsMemberTalking( Friend member )
+	{
+		var period = 5f + 5f * (member.Id & 0xff) / 256f;
+		var offset = 5f * ((member.Id >> 8) & 0xff);
+		var t = Cycle( period, offset );
+
+		return t < 0.5f;
 	}
 }

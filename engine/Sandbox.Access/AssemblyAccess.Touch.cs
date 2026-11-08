@@ -61,7 +61,11 @@ internal partial class AssemblyAccess
 			return false;
 
 		if ( typeRef is IModifierType typeMod )
-			return Touch( typeMod.ModifierType ) || Touch( typeMod.ElementType );
+		{
+			var modifierTouched = Touch( typeMod.ModifierType );
+			var elementTouched = Touch( typeMod.ElementType );
+			return modifierTouched && elementTouched;
+		}
 
 		if ( typeRef is GenericInstanceType git )
 		{
@@ -71,9 +75,10 @@ internal partial class AssemblyAccess
 			}
 		}
 
-		if ( typeRef.IsArray || typeRef.IsByReference )
+		// GetElementType() unwraps to the innermost open type and would skip generic arguments
+		if ( typeRef is ArrayType or ByReferenceType or PointerType or PinnedType )
 		{
-			return Touch( typeRef.GetElementType() );
+			return Touch( ((TypeSpecification)typeRef).ElementType );
 		}
 
 		var typeDef = typeRef.Resolve();

@@ -68,11 +68,6 @@ internal sealed class ViewPass
 	public float SlopeScaledDepthBias { get; set; }
 
 	/// <summary>
-	/// Excludes casters fully covered by an earlier cascade.
-	/// </summary>
-	public ViewFrustum? Exclusion { get; set; }
-
-	/// <summary>
 	/// Shared query sphere for a light's shadow views. Null uses the view frustum.
 	/// </summary>
 	public (Vector3 Center, float Radius)? LightSphere { get; set; }
@@ -81,6 +76,11 @@ internal sealed class ViewPass
 	/// The objects a feature drew in this view, by world index.
 	/// </summary>
 	public List<int> Visible( RenderFeature feature ) => visible[feature.Index];
+
+	/// <summary>
+	/// Every feature's <see cref="Visible"/> list, by feature index.
+	/// </summary>
+	internal List<int>[] VisibleByFeature => visible;
 
 	/// <summary>
 	/// Lazily created per-feature state retained with this pass.
@@ -115,7 +115,6 @@ internal sealed class ViewPass
 		TargetSlice = 0;
 		DepthBias = 0;
 		SlopeScaledDepthBias = 0;
-		Exclusion = null;
 		LightSphere = null;
 	}
 }

@@ -30,6 +30,7 @@ public class HostMigrationTest
 		Assert.IsFalse( connection.HasPendingSends, "Snapshot encoding timed out" );
 	}
 	private TypeLibrary _oldTypeLibrary;
+	private Scene _oldActiveScene;
 
 	[TestMethod]
 	public void CapturedSnapshotKeepsStateAfterSceneChanges()
@@ -58,11 +59,9 @@ public class HostMigrationTest
 	public void TestInitialize()
 	{
 		_oldTypeLibrary = Game.TypeLibrary;
+		_oldActiveScene = Game.ActiveScene;
 
-		Game.TypeLibrary = new Sandbox.Internal.TypeLibrary();
-		Game.TypeLibrary.AddAssembly( typeof( PrefabFile ).Assembly, false );
-		Game.TypeLibrary.AddAssembly( typeof( ModelRenderer ).Assembly, false );
-		Game.TypeLibrary.AddAssembly( typeof( HostListener ).Assembly, false );
+		Game.TypeLibrary = SharedTypeLibrary.EngineAndTests;
 
 		JsonUpgrader.UpdateUpgraders( Game.TypeLibrary );
 
@@ -73,6 +72,13 @@ public class HostMigrationTest
 	public void TestCleanup()
 	{
 		Game.TypeLibrary = _oldTypeLibrary;
+
+		// Applying a snapshot replaces the active scene, so the test's push scope won't restore it
+		if ( Game.ActiveScene != _oldActiveScene )
+		{
+			Game.ActiveScene?.Destroy();
+			Game.ActiveScene = _oldActiveScene;
+		}
 	}
 
 	/// <summary>
@@ -109,6 +115,10 @@ public class HostMigrationTest
 		Assert.AreEqual( 1, handoff.Length, "The successor should receive exactly one handoff" );
 		Assert.IsTrue( handoff[0].Snapshot.NetworkObjects.OfType<ObjectCreateMsg>().Any( x => x.Guid == go.Id ), "The handoff snapshot should carry the networked objects" );
 		Assert.IsTrue( handoff[0].Snapshot.SceneData.Contains( hostOnly.Id.ToString() ), "The handoff snapshot should carry objects that are never networked" );
+
+		var payloads = clientAndHost.Client.Messages.Select( m => m.Payload ).ToList();
+		var access = payloads.FindIndex( p => p is HostAccessMsg );
+		Assert.IsTrue( access >= 0 && access < payloads.FindIndex( p => p is HostHandoffMsg ), "The successor gets the join rules before the snapshot" );
 
 		var joinSnapshot = SnapshotMsg.Create();
 		SceneNetworkSystem.Instance.GetSnapshot( clientAndHost.Client, ref joinSnapshot );

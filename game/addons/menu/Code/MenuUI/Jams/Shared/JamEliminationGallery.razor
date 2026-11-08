@@ -14,8 +14,8 @@
 		<div class="waiting-banner">
 			<icon>lock_clock</icon>
 			<div>
-				<label class="waiting-title">@(IsGrandFinal ? "The grand final is lined up" : "The next round is lined up")</label>
-				<label>Voting is paused. Play the contenders while you wait — votes reset when the round opens.</label>
+				<label class="waiting-title">@(IsGrandFinal ? "#menu.jam.the_grand_final_is_lined_up" : "#menu.jam.the_next_round_is_lined_up")</label>
+				<label>#menu.jam.voting_is_paused_play_the_contenders_while_you_wait</label>
 			</div>
 		</div>
 	}
@@ -28,7 +28,7 @@
 			<label class="round-meta">@(Waiting ? $"{Standing.Length} confirmed finalists · {Category.Title}" : $"{Category.TotalVotes:N0} {(WinnerIdent is not null ? "final" : VotingOpen ? "live" : "recorded")} votes · {Category.Title}")</label>
 		</div>
 		<div class="round-tools">
-			<label class="selection" tooltip="@(Waiting ? "A fresh vote opens with the next round." : "Choose another game to move your vote before voting closes.")">@SelectionText</label>
+			<label class="selection" tooltip="@(Waiting ? "#menu.jam.a_fresh_vote_opens_with_the_next_round" : "#menu.jam.choose_another_game_to_move_your_vote_before_voting_closes")">@SelectionText</label>
 			@if ( CooldownSeconds > 0 )
 			{
 				<label class="round-meta">Change vote in @(CooldownSeconds)s</label>
@@ -47,14 +47,14 @@
 				{
 					<JamVoteBar Votes=@Count( finalist ) VoteShare=@($"{Share( finalist )} of votes") Maximum=@ChartMaximum Lowest=@lowest Selected=@selected Live=@VotingOpen GrandFinal=@IsGrandFinal Urgent=@Urgent Winner=@(WinnerIdent is not null && WinnerIdent == ident) LeadChange=@(VotingOpen && LeadNoticeUntil > 0 && Leader == ident) Identity=@($"{RoundIdentity}/{ident}") Seed=@finalist.Seed />
 				}
-				<div class="gallery-art" tooltip="Click the artwork to play">
+				<div class="gallery-art" tooltip="#menu.jam.click_the_artwork_to_play">
 					@if ( package is not null )
 					{
 						<MenuProject.UI.PackageCard Package=@package AlwaysPlayVideo=@true Clicked=@(() => Play( package )) RightClicked=@(() => ContentBlocks.OnMenu( this, package )) />
 					}
 					else
 					{
-						<div class="unavailable"><icon>videogame_asset_off</icon><label>Game unavailable</label></div>
+						<div class="unavailable"><icon>videogame_asset_off</icon><label>#menu.jam.game_unavailable</label></div>
 					}
 				</div>
 				<div class="gallery-details">
@@ -68,7 +68,7 @@
 				<div class="card-actions">
 					@if ( Waiting )
 					{
-						<Button class="play-action" Icon="play_arrow" Text="Play" Disabled=@(package is null) onclick=@(() => Play( package )) />
+						<Button class="play-action" Icon="play_arrow" Text="#menu.common.play" Disabled=@(package is null) onclick=@(() => Play( package )) />
 					}
 					<Button class="vote-action" IconTexture=@(selected ? Avatar : null) Text=@VoteText( selected ) Disabled=@(Submitting || CooldownSeconds > 0 || selected || !VotingOpen || ident is null) onclick=@(() => Vote?.Invoke( ident )) />
 				</div>
@@ -76,12 +76,12 @@
 		}
 		@if ( IsGrandFinal && Standing.Length == 2 && !Waiting )
 		{
-			<JamFinalDuel Live=@VotingOpen Counting=@(!VotingOpen && WinnerIdent is null) Winner=@WinnerIdent SecondsLeft=@SecondsLeft LeadNotice=@(VotingOpen && LeadNoticeUntil > 0 ? "LEAD CHANGE" : null) />
+			<JamFinalDuel Live=@VotingOpen Counting=@(!VotingOpen && WinnerIdent is null) Winner=@WinnerIdent SecondsLeft=@SecondsLeft LeadNotice=@(VotingOpen && LeadNoticeUntil > 0 ? "#menu.jam.lead_change" : null) />
 		}
 	</div>
 	@if ( Standing.Length == 0 )
 	{
-		<EmptyState Icon="emoji_events" Title="No finalists available" Subtitle="The next confirmed slate will appear here." />
+		<EmptyState Icon="emoji_events" Title="#menu.jam.no_finalists_available" Subtitle="#menu.jam.the_next_confirmed_slate_will_appear_here" />
 	}
 </root>
 
@@ -208,7 +208,7 @@
 	}
 
 	Package PackageFor( string ident ) => ident is null ? null : Packages.GetValueOrDefault( ident );
-	string Title( string ident ) => PackageFor( ident )?.Title ?? ident ?? "Game unavailable";
+	string Title( string ident ) => PackageFor( ident )?.Title ?? ident ?? "#menu.jam.game_unavailable";
 	int Count( JamFinalist finalist ) => finalist.PackageIdent is null ? 0 : Category.Counts.GetValueOrDefault( finalist.PackageIdent );
 	int Rank( JamFinalist finalist ) => 1 + Standing.Count( x => Count( x ) > Count( finalist ) );
 	bool IsLowest( JamFinalist finalist ) => VotingOpen && Category.TotalVotes > 0 && Count( finalist ) == Minimum;
@@ -218,12 +218,12 @@
 	{
 		get
 		{
-			if ( WinnerIdent is not null ) return "Winner confirmed";
-			if ( Waiting ) return "Voting opens soon";
-			if ( !VotingOpen && IsGrandFinal ) return "Verifying the final result";
+			if ( WinnerIdent is not null ) return "#menu.jam.winner_confirmed";
+			if ( Waiting ) return "#menu.jam.voting_opens_soon";
+			if ( !VotingOpen && IsGrandFinal ) return "#menu.jam.verifying_the_final_result";
 			if ( Selected is not null ) return $"Your vote: {Title( Selected )}";
 
-			return IsGrandFinal ? "Pick your winner" : "Pick your favourite";
+			return IsGrandFinal ? "#menu.jam.pick_your_winner_text" : "#menu.jam.pick_your_favourite";
 		}
 	}
 
@@ -237,30 +237,30 @@
 
 	string PositionText( JamFinalist finalist )
 	{
-		if ( WinnerIdent is not null ) return WinnerIdent == finalist.PackageIdent ? "Champion" : "Runner-up";
-		if ( Waiting ) return "Finalist";
+		if ( WinnerIdent is not null ) return WinnerIdent == finalist.PackageIdent ? "#menu.jam.champion" : "#menu.jam.runner_up";
+		if ( Waiting ) return "#menu.jam.finalist";
 
 		if ( IsGrandFinal )
 		{
-			if ( LowestCount > 1 ) return "Tied";
+			if ( LowestCount > 1 ) return "#menu.jam.tied";
 
-			return Rank( finalist ) == 1 ? "Leading" : "Trailing";
+			return Rank( finalist ) == 1 ? "#menu.jam.leading" : "#menu.jam.trailing";
 		}
 
-		if ( IsLowest( finalist ) ) return LowestCount > 1 ? "Tied lowest" : "Lowest";
+		if ( IsLowest( finalist ) ) return LowestCount > 1 ? "#menu.jam.tied_lowest" : "#menu.jam.lowest";
 
 		return $"Rank {Rank( finalist )}";
 	}
 
 	string VoteText( bool selected )
 	{
-		if ( Waiting ) return "Voting opens soon";
-		if ( selected ) return "You Voted";
-		if ( !VotingOpen ) return "Voting closed";
-		if ( Submitting ) return "Submitting vote…";
+		if ( Waiting ) return "#menu.jam.voting_opens_soon";
+		if ( selected ) return "#menu.jam.you_voted_text";
+		if ( !VotingOpen ) return "#menu.jam.voting_closed";
+		if ( Submitting ) return "#menu.jam.submitting_vote";
 		if ( CooldownSeconds > 0 ) return $"Vote in {CooldownSeconds}s";
 
-		return "Vote";
+		return "#menu.jam.vote";
 	}
 
 	void Play( Package package )

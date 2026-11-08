@@ -205,7 +205,7 @@ public partial class SoundFile : Resource, IValid
 		if ( Loaded.TryGetValue( filename, out var soundFile ) )
 			return soundFile;
 
-		if ( Mounting.Directory.TryLoad( filename, Mounting.ResourceType.Sound, out object sound ) && sound is SoundFile s )
+		if ( Mounting.Directory.TryLoad( filename, out object sound ) && sound is SoundFile s )
 			return s;
 
 		var soundFilePointer = g_pSoundSystem.PrecacheSound( filename );
@@ -229,6 +229,8 @@ public partial class SoundFile : Resource, IValid
 		if ( Application.IsHeadless )
 			return null;
 
+		ValidatePcmLayout( data.Length, channels, format, sampleCount, ref loopStart, ref loopEnd );
+
 		fixed ( byte* pData = data )
 		{
 			var sfx = g_pSoundSystem.CreateSound( filename, channels, (int)rate, format, (int)sampleCount, duration, loopStart, loopEnd, (IntPtr)pData, data.Length );
@@ -244,6 +246,34 @@ public partial class SoundFile : Resource, IValid
 
 			return soundFile;
 		}
+	}
+
+	internal static void ValidatePcmLayout( int dataLength, int channels, int format, uint sampleCount, ref int loopStart, ref int loopEnd )
+	{
+		if ( channels is < 1 or > byte.MaxValue )
+			throw new ArgumentException( $"Unsupported channel count: {channels}" );
+
+		if ( sampleCount > int.MaxValue )
+			throw new ArgumentException( "Sample count is too large" );
+
+		// Native frame size per format: 0 = PCM16, 1 = PCM8, 3 = ADPCM (one byte per frame)
+		long frameSize = format switch
+		{
+			0 => channels * 2L,
+			1 => channels,
+			3 => 1,
+			_ => throw new ArgumentException( $"Unsupported format: {format}" )
+		};
+
+		if ( sampleCount * frameSize > dataLength )
+			throw new ArgumentException( "Sample count exceeds the supplied data" );
+
+		if ( loopEnd < 0 || loopEnd > sampleCount )
+			loopEnd = 0;
+
+		long loopLimit = loopEnd > 0 ? loopEnd : sampleCount;
+		if ( loopStart < -1 || loopStart >= loopLimit )
+			loopStart = -1;
 	}
 
 	/// <summary>

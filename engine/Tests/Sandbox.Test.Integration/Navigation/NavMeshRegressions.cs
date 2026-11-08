@@ -266,7 +266,7 @@ public class NavMeshRegressions
 		Assert.IsFalse( tile.IsHeightFieldValid, "An empty rebuild must discard the previous cached geometry" );
 	}
 
-	[TestMethod]
+	[TestMethod, TestCategory( Allocations.Category )]
 	public async Task PathResultsRemainIndependentOfReusedBuffers_11074()
 	{
 		var scene = new Scene();
@@ -282,10 +282,10 @@ public class NavMeshRegressions
 		for ( int i = 0; i < 8; i++ ) agent.SetPath( path );
 		var saved = agent.GetPath();
 		var savedPoints = saved.Points.ToArray();
-		long before = GC.GetAllocatedBytesForCurrentThread();
-		for ( int i = 0; i < 64; i++ ) agent.SetPath( path );
-		long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-		Assert.IsTrue( allocated <= 256, $"Repeated SetPath allocated {allocated} bytes after warmup" );
+		Allocations.AssertSettles( "64 repeated SetPath calls", () =>
+		{
+			for ( int i = 0; i < 64; i++ ) agent.SetPath( path );
+		}, allowedPerPass: 256 );
 		request.Target = new Vector3( -100, -100, 0 );
 		for ( int i = 0; i < 16; i++ ) Assert.IsTrue( scene.NavMesh.CalculatePath( request ).IsValid );
 		Assert.IsTrue( (await scene.NavMesh.CalculatePathAsync( request )).IsValid );
@@ -297,7 +297,7 @@ public class NavMeshRegressions
 		CollectionAssert.AreEqual( polygons, saved.Polygons );
 	}
 
-	[TestMethod]
+	[TestMethod, TestCategory( Allocations.Category )]
 	public void ReusedFiltersStillCapturePermissionAndCostChanges_11074()
 	{
 		var scene = new Scene();
@@ -321,11 +321,10 @@ public class NavMeshRegressions
 			Assert.AreEqual( 1f, original.CostMultiplier( id ) );
 			var unrestricted = scene.NavMesh.CreateFilter();
 			Assert.AreEqual( 7f, unrestricted.CostMultiplier( id ) );
-			for ( int i = 0; i < 8; i++ ) { scene.NavMesh.CreateFilter( agent ); scene.NavMesh.CreateFilter(); }
-			long before = GC.GetAllocatedBytesForCurrentThread();
-			for ( int i = 0; i < 64; i++ ) { scene.NavMesh.CreateFilter( agent ); scene.NavMesh.CreateFilter(); }
-			long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-			Assert.IsTrue( allocated <= 256, $"Unchanged filters allocated {allocated} bytes after warmup" );
+			Allocations.AssertSettles( "64 pairs of unchanged filters", () =>
+			{
+				for ( int i = 0; i < 64; i++ ) { scene.NavMesh.CreateFilter( agent ); scene.NavMesh.CreateFilter(); }
+			}, allowedPerPass: 256 );
 			agent.ForbiddenAreas.Clear();
 			area.CostMultiplier = 3;
 			Assert.IsTrue( scene.NavMesh.CreateFilter( agent ).Allows( id ) );

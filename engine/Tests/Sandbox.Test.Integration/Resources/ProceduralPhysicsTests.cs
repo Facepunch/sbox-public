@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace ResourceTests;
@@ -6,6 +7,63 @@ namespace ResourceTests;
 [TestClass]
 public class ProceduralPhysicsTests
 {
+	[DataTestMethod]
+	[DataRow( 63, true )]
+	[DataRow( 64, true )]
+	[DataRow( 65, false )]
+	public void HullCreationHonorsTheFullEightBitIndexCapacity( int sides, bool accepted )
+	{
+		var points = new List<Vector3>();
+		for ( var index = 0; index < sides; index++ )
+		{
+			var angle = 2 * MathF.PI * index / sides;
+			points.Add( new Vector3( 16 * MathF.Cos( angle ), 16 * MathF.Sin( angle ), 0 ) );
+		}
+		points.Add( Vector3.Up * 16 );
+		var scene = new Scene();
+		try
+		{
+			using var scope = scene.Push();
+			var collider = scene.CreateObject().AddComponent<HullCollider>( false );
+			collider.Type = HullCollider.PrimitiveType.Points;
+			collider.Points = points;
+			collider.Enabled = true;
+			var shape = collider.PhysicsBody.Shapes.Single();
+			Assert.AreEqual( accepted ? PhysicsShapeType.SHAPE_HULL : PhysicsShapeType.SHAPE_SPHERE,
+				shape.ShapeType, $"{sides * 4} half-edges produced the wrong shape type." );
+		}
+		finally
+		{
+			scene.Destroy();
+		}
+	}
+
+	[TestMethod]
+	public void StandalonePhysicsPreservesBodyDampingAndInertia()
+	{
+		var body = new PhysicsBodyBuilder().SetMass( 1 ).SetDamping( 0.01f, 1.5f )
+			.SetInertiaScale( 10 ).AddSphere( new Sphere( Vector3.Zero, 1 ) );
+		var physics = PhysicsGroupDescription.Create( NewPath(), [body] );
+		var part = physics.Parts.Single();
+		Assert.AreEqual( 0.01f, part.LinearDamping );
+		Assert.AreEqual( 1.5f, part.AngularDamping );
+		Assert.AreEqual( 10f, part.InertiaScale );
+	}
+
+	[DataTestMethod]
+	[DataRow( 0f, 0f, 0f )]
+	[DataRow( -1f, 0f, 0f )]
+	[DataRow( 1f, -1f, 0f )]
+	[DataRow( 1f, 0f, -1f )]
+	[DataRow( float.NaN, 0f, 0f )]
+	[DataRow( 1f, float.NaN, 0f )]
+	[DataRow( 1f, 0f, float.PositiveInfinity )]
+	public void InvalidBodyDampingAndInertiaAreRejected( float scale, float linear, float angular )
+	{
+		var body = new PhysicsBodyBuilder().SetInertiaScale( scale ).SetDamping( linear, angular );
+		Assert.ThrowsException<ArgumentOutOfRangeException>( () => PhysicsGroupDescription.Create( NewPath(), [body] ) );
+	}
+
 	static string NewPath() => $"procedural_physics_tests/{Guid.NewGuid():N}.vphys";
 
 	sealed class TestSurface : Surface
@@ -114,7 +172,7 @@ public class ProceduralPhysicsTests
 	[TestMethod]
 	public void ModelPhysicsKeepsItsEmbeddedName()
 	{
-		var model = Model.Load( "models/citizen/citizen.vmdl" );
+		var model = Model.Load( "models/citizen_human/human.vmdl" );
 		var physics = model.Physics;
 
 		Assert.IsNotNull( physics );

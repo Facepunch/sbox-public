@@ -3,7 +3,7 @@ HEADER
 {
 	Description = "Citizen procedural eye";
 	DevShader = true;
-	Version = 13;
+	Version = 48;
 	CompileTargets = ( IS_SM_50 && ( PC || VULKAN ) );
 }
 
@@ -14,16 +14,12 @@ MODES
 	ToolsShadingComplexity( "tools_shading_complexity.shader" );
 }
 
-FEATURES
-{
-	Feature( F_SPECULAR_CUBE_MAP, 0..2( 0 = "None", 1 = "In-game Cube Map", 2 = "Artist Cube Map" ), "Specular" );
-}
-
 COMMON
 {
 	#include "system.fxc"
 	#define S_SUBSURFACE_SCATTERING SUBSURFACE_SCATTERING_WRAP
 	#define S_SPECULAR 1
+	#define S_SPECULAR_CUBE_MAP 1
 	#include "vr_common.fxc"
 }
 
@@ -35,29 +31,29 @@ struct VS_INPUT
 struct PS_INPUT
 {
 	#include "vr_shared_standard_ps_input.fxc"
-	#if ( !S_MODE_DEPTH )
-		float3 vEyeForwardWs : TEXCOORD14;
-	#endif
+	float3 vEyeForwardWs : TEXCOORD14;
+	float3 vEyeRightWs : TEXCOORD15;
 };
 
 VS
 {
-	#include "vr_shared_standard_vs_code.fxc"
+	#include "vr_common_vs_code.fxc"
+	DynamicCombo( D_BAKED_LIGHTING_FROM_LIGHTMAP, 0..1, Sys( ALL ) );
 
 	PS_INPUT MainVs( VS_INPUT i )
 	{
-		PS_INPUT o = VS_SharedStandardProcessing( i );
+		PS_INPUT o = VS_CommonProcessing( i );
 
-		#if ( !S_MODE_DEPTH )
-			// Carry the eye's bind-pose +X axis through the existing tangent frame.
-			// This follows skinning/gaze without bone indices or eye-centre parameters.
-			float3 normalOs;
-			float4 tangentOs;
-			VS_DecodeObjectSpaceNormalAndTangent( i, normalOs, tangentOs );
-			float3 bitangentOs = cross( normalOs, tangentOs.xyz ) * tangentOs.w;
-			o.vEyeForwardWs = o.vTangentUWs.xyz * tangentOs.x
-				+ o.vTangentVWs.xyz * bitangentOs.x + o.vNormalWs.xyz * normalOs.x;
-		#endif
+		// Carry the eye's bind-pose +X axis through the existing tangent frame.
+		// This follows skinning/gaze without bone indices or eye-centre parameters.
+		float3 normalOs;
+		float4 tangentOs;
+		VS_DecodeObjectSpaceNormalAndTangent( i, normalOs, tangentOs );
+		float3 bitangentOs = cross( normalOs, tangentOs.xyz ) * tangentOs.w;
+		o.vEyeForwardWs = o.vTangentUWs.xyz * tangentOs.x
+			+ o.vTangentVWs.xyz * bitangentOs.x + o.vNormalWs.xyz * normalOs.x;
+		o.vEyeRightWs = o.vTangentUWs.xyz * tangentOs.y
+			+ o.vTangentVWs.xyz * bitangentOs.y + o.vNormalWs.xyz * normalOs.y;
 
 		return VS_CommonProcessing_Post( o );
 	}
@@ -66,65 +62,52 @@ VS
 PS
 {
 	#include "vr_common_ps_code.fxc"
-	StaticCombo( S_SPECULAR_CUBE_MAP, F_SPECULAR_CUBE_MAP, Sys( ALL ) );
-	StaticComboRule( Allow1( S_MODE_DEPTH, S_SPECULAR_CUBE_MAP ) );
+	#include "common/classes/EnvMap.hlsl"
+	#include "common/classes/Depth.hlsl"
+	#include "procedural.hlsl"
 	DynamicCombo( D_OPAQUE_FADE, 0..1, Sys( ALL ) );
 
-	// Size controls change the appearance on the existing mesh, not its geometry.
-	float g_flIrisRadius < Default( 0.20 ); Range( 0.02, 0.48 ); UiGroup( "Eye Shape,10/10" ); >;
-	float2 g_vIrisCenter < Default2( 0.5, 0.5 ); Range2( 0, 0, 1, 1 ); UiGroup( "Eye Shape,10/20" ); >;
-	float g_flIrisAspect < Default( 1 ); Range( 0.25, 2 ); UiGroup( "Eye Shape,10/30" ); >;
-	float g_flEdgeSoftness < Default( 0.012 ); Range( 0, 0.15 ); UiGroup( "Eye Shape,10/40" ); >;
+	// The cornea has one optical model: derive its normal-incidence reflectance
+	// from the same fixed refractive index used for the viewing ray.
+	static const float EyeCorneaIor = 1.376;
+	static const float EyeCorneaFresnelRatio = (EyeCorneaIor - 1) / (EyeCorneaIor + 1);
+	static const float EyeCorneaReflectance = EyeCorneaFresnelRatio * EyeCorneaFresnelRatio;
 
-	float3 g_vIrisColor < UiType( Color ); Default3( 0.28, 0.18, 0.09 ); UiGroup( "Iris,20/10" ); >;
-	float3 g_vIrisTint < UiType( Color ); Default3( 1, 1, 1 ); UiGroup( "Iris,20/20" ); >;
-	float g_flInnerColorRadius < Default( 0.55 ); Range( 0.05, 1 ); UiGroup( "Iris,20/40" ); >;
-	float g_flIrisColorBlend < Default( 0.5 ); Range( 0, 1 ); UiGroup( "Iris,20/50" ); >;
-	float g_flFiberStrength < Default( 0.25 ); Range( 0, 1 ); UiGroup( "Iris Detail,25/10" ); >;
-	float g_flFiberCount < Default( 100 ); Range( 8, 256 ); UiGroup( "Iris Detail,25/20" ); >;
-	float g_flFiberTwist < Default( 0.08 ); Range( -1, 1 ); UiGroup( "Iris Detail,25/30" ); >;
-	float g_flRingStrength < Default( 0.08 ); Range( 0, 1 ); UiGroup( "Iris Detail,25/40" ); >;
-	float g_flRingCount < Default( 12 ); Range( 1, 40 ); UiGroup( "Iris Detail,25/50" ); >;
-	float g_flDetailSeed < Default( 1 ); Range( 0, 100 ); UiGroup( "Iris Detail,25/60" ); >;
-	float g_flMicroFiberStrength < Default( 0.45 ); Range( 0, 1 ); UiGroup( "Iris Detail,25/70" ); >;
-	float g_flCryptStrength < Default( 0.55 ); Range( 0, 1 ); UiGroup( "Iris Detail,25/80" ); >;
-	float g_flCollaretteStrength < Default( 0.45 ); Range( 0, 1 ); UiGroup( "Iris Detail,25/90" ); >;
-	float g_flPigmentVariation < Default( 0.3 ); Range( 0, 1 ); UiGroup( "Iris Detail,25/100" ); >;
-	float g_flIrisRelief < Default( 0.35 ); Range( 0, 1 ); UiGroup( "Iris Detail,25/110" ); >;
+	// Identity and mesh fit are the only artist controls. Optical and tissue
+	// properties below are calibrated together, rather than independently tuned.
+	float3 g_vIrisColor < UiType( Color ); Default3( 0.28, 0.19, 0.11 ); UiGroup( "Iris,10/10" ); >;
+	float g_flDetailSeed < Default( 1 ); Range( 0, 100 ); UiGroup( "Iris,10/20" ); >;
+	float g_flPupilSize < Default( 0.30 ); Range( 0.15, 0.75 ); UiGroup( "Iris,10/30" ); >;
+	float g_flIrisRadius < Default( 0.20 ); Range( 0.10, 0.30 ); UiGroup( "Mesh Fit,20/10" ); >;
+	float2 g_vIrisCenter < Default2( 0.5, 0.5 ); Range2( 0.35, 0.35, 0.65, 0.65 ); UiGroup( "Mesh Fit,20/20" ); >;
 
-	float g_flLimbalWidth < Default( 0.065 ); Range( 0, 0.4 ); UiGroup( "Limbal Ring,30/10" ); >;
-	float g_flLimbalStrength < Default( 0.65 ); Range( 0, 1 ); UiGroup( "Limbal Ring,30/20" ); >;
+	// Shared UV scale for projection, refraction and contact occlusion.
+	static const float EyeUvRadius = 0.49101;
 
-	float g_flPupilSize < Default( 0.42 ); Range( 0.02, 0.95 ); UiGroup( "Pupil,40/10" ); >;
-	float g_flPupilAspect < Default( 1 ); Range( 0.1, 2 ); UiGroup( "Pupil,40/20" ); >;
-	float g_flPupilSoftness < Default( 0.015 ); Range( 0, 0.15 ); UiGroup( "Pupil,40/30" ); >;
-	float3 g_vPupilColor < UiType( Color ); Default3( 0.005, 0.004, 0.003 ); UiGroup( "Pupil,40/40" ); >;
-	float g_flPupilRimStrength < Default( 0.45 ); Range( 0, 1 ); UiGroup( "Pupil,40/50" ); >;
+	// Human iris anatomy, in iris-radius units. The narrow transition belongs to
+	// the limbus; antialiasing adds only the pixel footprint at viewing distance.
+	static const float EyeEdgeSoftness = 0.085;
+	static const float EyeFiberStrength = 0.55;
+	static const float EyeFiberCount = 96;
+	static const float EyeRingStrength = 0.12;
+	static const float EyeMicroFiberStrength = 0.5;
+	static const float EyeCryptStrength = 0.65;
+	static const float EyeIrisRelief = 0.26;
+	static const float EyeLimbalWidth = 0.09;
+	static const float EyeLimbalStrength = 0.82;
+	static const float EyePupilRimStrength = 0.65;
 
-	float3 g_vScleraColor < UiType( Color ); Default3( 0.86, 0.82, 0.77 ); UiGroup( "Sclera,50/10" ); >;
-	float3 g_vScleraEdgeColor < UiType( Color ); Default3( 0.55, 0.22, 0.19 ); UiGroup( "Sclera,50/20" ); >;
-	float g_flScleraRedness < Default( 0.12 ); Range( 0, 1 ); UiGroup( "Sclera,50/30" ); >;
-	float g_flScleraRednessStart < Default( 0.32 ); Range( 0.05, 0.7 ); UiGroup( "Sclera,50/40" ); >;
-	float g_flScleraDiffuseWrap < Default( 0.3 ); Range( 0, 1 ); UiGroup( "Sclera,50/50" ); >;
-	float g_flVeinStrength < Default( 0.12 ); Range( 0, 1 ); UiGroup( "Sclera,50/60" ); >;
-
-	float g_flCorneaBulge < Default( 0.18 ); Range( 0, 1 ); UiGroup( "Surface,60/10" ); >;
-	float g_flCorneaRoughness < Default( 0.08 ); Range( 0.02, 0.6 ); UiGroup( "Surface,60/20" ); >;
-	float g_flScleraRoughness < Default( 0.23 ); Range( 0.02, 1 ); UiGroup( "Surface,60/30" ); >;
-	float g_flCorneaReflectance < Default( 0.025 ); Range( 0, 0.12 ); UiGroup( "Surface,60/40" ); >;
-	// Recess below the corneal rim, measured in iris radii.
-	float g_flIrisDepth < Default( 0.04 ); Range( 0, 0.75 ); UiGroup( "Surface,60/50" ); >;
-	float g_flIrisConcavity < Default( 0.15 ); Range( 0, 1 ); UiGroup( "Surface,60/60" ); >;
-	float g_flCorneaIor < Default( 1.376 ); Range( 1, 1.6 ); UiGroup( "Surface,60/80" ); >;
-	float g_flSphericalNormals < Default( 1 ); Range( 0, 1 ); UiGroup( "Surface,60/90" ); >;
-
-	float g_flViewOcclusionStrength < Default( 0.75 ); Range( 0, 8 ); UiGroup( "View Occlusion,70/10" ); >;
-	float g_flViewOcclusionStart < Default( 0.1 ); Range( 0, 0.95 ); UiGroup( "View Occlusion,70/20" ); >;
-	float g_flViewOcclusionPower < Default( 1.5 ); Range( 0.01, 32 ); UiGroup( "View Occlusion,70/30" ); >;
-	float g_flViewOcclusionHardness < Default( 0 ); Range( 0, 1 ); UiGroup( "View Occlusion,70/35" ); >;
-	float3 g_vOcclusionTint < UiType( Color ); Default3( 0.18, 0.10, 0.08 ); UiGroup( "View Occlusion,70/40" ); >;
-	float g_flDirectOcclusion < Default( 0.3 ); Range( 0, 1 ); UiGroup( "View Occlusion,70/50" ); >;
-	float g_flReflectionOcclusion < Default( 0.6 ); Range( 0, 1 ); UiGroup( "View Occlusion,70/60" ); >;
+	// A lightly pigmented sclera under the same wet tear film as the cornea.
+	static const float3 EyeScleraColor = { 0.69, 0.685, 0.67 };
+	static const float3 EyeScleraEdgeColor = { 0.58, 0.37, 0.34 };
+	static const float EyeScleraRedness = 0.45;
+	static const float EyeScleraDiffuseWrap = 0.3;
+	static const float EyeVeinStrength = 0.4;
+	// Intrinsic microfacet roughness; pixel-footprint filtering is added below.
+	static const float EyeCorneaRoughness = 0.003;
+	static const float EyeScleraRoughness = 0.025;
+	static const float EyeIrisDepth = 0.15;
+	static const float EyeIrisConcavity = 0.45;
 
 	// Per-avatar controls compose with the authored material. Neutral defaults keep
 	// material previews unchanged; colour alpha enables an explicit sRGB override.
@@ -194,14 +177,25 @@ PS
 		return 1 - smoothstep( 0.25, 0.9, frequency * footprint );
 	}
 
+	// Integrate a line over the pixel footprint. Subpixel lines lose intensity
+	// instead of getting wider and adding more colour as the camera pulls back.
+	float EyeFilteredLine( float distance, float halfWidth, float footprint )
+	{
+		float pixelWidth = max( footprint, 0.00001 );
+		float left = max( distance - pixelWidth * 0.5, -halfWidth );
+		float right = min( distance + pixelWidth * 0.5, halfWidth );
+		return saturate( (right - left) / pixelWidth );
+	}
+
 	// Thin individual strands with independent width, waviness and radial length.
 	// A second strand diverges from each trunk instead of tracing noise contours.
-	float EyeFilaments( float angle, float radial, float count, float angularFootprint )
+	float EyeFilaments( float angle, float radial, float count, float angularFootprint, float radialFootprint )
 	{
 		float coordinate = angle * count;
 		float cell = floor( coordinate );
 		float result = 0;
-		float aa = max( angularFootprint * count, 0.008 );
+		// Include the slopes of both bend octaves and the branch divergence.
+		float aa = angularFootprint * count + radialFootprint * 13;
 		[unroll]
 		for ( int neighbour = -1; neighbour <= 1; neighbour++ )
 		{
@@ -209,103 +203,231 @@ PS
 			float wrappedIndex = index - count * floor( index / count );
 			float seed = EyeHash2( float2( wrappedIndex, 127 ) );
 			float seed2 = EyeHash2( float2( wrappedIndex, 231 ) );
-			float bend = sin( radial * (5 + seed * 7) + seed2 * M_2PI ) * 0.18;
+			// Each bundle changes direction and thickness independently. A shared
+			// sinusoid makes neighbouring fibres resemble evenly combed wires.
+			float growthNoise = EyePolarNoise( float2( wrappedIndex, radial * 7 + 311 ), count );
+			float grain = lerp( 0.5, EyePolarNoise( float2( wrappedIndex, radial * 31 + 733 ), count ),
+				EyeDetailVisibility( 31, radialFootprint ) );
+			float bend = (EyePolarNoise( float2( wrappedIndex, radial * 4 + 519 ), count ) - 0.5) * 0.9
+				+ (grain - 0.5) * 0.12;
 			float distance = coordinate - index - (0.25 + seed * 0.5) + bend;
-			float width = lerp( 0.025, 0.075, seed );
-			float trunk = 1 - smoothstep( width, width + aa, abs( distance ) );
-			float fork = distance + smoothstep( 0.15 + seed * 0.3, 0.85, radial ) * (seed2 - 0.5) * 0.8;
-			float branch = (1 - smoothstep( width * 0.6, width * 0.6 + aa, abs( fork ) )) * 0.5;
-			float envelope = smoothstep( seed * 0.25, seed * 0.25 + 0.12, radial )
-				* (1 - smoothstep( 0.75 + seed2 * 0.2, 1.05, radial ));
-			result += max( trunk, branch ) * envelope * (0.4 + seed2 * 0.6);
+			float width = lerp( 0.035, 0.13, seed ) * lerp( 0.25, 1.6, growthNoise );
+			float fork = smoothstep( 0.1 + seed * 0.55, 0.85, radial ) * (seed2 - 0.5) * 1.7;
+			float trunk = EyeFilteredLine( distance, width, aa );
+			float branch = EyeFilteredLine( distance + fork, width * 0.6, aa );
+
+			// Integrate the union before combining: overlapping branches must not
+			// double the trunk's brightness, even when both fit inside one pixel.
+			float overlapLeft = max( -width, -fork - width * 0.6 );
+			float overlapRight = min( width, -fork + width * 0.6 );
+			float overlapWidth = max( overlapRight - overlapLeft, 0 );
+			float overlap = EyeFilteredLine( distance - (overlapLeft + overlapRight) * 0.5, overlapWidth * 0.5, aa );
+			float coverage = trunk + (branch - overlap) * 0.5;
+
+			// Remove each filament's mean locally rather than a fixed brightness
+			// offset, so filtering out the strands doesn't brighten the whole iris.
+			float mean = 2 * width + (1.2 * width - overlapWidth) * 0.5;
+			float meanWeight = saturate( 1 - abs( coordinate - index - 0.5 ) );
+			float start = seed * 0.45;
+			float end = 0.5 + seed2 * 0.55;
+			float envelope = smoothstep( start, start + 0.12, radial )
+				* (1 - smoothstep( end - 0.15, end, radial ));
+			float continuity = smoothstep( 0.15, 0.6, growthNoise ) * lerp( 0.7, 1.2, grain );
+			result += (coverage - mean * meanWeight) * envelope * continuity * (0.25 + seed2 * 0.75);
 		}
 		return result;
+	}
+
+	// Independent tapered bundles: longitudinal ridges carry the iris structure,
+	// while the neighbouring clefts provide depth without outlining noise cells.
+	float EyeRadialBundles( float angle, float radial, float angularFootprint, float radialFootprint )
+	{
+		const float count = 137;
+		float coordinate = angle * count;
+		float cell = floor( coordinate );
+		float result = 0;
+		[unroll]
+		for ( int neighbour = -1; neighbour <= 1; neighbour++ )
+		{
+			float index = cell + neighbour;
+			float wrapped = index - count * floor( index / count );
+			float seed = EyeHash2( float2( wrapped, 941 ) );
+			float seed2 = EyeHash2( float2( wrapped, 1031 ) );
+			float bend = (EyePolarNoise( float2( wrapped, radial * 2.5 + 829 ), count ) - 0.5) * 0.65;
+			float distance = coordinate - index - 0.2 - seed * 0.6 + bend;
+			float width = lerp( 0.07, 0.24, seed2 ) * lerp( 0.55, 1.0, sin( saturate( radial ) * M_PI ) );
+			float footprint = max( angularFootprint * count + radialFootprint * 2.5, 0.0001 );
+			// Convolve rounded bundle profiles with the pixel footprint. Flat-topped
+			// line coverage made the tissue resemble strips with cut edges.
+			float filteredWidth = sqrt( width * width + footprint * footprint * 0.25 );
+			float ridge = exp2( -2 * pow( distance / filteredWidth, 2 ) ) * width / filteredWidth;
+			float cleft = exp2( -2 * pow( (distance + width * 1.8) / filteredWidth, 2 ) ) * width / filteredWidth;
+			float start = seed * 0.2;
+			float end = lerp( 0.45, 1.15, seed2 );
+			float envelope = smoothstep( start, start + 0.09, radial )
+				* (1 - smoothstep( end - 0.2, end, radial ));
+			float continuityNoise = lerp( 0.5, EyePolarNoise( float2( wrapped, radial * 7 + 1137 ), count ),
+				EyeDetailVisibility( 7, radialFootprint ) );
+			float continuity = lerp( 0.15, 1, continuityNoise );
+			// Integral of exp2(-2*x*x/width^2), less the neighbouring cleft.
+			// The tent partitions the mean between cells without adding a seam.
+			float mean = width * 1.505384 * (1 - 0.65);
+			float meanWeight = saturate( 1 - abs( coordinate - index - 0.5 ) );
+			result += (ridge - cleft * 0.65 - mean * meanWeight) * envelope * continuity * lerp( 0.4, 1, seed );
+		}
+		// Once several fibres fall inside a pixel, the three-cell neighbourhood
+		// cannot integrate the entire footprint. Fade the zero-mean residual.
+		return result * EyeDetailVisibility( count, angularFootprint ) * EyeDetailVisibility( 7, radialFootprint );
 	}
 
 	struct IrisTissue
 	{
 		float fibers;
+		float distanceFibers;
 		float microFibers;
 		float crypts;
-		float collarette;
 		float furrows;
 		float pigment;
 		float pupilRim;
+		float innerZone;
+		float mottling;
 		float height;
 	};
 
-	float IrisPupilBoundary( float radius, float pupilRadius )
-	{
-		return EyePupilSize() * radius / max( pupilRadius, 0.0001 );
-	}
-
-	IrisTissue EvaluateIrisTissue( float2 point, float pupilRadius, float footprint )
+	IrisTissue EvaluateIrisTissue( float2 point, float footprint )
 	{
 		IrisTissue tissue = (IrisTissue)0;
 		float radius = length( point );
-		float angle = atan2( point.y, point.x + 0.000001 ) / M_2PI;
-		// Measure tissue from the elliptical pupil boundary to the circular limbus.
-		// Using ellipse distance for the whole iris would flatten detail beside slit pupils.
-		float pupilBoundary = IrisPupilBoundary( radius, pupilRadius );
+		// Bend the tissue coordinates in both directions. Fade the displacement
+		// at the physical pupil and limbus; their masks use the original radius.
+		float pupilBoundary = EyePupilSize();
 		float span = max( 1 - pupilBoundary, 0.05 );
-		float radial = saturate( (radius - pupilBoundary) / span );
+		float tissueRadial = saturate( (radius - pupilBoundary) / span );
+		float flowEnvelope = sin( tissueRadial * M_PI ) * min( 1, span / 0.7 );
+		float2 flow = float2( EyePolarNoise( point * 5 + 239, 4096 ),
+			EyePolarNoise( point * 5 + 719, 4096 ) ) - 0.5;
+		float2 tissuePoint = point + flow * 0.06 * flowEnvelope;
+		float angle = atan2( tissuePoint.y, tissuePoint.x + 0.000001 ) / M_2PI;
+		// Tissue compresses between the circular pupil and limbus as the pupil dilates.
+		float radial = saturate( (length( tissuePoint ) - pupilBoundary) / span );
 		float angularFootprint = footprint / (M_2PI * max( radius, 0.05 ));
 		float radialFootprint = max( footprint / span, fwidth( radial ) );
-		float count = max( floor( g_flFiberCount ), 8 );
+		const float count = EyeFiberCount;
+		float collar = 0.29 + (EyeFiberNoise( angle + 0.31, 19 ) - 0.5) * 0.38;
+		float collarDistance = radial - collar;
+		float outerZone = smoothstep( -0.055, 0.055, collarDistance );
 
 		// Large bundles wander and split into finer strands as they cross the iris.
-		float wander = EyePolarNoise( float2( angle * 24, radial * 3 ), 24 ) - 0.5;
-		float warped = angle + g_flFiberTwist * radial * 0.15 + wander * 0.018 * sin( radial * M_PI );
-		float2 direction = float2( cos( warped * M_2PI ), sin( warped * M_2PI ) );
+		float2 direction = float2( cos( angle * M_2PI ), sin( angle * M_2PI ) );
 		angularFootprint = max( angularFootprint, max( length( ddx( direction ) ), length( ddy( direction ) ) ) / M_2PI );
-		float bundle = EyePolarNoise( float2( warped * count, radial * 5 ), count );
-		float strands = EyePolarNoise( float2( warped * count * 3 + bundle * 1.5, radial * 9 + 19 ), count * 3 );
-		float fine = EyePolarNoise( float2( warped * count * 9 + strands, radial * 16 + 43 ), count * 9 );
-		float bundleVisibility = EyeDetailVisibility( count, angularFootprint ) * EyeDetailVisibility( 5, radialFootprint );
-		float strandVisibility = EyeDetailVisibility( count * 3, angularFootprint ) * EyeDetailVisibility( 9, radialFootprint );
-		float fineVisibility = EyeDetailVisibility( count * 9, angularFootprint ) * EyeDetailVisibility( 16, radialFootprint );
-		tissue.fibers = (bundle - 0.5) * 2 * bundleVisibility;
-		float threads = EyeFilaments( warped, radial, count * 3, angularFootprint );
-		tissue.microFibers = ((strands - 0.5) * 0.8 + (threads - 0.12) * 1.3) * strandVisibility
-			+ (fine - 0.5) * 0.9 * fineVisibility;
+		// Fine fibres inherit the same broad structure that remains at distance.
+		// Keep these bands present up close, filtering their residual detail away
+		// independently rather than crossfading to an unrelated iris pattern.
+		const float mediumCount = count / 4;
+		const float broadCount = count / 16;
+		float broad = EyePolarNoise( float2( angle * broadCount, radial + 113 ), broadCount );
+		float medium = EyePolarNoise( float2( angle * mediumCount, radial * 2 + 67 ), mediumCount );
+		// The pupillary ruff and outer bundles have independently seeded grain.
+		// Blend over the uneven collarette instead of introducing a hard seam.
+		float bundleDetail = lerp(
+			EyePolarNoise( float2( angle * count + 23, radial * 7 + 211 ), count ),
+			EyePolarNoise( float2( angle * count, radial * 4.8 ), count ), outerZone );
+		float bundle = broad * 0.5 + medium * 0.3 + bundleDetail * 0.2;
+		float strands = lerp(
+			EyePolarNoise( float2( angle * count * 3 + 107 + bundle, radial * 12 + 391 ), count * 3 ),
+			EyePolarNoise( float2( angle * count * 3 + bundle * 1.5, radial * 8 + 19 ), count * 3 ), outerZone );
+		float fine = EyePolarNoise( float2( angle * count * 4 + strands, radial * 18 + 43 ), count * 4 );
+		float bundleVisibility = EyeDetailVisibility( count, angularFootprint ) * EyeDetailVisibility( 7, radialFootprint );
+		float strandVisibility = EyeDetailVisibility( count * 3, angularFootprint ) * EyeDetailVisibility( 12, radialFootprint );
+		float fineVisibility = EyeDetailVisibility( count * 4, angularFootprint ) * EyeDetailVisibility( 18, radialFootprint );
+		float mediumVisibility = EyeDetailVisibility( mediumCount, angularFootprint ) * EyeDetailVisibility( 2, radialFootprint );
+		float broadVisibility = EyeDetailVisibility( broadCount, angularFootprint ) * EyeDetailVisibility( 1, radialFootprint );
+		float broadFibers = (broad - 0.5) * broadVisibility;
+		float mediumFibers = (medium - 0.5) * mediumVisibility;
+		tissue.fibers = broadFibers * 0.65 + mediumFibers + (bundleDetail - 0.5) * bundleVisibility * 0.65;
 
-		float collar = 0.27 + (EyeFiberNoise( angle + 0.31, 32 ) - 0.5) * 0.15;
-		float collarDistance = abs( radial - collar );
-		tissue.collarette = exp2( -collarDistance * collarDistance * 1800 ) * EyeDetailVisibility( 35, radialFootprint );
+		float threads = EyeFilaments( angle, radial, count * 1.75, angularFootprint, radialFootprint );
+		tissue.microFibers = ((strands - 0.5) * 0.9 * strandVisibility + threads * 1.5 * EyeDetailVisibility( count * 1.75, angularFootprint )
+			+ (fine - 0.5) * 0.9 * fineVisibility) * (0.5 + bundle);
 
-		// Irregular, elongated hollows around the collarette, with fine raised edges.
-		// Two neighbours prevent cells popping as their centres cross a sector boundary.
-		float cryptDistance = 10;
-		float sector = floor( angle * 38 );
+		// Distance strength only boosts surviving parent bands; it never introduces
+		// new markings or extra relief. Even the broadest band is pixel-filtered.
+		tissue.distanceFibers = (broadFibers * (1 - mediumVisibility * 0.5) + mediumFibers * 0.5)
+			* (1 - bundleVisibility);
+
+		// Pigment islands cross radial bundles. Cartesian noise avoids making
+		// every feature share the same polar symmetry and angular frequency.
+		float2 pigmentPoint = point + float2( EyePolarNoise( point * 3 + 53, 4096 ), EyePolarNoise( point * 3 + 97, 4096 ) ) * 0.24;
+		float islands = EyePolarNoise( pigmentPoint * 4.5 + 173, 4096 );
+		float patches = EyePolarNoise( pigmentPoint * 11 + islands * 1.7 + 337, 4096 );
+		float granules = EyePolarNoise( pigmentPoint * 31 + patches + 719, 4096 );
+		tissue.mottling = (islands - 0.5) * 0.5 * EyeDetailVisibility( 5, footprint ) + (patches - 0.5) * 0.3 * EyeDetailVisibility( 11, footprint )
+			+ (granules - 0.5) * 0.18 * EyeDetailVisibility( 31, footprint );
+		tissue.innerZone = (1 - smoothstep( -0.035, 0.055, collarDistance ))
+			* lerp( 0.35, 1.0, smoothstep( 0.2, 0.75, patches ) );
+		// Pigmentation interrupts the same bundles that carry fine strands.
+		// Avoid equally strong radial detail around the entire circumference.
+		float structureEnvelope = lerp( 0.22, 1.0, smoothstep( 0.25, 0.75, patches ) )
+			* (0.55 + 0.45 * exp2( -pow( collarDistance / 0.25, 2 ) ));
+		tissue.fibers *= structureEnvelope * 0.9;
+		tissue.fibers += EyeRadialBundles( angle, radial, angularFootprint, radialFootprint ) * 0.24;
+		tissue.microFibers *= 0.35 + 0.65 * structureEnvelope;
+		// Individually placed openings interrupt the stroma instead of tracing
+		// every contour of a noise field as a bright cellular network.
+		const float cryptCount = 31;
+		float cryptCoordinate = angle * cryptCount;
+		float cryptCell = floor( cryptCoordinate );
+		float2 referencePoint = direction * (0.3 + radial * 0.7);
+		float referenceFootprint = max( length( ddx( referencePoint ) ), length( ddy( referencePoint ) ) );
+		float edgeVariation = Simplex2D( referencePoint * 23 + g_flDetailSeed * 7.13 + 563 )
+			* EyeDetailVisibility( 46, referenceFootprint );
+		float opening = 0;
+		float rim = 0;
 		[unroll]
-		for ( int neighbour = 0; neighbour < 2; neighbour++ )
+		for ( int neighbour = -1; neighbour <= 1; neighbour++ )
 		{
-			float index = sector + neighbour;
-			float wrappedIndex = index - 38 * floor( index / 38 );
-			float seed = EyeHash2( float2( wrappedIndex, 81 ) );
-			float2 delta = float2( (angle * 38 - index) / lerp( 0.16, 0.38, seed ),
-				(radial - collar - (seed - 0.5) * 0.18) / lerp( 0.055, 0.16, seed ) );
-			cryptDistance = min( cryptDistance, length( delta ) );
+			float cell = cryptCell + neighbour;
+			float wrapped = cell - cryptCount * floor( cell / cryptCount );
+			float seed = EyeHash2( float2( wrapped, 563 ) );
+			float seed2 = EyeHash2( float2( wrapped, 673 ) );
+			float seed3 = EyeHash2( float2( wrapped, 787 ) );
+			float centreAngle = cell + lerp( 0.2, 0.8, seed );
+			float centreRadial = lerp( 0.12, 0.48, seed2 );
+			float width = lerp( 0.10, 0.32, seed3 );
+			float height = lerp( 0.035, 0.13, seed );
+			float2 offset = float2( (cryptCoordinate - centreAngle) / width,
+				(radial - centreRadial) / height );
+			// Tilt each opening and roughen its boundary without joining its
+			// neighbour into a continuous ring.
+			offset.x += offset.y * (seed2 - 0.5) * 0.8;
+			float boundary = length( offset ) + edgeVariation * 0.22;
+			float aa = max( angularFootprint * cryptCount / width + radialFootprint / height, 0.08 );
+			// Stop unresolved cavities and rims from spreading across neighbouring
+			// cells as the antialiasing width grows. Broad pigment remains visible.
+			float enabled = smoothstep( 0.25, 0.5, seed3 ) * EyeDetailVisibility( 1, aa );
+			opening = max( opening, (1 - smoothstep( 0.65 - aa, 1.0 + aa, boundary )) * enabled );
+			rim = max( rim, exp2( -pow( (boundary - 1.15) / (0.22 + aa), 2 ) ) * enabled );
 		}
-		float cryptVisibility = EyeDetailVisibility( 100, angularFootprint ) * EyeDetailVisibility( 25, radialFootprint );
-		tissue.crypts = (1 - smoothstep( 0.25, 1, cryptDistance )) * cryptVisibility;
-		float cryptRimDistance = cryptDistance - 1;
-		float cryptRim = exp2( -cryptRimDistance * cryptRimDistance * 30 ) * cryptVisibility;
-		tissue.collarette += cryptRim * 0.35;
+		tissue.crypts = opening * EyeDetailVisibility( cryptCount, angularFootprint );
+		tissue.fibers *= 1 - tissue.crypts;
+		tissue.microFibers *= 1 - tissue.crypts;
+		float cavityRim = rim * EyeDetailVisibility( cryptCount, angularFootprint );
 
-		// Outer contraction furrows break up around the circumference instead of forming a bullseye.
-		float ringPhase = radial * g_flRingCount + EyeFiberNoise( angle + 0.17, 27 ) * 0.65;
-		float ringWave = 0.5 + 0.5 * cos( ringPhase * M_2PI );
-		tissue.furrows = pow( ringWave, 8 ) * smoothstep( 0.45, 0.85, radial )
-			* EyeDetailVisibility( g_flRingCount * 4, radialFootprint );
-		tissue.pigment = (EyePolarNoise( float2( angle * 17, radial * 4 + 91 ), 17 ) - 0.5)
-			* EyeDetailVisibility( 17, angularFootprint ) * EyeDetailVisibility( 4, radialFootprint );
-		float rimWidth = 0.012 + 0.012 * EyeFiberNoise( angle, 71 );
-		tissue.pupilRim = (1 - smoothstep( rimWidth, rimWidth + max( footprint, 0.003 ), pupilRadius - EyePupilSize() ))
+		// Two sparse outer folds wander independently; a periodic ring wave makes
+		// the iris read as concentric engraved bands even when its strength is low.
+		float foldA = radial - 0.74 - (EyeFiberNoise( angle + 0.17, 13 ) - 0.5) * 0.18;
+		float foldB = radial - 0.91 - (EyeFiberNoise( angle + 0.43, 19 ) - 0.5) * 0.12;
+		float foldCoverage = smoothstep( 0.48, 0.72, EyeFiberNoise( angle + 0.79, 9 ) );
+		tissue.furrows = (EyeFilteredLine( foldA, 0.012, radialFootprint )
+			+ EyeFilteredLine( foldB, 0.0012, radialFootprint ) * 0.6) * foldCoverage;
+		tissue.pigment = (EyePolarNoise( float2( angle * 11, radial * 2 + 91 ), 11 ) - 0.5)
+			* EyeDetailVisibility( 11, angularFootprint ) * EyeDetailVisibility( 2, radialFootprint );
+		float rimWidth = 0.008 + span * (0.008 + 0.08 * pow( EyeFiberNoise( angle + 0.19, 47 ), 2 ));
+		tissue.pupilRim = (1 - smoothstep( rimWidth, rimWidth + max( footprint, 0.035 ), radius - pupilBoundary ))
 			* EyeDetailVisibility( 71, angularFootprint );
-		tissue.height = tissue.fibers * g_flFiberStrength * 0.4 + tissue.microFibers * g_flMicroFiberStrength * 0.2
-			+ tissue.collarette * g_flCollaretteStrength * 0.4 - tissue.crypts * g_flCryptStrength * 0.5
-			- tissue.furrows * g_flRingStrength * 0.2;
+		tissue.height = tissue.fibers * EyeFiberStrength * 0.4 + tissue.microFibers * EyeMicroFiberStrength * 0.2
+			- tissue.crypts * EyeCryptStrength * 0.9 + cavityRim * 0.15
+			- tissue.furrows * EyeRingStrength * 0.2;
 		return tissue;
 	}
 
@@ -317,48 +439,56 @@ PS
 		float determinant = dx.x * dy.y - dx.y * dy.x;
 		float2 gradient = float2( dy.y * ddx( height ) - dx.y * ddy( height ),
 			dx.x * ddy( height ) - dy.x * ddx( height ) ) * sign( determinant ) / max( abs( determinant ), 0.00000001 );
-		return gradient * min( 0.012 * g_flIrisRelief, 0.5 / max( length( gradient ), 0.001 ) );
+		return gradient * min( 0.012 * EyeIrisRelief, 0.5 / max( length( gradient ), 0.001 ) );
 	}
 
 	float EyeVeins( float2 uv )
 	{
 		float radius = length( uv );
 		float angle = atan2( uv.y, uv.x + 0.000001 ) / M_2PI;
-		float wander = EyePolarNoise( float2( angle * 22, radius * 24 ), 22 );
-		float phase = angle * 22 + (wander - 0.5) * 0.9;
-		float trunk = abs( frac( phase + 0.5 ) - 0.5 );
-		float branch = abs( frac( phase + radius * 5 + 0.5 ) - 0.5 );
-		float width = lerp( 0.008, 0.025, saturate( radius * 2 ) );
 		float footprint = max( length( ddx( uv ) ), length( ddy( uv ) ) );
-		float aa = max( footprint * 22 / (M_2PI * max( radius, 0.05 )), 0.001 );
-		float veins = 1 - smoothstep( width, width + aa, trunk );
-		veins = max( veins, (1 - smoothstep( width * 0.5, width * 0.5 + aa, branch )) * 0.4 );
-		return veins * smoothstep( EyeIrisRadius() * 1.08, EyeIrisRadius() * 1.9, radius )
-			* EyeDetailVisibility( 90, footprint ) * (0.35 + 0.65 * wander);
+		float coordinate = angle * 18;
+		float cell = floor( coordinate );
+		float veins = 0;
+		[unroll]
+		for ( int neighbour = -1; neighbour <= 1; neighbour++ )
+		{
+			float index = cell + neighbour;
+			float wrapped = index - 18 * floor( index / 18 );
+			float seed = EyeHash2( float2( wrapped, 317 ) );
+			float seed2 = EyeHash2( float2( wrapped, 419 ) );
+			// Vessels enter from the periphery and taper toward the limbus.
+			float start = EyeIrisRadius() * lerp( 1.02, 1.36, seed );
+			float growth = smoothstep( start, start + 0.08, radius );
+			float wander = (EyePolarNoise( float2( wrapped, radius * 16 + 71 ), 18 ) - 0.5) * 0.7
+				+ (EyePolarNoise( float2( wrapped, radius * 39 + 23 ), 18 ) - 0.5) * 0.12;
+			float distance = coordinate - index - 0.2 - seed * 0.6 + wander;
+			float width = lerp( 0.006, 0.018, seed2 ) * growth;
+			float aa = footprint * 18 / (M_2PI * max( radius, 0.05 )) + footprint * 16 * 0.7 * 1.5;
+			float trunk = EyeFilteredLine( distance, width, aa );
+			float fork = (1 - smoothstep( start + 0.025, start + 0.18, radius )) * (seed2 - 0.5) * 2.4;
+			float branch = EyeFilteredLine( distance + fork, width * 0.45, aa + footprint * 12 );
+			float twigOffset = (1 - smoothstep( start, start + 0.11, radius )) * (seed - 0.5) * 1.7;
+			float twig = EyeFilteredLine( distance + fork + twigOffset, width * 0.22, aa + footprint * 20 );
+			veins += max( trunk, max( branch * 0.6, twig * 0.3 ) ) * growth;
+		}
+		return saturate( veins ) * EyeDetailVisibility( 65, footprint );
 	}
 
-	void EyeTangentFrame( float3 interpolatedNormal, float3 eyeForward, float3 meshTangentU, float3 meshTangentV,
+	void EyeTangentFrame( float3 interpolatedNormal, float3 meshTangentU, float3 meshTangentV,
 		out float3 normal, out float3 tangentU, out float3 tangentV )
 	{
-		// Citizen's vertex normals are radial. Keep their linearly interpolated
-		// lateral components and reconstruct sphere depth instead of normalizing
-		// the flattened chord across each triangle. The mesh silhouette is unchanged.
-		float3 meshNormal = normalize( interpolatedNormal );
-		eyeForward = normalize( eyeForward );
-		float axial = dot( interpolatedNormal, eyeForward );
-		float3 lateral = interpolatedNormal - eyeForward * axial;
-		float sphereDepth = sqrt( saturate( 1 - dot( lateral, lateral ) ) );
-		float3 sphereNormal = lateral + eyeForward * sphereDepth * (axial < 0 ? -1 : 1);
-		normal = normalize( lerp( meshNormal, sphereNormal, g_flSphericalNormals ) );
+		// The human mesh already models a corneal bulge. Its normals are not the
+		// radial normals of a sphere; preserve that authored optical surface.
+		normal = normalize( interpolatedNormal );
 		tangentU = normalize( meshTangentU - normal * dot( normal, meshTangentU ) );
-		float handedness = dot( cross( meshNormal, meshTangentU ), meshTangentV ) < 0 ? -1 : 1;
+		float handedness = dot( cross( normal, meshTangentU ), meshTangentV ) < 0 ? -1 : 1;
 		tangentV = cross( normal, tangentU ) * handedness;
 	}
 
 	float3x3 EyeProjectionRotation()
 	{
-		const float uvRadius = 0.49101;
-		float2 centre = (g_vIrisCenter + g_vAvatarEyeAlign - 0.5) / uvRadius;
+		float2 centre = (g_vIrisCenter + g_vAvatarEyeAlign - 0.5) / EyeUvRadius;
 		centre *= min( 1, 0.999 / max( length( centre ), 0.0001 ) );
 		float forward = sqrt( saturate( 1 - dot( centre, centre ) ) );
 
@@ -372,37 +502,37 @@ PS
 
 	float3 EyeProjection( float2 texcoords, float hemisphere, float3x3 rotation )
 	{
-		// Citizen UVs orthographically project a sphere. Keep all three coordinates
-		// in UV units so ray intersections account for the height of the cornea.
-		const float uvRadius = 0.49101;
-		float2 disk = (texcoords - 0.5) / uvRadius;
+		// Approximate aperture depth in UV units for the recessed iris intersection.
+		// Human UVs warp around a modeled bulge: this approximation must not replace
+		// the mesh normals used for the optical surface.
+		// Human eyes use separate UV tiles for each eye and hemisphere.
+		// Repeat the procedural projection like the original eye textures.
+		float2 disk = (frac( texcoords ) - 0.5) / EyeUvRadius;
 		float3 sphere = float3( disk, sqrt( saturate( 1 - dot( disk, disk ) ) ) * hemisphere );
-		return mul( rotation, sphere ) * uvRadius;
+		return mul( rotation, sphere ) * EyeUvRadius;
 	}
 
-	float3x3 EyeProjectionFrame( float3 eyeForward, float3 tangentU, float3 tangentV, float3x3 rotation )
+	float3x3 EyeProjectionFrame( float3 eyeForward, float3 eyeRight, float3x3 rotation )
 	{
-		// Remove the sphere's local tilt from the mesh tangent to recover the
-		// fixed projection axes. UV Y runs opposite to the normal-map tangent Y.
+		// Carry the bind-pose axes through skinning. Human eye UVs warp around
+		// the modeled cornea, so their local mesh tangents are not fixed iris axes.
 		float3 forward = normalize( eyeForward );
-		float3 right = tangentU - forward * dot( tangentU, forward );
+		float3 right = eyeRight - forward * dot( eyeRight, forward );
 		right /= max( length( right ), 0.0001 );
-		float3 down = cross( forward, right );
-		down *= dot( down, tangentV ) > 0 ? -1 : 1;
+		float3 down = -cross( forward, right );
 		return mul( rotation, float3x3( right, down, forward ) );
 	}
 
-	float2 IrisParallaxPoint( float3 surface, float3 ray, float irisRadius, float2 shapeScale )
+	float2 IrisParallaxPoint( float3 surface, float3 ray, float irisRadius )
 	{
-		const float uvRadius = 0.49101;
-		float rimHeight = sqrt( max( uvRadius * uvRadius - irisRadius * irisRadius, 0 ) );
-		float2 point = surface.xy * shapeScale;
-		float2 slope = ray.xy * irisRadius * shapeScale / max( -ray.z, 0.05 );
-		float curvature = g_flIrisDepth * g_flIrisConcavity;
+		float rimHeight = sqrt( max( EyeUvRadius * EyeUvRadius - irisRadius * irisRadius, 0 ) );
+		float2 point = surface.xy / irisRadius;
+		float2 slope = ray.xy / max( -ray.z, 0.05 );
+		float curvature = EyeIrisDepth * EyeIrisConcavity;
 
 		// Intersect the refracted ray with z = -depth + curvature * radius^2.
 		// The iris is below the corneal rim, not wrapped around the eyeball surface.
-		float height = max( (surface.z - rimHeight) / irisRadius + g_flIrisDepth
+		float height = max( (surface.z - rimHeight) / irisRadius + EyeIrisDepth
 			- curvature * dot( point, point ), 0 );
 		float a = curvature * dot( slope, slope );
 		float b = 1 + 2 * curvature * dot( point, slope );
@@ -414,179 +544,340 @@ PS
 		return point + slope * distance;
 	}
 
-	float3 IrisColor( float radius, float pupilRadius, float pupilMask, IrisTissue tissue )
+	float3 IrisColor( float radius, float pupilMask, IrisTissue tissue )
 	{
-		// Follow elliptical pupils and retain a soft transition when dilation passes
-		// Inner Color Radius; otherwise the gradient collapses into a hard ring.
-		float pupilBoundary = IrisPupilBoundary( radius, pupilRadius );
-		float blendWidth = max( g_flInnerColorRadius - pupilBoundary, max( 1 - pupilBoundary, 0.01 ) * 0.15 );
-		float innerBlend = 1 - smoothstep( 0, blendWidth, radius - pupilBoundary );
-
-		// Derive every iris shade from one colour. Limit the inner brightness
-		// uniformly so bright colours keep their hue rather than clipping channels.
 		float3 baseIrisColor = SrgbGammaToLinear( lerp( g_vIrisColor, g_vAvatarEyeColor.rgb, saturate( g_vAvatarEyeColor.a ) ) );
-		float brightestChannel = max( baseIrisColor.r, max( baseIrisColor.g, baseIrisColor.b ) );
-		float3 innerColor = baseIrisColor * min( 2, 1 / max( brightestChannel, 0.0001 ) );
-		float3 outerColor = baseIrisColor * 0.25;
-		float3 irisColor = lerp( baseIrisColor, innerColor, innerBlend * g_flIrisColorBlend );
-		irisColor = lerp( irisColor, outerColor, smoothstep( 0.65, 1, radius ) * g_flIrisColorBlend );
+		// A modest warm inner zone follows the uneven collarette. Avoid a bright
+		// bullseye and preserve dark brown pigmentation without a second colour tint.
+		float coolPigment = saturate( (max( baseIrisColor.g, baseIrisColor.b ) - baseIrisColor.r)
+			/ max( max( baseIrisColor.g, baseIrisColor.b ) * 0.6, 0.001 ) );
+		float luminance = dot( baseIrisColor, float3( 0.2126, 0.7152, 0.0722 ) );
+		baseIrisColor = lerp( baseIrisColor, luminance.xxx, coolPigment * 0.3 );
+		// Separate inner pigmentation from the islands that interrupt fibres.
+		// Blue irises retain a weaker warm zone; brown and green show more of it.
+		float bluePigment = saturate( (baseIrisColor.b - baseIrisColor.g)
+			/ max( baseIrisColor.b * 0.4, 0.001 ) );
+		float innerBlend = tissue.innerZone * lerp( 0.6, 0.2, bluePigment );
+		float3 irisColor = baseIrisColor * lerp( float3( 0.95, 1, 1.03 ), float3( 1.6, 0.9, 0.5 ), innerBlend );
+		irisColor *= lerp( 1, 0.8, smoothstep( 0.65, 1, radius ) );
 
-		// Broad pigment patches gently vary the iris colour's warmth.
-		irisColor *= exp2( tissue.pigment * g_flPigmentVariation * float3( 1.1, 0.45, -0.35 ) );
-		irisColor *= max( 0.08, 1 + tissue.fibers * g_flFiberStrength * 1.4
-			+ tissue.microFibers * g_flMicroFiberStrength + tissue.collarette * g_flCollaretteStrength * 0.7 );
-		irisColor *= 1 - tissue.crypts * g_flCryptStrength * 0.85;
-		irisColor *= 1 - tissue.furrows * g_flRingStrength * 0.7;
-		irisColor *= 1 - tissue.pupilRim * g_flPupilRimStrength * 0.85;
+		// Pigment thickness changes the colour of the underlying pale tissue.
+		// Per-channel absorption couples lightness and colour: exposed fibres
+		// become paler without blending toward an unrelated fixed highlight tint.
+		// This is an artistic absorption model, not a spectral scattering solution.
+		float3 substrate = lerp( float3( 0.48, 0.42, 0.32 ), float3( 0.30, 0.40, 0.48 ), coolPigment );
+		float3 target = max( irisColor * lerp( 0.55, 0.32, coolPigment ), 0.00001 );
+		// Preserve the selected colour at unit density, including light colours
+		// above the usual substrate. Keep logarithms finite for black channels.
+		substrate = max( substrate, target );
+		float3 absorption = -log( target / substrate );
+		float density = exp2( -tissue.fibers * 1.8 - tissue.microFibers * 0.6
+			- tissue.distanceFibers * 0.35 - tissue.mottling - tissue.pigment * 0.35 );
+		irisColor = substrate * exp( -absorption * density );
+		irisColor *= 1 - tissue.crypts * 0.22;
+		irisColor *= 1 - tissue.furrows * EyeRingStrength * 0.7;
+		irisColor *= 1 - tissue.pupilRim * EyePupilRimStrength * 0.85;
 
-		float limbalMask = ( 1 - EyeDisc( radius - ( 1 - g_flLimbalWidth ), g_flEdgeSoftness ) ) * saturate( g_flLimbalWidth / 0.005 );
-		irisColor = lerp( irisColor, baseIrisColor * 0.06, limbalMask * g_flLimbalStrength );
-		irisColor *= SrgbGammaToLinear( g_vIrisTint );
+		float limbalEdge = 1 - EyeLimbalWidth + tissue.fibers * 0.025;
+		float limbalMask = smoothstep( limbalEdge - 0.06, limbalEdge + 0.06, radius );
+		irisColor = lerp( irisColor, baseIrisColor * 0.12, limbalMask * EyeLimbalStrength );
 
-		irisColor = lerp( irisColor, SrgbGammaToLinear( g_vPupilColor ), pupilMask );
+		// The pupil is a black opening beneath the reflective cornea.
+		irisColor *= 1 - pupilMask;
 		return irisColor;
 	}
 
 	float3 ScleraColor( float2 uv )
 	{
-		float redness = smoothstep( g_flScleraRednessStart, g_flScleraRednessStart + 0.25, length( uv ) ) * g_flScleraRedness;
-		float3 scleraColor = lerp( SrgbGammaToLinear( g_vScleraColor ), SrgbGammaToLinear( g_vScleraEdgeColor ), redness );
-		scleraColor = lerp( scleraColor, SrgbGammaToLinear( g_vScleraEdgeColor ) * 0.65, EyeVeins( uv ) * g_flVeinStrength );
+		// Vascular tint grows toward the periphery relative to the iris, so mesh
+		// fit does not leave smaller human eyes with an entirely featureless sclera.
+		float radius = length( uv );
+		float rednessStart = EyeIrisRadius() * 1.08;
+		float redness = smoothstep( rednessStart, max( 0.34, rednessStart + 0.10 ), radius ) * EyeScleraRedness;
+		float3 scleraColor = lerp( SrgbGammaToLinear( EyeScleraColor ), SrgbGammaToLinear( EyeScleraEdgeColor ), redness );
+		float cloud = EyePolarNoise( uv * 33 + 211, 4096 ) - 0.5;
+		float capillaries = EyePolarNoise( uv * 127 + cloud + 131, 4096 ) - 0.5;
+		scleraColor *= 1 + cloud * float3( 0.08, 0.12, 0.15 ) + capillaries * 0.06;
+		float veins = EyeVeins( uv ) + EyeVeins( float2( uv.y, -uv.x ) * 1.28 ) * 0.45;
+		scleraColor = lerp( scleraColor, SrgbGammaToLinear( EyeScleraEdgeColor ) * 0.65, veins * EyeVeinStrength );
 		return scleraColor;
 	}
 
-	struct EyeVisibility
+	// Filter the wet lobe by the normal variation across a pixel. The generic
+	// cube-root roughness floor turns a small smooth cornea into a matte surface.
+	// Adding slope variance retains highlights while still widening subpixel lobes.
+	float EyeFilteredRoughness( float roughness, float3 normal )
 	{
-		float3 ambient;
-		float3 direct;
-		float reflection;
-	};
-
-	EyeVisibility EvaluateEyeVisibility( float3 normal, float3 directionToCamera )
-	{
-		// Use the smooth eyeball surface, keeping iris relief out of the rim.
-		float rim = 1 - saturate( dot( normal, directionToCamera ) );
-		float edge = saturate( (rim - g_flViewOcclusionStart) / max( 1 - g_flViewOcclusionStart, 0.001 ) );
-		float softAmount = pow( edge, max( g_flViewOcclusionPower, 0.01 ) ) * g_flViewOcclusionStrength;
-		float aa = max( fwidth( rim ), 0.0001 );
-		float hardCoverage = smoothstep( g_flViewOcclusionStart - aa * 0.5, g_flViewOcclusionStart + aa * 0.5, rim );
-		float3 tintAbsorption = 1 - SrgbGammaToLinear( g_vOcclusionTint );
-
-		// Clamp the fully shaded endpoint before applying hard-edge coverage.
-		// This preserves antialiasing even when strength is overdriven to solid black.
-		float3 softAmbient = saturate( 1 - softAmount * tintAbsorption );
-		float3 hardAmbient = lerp( float3( 1, 1, 1 ), saturate( 1 - g_flViewOcclusionStrength * tintAbsorption ), hardCoverage );
-		float softReflection = saturate( 1 - softAmount * g_flReflectionOcclusion );
-		float hardReflection = lerp( 1, saturate( 1 - g_flViewOcclusionStrength * g_flReflectionOcclusion ), hardCoverage );
-
-		EyeVisibility visibility;
-		visibility.ambient = lerp( softAmbient, hardAmbient, g_flViewOcclusionHardness );
-		visibility.direct = lerp( float3( 1, 1, 1 ), visibility.ambient, g_flDirectOcclusion );
-		visibility.reflection = lerp( softReflection, hardReflection, g_flViewOcclusionHardness );
-		return visibility;
+		float3 dx = ddx( normal );
+		float3 dy = ddy( normal );
+		float kernelRoughnessSquared = min( 0.5 * (dot( dx, dx ) + dot( dy, dy )), 0.18 );
+		return sqrt( saturate( roughness * roughness + kernelRoughnessSquared ) );
 	}
 
-	#if ( S_MODE_DEPTH && !D_OPAQUE_FADE )
-		#define MainPs Disabled
-	#endif
+	// The generic directional receiver offset spans shadow-map texels, which can
+	// exceed the eye's size and expose faceted bands. The eye already supplies a
+	// small smooth-surface bias; do not add that coarse offset a second time.
+	void ComputeEyeDirectLighting( inout LightingTerms_t lighting, FinalCombinerInput_t f, float3 receiverNormal )
+	{
+		// InitLightingTerms starts diffuse at white for unlit callers. Match the
+		// standard direct-light path by clearing accumulators before adding lights.
+		lighting.vDiffuse = 0;
+		lighting.vSpecular = 0;
+		lighting.vTransmissive = 0;
+
+		if ( !LightmappedLight::UsesLightmaps() && !ProbeLight::UsesProbes() )
+			ComputeDirectionalLight( f, float3( 0, 0, 0 ), lighting.vDiffuse, lighting.vSpecular, lighting.vTransmissive );
+
+		if ( DirectionalLightDebug > 0 && g_DirectionalLightCascadeCount > 0 )
+			lighting.vDiffuse += DirectionalLightShadow::GetDebugColor( f.vPositionWs );
+
+		ClusterRange range = Cluster::Query( ClusterItemType_Light, f.vPositionSs );
+		[loop]
+		for ( uint item = 0; item < range.Count; item++ )
+		{
+			BinnedLight light = DynamicLightConstantByIndex( Cluster::LoadItem( range, item ) );
+			ComputeDirectLightingForLight( f, receiverNormal, light, lighting.vDiffuse, lighting.vSpecular, lighting.vTransmissive );
+		}
+	}
+
+	// The wrap model already uses the tissue normal for probes and lightmaps.
+	// Correct the remaining diffuse sources without altering corneal reflections.
+	void ApplyEyeIndirectDiffuse( inout LightingTerms_t lighting, FinalCombinerInput_t f )
+	{
+		bool hasDiffuseOverride = false;
+		float4 ddgi = 0.0;
+
+		if ( DDGI::IsEnabled() )
+		{
+			ddgi = DDGI::EvaluateVolumes( f.vPositionWs, f.vSSSNormalWs,
+				CalculatePositionToCameraDirWs( f.vPositionWs ) );
+			if ( ddgi.a >= 1.0 )
+			{
+				lighting.vIndirectDiffuse = ddgi.rgb;
+				hasDiffuseOverride = true;
+			}
+		}
+
+		if ( !hasDiffuseOverride && !LightmappedLight::UsesLightmaps() && !ProbeLight::UsesProbes() )
+		{
+			float3 diffuse = 0;
+			float accumulated = 0;
+			ClusterRange range = Cluster::Query( ClusterItemType_EnvMap, f.vPositionSs );
+
+			for ( uint i = 0; i < range.Count; i++ )
+			{
+				uint index = Cluster::LoadItem( range, i );
+				float3 localPosition = mul( float4( f.vPositionWs, 1 ), EnvMapWorldToLocal( index ) ).xyz;
+				float feathering = EnvMapFeathering( index );
+				float3 edgeDistance = min( localPosition - EnvMapBoxMins( index ), EnvMapBoxMaxs( index ) - localPosition );
+				float distance = min( edgeDistance.x, min( edgeDistance.y, edgeDistance.z ) ) + 0.5;
+
+				if ( distance + max( feathering, 0 ) < 0 )
+					continue;
+
+				float3 localNormal = mul( float4( f.vSSSNormalWs, 0 ), EnvMapWorldToLocal( index ) ).xyz;
+				diffuse = lerp( diffuse, SampleEnvironmentMapLevel( localNormal, 1, index ), 1 - accumulated );
+				accumulated += RemapValClamped( distance, min( -feathering, 0 ), max( -feathering, 0 ), 0, 1 );
+
+				if ( accumulated >= 1 )
+					break;
+			}
+
+			float3 ambient = lerp( 1.0, AmbientLightColor.rgb, AmbientLightColor.a );
+			lighting.vIndirectDiffuse = ddgi.rgb + (1.0 - ddgi.a) * lerp( diffuse, ambient, AmbientLightColor.a );
+			hasDiffuseOverride = true;
+		}
+
+		// Preserve the shared lighting function's probe-debug display on overridden diffuse.
+		if ( hasDiffuseOverride && UsesBakedLightingFromProbe && g_bShowLPVVoxels )
+			lighting.vIndirectDiffuse *= GetLightProbeUVWCheckerboard( f.vPositionWs );
+	}
+
+	// Nearby visible lids occlude the wet surface. A convex eyeball lies below
+	// its own tangent plane, so it cannot shadow itself in this horizon test.
+	// The transverse UV footprint supplies scale without extra material settings.
+	float2 EyeContactVisibility( float3 position, float3 normal, float3 forward, float2 pixel, float2 uv )
+	{
+		float3 dx = ddx( position );
+		float3 dy = ddy( position );
+		float3 transverseX = dx - forward * dot( dx, forward );
+		float3 transverseY = dy - forward * dot( dy, forward );
+		float2 ux = ddx( uv );
+		float2 uy = ddy( uv );
+		float radius = EyeUvRadius * sqrt( (dot( transverseX, transverseX ) + dot( transverseY, transverseY ))
+			/ max( dot( ux, ux ) + dot( uy, uy ), 0.00000001 ) );
+		float range = max( radius * 1.6, 0.0001 );
+		float worldPerPixel = max( length( dx ), length( dy ) );
+		float pixelRadius = min( range / max( worldPerPixel, 0.0001 ), 320 );
+		float horizonEnergy = 0;
+		// Distribute radial samples between pixels instead of repeating four
+		// distances everywhere. Fixed distances create bands parallel to the lids.
+		float jitter = frac( 52.9829189 * frac( dot( floor( pixel ), float2( 0.06711056, 0.00583715 ) ) ) );
+
+		[unroll]
+		for ( int direction = 0; direction < 8; direction++ )
+		{
+			float angle = (direction + 0.5) * M_2PI / 8;
+			float2 axis = float2( cos( angle ), sin( angle ) );
+			float horizon = 0;
+			[unroll]
+			for ( int sampleIndex = 1; sampleIndex <= 4; sampleIndex++ )
+			{
+				float fraction = (sampleIndex - frac( jitter + direction * 0.618033989 )) / 4.0;
+				float2 samplePixel = floor( pixel + axis * max( 1, pixelRadius * fraction * fraction ) ) + 0.5;
+				float3 delta = Depth::GetWorldPosition( samplePixel ) - position;
+				float distance = length( delta );
+				float elevation = saturate( (dot( normal, delta ) - radius * 0.02) / max( distance, 0.001 ) );
+				float falloff = 1 - smoothstep( range * 0.35, range, distance );
+				float valid = all( samplePixel > 0 ) && all( samplePixel < g_vViewportSize );
+				horizon = max( horizon, elevation * falloff * valid );
+			}
+			horizonEnergy += horizon * horizon;
+		}
+
+		// Average the four sample patterns in the pixel quad without additional
+		// depth reads or a dependency on temporal antialiasing. This function stays
+		// outside per-pixel branches so all four derivative lanes are available.
+		float2 parity = fmod( floor( pixel ), 2 );
+		horizonEnergy += ddx_fine( horizonEnergy ) * (0.5 - parity.x);
+		horizonEnergy += ddy_fine( horizonEnergy ) * (0.5 - parity.y);
+		// Emphasize a nearby lid even when the opposite directions are open.
+		// This calibrated contact response is not a hemispherical visibility integral.
+		float effectiveHorizon = sqrt( saturate( horizonEnergy / 8 ) );
+		// Broad diffuse illumination is more occluded than the narrow wet reflection.
+		return max( float2( 0.03, 0.12 ), pow( 1 - effectiveHorizon, float2( 3.5, 1.5 ) ) );
+	}
 
 	PS_OUTPUT MainPs( PS_INPUT i )
 	{
 		PS_OUTPUT o = ( PS_OUTPUT )0;
-		#if ( S_MODE_DEPTH )
+		#if ( S_MODE_DEPTH && D_OPAQUE_FADE )
+			OpaqueFadeDepth( i.vVertexColor.a, i.vPositionSs.xy );
+		#endif
+
+		float3 position = i.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz;
+		float3 normal, tangentU, tangentV;
+		EyeTangentFrame( i.vNormalWs.xyz, i.vTangentUWs.xyz, i.vTangentVWs.xyz, normal, tangentU, tangentV );
+		float3 cameraToPosition = CalculateCameraToPositionDirWs( position );
+		float hemisphere = dot( i.vNormalWs.xyz, i.vEyeForwardWs ) < 0 ? -1 : 1;
+		float3x3 projectionRotation = EyeProjectionRotation();
+		float3x3 projectionFrame = EyeProjectionFrame( i.vEyeForwardWs, i.vEyeRightWs, projectionRotation );
+		float3 projection = EyeProjection( i.vTextureCoords.xy, hemisphere, projectionRotation );
+		float2 uv = projection.xy;
+		float irisRadius = EyeIrisRadius();
+		float2 surfacePoint = uv / irisRadius;
+		float surfaceRadius = length( surfacePoint );
+		// Keep the opening fixed as the recessed pattern moves beneath it.
+		// Sampling past the tissue edge uses the dark limbal colour, not sclera.
+		float irisMask = EyeDisc( surfaceRadius - 1, EyeEdgeSoftness );
+		// An orthographic projection also has a matching circle on the back of the eye.
+		float projectionAA = max( fwidth( projection.z ), 0.0001 );
+		float frontHemisphere = smoothstep( -projectionAA, projectionAA, projection.z );
+		irisMask *= frontHemisphere;
+
+		// Keep the added corneal curvature across the full iris. Taper only
+		// outside its aperture: a stronger bump fading inside the iris can
+		// reverse the optical normal gradient and duplicate a reflection.
+		float cornealSlope = 0.3 * (1 - smoothstep( 1.0, 1.6, surfaceRadius ));
+		float3 corneaNormal = normalize( normal + mul( float3( surfacePoint * cornealSlope, 0 ), projectionFrame ) );
+		float roughness = EyeFilteredRoughness( lerp( EyeScleraRoughness, EyeCorneaRoughness, irisMask ), corneaNormal );
+
+		// Depth is also the renderer's normal/roughness prepass. It must use
+		// the same optical surface as Forward so AO and SSR see the wet eye.
+		// Exit before tissue noise, scene-depth reads or lighting are evaluated.
+		if ( DepthNormals::WantsDepthNormals() )
 		{
+			float opacity = 1;
 			#if ( D_OPAQUE_FADE )
-				OpaqueFadeDepth( i.vVertexColor.a, i.vPositionSs.xy );
+				opacity = OpaqueFade( i.vVertexColor.a, i.vPositionSs.xyzw );
 			#endif
+			o.vColor = DepthNormals::Output( corneaNormal, roughness, opacity );
 			return o;
 		}
-		#else
+
+		// Reflection and refraction share this same smooth optical surface.
+		float3 refracted = refract( cameraToPosition, corneaNormal, 1 / EyeCorneaIor );
+		float2 irisPoint = IrisParallaxPoint( projection, mul( projectionFrame, refracted ), irisRadius );
+		float radius = length( irisPoint );
+		// Keep the pupil crisp, with only pixel-footprint antialiasing.
+		float pupilMask = EyeDisc( radius - EyePupilSize(), 0 );
+
+		float footprint = max( length( ddx( irisPoint ) ), length( ddy( irisPoint ) ) );
+		IrisTissue tissue = EvaluateIrisTissue( irisPoint, footprint );
+		float3 irisColor = IrisColor( radius, pupilMask, tissue );
+		float3 scleraColor = ScleraColor( uv );
+		float3 albedo = lerp( scleraColor, irisColor, irisMask ) * i.vVertexColor.rgb;
+
+		// Shade the same bowl that the viewing ray intersects.
+		float2 irisSlope = -2 * EyeIrisDepth * EyeIrisConcavity * irisPoint;
+		irisSlope += IrisReliefSlope( tissue.height, irisPoint ) * irisMask * (1 - pupilMask);
+		float3 irisNormal = normalize( mul( float3( irisSlope, 1 ), projectionFrame ) );
+		float diffuseWrap = EyeScleraDiffuseWrap * (1 - irisMask);
+
+		// The shared wrap model supports separate diffuse and specular normals.
+		// Evaluate lighting once: iris relief shades the tissue, while the cornea
+		// stays smooth for reflections. Indirect diffuse also follows the tissue.
+		FinalCombinerInput_t f = PS_InitFinalCombiner();
+		// A small receiver bias prevents the faceted shadow mesh from shadowing
+		// the smooth optical surface. This is local to the eye material.
+		f.vPositionWs = position + normal * 0.03;
+		f.vPositionWithOffsetWs = i.vPositionWithOffsetWs.xyz + normal * 0.03;
+		f.vPositionSs = i.vPositionSs;
+		f.vNormalWs = corneaNormal;
+		f.vSSSNormalWs = normalize( lerp( normal, irisNormal, irisMask ) );
+		f.vNormalTs = Vec3WsToTs( f.vSSSNormalWs, normal, tangentU, tangentV );
+		f.vTangentUWs = tangentU;
+		f.vTangentVWs = tangentV;
+		f.vRoughness = roughness.xx;
+		f.vAlbedo = albedo;
+		f.vDiffuseColor = albedo;
+		f.vTextureCoords = i.vTextureCoords.xy;
+		f.vLightmapUV = i.vLightmapUV.xy;
+		f.vSpecularColor = EyeCorneaReflectance.xxx;
+		float diffuseExponent = lerp( 1.5, 1, irisMask );
+		f.vSSSWrapParameters = float4( diffuseWrap, diffuseExponent, 1 / (1 + diffuseWrap),
+			(1 + diffuseExponent) / (2 + 2 * diffuseWrap) );
+
+		// Keep lighting calls outside per-pixel branches: shadow receivers use derivatives.
+		LightingTerms_t lighting = InitLightingTerms();
+		ComputeEyeDirectLighting( lighting, f, normal );
+		// Use the tissue normal for blended DDGI, including partially covered lightmaps/probes.
+		// Corneal reflections are evaluated separately below.
+		FinalCombinerInput_t diffuseInput = f;
+		diffuseInput.vNormalWs = f.vSSSNormalWs;
+		CalculateIndirectLighting( lighting, diffuseInput );
+		ApplyEyeIndirectDiffuse( lighting, f );
+		// A wet dielectric reflects the environment's radiance. Rescaling its
+		// reflection to the diffuse probe brightness erases the sky in sockets.
+		float nDotV = saturate( dot( corneaNormal, -cameraToPosition ) );
+		float3 reflectionFactor = CalcBRDFReflectionFactor( nDotV, f.vRoughness.x, f.vSpecularColor );
+		lighting.vIndirectSpecular = EnvMap::From( position, i.vPositionSs, corneaNormal, f.vRoughness ) * reflectionFactor;
+		// Preserve the renderer's dynamic reflection source and its confidence
+		// when replacing the probe-normalized cubemap contribution.
+		if ( DynamicReflections::IsEnabled() )
 		{
-			float3 position = i.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz;
-			float3 normal, tangentU, tangentV;
-			EyeTangentFrame( i.vNormalWs.xyz, i.vEyeForwardWs, i.vTangentUWs.xyz, i.vTangentVWs.xyz, normal, tangentU, tangentV );
-			float3 cameraToPosition = CalculateCameraToPositionDirWs( position );
-			float hemisphere = dot( i.vNormalWs.xyz, i.vEyeForwardWs ) < 0 ? -1 : 1;
-			float3x3 projectionRotation = EyeProjectionRotation();
-			float3x3 projectionFrame = EyeProjectionFrame( i.vEyeForwardWs, i.vTangentUWs, i.vTangentVWs, projectionRotation );
-			float3 projection = EyeProjection( i.vTextureCoords.xy, hemisphere, projectionRotation );
-			float2 uv = projection.xy;
-			float irisRadius = max( EyeIrisRadius(), 0.001 );
-			float2 shapeScale = float2( 1 / max( g_flIrisAspect, 0.01 ), 1 ) / irisRadius;
-			float2 surfacePoint = uv * shapeScale;
-			float surfaceRadius = length( surfacePoint );
-			float aperture = EyeDisc( surfaceRadius - 1, g_flEdgeSoftness );
-			// An orthographic projection also has a matching circle on the back of the eye.
-			float projectionAA = max( fwidth( projection.z ), 0.0001 );
-			aperture *= smoothstep( -projectionAA, projectionAA, projection.z );
-
-			// Refract through the cornea, then intersect the iris in its fixed frame.
-			float2 corneaSlope = surfacePoint * float2( 1, -1 ) * g_flCorneaBulge * aperture;
-			float3 corneaNormalTs = normalize( float3( corneaSlope, 1 ) );
-			float3 corneaNormal = Vec3TsToWsNormalized( corneaNormalTs, normal, tangentU, tangentV );
-			float3 refracted = refract( cameraToPosition, corneaNormal, 1 / max( g_flCorneaIor, 1 ) );
-			float2 irisPoint = IrisParallaxPoint( projection, mul( projectionFrame, refracted ), irisRadius, shapeScale );
-			float radius = length( irisPoint );
-			// Keep the opening fixed as the recessed pattern moves beneath it.
-			// Sampling past the tissue edge uses the dark limbal colour, not sclera.
-			float irisMask = aperture;
-			float pupilRadius = length( irisPoint * float2( 1 / max( g_flPupilAspect, 0.01 ), 1 ) );
-			float pupilMask = EyeDisc( pupilRadius - EyePupilSize(), g_flPupilSoftness );
-
-			float footprint = max( length( ddx( irisPoint ) ), length( ddy( irisPoint ) ) );
-			IrisTissue tissue = EvaluateIrisTissue( irisPoint, pupilRadius, footprint );
-			float3 irisColor = IrisColor( radius, pupilRadius, pupilMask, tissue );
-			float3 scleraColor = ScleraColor( uv );
-			float3 albedo = lerp( scleraColor, irisColor, irisMask ) * i.vVertexColor.rgb;
-
-			// Shade the same bowl that the viewing ray intersects.
-			float2 irisSlope = -2 * g_flIrisDepth * g_flIrisConcavity * irisPoint;
-			irisSlope += IrisReliefSlope( tissue.height, irisPoint ) * irisMask * (1 - pupilMask);
-			irisSlope *= irisRadius * shapeScale;
-			float3 irisNormal = normalize( mul( float3( irisSlope, 1 ), projectionFrame ) );
-			float roughness = lerp( g_flScleraRoughness, g_flCorneaRoughness, aperture );
-			float diffuseWrap = g_flScleraDiffuseWrap * (1 - irisMask);
-
-			EyeVisibility visibility = EvaluateEyeVisibility( normal, -cameraToPosition );
-
-			// The shared wrap model supports separate diffuse and specular normals.
-			// Evaluate lighting once: iris relief shades the tissue, while the cornea
-			// stays smooth for reflections. DDGI/cubemap diffuse uses the cornea normal.
-			FinalCombinerInput_t f = PS_InitFinalCombiner();
-			f.vPositionWs = position;
-			f.vPositionWithOffsetWs = i.vPositionWithOffsetWs.xyz;
-			f.vPositionSs = i.vPositionSs;
-			f.vNormalWs = corneaNormal;
-			f.vNormalTs = corneaNormalTs;
-			f.vSSSNormalWs = normalize( lerp( normal, irisNormal, irisMask ) );
-			f.vTangentUWs = tangentU;
-			f.vTangentVWs = tangentV;
-			f.vRoughness = AdjustRoughnessByGeometricNormal( roughness.xx, normal );
-			f.vAlbedo = albedo;
-			f.vDiffuseColor = albedo;
-			f.vTextureCoords = i.vTextureCoords.xy;
-			f.vSpecularColor = g_flCorneaReflectance.xxx;
-			f.vSSSWrapParameters = float4( diffuseWrap, 1, 1 / (1 + diffuseWrap), 1 / (1 + diffuseWrap) );
-
-			// Keep lighting calls outside per-pixel branches: shadow receivers use derivatives.
-			LightingTerms_t lighting = InitLightingTerms();
-			ComputeDirectLighting( lighting, f );
-			CalculateIndirectLighting( lighting, f );
-
-			// Retain independent coloured rim occlusion for diffuse and reflections.
-			float3 diffuseAO = CalculateDiffuseAmbientOcclusion( f, lighting );
-			float3 specularAO = CalculateSpecularAmbientOcclusion( f, lighting );
-			o.vColor = float4( albedo * (lighting.vDiffuse * visibility.direct
-				+ lighting.vIndirectDiffuse * visibility.ambient * diffuseAO)
-				+ (lighting.vSpecular + lighting.vIndirectSpecular * specularAO) * visibility.reflection, 1 );
-
-			#if ( D_OPAQUE_FADE )
-				o.vColor.a = OpaqueFade( i.vVertexColor.a, i.vPositionSs.xyzw );
-			#endif
-
-			f.flOpacity = o.vColor.a;
-			return PS_FinalCombinerDoPostProcessing( f, lighting, o );
+			float4 reflection = DynamicReflections::Sample( i.vPositionSs.xy, sqrt( f.vRoughness.x ) );
+			lighting.vIndirectSpecular = lerp( lighting.vIndirectSpecular, reflection.rgb * reflectionFactor, reflection.a );
 		}
+
+		// Real scene occlusion shades the socket without darkening toward the camera rim.
+		float3 diffuseAO = CalculateDiffuseAmbientOcclusion( f, lighting );
+		float3 specularAO = CalculateSpecularAmbientOcclusion( f, lighting );
+		float2 contactVisibility = EyeContactVisibility( position, normal, normalize( i.vEyeForwardWs ), i.vPositionSs.xy, i.vTextureCoords.xy );
+		// A local approximation to the warm light surviving the thin lid margin.
+		// Keep the iris occlusion neutral and the exposed sclera unchanged.
+		float3 contactColor = pow( contactVisibility.xxx, lerp( float3( 0.85, 1.0, 1.07 ), 1.0.xxx, irisMask ) );
+		// Direct reflections already include visibility from their light's shadow.
+		// Ambient socket occlusion belongs to the environment reflection only.
+		o.vColor = float4( albedo * contactColor * (lighting.vDiffuse
+			+ lighting.vIndirectDiffuse * diffuseAO)
+			+ lighting.vSpecular + lighting.vIndirectSpecular * specularAO * contactVisibility.y, 1 );
+
+		#if ( D_OPAQUE_FADE )
+			o.vColor.a = OpaqueFade( i.vVertexColor.a, i.vPositionSs.xyzw );
 		#endif
+
+		f.flOpacity = o.vColor.a;
+		return PS_FinalCombinerDoPostProcessing( f, lighting, o );
 	}
 }

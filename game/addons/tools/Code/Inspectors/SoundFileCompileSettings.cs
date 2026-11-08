@@ -42,7 +42,8 @@ public class SoundFileCompileSettings : Widget, IAssetInspector
 		public bool Compress { get; set; } = true;
 
 		[Title( "Bitrate" ), Range( 128, 256, true, true )]
-		public int Bitrate { get; set; } = 256;
+		[Description( "Stereo bitrate in kbps, mono sounds use half" )]
+		public int Bitrate { get; set; } = 192;
 
 		public enum SamplingRate
 		{
@@ -143,7 +144,7 @@ public class SoundFileCompileSettings : Widget, IAssetInspector
 			Gain = meta.Get( "gain", 0.0f ),
 			Rate = meta.Get( "rate", Settings.SamplingRate.Source ),
 			Compress = meta.Get( "compress", true ),
-			Bitrate = meta.Get( "bitrate", 256 ),
+			Bitrate = meta.Get( "bitrate", 192 ),
 		};
 	}
 

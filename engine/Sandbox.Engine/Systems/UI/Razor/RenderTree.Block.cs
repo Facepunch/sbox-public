@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Components;
+﻿using Sandbox.Engine;
+using Microsoft.AspNetCore.Components;
 
 namespace Sandbox.UI;
 
@@ -96,7 +97,7 @@ public partial class PanelRenderTreeBuilder : Microsoft.AspNetCore.Components.Re
 			{
 				Panel panel = null;
 				if ( elementName == "div" || elementName == "p" || elementName == "span" ) panel ??= new Panel();
-				else panel = Game.TypeLibrary.Create<Panel>( elementName, false );
+				else panel = GlobalContext.Current.TypeLibrary.Create<Panel>( elementName, false );
 				panel ??= new Panel();
 				panel.ElementName = elementName;
 				panel.Parent = parent;
@@ -197,13 +198,7 @@ public partial class PanelRenderTreeBuilder : Microsoft.AspNetCore.Components.Re
 				return true;
 			}
 
-			if ( Children != null )
-			{
-				foreach ( var child in Children.Where( x => x.DestroyUnseen() ).ToArray() )
-				{
-					Children.Remove( child );
-				}
-			}
+			Children?.RemoveAll( static x => x.DestroyUnseen() );
 
 			return false;
 		}

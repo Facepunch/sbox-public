@@ -3,7 +3,7 @@
 @using Sandbox.Network;
 
 @* A server - who's hosting it and which of your friends are in it, what it's on, how full it is, its
-   ping, and anything worth knowing before you go (an old version, the editor, friends only). The
+   ping, and anything worth knowing before you go (a password, an old version, the editor, friends only). The
    whole row joins it: under the pointer a Join button - just its glyph - comes in over its end to say
    so (or that it's full). *@
 <root class="row @RowClass" onclick=@Join>
@@ -20,6 +20,11 @@
 		<div class="names">
 			<div class="name-line">
 				<label class="server-name">@Server.Name</label>
+
+				@if ( Server.IsPasswordProtected )
+				{
+					<i class="privacy" tooltip="Needs a password">lock</i>
+				}
 
 				@if ( AutoNamed && HostIsFriend )
 				{
@@ -242,7 +247,7 @@
 	string PrivacyIcon => Server.Get( "access_level" ) switch
 	{
 		nameof( LobbyPrivacy.FriendsOnly ) => "group",
-		nameof( LobbyPrivacy.Private ) => "lock",
+		nameof( LobbyPrivacy.Private ) => "mail",
 		_ => null
 	};
 
@@ -271,7 +276,7 @@
 
 	protected override int BuildHash() => System.HashCode.Combine( Server.Name, Server.Map, Server.Members, Server.MaxMembers, Server.Ping, MapPackage?.Thumb, MapPackage?.Title, HashCode.Combine( FriendsIn.Count, GamePackage?.Revision?.VersionId, Server.OwnerId ) );
 
-	string PingTooltip => Server.Ping < 0 ? "Latency unavailable" : Server.IsPingEstimated ? $"About {Server.Ping} ms - estimated from Steam's relays" : $"{Server.Ping} ms latency";
+	string PingTooltip => Server.Ping < 0 ? "#menu.common.latency_unavailable" : Server.IsPingEstimated ? $"About {Server.Ping} ms - estimated from Steam's relays" : $"{Server.Ping} ms latency";
 
 	string RowClass => Server.IsFull ? "full" : Server.Members == 0 ? "empty" : "";
 

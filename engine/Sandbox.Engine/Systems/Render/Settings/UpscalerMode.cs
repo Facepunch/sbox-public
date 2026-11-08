@@ -1,3 +1,5 @@
+using System.ComponentModel;
+
 namespace Sandbox.Engine.Settings;
 
 /// <summary>
@@ -6,10 +8,11 @@ namespace Sandbox.Engine.Settings;
 /// </summary>
 public enum UpscalerMode
 {
-	/// <summary>Native resolution rendering, no upscaler.</summary>
+	/// <summary>No dedicated upscaler; reduced render scale uses a simple blit.</summary>
 	Off = 0,
 
-	/// <summary>Render at lower resolution, bilinear blit to display resolution.</summary>
+	/// <summary>Legacy selection, treated as Off. Retained for existing settings and addons.</summary>
+	[EditorBrowsable( EditorBrowsableState.Never )]
 	Stretch = 1,
 
 	/// <summary>AMD FidelityFX Super Resolution 1 — spatial upscaler (EASU + RCAS).</summary>

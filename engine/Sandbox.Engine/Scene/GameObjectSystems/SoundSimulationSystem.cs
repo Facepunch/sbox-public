@@ -79,12 +79,47 @@ internal sealed partial class SoundSimulationSystem : GameObjectSystem<SoundSimu
 		_tlIgnoreCount = 0;
 	}
 
+	/// <summary>
+	/// Traces the physics world with the sim tags and escape filter applied; per trace only the endpoints change.
+	/// </summary>
+	readonly ref struct PhysicsAcousticTracer : IAcousticTracer
+	{
+		readonly PhysicsTraceBuilder _trace;
+		readonly ReadOnlySpan<PhysicsBody> _sourceIgnore;
+		readonly ReadOnlySpan<PhysicsBody> _listenerIgnore;
+
+		public PhysicsAcousticTracer( PhysicsWorld world, SoundHandle handle, ReadOnlySpan<PhysicsBody> sourceIgnore, ReadOnlySpan<PhysicsBody> listenerIgnore = default )
+		{
+			_trace = ApplySimulationTags( world.Trace, handle );
+			_trace.filterCallback = EscapeFilter;
+			_sourceIgnore = sourceIgnore;
+			_listenerIgnore = listenerIgnore;
+		}
+
+		public bool Trace( Vector3 from, Vector3 to, AcousticIgnore ignore, out AcousticHit hit )
+		{
+			// The filter skips escape bodies, so a single Run() returns the closest real surface.
+			SetTraceIgnore( (ignore & AcousticIgnore.Source) != 0 ? _sourceIgnore : default,
+				(ignore & AcousticIgnore.Listener) != 0 ? _listenerIgnore : default );
+			try
+			{
+				var tr = _trace.FromTo( from, to ).Run();
+				hit = tr.Hit ? new AcousticHit { Position = tr.HitPosition, Normal = tr.Normal, Surface = tr.Surface?.AudioSurface ?? AudioSurface.Generic } : default;
+				return tr.Hit;
+			}
+			finally
+			{
+				ClearTraceIgnore();
+			}
+		}
+	}
+
 	internal static float LastSimUpdateMs { get; private set; }
 
 	void Update()
 	{
 		using var _ = PerformanceStats.Timings.Audio.Scope();
-		var sw = DebugOverlay.overlay_audio != 0 ? System.Diagnostics.Stopwatch.StartNew() : null;
+		var sw = Diagnostics.DevTools.IsShowing( "audio" ) ? System.Diagnostics.Stopwatch.StartNew() : null;
 
 		// only trace against a physics world that already exists - don't create one
 		if ( !Scene.HasPhysicsWorld ) return;
@@ -128,8 +163,7 @@ internal sealed partial class SoundSimulationSystem : GameObjectSystem<SoundSimu
 			_parallelOccCount = occCount;
 			_parallelRoomCount = roomCount;
 			_parallelInterleave = Math.Min( occCount, roomCount ) * 2;
-			_parallelDispatchAction ??= ParallelDispatch;
-			System.Threading.Tasks.Parallel.For( 0, total, _parallelDispatchAction );
+			JobDispatcher.For( total, this, static ( system, i ) => system.ParallelDispatch( i ) );
 		}
 
 		ApplyOcclusionResults();
@@ -142,7 +176,6 @@ internal sealed partial class SoundSimulationSystem : GameObjectSystem<SoundSimu
 	int _parallelOccCount;
 	int _parallelRoomCount;
 	int _parallelInterleave;
-	Action<int> _parallelDispatchAction;
 
 	void ParallelDispatch( int i )
 	{

@@ -6,7 +6,7 @@ internal static class Profiler
 
 	private static EtwLogger _etwLogger;
 
-	[ConCmd( "profiler", ConVarFlags.None )]
+	[ConCmd( "profiler", ConVarFlags.Protected )]
 	private static void ProfileCommand()
 	{
 		if ( IsProfiling )
@@ -18,7 +18,7 @@ internal static class Profiler
 		StartProfiling();
 	}
 
-	[ConCmd( "profiler_no_upload", ConVarFlags.None )]
+	[ConCmd( "profiler_no_upload", ConVarFlags.Protected )]
 	private static void ProfileNoUploadCommand()
 	{
 		if ( IsProfiling )
@@ -36,6 +36,12 @@ internal static class Profiler
 		if ( IsProfiling )
 		{
 			Log.Warning( "Profiling session is already running." );
+			return;
+		}
+
+		if ( !OperatingSystem.IsWindows() )
+		{
+			Log.Warning( "The profiler records with ETW, which is only available on Windows." );
 			return;
 		}
 

@@ -19,22 +19,22 @@ internal class SentryRelease( string org, string project )
 
 			// Create new release
 			Log.Info( "Creating new release" );
-			success = RunSentryCommand( $"releases new \"{version}\" --org \"{Organization}\" {projectStr}" );
+			success = RunSentryCommandWithRetries( $"releases new \"{version}\" --org \"{Organization}\" {projectStr}" );
 			if ( !success ) return ExitCode.Failure;
 
 			// Set commits
 			Log.Info( "Setting commits" );
-			success = RunSentryCommand( $"releases set-commits \"{version}\" --auto --org \"{Organization}\" {projectStr}" );
+			success = RunSentryCommandWithRetries( $"releases set-commits \"{version}\" --auto --org \"{Organization}\" {projectStr}" );
 			if ( !success ) return ExitCode.Failure;
 
 			// Create deploy
 			Log.Info( "Creating deploy" );
-			success = RunSentryCommand( $"releases deploys \"{version}\" new -e retail --org \"{Organization}\" {projectStr}" );
+			success = RunSentryCommandWithRetries( $"releases deploys \"{version}\" new -e retail --org \"{Organization}\" {projectStr}" );
 			if ( !success ) return ExitCode.Failure;
 
 			// Finalize release
 			Log.Info( "Finalizing release" );
-			success = RunSentryCommand( $"releases finalize \"{version}\" --org \"{Organization}\" {projectStr}" );
+			success = RunSentryCommandWithRetries( $"releases finalize \"{version}\" --org \"{Organization}\" {projectStr}" );
 			if ( !success ) return ExitCode.Failure;
 
 			Log.Info( "Successfully created and finalized Sentry release" );
@@ -45,6 +45,31 @@ internal class SentryRelease( string org, string project )
 			Log.Error( $"Sentry release creation failed with error: {ex}" );
 			return ExitCode.Failure;
 		}
+	}
+
+	/// <summary>
+	/// Sentry's API returns the odd 503 ("Downstream service unavailable"), so give each
+	/// command a few goes before failing the step. Repeating one is harmless, at worst a
+	/// deploy gets recorded twice.
+	/// </summary>
+	static bool RunSentryCommandWithRetries( string arguments )
+	{
+		const int attempts = 4;
+
+		for ( var attempt = 1; attempt <= attempts; attempt++ )
+		{
+			if ( RunSentryCommand( arguments ) )
+				return true;
+
+			if ( attempt == attempts )
+				break;
+
+			var backoff = TimeSpan.FromSeconds( 15 * attempt );
+			Log.Warning( $"Sentry command failed (attempt {attempt}/{attempts}) - retrying in {backoff.TotalSeconds:0}s" );
+			Thread.Sleep( backoff );
+		}
+
+		return false;
 	}
 
 	/// <summary>
