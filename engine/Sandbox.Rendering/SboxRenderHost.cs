@@ -7,6 +7,8 @@ namespace Sandbox.Rendering;
 /// </summary>
 internal sealed class SboxRenderHost : RenderHost
 {
+	public override GpuDevice Device => Source2Device.Instance;
+
 	public override bool AsyncCompute => ManagedSceneRendering.AsyncCompute;
 
 	public override ulong FrameCount => Application.FrameCount;

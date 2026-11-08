@@ -48,7 +48,7 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 		SetMainCamera();
 
 		// Custom objects draw through the same view
-		renderView.GraphicsView = view;
+		renderView.HostView = view;
 
 		tonemap = camera.Tonemap?.Enabled == true && camera.ToneMapping is { } toneMapping ? toneMapping.GetNative() : default;
 		return tonemap.IsValid ? RenderTools.TonemapFrameUpdate( tonemap, updateExposure ) : 1.0f;
@@ -109,7 +109,7 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 		}
 	}
 
-	public ScreenSpaceReflectionsPass ScreenSpaceReflections => Camera?.ScreenSpaceReflections;
+	public bool HasScreenSpaceReflections => Camera?.ScreenSpaceReflections is not null;
 
 	public void RenderScreenSpaceReflections( bool history, in StageTarget target )
 	{

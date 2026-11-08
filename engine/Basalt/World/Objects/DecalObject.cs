@@ -1,5 +1,3 @@
-using Sandbox.Rendering;
-
 namespace Basalt;
 
 /// <summary>
@@ -84,7 +82,9 @@ public sealed class DecalObject : RenderObject
 	/// </summary>
 	public float ColorMix { get; set; } = 1.0f;
 
-	/// <inheritdoc cref="DecalDefinition.BlendMode"/>
+	/// <summary>
+	/// How it blends over the surface it projects onto.
+	/// </summary>
 	public DecalBlendMode BlendMode { get; set; }
 
 	/// <summary>

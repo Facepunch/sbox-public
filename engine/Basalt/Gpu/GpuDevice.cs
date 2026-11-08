@@ -22,6 +22,11 @@ public abstract class GpuDevice
 	public abstract GpuTexture Black { get; }
 
 	/// <summary>
+	/// The bindless index shaders read for a missing texture, through its sRGB or linear 2D view.
+	/// </summary>
+	public abstract int MissingTextureViewIndex( bool srgb );
+
+	/// <summary>
 	/// Fill a texture with a colour now, outside any recorded work.
 	/// </summary>
 	public abstract void Clear( GpuTexture texture, Color color );

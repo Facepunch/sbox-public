@@ -38,6 +38,8 @@ internal sealed class Source2Device : GpuDevice
 
 	public override GpuTexture LoadTexture( string path ) => Source2Texture.From( Texture.Load( path ) );
 
+	public override int MissingTextureViewIndex( bool srgb ) => Source2Texture.NoViewIndex( srgb );
+
 	public override GpuTexture Black => Source2Texture.From( Texture.Black );
 
 	public override void Clear( GpuTexture texture, Color color ) => texture.Engine()?.Clear( color );

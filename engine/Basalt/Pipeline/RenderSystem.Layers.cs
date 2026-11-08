@@ -1,5 +1,3 @@
-using Sandbox.Rendering;
-
 namespace Basalt;
 
 /// <summary>

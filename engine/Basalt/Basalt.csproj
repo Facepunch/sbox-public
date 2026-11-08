@@ -1,7 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    C# scene renderer using IRenderContext directly. See docs/managed/basalt.md.
+    C# scene renderer. It draws through the host's GpuDevice (RenderHost.Device) and needs nothing of the engine but
+    Sandbox.System. See docs/managed/basalt.md.
   -->
 
   <PropertyGroup>
@@ -27,7 +28,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Sandbox.Engine\Sandbox.Engine.csproj" Private="false" />
     <ProjectReference Include="..\Sandbox.System\Sandbox.System.csproj" Private="false" />
   </ItemGroup>
 

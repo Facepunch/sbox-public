@@ -22,7 +22,7 @@ internal sealed class BridgeCustomObject : CustomObject
 		if ( !Source.IsValid() ) return;
 
 		// Shadow views inherit camera settings from the root view.
-		var frameView = view.View.GraphicsView ?? view.Root?.GraphicsView;
+		var frameView = (view.View.HostView ?? view.Root?.HostView) as Graphics.ManagedView;
 		var graphicsView = threadView ??= new Graphics.ManagedView();
 		graphicsView.PostProcessEnabled = frameView?.PostProcessEnabled ?? true;
 		graphicsView.ToolsVisMode = frameView?.ToolsVisMode ?? 0;

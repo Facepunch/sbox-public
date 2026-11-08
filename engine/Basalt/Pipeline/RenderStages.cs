@@ -1,6 +1,3 @@
-using NativeEngine;
-using Sandbox.Rendering;
-
 namespace Basalt;
 
 /// <summary>
@@ -22,9 +19,9 @@ internal interface IRenderStages
 	void RenderEarlyPostProcess( RenderStage stage, StageQueue queue, in StageTarget target ) { }
 
 	/// <summary>
-	/// The camera's screen-space reflections, or null when it doesn't render them.
+	/// Whether the camera renders screen-space reflections.
 	/// </summary>
-	ScreenSpaceReflectionsPass ScreenSpaceReflections => null;
+	bool HasScreenSpaceReflections => false;
 
 	/// <summary>
 	/// Trace them in <paramref name="target"/>'s context with no frame targets bound, or keep the lit scene as their

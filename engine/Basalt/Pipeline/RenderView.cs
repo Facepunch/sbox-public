@@ -86,9 +86,9 @@ public sealed class RenderView
 	public float ToneMapScalar { get; set; } = 1.0f;
 
 	/// <summary>
-	/// Optional Graphics view supplied by the caller for engine drawing code.
+	/// Whatever the host attaches to the view for its own drawing code. Basalt never reads it.
 	/// </summary>
-	internal Graphics.ManagedView GraphicsView { get; set; }
+	internal object HostView { get; set; }
 
 	/// <summary>
 	/// Minimum screen size (<c>CFrustum::ComputeScreenSize</c>). Defaults to 0.25%; zero disables size culling.

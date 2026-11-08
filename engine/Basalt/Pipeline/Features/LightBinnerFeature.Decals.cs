@@ -1,6 +1,4 @@
 using System.Runtime.InteropServices;
-using NativeEngine;
-using Sandbox.Rendering;
 
 namespace Basalt.Features;
 
@@ -227,5 +225,5 @@ internal sealed partial class LightBinnerFeature
 	/// <summary>
 	/// A texture's bindless index through its sRGB or linear 2D view - <c>GetTextureViewIndex</c>, as native packs decals.
 	/// </summary>
-	static ulong ViewIndex( GpuTexture texture, bool srgb ) => (ulong)(uint)(texture?.ViewIndex( srgb, TextureViewDimension.Texture2D ) ?? Source2Texture.NoViewIndex( srgb ));
+	static ulong ViewIndex( GpuTexture texture, bool srgb ) => (ulong)(uint)(texture?.ViewIndex( srgb, TextureViewDimension.Texture2D ) ?? RenderHost.Current.Device.MissingTextureViewIndex( srgb ));
 }

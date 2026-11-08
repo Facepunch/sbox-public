@@ -1,6 +1,3 @@
-using NativeEngine;
-using Sandbox.Rendering;
-
 namespace Basalt;
 
 /// <summary>

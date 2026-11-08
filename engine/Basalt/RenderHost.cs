@@ -12,9 +12,9 @@ public class RenderHost
 	public static RenderHost Current { get; set; } = new();
 
 	/// <summary>
-	/// The graphics device to render with.
+	/// The graphics device to render with. A host that renders has to supply one.
 	/// </summary>
-	public virtual GpuDevice Device => Source2Device.Instance;
+	public virtual GpuDevice Device => throw new InvalidOperationException( "This RenderHost has no graphics device: set RenderHost.Current to one that does" );
 
 	/// <summary>
 	/// Run the depth chain, contact shadows and AO on the async compute queue, beside SSR and shadow rendering.
