@@ -218,13 +218,14 @@ internal sealed class NativeOcclusionCull : IDisposable
 		dispatchArgs = null;
 	}
 
-	// The capacity-sized buffers. The render device frees them once the GPU is done with them
+	// The capacity-sized buffers. Resize runs from Setup, which isn't on the main thread, so Dispose() would throw before
+	// freeing any of them while capacity already said they were bigger. The render device frees them once the GPU is done
 	void DisposeCullBuffers()
 	{
-		instances?.Dispose();
-		runs?.Dispose();
-		args?.Dispose();
-		culledIds?.Dispose();
+		instances?.DisposeAnyThread();
+		runs?.DisposeAnyThread();
+		args?.DisposeAnyThread();
+		culledIds?.DisposeAnyThread();
 		instances = null;
 		runs = null;
 		args = null;

@@ -173,6 +173,16 @@ public partial class GpuBuffer : IValid, IDisposable
 		GC.SuppressFinalize( this );
 	}
 
+	/// <summary>
+	/// <see cref="Dispose()"/> for callers off the main thread, like the native render pipeline's setup callbacks. The
+	/// native buffer is destroyed on the main thread either way.
+	/// </summary>
+	internal void DisposeAnyThread()
+	{
+		Dispose( true );
+		GC.SuppressFinalize( this );
+	}
+
 	void Dispose( bool disposing )
 	{
 		RenderBufferHandle_t copy;
