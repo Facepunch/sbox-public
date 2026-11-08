@@ -293,26 +293,56 @@ public class TerrainMaterialList : ListView
 		set { field = value; BuildItems(); }
 	}
 
-	/// <summary>
-	/// Rows shown before the list starts scrolling.
-	/// </summary>
-	const int MaxVisibleRows = 4;
+	const int MinVisibleRows = 2;
+	const int FallbackVisibleRows = 4;
 
 	/// <summary>
-	/// Grow with the items up to <see cref="MaxVisibleRows"/>, then scroll.
+	/// Height of <paramref name="rows"/> rows including margins.
 	/// </summary>
-	protected override void LayoutScrollbar()
+	float RowsHeight( int rows ) => rows * ItemSize.y + Math.Max( 0, rows - 1 ) * ItemSpacing.y + (Height - CanvasRect.Height);
+
+	/// <summary>
+	/// Take the empty space left at the bottom of the inspector, giving it back when the inspector starts scrolling.
+	/// Never taller than all the items, never shorter than <see cref="MinVisibleRows"/>; past that the list scrolls.
+	/// </summary>
+	[EditorEvent.Frame]
+	void FitHeight()
 	{
+		if ( !IsValid || !Visible || Width <= 0 ) return;
+
 		var perRow = Math.Max( 1, ((CanvasRect.Width + ItemSpacing.x) / (ItemSize.x + ItemSpacing.x)).FloorToInt() );
-		var rows = Math.Clamp( (Items.Count() + perRow - 1) / perRow, 1, MaxVisibleRows );
-		var height = MathF.Ceiling( rows * ItemSize.y + (rows - 1) * ItemSpacing.y + (Height - CanvasRect.Height) );
+		var rows = Math.Max( 1, (Items.Count() + perRow - 1) / perRow );
+		var content = RowsHeight( rows );
+		var minimum = RowsHeight( Math.Min( rows, MinVisibleRows ) );
 
-		// Only on change: a new height relayouts the widget, which lands back here
-		if ( MathF.Abs( FixedHeight - height ) > 0.5f )
-			FixedHeight = height;
+		float target;
+		Widget scroll = Parent;
+		while ( scroll is not null && scroll is not ScrollArea ) scroll = scroll.Parent;
 
-		base.LayoutScrollbar();
+		if ( scroll is ScrollArea { Canvas: { } canvas } && canvas.Parent is { } viewport )
+		{
+			// Measured from the last child, not the canvas: the canvas stretches to the viewport and toggles size
+			// with the scrollbar, the bottom of the content doesn't
+			var bottom = canvas.Children.Where( c => c.Visible ).Select( c => c.Position.y + c.Height ).DefaultIfEmpty( canvas.Height ).Max();
+			target = Height + (viewport.Height - bottom) - 16;
+		}
+		else
+		{
+			target = RowsHeight( Math.Min( rows, FallbackVisibleRows ) );
+		}
+
+		target = MathF.Ceiling( Math.Clamp( target, minimum, content ) );
+
+		// Each new height relayouts the inspector a frame or more later: wait for it before measuring again,
+		// and ignore small differences so it can't hunt
+		if ( _sinceFit < 0.25f || MathF.Abs( FixedHeight - target ) <= 4 )
+			return;
+
+		FixedHeight = target;
+		_sinceFit = 0;
 	}
+
+	RealTimeSince _sinceFit;
 
 	double[] _coverage;
 	uint[] _coverageSource;
