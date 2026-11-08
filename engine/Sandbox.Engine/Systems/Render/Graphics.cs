@@ -131,6 +131,30 @@ public static partial class Graphics
 	public static Vector3 CameraPosition => CameraTransform.Position;
 
 	/// <summary>
+	/// Planes of the volume that can cast a shadow onto anything the camera sees, for the shadow view being rendered:
+	/// the camera's visible range swept toward a sun, or closed up at a point or spot light. A caster entirely outside
+	/// it can't shadow anything on screen, so a custom object drawing into a shadow map can skip it - what clutter's
+	/// GPU culling does. Call it from <see cref="SceneCustomObject.RenderSceneObject"/>.
+	/// <para>
+	/// Each plane is <c>xyz</c> = inward unit normal, <c>w</c> = -distance, so <c>dot( xyz, p ) + w</c> is the signed
+	/// distance of <c>p</c> from the plane, positive inside. A sphere of radius <c>r</c> is outside when that is below
+	/// <c>-r</c> for any plane. At most 12 planes; a shorter span only gives a looser volume, never a wrong one.
+	/// </para>
+	/// </summary>
+	/// <param name="planes">Filled with the planes, up to its length.</param>
+	/// <returns>How many planes were written. 0 when this isn't a shadow view, the light has no volume, or caster culling
+	/// is off (<c>r.shadows.castercull</c>) - cull nothing then.</returns>
+	public static int GetShadowCasterPlanes( Span<Vector4> planes )
+	{
+		if ( !IsActive || LayerType != SceneLayerType.Shadow ) return 0;
+		if ( Rendering.ShadowMapper.FindCasterVolume( CameraPosition ) is not { } volume ) return 0;
+
+		int count = Math.Min( volume.PlaneCount, planes.Length );
+		volume.Planes.AsSpan( 0, count ).CopyTo( planes );
+		return count;
+	}
+
+	/// <summary>
 	/// The camera rotation of the currently rendering view
 	/// </summary>
 	public static Rotation CameraRotation => CameraTransform.Rotation;

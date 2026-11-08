@@ -29,6 +29,11 @@ public sealed partial class ClutterComponent
 	/// </summary>
 	private int _totalVolumeTiles;
 
+	/// <summary>
+	/// Volume tiles are still being scattered.
+	/// </summary>
+	internal bool Generating => _pendingVolumeTiles > 0;
+
 	private Editor.IProgressSection _progressSection;
 
 	[Button( "Generate" )]
