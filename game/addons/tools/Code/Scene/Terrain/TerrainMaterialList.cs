@@ -13,11 +13,11 @@ public class TerrainMaterialList : ListView
 		ItemContextMenu = ShowItemContext;
 		ItemSelected = OnItemClicked;
 		ItemActivated = OnItemDoubleClicked;
-		ItemSpacing = 8;
+		ItemSpacing = 4;
 		AcceptDrops = true;
 		SetSizeMode( SizeMode.Expand, SizeMode.Flexible );
 
-		ItemSize = new Vector2( 68, 68 + 50 );
+		ItemSize = new Vector2( 64, ThumbHeight + 4 + LineHeight * 3 + 2 );
 		ItemAlign = Sandbox.UI.Align.FlexStart;
 		Margin = 8;
 
@@ -244,9 +244,69 @@ public class TerrainMaterialList : ListView
 		BuildItems();
 	}
 
+	public enum ViewMode
+	{
+		[Title( "Slot Order" )] Slot,
+		[Title( "Most Used" )] MostUsed,
+		[Title( "Least Used" )] LeastUsed,
+		[Title( "Largest VRAM" )] LargestVram,
+		[Title( "Unused Only" )] UnusedOnly,
+	}
+
+	/// <summary>
+	/// How the list is ordered or filtered. Only changes what's shown: slots, painting and drag reordering use the
+	/// material list itself.
+	/// </summary>
+	public ViewMode View
+	{
+		get;
+		set { field = value; BuildItems(); }
+	}
+
 	public void BuildItems()
 	{
-		SetItems( Terrain.Storage.Materials.Cast<object>() );
+		var materials = Terrain.Storage.Materials;
+		var coverage = GetCoverage();
+		double Used( TerrainMaterial m ) => coverage is not null && materials.IndexOf( m ) is var i and >= 0 && i < coverage.Length ? coverage[i] : 0;
+
+		IEnumerable<TerrainMaterial> items = View switch
+		{
+			ViewMode.MostUsed => materials.OrderByDescending( Used ),
+			ViewMode.LeastUsed => materials.OrderBy( Used ),
+			ViewMode.LargestVram => materials.OrderByDescending( GetVram ),
+			ViewMode.UnusedOnly => materials.Where( m => Used( m ) <= 0 ),
+			_ => materials,
+		};
+
+		SetItems( items.Cast<object>() );
+
+		if ( Summary.IsValid() )
+			Summary.Text = $"{materials.Count} materials, VRAM {materials.Sum( GetVram ) / (1024.0 * 1024.0):0} MB";
+	}
+
+	/// <summary>
+	/// Shows the material count and their total VRAM, refreshed whenever the list is rebuilt.
+	/// </summary>
+	public Label Summary
+	{
+		get;
+		set { field = value; BuildItems(); }
+	}
+
+	/// <summary>
+	/// Grow to fit every item instead of scrolling inside the inspector.
+	/// </summary>
+	protected override void LayoutScrollbar()
+	{
+		var perRow = Math.Max( 1, ((CanvasRect.Width + ItemSpacing.x) / (ItemSize.x + ItemSpacing.x)).FloorToInt() );
+		var rows = Math.Max( 1, (Items.Count() + perRow - 1) / perRow );
+		var height = MathF.Ceiling( rows * ItemSize.y + (rows - 1) * ItemSpacing.y + (Height - CanvasRect.Height) );
+
+		// Only on change: a new height relayouts the widget, which lands back here
+		if ( MathF.Abs( FixedHeight - height ) > 0.5f )
+			FixedHeight = height;
+
+		base.LayoutScrollbar();
 	}
 
 	double[] _coverage;
@@ -306,58 +366,61 @@ public class TerrainMaterialList : ListView
 		return bytes;
 	}
 
+	// Tile layout, top to bottom: thumbnail, coverage bar, name, coverage, VRAM
+	const float ThumbHeight = 36;
+	const float LineHeight = 12;
+
 	protected override void PaintItem( VirtualWidget item )
 	{
-		var rect = item.Rect.Shrink( 0, 0, 0, 50 );
-
 		if ( item.Object is not TerrainMaterial material )
 			return;
 
-		var asset = AssetSystem.FindByPath( material.ResourcePath );
-
-		if ( asset is null )
-		{
-			// Not a local asset (e.g. from a package): no thumbnail, but name and coverage still matter
-			Paint.SetDefaultFont();
-			Paint.SetPen( Color.Red );
-			Paint.DrawText( rect.Shrink( 2 ), "<ERROR>", TextFlag.Center );
-		}
+		var r = item.Rect;
+		var thumb = new Rect( r.Left + 2, r.Top + 2, r.Width - 4, ThumbHeight - 4 );
+		var bar = new Rect( r.Left + 2, r.Top + ThumbHeight, r.Width - 4, 3 );
+		Rect Line( int i ) => new( r.Left, bar.Bottom + 1 + i * LineHeight, r.Width, LineHeight );
 
 		if ( item.Selected || Paint.HasMouseOver )
 		{
 			Paint.SetBrush( Theme.Blue.WithAlpha( item.Selected ? 0.5f : 0.2f ) );
 			Paint.ClearPen();
-			Paint.DrawRect( item.Rect, 4 );
+			Paint.DrawRect( r, 4 );
 		}
 
-		if ( item.Object is TerrainMaterial mat )
+		if ( dragOverIndex == Terrain.Storage.Materials.IndexOf( material ) )
 		{
-			var itemIndex = Terrain.Storage.Materials.IndexOf( mat );
-			if ( dragOverIndex == itemIndex )
-			{
-				Paint.SetPen( Theme.TextHighlight, 3f );
-				Paint.DrawRect( item.Rect.Shrink( 1 ), 4 );
-			}
+			Paint.SetPen( Theme.TextHighlight, 3f );
+			Paint.DrawRect( r.Shrink( 1 ), 4 );
 		}
 
-		if ( asset is not null )
-			Paint.Draw( rect.Shrink( 2 ), asset.GetAssetThumb() );
+		// Not a local asset (e.g. from a package): no thumbnail, but name and numbers still matter
+		if ( AssetSystem.FindByPath( material.ResourcePath ) is { } asset )
+		{
+			Paint.Draw( thumb, asset.GetAssetThumb() );
+		}
+		else
+		{
+			Paint.ClearPen();
+			Paint.SetBrush( Theme.ControlBackground.Lighten( 0.3f ) );
+			Paint.DrawRect( thumb, 2 );
+			Paint.SetDefaultFont( 7 );
+			Paint.SetPen( Theme.TextLight );
+			Paint.DrawText( thumb, "no thumb", TextFlag.Center );
+		}
 
-		Paint.SetDefaultFont();
+		Paint.SetDefaultFont( 7 );
 		Paint.SetPen( Theme.Text );
-		Paint.DrawText( item.Rect.Shrink( 2, 0, 2, 32 ), material.ResourceName, TextFlag.CenterBottom );
+		Paint.DrawText( Line( 0 ), material.ResourceName, TextFlag.Center );
 
 		var vram = GetVram( material );
-		Paint.SetDefaultFont( 7 );
 		Paint.SetPen( Theme.TextLight );
-		Paint.DrawText( item.Rect.Shrink( 0, 0, 0, 2 ), vram > 0 ? $"VRAM {vram / (1024.0 * 1024.0):0.#} MB" : "VRAM ?", TextFlag.CenterBottom );
+		Paint.DrawText( Line( 2 ), vram > 0 ? $"{vram / (1024.0 * 1024.0):0.#} MB" : "? MB", TextFlag.Center );
 
 		var index = Terrain.Storage.Materials.IndexOf( material );
 		var coverage = GetCoverage();
 		if ( coverage is null || index < 0 || index >= coverage.Length ) return;
 
 		var fraction = coverage[index];
-		var bar = new Rect( rect.Left + 2, rect.Bottom - 6, rect.Width - 4, 4 );
 		Paint.ClearPen();
 		Paint.SetBrush( Color.Black.WithAlpha( 0.6f ) );
 		Paint.DrawRect( bar );
@@ -370,10 +433,9 @@ public class TerrainMaterialList : ListView
 		// Terrain units are inches
 		var sizeMetres = Terrain.Storage.TerrainSize * 0.0254;
 		var km2 = fraction * sizeMetres * sizeMetres / 1e6;
-		var text = fraction <= 0 ? "unused" : fraction < 0.001 ? $"<0.1% {km2 * 1e6:N0} m²" : $"{fraction * 100:0.#}% {km2:0.##} km²";
-		Paint.SetDefaultFont( 7 );
+		var text = fraction <= 0 ? "unused" : fraction < 0.001 ? $"{km2 * 1e6:N0} m²" : $"{fraction * 100:0.#}% {km2:0.#}km²";
 		Paint.SetPen( fraction <= 0 ? Theme.Red : Theme.TextLight );
-		Paint.DrawText( item.Rect.Shrink( 0, 0, 0, 16 ), text, TextFlag.CenterBottom );
+		Paint.DrawText( Line( 1 ), text, TextFlag.Center );
 	}
 
 	protected override void OnPaint()
