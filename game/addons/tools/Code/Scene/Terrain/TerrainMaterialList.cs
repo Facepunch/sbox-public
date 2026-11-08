@@ -17,7 +17,7 @@ public class TerrainMaterialList : ListView
 		AcceptDrops = true;
 		SetSizeMode( SizeMode.Expand, SizeMode.Flexible );
 
-		ItemSize = new Vector2( 68, 68 + 36 );
+		ItemSize = new Vector2( 68, 68 + 50 );
 		ItemAlign = Sandbox.UI.Align.FlexStart;
 		Margin = 8;
 
@@ -288,9 +288,27 @@ public class TerrainMaterialList : ListView
 		return _coverage;
 	}
 
+	readonly Dictionary<TerrainMaterial, (Texture Bcr, Texture Nho, long Bytes)> _vram = [];
+
+	/// <summary>
+	/// GPU memory of the material's two generated textures at full resolution (streaming can hold less).
+	/// Cached until either texture is replaced, e.g. by a recompile.
+	/// </summary>
+	long GetVram( TerrainMaterial material )
+	{
+		if ( _vram.TryGetValue( material, out var cached ) && cached.Bcr == material.BCRTexture && cached.Nho == material.NHOTexture )
+			return cached.Bytes;
+
+		static long Size( Texture texture ) => TextureResidencyInfo.Get( texture ) is { } info ? Math.Max( info.Disk.MemorySize, info.Loaded.MemorySize ) : 0;
+
+		var bytes = Size( material.BCRTexture ) + Size( material.NHOTexture );
+		_vram[material] = (material.BCRTexture, material.NHOTexture, bytes);
+		return bytes;
+	}
+
 	protected override void PaintItem( VirtualWidget item )
 	{
-		var rect = item.Rect.Shrink( 0, 0, 0, 36 );
+		var rect = item.Rect.Shrink( 0, 0, 0, 50 );
 
 		if ( item.Object is not TerrainMaterial material )
 			return;
@@ -327,7 +345,12 @@ public class TerrainMaterialList : ListView
 
 		Paint.SetDefaultFont();
 		Paint.SetPen( Theme.Text );
-		Paint.DrawText( item.Rect.Shrink( 2, 0, 2, 18 ), material.ResourceName, TextFlag.CenterBottom );
+		Paint.DrawText( item.Rect.Shrink( 2, 0, 2, 32 ), material.ResourceName, TextFlag.CenterBottom );
+
+		var vram = GetVram( material );
+		Paint.SetDefaultFont( 7 );
+		Paint.SetPen( Theme.TextLight );
+		Paint.DrawText( item.Rect.Shrink( 0, 0, 0, 2 ), vram > 0 ? $"VRAM {vram / (1024.0 * 1024.0):0.#} MB" : "VRAM ?", TextFlag.CenterBottom );
 
 		var index = Terrain.Storage.Materials.IndexOf( material );
 		var coverage = GetCoverage();
@@ -350,7 +373,7 @@ public class TerrainMaterialList : ListView
 		var text = fraction <= 0 ? "unused" : fraction < 0.001 ? $"<0.1% {km2 * 1e6:N0} m²" : $"{fraction * 100:0.#}% {km2:0.##} km²";
 		Paint.SetDefaultFont( 7 );
 		Paint.SetPen( fraction <= 0 ? Theme.Red : Theme.TextLight );
-		Paint.DrawText( item.Rect.Shrink( 0, 0, 0, 2 ), text, TextFlag.CenterBottom );
+		Paint.DrawText( item.Rect.Shrink( 0, 0, 0, 16 ), text, TextFlag.CenterBottom );
 	}
 
 	protected override void OnPaint()
