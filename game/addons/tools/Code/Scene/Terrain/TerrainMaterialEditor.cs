@@ -7,6 +7,9 @@ class TerrainMaterialEditor : BaseResourceEditor<TerrainMaterial>
 {
 	SerializedObject Object;
 	TerrainMaterial _material;
+	Asset _asset;
+	RealTimeSince _sinceChange;
+	bool _thumbDirty;
 	Label _size;
 	Texture _sizeBcr, _sizeNho;
 
@@ -29,6 +32,7 @@ class TerrainMaterialEditor : BaseResourceEditor<TerrainMaterial>
 
 		// Resolution and GPU memory of the two generated textures, so a heavy material stands out
 		_material = resource;
+		_asset = asset;
 		_size = new Label( null );
 		_size.SetStyles( $"color: {Theme.TextLight.Hex}; padding: 0px 12px 8px 12px;" );
 		Layout.Add( _size );
@@ -44,6 +48,10 @@ class TerrainMaterialEditor : BaseResourceEditor<TerrainMaterial>
 			TryAutoFill( p );
 			NoteChanged( p );
 			UpdateChannels( channels, resource );
+
+			// The thumbnail is the 3D preview the paint palette shows: rebuild it once the slider settles
+			_thumbDirty = true;
+			_sinceChange = 0;
 
 			// Cascade to all terrains, feel free to code a TerrainMaterial modified -> TerrainStorage -> Terrain event chain
 			UpdateSceneTerrain();
@@ -68,6 +76,13 @@ class TerrainMaterialEditor : BaseResourceEditor<TerrainMaterial>
 	void UpdateSize()
 	{
 		if ( !_size.IsValid() || _material is null ) return;
+
+		if ( _thumbDirty && _sinceChange > 0.5f )
+		{
+			_thumbDirty = false;
+			_asset?.RebuildThumbnail();
+		}
+
 		if ( _sizeBcr == _material.BCRTexture && _sizeNho == _material.NHOTexture ) return;
 
 		_sizeBcr = _material.BCRTexture;

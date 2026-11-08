@@ -490,7 +490,13 @@ public class TerrainMaterialList : ListView
 			Paint.DrawRect( r.Shrink( 1 ), 4 );
 		}
 
-		if ( GetSwatch( material ) is { } swatch )
+		// The palette shows the lit sphere preview, so roughness and normals read; package materials have no
+		// local asset to render one, and fall back to the flat swatch
+		if ( Palette && AssetSystem.FindByPath( material.ResourcePath )?.GetAssetThumb() is { } preview )
+		{
+			Paint.Draw( thumb, preview );
+		}
+		else if ( GetSwatch( material ) is { } swatch )
 		{
 			Paint.Draw( thumb, swatch );
 		}
