@@ -163,7 +163,7 @@ internal sealed class VolumetricFog : IDisposable
 		device.Clear( fogVolume, Color.Transparent );
 
 		computeShader ??= RenderHost.Current.Device.LoadMaterial( "materials/dev/cs_volumetric_fog.vmat" );
-		if ( constantBuffer == IntPtr.Zero ) constantBuffer = RenderContext.CreateConstantBuffer( System.Runtime.CompilerServices.Unsafe.SizeOf<Constants>() );
+		if ( constantBuffer == IntPtr.Zero ) constantBuffer = GpuContext.CreateConstantBuffer( System.Runtime.CompilerServices.Unsafe.SizeOf<Constants>() );
 	}
 
 	static GpuTexture MakeVolume( string name ) => RenderHost.Current.Device.CreateTexture( TextureDesc.Volume( Width, Height, Depth, TextureFormat.RGBA16161616F ) with { Storage = true }, $"Basalt {name}" );
@@ -176,7 +176,7 @@ internal sealed class VolumetricFog : IDisposable
 		fogVolume?.Dispose();
 		lighting = fogVolume = accumulated[0] = accumulated[1] = null;
 
-		if ( constantBuffer != IntPtr.Zero ) RenderContext.DestroyConstantBuffer( constantBuffer );
+		if ( constantBuffer != IntPtr.Zero ) GpuContext.DestroyConstantBuffer( constantBuffer );
 		constantBuffer = IntPtr.Zero;
 	}
 
@@ -207,7 +207,7 @@ internal sealed class VolumetricFog : IDisposable
 	/// <summary>
 	/// <c>CVolumetricFogRenderer::Render</c>: the constants for this view, then the lighting and integrate passes over the froxels.
 	/// </summary>
-	public void Render( RenderContext rc, RenderView view, List<FogVolume> volumes )
+	public void Render( GpuContext rc, RenderView view, List<FogVolume> volumes )
 	{
 		if ( renderingDisabled ) return;
 

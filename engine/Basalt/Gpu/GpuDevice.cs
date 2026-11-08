@@ -60,4 +60,39 @@ public abstract class GpuDevice
 	/// A new material for a shader, owned by the caller. Main thread only, outside rendering.
 	/// </summary>
 	public abstract GpuMaterial CreateMaterial( string name, string shaderPath );
+
+	/// <summary>
+	/// A frame context, or a segment context recording one of <paramref name="frame"/>'s segments.
+	/// </summary>
+	internal abstract Gpu.GpuContext CreateContext( Gpu.GpuContext frame = null );
+
+	/// <summary>Whether the device has an async compute queue.</summary>
+	public abstract bool SupportsAsyncCompute { get; }
+
+	/// <summary>Whether the device can take an indirect draw count from a buffer.</summary>
+	public abstract bool SupportsDrawIndirectCount { get; }
+
+	/// <summary>Allocate vertex-cache space this frame and return its first vertex.</summary>
+	public abstract int AllocateVertexCache( int vertices );
+
+	/// <summary>Where a queued morph is in the atlas once generated: u offset, u range, v offset, v range.</summary>
+	public abstract Vector4 MorphSubrect( int handle );
+
+	/// <summary>Start a frame's submission, naming the swap chain it ends up in for its GPU timing.</summary>
+	public abstract void BeginSubmitting( GpuSwapChain swapChain );
+
+	/// <summary>Tag the next submissions, so a profiler can pair GPU work with the frame that made it; 0 for none.</summary>
+	public abstract void SetSubmitTag( ulong tag );
+
+	/// <summary>The time shaders see this frame.</summary>
+	public abstract float RenderTime { get; }
+
+	/// <summary>A zeroed constant buffer beyond per-frame limits. Free with <see cref="DestroyConstantBuffer"/>.</summary>
+	public abstract IntPtr CreateConstantBuffer( int size );
+
+	/// <summary>Free a buffer from <see cref="CreateConstantBuffer"/>.</summary>
+	public abstract void DestroyConstantBuffer( IntPtr buffer );
+
+	/// <summary>Samples per pixel of a swap chain's colour buffer.</summary>
+	public abstract int SwapChainSamples( GpuSwapChain swapChain );
 }

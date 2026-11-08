@@ -31,7 +31,7 @@ internal class GameOverlayLayer : MeshLayer
 	/// <summary>
 	/// Bind overlay depth and matching view constants so shaders select the correct light clusters.
 	/// </summary>
-	public override void Begin( RenderFrame frame, RenderContext rc, ViewPass view, bool start )
+	public override void Begin( RenderFrame frame, GpuContext rc, ViewPass view, bool start )
 	{
 		frame.BeginPass( rc, frame.Target( rc, color: true, final: false ) with { MinZ = 1 - DepthRange, MaxZ = 1 } );
 	}

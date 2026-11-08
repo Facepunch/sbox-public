@@ -25,7 +25,7 @@ internal sealed class DecalLayer : MeshLayer
 	/// <summary>
 	/// Bind colour and expose depth for sampling.
 	/// </summary>
-	public override void Begin( RenderFrame frame, RenderContext rc, ViewPass view, bool start )
+	public override void Begin( RenderFrame frame, GpuContext rc, ViewPass view, bool start )
 	{
 		var target = frame.Output.Target;
 		frame.BeginPass( rc, frame.Target( rc, color: true, final: false ) with { Depth = default } );

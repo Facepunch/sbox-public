@@ -17,7 +17,7 @@ internal sealed class BridgeCustomObject : CustomObject
 	/// </summary>
 	[ThreadStatic] static Graphics.ManagedView threadView;
 
-	internal override void Render( RenderContext context, ViewPass view, MeshLayer layer )
+	internal override void Render( GpuContext context, ViewPass view, MeshLayer layer )
 	{
 		if ( !Source.IsValid() ) return;
 
@@ -29,19 +29,19 @@ internal sealed class BridgeCustomObject : CustomObject
 		graphicsView.RenderSceneObject = frameView?.RenderSceneObject;
 
 		var bound = context.Bound;
-		var native = context.Native;
+		var native = context.NativeContext();
 
 		// Inherit frame attributes.
 		native.GetAttributesPtrForModify().SetParent( context.Attributes.Engine().Get() );
 
-		graphicsView.Color = bound.Color;
-		graphicsView.Depth = bound.Depth;
+		graphicsView.Color = bound.Color.Native();
+		graphicsView.Depth = bound.Depth.Native();
 		graphicsView.DepthSlice = bound.DepthSlice;
 		graphicsView.SrgbWrite = bound.SrgbWrite;
 		graphicsView.Viewport = bound.Viewport;
 		graphicsView.MinZ = bound.MinZ;
 		graphicsView.MaxZ = bound.MaxZ;
-		graphicsView.ColorFormat = bound.ColorFormat;
+		graphicsView.ColorFormat = Source2Formats.ToEngineOrDefault( bound.ColorFormat );
 		graphicsView.Msaa = bound.Samples switch
 		{
 			2 => MultisampleAmount.Multisample2x,

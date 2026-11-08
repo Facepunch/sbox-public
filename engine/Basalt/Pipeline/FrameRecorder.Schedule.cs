@@ -2,9 +2,9 @@ namespace Basalt;
 
 internal sealed partial class FrameRecorder
 {
-	sealed class ComputeBatch( RenderContext frame ) : IDisposable
+	sealed class ComputeBatch( GpuContext frame ) : IDisposable
 	{
-		public readonly RenderContext Context = new( frame );
+		public readonly GpuContext Context = RenderHost.Current.Device.CreateContext( frame );
 		public int From, Count;
 
 		public void Dispose() => Context.Dispose();
@@ -24,7 +24,7 @@ internal sealed partial class FrameRecorder
 		_computeBatchCount = 0;
 		for ( int l = 0; l < layerCount; )
 		{
-			if ( !CanUseCompute( l ) || !parallel || !asyncCompute || !RenderContext.SupportsAsyncCompute )
+			if ( !CanUseCompute( l ) || !parallel || !asyncCompute || !GpuContext.SupportsAsyncCompute )
 			{
 				AddGraphicsLayer( l++, maxSegments );
 				continue;

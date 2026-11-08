@@ -26,7 +26,7 @@ public class EffectsTests
 			Transform = new Transform( position );
 		}
 
-		internal override void Render( RenderContext context, ViewPass view, MeshLayer layer ) { }
+		internal override void Render( GpuContext context, ViewPass view, MeshLayer layer ) { }
 	}
 
 	[TestMethod]

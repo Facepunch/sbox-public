@@ -19,7 +19,7 @@ public class AsyncPostProcessTests
 	}
 
 	// Plan without loading native. Restore the device capability cache so other tests keep their normal environment.
-	static readonly FieldInfo AsyncSupport = typeof( RenderContext ).GetField( "supportsAsyncCompute", BindingFlags.Static | BindingFlags.NonPublic );
+	static readonly FieldInfo AsyncSupport = typeof( Basalt.Gpu.Source2.Source2Device ).GetField( "supportsAsyncCompute", BindingFlags.Instance | BindingFlags.NonPublic );
 	static readonly FieldInfo Segments = typeof( FrameRecorder ).GetField( "segments", BindingFlags.Instance | BindingFlags.NonPublic );
 
 	static int WaitFor( FrameRecorder recorder, int index )
@@ -39,11 +39,11 @@ public class AsyncPostProcessTests
 	[DataRow( true, false, true, true, 0, 1 )]
 	public void WaitsForDepthBeforeReflectionsAndAllComputeBeforeNormalHooks( bool reflections, bool enabled, bool parallel, bool supported, int computeSegments, int objects )
 	{
-		var previousSupport = AsyncSupport.GetValue( null );
+		var previousSupport = AsyncSupport.GetValue( Basalt.Gpu.Source2.Source2Device.Instance );
 		var previousEnabled = ManagedSceneRendering.AsyncCompute;
 		try
 		{
-			AsyncSupport.SetValue( null, supported );
+			AsyncSupport.SetValue( Basalt.Gpu.Source2.Source2Device.Instance, supported );
 			ManagedSceneRendering.AsyncCompute = enabled;
 			var world = new RenderWorld();
 			for ( int i = 0; i < objects; i++ )
@@ -82,7 +82,7 @@ public class AsyncPostProcessTests
 		}
 		finally
 		{
-			AsyncSupport.SetValue( null, previousSupport );
+			AsyncSupport.SetValue( Basalt.Gpu.Source2.Source2Device.Instance, previousSupport );
 			ManagedSceneRendering.AsyncCompute = previousEnabled;
 		}
 	}

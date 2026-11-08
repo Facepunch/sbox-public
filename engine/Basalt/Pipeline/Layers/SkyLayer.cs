@@ -13,7 +13,7 @@ internal sealed class SkyLayer : RenderLayer
 	public override bool IsNeeded( RenderFrame frame ) => frame.System.DrawSky && frame.Skybox is null && RenderSystem.ShowsSkies( frame.View )
 		&& frame.World.Lighting.SkyMaterial is not null;
 
-	public override void Record( RenderFrame frame, RenderContext rc, ref RenderStats stats )
+	public override void Record( RenderFrame frame, GpuContext rc, ref RenderStats stats )
 	{
 		// Match view constants to the far-plane depth range.
 		frame.BeginPass( rc, frame.Target( rc, color: true, final: false ) with { MinZ = 0, MaxZ = 0 } );

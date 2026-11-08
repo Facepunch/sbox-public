@@ -39,12 +39,12 @@ internal abstract class RenderFeature
 	/// <summary>
 	/// Finalize transforms using native calls forbidden during Prepare, such as vertex-cache allocation.
 	/// </summary>
-	internal virtual void BeforeUpload( RenderContext context, TransformBuffer transforms ) { }
+	internal virtual void BeforeUpload( GpuContext context, TransformBuffer transforms ) { }
 
 	/// <summary>
 	/// Upload and dispatch before render passes, with main-view constants set.
 	/// </summary>
-	internal virtual void Setup( RenderContext context, RenderWorld world, ViewPass view ) { }
+	internal virtual void Setup( GpuContext context, RenderWorld world, ViewPass view ) { }
 
 	/// <summary>
 	/// Number of runs available for this view and layer: what <see cref="Draw"/> ranges index. A feature picks its unit; meshes
@@ -60,7 +60,7 @@ internal abstract class RenderFeature
 	/// <summary>
 	/// Record a prepared run range. May run concurrently when <see cref="CanRecordOffMainThread"/> permits.
 	/// </summary>
-	internal virtual void Draw( RenderContext context, ViewPass view, MeshLayer layer, int first, int count, ref RenderStats stats ) { }
+	internal virtual void Draw( GpuContext context, ViewPass view, MeshLayer layer, int first, int count, ref RenderStats stats ) { }
 
 	/// <summary>
 	/// Whether recording avoids engine code that requires the main thread.

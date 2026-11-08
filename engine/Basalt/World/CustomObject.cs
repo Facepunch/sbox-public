@@ -46,5 +46,5 @@ public abstract class CustomObject : RenderObject
 	/// <summary>
 	/// Draw with frame targets bound. Targets are restored afterward.
 	/// </summary>
-	internal abstract void Render( RenderContext context, ViewPass view, MeshLayer layer );
+	internal abstract void Render( GpuContext context, ViewPass view, MeshLayer layer );
 }

@@ -203,7 +203,7 @@ internal sealed partial class LightBinnerFeature : RenderFeature
 	/// <summary>
 	/// Upload lights and dispatch clustering before any render pass.
 	/// </summary>
-	internal override void Setup( RenderContext context, RenderWorld world, ViewPass pass )
+	internal override void Setup( GpuContext context, RenderWorld world, ViewPass pass )
 	{
 		EnsureResources();
 
@@ -249,22 +249,22 @@ internal sealed partial class LightBinnerFeature : RenderFeature
 
 		// Write-after-read needs only an execution dependency on previous-frame readers: shading, and particle lighting in compute.
 		foreach ( var buffer in ClusterBuffers() )
-			context.BufferBarrier( buffer, RenderBarrierPipelineStageFlags_t.FragmentShaderBit | RenderBarrierPipelineStageFlags_t.ComputeShaderBit, 0, RenderBarrierPipelineStageFlags_t.ComputeShaderBit, RenderBarrierAccessFlags_t.ShaderWriteBit );
+			context.BufferBarrier( buffer, GpuStage.FragmentShader | GpuStage.ComputeShader, 0, GpuStage.ComputeShader, GpuAccess.ShaderWrite );
 
-		context.BufferBarrier( lightBuffer, RenderBarrierPipelineStageFlags_t.TransferBit, RenderBarrierAccessFlags_t.TransferWriteBit,
-			RenderBarrierPipelineStageFlags_t.ComputeShaderBit | RenderBarrierPipelineStageFlags_t.FragmentShaderBit, RenderBarrierAccessFlags_t.ShaderReadBit );
-		context.BufferBarrier( envMapBuffer, RenderBarrierPipelineStageFlags_t.TransferBit, RenderBarrierAccessFlags_t.TransferWriteBit,
-			RenderBarrierPipelineStageFlags_t.ComputeShaderBit | RenderBarrierPipelineStageFlags_t.FragmentShaderBit, RenderBarrierAccessFlags_t.ShaderReadBit );
-		context.BufferBarrier( decalBuffer, RenderBarrierPipelineStageFlags_t.TransferBit, RenderBarrierAccessFlags_t.TransferWriteBit,
-			RenderBarrierPipelineStageFlags_t.ComputeShaderBit | RenderBarrierPipelineStageFlags_t.FragmentShaderBit, RenderBarrierAccessFlags_t.ShaderReadBit );
-		context.BufferBarrier( decalExtraBuffer, RenderBarrierPipelineStageFlags_t.TransferBit, RenderBarrierAccessFlags_t.TransferWriteBit,
-			RenderBarrierPipelineStageFlags_t.FragmentShaderBit, RenderBarrierAccessFlags_t.ShaderReadBit );
+		context.BufferBarrier( lightBuffer, GpuStage.Transfer, GpuAccess.TransferWrite,
+			GpuStage.ComputeShader | GpuStage.FragmentShader, GpuAccess.ShaderRead );
+		context.BufferBarrier( envMapBuffer, GpuStage.Transfer, GpuAccess.TransferWrite,
+			GpuStage.ComputeShader | GpuStage.FragmentShader, GpuAccess.ShaderRead );
+		context.BufferBarrier( decalBuffer, GpuStage.Transfer, GpuAccess.TransferWrite,
+			GpuStage.ComputeShader | GpuStage.FragmentShader, GpuAccess.ShaderRead );
+		context.BufferBarrier( decalExtraBuffer, GpuStage.Transfer, GpuAccess.TransferWrite,
+			GpuStage.FragmentShader, GpuAccess.ShaderRead );
 
 		// One thread per cluster - the dispatch divides by the shader's 4x4x4 group size, which grouped culling relies on (64 threads = two mask words)
 		context.Dispatch( cullingShader, ClusterCountX, ClusterCountY, ClusterCountZ );
 
 		foreach ( var buffer in ClusterBuffers() )
-			context.BufferBarrier( buffer, RenderBarrierPipelineStageFlags_t.ComputeShaderBit, RenderBarrierAccessFlags_t.ShaderWriteBit, RenderBarrierPipelineStageFlags_t.FragmentShaderBit | RenderBarrierPipelineStageFlags_t.ComputeShaderBit, RenderBarrierAccessFlags_t.ShaderReadBit );
+			context.BufferBarrier( buffer, GpuStage.ComputeShader, GpuAccess.ShaderWrite, GpuStage.FragmentShader | GpuStage.ComputeShader, GpuAccess.ShaderRead );
 	}
 
 	GpuBuffer[] clusterBuffers;

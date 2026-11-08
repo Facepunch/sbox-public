@@ -15,7 +15,7 @@ internal readonly struct RenderOutput
 	/// <summary>
 	/// Optional swap-chain destination.
 	/// </summary>
-	public SwapChainHandle_t SwapChain { get; init; }
+	public GpuSwapChain SwapChain { get; init; }
 
 	/// <summary>
 	/// Optional texture destination for the HDR copy.
@@ -31,7 +31,7 @@ internal readonly struct RenderOutput
 	/// <summary>
 	/// Whether the target is copied into a swap chain or texture at the end.
 	/// </summary>
-	public bool HasCopy => (IntPtr)SwapChain != IntPtr.Zero || Texture is not null;
+	public bool HasCopy => SwapChain.IsValid || Texture is not null;
 
 	/// <summary>
 	/// Full target size in pixels.
@@ -46,7 +46,7 @@ internal readonly struct RenderOutput
 	/// <summary>
 	/// A swap chain frame: drawn into the render system's HDR target, then copied in.
 	/// </summary>
-	public static RenderOutput ForSwapChain( ViewTarget hdr, SwapChainHandle_t swapChain ) => new() { Target = hdr, SwapChain = swapChain };
+	public static RenderOutput ForSwapChain( ViewTarget hdr, GpuSwapChain swapChain ) => new() { Target = hdr, SwapChain = swapChain };
 
 	/// <summary>
 	/// A frame into a texture: drawn into an HDR target, then copied in.
@@ -58,5 +58,5 @@ internal readonly struct RenderOutput
 	/// <summary>
 	/// Native swap-chain multisample type.
 	/// </summary>
-	public static RenderMultisampleType SwapChainMultisample( SwapChainHandle_t swapChain ) => g_pRenderDevice.GetSwapChainInfo( swapChain ).m_nMultisampleType;
+	public static int SwapChainSamples( GpuSwapChain swapChain ) => RenderHost.Current.Device.SwapChainSamples( swapChain );
 }

@@ -54,13 +54,13 @@ internal abstract class RenderLayer
 	/// Recorded on the main thread into a graphics context submitted before the batch. Only external inputs may be
 	/// transitioned here; inputs made by earlier compute layers are made readable by those layers when recorded.
 	/// </summary>
-	public virtual void HandOff( RenderFrame frame, RenderContext rc ) { }
+	public virtual void HandOff( RenderFrame frame, GpuContext rc ) { }
 
 	/// <summary>
 	/// A compute layer's graphics work after it, recorded by the first segment that waits for it, maybe on a
 	/// worker thread: barriers through <paramref name="rc"/> only.
 	/// </summary>
-	public virtual void TakeBack( RenderFrame frame, RenderContext rc ) { }
+	public virtual void TakeBack( RenderFrame frame, GpuContext rc ) { }
 
 	/// <summary>
 	/// Add this layer or its child frame's layers before setup. Called only when needed.
@@ -75,13 +75,13 @@ internal abstract class RenderLayer
 	/// <summary>
 	/// Record frame-wide prerequisites after setup, before any segment.
 	/// </summary>
-	public virtual void BeforeSegments( RenderFrame frame, RenderContext frameContext ) { }
+	public virtual void BeforeSegments( RenderFrame frame, GpuContext frameContext ) { }
 
 	/// <summary>
 	/// Record on the main thread with the frame's view constants. Bind targets with <see cref="RenderFrame.BeginPass"/>;
 	/// pass combos are reset afterward.
 	/// </summary>
-	public virtual void Record( RenderFrame frame, RenderContext rc, ref RenderStats stats ) { }
+	public virtual void Record( RenderFrame frame, GpuContext rc, ref RenderStats stats ) { }
 
 	/// <summary>
 	/// Release owned native resources.

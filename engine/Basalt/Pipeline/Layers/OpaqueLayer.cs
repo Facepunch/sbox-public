@@ -15,7 +15,7 @@ internal sealed class OpaqueLayer : MeshLayer
 		OcclusionPhase = OcclusionPhase.Final;
 	}
 
-	public override void Begin( RenderFrame frame, RenderContext rc, ViewPass view, bool start )
+	public override void Begin( RenderFrame frame, GpuContext rc, ViewPass view, bool start )
 	{
 		frame.BindFrame( rc );
 

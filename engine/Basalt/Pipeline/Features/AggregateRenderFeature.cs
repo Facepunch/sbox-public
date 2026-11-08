@@ -152,14 +152,14 @@ internal sealed class AggregateRenderFeature : RenderFeature
 	/// <summary>
 	/// Upload the frame's args, after every view has prepared.
 	/// </summary>
-	internal override void Setup( RenderContext context, RenderWorld world, ViewPass view )
+	internal override void Setup( GpuContext context, RenderWorld world, ViewPass view )
 	{
 		// On the main thread: draws may record on worker threads, where materials can't be made
 		depthOnlyMaterial ??= RenderHost.Current.Device.LoadMaterial( MeshRenderFeature.DepthOnlyMaterial );
 
 		var buffer = argsRing.Upload( context, args.AsSpan( 0, argCount ) );
 		if ( argCount > 0 )
-			context.BufferBarrier( buffer, RenderBarrierPipelineStageFlags_t.TransferBit, RenderBarrierAccessFlags_t.TransferWriteBit, RenderBarrierPipelineStageFlags_t.DrawIndirectBit, RenderBarrierAccessFlags_t.IndirectCommandReadBit );
+			context.BufferBarrier( buffer, GpuStage.Transfer, GpuAccess.TransferWrite, GpuStage.DrawIndirect, GpuAccess.IndirectCommandRead );
 	}
 
 	/// <summary>
@@ -170,7 +170,7 @@ internal sealed class AggregateRenderFeature : RenderFeature
 	/// <summary>
 	/// Draw each batch as one multi-draw: its own args, or the occlusion cull's for the layer's phase.
 	/// </summary>
-	internal override void Draw( RenderContext context, ViewPass view, MeshLayer layer, int first, int count, ref RenderStats stats )
+	internal override void Draw( GpuContext context, ViewPass view, MeshLayer layer, int first, int count, ref RenderStats stats )
 	{
 		var batches = CollectionsMarshal.AsSpan( view.State<Batches>( this ).List ).Slice( first, count );
 

@@ -120,7 +120,7 @@ internal sealed partial class MeshRenderFeature
 	/// <summary>
 	/// Allocate vertex-cache blocks and finalize morph entries before upload.
 	/// </summary>
-	internal override void BeforeUpload( RenderContext context, TransformBuffer transforms )
+	internal override void BeforeUpload( GpuContext context, TransformBuffer transforms )
 	{
 		frameTransforms = transforms;
 		if ( skinJobsGeneration != transforms.Generation ) skinJobs.Clear();
@@ -131,7 +131,7 @@ internal sealed partial class MeshRenderFeature
 		{
 			ref var job = ref jobs[i];
 			var skin = job.Object.Mesh.SkinFor( job.ModelMesh );
-			job.VertexCacheOffset = RenderContext.AllocateVertexCache( skin.VertexCount );
+			job.VertexCacheOffset = GpuContext.AllocateVertexCache( skin.VertexCount );
 			transforms.SetVertexCacheOffset( job.Slot, job.VertexCacheOffset );
 
 			// Evaluate and queue morphs (FindOrAllocateTransforms).
@@ -145,14 +145,14 @@ internal sealed partial class MeshRenderFeature
 		context.GenerateMorphs();
 		for ( int i = 0; i < jobs.Length; i++ )
 		{
-			if ( jobs[i].Morphed ) transforms.SetMorphSubrect( jobs[i].Slot, RenderContext.MorphSubrect( jobs[i].Morph ) );
+			if ( jobs[i].Morphed ) transforms.SetMorphSubrect( jobs[i].Slot, GpuContext.MorphSubrect( jobs[i].Morph ) );
 		}
 	}
 
 	/// <summary>
 	/// Compute-skin uploaded transforms before any render pass.
 	/// </summary>
-	void DispatchSkinning( RenderContext context )
+	void DispatchSkinning( GpuContext context )
 	{
 		if ( skinJobs.Count == 0 || frameTransforms is null ) return;
 

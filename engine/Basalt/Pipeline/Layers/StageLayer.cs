@@ -41,7 +41,7 @@ internal sealed class StageLayer : RenderLayer
 	public override FrameResources Reads( RenderFrame frame ) => FrameResources.DepthChain | FrameResources.BloomObjects
 		| FrameResources.AmbientOcclusion | FrameResources.Reflections | FrameResources.ContactShadows | FrameResources.Untracked;
 
-	public override void Record( RenderFrame frame, RenderContext rc, ref RenderStats stats )
+	public override void Record( RenderFrame frame, GpuContext rc, ref RenderStats stats )
 	{
 		frame.RunStage( rc, Stage, Color, Final );
 	}
@@ -69,12 +69,12 @@ internal sealed class EarlyStageLayer : RenderLayer
 	public override FrameResources Writes => Queue == StageQueue.AsyncCompute ? FrameResources.AmbientOcclusion : FrameResources.Reflections;
 	public override bool SupportsAsyncCompute => Queue == StageQueue.AsyncCompute;
 
-	public override void HandOff( RenderFrame frame, RenderContext rc )
+	public override void HandOff( RenderFrame frame, GpuContext rc )
 	{
 		if ( frame.NormalsGBuffer is { } gbuffer ) rc.BarrierColorToComputeRead( gbuffer );
 	}
 
-	public override void Record( RenderFrame frame, RenderContext rc, ref RenderStats stats )
+	public override void Record( RenderFrame frame, GpuContext rc, ref RenderStats stats )
 	{
 		if ( Queue == StageQueue.AsyncCompute ? rc.AsyncCompute : frame.AsyncCompute )
 			frame.RunEarlyPostProcess( rc, Stage, Queue );
@@ -91,7 +91,7 @@ internal sealed class OutputLayer : RenderLayer
 	/// <summary>
 	/// Bind, resolve and copy the frame.
 	/// </summary>
-	public override void Record( RenderFrame frame, RenderContext rc, ref RenderStats stats )
+	public override void Record( RenderFrame frame, GpuContext rc, ref RenderStats stats )
 	{
 		frame.BindFrame( rc );
 		rc.Resolve( frame.Output );
@@ -108,7 +108,7 @@ internal sealed class OutputResolveLayer : RenderLayer
 
 	public override bool IsNeeded( RenderFrame frame ) => frame.Output.Scratch is not null;
 
-	public override void Record( RenderFrame frame, RenderContext rc, ref RenderStats stats )
+	public override void Record( RenderFrame frame, GpuContext rc, ref RenderStats stats )
 	{
 		rc.ResolveScratch( frame.Output );
 	}

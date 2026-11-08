@@ -57,9 +57,9 @@ internal sealed partial class FrameRecorder : IDisposable
 		/// <summary>Graphics preparation for the first compute segment in a batch, or -1.</summary>
 		public int HandOff;
 		public bool Signal;
-		public RenderSemaphoreHandle_t Completion;
+		public GpuSemaphore Completion;
 
-		public RenderContext Context;
+		public GpuContext Context;
 		public RenderStats Stats;
 		public double Ms;
 
@@ -127,7 +127,7 @@ internal sealed partial class FrameRecorder : IDisposable
 	int[] draws = new int[256];
 	int drawCount;
 
-	readonly List<RenderContext> contexts = new();
+	readonly List<GpuContext> contexts = new();
 	Segment[] segments = new Segment[16];
 	int segmentCount;
 
@@ -467,7 +467,7 @@ internal sealed partial class FrameRecorder : IDisposable
 	void AddSegment( SegmentKind kind, RenderFrame frame, int index, bool onMainThread, int count = 1 )
 	{
 		if ( segmentCount == segments.Length ) Array.Resize( ref segments, segments.Length * 2 );
-		if ( segmentCount == contexts.Count ) contexts.Add( new RenderContext( frame.System.FrameContext ) );
+		if ( segmentCount == contexts.Count ) contexts.Add( RenderHost.Current.Device.CreateContext( frame.System.FrameContext ) );
 		if ( segmentCount == costs.Count ) costs.Add( new List<LayerCost>() );
 		contexts[segmentCount].AsyncCompute = false;
 		segments[segmentCount] = new Segment
@@ -636,7 +636,7 @@ internal sealed partial class FrameRecorder : IDisposable
 		var rc = segment.Context;
 		var frame = segment.Frame;
 
-		var recording = RenderContext.Recording;
+		var recording = GpuContext.Recording;
 		try
 		{
 			// The async segment's graphics work first, into a context submitted just before it
@@ -646,7 +646,7 @@ internal sealed partial class FrameRecorder : IDisposable
 				var handOff = batch.Context;
 				handOff.BeginSegment( frame.System.FrameContext, null );
 				handOff.InheritViewConstants( frame.ConstantsKey );
-				RenderContext.Recording = handOff;
+				GpuContext.Recording = handOff;
 
 				// The graphics-side handoff lives outside the compute layers' own timing scopes.
 				var handOffScope = handOff.BeginGpuScope( "Async compute handoff" );
@@ -662,7 +662,7 @@ internal sealed partial class FrameRecorder : IDisposable
 			// Context command memory is thread-owned (CRenderBatchList::Start). Only fully serial frames share the first context.
 			rc.BeginSegment( frame.System.FrameContext, SeparateContexts ? null : frames[0].System.FrameContext );
 			rc.InheritViewConstants( frame.ConstantsKey );
-			RenderContext.Recording = rc;
+			GpuContext.Recording = rc;
 
 			// What the async layers left for graphics, now they're done
 			if ( segment.WaitFor >= 0 )
@@ -681,7 +681,7 @@ internal sealed partial class FrameRecorder : IDisposable
 		}
 		finally
 		{
-			RenderContext.Recording = recording;
+			GpuContext.Recording = recording;
 		}
 
 		segment.Stats = stats;
@@ -696,7 +696,7 @@ internal sealed partial class FrameRecorder : IDisposable
 	/// </summary>
 	readonly record struct CostMark( long Ticks, int Draws, long Triangles, int Binds, int SimilarBinds )
 	{
-		public static CostMark Of( RenderContext rc, in RenderStats stats )
+		public static CostMark Of( GpuContext rc, in RenderStats stats )
 		{
 			var (full, similar) = rc.MaterialBinds;
 			return new( Stopwatch.GetTimestamp(), stats.Draws + stats.DepthDraws + stats.ShadowDraws + stats.CustomDraws, stats.DrawnTriangles, full, similar );
@@ -705,7 +705,7 @@ internal sealed partial class FrameRecorder : IDisposable
 		/// <summary>
 		/// What recording <paramref name="layer"/> since this mark cost.
 		/// </summary>
-		public LayerCost Since( int layer, RenderContext rc, in RenderStats stats )
+		public LayerCost Since( int layer, GpuContext rc, in RenderStats stats )
 		{
 			var now = Of( rc, stats );
 			return new LayerCost
@@ -720,7 +720,7 @@ internal sealed partial class FrameRecorder : IDisposable
 		}
 	}
 
-	void RecordSegment( ref Segment segment, RenderContext rc, RenderFrame frame, ref RenderStats stats, List<LayerCost> layerCosts )
+	void RecordSegment( ref Segment segment, GpuContext rc, RenderFrame frame, ref RenderStats stats, List<LayerCost> layerCosts )
 	{
 		switch ( segment.Kind )
 		{
@@ -767,7 +767,7 @@ internal sealed partial class FrameRecorder : IDisposable
 	/// Submit setup and segments in order. Each compute batch waits for its graphics preparation. Graphics acquires
 	/// declared dependencies before their consumers or untracked work. Each signal has exactly one consumer.
 	/// </summary>
-	public void Submit( SwapChainHandle_t swapChain )
+	public void Submit( GpuSwapChain swapChain )
 	{
 		frames[0].System.FrameContext.Submit( swapChain );
 		for ( int f = 1; f < frames.Count; f++ )

@@ -151,12 +151,12 @@ internal abstract class MeshLayer : RenderLayer
 	/// <summary>
 	/// Bind the view's target. Clear or initialize it when <paramref name="start"/> is true.
 	/// </summary>
-	public abstract void Begin( RenderFrame frame, RenderContext rc, ViewPass view, bool start );
+	public abstract void Begin( RenderFrame frame, GpuContext rc, ViewPass view, bool start );
 
 	/// <summary>
 	/// Record the main view's unshared layer.
 	/// </summary>
-	public override void Record( RenderFrame frame, RenderContext rc, ref RenderStats stats )
+	public override void Record( RenderFrame frame, GpuContext rc, ref RenderStats stats )
 	{
 		Begin( frame, rc, frame.MainPass, start: true );
 		frame.DrawLayer( rc, this, ref stats );

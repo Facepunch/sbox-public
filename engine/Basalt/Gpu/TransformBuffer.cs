@@ -225,7 +225,7 @@ internal sealed class TransformBuffer : IDisposable
 	/// <summary>
 	/// Copy this frame's entries and instance ids to the GPU.
 	/// </summary>
-	public void Upload( RenderContext context )
+	public void Upload( GpuContext context )
 	{
 		ring.Upload( context, entries.AsSpan( 0, Count ), entries.Length );
 		idRing.Upload( context, ids.AsSpan( 0, InstanceCount ), ids.Length );

@@ -29,7 +29,7 @@ internal sealed class UploadRing<T> : IDisposable where T : unmanaged
 	/// <summary>
 	/// Copy <paramref name="data"/> into the next buffer round, growing it to fit, and make it current.
 	/// </summary>
-	public GpuBuffer<T> Upload( RenderContext context, ReadOnlySpan<T> data, int minimumCapacity = 1 )
+	public GpuBuffer<T> Upload( GpuContext context, ReadOnlySpan<T> data, int minimumCapacity = 1 )
 	{
 		frame = (frame + 1) % FramesInFlight;
 

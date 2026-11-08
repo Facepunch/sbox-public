@@ -15,7 +15,7 @@ internal sealed class ScreenSpaceReflectionsLayer : RenderLayer
 	public override FrameResources Reads( RenderFrame frame ) => FrameResources.DepthChain | FrameResources.Normals;
 	public override FrameResources Writes => FrameResources.Reflections;
 
-	public override void Record( RenderFrame frame, RenderContext rc, ref RenderStats stats )
+	public override void Record( RenderFrame frame, GpuContext rc, ref RenderStats stats )
 	{
 		frame.RunScreenSpaceReflections( rc, history: false );
 	}
@@ -31,7 +31,7 @@ internal sealed class ScreenSpaceReflectionsHistoryLayer : RenderLayer
 
 	public override bool IsNeeded( RenderFrame frame ) => frame.Stages?.ScreenSpaceReflections is not null;
 
-	public override void Record( RenderFrame frame, RenderContext rc, ref RenderStats stats )
+	public override void Record( RenderFrame frame, GpuContext rc, ref RenderStats stats )
 	{
 		frame.RunScreenSpaceReflections( rc, history: true );
 	}

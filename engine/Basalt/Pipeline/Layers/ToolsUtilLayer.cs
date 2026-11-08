@@ -24,12 +24,12 @@ internal sealed class ToolsUtilLayer : MeshLayer
 	// Translucency must blend back to front on the main thread.
 	public override bool IsShared => !translucent;
 
-	public override void Begin( RenderFrame frame, RenderContext rc, ViewPass view, bool start ) => frame.BindFrame( rc );
+	public override void Begin( RenderFrame frame, GpuContext rc, ViewPass view, bool start ) => frame.BindFrame( rc );
 
 	/// <summary>
 	/// Record without a frame-buffer copy; this layer excludes glass.
 	/// </summary>
-	public override void Record( RenderFrame frame, RenderContext rc, ref RenderStats stats )
+	public override void Record( RenderFrame frame, GpuContext rc, ref RenderStats stats )
 	{
 		var view = frame.MainPass;
 		Begin( frame, rc, view, start: true );

@@ -33,7 +33,7 @@ internal abstract class OutputOverlayLayer : MeshLayer
 	/// <summary>
 	/// Bind output colour and optional HDR depth, including the custom-object restore target.
 	/// </summary>
-	public override void Begin( RenderFrame frame, RenderContext rc, ViewPass view, bool start )
+	public override void Begin( RenderFrame frame, GpuContext rc, ViewPass view, bool start )
 	{
 		var target = frame.Target( rc, color: true, final: true );
 		if ( !WithDepth ) target = target with { Depth = default };
@@ -70,7 +70,7 @@ internal sealed class AfterUILayer : OutputOverlayLayer
 		LayerType = MeshLayerType.Translucent;
 	}
 
-	public override void Begin( RenderFrame frame, RenderContext rc, ViewPass view, bool start )
+	public override void Begin( RenderFrame frame, GpuContext rc, ViewPass view, bool start )
 	{
 		base.Begin( frame, rc, view, start );
 		rc.SetPassCombo( MeshRenderFeature.OpaqueFade, 1 );

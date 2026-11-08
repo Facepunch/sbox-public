@@ -52,4 +52,33 @@ internal sealed class Source2Device : GpuDevice
 	public override GpuMaterial MaterialFromShader( string shaderPath ) => Source2Material.From( Material.FromShader( shaderPath ) );
 
 	public override GpuMaterial CreateMaterial( string name, string shaderPath ) => Source2Material.From( Material.Create( name, shaderPath ) );
+
+	internal override GpuContext CreateContext( GpuContext frame = null ) => frame is null ? new Source2Context() : new Source2Context( frame );
+
+	public override bool SupportsAsyncCompute => supportsAsyncCompute ??= RenderDeviceManager.SupportsAsyncCompute();
+	bool? supportsAsyncCompute;
+
+	public override bool SupportsDrawIndirectCount => supportsDrawIndirectCount ??= RenderTools.SupportsDrawIndirectCount();
+	bool? supportsDrawIndirectCount;
+
+	public override int AllocateVertexCache( int vertices ) => RenderTools.AllocateVertexCache( vertices );
+
+	public override unsafe Vector4 MorphSubrect( int handle )
+	{
+		Vector4 subrect = default;
+		RenderTools.GetMorphSubrect( handle, (IntPtr)(&subrect) );
+		return subrect;
+	}
+
+	public override void BeginSubmitting( GpuSwapChain swapChain ) => g_pRenderDevice.BeginSubmittingDisplayLists( swapChain.Handle );
+
+	public override void SetSubmitTag( ulong tag ) => g_pRenderDevice.SetSubmitTag( tag );
+
+	public override float RenderTime => CSceneSystem.GetCurrentRenderTime();
+
+	public override IntPtr CreateConstantBuffer( int size ) => RenderTools.CreateConstantBuffer( size );
+
+	public override void DestroyConstantBuffer( IntPtr buffer ) => RenderTools.DestroyConstantBuffer( buffer );
+
+	public override int SwapChainSamples( GpuSwapChain swapChain ) => Source2Formats.Samples( g_pRenderDevice.GetSwapChainInfo( swapChain.Handle ).m_nMultisampleType );
 }

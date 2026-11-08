@@ -44,7 +44,7 @@ internal sealed class SceneObjectDrawer : IDisposable
 	void Draw( SceneObject sceneObject, Transform transform, Color color, Material material, RenderAttributes attributes )
 	{
 		// Require this thread's active Graphics recording context.
-		if ( RenderContext.Recording is not { } context || context.Native != Graphics.Context ) return;
+		if ( GpuContext.Recording is not { } context || context.NativeContext() != Graphics.Context ) return;
 		if ( Mirror?.Find( sceneObject ) is not MeshObject obj || obj.Mesh is not { } mesh || mesh.Geometry is null ) return;
 
 		var transforms = system.Transforms;
@@ -137,7 +137,7 @@ internal sealed class SceneObjectDrawer : IDisposable
 		outgrown.Clear();
 	}
 
-	bool WriteEntry( RenderContext context, in Matrix m, Color color )
+	bool WriteEntry( GpuContext context, in Matrix m, Color color )
 	{
 		Grow( ref entries, entryCount + 1, "Basalt drawn objects' transforms", Basalt.GpuBuffer.UsageFlags.Structured );
 
@@ -147,7 +147,7 @@ internal sealed class SceneObjectDrawer : IDisposable
 		return true;
 	}
 
-	bool WriteIds( RenderContext context, ReadOnlySpan<uint> values )
+	bool WriteIds( GpuContext context, ReadOnlySpan<uint> values )
 	{
 		Grow( ref ids, idCount + values.Length, "Basalt drawn objects' instance ids", Basalt.GpuBuffer.UsageFlags.Vertex );
 		context.UploadBuffer( ids, values, idCount * sizeof( uint ) );

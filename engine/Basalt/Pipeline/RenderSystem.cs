@@ -16,7 +16,7 @@ public sealed partial class RenderSystem : IDisposable
 
 	readonly List<RenderFeature> features = new();
 	readonly Dictionary<Type, int> featureByType = new();
-	readonly RenderContext context = new();
+	readonly GpuContext context = RenderHost.Current.Device.CreateContext();
 	readonly TransformBuffer transforms = new();
 	readonly ViewEnvironment environment = new();
 	readonly LightBinnerFeature lightBinner = new();
@@ -85,7 +85,7 @@ public sealed partial class RenderSystem : IDisposable
 	/// <summary>
 	/// Swap chain used only for GPU timing of texture renders. Must be named by the first submission.
 	/// </summary>
-	internal SwapChainHandle_t TimingSwapChain { get; set; }
+	internal GpuSwapChain TimingSwapChain { get; set; }
 
 	/// <summary>
 	/// Statistics from the last render.
@@ -136,7 +136,7 @@ public sealed partial class RenderSystem : IDisposable
 	/// <summary>
 	/// Render a view of a world into a swap chain, and submit it. The caller presents.
 	/// </summary>
-	internal void Render( RenderWorld world, RenderView view, SwapChainHandle_t swapChain, Vector2 targetSize, IRenderStages stages = null )
+	internal void Render( RenderWorld world, RenderView view, GpuSwapChain swapChain, Vector2 targetSize, IRenderStages stages = null )
 	{
 		Render( world, view, RenderOutput.ForSwapChain( SwapChainTarget( swapChain, targetSize ), swapChain ), stages );
 	}
@@ -144,10 +144,10 @@ public sealed partial class RenderSystem : IDisposable
 	/// <summary>
 	/// HDR intermediate matching swap-chain size and MSAA, with D32FS8 depth (<c>intermediate_color_stereo_rt</c>).
 	/// </summary>
-	ViewTarget SwapChainTarget( SwapChainHandle_t swapChain, Vector2 size )
+	ViewTarget SwapChainTarget( GpuSwapChain swapChain, Vector2 size )
 	{
 		var pixels = new Vector2Int( (int)size.x, (int)size.y );
-		var samples = Source2Formats.Samples( RenderOutput.SwapChainMultisample( swapChain ) );
+		var samples = RenderOutput.SwapChainSamples( swapChain );
 		if ( swapChainTarget is { } existing && existing.Size == pixels && existing.Samples == samples )
 			return existing;
 
@@ -252,7 +252,7 @@ public sealed partial class RenderSystem : IDisposable
 		recorder.Plan( frame, ParallelRecording, host.AsyncCompute );
 
 		// The dev tools's frame plan, or SceneLab's plan overlay: frames drawn into a window show their plan, published with its times
-		var plan = host.WantsFramePlan && (IntPtr)output.SwapChain != IntPtr.Zero ? recorder.Snapshot( view.Name ) : null;
+		var plan = host.WantsFramePlan && output.SwapChain.IsValid ? recorder.Snapshot( view.Name ) : null;
 		recorder.Measuring = plan is not null;
 		if ( plan is not null )
 		{
@@ -292,16 +292,16 @@ public sealed partial class RenderSystem : IDisposable
 
 			// The submission carries a tag through the render thread to the GPU's timings, so the dev tools can pair a
 			// GPU frame with the plan of the frame that made it
-			var tag = (IntPtr)output.SwapChain != IntPtr.Zero ? host.Submitting( handedOver, view ) : 0;
+			var tag = output.SwapChain.IsValid ? host.Submitting( handedOver, view ) : 0;
 			if ( plan is not null ) { plan.SubmitTicks = handedOver; plan.SubmitTag = tag; plan.View = view; }
-			g_pRenderDevice.SetSubmitTag( (ulong)tag );
+			RenderHost.Current.Device.SetSubmitTag( (ulong)tag );
 			try
 			{
-				recorder.Submit( (IntPtr)output.SwapChain != IntPtr.Zero ? output.SwapChain : TimingSwapChain );
+				recorder.Submit( output.SwapChain.IsValid ? output.SwapChain : TimingSwapChain );
 			}
 			finally
 			{
-				g_pRenderDevice.SetSubmitTag( 0 );
+				RenderHost.Current.Device.SetSubmitTag( 0 );
 			}
 			submitted = true;
 		}
@@ -404,7 +404,7 @@ public sealed partial class RenderSystem : IDisposable
 	/// <summary>
 	/// Setup context and parent attributes for recording segments.
 	/// </summary>
-	internal RenderContext FrameContext => context;
+	internal GpuContext FrameContext => context;
 
 	/// <summary>
 	/// Milliseconds since the last lap, starting the next.
@@ -493,7 +493,7 @@ public sealed partial class RenderSystem : IDisposable
 	/// <summary>
 	/// Draw a run range in feature order. May execute on a worker thread.
 	/// </summary>
-	internal void DrawRange( RenderContext rc, ViewPass view, MeshLayer layer, int first, int count, ref RenderStats stats )
+	internal void DrawRange( GpuContext rc, ViewPass view, MeshLayer layer, int first, int count, ref RenderStats stats )
 	{
 		var end = first + count;
 		var start = 0;

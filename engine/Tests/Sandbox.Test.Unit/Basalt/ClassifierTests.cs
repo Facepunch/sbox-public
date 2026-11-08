@@ -176,6 +176,6 @@ public class ClassifierTests
 
 	sealed class TestCustomObject : CustomObject
 	{
-		internal override void Render( Basalt.Gpu.RenderContext context, ViewPass view, MeshLayer layer ) { }
+		internal override void Render( Basalt.Gpu.GpuContext context, ViewPass view, MeshLayer layer ) { }
 	}
 }

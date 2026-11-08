@@ -225,7 +225,7 @@ internal sealed class SceneBridge : IManagedSceneRenderer
 		if ( size.x < 1 || size.y < 1 ) return false;
 
 		var (mirror, state) = Prepare( camera, size );
-		state.System.Render( mirror.World, state.View, swapChain, size, state.Stages );
+		state.System.Render( mirror.World, state.View, new GpuSwapChain( swapChain ), size, state.Stages );
 		return true;
 	}
 

@@ -12,12 +12,12 @@ internal sealed class BridgeDynamicObject : CustomObject
 		Source = source;
 	}
 
-	internal override void Render( RenderContext context, ViewPass view, MeshLayer layer )
+	internal override void Render( GpuContext context, ViewPass view, MeshLayer layer )
 	{
 		if ( !Source.IsValid() ) return;
 
 		// Inherit frame attributes.
-		var native = context.Native;
+		var native = context.NativeContext();
 		native.GetAttributesPtrForModify().SetParent( context.Attributes.Engine().Get() );
 
 		SceneNative.DrawDynamicObject( context, Source, layer.ShaderMode );

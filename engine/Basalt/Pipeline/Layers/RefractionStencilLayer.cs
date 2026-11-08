@@ -33,7 +33,7 @@ internal sealed class RefractionStencilLayer : MeshLayer
 	/// <summary>
 	/// Acquire and bind refraction depth before recording.
 	/// </summary>
-	public override void BeforeSegments( RenderFrame frame, RenderContext frameContext )
+	public override void BeforeSegments( RenderFrame frame, GpuContext frameContext )
 	{
 		var full = frame.View.Viewport;
 		viewport = new Rect( (int)(full.Left / 4), (int)(full.Top / 4), (int)(full.Width / 4), (int)(full.Height / 4) );
@@ -44,18 +44,18 @@ internal sealed class RefractionStencilLayer : MeshLayer
 	/// <summary>
 	/// Clear depth and set quarter-resolution constants and refraction combos.
 	/// </summary>
-	public override void Begin( RenderFrame frame, RenderContext rc, ViewPass view, bool start )
+	public override void Begin( RenderFrame frame, GpuContext rc, ViewPass view, bool start )
 	{
 		frame.BeginPass( rc, new StageTarget
 		{
-			Context = rc.Native,
-			Attributes = rc.Attributes.Engine(),
-			Depth = target.DepthTarget.native,
+			Context = rc,
+			Attributes = rc.Attributes,
+			Depth = Source2Texture.From( target.DepthTarget ),
 			Size = new Vector2( target.Width, target.Height ),
 			Viewport = viewport,
 			MinZ = frame.DepthMin,
 			MaxZ = frame.DepthMax,
-			ColorFormat = ImageFormat.None,
+			ColorFormat = TextureFormat.None,
 			Samples = 1,
 		} );
 		if ( start ) rc.Clear( Color.Transparent, clearColor: false, clearDepth: true );
@@ -64,7 +64,7 @@ internal sealed class RefractionStencilLayer : MeshLayer
 		rc.SetPassCombo( RenderBackfaces, 1 );
 	}
 
-	public override void Record( RenderFrame frame, RenderContext rc, ref RenderStats stats )
+	public override void Record( RenderFrame frame, GpuContext rc, ref RenderStats stats )
 	{
 		base.Record( frame, rc, ref stats );
 		target = null;

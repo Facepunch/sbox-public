@@ -2,14 +2,13 @@ using NativeEngine;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace Basalt.Gpu;
+namespace Basalt.Gpu.Source2;
 
 /// <summary>
-/// Native RHI recording and interop boundary.
-/// Frame contexts handle setup; segment contexts record passes (<c>CRenderBatchList</c>).
-/// Attributes form frame, segment and draw levels, keeping concurrent writes isolated.
+/// Basalt's recording context over a Source 2 render context: frame contexts set up, segment contexts record passes
+/// (<c>CRenderBatchList</c>). Attributes form frame, segment and draw levels, keeping concurrent writes isolated.
 /// </summary>
-internal sealed class RenderContext : IDisposable
+internal sealed class Source2Context : GpuContext
 {
 	IRenderContext context;
 	CRenderAttributes nativeAttributes;
@@ -20,72 +19,67 @@ internal sealed class RenderContext : IDisposable
 	ShaderParameters mergedObject, mergedLightmap;
 	bool mergedValid;
 	bool borrowed;
-	RenderContext frame;
+	Source2Context frame;
 	bool debugMarkers;
 
-	internal bool GpuScopesEnabled => RenderHost.Current.GpuTimings || debugMarkers;
+	internal override bool GpuScopesEnabled => RenderHost.Current.GpuTimings || debugMarkers;
 
 	/// <summary>
 	/// A frame's own context.
 	/// </summary>
-	public RenderContext()
+	public Source2Context()
 	{
 	}
 
 	/// <summary>
 	/// Create a segment context whose attributes override the frame's.
 	/// </summary>
-	public RenderContext( RenderContext frame )
+	public Source2Context( GpuContext frame )
 	{
 		ArgumentNullException.ThrowIfNull( frame );
-		this.frame = frame;
+		this.frame = (Source2Context)frame;
 	}
 
 	/// <summary>
 	/// Record a frame segment into its own or a shared native context.
 	/// </summary>
-	public void BeginSegment( RenderContext frame, RenderContext shared )
+	public override void BeginSegment( GpuContext frame, GpuContext shared )
 	{
 		if ( this.frame is null || frame is null ) throw new InvalidOperationException( "Only a segment context records a frame's segments" );
-		this.frame = frame;
+		this.frame = (Source2Context)frame;
 		Begin( shared );
 	}
 
 	/// <summary>
 	/// Record on the async compute queue (<c>RCFLAG_ASYNC_COMPUTE_QUEUE</c>): compute only. Set before <see cref="Begin"/>.
 	/// </summary>
-	public bool AsyncCompute { get; set; }
+	public override bool AsyncCompute { get; set; }
 
 	const uint AsyncComputeQueue = 0x0008;
 
-	/// <summary>
-	/// Whether the device has an async compute queue: a queue family for compute apart from graphics, or a second graphics
-	/// queue (native's <c>SupportsAsyncCompute</c>). Not under RenderDoc, which offers one queue.
-	/// </summary>
-	public static bool SupportsAsyncCompute => supportsAsyncCompute ??= RenderDeviceManager.SupportsAsyncCompute();
-	static bool? supportsAsyncCompute;
 
 	/// <summary>
 	/// Signal a semaphore when this context's work is done, for another to <see cref="WaitAtBegin"/>. Once per context,
 	/// after recording.
 	/// </summary>
-	public RenderSemaphoreHandle_t SignalAtEnd() => context.SemaphoreSignalAtEnd();
+	public override GpuSemaphore SignalAtEnd() => new( context.SemaphoreSignalAtEnd() );
 
 	/// <summary>
 	/// Start this context's work only once another's <see cref="SignalAtEnd"/> has signalled. Once per context, before it's
 	/// submitted.
 	/// </summary>
-	public void WaitAtBegin( RenderSemaphoreHandle_t semaphore ) => context.SemaphoreWaitAtBegin( semaphore );
+	public override void WaitAtBegin( GpuSemaphore semaphore ) => context.SemaphoreWaitAtBegin( semaphore.Handle );
 
 	/// <summary>
 	/// Whether this is the frame's setup context.
 	/// </summary>
-	internal bool IsFrame => frame is null;
+	internal override bool IsFrame => frame is null;
 
 	/// <summary>
 	/// View constants and pass attributes, created on first <see cref="Begin"/> to allow engine-free construction.
 	/// </summary>
-	internal ShaderParameters Attributes { get; private set; }
+	internal override ShaderParameters Attributes => attributes;
+	ShaderParameters attributes;
 
 	/// <summary>
 	/// Cached native material bind for similar-material rebinds (<c>RenderTools.DrawModelDrawCall</c>).
@@ -96,7 +90,7 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Force a full material bind after external attribute changes or drawing.
 	/// </summary>
-	public void ResetMaterialBind()
+	public override void ResetMaterialBind()
 	{
 		if ( materialBind != IntPtr.Zero ) RenderTools.ResetMaterialBind( materialBind );
 	}
@@ -105,7 +99,7 @@ internal sealed class RenderContext : IDisposable
 	/// Full and similar-material binds this context's draws have made, ever (<c>RenderTools.GetMaterialBindCounts</c>). A
 	/// range of draws made the difference.
 	/// </summary>
-	internal unsafe (int Full, int Similar) MaterialBinds
+	internal override unsafe (int Full, int Similar) MaterialBinds
 	{
 		get
 		{
@@ -118,7 +112,7 @@ internal sealed class RenderContext : IDisposable
 
 	static unsafe IntPtr AllocMaterialBind() => (IntPtr)NativeMemory.AllocZeroed( (nuint)RenderTools.GetMaterialBindSize() );
 
-	public unsafe void Dispose()
+	public override unsafe void Dispose()
 	{
 		if ( materialBind != IntPtr.Zero )
 		{
@@ -134,25 +128,22 @@ internal sealed class RenderContext : IDisposable
 		nativeAttributes.Clear( true, true );
 		nativeAttributes.DeleteThis();
 		nativeAttributes = default;
-		Attributes = null;
+		attributes = null;
 	}
 
-	internal bool IsRecording => !context.IsNull;
+	internal override bool IsRecording => !context.IsNull;
 
 	/// <summary>
 	/// Native context for engine drawing APIs.
 	/// </summary>
 	internal IRenderContext Native => context;
 
-	/// <summary>
-	/// This thread's active segment context for Graphics calls.
-	/// </summary>
-	[ThreadStatic] internal static RenderContext Recording;
 
 	/// <summary>
 	/// Last targets, viewport and depth range; restored after custom drawing.
 	/// </summary>
-	internal StageTarget Bound { get; private set; }
+	internal override StageTarget Bound => bound;
+	StageTarget bound;
 
 	/// <summary>
 	/// Whether cached target bindings remain valid.
@@ -162,33 +153,33 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Bind targets, viewport and depth range. Reuse unchanged bindings to keep adjacent passes in one native render pass.
 	/// </summary>
-	public void Bind( in StageTarget target )
+	public override void Bind( in StageTarget target )
 	{
 		if ( boundValid && SameTargets( Bound, target ) )
 		{
 			if ( Bound.Viewport != target.Viewport || Bound.MinZ != target.MinZ || Bound.MaxZ != target.MaxZ ) SetViewport( target.Viewport, target.MinZ, target.MaxZ );
-			Bound = target;
+			bound = target;
 			return;
 		}
 
 		ResetMaterialBind();
-		if ( target.Color.IsNull ) RenderTools.BindDepthTarget( context, target.Depth, target.DepthSlice );
-		else RenderTools.BindColorAndDepthTarget( context, target.Color, target.Depth, target.SrgbWrite );
+		if ( target.Color is null ) RenderTools.BindDepthTarget( context, target.Depth.Native(), target.DepthSlice );
+		else RenderTools.BindColorAndDepthTarget( context, target.Color.Native(), target.Depth.Native(), target.SrgbWrite );
 		boundValid = true;
 
-		Bound = target;
+		bound = target;
 		SetViewport( target.Viewport, target.MinZ, target.MaxZ );
 	}
 
 	static bool SameTargets( in StageTarget a, in StageTarget b )
 	{
-		return a.Color.Equals( b.Color ) && a.Depth.Equals( b.Depth ) && a.DepthSlice == b.DepthSlice && a.SrgbWrite == b.SrgbWrite;
+		return a.Color == b.Color && a.Depth == b.Depth && a.DepthSlice == b.DepthSlice && a.SrgbWrite == b.SrgbWrite;
 	}
 
 	/// <summary>
 	/// Restore cached targets and viewport after engine drawing.
 	/// </summary>
-	internal void RestoreBound()
+	internal override void RestoreBound()
 	{
 		Invalidate();
 		Bind( Bound );
@@ -197,7 +188,7 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Invalidate target, attribute and material caches after external drawing.
 	/// </summary>
-	internal void Invalidate()
+	internal override void Invalidate()
 	{
 		boundValid = false;
 		mergedValid = false;
@@ -209,26 +200,27 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Current view-constant key; null for unknown or unkeyed shadow constants.
 	/// </summary>
-	internal ViewConstantsKey? ViewConstants { get; private set; }
+	internal override ViewConstantsKey? ViewConstants => viewConstants;
+	ViewConstantsKey? viewConstants;
 
 	/// <summary>
 	/// Bind <c>PerViewConstantBuffer_t</c> and cache its key.
 	/// </summary>
-	public void SetViewConstants( in ViewConstants constants, ViewConstantsKey? key )
+	public override void SetViewConstants( in ViewConstants constants, ViewConstantsKey? key )
 	{
 		SetConstants( ViewConstantsName, constants );
-		ViewConstants = key;
+		viewConstants = key;
 	}
 
 	/// <summary>
 	/// Cache the frame constants inherited by this segment.
 	/// </summary>
-	internal void InheritViewConstants( ViewConstantsKey key ) => ViewConstants = key;
+	internal override void InheritViewConstants( ViewConstantsKey key ) => viewConstants = key;
 
 	/// <summary>
 	/// Set a combo and invalidate the material bind.
 	/// </summary>
-	public void SetCombo( StringToken name, int value )
+	public override void SetCombo( StringToken name, int value )
 	{
 		Attributes.SetCombo( name, value );
 		ResetMaterialBind();
@@ -237,7 +229,7 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Set a texture and invalidate the material bind.
 	/// </summary>
-	public void Set( StringToken name, GpuTexture value )
+	public override void Set( StringToken name, GpuTexture value )
 	{
 		Attributes.Set( name, value );
 		ResetMaterialBind();
@@ -250,7 +242,7 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Set a pass-local combo, reset to zero by <see cref="EndPass"/>.
 	/// </summary>
-	public void SetPassCombo( StringToken name, int value )
+	public override void SetPassCombo( StringToken name, int value )
 	{
 		RememberPassState( name, combo: true );
 		SetCombo( name, value );
@@ -259,7 +251,7 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Set a pass-local attribute, reset to zero by <see cref="EndPass"/>.
 	/// </summary>
-	public void SetPassAttribute( StringToken name, int value )
+	public override void SetPassAttribute( StringToken name, int value )
 	{
 		RememberPassState( name, combo: false );
 		Attributes.Set( name, value );
@@ -280,7 +272,7 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Reset pass-local values and overlay stencil, then invalidate the material bind.
 	/// </summary>
-	public void EndPass()
+	public override void EndPass()
 	{
 		for ( int i = 0; i < passStateCount; i++ )
 		{
@@ -297,7 +289,7 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Start an explicitly bounded GPU pass on the current graphics or compute context.
 	/// </summary>
-	public GpuScope BeginGpuScope( string name )
+	public override GpuScope BeginGpuScope( string name )
 	{
 		if ( !GpuScopesEnabled )
 		{
@@ -318,14 +310,13 @@ internal sealed class RenderContext : IDisposable
 		return new( marker, pix );
 	}
 
-	public readonly record struct GpuScope( IntPtr Marker, bool Pix );
 
 	static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Sandbox.Rendering.ProfilingSampler> gpuScopeNames = new();
 
 	/// <summary>
 	/// End a scope <see cref="BeginGpuScope"/> started.
 	/// </summary>
-	public void EndGpuScope( GpuScope scope )
+	public override void EndGpuScope( GpuScope scope )
 	{
 		if ( scope.Marker != IntPtr.Zero )
 		{
@@ -341,12 +332,12 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// A swap chain's colour buffer, as a texture to bind.
 	/// </summary>
-	public ITexture SwapChainColor( SwapChainHandle_t swapChain ) => g_pRenderDevice.GetSwapChainTexture( swapChain, SwapChainBuffer.BufferColor );
+	static GpuTexture SwapChainColor( GpuSwapChain swapChain ) => Source2RawTexture.From( g_pRenderDevice.GetSwapChainTexture( swapChain.Handle, SwapChainBuffer.BufferColor ) );
 
 	/// <summary>
 	/// Merge lightmap then object attributes above context attributes (<c>CBaseSceneObjectDesc::DrawArray</c>).
 	/// </summary>
-	public void SetObjectAttributes( ShaderParameters objectAttributes, ShaderParameters lightmap = null )
+	public override void SetObjectAttributes( ShaderParameters objectAttributes, ShaderParameters lightmap = null )
 	{
 		// Shared attributes preserve the material bind (CBaseSceneObjectDesc::DrawArray).
 		if ( mergedValid && ReferenceEquals( objectAttributes, mergedObject ) && ReferenceEquals( lightmap, mergedLightmap ) ) return;
@@ -382,17 +373,13 @@ internal sealed class RenderContext : IDisposable
 
 
 
-	/// <summary>
-	/// Allocate native vertex-cache space and return the first vertex.
-	/// </summary>
-	public static int AllocateVertexCache( int vertices ) => RenderTools.AllocateVertexCache( vertices );
 
 	/// <summary>
 	/// Compute-skin a model mesh's instances into native vertex-cache blocks (<c>skinning_cs</c>).
 	/// Optional per-instance volume ranges enable deformation; dispatch deformed and undeformed instances separately. Deformed
 	/// instances read their anchors, per mesh bone, from their offset into <paramref name="anchors"/> - 0 for none.
 	/// </summary>
-	public unsafe bool DispatchSkinning( GpuMaterial skinningShader, RenderMesh mesh, int modelMesh, GpuBuffer transforms, ReadOnlySpan<int> slots, ReadOnlySpan<int> vertexCacheOffsets, int blendWeights,
+	public override unsafe bool DispatchSkinning( GpuMaterial skinningShader, RenderMesh mesh, int modelMesh, GpuBuffer transforms, ReadOnlySpan<int> slots, ReadOnlySpan<int> vertexCacheOffsets, int blendWeights,
 		GpuBuffer volumes = null, ReadOnlySpan<int> volumeOffsets = default, ReadOnlySpan<int> volumeCounts = default, GpuBuffer anchors = null, ReadOnlySpan<int> anchorOffsets = default, bool morph = false )
 	{
 		fixed ( int* s = slots )
@@ -413,7 +400,7 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Record queued morphs into this setup context, before skinning, sharing the frame's descriptor set.
 	/// </summary>
-	public void GenerateMorphs()
+	public override void GenerateMorphs()
 	{
 		RenderTools.GenerateMorphs( context );
 		boundValid = false;
@@ -421,19 +408,9 @@ internal sealed class RenderContext : IDisposable
 	}
 
 	/// <summary>
-	/// Where a queued morph is in the atlas, once generated: u offset, u range, v offset, v range, for the mesh's morph entry.
-	/// </summary>
-	public static unsafe Vector4 MorphSubrect( int handle )
-	{
-		Vector4 subrect = default;
-		RenderTools.GetMorphSubrect( handle, (IntPtr)(&subrect) );
-		return subrect;
-	}
-
-	/// <summary>
 	/// Before skinning: vertex shaders from earlier work that read the cache finish before compute writes it.
 	/// </summary>
-	public void BarrierVertexCacheToWrite()
+	public override void BarrierVertexCacheToWrite()
 	{
 		context.BufferBarrierTransition( RenderTools.GetVertexCacheBuffer(), RenderBarrierPipelineStageFlags_t.PreRasterizationShadersBit, RenderBarrierPipelineStageFlags_t.ComputeShaderBit,
 			RenderBarrierAccessFlags_t.ShaderReadBit, RenderBarrierAccessFlags_t.ShaderWriteBit );
@@ -442,7 +419,7 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// After skinning: the writes are visible to the vertex shaders that read the cache.
 	/// </summary>
-	public void BarrierVertexCacheToRead()
+	public override void BarrierVertexCacheToRead()
 	{
 		context.BufferBarrierTransition( RenderTools.GetVertexCacheBuffer(), RenderBarrierPipelineStageFlags_t.ComputeShaderBit, RenderBarrierPipelineStageFlags_t.PreRasterizationShadersBit,
 			RenderBarrierAccessFlags_t.ShaderWriteBit, RenderBarrierAccessFlags_t.ShaderReadBit );
@@ -451,7 +428,7 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Bind vertex-cache ID streams starting at stream 2, after instance IDs.
 	/// </summary>
-	public bool BindVertexCacheIds( RenderMesh mesh, in RenderMesh.Draw draw )
+	public override bool BindVertexCacheIds( RenderMesh mesh, in RenderMesh.Draw draw )
 	{
 		return RenderTools.BindModelDrawCallVertexIds( context, mesh.Geometry.Native(), draw.Mesh, draw.DrawCall, 2 );
 	}
@@ -459,7 +436,7 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Draw a <c>SceneSkyBox</c> into the bound target using view attributes.
 	/// </summary>
-	public bool DrawSky( SceneLighting lighting, StringToken shaderMode )
+	public override bool DrawSky( SceneLighting lighting, StringToken shaderMode )
 	{
 		ResetMaterialBind();
 		var material = lighting.SkyMaterial;
@@ -473,23 +450,11 @@ internal sealed class RenderContext : IDisposable
 			(int)fog.Type, fog.MinStart, fog.MinEnd, fog.MaxStart, fog.MaxEnd );
 	}
 
-	/// <summary>
-	/// Whether a texture is loaded and has GPU data.
-	/// </summary>
-	public static bool HasData( GpuTexture texture ) => texture is { IsValid: true };
-
-	/// <summary>
-	/// Bindless sRGB view index using the texture's native dimension (<c>GetTextureViewIndex</c>).
-	/// </summary>
-	public static uint BindlessIndex( GpuTexture texture )
-	{
-		return (uint)texture.ViewIndex( true, TextureViewDimension.Default );
-	}
 
 	/// <summary>
 	/// Begin recording into an owned or shared native context. Only the owner submits a shared context.
 	/// </summary>
-	public void Begin( RenderContext shared = null )
+	public override void Begin( GpuContext shared = null )
 	{
 		// Frame setup is main-thread-only; segments begin on their recording thread.
 		if ( frame is null ) ThreadSafe.AssertIsMainThread();
@@ -499,7 +464,7 @@ internal sealed class RenderContext : IDisposable
 		{
 			// Dispose explicitly before device shutdown; finalization may be too late.
 			nativeAttributes = CRenderAttributes.Create();
-			Attributes = Source2Parameters.From( new RenderAttributes( nativeAttributes ) );
+			attributes = Source2Parameters.From( new RenderAttributes( nativeAttributes ) );
 			drawAttributes = CRenderAttributes.Create();
 			drawAttributes.SetParent( nativeAttributes );
 		}
@@ -522,8 +487,8 @@ internal sealed class RenderContext : IDisposable
 
 		// Reset recording-local state.
 		boundValid = false;
-		Bound = default;
-		ViewConstants = null;
+		bound = default;
+		viewConstants = null;
 		passStateCount = 0;
 
 		// Material binds cannot survive across frames. Zeroed, so its bind counts start at nothing.
@@ -532,8 +497,8 @@ internal sealed class RenderContext : IDisposable
 
 		borrowed = shared is not null;
 		if ( borrowed && AsyncCompute ) throw new InvalidOperationException( "An async compute context records into its own native context" );
-		context = borrowed ? shared.context : g_pRenderDevice.CreateRenderContext( AsyncCompute ? AsyncComputeQueue : 0 );
-		debugMarkers = borrowed ? shared.debugMarkers : g_pRenderDevice.AreDebugMarkersEnabled();
+		context = borrowed ? ((Source2Context)shared).context : g_pRenderDevice.CreateRenderContext( AsyncCompute ? AsyncComputeQueue : 0 );
+		debugMarkers = borrowed ? ((Source2Context)shared).debugMarkers : g_pRenderDevice.AreDebugMarkersEnabled();
 
 		// The frame's bindless texture set, as CSceneSystem::InitializeRenderAttributes does for a view
 		if ( frame is null ) Attributes.Engine().Get().SetGlobalBindlessDescriptorSet();
@@ -545,7 +510,7 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Submit and end recording. Name the swap chain only on the first submission to include all work in GPU timing.
 	/// </summary>
-	public void Submit( SwapChainHandle_t swapChain = default )
+	public override void Submit( GpuSwapChain swapChain = default )
 	{
 		if ( !IsRecording ) return;
 
@@ -563,7 +528,7 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Submit after earlier work and end recording.
 	/// </summary>
-	public void SubmitNext()
+	public override void SubmitNext()
 	{
 		if ( !IsRecording ) return;
 
@@ -577,20 +542,12 @@ internal sealed class RenderContext : IDisposable
 		}
 	}
 
-	/// <summary>
-	/// Start a frame's submission, naming the swap chain it ends up in for its GPU timing.
-	/// </summary>
-	public static void BeginSubmitting( SwapChainHandle_t swapChain ) => g_pRenderDevice.BeginSubmittingDisplayLists( swapChain );
 
-	/// <summary>
-	/// Native shader time, latched from scene <c>Time.Now</c> when view rendering begins.
-	/// </summary>
-	public static float RenderTime => CSceneSystem.GetCurrentRenderTime();
 
 	/// <summary>
 	/// Stop recording without submitting - what was recorded is dropped.
 	/// </summary>
-	public void End()
+	public override void End()
 	{
 		if ( !IsRecording ) return;
 
@@ -603,13 +560,13 @@ internal sealed class RenderContext : IDisposable
 	/// Copy HDR to the output, encoding 8-bit targets as sRGB (<c>ResolveHDRToFinalSDR</c>).
 	/// Blending must happen before this copy to avoid clipping bright translucency.
 	/// </summary>
-	public void CopyToSwapChain( in RenderOutput output, Rect viewport )
+	public override void CopyToSwapChain( in RenderOutput output, Rect viewport )
 	{
 		if ( !output.HasCopy ) return;
 
 		Invalidate();
 		if ( output.Texture is { } texture ) RenderTools.BindColorAndDepthTarget( context, (output.Scratch ?? texture).Native(), default, !texture.Format.IsFloat() );
-		else context.BindRenderTargets( output.SwapChain, true, false );
+		else context.BindRenderTargets( output.SwapChain.Handle, true, false );
 
 		RenderTools.BlitTexture( context, output.Target.Resolved.Native(), (int)viewport.Left, (int)viewport.Top, (int)viewport.Width, (int)viewport.Height, 0 );
 	}
@@ -617,28 +574,28 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Final colour target and its sRGB-write requirement.
 	/// </summary>
-	public ITexture OutputColor( in RenderOutput output, out bool srgbWrite )
+	public override GpuTexture OutputColor( in RenderOutput output, out bool srgbWrite )
 	{
 		if ( output.Texture is { } texture )
 		{
 			srgbWrite = !texture.Format.IsFloat();
-			return (output.Scratch ?? texture).Native();
+			return output.Scratch ?? texture;
 		}
 
-		if ( (IntPtr)output.SwapChain != IntPtr.Zero )
+		if ( output.SwapChain.IsValid )
 		{
 			srgbWrite = true;
 			return SwapChainColor( output.SwapChain );
 		}
 
 		srgbWrite = output.Target.SrgbWrite;
-		return output.Target.Samples > 1 ? output.Target.Resolved.Native() : output.Target.Color.Native();
+		return output.Target.Samples > 1 ? output.Target.Resolved : output.Target.Color;
 	}
 
 	/// <summary>
 	/// Resolve bound MSAA colour into <see cref="ViewTarget.Resolved"/> (<c>CSceneSystem::ResolveLayer</c>).
 	/// </summary>
-	public void Resolve( in RenderOutput output )
+	public override void Resolve( in RenderOutput output )
 	{
 		if ( output.Target is not { Samples: > 1 } target ) return;
 
@@ -649,7 +606,7 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Resolve a multisampled texture output's <see cref="RenderOutput.Scratch"/> into the texture, once everything has drawn.
 	/// </summary>
-	public void ResolveScratch( in RenderOutput output )
+	public override void ResolveScratch( in RenderOutput output )
 	{
 		if ( output.Scratch is not { } scratch || output.Texture is not { } texture ) return;
 
@@ -661,7 +618,7 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Copy the first array slices or cube faces between equal-sized textures.
 	/// </summary>
-	public void CopyTexture( GpuTexture source, GpuTexture destination, int slices )
+	public override void CopyTexture( GpuTexture source, GpuTexture destination, int slices )
 	{
 		var rect = new NativeRect( 0, 0, source.Width, source.Height );
 		for ( uint slice = 0; slice < slices; slice++ )
@@ -671,7 +628,7 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Transition depth to writable after prior pixel-shader reads.
 	/// </summary>
-	public void BarrierToDepthWrite( GpuTexture depth )
+	public override void BarrierToDepthWrite( GpuTexture depth )
 	{
 		context.TextureBarrierTransition( depth.Native(), -1, RenderBarrierPipelineStageFlags_t.FragmentShaderBit,
 			RenderBarrierPipelineStageFlags_t.EarlyFragmentTestsBit | RenderBarrierPipelineStageFlags_t.LateFragmentTestsBit,
@@ -683,7 +640,7 @@ internal sealed class RenderContext : IDisposable
 	/// Make a depth texture that was just rendered readable by compute on the async queue, in the layout a compute bind reads it
 	/// in, so the compute queue has no transition of its own to make.
 	/// </summary>
-	public void BarrierToComputeRead( GpuTexture depth )
+	public override void BarrierToComputeRead( GpuTexture depth )
 	{
 		context.TextureBarrierTransition( depth.Native(), -1, RenderBarrierPipelineStageFlags_t.LateFragmentTestsBit,
 			RenderBarrierPipelineStageFlags_t.ComputeShaderBit, RenderImageLayout_t.RENDER_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
@@ -694,7 +651,7 @@ internal sealed class RenderContext : IDisposable
 	/// Make a colour target that was just drawn readable by compute on the async queue, as <see cref="BarrierToComputeRead"/>
 	/// does depth.
 	/// </summary>
-	public void BarrierColorToComputeRead( GpuTexture texture )
+	public override void BarrierColorToComputeRead( GpuTexture texture )
 	{
 		context.TextureBarrierTransition( texture.Native(), -1, RenderBarrierPipelineStageFlags_t.ColorAttachmentOutputBit,
 			RenderBarrierPipelineStageFlags_t.ComputeShaderBit, RenderImageLayout_t.RENDER_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
@@ -705,7 +662,7 @@ internal sealed class RenderContext : IDisposable
 	/// Make a texture compute wrote readable by pixel shaders, as <c>ResourceState.PixelShaderResource</c> does - without
 	/// <c>Graphics</c>, so a worker thread can record it.
 	/// </summary>
-	public void BarrierComputeToPixelShaderRead( GpuTexture texture )
+	public override void BarrierComputeToPixelShaderRead( GpuTexture texture )
 	{
 		context.TextureBarrierTransition( texture.Native(), -1, RenderBarrierPipelineStageFlags_t.ComputeShaderBit,
 			RenderBarrierPipelineStageFlags_t.FragmentShaderBit, RenderImageLayout_t.RENDER_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
@@ -715,7 +672,7 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Make a depth texture that was just rendered readable by pixel shaders.
 	/// </summary>
-	public void BarrierToPixelShaderRead( GpuTexture depth )
+	public override void BarrierToPixelShaderRead( GpuTexture depth )
 	{
 		context.TextureBarrierTransition( depth.Native(), -1, RenderBarrierPipelineStageFlags_t.LateFragmentTestsBit,
 			RenderBarrierPipelineStageFlags_t.FragmentShaderBit, RenderImageLayout_t.RENDER_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
@@ -725,14 +682,14 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Set and cache viewport/depth range for restoration after custom drawing.
 	/// </summary>
-	public void SetViewport( Rect rect, float minZ = 0, float maxZ = 1 )
+	public override void SetViewport( Rect rect, float minZ = 0, float maxZ = 1 )
 	{
-		Bound = Bound with { Viewport = rect, MinZ = minZ, MaxZ = maxZ };
+		bound = bound with { Viewport = rect, MinZ = minZ, MaxZ = maxZ };
 		var viewport = new RenderViewport( (int)rect.Left, (int)rect.Top, (int)rect.Width, (int)rect.Height ) { MinZ = minZ, MaxZ = maxZ };
 		context.SetViewport( viewport );
 	}
 
-	public void Clear( Color color, bool clearColor = true, bool clearDepth = true )
+	public override void Clear( Color color, bool clearColor = true, bool clearDepth = true )
 	{
 		context.Clear( new Vector4( color.r, color.g, color.b, color.a ), clearColor, clearDepth, clearDepth );
 	}
@@ -740,7 +697,7 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Upload a constant buffer and bind it to the attribute the shader's <c>cbuffer</c> is named after.
 	/// </summary>
-	public unsafe void SetConstants<T>( StringToken name, in T value ) where T : unmanaged
+	public override unsafe void SetConstants<T>( StringToken name, in T value )
 	{
 		ResetMaterialBind();
 		fixed ( T* ptr = &value )
@@ -750,20 +707,12 @@ internal sealed class RenderContext : IDisposable
 	}
 
 
-	/// <summary>
-	/// Allocate a zeroed constant buffer beyond per-frame pool limits. Free with <see cref="DestroyConstantBuffer"/>.
-	/// </summary>
-	public static IntPtr CreateConstantBuffer( int size ) => RenderTools.CreateConstantBuffer( size );
 
-	/// <summary>
-	/// Free a buffer from <see cref="CreateConstantBuffer"/>.
-	/// </summary>
-	public static void DestroyConstantBuffer( IntPtr buffer ) => RenderTools.DestroyConstantBuffer( buffer );
 
 	/// <summary>
 	/// Upload and bind an owned constant buffer on this context.
 	/// </summary>
-	public unsafe void SetConstantBuffer<T>( StringToken name, IntPtr buffer, in T value ) where T : unmanaged
+	public override unsafe void SetConstantBuffer<T>( StringToken name, IntPtr buffer, in T value )
 	{
 		// New attributes under the draws
 		ResetMaterialBind();
@@ -776,7 +725,7 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Bind model buffers and normal format before <see cref="SetRenderState"/>.
 	/// </summary>
-	public bool BindGeometry( RenderMesh mesh, in RenderMesh.Draw draw )
+	public override bool BindGeometry( RenderMesh mesh, in RenderMesh.Draw draw )
 	{
 		return RenderTools.BindModelDrawCall( context, drawAttributes, mesh.Geometry.Native(), draw.Mesh, draw.DrawCall );
 	}
@@ -785,7 +734,7 @@ internal sealed class RenderContext : IDisposable
 	/// Bind shader/state after setting draw attributes. Missing modes return false; native permits Forward-to-VrForward fallback
 	/// (<c>CMaterial2::GetMode</c>). Nonzero biases override rasterizer bias; optional flags strip the pixel shader or use vertex-cache IDs.
 	/// </summary>
-	public bool SetRenderState( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool vertexCache = false )
+	public override bool SetRenderState( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool vertexCache = false )
 	{
 		ResetMaterialBind();
 		var mode = material.Native().GetMode( shaderMode );
@@ -797,7 +746,7 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Prepass overlay-stencil mode (<c>ISceneLayer::SetOverlayStencil</c>); reset for each recording and pass.
 	/// </summary>
-	public OverlayStencil OverlayStencil
+	public override OverlayStencil OverlayStencil
 	{
 		get;
 		set
@@ -813,7 +762,7 @@ internal sealed class RenderContext : IDisposable
 	/// Vertex-cache draws use the separate binding path. <paramref name="skinned"/> draws pick bones by blend index, so they
 	/// keep their own input layout depth-only too.
 	/// </summary>
-	public bool DrawModel( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false )
+	public override bool DrawModel( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false )
 	{
 		return RenderTools.DrawModelDrawCall( context, drawAttributes, material.Native(), shaderMode, mesh.Geometry.Native(), draw.Mesh, draw.DrawCall,
 			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, skinned, InstanceIds.Native(), firstInstance, instances, materialBind );
@@ -823,7 +772,7 @@ internal sealed class RenderContext : IDisposable
 	/// <see cref="DrawModel"/> with only the instances the occlusion cull kept for <paramref name="phase"/>
 	/// (<c>RenderTools.DrawModelDrawCallIndirect</c>).
 	/// </summary>
-	public bool DrawModelCulled( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int argsIndex, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false )
+	public override bool DrawModelCulled( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int argsIndex, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false )
 	{
 		return RenderTools.DrawModelDrawCallIndirect( context, drawAttributes, material.Native(), shaderMode, mesh.Geometry.Native(), draw.Mesh, draw.DrawCall,
 			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, skinned, Occlusion.CulledIds.Native(), Occlusion.IdOffset( phase ) + firstInstance,
@@ -835,7 +784,7 @@ internal sealed class RenderContext : IDisposable
 	/// material (<c>RenderTools.DrawModelDrawCallMultiIndirect</c>): an aggregate's fragments. Each draw's base instance
 	/// indexes the instance ids from <paramref name="firstInstance"/>.
 	/// </summary>
-	public bool DrawModelFragments( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, GpuBuffer args, int firstArg, int count, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false )
+	public override bool DrawModelFragments( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, GpuBuffer args, int firstArg, int count, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false )
 	{
 		return RenderTools.DrawModelDrawCallMultiIndirect( context, drawAttributes, material.Native(), shaderMode, mesh.Geometry.Native(), draw.Mesh, draw.DrawCall,
 			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, InstanceIds.Native(), firstInstance,
@@ -846,7 +795,7 @@ internal sealed class RenderContext : IDisposable
 	/// <see cref="DrawModelFragments"/> with the fragments the occlusion cull kept for <paramref name="phase"/>: compacted, only the
 	/// survivors, counted on the GPU; otherwise every fragment, the hidden ones with no instances.
 	/// </summary>
-	public bool DrawModelFragmentsCulled( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int cullArg, int count, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false )
+	public override bool DrawModelFragmentsCulled( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int cullArg, int count, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false )
 	{
 		var args = Occlusion.Args;
 		var compact = Occlusion.CompactFragments;
@@ -856,28 +805,18 @@ internal sealed class RenderContext : IDisposable
 			compact ? args.Native() : default, compact ? Occlusion.FragmentCountArg( phase, cullArg, count ) * OcclusionCuller.ArgsStride : 0, materialBind );
 	}
 
-	/// <summary>
-	/// Whether a multi-draw can take its count from the GPU (<c>RenderTools.SupportsDrawIndirectCount</c>).
-	/// </summary>
-	public static bool SupportsDrawIndirectCount => supportsDrawIndirectCount ??= RenderTools.SupportsDrawIndirectCount();
-	static bool? supportsDrawIndirectCount;
 
 
 
-	/// <summary>
-	/// Shared shader/feature key for partial material rebinds (<c>RenderTools.GetMaterialSimilarityKey</c>).
-	/// </summary>
-	public static ulong SimilarityKey( GpuMaterial material ) => material.SimilarityKey;
 
 	/// <summary>
 	/// Copy data into a GPU buffer, recorded on this context so it's ordered before later draws.
 	/// </summary>
-	public void UploadBuffer<T>( GpuBuffer buffer, ReadOnlySpan<T> data ) where T : unmanaged => UploadBuffer( buffer, data, 0 );
 
 	/// <summary>
 	/// Copy data into a GPU buffer from <paramref name="offsetBytes"/> in, recorded on this context so it's ordered before later draws.
 	/// </summary>
-	public unsafe void UploadBuffer<T>( GpuBuffer buffer, ReadOnlySpan<T> data, int offsetBytes ) where T : unmanaged
+	public override unsafe void UploadBuffer<T>( GpuBuffer buffer, ReadOnlySpan<T> data, int offsetBytes )
 	{
 		fixed ( T* ptr = data )
 		{
@@ -889,7 +828,7 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Bind instance IDs at <paramref name="firstInstance"/> (<c>CSceneSystem::BindTransformSlot</c>).
 	/// </summary>
-	public void BindInstances( int stream, int firstInstance )
+	public override void BindInstances( int stream, int firstInstance )
 	{
 		context.BindVertexBuffer( stream, InstanceIds.Native(), firstInstance * sizeof( uint ), sizeof( uint ) );
 	}
@@ -897,22 +836,22 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// The frame's instance id stream - <see cref="TransformBuffer.InstanceIds"/>.
 	/// </summary>
-	public GpuBuffer<uint> InstanceIds { get; set; }
+	public override GpuBuffer<uint> InstanceIds { get; set; }
 
 	/// <summary>
 	/// This frame's occlusion cull, or null when not culling.
 	/// </summary>
-	public OcclusionCuller Occlusion { get; set; }
+	public override OcclusionCuller Occlusion { get; set; }
 
-	public void BufferBarrier( GpuBuffer buffer, RenderBarrierPipelineStageFlags_t srcStage, RenderBarrierAccessFlags_t srcAccess, RenderBarrierPipelineStageFlags_t dstStage, RenderBarrierAccessFlags_t dstAccess )
+	public override void BufferBarrier( GpuBuffer buffer, GpuStage srcStage, GpuAccess srcAccess, GpuStage dstStage, GpuAccess dstAccess )
 	{
-		context.BufferBarrierTransition( buffer.Native(), srcStage, dstStage, srcAccess, dstAccess );
+		context.BufferBarrierTransition( buffer.Native(), (RenderBarrierPipelineStageFlags_t)srcStage, (RenderBarrierPipelineStageFlags_t)dstStage, (RenderBarrierAccessFlags_t)srcAccess, (RenderBarrierAccessFlags_t)dstAccess );
 	}
 
 	/// <summary>
 	/// Resolve depth and build min/max mips, as native's pipeline does (<see cref="SharedPasses.BuildDepthChain"/>).
 	/// </summary>
-	public void BuildDepthChain( GpuTexture depth, bool multisampled, GpuTexture chain, int width, int height, DepthResolveMode resolve = DepthResolveMode.Sample0 )
+	public override void BuildDepthChain( GpuTexture depth, bool multisampled, GpuTexture chain, int width, int height, DepthResolveMode resolve = DepthResolveMode.Sample0 )
 	{
 		Invalidate();
 		SharedPasses.BuildDepthChain( context, depth.Engine(), chain.Engine(), multisampled, width, height, resolve, fuseResolve: !AsyncCompute );
@@ -928,7 +867,7 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Zero an occlusion debug grid before the frame's first cull.
 	/// </summary>
-	public void ClearOcclusionDebug( Sandbox.Rendering.OcclusionDebugTarget debug )
+	public override void ClearOcclusionDebug( Sandbox.Rendering.OcclusionDebugTarget debug )
 	{
 		Invalidate();
 		debug.Clear( context );
@@ -937,7 +876,7 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Resolve an occlusion debug grid for the overlay after the late cull.
 	/// </summary>
-	public void ResolveOcclusionDebug( Sandbox.Rendering.OcclusionDebugTarget debug, GpuTexture chain, bool frozen )
+	public override void ResolveOcclusionDebug( Sandbox.Rendering.OcclusionDebugTarget debug, GpuTexture chain, bool frozen )
 	{
 		Invalidate();
 		debug.Resolve( context, chain.Engine(), native: false, frozen );
@@ -955,7 +894,7 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Enable one lazy frame copy for this translucent layer (<c>sc_max_framebuffer_copies_per_layer</c>).
 	/// </summary>
-	public void BeginFrameBufferReads( GpuTexture copy, Rect viewport )
+	public override void BeginFrameBufferReads( GpuTexture copy, Rect viewport )
 	{
 		frameBufferCopy = copy;
 		frameBufferCopyViewport = viewport;
@@ -965,13 +904,18 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Disable frame copies after the translucent layer.
 	/// </summary>
-	public void EndFrameBufferReads() => frameBufferCopy = null;
+	public override void EndFrameBufferReads() => frameBufferCopy = null;
+
+	static readonly ConditionalWeakTable<GpuReadback, AsyncGPUReadback.BufferReadDelegate> readbacks = new();
+
+	public override void ReadBuffer( GpuBuffer buffer, int offset, int bytes, GpuReadback callback )
+		=> context.ReadBufferAsync( buffer.Engine(), readbacks.GetValue( callback, static c => new AsyncGPUReadback.BufferReadDelegate( c ) ), offset, bytes );
 
 	/// <summary>
 	/// Copy, depth-aware blur and bind the viewport on its first reader (<c>CSceneSystem::MakeFrameBufferCopy</c>).
 	/// A no-op outside an enabled translucent layer.
 	/// </summary>
-	public void CopyFrameBuffer()
+	public override void CopyFrameBuffer()
 	{
 		if ( frameBufferCopy is null || frameBufferCopied ) return;
 		frameBufferCopied = true;
@@ -987,7 +931,7 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Quarter-resolution depth blit (<see cref="SharedPasses.DownsampleQuarterDepth"/>), with isolated combos and context view constants.
 	/// </summary>
-	public void DownsampleQuarterDepth( Graphics.ManagedView target, GpuTexture depth, bool multisampled )
+	public override void DownsampleQuarterDepth( Graphics.ManagedView target, GpuTexture depth, bool multisampled )
 	{
 		Invalidate();
 
@@ -1004,7 +948,7 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Render a contact-shadow mask using <c>ContactShadows.Render</c>. Direction points toward the sun.
 	/// </summary>
-	public void RenderContactShadows( Graphics.ManagedView frame, GpuTexture mask, Matrix worldToProjection, Vector3 lightDirection, float shadowHardness,
+	public override void RenderContactShadows( Graphics.ManagedView frame, GpuTexture mask, Matrix worldToProjection, Vector3 lightDirection, float shadowHardness,
 		Sandbox.Rendering.ContactShadows.Steps steps = Sandbox.Rendering.ContactShadows.Steps.All )
 	{
 		Invalidate();
@@ -1017,7 +961,7 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Dispatch thread counts with current attributes; native converts to shader group counts.
 	/// </summary>
-	public void Dispatch( GpuMaterial computeShader, int x, int y, int z )
+	public override void Dispatch( GpuMaterial computeShader, int x, int y, int z )
 	{
 		Invalidate();
 		RenderTools.Compute( context, Attributes.Engine().Get(), computeShader.Native().GetMode(), x, y, z );
@@ -1026,23 +970,9 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Draw a model draw call. Its buffers are bound at its own offsets, so there's no base vertex.
 	/// </summary>
-	public void DrawIndexedInstanced( in RenderMesh.Draw draw, int instanceCount )
+	public override void DrawIndexedInstanced( in RenderMesh.Draw draw, int instanceCount )
 	{
 		context.DrawIndexedInstanced( (RenderPrimitiveType)draw.PrimitiveType, draw.StartIndex, draw.IndexCount, instanceCount, draw.VertexCount, 0 );
 	}
 }
 
-/// <summary>
-/// What a model draw does with the depth prepass's game overlay stencil bit (<see cref="RenderContext.OverlayStencil"/>).
-/// </summary>
-internal enum OverlayStencil
-{
-	/// <summary>Nothing.</summary>
-	None,
-
-	/// <summary>Claim overlay pixels at their real depth.</summary>
-	Write,
-
-	/// <summary>Exclude claimed overlay pixels from the world prepass.</summary>
-	Test,
-}

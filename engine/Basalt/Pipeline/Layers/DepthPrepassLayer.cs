@@ -46,7 +46,7 @@ internal class DepthPrepassLayer : MeshLayer
 	/// (<c>NormalsTextureIndex</c> -1, which <c>Normals::Sample</c> answers from depth), since the frame's attributes outlive
 	/// the frame. Native's is the full target's size at its sample count (<c>StandardPipeline</c>).
 	/// </summary>
-	public override void BeforeSegments( RenderFrame frame, RenderContext frameContext )
+	public override void BeforeSegments( RenderFrame frame, GpuContext frameContext )
 	{
 		if ( !ownsGBuffer ) return;
 
@@ -78,11 +78,11 @@ internal class DepthPrepassLayer : MeshLayer
 	/// </summary>
 	protected virtual OverlayStencil Stencil( RenderFrame frame ) => overlays is not null && overlays.IsNeeded( frame ) ? OverlayStencil.Test : OverlayStencil.None;
 
-	public override void Begin( RenderFrame frame, RenderContext rc, ViewPass view, bool start )
+	public override void Begin( RenderFrame frame, GpuContext rc, ViewPass view, bool start )
 	{
 		var gbuffer = frame.NormalsGBuffer;
 		if ( gbuffer is null ) frame.BindFrame( rc, color: false );
-		else frame.BeginPass( rc, frame.Target( rc, color: false, final: false ) with { Color = gbuffer.Native(), SrgbWrite = false } );
+		else frame.BeginPass( rc, frame.Target( rc, color: false, final: false ) with { Color = gbuffer, SrgbWrite = false } );
 
 		// The main frame already cleared skybox depth. Clearing depth also clears stencil, and the first prepass clears the
 		// G-buffer: nothing drawn reads as no normal

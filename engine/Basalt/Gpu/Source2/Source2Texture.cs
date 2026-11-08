@@ -49,6 +49,43 @@ internal sealed class Source2Texture : GpuTexture
 }
 
 /// <summary>
+/// A native texture the engine has no <see cref="Texture"/> for - a swap chain's buffers - wrapped once per handle. Not
+/// owned: disposing it does nothing.
+/// </summary>
+internal sealed class Source2RawTexture : GpuTexture
+{
+	public ITexture Native { get; }
+
+	Source2RawTexture( ITexture native )
+	{
+		Native = native;
+	}
+
+	static readonly System.Collections.Concurrent.ConcurrentDictionary<IntPtr, Source2RawTexture> wrapped = new();
+
+	/// <summary>
+	/// The native texture as Basalt's, or null for an invalid one.
+	/// </summary>
+	public static GpuTexture From( ITexture native ) => native.IsNull ? null : wrapped.GetOrAdd( native.self, static ( _, n ) => new Source2RawTexture( n ), native );
+
+	public override int Width => 0;
+	public override int Height => 0;
+	public override int Mips => 1;
+	public override TextureFormat Format => TextureFormat.Unknown;
+	public override int Samples => Source2Formats.Samples( g_pRenderDevice.GetTextureMultisampleType( Native ) );
+	public override bool IsCube => false;
+	public override bool IsArray => false;
+	public override bool IsValid => Native.IsValid;
+	public override int BindlessIndex => g_pRenderDevice.GetTextureViewIndex( Native, 0, RenderTextureDimension.RENDER_TEXTURE_DIMENSION_2D );
+	public override Vector4 SheetData => default;
+	public override int ViewIndex( bool srgb, TextureViewDimension dimension ) => g_pRenderDevice.GetTextureViewIndex( Native,
+		srgb ? (byte)RenderColorSpace.RENDER_SRGB : (byte)0,
+		dimension == TextureViewDimension.Texture2D ? RenderTextureDimension.RENDER_TEXTURE_DIMENSION_2D : RenderTextureDimension.RENDER_TEXTURE_DIMENSION_INVALID );
+	public override void KeepResident() { }
+	public override void Dispose() { }
+}
+
+/// <summary>
 /// Basalt's textures as the engine's, while the rest of Basalt still records through engine APIs.
 /// </summary>
 internal static class Source2TextureExtensions
@@ -61,7 +98,17 @@ internal static class Source2TextureExtensions
 	/// <summary>
 	/// The native texture behind a Basalt one, or an invalid handle.
 	/// </summary>
-	public static ITexture Native( this GpuTexture texture ) => texture is Source2Texture s ? s.Texture.native : default;
+	public static ITexture Native( this GpuTexture texture ) => texture switch
+	{
+		Source2Texture s => s.Texture.native,
+		Source2RawTexture r => r.Native,
+		_ => default,
+	};
+
+	/// <summary>
+	/// The native render context behind a Basalt one.
+	/// </summary>
+	public static IRenderContext NativeContext( this GpuContext context ) => ((Source2Context)context).Native;
 
 	/// <summary>
 	/// Bind a Basalt texture as an attribute.
@@ -107,6 +154,11 @@ internal static class Source2Formats
 
 	public static ImageFormat ToEngine( this TextureFormat format ) => toEngine.TryGetValue( format, out var engine ) ? engine
 		: throw new ArgumentException( $"{format} has no engine format", nameof( format ) );
+
+	/// <summary>
+	/// The engine's format, or RGBA8888 for one Basalt doesn't name, where the engine needs a format to set pipeline state for.
+	/// </summary>
+	public static ImageFormat ToEngineOrDefault( TextureFormat format ) => toEngine.TryGetValue( format, out var engine ) ? engine : ImageFormat.RGBA8888;
 
 	public static int Samples( RenderMultisampleType type ) => type switch
 	{

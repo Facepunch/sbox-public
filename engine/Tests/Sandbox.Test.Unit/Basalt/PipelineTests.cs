@@ -248,7 +248,7 @@ public class PipelineTests
 
 		public override Type ObjectType => typeof( CountingFeature );
 		internal override int RunCount( ViewPass view, MeshLayer layer ) => Runs;
-		internal override void Draw( Basalt.Gpu.RenderContext context, ViewPass view, MeshLayer layer, int first, int count, ref RenderStats stats ) => Drawn.Add( (layer, first, count) );
+		internal override void Draw( Basalt.Gpu.GpuContext context, ViewPass view, MeshLayer layer, int first, int count, ref RenderStats stats ) => Drawn.Add( (layer, first, count) );
 	}
 
 	/// <summary>

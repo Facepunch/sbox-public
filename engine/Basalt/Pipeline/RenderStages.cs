@@ -38,15 +38,15 @@ internal interface IRenderStages
 /// </summary>
 internal readonly struct StageTarget
 {
-	public IRenderContext Context { get; init; }
+	public GpuContext Context { get; init; }
 
 	/// <summary>
 	/// The frame's attributes - view constants, lighting, the bindless set.
 	/// </summary>
-	public RenderAttributes Attributes { get; init; }
+	public ShaderParameters Attributes { get; init; }
 
-	public ITexture Color { get; init; }
-	public ITexture Depth { get; init; }
+	public GpuTexture Color { get; init; }
+	public GpuTexture Depth { get; init; }
 
 	/// <summary>
 	/// The array slice or cube face of <see cref="Depth"/> bound, for a shadow view with no colour.
@@ -56,7 +56,7 @@ internal readonly struct StageTarget
 	/// <summary>
 	/// HDR colour for auto exposure. Equals <see cref="Color"/> until the output copy.
 	/// </summary>
-	public ITexture HdrColor { get; init; }
+	public GpuTexture HdrColor { get; init; }
 
 	/// <summary>
 	/// Whether colour is written through an sRGB view: an 8-bit output is, a float one isn't.
@@ -77,6 +77,6 @@ internal readonly struct StageTarget
 	public float MinZ { get; init; }
 	public float MaxZ { get; init; }
 
-	public ImageFormat ColorFormat { get; init; }
+	public TextureFormat ColorFormat { get; init; }
 	public int Samples { get; init; }
 }

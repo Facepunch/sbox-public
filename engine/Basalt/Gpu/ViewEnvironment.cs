@@ -71,7 +71,7 @@ internal sealed class ViewEnvironment : IDisposable
 
 	GpuTexture[] viewTextures;
 
-	public unsafe void Apply( RenderContext context, SceneLighting lighting, Features.LightBinnerFeature binner, in GPUDirectionalLight sun, in ViewSpace space = default, Vector3 lightingOffset = default, VolumetricFog fog = null, RenderView view = null )
+	public unsafe void Apply( GpuContext context, SceneLighting lighting, Features.LightBinnerFeature binner, in GPUDirectionalLight sun, in ViewSpace space = default, Vector3 lightingOffset = default, VolumetricFog fog = null, RenderView view = null )
 	{
 		Apply( context, lighting, binner.DynamicCount, binner.BakedCount, binner.BakedIndexMapping, binner.EnvMapCount, binner.DecalCount, sun, space, lightingOffset, fog, view );
 	}
@@ -119,7 +119,7 @@ internal sealed class ViewEnvironment : IDisposable
 	/// <summary>
 	/// Bind lighting, fog, light-index mappings and the high-precision lighting origin.
 	/// </summary>
-	public unsafe void Apply( RenderContext context, SceneLighting lighting, int dynamicLights, int bakedLights, ReadOnlySpan<int> bakedIndexMapping, int envMaps, int decals, in GPUDirectionalLight sun, in ViewSpace space = default, Vector3 lightingOffset = default, VolumetricFog fog = null, RenderView view = null )
+	public unsafe void Apply( GpuContext context, SceneLighting lighting, int dynamicLights, int bakedLights, ReadOnlySpan<int> bakedIndexMapping, int envMaps, int decals, in GPUDirectionalLight sun, in ViewSpace space = default, Vector3 lightingOffset = default, VolumetricFog fog = null, RenderView view = null )
 	{
 		var attributes = context.Attributes;
 		var viewLighting = space.Lighting ?? lighting;
@@ -235,7 +235,7 @@ internal sealed class ViewEnvironment : IDisposable
 	/// </summary>
 	static GpuTexture SetupCubemapFog( ref ViewConstantsVRData vr, CubemapFogSettings fog, float scale, float offsetZ )
 	{
-		if ( !fog.Enabled || !RenderContext.HasData( fog.Texture ) )
+		if ( !fog.Enabled || !GpuContext.HasData( fog.Texture ) )
 		{
 			vr.CubeFogCullingParams = new( float.PositiveInfinity, float.PositiveInfinity, 0, 0 );
 			return null;

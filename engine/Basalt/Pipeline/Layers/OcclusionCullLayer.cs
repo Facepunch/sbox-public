@@ -8,13 +8,13 @@ namespace Basalt;
 /// </summary>
 internal sealed class OcclusionCullLayer : RenderLayer
 {
-	const RenderBarrierPipelineStageFlags_t Transfer = RenderBarrierPipelineStageFlags_t.TransferBit;
-	const RenderBarrierPipelineStageFlags_t Compute = RenderBarrierPipelineStageFlags_t.ComputeShaderBit;
-	const RenderBarrierPipelineStageFlags_t DrawIndirect = RenderBarrierPipelineStageFlags_t.DrawIndirectBit;
-	const RenderBarrierPipelineStageFlags_t VertexInput = RenderBarrierPipelineStageFlags_t.VertexInputBit;
-	const RenderBarrierAccessFlags_t Read = RenderBarrierAccessFlags_t.ShaderReadBit;
-	const RenderBarrierAccessFlags_t Write = RenderBarrierAccessFlags_t.ShaderWriteBit;
-	const RenderBarrierAccessFlags_t Uploaded = RenderBarrierAccessFlags_t.TransferWriteBit;
+	const GpuStage Transfer = GpuStage.Transfer;
+	const GpuStage Compute = GpuStage.ComputeShader;
+	const GpuStage DrawIndirect = GpuStage.DrawIndirect;
+	const GpuStage VertexInput = GpuStage.VertexInput;
+	const GpuAccess Read = GpuAccess.ShaderRead;
+	const GpuAccess Write = GpuAccess.ShaderWrite;
+	const GpuAccess Uploaded = GpuAccess.TransferWrite;
 
 	readonly bool early;
 
@@ -37,7 +37,7 @@ internal sealed class OcclusionCullLayer : RenderLayer
 	// The prepasses and OpaqueLayer read our output through indirect draws, which the planner can't see
 	public override bool HasSideEffects => true;
 
-	public override void BeforeSegments( RenderFrame frame, RenderContext frameContext )
+	public override void BeforeSegments( RenderFrame frame, GpuContext frameContext )
 	{
 		shader ??= RenderHost.Current.Device.MaterialFromShader( "shaders/occlusion_cull_cs.shader" );
 		if ( early ) return;
@@ -47,7 +47,7 @@ internal sealed class OcclusionCullLayer : RenderLayer
 		current = history.LateDepth( frame.View.Viewport, new Vector2( frame.DepthMin, frame.DepthMax ), frame.View.WorldToProjection );
 	}
 
-	public override void Record( RenderFrame frame, RenderContext rc, ref RenderStats stats )
+	public override void Record( RenderFrame frame, GpuContext rc, ref RenderStats stats )
 	{
 		var culler = frame.System.Occlusion;
 		var history = frame.System.OcclusionHistory;
@@ -88,17 +88,17 @@ internal sealed class OcclusionCullLayer : RenderLayer
 
 		rc.Dispatch( shader, culler.InstanceCount, 1, 1 );
 
-		rc.BufferBarrier( culler.Args, Compute, Write, DrawIndirect, RenderBarrierAccessFlags_t.IndirectCommandReadBit );
-		rc.BufferBarrier( culler.CulledIds, Compute, Write, VertexInput, RenderBarrierAccessFlags_t.VertexAttributeReadBit );
+		rc.BufferBarrier( culler.Args, Compute, Write, DrawIndirect, GpuAccess.IndirectCommandRead );
+		rc.BufferBarrier( culler.CulledIds, Compute, Write, VertexInput, GpuAccess.VertexAttributeRead );
 		if ( early ) return;
 
 		if ( debug is not null )
 		{
 			rc.ResolveOcclusionDebug( debug, current.Chain, frozen );
-			debug.ReadCounts( rc.Native );
+			debug.ReadCounts( rc.NativeContext() );
 		}
 
-		rc.BufferBarrier( culler.Stats, Compute, Write, Transfer, RenderBarrierAccessFlags_t.TransferReadBit );
+		rc.BufferBarrier( culler.Stats, Compute, Write, Transfer, GpuAccess.TransferRead );
 		culler.ReadStats( rc );
 		current = default;
 	}
@@ -122,5 +122,5 @@ internal sealed class OcclusionHistoryLayer : RenderLayer
 
 	public override FrameResources Reads( RenderFrame frame ) => FrameResources.DepthChain;
 
-	public override void Record( RenderFrame frame, RenderContext rc, ref RenderStats stats ) => frame.System.OcclusionHistory.Keep( frame.View.WorldToProjection, frame.DepthMin, frame.DepthMax );
+	public override void Record( RenderFrame frame, GpuContext rc, ref RenderStats stats ) => frame.System.OcclusionHistory.Keep( frame.View.WorldToProjection, frame.DepthMin, frame.DepthMax );
 }

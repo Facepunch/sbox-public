@@ -697,7 +697,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	/// <summary>
 	/// Make the materials draws fall back to, then skin this frame's vertex cache meshes (<see cref="DispatchSkinning"/>).
 	/// </summary>
-	internal override void Setup( RenderContext context, RenderWorld world, ViewPass view )
+	internal override void Setup( GpuContext context, RenderWorld world, ViewPass view )
 	{
 		// On the main thread: draws may record on worker threads, where materials can't be made
 		defaultMaterial ??= RenderHost.Current.Device.CreateMaterial( "scene_renderer_default", DefaultShader );
@@ -761,7 +761,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	/// <summary>
 	/// Draw a range of the layer's draws, applying each list's fade combo.
 	/// </summary>
-	internal override void Draw( RenderContext context, ViewPass view, MeshLayer layer, int first, int count, ref RenderStats stats )
+	internal override void Draw( GpuContext context, ViewPass view, MeshLayer layer, int first, int count, ref RenderStats stats )
 	{
 		var lists = view.State<RunLists>( this );
 		var end = first + count;
@@ -775,7 +775,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		}
 	}
 
-	void DrawListRange( RenderContext context, ViewPass view, ReadOnlySpan<Run> runs, ReadOnlySpan<DrawItem> items, MeshLayer layer, int first, int end, ref int start, bool fade, ref RenderStats stats )
+	void DrawListRange( GpuContext context, ViewPass view, ReadOnlySpan<Run> runs, ReadOnlySpan<DrawItem> items, MeshLayer layer, int first, int end, ref int start, bool fade, ref RenderStats stats )
 	{
 		var from = Math.Max( first - start, 0 );
 		var to = Math.Min( end - start, items.Length );
@@ -787,7 +787,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		if ( fade ) context.SetCombo( OpaqueFade, 0 );
 	}
 
-	void DrawItems( RenderContext context, ViewPass view, ReadOnlySpan<Run> runs, ReadOnlySpan<DrawItem> items, MeshLayer layer, ref RenderStats stats )
+	void DrawItems( GpuContext context, ViewPass view, ReadOnlySpan<Run> runs, ReadOnlySpan<DrawItem> items, MeshLayer layer, ref RenderStats stats )
 	{
 		var depth = layer.Depth;
 

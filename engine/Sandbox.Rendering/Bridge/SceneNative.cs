@@ -140,5 +140,5 @@ internal static class SceneNative
 	/// Draw dynamic vertices with the transform slot already bound (<c>RenderTools.DrawDynamicSceneObject</c>).
 	/// Returns false when empty.
 	/// </summary>
-	public static bool DrawDynamicObject( RenderContext context, SceneDynamicObject sceneObject, StringToken shaderMode ) => RenderTools.DrawDynamicSceneObject( context.Native, sceneObject, shaderMode );
+	public static bool DrawDynamicObject( GpuContext context, SceneDynamicObject sceneObject, StringToken shaderMode ) => RenderTools.DrawDynamicSceneObject( context.NativeContext(), sceneObject, shaderMode );
 }

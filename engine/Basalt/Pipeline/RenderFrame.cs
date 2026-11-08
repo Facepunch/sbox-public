@@ -124,9 +124,9 @@ internal sealed class RenderFrame
 	/// <summary>
 	/// Set base view constants and native render time (<c>CSceneSystem::InitializeRenderAttributes</c>).
 	/// </summary>
-	internal void SetViewConstants( RenderContext context )
+	internal void SetViewConstants( GpuContext context )
 	{
-		Time = RenderContext.RenderTime;
+		Time = GpuContext.RenderTime;
 		context.Attributes.Set( TimeAttribute, Time );
 		// The managed skybox is a child frame; AO and SSR belong to the main camera.
 		context.Attributes.Set( DisableScreenSpaceEffects, IsSkybox );
@@ -155,16 +155,16 @@ internal sealed class RenderFrame
 	/// Bind targets and matching constants (<c>CreatePerLayerViewConstants</c>).
 	/// Uses depth's sample count, or one without depth. Nonnegative <paramref name="toneMapScalar"/> overrides exposure.
 	/// </summary>
-	internal void BeginPass( RenderContext rc, in StageTarget target, float toneMapScalar = -1 )
+	internal void BeginPass( GpuContext rc, in StageTarget target, float toneMapScalar = -1 )
 	{
 		rc.Bind( target );
-		UseViewConstants( rc, new ViewConstantsKey( target.Viewport, target.Size, target.Depth.IsNull ? 1 : target.Samples, target.MinZ, target.MaxZ, toneMapScalar ) );
+		UseViewConstants( rc, new ViewConstantsKey( target.Viewport, target.Size, target.Depth is null ? 1 : target.Samples, target.MinZ, target.MaxZ, toneMapScalar ) );
 	}
 
 	/// <summary>
 	/// Bind constants for the key, reusing base constants and skipping unchanged bindings.
 	/// </summary>
-	internal void UseViewConstants( RenderContext rc, in ViewConstantsKey key )
+	internal void UseViewConstants( GpuContext rc, in ViewConstantsKey key )
 	{
 		if ( rc.ViewConstants == key ) return;
 
@@ -184,40 +184,40 @@ internal sealed class RenderFrame
 	/// <summary>
 	/// Restore base constants before main-thread layers and engine stages.
 	/// </summary>
-	internal void UseFrameConstants( RenderContext rc ) => UseViewConstants( rc, constantsKey );
+	internal void UseFrameConstants( GpuContext rc ) => UseViewConstants( rc, constantsKey );
 
 	/// <summary>
 	/// Bind HDR depth and optional colour with the frame's constants.
 	/// </summary>
-	internal void BindFrame( RenderContext rc, bool color = true ) => BeginPass( rc, Target( rc, color, final: false ) );
+	internal void BindFrame( GpuContext rc, bool color = true ) => BeginPass( rc, Target( rc, color, final: false ) );
 
 	/// <summary>
 	/// Describe the HDR or final target, with optional colour.
 	/// </summary>
-	internal StageTarget Target( RenderContext rc, bool color, bool final )
+	internal StageTarget Target( GpuContext rc, bool color, bool final )
 	{
 		var output = Output;
 		var target = output.Target;
 		var srgbWrite = target.SrgbWrite;
-		var stageColor = !color ? default : final ? rc.OutputColor( output, out srgbWrite ) : target.Color.Native();
+		var stageColor = !color ? null : final ? rc.OutputColor( output, out srgbWrite ) : target.Color;
 
 		// Retain HDR depth only when output sample counts match; resolved textures have one sample.
 		var samples = final && ((output.Texture is not null && output.Scratch is null) || (!output.HasCopy && target.Samples > 1)) ? 1 : target.Samples;
 
 		return new StageTarget
 		{
-			Context = rc.Native,
-			Attributes = rc.Attributes.Engine(),
+			Context = rc,
+			Attributes = rc.Attributes,
 			Color = stageColor,
-			Depth = samples == target.Samples ? target.Depth.Native() : default,
-			HdrColor = final ? target.Resolved.Native() : target.Color.Native(),
+			Depth = samples == target.Samples ? target.Depth : null,
+			HdrColor = final ? target.Resolved : target.Color,
 			SrgbWrite = srgbWrite,
 			IsOutput = final,
 			Size = output.Size,
 			Viewport = View.Viewport,
 			MinZ = DepthMin,
 			MaxZ = DepthMax,
-			ColorFormat = final && output.Texture is { } texture ? texture.Engine().ImageFormat : final && output.HasCopy ? ImageFormat.RGBA8888 : target.Color.Engine().ImageFormat,
+			ColorFormat = final && output.Texture is { } texture ? texture.Format : final && output.HasCopy ? TextureFormat.RGBA8888 : target.Color.Format,
 			Samples = samples,
 		};
 	}
@@ -236,7 +236,7 @@ internal sealed class RenderFrame
 	/// <summary>
 	/// Run independent effects ahead of their normal stage, without binding frame targets.
 	/// </summary>
-	internal void RunEarlyPostProcess( RenderContext rc, RenderStage stage, StageQueue queue )
+	internal void RunEarlyPostProcess( GpuContext rc, RenderStage stage, StageQueue queue )
 	{
 		if ( Stages is null ) return;
 
@@ -249,7 +249,7 @@ internal sealed class RenderFrame
 	/// <summary>
 	/// Trace screen-space reflections without frame targets bound, or keep their history with colour bound.
 	/// </summary>
-	internal void RunScreenSpaceReflections( RenderContext rc, bool history )
+	internal void RunScreenSpaceReflections( GpuContext rc, bool history )
 	{
 		if ( Stages is null ) return;
 
@@ -259,7 +259,7 @@ internal sealed class RenderFrame
 		StagesMs += Stopwatch.GetElapsedTime( start ).TotalMilliseconds;
 	}
 
-	internal void RunStage( RenderContext rc, RenderStage stage, bool color = true, bool final = false )
+	internal void RunStage( GpuContext rc, RenderStage stage, bool color = true, bool final = false )
 	{
 		if ( Stages is null ) return;
 
@@ -285,7 +285,7 @@ internal sealed class RenderFrame
 	/// Draw the whole main-thread layer. Translucent layers copy the frame on the first reader
 	/// (<c>CRenderBatchList::DrawCurrentPrimitives</c>).
 	/// </summary>
-	internal void DrawLayer( RenderContext rc, MeshLayer layer, ref RenderStats stats )
+	internal void DrawLayer( GpuContext rc, MeshLayer layer, ref RenderStats stats )
 	{
 		var copies = layer.LayerType == MeshLayerType.Translucent && !layer.Depth && ReadsFrameBuffer( layer.Runs );
 		if ( copies ) rc.BeginFrameBufferReads( System.FrameBufferCopy( View.Viewport ), View.Viewport );

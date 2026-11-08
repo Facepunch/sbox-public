@@ -26,12 +26,12 @@ internal sealed class DepthChainLayer : RenderLayer
 	/// The prepass's depth made readable by compute, on the graphics queue: an attachment's transition on the compute queue
 	/// may need a decompression only graphics can do.
 	/// </summary>
-	public override void HandOff( RenderFrame frame, RenderContext rc ) => rc.BarrierToComputeRead( frame.Output.Target.Depth );
+	public override void HandOff( RenderFrame frame, GpuContext rc ) => rc.BarrierToComputeRead( frame.Output.Target.Depth );
 
 	/// <summary>
 	/// Bind the chain before recording. Previous-frame depth aliases the current chain, matching native.
 	/// </summary>
-	public override void BeforeSegments( RenderFrame frame, RenderContext frameContext )
+	public override void BeforeSegments( RenderFrame frame, GpuContext frameContext )
 	{
 		var viewport = frame.View.Viewport;
 		var width = (int)viewport.Width;
@@ -41,7 +41,7 @@ internal sealed class DepthChainLayer : RenderLayer
 		frameContext.Attributes.Set( DepthChainPrevFrameName, chain );
 	}
 
-	public override void Record( RenderFrame frame, RenderContext rc, ref RenderStats stats )
+	public override void Record( RenderFrame frame, GpuContext rc, ref RenderStats stats )
 	{
 		var viewport = frame.View.Viewport;
 		var target = frame.Output.Target;

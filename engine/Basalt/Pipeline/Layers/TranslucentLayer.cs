@@ -29,7 +29,7 @@ internal sealed class TranslucentLayer : MeshLayer
 	/// <summary>
 	/// Bind the frame with alpha tint and optional fading.
 	/// </summary>
-	public override void Begin( RenderFrame frame, RenderContext rc, ViewPass view, bool start )
+	public override void Begin( RenderFrame frame, GpuContext rc, ViewPass view, bool start )
 	{
 		frame.BindFrame( rc );
 		if ( Fade ) rc.SetPassCombo( MeshRenderFeature.OpaqueFade, 1 );

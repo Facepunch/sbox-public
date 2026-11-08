@@ -37,12 +37,12 @@ internal sealed class ShadowLayer : MeshLayer
 			recorder.AddWork( frame, pass, this );
 	}
 
-	public override void BeforeSegments( RenderFrame frame, RenderContext frameContext ) => frame.System.ShadowMaps.BarrierToWrite( frameContext );
+	public override void BeforeSegments( RenderFrame frame, GpuContext frameContext ) => frame.System.ShadowMaps.BarrierToWrite( frameContext );
 
 	/// <summary>
 	/// Clear the shadow map or initialize it from its static cache.
 	/// </summary>
-	public override void Begin( RenderFrame frame, RenderContext rc, ViewPass view, bool start ) => frame.System.ShadowMaps.BeginPass( rc, view, start );
+	public override void Begin( RenderFrame frame, GpuContext rc, ViewPass view, bool start ) => frame.System.ShadowMaps.BeginPass( rc, view, start );
 }
 
 /// <summary>
@@ -55,5 +55,5 @@ internal sealed class ShadowsReadyLayer : RenderLayer
 	public override bool IsNeeded( RenderFrame frame ) => frame.System.ShadowMaps.Passes.Length > 0;
 	public override FrameResources Reads( RenderFrame frame ) => FrameResources.ShadowMaps;
 
-	public override void Record( RenderFrame frame, RenderContext rc, ref RenderStats stats ) => frame.System.ShadowMaps.BarrierToRead( rc );
+	public override void Record( RenderFrame frame, GpuContext rc, ref RenderStats stats ) => frame.System.ShadowMaps.BarrierToRead( rc );
 }

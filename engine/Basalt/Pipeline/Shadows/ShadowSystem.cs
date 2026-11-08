@@ -326,7 +326,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 	/// <summary>
 	/// Resolve shadow textures/indices and upload lighting buffers before render passes.
 	/// </summary>
-	public void Setup( RenderContext context, GpuTexture contactShadowMask = null )
+	public void Setup( GpuContext context, GpuTexture contactShadowMask = null )
 	{
 		mapper.ResolveTextureIndices();
 
@@ -351,7 +351,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 	/// <summary>
 	/// Make the shadow maps writable as depth, before any shadow view renders.
 	/// </summary>
-	public void BarrierToWrite( RenderContext context )
+	public void BarrierToWrite( GpuContext context )
 	{
 		foreach ( var target in targets )
 			context.BarrierToDepthWrite( target );
@@ -360,7 +360,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 	/// <summary>
 	/// Leave the shadow maps readable by the main view's pixel shaders, after every shadow view has rendered.
 	/// </summary>
-	public void BarrierToRead( RenderContext context )
+	public void BarrierToRead( GpuContext context )
 	{
 		foreach ( var target in targets )
 			context.BarrierToPixelShaderRead( target );
@@ -369,7 +369,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 	/// <summary>
 	/// Bind shadow targets/constants on the recording thread. The first share clears or copies the static cache.
 	/// </summary>
-	public void BeginPass( RenderContext context, ViewPass pass, bool clear )
+	public void BeginPass( GpuContext context, ViewPass pass, bool clear )
 	{
 		var view = pass.View;
 		var size = new Vector2( view.Viewport.Width, view.Viewport.Height );
@@ -381,14 +381,14 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 
 		context.Bind( new StageTarget
 		{
-			Context = context.Native,
-			Attributes = context.Attributes.Engine(),
-			Depth = pass.Target.Native(),
+			Context = context,
+			Attributes = context.Attributes,
+			Depth = pass.Target,
 			DepthSlice = pass.TargetSlice,
 			Size = new Vector2( pass.Target.Width, pass.Target.Height ),
 			Viewport = view.Viewport,
 			MaxZ = 1,
-			ColorFormat = ImageFormat.None,
+			ColorFormat = TextureFormat.None,
 			Samples = 1,
 		} );
 		if ( clear && cached is null ) context.Clear( Color.Black, clearColor: false );

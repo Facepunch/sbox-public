@@ -17,5 +17,5 @@ internal sealed class StaticOverlayLayer : MeshLayer
 
 	public override bool IsNeeded( RenderFrame frame ) => frame.RunCount( this ) > 0;
 
-	public override void Begin( RenderFrame frame, RenderContext rc, ViewPass view, bool start ) => frame.BindFrame( rc );
+	public override void Begin( RenderFrame frame, GpuContext rc, ViewPass view, bool start ) => frame.BindFrame( rc );
 }

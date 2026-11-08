@@ -46,7 +46,7 @@ internal sealed class BloomLayer : MeshLayer
 	/// <summary>
 	/// Acquire and bind the bloom target before recording.
 	/// </summary>
-	public override void BeforeSegments( RenderFrame frame, RenderContext frameContext )
+	public override void BeforeSegments( RenderFrame frame, GpuContext frameContext )
 	{
 		var viewport = frame.View.Viewport;
 		Viewport = new Rect( (int)(viewport.Left / 4), (int)(viewport.Top / 4), (int)(viewport.Width / 4), (int)(viewport.Height / 4) );
@@ -69,25 +69,25 @@ internal sealed class BloomLayer : MeshLayer
 	/// <summary>
 	/// Single-sample target with quarter-resolution viewport constants.
 	/// </summary>
-	internal StageTarget TargetFor( RenderFrame frame, RenderContext rc ) => new()
+	internal StageTarget TargetFor( RenderFrame frame, GpuContext rc ) => new()
 	{
-		Context = rc.Native,
-		Attributes = rc.Attributes.Engine(),
-		Color = Target.ColorTarget.native,
-		Depth = Target.DepthTarget.native,
-		HdrColor = Target.ColorTarget.native,
+		Context = rc,
+		Attributes = rc.Attributes,
+		Color = Source2Texture.From( Target.ColorTarget ),
+		Depth = Source2Texture.From( Target.DepthTarget ),
+		HdrColor = Source2Texture.From( Target.ColorTarget ),
 		Size = new Vector2( Target.Width, Target.Height ),
 		Viewport = Viewport,
 		MinZ = frame.DepthMin,
 		MaxZ = frame.DepthMax,
-		ColorFormat = ImageFormat.RGBA1010102,
+		ColorFormat = TextureFormat.RGBA1010102,
 		Samples = 1,
 	};
 
 	/// <summary>
 	/// Clear colour to transparent black, preserving downsampled depth.
 	/// </summary>
-	public override void Begin( RenderFrame frame, RenderContext rc, ViewPass view, bool start )
+	public override void Begin( RenderFrame frame, GpuContext rc, ViewPass view, bool start )
 	{
 		frame.BeginPass( rc, TargetFor( frame, rc ) );
 		if ( start ) rc.Clear( Color.Transparent, clearColor: true, clearDepth: false );
@@ -119,7 +119,7 @@ internal sealed class QuarterDepthDownsampleLayer : RenderLayer
 	/// <summary>
 	/// Clear and downsample depth using the bloom viewport's constants.
 	/// </summary>
-	public override void Record( RenderFrame frame, RenderContext rc, ref RenderStats stats )
+	public override void Record( RenderFrame frame, GpuContext rc, ref RenderStats stats )
 	{
 		frame.BeginPass( rc, bloom.TargetFor( frame, rc ) );
 		rc.Clear( Color.Transparent, clearColor: false, clearDepth: true );

@@ -83,8 +83,8 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 
 		SetMainCamera();
 
-		var context = target.Context;
-		context.GetAttributesPtrForModify().SetParent( target.Attributes.Get() );
+		var context = target.Context.NativeContext();
+		context.GetAttributesPtrForModify().SetParent( target.Attributes.Engine().Get() );
 
 		view.Color = default;
 		view.Depth = default;
@@ -92,7 +92,7 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 		view.Viewport = target.Viewport;
 		view.MinZ = target.MinZ;
 		view.MaxZ = target.MaxZ;
-		view.ColorFormat = target.ColorFormat;
+		view.ColorFormat = Source2Formats.ToEngineOrDefault( target.ColorFormat );
 		view.Msaa = SampleCount( target.Samples );
 		view.ComputeQueue = queue == StageQueue.AsyncCompute;
 
@@ -117,16 +117,16 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 
 		SetMainCamera();
 
-		var context = target.Context;
-		context.GetAttributesPtrForModify().SetParent( target.Attributes.Get() );
+		var context = target.Context.NativeContext();
+		context.GetAttributesPtrForModify().SetParent( target.Attributes.Engine().Get() );
 
-		view.Color = history ? target.Color : default;
-		view.Depth = history ? target.Depth : default;
+		view.Color = history ? target.Color.Native() : default;
+		view.Depth = history ? target.Depth.Native() : default;
 		view.SrgbWrite = false;
 		view.Viewport = target.Viewport;
 		view.MinZ = target.MinZ;
 		view.MaxZ = target.MaxZ;
-		view.ColorFormat = target.ColorFormat;
+		view.ColorFormat = Source2Formats.ToEngineOrDefault( target.ColorFormat );
 		view.Msaa = SampleCount( target.Samples );
 
 		using ( new Graphics.Scope( context, view ) )
@@ -145,27 +145,27 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 		// Skip empty early UI (CameraComponent.HasEarlyUI).
 		if ( stage == RenderStage.EarlyUI && !Camera.Attributes.GetBool( EnableEarlyUI ) ) return;
 
-		var context = target.Context;
+		var context = target.Context.NativeContext();
 
 		// Inherit frame constants, lighting and bindless descriptors.
 		var contextAttributes = context.GetAttributesPtrForModify();
-		contextAttributes.SetParent( target.Attributes.Get() );
+		contextAttributes.SetParent( target.Attributes.Engine().Get() );
 
 		// Query HDR luminance before tonemapping, with HDR colour unbound.
 		if ( stage == RenderStage.Tonemapping && tonemap.IsValid )
 		{
-			RenderTools.BindColorAndDepthTarget( context, default, target.Depth, false );
+			RenderTools.BindColorAndDepthTarget( context, default, target.Depth.Native(), false );
 			var rect = target.Viewport;
-			RenderTools.RenderAutoExposure( context, tonemap, target.HdrColor, (int)rect.Left, (int)rect.Top, (int)rect.Width, (int)rect.Height );
+			RenderTools.RenderAutoExposure( context, tonemap, target.HdrColor.Native(), (int)rect.Left, (int)rect.Top, (int)rect.Width, (int)rect.Height );
 		}
 
-		view.Color = target.Color;
-		view.Depth = target.Depth;
+		view.Color = target.Color.Native();
+		view.Depth = target.Depth.Native();
 		view.SrgbWrite = target.SrgbWrite;
 		view.Viewport = target.Viewport;
 		view.MinZ = target.MinZ;
 		view.MaxZ = target.MaxZ;
-		view.ColorFormat = target.ColorFormat;
+		view.ColorFormat = Source2Formats.ToEngineOrDefault( target.ColorFormat );
 		view.Msaa = SampleCount( target.Samples );
 
 		// Gamma UI uses a linear view of sRGB bytes (Native.HookLayers.AddUI).
@@ -174,12 +174,12 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 		var gamma = ui && RenderPipeline.UIGammaBlend;
 		RenderTarget scratch = null;
 
-		if ( gamma && Source2Formats.From( target.ColorFormat ).IsFloat() )
+		if ( gamma && target.ColorFormat.IsFloat() )
 		{
 			scratch = RenderTarget.GetTemporary( (int)target.Size.x, (int)target.Size.y, ImageFormat.RGBA16161616F, ImageFormat.None );
 			var rect = target.Viewport;
 			RenderTools.BindColorAndDepthTarget( context, scratch.ColorTarget.native, default, false );
-			RenderTools.BlitTexture( context, target.Color, (int)rect.Left, (int)rect.Top, (int)rect.Width, (int)rect.Height, 1 );
+			RenderTools.BlitTexture( context, target.Color.Native(), (int)rect.Left, (int)rect.Top, (int)rect.Width, (int)rect.Height, 1 );
 
 			view.Color = scratch.ColorTarget.native;
 			view.Depth = default;
@@ -205,7 +205,7 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 		if ( scratch is not null )
 		{
 			var rect = target.Viewport;
-			RenderTools.BindColorAndDepthTarget( context, target.Color, default, target.SrgbWrite );
+			RenderTools.BindColorAndDepthTarget( context, target.Color.Native(), default, target.SrgbWrite );
 			RenderTools.BlitTexture( context, scratch.ColorTarget.native, (int)rect.Left, (int)rect.Top, (int)rect.Width, (int)rect.Height, 2 );
 			contextAttributes.SetIntValue( UIFrameGrabEncoded, 0 );
 			scratch.Dispose();

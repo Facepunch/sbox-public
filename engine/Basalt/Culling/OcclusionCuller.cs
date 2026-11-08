@@ -67,7 +67,7 @@ internal sealed class OcclusionCuller : IDisposable
 	readonly UploadRing<GpuBuffer.IndirectDrawIndexedArguments> argsRing = new( "Basalt OcclusionArgs", GpuBuffer.UsageFlags.Structured | GpuBuffer.UsageFlags.IndirectDrawArguments );
 	readonly UploadRing<uint> culledRing = new( "Basalt OcclusionCulledIds", GpuBuffer.UsageFlags.Structured | GpuBuffer.UsageFlags.Vertex );
 	readonly UploadRing<uint> statsRing = new( "Basalt OcclusionStats" );
-	readonly AsyncGPUReadback.BufferReadDelegate onStatsRead;
+	readonly GpuReadback onStatsRead;
 
 	public OcclusionCuller()
 	{
@@ -213,10 +213,10 @@ internal sealed class OcclusionCuller : IDisposable
 	/// </summary>
 	public int FragmentCountArg( OcclusionPhase phase, int firstArg, int count ) => ArgOffset( phase ) + firstArg + count * 2;
 
-	public void Upload( RenderContext context, int instanceIdCount )
+	public void Upload( GpuContext context, int instanceIdCount )
 	{
 		// Compacting needs drawIndirectCount. Without it the fragment runs cull in their own args, after the survivors'
-		CompactFragments = wantsCompactFragments && RenderContext.SupportsDrawIndirectCount;
+		CompactFragments = wantsCompactFragments && GpuContext.SupportsDrawIndirectCount;
 		foreach ( var run in fragmentRuns.AsSpan( 0, fragmentRunCount ) )
 		{
 			if ( CompactFragments ) runs[run].Phases |= RunCompact;
@@ -241,7 +241,7 @@ internal sealed class OcclusionCuller : IDisposable
 		statsRing.Upload( context, stats );
 	}
 
-	public void ReadStats( RenderContext context ) => context.Native.ReadBufferAsync( Stats.Engine(), onStatsRead, 0, 2 * sizeof( uint ) );
+	public void ReadStats( GpuContext context ) => context.ReadBuffer( Stats, 0, 2 * sizeof( uint ), onStatsRead );
 
 	public void Dispose()
 	{

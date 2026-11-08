@@ -143,10 +143,10 @@ internal sealed partial class LightBinnerFeature
 		for ( int i = 0; i < EnvMapCount; i++ )
 		{
 			var cubemap = envMapObjects[i].Cubemap;
-			if ( !RenderContext.HasData( cubemap ) ) cubemap = blackCube ??= RenderHost.Current.Device.LoadTexture( "dev/env_cubemap_black.vtex" );
+			if ( !GpuContext.HasData( cubemap ) ) cubemap = blackCube ??= RenderHost.Current.Device.LoadTexture( "dev/env_cubemap_black.vtex" );
 
 			cubemap.KeepResident();
-			envMaps[i].CubemapIndex = RenderContext.BindlessIndex( cubemap );
+			envMaps[i].CubemapIndex = GpuContext.BindlessIndex( cubemap );
 		}
 	}
 }

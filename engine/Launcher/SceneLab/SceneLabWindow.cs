@@ -184,7 +184,7 @@ internal sealed partial class SceneLabWindow : PanelWindow
 
 		// The render device only records GPU frame times for the main window's swap chain
 		g_pRenderDevice.SetSwapChainIsMainWindow( Window.SwapChain, true );
-		renderer.TimingSwapChain = Window.SwapChain;
+		renderer.TimingSwapChain = new GpuSwapChain( Window.SwapChain );
 
 		renderer.GetFeature<MeshRenderFeature>().UseMeshMaterials = !Args.Has( "-debugshader" );
 		renderer.DepthPrepass = !Args.Has( "-noprepass" );
@@ -723,7 +723,7 @@ internal sealed partial class SceneLabWindow : PanelWindow
 		}
 		else
 		{
-			renderer.Render( world, view, swapChain, size );
+			renderer.Render( world, view, new GpuSwapChain( swapChain ), size );
 		}
 
 		// The panel shows the texture over the swap chain, which nothing drew into

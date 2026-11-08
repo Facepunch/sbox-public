@@ -24,9 +24,9 @@ internal sealed class ContactShadowLayer : RenderLayer
 	public override FrameResources Writes => FrameResources.ContactShadows;
 	public override bool SupportsAsyncCompute => true;
 
-	public override void HandOff( RenderFrame frame, RenderContext rc ) => Render( frame, rc, ContactShadows.Steps.Prepare );
+	public override void HandOff( RenderFrame frame, GpuContext rc ) => Render( frame, rc, ContactShadows.Steps.Prepare );
 
-	public override void TakeBack( RenderFrame frame, RenderContext rc ) => rc.BarrierComputeToPixelShaderRead( frame.ContactShadowMask );
+	public override void TakeBack( RenderFrame frame, GpuContext rc ) => rc.BarrierComputeToPixelShaderRead( frame.ContactShadowMask );
 
 	/// <summary>
 	/// Acquire a viewport-sized mask when contact shadows are enabled for a perspective game camera with a prepass.
@@ -47,12 +47,12 @@ internal sealed class ContactShadowLayer : RenderLayer
 		return Source2Texture.From( rt.ColorTarget );
 	}
 
-	public override void Record( RenderFrame frame, RenderContext rc, ref RenderStats stats )
+	public override void Record( RenderFrame frame, GpuContext rc, ref RenderStats stats )
 	{
 		Render( frame, rc, rc.AsyncCompute ? ContactShadows.Steps.Dispatch : ContactShadows.Steps.All );
 	}
 
-	void Render( RenderFrame frame, RenderContext rc, ContactShadows.Steps steps )
+	void Render( RenderFrame frame, GpuContext rc, ContactShadows.Steps steps )
 	{
 		var target = frame.Output.Target;
 		graphicsView ??= new Graphics.ManagedView();
