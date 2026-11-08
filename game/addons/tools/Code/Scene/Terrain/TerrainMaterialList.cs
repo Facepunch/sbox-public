@@ -371,8 +371,53 @@ public class TerrainMaterialList : ListView
 		return bytes;
 	}
 
-	// Tile layout, top to bottom: thumbnail, coverage bar, name, coverage, VRAM
-	const float ThumbHeight = 36;
+	readonly Dictionary<TerrainMaterial, (Texture Source, Pixmap Swatch)> _swatches = [];
+	const int SwatchSize = 64;
+
+	/// <summary>
+	/// The material's base color as a flat square, read back from a small mip of its BCR texture. Works for package
+	/// materials too, which have no local asset thumbnail. Null until the GPU readback lands.
+	/// </summary>
+	Pixmap GetSwatch( TerrainMaterial material )
+	{
+		var texture = material.BCRTexture;
+		if ( texture is null ) return null;
+		if ( _swatches.TryGetValue( material, out var cached ) && cached.Source == texture ) return cached.Swatch;
+
+		_swatches[material] = (texture, null);
+
+		var mip = Math.Clamp( (int)MathF.Log2( Math.Max( texture.Width, texture.Height ) / (float)SwatchSize ), 0, texture.Mips - 1 );
+		var width = Math.Max( 1, texture.Width >> mip );
+		var height = Math.Max( 1, texture.Height >> mip );
+
+		texture.GetPixelsAsync( pixels =>
+		{
+			// Alpha holds roughness, not opacity
+			var bytes = new byte[pixels.Length * 4];
+			for ( int i = 0; i < pixels.Length; i++ )
+			{
+				bytes[i * 4 + 0] = pixels[i].r;
+				bytes[i * 4 + 1] = pixels[i].g;
+				bytes[i * 4 + 2] = pixels[i].b;
+				bytes[i * 4 + 3] = 255;
+			}
+
+			MainThread.Queue( () =>
+			{
+				if ( !IsValid || !_swatches.TryGetValue( material, out var entry ) || entry.Source != texture ) return;
+
+				var swatch = new Pixmap( width, height );
+				swatch.UpdateFromPixels( bytes, width, height, ImageFormat.RGBA8888 );
+				_swatches[material] = (texture, swatch);
+				Update();
+			} );
+		}, mip );
+
+		return null;
+	}
+
+	// Tile layout, top to bottom: square swatch, coverage bar, name, coverage, VRAM
+	const float ThumbHeight = 64;
 	const float LineHeight = 12;
 
 	protected override void PaintItem( VirtualWidget item )
@@ -381,7 +426,8 @@ public class TerrainMaterialList : ListView
 			return;
 
 		var r = item.Rect;
-		var thumb = new Rect( r.Left + 2, r.Top + 2, r.Width - 4, ThumbHeight - 4 );
+		var side = MathF.Min( r.Width - 4, ThumbHeight - 4 );
+		var thumb = new Rect( r.Left + (r.Width - side) * 0.5f, r.Top + 2, side, side );
 		var bar = new Rect( r.Left + 2, r.Top + ThumbHeight, r.Width - 4, 3 );
 		Rect Line( int i ) => new( r.Left, bar.Bottom + 1 + i * LineHeight, r.Width, LineHeight );
 
@@ -398,19 +444,15 @@ public class TerrainMaterialList : ListView
 			Paint.DrawRect( r.Shrink( 1 ), 4 );
 		}
 
-		// Not a local asset (e.g. from a package): no thumbnail, but name and numbers still matter
-		if ( AssetSystem.FindByPath( material.ResourcePath ) is { } asset )
+		if ( GetSwatch( material ) is { } swatch )
 		{
-			Paint.Draw( thumb, asset.GetAssetThumb() );
+			Paint.Draw( thumb, swatch );
 		}
 		else
 		{
 			Paint.ClearPen();
 			Paint.SetBrush( Theme.ControlBackground.Lighten( 0.3f ) );
 			Paint.DrawRect( thumb, 2 );
-			Paint.SetDefaultFont( 7 );
-			Paint.SetPen( Theme.TextLight );
-			Paint.DrawText( thumb, "no thumb", TextFlag.Center );
 		}
 
 		Paint.SetDefaultFont( 7 );
