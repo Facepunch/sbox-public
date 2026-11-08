@@ -149,11 +149,12 @@ initial setup and native build options.
 dotnet run --project engine/Tools/SboxBuild/SboxBuild.csproj -- build --skip-native
 
 # Run the renderer's unit tests after building.
-dotnet test -c Release --no-build engine/Tests/Sandbox.Test.Unit --filter "FullyQualifiedName~BasaltTests"
+dotnet test -c Release --no-build engine/Tests/Basalt.Test
 ```
 
-The [unit tests](../Tests/Sandbox.Test.Unit/Basalt/) cover culling, object storage, transforms,
-GPU layouts, light packing, layer selection and allocation behavior. Tests that prepare frames use
+The [tests](../Tests/Basalt.Test/) run on a headless device that records what frames submit, with
+nothing of the engine. They cover culling, object storage, transforms, GPU layouts, light packing,
+layer selection, allocation behavior, and the order and queues of a whole frame's work. Tests that prepare frames use
 `[DoNotParallelize]` because `ShadowMapper` and `Application.FrameCount` contain shared static state.
 
 Visual changes require a parity sweep and inspection of the captured images. A passing comparison
