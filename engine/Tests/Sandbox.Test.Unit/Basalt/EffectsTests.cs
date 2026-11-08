@@ -10,7 +10,7 @@ namespace BasaltTests;
 /// <summary>
 /// Custom objects (sprites, particles, world panels) sorting with the meshes, and decals binned in their sort order.
 /// </summary>
-// Frames go through the engine's ShadowMapper, whose cache and frame counter are static
+// Frames go through Basalt's ShadowMapper, whose cache and frame counter are static
 [TestClass]
 [DoNotParallelize]
 public class EffectsTests

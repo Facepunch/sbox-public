@@ -9,7 +9,7 @@ namespace BasaltTests;
 /// <summary>
 /// Blending: which layer each object draws in, native's back to front sort, and what shadow views take.
 /// </summary>
-// Frames go through the engine's ShadowMapper, whose cache and frame counter are static: one test's frame
+// Frames go through Basalt's ShadowMapper, whose cache and frame counter are static: one test's frame
 // can't run in the middle of another's
 [TestClass]
 [DoNotParallelize]
@@ -110,7 +110,7 @@ public class TranslucencyTests
 		var view = LookingDownX();
 		using var system = new RenderSystem();
 		var feature = system.GetFeature<MeshRenderFeature>();
-		Sandbox.Rendering.ShadowMapper.ResetCache();
+		Basalt.Shadows.ShadowMapper.ResetCache();
 
 		CollectAndPrepare( system, scene.World, view );
 

@@ -41,7 +41,7 @@ public class AggregateTests
 		world.Add( aggregate );
 
 		using var system = new RenderSystem();
-		Sandbox.Rendering.ShadowMapper.ResetCache();
+		Basalt.Shadows.ShadowMapper.ResetCache();
 		CollectAndPrepare( system, world, LookingDownX() );
 
 		var feature = system.GetFeature<AggregateRenderFeature>();
@@ -63,7 +63,7 @@ public class AggregateTests
 		world.Add( aggregate );
 
 		using var system = new RenderSystem();
-		Sandbox.Rendering.ShadowMapper.ResetCache();
+		Basalt.Shadows.ShadowMapper.ResetCache();
 		CollectAndPrepare( system, world, LookingDownX() );
 
 		// The cascades draw it too, from the same entries
@@ -89,7 +89,7 @@ public class AggregateTests
 		world.Add( new AggregateObject( TestMesh( false ), [fragment] ) );
 
 		using var system = new RenderSystem();
-		Sandbox.Rendering.ShadowMapper.ResetCache();
+		Basalt.Shadows.ShadowMapper.ResetCache();
 		CollectAndPrepare( system, world, LookingDownX() );
 
 		var feature = system.GetFeature<AggregateRenderFeature>();
@@ -104,7 +104,7 @@ public class AggregateTests
 		world.Add( TestAggregate() );
 
 		using var system = new RenderSystem();
-		Sandbox.Rendering.ShadowMapper.ResetCache();
+		Basalt.Shadows.ShadowMapper.ResetCache();
 		CollectAndPrepare( system, world, LookingDownX() );
 
 		var batch = system.GetFeature<AggregateRenderFeature>().BatchesFor( system.MainPass ).Single();

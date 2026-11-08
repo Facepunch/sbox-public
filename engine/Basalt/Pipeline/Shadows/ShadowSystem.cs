@@ -1,10 +1,9 @@
-using Sandbox.Rendering;
 using System.Runtime.InteropServices;
 
 namespace Basalt.Shadows;
 
 /// <summary>
-/// Managed renderer for the shared <see cref="ShadowMapper"/> policy: resolution, cascades, caching and time slicing.
+/// Renders the views <see cref="ShadowMapper"/> asks for, with its policy: resolution, cascades, caching and time slicing.
 /// Each requested shadow view becomes a culled depth <see cref="ViewPass"/>.
 /// </summary>
 internal sealed class ShadowSystem : IShadowRenderer, IDisposable
@@ -150,7 +149,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 			Cascades = lighting.SunShadowCascades,
 			CascadeSplitRatio = lighting.SunShadowSplitRatio,
 
-			// Baked suns exclude static casters (ShadowMapper.FromNative).
+			// Baked suns leave static casters to the lightmaps
 			Baked = lighting.SunShadowsBaked,
 		};
 
@@ -208,9 +207,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		pass.CachedStatic = desc.CachedStatic;
 		pass.DepthBias = desc.DepthBias;
 		pass.SlopeScaledDepthBias = desc.SlopeScaledDepthBias;
-		pass.StaticFilter = (desc.RequiredFlags & SceneObjectFlags.StaticObject) != 0 ? StaticFilter.OnlyStatic
-			: (desc.ExcludedFlags & SceneObjectFlags.StaticObject) != 0 ? StaticFilter.NoStatic
-			: StaticFilter.Any;
+		pass.StaticFilter = desc.StaticFilter;
 
 		var view = pass.View;
 		view.Name = desc.Name;
@@ -312,7 +309,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		if ( target is null || target.Resolution != resolution )
 		{
 			target?.Dispose();
-			target = new ShadowMap( resolution, false, ImageFormat.D32 );
+			target = new ShadowMap( resolution, false, TextureFormat.D32 );
 		}
 
 		return target;
@@ -337,7 +334,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		targets.Clear();
 		foreach ( var pass in Passes )
 		{
-			pass.Target = Source2Texture.From( pass.TargetMap.Texture );
+			pass.Target = pass.TargetMap.Texture;
 			if ( targets.Count == 0 || targets[^1] != pass.Target )
 				targets.Add( pass.Target );
 		}
@@ -377,7 +374,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		// Copy static depth once before drawing dynamic casters.
 		var cached = pass.CachedStatic;
 		if ( clear && cached is not null && pass.TargetSlice == 0 )
-			context.CopyTexture( Source2Texture.From( cached.Texture ), pass.Target, cached.IsCube ? 6 : 1 );
+			context.CopyTexture( cached.Texture, pass.Target, cached.IsCube ? 6 : 1 );
 
 		context.Bind( new StageTarget
 		{

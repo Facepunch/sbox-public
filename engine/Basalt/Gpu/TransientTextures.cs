@@ -39,7 +39,7 @@ internal sealed class TransientTextures : IDisposable
 	}
 
 	static bool Same( in TextureDesc a, in TextureDesc b ) => a.Width == b.Width && a.Height == b.Height && a.Depth == b.Depth && a.Format == b.Format
-		&& a.Samples == b.Samples && a.Mips == b.Mips && a.RenderTarget == b.RenderTarget && a.Storage == b.Storage && a.GenerateMips == b.GenerateMips;
+		&& a.Samples == b.Samples && a.Mips == b.Mips && a.RenderTarget == b.RenderTarget && a.Cube == b.Cube && a.Storage == b.Storage && a.GenerateMips == b.GenerateMips;
 
 	/// <summary>
 	/// The render is submitted: give everything back, and release what's gone unused. The device keeps textures alive for

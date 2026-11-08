@@ -9,7 +9,7 @@ namespace BasaltTests;
 /// Baked lights, binned as native's <c>CLightBinnerStandard</c> bins them: after the dynamic ones, reached through the
 /// bake index mapping, with shadow maps only when their shadows are mixed.
 /// </summary>
-// Frames go through the engine's ShadowMapper, whose cache and frame counter are static
+// Frames go through Basalt's ShadowMapper, whose cache and frame counter are static
 [TestClass]
 [DoNotParallelize]
 public class BakedLightTests
@@ -93,7 +93,7 @@ public class BakedLightTests
 		var mixed = Light( world, 100.5f, baked: true, mixed: true );
 
 		using var system = new RenderSystem();
-		Sandbox.Rendering.ShadowMapper.ResetCache();
+		Basalt.Shadows.ShadowMapper.ResetCache();
 		CollectAndPrepare( system, world, LookingDownX() );
 
 		Assert.AreEqual( 6, system.ShadowMaps.Passes.Length, "the mixed light's cube faces only" );

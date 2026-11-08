@@ -9,7 +9,7 @@ namespace BasaltTests;
 /// Skinning on the CPU: native's transform entry layout for a skinned mesh, bones concatenated with their inverse
 /// bind poses, written once a frame for every view, and the bind pose when an object has no bones.
 /// </summary>
-// Frames go through the engine's ShadowMapper, whose cache and frame counter are static: one test's frame
+// Frames go through Basalt's ShadowMapper, whose cache and frame counter are static: one test's frame
 // can't run in the middle of another's
 [TestClass]
 [DoNotParallelize]
@@ -93,7 +93,7 @@ public class SkinningTests
 		var (system, world, obj) = SkinnedScene( 4, posed: true );
 		using var _ = system;
 		var feature = system.GetFeature<MeshRenderFeature>();
-		Sandbox.Rendering.ShadowMapper.ResetCache();
+		Basalt.Shadows.ShadowMapper.ResetCache();
 
 		// The sun's cascades see it too
 		CollectAndPrepare( system, world, LookingDownX() );

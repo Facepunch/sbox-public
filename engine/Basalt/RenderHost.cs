@@ -22,6 +22,24 @@ public class RenderHost
 	public virtual bool AsyncCompute => true;
 
 	/// <summary>
+	/// The application's frame. Views rendered in one frame share shadow maps, which re-render at most once a frame. By
+	/// default, how many times <see cref="NextFrame"/> has been called.
+	/// </summary>
+	public virtual ulong FrameCount => frameCount;
+
+	ulong frameCount;
+
+	/// <summary>
+	/// Start the next frame, for a host that doesn't count its own (<see cref="FrameCount"/>).
+	/// </summary>
+	public void NextFrame() => frameCount++;
+
+	/// <summary>
+	/// How shadows are budgeted and filtered.
+	/// </summary>
+	public virtual ShadowSettings Shadows { get; } = new();
+
+	/// <summary>
 	/// Screen-space shadows from the sun, on top of its shadow maps.
 	/// </summary>
 	public virtual bool ContactShadows => true;

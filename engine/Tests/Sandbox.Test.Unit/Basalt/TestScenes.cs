@@ -79,7 +79,7 @@ internal static class TestScenes
 	/// </summary>
 	internal static void CollectAndPrepare( RenderSystem system, RenderWorld world, RenderView view )
 	{
-		Application.FrameCount++;
+		RenderHost.Current.NextFrame();
 		var stats = new RenderStats();
 		system.Collect( world, view, ref stats );
 		system.Prepare( world, view );

@@ -9,7 +9,7 @@ namespace BasaltTests;
 /// <summary>
 /// Environment map probes and fog: packed the way native's light binner and rendering pipeline pack them.
 /// </summary>
-// Frames go through the engine's ShadowMapper, whose cache and frame counter are static: one test's frame
+// Frames go through Basalt's ShadowMapper, whose cache and frame counter are static: one test's frame
 // can't run in the middle of another's
 [TestClass]
 [DoNotParallelize]

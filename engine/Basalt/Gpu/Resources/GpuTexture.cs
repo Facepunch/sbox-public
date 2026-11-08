@@ -121,6 +121,9 @@ public struct TextureDesc
 	/// <summary>Whether it's a render target (2D textures only).</summary>
 	public bool RenderTarget;
 
+	/// <summary>Whether a render target is a cube map: six square faces.</summary>
+	public bool Cube;
+
 	/// <summary>Whether compute can write it.</summary>
 	public bool Storage;
 

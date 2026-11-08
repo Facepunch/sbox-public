@@ -10,7 +10,7 @@ namespace BasaltTests;
 /// What one object draws differently from others with its model: body groups and materials (mesh variants), the
 /// tags a view filters by, and render attributes of its own.
 /// </summary>
-// Frames go through the engine's ShadowMapper, whose cache and frame counter are static
+// Frames go through Basalt's ShadowMapper, whose cache and frame counter are static
 [TestClass]
 [DoNotParallelize]
 public class PerObjectStateTests

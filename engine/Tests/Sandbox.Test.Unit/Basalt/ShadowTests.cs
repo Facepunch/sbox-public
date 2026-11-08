@@ -8,7 +8,7 @@ namespace BasaltTests;
 /// <summary>
 /// Shadow views, through the shared <c>ShadowMapper</c>: sun cascades, local light shadows.
 /// </summary>
-// Frames go through the engine's ShadowMapper, whose cache and frame counter are static: one test's frame
+// Frames go through Basalt's ShadowMapper, whose cache and frame counter are static: one test's frame
 // can't run in the middle of another's
 [TestClass]
 [DoNotParallelize]
@@ -20,22 +20,22 @@ public class ShadowTests
 	[TestMethod]
 	public void UnshadowedSunDataStaysCurrent()
 	{
-		var csmEnabled = Sandbox.Rendering.ShadowMapper.CSMEnabled;
+		var csmEnabled = RenderHost.Current.Shadows.CascadesEnabled;
 		try
 		{
-			var mapper = new Sandbox.Rendering.ShadowMapper();
-			var light = new Sandbox.Rendering.ShadowLight
+			var mapper = new Basalt.Shadows.ShadowMapper();
+			var light = new Basalt.Shadows.ShadowLight
 			{
 				Color = new Vector3( 1, 0.5f, 0.25f ),
 				Direction = Vector3.Down,
 				ShadowsEnabled = false
 			};
-			Sandbox.Rendering.ShadowMapper.CSMEnabled = true;
+			RenderHost.Current.Shadows.CascadesEnabled = true;
 			mapper.DoDirectionalLight( light );
 			Assert.AreEqual( new Vector4( light.Color, 0 ), mapper.DirectionalLightData.Color );
 			Assert.AreEqual( new Vector4( light.Direction, 0 ), mapper.DirectionalLightData.Direction );
 
-			Sandbox.Rendering.ShadowMapper.CSMEnabled = false;
+			RenderHost.Current.Shadows.CascadesEnabled = false;
 			light.Color = Vector3.One;
 			light.Direction = Vector3.Forward;
 			mapper.DoDirectionalLight( light );
@@ -46,7 +46,7 @@ public class ShadowTests
 		}
 		finally
 		{
-			Sandbox.Rendering.ShadowMapper.CSMEnabled = csmEnabled;
+			RenderHost.Current.Shadows.CascadesEnabled = csmEnabled;
 		}
 	}
 
@@ -58,8 +58,8 @@ public class ShadowTests
 	public void SunCascades()
 	{
 		// The sun asks for four; pin the cap so the test doesn't depend on the default quality profile
-		var maxCascades = Sandbox.Rendering.ShadowMapper.MaxCascades;
-		Sandbox.Rendering.ShadowMapper.MaxCascades = 4;
+		var maxCascades = RenderHost.Current.Shadows.MaxCascades;
+		RenderHost.Current.Shadows.MaxCascades = 4;
 
 		try
 		{
@@ -103,7 +103,7 @@ public class ShadowTests
 		}
 		finally
 		{
-			Sandbox.Rendering.ShadowMapper.MaxCascades = maxCascades;
+			RenderHost.Current.Shadows.MaxCascades = maxCascades;
 		}
 	}
 
@@ -125,7 +125,7 @@ public class ShadowTests
 		using var system = new RenderSystem();
 		var mesh = system.GetFeature<MeshRenderFeature>();
 
-		Sandbox.Rendering.ShadowMapper.ResetCache();
+		Basalt.Shadows.ShadowMapper.ResetCache();
 		CollectAndPrepare( system, world, view );
 		var visible = system.ShadowMaps.Passes[0].Visible( mesh );
 		CollectionAssert.Contains( visible, movingBox.Index );
@@ -146,8 +146,8 @@ public class ShadowTests
 	[TestMethod]
 	public void SunCascadesKeepTheirSizeFarFromTheOrigin()
 	{
-		var maxCascades = Sandbox.Rendering.ShadowMapper.MaxCascades;
-		Sandbox.Rendering.ShadowMapper.MaxCascades = 4;
+		var maxCascades = RenderHost.Current.Shadows.MaxCascades;
+		RenderHost.Current.Shadows.MaxCascades = 4;
 
 		try
 		{
@@ -189,7 +189,7 @@ public class ShadowTests
 		}
 		finally
 		{
-			Sandbox.Rendering.ShadowMapper.MaxCascades = maxCascades;
+			RenderHost.Current.Shadows.MaxCascades = maxCascades;
 		}
 	}
 

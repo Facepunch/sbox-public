@@ -11,7 +11,7 @@ namespace BasaltTests;
 /// The 3D skybox: its world seen through the main view moved into its space, as native's camera renderer and 3D skybox
 /// renderer set it up.
 /// </summary>
-// Frames go through the engine's ShadowMapper, whose cache and frame counter are static
+// Frames go through Basalt's ShadowMapper, whose cache and frame counter are static
 [TestClass]
 [DoNotParallelize]
 public class SkyboxTests

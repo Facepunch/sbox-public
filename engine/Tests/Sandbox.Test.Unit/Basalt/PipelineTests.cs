@@ -11,7 +11,7 @@ namespace BasaltTests;
 /// <summary>
 /// The frame on the CPU: culling and preparing allocate nothing in steady state, size culling, and LOD selection.
 /// </summary>
-// Frames go through the engine's ShadowMapper, whose cache and frame counter are static: one test's frame
+// Frames go through Basalt's ShadowMapper, whose cache and frame counter are static: one test's frame
 // can't run in the middle of another's
 [TestClass]
 [DoNotParallelize]
@@ -72,7 +72,7 @@ public class PipelineTests
 
 		// The shadow cache is shared: start from an empty one, so no other test's lights go stale and get
 		// evicted mid-measurement
-		Sandbox.Rendering.ShadowMapper.ResetCache();
+		Basalt.Shadows.ShadowMapper.ResetCache();
 
 		// The first frames grow the lists and arrays to fit. Every thread's allocations count: shadow views
 		// are culled on the thread pool too.
@@ -83,7 +83,7 @@ public class PipelineTests
 			system.Prepare( world, view );
 		}, beforePass: () =>
 		{
-			Application.FrameCount++;
+			RenderHost.Current.NextFrame();
 			stats = new RenderStats();
 		}, everyThread: true );
 
@@ -108,7 +108,7 @@ public class PipelineTests
 		world.Add( new MeshObject( new RenderMesh( UnitBox, [draws] ), new Transform( new Vector3( 30, 0, 0 ) ) ) );
 
 		using var system = new RenderSystem();
-		Sandbox.Rendering.ShadowMapper.ResetCache();
+		Basalt.Shadows.ShadowMapper.ResetCache();
 		CollectAndPrepare( system, world, LookingDownX() );
 
 		var lists = system.GetFeature<MeshRenderFeature>().RunsFor( system.MainPass );
@@ -194,7 +194,7 @@ public class PipelineTests
 		world.Add( obj );
 
 		using var system = new RenderSystem();
-		Sandbox.Rendering.ShadowMapper.ResetCache();
+		Basalt.Shadows.ShadowMapper.ResetCache();
 		CollectAndPrepare( system, world, LookingDownX() );
 
 		var feature = system.GetFeature<MeshRenderFeature>();

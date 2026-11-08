@@ -9,6 +9,10 @@ internal sealed class SboxRenderHost : RenderHost
 {
 	public override bool AsyncCompute => ManagedSceneRendering.AsyncCompute;
 
+	public override ulong FrameCount => Application.FrameCount;
+
+	public override Basalt.Shadows.ShadowSettings Shadows { get; } = new SboxShadowSettings();
+
 	public override bool ContactShadows => Sandbox.Rendering.ContactShadows.Enabled;
 
 	public override bool OcclusionCulling => ManagedSceneRendering.Occlusion;

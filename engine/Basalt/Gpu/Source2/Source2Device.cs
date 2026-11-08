@@ -19,6 +19,10 @@ internal sealed class Source2Device : GpuDevice
 			if ( !desc.Data.IsEmpty ) volume = volume.WithData( desc.Data.ToArray() );
 			texture = volume.Finish();
 		}
+		else if ( desc.Cube )
+		{
+			texture = Texture.CreateCube( desc.Width, desc.Height, desc.Format.ToEngine() ).AsRenderTarget().Finish();
+		}
 		else
 		{
 			var builder = Texture.CreateRenderTarget().WithSize( desc.Width, desc.Height ).WithFormat( desc.Format.ToEngine() )

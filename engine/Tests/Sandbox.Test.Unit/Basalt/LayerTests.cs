@@ -9,7 +9,7 @@ namespace BasaltTests;
 /// Which of the frame's layers an object draws in: the world's, the game overlay's, or only shadow maps - as native's
 /// layers take objects by their flags.
 /// </summary>
-// Frames go through the engine's ShadowMapper, whose cache and frame counter are static
+// Frames go through Basalt's ShadowMapper, whose cache and frame counter are static
 [TestClass]
 [DoNotParallelize]
 public class LayerTests
@@ -95,7 +95,7 @@ public class LayerTests
 		world.Add( new MeshObject( TestMesh( false ), new Transform( new Vector3( 20, 0, 0 ) ) ) { DrawsOpaque = false, DrawsTranslucent = false } );
 
 		using var system = new RenderSystem();
-		Sandbox.Rendering.ShadowMapper.ResetCache();
+		Basalt.Shadows.ShadowMapper.ResetCache();
 		CollectAndPrepare( system, world, LookingDownX() );
 
 		var feature = system.GetFeature<MeshRenderFeature>();
@@ -140,7 +140,7 @@ public class LayerTests
 		world.Add( early );
 
 		using var system = new RenderSystem();
-		Sandbox.Rendering.ShadowMapper.ResetCache();
+		Basalt.Shadows.ShadowMapper.ResetCache();
 		CollectAndPrepare( system, world, LookingDownX() );
 
 		var runs = MainRuns( system );
@@ -165,7 +165,7 @@ public class LayerTests
 		world.Add( new MeshObject( TestMesh( false ), new Transform( new Vector3( 20, 0, 0 ) ) ) { GameLayers = false } );
 
 		using var system = new RenderSystem();
-		Sandbox.Rendering.ShadowMapper.ResetCache();
+		Basalt.Shadows.ShadowMapper.ResetCache();
 		CollectAndPrepare( system, world, LookingDownX() );
 
 		var runs = MainRuns( system );
@@ -359,7 +359,7 @@ public class LayerTests
 		world.Add( new MeshObject( TestMesh( false ), new Transform( new Vector3( 25, 5, 0 ) ) ) { LayerMatch = LayerMatch.OverlayWithoutDepth } );
 
 		using var system = new RenderSystem();
-		Sandbox.Rendering.ShadowMapper.ResetCache();
+		Basalt.Shadows.ShadowMapper.ResetCache();
 		CollectAndPrepare( system, world, LookingDownX() );
 
 		var runs = MainRuns( system );
