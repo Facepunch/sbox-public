@@ -44,7 +44,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	/// Compatible instances sharing mesh, LOD and draw state. Skinned IDs are grouped per model mesh;
 	/// custom objects occupy individual runs. Lighting and frame-copy inputs apply in forward passes.
 	/// </summary>
-	internal readonly record struct Run( RenderMesh Mesh, int Lod, Material Override, bool OverrideBlends, DrawFilter Filter, int FirstInstance, int Count, bool Skinned = false, RenderAttributes Attributes = null, CustomObject Custom = null, RenderAttributes Lightmap = null, bool ReadsFrameBuffer = false, RenderAttributes Probe = null, bool Tinted = false, bool Deformed = false, bool Morphable = false, int CullDraw = -1 );
+	internal readonly record struct Run( RenderMesh Mesh, int Lod, Material Override, bool OverrideBlends, DrawFilter Filter, int FirstInstance, int Count, bool Skinned = false, ShaderParameters Attributes = null, CustomObject Custom = null, ShaderParameters Lightmap = null, bool ReadsFrameBuffer = false, ShaderParameters Probe = null, bool Tinted = false, bool Deformed = false, bool Morphable = false, int CullDraw = -1 );
 
 	/// <summary>
 	/// One draw of a run: the unit a layer records. A run groups instances; its draws can go out apart from each other, as
@@ -180,7 +180,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	/// <summary>
 	/// Probe attributes by world index, selected only for the main view's non-lightmapped draws.
 	/// </summary>
-	RenderAttributes[] probes = new RenderAttributes[256];
+	ShaderParameters[] probes = new ShaderParameters[256];
 
 	/// <summary>
 	/// What <see cref="Classify"/> made of each visible object, by its place in the visible list.
@@ -504,7 +504,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	/// <summary>
 	/// The light probe volume attributes an object drew with in the last <see cref="Prepare"/>, for the tests.
 	/// </summary>
-	internal RenderAttributes ProbeFor( RenderObject obj ) => probes[obj.Index];
+	internal ShaderParameters ProbeFor( RenderObject obj ) => probes[obj.Index];
 
 	/// <summary>
 	/// The LOD an object drew at in the last <see cref="Prepare"/>, for the tests.
@@ -587,9 +587,9 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		var lod = 0;
 		var filter = DrawFilter.All;
 		var overrideBlends = false;
-		RenderAttributes attributes = null;
-		RenderAttributes lightmap = null;
-		RenderAttributes probe = null;
+		ShaderParameters attributes = null;
+		ShaderParameters lightmap = null;
+		ShaderParameters probe = null;
 		var reads = false;
 		var start = 0;
 		var length = 0;

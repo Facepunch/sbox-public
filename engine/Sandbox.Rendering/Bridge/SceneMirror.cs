@@ -215,7 +215,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		if ( volume.Attributes is not null ) return;
 
 		SceneNative.ReadLightProbeVolume( probe, volume );
-		volume.Attributes = SceneNative.CreateLightProbeAttributes( probe );
+		volume.Attributes = Source2Parameters.From( SceneNative.CreateLightProbeAttributes( probe ) );
 	}
 
 	/// <summary>
@@ -267,12 +267,12 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		if ( obj is MeshObject mesh )
 		{
 			attributed.Remove( mesh );
-			ReleaseLightmap( mesh.LightmapAttributes );
+			ReleaseLightmap( mesh.LightmapAttributes.Engine() );
 			mesh.LightmapAttributes = null;
 		}
 		else if ( obj is AggregateObject aggregate )
 		{
-			ReleaseLightmap( aggregate.LightmapAttributes );
+			ReleaseLightmap( aggregate.LightmapAttributes.Engine() );
 			aggregate.LightmapAttributes = null;
 		}
 
@@ -305,8 +305,8 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 				meshChanged = true;
 
 				// Shared world lightmap attributes.
-				ReleaseLightmap( mesh.LightmapAttributes );
-				mesh.LightmapAttributes = drawn is { HasLightmappedDraws: true } ? AcquireLightmap( sceneObject ) : null;
+				ReleaseLightmap( mesh.LightmapAttributes.Engine() );
+				mesh.LightmapAttributes = drawn is { HasLightmappedDraws: true } ? Source2Parameters.From( AcquireLightmap( sceneObject ) ) : null;
 			}
 		}
 
@@ -404,8 +404,8 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 
 		if ( (change & SceneObjectChange.Added) != 0 && aggregate.Lightmapped )
 		{
-			ReleaseLightmap( aggregate.LightmapAttributes );
-			aggregate.LightmapAttributes = AcquireLightmap( sceneObject );
+			ReleaseLightmap( aggregate.LightmapAttributes.Engine() );
+			aggregate.LightmapAttributes = Source2Parameters.From( AcquireLightmap( sceneObject ) );
 		}
 	}
 
@@ -654,7 +654,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		foreach ( var (mesh, attributes) in attributed )
 		{
 			var native = attributes.Get();
-			mesh.Attributes = !native.IsNull && !native.IsEmpty() ? attributes : null;
+			mesh.Attributes = !native.IsNull && !native.IsEmpty() ? Source2Parameters.From( attributes ) : null;
 		}
 	}
 

@@ -67,7 +67,7 @@ internal sealed class OcclusionCullLayer : RenderLayer
 
 		// The early cull never reads the current depth, but something has to be bound
 		OcclusionDepth.Bind( attributes, early ? culler.Previous : current, culler.Previous );
-		OcclusionDebugTarget.Bind( attributes, debug, frame.View.WorldToProjection );
+		OcclusionDebugTarget.Bind( attributes.Engine(), debug, frame.View.WorldToProjection );
 
 		attributes.Set( "OcclusionInstances", culler.Instances );
 		attributes.Set( "OcclusionRuns", culler.Runs );

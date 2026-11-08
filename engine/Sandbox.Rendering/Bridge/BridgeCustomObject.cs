@@ -32,7 +32,7 @@ internal sealed class BridgeCustomObject : CustomObject
 		var native = context.Native;
 
 		// Inherit frame attributes.
-		native.GetAttributesPtrForModify().SetParent( context.Attributes.Get() );
+		native.GetAttributesPtrForModify().SetParent( context.Attributes.Engine().Get() );
 
 		graphicsView.Color = bound.Color;
 		graphicsView.Depth = bound.Depth;
@@ -81,7 +81,7 @@ internal sealed class BridgeCustomObject : CustomObject
 		var lightGroup = (uint)sceneObject.native.GetIntValue( LightGroupName, 0 );
 
 		var choice = Basalt.LightProbeVolume.Choose( volumes, center, center, extents, lightGroup );
-		if ( choice >= 0 ) volumes[choice].Attributes.MergeTo( attributes );
+		if ( choice >= 0 ) volumes[choice].Attributes.Engine().MergeTo( attributes );
 	}
 
 	static readonly StringToken LightGroupName = new( "LightGroup" );

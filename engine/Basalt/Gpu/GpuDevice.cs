@@ -35,4 +35,14 @@ public abstract class GpuDevice
 	/// Copy bytes into a buffer now, outside any recorded work.
 	/// </summary>
 	public abstract void SetData( GpuBuffer buffer, ReadOnlySpan<byte> data );
+
+	/// <summary>
+	/// An empty set of shader parameters.
+	/// </summary>
+	public abstract ShaderParameters CreateParameters();
+
+	/// <summary>
+	/// The sprite sheets' metadata, which shaders that sample sheets read.
+	/// </summary>
+	public abstract GpuTexture SheetMetadata { get; }
 }

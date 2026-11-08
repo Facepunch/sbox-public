@@ -51,7 +51,7 @@ internal sealed class BloomLayer : MeshLayer
 		var viewport = frame.View.Viewport;
 		Viewport = new Rect( (int)(viewport.Left / 4), (int)(viewport.Top / 4), (int)(viewport.Width / 4), (int)(viewport.Height / 4) );
 		Target = SharedPasses.BloomTarget( (int)Viewport.Width, (int)Viewport.Height );
-		frameContext.Attributes.Set( BloomInput, Target.ColorTarget );
+		frameContext.Attributes.Set( BloomInput, Source2Texture.From( Target.ColorTarget ) );
 
 		GraphicsView ??= new Graphics.ManagedView();
 		GraphicsView.Color = Target.ColorTarget.native;
@@ -72,7 +72,7 @@ internal sealed class BloomLayer : MeshLayer
 	internal StageTarget TargetFor( RenderFrame frame, RenderContext rc ) => new()
 	{
 		Context = rc.Native,
-		Attributes = rc.Attributes,
+		Attributes = rc.Attributes.Engine(),
 		Color = Target.ColorTarget.native,
 		Depth = Target.DepthTarget.native,
 		HdrColor = Target.ColorTarget.native,

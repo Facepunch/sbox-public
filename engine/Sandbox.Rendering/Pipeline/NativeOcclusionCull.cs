@@ -163,7 +163,7 @@ internal sealed class NativeOcclusionCull : IDisposable
 		attributes.Set( "OcclusionStats", stats );
 
 		// The early pass never reads the current depth, but something has to be bound
-		OcclusionDepth.Bind( attributes, earlyPass ? previous : current, previous );
+		OcclusionDepth.Bind( Source2Parameters.From( attributes ), earlyPass ? previous : current, previous );
 		OcclusionDebugTarget.Bind( attributes, debug, worldToProjection );
 
 		// Native runs each have a single phase and their own arguments, so there's no stride

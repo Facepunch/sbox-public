@@ -61,7 +61,7 @@ internal class DepthPrepassLayer : MeshLayer
 		using var gbuffer = RenderTarget.GetTemporary( (int)target.Size.x, (int)target.Size.y, ImageFormat.RGBA16161616F, ImageFormat.None, Source2Formats.ToAmount( target.Samples ), 1, "NormalsGBuffer" );
 		frame.NormalsGBuffer = Source2Texture.From( gbuffer.ColorTarget );
 		frameContext.Attributes.Set( NormalsTextureIndex, gbuffer.ColorTarget.Index );
-		frameContext.Attributes.Set( NormalsGBuffer, gbuffer.ColorTarget );
+		frameContext.Attributes.Set( NormalsGBuffer, Source2Texture.From( gbuffer.ColorTarget ) );
 	}
 
 	public override bool IsNeeded( RenderFrame frame ) => frame.System.DepthPrepass;

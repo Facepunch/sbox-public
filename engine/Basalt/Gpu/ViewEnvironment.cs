@@ -195,7 +195,7 @@ internal sealed class ViewEnvironment : IDisposable
 		attributes.Set( QuarterResBloomInput, RenderHost.Current.Device.Black );
 
 		// Required sprite-sheet metadata (CSceneSystem::InitializeRenderAttributes).
-		attributes.Set( SheetTexture, g_pRenderDevice.GetSheetMetaDataTexture() );
+		attributes.Set( SheetTexture, RenderHost.Current.Device.SheetMetadata );
 
 	}
 

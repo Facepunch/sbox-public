@@ -29,7 +29,7 @@ public class PipelineTests
 
 		// Some objects tagged, and some with attributes of their own, which draw alone
 		uint[] tags = [new StringToken( "prop" ).Value];
-		var attributes = new RenderAttributes( default( NativeEngine.CRenderAttributes ) );
+		var attributes = Basalt.Gpu.Source2.Source2Parameters.From( new RenderAttributes( default( NativeEngine.CRenderAttributes ) ) );
 
 		var world = new RenderWorld();
 		for ( int i = 0; i < 5000; i++ )

@@ -61,7 +61,7 @@ public sealed class LightProbeVolume
 	/// <summary>
 	/// Required probe constants and baked-lighting flags from <c>RenderTools.SetLightProbeVolumeAttributes</c>.
 	/// </summary>
-	internal RenderAttributes Attributes { get; set { field = value; Version++; } }
+	internal ShaderParameters Attributes { get; set { field = value; Version++; } }
 
 	/// <summary>
 	/// Select by origin containment, priority, then distance (<c>CLightBinner2::ChooseLightProbeVolume</c>).

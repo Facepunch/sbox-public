@@ -183,7 +183,7 @@ internal sealed class SceneBridge : IManagedSceneRenderer
 		view.ZNear = camera.ZNear;
 		view.ZFar = camera.ZFar;
 		view.ClearColor = camera.BackgroundColor;
-		view.CameraAttributes = camera.Attributes;
+		view.CameraAttributes = Source2Parameters.From( camera.Attributes );
 		// Captures with ViewSetup overrides use CameraRenderer; this bridge draws the camera's resolved view.
 		view.Fog = camera.ResolveFog( default ).ToBasalt();
 

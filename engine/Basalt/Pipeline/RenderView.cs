@@ -72,7 +72,7 @@ public sealed class RenderView
 	/// <summary>
 	/// Optional camera and scene attributes, merged before pipeline overrides (<c>CCameraRenderer::CreateView</c>).
 	/// </summary>
-	internal RenderAttributes CameraAttributes { get; set; }
+	internal ShaderParameters CameraAttributes { get; set; }
 
 	/// <summary>
 	/// Camera-local analytic fog. Null keeps the world's legacy gradient and cubemap fog.

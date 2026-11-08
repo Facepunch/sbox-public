@@ -113,7 +113,7 @@ internal sealed class AggregateObject : RenderObject
 	/// <summary>
 	/// Lightmap textures and constants (<c>CAggregateSceneObjectDesc::SetBakedLightingAttributes</c>).
 	/// </summary>
-	internal RenderAttributes LightmapAttributes { get; set; }
+	internal ShaderParameters LightmapAttributes { get; set; }
 
 	/// <summary>
 	/// Where this frame's instance ids for the fragments start: fragment i's transform is the id at this plus i.

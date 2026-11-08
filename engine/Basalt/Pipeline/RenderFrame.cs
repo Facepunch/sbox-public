@@ -207,7 +207,7 @@ internal sealed class RenderFrame
 		return new StageTarget
 		{
 			Context = rc.Native,
-			Attributes = rc.Attributes,
+			Attributes = rc.Attributes.Engine(),
 			Color = stageColor,
 			Depth = samples == target.Samples ? target.Depth.Native() : default,
 			HdrColor = final ? target.Resolved.Native() : target.Color.Native(),

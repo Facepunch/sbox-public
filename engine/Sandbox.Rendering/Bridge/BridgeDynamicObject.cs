@@ -18,7 +18,7 @@ internal sealed class BridgeDynamicObject : CustomObject
 
 		// Inherit frame attributes.
 		var native = context.Native;
-		native.GetAttributesPtrForModify().SetParent( context.Attributes.Get() );
+		native.GetAttributesPtrForModify().SetParent( context.Attributes.Engine().Get() );
 
 		SceneNative.DrawDynamicObject( context, Source, layer.ShaderMode );
 	}

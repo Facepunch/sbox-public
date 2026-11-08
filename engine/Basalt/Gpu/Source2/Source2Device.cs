@@ -42,4 +42,8 @@ internal sealed class Source2Device : GpuDevice
 		=> new Sandbox.GpuBuffer( elementCount, elementSize, (Sandbox.GpuBuffer.UsageFlags)usage, name );
 
 	public override void SetData( GpuBuffer buffer, ReadOnlySpan<byte> data ) => buffer.Engine().SetData( data );
+
+	public override ShaderParameters CreateParameters() => Source2Parameters.From( new RenderAttributes() );
+
+	public override GpuTexture SheetMetadata => Source2Texture.From( Texture.FromNative( g_pRenderDevice.GetSheetMetaDataTexture() ) );
 }

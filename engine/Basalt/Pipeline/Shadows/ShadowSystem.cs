@@ -382,7 +382,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		context.Bind( new StageTarget
 		{
 			Context = context.Native,
-			Attributes = context.Attributes,
+			Attributes = context.Attributes.Engine(),
 			Depth = pass.Target.Native(),
 			DepthSlice = pass.TargetSlice,
 			Size = new Vector2( pass.Target.Width, pass.Target.Height ),

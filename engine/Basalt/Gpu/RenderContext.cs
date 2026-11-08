@@ -17,7 +17,7 @@ internal sealed class RenderContext : IDisposable
 	bool drawAttributesMerged;
 
 	// Re-merge after engine drawing, which may mutate attributes in place.
-	RenderAttributes mergedObject, mergedLightmap;
+	ShaderParameters mergedObject, mergedLightmap;
 	bool mergedValid;
 	bool borrowed;
 	RenderContext frame;
@@ -85,7 +85,7 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// View constants and pass attributes, created on first <see cref="Begin"/> to allow engine-free construction.
 	/// </summary>
-	internal RenderAttributes Attributes { get; private set; }
+	internal ShaderParameters Attributes { get; private set; }
 
 	/// <summary>
 	/// Cached native material bind for similar-material rebinds (<c>RenderTools.DrawModelDrawCall</c>).
@@ -346,7 +346,7 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Merge lightmap then object attributes above context attributes (<c>CBaseSceneObjectDesc::DrawArray</c>).
 	/// </summary>
-	public void SetObjectAttributes( RenderAttributes objectAttributes, RenderAttributes lightmap = null )
+	public void SetObjectAttributes( ShaderParameters objectAttributes, ShaderParameters lightmap = null )
 	{
 		// Shared attributes preserve the material bind (CBaseSceneObjectDesc::DrawArray).
 		if ( mergedValid && ReferenceEquals( objectAttributes, mergedObject ) && ReferenceEquals( lightmap, mergedLightmap ) ) return;
@@ -365,13 +365,13 @@ internal sealed class RenderContext : IDisposable
 
 		if ( lightmap is not null )
 		{
-			lightmap.Get().MergeToPtr( drawAttributes );
+			lightmap.Engine().Get().MergeToPtr( drawAttributes );
 			drawAttributesMerged = true;
 		}
 
 		if ( objectAttributes is not null )
 		{
-			objectAttributes.Get().MergeToPtr( drawAttributes );
+			objectAttributes.Engine().Get().MergeToPtr( drawAttributes );
 			drawAttributesMerged = true;
 		}
 	}
@@ -508,7 +508,7 @@ internal sealed class RenderContext : IDisposable
 
 		var fog = lighting.SkyFog;
 		var tint = lighting.SkyTint;
-		return RenderTools.DrawSkyBox( context, Attributes.Get(), mode, new Transform( Vector3.Zero, lighting.SkyRotation ), new Vector4( tint.r, tint.g, tint.b, tint.a ),
+		return RenderTools.DrawSkyBox( context, Attributes.Engine().Get(), mode, new Transform( Vector3.Zero, lighting.SkyRotation ), new Vector4( tint.r, tint.g, tint.b, tint.a ),
 			(int)fog.Type, fog.MinStart, fog.MinEnd, fog.MaxStart, fog.MaxEnd );
 	}
 
@@ -538,7 +538,7 @@ internal sealed class RenderContext : IDisposable
 		{
 			// Dispose explicitly before device shutdown; finalization may be too late.
 			nativeAttributes = CRenderAttributes.Create();
-			Attributes = new RenderAttributes( nativeAttributes );
+			Attributes = Source2Parameters.From( new RenderAttributes( nativeAttributes ) );
 			drawAttributes = CRenderAttributes.Create();
 			drawAttributes.SetParent( nativeAttributes );
 		}
@@ -575,7 +575,7 @@ internal sealed class RenderContext : IDisposable
 		debugMarkers = borrowed ? shared.debugMarkers : g_pRenderDevice.AreDebugMarkersEnabled();
 
 		// The frame's bindless texture set, as CSceneSystem::InitializeRenderAttributes does for a view
-		if ( frame is null ) Attributes.Get().SetGlobalBindlessDescriptorSet();
+		if ( frame is null ) Attributes.Engine().Get().SetGlobalBindlessDescriptorSet();
 
 		// View constants resolve through context attributes, not draw parents (CRenderBatchList::Start).
 		context.GetAttributesPtrForModify().SetParent( nativeAttributes );
@@ -784,7 +784,7 @@ internal sealed class RenderContext : IDisposable
 		ResetMaterialBind();
 		fixed ( T* ptr = &value )
 		{
-			RenderTools.SetDynamicConstantBufferData( Attributes.Get(), name, context, (IntPtr)ptr, Unsafe.SizeOf<T>() );
+			RenderTools.SetDynamicConstantBufferData( Attributes.Engine().Get(), name, context, (IntPtr)ptr, Unsafe.SizeOf<T>() );
 		}
 	}
 
@@ -808,7 +808,7 @@ internal sealed class RenderContext : IDisposable
 		ResetMaterialBind();
 		fixed ( T* ptr = &value )
 		{
-			RenderTools.SetConstantBufferData( context, Attributes.Get(), name, buffer, (IntPtr)ptr, Unsafe.SizeOf<T>() );
+			RenderTools.SetConstantBufferData( context, Attributes.Engine().Get(), name, buffer, (IntPtr)ptr, Unsafe.SizeOf<T>() );
 		}
 	}
 
@@ -1059,7 +1059,7 @@ internal sealed class RenderContext : IDisposable
 	public void Dispatch( Material computeShader, int x, int y, int z )
 	{
 		Invalidate();
-		RenderTools.Compute( context, Attributes.Get(), computeShader.native.GetMode(), x, y, z );
+		RenderTools.Compute( context, Attributes.Engine().Get(), computeShader.native.GetMode(), x, y, z );
 	}
 
 	/// <summary>

@@ -38,7 +38,7 @@ internal sealed class RefractionStencilLayer : MeshLayer
 		var full = frame.View.Viewport;
 		viewport = new Rect( (int)(full.Left / 4), (int)(full.Top / 4), (int)(full.Width / 4), (int)(full.Height / 4) );
 		target = SharedPasses.RefractionStencilTarget( (int)viewport.Width, (int)viewport.Height );
-		frameContext.Attributes.Set( RefractionDepth, target.DepthTarget );
+		frameContext.Attributes.Set( RefractionDepth, Source2Texture.From( target.DepthTarget ) );
 	}
 
 	/// <summary>
@@ -49,7 +49,7 @@ internal sealed class RefractionStencilLayer : MeshLayer
 		frame.BeginPass( rc, new StageTarget
 		{
 			Context = rc.Native,
-			Attributes = rc.Attributes,
+			Attributes = rc.Attributes.Engine(),
 			Depth = target.DepthTarget.native,
 			Size = new Vector2( target.Width, target.Height ),
 			Viewport = viewport,

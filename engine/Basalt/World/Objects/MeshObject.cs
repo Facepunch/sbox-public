@@ -60,13 +60,13 @@ public sealed class MeshObject : RenderObject
 	/// <summary>
 	/// Per-object attributes override view attributes and prevent instancing (<c>CBaseSceneObjectDesc</c>).
 	/// </summary>
-	public RenderAttributes Attributes { get; set; }
+	public ShaderParameters Attributes { get; set; }
 
 	/// <summary>
 	/// Forward-only lightmap attributes below object attributes (<c>SetBakedLightingAttributes</c>).
 	/// Supplied by the bridge; prevents instancing.
 	/// </summary>
-	internal RenderAttributes LightmapAttributes { get; set; }
+	internal ShaderParameters LightmapAttributes { get; set; }
 
 	/// <summary>
 	/// The override's material flags, read once when it's set so preparing a frame doesn't call native.

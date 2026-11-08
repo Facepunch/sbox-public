@@ -85,7 +85,7 @@ internal sealed class SceneObjectDrawer : IDisposable
 				// Object attributes override caller attributes; rigid transforms use this drawer's buffer.
 				drawAttributes.Clear();
 				attributes?.MergeTo( drawAttributes );
-				obj.Attributes?.MergeTo( drawAttributes );
+				obj.Attributes?.Engine().MergeTo( drawAttributes );
 				if ( !skinned ) drawAttributes.Set( TransformBufferName, entries );
 
 				// Preserve source opacity for override shaders (RenderTools::DrawSceneObject).
@@ -97,7 +97,7 @@ internal sealed class SceneObjectDrawer : IDisposable
 				}
 
 				var drawProbe = probe is not null && RenderMesh.NeedsLightProbe( drawMaterial ) ? probe : null;
-				context.SetObjectAttributes( drawAttributes, draw.Lightmapped ? obj.LightmapAttributes : drawProbe );
+				context.SetObjectAttributes( Source2Parameters.From( drawAttributes ), draw.Lightmapped ? obj.LightmapAttributes : drawProbe );
 
 				var vertexCache = skinned && mesh.SkinFor( draw.Mesh ) is { } skin && (skin.UsesVertexCache || obj.IsDeformed || (obj.MorphSource is not null && skin.Morphs));
 				if ( obj.IsSkinned ) context.SetCombo( CsVertexAnimation, vertexCache ? 1 : 0 );

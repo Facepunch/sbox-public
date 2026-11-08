@@ -37,7 +37,7 @@ internal readonly record struct OcclusionDepth( GpuTexture Chain, Vector4 Viewpo
 	/// <summary>
 	/// Binds what the cull tests against. Without <paramref name="previous"/>, everything counts as drawn by the early prepass.
 	/// </summary>
-	public static void Bind( RenderAttributes attributes, in OcclusionDepth current, in OcclusionDepth previous )
+	public static void Bind( ShaderParameters attributes, in OcclusionDepth current, in OcclusionDepth previous )
 	{
 		attributes.Set( "OcclusionDepthChain", current.Chain );
 		attributes.Set( "OcclusionViewport", current.Viewport );

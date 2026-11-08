@@ -114,7 +114,7 @@ public class BakedLightTests
 		BoxMaxs = new Vector3( size ),
 		RenderPriority = priority,
 		LightGroups = [group],
-		Attributes = new RenderAttributes( default( NativeEngine.CRenderAttributes ) ),
+		Attributes = Basalt.Gpu.Source2.Source2Parameters.From( new RenderAttributes( default( NativeEngine.CRenderAttributes ) ) ),
 	};
 
 	/// <summary>
