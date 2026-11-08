@@ -294,12 +294,17 @@ public class TerrainMaterialList : ListView
 	}
 
 	/// <summary>
-	/// Grow to fit every item instead of scrolling inside the inspector.
+	/// Rows shown before the list starts scrolling.
+	/// </summary>
+	const int MaxVisibleRows = 4;
+
+	/// <summary>
+	/// Grow with the items up to <see cref="MaxVisibleRows"/>, then scroll.
 	/// </summary>
 	protected override void LayoutScrollbar()
 	{
 		var perRow = Math.Max( 1, ((CanvasRect.Width + ItemSpacing.x) / (ItemSize.x + ItemSpacing.x)).FloorToInt() );
-		var rows = Math.Max( 1, (Items.Count() + perRow - 1) / perRow );
+		var rows = Math.Clamp( (Items.Count() + perRow - 1) / perRow, 1, MaxVisibleRows );
 		var height = MathF.Ceiling( rows * ItemSize.y + (rows - 1) * ItemSpacing.y + (Height - CanvasRect.Height) );
 
 		// Only on change: a new height relayouts the widget, which lands back here
