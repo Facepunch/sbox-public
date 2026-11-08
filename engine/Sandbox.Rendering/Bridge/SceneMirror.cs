@@ -448,7 +448,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 
 		try
 		{
-			mesh = RenderMesh.FromModel( model );
+			mesh = Source2Mesh.FromModel( model );
 		}
 		catch ( InvalidOperationException )
 		{
@@ -827,7 +827,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		text.Append( $"; {volumes.Count} light probe volumes ({volumes.Count( x => x.Attributes is not null )} with constants, light groups {string.Join( " ", volumes.SelectMany( x => x.LightGroups ).Distinct() )}), {meshes.Count( x => x.NeedsLightProbe )} meshes need one, {meshes.Count( x => x.NeedsLightProbe && Basalt.LightProbeVolume.Choose( volumes, World.BoundsCenter[x.Index], World.BoundsCenter[x.Index], World.BoundsExtents[x.Index], x.LightGroup ) >= 0 )} find one" );
 
 		// Report unusual layer membership per model.
-		foreach ( var group in meshes.GroupBy( x => (x.Mesh?.Model?.ResourcePath ?? "(hidden)", LayerDescription( x )) ) )
+		foreach ( var group in meshes.GroupBy( x => (x.Mesh?.Geometry?.Name ?? "(hidden)", LayerDescription( x )) ) )
 			text.Append( $"; {group.Count()}x {group.Key.Item1}{group.Key.Item2}" );
 
 		foreach ( var custom in World.Objects.ToArray().OfType<BridgeCustomObject>() )

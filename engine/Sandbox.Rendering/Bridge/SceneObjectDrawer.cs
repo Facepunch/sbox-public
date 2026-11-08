@@ -45,7 +45,7 @@ internal sealed class SceneObjectDrawer : IDisposable
 	{
 		// Require this thread's active Graphics recording context.
 		if ( RenderContext.Recording is not { } context || context.Native != Graphics.Context ) return;
-		if ( Mirror?.Find( sceneObject ) is not MeshObject obj || obj.Mesh is not { } mesh || mesh.Model is null ) return;
+		if ( Mirror?.Find( sceneObject ) is not MeshObject obj || obj.Mesh is not { } mesh || mesh.Geometry is null ) return;
 
 		var transforms = system.Transforms;
 		if ( transforms.Generation != generation ) BeginFrame( transforms.Generation );

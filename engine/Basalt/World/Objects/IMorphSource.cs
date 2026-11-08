@@ -9,5 +9,5 @@ public interface IMorphSource
 	/// Evaluate and queue <paramref name="modelMesh"/>'s morphs during main-thread setup. Returns the morph atlas handle,
 	/// or -1 when nothing morphs this frame.
 	/// </summary>
-	int Queue( Model model, int modelMesh );
+	int Queue( GpuMesh mesh, int modelMesh );
 }

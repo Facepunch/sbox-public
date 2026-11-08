@@ -33,9 +33,9 @@ public sealed class RenderMesh
 	internal static bool NeedsLightProbe( GpuMaterial material ) => material is { NeedsLightProbe: true };
 
 	/// <summary>
-	/// Model owning the draw buffers.
+	/// The geometry its draws bind, or null for a mesh that can't render (tests).
 	/// </summary>
-	public Model Model { get; }
+	public GpuMesh Geometry { get; }
 	/// <summary>
 	/// The model's bounds, in its own space.
 	/// </summary>
@@ -153,7 +153,7 @@ public sealed class RenderMesh
 	internal MeshSkin SkinFor( int mesh ) => (uint)mesh < (uint)skins.Length ? skins[mesh] : null;
 
 	/// <summary>
-	/// Give the mesh skinning data - what <see cref="FromModel"/> reads, and what the tests make up.
+	/// Give the mesh skinning data - what a backend reads from its model, and what the tests make up.
 	/// </summary>
 	internal void SetSkinning( MeshSkin[] meshSkins, Matrix3x4[] bindPose )
 	{
@@ -162,9 +162,12 @@ public sealed class RenderMesh
 		IsSkinned = skins.Any( x => x is { BoneCount: > 0 } );
 	}
 
-	RenderMesh( Model model, Draw[][] lods, float[] switchDistances ) : this( model.Bounds, lods, switchDistances )
+	/// <summary>
+	/// A mesh drawing <paramref name="geometry"/>: its LODs' draws, from LOD 0, and the screen sizes they switch at.
+	/// </summary>
+	public RenderMesh( GpuMesh geometry, BBox bounds, Draw[][] lods, float[] switchDistances = null ) : this( bounds, lods, switchDistances )
 	{
-		Model = model;
+		Geometry = geometry;
 	}
 
 	/// <summary>
@@ -212,7 +215,7 @@ public sealed class RenderMesh
 
 		if ( !changed ) return this;
 
-		var variant = Model is not null ? new RenderMesh( Model, variantLods, switchDistances ) : new RenderMesh( Bounds, variantLods, switchDistances );
+		var variant = new RenderMesh( Geometry, Bounds, variantLods, switchDistances );
 		variant.SetSkinning( skins, BindPose );
 		return variant;
 	}
@@ -301,57 +304,6 @@ public sealed class RenderMesh
 		}
 
 		return Math.Min( lod, lodCount - 1 );
-	}
-
-	/// <summary>
-	/// Read all model LODs and switch distances. Throws without geometry.
-	/// Keep the model alive while GPU frames use its buffers.
-	/// </summary>
-	public static RenderMesh FromModel( Model model )
-	{
-		ArgumentNullException.ThrowIfNull( model );
-
-		var info = model.MeshInfo;
-		var lodCount = Math.Max( 1, info.LodCount );
-		var lods = new Draw[lodCount][];
-
-		for ( int lod = 0; lod < lodCount; lod++ )
-		{
-			var draws = new List<Draw>();
-			for ( int m = 0; m < info.Meshes.Length; m++ )
-			{
-				if ( (info.Meshes[m].LodMask & (1 << lod)) == 0 ) continue;
-
-				var drawCalls = info.Meshes[m].DrawCalls;
-				for ( int d = 0; d < drawCalls.Length; d++ )
-				{
-					var call = drawCalls[d];
-					var material = Source2Material.From( call.Material );
-					var translucent = IsTranslucent( material );
-					var alphaTest = IsAlphaTest( material );
-					var fastPath = material is { ShadowFastPath: true } && !translucent && !alphaTest;
-					draws.Add( new Draw( m, d, call.StartIndex, call.Indices, call.Vertices, call.PrimitiveType, material, translucent, alphaTest, fastPath, Tint: RenderContext.ReadDrawTint( model, m, d ) ) );
-				}
-			}
-
-			lods[lod] = draws.ToArray();
-		}
-
-		if ( lods[0].Length == 0 )
-			throw new InvalidOperationException( $"Model {model.ResourcePath} has no render geometry" );
-
-		var mesh = new RenderMesh( model, lods, info.LodSwitchDistances ?? [] );
-
-		var skins = new MeshSkin[info.Meshes.Length];
-		for ( int m = 0; m < skins.Length; m++ )
-			skins[m] = RenderContext.ReadMeshSkin( model, m );
-
-		var bindPose = new Matrix3x4[model.BoneCount];
-		for ( int b = 0; b < bindPose.Length; b++ )
-			bindPose[b] = Matrix3x4.From( model.GetBoneTransform( b ) );
-
-		mesh.SetSkinning( skins, bindPose );
-		return mesh;
 	}
 }
 

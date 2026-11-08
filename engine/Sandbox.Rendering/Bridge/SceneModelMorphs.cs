@@ -9,5 +9,5 @@ internal sealed class SceneModelMorphs( SceneModel source ) : IMorphSource
 {
 	public SceneModel Source { get; } = source;
 
-	public int Queue( Model model, int modelMesh ) => Source.IsValid() ? RenderTools.QueueModelMeshMorph( Source, model.native, modelMesh ) : -1;
+	public int Queue( GpuMesh mesh, int modelMesh ) => Source.IsValid() ? RenderTools.QueueModelMeshMorph( Source, mesh.Native(), modelMesh ) : -1;
 }

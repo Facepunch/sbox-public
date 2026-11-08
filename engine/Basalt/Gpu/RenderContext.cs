@@ -383,45 +383,6 @@ internal sealed class RenderContext : IDisposable
 
 
 	/// <summary>
-	/// Read a draw's linear tint, or null for white (<c>RenderTools.GetModelDrawCallTint</c>).
-	/// </summary>
-	public static unsafe Vector3? ReadDrawTint( Model model, int mesh, int drawCall )
-	{
-		Vector3 tint = Vector3.One;
-		if ( !RenderTools.GetModelDrawCallTint( model.native, mesh, drawCall, (IntPtr)(&tint) ) ) return null;
-		return tint == Vector3.One ? null : tint;
-	}
-
-
-	/// <summary>
-	/// Read mesh skinning data, or null without a render skeleton.
-	/// </summary>
-	public static unsafe RenderMesh.MeshSkin ReadMeshSkin( Model model, int mesh )
-	{
-		int bones = 0, weights = 0;
-		var vertices = RenderTools.GetModelMeshSkinning( model.native, mesh, (IntPtr)(&bones), (IntPtr)(&weights) );
-		if ( vertices < 0 || bones <= 0 ) return null;
-
-		var skin = new RenderMesh.MeshSkin
-		{
-			BlendWeightCount = weights,
-			VertexCount = vertices,
-			InverseBindPoses = new Matrix3x4[bones],
-			MasterBones = new int[bones],
-			Morphs = RenderTools.ModelMeshHasMorphs( model.native, mesh ),
-		};
-
-		fixed ( Matrix3x4* poses = skin.InverseBindPoses )
-		fixed ( int* masters = skin.MasterBones )
-		{
-			if ( !RenderTools.GetModelMeshSkinningBones( model.native, mesh, (IntPtr)poses, (IntPtr)masters, bones ) )
-				return null;
-		}
-
-		return skin;
-	}
-
-	/// <summary>
 	/// Allocate native vertex-cache space and return the first vertex.
 	/// </summary>
 	public static int AllocateVertexCache( int vertices ) => RenderTools.AllocateVertexCache( vertices );
@@ -443,7 +404,7 @@ internal sealed class RenderContext : IDisposable
 			var deformed = volumes is not null && anchors is not null;
 			RenderBufferHandle_t volumeBuffer = deformed ? volumes.Native() : IntPtr.Zero;
 			RenderBufferHandle_t anchorBuffer = deformed ? anchors.Native() : IntPtr.Zero;
-			return RenderTools.DispatchModelMeshSkinning( context, skinningShader.Native().GetMode(), mesh.Model.native, modelMesh, transforms.Native(), (IntPtr)s, (IntPtr)o, slots.Length, blendWeights,
+			return RenderTools.DispatchModelMeshSkinning( context, skinningShader.Native().GetMode(), mesh.Geometry.Native(), modelMesh, transforms.Native(), (IntPtr)s, (IntPtr)o, slots.Length, blendWeights,
 				volumeBuffer, deformed ? (IntPtr)vo : IntPtr.Zero, deformed ? (IntPtr)vc : IntPtr.Zero, anchorBuffer, deformed ? (IntPtr)ao : IntPtr.Zero, morph );
 		}
 	}
@@ -492,7 +453,7 @@ internal sealed class RenderContext : IDisposable
 	/// </summary>
 	public bool BindVertexCacheIds( RenderMesh mesh, in RenderMesh.Draw draw )
 	{
-		return RenderTools.BindModelDrawCallVertexIds( context, mesh.Model.native, draw.Mesh, draw.DrawCall, 2 );
+		return RenderTools.BindModelDrawCallVertexIds( context, mesh.Geometry.Native(), draw.Mesh, draw.DrawCall, 2 );
 	}
 
 	/// <summary>
@@ -817,7 +778,7 @@ internal sealed class RenderContext : IDisposable
 	/// </summary>
 	public bool BindGeometry( RenderMesh mesh, in RenderMesh.Draw draw )
 	{
-		return RenderTools.BindModelDrawCall( context, drawAttributes, mesh.Model.native, draw.Mesh, draw.DrawCall );
+		return RenderTools.BindModelDrawCall( context, drawAttributes, mesh.Geometry.Native(), draw.Mesh, draw.DrawCall );
 	}
 
 	/// <summary>
@@ -830,7 +791,7 @@ internal sealed class RenderContext : IDisposable
 		var mode = material.Native().GetMode( shaderMode );
 		if ( mode.IsNull ) return false;
 
-		return RenderTools.SetRenderStateForModelDrawCall( context, drawAttributes, mode, mesh.Model.native, draw.Mesh, draw.DrawCall, depthBias, slopeScaledDepthBias, stripPixelShader, vertexCache, (int)OverlayStencil );
+		return RenderTools.SetRenderStateForModelDrawCall( context, drawAttributes, mode, mesh.Geometry.Native(), draw.Mesh, draw.DrawCall, depthBias, slopeScaledDepthBias, stripPixelShader, vertexCache, (int)OverlayStencil );
 	}
 
 	/// <summary>
@@ -854,7 +815,7 @@ internal sealed class RenderContext : IDisposable
 	/// </summary>
 	public bool DrawModel( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false )
 	{
-		return RenderTools.DrawModelDrawCall( context, drawAttributes, material.Native(), shaderMode, mesh.Model.native, draw.Mesh, draw.DrawCall,
+		return RenderTools.DrawModelDrawCall( context, drawAttributes, material.Native(), shaderMode, mesh.Geometry.Native(), draw.Mesh, draw.DrawCall,
 			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, skinned, InstanceIds.Native(), firstInstance, instances, materialBind );
 	}
 
@@ -864,7 +825,7 @@ internal sealed class RenderContext : IDisposable
 	/// </summary>
 	public bool DrawModelCulled( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int argsIndex, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false )
 	{
-		return RenderTools.DrawModelDrawCallIndirect( context, drawAttributes, material.Native(), shaderMode, mesh.Model.native, draw.Mesh, draw.DrawCall,
+		return RenderTools.DrawModelDrawCallIndirect( context, drawAttributes, material.Native(), shaderMode, mesh.Geometry.Native(), draw.Mesh, draw.DrawCall,
 			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, skinned, Occlusion.CulledIds.Native(), Occlusion.IdOffset( phase ) + firstInstance,
 			Occlusion.Args.Native(), (Occlusion.ArgOffset( phase ) + argsIndex) * OcclusionCuller.ArgsStride, materialBind );
 	}
@@ -876,7 +837,7 @@ internal sealed class RenderContext : IDisposable
 	/// </summary>
 	public bool DrawModelFragments( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, GpuBuffer args, int firstArg, int count, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false )
 	{
-		return RenderTools.DrawModelDrawCallMultiIndirect( context, drawAttributes, material.Native(), shaderMode, mesh.Model.native, draw.Mesh, draw.DrawCall,
+		return RenderTools.DrawModelDrawCallMultiIndirect( context, drawAttributes, material.Native(), shaderMode, mesh.Geometry.Native(), draw.Mesh, draw.DrawCall,
 			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, InstanceIds.Native(), firstInstance,
 			args.Native(), firstArg * OcclusionCuller.ArgsStride, count, default, 0, materialBind );
 	}
@@ -889,7 +850,7 @@ internal sealed class RenderContext : IDisposable
 	{
 		var args = Occlusion.Args;
 		var compact = Occlusion.CompactFragments;
-		return RenderTools.DrawModelDrawCallMultiIndirect( context, drawAttributes, material.Native(), shaderMode, mesh.Model.native, draw.Mesh, draw.DrawCall,
+		return RenderTools.DrawModelDrawCallMultiIndirect( context, drawAttributes, material.Native(), shaderMode, mesh.Geometry.Native(), draw.Mesh, draw.DrawCall,
 			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, InstanceIds.Native(), firstInstance,
 			args.Native(), Occlusion.FragmentArgs( phase, cullArg, count ) * OcclusionCuller.ArgsStride, count,
 			compact ? args.Native() : default, compact ? Occlusion.FragmentCountArg( phase, cullArg, count ) * OcclusionCuller.ArgsStride : 0, materialBind );

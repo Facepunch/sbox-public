@@ -472,7 +472,7 @@ internal sealed partial class SceneLabWindow : PanelWindow
 		if ( meshes.TryGetValue( path, out var entry ) ) return entry.Mesh;
 
 		var model = path == LodTestModel.Path ? LodTestModel.Create() : Model.Load( path );
-		var mesh = RenderMesh.FromModel( model );
+		var mesh = Source2Mesh.FromModel( model );
 		meshes[path] = (model, mesh);
 
 		var info = model.MeshInfo;
@@ -491,12 +491,12 @@ internal sealed partial class SceneLabWindow : PanelWindow
 	{
 		animationWorld ??= new SceneWorld();
 
-		var animator = new SceneModel( animationWorld, obj.Mesh.Model, obj.Transform ) { UseAnimGraph = false, PlaybackRate = 0 };
+		var animator = new SceneModel( animationWorld, obj.Mesh.Geometry.Engine(), obj.Transform ) { UseAnimGraph = false, PlaybackRate = 0 };
 		animator.CurrentSequence.Name = sequence;
 		animator.CurrentSequence.TimeNormalized = time;
 		animator.Update( 0 );
 
-		var bones = new Transform[obj.Mesh.Model.BoneCount];
+		var bones = new Transform[obj.Mesh.Geometry.Engine().BoneCount];
 		animator.GetBoneWorldTransforms( bones );
 		obj.SetBones( bones );
 		// Grid objects are only placed, not rotated or scaled, so local bounds are the world bounds moved back

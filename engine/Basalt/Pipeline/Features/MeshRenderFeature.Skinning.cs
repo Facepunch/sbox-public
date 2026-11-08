@@ -135,7 +135,7 @@ internal sealed partial class MeshRenderFeature
 			transforms.SetVertexCacheOffset( job.Slot, job.VertexCacheOffset );
 
 			// Evaluate and queue morphs (FindOrAllocateTransforms).
-			job.Morph = skin.Morphs && job.Object.MorphSource is { } source ? source.Queue( job.Object.Mesh.Model, job.ModelMesh ) : -1;
+			job.Morph = skin.Morphs && job.Object.MorphSource is { } source ? source.Queue( job.Object.Mesh.Geometry, job.ModelMesh ) : -1;
 			morphs |= job.Morphed;
 		}
 
