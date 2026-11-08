@@ -44,7 +44,8 @@ internal sealed class OcclusionCullLayer : RenderLayer
 
 		var history = frame.System.OcclusionHistory;
 		frozen = history.IsFrozen;
-		current = history.LateDepth( frame.View.Viewport, new Vector2( frame.DepthMin, frame.DepthMax ), frame.View.WorldToProjection );
+		var scratch = frame.System.Transients.Get( OcclusionDepth.QuarterChain( frame.View.Viewport ), "Occlusion Chain" );
+		current = history.LateDepth( frame.View.Viewport, new Vector2( frame.DepthMin, frame.DepthMax ), frame.View.WorldToProjection, scratch );
 	}
 
 	public override void Record( RenderFrame frame, GpuContext rc, ref RenderStats stats )

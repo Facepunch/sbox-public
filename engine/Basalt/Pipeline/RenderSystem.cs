@@ -30,6 +30,11 @@ public sealed partial class RenderSystem : IDisposable
 	internal readonly OcclusionCuller Occlusion = new();
 	internal readonly OcclusionHistory OcclusionHistory = new();
 
+	/// <summary>
+	/// Textures this system's renders borrow, given back when each is submitted.
+	/// </summary>
+	internal TransientTextures Transients { get; } = new();
+
 	internal bool OcclusionActive { get; private set; }
 
 	/// <summary>
@@ -316,6 +321,8 @@ public sealed partial class RenderSystem : IDisposable
 			recorder.Clear();
 			frame.End();
 			skyFrame?.End();
+			Transients.EndRender();
+			skybox?.Transients.EndRender();
 		}
 		stats.SubmitMs = Lap();
 
@@ -565,6 +572,7 @@ public sealed partial class RenderSystem : IDisposable
 	/// </summary>
 	public void Dispose()
 	{
+		Transients.Dispose();
 		skybox?.Dispose();
 		skybox = null;
 		shadows.Dispose();

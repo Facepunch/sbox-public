@@ -23,6 +23,11 @@ internal static class SharedPasses
 	/// <summary>
 	/// The depth chain's target for a viewport this size: a temporary RG32F texture with every mip, never multisampled.
 	/// </summary>
+	public static TextureDesc DepthChainDesc( int width, int height ) => TextureDesc.Target( width, height, TextureFormat.RG3232F, mips: (int)Math.Log2( Math.Min( width, height ) ) + 1 ) with { Storage = true };
+
+	/// <summary>
+	/// The depth chain's target as an engine temporary, for native's pipeline.
+	/// </summary>
 	public static RenderTarget DepthChainTarget( int width, int height )
 	{
 		var numMips = (int)Math.Log2( Math.Min( width, height ) ) + 1;

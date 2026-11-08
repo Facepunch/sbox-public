@@ -96,7 +96,9 @@ internal sealed class NativeOcclusionCull : IDisposable
 		frozen = history is { IsFrozen: true };
 
 		var depthRange = new Vector2( viewport.MinZ, viewport.MaxZ );
-		current = history?.LateDepth( viewport.Rect, depthRange, worldToProjection ) ?? OcclusionDepth.Quarter( null, viewport.Rect, depthRange, worldToProjection );
+		var size = OcclusionDepth.QuarterSize( viewport.Rect );
+		var scratch = Source2Texture.From( SharedPasses.DepthChainTarget( size.x, size.y ).DepthTarget );
+		current = history?.LateDepth( viewport.Rect, depthRange, worldToProjection, scratch ) ?? OcclusionDepth.Quarter( scratch, viewport.Rect, depthRange, worldToProjection );
 
 		view.SetOcclusionCull( instances.native, runs.native, args.native, culledIds.native, stats.native, dispatchArgs.native, capacity, RenderPipeline.AggregateMode );
 	}

@@ -14,14 +14,12 @@ public sealed partial class RenderSystem
 	/// </summary>
 	internal RenderLayer[] Layers => layers ??= isSkybox ? SkyboxLayers() : StandardLayers();
 
-	// Unique pool keys for contact-shadow masks.
-	static int systemCount;
 	ContactShadowLayer contactShadows;
 
 	RenderLayer[] StandardLayers()
 	{
 		var bloom = new BloomLayer();
-		contactShadows = new ContactShadowLayer( System.Threading.Interlocked.Increment( ref systemCount ) );
+		contactShadows = new ContactShadowLayer();
 		var overlayPrepass = new OverlayDepthPrepassLayer();
 		return
 		[

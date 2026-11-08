@@ -15,7 +15,7 @@ internal sealed class RefractionStencilLayer : MeshLayer
 	static readonly StringToken RenderBackfaces = new( "D_RENDER_BACKFACES" );
 
 	// Pooled target for this frame.
-	RenderTarget target;
+	GpuTexture depth;
 	Rect viewport;
 
 	public RefractionStencilLayer() : base( "Refraction Stencil Layer" )
@@ -37,8 +37,8 @@ internal sealed class RefractionStencilLayer : MeshLayer
 	{
 		var full = frame.View.Viewport;
 		viewport = new Rect( (int)(full.Left / 4), (int)(full.Top / 4), (int)(full.Width / 4), (int)(full.Height / 4) );
-		target = SharedPasses.RefractionStencilTarget( (int)viewport.Width, (int)viewport.Height );
-		frameContext.Attributes.Set( RefractionDepth, Source2Texture.From( target.DepthTarget ) );
+		depth = frame.System.Transients.Get( TextureDesc.Target( (int)viewport.Width, (int)viewport.Height, TextureFormat.D16 ), "Refraction Stencil" );
+		frameContext.Attributes.Set( RefractionDepth, depth );
 	}
 
 	/// <summary>
@@ -50,8 +50,8 @@ internal sealed class RefractionStencilLayer : MeshLayer
 		{
 			Context = rc,
 			Attributes = rc.Attributes,
-			Depth = Source2Texture.From( target.DepthTarget ),
-			Size = new Vector2( target.Width, target.Height ),
+			Depth = depth,
+			Size = new Vector2( depth.Width, depth.Height ),
 			Viewport = viewport,
 			MinZ = frame.DepthMin,
 			MaxZ = frame.DepthMax,
@@ -67,6 +67,6 @@ internal sealed class RefractionStencilLayer : MeshLayer
 	public override void Record( RenderFrame frame, GpuContext rc, ref RenderStats stats )
 	{
 		base.Record( frame, rc, ref stats );
-		target = null;
+		depth = null;
 	}
 }

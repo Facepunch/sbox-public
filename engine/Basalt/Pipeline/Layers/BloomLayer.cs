@@ -15,10 +15,15 @@ internal sealed class BloomLayer : MeshLayer
 	/// <summary>
 	/// Pooled target for this frame.
 	/// </summary>
-	internal RenderTarget Target { get; private set; }
+	internal GpuTexture BloomColor { get; private set; }
 
 	/// <summary>
-	/// Quarter-resolution viewport in <see cref="Target"/>.
+	/// Quarter-resolution depth bloom objects test against.
+	/// </summary>
+	internal GpuTexture BloomDepth { get; private set; }
+
+	/// <summary>
+	/// Quarter-resolution viewport in <see cref="BloomColor"/>.
 	/// </summary>
 	internal Rect Viewport { get; private set; }
 
@@ -50,12 +55,14 @@ internal sealed class BloomLayer : MeshLayer
 	{
 		var viewport = frame.View.Viewport;
 		Viewport = new Rect( (int)(viewport.Left / 4), (int)(viewport.Top / 4), (int)(viewport.Width / 4), (int)(viewport.Height / 4) );
-		Target = SharedPasses.BloomTarget( (int)Viewport.Width, (int)Viewport.Height );
-		frameContext.Attributes.Set( BloomInput, Source2Texture.From( Target.ColorTarget ) );
+		var transients = frame.System.Transients;
+		BloomColor = transients.Get( TextureDesc.Target( (int)Viewport.Width, (int)Viewport.Height, TextureFormat.RGBA1010102 ) with { Storage = true }, "Bloom" );
+		BloomDepth = transients.Get( TextureDesc.Target( (int)Viewport.Width, (int)Viewport.Height, TextureFormat.D32 ), "Bloom Depth" );
+		frameContext.Attributes.Set( BloomInput, BloomColor );
 
 		GraphicsView ??= new Graphics.ManagedView();
-		GraphicsView.Color = Target.ColorTarget.native;
-		GraphicsView.Depth = Target.DepthTarget.native;
+		GraphicsView.Color = BloomColor.Native();
+		GraphicsView.Depth = BloomDepth.Native();
 		GraphicsView.SrgbWrite = false;
 		GraphicsView.Viewport = Viewport;
 		GraphicsView.MinZ = frame.DepthMin;
@@ -73,10 +80,10 @@ internal sealed class BloomLayer : MeshLayer
 	{
 		Context = rc,
 		Attributes = rc.Attributes,
-		Color = Source2Texture.From( Target.ColorTarget ),
-		Depth = Source2Texture.From( Target.DepthTarget ),
-		HdrColor = Source2Texture.From( Target.ColorTarget ),
-		Size = new Vector2( Target.Width, Target.Height ),
+		Color = BloomColor,
+		Depth = BloomDepth,
+		HdrColor = BloomColor,
+		Size = new Vector2( BloomColor.Width, BloomColor.Height ),
 		Viewport = Viewport,
 		MinZ = frame.DepthMin,
 		MaxZ = frame.DepthMax,

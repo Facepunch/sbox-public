@@ -78,10 +78,10 @@ internal sealed class OcclusionHistory : IDisposable
 
 	/// <summary>
 	/// What the late cull tests against this frame: the frozen depth, or this frame's for it to build, into the freeze's
-	/// chain when one is starting.
+	/// chain when one is starting, otherwise into <paramref name="scratch"/> (<see cref="OcclusionDepth.QuarterChain"/>).
 	/// </summary>
-	public OcclusionDepth LateDepth( Rect viewport, Vector2 depthRange, Matrix worldToProjection )
-		=> IsFrozen ? frozen : OcclusionDepth.Quarter( frozenChain, viewport, depthRange, worldToProjection );
+	public OcclusionDepth LateDepth( Rect viewport, Vector2 depthRange, Matrix worldToProjection, GpuTexture scratch )
+		=> IsFrozen ? frozen : OcclusionDepth.Quarter( frozenChain ?? scratch, viewport, depthRange, worldToProjection );
 
 	void BeginFreeze( bool freezing, Rect viewport )
 	{

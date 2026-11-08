@@ -8,13 +8,10 @@ namespace Basalt;
 /// </summary>
 internal sealed class ContactShadowLayer : RenderLayer
 {
-	// Per-system pool key; native uses one per light and camera.
-	readonly string maskName;
 	Graphics.ManagedView graphicsView;
 
-	public ContactShadowLayer( int system ) : base( "Contact Shadows" )
+	public ContactShadowLayer() : base( "Contact Shadows" )
 	{
-		maskName = $"ShadowMask_Managed_{system}";
 	}
 
 	public override bool IsNeeded( RenderFrame frame ) => frame.ContactShadowMask is not null;
@@ -43,8 +40,7 @@ internal sealed class ContactShadowLayer : RenderLayer
 		var height = (int)view.Viewport.Height;
 		if ( width < 1 || height < 1 ) return null;
 
-		using var rt = RenderTarget.GetTemporary( width, height, ImageFormat.A8, ImageFormat.None, MultisampleAmount.MultisampleNone, 1, maskName );
-		return Source2Texture.From( rt.ColorTarget );
+		return frame.System.Transients.Get( TextureDesc.Target( width, height, TextureFormat.A8 ) with { Storage = true }, "Contact Shadow Mask" );
 	}
 
 	public override void Record( RenderFrame frame, GpuContext rc, ref RenderStats stats )
