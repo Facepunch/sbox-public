@@ -4,8 +4,8 @@ using System.Runtime.InteropServices;
 namespace Sandbox.Rendering;
 
 /// <summary>
-/// Bend Studio contact shadows, for native's views (<see cref="ShadowMapper.RenderScreenSpaceShadows"/>) and the managed scene renderer's.
-/// Kept out of <see cref="ShadowMapper"/> so the mapper's statics don't need the engine.
+/// Bend Studio contact shadows, for native's views (<see cref="NativeShadowMapper.RenderScreenSpaceShadows"/>).
+/// Basalt has its own, on its GPU context (<c>Basalt.Gpu.ContactShadows</c>).
 /// </summary>
 internal static class ContactShadows
 {
@@ -22,8 +22,7 @@ internal static class ContactShadows
 	/// Draw a directional light's contact shadows into <paramref name="mask"/>, from the depth chain (<c>DepthChainDownsample</c>) of a
 	/// view whose world to projection matrix is <paramref name="viewProjection"/> (reverse-Z, row-vector), for a light pointing
 	/// <paramref name="lightDirection"/> (towards the light) with <paramref name="shadowHardness"/>, into the current
-	/// <see cref="Graphics"/> context. The body of <see cref="ShadowMapper.RenderScreenSpaceShadows"/>, which the managed scene renderer runs
-	/// too, for its own frames. It can run in <paramref name="steps"/>: the mask's clear and barriers on the graphics queue, and
+	/// <see cref="Graphics"/> context. The body of <see cref="NativeShadowMapper.RenderScreenSpaceShadows"/>. It can run in <paramref name="steps"/>: the mask's clear and barriers on the graphics queue, and
 	/// the dispatches between them on the async compute queue, which neither clears nor names graphics stages.
 	/// </summary>
 	internal static void Render( Texture mask, Matrix viewProjection, Vector3 lightDirection, float shadowHardness, Steps steps = Steps.All )

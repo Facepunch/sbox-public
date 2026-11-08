@@ -13,25 +13,25 @@ internal static class ShadowMapperCallbacks
 	/// Each pooled lightbinner gets a shadowmapper, use the lightbinner ptr as a handle.. probably fine
 	/// There's only gonna be a handful of these
 	/// </summary>
-	static ConcurrentDictionary<IntPtr, ShadowMapper> ShadowMappers = [];
+	static ConcurrentDictionary<IntPtr, NativeShadowMapper> ShadowMappers = [];
 
-	static ShadowMapper Get( IntPtr pLightMapper )
+	static NativeShadowMapper Get( IntPtr pLightMapper )
 	{
 		if ( ShadowMappers.TryGetValue( pLightMapper, out var mapper ) )
 			return mapper;
 
-		mapper = ShadowMappers.GetOrAdd( pLightMapper, _ => ShadowMapper.CreateNative() );
+		mapper = ShadowMappers.GetOrAdd( pLightMapper, _ => new NativeShadowMapper() );
 		Interlocked.Increment( ref _mappersVersion );
 		return mapper;
 	}
 
 	// Mappers are only ever added, so a copy of them stays good until the version moves.
 	// Values would copy them into a new array on every call.
-	sealed record MapperSnapshot( int Version, ShadowMapper[] Mappers );
+	sealed record MapperSnapshot( int Version, NativeShadowMapper[] Mappers );
 	static int _mappersVersion;
 	static MapperSnapshot _mappers = new( 0, [] );
 
-	static ShadowMapper[] GetMappers()
+	static NativeShadowMapper[] GetMappers()
 	{
 		var snapshot = _mappers;
 		var version = Volatile.Read( ref _mappersVersion );
@@ -42,11 +42,12 @@ internal static class ShadowMapperCallbacks
 	}
 
 	/// <summary>
-	/// Free every mapper's GPU buffers. Called at quit, after the last frame.
+	/// Free every mapper's GPU buffers, and the shadow maps both renderers cached. Called at quit, after the last frame.
 	/// </summary>
 	internal static void Shutdown()
 	{
 		foreach ( var mapper in ShadowMappers.Values ) mapper.DisposeBuffers();
+		Basalt.Shadows.ShadowMapper.ResetCache();
 	}
 
 	internal static void InitForView( IntPtr handle, ISceneView sceneView ) => Get( handle ).InitForView( sceneView );

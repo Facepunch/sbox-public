@@ -1,13 +1,19 @@
+using Basalt.Gpu.Source2;
+using Basalt.Shadows;
 using NativeEngine;
+using Mapper = Basalt.Shadows.ShadowMapper;
 
 namespace Sandbox.Rendering;
 
 /// <summary>
-/// The native scenesystem side of <see cref="ShadowMapper"/>: lights and views come from native, and each
-/// shadow view is added to the scenesystem as a child of the view the shadows are for.
+/// The native scenesystem side of Basalt's <see cref="Mapper"/>, one per native light binner: lights and views come from
+/// native, each shadow view is added to the scenesystem as a child of the view the shadows are for, and the shadow data
+/// goes into the binner's buffers. Native and Basalt share the mapper's cache and time slicing.
 /// </summary>
-internal partial class ShadowMapper
+internal sealed class NativeShadowMapper
 {
+	readonly Mapper mapper = new();
+
 	/// <summary>
 	/// The native view this mapper's light binner is working on.
 	/// </summary>
@@ -18,11 +24,12 @@ internal partial class ShadowMapper
 
 	bool nativeViewInfoValid;
 
-	internal static ShadowMapper CreateNative()
+	GpuBuffer<Mapper.GPUProjectedShadow> projectedShadows;
+	GpuBuffer<Mapper.GPUProjectedCubeShadow> projectedCubeShadows;
+
+	public NativeShadowMapper()
 	{
-		var mapper = new ShadowMapper();
-		mapper.Renderer = new NativeShadowRenderer( mapper );
-		return mapper;
+		mapper.Renderer = new NativeShadowRenderer( this );
 	}
 
 	internal void InitForView( ISceneView sceneView )
@@ -31,7 +38,7 @@ internal partial class ShadowMapper
 		DirectionalLight = null;
 		nativeViewInfoValid = false;
 
-		InitForView();
+		mapper.InitForView();
 
 		// Main-world fog lighting is inherited by the 3D skybox view.
 		if ( !sceneView.GetRenderAttributesPtr().GetBoolValue( "IsSkybox", false ) )
@@ -59,7 +66,7 @@ internal partial class ShadowMapper
 		var viewToWorldRotation = frustum.GetView()._numerics;
 		viewToWorldRotation.M14 = viewToWorldRotation.M24 = viewToWorldRotation.M34 = 0.0f;
 
-		View = new ShadowViewInfo
+		mapper.View = new ShadowViewInfo
 		{
 			ProjectionToView = System.Numerics.Matrix4x4.Transpose( frustum.GetInvReverseZProj()._numerics ),
 			ViewToWorldRotation = viewToWorldRotation,
@@ -117,11 +124,11 @@ internal partial class ShadowMapper
 	/// </summary>
 	internal uint FindOrCreateShadowMaps( SceneLight sceneObject, ISceneView view, float flScreenSize )
 	{
-		if ( !LocalShadowsEnabled )
-			return InvalidShadowIndex;
+		if ( !ShadowMapper.LocalShadowsEnabled )
+			return Mapper.InvalidShadowIndex;
 
 		UseNativeView( view );
-		return FindOrCreateShadowMaps( FromNative( sceneObject ), flScreenSize );
+		return mapper.FindOrCreateShadowMaps( FromNative( sceneObject ), flScreenSize );
 	}
 
 	internal int DoDirectionalLight( SceneLight sceneObject, ISceneView view )
@@ -129,13 +136,80 @@ internal partial class ShadowMapper
 		DirectionalLight = sceneObject;
 		UseNativeView( view );
 
-		if ( !View.IsSkybox )
+		if ( !mapper.View.IsSkybox )
 		{
 			view.GetRenderAttributesPtr().SetVectorValue( "FogSunColor", sceneObject.LightColor );
 			view.GetRenderAttributesPtr().SetVectorValue( "FogSunDirection", sceneObject.WorldDirection );
 		}
 
-		return DoDirectionalLight( FromNative( sceneObject ) );
+		return mapper.DoDirectionalLight( FromNative( sceneObject ) );
+	}
+
+	internal unsafe void SetShaderAttributes( CRenderAttributes attributes )
+	{
+		if ( !attributes.IsValid )
+			return;
+
+		mapper.ResolveTextureIndices();
+		EnsureBuffers();
+
+		attributes.SetBufferValue( "ProjectedShadows", projectedShadows.native );
+		attributes.SetBufferValue( "ProjectedCubeShadows", projectedCubeShadows.native );
+
+		var directionalLight = mapper.DirectionalLightData;
+		RenderTools.SetDynamicConstantBufferData( attributes, "DirectionalLightCB", Graphics.Context, (IntPtr)(&directionalLight), sizeof( GPUDirectionalLight ) );
+
+		attributes.SetBoolValue( "DirectionalLightDebug", ShadowMapper.DebugEnabled );
+	}
+
+	/// <summary>
+	/// Called as we submit display lists, upload our shadow map buffers.
+	/// </summary>
+	internal void UploadToGPU()
+	{
+		mapper.ResolveTextureIndices();
+		EnsureBuffers();
+
+		projectedShadows.SetData( mapper.ProjectedShadowData );
+		projectedCubeShadows.SetData( mapper.ProjectedCubeShadowData );
+	}
+
+	/// <summary>
+	/// This ties our buffers to a specific lightbinner. They're all the same size at the end of the day, we
+	/// could pool them normally. Created on first use.
+	/// </summary>
+	void EnsureBuffers()
+	{
+		projectedShadows ??= new( Mapper.ProjectedShadowBufferSize );
+		projectedCubeShadows ??= new( Mapper.ProjectedCubeShadowBufferSize );
+	}
+
+	internal void DisposeBuffers()
+	{
+		projectedShadows?.Dispose();
+		projectedCubeShadows?.Dispose();
+		projectedShadows = null;
+		projectedCubeShadows = null;
+	}
+
+	/// <summary>
+	/// <see cref="ContactShadows"/> for native's views. Called after Hi-Z (depth chain ready); bindless index set in CSM setup.
+	/// </summary>
+	internal void RenderScreenSpaceShadows( ISceneView view )
+	{
+		if ( SceneView != view || DirectionalLight is null || mapper.View.IsReflection )
+			return;
+
+		var light = DirectionalLight;
+		if ( !ContactShadows.Enabled || !light.IsValid() || !light.ContactShadows )
+			return;
+
+		var mask = light.GetShadowMask( view );
+		if ( mask is null )
+			return;
+
+		// Directional WorldDirection is already -Forward (CSceneLightObject::SetWorldDirection).
+		ContactShadows.Render( mask, view.GetFrustum().GetReverseZViewProjTranspose(), light.WorldDirection, light.ShadowHardness );
 	}
 
 	/// <summary>
@@ -143,12 +217,12 @@ internal partial class ShadowMapper
 	/// </summary>
 	sealed class NativeShadowRenderer : IShadowRenderer
 	{
-		readonly ShadowMapper mapper;
+		readonly NativeShadowMapper owner;
 		readonly CFrustum frustum = CFrustum.Create();
 
-		public NativeShadowRenderer( ShadowMapper mapper )
+		public NativeShadowRenderer( NativeShadowMapper owner )
 		{
-			this.mapper = mapper;
+			this.owner = owner;
 		}
 
 		public System.Numerics.Matrix4x4 RenderShadowView( in ShadowViewDesc view )
@@ -159,16 +233,16 @@ internal partial class ShadowMapper
 				frustum.BuildFrustumFromVectors( view.Position, view.ZNear, view.ZFar, view.FieldOfView, 1.0f, view.Rotation.Forward, view.Rotation.Left, view.Rotation.Up );
 
 			CSceneSystem.AddShadowView( view.Name,
-				mapper.SceneView,
+				owner.SceneView,
 				frustum,
 				new( 0, 0, view.Resolution, view.Resolution ),
-				view.Target.Texture.native,
+				view.Target.Texture.Native(),
 				view.Slice,
-				view.RequiredFlags,
-				view.ExcludedFlags,
+				view.StaticFilter == Basalt.StaticFilter.OnlyStatic ? SceneObjectFlags.StaticObject : SceneObjectFlags.None,
+				view.StaticFilter == Basalt.StaticFilter.NoStatic ? SceneObjectFlags.StaticObject : SceneObjectFlags.None,
 				view.DepthBias,
 				view.SlopeScaledDepthBias,
-				cachedShadowTexture: view.CachedStatic is null ? default : view.CachedStatic.Texture.native );
+				cachedShadowTexture: view.CachedStatic is null ? default : view.CachedStatic.Texture.Native() );
 
 			return frustum.GetReverseZViewProjTranspose()._numerics;
 		}
@@ -177,16 +251,16 @@ internal partial class ShadowMapper
 		{
 			// Temporary targets are loaned for the frame, so a second camera this frame gets its own
 			var rt = RenderTarget.GetTemporary( resolution, resolution, ImageFormat.None, ImageFormat.D32 );
-			return new ShadowMap( rt.DepthTarget );
+			return new ShadowMap( Source2Texture.From( rt.DepthTarget ) );
 		}
 
 		public uint GetShadowMaskIndex( object light )
 		{
 			// Reflections don't render contact shadows, and the main view's mask doesn't line up with them
-			if ( !ContactShadows.Enabled || mapper.View.IsReflection || light is not SceneLight sceneLight || !sceneLight.ContactShadows )
+			if ( !ContactShadows.Enabled || owner.mapper.View.IsReflection || light is not SceneLight sceneLight || !sceneLight.ContactShadows )
 				return 0;
 
-			return sceneLight.GetShadowMask( mapper.SceneView ) is { } mask ? (uint)mask.Index : 0;
+			return sceneLight.GetShadowMask( owner.SceneView ) is { } mask ? (uint)mask.Index : 0;
 		}
 	}
 }

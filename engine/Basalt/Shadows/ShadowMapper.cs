@@ -32,6 +32,15 @@ internal partial class ShadowMapper
 
 	internal const uint InvalidShadowIndex = 0xFFFFFFFF;
 
+	/// <summary>
+	/// Lifetime counters for tracking texture allocation health.
+	/// Created - Disposed should equal cache + pool + in-flight at any point.
+	/// If in-flight grows indefinitely, textures are being orphaned.
+	/// </summary>
+	internal static long TotalTexturesCreated { get; private set; }
+	internal static long TotalTexturesReleased { get; private set; }
+	internal static long TotalTexturesDisposed { get; private set; }
+
 	// Absolute upper limits, no harm in increasing these
 	internal const int ProjectedShadowBufferSize = 512;
 	internal const int ProjectedCubeShadowBufferSize = 256;
@@ -227,15 +236,15 @@ internal partial class ShadowMapper
 		return entry;
 	}
 
-	struct PooledTexture
+	internal struct PooledTexture
 	{
 		public ShadowMap Texture;
 		public float ReturnedAt;
 	}
 
-	record struct PoolKey( int Resolution, bool IsCube );
+	internal record struct PoolKey( int Resolution, bool IsCube );
 
-	static readonly Dictionary<PoolKey, Queue<PooledTexture>> TexturePool = new();
+	internal static readonly Dictionary<PoolKey, Queue<PooledTexture>> TexturePool = new();
 
 	/// <summary>
 	/// How long a texture sits unused in the cache before being evicted and returned to the pool.
@@ -253,6 +262,7 @@ internal partial class ShadowMapper
 		if ( TexturePool.TryGetValue( key, out var queue ) && queue.Count > 0 )
 			return queue.Dequeue().Texture;
 
+		TotalTexturesCreated++;
 		return new ShadowMap( resolution, isCube, LocalShadowDepthFormat );
 	}
 
@@ -269,6 +279,7 @@ internal partial class ShadowMapper
 		}
 
 		queue.Enqueue( new PooledTexture { Texture = texture, ReturnedAt = RealTime.Now } );
+		TotalTexturesReleased++;
 	}
 
 	/// <summary>
@@ -309,6 +320,7 @@ internal partial class ShadowMapper
 			while ( queue.Count > 0 && now - queue.Peek().ReturnedAt >= PoolDisposeTime )
 			{
 				queue.Dequeue().Texture?.Dispose();
+				TotalTexturesDisposed++;
 			}
 		}
 

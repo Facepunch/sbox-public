@@ -1,7 +1,49 @@
-﻿namespace Sandbox.Rendering;
+﻿using Basalt.Gpu.Source2;
+using Mapper = Basalt.Shadows.ShadowMapper;
 
-internal partial class ShadowMapper
+namespace Sandbox.Rendering;
+
+internal static partial class ShadowMapper
 {
+	/// <summary>
+	/// Every shadow map in Basalt's cache, both renderers'.
+	/// </summary>
+	static long MemorySize
+	{
+		get
+		{
+			long total = 0;
+			foreach ( var kvp in Mapper.Cache )
+			{
+				if ( kvp.Value.ShadowMap is { HasTexture: true } shadowMap )
+					total += TextureMemory( shadowMap );
+
+				if ( kvp.Value.StaticCache is { HasTexture: true } staticCache )
+					total += TextureMemory( staticCache );
+			}
+			return total;
+		}
+	}
+
+	/// <summary>
+	/// The cascades last rendered.
+	/// </summary>
+	static long DirectionalShadowMemorySize
+	{
+		get
+		{
+			long total = 0;
+			for ( int i = 0; i < Mapper.CascadeDebugCount; i++ )
+			{
+				if ( Mapper.CascadeDebugInfos[i].DepthTexture is { HasTexture: true } map )
+					total += TextureMemory( map );
+			}
+			return total;
+		}
+	}
+
+	static long TextureMemory( Basalt.Shadows.ShadowMap map ) => g_pRenderDevice.ComputeTextureMemorySize( map.Texture.Native() );
+
 	internal static void Draw( ref Vector2 pos, Painter painter )
 	{
 		var x = pos.x;
@@ -37,27 +79,27 @@ internal partial class ShadowMapper
 		y += 14;
 		y += 14;
 
-		scope.Text = $"Shadow Maps In Cache: {ShadowMapper.Cache.Count()}";
+		scope.Text = $"Shadow Maps In Cache: {Mapper.Cache.Count()}";
 		scope.TextColor = new Color( 0.6f, 0.9f, 1f );
 		DebugOverlay.DrawText( painter, scope, new Vector2( x, y ), TextFlag.LeftTop );
 		y += 14;
 
-		scope.Text = $"Shadow Maps Rendered This Frame: {ShadowMapper.Cache.Where( x => x.Value.RenderedFrame == Application.FrameCount ).Count()} (budget {ShadowMapper.MaxUpdatesPerFrame} + new/moved)";
+		scope.Text = $"Shadow Maps Rendered This Frame: {Mapper.Cache.Where( x => x.Value.RenderedFrame == Application.FrameCount ).Count()} (budget {ShadowMapper.MaxUpdatesPerFrame} + new/moved)";
 		scope.TextColor = new Color( 0.6f, 0.9f, 1f );
 		DebugOverlay.DrawText( painter, scope, new Vector2( x, y ), TextFlag.LeftTop );
 		y += 14;
 
-		scope.Text = $"Shadow Maps Used This Frame: {ShadowMapper.Cache.Where( x => x.Value.LastFrame > (RealTime.Now - 0.01f) ).Count()}";
+		scope.Text = $"Shadow Maps Used This Frame: {Mapper.Cache.Where( x => x.Value.LastFrame > (RealTime.Now - 0.01f) ).Count()}";
 		scope.TextColor = new Color( 0.6f, 0.9f, 1f );
 		DebugOverlay.DrawText( painter, scope, new Vector2( x, y ), TextFlag.LeftTop );
 		y += 14;
 
-		scope.Text = $"Projected Shadows Rendered: {ShadowMapper.ProjectedShadowsRenderedLastFrame}";
+		scope.Text = $"Projected Shadows Rendered: {Mapper.ProjectedShadowsRenderedLastFrame}";
 		scope.TextColor = new Color( 0.6f, 1f, 0.6f );
 		DebugOverlay.DrawText( painter, scope, new Vector2( x, y ), TextFlag.LeftTop );
 		y += 14;
 
-		scope.Text = $"Projected Shadows Screen Size Culled: {ShadowMapper.ProjectedShadowsCulledLastFrame}";
+		scope.Text = $"Projected Shadows Screen Size Culled: {Mapper.ProjectedShadowsCulledLastFrame}";
 		scope.TextColor = new Color( 1f, 0.6f, 0.6f );
 		DebugOverlay.DrawText( painter, scope, new Vector2( x, y ), TextFlag.LeftTop );
 		y += 14;
@@ -66,7 +108,7 @@ internal partial class ShadowMapper
 		// These stats track the health of shadow texture allocation.
 		int poolTextureCount = 0;
 		long poolMemorySize = 0;
-		foreach ( var (poolKey, stack) in ShadowMapper.TexturePool )
+		foreach ( var (poolKey, stack) in Mapper.TexturePool )
 		{
 			int count = stack.Count;
 			poolTextureCount += count;
@@ -88,8 +130,8 @@ internal partial class ShadowMapper
 
 		// Total textures alive = Created - Disposed. These should be in cache, pool, or in-flight.
 		// If in-flight grows indefinitely, textures are being orphaned.
-		int cacheCount = ShadowMapper.Cache.Where( x => x.Value.ShadowMap is not null ).Count();
-		int alive = (int)(ShadowMapper.TotalTexturesCreated - ShadowMapper.TotalTexturesDisposed);
+		int cacheCount = Mapper.Cache.Where( x => x.Value.ShadowMap is not null ).Count();
+		int alive = (int)(Mapper.TotalTexturesCreated - Mapper.TotalTexturesDisposed);
 		int inFlight = alive - cacheCount - poolTextureCount;
 		scope.Text = $"Alive: {alive}  (cache: {cacheCount}, pool: {poolTextureCount}, in-flight: {inFlight})";
 		scope.TextColor = new Color( 0.6f, 0.9f, 1f );
@@ -108,14 +150,14 @@ internal partial class ShadowMapper
 		y += 14;
 		x += 14;
 
-		foreach ( var (k, v) in ShadowMapper.Cache.OrderByDescending( x => x.Value.LastFrame ).ThenBy( x => x.Value.ScreenSize ).Take( 20 ) )
+		foreach ( var (k, v) in Mapper.Cache.OrderByDescending( x => x.Value.LastFrame ).ThenBy( x => x.Value.ScreenSize ).Take( 20 ) )
 		{
 			Color textColor = Color.Yellow;
 
 			if ( v.LastFrame < RealTime.Now - 0.1f )
 				textColor = Color.White.Darken( 0.4f );
 
-			var memory = v.ShadowMap is { HasTexture: true } map ? g_pRenderDevice.ComputeTextureMemorySize( map.Texture.native ).FormatBytes() : "-";
+			var memory = v.ShadowMap is { HasTexture: true } map ? TextureMemory( map ).FormatBytes() : "-";
 			scope.Text = $"{k.GetType().Name} - {v.CurrentResolution}px {memory} (Screen Size: {v.ScreenSize * 100:F0}%)";
 			scope.TextColor = textColor;
 			DebugOverlay.DrawText( painter, scope, new Vector2( x, y ), TextFlag.LeftTop );
@@ -132,7 +174,7 @@ internal partial class ShadowMapper
 			var labelScope = new TextRendering.Scope( "", Color.White, 10, "Roboto Mono", 600 );
 			labelScope.Outline = new TextRendering.Outline { Color = Color.Black, Enabled = true, Size = 2 };
 
-			foreach ( var (light, entry) in ShadowMapper.Cache )
+			foreach ( var (light, entry) in Mapper.Cache )
 			{
 				if ( entry.ShadowMap is not { HasTexture: true } ) continue;
 				if ( light is SceneLight sceneLight && !sceneLight.IsValid() ) continue;
@@ -142,7 +184,7 @@ internal partial class ShadowMapper
 
 				// Shadow map preview centered above the light
 				var texRect = new Rect( screenPos.x - previewSize * 0.5f, screenPos.y - previewSize - 8, previewSize, previewSize );
-				painter.Texture( entry.ShadowMap.Texture, texRect, Color.White, FilterMode.Anisotropic );
+				painter.Texture( entry.ShadowMap.Texture.Engine(), texRect, Color.White, FilterMode.Anisotropic );
 
 				// Info text below the preview
 				bool active = entry.LastFrame > RealTime.Now - 0.1f;
@@ -151,8 +193,8 @@ internal partial class ShadowMapper
 
 				var textPos = new Vector2( screenPos.x, texRect.Bottom + 4 );
 
-				string lightType = entry.Type switch { ShadowLightType.Point => "Point", ShadowLightType.Spot => "Spot", _ => "Light" };
-				var memSize = g_pRenderDevice.ComputeTextureMemorySize( entry.ShadowMap.Texture.native );
+				string lightType = entry.Type switch { Basalt.Shadows.ShadowLightType.Point => "Point", Basalt.Shadows.ShadowLightType.Spot => "Spot", _ => "Light" };
+				var memSize = TextureMemory( entry.ShadowMap );
 
 				labelScope.Text = $"{lightType} {entry.CurrentResolution}px ({memSize.FormatBytes()})";
 				DebugOverlay.DrawText( painter, labelScope, textPos, TextFlag.CenterTop );
@@ -162,27 +204,27 @@ internal partial class ShadowMapper
 				DebugOverlay.DrawText( painter, labelScope, textPos, TextFlag.CenterTop );
 				textPos.y += 12;
 
-				float halfAngle = entry.Type == ShadowLightType.Spot ? entry.ConeOuter : 45f;
-				float biasScale = ComputeBiasScale( halfAngle, entry.Radius, entry.CurrentResolution );
+				float halfAngle = entry.Type == Basalt.Shadows.ShadowLightType.Spot ? entry.ConeOuter : 45f;
+				float biasScale = Mapper.ComputeBiasScale( halfAngle, entry.Radius, entry.CurrentResolution );
 				labelScope.Text = $"BiasScale:{biasScale:F2} Const:{(int)(ShadowDepthBias * biasScale)} Slope:{ShadowSlopeScale * biasScale:F1}";
 				DebugOverlay.DrawText( painter, labelScope, textPos, TextFlag.CenterTop );
 			}
 		}
 
 		// Draw CSM cascade textures at the bottom of the screen
-		if ( CascadeDebugCount > 0 )
+		if ( Mapper.CascadeDebugCount > 0 )
 		{
 			var margin = 8;
 			var size = 160;
 			var texY = Screen.Height - size - margin;
 
-			for ( int i = 0; i < CascadeDebugCount; i++ )
+			for ( int i = 0; i < Mapper.CascadeDebugCount; i++ )
 			{
-				var info = CascadeDebugInfos[i];
+				var info = Mapper.CascadeDebugInfos[i];
 				if ( info.DepthTexture is not { HasTexture: true } ) continue;
 
 				var texX = margin + i * (size + margin);
-				painter.Texture( info.DepthTexture.Texture, new Rect( texX, texY, size, size ), Color.White, FilterMode.Anisotropic );
+				painter.Texture( info.DepthTexture.Texture.Engine(), new Rect( texX, texY, size, size ), Color.White, FilterMode.Anisotropic );
 				DebugOverlay.DrawText( painter, $"Cascade {i}", 11, Color.Yellow, new Vector2( texX, texY - 48 ), TextFlag.LeftTop );
 				DebugOverlay.DrawText( painter, $"Depth: {info.Near:F0} to {info.Far:F0}", 11, Color.Yellow, new Vector2( texX, texY - 32 ), TextFlag.LeftTop );
 				DebugOverlay.DrawText( painter, $"Rect: {info.Width:F0} x {info.Height:F0} units", 11, Color.Yellow, new Vector2( texX, texY - 16 ), TextFlag.LeftTop );

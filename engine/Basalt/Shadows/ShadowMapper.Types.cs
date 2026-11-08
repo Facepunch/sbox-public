@@ -205,6 +205,17 @@ internal sealed class ShadowMap : IDisposable
 		Format = format;
 	}
 
+	/// <summary>
+	/// A shadow map for a texture that already exists.
+	/// </summary>
+	public ShadowMap( GpuTexture texture )
+	{
+		this.texture = texture;
+		Resolution = texture.Width;
+		IsCube = texture.IsCube;
+		Format = texture.Format;
+	}
+
 	public bool HasTexture => texture is not null;
 
 	public GpuTexture Texture => texture ??= RenderHost.Current.Device.CreateTexture( TextureDesc.Target( Resolution, Resolution, Format ) with { Cube = IsCube },
