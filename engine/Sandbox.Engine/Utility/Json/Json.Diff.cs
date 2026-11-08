@@ -472,27 +472,20 @@ public static partial class Json
 			: trackedObj.Data.DeepClone().AsObject();
 	}
 
-	[ThreadStatic] private static System.Buffers.ArrayBufferWriter<byte> _valueBuffer;
-	[ThreadStatic] private static Utf8JsonWriter _valueWriter;
-
 	/// <summary>
 	/// <see cref="JsonNode.DeepEquals"/>, but a string value made from a .NET value (a GameObject's transform) is
-	/// written once, into a reused buffer: DeepEquals serializes it to find its kind, then again into a document to
-	/// compare it.
+	/// written once, into <paramref name="buffer"/> (reused across a diff): DeepEquals serializes it to find its kind,
+	/// then again into a document to compare it.
 	/// </summary>
-	private static bool PropertyEquals( JsonNode a, JsonNode b )
+	private static bool PropertyEquals( JsonNode a, JsonNode b, System.Buffers.ArrayBufferWriter<byte> buffer, Utf8JsonWriter writer )
 	{
 		if ( a is JsonValue va && b is JsonValue vb && va.TryGetValue<JsonElement>( out var element ) && element.ValueKind == JsonValueKind.String && !vb.TryGetValue<JsonElement>( out _ ) )
 		{
-			var buffer = _valueBuffer ??= new System.Buffers.ArrayBufferWriter<byte>( 256 );
 			buffer.ResetWrittenCount();
-			if ( _valueWriter is null )
-				_valueWriter = new Utf8JsonWriter( buffer );
-			else
-				_valueWriter.Reset( buffer );
+			writer.Reset();
 
-			vb.WriteTo( _valueWriter );
-			_valueWriter.Flush();
+			vb.WriteTo( writer );
+			writer.Flush();
 
 			// A string written without escapes is its value, between the quotes
 			var written = buffer.WrittenSpan;
@@ -723,6 +716,8 @@ public static partial class Json
 	private static Patch CalculateDifferences( TrackedObjects oldObjects, TrackedObjects newObjects )
 	{
 		var patch = new Patch();
+		var valueBuffer = new System.Buffers.ArrayBufferWriter<byte>( 256 );
+		using var valueWriter = new Utf8JsonWriter( valueBuffer );
 
 		// Find removed objects
 		foreach ( var oldObj in oldObjects.IdToTrackedObject )
@@ -787,7 +782,7 @@ public static partial class Json
 					if ( oldObjValue.TryGetPropertyValue( propName, out var oldValue ) )
 					{
 						// Property exists in both - check for differences
-						if ( !PropertyEquals( oldValue, newValue ) )
+						if ( !PropertyEquals( oldValue, newValue, valueBuffer, valueWriter ) )
 						{
 							patch.PropertyOverrides.Add( new PropertyOverride
 							{
