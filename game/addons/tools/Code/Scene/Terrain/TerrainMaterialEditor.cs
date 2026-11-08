@@ -6,6 +6,9 @@ namespace Editor.TerrainEditor;
 class TerrainMaterialEditor : BaseResourceEditor<TerrainMaterial>
 {
 	SerializedObject Object;
+	TerrainMaterial _material;
+	Label _size;
+	Texture _sizeBcr, _sizeNho;
 
 	public TerrainMaterialEditor()
 	{
@@ -23,6 +26,14 @@ class TerrainMaterialEditor : BaseResourceEditor<TerrainMaterial>
 		channels.SetStyles( $"color: {Theme.TextLight.Hex}; padding: 8px 12px;" );
 		Layout.Add( channels );
 		UpdateChannels( channels, resource );
+
+		// Resolution and GPU memory of the two generated textures, so a heavy material stands out
+		_material = resource;
+		_size = new Label( null );
+		_size.SetStyles( $"color: {Theme.TextLight.Hex}; padding: 0px 12px 8px 12px;" );
+		Layout.Add( _size );
+		_sizeBcr = _sizeNho = null;
+		UpdateSize();
 
 		var sheet = new ControlSheet();
 		sheet.AddObject( Object );
@@ -48,6 +59,25 @@ class TerrainMaterialEditor : BaseResourceEditor<TerrainMaterial>
 			: $"image × {m.Roughness:0.##}";
 
 		label.Text = $"Roughness: {roughness}    Height: {(IsBound( m.HeightImage ) ? "image" : "none")}    AO: {(IsBound( m.AOImage ) ? "image" : "none")}    Tiling: {(m.NoTiling ? "no tiling" : "repeating")}";
+	}
+
+	/// <summary>
+	/// The generated textures are replaced when the material recompiles after an image change: refresh then.
+	/// </summary>
+	[EditorEvent.Frame]
+	void UpdateSize()
+	{
+		if ( !_size.IsValid() || _material is null ) return;
+		if ( _sizeBcr == _material.BCRTexture && _sizeNho == _material.NHOTexture ) return;
+
+		_sizeBcr = _material.BCRTexture;
+		_sizeNho = _material.NHOTexture;
+
+		static long Bytes( Texture t ) => TextureResidencyInfo.Get( t ) is { } info ? Math.Max( info.Disk.MemorySize, info.Loaded.MemorySize ) : 0;
+		static string Describe( Texture t ) => t is null || t.IsError ? "missing" : $"{t.Width}×{t.Height} {t.ImageFormat}";
+
+		var total = Bytes( _sizeBcr ) + Bytes( _sizeNho );
+		_size.Text = $"Size: color {Describe( _sizeBcr )}, normal {Describe( _sizeNho )}    VRAM {total / (1024.0 * 1024.0):0.#} MB";
 	}
 
 	void TryAutoFill( SerializedProperty p )
