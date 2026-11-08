@@ -431,7 +431,7 @@ internal sealed class RenderContext : IDisposable
 	/// Optional per-instance volume ranges enable deformation; dispatch deformed and undeformed instances separately. Deformed
 	/// instances read their anchors, per mesh bone, from their offset into <paramref name="anchors"/> - 0 for none.
 	/// </summary>
-	public unsafe bool DispatchSkinning( Material skinningShader, RenderMesh mesh, int modelMesh, GpuBuffer transforms, ReadOnlySpan<int> slots, ReadOnlySpan<int> vertexCacheOffsets, int blendWeights,
+	public unsafe bool DispatchSkinning( GpuMaterial skinningShader, RenderMesh mesh, int modelMesh, GpuBuffer transforms, ReadOnlySpan<int> slots, ReadOnlySpan<int> vertexCacheOffsets, int blendWeights,
 		GpuBuffer volumes = null, ReadOnlySpan<int> volumeOffsets = default, ReadOnlySpan<int> volumeCounts = default, GpuBuffer anchors = null, ReadOnlySpan<int> anchorOffsets = default, bool morph = false )
 	{
 		fixed ( int* s = slots )
@@ -443,7 +443,7 @@ internal sealed class RenderContext : IDisposable
 			var deformed = volumes is not null && anchors is not null;
 			RenderBufferHandle_t volumeBuffer = deformed ? volumes.Native() : IntPtr.Zero;
 			RenderBufferHandle_t anchorBuffer = deformed ? anchors.Native() : IntPtr.Zero;
-			return RenderTools.DispatchModelMeshSkinning( context, skinningShader.native.GetMode(), mesh.Model.native, modelMesh, transforms.Native(), (IntPtr)s, (IntPtr)o, slots.Length, blendWeights,
+			return RenderTools.DispatchModelMeshSkinning( context, skinningShader.Native().GetMode(), mesh.Model.native, modelMesh, transforms.Native(), (IntPtr)s, (IntPtr)o, slots.Length, blendWeights,
 				volumeBuffer, deformed ? (IntPtr)vo : IntPtr.Zero, deformed ? (IntPtr)vc : IntPtr.Zero, anchorBuffer, deformed ? (IntPtr)ao : IntPtr.Zero, morph );
 		}
 	}
@@ -502,8 +502,8 @@ internal sealed class RenderContext : IDisposable
 	{
 		ResetMaterialBind();
 		var material = lighting.SkyMaterial;
-		var mode = material.native.GetMode( shaderMode );
-		if ( mode.IsNull ) mode = material.native.GetMode();
+		var mode = material.Native().GetMode( shaderMode );
+		if ( mode.IsNull ) mode = material.Native().GetMode();
 		if ( mode.IsNull ) return false;
 
 		var fog = lighting.SkyFog;
@@ -824,10 +824,10 @@ internal sealed class RenderContext : IDisposable
 	/// Bind shader/state after setting draw attributes. Missing modes return false; native permits Forward-to-VrForward fallback
 	/// (<c>CMaterial2::GetMode</c>). Nonzero biases override rasterizer bias; optional flags strip the pixel shader or use vertex-cache IDs.
 	/// </summary>
-	public bool SetRenderState( Material material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool vertexCache = false )
+	public bool SetRenderState( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool vertexCache = false )
 	{
 		ResetMaterialBind();
-		var mode = material.native.GetMode( shaderMode );
+		var mode = material.Native().GetMode( shaderMode );
 		if ( mode.IsNull ) return false;
 
 		return RenderTools.SetRenderStateForModelDrawCall( context, drawAttributes, mode, mesh.Model.native, draw.Mesh, draw.DrawCall, depthBias, slopeScaledDepthBias, stripPixelShader, vertexCache, (int)OverlayStencil );
@@ -852,9 +852,9 @@ internal sealed class RenderContext : IDisposable
 	/// Vertex-cache draws use the separate binding path. <paramref name="skinned"/> draws pick bones by blend index, so they
 	/// keep their own input layout depth-only too.
 	/// </summary>
-	public bool DrawModel( Material material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false )
+	public bool DrawModel( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false )
 	{
-		return RenderTools.DrawModelDrawCall( context, drawAttributes, material.native, shaderMode, mesh.Model.native, draw.Mesh, draw.DrawCall,
+		return RenderTools.DrawModelDrawCall( context, drawAttributes, material.Native(), shaderMode, mesh.Model.native, draw.Mesh, draw.DrawCall,
 			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, skinned, InstanceIds.Native(), firstInstance, instances, materialBind );
 	}
 
@@ -862,9 +862,9 @@ internal sealed class RenderContext : IDisposable
 	/// <see cref="DrawModel"/> with only the instances the occlusion cull kept for <paramref name="phase"/>
 	/// (<c>RenderTools.DrawModelDrawCallIndirect</c>).
 	/// </summary>
-	public bool DrawModelCulled( Material material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int argsIndex, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false )
+	public bool DrawModelCulled( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int argsIndex, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false )
 	{
-		return RenderTools.DrawModelDrawCallIndirect( context, drawAttributes, material.native, shaderMode, mesh.Model.native, draw.Mesh, draw.DrawCall,
+		return RenderTools.DrawModelDrawCallIndirect( context, drawAttributes, material.Native(), shaderMode, mesh.Model.native, draw.Mesh, draw.DrawCall,
 			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, skinned, Occlusion.CulledIds.Native(), Occlusion.IdOffset( phase ) + firstInstance,
 			Occlusion.Args.Native(), (Occlusion.ArgOffset( phase ) + argsIndex) * OcclusionCuller.ArgsStride, materialBind );
 	}
@@ -874,9 +874,9 @@ internal sealed class RenderContext : IDisposable
 	/// material (<c>RenderTools.DrawModelDrawCallMultiIndirect</c>): an aggregate's fragments. Each draw's base instance
 	/// indexes the instance ids from <paramref name="firstInstance"/>.
 	/// </summary>
-	public bool DrawModelFragments( Material material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, GpuBuffer args, int firstArg, int count, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false )
+	public bool DrawModelFragments( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, GpuBuffer args, int firstArg, int count, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false )
 	{
-		return RenderTools.DrawModelDrawCallMultiIndirect( context, drawAttributes, material.native, shaderMode, mesh.Model.native, draw.Mesh, draw.DrawCall,
+		return RenderTools.DrawModelDrawCallMultiIndirect( context, drawAttributes, material.Native(), shaderMode, mesh.Model.native, draw.Mesh, draw.DrawCall,
 			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, InstanceIds.Native(), firstInstance,
 			args.Native(), firstArg * OcclusionCuller.ArgsStride, count, default, 0, materialBind );
 	}
@@ -885,11 +885,11 @@ internal sealed class RenderContext : IDisposable
 	/// <see cref="DrawModelFragments"/> with the fragments the occlusion cull kept for <paramref name="phase"/>: compacted, only the
 	/// survivors, counted on the GPU; otherwise every fragment, the hidden ones with no instances.
 	/// </summary>
-	public bool DrawModelFragmentsCulled( Material material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int cullArg, int count, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false )
+	public bool DrawModelFragmentsCulled( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int cullArg, int count, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false )
 	{
 		var args = Occlusion.Args;
 		var compact = Occlusion.CompactFragments;
-		return RenderTools.DrawModelDrawCallMultiIndirect( context, drawAttributes, material.native, shaderMode, mesh.Model.native, draw.Mesh, draw.DrawCall,
+		return RenderTools.DrawModelDrawCallMultiIndirect( context, drawAttributes, material.Native(), shaderMode, mesh.Model.native, draw.Mesh, draw.DrawCall,
 			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, InstanceIds.Native(), firstInstance,
 			args.Native(), Occlusion.FragmentArgs( phase, cullArg, count ) * OcclusionCuller.ArgsStride, count,
 			compact ? args.Native() : default, compact ? Occlusion.FragmentCountArg( phase, cullArg, count ) * OcclusionCuller.ArgsStride : 0, materialBind );
@@ -906,7 +906,7 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Shared shader/feature key for partial material rebinds (<c>RenderTools.GetMaterialSimilarityKey</c>).
 	/// </summary>
-	public static ulong SimilarityKey( Material material ) => RenderTools.GetMaterialSimilarityKey( material.native );
+	public static ulong SimilarityKey( GpuMaterial material ) => material.SimilarityKey;
 
 	/// <summary>
 	/// Copy data into a GPU buffer, recorded on this context so it's ordered before later draws.
@@ -1056,10 +1056,10 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Dispatch thread counts with current attributes; native converts to shader group counts.
 	/// </summary>
-	public void Dispatch( Material computeShader, int x, int y, int z )
+	public void Dispatch( GpuMaterial computeShader, int x, int y, int z )
 	{
 		Invalidate();
-		RenderTools.Compute( context, Attributes.Engine().Get(), computeShader.native.GetMode(), x, y, z );
+		RenderTools.Compute( context, Attributes.Engine().Get(), computeShader.Native().GetMode(), x, y, z );
 	}
 
 	/// <summary>

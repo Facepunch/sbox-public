@@ -95,7 +95,7 @@ public sealed class SceneLighting
 	/// <summary>
 	/// 2D sky material (<c>SceneSkyBox</c>); null shows clear colour. Add an <see cref="EnvMapObject"/> for sky lighting.
 	/// </summary>
-	public Material SkyMaterial { get; set; }
+	public GpuMaterial SkyMaterial { get; set; }
 
 	/// <summary>
 	/// Multiplied into the sky - <c>SceneSkyBox.SkyTint</c>.

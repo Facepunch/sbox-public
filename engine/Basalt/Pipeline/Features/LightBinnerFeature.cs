@@ -46,7 +46,7 @@ internal sealed partial class LightBinnerFeature : RenderFeature
 	GpuLight[] lights = new GpuLight[64];
 	LightObject[] packedObjects = new LightObject[64];
 	float[] packedScreenSize = new float[64];
-	Material cullingShader;
+	GpuMaterial cullingShader;
 
 	GpuBuffer<uint> lightCounts, envMapCounts, decalCounts;
 	GpuBuffer<uint> lightIndices, envMapIndices;
@@ -276,7 +276,7 @@ internal sealed partial class LightBinnerFeature : RenderFeature
 
 	void EnsureResources()
 	{
-		cullingShader ??= Material.FromShader( "shaders/clustered_light_culling_cs.shader" );
+		cullingShader ??= RenderHost.Current.Device.MaterialFromShader( "shaders/clustered_light_culling_cs.shader" );
 
 		lightCounts ??= new GpuBuffer<uint>( ClusterCount, GpuBuffer.UsageFlags.Structured, "Basalt ClusterLightCounts" );
 		envMapCounts ??= new GpuBuffer<uint>( ClusterCount, GpuBuffer.UsageFlags.Structured, "Basalt ClusterEnvMapCounts" );

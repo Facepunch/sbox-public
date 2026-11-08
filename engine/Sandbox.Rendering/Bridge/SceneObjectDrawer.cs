@@ -79,7 +79,7 @@ internal sealed class SceneObjectDrawer : IDisposable
 			for ( int d = 0; d < draws.Length; d++ )
 			{
 				var draw = draws[d];
-				var drawMaterial = material ?? obj.MaterialOverride ?? draw.Material;
+				var drawMaterial = Source2Material.From( material ) ?? obj.MaterialOverride ?? draw.Material;
 				if ( drawMaterial is null ) continue;
 
 				// Object attributes override caller attributes; rigid transforms use this drawer's buffer.
@@ -91,7 +91,7 @@ internal sealed class SceneObjectDrawer : IDisposable
 				// Preserve source opacity for override shaders (RenderTools::DrawSceneObject).
 				if ( material is not null )
 				{
-					var opacity = draw.Material?.GetTexture( "LightSim_Opacity_A" );
+					var opacity = draw.Material?.Engine()?.GetTexture( "LightSim_Opacity_A" );
 					if ( opacity is not null ) drawAttributes.Set( BaseOpacity, opacity );
 					drawAttributes.Set( HasBaseOpacity, opacity is not null );
 				}

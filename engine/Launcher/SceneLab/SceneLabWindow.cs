@@ -382,12 +382,12 @@ internal sealed partial class SceneLabWindow : PanelWindow
 			for ( int y = 0; y < scene.Grid; y++ )
 			{
 				var position = new Vector3( x * spacing - offset, y * spacing - offset, 0 );
-				var obj = new MeshObject( models[(x + y) % models.Length], new Transform( position ) ) { IsStatic = scene.Static, MaterialOverride = material };
+				var obj = new MeshObject( models[(x + y) % models.Length], new Transform( position ) ) { IsStatic = scene.Static, MaterialOverride = Source2Material.From( material ) };
 
 				var cell = (x + y) % (checker.Length + 1) - 1;
 				if ( cell >= 0 )
 				{
-					obj.MaterialOverride = checker[cell].Material ?? material;
+					obj.MaterialOverride = Source2Material.From( checker[cell].Material ?? material );
 					obj.Tint = Color.White.WithAlpha( checker[cell].Alpha );
 				}
 
@@ -410,7 +410,7 @@ internal sealed partial class SceneLabWindow : PanelWindow
 		{
 			// What SkyBox2D sets up: the sky, and a probe of its cubemap around everything, at the lowest priority
 			var sky = Material.Load( scene.Sky );
-			world.Lighting.SkyMaterial = sky;
+			world.Lighting.SkyMaterial = Source2Material.From( sky );
 			world.Add( new EnvMapObject( Source2Texture.From( sky.GetTexture( "g_tSkyTexture" ) ), BBox.FromPositionAndSize( Vector3.Zero, int.MaxValue ), Transform.Zero )
 			{
 				Priority = -5,

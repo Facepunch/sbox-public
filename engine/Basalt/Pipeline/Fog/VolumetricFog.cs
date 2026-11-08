@@ -57,7 +57,7 @@ internal sealed class VolumetricFog : IDisposable
 	GpuTexture lighting, fogVolume;
 	readonly GpuTexture[] accumulated = new GpuTexture[2];
 	static GpuTexture opaqueBlack;
-	Material computeShader;
+	GpuMaterial computeShader;
 
 	uint frameIndex;
 	uint frameOffset;
@@ -162,7 +162,7 @@ internal sealed class VolumetricFog : IDisposable
 		device.Clear( accumulated[1], Color.Transparent );
 		device.Clear( fogVolume, Color.Transparent );
 
-		computeShader ??= Material.Load( "materials/dev/cs_volumetric_fog.vmat" );
+		computeShader ??= RenderHost.Current.Device.LoadMaterial( "materials/dev/cs_volumetric_fog.vmat" );
 		if ( constantBuffer == IntPtr.Zero ) constantBuffer = RenderContext.CreateConstantBuffer( System.Runtime.CompilerServices.Unsafe.SizeOf<Constants>() );
 	}
 

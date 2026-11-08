@@ -12,27 +12,25 @@ public sealed class RenderMesh
 	/// Fast-path depth uses <c>depth_only.vmat</c>; lightmapped draws use object lightmap attributes.
 	/// <paramref name="Tint"/> is a linear per-draw multiplier, or null for white (<c>CMaterialDrawDescriptor::m_vTintColor</c>).
 	/// </summary>
-	public readonly record struct Draw( int Mesh, int DrawCall, int StartIndex, int IndexCount, int VertexCount, int PrimitiveType, Material Material,
+	public readonly record struct Draw( int Mesh, int DrawCall, int StartIndex, int IndexCount, int VertexCount, int PrimitiveType, GpuMaterial Material,
 		bool Translucent = false, bool AlphaTest = false, bool ShadowFastPath = false, bool Lightmapped = false, Vector3? Tint = null );
 
 	/// <summary>
 	/// Whether a material blends, as native reads its <c>translucent</c> attribute.
 	/// </summary>
-	internal static bool IsTranslucent( Material material ) => material is not null && material.native.GetIntAttributeOrDefault( "translucent", 0 ) != 0;
+	internal static bool IsTranslucent( GpuMaterial material ) => material is { IsTranslucent: true };
 
 	/// <summary>
 	/// Whether a material alpha tests, as native reads its <c>alphatest</c> attribute.
 	/// </summary>
-	internal static bool IsAlphaTest( Material material ) => material is not null && material.native.GetIntAttributeOrDefault( "alphatest", 0 ) != 0;
+	internal static bool IsAlphaTest( GpuMaterial material ) => material is { IsAlphaTest: true };
 
 	/// <summary>
 	/// Read the material's frame-copy flag (<c>DefaultMaterialBasedSceneObjectUpdater</c>).
 	/// </summary>
-	internal static bool ReadsFrameBuffer( Material material ) => material is not null && material.native.GetIntAttributeOrDefault( "bWantsFBCopyTexture", 0 ) != 0;
+	internal static bool ReadsFrameBuffer( GpuMaterial material ) => material is { ReadsFrameBuffer: true };
 
-	internal static bool NeedsLightProbe( Material material ) => material is not null
-		&& material.Flags.GetBool( "NeedsLightProbe", true )
-		&& material.Flags.GetBool( "UsesBakedLightingFromProbe", true );
+	internal static bool NeedsLightProbe( GpuMaterial material ) => material is { NeedsLightProbe: true };
 
 	/// <summary>
 	/// Model owning the draw buffers.
@@ -173,7 +171,7 @@ public sealed class RenderMesh
 	/// Native per-object draw state after body groups and material overrides (<c>RenderTools.GetSceneObjectDraw</c>).
 	/// Flags reflect the effective material (<c>CMeshSystem::UpdateDrawCallFlags</c>).
 	/// </summary>
-	internal readonly record struct DrawState( int Mesh, int DrawCall, Material Material, bool Visible, bool Translucent, bool ShadowFastPath, bool Lightmapped = false );
+	internal readonly record struct DrawState( int Mesh, int DrawCall, GpuMaterial Material, bool Visible, bool Translucent, bool ShadowFastPath, bool Lightmapped = false );
 
 	/// <summary>
 	/// Apply supplied draw states, omitting hidden draws and retaining unspecified ones.
@@ -244,7 +242,7 @@ public sealed class RenderMesh
 		triangles = lods.Select( l => l.Sum( x => x.IndexCount / 3 ) ).ToArray();
 		blends = lods.Select( BlendOf ).ToArray();
 		lodMeshes = lods.Select( l => l.Select( d => d.Mesh ).Distinct().ToArray() ).ToArray();
-		drawSimilarity = lods.Select( l => l.Select( d => d.Material is { } material ? RenderContext.SimilarityKey( material ) : 0 ).ToArray() ).ToArray();
+		drawSimilarity = lods.Select( l => l.Select( d => d.Material?.SimilarityKey ?? 0 ).ToArray() ).ToArray();
 		lodSimilarity = drawSimilarity.Select( l => l.Length > 0 ? l[0] : 0 ).ToArray();
 		tintOffsets = new int[lods.Length];
 		for ( int lod = 0; lod < lods.Length; lod++ )
@@ -328,10 +326,10 @@ public sealed class RenderMesh
 				for ( int d = 0; d < drawCalls.Length; d++ )
 				{
 					var call = drawCalls[d];
-					var material = call.Material;
+					var material = Source2Material.From( call.Material );
 					var translucent = IsTranslucent( material );
 					var alphaTest = IsAlphaTest( material );
-					var fastPath = material is not null && material.native.GetBoolAttributeOrDefault( "ShadowFastPath", false ) && !translucent && !alphaTest;
+					var fastPath = material is { ShadowFastPath: true } && !translucent && !alphaTest;
 					draws.Add( new Draw( m, d, call.StartIndex, call.Indices, call.Vertices, call.PrimitiveType, material, translucent, alphaTest, fastPath, Tint: RenderContext.ReadDrawTint( model, m, d ) ) );
 				}
 			}

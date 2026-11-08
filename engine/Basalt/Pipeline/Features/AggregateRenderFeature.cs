@@ -30,7 +30,7 @@ internal sealed class AggregateRenderFeature : RenderFeature
 	int argGeneration = -1;
 	readonly UploadRing<GpuBuffer.IndirectDrawIndexedArguments> argsRing = new( "Basalt AggregateArgs", GpuBuffer.UsageFlags.Structured | GpuBuffer.UsageFlags.IndirectDrawArguments );
 
-	Material depthOnlyMaterial;
+	GpuMaterial depthOnlyMaterial;
 
 	static readonly Comparison<Batch> ByKey = ( a, b ) => a.Key.CompareTo( b.Key );
 
@@ -155,7 +155,7 @@ internal sealed class AggregateRenderFeature : RenderFeature
 	internal override void Setup( RenderContext context, RenderWorld world, ViewPass view )
 	{
 		// On the main thread: draws may record on worker threads, where materials can't be made
-		depthOnlyMaterial ??= Material.Load( MeshRenderFeature.DepthOnlyMaterial );
+		depthOnlyMaterial ??= RenderHost.Current.Device.LoadMaterial( MeshRenderFeature.DepthOnlyMaterial );
 
 		var buffer = argsRing.Upload( context, args.AsSpan( 0, argCount ) );
 		if ( argCount > 0 )
@@ -232,7 +232,7 @@ internal sealed class AggregateRenderFeature : RenderFeature
 	/// The depth-only material on the fast path, else the draw's own, with the pixel shader stripped for an opaque depth pass
 	/// (<c>CSceneSystem::ShouldOverrideDepthMaterial</c>, <c>CAggregateSceneObjectDesc::DrawArrayExt</c>).
 	/// </summary>
-	Material MaterialFor( in RenderMesh.Draw draw, bool depth, bool forceDepthOnly, out bool stripPixelShader )
+	GpuMaterial MaterialFor( in RenderMesh.Draw draw, bool depth, bool forceDepthOnly, out bool stripPixelShader )
 	{
 		stripPixelShader = false;
 		if ( depth && (forceDepthOnly || draw.ShadowFastPath) && depthOnlyMaterial is not null ) return depthOnlyMaterial;

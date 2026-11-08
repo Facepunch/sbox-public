@@ -46,4 +46,10 @@ internal sealed class Source2Device : GpuDevice
 	public override ShaderParameters CreateParameters() => Source2Parameters.From( new RenderAttributes() );
 
 	public override GpuTexture SheetMetadata => Source2Texture.From( Texture.FromNative( g_pRenderDevice.GetSheetMetaDataTexture() ) );
+
+	public override GpuMaterial LoadMaterial( string path ) => Source2Material.From( Material.Load( path ) );
+
+	public override GpuMaterial MaterialFromShader( string shaderPath ) => Source2Material.From( Material.FromShader( shaderPath ) );
+
+	public override GpuMaterial CreateMaterial( string name, string shaderPath ) => Source2Material.From( Material.Create( name, shaderPath ) );
 }

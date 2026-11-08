@@ -56,7 +56,7 @@ internal sealed partial class MeshRenderFeature
 	int skinJobsGeneration = -1;
 	Matrix3x4[] skinScratch = new Matrix3x4[64];
 	TransformBuffer frameTransforms;
-	Material skinningShader;
+	GpuMaterial skinningShader;
 
 	/// <summary>
 	/// The compute shader native skins with (<c>CSceneSystem</c>'s <c>m_hCsSkinningMat</c>).
@@ -156,7 +156,7 @@ internal sealed partial class MeshRenderFeature
 	{
 		if ( skinJobs.Count == 0 || frameTransforms is null ) return;
 
-		skinningShader ??= Material.Load( SkinningShader );
+		skinningShader ??= RenderHost.Current.Device.LoadMaterial( SkinningShader );
 
 		// Batch matching meshes; deformation/morph combos must match (CSceneSystem::CanBatchVertexCacheRequests).
 		var jobs = CollectionsMarshal.AsSpan( skinJobs );

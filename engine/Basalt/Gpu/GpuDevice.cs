@@ -45,4 +45,19 @@ public abstract class GpuDevice
 	/// The sprite sheets' metadata, which shaders that sample sheets read.
 	/// </summary>
 	public abstract GpuTexture SheetMetadata { get; }
+
+	/// <summary>
+	/// Load a material asset by path, or null if it doesn't exist. Main thread only.
+	/// </summary>
+	public abstract GpuMaterial LoadMaterial( string path );
+
+	/// <summary>
+	/// The shared material for a shader with default values. Don't release it. Main thread only.
+	/// </summary>
+	public abstract GpuMaterial MaterialFromShader( string shaderPath );
+
+	/// <summary>
+	/// A new material for a shader, owned by the caller. Main thread only, outside rendering.
+	/// </summary>
+	public abstract GpuMaterial CreateMaterial( string name, string shaderPath );
 }

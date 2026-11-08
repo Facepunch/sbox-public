@@ -44,7 +44,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	/// Compatible instances sharing mesh, LOD and draw state. Skinned IDs are grouped per model mesh;
 	/// custom objects occupy individual runs. Lighting and frame-copy inputs apply in forward passes.
 	/// </summary>
-	internal readonly record struct Run( RenderMesh Mesh, int Lod, Material Override, bool OverrideBlends, DrawFilter Filter, int FirstInstance, int Count, bool Skinned = false, ShaderParameters Attributes = null, CustomObject Custom = null, ShaderParameters Lightmap = null, bool ReadsFrameBuffer = false, ShaderParameters Probe = null, bool Tinted = false, bool Deformed = false, bool Morphable = false, int CullDraw = -1 );
+	internal readonly record struct Run( RenderMesh Mesh, int Lod, GpuMaterial Override, bool OverrideBlends, DrawFilter Filter, int FirstInstance, int Count, bool Skinned = false, ShaderParameters Attributes = null, CustomObject Custom = null, ShaderParameters Lightmap = null, bool ReadsFrameBuffer = false, ShaderParameters Probe = null, bool Tinted = false, bool Deformed = false, bool Morphable = false, int CullDraw = -1 );
 
 	/// <summary>
 	/// One draw of a run: the unit a layer records. A run groups instances; its draws can go out apart from each other, as
@@ -220,8 +220,8 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	/// </summary>
 	internal static int MinParallelClassify { get; set; } = 32_000;
 
-	Material defaultMaterial;
-	Material depthOnlyMaterial;
+	GpuMaterial defaultMaterial;
+	GpuMaterial depthOnlyMaterial;
 
 	/// <summary>
 	/// Collects the main view's rigid opaque instances for occlusion culling. Null when not culling, and never set for shadow views.
@@ -583,7 +583,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 
 		// Rigid IDs append directly; skinned IDs are grouped per mesh when the run ends.
 		RenderMesh mesh = null;
-		Material material = null;
+		GpuMaterial material = null;
 		var lod = 0;
 		var filter = DrawFilter.All;
 		var overrideBlends = false;
@@ -700,8 +700,8 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	internal override void Setup( RenderContext context, RenderWorld world, ViewPass view )
 	{
 		// On the main thread: draws may record on worker threads, where materials can't be made
-		defaultMaterial ??= Material.Create( "scene_renderer_default", DefaultShader );
-		depthOnlyMaterial ??= Material.Load( DepthOnlyMaterial );
+		defaultMaterial ??= RenderHost.Current.Device.CreateMaterial( "scene_renderer_default", DefaultShader );
+		depthOnlyMaterial ??= RenderHost.Current.Device.LoadMaterial( DepthOnlyMaterial );
 
 		DispatchSkinning( context );
 	}
@@ -728,7 +728,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 
 	internal override void Dispose()
 	{
-		defaultMaterial?.Destroy();
+		defaultMaterial?.Dispose();
 		defaultMaterial = null;
 		volumeRing.Dispose();
 	}
@@ -912,7 +912,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	/// Select depth overrides or strip opaque non-alpha-tested pixel shaders (<c>CSceneSystem::ShouldOverrideDepthMaterial</c>).
 	/// Only fast-path depth draws dither when faded.
 	/// </summary>
-	Material MaterialFor( in Run run, in RenderMesh.Draw draw, bool depth, bool forceDepthOnly, out bool stripPixelShader )
+	GpuMaterial MaterialFor( in Run run, in RenderMesh.Draw draw, bool depth, bool forceDepthOnly, out bool stripPixelShader )
 	{
 		stripPixelShader = false;
 		if ( !UseMeshMaterials ) return defaultMaterial;

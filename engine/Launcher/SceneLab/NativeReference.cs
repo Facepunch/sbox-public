@@ -44,7 +44,7 @@ internal sealed class NativeScene : IDisposable
 				case MeshObject mesh when models.TryGetValue( mesh.Mesh, out var model ):
 					// The tint's alpha is native's alpha fade too: under 1, opaque models dither and translucent ones blend more
 					var sceneModel = new SceneModel( sceneWorld, model, mesh.Transform ) { Flags = { CastShadows = mesh.CastShadows }, ColorTint = mesh.Tint };
-					if ( mesh.MaterialOverride is not null ) sceneModel.SetMaterialOverride( mesh.MaterialOverride );
+					if ( mesh.MaterialOverride is not null ) sceneModel.SetMaterialOverride( mesh.MaterialOverride.Engine() );
 
 					// A posed skinned model: the same bones, set as its render bones, then its bounds worked out from
 					// them - without evaluating an animation, which would overwrite them
@@ -89,7 +89,7 @@ internal sealed class NativeScene : IDisposable
 
 		if ( lighting.SkyMaterial is not null )
 		{
-			_ = new SceneSkyBox( sceneWorld, lighting.SkyMaterial )
+			_ = new SceneSkyBox( sceneWorld, lighting.SkyMaterial.Engine() )
 			{
 				SkyTint = lighting.SkyTint,
 				Transform = new Transform( Vector3.Zero, lighting.SkyRotation ),

@@ -39,7 +39,7 @@ public sealed class MeshObject : RenderObject
 	/// <summary>
 	/// Replace all draw materials (<c>SceneObject.SetMaterialOverride</c>). Blend flags select passes; disables the depth fast path.
 	/// </summary>
-	public Material MaterialOverride
+	public GpuMaterial MaterialOverride
 	{
 		get;
 		set

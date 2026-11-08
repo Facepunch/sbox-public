@@ -715,7 +715,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		// Sky selection is per view: cameras can exclude different skies without changing the world.
 		// Native's child skybox view does not inherit the parent camera's object-tag filters.
 		var sky = skyboxView ? source.GetSky() : source.GetSky( camera.RenderTags, camera.ExcludeTags );
-		lighting.SkyMaterial = sky?.Material;
+		lighting.SkyMaterial = Source2Material.From( sky?.Material );
 		if ( sky is not null )
 		{
 			lighting.SkyTint = sky.SkyTint;

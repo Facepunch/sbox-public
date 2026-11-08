@@ -18,7 +18,7 @@ internal sealed class OcclusionCullLayer : RenderLayer
 
 	readonly bool early;
 
-	Material shader;
+	GpuMaterial shader;
 
 	// What the late cull tests against. Frozen, that's the frozen depth rather than a chain it builds
 	OcclusionDepth current;
@@ -39,7 +39,7 @@ internal sealed class OcclusionCullLayer : RenderLayer
 
 	public override void BeforeSegments( RenderFrame frame, RenderContext frameContext )
 	{
-		shader ??= Material.FromShader( "shaders/occlusion_cull_cs.shader" );
+		shader ??= RenderHost.Current.Device.MaterialFromShader( "shaders/occlusion_cull_cs.shader" );
 		if ( early ) return;
 
 		var history = frame.System.OcclusionHistory;
