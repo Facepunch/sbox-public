@@ -28,20 +28,15 @@ public class AsyncSchedulingTests
 		public override void AddTo( FrameRecorder recorder, RenderFrame frame ) => recorder.AddFrame( child );
 	}
 
-	static readonly FieldInfo AsyncSupport = typeof( Basalt.Gpu.Source2.Source2Device ).GetField( "supportsAsyncCompute", BindingFlags.Instance | BindingFlags.NonPublic );
 	static readonly FieldInfo Layers = typeof( RenderSystem ).GetField( "layers", BindingFlags.Instance | BindingFlags.NonPublic );
 	static readonly FieldInfo Segments = typeof( FrameRecorder ).GetField( "segments", BindingFlags.Instance | BindingFlags.NonPublic );
-	object _previousSupport;
+	IDisposable _asyncCompute;
 
 	[TestInitialize]
-	public void EnableCompute()
-	{
-		_previousSupport = AsyncSupport.GetValue( Basalt.Gpu.Source2.Source2Device.Instance );
-		AsyncSupport.SetValue( Basalt.Gpu.Source2.Source2Device.Instance, true );
-	}
+	public void EnableCompute() => _asyncCompute = HeadlessRenderHost.Headless.WithAsyncCompute( true );
 
 	[TestCleanup]
-	public void RestoreCompute() => AsyncSupport.SetValue( Basalt.Gpu.Source2.Source2Device.Instance, _previousSupport );
+	public void RestoreCompute() => _asyncCompute.Dispose();
 
 	static int WaitFor( FrameRecorder recorder, int index )
 	{
@@ -139,7 +134,7 @@ public class AsyncSchedulingTests
 		using var recorder = new FrameRecorder();
 		recorder.Plan( system.Frame, parallel: true, asyncCompute: true );
 		Assert.IsTrue( system.Frame.AsyncCompute );
-		AsyncSupport.SetValue( Basalt.Gpu.Source2.Source2Device.Instance, supported );
+		HeadlessRenderHost.Headless.AsyncCompute = supported;
 		recorder.Plan( system.Frame, parallel, enabled );
 		Assert.IsFalse( system.Frame.AsyncCompute );
 		Assert.IsFalse( recorder.SeparateContexts );

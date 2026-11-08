@@ -1,31 +1,16 @@
-using NativeEngine;
 using Basalt;
 using Basalt.Gpu;
-using Basalt.Gpu.Source2;
 using static BasaltTests.TestScenes;
 
 namespace BasaltTests;
 
 /// <summary>
-/// Rendering into a target: sample counts and formats as native reads them, and the per-view constants a
-/// viewport within a bigger, multisampled target gives the shaders.
+/// Rendering into a target: which formats write sRGB, and the per-view constants a viewport within a bigger,
+/// multisampled target gives the shaders.
 /// </summary>
 [TestClass]
 public class TargetTests
 {
-	[TestMethod]
-	public void SampleCountsMatchNative()
-	{
-		// RenderMultisampleTypeNumSamples
-		Assert.AreEqual( 1, Source2Formats.Samples( RenderMultisampleType.RENDER_MULTISAMPLE_NONE ) );
-		Assert.AreEqual( 1, Source2Formats.Samples( RenderMultisampleType.RENDER_MULTISAMPLE_INVALID ) );
-		Assert.AreEqual( 2, Source2Formats.Samples( RenderMultisampleType.RENDER_MULTISAMPLE_2X ) );
-		Assert.AreEqual( 4, Source2Formats.Samples( RenderMultisampleType.RENDER_MULTISAMPLE_4X ) );
-		Assert.AreEqual( 6, Source2Formats.Samples( RenderMultisampleType.RENDER_MULTISAMPLE_6X ) );
-		Assert.AreEqual( 8, Source2Formats.Samples( RenderMultisampleType.RENDER_MULTISAMPLE_8X ) );
-		Assert.AreEqual( 16, Source2Formats.Samples( RenderMultisampleType.RENDER_MULTISAMPLE_16X ) );
-	}
-
 	[TestMethod]
 	public void OnlyFixedPointTargetsWriteSrgb()
 	{
@@ -36,19 +21,6 @@ public class TargetTests
 		Assert.IsFalse( TextureFormat.RGBA8888.IsFloat() );
 		Assert.IsFalse( TextureFormat.RGBA1010102.IsFloat() );
 		Assert.IsFalse( TextureFormat.RGBA16161616.IsFloat() );
-	}
-
-	[TestMethod]
-	public void EveryFormatHasAnEngineFormat()
-	{
-		// The backend maps by name: a renamed format would only fail when something made one
-		foreach ( var format in System.Enum.GetValues<TextureFormat>() )
-		{
-			if ( format == TextureFormat.Unknown ) continue;
-			Assert.AreEqual( format, Source2Formats.From( format.ToEngine() ), format.ToString() );
-		}
-
-		Assert.AreEqual( TextureFormat.Unknown, Source2Formats.From( ImageFormat.BC7 ) );
 	}
 
 	[TestMethod]

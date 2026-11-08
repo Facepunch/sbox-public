@@ -1,5 +1,6 @@
 using Basalt;
 using Basalt.Features;
+using BasaltTests.Headless;
 using LightProbeVolume = Basalt.LightProbeVolume;
 using static BasaltTests.TestScenes;
 
@@ -114,7 +115,7 @@ public class BakedLightTests
 		BoxMaxs = new Vector3( size ),
 		RenderPriority = priority,
 		LightGroups = [group],
-		Attributes = Basalt.Gpu.Source2.Source2Parameters.From( new RenderAttributes( default( NativeEngine.CRenderAttributes ) ) ),
+		Attributes = new HeadlessParameters(),
 	};
 
 	/// <summary>

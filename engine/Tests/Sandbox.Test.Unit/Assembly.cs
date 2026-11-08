@@ -19,13 +19,14 @@ public class TestInit
 		// Managed-only setup - keep anything native out of here.
 		Application.IsUnitTest = true;
 
-		// Basalt's tests record through the Source 2 backend, which is the host's
+		// Anything here that reaches Basalt goes through the Source 2 backend, as in s&box. Basalt's own tests are in
+		// Basalt.Test, on a headless device.
 		Basalt.RenderHost.Current = new UnitTestRenderHost();
 	}
 }
 
 /// <summary>
-/// Basalt's default host with s&amp;box's Source 2 device, which the tests record through without the engine running.
+/// Basalt's default host with s&amp;box's Source 2 device.
 /// </summary>
 internal sealed class UnitTestRenderHost : Basalt.RenderHost
 {

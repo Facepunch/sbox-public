@@ -1,4 +1,3 @@
-using Sandbox.Rendering;
 using Basalt;
 using Basalt.Features;
 using Basalt.Gpu;

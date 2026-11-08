@@ -34,7 +34,8 @@ public class SkinningTests
 		var b = new Transform( new Vector3( -4, 5, 0.5f ), Rotation.From( -30, 15, 5 ), 0.5f );
 
 		// Row-vector matrices: b then a is b * a
-		var expected = Matrix3x4.From( Matrix.FromTransform( b ) * Matrix.FromTransform( a ) );
+		static Matrix ToMatrix( Transform t ) => Matrix.CreateScale( t.Scale ) * Matrix.CreateRotation( t.Rotation ) * Matrix.CreateTranslation( t.Position );
+		var expected = Matrix3x4.From( ToMatrix( b ) * ToMatrix( a ) );
 		AreEqual( expected, Matrix3x4.Concat( Matrix3x4.From( a ), Matrix3x4.From( b ) ), "a after b" );
 	}
 

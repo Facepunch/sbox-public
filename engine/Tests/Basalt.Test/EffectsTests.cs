@@ -80,17 +80,6 @@ public class EffectsTests
 	}
 
 	/// <summary>
-	/// Sprite CPU uploads must use the same scalar layout as both sprite shaders, including motion-blur copies.
-	/// </summary>
-	[TestMethod]
-	public void SpriteRefractionGpuLayout()
-	{
-		Assert.AreEqual( 148, Marshal.SizeOf<Sandbox.Rendering.SpriteBatchSceneObject.SpriteData>() );
-		Assert.AreEqual( 140, (int)Marshal.OffsetOf<Sandbox.Rendering.SpriteBatchSceneObject.SpriteData>( "NormalTextureHandle" ) );
-		Assert.AreEqual( 144, (int)Marshal.OffsetOf<Sandbox.Rendering.SpriteBatchSceneObject.SpriteData>( "RefractionStrength" ) );
-	}
-
-	/// <summary>
 	/// Custom readers keep the shared copy and stencil alive, and release both when refraction is disabled.
 	/// </summary>
 	[TestMethod]

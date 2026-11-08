@@ -1,6 +1,6 @@
-using NativeEngine;
 using Basalt;
 using Basalt.Features;
+using BasaltTests.Headless;
 using System.Linq;
 using static BasaltTests.TestScenes;
 
@@ -126,7 +126,7 @@ public class PerObjectStateTests
 		// Three objects sharing a mesh: two plain ones instance together, the one with attributes of its own doesn't
 		var mesh = TestMesh( false );
 		var world = new RenderWorld();
-		var attributes = Basalt.Gpu.Source2.Source2Parameters.From( new RenderAttributes( default( CRenderAttributes ) ) );
+		var attributes = new HeadlessParameters();
 		for ( int i = 0; i < 3; i++ )
 		{
 			world.Add( new MeshObject( mesh, new Transform( new Vector3( 20, i * 3, 0 ) ) ) { Attributes = i == 1 ? attributes : null } );
