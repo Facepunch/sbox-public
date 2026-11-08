@@ -107,3 +107,18 @@ public sealed class DecalObject : RenderObject
 	/// </summary>
 	public float CoverageRange { get; set; } = 0.07f;
 }
+
+/// <summary>
+/// How a decal blends over the surface it projects onto (<see cref="DecalObject.BlendMode"/>).
+/// </summary>
+public enum DecalBlendMode
+{
+	/// <summary>Alpha blended.</summary>
+	Alpha,
+
+	/// <summary>Multiplied with the surface's colour.</summary>
+	Multiply,
+
+	/// <summary>Added to the surface's colour.</summary>
+	Additive,
+}

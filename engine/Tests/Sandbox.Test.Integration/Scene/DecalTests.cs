@@ -44,7 +44,7 @@ public class DecalTests
 			{
 				source.BlendMode = mode;
 				apply.Invoke( null, [source, decal, SceneObjectChange.Settings] );
-				Assert.AreEqual( mode, decal.BlendMode );
+				Assert.AreEqual( (Basalt.DecalBlendMode)mode, decal.BlendMode );
 			}
 			source.Delete();
 		}

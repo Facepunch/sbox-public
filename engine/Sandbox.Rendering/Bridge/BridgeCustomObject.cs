@@ -50,7 +50,7 @@ internal sealed class BridgeCustomObject : CustomObject
 			_ => MultisampleAmount.MultisampleNone,
 		};
 		// Shadow billboards face the light and use depth mode.
-		graphicsView.LayerType = layer.LayerType;
+		graphicsView.LayerType = (SceneLayerType)layer.LayerType;
 		graphicsView.ShaderMode = layer.ShaderMode;
 		graphicsView.SetupLighting = view.IsShadow ? null : setupLighting ??= SetupLighting;
 

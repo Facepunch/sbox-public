@@ -236,7 +236,7 @@ internal sealed class RenderFrame
 	/// <summary>
 	/// Run independent effects ahead of their normal stage, without binding frame targets.
 	/// </summary>
-	internal void RunEarlyPostProcess( RenderContext rc, Stage stage, PostProcessQueue queue )
+	internal void RunEarlyPostProcess( RenderContext rc, RenderStage stage, StageQueue queue )
 	{
 		if ( Stages is null ) return;
 
@@ -259,7 +259,7 @@ internal sealed class RenderFrame
 		StagesMs += Stopwatch.GetElapsedTime( start ).TotalMilliseconds;
 	}
 
-	internal void RunStage( RenderContext rc, Stage stage, bool color = true, bool final = false )
+	internal void RunStage( RenderContext rc, RenderStage stage, bool color = true, bool final = false )
 	{
 		if ( Stages is null ) return;
 
@@ -287,7 +287,7 @@ internal sealed class RenderFrame
 	/// </summary>
 	internal void DrawLayer( RenderContext rc, MeshLayer layer, ref RenderStats stats )
 	{
-		var copies = layer.LayerType == SceneLayerType.Translucent && !layer.Depth && ReadsFrameBuffer( layer.Runs );
+		var copies = layer.LayerType == MeshLayerType.Translucent && !layer.Depth && ReadsFrameBuffer( layer.Runs );
 		if ( copies ) rc.BeginFrameBufferReads( System.FrameBufferCopy( View.Viewport ), View.Viewport );
 
 		System.DrawRange( rc, MainPass, layer, 0, RunCount( layer ), ref stats );

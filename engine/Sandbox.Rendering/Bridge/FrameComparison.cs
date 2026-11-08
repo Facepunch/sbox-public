@@ -1,6 +1,6 @@
 using System.Linq;
 
-namespace Basalt;
+namespace Sandbox.Rendering.Bridge;
 
 /// <summary>
 /// Pixel parity checks for SceneLab and <c>r_managed_scene_compare</c>.

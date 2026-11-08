@@ -16,7 +16,7 @@ internal sealed class ToolsUtilLayer : MeshLayer
 		ShaderMode = ToolsUtilMode;
 		Runs = translucent ? MeshRuns.Translucent : MeshRuns.Opaque | MeshRuns.OpaqueNoPrepass;
 		DrawsCustomObjects = false;
-		if ( translucent ) LayerType = SceneLayerType.Translucent;
+		if ( translucent ) LayerType = MeshLayerType.Translucent;
 	}
 
 	public override bool IsNeeded( RenderFrame frame ) => frame.View.ToolsView && frame.RunCount( this ) > 0;

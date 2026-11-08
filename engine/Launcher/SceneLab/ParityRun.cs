@@ -1,4 +1,5 @@
 using Basalt;
+using Sandbox.Rendering.Bridge;
 
 namespace Sandbox.SceneLab;
 

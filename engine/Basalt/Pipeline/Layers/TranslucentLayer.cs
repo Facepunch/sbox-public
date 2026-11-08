@@ -20,7 +20,7 @@ internal sealed class TranslucentLayer : MeshLayer
 	{
 		ShaderMode = ForwardMode;
 		Runs = MeshRuns.Translucent;
-		LayerType = SceneLayerType.Translucent;
+		LayerType = MeshLayerType.Translucent;
 		Fade = fade;
 	}
 

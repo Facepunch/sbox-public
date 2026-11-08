@@ -31,7 +31,7 @@ internal sealed class BloomLayer : MeshLayer
 	{
 		ShaderMode = ForwardMode;
 		Runs = MeshRuns.Bloom;
-		LayerType = SceneLayerType.Opaque;
+		LayerType = MeshLayerType.Opaque;
 	}
 
 	public override bool IsShared => false;

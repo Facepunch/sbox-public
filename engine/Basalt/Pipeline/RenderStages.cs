@@ -9,17 +9,17 @@ namespace Basalt;
 /// </summary>
 internal interface IRenderStages
 {
-	void Render( Stage stage, in StageTarget target );
+	void Render( RenderStage stage, in StageTarget target );
 
 	/// <summary>
 	/// Whether an independent effect can run ahead of <paramref name="stage"/> on <paramref name="queue"/>.
 	/// </summary>
-	bool HasEarlyPostProcess( Stage stage, PostProcessQueue queue ) => false;
+	bool HasEarlyPostProcess( RenderStage stage, StageQueue queue ) => false;
 
 	/// <summary>
 	/// Run it in <paramref name="target"/>'s context, with no frame targets bound. The normal stage then skips it.
 	/// </summary>
-	void RenderEarlyPostProcess( Stage stage, PostProcessQueue queue, in StageTarget target ) { }
+	void RenderEarlyPostProcess( RenderStage stage, StageQueue queue, in StageTarget target ) { }
 
 	/// <summary>
 	/// The camera's screen-space reflections, or null when it doesn't render them.

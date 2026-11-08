@@ -13,9 +13,9 @@ public class AsyncPostProcessTests
 {
 	sealed class Stages( bool reflections ) : IRenderStages
 	{
-		public void Render( Stage stage, in StageTarget target ) { }
-		public bool HasEarlyPostProcess( Stage stage, PostProcessQueue queue ) => stage == Stage.AfterDepthPrepass
-			&& (queue == PostProcessQueue.AsyncCompute || reflections);
+		public void Render( RenderStage stage, in StageTarget target ) { }
+		public bool HasEarlyPostProcess( RenderStage stage, StageQueue queue ) => stage == RenderStage.AfterDepthPrepass
+			&& (queue == StageQueue.AsyncCompute || reflections);
 	}
 
 	// Plan without loading native. Restore the device capability cache so other tests keep their normal environment.

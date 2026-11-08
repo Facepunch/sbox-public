@@ -361,7 +361,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 				: mesh.MorphSource is SceneModelMorphs morphs && morphs.Source == model ? morphs : new SceneModelMorphs( model );
 
 			// Native bounds include deformation padding.
-			var volumes = model.DeformationVolumes;
+			var volumes = MemoryMarshal.Cast<SceneDeformationVolumeData, DeformationVolume>( model.DeformationVolumes );
 			if ( !volumes.SequenceEqual( mesh.DeformationVolumes ) ) mesh.DeformationVolumes = volumes.ToArray();
 			var anchors = model.DeformationAnchors;
 			if ( !anchors.SequenceEqual( mesh.DeformationAnchors ) ) mesh.DeformationAnchors = anchors.ToArray();
@@ -622,7 +622,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 			decal.EmissionEnergy = source.EmissionEnergy;
 			decal.SequenceIndex = source.SequenceIndex;
 			decal.ColorMix = source.ColorMix;
-			decal.BlendMode = source.BlendMode;
+			decal.BlendMode = (Basalt.DecalBlendMode)source.BlendMode;
 			decal.ParallaxStrength = source.ParallaxStrength;
 			decal.SamplerIndex = source.SamplerIndex;
 			decal.CoverageAmount = source.CoverageAmount;

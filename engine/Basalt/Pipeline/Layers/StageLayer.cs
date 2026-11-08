@@ -7,7 +7,7 @@ namespace Basalt;
 /// </summary>
 internal sealed class StageLayer : RenderLayer
 {
-	public Stage Stage { get; }
+	public RenderStage Stage { get; }
 
 	/// <summary>
 	/// Include colour; the post-prepass stage receives depth only.
@@ -19,18 +19,18 @@ internal sealed class StageLayer : RenderLayer
 	/// </summary>
 	public bool Final { get; }
 
-	public StageLayer( Stage stage, bool color = true, bool final = false ) : base( ScopeName( stage ) )
+	public StageLayer( RenderStage stage, bool color = true, bool final = false ) : base( ScopeName( stage ) )
 	{
 		Stage = stage;
 		Color = color;
 		Final = final;
 	}
 
-	internal static string ScopeName( Stage stage ) => stage switch
+	internal static string ScopeName( RenderStage stage ) => stage switch
 	{
-		Stage.AfterViewmodel => "Managed: AfterViewModel",
-		Stage.BeforePostProcess => "Managed: BeforePostProcessing",
-		Stage.AfterPostProcess => "Managed: AfterPostProcessing",
+		RenderStage.AfterViewmodel => "Managed: AfterViewModel",
+		RenderStage.BeforePostProcess => "Managed: BeforePostProcessing",
+		RenderStage.AfterPostProcess => "Managed: AfterPostProcessing",
 		_ => $"Managed: {stage}"
 	};
 
@@ -53,11 +53,11 @@ internal sealed class StageLayer : RenderLayer
 /// </summary>
 internal sealed class EarlyStageLayer : RenderLayer
 {
-	public Stage Stage { get; }
-	public PostProcessQueue Queue { get; }
+	public RenderStage Stage { get; }
+	public StageQueue Queue { get; }
 
-	public EarlyStageLayer( Stage stage, PostProcessQueue queue )
-		: base( $"{StageLayer.ScopeName( stage )} ({(queue == PostProcessQueue.AsyncCompute ? "async compute" : "early graphics")})" )
+	public EarlyStageLayer( RenderStage stage, StageQueue queue )
+		: base( $"{StageLayer.ScopeName( stage )} ({(queue == StageQueue.AsyncCompute ? "async compute" : "early graphics")})" )
 	{
 		Stage = stage;
 		Queue = queue;
@@ -66,8 +66,8 @@ internal sealed class EarlyStageLayer : RenderLayer
 	public override bool IsNeeded( RenderFrame frame ) => RenderHost.Current.AsyncCompute && frame.Stages is not null && frame.Stages.HasEarlyPostProcess( Stage, Queue );
 
 	public override FrameResources Reads( RenderFrame frame ) => FrameResources.DepthChain | FrameResources.Normals;
-	public override FrameResources Writes => Queue == PostProcessQueue.AsyncCompute ? FrameResources.AmbientOcclusion : FrameResources.Reflections;
-	public override bool SupportsAsyncCompute => Queue == PostProcessQueue.AsyncCompute;
+	public override FrameResources Writes => Queue == StageQueue.AsyncCompute ? FrameResources.AmbientOcclusion : FrameResources.Reflections;
+	public override bool SupportsAsyncCompute => Queue == StageQueue.AsyncCompute;
 
 	public override void HandOff( RenderFrame frame, RenderContext rc )
 	{
@@ -76,7 +76,7 @@ internal sealed class EarlyStageLayer : RenderLayer
 
 	public override void Record( RenderFrame frame, RenderContext rc, ref RenderStats stats )
 	{
-		if ( Queue == PostProcessQueue.AsyncCompute ? rc.AsyncCompute : frame.AsyncCompute )
+		if ( Queue == StageQueue.AsyncCompute ? rc.AsyncCompute : frame.AsyncCompute )
 			frame.RunEarlyPostProcess( rc, Stage, Queue );
 	}
 }

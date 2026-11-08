@@ -38,7 +38,7 @@ internal class DepthPrepassLayer : MeshLayer
 
 		// Opaque custom objects - terrain - prepass too, as native's do, for views with depth normals (DrawsCustomObjectsIn):
 		// AO runs after the prepass, before they'd draw
-		LayerType = SceneLayerType.DepthPrepass;
+		LayerType = MeshLayerType.DepthPrepass;
 	}
 
 	/// <summary>

@@ -233,8 +233,8 @@ internal sealed partial class MeshRenderFeature
 	int[] batchVolumeOffsets = [];
 	int[] batchVolumeCounts = [];
 	int[] batchAnchorOffsets = [];
-	readonly List<SceneDeformationVolumeData> frameVolumes = new();
-	readonly UploadRing<SceneDeformationVolumeData> volumeRing = new( "Basalt DeformationVolumes" );
+	readonly List<DeformationVolume> frameVolumes = new();
+	readonly UploadRing<DeformationVolume> volumeRing = new( "Basalt DeformationVolumes" );
 	readonly List<Vector4> frameAnchors = new();
 	readonly UploadRing<Vector4> anchorRing = new( "Basalt DeformationAnchors" );
 }

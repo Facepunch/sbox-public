@@ -85,7 +85,7 @@ public class AggregateTests
 	{
 		var world = new RenderWorld();
 		var fragment = Fragment( 0, new Vector3( 20, 0, 0 ) );
-		fragment.Flags = AggregateFragmentFlags.DoNotCastShadows;
+		fragment.Flags = FragmentFlags.DoNotCastShadows;
 		world.Add( new AggregateObject( TestMesh( false ), [fragment] ) );
 
 		using var system = new RenderSystem();

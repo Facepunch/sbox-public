@@ -71,13 +71,13 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 
 	static readonly StringToken ForwardMode = new( "Forward" );
 
-	public bool HasEarlyPostProcess( Stage stage, PostProcessQueue queue ) => Camera?.HasEarlyPostProcess( stage, queue ) ?? false;
+	public bool HasEarlyPostProcess( RenderStage stage, StageQueue queue ) => Camera?.HasEarlyPostProcess( (Stage)stage, (PostProcessQueue)queue ) ?? false;
 
 	/// <summary>
 	/// Independent camera effects on their selected queue, with the frame's viewport and format but no targets bound.
 	/// Compute-queue barriers name compute stages only (<see cref="Graphics.ManagedView.ComputeQueue"/>).
 	/// </summary>
-	public void RenderEarlyPostProcess( Stage stage, PostProcessQueue queue, in StageTarget target )
+	public void RenderEarlyPostProcess( RenderStage stage, StageQueue queue, in StageTarget target )
 	{
 		if ( Camera is null ) return;
 
@@ -94,13 +94,13 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 		view.MaxZ = target.MaxZ;
 		view.ColorFormat = target.ColorFormat;
 		view.Msaa = SampleCount( target.Samples );
-		view.ComputeQueue = queue == PostProcessQueue.AsyncCompute;
+		view.ComputeQueue = queue == StageQueue.AsyncCompute;
 
 		try
 		{
 			using ( new Graphics.Scope( context, view ) )
 			{
-				Camera.RenderEarlyPostProcess( stage, queue );
+				Camera.RenderEarlyPostProcess( (Stage)stage, (PostProcessQueue)queue );
 			}
 		}
 		finally
@@ -136,14 +136,14 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 		}
 	}
 
-	public void Render( Stage stage, in StageTarget target )
+	public void Render( RenderStage stage, in StageTarget target )
 	{
 		if ( Camera is null ) return;
 
 		SetMainCamera();
 
 		// Skip empty early UI (CameraComponent.HasEarlyUI).
-		if ( stage == Stage.EarlyUI && !Camera.Attributes.GetBool( EnableEarlyUI ) ) return;
+		if ( stage == RenderStage.EarlyUI && !Camera.Attributes.GetBool( EnableEarlyUI ) ) return;
 
 		var context = target.Context;
 
@@ -152,7 +152,7 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 		contextAttributes.SetParent( target.Attributes.Get() );
 
 		// Query HDR luminance before tonemapping, with HDR colour unbound.
-		if ( stage == Stage.Tonemapping && tonemap.IsValid )
+		if ( stage == RenderStage.Tonemapping && tonemap.IsValid )
 		{
 			RenderTools.BindColorAndDepthTarget( context, default, target.Depth, false );
 			var rect = target.Viewport;
@@ -170,7 +170,7 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 
 		// Gamma UI uses a linear view of sRGB bytes (Native.HookLayers.AddUI).
 		// Float targets need encoded scratch, decoded back after UI drawing.
-		var ui = stage is Stage.UI or Stage.EarlyUI;
+		var ui = stage is RenderStage.UI or RenderStage.EarlyUI;
 		var gamma = ui && RenderPipeline.UIGammaBlend;
 		RenderTarget scratch = null;
 
@@ -194,13 +194,13 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 
 		using ( new Graphics.Scope( context, view ) )
 		{
-			((IManagedCamera)Camera).OnRenderStage( stage );
+			((IManagedCamera)Camera).OnRenderStage( (Stage)stage );
 		}
 
 		// AO and SSR name their results in pipeline texture slots after the prepass, which native uploads at frame end
 		// (UpdateGlobalPerFrameDescriptorBindings) - after this frame is submitted. Upload them here so its forward draws read
 		// this frame's, as native's views do.
-		if ( stage == Stage.AfterDepthPrepass ) CSceneSystem.UploadPipelineTextureIndices( context );
+		if ( stage == RenderStage.AfterDepthPrepass ) CSceneSystem.UploadPipelineTextureIndices( context );
 
 		if ( scratch is not null )
 		{

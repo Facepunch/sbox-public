@@ -18,7 +18,7 @@ internal sealed class AggregateObject : RenderObject
 	{
 		public Matrix3x4 Transform;
 		public Vector3 BoundsMin;
-		public AggregateFragmentFlags Flags;
+		public FragmentFlags Flags;
 		public Vector3 BoundsMax;
 		uint unused;
 		public Vector3 DrawTint;
@@ -96,7 +96,7 @@ internal sealed class AggregateObject : RenderObject
 	public Color Tint { get; set; } = Color.White;
 
 	/// <summary>
-	/// Draws in shadow maps, apart from fragments flagged <see cref="AggregateFragmentFlags.DoNotCastShadows"/>.
+	/// Draws in shadow maps, apart from fragments flagged <see cref="FragmentFlags.DoNotCastShadows"/>.
 	/// </summary>
 	public bool CastShadows { get; set; } = true;
 
@@ -120,4 +120,16 @@ internal sealed class AggregateObject : RenderObject
 	/// Valid while <see cref="RenderObject.SlotGeneration"/> is the frame's.
 	/// </summary>
 	internal int FirstInstance;
+}
+
+/// <summary>
+/// An aggregate fragment's flags, as native's aggregate stores them (<c>AggregateFragmentFlags</c>).
+/// </summary>
+[Flags]
+internal enum FragmentFlags
+{
+	None = 0,
+	RenderToCubemaps = 1,
+	DisabledInLowQuality = 2,
+	DoNotCastShadows = 4,
 }

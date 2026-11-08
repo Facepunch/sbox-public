@@ -129,14 +129,14 @@ internal abstract class MeshLayer : RenderLayer
 	/// depth-aware mask uses: a translucent forward layer with frame buffer readers in its lists, as
 	/// <see cref="RenderFrame.DrawLayer"/> copies (<see cref="MeshRenderFeature.FrameBufferCopyingLists"/>).
 	/// </summary>
-	public override FrameResources Reads( RenderFrame frame ) => LayerType == SceneLayerType.Translucent && !Depth && frame.ReadsFrameBuffer( Runs & MeshRenderFeature.FrameBufferCopyingLists )
+	public override FrameResources Reads( RenderFrame frame ) => LayerType == MeshLayerType.Translucent && !Depth && frame.ReadsFrameBuffer( Runs & MeshRenderFeature.FrameBufferCopyingLists )
 		? FrameResources.DepthChain | FrameResources.RefractionStencil | FrameResources.Untracked
 		: FrameResources.Untracked;
 
 	/// <summary>
 	/// Native layer type used by custom objects.
 	/// </summary>
-	public SceneLayerType LayerType { get; protected init; } = SceneLayerType.Opaque;
+	public MeshLayerType LayerType { get; protected init; } = MeshLayerType.Opaque;
 
 	public override bool IsShared => true;
 

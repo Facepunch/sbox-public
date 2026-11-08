@@ -15,9 +15,9 @@ internal class GameOverlayLayer : MeshLayer
 
 	static readonly StringToken ForwardMode = new( "Forward" );
 
-	public GameOverlayLayer() : this( "GameOverlay", MeshRuns.OverlayOpaque, SceneLayerType.Opaque ) { }
+	public GameOverlayLayer() : this( "GameOverlay", MeshRuns.OverlayOpaque, MeshLayerType.Opaque ) { }
 
-	protected GameOverlayLayer( string name, MeshRuns runs, SceneLayerType type ) : base( name )
+	protected GameOverlayLayer( string name, MeshRuns runs, MeshLayerType type ) : base( name )
 	{
 		ShaderMode = ForwardMode;
 		Runs = runs;
@@ -43,5 +43,5 @@ internal class GameOverlayLayer : MeshLayer
 /// </summary>
 internal sealed class GameOverlayTranslucentLayer : GameOverlayLayer
 {
-	public GameOverlayTranslucentLayer() : base( "GameOverlay Translucent", MeshRuns.OverlayTranslucent, SceneLayerType.Translucent ) { }
+	public GameOverlayTranslucentLayer() : base( "GameOverlay Translucent", MeshRuns.OverlayTranslucent, MeshLayerType.Translucent ) { }
 }

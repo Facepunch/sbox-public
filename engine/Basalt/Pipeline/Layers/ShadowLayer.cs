@@ -15,7 +15,7 @@ internal sealed class ShadowLayer : MeshLayer
 		ShaderMode = DepthMode;
 		Depth = true;
 		Runs = MeshRuns.Opaque | MeshRuns.OpaqueNoPrepass | MeshRuns.Faded | MeshRuns.Translucent;
-		LayerType = SceneLayerType.Shadow;
+		LayerType = MeshLayerType.Shadow;
 	}
 
 	public override bool IsNeeded( RenderFrame frame ) => frame.System.ShadowMaps.Passes.Length > 0;

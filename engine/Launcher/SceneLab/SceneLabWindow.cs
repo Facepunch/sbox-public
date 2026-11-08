@@ -1,6 +1,7 @@
 using PanelWindow = Editor.PanelWindow;
 using NativeEngine;
 using Basalt;
+using Sandbox.Rendering.Bridge;
 using Basalt.Features;
 using Sandbox.UI;
 

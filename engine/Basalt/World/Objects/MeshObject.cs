@@ -187,7 +187,7 @@ public sealed class MeshObject : RenderObject
 	/// Shader-layout deformation volumes (<c>CSceneAnimatableObject::SetDeformationVolumes</c>).
 	/// Forces vertex-cache skinning; callers must update bounds.
 	/// </summary>
-	internal SceneDeformationVolumeData[] DeformationVolumes { get; set; } = [];
+	internal DeformationVolume[] DeformationVolumes { get; set; } = [];
 
 	/// <summary>
 	/// A model-space anchor per model bone the volumes move it rigidly by (<c>CSceneAnimatableObject::SetDeformationAnchors</c>),

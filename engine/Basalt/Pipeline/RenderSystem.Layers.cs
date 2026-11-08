@@ -36,9 +36,9 @@ public sealed partial class RenderSystem
 
 			// Pass inputs and outputs determine queue waits; this list is also the serial execution order.
 			new DepthChainLayer(),
-			new EarlyStageLayer( Stage.AfterDepthPrepass, PostProcessQueue.AsyncCompute ),
+			new EarlyStageLayer( RenderStage.AfterDepthPrepass, StageQueue.AsyncCompute ),
 			contactShadows,
-			new EarlyStageLayer( Stage.AfterDepthPrepass, PostProcessQueue.Graphics ),
+			new EarlyStageLayer( RenderStage.AfterDepthPrepass, StageQueue.Graphics ),
 			new ScreenSpaceReflectionsLayer(),
 			new ShadowLayer(),
 			new ShadowsReadyLayer(),
@@ -51,7 +51,7 @@ public sealed partial class RenderSystem
 			new RefractionStencilLayer(),
 
 			// Contact shadows and shadow maps precede camera commands.
-			new StageLayer( Stage.AfterDepthPrepass, color: false ),
+			new StageLayer( RenderStage.AfterDepthPrepass, color: false ),
 
 			new OpaqueLayer(),
 
@@ -59,11 +59,11 @@ public sealed partial class RenderSystem
 			new ToolsUtilLayer( translucent: false ),
 			new StaticOverlayLayer(),
 			new ScreenSpaceReflectionsHistoryLayer(),
-			new StageLayer( Stage.AfterOpaque ),
+			new StageLayer( RenderStage.AfterOpaque ),
 
 			new Skybox3DLayer(),
 			new SkyLayer(),
-			new StageLayer( Stage.AfterSkybox ),
+			new StageLayer( RenderStage.AfterSkybox ),
 
 			// Decals sample scene depth.
 			new DecalLayer(),
@@ -73,20 +73,20 @@ public sealed partial class RenderSystem
 
 			// Depth effects need opaque viewmodel depth; translucent viewmodels draw afterward.
 			new GameOverlayLayer(),
-			new StageLayer( Stage.AfterTransparent ),
-			new StageLayer( Stage.AfterViewmodel ),
+			new StageLayer( RenderStage.AfterTransparent ),
+			new StageLayer( RenderStage.AfterViewmodel ),
 			new GameOverlayTranslucentLayer(),
 
 			// HDR effects, output copy, then screen overlays and UI.
-			new StageLayer( Stage.EarlyUI ),
-			new StageLayer( Stage.BeforePostProcess ),
-			new StageLayer( Stage.Tonemapping ),
+			new StageLayer( RenderStage.EarlyUI ),
+			new StageLayer( RenderStage.BeforePostProcess ),
+			new StageLayer( RenderStage.Tonemapping ),
 			new OutputLayer(),
-			new StageLayer( Stage.AfterPostProcess, final: true ),
+			new StageLayer( RenderStage.AfterPostProcess, final: true ),
 			new ScreenOverlayLayer( withDepth: true ),
 			new ScreenOverlayLayer( withDepth: false ),
-			new StageLayer( Stage.UI, final: true ),
-			new StageLayer( Stage.AfterUI, final: true ),
+			new StageLayer( RenderStage.UI, final: true ),
+			new StageLayer( RenderStage.AfterUI, final: true ),
 
 			// Overlays above screen UI.
 			new AfterUILayer(),

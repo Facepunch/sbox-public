@@ -51,7 +51,7 @@ internal sealed class ScreenOverlayLayer : OutputOverlayLayer
 	{
 		WithDepth = withDepth;
 		Runs = withDepth ? MeshRuns.OverlayWithDepth : MeshRuns.OverlayWithoutDepth;
-		LayerType = SceneLayerType.Opaque;
+		LayerType = MeshLayerType.Opaque;
 		ToneMapScalar = 1;
 	}
 }
@@ -67,7 +67,7 @@ internal sealed class AfterUILayer : OutputOverlayLayer
 	public AfterUILayer() : base( "UI Overlay" )
 	{
 		Runs = MeshRuns.AfterUI;
-		LayerType = SceneLayerType.Translucent;
+		LayerType = MeshLayerType.Translucent;
 	}
 
 	public override void Begin( RenderFrame frame, RenderContext rc, ViewPass view, bool start )

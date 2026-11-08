@@ -794,8 +794,8 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		// The depth-normals prepass runs materials' own depth pixel shaders into the G-buffer (DepthNormalPrepassLayer)
 		var normals = depth && layer.WritesNormals && view.View.DepthNormals && !view.IsShadow;
 		var mode = layer.ShaderMode;
-		var shadow = layer.LayerType == SceneLayerType.Shadow;
-		var translucentLayer = layer.LayerType == SceneLayerType.Translucent;
+		var shadow = layer.LayerType == MeshLayerType.Shadow;
+		var translucentLayer = layer.LayerType == MeshLayerType.Translucent;
 		var depthBias = shadow ? view.DepthBias : 0;
 		var slopeBias = shadow ? view.SlopeScaledDepthBias : 0;
 

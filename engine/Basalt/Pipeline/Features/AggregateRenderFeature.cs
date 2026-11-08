@@ -94,7 +94,7 @@ internal sealed class AggregateRenderFeature : RenderFeature
 			long indices = 0;
 			for ( int i = 0; i < fragments.Length; i++ )
 			{
-				if ( shadow && (fragments[i].Flags & AggregateFragmentFlags.DoNotCastShadows) != 0 ) continue;
+				if ( shadow && (fragments[i].Flags & FragmentFlags.DoNotCastShadows) != 0 ) continue;
 				if ( !frustum.Intersects( centers[i], extents[i] ) ) continue;
 				if ( size.Culls( centers[i], extents[i] ) ) continue;
 
@@ -177,7 +177,7 @@ internal sealed class AggregateRenderFeature : RenderFeature
 		var depth = layer.Depth;
 		var normals = depth && layer.WritesNormals && view.View.DepthNormals && !view.IsShadow;
 		var mode = layer.ShaderMode;
-		var shadow = layer.LayerType == SceneLayerType.Shadow;
+		var shadow = layer.LayerType == MeshLayerType.Shadow;
 		var depthBias = shadow ? view.DepthBias : 0;
 		var slopeBias = shadow ? view.SlopeScaledDepthBias : 0;
 
