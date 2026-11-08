@@ -119,7 +119,7 @@ public partial class Particle : IDynamicFloatContext
 		if ( pool is null || !pool.TryDequeue( out var p ) )
 			p = new Particle();
 
-		p.RandomSeed = Random.Shared.Int( 0, 10000 );
+		p.RandomSeed = ParticleRandom.Shared.Int( 0, 10000 );
 		p.BornTime = Time.Now;
 		p.Age = 0;
 		p.Angles = Angles.Zero;
