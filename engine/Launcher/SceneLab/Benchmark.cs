@@ -1,3 +1,4 @@
+using Sandbox.Clutter;
 using Sandbox.Rendering;
 using System.Text;
 
@@ -24,9 +25,9 @@ internal sealed class Benchmark
 	double warmupSeconds;
 	readonly int measureFrames = Math.Max( 60, Args.Int( "-benchmark-frames", 600 ) );
 
-	readonly record struct Run( SceneLabScene Scene, SceneLabWindow.RendererKind Renderer, bool Prepass = true, bool Target = false, bool Occlusion = false )
+	readonly record struct Run( SceneLabScene Scene, SceneLabWindow.RendererKind Renderer, bool Prepass = true, bool Target = false, bool Occlusion = false, bool CasterCull = true )
 	{
-		public string Name => Occlusion ? $"{Kind}, occlusion culled" : Kind;
+		public string Name => $"{Kind}{(Occlusion ? ", occlusion culled" : "")}{(CasterCull ? "" : ", no caster cull")}";
 
 		string Kind => Renderer != SceneLabWindow.RendererKind.Managed ? Renderer.ToString()
 			: Target ? $"Managed, texture{(Args.Int( "-msaa", 1 ) > 1 ? $" {Args.Int( "-msaa", 1 )}x MSAA" : "")}"
@@ -146,19 +147,24 @@ internal sealed class Benchmark
 	}
 
 	/// <summary>
-	/// A run with occlusion culling as the command line set it, or off and then on when the scene compares them.
+	/// A run with occlusion and caster culling as the command line set them, or off and then on when the scene compares them.
 	/// </summary>
 	void Add( SceneLabScene scene, Run run )
 	{
-		if ( !scene.CompareOcclusion )
+		bool[] casterCull = scene.CompareCasterCull ? [false, true] : [ShadowMapper.CasterCull];
+		foreach ( var caster in casterCull )
 		{
-			var culling = run.Renderer == SceneLabWindow.RendererKind.Managed ? ManagedSceneRendering.Occlusion && run.Prepass : RenderPipeline.OcclusionCulling;
-			runs.Add( run with { Occlusion = culling } );
-			return;
-		}
+			var withCaster = run with { CasterCull = caster };
+			if ( !scene.CompareOcclusion )
+			{
+				var culling = run.Renderer == SceneLabWindow.RendererKind.Managed ? ManagedSceneRendering.Occlusion && run.Prepass : RenderPipeline.OcclusionCulling;
+				runs.Add( withCaster with { Occlusion = culling } );
+				continue;
+			}
 
-		runs.Add( run );
-		runs.Add( run with { Occlusion = true } );
+			runs.Add( withCaster );
+			runs.Add( withCaster with { Occlusion = true } );
+		}
 	}
 
 	/// <summary>
@@ -233,6 +239,8 @@ internal sealed class Benchmark
 
 		if ( run.Renderer == SceneLabWindow.RendererKind.Managed ) ManagedSceneRendering.Occlusion = run.Occlusion;
 		else RenderPipeline.OcclusionCulling = run.Occlusion;
+		ShadowMapper.CasterCull = run.CasterCull;
+		ClutterBatchSceneObject.ShadowCasterCull = run.CasterCull;
 
 		frames = 0;
 		measured = -1;

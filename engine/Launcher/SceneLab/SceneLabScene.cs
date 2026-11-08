@@ -59,6 +59,12 @@ internal sealed record SceneLabScene
 	/// </summary>
 	public bool CompareOcclusion { get; init; }
 
+	/// <summary>
+	/// The benchmark measures it with shadow caster culling (<c>r.shadows.castercull</c> and
+	/// <c>clutter_shadow_caster_cull</c>) off and then on, through each renderer.
+	/// </summary>
+	public bool CompareCasterCull { get; init; }
+
 	public bool IsGame => Game is not null;
 
 	/// <summary>
@@ -330,6 +336,9 @@ internal sealed record SceneLabScene
 		new() { Name = "Heavy Scene AO", Group = "Stress", Game = HeavyScene.BuildWithOcclusion, Frame = HeavyScene.Animate, Isolated = true },
 		new() { Name = "Heavy Scene AO SSR", Group = "Stress", Game = HeavyScene.BuildWithReflectionsAndOcclusion, Frame = HeavyScene.Animate, Isolated = true },
 		new() { Name = "Occlusion City", Group = "Stress", Game = OcclusionScene.BuildCity, Frame = OcclusionScene.Drive, CompareOcclusion = true },
+		new() { Name = "Clutter Forest", Group = "Stress", Game = TerrainScenes.ClutterForest, Frame = TerrainScenes.TurnAround, Ready = TerrainScenes.ForestReady, CompareCasterCull = true },
+		new() { Name = "Clutter Point Lights", Group = "Stress", Game = TerrainScenes.ClutterPointLights, Frame = TerrainScenes.TurnAround, Ready = TerrainScenes.ForestReady, CompareCasterCull = true },
+		new() { Name = "Clutter Terrain Forest", Group = "Stress", Game = TerrainScenes.ClutterTerrainForest, Frame = TerrainScenes.TurnAround, Ready = TerrainScenes.ForestReady, CompareCasterCull = true },
 		new() { Name = "Flatgrass", Group = "Maps", Game = MapScenes.Flatgrass, Frame = MapScenes.StartWhenOnline, Ready = MapScenes.Loaded },
 		new() { Name = "Flatgrass Skyline", Group = "Maps", Game = MapScenes.FlatgrassSkyline, Frame = MapScenes.StartWhenOnline, Ready = MapScenes.Loaded },
 		new() { Name = "Flatgrass Interior", Group = "Maps", Game = MapScenes.FlatgrassInterior, Frame = MapScenes.StartWhenOnline, Ready = MapScenes.Loaded },
