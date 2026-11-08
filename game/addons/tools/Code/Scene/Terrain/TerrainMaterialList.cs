@@ -17,13 +17,28 @@ public class TerrainMaterialList : ListView
 		AcceptDrops = true;
 		SetSizeMode( SizeMode.Expand, SizeMode.Flexible );
 
-		ItemSize = new Vector2( 68, 68 + 20 );
+		ItemSize = new Vector2( 68, 68 + 36 );
 		ItemAlign = Sandbox.UI.Align.FlexStart;
 		Margin = 8;
 
 		Terrain = terrain;
+		Terrain.OnTerrainModified += OnTerrainModified;
 
 		BuildItems();
+	}
+
+	public override void OnDestroyed()
+	{
+		base.OnDestroyed();
+
+		if ( Terrain.IsValid() )
+			Terrain.OnTerrainModified -= OnTerrainModified;
+	}
+
+	void OnTerrainModified( Terrain.SyncFlags flags, RectInt region )
+	{
+		if ( flags.HasFlag( Terrain.SyncFlags.Control ) )
+			_coverageDirty = true;
 	}
 
 	protected override bool OnDragItem( VirtualWidget item )
@@ -172,9 +187,48 @@ public class TerrainMaterialList : ListView
 		SetItems( Terrain.Storage.Materials.Cast<object>() );
 	}
 
+	double[] _coverage;
+	uint[] _coverageSource;
+	bool _coverageDirty;
+	RealTimeSince _coverageAge;
+
+	/// <summary>
+	/// Fraction of the terrain each material slot covers, from the control map: the base gets 1 - blend,
+	/// the overlay gets blend, holes count for nothing. Recomputed at most once a second while painting.
+	/// </summary>
+	double[] GetCoverage()
+	{
+		var storage = Terrain.Storage;
+		if ( storage is null ) return null;
+		// Painting raises OnTerrainModified; resampling or loading replaces the array
+		var stale = _coverageDirty || _coverageSource != storage.ControlMap;
+		if ( _coverage is not null && (!stale || _coverageAge < 1) ) return _coverage;
+
+		var weights = new double[32];
+		long texels = 0;
+		foreach ( var packed in storage.ControlMap )
+		{
+			var m = new CompactTerrainMaterial( packed );
+			if ( m.IsHole ) continue;
+			texels++;
+			var blend = m.BlendFactor / 255.0;
+			weights[m.BaseTextureId] += 1 - blend;
+			weights[m.OverlayTextureId] += blend;
+		}
+
+		for ( int i = 0; i < weights.Length; i++ )
+			weights[i] = texels > 0 ? weights[i] / texels : 0;
+
+		_coverage = weights;
+		_coverageSource = storage.ControlMap;
+		_coverageDirty = false;
+		_coverageAge = 0;
+		return _coverage;
+	}
+
 	protected override void PaintItem( VirtualWidget item )
 	{
-		var rect = item.Rect.Shrink( 0, 0, 0, 20 );
+		var rect = item.Rect.Shrink( 0, 0, 0, 36 );
 
 		if ( item.Object is not TerrainMaterial material )
 			return;
@@ -183,10 +237,10 @@ public class TerrainMaterialList : ListView
 
 		if ( asset is null )
 		{
+			// Not a local asset (e.g. from a package): no thumbnail, but name and coverage still matter
 			Paint.SetDefaultFont();
 			Paint.SetPen( Color.Red );
-			Paint.DrawText( item.Rect.Shrink( 2 ), "<ERROR>", TextFlag.Center );
-			return;
+			Paint.DrawText( rect.Shrink( 2 ), "<ERROR>", TextFlag.Center );
 		}
 
 		if ( item.Selected || Paint.HasMouseOver )
@@ -206,12 +260,35 @@ public class TerrainMaterialList : ListView
 			}
 		}
 
-		var pixmap = asset.GetAssetThumb();
-		Paint.Draw( rect.Shrink( 2 ), pixmap );
+		if ( asset is not null )
+			Paint.Draw( rect.Shrink( 2 ), asset.GetAssetThumb() );
 
 		Paint.SetDefaultFont();
 		Paint.SetPen( Theme.Text );
-		Paint.DrawText( item.Rect.Shrink( 2 ), material.ResourceName, TextFlag.CenterBottom );
+		Paint.DrawText( item.Rect.Shrink( 2, 0, 2, 18 ), material.ResourceName, TextFlag.CenterBottom );
+
+		var index = Terrain.Storage.Materials.IndexOf( material );
+		var coverage = GetCoverage();
+		if ( coverage is null || index < 0 || index >= coverage.Length ) return;
+
+		var fraction = coverage[index];
+		var bar = new Rect( rect.Left + 2, rect.Bottom - 6, rect.Width - 4, 4 );
+		Paint.ClearPen();
+		Paint.SetBrush( Color.Black.WithAlpha( 0.6f ) );
+		Paint.DrawRect( bar );
+		Paint.SetBrush( fraction <= 0 ? Theme.Red : Theme.Green );
+		// Relative to the most used material, with a sliver for anything used at all
+		var largest = coverage.Max();
+		var filled = largest > 0 ? Math.Max( fraction / largest, fraction > 0 ? 0.03 : 0 ) : 0;
+		Paint.DrawRect( bar with { Width = bar.Width * (float)filled } );
+
+		// Terrain units are inches
+		var sizeMetres = Terrain.Storage.TerrainSize * 0.0254;
+		var km2 = fraction * sizeMetres * sizeMetres / 1e6;
+		var text = fraction <= 0 ? "unused" : fraction < 0.001 ? $"<0.1% {km2 * 1e6:N0} m²" : $"{fraction * 100:0.#}% {km2:0.##} km²";
+		Paint.SetDefaultFont( 7 );
+		Paint.SetPen( fraction <= 0 ? Theme.Red : Theme.TextLight );
+		Paint.DrawText( item.Rect.Shrink( 0, 0, 0, 2 ), text, TextFlag.CenterBottom );
 	}
 
 	protected override void OnPaint()
