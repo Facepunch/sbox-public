@@ -21,11 +21,14 @@ internal class TerrainMaterialCompiler : ResourceCompiler
 		var path = Path.GetDirectoryName( filename );
 		var file = Path.GetFileNameWithoutExtension( filename );
 
-		var albedo = doc.RootElement.TryGetProperty( "AlbedoImage", out var albedoValue ) ? albedoValue.GetString() : "";
-		var roughness = doc.RootElement.TryGetProperty( "RoughnessImage", out var roughnessValue ) ? roughnessValue.GetString() : "";
-		var normal = doc.RootElement.TryGetProperty( "NormalImage", out var normalValue ) ? normalValue.GetString() : "";
-		var height = doc.RootElement.TryGetProperty( "HeightImage", out var heightValue ) ? heightValue.GetString() : "";
-		var ao = doc.RootElement.TryGetProperty( "AOImage", out var aoValue ) ? aoValue.GetString() : "";
+		// An empty or missing image compiles to a flat channel instead of failing the texture
+		string Image( string name, string fallback ) => doc.RootElement.TryGetProperty( name, out var value ) && value.GetString() is { Length: > 0 } image ? image : fallback;
+
+		var albedo = Image( "AlbedoImage", "materials/default/default_color.tga" );
+		var roughness = Image( "RoughnessImage", TerrainMaterial.UnboundImage );
+		var normal = Image( "NormalImage", "materials/default/default_normal.tga" );
+		var height = Image( "HeightImage", TerrainMaterial.UnboundImage );
+		var ao = Image( "AOImage", TerrainMaterial.UnboundImage );
 
 		var bcrPath = $"{path}/{file}_tmat_bcr.generated.vtex";
 		var nhoPath = $"{path}/{file}_tmat_nho.generated.vtex";

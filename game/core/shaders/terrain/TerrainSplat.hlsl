@@ -114,7 +114,7 @@
         Material o = Material::Init();
         o.Albedo = SrgbGammaToLinear( bcr.rgb );
         o.Normal = normal;
-        o.Roughness = bcr.a;
+        o.Roughness = bcr.a * mat.Roughness();
         o.AmbientOcclusion = nho.a;
         o.Metalness = mat.metalness;
 

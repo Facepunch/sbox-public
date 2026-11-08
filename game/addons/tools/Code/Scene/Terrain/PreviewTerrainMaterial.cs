@@ -33,6 +33,8 @@ class PreviewTerrainMaterial : AssetPreview
 				mr.SceneObject.Attributes.Set( "UVScale", material.UVScale );
 				mr.SceneObject.Attributes.Set( "NormalStrength", 1.0f / material.NormalStrength );
 				mr.SceneObject.Attributes.Set( "Metalness", material.Metalness );
+				mr.SceneObject.Attributes.Set( "Roughness", material.Roughness );
+				mr.SceneObject.Attributes.Set( "NoTile", material.NoTiling );
 			}
 
 			SceneSize = PrimaryObject.GetBounds().Size * 0.6f;

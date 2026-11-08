@@ -18,6 +18,12 @@ class TerrainMaterialEditor : BaseResourceEditor<TerrainMaterial>
 
 		Object = resource.GetSerialized();
 
+		// Which optional images are bound, at a glance: an empty image slot reads like a missing one otherwise
+		var channels = new Label( null );
+		channels.SetStyles( $"color: {Theme.TextLight.Hex}; padding: 8px 12px;" );
+		Layout.Add( channels );
+		UpdateChannels( channels, resource );
+
 		var sheet = new ControlSheet();
 		sheet.AddObject( Object );
 		Layout.Add( sheet );
@@ -26,10 +32,22 @@ class TerrainMaterialEditor : BaseResourceEditor<TerrainMaterial>
 		{
 			TryAutoFill( p );
 			NoteChanged( p );
+			UpdateChannels( channels, resource );
 
 			// Cascade to all terrains, feel free to code a TerrainMaterial modified -> TerrainStorage -> Terrain event chain
 			UpdateSceneTerrain();
 		};
+	}
+
+	static bool IsBound( string image ) => !string.IsNullOrEmpty( image ) && image != "materials/default/default_ao.tga";
+
+	static void UpdateChannels( Label label, TerrainMaterial m )
+	{
+		var roughness = !IsBound( m.RoughnessImage ) ? $"flat {m.Roughness:0.##}"
+			: m.RoughnessImage == "materials/default/default_rough.tga" ? $"default image × {m.Roughness:0.##}"
+			: $"image × {m.Roughness:0.##}";
+
+		label.Text = $"Roughness: {roughness}    Height: {(IsBound( m.HeightImage ) ? "image" : "none")}    AO: {(IsBound( m.AOImage ) ? "image" : "none")}    Tiling: {(m.NoTiling ? "no tiling" : "repeating")}";
 	}
 
 	void TryAutoFill( SerializedProperty p )
