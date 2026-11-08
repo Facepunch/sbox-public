@@ -37,4 +37,9 @@ internal sealed class Source2Device : GpuDevice
 	public override GpuTexture Black => Source2Texture.From( Texture.Black );
 
 	public override void Clear( GpuTexture texture, Color color ) => texture.Engine()?.Clear( color );
+
+	public override IDisposable CreateBuffer( int elementCount, int elementSize, GpuBuffer.UsageFlags usage, string name )
+		=> new Sandbox.GpuBuffer( elementCount, elementSize, (Sandbox.GpuBuffer.UsageFlags)usage, name );
+
+	public override void SetData( GpuBuffer buffer, ReadOnlySpan<byte> data ) => buffer.Engine().SetData( data );
 }

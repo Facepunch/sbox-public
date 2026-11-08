@@ -1,4 +1,4 @@
-namespace Basalt.Gpu;
+namespace Basalt;
 
 /// <summary>
 /// Pixel formats Basalt creates and recognises. A texture in any other format reads as <see cref="Unknown"/>.

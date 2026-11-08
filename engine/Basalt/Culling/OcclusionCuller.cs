@@ -241,7 +241,7 @@ internal sealed class OcclusionCuller : IDisposable
 		statsRing.Upload( context, stats );
 	}
 
-	public void ReadStats( RenderContext context ) => context.Native.ReadBufferAsync( Stats, onStatsRead, 0, 2 * sizeof( uint ) );
+	public void ReadStats( RenderContext context ) => context.Native.ReadBufferAsync( Stats.Engine(), onStatsRead, 0, 2 * sizeof( uint ) );
 
 	public void Dispose()
 	{

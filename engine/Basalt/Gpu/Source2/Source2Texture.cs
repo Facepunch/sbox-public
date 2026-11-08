@@ -67,6 +67,21 @@ internal static class Source2TextureExtensions
 	/// Bind a Basalt texture as an attribute.
 	/// </summary>
 	public static void Set( this RenderAttributes attributes, StringToken name, GpuTexture texture ) => attributes.Set( name, texture.Engine() );
+
+	/// <summary>
+	/// The engine buffer behind a Basalt one, or null.
+	/// </summary>
+	public static Sandbox.GpuBuffer Engine( this GpuBuffer buffer ) => buffer?.Resource as Sandbox.GpuBuffer;
+
+	/// <summary>
+	/// The native buffer behind a Basalt one, or an invalid handle.
+	/// </summary>
+	public static RenderBufferHandle_t Native( this GpuBuffer buffer ) => buffer?.Resource is Sandbox.GpuBuffer b ? b.native : default;
+
+	/// <summary>
+	/// Bind a Basalt buffer as an attribute.
+	/// </summary>
+	public static void Set( this RenderAttributes attributes, StringToken name, GpuBuffer buffer ) => attributes.Set( name, buffer.Engine() );
 }
 
 /// <summary>

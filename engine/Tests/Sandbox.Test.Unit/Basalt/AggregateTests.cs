@@ -19,7 +19,7 @@ public class AggregateTests
 		BoundsMin = center - size,
 		BoundsMax = center + size,
 		DrawTint = Vector3.One,
-		Args = new GpuBuffer.IndirectDrawIndexedArguments { IndexCount = indices, InstanceCount = 1, FirstIndex = (uint)index * 3, FirstInstance = (uint)index },
+		Args = new Basalt.GpuBuffer.IndirectDrawIndexedArguments { IndexCount = indices, InstanceCount = 1, FirstIndex = (uint)index * 3, FirstInstance = (uint)index },
 	};
 
 	/// <summary>

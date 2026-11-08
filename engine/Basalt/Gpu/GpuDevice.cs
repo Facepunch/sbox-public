@@ -1,4 +1,4 @@
-namespace Basalt.Gpu;
+namespace Basalt;
 
 /// <summary>
 /// The graphics device Basalt renders with: it makes and loads resources, and records and submits work. A host supplies
@@ -25,4 +25,14 @@ public abstract class GpuDevice
 	/// Fill a texture with a colour now, outside any recorded work.
 	/// </summary>
 	public abstract void Clear( GpuTexture texture, Color color );
+
+	/// <summary>
+	/// Create the device's side of a <see cref="GpuBuffer"/>.
+	/// </summary>
+	public abstract IDisposable CreateBuffer( int elementCount, int elementSize, GpuBuffer.UsageFlags usage, string name );
+
+	/// <summary>
+	/// Copy bytes into a buffer now, outside any recorded work.
+	/// </summary>
+	public abstract void SetData( GpuBuffer buffer, ReadOnlySpan<byte> data );
 }

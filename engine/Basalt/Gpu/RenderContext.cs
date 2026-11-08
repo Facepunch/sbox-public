@@ -441,9 +441,9 @@ internal sealed class RenderContext : IDisposable
 		fixed ( int* ao = anchorOffsets )
 		{
 			var deformed = volumes is not null && anchors is not null;
-			RenderBufferHandle_t volumeBuffer = deformed ? volumes.native : IntPtr.Zero;
-			RenderBufferHandle_t anchorBuffer = deformed ? anchors.native : IntPtr.Zero;
-			return RenderTools.DispatchModelMeshSkinning( context, skinningShader.native.GetMode(), mesh.Model.native, modelMesh, transforms.native, (IntPtr)s, (IntPtr)o, slots.Length, blendWeights,
+			RenderBufferHandle_t volumeBuffer = deformed ? volumes.Native() : IntPtr.Zero;
+			RenderBufferHandle_t anchorBuffer = deformed ? anchors.Native() : IntPtr.Zero;
+			return RenderTools.DispatchModelMeshSkinning( context, skinningShader.native.GetMode(), mesh.Model.native, modelMesh, transforms.Native(), (IntPtr)s, (IntPtr)o, slots.Length, blendWeights,
 				volumeBuffer, deformed ? (IntPtr)vo : IntPtr.Zero, deformed ? (IntPtr)vc : IntPtr.Zero, anchorBuffer, deformed ? (IntPtr)ao : IntPtr.Zero, morph );
 		}
 	}
@@ -855,7 +855,7 @@ internal sealed class RenderContext : IDisposable
 	public bool DrawModel( Material material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false )
 	{
 		return RenderTools.DrawModelDrawCall( context, drawAttributes, material.native, shaderMode, mesh.Model.native, draw.Mesh, draw.DrawCall,
-			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, skinned, InstanceIds.native, firstInstance, instances, materialBind );
+			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, skinned, InstanceIds.Native(), firstInstance, instances, materialBind );
 	}
 
 	/// <summary>
@@ -865,8 +865,8 @@ internal sealed class RenderContext : IDisposable
 	public bool DrawModelCulled( Material material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int argsIndex, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false )
 	{
 		return RenderTools.DrawModelDrawCallIndirect( context, drawAttributes, material.native, shaderMode, mesh.Model.native, draw.Mesh, draw.DrawCall,
-			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, skinned, Occlusion.CulledIds.native, Occlusion.IdOffset( phase ) + firstInstance,
-			Occlusion.Args.native, (Occlusion.ArgOffset( phase ) + argsIndex) * OcclusionCuller.ArgsStride, materialBind );
+			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, skinned, Occlusion.CulledIds.Native(), Occlusion.IdOffset( phase ) + firstInstance,
+			Occlusion.Args.Native(), (Occlusion.ArgOffset( phase ) + argsIndex) * OcclusionCuller.ArgsStride, materialBind );
 	}
 
 	/// <summary>
@@ -877,8 +877,8 @@ internal sealed class RenderContext : IDisposable
 	public bool DrawModelFragments( Material material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, GpuBuffer args, int firstArg, int count, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false )
 	{
 		return RenderTools.DrawModelDrawCallMultiIndirect( context, drawAttributes, material.native, shaderMode, mesh.Model.native, draw.Mesh, draw.DrawCall,
-			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, InstanceIds.native, firstInstance,
-			args.native, firstArg * OcclusionCuller.ArgsStride, count, default, 0, materialBind );
+			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, InstanceIds.Native(), firstInstance,
+			args.Native(), firstArg * OcclusionCuller.ArgsStride, count, default, 0, materialBind );
 	}
 
 	/// <summary>
@@ -890,9 +890,9 @@ internal sealed class RenderContext : IDisposable
 		var args = Occlusion.Args;
 		var compact = Occlusion.CompactFragments;
 		return RenderTools.DrawModelDrawCallMultiIndirect( context, drawAttributes, material.native, shaderMode, mesh.Model.native, draw.Mesh, draw.DrawCall,
-			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, InstanceIds.native, firstInstance,
-			args.native, Occlusion.FragmentArgs( phase, cullArg, count ) * OcclusionCuller.ArgsStride, count,
-			compact ? args.native : default, compact ? Occlusion.FragmentCountArg( phase, cullArg, count ) * OcclusionCuller.ArgsStride : 0, materialBind );
+			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, InstanceIds.Native(), firstInstance,
+			args.Native(), Occlusion.FragmentArgs( phase, cullArg, count ) * OcclusionCuller.ArgsStride, count,
+			compact ? args.Native() : default, compact ? Occlusion.FragmentCountArg( phase, cullArg, count ) * OcclusionCuller.ArgsStride : 0, materialBind );
 	}
 
 	/// <summary>
@@ -920,7 +920,7 @@ internal sealed class RenderContext : IDisposable
 	{
 		fixed ( T* ptr = data )
 		{
-			RenderTools.SetGPUBufferData( context, buffer.native, (IntPtr)ptr, (uint)(data.Length * Unsafe.SizeOf<T>()), (uint)offsetBytes );
+			RenderTools.SetGPUBufferData( context, buffer.Native(), (IntPtr)ptr, (uint)(data.Length * Unsafe.SizeOf<T>()), (uint)offsetBytes );
 		}
 	}
 
@@ -930,7 +930,7 @@ internal sealed class RenderContext : IDisposable
 	/// </summary>
 	public void BindInstances( int stream, int firstInstance )
 	{
-		context.BindVertexBuffer( stream, InstanceIds.native, firstInstance * sizeof( uint ), sizeof( uint ) );
+		context.BindVertexBuffer( stream, InstanceIds.Native(), firstInstance * sizeof( uint ), sizeof( uint ) );
 	}
 
 	/// <summary>
@@ -945,7 +945,7 @@ internal sealed class RenderContext : IDisposable
 
 	public void BufferBarrier( GpuBuffer buffer, RenderBarrierPipelineStageFlags_t srcStage, RenderBarrierAccessFlags_t srcAccess, RenderBarrierPipelineStageFlags_t dstStage, RenderBarrierAccessFlags_t dstAccess )
 	{
-		context.BufferBarrierTransition( buffer.native, srcStage, dstStage, srcAccess, dstAccess );
+		context.BufferBarrierTransition( buffer.Native(), srcStage, dstStage, srcAccess, dstAccess );
 	}
 
 	/// <summary>
