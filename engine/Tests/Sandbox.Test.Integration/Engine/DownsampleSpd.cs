@@ -1,5 +1,5 @@
 using System;
-using Sandbox.SceneRenderer.Gpu;
+using Basalt.Gpu;
 
 namespace EngineTests;
 

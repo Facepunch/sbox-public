@@ -97,7 +97,7 @@ internal sealed class Benchmark
 
 	double[] sums = new double[11];
 
-	void Accumulate( SceneRenderer.RenderStats s )
+	void Accumulate( Basalt.RenderStats s )
 	{
 		sums[0] += s.CollectMs; sums[1] += s.PrepareMs; sums[2] += s.SetupMs; sums[3] += s.RecordMs; sums[4] += s.WorkerRecordMs;
 		sums[5] += s.StagesMs; sums[6] += s.SubmitMs; sums[7] += s.Draws + s.DepthDraws; sums[8] += s.ShadowDraws; sums[9] += s.RecordWaitMs; sums[10] += s.SyncMs;

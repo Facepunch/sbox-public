@@ -22,7 +22,7 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo( "Sandbox.GameInstance" )]
 [assembly: InternalsVisibleTo( "Facepunch.Interopgen" )]
 [assembly: InternalsVisibleTo( "Sandbox.AppSystem" )]
-[assembly: InternalsVisibleTo( "Sandbox.SceneRenderer" )]
+[assembly: InternalsVisibleTo( "Basalt" )]
 [assembly: InternalsVisibleTo( "scenelab" )]
 [assembly: InternalsVisibleTo( "Sbox-Server" )]
 

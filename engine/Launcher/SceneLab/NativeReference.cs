@@ -1,4 +1,4 @@
-using Sandbox.SceneRenderer;
+using Basalt;
 
 namespace Sandbox.SceneLab;
 

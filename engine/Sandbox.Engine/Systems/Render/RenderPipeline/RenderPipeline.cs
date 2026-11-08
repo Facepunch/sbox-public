@@ -6,7 +6,7 @@ namespace Sandbox.Rendering;
 
 /// <summary>
 /// Builds the layers of native's rendering pipelines: <see cref="RenderPipeline"/> hands it each view native set up.
-/// Sandbox.SceneRenderer's <c>NativeRenderPipeline</c> is the one, installed at startup.
+/// Basalt's <c>NativeRenderPipeline</c> is the one, installed at startup.
 /// </summary>
 internal interface INativeRenderPipeline
 {

@@ -1,5 +1,5 @@
-using Sandbox.SceneRenderer;
-using Sandbox.SceneRenderer.Bridge;
+using Basalt;
+using Basalt.Bridge;
 
 namespace Sandbox.SceneLab;
 
@@ -302,7 +302,7 @@ internal sealed partial class SceneLabWindow
 	/// <summary>
 	/// The managed renderer's numbers for the game camera's last frame.
 	/// </summary>
-	SceneRenderer.RenderStats? GameStats()
+	Basalt.RenderStats? GameStats()
 	{
 		if ( game?.Camera is not { } camera || gameBridge?.StatsFor( camera ) is not { } stats ) return null;
 

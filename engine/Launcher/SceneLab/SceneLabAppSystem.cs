@@ -1,7 +1,7 @@
 namespace Sandbox.SceneLab;
 
 /// <summary>
-/// Scene Lab - the proving ground for the managed scene renderer (<c>Sandbox.SceneRenderer</c>), the way
+/// Scene Lab - the proving ground for the managed scene renderer (<c>Basalt</c>), the way
 /// PanelGallery is for panels. Boots the minimal panel app and opens a <see cref="SceneLabWindow"/>:
 /// the renderer draws the world into the window's swap chain and the panel UI draws over it.
 ///

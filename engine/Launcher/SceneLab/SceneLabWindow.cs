@@ -1,7 +1,7 @@
 using PanelWindow = Editor.PanelWindow;
 using NativeEngine;
-using Sandbox.SceneRenderer;
-using Sandbox.SceneRenderer.Features;
+using Basalt;
+using Basalt.Features;
 using Sandbox.UI;
 
 namespace Sandbox.SceneLab;
@@ -118,7 +118,7 @@ internal sealed partial class SceneLabWindow : PanelWindow
 	/// <summary>
 	/// The managed renderer's numbers for the last frame: the game camera's, or the lab's own renderer's.
 	/// </summary>
-	public SceneRenderer.RenderStats ManagedStats => GameStats() ?? renderer.Stats;
+	public Basalt.RenderStats ManagedStats => GameStats() ?? renderer.Stats;
 
 	/// <summary>
 	/// The scene on screen.
@@ -636,7 +636,7 @@ internal sealed partial class SceneLabWindow : PanelWindow
 		System.IO.Directory.CreateDirectory( folder );
 
 		// One bridge for both, as a game has: its mirror keeps listening between them
-		gameBridge ??= new Sandbox.SceneRenderer.Bridge.SceneBridge();
+		gameBridge ??= new Basalt.Bridge.SceneBridge();
 		var changed = frame == changedFrame;
 		Log.Info( $"Scene Lab: {gameScenePath}{(changed ? ", changed" : "")}: {gameBridge.Compare( camera, folder, changed ? "changed" : "camera" )}" );
 		if ( gameBridge.LastParity is { Matches: false } ) Environment.ExitCode = 2;
@@ -650,7 +650,7 @@ internal sealed partial class SceneLabWindow : PanelWindow
 		Finished = true;
 	}
 
-	Sandbox.SceneRenderer.Bridge.SceneBridge gameBridge;
+	Basalt.Bridge.SceneBridge gameBridge;
 
 	// The frame plan over the viewport
 	PlanOverlay planOverlay;

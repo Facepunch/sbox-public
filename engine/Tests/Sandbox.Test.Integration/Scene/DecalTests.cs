@@ -37,8 +37,8 @@ public class DecalTests
 		try
 		{
 			var source = new DecalSceneObject( scene.SceneWorld );
-			var decal = new Sandbox.SceneRenderer.DecalObject( Transform.Zero );
-			var mirror = typeof( Sandbox.SceneRenderer.DecalObject ).Assembly.GetType( "Sandbox.SceneRenderer.Bridge.SceneMirror", true );
+			var decal = new Basalt.DecalObject( Transform.Zero );
+			var mirror = typeof( Basalt.DecalObject ).Assembly.GetType( "Basalt.Bridge.SceneMirror", true );
 			var apply = mirror.GetMethod( "ApplyDecal", BindingFlags.Static | BindingFlags.NonPublic );
 			foreach ( var mode in new[] { DecalBlendMode.Multiply, DecalBlendMode.Additive, DecalBlendMode.Alpha } )
 			{

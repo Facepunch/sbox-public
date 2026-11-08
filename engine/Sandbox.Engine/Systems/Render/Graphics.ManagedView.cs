@@ -5,7 +5,7 @@ namespace Sandbox;
 public static partial class Graphics
 {
 	/// <summary>
-	/// A frame drawn outside native's scene views, by the managed scene renderer (Sandbox.SceneRenderer, with
+	/// A frame drawn outside native's scene views, by the managed scene renderer (Basalt, with
 	/// <c>r_managed_scene</c>). A camera's command lists, post processing and UI run against it at native's stages, and ask
 	/// it (<see cref="IFrameView"/>) what they'd ask a native view: the targets being drawn into, the viewport, the camera
 	/// and its frustum, and whether post processing is on.
@@ -67,7 +67,7 @@ public static partial class Graphics
 
 		/// <summary>
 		/// The shader mode materials draw with, as a native layer's is: <c>Forward</c> for native's hook layers
-		/// (the native pipeline's hook layers, <c>Sandbox.SceneRenderer.Native.HookLayers</c>) and its forward layers. A shader without it draws with its default mode.
+		/// (the native pipeline's hook layers, <c>Basalt.Native.HookLayers</c>) and its forward layers. A shader without it draws with its default mode.
 		/// </summary>
 		public StringToken ShaderMode = new( "Forward" );
 

@@ -1,8 +1,8 @@
 # SceneLab — agent guide
 
 > Scope: `scenelab.exe`, the proving ground for the managed scene renderer. Last reviewed: 2026-09-29.
-> The renderer's own guide is [`engine/Sandbox.SceneRenderer/README.md`](../../Sandbox.SceneRenderer/README.md);
-> read it first. The details are in [`docs/managed/scene-renderer.md`](../../../docs/managed/scene-renderer.md)
+> The renderer's own guide is [`engine/Basalt/README.md`](../../Basalt/README.md);
+> read it first. The details are in [`docs/managed/basalt.md`](../../../docs/managed/basalt.md)
 > (*SceneLab*, *Parity with native*, *Benchmark*).
 
 SceneLab is to the managed renderer what PanelGallery is to panels. It's a borderless `PanelWindow` that draws

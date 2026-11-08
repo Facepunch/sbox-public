@@ -5,8 +5,8 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using Sandbox;
-using Sandbox.SceneRenderer;
-using Sandbox.SceneRenderer.Culling;
+using Basalt;
+using Basalt.Culling;
 using V3 = System.Numerics.Vector3;
 
 /// <summary>

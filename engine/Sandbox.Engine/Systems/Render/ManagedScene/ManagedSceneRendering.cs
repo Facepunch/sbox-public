@@ -3,7 +3,7 @@ using NativeEngine;
 namespace Sandbox.Rendering;
 
 /// <summary>
-/// What the managed scene renderer (Sandbox.SceneRenderer) offers the engine. It lives in its own assembly, which
+/// What the managed scene renderer (Basalt) offers the engine. It lives in its own assembly, which
 /// references this one, so the app system registers it here at startup.
 /// </summary>
 internal interface IManagedSceneRenderer
@@ -47,12 +47,12 @@ internal interface IManagedSceneRenderer
 /// Cameras render their scene's world through the managed scene renderer when <c>r_managed_scene</c> is on. The
 /// managed renderer owns the camera's whole frame: native's post processing, UI and command lists don't run for
 /// it, and engine overlays (the console, debug overlays) are drawn over it afterwards. See
-/// docs/managed/scene-renderer.md, <i>The GameObject bridge</i>.
+/// docs/managed/basalt.md, <i>The GameObject bridge</i>.
 /// </summary>
 internal static partial class ManagedSceneRendering
 {
 	/// <summary>
-	/// Render cameras through Sandbox.SceneRenderer. Experimental: it draws models, skinned models, lights,
+	/// Render cameras through Basalt. Experimental: it draws models, skinned models, lights,
 	/// environment probes, fog and ambient, and nothing else yet.
 	/// </summary>
 	[ConVar( "r_managed_scene", ConVarFlags.Protected, Help = "Render cameras through the managed scene renderer (experimental)" )]
@@ -70,7 +70,7 @@ internal static partial class ManagedSceneRendering
 	public static bool Occlusion { get; set; } = true;
 
 	/// <summary>
-	/// Set by Sandbox.SceneRenderer when the app system installs it at startup.
+	/// Set by Basalt when the app system installs it at startup.
 	/// </summary>
 	public static IManagedSceneRenderer Renderer { get; set; }
 
