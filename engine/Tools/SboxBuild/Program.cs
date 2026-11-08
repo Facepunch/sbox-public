@@ -25,6 +25,7 @@ internal class Program
 		AddTestCommand( rootCommand );
 		AddBuildShadersCommand( rootCommand );
 		AddShaderStatsCommand( rootCommand );
+		AddRenderTestsCommand( rootCommand );
 		AddGenerateSolutionsCommand( rootCommand );
 		AddSyncPublicRepoCommand( rootCommand );
 		AddWriteVersionCommand( rootCommand );
@@ -197,6 +198,45 @@ internal class Program
 		{
 			Environment.ExitCode = (int)new ShaderStats( asics, shaders ).Run();
 		}, asicOption, shaderOption );
+		rootCommand.Add( cmd );
+	}
+
+	private static void AddRenderTestsCommand( RootCommand rootCommand )
+	{
+		var cmd = new Command( "render-tests", "Render SceneLab presets on Lavapipe (software Vulkan, no GPU needed) and check them against the golden truth images in engine/Tests/GoldenTruth" );
+		var suiteOption = new Option<string>( "--suite",
+			description: "Which presets: core (the renderer), extended (features built on it) or all",
+			getDefaultValue: () => "all" );
+		var presetOption = new Option<string[]>( "--preset",
+			description: "Preset to render, repeatable, instead of a suite",
+			getDefaultValue: () => [] )
+		{ AllowMultipleArgumentsPerToken = true };
+		var updateOption = new Option<bool>( "--update",
+			description: "Write each frame as its preset's golden truth image",
+			getDefaultValue: () => false );
+		var pullRequestOption = new Option<bool>( "--pull-request",
+			description: "On a pull request, run only with the render-tests label, or when it changes rendering (which adds the label); skip with skip-render-tests",
+			getDefaultValue: () => false );
+		var slackOption = new Option<bool>( "--notify-slack",
+			description: "Tell Slack when they fail",
+			getDefaultValue: () => false );
+		cmd.AddOption( suiteOption );
+		cmd.AddOption( presetOption );
+		cmd.AddOption( updateOption );
+		cmd.AddOption( pullRequestOption );
+		cmd.AddOption( slackOption );
+		cmd.SetHandler( ( string suite, string[] presets, bool update, bool pullRequest, bool notifySlack ) =>
+		{
+			if ( presets.Length == 0 ) presets = RenderTests.Suite( suite );
+			if ( presets is null )
+			{
+				Log.Error( $"Unknown suite '{suite}': core, extended or all." );
+				Environment.ExitCode = (int)ExitCode.Failure;
+				return;
+			}
+
+			Environment.ExitCode = (int)new RenderTests( presets, update, pullRequest, notifySlack ).Run();
+		}, suiteOption, presetOption, updateOption, pullRequestOption, slackOption );
 		rootCommand.Add( cmd );
 	}
 
