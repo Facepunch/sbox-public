@@ -47,7 +47,7 @@ internal sealed class ViewPass
 	/// Shadow map and texture resolved during setup.
 	/// </summary>
 	public ShadowMap TargetMap { get; set; }
-	public Texture Target { get; set; }
+	public GpuTexture Target { get; set; }
 
 	/// <summary>
 	/// A static cache the target starts from instead of being cleared.

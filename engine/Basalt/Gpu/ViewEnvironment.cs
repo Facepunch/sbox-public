@@ -69,7 +69,7 @@ internal sealed class ViewEnvironment : IDisposable
 		("LtcMatrixLookup", "textures/dev/ltc_mat.vtex"),
 	];
 
-	Texture[] viewTextures;
+	GpuTexture[] viewTextures;
 
 	public unsafe void Apply( RenderContext context, SceneLighting lighting, Features.LightBinnerFeature binner, in GPUDirectionalLight sun, in ViewSpace space = default, Vector3 lightingOffset = default, VolumetricFog fog = null, RenderView view = null )
 	{
@@ -156,7 +156,7 @@ internal sealed class ViewEnvironment : IDisposable
 
 		context.SetConstants( ViewConstantsVR, vr );
 
-		blackCube ??= Texture.Load( "dev/env_cubemap_black.vtex" );
+		blackCube ??= RenderHost.Current.Device.LoadTexture( "dev/env_cubemap_black.vtex" );
 		attributes.Set( CubemapFogTexture, fogCube ?? blackCube );
 		attributes.Set( CubemapFogColor, viewLighting.CubemapFog.Tint );
 
@@ -187,19 +187,19 @@ internal sealed class ViewEnvironment : IDisposable
 		foreach ( var name in EmptyBuffers )
 			attributes.Set( name, emptyBuffer );
 
-		viewTextures ??= ViewTextures.Select( x => Texture.Load( x.Path ) ).ToArray();
+		viewTextures ??= ViewTextures.Select( x => RenderHost.Current.Device.LoadTexture( x.Path ) ).ToArray();
 		for ( int i = 0; i < viewTextures.Length; i++ )
 			attributes.Set( ViewTextures[i].Attribute, viewTextures[i] );
 
 		// Black fallback; an active BloomLayer replaces this binding.
-		attributes.Set( QuarterResBloomInput, Texture.Black );
+		attributes.Set( QuarterResBloomInput, RenderHost.Current.Device.Black );
 
 		// Required sprite-sheet metadata (CSceneSystem::InitializeRenderAttributes).
 		attributes.Set( SheetTexture, g_pRenderDevice.GetSheetMetaDataTexture() );
 
 	}
 
-	Texture blackCube;
+	GpuTexture blackCube;
 	static readonly StringToken FogVolume = new( "FogVolume" );
 	static readonly StringToken VolumetricFogCombo = new( "D_ENABLE_VOLUMETRIC_FOG" );
 	static readonly StringToken QuarterResBloomInput = new( "QuarterResEffectsBloomInputTexture" );
@@ -233,7 +233,7 @@ internal sealed class ViewEnvironment : IDisposable
 	/// <summary>
 	/// Pack scaled/offset cubemap fog (<c>SetupCubemapFog</c>). Returns its cubemap, or null when disabled.
 	/// </summary>
-	static Texture SetupCubemapFog( ref ViewConstantsVRData vr, CubemapFogSettings fog, float scale, float offsetZ )
+	static GpuTexture SetupCubemapFog( ref ViewConstantsVRData vr, CubemapFogSettings fog, float scale, float offsetZ )
 	{
 		if ( !fog.Enabled || !RenderContext.HasData( fog.Texture ) )
 		{

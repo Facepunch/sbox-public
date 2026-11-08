@@ -12,6 +12,11 @@ public class RenderHost
 	public static RenderHost Current { get; set; } = new();
 
 	/// <summary>
+	/// The graphics device to render with.
+	/// </summary>
+	public virtual GpuDevice Device => Source2Device.Instance;
+
+	/// <summary>
 	/// Run the depth chain, contact shadows and AO on the async compute queue, beside SSR and shadow rendering.
 	/// </summary>
 	public virtual bool AsyncCompute => true;

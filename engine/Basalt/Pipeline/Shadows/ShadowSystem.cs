@@ -26,7 +26,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 	readonly Dictionary<(ShadowMap Map, int Slice), ViewPass> passPool = new();
 
 	readonly ShadowMap[] cascadeTargets = new ShadowMap[MaxCascades];
-	readonly List<Texture> targets = new();
+	readonly List<GpuTexture> targets = new();
 
 	// Group shared queries after all views are known, then cull chunks in parallel.
 	readonly List<int> groupStarts = new();
@@ -326,18 +326,18 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 	/// <summary>
 	/// Resolve shadow textures/indices and upload lighting buffers before render passes.
 	/// </summary>
-	public void Setup( RenderContext context, Texture contactShadowMask = null )
+	public void Setup( RenderContext context, GpuTexture contactShadowMask = null )
 	{
 		mapper.ResolveTextureIndices();
 
 		// Assign the contact mask after CPU-only Prepare fills sun constants.
 		if ( contactShadowMask is not null && mapper.DirectionalLightData.Enabled )
-			mapper.DirectionalLightData.ShadowMaskTextureIndex = (uint)contactShadowMask.Index;
+			mapper.DirectionalLightData.ShadowMaskTextureIndex = (uint)contactShadowMask.BindlessIndex;
 
 		targets.Clear();
 		foreach ( var pass in Passes )
 		{
-			pass.Target = pass.TargetMap.Texture;
+			pass.Target = Source2Texture.From( pass.TargetMap.Texture );
 			if ( targets.Count == 0 || targets[^1] != pass.Target )
 				targets.Add( pass.Target );
 		}
@@ -377,13 +377,13 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		// Copy static depth once before drawing dynamic casters.
 		var cached = pass.CachedStatic;
 		if ( clear && cached is not null && pass.TargetSlice == 0 )
-			context.CopyTexture( cached.Texture, pass.Target, cached.IsCube ? 6 : 1 );
+			context.CopyTexture( Source2Texture.From( cached.Texture ), pass.Target, cached.IsCube ? 6 : 1 );
 
 		context.Bind( new StageTarget
 		{
 			Context = context.Native,
 			Attributes = context.Attributes,
-			Depth = pass.Target.native,
+			Depth = pass.Target.Native(),
 			DepthSlice = pass.TargetSlice,
 			Size = new Vector2( pass.Target.Width, pass.Target.Height ),
 			Viewport = view.Viewport,

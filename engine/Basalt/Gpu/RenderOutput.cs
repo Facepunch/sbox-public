@@ -20,13 +20,13 @@ internal readonly struct RenderOutput
 	/// <summary>
 	/// Optional texture destination for the HDR copy.
 	/// </summary>
-	public Texture Texture { get; init; }
+	public GpuTexture Texture { get; init; }
 
 	/// <summary>
 	/// MSAA scratch for final stages, preserving compatible depth before resolving into <see cref="Texture"/>
 	/// (<c>CCameraRenderer::RenderToLayer</c>).
 	/// </summary>
-	public Texture Scratch { get; init; }
+	public GpuTexture Scratch { get; init; }
 
 	/// <summary>
 	/// Whether the target is copied into a swap chain or texture at the end.
@@ -51,7 +51,7 @@ internal readonly struct RenderOutput
 	/// <summary>
 	/// A frame into a texture: drawn into an HDR target, then copied in.
 	/// </summary>
-	public static RenderOutput ForTexture( ViewTarget hdr, Texture texture, Texture scratch = null ) => new() { Target = hdr, Texture = texture, Scratch = scratch };
+	public static RenderOutput ForTexture( ViewTarget hdr, GpuTexture texture, GpuTexture scratch = null ) => new() { Target = hdr, Texture = texture, Scratch = scratch };
 
 	public static RenderOutput ForTarget( ViewTarget target ) => new() { Target = target };
 

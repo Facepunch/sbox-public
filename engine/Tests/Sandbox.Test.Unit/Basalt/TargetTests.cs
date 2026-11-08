@@ -1,6 +1,7 @@
 using NativeEngine;
 using Basalt;
 using Basalt.Gpu;
+using Basalt.Gpu.Source2;
 using static BasaltTests.TestScenes;
 
 namespace BasaltTests;
@@ -16,25 +17,38 @@ public class TargetTests
 	public void SampleCountsMatchNative()
 	{
 		// RenderMultisampleTypeNumSamples
-		Assert.AreEqual( 1, ViewTarget.SampleCount( RenderMultisampleType.RENDER_MULTISAMPLE_NONE ) );
-		Assert.AreEqual( 1, ViewTarget.SampleCount( RenderMultisampleType.RENDER_MULTISAMPLE_INVALID ) );
-		Assert.AreEqual( 2, ViewTarget.SampleCount( RenderMultisampleType.RENDER_MULTISAMPLE_2X ) );
-		Assert.AreEqual( 4, ViewTarget.SampleCount( RenderMultisampleType.RENDER_MULTISAMPLE_4X ) );
-		Assert.AreEqual( 6, ViewTarget.SampleCount( RenderMultisampleType.RENDER_MULTISAMPLE_6X ) );
-		Assert.AreEqual( 8, ViewTarget.SampleCount( RenderMultisampleType.RENDER_MULTISAMPLE_8X ) );
-		Assert.AreEqual( 16, ViewTarget.SampleCount( RenderMultisampleType.RENDER_MULTISAMPLE_16X ) );
+		Assert.AreEqual( 1, Source2Formats.Samples( RenderMultisampleType.RENDER_MULTISAMPLE_NONE ) );
+		Assert.AreEqual( 1, Source2Formats.Samples( RenderMultisampleType.RENDER_MULTISAMPLE_INVALID ) );
+		Assert.AreEqual( 2, Source2Formats.Samples( RenderMultisampleType.RENDER_MULTISAMPLE_2X ) );
+		Assert.AreEqual( 4, Source2Formats.Samples( RenderMultisampleType.RENDER_MULTISAMPLE_4X ) );
+		Assert.AreEqual( 6, Source2Formats.Samples( RenderMultisampleType.RENDER_MULTISAMPLE_6X ) );
+		Assert.AreEqual( 8, Source2Formats.Samples( RenderMultisampleType.RENDER_MULTISAMPLE_8X ) );
+		Assert.AreEqual( 16, Source2Formats.Samples( RenderMultisampleType.RENDER_MULTISAMPLE_16X ) );
 	}
 
 	[TestMethod]
 	public void OnlyFixedPointTargetsWriteSrgb()
 	{
 		// Float targets hold the linear HDR the shaders write; 8-bit ones are encoded like a swap chain
-		Assert.IsTrue( ViewTarget.IsFloatFormat( ImageFormat.RGBA16161616F ) );
-		Assert.IsTrue( ViewTarget.IsFloatFormat( ImageFormat.RGBA32323232F ) );
-		Assert.IsTrue( ViewTarget.IsFloatFormat( ImageFormat.R16F ) );
-		Assert.IsFalse( ViewTarget.IsFloatFormat( ImageFormat.RGBA8888 ) );
-		Assert.IsFalse( ViewTarget.IsFloatFormat( ImageFormat.RGBA1010102 ) );
-		Assert.IsFalse( ViewTarget.IsFloatFormat( ImageFormat.RGBA16161616 ) );
+		Assert.IsTrue( TextureFormat.RGBA16161616F.IsFloat() );
+		Assert.IsTrue( TextureFormat.RGBA32323232F.IsFloat() );
+		Assert.IsTrue( TextureFormat.R16F.IsFloat() );
+		Assert.IsFalse( TextureFormat.RGBA8888.IsFloat() );
+		Assert.IsFalse( TextureFormat.RGBA1010102.IsFloat() );
+		Assert.IsFalse( TextureFormat.RGBA16161616.IsFloat() );
+	}
+
+	[TestMethod]
+	public void EveryFormatHasAnEngineFormat()
+	{
+		// The backend maps by name: a renamed format would only fail when something made one
+		foreach ( var format in System.Enum.GetValues<TextureFormat>() )
+		{
+			if ( format == TextureFormat.Unknown ) continue;
+			Assert.AreEqual( format, Source2Formats.From( format.ToEngine() ), format.ToString() );
+		}
+
+		Assert.AreEqual( TextureFormat.Unknown, Source2Formats.From( ImageFormat.BC7 ) );
 	}
 
 	[TestMethod]

@@ -174,7 +174,7 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 		var gamma = ui && RenderPipeline.UIGammaBlend;
 		RenderTarget scratch = null;
 
-		if ( gamma && ViewTarget.IsFloatFormat( target.ColorFormat ) )
+		if ( gamma && Source2Formats.From( target.ColorFormat ).IsFloat() )
 		{
 			scratch = RenderTarget.GetTemporary( (int)target.Size.x, (int)target.Size.y, ImageFormat.RGBA16161616F, ImageFormat.None );
 			var rect = target.Viewport;

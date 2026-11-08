@@ -237,7 +237,7 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Set a texture and invalidate the material bind.
 	/// </summary>
-	public void Set( StringToken name, Texture value )
+	public void Set( StringToken name, GpuTexture value )
 	{
 		Attributes.Set( name, value );
 		ResetMaterialBind();
@@ -515,14 +515,14 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Whether a texture is loaded and has GPU data.
 	/// </summary>
-	public static bool HasData( Texture texture ) => texture is not null && texture.native.IsValid;
+	public static bool HasData( GpuTexture texture ) => texture is { IsValid: true };
 
 	/// <summary>
 	/// Bindless sRGB view index using the texture's native dimension (<c>GetTextureViewIndex</c>).
 	/// </summary>
-	public static uint BindlessIndex( Texture texture )
+	public static uint BindlessIndex( GpuTexture texture )
 	{
-		return (uint)g_pRenderDevice.GetTextureViewIndex( texture.native, (byte)RenderColorSpace.RENDER_SRGB, RenderTextureDimension.RENDER_TEXTURE_DIMENSION_INVALID );
+		return (uint)texture.ViewIndex( true, TextureViewDimension.Default );
 	}
 
 	/// <summary>
@@ -647,10 +647,10 @@ internal sealed class RenderContext : IDisposable
 		if ( !output.HasCopy ) return;
 
 		Invalidate();
-		if ( output.Texture is { } texture ) RenderTools.BindColorAndDepthTarget( context, (output.Scratch ?? texture).native, default, !ViewTarget.IsFloatFormat( texture.ImageFormat ) );
+		if ( output.Texture is { } texture ) RenderTools.BindColorAndDepthTarget( context, (output.Scratch ?? texture).Native(), default, !texture.Format.IsFloat() );
 		else context.BindRenderTargets( output.SwapChain, true, false );
 
-		RenderTools.BlitTexture( context, output.Target.Resolved.native, (int)viewport.Left, (int)viewport.Top, (int)viewport.Width, (int)viewport.Height, 0 );
+		RenderTools.BlitTexture( context, output.Target.Resolved.Native(), (int)viewport.Left, (int)viewport.Top, (int)viewport.Width, (int)viewport.Height, 0 );
 	}
 
 	/// <summary>
@@ -660,8 +660,8 @@ internal sealed class RenderContext : IDisposable
 	{
 		if ( output.Texture is { } texture )
 		{
-			srgbWrite = !ViewTarget.IsFloatFormat( texture.ImageFormat );
-			return (output.Scratch ?? texture).native;
+			srgbWrite = !texture.Format.IsFloat();
+			return (output.Scratch ?? texture).Native();
 		}
 
 		if ( (IntPtr)output.SwapChain != IntPtr.Zero )
@@ -671,7 +671,7 @@ internal sealed class RenderContext : IDisposable
 		}
 
 		srgbWrite = output.Target.SrgbWrite;
-		return output.Target.Samples > 1 ? output.Target.Resolved.native : output.Target.Color.native;
+		return output.Target.Samples > 1 ? output.Target.Resolved.Native() : output.Target.Color.Native();
 	}
 
 	/// <summary>
@@ -682,7 +682,7 @@ internal sealed class RenderContext : IDisposable
 		if ( output.Target is not { Samples: > 1 } target ) return;
 
 		var rect = new NativeRect( 0, 0, target.Size.x, target.Size.y );
-		RenderTools.ResolveFrameBuffer( context, target.Resolved.native, rect );
+		RenderTools.ResolveFrameBuffer( context, target.Resolved.Native(), rect );
 	}
 
 	/// <summary>
@@ -693,26 +693,26 @@ internal sealed class RenderContext : IDisposable
 		if ( output.Scratch is not { } scratch || output.Texture is not { } texture ) return;
 
 		Invalidate();
-		RenderTools.BindColorAndDepthTarget( context, scratch.native, default, !ViewTarget.IsFloatFormat( texture.ImageFormat ) );
-		RenderTools.ResolveFrameBuffer( context, texture.native, new NativeRect( 0, 0, texture.Width, texture.Height ) );
+		RenderTools.BindColorAndDepthTarget( context, scratch.Native(), default, !texture.Format.IsFloat() );
+		RenderTools.ResolveFrameBuffer( context, texture.Native(), new NativeRect( 0, 0, texture.Width, texture.Height ) );
 	}
 
 	/// <summary>
 	/// Copy the first array slices or cube faces between equal-sized textures.
 	/// </summary>
-	public void CopyTexture( Texture source, Texture destination, int slices )
+	public void CopyTexture( GpuTexture source, GpuTexture destination, int slices )
 	{
 		var rect = new NativeRect( 0, 0, source.Width, source.Height );
 		for ( uint slice = 0; slice < slices; slice++ )
-			RenderTools.CopyTexture( context, source.native, destination.native, rect, 0, 0, 0, slice, 0, slice );
+			RenderTools.CopyTexture( context, source.Native(), destination.Native(), rect, 0, 0, 0, slice, 0, slice );
 	}
 
 	/// <summary>
 	/// Transition depth to writable after prior pixel-shader reads.
 	/// </summary>
-	public void BarrierToDepthWrite( Texture depth )
+	public void BarrierToDepthWrite( GpuTexture depth )
 	{
-		context.TextureBarrierTransition( depth.native, -1, RenderBarrierPipelineStageFlags_t.FragmentShaderBit,
+		context.TextureBarrierTransition( depth.Native(), -1, RenderBarrierPipelineStageFlags_t.FragmentShaderBit,
 			RenderBarrierPipelineStageFlags_t.EarlyFragmentTestsBit | RenderBarrierPipelineStageFlags_t.LateFragmentTestsBit,
 			RenderImageLayout_t.RENDER_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 0,
 			RenderBarrierAccessFlags_t.DepthStencilAttachmentReadBit | RenderBarrierAccessFlags_t.DepthStencilAttachmentWriteBit );
@@ -722,9 +722,9 @@ internal sealed class RenderContext : IDisposable
 	/// Make a depth texture that was just rendered readable by compute on the async queue, in the layout a compute bind reads it
 	/// in, so the compute queue has no transition of its own to make.
 	/// </summary>
-	public void BarrierToComputeRead( Texture depth )
+	public void BarrierToComputeRead( GpuTexture depth )
 	{
-		context.TextureBarrierTransition( depth.native, -1, RenderBarrierPipelineStageFlags_t.LateFragmentTestsBit,
+		context.TextureBarrierTransition( depth.Native(), -1, RenderBarrierPipelineStageFlags_t.LateFragmentTestsBit,
 			RenderBarrierPipelineStageFlags_t.ComputeShaderBit, RenderImageLayout_t.RENDER_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 			RenderBarrierAccessFlags_t.DepthStencilAttachmentWriteBit, RenderBarrierAccessFlags_t.ShaderReadBit );
 	}
@@ -733,9 +733,9 @@ internal sealed class RenderContext : IDisposable
 	/// Make a colour target that was just drawn readable by compute on the async queue, as <see cref="BarrierToComputeRead"/>
 	/// does depth.
 	/// </summary>
-	public void BarrierColorToComputeRead( Texture texture )
+	public void BarrierColorToComputeRead( GpuTexture texture )
 	{
-		context.TextureBarrierTransition( texture.native, -1, RenderBarrierPipelineStageFlags_t.ColorAttachmentOutputBit,
+		context.TextureBarrierTransition( texture.Native(), -1, RenderBarrierPipelineStageFlags_t.ColorAttachmentOutputBit,
 			RenderBarrierPipelineStageFlags_t.ComputeShaderBit, RenderImageLayout_t.RENDER_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 			RenderBarrierAccessFlags_t.ColorAttachmentWriteBit, RenderBarrierAccessFlags_t.ShaderReadBit );
 	}
@@ -744,9 +744,9 @@ internal sealed class RenderContext : IDisposable
 	/// Make a texture compute wrote readable by pixel shaders, as <c>ResourceState.PixelShaderResource</c> does - without
 	/// <c>Graphics</c>, so a worker thread can record it.
 	/// </summary>
-	public void BarrierComputeToPixelShaderRead( Texture texture )
+	public void BarrierComputeToPixelShaderRead( GpuTexture texture )
 	{
-		context.TextureBarrierTransition( texture.native, -1, RenderBarrierPipelineStageFlags_t.ComputeShaderBit,
+		context.TextureBarrierTransition( texture.Native(), -1, RenderBarrierPipelineStageFlags_t.ComputeShaderBit,
 			RenderBarrierPipelineStageFlags_t.FragmentShaderBit, RenderImageLayout_t.RENDER_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 			RenderBarrierAccessFlags_t.ShaderWriteBit, RenderBarrierAccessFlags_t.ShaderReadBit );
 	}
@@ -754,9 +754,9 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Make a depth texture that was just rendered readable by pixel shaders.
 	/// </summary>
-	public void BarrierToPixelShaderRead( Texture depth )
+	public void BarrierToPixelShaderRead( GpuTexture depth )
 	{
-		context.TextureBarrierTransition( depth.native, -1, RenderBarrierPipelineStageFlags_t.LateFragmentTestsBit,
+		context.TextureBarrierTransition( depth.Native(), -1, RenderBarrierPipelineStageFlags_t.LateFragmentTestsBit,
 			RenderBarrierPipelineStageFlags_t.FragmentShaderBit, RenderImageLayout_t.RENDER_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 			RenderBarrierAccessFlags_t.DepthStencilAttachmentWriteBit, RenderBarrierAccessFlags_t.ShaderReadBit );
 	}
@@ -951,14 +951,14 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Resolve depth and build min/max mips, as native's pipeline does (<see cref="SharedPasses.BuildDepthChain"/>).
 	/// </summary>
-	public void BuildDepthChain( Texture depth, bool multisampled, Texture chain, int width, int height, DepthResolveMode resolve = DepthResolveMode.Sample0 )
+	public void BuildDepthChain( GpuTexture depth, bool multisampled, GpuTexture chain, int width, int height, DepthResolveMode resolve = DepthResolveMode.Sample0 )
 	{
 		Invalidate();
-		SharedPasses.BuildDepthChain( context, depth, chain, multisampled, width, height, resolve, fuseResolve: !AsyncCompute );
+		SharedPasses.BuildDepthChain( context, depth.Engine(), chain.Engine(), multisampled, width, height, resolve, fuseResolve: !AsyncCompute );
 		// Finish the producer's layout transition before graphics and compute sample the chain concurrently.
 		if ( AsyncCompute )
 		{
-			context.TextureBarrierTransition( chain.native, -1, RenderBarrierPipelineStageFlags_t.ComputeShaderBit,
+			context.TextureBarrierTransition( chain.Native(), -1, RenderBarrierPipelineStageFlags_t.ComputeShaderBit,
 				RenderBarrierPipelineStageFlags_t.ComputeShaderBit, RenderImageLayout_t.RENDER_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 				RenderBarrierAccessFlags_t.ShaderWriteBit, RenderBarrierAccessFlags_t.ShaderReadBit );
 		}
@@ -976,10 +976,10 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Resolve an occlusion debug grid for the overlay after the late cull.
 	/// </summary>
-	public void ResolveOcclusionDebug( Sandbox.Rendering.OcclusionDebugTarget debug, Texture chain, bool frozen )
+	public void ResolveOcclusionDebug( Sandbox.Rendering.OcclusionDebugTarget debug, GpuTexture chain, bool frozen )
 	{
 		Invalidate();
-		debug.Resolve( context, chain, native: false, frozen );
+		debug.Resolve( context, chain.Engine(), native: false, frozen );
 	}
 
 	static readonly StringToken SourceDepth = new( "SourceDepth" );
@@ -987,14 +987,14 @@ internal sealed class RenderContext : IDisposable
 	static readonly StringToken FrameBufferCopyRectangle = new( "FrameBufferCopyRectangle" );
 
 	// Lazy frame copy for the active translucent layer.
-	Texture frameBufferCopy;
+	GpuTexture frameBufferCopy;
 	Rect frameBufferCopyViewport;
 	bool frameBufferCopied;
 
 	/// <summary>
 	/// Enable one lazy frame copy for this translucent layer (<c>sc_max_framebuffer_copies_per_layer</c>).
 	/// </summary>
-	public void BeginFrameBufferReads( Texture copy, Rect viewport )
+	public void BeginFrameBufferReads( GpuTexture copy, Rect viewport )
 	{
 		frameBufferCopy = copy;
 		frameBufferCopyViewport = viewport;
@@ -1017,7 +1017,7 @@ internal sealed class RenderContext : IDisposable
 
 		ResetMaterialBind();
 		var viewport = frameBufferCopyViewport;
-		RenderTools.MakeFrameBufferCopy( context, frameBufferCopy.native, (int)viewport.Left, (int)viewport.Top, (int)viewport.Width, (int)viewport.Height );
+		RenderTools.MakeFrameBufferCopy( context, frameBufferCopy.Native(), (int)viewport.Left, (int)viewport.Top, (int)viewport.Width, (int)viewport.Height );
 
 		Attributes.Set( FrameBufferCopyTexture, frameBufferCopy );
 		Attributes.Set( FrameBufferCopyRectangle, new Vector4( 0, 0, viewport.Width / frameBufferCopy.Width, viewport.Height / frameBufferCopy.Height ) );
@@ -1026,7 +1026,7 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Quarter-resolution depth blit (<see cref="SharedPasses.DownsampleQuarterDepth"/>), with isolated combos and context view constants.
 	/// </summary>
-	public void DownsampleQuarterDepth( Graphics.ManagedView target, Texture depth, bool multisampled )
+	public void DownsampleQuarterDepth( Graphics.ManagedView target, GpuTexture depth, bool multisampled )
 	{
 		Invalidate();
 
@@ -1043,13 +1043,13 @@ internal sealed class RenderContext : IDisposable
 	/// <summary>
 	/// Render a contact-shadow mask using <c>ContactShadows.Render</c>. Direction points toward the sun.
 	/// </summary>
-	public void RenderContactShadows( Graphics.ManagedView frame, Texture mask, Matrix worldToProjection, Vector3 lightDirection, float shadowHardness,
+	public void RenderContactShadows( Graphics.ManagedView frame, GpuTexture mask, Matrix worldToProjection, Vector3 lightDirection, float shadowHardness,
 		Sandbox.Rendering.ContactShadows.Steps steps = Sandbox.Rendering.ContactShadows.Steps.All )
 	{
 		Invalidate();
 		using ( new Graphics.Scope( context, frame ) )
 		{
-			Sandbox.Rendering.ContactShadows.Render( mask, worldToProjection, lightDirection, shadowHardness, steps );
+			Sandbox.Rendering.ContactShadows.Render( mask.Engine(), worldToProjection, lightDirection, shadowHardness, steps );
 		}
 	}
 

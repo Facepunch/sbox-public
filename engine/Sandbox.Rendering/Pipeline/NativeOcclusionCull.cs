@@ -151,7 +151,7 @@ internal sealed class NativeOcclusionCull : IDisposable
 		if ( !earlyPass && !frozen )
 		{
 			// Our SourceDepth comes from the scene render target system
-			SharedPasses.BuildDepthChain( Graphics.Context, null, current.Chain, msaaInput, (int)viewport.Rect.Width, (int)viewport.Rect.Height, DepthResolveMode.ConservativeQuarter );
+			SharedPasses.BuildDepthChain( Graphics.Context, null, current.Chain.Engine(), msaaInput, (int)viewport.Rect.Width, (int)viewport.Rect.Height, DepthResolveMode.ConservativeQuarter );
 			history?.KeepFrozen( current );
 		}
 
@@ -198,7 +198,7 @@ internal sealed class NativeOcclusionCull : IDisposable
 		context.BufferBarrierTransition( args.native, ComputeStage, DrawIndirect, Write, RenderBarrierAccessFlags_t.IndirectCommandReadBit );
 		context.BufferBarrierTransition( culledIds.native, ComputeStage, VertexInput, Write, RenderBarrierAccessFlags_t.VertexAttributeReadBit );
 
-		if ( !earlyPass ) debug?.Resolve( Graphics.Context, current.Chain, native: true, frozen );
+		if ( !earlyPass ) debug?.Resolve( Graphics.Context, current.Chain.Engine(), native: true, frozen );
 	}
 
 	void ReadStats()

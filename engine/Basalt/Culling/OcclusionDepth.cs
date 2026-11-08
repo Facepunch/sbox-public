@@ -4,12 +4,12 @@ namespace Basalt.Culling;
 /// A depth chain an occlusion cull tests against, and the view it was drawn from. Viewport is occlusion_cull_cs.shader's: the
 /// view's width and height in pixels, the chain's mip count, and log2 of a mip 0 texel's width in pixels.
 /// </summary>
-internal readonly record struct OcclusionDepth( Texture Chain, Vector4 Viewport, Vector2 DepthRange, Matrix WorldToProjection )
+internal readonly record struct OcclusionDepth( GpuTexture Chain, Vector4 Viewport, Vector2 DepthRange, Matrix WorldToProjection )
 {
 	/// <summary>
 	/// A chain as big as its view, as the history keeps: a mip 0 texel is a pixel.
 	/// </summary>
-	public static OcclusionDepth FullResolution( Texture chain, Vector2 depthRange, Matrix worldToProjection )
+	public static OcclusionDepth FullResolution( GpuTexture chain, Vector2 depthRange, Matrix worldToProjection )
 		=> new( chain, new Vector4( chain.Width, chain.Height, chain.Mips, 0 ), depthRange, worldToProjection );
 
 	/// <summary>
@@ -17,12 +17,12 @@ internal readonly record struct OcclusionDepth( Texture Chain, Vector4 Viewport,
 	/// a temporary one. The effects' chain isn't conservative: it only keeps MSAA sample 0, which misses alpha-to-coverage
 	/// gaps.
 	/// </summary>
-	public static OcclusionDepth Quarter( Texture chain, Rect viewport, Vector2 depthRange, Matrix worldToProjection )
+	public static OcclusionDepth Quarter( GpuTexture chain, Rect viewport, Vector2 depthRange, Matrix worldToProjection )
 	{
 		if ( chain is null )
 		{
 			var size = QuarterSize( viewport );
-			chain = SharedPasses.DepthChainTarget( size.x, size.y ).DepthTarget;
+			chain = Source2Texture.From( SharedPasses.DepthChainTarget( size.x, size.y ).DepthTarget );
 		}
 
 		// A mip 0 texel is 4 pixels wide, so w is 2

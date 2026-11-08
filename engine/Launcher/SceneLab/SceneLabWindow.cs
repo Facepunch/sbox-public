@@ -3,6 +3,8 @@ using NativeEngine;
 using Basalt;
 using Sandbox.Rendering.Bridge;
 using Basalt.Features;
+using Basalt.Gpu;
+using Basalt.Gpu.Source2;
 using Sandbox.UI;
 
 namespace Sandbox.SceneLab;
@@ -401,7 +403,7 @@ internal sealed partial class SceneLabWindow : PanelWindow
 			// A box around the grid, tall as it's wide - a room for the reflections to project onto
 			var half = MathF.Max( scene.Grid * spacing, spacing * 2 ) * 0.8f;
 			var bounds = new BBox( new Vector3( -half, -half, first.Bounds.Mins.z ), new Vector3( half, half, half ) );
-			world.Add( new EnvMapObject( Texture.Load( "textures/cubemaps/default.vtex" ), bounds, Transform.Zero ) );
+			world.Add( new EnvMapObject( Source2Texture.From( Texture.Load( "textures/cubemaps/default.vtex" ) ), bounds, Transform.Zero ) );
 		}
 
 		if ( scene.Sky is not null )
@@ -409,7 +411,7 @@ internal sealed partial class SceneLabWindow : PanelWindow
 			// What SkyBox2D sets up: the sky, and a probe of its cubemap around everything, at the lowest priority
 			var sky = Material.Load( scene.Sky );
 			world.Lighting.SkyMaterial = sky;
-			world.Add( new EnvMapObject( sky.GetTexture( "g_tSkyTexture" ), BBox.FromPositionAndSize( Vector3.Zero, int.MaxValue ), Transform.Zero )
+			world.Add( new EnvMapObject( Source2Texture.From( sky.GetTexture( "g_tSkyTexture" ) ), BBox.FromPositionAndSize( Vector3.Zero, int.MaxValue ), Transform.Zero )
 			{
 				Priority = -5,
 				Feathering = 0.01f,
@@ -441,7 +443,7 @@ internal sealed partial class SceneLabWindow : PanelWindow
 		{
 			var fog = world.Lighting.CubemapFog;
 			fog.Enabled = true;
-			fog.Texture = sky ??= SkyCube.Create();
+			fog.Texture = Source2Texture.From( sky ??= SkyCube.Create() );
 			fog.StartDistance = size * 0.05f;
 			fog.EndDistance = size * 0.8f;
 			fog.FalloffExponent = 1;
@@ -713,7 +715,7 @@ internal sealed partial class SceneLabWindow : PanelWindow
 			if ( target is null || target.Size != targetSize )
 			{
 				target?.Dispose();
-				target = ViewTarget.Create( targetSize, targetMsaa, targetFormat, name: "Scene Lab" );
+				target = ViewTarget.Create( targetSize, Source2Formats.Samples( targetMsaa.ToEngine() ), Source2Formats.From( targetFormat ), name: "Scene Lab" );
 			}
 
 			view.Viewport = new Rect( 0, 0, targetSize.x, targetSize.y );
@@ -725,7 +727,7 @@ internal sealed partial class SceneLabWindow : PanelWindow
 		}
 
 		// The panel shows the texture over the swap chain, which nothing drew into
-		if ( viewport is not null ) viewport.Style.BackgroundImage = RenderToTexture && Renderer == RendererKind.Managed ? target?.Resolved : null;
+		if ( viewport is not null ) viewport.Style.BackgroundImage = RenderToTexture && Renderer == RendererKind.Managed ? target?.Resolved.Engine() : null;
 
 		timer.EndRender( swapChain );
 		frame++;
@@ -873,7 +875,7 @@ internal sealed partial class SceneLabWindow : PanelWindow
 		if ( pixels is null ) return null;
 
 		Save( pixels, (int)size.x, (int)size.y, path );
-		Log.Info( $"Scene Lab: captured frame {frame} to {path}{(managedTarget is null ? "" : $" from a {managedTarget.Color.ImageFormat} target, {managedTarget.Samples}x MSAA")}" );
+		Log.Info( $"Scene Lab: captured frame {frame} to {path}{(managedTarget is null ? "" : $" from a {managedTarget.Color.Format} target, {managedTarget.Samples}x MSAA")}" );
 		if ( !native ) return null;
 
 		var nativePath = System.IO.Path.ChangeExtension( path, ".native.png" );
@@ -881,7 +883,7 @@ internal sealed partial class SceneLabWindow : PanelWindow
 
 		if ( managedTarget is { Samples: > 1 } )
 		{
-			var texture = reference.RenderToTexture( view, size, managedTarget.Color.MultisampleType );
+			var texture = reference.RenderToTexture( view, size, managedTarget.Color.Engine().MultisampleType );
 			pendingReference = (reference, texture, pixels, nativePath, frame + 3);
 			return null;
 		}
@@ -938,7 +940,7 @@ internal sealed partial class SceneLabWindow : PanelWindow
 	/// </summary>
 	static Color32[] ReadTarget( ViewTarget target )
 	{
-		return ViewTarget.IsFloatFormat( target.Resolved.ImageFormat ) ? FrameComparison.ReadLinear( target.Resolved ) : target.Resolved.GetPixels();
+		return target.Resolved.Format.IsFloat() ? FrameComparison.ReadLinear( target.Resolved.Engine() ) : target.Resolved.Engine().GetPixels();
 	}
 
 	private protected override void OnClosing()

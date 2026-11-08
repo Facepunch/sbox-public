@@ -73,7 +73,7 @@ internal sealed class RenderFrame
 	/// <summary>
 	/// Optional sun contact-shadow mask.
 	/// </summary>
-	public Texture ContactShadowMask { get; internal set; }
+	public GpuTexture ContactShadowMask { get; internal set; }
 
 	/// <summary>
 	/// Accumulated segment draw counts.
@@ -199,7 +199,7 @@ internal sealed class RenderFrame
 		var output = Output;
 		var target = output.Target;
 		var srgbWrite = target.SrgbWrite;
-		var stageColor = !color ? default : final ? rc.OutputColor( output, out srgbWrite ) : target.Color.native;
+		var stageColor = !color ? default : final ? rc.OutputColor( output, out srgbWrite ) : target.Color.Native();
 
 		// Retain HDR depth only when output sample counts match; resolved textures have one sample.
 		var samples = final && ((output.Texture is not null && output.Scratch is null) || (!output.HasCopy && target.Samples > 1)) ? 1 : target.Samples;
@@ -209,15 +209,15 @@ internal sealed class RenderFrame
 			Context = rc.Native,
 			Attributes = rc.Attributes,
 			Color = stageColor,
-			Depth = samples == target.Samples ? target.Depth.native : default,
-			HdrColor = final ? target.Resolved.native : target.Color.native,
+			Depth = samples == target.Samples ? target.Depth.Native() : default,
+			HdrColor = final ? target.Resolved.Native() : target.Color.Native(),
 			SrgbWrite = srgbWrite,
 			IsOutput = final,
 			Size = output.Size,
 			Viewport = View.Viewport,
 			MinZ = DepthMin,
 			MaxZ = DepthMax,
-			ColorFormat = final && output.Texture is { } texture ? texture.ImageFormat : final && output.HasCopy ? ImageFormat.RGBA8888 : target.Color.ImageFormat,
+			ColorFormat = final && output.Texture is { } texture ? texture.Engine().ImageFormat : final && output.HasCopy ? ImageFormat.RGBA8888 : target.Color.Engine().ImageFormat,
 			Samples = samples,
 		};
 	}
@@ -226,7 +226,7 @@ internal sealed class RenderFrame
 	/// The depth-normals prepass's G-buffer this frame (<see cref="RenderView.DepthNormals"/>), or null when the prepass is
 	/// depth only.
 	/// </summary>
-	internal Texture NormalsGBuffer;
+	internal GpuTexture NormalsGBuffer;
 
 	/// <summary>
 	/// How long the camera's stages took this frame (<see cref="RenderStats.StagesMs"/>).

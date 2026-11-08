@@ -27,27 +27,27 @@ public sealed class DecalObject : RenderObject
 	/// <summary>
 	/// Optional sRGB colour map. Other maps are optional and sampled linearly.
 	/// </summary>
-	public Texture Color { get; set; }
+	public GpuTexture Color { get; set; }
 
 	/// <summary>
 	/// The normal map it projects.
 	/// </summary>
-	public Texture Normal { get; set; }
+	public GpuTexture Normal { get; set; }
 
 	/// <summary>
 	/// Roughness, metalness and occlusion in one map.
 	/// </summary>
-	public Texture RoughnessMetalnessOcclusion { get; set; }
+	public GpuTexture RoughnessMetalnessOcclusion { get; set; }
 
 	/// <summary>
 	/// A height map, for parallax and coverage.
 	/// </summary>
-	public Texture Height { get; set; }
+	public GpuTexture Height { get; set; }
 
 	/// <summary>
 	/// An emission map, scaled by <see cref="EmissionEnergy"/>.
 	/// </summary>
-	public Texture Emission { get; set; }
+	public GpuTexture Emission { get; set; }
 
 	/// <summary>
 	/// Multiplies the colour; alpha is its opacity.

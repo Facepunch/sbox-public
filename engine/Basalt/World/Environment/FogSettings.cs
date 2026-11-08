@@ -200,7 +200,7 @@ public struct FogSettings
 	/// <summary>
 	/// Optional cubemap providing directional fog color. Cube arrays use their first cube.
 	/// </summary>
-	public Texture SkyTexture { get; set; }
+	public GpuTexture SkyTexture { get; set; }
 
 	/// <summary>
 	/// Color encoding stored in the sky cubemap. Ordinary HDR and RGB textures use Rgb.
@@ -270,7 +270,7 @@ public struct FogSettings
 	/// <summary>
 	/// Optional cubemap providing directional height fog color. Cube arrays use their first cube.
 	/// </summary>
-	public Texture HeightSkyTexture { get; set; }
+	public GpuTexture HeightSkyTexture { get; set; }
 
 	/// <summary>
 	/// Color encoding stored in the sky cubemap. Ordinary HDR and RGB textures use Rgb.
@@ -302,13 +302,13 @@ public struct FogSettings
 		var weight = Weight.Clamp( 0, 1 );
 		var opacity = Enabled ? MaximumOpacity.Clamp( 0, 1 ) : 0;
 		// Preserve the source texture dimension for bindless sampling.
-		var texture = SkyTexture is { IsValid: true } && SkyTexture.Desc.IsCube ? SkyTexture : null;
-		var isArray = texture?.Desc.IsArray ?? false;
+		var texture = SkyTexture is { IsValid: true, IsCube: true } ? SkyTexture : null;
+		var isArray = texture?.IsArray ?? false;
 		var skyContribution = texture is not null ? SkyContribution.Clamp( 0, 1 ) : 0;
 
 		// Preserve the source texture dimension for bindless sampling.
-		var heightTexture = HeightSkyTexture is { IsValid: true } && HeightSkyTexture.Desc.IsCube ? HeightSkyTexture : null;
-		var heightIsArray = heightTexture?.Desc.IsArray ?? false;
+		var heightTexture = HeightSkyTexture is { IsValid: true, IsCube: true } ? HeightSkyTexture : null;
+		var heightIsArray = heightTexture?.IsArray ?? false;
 		var heightSkyContribution = heightTexture is not null ? HeightSkyContribution.Clamp( 0, 1 ) : 0;
 
 		var constants = new FogConstants();
@@ -376,13 +376,13 @@ public struct FogSettings
 	/// <summary>
 	/// Resolve the sRGB cube or array descriptor and keep its mips resident for bindless sampling.
 	/// </summary>
-	static int GetTextureIndex( Texture texture )
+	static int GetTextureIndex( GpuTexture texture )
 	{
 		if ( texture is null )
 			return -1;
 
-		texture.MarkUsed( ushort.MaxValue );
-		return g_pRenderDevice.GetTextureViewIndex( texture.native, (byte)RenderColorSpace.RENDER_SRGB, RenderTextureDimension.RENDER_TEXTURE_DIMENSION_INVALID );
+		texture.KeepResident();
+		return texture.ViewIndex( true, TextureViewDimension.Default );
 	}
 }
 

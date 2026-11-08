@@ -181,8 +181,8 @@ internal sealed partial class LightBinnerFeature
 
 			if ( decal.Color is { } color )
 			{
-				// A sheeted texture's frame data (GetSheetSequenceTextureData), as Texture.SequenceData reads it
-				var data = color.SequenceData;
+				// A sheeted texture's frame data (GetSheetSequenceTextureData)
+				var data = color.SheetData;
 				if ( data != Vector4.Zero )
 				{
 					sheet = new( data.x, data.y, data.z, data.w );
@@ -227,5 +227,5 @@ internal sealed partial class LightBinnerFeature
 	/// <summary>
 	/// A texture's bindless index through its sRGB or linear 2D view - <c>GetTextureViewIndex</c>, as native packs decals.
 	/// </summary>
-	static ulong ViewIndex( Texture texture, bool srgb ) => (ulong)(uint)g_pRenderDevice.GetTextureViewIndex( texture?.native ?? default, srgb ? (byte)1 : (byte)0, RenderTextureDimension.RENDER_TEXTURE_DIMENSION_2D );
+	static ulong ViewIndex( GpuTexture texture, bool srgb ) => (ulong)(uint)(texture?.ViewIndex( srgb, TextureViewDimension.Texture2D ) ?? Source2Texture.NoViewIndex( srgb ));
 }

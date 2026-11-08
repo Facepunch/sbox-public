@@ -49,7 +49,7 @@ public sealed class CubemapFogSettings
 	/// <summary>
 	/// Cubemap texture to use for the fog.
 	/// </summary>
-	public Texture Texture { get; set; }
+	public GpuTexture Texture { get; set; }
 
 	/// <summary>
 	/// Location of the fog.

@@ -147,13 +147,13 @@ public sealed partial class RenderSystem : IDisposable
 	ViewTarget SwapChainTarget( SwapChainHandle_t swapChain, Vector2 size )
 	{
 		var pixels = new Vector2Int( (int)size.x, (int)size.y );
-		var msaa = RenderOutput.SwapChainMultisample( swapChain );
-		if ( swapChainTarget is { } existing && existing.Size == pixels && existing.Color.MultisampleType == msaa )
+		var samples = Source2Formats.Samples( RenderOutput.SwapChainMultisample( swapChain ) );
+		if ( swapChainTarget is { } existing && existing.Size == pixels && existing.Samples == samples )
 			return existing;
 
 		// The device retains resources used by in-flight frames.
 		swapChainTarget?.Dispose();
-		swapChainTarget = ViewTarget.Create( pixels, msaa.FromEngine(), ImageFormat.RGBA16161616F, ImageFormat.D32FS8, "Basalt swap chain" );
+		swapChainTarget = ViewTarget.Create( pixels, samples, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Basalt swap chain" );
 		return swapChainTarget;
 	}
 
@@ -162,25 +162,25 @@ public sealed partial class RenderSystem : IDisposable
 	/// <summary>
 	/// Blend in an HDR intermediate, then copy to the texture for final stages (<c>CCameraRenderer::RenderToLayer</c>).
 	/// </summary>
-	internal void Render( RenderWorld world, RenderView view, Texture output, MultisampleAmount msaa, IRenderStages stages )
+	internal void Render( RenderWorld world, RenderView view, GpuTexture output, int samples, IRenderStages stages )
 	{
 		ArgumentNullException.ThrowIfNull( output );
 
 		var size = new Vector2Int( output.Width, output.Height );
-		if ( textureTarget is null || textureTarget.Size != size || textureTarget.Color.MultisampleType != msaa.ToEngine() )
+		if ( textureTarget is null || textureTarget.Size != size || textureTarget.Samples != samples )
 		{
 			textureTarget?.Dispose();
-			textureTarget = ViewTarget.Create( size, msaa, ImageFormat.RGBA16161616F, ImageFormat.D32FS8, "Basalt output" );
+			textureTarget = ViewTarget.Create( size, samples, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Basalt output" );
 		}
 
 		// Final stages use MSAA scratch, resolved after all drawing.
-		Texture scratch = null;
-		if ( msaa != MultisampleAmount.MultisampleNone )
+		GpuTexture scratch = null;
+		if ( samples > 1 )
 		{
-			if ( textureScratch is null || textureScratch.Width != size.x || textureScratch.Height != size.y || textureScratch.ImageFormat != output.ImageFormat || textureScratch.MultisampleType != msaa.ToEngine() )
+			if ( textureScratch is null || textureScratch.Size != size || textureScratch.Format != output.Format || textureScratch.Samples != samples )
 			{
 				textureScratch?.Dispose();
-				textureScratch = Texture.CreateRenderTarget().WithSize( size.x, size.y ).WithFormat( output.ImageFormat ).WithMSAA( msaa ).Create( "Basalt output scratch" );
+				textureScratch = RenderHost.Current.Device.CreateTexture( TextureDesc.Target( size.x, size.y, output.Format, samples ), "Basalt output scratch" );
 			}
 
 			scratch = textureScratch;
@@ -190,7 +190,7 @@ public sealed partial class RenderSystem : IDisposable
 	}
 
 	ViewTarget textureTarget;
-	Texture textureScratch;
+	GpuTexture textureScratch;
 
 	/// <summary>
 	/// Render and submit to a target. The viewport uses target pixels; MSAA resolves into <see cref="ViewTarget.Resolved"/>.
@@ -468,13 +468,13 @@ public sealed partial class RenderSystem : IDisposable
 		return false;
 	}
 
-	Texture frameBufferCopy;
+	GpuTexture frameBufferCopy;
 
 	/// <summary>
 	/// Persistent mipmapped RGBA16F copy (<c>FindOrCreateFrameBufferScratchTexture</c>).
 	/// Created on the main thread; the depth-aware mask reads the previous frame's second mip.
 	/// </summary>
-	internal Texture FrameBufferCopy( Rect viewport )
+	internal GpuTexture FrameBufferCopy( Rect viewport )
 	{
 		var width = (int)viewport.Width;
 		var height = (int)viewport.Height;
@@ -483,11 +483,10 @@ public sealed partial class RenderSystem : IDisposable
 		// The device retains resources used by in-flight frames.
 		frameBufferCopy?.Dispose();
 		var mips = (int)MathF.Log2( Math.Min( width, height ) ) + 1;
-		var builder = Texture.CreateRenderTarget().WithFormat( ImageFormat.RGBA16161616F ).WithSize( width, height ).WithMips( mips ).WithUAVBinding();
 
 		// Keep the general layout for compute mip writes and sampling.
-		builder._config.m_nFlags |= NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_TEXTURE_GEN_MIP_MAPS;
-		frameBufferCopy = builder.Create( "Basalt frame buffer copy" );
+		var desc = TextureDesc.Target( width, height, TextureFormat.RGBA16161616F, mips: mips ) with { Storage = true, GenerateMips = true };
+		frameBufferCopy = RenderHost.Current.Device.CreateTexture( desc, "Basalt frame buffer copy" );
 		return frameBufferCopy;
 	}
 

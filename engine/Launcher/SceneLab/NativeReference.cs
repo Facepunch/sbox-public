@@ -1,4 +1,5 @@
 using Basalt;
+using Basalt.Gpu.Source2;
 
 namespace Sandbox.SceneLab;
 
@@ -56,7 +57,7 @@ internal sealed class NativeScene : IDisposable
 					break;
 
 				case EnvMapObject envMap:
-					_ = new SceneCubemap( sceneWorld, envMap.Cubemap, envMap.ProjectionBounds, envMap.Transform, envMap.Tint, envMap.Feathering, (int)SceneCubemap.ProjectionMode.Box )
+					_ = new SceneCubemap( sceneWorld, envMap.Cubemap.Engine(), envMap.ProjectionBounds, envMap.Transform, envMap.Tint, envMap.Feathering, (int)SceneCubemap.ProjectionMode.Box )
 					{
 						Priority = envMap.Priority,
 					};
@@ -100,7 +101,7 @@ internal sealed class NativeScene : IDisposable
 
 		var fog = lighting.CubemapFog;
 		camera.CubemapFog.Enabled = fog.Enabled;
-		camera.CubemapFog.Texture = fog.Texture;
+		camera.CubemapFog.Texture = fog.Texture.Engine();
 		camera.CubemapFog.StartDistance = fog.StartDistance;
 		camera.CubemapFog.EndDistance = fog.EndDistance;
 		camera.CubemapFog.FalloffExponent = fog.FalloffExponent;

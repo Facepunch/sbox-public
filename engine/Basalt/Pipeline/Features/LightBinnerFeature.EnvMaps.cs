@@ -48,7 +48,7 @@ internal sealed partial class LightBinnerFeature
 	GpuEnvMap[] envMaps = new GpuEnvMap[8];
 	EnvMapObject[] envMapObjects = new EnvMapObject[8];
 	(uint Priority, float Size)[] envMapKeys = new (uint, float)[8];
-	Texture blackCube;
+	GpuTexture blackCube;
 
 	/// <summary>
 	/// Extract and pack probes by descending priority, then ascending size (<c>CLightBinnerStandard</c>).
@@ -143,9 +143,9 @@ internal sealed partial class LightBinnerFeature
 		for ( int i = 0; i < EnvMapCount; i++ )
 		{
 			var cubemap = envMapObjects[i].Cubemap;
-			if ( !RenderContext.HasData( cubemap ) ) cubemap = blackCube ??= Texture.Load( "dev/env_cubemap_black.vtex" );
+			if ( !RenderContext.HasData( cubemap ) ) cubemap = blackCube ??= RenderHost.Current.Device.LoadTexture( "dev/env_cubemap_black.vtex" );
 
-			cubemap.MarkUsed( ushort.MaxValue );
+			cubemap.KeepResident();
 			envMaps[i].CubemapIndex = RenderContext.BindlessIndex( cubemap );
 		}
 	}

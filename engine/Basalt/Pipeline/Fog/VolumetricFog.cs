@@ -54,9 +54,9 @@ internal sealed class VolumetricFog : IDisposable
 
 	Constants constants;
 	IntPtr constantBuffer;
-	Texture lighting, fogVolume;
-	readonly Texture[] accumulated = new Texture[2];
-	static Texture opaqueBlack;
+	GpuTexture lighting, fogVolume;
+	readonly GpuTexture[] accumulated = new GpuTexture[2];
+	static GpuTexture opaqueBlack;
 	Material computeShader;
 
 	uint frameIndex;
@@ -65,7 +65,7 @@ internal sealed class VolumetricFog : IDisposable
 	bool renderingDisabled;
 
 	float scattering, anisotropy, farClip = 1000, fadeInStart = 20, fadeInEnd = 100, indirectStrength;
-	Texture bakedTexture;
+	GpuTexture bakedTexture;
 	Vector3 boxMin, boxMax;
 
 	// Last frame's world to projection, row-vector: native keeps its transpose (m_lastViewFrustum, GetViewProjTranspose)
@@ -79,12 +79,13 @@ internal sealed class VolumetricFog : IDisposable
 	/// <summary>
 	/// Forward fog texture, or opaque black when not scattering (<c>GetFogVolumeTexture</c>).
 	/// </summary>
-	public Texture FogVolumeTexture => Active && scattering != 0.0f ? fogVolume : OpaqueBlack;
+	public GpuTexture FogVolumeTexture => Active && scattering != 0.0f ? fogVolume : OpaqueBlack;
 
 	/// <summary>
 	/// No-fog fallback: opaque black 2x2x2 (<c>SCENE_TXTR_OPAQUE_BLACK_2x2x2</c>).
 	/// </summary>
-	public static Texture OpaqueBlack => opaqueBlack ??= Texture.CreateVolume( 2, 2, 2 ).WithData( OpaqueBlackData() ).WithName( "Basalt opaque black 2x2x2" ).Finish();
+	public static GpuTexture OpaqueBlack => opaqueBlack ??= RenderHost.Current.Device.CreateTexture(
+		TextureDesc.Volume( 2, 2, 2, TextureFormat.RGBA8888 ) with { Data = OpaqueBlackData() }, "Basalt opaque black 2x2x2" );
 
 	static byte[] OpaqueBlackData()
 	{
@@ -155,16 +156,17 @@ internal sealed class VolumetricFog : IDisposable
 		scatteringAtZeroCount = FramesAtZeroScatteringBeforeSwitchingOff;
 		renderingDisabled = false;
 
-		lighting.Clear( Color.Transparent );
-		accumulated[0].Clear( Color.Transparent );
-		accumulated[1].Clear( Color.Transparent );
-		fogVolume.Clear( Color.Transparent );
+		var device = RenderHost.Current.Device;
+		device.Clear( lighting, Color.Transparent );
+		device.Clear( accumulated[0], Color.Transparent );
+		device.Clear( accumulated[1], Color.Transparent );
+		device.Clear( fogVolume, Color.Transparent );
 
 		computeShader ??= Material.Load( "materials/dev/cs_volumetric_fog.vmat" );
 		if ( constantBuffer == IntPtr.Zero ) constantBuffer = RenderContext.CreateConstantBuffer( System.Runtime.CompilerServices.Unsafe.SizeOf<Constants>() );
 	}
 
-	static Texture MakeVolume( string name ) => Texture.CreateVolume( Width, Height, Depth, ImageFormat.RGBA16161616F ).WithUAVBinding().WithName( $"Basalt {name}" ).Finish();
+	static GpuTexture MakeVolume( string name ) => RenderHost.Current.Device.CreateTexture( TextureDesc.Volume( Width, Height, Depth, TextureFormat.RGBA16161616F ) with { Storage = true }, $"Basalt {name}" );
 
 	void Release()
 	{

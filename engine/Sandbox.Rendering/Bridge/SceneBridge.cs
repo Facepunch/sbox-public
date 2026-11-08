@@ -236,9 +236,9 @@ internal sealed class SceneBridge : IManagedSceneRenderer
 		var (mirror, state) = Prepare( camera, target.Size );
 
 		// Non-float outputs need HDR blending before the copy.
-		if ( !ViewTarget.IsFloatFormat( target.ImageFormat ) )
+		if ( !Source2Formats.From( target.ImageFormat ).IsFloat() )
 		{
-			state.System.Render( mirror.World, state.View, target, MultisampleAmount.MultisampleNone, state.Stages );
+			state.System.Render( mirror.World, state.View, Source2Texture.From( target ), 1, state.Stages );
 			return true;
 		}
 
@@ -247,7 +247,7 @@ internal sealed class SceneBridge : IManagedSceneRenderer
 		{
 			state.TextureTargetDepth?.Dispose();
 			var depth = Texture.CreateRenderTarget().WithSize( target.Width, target.Height ).WithFormat( ImageFormat.D24S8 ).Create( "r_managed_scene depth" );
-			state.TextureTarget = new ViewTarget( target, depth );
+			state.TextureTarget = new ViewTarget( Source2Texture.From( target ), Source2Texture.From( depth ) );
 			state.TextureTargetColor = target;
 			state.TextureTargetDepth = depth;
 		}
@@ -308,7 +308,7 @@ internal sealed class SceneBridge : IManagedSceneRenderer
 		using var output = Texture.CreateRenderTarget().WithSize( size.x, size.y ).WithFormat( ImageFormat.RGBA8888 ).Create( "r_managed_scene_compare" );
 		(mirror, state) = Prepare( camera, size, updateExposure );
 		msaa = ((RenderMultisampleType)CSceneSystem.GetMainSwapChainMultisampleType()).FromEngine();
-		state.System.Render( mirror.World, state.View, output, msaa, state.Stages );
+		state.System.Render( mirror.World, state.View, Source2Texture.From( output ), Source2Formats.Samples( msaa.ToEngine() ), state.Stages );
 		return output.GetPixels();
 	}
 

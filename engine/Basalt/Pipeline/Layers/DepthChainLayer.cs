@@ -12,7 +12,7 @@ internal sealed class DepthChainLayer : RenderLayer
 	static readonly StringToken DepthChainName = new( "DepthChainDownsample" );
 	static readonly StringToken DepthChainPrevFrameName = new( "DepthChainDownsamplePrevFrame" );
 
-	Texture chain;
+	GpuTexture chain;
 
 	public DepthChainLayer() : base( "Hi-Z Depth Downsample" ) { }
 
@@ -36,7 +36,7 @@ internal sealed class DepthChainLayer : RenderLayer
 		var viewport = frame.View.Viewport;
 		var width = (int)viewport.Width;
 		var height = (int)viewport.Height;
-		chain = frame.System.OcclusionActive ? frame.System.OcclusionHistory.Target( width, height ) : SharedPasses.DepthChainTarget( width, height ).DepthTarget;
+		chain = frame.System.OcclusionActive ? frame.System.OcclusionHistory.Target( width, height ) : Source2Texture.From( SharedPasses.DepthChainTarget( width, height ).DepthTarget );
 		frameContext.Attributes.Set( DepthChainName, chain );
 		frameContext.Attributes.Set( DepthChainPrevFrameName, chain );
 	}

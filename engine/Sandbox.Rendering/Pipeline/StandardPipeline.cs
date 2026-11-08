@@ -144,7 +144,7 @@ internal sealed class StandardPipeline
 		camera?.ScheduleEarlyPostProcess( Stage.AfterDepthPrepass, overlap );
 
 		// Hi-Z stays on graphics so both effects can read it without waiting for each other.
-		depthDownsample.Setup( view, viewport, depth, multisampled, occlusionHistory?.Target( (int)viewport.Rect.Width, (int)viewport.Rect.Height ) );
+		depthDownsample.Setup( view, viewport, depth, multisampled, occlusionHistory?.Target( (int)viewport.Rect.Width, (int)viewport.Rect.Height ).Engine() );
 		occlusionHistory?.Keep( occlusionCull.WorldToProjection, viewport.MinZ, viewport.MaxZ );
 		depthDownsample.SignalPostProcess = overlap;
 		var depthLayer = depthDownsample.AddToView( view, viewport );

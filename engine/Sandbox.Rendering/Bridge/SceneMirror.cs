@@ -610,11 +610,11 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 
 		if ( (change & SceneObjectChange.Settings) != 0 )
 		{
-			decal.Color = source.ColorTexture;
-			decal.Normal = source.NormalTexture;
-			decal.RoughnessMetalnessOcclusion = source.RMOTexture;
-			decal.Height = source.HeightTexture;
-			decal.Emission = source.EmissionTexture;
+			decal.Color = Source2Texture.From( source.ColorTexture );
+			decal.Normal = Source2Texture.From( source.NormalTexture );
+			decal.RoughnessMetalnessOcclusion = Source2Texture.From( source.RMOTexture );
+			decal.Height = Source2Texture.From( source.HeightTexture );
+			decal.Emission = Source2Texture.From( source.EmissionTexture );
 			decal.Tint = source.Color;
 			decal.SortOrder = source.SortOrder;
 			decal.ExclusionBitMask = source.ExclusionBitMask;
@@ -637,7 +637,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 
 		if ( (change & SceneObjectChange.Settings) != 0 )
 		{
-			envMap.Cubemap = cubemap.Texture;
+			envMap.Cubemap = Source2Texture.From( cubemap.Texture );
 			envMap.ProjectionBounds = cubemap.ProjectionBounds;
 			envMap.Tint = cubemap.TintColor;
 			envMap.Feathering = cubemap.Feathering;
@@ -734,7 +734,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		var from = camera.CubemapFog;
 		var to = lighting.CubemapFog;
 		to.Enabled = from.Enabled;
-		to.Texture = from.Texture;
+		to.Texture = Source2Texture.From( from.Texture );
 		to.StartDistance = from.StartDistance;
 		to.EndDistance = from.EndDistance;
 		to.FalloffExponent = from.FalloffExponent;
@@ -755,7 +755,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		fogTo.FadeInStart = fogFrom.FadeInStart;
 		fogTo.FadeInEnd = fogFrom.FadeInEnd;
 		fogTo.IndirectStrength = fogFrom.IndirectStrength;
-		fogTo.BakedIndirectTexture = fogFrom.BakedIndirectTexture;
+		fogTo.BakedIndirectTexture = Source2Texture.From( fogFrom.BakedIndirectTexture );
 
 		SyncFogVolumes();
 	}
@@ -805,7 +805,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 					text.Append( $"; {light.Kind} light at {light.Transform.Position} colour {light.Color} radius {light.Radius} attenuation {light.Attenuation} shadows {light.CastShadows}{(light.Baked ? $" baked{(light.MixedShadows ? " with mixed shadows" : "")}" : "")}{(light.BakeIndex >= 0 ? $" bake index {light.BakeIndex}" : "")}{(light.NativePacked is null ? "" : " (native packed)")}" );
 					break;
 				case EnvMapObject envMap:
-					text.Append( $"; probe {(envMap.Cubemap is not { } cube ? "(none)" : cube.ResourcePath ?? $"{cube.Width}px {cube.ImageFormat} (made at runtime)")} box {envMap.ProjectionBounds} priority {envMap.Priority} tint {envMap.Tint}" );
+					text.Append( $"; probe {(envMap.Cubemap is not { } cube ? "(none)" : cube.Engine()?.ResourcePath ?? $"{cube.Width}px {cube.Format} (made at runtime)")} box {envMap.ProjectionBounds} priority {envMap.Priority} tint {envMap.Tint}" );
 					break;
 			}
 		}

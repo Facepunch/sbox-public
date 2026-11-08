@@ -58,8 +58,8 @@ internal class DepthPrepassLayer : MeshLayer
 		}
 
 		var target = frame.Output.Target;
-		using var gbuffer = RenderTarget.GetTemporary( (int)target.Size.x, (int)target.Size.y, ImageFormat.RGBA16161616F, ImageFormat.None, target.Color.MultisampleType.FromEngine(), 1, "NormalsGBuffer" );
-		frame.NormalsGBuffer = gbuffer.ColorTarget;
+		using var gbuffer = RenderTarget.GetTemporary( (int)target.Size.x, (int)target.Size.y, ImageFormat.RGBA16161616F, ImageFormat.None, Source2Formats.ToAmount( target.Samples ), 1, "NormalsGBuffer" );
+		frame.NormalsGBuffer = Source2Texture.From( gbuffer.ColorTarget );
 		frameContext.Attributes.Set( NormalsTextureIndex, gbuffer.ColorTarget.Index );
 		frameContext.Attributes.Set( NormalsGBuffer, gbuffer.ColorTarget );
 	}
@@ -82,7 +82,7 @@ internal class DepthPrepassLayer : MeshLayer
 	{
 		var gbuffer = frame.NormalsGBuffer;
 		if ( gbuffer is null ) frame.BindFrame( rc, color: false );
-		else frame.BeginPass( rc, frame.Target( rc, color: false, final: false ) with { Color = gbuffer.native, SrgbWrite = false } );
+		else frame.BeginPass( rc, frame.Target( rc, color: false, final: false ) with { Color = gbuffer.Native(), SrgbWrite = false } );
 
 		// The main frame already cleared skybox depth. Clearing depth also clears stencil, and the first prepass clears the
 		// G-buffer: nothing drawn reads as no normal

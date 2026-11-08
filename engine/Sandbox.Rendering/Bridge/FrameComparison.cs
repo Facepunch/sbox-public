@@ -108,7 +108,7 @@ internal static class FrameComparison
 	/// </summary>
 	public static Color32[] ReadTarget( ViewTarget target )
 	{
-		return ViewTarget.IsFloatFormat( target.Resolved.ImageFormat ) ? ReadLinear( target.Resolved ) : target.Resolved.GetPixels();
+		return target.Resolved.Format.IsFloat() ? ReadLinear( target.Resolved.Engine() ) : target.Resolved.Engine().GetPixels();
 	}
 
 	/// <summary>

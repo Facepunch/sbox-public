@@ -80,5 +80,5 @@ public sealed class VolumetricFogSettings
 	/// <summary>
 	/// A map's baked indirect light for its fog (<c>VolumetricFogController</c>), or null.
 	/// </summary>
-	public Texture BakedIndirectTexture { get; set; }
+	public GpuTexture BakedIndirectTexture { get; set; }
 }

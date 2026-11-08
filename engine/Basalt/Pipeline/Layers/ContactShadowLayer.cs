@@ -32,7 +32,7 @@ internal sealed class ContactShadowLayer : RenderLayer
 	/// Acquire a viewport-sized mask when contact shadows are enabled for a perspective game camera with a prepass.
 	/// Called before setup writes its bindless index into sun constants (<c>SceneLight.GetShadowMask</c>).
 	/// </summary>
-	internal Texture MaskFor( RenderFrame frame )
+	internal GpuTexture MaskFor( RenderFrame frame )
 	{
 		var lighting = frame.World.Lighting;
 		var view = frame.View;
@@ -44,7 +44,7 @@ internal sealed class ContactShadowLayer : RenderLayer
 		if ( width < 1 || height < 1 ) return null;
 
 		using var rt = RenderTarget.GetTemporary( width, height, ImageFormat.A8, ImageFormat.None, MultisampleAmount.MultisampleNone, 1, maskName );
-		return rt.ColorTarget;
+		return Source2Texture.From( rt.ColorTarget );
 	}
 
 	public override void Record( RenderFrame frame, RenderContext rc, ref RenderStats stats )
@@ -58,13 +58,13 @@ internal sealed class ContactShadowLayer : RenderLayer
 		graphicsView ??= new Graphics.ManagedView();
 
 		// The compute queue binds no render targets: the dispatches write the mask and read the depth chain
-		graphicsView.Color = rc.AsyncCompute ? default : target.Color.native;
-		graphicsView.Depth = rc.AsyncCompute ? default : target.Depth.native;
+		graphicsView.Color = rc.AsyncCompute ? default : target.Color.Native();
+		graphicsView.Depth = rc.AsyncCompute ? default : target.Depth.Native();
 		graphicsView.SrgbWrite = false;
 		graphicsView.Viewport = frame.View.Viewport;
 		graphicsView.MinZ = frame.DepthMin;
 		graphicsView.MaxZ = frame.DepthMax;
-		graphicsView.ColorFormat = target.Color.ImageFormat;
+		graphicsView.ColorFormat = target.Color.Engine().ImageFormat;
 		graphicsView.Msaa = target.Samples switch
 		{
 			2 => MultisampleAmount.Multisample2x,

@@ -10,7 +10,7 @@ namespace Basalt.Culling;
 internal sealed class OcclusionHistory : IDisposable
 {
 	// Last frame's chain and the view it was drawn from
-	Texture chain;
+	GpuTexture chain;
 	Matrix keptWorldToProjection;
 	Vector2 keptDepthRange;
 	bool kept;
@@ -18,7 +18,7 @@ internal sealed class OcclusionHistory : IDisposable
 
 	// The late cull's chain from the frame a freeze started, which freeze that was (<see cref="RenderHost.OcclusionFreezes"/>), and its depth
 	// once the late cull has built it
-	Texture frozenChain;
+	GpuTexture frozenChain;
 	int freeze;
 	OcclusionDepth frozen;
 
@@ -117,7 +117,7 @@ internal sealed class OcclusionHistory : IDisposable
 		IsFrozen = false;
 	}
 
-	public Texture Target( int width, int height )
+	public GpuTexture Target( int width, int height )
 	{
 		if ( chain is not null && chain.Width == width && chain.Height == height ) return chain;
 
@@ -127,10 +127,10 @@ internal sealed class OcclusionHistory : IDisposable
 		return chain;
 	}
 
-	static Texture CreateChain( int width, int height, string name )
+	static GpuTexture CreateChain( int width, int height, string name )
 	{
 		var mips = (int)Math.Log2( Math.Min( width, height ) ) + 1;
-		return Texture.CreateRenderTarget().WithFormat( ImageFormat.RG3232F ).WithSize( width, height ).WithMips( mips ).WithUAVBinding().Create( name );
+		return RenderHost.Current.Device.CreateTexture( TextureDesc.Target( width, height, TextureFormat.RG3232F, mips: mips ) with { Storage = true }, name );
 	}
 
 	public void Keep( Matrix worldToProjection, float minZ, float maxZ )

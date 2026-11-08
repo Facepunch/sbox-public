@@ -13,7 +13,7 @@ public sealed class EnvMapObject : RenderObject
 	/// <summary>
 	/// Create a transformed, box-projected cubemap probe.
 	/// </summary>
-	public EnvMapObject( Texture cubemap, BBox projectionBounds, Transform transform )
+	public EnvMapObject( GpuTexture cubemap, BBox projectionBounds, Transform transform )
 	{
 		Cubemap = cubemap;
 		this.projectionBounds = projectionBounds;
@@ -24,7 +24,7 @@ public sealed class EnvMapObject : RenderObject
 	/// <summary>
 	/// The captured cubemap. Without one it reflects black, as native's does.
 	/// </summary>
-	public Texture Cubemap { get; set; }
+	public GpuTexture Cubemap { get; set; }
 
 	/// <summary>
 	/// Local-space influence and projection bounds.
