@@ -5,7 +5,7 @@ namespace Sandbox.SceneRenderer.Gpu;
 
 /// <summary>
 /// Per-frame transforms and per-view instance IDs (<c>transform_buffer.fxc</c>).
-/// Objects write entries once; views reference them through <c>ids[first + i]</c>. See <c>docs/native/instancing.md</c>.
+/// Objects write entries once; views reference them through <c>ids[first + i]</c>. See <c>docs/reference/rendering.md</c>.
 /// </summary>
 internal sealed class TransformBuffer : IDisposable
 {

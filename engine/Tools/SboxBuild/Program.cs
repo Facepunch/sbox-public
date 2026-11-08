@@ -182,7 +182,7 @@ internal class Program
 
 	private static void AddShaderStatsCommand( RootCommand rootCommand )
 	{
-		var cmd = new Command( "shader-stats", "Compile every shader combo with AMD's Radeon GPU Analyzer and write register use and occupancy to docs/shaders/shader-stats.md" );
+		var cmd = new Command( "shader-stats", "Compile every shader combo with AMD's Radeon GPU Analyzer and write register use and occupancy to docs/reference/shader-stats.md" );
 		var asicOption = new Option<string[]>( "--asic",
 			description: "Target to analyze, repeatable. The first one gets the detailed tables",
 			getDefaultValue: () => ShaderStats.DefaultAsics )

@@ -47,7 +47,7 @@ internal interface IManagedSceneRenderer
 /// Cameras render their scene's world through the managed scene renderer when <c>r_managed_scene</c> is on. The
 /// managed renderer owns the camera's whole frame: native's post processing, UI and command lists don't run for
 /// it, and engine overlays (the console, debug overlays) are drawn over it afterwards. See
-/// docs/managed/scene-renderer.md, <i>The GameObject bridge</i>.
+/// docs/reference/managed-renderer.md, <i>The GameObject bridge</i>.
 /// </summary>
 internal static partial class ManagedSceneRendering
 {

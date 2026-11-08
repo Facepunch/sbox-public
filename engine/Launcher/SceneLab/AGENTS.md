@@ -2,8 +2,7 @@
 
 > Scope: `scenelab.exe`, the proving ground for the managed scene renderer. Last reviewed: 2026-09-29.
 > The renderer's own guide is [`engine/Sandbox.SceneRenderer/README.md`](../../Sandbox.SceneRenderer/README.md);
-> read it first. The details are in [`docs/managed/scene-renderer.md`](../../../docs/managed/scene-renderer.md)
-> (*SceneLab*, *Parity with native*, *Benchmark*).
+> read it first. What breaks it is in [managed-renderer.md](../../../docs/reference/managed-renderer.md).
 
 SceneLab is to the managed renderer what PanelGallery is to panels. It's a borderless `PanelWindow` that draws
 a `RenderWorld` into its swap chain, with panel UI over the top: a menu bar and a stats overlay. It can draw

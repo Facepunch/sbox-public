@@ -6,7 +6,7 @@ namespace Sandbox.SceneRenderer.Features;
 
 /// <summary>
 /// Sorts meshes and custom objects into layer run lists, instancing compatible neighbours.
-/// Membership and draw rules live in <c>MeshRenderFeature.Lists.cs</c>; native instancing is described in <c>docs/native/instancing.md</c>.
+/// Membership and draw rules live in <c>MeshRenderFeature.Lists.cs</c>; native instancing is described in <c>docs/reference/rendering.md</c>.
 /// </summary>
 internal sealed partial class MeshRenderFeature : RenderFeature
 {
