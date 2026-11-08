@@ -172,6 +172,17 @@ public class TerrainMaterialList : ListView
 			asset?.OpenInEditor();
 		} );
 
+		m.AddOption( "Replace With...", "swap_horiz", () =>
+		{
+			var picker = AssetPicker.Create( null, AssetType.FromExtension( "tmat" ) );
+			picker.OnAssetPicked = x =>
+			{
+				var replacement = x.FirstOrDefault()?.LoadResource<TerrainMaterial>();
+				if ( replacement is not null ) ReplaceMaterial( entry, replacement );
+			};
+			picker.Show();
+		} );
+
 		m.AddOption( "Remove", "delete", () =>
 		{
 			Terrain.Storage.Materials.Remove( entry );
@@ -180,6 +191,57 @@ public class TerrainMaterialList : ListView
 		} );
 
 		m.OpenAtCursor();
+	}
+
+	/// <summary>
+	/// Everything painted with <paramref name="from"/> becomes <paramref name="to"/>. A new material takes over the
+	/// slot; one already in the list gets the slot's texels, leaving the old slot unused. Undoable.
+	/// </summary>
+	void ReplaceMaterial( TerrainMaterial from, TerrainMaterial to )
+	{
+		var storage = Terrain.Storage;
+		var slot = storage.Materials.IndexOf( from );
+		if ( slot < 0 || from == to ) return;
+
+		var materialsBefore = storage.Materials.ToList();
+		var controlBefore = storage.ControlMap.ToArray();
+
+		var target = storage.Materials.IndexOf( to );
+		if ( target < 0 )
+		{
+			storage.Materials[slot] = to;
+		}
+		else
+		{
+			var control = storage.ControlMap;
+			for ( int i = 0; i < control.Length; i++ )
+			{
+				var m = new CompactTerrainMaterial( control[i] );
+				if ( m.BaseTextureId != slot && m.OverlayTextureId != slot ) continue;
+				if ( m.BaseTextureId == slot ) m.BaseTextureId = (byte)target;
+				if ( m.OverlayTextureId == slot ) m.OverlayTextureId = (byte)target;
+				control[i] = m.Packed;
+			}
+		}
+
+		var materialsAfter = storage.Materials.ToList();
+		var controlAfter = storage.ControlMap.ToArray();
+		Apply( materialsAfter, controlAfter );
+
+		SceneEditorSession.Active?.UndoSystem.Insert( $"Replace Terrain Material {from.ResourceName}",
+			() => Apply( materialsBefore, controlBefore ),
+			() => Apply( materialsAfter, controlAfter ) );
+	}
+
+	void Apply( List<TerrainMaterial> materials, uint[] control )
+	{
+		if ( !Terrain.IsValid() || Terrain.Storage is null ) return;
+
+		Terrain.Storage.Materials = materials.ToList();
+		control.CopyTo( Terrain.Storage.ControlMap, 0 );
+		Terrain.UpdateMaterialsBuffer();
+		Terrain.ApplyStorageChanges( Terrain.SyncFlags.Control, new RectInt( 0, 0, Terrain.Storage.Resolution, Terrain.Storage.Resolution ) );
+		BuildItems();
 	}
 
 	public void BuildItems()
