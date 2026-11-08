@@ -27,11 +27,6 @@ internal sealed class BloomLayer : MeshLayer
 	/// </summary>
 	internal Rect Viewport { get; private set; }
 
-	/// <summary>
-	/// Graphics view for the depth downsample blit.
-	/// </summary>
-	internal Graphics.ManagedView GraphicsView { get; private set; }
-
 	public BloomLayer() : base( "Bloom Layer" )
 	{
 		ShaderMode = ForwardMode;
@@ -53,24 +48,13 @@ internal sealed class BloomLayer : MeshLayer
 	/// </summary>
 	public override void BeforeSegments( RenderFrame frame, GpuContext frameContext )
 	{
+		SharedPasses.WarmUp();
 		var viewport = frame.View.Viewport;
 		Viewport = new Rect( (int)(viewport.Left / 4), (int)(viewport.Top / 4), (int)(viewport.Width / 4), (int)(viewport.Height / 4) );
 		var transients = frame.System.Transients;
 		BloomColor = transients.Get( TextureDesc.Target( (int)Viewport.Width, (int)Viewport.Height, TextureFormat.RGBA1010102 ) with { Storage = true }, "Bloom" );
 		BloomDepth = transients.Get( TextureDesc.Target( (int)Viewport.Width, (int)Viewport.Height, TextureFormat.D32 ), "Bloom Depth" );
 		frameContext.Attributes.Set( BloomInput, BloomColor );
-
-		GraphicsView ??= new Graphics.ManagedView();
-		GraphicsView.Color = BloomColor.Native();
-		GraphicsView.Depth = BloomDepth.Native();
-		GraphicsView.SrgbWrite = false;
-		GraphicsView.Viewport = Viewport;
-		GraphicsView.MinZ = frame.DepthMin;
-		GraphicsView.MaxZ = frame.DepthMax;
-		GraphicsView.ColorFormat = ImageFormat.RGBA1010102;
-		GraphicsView.Msaa = MultisampleAmount.MultisampleNone;
-		GraphicsView.LayerType = SceneLayerType.Opaque;
-		GraphicsView.ShaderMode = ForwardMode;
 	}
 
 	/// <summary>
@@ -99,12 +83,6 @@ internal sealed class BloomLayer : MeshLayer
 		frame.BeginPass( rc, TargetFor( frame, rc ) );
 		if ( start ) rc.Clear( Color.Transparent, clearColor: true, clearDepth: false );
 	}
-
-	public override void Dispose()
-	{
-		GraphicsView?.Dispose();
-		GraphicsView = null;
-	}
 }
 
 /// <summary>
@@ -132,6 +110,6 @@ internal sealed class QuarterDepthDownsampleLayer : RenderLayer
 		rc.Clear( Color.Transparent, clearColor: false, clearDepth: true );
 
 		var hdr = frame.Output.Target;
-		rc.DownsampleQuarterDepth( bloom.GraphicsView, hdr.Depth, hdr.Samples > 1 );
+		SharedPasses.DownsampleQuarterDepth( rc, hdr.Depth, hdr.Samples > 1 );
 	}
 }

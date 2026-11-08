@@ -1,4 +1,3 @@
-using Sandbox.Rendering;
 using System.Threading;
 
 namespace Basalt.Culling;
@@ -39,9 +38,9 @@ internal sealed class OcclusionHistory : IDisposable
 	public bool IsFrozen { get; private set; }
 
 	/// <summary>
-	/// This frame's debug target, or null when not debugging.
+	/// This frame's debug output, or null when not debugging.
 	/// </summary>
-	public OcclusionDebugTarget Debug { get; private set; }
+	public OcclusionDebugOutput Debug { get; private set; }
 
 	/// <summary>
 	/// Only the first view in a frame may use history, so stereo views can't change it between early and late culls.
@@ -72,8 +71,8 @@ internal sealed class OcclusionHistory : IDisposable
 			return;
 		}
 
-		Debug ??= new OcclusionDebugTarget();
-		Debug.Resize( viewport );
+		Debug ??= host.CreateOcclusionDebug();
+		Debug?.Resize( viewport );
 	}
 
 	/// <summary>

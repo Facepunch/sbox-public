@@ -1,5 +1,7 @@
 using System;
+using Basalt;
 using Basalt.Gpu;
+using Basalt.Gpu.Source2;
 
 namespace EngineTests;
 
@@ -52,11 +54,19 @@ public class DownsampleSpdTest
 		for ( int i = 0; i < depth.Length; i++ ) depth[i] = random.Float();
 
 		using var source = Texture.Create( width, height, ImageFormat.R32F ).WithData<float>( depth ).Finish();
-		using var chain = SharedPasses.DepthChainTarget( width, height );
+		using var chain = Sandbox.Rendering.Pipeline.SharedPasses.DepthChainTarget( width, height );
 
-		using ( Graphics.Scope.Create() )
+		// Basalt's fuses the resolve off the async compute queue; native's pipeline can resolve first on the graphics queue
+		if ( fuseResolve )
 		{
-			SharedPasses.BuildDepthChain( Graphics.Context, source, chain.DepthTarget, false, width, height, fuseResolve: fuseResolve );
+			Record( context => SharedPasses.BuildDepthChain( context, Source2Texture.From( source ), Source2Texture.From( chain.DepthTarget ), false, width, height ) );
+		}
+		else
+		{
+			using ( Graphics.Scope.Create() )
+			{
+				Sandbox.Rendering.Pipeline.SharedPasses.BuildDepthChain( Graphics.Context, source, chain.DepthTarget, false, width, height, fuseResolve: false );
+			}
 		}
 
 		AssertChain( chain.DepthTarget, depth.Select( d => new Vector2( d, d ) ).ToArray(), width, height, Graphics.DownsampleMethod.MinMax );
@@ -78,12 +88,9 @@ public class DownsampleSpdTest
 
 		int quarterWidth = (width + 3) / 4, quarterHeight = (height + 3) / 4;
 		using var source = Texture.Create( width, height, ImageFormat.R32F ).WithData<float>( depth ).Finish();
-		using var chain = SharedPasses.DepthChainTarget( quarterWidth, quarterHeight );
+		using var chain = Sandbox.Rendering.Pipeline.SharedPasses.DepthChainTarget( quarterWidth, quarterHeight );
 
-		using ( Graphics.Scope.Create() )
-		{
-			SharedPasses.BuildDepthChain( Graphics.Context, source, chain.DepthTarget, false, width, height, DepthResolveMode.ConservativeQuarter );
-		}
+		Record( context => SharedPasses.BuildDepthChain( context, Source2Texture.From( source ), Source2Texture.From( chain.DepthTarget ), false, width, height, DepthResolveMode.ConservativeQuarter ) );
 
 		// Edge blocks only cover the texels that exist
 		var expected = new Vector2[quarterWidth * quarterHeight];
@@ -101,6 +108,17 @@ public class DownsampleSpdTest
 		}
 
 		AssertChain( chain.DepthTarget, expected, quarterWidth, quarterHeight, Graphics.DownsampleMethod.MinMax );
+	}
+
+	/// <summary>
+	/// Record into a Basalt context of its own and submit it.
+	/// </summary>
+	static void Record( Action<GpuContext> record )
+	{
+		using var context = RenderHost.Current.Device.CreateContext();
+		context.Begin();
+		record( context );
+		context.SubmitNext();
 	}
 
 	static void RequireVulkan()

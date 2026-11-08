@@ -1,5 +1,3 @@
-using NativeEngine;
-
 namespace Basalt.Gpu;
 
 internal enum DepthResolveMode
@@ -12,102 +10,162 @@ internal enum DepthResolveMode
 }
 
 /// <summary>
-/// Passes and targets this renderer and native's pipeline (<c>NativeRenderPipeline</c>) share, so the two
-/// build them the same way: the depth chain, quarter-resolution depth, and the bloom and refraction stencil targets.
+/// Depth passes several layers share, built the same way native's pipeline builds them and from the same shaders: the
+/// depth chain, its min/max downsample, and quarter-resolution depth.
 /// </summary>
 internal static class SharedPasses
 {
-	static readonly ComputeShader DepthResolveCompute = new( "shaders/depthresolve_cs.shader" );
-	static readonly Material DepthResolve = Material.FromShader( "shaders/depthresolve.shader" );
+	static GpuMaterial depthResolveCompute, depthResolve, spd;
+
+	static GpuMaterial DepthResolveCompute => depthResolveCompute ??= RenderHost.Current.Device.MaterialFromShader( "shaders/depthresolve_cs.shader" );
+	static GpuMaterial DepthResolve => depthResolve ??= RenderHost.Current.Device.MaterialFromShader( "shaders/depthresolve.shader" );
+	static GpuMaterial Spd => spd ??= RenderHost.Current.Device.MaterialFromShader( "downsample_spd" );
 
 	/// <summary>
-	/// The depth chain's target for a viewport this size: a temporary RG32F texture with every mip, never multisampled.
+	/// Make the shaders on the main thread, before anything records with them. Layers call it before their segments.
+	/// </summary>
+	public static void WarmUp()
+	{
+		_ = DepthResolveCompute;
+		_ = DepthResolve;
+		_ = Spd;
+	}
+
+	static readonly StringToken SourceDepth = new( "SourceDepth" );
+	static readonly StringToken DestDepth = new( "DestDepth" );
+	static readonly StringToken Msaa = new( "D_MSAA" );
+	static readonly StringToken ConservativeQuarter = new( "D_CONSERVATIVE_QUARTER" );
+	static readonly StringToken DepthResolveSourceSize = new( "DepthResolveSourceSize" );
+	static readonly StringToken Upscale = new( "D_UPSCALE" );
+	static readonly StringToken DownsampleFactor = new( "DownsampleFactor" );
+	static readonly StringToken DownsampleMethod = new( "D_DOWNSAMPLE_METHOD" );
+	static readonly StringToken FusedDepth = new( "D_FUSED_DEPTH" );
+	static readonly StringToken Mip0Out = new( "Mip0Out" );
+	static readonly StringToken SourceSize = new( "SourceSize" );
+	static readonly StringToken MipCount = new( "MipCount" );
+	static readonly StringToken[] SpdMips = [new( "Mip0" ), new( "Mip1" ), new( "Mip2" ), new( "Mip3" ), new( "Mip4" ), new( "Mip5" ), new( "Mip6" )];
+	static readonly StringToken ForwardMode = new( "Forward" );
+
+	/// <summary>
+	/// <c>downsample_spd</c>'s min/max method (the engine's <c>Graphics.DownsampleMethod.MinMax</c>).
+	/// </summary>
+	const int MinMax = 5;
+
+	/// <summary>
+	/// The depth chain's target for a viewport this size: RG32F with every mip, never multisampled.
 	/// </summary>
 	public static TextureDesc DepthChainDesc( int width, int height ) => TextureDesc.Target( width, height, TextureFormat.RG3232F, mips: (int)Math.Log2( Math.Min( width, height ) ) + 1 ) with { Storage = true };
 
 	/// <summary>
-	/// The depth chain's target as an engine temporary, for native's pipeline.
-	/// </summary>
-	public static RenderTarget DepthChainTarget( int width, int height )
-	{
-		var numMips = (int)Math.Log2( Math.Min( width, height ) ) + 1;
-		return RenderTarget.GetTemporary( width, height, ImageFormat.None, ImageFormat.RG3232F, MultisampleAmount.MultisampleNone, numMips );
-	}
-
-	/// <summary>
 	/// Build the depth chain into <paramref name="destDepth"/>: the depth resolved into its first mip, then min and max
-	/// downsampled into the rest. <paramref name="sourceDepth"/> is the depth to read, or null for what the native layer
-	/// binds as <c>SourceDepth</c>.
+	/// downsampled into the rest.
 	/// </summary>
-	public static void BuildDepthChain( IRenderContext context, Texture sourceDepth, Texture destDepth, bool msaaInput, int width, int height, DepthResolveMode resolve = DepthResolveMode.Sample0, bool fuseResolve = true )
+	public static void BuildDepthChain( GpuContext context, GpuTexture sourceDepth, GpuTexture destDepth, bool msaaInput, int width, int height, DepthResolveMode resolve = DepthResolveMode.Sample0 )
 	{
+		context.Invalidate();
+
 		// The first six mips come from the depth itself in one dispatch, no pass resolving it first. Not on the async compute
 		// queue, where the one heavy dispatch left graphics slower than the resolve and downsample as two lighter ones
-		if ( resolve == DepthResolveMode.Sample0 && Math.Min( width, height ) >= 2 && destDepth.Mips > 1 && fuseResolve )
+		if ( resolve == DepthResolveMode.Sample0 && Math.Min( width, height ) >= 2 && destDepth.Mips > 1 && !context.AsyncCompute )
 		{
-			Graphics.DownsampleSpd( context, destDepth, Graphics.DownsampleMethod.MinMax, fuseDepth: true, depth: sourceDepth, multisampled: msaaInput );
+			DownsampleSpd( context, destDepth, MinMax, fuseDepth: true, depth: sourceDepth, multisampled: msaaInput );
 			return;
 		}
 
-		var attributes = RenderAttributes.Pool.Get();
-		if ( sourceDepth is not null ) attributes.Set( "SourceDepth", sourceDepth );
-		attributes.Set( "DestDepth", destDepth );
-		attributes.SetCombo( "D_MSAA", msaaInput );
-		attributes.SetCombo( "D_CONSERVATIVE_QUARTER", resolve == DepthResolveMode.ConservativeQuarter );
+		var parameters = ParameterPool.Get();
+		if ( sourceDepth is not null ) parameters.Set( SourceDepth, sourceDepth );
+		parameters.Set( DestDepth, destDepth );
+		parameters.SetCombo( Msaa, msaaInput );
+		parameters.SetCombo( ConservativeQuarter, resolve == DepthResolveMode.ConservativeQuarter );
 
 		if ( resolve == DepthResolveMode.ConservativeQuarter )
 		{
-			attributes.Set( "DepthResolveSourceSize", new Vector2( width, height ) );
-			RenderTools.Compute( context, attributes.Get(), DepthResolveCompute.ComputeMaterial.native.GetMode(), width, height, 1 );
+			parameters.Set( DepthResolveSourceSize, new Vector2( width, height ) );
+			context.Dispatch( DepthResolveCompute, parameters, width, height, 1 );
 		}
 		else
 		{
 			// Four texels a thread
-			RenderTools.Compute( context, attributes.Get(), DepthResolveCompute.ComputeMaterial.native.GetMode(), (width + 1) / 2, (height + 1) / 2, 1 );
+			context.Dispatch( DepthResolveCompute, parameters, (width + 1) / 2, (height + 1) / 2, 1 );
 		}
 
-		RenderAttributes.Pool.Return( attributes );
-		Graphics.ComputeUavBarrier( context, destDepth );
+		ParameterPool.Return( parameters );
+		StorageBarrier( context, destDepth );
 
 		// Min/max into the rest of the mips
-		Graphics.DownsampleSpd( context, destDepth, Graphics.DownsampleMethod.MinMax );
+		DownsampleSpd( context, destDepth, MinMax );
+
+		// Finish the producer's layout transition before graphics and compute sample the chain concurrently
+		if ( context.AsyncCompute )
+			context.TextureBarrier( destDepth, GpuStage.ComputeShader, GpuAccess.ShaderWrite, GpuStage.ComputeShader, GpuAccess.ShaderRead, TextureLayout.ShaderRead );
 	}
 
 	/// <summary>
-	/// Write the depth at a quarter of the resolution into the bound depth target, from <c>SourceDepth</c> in
-	/// <paramref name="attributes"/> (<paramref name="msaaInput"/> or not) - inside a render block.
+	/// Downsample a texture's mips from <paramref name="initialMip"/> with <c>downsample_spd</c>, up to six a dispatch. Fused,
+	/// the first dispatch also resolves <paramref name="depth"/> into the first mip (the engine's <c>Graphics.DownsampleSpd</c>).
 	/// </summary>
-	public static void DownsampleQuarterDepth( RenderAttributes attributes, bool msaaInput )
+	static void DownsampleSpd( GpuContext context, GpuTexture texture, int method, int initialMip = 0, bool fuseDepth = false, GpuTexture depth = null, bool multisampled = false )
 	{
-		attributes.SetCombo( "D_MSAA", msaaInput );
-		attributes.SetCombo( "D_UPSCALE", false );
-		attributes.Set( "DownsampleFactor", 4 );
-		Graphics.Blit( DepthResolve, attributes );
-	}
+		var parameters = ParameterPool.Get();
+		parameters.SetCombo( DownsampleMethod, method );
+		parameters.SetCombo( FusedDepth, false );
+		if ( fuseDepth )
+		{
+			parameters.SetCombo( Msaa, multisampled );
+			if ( depth is not null ) parameters.Set( SourceDepth, depth );
+		}
 
-	/// <summary>Write low-resolution scene depth into a full-resolution depth target.</summary>
-	public static void UpscaleDepth( RenderAttributes attributes, bool msaaInput, Vector2 outputToSourceScale )
-	{
-		attributes.SetCombo( "D_MSAA", msaaInput );
-		attributes.SetCombo( "D_UPSCALE", true );
-		attributes.Set( "OutputToSourceScale", outputToSourceScale );
-		Graphics.Blit( DepthResolve, attributes );
+		// Down to the smaller side's 1 texel mip
+		var lastMip = Math.Min( texture.Mips - 1, System.Numerics.BitOperations.Log2( (uint)Math.Min( texture.Width, texture.Height ) ) );
+		for ( int source = initialMip; source < lastMip; )
+		{
+			int width = texture.Width >> source;
+			int height = texture.Height >> source;
+			int mipCount = Math.Min( lastMip - source, 6 );
+
+			// Mips past the count are never written, bind the last one so every slot is valid
+			for ( int i = fuseDepth ? 1 : 0; i <= 6; i++ )
+				parameters.Set( SpdMips[i], texture, source + Math.Min( i, mipCount ) );
+
+			if ( fuseDepth )
+				parameters.Set( Mip0Out, texture, source );
+			parameters.SetCombo( FusedDepth, fuseDepth );
+
+			parameters.Set( SourceSize, new Vector2Int( width, height ) );
+			parameters.Set( MipCount, mipCount );
+
+			context.Dispatch( Spd, parameters, (width + 63) / 64 * 256, (height + 63) / 64, 1 );
+			StorageBarrier( context, texture );
+
+			source += mipCount;
+			fuseDepth = false;
+		}
+
+		ParameterPool.Return( parameters );
 	}
 
 	/// <summary>
-	/// The bloom layer's target for a quarter viewport this size: a temporary RGBA1010102 colour and D32 depth. The bloom
-	/// effect blurs it in its own downsample chain.
+	/// Compute writes to a texture finish before later compute reads or writes it (the engine's <c>Graphics.ComputeUavBarrier</c>).
 	/// </summary>
-	public static RenderTarget BloomTarget( int width, int height )
+	static void StorageBarrier( GpuContext context, GpuTexture texture )
 	{
-		return RenderTarget.GetTemporary( width, height, colorFormat: ImageFormat.RGBA1010102, depthFormat: ImageFormat.D32 );
+		const GpuAccess access = GpuAccess.ShaderRead | GpuAccess.ShaderWrite;
+		context.TextureBarrier( texture, GpuStage.ComputeShader, access, GpuStage.ComputeShader, access, TextureLayout.General );
 	}
 
 	/// <summary>
-	/// The refraction stencil's target for a quarter viewport this size: a temporary D16 depth.
+	/// Write <paramref name="depth"/> at a quarter of the resolution into the bound depth target.
 	/// </summary>
-	public static RenderTarget RefractionStencilTarget( int width, int height )
+	public static void DownsampleQuarterDepth( GpuContext context, GpuTexture depth, bool msaaInput )
 	{
-		return RenderTarget.GetTemporary( width, height, colorFormat: ImageFormat.None, depthFormat: ImageFormat.D16 );
+		context.Invalidate();
+
+		var parameters = ParameterPool.Get();
+		parameters.Set( SourceDepth, depth );
+		parameters.SetCombo( Msaa, msaaInput );
+		parameters.SetCombo( Upscale, false );
+		parameters.Set( DownsampleFactor, 4 );
+		context.DrawFullscreen( DepthResolve, parameters, ForwardMode );
+		ParameterPool.Return( parameters );
 	}
 }

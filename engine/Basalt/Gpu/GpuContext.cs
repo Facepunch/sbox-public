@@ -241,15 +241,6 @@ internal abstract class GpuContext : IDisposable
 	/// <summary>Read part of a buffer back once the GPU has written it. The callback runs later, on any thread.</summary>
 	public abstract void ReadBuffer( GpuBuffer buffer, int offset, int bytes, GpuReadback callback );
 
-	/// <summary>Resolve depth and build its min/max mips.</summary>
-	public abstract void BuildDepthChain( GpuTexture depth, bool multisampled, GpuTexture chain, int width, int height, DepthResolveMode resolve = DepthResolveMode.Sample0 );
-
-	/// <summary>Zero an occlusion debug grid before the frame's first cull.</summary>
-	public abstract void ClearOcclusionDebug( Sandbox.Rendering.OcclusionDebugTarget debug );
-
-	/// <summary>Resolve an occlusion debug grid after the late cull.</summary>
-	public abstract void ResolveOcclusionDebug( Sandbox.Rendering.OcclusionDebugTarget debug, GpuTexture chain, bool frozen );
-
 	/// <summary>Allow one lazy frame copy for this translucent layer.</summary>
 	public abstract void BeginFrameBufferReads( GpuTexture copy, Rect viewport );
 
@@ -259,15 +250,17 @@ internal abstract class GpuContext : IDisposable
 	/// <summary>Copy the frame on its first reader in the layer.</summary>
 	public abstract void CopyFrameBuffer();
 
-	/// <summary>Downsample depth to quarter resolution.</summary>
-	public abstract void DownsampleQuarterDepth( Graphics.ManagedView target, GpuTexture depth, bool multisampled );
-
-	/// <summary>Render a contact-shadow mask. Direction points toward the sun.</summary>
-	public abstract void RenderContactShadows( Graphics.ManagedView frame, GpuTexture mask, Matrix worldToProjection, Vector3 lightDirection, float shadowHardness,
-		Sandbox.Rendering.ContactShadows.Steps steps = Sandbox.Rendering.ContactShadows.Steps.All );
-
 	/// <summary>Dispatch a compute material with this context's parameters.</summary>
 	public abstract void Dispatch( GpuMaterial computeShader, int x, int y, int z );
+
+	/// <summary>Dispatch a compute material with its own parameters.</summary>
+	public abstract void Dispatch( GpuMaterial computeShader, ShaderParameters parameters, int x, int y, int z );
+
+	/// <summary>Draw a material over the bound target's viewport, with its own parameters and a shader mode.</summary>
+	public abstract void DrawFullscreen( GpuMaterial material, ShaderParameters parameters, StringToken shaderMode );
+
+	/// <summary>Order accesses to a texture, leaving it in <paramref name="layout"/>.</summary>
+	public abstract void TextureBarrier( GpuTexture texture, GpuStage srcStage, GpuAccess srcAccess, GpuStage dstStage, GpuAccess dstAccess, TextureLayout layout );
 
 	/// <summary>Draw a draw call's indices with the state already bound.</summary>
 	public abstract void DrawIndexedInstanced( in RenderMesh.Draw draw, int instanceCount );

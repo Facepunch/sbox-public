@@ -42,6 +42,9 @@ public abstract class ShaderParameters
 	/// <summary>Set a shader combo.</summary>
 	public abstract void SetCombo( StringToken name, int value );
 
+	/// <summary>Set a struct of shader constants.</summary>
+	public abstract void SetData<T>( StringToken name, in T value ) where T : unmanaged;
+
 	/// <summary>Set a shader combo on or off.</summary>
 	public void SetCombo( StringToken name, bool value ) => SetCombo( name, value ? 1 : 0 );
 

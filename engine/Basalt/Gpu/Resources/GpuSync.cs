@@ -90,6 +90,24 @@ public enum GpuAccess
 }
 
 /// <summary>
+/// How a texture is laid out for its next use (<see cref="Gpu.GpuContext.TextureBarrier"/>).
+/// </summary>
+public enum TextureLayout
+{
+	/// <summary>Any access, compute writes included.</summary>
+	General,
+
+	/// <summary>Sampled by shaders.</summary>
+	ShaderRead,
+
+	/// <summary>Drawn to as a colour target.</summary>
+	ColorAttachment,
+
+	/// <summary>Tested and written as depth.</summary>
+	DepthAttachment,
+}
+
+/// <summary>
 /// A semaphore one context signals when its work is done and another waits on before starting (<see cref="GpuContext.SignalAtEnd"/>).
 /// </summary>
 public readonly record struct GpuSemaphore( IntPtr Handle );

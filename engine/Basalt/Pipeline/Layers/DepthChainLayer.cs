@@ -33,6 +33,7 @@ internal sealed class DepthChainLayer : RenderLayer
 	/// </summary>
 	public override void BeforeSegments( RenderFrame frame, GpuContext frameContext )
 	{
+		SharedPasses.WarmUp();
 		var viewport = frame.View.Viewport;
 		var width = (int)viewport.Width;
 		var height = (int)viewport.Height;
@@ -45,7 +46,7 @@ internal sealed class DepthChainLayer : RenderLayer
 	{
 		var viewport = frame.View.Viewport;
 		var target = frame.Output.Target;
-		rc.BuildDepthChain( target.Depth, target.Samples > 1, chain, (int)viewport.Width, (int)viewport.Height );
+		SharedPasses.BuildDepthChain( rc, target.Depth, chain, target.Samples > 1, (int)viewport.Width, (int)viewport.Height );
 		chain = null;
 	}
 }

@@ -114,6 +114,9 @@ internal sealed class Source2Context : GpuContext
 
 	public override unsafe void Dispose()
 	{
+		fullscreenView?.Dispose();
+		fullscreenView = null;
+
 		if ( materialBind != IntPtr.Zero )
 		{
 			NativeMemory.Free( (void*)materialBind );
@@ -848,39 +851,6 @@ internal sealed class Source2Context : GpuContext
 		context.BufferBarrierTransition( buffer.Native(), (RenderBarrierPipelineStageFlags_t)srcStage, (RenderBarrierPipelineStageFlags_t)dstStage, (RenderBarrierAccessFlags_t)srcAccess, (RenderBarrierAccessFlags_t)dstAccess );
 	}
 
-	/// <summary>
-	/// Resolve depth and build min/max mips, as native's pipeline does (<see cref="SharedPasses.BuildDepthChain"/>).
-	/// </summary>
-	public override void BuildDepthChain( GpuTexture depth, bool multisampled, GpuTexture chain, int width, int height, DepthResolveMode resolve = DepthResolveMode.Sample0 )
-	{
-		Invalidate();
-		SharedPasses.BuildDepthChain( context, depth.Engine(), chain.Engine(), multisampled, width, height, resolve, fuseResolve: !AsyncCompute );
-		// Finish the producer's layout transition before graphics and compute sample the chain concurrently.
-		if ( AsyncCompute )
-		{
-			context.TextureBarrierTransition( chain.Native(), -1, RenderBarrierPipelineStageFlags_t.ComputeShaderBit,
-				RenderBarrierPipelineStageFlags_t.ComputeShaderBit, RenderImageLayout_t.RENDER_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-				RenderBarrierAccessFlags_t.ShaderWriteBit, RenderBarrierAccessFlags_t.ShaderReadBit );
-		}
-	}
-
-	/// <summary>
-	/// Zero an occlusion debug grid before the frame's first cull.
-	/// </summary>
-	public override void ClearOcclusionDebug( Sandbox.Rendering.OcclusionDebugTarget debug )
-	{
-		Invalidate();
-		debug.Clear( context );
-	}
-
-	/// <summary>
-	/// Resolve an occlusion debug grid for the overlay after the late cull.
-	/// </summary>
-	public override void ResolveOcclusionDebug( Sandbox.Rendering.OcclusionDebugTarget debug, GpuTexture chain, bool frozen )
-	{
-		Invalidate();
-		debug.Resolve( context, chain.Engine(), native: false, frozen );
-	}
 
 	static readonly StringToken SourceDepth = new( "SourceDepth" );
 	static readonly StringToken FrameBufferCopyTexture = new( "FrameBufferCopyTexture" );
@@ -928,35 +898,6 @@ internal sealed class Source2Context : GpuContext
 		Attributes.Set( FrameBufferCopyRectangle, new Vector4( 0, 0, viewport.Width / frameBufferCopy.Width, viewport.Height / frameBufferCopy.Height ) );
 	}
 
-	/// <summary>
-	/// Quarter-resolution depth blit (<see cref="SharedPasses.DownsampleQuarterDepth"/>), with isolated combos and context view constants.
-	/// </summary>
-	public override void DownsampleQuarterDepth( Graphics.ManagedView target, GpuTexture depth, bool multisampled )
-	{
-		Invalidate();
-
-		var attributes = RenderAttributes.Pool.Get();
-		attributes.Set( SourceDepth, depth );
-		using ( new Graphics.Scope( context, target ) )
-		{
-			SharedPasses.DownsampleQuarterDepth( attributes, multisampled );
-		}
-
-		RenderAttributes.Pool.Return( attributes );
-	}
-
-	/// <summary>
-	/// Render a contact-shadow mask using <c>ContactShadows.Render</c>. Direction points toward the sun.
-	/// </summary>
-	public override void RenderContactShadows( Graphics.ManagedView frame, GpuTexture mask, Matrix worldToProjection, Vector3 lightDirection, float shadowHardness,
-		Sandbox.Rendering.ContactShadows.Steps steps = Sandbox.Rendering.ContactShadows.Steps.All )
-	{
-		Invalidate();
-		using ( new Graphics.Scope( context, frame ) )
-		{
-			Sandbox.Rendering.ContactShadows.Render( mask.Engine(), worldToProjection, lightDirection, shadowHardness, steps );
-		}
-	}
 
 	/// <summary>
 	/// Dispatch thread counts with current attributes; native converts to shader group counts.
@@ -965,6 +906,53 @@ internal sealed class Source2Context : GpuContext
 	{
 		Invalidate();
 		RenderTools.Compute( context, Attributes.Engine().Get(), computeShader.Native().GetMode(), x, y, z );
+	}
+
+	/// <summary>
+	/// Dispatch thread counts with a pass's own parameters.
+	/// </summary>
+	public override void Dispatch( GpuMaterial computeShader, ShaderParameters parameters, int x, int y, int z )
+	{
+		RenderTools.Compute( context, parameters.Engine().Get(), computeShader.Native().GetMode(), x, y, z );
+	}
+
+	Graphics.ManagedView fullscreenView;
+
+	/// <summary>
+	/// Blit over the bound target, as the engine's <c>Graphics.Blit</c> does inside a view.
+	/// </summary>
+	public override void DrawFullscreen( GpuMaterial material, ShaderParameters parameters, StringToken shaderMode )
+	{
+		var target = Bound;
+		fullscreenView ??= new Graphics.ManagedView();
+		fullscreenView.Color = target.Color.Native();
+		fullscreenView.Depth = target.Depth.Native();
+		fullscreenView.SrgbWrite = target.SrgbWrite;
+		fullscreenView.Viewport = target.Viewport;
+		fullscreenView.MinZ = target.MinZ;
+		fullscreenView.MaxZ = target.MaxZ;
+		fullscreenView.ColorFormat = Source2Formats.ToEngineOrDefault( target.ColorFormat );
+		fullscreenView.Msaa = Source2Formats.ToAmount( target.Samples );
+		fullscreenView.LayerType = SceneLayerType.Opaque;
+		fullscreenView.ShaderMode = shaderMode;
+
+		using ( new Graphics.Scope( context, fullscreenView ) )
+		{
+			Graphics.Blit( material.Engine(), parameters.Engine() );
+		}
+	}
+
+	public override void TextureBarrier( GpuTexture texture, GpuStage srcStage, GpuAccess srcAccess, GpuStage dstStage, GpuAccess dstAccess, TextureLayout layout )
+	{
+		var native = layout switch
+		{
+			TextureLayout.ShaderRead => RenderImageLayout_t.RENDER_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			TextureLayout.ColorAttachment => RenderImageLayout_t.RENDER_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+			TextureLayout.DepthAttachment => RenderImageLayout_t.RENDER_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+			_ => RenderImageLayout_t.RENDER_IMAGE_LAYOUT_GENERAL,
+		};
+		context.TextureBarrierTransition( texture.Native(), -1, (RenderBarrierPipelineStageFlags_t)srcStage, (RenderBarrierPipelineStageFlags_t)dstStage, native,
+			(RenderBarrierAccessFlags_t)srcAccess, (RenderBarrierAccessFlags_t)dstAccess );
 	}
 
 	/// <summary>

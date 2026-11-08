@@ -16,6 +16,8 @@ internal sealed class OcclusionCullLayer : RenderLayer
 	const GpuAccess Write = GpuAccess.ShaderWrite;
 	const GpuAccess Uploaded = GpuAccess.TransferWrite;
 
+	static readonly StringToken OcclusionDebugCombo = new( "D_OCCLUSION_DEBUG" );
+
 	readonly bool early;
 
 	GpuMaterial shader;
@@ -40,6 +42,7 @@ internal sealed class OcclusionCullLayer : RenderLayer
 	public override void BeforeSegments( RenderFrame frame, GpuContext frameContext )
 	{
 		shader ??= RenderHost.Current.Device.MaterialFromShader( "shaders/occlusion_cull_cs.shader" );
+		SharedPasses.WarmUp();
 		if ( early ) return;
 
 		var history = frame.System.OcclusionHistory;
@@ -56,19 +59,20 @@ internal sealed class OcclusionCullLayer : RenderLayer
 		var attributes = rc.Attributes;
 
 		// The first cull in the frame clears the debug grid
-		if ( debug is not null && (early || !culler.CullsEarly) ) rc.ClearOcclusionDebug( debug );
+		if ( debug is not null && (early || !culler.CullsEarly) ) debug.Clear( rc );
 
 		if ( !early && !frozen )
 		{
 			var viewport = frame.View.Viewport;
 			var target = frame.Output.Target;
-			rc.BuildDepthChain( target.Depth, target.Samples > 1, current.Chain, (int)viewport.Width, (int)viewport.Height, DepthResolveMode.ConservativeQuarter );
+			SharedPasses.BuildDepthChain( rc, target.Depth, current.Chain, target.Samples > 1, (int)viewport.Width, (int)viewport.Height, DepthResolveMode.ConservativeQuarter );
 			history.KeepFrozen( current );
 		}
 
 		// The early cull never reads the current depth, but something has to be bound
 		OcclusionDepth.Bind( attributes, early ? culler.Previous : current, culler.Previous );
-		OcclusionDebugTarget.Bind( attributes.Engine(), debug, frame.View.WorldToProjection );
+		attributes.SetCombo( OcclusionDebugCombo, debug is not null );
+		debug?.Bind( attributes, frame.View.WorldToProjection );
 
 		attributes.Set( "OcclusionInstances", culler.Instances );
 		attributes.Set( "OcclusionRuns", culler.Runs );
@@ -93,11 +97,7 @@ internal sealed class OcclusionCullLayer : RenderLayer
 		rc.BufferBarrier( culler.CulledIds, Compute, Write, VertexInput, GpuAccess.VertexAttributeRead );
 		if ( early ) return;
 
-		if ( debug is not null )
-		{
-			rc.ResolveOcclusionDebug( debug, current.Chain, frozen );
-			debug.ReadCounts( rc.NativeContext() );
-		}
+		debug?.Resolve( rc, current.Chain, frozen );
 
 		rc.BufferBarrier( culler.Stats, Compute, Write, Transfer, GpuAccess.TransferRead );
 		culler.ReadStats( rc );

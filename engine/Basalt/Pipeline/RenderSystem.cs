@@ -98,6 +98,16 @@ public sealed partial class RenderSystem : IDisposable
 	public RenderStats Stats { get; private set; }
 
 	/// <summary>
+	/// Make the shaders render systems share now, on the main thread, before anything renders. Layers otherwise make them
+	/// as they first render, and the first frames can draw differently.
+	/// </summary>
+	public static void WarmUp()
+	{
+		SharedPasses.WarmUp();
+		Gpu.ContactShadows.WarmUp();
+	}
+
+	/// <summary>
 	/// Create standard features and validate GPU struct layouts against native sizes.
 	/// </summary>
 	public RenderSystem()

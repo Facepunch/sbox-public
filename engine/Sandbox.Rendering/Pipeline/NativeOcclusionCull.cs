@@ -92,7 +92,7 @@ internal sealed class NativeOcclusionCull : IDisposable
 		history?.BeginFrame( true, viewport.Rect );
 		previous = history?.EarlyDepth ?? default;
 		rejectEarly = history is { RejectsEarly: true };
-		debug = history?.Debug;
+		debug = (history?.Debug as Source2OcclusionDebug)?.Target;
 		frozen = history is { IsFrozen: true };
 
 		var depthRange = new Vector2( viewport.MinZ, viewport.MaxZ );

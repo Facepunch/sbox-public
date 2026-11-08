@@ -22,6 +22,11 @@ public class RenderHost
 	public virtual bool AsyncCompute => true;
 
 	/// <summary>
+	/// Screen-space shadows from the sun, on top of its shadow maps.
+	/// </summary>
+	public virtual bool ContactShadows => true;
+
+	/// <summary>
 	/// Skip opaque meshes hidden by the depth prepass.
 	/// </summary>
 	public virtual bool OcclusionCulling => true;
@@ -35,6 +40,12 @@ public class RenderHost
 	/// What occlusion culling's debug view draws.
 	/// </summary>
 	public virtual OcclusionDebugView OcclusionDebugView => OcclusionDebugView.Off;
+
+	/// <summary>
+	/// Somewhere for occlusion culling's debug view to go, while <see cref="OcclusionDebugView"/> asks for one. Without one,
+	/// there's no debug view.
+	/// </summary>
+	internal virtual OcclusionDebugOutput CreateOcclusionDebug() => null;
 
 	/// <summary>
 	/// How the early occlusion cull runs.

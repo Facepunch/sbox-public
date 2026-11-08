@@ -1,5 +1,3 @@
-using Sandbox.Rendering;
-
 namespace Basalt;
 
 /// <summary>
@@ -8,8 +6,6 @@ namespace Basalt;
 /// </summary>
 internal sealed class ContactShadowLayer : RenderLayer
 {
-	Graphics.ManagedView graphicsView;
-
 	public ContactShadowLayer() : base( "Contact Shadows" )
 	{
 	}
@@ -34,12 +30,13 @@ internal sealed class ContactShadowLayer : RenderLayer
 		var lighting = frame.World.Lighting;
 		var view = frame.View;
 		if ( frame.Stages is null || !frame.System.DepthPrepass || !frame.System.Shadows || view.Orthographic ) return null;
-		if ( !ContactShadows.Enabled || !lighting.SunEnabled || !lighting.SunShadows || !lighting.SunContactShadows ) return null;
+		if ( !RenderHost.Current.ContactShadows || !lighting.SunEnabled || !lighting.SunShadows || !lighting.SunContactShadows ) return null;
 
 		var width = (int)view.Viewport.Width;
 		var height = (int)view.Viewport.Height;
 		if ( width < 1 || height < 1 ) return null;
 
+		ContactShadows.WarmUp();
 		return frame.System.Transients.Get( TextureDesc.Target( width, height, TextureFormat.A8 ) with { Storage = true }, "Contact Shadow Mask" );
 	}
 
@@ -50,34 +47,8 @@ internal sealed class ContactShadowLayer : RenderLayer
 
 	void Render( RenderFrame frame, GpuContext rc, ContactShadows.Steps steps )
 	{
-		var target = frame.Output.Target;
-		graphicsView ??= new Graphics.ManagedView();
-
-		// The compute queue binds no render targets: the dispatches write the mask and read the depth chain
-		graphicsView.Color = rc.AsyncCompute ? default : target.Color.Native();
-		graphicsView.Depth = rc.AsyncCompute ? default : target.Depth.Native();
-		graphicsView.SrgbWrite = false;
-		graphicsView.Viewport = frame.View.Viewport;
-		graphicsView.MinZ = frame.DepthMin;
-		graphicsView.MaxZ = frame.DepthMax;
-		graphicsView.ColorFormat = target.Color.Engine().ImageFormat;
-		graphicsView.Msaa = target.Samples switch
-		{
-			2 => MultisampleAmount.Multisample2x,
-			4 => MultisampleAmount.Multisample4x,
-			8 => MultisampleAmount.Multisample8x,
-			16 => MultisampleAmount.Multisample16x,
-			_ => MultisampleAmount.MultisampleNone,
-		};
-
 		// Native WorldDirection points toward the light.
 		var lighting = frame.World.Lighting;
-		rc.RenderContactShadows( graphicsView, frame.ContactShadowMask, frame.View.WorldToProjection, -lighting.SunDirection, lighting.SunShadowHardness, steps );
-	}
-
-	public override void Dispose()
-	{
-		graphicsView?.Dispose();
-		graphicsView = null;
+		ContactShadows.Render( rc, frame.ContactShadowMask, frame.View.WorldToProjection, -lighting.SunDirection, lighting.SunShadowHardness, steps );
 	}
 }

@@ -9,11 +9,15 @@ internal sealed class SboxRenderHost : RenderHost
 {
 	public override bool AsyncCompute => ManagedSceneRendering.AsyncCompute;
 
+	public override bool ContactShadows => Sandbox.Rendering.ContactShadows.Enabled;
+
 	public override bool OcclusionCulling => ManagedSceneRendering.Occlusion;
 
 	public override FragmentOcclusion FragmentOcclusion => (FragmentOcclusion)RenderPipeline.OcclusionAggregates;
 
 	public override Basalt.OcclusionDebugView OcclusionDebugView => (Basalt.OcclusionDebugView)OcclusionDebug.View;
+
+	internal override OcclusionDebugOutput CreateOcclusionDebug() => new Source2OcclusionDebug();
 
 	public override Basalt.OcclusionEarlyCull OcclusionEarlyCull => (Basalt.OcclusionEarlyCull)OcclusionDebug.EarlyCull;
 

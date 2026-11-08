@@ -84,7 +84,7 @@ internal sealed class NativeRenderPipeline : INativeRenderPipeline
 	/// </summary>
 	public void WarmUp()
 	{
-		RuntimeHelpers.RunClassConstructor( typeof( SharedPasses ).TypeHandle );
+		Basalt.RenderSystem.WarmUp();
 
 		foreach ( var type in typeof( NativeRenderPipeline ).Assembly.GetTypes() )
 		{
