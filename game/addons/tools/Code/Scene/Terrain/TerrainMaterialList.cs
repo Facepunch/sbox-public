@@ -74,6 +74,28 @@ public class TerrainMaterialList : ListView
 		PaintTextureTool.SplatChannel = Terrain.Storage.Materials.IndexOf( material );
 	}
 
+	int _shownChannel = -1;
+
+	/// <summary>
+	/// Keep the selected tile on the material being painted with, whoever changed it (a click here, the Alt + click
+	/// picker, another list), and scroll it into view.
+	/// </summary>
+	[EditorEvent.Frame]
+	void SyncSelection()
+	{
+		if ( !IsValid || Terrain?.Storage?.Materials is not { } materials ) return;
+
+		var channel = PaintTextureTool.SplatChannel;
+		if ( channel == _shownChannel ) return;
+		_shownChannel = channel;
+
+		if ( channel < 0 || channel >= materials.Count ) return;
+
+		var material = materials[channel];
+		SelectItem( material, skipEvents: true );
+		ScrollTo( material );
+	}
+
 	protected void OnItemDoubleClicked( object obj )
 	{
 		if ( obj is not TerrainMaterial entry ) return;
