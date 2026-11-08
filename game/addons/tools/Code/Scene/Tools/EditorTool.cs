@@ -321,6 +321,11 @@ public class EditorTool : IDisposable
 	/// </summary>
 	public virtual bool HasLassoSelectionMode() => false;
 
+	/// <summary>
+	/// If true then Alt + left click goes to this mode instead of orbiting the camera. Alt + left drag still orbits.
+	/// </summary>
+	public virtual bool HasAltClickMode() => false;
+
 	Ray _ray1;
 	Ray _ray2;
 	List<Vector2> _lassoPoints = new();

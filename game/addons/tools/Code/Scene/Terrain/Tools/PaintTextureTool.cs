@@ -30,11 +30,14 @@ public class PaintTextureTool : BaseBrushTool
 
 		Gizmo.Draw.ScreenText( material is null ? "Pick: none" : $"Pick: {material.ResourceName}", Gizmo.CursorPosition + new Vector2( 16, 16 ), "Roboto", 14, TextFlag.LeftTop );
 
-		if ( Gizmo.WasLeftMousePressed && material is not null )
+		// Picks while the button is held, so the material follows the cursor until release
+		if ( Gizmo.IsLeftMouseDown && material is not null )
 			SplatChannel = index;
 
 		return true;
 	}
+
+	public override bool HasAltClickMode() => true;
 
 	protected override void OnPaint( Terrain terrain, TerrainPaintParameters paint )
 	{

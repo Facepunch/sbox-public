@@ -599,7 +599,10 @@ public partial class SceneViewportWidget : Widget
 
 			blockCamera = !blockCamera ? modifiersDown && !rightDown : modifiersDown;
 
-			if ( modifiers.HasFlag( KeyboardModifiers.Alt ) && rightDown && GizmoInstance.Input.IsHovered && !blockCameraForToolInput )
+			// Alt + right click goes to the tool; so does Alt + left click when the tool asks for it
+			var tool = SceneView?.Tools.CurrentTool;
+			var leftToTool = Application.MouseButtons.HasFlag( MouseButtons.Left ) && (tool?.HasAltClickMode() == true || tool?.CurrentTool?.HasAltClickMode() == true);
+			if ( modifiers.HasFlag( KeyboardModifiers.Alt ) && (rightDown || leftToTool) && GizmoInstance.Input.IsHovered && !blockCameraForToolInput )
 			{
 				blockCameraForToolInput = true;
 				blockCameraMousePosition = Renderer.FromScreen( Application.CursorPosition );

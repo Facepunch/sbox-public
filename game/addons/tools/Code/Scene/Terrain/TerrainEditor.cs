@@ -439,6 +439,13 @@ internal class TerrainMaterialButton : Widget
 
 				// Draw material name on right side
 				var textRect = new Rect( thumbRect.Right + 8, LocalRect.Top, LocalRect.Right - thumbRect.Right - 12, LocalRect.Height );
+
+				// No Tiling: the layer is de-tiled (stochastic), so a visible repeat is not a texture-scale problem
+				if ( material.NoTiling )
+				{
+					Paint.SetPen( Theme.Primary );
+					Paint.DrawIcon( new Rect( LocalRect.Right - 28, LocalRect.Top + 6, 22, 22 ), "grid_off", 18, TextFlag.Center );
+				}
 				Paint.SetPen( Theme.Text );
 				Paint.SetDefaultFont( 12, 600 );
 				Paint.DrawText( textRect, material.ResourceName, TextFlag.LeftCenter | TextFlag.WrapAnywhere );
@@ -574,6 +581,16 @@ internal class TerrainMaterialGridView : ListView
 		Paint.SetDefaultFont();
 		Paint.SetPen( Theme.Text );
 		Paint.DrawText( item.Rect.Shrink( 2 ), material.ResourceName, TextFlag.CenterBottom );
+
+		if ( material.NoTiling )
+		{
+			var iconRect = new Rect( item.Rect.Right - 28, item.Rect.Top + 4, 24, 24 );
+			Paint.SetBrush( Theme.ControlBackground.WithAlpha( 0.8f ) );
+			Paint.ClearPen();
+			Paint.DrawRect( iconRect, 4 );
+			Paint.SetPen( Theme.Primary );
+			Paint.DrawIcon( iconRect, "grid_off", 16, TextFlag.Center );
+		}
 	}
 
 	protected override void OnPaint()
