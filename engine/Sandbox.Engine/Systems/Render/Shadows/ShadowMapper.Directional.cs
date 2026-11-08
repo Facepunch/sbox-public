@@ -168,7 +168,7 @@ internal partial class ShadowMapper
 	/// Their size then only depends on the projection, so it's the same every frame however far the camera is from the
 	/// world origin. Fit in world space, float error resized them as the camera moved, and that slides the texel grid.
 	/// </summary>
-	static int GetCascades( Span<Cascade> result, in ShadowViewInfo view, Rotation rotation, int numCascades, float NearClip, float FarClip, float lambda, int shadowmapSize )
+	static int GetCascades( Span<Cascade> result, in ShadowViewInfo view, Rotation rotation, int numCascades, float NearClip, float FarClip, float lambda, int shadowmapSize, Span<Vector4> casterPlanes, out int casterPlaneCount )
 	{
 		// Project frustum corners into view space from clip space
 		Span<Vector3> viewFrustumCorners = stackalloc Vector3[8];
@@ -227,6 +227,12 @@ internal partial class ShadowMapper
 			viewFrustumCorners[i] = Vector3.Lerp( origNear, origFar, tNear );
 			viewFrustumCorners[i + 4] = Vector3.Lerp( origNear, origFar, tFar );
 		}
+
+		// Casters that can shadow the shadowed part of the view: that range swept toward the light
+		Span<Vector3> worldCorners = stackalloc Vector3[8];
+		for ( int i = 0; i < 8; i++ )
+			worldCorners[i] = ViewToWorld( viewFrustumCorners[i], view );
+		casterPlaneCount = BuildCasterVolume( worldCorners, rotation.Forward, casterPlanes );
 
 		int count = Math.Min( numCascades, result.Length );
 
@@ -379,9 +385,21 @@ internal partial class ShadowMapper
 		// The cascades face the way the light travels
 		var rotation = light.Direction.EulerAngles.ToRotation();
 		Span<Cascade> cascades = stackalloc Cascade[numCascades];
-		int cascadeCount = GetCascades( cascades, View, rotation, numCascades, 1.0f, farClip, splitRatio, shadowmapSize );
+		Span<Vector4> casterPlanes = stackalloc Vector4[12];
+		int cascadeCount = GetCascades( cascades, View, rotation, numCascades, 1.0f, farClip, splitRatio, shadowmapSize, casterPlanes, out int casterPlaneCount );
 		cascades = cascades[..cascadeCount];
 		float baseHardness = 1.0f + light.Hardness * 4.0f;
+
+		// Published before the cascade views render, those may cull against it right away
+		if ( CasterCull && NextCasterVolume() is { } volume )
+		{
+			casterPlanes[..casterPlaneCount].CopyTo( volume.Planes );
+			volume.PlaneCount = casterPlaneCount;
+			for ( int i = 0; i < cascadeCount; i++ )
+				volume.Origins[i] = cascades[i].Origin;
+			volume.OriginCount = cascadeCount;
+			PublishCasterVolume( volume );
+		}
 
 		for ( int i = 0; i < cascades.Length; i++ )
 		{

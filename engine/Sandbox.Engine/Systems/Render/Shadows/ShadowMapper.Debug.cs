@@ -61,6 +61,11 @@ internal partial class ShadowMapper
 		scope.TextColor = new Color( 1f, 0.6f, 0.6f );
 		DebugOverlay.DrawText( painter, scope, new Vector2( x, y ), TextFlag.LeftTop );
 		y += 14;
+
+		scope.Text = $"Shadow Views Caster Culled: {ShadowMapper.ShadowViewsCulledLastFrame}";
+		scope.TextColor = new Color( 1f, 0.6f, 0.6f );
+		DebugOverlay.DrawText( painter, scope, new Vector2( x, y ), TextFlag.LeftTop );
+		y += 14;
 		y += 14;
 
 		// These stats track the health of shadow texture allocation.
