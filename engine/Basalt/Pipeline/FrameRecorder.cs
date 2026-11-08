@@ -213,9 +213,9 @@ internal sealed partial class FrameRecorder : IDisposable
 	/// The last plan, for the dev tools's frame plan: each frame's layers, whether each ran and why not, what it made and read
 	/// (and of that, what nothing earlier made), its draw work and the segment it recorded in, and the segments.
 	/// </summary>
-	internal Sandbox.Rendering.ManagedFramePlan Snapshot( string camera )
+	internal FramePlan Snapshot( string camera )
 	{
-		var plan = new Sandbox.Rendering.ManagedFramePlan { Camera = camera, Parallel = Parallel, Resources = ResourceNames };
+		var plan = new FramePlan { Camera = camera, Parallel = Parallel, Resources = ResourceNames };
 
 		// The segment each planned layer and each draw work starts in
 		var layerSegment = new int[layerCount];
@@ -229,7 +229,7 @@ internal sealed partial class FrameRecorder : IDisposable
 			var first = segment.Kind == SegmentKind.Layers
 				? segment.Count > 0 ? layers[segment.Index].Layer.Name : "Async compute results"
 				: work[segment.Index].Layer.Name;
-			plan.Segments.Add( new Sandbox.Rendering.ManagedFramePlan.Segment { Worker = Parallel && !segment.OnMainThread, Async = segment.Async, Draws = segment.Weight, First = first } );
+			plan.Segments.Add( new FramePlan.Segment { Worker = Parallel && !segment.OnMainThread, Async = segment.Async, Draws = segment.Weight, First = first } );
 
 			var owners = segment.Kind == SegmentKind.Layers ? layerSegment : workSegment;
 			for ( int n = segment.Index; n < segment.Index + segment.Count && n < owners.Length; n++ )
@@ -240,7 +240,7 @@ internal sealed partial class FrameRecorder : IDisposable
 		Array.Fill( snapshotLayers, (-1, -1) );
 
 		// A frame's records are together: a child frame's come after its parent's
-		Sandbox.Rendering.ManagedFramePlan.Frame current = null;
+		FramePlan.Frame current = null;
 		RenderFrame currentFrame = null;
 		var frameIndex = new Dictionary<RenderFrame, int>();
 		var hosts = new List<(int Frame, int Layer, RenderFrame Child)>();
@@ -250,19 +250,19 @@ internal sealed partial class FrameRecorder : IDisposable
 			if ( record.Frame != currentFrame )
 			{
 				currentFrame = record.Frame;
-				current = new Sandbox.Rendering.ManagedFramePlan.Frame { Name = record.Frame.View?.Name ?? "", Skybox = record.Frame.IsSkybox };
+				current = new FramePlan.Frame { Name = record.Frame.View?.Name ?? "", Skybox = record.Frame.IsSkybox };
 				frameIndex[currentFrame] = plan.Frames.Count;
 				plan.Frames.Add( current );
 			}
 
-			var layer = new Sandbox.Rendering.ManagedFramePlan.Layer
+			var layer = new FramePlan.Layer
 			{
 				Name = record.Layer.Name,
 				State = record.Decision switch
 				{
-					LayerDecision.Kept => Sandbox.Rendering.ManagedFramePlan.LayerState.Runs,
-					LayerDecision.NotNeeded => Sandbox.Rendering.ManagedFramePlan.LayerState.NotNeeded,
-					_ => Sandbox.Rendering.ManagedFramePlan.LayerState.Culled,
+					LayerDecision.Kept => FramePlan.LayerState.Runs,
+					LayerDecision.NotNeeded => FramePlan.LayerState.NotNeeded,
+					_ => FramePlan.LayerState.Culled,
 				},
 				Makes = (uint)record.Layer.Writes,
 				Reads = (uint)record.Reads,
@@ -316,7 +316,7 @@ internal sealed partial class FrameRecorder : IDisposable
 	/// <summary>
 	/// Each segment's recording time, once recorded, into a plan <see cref="Snapshot"/> made of this frame.
 	/// </summary>
-	internal void FillTimes( Sandbox.Rendering.ManagedFramePlan plan )
+	internal void FillTimes( FramePlan plan )
 	{
 		for ( int i = 0; i < segmentCount && i < plan.Segments.Count; i++ )
 		{

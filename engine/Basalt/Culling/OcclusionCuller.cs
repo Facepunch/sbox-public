@@ -126,10 +126,17 @@ internal sealed class OcclusionCuller : IDisposable
 	int[] fragmentRuns = new int[16];
 	int fragmentRunCount;
 
+	/// <summary>
+	/// The uints in the shader's stats (<c>CSceneViewOcclusionCull::Stat_t</c>): visible, tested and final instances, fragments,
+	/// hidden fragments, triangles, hidden, missed and untested triangles.
+	/// </summary>
+	public const int StatCount = 9;
+
 	public void Begin()
 	{
-		CullsFragments = RenderPipeline.OcclusionAggregates != RenderPipeline.AggregateOcclusion.Off;
-		wantsCompactFragments = RenderPipeline.OcclusionAggregates == RenderPipeline.AggregateOcclusion.Compact;
+		var fragments = RenderHost.Current.FragmentOcclusion;
+		CullsFragments = fragments != FragmentOcclusion.Off;
+		wantsCompactFragments = fragments == FragmentOcclusion.Compact;
 		pendingStart = 0;
 		InstanceCount = 0;
 		runCount = 0;
@@ -227,8 +234,8 @@ internal sealed class OcclusionCuller : IDisposable
 
 		idCount = instanceIdCount;
 		culledRing.Upload( context, ReadOnlySpan<uint>.Empty, idCount * PhaseCount );
-		// The shader counts fragments after the instance counts (RenderPipeline.OcclusionStats)
-		Span<uint> stats = stackalloc uint[RenderPipeline.OcclusionStatCount];
+		// The shader counts fragments after the instance counts
+		Span<uint> stats = stackalloc uint[StatCount];
 		stats.Clear();
 		stats[1] = (uint)tested;
 		statsRing.Upload( context, stats );

@@ -12,7 +12,7 @@ namespace Sandbox;
 /// of a static lambda, or a struct <see cref="IBatchJob"/> for work the JIT can inline.
 /// <para>
 /// Jobs run in the calling thread's execution context, so async locals such as the current
-/// <see cref="Engine.GlobalContext"/> are the caller's on every thread, and what a job changes in it doesn't leak back to
+/// <c>Engine.GlobalContext</c> are the caller's on every thread, and what a job changes in it doesn't leak back to
 /// the caller or into later jobs. When a job throws, no more are claimed, every running job is joined, and the first
 /// exception is rethrown.
 /// </para>

@@ -23,7 +23,7 @@ internal sealed class RenderContext : IDisposable
 	RenderContext frame;
 	bool debugMarkers;
 
-	internal bool GpuScopesEnabled => Sandbox.Diagnostics.GpuProfilerStats.Enabled || debugMarkers;
+	internal bool GpuScopesEnabled => RenderHost.Current.GpuTimings || debugMarkers;
 
 	/// <summary>
 	/// A frame's own context.
@@ -312,7 +312,7 @@ internal sealed class RenderContext : IDisposable
 			context.BeginPixEvent( sampler.NamePtr );
 		}
 
-		var marker = Sandbox.Diagnostics.GpuProfilerStats.Enabled
+		var marker = RenderHost.Current.GpuTimings
 			? CSceneSystem.BeginManagedPerfMarker( context, sampler.NamePtr, true, true )
 			: IntPtr.Zero;
 		return new( marker, pix );

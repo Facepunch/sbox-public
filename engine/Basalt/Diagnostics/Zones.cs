@@ -1,10 +1,9 @@
 using System.Runtime.InteropServices;
-using NativeEngine;
 
 namespace Basalt;
 
 /// <summary>
-/// Phase and segment profiler zones via <c>PerformanceTrace</c>. Avoid per-draw overhead.
+/// Phase and segment profiler zones, through <see cref="RenderHost.BeginZone"/>. Avoid per-draw overhead.
 /// </summary>
 internal static class Zones
 {
@@ -20,7 +19,7 @@ internal static class Zones
 }
 
 /// <summary>
-/// Scoped profiler zone; a no-op without the native engine.
+/// Scoped profiler zone; a no-op while the host isn't profiling.
 /// </summary>
 internal sealed class Zone
 {
@@ -35,22 +34,20 @@ internal sealed class Zone
 		this.color = (uint)c.r << 24 | (uint)c.g << 16 | (uint)c.b << 8 | 0xFF;
 	}
 
-	public unsafe Scope Start()
+	public Scope Start()
 	{
-		if ( PerformanceTrace.__N.PerformanceTrace_BeginEvent == null ) return default;
-		PerformanceTrace.BeginEvent( name, null, color, null, 0, null );
-		return new Scope( true );
+		var host = RenderHost.Current;
+		if ( !host.ProfilesZones ) return default;
+		host.BeginZone( name, color );
+		return new Scope( host );
 	}
 
 	public readonly struct Scope : IDisposable
 	{
-		readonly bool started;
+		readonly RenderHost host;
 
-		public Scope( bool started ) => this.started = started;
+		public Scope( RenderHost host ) => this.host = host;
 
-		public void Dispose()
-		{
-			if ( started ) PerformanceTrace.EndEvent();
-		}
+		public void Dispose() => host?.EndZone();
 	}
 }

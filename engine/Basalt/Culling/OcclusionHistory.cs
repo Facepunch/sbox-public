@@ -16,7 +16,7 @@ internal sealed class OcclusionHistory : IDisposable
 	bool kept;
 	ulong claimed;
 
-	// The late cull's chain from the frame a freeze started, which freeze that was (OcclusionDebug.Freezes), and its depth
+	// The late cull's chain from the frame a freeze started, which freeze that was (<see cref="RenderHost.OcclusionFreezes"/>), and its depth
 	// once the late cull has built it
 	Texture frozenChain;
 	int freeze;
@@ -56,15 +56,16 @@ internal sealed class OcclusionHistory : IDisposable
 		var valid = culling && kept && chain is not null && chain.Width == (int)viewport.Width && chain.Height == (int)viewport.Height;
 		kept = false;
 
-		BeginFreeze( culling && OcclusionDebug.Freeze, viewport );
+		var host = RenderHost.Current;
+		BeginFreeze( culling && host.OcclusionFrozen, viewport );
 
-		var earlyCull = OcclusionDebug.EarlyCull;
+		var earlyCull = host.OcclusionEarlyCull;
 		EarlyDepth = IsFrozen ? frozen
 			: valid && earlyCull != OcclusionEarlyCull.Off ? OcclusionDepth.FullResolution( chain, keptDepthRange, keptWorldToProjection )
 			: default;
 		RejectsEarly = earlyCull == OcclusionEarlyCull.RejectAll;
 
-		if ( !culling || OcclusionDebug.View == OcclusionDebugView.Off )
+		if ( !culling || host.OcclusionDebugView == OcclusionDebugView.Off )
 		{
 			Debug?.Dispose();
 			Debug = null;
@@ -86,14 +87,14 @@ internal sealed class OcclusionHistory : IDisposable
 	{
 		// A frozen chain belongs to one freeze, at one size
 		var size = OcclusionDepth.QuarterSize( viewport );
-		var stale = frozenChain is not null && (freeze != OcclusionDebug.Freezes || frozenChain.Width != size.x || frozenChain.Height != size.y);
+		var stale = frozenChain is not null && (freeze != RenderHost.Current.OcclusionFreezes || frozenChain.Width != size.x || frozenChain.Height != size.y);
 		if ( !freezing || stale ) Thaw();
 
 		IsFrozen = freezing && frozen.Chain is not null;
 		if ( !freezing || IsFrozen ) return;
 
 		frozenChain ??= CreateChain( size.x, size.y, "Basalt occlusion freeze" );
-		freeze = OcclusionDebug.Freezes;
+		freeze = RenderHost.Current.OcclusionFreezes;
 	}
 
 	/// <summary>

@@ -63,7 +63,7 @@ internal sealed class EarlyStageLayer : RenderLayer
 		Queue = queue;
 	}
 
-	public override bool IsNeeded( RenderFrame frame ) => ManagedSceneRendering.AsyncCompute && frame.Stages is not null && frame.Stages.HasEarlyPostProcess( Stage, Queue );
+	public override bool IsNeeded( RenderFrame frame ) => RenderHost.Current.AsyncCompute && frame.Stages is not null && frame.Stages.HasEarlyPostProcess( Stage, Queue );
 
 	public override FrameResources Reads( RenderFrame frame ) => FrameResources.DepthChain | FrameResources.Normals;
 	public override FrameResources Writes => Queue == PostProcessQueue.AsyncCompute ? FrameResources.AmbientOcclusion : FrameResources.Reflections;

@@ -248,10 +248,11 @@ public sealed partial class RenderSystem : IDisposable
 		// Plan first: serial recording shares the frame context with skybox setup.
 		var skyFrame = frame.Skybox;
 		recorder ??= new FrameRecorder();
-		recorder.Plan( frame, ParallelRecording, Sandbox.Rendering.ManagedSceneRendering.AsyncCompute );
+		var host = RenderHost.Current;
+		recorder.Plan( frame, ParallelRecording, host.AsyncCompute );
 
 		// The dev tools's frame plan, or SceneLab's plan overlay: frames drawn into a window show their plan, published with its times
-		var plan = Sandbox.Rendering.ManagedFramePlan.Due && (IntPtr)output.SwapChain != IntPtr.Zero ? recorder.Snapshot( view.Name ) : null;
+		var plan = host.WantsFramePlan && (IntPtr)output.SwapChain != IntPtr.Zero ? recorder.Snapshot( view.Name ) : null;
 		recorder.Measuring = plan is not null;
 		if ( plan is not null )
 		{
@@ -291,7 +292,7 @@ public sealed partial class RenderSystem : IDisposable
 
 			// The submission carries a tag through the render thread to the GPU's timings, so the dev tools can pair a
 			// GPU frame with the plan of the frame that made it
-			var tag = (IntPtr)output.SwapChain != IntPtr.Zero ? Sandbox.Rendering.ManagedFramePlan.NoteHandedOver( handedOver, view ) : 0;
+			var tag = (IntPtr)output.SwapChain != IntPtr.Zero ? host.Submitting( handedOver, view ) : 0;
 			if ( plan is not null ) { plan.SubmitTicks = handedOver; plan.SubmitTag = tag; plan.View = view; }
 			g_pRenderDevice.SetSubmitTag( (ulong)tag );
 			try
@@ -343,34 +344,10 @@ public sealed partial class RenderSystem : IDisposable
 			plan.RecordWaitMs = stats.RecordWaitMs;
 			plan.SubmitMs = stats.SubmitMs;
 			plan.WorkerMs = stats.WorkerRecordMs;
-			plan.Publish();
+			host.PublishFramePlan( plan );
 		}
 
-		// Native counters omit managed draws; report them for the frame stats.
-		Sandbox.Rendering.ManagedSceneRendering.Report( new Sandbox.Rendering.ManagedFrameCounters
-		{
-			Renders = 1,
-			Objects = stats.Objects,
-			ObjectsVisible = stats.ObjectsVisible,
-			ObjectsSizeCulled = stats.ObjectsSizeCulled,
-			ObjectsOcclusionCulled = stats.ObjectsOcclusionCulled,
-			Draws = stats.Draws,
-			DepthDraws = stats.DepthDraws,
-			TranslucentDraws = stats.TranslucentDraws,
-			ShadowDraws = stats.ShadowDraws,
-			CustomDraws = stats.CustomDraws,
-			Instances = stats.Instances,
-			Triangles = stats.Triangles,
-			Lights = stats.Lights,
-			ShadowViews = stats.ShadowViews,
-			CollectMs = stats.CollectMs,
-			PrepareMs = stats.PrepareMs,
-			SetupMs = stats.SetupMs,
-			RecordMs = stats.RecordMs,
-			RecordWaitMs = stats.RecordWaitMs,
-			SubmitMs = stats.SubmitMs,
-			WorkerRecordMs = stats.WorkerRecordMs,
-		} );
+		host.Rendered( stats );
 	}
 
 	/// <summary>
@@ -539,7 +516,7 @@ public sealed partial class RenderSystem : IDisposable
 		transforms.Clear();
 
 		// Shadows, skyboxes and views without a prepass never cull
-		var wanted = Sandbox.Rendering.ManagedSceneRendering.Occlusion && DepthPrepass && !isSkybox;
+		var wanted = RenderHost.Current.OcclusionCulling && DepthPrepass && !isSkybox;
 		Occlusion.Begin();
 		meshes.Occlusion = wanted ? Occlusion : null;
 		aggregates.Occlusion = meshes.Occlusion;
