@@ -27,6 +27,21 @@ public class TerrainMaterialList : ListView
 		BuildItems();
 	}
 
+	/// <summary>
+	/// Swatches only, for picking a material to paint with. Name, coverage and VRAM go to the tooltip,
+	/// and the list keeps the height its layout gives it.
+	/// </summary>
+	public bool Palette
+	{
+		get;
+		set
+		{
+			field = value;
+			ItemSize = value ? new Vector2( 44, 44 ) : new Vector2( 64, ThumbHeight + 4 + LineHeight * 3 + 2 );
+			Update();
+		}
+	}
+
 	public override void OnDestroyed()
 	{
 		base.OnDestroyed();
@@ -308,7 +323,8 @@ public class TerrainMaterialList : ListView
 	[EditorEvent.Frame]
 	void FitHeight()
 	{
-		if ( !IsValid || !Visible || Width <= 0 ) return;
+		// A palette sits in a layout that already gives it the space
+		if ( Palette || !IsValid || !Visible || Width <= 0 ) return;
 
 		var perRow = Math.Max( 1, ((CanvasRect.Width + ItemSpacing.x) / (ItemSize.x + ItemSpacing.x)).FloorToInt() );
 		var rows = Math.Max( 1, (Items.Count() + perRow - 1) / perRow );
@@ -456,7 +472,7 @@ public class TerrainMaterialList : ListView
 			return;
 
 		var r = item.Rect;
-		var side = MathF.Min( r.Width - 4, ThumbHeight - 4 );
+		var side = Palette ? MathF.Min( r.Width, r.Height ) - 4 : MathF.Min( r.Width - 4, ThumbHeight - 4 );
 		var thumb = new Rect( r.Left + (r.Width - side) * 0.5f, r.Top + 2, side, side );
 		var bar = new Rect( r.Left + 2, r.Top + ThumbHeight, r.Width - 4, 3 );
 		Rect Line( int i ) => new( r.Left, bar.Bottom + 1 + i * LineHeight, r.Width, LineHeight );
@@ -484,6 +500,9 @@ public class TerrainMaterialList : ListView
 			Paint.SetBrush( Theme.ControlBackground.Lighten( 0.3f ) );
 			Paint.DrawRect( thumb, 2 );
 		}
+
+		// Palette: swatches only, the rest is in the tooltip
+		if ( Palette ) return;
 
 		Paint.SetDefaultFont( 7 );
 		Paint.SetPen( Theme.Text );
@@ -513,6 +532,18 @@ public class TerrainMaterialList : ListView
 		var text = fraction <= 0 ? "unused" : fraction < 0.001 ? $"{km2 * 1e6:N0} m²" : $"{fraction * 100:0.#}% {km2:0.#}km²";
 		Paint.SetPen( fraction <= 0 ? Theme.Red : Theme.TextLight );
 		Paint.DrawText( Line( 1 ), text, TextFlag.Center );
+	}
+
+	protected override string GetTooltip( object obj )
+	{
+		if ( obj is not TerrainMaterial material ) return null;
+
+		var index = Terrain.Storage.Materials.IndexOf( material );
+		var coverage = GetCoverage();
+		var fraction = coverage is not null && index >= 0 && index < coverage.Length ? coverage[index] : 0;
+		var vram = GetVram( material );
+
+		return $"{material.ResourceName}\n{(fraction <= 0 ? "Unused" : $"{fraction * 100:0.##}% of the terrain")}\nVRAM {vram / (1024.0 * 1024.0):0.#} MB";
 	}
 
 	protected override void OnPaint()

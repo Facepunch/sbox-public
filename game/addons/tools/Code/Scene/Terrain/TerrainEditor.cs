@@ -116,9 +116,7 @@ public partial class TerrainEditorTool : EditorTool
 				var group = ToolSidebarWidget.CreateGroupWidget( "Materials", SizeMode.Flexible );
 				paintOnlySection.Layout.Add( group, 1 );
 
-				var materialList = new TerrainMaterialList( paintOnlySection, terrain );
-				materialList.ItemSize += 24;
-				materialList.BuildItems();
+				var materialList = new TerrainMaterialList( paintOnlySection, terrain ) { Palette = true };
 				group.ContentLayout.Add( materialList, 1 );
 
 				var hlayout = group.ContentLayout.AddRow();
