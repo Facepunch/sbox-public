@@ -42,13 +42,17 @@ internal sealed class ParityRun
 		Folder = System.IO.Path.GetFullPath( Args.String( "-parity-out" ) ?? System.IO.Path.Combine( SceneLabWindow.OutputFolder(), "parity" ) );
 		System.IO.Directory.CreateDirectory( Folder );
 
-		var presets = string.IsNullOrWhiteSpace( sceneNames ) || sceneNames.StartsWith( '-' )
-			? SceneLabScene.Presets
-			: sceneNames.Split( ';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries ).Select( Find ).Where( x => x is not null ).ToArray();
+		var names = string.IsNullOrWhiteSpace( sceneNames ) || sceneNames.StartsWith( '-' ) ? [] : sceneNames.Split( ';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries );
+		var found = names.Select( x => (Name: x, Scene: Find( x )) ).ToArray();
+		var presets = names.Length == 0 ? SceneLabScene.Presets : found.Where( x => x.Scene is not null ).Select( x => x.Scene ).ToArray();
+
+		// A misspelt or renamed preset fails the run, rather than quietly comparing less
+		foreach ( var (name, _) in found.Where( x => x.Scene is null ) ) results.Add( (name, new List<string> { "no such preset" }, true) );
 
 		foreach ( var scene in presets )
 		{
-			if ( IsolatedScene( scene ) ) jobs.Add( new Job( scene, NativePass: true ) );
+			// Golden truth checks the managed frame alone, so an isolated preset has no native pass to make
+			if ( IsolatedScene( scene ) && !GoldenTruthRun.Enabled ) jobs.Add( new Job( scene, NativePass: true ) );
 			jobs.Add( new Job( scene, NativePass: false ) );
 		}
 	}
@@ -142,7 +146,7 @@ internal sealed class ParityRun
 
 		// A preset's first pass starts clean, so a frame from an earlier run can't stand in for one this run didn't write
 		var job = Current;
-		if ( job.NativePass || !IsolatedScene( job.Scene ) ) DeleteFrames( job.Scene );
+		if ( job.NativePass || !IsolatedScene( job.Scene ) || GoldenTruthRun.Enabled ) DeleteFrames( job.Scene );
 
 		// An isolated pass waits for the pool to forget the last scene's targets
 		if ( IsolatedScene( job.Scene ) )
