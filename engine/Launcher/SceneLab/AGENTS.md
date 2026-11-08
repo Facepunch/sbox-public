@@ -100,13 +100,16 @@ Other switches:
   to a couple of seconds over a post processed frame), so it needs no GPU. Its presets come in two suites
   (`RenderTests.Core` and `RenderTests.Extended`): core is the renderer itself in lab presets (textures, lights,
   shadows, fog, reflections, sky, blending, LOD, precision), extended is features built on it in GameObject presets
-  (post processing, effects, UI, fog). Append new presets to the right one. Mirrored isn't in core yet: the managed
-  renderer doesn't flip a mirrored object's winding (native does, `BATCH_FLAGS_FLIP_WINDING`), so it draws them inside
-  out and fails parity. Each run writes `index.html` beside its frames (CI uploads the folder on failure): a tile per
-  preset (a changed frame gets its own), failures first, and an inspector with split compare, capture, golden truth,
-  heatmap and over-threshold views, keys 1-5, j/k between presets, f for failing only. Core takes about 1.5 minutes here
-  and extended about 7. Terrain and Clutter, Morphs and Model Deformers repeat exactly too but are left out of extended
-  for time (3.5 minutes between them). Lavapipe is pixel-exact run to run (Ambient Occlusion's first frame once came out
+  (post processing, effects, UI, fog). Append new presets to the right one. The presets are dealt round-robin into four
+  SceneLab runs side by side (each keeps about two cores busy: Lavapipe executes a frame's command buffers, and compiles
+  its shader variants, on one thread), in the same runs on every machine, with `-parity-timeout 600` for slow runners.
+  Mirrored isn't in core yet: the managed renderer doesn't flip a mirrored object's winding (native does,
+  `BATCH_FLAGS_FLIP_WINDING`), so it draws them inside out and fails parity. It writes `index.html`
+  beside the frames (CI uploads the folder on failure): a tile per preset (a changed frame gets its own), failures
+  first, and an inspector with split compare, capture, golden truth, heatmap and over-threshold views, keys 1-5, j/k
+  between presets, f for failing only. Both suites take about 4.5 minutes here (9.5 in one run) and five times that on
+  a CI runner. Terrain and Clutter, Morphs and Model Deformers repeat exactly too but are left out of extended for
+  time (3.5 minutes between them). Lavapipe is pixel-exact run to run (Ambient Occlusion's first frame once came out
   with 4 pixels 1 off, inside the default threshold); a GPU differs from it by 40-80 dB PSNR, so each device has its own
   bucket. A Lavapipe run deletes the GPU's Vulkan pipeline cache (vendor mismatch), so the next GPU run recompiles its
   pipelines. It fails if a requested preset isn't checked, or if the validation layer doesn't load (no Vulkan SDK)

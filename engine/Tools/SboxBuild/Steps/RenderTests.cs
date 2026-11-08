@@ -51,6 +51,15 @@ internal class RenderTests( string[] presets, bool update, bool pullRequest = fa
 	// to a couple of seconds over a frame with post processing, and the lab presets look the same at 10 as at 30
 	const int CaptureFrame = 10;
 
+	// Lavapipe runs a frame's command buffers on one thread, compiling shader variants as it draws them, so a SceneLab keeps
+	// about two cores busy: four of them render the suite in half the time. The presets are dealt round-robin into this many
+	// runs on every machine, so each preset follows the same ones everywhere (a preset can pick up state from the last).
+	const int Runs = 4;
+
+	// A preset's time from load to its last capture. Material Mix takes 30 s here and 200 s on a CI runner, which is about
+	// five times slower at this, so a hang is still caught but a slow runner isn't
+	const int PresetTimeoutSeconds = 600;
+
 	/// <summary>
 	/// The core renderer: meshes, materials, textures, lights, shadows, fog, reflections, sky, blending, LOD and float
 	/// precision, each in a lab preset that builds its world directly. Append new presets; the order is the run order.
@@ -130,10 +139,6 @@ internal class RenderTests( string[] presets, bool update, bool pullRequest = fa
 		foreach ( var file in Directory.EnumerateFiles( output ) ) File.Delete( file );
 		foreach ( var dir in Directory.EnumerateDirectories( output ) ) Directory.Delete( dir, true );
 
-		// Validation warnings too: without -vulkan_validation_warnings the render system only reports errors
-		var arguments = $"-parity \"{string.Join( ';', presets )}\" -parity-out \"{output}\" -golden-truth \"{Path.Combine( root, GoldenTruth )}\"{(update ? " -golden-truth-update" : "")} " +
-			$"-vulkan_allow_cpu -vulkan_enable_validation -vulkan_validation_warnings -width {Width} -height {Height} -capture-frame {CaptureFrame} -novsync";
-
 		// Only Lavapipe, and no implicit layers (vendor switchable graphics, overlays) between it and the engine
 		var environment = new Dictionary<string, string>
 		{
@@ -141,15 +146,41 @@ internal class RenderTests( string[] presets, bool update, bool pullRequest = fa
 			["VK_LOADER_LAYERS_DISABLE"] = "~implicit~",
 		};
 
-		BuildDisplay.Status( $"Rendering {presets.Length} presets on Lavapipe" );
-		// About 1.5 minutes for core and 7 for extended here; a hang mustn't hold the runner for long, but a slower runner
-		// needs room
-		var passed = Utility.RunProcess( scenelab, arguments, game, environment, timeoutMs: Math.Max( 10, presets.Length / 2 ) * 60 * 1000 );
+		var runs = Enumerable.Range( 0, Math.Min( Runs, presets.Length ) )
+			.Select( i => (Presets: presets.Where( ( _, j ) => j % Runs == i ).ToArray(), Folder: Path.Combine( output, $"run{i + 1}" )) )
+			.ToArray();
 
-		var table = Path.Combine( output, "parity.txt" );
-		if ( File.Exists( table ) )
+		// Fewer at once on a machine without the cores for them, in the same runs
+		var parallel = Math.Clamp( Environment.ProcessorCount / 4, 1, runs.Length );
+		BuildDisplay.Status( $"Rendering {presets.Length} presets on Lavapipe, {parallel} SceneLabs at a time" );
+
+		var results = new bool[runs.Length];
+		Parallel.For( 0, runs.Length, new ParallelOptions { MaxDegreeOfParallelism = parallel }, i =>
 		{
-			foreach ( var line in File.ReadAllLines( table ) ) Log.Info( line );
+			// Validation warnings too: without -vulkan_validation_warnings the render system only reports errors
+			var arguments = $"-parity \"{string.Join( ';', runs[i].Presets )}\" -parity-out \"{runs[i].Folder}\" -parity-timeout {PresetTimeoutSeconds} " +
+				$"-golden-truth \"{Path.Combine( root, GoldenTruth )}\"{(update ? " -golden-truth-update" : "")} " +
+				$"-vulkan_allow_cpu -vulkan_enable_validation -vulkan_validation_warnings -width {Width} -height {Height} -capture-frame {CaptureFrame} -novsync";
+
+			// A preset takes under 40 s here, and all of them about 4.5 minutes; a hang mustn't hold the runner for long, but a
+			// runner five times slower needs room
+			results[i] = Utility.RunProcess( scenelab, arguments, game, environment, timeoutMs: Math.Max( 15, runs[i].Presets.Length * 2 ) * 60 * 1000 );
+		} );
+		var passed = results.All( x => x );
+
+		// Into the one folder, for the report and the artifact
+		foreach ( var run in runs )
+		{
+			var table = Path.Combine( run.Folder, "parity.txt" );
+			if ( File.Exists( table ) )
+			{
+				foreach ( var line in File.ReadAllLines( table ) ) Log.Info( line );
+				File.Delete( table );
+			}
+
+			if ( !Directory.Exists( run.Folder ) ) continue;
+			foreach ( var file in Directory.EnumerateFiles( run.Folder ) ) File.Move( file, Path.Combine( output, Path.GetFileName( file ) ), true );
+			Directory.Delete( run.Folder, true );
 		}
 
 		var report = RenderTestsReport.Write( output, Path.Combine( root, GoldenTruth ),
