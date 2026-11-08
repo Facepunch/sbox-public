@@ -3,7 +3,7 @@ namespace Sandbox.SceneLab;
 /// <summary>
 /// The Sprite Matrix preset: every kind of sprite the batch draws, all casting shadows from the sun's cascades, three point
 /// lights and a spot, over one floor - translucent, sorted, opaque, additive, lit, yaw-only and flipped, camera-faded and
-/// feathered, refractive, particle groups (plain, sorted with motion blur and facing their velocity, opaque and lit, text)
+/// feathered, refractive, particle groups (plain, sorted with motion blur and facing their velocity, lit, text)
 /// and an ordinary text renderer. Particles are emitted by hand so every run is the same. By frame, sprites move, a
 /// cluster grows, another is destroyed, one stops casting and one is switched off, so the batches rebuild under it.
 /// The Sprite Shadow Stress preset is the same idea at the other extreme: thousands of component sprites in two batches
@@ -138,7 +138,6 @@ internal static class SpriteMatrixScene
 		blurred.FaceVelocity = true;
 
 		var lit = Particles( "Particles lit", Cell( 10 ), 6, 90, Vector3.Zero );
-		lit.Opaque = true;
 		lit.Lighting = true;
 
 		// 11: text, as particles that cast and as an ordinary renderer that doesn't
