@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!--
+		Basalt's tests, on a headless device (Headless/) that records what a frame asks of the GPU and never touches one.
+		References Basalt and Sandbox.System only - keep it that way: a test that needs the engine means Basalt has
+		started to need it too. Tests of s&box's Source 2 backend belong in Sandbox.Test.Unit.
+	-->
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\Basalt\Basalt.csproj" />
+		<ProjectReference Include="..\..\Sandbox.System\Sandbox.System.csproj" />
+	</ItemGroup>
+
+</Project>
