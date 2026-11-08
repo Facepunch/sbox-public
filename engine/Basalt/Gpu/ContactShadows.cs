@@ -8,8 +8,8 @@ namespace Basalt.Gpu;
 internal static class ContactShadows
 {
 	// Must match WAVE_SIZE / numthreads in screen_space_shadows_cs.shader.
-	const int WaveSize = 64;
-	const int MaxDispatches = 8;
+	internal const int WaveSize = 64;
+	internal const int MaxDispatches = 8;
 
 	static GpuMaterial compute;
 	static GpuMaterial Compute => compute ??= RenderHost.Current.Device.MaterialFromShader( "screen_space_shadows_cs" );
@@ -33,31 +33,10 @@ internal static class ContactShadows
 	{
 		context.Invalidate();
 
-		int width = mask.Width;
-		int height = mask.Height;
-
-		var lightProjection = viewProjection.Transform( new Vector4( lightDirection, 0.0f ) );
-
 		Span<DispatchData> dispatches = stackalloc DispatchData[MaxDispatches];
-		int dispatchCount = BuildDispatchList( lightProjection, width, height, dispatches, out var lightCoordinate );
+		int dispatchCount = Plan( mask.Width, mask.Height, viewProjection, lightDirection, shadowHardness, dispatches, out var constants );
 		if ( dispatchCount <= 0 )
 			return;
-
-		var constants = new SssConstants
-		{
-			LightCoordinate = lightCoordinate,
-			InvDepthTextureSize = new Vector2( 1.0f / width, 1.0f / height ),
-			DepthBounds = new Vector2( 0.0f, 1.0f ),
-			SurfaceThickness = 0.01f,
-			BilinearThreshold = 0.02f,
-			ShadowContrast = 1.0f + shadowHardness * 4.0f, // same as CSM penumbra
-			FarDepthValue = 0.0f,  // reverse-Z
-			NearDepthValue = 1.0f,
-			IgnoreEdgePixels = 0,
-			UsePrecisionOffset = 0,
-			BilinearSamplingOffsetMode = 0,
-			UseEarlyOut = 1,
-		};
 
 		// Sparse wavefront writes - unwritten pixels stay lit.
 		if ( (steps & Steps.Prepare) != 0 )
@@ -90,6 +69,35 @@ internal static class ContactShadows
 	}
 
 	/// <summary>
+	/// The dispatches and constants for a <paramref name="width"/> by <paramref name="height"/> mask: how many of
+	/// <paramref name="dispatches"/> to run, each with its wave offset set in <paramref name="constants"/> before it runs.
+	/// Zero when there's nothing to march.
+	/// </summary>
+	internal static int Plan( int width, int height, Matrix viewProjection, Vector3 lightDirection, float shadowHardness, Span<DispatchData> dispatches, out SssConstants constants )
+	{
+		var lightProjection = viewProjection.Transform( new Vector4( lightDirection, 0.0f ) );
+		int dispatchCount = BuildDispatchList( lightProjection, width, height, dispatches, out var lightCoordinate );
+
+		constants = new SssConstants
+		{
+			LightCoordinate = lightCoordinate,
+			InvDepthTextureSize = new Vector2( 1.0f / width, 1.0f / height ),
+			DepthBounds = new Vector2( 0.0f, 1.0f ),
+			SurfaceThickness = 0.01f,
+			BilinearThreshold = 0.02f,
+			ShadowContrast = 1.0f + shadowHardness * 4.0f, // same as CSM penumbra
+			FarDepthValue = 0.0f,  // reverse-Z
+			NearDepthValue = 1.0f,
+			IgnoreEdgePixels = 0,
+			UsePrecisionOffset = 0,
+			BilinearSamplingOffsetMode = 0,
+			UseEarlyOut = 1,
+		};
+
+		return dispatchCount;
+	}
+
+	/// <summary>
 	/// The parts of <see cref="Render"/>, in order.
 	/// </summary>
 	[Flags]
@@ -105,7 +113,7 @@ internal static class ContactShadows
 	}
 
 	[StructLayout( LayoutKind.Sequential )]
-	struct SssConstants
+	internal struct SssConstants
 	{
 		public Vector4 LightCoordinate;
 		public int WaveOffsetX;
@@ -124,7 +132,7 @@ internal static class ContactShadows
 		int _pad0;
 	}
 
-	struct DispatchData
+	internal struct DispatchData
 	{
 		public int WaveCount0, WaveCount1, WaveCount2;
 		public int WaveOffsetX, WaveOffsetY;
