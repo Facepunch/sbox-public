@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!--
+		Basalt on its own: boots only the part of the engine Basalt's Source 2 device needs (render device, filesystem,
+		resource, material, mesh and scene systems) and renders a RenderWorld into a window or a texture. No game, UI,
+		physics, sound, Steam or editor. See docs/managed/basalt-host.md.
+	-->
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+		<AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<GenerateDocumentationFile>False</GenerateDocumentationFile>
+		<AssemblyName>basaltlab</AssemblyName>
+		<CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+		<SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+		<NoWarn>1701;1702;1591;NETSDK1138</NoWarn>
+		<LangVersion>14</LangVersion>
+		<OutputPath>..\..\..\game\bin\managed</OutputPath>
+		<OutputType>Exe</OutputType>
+		<DisableTransitiveProjectReferences>true</DisableTransitiveProjectReferences>
+		<PreserveCompilationReferences>false</PreserveCompilationReferences>
+		<PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>
+		<PreserveCompilationContext>false</PreserveCompilationContext>
+		<GenerateRuntimeConfigDevFile>false</GenerateRuntimeConfigDevFile>
+		<StartupObject>Sandbox.Program</StartupObject>
+		<ProduceReferenceAssembly>False</ProduceReferenceAssembly>
+		<DebugType>embedded</DebugType>
+		<TreatWarningsAsErrors>True</TreatWarningsAsErrors>
+		<GenerateDependencyFile>false</GenerateDependencyFile>
+		<CETCompat>false</CETCompat>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\Sandbox.Engine\Sandbox.Engine.csproj" Private="false" />
+		<ProjectReference Include="..\..\Basalt\Basalt.csproj" Private="false" />
+		<ProjectReference Include="..\..\Sandbox.System\Sandbox.System.csproj" Private="false" />
+	</ItemGroup>
+
+	<Import Project="..\Shared\LaunchShared.projitems" Label="Shared" />
+
+</Project>

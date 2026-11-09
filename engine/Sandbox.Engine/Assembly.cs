@@ -23,6 +23,7 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo( "sbox-launcher" )]
 [assembly: InternalsVisibleTo( "panelgallery" )]
 [assembly: InternalsVisibleTo( "scenelab" )]
+[assembly: InternalsVisibleTo( "basaltlab" )]
 [assembly: InternalsVisibleTo( "Basalt" )]
 [assembly: InternalsVisibleTo( "Sandbox.Rendering" )]
 [assembly: InternalsVisibleTo( "sbox-server" )]

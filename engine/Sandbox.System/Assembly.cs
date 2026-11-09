@@ -25,6 +25,7 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo( "Basalt" )]
 [assembly: InternalsVisibleTo( "Sandbox.Rendering" )]
 [assembly: InternalsVisibleTo( "scenelab" )]
+[assembly: InternalsVisibleTo( "basaltlab" )]
 [assembly: InternalsVisibleTo( "Sbox-Server" )]
 
 [assembly: TasksPersistOnContextReset]
