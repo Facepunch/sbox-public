@@ -11,6 +11,9 @@ public partial class RenderAttributes
 
 	private Dictionary<StringToken, ITexture> usedTextures; // lazy allocated
 
+	// Shared attributes like SceneObject.Attributes get textures set from views rendering in parallel
+	private readonly System.Threading.Lock usedTexturesLock = new();
+
 	// CRenderAttributes stores raw buffer pointers, hold a binding so Dispose can't free them while bound
 	private Dictionary<StringToken, GpuBuffer> usedBuffers; // lazy allocated
 
@@ -103,15 +106,18 @@ public partial class RenderAttributes
 	{
 		ClearUsedBuffers();
 
-		if ( usedTextures is null )
-			return;
-
-		// Clean up any strong handles
-		foreach ( var tex in usedTextures.Values )
+		lock ( usedTexturesLock )
 		{
-			if ( !tex.IsValid ) continue;
-			tex.DestroyStrongHandle();
+			if ( usedTextures is null )
+				return;
+
+			// Clean up any strong handles
+			foreach ( var tex in usedTextures.Values )
+			{
+				if ( !tex.IsValid ) continue;
+				tex.DestroyStrongHandle();
+			}
+			usedTextures.Clear();
 		}
-		usedTextures.Clear();
 	}
 }

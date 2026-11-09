@@ -73,15 +73,23 @@ public partial class RenderAttributes
 	public void Clear()
 	{
 		if ( !attributes.IsValid ) return;
-		attributes.Clear( true, true );
-		ClearUsedTextures();
+
+		lock ( usedTexturesLock )
+		{
+			attributes.Clear( true, true );
+			ClearUsedTextures();
+		}
 	}
 
 	internal void Clear( bool freeMemory )
 	{
 		if ( !attributes.IsValid ) return;
-		attributes.Clear( freeMemory, true );
-		ClearUsedTextures();
+
+		lock ( usedTexturesLock )
+		{
+			attributes.Clear( freeMemory, true );
+			ClearUsedTextures();
+		}
 	}
 
 	public void SetCombo( in StringToken k, in int value )
@@ -170,9 +178,13 @@ public partial class RenderAttributes
 		if ( !attributes.IsValid ) return;
 
 		var native = value?.native ?? default;
-		Set( k, native, ClampMip( value, mip ) );
 
-		SetUsedTexture( k, value );
+		// Native and tracked texture have to change together or a parallel set can leave native bound to a released handle
+		lock ( usedTexturesLock )
+		{
+			Set( k, native, ClampMip( value, mip ) );
+			SetUsedTexture( k, value );
+		}
 	}
 
 	internal static int ClampMip( Texture texture, int mip )
