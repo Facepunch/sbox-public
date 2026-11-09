@@ -47,7 +47,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 	Transform[] bones = new Transform[256];
 	bool sunDirty = true;
 
-	const SceneObjectChange Everything = (SceneObjectChange)~0 & ~SceneObjectChange.Removed;
+	const SceneObjectChange Everything = (SceneObjectChange)~0 & ~SceneObjectChange.Removed & ~SceneObjectChange.Deleted;
 
 	/// <summary>
 	/// Start mirroring a world: take over its change listener, and queue everything already in it.
@@ -71,9 +71,15 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 	{
 		lock ( gate )
 		{
+			// Native draws a deleted object until its frame ends: keep it as long
+			if ( (change & SceneObjectChange.Deleted) != 0 ) deletedFrames[sceneObject] = Application.FrameCount;
 			pending[sceneObject] = pending.GetValueOrDefault( sceneObject ) | change;
 		}
 	}
+
+	// The frame each object was deleted in, until it's removed, and those kept for the rest of it
+	readonly Dictionary<SceneObject, ulong> deletedFrames = new();
+	readonly List<SceneObject> lingering = new();
 
 	/// <summary>
 	/// Stop listening, retaining the last mirrored state.
@@ -93,8 +99,17 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 			(pending, applying) = (applying, pending);
 		}
 
+		// Deleted in an earlier frame: native has stopped drawing them
+		var frame = Application.FrameCount;
+		for ( int i = lingering.Count - 1; i >= 0; i-- )
+		{
+			if ( DeletedThisFrame( lingering[i], frame ) ) continue;
+			Remove( lingering[i] );
+			lingering.RemoveAt( i );
+		}
+
 		foreach ( var (sceneObject, change) in applying )
-			Apply( sceneObject, change );
+			Apply( sceneObject, change, frame );
 
 		applying.Clear();
 
@@ -102,10 +117,27 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		SyncLighting( camera, skyboxView );
 	}
 
-	void Apply( SceneObject sceneObject, SceneObjectChange change )
+	/// <summary>
+	/// Whether an object was deleted (<see cref="SceneObjectChange.Deleted"/>) in this frame, which native still draws it in.
+	/// </summary>
+	bool DeletedThisFrame( SceneObject sceneObject, ulong frame )
 	{
-		if ( (change & SceneObjectChange.Removed) != 0 )
+		lock ( gate ) return deletedFrames.TryGetValue( sceneObject, out var deleted ) && deleted == frame;
+	}
+
+	void Apply( SceneObject sceneObject, SceneObjectChange change, ulong frame )
+	{
+		if ( (change & (SceneObjectChange.Removed | SceneObjectChange.Deleted)) != 0 )
 		{
+			// Deleted this frame: native draws it until the frame ends, so the frames rendered meanwhile keep it too - even
+			// when something native finished rendering views and destroyed it already (a bitmap render does), which is
+			// when Removed comes
+			if ( DeletedThisFrame( sceneObject, frame ) )
+			{
+				if ( !lingering.Contains( sceneObject ) ) lingering.Add( sceneObject );
+				return;
+			}
+
 			Remove( sceneObject );
 			return;
 		}
@@ -262,6 +294,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 
 	void Remove( SceneObject sceneObject )
 	{
+		lock ( gate ) deletedFrames.Remove( sceneObject );
 		if ( !objects.Remove( sceneObject, out var obj ) ) return;
 
 		if ( obj is MeshObject mesh )

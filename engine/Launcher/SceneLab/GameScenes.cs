@@ -164,6 +164,62 @@ internal static partial class GameScenes
 		go.Components.Get<SpotLight>().Cookie = Texture.Load( "textures/lightcookies/lightcookies_02.vtex" );
 	}
 
+	static Light[] switchedLights = [];
+	static int switchFrame;
+
+	/// <summary>
+	/// Lights switched through their components every frame, as a muzzle flash is: a point light and a shadowed spot take turns,
+	/// so each frame one has just been enabled (its scene light made this frame) and the other just disabled (its scene light
+	/// deleted at the end of the frame). A third point light stays on.
+	/// </summary>
+	public static Scene LightSwitching()
+	{
+		var scene = Stage( out var camera, new Vector3( -200, -150, 150 ), new Vector3( 10, 10, 0 ) );
+		using var _ = scene.Push();
+
+		scene.Directory.FindByName( "Sun" ).First().Components.Get<DirectionalLight>().LightColor = new Color( 0.1f, 0.1f, 0.12f );
+		OnFloor( Prop( "Box", "models/dev/box.vmdl", new Vector3( 20, 10, 0 ), new Color( 0.8f, 0.8f, 0.8f ), scale: 0.4f ) );
+
+		var flash = new GameObject( true, "Flash" );
+		flash.WorldPosition = new Vector3( -40, 50, 40 );
+		var point = flash.Components.Create<PointLight>();
+		point.LightColor = new Color( 1, 0.75f, 0.4f ) * 6;
+		point.Radius = 260;
+		point.Shadows = false;
+
+		var lamp = new GameObject( true, "Lamp" );
+		lamp.WorldPosition = new Vector3( 60, -60, 200 );
+		lamp.WorldRotation = Rotation.LookAt( new Vector3( -0.3f, 0.3f, -1 ), Vector3.Forward );
+		var spot = lamp.Components.Create<SpotLight>();
+		spot.LightColor = new Color( 0.4f, 0.7f, 1 ) * 8;
+		spot.Radius = 500;
+		spot.ConeOuter = 40;
+		spot.ConeInner = 30;
+
+		var steady = new GameObject( true, "Steady" ).Components.Create<PointLight>();
+		steady.WorldPosition = new Vector3( 80, 80, 30 );
+		steady.LightColor = new Color( 0.3f, 1, 0.4f ) * 3;
+		steady.Radius = 200;
+		steady.Shadows = false;
+
+		switchedLights = [point, spot];
+		switchFrame = 0;
+		SwitchLights( scene );
+		return scene;
+	}
+
+	/// <summary>
+	/// A frame of <see cref="LightSwitching"/>: the point light on and the spot off, then the other way round.
+	/// </summary>
+	public static void SwitchLights( Scene scene )
+	{
+		var frame = switchFrame++;
+		for ( int i = 0; i < switchedLights.Length; i++ )
+		{
+			if ( switchedLights[i].IsValid() ) switchedLights[i].Enabled = (frame + i) % 2 == 0;
+		}
+	}
+
 	/// <summary>
 	/// A physical rectangle between a spotlight and a floor, exercising both renderer paths.
 	/// </summary>
