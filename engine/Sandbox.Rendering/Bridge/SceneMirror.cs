@@ -383,12 +383,15 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		const SceneObjectChange Pose = SceneObjectChange.Bones | SceneObjectChange.Transform | SceneObjectChange.Model;
 		if ( ((change & Pose) != 0 || meshChanged) && sceneObject is SceneModel model && mesh.Mesh is { IsSkinned: true } )
 		{
-			// The matrices native skins with, straight into the object's own
-			model.GetBoneWorldMatrices( mesh.PoseBoneMatrices( model.Model?.BoneCount ?? 0 ) );
+			// The matrices native skins with, straight into the object's own: a bone each, as many as its mesh's bind pose has
+			model.GetBoneWorldMatrices( mesh.PoseBoneMatrices( mesh.Mesh.BindPose.Length ) );
 
-			// Native evaluates morph flex rules each frame.
-			mesh.MorphSource = model.Model is not { MorphCount: > 0 } ? null
-				: mesh.MorphSource is SceneModelMorphs morphs && morphs.Source == model ? morphs : new SceneModelMorphs( model );
+			// Native evaluates morph flex rules each frame, from the model's: only a new model or mesh changes whether it morphs
+			if ( meshChanged || (change & SceneObjectChange.Model) != 0 )
+			{
+				mesh.MorphSource = model.Model is not { MorphCount: > 0 } ? null
+					: mesh.MorphSource is SceneModelMorphs morphs && morphs.Source == model ? morphs : new SceneModelMorphs( model );
+			}
 
 			// Native bounds include deformation padding.
 			var volumes = MemoryMarshal.Cast<SceneDeformationVolumeData, DeformationVolume>( model.DeformationVolumes );
