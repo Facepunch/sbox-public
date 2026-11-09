@@ -71,25 +71,40 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 
 	static readonly StringToken ForwardMode = new( "Forward" );
 
+	// What the context's attributes held before the stage running on this thread
+	[ThreadStatic] static CRenderAttributes s_savedAttributes;
+
 	/// <summary>
-	/// Start a stage on the context's attributes with none of their own, inheriting the frame's. Native renders each hook
-	/// layer on a context of its own (<c>ProcessProceduralLayer</c>), so what a stage's command lists set on
-	/// <see cref="Graphics.Attributes"/> stays in that stage. Here stages share their segment's context: without this,
-	/// one stage's attributes reached the next - Sandbox's HUD paint list sets <c>UIFrameGrabEncoded</c> after the
-	/// viewmodel, and its composite in the UI stage then decoded a linear frame grab and darkened the scene under it.
+	/// Start a stage on the context's attributes, inheriting the frame's, and remember what they hold. Native renders each
+	/// hook layer on a context of its own (<c>ProcessProceduralLayer</c>), so what a stage's command lists set on
+	/// <see cref="Graphics.Attributes"/> stays in that stage. Here stages share their segment's context: without
+	/// <see cref="EndStageAttributes"/>, one stage's attributes reached the next - Sandbox's HUD paint list sets
+	/// <c>UIFrameGrabEncoded</c> after the viewmodel, and its composite in the UI stage then decoded a linear frame grab and
+	/// darkened the scene under it.
 	/// </summary>
 	static CRenderAttributes BeginStageAttributes( IRenderContext context, in StageTarget target )
 	{
 		var attributes = context.GetAttributesPtrForModify();
-		attributes.Clear( false, false );
 		attributes.SetParent( target.Attributes.Engine().Get() );
+
+		if ( s_savedAttributes.IsNull ) s_savedAttributes = CRenderAttributes.Create();
+		s_savedAttributes.Clear( false, true );
+		attributes.MergeToPtr( s_savedAttributes );
 		return attributes;
 	}
 
 	/// <summary>
-	/// Drop what the stage set, so it doesn't reach the frame's own passes recorded after it on the same context.
+	/// Put the context's attributes back as they were before the stage, so what it set doesn't reach later stages or the
+	/// frame's own passes recorded after it on the same context. Clearing keeps the parent pointer but empties each typed
+	/// list's own (<c>CUtlAttributeList::Clear</c>), so the parent is set again: without that, the frame's later passes lost
+	/// what they inherit, and the game overlay drew behind the world.
 	/// </summary>
-	static void EndStageAttributes( CRenderAttributes attributes ) => attributes.Clear( false, false );
+	static void EndStageAttributes( CRenderAttributes attributes, in StageTarget target )
+	{
+		attributes.Clear( false, false );
+		attributes.SetParent( target.Attributes.Engine().Get() );
+		s_savedAttributes.MergeToPtr( attributes );
+	}
 
 	public bool HasEarlyPostProcess( RenderStage stage, StageQueue queue ) => Camera?.HasEarlyPostProcess( (Stage)stage, (PostProcessQueue)queue ) ?? false;
 
@@ -126,7 +141,7 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 		finally
 		{
 			view.ComputeQueue = false;
-			EndStageAttributes( attributes );
+			EndStageAttributes( attributes, target );
 		}
 	}
 
@@ -160,7 +175,7 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 		}
 		finally
 		{
-			EndStageAttributes( attributes );
+			EndStageAttributes( attributes, target );
 		}
 	}
 
@@ -224,6 +239,9 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 			((IManagedCamera)Camera).OnRenderStage( (Stage)stage );
 		}
 
+		// Before the pipeline texture upload below, which the frame's later passes read from the context's attributes
+		EndStageAttributes( contextAttributes, target );
+
 		// AO and SSR name their results in pipeline texture slots after the prepass, which native uploads at frame end
 		// (UpdateGlobalPerFrameDescriptorBindings) - after this frame is submitted. Upload them here so its forward draws read
 		// this frame's, as native's views do.
@@ -234,11 +252,8 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 			var rect = target.Viewport;
 			RenderTools.BindColorAndDepthTarget( context, target.Color.Native(), default, target.SrgbWrite );
 			RenderTools.BlitTexture( context, scratch.ColorTarget.native, (int)rect.Left, (int)rect.Top, (int)rect.Width, (int)rect.Height, 2 );
-			contextAttributes.SetIntValue( UIFrameGrabEncoded, 0 );
 			scratch.Dispose();
 		}
-
-		EndStageAttributes( contextAttributes );
 	}
 
 	static MultisampleAmount SampleCount( int samples ) => samples switch
