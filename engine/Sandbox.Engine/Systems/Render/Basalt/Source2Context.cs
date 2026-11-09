@@ -773,6 +773,16 @@ internal sealed class Source2Context : GpuContext
 	}
 
 	/// <summary>
+	/// Draw from the vertex cache in one native call (<c>RenderTools.DrawModelDrawCallVertexCache</c>), reusing similar-material
+	/// state as <see cref="DrawModel"/> does.
+	/// </summary>
+	public override bool DrawVertexCache( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false )
+	{
+		return RenderTools.DrawModelDrawCallVertexCache( context, drawAttributes, material.Native(), shaderMode, mesh.Geometry.Native(), draw.Mesh, draw.DrawCall,
+			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, InstanceIds.Native(), firstInstance, instances, materialBind );
+	}
+
+	/// <summary>
 	/// <see cref="DrawModel"/> with only the instances the occlusion cull kept for <paramref name="phase"/>
 	/// (<c>RenderTools.DrawModelDrawCallIndirect</c>).
 	/// </summary>

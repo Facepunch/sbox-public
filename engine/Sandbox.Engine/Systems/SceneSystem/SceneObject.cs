@@ -94,6 +94,7 @@ public partial class SceneObject : IHandle
 	{
 		if ( native.IsValid )
 		{
+			NotifyChanged( Rendering.SceneObjectChange.Deleted );
 			CSceneSystem.DeleteSceneObjectAtFrameEnd( this );
 			native = IntPtr.Zero; // avoid double delete etc
 		}

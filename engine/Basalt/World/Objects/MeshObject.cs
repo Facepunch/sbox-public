@@ -174,6 +174,17 @@ public sealed class MeshObject : RenderObject
 	}
 
 	/// <summary>
+	/// Pose a skinned mesh in place: room for <paramref name="count"/> world-space bone matrices, by model bone index, for the
+	/// caller to fill - <see cref="SetBones"/> without converting or copying. <see cref="Bones"/> is left empty.
+	/// </summary>
+	internal Span<Matrix3x4> PoseBoneMatrices( int count )
+	{
+		if ( bones.Length != 0 ) bones = [];
+		if ( boneMatrices.Length != count ) boneMatrices = new Matrix3x4[count];
+		return boneMatrices;
+	}
+
+	/// <summary>
 	/// <see cref="Bones"/> as matrices.
 	/// </summary>
 	internal ReadOnlySpan<Matrix3x4> BoneMatrices => boneMatrices;

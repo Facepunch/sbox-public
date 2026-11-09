@@ -19,6 +19,15 @@ internal sealed partial class SceneLabWindow
 	static readonly Vector3 GameFocus = Args.String( "-camera-lookat" ) is { } at ? Vector3.Parse( at ) : new( 0, 0, 30 );
 
 	Scene game;
+
+	/// <summary>
+	/// The GameObject scene loaded, if one is.
+	/// </summary>
+	public Scene GameScene => game;
+
+	// A preset's own capture frame, unless -capture-frame chose one
+	int GameCaptureFrame => !Args.Has( "-capture-frame" ) && Scene.CaptureFrame is { } preset ? preset : captureFrame;
+
 	(float Yaw, float Pitch, float Distance) gameCamera;
 	int gameChangedFrame;
 	CameraComponent[] targetCameras = [];
@@ -131,7 +140,7 @@ internal sealed partial class SceneLabWindow
 		timer.BeginRender();
 
 		// An isolated capture frame renders the camera once, into its readback target
-		var isolatedCapture = isolated && CapturePath is not null && (frame + 1 == captureFrame || (gameChangedFrame != 0 && frame + 1 == gameChangedFrame)) && (Scene.Ready?.Invoke( game ) ?? true);
+		var isolatedCapture = isolated && CapturePath is not null && (frame + 1 == GameCaptureFrame || (gameChangedFrame != 0 && frame + 1 == gameChangedFrame)) && (Scene.Ready?.Invoke( game ) ?? true);
 		isolatedPixels = null;
 
 		using ( game.Push() )
@@ -159,8 +168,9 @@ internal sealed partial class SceneLabWindow
 			{
 				camera.SceneCamera.AddToRenderList( gameBridge ??= new SceneBridge(), swapChain, size );
 
-				// The same camera natively too, where native's history has to keep pace (SceneLabScene.NativeAlongside)
-				if ( Scene.NativeAlongside )
+				// The same camera natively too, where native's history has to keep pace (SceneLabScene.NativeAlongside) - but not
+				// while benchmarking, where it would put native's frame into the managed one's numbers
+				if ( Scene.NativeAlongside && benchmark is null )
 				{
 					if ( nativeAlongside is null || nativeAlongside.Size != size )
 					{
@@ -209,7 +219,7 @@ internal sealed partial class SceneLabWindow
 		var captureFolder = System.IO.Path.GetDirectoryName( System.IO.Path.GetFullPath( CapturePath ) );
 		var captureName = System.IO.Path.GetFileNameWithoutExtension( CapturePath );
 
-		if ( frame == captureFrame )
+		if ( frame == GameCaptureFrame )
 		{
 			var result = isolated ? CaptureIsolated( captureFolder, captureName ) : CompareGame( captureFolder, captureName );
 			Log.Info( $"Scene Lab: {Scene.Name}: {result}" );

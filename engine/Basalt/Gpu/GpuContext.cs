@@ -214,6 +214,23 @@ internal abstract class GpuContext : IDisposable
 	/// <summary>Set a draw's pipeline state for a shader mode.</summary>
 	public abstract bool SetRenderState( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool vertexCache = false );
 
+	/// <summary>
+	/// Draw skinned instances whose vertices come from the vertex cache: the draw's geometry and state with the cache's input
+	/// layout, the instance ids, then the cache's vertex ids. A backend can do it in one call that reuses similar-material
+	/// state, as <see cref="DrawModel"/> does.
+	/// </summary>
+	public virtual bool DrawVertexCache( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false )
+	{
+		if ( !BindGeometry( mesh, draw ) ) return false;
+		if ( !SetRenderState( material, shaderMode, mesh, draw, depthBias, slopeScaledDepthBias, stripPixelShader, vertexCache: true ) ) return false;
+
+		// Instance ids over the model's stream 1, before the cache's vertex ids
+		BindInstances( 1, firstInstance );
+		BindVertexCacheIds( mesh, draw );
+		DrawIndexedInstanced( draw, instances );
+		return true;
+	}
+
 	/// <summary>Bind and draw instances in one call, reusing similar-material state.</summary>
 	public abstract bool DrawModel( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false );
 

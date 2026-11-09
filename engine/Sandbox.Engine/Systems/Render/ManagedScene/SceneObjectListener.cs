@@ -59,6 +59,12 @@ internal enum SceneObjectChange
 	/// it covers.
 	/// </summary>
 	Bounds = 1 << 12,
+
+	/// <summary>
+	/// Deleted (<see cref="SceneObject.Delete"/>). Native still draws it for the rest of the frame and destroys it at the
+	/// frame's end, or when it next finishes rendering views: <see cref="Removed"/> follows.
+	/// </summary>
+	Deleted = 1 << 13,
 }
 
 /// <summary>
