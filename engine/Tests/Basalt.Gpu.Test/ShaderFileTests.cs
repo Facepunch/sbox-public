@@ -92,6 +92,37 @@ public class ShaderFileTests
 	}
 
 	/// <summary>
+	/// A compiled material's KV3: its shader, features and parameters, and the compiled textures it names, mips
+	/// (LZ4 or Zstandard compressed, or raw) all present.
+	/// </summary>
+	[TestMethod]
+	public void MaterialAndTexturesRead()
+	{
+		var files = Files;
+		var path = files.Find( "materials/default/white.vmat" ) ?? files.Find( "materials/default.vmat" );
+		if ( path is null ) Assert.Inconclusive( "No compiled core materials" );
+
+		var material = Basalt.Source2.Materials.MaterialFile.Load( path );
+		Assert.AreEqual( "shaders/complex.shader", material.Shader );
+		Assert.IsTrue( material.Textures.ContainsKey( "g_tColor" ) );
+		Assert.AreEqual( 4, material.Value( "g_vColorTint" ).Length );
+
+		foreach ( var texture in material.Textures.Values )
+		{
+			var file = files.Find( texture );
+			if ( file is null ) continue;
+			var vtex = Basalt.Source2.Materials.TextureFile.Load( file );
+			Assert.AreNotEqual( Format.Unknown, vtex.Format, texture );
+			for ( int mip = 0; mip < vtex.Mips; mip++ )
+			{
+				var w = Math.Max( vtex.Width >> mip, 1 );
+				var h = Math.Max( vtex.Height >> mip, 1 );
+				Assert.AreEqual( vtex.Format.RowPitch( w ) * vtex.Format.Rows( h ) * vtex.Slices, vtex.MipData[mip].Length, $"{texture} mip {mip}" );
+			}
+		}
+	}
+
+	/// <summary>
 	/// Combo ids follow the material system: the Depth mode sets S_MODE_DEPTH, a feature sets its static combo, and every
 	/// chosen combo was compiled.
 	/// </summary>
