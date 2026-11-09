@@ -1,0 +1,982 @@
+using Basalt.Gpu.Memory;
+using Basalt.Gpu.Vulkan;
+using System.Runtime.InteropServices;
+using System.Text;
+
+namespace Basalt.Gpu;
+
+internal struct BufferRecord
+{
+	public ulong Buffer;
+	public Allocation Memory;
+	public long Size;
+	public BufferUsage Usage;
+	public MemoryLocation Location;
+	public string Name;
+}
+
+/// <summary>
+/// A texture's single-mip, single-layer views for rendering into, made when first drawn to.
+/// </summary>
+internal sealed class AttachmentViews
+{
+	public readonly Dictionary<int, ulong> Views = new();
+}
+
+internal struct TextureRecord
+{
+	public ulong Image;
+	public Allocation Memory;
+	public TextureInfo Info;
+	public VkFormat Format;
+	public uint Aspect;
+	public int ArrayLayers;
+
+	/// <summary>The default view: every mip and layer, linear format, the texture's dimension.</summary>
+	public ulong View;
+
+	/// <summary>The default view's sRGB twin, or <see cref="View"/> for formats without one.</summary>
+	public ulong SrgbView;
+
+	/// <summary>Mip 0 as a storage view, for storage textures.</summary>
+	public ulong StorageView;
+
+	/// <summary>The linear view's bindless index (sRGB is one more), or -1.</summary>
+	public int BindlessIndex;
+
+	/// <summary>The storage view's bindless storage index, or -1.</summary>
+	public int StorageIndex;
+
+	/// <summary>A swap chain image: its image belongs to the swap chain.</summary>
+	public bool External;
+
+	public AttachmentViews Attachments;
+}
+
+internal struct ViewRecord
+{
+	public ulong View;
+	public TextureHandle Texture;
+	public int BindlessIndex;
+	public int StorageIndex;
+}
+
+internal struct SamplerRecord
+{
+	public ulong Sampler;
+	public int Index;
+}
+
+internal struct ShaderRecord
+{
+	public ulong Module;
+}
+
+internal struct LayoutRecord
+{
+	public ulong SetLayout;
+	public BindingSlot[] Slots;
+}
+
+internal struct PipelineRecord
+{
+	public ulong Pipeline;
+	public ulong Layout;
+	public int BindPoint;
+}
+
+public sealed unsafe partial class Device
+{
+	internal readonly HandlePool<BufferRecord> Buffers = new( "buffer" );
+	internal readonly HandlePool<TextureRecord> Textures = new( "texture" );
+	internal readonly HandlePool<ViewRecord> Views = new( "texture view" );
+	internal readonly HandlePool<SamplerRecord> Samplers = new( "sampler" );
+	internal readonly HandlePool<ShaderRecord> Shaders = new( "shader" );
+	internal readonly HandlePool<LayoutRecord> Layouts = new( "binding layout" );
+	internal readonly HandlePool<PipelineRecord> Pipelines = new( "pipeline" );
+
+	internal BindlessTable Bindless { get; }
+
+	ulong pipelineCache;
+	ulong emptySetLayout;
+	readonly Dictionary<(ulong, ulong, ulong, ulong), ulong> pipelineLayouts = new();
+	readonly Dictionary<ulong, (ulong, ulong, ulong, ulong)> pipelineLayoutSets = new();
+
+	/// <summary>The set layouts of sets 0 to 3 a pipeline layout was made from.</summary>
+	internal (ulong, ulong, ulong, ulong) SetLayoutsOf( ulong pipelineLayout )
+	{
+		lock ( pipelineLayouts ) return pipelineLayoutSets[pipelineLayout];
+	}
+
+	internal ref BufferRecord Get( BufferHandle handle ) => ref Buffers.Get( handle.Index, handle.Generation );
+	internal ref TextureRecord Get( TextureHandle handle ) => ref Textures.Get( handle.Index, handle.Generation );
+	internal ref ViewRecord Get( TextureViewHandle handle ) => ref Views.Get( handle.Index, handle.Generation );
+	internal ref SamplerRecord Get( SamplerHandle handle ) => ref Samplers.Get( handle.Index, handle.Generation );
+	internal ref PipelineRecord Get( PipelineHandle handle ) => ref Pipelines.Get( handle.Index, handle.Generation );
+	internal ref LayoutRecord Get( BindingLayoutHandle handle ) => ref Layouts.Get( handle.Index, handle.Generation );
+
+	/// <summary>Bytes of device memory allocated from the driver, and handed out to resources.</summary>
+	public (long Reserved, long Used) MemoryUsage => ((long)Allocator.Reserved, (long)Allocator.Used);
+
+	//
+	// Buffers
+	//
+
+	/// <summary>
+	/// Create a buffer. <see cref="MemoryLocation.Upload"/> and <see cref="MemoryLocation.Readback"/> buffers stay mapped
+	/// (<see cref="Map"/>).
+	/// </summary>
+	public BufferHandle CreateBuffer( in BufferInfo info )
+	{
+		ArgumentOutOfRangeException.ThrowIfLessThan( info.Size, 1 );
+
+		uint usage = Vulkan.Vk.BufferTransferSrc | Vulkan.Vk.BufferTransferDst;
+		if ( (info.Usage & BufferUsage.Vertex) != 0 ) usage |= Vulkan.Vk.BufferVertex;
+		if ( (info.Usage & BufferUsage.Index) != 0 ) usage |= Vulkan.Vk.BufferIndex;
+		if ( (info.Usage & BufferUsage.Uniform) != 0 ) usage |= Vulkan.Vk.BufferUniform;
+		if ( (info.Usage & BufferUsage.Storage) != 0 ) usage |= Vulkan.Vk.BufferStorage;
+		if ( (info.Usage & BufferUsage.Indirect) != 0 ) usage |= Vulkan.Vk.BufferIndirect;
+
+		fixed ( uint* families = queueFamilies )
+		{
+			var create = new VkBufferCreateInfo
+			{
+				sType = VkStructureType.BufferCreateInfo,
+				size = (ulong)info.Size,
+				usage = usage,
+				sharingMode = queueFamilies.Length > 1 ? 1 : 0,
+				queueFamilyIndexCount = (uint)queueFamilies.Length,
+				pQueueFamilyIndices = families,
+			};
+
+			ulong buffer;
+			Vk.vkCreateBuffer( Vk.Device, &create, null, &buffer ).Check( "vkCreateBuffer" );
+
+			VkMemoryRequirements requirements;
+			Vk.vkGetBufferMemoryRequirements( Vk.Device, buffer, &requirements );
+
+			Allocation memory;
+			try
+			{
+				memory = Allocator.Allocate( requirements, info.Memory, image: false );
+				Vk.vkBindBufferMemory( Vk.Device, buffer, memory.Memory, memory.Offset ).Check( "vkBindBufferMemory" );
+			}
+			catch
+			{
+				Vk.vkDestroyBuffer( Vk.Device, buffer, null );
+				throw;
+			}
+
+			SetName( VkObjectType.Buffer, buffer, info.Name );
+			var (index, generation) = Buffers.Add( new BufferRecord { Buffer = buffer, Memory = memory, Size = info.Size, Usage = info.Usage, Location = info.Memory, Name = info.Name } );
+			return new BufferHandle( index, generation );
+		}
+	}
+
+	/// <summary>
+	/// A host-visible buffer's memory. Writes are seen by work submitted afterwards; reads see what finished work wrote.
+	/// </summary>
+	public Span<byte> Map( BufferHandle buffer )
+	{
+		ref var record = ref Get( buffer );
+		if ( record.Memory.Mapped == 0 ) throw new InvalidOperationException( $"Buffer {record.Name} is in {record.Location} memory, which isn't mappable" );
+		return new Span<byte>( (void*)record.Memory.Mapped, (int)record.Size );
+	}
+
+	/// <summary>A buffer's size in bytes.</summary>
+	public long SizeOf( BufferHandle buffer ) => Get( buffer ).Size;
+
+	/// <summary>Whether a handle names a buffer that hasn't been destroyed.</summary>
+	public bool IsAlive( BufferHandle buffer ) => Buffers.IsAlive( buffer.Index, buffer.Generation );
+
+	//
+	// Textures
+	//
+
+	/// <summary>
+	/// Create a texture. Its contents are undefined, and it's in <see cref="ImageLayout.Undefined"/>.
+	/// </summary>
+	public TextureHandle CreateTexture( in TextureInfo info )
+	{
+		ArgumentOutOfRangeException.ThrowIfLessThan( info.Width, 1 );
+		ArgumentOutOfRangeException.ThrowIfLessThan( info.Height, 1 );
+
+		var desc = info;
+		desc.Depth = Math.Max( desc.Depth, 1 );
+		desc.Layers = Math.Max( desc.Layers, 1 );
+		desc.Mips = Math.Max( desc.Mips, 1 );
+		desc.Samples = Math.Max( desc.Samples, 1 );
+
+		var format = ResolveFormat( desc.Format );
+		var cube = desc.Dimension is TextureDimension.TextureCube or TextureDimension.TextureCubeArray;
+		var arrayLayers = desc.Dimension switch
+		{
+			TextureDimension.Texture3D => 1,
+			TextureDimension.TextureCube or TextureDimension.TextureCubeArray => 6 * desc.Layers,
+			_ => desc.Layers,
+		};
+
+		var srgbPair = desc.Format.HasSrgb();
+		uint usage = Vulkan.Vk.ImageTransferSrc | Vulkan.Vk.ImageTransferDst;
+		if ( (desc.Usage & TextureUsage.Sampled) != 0 ) usage |= Vulkan.Vk.ImageSampled;
+		if ( (desc.Usage & TextureUsage.Storage) != 0 ) usage |= Vulkan.Vk.ImageStorage;
+		if ( (desc.Usage & TextureUsage.ColorTarget) != 0 ) usage |= Vulkan.Vk.ImageColorAttachment;
+		if ( (desc.Usage & TextureUsage.DepthTarget) != 0 ) usage |= Vulkan.Vk.ImageDepthStencilAttachment;
+
+		uint flags = 0;
+		if ( cube ) flags |= Vulkan.Vk.ImageCreateCubeCompatible;
+		if ( srgbPair ) flags |= Vulkan.Vk.ImageCreateMutableFormat | Vulkan.Vk.ImageCreateExtendedUsage;
+
+		ulong image;
+		Allocation memory;
+		fixed ( uint* families = queueFamilies )
+		{
+			var create = new VkImageCreateInfo
+			{
+				sType = VkStructureType.ImageCreateInfo,
+				flags = flags,
+				imageType = desc.Dimension == TextureDimension.Texture3D ? Vulkan.Vk.ImageType3D : Vulkan.Vk.ImageType2D,
+				format = format,
+				extent = new VkExtent3D { width = (uint)desc.Width, height = (uint)desc.Height, depth = (uint)desc.Depth },
+				mipLevels = (uint)desc.Mips,
+				arrayLayers = (uint)arrayLayers,
+				samples = (uint)desc.Samples,
+				usage = usage,
+				sharingMode = queueFamilies.Length > 1 ? 1 : 0,
+				queueFamilyIndexCount = (uint)queueFamilies.Length,
+				pQueueFamilyIndices = families,
+			};
+
+			Vk.vkCreateImage( Vk.Device, &create, null, &image ).Check( $"vkCreateImage ({desc.Name}, {desc.Format} {desc.Width}x{desc.Height})" );
+
+			VkMemoryRequirements requirements;
+			Vk.vkGetImageMemoryRequirements( Vk.Device, image, &requirements );
+
+			try
+			{
+				memory = Allocator.Allocate( requirements, MemoryLocation.Device, image: true );
+				Vk.vkBindImageMemory( Vk.Device, image, memory.Memory, memory.Offset ).Check( "vkBindImageMemory" );
+			}
+			catch
+			{
+				Vk.vkDestroyImage( Vk.Device, image, null );
+				throw;
+			}
+		}
+
+		SetName( VkObjectType.Image, image, desc.Name );
+		var record = new TextureRecord
+		{
+			Image = image,
+			Memory = memory,
+			Info = desc,
+			Format = format,
+			Aspect = desc.Format.Aspect(),
+			ArrayLayers = arrayLayers,
+			BindlessIndex = -1,
+			StorageIndex = -1,
+			Attachments = new AttachmentViews(),
+		};
+
+		var sampledAspect = desc.Format.IsDepth() ? Vulkan.Vk.AspectDepth : Vulkan.Vk.AspectColor;
+		var linear = desc.Format.Linear().ToVk();
+		var sampledUsage = usage & ~Vulkan.Vk.ImageStorage;
+
+		if ( (desc.Usage & (TextureUsage.Sampled | TextureUsage.Storage)) != 0 )
+		{
+			record.View = MakeView( image, ViewType( desc.Dimension ), linear, sampledAspect, 0, (uint)desc.Mips, 0, (uint)arrayLayers, srgbPair ? usage : 0 );
+			record.SrgbView = srgbPair ? MakeView( image, ViewType( desc.Dimension ), desc.Format.Srgb().ToVk(), sampledAspect, 0, (uint)desc.Mips, 0, (uint)arrayLayers, sampledUsage ) : record.View;
+		}
+
+		if ( (desc.Usage & TextureUsage.Storage) != 0 )
+		{
+			var storageType = desc.Dimension switch
+			{
+				TextureDimension.Texture3D => Vulkan.Vk.ViewType3D,
+				TextureDimension.Texture2D => Vulkan.Vk.ViewType2D,
+				_ => Vulkan.Vk.ViewType2DArray,
+			};
+
+			record.StorageView = MakeView( image, storageType, linear, Vulkan.Vk.AspectColor, 0, 1, 0, (uint)arrayLayers, srgbPair ? usage : 0 );
+			record.StorageIndex = Bindless.AddStorage( record.StorageView );
+		}
+
+		if ( (desc.Usage & TextureUsage.Sampled) != 0 ) record.BindlessIndex = Bindless.AddTexture( record.View, record.SrgbView );
+
+		var (index, generation) = Textures.Add( record );
+		return new TextureHandle( index, generation );
+	}
+
+	/// <summary>
+	/// A swap chain image as a texture: the swap chain owns the image, the device its views.
+	/// </summary>
+	internal TextureHandle AddExternalTexture( ulong image, in TextureInfo info, VkFormat format )
+	{
+		var (index, generation) = Textures.Add( new TextureRecord
+		{
+			Image = image,
+			Info = info,
+			Format = format,
+			Aspect = Vulkan.Vk.AspectColor,
+			ArrayLayers = 1,
+			BindlessIndex = -1,
+			StorageIndex = -1,
+			External = true,
+			Attachments = new AttachmentViews(),
+		} );
+
+		return new TextureHandle( index, generation );
+	}
+
+	/// <summary>
+	/// Forget a swap chain image now: the swap chain waits for the GPU before it lets its images go.
+	/// </summary>
+	internal void RemoveExternalTexture( TextureHandle texture )
+	{
+		var record = Textures.Remove( texture.Index, texture.Generation );
+		foreach ( var view in record.Attachments.Views.Values ) Vk.vkDestroyImageView( Vk.Device, view, null );
+	}
+
+	VkFormat ResolveFormat( Format format )
+	{
+		var vk = format.ToVk();
+		if ( vk == VkFormat.Undefined ) throw new ArgumentException( $"Format {format} has no Vulkan form" );
+
+		// AMD has no D24S8; native makes the same swap (CTextureManagerVulkan::CreateVulkanImageInternal)
+		if ( vk == VkFormat.D24UnormS8Uint )
+		{
+			VkFormatProperties properties;
+			Instance.vkGetPhysicalDeviceFormatProperties( PhysicalDevice, vk, &properties );
+			if ( (properties.optimalTilingFeatures & Vulkan.Vk.FormatFeatureDepthStencilAttachment) == 0 ) return VkFormat.D32SfloatS8Uint;
+		}
+
+		return vk;
+	}
+
+	/// <summary>The Vulkan format a <see cref="Format"/> is created as here (D24S8 may become D32S8).</summary>
+	internal VkFormat VkFormatOf( Format format ) => format == Format.Unknown ? VkFormat.Undefined : ResolveFormat( format );
+
+	static int ViewType( TextureDimension dimension ) => dimension switch
+	{
+		TextureDimension.Texture2DArray => Vulkan.Vk.ViewType2DArray,
+		TextureDimension.TextureCube => Vulkan.Vk.ViewTypeCube,
+		TextureDimension.TextureCubeArray => Vulkan.Vk.ViewTypeCubeArray,
+		TextureDimension.Texture3D => Vulkan.Vk.ViewType3D,
+		_ => Vulkan.Vk.ViewType2D,
+	};
+
+	internal ulong MakeView( ulong image, int viewType, VkFormat format, uint aspect, uint baseMip, uint mips, uint baseLayer, uint layers, uint usage )
+	{
+		var usageInfo = new VkImageViewUsageCreateInfo { sType = VkStructureType.ImageViewUsageCreateInfo, usage = usage };
+		var info = new VkImageViewCreateInfo
+		{
+			sType = VkStructureType.ImageViewCreateInfo,
+			pNext = usage != 0 ? &usageInfo : null,
+			image = image,
+			viewType = viewType,
+			format = format,
+			subresourceRange = new VkImageSubresourceRange { aspectMask = aspect, baseMipLevel = baseMip, levelCount = mips, baseArrayLayer = baseLayer, layerCount = layers },
+		};
+
+		ulong view;
+		Vk.vkCreateImageView( Vk.Device, &info, null, &view ).Check( "vkCreateImageView" );
+		return view;
+	}
+
+	/// <summary>
+	/// The view a rendering scope draws to: one mip and layer, linear or sRGB. Made once per texture and kept.
+	/// </summary>
+	internal ulong AttachmentView( TextureHandle texture, int mip, int layer, bool srgb )
+	{
+		ref var record = ref Get( texture );
+		var key = mip | (layer << 8) | (srgb ? 1 << 24 : 0);
+		var views = record.Attachments.Views;
+
+		lock ( views )
+		{
+			if ( views.TryGetValue( key, out var view ) ) return view;
+
+			var format = record.External ? record.Format : srgb ? record.Info.Format.Srgb().ToVk() : record.Info.Format.Linear().ToVk();
+			if ( !record.External && record.Info.Format.IsDepth() ) format = record.Format;
+
+			var usage = 0u;
+			if ( !record.External && record.Info.Format.HasSrgb() )
+			{
+				usage = (record.Info.Usage & TextureUsage.ColorTarget) != 0 ? Vulkan.Vk.ImageColorAttachment : Vulkan.Vk.ImageDepthStencilAttachment;
+			}
+
+			view = MakeView( record.Image, Vulkan.Vk.ViewType2D, format, record.Aspect, (uint)mip, 1, (uint)layer, 1, usage );
+			views[key] = view;
+			return view;
+		}
+	}
+
+	/// <summary>
+	/// Another view of a texture: a mip or layer range, another dimension or format. Add it to the bindless table with
+	/// <paramref name="bindless"/>.
+	/// </summary>
+	public TextureViewHandle CreateView( TextureHandle texture, in TextureViewInfo info, bool bindless = false )
+	{
+		ref var record = ref Get( texture );
+		var format = info.Format == Format.Unknown ? record.Info.Format.Linear().ToVk() : info.Format.ToVk();
+		if ( record.Info.Format.IsDepth() ) format = record.Format;
+
+		var mips = info.MipCount > 0 ? (uint)info.MipCount : (uint)(record.Info.Mips - info.BaseMip);
+		var layers = info.LayerCount > 0 ? (uint)info.LayerCount : (uint)(record.ArrayLayers - info.BaseLayer);
+		var aspect = record.Info.Format.IsDepth() ? Vulkan.Vk.AspectDepth : Vulkan.Vk.AspectColor;
+
+		// An sRGB view of a storage texture mustn't claim storage use
+		var usage = 0u;
+		if ( record.Info.Format.HasSrgb() && info.Format != Format.Unknown && info.Format == info.Format.Srgb() && info.Format != info.Format.Linear() )
+		{
+			usage = Vulkan.Vk.ImageSampled;
+		}
+
+		var view = MakeView( record.Image, ViewType( info.Dimension ), format, aspect, (uint)info.BaseMip, mips, (uint)info.BaseLayer, layers, usage );
+		var storage = (record.Info.Usage & TextureUsage.Storage) != 0 && mips == 1 && usage == 0 && info.Dimension != TextureDimension.TextureCube;
+
+		var viewRecord = new ViewRecord
+		{
+			View = view,
+			Texture = texture,
+			BindlessIndex = bindless && (record.Info.Usage & TextureUsage.Sampled) != 0 ? Bindless.AddTexture( view, view ) : -1,
+			StorageIndex = bindless && storage ? Bindless.AddStorage( view ) : -1,
+		};
+
+		var (index, generation) = Views.Add( viewRecord );
+		return new TextureViewHandle( index, generation );
+	}
+
+	/// <summary>What a texture was created with.</summary>
+	public TextureInfo InfoOf( TextureHandle texture ) => Get( texture ).Info;
+
+	/// <summary>Whether a handle names a texture that hasn't been destroyed.</summary>
+	public bool IsAlive( TextureHandle texture ) => Textures.IsAlive( texture.Index, texture.Generation );
+
+	/// <summary>
+	/// A sampled texture's index in the bindless table (<c>Bindless::GetTexture2D</c> and friends); its sRGB view is at
+	/// the next index (<c>GetTexture2DSrgb</c>). -1 if it isn't sampled.
+	/// </summary>
+	public int BindlessIndex( TextureHandle texture ) => Get( texture ).BindlessIndex;
+
+	/// <summary>A view's index in the bindless table, or -1 if it wasn't added.</summary>
+	public int BindlessIndex( TextureViewHandle view ) => Get( view ).BindlessIndex;
+
+	/// <summary>A storage texture's mip 0 in the bindless storage table (<c>Bindless::GetRWTexture2D</c>), or -1.</summary>
+	public int StorageIndex( TextureHandle texture ) => Get( texture ).StorageIndex;
+
+	/// <summary>A view's index in the bindless storage table, or -1.</summary>
+	public int StorageIndex( TextureViewHandle view ) => Get( view ).StorageIndex;
+
+	//
+	// Samplers
+	//
+
+	/// <summary>
+	/// Create a sampler and add it to the bindless sampler table (<see cref="SamplerIndex"/>).
+	/// </summary>
+	public SamplerHandle CreateSampler( in SamplerInfo info )
+	{
+		static int Address( AddressMode mode ) => mode switch { AddressMode.Mirror => 1, AddressMode.Clamp => 2, AddressMode.Border => 3, _ => 0 };
+
+		var anisotropy = Math.Min( info.MaxAnisotropy, Capabilities.MaxAnisotropy );
+		var create = new VkSamplerCreateInfo
+		{
+			sType = VkStructureType.SamplerCreateInfo,
+			magFilter = (int)info.MagFilter,
+			minFilter = (int)info.MinFilter,
+			mipmapMode = (int)info.MipFilter,
+			addressModeU = Address( info.AddressU ),
+			addressModeV = Address( info.AddressV ),
+			addressModeW = Address( info.AddressW ),
+			mipLodBias = info.MipBias,
+			anisotropyEnable = anisotropy > 1 ? 1u : 0u,
+			maxAnisotropy = Math.Max( anisotropy, 1 ),
+			compareEnable = info.Compare != CompareFunction.Never ? 1u : 0u,
+			compareOp = (int)info.Compare,
+			minLod = info.MinLod,
+			maxLod = info.MaxLod,
+		};
+
+		ulong sampler;
+		Vk.vkCreateSampler( Vk.Device, &create, null, &sampler ).Check( "vkCreateSampler" );
+
+		var (index, generation) = Samplers.Add( new SamplerRecord { Sampler = sampler, Index = Bindless.AddSampler( sampler ) } );
+		return new SamplerHandle( index, generation );
+	}
+
+	/// <summary>A sampler's index in the bindless sampler table (<c>Bindless::GetSampler</c>).</summary>
+	public int SamplerIndex( SamplerHandle sampler ) => Get( sampler ).Index;
+
+	//
+	// Shaders, layouts, pipelines
+	//
+
+	/// <summary>
+	/// Make a shader module from SPIR-V.
+	/// </summary>
+	public ShaderHandle CreateShader( ReadOnlySpan<byte> spirv, string name = null )
+	{
+		if ( spirv.Length < 20 || spirv.Length % 4 != 0 || MemoryMarshal.Read<uint>( spirv ) != 0x07230203 )
+			throw new ArgumentException( $"Shader {name} isn't SPIR-V" );
+
+		fixed ( byte* code = spirv )
+		{
+			var info = new VkShaderModuleCreateInfo { sType = VkStructureType.ShaderModuleCreateInfo, codeSize = (nuint)spirv.Length, pCode = (uint*)code };
+			ulong module;
+			Vk.vkCreateShaderModule( Vk.Device, &info, null, &module ).Check( $"vkCreateShaderModule ({name})" );
+			SetName( VkObjectType.ShaderModule, module, name );
+
+			var (index, generation) = Shaders.Add( new ShaderRecord { Module = module } );
+			return new ShaderHandle( index, generation );
+		}
+	}
+
+	static VkDescriptorType DescriptorType( BindingType type ) => type switch
+	{
+		BindingType.UniformBuffer => VkDescriptorType.UniformBuffer,
+		BindingType.StorageBuffer => VkDescriptorType.StorageBuffer,
+		BindingType.SampledTexture => VkDescriptorType.SampledImage,
+		BindingType.StorageTexture => VkDescriptorType.StorageImage,
+		_ => VkDescriptorType.Sampler,
+	};
+
+	/// <summary>
+	/// Describe a descriptor set that's filled per draw or dispatch (<see cref="CommandList.SetBindings"/>).
+	/// </summary>
+	public BindingLayoutHandle CreateBindingLayout( ReadOnlySpan<BindingSlot> slots )
+	{
+		var bindings = stackalloc VkDescriptorSetLayoutBinding[Math.Max( slots.Length, 1 )];
+		for ( int i = 0; i < slots.Length; i++ )
+		{
+			bindings[i] = new VkDescriptorSetLayoutBinding
+			{
+				binding = (uint)slots[i].Binding,
+				descriptorType = DescriptorType( slots[i].Type ),
+				descriptorCount = (uint)Math.Max( slots[i].Count, 1 ),
+				stageFlags = (uint)slots[i].Stages,
+			};
+		}
+
+		var info = new VkDescriptorSetLayoutCreateInfo { sType = VkStructureType.DescriptorSetLayoutCreateInfo, bindingCount = (uint)slots.Length, pBindings = bindings };
+		ulong layout;
+		Vk.vkCreateDescriptorSetLayout( Vk.Device, &info, null, &layout ).Check( "vkCreateDescriptorSetLayout" );
+
+		var (index, generation) = Layouts.Add( new LayoutRecord { SetLayout = layout, Slots = slots.ToArray() } );
+		return new BindingLayoutHandle( index, generation );
+	}
+
+	ulong SetLayoutOf( BindingLayoutHandle[] sets, int set ) => sets is not null && set < sets.Length && sets[set].IsValid ? Get( sets[set] ).SetLayout : emptySetLayout;
+
+	ulong PipelineLayout( BindingLayoutHandle[] sets )
+	{
+		if ( sets is { Length: > ShaderAbi.BindlessSet } ) throw new ArgumentException( $"Sets 0 to {ShaderAbi.BindlessSet - 1} are the pipeline's; set {ShaderAbi.BindlessSet} is the bindless table" );
+
+		var key = (SetLayoutOf( sets, 0 ), SetLayoutOf( sets, 1 ), SetLayoutOf( sets, 2 ), SetLayoutOf( sets, 3 ));
+		lock ( pipelineLayouts )
+		{
+			if ( pipelineLayouts.TryGetValue( key, out var existing ) ) return existing;
+
+			var setLayouts = stackalloc ulong[ShaderAbi.SetCount] { key.Item1, key.Item2, key.Item3, key.Item4, Bindless.SetLayout };
+			var push = new VkPushConstantRange { stageFlags = Vulkan.Vk.StageAllGraphics | Vulkan.Vk.StageCompute, size = ShaderAbi.PushConstantSize };
+			var info = new VkPipelineLayoutCreateInfo
+			{
+				sType = VkStructureType.PipelineLayoutCreateInfo,
+				setLayoutCount = ShaderAbi.SetCount,
+				pSetLayouts = setLayouts,
+				pushConstantRangeCount = 1,
+				pPushConstantRanges = &push,
+			};
+
+			ulong layout;
+			Vk.vkCreatePipelineLayout( Vk.Device, &info, null, &layout ).Check( "vkCreatePipelineLayout" );
+			pipelineLayouts[key] = layout;
+			pipelineLayoutSets[layout] = key;
+			return layout;
+		}
+	}
+
+	/// <summary>
+	/// Create a graphics pipeline, through the device's pipeline cache.
+	/// </summary>
+	public PipelineHandle CreateGraphicsPipeline( in GraphicsPipelineInfo info )
+	{
+		using var strings = new NativeStrings();
+		var layout = PipelineLayout( info.Sets );
+
+		var stages = stackalloc VkPipelineShaderStageCreateInfo[2];
+		var stageCount = 1u;
+		stages[0] = new VkPipelineShaderStageCreateInfo
+		{
+			sType = VkStructureType.PipelineShaderStageCreateInfo,
+			stage = Vulkan.Vk.StageVertex,
+			module = Shaders.Get( info.VertexShader.Index, info.VertexShader.Generation ).Module,
+			pName = strings.Add( info.VertexEntry ?? "main" ),
+		};
+
+		if ( info.FragmentShader.IsValid )
+		{
+			stages[1] = new VkPipelineShaderStageCreateInfo
+			{
+				sType = VkStructureType.PipelineShaderStageCreateInfo,
+				stage = Vulkan.Vk.StageFragment,
+				module = Shaders.Get( info.FragmentShader.Index, info.FragmentShader.Generation ).Module,
+				pName = strings.Add( info.FragmentEntry ?? "main" ),
+			};
+			stageCount = 2;
+		}
+
+		var buffers = info.VertexBuffers ?? [];
+		var attributes = info.Attributes ?? [];
+		var vkBuffers = stackalloc VkVertexInputBindingDescription[Math.Max( buffers.Length, 1 )];
+		var vkAttributes = stackalloc VkVertexInputAttributeDescription[Math.Max( attributes.Length, 1 )];
+		for ( int i = 0; i < buffers.Length; i++ ) vkBuffers[i] = new VkVertexInputBindingDescription { binding = (uint)i, stride = (uint)buffers[i].Stride, inputRate = (int)buffers[i].StepRate };
+		for ( int i = 0; i < attributes.Length; i++ )
+		{
+			vkAttributes[i] = new VkVertexInputAttributeDescription { location = (uint)attributes[i].Location, binding = (uint)attributes[i].Buffer, format = attributes[i].Format.ToVk(), offset = (uint)attributes[i].Offset };
+		}
+
+		var vertexInput = new VkPipelineVertexInputStateCreateInfo
+		{
+			sType = VkStructureType.PipelineVertexInputStateCreateInfo,
+			vertexBindingDescriptionCount = (uint)buffers.Length,
+			pVertexBindingDescriptions = vkBuffers,
+			vertexAttributeDescriptionCount = (uint)attributes.Length,
+			pVertexAttributeDescriptions = vkAttributes,
+		};
+
+		var inputAssembly = new VkPipelineInputAssemblyStateCreateInfo { sType = VkStructureType.PipelineInputAssemblyStateCreateInfo, topology = (int)info.Topology };
+		var viewport = new VkPipelineViewportStateCreateInfo { sType = VkStructureType.PipelineViewportStateCreateInfo, viewportCount = 1, scissorCount = 1 };
+		var raster = new VkPipelineRasterizationStateCreateInfo
+		{
+			sType = VkStructureType.PipelineRasterizationStateCreateInfo,
+			depthClampEnable = info.DepthClamp ? 1u : 0u,
+			polygonMode = info.Wireframe ? 1 : 0,
+			cullMode = (uint)info.CullMode,
+			frontFace = (int)info.FrontFace,
+			depthBiasEnable = info.DepthBias ? 1u : 0u,
+			lineWidth = 1,
+		};
+
+		var multisample = new VkPipelineMultisampleStateCreateInfo
+		{
+			sType = VkStructureType.PipelineMultisampleStateCreateInfo,
+			rasterizationSamples = (uint)Math.Max( info.Samples, 1 ),
+			alphaToCoverageEnable = info.AlphaToCoverage ? 1u : 0u,
+		};
+
+		static VkStencilOpState Stencil( StencilFace face, byte read, byte write ) => new()
+		{
+			failOp = (int)face.Fail,
+			passOp = (int)face.Pass,
+			depthFailOp = (int)face.DepthFail,
+			compareOp = (int)face.Compare,
+			compareMask = read,
+			writeMask = write,
+		};
+
+		var depthStencil = new VkPipelineDepthStencilStateCreateInfo
+		{
+			sType = VkStructureType.PipelineDepthStencilStateCreateInfo,
+			depthTestEnable = info.DepthTest ? 1u : 0u,
+			depthWriteEnable = info.DepthWrite ? 1u : 0u,
+			depthCompareOp = (int)info.DepthCompare,
+			stencilTestEnable = info.StencilTest ? 1u : 0u,
+			front = Stencil( info.StencilFront, info.StencilReadMask, info.StencilWriteMask ),
+			back = Stencil( info.StencilBack, info.StencilReadMask, info.StencilWriteMask ),
+		};
+
+		var colorFormats = info.ColorFormats ?? [];
+		var vkColorFormats = stackalloc VkFormat[Math.Max( colorFormats.Length, 1 )];
+		var blends = stackalloc VkPipelineColorBlendAttachmentState[Math.Max( colorFormats.Length, 1 )];
+		for ( int i = 0; i < colorFormats.Length; i++ )
+		{
+			vkColorFormats[i] = VkFormatOf( colorFormats[i] );
+			var blend = info.Blend is { Length: > 0 } ? info.Blend[Math.Min( i, info.Blend.Length - 1 )] : BlendState.Opaque;
+			blends[i] = new VkPipelineColorBlendAttachmentState
+			{
+				blendEnable = blend.Enable ? 1u : 0u,
+				srcColorBlendFactor = (int)blend.SourceColor,
+				dstColorBlendFactor = (int)blend.DestinationColor,
+				colorBlendOp = (int)blend.ColorOp,
+				srcAlphaBlendFactor = (int)blend.SourceAlpha,
+				dstAlphaBlendFactor = (int)blend.DestinationAlpha,
+				alphaBlendOp = (int)blend.AlphaOp,
+				colorWriteMask = blend.WriteMask == 0 ? Vulkan.Vk.ColorComponentAll : (uint)blend.WriteMask,
+			};
+		}
+
+		var colorBlend = new VkPipelineColorBlendStateCreateInfo
+		{
+			sType = VkStructureType.PipelineColorBlendStateCreateInfo,
+			attachmentCount = (uint)colorFormats.Length,
+			pAttachments = blends,
+		};
+
+		var dynamicStates = stackalloc int[4];
+		var dynamicCount = 0u;
+		dynamicStates[dynamicCount++] = Vulkan.Vk.DynamicViewport;
+		dynamicStates[dynamicCount++] = Vulkan.Vk.DynamicScissor;
+		if ( info.DepthBias ) dynamicStates[dynamicCount++] = Vulkan.Vk.DynamicDepthBias;
+		if ( info.StencilTest ) dynamicStates[dynamicCount++] = Vulkan.Vk.DynamicStencilReference;
+		var dynamic = new VkPipelineDynamicStateCreateInfo { sType = VkStructureType.PipelineDynamicStateCreateInfo, dynamicStateCount = dynamicCount, pDynamicStates = dynamicStates };
+
+		var depthFormat = VkFormatOf( info.DepthFormat );
+		var rendering = new VkPipelineRenderingCreateInfo
+		{
+			sType = VkStructureType.PipelineRenderingCreateInfo,
+			colorAttachmentCount = (uint)colorFormats.Length,
+			pColorAttachmentFormats = vkColorFormats,
+			depthAttachmentFormat = depthFormat,
+			stencilAttachmentFormat = info.DepthFormat.HasStencil() ? depthFormat : VkFormat.Undefined,
+		};
+
+		var create = new VkGraphicsPipelineCreateInfo
+		{
+			sType = VkStructureType.GraphicsPipelineCreateInfo,
+			pNext = &rendering,
+			stageCount = stageCount,
+			pStages = stages,
+			pVertexInputState = &vertexInput,
+			pInputAssemblyState = &inputAssembly,
+			pViewportState = &viewport,
+			pRasterizationState = &raster,
+			pMultisampleState = &multisample,
+			pDepthStencilState = &depthStencil,
+			pColorBlendState = &colorBlend,
+			pDynamicState = &dynamic,
+			layout = layout,
+			basePipelineIndex = -1,
+		};
+
+		ulong pipeline;
+		Vk.vkCreateGraphicsPipelines( Vk.Device, pipelineCache, 1, &create, null, &pipeline ).Check( $"vkCreateGraphicsPipelines ({info.Name})" );
+		SetName( VkObjectType.Pipeline, pipeline, info.Name );
+
+		var (index, generation) = Pipelines.Add( new PipelineRecord { Pipeline = pipeline, Layout = layout, BindPoint = Vulkan.Vk.BindPointGraphics } );
+		return new PipelineHandle( index, generation );
+	}
+
+	/// <summary>
+	/// Create a compute pipeline, through the device's pipeline cache.
+	/// </summary>
+	public PipelineHandle CreateComputePipeline( in ComputePipelineInfo info )
+	{
+		using var strings = new NativeStrings();
+		var layout = PipelineLayout( info.Sets );
+		var create = new VkComputePipelineCreateInfo
+		{
+			sType = VkStructureType.ComputePipelineCreateInfo,
+			stage = new VkPipelineShaderStageCreateInfo
+			{
+				sType = VkStructureType.PipelineShaderStageCreateInfo,
+				stage = Vulkan.Vk.StageCompute,
+				module = Shaders.Get( info.Shader.Index, info.Shader.Generation ).Module,
+				pName = strings.Add( info.Entry ?? "main" ),
+			},
+			layout = layout,
+			basePipelineIndex = -1,
+		};
+
+		ulong pipeline;
+		Vk.vkCreateComputePipelines( Vk.Device, pipelineCache, 1, &create, null, &pipeline ).Check( $"vkCreateComputePipelines ({info.Name})" );
+		SetName( VkObjectType.Pipeline, pipeline, info.Name );
+
+		var (index, generation) = Pipelines.Add( new PipelineRecord { Pipeline = pipeline, Layout = layout, BindPoint = Vulkan.Vk.BindPointCompute } );
+		return new PipelineHandle( index, generation );
+	}
+
+	void CreatePipelineCache( byte[] data )
+	{
+		var empty = new VkDescriptorSetLayoutCreateInfo { sType = VkStructureType.DescriptorSetLayoutCreateInfo };
+		ulong layout;
+		Vk.vkCreateDescriptorSetLayout( Vk.Device, &empty, null, &layout ).Check( "vkCreateDescriptorSetLayout" );
+		emptySetLayout = layout;
+
+		fixed ( byte* initial = data )
+		{
+			var info = new VkPipelineCacheCreateInfo { sType = VkStructureType.PipelineCacheCreateInfo, initialDataSize = (nuint)(data?.Length ?? 0), pInitialData = initial };
+			ulong cache;
+
+			// Data from another driver or GPU is rejected; start empty then
+			if ( Vk.vkCreatePipelineCache( Vk.Device, &info, null, &cache ) != VkResult.Success )
+			{
+				info.initialDataSize = 0;
+				info.pInitialData = null;
+				Vk.vkCreatePipelineCache( Vk.Device, &info, null, &cache ).Check( "vkCreatePipelineCache" );
+			}
+
+			pipelineCache = cache;
+		}
+	}
+
+	/// <summary>
+	/// The pipeline cache's contents, to save and pass back as <see cref="DeviceOptions.PipelineCacheData"/>.
+	/// </summary>
+	public byte[] GetPipelineCacheData()
+	{
+		nuint size;
+		Vk.vkGetPipelineCacheData( Vk.Device, pipelineCache, &size, null ).Check( "vkGetPipelineCacheData" );
+		var data = new byte[(int)size];
+		fixed ( byte* p = data ) Vk.vkGetPipelineCacheData( Vk.Device, pipelineCache, &size, p ).Check( "vkGetPipelineCacheData" );
+		return data;
+	}
+
+	void DestroyPipelineCache()
+	{
+		foreach ( var layout in pipelineLayouts.Values ) Vk.vkDestroyPipelineLayout( Vk.Device, layout, null );
+		pipelineLayouts.Clear();
+		Vk.vkDestroyDescriptorSetLayout( Vk.Device, emptySetLayout, null );
+		Vk.vkDestroyPipelineCache( Vk.Device, pipelineCache, null );
+	}
+
+	//
+	// Destruction: deferred until every queue has finished what was submitted before it
+	//
+
+	readonly struct Garbage( ulong graphics, ulong compute, Action free )
+	{
+		public readonly ulong Graphics = graphics;
+		public readonly ulong Compute = compute;
+		public readonly Action Free = free;
+	}
+
+	readonly List<Garbage> garbage = new();
+
+	/// <summary>
+	/// Free something once the GPU has finished everything submitted so far.
+	/// </summary>
+	internal void Defer( Action free )
+	{
+		lock ( garbage ) garbage.Add( new Garbage( graphicsQueue.Submitted, computeQueue.Submitted, free ) );
+	}
+
+	void CollectGarbage( bool force = false )
+	{
+		var graphics = graphicsQueue.Completed;
+		var compute = computeQueue.Completed;
+
+		List<Action> due = null;
+		lock ( garbage )
+		{
+			for ( int i = 0; i < garbage.Count; i++ )
+			{
+				var item = garbage[i];
+				if ( !force && (item.Graphics > graphics || item.Compute > compute) ) continue;
+
+				(due ??= new()).Add( item.Free );
+				garbage.RemoveAt( i-- );
+			}
+		}
+
+		if ( due is null ) return;
+		foreach ( var free in due ) free();
+	}
+
+	/// <summary>Destroy a buffer once the GPU is done with it.</summary>
+	public void Destroy( BufferHandle buffer )
+	{
+		var record = Buffers.Remove( buffer.Index, buffer.Generation );
+		Defer( () =>
+		{
+			Vk.vkDestroyBuffer( Vk.Device, record.Buffer, null );
+			Allocator.Free( record.Memory );
+		} );
+	}
+
+	/// <summary>Destroy a texture, its views and its bindless entries once the GPU is done with it.</summary>
+	public void Destroy( TextureHandle texture )
+	{
+		var record = Textures.Remove( texture.Index, texture.Generation );
+		if ( record.External ) throw new InvalidOperationException( "Swap chain images belong to their swap chain" );
+
+		Defer( () => FreeTexture( record ) );
+	}
+
+	void FreeTexture( in TextureRecord record )
+	{
+		if ( record.BindlessIndex >= 0 ) Bindless.RemoveTexture( record.BindlessIndex );
+		if ( record.StorageIndex >= 0 ) Bindless.RemoveStorage( record.StorageIndex );
+		foreach ( var view in record.Attachments.Views.Values ) Vk.vkDestroyImageView( Vk.Device, view, null );
+		if ( record.SrgbView != record.View ) Vk.vkDestroyImageView( Vk.Device, record.SrgbView, null );
+		if ( record.View != 0 ) Vk.vkDestroyImageView( Vk.Device, record.View, null );
+		if ( record.StorageView != 0 ) Vk.vkDestroyImageView( Vk.Device, record.StorageView, null );
+		Vk.vkDestroyImage( Vk.Device, record.Image, null );
+		Allocator.Free( record.Memory );
+	}
+
+	/// <summary>Destroy a view once the GPU is done with it.</summary>
+	public void Destroy( TextureViewHandle view )
+	{
+		var record = Views.Remove( view.Index, view.Generation );
+		Defer( () =>
+		{
+			if ( record.BindlessIndex >= 0 ) Bindless.RemoveTexture( record.BindlessIndex );
+			if ( record.StorageIndex >= 0 ) Bindless.RemoveStorage( record.StorageIndex );
+			Vk.vkDestroyImageView( Vk.Device, record.View, null );
+		} );
+	}
+
+	/// <summary>Destroy a sampler once the GPU is done with it.</summary>
+	public void Destroy( SamplerHandle sampler )
+	{
+		var record = Samplers.Remove( sampler.Index, sampler.Generation );
+		Defer( () =>
+		{
+			Bindless.RemoveSampler( record.Index );
+			Vk.vkDestroySampler( Vk.Device, record.Sampler, null );
+		} );
+	}
+
+	/// <summary>Destroy a shader module. Pipelines made from it keep working.</summary>
+	public void Destroy( ShaderHandle shader )
+	{
+		var record = Shaders.Remove( shader.Index, shader.Generation );
+		Vk.vkDestroyShaderModule( Vk.Device, record.Module, null );
+	}
+
+	/// <summary>Destroy a binding layout once the GPU is done with it.</summary>
+	public void Destroy( BindingLayoutHandle layout )
+	{
+		var record = Layouts.Remove( layout.Index, layout.Generation );
+		Defer( () => Vk.vkDestroyDescriptorSetLayout( Vk.Device, record.SetLayout, null ) );
+	}
+
+	/// <summary>Destroy a pipeline once the GPU is done with it.</summary>
+	public void Destroy( PipelineHandle pipeline )
+	{
+		var record = Pipelines.Remove( pipeline.Index, pipeline.Generation );
+		Defer( () => Vk.vkDestroyPipeline( Vk.Device, record.Pipeline, null ) );
+	}
+
+	void DestroyAllResources()
+	{
+		foreach ( var record in Pipelines.All() ) Vk.vkDestroyPipeline( Vk.Device, record.Pipeline, null );
+		foreach ( var record in Shaders.All() ) Vk.vkDestroyShaderModule( Vk.Device, record.Module, null );
+		foreach ( var record in Layouts.All() ) Vk.vkDestroyDescriptorSetLayout( Vk.Device, record.SetLayout, null );
+		foreach ( var record in Samplers.All() ) Vk.vkDestroySampler( Vk.Device, record.Sampler, null );
+		foreach ( var record in Views.All() ) Vk.vkDestroyImageView( Vk.Device, record.View, null );
+		foreach ( var record in Textures.All() )
+		{
+			if ( !record.External ) FreeTexture( record );
+		}
+
+		foreach ( var record in Buffers.All() )
+		{
+			Vk.vkDestroyBuffer( Vk.Device, record.Buffer, null );
+			Allocator.Free( record.Memory );
+		}
+	}
+
+	/// <summary>
+	/// Describe what's alive, for leak checks: counts of each kind of resource.
+	/// </summary>
+	public string DescribeResources()
+	{
+		var text = new StringBuilder();
+		text.Append( $"{Buffers.Count} buffers, {Textures.Count} textures, {Views.Count} views, {Samplers.Count} samplers, " );
+		text.Append( $"{Shaders.Count} shaders, {Layouts.Count} layouts, {Pipelines.Count} pipelines; " );
+		text.Append( $"{Allocator.Used >> 20} MiB used of {Allocator.Reserved >> 20} MiB reserved" );
+		return text.ToString();
+	}
+}
