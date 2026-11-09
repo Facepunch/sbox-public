@@ -572,6 +572,12 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	public bool EnablePostProcessing { get; set; } = true;
 
 	/// <summary>
+	/// Whether CMAA2 filters this camera's image when the settings choose it (<see cref="AntiAliasMode.Cmaa2"/>). Scene Lab's
+	/// native reference turns it off: the managed renderer it's compared with draws without camera stages, so without CMAA2.
+	/// </summary>
+	internal bool AllowCmaa2 { get; set; } = true;
+
+	/// <summary>
 	/// Should this camera render engine overlays, you'd only want this on the main camera.
 	/// </summary>
 	internal bool EnableEngineOverlays { get; set; } = false;
@@ -719,7 +725,7 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 
 	void ApplyAntiAliasing()
 	{
-		if ( RenderSettings.Instance.AntiAliasMode == AntiAliasMode.Cmaa2
+		if ( AllowCmaa2 && RenderSettings.Instance.AntiAliasMode == AntiAliasMode.Cmaa2
 			&& Graphics.ToolsVisMode == (int)SceneCameraDebugMode.Normal )
 		{
 			_cmaa2Renderer.Value.Render();

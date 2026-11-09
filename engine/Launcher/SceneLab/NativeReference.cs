@@ -113,6 +113,10 @@ internal sealed class NativeScene : IDisposable
 		camera.CubemapFog.Transform = fog.Transform;
 		camera.ClearFlags = ClearFlags.All;
 		camera.EnablePostProcessing = false;
+
+		// The managed renderer draws the RenderWorld without camera stages, so without the CMAA2 a native camera runs before
+		// post processing whenever the settings choose it
+		camera.AllowCmaa2 = false;
 	}
 
 	/// <summary>
