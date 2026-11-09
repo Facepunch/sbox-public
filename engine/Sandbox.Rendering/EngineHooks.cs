@@ -6,7 +6,7 @@ namespace Sandbox.Rendering;
 
 /// <summary>
 /// What this assembly gives the engine, installed by the app system at startup: Basalt's host, the layers of native's
-/// rendering pipeline, and the renderer behind <c>r_managed_scene</c>.
+/// rendering pipeline, and Basalt behind the scene renderer seam (<c>r_managed_scene</c>).
 /// </summary>
 internal static class EngineHooks
 {
@@ -17,6 +17,6 @@ internal static class EngineHooks
 	{
 		RenderHost.Current = new SboxRenderHost();
 		RenderPipeline.Current ??= new NativeRenderPipeline();
-		ManagedSceneRendering.Renderer ??= new SceneBridge();
+		SceneRenderer.Basalt ??= new SceneBridge();
 	}
 }

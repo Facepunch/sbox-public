@@ -55,6 +55,12 @@ internal sealed class ViewPass
 	public StaticFilter StaticFilter { get; set; }
 
 	/// <summary>
+	/// While <see cref="DebugViews.CullReasons"/> is on, the main view's <see cref="CullReason"/> by world index for meshes it
+	/// culled on the CPU and draws anyway; null otherwise, and for every other view.
+	/// </summary>
+	public byte[] CullReasons { get; set; }
+
+	/// <summary>
 	/// Cube face or array layer of <see cref="Target"/>.
 	/// </summary>
 	public int TargetSlice { get; set; }

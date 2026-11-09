@@ -58,6 +58,11 @@ public sealed class MeshObject : RenderObject
 	public bool WantsFrameBufferCopy { get; set; }
 
 	/// <summary>
+	/// Work run around this object's draws in colour layers, or null. Prevents instancing.
+	/// </summary>
+	public DrawCallbacks Callbacks { get; set; }
+
+	/// <summary>
 	/// Per-object attributes override view attributes and prevent instancing (<c>CBaseSceneObjectDesc</c>).
 	/// </summary>
 	public ShaderParameters Attributes { get; set; }
@@ -171,6 +176,17 @@ public sealed class MeshObject : RenderObject
 			bones[i] = worldBones[i];
 			boneMatrices[i] = Matrix3x4.From( worldBones[i] );
 		}
+	}
+
+	/// <summary>
+	/// Pose a skinned mesh in place: room for <paramref name="count"/> world-space bone matrices, by model bone index, for the
+	/// caller to fill - <see cref="SetBones"/> without converting or copying. <see cref="Bones"/> is left empty.
+	/// </summary>
+	internal Span<Matrix3x4> PoseBoneMatrices( int count )
+	{
+		if ( bones.Length != 0 ) bones = [];
+		if ( boneMatrices.Length != count ) boneMatrices = new Matrix3x4[count];
+		return boneMatrices;
 	}
 
 	/// <summary>

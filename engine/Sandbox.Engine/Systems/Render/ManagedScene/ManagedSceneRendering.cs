@@ -1,59 +1,28 @@
-using NativeEngine;
-
 namespace Sandbox.Rendering;
 
 /// <summary>
-/// What the managed scene renderer (Basalt) offers the engine. It lives in its own assembly, which
-/// references this one, so the app system registers it here at startup.
+/// The compare Basalt offers <c>r_managed_scene_compare</c>: a camera rendered by both renderers, compared per pixel.
 /// </summary>
-internal interface IManagedSceneRenderer
+internal interface IManagedSceneCompare
 {
-	/// <summary>
-	/// Render a camera's whole frame - its scene's world - into a swap chain, instead of the native pipeline.
-	/// Returns false if it can't, and native should.
-	/// </summary>
-	bool Render( CameraComponent camera, SwapChainHandle_t swapChain, Vector2 size );
-
-	/// <summary>
-	/// Render a camera's whole frame into a texture, instead of the native pipeline. Returns false if it can't.
-	/// </summary>
-	bool RenderToTexture( CameraComponent camera, Texture target );
-
 	/// <summary>
 	/// Render a camera both ways - native to a bitmap with post processing off, managed to a texture - and compare
 	/// them per pixel, saving both frames and where they differ into <paramref name="folder"/>. Returns the result
 	/// as a line for the console.
 	/// </summary>
 	string Compare( CameraComponent camera, string folder );
-
-	/// <summary>
-	/// Free what it holds for a camera that's been destroyed - its renderer, targets and view - now, rather than whenever
-	/// the GC notices, since they own native memory nothing else frees.
-	/// </summary>
-	void Forget( CameraComponent camera );
-
-	/// <summary>
-	/// Free its mirror of a world that's been deleted.
-	/// </summary>
-	void Forget( SceneWorld world );
-
-	/// <summary>
-	/// Free every GPU resource it holds, at engine shutdown - before native goes, so no finalizer frees them after.
-	/// </summary>
-	void Shutdown();
 }
 
 /// <summary>
-/// Cameras render their scene's world through the managed scene renderer when <c>r_managed_scene</c> is on. The
-/// managed renderer owns the camera's whole frame: native's post processing, UI and command lists don't run for
-/// it, and engine overlays (the console, debug overlays) are drawn over it afterwards. See
-/// docs/managed/basalt.md, <i>The GameObject bridge</i>.
+/// Basalt's switches, its compare and its frame counters. With <c>r_managed_scene</c> on, every scene render goes through
+/// Basalt (<see cref="SceneRenderer"/>), which owns the camera's whole frame: native's post processing, UI and command lists
+/// don't run for it, and the platform overlay (the console, debug overlays) is drawn over it by whoever owns the swap chain.
+/// See docs/managed/basalt.md, <i>The GameObject bridge</i>, and docs/managed/render-paths.md.
 /// </summary>
 internal static partial class ManagedSceneRendering
 {
 	/// <summary>
-	/// Render cameras through Basalt. Experimental: it draws models, skinned models, lights,
-	/// environment probes, fog and ambient, and nothing else yet.
+	/// Render every scene through Basalt instead of native. Read once a frame (<see cref="SceneRenderer.BeginFrame"/>).
 	/// </summary>
 	[ConVar( "r_managed_scene", ConVarFlags.Protected, Help = "Render cameras through the managed scene renderer (experimental)" )]
 	public static bool Enabled { get; set; }
@@ -70,62 +39,16 @@ internal static partial class ManagedSceneRendering
 	public static bool Occlusion { get; set; } = true;
 
 	/// <summary>
-	/// Set by Basalt when the app system installs it at startup.
+	/// Called as a camera component renders, before it does: counts down to a queued compare. True while the compare warms
+	/// up, when native renders the camera too, over Basalt's frame, so both renderers' effects that carry frames forward
+	/// (volumetric fog's history, auto exposure) have run when they're compared.
 	/// </summary>
-	public static IManagedSceneRenderer Renderer { get; set; }
-
-	/// <summary>
-	/// Called at engine shutdown: the managed renderer frees what it holds while native is still there.
-	/// </summary>
-	internal static void Shutdown()
+	internal static bool BeforeCameraRender( CameraComponent camera )
 	{
-		Renderer?.Shutdown();
-		Renderer = null;
-	}
+		if ( pendingCompare is null ) return false;
 
-	/// <summary>
-	/// Called when a camera is destroyed: the managed renderer frees what it made for it, if it's loaded.
-	/// </summary>
-	internal static void Forget( CameraComponent camera ) => Renderer?.Forget( camera );
-
-	/// <summary>
-	/// Called when a scene world is deleted: the managed renderer frees its mirror of it, if it's loaded.
-	/// </summary>
-	internal static void Forget( SceneWorld world ) => Renderer?.Forget( world );
-
-	/// <summary>
-	/// Render a camera through the managed renderer, if it's on and can. Called where the camera would add itself
-	/// to native's render list.
-	/// </summary>
-	internal static bool TryRender( CameraComponent camera, SwapChainHandle_t swapChain, Vector2? size )
-	{
-		if ( pendingCompare is not null ) RunPendingCompare( camera );
-
-		if ( !Enabled ) return false;
-
-		// Stereo cameras stay native
-		if ( VR.VRSystem.IsActive && camera.TargetEye != StereoTargetEye.None ) return false;
-
-		var renderer = Renderer;
-		if ( renderer is null ) return false;
-
-		// Just before a compare, native renders the camera too, over the managed frame, so both renderers' effects that carry
-		// frames forward (volumetric fog's history, auto exposure) have run when they're compared
-		var warming = pendingCompare is not null && pendingFrames < CompareWarmFrames;
-
-		if ( camera.RenderTarget is { } target && target.native.IsValid )
-			return renderer.RenderToTexture( camera, target ) && !warming;
-
-		var info = g_pRenderDevice.GetSwapChainInfo( swapChain );
-		var targetSize = size ?? new Vector2( info.m_DisplayMode.m_nWidth, info.m_DisplayMode.m_nHeight );
-		if ( !renderer.Render( camera, swapChain, targetSize ) ) return false;
-		if ( warming ) return false;
-
-		// The console, debug overlays and the like, which native adds to the main camera's view
-		if ( camera.SceneCamera.EnableEngineOverlays )
-			CCameraRenderer.RenderOverlay( swapChain );
-
-		return true;
+		RunPendingCompare( camera );
+		return pendingCompare is not null && pendingFrames < CompareWarmFrames;
 	}
 
 	static string pendingCompare;
@@ -133,7 +56,7 @@ internal static partial class ManagedSceneRendering
 	static bool quitAfterCompare;
 
 	/// <summary>
-	/// How many camera renders before a compare native renders the camera as well (<see cref="TryRender"/>): enough for
+	/// How many camera renders before a compare native renders the camera as well (<see cref="BeforeCameraRender"/>): enough for
 	/// volumetric fog's temporal history to settle.
 	/// </summary>
 	const int CompareWarmFrames = 120;
@@ -185,7 +108,7 @@ internal static partial class ManagedSceneRendering
 
 	static void RunCompare( CameraComponent camera, string folder )
 	{
-		var renderer = Renderer;
+		var renderer = SceneRenderer.Basalt as IManagedSceneCompare;
 		if ( renderer is null )
 		{
 			Log.Warning( "r_managed_scene_compare: no managed renderer" );

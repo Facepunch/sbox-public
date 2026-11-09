@@ -43,6 +43,12 @@ public static partial class Graphics
 		attributes ??= Attributes;
 
 		var clampedLod = Math.Max( lodLevel, 0 );
+		if ( CurrentManagedView is not null )
+		{
+			ManagedView.DrawModelInstanced( Context, model, transforms, clampedLod, attributes );
+			return;
+		}
+
 		fixed ( Transform* pTransforms = transforms )
 		{
 			RenderTools.DrawModel( Context, SceneLayer, DrawShaderMode, model.native, (IntPtr)pTransforms, transforms.Length, attributes.Get(), clampedLod );
@@ -70,6 +76,12 @@ public static partial class Graphics
 			return;
 
 		attributes ??= Attributes;
+
+		if ( CurrentManagedView is not null )
+		{
+			ManagedView.DrawModelInstanced( Context, model, transforms, 0, attributes );
+			return;
+		}
 
 		fixed ( Transform* pTransforms = transforms )
 		{

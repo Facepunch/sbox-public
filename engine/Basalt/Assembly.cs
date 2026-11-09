@@ -18,4 +18,5 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo( "Sandbox.Engine" )]
 [assembly: InternalsVisibleTo( "Sandbox.Rendering" )]
 [assembly: InternalsVisibleTo( "scenelab" )]
+[assembly: InternalsVisibleTo( "basaltlab" )]
 [assembly: InternalsVisibleTo( "Benchmark" )]

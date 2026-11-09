@@ -89,6 +89,7 @@ internal partial class ShadowMapper
 			staticView.Target = cacheEntry.StaticCache;
 			staticView.StaticFilter = StaticFilter.OnlyStatic;
 			Renderer.RenderShadowView( staticView );
+			cacheEntry.StaticRenderedFrame = FrameCount;
 		}
 
 		bool useStaticCache = cacheEntry.StaticCache is not null;
@@ -118,6 +119,7 @@ internal partial class ShadowMapper
 	{
 		GPUProjectedShadows.Add( cacheEntry.Projected );
 		ProjectedShadowMaps.Add( cacheEntry.ShadowMap );
+		SpotEntries.Add( cacheEntry );
 		ShadowsAllocated++;
 
 		cacheEntry.LastFrame = RealTime.Now;

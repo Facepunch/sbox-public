@@ -120,4 +120,15 @@ public class RenderHost
 	/// A view has been rendered, with these counts and timings.
 	/// </summary>
 	public virtual void Rendered( in RenderStats stats ) { }
+
+	/// <summary>
+	/// Basalt's debug views to draw. Read once a frame.
+	/// </summary>
+	public virtual DebugViews DebugViews => DebugViews.None;
+
+	/// <summary>
+	/// What a frame drawn into a window found while <see cref="DebugViews"/> had any on, for the host to label. The report is
+	/// filled again next frame.
+	/// </summary>
+	public virtual void PublishDebugViews( DebugViewReport report ) { }
 }

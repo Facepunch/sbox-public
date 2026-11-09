@@ -31,4 +31,11 @@ internal sealed class HeadlessRenderHost : Basalt.RenderHost
 	public static HeadlessDevice Headless { get; } = new();
 
 	public override Basalt.GpuDevice Device => Headless;
+
+	/// <summary>
+	/// Basalt's debug views, for the tests of them, which are [DoNotParallelize] and turn them off after.
+	/// </summary>
+	public static Basalt.DebugViews Views { get; set; }
+
+	public override Basalt.DebugViews DebugViews => Views;
 }

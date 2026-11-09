@@ -67,7 +67,7 @@ internal sealed partial class MeshRenderFeature
 	/// Write bones once per mesh per frame: world pose after inverse bind pose (<c>SetupBones</c>).
 	/// Skeleton-free meshes stay rigid. CPU-only; cache allocation waits until <see cref="BeforeUpload"/>.
 	/// </summary>
-	void WriteBones( MeshObject obj, int lod, in Matrix objectToWorld, TransformBuffer transforms )
+	void WriteBones( MeshObject obj, int lod, in Matrix objectToWorld, Color tint, TransformBuffer transforms )
 	{
 		if ( skinJobsGeneration != transforms.Generation )
 		{
@@ -95,7 +95,7 @@ internal sealed partial class MeshRenderFeature
 			var skin = mesh.SkinFor( m );
 			if ( skin is null )
 			{
-				obj.SkinSlots[m] = transforms.Add( objectToWorld, obj.Tint );
+				obj.SkinSlots[m] = transforms.Add( objectToWorld, tint );
 				continue;
 			}
 
@@ -109,7 +109,7 @@ internal sealed partial class MeshRenderFeature
 				skinScratch[b] = Matrix3x4.Concat( world, skin.InverseBindPoses[b] );
 			}
 
-			var slot = transforms.AddSkinned( obj.Tint, skin.BlendWeightCount, skinScratch.AsSpan( 0, skin.BoneCount ) );
+			var slot = transforms.AddSkinned( tint, skin.BlendWeightCount, skinScratch.AsSpan( 0, skin.BoneCount ) );
 			obj.SkinSlots[m] = slot;
 
 			// Deformation and morphs require compute skinning even with one weight.
@@ -160,15 +160,17 @@ internal sealed partial class MeshRenderFeature
 
 		// Batch matching meshes; deformation/morph combos must match (CSceneSystem::CanBatchVertexCacheRequests).
 		var jobs = CollectionsMarshal.AsSpan( skinJobs );
-		jobs.Sort( static ( a, b ) =>
+		// Deformed, then morphed, then by geometry and model mesh: a key each, rather than comparing the objects' state per pair
+		if ( skinSortKeys.Length < jobs.Length ) skinSortKeys = new ulong[Math.Max( jobs.Length, skinSortKeys.Length * 2 )];
+		var keys = skinSortKeys.AsSpan( 0, jobs.Length );
+		for ( int i = 0; i < jobs.Length; i++ )
 		{
-			var byDeformed = a.Object.IsDeformed.CompareTo( b.Object.IsDeformed );
-			if ( byDeformed != 0 ) return byDeformed;
-			var byMorphed = a.Morphed.CompareTo( b.Morphed );
-			if ( byMorphed != 0 ) return byMorphed;
-			var byMesh = RuntimeHelpers.GetHashCode( a.Object.Mesh ).CompareTo( RuntimeHelpers.GetHashCode( b.Object.Mesh ) );
-			return byMesh != 0 ? byMesh : a.ModelMesh.CompareTo( b.ModelMesh );
-		} );
+			ref readonly var job = ref jobs[i];
+			keys[i] = (job.Object.IsDeformed ? 1UL << 63 : 0) | (job.Morphed ? 1UL << 62 : 0)
+				| (ulong)(uint)RuntimeHelpers.GetHashCode( SkinningKey( job.Object.Mesh ) ) << 16 | (ushort)job.ModelMesh;
+		}
+
+		keys.Sort( jobs );
 
 		if ( batchSlots.Length < jobs.Length )
 		{
@@ -205,12 +207,13 @@ internal sealed partial class MeshRenderFeature
 		for ( int first = 0; first < jobs.Length; )
 		{
 			var mesh = jobs[first].Object.Mesh;
+			var key = SkinningKey( mesh );
 			var modelMesh = jobs[first].ModelMesh;
 			var deformed = jobs[first].Object.IsDeformed;
 			var morphed = jobs[first].Morphed;
 
 			var count = 0;
-			while ( first + count < jobs.Length && jobs[first + count].Object.Mesh == mesh && jobs[first + count].ModelMesh == modelMesh && jobs[first + count].Object.IsDeformed == deformed && jobs[first + count].Morphed == morphed )
+			while ( first + count < jobs.Length && SkinningKey( jobs[first + count].Object.Mesh ) == key && jobs[first + count].ModelMesh == modelMesh && jobs[first + count].Object.IsDeformed == deformed && jobs[first + count].Morphed == morphed )
 			{
 				ref var job = ref jobs[first + count];
 				batchSlots[count] = job.Slot;
@@ -227,6 +230,13 @@ internal sealed partial class MeshRenderFeature
 		}
 		context.BarrierVertexCacheToRead();
 	}
+
+	/// <summary>
+	/// What skinning jobs batch by: the mesh's geometry, which its variants (body groups, materials) share with their skinning, as
+	/// native batches by render mesh (<c>CSceneSystem::CanBatchVertexCacheRequests</c>), or the mesh itself without one (tests).
+	/// </summary>
+	static object SkinningKey( RenderMesh mesh ) => (object)mesh.Geometry ?? mesh;
+	ulong[] skinSortKeys = [];
 
 	int[] batchSlots = [];
 	int[] batchOffsets = [];

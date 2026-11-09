@@ -102,6 +102,15 @@ internal static class DevToolsMenus
 		Cycle( menu, "Freeze", "r_occlusion_freeze", () => OcclusionDebug.Freeze ? 1 : 0, OnOff );
 		Cycle( menu, "Early cull", "r_occlusion_early", () => OcclusionDebug.EarlyMode, EarlyModes );
 
+		// The managed renderer's own views, which draw only while it renders
+		if ( ManagedSceneRendering.Enabled )
+		{
+			menu.AddChild( new Label( "Managed renderer", "menu-section" ) );
+			Cycle( menu, "LOD colours", "r_managed_debug_lod", () => ManagedDebugViews.LodColors ? 1 : 0, OnOff );
+			Cycle( menu, "Cull reasons", "r_managed_debug_cull", () => ManagedDebugViews.CullReasons ? 1 : 0, OnOff );
+			Cycle( menu, "Shadow maps", "r_managed_debug_shadows", () => ManagedDebugViews.ShadowMaps ? 1 : 0, OnOff );
+		}
+
 		menu.AddChild( new Label( "Dev tools", "menu-section" ) );
 
 		var scale = menu.AddChild( new Panel( null, "menu-row stepper" ) );

@@ -141,7 +141,7 @@ public sealed partial class SceneWorld : IHandle
 
 		InternalSceneMaps.Clear();
 
-		Rendering.ManagedSceneRendering.Forget( this );
+		Rendering.SceneRenderer.Forget( this );
 		CSceneSystem.DestroyWorld( this );
 		native = IntPtr.Zero;
 		ActivePVS = default;
@@ -156,7 +156,7 @@ public sealed partial class SceneWorld : IHandle
 
 	internal void OnNativeDestroy()
 	{
-		Rendering.ManagedSceneRendering.Forget( this );
+		Rendering.SceneRenderer.Forget( this );
 		native = IntPtr.Zero;
 		ActivePVS = default;
 		All.Remove( this );

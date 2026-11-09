@@ -18,8 +18,20 @@ public sealed partial class RenderSystem
 		mainPass.View = view;
 		mainPass.Root = view;
 
-		var inFrustum = FindCandidates( world, mainPass, candidates, out var inTree, out var rejected );
+		// The cull reasons view sees every object in the frustum, so it can tell the small ones from the off-screen ones and
+		// draw them anyway
+		mainPass.CullReasons = null;
+		var reasons = (frame.DebugViews & DebugViews.CullReasons) != 0 && !isSkybox;
+		if ( reasons )
+		{
+			if ( cullReasons.Length < world.Objects.Length ) cullReasons = new byte[world.Objects.Length];
+			Array.Clear( cullReasons );
+			mainPass.CullReasons = cullReasons;
+		}
+
+		var inFrustum = FindCandidates( world, mainPass, candidates, out var inTree, out var rejected, sizeCull: !reasons );
 		stats.ObjectsSizeCulled += rejected;
+		if ( reasons ) stats.ObjectsFrustumCulled += world.Count - candidates.Count;
 
 		if ( ParallelRecording && candidates.Count >= MinParallelCullCandidates && JobDispatcher.MaxDegreeOfParallelism > 1 )
 			CullInChunks( world, mainPass, candidates, inTree, inFrustum, ref stats );
@@ -32,6 +44,9 @@ public sealed partial class RenderSystem
 	/// collecting, the serial tree query being the rest.
 	/// </summary>
 	internal static int MinParallelCullCandidates { get; set; } = 4096;
+
+	// The main view's cull reasons, by world index, while the cull reasons view is on
+	byte[] cullReasons = [];
 
 	// Candidates in each chunk of a split cull; enough chunks that threads finishing early can take another
 	const int CullChunkCandidates = 1024;
@@ -92,18 +107,21 @@ public sealed partial class RenderSystem
 		{
 			stats.ObjectsSizeCulled += chunkStats[c].ObjectsSizeCulled;
 			stats.ObjectsVisible += chunkStats[c].ObjectsVisible;
+			stats.ObjectsTagCulled += chunkStats[c].ObjectsTagCulled;
+			stats.ObjectsFrustumCulled += chunkStats[c].ObjectsFrustumCulled;
 		}
 	}
 
 	/// <summary>
 	/// Query the frustum or light sphere, then append non-tree objects. Entries encode (world index &lt;&lt; 1) | contained.
 	/// Returns true when containment means frustum containment. Only the first <paramref name="inTree"/> entries are size-culled;
-	/// <paramref name="rejected"/> counts objects in size-rejected subtrees, including possible off-screen objects.
+	/// <paramref name="rejected"/> counts objects in size-rejected subtrees, including possible off-screen objects. Without
+	/// <paramref name="sizeCull"/>, no subtree is rejected, and <see cref="Cull"/> size culls each object.
 	/// </summary>
-	internal static bool FindCandidates( RenderWorld world, ViewPass pass, List<int> candidates, out int inTree, out int rejected )
+	internal static bool FindCandidates( RenderWorld world, ViewPass pass, List<int> candidates, out int inTree, out int rejected, bool sizeCull = true )
 	{
 		candidates.Clear();
-		var size = new SizeCull( pass.Root );
+		var size = sizeCull ? new SizeCull( pass.Root ) : default;
 
 		// Avoid traversing static objects for dynamic-only shadows.
 		var tree = pass.StaticFilter == StaticFilter.NoStatic ? world.DynamicTree : world.Tree;
@@ -132,7 +150,8 @@ public sealed partial class RenderSystem
 
 	/// <summary>
 	/// Filter candidates by frustum, root-view size and tags, then feature support.
-	/// Shadow views also apply caster and static filters.
+	/// Shadow views also apply caster and static filters. With <see cref="ViewPass.CullReasons"/>, meshes culled for their
+	/// size or tags are kept with their reason, and not counted visible.
 	/// </summary>
 	internal void Cull( RenderWorld world, ViewPass pass, List<int> candidates, int inTree, bool inFrustum, ref RenderStats stats )
 		=> CullRange( world, pass, candidates, 0, candidates.Count, inTree, inFrustum, pass.VisibleByFeature, ref stats );
@@ -151,27 +170,48 @@ public sealed partial class RenderSystem
 		var objects = world.Objects;
 		var centers = world.BoundsCenter;
 		var extents = world.BoundsExtents;
+		var reasons = pass.CullReasons;
 
 		var entries = System.Runtime.InteropServices.CollectionsMarshal.AsSpan( candidates );
 		for ( int k = start; k < end; k++ )
 		{
 			var entry = entries[k];
 			var i = entry >> 1;
-			if ( !(inFrustum && (entry & 1) != 0) && !frustum.Intersects( centers[i], extents[i] ) ) continue;
-
-			// Size-cull tree entries before accessing objects.
-			if ( k < inTree && sizeCull.Culls( centers[i], extents[i] ) )
+			if ( !(inFrustum && (entry & 1) != 0) && !frustum.Intersects( centers[i], extents[i] ) )
 			{
-				stats.ObjectsSizeCulled++;
+				if ( reasons is not null ) stats.ObjectsFrustumCulled++;
 				continue;
 			}
 
+			// Size-cull tree entries before accessing objects.
+			var reason = CullReason.None;
+			if ( k < inTree && sizeCull.Culls( centers[i], extents[i] ) )
+			{
+				stats.ObjectsSizeCulled++;
+				if ( reasons is null ) continue;
+				reason = CullReason.Size;
+			}
+
 			var obj = objects[i];
-			if ( !root.Shows( obj ) ) continue;
+			if ( reason == CullReason.None && !root.Shows( obj ) )
+			{
+				stats.ObjectsTagCulled++;
+				if ( reasons is null ) continue;
+				reason = CullReason.Tags;
+			}
 
 			var feature = FeatureFor( obj.GetType() );
 			if ( feature < 0 ) continue;
 			var f = features[feature];
+
+			// Only meshes are drawn anyway: a culled light or probe would change what the visible ones look like
+			if ( reason != CullReason.None )
+			{
+				if ( obj is not MeshObject ) continue;
+				reasons[i] = (byte)reason;
+				visible[feature].Add( i );
+				continue;
+			}
 
 			if ( shadow )
 			{

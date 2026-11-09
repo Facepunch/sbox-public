@@ -313,6 +313,13 @@ internal sealed partial class SceneLabWindow : PanelWindow
 		viewMenu.AboutToShow += m => planOption.Checked = planOverlay.Level > 0;
 		var planAll = viewMenu.AddOption( "Frame Plan: Every Layer", on => planOverlay.Level = on ? 2 : planOverlay.Level > 0 ? 1 : 0 );
 		viewMenu.AboutToShow += m => planAll.Checked = planOverlay.Level > 1;
+		viewMenu.AddSeparator();
+		var lodColors = viewMenu.AddOption( "LOD Colours", on => Sandbox.Rendering.ManagedDebugViews.LodColors = on );
+		viewMenu.AboutToShow += m => lodColors.Checked = Sandbox.Rendering.ManagedDebugViews.LodColors;
+		var cullReasons = viewMenu.AddOption( "Cull Reasons", on => Sandbox.Rendering.ManagedDebugViews.CullReasons = on );
+		viewMenu.AboutToShow += m => cullReasons.Checked = Sandbox.Rendering.ManagedDebugViews.CullReasons;
+		var shadowMaps = viewMenu.AddOption( "Shadow Maps", on => Sandbox.Rendering.ManagedDebugViews.ShadowMaps = on );
+		viewMenu.AboutToShow += m => shadowMaps.Checked = Sandbox.Rendering.ManagedDebugViews.ShadowMaps;
 
 		bar.Add.Panel( "grow" );
 
@@ -325,6 +332,7 @@ internal sealed partial class SceneLabWindow : PanelWindow
 		// Over the corner of the scene rather than in the title bar, where it didn't fit
 		stats = viewport.Add.Label( "", "scenelab-stats" );
 		planOverlay = viewport.AddChild( new PlanOverlay { Level = Args.Has( "-plan" ) ? Math.Max( 1, Args.Int( "-plan", 1 ) ) : 0 } );
+		viewport.AddChild( new DebugViewsOverlay() );
 
 		return root;
 	}
@@ -792,6 +800,19 @@ internal sealed partial class SceneLabWindow : PanelWindow
 		Log.Info( $"Scene Lab: frame plan to {planPath}" );
 	}
 
+	/// <summary>
+	/// With a debug view on, save the frame with the views' key and labels over it beside a capture as <c>name.debug.png</c> -
+	/// they're a panel, drawn after the capture reads the frame.
+	/// </summary>
+	void CaptureDebugViews( Color32[] pixels, int width, int height, string path )
+	{
+		if ( !DebugOverlay.ManagedViews.Showing || pixels is null || path is null ) return;
+
+		var debugPath = System.IO.Path.ChangeExtension( path, ".debug.png" );
+		Save( DebugViewsOverlay.Render( pixels, width, height ), width, height, debugPath );
+		Log.Info( $"Scene Lab: debug views to {debugPath}" );
+	}
+
 	void FinishCapture( FrameComparison.Parity? result )
 	{
 		if ( result is { Matches: false } ) Environment.ExitCode = 2;
@@ -876,6 +897,7 @@ internal sealed partial class SceneLabWindow : PanelWindow
 
 		Save( pixels, (int)size.x, (int)size.y, path );
 		Log.Info( $"Scene Lab: captured frame {frame} to {path}{(managedTarget is null ? "" : $" from a {managedTarget.Color.Format} target, {managedTarget.Samples}x MSAA")}" );
+		CaptureDebugViews( pixels, (int)size.x, (int)size.y, path );
 		if ( !native ) return null;
 
 		var nativePath = System.IO.Path.ChangeExtension( path, ".native.png" );

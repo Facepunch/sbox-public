@@ -100,6 +100,8 @@ internal partial class ShadowMapper
 				staticView.Slice = i;
 				Renderer.RenderShadowView( staticView );
 			}
+
+			cacheEntry.StaticRenderedFrame = FrameCount;
 		}
 
 		bool useStaticCache = cacheEntry.StaticCache is not null;
@@ -138,6 +140,7 @@ internal partial class ShadowMapper
 	{
 		GPUProjectedCubeShadows.Add( cacheEntry.Cube );
 		ProjectedCubeShadowMaps.Add( cacheEntry.ShadowMap );
+		PointEntries.Add( cacheEntry );
 		ShadowsAllocated++;
 
 		cacheEntry.LastFrame = RealTime.Now;

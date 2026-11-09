@@ -287,7 +287,7 @@ public class AppSystem
 		ShadowMapperCallbacks.Shutdown();
 
 		// So may the managed scene renderer, if r_managed_scene loaded it
-		Rendering.ManagedSceneRendering.Shutdown();
+		Rendering.SceneRenderer.Shutdown();
 
 		// Destroy all cached render targets immediately — must happen before
 		// GlobalContext.Shutdown() so ResourceSystem is still alive for Unregister calls.

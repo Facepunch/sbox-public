@@ -36,7 +36,8 @@ internal sealed class Source2Parameters : ShaderParameters
 	public override void SetCombo( StringToken name, int value ) => Attributes.SetCombo( name, value );
 	public override bool GetBool( StringToken name, bool fallback = false ) => Attributes.GetBool( name, fallback );
 	public override void MergeTo( ShaderParameters target ) => Attributes.MergeTo( target.Engine() );
-	public override void Clear() => Attributes.Clear();
+	// Keeps the hash's memory: frame parameters and pooled ones are cleared every frame and filled again
+	public override void Clear() => Attributes.Clear( false );
 }
 
 /// <summary>

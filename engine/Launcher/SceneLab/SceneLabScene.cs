@@ -43,7 +43,7 @@ internal sealed record SceneLabScene
 	/// <summary>
 	/// A <see cref="Game"/> scene's camera also renders natively every frame, into a texture no one sees, while the managed
 	/// renderer draws the window - for effects that carry frames forward, like volumetric fog's history, so native's has run as
-	/// many frames as the managed one's when they're compared.
+	/// many frames as the managed one's when they're compared. Not while benchmarking, so the managed numbers are its own.
 	/// </summary>
 	public bool NativeAlongside { get; init; }
 
@@ -58,6 +58,23 @@ internal sealed record SceneLabScene
 	/// The benchmark measures it with occlusion culling off and then on, through each renderer.
 	/// </summary>
 	public bool CompareOcclusion { get; init; }
+
+	/// <summary>
+	/// Puts a scripted <see cref="Game"/> scene back to its first frame. The benchmark calls it as it starts measuring, so
+	/// every renderer measures the same frames whatever the warm-up took.
+	/// </summary>
+	public Action<Scene> Rewind { get; init; }
+
+	/// <summary>
+	/// Frames the benchmark measures, when not the default (<c>-benchmark-frames</c> overrides it): a script's whole length.
+	/// </summary>
+	public int? BenchmarkFrames { get; init; }
+
+	/// <summary>
+	/// The frame a capture compares at, when not the default (<c>-capture-frame</c> overrides it): one where the script has
+	/// got going.
+	/// </summary>
+	public int? CaptureFrame { get; init; }
 
 	public bool IsGame => Game is not null;
 
@@ -259,6 +276,7 @@ internal sealed record SceneLabScene
 		new() { Name = "Highlight Outlines", Group = "Post Processing", Game = GameScenes.HighlightOutlines, ChangeGame = GameScenes.ChangeHighlightOutlines },
 		new() { Name = "Screen UI", Group = "UI", Game = GameScenes.ScreenUI, ChangeGame = GameScenes.ChangeScreenUI, Frame = GameScenes.DrawHud },
 		new() { Name = "Early UI", Group = "UI", Game = GameScenes.EarlyUI },
+		new() { Name = "Stage Attributes", Group = "UI", Game = StageAttributesScene.Build, ChangeGame = StageAttributesScene.Change },
 		new() { Name = "World Panel", Group = "UI", Game = GameScenes.WorldUI },
 		new() { Name = "Output Overlays", Group = "UI", Game = GameScenes.OutputOverlays, ChangeGame = GameScenes.ChangeOutputOverlays },
 		new() { Name = "Sprites and Particles", Group = "Effects", Game = GameScenes.SpritesAndParticles, ChangeGame = GameScenes.ChangeSpritesAndParticles },
@@ -289,11 +307,15 @@ internal sealed record SceneLabScene
 		new() { Name = "Fried Onion Earrings", Group = "Avatar", Game = OutfitScenes.FriedOnionEarrings.Build, Frame = OutfitScenes.FriedOnionEarrings.DressWhenLoaded, Ready = OutfitScenes.FriedOnionEarrings.Dressed },
 		new() { Name = "Light Cookie", Group = "GameObject", Game = GameScenes.LightCookie, ChangeGame = GameScenes.ChangeLightCookie },
 		new() { Name = "Light Modulation", Group = "GameObject", Game = GameScenes.LightModulation, ChangeGame = GameScenes.ChangeLightModulation },
+		new() { Name = "Light Switching", Group = "GameObject", Game = GameScenes.LightSwitching, Frame = GameScenes.SwitchLights },
 		new() { Name = "Light Modulation Baked Sun", Group = "Effects", Game = () => LightModulatorScenes.Sun( 0 ), ValidateGame = LightModulatorScenes.ValidateSun },
 		new() { Name = "Light Modulation Dynamic Sun", Group = "Effects", Game = () => LightModulatorScenes.Sun( -1 ), ValidateGame = LightModulatorScenes.ValidateSun },
 		new() { Name = "Light Modulation Gallery", Group = "Effects", Game = LightModulatorScenes.Gallery, ChangeGame = LightModulatorScenes.ChangeGallery, Isolated = true },
 		new() { Name = "Debug Overlay", Group = "GameObject", Game = GameScenes.DebugOverlay, ChangeGame = GameScenes.ChangeDebugOverlay, Frame = GameScenes.DrawDebugOverlay },
 		new() { Name = "Terrain and Clutter", Group = "GameObject", Game = TerrainScenes.TerrainAndClutter, ChangeGame = TerrainScenes.ChangeTerrainAndClutter, Ready = TerrainScenes.ClutterReady },
+		new() { Name = "Instanced Models", Group = "GameObject", Game = InstancedScene.Build, ChangeGame = InstancedScene.Change },
+		new() { Name = "Object Command Lists", Group = "GameObject", Game = ObjectCommandListScene.Build, ChangeGame = ObjectCommandListScene.Change, Isolated = true },
+		new() { Name = "Water Refraction", Group = "Effects", Game = WaterScene.Build, Isolated = true },
 		new() { Name = "Terrain Ambient Occlusion", Group = "GameObject", Game = TerrainScenes.TerrainAmbientOcclusion, ChangeGame = TerrainScenes.ChangeTerrainAndClutter, Ready = TerrainScenes.ClutterReady, Isolated = true },
 		new() { Name = "Refraction", Group = "Effects", Game = GameScenes.Refraction, ChangeGame = GameScenes.ChangeRefraction },
 		new() { Name = "Viewmodel", Group = "Effects", Game = GameScenes.Viewmodel, ChangeGame = GameScenes.ChangeViewmodel },
@@ -311,6 +333,21 @@ internal sealed record SceneLabScene
 		new() { Name = "Construct Skyline", Group = "Maps", Game = MapScenes.ConstructSkyline, Frame = MapScenes.StartWhenOnline, Ready = MapScenes.Loaded },
 		new() { Name = "Construct Overview", Group = "Maps", Game = MapScenes.ConstructOverview, Frame = MapScenes.StartWhenOnline, Ready = MapScenes.Loaded },
 		new() { Name = "Construct Skyline Fog", Group = "Maps", Game = MapScenes.ConstructSkylineFog, Frame = MapScenes.StartWhenOnline, Ready = MapScenes.Loaded, NativeAlongside = true },
+
+		// Scenarios: game-like scenes measured as a whole, scripted by frame count so each run sees the same frames (Scenarios)
+		new() { Name = "Firefight", Group = Scenarios.Group, Game = FirefightScene.Build, Frame = FirefightScene.Fight, Ready = FirefightScene.Ready, Rewind = FirefightScene.Rewind,
+			CaptureFrame = 240 },
+		new() { Name = "Flythrough", Group = Scenarios.Group, Game = FlythroughScene.Build, Frame = FlythroughScene.Fly, Ready = FlythroughScene.Ready, Rewind = FlythroughScene.Rewind,
+			BenchmarkFrames = FlythroughScene.Frames, CaptureFrame = 200 },
+		new() { Name = "Crowd Near", Group = Scenarios.Group, Game = CrowdScene.Near, Frame = CrowdScene.Animate, Rewind = CrowdScene.Rewind },
+		new() { Name = "Crowd Mid", Group = Scenarios.Group, Game = CrowdScene.Mid, Frame = CrowdScene.Animate, Rewind = CrowdScene.Rewind },
+		new() { Name = "Crowd Far", Group = Scenarios.Group, Game = CrowdScene.Far, Frame = CrowdScene.Animate, Rewind = CrowdScene.Rewind },
+		new() { Name = "Forest", Group = Scenarios.Group, Game = ForestScene.Build, Frame = ForestScene.Walk, Ready = ForestScene.Ready, Rewind = ForestScene.Rewind,
+			BenchmarkFrames = ForestScene.LoopFrames, CaptureFrame = 200 },
+		new() { Name = "Night Interior", Group = Scenarios.Group, Game = NightInteriorScene.Build, Frame = NightInteriorScene.Walk, Rewind = NightInteriorScene.Rewind,
+			BenchmarkFrames = NightInteriorScene.Frames, CaptureFrame = 150 },
+		new() { Name = "Smoke and Glass", Group = Scenarios.Group, Game = SmokeAndGlassScene.Build, Frame = SmokeAndGlassScene.Animate, Rewind = SmokeAndGlassScene.Rewind,
+			NativeAlongside = true, CaptureFrame = 300 },
 	];
 
 	/// <summary>

@@ -1,5 +1,6 @@
 using Basalt;
 using Basalt.Gpu.Source2;
+using Sandbox.Rendering;
 
 namespace Sandbox.SceneLab;
 
@@ -113,6 +114,10 @@ internal sealed class NativeScene : IDisposable
 		camera.CubemapFog.Transform = fog.Transform;
 		camera.ClearFlags = ClearFlags.All;
 		camera.EnablePostProcessing = false;
+
+		// The managed renderer draws the RenderWorld without camera stages, so without the CMAA2 a native camera runs before
+		// post processing whenever the settings choose it
+		camera.AllowCmaa2 = false;
 	}
 
 	/// <summary>
@@ -144,7 +149,7 @@ internal sealed class NativeScene : IDisposable
 	public void Render( SwapChainHandle_t swapChain, RenderView view, Vector2 size )
 	{
 		Sync( view, size );
-		camera.AddToRenderList( swapChain, size );
+		camera.AddToRenderList( SceneRenderer.Native, swapChain, size );
 	}
 
 	/// <summary>
@@ -155,7 +160,7 @@ internal sealed class NativeScene : IDisposable
 		Sync( view, size );
 
 		using var bitmap = new Bitmap( (int)size.x, (int)size.y );
-		camera.RenderToBitmap( bitmap );
+		SceneRenderer.Native.RenderToBitmap( camera, bitmap, default );
 		System.IO.File.WriteAllBytes( path, bitmap.ToPng() );
 		return bitmap.GetPixels32();
 	}
@@ -172,7 +177,7 @@ internal sealed class NativeScene : IDisposable
 
 		var texture = Texture.CreateRenderTarget().WithSize( (int)size.x, (int)size.y ).WithFormat( ImageFormat.RGBA16161616F ).Create( "Scene Lab native reference" );
 		camera.Attributes.Set( "msaa", (int)msaa );
-		camera.RenderToTexture( texture, null, default );
+		SceneRenderer.Native.RenderToTexture( camera, texture, null, default );
 		return texture;
 	}
 

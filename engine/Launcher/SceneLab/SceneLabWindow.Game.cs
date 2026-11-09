@@ -1,4 +1,5 @@
 using Basalt;
+using Sandbox.Rendering;
 using Sandbox.Rendering.Bridge;
 
 namespace Sandbox.SceneLab;
@@ -18,6 +19,15 @@ internal sealed partial class SceneLabWindow
 	static readonly Vector3 GameFocus = Args.String( "-camera-lookat" ) is { } at ? Vector3.Parse( at ) : new( 0, 0, 30 );
 
 	Scene game;
+
+	/// <summary>
+	/// The GameObject scene loaded, if one is.
+	/// </summary>
+	public Scene GameScene => game;
+
+	// A preset's own capture frame, unless -capture-frame chose one
+	int GameCaptureFrame => !Args.Has( "-capture-frame" ) && Scene.CaptureFrame is { } preset ? preset : captureFrame;
+
 	(float Yaw, float Pitch, float Distance) gameCamera;
 	int gameChangedFrame;
 	CameraComponent[] targetCameras = [];
@@ -130,7 +140,7 @@ internal sealed partial class SceneLabWindow
 		timer.BeginRender();
 
 		// An isolated capture frame renders the camera once, into its readback target
-		var isolatedCapture = isolated && CapturePath is not null && (frame + 1 == captureFrame || (gameChangedFrame != 0 && frame + 1 == gameChangedFrame)) && (Scene.Ready?.Invoke( game ) ?? true);
+		var isolatedCapture = isolated && CapturePath is not null && (frame + 1 == GameCaptureFrame || (gameChangedFrame != 0 && frame + 1 == gameChangedFrame)) && (Scene.Ready?.Invoke( game ) ?? true);
 		isolatedPixels = null;
 
 		using ( game.Push() )
@@ -140,15 +150,9 @@ internal sealed partial class SceneLabWindow
 			foreach ( var target in targetCameras )
 			{
 				target.InitializeRendering();
-				if ( Renderer == RendererKind.Managed )
-				{
-					gameBridge ??= new SceneBridge();
-					gameBridge.RenderToTexture( target, target.RenderTarget );
-				}
-				else
-				{
-					target.SceneCamera.RenderToTexture( target.RenderTarget, target.RenderTarget.Size, default );
-				}
+				// Each renderer by name, whatever r_managed_scene says: these are the A/B
+				ISceneRenderer renderer = Renderer == RendererKind.Managed ? (gameBridge ??= new SceneBridge()) : SceneRenderer.Native;
+				renderer.RenderToTexture( target.SceneCamera, target.RenderTarget, target.RenderTarget.Size, default );
 			}
 
 			camera.InitializeRendering();
@@ -162,11 +166,11 @@ internal sealed partial class SceneLabWindow
 			}
 			else if ( Renderer == RendererKind.Managed )
 			{
-				gameBridge ??= new SceneBridge();
-				gameBridge.Render( camera, swapChain, size );
+				camera.SceneCamera.AddToRenderList( gameBridge ??= new SceneBridge(), swapChain, size );
 
-				// The same camera natively too, where native's history has to keep pace (SceneLabScene.NativeAlongside)
-				if ( Scene.NativeAlongside )
+				// The same camera natively too, where native's history has to keep pace (SceneLabScene.NativeAlongside) - but not
+				// while benchmarking, where it would put native's frame into the managed one's numbers
+				if ( Scene.NativeAlongside && benchmark is null )
 				{
 					if ( nativeAlongside is null || nativeAlongside.Size != size )
 					{
@@ -174,12 +178,12 @@ internal sealed partial class SceneLabWindow
 						nativeAlongside = Texture.CreateRenderTarget().WithSize( (int)size.x, (int)size.y ).WithFormat( ImageFormat.RGBA16161616F ).Create( "Scene Lab native alongside" );
 					}
 
-					camera.SceneCamera.RenderToTexture( nativeAlongside, size, default );
+					SceneRenderer.Native.RenderToTexture( camera.SceneCamera, nativeAlongside, size, default );
 				}
 			}
 			else
 			{
-				camera.SceneCamera.AddToRenderList( swapChain, size );
+				camera.SceneCamera.AddToRenderList( SceneRenderer.Native, swapChain, size );
 			}
 		}
 
@@ -215,11 +219,13 @@ internal sealed partial class SceneLabWindow
 		var captureFolder = System.IO.Path.GetDirectoryName( System.IO.Path.GetFullPath( CapturePath ) );
 		var captureName = System.IO.Path.GetFileNameWithoutExtension( CapturePath );
 
-		if ( frame == captureFrame )
+		if ( frame == GameCaptureFrame )
 		{
 			var result = isolated ? CaptureIsolated( captureFolder, captureName ) : CompareGame( captureFolder, captureName );
 			Log.Info( $"Scene Lab: {Scene.Name}: {result}" );
 			CapturePlan( CapturePath );
+			if ( !isolated && Renderer == RendererKind.Managed && DebugOverlay.ManagedViews.Showing )
+				CaptureDebugViews( ReadSwapChain( swapChain, size ), (int)size.x, (int)size.y, CapturePath );
 			parity?.Report( result, lastParity );
 
 			if ( Scene.ChangeGame is { } change )
@@ -304,13 +310,13 @@ internal sealed partial class SceneLabWindow
 	/// </summary>
 	Basalt.RenderStats? GameStats()
 	{
-		if ( game?.Camera is not { } camera || gameBridge?.StatsFor( camera ) is not { } stats ) return null;
+		if ( game?.Camera is not { } camera || gameBridge?.StatsFor( camera.SceneCamera, camera.SceneCamera.MainView ) is not { } stats ) return null;
 
 		// Each render target camera is a render of its own, and the first to render a frame syncs its changes: the frame's
 		// numbers are all of them
 		foreach ( var target in targetCameras )
 		{
-			if ( gameBridge.StatsFor( target ) is not { } more ) continue;
+			if ( gameBridge.StatsFor( target.SceneCamera, default ) is not { } more ) continue;
 
 			stats.SyncMs += more.SyncMs;
 			stats.CollectMs += more.CollectMs;

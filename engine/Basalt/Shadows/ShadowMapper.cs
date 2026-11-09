@@ -59,6 +59,27 @@ internal partial class ShadowMapper
 	int CascadeShadowMapCount;
 
 	/// <summary>
+	/// The cache entry behind each spot shadow, then each point shadow, of this view - for the shadow map debug view.
+	/// </summary>
+	readonly List<LightEntry> SpotEntries = new();
+	readonly List<LightEntry> PointEntries = new();
+
+	/// <summary>
+	/// This view's cascades.
+	/// </summary>
+	internal ReadOnlySpan<ShadowMap> Cascades => CascadeShadowMaps.AsSpan( 0, CascadeShadowMapCount );
+
+	/// <summary>
+	/// This view's spot light shadows' cache entries, in <see cref="ProjectedShadowData"/> order.
+	/// </summary>
+	internal List<LightEntry> SpotShadows => SpotEntries;
+
+	/// <summary>
+	/// This view's point light shadows' cache entries, in <see cref="ProjectedCubeShadowData"/> order.
+	/// </summary>
+	internal List<LightEntry> PointShadows => PointEntries;
+
+	/// <summary>
 	/// Start a view: evict stale shadow maps, and clear the last view's shadows.
 	/// </summary>
 	internal void InitForView()
@@ -71,6 +92,8 @@ internal partial class ShadowMapper
 		GPUProjectedCubeShadows.Clear();
 		ProjectedShadowMaps.Clear();
 		ProjectedCubeShadowMaps.Clear();
+		SpotEntries.Clear();
+		PointEntries.Clear();
 		CascadeShadowMapCount = 0;
 		GPUDirectionalLightData.CascadeCount = 0;
 		GPUDirectionalLightData.Enabled = false;
@@ -146,6 +169,11 @@ internal partial class ShadowMapper
 		// frame (cube faces, mirrors, VR eyes), and time sliced across frames. 0 = never rendered, must render.
 		public ulong RenderedFrame;
 		public ulong UsedFrame;
+
+		/// <summary>
+		/// The frame <see cref="StaticCache"/> rendered in.
+		/// </summary>
+		public ulong StaticRenderedFrame;
 		public bool Scheduled;
 		internal GPUProjectedShadow Projected;
 		internal GPUProjectedCubeShadow Cube;

@@ -25,6 +25,17 @@ public struct RenderStats
 	public int ObjectsOcclusionCulled;
 
 	/// <summary>
+	/// Left out by the main view's render or exclude tags.
+	/// </summary>
+	public int ObjectsTagCulled;
+
+	/// <summary>
+	/// Outside the main view. Counted only while <see cref="DebugViews.CullReasons"/> is on, as the spatial tree otherwise
+	/// skips small objects without telling them apart from off-screen ones.
+	/// </summary>
+	public int ObjectsFrustumCulled;
+
+	/// <summary>
 	/// Forward draws, including instanced runs.
 	/// </summary>
 	public int Draws;

@@ -214,6 +214,9 @@ when testing resource lifetime.
 
 Use `overlay_scene_plan 1` in a game, or **View > Frame Plan** in SceneLab, to see active layers,
 resource dependencies, recording segments and timings. Level `2` also shows skipped layers.
+Basalt's own debug views - LOD colours, cull reasons and a shadow map viewer (`r_managed_debug_lod`, `r_managed_debug_cull`,
+`r_managed_debug_shadows`, or SceneLab's View menu) - are in [Diagnostics/DebugViews.cs](Diagnostics/DebugViews.cs) and the
+renderer reference's *Debug views*.
 Tracy zones are defined in [Diagnostics/Zones.cs](Diagnostics/Zones.cs); they cover collection,
 preparation, setup, recording, worker waits and submission. SceneLab's `-serialrecording` switch helps
 compare serial and parallel execution.

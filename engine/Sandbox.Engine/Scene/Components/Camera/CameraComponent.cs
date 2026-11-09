@@ -229,7 +229,6 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	protected override void OnDestroy()
 	{
 		Scene.Cameras.Remove( this );
-		Rendering.ManagedSceneRendering.Forget( this );
 		sceneCamera?.Dispose();
 		sceneCamera = null;
 		_hudCommandList.DisposePainter();
@@ -639,18 +638,25 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		{
 			InitializeRendering();
 
-			// r_managed_scene: the managed scene renderer takes the whole frame
-			if ( Rendering.ManagedSceneRendering.TryRender( this, swapChain, CustomSize ?? size ) )
-				return;
+			var warmingCompare = Rendering.ManagedSceneRendering.BeforeCameraRender( this );
+			var renderer = Rendering.SceneRenderer.Current;
+			RenderWith( renderer, swapChain, CustomSize ?? size );
 
-			if ( RenderTarget is not null && RenderTarget.native.IsValid )
-			{
-				SceneCamera.RenderToTexture( RenderTarget, CustomSize ?? size, default );
-			}
-			else
-			{
-				SceneCamera.AddToRenderList( swapChain, CustomSize ?? size );
-			}
+			// r_managed_scene_compare: native renders over Basalt's frame while the compare warms up
+			if ( warmingCompare && renderer != Rendering.SceneRenderer.Native )
+				RenderWith( Rendering.SceneRenderer.Native, swapChain, CustomSize ?? size );
+		}
+	}
+
+	void RenderWith( Rendering.ISceneRenderer renderer, SwapChainHandle_t swapChain, Vector2? size )
+	{
+		if ( RenderTarget is not null && RenderTarget.native.IsValid )
+		{
+			renderer.RenderToTexture( SceneCamera, RenderTarget, size, default );
+		}
+		else
+		{
+			SceneCamera.AddToRenderList( renderer, swapChain, size );
 		}
 	}
 

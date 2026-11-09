@@ -44,10 +44,9 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 	Dictionary<SceneObject, SceneObjectChange> pending = new();
 	Dictionary<SceneObject, SceneObjectChange> applying = new();
 
-	Transform[] bones = new Transform[256];
 	bool sunDirty = true;
 
-	const SceneObjectChange Everything = (SceneObjectChange)~0 & ~SceneObjectChange.Removed;
+	const SceneObjectChange Everything = (SceneObjectChange)~0 & ~SceneObjectChange.Removed & ~SceneObjectChange.Deleted;
 
 	/// <summary>
 	/// Start mirroring a world: take over its change listener, and queue everything already in it.
@@ -71,9 +70,15 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 	{
 		lock ( gate )
 		{
+			// Native draws a deleted object until its frame ends: keep it as long
+			if ( (change & SceneObjectChange.Deleted) != 0 ) deletedFrames[sceneObject] = Application.FrameCount;
 			pending[sceneObject] = pending.GetValueOrDefault( sceneObject ) | change;
 		}
 	}
+
+	// The frame each object was deleted in, until it's removed, and those kept for the rest of it
+	readonly Dictionary<SceneObject, ulong> deletedFrames = new();
+	readonly List<SceneObject> lingering = new();
 
 	/// <summary>
 	/// Stop listening, retaining the last mirrored state.
@@ -93,8 +98,17 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 			(pending, applying) = (applying, pending);
 		}
 
+		// Deleted in an earlier frame: native has stopped drawing them
+		var frame = Application.FrameCount;
+		for ( int i = lingering.Count - 1; i >= 0; i-- )
+		{
+			if ( DeletedThisFrame( lingering[i], frame ) ) continue;
+			Remove( lingering[i] );
+			lingering.RemoveAt( i );
+		}
+
 		foreach ( var (sceneObject, change) in applying )
-			Apply( sceneObject, change );
+			Apply( sceneObject, change, frame );
 
 		applying.Clear();
 
@@ -102,10 +116,27 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		SyncLighting( camera, skyboxView );
 	}
 
-	void Apply( SceneObject sceneObject, SceneObjectChange change )
+	/// <summary>
+	/// Whether an object was deleted (<see cref="SceneObjectChange.Deleted"/>) in this frame, which native still draws it in.
+	/// </summary>
+	bool DeletedThisFrame( SceneObject sceneObject, ulong frame )
 	{
-		if ( (change & SceneObjectChange.Removed) != 0 )
+		lock ( gate ) return deletedFrames.TryGetValue( sceneObject, out var deleted ) && deleted == frame;
+	}
+
+	void Apply( SceneObject sceneObject, SceneObjectChange change, ulong frame )
+	{
+		if ( (change & (SceneObjectChange.Removed | SceneObjectChange.Deleted)) != 0 )
 		{
+			// Deleted this frame: native draws it until the frame ends, so the frames rendered meanwhile keep it too - even
+			// when something native finished rendering views and destroyed it already (a bitmap render does), which is
+			// when Removed comes
+			if ( DeletedThisFrame( sceneObject, frame ) )
+			{
+				if ( !lingering.Contains( sceneObject ) ) lingering.Add( sceneObject );
+				return;
+			}
+
 			Remove( sceneObject );
 			return;
 		}
@@ -262,11 +293,13 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 
 	void Remove( SceneObject sceneObject )
 	{
+		lock ( gate ) deletedFrames.Remove( sceneObject );
 		if ( !objects.Remove( sceneObject, out var obj ) ) return;
 
 		if ( obj is MeshObject mesh )
 		{
 			attributed.Remove( mesh );
+			sharing.Remove( mesh );
 			ReleaseLightmap( mesh.LightmapAttributes.Engine() );
 			mesh.LightmapAttributes = null;
 		}
@@ -324,6 +357,19 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 			mesh.CastShadows = flags.CastShadows;
 			mesh.IsStatic = flags.IsStatic;
 			mesh.IsWorld = mesh.IsStatic || flags.HasFlag( SceneObjectFlags.IsHammerGeometry );
+
+			// Its renderer's own command lists (Renderer.ExecuteBefore, ExecuteAfter)
+			if ( flags.WantsExecuteBefore || flags.WantsExecuteAfter )
+			{
+				var callbacks = mesh.Callbacks as BridgeDrawCallbacks ?? new BridgeDrawCallbacks( sceneObject );
+				callbacks.Before = flags.WantsExecuteBefore;
+				callbacks.After = flags.WantsExecuteAfter;
+				mesh.Callbacks = callbacks;
+			}
+			else
+			{
+				mesh.Callbacks = null;
+			}
 		}
 
 		// Material changes recompute native blend flags.
@@ -342,6 +388,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		{
 			if ( sceneObject.CreatedAttributes is { } attributes ) attributed[mesh] = attributes;
 			else attributed.Remove( mesh );
+			sharing.Remove( mesh );
 			mesh.Attributes = null;
 		}
 
@@ -349,16 +396,15 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		const SceneObjectChange Pose = SceneObjectChange.Bones | SceneObjectChange.Transform | SceneObjectChange.Model;
 		if ( ((change & Pose) != 0 || meshChanged) && sceneObject is SceneModel model && mesh.Mesh is { IsSkinned: true } )
 		{
-			var count = model.Model?.BoneCount ?? 0;
-			if ( bones.Length < count ) bones = new Transform[count];
+			// The matrices native skins with, straight into the object's own: a bone each, as many as its mesh's bind pose has
+			model.GetBoneWorldMatrices( mesh.PoseBoneMatrices( mesh.Mesh.BindPose.Length ) );
 
-			var span = bones.AsSpan( 0, count );
-			model.GetBoneWorldTransforms( span );
-			mesh.SetBones( span );
-
-			// Native evaluates morph flex rules each frame.
-			mesh.MorphSource = model.Model is not { MorphCount: > 0 } ? null
-				: mesh.MorphSource is SceneModelMorphs morphs && morphs.Source == model ? morphs : new SceneModelMorphs( model );
+			// Native evaluates morph flex rules each frame, from the model's: only a new model or mesh changes whether it morphs
+			if ( meshChanged || (change & SceneObjectChange.Model) != 0 )
+			{
+				mesh.MorphSource = model.Model is not { MorphCount: > 0 } ? null
+					: mesh.MorphSource is SceneModelMorphs morphs && morphs.Source == model ? morphs : new SceneModelMorphs( model );
+			}
 
 			// Native bounds include deformation padding.
 			var volumes = MemoryMarshal.Cast<SceneDeformationVolumeData, DeformationVolume>( model.DeformationVolumes );
@@ -646,16 +692,72 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 	}
 
 	/// <summary>
-	/// Omit empty attributes to preserve instancing (<c>CBaseSceneObjectDesc::BindMaterial</c>).
-	/// Poll every sync because values mutate without notifications.
+	/// Omit empty attributes to preserve instancing (<c>CBaseSceneObjectDesc::BindMaterial</c>), and let objects whose
+	/// attributes hold the same values share one set (<see cref="SharedAttributes"/>), so they instance and keep the material
+	/// bound between them as objects with none do. Poll every sync because values mutate without notifications.
 	/// </summary>
 	void SyncAttributes()
 	{
 		foreach ( var (mesh, attributes) in attributed )
 		{
 			var native = attributes.Get();
-			mesh.Attributes = !native.IsNull && !native.IsEmpty() ? Source2Parameters.From( attributes ) : null;
+			if ( native.IsNull || native.IsEmpty() )
+			{
+				mesh.Attributes = null;
+				sharing.Remove( mesh );
+				continue;
+			}
+
+			mesh.Attributes = Source2Parameters.From( SharedAttributes( mesh, attributes, native ) );
 		}
+	}
+
+	// The attribute set each object draws with, someone's own whose values are the same as its own, and the sets lately shared
+	readonly Dictionary<MeshObject, RenderAttributes> sharing = new();
+	readonly List<RenderAttributes> shareable = new();
+
+	/// <summary>
+	/// How many of the sets lately shared a changed object's attributes are compared with before it draws with its own. Bounds the
+	/// cost of an object whose attributes change every frame; each compare is one native call.
+	/// </summary>
+	const int MaxShareable = 32;
+
+	/// <summary>
+	/// The attribute set an object draws with: the one it shared last sync, while it still holds the same values as its own, or
+	/// another of the same values, or its own. A dresser gives every renderer of a citizen <c>skin_tint</c> and <c>skin_age</c>,
+	/// most often the defaults, so a crowd's bodies and clothing all have attributes, which made each draw alone and rebind its
+	/// material. Values can change in place on either side, so every object compares its own with the set it shares each sync.
+	/// </summary>
+	RenderAttributes SharedAttributes( MeshObject mesh, RenderAttributes own, NativeEngine.CRenderAttributes native )
+	{
+		if ( sharing.TryGetValue( mesh, out var shared ) && SameValues( native, shared ) ) return shared;
+
+		for ( int i = 0; i < shareable.Count; i++ )
+		{
+			var candidate = shareable[i];
+			if ( candidate.Get().IsNull )
+			{
+				shareable.RemoveAt( i-- );
+				continue;
+			}
+
+			if ( !SameValues( native, candidate ) ) continue;
+
+			sharing[mesh] = candidate;
+			return candidate;
+		}
+
+		// Its own, for the next to share
+		sharing[mesh] = own;
+		shareable.Insert( 0, own );
+		if ( shareable.Count > MaxShareable ) shareable.RemoveAt( shareable.Count - 1 );
+		return own;
+	}
+
+	static bool SameValues( NativeEngine.CRenderAttributes native, RenderAttributes other )
+	{
+		var theirs = other.Get();
+		return !theirs.IsNull && (native == theirs || NativeEngine.CRenderAttributes.AreEqual( native, theirs, false ));
 	}
 
 	/// <summary>
@@ -697,8 +799,9 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 				lighting.SunBaked = packs && bakeIndex >= 0 ? packed : null;
 
 				var baked = packs && (flags & LightTypeFlagsBaked) != 0;
+				// A baked sun still renders cascades, without its static casters: native's binner only asks local lights for
+				// mixed shadows (CLightBinnerStandard::AddLight), and volumetric fog is lit by the sun only through them
 				lighting.SunShadowsBaked = baked && !sun.IncludeStaticShadowCasters;
-				lighting.SunShadows &= !baked || (flags & LightTypeFlagsMixedShadows) != 0;
 				lighting.SunContactShadows = sun.ContactShadows;
 				lighting.SunFogStrength = sun.FogStrength;
 			}

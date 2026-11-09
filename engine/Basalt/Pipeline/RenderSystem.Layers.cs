@@ -87,6 +87,9 @@ public sealed partial class RenderSystem
 			// Overlays above screen UI.
 			new AfterUILayer(),
 
+			// Basalt's own debug views, over everything.
+			new DebugViewLayer(),
+
 			// Resolve final MSAA output.
 			new OutputResolveLayer(),
 
