@@ -150,7 +150,7 @@ internal static class RenderPipeline
 			callback = occlusionFrame.OnRead;
 		}
 
-		context.ReadBufferAsync( stats, callback, 0, Marshal.SizeOf<OcclusionStats>() );
+		context.ReadBufferAsync( stats, callback, 0, Marshal.SizeOf<OcclusionStats>(), inline: true );
 	}
 
 	internal static int GetOcclusionCulled() => GetOcclusionCounts().HiddenInstances;
