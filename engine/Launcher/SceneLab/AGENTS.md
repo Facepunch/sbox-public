@@ -92,6 +92,9 @@ Other switches:
   reference comes from native `RenderToTexture` at the same count, three frames later.
 - **Window:** multisampled at 4x by default, as a game's is; `-swapchain-msaa 2|8` for another count, `-swapchain-msaa 1`
   for none (the native frames saved before 2026-09-29 were captured without).
+- **Debug views:** Basalt's own (View > LOD Colours, Cull Reasons, Shadow Maps, or `+sv_cheats 1 +r_managed_debug_lod 1`,
+  `+r_managed_debug_cull 1`, `+r_managed_debug_shadows 1`). `DebugViewsOverlay.cs` draws their key and labels; a capture with
+  one on saves `name.debug.png` too, the frame with those over it.
 - **Capture:** `-capture-frame` (default 30). `-debugmode <SceneCameraDebugMode>` captures a GameObject preset's debug
   visualisation instead of its lit frame, e.g. `-debugmode AmbientOcclusion` for the AO alone; with `+r_ao_reference 128`
   for a converged ground truth to compare AO changes against.
