@@ -44,7 +44,6 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 	Dictionary<SceneObject, SceneObjectChange> pending = new();
 	Dictionary<SceneObject, SceneObjectChange> applying = new();
 
-	Transform[] bones = new Transform[256];
 	bool sunDirty = true;
 
 	const SceneObjectChange Everything = (SceneObjectChange)~0 & ~SceneObjectChange.Removed & ~SceneObjectChange.Deleted;
@@ -382,12 +381,8 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		const SceneObjectChange Pose = SceneObjectChange.Bones | SceneObjectChange.Transform | SceneObjectChange.Model;
 		if ( ((change & Pose) != 0 || meshChanged) && sceneObject is SceneModel model && mesh.Mesh is { IsSkinned: true } )
 		{
-			var count = model.Model?.BoneCount ?? 0;
-			if ( bones.Length < count ) bones = new Transform[count];
-
-			var span = bones.AsSpan( 0, count );
-			model.GetBoneWorldTransforms( span );
-			mesh.SetBones( span );
+			// The matrices native skins with, straight into the object's own
+			model.GetBoneWorldMatrices( mesh.PoseBoneMatrices( model.Model?.BoneCount ?? 0 ) );
 
 			// Native evaluates morph flex rules each frame.
 			mesh.MorphSource = model.Model is not { MorphCount: > 0 } ? null

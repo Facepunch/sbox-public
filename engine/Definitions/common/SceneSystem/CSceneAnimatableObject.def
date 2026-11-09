@@ -39,6 +39,18 @@ native class CSceneAnimatableObject as NativeEngine.CSceneAnimatableObject : CSc
 	void GetWorldSpaceRenderBoneTransforms( int nNumBones, void* pOut );
 	[nogc]
 	void GetWorldSpaceRenderBonePreviousTransforms( int nNumBones, void* pOut );
+
+	// The render bones as they're kept, matrix3x4_t each, without a round trip through CTransform; identity past the last
+	[nogc]
+	inline void GetWorldSpaceRenderBoneMatrices( int nNumBones, void* pOut )
+	{
+		matrix3x4_t *pDest = static_cast<matrix3x4_t *>( pOut );
+		const int nCopy = MIN( nNumBones, self->m_worldSpaceRenderBones.Count() );
+		for ( int i = 0; i < nCopy; ++i )
+			pDest[ i ] = self->m_worldSpaceRenderBones[ i ];
+		for ( int i = nCopy; i < nNumBones; ++i )
+			SetIdentityMatrix( pDest[ i ] );
+	}
 	[nogc]
 	int GetClosestBoneIndex( Vector3 vWorldPoint );
 

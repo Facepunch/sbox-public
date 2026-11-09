@@ -109,6 +109,19 @@ public sealed partial class SceneModel : SceneObject
 	}
 
 	/// <summary>
+	/// <see cref="GetBoneWorldTransforms"/> as the matrices native keeps and skins with, without a round trip through
+	/// <see cref="Transform"/>.
+	/// </summary>
+	internal unsafe void GetBoneWorldMatrices( Span<Matrix3x4> dest )
+	{
+		if ( animNative.IsNull || dest.IsEmpty )
+			return;
+
+		fixed ( Matrix3x4* p = dest )
+			animNative.GetWorldSpaceRenderBoneMatrices( dest.Length, (IntPtr)p );
+	}
+
+	/// <summary>
 	/// The index of the bone closest to a world position, or -1 without bones. Resolved natively in a
 	/// single interop call - no bone transforms are copied out.
 	/// </summary>
