@@ -334,6 +334,9 @@ internal sealed record SceneLabScene
 			CaptureFrame = 240 },
 		new() { Name = "Flythrough", Group = Scenarios.Group, Game = FlythroughScene.Build, Frame = FlythroughScene.Fly, Ready = FlythroughScene.Ready, Rewind = FlythroughScene.Rewind,
 			BenchmarkFrames = FlythroughScene.Frames, CaptureFrame = 200 },
+		new() { Name = "Crowd Near", Group = Scenarios.Group, Game = CrowdScene.Near, Frame = CrowdScene.Animate, Rewind = CrowdScene.Rewind },
+		new() { Name = "Crowd Mid", Group = Scenarios.Group, Game = CrowdScene.Mid, Frame = CrowdScene.Animate, Rewind = CrowdScene.Rewind },
+		new() { Name = "Crowd Far", Group = Scenarios.Group, Game = CrowdScene.Far, Frame = CrowdScene.Animate, Rewind = CrowdScene.Rewind },
 	];
 
 	/// <summary>
