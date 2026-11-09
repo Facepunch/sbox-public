@@ -304,7 +304,6 @@ public static class ContentBuilder
 		// its files in one call, where a check per file costs one each (~0.5 ms behind an antivirus filter, tens of
 		// thousands a build). Written by the inventory and by publications, which never run while checks do.
 		readonly Dictionary<string, (long Size, long Time)> listed = new( StringComparer.OrdinalIgnoreCase );
-		readonly List<string> listedRoots = [];
 		readonly ConcurrentDictionary<string, (bool Exists, long Size, long Time)> outside = new( StringComparer.OrdinalIgnoreCase );
 		long clock;
 		int jobs;
@@ -436,8 +435,6 @@ public static class ContentBuilder
 
 		void Inventory( RootState root )
 		{
-			listedRoots.Add( Path.TrimEndingDirectorySeparator( Path.GetFullPath( root.Def.Path ) ) + Path.DirectorySeparatorChar );
-
 			// As Directory.EnumerateFiles( AllDirectories ) lists, keeping each file's size and time on the way
 			var options = new EnumerationOptions { RecurseSubdirectories = true, AttributesToSkip = 0, IgnoreInaccessible = false };
 			var files = new FileSystemEnumerable<string>( root.Def.Path, ( ref FileSystemEntry x ) =>
@@ -484,7 +481,7 @@ public static class ContentBuilder
 		{
 			var full = Path.GetFullPath( path );
 			if ( listed.TryGetValue( full, out var known ) ) return (true, known.Size, known.Time);
-			if ( listedRoots.Any( x => full.StartsWith( x, StringComparison.OrdinalIgnoreCase ) ) ) return (false, 0, 0);
+			if ( roots.Any( x => full.StartsWith( x.Directory, StringComparison.OrdinalIgnoreCase ) ) ) return (false, 0, 0);
 
 			return outside.GetOrAdd( full, x => new FileInfo( x ) is { Exists: true } file ? (true, file.Length, file.LastWriteTimeUtc.Ticks) : (false, 0, 0) );
 		}
