@@ -24,22 +24,10 @@
             <label class="name">@Sandbox.Utility.Steam.PersonaName</label>
         </div>
 
-        <div class="edit clicky" tooltip="#menu.home.edit_your_avatar" @onclick="@OpenAvatarScene">
+        <div class="edit clicky" tooltip="#menu.home.edit_your_avatar" @onclick="@MenuHelpers.OpenAvatarEditor">
             <icon>edit</icon>
             <label>#menu.common.edit</label>
         </div>
     </div>
 
 </root>
-
-@code
-{
-    void OpenAvatarScene()
-    {
-        var options = new SceneLoadOptions();
-        options.ShowLoadingScreen = false;
-        options.SetScene( "/scenes/avatar.scene" );
-
-        Game.ActiveScene.Load( options );
-    }
-}

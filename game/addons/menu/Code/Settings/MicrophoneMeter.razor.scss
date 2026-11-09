@@ -1,8 +1,9 @@
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
+// A slider's shape (platform-slider) - the bar, then its number, then the light that's on while it's heard
 MicrophoneMeter
 {
-	flex-direction: row;
+	flex-direction: row-reverse;
 	align-items: center;
 	flex-grow: 1;
 	gap: 10px;
@@ -12,13 +13,13 @@ MicrophoneMeter
 	.light
 	{
 		flex-shrink: 0;
-		font-size: 20px;
-		color: $front-tertiary;
+		font-size: 18px;
+		color: $platform-faint;
 		transition: color 0.1s ease-out;
 
 		&.on
 		{
-			color: $front-accent;
+			color: $platform-good;
 		}
 	}
 
@@ -26,21 +27,23 @@ MicrophoneMeter
 	{
 		position: relative;
 		flex-grow: 1;
-		height: 14px;
+		height: 24px;
 		border-radius: 3px;
 		overflow: hidden;
 		background-image: linear-gradient( to right, #3fc76a 0%, #8fd14f 55%, #f5a623 80%, #ff5d6a 100% );
 	}
 
-	// Darkens the part of the bar above the microphone level, before AGC
+	// Hides the part of the bar above the microphone level, before AGC - solid, the slider's empty track's colour,
+	// and a pixel past the bar's edges so none of the colours show round them
 	.cover
 	{
 		position: absolute;
-		top: 0px;
-		bottom: 0px;
-		right: 0px;
-		background-color: #14171d;
-		opacity: 0.85;
+		top: -1px;
+		bottom: -1px;
+		right: -1px;
+		// Its left is the level, set in code - a pixel further, so at none it covers the bar's left edge too
+		margin-left: -1px;
+		background-color: rgb( 14, 18, 27 );
 	}
 
 	.noise, .processed, .threshold
@@ -49,7 +52,6 @@ MicrophoneMeter
 		top: 0px;
 		bottom: 0px;
 		width: 3px;
-		box-shadow: 0 0 3px #000a;
 		transform: translateX( -50% );
 	}
 
@@ -77,15 +79,19 @@ MicrophoneMeter
 
 	.threshold
 	{
-		background-color: #fff;
+		background-color: white;
 	}
 
 	.readout
 	{
 		flex-shrink: 0;
-		width: 46px;
-		font-size: 13px;
+		width: 52px;
 		text-align: right;
-		color: $front-secondary;
+		font-family: Inter;
+		font-size: 13px;
+		font-weight: 600;
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+		color: $platform-text;
 	}
 }

@@ -1,0 +1,59 @@
+@import "/Platform/_platform.scss";
+
+// Its 34px tile 8 in from its top, bottom and side alike - and its 34px tools the same at the other end, as far apart as
+// they are from its edges. Over what's under it, so its tools' menus drop down over the panel's body.
+PanelHead
+{
+	position: relative;
+	z-index: 10;
+	flex-direction: row;
+	flex-shrink: 0;
+	height: 50px;
+	align-items: center;
+	gap: 8px;
+	padding: 0 8px;
+	font-family: $platform-font;
+	color: $platform-text;
+
+	.heading
+	{
+		flex-direction: row;
+		flex-shrink: 1;
+		min-width: 0;
+		height: 42px;
+		align-items: center;
+		gap: 10px;
+
+		.tile
+		{
+			@include platform-tile;
+			background-size: cover;
+			background-position: center;
+		}
+
+		.title
+		{
+			flex-shrink: 1;
+			font-size: 15px;
+			font-weight: 700;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+	}
+
+	.spacer
+	{
+		flex-grow: 1;
+	}
+
+	.tool
+	{
+		@include platform-tool;
+	}
+
+	.search
+	{
+		@include platform-bar-search;
+	}
+}

@@ -1,5 +1,5 @@
 @import "/styles/_theme.scss";
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 // In the body beside the list - the rest of the page's width and its full height, straight on the
 // game, the page scrolling inside
@@ -10,7 +10,7 @@ PausePage
 	flex-shrink: 1;
 	min-width: 0;
 	pointer-events: all;
-	font-family: $front-font;
+	font-family: $platform-font;
 	transition: all 0.2s ease-out;
 
 	// Comes into focus as it fades in, like a tooltip

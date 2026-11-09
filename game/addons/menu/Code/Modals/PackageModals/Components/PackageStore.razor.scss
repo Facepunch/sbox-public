@@ -1,5 +1,5 @@
 @import "/styles/_theme.scss";
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 // 16 everywhere - round the outside, between the columns, the rows and the cards
 $space: 16px;
@@ -46,9 +46,8 @@ PackageStore
 		padding: $space;
 	}
 
-	// The rest of the page under it, back in the page's own colour (17,19,25, sampled), its top corners rounded
-	// into the brighter top. As tall as your time and achievements on the right - the description fits in
-	// beside them, scrolling, the only thing that does
+	// The rest of the page under it, on the page's own navy - no fill of its own. As tall as your time and
+	// achievements on the right - the description fits in beside them, scrolling, the only thing that does
 	> .row.bottom
 	{
 		flex-shrink: 0;
@@ -56,9 +55,6 @@ PackageStore
 		// Some room for the description when there's nothing beside it - not played, no achievements
 		min-height: 140px;
 		padding: $space;
-		background-color: rgb( 17, 19, 25 );
-		border-top-left-radius: 12px;
-		border-top-right-radius: 12px;
 
 		> .main
 		{
@@ -85,28 +81,15 @@ PackageStore
 	Card,
 	Card.achievements-card
 	{
-		flex-direction: column;
+		@include platform-surface;
 		padding: 12px 14px;
 		gap: 8px;
 		flex-shrink: 0;
-		background: $front-card-deep;
-		border: $front-border-width solid $front-hairline;
-		border-radius: $front-radius;
 		cursor: pointer;
 
 		label, .achievement-icon, badge
 		{
 			cursor: pointer;
-		}
-
-		transition: background-color 120ms $easing, border-color 120ms $easing;
-
-		// A solid colour, a shade up from the resting one - not a see-through white, which flashed grey on the
-		// way back
-		&:hover
-		{
-			background: #1c2029;
-			border-color: rgba( 255, 255, 255, 0.18 );
 		}
 	}
 
@@ -118,12 +101,6 @@ PackageStore
 
 		label { cursor: default; }
 
-		&:hover
-		{
-			background: $front-card-deep;
-			border-color: $front-hairline;
-		}
-
 		.none
 		{
 			height: 36px;
@@ -133,7 +110,7 @@ PackageStore
 			{
 				font-size: 12px;
 				font-weight: 500;
-				color: $front-tertiary;
+				color: $platform-faint;
 			}
 		}
 	}

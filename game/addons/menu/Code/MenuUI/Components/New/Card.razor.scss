@@ -1,12 +1,10 @@
 @import "/styles/_theme.scss";
+@import "/Platform/_platform.scss";
 
 Card
 {
-	border: 1px solid $default-border;
-	position: relative;
-	background-color: $default-950;
+	@include platform-surface;
 	overflow: hidden;
-	border-radius: $rounding-default;
 	transition: all 150ms ease;
 
 	.inner
@@ -16,14 +14,7 @@ Card
 		left: 0;
 		bottom: 0;
 		right: 0;
-		background-color: $default-950;
 		padding: 8px;
-		border-radius: $rounding-small;
 		overflow: hidden;
-	}
-
-	&.hover
-	{
-		@include border;
 	}
 }

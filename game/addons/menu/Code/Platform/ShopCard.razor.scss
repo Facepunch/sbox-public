@@ -1,0 +1,250 @@
+@import "/Platform/_platform.scss";
+
+$shop-amber: #ffb43c;
+
+// The art fills it, lit by its rarity; a shade up from the bottom for what it is to sit on. Sized by ShopShelf.
+ShopCard
+{
+	position: relative;
+	flex-shrink: 0;
+	overflow: hidden;
+	border-radius: $platform-radius;
+	background-color: #161c28;
+	background-image: linear-gradient( to bottom, #283144, #151a25 );
+	transition: transform 0.15s ease-out;
+
+	&:hover
+	{
+		transform: translateY( -3px );
+
+		> .spot
+		{
+			opacity: 1;
+		}
+
+		.icon
+		{
+			transform: scale( 1.05 );
+		}
+	}
+
+	> .spot
+	{
+		position: absolute;
+		left: 0;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		background-image: radial-gradient( circle at 50% 40%, rgba( 255, 255, 255, 0.12 ) 0%, rgba( 255, 255, 255, 0.04 ) 38%, rgba( 255, 255, 255, 0 ) 68% );
+		opacity: 0.75;
+		transition: opacity 0.15s ease-out;
+		pointer-events: none;
+	}
+
+	> .art
+	{
+		position: absolute;
+		left: 0;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		padding: 16px 16px 64px 16px;
+
+		.icon
+		{
+			flex-grow: 1;
+			background-size: contain;
+			background-position: center;
+			background-repeat: no-repeat;
+			transition: transform 0.2s ease-out;
+		}
+	}
+
+	> .shade
+	{
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		height: 50%;
+		background-image: linear-gradient( to top, rgba( 10, 13, 20, 0.85 ), rgba( 10, 13, 20, 0 ) );
+		pointer-events: none;
+	}
+
+	> .top
+	{
+		position: absolute;
+		left: 10px;
+		top: 10px;
+		right: 10px;
+		align-items: flex-start;
+	}
+
+	// The price's height, the two the same size
+	.tag
+	{
+		@include platform-caps;
+		height: 26px;
+		align-items: center;
+		gap: 5px;
+		padding: 0 8px;
+		border-radius: $platform-radius;
+		font-size: 11px;
+
+		// Not in the caps - an icon's name in capitals isn't a glyph
+		i
+		{
+			font-size: 14px;
+			text-transform: none;
+			letter-spacing: 0;
+		}
+
+		// How long a feature's got - solid once it's going soon
+		&.leaving
+		{
+			background-color: rgba( 8, 12, 22, 0.8 );
+			color: $shop-amber;
+
+			&.soon
+			{
+				background-color: $shop-amber;
+				color: #1a1206;
+			}
+		}
+
+		&.owned
+		{
+			background-color: rgba( 255, 255, 255, 0.14 );
+			color: $platform-text;
+		}
+	}
+
+	.price
+	{
+		flex-shrink: 0;
+		height: 26px;
+		align-items: stretch;
+		border-radius: $platform-radius;
+		overflow: hidden;
+		font-size: 13px;
+		font-weight: 700;
+		color: $platform-text;
+		cursor: pointer;
+		@include platform-sounds;
+
+		> .basket
+		{
+			width: 26px;
+			align-items: center;
+			justify-content: center;
+			background-color: rgba( 6, 9, 16, 0.92 );
+			transition: background-color 0.1s ease;
+
+			i
+			{
+				font-size: 15px;
+				color: $platform-muted;
+			}
+		}
+
+		> .cost
+		{
+			align-items: center;
+			gap: 6px;
+			padding: 0 8px;
+			background-color: rgba( 48, 57, 76, 0.96 );
+			transition: background-color 0.1s ease;
+		}
+
+		.was
+		{
+			font-weight: 500;
+			color: $platform-faint;
+			text-decoration: line-through;
+		}
+
+		.off
+		{
+			padding: 1px 5px;
+			border-radius: 2px;
+			background-color: $platform-good;
+			font-size: 11px;
+			color: #06140c;
+		}
+
+		&:hover > .basket, &.in > .basket
+		{
+			background-color: $platform-primary;
+
+			i
+			{
+				color: $platform-primary-text;
+			}
+		}
+
+		&:hover > .cost
+		{
+			background-color: rgba( 62, 73, 96, 0.98 );
+		}
+	}
+
+	> .bottom
+	{
+		position: absolute;
+		left: 14px;
+		right: 12px;
+		bottom: 12px;
+		align-items: flex-end;
+		gap: 12px;
+	}
+
+	.info
+	{
+		flex-grow: 1;
+		flex-shrink: 1;
+		min-width: 0;
+		flex-direction: column;
+		align-items: flex-start;
+	}
+
+	.name
+	{
+		max-width: 100%;
+		font-size: 15px;
+		font-weight: 700;
+		color: $platform-text;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.category
+	{
+		@include platform-caps;
+		font-size: 11px;
+		// Close over the name - the font's own room under its capitals is gap enough
+		margin-bottom: -2px;
+		color: $platform-muted;
+	}
+
+	// Time-limited - bigger words for a bigger card
+	&.featured
+	{
+		> .art
+		{
+			// Clear of the tag above and the words below, sat between them
+			padding: 32px 20px 83px 20px;
+		}
+
+		.name
+		{
+			font-size: 22px;
+			font-weight: 800;
+		}
+
+		.category
+		{
+			font-size: 12px;
+		}
+	}
+}

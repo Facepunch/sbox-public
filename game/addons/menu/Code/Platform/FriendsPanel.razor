@@ -1,0 +1,44 @@
+@using System;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.UI;
+@using MenuProject.MenuUI.Front;
+@namespace MenuProject.Platform
+@inherits Panel
+
+@*
+    Your friends, in from the right - the whole height of the screen down to the dock, as a game's friends list is.
+    The friends list popup (FriendsListModal) stays for the old menu, and for inviting to a party.
+*@
+<root class="@(Open ? "open" : "")">
+
+    <div class="panel" @ref="PanelBox">
+        <PanelHead Title="Friends" Icon="group" Search="Search friends" OnSearch=@( ( string text ) => Rail?.SetSearch( text ) )>
+            <Tools>
+                <div class="tool" onclick=@( () => PlatformRoot.Instance?.CloseSide() ) tooltip="Close"><i>close</i></div>
+            </Tools>
+        </PanelHead>
+
+        <FriendsRail @ref="Rail" PlayingTitle=@("In-game") />
+    </div>
+
+</root>
+
+@code
+{
+    /// <summary>
+    /// In - slid out of the way off the right when it isn't
+    /// </summary>
+    [Parameter] public bool Open { get; set; }
+
+    Panel PanelBox;
+    FriendsRail Rail;
+
+    public override void Tick()
+    {
+        base.Tick();
+
+    }
+
+    protected override int BuildHash() => HashCode.Combine( Open );
+}

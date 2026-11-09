@@ -1,0 +1,186 @@
+@using System;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.UI;
+@namespace MenuProject.Platform
+@inherits Panel
+
+@*
+    A row of games, as the Workshop has them - square art, who made it, votes and subscribers, a heart to subscribe,
+    the one you're on picked out.
+*@
+<root>
+
+    <div class="header" @ref="Header">
+        <i class="icon">@Row?.Icon</i>
+        <label class="title">@Row?.Title</label>
+        <div class="spacer"></div>
+        @if ( Row?.BrowseSort is not null && OnSeeMore is not null )
+        {
+            <div class="see-more" onclick=@( () => OnSeeMore( Row ) )>
+                <label>See more</label>
+                <i>chevron_right</i>
+            </div>
+        }
+    </div>
+
+    <div class="cards" @ref="Cards">
+        @if ( Row?.Games is null )
+        {
+            @* Cards' shapes, as many as it'll show (a row of them for one showing all) *@
+            @for ( var i = 0; i < Columns * Math.Max( 1, MaxRows ); i++ )
+            {
+                <div class="cell" style="@CellStyle">
+                    <div class="skeleton"><div class="art"></div><div class="bone stars"></div><div class="bone"></div><div class="bone by"></div></div>
+                </div>
+            }
+        }
+        else if ( !IsYours && !Games.Any() )
+        {
+            <div class="empty"><i>search_off</i><label>Nothing found</label></div>
+        }
+        else
+        {
+            @* Local projects opened this run - not on the Workshop *@
+            @foreach ( var game in Local ?? [] )
+            {
+                <div class="cell" style="@CellStyle"><GameCard Local=@game OnPicked=@OnPicked /></div>
+            }
+
+            @foreach ( var item in Games )
+            {
+                <div class="cell" style="@CellStyle"><GameCard Item=@item OnPicked=@OnPicked /></div>
+            }
+
+            @if ( IsYours && Shown < Columns )
+            {
+                <div class="cell" style="@CellStyle">
+                    <div class="discover-more" onclick=@( () => PlatformRoot.Instance?.OpenShelf( PlatformShelf.Discover ) )>
+                        <i>explore</i>
+                        <label class="title">Discover more</label>
+                        <label class="hint">Find something new to play</label>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+
+</root>
+
+@code
+{
+    [Parameter] public GameRow Row { get; set; }
+
+    bool IsYours => Row == PlatformMenu.YourGames;
+
+    List<Package> Local => IsYours ? PlatformMenu.LocalGames : null;
+
+    [Parameter] public Action<Package> OnPicked { get; set; }
+
+    /// <summary>
+    /// Games not to show - they're on a row above already
+    /// </summary>
+    [Parameter] public HashSet<ulong> Skip { get; set; }
+
+    /// <summary>
+    /// Only this many rows tall - as many games as fill them. 0 for all of them.
+    /// </summary>
+    [Parameter] public int MaxRows { get; set; }
+
+    IEnumerable<WorkshopItemDetails> Games
+    {
+        get
+        {
+            var games = Row.Games.Where( x => Skip is null || !Skip.Contains( x.Id ) );
+            return MaxRows > 0 ? games.Take( Columns * MaxRows ) : games;
+        }
+    }
+
+    /// <summary>
+    /// The games it's showing - those on the rows under it leave them out
+    /// </summary>
+    public IEnumerable<ulong> ShownIds => Row?.Games is null ? [] : Games.Select( x => x.Id );
+
+    int Shown => (Local?.Count ?? 0) + Games.Count();
+
+    int Columns = 1;
+
+    /// <summary>
+    /// Browse the Workshop the way this row does - a See more in its header, if it has a way
+    /// </summary>
+    [Parameter] public Action<GameRow> OnSeeMore { get; set; }
+
+    Panel Header;
+    Panel Cards;
+
+    const int CardGap = 16;
+
+    /// <summary>
+    /// The room round a card in its cell, to grow into under the mouse - see GameCard's stylesheet
+    /// </summary>
+    const int CardInset = 6;
+    const int CardMin = 232;
+
+    /// <summary>
+    /// The space between the header and the cards - as in the stylesheet
+    /// </summary>
+    const int HeaderGap = 18;
+
+    /// <summary>
+    /// A card's width and height - as many columns as fit at <see cref="CardMin"/>, stretched to fill the row
+    /// </summary>
+    int CardSize = 248;
+
+    string CellStyle => $"width: {CardSize + CardInset * 2}px; height: {CardSize + GameCard.InfoHeight + CardInset * 2}px;";
+
+    /// <summary>
+    /// How tall it is with just its header and first row of cards showing
+    /// </summary>
+    public float CollapsedHeight => HeaderHeight + HeaderGap + CardSize + GameCard.InfoHeight + 12;
+
+    /// <summary>
+    /// How tall it is to halfway down its first row's art - the top of it peeking out under the row above
+    /// </summary>
+    public float PeekHeight => HeaderHeight + HeaderGap + CardSize / 2f;
+
+    public float HeaderHeight => Header.IsValid() ? Header.Box.Rect.Height * ScaleFromScreen : 34;
+
+    GameRow fetchedRow;
+
+    protected override void OnParametersSet()
+    {
+        if ( fetchedRow == Row || Row is null ) return;
+        fetchedRow = Row;
+
+        // What's been fetched already shows straight away - then again, if it's getting old
+        _ = Refresh( Row );
+    }
+
+    async Task Refresh( GameRow row )
+    {
+        await row.RefreshAsync();
+        StateHasChanged();
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        if ( !Cards.IsValid() ) return;
+
+        // Without the cells' insets at either end - the row's pulled out by them
+        var width = Cards.Box.RectInner.Width * Cards.ScaleFromScreen - CardInset * 2;
+        if ( width <= 0 ) return;
+
+        // A pixel spare per card - each is rounded to whole screen pixels, and a row a pixel over wraps its last card
+        var columns = Math.Max( 1, (int)((width + CardGap) / (CardMin + CardGap + 1)) );
+        var size = (int)((width - CardGap * (columns - 1) - columns) / columns);
+        if ( size == CardSize && columns == Columns ) return;
+
+        CardSize = size;
+        Columns = columns;
+        StateHasChanged();
+    }
+
+    protected override int BuildHash() => HashCode.Combine( Row, Row?.Games, Skip?.Count, Local?.Count, HashCode.Combine( CardSize, Columns, MaxRows ) );
+}

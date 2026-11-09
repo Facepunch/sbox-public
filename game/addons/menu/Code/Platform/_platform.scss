@@ -1,0 +1,1319 @@
+@import "/styles/_front.scss";
+
+// The platform menu's look - the dock's midnight (Dock): solid navy, round-ended buttons, light blue for what's on or
+// picked with dark words on it, Poppins
+
+$platform-font: Poppins;
+
+$platform-text: #e4edff;
+$platform-muted: #9fb0cf;
+$platform-faint: #6a7a99;
+
+// The bar's own navy, a glyph's blue, and what's toggled on or picked - the light blue, the dock's dark navy words and
+// glyphs on it. A button to press (platform-button-primary) and a badge are the same blue, white on it.
+$platform-midnight: #111f38;
+$platform-icon: #80afff;
+$platform-selected: #639dff;
+$platform-selected-hover: #79acff;
+$platform-selected-text: #071b3b;
+$platform-primary-text: white;
+
+// Round ends, as the dock's buttons have - as round as the corners can be at any of their heights
+$platform-pill: 20px;
+
+// One blue - the dock's light one, what's on or picked as well as the buttons to press
+$platform-primary: #639dff;
+$platform-primary-hover: #79acff;
+$platform-good: #3fd17a;
+$platform-danger: #ff5d6a;
+$platform-reward: #3fc76a;
+$platform-warning: #f5a623;
+
+// An open dropdown and its list, as one
+$platform-dropdown-open: #172943;
+
+// Steam's own blue - links and tags, as its store has them
+$platform-steam-blue: #66c0f4;
+
+$platform-panel: rgba( 17, 31, 56, 0.97 );
+// The platform-panel mixin's fill - the same navy as everything else up over the dock
+$platform-glass: rgba( 17, 31, 56, 0.97 );
+$platform-button: #172943;
+$platform-button-hover: #2b466d;
+$platform-hairline: rgba( 255, 255, 255, 0.1 );
+$platform-hover-wash: rgba( 255, 255, 255, 0.06 );
+
+// Flat, as the dock's are
+$platform-sheen: none;
+$platform-sheen-on: none;
+$platform-glyph: linear-gradient( 180deg, #a7b0c0, #4c5464 );
+$platform-glyph-lit: linear-gradient( 180deg, #ffffff, #9aa3b5 );
+
+$platform-edge: 64px;
+$platform-dock-height: 64px;
+
+// Where what's up over the dock stops - the bar's height and a gap, so panels float clear of it rather than sit on it
+$platform-above-dock: 80px;
+$platform-radius: 4px;
+
+// How strong the paper grain over a surface is - 0 turns it off
+$platform-grain-opacity: 0;
+
+// A page's sections beside its panel (platform-side) - how wide, how far from it, and the two together, which the
+// panel keeps clear on its other side so it stays in the middle (no arithmetic in the stylesheets)
+$platform-side-width: 236px;
+$platform-side-gap: 40px;
+$platform-side-balance: 276px;
+
+
+// A button's sounds, as the old menu's have them - a tick as the pointer comes onto it, a click as it's pressed
+@mixin platform-sounds
+{
+	&:hover
+	{
+		sound-in: "ui.button.over";
+	}
+
+	&:active
+	{
+		sound-in: "ui.button.press";
+	}
+}
+
+// Just the click as it's pressed - for rows of things, which would tick all the way down a list under the pointer, and
+// for what's on something that ticks already
+@mixin platform-press-sound
+{
+	&:active
+	{
+		sound-in: "ui.button.press";
+	}
+}
+
+
+// A search box - a bar's
+@mixin platform-search
+{
+	@include platform-field;
+	width: 300px;
+	flex-shrink: 0;
+	gap: 8px;
+
+	i
+	{
+		font-size: 18px;
+		color: $platform-faint;
+	}
+
+	.clear
+	{
+		cursor: pointer;
+
+		&:hover
+		{
+			color: $platform-text;
+		}
+	}
+
+	TextEntry
+	{
+		flex-grow: 1;
+		font-size: 13px;
+		color: $platform-text;
+
+		.placeholder
+		{
+			color: $platform-faint;
+		}
+	}
+}
+
+// A square button with a glyph on it, like the dock's own - a bar's
+@mixin platform-tool( $size: 34px, $glyph: 20px )
+{
+	@include platform-sounds;
+	height: $size;
+	min-width: $size;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	border-radius: $platform-pill;
+	background-color: $platform-button;
+	background-image: $platform-sheen;
+	cursor: pointer;
+	transition: background-color 0.12s ease;
+
+	i, iconpanel, icon
+	{
+		font-size: $glyph;
+		color: $platform-icon;
+	}
+
+	&:hover
+	{
+		background-color: $platform-button-hover;
+	}
+
+	// Its panel or menu up - the dock's light blue, dark on it
+	&.open
+	{
+		background-color: $platform-selected;
+
+		i, iconpanel, icon, label
+		{
+			color: $platform-selected-text;
+		}
+
+		&:hover
+		{
+			background-color: $platform-selected-hover;
+		}
+	}
+
+	// Working - faded, and not pressed again till it's done
+	&.busy
+	{
+		opacity: 0.5;
+		pointer-events: none;
+	}
+
+	&.disabled
+	{
+		opacity: 0.5;
+		cursor: default;
+	}
+}
+
+// A solid button, the dock's grey - its padding, type and transition are its own. Blue with platform-button-primary.
+@mixin platform-button( $size: 44px )
+{
+	@include platform-sounds;
+	height: $size;
+	align-items: center;
+	gap: 8px;
+	border-radius: $platform-pill;
+	background-color: $platform-button;
+	background-image: $platform-sheen;
+	cursor: pointer;
+
+	&:hover
+	{
+		background-color: $platform-button-hover;
+	}
+
+	// Working - faded, and not pressed again till it's done
+	&.busy
+	{
+		opacity: 0.5;
+		pointer-events: none;
+	}
+
+	&.disabled
+	{
+		opacity: 0.5;
+		cursor: default;
+	}
+}
+
+// A toggle that's on - the dock's light blue, its words and glyph its dark navy, as the dock's open buttons are
+@mixin platform-button-selected
+{
+	background-color: $platform-selected;
+	background-image: $platform-sheen-on;
+	color: $platform-selected-text;
+
+	label, i, iconpanel, icon
+	{
+		color: $platform-selected-text;
+	}
+
+	&:hover
+	{
+		background-color: $platform-selected-hover;
+	}
+}
+
+// The one to press - blue, its words and glyph white. .reward for a claim's green; .locked when it can't be pressed yet,
+// back to grey
+@mixin platform-button-primary
+{
+	background-color: $platform-selected;
+	background-image: $platform-sheen-on;
+
+	label, i, iconpanel, icon
+	{
+		color: $platform-primary-text;
+	}
+
+	&:hover
+	{
+		background-color: $platform-selected-hover;
+	}
+
+	&.reward
+	{
+		background-color: $platform-reward;
+	}
+
+	&.locked
+	{
+		background-color: $platform-button;
+		background-image: $platform-sheen;
+		cursor: default;
+
+		label, i, iconpanel, icon
+		{
+			color: $platform-faint;
+		}
+	}
+}
+
+// Small capitals - a table's head, a block's title
+@mixin platform-caps
+{
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 1px;
+	text-transform: uppercase;
+}
+
+// Words on a button undone from the old menu's pills - sentence case, no tracking
+@mixin platform-plain-label( $size: 13.5px )
+{
+	font-size: $size;
+	font-weight: 600;
+	text-transform: none;
+	letter-spacing: 0;
+}
+
+// A grey button with words on it - its label in sentence case, any glyph muted beside it ($glyph: Button's iconpanel,
+// or an <icon>)
+@mixin platform-text-button( $height: 34px, $label: 13.5px, $glyph: 17px )
+{
+	@include platform-button( $height );
+	border: 0px solid transparent;
+
+	label
+	{
+		@include platform-plain-label( $label );
+		color: $platform-text;
+	}
+
+	i, iconpanel, icon
+	{
+		font-size: $glyph;
+		opacity: 1;
+		color: $platform-icon;
+	}
+}
+
+// A square for a glyph or a bit of art - a panel bar's, a popup's (34px, as the bars' tools are), or a table row's
+@mixin platform-tile( $glyph: 19px, $size: 34px )
+{
+	width: $size;
+	height: $size;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	border-radius: $platform-pill;
+	background-color: $platform-button;
+
+	i, icon
+	{
+		font-size: $glyph;
+		color: $platform-icon;
+	}
+}
+
+// A game card's shape while it loads (GameCard) - as solid as one, just its art and lines breathing, with $breathe (a
+// keyframes of the stylesheet's own, opacity 0.6 to 1). Markup: <div class="art"></div>, then <div class="bone stars">,
+// <div class="bone"> and <div class="bone by">.
+@mixin platform-card-skeleton( $breathe )
+{
+	flex-direction: column;
+	gap: 8px;
+	overflow: hidden;
+	border-radius: $platform-radius;
+	background-color: rgba( 22, 28, 40, 0.95 );
+
+	.art
+	{
+		width: 100%;
+		aspect-ratio: 1;
+		flex-shrink: 0;
+		margin-bottom: 4px;
+		background-color: rgb( 30, 37, 52 );
+		animation: $breathe 1.4s ease-in-out infinite alternate;
+	}
+
+	.bone
+	{
+		width: 70%;
+		height: 10px;
+		flex-shrink: 0;
+		margin-left: 12px;
+		border-radius: 3px;
+		background-color: rgb( 42, 50, 68 );
+		animation: $breathe 1.4s ease-in-out infinite alternate;
+
+		&.stars
+		{
+			width: 30%;
+		}
+
+		&.by
+		{
+			width: 45%;
+		}
+	}
+}
+
+// Nothing to list - its glyph in a round tile of the dock's blue, what it says under it in white, and a hint if there
+// is one. No box round it, so it sits wherever its room centres it. Red for a problem (.error).
+@mixin platform-empty
+{
+	flex-direction: column;
+	align-items: center;
+	gap: 14px;
+	padding: 40px 24px;
+	font-size: 15px;
+	font-weight: 600;
+	text-align: center;
+	color: $platform-text;
+
+	i, icon
+	{
+		flex-shrink: 0;
+		width: 64px;
+		height: 64px;
+		align-items: center;
+		justify-content: center;
+		text-align: center;
+		border-radius: 32px;
+		background-color: rgba( $platform-icon, 0.14 );
+		font-size: 30px;
+		color: $platform-icon;
+	}
+
+	.title
+	{
+		font-size: 16px;
+		font-weight: 700;
+		color: $platform-text;
+	}
+
+	.hint, .subtitle
+	{
+		font-size: 13px;
+		font-weight: 400;
+		color: $platform-muted;
+	}
+
+	&.error
+	{
+		i, icon
+		{
+			background-color: rgba( $platform-danger, 0.16 );
+			color: $platform-danger;
+		}
+	}
+}
+
+// A ping, in Inter - its figures steadier than Poppins' in a column - green, amber or red for how it's holding up
+// (MenuHelpers.PingClass)
+// A ping's signal - four bars rising left to right, as many lit as it's good for (ServerTable.PingBars), the rest
+// faint. What holds it colours the lit ones (platform-ping-lit)
+@mixin platform-ping-bars
+{
+	flex-direction: row;
+	flex-shrink: 0;
+	align-items: flex-end;
+	gap: 2px;
+	height: 13px;
+
+	.bar
+	{
+		width: 3px;
+		border-radius: 1px;
+		background-color: rgba( 255, 255, 255, 0.14 );
+
+		&:nth-child( 1 ) { height: 4px; }
+		&:nth-child( 2 ) { height: 7px; }
+		&:nth-child( 3 ) { height: 10px; }
+		&:nth-child( 4 ) { height: 13px; }
+	}
+}
+
+// On what has the ping's class (MenuHelpers.PingClass) - its bars lit in that colour, as its number is
+@mixin platform-ping-lit
+{
+	&.good .bar.on { background-color: $platform-good; }
+	&.okay .bar.on { background-color: #f2c14e; }
+	&.bad .bar.on { background-color: #ff8a94; }
+}
+
+@mixin platform-ping
+{
+	font-family: Inter;
+	font-size: 12px;
+	font-variant-numeric: tabular-nums;
+
+	&.good { color: $platform-good; }
+	&.okay { color: #f2c14e; }
+	&.bad { color: #ff8a94; }
+	&.unknown { color: $platform-faint; }
+}
+
+// A shelf's header - its icon, its title, and what it is beside them
+@mixin platform-shelf-header
+{
+	align-items: center;
+	gap: 12px;
+
+	.icon
+	{
+		font-size: 26px;
+		color: $platform-muted;
+	}
+
+	.title
+	{
+		font-size: 20px;
+		font-weight: 700;
+	}
+
+	// Its box is centred on the title's, which leaves its smaller letters high - down to sit on the title's middle
+	.subtitle, .count
+	{
+		margin-top: 2px;
+		font-size: 13px;
+		color: $platform-muted;
+	}
+
+	// A second band under the first - quieter
+	&.quiet .title
+	{
+		color: $platform-muted;
+	}
+}
+
+// A tooltip - the recesses' near-black navy, darker than the panels it's over, a little see-through over a blur,
+// round-cornered, small Poppins in the platform's white, a soft shadow under it.
+// Over the engine's own (rootpanel.scss), on each of the menu's roots
+@mixin platform-tooltip
+{
+	padding: 6px 10px;
+	border: 0px solid transparent;
+	border-radius: 8px;
+	background-color: rgba( 6, 12, 24, 0.9 );
+	backdrop-filter: blur( 8px );
+	box-shadow: 0 4px 14px rgba( 0, 0, 0, 0.45 );
+	font-family: $platform-font;
+	font-size: 12px;
+	font-weight: 600;
+	color: $platform-text;
+	pointer-events: none;
+
+	*
+	{
+		pointer-events: none;
+	}
+}
+
+// A line to know, over what it's about - a soft wash of its colour, the glyph in it and the words after. The glyph's
+// blue by default; $color for a warning or a problem (words in it too)
+@mixin platform-notice( $color: $platform-icon, $words: $platform-text )
+{
+	flex-direction: row;
+	flex-shrink: 0;
+	align-items: center;
+	gap: 10px;
+	padding: 10px 14px;
+	border-radius: $platform-radius;
+	background-color: rgba( $color, 0.1 );
+	font-size: 13px;
+	font-weight: 500;
+	color: $words;
+
+	i, icon
+	{
+		flex-shrink: 0;
+		font-size: 18px;
+		color: $color;
+	}
+}
+
+// A shelf with nothing on it - the platform's empty (platform-empty) across the row, at least a card's height
+@mixin platform-shelf-empty
+{
+	@include platform-empty;
+	flex-grow: 1;
+	justify-content: center;
+	min-height: 120px;
+	padding: 24px;
+}
+
+// A table (Sandbox.UI.Table) in the platform's look - its layout is the engine's; this is its type and colours: the
+// head a strip of small capitals, rows lit blue when picked
+@mixin platform-table
+{
+	font-family: $platform-font;
+	color: $platform-text;
+
+	thead, tfoot
+	{
+		@include platform-caps;
+		color: $platform-faint;
+	}
+
+	thead
+	{
+		border-bottom: 1px solid $platform-hairline;
+	}
+
+	tfoot
+	{
+		border-top: 1px solid $platform-hairline;
+	}
+
+	tbody
+	{
+		scrollbar-color: $platform-faint transparent;
+
+		> tr
+		{
+			@include platform-press-sound;
+			border-radius: $platform-radius;
+			font-size: 13px;
+			transition: background-color 0.1s ease;
+
+			// Every other row a shade lighter, to follow one across - the pointer's and the pick over it, which come after
+			&:nth-child( even )
+			{
+				background-color: rgba( 255, 255, 255, 0.025 );
+			}
+
+			&:hover
+			{
+				background-color: rgba( 255, 255, 255, 0.05 );
+			}
+
+			&.selected
+			{
+				background-color: rgba( $platform-primary, 0.22 );
+			}
+		}
+	}
+
+	th
+	{
+		&.sortable:hover, &.sorted
+		{
+			color: $platform-text;
+		}
+	}
+}
+
+// A platform-table filling a panel's body - right across, out past its 4px padding, its rows square edge to edge. Room
+// for the scrollbar only once there's one to show, so they reach the panel's side too.
+@mixin platform-table-flush
+{
+	@include platform-table;
+	flex-grow: 1;
+	margin: 0 -4px;
+
+	> tbody
+	{
+		scrollbar-gutter: auto;
+
+		> tr
+		{
+			border-radius: 0;
+		}
+	}
+}
+
+// One of a list of places to go - a glyph and its name, solid blue on the one you're on (.on, or .active). A page's
+// sections, the settings' categories. $size is its name's.
+@mixin platform-nav-item( $size: 15px )
+{
+	@include platform-sounds;
+	flex-direction: row;
+	flex-shrink: 0;
+	align-items: center;
+	gap: 10px;
+	padding: 6px 14px 6px 12px;
+	border-radius: $platform-pill;
+	cursor: pointer;
+	transition: background-color 0.12s ease;
+
+	i
+	{
+		font-size: 18px;
+		color: $platform-icon;
+	}
+
+	label
+	{
+		flex-shrink: 1;
+		font-size: $size;
+		font-weight: 500;
+		color: $platform-text;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	&:hover
+	{
+		background-color: $platform-hover-wash;
+	}
+
+	&.on, &.active
+	{
+		background-color: $platform-selected;
+
+		i, label
+		{
+			color: $platform-selected-text;
+		}
+
+		label
+		{
+			font-weight: 700;
+		}
+	}
+}
+
+// A page's sections, out on the art just left of its panel - the platform settings' heading and categories, where
+// they have them. The page lays them out in a row with its panel, which keeps $platform-side-balance clear on its
+// right so it stays in the middle (GameFront's .navigator-body).
+//
+// <div class="side">
+//     <label class="heading">...</label>
+//     <div class="rail"><div class="tab on"><i>...</i><label>...</label></div>...</div>
+// </div>
+@mixin platform-side
+{
+	// As far down the screen as the settings' categories (38vh, less 60px) - up by the 80px the front starts down too,
+	// as the stylesheets don't do arithmetic
+	.side
+	{
+		position: relative;
+		top: -140px;
+		width: $platform-side-width;
+		flex-shrink: 0;
+		margin-right: $platform-side-gap;
+		flex-direction: column;
+		padding-top: 38vh;
+		font-family: $platform-font;
+		color: $platform-text;
+		pointer-events: all;
+	}
+
+	// Over them, where the settings' heading is (31.5vh) and as big
+	.side > .heading
+	{
+		position: absolute;
+		left: 0;
+		top: 31.5vh;
+		font-size: 34px;
+		font-weight: 700;
+	}
+
+	.rail
+	{
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.tab
+	{
+		@include platform-nav-item;
+	}
+}
+
+// The paper grain over a surface - first in it, behind its content all the same, and inside any mask it has
+@mixin platform-grain
+{
+	&::before
+	{
+		content: "";
+		position: absolute;
+		left: 0;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		background-image: url( "/ui/panel-paper.png" );
+		background-repeat: repeat;
+		background-size: 512px 512px;
+		opacity: $platform-grain-opacity;
+		pointer-events: none;
+	}
+}
+
+// A surface - the panels' glass and edge, with no bar or grain of its own (platform-panel's). A card, a popover, a toast
+// Positioned, as what's placed absolutely in one is placed against the nearest positioned panel up from it - its
+// grain, a card's name over its art - so they stay in it. A popup the engine places sets position: absolute after it.
+@mixin platform-surface
+{
+	position: relative;
+	flex-direction: column;
+	border-radius: 6px;
+	background-color: $platform-glass;
+	backdrop-filter: blur( 8px );
+	font-family: $platform-font;
+	color: $platform-text;
+}
+
+// A panel - a bar on top saying what it is, with its tools (PanelHead), then what it holds. Dark and see-through, with
+// the dock's paper grain over it. Not clipped, so the bar's menus can drop down over what's under it; what's under it
+// clips itself.
+//
+// <div class="panel">
+//     <PanelHead ... />
+//     <div class="body">...</div>
+// </div>
+//
+@mixin platform-panel
+{
+	@include platform-surface;
+	@include platform-grain;
+	min-height: 0;
+	backdrop-filter: none;
+	pointer-events: all;
+
+	i
+	{
+		font-family: "Material Icons";
+	}
+
+
+	> .body
+	{
+		flex-grow: 1;
+		min-height: 0;
+		flex-direction: column;
+		padding: 4px;
+		overflow: hidden;
+	}
+
+	.spacer
+	{
+		flex-grow: 1;
+	}
+
+	.tool
+	{
+		@include platform-tool;
+	}
+}
+
+// A panel in from the right - down the screen from its top edge to the dock, slid in from off the right when it's .open,
+// back out when it's put away. Its .panel takes the pointer only while it's in.
+//
+// <root class="open"><div class="panel">...</div></root>
+@mixin platform-side-panel
+{
+	position: absolute;
+	top: $platform-edge;
+	right: $platform-edge;
+	bottom: $platform-above-dock;
+	width: 420px;
+	flex-direction: column;
+	pointer-events: none;
+	opacity: 0;
+	transform: translateX( 48px );
+	transition: transform 0.18s ease-out, opacity 0.14s ease-out;
+
+	&.open
+	{
+		opacity: 1;
+		transform: translateX( 0px );
+
+		> .panel
+		{
+			pointer-events: all;
+		}
+	}
+
+	> .panel
+	{
+		@include platform-panel;
+		flex-grow: 1;
+		min-height: 0;
+
+		// Over a game's front rather than a blur, so the dock's own navy, near solid, and blurring what's under it
+		background-color: $platform-panel;
+		backdrop-filter: blur( 16px );
+	}
+}
+
+// Verified - one of ours (MenuHelpers.IsVerified), a blue tick after its maker's name
+@mixin platform-verified( $size: 14px )
+{
+	.verified
+	{
+		flex-shrink: 0;
+		font-family: "Material Icons";
+		font-size: $size;
+		color: $platform-steam-blue;
+	}
+}
+
+// A panel in the middle of the screen, as a modal - blurring what it's over, dimmed by $dim. Each of the modals' filters
+// is kept on its own, so their half saturation and contrast are put back by name, not just left out. Its .panel the
+// platform-panel mixin's glass.
+@mixin platform-modal( $dim: transparent )
+{
+	&.modal
+	{
+		backdrop-filter: blur( 24px ) contrast( 1 ) saturate( 1 );
+		background-color: $dim;
+	}
+
+	> .panel
+	{
+		@include platform-panel;
+		box-shadow: 0 24px 60px rgba( 0, 0, 0, 0.45 );
+	}
+}
+
+// A panel bar's search, opened from its search tool - filling the bar in place of its heading, recessed, with a clear
+// button at its end that closes it again. Markup: <div class="search"><i>search</i><TextEntry/><div class="clear"><i>close</i></div></div>
+@mixin platform-bar-search
+{
+	@include platform-field;
+	width: auto;
+	flex-grow: 1;
+	gap: 8px;
+	padding: 0 4px 0 10px;
+	transition: opacity 0.15s ease-out;
+
+	&:intro
+	{
+		opacity: 0;
+	}
+
+	> i
+	{
+		font-size: 18px;
+		color: $platform-muted;
+	}
+
+	TextEntry
+	{
+		flex-grow: 1;
+		min-width: 0;
+		height: 100%;
+		align-items: center;
+		font-size: 14px;
+		color: $platform-text;
+		background-color: transparent;
+		border: 0;
+
+		.placeholder
+		{
+			color: $platform-faint;
+		}
+	}
+
+	.clear
+	{
+		width: 26px;
+		height: 26px;
+		flex-shrink: 0;
+		align-items: center;
+		justify-content: center;
+		border-radius: $platform-pill;
+		cursor: pointer;
+
+		i
+		{
+			font-size: 16px;
+			color: $platform-muted;
+		}
+
+		&:hover
+		{
+			background-color: $platform-button-hover;
+
+			i
+			{
+				color: white;
+			}
+		}
+	}
+}
+
+
+//
+// Controls - one look for each, both menus. A page places them and lays them out; it doesn't dress them.
+//
+
+// A row of choices, the picked one blue - ButtonGroup's (.button), and any strip of .tier or .chip like it
+@mixin platform-choices
+{
+	flex-direction: row;
+	flex-shrink: 0;
+	gap: 2px;
+	padding: 2px;
+	border-radius: $platform-pill;
+	background-color: rgba( 6, 12, 24, 0.6 );
+}
+
+// As wide as what's on it, sharing out any room the strip's given - a strip of a set width that wants its choices all the
+// same width (the settings rows') gives them flex-basis: 0
+@mixin platform-choice
+{
+	@include platform-sounds;
+	flex-grow: 1;
+	flex-basis: auto;
+	height: 30px;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	padding: 0 12px;
+	border-radius: $platform-pill;
+	border: 0px solid transparent;
+	background-color: transparent;
+	@include platform-plain-label( 13px );
+	white-space: nowrap;
+	color: $platform-muted;
+	cursor: pointer;
+	transition: background-color 0.1s ease;
+
+	label
+	{
+		@include platform-plain-label( 13px );
+		color: $platform-muted;
+	}
+
+	i, iconpanel, icon
+	{
+		font-size: 16px;
+		color: $platform-muted;
+	}
+
+	&:hover
+	{
+		background-color: $platform-hover-wash;
+		color: $platform-text;
+
+		label, i, iconpanel, icon
+		{
+			color: $platform-text;
+		}
+	}
+
+	&.active, &.on, &.selected
+	{
+		background-color: $platform-selected;
+		background-image: $platform-sheen-on;
+		color: $platform-selected-text;
+
+		label, i, iconpanel, icon
+		{
+			color: $platform-selected-text;
+		}
+	}
+}
+
+// A small fact or tag - a glyph and a few words. Markup: an optional glyph (i or icon) and a label
+@mixin platform-chip
+{
+	flex-direction: row;
+	flex-shrink: 0;
+	align-items: center;
+	gap: 4px;
+	height: 22px;
+	padding: 0 9px;
+	border-radius: $platform-pill;
+	background-color: rgba( 128, 175, 255, 0.1 );
+
+	i, icon
+	{
+		font-size: 13px;
+		color: $platform-icon;
+	}
+
+	label
+	{
+		font-size: 11.5px;
+		font-weight: 600;
+		white-space: nowrap;
+		color: $platform-text;
+	}
+}
+
+// On or off - a track with a knob that slides across. Markup: <div class="switch"><div class="knob"></div></div>, .on
+// when it's on
+@mixin platform-switch
+{
+	@include platform-press-sound;
+	width: 34px;
+	height: 20px;
+	flex-shrink: 0;
+	padding: 3px;
+	border-radius: 10px;
+	background-color: rgba( 255, 255, 255, 0.14 );
+	transition: background-color 0.15s ease;
+
+	.knob
+	{
+		width: 14px;
+		height: 14px;
+		border-radius: 7px;
+		background-color: #c3cad8;
+		transition: transform 0.15s ease, background-color 0.15s ease;
+	}
+
+	&.on
+	{
+		background-color: $platform-selected;
+
+		.knob
+		{
+			background-color: white;
+			transform: translateX( 14px );
+		}
+	}
+}
+
+// Somewhere to type - recessed, its edge blue while it's typed in. A TextEntry, or a box holding one
+@mixin platform-field( $height: 34px )
+{
+	height: $height;
+	min-width: 0;
+	align-items: center;
+	padding: 0 14px;
+	border-radius: $platform-pill;
+	border: 1px solid rgba( 128, 175, 255, 0.12 );
+	background-color: rgba( 6, 12, 24, 0.6 );
+	font-size: 14px;
+	color: $platform-text;
+	cursor: text;
+	transition: border-color 0.1s ease;
+
+	.placeholder
+	{
+		color: $platform-faint;
+	}
+
+	&:hover
+	{
+		border-color: rgba( 128, 175, 255, 0.25 );
+	}
+
+	&:focus
+	{
+		border-color: $platform-selected;
+	}
+}
+
+// A DropDown - a grey button, its choice and a chevron
+@mixin platform-dropdown( $height: 34px )
+{
+	@include platform-press-sound;
+	@include platform-button( $height );
+	justify-content: flex-start;
+	padding: 0 30px 0 14px;
+	border: 0px solid transparent;
+	// Recessed, as the choices and fields beside it are - not a button's navy, the same as the rows they're on
+	background-color: rgba( 6, 12, 24, 0.6 );
+
+	&:hover
+	{
+		background-color: rgba( 6, 12, 24, 0.85 );
+	}
+	font-size: 13.5px;
+	font-weight: 600;
+	color: $platform-text;
+
+	> .button-right-column
+	{
+		min-width: 0;
+		flex-direction: row;
+		justify-content: flex-start;
+		text-align: left;
+
+		.button-text
+		{
+			text-align: left;
+		}
+	}
+
+	> .icon
+	{
+		flex-shrink: 0;
+		font-size: 16px;
+		color: $platform-muted;
+	}
+
+	// Open - one piece with its list under it (_popup.scss): the list's fill, square where they meet. As many classes as
+	// DropDown's own inline sheet's open rule, which rounds them a pixel, so this wins
+	&.button.popupbutton.open
+	{
+		background-color: $platform-dropdown-open;
+		background-image: none;
+		border-radius: 17px 17px 0px 0px;
+	}
+}
+
+// A SliderControl - a round-ended track that fills to its value, a knob where it stops, and the number after it. Its inline
+// sheet is three and four classes deep, so this goes on SliderControl.slidercontrol and nests to match
+@mixin platform-slider
+{
+	flex-direction: row-reverse;
+	gap: 10px;
+
+	// Recessed and round-ended, as the choices and fields are - the recess its inner box, the track in from its ends by
+	// half its height, so the knob (SliderControl centres it on the value) stays inside at either end
+	> .inner
+	{
+		height: 24px;
+		min-height: 24px;
+		padding: 0 12px;
+		border-radius: 12px;
+		background-color: rgba( 6, 12, 24, 0.6 );
+	}
+
+	> .inner > .track
+	{
+		height: 24px;
+		margin: 0;
+		border-radius: 0;
+		background-color: transparent;
+
+		// Filled the light blue to its value - out to the recess's end on the left, and on past the knob on the
+		// right, so the knob sits in its round end whatever the value. Gone at the bottom, the knob on its own.
+		> .track-active
+		{
+			height: 100%;
+			border-radius: 0;
+			background-color: $platform-selected;
+
+			&::before, &::after
+			{
+				content: " ";
+				position: absolute;
+				top: 0;
+				bottom: 0;
+				width: 24px;
+				border-radius: 12px;
+				background-color: $platform-selected;
+			}
+
+			&::before
+			{
+				left: -12px;
+			}
+
+			&::after
+			{
+				right: -12px;
+			}
+		}
+
+		> .thumb
+		{
+			width: 18px;
+			height: 18px;
+			border-radius: 9px;
+			background-color: white;
+			box-shadow: 0 1px 4px rgba( 0, 0, 0, 0.45 );
+		}
+	}
+
+	&:hover > .inner > .track > .thumb
+	{
+		box-shadow: 0 1px 4px rgba( 0, 0, 0, 0.45 ), 0 0 0 4px rgba( $platform-selected, 0.35 );
+	}
+
+	&:active > .inner > .track > .thumb
+	{
+		box-shadow: 0 1px 4px rgba( 0, 0, 0, 0.45 ), 0 0 0 6px rgba( $platform-selected, 0.45 );
+	}
+
+	&:hover > .inner > .track > .track-active
+	{
+		background-color: $platform-selected-hover;
+
+		&::before, &::after
+		{
+			background-color: $platform-selected-hover;
+		}
+	}
+
+	> .entry
+	{
+		width: 52px;
+		min-width: 52px;
+		max-width: 52px;
+
+		> numberentry
+		{
+			width: 100%;
+			height: 24px;
+			justify-content: flex-end;
+			text-align: right;
+			font-family: Inter;
+			font-size: 13px;
+			font-weight: 600;
+			font-variant-numeric: tabular-nums;
+			color: $platform-text;
+		}
+	}
+}
+
+// A group's name over what's in it - bold white, as written, not capitals: the avatar's slot groups, the settings'
+// sections. Its label too, where the markup wraps the words in one.
+@mixin platform-group-title
+{
+	flex-direction: row;
+	flex-shrink: 0;
+	align-items: center;
+	font-family: $platform-font;
+	font-size: 15px;
+	font-weight: 700;
+	text-transform: none;
+	letter-spacing: 0;
+	color: $platform-text;
+
+	label
+	{
+		font-size: 15px;
+		font-weight: 700;
+		text-transform: none;
+		letter-spacing: 0;
+		color: $platform-text;
+	}
+}
+
+// A section's name - small blue capitals, an optional glyph before them. Markup: a label, or an icon and a label
+@mixin platform-section-label
+{
+	flex-direction: row;
+	flex-shrink: 0;
+	align-items: center;
+	gap: 6px;
+	@include platform-caps;
+	color: linear-gradient( 180deg, #9cc6ff, $platform-primary );
+
+	label
+	{
+		@include platform-caps;
+		color: linear-gradient( 180deg, #9cc6ff, $platform-primary );
+	}
+
+	// Its capitals' case and spacing undone, or a glyph's ligature spells itself out
+	icon, i
+	{
+		font-family: "Material Icons";
+		font-size: 14px;
+		text-transform: none;
+		letter-spacing: 0;
+		color: linear-gradient( 180deg, #7fb4ff, $platform-primary );
+	}
+}

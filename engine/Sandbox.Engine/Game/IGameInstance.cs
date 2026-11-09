@@ -10,6 +10,23 @@ public interface IGameInstance
 	internal Package Package { get; }
 	internal void Close();
 
+	/// <summary>
+	/// On its menu - loaded with <see cref="Sandbox.Engine.GameLoadingFlags.Menu"/>, or back from a game, and not started
+	/// </summary>
+	internal bool IsOnMenu { get; }
+
+	/// <summary>
+	/// On its menu - load what the menu didn't need, then open the startup scene. False if it wasn't on its menu, or the
+	/// startup scene didn't open - then it's back on its menu if that opened.
+	/// </summary>
+	internal Task<bool> StartFromMenu();
+
+	/// <summary>
+	/// Back to its menu, still loaded. False if it can't be - its code is a server's, or it has no menu scene and the
+	/// platform menu isn't up to start it from.
+	/// </summary>
+	internal bool ReturnToMenu();
+
 	internal InputSettings InputSettings { get; }
 
 	public void ResetBinds();

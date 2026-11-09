@@ -1,20 +1,18 @@
 @import '../styles/_theme.scss';
+@import "/Platform/_platform.scss";
 
 ServicesModal
 {
-	font-family: $font-default;
+	font-family: $platform-font;
 
 	.window
 	{
+		@include platform-surface;
 		z-index: 1000;
 		width: 580px;
-		flex-direction: column;
-		border-radius: $rounding-large;
 		gap: 16px;
 		padding: 16px;
 		pointer-events: all;
-		background: linear-gradient( to bottom, $default-900, $default-950 );
-		box-shadow: 2px 2px 20px #0005;
 	}
 
 	.header
@@ -32,8 +30,7 @@ ServicesModal
 	.description
 	{
 		margin: 1rem;
-		opacity: 0.4;
-		color: $default-200;
+		color: $platform-muted;
 		font-size: $text-medium;
 		text-align: justify;
 	}
@@ -48,7 +45,7 @@ ServicesModal
 	{
 		padding: 24px;
 		justify-content: center;
-		color: $default-200;
+		color: $platform-muted;
 	}
 
 	.service
@@ -57,10 +54,8 @@ ServicesModal
 		align-items: center;
 		gap: 12px;
 		padding: 12px;
-		border-radius: $rounding-default;
-		background-color: $default-950;
-		border: 1px solid transparent;
-		transition: all 0.1s ease;
+		border-radius: $platform-radius;
+		background-color: rgba( 255, 255, 255, 0.04 );
 
 		.badge
 		{
@@ -68,7 +63,7 @@ ServicesModal
 			flex-shrink: 0;
 			width: 40px;
 			height: 40px;
-			border-radius: $rounding-default;
+			border-radius: $platform-radius;
 			align-items: center;
 			justify-content: center;
 
@@ -88,18 +83,17 @@ ServicesModal
 			.name
 			{
 				font-size: $text-medium;
-				font-family: $font-heading;
 				font-weight: 600;
 			}
 
 			.status
 			{
 				font-size: $text-small;
-				color: $default-300;
+				color: $platform-muted;
 
 				&.connected
 				{
-					color: $primary-green;
+					color: $platform-good;
 				}
 			}
 		}
@@ -120,7 +114,18 @@ ServicesModal
 			.tick
 			{
 				font-size: 22px;
-				color: $primary-green;
+				color: $platform-good;
+			}
+		}
+
+		.button
+		{
+			@include platform-text-button( 34px );
+			padding: 0 14px;
+
+			&.primary
+			{
+				@include platform-button-primary;
 			}
 		}
 	}

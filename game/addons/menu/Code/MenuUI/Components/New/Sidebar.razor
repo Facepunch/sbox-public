@@ -32,16 +32,7 @@
         <Button Href="/games/all?Sort=trending&Filter=" Icon="sports_esports">#menu.games</Button>
         <Button Href="/multiplayer" Icon="forum">#menu.home.multiplayer</Button>
         <Button Href="/mounts" Icon="extension">#menu.home.mounts</Button>
-        @* Not for an account under a week old - nothing's for sale to it yet *@
-        @if ( MenuHelpers.ShowMicrotransactions )
-        {
-            <Button Href="/itemstore" Icon="shopping_cart">#menu.store</Button>
-        }
-
-        @if ( jam is not null )
-        {
-            <RailButton Href="/jam" Icon="emoji_events" Text="#menu.home.jam" Glow="@JamLive" Sub="@JamCountdown" />
-        }
+        <Button Href="/itemstore" Icon="shopping_cart">#menu.store</Button>
     </div>
 
     <div class="grow" />
@@ -90,9 +81,6 @@
     RewardState rewardState;
     RealTimeUntil timeUntilRewardPoll = 0;
 
-    Sandbox.Services.Jam jam;
-    RealTimeUntil timeUntilJamPoll = 0;
-
     RailButton RewardsButton;
 
     /// <summary>Lit while the drop popup is up, since there's no page for it to match against.</summary>
@@ -131,39 +119,10 @@
 
     RewardWindow RewardWindow => rewardState?.Windows.FirstOrDefault();
 
-    bool RewardReady => rewardState?.Pending is not null || (RewardWindow?.IsEligible == true
-        && (RewardWindow.EndsAt == default || RewardWindow.EndsAt > DateTimeOffset.UtcNow));
+    bool RewardReady => MenuHelpers.RewardReady( rewardState );
 
     /// <summary>How far the drop has come. Null while there's nothing being tracked, so no bar.</summary>
     float? RewardProgress => RewardReady || RewardWindow?.IsClaimed == true ? 1f : RewardWindow?.Progress;
-
-    /// <summary>Lit while the jam is live - entries open, or being judged and voted on.</summary>
-    bool JamLive => jam is { IsLive: true };
-
-    /// <summary>
-    /// What the jam is counting down to, short enough for the rail: the start, then the
-    /// deadline, then the nomination lock, then whatever step is next. Ticks once under a day.
-    /// </summary>
-    string JamCountdown
-    {
-        get
-        {
-            if ( jam is null ) return null;
-
-            var target = !jam.HasStarted ? jam.Starts
-                : jam.Now < jam.Deadline ? jam.Deadline
-                : jam.CommunityVoting && jam.Now < jam.NominationsEnd ? jam.NominationsEnd
-                : jam.NextStep?.At;
-
-            if ( target is not DateTimeOffset at || at <= jam.Now ) return null;
-
-            // Clock style. Days go in front once there are any, and seconds drop off to keep it short.
-            var left = at - jam.Now;
-            if ( left.TotalDays >= 1 ) return $"{left.Days}d {left.Hours:00}:{left.Minutes:00}";
-
-            return $"{left.Hours:00}:{left.Minutes:00}:{left.Seconds:00}";
-        }
-    }
 
     public override void Tick()
     {
@@ -177,7 +136,6 @@
             badgesStale = false;
             timeUntilNotificationPoll = 0;
             timeUntilRewardPoll = 0;
-            timeUntilJamPoll = 0;
         }
 
         if ( timeUntilNotificationPoll <= 0 )
@@ -190,12 +148,6 @@
         {
             timeUntilRewardPoll = PollSeconds;
             _ = UpdateRewards();
-        }
-
-        if ( timeUntilJamPoll <= 0 )
-        {
-            timeUntilJamPoll = PollSeconds;
-            _ = UpdateJam();
         }
     }
 
@@ -211,27 +163,10 @@
         StateHasChanged();
     }
 
-    async Task UpdateJam()
-    {
-        jam = await Sandbox.Services.Jam.GetActive();
-        StateHasChanged();
-    }
-
     /// <summary>
     /// Out to the desktop - it asks first.
     /// </summary>
-    void Quit()
-    {
-        ModalSystem.Instance?.Open( new MenuProject.Modals.QuestionModal
-        {
-            Color = Color.Parse( "#ff5d6a" ) ?? Color.Red,
-            Title = "#menu.home.quit_to_desktop",
-            Message = "#menu.home.are_you_sure_you_want_to_close_s_box",
-            ConfirmText = "#menu.home.quit_to_desktop_sentence",
-            ConfirmIcon = "power_settings_new",
-            OnConfirm = () => MenuUtility.RunCommand( "quit" )
-        } );
-    }
+    static void Quit() => MenuHelpers.ConfirmQuit();
 
-    protected override int BuildHash() => HashCode.Combine( ShowInbox, NotificationBadge, RewardBadge, RewardProgress, RewardsOpen, jam?.Ident, JamLive, HashCode.Combine( JamCountdown, Game.InGame, InGamePackage, OnGamePage, MenuHelpers.ShowMicrotransactions ) );
+    protected override int BuildHash() => HashCode.Combine( ShowInbox, NotificationBadge, RewardBadge, RewardProgress, RewardsOpen, Game.InGame, InGamePackage, OnGamePage );
 }

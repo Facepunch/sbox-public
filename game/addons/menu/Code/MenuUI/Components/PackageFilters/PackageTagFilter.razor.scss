@@ -1,6 +1,8 @@
+@import "/Platform/_platform.scss";
 
 PackageTagFilter
 {
+    @include platform-choices;
     flex-direction: row;
     flex-wrap: wrap;
     flex-shrink: 0;

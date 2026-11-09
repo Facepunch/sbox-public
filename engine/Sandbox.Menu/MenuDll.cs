@@ -28,6 +28,14 @@ internal sealed class MenuDll : IMenuDll
 	public Scene Scene => MenuScene.Scene;
 
 	/// <summary>
+	/// Whether the platform menu's the one running, rather than the main menu - <see cref="MenuUtility.PlatformMenu"/>
+	/// as it was when the menu last started. Changed under it, the menu restarts onto the other on its next tick.
+	/// </summary>
+	bool platformRunning;
+
+	bool IMenuDll.IsPlatformMenu => platformRunning;
+
+	/// <summary>
 	/// Runs menu async tasks, so they execute in the same context as the menu.
 	/// </summary>
 	public static ExpirableSynchronizationContext AsyncContext { get; } = new ExpirableSynchronizationContext( false );
@@ -172,7 +180,9 @@ internal sealed class MenuDll : IMenuDll
 		if ( !string.IsNullOrWhiteSpace( AccountInformation.AvatarJson ) )
 			Avatar.AvatarJson = AccountInformation.AvatarJson;
 
-		if ( !Application.IsEditor )
+		// The platform menu opens on a game's own menu scene instead
+		platformRunning = MenuUtility.PlatformMenu;
+		if ( !Application.IsEditor && !platformRunning )
 			SetupMenuScene();
 
 		IMenuSystem.Current = GlobalContext.Menu.TypeLibrary.Create<IMenuSystem>( "MenuSystem", true );
@@ -322,6 +332,14 @@ internal sealed class MenuDll : IMenuDll
 
 	public void Tick()
 	{
+		// menu_platform read in the menu's own context - the convar's the menu's, not whatever's current
+		bool switched;
+		using ( EnterScope() )
+			switched = IMenuSystem.Current is not null && !Application.IsEditor && MenuUtility.PlatformMenu != platformRunning;
+
+		if ( switched )
+			Restart();
+
 		if ( MenuScene.Scene is { } menuScene )
 		{
 			menuScene.IsSuspended = !Game.IsMainMenuVisible;
@@ -411,7 +429,33 @@ internal sealed class MenuDll : IMenuDll
 	[MenuConCmd( "menu_reload", ConVarFlags.Protected )]
 	public static void Recreate()
 	{
+		(IMenuDll.Current as MenuDll)?.Restart();
+	}
+
+	/// <summary>
+	/// Shut the menu system down and start it again - onto the platform menu or the main menu, whichever
+	/// <see cref="MenuUtility.PlatformMenu"/> says now. The main menu's scene goes with it, and is made again for it.
+	/// </summary>
+	void Restart()
+	{
+		using var _ = EnterScope();
+
+		var wasPlatform = platformRunning;
+		platformRunning = MenuUtility.PlatformMenu;
+
 		IMenuSystem.Current?.Shutdown();
+
+		// A game waiting on its own menu is the platform menu's - the main menu doesn't start on one. A game being
+		// played carries on, under whichever menu's up.
+		if ( wasPlatform && !platformRunning && Game.IsOnMenu )
+			Game.Close();
+
+		MenuScene.Scene?.Destroy();
+		MenuScene.Scene = null;
+
+		if ( !Application.IsEditor && !platformRunning )
+			SetupMenuScene();
+
 		IMenuSystem.Current?.Init();
 	}
 

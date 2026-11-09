@@ -1,3 +1,5 @@
+@import "/Platform/_platform.scss";
+
 WorkshopPackageDetail
 {
 	flex-direction: column;
@@ -6,37 +8,12 @@ WorkshopPackageDetail
 
 	.return
 	{
-		background-color: #0008;
-		padding: 8px;
-		border-radius: 4px;
-		cursor: pointer;
+		@include platform-text-button( 44px, 15px, 22px );
+		padding: 0 14px;
 		pointer-events: all;
-		transition: all 0.1s ease;
 		flex-shrink: 0;
-		gap: 8px;
-		font-size: 28px;
 		margin-bottom: 16px;
-		backdrop-filter: blur( 10px );
-
-		.iconpanel
-		{
-			font-size: 44px;
-		}
-
-		&:hover
-		{
-			background-color: #000d;
-		}
-
-		&:active
-		{
-			background-color: #0003;
-		}
-
-		&.active
-		{
-			background-color: #08f;
-		}
+		text-shadow: none;
 	}
 
 	.description
@@ -73,57 +50,34 @@ WorkshopPackageDetail
 	margin: 32px 0;
 	flex-direction: column;
 
+	// Up and down - one pair of choices, lit on your vote
 	> div
 	{
-		gap: 10px;
+		@include platform-choices;
 	}
 
-	.option
+	> div > .option
 	{
-		background-color: #0008;
-		padding: 8px;
-		border-radius: 4px;
-		cursor: pointer;
+		@include platform-choice;
 		pointer-events: all;
-		transition: all 0.1s ease;
-		flex-shrink: 0;
-		gap: 8px;
-		font-size: 22px;
-		margin-bottom: 16px;
-		flex-grow: 1;
-		align-items: center;
+		text-shadow: none;
+	}
+
+	> .rating
+	{
+		@include platform-text-button( 34px );
 		justify-content: center;
-		backdrop-filter: blur( 10px );
-
-		.iconpanel
-		{
-			font-size: 32px;
-		}
-
-		&:hover
-		{
-			background-color: #000d;
-		}
-
-		&:active
-		{
-			background-color: #0003;
-		}
-
-		&.active
-		{
-			background-color: #08f;
-		}
+		pointer-events: all;
+		text-shadow: none;
 	}
 }
 
 .detail
 {
+	@include platform-surface;
 	flex-direction: row;
 	gap: 16px;
 	flex-shrink: 0;
-	backdrop-filter: blur( 10px );
-	border-radius: 8px;
 	padding: 8px;
 
 	.thumb
@@ -165,15 +119,5 @@ WorkshopPackageDetail
 	.created
 	{
 		opacity: 0.7;
-	}
-}
-
-.interactions .voteup, .interactions .votedown
-{
-	flex-direction: column;
-
-	.iconpanel
-	{
-		font-size: 64px;
 	}
 }

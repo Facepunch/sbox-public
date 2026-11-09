@@ -1,5 +1,5 @@
 @import "/styles/_theme.scss";
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 GameModal
 {
@@ -21,7 +21,7 @@ GameModal
 	.setup-loading
 	{
 		padding: 32px;
-		color: $front-secondary;
+		color: $platform-muted;
 		font-family: $front-font;
 		font-size: 14px;
 	}
@@ -48,7 +48,7 @@ GameModal
 		{
 			font-size: 18px;
 			font-weight: 700;
-			color: $front-heading;
+			color: $platform-text;
 		}
 
 		.track
@@ -72,7 +72,7 @@ GameModal
 			width: 360px;
 			justify-content: space-between;
 			font-size: 12px;
-			color: $front-secondary;
+			color: $platform-muted;
 		}
 	}
 
@@ -85,67 +85,43 @@ GameModal
 		}
 	}
 
-	// Where the tabs go while setting up - back to the game, and where you are, sat on the tabs' line
-	// with the one you're on underlined like the tab you're on
+	// Where the tabs go while setting up - back to the game, and where you are, on the tabs' line
 	.setup-trail
 	{
 		flex-direction: row;
-		align-items: flex-end;
+		align-items: center;
+		gap: 10px;
+		margin-bottom: 8px;
 		pointer-events: all;
-		font-family: $front-font;
-
-		.back, .sep, .here
-		{
-			padding: 0 14px 12px 14px;
-			border-bottom: 2px solid transparent;
-		}
+		font-family: $platform-font;
 
 		.back
 		{
-			flex-direction: row;
-			align-items: center;
-			gap: 6px;
-			cursor: pointer;
+			@include platform-text-button( 30px, 12.5px, 15px );
+			padding: 0 12px;
 
 			i
 			{
 				font-family: "Material Icons";
-				font-size: 16px;
-				color: $front-secondary;
-			}
-
-			label
-			{
-				font-size: 13px;
-				font-weight: 700;
-				color: $front-secondary;
 			}
 
 			&:hover
 			{
 				sound-in: "ui.button.over";
-
-				i, label
-				{
-					color: $front-heading;
-				}
 			}
 		}
 
 		.sep
 		{
-			padding-left: 0;
-			padding-right: 0;
 			font-size: 13px;
-			color: $front-tertiary;
+			color: $platform-faint;
 		}
 
 		.here
 		{
 			font-size: 13px;
 			font-weight: 700;
-			color: $front-heading;
-			border-bottom-color: $front-primary;
+			color: $platform-text;
 		}
 	}
 }

@@ -222,23 +222,9 @@
 	void RefreshFriends()
 	{
 		nextFriendsRefresh = RealTime.Now + 1;
-		var friends = MenuUtility.Friends
-			.Where( x => scopedGame is not null && !x.IsMe && x.IsOnline && x.IsPlayingThisGame
-				&& x.GetRichPresence( "in_editor" ) != "1"
-				&& !string.IsNullOrEmpty( x.GetRichPresence( "gametitle" ) )
-				&& x.GetRichPresence( "gamename" ) == scopedGame )
-			.OrderBy( x => x.Id )
-			.ToList();
-
-		var serverIds = new HashSet<ulong>();
-		foreach ( var friend in friends )
-		{
-			// Steam lobby and relay-server presence publish the ID used by the server list.
-			if ( ulong.TryParse( friend.GetRichPresence( "steam_player_group" ), out var id ) && id != 0 )
-			{
-				serverIds.Add( id );
-			}
-		}
+		var playing = MenuHelpers.FriendsPlaying;
+		var friends = (scopedGame is null ? null : playing.ByGame.GetValueOrDefault( scopedGame )) ?? new();
+		var serverIds = playing.ByLobby.Where( x => x.Value.Any( friends.Contains ) ).Select( x => x.Key ).ToHashSet();
 
 		if ( playingFriends.SequenceEqual( friends ) && friendServerIds.SetEquals( serverIds ) ) return;
 

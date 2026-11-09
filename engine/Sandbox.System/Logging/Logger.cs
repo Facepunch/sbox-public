@@ -155,6 +155,7 @@ public class Logger
 		}
 
 		var logEvent = LogEventInfo.Create( nlogLevel, name, defaultMessage );
+		StackTrace stackTrace = null;
 
 		if ( ex != null )
 		{
@@ -162,7 +163,7 @@ public class Logger
 		}
 		else
 		{
-			var stackTrace = new StackTrace( 0, true );
+			stackTrace = new StackTrace( 0, true );
 			logEvent.SetStackTrace( stackTrace, 0 );
 		}
 
@@ -189,10 +190,38 @@ public class Logger
 			HtmlMessage = htmlMessage,
 			Stack = stacktrace,
 			Time = DateTime.Now,
-			Arguments = arguments.ToArray()
+			Arguments = arguments.ToArray(),
+			SourceAssembly = level == LogLevel.Error ? FindPackageAssembly( ex, stackTrace ) : null
 		};
 
 		Logging.Write( e );
+	}
+
+	/// <summary>
+	/// The first package assembly ("package.org.ident") on an error's stack - its exception's, or its inner ones' (an
+	/// invocation's), or where it was logged. Null if it never went through one.
+	/// </summary>
+	internal static string FindPackageAssembly( Exception ex, StackTrace logged )
+	{
+		for ( var e = ex; e is not null; e = e.InnerException )
+		{
+			if ( FindPackageAssembly( new StackTrace( e, false ) ) is { } found )
+				return found;
+		}
+
+		return logged is null ? null : FindPackageAssembly( logged );
+	}
+
+	static string FindPackageAssembly( StackTrace stack )
+	{
+		foreach ( var frame in stack.GetFrames() )
+		{
+			var name = frame.GetMethod()?.DeclaringType?.Assembly.GetName().Name;
+			if ( name?.StartsWith( "package.", StringComparison.OrdinalIgnoreCase ) == true )
+				return name;
+		}
+
+		return null;
 	}
 
 	/// <summary>

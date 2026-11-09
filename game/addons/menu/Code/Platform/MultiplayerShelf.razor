@@ -1,0 +1,544 @@
+@using System;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.UI;
+@using Sandbox.Network;
+@using Sandbox.Modals;
+@using MenuProject.Multiplayer;
+@using MenuProject.MenuUI.Components.Multiplayer;
+@using Chat = MenuProject.Multiplayer.GlobalChatService;
+@namespace MenuProject.Platform
+@page "/shelf/multiplayer"
+@inherits Panel
+@implements IShelfPage
+
+@*
+    Finding people to play with, all at once rather than in tabs.
+*@
+<root>
+
+    <div class="column main">
+        <div class="panel games" @ref="GamesPanel">
+            <PanelHead Title=@(scoped is null ? "Playing now" : MenuHelpers.CachedTitle( scoped )) Icon=@(scoped is null ? "public" : "sports_esports") Art=@GamesArt
+                       Back=@(scoped is null ? null : (Action)Unscope) Search=@(scoped is null ? "Search games, servers or maps" : "Search servers or maps")
+                       OnSearch=@( ( string text ) => { search = text ?? ""; } )>
+                <Tools>
+                    <div class="filters-wrap">
+                        <div class="tool filters @(filtersOpen ? "open" : "")" onclick=@ToggleFilters>
+                            <i>tune</i>
+                            <label>Filters</label>
+                            @if ( FilterCount > 0 )
+                            {
+                                <div class="count"><label>@FilterCount</label></div>
+                            }
+                        </div>
+
+                        @if ( filtersOpen )
+                        {
+                            <div class="menu filters-menu">
+                                @foreach ( var (title, on, toggle) in Filters )
+                                {
+                                    <div class="option @(on ? "on" : "")" onclick=@toggle>
+                                        <label>@title</label>
+                                        <div class="switch @(on ? "on" : "")"><div class="knob"></div></div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+
+                    <div class="tool @(flat ? "open" : "")" onclick=@ToggleFlat tooltip="@(flat ? "Group servers by game" : "Every server in one list")"><i>@(flat ? "format_list_bulleted" : "view_agenda")</i></div>
+
+                    <div class="tool @(refreshing ? "busy" : "")" onclick=@Refresh tooltip="Refresh"><i>refresh</i></div>
+                </Tools>
+            </PanelHead>
+
+            <div class="body">
+                @if ( !string.IsNullOrEmpty( error ) )
+                {
+                    <div class="empty error"><i>error</i><label>@error</label></div>
+                }
+                else if ( flat && scoped is null )
+                {
+                    <ServerTable @ref="Table" @key=@("*") Servers=@AllServers ShowGame=@true Loading=@(!loaded)
+                                 EmptyText=@(string.IsNullOrWhiteSpace( search ) ? "No servers that fit your filters" : "Nothing matches that") />
+                }
+                else if ( scoped is not null )
+                {
+                    <ServerTable @ref="Table" @key=@scoped Servers=@ScopedServers
+                                 EmptyText=@(string.IsNullOrWhiteSpace( search ) ? "No servers that fit your filters" : "Nothing matches that") />
+                }
+                else if ( loaded && Games.Length == 0 )
+                {
+                    <div class="empty">
+                        <i>public_off</i>
+                        <label>@(string.IsNullOrWhiteSpace( search ) ? "Nobody's on a server right now" : "Nothing matches that")</label>
+                    </div>
+                }
+                else
+                {
+                    <div class="rows" @ref="GameRows">
+                        @if ( !loaded )
+                        {
+                            @* A game row's shape - its art, its name over how many are playing, its kind on the right *@
+                            @for ( var i = 0; i < 6; i++ )
+                            {
+                                <div class="game skeleton @(i % 2 == 1 ? "alt" : "")">
+                                    <div class="thumb"></div>
+                                    <div class="about">
+                                        <div class="bone name-bone" style="width: @(SkeletonWidths[i % SkeletonWidths.Length] * 3)px;"></div>
+                                        <div class="sub-line"><div class="bone playing-bone"></div></div>
+                                    </div>
+                                    <div class="type"><div class="bone category-bone"></div></div>
+                                </div>
+                            }
+                        }
+
+                        @foreach ( var (game, row) in Games.Select( ( x, i ) => (x, i) ) )
+                        {
+                            <div class="game @(row % 2 == 1 ? "alt" : "") @(game.AllOutdated ? "outdated" : "")" @key=@game.Ident onclick=@( () => Scope( game.Ident ) )>
+                                <div class="thumb" style="@MenuHelpers.BackgroundImage( MenuHelpers.CachedPackage( game.Ident )?.Thumb )">
+                                    @if ( string.IsNullOrEmpty( MenuHelpers.CachedPackage( game.Ident )?.Thumb ) )
+                                    {
+                                        <i>sports_esports</i>
+                                    }
+                                </div>
+
+                                <div class="about">
+                                    <div class="name-line">
+                                        <label class="name">@MenuHelpers.CachedTitle( game.Ident )</label>
+                                        @if ( game.AllOutdated )
+                                        {
+                                            <label class="outdated-tag" tooltip="Its servers are all on another version of s&box - they're listed, but can't be joined">Outdated</label>
+                                        }
+                                    </div>
+
+                                    <div class="sub-line">
+                                        <label class="playing">@($"{(game.Players == 1 ? "1 player" : $"{game.Players:N0} players")} on {(game.Servers == 1 ? "1 server" : $"{game.Servers:N0} servers")}{(game.Outdated > 0 && !game.AllOutdated ? $" · {game.Outdated:N0} outdated" : "")}")</label>
+
+                                        @if ( FriendsIn( game.Ident ) is { Count: > 0 } friends )
+                                        {
+                                            <div class="friends" tooltip="@string.Join( ", ", friends.Select( x => x.Name ) )">
+                                                @foreach ( var friend in friends.Take( 3 ) )
+                                                {
+                                                    <div class="face" style="background-image: url( avatar:@friend.Id );"></div>
+                                                }
+                                                <label>@(friends.Count == 1 ? $"{friends[0].Name} is playing" : $"{friends[0].Name} and {friends.Count - 1} more playing")</label>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+
+                                <div class="type">
+                                    @if ( CategoryOf( game.Ident ) is { } category )
+                                    {
+                                        <label class="category">@category</label>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="column side">
+        @* Only while there's a party to join (or a problem finding them) - opening down over chat as one comes up, and
+           closing back up when the last goes. In a panel of its own so going out it stays where it is, rather than being
+           moved after chat. *@
+        <div class="parties-slot">
+        @if ( parties.Length > 0 || !string.IsNullOrEmpty( PartyService.Error ) )
+        {
+        <div class="panel parties">
+            <PanelHead Icon="groups" Title="Open parties" />
+
+            <div class="body" @ref="PartiesBody">
+                @if ( !string.IsNullOrEmpty( PartyService.Error ) )
+                {
+                    <div class="notice"><i>error</i><label>@PartyService.Error</label></div>
+                }
+
+                @foreach ( var party in parties )
+                {
+                    var mine = party.Id == PartyRoom.Current?.Id.ValueUnsigned;
+
+                    <div class="party @(mine ? "mine" : "")" @key=@party.Id>
+                        <div class="game-art" style="@MenuHelpers.BackgroundImage( MenuHelpers.CachedPackage( party.Package )?.Thumb )" tooltip="@(party.GameTitle ?? "")">
+                            @if ( string.IsNullOrEmpty( MenuHelpers.CachedPackage( party.Package )?.Thumb ) )
+                            {
+                                <i>@(string.IsNullOrWhiteSpace( party.Package ) ? "groups" : "sports_esports")</i>
+                            }
+                        </div>
+
+                        <div class="about">
+                            <label class="party-name">@party.Name</label>
+                            <div class="party-line">
+                                <label class="party-info">@(string.IsNullOrWhiteSpace( party.GameTitle ) ? $"{party.Members} of {party.MaxMembers}" : $"{party.Members} of {party.MaxMembers} · {party.GameTitle}")</label>
+                                <div class="leader @(new Friend( party.OwnerId ).IsFriend ? "friend" : "")" tooltip="Leads it">
+                                    <div class="face" style="background-image: url( avatar:@party.OwnerId );"></div>
+                                    <label>@(new Friend( party.OwnerId ).Name)</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        @if ( mine )
+                        {
+                            <label class="yours">Yours</label>
+                        }
+                        else
+                        {
+                            <div class="join @(CanJoinParty ? "" : "disabled")" tooltip="@(PartyRoom.Current is null ? "Join" : "Leave your party first")" onclick=@( () => JoinParty( party.Id ) )><i>play_arrow</i></div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+        }
+        </div>
+
+        <div class="panel chat" @ref="ChatPanel">
+            <PanelHead Icon="forum" Title="Global chat">
+                <Tools>
+                    @if ( ChatCount is { } here )
+                    {
+                        <div class="here" tooltip="In chat"><i>person</i><label>@here.ToString( "N0" )</label></div>
+                    }
+                </Tools>
+            </PanelHead>
+
+            <div class="body" @ref="ChatBody">
+                @if ( !string.IsNullOrEmpty( Chat.Error ) )
+                {
+                    <div class="notice"><i>error</i><label>@Chat.Error</label></div>
+                }
+
+                <div class="messages" @ref="Messages">
+                    @if ( ChatLines.Count == 0 )
+                    {
+                        <div class="empty small">
+                            <i>forum</i>
+                            <label>@(Chat.Connecting ? "Joining chat…" : "Say hello, find your next group")</label>
+                        </div>
+                    }
+
+                    @foreach ( var message in ChatLines )
+                    {
+                        <ChatMessage @key=@message.Id Sender=@message.Sender Text=@message.Text PartyId=@message.PartyId />
+                    }
+                </div>
+            </div>
+        </div>
+
+        @* Over chat's faded bottom, not in it - what you'll say, and in a party, a way to post it for anyone to join *@
+        <div class="composer" @ref="Composer">
+            <ChatEntry @ref="ChatInput" Value:bind=@Chat.Draft MaxLength=@(400) Placeholder="Say hello…" onsubmit=@SendChat />
+            @if ( PartyRoom.Current is not null )
+            {
+                <div class="invite @(Chat.CanInviteParty ? "" : "disabled")" tooltip="@InviteTooltip" onclick=@InviteParty><i>campaign</i></div>
+            }
+        </div>
+    </div>
+
+</root>
+
+@code
+{
+    /// <summary>
+    /// How long each skeleton row's name is - different down the rows, as the names they stand in for are
+    /// </summary>
+    static readonly int[] SkeletonWidths = [60, 46, 72, 54, 66, 40];
+
+    bool IShelfPage.ToDock => true;
+
+    // Pulled in to the middle - a click either side of its columns goes through to put it away
+    bool IShelfPage.ClicksThrough => true;
+
+    /// <summary>
+    /// A game being played - how many on how many servers, and how many of those are on another version (outdated)
+    /// </summary>
+    record LiveGame( string Ident, int Players, int Servers, int Outdated )
+    {
+        /// <summary>
+        /// None of its servers can be joined - they're all on another version
+        /// </summary>
+        public bool AllOutdated => Outdated >= Servers;
+    }
+
+    List<LobbyInformation> lobbies = new();
+    bool loaded;
+    bool refreshing;
+    string error;
+    double nextRefresh;
+
+    string scoped;
+
+    string search = "";
+    bool hideEmpty;
+    bool hideFull;
+    bool hideLocked;
+    bool hideOutdated;
+
+    bool filtersOpen;
+
+    const string FlatCookie = "platform.multiplayer.flat";
+
+    bool flat = Game.Cookies.Get( FlatCookie, false );
+
+    void ToggleFlat()
+    {
+        flat = !flat;
+        scoped = null;
+        Game.Cookies.Set( FlatCookie, flat );
+    }
+
+    PartyRoom.Entry[] parties = [];
+    bool partiesLoaded;
+    bool partiesRefreshing;
+    double nextParties;
+    PartyRoom lastParty;
+
+    Panel Messages;
+    bool scrollToEnd = true;
+    bool chatOpen;
+
+    static List<Chat.ChatLine> ChatLines => Chat.Messages;
+
+    static int? ChatCount => Chat.Channel?.MemberCount;
+
+    /// <summary>
+    /// The shelf's up - not just left showing as it slides down
+    /// </summary>
+    bool Shown => ShelfPanel.Of( this ) is { IsOpen: true } shelf && shelf.CurrentPanel == this;
+
+
+    int FilterCount => (hideEmpty ? 1 : 0) + (hideFull ? 1 : 0) + (hideLocked ? 1 : 0) + (hideOutdated ? 1 : 0);
+
+    LiveGame[] Games => GamesOf( lobbies.Where( Matches ) );
+
+    string CategoryOf( string ident ) => MenuHelpers.CachedPackage( ident )?.Tags?.FirstOrDefault( x => MenuUtility.WorkshopGameTags.Contains( x, StringComparer.OrdinalIgnoreCase ) );
+
+    static LiveGame[] GamesOf( IEnumerable<LobbyInformation> servers ) => servers
+        .GroupBy( x => x.Game )
+        .Where( x => !string.IsNullOrEmpty( x.Key ) )
+        .Select( x => new LiveGame( x.Key, x.Sum( y => y.Members ), x.Count(), x.Count( y => y.IsOutdated ) ) )
+        // Those that can be joined first
+        .OrderBy( x => x.AllOutdated )
+        .ThenByDescending( x => x.Players )
+        .ThenByDescending( x => x.Servers )
+        .ToArray();
+
+    /// <summary>
+    /// The picked game's servers that are showing - the table puts them in its order
+    /// </summary>
+    List<LobbyInformation> ScopedServers => lobbies.Where( x => x.Game == scoped && Matches( x ) ).ToList();
+
+    List<LobbyInformation> AllServers => lobbies.Where( x => !string.IsNullOrEmpty( x.Game ) && Matches( x ) ).ToList();
+
+    bool Fits( LobbyInformation server )
+    {
+        if ( hideEmpty && server.Members == 0 ) return false;
+        if ( hideFull && server.IsFull ) return false;
+        if ( hideLocked && server.IsPasswordProtected ) return false;
+        if ( hideOutdated && server.IsOutdated ) return false;
+        return true;
+    }
+
+    bool Matches( LobbyInformation server )
+    {
+        if ( !Fits( server ) ) return false;
+
+        var query = search?.Trim();
+        if ( string.IsNullOrEmpty( query ) ) return true;
+
+        var text = $"{server.Name} {server.Map} {MenuHelpers.CachedTitle( server.Map )} {server.Game} {MenuHelpers.CachedTitle( server.Game )}";
+        return text.Contains( query, StringComparison.OrdinalIgnoreCase );
+    }
+
+    static List<Friend> FriendsIn( string ident ) => MenuHelpers.FriendsPlaying.ByGame.GetValueOrDefault( ident );
+
+    void Scope( string ident ) => scoped = ident;
+
+    void Unscope() => scoped = null;
+
+    void ToggleFilters() => filtersOpen = !filtersOpen;
+
+    (string Title, bool On, Action Toggle)[] Filters =>
+    [
+        ("Only servers with people on", hideEmpty, () => hideEmpty = !hideEmpty),
+        ("Only servers with room", hideFull, () => hideFull = !hideFull),
+        ("No locked servers", hideLocked, () => hideLocked = !hideLocked),
+        ("Only servers on your version", hideOutdated, () => hideOutdated = !hideOutdated),
+    ];
+
+    protected override void OnMouseDown( MousePanelEvent e )
+    {
+        base.OnMouseDown( e );
+
+        if ( e.Target is { } target && target.AncestorsAndSelf.Any( x => x.HasClass( "menu" ) || x.HasClass( "filters" ) ) ) return;
+
+        filtersOpen = false;
+    }
+
+    void Refresh() => _ = RefreshGames();
+
+    async Task RefreshGames()
+    {
+        if ( refreshing ) return;
+
+        refreshing = true;
+        nextRefresh = RealTime.Now + 30;
+
+        try
+        {
+            // The outdated ones too - listed, but marked and not joined (ServerTable)
+            var found = await Networking.QueryLobbies( new Dictionary<string, string> { { "game", null }, { "map", null } }, true, true ) ?? new();
+
+            // Their games' and maps' names and art, before they're shown
+            await MenuHelpers.FetchPackages( found.SelectMany( x => new[] { x.Game, x.Map } ) );
+            if ( !IsValid ) return;
+
+            lobbies = found;
+
+            loaded = true;
+            error = null;
+        }
+        catch ( Exception e )
+        {
+            error = $"Couldn't find servers: {e.Message}";
+        }
+        finally
+        {
+            refreshing = false;
+        }
+    }
+
+    async Task RefreshParties()
+    {
+        if ( partiesRefreshing ) return;
+
+        partiesRefreshing = true;
+        nextParties = RealTime.Now + 15;
+
+        try
+        {
+            var found = await PartyService.FindOpenParties();
+
+            // Their games' art, before they're shown
+            await MenuHelpers.FetchPackages( found.Select( x => x.Package ) );
+            if ( !IsValid ) return;
+
+            parties = found;
+            partiesLoaded = true;
+        }
+        catch ( Exception e )
+        {
+            Log.Warning( $"Couldn't find parties: {e.Message}" );
+        }
+        finally
+        {
+            partiesRefreshing = false;
+        }
+    }
+
+    bool CanJoinParty => PartyRoom.Current is null && !PartyService.Busy;
+
+    void JoinParty( ulong id )
+    {
+        if ( !CanJoinParty ) return;
+
+        _ = PartyService.Join( id );
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        // In chat while it's up - out as soon as it's put away, not when it's finished sliding down
+        if ( Shown != chatOpen )
+        {
+            chatOpen = Shown;
+            if ( chatOpen ) Chat.Open();
+            else Chat.Close();
+        }
+
+        ScrollFade.Apply( PartiesBody );
+        ScrollFade.Apply( Messages );
+        ScrollFade.Apply( GameRows );
+
+        // Chat's messages stop over its message box, however many lines that's grown to
+        if ( Composer.IsValid() && ChatBody is { } chat && chat.IsValid() )
+            chat.Style.PaddingBottom = Length.Pixels( 16 + Composer.Box.Rect.Height * Composer.ScaleFromScreen + 12 );
+
+        if ( !Shown ) return;
+
+        // Joined, made or left one - look again
+        if ( lastParty != PartyRoom.Current )
+        {
+            lastParty = PartyRoom.Current;
+            nextParties = 0;
+        }
+
+        if ( RealTime.Now >= nextRefresh ) _ = RefreshGames();
+        if ( RealTime.Now >= nextParties ) _ = RefreshParties();
+    }
+
+    protected override void OnAfterTreeRender( bool firstTime )
+    {
+        base.OnAfterTreeRender( firstTime );
+
+        if ( !Messages.IsValid() ) return;
+
+        // Kept at the newest, unless you've scrolled up to read
+        Messages.PreferScrollToBottom = true;
+        if ( scrollToEnd ) Messages.TryScrollToBottom();
+        scrollToEnd = false;
+    }
+
+    ChatEntry ChatInput;
+    Panel Composer;
+
+    void SendChat()
+    {
+        if ( Chat.Send( ChatInput.Text ) )
+        {
+            Chat.Draft = "";
+            ChatInput.Text = "";
+            scrollToEnd = true;
+        }
+
+        ChatInput.Focus();
+    }
+
+    void InviteParty()
+    {
+        if ( !Chat.CanInviteParty ) return;
+
+        Chat.InviteParty();
+        scrollToEnd = true;
+    }
+
+    static string InviteTooltip => PartyRoom.Current?.Owner.IsMe != true ? "Only your party's leader can post it"
+        : Chat.CanInviteParty ? "Post your party in chat for anyone to join" : "Posted - give it a moment";
+
+    Panel GamesPanel;
+    Panel PartiesBody;
+    Panel ChatPanel;
+    Panel ChatBody;
+
+    string GamesArt => scoped is null ? null : MenuHelpers.CachedPackage( scoped )?.Thumb;
+    ServerTable Table;
+    Panel GameRows;
+
+    public override void OnDeleted()
+    {
+        if ( chatOpen ) Chat.Close();
+        base.OnDeleted();
+    }
+
+    protected override int BuildHash() => HashCode.Combine(
+        HashCode.Combine( scoped, flat, search, hideEmpty, hideFull, hideLocked, hideOutdated, Table?.Selected?.LobbyId ),
+        HashCode.Combine( loaded, refreshing, error, lobbies, MenuHelpers.FriendsPlaying.Key, filtersOpen ),
+        HashCode.Combine( partiesLoaded, string.Join( ",", parties.Select( x => $"{x.Id}{x.Members}{x.GameTitle}" ) ), PartyService.Busy, PartyService.Error, PartyRoom.Current?.Id, MenuHelpers.HasAuthority ),
+        HashCode.Combine( Chat.Revision, Chat.Connecting, Chat.Error, Chat.Channel?.MemberCount, ChatLines.Count, Chat.CanInviteParty ) );
+}

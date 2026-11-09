@@ -1,4 +1,4 @@
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 $stage-w: 270px;
 $stage-h: 320px;
@@ -94,18 +94,14 @@ AvatarButton
 
 	.eyebrow
 	{
-		font-size: 10.5px;
-		font-weight: 700;
-		text-transform: uppercase;
-		letter-spacing: 0.14em;
-		color: $front-label;
+		@include platform-section-label;
 	}
 
 	.name
 	{
 		font-size: 30px;
 		font-weight: 800;
-		color: $front-heading;
+		color: $platform-text;
 		margin-top: -4px;
 		white-space: nowrap;
 		overflow: hidden;
@@ -114,25 +110,9 @@ AvatarButton
 
 	.edit
 	{
-		@include front-pill;
-
-		gap: 6px;
-		padding: 8px 16px;
+		@include platform-text-button( 30px, 12.5px, 15px );
+		padding: 0 12px;
 		margin-bottom: 4px;
 		pointer-events: all;
-		background-color: rgba( 8, 10, 14, 0.6 );
-
-		label
-		{
-			font-size: 11.5px;
-			font-weight: 700;
-			letter-spacing: 0.1em;
-			color: $front-heading;
-		}
-
-		icon
-		{
-			color: $front-heading;
-		}
 	}
 }

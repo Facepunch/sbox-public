@@ -1,60 +1,24 @@
 @import "/styles/_theme.scss";
+@import "/Platform/_platform.scss";
 
+// A fact - a chip; pressable, a button; picked, blue
 .metricbutton
 {
-    flex-direction: row;
-    align-items: center;
-    padding: 4px 10px;
-    border: 1px solid transparent;
-    border-radius: $rounding-default;
-    color: $default-300;
-    gap: 6px;
+    @include platform-chip;
     pointer-events: none;
-
-    i
-    {
-        font-size: 14px;
-        color: $default-400;
-        flex-shrink: 0;
-    }
-
-    .value
-    {
-        font-size: $text-small;
-        font-weight: 600;
-        font-family: $font-heading;
-    }
 }
 
 .metricbutton.interactive
 {
-    cursor: pointer;
+    @include platform-text-button( 30px, 12.5px, 15px );
+    padding: 0 12px;
     pointer-events: all;
 
-    &:hover
-    {
-        border-color: $default-border;
-        background-color: rgba( $default-500, 0.1 );
-        color: $default-text;
-        sound-in: "ui.button.over";
-
-        i { color: $default-200; }
-    }
-
+    &:hover { sound-in: "ui.button.over"; }
     &:active { sound-in: "ui.button.press"; }
 }
 
 .metricbutton.active
 {
-    color: $primary-blue;
-    border-color: rgba( $primary-blue, 0.3 );
-    background-color: rgba( $primary-blue, 0.1 );
-
-    i { color: $primary-blue; }
-
-    &:hover
-    {
-        background-color: rgba( $primary-blue, 0.2 );
-        border-color: rgba( $primary-blue, 0.5 );
-    }
+    @include platform-button-selected;
 }

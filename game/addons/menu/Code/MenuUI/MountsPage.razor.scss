@@ -1,5 +1,5 @@
 @import "/styles/_theme.scss";
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 MountsPage
 {
@@ -27,12 +27,18 @@ MountsPage
 
 	.section-head
 	{
-		@include front-page-section-head;
+		@include platform-shelf-header;
+		flex-shrink: 0;
+		margin-top: 12px;
+		padding: 0 4px;
 	}
 
 	.empty
 	{
-		@include front-page-empty;
+		@include platform-surface;
+		@include platform-empty;
+		justify-content: center;
+		padding: 64px;
 	}
 
 	.grid

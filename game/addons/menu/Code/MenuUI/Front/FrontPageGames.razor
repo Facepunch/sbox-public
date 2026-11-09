@@ -46,7 +46,7 @@
 
     @foreach ( var section in Sections )
     {
-        <div class="section @( section.Jam ? "jam" : "" ) @(section.ContinuePlaying ? "continue-playing" : "")">
+        <div class="section @(section.ContinuePlaying ? "continue-playing" : "")">
 
             <div class="head">
                 @* Title and blurb are one link, so hovering either lights the title up. *@
@@ -54,10 +54,6 @@
                 {
                     <a class="head-text link" href="@section.Url">
                         <div class="title-row">
-                            @if ( section.Jam )
-                            {
-                                <icon class="trophy">emoji_events</icon>
-                            }
                             <label class="title">@section.Title</label>
                             <icon class="chevron">chevron_right</icon>
                         </div>
@@ -71,10 +67,6 @@
                 {
                     <div class="head-text">
                         <div class="title-row">
-                            @if ( section.Jam )
-                            {
-                                <icon class="trophy">emoji_events</icon>
-                            }
                             <label class="title">@section.Title</label>
                         </div>
                         @if ( !string.IsNullOrEmpty( section.Description ) )
@@ -194,7 +186,6 @@
         public string Title;
         public string Description;
         public string Url;
-        public bool Jam;
         public bool ContinuePlaying;
         public int Priority;
 
@@ -283,7 +274,6 @@
                 Title = grouping.Title,
                 Description = grouping.Description,
                 Url = GroupUrl( grouping ),
-                Jam = MenuHelpers.IsJamQuery( grouping.QueryString ),
                 ContinuePlaying = ShelfPriority( grouping ) == 0,
                 Priority = ShelfPriority( grouping ),
                 Rotation = i < previous.Count ? previous[i].Rotation : new MenuProject.UI.CardVideoRotation(),
@@ -411,7 +401,7 @@
         return 2;
     }
 
-    static string GroupUrl( Package.ListResult.Grouping g ) => MenuHelpers.IsJamQuery( g.QueryString ) ? "/jam" : $"/home/group?Query={g.QueryString}&title={g.Title}&subtitle={g.Description}";
+    static string GroupUrl( Package.ListResult.Grouping g ) => $"/home/group?Query={g.QueryString}&title={g.Title}&subtitle={g.Description}";
 
     /// <summary>
     /// Drop a package the player just hid.

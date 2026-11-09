@@ -1,53 +1,98 @@
+@import "/Platform/_platform.scss";
 
+$error-amber: #ffb43c;
+
+// The platform menu's glass in the top right, out of the way - an amber icon, then where the error came from over what
+// it said on one line. Each time it happens again it's washed amber and blurred, coming back into focus in 0.15s. Gone
+// after a while. Never in the way of a click.
 ExceptionNotification
 {
 	position: absolute;
-	top: 100px;
-	right: 100px;
-	background-color: #802;
-	border: 5px solid #fd5;
-	color: #fd5;
-	font-size: 15px;
-	font-family: "roboto";
-	padding: 16px;
-	border-radius: 12px;
-	box-shadow: 0 0 10px rgba( yellow, 0 );
+	top: 24px;
+	right: 24px;
+	max-width: 640px;
 	flex-direction: row;
-	align-items: flex-start;
-	pointer-events: auto;
-	transition: all 0.1s ease;
-	gap: 16px;
+	align-items: center;
+	gap: 12px;
+	padding: 8px 16px 8px 12px;
+	border-radius: $platform-radius;
+	background-color: $platform-glass;
+	backdrop-filter: blur( 8px );
+	box-shadow: 0 8px 24px rgba( 0, 0, 0, 0.35 );
+	font-family: $platform-font;
+	pointer-events: none;
+	// A new one's wash and blur - straight in, its focus back in 0.15s and the wash off over half a second
+	transition: background-color 0.5s ease-out, filter 0.15s ease-out, opacity 0.2s ease-out, transform 0.2s ease-out;
 
 	iconpanel
 	{
-		color: yellow;
-		font-size: 36px;
+		flex-shrink: 0;
+		font-family: "Material Icons";
+		font-size: 20px;
+		color: linear-gradient( 180deg, #ffd27a, $error-amber );
 	}
 
+	.column
+	{
+		flex-direction: column;
+		flex-shrink: 1;
+		min-width: 0;
+	}
+
+	// The package it came from - small, over what it said
+	.source
+	{
+		font-size: 11px;
+		font-weight: 600;
+		color: $error-amber;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.message
+	{
+		font-size: 13px;
+		font-weight: 500;
+		color: $platform-text;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	// It just happened, again or for the first time
 	&.fresh
 	{
-		background-color: #ff0056;
-		opacity: 1;
+		background-color: rgba( 92, 64, 18, 0.92 );
+		filter: blur( 2px );
+		transition: none;
+	}
+
+	// A little shake side to side as it comes in
+	&.rumble
+	{
+		animation-name: error-rumble;
+		animation-duration: 0.3s;
+		animation-timing-function: linear;
+		animation-iteration-count: 1;
 	}
 
 	&.hidden
 	{
 		opacity: 0;
-		transition: all 0.5s linear;
+		transform: translateX( 16px );
+		transition: opacity 0.4s ease-in, transform 0.4s ease-in;
 	}
 }
 
-
-.column
+// Side to side, dying off - a few pixels at most
+@keyframes error-rumble
 {
-	flex-direction: column;
-	font-size: 12px;
-}
-
-.column *:first-child
-{
-	font-size: 20px;
-	font-family: poppins;
-	font-weight: bold;
-	margin-bottom: 8px;
+	0% { transform: translateX( 0px ); }
+	15% { transform: translateX( -4px ); }
+	30% { transform: translateX( 4px ); }
+	45% { transform: translateX( -3px ); }
+	60% { transform: translateX( 2px ); }
+	75% { transform: translateX( -1px ); }
+	100% { transform: translateX( 0px ); }
 }

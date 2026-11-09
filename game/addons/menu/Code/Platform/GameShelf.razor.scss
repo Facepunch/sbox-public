@@ -1,0 +1,126 @@
+@import "/Platform/_platform.scss";
+
+// Laid out by the ShelfPanel it's on. The gap's GameShelf.HeaderGap.
+GameShelf
+{
+	flex-direction: column;
+	flex-shrink: 0;
+	gap: 18px;
+
+	.header
+	{
+		@include platform-shelf-header;
+
+		.spacer
+		{
+			flex-grow: 1;
+		}
+
+		.see-more
+		{
+			@include platform-text-button( 30px, 12.5px, 16px );
+			padding: 0 10px;
+			gap: 4px;
+			pointer-events: all;
+		}
+	}
+
+	// Each card's in a cell with room round it to grow into, taken back off so they line up - the gap's what's left of
+	// GameShelf.CardGap once the insets are counted
+	.cards
+	{
+		gap: 4px;
+		margin: -6px;
+		flex-wrap: wrap;
+	}
+
+	.cell
+	{
+		position: relative;
+		flex-shrink: 0;
+	}
+
+	// Inset in its cell as a card is - and only faded in once it's been a moment, so a quick fetch goes straight to the
+	// cards rather than flashing it
+	.skeleton
+	{
+		position: absolute;
+		left: 6px;
+		top: 6px;
+		right: 6px;
+		bottom: 6px;
+		@include platform-card-skeleton( shelf-breathe );
+		transition: opacity 0.3s ease-out 0.35s;
+
+		&:intro
+		{
+			opacity: 0;
+		}
+	}
+
+	.discover-more
+	{
+		position: absolute;
+		left: 6px;
+		top: 6px;
+		right: 6px;
+		bottom: 6px;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 6px;
+		border-radius: 6px;
+		border: 1px dashed rgba( 255, 255, 255, 0.18 );
+		background-image: radial-gradient( circle at 30% 20%, rgba( $platform-primary, 0.35 ) 0%, rgba( $platform-primary, 0 ) 70% );
+		background-color: rgba( 255, 255, 255, 0.03 );
+		cursor: pointer;
+		@include platform-sounds;
+		pointer-events: all;
+		transition: transform 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+
+		i
+		{
+			margin-bottom: 4px;
+			font-size: 44px;
+			color: $platform-primary-hover;
+		}
+
+		.title
+		{
+			font-size: 17px;
+			font-weight: 700;
+			color: $platform-text;
+		}
+
+		.hint
+		{
+			font-size: 12.5px;
+			color: $platform-muted;
+		}
+
+		&:hover
+		{
+			transform: translateY( -3px );
+			border-color: rgba( $platform-primary, 0.8 );
+			background-color: rgba( $platform-primary, 0.1 );
+		}
+	}
+
+	.empty
+	{
+		@include platform-shelf-empty;
+	}
+}
+
+@keyframes shelf-breathe
+{
+	from
+	{
+		opacity: 0.6;
+	}
+
+	to
+	{
+		opacity: 1;
+	}
+}

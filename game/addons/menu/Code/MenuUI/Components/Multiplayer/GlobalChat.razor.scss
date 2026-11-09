@@ -1,17 +1,14 @@
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 GlobalChat
 {
-	@include front-card;
+	@include platform-surface;
+	overflow: hidden;
 	flex-direction: row;
 	flex-shrink: 1;
 	min-width: 500px;
 	flex-grow: 1;
 	min-height: 0;
-	font-family: $front-font;
-	color: $front-body;
 	gap: 0;
-	border-radius: $front-radius;
-	overflow: hidden;
 	.global-conversation
 	{
 		min-height: 0;
@@ -27,7 +24,7 @@ GlobalChat
 		align-items: center;
 		gap: 8px;
 		padding: $front-inset;
-		border-bottom: 1px solid $front-border;
+		border-bottom: 1px solid $platform-hairline;
 		flex-shrink: 0;
 
 		> div
@@ -40,19 +37,19 @@ GlobalChat
 			{
 				font-size: 17px;
 				font-weight: 600;
-				color: $front-heading;
+				color: $platform-text;
 			}
 
 			span
 			{
 				font-size: 11px;
-				color: $front-secondary;
+				color: $platform-muted;
 			}
 		}
 
 		button
 		{
-			@include front-icon-button;
+			@include platform-tool( 38px );
 		}
 	}
 
@@ -60,15 +57,15 @@ GlobalChat
 	{
 		margin: 12px 24px 0;
 		padding: 12px;
-		background-color: rgba( $front-primary, 0.12 );
-		color: $front-body;
+		background-color: rgba( $platform-primary, 0.12 );
+		color: $platform-text;
 		flex-shrink: 0;
 	}
 
 	.chat-notice.error
 	{
-		background-color: rgba( $front-danger, 0.1 );
-		color: $front-danger;
+		background-color: rgba( $platform-danger, 0.1 );
+		color: $platform-danger;
 	}
 
 	.chat-messages
@@ -84,16 +81,8 @@ GlobalChat
 
 	.chat-empty
 	{
+		@include platform-empty;
 		flex-grow: 1;
-		align-items: center;
 		justify-content: center;
-		flex-direction: column;
-		gap: 12px;
-		color: $front-secondary;
-	}
-
-	.chat-empty icon
-	{
-		font-size: 40px;
 	}
 }

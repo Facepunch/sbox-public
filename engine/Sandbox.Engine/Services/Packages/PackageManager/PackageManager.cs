@@ -70,7 +70,7 @@ internal static partial class PackageManager
 
 		log.Trace( $"Install Package {options.PackageIdent} [{options.ContextTag}]" );
 		options.Loading?.LoadingProgress( LoadingProgress.Create( $"Fetching {options.PackageIdent}" ) );
-		var package = await FetchPackageAsync( options.PackageIdent, options.AllowLocalPackages );
+		var package = options.Package ?? await FetchPackageAsync( options.PackageIdent, options.AllowLocalPackages );
 
 		options.CancellationToken.ThrowIfCancellationRequested();
 
@@ -188,7 +188,7 @@ internal static partial class PackageManager
 		//
 		foreach ( var packageName in dependancies )
 		{
-			await InstallAsync( options with { PackageIdent = packageName } );
+			await InstallAsync( options with { PackageIdent = packageName, Package = null } );
 			options.CancellationToken.ThrowIfCancellationRequested();
 		}
 

@@ -1,13 +1,42 @@
-﻿@using MenuProject.MenuUI.Components.Multiplayer
-@using Sandbox.Modals
-@using Sandbox
-@using Sandbox.Network
+﻿@using System;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.UI;
+@using Sandbox.Modals;
+@using Sandbox.Network;
+@using MenuProject.Platform;
 
 @namespace MenuProject.Modals
 @inherits MenuProject.Modals.BaseModal
 
+@*
+    A game's servers, or a map's - the Multiplayer shelf's table (ServerTable) on a panel of the platform's in the middle of
+    the screen, a search over it. Each server's game beside it when it's a map's, any game's. Kept up to date while it's up.
+*@
 <root>
-	<ServerList class="inner" Config=@Config/>
+
+    <div class="panel">
+        <PanelHead Title=@Title Icon=@(Config.MapPackageFilter is not null && Config.GamePackageFilter is null ? "map" : "public") Art=@Shown?.Thumb
+                   Search="Search servers or maps" OnSearch=@( ( string text ) => { search = text ?? ""; } )>
+            <Tools>
+                <div class="tool @(refreshing ? "busy" : "")" onclick=@Refresh tooltip="Refresh"><i>refresh</i></div>
+                <div class="tool" onclick=@( () => CloseModal( false ) ) tooltip="Close"><i>close</i></div>
+            </Tools>
+        </PanelHead>
+
+        <div class="body">
+            @if ( !string.IsNullOrEmpty( error ) )
+            {
+                <div class="status error"><i>error</i><label>@error</label></div>
+            }
+            else
+            {
+                <ServerTable Servers=@Matching Loading=@(!loaded) ShowGame=@(Config.GamePackageFilter is null)
+                             EmptyText=@(string.IsNullOrWhiteSpace( search ) ? "Nobody's playing on a server right now" : "Nothing matches that") />
+            }
+        </div>
+    </div>
+
 </root>
 
 @code
@@ -18,4 +47,76 @@
     {
         Config = config;
     }
+
+    /// <summary>
+    /// The game it's for - or the map, when it's a map's on any game
+    /// </summary>
+    Package Shown => MenuHelpers.CachedPackage( Config.GamePackageFilter ?? Config.MapPackageFilter );
+
+    string Title => Shown?.Title ?? Config.GamePackageFilter ?? Config.MapPackageFilter ?? "Servers";
+
+    List<LobbyInformation> lobbies = new();
+    bool loaded;
+    bool refreshing;
+    string error;
+    string search = "";
+    double nextRefresh;
+
+    /// <summary>
+    /// Its servers matching the search over their names and maps
+    /// </summary>
+    List<LobbyInformation> Matching
+    {
+        get
+        {
+            var query = search?.Trim();
+            if ( string.IsNullOrEmpty( query ) ) return lobbies;
+
+            return lobbies.Where( x => $"{x.Name} {x.Map} {MenuHelpers.CachedTitle( x.Map )}".Contains( query, StringComparison.OrdinalIgnoreCase ) ).ToList();
+        }
+    }
+
+    void Refresh() => _ = RefreshServers();
+
+    async Task RefreshServers()
+    {
+        if ( refreshing ) return;
+
+        refreshing = true;
+        nextRefresh = RealTime.Now + 30;
+
+        try
+        {
+            // Their games' and maps' names and art too, before they're shown
+            await MenuHelpers.FetchPackages( new[] { Config.GamePackageFilter, Config.MapPackageFilter }.Where( x => x is not null ) );
+
+            // The outdated ones too - listed, but marked and not joined (ServerTable)
+            var found = await Networking.QueryLobbies( new Dictionary<string, string> { { "game", Config.GamePackageFilter }, { "map", Config.MapPackageFilter } }, true, true ) ?? new();
+            await MenuHelpers.FetchPackages( found.Select( x => x.Map ).Concat( found.Select( x => x.Game ) ) );
+
+            if ( !IsValid ) return;
+
+            lobbies = found;
+            loaded = true;
+            error = null;
+        }
+        catch ( Exception e )
+        {
+            error = $"Couldn't find servers: {e.Message}";
+        }
+        finally
+        {
+            refreshing = false;
+        }
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        if ( !refreshing && RealTime.Now >= nextRefresh )
+            Refresh();
+    }
+
+    protected override int BuildHash() => HashCode.Combine( search, loaded, refreshing, error, lobbies, Shown, MenuHelpers.FriendsPlaying.Key );
 }

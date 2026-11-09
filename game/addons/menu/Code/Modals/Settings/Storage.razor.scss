@@ -1,3 +1,5 @@
+@import "/Platform/_platform.scss";
+
 SettingsView .scroll.custom Storage
 {
 	.page-content { padding: 36px 32px; }
@@ -10,7 +12,7 @@ SettingsView .scroll.custom Storage
 		flex-direction: column;
 		flex-shrink: 0;
 		gap: 28px;
-		color: #eef1f6;
+		color: $platform-text;
 
 		> * { flex-shrink: 0; }
 	}
@@ -33,17 +35,7 @@ SettingsView .scroll.custom Storage
 
 	.storage-drive
 	{
-		width: 58px;
-		height: 58px;
-		flex-shrink: 0;
-		align-items: center;
-		justify-content: center;
-		border-radius: 13px;
-		background-color: rgba(white, 0.06);
-		border: 1px solid rgba(white, 0.1);
-		color: #b8c1d0;
-
-		i { font-size: 30px; }
+		@include platform-tile( 30px, 58px );
 	}
 
 	.storage-overview-title
@@ -64,8 +56,8 @@ SettingsView .scroll.custom Storage
 
 	.storage-value { font-size: 30px; font-weight: 600; white-space: nowrap; }
 	.storage-heading { font-size: 17px; font-weight: 500; }
-	.storage-secondary { font-size: 14px; color: #9da6b6; }
-	.storage-footnote { font-size: 13px; color: #8993a4; padding: 0 4px; }
+	.storage-secondary { font-size: 14px; color: $platform-muted; }
+	.storage-footnote { font-size: 13px; color: $platform-faint; padding: 0 4px; }
 
 	.storage-usage-bar
 	{
@@ -73,9 +65,9 @@ SettingsView .scroll.custom Storage
 		height: 22px;
 		flex-shrink: 0;
 		gap: 1px;
-		border-radius: 6px;
+		border-radius: $platform-radius;
 		overflow: hidden;
-		background-color: rgba(white, 0.06);
+		background-color: rgba( 6, 9, 16, 0.5 );
 	}
 
 	.storage-segment
@@ -98,12 +90,9 @@ SettingsView .scroll.custom Storage
 
 	.storage-group
 	{
+		@include platform-surface;
 		width: 100%;
-		flex-direction: column;
 		flex-shrink: 0;
-		border-radius: 12px;
-		border: 1px solid rgba(white, 0.09);
-		background-color: rgba(white, 0.035);
 		overflow: hidden;
 	}
 
@@ -117,16 +106,7 @@ SettingsView .scroll.custom Storage
 
 	.storage-cleanup-icon
 	{
-		width: 40px;
-		height: 40px;
-		flex-shrink: 0;
-		align-items: center;
-		justify-content: center;
-		border-radius: 10px;
-		background-color: rgba(68, 145, 240, 0.15);
-		color: #80b7ff;
-
-		i { font-size: 24px; }
+		@include platform-tile( 24px, 40px );
 	}
 
 	.storage-recommendation-copy
@@ -142,76 +122,73 @@ SettingsView .scroll.custom Storage
 		flex-direction: column;
 		gap: 12px;
 		padding: 20px 22px;
-		border-top: 1px solid rgba(white, 0.09);
-		background-color: rgba(black, 0.1);
+		border-top: 1px solid $platform-hairline;
 	}
 
 	.storage-confirmation-actions { justify-content: flex-end; gap: 10px; margin-top: 4px; }
 
 	.button.storage-action
 	{
+		@include platform-text-button( 34px );
 		flex-shrink: 0;
-		padding: 8px 16px;
-		border-radius: 7px;
-		border: 1px solid rgba(white, 0.13);
-		background-color: rgba(white, 0.07);
-		color: #eef1f6;
+		padding: 0 16px;
 
-		label { font-size: 14px; font-weight: 500; text-transform: none; letter-spacing: 0; color: #eef1f6; }
-		&:hover { background-color: rgba(white, 0.12); }
-		&.disabled { opacity: 0.4; pointer-events: none; }
+		&.disabled { pointer-events: none; }
 	}
 
 	.button.storage-destructive
 	{
-		background-color: #b64550;
-		border-color: transparent;
-		&:hover { background-color: #c94e5a; }
+		label, i, iconpanel { color: $platform-danger; }
 	}
 
 	.button.storage-refresh
 	{
-		padding: 4px 0 4px 12px;
-		border: 0;
-		border-radius: 0;
-		background-color: transparent;
+		@include platform-text-button( 30px, 12.5px, 15px );
+		padding: 0 12px;
 
-		label { font-size: 13px; font-weight: 400; color: #80b7ff; text-transform: none; letter-spacing: 0; }
-		&:hover label { color: #b4d5ff; }
-		&.disabled { opacity: 0.4; pointer-events: none; }
+		&.disabled { pointer-events: none; }
 	}
 
-	.storage-type-row
+	// Content by type - a table (Sandbox.UI.Table) in the platform's look, as the server list and the players are: as
+	// tall as its rows, inside the page's own scroll, its scrollbar not given room it never needs
+	.storage-table
 	{
-		min-height: 52px;
+		@include platform-table;
 		flex-shrink: 0;
-		align-items: center;
-		gap: 14px;
-		margin: 0 18px;
-		padding: 10px 0;
-		border-bottom: 1px solid rgba(white, 0.065);
 
-		&:last-child { border-bottom: 0; }
+		> tbody
+		{
+			flex-grow: 0;
+			scrollbar-gutter: auto;
+
+			> tr
+			{
+				height: 44px;
+				border-radius: 0;
+			}
+		}
 	}
 
 	.storage-type-icon
 	{
-		width: 30px;
-		height: 30px;
+		width: 26px;
+		height: 26px;
 		flex-shrink: 0;
 		align-items: center;
 		justify-content: center;
-		border-radius: 7px;
+		border-radius: $platform-radius;
 		color: white;
 
-		i { font-size: 19px; }
+		i { font-size: 16px; }
 	}
 
-	.storage-type-name { flex-grow: 1; font-size: 16px; }
-	.storage-type-size { flex-shrink: 0; white-space: nowrap; font-size: 15px; color: #aeb7c6; }
+	.storage-type-name { font-size: 14px; font-weight: 600; }
 
-	.storage-empty { flex-direction: column; align-items: center; gap: 8px; padding: 32px 20px; }
-	.storage-error { align-items: center; gap: 12px; padding: 16px 20px; border-radius: 10px; background-color: rgba(255, 93, 106, 0.08); color: #ffb5b5; }
+	// Inter, as the tables' other numbers are
+	.storage-type-size { font-family: Inter; font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; color: $platform-text; }
+
+	.storage-empty { @include platform-empty; padding: 32px 20px; }
+	.storage-error { align-items: center; gap: 12px; padding: 16px 20px; border-radius: $platform-radius; background-color: rgba( $platform-danger, 0.08 ); color: $platform-danger; }
 
 	.file-type-textures { background-color: #608bc1; }
 	.file-type-models { background-color: #9180bf; }

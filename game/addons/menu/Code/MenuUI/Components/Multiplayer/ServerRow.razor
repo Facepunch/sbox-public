@@ -57,7 +57,7 @@
 
 				@if ( !string.IsNullOrWhiteSpace( Server.Map ) )
 				{
-					<div class="server-map" onclick=@OpenMapInfo><i>map</i><label>@(MapPackage?.Title ?? Server.Map)</label></div>
+					<div class="server-map"><i>map</i><label>@(MapPackage?.Title ?? Server.Map)</label></div>
 				}
 
 				@* Your friends in it - their faces, and who *@
@@ -75,7 +75,7 @@
 		</div>
 	</div>
 
-	<div class="map" onclick=@OpenMapInfo>
+	<div class="map">
 		@if ( MapPackage is not null || !string.IsNullOrEmpty( Server.Map ) )
 		{
 			@if ( string.IsNullOrEmpty( MapPackage?.Thumb ) )
@@ -121,7 +121,7 @@
 	<div class="ping-value @PingClass" tooltip="@PingTooltip">
 		@if ( Server.Ping >= 0 )
 		{
-			<label>@(Server.IsPingEstimated ? "~" : "")@Server.Ping</label>
+			<label>@Server.Ping</label>
 		}
 		else
 		{
@@ -264,14 +264,6 @@
 
 		MenuUtility.Connect( Server.LobbyId );
 		Ancestors.OfType<MenuProject.Modals.BaseModal>().FirstOrDefault()?.CloseModal( true );
-	}
-
-	void OpenMapInfo( PanelEvent e )
-	{
-		if ( MapPackage is null ) return;
-
-		e.StopPropagation();
-		ModalSystem.Instance.Map( MapPackage.FullIdent );
 	}
 
 	protected override int BuildHash() => System.HashCode.Combine( Server.Name, Server.Map, Server.Members, Server.MaxMembers, Server.Ping, MapPackage?.Thumb, MapPackage?.Title, HashCode.Combine( FriendsIn.Count, GamePackage?.Revision?.VersionId, Server.OwnerId ) );

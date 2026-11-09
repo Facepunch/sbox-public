@@ -1,10 +1,10 @@
-// The settings page's rows - a section's label, then a row to a setting: its name on the left, its
-// control in a column on the right (a row of choices, a dropdown, a slider, something to type in).
-// Anywhere else that sets things up draws the same SettingsRow and includes this, so it's the one
+// The settings page's rows - a section's label, then a band to a setting: its name on the left, its control in one
+// column down the right (a row of choices, a dropdown, a slider, something to type in), the controls the platform's
+// own (_platform.scss). Anywhere else that sets things up draws the same SettingsRow and includes this, so it's the one
 // look: the settings page, and a new game's setup.
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
-$settings-control: 430px;
+$settings-control: 400px;
 
 @mixin settings-rows
 {
@@ -12,73 +12,121 @@ $settings-control: 430px;
 	{
 		flex-direction: column;
 		flex-shrink: 0;
-		gap: 4px;
+		gap: 2px;
 	}
 
-	// A section's name - a glyph where it has one, and its label in the rail's blue. Markup: an
-	// optional icon and a label
+	// As the avatar's slot groups are titled (platform-group-title)
 	.section-label
 	{
-		@include front-eyebrow;
-
-		flex-shrink: 0;
-		margin-bottom: 4px;
-
-		label
-		{
-			font-size: 12px;
-		}
+		@include platform-group-title;
+		margin: 0 0 8px 2px;
 	}
 
-	// By class, so the post-processing preset row gets the same shape.
+	// A band - filled, a hairline of the art between it and the next, lit while it's the one being read about. By class,
+	// so the post-processing preset row gets the same shape.
 	.row
 	{
 		flex-direction: column;
 		flex-shrink: 0;
-		border-radius: 8px;
-		padding: 2px 10px;
+		padding: 0 6px 0 14px;
+		border-radius: $platform-radius;
+		background-color: rgba( 255, 255, 255, 0.04 );
 		transition: background-color 0.1s ease;
-
-		&:hover
-		{
-			background-color: rgba( 255, 255, 255, 0.04 );
-		}
 
 		&.focused
 		{
-			background-color: rgba( 255, 255, 255, 0.055 );
+			background-color: rgba( 255, 255, 255, 0.09 );
+
+			.name
+			{
+				color: white;
+			}
 		}
 
+		// Its control greyed out and not to be pressed - the row still takes the pointer, so the detail can say why
 		&.disabled
 		{
-			opacity: 0.45;
-			pointer-events: none;
+			.name
+			{
+				color: $platform-muted;
+			}
+
+			.control
+			{
+				opacity: 0.45;
+				pointer-events: none;
+			}
 		}
 
 		.line
 		{
 			flex-direction: row;
 			align-items: center;
-			min-height: 42px;
+			min-height: 44px;
 			gap: 16px;
+		}
+
+		// Its name, and a glyph after it when it's locked or there's something to watch for - what, in the detail
+		.title
+		{
+			flex-direction: row;
+			flex-grow: 1;
+			flex-shrink: 1;
+			min-width: 0;
+			align-items: center;
+			gap: 8px;
 		}
 
 		.name
 		{
-			flex-grow: 1;
 			flex-shrink: 1;
-			font-size: 15px;
-			font-weight: 600;
-			color: $front-body;
+			font-size: 14px;
+			font-weight: 500;
+			color: #d5dbe6;
+		}
+
+		// Straight in the line rather than in a .title (the setup's map row) - taking the room the same
+		.line > .name
+		{
+			flex-grow: 1;
+		}
+
+		.flag
+		{
+			flex-shrink: 0;
+			font-size: 16px;
+
+			&.locked
+			{
+				color: $platform-muted;
+			}
+
+			&.warn
+			{
+				color: $platform-warning;
+			}
 		}
 
 		.control
 		{
+			position: relative;
 			flex-direction: row;
 			justify-content: flex-end;
 			align-items: center;
 			flex-shrink: 0;
 			width: $settings-control;
+
+			// In the dropdown, just before its chevron - over it, not taking the pointer from it
+			> .flag
+			{
+				position: absolute;
+				right: 34px;
+				top: 0;
+				bottom: 0;
+				align-content: center;
+				align-items: center;
+				pointer-events: none;
+			}
 
 			// Holds a control made in code, give it the whole width
 			.custom
@@ -89,140 +137,49 @@ $settings-control: 430px;
 			}
 		}
 
-		.note
+		.readonly-value
 		{
-			flex-direction: row;
-			align-items: flex-start;
-			gap: 8px;
-			margin: 0 0 8px 0;
-			padding: 8px 10px;
-			border-radius: 6px;
-
-			i
-			{
-				flex-shrink: 0;
-				font-size: 17px;
-				margin-top: 1px;
-			}
-
-			label
-			{
-				flex-grow: 1;
-				font-size: 13px;
-				line-height: 16px;
-			}
-
-			&.warn
-			{
-				background-color: rgba( 245, 166, 35, 0.11 );
-
-				i { color: #f5a623; }
-				label { color: $front-body; }
-			}
-
-			&.locked
-			{
-				background-color: rgba( 255, 255, 255, 0.05 );
-
-				i, label { color: $front-secondary; }
-			}
+			font-size: 13.5px;
+			font-weight: 600;
+			color: $platform-muted;
 		}
 	}
 
 	ButtonGroup
 	{
-		@include front-button-group;
+		@include platform-choices;
+		flex-grow: 1;
+
+		// All the same width, down the page
+		.button
+		{
+			@include platform-choice;
+			flex-basis: 0;
+		}
 	}
 
 	DropDown.dropdown
 	{
-		@include front-dropdown;
+		@include platform-dropdown;
+		flex-grow: 1;
 	}
 
-	// SliderControl's own inline stylesheet is three and four classes deep; anything shallower loses.
 	SliderControl.slidercontrol
 	{
+		@include platform-slider;
 		flex-grow: 1;
-		height: 34px;
-
-		> .inner > .track
-		{
-			background-color: $front-track;
-			height: 6px;
-
-			> .track-active
-			{
-				background-color: $front-primary;
-			}
-
-			> .thumb
-			{
-				background-color: #ffffff;
-				width: 14px;
-				height: 14px;
-			}
-		}
-
-		// The number beside it - one width whatever's in it, so a row of sliders lines up: pinned,
-		// its box filling it, rather than growing with the digits
-		> .entry
-		{
-			width: 58px;
-			min-width: 58px;
-			max-width: 58px;
-			flex-grow: 0;
-			flex-shrink: 0;
-
-			> numberentry
-			{
-				width: 100%;
-				min-width: 0;
-				height: 34px;
-				align-items: center;
-				justify-content: center;
-				text-align: center;
-				border-radius: 6px;
-				background-color: rgba( 0, 0, 0, 0.25 );
-				border: $front-border-width solid $front-hairline;
-				font-size: 13.5px;
-				font-weight: 600;
-				color: $front-body;
-			}
-		}
 	}
 
 	.action
 	{
-		@include front-pill;
-
-		padding: 8px 18px;
+		@include platform-text-button( 34px, 13px, 16px );
+		padding: 0 14px;
 	}
 
-	// Somewhere to type - the dropdown's box
 	.row .control TextEntry
 	{
+		@include platform-field;
 		flex-grow: 1;
-		height: 34px;
-		padding: 0 12px;
-		align-items: center;
-		border-radius: 8px;
-		background-color: rgba( 0, 0, 0, 0.25 );
-		border: $front-border-width solid $front-hairline;
-		font-size: 14px;
-		font-weight: 600;
-		color: $front-body;
 		pointer-events: all;
-		cursor: text;
-
-		&:hover
-		{
-			border-color: rgba( $front-primary, 0.5 );
-		}
-
-		&:focus
-		{
-			border-color: $front-primary;
-			color: $front-heading;
-		}
 	}
 }

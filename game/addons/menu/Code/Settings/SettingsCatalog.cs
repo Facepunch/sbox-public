@@ -69,8 +69,21 @@ public class SettingsCatalog
 		Id = "gfx.postprocess",
 		Category = "graphics",
 		Section = "#menu.settings.post_processing",
-		Title = "#menu.settings.post_processing",
+		Title = "#menu.settings.post_processing_quality",
 		Description = "#menu.settings.gfx.postprocess.description"
+	};
+
+	/// <summary>
+	/// What the detail says about the graphics quality preset - as <see cref="PostProcessInfo"/>, there being no stored
+	/// value of its own
+	/// </summary>
+	public SettingItem GraphicsPresetInfo { get; } = new SettingItem
+	{
+		Id = "gfx.preset",
+		Category = "graphics",
+		Section = "#menu.settings.quality",
+		Title = "#menu.settings.graphics_quality",
+		Description = "#menu.settings.sets_everything_under_quality_in_one_go"
 	};
 
 	readonly Dictionary<string, SettingItem> byId = new();
@@ -1055,6 +1068,19 @@ public class SettingsCatalog
 
 	void AddGame()
 	{
+		// Which menu - saved, the menu restarts onto the other one (MenuDll)
+		Items.Add( new SettingItem
+		{
+			Id = "game.menu",
+			Category = "game",
+			Section = "#menu.settings.menu",
+			Title = "#menu.settings.menu_style",
+			Description = "#menu.settings.game.menu.description",
+			Options = [new( "#menu.settings.menu_classic", false ), new( "#menu.settings.menu_new", true )],
+			Read = () => MenuUtility.PlatformMenu,
+			Write = value => MenuUtility.SetConsoleVariable( "menu_platform", ToBool( value ) )
+		} );
+
 		Items.Add( new SettingItem
 		{
 			Id = "game.language",

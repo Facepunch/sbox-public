@@ -1,4 +1,4 @@
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 GameGroupRow
 {
@@ -27,7 +27,7 @@ GameGroupRow
 		i
 		{
 			font-size: 24px;
-			color: $front-secondary;
+			color: $platform-muted;
 		}
 
 		// Size the image itself as well as its container.
@@ -63,14 +63,14 @@ GameGroupRow
 	.game-summary
 	{
 		font-size: 11px;
-		color: $front-secondary;
+		color: $platform-muted;
 	}
 
 	.left
 	{
 		align-items: center;
 		flex-shrink: 0;
-		color: $front-secondary;
+		color: $platform-muted;
 
 		i
 		{
@@ -85,7 +85,7 @@ GameGroupRow
 		margin-bottom: 14px;
 		gap: 16px;
 		border-radius: 0;
-		border-bottom: 1px solid $front-border;
+		border-bottom: 1px solid $platform-hairline;
 
 		.game-thumb
 		{
@@ -116,65 +116,32 @@ GameGroupRow
 
 			&:hover
 			{
-				color: $front-link;
-				border-color: $front-link;
+				color: $platform-steam-blue;
+				border-color: $platform-steam-blue;
 			}
 		}
 
 		.favourite
 		{
-			flex-shrink: 0;
-			align-items: center;
-			justify-content: center;
+			@include platform-tool( 30px, 18px );
 			width: 30px;
-			height: 30px;
 			padding: 0;
-			border-radius: 50%;
-			background-color: rgba( 0, 0, 0, 0.2 );
-			color: $front-secondary;
-			cursor: pointer;
-
-			iconpanel
-			{
-				font-size: 18px;
-			}
-
-			&:hover, &.active
-			{
-				color: #f3a7bc;
-				background-color: rgba( #f3a7bc, 0.12 );
-			}
 
 			&.disabled
 			{
 				pointer-events: none;
-				opacity: 0.5;
 			}
 		}
 
 		.friends-playing
 		{
+			@include platform-choice;
+			flex-grow: 0;
+			flex-basis: auto;
 			align-self: flex-start;
-			align-items: center;
 			max-width: 100%;
-			gap: 6px;
 			margin-top: 5px;
-			padding: 4px 7px 4px 4px;
-			border: 1px solid transparent;
-			border-radius: 16px;
-			background-color: rgba( 0, 0, 0, 0.25 );
-			color: $front-secondary;
-			font-size: 11px;
-			font-weight: 500;
-			text-transform: none;
-			cursor: pointer;
-
-			&:hover, &.active
-			{
-				background-color: rgba( $front-primary, 0.16 );
-				border-color: rgba( $front-link, 0.35 );
-				color: $front-link;
-			}
+			padding: 0 10px 0 6px;
 
 			.friend-avatars
 			{
@@ -212,7 +179,7 @@ GameGroupRow
 
 		.summary-divider
 		{
-			color: $front-tertiary;
+			color: $platform-faint;
 		}
 
 		.back-to-games
@@ -223,7 +190,7 @@ GameGroupRow
 			padding: 0;
 			margin-bottom: 1px;
 			font-size: 11px;
-			color: $front-secondary;
+			color: $platform-muted;
 			cursor: pointer;
 
 			iconpanel
@@ -233,7 +200,7 @@ GameGroupRow
 
 			&:hover
 			{
-				color: $front-link;
+				color: $platform-steam-blue;
 			}
 		}
 	}

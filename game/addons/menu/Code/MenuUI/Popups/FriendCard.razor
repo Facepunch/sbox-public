@@ -32,8 +32,14 @@
 
 		@* Already stood in their pose - watching them strike it every time the card opens looks odd.
 		   Framed tighter than the front page's, on their head - head and shoulders, in the same place in
-		   the card however tall they are. *@
-		<CitizenPreview AvatarJson="@AvatarJson" PlayIntro="@false" FieldOfView="@(22f)" CameraDistance="@(120f)" CameraHeight="@(57f)" HeadOffset="@(-9f)" Yaw="@(-30f)" />
+		   the card however tall they are - lit as the avatar editor lights them. *@
+		<CitizenPreview AvatarJson="@AvatarJson" PlayIntro="@false" Studio="@true" FieldOfView="@(14f)" CameraDistance="@(158f)" CameraHeight="@(57f)" HeadOffset="@(-7f)" Yaw="@(-30f)" />
+
+		@* Yours, with a way to the avatar editor in the corner by your citizen - not from inside a game *@
+		@if ( IsMe && MenuHelpers.CanEditAvatar )
+		{
+			<div class="edit-avatar" tooltip="#menu.home.edit_your_avatar" onclick=@EditAvatar><i>edit</i></div>
+		}
 
 		<div class="who">
 			<div class="avatar" style="background-image: url( avatar:@Friend.Id )"></div>
@@ -188,9 +194,9 @@
 	/// <summary>
 	/// Open a card for this person beside <paramref name="source"/>.
 	/// </summary>
-	public static FriendCard Show( Panel source, Friend friend, PositionMode mode = PositionMode.Left, float offset = 18 )
+	public static FriendCard Show( Panel source, Friend friend, PositionMode mode = PositionMode.Left, float offset = 18, Panel within = null )
 	{
-		var card = new FriendCard { Friend = friend };
+		var card = new FriendCard { Friend = friend, Within = within };
 		card.SetPositioning( source, mode, offset );
 
 		return card;
@@ -205,6 +211,7 @@
 		if ( Position != PositionMode.AboveCenter || !PopupSource.IsValid() )
 		{
 			base.OnLayout( ref layoutRect );
+			KeepLevelWith( ref layoutRect );
 			return;
 		}
 
@@ -223,6 +230,24 @@
 				Math.Max( bounds.Left + margin, bounds.Right - margin - layoutRect.Width ) ),
 			Math.Clamp( top, bounds.Top + margin,
 				Math.Max( bounds.Top + margin, bounds.Bottom - margin - layoutRect.Height ) ) );
+	}
+
+	/// <summary>
+	/// A panel it opens beside - the friends list - whose top and bottom it's kept between, so it never sits higher or
+	/// lower than the list it came from
+	/// </summary>
+	public Panel Within { get; set; }
+
+	void KeepLevelWith( ref Rect layoutRect )
+	{
+		if ( !Within.IsValid() ) return;
+
+		// Beside its source, it's moved up half its height after this (the popup's translate) - clamp where it's drawn
+		var lift = Position is PositionMode.Left or PositionMode.Right ? layoutRect.Height * 0.5f : 0f;
+
+		var bounds = Within.Box.Rect;
+		var top = Math.Clamp( layoutRect.Top - lift, bounds.Top, Math.Max( bounds.Top, bounds.Bottom - layoutRect.Height ) );
+		layoutRect.Position = new Vector2( layoutRect.Left, top + lift );
 	}
 
 	//
@@ -433,6 +458,10 @@
 			extras.Add( new( "person_remove", "#menu.friends.kick", Kick, true ) );
 		}
 
+		// In the game you're hosting - out of it
+		if ( !IsMe && Networking.IsHost && InMyGame is { } connection )
+			extras.Add( new( "block", "Kick from game", () => KickFromGame( connection ), true ) );
+
 		if ( IsMe && PartyView.Exists ) extras.Add( new( "logout", "#menu.friends.leave_party", LeaveParty, true ) );
 
 		return extras;
@@ -582,6 +611,15 @@
 	}
 
 	/// <summary>
+	/// Off to the avatar editor - the card goes with it
+	/// </summary>
+	void EditAvatar()
+	{
+		Delete();
+		MenuHelpers.OpenAvatarEditor();
+	}
+
+	/// <summary>
 	/// Their Steam profile - this card's their s&box one.
 	/// </summary>
 	void ViewProfile()
@@ -609,6 +647,17 @@
 		if ( PartyView.IsMocking ) Log.Info( $"party mock: would kick {Friend.Name}" );
 		else PartyRoom.Current?.Kick( Friend.Id );
 
+		Delete();
+	}
+
+	/// <summary>
+	/// Their connection to the game you're in - null if they're not in it
+	/// </summary>
+	Connection InMyGame => Networking.IsActive ? Connection.All.FirstOrDefault( x => (ulong)x.SteamId == Friend.Id ) : null;
+
+	void KickFromGame( Connection connection )
+	{
+		connection.Kick( Language.GetPhrase( "menu.friends.kicked" ) );
 		Delete();
 	}
 

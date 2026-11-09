@@ -625,8 +625,8 @@
 
     public override void Tick()
     {
-        SetClass( "visible", LoadingView.IsVisible );
-        TickCompletion();
+        // Not while the platform menu's switching games - that shows under its own blur
+        SetClass( "visible", LoadingView.IsVisible && !MenuProject.Platform.PlatformMenu.IsSwitching );        TickCompletion();
         TickSpeed();
         TickStep();
     }

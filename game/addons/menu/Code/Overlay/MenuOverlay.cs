@@ -40,6 +40,9 @@ public partial class MenuOverlay : RootPanel
 		DownloadsRoot.Style.PointerEvents = PointerEvents.None;
 		DownloadsRoot.AddChild<WorkshopDownloadOverlay>();
 
+		// The platform menu's dock is along the bottom - downloads go above it
+		DownloadsRoot.SetClass( "platform", MenuProject.Platform.PlatformMenu.Enabled );
+
 		Instance = new MenuOverlay();
 
 		// After the overlay, so it draws over it - see LoadingRoot

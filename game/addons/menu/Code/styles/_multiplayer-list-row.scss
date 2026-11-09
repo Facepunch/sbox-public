@@ -1,4 +1,4 @@
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 // Games and forming parties share the same compact list entry.
 MenuShell MultiplayerListRow
@@ -10,18 +10,17 @@ MenuShell MultiplayerListRow
 	align-items: center;
 	gap: 12px;
 	padding: 8px 10px;
-	border-radius: 6px;
-	background-color: rgba( 255, 255, 255, 0.025 );
-	font-family: $front-font;
-	color: $front-heading;
+	border-radius: $platform-radius;
+	font-family: $platform-font;
+	color: $platform-text;
 
 	&:hover
 	{
-		background-color: rgba( $front-primary, 0.1 );
+		background-color: $platform-hover-wash;
 
 		.row-chevron
 		{
-			color: $front-link;
+			color: $platform-text;
 			opacity: 1;
 		}
 	}
@@ -33,13 +32,7 @@ MenuShell MultiplayerListRow
 
 	.row-image
 	{
-		width: 40px;
-		height: 40px;
-		flex-shrink: 0;
-		align-items: center;
-		justify-content: center;
-		border-radius: 7px;
-		background-color: rgba( 0, 0, 0, 0.2 );
+		@include platform-tile( 24px, 40px );
 		overflow: hidden;
 
 		img
@@ -52,7 +45,7 @@ MenuShell MultiplayerListRow
 		icon
 		{
 			font-size: 24px;
-			color: $front-secondary;
+			color: $platform-muted;
 		}
 	}
 
@@ -91,14 +84,14 @@ MenuShell MultiplayerListRow
 	.row-subtitle
 	{
 		font-size: 11px;
-		color: $front-secondary;
+		color: $platform-muted;
 	}
 
 	.row-count, .row-caption
 	{
 		flex-shrink: 0;
 		white-space: nowrap;
-		color: $front-secondary;
+		color: $platform-muted;
 	}
 
 	.row-count
@@ -126,7 +119,7 @@ MenuShell MultiplayerListRow
 		{
 			flex-shrink: 0;
 			font-size: 16px;
-			color: $front-secondary;
+			color: $platform-muted;
 		}
 
 		label
@@ -137,7 +130,7 @@ MenuShell MultiplayerListRow
 
 		&.servers
 		{
-			color: $front-secondary;
+			color: $platform-muted;
 		}
 	}
 
@@ -145,7 +138,7 @@ MenuShell MultiplayerListRow
 	{
 		flex-shrink: 0;
 		font-size: 18px;
-		color: $front-secondary;
+		color: $platform-muted;
 		opacity: 0.5;
 	}
 
@@ -161,24 +154,11 @@ MenuShell MultiplayerListRow
 
 		> .button
 		{
-			padding: 2px 6px;
-			border-radius: 4px;
-			font-size: 11px;
-			font-weight: 500;
-			text-transform: none;
-			letter-spacing: 0;
-			background-color: rgba( $front-primary, 0.12 );
-			color: $front-link;
-
-			&:hover
-			{
-				background-color: $front-primary;
-				color: white;
-			}
+			@include platform-text-button( 26px, 12px, 14px );
+			padding: 0 10px;
 
 			&.disabled
 			{
-				opacity: 0.3;
 				pointer-events: none;
 			}
 		}

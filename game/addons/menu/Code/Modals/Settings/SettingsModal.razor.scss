@@ -1,5 +1,5 @@
 ﻿@import "/styles/_theme.scss";
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 // Fills the screen, so this is the same screen as the /settings tab plus a way out.
 SettingsModal
@@ -21,28 +21,26 @@ SettingsModal
 		flex-shrink: 0;
 		gap: 10px;
 		padding: 18px 32px 0 32px;
-		font-family: $front-font;
+		font-family: $platform-font;
 
 		i
 		{
 			font-size: 22px;
-			color: $front-primary;
+			color: $platform-primary;
 		}
 
 		.title
 		{
 			font-size: 20px;
 			font-weight: 700;
-			color: $front-heading;
+			color: $platform-text;
 		}
 
 		.close
 		{
-			@include front-pill;
-
-			padding: 9px 18px;
+			@include platform-text-button( 30px, 12.5px, 15px );
+			padding: 0 12px;
 			pointer-events: all;
-			cursor: pointer;
 
 			&:hover
 			{

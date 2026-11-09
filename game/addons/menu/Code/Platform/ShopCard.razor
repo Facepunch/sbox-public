@@ -1,0 +1,84 @@
+@using System;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.UI;
+@namespace MenuProject.Platform
+@inherits Panel
+
+@*
+    An item in the shop - its art on a wash of its rarity's colour, filling the card; a tag at the top left, what it is
+    at the bottom left, and its price at the bottom right, which puts it in the cart (and takes it out again).
+*@
+<root class="@CardClass">
+
+    <div class="spot"></div>
+
+    <div class="art" style="@ArtStyle">
+        <div class="icon" style="background-image: url( @Item.BestIconUrl );"></div>
+    </div>
+
+    <div class="shade"></div>
+
+    <div class="top">
+        @if ( Owned > 0 )
+        {
+            <label class="tag owned">@(Owned > 1 ? $"Own {Owned}" : "Owned")</label>
+        }
+        else if ( Featured && Item.LeavingText is { } leaving )
+        {
+            <div class="tag leaving @(Item.IsLeavingSoon ? "soon" : "")">
+                <i>schedule</i>
+                <label>@leaving</label>
+            </div>
+        }
+    </div>
+
+    <div class="bottom">
+        <div class="info">
+            <label class="category">@Item.CategoryLabel</label>
+            <label class="name">@Item.Name</label>
+        </div>
+
+        <div class="price @(InCart ? "in" : "")" onclick=@Toggle tooltip="@(InCart ? "Take out of your cart" : "Add to your cart")">
+            <div class="basket"><i>@(InCart ? "check" : "shopping_cart")</i></div>
+            <div class="cost">
+                @if ( Item.IsOnSale )
+                {
+                    <label class="was">@Item.BasePrice</label>
+                }
+                <label class="now">@Item.Price</label>
+                @if ( Item.IsOnSale )
+                {
+                    <label class="off">-@(Item.DiscountPercent)%</label>
+                }
+            </div>
+        </div>
+    </div>
+
+</root>
+
+@code
+{
+    public Sandbox.Services.Inventory.ItemDefinition Item { get; set; }
+    public ShoppingCart Cart { get; set; }
+
+    /// <summary>
+    /// A time-limited one, up top - bigger, edged in its rarity's colour
+    /// </summary>
+    public bool Featured { get; set; }
+
+    bool InCart => Cart.Count( Item ) > 0;
+    int Owned => Sandbox.Services.Inventory.Items.Count( x => x.DefinitionId == Item.Id );
+
+    string CardClass => (Featured ? "featured " : "") + (InCart ? "in-cart " : "") + (Owned > 0 ? "owned" : "");
+
+    string ArtStyle => Item.RarityGrade == ItemRarity.None ? "" : $"background-image: {Item.RarityGlow( 0.4f )};";
+
+    void Toggle()
+    {
+        if ( InCart ) Cart.RemoveAllFromCart( Item );
+        else Cart.AddToCart( Item );
+    }
+
+    protected override int BuildHash() => HashCode.Combine( Item?.Id, InCart, Owned, Featured );
+}

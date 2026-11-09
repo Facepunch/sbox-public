@@ -1,5 +1,5 @@
 @import "/styles/_theme.scss";
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 $starter-mint: #8fab9b;
 $starter-blue: #8cabc9;
@@ -14,12 +14,8 @@ StarterShelf
 	width: 100%;
 	max-width: $screen-w-xl;
 	margin: 0 auto 30px auto;
-	@include front-slab;
-	background-image: linear-gradient( 110deg, #294c79, #233b5d 40%, #20252e );
-	border: $front-border-width solid rgba( $front-primary, 0.45 );
-	border-radius: $front-radius;
+	@include platform-surface;
 	overflow: hidden;
-	box-shadow: $front-rail-shadow;
 
 	.guide-blueprint-background
 	{
@@ -48,22 +44,15 @@ StarterShelf
 		{
 			font-size: 14px;
 			font-weight: 600;
-			color: $front-secondary;
+			color: $platform-muted;
 		}
 	}
 
 	.guide-dismiss
 	{
+		@include platform-text-button( 30px, 12.5px, 15px );
 		flex-shrink: 0;
-		gap: 6px;
-		padding: 5px 8px;
-		border-radius: 3px;
-		color: $front-secondary;
-		cursor: pointer;
-
-		label { font-size: 11px; }
-		iconpanel { font-size: 15px; }
-		&:hover { background-color: rgba( white, 0.08 ); color: white; }
+		padding: 0 10px;
 	}
 
 	.guide-content
@@ -145,9 +134,7 @@ StarterShelf
 		flex-shrink: 1;
 		width: 0;
 		min-width: 0;
-		flex-direction: column;
-		border-radius: 5px;
-		background-color: rgba( 14, 20, 30, 0.4 );
+		@include platform-surface;
 		overflow: hidden;
 	}
 
@@ -198,22 +185,16 @@ StarterShelf
 		}
 	}
 
+	// Over the art - the glass behind it, so it reads on any picture
 	.step-stamp
 	{
+		@include platform-chip;
 		position: absolute;
-		bottom: 0;
-		left: 0;
-		align-items: center;
-		gap: 4px;
-		padding: 4px 9px;
-		border-radius: 0 4px 0 0;
-		background-color: #273830;
-		color: $starter-mint;
+		bottom: 6px;
+		left: 6px;
+		background-color: $platform-glass;
 		pointer-events: none;
 		z-index: 110;
-
-		icon { font-size: 14px; color: $starter-mint; }
-		label { font-size: 11px; font-weight: 600; }
 	}
 
 	.step-body
@@ -234,26 +215,17 @@ StarterShelf
 	{
 		flex-grow: 1;
 		font-size: 12px;
-		color: $front-secondary;
+		color: $platform-muted;
 	}
 
 	.step-open
 	{
+		@include platform-text-button( 34px, 13px, 18px );
 		flex-shrink: 0;
-		align-items: center;
 		justify-content: space-between;
 		flex-direction: row-reverse;
 		margin-top: 8px;
-		padding: 9px 12px;
-		border-radius: 3px;
-		background-color: rgba( white, 0.06 );
-		color: $front-body;
-		cursor: pointer;
-		transition: background-color 0.1s ease;
-
-		label { font-size: 12px; font-weight: 700; }
-		iconpanel { font-size: 18px; }
-		&:hover { background-color: rgba( white, 0.12 ); color: $front-heading; }
+		padding: 0 12px;
 	}
 
 	.casual
@@ -287,21 +259,13 @@ StarterShelf
 		align-items: center;
 		gap: 14px;
 		padding: 14px 20px;
-		background-color: rgba( black, 0.12 );
-		border-top: $front-border-width solid $front-hairline;
+		border-top: 1px solid $platform-hairline;
 	}
 
 	.creator-icon
 	{
-		flex-shrink: 0;
-		width: 38px;
-		height: 38px;
-		align-items: center;
-		justify-content: center;
-		border-radius: 5px;
-		background-color: rgba( $starter-mint, 0.08 );
-		color: $starter-mint;
-		icon { font-size: 24px; color: $starter-mint; }
+		@include platform-tile( 24px, 38px );
+		icon { font-size: 24px; color: $platform-muted; }
 	}
 
 	.creator-copy
@@ -312,23 +276,14 @@ StarterShelf
 		gap: 2px;
 	}
 
-	.creator-title { font-size: 14px; font-weight: 700; color: $front-heading; }
-	.creator-description { font-size: 12px; color: $front-secondary; }
+	.creator-title { font-size: 14px; font-weight: 700; color: $platform-text; }
+	.creator-description { font-size: 12px; color: $platform-muted; }
 
 	.guide-learn
 	{
+		@include platform-text-button( 38px, 13px, 18px );
+		@include platform-button-primary;
 		flex-shrink: 0;
-		align-items: center;
-		gap: 10px;
-		padding: 10px 14px;
-		border: $front-border-width solid rgba( $front-primary, 0.5 );
-		border-radius: 4px;
-		color: #b8d9ff;
-		cursor: pointer;
-		transition: background-color 0.1s ease;
-
-		label { font-size: 12px; font-weight: 600; }
-		icon { font-size: 18px; }
-		&:hover { background-color: rgba( $front-primary, 0.2 ); color: white; }
+		padding: 0 14px;
 	}
 }

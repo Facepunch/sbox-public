@@ -1,5 +1,5 @@
 @import "/styles/_theme.scss";
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 ActionBar
 {
@@ -22,46 +22,29 @@ ActionBar .setup-summary
 
 	.chip
 	{
-		flex-direction: row;
-		flex-shrink: 0;
-		align-items: center;
-		gap: 7px;
-		height: 34px;
-		padding: 0 14px 0 10px;
-		border-radius: 999px;
-		border: $front-border-width solid $front-hairline;
-		background-color: rgba( 255, 255, 255, 0.05 );
+		@include platform-chip;
 
 		i
 		{
 			font-family: "Material Icons";
-			font-size: 16px;
-			color: linear-gradient( 180deg, #9cc6ff, $front-primary );
 		}
 
 		label
 		{
-			font-family: $front-font;
-			font-size: 12.5px;
-			font-weight: 600;
-			color: $front-heading;
 			font-variant-numeric: tabular-nums;
-			white-space: nowrap;
 		}
 
-		// Its picture behind, from the left edge, fading out most of the way across
+		// A button - its picture behind, from the left edge, fading out most of the way across
 		&.map
 		{
+			@include platform-text-button( 34px, 12.5px, 16px );
+			padding: 0 14px 0 10px;
 			position: relative;
 			overflow: hidden;
-			cursor: pointer;
-			transition: all 0.1s ease;
 
 			&:hover
 			{
 				sound-in: "ui.button.over";
-				border-color: rgba( 255, 255, 255, 0.28 );
-				background-color: rgba( 255, 255, 255, 0.11 );
 			}
 
 			&:active
@@ -97,31 +80,15 @@ ActionBar > .right
 	gap: 6px;
 }
 
-// Same pills as the hover preview: hairline for secondary actions, filled for Play.
+// The footer's buttons - grey, Play blue
 Button
 {
-	border-radius: 999px;
+	@include platform-text-button( 38px );
+	padding: 0 14px;
 	flex-shrink: 0;
-	font-size: 12.5px;
-	font-weight: 700;
-	font-family: $font-heading;
-	padding: 8px 16px;
-	border: 1px solid rgba( 255, 255, 255, 0.1 );
-	background-color: rgba( 255, 255, 255, 0.05 );
-	color: #c8cedb;
-	transition: all 0.1s ease;
-	letter-spacing: 0.07em;
-
-	label
-	{
-		text-transform: uppercase;
-	}
 
 	&:hover
 	{
-		border-color: rgba( 255, 255, 255, 0.28 );
-		background-color: rgba( 255, 255, 255, 0.11 );
-		color: $default-text;
 		sound-in: "ui.button.over";
 	}
 
@@ -133,83 +100,25 @@ Button
 
 Button.play
 {
-	background-color: $primary-blue;
-	border-color: transparent;
-	color: white;
-	padding: 8px 24px;
-
-	&:hover
-	{
-		filter: brightness( 1.15 );
-		border-color: transparent;
-		background-color: $primary-blue;
-	}
+	@include platform-button-primary;
 
 	&.disabled
 	{
-		opacity: 0.25;
 		pointer-events: none;
 	}
 }
 
-// New Game and Join Game as one pill, split down the middle like the vote pair - the halves lose
-// their own rounding, the pair takes it
+// New Game and Join Game side by side - New Game blue, Join grey
 .play-split
 {
 	flex-direction: row;
 	flex-shrink: 0;
 	align-items: stretch;
-	border-radius: 999px;
-	overflow: hidden;
-
-	Button
-	{
-		border-radius: 0;
-		border-width: 0;
-	}
-
-	.split
-	{
-		width: 1px;
-		flex-shrink: 0;
-		background-color: rgba( 0, 0, 0, 0.35 );
-	}
-
-	// New Game's the one lit up in blue; Join's the quiet half - the same grey as the other
-	// pills, so when there's nothing to join it just dims, rather than being a murky blue
-	Button.join
-	{
-		padding: 8px 20px;
-		background-color: rgba( 255, 255, 255, 0.08 );
-		color: $default-text;
-
-		&:hover
-		{
-			background-color: rgba( 255, 255, 255, 0.15 );
-		}
-
-		&.disabled
-		{
-			background-color: rgba( 255, 255, 255, 0.05 );
-			color: rgba( 255, 255, 255, 0.3 );
-			opacity: 1;
-		}
-	}
+	gap: 2px;
 }
 
-Button.streaming
+// Streaming - blue while it's on
+Button.streaming.active
 {
-	opacity: 0.3;
-	background-color: #9147ff;
-
-	&:hover
-	{
-		opacity: 0.7;
-	}
-
-	&.active
-	{
-		opacity: 1;
-		color: white;
-	}
+	@include platform-button-selected;
 }

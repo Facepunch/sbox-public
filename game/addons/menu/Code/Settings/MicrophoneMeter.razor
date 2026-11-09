@@ -7,14 +7,15 @@
 <root>
 	<i class="light" @ref="Light">mic</i>
 
+	@* Before the bar, as a slider's number is *@
+	<label class="readout">@($"{Value:0} dB")</label>
+
 	<div class="meter" @ref="Meter">
 		<div class="cover" @ref="Cover"></div>
 		<div class="noise" @ref="NoiseLine"></div>
 		<div class="processed" @ref="ProcessedLine"></div>
 		<div class="threshold" @ref="Line"></div>
 	</div>
-
-	<label class="readout">@($"{Value:0} dB")</label>
 </root>
 
 @code

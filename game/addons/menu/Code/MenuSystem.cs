@@ -25,6 +25,9 @@ public partial class MenuSystem : IMenuSystem
 	{
 		Instance = this;
 
+		// On the platform or not, before anything that asks is made
+		MenuProject.Platform.PlatformMenu.Reset();
+
 		// Creation order is important
 		// Panel created first will be on top
 
@@ -35,6 +38,17 @@ public partial class MenuSystem : IMenuSystem
 
 		// What's hidden, so a hidden game's page can offer to show it again
 		_ = MenuUtility.Hidden.Refresh();
+
+		// The platform menu - made after the overlay, so its modals, toasts and the loading screen draw over it. Its
+		// toasts move up clear of the dock. Straight onto a game's menu - the one given on the command line, or the one
+		// picked last time.
+		if ( MenuProject.Platform.PlatformMenu.Enabled )
+		{
+			MenuProject.Platform.PlatformRoot.Instance = new MenuProject.Platform.PlatformRoot();
+			MenuOverlay.Instance.AddClass( "platform" );
+			MenuProject.Platform.PlatformMenu.Start();
+			return;
+		}
 
 		var startupGameIdent = MenuUtility.StartupGameIdent;
 		if ( !string.IsNullOrEmpty( startupGameIdent ) )
@@ -51,6 +65,9 @@ public partial class MenuSystem : IMenuSystem
 		gameClosingPanel = null;
 
 		MenuOverlay.Shutdown();
+
+		MenuProject.Platform.PlatformRoot.Instance?.Delete();
+		MenuProject.Platform.PlatformRoot.Instance = null;
 
 		Dev?.Delete();
 		Dev = null;
@@ -87,7 +104,10 @@ public partial class MenuSystem : IMenuSystem
 
 	void TickEscapeToClose()
 	{
-		if ( Game.InGame )
+		// The platform menu leaves a game for its menu - already there, there's nowhere to go
+		var platform = MenuProject.Platform.PlatformMenu.Enabled;
+
+		if ( Game.InGame && !(platform && Game.IsOnMenu) )
 		{
 			var startDelay = 0.2f;
 			var holdDelay = 1.5f;
@@ -109,7 +129,9 @@ public partial class MenuSystem : IMenuSystem
 				{
 					gameClosingPanel?.Delete();
 					gameClosingPanel = null;
-					Game.Close();
+
+					if ( platform ) Game.ReturnToMenu();
+					else Game.Close();
 				}
 			}
 			else
@@ -209,6 +231,15 @@ public partial class MenuSystem : IMenuSystem
 
 	async void IMenuSystem.OnPackageClosed( Package package )
 	{
+		// The platform menu goes back onto its game's menu - unless it's switching, which is going somewhere else
+		if ( MenuProject.Platform.PlatformMenu.Enabled )
+		{
+			if ( !MenuProject.Platform.PlatformMenu.IsSwitching )
+				MenuProject.Platform.PlatformMenu.ReturnAfterClose( package );
+
+			return;
+		}
+
 		gameClosedToast?.Delete( true );
 		gameClosedToast = null;
 

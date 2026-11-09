@@ -1,5 +1,5 @@
 @import "/styles/_theme.scss";
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 NotificationsPage
 {
@@ -31,23 +31,29 @@ NotificationsPage
 
 	.section-head
 	{
-		@include front-page-section-head;
+		@include platform-shelf-header;
+		flex-shrink: 0;
+		margin-top: 12px;
+		padding: 0 4px;
 	}
 
 	.inbox-empty
 	{
-		@include front-page-empty;
+		@include platform-surface;
+		@include platform-empty;
+		justify-content: center;
+		padding: 64px;
 	}
 
 	// Sits in the first section head, so it's a pill rather than another button in a row.
 	.refresh
 	{
-		@include front-pill;
+		@include platform-text-button( 30px, 12.5px, 15px );
+		padding: 0 12px;
 
 		// The head baselines its text; the pill is taller than a line of it.
 		align-self: center;
 		pointer-events: all;
-		cursor: pointer;
 
 		&.busy
 		{

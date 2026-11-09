@@ -1,31 +1,26 @@
 @import "/styles/_theme.scss";
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 // A portrait card lit by its own rarity: the art floats on a radial wash of the rarity
 // colour, and the border takes the same colour once the item is in the cart.
 ItemTile
 {
-	@include front-card;
+	@include platform-surface;
+	flex-shrink: 0;
+	overflow: hidden;
 
 	width: 232px;
-	border-width: $front-border-width;
 	transition: all 0.15s ease;
 	cursor: default;
 
 	&:hover
 	{
 		transform: translateY( -3px );
-		box-shadow: 0 14px 30px rgba( 0, 0, 0, 0.45 );
 
 		.art
 		{
 			transform: scale( 1.06 );
 		}
-	}
-
-	&.in-cart
-	{
-		background-color: rgba( 47, 127, 240, 0.08 );
 	}
 
 	// Already in the inventory - still there, but stepped back.
@@ -60,8 +55,8 @@ ItemTile
 	.tags
 	{
 		position: absolute;
-		top: 0;
-		left: 0;
+		top: 8px;
+		left: 8px;
 		flex-direction: column;
 		align-items: flex-start;
 		gap: 6px;
@@ -69,75 +64,25 @@ ItemTile
 
 	.tag
 	{
-		height: 20px;
-		padding: 0 8px;
-		align-items: center;
-		justify-content: center;
-		border-radius: 999px;
-		background-color: rgba( 14, 18, 26, 0.85 );
-		border: $front-border-width solid $front-hairline;
+		@include platform-chip;
 
-		label
+		&.leaving icon
 		{
-			font-family: $front-font;
-			font-size: 10px;
-			font-weight: 700;
-			text-transform: uppercase;
-			letter-spacing: 0.06em;
-			color: #fff;
+			color: $front-trophy;
 		}
 
-		&.leaving
+		&.soon label
 		{
-			height: 24px;
-			gap: 5px;
-			padding: 0 10px 0 8px;
-			border: 0;
-			border-radius: 8px 0 8px 0;
-			background-color: rgba( 14, 18, 26, 0.92 );
-
-			icon
-			{
-				font-size: 13px;
-				color: $front-trophy;
-			}
-
-			label
-			{
-				color: $front-trophy;
-			}
-		}
-
-		&.soon
-		{
-			background-color: $front-trophy;
-
-			icon, label { color: #2a1d05; }
+			color: $front-trophy;
 		}
 	}
 
 	.owned-pill
 	{
+		@include platform-chip;
 		position: absolute;
 		right: 10px;
 		bottom: 10px;
-		height: 20px;
-		padding: 0 8px;
-		align-items: center;
-		justify-content: center;
-		border-radius: 999px;
-		background-color: rgba( 14, 18, 26, 0.85 );
-		border: $front-border-width solid $front-hairline;
-
-		label
-		{
-			font-family: $front-font;
-			font-size: 10px;
-			font-weight: 700;
-			text-transform: uppercase;
-			letter-spacing: 0.06em;
-			color: $front-body;
-		}
 	}
 
 	.body
@@ -147,7 +92,7 @@ ItemTile
 		flex-shrink: 0;
 		padding: 12px 14px 14px;
 		gap: 2px;
-		border-top: $front-border-width solid $front-hairline;
+		border-top: 1px solid $platform-hairline;
 	}
 
 	.name
@@ -237,14 +182,11 @@ ItemTile
 
 	.add
 	{
-		@include front-button;
-
+		@include platform-text-button( 30px, 12.5px, 15px );
+		@include platform-button-primary;
+		justify-content: center;
 		flex-shrink: 0;
-		padding: 7px 12px;
-		cursor: pointer;
-
-		label { font-size: 11px; }
-		icon { font-size: 15px; }
+		padding: 0 12px;
 
 		&:hover { sound-in: "ui.button.over"; }
 		&:active { sound-in: "ui.button.press"; }
@@ -255,33 +197,14 @@ ItemTile
 		flex-direction: row;
 		flex-shrink: 0;
 		align-items: center;
-		border-radius: 6px;
-		border: 1px solid rgba( $front-primary, 0.6 );
-		background-color: rgba( $front-primary, 0.14 );
-		overflow: hidden;
+		gap: 2px;
 	}
 
 	.step
 	{
-		width: 28px;
-		height: 28px;
-		align-items: center;
-		justify-content: center;
-		cursor: pointer;
-		transition: all 0.1s ease;
+		@include platform-tool( 30px, 16px );
 
-		icon
-		{
-			font-size: 16px;
-			color: $front-heading;
-		}
-
-		&:hover
-		{
-			sound-in: "ui.button.over";
-			background-color: rgba( $front-primary, 0.5 );
-		}
-
+		&:hover { sound-in: "ui.button.over"; }
 		&:active { sound-in: "ui.button.press"; }
 	}
 
@@ -291,24 +214,14 @@ ItemTile
 	// label kills its text render.
 	.count
 	{
+		@include platform-field( 30px );
 		width: 40px;
-		height: 28px;
 		min-height: 0;
-		max-height: 28px;
+		max-height: 30px;
 		margin: 0;
 		padding: 0 8px;
 		flex-grow: 0;
 		flex-shrink: 0;
-		border: 0;
-		border-left: 1px solid rgba( $front-primary, 0.35 );
-		border-right: 1px solid rgba( $front-primary, 0.35 );
-		border-radius: 0;
-		background-color: rgba( 0, 0, 0, 0.25 );
-		font-family: $front-font;
-		font-size: 13px;
-		font-weight: 700;
-		color: $front-heading;
-		cursor: text;
 		justify-content: center;
 
 		// The base style grows the label to fill the entry, which left-aligns the number.
@@ -317,11 +230,6 @@ ItemTile
 			flex-grow: 0;
 			padding: 0;
 			margin: 0;
-		}
-
-		&:focus
-		{
-			background-color: rgba( $front-primary, 0.3 );
 		}
 	}
 }

@@ -1,0 +1,737 @@
+@import "/Platform/_platform.scss";
+@import "/styles/_theme.scss";
+
+// Laid out by the ShelfPanel it's on, the panel's full height - the games and their servers in a panel, open parties
+// over global chat in panels beside it (the platform-panel mixin). Pulled in to the middle as the settings' card and
+// its detail are (PlatformSettings), not right across the screen.
+MultiplayerShelf
+{
+	flex-direction: row;
+	flex-shrink: 0;
+	justify-content: center;
+	height: 100%;
+	gap: 16px;
+
+	> .column
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		min-height: 0;
+		gap: 16px;
+		pointer-events: all;
+	}
+
+	// As wide as the settings' card
+	> .main
+	{
+		flex-shrink: 1;
+		width: 46%;
+		min-width: 640px;
+		max-width: 900px;
+	}
+
+	// Chat runs on down to the dock as the games do (ShelfPanel's to-dock) - its message box floats over its bottom,
+	// where the other shelves stop
+	> .side
+	{
+		position: relative;
+		width: 380px;
+	}
+
+	.panel
+	{
+		@include platform-panel;
+	}
+
+	// The games and chat run down to where the shelf stops, clear of the dock
+	.panel.games, .panel.chat
+	{
+		flex-grow: 1;
+	}
+
+	.panel.games
+	{
+		// Its first row as far under its bar's tools as they're under its top
+		> .body
+		{
+			padding-top: 0;
+		}
+
+		// A server's card over the table's bottom - the last row clears that too
+		ServerTable.picked tbody
+		{
+			padding-bottom: 150px;
+		}
+	}
+
+	// Where the parties' panel goes - nothing, chat right up at the top, without one. The column's gap is the panel's own
+	// margin instead, so it's not left over an empty slot.
+	.parties-slot
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		margin-bottom: -16px;
+	}
+
+	// Only as tall as its parties, up to a few - chat has the rest. Opens down as it comes up, pushing chat down, and
+	// closes back up as it goes.
+	.parties
+	{
+		flex-shrink: 0;
+		max-height: 360px;
+		margin-bottom: 16px;
+		overflow: hidden;
+		transition: max-height 0.3s ease-out, margin-bottom 0.3s ease-out, opacity 0.2s ease-out;
+
+		&:intro, &:outro
+		{
+			max-height: 0px;
+			margin-bottom: 0px;
+			opacity: 0;
+		}
+
+		&:outro
+		{
+			transition: max-height 0.25s ease-in, margin-bottom 0.25s ease-in, opacity 0.15s ease-in;
+		}
+
+		> .body
+		{
+			flex-shrink: 1;
+			gap: 2px;
+			padding-top: 0px;
+			overflow-y: scroll;
+			scrollbar-width: thin;
+			scrollbar-color: $platform-faint transparent;
+
+			> *
+			{
+				flex-shrink: 0;
+			}
+		}
+	}
+
+	.chat
+	{
+		flex-grow: 1;
+
+		// Ends 12 over the message box floating at its bottom (.composer, 16 up, 40 tall and growing as what's said wraps), so
+		// its messages and their scrollbar stop there - only the panel runs on under it. Its bottom's kept up with the box
+		// in code (MultiplayerShelf.Tick); this is a line's worth to start.
+		> .body
+		{
+			gap: 12px;
+			padding: 4px 12px 68px 12px;
+		}
+
+		.here
+		{
+			flex-shrink: 0;
+			align-items: center;
+			gap: 4px;
+			font-size: 13px;
+			font-weight: 600;
+			color: $platform-muted;
+			font-variant-numeric: tabular-nums;
+
+			i
+			{
+				font-size: 17px;
+			}
+		}
+	}
+
+	// The bars' own buttons - the rest of them is the platform-tool mixin's
+	.tool
+	{
+		&.filters
+		{
+			gap: 8px;
+			padding: 0 10px;
+			font-size: 13px;
+			font-weight: 600;
+
+			// The text's size, not the bar's other tools'
+			i
+			{
+				font-size: 18px;
+			}
+
+			// A pill round the number, centring it - a label alone keeps its text at its top
+			.count
+			{
+				min-width: 18px;
+				height: 18px;
+				padding: 0 5px;
+				justify-content: center;
+				align-items: center;
+				border-radius: 9px;
+				background-color: $platform-primary;
+
+				label
+				{
+					font-size: 11px;
+					font-weight: 700;
+					color: $platform-primary-text;
+				}
+			}
+		}
+	}
+
+	// Not positioned - its menu hangs off the bar (the platform-panel mixin's .head), in the panel's corner
+	.filters-wrap
+	{
+		flex-shrink: 0;
+	}
+
+	.menu
+	{
+		@include platform-surface;
+		position: absolute;
+		z-index: 10;
+		gap: 2px;
+		padding: 6px;
+		background-color: $platform-panel;
+		backdrop-filter: blur( 16px );
+		box-shadow: 0 16px 40px rgba( 0, 0, 0, 0.6 );
+		transition: opacity 0.14s ease-out, transform 0.16s ease-out;
+
+		&:intro, &:outro
+		{
+			opacity: 0;
+			transform: translateY( -6px );
+		}
+
+		&:outro
+		{
+			transition: opacity 0.1s ease-in, transform 0.1s ease-in;
+		}
+
+		// Its name, and a switch at the end of the row - on in the platform's blue
+		.option
+		{
+			height: 38px;
+			align-items: center;
+			justify-content: space-between;
+			gap: 16px;
+			padding: 0 10px 0 12px;
+			border-radius: $platform-radius;
+			font-size: 13px;
+			color: $platform-muted;
+			cursor: pointer;
+			@include platform-sounds;
+
+			&:hover
+			{
+				background-color: $platform-hover-wash;
+				color: $platform-text;
+			}
+
+			&.on
+			{
+				color: $platform-text;
+			}
+		}
+
+		.switch
+		{
+			@include platform-switch;
+		}
+	}
+
+	// In the panel's top right corner, under the bar's tools - right edge with theirs
+	.filters-menu
+	{
+		top: 48px;
+		right: 8px;
+		width: 280px;
+	}
+
+	// The platform's own (platform-empty) - in the middle of the list, or at the top of the chat (.small)
+	.empty
+	{
+		@include platform-empty;
+		flex-grow: 1;
+		justify-content: center;
+
+		&.small
+		{
+			flex-grow: 0;
+		}
+	}
+
+	.notice
+	{
+		@include platform-notice( $platform-danger, $platform-danger );
+		margin-bottom: 8px;
+	}
+
+	// Room kept for the scrollbar whether it's there or not, so it never sits over the rows' ends
+	.rows
+	{
+		flex-grow: 1;
+		min-height: 0;
+		flex-direction: column;
+		overflow-y: scroll;
+		scrollbar-width: thin;
+		scrollbar-color: $platform-faint transparent;
+		scrollbar-gutter: stable;
+
+		> *
+		{
+			flex-shrink: 0;
+		}
+
+		// Every other row a shade lighter, to follow one across
+		> .alt
+		{
+			background-color: rgba( 255, 255, 255, 0.025 );
+		}
+	}
+
+	.game, .party
+	{
+		height: 64px;
+		align-items: center;
+		gap: 14px;
+		padding: 0 8px;
+		border-radius: $platform-radius;
+		transition: background-color 0.12s ease;
+	}
+
+	// The game's art - a party's glyph while they're deciding
+	.game > .thumb, .party .game-art
+	{
+		width: 48px;
+		height: 48px;
+		flex-shrink: 0;
+		align-items: center;
+		justify-content: center;
+		border-radius: $platform-radius;
+		background-color: $platform-button;
+		background-size: cover;
+		background-position: center;
+	}
+
+	.game > .thumb > i, .party .game-art i
+	{
+		font-size: 24px;
+		color: $platform-faint;
+	}
+
+	.game > .about, .party .about
+	{
+		flex-grow: 1;
+		flex-shrink: 1;
+		min-width: 0;
+		flex-direction: column;
+		gap: 3px;
+	}
+
+	// Its line pulled up under it - Poppins' line leaves room under the letters
+	.game > .about .name, .party .about .party-name
+	{
+		margin-bottom: -3px;
+		font-size: 15px;
+		font-weight: 600;
+	}
+
+	.game
+	{
+		cursor: pointer;
+		@include platform-press-sound;
+
+		.type
+		{
+			width: 140px;
+			flex-shrink: 0;
+			justify-content: flex-end;
+			text-align: right;
+		}
+
+		> .about
+		{
+			.sub-line
+			{
+				min-width: 0;
+				align-items: center;
+				gap: 12px;
+			}
+
+			// Its name, and a tag after it when it's only on another version
+			.name-line
+			{
+				min-width: 0;
+				align-items: center;
+				gap: 8px;
+			}
+
+			.name
+			{
+				flex-shrink: 1;
+				min-width: 0;
+				white-space: nowrap;
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
+
+			.outdated-tag
+			{
+				flex-shrink: 0;
+				padding: 1px 6px;
+				border-radius: 3px;
+				background-color: rgba( $platform-warning, 0.16 );
+				font-size: 10px;
+				font-weight: 700;
+				text-transform: uppercase;
+				color: $platform-warning;
+			}
+		}
+
+		// All its servers on another version - listed, faded back, after the games that can be joined
+		&.outdated
+		{
+			opacity: 0.55;
+		}
+
+		.category
+		{
+			flex-shrink: 0;
+			padding: 2px 8px;
+			border-radius: 3px;
+			font-size: 10px;
+			font-weight: 700;
+			letter-spacing: 0.5px;
+			text-transform: uppercase;
+			color: #9cc0ff;
+			background-color: rgba( $platform-primary, 0.2 );
+		}
+
+		.friends
+		{
+			align-items: center;
+			font-size: 11px;
+			color: $platform-good;
+
+			.face
+			{
+				width: 16px;
+				height: 16px;
+				margin-right: -3px;
+				border-radius: 3px;
+				border: 1px solid rgba( 12, 15, 22, 1 );
+				background-size: cover;
+			}
+
+			label
+			{
+				margin-left: 9px;
+				white-space: nowrap;
+			}
+		}
+
+		// "160 players on 12 servers", in Inter as the servers' numbers are
+		.playing
+		{
+			flex-shrink: 0;
+			font-family: Inter;
+			font-size: 12px;
+			color: $platform-muted;
+			font-variant-numeric: tabular-nums;
+		}
+
+		&:hover
+		{
+			background-color: rgba( 255, 255, 255, 0.05 );
+		}
+
+		// A row's shape while they load - solid, just its parts breathing, and only faded in once it's been a moment so
+		// a quick fetch doesn't flash it
+		&.skeleton
+		{
+			pointer-events: none;
+			transition: opacity 0.3s ease-out 0.35s;
+
+			&:intro
+			{
+				opacity: 0;
+			}
+
+			> .thumb, .bone
+			{
+				animation: multiplayer-breathe 1.4s ease-in-out infinite alternate;
+			}
+
+			> .thumb
+			{
+				background-color: rgb( 30, 37, 52 );
+			}
+
+			> .about
+			{
+				gap: 9px;
+			}
+
+			.bone
+			{
+				flex-shrink: 0;
+				height: 10px;
+				border-radius: 3px;
+				background-color: rgb( 42, 50, 68 );
+			}
+
+			.name-bone
+			{
+				height: 13px;
+			}
+
+			.playing-bone
+			{
+				width: 150px;
+			}
+
+			.category-bone
+			{
+				width: 64px;
+				height: 18px;
+			}
+		}
+	}
+
+	.party
+	{
+		position: relative;
+
+		.about label
+		{
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+
+		// How full and the game, in Inter as the games' plays are, then its leader's face and name - green for a friend
+		.party-line
+		{
+			min-width: 0;
+			align-items: center;
+			gap: 12px;
+
+			.party-info
+			{
+				flex-shrink: 1;
+				font-family: Inter;
+				font-size: 12px;
+				color: $platform-muted;
+				font-variant-numeric: tabular-nums;
+			}
+
+			.leader
+			{
+				flex-shrink: 0;
+				align-items: center;
+				gap: 6px;
+				font-size: 11px;
+
+				.face
+				{
+					width: 16px;
+					height: 16px;
+					border-radius: 3px;
+					background-size: cover;
+				}
+
+				&.friend
+				{
+					color: $platform-good;
+				}
+			}
+		}
+
+		// The old server list's way in - a glowing green play button that slides in over the seats with the pointer on
+		// the row, and fills in solid under the pointer itself. Over them, not beside them, so it takes no room till then.
+		.join
+		{
+			position: absolute;
+			right: 8px;
+			top: 17px;
+			@include platform-tool( 30px, 20px );
+			@include platform-button-primary;
+			opacity: 0;
+			transform: translateX( 10px );
+			transition: opacity 0.12s ease, transform 0.12s ease, background-color 0.12s ease;
+
+			&:hover
+			{
+				sound-in: "ui.button.over";
+			}
+
+			// In a party already - grey, and it stays grey under the pointer
+			&.disabled, &.disabled:hover
+			{
+				background-color: $platform-button;
+				background-image: $platform-sheen;
+				cursor: default;
+
+				i
+				{
+					color: $platform-faint;
+				}
+			}
+		}
+
+		.yours
+		{
+			flex-shrink: 0;
+			font-size: 11px;
+			font-weight: 700;
+			color: $platform-good;
+		}
+
+		&.mine
+		{
+			background-color: rgba( 63, 209, 122, 0.08 );
+		}
+
+		&:hover
+		{
+			background-color: rgba( 255, 255, 255, 0.05 );
+
+			.join
+			{
+				opacity: 1;
+				transform: translateX( 0 );
+			}
+		}
+	}
+
+	// Global chat - its messages are ChatMessage's, brought in line here
+	.messages
+	{
+		flex-grow: 1;
+		min-height: 0;
+		flex-direction: column;
+		gap: 14px;
+		padding-right: 6px;
+		overflow-y: scroll;
+		scrollbar-width: thin;
+		scrollbar-color: $platform-faint transparent;
+
+		> *
+		{
+			flex-shrink: 0;
+		}
+	}
+
+	ChatMessage
+	{
+		gap: 10px;
+		font-size: 13px;
+		color: $platform-text;
+
+		.chat-avatar
+		{
+			width: 28px;
+			height: 28px;
+			border-radius: $platform-radius;
+		}
+
+		.chat-message-body
+		{
+			gap: 2px;
+		}
+
+		// What they said pulled up under it - Poppins' line leaves room under the letters
+		.chat-name
+		{
+			margin-bottom: -4px;
+			font-size: 12px;
+			color: $platform-muted;
+
+			&:hover
+			{
+				color: white;
+			}
+		}
+	}
+
+	// Over chat's faded bottom, where the side's other panels would end - it stays put whatever chat does. Enter says
+	// it; in a party, a button beside it posts the party for anyone to join.
+	.composer
+	{
+		position: absolute;
+		left: 12px;
+		right: 12px;
+		bottom: 16px;
+		z-index: 10;
+		align-items: flex-end;
+		gap: 8px;
+
+		// A line's height to start, growing up a line at a time as what's said wraps - to a few, then it scrolls
+		TextEntry
+		{
+			flex-grow: 1;
+			min-height: 40px;
+			max-height: 140px;
+			padding: 10px 12px;
+			font-size: 13px;
+			border-radius: $platform-radius;
+			border: 0.5px solid $platform-hairline;
+			background-color: $platform-panel;
+			color: $platform-text;
+
+			.placeholder
+			{
+				color: $platform-faint;
+			}
+
+			&:focus
+			{
+				border-color: $platform-primary;
+			}
+		}
+
+		.invite
+		{
+			width: 40px;
+			height: 40px;
+			flex-shrink: 0;
+			align-items: center;
+			justify-content: center;
+			border-radius: $platform-radius;
+			@include platform-button-primary;
+			cursor: pointer;
+			@include platform-sounds;
+			transition: background-color 0.12s ease;
+
+			i
+			{
+				font-size: 20px;
+				color: white;
+			}
+
+			&.disabled
+			{
+				background-color: $platform-button;
+				cursor: default;
+
+				i
+				{
+					color: $platform-faint;
+				}
+			}
+		}
+	}
+}
+
+@keyframes multiplayer-breathe
+{
+	from
+	{
+		opacity: 0.6;
+	}
+
+	to
+	{
+		opacity: 1;
+	}
+}
