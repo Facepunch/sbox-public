@@ -301,6 +301,56 @@ public class JobDispatcherTest
 		JobDispatcher.Begin( 0, hits, static ( h, i ) => { } ).Join();
 	}
 
+	sealed class WaitCountingContext : SynchronizationContext
+	{
+		public int Waits;
+
+		public WaitCountingContext() => SetWaitNotificationRequired();
+
+		public override int Wait( IntPtr[] waitHandles, bool waitAll, int millisecondsTimeout )
+		{
+			Interlocked.Increment( ref Waits );
+			return base.Wait( waitHandles, waitAll, millisecondsTimeout );
+		}
+	}
+
+	[TestMethod]
+	public void JoinRunsWithoutTheCallersSyncContext()
+	{
+		var previous = SynchronizationContext.Current;
+		var context = new WaitCountingContext();
+		SynchronizationContext.SetSynchronizationContext( context );
+
+		try
+		{
+			// Items that outlast the caller's share, so the join blocks on the workers
+			var seen = new ConcurrentBag<bool>();
+			var handle = JobDispatcher.Begin( 8, seen, static ( s, i ) =>
+			{
+				s.Add( SynchronizationContext.Current is null );
+				Thread.Sleep( 10 );
+			}, itemsPerBatch: 1 );
+
+			// Starting can wait on the dispatcher's locks or its first-use setup, only the join is checked
+			context.Waits = 0;
+			handle.Join();
+
+			Assert.AreEqual( 8, seen.Count );
+			Assert.IsTrue( seen.All( x => x ), "jobs ran with a sync context" );
+			Assert.AreEqual( 0, context.Waits, "join waited through the sync context" );
+			Assert.AreSame( context, SynchronizationContext.Current );
+
+			// Put back after a throwing job too
+			Assert.ThrowsException<InvalidOperationException>( () =>
+				JobDispatcher.For( 8, 0, static ( _, i ) => { Thread.Sleep( 5 ); if ( i == 3 ) throw new InvalidOperationException(); }, itemsPerBatch: 1 ) );
+			Assert.AreSame( context, SynchronizationContext.Current );
+		}
+		finally
+		{
+			SynchronizationContext.SetSynchronizationContext( previous );
+		}
+	}
+
 	[TestMethod]
 	public void BeginStartsEvenOneItemOnAWorker()
 	{
