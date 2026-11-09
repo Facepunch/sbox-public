@@ -34,14 +34,21 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 	ITonemapSystem tonemap;
 
 	/// <summary>
+	/// Whether the UI stages run: off for a view that leaves UI out (<see cref="ViewSetup.EnableUI"/>,
+	/// <see cref="SceneCamera.RenderUI"/>), as native leaves out its UI layer.
+	/// </summary>
+	public bool EnableUI { get; private set; } = true;
+
+	/// <summary>
 	/// Prepare camera state and return exposure (<c>CCameraRenderer</c>).
 	/// Disable <paramref name="updateExposure"/> for comparisons where native already advanced it.
 	/// </summary>
-	public float BeginFrame( SceneCamera camera, RenderView renderView, bool updateExposure )
+	public float BeginFrame( SceneCamera camera, RenderView renderView, in ViewSetup setup, bool updateExposure )
 	{
 		Camera = camera;
 		camera.ScheduleEarlyPostProcess( Stage.AfterDepthPrepass, false );
-		view.PostProcessEnabled = camera.EnablePostProcessing;
+		view.PostProcessEnabled = setup.EnablePostprocessing ?? camera.EnablePostProcessing;
+		EnableUI = setup.EnableUI ?? camera.RenderUI;
 		view.ToolsVisMode = renderView.ToolsVisMode;
 
 		mainView = renderView;
@@ -57,13 +64,13 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 	RenderView mainView;
 
 	/// <summary>
-	/// Restore the main camera and forward layer for stage rendering.
+	/// Restore the main camera and forward layer for stage rendering: the view as rendered, with any overrides of the camera.
 	/// </summary>
 	void SetMainCamera()
 	{
 		var viewport = mainView.Viewport;
 		var aspect = viewport.Height > 0 ? viewport.Width / viewport.Height : 1;
-		view.SetCamera( Camera.Position, Camera.Rotation, Camera.FieldOfView, Camera.ZNear, Camera.ZFar, aspect, Camera.Ortho, mainView.OrthoSize.x, mainView.OrthoSize.y );
+		view.SetCamera( mainView.Position, mainView.Rotation, mainView.FieldOfView, mainView.ZNear, mainView.ZFar, aspect, Camera.Ortho, mainView.OrthoSize.x, mainView.OrthoSize.y );
 		view.ShaderMode = ForwardMode;
 		view.LayerType = SceneLayerType.Translucent;
 		view.DepthSlice = 0;
@@ -142,8 +149,9 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 
 		SetMainCamera();
 
-		// Skip empty early UI (CameraComponent.HasEarlyUI).
+		// Skip empty early UI (CameraComponent.HasEarlyUI), and UI for a view without it.
 		if ( stage == RenderStage.EarlyUI && !Camera.Attributes.GetBool( EnableEarlyUI ) ) return;
+		if ( stage is RenderStage.UI or RenderStage.EarlyUI && !EnableUI ) return;
 
 		var context = target.Context.NativeContext();
 
