@@ -73,7 +73,7 @@ internal static partial class Api
 	}
 }
 
-public class CachingHandler : DelegatingHandler
+internal class CachingHandler : DelegatingHandler
 {
 	private readonly MemoryCache _cache;
 
@@ -154,6 +154,10 @@ class BackendHttpHandler : DelegatingHandler
 
 	protected override async Task<HttpResponseMessage> SendAsync( HttpRequestMessage request, CancellationToken cancellationToken )
 	{
+		// Session headers must only ever reach our backend
+		if ( request.RequestUri is not { Scheme: "https", Host: "public.facepunch.com" } )
+			throw new InvalidOperationException( $"Backend request to {request.RequestUri} is not allowed" );
+
 		var url = request.RequestUri.ToString();
 
 		var eventRecord = new Api.Events.EventRecord( "BackendRequest" );
