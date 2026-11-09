@@ -528,6 +528,61 @@ public class PostProcessingComponentTest
 	}
 
 	/// <summary>
+	/// The AO and SSR pipeline texture slots are frame-wide, so a camera's views sample them only when the camera publishes
+	/// one itself. An overlay camera (no colour clear, like a viewmodel camera) traces no reflections of its own, and without
+	/// ambient occlusion it publishes nothing - it must not read the main camera's results under its own pixels.
+	/// </summary>
+	[TestMethod]
+	public void OnlyCamerasThatPublishScreenSpaceEffectsSampleThem()
+	{
+		var oldEnable = PostProcessSystem.EnablePostProcess;
+		var oldAoQuality = AmbientOcclusion.UserQuality;
+		var oldRatio = ScreenSpaceReflectionsPass.DownsampleRatio;
+
+		PostProcessSystem.EnablePostProcess = true;
+		AmbientOcclusion.UserQuality = 3;
+		ScreenSpaceReflectionsPass.DownsampleRatio = 2;
+
+		var scene = new Scene();
+		try
+		{
+			using var sceneScope = scene.Push();
+
+			var mainGo = scene.CreateObject();
+			var main = mainGo.Components.Create<CameraComponent>();
+			mainGo.Components.Create<AmbientOcclusion>();
+
+			var overlay = scene.CreateObject().Components.Create<CameraComponent>();
+			overlay.IsMainCamera = false;
+			overlay.ClearFlags = ClearFlags.Depth | ClearFlags.Stencil;
+			overlay.EnablePostProcessing = false;
+
+			Update();
+			Assert.IsTrue( main.SceneCamera.PublishesPipelineTextures, "The main camera's AO publishes a pipeline texture" );
+			Assert.IsNotNull( main.SceneCamera.ScreenSpaceReflections, "The main camera traces reflections" );
+			Assert.IsFalse( overlay.SceneCamera.PublishesPipelineTextures, "The overlay camera has no AO" );
+			Assert.IsNull( overlay.SceneCamera.ScreenSpaceReflections, "A camera drawing over another camera's image traces no reflections" );
+
+			AmbientOcclusion.UserQuality = 0;
+			Update();
+			Assert.IsFalse( main.SceneCamera.PublishesPipelineTextures, "AO quality 0 publishes nothing" );
+
+			void Update()
+			{
+				scene.GameTick();
+				scene.PreCameraRender();
+			}
+		}
+		finally
+		{
+			PostProcessSystem.EnablePostProcess = oldEnable;
+			AmbientOcclusion.UserQuality = oldAoQuality;
+			ScreenSpaceReflectionsPass.DownsampleRatio = oldRatio;
+			scene.Destroy();
+		}
+	}
+
+	/// <summary>
 	/// The PostProcessSystem runs at scene-stage end of every game tick: it clears the
 	/// camera's internal PostProcessLayers and rebuilds them from the enabled BasePostProcess
 	/// components found on the camera and its descendants. Each effect blits into its pinned

@@ -19,6 +19,11 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	void ScheduleEarlyPostProcess( Stage stage, bool enabled ) => PostProcess.ScheduleEarlyPostProcess( stage, enabled );
 
 	/// <summary>
+	/// Whether this camera's post processing publishes a pipeline texture (ambient occlusion) for its views to sample.
+	/// </summary>
+	bool PublishesPipelineTextures() => PostProcessSystem.EnablePostProcess && PostProcess.PublishesPipelineTextures();
+
+	/// <summary>
 	/// Run it, under the conditions the stage would (<c>PostProcessSystem.OnRenderStage</c>). On the render thread.
 	/// </summary>
 	void RenderEarlyPostProcess( Stage stage, PostProcessQueue queue )
