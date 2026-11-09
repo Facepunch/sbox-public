@@ -341,6 +341,8 @@ internal sealed record SceneLabScene
 			BenchmarkFrames = ForestScene.LoopFrames, CaptureFrame = 200 },
 		new() { Name = "Night Interior", Group = Scenarios.Group, Game = NightInteriorScene.Build, Frame = NightInteriorScene.Walk, Rewind = NightInteriorScene.Rewind,
 			BenchmarkFrames = NightInteriorScene.Frames, CaptureFrame = 150 },
+		new() { Name = "Smoke and Glass", Group = Scenarios.Group, Game = SmokeAndGlassScene.Build, Frame = SmokeAndGlassScene.Animate, Rewind = SmokeAndGlassScene.Rewind,
+			NativeAlongside = true, CaptureFrame = 300 },
 	];
 
 	/// <summary>
