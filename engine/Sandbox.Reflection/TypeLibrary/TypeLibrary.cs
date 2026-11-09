@@ -413,9 +413,9 @@ public partial class TypeLibrary
 	public IReadOnlyList<TypeDescription> GetTypes( Type type )
 	{
 		if ( type == null )
-			return Cached( HashCode.Combine( "GetTypes", type ), () => typedata.Values.ToImmutableList() );
+			return Cached( HashCode.Combine( "GetTypes", type ), this, static lib => lib.typedata.Values.ToImmutableList() );
 
-		return Cached( HashCode.Combine( "GetTypes", type ), () => typedata.Values.Where( x => x.TargetType.IsAssignableTo( type ) ).ToImmutableList() );
+		return Cached( HashCode.Combine( "GetTypes", type ), (Library: this, Type: type), static s => s.Library.typedata.Values.Where( x => x.TargetType.IsAssignableTo( s.Type ) ).ToImmutableList() );
 	}
 
 	/// <summary>
@@ -449,7 +449,8 @@ public partial class TypeLibrary
 	/// <param name="exactFullName">If true, the name must match the FullName (or alias) of the type</param>
 	public TypeDescription GetType( Type type, string name, bool preferAddonAssembly = false, bool exactFullName = false )
 	{
-		return Cached( HashCode.Combine( "GetType", type, name, preferAddonAssembly, exactFullName ), () => GetTypes( type ).Where( x => x.IsNamed( name, exactFullName ) ).OrderBy( x => (x.IsDynamicAssembly == preferAddonAssembly) ? 0 : 1 ).FirstOrDefault() );
+		return Cached( HashCode.Combine( "GetType", type, name, preferAddonAssembly, exactFullName ), (Library: this, Type: type, Name: name, PreferAddonAssembly: preferAddonAssembly, ExactFullName: exactFullName),
+			static s => s.Library.GetTypes( s.Type ).Where( x => x.IsNamed( s.Name, s.ExactFullName ) ).OrderBy( x => (x.IsDynamicAssembly == s.PreferAddonAssembly) ? 0 : 1 ).FirstOrDefault() );
 
 	}
 
