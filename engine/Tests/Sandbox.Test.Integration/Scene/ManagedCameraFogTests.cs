@@ -23,19 +23,19 @@ public class ManagedCameraFogTests
 		var bridge = System.Type.GetType( "Sandbox.Rendering.Bridge.SceneBridge, Sandbox.Rendering", true );
 		var fillView = bridge.GetMethod( "FillView", BindingFlags.Static | BindingFlags.NonPublic );
 
-		fillView.Invoke( null, [view, first, new Vector2( 1280, 720 )] );
+		fillView.Invoke( null, [view, first, new ViewSetup(), new Vector2( 1280, 720 )] );
 		Assert.AreEqual( first.Fog.ToBasalt(), view.Fog );
 		first.Fog = new FogSetup { Color = Color.Blue };
 		Assert.AreEqual( Color.Red, view.Fog.Value.Color, "A prepared view holds its own value snapshot" );
 
-		fillView.Invoke( null, [view, second, new Vector2( 1280, 720 )] );
+		fillView.Invoke( null, [view, second, new ViewSetup(), new Vector2( 1280, 720 )] );
 		Assert.IsNull( view.Fog, "A camera inheriting legacy fog clears the preceding override" );
 		Assert.AreEqual( Color.Blue, first.Fog.Value.Color );
 
-		fillView.Invoke( null, [view, first, new Vector2( 1280, 720 )] );
+		fillView.Invoke( null, [view, first, new ViewSetup(), new Vector2( 1280, 720 )] );
 		Assert.AreEqual( Color.Blue, view.Fog.Value.Color );
 		first.EnablePostProcessing = false;
-		fillView.Invoke( null, [view, first, new Vector2( 1280, 720 )] );
+		fillView.Invoke( null, [view, first, new ViewSetup(), new Vector2( 1280, 720 )] );
 		Assert.IsNull( view.Fog );
 	}
 }

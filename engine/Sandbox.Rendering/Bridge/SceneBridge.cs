@@ -249,11 +249,6 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 	}
 
 	/// <summary>
-	/// Copy the native camera, including applied modifiers/shake and horizontal FOV.
-	/// </summary>
-	internal static void FillView( RenderView view, SceneCamera camera, Vector2 size ) => FillView( view, camera, default, size );
-
-	/// <summary>
 	/// Copy the native camera, including applied modifiers/shake and horizontal FOV, with a view's overrides on top, as
 	/// <c>CameraRenderer.Configure</c> applies them.
 	/// </summary>
