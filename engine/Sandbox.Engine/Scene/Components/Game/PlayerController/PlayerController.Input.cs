@@ -85,7 +85,7 @@ public sealed partial class PlayerController : Component
 
 		input *= LookSensitivity;
 
-		IEvents.PostToGameObject( GameObject, x => x.OnEyeAngles( ref input ) );
+		GameObject.Components.ExecuteEnabledInSelfAndDescendants<IEvents, Angles>( ref input, static ( IEvents x, ref Angles angles ) => x.OnEyeAngles( ref angles ) );
 
 		var ee = EyeAngles;
 		ee += input;
