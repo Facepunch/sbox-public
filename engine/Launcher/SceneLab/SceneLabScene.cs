@@ -43,7 +43,7 @@ internal sealed record SceneLabScene
 	/// <summary>
 	/// A <see cref="Game"/> scene's camera also renders natively every frame, into a texture no one sees, while the managed
 	/// renderer draws the window - for effects that carry frames forward, like volumetric fog's history, so native's has run as
-	/// many frames as the managed one's when they're compared.
+	/// many frames as the managed one's when they're compared. Not while benchmarking, so the managed numbers are its own.
 	/// </summary>
 	public bool NativeAlongside { get; init; }
 

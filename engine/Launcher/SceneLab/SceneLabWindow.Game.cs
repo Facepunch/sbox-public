@@ -174,8 +174,9 @@ internal sealed partial class SceneLabWindow
 				gameBridge ??= new SceneBridge();
 				gameBridge.Render( camera, swapChain, size );
 
-				// The same camera natively too, where native's history has to keep pace (SceneLabScene.NativeAlongside)
-				if ( Scene.NativeAlongside )
+				// The same camera natively too, where native's history has to keep pace (SceneLabScene.NativeAlongside) - but not
+				// while benchmarking, where it would put native's frame into the managed one's numbers
+				if ( Scene.NativeAlongside && benchmark is null )
 				{
 					if ( nativeAlongside is null || nativeAlongside.Size != size )
 					{
