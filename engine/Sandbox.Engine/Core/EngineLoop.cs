@@ -341,6 +341,9 @@ internal static class EngineLoop
 
 		using var _outputScope = _clientOutput.Start();
 
+		// r_managed_scene, read once, so a frame never mixes renderers
+		Rendering.SceneRenderer.BeginFrame();
+
 		// Choose g_flTime before rendering, independently of temporary menu and preview scene scopes.
 		var renderTime = Game.IsPlaying && GlobalContext.Game.ActiveScene is { IsValid: true } gameScene
 			? (float)gameScene.TimeNow

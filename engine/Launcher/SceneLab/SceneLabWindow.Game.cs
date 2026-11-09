@@ -1,4 +1,5 @@
 using Basalt;
+using Sandbox.Rendering;
 using Sandbox.Rendering.Bridge;
 
 namespace Sandbox.SceneLab;
@@ -140,15 +141,9 @@ internal sealed partial class SceneLabWindow
 			foreach ( var target in targetCameras )
 			{
 				target.InitializeRendering();
-				if ( Renderer == RendererKind.Managed )
-				{
-					gameBridge ??= new SceneBridge();
-					gameBridge.RenderToTexture( target, target.RenderTarget );
-				}
-				else
-				{
-					target.SceneCamera.RenderToTexture( target.RenderTarget, target.RenderTarget.Size, default );
-				}
+				// Each renderer by name, whatever r_managed_scene says: these are the A/B
+				ISceneRenderer renderer = Renderer == RendererKind.Managed ? (gameBridge ??= new SceneBridge()) : SceneRenderer.Native;
+				renderer.RenderToTexture( target.SceneCamera, target.RenderTarget, target.RenderTarget.Size, default );
 			}
 
 			camera.InitializeRendering();
@@ -162,8 +157,7 @@ internal sealed partial class SceneLabWindow
 			}
 			else if ( Renderer == RendererKind.Managed )
 			{
-				gameBridge ??= new SceneBridge();
-				gameBridge.Render( camera, swapChain, size );
+				camera.SceneCamera.AddToRenderList( gameBridge ??= new SceneBridge(), swapChain, size );
 
 				// The same camera natively too, where native's history has to keep pace (SceneLabScene.NativeAlongside)
 				if ( Scene.NativeAlongside )
@@ -174,12 +168,12 @@ internal sealed partial class SceneLabWindow
 						nativeAlongside = Texture.CreateRenderTarget().WithSize( (int)size.x, (int)size.y ).WithFormat( ImageFormat.RGBA16161616F ).Create( "Scene Lab native alongside" );
 					}
 
-					camera.SceneCamera.RenderToTexture( nativeAlongside, size, default );
+					SceneRenderer.Native.RenderToTexture( camera.SceneCamera, nativeAlongside, size, default );
 				}
 			}
 			else
 			{
-				camera.SceneCamera.AddToRenderList( swapChain, size );
+				camera.SceneCamera.AddToRenderList( SceneRenderer.Native, swapChain, size );
 			}
 		}
 
@@ -306,13 +300,13 @@ internal sealed partial class SceneLabWindow
 	/// </summary>
 	Basalt.RenderStats? GameStats()
 	{
-		if ( game?.Camera is not { } camera || gameBridge?.StatsFor( camera ) is not { } stats ) return null;
+		if ( game?.Camera is not { } camera || gameBridge?.StatsFor( camera.SceneCamera, camera.SceneCamera.MainView ) is not { } stats ) return null;
 
 		// Each render target camera is a render of its own, and the first to render a frame syncs its changes: the frame's
 		// numbers are all of them
 		foreach ( var target in targetCameras )
 		{
-			if ( gameBridge.StatsFor( target ) is not { } more ) continue;
+			if ( gameBridge.StatsFor( target.SceneCamera, default ) is not { } more ) continue;
 
 			stats.SyncMs += more.SyncMs;
 			stats.CollectMs += more.CollectMs;
