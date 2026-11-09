@@ -16,6 +16,8 @@ internal static class Zones
 	public static readonly Zone Segment = new( "Basalt Segment", Color.Magenta );
 	public static readonly Zone RecordWait = new( "Basalt Record Wait", Color.Gray );
 	public static readonly Zone Submit = new( "Basalt Submit", Color.Blue );
+	public static readonly Zone Stage = new( "Basalt Stage", Color.White );
+	public static readonly Zone CustomObject = new( "Basalt Custom Object", Color.White );
 }
 
 /// <summary>

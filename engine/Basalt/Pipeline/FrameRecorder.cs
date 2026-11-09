@@ -126,6 +126,9 @@ internal sealed partial class FrameRecorder : IDisposable
 	int[] draws = new int[256];
 	int drawCount;
 
+	// Per-work runs that must record on the main thread, at the same offsets as their draws' totals
+	bool[] mainRuns = new bool[256];
+
 	readonly List<GpuContext> contexts = new();
 	Segment[] segments = new Segment[16];
 	int segmentCount;
@@ -455,7 +458,38 @@ internal sealed partial class FrameRecorder : IDisposable
 		totals[0] = 0;
 		for ( int r = 1; r <= runs; r++ )
 			totals[r] += totals[r - 1];
+
+		if ( mainRuns.Length < draws.Length ) Array.Resize( ref mainRuns, draws.Length );
+		var main = mainRuns.AsSpan( drawCount, runs );
+		main.Clear();
+		frame.System.MainThreadRuns( view, layer, main );
+		KeepShortStretchesOnMain( main, totals );
+
 		drawCount += runs + 1;
+	}
+
+	/// <summary>
+	/// Leave a stretch of worker runs between main-thread ones on the main thread when it's too short to be worth a segment of
+	/// its own, so custom objects sorted among meshes don't split a layer into many small segments.
+	/// </summary>
+	static void KeepShortStretchesOnMain( Span<bool> main, ReadOnlySpan<int> totals )
+	{
+		var start = -1;
+		for ( int r = 0; r <= main.Length; r++ )
+		{
+			if ( r < main.Length && !main[r] )
+			{
+				if ( start < 0 ) start = r;
+				continue;
+			}
+
+			// A stretch [start, r) of worker runs, bounded by main-thread runs or the work's ends
+			var bounded = start > 0 || (start == 0 && r < main.Length);
+			if ( start >= 0 && bounded && totals[r] - totals[start] < MinDrawsPerSegment )
+				main[start..r].Fill( true );
+
+			start = -1;
+		}
 	}
 
 	/// <summary>
@@ -504,29 +538,42 @@ internal sealed partial class FrameRecorder : IDisposable
 		for ( int w = from; w < to; w++ )
 		{
 			var runs = work[w].Runs;
-			var workOnMain = !frame.System.CanRecordOffMainThread( work[w].View, work[w].Layer );
-			onMain |= workOnMain;
+
+			// Work without runs still clears its target; the layer decides where
+			if ( runs == 0 ) onMain |= !frame.System.CanRecordOffMainThread( work[w].View, work[w].Layer );
 
 			for ( int r = w == segWork ? segFirst : 0; r < runs; r++ )
 			{
+				// A run that must record on the main thread doesn't take worker runs before it there, nor the other way round
+				var runOnMain = mainRuns[work[w].DrawsFrom + r];
+				if ( taken > 0 && runOnMain != onMain )
+				{
+					var lastWork = r > 0 ? w : w - 1;
+					AddDrawSegment( frame, segWork, lastWork, segFirst, r > 0 ? r : work[lastWork].Runs, onMain, taken );
+					taken = 0;
+					onMain = false;
+					segWork = w;
+					segFirst = r;
+				}
+
+				onMain |= runOnMain;
 				taken += DrawsIn( w, r, r + 1 );
 				if ( taken < share ) continue;
 
 				// End the segment at this run boundary.
 				AddDrawSegment( frame, segWork, w, segFirst, r + 1, onMain, taken );
 				taken = 0;
+				onMain = false;
 
 				if ( r + 1 == runs )
 				{
 					segWork = w + 1;
 					segFirst = 0;
-					onMain = false;
 				}
 				else
 				{
 					segWork = w;
 					segFirst = r + 1;
-					onMain = workOnMain;
 				}
 			}
 		}

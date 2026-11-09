@@ -85,6 +85,52 @@ public class DrawCallbacksTests
 		callbacks.Marker.Dispose();
 	}
 
+	/// <summary>
+	/// An opaque custom object that draws nothing.
+	/// </summary>
+	sealed class OpaqueCustom : CustomObject
+	{
+		public OpaqueCustom( Vector3 position )
+		{
+			LocalBounds = UnitBox;
+			Transform = new Transform( position );
+			IsOpaque = true;
+		}
+
+		internal override void Render( GpuContext context, ViewPass view, MeshLayer layer ) { }
+	}
+
+	/// <summary>
+	/// Custom objects record on the main thread, but the meshes sorted after them in the same layer still go to workers,
+	/// in segments of their own.
+	/// </summary>
+	[TestMethod]
+	public void CustomObjectsLeaveTheLayersMeshesToWorkers()
+	{
+		var world = new RenderWorld();
+		for ( int i = 0; i < 200; i++ )
+			world.Add( new MeshObject( TestMesh( false ), new Transform( new Vector3( 30 + i % 20, i / 20 - 5, 0 ) ) ) );
+		for ( int i = 0; i < 3; i++ )
+			world.Add( new OpaqueCustom( new Vector3( 25, i * 2 - 2, 0 ) ) );
+
+		using var system = new RenderSystem();
+		CollectAndPrepare( system, world, LookingDownX() );
+		using var recorder = new FrameRecorder();
+		recorder.Plan( system.Frame, parallel: true );
+		Assert.IsTrue( recorder.Parallel );
+
+		var plan = recorder.Snapshot( "test" );
+		var layers = plan.Frames[0].Layers;
+		var opaque = layers.FindIndex( l => l.Name == "Opaque Forward" );
+		var first = layers[opaque].Segment;
+		var end = layers.Skip( opaque + 1 ).Select( l => l.Segment ).First( s => s > first );
+		var segments = plan.Segments.Skip( first ).Take( end - first ).ToList();
+
+		// The custom objects sort first, on the main thread; the meshes after them on workers
+		Assert.IsFalse( segments[0].Worker );
+		Assert.IsTrue( segments.Skip( 1 ).Any( s => s.Worker ) );
+	}
+
 	[TestMethod]
 	public void CallbacksKeepColourLayersOnTheMainThread()
 	{

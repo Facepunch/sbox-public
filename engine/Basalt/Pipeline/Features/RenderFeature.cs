@@ -58,6 +58,15 @@ internal abstract class RenderFeature
 	internal virtual void RunWeights( ViewPass view, MeshLayer layer, Span<int> weights ) => weights.Fill( 1 );
 
 	/// <summary>
+	/// Mark the runs that must record on the main thread. Defaults to all of them when the layer can't record off it
+	/// (<see cref="CanRecordOffMainThread"/>), so a feature that knows which runs need it can let the others go to workers.
+	/// </summary>
+	internal virtual void MainThreadRuns( ViewPass view, MeshLayer layer, Span<bool> mainThread )
+	{
+		if ( !CanRecordOffMainThread( view, layer ) ) mainThread.Fill( true );
+	}
+
+	/// <summary>
 	/// Record a prepared run range. May run concurrently when <see cref="CanRecordOffMainThread"/> permits.
 	/// </summary>
 	internal virtual void Draw( GpuContext context, ViewPass view, MeshLayer layer, int first, int count, ref RenderStats stats ) { }

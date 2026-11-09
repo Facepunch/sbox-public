@@ -176,6 +176,31 @@ public static partial class Graphics
 		const int MaxInstanceTransforms = 1024 * 1024;
 
 		/// <summary>
+		/// A transform's entry, as <see cref="Rendering.GpuInstanceTransform.From"/> makes it (scale, then rotation, then
+		/// translation, in rows), written straight from the quaternion: composing and transposing 4x4 matrices cost most of a
+		/// frame's instanced drawing when a game draws thousands of instances a pass, as Mow the Lawn's grass does.
+		/// </summary>
+		static Rendering.GpuInstanceTransform InstanceTransform( in Transform transform )
+		{
+			var q = transform.Rotation;
+			var s = transform.Scale;
+			var p = transform.Position;
+
+			// The terms System.Numerics.Matrix4x4.CreateFromQuaternion uses
+			float xx = q.x * q.x, yy = q.y * q.y, zz = q.z * q.z;
+			float xy = q.x * q.y, wz = q.z * q.w, xz = q.z * q.x, wy = q.y * q.w, yz = q.y * q.z, wx = q.x * q.w;
+
+			return new Rendering.GpuInstanceTransform
+			{
+				Row0 = new Vector4( s.x * (1.0f - 2.0f * (yy + zz)), s.y * (2.0f * (xy - wz)), s.z * (2.0f * (xz + wy)), p.x ),
+				Row1 = new Vector4( s.x * (2.0f * (xy + wz)), s.y * (1.0f - 2.0f * (zz + xx)), s.z * (2.0f * (yz - wx)), p.y ),
+				Row2 = new Vector4( s.x * (2.0f * (xz - wy)), s.y * (2.0f * (yz + wx)), s.z * (1.0f - 2.0f * (yy + xx)), p.z ),
+				Alpha = 1.0f,
+				Tint = 0xFFFFFF,
+			};
+		}
+
+		/// <summary>
 		/// Draw instances of a model at transforms from the CPU (<see cref="Graphics.DrawModelInstanced(Model, Span{Transform}, int, RenderAttributes)"/>).
 		/// Native writes them into the scene system's frame transforms, which it uploads at the end of the frame
 		/// (<c>CSceneSystem::SubmitAllDisplayLists</c>), after a managed frame has been submitted, and shaders read them
@@ -209,7 +234,7 @@ public static partial class Graphics
 
 			if ( s_transformScratch.Length < count ) s_transformScratch = new Rendering.GpuInstanceTransform[Math.Max( count, s_transformScratch.Length * 2 )];
 			for ( int i = 0; i < count; i++ )
-				s_transformScratch[i] = Rendering.GpuInstanceTransform.From( transforms[i] );
+				s_transformScratch[i] = InstanceTransform( transforms[i] );
 
 			var stride = sizeof( Rendering.GpuInstanceTransform );
 			fixed ( Rendering.GpuInstanceTransform* data = s_transformScratch )

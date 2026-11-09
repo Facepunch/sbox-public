@@ -41,6 +41,7 @@ internal sealed class StageLayer : RenderLayer
 
 	public override void Record( RenderFrame frame, GpuContext rc, ref RenderStats stats )
 	{
+		using var zone = Zones.Stage.Start();
 		frame.RunStage( rc, Stage, Color, Final );
 	}
 }
