@@ -866,7 +866,17 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 				context.SetCombo( CsVertexAnimation, vertexAnimation );
 			}
 
-			if ( vertexCache )
+			// The model draw calls below draw from the start of the mesh's vertex buffers. A draw call with a base vertex (an
+			// aggregate's, whose indices count from its own first vertex) is drawn with it here, or it picks up the vertices of
+			// the draws before it and stretches across the screen
+			if ( draw.BaseVertex != 0 && !run.Skinned && !vertexCache )
+			{
+				if ( !context.BindGeometry( mesh, draw ) ) continue;
+				if ( !context.SetRenderState( material, mode, mesh, draw, depthBias, slopeBias, stripPixelShader, false ) ) continue;
+				context.BindInstances( 1, first );
+				context.DrawIndexedInstanced( draw, run.Count, draw.BaseVertex );
+			}
+			else if ( vertexCache )
 			{
 				if ( !context.BindGeometry( mesh, draw ) ) continue;
 				if ( !context.SetRenderState( material, mode, mesh, draw, depthBias, slopeBias, stripPixelShader, vertexCache ) ) continue;
