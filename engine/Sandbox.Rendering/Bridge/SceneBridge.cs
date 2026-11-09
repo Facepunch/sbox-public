@@ -1,7 +1,6 @@
 using NativeEngine;
 using System.Linq;
 using System.Runtime.InteropServices;
-using Sandbox.Engine.Settings;
 using Sandbox.Rendering;
 using Sandbox.VR;
 
@@ -190,16 +189,13 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 	/// <summary>
 	/// What a swap chain render needs that Basalt doesn't do yet, or null.
 	/// </summary>
-	static string NotYetOnSwapChain( SceneCamera camera, SwapChainHandle_t swapChain )
+	static string NotYetOnSwapChain( SceneCamera camera )
 	{
 		// Not yet in Basalt: VR's eyes (per-eye projection and clip bounds, stereo targets, the compositor submit)
 		if ( VRSystem.IsActive && camera.TargetEye != StereoTargetEye.None ) return "VR";
 
-		// Not yet in Basalt: upscalers. Native upscales only the game window's views, outside the editor and tools views
-		// (renderingpipeline_standard.cpp)
-		if ( !Application.IsEditor && !camera.ToolsView && Sandbox.Engine.GameWindow.Current?.Surface.SwapChain == swapChain
-			&& (RenderSettings.Instance.UpscalerMode != UpscalerMode.Off || RenderSettings.Instance.RenderScale < 1) )
-			return "upscalers";
+		// Upscalers aren't in Basalt yet either, but an upscaled game window stays here: Basalt renders it at full resolution,
+		// so the switch flips the main view too (the owner's call, 2026-11-09)
 
 		return null;
 	}
@@ -312,7 +308,7 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 	public void Render( SceneCamera camera, SwapChainHandle_t swapChain, Vector2? size, in ViewSetup setup )
 	{
 		// A camera that only draws UI has no scene: native's UI-only path draws its panels, outside the seam
-		if ( camera.UIOnly || NotYetOnSwapChain( camera, swapChain ) is not null || NotYetInBasalt( camera, setup ) is not null )
+		if ( camera.UIOnly || NotYetOnSwapChain( camera ) is not null || NotYetInBasalt( camera, setup ) is not null )
 		{
 			SceneRenderer.Native.Render( camera, swapChain, size, setup );
 			return;
