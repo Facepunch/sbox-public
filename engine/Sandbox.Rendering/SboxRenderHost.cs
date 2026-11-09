@@ -39,6 +39,10 @@ internal sealed class SboxRenderHost : RenderHost
 
 	public override void EndZone() => PerformanceTrace.EndEvent();
 
+	public override Basalt.DebugViews DebugViews => ManagedDebugViews.Views;
+
+	public override void PublishDebugViews( DebugViewReport report ) => ManagedDebugViews.Latest = report;
+
 	public override bool WantsFramePlan => ManagedFramePlan.Due;
 
 	public override long Submitting( long ticks, RenderView view ) => ManagedFramePlan.NoteHandedOver( ticks, view );

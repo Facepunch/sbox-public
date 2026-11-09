@@ -220,6 +220,8 @@ internal sealed partial class SceneLabWindow
 			var result = isolated ? CaptureIsolated( captureFolder, captureName ) : CompareGame( captureFolder, captureName );
 			Log.Info( $"Scene Lab: {Scene.Name}: {result}" );
 			CapturePlan( CapturePath );
+			if ( !isolated && Renderer == RendererKind.Managed && DebugOverlay.ManagedViews.Showing )
+				CaptureDebugViews( ReadSwapChain( swapChain, size ), (int)size.x, (int)size.y, CapturePath );
 			parity?.Report( result, lastParity );
 
 			if ( Scene.ChangeGame is { } change )
