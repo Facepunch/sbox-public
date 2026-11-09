@@ -259,6 +259,7 @@ internal sealed record SceneLabScene
 		new() { Name = "Highlight Outlines", Group = "Post Processing", Game = GameScenes.HighlightOutlines, ChangeGame = GameScenes.ChangeHighlightOutlines },
 		new() { Name = "Screen UI", Group = "UI", Game = GameScenes.ScreenUI, ChangeGame = GameScenes.ChangeScreenUI, Frame = GameScenes.DrawHud },
 		new() { Name = "Early UI", Group = "UI", Game = GameScenes.EarlyUI },
+		new() { Name = "Stage Attributes", Group = "UI", Game = StageAttributesScene.Build, ChangeGame = StageAttributesScene.Change },
 		new() { Name = "World Panel", Group = "UI", Game = GameScenes.WorldUI },
 		new() { Name = "Output Overlays", Group = "UI", Game = GameScenes.OutputOverlays, ChangeGame = GameScenes.ChangeOutputOverlays },
 		new() { Name = "Sprites and Particles", Group = "Effects", Game = GameScenes.SpritesAndParticles, ChangeGame = GameScenes.ChangeSpritesAndParticles },

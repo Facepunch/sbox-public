@@ -71,6 +71,26 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 
 	static readonly StringToken ForwardMode = new( "Forward" );
 
+	/// <summary>
+	/// Start a stage on the context's attributes with none of their own, inheriting the frame's. Native renders each hook
+	/// layer on a context of its own (<c>ProcessProceduralLayer</c>), so what a stage's command lists set on
+	/// <see cref="Graphics.Attributes"/> stays in that stage. Here stages share their segment's context: without this,
+	/// one stage's attributes reached the next - Sandbox's HUD paint list sets <c>UIFrameGrabEncoded</c> after the
+	/// viewmodel, and its composite in the UI stage then decoded a linear frame grab and darkened the scene under it.
+	/// </summary>
+	static CRenderAttributes BeginStageAttributes( IRenderContext context, in StageTarget target )
+	{
+		var attributes = context.GetAttributesPtrForModify();
+		attributes.Clear( false, false );
+		attributes.SetParent( target.Attributes.Engine().Get() );
+		return attributes;
+	}
+
+	/// <summary>
+	/// Drop what the stage set, so it doesn't reach the frame's own passes recorded after it on the same context.
+	/// </summary>
+	static void EndStageAttributes( CRenderAttributes attributes ) => attributes.Clear( false, false );
+
 	public bool HasEarlyPostProcess( RenderStage stage, StageQueue queue ) => Camera?.HasEarlyPostProcess( (Stage)stage, (PostProcessQueue)queue ) ?? false;
 
 	/// <summary>
@@ -84,7 +104,7 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 		SetMainCamera();
 
 		var context = target.Context.NativeContext();
-		context.GetAttributesPtrForModify().SetParent( target.Attributes.Engine().Get() );
+		var attributes = BeginStageAttributes( context, target );
 
 		view.Color = default;
 		view.Depth = default;
@@ -106,6 +126,7 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 		finally
 		{
 			view.ComputeQueue = false;
+			EndStageAttributes( attributes );
 		}
 	}
 
@@ -118,7 +139,7 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 		SetMainCamera();
 
 		var context = target.Context.NativeContext();
-		context.GetAttributesPtrForModify().SetParent( target.Attributes.Engine().Get() );
+		var attributes = BeginStageAttributes( context, target );
 
 		view.Color = history ? target.Color.Native() : default;
 		view.Depth = history ? target.Depth.Native() : default;
@@ -129,10 +150,17 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 		view.ColorFormat = Source2Formats.ToEngineOrDefault( target.ColorFormat );
 		view.Msaa = SampleCount( target.Samples );
 
-		using ( new Graphics.Scope( context, view ) )
+		try
 		{
-			if ( history ) reflections.CaptureHistory();
-			else reflections.Trace();
+			using ( new Graphics.Scope( context, view ) )
+			{
+				if ( history ) reflections.CaptureHistory();
+				else reflections.Trace();
+			}
+		}
+		finally
+		{
+			EndStageAttributes( attributes );
 		}
 	}
 
@@ -148,8 +176,7 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 		var context = target.Context.NativeContext();
 
 		// Inherit frame constants, lighting and bindless descriptors.
-		var contextAttributes = context.GetAttributesPtrForModify();
-		contextAttributes.SetParent( target.Attributes.Engine().Get() );
+		var contextAttributes = BeginStageAttributes( context, target );
 
 		// Query HDR luminance before tonemapping, with HDR colour unbound.
 		if ( stage == RenderStage.Tonemapping && tonemap.IsValid )
@@ -211,7 +238,7 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 			scratch.Dispose();
 		}
 
-		if ( ui ) contextAttributes.SetIntValue( UIGammaOutput, 0 );
+		EndStageAttributes( contextAttributes );
 	}
 
 	static MultisampleAmount SampleCount( int samples ) => samples switch
