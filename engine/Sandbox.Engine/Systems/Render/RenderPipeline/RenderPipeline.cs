@@ -243,8 +243,13 @@ internal static class RenderPipeline
 
 	internal static void OnSceneViewSubmitted( ISceneView view ) => Current?.OnSceneViewSubmitted( view );
 
-	internal static ISceneLayer AddUIHook( string name, Stage stage, ISceneView view, RenderViewport viewport, SceneViewRenderTargetHandle color )
-		=> Get()?.AddUIHook( name, stage, view, viewport, color ) ?? default;
+	internal static ISceneLayer AddUIHook( Stage stage, ISceneView view, RenderViewport viewport, SceneViewRenderTargetHandle color )
+	{
+		// Named here rather than passed from native, a native string would allocate every frame
+		var name = stage == Stage.UI ? "Managed: PanelUI" : "Managed: PlatformOverlay";
+
+		return Get()?.AddUIHook( name, stage, view, viewport, color ) ?? default;
+	}
 
 	internal static void WarmUp() => Current?.WarmUp();
 
