@@ -1,0 +1,26 @@
+{
+  "guid": "f1156c42-7f49-4089-bc77-3a0ab7458e42",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Plaster B",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "plaster_b",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "materials/sbox/wall/plaster_b.vmat"
+      }
+    }
+  }
+}

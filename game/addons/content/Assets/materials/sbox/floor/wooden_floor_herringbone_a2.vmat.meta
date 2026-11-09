@@ -1,0 +1,27 @@
+{
+  "guid": "13daed78-00fc-0000-cc00-000000000000",
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Wooden Floor Herringbone a Light",
+      "Type": "material",
+      "Org": "facepunch",
+      "Ident": "woodenfloorherringbonealight",
+      "Schema": 0,
+      "IncludeSourceFiles": true,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "materials/sbox/floor/wooden_floor_herringbone_a2.vmat",
+        "AssetLicense": "CC0"
+      }
+    }
+  }
+}

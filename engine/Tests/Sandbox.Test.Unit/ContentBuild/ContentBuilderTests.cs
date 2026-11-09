@@ -826,20 +826,20 @@ public class ContentBuilderTests
 
 		// The menu project itself: its compiles write to local.menu, with the engine root's records and lock
 		var opened = ContentRoots.WithProjects( engine, [("local.menu", Path.Combine( game, "addons", "menu", "Assets" ), Path.Combine( game, "addons", "menu" ))] );
-		CollectionAssert.AreEqual( new[] { "core", "citizen", "local.menu" }, opened.Select( x => x.Mod ).ToArray() );
-		Assert.AreEqual( menu.Path, opened[2].Path );
-		Assert.AreEqual( menu.StateDirectory, opened[2].StateDirectory );
+		CollectionAssert.AreEqual( new[] { "core", "citizen", "content", "local.menu" }, opened.Select( x => x.Mod ).ToArray() );
+		Assert.AreEqual( menu.Path, opened[3].Path );
+		Assert.AreEqual( menu.StateDirectory, opened[3].StateDirectory );
 
 		// Any other project: the engine roots as they are, the project after them with its own state
 		var other = Path.Combine( Path.GetTempPath(), "game_project" );
 		var game2 = ContentRoots.WithProjects( engine, [("local.game", Path.Combine( other, "Assets" ), other)] );
-		CollectionAssert.AreEqual( new[] { "core", "citizen", "menu", "local.game" }, game2.Select( x => x.Mod ).ToArray() );
-		Assert.AreEqual( ContentRoots.ProjectState( other ), game2[3].StateDirectory );
+		CollectionAssert.AreEqual( new[] { "core", "citizen", "content", "menu", "local.game" }, game2.Select( x => x.Mod ).ToArray() );
+		Assert.AreEqual( ContentRoots.ProjectState( other ), game2[4].StateDirectory );
 
 		// An engine root mounted as a library moves to where the library is mounted, before the project
 		var library = ContentRoots.WithProjects( engine, [("local.citizenlib", citizen.Path, Path.GetDirectoryName( citizen.Path )), ("local.game", Path.Combine( other, "Assets" ), other)] );
-		CollectionAssert.AreEqual( new[] { "core", "menu", "local.citizenlib", "local.game" }, library.Select( x => x.Mod ).ToArray() );
-		Assert.AreEqual( citizen.StateDirectory, library[2].StateDirectory );
+		CollectionAssert.AreEqual( new[] { "core", "content", "menu", "local.citizenlib", "local.game" }, library.Select( x => x.Mod ).ToArray() );
+		Assert.AreEqual( citizen.StateDirectory, library[3].StateDirectory );
 	}
 
 	[TestMethod]

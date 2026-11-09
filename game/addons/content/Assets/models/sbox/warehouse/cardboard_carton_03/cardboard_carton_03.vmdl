@@ -1,0 +1,217 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode = 
+	{
+		_class = "RootNode"
+		children = 
+		[
+			{
+				_class = "MaterialGroupList"
+				children = 
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps = 
+						[
+							{
+								from = "material.vmat"
+								to = "models/sbox/warehouse/cardboard_carton_01/materials/cardboard_carton_a.vmat"
+							},
+						]
+						use_global_default = false
+						global_default_material = ""
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children = 
+				[
+					{
+						_class = "RenderMeshFile"
+						name = "cardboard_carton_03"
+						filename = "models/sbox/warehouse/cardboard_carton_03/cardboard_carton_03.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "BoundsCenter"
+						align_origin_y_type = "BoundsCenter"
+						align_origin_z_type = "BoundsCenter"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = false
+							exception_list = 
+							[
+								"Cube_003_LOD1",
+								"Cube_003_LOD2",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "cardboard_carton_03_lod1"
+						filename = "models/sbox/warehouse/cardboard_carton_03/cardboard_carton_03.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "BoundsCenter"
+						align_origin_y_type = "BoundsCenter"
+						align_origin_z_type = "BoundsCenter"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = false
+							exception_list = 
+							[
+								"Cube_003_LOD2",
+								"Cube_003",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "cardboard_carton_03_lod2"
+						filename = "models/sbox/warehouse/cardboard_carton_03/cardboard_carton_03.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "BoundsCenter"
+						align_origin_y_type = "BoundsCenter"
+						align_origin_z_type = "BoundsCenter"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = false
+							exception_list = 
+							[
+								"Cube_003",
+								"Cube_003_LOD1",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children = 
+				[
+					{
+						_class = "PhysicsShapeBox"
+						name = "carton_0"
+						parent_bone = ""
+						surface_prop = "cardboard"
+						collision_tags = "solid"
+						origin = [ 0.20114, -0.059023, 0.045371 ]
+						angles = [ -90.0, 89.999992, 0.0 ]
+						dimensions = [ 8.829382, 27.457371, 28.159592 ]
+					},
+				]
+			},
+			{
+				_class = "PhysicsBodyMarkupList"
+				children = 
+				[
+					{
+						_class = "PhysicsBodyMarkup"
+						target_body = ""
+						mass_override = 1.0
+						inertia_scale = 1.0
+						linear_damping = 0.04
+						angular_damping = 0.15
+						use_mass_center_override = false
+						mass_center_override = [ 0.0, 0.0, 0.0 ]
+						gravity_scale = 1.0
+					},
+				]
+			},
+			{
+				_class = "BreakPieceList"
+				children = 
+				[
+					{
+						_class = "BreakPieceExternal"
+						name = "cardboard_carton_03_gib_00"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 0.0, -2.68473 ]
+						fadetime = 120.0
+						random_spawn_chance = 1.0
+						is_essential_piece = true
+						clientonly = false
+						collision_tags = "solid"
+						model = "models/sbox/warehouse/cardboard_carton_03/gibs/cardboard_carton_03_gib_00.vmdl"
+					},
+				]
+			},
+			{
+				_class = "LODGroupList"
+				children = 
+				[
+					{
+						_class = "LODGroup"
+						switch_threshold = 0.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = 
+						[
+							"cardboard_carton_03",
+						]
+						material_culls = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 5.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = 
+						[
+							"cardboard_carton_03_lod1",
+						]
+						material_culls = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 10.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = false
+						auto_permissive_simplification = true
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = 
+						[
+							"cardboard_carton_03_lod2",
+						]
+						material_culls = [  ]
+					},
+				]
+			},
+		]
+		model_archetype = "physics_prop_model"
+		primary_associated_entity = "prop_physics"
+		anim_graph_name = ""
+		base_model_name = ""
+	}
+}

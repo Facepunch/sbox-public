@@ -10,7 +10,7 @@ public static class ContentRoots
 	/// Engine content roots under game/, in mount order.
 	/// </summary>
 	public static ContentRoot[] Engine( string gameDirectory ) =>
-		[.. new[] { ("core", "core"), ("citizen", "addons/citizen/Assets"), ("menu", "addons/menu/Assets") }
+		[.. new[] { ("core", "core"), ("citizen", "addons/citizen/Assets"), ("content", "addons/content/Assets"), ("menu", "addons/menu/Assets") }
 			.Select( x => new ContentRoot( x.Item1, Path.GetFullPath( Path.Combine( gameDirectory, x.Item2 ) ), Path.Combine( gameDirectory, ".source2", "contentbuild", x.Item1 ) ) )];
 
 	/// <summary>

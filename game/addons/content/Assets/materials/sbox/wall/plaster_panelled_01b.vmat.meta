@@ -1,0 +1,26 @@
+{
+  "guid": "69b1b07d-06c0-4acb-81de-8ea880f588dd",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Plaster Panelled 01B",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "plaster_panelled_01b",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "materials/sbox/wall/plaster_panelled_01b.vmat"
+      }
+    }
+  }
+}

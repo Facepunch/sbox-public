@@ -1,0 +1,66 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode = 
+	{
+		_class = "RootNode"
+		children = 
+		[
+			{
+				_class = "MaterialGroupList"
+				children = 
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps = [  ]
+						use_global_default = true
+						global_default_material = "models/sbox/home/number_blocks/materials/number_blocks_01.vmat"
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children = 
+				[
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "wood"
+						collision_tags = "solid"
+						origin = [ 0.0, 0.0, 0.0 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 2.0, 2.0, 2.0 ]
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children = 
+				[
+					{
+						_class = "RenderMeshFile"
+						filename = "models/sbox/home/number_blocks/number_blocks_01.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "BoundsCenter"
+						align_origin_y_type = "BoundsCenter"
+						align_origin_z_type = "BoundsCenter"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"numblock_7_low",
+							]
+						}
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		base_model_name = ""
+	}
+}

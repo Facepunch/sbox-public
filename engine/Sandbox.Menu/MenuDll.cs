@@ -57,12 +57,13 @@ internal sealed class MenuDll : IMenuDll
 		//
 		GlobalContext.Current.FileMount = new AggregateFileSystem();
 		{
-			// No menu or citizen addon in standalone
+			// Built-in addons aren't mounted in standalone games.
 			if ( !Application.IsStandalone )
 			{
 				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Root, "/addons/menu/Code/" );
 				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Root, "/addons/menu/Assets/" );
 				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Root, "/addons/citizen/Assets/" );
+				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Root, "/addons/content/Assets/" );
 			}
 
 			FileSystem.Mounted.CreateAndMount( EngineFileSystem.Root, "/core/" );

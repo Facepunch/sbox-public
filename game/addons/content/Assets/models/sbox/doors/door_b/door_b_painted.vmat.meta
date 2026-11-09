@@ -1,0 +1,27 @@
+{
+  "guid": "c247f3e3-c93f-4fb6-b093-ecffaa0c5d6e",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Door B Painted",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "door_b_painted",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/doors/door_b/door_b_painted.vmat"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

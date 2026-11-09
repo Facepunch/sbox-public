@@ -1,0 +1,271 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode = 
+	{
+		_class = "RootNode"
+		children = 
+		[
+			{
+				_class = "MaterialGroupList"
+				children = 
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps = 
+						[
+							{
+								from = "fence.vmat"
+								to = "models/sbox/street/chain_link_fence_panel_01/materials/fence_01_fence.vmat"
+							},
+							{
+								from = "chainlink.vmat"
+								to = "models/sbox/street/chain_link_fence_panel_01/materials/fence_01_chainlink.vmat"
+							},
+						]
+						use_global_default = false
+						global_default_material = "materials/default.vmat"
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children = 
+				[
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "default"
+						collision_tags = "solid"
+						radius = 1.5
+						point0 = [ 0.0, -64.051872, 0.0 ]
+						point1 = [ 0.0, -64.051872, 100.630981 ]
+					},
+					{
+						_class = "PhysicsShapeCylinder"
+						parent_bone = ""
+						surface_prop = "default"
+						collision_tags = "solid"
+						radius = 1.5
+						point0 = [ 0.0, 64.051903, 0.0 ]
+						point1 = [ 0.0, 64.051903, 100.630997 ]
+					},
+					{
+						_class = "PhysicsShapeBox"
+						parent_bone = ""
+						surface_prop = "default"
+						collision_tags = "solid"
+						origin = [ 0.0, 0.0, 51.459358 ]
+						angles = [ 0.0, 0.0, 0.0 ]
+						dimensions = [ 1.203647, 124.58316, 93.373428 ]
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children = 
+				[
+					{
+						_class = "RenderMeshFile"
+						filename = "models/sbox/street/chain_link_fence_panel_01/fence_01.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"chainlink_low",
+								"fence_low",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "LOD1"
+						filename = "models/sbox/street/chain_link_fence_panel_01/fence_01.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"fence_lod1",
+								"chainlink_low",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "LOD2"
+						filename = "models/sbox/street/chain_link_fence_panel_01/fence_01.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"chainlink_low",
+								"fence_lod2",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "LODGroupList"
+				children = 
+				[
+					{
+						_class = "LODGroup"
+						switch_threshold = 0.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = 
+						[
+							"unnamed_1",
+						]
+						material_culls = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 10.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = 
+						[
+							"LOD1",
+						]
+						material_culls = [  ]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 20.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = 
+						[
+							"LOD2",
+						]
+						material_culls = [  ]
+					},
+				]
+			},
+			{
+				_class = "BreakPieceList"
+				children = 
+				[
+					{
+						_class = "BreakPieceExternal"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 0.0, 0.0 ]
+						fadetime = 120.0
+						random_spawn_chance = 1.0
+						is_essential_piece = true
+						clientonly = false
+						collision_tags = "debris"
+						model = "models/sbox/street/chain_link_fence_panel_01/gibs/chain_link_fence_panel_01_gib_00.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 0.0, 0.0 ]
+						fadetime = 120.0
+						random_spawn_chance = 1.0
+						is_essential_piece = true
+						clientonly = false
+						collision_tags = "debris"
+						model = "models/sbox/street/chain_link_fence_panel_01/gibs/chain_link_fence_panel_01_gib_01.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 0.0, 0.0 ]
+						fadetime = 120.0
+						random_spawn_chance = 1.0
+						is_essential_piece = true
+						clientonly = false
+						collision_tags = "debris"
+						model = "models/sbox/street/chain_link_fence_panel_01/gibs/chain_link_fence_panel_01_gib_02.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 0.0, 0.0 ]
+						fadetime = 120.0
+						random_spawn_chance = 1.0
+						is_essential_piece = true
+						clientonly = false
+						collision_tags = "debris"
+						model = "models/sbox/street/chain_link_fence_panel_01/gibs/chain_link_fence_panel_01_gib_03.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 0.0, 0.0 ]
+						fadetime = 120.0
+						random_spawn_chance = 1.0
+						is_essential_piece = true
+						clientonly = false
+						collision_tags = "debris"
+						model = "models/sbox/street/chain_link_fence_panel_01/gibs/chain_link_fence_panel_01_gib_04.vmdl"
+					},
+				]
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		base_model_name = ""
+	}
+}
