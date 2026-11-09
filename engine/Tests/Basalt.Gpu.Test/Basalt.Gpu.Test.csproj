@@ -12,6 +12,7 @@
 	<ItemGroup>
 		<ProjectReference Include="..\..\Basalt.Gpu\Basalt.Gpu.csproj" />
 		<ProjectReference Include="..\..\Basalt.Backend\Basalt.Backend.csproj" />
+		<ProjectReference Include="..\..\Basalt.Source2\Basalt.Source2.csproj" />
 		<ProjectReference Include="..\..\Basalt\Basalt.csproj" />
 		<ProjectReference Include="..\..\Sandbox.System\Sandbox.System.csproj" />
 	</ItemGroup>

@@ -564,6 +564,14 @@ internal sealed unsafe class NativeStrings : IDisposable
 		return array;
 	}
 
+	/// <summary>Native memory freed with the strings.</summary>
+	public void* Allocate( int bytes )
+	{
+		var p = NativeMemory.AllocZeroed( (nuint)Math.Max( bytes, 1 ) );
+		arrays.Add( (nint)p );
+		return p;
+	}
+
 	public void Dispose()
 	{
 		foreach ( var p in strings ) Marshal.FreeCoTaskMem( p );
