@@ -30,6 +30,13 @@ public static partial class Graphics
 		public bool SrgbWrite = true;
 
 		/// <summary>
+		/// Whether a render target bound in place of the frame's (<see cref="Graphics.RenderTarget"/>) is written through an
+		/// sRGB view: the layer's colour space, as native binds one (<c>IRenderContext.BindRenderTargets</c> with a layer).
+		/// Native's layers are all sRGB but the gamma-space UI ones, whatever the format of the frame's own target.
+		/// </summary>
+		public bool TargetSrgbWrite = true;
+
+		/// <summary>
 		/// The stage's viewport, in the targets' pixels, with its depth range.
 		/// </summary>
 		public Rect Viewport;
@@ -149,7 +156,7 @@ public static partial class Graphics
 		{
 			// A target of only depth draws into the frame's colour, as native's layer binding assumes (BindRenderTargets)
 			var color = target.ColorTarget?.native ?? Color;
-			RenderTools.BindColorAndDepthTarget( context, color, target.DepthTarget?.native ?? default, SrgbWrite );
+			RenderTools.BindColorAndDepthTarget( context, color, target.DepthTarget?.native ?? default, target.ColorTarget is null ? SrgbWrite : TargetSrgbWrite );
 		}
 
 		// Its own depth range, not the one saved before the target was bound

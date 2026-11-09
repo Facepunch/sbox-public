@@ -124,6 +124,7 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 		view.Color = default;
 		view.Depth = default;
 		view.SrgbWrite = false;
+		view.TargetSrgbWrite = true;
 		view.Viewport = target.Viewport;
 		view.MinZ = target.MinZ;
 		view.MaxZ = target.MaxZ;
@@ -159,6 +160,7 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 		view.Color = history ? target.Color.Native() : default;
 		view.Depth = history ? target.Depth.Native() : default;
 		view.SrgbWrite = false;
+		view.TargetSrgbWrite = true;
 		view.Viewport = target.Viewport;
 		view.MinZ = target.MinZ;
 		view.MaxZ = target.MaxZ;
@@ -232,6 +234,7 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 		// Native's UI hook layers have no depth target
 		if ( ui ) view.Depth = default;
 		if ( gamma ) view.SrgbWrite = false;
+		view.TargetSrgbWrite = !gamma;
 		if ( ui ) contextAttributes.SetIntValue( UIGammaOutput, gamma ? 1 : 0 );
 
 		using ( new Graphics.Scope( context, view ) )
