@@ -24,6 +24,9 @@ internal sealed class Benchmark
 	double warmupSeconds;
 	readonly int measureFrames = Math.Max( 60, Args.Int( "-benchmark-frames", 600 ) );
 
+	// A scripted preset measures its whole script, unless -benchmark-frames says otherwise
+	int MeasureFrames( SceneLabScene scene ) => !Args.Has( "-benchmark-frames" ) && scene.BenchmarkFrames is { } frames ? frames : measureFrames;
+
 	readonly record struct Run( SceneLabScene Scene, SceneLabWindow.RendererKind Renderer, bool Prepass = true, bool Target = false, bool Occlusion = false )
 	{
 		public string Name => Occlusion ? $"{Kind}, occlusion culled" : Kind;
@@ -175,6 +178,9 @@ internal sealed class Benchmark
 		{
 			if ( frames < WarmupFrames || runTime.Elapsed.TotalSeconds < warmupSeconds ) return false;
 
+			// A scripted scene starts again, so each renderer measures the same frames
+			if ( runs[index].Scene.Rewind is { } rewind && window.GameScene is { } game ) rewind( game );
+
 			timer.Clear();
 			gen0 = GC.CollectionCount( 0 );
 			gen1 = GC.CollectionCount( 1 );
@@ -200,7 +206,7 @@ internal sealed class Benchmark
 		}
 
 		AccumulateGpu();
-		if ( ++measured < measureFrames ) return false;
+		if ( ++measured < MeasureFrames( run.Scene ) ) return false;
 
 		var result = new Result( run, window.ObjectCount, occludedSum / measured, timer.Summarise(),
 			GC.CollectionCount( 0 ) - gen0, GC.CollectionCount( 1 ) - gen1, GC.CollectionCount( 2 ) - gen2, Average( measured ), AverageNative( measured ), AverageGpu( measured ) );
@@ -247,7 +253,7 @@ internal sealed class Benchmark
 	void Write()
 	{
 		var md = new StringBuilder();
-		md.AppendLine( $"Scene Lab benchmark, {DateTime.Now:yyyy-MM-dd HH:mm}, {measureFrames} measured frames per run, vsync off" );
+		md.AppendLine( $"Scene Lab benchmark, {DateTime.Now:yyyy-MM-dd HH:mm}, {measureFrames} measured frames per run (a scripted preset's whole script), vsync off" );
 		md.AppendLine();
 		md.AppendLine( "| Scene | Objects | Occluded | Renderer | FPS | Frame ms | p95 ms | p99 ms | Render ms (main thread) | GPU ms | Alloc B/frame | GCs (0/1/2) |" );
 		md.AppendLine( "|---|---|---|---|---|---|---|---|---|---|---|---|" );

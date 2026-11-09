@@ -59,6 +59,23 @@ internal sealed record SceneLabScene
 	/// </summary>
 	public bool CompareOcclusion { get; init; }
 
+	/// <summary>
+	/// Puts a scripted <see cref="Game"/> scene back to its first frame. The benchmark calls it as it starts measuring, so
+	/// every renderer measures the same frames whatever the warm-up took.
+	/// </summary>
+	public Action<Scene> Rewind { get; init; }
+
+	/// <summary>
+	/// Frames the benchmark measures, when not the default (<c>-benchmark-frames</c> overrides it): a script's whole length.
+	/// </summary>
+	public int? BenchmarkFrames { get; init; }
+
+	/// <summary>
+	/// The frame a capture compares at, when not the default (<c>-capture-frame</c> overrides it): one where the script has
+	/// got going.
+	/// </summary>
+	public int? CaptureFrame { get; init; }
+
 	public bool IsGame => Game is not null;
 
 	/// <summary>
