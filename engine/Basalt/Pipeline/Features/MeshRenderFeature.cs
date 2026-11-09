@@ -867,13 +867,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 
 			if ( vertexCache )
 			{
-				if ( !context.BindGeometry( mesh, draw ) ) continue;
-				if ( !context.SetRenderState( material, mode, mesh, draw, depthBias, slopeBias, stripPixelShader, vertexCache ) ) continue;
-
-				// Override model stream 1 with instance IDs before binding cache IDs.
-				context.BindInstances( 1, first );
-				context.BindVertexCacheIds( mesh, draw );
-				context.DrawIndexedInstanced( draw, run.Count );
+				if ( !context.DrawVertexCache( material, mode, mesh, draw, first, run.Count, depthBias, slopeBias, stripPixelShader ) ) continue;
 			}
 			else
 			{
