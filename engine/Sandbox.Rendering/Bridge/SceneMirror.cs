@@ -697,8 +697,9 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 				lighting.SunBaked = packs && bakeIndex >= 0 ? packed : null;
 
 				var baked = packs && (flags & LightTypeFlagsBaked) != 0;
+				// A baked sun still renders cascades, without its static casters: native's binner only asks local lights for
+				// mixed shadows (CLightBinnerStandard::AddLight), and volumetric fog is lit by the sun only through them
 				lighting.SunShadowsBaked = baked && !sun.IncludeStaticShadowCasters;
-				lighting.SunShadows &= !baked || (flags & LightTypeFlagsMixedShadows) != 0;
 				lighting.SunContactShadows = sun.ContactShadows;
 				lighting.SunFogStrength = sun.FogStrength;
 			}
