@@ -324,7 +324,7 @@ public class SceneLight : SceneObject
 		// Return any cached shadow map to the pool before this object becomes
 		// eligible for GC. Without this the ConditionalWeakTable silently drops
 		// the entry on collection and the shadow texture is orphaned.
-		Basalt.Shadows.ShadowMapper.OnLightRemoved( this );
+		Rendering.ShadowMapper.OnLightRemoved( this );
 
 		lightNative = IntPtr.Zero;
 

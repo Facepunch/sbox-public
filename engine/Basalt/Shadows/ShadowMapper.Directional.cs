@@ -34,21 +34,6 @@ internal partial class ShadowMapper
 	GPUDirectionalLight GPUDirectionalLightData = new();
 
 	/// <summary>
-	/// A cascade as last rendered, for a debug overlay.
-	/// </summary>
-	internal struct CascadeDebugInfo
-	{
-		public ShadowMap DepthTexture;
-		public float Near;
-		public float Far;
-		public float Width;
-		public float Height;
-	}
-
-	internal static readonly CascadeDebugInfo[] CascadeDebugInfos = new CascadeDebugInfo[4];
-	internal static int CascadeDebugCount;
-
-	/// <summary>
 	/// The cascade set rendered this frame. Cascades are fit to one camera, so a later view this frame only
 	/// reuses them if it's within the outer cascade of that camera and no bigger than it: cube faces, mirrors
 	/// and VR eyes reuse the main view, while a probe bake that ran first never hijacks the main view.
@@ -430,18 +415,8 @@ internal partial class ShadowMapper
 			// so the bias in world units stays proportional to texel size across all cascades.
 			float biasScale = (cascade.Width * cascades[0].Far) / (cascades[0].Width * cascade.Far);
 			gpuShadowData.ShadowBias[i] = light.Bias * biasScale;
-
-			CascadeDebugInfos[i] = new CascadeDebugInfo
-			{
-				DepthTexture = rt,
-				Near = cascade.Near,
-				Far = cascade.Far,
-				Width = cascade.Width,
-				Height = cascade.Height
-			};
 		}
 
-		CascadeDebugCount = cascadeCount;
 		CascadeShadowMapCount = cascadeCount;
 
 		gpuShadowData.CascadeCount = (uint)cascadeCount;
