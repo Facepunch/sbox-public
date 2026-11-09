@@ -332,6 +332,8 @@ internal sealed record SceneLabScene
 		// Scenarios: game-like scenes measured as a whole, scripted by frame count so each run sees the same frames (Scenarios)
 		new() { Name = "Firefight", Group = Scenarios.Group, Game = FirefightScene.Build, Frame = FirefightScene.Fight, Ready = FirefightScene.Ready, Rewind = FirefightScene.Rewind,
 			CaptureFrame = 240 },
+		new() { Name = "Flythrough", Group = Scenarios.Group, Game = FlythroughScene.Build, Frame = FlythroughScene.Fly, Ready = FlythroughScene.Ready, Rewind = FlythroughScene.Rewind,
+			BenchmarkFrames = FlythroughScene.Frames, CaptureFrame = 200 },
 	];
 
 	/// <summary>
