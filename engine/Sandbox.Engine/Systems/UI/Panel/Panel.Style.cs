@@ -35,12 +35,18 @@ public partial class Panel
 
 		keyframes = null;
 
-		foreach ( var sheet in AllStyleSheets )
+		// Walks the same sheets as AllStyleSheets, without its iterator
+		for ( var p = this; p is not null; p = p.StyleParent )
 		{
-			if ( sheet.KeyFrames.TryGetValue( name, out var keyframe ) )
+			if ( p.StyleSheet.List == null ) continue;
+
+			foreach ( var sheet in p.StyleSheet.List )
 			{
-				keyframes = keyframe;
-				return true;
+				if ( sheet.KeyFrames.TryGetValue( name, out var keyframe ) )
+				{
+					keyframes = keyframe;
+					return true;
+				}
 			}
 		}
 
