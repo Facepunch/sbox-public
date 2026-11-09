@@ -299,6 +299,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		if ( obj is MeshObject mesh )
 		{
 			attributed.Remove( mesh );
+			sharing.Remove( mesh );
 			ReleaseLightmap( mesh.LightmapAttributes.Engine() );
 			mesh.LightmapAttributes = null;
 		}
@@ -374,6 +375,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		{
 			if ( sceneObject.CreatedAttributes is { } attributes ) attributed[mesh] = attributes;
 			else attributed.Remove( mesh );
+			sharing.Remove( mesh );
 			mesh.Attributes = null;
 		}
 
@@ -674,16 +676,72 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 	}
 
 	/// <summary>
-	/// Omit empty attributes to preserve instancing (<c>CBaseSceneObjectDesc::BindMaterial</c>).
-	/// Poll every sync because values mutate without notifications.
+	/// Omit empty attributes to preserve instancing (<c>CBaseSceneObjectDesc::BindMaterial</c>), and let objects whose
+	/// attributes hold the same values share one set (<see cref="SharedAttributes"/>), so they instance and keep the material
+	/// bound between them as objects with none do. Poll every sync because values mutate without notifications.
 	/// </summary>
 	void SyncAttributes()
 	{
 		foreach ( var (mesh, attributes) in attributed )
 		{
 			var native = attributes.Get();
-			mesh.Attributes = !native.IsNull && !native.IsEmpty() ? Source2Parameters.From( attributes ) : null;
+			if ( native.IsNull || native.IsEmpty() )
+			{
+				mesh.Attributes = null;
+				sharing.Remove( mesh );
+				continue;
+			}
+
+			mesh.Attributes = Source2Parameters.From( SharedAttributes( mesh, attributes, native ) );
 		}
+	}
+
+	// The attribute set each object draws with, someone's own whose values are the same as its own, and the sets lately shared
+	readonly Dictionary<MeshObject, RenderAttributes> sharing = new();
+	readonly List<RenderAttributes> shareable = new();
+
+	/// <summary>
+	/// How many of the sets lately shared a changed object's attributes are compared with before it draws with its own. Bounds the
+	/// cost of an object whose attributes change every frame; each compare is one native call.
+	/// </summary>
+	const int MaxShareable = 32;
+
+	/// <summary>
+	/// The attribute set an object draws with: the one it shared last sync, while it still holds the same values as its own, or
+	/// another of the same values, or its own. A dresser gives every renderer of a citizen <c>skin_tint</c> and <c>skin_age</c>,
+	/// most often the defaults, so a crowd's bodies and clothing all have attributes, which made each draw alone and rebind its
+	/// material. Values can change in place on either side, so every object compares its own with the set it shares each sync.
+	/// </summary>
+	RenderAttributes SharedAttributes( MeshObject mesh, RenderAttributes own, NativeEngine.CRenderAttributes native )
+	{
+		if ( sharing.TryGetValue( mesh, out var shared ) && SameValues( native, shared ) ) return shared;
+
+		for ( int i = 0; i < shareable.Count; i++ )
+		{
+			var candidate = shareable[i];
+			if ( candidate.Get().IsNull )
+			{
+				shareable.RemoveAt( i-- );
+				continue;
+			}
+
+			if ( !SameValues( native, candidate ) ) continue;
+
+			sharing[mesh] = candidate;
+			return candidate;
+		}
+
+		// Its own, for the next to share
+		sharing[mesh] = own;
+		shareable.Insert( 0, own );
+		if ( shareable.Count > MaxShareable ) shareable.RemoveAt( shareable.Count - 1 );
+		return own;
+	}
+
+	static bool SameValues( NativeEngine.CRenderAttributes native, RenderAttributes other )
+	{
+		var theirs = other.Get();
+		return !theirs.IsNull && (native == theirs || NativeEngine.CRenderAttributes.AreEqual( native, theirs, false ));
 	}
 
 	/// <summary>
