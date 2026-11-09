@@ -49,8 +49,9 @@ internal sealed class OcclusionHistory : IDisposable
 
 	/// <summary>
 	/// Settles what this frame's culls test against, from what was kept and the debug convars, so both culls agree on it.
+	/// <paramref name="debug"/> turns the debug view on while the host's is off, for the cull reasons view.
 	/// </summary>
-	public void BeginFrame( bool culling, Rect viewport )
+	public void BeginFrame( bool culling, Rect viewport, bool debug = false )
 	{
 		var valid = culling && kept && chain is not null && chain.Width == (int)viewport.Width && chain.Height == (int)viewport.Height;
 		kept = false;
@@ -64,7 +65,7 @@ internal sealed class OcclusionHistory : IDisposable
 			: default;
 		RejectsEarly = earlyCull == OcclusionEarlyCull.RejectAll;
 
-		if ( !culling || host.OcclusionDebugView == OcclusionDebugView.Off )
+		if ( !culling || (host.OcclusionDebugView == OcclusionDebugView.Off && !debug) )
 		{
 			Debug?.Dispose();
 			Debug = null;

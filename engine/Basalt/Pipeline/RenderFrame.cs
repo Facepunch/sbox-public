@@ -105,7 +105,15 @@ internal sealed class RenderFrame
 		ContactShadowMask = null;
 		NormalsGBuffer = null;
 		Recorded = default;
+
+		// The 3D skybox draws as it is
+		DebugViews = System.IsSkyboxSystem ? DebugViews.None : RenderHost.Current.DebugViews;
 	}
+
+	/// <summary>
+	/// Basalt's debug views this frame draws (<see cref="RenderHost.DebugViews"/>).
+	/// </summary>
+	internal DebugViews DebugViews;
 
 	/// <summary>
 	/// Release per-frame references after submission.

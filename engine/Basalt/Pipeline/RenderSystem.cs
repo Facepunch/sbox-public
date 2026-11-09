@@ -245,6 +245,7 @@ public sealed partial class RenderSystem : IDisposable
 
 		using ( Zones.Prepare.Start() ) Prepare( world, view );
 		stats.Lights = lightBinner.Count;
+		if ( frame.DebugViews != DebugViews.None ) DescribeCulling( world, view, stats );
 
 		var prepared = Stopwatch.GetTimestamp();
 		var allocPrepared = GC.GetAllocatedBytesForCurrentThread();
@@ -281,6 +282,8 @@ public sealed partial class RenderSystem : IDisposable
 		try
 		{
 			using ( Zones.Setup.Start() ) Setup( frame );
+
+			if ( (frame.DebugViews & DebugViews.ShadowMaps) != 0 ) shadows.Describe( DebugReport, view.Viewport );
 
 			// Submit skybox setup after main setup, before draws.
 			if ( skyFrame is not null )
@@ -367,6 +370,51 @@ public sealed partial class RenderSystem : IDisposable
 		}
 
 		host.Rendered( stats );
+
+		// Copied, so the frames this system renders into textures don't change what the host shows
+		if ( frame.DebugViews != DebugViews.None && output.SwapChain.IsValid )
+		{
+			DebugReport.CopyTo( publishedReport );
+			host.PublishDebugViews( publishedReport );
+		}
+	}
+
+	/// <summary>
+	/// What the debug views found this frame, for <see cref="RenderHost.PublishDebugViews"/>.
+	/// </summary>
+	internal DebugViewReport DebugReport { get; } = new();
+
+	readonly DebugViewReport publishedReport = new();
+
+	/// <summary>
+	/// Start this frame's debug report with the main view's culling, and the LODs its meshes drew at.
+	/// </summary>
+	void DescribeCulling( RenderWorld world, RenderView view, in RenderStats stats )
+	{
+		var report = DebugReport;
+		report.Clear();
+		report.Views = frame.DebugViews;
+		report.ViewName = view.Name;
+		report.Viewport = view.Viewport;
+		report.Frame = RenderHost.Current.FrameCount;
+		report.Objects = world.Count;
+		report.Visible = stats.ObjectsVisible;
+		report.Culled[(int)CullReason.Frustum] = stats.ObjectsFrustumCulled;
+		report.Culled[(int)CullReason.Size] = stats.ObjectsSizeCulled;
+		report.Culled[(int)CullReason.Tags] = stats.ObjectsTagCulled;
+		report.OcclusionCulling = OcclusionActive;
+		report.Occluded = OcclusionActive ? Occlusion.Culled : 0;
+
+		var reasons = mainPass.CullReasons;
+		var objects = world.Objects;
+		foreach ( var index in mainPass.Visible( meshes ) )
+		{
+			if ( objects[index] is not MeshObject { Mesh: { } mesh } ) continue;
+			if ( reasons is not null && reasons[index] != 0 ) continue;
+
+			if ( mesh.LodCount > 1 ) report.Lods[Math.Min( meshes.LodOf( index ), DebugViewReport.MaxLods - 1 )]++;
+			else report.SingleLod++;
+		}
 	}
 
 	/// <summary>
@@ -539,6 +587,7 @@ public sealed partial class RenderSystem : IDisposable
 		meshes.Occlusion = wanted ? Occlusion : null;
 		aggregates.Occlusion = meshes.Occlusion;
 		meshes.Parallel = ParallelRecording;
+		meshes.DebugViews = frame.DebugViews;
 
 		// Lights first: shadow views are chosen from them. The shadow views then cull on workers while the main view's
 		// other features prepare here - culling only reads what preparing doesn't write
@@ -560,7 +609,7 @@ public sealed partial class RenderSystem : IDisposable
 		meshes.Occlusion = null;
 		aggregates.Occlusion = null;
 		OcclusionActive = wanted && Occlusion.InstanceCount > 0;
-		OcclusionHistory.BeginFrame( OcclusionActive, view.Viewport );
+		OcclusionHistory.BeginFrame( OcclusionActive, view.Viewport, (frame.DebugViews & DebugViews.CullReasons) != 0 );
 		Occlusion.Previous = OcclusionHistory.EarlyDepth;
 		Occlusion.RejectEarly = OcclusionHistory.RejectsEarly;
 

@@ -349,6 +349,92 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 	}
 
 	/// <summary>
+	/// List this view's shadow maps for the shadow map debug view, laid out as thumbnails along the bottom of
+	/// <paramref name="viewport"/>, a row of labels' room above each, rows stacking upwards while there's room. After
+	/// <see cref="Setup"/>, which makes their textures.
+	/// </summary>
+	public void Describe( DebugViewReport report, Rect viewport )
+	{
+		var frame = RenderHost.Current.FrameCount;
+		var size = MathF.Round( Math.Clamp( viewport.Height / 6, 96, 224 ) );
+		var layout = new ThumbnailLayout( viewport, size );
+
+		var cascades = mapper.Cascades;
+		for ( int i = 0; i < cascades.Length; i++ )
+			Add( report, ref layout, cascades[i], ShadowMapKind.Cascade, i, false, frame );
+
+		var spots = mapper.SpotShadows;
+		for ( int i = 0; i < spots.Count; i++ )
+		{
+			Add( report, ref layout, spots[i].ShadowMap, ShadowMapKind.Spot, i, false, spots[i].RenderedFrame );
+			if ( spots[i].StaticCache is { } cache ) Add( report, ref layout, cache, ShadowMapKind.Spot, i, true, spots[i].StaticRenderedFrame );
+		}
+
+		var points = mapper.PointShadows;
+		for ( int i = 0; i < points.Count; i++ )
+		{
+			Add( report, ref layout, points[i].ShadowMap, ShadowMapKind.Point, i, false, points[i].RenderedFrame );
+			if ( points[i].StaticCache is { } cache ) Add( report, ref layout, cache, ShadowMapKind.Point, i, true, points[i].StaticRenderedFrame );
+		}
+	}
+
+	void Add( DebugViewReport report, ref ThumbnailLayout layout, ShadowMap map, ShadowMapKind kind, int index, bool staticCache, ulong renderedFrame )
+	{
+		if ( map is not { HasTexture: true } || !layout.Place( kind == ShadowMapKind.Point ? 1.5f : 1, out var rect ) )
+		{
+			report.ShadowMapsNotShown++;
+			return;
+		}
+
+		var rendered = false;
+		foreach ( var pass in Passes )
+			rendered |= pass.TargetMap == map;
+
+		report.ShadowMaps.Add( new ShadowMapInfo
+		{
+			Kind = kind,
+			Index = index,
+			StaticCache = staticCache,
+			Resolution = map.Resolution,
+			RenderedFrame = renderedFrame,
+			Rendered = rendered,
+			Thumbnail = rect,
+			Texture = map.Texture,
+		} );
+	}
+
+	/// <summary>
+	/// Rows of thumbnails from the bottom left of a viewport, each thumbnail with room above it for its labels.
+	/// </summary>
+	struct ThumbnailLayout( Rect viewport, float size )
+	{
+		const float Margin = 8;
+		const float LabelHeight = 46;
+
+		float x = viewport.Left + Margin;
+		float y = viewport.Bottom - Margin - size;
+
+		/// <summary>
+		/// Where the next thumbnail goes, <paramref name="aspect"/> times as wide as it's tall, or false when it's out of room.
+		/// </summary>
+		public bool Place( float aspect, out Rect rect )
+		{
+			var width = MathF.Round( size * aspect );
+			if ( x + width > viewport.Right - Margin && x > viewport.Left + Margin )
+			{
+				x = viewport.Left + Margin;
+				y -= size + LabelHeight + Margin;
+			}
+
+			rect = new Rect( x, y, width, size );
+			if ( y - LabelHeight < viewport.Top || width > viewport.Width - Margin * 2 ) return false;
+
+			x += width + Margin;
+			return true;
+		}
+	}
+
+	/// <summary>
 	/// Make the shadow maps writable as depth, before any shadow view renders.
 	/// </summary>
 	public void BarrierToWrite( GpuContext context )

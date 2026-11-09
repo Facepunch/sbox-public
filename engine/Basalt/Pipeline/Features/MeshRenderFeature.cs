@@ -228,6 +228,17 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	internal OcclusionCuller Occlusion { get; set; }
 
 	/// <summary>
+	/// Basalt's debug views the frame draws, set before the main view prepares: LOD colours and cull reasons tint meshes
+	/// through their transform entries (<see cref="TintFor"/>).
+	/// </summary>
+	internal DebugViews DebugViews { get; set; }
+
+	/// <summary>
+	/// The view being prepared's cull reasons (<see cref="ViewPass.CullReasons"/>), while <see cref="Prepare"/> runs.
+	/// </summary>
+	byte[] tintReasons;
+
+	/// <summary>
 	/// <see cref="MeshObject"/>s.
 	/// </summary>
 	public override Type ObjectType => typeof( MeshObject );
@@ -257,6 +268,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 
 		var visible = pass.Visible( this );
 		if ( visible.Count == 0 ) return;
+		tintReasons = pass.CullReasons;
 
 		var objects = world.Objects;
 		var centers = world.BoundsCenter;
@@ -616,7 +628,8 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			var skinned = obj.IsSkinned;
 			var deformed = obj.IsDeformed;
 			var morphable = obj.MorphSource is not null;
-			if ( skinned ) WriteBones( obj, objLod, matrices[index], transforms );
+			var tint = TintFor( obj, objLod );
+			if ( skinned ) WriteBones( obj, objLod, matrices[index], tint, transforms );
 
 			var joins = length > 0 && skinned == skinnedRun && deformed == deformedRun && morphable == morphableRun && obj.Mesh == mesh && objLod == lod && obj.MaterialOverride == material && objFilter == filter && obj.Attributes == attributes && obj.LightmapAttributes == lightmap && obj.WantsFrameBufferCopy == reads && probes[index] == probe;
 			if ( !joins )
@@ -643,11 +656,11 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			else if ( mesh.HasDrawTints )
 			{
 				// Its entries now; the ids are written a block per draw when the run ends
-				tintedSlots.Add( transforms.TintedSlotsFor( obj, matrices[index], obj.Tint, mesh ) );
+				tintedSlots.Add( transforms.TintedSlotsFor( obj, matrices[index], tint, mesh ) );
 			}
 			else
 			{
-				var slot = transforms.SlotFor( obj, matrices[index], obj.Tint );
+				var slot = transforms.SlotFor( obj, matrices[index], tint );
 				var instance = transforms.AddInstance( slot );
 				occlusion?.AddInstance( slot, centers[index], obj.OcclusionCulling ? extents[index] : new Vector3( -1 ) );
 				if ( length == 0 ) start = instance;
@@ -692,6 +705,31 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			length = 0;
 		}
 	}
+
+	/// <summary>
+	/// An object's tint, or the debug views' (<see cref="DebugViews"/>): its cull reason's colour if the main view culled it, else
+	/// its LOD's colour if it has LODs. Alpha stays the object's, so it fades and blends as it would. A frame writes an object's
+	/// entry once, for the first view, which is the main view.
+	/// </summary>
+	Color TintFor( MeshObject obj, int lod )
+	{
+		var views = DebugViews;
+		if ( views == DebugViews.None ) return obj.Tint;
+
+		var reasons = tintReasons;
+		if ( reasons is not null && (uint)obj.Index < (uint)reasons.Length && reasons[obj.Index] != 0 )
+			return DebugViewReport.CullColor( (CullReason)reasons[obj.Index] ).WithAlpha( obj.Tint.a );
+
+		if ( (views & DebugViews.LodColors) != 0 && obj.Mesh.LodCount > 1 )
+			return DebugViewReport.LodColor( lod ).WithAlpha( obj.Tint.a );
+
+		return obj.Tint;
+	}
+
+	/// <summary>
+	/// The LOD a visible object drew at in the last view prepared.
+	/// </summary>
+	internal int LodOf( int index ) => lods[index];
 
 	/// <summary>
 	/// Make the materials draws fall back to, then skin this frame's vertex cache meshes (<see cref="DispatchSkinning"/>).

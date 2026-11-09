@@ -67,7 +67,7 @@ internal sealed partial class MeshRenderFeature
 	/// Write bones once per mesh per frame: world pose after inverse bind pose (<c>SetupBones</c>).
 	/// Skeleton-free meshes stay rigid. CPU-only; cache allocation waits until <see cref="BeforeUpload"/>.
 	/// </summary>
-	void WriteBones( MeshObject obj, int lod, in Matrix objectToWorld, TransformBuffer transforms )
+	void WriteBones( MeshObject obj, int lod, in Matrix objectToWorld, Color tint, TransformBuffer transforms )
 	{
 		if ( skinJobsGeneration != transforms.Generation )
 		{
@@ -95,7 +95,7 @@ internal sealed partial class MeshRenderFeature
 			var skin = mesh.SkinFor( m );
 			if ( skin is null )
 			{
-				obj.SkinSlots[m] = transforms.Add( objectToWorld, obj.Tint );
+				obj.SkinSlots[m] = transforms.Add( objectToWorld, tint );
 				continue;
 			}
 
@@ -109,7 +109,7 @@ internal sealed partial class MeshRenderFeature
 				skinScratch[b] = Matrix3x4.Concat( world, skin.InverseBindPoses[b] );
 			}
 
-			var slot = transforms.AddSkinned( obj.Tint, skin.BlendWeightCount, skinScratch.AsSpan( 0, skin.BoneCount ) );
+			var slot = transforms.AddSkinned( tint, skin.BlendWeightCount, skinScratch.AsSpan( 0, skin.BoneCount ) );
 			obj.SkinSlots[m] = slot;
 
 			// Deformation and morphs require compute skinning even with one weight.
