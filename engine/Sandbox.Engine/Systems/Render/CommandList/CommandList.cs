@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Threading;
 
 namespace Sandbox.Rendering;
@@ -98,6 +99,32 @@ public sealed unsafe partial class CommandList
 		}
 	}
 
+	// Struct payloads too big for an Entry, written here instead of boxed. Reused across Reset.
+	byte[] _payload = [];
+	int _payloadUsed;
+
+	/// <summary>
+	/// Add an entry with a struct payload, read back with <see cref="ReadPayload{T}"/>. Uses <see cref="Entry.Count"/>.
+	/// </summary>
+	void AddEntry<T>( delegate*< ref Entry, CommandList, void > execute, Entry data, in T payload ) where T : unmanaged
+	{
+		data.Execute = execute;
+
+		lock ( _lock )
+		{
+			var size = Unsafe.SizeOf<T>();
+			if ( _payloadUsed + size > _payload.Length )
+				Array.Resize( ref _payload, Math.Max( Math.Max( _payload.Length * 2, 256 ), _payloadUsed + size ) );
+
+			MemoryMarshal.Write( _payload.AsSpan( _payloadUsed ), in payload );
+			data.Count = _payloadUsed;
+			_payloadUsed += size;
+			_entries.Add( data );
+		}
+	}
+
+	T ReadPayload<T>( in Entry entry ) where T : unmanaged => MemoryMarshal.Read<T>( _payload.AsSpan( entry.Count ) );
+
 	[Obsolete]
 	RenderAttributes attributes => Graphics.Attributes;
 
@@ -162,6 +189,7 @@ public sealed unsafe partial class CommandList
 			drawAttributeAccess?.ClearRenderTargets();
 			drawAttributes?.Clear( false );
 			_entries.Clear();
+			_payloadUsed = 0;
 		}
 	}
 
@@ -331,9 +359,9 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.Attributes.SetData( entry.Token, (T)entry.Object2 );
+			Graphics.Attributes.SetData( entry.Token, commandList.ReadPayload<T>( entry ) );
 		}
-		AddEntry( &Execute, new Entry { Token = token, Object2 = data } );
+		AddEntry( &Execute, new Entry { Token = token }, data );
 	}
 
 	[Obsolete]
