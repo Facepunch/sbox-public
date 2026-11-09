@@ -294,6 +294,7 @@ internal sealed record SceneLabScene
 		new() { Name = "Light Modulation Gallery", Group = "Effects", Game = LightModulatorScenes.Gallery, ChangeGame = LightModulatorScenes.ChangeGallery, Isolated = true },
 		new() { Name = "Debug Overlay", Group = "GameObject", Game = GameScenes.DebugOverlay, ChangeGame = GameScenes.ChangeDebugOverlay, Frame = GameScenes.DrawDebugOverlay },
 		new() { Name = "Terrain and Clutter", Group = "GameObject", Game = TerrainScenes.TerrainAndClutter, ChangeGame = TerrainScenes.ChangeTerrainAndClutter, Ready = TerrainScenes.ClutterReady },
+		new() { Name = "Instanced Models", Group = "GameObject", Game = InstancedScene.Build, ChangeGame = InstancedScene.Change },
 		new() { Name = "Terrain Ambient Occlusion", Group = "GameObject", Game = TerrainScenes.TerrainAmbientOcclusion, ChangeGame = TerrainScenes.ChangeTerrainAndClutter, Ready = TerrainScenes.ClutterReady, Isolated = true },
 		new() { Name = "Refraction", Group = "Effects", Game = GameScenes.Refraction, ChangeGame = GameScenes.ChangeRefraction },
 		new() { Name = "Viewmodel", Group = "Effects", Game = GameScenes.Viewmodel, ChangeGame = GameScenes.ChangeViewmodel },
