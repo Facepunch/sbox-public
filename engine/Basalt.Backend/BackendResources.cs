@@ -1,4 +1,6 @@
 using Basalt.Gpu;
+using Basalt.Source2.Materials;
+using Basalt.Source2.Shaders;
 using System.Runtime.InteropServices;
 
 namespace Basalt.Backend;
@@ -19,6 +21,7 @@ internal sealed class BackendTexture : GpuTexture
 		this.desc = desc;
 		Handle = handle;
 		Name = name;
+		Dimension = desc.Cube ? TextureDimension.TextureCube : desc.Depth > 1 ? TextureDimension.Texture3D : TextureDimension.Texture2D;
 	}
 
 	public TextureHandle Handle { get; }
@@ -26,6 +29,9 @@ internal sealed class BackendTexture : GpuTexture
 
 	/// <summary>The layout the last recorded use left it in.</summary>
 	public ImageLayout Layout { get; set; }
+
+	/// <summary>Its shape, which a shader binding it must expect.</summary>
+	public TextureDimension Dimension { get; init; }
 
 	public override int Width => desc.Width;
 	public override int Height => desc.Height;
@@ -180,38 +186,73 @@ internal sealed class BackendParameters : ShaderParameters
 }
 
 /// <summary>
-/// The programs a <see cref="BackendMaterial"/> can draw with.
+/// A material: an s&amp;box shader (<c>.shader_c</c>) with a compiled material's parameters and textures, or the
+/// shader's defaults, plus values set in code. Variants are picked per mode and dynamic combos and kept.
 /// </summary>
-internal enum BackendProgram
+internal sealed class BackendMaterial : GpuMaterial
 {
-	/// <summary>Nothing: an engine shader this backend doesn't have. Draws and dispatches with it are skipped.</summary>
-	None,
+	readonly Dictionary<string, ShaderVariant> variants = new();
+	readonly Dictionary<string, float[]> values;
 
-	/// <summary>The built-in lit mesh program (<c>Shaders/forward.hlsl</c>): Depth and Forward modes.</summary>
-	Mesh,
-}
+	public BackendMaterial( string name, ShaderFile shader, MaterialFile file, Dictionary<string, BackendTexture> textures, Dictionary<string, float[]> values = null )
+	{
+		Name = name;
+		Shader = shader;
+		File = file;
+		Textures = textures ?? new( StringComparer.OrdinalIgnoreCase );
+		this.values = values ?? new( StringComparer.OrdinalIgnoreCase );
 
-/// <summary>
-/// A material: a program and its values (an albedo for now).
-/// </summary>
-internal sealed class BackendMaterial( string name, BackendProgram program, Color albedo ) : GpuMaterial
-{
-	public BackendProgram Program { get; } = program;
-	public Color Albedo { get; set; } = albedo;
+		Features = new int[shader?.Features?.StaticCombos.Length ?? 0];
+		foreach ( var (parameter, value) in file?.Ints ?? new Dictionary<string, int>() )
+		{
+			var index = shader?.FeatureIndex( parameter ) ?? -1;
+			if ( index >= 0 ) Features[index] = value;
+		}
+	}
 
-	public override string Name { get; } = name;
-	public override bool IsTranslucent => false;
-	public override bool IsAlphaTest => false;
+	/// <summary>The shader, or null when there's no compiled one: draws with it are skipped.</summary>
+	public ShaderFile Shader { get; }
+
+	/// <summary>The compiled material, or null for a material made from a shader.</summary>
+	public MaterialFile File { get; }
+
+	/// <summary>Feature values (<c>F_*</c>), by the shader's feature index.</summary>
+	public int[] Features { get; }
+
+	/// <summary>Textures by shader variable (<c>g_tColor</c>).</summary>
+	public Dictionary<string, BackendTexture> Textures { get; }
+
+	/// <summary>The material's value of a variable: set in code, else the compiled material's; null for the shader's default.</summary>
+	public float[] Value( string variable ) => values.TryGetValue( variable, out var value ) ? value : File?.Value( variable );
+
+	/// <summary>A variant for a mode and dynamic combo values, made once.</summary>
+	public ShaderVariant Variant( ShaderLibrary library, string mode, string key, Func<string, int?> combos, Func<string, int?> attributes )
+	{
+		lock ( variants )
+		{
+			if ( variants.TryGetValue( key, out var variant ) ) return variant;
+			variant = library.Variant( Shader, mode, Features, combos, attributes );
+			variants[key] = variant;
+			return variant;
+		}
+	}
+
+	bool Feature( string name ) => Shader?.FeatureIndex( name ) is int index && index >= 0 && Features[index] != 0;
+
+	public override string Name { get; }
+	public override bool IsTranslucent => Feature( "F_TRANSLUCENT" ) || Feature( "F_ADDITIVE_BLEND" );
+	public override bool IsAlphaTest => Feature( "F_ALPHA_TEST" );
 	public override bool ReadsFrameBuffer => false;
-	public override bool ShadowFastPath => false;
+	public override bool ShadowFastPath => Shader is not null && !IsTranslucent && !IsAlphaTest;
 	public override bool NeedsLightProbe => false;
-	public override ulong SimilarityKey => (ulong)Program;
+	public override ulong SimilarityKey => (ulong)(Shader?.Name.GetHashCode() ?? 0);
 
 	public override void Dispose() { }
 }
 
 /// <summary>
-/// One vertex of a <see cref="BackendMesh"/>: position, normal, uv.
+/// One vertex of a <see cref="BackendMesh"/>: position, normal, uv and tangent (u direction and v sign); the tangent is
+/// worked out from the uvs when it's left zero.
 /// </summary>
 [StructLayout( LayoutKind.Sequential )]
 public struct MeshVertex( Vector3 position, Vector3 normal, Vector2 uv )
@@ -224,6 +265,9 @@ public struct MeshVertex( Vector3 position, Vector3 normal, Vector2 uv )
 
 	/// <summary>Texture coordinates.</summary>
 	public Vector2 Uv = uv;
+
+	/// <summary>Tangent along u, and the sign of v's direction relative to normal x tangent.</summary>
+	public Vector4 Tangent;
 }
 
 /// <summary>
@@ -250,28 +294,72 @@ public sealed class BackendMesh : GpuMesh
 
 	/// <summary>
 	/// A one-draw mesh of triangles from vertices and 32-bit indices, drawn with <paramref name="material"/>.
+	/// Tangents left zero are computed from the uvs.
 	/// </summary>
 	public static RenderMesh Create( BackendDevice device, ReadOnlySpan<MeshVertex> vertices, ReadOnlySpan<uint> indices, GpuMaterial material, string name )
 	{
 		ArgumentOutOfRangeException.ThrowIfZero( vertices.Length );
 		ArgumentOutOfRangeException.ThrowIfZero( indices.Length );
 
+		var data = vertices.ToArray();
+		ComputeTangents( data, indices );
+
 		var gpu = device.Gpu;
-		var vertexBuffer = gpu.CreateBuffer( new BufferInfo { Size = vertices.Length * Marshal.SizeOf<MeshVertex>(), Usage = BufferUsage.Vertex, Name = $"{name} vertices" } );
+		var vertexBuffer = gpu.CreateBuffer( new BufferInfo { Size = data.Length * Marshal.SizeOf<MeshVertex>(), Usage = BufferUsage.Vertex, Name = $"{name} vertices" } );
 		var indexBuffer = gpu.CreateBuffer( new BufferInfo { Size = indices.Length * 4L, Usage = BufferUsage.Index, Name = $"{name} indices" } );
-		gpu.WriteBuffer( vertexBuffer, vertices );
+		gpu.WriteBuffer<MeshVertex>( vertexBuffer, data );
 		gpu.WriteBuffer( indexBuffer, indices );
 
-		var mins = vertices[0].Position;
-		var maxs = vertices[0].Position;
-		foreach ( var v in vertices )
+		var mins = data[0].Position;
+		var maxs = data[0].Position;
+		foreach ( var v in data )
 		{
 			mins = Vector3.Min( mins, v.Position );
 			maxs = Vector3.Max( maxs, v.Position );
 		}
 
 		var geometry = new BackendMesh( vertexBuffer, indexBuffer, IndexFormat.UInt32, name );
-		var draw = new RenderMesh.Draw( 0, 0, 0, indices.Length, vertices.Length, 0, material );
+		var draw = new RenderMesh.Draw( 0, 0, 0, indices.Length, data.Length, 0, material );
 		return new RenderMesh( geometry, new BBox( mins, maxs ), [[draw]] );
+	}
+
+	/// <summary>
+	/// Per-vertex tangents from each triangle's uv derivatives, for vertices whose tangent is zero.
+	/// </summary>
+	static void ComputeTangents( MeshVertex[] vertices, ReadOnlySpan<uint> indices )
+	{
+		var tangents = new Vector3[vertices.Length];
+		var bitangents = new Vector3[vertices.Length];
+		for ( int i = 0; i + 2 < indices.Length; i += 3 )
+		{
+			var (a, b, c) = ((int)indices[i], (int)indices[i + 1], (int)indices[i + 2]);
+			var e1 = vertices[b].Position - vertices[a].Position;
+			var e2 = vertices[c].Position - vertices[a].Position;
+			var d1 = vertices[b].Uv - vertices[a].Uv;
+			var d2 = vertices[c].Uv - vertices[a].Uv;
+			var det = d1.x * d2.y - d2.x * d1.y;
+			if ( MathF.Abs( det ) < 1e-12f ) continue;
+			var r = 1 / det;
+			var t = (e1 * d2.y - e2 * d1.y) * r;
+			var bt = (e2 * d1.x - e1 * d2.x) * r;
+			foreach ( var v in (ReadOnlySpan<int>)[a, b, c] )
+			{
+				tangents[v] += t;
+				bitangents[v] += bt;
+			}
+		}
+
+		for ( int i = 0; i < vertices.Length; i++ )
+		{
+			ref var v = ref vertices[i];
+			if ( v.Tangent != default ) continue;
+
+			var n = v.Normal;
+			var t = tangents[i] - n * Vector3.Dot( n, tangents[i] );
+			if ( t.LengthSquared < 1e-12f ) t = MathF.Abs( n.z ) < 0.9f ? Vector3.Cross( Vector3.Up, n ) : Vector3.Cross( Vector3.Forward, n );
+			t = t.Normal;
+			var sign = Vector3.Dot( Vector3.Cross( n, t ), bitangents[i] ) < 0 ? -1f : 1f;
+			v.Tangent = new Vector4( t.x, t.y, t.z, sign );
+		}
 	}
 }

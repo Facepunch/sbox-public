@@ -1,4 +1,7 @@
 using Basalt.Gpu;
+using Basalt.Source2;
+using Basalt.Source2.Materials;
+using Basalt.Source2.Shaders;
 using System.Diagnostics;
 using System.Threading;
 
@@ -6,8 +9,9 @@ namespace Basalt.Backend;
 
 /// <summary>
 /// Basalt's <see cref="GpuDevice"/> on <see cref="Basalt.Gpu.Device"/>: resources map one-to-one onto Basalt.Gpu's, and
-/// materials onto the backend's built-in programs. What only Source 2 has (asset loading, skinning, the sky, engine
-/// compute shaders) is stood in for: placeholder textures, materials that draw nothing. See docs/managed/basalt-gpu.md.
+/// materials are s&amp;box's own - compiled shaders, materials and textures read by Basalt.Source2 from the game's
+/// content. What it can't do yet (skinning, the sky, engine compute shaders) draws nothing. See
+/// docs/managed/basalt-gpu.md.
 /// </summary>
 public sealed class BackendDevice : GpuDevice, IDisposable
 {
@@ -17,46 +21,39 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	readonly Dictionary<IntPtr, SyncPoint> semaphores = new();
 	readonly Dictionary<IntPtr, BufferHandle> constantBuffers = new();
 	readonly List<(SyncPoint Point, BufferHandle Buffer, int Bytes, GpuReadback Callback)> readbacks = new();
+	readonly Dictionary<PipelineKey, PipelineHandle> pipelines = new();
 	long nextHandle;
 	int vertexCache;
 
 	/// <summary>The Basalt.Gpu device it renders with.</summary>
 	public Device Gpu { get; }
 
-	internal MeshProgram Mesh { get; }
+	/// <summary>Where compiled shaders, materials and textures are read from.</summary>
+	public ContentFiles Content { get; }
 
-	/// <summary>The bindless index of the comparison sampler shadow maps are read with.</summary>
-	internal int ShadowSampler { get; }
+	/// <summary>s&amp;box's compiled shaders, their modules and binding layouts.</summary>
+	internal ShaderLibrary Shaders { get; }
 
-	/// <summary>A zeroed storage buffer, bound where a frame hasn't provided one.</summary>
-	internal BufferHandle EmptyStorage { get; }
+	/// <summary>What's bound where nothing else is: black textures, zeroed buffers, the default vertex stream.</summary>
+	internal ShaderDefaults Defaults { get; }
 
-	readonly SamplerHandle shadowSampler;
 	readonly BackendTexture black;
 	readonly BackendTexture sheetMetadata;
 
 	/// <summary>
-	/// Render Basalt on <paramref name="gpu"/>, which stays the caller's.
+	/// Render Basalt on <paramref name="gpu"/>, which stays the caller's, with compiled content from
+	/// <paramref name="content"/> (by default the checkout's <c>game/core</c> above the application).
 	/// </summary>
-	public BackendDevice( Device gpu )
+	public BackendDevice( Device gpu, ContentFiles content = null )
 	{
 		Gpu = gpu;
-		Mesh = new MeshProgram( gpu );
+		Content = content ?? ContentFiles.FindGame();
+		Shaders = new ShaderLibrary( gpu, Content );
+		Defaults = new ShaderDefaults( gpu );
 
-		shadowSampler = gpu.CreateSampler( new SamplerInfo
-		{
-			MinFilter = Filter.Linear,
-			MagFilter = Filter.Linear,
-			AddressU = AddressMode.Clamp,
-			AddressV = AddressMode.Clamp,
-			AddressW = AddressMode.Clamp,
-			Compare = CompareFunction.GreaterEqual,
-			MaxAnisotropy = 1,
-		} );
-		ShadowSampler = gpu.SamplerIndex( shadowSampler );
-
-		EmptyStorage = gpu.CreateBuffer( new BufferInfo { Size = 256, Usage = BufferUsage.Storage, Name = "Basalt empty" } );
-		gpu.WriteBuffer( EmptyStorage, new byte[256] );
+		// Bindless buffers shaders may read: nothing animated, no pipeline texture indices
+		gpu.SetBindlessBuffer( ShaderAbi.BindlessVertexCache, Defaults.Storage );
+		gpu.SetBindlessBuffer( ShaderAbi.BindlessPipelineTextures, Defaults.Storage );
 
 		black = Placeholder( "Black", cube: false );
 		sheetMetadata = Placeholder( "Sheet metadata", cube: false );
@@ -134,16 +131,38 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	}
 
 	/// <summary>
-	/// Assets aren't loaded here: every path gets a black 1x1 stand-in (a cube for cube paths), so frames that bind
-	/// lookup tables still bind something.
+	/// A compiled texture (<c>.vtex_c</c>) from the content, loaded once; a black 1x1 stand-in (a cube for cube paths)
+	/// when it isn't there or its format has no Basalt.Gpu form.
 	/// </summary>
 	public override GpuTexture LoadTexture( string path )
 	{
 		lock ( loadedTextures )
 		{
 			if ( loadedTextures.TryGetValue( path, out var texture ) ) return texture;
-			return loadedTextures[path] = Placeholder( path, cube: path.Contains( "cube", StringComparison.OrdinalIgnoreCase ) );
+			return loadedTextures[path] = Load( path ) ?? Placeholder( path, cube: path.Contains( "cube", StringComparison.OrdinalIgnoreCase ) );
 		}
+	}
+
+	BackendTexture Load( string path )
+	{
+		var file = Content.Find( path );
+		if ( file is null ) return null;
+
+		var texture = TextureFile.Load( file );
+		if ( texture.Format == Format.Unknown ) return null;
+
+		var desc = new TextureDesc
+		{
+			Width = texture.Width,
+			Height = texture.Height,
+			Depth = texture.Depth,
+			Mips = texture.Mips,
+			Samples = 1,
+			Cube = texture.Dimension is TextureDimension.TextureCube,
+			Format = TextureFormat.RGBA8888,
+		};
+
+		return new BackendTexture( this, texture.Create( Gpu, path ), desc, path ) { Layout = ImageLayout.ShaderRead, Dimension = texture.Dimension };
 	}
 
 	/// <inheritdoc/>
@@ -186,36 +205,123 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	public override GpuTexture SheetMetadata => sheetMetadata;
 
 	/// <summary>
-	/// The depth-only material draws with the mesh program; other asset materials don't exist here.
+	/// A compiled material (<c>.vmat_c</c>) with its shader and textures; one that isn't there, or whose shader isn't,
+	/// draws nothing.
 	/// </summary>
-	public override GpuMaterial LoadMaterial( string path ) => Shared( path );
-
-	/// <inheritdoc/>
-	public override GpuMaterial MaterialFromShader( string shaderPath ) => Shared( shaderPath );
-
-	GpuMaterial Shared( string path )
+	public override GpuMaterial LoadMaterial( string path )
 	{
 		lock ( sharedMaterials )
 		{
 			if ( sharedMaterials.TryGetValue( path, out var material ) ) return material;
-			return sharedMaterials[path] = new BackendMaterial( path, ProgramFor( path ), Color.White );
+			return sharedMaterials[path] = Material( path, null );
 		}
 	}
 
-	static BackendProgram ProgramFor( string shaderPath )
+	/// <summary>A material that's a shader with its defaults.</summary>
+	public override GpuMaterial MaterialFromShader( string shaderPath )
 	{
-		if ( string.Equals( shaderPath, Features.MeshRenderFeature.DefaultShader, StringComparison.OrdinalIgnoreCase ) ) return BackendProgram.Mesh;
-		if ( string.Equals( shaderPath, Features.MeshRenderFeature.DepthOnlyMaterial, StringComparison.OrdinalIgnoreCase ) ) return BackendProgram.Mesh;
-		return BackendProgram.None;
+		lock ( sharedMaterials )
+		{
+			if ( sharedMaterials.TryGetValue( shaderPath, out var material ) ) return material;
+			return sharedMaterials[shaderPath] = new BackendMaterial( shaderPath, Shaders.Load( shaderPath ), null, null );
+		}
 	}
 
 	/// <inheritdoc/>
-	public override GpuMaterial CreateMaterial( string name, string shaderPath ) => new BackendMaterial( name, ProgramFor( shaderPath ), Color.White );
+	public override GpuMaterial CreateMaterial( string name, string shaderPath ) => new BackendMaterial( name, Shaders.Load( shaderPath ), null, null );
 
 	/// <summary>
-	/// A lit material of one colour, for meshes made with <see cref="BackendMesh.Create"/>.
+	/// A lit material of one colour, for meshes made with <see cref="BackendMesh.Create"/>:
+	/// <c>materials/default/white.vmat</c> (complex.shader, white, flat normal) tinted with <paramref name="albedo"/>.
 	/// </summary>
-	public GpuMaterial CreateMaterial( string name, Color albedo ) => new BackendMaterial( name, BackendProgram.Mesh, albedo );
+	public GpuMaterial CreateMaterial( string name, Color albedo )
+	{
+		var values = new Dictionary<string, float[]>( StringComparer.OrdinalIgnoreCase ) { ["g_vColorTint"] = [albedo.r, albedo.g, albedo.b, 0] };
+		return Content.Find( "materials/default/white.vmat" ) is null
+			? new BackendMaterial( name, Shaders.Load( "shaders/complex.shader" ), null, null, values )
+			: Material( "materials/default/white.vmat", values, name );
+	}
+
+	/// <summary>
+	/// A compiled material with <paramref name="values"/> (shader variables by name) over its own. It draws nothing if
+	/// it, or its shader, isn't built.
+	/// </summary>
+	public GpuMaterial LoadMaterial( string path, IReadOnlyDictionary<string, float[]> values, string name = null )
+		=> Material( path, values is null ? null : new( values, StringComparer.OrdinalIgnoreCase ), name );
+
+	BackendMaterial Material( string path, Dictionary<string, float[]> values, string name = null )
+	{
+		var file = Content.Find( path ) is { } found ? MaterialFile.Load( found ) : null;
+		if ( file is null ) return new BackendMaterial( name ?? path, null, null, null, values );
+
+		var textures = new Dictionary<string, BackendTexture>( StringComparer.OrdinalIgnoreCase );
+		foreach ( var (variable, texture) in file.Textures )
+		{
+			if ( LoadTexture( texture ) is BackendTexture loaded ) textures[variable] = loaded;
+		}
+
+		return new BackendMaterial( name ?? path, Shaders.Load( file.Shader ), file, textures, values );
+	}
+
+	/// <summary>
+	/// A pipeline for a variant into targets of these formats, made once. Mesh vertices are stream 0, instance ids
+	/// stream 1 (<c>TEXCOORD13</c>), and inputs a mesh lacks read the default stream 2.
+	/// </summary>
+	internal PipelineHandle Pipeline( ShaderVariant variant, Format color, Format depth, int samples, bool depthOnly )
+	{
+		var key = new PipelineKey( variant, color, depth, samples, depthOnly );
+		lock ( pipelines )
+		{
+			if ( pipelines.TryGetValue( key, out var pipeline ) ) return pipeline;
+
+			var attributes = ShaderDefaults.MapVertices( variant.VertexInputs, input => input.Semantic switch
+			{
+				VertexSemantic.Position => new VertexAttribute( 0, 0, VertexFormat.Float3, 0 ),
+				VertexSemantic.Normal => new VertexAttribute( 0, 0, VertexFormat.Float3, 12 ),
+				VertexSemantic.TexCoord when input.SemanticIndex is 0 or 1 => new VertexAttribute( 0, 0, VertexFormat.Float2, 24 ),
+				VertexSemantic.Tangent => new VertexAttribute( 0, 0, VertexFormat.Float4, 32 ),
+				VertexSemantic.TexCoord when input.SemanticIndex == 13 => new VertexAttribute( 0, 1, VertexFormat.UInt, 0 ),
+				_ => null,
+			}, defaultBuffer: 2 );
+
+			VertexBufferLayout[] streams = [new( System.Runtime.InteropServices.Marshal.SizeOf<MeshVertex>() ), new( 4, VertexStepRate.Instance ), new( 0 )];
+			var info = variant.PipelineInfo( streams, attributes, color == Format.Unknown ? [] : [color], depth, samples, depthBias: depthOnly, $"{variant}{(depthOnly ? " depth" : "")}" );
+
+			// Stripped pixel shaders: depth passes of opaque materials don't need them
+			if ( depthOnly && color == Format.Unknown )
+			{
+				info.FragmentShader = default;
+				info.FragmentEntry = null;
+				info.FragmentConstants = null;
+			}
+
+			pipeline = Gpu.CreateGraphicsPipeline( info );
+			pipelines[key] = pipeline;
+			return pipeline;
+		}
+	}
+
+	internal readonly record struct PipelineKey( ShaderVariant Variant, Format Color, Format Depth, int Samples, bool DepthOnly );
+
+	/// <summary>A compute pipeline for a compute shader's variant, made once.</summary>
+	internal PipelineHandle ComputePipeline( ShaderVariant variant )
+	{
+		var key = new PipelineKey( variant, Format.Unknown, Format.Unknown, 0, false );
+		lock ( pipelines )
+		{
+			if ( pipelines.TryGetValue( key, out var pipeline ) ) return pipeline;
+			pipeline = Gpu.CreateComputePipeline( new ComputePipelineInfo
+			{
+				Shader = variant.Compute.Module,
+				Entry = variant.Compute.Bytecode.EntryPoint( ShaderProgramType.Compute ),
+				Constants = variant.Compute.Constants,
+				Sets = variant.Sets,
+				Name = variant.ToString(),
+			} );
+			pipelines[key] = pipeline;
+			return pipeline;
+		}
+	}
 
 	internal override GpuContext CreateContext( GpuContext frame = null ) => new BackendContext( this, (BackendContext)frame );
 
@@ -343,9 +449,14 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	{
 		Gpu.WaitIdle();
 		Poll();
-		Mesh.Dispose();
-		Gpu.Destroy( shadowSampler );
-		Gpu.Destroy( EmptyStorage );
+		lock ( pipelines )
+		{
+			foreach ( var pipeline in pipelines.Values ) Gpu.Destroy( pipeline );
+			pipelines.Clear();
+		}
+
+		Shaders.Dispose();
+		Defaults.Dispose();
 	}
 }
 

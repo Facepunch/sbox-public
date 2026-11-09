@@ -31,12 +31,8 @@
   <ItemGroup>
     <ProjectReference Include="..\Basalt\Basalt.csproj" Private="false" />
     <ProjectReference Include="..\Basalt.Gpu\Basalt.Gpu.csproj" Private="false" />
+    <ProjectReference Include="..\Basalt.Source2\Basalt.Source2.csproj" Private="false" />
     <ProjectReference Include="..\Sandbox.System\Sandbox.System.csproj" Private="false" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <!-- WithCulture: "forward.ps.spv" would otherwise be taken for a Pashto satellite resource -->
-    <EmbeddedResource Include="Shaders\*.spv" LogicalName="Basalt.Backend.%(Filename)%(Extension)" WithCulture="false" />
   </ItemGroup>
 
 </Project>

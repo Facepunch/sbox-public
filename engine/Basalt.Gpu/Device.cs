@@ -389,6 +389,7 @@ public sealed unsafe partial class Device : IDisposable
 			VkPhysicalDeviceVulkan12Features.RuntimeDescriptorArray, VkPhysicalDeviceVulkan12Features.ScalarBlockLayout,
 			VkPhysicalDeviceVulkan12Features.UniformBufferStandardLayout, VkPhysicalDeviceVulkan12Features.SeparateDepthStencilLayouts,
 			VkPhysicalDeviceVulkan12Features.HostQueryReset, VkPhysicalDeviceVulkan12Features.TimelineSemaphore, VkPhysicalDeviceVulkan12Features.VulkanMemoryModel,
+			VkPhysicalDeviceVulkan12Features.VulkanMemoryModelDeviceScope,
 		];
 
 		foreach ( var f in v12 ) e12.values[f] = s12.values[f];

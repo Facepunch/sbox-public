@@ -47,12 +47,13 @@ internal sealed class BasaltScene : IDisposable
 		world.Lighting.AmbientColor = new Color( 0.12f, 0.15f, 0.2f, 1 );
 		world.Lighting.SunShadowCascades = 3;
 
-		var ground = backend.CreateMaterial( "Ground", new Color( 0.55f, 0.55f, 0.5f ) );
-		var stone = backend.CreateMaterial( "Stone", new Color( 0.8f, 0.75f, 0.68f ) );
+		// s&box's own materials where they're built, plain colours (white.vmat tinted) where they aren't
+		var ground = Material( "materials/dev/gray_grid_8.vmat", "Ground", new Color( 0.55f, 0.55f, 0.5f ) );
+		var stone = Material( "materials/dev/dev_measuregeneric01.vmat", "Stone", new Color( 0.8f, 0.75f, 0.68f ) );
 		var red = backend.CreateMaterial( "Red", new Color( 0.85f, 0.2f, 0.15f ) );
-		var blue = backend.CreateMaterial( "Blue", new Color( 0.2f, 0.4f, 0.9f ) );
+		var blue = Material( "materials/dev/dev_nonmetal_rough30.vmat", "Blue", new Color( 0.2f, 0.4f, 0.9f ), tint: true );
 
-		world.Add( new MeshObject( Box( backend, new Vector3( 2400, 2400, 8 ), ground, "Ground" ), new Transform( new Vector3( 0, 0, -4 ) ) ) );
+		world.Add( new MeshObject( Box( backend, new Vector3( 2400, 2400, 8 ), ground, "Ground", uvScale: 1 / 64f ), new Transform( new Vector3( 0, 0, -4 ) ) ) );
 
 		var box = Box( backend, new Vector3( 40, 40, 40 ), stone, "Box" );
 		var sphere = Sphere( backend, 24, red, "Sphere" );
@@ -130,8 +131,22 @@ internal sealed class BasaltScene : IDisposable
 		return (texture, layout, target.Color);
 	}
 
-	/// <summary>A box of <paramref name="size"/> centred on its origin, counter-clockwise from outside.</summary>
-	static RenderMesh Box( BackendDevice device, Vector3 size, GpuMaterial material, string name )
+	/// <summary>
+	/// A compiled material from the game's content, tinted with <paramref name="color"/> if asked; the colour on
+	/// white.vmat when it isn't built.
+	/// </summary>
+	GpuMaterial Material( string path, string name, Color color, bool tint = false )
+	{
+		if ( backend.Content.Find( path ) is null ) return backend.CreateMaterial( name, color );
+		var values = tint ? new Dictionary<string, float[]> { ["g_vColorTint"] = [color.r, color.g, color.b, 0] } : null;
+		return backend.LoadMaterial( path, values, name );
+	}
+
+	/// <summary>
+	/// A box of <paramref name="size"/> centred on its origin, counter-clockwise from outside. Each face's uvs span 0..1,
+	/// or its size times <paramref name="uvScale"/> when that's given.
+	/// </summary>
+	static RenderMesh Box( BackendDevice device, Vector3 size, GpuMaterial material, string name, float uvScale = 0 )
 	{
 		Vector3[] normals = [Vector3.Forward, Vector3.Backward, Vector3.Left, Vector3.Right, Vector3.Up, Vector3.Down];
 		var vertices = new List<MeshVertex>();
@@ -143,10 +158,12 @@ internal sealed class BasaltScene : IDisposable
 			var u = MathF.Abs( n.z ) > 0.5f ? Vector3.Forward : Vector3.Cross( Vector3.Up, n );
 			var v = Vector3.Cross( n, u );
 			var first = (uint)vertices.Count;
+			var su = uvScale > 0 ? MathF.Abs( Vector3.Dot( u, size ) ) * uvScale : 1;
+			var sv = uvScale > 0 ? MathF.Abs( Vector3.Dot( v, size ) ) * uvScale : 1;
 
-			vertices.Add( new MeshVertex( (n - u - v) * 0.5f * size, n, new Vector2( 0, 1 ) ) );
-			vertices.Add( new MeshVertex( (n + u - v) * 0.5f * size, n, new Vector2( 1, 1 ) ) );
-			vertices.Add( new MeshVertex( (n + u + v) * 0.5f * size, n, new Vector2( 1, 0 ) ) );
+			vertices.Add( new MeshVertex( (n - u - v) * 0.5f * size, n, new Vector2( 0, sv ) ) );
+			vertices.Add( new MeshVertex( (n + u - v) * 0.5f * size, n, new Vector2( su, sv ) ) );
+			vertices.Add( new MeshVertex( (n + u + v) * 0.5f * size, n, new Vector2( su, 0 ) ) );
 			vertices.Add( new MeshVertex( (n - u + v) * 0.5f * size, n, new Vector2( 0, 0 ) ) );
 			indices.AddRange( [first, first + 1, first + 2, first, first + 2, first + 3] );
 		}

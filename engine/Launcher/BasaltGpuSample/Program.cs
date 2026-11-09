@@ -12,7 +12,7 @@ namespace BasaltGpuSample;
 /// <c>-frames N</c> and <c>-seconds S</c> stop it; <c>-resize</c> resizes the window every 20 frames;
 /// <c>-novalidation</c> turns the validation layer off, <c>-syncvalidation</c> adds its synchronisation checks;
 /// <c>-immediate</c> presents without vsync. <c>-basalt</c> draws Basalt's own renderer instead
-/// (<see cref="BasaltScene"/>).
+/// (<see cref="BasaltScene"/>); <c>-capture path.png</c> saves its last frame.
 /// </remarks>
 internal static class Program
 {
@@ -25,6 +25,7 @@ internal static class Program
 		var immediate = args.Contains( "-immediate" );
 		var syncValidation = args.Contains( "-syncvalidation" );
 		var basalt = args.Contains( "-basalt" );
+		var capture = StringArg( args, "-capture" );
 
 		if ( !OperatingSystem.IsWindows() )
 		{
@@ -137,6 +138,15 @@ internal static class Program
 
 		device.WaitIdle();
 
+		if ( capture is not null && world is not null && frames > 0 )
+		{
+			var (texture, layout, color) = world.Render( swapChain.Width, swapChain.Height, (float)clock.Elapsed.TotalSeconds );
+			device.WaitIdle();
+			Capture.Save( device, texture, layout, capture );
+			Basalt.Backend.BackendDevice.SetLayout( color, ImageLayout.CopySource );
+			Console.WriteLine( $"Saved {capture}" );
+		}
+
 		frameTimes.Sort();
 		var median = frameTimes.Count > 0 ? frameTimes[frameTimes.Count / 2] : 0;
 		Console.WriteLine( $"{frames} frames in {clock.Elapsed.TotalSeconds:0.0}s, median {median:0.00} ms, {resizes} resizes, {device.ValidationErrors} validation errors" );
@@ -148,6 +158,12 @@ internal static class Program
 
 		Console.WriteLine( device.DescribeResources() );
 		return device.ValidationErrors > 0 || errors > 0 ? 1 : 0;
+	}
+
+	static string StringArg( string[] args, string name )
+	{
+		var i = Array.IndexOf( args, name );
+		return i >= 0 && i + 1 < args.Length ? args[i + 1] : null;
 	}
 
 	static int IntArg( string[] args, string name, int fallback )
