@@ -261,6 +261,26 @@ public partial class Window
 		_properties.Target = _primarySelectionItem ?? _primarySelectionContext ?? (object)_graph;
 	}
 
+	internal void SelectTransition( TransitionNode transition )
+	{
+		if ( StateMachineCanvas is { } canvas )
+		{
+			var machine = canvas.Node;
+			object selection = machine.Conduits.FirstOrDefault( conduit => conduit.Graph == transition.Graph );
+			if ( selection is null && machine.GlobalGraph == transition.Graph )
+				selection = StateMachineCanvas.SharedSelection.GlobalTransitions;
+
+			if ( selection is not null )
+			{
+				canvas.Select( selection );
+				_workspace.FocusSecondaryNode( transition );
+				return;
+			}
+		}
+
+		NavigateToNode( transition.Identifier );
+	}
+
 	private void ApplyNodeSelection( Node node )
 	{
 		_selectedState = null;
