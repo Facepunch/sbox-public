@@ -625,6 +625,7 @@ public sealed unsafe partial class Device
 		var layout = PipelineLayout( info.Sets );
 
 		var stages = stackalloc VkPipelineShaderStageCreateInfo[2];
+		var specializations = stackalloc VkSpecializationInfo[2];
 		var stageCount = 1u;
 		stages[0] = new VkPipelineShaderStageCreateInfo
 		{
@@ -632,6 +633,7 @@ public sealed unsafe partial class Device
 			stage = Vulkan.Vk.StageVertex,
 			module = Shaders.Get( info.VertexShader.Index, info.VertexShader.Generation ).Module,
 			pName = strings.Add( info.VertexEntry ?? "main" ),
+			pSpecializationInfo = Specialize( info.VertexConstants, &specializations[0], strings ),
 		};
 
 		if ( info.FragmentShader.IsValid )
@@ -642,6 +644,7 @@ public sealed unsafe partial class Device
 				stage = Vulkan.Vk.StageFragment,
 				module = Shaders.Get( info.FragmentShader.Index, info.FragmentShader.Generation ).Module,
 				pName = strings.Add( info.FragmentEntry ?? "main" ),
+				pSpecializationInfo = Specialize( info.FragmentConstants, &specializations[1], strings ),
 			};
 			stageCount = 2;
 		}
@@ -784,6 +787,7 @@ public sealed unsafe partial class Device
 	{
 		using var strings = new NativeStrings();
 		var layout = PipelineLayout( info.Sets );
+		VkSpecializationInfo specialization;
 		var create = new VkComputePipelineCreateInfo
 		{
 			sType = VkStructureType.ComputePipelineCreateInfo,
@@ -793,6 +797,7 @@ public sealed unsafe partial class Device
 				stage = Vulkan.Vk.StageCompute,
 				module = Shaders.Get( info.Shader.Index, info.Shader.Generation ).Module,
 				pName = strings.Add( info.Entry ?? "main" ),
+				pSpecializationInfo = Specialize( info.Constants, &specialization, strings ),
 			},
 			layout = layout,
 			basePipelineIndex = -1,
@@ -804,6 +809,26 @@ public sealed unsafe partial class Device
 
 		var (index, generation) = Pipelines.Add( new PipelineRecord { Pipeline = pipeline, Layout = layout, BindPoint = Vulkan.Vk.BindPointCompute } );
 		return new PipelineHandle( index, generation );
+	}
+
+	/// <summary>
+	/// Fill <paramref name="info"/> with <paramref name="constants"/>, each a 32-bit value, keeping the memory alive in
+	/// <paramref name="strings"/>; null when there are none.
+	/// </summary>
+	static VkSpecializationInfo* Specialize( SpecializationConstant[] constants, VkSpecializationInfo* info, NativeStrings strings )
+	{
+		if ( constants is not { Length: > 0 } ) return null;
+
+		var entries = (VkSpecializationMapEntry*)strings.Allocate( constants.Length * sizeof( VkSpecializationMapEntry ) );
+		var values = (uint*)strings.Allocate( constants.Length * sizeof( uint ) );
+		for ( int i = 0; i < constants.Length; i++ )
+		{
+			entries[i] = new VkSpecializationMapEntry { constantID = constants[i].Id, offset = (uint)(i * sizeof( uint )), size = sizeof( uint ) };
+			values[i] = constants[i].Value;
+		}
+
+		*info = new VkSpecializationInfo { mapEntryCount = (uint)constants.Length, pMapEntries = entries, dataSize = (nuint)(constants.Length * sizeof( uint )), pData = values };
+		return info;
 	}
 
 	void CreatePipelineCache( byte[] data )

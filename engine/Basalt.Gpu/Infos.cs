@@ -223,6 +223,11 @@ public record struct BlendState
 }
 
 /// <summary>
+/// A specialization constant: the <c>constant_id</c> a shader declares and the 32-bit value it gets in a pipeline.
+/// </summary>
+public record struct SpecializationConstant( uint Id, uint Value );
+
+/// <summary>
 /// Stencil testing for one face.
 /// </summary>
 public record struct StencilFace( StencilOp Fail, StencilOp Pass, StencilOp DepthFail, CompareFunction Compare );
@@ -244,6 +249,12 @@ public struct GraphicsPipelineInfo
 
 	/// <summary>The pixel shader's entry point; null for <c>main</c>.</summary>
 	public string FragmentEntry;
+
+	/// <summary>Specialization constants for the vertex shader; null for none.</summary>
+	public SpecializationConstant[] VertexConstants;
+
+	/// <summary>Specialization constants for the pixel shader; null for none.</summary>
+	public SpecializationConstant[] FragmentConstants;
 
 	/// <summary>Layouts of descriptor sets 0 to 3; missing or default ones are empty. Set 4 is always the bindless set.</summary>
 	public BindingLayoutHandle[] Sets;
@@ -319,6 +330,9 @@ public struct ComputePipelineInfo
 
 	/// <summary>Its entry point; null for <c>main</c>.</summary>
 	public string Entry;
+
+	/// <summary>Specialization constants; null for none.</summary>
+	public SpecializationConstant[] Constants;
 
 	/// <summary>Layouts of descriptor sets 0 to 3; missing or default ones are empty. Set 4 is always the bindless set.</summary>
 	public BindingLayoutHandle[] Sets;

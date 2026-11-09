@@ -1,5 +1,6 @@
 using Basalt.Culling;
 using Basalt.Gpu;
+using Basalt.Source2.Shaders;
 using System.Runtime.InteropServices;
 
 namespace Basalt.Backend;
@@ -34,12 +35,6 @@ internal sealed class BackendContext : GpuContext
 	}
 
 	static readonly StringToken ViewConstantsName = new( "PerViewConstantBuffer_t" );
-	static readonly StringToken TransformBufferName = new( "g_TransformBuffer" );
-	static readonly StringToken DirectionalLightName = new( "DirectionalLightCB" );
-	static readonly StringToken LightingConfigName = new( "ViewLightingConfigV2" );
-	static readonly StringToken LightBufferName = new( "BinnedLightBufferV2" );
-	static readonly StringToken DepthMode = new( "Depth" );
-	static readonly StringToken ForwardMode = new( "Forward" );
 	static readonly StringToken FrameBufferCopyTexture = new( "FrameBufferCopyTexture" );
 	static readonly StringToken FrameBufferCopyRectangle = new( "FrameBufferCopyRectangle" );
 
@@ -454,22 +449,26 @@ internal sealed class BackendContext : GpuContext
 	}
 
 	//
-	// Drawing with the mesh program
+	// Drawing with s&box's shaders: every binding the variant reflects gets the material's value, the attribute
+	// of its name from this context's parameters, or a default
 	//
 
 	public override bool DrawModel( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false )
 	{
-		if ( material is not BackendMaterial { Program: BackendProgram.Mesh } m || mesh.Geometry is not BackendMesh geometry || skinned ) return false;
+		if ( material is not BackendMaterial { Shader: { } shader } m || mesh.Geometry is not BackendMesh geometry || skinned ) return false;
 		if ( InstanceIds?.Resource is not BackendBuffer instanceIds ) return false;
 
-		var depthMode = shaderMode.Value == DepthMode.Value;
-		if ( !depthMode && shaderMode.Value != ForwardMode.Value ) return false;
+		var mode = ModeName( shader, shaderMode );
+		if ( mode is null ) return false;
+
+		var variant = Variant( m, mode );
+		if ( variant?.Vertex?.Bytecode is null ) return false;
 		if ( !EnsureScope() ) return false;
 
 		var r = recording;
-		var key = new MeshProgram.Key( depthMode || r.Color is null, r.Color is null ? Format.Unknown : FormatOfTarget( r.Color, r.Srgb ),
-			r.Depth is null ? Format.Unknown : BackendDevice.FormatOf( r.Depth ), (r.Color ?? r.Depth).Samples );
-		var pipeline = device.Mesh.Pipeline( key );
+		var color = r.Color is null ? Format.Unknown : FormatOfTarget( r.Color, r.Srgb );
+		var depthOnly = stripPixelShader || r.Color is null;
+		var pipeline = device.Pipeline( variant, depthOnly ? Format.Unknown : color, r.Depth is null ? Format.Unknown : BackendDevice.FormatOf( r.Depth ), (r.Color ?? r.Depth).Samples, depthOnly );
 
 		if ( r.Pipeline != pipeline )
 		{
@@ -477,18 +476,13 @@ internal sealed class BackendContext : GpuContext
 			r.Pipeline = pipeline;
 		}
 
-		BindSets();
-		if ( key.Depth ) r.List.SetDepthBias( depthBias, slopeScaledDepthBias );
-
-		var albedo = m.Albedo;
-		r.List.PushConstants( new MeshProgram.MaterialConstants
-		{
-			Albedo = new System.Numerics.Vector4( albedo.r, albedo.g, albedo.b, albedo.a ),
-			ShadowSampler = (uint)device.ShadowSampler,
-		} );
+		BindSets( m, variant, depthOnly );
+		if ( depthOnly ) r.List.SetDepthBias( depthBias, slopeScaledDepthBias );
+		if ( variant.State.StencilTest && r.Depth is not null && BackendDevice.FormatOf( r.Depth ).HasStencil() ) r.List.SetStencilReference( (byte)variant.State.StencilReference );
 
 		r.List.SetVertexBuffer( 0, geometry.Vertices );
 		r.List.SetVertexBuffer( 1, instanceIds.Handle, firstInstance * 4L );
+		r.List.SetVertexBuffer( 2, device.Defaults.VertexDefaults );
 		r.List.SetIndexBuffer( geometry.Indices, geometry.IndexFormat );
 		r.List.DrawIndexed( draw.IndexCount, instances, draw.StartIndex );
 		return true;
@@ -500,51 +494,169 @@ internal sealed class BackendContext : GpuContext
 		return srgb && format.HasSrgb() ? format.Srgb() : format;
 	}
 
+	/// <summary>The name of the shader's mode a token names, or null if it has no such mode.</summary>
+	static string ModeName( ShaderFile shader, StringToken mode )
+	{
+		foreach ( var candidate in shader.Modes )
+		{
+			if ( Token( candidate.Name ).Value == mode.Value ) return candidate.Name;
+		}
+
+		return null;
+	}
+
+	static readonly System.Collections.Concurrent.ConcurrentDictionary<string, StringToken> tokens = new();
+
+	static StringToken Token( string name ) => tokens.GetOrAdd( name, n => new StringToken( n ) );
+
 	/// <summary>
-	/// Bind the program's sets from this context's parameters, unless nothing's changed since they were bound.
+	/// The material's variant for a mode with this context's dynamic combo values (<c>D_*</c>, set as combos).
 	/// </summary>
-	void BindSets()
+	ShaderVariant Variant( BackendMaterial material, string mode )
+	{
+		var key = new System.Text.StringBuilder( mode );
+		foreach ( var type in (ReadOnlySpan<ShaderProgramType>)[ShaderProgramType.Vertex, ShaderProgramType.Pixel] )
+		{
+			foreach ( var combo in material.Shader[type]?.DynamicCombos ?? [] )
+			{
+				if ( attributes.GetCombo( Token( combo.Name ) ) is int value && value != 0 ) key.Append( ';' ).Append( combo.Name ).Append( '=' ).Append( value );
+			}
+		}
+
+		return material.Variant( device.Shaders, mode, key.ToString(), name => attributes.GetCombo( Token( name ) ), name => Integer( attributes.Get( Token( name ) ) ) );
+	}
+
+	static int? Integer( object value ) => value switch
+	{
+		int i => i,
+		uint u => (int)u,
+		bool b => b ? 1 : 0,
+		float f => (int)f,
+		_ => null,
+	};
+
+	/// <summary>
+	/// An attribute as floats, for constants: numbers, bools and vectors.
+	/// </summary>
+	static float[] Floats( object value ) => value switch
+	{
+		int i => [i],
+		uint u => [u],
+		float f => [f],
+		bool b => [b ? 1 : 0],
+		Vector2 v => [v.x, v.y],
+		Vector3 v => [v.x, v.y, v.z],
+		Vector4 v => [v.x, v.y, v.z, v.w],
+		Color c => [c.r, c.g, c.b, c.a],
+		Vector2Int v => [v.x, v.y],
+		_ => null,
+	};
+
+	/// <summary>
+	/// Bind a variant's sets 0 to 3 for a draw with <paramref name="material"/>.
+	/// </summary>
+	void BindSets( BackendMaterial material, ShaderVariant variant, bool depthOnly )
 	{
 		var r = recording;
-		var version = attributes.Version;
-		if ( r.Binder == this && r.BindVersion == version ) return;
+		var defaults = device.Defaults;
+		Span<Binding> bindings = stackalloc Binding[64];
 
-		var program = device.Mesh;
-		var view = Constants( ViewConstantsName, 1088 );
-		var sun = Constants( DirectionalLightName, 416 );
-		var lighting = Constants( LightingConfigName, 4128 );
-		var transforms = attributes.Get( TransformBufferName ) is GpuBuffer { Resource: BackendBuffer buffer } ? buffer.Handle : default;
-		if ( !transforms.IsValid ) transforms = device.EmptyStorage;
-		var lights = attributes.Get( LightBufferName ) is GpuBuffer { Resource: BackendBuffer lightBuffer } ? lightBuffer.Handle : device.EmptyStorage;
+		for ( int set = 0; set < variant.Sets.Length; set++ )
+		{
+			if ( !variant.Sets[set].IsValid ) continue;
+			if ( set == ShaderAbi.FragmentSet && depthOnly ) continue;
 
-		r.List.SetBindings( ShaderAbi.VertexSet, program.VertexSet,
-		[
-			Binding.Uniform( ShaderAbi.ConstantBuffer( 0 ), view.Buffer, view.Offset, view.Size ),
-			Binding.Storage( ShaderAbi.Texture( 0 ), transforms ),
-		] );
+			var count = 0;
+			foreach ( var resource in variant.Resources )
+			{
+				if ( resource.Set != set ) continue;
+				if ( count == bindings.Length ) throw new InvalidOperationException( $"{variant} binds more than {bindings.Length} resources in set {set}" );
 
-		r.List.SetBindings( ShaderAbi.FragmentSet, program.PixelSet,
-		[
-			Binding.Uniform( ShaderAbi.ConstantBuffer( 0 ), view.Buffer, view.Offset, view.Size ),
-			Binding.Uniform( ShaderAbi.ConstantBuffer( 1 ), sun.Buffer, sun.Offset, sun.Size ),
-			Binding.Uniform( ShaderAbi.ConstantBuffer( 2 ), lighting.Buffer, lighting.Offset, lighting.Size ),
-			Binding.Storage( ShaderAbi.Texture( 0 ), lights ),
-		] );
+				var stage = set == ShaderAbi.FragmentSet ? variant.Pixel : variant.Compute ?? variant.Vertex;
+				bindings[count++] = resource.Kind switch
+				{
+					ShaderResourceKind.MaterialConstants => MaterialConstants( material, stage, resource.Binding ),
+					ShaderResourceKind.ConstantBuffer => ConstantBuffer( stage, resource ),
+					ShaderResourceKind.Buffer => attributes.Get( Token( resource.Name ) ) is GpuBuffer { Resource: BackendBuffer buffer }
+						? Binding.Storage( resource.Binding, buffer.Handle )
+						: defaults.For( resource ),
+					ShaderResourceKind.Texture => Texture( material, resource ),
+					_ => defaults.For( resource ),
+				};
+			}
 
-		r.Binder = this;
-		r.BindVersion = version;
+			r.List.SetBindings( set, variant.Sets[set], bindings[..count] );
+		}
+
+		// Pixel set skipped for depth-only draws: the pipeline has no pixel shader
+		r.Binder = null;
 	}
 
 	/// <summary>
-	/// A named constant struct copied into this frame's upload memory, zeroes if it was never set.
+	/// A stage's material constants, from the material and this context's attributes over the shader's defaults, in
+	/// upload memory.
 	/// </summary>
-	(BufferHandle Buffer, long Offset, long Size) Constants( StringToken name, int size )
+	Binding MaterialConstants( BackendMaterial material, ShaderStage stage, int binding )
 	{
-		var data = attributes.Get( name ) as byte[];
+		var size = stage.MaterialBuffer.Size;
+		var allocation = List.AllocateUpload( size, Gpu.Capabilities.UniformAlignment );
+		stage.WriteMaterialConstants( allocation.Data[..size], variable => variable.Source switch
+		{
+			VariableSource.Material or VariableSource.MaterialAndExpression => material.Value( variable.Name ),
+			// Meshes made here have plain normals and tangents
+			VariableSource.Attribute when variable.Attribute == "UncompressedTangentFrame" => [1],
+			VariableSource.Attribute => Floats( attributes.Get( Token( variable.Attribute ) ) ),
+			_ => null,
+		}, material.Features );
+		return Binding.Uniform( binding, allocation.Buffer, allocation.Offset, size );
+	}
+
+	/// <summary>
+	/// A constant buffer the engine fills, copied into upload memory at the size the shader was compiled with; zeros
+	/// if it was never set.
+	/// </summary>
+	Binding ConstantBuffer( ShaderStage stage, in ShaderResource resource )
+	{
+		var data = attributes.Get( Token( resource.Name ) ) as byte[];
+		var size = data?.Length ?? 0;
+		foreach ( var layout in stage.Program.ConstantBuffers )
+		{
+			if ( layout.Name == resource.Name ) size = Math.Max( size, layout.Size );
+		}
+
+		if ( size == 0 ) return device.Defaults.For( resource );
+
+		size = (size + 15) & ~15;
 		var allocation = List.AllocateUpload( size, Gpu.Capabilities.UniformAlignment );
 		allocation.Data.Clear();
-		if ( data is not null ) data.AsSpan( 0, Math.Min( data.Length, size ) ).CopyTo( allocation.Data );
-		return (allocation.Buffer, allocation.Offset, size);
+		data?.CopyTo( allocation.Data );
+		return Binding.Uniform( resource.Binding, allocation.Buffer, allocation.Offset, size );
+	}
+
+	/// <summary>
+	/// A texture: the material's for material variables, else the attribute of its name, when it's ready to sample
+	/// and the shape the shader expects; a default otherwise.
+	/// </summary>
+	Binding Texture( BackendMaterial material, in ShaderResource resource )
+	{
+		BackendTexture texture = null;
+		if ( resource.Variable.Source == VariableSource.Material ) material.Textures.TryGetValue( resource.Variable.Name, out texture );
+		else texture = attributes.Get( Token( resource.Name ) ) as BackendTexture;
+
+		var expected = resource.Dimension switch
+		{
+			SpirvImageDimension.Cube => TextureDimension.TextureCube,
+			SpirvImageDimension.CubeArray => TextureDimension.TextureCubeArray,
+			SpirvImageDimension.Texture3D => TextureDimension.Texture3D,
+			SpirvImageDimension.Texture2DArray => TextureDimension.Texture2DArray,
+			_ => TextureDimension.Texture2D,
+		};
+
+		if ( texture is null || texture.Layout != ImageLayout.ShaderRead || texture.Dimension != expected || texture.Samples > 1 ) return device.Defaults.For( resource );
+
+		// SrgbRead( true ) textures are compiled with render state id 1
+		var srgb = resource.Variable.RenderStateId == 1 && Gpu.InfoOf( texture.Handle ).Format.HasSrgb();
+		return Binding.Sampled( resource.Binding, texture.Handle, srgb );
 	}
 
 	//
@@ -677,7 +789,28 @@ internal sealed class BackendContext : GpuContext
 
 	public override void BindInstances( int stream, int firstInstance ) { }
 
-	public override void Dispatch( GpuMaterial computeShader, int x, int y, int z ) { }
+	/// <summary>
+	/// Run a compute shader over <paramref name="x"/> by <paramref name="y"/> by <paramref name="z"/> threads (divided
+	/// by its thread group size, as native does), with its bindings from this context's parameters.
+	/// </summary>
+	public override void Dispatch( GpuMaterial computeShader, int x, int y, int z )
+	{
+		if ( recording is null || computeShader is not BackendMaterial { Shader: { } shader } m ) return;
+		if ( shader[ShaderProgramType.Compute] is null || shader.Modes.Count == 0 ) return;
+
+		var variant = Variant( m, shader.Modes[0].Name );
+		if ( variant?.Compute?.Bytecode is null ) return;
+
+		CloseScope();
+		var r = recording;
+		var pipeline = device.ComputePipeline( variant );
+		r.List.SetPipeline( pipeline );
+		r.Pipeline = default;
+		BindSets( m, variant, depthOnly: false );
+
+		var (gx, gy, gz) = variant.Compute.Bytecode.ThreadGroupSize;
+		r.List.Dispatch( (x + Math.Max( gx, 1 ) - 1) / Math.Max( gx, 1 ), (y + Math.Max( gy, 1 ) - 1) / Math.Max( gy, 1 ), (z + Math.Max( gz, 1 ) - 1) / Math.Max( gz, 1 ) );
+	}
 
 	public override void Dispatch( GpuMaterial computeShader, ShaderParameters parameters, int x, int y, int z ) { }
 

@@ -389,6 +389,7 @@ public sealed unsafe partial class Device : IDisposable
 			VkPhysicalDeviceVulkan12Features.RuntimeDescriptorArray, VkPhysicalDeviceVulkan12Features.ScalarBlockLayout,
 			VkPhysicalDeviceVulkan12Features.UniformBufferStandardLayout, VkPhysicalDeviceVulkan12Features.SeparateDepthStencilLayouts,
 			VkPhysicalDeviceVulkan12Features.HostQueryReset, VkPhysicalDeviceVulkan12Features.TimelineSemaphore, VkPhysicalDeviceVulkan12Features.VulkanMemoryModel,
+			VkPhysicalDeviceVulkan12Features.VulkanMemoryModelDeviceScope,
 		];
 
 		foreach ( var f in v12 ) e12.values[f] = s12.values[f];
@@ -562,6 +563,14 @@ internal sealed unsafe class NativeStrings : IDisposable
 		arrays.Add( (nint)array );
 		for ( int i = 0; i < texts.Count; i++ ) array[i] = Add( texts[i] );
 		return array;
+	}
+
+	/// <summary>Native memory freed with the strings.</summary>
+	public void* Allocate( int bytes )
+	{
+		var p = NativeMemory.AllocZeroed( (nuint)Math.Max( bytes, 1 ) );
+		arrays.Add( (nint)p );
+		return p;
 	}
 
 	public void Dispose()

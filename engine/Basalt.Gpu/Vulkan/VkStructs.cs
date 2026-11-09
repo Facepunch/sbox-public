@@ -351,6 +351,7 @@ internal unsafe struct VkPhysicalDeviceVulkan12Features
 	public const int TimelineSemaphore = 37;
 	public const int BufferDeviceAddress = 38;
 	public const int VulkanMemoryModel = 41;
+	public const int VulkanMemoryModelDeviceScope = 42;
 }
 
 /// <summary>VkPhysicalDeviceVulkan13Features: 15 VkBool32s.</summary>

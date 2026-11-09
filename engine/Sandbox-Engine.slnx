@@ -69,6 +69,7 @@
     <Project Path="Basalt/Basalt.csproj" />
     <Project Path="Basalt.Backend/Basalt.Backend.csproj" />
     <Project Path="Basalt.Gpu/Basalt.Gpu.csproj" />
+    <Project Path="Basalt.Source2/Basalt.Source2.csproj" />
     <Project Path="Sandbox.Rendering/Sandbox.Rendering.csproj" />
     <Project Path="Sandbox.Tools/Sandbox.Tools.csproj" />
   </Folder>
