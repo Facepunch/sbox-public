@@ -254,6 +254,13 @@ GPU structs must match the native and shader layouts, including packing and matr
 Check those layouts when updating native dependencies. Skinning uses the engine's shared vertex cache;
 morph and vertex-cache preparation needed by this renderer must complete before its draw submission.
 
+A model's draw call can have a base vertex: the scene compiler's merged models (`aggregate_N.vmdl`) pack many pieces into one
+vertex buffer, and each draw's indices count from its own first vertex. The native model draw calls
+(`RenderTools.DrawModelDrawCall` and the indirect forms) don't apply it, so `RenderMesh.Draw.BaseVertex` carries it and
+`MeshRenderFeature` draws such a draw call itself, through `RenderContext.DrawIndexedInstanced` with the base vertex. Leave
+it out and the draw reads the first piece's vertices: triangles join unrelated pieces and stretch across the screen
+(Newcity 2 Scene's chain-link fence, whose managed frame took 14.7 ms against 5.5 ms once fixed).
+
 ### C# style
 
 Use the engine's `Matrix`, `Vector2`, `Vector3`, `Vector4` and `Rotation` types. They already wrap

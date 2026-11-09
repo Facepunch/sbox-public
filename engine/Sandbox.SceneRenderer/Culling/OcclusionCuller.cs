@@ -157,7 +157,7 @@ internal sealed class OcclusionCuller : IDisposable
 		runs[runCount++] = new CullRun { FirstInstance = (uint)firstInstance, FirstArg = (uint)firstArg, DrawCount = (uint)lodDraws.Length, Phases = AllPhases };
 
 		foreach ( var draw in lodDraws )
-			args[argCount++] = new GpuBuffer.IndirectDrawIndexedArguments { IndexCount = (uint)draw.IndexCount, FirstIndex = (uint)draw.StartIndex };
+			args[argCount++] = new GpuBuffer.IndirectDrawIndexedArguments { IndexCount = (uint)draw.IndexCount, FirstIndex = (uint)draw.StartIndex, BaseVertex = draw.BaseVertex };
 
 		pendingStart = InstanceCount;
 		tested += count;
