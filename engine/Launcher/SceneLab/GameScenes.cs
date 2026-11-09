@@ -991,7 +991,7 @@ internal static partial class GameScenes
 	/// A refractive glass material: the citizen gas mask's glass, which core's shader has no textures to make from, copied with
 	/// its refraction and blur changed.
 	/// </summary>
-	static Material Glass( string name, float refraction, float blur )
+	internal static Material Glass( string name, float refraction, float blur )
 	{
 		var material = Material.Load( "models/citizen_clothes/hat/gasmask/textures/gasmask_glass.vmat" ).CreateCopy( name );
 		material.Set( "g_flRefractionStrength", refraction );
