@@ -108,6 +108,39 @@ public class BakedLightTests
 		}
 	}
 
+	/// <summary>
+	/// A mixed light's static shadows are in its lightmaps too, so its shadow map holds only what moves - as
+	/// <c>ShadowMapper.FindOrCreateShadowMaps</c> excludes <c>StaticObject</c> for a baked light. A dynamic light casts both.
+	/// </summary>
+	[TestMethod]
+	public void MixedLightsLeaveStaticCastersOut()
+	{
+		var world = new RenderWorld();
+		world.Lighting.SunColor = Color.Black;
+		var fixedBox = new MeshObject( null, new Transform( new Vector3( 100, 0, -20 ) ) ) { LocalBounds = UnitBox, IsStatic = true };
+		var movingBox = new MeshObject( null, new Transform( new Vector3( 100, 0, 20 ) ) ) { LocalBounds = UnitBox };
+		world.Add( fixedBox );
+		world.Add( movingBox );
+		var light = Light( world, 100, baked: true, mixed: true );
+
+		using var system = new RenderSystem();
+		var mesh = system.GetFeature<MeshRenderFeature>();
+
+		Basalt.Shadows.ShadowMapper.ResetCache();
+		CollectAndPrepare( system, world, LookingDownX() );
+		var drawn = system.ShadowMaps.Passes.ToArray().SelectMany( p => p.Visible( mesh ) ).ToList();
+		CollectionAssert.Contains( drawn, movingBox.Index );
+		CollectionAssert.DoesNotContain( drawn, fixedBox.Index, "its shadow is baked" );
+
+		light.Baked = false;
+		light.MixedShadows = false;
+		Basalt.Shadows.ShadowMapper.ResetCache();
+		CollectAndPrepare( system, world, LookingDownX() );
+		drawn = system.ShadowMaps.Passes.ToArray().SelectMany( p => p.Visible( mesh ) ).ToList();
+		CollectionAssert.Contains( drawn, movingBox.Index );
+		CollectionAssert.Contains( drawn, fixedBox.Index );
+	}
+
 	static LightProbeVolume Volume( Vector3 position, float size, int priority = 0, uint group = 0 ) => new()
 	{
 		Transform = new Transform( position ),

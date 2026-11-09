@@ -184,6 +184,9 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 				ConeOuter = light.ConeOuter,
 				Hardness = light.ShadowHardness,
 				Static = light.IsStatic,
+
+				// A mixed light's static shadows are in its lightmaps, so its maps leave static casters out
+				Baked = light.Baked,
 			};
 
 			lightBinner.SetShadowMapIndex( i, mapper.FindOrCreateShadowMaps( shadowLight, lightBinner.ScreenSize( i ) ) );
