@@ -926,7 +926,8 @@ public class ContentBuilderTests
 		CollectionAssert.AreEqual( new[] { "t.vtex", "m.vmat", "z.wav" }, fx.Build( maxJobs: 1 ).Jobs.ToArray() );
 	}
 
-	[TestMethod]
+	// Wall-clock times: a loaded machine (CI) can make the short compile take longer than the long one
+	[TestMethod, TestCategory( "Slow" )]
 	public void WhatTookLongestLastTimeCompilesFirst()
 	{
 		// The first build goes by type (material before texture); after it, by what each actually took. The first job
