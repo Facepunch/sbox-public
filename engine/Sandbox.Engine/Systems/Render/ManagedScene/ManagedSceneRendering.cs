@@ -119,13 +119,10 @@ internal static partial class ManagedSceneRendering
 		var info = g_pRenderDevice.GetSwapChainInfo( swapChain );
 		var targetSize = size ?? new Vector2( info.m_DisplayMode.m_nWidth, info.m_DisplayMode.m_nHeight );
 		if ( !renderer.Render( camera, swapChain, targetSize ) ) return false;
-		if ( warming ) return false;
 
-		// The console, debug overlays and the like, which native adds to the main camera's view
-		if ( camera.SceneCamera.EnableEngineOverlays )
-			CCameraRenderer.RenderOverlay( swapChain );
-
-		return true;
+		// No platform overlay here: whoever owns the swap chain adds it once, after its cameras (MenuDll.OnRender, the
+		// editor's play widget), for either renderer
+		return !warming;
 	}
 
 	static string pendingCompare;
