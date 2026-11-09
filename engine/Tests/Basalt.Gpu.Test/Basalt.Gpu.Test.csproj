@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!--
+		Basalt.Gpu's tests. Everything renders offscreen, so no window is needed; tests that need a GPU are inconclusive
+		on machines without Vulkan 1.3. The sample's scene and shaders are compiled in, so the tests draw what it draws.
+	-->
+
+	<PropertyGroup>
+		<RootNamespace>BasaltGpuTests</RootNamespace>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\Basalt.Gpu\Basalt.Gpu.csproj" />
+		<ProjectReference Include="..\..\Basalt.Backend\Basalt.Backend.csproj" />
+		<ProjectReference Include="..\..\Basalt.Source2\Basalt.Source2.csproj" />
+		<ProjectReference Include="..\..\Basalt\Basalt.csproj" />
+		<ProjectReference Include="..\..\Sandbox.System\Sandbox.System.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Compile Include="..\..\Launcher\BasaltGpuSample\SampleScene.cs" Link="Sample\SampleScene.cs" />
+		<Compile Include="..\..\Launcher\BasaltGpuSample\BasaltScene.cs" Link="Sample\BasaltScene.cs" />
+		<EmbeddedResource Include="..\..\Launcher\BasaltGpuSample\Shaders\*.spv" LogicalName="%(Filename)%(Extension)" WithCulture="false" Link="Sample\%(Filename)%(Extension)" />
+	</ItemGroup>
+
+</Project>
