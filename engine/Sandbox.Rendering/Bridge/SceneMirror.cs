@@ -357,6 +357,19 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 			mesh.CastShadows = flags.CastShadows;
 			mesh.IsStatic = flags.IsStatic;
 			mesh.IsWorld = mesh.IsStatic || flags.HasFlag( SceneObjectFlags.IsHammerGeometry );
+
+			// Its renderer's own command lists (Renderer.ExecuteBefore, ExecuteAfter)
+			if ( flags.WantsExecuteBefore || flags.WantsExecuteAfter )
+			{
+				var callbacks = mesh.Callbacks as BridgeDrawCallbacks ?? new BridgeDrawCallbacks( sceneObject );
+				callbacks.Before = flags.WantsExecuteBefore;
+				callbacks.After = flags.WantsExecuteAfter;
+				mesh.Callbacks = callbacks;
+			}
+			else
+			{
+				mesh.Callbacks = null;
+			}
 		}
 
 		// Material changes recompute native blend flags.

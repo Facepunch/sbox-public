@@ -21,6 +21,19 @@ internal sealed class BridgeCustomObject : CustomObject
 	{
 		if ( !Source.IsValid() ) return;
 
+		var graphicsView = ViewFor( context, view, layer, view.IsShadow ? null : setupLighting ??= SetupLighting );
+		using ( new Graphics.Scope( context.NativeContext(), graphicsView ) )
+		{
+			Source.RenderInternal();
+		}
+	}
+
+	/// <summary>
+	/// This thread's managed view, pointed at what's bound for a layer of a view, with the frame's attributes inherited:
+	/// what a native layer's <c>Graphics.Scope</c> gives drawing code.
+	/// </summary>
+	internal static Graphics.ManagedView ViewFor( GpuContext context, ViewPass view, MeshLayer layer, Action<SceneObject, RenderAttributes> setupLighting )
+	{
 		// Shadow views inherit camera settings from the root view.
 		var frameView = (view.View.HostView ?? view.Root?.HostView) as Graphics.ManagedView;
 		var graphicsView = threadView ??= new Graphics.ManagedView();
@@ -52,17 +65,13 @@ internal sealed class BridgeCustomObject : CustomObject
 		// Shadow billboards face the light and use depth mode.
 		graphicsView.LayerType = (SceneLayerType)layer.LayerType;
 		graphicsView.ShaderMode = layer.ShaderMode;
-		graphicsView.SetupLighting = view.IsShadow ? null : setupLighting ??= SetupLighting;
+		graphicsView.SetupLighting = setupLighting;
 
 		var camera = view.View;
 		var viewport = bound.Viewport;
 		var aspect = viewport.Height > 0 ? viewport.Width / viewport.Height : 1;
 		graphicsView.SetCamera( camera.Position, camera.Rotation, camera.FieldOfView, camera.ZNear, camera.ZFar, aspect, camera.Orthographic, camera.OrthoSize.x, camera.OrthoSize.y );
-
-		using ( new Graphics.Scope( native, graphicsView ) )
-		{
-			Source.RenderInternal();
-		}
+		return graphicsView;
 	}
 
 	Action<SceneObject, RenderAttributes> setupLighting;

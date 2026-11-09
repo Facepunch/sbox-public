@@ -43,7 +43,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	/// Compatible instances sharing mesh, LOD and draw state. Skinned IDs are grouped per model mesh;
 	/// custom objects occupy individual runs. Lighting and frame-copy inputs apply in forward passes.
 	/// </summary>
-	internal readonly record struct Run( RenderMesh Mesh, int Lod, GpuMaterial Override, bool OverrideBlends, DrawFilter Filter, int FirstInstance, int Count, bool Skinned = false, ShaderParameters Attributes = null, CustomObject Custom = null, ShaderParameters Lightmap = null, bool ReadsFrameBuffer = false, ShaderParameters Probe = null, bool Tinted = false, bool Deformed = false, bool Morphable = false, int CullDraw = -1 );
+	internal readonly record struct Run( RenderMesh Mesh, int Lod, GpuMaterial Override, bool OverrideBlends, DrawFilter Filter, int FirstInstance, int Count, bool Skinned = false, ShaderParameters Attributes = null, CustomObject Custom = null, ShaderParameters Lightmap = null, bool ReadsFrameBuffer = false, ShaderParameters Probe = null, bool Tinted = false, bool Deformed = false, bool Morphable = false, int CullDraw = -1, DrawCallbacks Callbacks = null );
 
 	/// <summary>
 	/// One draw of a run: the unit a layer records. A run groups instances; its draws can go out apart from each other, as
@@ -124,6 +124,11 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		/// </summary>
 		public MeshRuns Custom;
 
+		/// <summary>
+		/// Lists containing objects with <see cref="DrawCallbacks"/>, which colour layers record on the main thread.
+		/// </summary>
+		public MeshRuns Callbacks;
+
 		public void Clear()
 		{
 			foreach ( var list in ByBit )
@@ -131,6 +136,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			foreach ( var list in ItemsByBit )
 				list.Clear();
 			Custom = 0;
+			Callbacks = 0;
 			FrameBufferReads = 0;
 		}
 	}
@@ -204,6 +210,11 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		/// A custom object, left for the main thread: it isn't classified like a mesh.
 		/// </summary>
 		public bool Custom;
+
+		/// <summary>
+		/// A mesh with <see cref="DrawCallbacks"/>, in a view that runs them.
+		/// </summary>
+		public bool Callbacks;
 	}
 
 	/// <summary>
@@ -324,6 +335,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			if ( c.Runs == 0 ) continue;
 
 			layers.FrameBufferReads |= c.FrameBufferReads;
+			if ( c.Callbacks ) layers.Callbacks |= c.Runs;
 			AddToLists( c.Runs, index, c.OpaqueKey, c.Distance, c.OnlyTranslucent, c.RenderOrder );
 		}
 
@@ -387,6 +399,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			c.OpaqueKey = (runs & (BatchedLists | RenderOrderLists)) != 0 ? OpaqueKey( obj, lod ) : 0;
 			c.Distance = (runs & DistanceSortedLists) != 0 ? TranslucentSortDistance( centers[index], extents[index], sortCamera ) : 0;
 			c.OnlyTranslucent = blend == MeshBlend.Translucent;
+			c.Callbacks = obj.Callbacks is not null && !shadow;
 			c.RenderOrder = obj.RenderOrder;
 		}
 	}
@@ -607,6 +620,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		var skinnedRun = false;
 		var deformedRun = false;
 		var morphableRun = false;
+		DrawCallbacks callbacks = null;
 		skinMembers.Clear();
 		tintedSlots.Clear();
 
@@ -631,10 +645,12 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			var tint = TintFor( obj, objLod );
 			if ( skinned ) WriteBones( obj, objLod, matrices[index], tint, transforms );
 
-			var joins = length > 0 && skinned == skinnedRun && deformed == deformedRun && morphable == morphableRun && obj.Mesh == mesh && objLod == lod && obj.MaterialOverride == material && objFilter == filter && obj.Attributes == attributes && obj.LightmapAttributes == lightmap && obj.WantsFrameBufferCopy == reads && probes[index] == probe;
+			var joins = length > 0 && skinned == skinnedRun && deformed == deformedRun && morphable == morphableRun && obj.Mesh == mesh && objLod == lod && obj.MaterialOverride == material && objFilter == filter && obj.Attributes == attributes && obj.LightmapAttributes == lightmap && obj.WantsFrameBufferCopy == reads && probes[index] == probe
+				&& obj.Callbacks is null && callbacks is null;
 			if ( !joins )
 			{
 				Flush();
+				callbacks = obj.Callbacks;
 				mesh = obj.Mesh;
 				material = obj.MaterialOverride;
 				attributes = obj.Attributes;
@@ -678,7 +694,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			if ( skinnedRun )
 			{
 				start = WriteSkinnedInstances( mesh, lod, transforms );
-				runs.Add( new Run( mesh, lod, material, overrideBlends, filter, start, length, Skinned: true, Attributes: attributes, Lightmap: lightmap, ReadsFrameBuffer: reads, Probe: probe, Deformed: deformedRun, Morphable: morphableRun ) );
+				runs.Add( new Run( mesh, lod, material, overrideBlends, filter, start, length, Skinned: true, Attributes: attributes, Lightmap: lightmap, ReadsFrameBuffer: reads, Probe: probe, Deformed: deformedRun, Morphable: morphableRun, Callbacks: callbacks ) );
 				skinMembers.Clear();
 			}
 			else if ( mesh.HasDrawTints )
@@ -693,13 +709,13 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 						transforms.AddInstance( slot + offset + d );
 				}
 
-				runs.Add( new Run( mesh, lod, material, overrideBlends, filter, start, length, Attributes: attributes, Lightmap: lightmap, ReadsFrameBuffer: reads, Probe: probe, Tinted: true ) );
+				runs.Add( new Run( mesh, lod, material, overrideBlends, filter, start, length, Attributes: attributes, Lightmap: lightmap, ReadsFrameBuffer: reads, Probe: probe, Tinted: true, Callbacks: callbacks ) );
 				tintedSlots.Clear();
 			}
 			else
 			{
 				var cull = occlusion?.CommitRun( start, length, mesh.DrawsForLod( lod ) ) ?? -1;
-				runs.Add( new Run( mesh, lod, material, overrideBlends, filter, start, length, Attributes: attributes, Lightmap: lightmap, ReadsFrameBuffer: reads, Probe: probe, CullDraw: cull ) );
+				runs.Add( new Run( mesh, lod, material, overrideBlends, filter, start, length, Attributes: attributes, Lightmap: lightmap, ReadsFrameBuffer: reads, Probe: probe, CullDraw: cull, Callbacks: callbacks ) );
 			}
 
 			length = 0;
@@ -771,11 +787,13 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	}
 
 	/// <summary>
-	/// Worker-safe when no custom objects will draw.
+	/// Worker-safe when no custom objects will draw, and no draw callbacks will run.
 	/// </summary>
 	internal override bool CanRecordOffMainThread( ViewPass view, MeshLayer layer )
 	{
-		return !layer.DrawsCustomObjectsIn( view ) || (view.State<RunLists>( this ).Custom & layer.Runs) == 0;
+		var lists = view.State<RunLists>( this );
+		if ( !layer.Depth && !view.IsShadow && (lists.Callbacks & layer.Runs) != 0 ) return false;
+		return !layer.DrawsCustomObjectsIn( view ) || (lists.Custom & layer.Runs) == 0;
 	}
 
 	internal override bool ReadsFrameBuffer( ViewPass view, MeshRuns runs ) => (view.State<RunLists>( this ).FrameBufferReads & runs) != 0;
@@ -844,10 +862,21 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		// Skinned draws' vertex-cache combo, set only when it changes: setting it costs the material bind
 		var vertexAnimation = 0;
 
+		// The object whose stretch of draws is being recorded, if it has callbacks (CRenderBatchList::m_pLastCallbackBeforeObject)
+		DrawCallbacks open = null;
+
 		foreach ( var item in items )
 		{
 			ref readonly var run = ref runs[item.Run];
 			if ( culledOnly && run.CullDraw < 0 ) continue;
+
+			// Around each stretch of an object's draws in colour layers: its after-work when another object's draw comes,
+			// then the next one's before-work (CRenderBatchList::DrawCurrentPrimitives, FlushAfterRenderCallback)
+			if ( !depth && !view.IsShadow && run.Callbacks != open )
+			{
+				SwitchCallbacks( context, view, layer, open, run.Callbacks, ref vertexAnimation );
+				open = run.Callbacks;
+			}
 
 			// Bind the custom transform, draw, then restore frame targets.
 			if ( run.Custom is { } custom )
@@ -935,8 +964,30 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			stats.Triangles += (long)(draw.IndexCount / 3) * run.Count;
 		}
 
+		if ( open is not null ) SwitchCallbacks( context, view, layer, open, null, ref vertexAnimation );
+
 		if ( vertexAnimation != 0 ) context.SetCombo( CsVertexAnimation, 0 );
 		context.SetObjectAttributes( null );
+	}
+
+	/// <summary>
+	/// Run <paramref name="closing"/>'s after-work and <paramref name="opening"/>'s before-work, then restore what they may
+	/// have changed, as a custom object's draw does.
+	/// </summary>
+	static void SwitchCallbacks( GpuContext context, ViewPass view, MeshLayer layer, DrawCallbacks closing, DrawCallbacks opening, ref int vertexAnimation )
+	{
+		var after = closing is { After: true };
+		var before = opening is { Before: true };
+		if ( !after && !before ) return;
+
+		if ( vertexAnimation != 0 ) context.SetCombo( CsVertexAnimation, vertexAnimation = 0 );
+		context.SetObjectAttributes( null );
+
+		if ( after ) closing.Render( context, view, layer, true );
+		if ( before ) opening.Render( context, view, layer, false );
+
+		context.SetCombo( CsVertexAnimation, 0 );
+		context.RestoreBound();
 	}
 
 	/// <summary>

@@ -58,6 +58,11 @@ public sealed class MeshObject : RenderObject
 	public bool WantsFrameBufferCopy { get; set; }
 
 	/// <summary>
+	/// Work run around this object's draws in colour layers, or null. Prevents instancing.
+	/// </summary>
+	public DrawCallbacks Callbacks { get; set; }
+
+	/// <summary>
 	/// Per-object attributes override view attributes and prevent instancing (<c>CBaseSceneObjectDesc</c>).
 	/// </summary>
 	public ShaderParameters Attributes { get; set; }
