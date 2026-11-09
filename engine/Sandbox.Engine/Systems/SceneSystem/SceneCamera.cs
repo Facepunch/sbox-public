@@ -667,7 +667,7 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	/// etc on the local camera renderer. This should be called immediately before adding
 	/// the views etc.
 	/// </summary>
-	void ConfigureView( in ViewSetup config )
+	internal void ConfigureView( in ViewSetup config )
 	{
 		if ( _world.IsValid() && !Graphics.IsActive )
 		{

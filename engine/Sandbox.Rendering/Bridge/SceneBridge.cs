@@ -224,6 +224,8 @@ internal sealed class SceneBridge : IManagedSceneRenderer
 	{
 		if ( size.x < 1 || size.y < 1 ) return false;
 
+		// As native's swap chain render: the camera's size, and the world's map streaming (OnPreRender)
+		camera.SceneCamera.OnPreRender( size );
 		var (mirror, state) = Prepare( camera, size );
 		state.System.Render( mirror.World, state.View, new GpuSwapChain( swapChain ), size, state.Stages );
 		return true;
@@ -233,6 +235,8 @@ internal sealed class SceneBridge : IManagedSceneRenderer
 	{
 		if ( target.Width < 1 || target.Height < 1 ) return false;
 
+		// As native's texture render: the world's map streaming, without touching the camera's size
+		camera.SceneCamera.ConfigureView( default );
 		var (mirror, state) = Prepare( camera, target.Size );
 
 		// Non-float outputs need HDR blending before the copy.
@@ -306,6 +310,7 @@ internal sealed class SceneBridge : IManagedSceneRenderer
 	Color32[] RenderManaged( CameraComponent camera, Vector2Int size, bool updateExposure, out SceneMirror mirror, out CameraState state, out MultisampleAmount msaa )
 	{
 		using var output = Texture.CreateRenderTarget().WithSize( size.x, size.y ).WithFormat( ImageFormat.RGBA8888 ).Create( "r_managed_scene_compare" );
+		camera.SceneCamera.OnPreRender( size );
 		(mirror, state) = Prepare( camera, size, updateExposure );
 		msaa = ((RenderMultisampleType)CSceneSystem.GetMainSwapChainMultisampleType()).FromEngine();
 		state.System.Render( mirror.World, state.View, Source2Texture.From( output ), Source2Formats.Samples( msaa.ToEngine() ), state.Stages );
