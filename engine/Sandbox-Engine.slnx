@@ -16,6 +16,7 @@
     <Project Path="Tools/ShaderCompiler/ShaderCompiler.csproj" />
   </Folder>
   <Folder Name="/Engine/Exe/">
+    <Project Path="Launcher/BasaltGpuSample/BasaltGpuSample.csproj" />
     <Project Path="Launcher/BasaltLab/BasaltLab.csproj" />
     <Project Path="Launcher/CrashReporter/CrashReporter.csproj" Id="652c4b4b-7f21-4884-9ad5-6a9032ce4ef9" />
     <Project Path="Launcher/PanelGallery/PanelGallery.csproj" />
@@ -66,6 +67,8 @@
     <Project Path="Sandbox.GameInstance/Sandbox.GameInstance.csproj" />
     <Project Path="Sandbox.Menu/Sandbox.Menu.csproj" />
     <Project Path="Basalt/Basalt.csproj" />
+    <Project Path="Basalt.Backend/Basalt.Backend.csproj" />
+    <Project Path="Basalt.Gpu/Basalt.Gpu.csproj" />
     <Project Path="Sandbox.Rendering/Sandbox.Rendering.csproj" />
     <Project Path="Sandbox.Tools/Sandbox.Tools.csproj" />
   </Folder>
@@ -74,6 +77,7 @@
   </Folder>
   <Folder Name="/Tests/">
     <Project Path="Benchmark/Benchmark.csproj" />
+    <Project Path="Tests/Basalt.Gpu.Test/Basalt.Gpu.Test.csproj" />
     <Project Path="Tests/Basalt.Test/Basalt.Test.csproj" />
     <Project Path="Tests/Sandbox.Test.Engine/Sandbox.Test.Engine.csproj" />
     <Project Path="Tests/Sandbox.Test.NetSim/Sandbox.Test.NetSim.csproj" />

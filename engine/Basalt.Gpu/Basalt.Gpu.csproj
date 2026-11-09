@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Basalt's graphics device: a narrow RHI over Vulkan, called through our own loader and function pointers. It knows
+    buffers, textures, pipelines, command lists, queues and swap chains, and nothing about scenes, materials or Source 2.
+    See docs/managed/basalt-gpu.md.
+  -->
+
+  <PropertyGroup>
+    <VersionPrefix>1.0.1</VersionPrefix>
+    <TargetFramework>net10.0</TargetFramework>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <AssemblyName>Basalt.Gpu</AssemblyName>
+    <PackageId>Basalt.Gpu</PackageId>
+    <OutputPath>..\..\game\bin\managed</OutputPath>
+    <!-- Keep CS1591 enabled for public API documentation. -->
+    <NoWarn>1701;1702</NoWarn>
+    <LangVersion>14</LangVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+</Project>
