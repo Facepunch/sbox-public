@@ -595,15 +595,15 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	/// </summary>
 	internal bool ToolsView { get; set; }
 
-	private static WeakReference<SceneCamera> _recordingCamera;
+	private static readonly WeakReference<SceneCamera> _recordingCamera = new( null );
 
 	/// <summary>
 	/// The camera currently used for video/screenshot recording.
 	/// </summary>
 	internal static SceneCamera RecordingCamera
 	{
-		get => _recordingCamera?.TryGetTarget( out var cam ) == true ? cam : null;
-		set => _recordingCamera = value is not null ? new WeakReference<SceneCamera>( value ) : null;
+		get => _recordingCamera.TryGetTarget( out var cam ) ? cam : null;
+		set => _recordingCamera.SetTarget( value );
 	}
 
 	internal bool IsRecordingCamera => RecordingCamera == this;

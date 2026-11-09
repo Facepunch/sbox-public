@@ -86,8 +86,8 @@ internal sealed class ScreenSpaceReflectionsPass : IDisposable
 	/// </summary>
 	internal void CaptureHistory()
 	{
-		lock ( _lock )
-			history.ExecuteOnRenderThread();
+		// No outer lock: the history list guards its own render targets, which is all Trace shares with it
+		history.ExecuteOnRenderThread();
 	}
 
 	void Record()
