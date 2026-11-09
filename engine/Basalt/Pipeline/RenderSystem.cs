@@ -510,6 +510,20 @@ public sealed partial class RenderSystem : IDisposable
 	}
 
 	/// <summary>
+	/// Mark the runs that must record on the main thread, in feature order, as <see cref="RunWeights"/> lays them out.
+	/// </summary>
+	internal void MainThreadRuns( ViewPass view, MeshLayer layer, Span<bool> mainThread )
+	{
+		var start = 0;
+		for ( int i = 0; i < features.Count; i++ )
+		{
+			var runs = features[i].RunCount( view, layer );
+			if ( runs > 0 ) features[i].MainThreadRuns( view, layer, mainThread.Slice( start, runs ) );
+			start += runs;
+		}
+	}
+
+	/// <summary>
 	/// Whether every feature can record <paramref name="view"/>'s <paramref name="layer"/> on a worker thread.
 	/// </summary>
 	internal bool CanRecordOffMainThread( ViewPass view, MeshLayer layer )

@@ -796,6 +796,30 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		return !layer.DrawsCustomObjectsIn( view ) || (lists.Custom & layer.Runs) == 0;
 	}
 
+	/// <summary>
+	/// Only custom objects' draws and draws with callbacks need the main thread; the meshes around them can go to workers.
+	/// </summary>
+	internal override void MainThreadRuns( ViewPass view, MeshLayer layer, Span<bool> mainThread )
+	{
+		var lists = view.State<RunLists>( this );
+		var customs = layer.DrawsCustomObjectsIn( view ) && (lists.Custom & layer.Runs) != 0;
+		var callbacks = !layer.Depth && !view.IsShadow && (lists.Callbacks & layer.Runs) != 0;
+		if ( !customs && !callbacks ) return;
+
+		var index = 0;
+		for ( int bit = 0; bit < lists.ItemsByBit.Length; bit++ )
+		{
+			if ( ((int)layer.Runs & (1 << bit)) == 0 ) continue;
+
+			var runs = CollectionsMarshal.AsSpan( lists.ByBit[bit] );
+			foreach ( var item in CollectionsMarshal.AsSpan( lists.ItemsByBit[bit] ) )
+			{
+				ref readonly var run = ref runs[item.Run];
+				mainThread[index++] = (customs && run.Custom is not null) || (callbacks && run.Callbacks is not null);
+			}
+		}
+	}
+
 	internal override bool ReadsFrameBuffer( ViewPass view, MeshRuns runs ) => (view.State<RunLists>( this ).FrameBufferReads & runs) != 0;
 
 	/// <summary>
@@ -892,7 +916,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 				if ( vertexAnimation != 0 ) context.SetCombo( CsVertexAnimation, vertexAnimation = 0 );
 
 				context.BindInstances( 1, run.FirstInstance );
-				custom.Render( context, view, layer );
+				using ( Zones.CustomObject.Start() ) custom.Render( context, view, layer );
 				context.SetCombo( CsVertexAnimation, 0 );
 				context.RestoreBound();
 				stats.CustomDraws++;
