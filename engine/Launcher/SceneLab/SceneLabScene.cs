@@ -328,6 +328,10 @@ internal sealed record SceneLabScene
 		new() { Name = "Construct Skyline", Group = "Maps", Game = MapScenes.ConstructSkyline, Frame = MapScenes.StartWhenOnline, Ready = MapScenes.Loaded },
 		new() { Name = "Construct Overview", Group = "Maps", Game = MapScenes.ConstructOverview, Frame = MapScenes.StartWhenOnline, Ready = MapScenes.Loaded },
 		new() { Name = "Construct Skyline Fog", Group = "Maps", Game = MapScenes.ConstructSkylineFog, Frame = MapScenes.StartWhenOnline, Ready = MapScenes.Loaded, NativeAlongside = true },
+
+		// Scenarios: game-like scenes measured as a whole, scripted by frame count so each run sees the same frames (Scenarios)
+		new() { Name = "Firefight", Group = Scenarios.Group, Game = FirefightScene.Build, Frame = FirefightScene.Fight, Ready = FirefightScene.Ready, Rewind = FirefightScene.Rewind,
+			CaptureFrame = 240 },
 	];
 
 	/// <summary>
