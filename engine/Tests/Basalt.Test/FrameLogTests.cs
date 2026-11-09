@@ -188,4 +188,42 @@ public class FrameLogTests
 		Assert.AreEqual( producer.Signal, reader.Wait, "the reader waits for what it reads" );
 		Assert.IsFalse( reader.AsyncCompute );
 	}
+
+	/// <summary>
+	/// A camera's attributes reach the frame's parameters each frame, and one the camera stops setting is gone the next frame,
+	/// as a native view's attributes are made again every frame.
+	/// </summary>
+	[TestMethod]
+	public void CameraAttributesDontOutliveTheCamerasFrame()
+	{
+		var tint = new StringToken( "TestCameraTint" );
+		var mode = new StringToken( "TestCameraMode" );
+		var camera = new HeadlessParameters();
+		camera.Set( tint, 0.5f );
+		camera.Set( mode, 3 );
+
+		using var target = ViewTarget.Create( new Vector2Int( 64, 64 ) );
+		using var system = new RenderSystem();
+		var world = new RenderWorld();
+		var parameters = (HeadlessParameters)system.FrameContext.Attributes;
+
+		void RenderFrame()
+		{
+			var view = LookingDownX();
+			view.CameraAttributes = camera;
+			using var _ = Device.Capture();
+			RenderHost.Current.NextFrame();
+			system.Render( world, view, target );
+		}
+
+		RenderFrame();
+		Assert.AreEqual( 0.5f, parameters.Get( tint ) );
+		Assert.AreEqual( 3, parameters.Get( mode ) );
+
+		camera.Clear();
+		camera.Set( mode, 4 );
+		RenderFrame();
+		Assert.IsNull( parameters.Get( tint ), "the camera stopped setting it" );
+		Assert.AreEqual( 4, parameters.Get( mode ) );
+	}
 }

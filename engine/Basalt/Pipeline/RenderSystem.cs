@@ -273,6 +273,9 @@ public sealed partial class RenderSystem : IDisposable
 			plan.MainThread = Environment.CurrentManagedThreadId;
 		}
 
+		// Setup merges the camera's attributes into the frame's parameters, so each frame starts them empty: one the camera
+		// stops setting mustn't keep its last value. Native makes a view's attributes again every frame.
+		context.Attributes?.Clear();
 		context.Begin();
 		var submitted = false;
 		try
@@ -282,6 +285,7 @@ public sealed partial class RenderSystem : IDisposable
 			// Submit skybox setup after main setup, before draws.
 			if ( skyFrame is not null )
 			{
+				skybox.context.Attributes?.Clear();
 				skybox.context.Begin( recorder.SeparateContexts ? null : context );
 				skybox.Setup( skyFrame );
 			}
