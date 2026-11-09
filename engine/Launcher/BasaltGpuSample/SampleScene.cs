@@ -1,6 +1,7 @@
 using Basalt.Gpu;
 using System.IO;
 using System.Numerics;
+using N = System.Numerics;
 using System.Runtime.InteropServices;
 
 namespace BasaltGpuSample;
@@ -13,27 +14,27 @@ namespace BasaltGpuSample;
 internal sealed class SampleScene : IDisposable
 {
 	[StructLayout( LayoutKind.Sequential )]
-	struct Vertex( Vector3 position, Vector3 normal, Vector2 uv )
+	struct Vertex( N.Vector3 position, N.Vector3 normal, N.Vector2 uv )
 	{
-		public Vector3 Position = position;
-		public Vector3 Normal = normal;
-		public Vector2 Uv = uv;
+		public N.Vector3 Position = position;
+		public N.Vector3 Normal = normal;
+		public N.Vector2 Uv = uv;
 	}
 
 	[StructLayout( LayoutKind.Sequential )]
 	struct MeshConstants
 	{
 		public Matrix4x4 ObjectToProjection;
-		public Vector4 NormalRow0, NormalRow1, NormalRow2;
+		public N.Vector4 NormalRow0, NormalRow1, NormalRow2;
 		public uint Texture;
 		public uint Sampler;
-		public Vector2 Pad;
+		public N.Vector2 Pad;
 	}
 
 	[StructLayout( LayoutKind.Sequential )]
 	struct TriangleConstants
 	{
-		public Vector2 Offset;
+		public N.Vector2 Offset;
 		public float Scale;
 		public float Pad;
 	}
@@ -50,7 +51,7 @@ internal sealed class SampleScene : IDisposable
 	public const int PatternSize = 256;
 
 	/// <summary>The colour the target is cleared to.</summary>
-	public static readonly Vector4 ClearColor = new( 0.05f, 0.06f, 0.08f, 1 );
+	public static readonly N.Vector4 ClearColor = new( 0.05f, 0.06f, 0.08f, 1 );
 
 	readonly Device device;
 	readonly ShaderHandle[] shaders;
@@ -158,21 +159,21 @@ internal sealed class SampleScene : IDisposable
 	/// <summary>A unit cube, counter-clockwise from outside, with a normal and uvs per face.</summary>
 	static (Vertex[] Vertices, ushort[] Indices) Cube()
 	{
-		Vector3[] normals = [Vector3.UnitX, -Vector3.UnitX, Vector3.UnitY, -Vector3.UnitY, Vector3.UnitZ, -Vector3.UnitZ];
+		N.Vector3[] normals = [N.Vector3.UnitX, -N.Vector3.UnitX, N.Vector3.UnitY, -N.Vector3.UnitY, N.Vector3.UnitZ, -N.Vector3.UnitZ];
 		var vertices = new List<Vertex>();
 		var indices = new List<ushort>();
 
 		foreach ( var n in normals )
 		{
 			// Two axes across the face, so (u, v, n) is right-handed
-			var u = MathF.Abs( n.Y ) > 0.5f ? Vector3.UnitX : Vector3.Cross( Vector3.UnitY, n );
-			var v = Vector3.Cross( n, u );
+			var u = MathF.Abs( n.Y ) > 0.5f ? N.Vector3.UnitX : N.Vector3.Cross( N.Vector3.UnitY, n );
+			var v = N.Vector3.Cross( n, u );
 			var first = (ushort)vertices.Count;
 
-			vertices.Add( new Vertex( (n - u - v) * 0.5f, n, new Vector2( 0, 1 ) ) );
-			vertices.Add( new Vertex( (n + u - v) * 0.5f, n, new Vector2( 1, 1 ) ) );
-			vertices.Add( new Vertex( (n + u + v) * 0.5f, n, new Vector2( 1, 0 ) ) );
-			vertices.Add( new Vertex( (n - u + v) * 0.5f, n, new Vector2( 0, 0 ) ) );
+			vertices.Add( new Vertex( (n - u - v) * 0.5f, n, new N.Vector2( 0, 1 ) ) );
+			vertices.Add( new Vertex( (n + u - v) * 0.5f, n, new N.Vector2( 1, 1 ) ) );
+			vertices.Add( new Vertex( (n + u + v) * 0.5f, n, new N.Vector2( 1, 0 ) ) );
+			vertices.Add( new Vertex( (n - u + v) * 0.5f, n, new N.Vector2( 0, 0 ) ) );
 
 			indices.AddRange( [first, (ushort)(first + 1), (ushort)(first + 2), first, (ushort)(first + 2), (ushort)(first + 3)] );
 		}
@@ -223,7 +224,7 @@ internal sealed class SampleScene : IDisposable
 
 		// Reverse-Z: near at 1, far at 0, as Basalt renders
 		var aspect = info.Width / (float)info.Height;
-		var view = Matrix4x4.CreateLookAt( new Vector3( 0, 1.2f, 3.2f ), new Vector3( 0, 0, 0 ), Vector3.UnitY );
+		var view = Matrix4x4.CreateLookAt( new N.Vector3( 0, 1.2f, 3.2f ), new N.Vector3( 0, 0, 0 ), N.Vector3.UnitY );
 		var reverseZ = new Matrix4x4( 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1, 0, 0, 0, 1, 1 );
 		var projection = Matrix4x4.CreatePerspectiveFieldOfView( MathF.PI / 3, aspect, 0.1f, 100 ) * reverseZ;
 
@@ -234,7 +235,7 @@ internal sealed class SampleScene : IDisposable
 		DrawCube( list, view * projection, Matrix4x4.CreateRotationX( time * 0.5f ) * Matrix4x4.CreateRotationY( -time ) * Matrix4x4.CreateTranslation( 0.8f, 0, 0 ), pattern );
 
 		list.SetPipeline( trianglePipeline );
-		list.PushConstants( new TriangleConstants { Offset = new Vector2( 0, 0.55f ), Scale = 0.35f } );
+		list.PushConstants( new TriangleConstants { Offset = new N.Vector2( 0, 0.55f ), Scale = 0.35f } );
 		list.Draw( 3 );
 
 		list.EndRendering();
@@ -249,9 +250,9 @@ internal sealed class SampleScene : IDisposable
 		list.PushConstants( new MeshConstants
 		{
 			ObjectToProjection = objectToWorld * worldToProjection,
-			NormalRow0 = new Vector4( objectToWorld.M11, objectToWorld.M12, objectToWorld.M13, 0 ),
-			NormalRow1 = new Vector4( objectToWorld.M21, objectToWorld.M22, objectToWorld.M23, 0 ),
-			NormalRow2 = new Vector4( objectToWorld.M31, objectToWorld.M32, objectToWorld.M33, 0 ),
+			NormalRow0 = new N.Vector4( objectToWorld.M11, objectToWorld.M12, objectToWorld.M13, 0 ),
+			NormalRow1 = new N.Vector4( objectToWorld.M21, objectToWorld.M22, objectToWorld.M23, 0 ),
+			NormalRow2 = new N.Vector4( objectToWorld.M31, objectToWorld.M32, objectToWorld.M33, 0 ),
 			Texture = (uint)device.BindlessIndex( texture ),
 			Sampler = (uint)device.SamplerIndex( sampler ),
 		} );

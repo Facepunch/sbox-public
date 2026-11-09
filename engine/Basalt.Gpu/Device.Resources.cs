@@ -353,6 +353,26 @@ public sealed unsafe partial class Device
 		return vk;
 	}
 
+	/// <summary>
+	/// Whether textures in <paramref name="format"/> can be used as <paramref name="usage"/> (optimal tiling).
+	/// </summary>
+	public bool Supports( Format format, TextureUsage usage )
+	{
+		var vk = format.ToVk();
+		if ( vk == VkFormat.Undefined ) return false;
+		if ( vk == VkFormat.D24UnormS8Uint ) vk = ResolveFormat( format );
+
+		VkFormatProperties properties;
+		Instance.vkGetPhysicalDeviceFormatProperties( PhysicalDevice, vk, &properties );
+		var features = properties.optimalTilingFeatures;
+
+		if ( (usage & TextureUsage.Sampled) != 0 && (features & Vulkan.Vk.FormatFeatureSampledImage) == 0 ) return false;
+		if ( (usage & TextureUsage.Storage) != 0 && (features & Vulkan.Vk.FormatFeatureStorageImage) == 0 ) return false;
+		if ( (usage & TextureUsage.ColorTarget) != 0 && (features & Vulkan.Vk.FormatFeatureColorAttachment) == 0 ) return false;
+		if ( (usage & TextureUsage.DepthTarget) != 0 && (features & Vulkan.Vk.FormatFeatureDepthStencilAttachment) == 0 ) return false;
+		return true;
+	}
+
 	/// <summary>The Vulkan format a <see cref="Format"/> is created as here (D24S8 may become D32S8).</summary>
 	internal VkFormat VkFormatOf( Format format ) => format == Format.Unknown ? VkFormat.Undefined : ResolveFormat( format );
 

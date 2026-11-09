@@ -11,7 +11,8 @@ namespace BasaltGpuSample;
 /// <remarks>
 /// <c>-frames N</c> and <c>-seconds S</c> stop it; <c>-resize</c> resizes the window every 20 frames;
 /// <c>-novalidation</c> turns the validation layer off, <c>-syncvalidation</c> adds its synchronisation checks;
-/// <c>-immediate</c> presents without vsync.
+/// <c>-immediate</c> presents without vsync. <c>-basalt</c> draws Basalt's own renderer instead
+/// (<see cref="BasaltScene"/>).
 /// </remarks>
 internal static class Program
 {
@@ -23,6 +24,7 @@ internal static class Program
 		var validation = !args.Contains( "-novalidation" );
 		var immediate = args.Contains( "-immediate" );
 		var syncValidation = args.Contains( "-syncvalidation" );
+		var basalt = args.Contains( "-basalt" );
 
 		if ( !OperatingSystem.IsWindows() )
 		{
@@ -48,7 +50,7 @@ internal static class Program
 		Console.WriteLine( $"{device.Adapter}, validation {(device.ValidationEnabled ? "on" : "off (not installed?)")}, async compute {device.Capabilities.AsyncCompute}" );
 
 		var (width, height) = window.ClientSize;
-		var swapChain = device.CreateSwapChain( new SwapChainInfo
+		using var swapChain = device.CreateSwapChain( new SwapChainInfo
 		{
 			Surface = SurfaceSource.Win32( window.Instance, window.Handle ),
 			Width = width,
@@ -58,12 +60,14 @@ internal static class Program
 
 		Console.WriteLine( $"Swap chain {swapChain.Width}x{swapChain.Height} {swapChain.Format}, {swapChain.ImageCount} images, {swapChain.PresentMode}" );
 
-		var scene = new SampleScene( device, swapChain.Format );
+		using var scene = basalt ? null : new SampleScene( device, swapChain.Format );
+		using var world = basalt ? new BasaltScene( device ) : null;
 		var clock = Stopwatch.StartNew();
 		var frames = 0;
 		var resizes = 0;
 		var lastTitle = 0.0;
 		var frameTimes = new List<double>();
+		var renderTimes = new List<double>();
 		var last = clock.Elapsed.TotalMilliseconds;
 
 		while ( !window.Closed && frames < frameLimit && clock.Elapsed.TotalSeconds < secondsLimit )
@@ -93,9 +97,30 @@ internal static class Program
 				continue;
 			}
 
-			var list = device.BeginCommandList( QueueType.Graphics, "Frame" );
-			scene.Render( list, image, ImageLayout.Undefined, ImageLayout.Present, (float)clock.Elapsed.TotalSeconds );
-			device.Submit( list, swapChain: swapChain );
+			var time = (float)clock.Elapsed.TotalSeconds;
+			if ( world is not null )
+			{
+				// Basalt renders and submits into its own HDR target, which is then copied into the window
+				var renderStart = clock.Elapsed.TotalMilliseconds;
+				var (texture, layout, color) = world.Render( swapChain.Width, swapChain.Height, time );
+				renderTimes.Add( clock.Elapsed.TotalMilliseconds - renderStart );
+
+				var copy = device.BeginCommandList( QueueType.Graphics, "Copy to window" );
+				copy.Barrier( TextureBarrier.Transition( texture, layout, ImageLayout.CopySource, PipelineStage.AllCommands, MemoryAccess.MemoryWrite, PipelineStage.Transfer, MemoryAccess.TransferRead ) );
+				copy.Barrier( TextureBarrier.Transition( image, ImageLayout.Undefined, ImageLayout.CopyDestination, PipelineStage.Transfer, MemoryAccess.None, PipelineStage.Transfer, MemoryAccess.TransferWrite ) );
+				var rect = (0, 0, swapChain.Width, swapChain.Height);
+				copy.Blit( texture, rect, image, rect, Filter.Nearest );
+				copy.Barrier( TextureBarrier.Transition( image, ImageLayout.CopyDestination, ImageLayout.Present, PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.BottomOfPipe, MemoryAccess.None ) );
+				Basalt.Backend.BackendDevice.SetLayout( color, ImageLayout.CopySource );
+				device.Submit( copy, swapChain: swapChain );
+			}
+			else
+			{
+				var list = device.BeginCommandList( QueueType.Graphics, "Frame" );
+				scene.Render( list, image, ImageLayout.Undefined, ImageLayout.Present, time );
+				device.Submit( list, swapChain: swapChain );
+			}
+
 			swapChain.Present();
 			frames++;
 
@@ -111,14 +136,17 @@ internal static class Program
 		}
 
 		device.WaitIdle();
-		scene.Dispose();
-		swapChain.Dispose();
 
 		frameTimes.Sort();
 		var median = frameTimes.Count > 0 ? frameTimes[frameTimes.Count / 2] : 0;
 		Console.WriteLine( $"{frames} frames in {clock.Elapsed.TotalSeconds:0.0}s, median {median:0.00} ms, {resizes} resizes, {device.ValidationErrors} validation errors" );
-		Console.WriteLine( device.DescribeResources() );
+		if ( renderTimes.Count > 0 )
+		{
+			renderTimes.Sort();
+			Console.WriteLine( $"Basalt: {world.ObjectCount} objects, {renderTimes[renderTimes.Count / 2]:0.00} ms median on the CPU to render and submit a frame" );
+		}
 
+		Console.WriteLine( device.DescribeResources() );
 		return device.ValidationErrors > 0 || errors > 0 ? 1 : 0;
 	}
 

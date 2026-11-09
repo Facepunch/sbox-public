@@ -11,10 +11,14 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\..\Basalt.Gpu\Basalt.Gpu.csproj" />
+		<ProjectReference Include="..\..\Basalt.Backend\Basalt.Backend.csproj" />
+		<ProjectReference Include="..\..\Basalt\Basalt.csproj" />
+		<ProjectReference Include="..\..\Sandbox.System\Sandbox.System.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<Compile Include="..\..\Launcher\BasaltGpuSample\SampleScene.cs" Link="Sample\SampleScene.cs" />
+		<Compile Include="..\..\Launcher\BasaltGpuSample\BasaltScene.cs" Link="Sample\BasaltScene.cs" />
 		<EmbeddedResource Include="..\..\Launcher\BasaltGpuSample\Shaders\*.spv" LogicalName="%(Filename)%(Extension)" WithCulture="false" Link="Sample\%(Filename)%(Extension)" />
 	</ItemGroup>
 
