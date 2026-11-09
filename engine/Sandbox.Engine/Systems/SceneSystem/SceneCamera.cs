@@ -91,7 +91,7 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	/// Whether something in this camera's frame reads the normals and roughness G-buffer of the depth-normals prepass
 	/// (AO, SSR). Native always draws it; the managed scene renderer only when this says so.
 	/// </summary>
-	internal bool WantsDepthNormals => WantsDepthNormalsHook?.Invoke() ?? false;
+	internal bool WantsDepthNormals => (WantsDepthNormalsHook?.Invoke() ?? false) || ScreenSpaceReflections is not null;
 
 	/// <summary>
 	/// Queries and runs the camera component's independent effects ahead of their normal stage.
