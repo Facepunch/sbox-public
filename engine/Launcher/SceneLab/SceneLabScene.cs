@@ -339,6 +339,8 @@ internal sealed record SceneLabScene
 		new() { Name = "Crowd Far", Group = Scenarios.Group, Game = CrowdScene.Far, Frame = CrowdScene.Animate, Rewind = CrowdScene.Rewind },
 		new() { Name = "Forest", Group = Scenarios.Group, Game = ForestScene.Build, Frame = ForestScene.Walk, Ready = ForestScene.Ready, Rewind = ForestScene.Rewind,
 			BenchmarkFrames = ForestScene.LoopFrames, CaptureFrame = 200 },
+		new() { Name = "Night Interior", Group = Scenarios.Group, Game = NightInteriorScene.Build, Frame = NightInteriorScene.Walk, Rewind = NightInteriorScene.Rewind,
+			BenchmarkFrames = NightInteriorScene.Frames, CaptureFrame = 150 },
 	];
 
 	/// <summary>
