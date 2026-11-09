@@ -60,7 +60,7 @@ internal static class RenderPipeline
 	internal static bool OverlapReflections { get; set; }
 
 	[ConVar( "r_occlusion_culling", Help = "Skip opaque objects hidden by the depth prepass in the native renderer" )]
-	internal static bool OcclusionCulling { get; set; } = true;
+	internal static bool OcclusionCulling { get; set; }
 
 	/// <summary>
 	/// How occlusion culling handles aggregate fragments, in both renderers. Must match <c>CSceneViewOcclusionCull::AggregateMode_t</c>.
