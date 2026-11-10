@@ -26,6 +26,7 @@ namespace Sandbox.BasaltLab.Maps;
 /// <item><c>-out folder</c> - where <c>map.md</c> and <c>map.csv</c> go (default <c>screenshots/basaltlab/map</c>).</item>
 /// <item><c>-texture-size N</c> (1024) - mips above this are left out, to load faster.</item>
 /// <item><c>-validation</c> - the Khronos validation layer.</item>
+/// <item><c>-real</c> - draw it with Basalt's renderer and the map's own materials and shaders instead (<see cref="MapRealRun"/>).</item>
 /// <item><c>-basalt-driver-names</c> - introduce the device to the driver as Basalt instead of as native's names.</item>
 /// </list>
 /// </summary>
@@ -115,9 +116,17 @@ internal static class MapRun
 		Console.WriteLine( $"{gpu.Adapter}, validation {(gpu.ValidationEnabled ? "on" : "off")}, swap chain {swapChain.Width}x{swapChain.Height} {swapChain.PresentMode}, target {width}x{height} {samples}x MSAA" );
 		Console.WriteLine( $"{ident}: {folder}" );
 
-		var load = Stopwatch.StartNew();
 		var core = ContentFiles.FindGame();
 		if ( core.Roots.Count == 0 ) core = ContentFiles.FindGame( Environment.CurrentDirectory );
+
+		// The real frame: Basalt's renderer with s&box's shaders and the map's own materials
+		if ( Args.Has( "-real" ) )
+		{
+			var code = MapRealRun.Run( gpu, window, swapChain, folder, core, new MapRealRun.Options( ident, views, width, height, samples, frames, warmup, captures, output, unoptimised ) );
+			return code != 0 || gpu.ValidationErrors > 0 || errors > 0 ? Math.Max( code, 1 ) : 0;
+		}
+
+		var load = Stopwatch.StartNew();
 		using var map = new MapContent( gpu, folder, core, Args.Int( "-texture-size", 1024 ) );
 		foreach ( var (name, ms) in map.Phases ) Console.WriteLine( $"  {name}: {ms:0} ms" );
 		var opaqueMaterials = map.Materials.Count( m => m.Kind == SurfaceKind.Opaque );
