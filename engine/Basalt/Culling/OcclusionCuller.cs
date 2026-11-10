@@ -79,8 +79,21 @@ internal sealed class OcclusionCuller : IDisposable
 
 	public int InstanceCount { get; private set; }
 
-	/// <summary>Instances skipped by the forward pass, read back a few frames later.</summary>
+	/// <summary>Instances skipped by the forward pass, read back a few frames later, every <see cref="StatsInterval"/> frames.</summary>
 	public int Culled => Volatile.Read( ref culled );
+
+	/// <summary>
+	/// Frames between reads of <see cref="Culled"/>. Each read is a native <c>ReadBuffer</c>, which makes a staging buffer every
+	/// time, about 0.4 ms of the recording thread.
+	/// </summary>
+	public const int StatsInterval = 16;
+
+	int statsFrames;
+
+	/// <summary>
+	/// Whether this frame's late cull reads the stats back (<see cref="ReadStats"/>): every <see cref="StatsInterval"/>th.
+	/// </summary>
+	public bool StatsDue() => statsFrames++ % StatsInterval == 0;
 
 	/// <summary>
 	/// What the early cull tests against this frame. Without a chain, the prepass draws everything.
