@@ -217,14 +217,39 @@ public abstract partial class Collider : Component, Component.ExecuteInEditor, C
 
 		DisconnectBody();
 
-		// Component disabled tells triggers to check for exits.
-		base.OnDisabledInternal();
+		try
+		{
+			base.OnDisabledInternal();
+		}
+		finally
+		{
+			// Our shapes are gone without sending trigger exits, end those pairs even if a disable callback threw
+			NotifyTouchWatchers();
+		}
 
 		// Dispose collision events last to hold onto touching for as long as possible.
 		if ( !GameObject.IsDestroyed )
 		{
 			_collisionEvents?.Dispose();
 			_collisionEvents = null;
+		}
+	}
+
+	// Collision event systems with a trigger pair against us, our shapes go away without sending exits
+	HashSet<CollisionEventSystem> _touchWatchers;
+
+	internal void AddTouchWatcher( CollisionEventSystem watcher ) => (_touchWatchers ??= new()).Add( watcher );
+	internal void RemoveTouchWatcher( CollisionEventSystem watcher ) => _touchWatchers?.Remove( watcher );
+
+	void NotifyTouchWatchers()
+	{
+		if ( _touchWatchers is null || _touchWatchers.Count == 0 )
+			return;
+
+		using ( GameTransform.DisableInterpolation() )
+		{
+			foreach ( var watcher in _touchWatchers.ToArray() )
+				watcher.RemoveDeactivated();
 		}
 	}
 
