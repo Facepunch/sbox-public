@@ -57,6 +57,11 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		public Texture TextureTargetDepth;
 
 		/// <summary>
+		/// Whether this view's frame is being rendered now: a child view asked for while it draws can't be this view again.
+		/// </summary>
+		public bool Rendering;
+
+		/// <summary>
 		/// Whether the camera this is for was disposed or collected without saying so.
 		/// </summary>
 		public bool IsOrphaned => !Camera.TryGetTarget( out var camera ) || camera.IsDisposed;
@@ -254,11 +259,14 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 	/// </summary>
 	(SceneMirror Mirror, CameraState State) Prepare( SceneCamera camera, in ViewSetup setup, Vector2 size, bool updateExposure = true )
 	{
-		FreeInvalid();
+		// A child view prepares while its parent's frame records, on workers too, from the mirrors the parent synced: it
+		// changes no world anyone's drawing (an unseen world's mirror is new, and synced once)
+		var parent = rendering;
+		if ( parent is null ) FreeInvalid();
 
 		var syncStart = System.Diagnostics.Stopwatch.GetTimestamp();
 		var mirror = MirrorFor( camera.World );
-		mirror.Sync( camera );
+		if ( parent is null || !mirror.HasSynced ) mirror.Sync( camera );
 		SyncSkybox( mirror, camera, setup );
 
 		var state = StateFor( camera, setup.ViewHash );
@@ -267,8 +275,60 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		state.SyncMs = System.Diagnostics.Stopwatch.GetElapsedTime( syncStart ).TotalMilliseconds;
 		Sandbox.Rendering.ManagedSceneRendering.Report( new Sandbox.Rendering.ManagedFrameCounters { SyncMs = state.SyncMs } );
 		FillView( state.View, camera, setup, size );
+
+		// A child view takes its parent's render time unless it has its own, as native's child views do
+		// (CSceneSystem::AddDynamicView), and its parent's camera has had its exposure this frame
+		if ( parent is not null )
+		{
+			state.View.Time ??= parent.View.Time;
+			if ( parent.Stages.Camera == camera ) updateExposure = false;
+		}
+
+		state.Stages.Renderer = this;
+		state.Stages.IsChild = parent is not null;
 		state.View.ToneMapScalar = state.Stages.BeginFrame( camera, state.View, setup, updateExposure );
 		return (mirror, state);
+	}
+
+	/// <summary>
+	/// The view whose frame is being rendered on this bridge, if one is: a view asked for meanwhile is its child.
+	/// </summary>
+	CameraState rendering;
+
+	/// <summary>
+	/// How many child views deep the frame being drawn on this thread is, for what's kept per thread while one draws
+	/// (<see cref="BridgeCustomObject"/>'s views, <see cref="CameraStages"/>' saved attributes).
+	/// </summary>
+	[ThreadStatic] internal static int ChildDepth;
+
+	/// <summary>
+	/// How deep child views go: native lets a child view render another, but a view asking for itself again, under another
+	/// view hash each time, would never end.
+	/// </summary>
+	internal const int MaxChildDepth = 4;
+
+	/// <summary>
+	/// Marks a view's frame as being rendered, for the views asked for while it draws, until disposed.
+	/// </summary>
+	readonly ref struct Drawing : IDisposable
+	{
+		readonly SceneBridge bridge;
+		readonly CameraState state, parent;
+
+		public Drawing( SceneBridge bridge, CameraState state )
+		{
+			this.bridge = bridge;
+			this.state = state;
+			parent = bridge.rendering;
+			bridge.rendering = state;
+			state.Rendering = true;
+		}
+
+		public void Dispose()
+		{
+			state.Rendering = false;
+			bridge.rendering = parent;
+		}
 	}
 
 	/// <summary>
@@ -307,6 +367,9 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		var key = new ExtraKey( world, host );
 		if ( !extras.TryGetValue( key, out var extra ) )
 		{
+			// A new extra world adds to the world its parent's frame is drawing: a child view goes without it
+			if ( rendering is not null ) return 0;
+
 			var free = ~host.HostedSubWorlds;
 			if ( free == 0 )
 			{
@@ -325,7 +388,9 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		}
 
 		extra.LastFrame = Application.FrameCount;
-		extra.Mirror.Sync( camera );
+
+		// A child view's extra worlds were synced by its parent, or another view this frame
+		if ( rendering is null || !extra.Mirror.HasSynced ) extra.Mirror.Sync( camera );
 		drawn.Add( extra.Mirror );
 		return SubWorldBit( extra.Mirror.SubWorld );
 	}
@@ -346,7 +411,7 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		}
 
 		var skyMirror = MirrorFor( source.SkyboxWorld );
-		skyMirror.Sync( camera, skyboxView: true );
+		if ( rendering is null || !skyMirror.HasSynced ) skyMirror.Sync( camera, skyboxView: true );
 
 		var skybox = mirror.World.Skybox3D;
 		if ( skybox?.World != skyMirror.World ) skybox = mirror.World.Skybox3D = new Basalt.Skybox3D( skyMirror.World );
@@ -455,7 +520,8 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		// As native's swap chain render: the camera's size, and the world's map streaming (OnPreRender)
 		camera.OnPreRender( renderSize );
 		var (mirror, state) = Prepare( camera, setup, renderSize );
-		state.System.Render( mirror.World, state.View, new GpuSwapChain( swapChain ), renderSize, state.Stages );
+		using ( new Drawing( this, state ) )
+			state.System.Render( mirror.World, state.View, new GpuSwapChain( swapChain ), renderSize, state.Stages );
 
 		// Native's swap chain render adds DefaultGameUI to the camera's view with engine overlays (CCameraRenderer::Render,
 		// AddOverlaysToView): here it's a native view of its own, after the frame
@@ -467,9 +533,9 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 	{
 		if ( target is null || target.native.IsNull ) return;
 
-		// Not yet in Basalt: child views. Inside a frame (a command list's DrawView, a stage) native renders it as a child of
-		// the view being rendered, and in a Basalt frame as a view of its own (render-paths.md, row 6)
-		if ( Graphics.IsActive || NotYetInBasalt( camera, setup ) is not null )
+		// Inside a frame (a command list's DrawView, a stage) the view is the frame's child: ours renders it in its own frame,
+		// before what samples it; native's, or a standalone render block, render it natively
+		if ( (Graphics.IsActive && !DrawingOurs) || NotYetInBasalt( camera, setup ) is not null )
 		{
 			SceneRenderer.Native.RenderToTexture( camera, target, size, setup );
 			return;
@@ -480,21 +546,70 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 
 		// As native's texture render: the world's map streaming, without touching the camera's size
 		camera.ConfigureView( setup );
-		RenderToTexture( camera, setup, target, null );
+		if ( Graphics.IsActive ) RenderChild( camera, setup, target, null, out _ );
+		else RenderToTexture( camera, setup, target, null, out _ );
 	}
+
+	/// <summary>
+	/// Whether the frame being drawn is one this bridge is rendering, so a view asked for in it is its child.
+	/// </summary>
+	bool DrawingOurs => rendering is not null && Graphics.CurrentManagedView?.Renderer == this;
 
 	public bool RenderToTexture( SceneCamera camera, Texture target, Texture depthTarget, ISceneView parent, in ViewSetup setup, string name, out ViewData viewData )
 	{
-		// Not yet in Basalt: child views (see above), and a caller's depth target that Basalt can't draw into with the colour
-		// target directly
-		if ( parent != default || Graphics.IsActive || NotYetInBasalt( camera, setup ) is not null || !CanDrawInto( target, depthTarget ) )
+		// A native parent's child view (see above), and a caller's depth target that Basalt can't draw into with the colour
+		// target directly, render natively
+		if ( parent != default || (Graphics.IsActive && !DrawingOurs) || NotYetInBasalt( camera, setup ) is not null || !CanDrawInto( target, depthTarget ) )
 			return SceneRenderer.Native.RenderToTexture( camera, target, depthTarget, parent, setup, name, out viewData );
+
+		camera.ConfigureView( setup );
+		if ( Graphics.IsActive ) return RenderChild( camera, setup, target, depthTarget, out viewData );
 
 		// Only a child view's sampler reads the view's projection back; a top-level view has none to give
 		viewData = default;
+		return RenderToTexture( camera, setup, target, depthTarget, out _ );
+	}
 
-		camera.ConfigureView( setup );
-		return RenderToTexture( camera, setup, target, depthTarget );
+	/// <summary>
+	/// Render a view asked for while one of ours draws (a command list's <c>DrawView</c>, water's refraction) as its child: in a
+	/// frame of its own, prepared, recorded and submitted now, on this thread, in the middle of the parent's recording. The
+	/// parent submits after it, so what samples it (a later command, the object drawn next) reads it finished, this frame.
+	/// The parent's workers carry on recording meanwhile. Shadow maps the parent drew aren't submitted yet, so the child
+	/// draws its own (<c>ShadowMapper</c>'s maps in flight).
+	/// </summary>
+	bool RenderChild( SceneCamera camera, in ViewSetup setup, Texture target, Texture depthTarget, out ViewData viewData )
+	{
+		viewData = default;
+
+		// A view can't draw itself, and views asking for views asking for views stop somewhere
+		if ( ChildDepth >= MaxChildDepth ) return false;
+		if ( views.TryGetValue( new ViewKey( camera._cameraId, setup.ViewHash ), out var drawing ) && drawing.Rendering ) return false;
+
+		ChildDepth++;
+		CameraState state;
+		try
+		{
+			if ( !RenderToTexture( camera, setup, target, depthTarget, out state ) ) return false;
+		}
+		finally
+		{
+			ChildDepth--;
+		}
+
+		// What native's child view hands its samplers (CCameraRenderer::RenderToTexture): the inverse reverse-Z projection, in
+		// the engine's column-vector layout, the main world's viewport and depth range, and how the colour was flipped
+		var view = state.View;
+		var size = new Vector2( target.Width, target.Height );
+		var viewport = view.Viewport;
+		viewData = new ViewData
+		{
+			IsValid = true,
+			ProjectionToView = view.ViewToProjection.Inverted.Transpose(),
+			Viewport = new Vector4( viewport.Left / size.x, viewport.Top / size.y, viewport.Width / size.x, viewport.Height / size.y ),
+			DepthRange = new Vector2( state.System.DepthMin, state.System.DepthMax ),
+			DepthUvScaleBias = new Vector4( view.FlipX ? -1 : 1, view.FlipY ? -1 : 1, view.FlipX ? 1 : 0, view.FlipY ? 1 : 0 ),
+		};
+		return true;
 	}
 
 	/// <summary>
@@ -508,11 +623,13 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		return Source2Formats.From( target.ImageFormat ).IsFloat() && Source2Texture.From( target ).Samples == Source2Texture.From( depthTarget ).Samples;
 	}
 
-	bool RenderToTexture( SceneCamera camera, in ViewSetup setup, Texture target, Texture depthTarget )
+	bool RenderToTexture( SceneCamera camera, in ViewSetup setup, Texture target, Texture depthTarget, out CameraState state )
 	{
+		state = null;
 		if ( target.Width < 1 || target.Height < 1 ) return false;
 
-		var (mirror, state) = Prepare( camera, setup, target.Size );
+		(var mirror, state) = Prepare( camera, setup, target.Size );
+		using var drawing = new Drawing( this, state );
 
 		// Non-float outputs need HDR blending before the copy.
 		if ( depthTarget is null && !Source2Formats.From( target.ImageFormat ).IsFloat() )
@@ -627,7 +744,8 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		// Native flips a texture render's copy, never a bitmap's (CCameraRenderer::RenderToBitmap)
 		state.View.FlipX = state.View.FlipY = false;
 		msaa = ((RenderMultisampleType)CSceneSystem.GetMainSwapChainMultisampleType()).FromEngine();
-		state.System.Render( mirror.World, state.View, Source2Texture.From( output ), Source2Formats.Samples( msaa.ToEngine() ), state.Stages );
+		using ( new Drawing( this, state ) )
+			state.System.Render( mirror.World, state.View, Source2Texture.From( output ), Source2Formats.Samples( msaa.ToEngine() ), state.Stages );
 		return output.GetPixels();
 	}
 

@@ -242,6 +242,11 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	GpuMaterial defaultMaterial;
 	GpuMaterial depthOnlyMaterial;
 
+	// One default material for every render system, made by the first: a child view's system starts in the middle of its
+	// parent's frame, where the engine makes no materials. Freed with the last system using it
+	static GpuMaterial s_defaultMaterial;
+	static int s_defaultMaterialUsers;
+
 	/// <summary>
 	/// Collects the main view's rigid opaque instances for occlusion culling. Null when not culling, and never set for shadow views.
 	/// </summary>
@@ -864,7 +869,11 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	internal override void Setup( GpuContext context, RenderWorld world, ViewPass view )
 	{
 		// On the main thread: draws may record on worker threads, where materials can't be made
-		defaultMaterial ??= RenderHost.Current.Device.CreateMaterial( "scene_renderer_default", DefaultShader );
+		if ( defaultMaterial is null )
+		{
+			defaultMaterial = s_defaultMaterial ??= RenderHost.Current.Device.CreateMaterial( "scene_renderer_default", DefaultShader );
+			s_defaultMaterialUsers++;
+		}
 		depthOnlyMaterial ??= RenderHost.Current.Device.LoadMaterial( DepthOnlyMaterial );
 
 		DispatchSkinning( context );
@@ -892,7 +901,12 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 
 	internal override void Dispose()
 	{
-		defaultMaterial?.Dispose();
+		if ( defaultMaterial is not null && --s_defaultMaterialUsers == 0 )
+		{
+			s_defaultMaterial.Dispose();
+			s_defaultMaterial = null;
+		}
+
 		defaultMaterial = null;
 		volumeRing.Dispose();
 	}

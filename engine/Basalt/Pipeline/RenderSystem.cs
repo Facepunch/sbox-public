@@ -369,6 +369,8 @@ public sealed partial class RenderSystem : IDisposable
 				RenderHost.Current.Device.SetSubmitTag( 0 );
 			}
 			submitted = true;
+			shadows.Submitted();
+			skybox?.shadows.Submitted();
 		}
 		finally
 		{
