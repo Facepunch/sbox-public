@@ -125,6 +125,18 @@ public sealed unsafe partial class CommandList
 	internal static ViewData RenderReflection( SceneCamera camera, NativeEngine.ISceneView parent, Transform eye, float fieldOfView, float aspect,
 		float zNear, float zFar, Plane plane, RenderTarget rt, ReflectionSetup setup, string name )
 	{
+		var view = ReflectionView( eye, fieldOfView, aspect, zNear, zFar, plane, setup );
+		camera.RenderToTexture( rt.ColorTarget, rt.DepthTarget, parent, view, name, out var result );
+		return result;
+	}
+
+	/// <summary>
+	/// The view <see cref="RenderReflection(SceneCamera, NativeEngine.ISceneView, Transform, float, float, float, float, Plane, RenderTarget, ReflectionSetup, string)"/>
+	/// renders: the eye mirrored in the plane, an oblique projection clipped to the plane's far side, flipped, with the
+	/// reflection flag. Basalt renders a top-level view's planar reflection from it itself.
+	/// </summary>
+	internal static ViewSetup ReflectionView( Transform eye, float fieldOfView, float aspect, float zNear, float zFar, Plane plane, ReflectionSetup setup )
+	{
 		var reflectedTransform = eye.Mirror( plane );
 		var projection = Matrix.CreateProjection( zNear, zFar, fieldOfView, aspect, setup.ViewSetup.ClipSpaceBounds ?? new Vector4( -1, -1, 1, 1 ) );
 
@@ -140,9 +152,7 @@ public sealed unsafe partial class CommandList
 		setup.ViewSetup.ProjectionMatrix ??= oblique;
 		setup.ViewSetup.FlipX ??= true; // we're mirroring!
 		setup.ViewSetup.Reflection = true;
-
-		camera.RenderToTexture( rt.ColorTarget, rt.DepthTarget, parent, setup.ViewSetup, name, out var result );
-		return result;
+		return setup.ViewSetup;
 	}
 
 	/// <summary>

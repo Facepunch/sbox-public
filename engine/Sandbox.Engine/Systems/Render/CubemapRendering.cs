@@ -8,7 +8,7 @@ namespace Sandbox;
 /// </summary>
 internal static class CubemapRendering
 {
-	// Made in Render, before rendering. As a static initializer it was first reached from Filter, in the cube camera's render
+	// Made by Filter, before rendering. As a static initializer it was first reached from Filter in the cube camera's render
 	// stage hook, during rendering, where Material.Create throws: the type failed to initialize, and every render after threw.
 	static ComputeShader EnvmapFilter;
 
@@ -38,12 +38,11 @@ internal static class CubemapRendering
 	/// <param name="zfar">The far plane distance for the camera.</param>
 	/// <param name="filterType">The quality level for GGX filtering.</param>
 	/// <param name="excludeTags">Objects with any of these tags will be excluded from the render.</param>
-	public static void Render( SceneWorld world, Texture cubemapTexture, Transform cubemapTransform, float znear, float zfar, GGXFilterType filterType, ITagSet excludeTags = null )
+	/// <param name="renderer">The renderer to capture with, rather than the frame's (<see cref="SceneRenderer.Current"/>): for tools that compare them.</param>
+	public static void Render( SceneWorld world, Texture cubemapTexture, Transform cubemapTransform, float znear, float zfar, GGXFilterType filterType, ITagSet excludeTags = null, ISceneRenderer renderer = null )
 	{
 		if ( !Graphics.IsAvailable )
 			throw new Exception( "Tried to call CubemapRendering.Render from a dedicated server" );
-
-		EnvmapFilter ??= new ComputeShader( "envmap_filtering_cs" );
 
 		using var camera = new SceneCamera( "CubemapRendering" );
 		camera.FieldOfView = 90;
@@ -62,26 +61,10 @@ internal static class CubemapRendering
 		// Hide In Game meshes are still visible in the editor, keep them out of bakes
 		camera.ExcludeTags.Add( MeshComponent.HideInGameTag );
 
-		// We need to filter with GGX after rendering is done so that roughness levels sample correctly.
-		// SceneCameras don't abstract Command Lists directly, so we hook into the render stage for same behavior.
-		//
-		// Faces record in parallel, but submit in array order. Attach filtering to the last
-		// submitted face, regardless of which recording callback happens to finish last.
-
-		camera.OnRenderStageHook += ( stage, camera ) =>
-		{
-			if ( stage != Stage.AfterPostProcess )
-				return;
-
-			if ( Graphics.SceneView.GetRenderTargetArrayIndex() != 5 )
-				return;
-
-			// Apply filtering after rendering is done
-			Filter( cubemapTexture, filterType ).ExecuteOnRenderThread();
-		};
-
-
-		camera.RenderToCubeTexture( cubemapTexture );
+		// Filter with GGX once all six faces are drawn, so roughness levels sample correctly
+		var filter = Filter( cubemapTexture, filterType );
+		if ( renderer is null ) camera.RenderToCubeTexture( cubemapTexture, afterFaces: filter );
+		else renderer.RenderToCube( camera, cubemapTexture, default, filter );
 	}
 
 	/// <summary>
@@ -96,6 +79,8 @@ internal static class CubemapRendering
 		if ( cubemapTexture.Width != cubemapTexture.Height ) throw new Exception( "Cubemap texture must be square" );
 		if ( cubemapTexture.Width.IsPowerOfTwo() == false ) throw new Exception( "Cubemap texture must be power of two" );
 		if ( cubemapTexture.Mips != 7 ) throw new Exception( $"Cubemap texture must have 7 mip levels (this has {cubemapTexture.Mips})" );
+
+		EnvmapFilter ??= new ComputeShader( "envmap_filtering_cs" );
 
 		// Merge into a single command list for callers
 		var filter = new CommandList( "Cubemap.Filter" );

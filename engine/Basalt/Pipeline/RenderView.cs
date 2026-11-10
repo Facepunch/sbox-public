@@ -100,9 +100,34 @@ public sealed class RenderView
 	public bool DepthNormals { get; set; }
 
 	/// <summary>
+	/// A reflection (<c>ViewSetup.Reflection</c>), drawn as native's pipeline draws one: no contact shadows, volumetric fog or
+	/// bloom objects, and no shadows unless <see cref="ReflectionShadows"/>, then cascades no other view shares. Shaders and
+	/// command lists see <c>IsReflection</c>, <c>ReflectionShadows</c> and <c>NeedsDepthNormals</c> (off).
+	/// </summary>
+	public bool Reflection { get; set; }
+
+	/// <summary>
+	/// Whether a <see cref="Reflection"/> draws shadows (<c>r.reflections.shadows</c>).
+	/// </summary>
+	public bool ReflectionShadows { get; set; }
+
+	/// <summary>
+	/// A face of a cube capture (an envmap probe), drawn as native's pipeline draws one: the world only, without objects
+	/// <see cref="RenderObject.HiddenInCaptures"/> or viewmodels (<see cref="RenderObject.Overlay"/>), screen overlays or after-UI
+	/// objects, and without occlusion culling, since its history would be another face's or another probe's.
+	/// </summary>
+	public bool Capture { get; set; }
+
+	/// <summary>
 	/// Optional camera and scene attributes, merged before pipeline overrides (<c>CCameraRenderer::CreateView</c>).
 	/// </summary>
 	internal ShaderParameters CameraAttributes { get; set; }
+
+	/// <summary>
+	/// Optional attributes of this view alone, merged over the camera's: what the host publishes for one of a camera's views,
+	/// such as its planar reflection. Its 3D skybox doesn't get them.
+	/// </summary>
+	internal ShaderParameters ViewAttributes { get; set; }
 
 	/// <summary>
 	/// Camera-local analytic fog. Null keeps the world's legacy gradient and cubemap fog.
@@ -175,6 +200,7 @@ public sealed class RenderView
 	internal bool Shows( RenderObject obj )
 	{
 		if ( !ShowsSubWorld( obj ) ) return false;
+		if ( Capture && (obj.HiddenInCaptures || obj.Overlay) ) return false;
 
 		var render = RenderTags;
 		var exclude = ExcludeTags;

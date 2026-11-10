@@ -228,6 +228,48 @@ public class FrameLogTests
 	}
 
 	/// <summary>
+	/// A view's own attributes (a planar reflection the host published for it) go over its camera's, and a reflection view
+	/// tells its shaders it is one, over the camera's attributes too.
+	/// </summary>
+	[TestMethod]
+	public void ViewAttributesGoOverTheCamerasAndReflectionsSaySo()
+	{
+		var planar = new StringToken( "HasPlanarReflection" );
+		var reflection = new StringToken( "IsReflection" );
+		var normals = new StringToken( "NeedsDepthNormals" );
+		var camera = new HeadlessParameters();
+		camera.Set( planar, true );
+		camera.Set( normals, true );
+		var own = new HeadlessParameters();
+		own.Set( planar, false );
+
+		using var target = ViewTarget.Create( new Vector2Int( 64, 64 ) );
+		using var system = new RenderSystem();
+		var world = new RenderWorld();
+		var parameters = (HeadlessParameters)system.FrameContext.Attributes;
+
+		void RenderFrame( bool isReflection )
+		{
+			var view = LookingDownX();
+			view.CameraAttributes = camera;
+			view.ViewAttributes = own;
+			view.Reflection = isReflection;
+			using var _ = Device.Capture();
+			RenderHost.Current.NextFrame();
+			system.Render( world, view, target );
+		}
+
+		RenderFrame( false );
+		Assert.AreEqual( false, parameters.Get( planar ), "the view's own over the camera's" );
+		Assert.AreEqual( true, parameters.Get( normals ) );
+		Assert.IsNull( parameters.Get( reflection ) );
+
+		RenderFrame( true );
+		Assert.AreEqual( true, parameters.Get( reflection ) );
+		Assert.AreEqual( false, parameters.Get( normals ), "nothing in a reflection reads prepass normals" );
+	}
+
+	/// <summary>
 	/// Many skinned objects are skinned on a context a worker records, submitted right after the frame's setup context and
 	/// before anything draws; recording serially, the setup context skins them itself, before the draws it records too.
 	/// </summary>

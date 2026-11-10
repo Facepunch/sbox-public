@@ -95,6 +95,8 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 			ExcludeTags = view.ExcludeTags,
 			SubWorlds = view.SubWorlds,
 			IsSkybox = skybox,
+			IsReflection = view.Reflection,
+			NoShadows = view.Reflection && !view.ReflectionShadows,
 		};
 		mapper.InitForView();
 

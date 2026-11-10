@@ -26,7 +26,8 @@ internal abstract class OutputOverlayLayer : MeshLayer
 
 	public override bool IsShared => false;
 
-	public override bool IsNeeded( RenderFrame frame ) => frame.RunCount( this ) > 0;
+	// Cube captures draw none (StandardPipeline)
+	public override bool IsNeeded( RenderFrame frame ) => !frame.View.Capture && frame.RunCount( this ) > 0;
 
 	/// <summary>
 	/// Bind output colour and optional HDR depth, including the custom-object restore target.

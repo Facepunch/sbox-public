@@ -36,6 +36,7 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 	/// </summary>
 	public bool IsChild
 	{
+		get => view.IsChild;
 		set => view.IsChild = value;
 	}
 
@@ -62,6 +63,7 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 	public float BeginFrame( SceneCamera camera, RenderView renderView, in ViewSetup setup, bool updateExposure )
 	{
 		Camera = camera;
+		reflection = setup.Reflection;
 		camera.ScheduleEarlyPostProcess( Stage.AfterDepthPrepass, false );
 		view.PostProcessEnabled = setup.EnablePostprocessing ?? camera.EnablePostProcessing;
 		EnableUI = setup.EnableUI ?? camera.RenderUI;
@@ -78,6 +80,23 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 	}
 
 	RenderView mainView;
+
+	/// <summary>
+	/// Whether the frame is a reflection (<see cref="ViewSetup.Reflection"/>): no screen-space reflections or auto exposure, as
+	/// native's pipeline leaves them out of one.
+	/// </summary>
+	bool reflection;
+
+	/// <summary>
+	/// A cube capture face: its cube, its slice, and for the last face what runs after the faces.
+	/// </summary>
+	internal readonly record struct CubeFace( Texture Cube, int Slice, CommandList AfterFaces );
+
+	/// <summary>
+	/// The cube capture face being rendered, if one is (<see cref="SceneBridge.RenderToCube"/>): its frame ends by copying itself
+	/// into the cube's slice, after the last stage, and the last face then runs the work after the faces (the GGX filter).
+	/// </summary>
+	public CubeFace Capture { get; set; }
 
 	/// <summary>
 	/// Restore the main camera and forward layer for stage rendering: the view as rendered, with any overrides of the camera.
@@ -172,7 +191,12 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 		}
 	}
 
-	public bool HasScreenSpaceReflections => Camera?.ScreenSpaceReflections is not null;
+	/// <summary>
+	/// Whether the frame traces screen-space reflections: the camera's main views only, as native's pipeline leaves them out of
+	/// child views (<c>StandardPipeline</c>: a view with a parent). Traced in a child too, they'd share the camera's history and
+	/// output, and add reflections native's child doesn't have. Nor in a reflection.
+	/// </summary>
+	public bool HasScreenSpaceReflections => !view.IsChild && !reflection && Capture.Cube is null && Camera?.ScreenSpaceReflections is not null;
 
 	public void RenderScreenSpaceReflections( bool history, in StageTarget target )
 	{
@@ -222,8 +246,8 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 		// Inherit frame constants, lighting and bindless descriptors.
 		var contextAttributes = BeginStageAttributes( context, target );
 
-		// Query HDR luminance before tonemapping, with HDR colour unbound.
-		if ( stage == RenderStage.Tonemapping && tonemap.IsValid )
+		// Query HDR luminance before tonemapping, with HDR colour unbound. Nothing reads a reflection's.
+		if ( stage == RenderStage.Tonemapping && tonemap.IsValid && !reflection )
 		{
 			RenderTools.BindColorAndDepthTarget( context, default, target.Depth.Native(), false );
 			var rect = target.Viewport;
@@ -267,6 +291,19 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 		using ( new Graphics.Scope( context, view ) )
 		{
 			((IManagedCamera)Camera).OnRenderStage( (Stage)stage );
+		}
+
+		// A cube face, finished: into its slice, and after the last, what the capture runs after the faces
+		if ( stage == RenderStage.AfterUI && Capture.Cube is { } cube )
+		{
+			var rect = new NativeRect( 0, 0, (int)target.Size.x, (int)target.Size.y );
+			RenderTools.CopyTexture( context, target.Color.Native(), cube.native, rect, 0, 0, 0, 0, 0, (uint)Capture.Slice );
+
+			if ( Capture.AfterFaces is { } afterFaces )
+			{
+				using ( new Graphics.Scope( context, view ) )
+					afterFaces.ExecuteOnRenderThread();
+			}
 		}
 
 		// Before the pipeline texture upload below, which the frame's later passes read from the context's attributes

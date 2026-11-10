@@ -48,6 +48,26 @@ internal sealed partial class SceneLabWindow
 	Color32[] isolatedPixels;
 	Vector2Int isolatedSize;
 
+	// The faces of the cube the preset captured that frame (SceneLabScene.CaptureFaces), if it has one
+	Color32[][] isolatedFaces;
+	int isolatedFaceSize;
+
+	/// <summary>
+	/// A cube's six faces, mip 0, read back as 8-bit pixels.
+	/// </summary>
+	Color32[][] ReadFaces( Texture cube )
+	{
+		isolatedFaceSize = cube.Width;
+		var faces = new Color32[6][];
+		for ( int i = 0; i < faces.Length; i++ )
+		{
+			faces[i] = new Color32[cube.Width * cube.Height];
+			cube.GetPixels<Color32>( (0, 0, cube.Width, cube.Height), i, 0, faces[i].AsSpan(), ImageFormat.RGBA8888 );
+		}
+
+		return faces;
+	}
+
 	bool LoadGame( SceneLabScene scene )
 	{
 		UnloadGame();
@@ -149,6 +169,9 @@ internal sealed partial class SceneLabWindow
 		{
 			game.PreCameraRender();
 
+			// Each renderer by name, whatever r_managed_scene says: these are the A/B
+			Scene.Capture?.Invoke( game, Renderer == RendererKind.Managed ? (gameBridge ??= new SceneBridge()) : SceneRenderer.Native );
+
 			foreach ( var target in targetCameras )
 			{
 				target.InitializeRendering();
@@ -165,6 +188,7 @@ internal sealed partial class SceneLabWindow
 				isolatedPixels = Renderer == RendererKind.Managed
 					? (gameBridge ??= new SceneBridge()).RenderManaged( camera, isolatedSize, updateExposure: true )
 					: SceneBridge.RenderNative( camera, isolatedSize, prepare: false );
+				isolatedFaces = Scene.CaptureFaces?.Invoke( game ) is { } cube ? ReadFaces( cube ) : null;
 			}
 			else if ( Renderer == RendererKind.Managed )
 			{
@@ -327,6 +351,8 @@ internal sealed partial class SceneLabWindow
 		if ( Renderer != RendererKind.Managed )
 		{
 			FrameComparison.SavePng( pixels, width, height, nativePath );
+			for ( int i = 0; i < (isolatedFaces?.Length ?? 0); i++ )
+				FrameComparison.SavePng( isolatedFaces[i], isolatedFaceSize, isolatedFaceSize, System.IO.Path.Combine( folder, $"{name}.face{i}.native.png" ) );
 			return $"isolated native frame to {nativePath}";
 		}
 
@@ -339,7 +365,36 @@ internal sealed partial class SceneLabWindow
 		if ( native.Length == pixels.Length ) FrameComparison.SavePng( FrameComparison.Difference( pixels, native ), width, height, System.IO.Path.Combine( folder, $"{name}.diff.png" ) );
 		lastParity = result;
 		if ( !result.Matches ) Environment.ExitCode = 2;
-		return $"{result} | isolated";
+		return $"{result} | isolated{CompareFaces( folder, name )}";
+	}
+
+	/// <summary>
+	/// Save the captured cube's faces, and compare each with native's: a face that fails fails the capture.
+	/// </summary>
+	string CompareFaces( string folder, string name )
+	{
+		if ( isolatedFaces is not { } faces ) return "";
+
+		var text = new System.Text.StringBuilder( " | cube faces:" );
+		for ( int i = 0; i < faces.Length; i++ )
+		{
+			var size = isolatedFaceSize;
+			FrameComparison.SavePng( faces[i], size, size, System.IO.Path.Combine( folder, $"{name}.face{i}.png" ) );
+			var nativePath = System.IO.Path.Combine( folder, $"{name}.face{i}.native.png" );
+			if ( !System.IO.File.Exists( nativePath ) ) return $"{text} no native faces to compare";
+
+			using var reference = Bitmap.CreateFromBytes( System.IO.File.ReadAllBytes( nativePath ) );
+			var face = FrameComparison.Compare( faces[i], reference.GetPixels32() );
+			text.Append( $" {i}: {face.MeanDifference:0.00}/255, {face.Different} off" );
+			if ( !face.Matches )
+			{
+				text.Append( " FAILED" );
+				if ( lastParity is { Matches: true } ) lastParity = face;
+				Environment.ExitCode = 2;
+			}
+		}
+
+		return text.ToString();
 	}
 
 	static string FileName( string name ) => new string( name.Where( char.IsLetterOrDigit ).ToArray() ).ToLowerInvariant();

@@ -34,7 +34,8 @@ internal sealed class BloomLayer : MeshLayer
 
 	public override bool IsShared => false;
 
-	public override bool IsNeeded( RenderFrame frame ) => frame.System.DepthPrepass && frame.RunCount( this ) > 0;
+	// Nothing samples a reflection's bloom (StandardPipeline)
+	public override bool IsNeeded( RenderFrame frame ) => frame.System.DepthPrepass && !frame.View.Reflection && frame.RunCount( this ) > 0;
 
 	public override FrameResources Writes => FrameResources.BloomObjects;
 
