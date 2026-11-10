@@ -36,6 +36,7 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 	/// </summary>
 	public bool IsChild
 	{
+		get => view.IsChild;
 		set => view.IsChild = value;
 	}
 
@@ -172,7 +173,12 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 		}
 	}
 
-	public bool HasScreenSpaceReflections => Camera?.ScreenSpaceReflections is not null;
+	/// <summary>
+	/// Whether the frame traces screen-space reflections: the camera's main views only, as native's pipeline leaves them out of
+	/// child views (<c>StandardPipeline</c>: a view with a parent). Traced in a child too, they'd share the camera's history and
+	/// output, and add reflections native's child doesn't have.
+	/// </summary>
+	public bool HasScreenSpaceReflections => !view.IsChild && Camera?.ScreenSpaceReflections is not null;
 
 	public void RenderScreenSpaceReflections( bool history, in StageTarget target )
 	{
