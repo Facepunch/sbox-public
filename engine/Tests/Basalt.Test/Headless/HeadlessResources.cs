@@ -61,6 +61,17 @@ internal sealed class HeadlessBuffer( int elementCount, int elementSize, GpuBuff
 	public GpuBuffer.UsageFlags Usage { get; } = usage;
 	public bool Disposed { get; private set; }
 
+	/// <summary>
+	/// What uploads put in it, made by the first.
+	/// </summary>
+	public byte[] Contents { get; private set; }
+
+	public void Upload( ReadOnlySpan<byte> data, int offsetBytes )
+	{
+		Contents ??= new byte[ElementCount * ElementSize];
+		data.CopyTo( Contents.AsSpan( offsetBytes ) );
+	}
+
 	public void Dispose() => Disposed = true;
 	public override string ToString() => Name;
 }

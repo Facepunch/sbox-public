@@ -1,5 +1,6 @@
 using Basalt;
 using Basalt.Features;
+using Basalt.Gpu;
 using BasaltTests.Headless;
 using System;
 using System.Collections.Generic;
@@ -190,6 +191,79 @@ public class WorkTests
 			Basalt.Shadows.ShadowMapper.ResetCache();
 			CollectAndPrepare( rebuilt, world, view );
 			Assert.AreEqual( Describe( rebuilt, world ), kept, $"frame {frame}" );
+		}
+	}
+
+	/// <summary>
+	/// A rigid mesh's transform entry is kept: written when the object moves or changes tint and not otherwise, and uploaded
+	/// into each of the buffers frames in flight read once it's written, so what the buffer a frame draws with holds stays what
+	/// the objects are, as they move, change, go and come.
+	/// </summary>
+	[TestMethod]
+	public void KeptEntriesReachEveryBuffer()
+	{
+		var world = Boxes( TestMesh( false ), 300 );
+		var view = LookingDownX();
+		using var target = ViewTarget.Create( new Vector2Int( 64, 64 ) );
+		using var system = new RenderSystem();
+		var transforms = system.Transforms;
+		var random = new Random( 3 );
+
+		void Frame()
+		{
+			RenderHost.Current.NextFrame();
+			system.Render( world, view, target );
+		}
+
+		// Slots are made between frames, for the objects that wanted one
+		for ( int i = 0; i < 4; i++ ) Frame();
+		Assert.AreEqual( 0, transforms.Count, "no frame entries once every box has a slot" );
+
+		var writes = transforms.KeptWrites;
+		for ( int i = 0; i < 4; i++ ) Frame();
+		Assert.AreEqual( writes, transforms.KeptWrites, "nothing changed, so nothing written" );
+		Assert.AreEqual( 0, transforms.KeptUploaded, "or uploaded" );
+
+		// One moves: written once, then uploaded into each of the three buffers in turn
+		var moved = world.Objects[150];
+		moved.Transform = new Transform( moved.Transform.Position + new Vector3( 0, 0, 1 ) );
+		for ( int i = 0; i < 3; i++ )
+		{
+			Frame();
+			Assert.AreEqual( writes + 1, transforms.KeptWrites, "written once" );
+			Assert.AreEqual( 1, transforms.KeptUploaded, $"uploaded in frame {i}" );
+		}
+
+		Frame();
+		Assert.AreEqual( 0, transforms.KeptUploaded, "every buffer has it" );
+
+		for ( int frame = 0; frame < 40; frame++ )
+		{
+			for ( int c = 0; c < 8; c++ )
+			{
+				var obj = (MeshObject)world.Objects[random.Next( world.Count )];
+				switch ( random.Next( 4 ) )
+				{
+					case 0: obj.Transform = new Transform( obj.Transform.Position + new Vector3( 0, 0.5f, 0 ) ); break;
+					case 1: obj.Tint = new Color( (float)random.NextDouble(), 1, 1 ); break;
+					case 2: world.Remove( obj ); break;
+					default: world.Add( new MeshObject( obj.Mesh, new Transform( new Vector3( 100 + random.Next( 30 ), random.Next( 30 ) - 15, random.Next( 30 ) - 15 ) ) ) ); break;
+				}
+			}
+
+			Frame();
+			var entries = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, TransformBuffer.Entry>( ((HeadlessBuffer)transforms.Current.Resource).Contents );
+			var drawn = 0;
+			foreach ( var obj in world.Objects )
+			{
+				var slot = transforms.SlotOf( obj );
+				if ( slot < 0 ) continue;
+
+				Assert.AreEqual( TransformBuffer.MakeEntry( world.LocalToWorld[obj.Index], ((MeshObject)obj).Tint ), entries[slot], $"frame {frame}, object {obj.Index}" );
+				drawn++;
+			}
+
+			Assert.IsTrue( drawn > 250, $"{drawn} drawn" );
 		}
 	}
 

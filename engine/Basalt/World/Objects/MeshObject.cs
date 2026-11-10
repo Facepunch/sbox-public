@@ -45,9 +45,11 @@ public sealed class MeshObject : RenderObject
 			// Only alpha reaches a shadow: a faded caster dithers. Fading or not decides its lists
 			var faded = field.a != value.a;
 			var lists = field.a < 1 != value.a < 1;
+			var changed = !field.Equals( value );
 			field = value;
 			if ( faded ) ShadowChanged();
 			if ( lists ) DrawChanged();
+			if ( changed ) World?.EntryChanged( this );
 		}
 	} = Color.White;
 

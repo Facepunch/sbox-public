@@ -286,6 +286,11 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		public bool OnlyTranslucent;
 
 		/// <summary>
+		/// <see cref="MeshObject.OcclusionCulling"/>, so emitting a kept object doesn't read it.
+		/// </summary>
+		public bool Occludes;
+
+		/// <summary>
 		/// A custom object, left for the main thread: it isn't classified like a mesh.
 		/// </summary>
 		public bool Custom;
@@ -590,6 +595,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		if ( obj.WantsFrameBufferCopy && !shadow ) c.FrameBufferReads = runs & FrameBufferCopyingLists;
 
 		c.OnlyTranslucent = blend == MeshBlend.Translucent;
+		c.Occludes = obj.OcclusionCulling;
 		c.Callbacks = obj.Callbacks is not null && !shadow;
 		c.RenderOrder = obj.RenderOrder;
 		return c;
@@ -830,6 +836,10 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		var extents = world.BoundsExtents;
 		var used = mainPrepares;
 
+		// Rigid meshes keep their entries between frames, but for debug tints, which are the frame's
+		var keep = DebugViews == DebugViews.None;
+		var versions = world.EntryVersions;
+
 		// Rigid IDs append directly; skinned IDs are grouped per mesh when the run ends.
 		Bin bin = null;
 		var start = 0;
@@ -856,23 +866,23 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 				bin.Used = used;
 			}
 
-			var obj = (MeshObject)objects[index];
-			var tint = DebugViews == DebugViews.None ? obj.Tint : TintFor( obj, bin.Lod );
+			// Its bin says it's a mesh; a kept entry that's current reads nothing of the object itself
+			var obj = Unsafe.As<MeshObject>( objects[index] );
 			if ( bin.Skinned )
 			{
-				WriteBones( obj, bin.Lod, matrices[index], tint, transforms );
+				WriteBones( obj, bin.Lod, matrices[index], keep ? obj.Tint : TintFor( obj, bin.Lod ), transforms );
 				skinMembers.Add( obj );
 			}
 			else if ( bin.Tinted )
 			{
 				// Its entries now; the ids are written a block per draw when the run ends
-				tintedSlots.Add( transforms.TintedSlotsFor( obj, matrices[index], tint, bin.Mesh ) );
+				tintedSlots.Add( transforms.TintedSlotsFor( obj, matrices[index], keep ? obj.Tint : TintFor( obj, bin.Lod ), bin.Mesh ) );
 			}
 			else
 			{
-				var slot = transforms.SlotFor( obj, matrices[index], tint );
+				var slot = keep ? transforms.KeptSlotFor( index, obj, matrices[index], versions[index] ) : transforms.SlotFor( obj, matrices[index], TintFor( obj, bin.Lod ) );
 				var instance = transforms.AddInstance( slot );
-				occlusion?.AddInstance( slot, centers[index], obj.OcclusionCulling ? extents[index] : new Vector3( -1 ) );
+				occlusion?.AddInstance( slot, centers[index], classified[k].Occludes ? extents[index] : new Vector3( -1 ) );
 				if ( length == 0 ) start = instance;
 			}
 
