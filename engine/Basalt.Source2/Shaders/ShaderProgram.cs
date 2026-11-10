@@ -209,7 +209,7 @@ public sealed class ShaderProgram
 		byte[] expression = null;
 		if ( source is VariableSource.Expression or VariableSource.MaterialAndExpression ) expression = reader.Bytes( (int)reader.UInt() );
 
-		reader.Int();
+		var sourceIndex = reader.Int();
 		var type = (VariableType)reader.Int();
 		var register = (RegisterType)reader.Int();
 		reader.UInt();
@@ -227,6 +227,7 @@ public sealed class ShaderProgram
 			Name = name,
 			Attribute = attribute,
 			Source = source,
+			SourceIndex = sourceIndex,
 			Type = type,
 			Register = register,
 			RegisterElements = elements,
