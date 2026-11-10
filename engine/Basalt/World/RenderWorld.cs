@@ -51,6 +51,11 @@ public sealed class RenderWorld
 	const int NotInTree = -2;
 
 	/// <summary>
+	/// Where static shadow casters changed, so a light's static shadow cache is redrawn when a change reaches it.
+	/// </summary>
+	internal StaticCasterChanges StaticChanges { get; } = new();
+
+	/// <summary>
 	/// The sun and ambient light the world is drawn with.
 	/// </summary>
 	public SceneLighting Lighting { get; } = new();
@@ -121,6 +126,8 @@ public sealed class RenderWorld
 		var index = obj.Index;
 		var last = --Count;
 
+		if ( obj.IsStatic ) StaticCasterChanged( obj );
+
 		if ( _treeLeaves[index] >= 0 ) Tree.Remove( _treeLeaves[index] );
 		else _unculledObjectIndices.Remove( index );
 		if ( _dynamicTreeLeaves[index] >= 0 ) DynamicTree.Remove( _dynamicTreeLeaves[index] );
@@ -152,6 +159,11 @@ public sealed class RenderWorld
 	internal void Sync( RenderObject obj )
 	{
 		var index = obj.Index;
+
+		// A static caster that was already here leaves its old place too
+		var logged = obj.IsStatic && CastsShadows( obj );
+		if ( logged && _treeLeaves[index] != NotAdded ) StaticChanges.Add( _boundsCenters[index], _boundsExtents[index] );
+
 		var matrix = ToMatrix( obj.Transform );
 		_localToWorld[index] = matrix;
 
@@ -166,6 +178,7 @@ public sealed class RenderWorld
 
 		_boundsCenters[index] = center;
 		_boundsExtents[index] = extents;
+		if ( logged ) StaticChanges.Add( center, extents );
 
 		var leaf = _treeLeaves[index];
 		if ( leaf >= 0 ) Tree.Move( leaf, center - extents, center + extents );
@@ -200,6 +213,19 @@ public sealed class RenderWorld
 		if ( leaf >= 0 ) DynamicTree.Move( leaf, center - extents, center + extents );
 		else _dynamicTreeLeaves[index] = DynamicTree.Add( center - extents, center + extents, index );
 	}
+
+	/// <summary>
+	/// Note a change to how a static caster casts, or to whether it's static, where it is now.
+	/// </summary>
+	internal void StaticCasterChanged( RenderObject obj )
+	{
+		if ( obj.Index >= 0 && CastsShadows( obj ) ) StaticChanges.Add( _boundsCenters[obj.Index], _boundsExtents[obj.Index] );
+	}
+
+	/// <summary>
+	/// Lights, environment maps and decals never draw into shadow maps.
+	/// </summary>
+	static bool CastsShadows( RenderObject obj ) => obj is not (LightObject or EnvMapObject or DecalObject);
 
 	internal static Matrix ToMatrix( in Transform transform ) => Matrix.FromTransform( transform );
 }

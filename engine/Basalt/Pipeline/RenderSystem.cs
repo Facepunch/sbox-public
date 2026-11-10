@@ -243,7 +243,16 @@ public sealed partial class RenderSystem : IDisposable
 		var collected = Stopwatch.GetTimestamp();
 		var allocCollected = GC.GetAllocatedBytesForCurrentThread();
 
-		using ( Zones.Prepare.Start() ) Prepare( world, view );
+		try
+		{
+			using ( Zones.Prepare.Start() ) Prepare( world, view );
+		}
+		catch
+		{
+			shadows.Abandon();
+			throw;
+		}
+
 		stats.Lights = lightBinner.Count;
 		if ( frame.DebugViews != DebugViews.None ) DescribeCulling( world, view, stats );
 
@@ -331,6 +340,9 @@ public sealed partial class RenderSystem : IDisposable
 			{
 				recorder.End();
 				context.End();
+
+				// The cache mustn't claim maps that were never drawn
+				shadows.Abandon();
 			}
 
 			recorder.Clear();

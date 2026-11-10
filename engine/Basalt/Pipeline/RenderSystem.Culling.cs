@@ -121,7 +121,7 @@ public sealed partial class RenderSystem
 	internal static bool FindCandidates( RenderWorld world, ViewPass pass, List<int> candidates, out int inTree, out int rejected, bool sizeCull = true )
 	{
 		candidates.Clear();
-		var size = sizeCull ? new SizeCull( pass.Root ) : default;
+		var size = sizeCull && !KeepsSmallCasters( pass ) ? new SizeCull( pass.Root ) : default;
 
 		// Avoid traversing static objects for dynamic-only shadows.
 		var tree = pass.StaticFilter == StaticFilter.NoStatic ? world.DynamicTree : world.Tree;
@@ -164,7 +164,7 @@ public sealed partial class RenderSystem
 	{
 		var frustum = pass.View.Frustum;
 		var root = pass.Root;
-		var sizeCull = new SizeCull( root );
+		var sizeCull = KeepsSmallCasters( pass ) ? default : new SizeCull( root );
 		var shadow = pass.IsShadow;
 		var filter = pass.StaticFilter;
 		var objects = world.Objects;
@@ -226,6 +226,11 @@ public sealed partial class RenderSystem
 			stats.ObjectsVisible++;
 		}
 	}
+
+	/// <summary>
+	/// A static shadow cache is kept while the camera moves, so it isn't size culled by where the camera was when it was drawn.
+	/// </summary>
+	static bool KeepsSmallCasters( ViewPass pass ) => pass.StaticFilter == StaticFilter.OnlyStatic;
 
 	/// <summary>
 	/// Warm type lookups before parallel culling; cache misses write shared state.

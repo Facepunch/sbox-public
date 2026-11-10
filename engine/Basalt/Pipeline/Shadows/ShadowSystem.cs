@@ -89,6 +89,8 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 			ViewToWorldRotation = view.WorldToViewRotation.Transpose(),
 			CameraPosition = view.Position,
 			ViewportSize = new Vector2( view.Viewport.Width, view.Viewport.Height ),
+			RenderTags = view.RenderTags,
+			ExcludeTags = view.ExcludeTags,
 			IsSkybox = skybox,
 		};
 		mapper.InitForView();
@@ -96,6 +98,11 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		PrepareSun( world.Lighting, enabled || skybox );
 		if ( enabled ) PrepareLocalLights( lightBinner );
 	}
+
+	/// <summary>
+	/// The frame was never submitted: forget that its shadow maps were drawn, so they're drawn again.
+	/// </summary>
+	public void Abandon() => mapper.Abandon();
 
 	/// <summary>
 	/// Start culling the selected views on the job dispatcher's workers, so the caller can prepare the main view
@@ -187,6 +194,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 
 				// A mixed light's static shadows are in its lightmaps, so its maps leave static casters out
 				Baked = light.Baked,
+				StaticChanges = world.StaticChanges,
 			};
 
 			lightBinner.SetShadowMapIndex( i, mapper.FindOrCreateShadowMaps( shadowLight, lightBinner.ScreenSize( i ) ) );
