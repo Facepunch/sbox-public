@@ -135,13 +135,6 @@ internal static class Skills
 					failed = true;
 					break;
 				default:
-					if ( IsLink( directory ) || IsLink( skillDirectory ) )
-					{
-						Console.Error.WriteLine( $"{name}: skipped, {skillDirectory} is reached through a symbolic link." );
-						failed = true;
-						break;
-					}
-
 					Directory.CreateDirectory( skillDirectory );
 					File.WriteAllText( file, bootstrap, new UTF8Encoding( false ) );
 					Console.WriteLine( $"{name}: installed {file}" );
@@ -250,8 +243,6 @@ internal static class Skills
 
 		return null;
 	}
-
-	static bool IsLink( string path ) => Directory.Exists( path ) && new DirectoryInfo( path ).LinkTarget is not null;
 
 	static string Normalize( string text ) => text.Replace( "\r\n", "\n" ).Trim();
 
