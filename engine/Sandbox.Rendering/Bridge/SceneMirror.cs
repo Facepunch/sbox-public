@@ -9,7 +9,7 @@ namespace Sandbox.Rendering.Bridge;
 /// Queues object changes from any thread and applies changed fields before rendering.
 /// Attribute emptiness is polled because values can change in place without notifications.
 /// </summary>
-internal sealed class SceneMirror : ISceneObjectListener, IDisposable
+internal sealed class SceneMirror : ISceneObjectListener, IAttributeSource, IDisposable
 {
 	readonly SceneWorld source;
 
@@ -198,8 +198,6 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 			Apply( sceneObject, change, frame );
 
 		applying.Clear();
-
-		SyncAttributes();
 
 		// An extra world's objects are lit by the main world's sun, sky, probe volumes and fog, as native lights the view
 		if ( SubWorld == 0 ) SyncLighting( camera, skyboxView );
@@ -393,6 +391,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		if ( obj is MeshObject mesh )
 		{
 			attributed.Remove( mesh );
+			mesh.AttributesFrom = null;
 			sharing.Remove( mesh );
 			ReleaseLightmap( mesh.LightmapAttributes.Engine() );
 			mesh.LightmapAttributes = null;
@@ -477,11 +476,12 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		if ( (change & (SceneObjectChange.Transform | SceneObjectChange.Flags | Draws)) != 0 )
 			mesh.LightingOrigin = sceneObject.native.HasLightingOrigin() ? sceneObject.native.GetLightingOrigin() : null;
 
-		// Track mutable attributes; SyncAttributes omits empty sets.
+		// Track mutable attributes, read when a view draws the object (Refresh)
 		if ( (change & SceneObjectChange.Attributes) != 0 )
 		{
 			if ( sceneObject.CreatedAttributes is { } attributes ) attributed[mesh] = attributes;
 			else attributed.Remove( mesh );
+			mesh.AttributesFrom = attributed.ContainsKey( mesh ) ? this : null;
 			sharing.Remove( mesh );
 			mesh.Attributes = null;
 		}
@@ -788,22 +788,21 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 	/// <summary>
 	/// Omit empty attributes to preserve instancing (<c>CBaseSceneObjectDesc::BindMaterial</c>), and let objects whose
 	/// attributes hold the same values share one set (<see cref="SharedAttributes"/>), so they instance and keep the material
-	/// bound between them as objects with none do. Poll every sync because values mutate without notifications.
+	/// bound between them as objects with none do. Values change in place without notice, so they're read each render that
+	/// draws the object, as native reads them as it draws: reading every object's each sync cost Mow the Lawn half a
+	/// millisecond a frame, nearly all of it its 3,000 empty sets' memory.
 	/// </summary>
-	void SyncAttributes()
+	public void Refresh( MeshObject mesh )
 	{
-		foreach ( var (mesh, attributes) in attributed )
+		var native = attributed.TryGetValue( mesh, out var attributes ) ? attributes.Get() : default;
+		if ( native.IsNull || native.IsEmpty() )
 		{
-			var native = attributes.Get();
-			if ( native.IsNull || native.IsEmpty() )
-			{
-				mesh.Attributes = null;
-				sharing.Remove( mesh );
-				continue;
-			}
-
-			mesh.Attributes = Source2Parameters.From( SharedAttributes( mesh, attributes, native ) );
+			mesh.Attributes = null;
+			sharing.Remove( mesh );
+			return;
 		}
+
+		mesh.Attributes = Source2Parameters.From( SharedAttributes( mesh, attributes, native ) );
 	}
 
 	// The attribute set each object draws with, someone's own whose values are the same as its own, and the sets lately shared

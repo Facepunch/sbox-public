@@ -96,6 +96,12 @@ public sealed partial class RenderSystem : IDisposable
 	public RenderStats Stats { get; private set; }
 
 	/// <summary>
+	/// Counts renders, by any system, from 1: what objects bring per-render state up to date against
+	/// (<see cref="MeshObject.RefreshAttributes"/>).
+	/// </summary>
+	internal static int RenderNumber { get; private set; } = 1;
+
+	/// <summary>
 	/// Make the shaders render systems share now, on the main thread, before anything renders. Layers otherwise make them
 	/// as they first render, and the first frames can draw differently.
 	/// </summary>
@@ -233,6 +239,7 @@ public sealed partial class RenderSystem : IDisposable
 		ArgumentNullException.ThrowIfNull( view );
 
 		var stats = new RenderStats { Objects = world.Count };
+		RenderNumber++;
 
 		view.Update();
 		frame.Begin( world, view, output, stages );
