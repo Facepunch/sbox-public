@@ -112,7 +112,22 @@ internal sealed class Source2Backend
 		EngineLoop.DrainFrameEndDisposables();
 	}
 
-	public RenderMesh LoadMesh( string path ) => Source2Mesh.FromModel( Model.Load( path ) );
+	/// <summary>
+	/// Lab worlds' meshes, materials and textures, loaded through the engine and kept for the run.
+	/// </summary>
+	public Source2LabContent Content { get; } = new( "Basalt Lab" );
+
+	public RenderMesh LoadMesh( string path ) => Content.Mesh( path );
+
+	/// <summary>
+	/// Load textures whole rather than streaming their mips in over real time, so frames are the same every run.
+	/// </summary>
+	public void PreloadTextures() => g_pRenderDevice.SetForcePreloadStreamingData( true );
+
+	/// <summary>
+	/// Wait for the GPU to finish everything submitted, before freeing what it might still read.
+	/// </summary>
+	public void Flush() => g_pRenderDevice.Flush();
 
 	/// <summary>
 	/// A target's resolved colour as 8-bit sRGB: a float target encoded as native's final blit would.

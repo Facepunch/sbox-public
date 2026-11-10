@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!--
+    What SceneLab and BasaltLab share: the lab presets and the world they build, their content through the engine, and the
+    golden truth runner. Both launchers compile it, so they build the same worlds and check them the same way.
+  -->
+  <PropertyGroup>
+    <MSBuildAllProjects Condition="'$(MSBuildVersion)' == '' Or '$(MSBuildVersion)' &lt; '16.0'">$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
+    <HasSharedItems>true</HasSharedItems>
+    <SharedGUID>5d3c8f61-2a4e-4b7c-9e1f-8a6b2c4d0e37</SharedGUID>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration">
+    <Import_RootNamespace>LabShared</Import_RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Using Include="Sandbox.Lab" />
+    <Compile Include="$(MSBuildThisFileDirectory)Args.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)GoldenTruthRun.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)LabPreset.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)LabWorld.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)LodTestModel.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)SkyCube.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Source2LabContent.cs" />
+  </ItemGroup>
+</Project>

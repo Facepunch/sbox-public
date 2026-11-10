@@ -1,4 +1,4 @@
-namespace Sandbox.SceneLab;
+namespace Sandbox.Lab;
 
 /// <summary>
 /// A small sky cubemap made at runtime: blue overhead, pale at the horizon, dark below, warmer toward +x
