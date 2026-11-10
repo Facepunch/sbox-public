@@ -240,4 +240,50 @@ public class PerObjectStateTests
 		// Red times the draw's tint is (0.5, 0, 0); white times it is the draw's own
 		CollectionAssert.AreEquivalent( new[] { 0x800000u, 0x80FF40u }, tints.ToArray() );
 	}
+
+	/// <summary>
+	/// Attributes read as objects draw (<see cref="MeshObject.AttributesFrom"/>): asked once a render for an object a view
+	/// draws, never for one off screen, and counted by the world so one without any doesn't look for them.
+	/// </summary>
+	[TestMethod]
+	public void AttributesAreReadOnceARenderForObjectsDrawn()
+	{
+		var world = new RenderWorld();
+		var onScreen = new MeshObject( TestMesh( false ), new Transform( new Vector3( 30, 0, 0 ) ) );
+		var offScreen = new MeshObject( TestMesh( false ), new Transform( new Vector3( -30, 0, 0 ) ) );
+		world.Add( onScreen );
+		world.Add( offScreen );
+		Assert.AreEqual( 0, world.AttributeSources );
+
+		var source = new CountingSource();
+		onScreen.AttributesFrom = source;
+		offScreen.AttributesFrom = source;
+		Assert.AreEqual( 2, world.AttributeSources );
+
+		using var target = ViewTarget.Create( new Vector2Int( 64, 64 ) );
+		// Without shadows, whose cascades would draw the one behind the camera
+		using var system = new RenderSystem { Shadows = false };
+		for ( int frame = 1; frame <= 2; frame++ )
+		{
+			RenderHost.Current.NextFrame();
+			system.Render( world, LookingDownX(), target );
+			Assert.AreEqual( frame, source.ReadsOf( onScreen ), "once a render, whichever views draw it" );
+			Assert.AreEqual( 0, source.ReadsOf( offScreen ), "nothing draws it" );
+		}
+
+		world.Remove( offScreen );
+		Assert.AreEqual( 1, world.AttributeSources );
+		offScreen.AttributesFrom = null;
+		onScreen.AttributesFrom = null;
+		Assert.AreEqual( 0, world.AttributeSources );
+	}
+
+	sealed class CountingSource : IAttributeSource
+	{
+		public readonly System.Collections.Generic.Dictionary<MeshObject, int> Reads = new();
+
+		public int ReadsOf( MeshObject mesh ) => Reads.TryGetValue( mesh, out var reads ) ? reads : 0;
+
+		public void Refresh( MeshObject mesh ) => Reads[mesh] = ReadsOf( mesh ) + 1;
+	}
 }
