@@ -78,7 +78,7 @@ public sealed unsafe partial class Device : IDisposable
 
 		using var strings = new NativeStrings();
 		var appName = strings.Add( options.ApplicationName ?? "Basalt" );
-		var engineName = strings.Add( "Basalt" );
+		var engineName = strings.Add( options.EngineName ?? "Basalt" );
 		var app = new VkApplicationInfo
 		{
 			sType = VkStructureType.ApplicationInfo,

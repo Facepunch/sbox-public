@@ -9,6 +9,13 @@ public sealed class DeviceOptions
 	public string ApplicationName { get; init; } = "Basalt";
 
 	/// <summary>
+	/// The engine's name, which drivers and tools see. Drivers choose per-application profiles by these two names, and
+	/// a profile can change results: AMD's does trilinear filtering differently for Source 2's names (<c>Sbox</c>,
+	/// <c>Source2</c>) than for others.
+	/// </summary>
+	public string EngineName { get; init; } = "Basalt";
+
+	/// <summary>
 	/// Turn on the Khronos validation layer, when it's installed, and route its messages to <see cref="Message"/>.
 	/// </summary>
 	public bool Validation { get; init; }
