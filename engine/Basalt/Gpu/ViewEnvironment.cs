@@ -132,7 +132,8 @@ internal sealed class ViewEnvironment : IDisposable
 		// Skyboxes inherit main-world wind.
 		vr.WindDirection = viewLighting.WindDirection;
 		vr.WindStrengthFreqMulHighStrength = viewLighting.WindStrengthFreq;
-		SetupGradientFog( ref vr, viewLighting.GradientFog, scale, space.OffsetZ );
+		// A view's own gradient fog and ambient light (ViewSetup.GradientFog, AmbientLightTint/Add) replace the world's
+		SetupGradientFog( ref vr, view?.GradientFog ?? viewLighting.GradientFog, scale, space.OffsetZ );
 		var fogCube = SetupCubemapFog( ref vr, viewLighting.CubemapFog, scale, space.OffsetZ );
 		// Match CameraRenderer.Configure and native Add3DSkyboxLayers without mutating world lighting.
 		context.SetConstants( FogConstants.BufferName, (view?.Fog ?? default( FogSettings )).ToConstants( scale, space.OffsetZ, view?.Rotation.Forward ?? Vector3.Forward ) );
@@ -169,7 +170,7 @@ internal sealed class ViewEnvironment : IDisposable
 		// int4s, the index in x (LightIndexMapping)
 		for ( int i = 0; i < bakedIndexMapping.Length && i < 256; i++ )
 			config.BakedLightIndexMapping[i * 4] = bakedIndexMapping[i];
-		var ambient = viewLighting.AmbientColor;
+		var ambient = view?.AmbientLight ?? viewLighting.AmbientColor;
 		// Alpha blends probe ambient (0) with flat ambient (1).
 		config.AmbientLightColor = new( ambient.r, ambient.g, ambient.b, Math.Clamp( ambient.a, 0, 1 ) );
 		context.SetConstants( LightingConfig, config );

@@ -154,7 +154,7 @@ internal sealed partial class SceneLabWindow
 				target.InitializeRendering();
 				// Each renderer by name, whatever r_managed_scene says: these are the A/B
 				ISceneRenderer renderer = Renderer == RendererKind.Managed ? (gameBridge ??= new SceneBridge()) : SceneRenderer.Native;
-				renderer.RenderToTexture( target.SceneCamera, target.RenderTarget, target.RenderTarget.Size, default );
+				renderer.RenderToTexture( target.SceneCamera, target.RenderTarget, target.RenderTarget.Size, Scene.TargetSetup?.Invoke( target ) ?? default );
 			}
 
 			camera.InitializeRendering();
@@ -194,6 +194,9 @@ internal sealed partial class SceneLabWindow
 		// Frames count from when the scene is ready, so a capture waits for what it's loading
 		if ( Scene.Ready is { } ready && !ready( game ) ) return;
 		frame++;
+
+		if ( Renderer == RendererKind.Managed && Scene.ReportMirror?.Invoke( game ) is { } label && gameBridge?.CachesFor( camera.SceneCamera, camera.SceneCamera.MainView ) is { } caches )
+			Log.Info( $"Scene Lab: {Scene.Name}, {label}: mirror holds {caches}" );
 
 		if ( benchmark is not null )
 		{

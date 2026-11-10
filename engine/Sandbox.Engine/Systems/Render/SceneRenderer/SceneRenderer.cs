@@ -50,6 +50,11 @@ internal interface ISceneRenderer
 	/// Free every GPU resource held: at engine shutdown, before native goes, and when the switch moves away from it.
 	/// </summary>
 	void Shutdown();
+
+	/// <summary>
+	/// Make what it renders with now, on the main thread at startup, so the first frames render as the rest do.
+	/// </summary>
+	void WarmUp();
 }
 
 /// <summary>
@@ -102,6 +107,11 @@ internal static class SceneRenderer
 		Native.Forget( world );
 		Basalt?.Forget( world );
 	}
+
+	/// <summary>
+	/// Called at startup, before anything renders, whichever renderer the switch will pick.
+	/// </summary>
+	internal static void WarmUp() => Basalt?.WarmUp();
 
 	/// <summary>
 	/// Called at engine shutdown, while native is still there.

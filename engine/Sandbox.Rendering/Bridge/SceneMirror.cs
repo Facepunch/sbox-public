@@ -7,9 +7,9 @@ namespace Sandbox.Rendering.Bridge;
 /// <summary>
 /// Incremental <see cref="SceneWorld"/> mirror for <c>r_managed_scene</c>.
 /// Queues object changes from any thread and applies changed fields before rendering.
-/// Attribute emptiness is polled because values can change in place without notifications.
+/// Object attributes are read when a view draws the object, as their values change in place without notifications.
 /// </summary>
-internal sealed class SceneMirror : ISceneObjectListener, IAttributeSource, IDisposable
+internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSource, IDisposable
 {
 	readonly SceneWorld source;
 
@@ -42,12 +42,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IAttributeSource, IDis
 	internal RenderObject Find( SceneObject sceneObject ) => sceneObject is not null && objects.TryGetValue( sceneObject, out var obj ) ? obj : null;
 	readonly HashSet<SceneDirectionalLight> suns = new();
 
-	readonly Dictionary<Model, RenderMesh> meshes = new();
-	// Shared draw-state variants; hash collisions are checked by value.
-	readonly Dictionary<(RenderMesh Mesh, int Hash), List<(RenderMesh.DrawState[] States, RenderMesh Mesh)>> variants = new();
-	readonly List<RenderMesh.DrawState> drawStates = new();
-
-	// Objects whose attribute emptiness must be polled.
+	// Objects with attributes, read when a view draws them (Refresh).
 	readonly Dictionary<MeshObject, RenderAttributes> attributed = new();
 
 	// Changes as they're reported, from any thread, and the batch being applied
@@ -176,10 +171,20 @@ internal sealed class SceneMirror : ISceneObjectListener, IAttributeSource, IDis
 	}
 
 	/// <summary>
+	/// Whether the world has been synced at least once: a child view syncs only a mirror nothing's drawn yet.
+	/// </summary>
+	public bool HasSynced { get; private set; }
+
+	/// <summary>
 	/// Apply what changed since the last sync, for a camera about to render the world.
 	/// </summary>
 	public void Sync( SceneCamera camera, bool skyboxView = false )
 	{
+		HasSynced = true;
+
+		// A reload queues the objects drawing what it changed
+		CheckReloads();
+
 		lock ( gate )
 		{
 			(pending, applying) = (applying, pending);
@@ -198,6 +203,8 @@ internal sealed class SceneMirror : ISceneObjectListener, IAttributeSource, IDis
 			Apply( sceneObject, change, frame );
 
 		applying.Clear();
+
+		SweepCaches( frame );
 
 		// An extra world's objects are lit by the main world's sun, sky, probe volumes and fog, as native lights the view
 		if ( SubWorld == 0 ) SyncLighting( camera, skyboxView );
@@ -390,6 +397,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IAttributeSource, IDis
 
 		if ( obj is MeshObject mesh )
 		{
+			Release( mesh.Mesh );
 			attributed.Remove( mesh );
 			mesh.AttributesFrom = null;
 			sharing.Remove( mesh );
@@ -398,6 +406,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IAttributeSource, IDis
 		}
 		else if ( obj is AggregateObject aggregate )
 		{
+			Release( aggregate.Mesh );
 			ReleaseLightmap( aggregate.LightmapAttributes.Engine() );
 			aggregate.LightmapAttributes = null;
 		}
@@ -424,9 +433,11 @@ internal sealed class SceneMirror : ISceneObjectListener, IAttributeSource, IDis
 		const SceneObjectChange Draws = SceneObjectChange.Model | SceneObjectChange.Material | SceneObjectChange.Visibility;
 		if ( (change & Draws) != 0 )
 		{
-			var drawn = sceneObject.RenderingEnabled ? VariantFor( sceneObject, MeshFor( sceneObject.Model ) ) : null;
+			var drawn = sceneObject.RenderingEnabled ? VariantFor( sceneObject, ModelFor( sceneObject.Model ) ) : null;
 			if ( drawn != mesh.Mesh )
 			{
+				Release( mesh.Mesh );
+				Hold( drawn );
 				mesh.Mesh = drawn;
 				meshChanged = true;
 
@@ -516,7 +527,9 @@ internal sealed class SceneMirror : ISceneObjectListener, IAttributeSource, IDis
 	AggregateObject AggregateFor( SceneObject sceneObject )
 	{
 		var model = SceneNative.AggregateModel( sceneObject, out var lightmapped );
-		if ( MeshFor( model ) is not { } mesh ) return null;
+		if ( ModelFor( model )?.Mesh is not { } mesh ) return null;
+
+		Hold( mesh );
 
 		return new AggregateObject( mesh, SceneNative.ReadAggregateFragments( sceneObject ) ) { Lightmapped = lightmapped };
 	}
@@ -547,57 +560,6 @@ internal sealed class SceneMirror : ISceneObjectListener, IAttributeSource, IDis
 			ReleaseLightmap( aggregate.LightmapAttributes.Engine() );
 			aggregate.LightmapAttributes = Source2Parameters.From( AcquireLightmap( sceneObject ) );
 		}
-	}
-
-	/// <summary>
-	/// Cache mesh variants by effective draw state so matching objects still instance.
-	/// </summary>
-	RenderMesh VariantFor( SceneObject sceneObject, RenderMesh mesh )
-	{
-		if ( mesh is null ) return null;
-
-		SceneNative.ReadSceneObjectDraws( sceneObject, drawStates );
-		if ( drawStates.Count == 0 ) return mesh;
-
-		// Compare hash matches against scratch data; allocate only for new variants.
-		var states = CollectionsMarshal.AsSpan( drawStates );
-		var hash = new HashCode();
-		foreach ( var state in states ) hash.Add( state );
-
-		var key = (mesh, hash.ToHashCode());
-		if ( !variants.TryGetValue( key, out var candidates ) ) variants[key] = candidates = new();
-
-		foreach ( var candidate in candidates )
-		{
-			if ( states.SequenceEqual( candidate.States ) ) return candidate.Mesh;
-		}
-
-		var kept = states.ToArray();
-		var variant = mesh.WithDraws( kept );
-		candidates.Add( (kept, variant) );
-		return variant;
-	}
-
-	/// <summary>
-	/// Cache model meshes and retain buffers for in-flight frames.
-	/// </summary>
-	RenderMesh MeshFor( Model model )
-	{
-		if ( model is null ) return null;
-		if ( meshes.TryGetValue( model, out var mesh ) ) return mesh;
-
-		try
-		{
-			mesh = Source2Mesh.FromModel( model );
-		}
-		catch ( InvalidOperationException )
-		{
-			// No render geometry
-			mesh = null;
-		}
-
-		meshes[model] = mesh;
-		return mesh;
 	}
 
 	static void ApplyLight( SceneLight sceneLight, LightObject light, SceneObjectChange change )

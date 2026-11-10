@@ -27,6 +27,19 @@ internal readonly struct RenderOutput
 	public GpuTexture Scratch { get; init; }
 
 	/// <summary>
+	/// Where the finished frame is copied mirrored, once everything has drawn (<see cref="RenderView.FlipX"/>,
+	/// <see cref="RenderView.FlipY"/>), as native blits a flipped view into its texture (<c>CCameraRenderer::RenderToTexture</c>).
+	/// The frame draws into <see cref="Texture"/> or <see cref="Target"/> as usual, which are the render system's own then.
+	/// </summary>
+	public GpuTexture FlipInto { get; init; }
+
+	/// <summary>
+	/// Which ways <see cref="FlipInto"/> is mirrored.
+	/// </summary>
+	public bool FlipX { get; init; }
+	public bool FlipY { get; init; }
+
+	/// <summary>
 	/// Whether the target is copied into a swap chain or texture at the end.
 	/// </summary>
 	public bool HasCopy => SwapChain.IsValid || Texture is not null;

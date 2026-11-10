@@ -360,6 +360,8 @@ public enum VertexFormat
 	UInt2,
 	/// <summary>Four 32-bit unsigned integers.</summary>
 	UInt4,
+	/// <summary>Three 10-bit and one 2-bit unsigned values in 32 bits, x lowest, read as 0..1.</summary>
+	UInt1010102Norm,
 }
 
 /// <summary>

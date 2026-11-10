@@ -1,3 +1,5 @@
+using Basalt;
+using Sandbox;
 using Basalt.Gpu;
 using BasaltGpuSample;
 
@@ -73,6 +75,76 @@ public class BackendTests : GpuTest
 
 		Device.WaitIdle();
 		Assert.AreEqual( reserved, Device.MemoryUsage.Reserved );
+	}
+
+	/// <summary>
+	/// s&amp;box's compiled models (<c>.vmdl_c</c>) read and drawn by Basalt through Basalt.Gpu: each, alone in front of
+	/// the camera and lit by the sun, covers the middle of the frame with something that isn't the clear colour, every
+	/// one of its LOD 0 draws is drawn, and validation stays clean. The citizen is skinned and draws in its bind pose.
+	/// </summary>
+	[TestMethod]
+	[DataRow( "models/dev/box.vmdl" )]
+	[DataRow( "models/dev/gordon_at_desk.vmdl" )]
+	[DataRow( "models/citizen_props/trashcan01.vmdl" )]
+	[DataRow( "models/citizen/citizen.vmdl" )]
+	public void CompiledModelDraws( string path )
+	{
+		const int width = 256, height = 256;
+		var backend = new Basalt.Backend.BackendDevice( Device );
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new Basalt.Backend.BackendRenderHost( backend );
+		var system = new RenderSystem { ParallelRecording = false };
+		ViewTarget target = null;
+
+		try
+		{
+			var mesh = backend.LoadModel( path );
+			if ( mesh is null ) Assert.Inconclusive( $"{path} isn't built" );
+
+			var clear = new Color( 0.1f, 0.2f, 0.9f );
+			var world = new RenderWorld();
+			world.Lighting.SunDirection = new Vector3( -0.4f, 0.6f, -0.7f ).Normal;
+			world.Lighting.AmbientColor = new Color( 0.2f, 0.2f, 0.2f, 1 );
+			world.Add( new MeshObject( mesh, Transform.Zero ) );
+
+			var view = new RenderView { Name = "Model", FieldOfView = 60, ClearColor = clear, Viewport = new Rect( 0, 0, width, height ) };
+			var size = mesh.Bounds.Size.Length;
+			view.Rotation = Rotation.From( 20, 160, 0 );
+			view.Position = mesh.Bounds.Center - view.Rotation.Forward * size * 1.2f;
+			view.ZNear = size * 0.05f;
+			view.ZFar = size * 10;
+
+			target = ViewTarget.Create( new Vector2Int( width, height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Model" );
+			Device.BeginFrame();
+			RenderHost.Current.NextFrame();
+			system.Render( world, view, target );
+			Device.WaitIdle();
+
+			var (texture, layout) = Basalt.Backend.BackendDevice.Unwrap( target.Color );
+			var pixels = ToRgba8( ReadBack( texture, layout ), width, height );
+			Save( pixels, width, height, $"model-{System.IO.Path.GetFileNameWithoutExtension( path )}" );
+
+			Assert.AreEqual( mesh.Draws.Count, system.Stats.Draws, "every LOD 0 draw drew" );
+			var background = Pixel( pixels, width, 0, 0 );
+			var covered = 0;
+			for ( int y = height / 4; y < height * 3 / 4; y++ )
+			{
+				for ( int x = width / 4; x < width * 3 / 4; x++ )
+				{
+					if ( Pixel( pixels, width, x, y ) != background ) covered++;
+				}
+			}
+
+			Assert.IsTrue( covered > width * height / 32, $"the model covers {covered} pixels of the middle quarter" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			target?.Dispose();
+			system.Dispose();
+			backend.Dispose();
+			RenderHost.Current = previousHost;
+		}
 	}
 
 	/// <summary>Half-float RGBA to 8-bit sRGB, for looking at.</summary>

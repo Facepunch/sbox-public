@@ -35,6 +35,36 @@ public sealed class RenderView
 	public Vector2 OrthoSize { get; set; }
 
 	/// <summary>
+	/// A projection used instead of the one <see cref="FieldOfView"/> or <see cref="OrthoSize"/> make
+	/// (<c>ViewSetup.ProjectionMatrix</c>, <c>SceneCamera.CustomProjectionMatrix</c>), in the engine's convention, as native's
+	/// <c>CFrustum::SetOverrideProj</c> takes it: column vectors, depth 0 at the near plane and 1 at the far one. It replaces
+	/// <see cref="ClipSpaceBounds"/> too. An oblique one, whose near plane is a clip plane, culls and draws with that plane;
+	/// shadow cascades and light clusters fit the view with a near plane square to it instead.
+	/// <see cref="FieldOfView"/> still measures screen size, as native's does.
+	/// </summary>
+	public Matrix? Projection { get; set; }
+
+	/// <summary>
+	/// The part of the projection drawn: a rectangle of clip space as left, bottom, right and top, (-1, -1, 1, 1) for all of it
+	/// (<c>CFrustum::SetClipSpaceBounds</c>), for posters and off-centre views.
+	/// </summary>
+	public Vector4 ClipSpaceBounds { get; set; } = FullClipSpace;
+
+	internal static readonly Vector4 FullClipSpace = new( -1, -1, 1, 1 );
+
+	/// <summary>
+	/// Mirror the finished frame left to right as it goes into a texture (<c>ViewSetup.FlipX</c>): native flips only a texture
+	/// render's final copy (<c>CCameraRenderer::RenderToTexture</c>), so depth stays as drawn and a swap chain's frame isn't
+	/// flipped.
+	/// </summary>
+	public bool FlipX { get; set; }
+
+	/// <summary>
+	/// Mirror the finished frame top to bottom as it goes into a texture (<c>ViewSetup.FlipY</c>), as <see cref="FlipX"/>.
+	/// </summary>
+	public bool FlipY { get; set; }
+
+	/// <summary>
 	/// Near clip plane distance. Reverse-Z puts it at depth 1.
 	/// </summary>
 	public float ZNear { get; set; } = 1.0f;
@@ -79,6 +109,31 @@ public sealed class RenderView
 	/// Stored on the view so cameras sharing a RenderWorld cannot overwrite one another.
 	/// </summary>
 	public FogSettings? Fog { get; set; }
+
+	/// <summary>
+	/// The view's ambient light, in place of the world's <see cref="SceneLighting.AmbientColor"/>: native works one out for each
+	/// view, from the world's and the camera's, tinted and added to by the view's setup (<c>CameraRenderer.Configure</c>). Null
+	/// uses the world's. Its 3D skybox uses it too.
+	/// </summary>
+	public Color? AmbientLight { get; set; }
+
+	/// <summary>
+	/// The view's gradient fog, in place of the world's <see cref="SceneLighting.GradientFog"/> (<c>ViewSetup.GradientFog</c>).
+	/// Null uses the world's. Its 3D skybox uses it too, scaled as the world's is.
+	/// </summary>
+	public GradientFogSettings? GradientFog { get; set; }
+
+	/// <summary>
+	/// Whether light modulators shade the view. Off, shaders skip them (<c>LightModulatorsDisabled</c>,
+	/// <c>ViewSetup.EnableLightModulators</c>).
+	/// </summary>
+	public bool LightModulators { get; set; } = true;
+
+	/// <summary>
+	/// Shader time (<c>g_flTime</c>) in seconds, in place of the frame's (<c>ViewSetup.Time</c>, native's <c>RenderTime</c>
+	/// attribute). Its 3D skybox uses it too. Null uses the frame's.
+	/// </summary>
+	public float? Time { get; set; }
 
 	/// <summary>
 	/// Shader exposure scale (<c>g_flToneMapScalarLinear</c>); auto-exposure value or 1.
@@ -159,6 +214,13 @@ public sealed class RenderView
 	internal Matrix ViewToProjection { get; private set; }
 
 	/// <summary>
+	/// <see cref="ViewToProjection"/> with its depth made again from <see cref="ZNear"/> and <see cref="ZFar"/>, so its near plane
+	/// is square to the view: what shadow cascades and light clusters fit, since an oblique near plane points another way. The
+	/// same matrix unless there's a <see cref="Projection"/>.
+	/// </summary>
+	internal Matrix SquareViewToProjection { get; private set; }
+
+	/// <summary>
 	/// Full world to projection including the camera translation - what culling uses.
 	/// </summary>
 	internal Matrix WorldToProjection { get; private set; }
@@ -191,9 +253,20 @@ public sealed class RenderView
 			0, 0, 0, 1 );
 
 		var aspect = Viewport.Width > 0 && Viewport.Height > 0 ? Viewport.Width / Viewport.Height : 1.0f;
-		ViewToProjection = Orthographic
-			? ReverseZOrthographic( OrthoSize.x, OrthoSize.y, ZNear, ZFar )
-			: ReverseZPerspective( FieldOfView, aspect, ZNear, ZFar );
+		if ( Projection is { } custom )
+		{
+			ViewToProjection = FromEngineProjection( custom );
+			SquareViewToProjection = SquareDepth( ViewToProjection, ZNear, ZFar );
+		}
+		else
+		{
+			ViewToProjection = Orthographic
+				? ReverseZOrthographic( OrthoSize.x, OrthoSize.y, ZNear, ZFar )
+				: ReverseZPerspective( FieldOfView, aspect, ZNear, ZFar );
+
+			if ( ClipSpaceBounds != FullClipSpace ) ViewToProjection *= ClipSpaceRemap( ClipSpaceBounds );
+			SquareViewToProjection = ViewToProjection;
+		}
 
 		var translation = Matrix.CreateTranslation( -Position );
 		WorldToProjection = translation * WorldToViewRotation * ViewToProjection;
@@ -234,6 +307,49 @@ public sealed class RenderView
 	}
 
 	/// <summary>
+	/// The engine's column-vector, forward-Z projection as this one's row-vector reverse-Z: transposed, then depth turned
+	/// round (native's <c>ComputeZReversalProjectionMatrix</c>, z' = w - z).
+	/// </summary>
+	internal static Matrix FromEngineProjection( in Matrix projection ) => projection.Transpose() * new Matrix(
+		1, 0, 0, 0,
+		0, 1, 0, 0,
+		0, 0, -1, 0,
+		0, 0, 1, 1 );
+
+	/// <summary>
+	/// A projection's depth made again from the near and far planes, square to the view, keeping its x, y and w: reverse-Z,
+	/// 1 at the near plane and 0 at the far. Perspective when w comes from view depth, parallel otherwise.
+	/// </summary>
+	internal static Matrix SquareDepth( Matrix projection, float zNear, float zFar )
+	{
+		var range = zFar - zNear;
+		var w = projection.M34 != 0 ? -projection.M34 * zNear : projection.M44;
+		var scale = w / range;
+
+		projection.M13 = 0;
+		projection.M23 = 0;
+		projection.M33 = scale;
+		projection.M43 = scale * zFar;
+		return projection;
+	}
+
+	/// <summary>
+	/// Maps the clip-space rectangle (left, bottom, right, top) onto the whole of clip space: what native's off-centre
+	/// projections do (<c>ComputeProjectionMatrix</c>, <c>OrthoMatrixOffCenterRH</c> with clip-space bounds).
+	/// </summary>
+	internal static Matrix ClipSpaceRemap( Vector4 bounds )
+	{
+		var width = bounds.z - bounds.x;
+		var height = bounds.w - bounds.y;
+
+		return new Matrix(
+			2.0f / width, 0, 0, 0,
+			0, 2.0f / height, 0, 0,
+			0, 0, 1, 0,
+			-(bounds.x + bounds.z) / width, -(bounds.y + bounds.w) / height, 0, 1 );
+	}
+
+	/// <summary>
 	/// World-to-texture matrix for shadow lookup: UVs in [0, 1], Y flipped, full translation.
 	/// </summary>
 	internal Matrix WorldToTexture => WorldToProjection * new Matrix(
@@ -249,20 +365,22 @@ public sealed class RenderView
 		=> FillConstants( ref c, Viewport, targetSize, time, samples, minZ, maxZ );
 
 	/// <summary>
-	/// Fill constants for a pass-specific viewport and target (<c>CreatePerLayerViewConstants</c>).
+	/// Fill constants for a pass-specific viewport and target (<c>CreatePerLayerViewConstants</c>). With <c>square</c>, from
+	/// <see cref="SquareViewToProjection"/>, for compute that fits the view's volume.
 	/// </summary>
-	internal void FillConstants( ref ViewConstants c, Rect viewport, Vector2 targetSize, float time, int samples = 1, float minZ = 0, float maxZ = 1 )
+	internal void FillConstants( ref ViewConstants c, Rect viewport, Vector2 targetSize, float time, int samples = 1, float minZ = 0, float maxZ = 1, bool square = false )
 	{
-		var worldToProjection = WorldToViewRotation * ViewToProjection;
+		var viewToProjection = square ? SquareViewToProjection : ViewToProjection;
+		var worldToProjection = WorldToViewRotation * viewToProjection;
 		var projectionToWorld = worldToProjection.Inverted;
-		var projectionToView = ViewToProjection.Inverted;
+		var projectionToView = viewToProjection.Inverted;
 
 		var translation = Matrix.CreateTranslation( -Position );
 
 		c.WorldToProjection = worldToProjection;
 		c.ProjectionToWorld = projectionToWorld;
 		c.WorldToView = translation * WorldToViewRotation;
-		c.ViewToProjection = ViewToProjection;
+		c.ViewToProjection = viewToProjection;
 		c.ProjectionToView = projectionToView;
 		c.InvProjRow3 = new( projectionToView.M14, projectionToView.M24, projectionToView.M34, projectionToView.M44 );
 
@@ -309,7 +427,7 @@ public sealed class RenderView
 			0, 0, 1, 0,
 			w, h, 0, 1 );
 		var viewToWorld = c.WorldToView.Inverted;
-		c.ViewToScreen = ViewToProjection * screen;
+		c.ViewToScreen = viewToProjection * screen;
 		c.CurrFrameViewToPrevFrameProj = viewToWorld * PreviousWorldToProjection * screen;
 
 		// The previous frame's inverse view projection, from native's forward-Z one (GetInvViewProjTranspose): depth w - z

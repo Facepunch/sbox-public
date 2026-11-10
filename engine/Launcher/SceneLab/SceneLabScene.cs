@@ -41,6 +41,12 @@ internal sealed record SceneLabScene
 	public Action<Scene> Frame { get; init; }
 
 	/// <summary>
+	/// The view setup a <see cref="Game"/> scene's render target camera renders with, rather than none: for presets that
+	/// compare what a <see cref="Rendering.ViewSetup"/> does.
+	/// </summary>
+	public Func<CameraComponent, Rendering.ViewSetup> TargetSetup { get; init; }
+
+	/// <summary>
 	/// Whether a <see cref="Game"/> scene has finished loading - a map downloading, say. Captures count their frames from
 	/// when it's true.
 	/// </summary>
@@ -81,6 +87,12 @@ internal sealed record SceneLabScene
 	/// got going.
 	/// </summary>
 	public int? CaptureFrame { get; init; }
+
+	/// <summary>
+	/// A label to log the bridge mirror's cache counts under after a frame of a <see cref="Game"/> scene drawn through it
+	/// (<c>SceneBridge.CachesFor</c>), or null for none this frame: so a scene can show them staying bounded.
+	/// </summary>
+	public Func<Scene, string> ReportMirror { get; init; }
 
 	public bool IsGame => Game is not null;
 
@@ -323,12 +335,17 @@ internal sealed record SceneLabScene
 		new() { Name = "Instanced Models", Group = "GameObject", Game = InstancedScene.Build, ChangeGame = InstancedScene.Change },
 		new() { Name = "Object Command Lists", Group = "GameObject", Game = ObjectCommandListScene.Build, ChangeGame = ObjectCommandListScene.Change, Isolated = true },
 		new() { Name = "Water Refraction", Group = "Effects", Game = WaterScene.Build, Isolated = true },
+		new() { Name = "View Projections", Group = "GameObject", Game = ViewSetupScenes.Projections, TargetSetup = ViewSetupScenes.ProjectionSetup, Isolated = true },
+		new() { Name = "View Oblique", Group = "GameObject", Game = ViewSetupScenes.Oblique, TargetSetup = ViewSetupScenes.ObliqueSetup, Isolated = true },
+		new() { Name = "View Overrides", Group = "GameObject", Game = ViewSetupScenes.Overrides, TargetSetup = ViewSetupScenes.OverrideSetup, Isolated = true },
 		new() { Name = "Terrain Ambient Occlusion", Group = "GameObject", Game = TerrainScenes.TerrainAmbientOcclusion, ChangeGame = TerrainScenes.ChangeTerrainAndClutter, Ready = TerrainScenes.ClutterReady, Isolated = true },
 		new() { Name = "Refraction", Group = "Effects", Game = GameScenes.Refraction, ChangeGame = GameScenes.ChangeRefraction },
 		new() { Name = "Viewmodel", Group = "Effects", Game = GameScenes.Viewmodel, ChangeGame = GameScenes.ChangeViewmodel },
 		new() { Name = "Viewmodel Depth", Group = "Effects", Game = GameScenes.ViewmodelDepth, ChangeGame = GameScenes.ChangeViewmodel },
 		new() { Name = "Bloom Objects", Group = "Post Processing", Game = GameScenes.BloomObjects, ChangeGame = GameScenes.ChangeBloomObjects },
 		new() { Name = "Dynamic", Group = "Stress", Game = DynamicScene.Build, Frame = DynamicScene.Animate },
+		new() { Name = "Mirror Churn", Group = "Stress", Game = MirrorChurnScene.Build, Frame = MirrorChurnScene.Step, Rewind = MirrorChurnScene.Rewind,
+			BenchmarkFrames = MirrorChurnScene.Frames, ReportMirror = MirrorChurnScene.Report },
 		new() { Name = "Heavy Scene", Group = "Stress", Game = HeavyScene.Build, Frame = HeavyScene.Animate },
 		new() { Name = "Heavy Scene AO", Group = "Stress", Game = HeavyScene.BuildWithOcclusion, Frame = HeavyScene.Animate, Isolated = true },
 		new() { Name = "Heavy Scene AO SSR", Group = "Stress", Game = HeavyScene.BuildWithReflectionsAndOcclusion, Frame = HeavyScene.Animate, Isolated = true },

@@ -90,8 +90,9 @@ public sealed partial class RenderSystem
 			// Basalt's own debug views, over everything.
 			new DebugViewLayer(),
 
-			// Resolve final MSAA output.
+			// Resolve final MSAA output, then mirror it into a flipped view's texture.
 			new OutputResolveLayer(),
+			new OutputFlipLayer(),
 
 			// Prepare fog for the next frame.
 			new VolumetricFogLayer(),
