@@ -86,7 +86,15 @@ public sealed class MeshObject : RenderObject
 	/// render ask it once, for the objects they prepare (<see cref="RefreshAttributes"/>), so attributes that can change without
 	/// notice aren't read for every object in the world each frame, off screen too.
 	/// </summary>
-	internal IAttributeSource AttributesFrom { get; set; }
+	internal IAttributeSource AttributesFrom
+	{
+		get;
+		set
+		{
+			if ( (field is null) != (value is null) && World is { } world ) world.AttributeSources += value is null ? -1 : 1;
+			field = value;
+		}
+	}
 
 	/// <summary>
 	/// The render <see cref="AttributesFrom"/> last brought <see cref="Attributes"/> up to date in.
