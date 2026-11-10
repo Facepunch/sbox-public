@@ -960,7 +960,7 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	/// <summary>
 	/// Renders the scene from the camera position to a cube texture, capturing all 6 directions.
 	/// </summary>
-	internal void RenderToCubeTexture( Texture texture, in ViewSetup config = default ) => SceneRenderer.Current.RenderToCube( this, texture, config );
+	internal void RenderToCubeTexture( Texture texture, in ViewSetup config = default, CommandList afterFaces = null ) => SceneRenderer.Current.RenderToCube( this, texture, config, afterFaces );
 
 	/// <summary>
 	/// Allows specifying a custom projection matrix for this camera

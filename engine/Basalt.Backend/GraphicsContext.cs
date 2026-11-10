@@ -1,5 +1,6 @@
 using Basalt.Gpu;
 using Basalt.Source2.Shaders;
+using System.Linq;
 using System.Runtime.InteropServices;
 using Num = System.Numerics;
 
@@ -28,7 +29,7 @@ public sealed class GraphicsContext
 	bool rendering;
 
 	/// <summary>The list everything records into.</summary>
-	public CommandList List { get; }
+	public CommandList List { get; private set; }
 
 	/// <summary>The bound colour target; default when none is.</summary>
 	public TextureHandle Target { get; private set; }
@@ -50,8 +51,31 @@ public sealed class GraphicsContext
 	/// <summary>The drawer binding shaders.</summary>
 	public ShaderDrawer Drawer => drawer;
 
+	/// <summary>
+	/// Record into <paramref name="list"/> from now on, with no target bound: the next block of drawing, submitted after
+	/// the last. Texture layouts carry over, so the list has to be submitted after the previous one.
+	/// </summary>
+	public void Begin( CommandList list )
+	{
+		List = list;
+		rendering = false;
+		Target = default;
+		Viewport = default;
+	}
+
 	/// <summary>Say which layout a texture is in now, for textures made or used outside this context.</summary>
 	public void Track( TextureHandle texture, ImageLayout layout ) => layouts[texture] = layout;
+
+	/// <summary>Stop tracking a texture that's about to be destroyed, and destroy the views made of it.</summary>
+	public void Forget( TextureHandle texture )
+	{
+		layouts.Remove( texture );
+		foreach ( var key in mipViews.Keys.Where( k => k.Texture == texture ).ToArray() )
+		{
+			gpu.Destroy( mipViews[key] );
+			mipViews.Remove( key );
+		}
+	}
 
 	/// <summary>
 	/// A 2D colour target that can also be sampled, copied and written by compute (for its mips), owned by this
@@ -128,12 +152,72 @@ public sealed class GraphicsContext
 			new( new Num.Vector3( rect.X + rect.Z, rect.Y + rect.W, 0 ), c, new Num.Vector4( 1, 1, 0, 0 ) ),
 		];
 
+		return DrawVertices( shader, attributes, MemoryMarshal.AsBytes( vertices ), VertexStreamLayout.EngineVertex, 4, PrimitiveTopology.TriangleStrip );
+	}
+
+	/// <summary>
+	/// Draw <paramref name="count"/> vertices of <paramref name="layout"/> from the CPU into the target, as the engine's
+	/// <c>Graphics.Draw</c> does with vertices it's handed.
+	/// </summary>
+	public bool DrawVertices( ShaderFile shader, ShaderAttributes attributes, ReadOnlySpan<byte> vertices, VertexStreamLayout layout, int count, PrimitiveTopology topology )
+	{
 		BeginScope( attributes );
-		var bytes = MemoryMarshal.AsBytes( vertices );
-		var upload = List.AllocateUpload( bytes.Length, 16 );
-		bytes.CopyTo( upload.Data );
+		var upload = List.AllocateUpload( vertices.Length, 16 );
+		vertices.CopyTo( upload.Data );
 		Draws++;
-		return drawer.Draw( List, shader, attributes, gpu.InfoOf( Target ).Format, 1, upload.Buffer, upload.Offset, VertexStreamLayout.EngineVertex, 4, PrimitiveTopology.TriangleStrip, Viewport );
+		return drawer.Draw( List, shader, attributes, gpu.InfoOf( Target ).Format, 1, upload.Buffer, upload.Offset, layout, count, topology, Viewport );
+	}
+
+	/// <summary>Fill a whole texture with <paramref name="color"/>, bound or not.</summary>
+	public void ClearTexture( TextureHandle texture, Num.Vector4 color )
+	{
+		EndScope();
+		Transition( texture, ImageLayout.CopyDestination );
+		List.ClearTexture( texture, color );
+	}
+
+	/// <summary>
+	/// Copy the viewport's part of the target into mip 0 of <paramref name="destination"/>, from its corner, as
+	/// <c>Graphics.GrabFrameTexture</c> resolves the frame into a texture of its own.
+	/// </summary>
+	public void CopyTarget( TextureHandle destination )
+	{
+		var width = (int)Viewport.Z;
+		var height = (int)Viewport.W;
+		EndScope();
+		Transition( Target, ImageLayout.CopySource );
+		Transition( destination, ImageLayout.CopyDestination );
+		List.Blit( Target, ((int)Viewport.X, (int)Viewport.Y, width, height), destination, (0, 0, width, height), Filter.Nearest );
+	}
+
+	/// <summary>
+	/// Run a compute shader outside any rendering scope. Textures it's given whole are put in
+	/// <see cref="ImageLayout.General"/>, which it may both read and write.
+	/// </summary>
+	public bool Dispatch( ShaderFile shader, ShaderAttributes attributes, int x, int y, int z )
+	{
+		EndScope();
+		foreach ( var (_, value) in attributes.Values )
+		{
+			if ( value is TextureHandle texture ) Transition( texture, ImageLayout.General );
+		}
+
+		return drawer.Dispatch( List, shader, attributes, x, y, z );
+	}
+
+	/// <summary>Copy bytes into a buffer in order with the rest of the list, visible to everything after it.</summary>
+	public void UpdateBuffer( BufferHandle buffer, ReadOnlySpan<byte> data, long offset )
+	{
+		EndScope();
+		List.UpdateBuffer( buffer, data, offset );
+		MemoryBarrier();
+	}
+
+	/// <summary>Make every write so far visible to everything after it, keeping layouts (a UAV barrier).</summary>
+	public void MemoryBarrier()
+	{
+		EndScope();
+		List.Barrier( PipelineStage.AllCommands, MemoryAccess.MemoryWrite, PipelineStage.AllCommands, MemoryAccess.MemoryRead | MemoryAccess.MemoryWrite );
 	}
 
 	/// <summary>
@@ -230,6 +314,16 @@ public sealed class GraphicsContext
 
 	/// <summary>Close any open rendering scope; call before submitting the list.</summary>
 	public void Finish() => EndScope();
+
+	/// <summary>
+	/// Close any open rendering scope and leave every texture readable, as a block's last commands: later lists can then
+	/// sample what this one drew by bindless index, which no layout tracking sees.
+	/// </summary>
+	public void FinishReadable()
+	{
+		EndScope();
+		foreach ( var texture in layouts.Keys.ToArray() ) Transition( texture, ImageLayout.ShaderRead );
+	}
 
 	/// <summary>Destroy the textures this context created.</summary>
 	public void Release()

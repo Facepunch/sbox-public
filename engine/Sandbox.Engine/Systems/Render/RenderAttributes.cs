@@ -1,6 +1,7 @@
 using NativeEngine;
 using Sandbox.Rendering;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace Sandbox;
 
@@ -72,6 +73,7 @@ public partial class RenderAttributes
 
 	public void Clear()
 	{
+		Managed?.Clear();
 		if ( !attributes.IsValid ) return;
 		attributes.Clear( true, true );
 		ClearUsedTextures();
@@ -79,6 +81,7 @@ public partial class RenderAttributes
 
 	internal void Clear( bool freeMemory )
 	{
+		Managed?.Clear();
 		if ( !attributes.IsValid ) return;
 		attributes.Clear( freeMemory, true );
 		ClearUsedTextures();
@@ -86,20 +89,20 @@ public partial class RenderAttributes
 
 	public void SetCombo( in StringToken k, in int value )
 	{
-		if ( !attributes.IsValid ) return;
+		if ( !attributes.IsValid ) { Managed?.SetCombo( k, value ); return; }
 		attributes.SetComboValue( k, (byte)value );
 	}
 
 	[Obsolete( "Please use SetComboEnum" )]
 	public void SetCombo( in string k, in Enum value )
 	{
-		if ( !attributes.IsValid ) return;
+		if ( !attributes.IsValid ) { Managed?.SetCombo( k, (byte)(int)(object)value ); return; }
 		attributes.SetComboValue( k, (byte)(int)(object)value );
 	}
 
 	public void SetComboEnum<T>( in StringToken k, in T value ) where T : unmanaged, Enum
 	{
-		if ( !attributes.IsValid ) return;
+		if ( !attributes.IsValid ) { Managed?.SetCombo( k, (byte)value.AsInt() ); return; }
 		attributes.SetComboValue( k, (byte)value.AsInt() );
 	}
 
@@ -111,7 +114,7 @@ public partial class RenderAttributes
 	public T GetComboEnum<T>( in StringToken k, in T defaultValue ) where T : Enum
 	{
 		if ( !attributes.IsValid )
-			return defaultValue;
+			return Managed?.GetCombo( k ) is int managed ? (T)(object)managed : defaultValue;
 
 		return (T)(object)(int)attributes.GetComboValue( k, (byte)(int)(object)defaultValue );
 	}
@@ -119,7 +122,7 @@ public partial class RenderAttributes
 	public bool GetComboBool( in StringToken k, in bool defaultValue = false )
 	{
 		if ( !attributes.IsValid )
-			return defaultValue;
+			return Managed?.GetCombo( k ) is int managed ? managed == 1 : defaultValue;
 
 		return attributes.GetComboValue( k, (byte)(defaultValue ? 1 : 0) ) == 1;
 	}
@@ -127,7 +130,7 @@ public partial class RenderAttributes
 	public int GetComboInt( in StringToken k, in int defaultValue = 0 )
 	{
 		if ( !attributes.IsValid )
-			return defaultValue;
+			return Managed?.GetCombo( k ) ?? defaultValue;
 
 		return attributes.GetComboValue( k, (byte)defaultValue );
 	}
@@ -143,31 +146,31 @@ public partial class RenderAttributes
 
 	public void Set( in StringToken k, in int value )
 	{
-		if ( !attributes.IsValid ) return;
+		if ( !attributes.IsValid ) { Managed?.Set( k, value ); return; }
 		attributes.SetIntValue( k, value );
 	}
 
 	public void Set( in StringToken k, in uint value )
 	{
-		if ( !attributes.IsValid ) return;
+		if ( !attributes.IsValid ) { Managed?.Set( k, value ); return; }
 		attributes.SetIntValue( k, unchecked((int)value) );
 	}
 
 	public void Set( in StringToken k, in Vector2Int value )
 	{
-		if ( !attributes.IsValid ) return;
+		if ( !attributes.IsValid ) { Managed?.Set( k, value.x, value.y ); return; }
 		attributes.SetIntVector4DValue( k, value.x, value.y, 0, 0 );
 	}
 
 	public void Set( in StringToken k, in Vector3Int value )
 	{
-		if ( !attributes.IsValid ) return;
+		if ( !attributes.IsValid ) { Managed?.Set( k, value.x, value.y, value.z ); return; }
 		attributes.SetIntVector4DValue( k, value.x, value.y, value.z, 0 );
 	}
 
 	public void Set( in StringToken k, in Texture value, in int mip = -1 )
 	{
-		if ( !attributes.IsValid ) return;
+		if ( !attributes.IsValid ) { Managed?.SetObject( k, value is null ? null : new ManagedRenderAttributes.TextureValue( value, mip ) ); return; }
 
 		var native = value?.native ?? default;
 		Set( k, native, mip );
@@ -177,7 +180,7 @@ public partial class RenderAttributes
 
 	public void Set( in StringToken k, in SamplerState value )
 	{
-		if ( !attributes.IsValid ) return;
+		if ( !attributes.IsValid ) { Managed?.SetObject( k, value ); return; }
 
 		attributes.SetSamplerValue( k, new( value ) );
 	}
@@ -190,30 +193,30 @@ public partial class RenderAttributes
 
 	public void Set( in StringToken k, in float value )
 	{
-		if ( !attributes.IsValid ) return;
+		if ( !attributes.IsValid ) { Managed?.Set( k, value ); return; }
 		attributes.SetFloatValue( k, value );
 	}
 	public void Set( in StringToken k, in double value )
 	{
-		if ( !attributes.IsValid ) return;
+		if ( !attributes.IsValid ) { Managed?.Set( k, (float)value ); return; }
 		attributes.SetFloatValue( k, (float)value );
 	}
 
 	public void Set( in StringToken k, in string value )
 	{
-		if ( !attributes.IsValid ) return;
+		if ( !attributes.IsValid ) { Managed?.SetObject( k, value ); return; }
 		attributes.SetStringValue( k, value );
 	}
 
 	public void Set( in StringToken k, in bool value )
 	{
-		if ( !attributes.IsValid ) return;
+		if ( !attributes.IsValid ) { Managed?.Set( k, value ? 1f : 0f ); return; }
 		attributes.SetBoolValue( k, value );
 	}
 
 	public void Set( in StringToken k, in Vector4 value )
 	{
-		if ( !attributes.IsValid ) return;
+		if ( !attributes.IsValid ) { Managed?.Set( k, value.x, value.y, value.z, value.w ); return; }
 		attributes.SetVector4DValue( k, value );
 	}
 
@@ -224,19 +227,19 @@ public partial class RenderAttributes
 
 	public void Set( in StringToken k, in Vector3 value )
 	{
-		if ( !attributes.IsValid ) return;
+		if ( !attributes.IsValid ) { Managed?.Set( k, value.x, value.y, value.z ); return; }
 		attributes.SetVectorValue( k, value );
 	}
 
 	public void Set( in StringToken k, in Vector2 value )
 	{
-		if ( !attributes.IsValid ) return;
+		if ( !attributes.IsValid ) { Managed?.Set( k, value.x, value.y ); return; }
 		attributes.SetVector2DValue( k, value );
 	}
 
 	public void Set( in StringToken k, in GpuBuffer value )
 	{
-		if ( !attributes.IsValid ) return;
+		if ( !attributes.IsValid ) { Managed?.SetObject( k, value ); return; }
 		attributes.SetBufferValue( k, value is not null ? value.native : default );
 	}
 
@@ -250,6 +253,11 @@ public partial class RenderAttributes
 
 		int actualSize = value.Length * Unsafe.SizeOf<T>();
 		if ( actualSize <= 0 ) return;
+		if ( Managed is not null )
+		{
+			Managed.SetObject( k, MemoryMarshal.AsBytes( value ).ToArray() );
+			return;
+		}
 		fixed ( T* ptr = value )
 			RenderTools.SetDynamicConstantBufferData( attributes, k, Graphics.Context, (IntPtr)ptr, actualSize );
 	}
@@ -262,7 +270,11 @@ public partial class RenderAttributes
 		if ( !SandboxedUnsafe.IsAcceptablePod<T>() )
 			throw new ArgumentException( $"{nameof( T )} must be a POD type" );
 
-		if ( !attributes.IsValid ) return;
+		if ( !attributes.IsValid )
+		{
+			Managed?.SetObject( k, MemoryMarshal.AsBytes( new ReadOnlySpan<T>( in value ) ).ToArray() );
+			return;
+		}
 		int actualSize = Unsafe.SizeOf<T>();
 		if ( actualSize <= 0 ) return;
 		RenderTools.SetDynamicConstantBufferData( attributes, k, Graphics.Context, (IntPtr)(&value), actualSize );
@@ -274,7 +286,7 @@ public partial class RenderAttributes
 	/// </summary>
 	public unsafe void SetData<T>( in StringToken k, T[] value ) where T : unmanaged
 	{
-		if ( !attributes.IsValid ) return;
+		if ( !attributes.IsValid && Managed is null ) return;
 		SetData( k, value.AsSpan() );
 	}
 
@@ -283,7 +295,7 @@ public partial class RenderAttributes
 	/// </summary>
 	public unsafe void SetData<T>( in StringToken k, List<T> value ) where T : unmanaged
 	{
-		if ( !attributes.IsValid ) return;
+		if ( !attributes.IsValid && Managed is null ) return;
 		SetData( k, value.ToArray() );
 	}
 
@@ -292,7 +304,7 @@ public partial class RenderAttributes
 	/// </summary>
 	public bool GetBool( in StringToken name, in bool defaultValue = default )
 	{
-		if ( !attributes.IsValid ) return defaultValue;
+		if ( !attributes.IsValid ) return Managed?.GetFloats( name ) is { Length: > 0 } f ? f[0] != 0 : defaultValue;
 		return attributes.GetBoolValue( name, defaultValue );
 	}
 
@@ -332,7 +344,7 @@ public partial class RenderAttributes
 	/// </summary>
 	public float GetFloat( in StringToken name, in float defaultValue = default )
 	{
-		if ( !attributes.IsValid ) return defaultValue;
+		if ( !attributes.IsValid ) return Managed?.GetFloats( name ) is { Length: > 0 } f ? f[0] : defaultValue;
 		return attributes.GetFloatValue( name, defaultValue );
 	}
 
@@ -341,7 +353,7 @@ public partial class RenderAttributes
 	/// </summary>
 	public int GetInt( in StringToken name, in int defaultValue = default )
 	{
-		if ( !attributes.IsValid ) return defaultValue;
+		if ( !attributes.IsValid ) return Managed?.GetFloats( name ) is { Length: > 0 } f ? (int)f[0] : defaultValue;
 		return attributes.GetIntValue( name, defaultValue );
 	}
 
@@ -368,7 +380,7 @@ public partial class RenderAttributes
 	/// </summary>
 	public Texture GetTexture( in StringToken name, in Texture defaultValue = default )
 	{
-		if ( !attributes.IsValid ) return defaultValue;
+		if ( !attributes.IsValid ) return Managed?.Get( name ) is ManagedRenderAttributes.TextureValue t ? t.Texture : defaultValue;
 		var texturePointer = attributes.GetTextureValue( name, default );
 		if ( texturePointer.IsNull ) return defaultValue;
 
@@ -377,13 +389,18 @@ public partial class RenderAttributes
 
 	public void Set( in StringToken k, in Matrix value )
 	{
-		if ( !attributes.IsValid ) return;
+		if ( !attributes.IsValid ) { Managed?.Set( k, value ); return; }
 		attributes.SetVMatrixValue( k, value );
 	}
 
 	internal void MergeTo( RenderAttributes renderAttributes )
 	{
 		if ( renderAttributes is null ) throw new ArgumentNullException( nameof( renderAttributes ) );
+		if ( Managed is not null && renderAttributes.Managed is not null )
+		{
+			Managed.MergeTo( renderAttributes.Managed );
+			return;
+		}
 		if ( !attributes.IsValid || !renderAttributes.attributes.IsValid ) return;
 		attributes.MergeToPtr( renderAttributes.attributes );
 	}

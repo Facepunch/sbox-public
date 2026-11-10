@@ -173,7 +173,7 @@ internal static class GpuFontGlyphCache
 			uploaded.Clear();
 		}
 
-		IntPtr context = Graphics.Context;
+		IntPtr context = Graphics.Backend.UploadContext;
 		int done = uploaded.GetValueOrDefault( context );
 
 		if ( done < data.Count )

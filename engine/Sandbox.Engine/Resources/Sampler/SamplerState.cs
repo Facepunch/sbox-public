@@ -75,9 +75,14 @@ public record struct SamplerState
 	static internal ConcurrentDictionary<SamplerState, int> _cachedSamplerIndex = [];
 
 	/// <summary>
-	/// Gets or creates a bindless sampler index for this <see cref="SamplerState"/>.
+	/// Gets or creates a bindless sampler index for this <see cref="SamplerState"/>, on the device being drawn on.
 	/// </summary>
-	internal static int GetBindlessIndex( SamplerState samplerState )
+	internal static int GetBindlessIndex( SamplerState samplerState ) => Graphics.Backend.SamplerIndex( samplerState );
+
+	/// <summary>
+	/// The sampler state's bindless index on Source 2's device.
+	/// </summary>
+	internal static int GetSource2BindlessIndex( SamplerState samplerState )
 	{
 		if ( _cachedSamplerIndex.TryGetValue( samplerState, out int value ) )
 		{

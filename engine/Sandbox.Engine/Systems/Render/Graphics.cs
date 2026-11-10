@@ -76,12 +76,30 @@ public static partial class Graphics
 		internal float defaultMinZ;
 		internal float defaultMaxZ;
 		internal bool computeQueue;
+		internal RenderBackend backend;
 	}
 
 	[ThreadStatic]
 	private static RenderState _state;
 
 	internal static IRenderContext Context => _state.renderContext;
+
+	/// <summary>
+	/// The device the block draws on, or the process's outside one.
+	/// </summary>
+	internal static RenderBackend Backend => _state.backend ?? RenderBackend.Default;
+
+	/// <summary>
+	/// Make <paramref name="backend"/> the device outside render blocks on this thread - where a recording that will draw
+	/// on it uploads its buffers and resolves its bindless indices - until the returned one is put back. Null is the
+	/// process's.
+	/// </summary>
+	internal static RenderBackend SetRecordingBackend( RenderBackend backend )
+	{
+		var previous = _state.backend;
+		_state.backend = backend;
+		return previous;
+	}
 
 	/// <summary>
 	/// Whether the block records into an async compute context: compute and copies only.
@@ -103,8 +121,8 @@ public static partial class Graphics
 	/// </summary>
 	public static Rect Viewport
 	{
-		get => Context.GetViewport().Rect;
-		set => Context.SetViewport( value );
+		get => Backend.GetViewport().Rect;
+		set => Backend.SetViewport( value );
 	}
 
 	/// <summary>
@@ -230,14 +248,32 @@ public static partial class Graphics
 		bool standalone;
 		IRenderContext _context;
 		RenderAttributes _attributes;
+		RenderBackend _backend;
 
 		/// <summary>
 		/// Begins rendering with no scene view: a fresh render context and attributes with the frame's bindless
 		/// texture set bound, as CSceneSystem::InitializeRenderAttributes does for a view. Disposal submits the context.
 		/// </summary>
-		internal static Scope Create()
+		internal static Scope Create() => CreateOn( RenderBackend.Default );
+
+		/// <summary>
+		/// Begins rendering with no scene view on <paramref name="backend"/>'s device. Source 2's is as
+		/// <see cref="Create()"/>; another's block records into its own list, with managed attributes, and disposal submits it.
+		/// </summary>
+		internal static Scope CreateOn( RenderBackend backend )
 		{
 			ThreadSafe.AssertIsMainThread();
+
+			if ( backend is not Source2RenderBackend )
+			{
+				if ( IsActive )
+					throw new InvalidOperationException( "Standalone rendering cannot overlap another render scope." );
+
+				var managed = backend.BeginBlock();
+				var block = new Scope { _previous = _state, standalone = true, _attributes = managed, _backend = backend };
+				_state = new RenderState { active = true, attributes = managed, backend = backend };
+				return block;
+			}
 
 			if ( !IsAvailable )
 				throw new InvalidOperationException( "Graphics is unavailable." );
@@ -255,7 +291,7 @@ public static partial class Graphics
 			attributes.Get().SetGlobalBindlessDescriptorSet();
 
 			var scope = new Scope { _previous = _state, standalone = true, _context = context, _attributes = attributes };
-			_state = new RenderState { active = true, renderContext = context, attributes = attributes };
+			_state = new RenderState { active = true, renderContext = context, attributes = attributes, backend = Source2RenderBackend.Instance };
 			return scope;
 		}
 
@@ -283,6 +319,7 @@ public static partial class Graphics
 				msaaLevel = view.Msaa,
 				cameraTransform = new Transform( view.Frustum.GetCameraPosition(), view.Frustum.GetCameraAngles() ),
 				computeQueue = view.ComputeQueue,
+				backend = Source2RenderBackend.Instance,
 			};
 
 			_state.attributes = ObjectPool<RenderAttributes>.Get();
@@ -308,6 +345,7 @@ public static partial class Graphics
 			_state.cameraTransform = new Transform( frustum.GetCameraPosition(), frustum.GetCameraAngles() );
 			_state.stats = setup.stats;
 			_state.computeQueue = (setup.sceneLayer.m_nLayerFlags & Rendering.LayerFlags.AsyncComputeContext) != 0;
+			_state.backend = Source2RenderBackend.Instance;
 
 			_state.attributes = ObjectPool<RenderAttributes>.Get();
 			_state.attributes.Set( setup.renderContext.GetAttributesPtrForModify() );
@@ -315,6 +353,20 @@ public static partial class Graphics
 
 		public void Dispose()
 		{
+			if ( standalone && _backend is not null )
+			{
+				try
+				{
+					_backend.EndBlock();
+				}
+				finally
+				{
+					_state = _previous;
+					ReturnGrabbedTextures();
+				}
+				return;
+			}
+
 			if ( standalone )
 			{
 				try
@@ -347,6 +399,11 @@ public static partial class Graphics
 
 			_state = _previous;
 
+			ReturnGrabbedTextures();
+		}
+
+		static void ReturnGrabbedTextures()
+		{
 			if ( grabbedTextures is not null )
 			{
 				// return to the pool
@@ -418,7 +475,7 @@ public static partial class Graphics
 		// Grab a new one - which may very well be the one we just returned
 		var frameTexture = RenderTarget.GetTemporary( 1, ImageFormat.Default, ImageFormat.None, msaa: MultisampleAmount.MultisampleNone, numMips: numMips, targetName );
 
-		RenderTools.ResolveFrameBuffer( Context, frameTexture.ColorTarget.native, Viewport );
+		Backend.ResolveColor( frameTexture.ColorTarget, Viewport );
 
 		// Generate a mip chain if we want one
 		if ( withMips ) GenerateMipMaps( frameTexture.ColorTarget, downsampleMethod );
@@ -449,7 +506,7 @@ public static partial class Graphics
 		// Grab a new one - which may very well be the one we just returned
 		var grabbedTexture = RenderTarget.GetTemporary( 1, ImageFormat.None, ImageFormat.Default, msaa: MultisampleAmount.MultisampleScreen, targetName: targetName );
 
-		RenderTools.ResolveDepthBuffer( Context, grabbedTexture.DepthTarget.native, Viewport );
+		Backend.ResolveDepth( grabbedTexture.DepthTarget, Viewport );
 
 		grabbedTextures ??= new();
 		grabbedTextures.Add( grabbedTexture );
@@ -481,7 +538,7 @@ public static partial class Graphics
 			// Going from default render target to custom render target
 			if ( _state.renderTarget == null )
 			{
-				var viewport = Context.GetViewport();
+				var viewport = Backend.GetViewport();
 				// Save off min/max Z values here, so we can restore them later.
 				_state.defaultMinZ = viewport.MinZ;
 				_state.defaultMaxZ = viewport.MaxZ;
@@ -503,7 +560,7 @@ public static partial class Graphics
 			else
 			{
 				_state.colorFormat = _state.renderTarget.ColorTarget.ImageFormat;
-				Context.BindRenderTargets( _state.renderTarget.ColorTarget.native );
+				Backend.BindRenderTarget( _state.renderTarget );
 			}
 			Viewport = new Rect( 0, 0, _state.renderTarget.Width, _state.renderTarget.Height );
 		}
@@ -518,7 +575,7 @@ public static partial class Graphics
 	/// <param name="clearStencil">Whether to clear the stencil buffer.</param>
 	public static void Clear( Color color, bool clearColor = true, bool clearDepth = true, bool clearStencil = true )
 	{
-		Context.Clear( color, clearColor, clearDepth, clearStencil );
+		Backend.Clear( color, clearColor, clearDepth, clearStencil );
 	}
 
 	/// <summary>
@@ -551,7 +608,7 @@ public static partial class Graphics
 		if ( srcTexture.ImageFormat != dstTexture.ImageFormat ) throw new ArgumentException( "Source and destination texture format must match!" );
 		if ( srcTexture.Size != dstTexture.Size ) throw new ArgumentException( "Source and destination texture size must match!" );
 
-		RenderTools.CopyTexture( Context, srcTexture.native, dstTexture.native, default, 0, 0, 0, 0, 0, 0 );
+		Backend.CopyTexture( srcTexture, dstTexture, 0, 0, 0, 0 );
 	}
 
 	[Obsolete( "Use the CopyTexture overload without 'srcMipLevels' and 'dstMipLevels' parameters instead." )]
@@ -589,9 +646,7 @@ public static partial class Graphics
 		if ( srcMipWidth != dstMipWidth || srcMipHeight != dstMipHeight )
 			throw new ArgumentException( "Source and destination texture mip level sizes must match!" );
 
-		RenderTools.CopyTexture( Context, srcTexture.native, dstTexture.native, default, 0, 0,
-			(uint)srcMipSlice, (uint)srcArraySlice,
-			(uint)dstMipSlice, (uint)dstArraySlice );
+		Backend.CopyTexture( srcTexture, dstTexture, srcMipSlice, srcArraySlice, dstMipSlice, dstArraySlice );
 	}
 
 	/// <summary>

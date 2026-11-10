@@ -7,15 +7,22 @@ public sealed partial class CommandList
 	RenderAttributes drawAttributes;
 	AttributeAccess drawAttributeAccess;
 
+	// The draw set while playing back into a block whose attributes are managed (a backend other than Source 2's)
+	RenderAttributes managedDrawAttributes;
+	RenderAttributes currentDrawAttributes;
+
 	/// <summary>Starts a private attribute set for one draw, inheriting the caller's attributes at playback.</summary>
 	internal unsafe AttributeAccess BeginDrawAttributes()
 	{
 		drawAttributes ??= new();
-		drawAttributeAccess ??= new( this, () => drawAttributes );
+		drawAttributeAccess ??= new( this, () => currentDrawAttributes ?? drawAttributes );
 		static void Execute( ref Entry entry, CommandList list )
 		{
-			list.drawAttributes.Clear( false );
-			Graphics.Attributes.MergeTo( list.drawAttributes );
+			var scope = Graphics.Attributes;
+			var draw = scope.IsManaged ? list.managedDrawAttributes ??= RenderAttributes.CreateManaged() : list.drawAttributes;
+			list.currentDrawAttributes = draw;
+			draw.Clear( false );
+			scope.MergeTo( draw );
 		}
 		AddEntry( &Execute, default );
 		return drawAttributeAccess;
