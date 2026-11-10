@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 
@@ -157,6 +158,7 @@ internal sealed class OcclusionCuller : IDisposable
 		tested = 0;
 	}
 
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
 	public void AddInstance( int id, Vector3 center, Vector3 extents )
 	{
 		if ( InstanceCount == instances.Length ) Array.Resize( ref instances, instances.Length * 2 );

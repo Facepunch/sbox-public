@@ -172,6 +172,10 @@ public sealed partial class RenderSystem
 		var extents = world.BoundsExtents;
 		var reasons = pass.CullReasons;
 
+		// Neighbours are mostly of one type: look its feature up again only when the type changes
+		Type lastType = null;
+		var lastFeature = -1;
+
 		var entries = System.Runtime.InteropServices.CollectionsMarshal.AsSpan( candidates );
 		for ( int k = start; k < end; k++ )
 		{
@@ -200,7 +204,14 @@ public sealed partial class RenderSystem
 				reason = CullReason.Tags;
 			}
 
-			var feature = FeatureFor( obj.GetType() );
+			var type = obj.GetType();
+			if ( type != lastType )
+			{
+				lastType = type;
+				lastFeature = FeatureFor( type );
+			}
+
+			var feature = lastFeature;
 			if ( feature < 0 ) continue;
 			var f = features[feature];
 
