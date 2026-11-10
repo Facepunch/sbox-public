@@ -36,8 +36,9 @@
 			}
 			else if ( Item.Kind == SettingKind.Dropdown )
 			{
-				<DropDown Value:bind=@Item.Value BuildOptions=@( () => Item.CurrentOptions )></DropDown>
-				@Flag
+				var flag = Flag;
+				<DropDown class="@( flag is not null ? "flagged" : "" )" Value:bind=@Item.Value BuildOptions=@( () => Item.CurrentOptions )></DropDown>
+				@flag
 			}
 			else
 			{

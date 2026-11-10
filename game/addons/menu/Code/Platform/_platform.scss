@@ -1138,9 +1138,13 @@ $platform-side-balance: 276px;
 		justify-content: flex-start;
 		text-align: left;
 
+		// One line, a long choice is cut short rather than wrapping out of the button
 		.button-text
 		{
 			text-align: left;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
 		}
 	}
 

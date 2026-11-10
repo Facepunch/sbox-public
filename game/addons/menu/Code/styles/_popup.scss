@@ -23,8 +23,9 @@
 		align-items: center;
 		justify-content: flex-start;
 		flex-shrink: 0;
-		height: 30px;
-		padding: 0 8px;
+		// At least a line tall, taller when a long choice wraps
+		min-height: 30px;
+		padding: 6px 8px;
 		gap: 8px;
 		border: 0px solid transparent;
 		border-radius: 3px;

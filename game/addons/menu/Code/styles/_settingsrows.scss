@@ -5,6 +5,11 @@
 @import "/Platform/_platform.scss";
 
 $settings-control: 400px;
+// A row's lock or warning - its size, and in a dropdown how far in from the right (before the chevron) and the room left
+// between it and the choice
+$settings-flag-size: 16px;
+$settings-flag-right: 34px;
+$settings-flag-gap: 4px;
 
 @mixin settings-rows
 {
@@ -94,7 +99,7 @@ $settings-control: 400px;
 		.flag
 		{
 			flex-shrink: 0;
-			font-size: 16px;
+			font-size: $settings-flag-size;
 
 			&.locked
 			{
@@ -120,7 +125,7 @@ $settings-control: 400px;
 			> .flag
 			{
 				position: absolute;
-				right: 34px;
+				right: $settings-flag-right;
 				top: 0;
 				bottom: 0;
 				align-content: center;
@@ -162,6 +167,12 @@ $settings-control: 400px;
 	{
 		@include platform-dropdown;
 		flex-grow: 1;
+
+		// Its choice stops short of the flag over it (.control > .flag), rather than running under it
+		&.flagged
+		{
+			padding-right: calc( $settings-flag-right + $settings-flag-size + $settings-flag-gap );
+		}
 	}
 
 	SliderControl.slidercontrol
