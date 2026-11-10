@@ -44,18 +44,35 @@ public class BaseFileSystem
 
 	internal virtual void Dispose()
 	{
+		Zio.IFileSystem disposedSystem;
+		Zio.IFileSystemWatcher disposedWatcher;
+
 		lock ( FileWatch.WithChanges )
 		{
-			system?.Dispose();
+			WatchEnabled = false;
+			PendingDispose = true;
+			disposedSystem = system;
 			system = null;
 
-			watcher?.Dispose();
+			disposedWatcher = watcher;
 			watcher = null;
 
 			foreach ( var watcherSbox in watchers.ToArray() ) watcherSbox.Dispose();
 			watchers.Clear();
 
 			changedFiles.Clear();
+			FileWatch.WithChanges.Remove( this );
+		}
+
+		// Disposal can join the filesystem's event thread. Let any in-flight callback
+		// acquire WithChanges and observe the disposed state before waiting for that thread.
+		try
+		{
+			disposedWatcher?.Dispose();
+		}
+		finally
+		{
+			disposedSystem?.Dispose();
 		}
 	}
 
@@ -519,6 +536,9 @@ public class BaseFileSystem
 
 		lock ( FileWatch.WithChanges )
 		{
+			if ( !WatchEnabled || system is null )
+				return;
+
 			if ( changedFiles.Contains( path ) )
 				return;
 
