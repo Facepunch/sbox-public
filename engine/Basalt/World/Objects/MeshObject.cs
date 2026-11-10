@@ -36,7 +36,17 @@ public sealed class MeshObject : RenderObject
 	/// Colour multiplier. Alpha fades opaque geometry with dithering and no prepass;
 	/// translucent geometry becomes more transparent and stops casting shadows (<c>SetAlphaFade</c>).
 	/// </summary>
-	public Color Tint { get; set; } = Color.White;
+	public Color Tint
+	{
+		get;
+		set
+		{
+			// Only alpha reaches a shadow: a faded caster dithers
+			var faded = field.a != value.a;
+			field = value;
+			if ( faded ) ShadowChanged();
+		}
+	} = Color.White;
 
 	/// <summary>
 	/// Replace all draw materials (<c>SceneObject.SetMaterialOverride</c>). Blend flags select passes; disables the depth fast path.
@@ -46,10 +56,12 @@ public sealed class MeshObject : RenderObject
 		get;
 		set
 		{
+			var changed = field != value;
 			field = value;
 			OverrideTranslucent = RenderMesh.IsTranslucent( value );
 			OverrideAlphaTest = RenderMesh.IsAlphaTest( value );
 			WantsFrameBufferCopy = value is not null ? RenderMesh.ReadsFrameBuffer( value ) : mesh?.ReadsFrameBufferCopy ?? false;
+			if ( changed ) ShadowChanged();
 		}
 	}
 
@@ -94,17 +106,44 @@ public sealed class MeshObject : RenderObject
 	/// <summary>
 	/// Drawn into shadow maps. On by default, like <c>ModelRenderer.RenderType</c>'s default.
 	/// </summary>
-	public bool CastShadows { get; set; } = true;
+	public bool CastShadows
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			ShadowChanged();
+		}
+	} = true;
 
 	/// <summary>
 	/// Enable opaque draws in colour, prepass and shadows (<c>SCENEOBJECTFLAG_IS_OPAQUE</c>).
 	/// </summary>
-	public bool DrawsOpaque { get; set; } = true;
+	public bool DrawsOpaque
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			ShadowChanged();
+		}
+	} = true;
 
 	/// <summary>
 	/// Enable translucent draws (<c>SCENEOBJECTFLAG_IS_TRANSLUCENT</c>).
 	/// </summary>
-	public bool DrawsTranslucent { get; set; } = true;
+	public bool DrawsTranslucent
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			ShadowChanged();
+		}
+	} = true;
 
 	/// <summary>
 	/// Include in the depth prepass (inverse of <c>SCENEOBJECTFLAG_NO_Z_PREPASS</c>).

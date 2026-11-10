@@ -45,6 +45,11 @@ internal struct ShadowLight
 	public bool Baked;
 
 	/// <summary>
+	/// Where the light's world has changed static casters, which its static cache must redraw for.
+	/// </summary>
+	public StaticCasterChanges StaticChanges;
+
+	/// <summary>
 	/// A light that doesn't move keeps its static casters in a cache, and only re-renders dynamic ones.
 	/// </summary>
 	public bool Static;
@@ -96,6 +101,16 @@ internal struct ShadowViewInfo
 	/// A 3D skybox view: fully static and baked, so the sun lights it but casts no cascades.
 	/// </summary>
 	public bool IsSkybox;
+
+	/// <summary>
+	/// The view's tags, which shadow views filter casters by, as native's inherit their parent view's. Null for none.
+	/// </summary>
+	public uint[] RenderTags, ExcludeTags;
+
+	/// <summary>
+	/// The sub-worlds the view draws (<see cref="RenderView.SubWorlds"/>), whose casters its shadow views draw too.
+	/// </summary>
+	public ulong SubWorlds;
 
 	/// <summary>
 	/// A reflection view: no contact shadows, and its cascades fit a mirrored camera, so no other view may reuse them.

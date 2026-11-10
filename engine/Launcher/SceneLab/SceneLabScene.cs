@@ -29,6 +29,12 @@ internal sealed record SceneLabScene
 	public Func<Scene, string> ValidateGame { get; init; }
 
 	/// <summary>
+	/// A world the compare adds to the camera's extra worlds (<c>SceneCamera.Worlds</c>), which a camera component clears every
+	/// frame: the compare renders a <c>SceneCamera</c> set up from the scene's camera, with it added, through both renderers.
+	/// </summary>
+	public Func<Scene, SceneWorld> ExtraWorld { get; init; }
+
+	/// <summary>
 	/// Runs every frame on a <see cref="Game"/> scene, after it ticks and before it renders - for drawing that's redone
 	/// each frame, like a HUD.
 	/// </summary>
@@ -312,6 +318,7 @@ internal sealed record SceneLabScene
 		new() { Name = "Light Modulation Dynamic Sun", Group = "Effects", Game = () => LightModulatorScenes.Sun( -1 ), ValidateGame = LightModulatorScenes.ValidateSun },
 		new() { Name = "Light Modulation Gallery", Group = "Effects", Game = LightModulatorScenes.Gallery, ChangeGame = LightModulatorScenes.ChangeGallery, Isolated = true },
 		new() { Name = "Debug Overlay", Group = "GameObject", Game = GameScenes.DebugOverlay, ChangeGame = GameScenes.ChangeDebugOverlay, Frame = GameScenes.DrawDebugOverlay },
+		new() { Name = "Extra Worlds", Group = "GameObject", Game = ExtraWorldsScene.Build, ChangeGame = ExtraWorldsScene.Change, ExtraWorld = ExtraWorldsScene.ExtraWorld, ValidateGame = ExtraWorldsScene.Validate },
 		new() { Name = "Terrain and Clutter", Group = "GameObject", Game = TerrainScenes.TerrainAndClutter, ChangeGame = TerrainScenes.ChangeTerrainAndClutter, Ready = TerrainScenes.ClutterReady },
 		new() { Name = "Instanced Models", Group = "GameObject", Game = InstancedScene.Build, ChangeGame = InstancedScene.Change },
 		new() { Name = "Object Command Lists", Group = "GameObject", Game = ObjectCommandListScene.Build, ChangeGame = ObjectCommandListScene.Change, Isolated = true },

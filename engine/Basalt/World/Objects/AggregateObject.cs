@@ -88,17 +88,45 @@ internal sealed class AggregateObject : RenderObject
 	/// <summary>
 	/// Draws at all (<c>SceneObject.RenderingEnabled</c>).
 	/// </summary>
-	public bool Visible { get; set; } = true;
+	public bool Visible
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			ShadowChanged();
+		}
+	} = true;
 
 	/// <summary>
 	/// Multiplies every fragment's draw tint (<c>CAggregateSceneObjectDesc::FindOrAllocateFragmentTransforms</c>).
 	/// </summary>
-	public Color Tint { get; set; } = Color.White;
+	public Color Tint
+	{
+		get;
+		set
+		{
+			// Only alpha reaches a shadow: a faded caster dithers
+			var faded = field.a != value.a;
+			field = value;
+			if ( faded ) ShadowChanged();
+		}
+	} = Color.White;
 
 	/// <summary>
 	/// Draws in shadow maps, apart from fragments flagged <see cref="FragmentFlags.DoNotCastShadows"/>.
 	/// </summary>
-	public bool CastShadows { get; set; } = true;
+	public bool CastShadows
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			ShadowChanged();
+		}
+	} = true;
 
 	/// <summary>
 	/// GPU occlusion culled, fragment by fragment (<c>SCENEOBJECTFLAG_NO_OCCLUSION_CULLING</c> off).

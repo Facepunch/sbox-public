@@ -65,6 +65,11 @@ internal partial class ShadowMapper
 	readonly List<LightEntry> PointEntries = new();
 
 	/// <summary>
+	/// The cache entries this view drew, which aren't drawn until its frame is submitted (<see cref="Abandon"/>).
+	/// </summary>
+	readonly List<LightEntry> Drawn = new();
+
+	/// <summary>
 	/// This view's cascades.
 	/// </summary>
 	internal ReadOnlySpan<ShadowMap> Cascades => CascadeShadowMaps.AsSpan( 0, CascadeShadowMapCount );
@@ -94,6 +99,7 @@ internal partial class ShadowMapper
 		ProjectedCubeShadowMaps.Clear();
 		SpotEntries.Clear();
 		PointEntries.Clear();
+		Drawn.Clear();
 		CascadeShadowMapCount = 0;
 		GPUDirectionalLightData.CascadeCount = 0;
 		GPUDirectionalLightData.Enabled = false;
@@ -105,6 +111,26 @@ internal partial class ShadowMapper
 		ProjectedShadowsCulledLastFrame = ProjectedShadowsCulled;
 		ProjectedShadowsRendered = 0;
 		ProjectedShadowsCulled = 0;
+	}
+
+	/// <summary>
+	/// The view's frame was never submitted: the maps it drew, and the static caches it drew into them, were never drawn
+	/// after all. They're drawn again the next time they're used, and nothing reuses its cascades.
+	/// </summary>
+	internal void Abandon()
+	{
+		foreach ( var entry in Drawn )
+		{
+			entry.RenderedFrame = 0;
+			if ( entry.StaticRenderedFrame != FrameCount ) continue;
+
+			ReleaseTexture( entry.StaticCache, entry.CurrentResolution, entry.IsCube );
+			entry.StaticCache = null;
+			entry.StaticRenderedFrame = 0;
+		}
+
+		Drawn.Clear();
+		if ( LastCascades.Mapper == this ) LastCascades = default;
 	}
 
 	/// <summary>
@@ -174,6 +200,26 @@ internal partial class ShadowMapper
 		/// The frame <see cref="StaticCache"/> rendered in.
 		/// </summary>
 		public ulong StaticRenderedFrame;
+
+		/// <summary>
+		/// The world's <see cref="StaticCasterChanges.Revision"/> <see cref="StaticCache"/> is up to date with.
+		/// </summary>
+		public long StaticRevision;
+
+		/// <summary>
+		/// The tags of the views this map is for: it holds the casters they show.
+		/// </summary>
+		internal uint[] RenderTags, ExcludeTags;
+
+		/// <summary>
+		/// The sub-worlds of the views this map is for, whose casters it holds too.
+		/// </summary>
+		internal ulong SubWorlds;
+
+		/// <summary>
+		/// The same light's map for views with other tags.
+		/// </summary>
+		internal LightEntry NextFilter;
 		public bool Scheduled;
 		internal GPUProjectedShadow Projected;
 		internal GPUProjectedCubeShadow Cube;
@@ -189,7 +235,7 @@ internal partial class ShadowMapper
 	static float Priority( LightEntry e ) => (FrameStamp - e.RenderedFrame) * MathF.Exp( 6f * e.ScreenSize );
 
 	/// <summary>
-	/// Shadow maps by light.
+	/// Shadow maps by light: the first of its maps, each for views with different tags (<see cref="LightEntry.NextFilter"/>).
 	/// </summary>
 	public static ConditionalWeakTable<object, LightEntry> Cache = new();
 
@@ -199,12 +245,20 @@ internal partial class ShadowMapper
 	static readonly List<LightEntry> Entries = new();
 
 	/// <summary>
-	/// Get or create the cache entry for a light, handling resolution changes and
-	/// dropping the static cache if the light moved.
+	/// Get or create the cache entry for a light seen through <see cref="View"/>'s tags, handling resolution changes and
+	/// dropping the static cache if the light moved or a static caster it reaches changed.
 	/// </summary>
-	static LightEntry GetOrCreateCacheEntry( in ShadowLight light, int desiredResolution, bool isCube, float flScreenSize )
+	LightEntry GetOrCreateCacheEntry( in ShadowLight light, int desiredResolution, bool isCube, float flScreenSize )
 	{
-		if ( !Cache.TryGetValue( light.Key, out var entry ) )
+		// A map holds the casters its view's tags show, so views with other tags keep maps of their own
+		var renderTags = View.RenderTags ?? [];
+		var excludeTags = View.ExcludeTags ?? [];
+		Cache.TryGetValue( light.Key, out var first );
+		var entry = first;
+		while ( entry is not null && !(SameTags( entry.RenderTags, renderTags ) && SameTags( entry.ExcludeTags, excludeTags ) && entry.SubWorlds == View.SubWorlds) )
+			entry = entry.NextFilter;
+
+		if ( entry is null )
 		{
 			entry = new()
 			{
@@ -213,9 +267,36 @@ internal partial class ShadowMapper
 				CurrentResolution = desiredResolution,
 				IsCube = isCube,
 				DebugName = $"{light.Key}_Shadow",
+				RenderTags = renderTags.Length == 0 ? [] : (uint[])renderTags.Clone(),
+				ExcludeTags = excludeTags.Length == 0 ? [] : (uint[])excludeTags.Clone(),
+				SubWorlds = View.SubWorlds,
 			};
-			Cache.AddOrUpdate( light.Key, entry );
+
+			if ( first is null )
+			{
+				Cache.AddOrUpdate( light.Key, entry );
+			}
+			else
+			{
+				entry.NextFilter = first.NextFilter;
+				first.NextFilter = entry;
+			}
+
 			Entries.Add( entry );
+		}
+		else if ( entry.Type != light.Type || entry.Radius != light.Radius || (light.Type == ShadowLightType.Spot && entry.ConeOuter != light.ConeOuter) )
+		{
+			// A new kind, radius or cone is a new projection, which neither the map nor its static cache hold yet
+			ReleaseTexture( entry.StaticCache, entry.CurrentResolution, entry.IsCube );
+			entry.StaticCache = null;
+			entry.RenderedFrame = 0;
+
+			if ( entry.IsCube != isCube )
+			{
+				ReleaseTexture( entry.ShadowMap, entry.CurrentResolution, entry.IsCube );
+				entry.ShadowMap = AcquireTexture( entry.CurrentResolution, isCube );
+				entry.IsCube = isCube;
+			}
 		}
 
 		entry.Type = light.Type;
@@ -252,7 +333,60 @@ internal partial class ShadowMapper
 			entry.RenderedFrame = 0;
 		}
 
+		// The static cache holds the static casters as they were drawn: a change within the light's reach redraws it
+		if ( entry.StaticCache is not null && light.StaticChanges is { } changes && entry.StaticRevision != changes.Revision )
+		{
+			if ( changes.Touches( entry.StaticRevision, light.Position, light.Radius ) )
+			{
+				ReleaseTexture( entry.StaticCache, entry.CurrentResolution, entry.IsCube );
+				entry.StaticCache = null;
+				entry.RenderedFrame = 0;
+			}
+
+			entry.StaticRevision = changes.Revision;
+		}
+
 		return entry;
+	}
+
+	/// <summary>
+	/// Whether two tag sets hold the same tags, in any order.
+	/// </summary>
+	static bool SameTags( uint[] a, uint[] b )
+	{
+		a ??= [];
+		b ??= [];
+		if ( a == b ) return true;
+		if ( a.Length != b.Length ) return false;
+
+		foreach ( var tag in a )
+		{
+			if ( Array.IndexOf( b, tag ) < 0 ) return false;
+		}
+
+		return true;
+	}
+
+	/// <summary>
+	/// Take an entry out of its light's list in <see cref="Cache"/>.
+	/// </summary>
+	static void Unlink( object light, LightEntry entry )
+	{
+		if ( !Cache.TryGetValue( light, out var first ) ) return;
+
+		if ( first == entry )
+		{
+			if ( entry.NextFilter is null ) Cache.Remove( light );
+			else Cache.AddOrUpdate( light, entry.NextFilter );
+			return;
+		}
+
+		for ( var previous = first; previous is not null; previous = previous.NextFilter )
+		{
+			if ( previous.NextFilter != entry ) continue;
+			previous.NextFilter = entry.NextFilter;
+			return;
+		}
 	}
 
 	struct PooledTexture
@@ -324,7 +458,7 @@ internal partial class ShadowMapper
 			ReleaseTexture( entry.ShadowMap, entry.CurrentResolution, entry.IsCube );
 			entry.ShadowMap = null;
 			entry.StaticCache = null;
-			if ( alive ) Cache.Remove( light );
+			if ( alive ) Unlink( light, entry );
 
 			Entries[i] = Entries[^1];
 			Entries.RemoveAt( Entries.Count - 1 );
@@ -384,15 +518,19 @@ internal partial class ShadowMapper
 	/// </summary>
 	public static void OnLightRemoved( object light )
 	{
-		if ( !Cache.TryGetValue( light, out var entry ) )
+		if ( !Cache.TryGetValue( light, out var first ) )
 			return;
 
-		ReleaseTexture( entry.ShadowMap, entry.CurrentResolution, entry.IsCube );
-		entry.ShadowMap = null;
-		ReleaseTexture( entry.StaticCache, entry.CurrentResolution, entry.IsCube );
-		entry.StaticCache = null;
+		for ( var entry = first; entry is not null; entry = entry.NextFilter )
+		{
+			ReleaseTexture( entry.ShadowMap, entry.CurrentResolution, entry.IsCube );
+			entry.ShadowMap = null;
+			ReleaseTexture( entry.StaticCache, entry.CurrentResolution, entry.IsCube );
+			entry.StaticCache = null;
+			Entries.Remove( entry );
+		}
+
 		Cache.Remove( light );
-		Entries.Remove( entry );
 	}
 
 	/// <summary>

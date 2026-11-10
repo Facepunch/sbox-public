@@ -102,6 +102,7 @@ internal partial class ShadowMapper
 			}
 
 			cacheEntry.StaticRenderedFrame = FrameCount;
+			cacheEntry.StaticRevision = light.StaticChanges?.Revision ?? 0;
 		}
 
 		bool useStaticCache = cacheEntry.StaticCache is not null;
@@ -131,6 +132,7 @@ internal partial class ShadowMapper
 
 		cacheEntry.Cube = shadow;
 		cacheEntry.RenderedFrame = FrameCount;
+		Drawn.Add( cacheEntry );
 		ProjectedShadowsRendered++;
 
 		return AddProjectedCubeShadow( cacheEntry );
