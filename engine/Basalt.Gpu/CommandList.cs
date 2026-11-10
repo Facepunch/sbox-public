@@ -170,6 +170,26 @@ public sealed unsafe class CommandList
 	}
 
 	//
+	// Timestamps
+	//
+
+	/// <summary>Reset timestamps before writing them again (outside rendering).</summary>
+	public void ResetTimestamps( TimestampQueries queries, int first, int count )
+	{
+		OutsideRendering();
+		FlushBarriers();
+		vk.vkCmdResetQueryPool( Handle, queries.Pool, (uint)first, (uint)count );
+	}
+
+	/// <summary>Write timestamp <paramref name="index"/> once the work before it has passed <paramref name="stage"/>.</summary>
+	public void WriteTimestamp( TimestampQueries queries, int index, PipelineStage stage = PipelineStage.AllCommands )
+	{
+		Recording();
+		FlushBarriers();
+		vk.vkCmdWriteTimestamp2( Handle, (ulong)stage, queries.Pool, (uint)index );
+	}
+
+	//
 	// Debug labels
 	//
 
