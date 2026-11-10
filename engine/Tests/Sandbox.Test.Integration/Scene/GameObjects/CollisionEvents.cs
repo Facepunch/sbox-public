@@ -264,6 +264,56 @@ public class CollisionEventTest
 		Assert.IsFalse( trigger.Touching.Any() );
 	}
 
+	sealed class SceneCollisionProbe : Component, ISceneCollisionEvents
+	{
+		public List<Collision> Starts { get; } = new();
+		public void OnCollisionStart( Collision collision ) => Starts.Add( collision );
+	}
+
+	/// <summary>
+	/// One contact reaches the scene listeners, both colliders' listeners and the physics body callback, each with
+	/// the right side as Self.
+	/// </summary>
+	[TestMethod]
+	public void ContactReachesEveryListenerWithTheRightSides()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var sceneProbe = scene.CreateObject().Components.Create<SceneCollisionProbe>();
+		var floor = CreateFloor( scene );
+		var floorCollider = floor.Components.Get<BoxCollider>();
+		var floorProbe = floor.Components.Create<CollisionProbe>();
+
+		var (bodyGo, rb, bodyCollider) = CreateBody( scene, new Vector3( 0, 0, 20 ) );
+		var bodyProbe = bodyGo.Components.Create<CollisionProbe>();
+
+		var bodyIntersections = new List<PhysicsIntersection>();
+		rb.PhysicsBody.OnIntersectionStart = bodyIntersections.Add;
+
+		for ( int i = 0; i < 60 && bodyProbe.Starts == 0; i++ ) scene.GameTick();
+
+		Assert.AreEqual( 1, bodyProbe.Starts );
+		Assert.AreEqual( bodyCollider, bodyProbe.LastStart.Self.Collider );
+		Assert.AreEqual( floorCollider, bodyProbe.LastStart.Other.Collider );
+		Assert.AreEqual( floor, bodyProbe.LastStart.Other.GameObject );
+
+		Assert.AreEqual( 1, floorProbe.Starts );
+		Assert.AreEqual( floorCollider, floorProbe.LastStart.Self.Collider );
+		Assert.AreEqual( bodyCollider, floorProbe.LastStart.Other.Collider );
+		Assert.AreEqual( bodyProbe.LastStart.Contact.Point, floorProbe.LastStart.Contact.Point );
+
+		Assert.AreEqual( 1, sceneProbe.Starts.Count );
+		var sceneCollision = sceneProbe.Starts[0];
+		CollectionAssert.AreEquivalent( new Collider[] { bodyCollider, floorCollider }, new[] { sceneCollision.Self.Collider, sceneCollision.Other.Collider } );
+
+		Assert.AreEqual( 1, bodyIntersections.Count );
+		Assert.AreEqual( rb.PhysicsBody, bodyIntersections[0].Self.Body );
+		Assert.AreEqual( bodyCollider, bodyIntersections[0].Self.Shape.Collider );
+		Assert.AreEqual( floorCollider, bodyIntersections[0].Other.Shape.Collider );
+		Assert.AreEqual( bodyProbe.LastStart.Other.Surface, bodyIntersections[0].Other.Surface );
+	}
+
 	/// <summary>
 	/// A high-speed impact deals damage through IDamageable to both sides, with the
 	/// impacted object taking more than the impacting body, tagged "impact".

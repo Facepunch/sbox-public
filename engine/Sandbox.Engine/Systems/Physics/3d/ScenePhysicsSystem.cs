@@ -142,44 +142,32 @@ sealed class ScenePhysicsSystem : GameObjectSystem<ScenePhysicsSystem>
 		IScenePhysicsEvents.Post( x => x.PostPhysicsStep() );
 	}
 
-	void OnIntersectionStart( PhysicsIntersection o )
+	void OnIntersectionStart( Collision c )
 	{
-		if ( CollisionEvents.Count == 0 ) return;
-
-		var c = new Collision( new CollisionSource( o.Self ), new CollisionSource( o.Other ), o.Contact );
 		foreach ( var e in CollisionEvents )
 		{
 			e.OnCollisionStart( c );
 		}
 	}
 
-	void OnIntersectionHit( PhysicsIntersection o )
+	void OnIntersectionHit( Collision c )
 	{
-		if ( CollisionEvents.Count == 0 ) return;
-
-		var c = new Collision( new CollisionSource( o.Self ), new CollisionSource( o.Other ), o.Contact );
 		foreach ( var e in CollisionEvents )
 		{
 			e.OnCollisionHit( c );
 		}
 	}
 
-	void OnIntersectionUpdate( PhysicsIntersection o )
+	void OnIntersectionUpdate( Collision c )
 	{
-		if ( CollisionEvents.Count == 0 ) return;
-
-		var c = new Collision( new CollisionSource( o.Self ), new CollisionSource( o.Other ), o.Contact );
 		foreach ( var e in CollisionEvents )
 		{
 			e.OnCollisionUpdate( c );
 		}
 	}
 
-	void OnIntersectionEnd( PhysicsIntersectionEnd o )
+	void OnIntersectionEnd( CollisionStop c )
 	{
-		if ( CollisionEvents.Count == 0 ) return;
-
-		var c = new CollisionStop( new CollisionSource( o.Self ), new CollisionSource( o.Other ) );
 		foreach ( var e in CollisionEvents )
 		{
 			e.OnCollisionStop( c );

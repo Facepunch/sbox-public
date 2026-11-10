@@ -43,61 +43,36 @@ class CollisionEventSystem : IDisposable
 		_body.Listener = this;
 	}
 
-	internal void OnTriggerBegin( PhysicsIntersection c )
+	internal void OnTriggerBegin( in CollisionSource self, in CollisionSource other )
 	{
-		var self = new CollisionSource( c.Self );
-		var other = new CollisionSource( c.Other );
 		var gameObject = other.Body.GameObject;
 
 		OnObjectTriggerStart( self.Collider, gameObject );
 		OnColliderTriggerStart( self.Collider, other.Collider, gameObject );
 	}
 
-	internal void OnTriggerEnd( PhysicsIntersectionEnd c )
+	internal void OnTriggerEnd( in CollisionSource self, in CollisionSource other )
 	{
-		var self = new CollisionSource( c.Self );
-		var other = new CollisionSource( c.Other );
 		var gameObject = other.Body.GameObject;
 
 		OnColliderTriggerStop( self.Collider, other.Collider, gameObject );
-
-		if ( IsTouching( other.Component ) )
-			return;
-
 		OnObjectTriggerStop( self.Collider, gameObject );
 	}
 
-	internal void OnIntersectionStart( PhysicsIntersection c )
+	internal void OnIntersectionStart( in Collision o )
 	{
-		var self = new CollisionSource( c.Self );
-		var other = new CollisionSource( c.Other );
-		var o = new Collision( self, other, c.Contact );
-
 		_rigidbody?.HandleImpactDamage( o );
 
 		_gameObject.Components.ExecuteEnabledInSelfAndDescendants<ICollisionListener, Collision>( o, static ( x, c ) => x.OnCollisionStart( c ) );
 	}
 
-	private bool IsTouching( Component other )
+	internal void OnIntersectionEnd( in CollisionStop o )
 	{
-		return false;
-	}
-
-	internal void OnIntersectionEnd( PhysicsIntersectionEnd c )
-	{
-		var self = new CollisionSource( c.Self );
-		var other = new CollisionSource( c.Other );
-		var o = new CollisionStop( self, other );
-
 		_gameObject.Components.ExecuteEnabledInSelfAndDescendants<ICollisionListener, CollisionStop>( o, static ( x, c ) => x.OnCollisionStop( c ) );
 	}
 
-	internal void OnIntersectionUpdate( PhysicsIntersection c )
+	internal void OnIntersectionUpdate( in Collision o )
 	{
-		var self = new CollisionSource( c.Self );
-		var other = new CollisionSource( c.Other );
-		var o = new Collision( self, other, c.Contact );
-
 		_gameObject.Components.ExecuteEnabledInSelfAndDescendants<ICollisionListener, Collision>( o, static ( x, c ) => x.OnCollisionUpdate( c ) );
 	}
 
