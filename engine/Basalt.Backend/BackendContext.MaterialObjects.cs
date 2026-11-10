@@ -14,7 +14,7 @@ internal sealed partial class BackendContext
 	/// The pass's bindings for a material object: attribute constant buffers copied once per pass state into the cache's
 	/// pass buffer, buffers and textures by attribute name.
 	/// </summary>
-	internal sealed class PassResolver( BackendContext context )
+	internal sealed class PassResolver( BackendContext context ) : PassBindings
 	{
 		long epoch = -1;
 		readonly Dictionary<(string Name, int Size), (Binding Binding, uint Offset)> constants = new();
@@ -28,9 +28,9 @@ internal sealed partial class BackendContext
 			resources.Clear();
 		}
 
-		public float[] Floats( string attribute ) => BackendContext.Floats( context.attributes.Get( Token( attribute ) ) );
+		public override float[] Floats( string attribute ) => BackendContext.Floats( context.attributes.Get( Token( attribute ) ) );
 
-		public Binding Resolve( in ShaderResource resource, ShaderStage stage, bool dynamic, out uint dynamicOffset )
+		public override Binding Resolve( in ShaderResource resource, ShaderStage stage, bool dynamic, out uint dynamicOffset )
 		{
 			dynamicOffset = 0;
 			var device = context.device;
@@ -82,7 +82,7 @@ internal sealed partial class BackendContext
 						{
 							found = resource.Kind == ShaderResourceKind.Buffer
 								? context.attributes.Get( Token( resource.Name ) ) is GpuBuffer { Resource: BackendBuffer buffer } ? Binding.Storage( resource.Binding, buffer.Handle ) : device.Defaults.For( resource )
-								: TextureBinding( device, context.attributes.Get( Token( resource.Name ) ) as BackendTexture, resource );
+								: TextureBinding( device.Gpu, device.Defaults, context.attributes.Get( Token( resource.Name ) ) as BackendTexture, resource );
 							resources[key] = found;
 						}
 
@@ -136,7 +136,7 @@ internal sealed partial class BackendContext
 	/// A texture binding with the checks <see cref="Texture"/> makes: ready to sample and the shape the shader expects,
 	/// else the default.
 	/// </summary>
-	internal static Binding TextureBinding( BackendDevice device, BackendTexture texture, in ShaderResource resource )
+	internal static Binding TextureBinding( Device gpu, ShaderDefaults defaults, BackendTexture texture, in ShaderResource resource )
 	{
 		var expected = resource.Dimension switch
 		{
@@ -147,9 +147,9 @@ internal sealed partial class BackendContext
 			_ => TextureDimension.Texture2D,
 		};
 
-		if ( texture is null || texture.Layout != ImageLayout.ShaderRead || texture.Dimension != expected || texture.Samples > 1 ) return device.Defaults.For( resource );
+		if ( texture is null || texture.Layout != ImageLayout.ShaderRead || texture.Dimension != expected || texture.Samples > 1 ) return defaults.For( resource );
 
-		var srgb = resource.Variable.RenderStateId == 1 && device.Gpu.InfoOf( texture.Handle ).Format.HasSrgb();
+		var srgb = resource.Variable.RenderStateId == 1 && gpu.InfoOf( texture.Handle ).Format.HasSrgb();
 		return Binding.Sampled( resource.Binding, texture.Handle, srgb );
 	}
 
@@ -161,17 +161,12 @@ internal sealed partial class BackendContext
 
 		var r = recording;
 		var cache = device.MaterialCache;
-		passResolver ??= new PassResolver( this );
+		var resolver = Resolver( cache );
 
 		// A new pass state whenever the attributes changed or a scope opened (a texture may have changed layout)
-		var version = attributes.Version;
-		if ( r.BindVersion != version )
-		{
-			r.BindVersion = version;
-			passEpoch = cache.NextEpoch();
-		}
+		NextPassState( cache );
 
-		passResolver.Begin( passEpoch );
+		resolver.Begin( passEpoch );
 
 		ShaderVariant variant;
 		if ( ReferenceEquals( m, lastMaterial ) && shaderMode.Value == lastMode && passEpoch == lastEpoch )
@@ -195,10 +190,10 @@ internal sealed partial class BackendContext
 		var geometry = source.For( draw.Mesh, draw.DrawCall );
 		var key = new MaterialObjectCache.Key( m, variant, geometry.Layout, depthOnly ? Format.Unknown : color, r.Depth is null ? Format.Unknown : BackendDevice.FormatOf( r.Depth ), (r.Color ?? r.Depth).Samples, depthOnly, geometry.UncompressedTangentFrame );
 
-		var materialObject = lastObject is not null && key.Same( lastKey ) ? lastObject : cache.Get( key );
+		var materialObject = lastObject is not null && key.Same( lastKey ) && !lastObject.Stale ? lastObject : cache.Get( key, immediate: false, (device, geometry.Layout, key), static ( s, layout ) => s.device.Pipeline( s.key.Variant, s.Layout, s.key.Color, s.key.Depth, s.key.Samples, s.key.DepthOnly, layout.Sets ) );
 		(lastKey, lastObject) = (key, materialObject);
 
-		materialObject.Bind( r.List, ref r.Pipeline, passEpoch, passResolver );
+		materialObject.Bind( r.List, ref r.Pipeline, passEpoch, resolver );
 		r.Binder = null;
 
 		if ( depthOnly ) r.List.SetDepthBias( depthBias, slopeScaledDepthBias );
@@ -210,6 +205,45 @@ internal sealed partial class BackendContext
 		r.List.SetIndexBuffer( geometry.Indices, geometry.IndexFormat, geometry.IndexOffset );
 		r.List.DrawIndexed( draw.IndexCount, instances, draw.StartIndex, geometry.BaseVertex );
 		return true;
+	}
+
+	/// <summary>This context's pass resolver, with its slot in the cache's objects.</summary>
+	PassResolver Resolver( MaterialObjectCache cache )
+	{
+		if ( passResolver is not null ) return passResolver;
+		return passResolver = new PassResolver( this ) { Slot = cache.NewSlot() };
+	}
+
+	/// <summary>A new pass state when the attributes changed since the last one, or a scope opened.</summary>
+	void NextPassState( MaterialObjectCache cache )
+	{
+		var version = attributes.Version;
+		if ( recording.BindVersion == version ) return;
+		recording.BindVersion = version;
+		passEpoch = cache.NextEpoch();
+	}
+
+	/// <summary>
+	/// Run a compute shader through its material object: the variant's sets, persistent, with constants written once
+	/// per value, as <see cref="DrawWithMaterialObject"/> binds draws.
+	/// </summary>
+	void DispatchWithMaterialObject( BackendMaterial material, ShaderVariant variant, int x, int y, int z )
+	{
+		var r = recording;
+		var cache = device.MaterialCache;
+		var resolver = Resolver( cache );
+		NextPassState( cache );
+		resolver.Begin( passEpoch );
+
+		var key = new MaterialObjectCache.Key( material, variant, null, Format.Unknown, Format.Unknown, 0, false, false );
+		var materialObject = cache.Get( key, immediate: false, (device, variant), static ( s, layout ) => s.device.ComputePipeline( s.variant, layout.Sets ) );
+		var bound = default( PipelineHandle );
+		materialObject.Bind( r.List, ref bound, passEpoch, resolver );
+		r.Pipeline = default;
+		r.Binder = null;
+
+		var (gx, gy, gz) = variant.Compute.Bytecode.ThreadGroupSize;
+		r.List.Dispatch( (x + Math.Max( gx, 1 ) - 1) / Math.Max( gx, 1 ), (y + Math.Max( gy, 1 ) - 1) / Math.Max( gy, 1 ), (z + Math.Max( gz, 1 ) - 1) / Math.Max( gz, 1 ) );
 	}
 
 	string CachedModeName( ShaderFile shader, StringToken mode )

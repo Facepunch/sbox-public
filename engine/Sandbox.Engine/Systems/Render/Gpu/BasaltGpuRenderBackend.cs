@@ -32,9 +32,8 @@ namespace Sandbox;
 internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 {
 	readonly GpuDevice gpu;
-	readonly ShaderLibrary library;
+	readonly BackendDevice services;
 	readonly ContentFiles files;
-	readonly ShaderDefaults defaults;
 	readonly ShaderDrawer drawer;
 	readonly GraphicsContext context;
 	readonly bool ownsDevice;
@@ -104,9 +103,8 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 		this.gpu = gpu;
 		this.ownsDevice = ownsDevice;
 		files = ContentFiles.FindGame();
-		library = new ShaderLibrary( gpu, files );
-		defaults = new ShaderDefaults( gpu );
-		drawer = new ShaderDrawer( gpu, library, defaults );
+		services = new BackendDevice( gpu, files );
+		drawer = new ShaderDrawer( services );
 		context = new GraphicsContext( gpu, drawer, null );
 		uploadKey = new IntPtr( -1 - System.Threading.Interlocked.Increment( ref nextKey ) );
 		Register( this );
@@ -117,6 +115,29 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 
 	/// <summary>The context blocks record through.</summary>
 	public GraphicsContext Context => context;
+
+	/// <summary>
+	/// The renderer services draws bind through: the device's shaders, placeholders and material objects, shared with
+	/// Basalt's scene on this device.
+	/// </summary>
+	public BackendDevice Services => services;
+
+	/// <summary>Bind through material objects (the default); off binds by reflection every draw, for comparisons.</summary>
+	public bool MaterialObjects
+	{
+		get => drawer.MaterialObjects;
+		set => drawer.MaterialObjects = value;
+	}
+
+	/// <summary>Material objects made, sets written through them and held now, and draws that fell back to reflection.</summary>
+	public (int Objects, int SetsWritten, int SetsHeld, int Fallbacks) MaterialObjectStats
+	{
+		get
+		{
+			var (objects, written, held) = drawer.MaterialObjectStats;
+			return (objects, written, held, drawer.Fallbacks);
+		}
+	}
 
 	//
 	// Blocks and resources
@@ -455,13 +476,13 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 		if ( !file.EndsWith( ".shader", StringComparison.OrdinalIgnoreCase ) ) file += ".shader";
 		if ( !file.Contains( '/' ) ) file = "shaders/" + file;
 
-		shader = library.Load( file );
+		shader = drawer.Shaders.Load( file );
 		shaders[path] = shader;
 		if ( shader is not null ) AddNames( shader );
 		return shader;
 	}
 
-	ShaderFile Shader( string path ) => shaders.TryGetValue( path, out var shader ) ? shader : shaders[path] = AddNames( library.Load( path ) );
+	ShaderFile Shader( string path ) => shaders.TryGetValue( path, out var shader ) ? shader : shaders[path] = AddNames( drawer.Shaders.Load( path ) );
 
 	/// <summary>Learn the attribute and combo names a shader reads, so tokens can be turned back into them.</summary>
 	ShaderFile AddNames( ShaderFile shader )
@@ -790,8 +811,8 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 		buffers.Clear();
 
 		context.Release();
-		library.Dispose();
-		defaults.Dispose();
+		drawer.Dispose();
+		services.Dispose();
 		if ( ownsDevice ) gpu.Dispose();
 	}
 }

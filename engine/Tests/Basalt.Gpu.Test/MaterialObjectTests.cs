@@ -74,6 +74,40 @@ public class MaterialObjectTests : GpuTest
 		Assert.AreEqual( objects, scene.Backend.MaterialObjectStats.Objects, "the objects were made again" );
 	}
 
+	/// <summary>
+	/// Changing a material's value (as <c>Material.Set</c> does) draws it with the new value on the next frame, without
+	/// anything invalidating it by hand; setting the old value back draws the first frame again.
+	/// </summary>
+	[TestMethod]
+	public void ChangedMaterialsDrawTheirNewValues()
+	{
+		const int width = 320, height = 200;
+		using var scene = new BasaltScene( Device );
+		scene.Backend.MaterialObjects = true;
+
+		byte[] Frame()
+		{
+			Device.BeginFrame();
+			var (texture, layout, color) = scene.Render( width, height, 1.0f );
+			Device.WaitIdle();
+			return Read( texture, layout, color );
+		}
+
+		var before = Frame();
+		var material = scene.Backend.MaterialCache.Materials.First( m => m.Value( "g_vColorTint" ) is not null );
+		var tint = material.Value( "g_vColorTint" );
+		var objects = scene.Backend.MaterialObjectStats.Objects;
+
+		material.Set( "g_vColorTint", [0, 1, 0, 0] );
+		var changed = Frame();
+		material.Set( "g_vColorTint", tint );
+		var restored = Frame();
+
+		Assert.IsTrue( Different( before, changed ) > 0, $"{material.Name} drew with its new tint" );
+		CollectionAssert.AreEqual( before, restored, "setting the old tint back draws the first frame again" );
+		Assert.AreEqual( objects, scene.Backend.MaterialObjectStats.Objects, "the changed material's objects were made again, not added to" );
+	}
+
 	/// <summary>Read a frame back, and tell the backend where that left its target.</summary>
 	byte[] Read( TextureHandle texture, ImageLayout layout, Basalt.GpuTexture color )
 	{

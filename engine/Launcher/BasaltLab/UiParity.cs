@@ -3,7 +3,7 @@ using System.Reflection;
 namespace Sandbox.BasaltLab;
 
 /// <summary>
-/// <c>-ui-parity folder [-case name] [-tolerance N] [-validation] [-basalt-driver-names]</c>: paints cards of UI with
+/// <c>-ui-parity folder [-case name] [-tolerance N] [-validation] [-basalt-driver-names] [-reflection]</c>: paints cards of UI with
 /// the engine's <see cref="Painter"/> (<see cref="UiParityCases"/>) into a texture twice, through
 /// <c>Painter.Begin( Texture )</c> on Source 2's device and on a Basalt.Gpu device through the engine's own
 /// <see cref="BasaltGpuRenderBackend"/> under <c>Graphics</c>, and compares the pixels. Each case writes
@@ -13,7 +13,8 @@ namespace Sandbox.BasaltLab;
 /// <para>
 /// Stage 1 of moving the engine's own rendering (UI, <c>Graphics</c>, <c>CommandList</c>) onto Basalt.Gpu; see
 /// docs/managed/basalt-gpu-path.md. <c>-basalt-driver-names</c> introduces the device to the driver as Basalt rather than
-/// as Source 2 does, which changes AMD's trilinear filtering.
+/// as Source 2 does, which changes AMD's trilinear filtering. <c>-reflection</c> binds every Basalt.Gpu draw by reflection
+/// instead of through material objects.
 /// </para>
 /// </summary>
 internal static class UiParity
@@ -34,6 +35,7 @@ internal static class UiParity
 		var images = new UiParityCases.Images();
 
 		using var gpu = BasaltGpuRenderBackend.Create( Args.Has( "-validation" ), m => Log.Info( $"Basalt.Gpu: {m.Severity} {m.Text}" ), source2Names: !Args.Has( "-basalt-driver-names" ) );
+		gpu.MaterialObjects = !Args.Has( "-reflection" );
 		backend.Phase( $"Basalt.Gpu device ({gpu.Device.Adapter.Name})" );
 
 		var rows = new List<string>();
@@ -53,7 +55,9 @@ internal static class UiParity
 
 		gpu.WaitIdle();
 		var errors = gpu.Device.ValidationErrors;
-		var summary = $"UI parity: {cases.Length - failed} of {cases.Length} cases within {tolerance} on {gpu.Device.Adapter.Name}, {Width}x{Height} ({folder}); Basalt.Gpu validation errors {errors}";
+		var stats = gpu.MaterialObjectStats;
+		var binding = gpu.MaterialObjects ? $"material objects ({stats.Objects} objects, {stats.SetsWritten} sets written, {stats.SetsHeld} held, {stats.Fallbacks} draws by reflection)" : "binding by reflection";
+		var summary = $"UI parity: {cases.Length - failed} of {cases.Length} cases within {tolerance} on {gpu.Device.Adapter.Name}, {Width}x{Height} ({folder}); {binding}; Basalt.Gpu validation errors {errors}";
 		Log.Info( summary );
 		Console.WriteLine( summary );
 

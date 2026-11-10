@@ -52,7 +52,7 @@ public class UiShaderTests : GpuTest
 		using var library = new ShaderLibrary( Device, ShaderFileTests.Files );
 		using var defaults = new ShaderDefaults( Device );
 		var shader = library.Load( "shaders/ui_cssbox_batched.shader" );
-		var drawer = new ShaderDrawer( Device, library, defaults );
+		using var drawer = new ShaderDrawer( Device, library, defaults );
 
 		var red = new Vector4( 1, 0, 0, 1 );
 		var blue = new Vector4( 0, 0, 1, 1 );

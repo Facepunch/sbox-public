@@ -2,6 +2,7 @@ using Basalt.Gpu;
 using Basalt.Source2.Materials;
 using Basalt.Source2.Shaders;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace Basalt.Backend;
 
@@ -187,20 +188,28 @@ internal sealed class BackendParameters : ShaderParameters
 
 /// <summary>
 /// A material: an s&amp;box shader (<c>.shader_c</c>) with a compiled material's parameters and textures, or the
-/// shader's defaults, plus values set in code. Variants are picked per mode and dynamic combos and kept.
+/// shader's defaults, plus values set in code. Variants are picked per mode and dynamic combos and kept. Changing it
+/// (<see cref="Set(string, float[])"/>, <see cref="SetTexture"/>, <see cref="Reload"/>) moves <see cref="Version"/> on,
+/// which makes its material objects again the next time it draws.
 /// </summary>
 internal sealed class BackendMaterial : GpuMaterial
 {
 	readonly Dictionary<string, ShaderVariant> variants = new();
 	readonly Dictionary<string, float[]> values;
+	int version;
 
 	public BackendMaterial( string name, ShaderFile shader, MaterialFile file, Dictionary<string, BackendTexture> textures, Dictionary<string, float[]> values = null )
 	{
 		Name = name;
+		this.values = values ?? new( StringComparer.OrdinalIgnoreCase );
+		Load( shader, file, textures );
+	}
+
+	void Load( ShaderFile shader, MaterialFile file, Dictionary<string, BackendTexture> textures )
+	{
 		Shader = shader;
 		File = file;
 		Textures = textures ?? new( StringComparer.OrdinalIgnoreCase );
-		this.values = values ?? new( StringComparer.OrdinalIgnoreCase );
 
 		Features = new int[shader?.Features?.StaticCombos.Length ?? 0];
 		foreach ( var (parameter, value) in file?.Ints ?? new Dictionary<string, int>() )
@@ -211,19 +220,55 @@ internal sealed class BackendMaterial : GpuMaterial
 	}
 
 	/// <summary>The shader, or null when there's no compiled one: draws with it are skipped.</summary>
-	public ShaderFile Shader { get; }
+	public ShaderFile Shader { get; private set; }
 
 	/// <summary>The compiled material, or null for a material made from a shader.</summary>
-	public MaterialFile File { get; }
+	public MaterialFile File { get; private set; }
 
 	/// <summary>Feature values (<c>F_*</c>), by the shader's feature index.</summary>
-	public int[] Features { get; }
+	public int[] Features { get; private set; }
 
 	/// <summary>Textures by shader variable (<c>g_tColor</c>).</summary>
-	public Dictionary<string, BackendTexture> Textures { get; }
+	public Dictionary<string, BackendTexture> Textures { get; private set; }
+
+	/// <summary>Moves on whenever a value, texture or the material itself changes.</summary>
+	public int Version => Volatile.Read( ref version );
 
 	/// <summary>The material's value of a variable: set in code, else the compiled material's; null for the shader's default.</summary>
-	public float[] Value( string variable ) => values.TryGetValue( variable, out var value ) ? value : File?.Value( variable );
+	public float[] Value( string variable )
+	{
+		lock ( values ) return values.TryGetValue( variable, out var value ) ? value : File?.Value( variable );
+	}
+
+	/// <summary>Set a variable's value in code, over the compiled material's, as <c>Material.Set</c> does.</summary>
+	public void Set( string variable, float[] value )
+	{
+		lock ( values ) values[variable] = value;
+		Interlocked.Increment( ref version );
+	}
+
+	/// <summary>Set a texture variable (<c>g_tColor</c>), as <c>Material.Set</c> does with a texture.</summary>
+	public void SetTexture( string variable, BackendTexture texture )
+	{
+		var textures = new Dictionary<string, BackendTexture>( Textures, StringComparer.OrdinalIgnoreCase ) { [variable] = texture };
+		Textures = textures;
+		Interlocked.Increment( ref version );
+	}
+
+	/// <summary>
+	/// Take a material's new compiled form, after its file (or its shader) changed on disk: values set in code stay.
+	/// Call between frames.
+	/// </summary>
+	public void Reload( ShaderFile shader, MaterialFile file, Dictionary<string, BackendTexture> textures )
+	{
+		lock ( variants )
+		{
+			variants.Clear();
+			Load( shader, file, textures );
+		}
+
+		Interlocked.Increment( ref version );
+	}
 
 	/// <summary>A variant for a mode and dynamic combo values, made once.</summary>
 	public ShaderVariant Variant( ShaderLibrary library, string mode, string key, Func<string, int?> combos, Func<string, int?> attributes )
@@ -247,7 +292,11 @@ internal sealed class BackendMaterial : GpuMaterial
 	public override bool NeedsLightProbe => false;
 	public override ulong SimilarityKey => (ulong)(Shader?.Name.GetHashCode() ?? 0);
 
-	public override void Dispose() { }
+	/// <summary>Drop its material objects and their sets. It still draws if it's used again (shared materials are).</summary>
+	public override void Dispose() => Disposing?.Invoke( this );
+
+	/// <summary>Called when it's disposed, so the device can drop what it made for it.</summary>
+	internal Action<BackendMaterial> Disposing;
 }
 
 /// <summary>

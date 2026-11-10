@@ -807,6 +807,12 @@ internal sealed partial class BackendContext : GpuContext
 		if ( variant?.Compute?.Bytecode is null ) return;
 
 		CloseScope();
+		if ( device.MaterialObjects )
+		{
+			DispatchWithMaterialObject( m, variant, x, y, z );
+			return;
+		}
+
 		var r = recording;
 		var pipeline = device.ComputePipeline( variant );
 		r.List.SetPipeline( pipeline );
