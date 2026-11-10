@@ -52,6 +52,9 @@
 
 	<ItemGroup>
 		<ProjectReference Include="../Basalt/Basalt.csproj" />
+		<ProjectReference Include="../Basalt.Backend/Basalt.Backend.csproj" />
+		<ProjectReference Include="../Basalt.Gpu/Basalt.Gpu.csproj" />
+		<ProjectReference Include="../Basalt.Source2/Basalt.Source2.csproj" />
 		<ProjectReference Include="../Mounting/Sandbox.Mounting/Sandbox.Mounting.csproj" />
 		<ProjectReference Include="../Sandbox.Access/Sandbox.Access.csproj" />
 		<ProjectReference Include="../Sandbox.CodeUpgrader/Sandbox.CodeUpgrader.csproj" />
