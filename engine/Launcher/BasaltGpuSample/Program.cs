@@ -37,7 +37,7 @@ internal static class Program
 		if ( args.Contains( "-materialbench" ) )
 		{
 			using var gpu = Device.Create( new DeviceOptions { ApplicationName = "Basalt.Gpu material bench", Validation = validation, Message = m => { if ( m.Severity >= MessageSeverity.Warning ) Console.WriteLine( $"[{m.Severity}] {m.Id}: {m.Text}" ); } } );
-			return MaterialBench.Run( gpu, IntArg( args, "-frames", 100 ), IntArg( args, "-runs", 4 ), IntArg( args, "-models", int.MaxValue ) );
+			return MaterialBench.Run( gpu, IntArg( args, "-frames", 100 ), IntArg( args, "-runs", 4 ), IntArg( args, "-models", int.MaxValue ), args.Contains( "-parallel" ) );
 		}
 
 		var errors = 0;

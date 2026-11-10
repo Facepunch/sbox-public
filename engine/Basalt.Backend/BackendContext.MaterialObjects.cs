@@ -82,7 +82,7 @@ internal sealed partial class BackendContext
 						{
 							found = resource.Kind == ShaderResourceKind.Buffer
 								? context.attributes.Get( Token( resource.Name ) ) is GpuBuffer { Resource: BackendBuffer buffer } ? Binding.Storage( resource.Binding, buffer.Handle ) : device.Defaults.For( resource )
-								: TextureBinding( device.Gpu, device.Defaults, context.attributes.Get( Token( resource.Name ) ) as BackendTexture, resource );
+								: context.AttributeTexture( resource );
 							resources[key] = found;
 						}
 
@@ -132,11 +132,18 @@ internal sealed partial class BackendContext
 	Func<string, int?> comboLookup, specializationLookup;
 	readonly Dictionary<ShaderFile, (long Epoch, string Key)> comboKeys = new( ReferenceEqualityComparer.Instance );
 
+	/// <summary>An attribute's texture for a pass binding, readable where this context records, else the default.</summary>
+	Binding AttributeTexture( in ShaderResource resource )
+	{
+		var texture = attributes.Get( Token( resource.Name ) ) as BackendTexture;
+		return TextureBinding( device.Gpu, device.Defaults, texture, texture is null ? ImageLayout.Undefined : SampledLayoutOf( texture ), resource );
+	}
+
 	/// <summary>
-	/// A texture binding with the checks <see cref="Texture"/> makes: ready to sample and the shape the shader expects,
-	/// else the default.
+	/// A texture binding with the checks <see cref="Texture"/> makes: ready to sample (<paramref name="layout"/> is where
+	/// the recording has it) and the shape the shader expects, else the default.
 	/// </summary>
-	internal static Binding TextureBinding( Device gpu, ShaderDefaults defaults, BackendTexture texture, in ShaderResource resource )
+	internal static Binding TextureBinding( Device gpu, ShaderDefaults defaults, BackendTexture texture, ImageLayout layout, in ShaderResource resource )
 	{
 		var expected = resource.Dimension switch
 		{
@@ -147,7 +154,7 @@ internal sealed partial class BackendContext
 			_ => TextureDimension.Texture2D,
 		};
 
-		if ( texture is null || texture.Layout != ImageLayout.ShaderRead || texture.Dimension != expected || texture.Samples > 1 ) return defaults.For( resource );
+		if ( texture is null || layout != ImageLayout.ShaderRead || texture.Dimension != expected || texture.Samples > 1 ) return defaults.For( resource );
 
 		var srgb = resource.Variable.RenderStateId == 1 && gpu.InfoOf( texture.Handle ).Format.HasSrgb();
 		return Binding.Sampled( resource.Binding, texture.Handle, srgb );

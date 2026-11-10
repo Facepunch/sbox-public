@@ -292,12 +292,19 @@ internal sealed class MaterialObject
 		public long Epoch = -1;
 		public readonly SetEntry[] Bound = new SetEntry[ShaderAbi.BindlessSet];
 		public readonly uint[][] Offsets = [noOffsets, noOffsets, noOffsets, noOffsets];
-		public readonly ulong[] LastIdentity = new ulong[ShaderAbi.BindlessSet];
-		public readonly SetEntry[] LastSets = new SetEntry[ShaderAbi.BindlessSet];
+
+		/// <summary>
+		/// Per set index, the last few sets this context bound and their identities: Basalt's per-frame buffers go round
+		/// a ring, so a pass binds one of a few sets frame after frame, found here without the object's lock.
+		/// </summary>
+		public readonly ulong[] LastIdentity = new ulong[ShaderAbi.BindlessSet * Remembered];
+		public readonly SetEntry[] LastSets = new SetEntry[ShaderAbi.BindlessSet * Remembered];
+		public readonly int[] Next = new int[ShaderAbi.BindlessSet];
 		public ulong LastConstantsKey;
 		public ConstantVariant LastConstants;
 	}
 
+	const int Remembered = 4;
 	Resolved[] contexts = [];
 	static readonly uint[] noOffsets = [];
 	[ThreadStatic] static Binding[] scratch;
@@ -368,7 +375,7 @@ internal sealed class MaterialObject
 	{
 		BackendTexture texture = null;
 		Material?.Textures.TryGetValue( resource.Variable.Name, out texture );
-		return BackendContext.TextureBinding( cache.Gpu, cache.Defaults, texture, resource );
+		return BackendContext.TextureBinding( cache.Gpu, cache.Defaults, texture, texture?.Layout ?? ImageLayout.Undefined, resource );
 	}
 
 	Resolved ContextState( int slot )
@@ -433,8 +440,8 @@ internal sealed class MaterialObject
 			if ( materialSlot[set] >= 0 && constants is not null ) identity = (identity ^ (ulong)constants.Offsets[set]) * 1099511628211UL;
 			state.Offsets[set] = pass.Offsets[set] ?? noOffsets;
 
-			// The set this context bound last time, if the pass bound the same: the usual case from frame to frame
-			if ( state.LastIdentity[set] == identity && state.LastSets[set] is { Dead: false } last )
+			// A set this context bound lately, if the pass bound the same: the usual case from frame to frame
+			if ( RememberedSet( state, set, identity ) is { } last )
 			{
 				last.LastUsed = frame;
 				state.Bound[set] = last;
@@ -461,9 +468,21 @@ internal sealed class MaterialObject
 
 			entry.LastUsed = frame;
 			state.Bound[set] = entry;
-			state.LastSets[set] = entry;
-			state.LastIdentity[set] = identity;
+			var slot = set * Remembered + state.Next[set];
+			state.Next[set] = (state.Next[set] + 1) % Remembered;
+			state.LastSets[slot] = entry;
+			state.LastIdentity[slot] = identity;
 		}
+	}
+
+	static SetEntry RememberedSet( Resolved state, int set, ulong identity )
+	{
+		for ( int i = set * Remembered, end = i + Remembered; i < end; i++ )
+		{
+			if ( state.LastIdentity[i] == identity && state.LastSets[i] is { Dead: false } entry ) return entry;
+		}
+
+		return null;
 	}
 
 	internal static ulong Mix( ulong hash, in Binding binding )

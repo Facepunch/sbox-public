@@ -108,6 +108,38 @@ public class MaterialObjectTests : GpuTest
 		Assert.AreEqual( objects, scene.Backend.MaterialObjectStats.Objects, "the changed material's objects were made again, not added to" );
 	}
 
+	/// <summary>
+	/// Recording the frame's segments on several threads, each into a list of its own with layouts tracked per list and
+	/// fixed up at submission, draws the pixels recording on one thread does, through the same material objects.
+	/// </summary>
+	[TestMethod]
+	public void ParallelRecordingDrawsTheSamePixels()
+	{
+		const int width = 640, height = 400;
+		using var scene = new BasaltScene( Device );
+		scene.Backend.MaterialObjects = true;
+
+		(byte[] Pixels, double WorkerMs) Frame( bool parallel )
+		{
+			scene.System.ParallelRecording = parallel;
+			Device.BeginFrame();
+			var (texture, layout, color) = scene.Render( width, height, 1.0f );
+			var workers = scene.Stats.WorkerRecordMs;
+			Device.WaitIdle();
+			return (Read( texture, layout, color ), workers);
+		}
+
+		var serial = Frame( false );
+		var parallel = Frame( true );
+		var again = Frame( true );
+		var serialAgain = Frame( false );
+
+		Assert.IsTrue( parallel.WorkerMs > 0 && again.WorkerMs > 0, "segments recorded on workers" );
+		CollectionAssert.AreEqual( serial.Pixels, serialAgain.Pixels, "serial recording draws the same frame twice" );
+		Assert.AreEqual( 0, Different( serial.Pixels, parallel.Pixels ), "parallel recording draws what serial recording does" );
+		CollectionAssert.AreEqual( parallel.Pixels, again.Pixels, "parallel recording draws the same frame twice" );
+	}
+
 	/// <summary>Read a frame back, and tell the backend where that left its target.</summary>
 	byte[] Read( TextureHandle texture, ImageLayout layout, Basalt.GpuTexture color )
 	{

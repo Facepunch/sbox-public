@@ -12,9 +12,12 @@ namespace Basalt.Backend;
 /// texture remembers.
 /// </summary>
 /// <remarks>
-/// Layouts are tracked per texture as work is recorded, which is right while recording order is submission order:
-/// serial recording on one queue. Parallel segments and async compute need per-segment tracking with fix-ups at
-/// submission; until then the backend's host turns both off.
+/// Layouts are tracked per texture. A frame's context, and segments sharing its list, move each texture's layout as
+/// they record, which is right while recording order is submission order. A segment recording a list of its own (the
+/// scene recording on several threads) tracks layouts for its list alone: a texture's first use there records what it
+/// needs, with no barrier, and at submission, in submission order, a list of fix-ups moves each texture from where the
+/// lists before left it to what this one needs, and the texture then remembers where this one left it. Async compute
+/// isn't wired yet.
 /// </remarks>
 internal sealed partial class BackendContext : GpuContext
 {
@@ -31,6 +34,12 @@ internal sealed partial class BackendContext : GpuContext
 		public PipelineHandle Pipeline;
 		public BackendContext Binder;
 		public int BindVersion = -1;
+
+		/// <summary>
+		/// For a list recorded beside others: each texture's layout when this list first used it (what it needs at its
+		/// start) and where it leaves it. Null for a frame's list, which moves the textures' own layouts.
+		/// </summary>
+		public Dictionary<BackendTexture, (ImageLayout First, ImageLayout Current)> Layouts;
 		public readonly List<(BufferHandle Buffer, int Bytes, GpuReadback Callback)> Readbacks = new();
 	}
 
@@ -116,6 +125,9 @@ internal sealed partial class BackendContext : GpuContext
 		{
 			var queue = AsyncCompute && Gpu.Capabilities.AsyncCompute ? QueueType.Compute : QueueType.Graphics;
 			recording = new Session { List = Gpu.BeginCommandList( queue, frame is null ? "Basalt frame" : "Basalt segment" ) };
+
+			// A segment with a list of its own may record while others do: its layouts are its own until it's submitted
+			if ( frame is not null ) recording.Layouts = new();
 		}
 
 		wait = signal = default;
@@ -144,6 +156,7 @@ internal sealed partial class BackendContext : GpuContext
 			}
 
 			CloseScope();
+			if ( recording.Layouts is { Count: > 0 } ) SubmitLayoutFixUps( recording );
 			Span<SyncPoint> waits = stackalloc SyncPoint[1];
 			var waitCount = 0;
 			if ( wait.Handle != IntPtr.Zero ) waits[waitCount++] = device.PointOf( wait );
@@ -156,6 +169,53 @@ internal sealed partial class BackendContext : GpuContext
 		{
 			End();
 		}
+	}
+
+	/// <summary>
+	/// Before a segment's own list: move every texture it used from where the lists submitted before left it to what
+	/// this one needs at its start, then remember where this one leaves it. Called in submission order.
+	/// </summary>
+	void SubmitLayoutFixUps( Session session )
+	{
+		CommandList fixUps = null;
+		foreach ( var (texture, (first, current)) in session.Layouts )
+		{
+			if ( texture.Layout != first )
+			{
+				fixUps ??= Gpu.BeginCommandList( session.List.Queue, "Basalt layouts" );
+				fixUps.Barrier( Basalt.Gpu.TextureBarrier.Transition( texture.Handle, texture.Layout, first,
+					PipelineStage.AllCommands, MemoryAccess.MemoryWrite, PipelineStage.AllCommands, MemoryAccess.MemoryRead | MemoryAccess.MemoryWrite ) );
+			}
+
+			texture.Layout = current;
+		}
+
+		if ( fixUps is not null ) Gpu.Submit( fixUps );
+		LayoutFixUps += fixUps is null ? 0 : 1;
+	}
+
+	/// <summary>Fix-up lists submitted before segments recorded beside others, for tests.</summary>
+	internal static int LayoutFixUps;
+
+	/// <summary>
+	/// The layout a texture is in at this point of the recording: where this list's own use left it, else where the
+	/// lists before left it.
+	/// </summary>
+	internal ImageLayout LayoutOf( BackendTexture texture )
+	{
+		if ( recording?.Layouts is { } local && local.TryGetValue( texture, out var known ) ) return known.Current;
+		return texture.Layout;
+	}
+
+	/// <summary>
+	/// The layout of a texture a draw samples: as <see cref="LayoutOf"/>, and when a list recorded beside others reads one
+	/// it hasn't used yet, it notes that it needs it readable at its start.
+	/// </summary>
+	internal ImageLayout SampledLayoutOf( BackendTexture texture )
+	{
+		var layout = LayoutOf( texture );
+		if ( layout == ImageLayout.ShaderRead && recording?.Layouts is { } local ) local.TryAdd( texture, (layout, layout) );
+		return layout;
 	}
 
 	public override void End()
@@ -333,12 +393,24 @@ internal sealed partial class BackendContext : GpuContext
 	void Transition( BackendTexture texture, ImageLayout layout, bool always = false )
 	{
 		if ( texture is null ) return;
-		if ( texture.Layout == layout && !always ) return;
+
+		// A list recorded beside others: its first use of a texture is what it needs, moved there before it's submitted
+		var local = recording.Layouts;
+		var known = default( (ImageLayout First, ImageLayout Current) );
+		if ( local is not null && !local.TryGetValue( texture, out known ) )
+		{
+			local[texture] = (layout, layout);
+			return;
+		}
+
+		var from = local is null ? texture.Layout : known.Current;
+		if ( from == layout && !always ) return;
 		if ( recording.Rendering ) CloseScope();
 
-		recording.List.Barrier( Basalt.Gpu.TextureBarrier.Transition( texture.Handle, texture.Layout, layout,
+		recording.List.Barrier( Basalt.Gpu.TextureBarrier.Transition( texture.Handle, from, layout,
 			PipelineStage.AllCommands, MemoryAccess.MemoryWrite, PipelineStage.AllCommands, MemoryAccess.MemoryRead | MemoryAccess.MemoryWrite ) );
-		texture.Layout = layout;
+		if ( local is null ) texture.Layout = layout;
+		else local[texture] = (known.First, layout);
 	}
 
 	static ImageLayout Map( TextureLayout layout, BackendTexture texture ) => layout switch
@@ -657,7 +729,7 @@ internal sealed partial class BackendContext : GpuContext
 			_ => TextureDimension.Texture2D,
 		};
 
-		if ( texture is null || texture.Layout != ImageLayout.ShaderRead || texture.Dimension != expected || texture.Samples > 1 ) return device.Defaults.For( resource );
+		if ( texture is null || texture.Dimension != expected || texture.Samples > 1 || SampledLayoutOf( texture ) != ImageLayout.ShaderRead ) return device.Defaults.For( resource );
 
 		// SrgbRead( true ) textures are compiled with render state id 1
 		var srgb = resource.Variable.RenderStateId == 1 && Gpu.InfoOf( texture.Handle ).Format.HasSrgb();

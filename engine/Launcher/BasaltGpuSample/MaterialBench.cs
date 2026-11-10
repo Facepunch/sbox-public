@@ -13,10 +13,15 @@ namespace BasaltGpuSample;
 /// binding by reflection every draw, then through material objects, in alternating runs. Prints the CPU time of a model
 /// draw (bind and record) for each: per bind (a draw that changed material or mode) and per draw of the same material
 /// again. See docs/managed/basalt-materials.md.
+/// <para>
+/// With <c>-parallel</c> it compares recording on one thread with recording on several, both through material objects,
+/// in alternating runs: the frame's CPU time, recording's wall time and the workers' total, and whether the two draw the
+/// same pixels.
+/// </para>
 /// </summary>
 internal static class MaterialBench
 {
-	public static int Run( Device gpu, int frames, int runs, int maxModels )
+	public static int Run( Device gpu, int frames, int runs, int maxModels, bool parallel = false )
 	{
 		var backend = new BackendDevice( gpu );
 		var previousHost = RenderHost.Current;
@@ -84,6 +89,8 @@ internal static class MaterialBench
 
 			Console.WriteLine( $"{gpu.Adapter}: {meshes.Count} models, {meshDraws} mesh draws, {materials.Count} materials" );
 
+			if ( parallel ) return Parallel( gpu, backend, system, world, view, target, frames, runs );
+
 			// Warm both paths: pipelines, variants, material objects and their sets
 			foreach ( var objects in (ReadOnlySpan<bool>)[false, true, false, true] ) Frames( gpu, backend, system, world, view, target, objects, 10 );
 
@@ -114,6 +121,57 @@ internal static class MaterialBench
 			backend.Dispose();
 			RenderHost.Current = previousHost;
 		}
+	}
+
+	/// <summary>Serial against parallel recording, through material objects.</summary>
+	static int Parallel( Device gpu, BackendDevice backend, RenderSystem system, RenderWorld world, RenderView view, ViewTarget target, int frames, int runs )
+	{
+		byte[] Pixels()
+		{
+			var (texture, layout) = BackendDevice.Unwrap( target.Color );
+			var pixels = Capture.Read( gpu, texture, layout );
+			BackendDevice.SetLayout( target.Color, ImageLayout.CopySource );
+			return pixels;
+		}
+
+		var images = new Dictionary<bool, byte[]>();
+		foreach ( var threads in (ReadOnlySpan<bool>)[false, true, false, true] )
+		{
+			system.ParallelRecording = threads;
+			Frames( gpu, backend, system, world, view, target, true, 10 );
+			images[threads] = Pixels();
+		}
+
+		var same = images[false].AsSpan().SequenceEqual( images[true] );
+		Console.WriteLine( "recording | frames | Render() CPU ms/frame | record ms | workers' record ms | segments on workers | sets written | gen0 GCs" );
+		for ( int run = 0; run < runs; run++ )
+		{
+			foreach ( var threads in run % 2 == 0 ? (ReadOnlySpan<bool>)[false, true] : [true, false] )
+			{
+				system.ParallelRecording = threads;
+				var setsBefore = backend.MaterialObjectStats.SetsWritten;
+				var collections = GC.CollectionCount( 0 );
+				double record = 0, workers = 0;
+				long ticks = 0;
+				for ( int i = 0; i < frames; i++ )
+				{
+					backend.BeginFrame();
+					var start = Stopwatch.GetTimestamp();
+					RenderHost.Current.NextFrame();
+					system.Render( world, view, target );
+					ticks += Stopwatch.GetTimestamp() - start;
+					record += system.Stats.RecordMs;
+					workers += system.Stats.WorkerRecordMs;
+				}
+
+				gpu.WaitIdle();
+				var cpu = ticks * 1000.0 / Stopwatch.Frequency / frames;
+				Console.WriteLine( $"{(threads ? "parallel" : "serial")} | {frames} | {cpu:F3} | {record / frames:F3} | {workers / frames:F3} | {(workers > 0 ? "yes" : "no")} | {backend.MaterialObjectStats.SetsWritten - setsBefore} | {GC.CollectionCount( 0 ) - collections}" );
+			}
+		}
+
+		Console.WriteLine( $"serial and parallel frames {(same ? "identical" : "DIFFER")}; {gpu.ValidationErrors} validation errors" );
+		return gpu.ValidationErrors > 0 || !same ? 1 : 0;
 	}
 
 	/// <summary>Render <paramref name="count"/> frames one path; returns the mean CPU milliseconds of a Render call.</summary>
