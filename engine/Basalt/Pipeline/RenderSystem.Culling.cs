@@ -192,7 +192,9 @@ public sealed partial class RenderSystem
 				reason = CullReason.Size;
 			}
 
+			// Another world's objects that this view doesn't draw aren't culled: they aren't in its view at all
 			var obj = objects[i];
+			if ( !root.ShowsSubWorld( obj ) ) continue;
 			if ( reason == CullReason.None && !root.Shows( obj ) )
 			{
 				stats.ObjectsTagCulled++;

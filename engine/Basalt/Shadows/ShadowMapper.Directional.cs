@@ -51,6 +51,7 @@ internal partial class ShadowMapper
 		public float ViewportArea;
 		public StaticFilter StaticFilter;
 		public uint[] RenderTags, ExcludeTags;
+		public ulong SubWorlds;
 		public GPUDirectionalLight Data;
 	}
 
@@ -350,6 +351,7 @@ internal partial class ShadowMapper
 		if ( !View.IsReflection && LastCascades.Frame == FrameCount && LastCascades.Light == light.Key && viewportArea <= LastCascades.ViewportArea
 			&& LastCascades.StaticFilter == staticFilter
 			&& SameTags( LastCascades.RenderTags, View.RenderTags ?? [] ) && SameTags( LastCascades.ExcludeTags, View.ExcludeTags ?? [] )
+			&& LastCascades.SubWorlds == View.SubWorlds
 			&& cameraPosition.DistanceSquared( LastCascades.CameraPosition ) <= LastCascades.RadiusSquared )
 		{
 			gpuShadowData = LastCascades.Data;
@@ -440,6 +442,7 @@ internal partial class ShadowMapper
 			StaticFilter = staticFilter,
 			RenderTags = View.RenderTags ?? [],
 			ExcludeTags = View.ExcludeTags ?? [],
+			SubWorlds = View.SubWorlds,
 			Data = gpuShadowData,
 		};
 

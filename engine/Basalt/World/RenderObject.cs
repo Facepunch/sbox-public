@@ -100,6 +100,23 @@ public abstract class RenderObject
 	}
 
 	/// <summary>
+	/// The sub-world this object belongs to: 0 for the world's own objects, or 1 to <see cref="RenderWorld.MaxSubWorlds"/> for
+	/// another world's drawn in this one's views, which only views with its bit in <see cref="RenderView.SubWorlds"/> show. Native
+	/// draws a camera's extra worlds in its view this way, in the same layers and depth as its main world
+	/// (<c>CSceneView::AddWorldToRenderList</c>).
+	/// </summary>
+	public int SubWorld
+	{
+		get;
+		set
+		{
+			ArgumentOutOfRangeException.ThrowIfNegative( value );
+			ArgumentOutOfRangeException.ThrowIfGreaterThan( value, RenderWorld.MaxSubWorlds );
+			field = value;
+		}
+	}
+
+	/// <summary>
 	/// Include in game layers (inverse of <c>SCENEOBJECTFLAG_EXCLUDE_GAME_LAYER</c>). Does not affect shadow casting.
 	/// </summary>
 	public bool GameLayers { get; set; } = true;

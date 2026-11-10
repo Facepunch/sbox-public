@@ -20,6 +20,23 @@ internal sealed class SceneObjectDrawer : IDisposable
 	/// </summary>
 	public SceneMirror Mirror { get; set; }
 
+	/// <summary>
+	/// The mirrors of the extra worlds the camera draws this frame, in <see cref="Mirror"/>'s world.
+	/// </summary>
+	public List<SceneMirror> ExtraMirrors { get; } = new();
+
+	RenderObject Find( SceneObject sceneObject )
+	{
+		if ( Mirror?.Find( sceneObject ) is { } found ) return found;
+
+		foreach ( var extra in ExtraMirrors )
+		{
+			if ( extra.Find( sceneObject ) is { } inExtra ) return inExtra;
+		}
+
+		return null;
+	}
+
 	Basalt.GpuBuffer<TransformBuffer.Entry> entries;
 	Basalt.GpuBuffer<uint> ids;
 	int entryCount, idCount, generation = -1;
@@ -45,7 +62,7 @@ internal sealed class SceneObjectDrawer : IDisposable
 	{
 		// Require this thread's active Graphics recording context.
 		if ( GpuContext.Recording is not { } context || context.NativeContext() != Graphics.Context ) return;
-		if ( Mirror?.Find( sceneObject ) is not MeshObject obj || obj.Mesh is not { } mesh || mesh.Geometry is null ) return;
+		if ( Find( sceneObject ) is not MeshObject obj || obj.Mesh is not { } mesh || mesh.Geometry is null ) return;
 
 		var transforms = system.Transforms;
 		if ( transforms.Generation != generation ) BeginFrame( transforms.Generation );

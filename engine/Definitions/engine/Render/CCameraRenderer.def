@@ -20,6 +20,7 @@ native class CCameraRenderer
 	void RenderToBitmap( void* pixels, int width, int height, int bytesPerPixel );
 
 	static void RenderOverlay(  SwapChainHandle_t swapChain );
+	static void RenderDefaultGameUI( SwapChainHandle_t swapChain );
 
 	void RenderStereo( int eye, int eyeWidth, int eyeHeight, bool bSubmitThisEye );
 	void SubmitStereo( int eyeWidth, int eyeHeight );
