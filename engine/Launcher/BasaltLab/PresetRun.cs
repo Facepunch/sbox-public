@@ -51,6 +51,10 @@ internal static class PresetRun
 		// Golden truth images need the same mips every run: textures load whole, rather than streaming in over real time
 		if ( GoldenTruthRun.Enabled ) backend.PreloadTextures();
 
+		// Lavapipe's 256-bit code path loses the blue of lit surfaces in single-sample targets; its 128-bit one is right
+		if ( GoldenTruthRun.Device == "Lavapipe" && Environment.GetEnvironmentVariable( "LP_NATIVE_VECTOR_WIDTH" ) != "128" )
+			Log.Warning( "Basalt Lab: on Lavapipe without LP_NATIVE_VECTOR_WIDTH=128, lit surfaces lose their blue (docs/managed/basalt-host.md)" );
+
 		var captureFrame = Math.Max( 1, Args.Int( "-capture-frame", 10 ) );
 		var single = Args.String( "-capture" );
 		var folder = System.IO.Path.GetFullPath( Args.String( "-out" ) ?? System.IO.Path.Combine( Environment.CurrentDirectory, "screenshots", "basaltlab" ) );

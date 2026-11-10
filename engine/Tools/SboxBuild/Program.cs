@@ -25,6 +25,7 @@ internal class Program
 		AddTestCommand( rootCommand );
 		AddBuildShadersCommand( rootCommand );
 		AddShaderStatsCommand( rootCommand );
+		AddBasaltRenderTestsCommand( rootCommand );
 		AddGenerateSolutionsCommand( rootCommand );
 		AddSyncPublicRepoCommand( rootCommand );
 		AddWriteVersionCommand( rootCommand );
@@ -177,6 +178,25 @@ internal class Program
 		{
 			Environment.ExitCode = (int)new BuildShaders( forced, seed ).Run();
 		}, forcedOption, seedOption );
+		rootCommand.Add( cmd );
+	}
+
+	private static void AddBasaltRenderTestsCommand( RootCommand rootCommand )
+	{
+		var cmd = new Command( "basalt-render-tests", "Render Basalt's lab presets with BasaltLab on Lavapipe and check them against Basalt's approved images in engine/Tests/GoldenTruth/Basalt" );
+		var presetOption = new Option<string[]>( "--preset",
+			description: "Only these presets, repeatable. Default: BasaltLab's core suite",
+			getDefaultValue: () => [] )
+		{ AllowMultipleArgumentsPerToken = true };
+		var updateOption = new Option<bool>( "--update",
+			description: "Write the captures as the approved images",
+			getDefaultValue: () => false );
+		cmd.AddOption( presetOption );
+		cmd.AddOption( updateOption );
+		cmd.SetHandler( ( string[] presets, bool update ) =>
+		{
+			Environment.ExitCode = (int)new BasaltRenderTests( presets, update ).Run();
+		}, presetOption, updateOption );
 		rootCommand.Add( cmd );
 	}
 
