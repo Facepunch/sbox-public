@@ -168,6 +168,12 @@ public sealed class ShaderVariable
 	/// <summary>Where its value comes from.</summary>
 	public VariableSource Source { get; init; }
 
+	/// <summary>
+	/// The source's argument: for texture-derived sources (<c>Source( InvTextureDim ); SourceArg( g_tColor )</c>), the index
+	/// of the texture's variable in the program's table; -1 for none.
+	/// </summary>
+	public int SourceIndex { get; init; } = -1;
+
 	/// <summary>Its type.</summary>
 	public VariableType Type { get; init; }
 

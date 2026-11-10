@@ -39,7 +39,9 @@ internal sealed class Source2Backend
 		lastMs = now;
 	}
 
-	public void Start( bool sceneModules )
+	/// <param name="sceneModules">Also start the native modules SceneLab starts: world renderer, animation, physics, sound.</param>
+	/// <param name="windows">Set up SDL's window input, for a window. A capture makes none.</param>
+	public void Start( bool sceneModules, bool windows )
 	{
 		// The runtime starting and the launcher finding its dlls, before any of this ran
 		Phases.Add( ("Process", (long)(DateTime.Now - Process.GetCurrentProcess().StartTime).TotalMilliseconds) );
@@ -74,7 +76,7 @@ internal sealed class Source2Backend
 			throw new Exception( "SourceEnginePreInit failed" );
 		Phase( "SourceEnginePreInit" );
 
-		WindowInput.Initialize();
+		if ( windows ) WindowInput.Initialize();
 		Graphics.Initialize();
 		Phase( "Graphics" );
 
@@ -112,7 +114,22 @@ internal sealed class Source2Backend
 		EngineLoop.DrainFrameEndDisposables();
 	}
 
-	public RenderMesh LoadMesh( string path ) => Source2Mesh.FromModel( Model.Load( path ) );
+	/// <summary>
+	/// Lab worlds' meshes, materials and textures, loaded through the engine and kept for the run.
+	/// </summary>
+	public Source2LabContent Content { get; } = new( "Basalt Lab" );
+
+	public RenderMesh LoadMesh( string path ) => Content.Mesh( path );
+
+	/// <summary>
+	/// Load textures whole rather than streaming their mips in over real time, so frames are the same every run.
+	/// </summary>
+	public void PreloadTextures() => g_pRenderDevice.SetForcePreloadStreamingData( true );
+
+	/// <summary>
+	/// Wait for the GPU to finish everything submitted, before freeing what it might still read.
+	/// </summary>
+	public void Flush() => g_pRenderDevice.Flush();
 
 	/// <summary>
 	/// A target's resolved colour as 8-bit sRGB: a float target encoded as native's final blit would.
@@ -149,13 +166,85 @@ internal sealed class Source2Backend
 	public LabWindow CreateWindow( string title, int width, int height, bool vsync ) => new( title, width, height, vsync );
 
 	/// <summary>
-	/// Wait for the GPU, then end the process without native teardown, as the shader compiler does: nothing is left
-	/// to save, and a clean teardown of this slice of the engine isn't something anything has needed yet.
+	/// Tear down what <see cref="Start"/> started, in the order the engine's own shutdown does, so anything still holding a
+	/// native resource shows up as a leak: the run's content and frame-end work, the managed caches, then the engine. The
+	/// process then ends with <paramref name="code"/> when the launcher returns.
 	/// </summary>
 	public void Exit( int code )
 	{
+		Shutdown();
+		Environment.ExitCode = code;
+	}
+
+	/// <summary>
+	/// Drop what the engine's and Basalt's statics keep for the life of the process - default textures, fallback models,
+	/// shared materials - as the engine's own shutdown does, so they're freed rather than reported as leaks.
+	/// </summary>
+	static void ReleaseStatics()
+	{
+		Type[] held = [typeof( Texture ), typeof( Model ), typeof( Material ), typeof( ComputeShader ), typeof( Sandbox.GpuBuffer ),
+			typeof( GpuTexture ), typeof( GpuMaterial ), typeof( GpuMesh ), typeof( RenderMesh ), typeof( Basalt.GpuBuffer )];
+		var flags = System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic;
+
+		foreach ( var assembly in new[] { typeof( Texture ).Assembly, typeof( RenderSystem ).Assembly } )
+		{
+			foreach ( var type in assembly.GetTypes().Where( x => !x.IsGenericTypeDefinition ) )
+			{
+				foreach ( var field in type.GetFields( flags ) )
+				{
+					if ( field.IsLiteral || field.IsInitOnly || !held.Any( x => x.IsAssignableFrom( field.FieldType ) ) ) continue;
+					field.SetValue( null, null );
+				}
+			}
+		}
+	}
+
+	void Shutdown()
+	{
 		g_pRenderDevice.Flush();
-		EngineGlobal.Plat_ExitProcess( code );
+		Content.Dispose();
+		Basalt.Shadows.ShadowMapper.ResetCache();
+		ReleaseStatics();
+		RenderHost.Current = null;
+
+		Material.Shutdown();
+		NativeResourceCache.ClearCache();
+		RenderTarget.Shutdown();
+		RenderAttributes.Pool.Clear();
+
+		// No more frames will run, so run what's queued for the end of one
+		EngineLoop.DrainFrameEndDisposables();
+		MainThread.RunQueues();
+
+		// Finalizers release what the managed side still wraps, and some queue more work
+		for ( int i = 0; i < 2; i++ )
+		{
+			GC.Collect();
+			GC.WaitForPendingFinalizers();
+			EngineLoop.DrainFrameEndDisposables();
+			MainThread.RunQueues();
+		}
+
+		NativeResourceCache.HandleShutdownLeaks();
+		MainThread.RunQueues();
+		SceneWorld.FlushQueuedDeletes();
+
+		Graphics.Shutdown();
+		WindowInput.Shutdown();
+		EngineGlobal.SourceEngineShutdown( appSystem, false );
+		EngineLoop.DrainFrameEndDisposables();
+
+		if ( appSystem.IsValid )
+		{
+			appSystem.Destroy();
+			appSystem = default;
+		}
+
+		NativeErrorReporter.Shutdown();
+		Managed.SandboxEngine.NativeInterop.Free();
+
+		EngineFileSystem.Shutdown();
+		Application.Shutdown();
 	}
 }
 

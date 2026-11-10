@@ -25,8 +25,7 @@ internal sealed partial class SceneLabWindow : PanelWindow
 
 	readonly RenderSystem renderer = new();
 	readonly RenderView view = new() { Name = "Scene Lab", ClearColor = new Color( 0.08f, 0.09f, 0.11f ) };
-	readonly Dictionary<string, (Model Model, RenderMesh Mesh)> meshes = new();
-	readonly List<LightObject> orbitingLights = new();
+	readonly Source2LabContent content = new( "Scene Lab" );
 	readonly FrameTimer timer = new();
 
 	/// <summary>
@@ -35,20 +34,11 @@ internal sealed partial class SceneLabWindow : PanelWindow
 	const float SizeCullThreshold = 0.0025f;
 
 	RenderWorld world = new();
+	LabWorld lab;
 	NativeScene nativeScene;
 
-	// Made once, like the models - a frame still on the GPU can be using it
-	Texture sky;
-
-	// Where skinned objects are posed - never rendered, only animated
-	SceneWorld animationWorld;
 	Label stats;
 	SceneViewport viewport;
-
-	float lightRingRadius;
-	float lightHeight;
-	Vector3 focus;
-	float defaultDistance;
 
 	public float Yaw { get; set; } = 35;
 	public float Pitch { get; set; } = 25;
@@ -195,6 +185,9 @@ internal sealed partial class SceneLabWindow : PanelWindow
 		renderer.ParallelRecording = RenderSystem.ParallelRecordingDefault;
 		if ( Args.Has( "-nosizecull" ) ) view.SizeCullThreshold = 0;
 		if ( Args.Has( "-native-renderer" ) ) Renderer = RendererKind.Native;
+
+		// Golden truth images need the same mips every run: textures load whole, rather than streaming in over real time
+		if ( GoldenTruthRun.Enabled ) g_pRenderDevice.SetForcePreloadStreamingData( true );
 
 		Root.AddChild( BuildUI() );
 		Load( scene );
@@ -363,156 +356,24 @@ internal sealed partial class SceneLabWindow : PanelWindow
 		""";
 
 	/// <summary>
-	/// Replace the world with a new scene. Models are kept for the life of the window - a frame
-	/// still on the GPU can be reading the old scene's buffers.
+	/// Replace the world with a new scene, built by <see cref="LabWorld"/>. Models are kept for the life of the window - a
+	/// frame still on the GPU can be reading the old scene's buffers.
 	/// </summary>
 	public void Load( SceneLabScene scene )
 	{
 		Scene = scene;
 		if ( LoadGame( scene ) ) return;
 
-		world = new RenderWorld();
-		orbitingLights.Clear();
-
 		nativeScene?.Dispose();
 		nativeScene = null;
 
-		var models = scene.Models.Select( GetMesh ).ToArray();
-		var first = models[0];
-		var spacing = models.Max( m => MathF.Max( m.Bounds.Size.x, m.Bounds.Size.y ) ) * 1.5f;
-		var offset = (scene.Grid - 1) * spacing * 0.5f;
-
-		var material = scene.Material is null ? null : Material.Load( scene.Material );
-		var checker = scene.Checker.Select( x => (Material: x.Material is null ? null : Material.Load( x.Material ), x.Alpha) ).ToArray();
-
-		for ( int x = 0; x < scene.Grid; x++ )
-		{
-			for ( int y = 0; y < scene.Grid; y++ )
-			{
-				var position = new Vector3( x * spacing - offset, y * spacing - offset, 0 );
-				var obj = new MeshObject( models[(x + y) % models.Length], new Transform( position ) ) { IsStatic = scene.Static, MaterialOverride = Source2Material.From( material ) };
-
-				var cell = (x + y) % (checker.Length + 1) - 1;
-				if ( cell >= 0 )
-				{
-					obj.MaterialOverride = Source2Material.From( checker[cell].Material ?? material );
-					obj.Tint = Color.White.WithAlpha( checker[cell].Alpha );
-				}
-
-				if ( scene.Sequences.Length > 0 && obj.Mesh.IsSkinned )
-					Pose( obj, scene.Sequences[(x * scene.Grid + y) % scene.Sequences.Length], Args.Float( "-sequence-time", scene.SequenceTime ) );
-
-				world.Add( obj );
-			}
-		}
-
-		if ( scene.EnvMap )
-		{
-			// A box around the grid, tall as it's wide - a room for the reflections to project onto
-			var half = MathF.Max( scene.Grid * spacing, spacing * 2 ) * 0.8f;
-			var bounds = new BBox( new Vector3( -half, -half, first.Bounds.Mins.z ), new Vector3( half, half, half ) );
-			world.Add( new EnvMapObject( Source2Texture.From( Texture.Load( "textures/cubemaps/default.vtex" ) ), bounds, Transform.Zero ) );
-		}
-
-		if ( scene.Sky is not null )
-		{
-			// What SkyBox2D sets up: the sky, and a probe of its cubemap around everything, at the lowest priority
-			var sky = Material.Load( scene.Sky );
-			world.Lighting.SkyMaterial = Source2Material.From( sky );
-			world.Add( new EnvMapObject( Source2Texture.From( sky.GetTexture( "g_tSkyTexture" ) ), BBox.FromPositionAndSize( Vector3.Zero, int.MaxValue ), Transform.Zero )
-			{
-				Priority = -5,
-				Feathering = 0.01f,
-			} );
-		}
-
-		if ( scene.ImageBasedAmbient )
-			world.Lighting.AmbientColor = world.Lighting.AmbientColor.WithAlpha( 0 );
-
-		// Fog scaled to the grid: clear close up, thick at its far edge, thinning above the objects
-		var size = scene.Grid * spacing;
-		if ( scene.GradientFog )
-		{
-			world.Lighting.GradientFog = new Basalt.GradientFogSettings
-			{
-				Enabled = true,
-				StartDistance = size * 0.05f,
-				EndDistance = size * 0.8f,
-				StartHeight = 0,
-				EndHeight = first.Bounds.Size.z * 4,
-				MaximumOpacity = 0.9f,
-				DistanceFalloffExponent = 1,
-				VerticalFalloffExponent = 1,
-				Color = new Color( 0.55f, 0.6f, 0.7f ),
-			};
-		}
-
-		if ( scene.CubemapFog )
-		{
-			var fog = world.Lighting.CubemapFog;
-			fog.Enabled = true;
-			fog.Texture = Source2Texture.From( sky ??= SkyCube.Create() );
-			fog.StartDistance = size * 0.05f;
-			fog.EndDistance = size * 0.8f;
-			fog.FalloffExponent = 1;
-			fog.LodBias = 0.5f;
-			fog.Tint = Color.White;
-			fog.Transform = Transform.Zero;
-		}
-
-		if ( scene.SunDirection is { } sunDirection )
-			world.Lighting.SunDirection = sunDirection;
-
-		focus = first.Bounds.Center;
-		defaultDistance = MathF.Max( first.Bounds.Size.Length * 1.6f, scene.Grid * spacing * 1.2f );
+		lab = LabWorld.Build( scene, content );
+		world = lab.World;
 		ResetCamera();
-
-		if ( scene.HasLocalLights || scene.Floor )
-			AddLights( scene, first, MathF.Max( scene.Grid * spacing, spacing * 2 ) );
 
 		timer.Clear();
 		Title = $"Scene Lab - {scene.Name}";
 		Log.Info( $"Scene Lab: {scene.Name}, {world.Count} objects" );
-	}
-
-	RenderMesh GetMesh( string path )
-	{
-		if ( meshes.TryGetValue( path, out var entry ) ) return entry.Mesh;
-
-		var model = path == LodTestModel.Path ? LodTestModel.Create() : Model.Load( path );
-		var mesh = Source2Mesh.FromModel( model );
-		meshes[path] = (model, mesh);
-
-		var info = model.MeshInfo;
-		Log.Info( $"Scene Lab: {path}: {info.LodCount} LODs, {info.TotalTriangles} triangles across them, LOD 0 is {mesh.TriangleCount} triangles" );
-		return mesh;
-	}
-
-	Dictionary<RenderMesh, Model> ModelsByMesh() => meshes.Values.ToDictionary( x => x.Mesh, x => x.Model );
-
-	/// <summary>
-	/// Pose a skinned object from a sequence, frozen at <paramref name="time"/> (0 to 1): a native
-	/// <see cref="SceneModel"/> in a world that's never rendered evaluates it, and the object takes its bones and
-	/// bounds. The native reference then takes the object's bones, so both draw the same pose.
-	/// </summary>
-	void Pose( MeshObject obj, string sequence, float time )
-	{
-		animationWorld ??= new SceneWorld();
-
-		var animator = new SceneModel( animationWorld, obj.Mesh.Geometry.Engine(), obj.Transform ) { UseAnimGraph = false, PlaybackRate = 0 };
-		animator.CurrentSequence.Name = sequence;
-		animator.CurrentSequence.TimeNormalized = time;
-		animator.Update( 0 );
-
-		var bones = new Transform[obj.Mesh.Geometry.Engine().BoneCount];
-		animator.GetBoneWorldTransforms( bones );
-		obj.SetBones( bones );
-		// Grid objects are only placed, not rotated or scaled, so local bounds are the world bounds moved back
-		var bounds = animator.Bounds;
-		var position = obj.Transform.Position;
-		obj.LocalBounds = new BBox( bounds.Mins - position, bounds.Maxs - position );
-
-		animator.Delete();
 	}
 
 	public void ResetCamera()
@@ -523,69 +384,9 @@ internal sealed partial class SceneLabWindow : PanelWindow
 			return;
 		}
 
-		Yaw = 35;
-		Pitch = 25;
-		Distance = defaultDistance * Args.Float( "-zoom", 1 );
-	}
-
-	/// <summary>
-	/// A floor to catch the light and the shadows, a ring of point lights over it, and a spot
-	/// straight down.
-	/// </summary>
-	void AddLights( SceneLabScene scene, RenderMesh mesh, float extent )
-	{
-		// Let the local lights carry the scene
-		if ( scene.HasLocalLights )
-		{
-			world.Lighting.SunColor = world.Lighting.SunColor * scene.Sun;
-			world.Lighting.AmbientColor = new Color( 0.02f, 0.02f, 0.03f );
-		}
-
-		var floor = GetMesh( "models/dev/plane.vmdl" );
-		var floorSize = MathF.Max( floor.Bounds.Size.x, 1 );
-		var floorZ = mesh.Bounds.Mins.z - floor.Bounds.Maxs.z;
-		world.Add( new MeshObject( floor, new Transform( new Vector3( 0, 0, floorZ ), Rotation.Identity, extent * 1.6f / floorSize ) ) { IsStatic = scene.Static } );
-
-		lightRingRadius = extent * 0.35f;
-		lightHeight = mesh.Bounds.Maxs.z + mesh.Bounds.Size.z;
-
-		for ( int i = 0; i < scene.Lights; i++ )
-		{
-			var light = new LightObject( LightObject.LightKind.Point, Transform.Zero )
-			{
-				Color = new ColorHsv( i * 360.0f / scene.Lights, 0.75f, 1 ).ToColor() * 4,
-				Radius = extent * scene.LightRadius,
-				CastShadows = scene.LightShadows,
-			};
-
-			orbitingLights.Add( light );
-			world.Add( light );
-		}
-
-		if ( scene.Spot )
-		{
-			world.Add( new LightObject( LightObject.LightKind.Spot, new Transform( new Vector3( 0, 0, lightHeight * 4 ), Rotation.LookAt( Vector3.Down ) ) )
-			{
-				Color = new Color( 1.0f, 0.95f, 0.8f ) * 6,
-				Radius = lightHeight * 8,
-				ConeInner = 15,
-				ConeOuter = 25,
-				CastShadows = scene.LightShadows,
-				IsStatic = scene.Static,
-			} );
-		}
-
-		MoveLights( 0 );
-	}
-
-	void MoveLights( float time )
-	{
-		for ( int i = 0; i < orbitingLights.Count; i++ )
-		{
-			var angle = time * 0.5f + i * MathF.Tau / orbitingLights.Count;
-			var position = new Vector3( MathF.Cos( angle ), MathF.Sin( angle ), 0 ) * lightRingRadius + Vector3.Up * lightHeight;
-			orbitingLights[i].Transform = new Transform( position );
-		}
+		Yaw = LabWorld.DefaultYaw;
+		Pitch = LabWorld.DefaultPitch;
+		Distance = (lab?.DefaultDistance ?? 0) * Args.Float( "-zoom", 1 );
 	}
 
 	readonly string gameScenePath = Args.String( "-gamescene" );
@@ -701,19 +502,16 @@ internal sealed partial class SceneLabWindow : PanelWindow
 		if ( rect.Width < 1 || rect.Height < 1 ) return;
 
 		view.Viewport = rect;
-		view.Rotation = Rotation.From( Pitch, Yaw, 0 );
-		view.Position = focus - view.Rotation.Forward * Distance;
-		view.ZNear = MathF.Max( 0.1f, Distance * 0.01f );
-		view.ZFar = Distance * 10.0f;
+		lab.Aim( view, Pitch, Yaw, Distance );
 
 		// Captures freeze the lights so they're repeatable
-		if ( Scene.Orbit ) MoveLights( capturing ? 0 : RealTime.Now );
+		if ( Scene.Orbit ) lab.MoveLights( capturing ? 0 : RealTime.Now );
 
 		timer.BeginRender();
 
 		if ( Renderer == RendererKind.Native && !capturing )
 		{
-			nativeScene ??= new NativeScene( world, ModelsByMesh(), renderer.Shadows );
+			nativeScene ??= new NativeScene( world, content.ModelsByMesh(), renderer.Shadows );
 			nativeScene.Render( swapChain, view, size );
 		}
 		else if ( RenderToTexture )
@@ -764,10 +562,14 @@ internal sealed partial class SceneLabWindow : PanelWindow
 
 		if ( CapturePath is not null && frame == captureFrame )
 		{
-			var result = Capture( swapChain, size, CapturePath, Args.Has( "-native" ) || parity is not null );
+			// Checked against golden truth images rather than native, when there are golden truth images. A capture
+			// that couldn't read the frame back writes nothing, so an older file at the path mustn't stand in for it
+			if ( GoldenTruthRun.Enabled && System.IO.File.Exists( CapturePath ) ) System.IO.File.Delete( CapturePath );
+			var result = Capture( swapChain, size, CapturePath, (Args.Has( "-native" ) || parity is not null) && !GoldenTruthRun.Enabled );
 			Log.Info( $"Scene Lab: {renderer.Stats}" );
 			CapturePlan( CapturePath );
-			if ( pendingReference is null ) FinishCapture( result );
+			if ( GoldenTruthRun.Enabled ) CheckGoldenTruth( CapturePath );
+			else if ( pendingReference is null ) FinishCapture( result );
 		}
 
 		// A few frames on, so the queued native view has rendered and the GPU is done with it
@@ -813,10 +615,20 @@ internal sealed partial class SceneLabWindow : PanelWindow
 		Log.Info( $"Scene Lab: debug views to {debugPath}" );
 	}
 
-	void FinishCapture( FrameComparison.Parity? result )
+	/// <summary>
+	/// <c>-golden-truth</c>: check the capture against the preset's golden truth images instead of native. A failure
+	/// exits with code 2 as a parity failure does, and a parity run lists it in its table.
+	/// </summary>
+	void CheckGoldenTruth( string path )
+	{
+		var golden = System.IO.File.Exists( path ) ? GoldenTruthRun.Check( Scene.Name, path ) : new GoldenTruthRun.Result( false, "golden truth FAILED: no capture" );
+		FinishCapture( new FrameComparison.Parity( 1, 0, golden.Passed ? 0 : 1 ), golden.Text );
+	}
+
+	void FinishCapture( FrameComparison.Parity? result, string text = null )
 	{
 		if ( result is { Matches: false } ) Environment.ExitCode = 2;
-		parity?.Report( result?.ToString() ?? "no result", result );
+		parity?.Report( text ?? result?.ToString() ?? "no result", result );
 		CaptureDone();
 	}
 
@@ -901,7 +713,7 @@ internal sealed partial class SceneLabWindow : PanelWindow
 		if ( !native ) return null;
 
 		var nativePath = System.IO.Path.ChangeExtension( path, ".native.png" );
-		var reference = new NativeScene( world, ModelsByMesh(), renderer.Shadows );
+		var reference = new NativeScene( world, content.ModelsByMesh(), renderer.Shadows );
 
 		if ( managedTarget is { Samples: > 1 } )
 		{
@@ -988,10 +800,7 @@ internal sealed partial class SceneLabWindow : PanelWindow
 		target?.Dispose();
 		target = null;
 
-		animationWorld?.Delete();
-		animationWorld = null;
-
-		meshes.Clear();
+		content.Dispose();
 		renderer.Dispose();
 	}
 }

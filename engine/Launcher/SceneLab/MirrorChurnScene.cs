@@ -5,7 +5,7 @@ namespace Sandbox.SceneLab;
 /// spawns props and citizens that live a second each, cycling through models, body groups, material groups, material
 /// overrides and materials made at runtime, and changes the overrides of those alive; then it stops, and the scene empties.
 /// Halfway it reloads a model and a material the props draw with. The window logs the mirror's cache counts as it goes
-/// (<see cref="SceneLabScene.ReportMirror"/>), so growth shows as a number.
+/// (<see cref="SceneLabScene.ReportMirror"/>), so growth shows as a number. Parity compares it mid-churn, isolated.
 /// </summary>
 internal static class MirrorChurnScene
 {
@@ -13,6 +13,17 @@ internal static class MirrorChurnScene
 	const int Lifetime = 60;
 	const int PerFrame = 8;
 	const int ReloadFrame = 1500;
+
+	/// <summary>
+	/// Places on a grid, each taken by one object at a time: more than live at once, so no two ever coincide. Coincident
+	/// boxes z-fight, and each renderer shows whichever it happens to draw first.
+	/// </summary>
+	const int Side = 24;
+
+	/// <summary>
+	/// The frame parity compares at: mid-churn, after the reload, with meshes being dropped and made again.
+	/// </summary>
+	public const int CaptureFrame = ReloadFrame + 60;
 	const int ReportEvery = 250;
 
 	/// <summary>
@@ -93,7 +104,10 @@ internal static class MirrorChurnScene
 
 	static void Spawn( int n )
 	{
-		var position = new Vector3( (n * 37 % 30 - 15) * 40, (n * 11 % 30 - 15) * 40, 0 );
+		// Scattered over the grid: 7 is prime to its size, so consecutive spawns land apart and a place comes round again only
+		// after Side * Side spawns, longer than an object lives
+		var place = n * 7 % (Side * Side);
+		var position = new Vector3( (place % Side - Side / 2.0f + 0.5f) * 50, (place / Side - Side / 2.0f + 0.5f) * 50, 0 );
 		GameObject go;
 
 		if ( n % 10 == 0 )

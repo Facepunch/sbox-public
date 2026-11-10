@@ -12,6 +12,8 @@ namespace Sandbox.SceneLab;
 /// <item><c>-scene "Name"</c> - start with one of the Scene menu's presets.</item>
 /// <item><c>-debugshader</c> - start with the debug shader (faces tinted by axis) instead of the models' materials.</item>
 /// <item><c>-capture path.png</c> - save the frame picked by <c>-capture-frame</c> (default 30), then exit.</item>
+/// <item><c>-golden-truth folder</c> - with <c>-capture</c> or <c>-parity</c>, check captures against approved images
+/// instead of native (<see cref="GoldenTruthRun"/>).</item>
 /// <item><c>-native</c> - with <c>-capture</c>, also render the same world with the native scenesystem to
 /// path.native.png and compare the two. Exits with code 2 if they differ.</item>
 /// <item><c>-width</c> / <c>-height</c> - window size.</item>
@@ -57,6 +59,15 @@ internal sealed class SceneLabAppSystem : PanelAppSystem
 		{
 			window.Dispose();
 			window = null;
+
+			// What validation logged after the last golden truth check, its frame's end and the window's teardown
+			// included: the window leaves its swap chain and itself to frame end, so run that now rather than after the
+			// check. The engine's own shutdown comes after logging stops, so it isn't covered
+			if ( GoldenTruthRun.Enabled )
+			{
+				EngineLoop.DrainFrameEndDisposables();
+				if ( !GoldenTruthRun.Finish() ) Environment.ExitCode = 2;
+			}
 		}
 
 		return running;

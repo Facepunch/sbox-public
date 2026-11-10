@@ -1,4 +1,4 @@
-namespace Sandbox.SceneLab;
+namespace Sandbox.Lab;
 
 /// <summary>
 /// A model built at runtime whose LODs are different shapes - a sphere, then a cube, then an
@@ -8,7 +8,7 @@ namespace Sandbox.SceneLab;
 internal static class LodTestModel
 {
 	/// <summary>
-	/// What Scene Lab scenes name it by in place of a model path.
+	/// What lab presets name it by in place of a model path.
 	/// </summary>
 	public const string Path = "procedural/lod_test";
 
