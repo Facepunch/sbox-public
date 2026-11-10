@@ -297,6 +297,10 @@ public sealed partial class RenderSystem : IDisposable
 		var submitted = false;
 		try
 		{
+			// Skinning can be recorded on a worker only when the frame's draws aren't on the setup context it must precede
+			meshes.SkinOnWorker = recorder.Parallel;
+			if ( skybox is not null ) skybox.meshes.SkinOnWorker = recorder.Parallel;
+
 			using ( Zones.Setup.Start() ) Setup( frame );
 
 			if ( (frame.DebugViews & DebugViews.ShadowMaps) != 0 ) shadows.Describe( DebugReport, view.Viewport );
@@ -340,11 +344,16 @@ public sealed partial class RenderSystem : IDisposable
 				RenderHost.Current.Device.SetSubmitTag( 0 );
 			}
 			submitted = true;
+
+			// A skybox whose frame wasn't planned drew nothing with its setup work
+			skybox?.EndSetupWork( true );
 		}
 		finally
 		{
 			if ( !submitted )
 			{
+				EndSetupWork( false );
+				skybox?.EndSetupWork( false );
 				recorder.End();
 				context.End();
 
@@ -477,6 +486,18 @@ public sealed partial class RenderSystem : IDisposable
 		for ( int i = 0; i < features.Count; i++ )
 			features[i].Setup( context, world, mainPass );
 		context.EndGpuScope( scope );
+
+		for ( int i = 0; i < features.Count; i++ )
+			features[i].BeginSetupWork();
+	}
+
+	/// <summary>
+	/// Finish the features' setup work on workers: submit it right after this system's setup context, or discard it.
+	/// </summary>
+	internal void EndSetupWork( bool submit )
+	{
+		for ( int i = 0; i < features.Count; i++ )
+			features[i].EndSetupWork( submit );
 	}
 
 	long lap;

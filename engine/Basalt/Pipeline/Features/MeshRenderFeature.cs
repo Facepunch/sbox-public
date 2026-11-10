@@ -901,6 +901,8 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		defaultMaterial?.Dispose();
 		defaultMaterial = null;
 		volumeRing.Dispose();
+		skinningContext?.Dispose();
+		skinningContext = null;
 	}
 
 	/// <summary>
