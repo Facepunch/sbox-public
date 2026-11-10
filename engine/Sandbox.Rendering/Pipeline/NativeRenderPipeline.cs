@@ -84,8 +84,6 @@ internal sealed class NativeRenderPipeline : INativeRenderPipeline
 	/// </summary>
 	public void WarmUp()
 	{
-		Basalt.RenderSystem.WarmUp();
-
 		foreach ( var type in typeof( NativeRenderPipeline ).Assembly.GetTypes() )
 		{
 			if ( type.Namespace == typeof( NativeRenderPipeline ).Namespace )

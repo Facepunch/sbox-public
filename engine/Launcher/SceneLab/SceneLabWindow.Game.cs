@@ -195,6 +195,9 @@ internal sealed partial class SceneLabWindow
 		if ( Scene.Ready is { } ready && !ready( game ) ) return;
 		frame++;
 
+		if ( Renderer == RendererKind.Managed && Scene.ReportMirror?.Invoke( game ) is { } label && gameBridge?.CachesFor( camera.SceneCamera, camera.SceneCamera.MainView ) is { } caches )
+			Log.Info( $"Scene Lab: {Scene.Name}, {label}: mirror holds {caches}" );
+
 		if ( benchmark is not null )
 		{
 			if ( benchmark.Frame( this, timer ) )
