@@ -57,6 +57,16 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		public Texture TextureTargetDepth;
 
 		/// <summary>
+		/// The view's own attributes (<see cref="RenderView.ViewAttributes"/>): its planar reflection.
+		/// </summary>
+		public RenderAttributes ViewAttributes;
+
+		/// <summary>
+		/// The frustum the view's planar reflection planes are tested against.
+		/// </summary>
+		public PlanarFrustum PlanarFrustum;
+
+		/// <summary>
 		/// Whether this view's frame is being rendered now: a child view asked for while it draws can't be this view again.
 		/// </summary>
 		public bool Rendering;
@@ -297,7 +307,83 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		state.Stages.Renderer = this;
 		state.Stages.IsChild = parent is not null;
 		state.View.ToneMapScalar = state.Stages.BeginFrame( camera, state.View, setup, updateExposure );
+
+		// A top-level view's planar reflection renders first, since it depends on nothing in the view's frame
+		if ( parent is null ) RenderPlanarReflection( camera, mirror, state, setup );
 		return (mirror, state);
+	}
+
+	/// <summary>
+	/// Render a top-level view's planar reflection, as native's pipeline does for its views (<see cref="PlanarReflections"/>): the
+	/// plane covering the most of its screen, mirrored, as a reflection view of its own, submitted before the view, and published
+	/// in the view's own attributes for the water on that plane. Reflections and orthographic views have none.
+	/// </summary>
+	void RenderPlanarReflection( SceneCamera camera, SceneMirror mirror, CameraState state, in ViewSetup setup )
+	{
+		// The frame's attributes start empty, so without one published HasPlanarReflection is off
+		var view = state.View;
+		view.ViewAttributes = null;
+		if ( setup.Reflection || view.Orthographic || camera.World is null ) return;
+
+		var eye = new Transform( view.Position, view.Rotation );
+		var viewport = view.Viewport;
+		var aspect = viewport.Height > 0 ? viewport.Width / viewport.Height : 1;
+		var frustum = state.PlanarFrustum ??= new PlanarFrustum();
+		frustum.Of( view );
+		if ( !PlanarReflections.Plan( camera, eye, view.FieldOfView, aspect, view.ZNear, view.ZFar, viewport.Size, new Visibility( frustum ), out var planned ) )
+			return;
+
+		var reflection = CommandList.ReflectionView( eye, view.FieldOfView, aspect, view.ZNear, view.ZFar, planned.Plane, planned.Setup );
+		var target = planned.Target;
+		camera.ConfigureView( reflection );
+		var rendered = RenderToTexture( camera, reflection, target.ColorTarget, target.DepthTarget, out var reflected, updateExposure: false );
+
+		// The reflection's prepare set the world's 3D skybox up for its view
+		SyncSkybox( mirror, camera, setup );
+		if ( !rendered ) return;
+
+		var attributes = state.ViewAttributes ??= new RenderAttributes();
+		PlanarReflections.Publish( attributes.Get(), planned, ViewDataFor( reflected, target.ColorTarget ) );
+		view.ViewAttributes = Source2Parameters.From( attributes );
+	}
+
+	/// <summary>
+	/// A view's frustum, made only when a reflection plane needs testing against it, from a copy of the view: updating the view
+	/// itself would lose last frame's projection, which it keeps for reprojection.
+	/// </summary>
+	internal sealed class PlanarFrustum
+	{
+		readonly RenderView copy = new();
+		RenderView view;
+
+		public void Of( RenderView view ) => this.view = view;
+
+		public bool Sees( in BBox bounds )
+		{
+			if ( view is not null )
+			{
+				copy.Position = view.Position;
+				copy.Rotation = view.Rotation;
+				copy.FieldOfView = view.FieldOfView;
+				copy.ZNear = view.ZNear;
+				copy.ZFar = view.ZFar;
+				copy.Viewport = view.Viewport;
+				copy.Projection = view.Projection;
+				copy.ClipSpaceBounds = view.ClipSpaceBounds;
+				copy.Update();
+				view = null;
+			}
+
+			return copy.Frustum.Intersects( bounds.Center, bounds.Extents );
+		}
+	}
+
+	/// <summary>
+	/// A plane's reflecting area against a view's frustum.
+	/// </summary>
+	readonly struct Visibility( PlanarFrustum frustum ) : PlanarReflections.IVisibility
+	{
+		public bool Sees( in BBox bounds ) => frustum.Sees( bounds );
 	}
 
 	/// <summary>
@@ -609,12 +695,20 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 			ChildDepth--;
 		}
 
-		// What native's child view hands its samplers (CCameraRenderer::RenderToTexture): the inverse reverse-Z projection, in
-		// the engine's column-vector layout, the main world's viewport and depth range, and how the colour was flipped
+		viewData = ViewDataFor( state, target );
+		return true;
+	}
+
+	/// <summary>
+	/// What native's texture render hands a view's samplers (<c>CCameraRenderer::RenderToTexture</c>): the inverse reverse-Z
+	/// projection, in the engine's column-vector layout, the main world's viewport and depth range, and how the colour was flipped.
+	/// </summary>
+	static ViewData ViewDataFor( CameraState state, Texture target )
+	{
 		var view = state.View;
 		var size = new Vector2( target.Width, target.Height );
 		var viewport = view.Viewport;
-		viewData = new ViewData
+		return new ViewData
 		{
 			IsValid = true,
 			ProjectionToView = view.ViewToProjection.Inverted.Transpose(),
@@ -622,7 +716,6 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 			DepthRange = new Vector2( state.System.DepthMin, state.System.DepthMax ),
 			DepthUvScaleBias = new Vector4( view.FlipX ? -1 : 1, view.FlipY ? -1 : 1, view.FlipX ? 1 : 0, view.FlipY ? 1 : 0 ),
 		};
-		return true;
 	}
 
 	/// <summary>
@@ -636,12 +729,12 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		return Source2Formats.From( target.ImageFormat ).IsFloat() && Source2Texture.From( target ).Samples == Source2Texture.From( depthTarget ).Samples;
 	}
 
-	bool RenderToTexture( SceneCamera camera, in ViewSetup setup, Texture target, Texture depthTarget, out CameraState state )
+	bool RenderToTexture( SceneCamera camera, in ViewSetup setup, Texture target, Texture depthTarget, out CameraState state, bool updateExposure = true )
 	{
 		state = null;
 		if ( target.Width < 1 || target.Height < 1 ) return false;
 
-		(var mirror, state) = Prepare( camera, setup, target.Size );
+		(var mirror, state) = Prepare( camera, setup, target.Size, updateExposure );
 		using var drawing = new Drawing( this, state );
 
 		// Non-float outputs need HDR blending before the copy.

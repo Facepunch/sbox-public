@@ -496,6 +496,7 @@ public sealed partial class RenderSystem : IDisposable
 
 		// Camera attributes precede pipeline overrides.
 		view.CameraAttributes?.MergeTo( context.Attributes );
+		view.ViewAttributes?.MergeTo( context.Attributes );
 		frame.SetViewConstants( context );
 
 		// Create shadow maps before writing their indices into sun constants.

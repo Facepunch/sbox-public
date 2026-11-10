@@ -117,6 +117,12 @@ public sealed class RenderView
 	internal ShaderParameters CameraAttributes { get; set; }
 
 	/// <summary>
+	/// Optional attributes of this view alone, merged over the camera's: what the host publishes for one of a camera's views,
+	/// such as its planar reflection. Its 3D skybox doesn't get them.
+	/// </summary>
+	internal ShaderParameters ViewAttributes { get; set; }
+
+	/// <summary>
 	/// Camera-local analytic fog. Null keeps the world's legacy gradient and cubemap fog.
 	/// Stored on the view so cameras sharing a RenderWorld cannot overwrite one another.
 	/// </summary>
