@@ -38,12 +38,6 @@ public abstract class RenderObject
 	internal int TransformVersion { get; private set; }
 
 	/// <summary>
-	/// Transform slot and generation shared by all views this frame.
-	/// </summary>
-	internal int Slot;
-	internal int SlotGeneration = -1;
-
-	/// <summary>
 	/// Whether to use the spatial tree and screen-size culling. Lights opt out because their influence exceeds their bounds.
 	/// </summary>
 	internal virtual bool SizeCulled => true;

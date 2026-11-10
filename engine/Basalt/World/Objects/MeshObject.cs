@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace Basalt;
 
 /// <summary>
@@ -94,6 +96,7 @@ public sealed class MeshObject : RenderObject
 	/// <summary>
 	/// How the object blends at a LOD: its override's blend, or its mesh's.
 	/// </summary>
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
 	internal MeshBlend BlendForLod( int lod )
 	{
 		if ( MaterialOverride is not null ) return OverrideTranslucent ? MeshBlend.Translucent : MeshBlend.Opaque;
@@ -236,7 +239,11 @@ public sealed class MeshObject : RenderObject
 	/// <summary>
 	/// Whether it's drawn skinned, from bones - its mesh has a skeleton.
 	/// </summary>
-	internal bool IsSkinned => Mesh is { IsSkinned: true };
+	internal bool IsSkinned
+	{
+		[MethodImpl( MethodImplOptions.AggressiveInlining )]
+		get => mesh is { IsSkinned: true };
+	}
 
 	/// <summary>
 	/// Shader-layout deformation volumes (<c>CSceneAnimatableObject::SetDeformationVolumes</c>).

@@ -11,4 +11,13 @@
 		<ProjectReference Include="..\..\Sandbox.System\Sandbox.System.csproj" />
 	</ItemGroup>
 
+	<!--
+		Built on its own (dotnet test on this project), Basalt and Sandbox.System build into this project's folder. Basalt's
+		own OutputPath is game/bin/managed, where a Debug build replaces the Release one SceneLab and the engine run, and
+		every benchmark after it measures unoptimised code. In a solution build they build once, as usual.
+	-->
+	<ItemGroup Condition="'$(SolutionDir)' == '' Or '$(SolutionDir)' == '*Undefined*'">
+		<ProjectReference Update="..\..\Basalt\Basalt.csproj;..\..\Sandbox.System\Sandbox.System.csproj" AdditionalProperties="OutputPath=$(MSBuildProjectDirectory)\bin\Basalt\$(Configuration)\" />
+	</ItemGroup>
+
 </Project>

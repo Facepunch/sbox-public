@@ -205,9 +205,10 @@ public class PipelineTests
 		Assert.AreEqual( 1 + shadowRuns.Length, system.Transforms.InstanceCount, "an instance per view" );
 
 		var main = feature.RunsFor( system.MainPass ).Opaque.Single();
-		Assert.AreEqual( obj.Slot, system.Transforms.InstanceSlot( main.FirstInstance ) );
+		var slot = system.Transforms.SlotOf( obj );
+		Assert.AreEqual( slot, system.Transforms.InstanceSlot( main.FirstInstance ) );
 		foreach ( var run in shadowRuns )
-			Assert.AreEqual( obj.Slot, system.Transforms.InstanceSlot( run.FirstInstance ) );
+			Assert.AreEqual( slot, system.Transforms.InstanceSlot( run.FirstInstance ) );
 	}
 
 	/// <summary>

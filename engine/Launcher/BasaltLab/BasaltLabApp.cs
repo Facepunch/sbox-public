@@ -13,6 +13,7 @@ namespace Sandbox.BasaltLab;
 /// <item><c>-frames N</c> - close the window after N frames.</item>
 /// <item><c>-novsync</c> - don't wait for the display.</item>
 /// <item><c>-scene-modules</c> - also start the native modules SceneLab starts (world renderer, animation, physics, sound).</item>
+/// <item><c>-ui-parity folder</c> - draw a card of UI through Source 2 and through a Basalt.Gpu device, compare and exit (<see cref="UiParity"/>).</item>
 /// </list>
 /// Startup and frame times go to the log, and a summary to the console.
 /// </summary>
@@ -22,6 +23,13 @@ internal static class BasaltLabApp
 	{
 		var backend = new Source2Backend();
 		backend.Start( sceneModules: Args.Has( "-scene-modules" ) );
+
+		if ( Args.String( "-ui-parity" ) is { } parity )
+		{
+			var code = UiParity.Run( backend, parity );
+			backend.Exit( code );
+			return code;
+		}
 
 		var width = Args.Int( "-width", 640 );
 		var height = Args.Int( "-height", 360 );
