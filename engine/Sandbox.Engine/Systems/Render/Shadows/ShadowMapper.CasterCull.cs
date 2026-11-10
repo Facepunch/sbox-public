@@ -99,8 +99,11 @@ internal partial class ShadowMapper
 			if ( kept[edge.FaceA] == kept[edge.FaceB] )
 				continue;
 
-			var apex = directional ? corners[edge.A] - lightDirection : lightPosition;
-			var plane = new Plane( corners[edge.A], corners[edge.B], apex );
+			// A sun's side runs along the light from the edge. Taken as a third point a unit off the edge, it would
+			// be lost in the edge's own coordinates
+			var plane = directional
+				? new Plane( corners[edge.A], Vector3.Cross( corners[edge.B] - corners[edge.A], lightDirection ) )
+				: new Plane( corners[edge.A], corners[edge.B], lightPosition );
 			if ( plane.Normal.LengthSquared < 0.5f ) // Edge in line with the light, its faces already bound it
 				continue;
 

@@ -161,6 +161,21 @@ internal partial class ShadowMapper
 	}
 
 	/// <summary>
+	/// Stretch a shadowed range's corners (the view's, remapped to the range) from <paramref name="farClip"/> out to
+	/// <paramref name="reach"/> from the camera. Shading picks a cascade by its sphere, and the last one's goes round the
+	/// far end of the range rather than stopping at it: down the middle of the view it's a third of the range past the
+	/// far plane, and what's seen in there is shadowed too.
+	/// </summary>
+	static void ExtendShadowedRange( Span<Vector3> viewFrustumCorners, float nearClip, float farClip, float reach )
+	{
+		float t = (reach - nearClip) / (farClip - nearClip);
+		if ( !(t > 1) ) return;
+
+		for ( int i = 0; i < 4; i++ )
+			viewFrustumCorners[i + 4] = viewFrustumCorners[i] + (viewFrustumCorners[i + 4] - viewFrustumCorners[i]) * t;
+	}
+
+	/// <summary>
 	/// Given a camera view, computes cascade frustums into the provided span.
 	/// Returns the number of cascades written.
 	///
@@ -228,13 +243,10 @@ internal partial class ShadowMapper
 			viewFrustumCorners[i + 4] = Vector3.Lerp( origNear, origFar, tFar );
 		}
 
-		// Casters that can shadow the shadowed part of the view: that range swept toward the light
-		Span<Vector3> worldCorners = stackalloc Vector3[8];
-		for ( int i = 0; i < 8; i++ )
-			worldCorners[i] = ViewToWorld( viewFrustumCorners[i], view );
-		casterPlaneCount = BuildCasterVolume( worldCorners, rotation.Forward, casterPlanes );
-
 		int count = Math.Min( numCascades, result.Length );
+
+		// How far from the camera the cascades' spheres go
+		float reach = FarClip;
 
 		// Ortho for each cascade
 		Span<Vector3> splitFrustumCorners = stackalloc Vector3[8];
@@ -287,6 +299,24 @@ internal partial class ShadowMapper
 				SphereCenter = sphereCenter,
 				SphereRadius = frustumRadius
 			};
+
+			reach = Math.Max( reach, splitFrustumCenter.Length + frustumRadius );
+		}
+
+		// Casters that can shadow what the camera sees shadowed: that part of the view swept toward the light. Built round
+		// the camera and moved out to it after: the near corners are a unit apart, which a float far from the world origin
+		// holds less of the further out it is, and planes through them swing off the view with it (4 units, 4000 along
+		// them, 200000 from the origin).
+		ExtendShadowedRange( viewFrustumCorners, NearClip, FarClip, reach );
+		Span<Vector3> hullCorners = stackalloc Vector3[8];
+		for ( int i = 0; i < 8; i++ )
+			hullCorners[i] = (Vector3)System.Numerics.Vector3.TransformNormal( viewFrustumCorners[i], view.ViewToWorldRotation );
+		casterPlaneCount = BuildCasterVolume( hullCorners, rotation.Forward, casterPlanes );
+		for ( int i = 0; i < casterPlaneCount; i++ )
+		{
+			var plane = casterPlanes[i];
+			double offset = (double)plane.x * view.CameraPosition.x + (double)plane.y * view.CameraPosition.y + (double)plane.z * view.CameraPosition.z;
+			casterPlanes[i] = plane with { w = (float)(plane.w - offset) };
 		}
 
 		return count;

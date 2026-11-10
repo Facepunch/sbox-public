@@ -302,6 +302,120 @@ public class ShadowTests
 	}
 
 	/// <summary>
+	/// Shading picks a cascade by its sphere, and the last one's goes round the end of the shadow range rather than stopping
+	/// at it: down the middle of the view, things are shadowed a third of the range further out. What a caster shadows
+	/// there is seen, so the sun's caster volume has to reach the end of that sphere.
+	/// </summary>
+	[TestMethod]
+	public void SunCasterVolumeReachesTheEndOfTheLastCascadeSphere()
+	{
+		var view = new RenderView
+		{
+			FieldOfView = 90,
+			ZNear = 5,
+			ZFar = 100000,
+			Viewport = new Rect( 0, 0, 1920, 1080 ),
+		};
+		view.Update();
+
+		var world = new RenderWorld();
+		world.Lighting.SunDirection = Vector3.Down;
+		using var system = new RenderSystem();
+
+		var casterCull = Sandbox.Rendering.ShadowMapper.CasterCull;
+		try
+		{
+			Sandbox.Rendering.ShadowMapper.CasterCull = true;
+			Sandbox.Rendering.ShadowMapper.ResetCache();
+			CollectAndPrepare( system, world, view );
+
+			// The last cascade looks down on its sphere from 4096 over the top of it
+			var last = system.ShadowMaps.Passes.ToArray().MaxBy( p => p.View.OrthoSize.x );
+			var radius = last.View.OrthoSize.x * 0.5f;
+			var center = last.View.Position + Vector3.Down * (radius + 4096);
+			var seen = center + Vector3.Forward * radius * 0.9f;
+
+			var volume = Sandbox.Rendering.ShadowMapper.FindCasterVolume( last.View.Position );
+			Assert.IsNotNull( volume );
+			for ( int i = 0; i < volume.PlaneCount; i++ )
+			{
+				var plane = volume.Planes[i];
+				var distance = seen.x * plane.x + seen.y * plane.y + seen.z * plane.z + plane.w;
+				Assert.IsTrue( distance >= -1f, $"what's seen {seen.x:0} out, in a sphere of {radius:0} round {center.x:0}, is {-distance:0} outside plane {i}" );
+			}
+		}
+		finally
+		{
+			Sandbox.Rendering.ShadowMapper.CasterCull = casterCull;
+		}
+	}
+
+	/// <summary>
+	/// The sun's caster volume is the same shape wherever the camera is. Its near corners are a unit apart, which a float far
+	/// from the origin can't hold: planes built through them in world space swung wide of the view, by more the further
+	/// along them a caster was.
+	/// </summary>
+	[TestMethod]
+	public void SunCasterVolumeKeepsItsShapeFarFromTheOrigin()
+	{
+		var view = new RenderView
+		{
+			FieldOfView = 90,
+			ZNear = 5,
+			ZFar = 30000,
+			Viewport = new Rect( 0, 0, 1920, 1080 ),
+		};
+
+		var sun = new Vector3( 0.37f, 0.53f, -0.76f ).Normal;
+		var world = new RenderWorld();
+		world.Lighting.SunDirection = sun;
+		using var system = new RenderSystem();
+
+		Vector4[] Planes( Vector3 position )
+		{
+			view.Position = position;
+			view.Update();
+			CollectAndPrepare( system, world, view );
+
+			var nearest = system.ShadowMaps.Passes.ToArray().MinBy( p => p.View.OrthoSize.x );
+			var volume = Sandbox.Rendering.ShadowMapper.FindCasterVolume( nearest.View.Position );
+			Assert.IsNotNull( volume );
+			return volume.Planes.AsSpan( 0, volume.PlaneCount ).ToArray();
+		}
+
+		var casterCull = Sandbox.Rendering.ShadowMapper.CasterCull;
+		try
+		{
+			Sandbox.Rendering.ShadowMapper.CasterCull = true;
+			Sandbox.Rendering.ShadowMapper.ResetCache();
+
+			// Not on the grid floats land on out here, and not looking along it
+			var far = new Vector3( -42000.37f, 198800.61f, 5830.23f );
+			view.Rotation = Rotation.From( 4.1f, 33.7f, 0 );
+			var expected = Planes( Vector3.Zero );
+			var planes = Planes( far );
+			Assert.IsTrue( expected.Length >= 4 );
+			Assert.AreEqual( expected.Length, planes.Length );
+
+			// Where casters are: toward the sun from what's seen, out to the 4096 a cascade is pulled back by
+			foreach ( var seen in new[] { new Vector3( 50, 20, 20 ), new Vector3( 400, -180, 150 ), new Vector3( 3000, 1200, -900 ) } )
+			{
+				var caster = seen - sun * 4000;
+				for ( int i = 0; i < planes.Length; i++ )
+				{
+					double atOrigin = (double)expected[i].x * caster.x + (double)expected[i].y * caster.y + (double)expected[i].z * caster.z + expected[i].w;
+					double atFar = planes[i].x * ((double)far.x + caster.x) + planes[i].y * ((double)far.y + caster.y) + planes[i].z * ((double)far.z + caster.z) + planes[i].w;
+					Assert.AreEqual( atOrigin, atFar, 1.0, $"plane {i}, over what's seen at {seen}" );
+				}
+			}
+		}
+		finally
+		{
+			Sandbox.Rendering.ShadowMapper.CasterCull = casterCull;
+		}
+	}
+
+	/// <summary>
 	/// A face left out before renders as soon as the camera turns to where it can see what that face casts onto -
 	/// the map would hand back depth that was never drawn otherwise.
 	/// </summary>
