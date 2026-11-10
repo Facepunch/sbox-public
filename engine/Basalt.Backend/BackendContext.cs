@@ -16,7 +16,7 @@ namespace Basalt.Backend;
 /// serial recording on one queue. Parallel segments and async compute need per-segment tracking with fix-ups at
 /// submission; until then the backend's host turns both off.
 /// </remarks>
-internal sealed class BackendContext : GpuContext
+internal sealed partial class BackendContext : GpuContext
 {
 	/// <summary>
 	/// What a command list is in the middle of. Segments recording into their frame's list share it.
@@ -453,7 +453,7 @@ internal sealed class BackendContext : GpuContext
 	// of its name from this context's parameters, or a default
 	//
 
-	public override bool DrawModel( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false )
+	bool DrawByReflection( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias, float slopeScaledDepthBias, bool stripPixelShader, bool skinned )
 	{
 		if ( material is not BackendMaterial { Shader: { } shader } m || mesh.Geometry is not IBackendGeometry source || skinned ) return false;
 		if ( InstanceIds?.Resource is not BackendBuffer instanceIds ) return false;
