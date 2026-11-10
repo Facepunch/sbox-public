@@ -62,6 +62,18 @@ public static partial class Graphics
 		public bool ComputeQueue;
 
 		/// <summary>
+		/// The renderer drawing this frame, which renders the views asked for while it draws (<see cref="SceneCamera"/>'s
+		/// <c>RenderToTexture</c>) as children of it. Null leaves them to <see cref="Rendering.SceneRenderer.Current"/>.
+		/// </summary>
+		public Rendering.ISceneRenderer Renderer;
+
+		/// <summary>
+		/// Whether this frame is another's child view (<see cref="Graphics.IsChildView"/>): command lists draw no views of their
+		/// own in one, as native's child views don't.
+		/// </summary>
+		public bool IsChild;
+
+		/// <summary>
 		/// What <c>ISceneView.GetPostProcessEnabled</c> and <c>GetToolsVisMode</c> say for a native view.
 		/// </summary>
 		public bool PostProcessEnabled = true;
@@ -120,8 +132,7 @@ public static partial class Graphics
 		bool IFrameView.PostProcessEnabled => PostProcessEnabled;
 		int IFrameView.ToolsVisMode => ToolsVisMode;
 
-		// A managed frame is always a camera's own
-		bool IFrameView.IsChildView => false;
+		bool IFrameView.IsChildView => IsChild;
 
 		// The renderer owns its targets; callers don't destroy them
 		ITexture IFrameView.GetColorTarget( out bool owned )

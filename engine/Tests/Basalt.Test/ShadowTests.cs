@@ -54,6 +54,39 @@ public class ShadowTests
 	/// The sun gets four orthographic cascades, each bigger than the last, and each keeps the casters the one before it
 	/// covers: both are sampled where they blend.
 	/// </summary>
+	/// <summary>
+	/// An oblique view's sun cascades are the plain view's: they fit a near plane square to the view, not its clip plane, which
+	/// would point them along the plane and shrink them round the camera.
+	/// </summary>
+	[TestMethod]
+	public void ObliqueViewCascadesFitTheSquareView()
+	{
+		var world = new RenderWorld();
+		world.Add( new MeshObject( null, new Transform( new Vector3( 10, 0, 0 ) ) ) { LocalBounds = UnitBox } );
+
+		var plain = LookingDownX();
+		using var system = new RenderSystem();
+		CollectAndPrepare( system, world, plain );
+		var expected = system.ShadowMaps.Directional.CascadeSpheres.ToArray();
+		Assert.IsTrue( expected[0].w > 0 );
+
+		var oblique = LookingDownX();
+		var projection = Matrix.CreateProjection( oblique.ZNear, oblique.ZFar, oblique.FieldOfView, 1 );
+		oblique.Projection = Matrix.CreateObliqueProjection( new Transform( oblique.Position, oblique.Rotation ), new Plane( new Vector3( 0, 0, -10 ), Vector3.Down ), projection );
+		oblique.Update();
+
+		using var other = new RenderSystem();
+		CollectAndPrepare( other, world, oblique );
+		var spheres = other.ShadowMaps.Directional.CascadeSpheres;
+		for ( int i = 0; i < expected.Length; i++ )
+		{
+			Assert.AreEqual( expected[i].x, spheres[i].x, 1e-2f, $"cascade {i}" );
+			Assert.AreEqual( expected[i].y, spheres[i].y, 1e-2f, $"cascade {i}" );
+			Assert.AreEqual( expected[i].z, spheres[i].z, 1e-2f, $"cascade {i}" );
+			Assert.AreEqual( expected[i].w, spheres[i].w, expected[i].w * 1e-4f, $"cascade {i}" );
+		}
+	}
+
 	[TestMethod]
 	public void SunCascades()
 	{

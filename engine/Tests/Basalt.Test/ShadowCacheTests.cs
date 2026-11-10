@@ -94,6 +94,42 @@ public class ShadowCacheTests
 	}
 
 	/// <summary>
+	/// A child view, rendered and submitted in the middle of its parent's recording, can't use a map its parent drew this frame:
+	/// the parent's commands reach the GPU after its own. It draws the map again, into the same texture at the same size, and
+	/// once the parent's frame is submitted, views after it reuse the map again.
+	/// </summary>
+	[TestMethod]
+	public void ChildViewRedrawsMapsItsParentHasntSubmitted() => WithoutUpdates( () =>
+	{
+		var world = new RenderWorld();
+		world.Lighting.SunColor = Color.Black;
+		world.Add( new MeshObject( null, new Transform( new Vector3( 300, 0, -20 ) ) ) { LocalBounds = UnitBox } );
+		world.Add( new LightObject( LightObject.LightKind.Point, new Transform( new Vector3( 300, 0, 0 ) ) ) { Radius = 50 } );
+
+		var view = LookingDownX();
+		using var parent = new RenderSystem();
+		using var child = new RenderSystem();
+		using var later = new RenderSystem();
+
+		CollectAndPrepare( parent, world, view );
+		Assert.AreEqual( 6, parent.ShadowMaps.Passes.Length );
+		var map = parent.ShadowMaps.Passes[0].TargetMap;
+
+		// The same frame, the parent not submitted yet
+		var stats = new RenderStats();
+		child.Collect( world, view, ref stats );
+		child.Prepare( world, view );
+		Assert.AreEqual( 6, child.ShadowMaps.Passes.Length, "drawn again for the child" );
+		Assert.AreSame( map, child.ShadowMaps.Passes[0].TargetMap, "into the parent's map" );
+		child.ShadowMaps.Submitted();
+
+		parent.ShadowMaps.Submitted();
+		later.Collect( world, view, ref stats );
+		later.Prepare( world, view );
+		Assert.AreEqual( 0, later.ShadowMaps.Passes.Length, "submitted, it's reused" );
+	} );
+
+	/// <summary>
 	/// A light's radius, cone and kind make its projection, so changing one draws its shadow again at once, as moving it does,
 	/// rather than keeping the old projection's map until its next update.
 	/// </summary>
@@ -344,10 +380,14 @@ public class ShadowCacheTests
 		Assert.AreEqual( 0, third.ShadowMaps.Passes.Length );
 	} );
 
+	/// <summary>
+	/// A top-level view's frame in the frame under way: prepared, and submitted before the next view renders.
+	/// </summary>
 	static void Prepare( RenderSystem system, RenderWorld world, RenderView view )
 	{
 		var stats = new RenderStats();
 		system.Collect( world, view, ref stats );
 		system.Prepare( world, view );
+		system.ShadowMaps.Submitted();
 	}
 }

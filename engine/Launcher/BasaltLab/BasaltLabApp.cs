@@ -21,6 +21,7 @@ namespace Sandbox.BasaltLab;
 /// <item><c>-scene-modules</c> - also start the native modules SceneLab starts (world renderer, animation, physics, sound).
 /// Presets with posed skinned models start them anyway.</item>
 /// <item><c>-ui-parity folder</c> - draw a card of UI through Source 2 and through a Basalt.Gpu device, compare and exit (<see cref="UiParity"/>).</item>
+/// <item><c>-model-parity folder</c> - render s&amp;box models with Basalt on Source 2's device and on a Basalt.Gpu device, compare and exit (<see cref="ModelParity"/>).</item>
 /// </list>
 /// Startup and frame times go to the log, and a summary to the console.
 /// </summary>
@@ -38,6 +39,13 @@ internal static class BasaltLabApp
 		if ( Args.String( "-ui-parity" ) is { } parity )
 		{
 			var code = UiParity.Run( backend, parity );
+			backend.Exit( code );
+			return code;
+		}
+
+		if ( Args.String( "-model-parity" ) is { } models )
+		{
+			var code = ModelParity.Run( backend, models );
 			backend.Exit( code );
 			return code;
 		}

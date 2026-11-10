@@ -13,9 +13,10 @@ internal sealed class BridgeCustomObject : CustomObject
 	}
 
 	/// <summary>
-	/// Thread-local view prevents concurrent target/camera state changes.
+	/// Thread-local views prevent concurrent target/camera state changes, one for each child view deep
+	/// (<see cref="SceneBridge.ChildDepth"/>): a child view rendered from an object's command list draws its own objects meanwhile.
 	/// </summary>
-	[ThreadStatic] static Graphics.ManagedView threadView;
+	[ThreadStatic] static Graphics.ManagedView[] threadViews;
 
 	internal override void Render( GpuContext context, ViewPass view, MeshLayer layer )
 	{
@@ -36,10 +37,13 @@ internal sealed class BridgeCustomObject : CustomObject
 	{
 		// Shadow views inherit camera settings from the root view.
 		var frameView = (view.View.HostView ?? view.Root?.HostView) as Graphics.ManagedView;
-		var graphicsView = threadView ??= new Graphics.ManagedView();
+		threadViews ??= new Graphics.ManagedView[SceneBridge.MaxChildDepth + 1];
+		var graphicsView = threadViews[SceneBridge.ChildDepth] ??= new Graphics.ManagedView();
 		graphicsView.PostProcessEnabled = frameView?.PostProcessEnabled ?? true;
 		graphicsView.ToolsVisMode = frameView?.ToolsVisMode ?? 0;
 		graphicsView.RenderSceneObject = frameView?.RenderSceneObject;
+		graphicsView.Renderer = frameView?.Renderer;
+		graphicsView.IsChild = frameView?.IsChild ?? false;
 
 		var bound = context.Bound;
 		var native = context.NativeContext();

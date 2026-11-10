@@ -112,3 +112,60 @@ internal sealed class OutputResolveLayer : RenderLayer
 		rc.ResolveScratch( frame.Output );
 	}
 }
+
+/// <summary>
+/// Copies the finished frame mirrored into its destination (<see cref="RenderOutput.FlipInto"/>), as native's texture render
+/// blits a flipped view (<c>CCameraRenderer::RenderToTexture</c>, <c>copytexture.shader</c>'s <c>FlipX</c> and <c>FlipY</c>).
+/// Depth stays as drawn.
+/// </summary>
+internal sealed class OutputFlipLayer : RenderLayer
+{
+	static readonly StringToken ForwardMode = new( "Forward" );
+	static readonly StringToken SourceName = new( "CustomTexture1" );
+	static readonly StringToken FlipXName = new( "FlipX" );
+	static readonly StringToken FlipYName = new( "FlipY" );
+	static readonly StringToken MsaaCombo = new( "D_MSAA" );
+	static readonly StringToken MsaaColorCombo = new( "D_MSAA_COLOR" );
+	static readonly StringToken VolumeCombo = new( "D_VOLUME_TEXTURE" );
+	static readonly StringToken SrgbTransferCombo = new( "D_SRGB_TRANSFER" );
+
+	static GpuMaterial material;
+
+	public OutputFlipLayer() : base( "Output Flip" ) { }
+
+	public override bool IsNeeded( RenderFrame frame ) => frame.Output.FlipInto is not null;
+
+	public override void Record( RenderFrame frame, GpuContext rc, ref RenderStats stats )
+	{
+		var output = frame.Output;
+		var into = output.FlipInto;
+		var source = output.Texture ?? output.Target.Resolved;
+
+		material ??= RenderHost.Current.Device.MaterialFromShader( "shaders/copytexture.shader" );
+
+		// The bytes as they are: the shader reads without sRGB, so it writes without it too
+		var size = new Vector2( into.Width, into.Height );
+		rc.Bind( new StageTarget
+		{
+			Context = rc,
+			Attributes = rc.Attributes,
+			Color = into,
+			Size = size,
+			Viewport = new Rect( 0, 0, size.x, size.y ),
+			MaxZ = 1,
+			ColorFormat = into.Format,
+			Samples = 1,
+		} );
+
+		var parameters = ParameterPool.Get();
+		parameters.Set( SourceName, source );
+		parameters.Set( FlipXName, output.FlipX );
+		parameters.Set( FlipYName, output.FlipY );
+		parameters.SetCombo( MsaaCombo, 0 );
+		parameters.SetCombo( MsaaColorCombo, 0 );
+		parameters.SetCombo( VolumeCombo, 0 );
+		parameters.SetCombo( SrgbTransferCombo, 0 );
+		rc.DrawFullscreen( material, parameters, ForwardMode );
+		ParameterPool.Return( parameters );
+	}
+}

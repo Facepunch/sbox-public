@@ -455,7 +455,7 @@ internal sealed class BackendContext : GpuContext
 
 	public override bool DrawModel( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false )
 	{
-		if ( material is not BackendMaterial { Shader: { } shader } m || mesh.Geometry is not BackendMesh geometry || skinned ) return false;
+		if ( material is not BackendMaterial { Shader: { } shader } m || mesh.Geometry is not IBackendGeometry source || skinned ) return false;
 		if ( InstanceIds?.Resource is not BackendBuffer instanceIds ) return false;
 
 		var mode = ModeName( shader, shaderMode );
@@ -468,7 +468,8 @@ internal sealed class BackendContext : GpuContext
 		var r = recording;
 		var color = r.Color is null ? Format.Unknown : FormatOfTarget( r.Color, r.Srgb );
 		var depthOnly = stripPixelShader || r.Color is null;
-		var pipeline = device.Pipeline( variant, depthOnly ? Format.Unknown : color, r.Depth is null ? Format.Unknown : BackendDevice.FormatOf( r.Depth ), (r.Color ?? r.Depth).Samples, depthOnly );
+		var geometry = source.For( draw.Mesh, draw.DrawCall );
+		var pipeline = device.Pipeline( variant, geometry.Layout, depthOnly ? Format.Unknown : color, r.Depth is null ? Format.Unknown : BackendDevice.FormatOf( r.Depth ), (r.Color ?? r.Depth).Samples, depthOnly );
 
 		if ( r.Pipeline != pipeline )
 		{
@@ -476,17 +477,21 @@ internal sealed class BackendContext : GpuContext
 			r.Pipeline = pipeline;
 		}
 
+		uncompressedTangentFrame = geometry.UncompressedTangentFrame;
 		BindSets( m, variant, depthOnly );
 		if ( depthOnly ) r.List.SetDepthBias( depthBias, slopeScaledDepthBias );
 		if ( variant.State.StencilTest && r.Depth is not null && BackendDevice.FormatOf( r.Depth ).HasStencil() ) r.List.SetStencilReference( (byte)variant.State.StencilReference );
 
-		r.List.SetVertexBuffer( 0, geometry.Vertices );
+		r.List.SetVertexBuffer( 0, geometry.Vertices, geometry.VertexOffset );
 		r.List.SetVertexBuffer( 1, instanceIds.Handle, firstInstance * 4L );
 		r.List.SetVertexBuffer( 2, device.Defaults.VertexDefaults );
-		r.List.SetIndexBuffer( geometry.Indices, geometry.IndexFormat );
-		r.List.DrawIndexed( draw.IndexCount, instances, draw.StartIndex );
+		r.List.SetIndexBuffer( geometry.Indices, geometry.IndexFormat, geometry.IndexOffset );
+		r.List.DrawIndexed( draw.IndexCount, instances, draw.StartIndex, geometry.BaseVertex );
 		return true;
 	}
+
+	/// <summary>Whether the draw being bound has plain normals and tangents (<c>UncompressedTangentFrame</c>).</summary>
+	bool uncompressedTangentFrame = true;
 
 	static Format FormatOfTarget( BackendTexture texture, bool srgb )
 	{
@@ -603,8 +608,8 @@ internal sealed class BackendContext : GpuContext
 		stage.WriteMaterialConstants( allocation.Data[..size], variable => variable.Source switch
 		{
 			VariableSource.Material or VariableSource.MaterialAndExpression => material.Value( variable.Name ),
-			// Meshes made here have plain normals and tangents
-			VariableSource.Attribute when variable.Attribute == "UncompressedTangentFrame" => [1],
+			// Per draw from its vertex layout, as native's BindModelDrawCall sets it
+			VariableSource.Attribute when variable.Attribute == "UncompressedTangentFrame" => [uncompressedTangentFrame ? 1 : 0],
 			VariableSource.Attribute => Floats( attributes.Get( Token( variable.Attribute ) ) ),
 			_ => null,
 		}, material.Features );
