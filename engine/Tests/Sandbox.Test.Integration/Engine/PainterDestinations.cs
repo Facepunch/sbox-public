@@ -1,26 +1,58 @@
 using Sandbox.Rendering;
 using System;
+using System.Runtime.InteropServices;
 
 namespace EngineTests;
 
+/// <summary>
+/// Painting into textures and command lists. Tests that paint a texture run on Source 2's device and again on a Basalt.Gpu
+/// device (<c>basalt: true</c>), through the engine's <see cref="BasaltGpuRenderBackend"/>, and check the same pixels.
+/// </summary>
 [TestClass]
 public class PainterDestinationsTest
 {
 	static readonly Rect Bounds = new( 0, 0, 64, 64 );
 
+	static BasaltGpuRenderBackend basaltBackend;
+
+	/// <summary>The device a test paints on: Source 2's, or one Basalt.Gpu device the class shares.</summary>
+	static RenderBackend Backend( bool basalt ) => basalt ? basaltBackend ??= BasaltGpuRenderBackend.Create() : RenderBackend.Default;
+
+	[ClassCleanup]
+	public static void Cleanup()
+	{
+		basaltBackend?.Dispose();
+		basaltBackend = null;
+	}
+
+	static Painter Begin( Texture target, bool basalt ) => Painter.Begin( target, Backend( basalt ) );
+
+	/// <summary>What the device painted into a texture, as <see cref="Texture.GetBitmap"/> reads it: straight alpha.</summary>
+	static Bitmap Read( Texture target, bool basalt )
+	{
+		if ( !basalt ) return target.GetBitmap();
+
+		var pixels = basaltBackend.ReadPixels( target );
+		var bitmap = new Bitmap( target.Width, target.Height );
+		bitmap.SetPixelData( MemoryMarshal.AsBytes( pixels.AsSpan() ), premultiplied: target.Flags.HasFlag( TextureFlags.PremultipliedAlpha ) );
+		return bitmap;
+	}
+
 	[TestMethod]
-	public void RingFillsBandAndStrokesBothEdges()
+	[DataRow( false )]
+	[DataRow( true )]
+	public void RingFillsBandAndStrokesBothEdges( bool basalt )
 	{
 		RequireVulkan();
 		using var target = Texture.CreateRenderTarget().WithSize( 64, 64 ).Create();
-		using ( var painter = Painter.Begin( target ) )
+		using ( var painter = Begin( target, basalt ) )
 		{
 			painter.Clear( Color.Transparent );
 			painter.Fill = Color.Red;
 			painter.Stroke = new Stroke( Color.Blue, 4 );
 			painter.Ring( Bounds.Center, innerRadius: 10, outerRadius: 24 );
 		}
-		using var bitmap = target.GetBitmap();
+		using var bitmap = Read( target, basalt );
 		AssertColor( Color.Transparent, bitmap.GetPixel( 32, 32 ) );
 		AssertColor( Color.Blue, bitmap.GetPixel( 42, 32 ) );
 		AssertColor( Color.Red, bitmap.GetPixel( 49, 32 ) );
@@ -29,24 +61,26 @@ public class PainterDestinationsTest
 	}
 
 	[TestMethod]
-	public void RingImageFillMapsAcrossOuterBounds()
+	[DataRow( false )]
+	[DataRow( true )]
+	public void RingImageFillMapsAcrossOuterBounds( bool basalt )
 	{
 		RequireVulkan();
 		using var source = Texture.CreateRenderTarget().WithSize( 64, 64 ).Create();
-		using ( var painter = Painter.Begin( source ) )
+		using ( var painter = Begin( source, basalt ) )
 		{
 			painter.Clear( Color.Red );
 			painter.Fill = Color.Blue;
 			painter.Rect( new Rect( 32, 0, 32, 64 ) );
 		}
 		using var target = Texture.CreateRenderTarget().WithSize( 64, 64 ).Create();
-		using ( var painter = Painter.Begin( target ) )
+		using ( var painter = Begin( target, basalt ) )
 		{
 			painter.Clear( Color.Transparent );
 			painter.Fill = Fill.Image( source );
 			painter.Ring( Bounds.Center, 10, 24 );
 		}
-		using var bitmap = target.GetBitmap();
+		using var bitmap = Read( target, basalt );
 		AssertColor( Color.Red, bitmap.GetPixel( 15, 32 ) );
 		AssertColor( Color.Blue, bitmap.GetPixel( 49, 32 ) );
 		AssertColor( Color.Transparent, bitmap.GetPixel( 32, 32 ) );
@@ -107,22 +141,24 @@ public class PainterDestinationsTest
 	}
 
 	[TestMethod]
-	public void TextureRecordingsAreIndependent()
+	[DataRow( false )]
+	[DataRow( true )]
+	public void TextureRecordingsAreIndependent( bool basalt )
 	{
 		RequireVulkan();
 		using var texture = Texture.CreateRenderTarget().WithSize( 64, 64 ).Create();
-		var first = Painter.Begin( texture );
+		var first = Begin( texture, basalt );
 		var context = first.ActiveContext;
 		var commands = context.Batcher;
 		first.Clear( Color.Red );
 
-		using ( var second = Painter.Begin( texture ) )
+		using ( var second = Begin( texture, basalt ) )
 		{
 			Assert.AreNotSame( context, second.ActiveContext );
 			second.Clear( Color.Green );
 		}
 
-		using ( var intermediate = texture.GetBitmap() )
+		using ( var intermediate = Read( texture, basalt ) )
 		{
 			Assert.AreEqual( Color.Green, intermediate.GetPixel( 32, 32 ) );
 		}
@@ -134,17 +170,19 @@ public class PainterDestinationsTest
 		Assert.AreEqual( 0, context.CommandList.GetCheckpoint() );
 		Assert.AreEqual( 0, commands.Instances.Count );
 
-		using var bitmap = texture.GetBitmap();
+		using var bitmap = Read( texture, basalt );
 		Assert.AreEqual( Color.Blue, bitmap.GetPixel( 16, 32 ) );
 		Assert.AreEqual( Color.Red, bitmap.GetPixel( 48, 32 ) );
 	}
 
 	[TestMethod]
-	public void DisposedTextureReleasesRecordedReferences()
+	[DataRow( false )]
+	[DataRow( true )]
+	public void DisposedTextureReleasesRecordedReferences( bool basalt )
 	{
 		RequireVulkan();
 		var texture = Texture.CreateRenderTarget().WithSize( 64, 64 ).Create();
-		var painter = Painter.Begin( texture );
+		var painter = Begin( texture, basalt );
 		painter.Texture( Texture.White, Bounds );
 		var context = painter.ActiveContext;
 		var buffer = context.Batcher;
@@ -325,11 +363,13 @@ public class PainterDestinationsTest
 	}
 
 	[TestMethod]
-	public void LayerFiltersMasksAndBackdropsPreserveOrder()
+	[DataRow( false )]
+	[DataRow( true )]
+	public void LayerFiltersMasksAndBackdropsPreserveOrder( bool basalt )
 	{
 		RequireVulkan();
 		using var target = Texture.CreateRenderTarget().WithSize( 64, 64 ).Create();
-		using ( var painter = Painter.Begin( target ) )
+		using ( var painter = Begin( target, basalt ) )
 		{
 			painter.Clear( Color.Blue );
 			painter.Translate( 8, 8 );
@@ -343,7 +383,7 @@ public class PainterDestinationsTest
 			painter.Fill = Color.Green;
 			painter.Rect( new Rect( 0, 0, 4, 4 ) );
 		}
-		using var bitmap = target.GetBitmap();
+		using var bitmap = Read( target, basalt );
 		AssertColor( new Color( 0.213f, 0.213f, 0.213f ), bitmap.GetPixel( 18, 28 ) );
 		AssertColor( new Color( 0.787f, 0.787f, 0.787f ), bitmap.GetPixel( 34, 28 ) );
 		AssertColor( Color.Blue, bitmap.GetPixel( 44, 28 ) );
@@ -384,15 +424,19 @@ public class PainterDestinationsTest
 	}
 
 	[TestMethod]
-	[DataRow( BlendMode.Normal, 0.45f, 0.25f, 0.45f, 1f )]
-	[DataRow( BlendMode.Multiply, 0.16f, 0.12f, 0.36f, 0.5f )]
-	[DataRow( BlendMode.Lighten, 0.5f, 0.35f, 0.6f, 1f )]
-	[DataRow( BlendMode.PremultipliedAlpha, 0.45f, 0.25f, 0.45f, 1f )]
-	public void LayerCompositingUsesDestinationBlendMode( BlendMode blend, float red, float green, float blue, float alpha )
+	[DataRow( BlendMode.Normal, 0.45f, 0.25f, 0.45f, 1f, false )]
+	[DataRow( BlendMode.Multiply, 0.16f, 0.12f, 0.36f, 0.5f, false )]
+	[DataRow( BlendMode.Lighten, 0.5f, 0.35f, 0.6f, 1f, false )]
+	[DataRow( BlendMode.PremultipliedAlpha, 0.45f, 0.25f, 0.45f, 1f, false )]
+	[DataRow( BlendMode.Normal, 0.45f, 0.25f, 0.45f, 1f, true )]
+	[DataRow( BlendMode.Multiply, 0.16f, 0.12f, 0.36f, 0.5f, true )]
+	[DataRow( BlendMode.Lighten, 0.5f, 0.35f, 0.6f, 1f, true )]
+	[DataRow( BlendMode.PremultipliedAlpha, 0.45f, 0.25f, 0.45f, 1f, true )]
+	public void LayerCompositingUsesDestinationBlendMode( BlendMode blend, float red, float green, float blue, float alpha, bool basalt )
 	{
 		RequireVulkan();
 		using var target = Texture.CreateRenderTarget().WithSize( 64, 64 ).Create();
-		using ( var painter = Painter.Begin( target ) )
+		using ( var painter = Begin( target, basalt ) )
 		{
 			painter.Clear( new Color( 0.1f, 0.2f, 0.3f ) );
 			painter.BlendMode = blend;
@@ -400,7 +444,7 @@ public class PainterDestinationsTest
 			painter.Fill = new Color( 0.8f, 0.3f, 0.6f );
 			painter.Rect( Bounds );
 		}
-		using var bitmap = target.GetBitmap();
+		using var bitmap = Read( target, basalt );
 		// GetBitmap returns straight alpha, including the multiply blend's 0.5 output alpha.
 		AssertColor( new Color( red, green, blue, alpha ), bitmap.GetPixel( 32, 32 ) );
 	}

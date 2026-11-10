@@ -6,8 +6,6 @@ namespace Sandbox;
 
 public static partial class Graphics
 {
-	const int maxDynamicVertexBuffer = 512 * 1024;
-
 	/// <summary>
 	/// This is our entry point into the engine for all draws
 	/// </summary>
@@ -19,42 +17,7 @@ public static partial class Graphics
 
 		AssertRenderBlock();
 
-		// Get the layout for this vertex. This will create if not found.
-		var vertexType = VertexLayout.Get<T>();
-		if ( !vertexType.IsValid ) return;
-
-		if ( vertexType.m_Size > sizeof( T ) )
-			throw new ArgumentException( $"{typeof( T )} vertex layout is larger than the vertex type" );
-
-		// Set the material etc
-		if ( !RenderTools.SetRenderState( Context, attributes.Get(), ModeFor( material ), vertexType, Graphics.Stats ) )
-			return;
-
-		var totalSize = (long)sizeof( T ) * vertCount;
-		if ( indices is not null || totalSize < maxDynamicVertexBuffer )
-		{
-			RenderTools.Draw( Context, (NativeEngine.RenderPrimitiveType)primitiveType, vertexType, (IntPtr)vertices, vertCount, (IntPtr)indices, indexCount, Graphics.Stats );
-			return;
-		}
-
-		int verticesPerChunk = maxDynamicVertexBuffer / sizeof( T );
-
-		// if we're drawing triangles, and have no indices, round to chunks of 3 so we don't
-		// get geometry split between chunks.. because that would be a disaster
-		if ( primitiveType == PrimitiveType.Triangles && indices is null )
-		{
-			verticesPerChunk = verticesPerChunk.SnapToGrid( 3 );
-		}
-
-		//
-		// todo - for lines chunk size needs to be multiple of 2, for triangles multiple of 3
-		//
-
-		for ( int i = 0; i < vertCount; i += verticesPerChunk )
-		{
-			var chunkCount = Math.Min( verticesPerChunk, vertCount - i );
-			RenderTools.Draw( Context, (NativeEngine.RenderPrimitiveType)primitiveType, vertexType, (IntPtr)(vertices + i), chunkCount, default, default, Graphics.Stats );
-		}
+		Backend.DrawVertices( typeof( T ), sizeof( T ), (IntPtr)vertices, vertCount, (IntPtr)indices, indexCount, material, attributes, primitiveType );
 	}
 
 	internal static void ValidateDrawCounts( int vertCount, int vertexLength, int indexCount = 0, int indexLength = 0 )
