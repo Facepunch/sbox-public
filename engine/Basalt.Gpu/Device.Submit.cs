@@ -245,7 +245,23 @@ public sealed unsafe partial class Device
 
 		var list = BeginCommandList( QueueType.Graphics, "WriteBuffer" );
 		list.UpdateBuffer( buffer, data, offset );
+		SubmitAndRecycle( list );
+	}
+
+	/// <summary>
+	/// Submit a list, wait for it, and recycle it at once rather than with its frame: a load that writes many textures
+	/// before the first frame would otherwise keep every write's upload memory until then.
+	/// </summary>
+	void SubmitAndRecycle( CommandList list )
+	{
 		Wait( Submit( list ) );
+
+		bool owned;
+		lock ( frame.Lists ) owned = frame.Lists.Remove( list );
+		if ( !owned ) return;
+
+		list.Recycle();
+		freeLists[(int)list.Queue].Add( list );
 	}
 
 	/// <summary>
@@ -293,7 +309,7 @@ public sealed unsafe partial class Device
 			LayerCount = 1,
 		} );
 
-		Wait( Submit( list ) );
+		SubmitAndRecycle( list );
 	}
 
 	/// <summary>

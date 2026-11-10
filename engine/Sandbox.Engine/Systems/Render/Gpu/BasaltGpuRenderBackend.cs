@@ -95,6 +95,7 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 	{
 		if ( !followsFrames || frame == Application.FrameCount ) return;
 		frame = Application.FrameCount;
+		SubmitUploads();
 		gpu.BeginFrame();
 	}
 
@@ -148,10 +149,10 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 		if ( list is not null ) throw new InvalidOperationException( "A Basalt.Gpu block is already recording." );
 
 		FollowFrame();
+		SubmitUploads();
 		list = gpu.BeginCommandList( QueueType.Graphics, "Graphics block" );
 		presentTo = null;
 		context.Begin( list );
-		FlushWrites();
 		pendingShader = null;
 		pendingAttributes = null;
 		return RenderAttributes.CreateManaged();
@@ -184,7 +185,12 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 		// The frame has to have started before the acquire, so the acquire's semaphore belongs to the frame whose submit
 		// waits on it
 		FollowFrame();
-		if ( acquiredIn.TryGetValue( swapChain, out var last ) && last == gpu.FrameNumber ) gpu.BeginFrame();
+		if ( acquiredIn.TryGetValue( swapChain, out var last ) && last == gpu.FrameNumber )
+		{
+			SubmitUploads();
+			gpu.BeginFrame();
+		}
+
 		acquiredIn[swapChain] = gpu.FrameNumber;
 	}
 
@@ -263,6 +269,8 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 				break;
 
 			case GpuBuffer buffer when buffers.TryGetValue( buffer, out var backing ):
+				// Writes waiting for the next block may name it: submit them first, so it's freed after they've run
+				SubmitUploads();
 				buffers.Remove( buffer );
 				ownedBuffers.Remove( backing.Handle );
 				gpu.Destroy( backing.Handle );
@@ -705,42 +713,43 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 			return;
 		}
 
-		// Outside one - a recording uploading its tables - at the start of the next block, which is what draws with
-		// them: writing now would submit and wait for every upload
-		var copy = System.Buffers.ArrayPool<byte>.Shared.Rent( size );
-		bytes.CopyTo( copy );
-		writes.Add( (handle, copy, size, offset) );
-	}
-
-	readonly List<(BufferHandle Buffer, byte[] Data, int Size, int Offset)> writes = new();
-	readonly HashSet<BufferHandle> written = new();
-
-	/// <summary>Record the buffer writes made outside a block, in order, at the start of this one.</summary>
-	void FlushWrites()
-	{
-		if ( writes.Count == 0 ) return;
-
-		written.Clear();
-		foreach ( var (buffer, data, size, offset) in writes )
+		// Outside one - a recording uploading its tables - copied once, into the upload memory of a list of their own that's
+		// submitted before the next block, which is what draws with them: writing now would submit and wait for each
+		if ( uploads is null )
 		{
-			if ( ownedBuffers.Contains( buffer ) )
-			{
-				// A second write to a buffer waits for the first, in case they overlap
-				if ( !written.Add( buffer ) )
-				{
-					list.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.Transfer, MemoryAccess.TransferWrite );
-					written.Clear();
-					written.Add( buffer );
-				}
-
-				list.UpdateBuffer( buffer, data.AsSpan( 0, size ), offset );
-			}
-
-			System.Buffers.ArrayPool<byte>.Shared.Return( data );
+			FollowFrame();
+			uploads = gpu.BeginCommandList( QueueType.Graphics, "Engine uploads" );
+			written.Clear();
 		}
 
-		writes.Clear();
-		context.MemoryBarrier();
+		// A second write to a buffer waits for the first, in case they overlap
+		if ( !written.Add( handle ) )
+		{
+			uploads.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.Transfer, MemoryAccess.TransferWrite );
+			written.Clear();
+			written.Add( handle );
+		}
+
+		uploads.UpdateBuffer( handle, bytes, offset );
+		UploadsRecorded++;
+	}
+
+	GpuCommandList uploads;
+	readonly HashSet<BufferHandle> written = new();
+
+	/// <summary>Buffer writes recorded outside blocks, for tests.</summary>
+	public int UploadsRecorded { get; private set; }
+
+	/// <summary>
+	/// Submit the buffer writes made outside a block, visible to everything after them: before a block, a device frame,
+	/// a readback, or freeing a buffer they may write.
+	/// </summary>
+	void SubmitUploads()
+	{
+		if ( uploads is null ) return;
+		uploads.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.AllCommands, MemoryAccess.MemoryRead | MemoryAccess.MemoryWrite );
+		gpu.Submit( uploads );
+		uploads = null;
 	}
 
 	public override void ReadBufferAsync( GpuBuffer buffer, AsyncGPUReadback.BufferReadDelegate callback, int offset, int size ) => throw Unsupported( "Buffer readback" );
@@ -764,6 +773,7 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 		var info = gpu.InfoOf( handle );
 		if ( info.Format is not (GpuFormat.RGBA8Unorm or GpuFormat.RGBA8Srgb) ) throw new NotSupportedException( $"Reading {info.Format} back" );
 
+		SubmitUploads();
 		var readback = gpu.CreateBuffer( new BufferInfo { Size = info.Width * info.Height * 4, Memory = MemoryLocation.Readback, Name = "Readback" } );
 		try
 		{
@@ -787,15 +797,17 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 	/// <summary>
 	/// Start the device's next frame: what the frames before the last one used is recycled, and destroyed backings freed.
 	/// </summary>
-	public void NextFrame() => gpu.BeginFrame();
+	public void NextFrame()
+	{
+		SubmitUploads();
+		gpu.BeginFrame();
+	}
 
 	public void Dispose()
 	{
 		Unregister( this );
+		SubmitUploads();
 		gpu.WaitIdle();
-
-		foreach ( var write in writes ) System.Buffers.ArrayPool<byte>.Shared.Return( write.Data );
-		writes.Clear();
 
 		foreach ( var handle in textureOwners.Keys )
 		{

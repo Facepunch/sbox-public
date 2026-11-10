@@ -278,4 +278,30 @@ public class DeviceTests : GpuTest
 		Device.WaitIdle();
 		Assert.AreEqual( reserved, Device.MemoryUsage.Reserved, "steady frames allocate no more memory" );
 	}
+
+	/// <summary>
+	/// Writes made outside any frame (loading textures before the first one) give their upload memory back as soon as
+	/// they've finished, rather than keeping it until the next frame begins.
+	/// </summary>
+	[TestMethod]
+	public void WritesBeforeTheFirstFrameReuseUploadMemory()
+	{
+		var pixels = new byte[1024 * 1024 * 4];
+		var textures = new List<TextureHandle>();
+		textures.Add( Device.CreateTexture( TextureInfo.Texture2D( 1024, 1024, Format.RGBA8Unorm, name: "Loaded 0" ) ) );
+		Device.WriteTexture( textures[0], pixels );
+		var after = Device.MemoryUsage.Reserved;
+
+		for ( int i = 1; i < 32; i++ )
+		{
+			var texture = Device.CreateTexture( TextureInfo.Texture2D( 1024, 1024, Format.RGBA8Unorm, name: $"Loaded {i}" ) );
+			Device.WriteTexture( texture, pixels );
+			textures.Add( texture );
+		}
+
+		// 31 more textures of 4 MB each; without reuse, each write's 4 MB of upload memory would stay as well
+		var grown = Device.MemoryUsage.Reserved - after;
+		Assert.IsTrue( grown < 31 * pixels.Length * 3 / 2, $"{grown >> 20} MB reserved for 124 MB of textures" );
+		foreach ( var texture in textures ) Device.Destroy( texture );
+	}
 }
