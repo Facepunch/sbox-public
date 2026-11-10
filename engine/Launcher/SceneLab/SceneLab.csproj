@@ -44,5 +44,6 @@
 	</ItemGroup>
 
 	<Import Project="..\Shared\LaunchShared.projitems" Label="Shared" />
+	<Import Project="..\LabShared\LabShared.projitems" Label="Shared" />
 
 </Project>

@@ -13,6 +13,12 @@ native static class Glue.RenderDeviceManager as NativeEngine.RenderDeviceManager
 	// Returns false for DLSS on non-NVIDIA hardware.
 	bool IsUpscalerSupported( int nUpscalerType );
 
+	// The adapter's name as the driver reports it, e.g. "llvmpipe (LLVM 21.1.0, 256 bits)" for Lavapipe
+	inline string GetAdapterName()
+	{
+		return g_pRenderHardwareConfig->AdapterInfo().m_pDriverName;
+	}
+
 	// Whether the device has a queue for async compute work (RCFLAG_ASYNC_COMPUTE_QUEUE)
 	inline bool SupportsAsyncCompute()
 	{
