@@ -121,8 +121,33 @@ internal sealed class Benchmark
 	System.Diagnostics.Stopwatch runTime = new();
 	int gen0, gen1, gen2;
 
+	/// <summary>
+	/// Our assemblies in this process that were built without optimisation, or empty. A Debug build - what a bare
+	/// <c>dotnet build</c> or <c>dotnet test</c> leaves in bin/managed - measures the build, not the renderer: Basalt's
+	/// Prepare took four times as long in one.
+	/// </summary>
+	static string UnoptimisedAssemblies()
+	{
+		var names = new List<string>();
+		foreach ( var assembly in AppDomain.CurrentDomain.GetAssemblies() )
+		{
+			var name = assembly.GetName().Name ?? "";
+			if ( !name.StartsWith( "Sandbox.", StringComparison.Ordinal ) && !name.StartsWith( "Basalt", StringComparison.Ordinal ) && name != "scenelab" ) continue;
+			if ( assembly.GetCustomAttributes( typeof( System.Diagnostics.DebuggableAttribute ), false ) is [System.Diagnostics.DebuggableAttribute { IsJITOptimizerDisabled: true }, ..] )
+				names.Add( name );
+		}
+
+		names.Sort( StringComparer.Ordinal );
+		return string.Join( ", ", names );
+	}
+
+	readonly string unoptimised = UnoptimisedAssemblies();
+
 	public Benchmark( string sceneNames )
 	{
+		if ( unoptimised.Length > 0 )
+			Log.Warning( $"Benchmark: {unoptimised} built without optimisation (Debug). These numbers aren't the renderer's: build Release (SboxBuild, or dotnet build -c Release) and run again." );
+
 		var names = string.IsNullOrWhiteSpace( sceneNames ) || sceneNames.StartsWith( '-' )
 			? DefaultScenes
 			: sceneNames.Split( ';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries );
@@ -255,6 +280,12 @@ internal sealed class Benchmark
 		var md = new StringBuilder();
 		md.AppendLine( $"Scene Lab benchmark, {DateTime.Now:yyyy-MM-dd HH:mm}, {measureFrames} measured frames per run (a scripted preset's whole script), vsync off" );
 		md.AppendLine();
+		if ( unoptimised.Length > 0 )
+		{
+			md.AppendLine( $"**Debug build: {unoptimised} ran without optimisation. These numbers aren't the renderer's.**" );
+			md.AppendLine();
+		}
+
 		md.AppendLine( "| Scene | Objects | Occluded | Renderer | FPS | Frame ms | p95 ms | p99 ms | Render ms (main thread) | GPU ms | Alloc B/frame | GCs (0/1/2) |" );
 		md.AppendLine( "|---|---|---|---|---|---|---|---|---|---|---|---|" );
 
