@@ -59,24 +59,13 @@ partial class Graphics
 		return elementOffset * (stride != 0 ? stride : (uint)naturalSize);
 	}
 
-	private static NativeEngine.VertexLayout GetVertexLayout<T>() where T : unmanaged
-	{
-		var vertexType = VertexLayout.Get<T>();
-		if ( vertexType.IsNull )
-			throw new ArgumentException( $"{nameof( T )} vertex layout is invalid.", nameof( T ) );
-
-		return vertexType;
-	}
-
 	private static bool SetRenderState<T>( GpuBuffer<T> vertexBuffer, Material material, RenderAttributes attributes ) where T : unmanaged
 	{
 		ValidateVertexBuffer( vertexBuffer );
 		ValidateMaterial( material );
 
-		var layout = GetVertexLayout<T>();
-
 		attributes ??= Attributes;
-		return RenderTools.SetRenderState( Context, attributes.Get(), ModeFor( material ), layout, Stats );
+		return Backend.SetRenderState( material, attributes, typeof( T ) );
 	}
 
 	private static bool SetRenderState( Material material, RenderAttributes attributes )
@@ -84,7 +73,7 @@ partial class Graphics
 		ValidateMaterial( material );
 
 		attributes ??= Attributes;
-		return RenderTools.SetRenderState( Context, attributes.Get(), ModeFor( material ), default, Stats );
+		return Backend.SetRenderState( material, attributes, null );
 	}
 
 	/// <summary>
@@ -116,8 +105,7 @@ partial class Graphics
 		if ( (long)startVertex + vertexCount > vertexBuffer.ElementCount )
 			throw new ArgumentOutOfRangeException( nameof( vertexCount ), $"{nameof( vertexCount )} exceeds the bounds of the vertex buffer." );
 
-		Context.BindVertexBuffer( 0, vertexBuffer.native, 0 );
-		Context.Draw( (RenderPrimitiveType)primitiveType, startVertex, vertexCount );
+		Backend.Draw( vertexBuffer, primitiveType, startVertex, vertexCount );
 	}
 
 	/// <summary>
@@ -152,9 +140,7 @@ partial class Graphics
 		if ( (long)startIndex + indexCount > indexBuffer.ElementCount )
 			throw new ArgumentOutOfRangeException( nameof( indexCount ), $"{nameof( indexCount )} exceeds the bounds of the index buffer." );
 
-		Context.BindVertexBuffer( 0, vertexBuffer.native, 0 );
-		Context.BindIndexBuffer( indexBuffer.native, indexBuffer.ElementSize, 0 );
-		Context.DrawIndexed( (RenderPrimitiveType)primitiveType, startIndex, indexCount, 0, 0 );
+		Backend.DrawIndexed( vertexBuffer, indexBuffer, primitiveType, startIndex, indexCount );
 	}
 
 	internal static void DrawInstancedIndirect<T>( GpuBuffer<T> vertexBuffer, Material material, GpuBuffer indirectBuffer, uint indirectElementOffset = 0, RenderAttributes attributes = null, PrimitiveType primitiveType = PrimitiveType.Triangles, uint drawCount = 1, uint stride = 0 ) where T : unmanaged
@@ -168,8 +154,7 @@ partial class Graphics
 		if ( !SetRenderState( vertexBuffer, material, attributes ) )
 			return;
 
-		Context.BindVertexBuffer( 0, vertexBuffer.native, 0 );
-		Context.DrawInstancedIndirect( (RenderPrimitiveType)primitiveType, indirectBuffer.native, bufferOffset, drawCount, stride );
+		Backend.DrawInstancedIndirect( vertexBuffer, primitiveType, indirectBuffer, bufferOffset, drawCount, stride );
 	}
 
 	internal static void DrawInstancedIndirect( Material material, GpuBuffer indirectBuffer, uint indirectElementOffset = 0, RenderAttributes attributes = null, PrimitiveType primitiveType = PrimitiveType.Triangles, uint drawCount = 1, uint stride = 0 )
@@ -183,7 +168,7 @@ partial class Graphics
 		if ( !SetRenderState( material, attributes ) )
 			return;
 
-		Context.DrawInstancedIndirect( (RenderPrimitiveType)primitiveType, indirectBuffer.native, bufferOffset, drawCount, stride );
+		Backend.DrawInstancedIndirect( null, primitiveType, indirectBuffer, bufferOffset, drawCount, stride );
 	}
 
 	internal static void DrawIndexedInstanced( GpuBuffer indexBuffer, Material material, int instanceCount, RenderAttributes attributes = null, PrimitiveType primitiveType = PrimitiveType.Triangles )
@@ -195,8 +180,7 @@ partial class Graphics
 		if ( !SetRenderState( material, attributes ) )
 			return;
 
-		Context.BindIndexBuffer( indexBuffer.native, indexBuffer.ElementSize, 0 );
-		Context.DrawIndexedInstanced( (RenderPrimitiveType)primitiveType, 0, indexBuffer.ElementCount, instanceCount, 0, 0 );
+		Backend.DrawIndexedInstanced( indexBuffer, primitiveType, instanceCount );
 	}
 
 	internal static void DrawIndexedInstancedIndirect<T>( GpuBuffer<T> vertexBuffer, GpuBuffer indexBuffer, Material material, GpuBuffer indirectBuffer, uint indirectElementOffset = 0, RenderAttributes attributes = null, PrimitiveType primitiveType = PrimitiveType.Triangles, uint drawCount = 1, uint stride = 0 ) where T : unmanaged
@@ -211,9 +195,7 @@ partial class Graphics
 		if ( !SetRenderState( vertexBuffer, material, attributes ) )
 			return;
 
-		Context.BindVertexBuffer( 0, vertexBuffer.native, 0 );
-		Context.BindIndexBuffer( indexBuffer.native, indexBuffer.ElementSize, 0 );
-		Context.DrawIndexedInstancedIndirect( (RenderPrimitiveType)primitiveType, indirectBuffer.native, bufferOffset, drawCount, stride );
+		Backend.DrawIndexedInstancedIndirect( vertexBuffer, indexBuffer, primitiveType, indirectBuffer, bufferOffset, drawCount, stride );
 	}
 
 	internal static void DrawIndexedInstancedIndirect( GpuBuffer indexBuffer, Material material, GpuBuffer indirectBuffer, uint indirectElementOffset = 0, RenderAttributes attributes = null, PrimitiveType primitiveType = PrimitiveType.Triangles, uint drawCount = 1, uint stride = 0 )
@@ -228,7 +210,6 @@ partial class Graphics
 		if ( !SetRenderState( material, attributes ) )
 			return;
 
-		Context.BindIndexBuffer( indexBuffer.native, indexBuffer.ElementSize, 0 );
-		Context.DrawIndexedInstancedIndirect( (RenderPrimitiveType)primitiveType, indirectBuffer.native, bufferOffset, drawCount, stride );
+		Backend.DrawIndexedInstancedIndirect( null, indexBuffer, primitiveType, indirectBuffer, bufferOffset, drawCount, stride );
 	}
 }

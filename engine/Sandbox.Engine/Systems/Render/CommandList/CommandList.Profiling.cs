@@ -73,6 +73,9 @@ public sealed unsafe partial class CommandList
 	/// </summary>
 	internal static OpenScope OpenScopeFor( ProfilingSampler sampler )
 	{
+		// Markers and timestamps are Source 2's
+		if ( Graphics.Backend is not Source2RenderBackend ) return default;
+
 		var context = Graphics.Context;
 
 		var pix = DebugMarkersEnabled;

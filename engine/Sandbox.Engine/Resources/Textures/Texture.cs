@@ -58,7 +58,7 @@ public partial class Texture : Resource, IDisposable
 	/// <summary>
 	/// Texture index. Bit raw dog and needs a higher level abstraction.
 	/// </summary>
-	public int Index => g_pRenderDevice.GetTextureViewIndex( native, 0, RenderTextureDimension.RENDER_TEXTURE_DIMENSION_2D );
+	public int Index => Graphics.Backend.TextureIndex( this );
 
 	/// <summary>
 	/// Replace our strong handle with a copy of the strong handle of the passed texture
@@ -193,6 +193,7 @@ public partial class Texture : Resource, IDisposable
 	/// </summary>
 	public void Dispose()
 	{
+		RenderBackend.ReleaseEverywhere( this );
 		Destroy();
 	}
 

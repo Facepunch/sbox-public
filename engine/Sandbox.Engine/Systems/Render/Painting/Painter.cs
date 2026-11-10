@@ -74,6 +74,18 @@ public readonly ref partial struct Painter
 	}
 
 	/// <summary>
+	/// Starts painting a render-target texture on <paramref name="backend"/>'s device: the recording resolves bindless
+	/// indices and uploads its buffers there, and disposing draws it there.
+	/// </summary>
+	internal static Painter Begin( Texture texture, RenderBackend backend )
+	{
+		ArgumentNullException.ThrowIfNull( texture );
+		ArgumentNullException.ThrowIfNull( backend );
+		ThreadSafe.AssertIsMainThread();
+		return new TexturePaintContext( texture, backend ).Begin();
+	}
+
+	/// <summary>
 	/// Records drawing into a command list using screen bounds. Its screen-pixel coordinates map to the active view
 	/// viewport when executed. Dispose the painter to append its drawing.
 	/// </summary>

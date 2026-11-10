@@ -161,6 +161,8 @@ public sealed unsafe partial class CommandList
 			Attributes.ClearRenderTargets();
 			drawAttributeAccess?.ClearRenderTargets();
 			drawAttributes?.Clear( false );
+			managedDrawAttributes?.Clear( false );
+			currentDrawAttributes = null;
 			_entries.Clear();
 		}
 	}
@@ -987,7 +989,7 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			commandList.state.renderTargetStack.Push( (Graphics.RenderTarget, Graphics.Context.GetViewport()) );
+			commandList.state.renderTargetStack.Push( (Graphics.RenderTarget, Graphics.Backend.GetViewport()) );
 		}
 
 		AddEntry( &Execute, default );
@@ -1002,7 +1004,7 @@ public sealed unsafe partial class CommandList
 		{
 			var saved = commandList.state.renderTargetStack.Pop();
 			Graphics.RenderTarget = saved.Target;
-			Graphics.Context.SetViewport( saved.Viewport );
+			Graphics.Backend.SetViewport( saved.Viewport );
 		}
 
 		AddEntry( &Execute, default );
@@ -1211,7 +1213,7 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.Context.ClearTexture( ((Texture)entry.Object1).native, new Color( entry.Data1.x, entry.Data1.y, entry.Data1.z, entry.Data1.w ) );
+			Graphics.Backend.ClearTexture( (Texture)entry.Object1, new Color( entry.Data1.x, entry.Data1.y, entry.Data1.z, entry.Data1.w ) );
 		}
 
 		AddEntry( &Execute, new Entry { Object1 = texture, Data1 = new Vector4( color.r, color.g, color.b, color.a ) } );
@@ -1232,7 +1234,7 @@ public sealed unsafe partial class CommandList
 				return;
 			}
 
-			Graphics.Context.ClearTexture( target.ColorTarget.native, new Color( entry.Data1.x, entry.Data1.y, entry.Data1.z, entry.Data1.w ) );
+			Graphics.Backend.ClearTexture( target.ColorTarget, new Color( entry.Data1.x, entry.Data1.y, entry.Data1.z, entry.Data1.w ) );
 		}
 
 		AddEntry( &Execute, new Entry { Object5 = handle.ColorTexture.Name, Data1 = new Vector4( color.r, color.g, color.b, color.a ) } );
