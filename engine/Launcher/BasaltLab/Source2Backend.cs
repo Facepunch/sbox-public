@@ -168,12 +168,14 @@ internal sealed class Source2Backend
 	/// <summary>
 	/// Tear down what <see cref="Start"/> started, in the order the engine's own shutdown does, so anything still holding a
 	/// native resource shows up as a leak: the run's content and frame-end work, the managed caches, then the engine. The
-	/// process then ends with <paramref name="code"/> when the launcher returns.
+	/// launcher returns <paramref name="code"/>, or 1 when it succeeded but leaked.
 	/// </summary>
-	public void Exit( int code )
+	public int Exit( int code )
 	{
-		Shutdown();
-		Environment.ExitCode = code;
+		var leaks = Shutdown();
+
+		// A leak fails the run, so the render tests can't pass with one
+		return code != 0 ? code : leaks > 0 ? 1 : 0;
 	}
 
 	/// <summary>
@@ -199,7 +201,8 @@ internal sealed class Source2Backend
 		}
 	}
 
-	void Shutdown()
+	/// <returns>How many engine resources were still alive at the end, each logged as a leak.</returns>
+	int Shutdown()
 	{
 		g_pRenderDevice.Flush();
 		Content.Dispose();
@@ -225,7 +228,16 @@ internal sealed class Source2Backend
 			MainThread.RunQueues();
 		}
 
+		var leaks = 0;
+		void CountLeak( LogEvent e )
+		{
+			if ( e.Message?.StartsWith( "NativeResourceCache: Resource still alive", StringComparison.Ordinal ) == true ) leaks++;
+		}
+
+		Diagnostics.Logging.OnMessage += CountLeak;
 		NativeResourceCache.HandleShutdownLeaks();
+		Diagnostics.Logging.OnMessage -= CountLeak;
+		if ( leaks > 0 ) Log.Warning( $"Basalt Lab: {leaks} engine resources leaked" );
 		MainThread.RunQueues();
 		SceneWorld.FlushQueuedDeletes();
 
@@ -245,6 +257,7 @@ internal sealed class Source2Backend
 
 		EngineFileSystem.Shutdown();
 		Application.Shutdown();
+		return leaks;
 	}
 }
 

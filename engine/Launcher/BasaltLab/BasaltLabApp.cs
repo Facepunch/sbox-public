@@ -39,19 +39,16 @@ internal static class BasaltLabApp
 		if ( Args.String( "-ui-parity" ) is { } parity )
 		{
 			var code = UiParity.Run( backend, parity );
-			backend.Exit( code );
-			return code;
+			return backend.Exit( code );
 		}
 
 		if ( Args.String( "-model-parity" ) is { } models )
 		{
 			var code = ModelParity.Run( backend, models );
-			backend.Exit( code );
-			return code;
+			return backend.Exit( code );
 		}
 
 		var run = PresetRun.Run( backend, presets );
-		backend.Exit( run );
-		return run;
+		return backend.Exit( run );
 	}
 }
