@@ -84,8 +84,9 @@ internal partial class SurfaceWindow
 			if ( simulated )
 			{
 				// Scene panels queue their render during simulate - fill them in before we draw,
-				// otherwise a panel that just resized draws a texture with nothing in it yet
-				ScenePanel.RenderPending();
+				// otherwise a panel that just resized draws a texture with nothing in it yet.
+				// Scenes don't render on Basalt.Gpu yet.
+				if ( _basalt is null ) ScenePanel.RenderPending();
 
 				DrawFrame();
 				return true;
@@ -131,12 +132,13 @@ internal partial class SurfaceWindow
 	/// </summary>
 	bool SimulateFrame()
 	{
-		if ( !ApplyFullscreen() || Window is null || !Window.UpdateSwapChain( vsync: VSync ) ) return false;
+		if ( !ApplyFullscreen() || Window is null ) return false;
+		if ( _basalt is not null ? !_basalt.Update( Window.PixelSize ) : !Window.UpdateSwapChain( vsync: VSync ) ) return false;
 
 		UpdateMouseCapture();
 
 		// Lay out and render at the actual swapchain size, including while a resize is pending.
-		Surface.Size = Window.SwapChainSize;
+		Surface.Size = _basalt?.Size ?? Window.SwapChainSize;
 
 		// A window that sizes to its contents has nothing to show until it has some - drawing
 		// now would put an empty window on the screen at whatever size it happens to be
@@ -199,15 +201,23 @@ internal partial class SurfaceWindow
 	{
 		var profile = !IsShown && Sandbox.Utility.CommandLine.HasSwitch( "-startup-profile" ) ? Stopwatch.StartNew() : null;
 
-		OnRenderBackground( Window.SwapChain, Surface.Size );
-		_camera.AddToRenderList( Window.SwapChain, Surface.Size );
-		if ( profile is not null )
+		if ( _basalt is not null )
 		{
-			Log.Info( $"Startup profile (panel): {Title} render submission {profile.Elapsed.TotalMilliseconds:F3} ms" );
-			profile.Restart();
+			// The whole frame on Basalt.Gpu; a background drawn into Source 2's swap chain has nowhere to go
+			_basalt.Present( BackgroundColor, ClearsBackground, Surface.Render );
 		}
+		else
+		{
+			OnRenderBackground( Window.SwapChain, Surface.Size );
+			_camera.AddToRenderList( Window.SwapChain, Surface.Size );
+			if ( profile is not null )
+			{
+				Log.Info( $"Startup profile (panel): {Title} render submission {profile.Elapsed.TotalMilliseconds:F3} ms" );
+				profile.Restart();
+			}
 
-		Window.Present();
+			Window.Present();
+		}
 		if ( profile is not null )
 		{
 			Log.Info( $"Startup profile (panel): {Title} present call {profile.Elapsed.TotalMilliseconds:F3} ms" );
@@ -223,6 +233,48 @@ internal partial class SurfaceWindow
 		}
 
 		ApplyCursorShape();
+	}
+
+	/// <summary>
+	/// The window's UI as it stands drawn now into a texture of its size on <paramref name="device"/>, as a frame of the
+	/// window draws it, and read back: for comparing what each device draws. On a device other than the process's, the
+	/// panels' command lists are recorded again for it first (no tick, so the same frame), and again for the process's
+	/// after.
+	/// </summary>
+	internal Color32[] RenderToPixels( RenderBackend device )
+	{
+		var other = device != RenderBackend.Default;
+		if ( other ) Record( device );
+
+		try
+		{
+			var size = Surface.Size;
+			using var target = Texture.CreateRenderTarget().WithSize( (int)size.x, (int)size.y ).WithFormat( ImageFormat.RGBA8888 ).Create( "Window capture" );
+			BasaltGpuWindow.Draw( device, target, BackgroundColor, ClearsBackground, Surface.Render );
+
+			if ( device is BasaltGpuRenderBackend basalt ) return basalt.ReadPixels( target );
+
+			g_pRenderDevice.Flush();
+			return target.GetPixels();
+		}
+		finally
+		{
+			if ( other ) Record( RenderBackend.Default );
+		}
+	}
+
+	void Record( RenderBackend device )
+	{
+		var previous = Graphics.SetRecordingBackend( device );
+		try
+		{
+			Surface.System.BuildCommandLists();
+			Surface.System.CombineCommandLists();
+		}
+		finally
+		{
+			Graphics.SetRecordingBackend( previous );
+		}
 	}
 
 	/// <summary>

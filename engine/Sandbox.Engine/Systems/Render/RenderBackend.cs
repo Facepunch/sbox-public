@@ -12,9 +12,14 @@ namespace Sandbox;
 internal abstract class RenderBackend
 {
 	/// <summary>
-	/// The process's device: Source 2's.
+	/// The process's device: Source 2's, or a Basalt.Gpu device's with <c>-basaltgpu</c> (<see cref="Graphics.Initialize"/>).
 	/// </summary>
-	public static RenderBackend Default { get; } = Source2RenderBackend.Instance;
+	public static RenderBackend Default { get; private set; } = Source2RenderBackend.Instance;
+
+	/// <summary>
+	/// Make <paramref name="backend"/> the process's device, before anything renders; null goes back to Source 2's.
+	/// </summary>
+	internal static void SetDefault( RenderBackend backend ) => Default = backend ?? Source2RenderBackend.Instance;
 
 	//
 	// Blocks and resources
@@ -56,6 +61,9 @@ internal abstract class RenderBackend
 	{
 		lock ( others ) others.Remove( backend );
 	}
+
+	/// <summary>Whether any device other than <see cref="Default"/> exists, which might make copies of engine resources.</summary>
+	internal static bool OthersExist => others.Count > 0;
 
 	/// <summary>Release an engine resource's backings on every other device.</summary>
 	internal static void ReleaseEverywhere( object resource )

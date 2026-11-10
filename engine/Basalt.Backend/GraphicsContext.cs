@@ -316,6 +316,24 @@ public sealed class GraphicsContext
 	public void Finish() => EndScope();
 
 	/// <summary>
+	/// Copy mip 0 of <paramref name="source"/> over the whole of a swap chain image just acquired (its contents are
+	/// undefined), converting the format if they differ, and leave the image ready to present. The image isn't tracked
+	/// after this.
+	/// </summary>
+	public void CopyToPresent( TextureHandle source, TextureHandle image )
+	{
+		var from = gpu.InfoOf( source );
+		var to = gpu.InfoOf( image );
+		EndScope();
+		Transition( source, ImageLayout.CopySource );
+		layouts[image] = ImageLayout.Undefined;
+		Transition( image, ImageLayout.CopyDestination );
+		List.Blit( source, (0, 0, Math.Min( from.Width, to.Width ), Math.Min( from.Height, to.Height )), image, (0, 0, Math.Min( from.Width, to.Width ), Math.Min( from.Height, to.Height )), Filter.Nearest );
+		Transition( image, ImageLayout.Present );
+		layouts.Remove( image );
+	}
+
+	/// <summary>
 	/// Close any open rendering scope and leave every texture readable, as a block's last commands: later lists can then
 	/// sample what this one drew by bindless index, which no layout tracking sees.
 	/// </summary>

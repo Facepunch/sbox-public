@@ -88,6 +88,11 @@ public partial class Texture
 
 		DirtyVersion++; // Layer caches hash this
 
+		// Other devices copy the new contents from Source 2 when they next use it
+		RenderBackend.ReleaseEverywhere( this );
+		InitialPixels = null;
+		InitialColor = null;
+
 		var memRequired = ImageLoader.GetMemRequired( width, height, depth, ImageFormat, false );
 		if ( data.Length < memRequired )
 		{

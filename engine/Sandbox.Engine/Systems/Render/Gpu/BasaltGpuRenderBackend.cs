@@ -1,6 +1,7 @@
 using Basalt.Backend;
 using Basalt.Gpu;
 using Basalt.Source2;
+using Basalt.Source2.Materials;
 using Basalt.Source2.Shaders;
 using Sandbox.Rendering;
 using System.Runtime.CompilerServices;
@@ -32,6 +33,7 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 {
 	readonly GpuDevice gpu;
 	readonly ShaderLibrary library;
+	readonly ContentFiles files;
 	readonly ShaderDefaults defaults;
 	readonly ShaderDrawer drawer;
 	readonly GraphicsContext context;
@@ -62,27 +64,39 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 	/// <summary>
 	/// A backend on a device of its own, introduced to the driver with Source 2's application and engine names so it gets
 	/// the same driver profile (AMD's changes trilinear filtering otherwise). <paramref name="source2Names"/> false uses
-	/// Basalt's, to show the difference.
+	/// Basalt's, to show the difference. <paramref name="presentation"/> lets it present to windows; with
+	/// <paramref name="frames"/> the first block of each engine frame starts the device's next frame, as the process's
+	/// device does.
 	/// </summary>
-	public static BasaltGpuRenderBackend Create( bool validation = false, Action<DeviceMessage> message = null, bool source2Names = true )
+	public static BasaltGpuRenderBackend Create( bool validation = false, Action<DeviceMessage> message = null, bool source2Names = true, bool presentation = false, bool frames = false )
 	{
 		var gpu = GpuDevice.Create( new DeviceOptions
 		{
 			ApplicationName = source2Names ? "Sbox" : "Basalt",
 			EngineName = source2Names ? "Source2" : "Basalt",
 			Validation = validation,
-			Presentation = false,
+			Presentation = presentation,
 			Message = message,
 		} );
 
-		return new BasaltGpuRenderBackend( gpu, ownsDevice: true );
+		return new BasaltGpuRenderBackend( gpu, ownsDevice: true ) { followsFrames = frames };
 	}
+
+	/// <summary>A device beside Source 2's, logging its messages, for comparing the two in one process.</summary>
+	public static BasaltGpuRenderBackend CreateBeside( bool validation ) => Create( validation, m => Log.Info( $"Basalt.Gpu: {m.Severity} {m.Text}" ) );
+
+	/// <summary>Validation errors the device has reported.</summary>
+	public int ValidationErrors => gpu.ValidationErrors;
+
+	bool followsFrames;
+	ulong frame;
 
 	BasaltGpuRenderBackend( GpuDevice gpu, bool ownsDevice )
 	{
 		this.gpu = gpu;
 		this.ownsDevice = ownsDevice;
-		library = new ShaderLibrary( gpu, ContentFiles.FindGame() );
+		files = ContentFiles.FindGame();
+		library = new ShaderLibrary( gpu, files );
 		defaults = new ShaderDefaults( gpu );
 		drawer = new ShaderDrawer( gpu, library, defaults );
 		context = new GraphicsContext( gpu, drawer, null );
@@ -104,7 +118,15 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 	{
 		if ( list is not null ) throw new InvalidOperationException( "A Basalt.Gpu block is already recording." );
 
+		// Each engine frame is a device frame: this waits for the frame before last, then recycles what it used
+		if ( followsFrames && frame != Application.FrameCount )
+		{
+			frame = Application.FrameCount;
+			gpu.BeginFrame();
+		}
+
 		list = gpu.BeginCommandList( QueueType.Graphics, "Graphics block" );
+		presentTo = null;
 		context.Begin( list );
 		pendingShader = null;
 		pendingAttributes = null;
@@ -116,13 +138,39 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 		try
 		{
 			context.FinishReadable();
-			gpu.Submit( list );
+			gpu.Submit( list, default, presentTo );
 		}
 		finally
 		{
 			list = null;
+			presentTo = null;
 			pendingAttributes = null;
 		}
+	}
+
+	SwapChain presentTo;
+
+	/// <summary>
+	/// A swap chain on a window, presenting with vsync or as soon as it can.
+	/// </summary>
+	public SwapChain CreateSwapChain( SurfaceSource surface, int width, int height, bool vsync ) => gpu.CreateSwapChain( new SwapChainInfo
+	{
+		Surface = surface,
+		Width = width,
+		Height = height,
+		PresentMode = vsync ? PresentMode.Fifo : PresentMode.Immediate,
+		Linear = true,
+	} );
+
+	/// <summary>
+	/// Copy a texture into the image <paramref name="swapChain"/> acquired, last thing in the block, which then submits for
+	/// that image; present it after the block ends.
+	/// </summary>
+	public void CopyToSwapChain( Texture source, SwapChain swapChain )
+	{
+		_ = Recording;
+		context.CopyToPresent( TextureOf( source ), swapChain.Current );
+		presentTo = swapChain;
 	}
 
 	/// <summary>Wait until everything submitted has finished.</summary>
@@ -181,8 +229,13 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 		}
 	}
 
+	/// <summary>How many textures were copied from Source 2's pixels, having nothing of their own to start from.</summary>
+	public int CopiedFromSource2 { get; private set; }
+
 	/// <summary>
-	/// A texture's backing: a target made to match a render target, or a copy of mip 0 of anything else, as RGBA8.
+	/// A texture's backing. A render target is made to match, cleared as Source 2 clears a new one. Anything else comes
+	/// from its compiled file through Basalt.Source2, or from the pixels it was made with, as RGBA8; failing both (a
+	/// texture changed since, or made before this device), from mip 0 of Source 2's copy.
 	/// </summary>
 	internal TextureHandle TextureOf( Texture texture )
 	{
@@ -196,19 +249,141 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 			info.Mips = Math.Max( texture.Mips, 1 );
 			info.Usage |= TextureUsage.Storage;
 			handle = gpu.CreateTexture( info );
-			context.Track( handle, ImageLayout.Undefined );
+
+			// A target made with pixels - an image whose mips Source 2 generates - starts with them
+			if ( InitialPixels( texture, info.Format ) is { } pixels )
+			{
+				gpu.WriteTexture( handle, pixels );
+				if ( info.Mips > 1 ) FillMips( handle, info );
+				context.Track( handle, ImageLayout.ShaderRead );
+			}
+			else
+			{
+				context.Track( handle, ImageLayout.Undefined );
+				if ( texture.InitialColor is { } clear ) ClearNow( handle, clear );
+			}
+		}
+		else if ( FromFile( texture ) is { } file )
+		{
+			handle = file;
+			context.Track( handle, ImageLayout.ShaderRead );
+		}
+		else if ( InitialPixels( texture, GpuFormat.RGBA8Unorm ) is { } pixels )
+		{
+			// With its mips, as Source 2 generates them from the first
+			var info = TextureInfo.Texture2D( texture.Width, texture.Height, GpuFormat.RGBA8Unorm, Math.Max( texture.Mips, 1 ), $"Engine image {texture.Width}x{texture.Height}" );
+			handle = gpu.CreateTexture( info );
+			gpu.WriteTexture( handle, pixels );
+			if ( info.Mips > 1 ) FillMips( handle, info );
+			context.Track( handle, ImageLayout.ShaderRead );
 		}
 		else
 		{
-			var pixels = texture.GetPixels();
 			handle = gpu.CreateTexture( TextureInfo.Texture2D( texture.Width, texture.Height, GpuFormat.RGBA8Unorm, name: $"Engine image {texture.Width}x{texture.Height}" ) );
-			gpu.WriteTexture( handle, MemoryMarshal.AsBytes( pixels.AsSpan() ) );
+			gpu.WriteTexture( handle, CopyFromSource2( texture ) );
 			context.Track( handle, ImageLayout.ShaderRead );
 		}
 
 		textures.Add( texture, new Backing<TextureHandle>( handle ) );
 		textureOwners[handle] = texture;
 		return handle;
+	}
+
+	/// <summary>A texture loaded from a compiled <c>.vtex</c>, read from that file.</summary>
+	TextureHandle? FromFile( Texture texture )
+	{
+		var path = texture.ResourcePath;
+		if ( string.IsNullOrEmpty( path ) || !path.EndsWith( ".vtex", StringComparison.OrdinalIgnoreCase ) ) return null;
+		if ( files.Find( path ) is not { } file ) return null;
+
+		try
+		{
+			return TextureFile.Load( file ).Create( gpu, path );
+		}
+		catch ( NotSupportedException )
+		{
+			return null;
+		}
+	}
+
+	/// <summary>
+	/// Mip 0 of the pixels a texture was made with, in <paramref name="format"/> (RGBA8 or BGRA8), when it was made in one
+	/// of those.
+	/// </summary>
+	static byte[] InitialPixels( Texture texture, GpuFormat format )
+	{
+		if ( texture.InitialPixels is not { } data ) return null;
+		if ( texture.ImageFormat is not (ImageFormat.RGBA8888 or ImageFormat.BGRA8888) ) return null;
+
+		var size = texture.Width * texture.Height * 4;
+		if ( data.Length < size ) return null;
+
+		var pixels = data.Length == size ? data : data[..size];
+		var swap = (texture.ImageFormat == ImageFormat.BGRA8888) != (format == GpuFormat.BGRA8Unorm);
+		if ( !swap ) return pixels;
+
+		pixels = pixels == data ? (byte[])data.Clone() : pixels;
+		for ( int i = 0; i < size; i += 4 ) (pixels[i], pixels[i + 2]) = (pixels[i + 2], pixels[i]);
+		return pixels;
+	}
+
+	byte[] CopyFromSource2( Texture texture )
+	{
+		CopiedFromSource2++;
+		return MemoryMarshal.AsBytes( texture.GetPixels().AsSpan() ).ToArray();
+	}
+
+	/// <summary>
+	/// Fill mips 1 and down of a texture whose mip 0 is in <see cref="ImageLayout.ShaderRead"/> by halving each into the
+	/// next with a linear blit (a box filter), as a texture made with only its first mip gets the rest. Leaves it all in
+	/// <see cref="ImageLayout.ShaderRead"/>.
+	/// </summary>
+	void FillMips( TextureHandle handle, in TextureInfo info )
+	{
+		var mips = gpu.BeginCommandList( QueueType.Graphics, "Fill mips" );
+		for ( int i = 1; i < info.Mips; i++ )
+		{
+			int sw = Math.Max( info.Width >> (i - 1), 1 ), sh = Math.Max( info.Height >> (i - 1), 1 );
+			int dw = Math.Max( info.Width >> i, 1 ), dh = Math.Max( info.Height >> i, 1 );
+			mips.Barrier( MipBarrier( handle, i - 1, ImageLayout.ShaderRead, ImageLayout.CopySource ) );
+			mips.Barrier( MipBarrier( handle, i, ImageLayout.Undefined, ImageLayout.CopyDestination ) );
+			mips.Blit( handle, (0, 0, sw, sh), handle, (0, 0, dw, dh), Filter.Linear, i - 1, i );
+			mips.Barrier( MipBarrier( handle, i - 1, ImageLayout.CopySource, ImageLayout.ShaderRead ) );
+			mips.Barrier( MipBarrier( handle, i, ImageLayout.CopyDestination, ImageLayout.ShaderRead ) );
+		}
+
+		gpu.Submit( mips );
+	}
+
+	static TextureBarrier MipBarrier( TextureHandle texture, int mip, ImageLayout from, ImageLayout to ) => new()
+	{
+		Texture = texture,
+		OldLayout = from,
+		NewLayout = to,
+		SourceStage = PipelineStage.AllCommands,
+		SourceAccess = from == ImageLayout.Undefined ? MemoryAccess.None : MemoryAccess.MemoryWrite,
+		DestinationStage = PipelineStage.AllCommands,
+		DestinationAccess = MemoryAccess.MemoryRead | MemoryAccess.MemoryWrite,
+		BaseMip = mip,
+		MipCount = 1,
+		LayerCount = 1,
+	};
+
+	/// <summary>Clear a new target now, in the block being recorded or on its own.</summary>
+	void ClearNow( TextureHandle handle, Color color )
+	{
+		var value = new Num.Vector4( color.r, color.g, color.b, color.a );
+		if ( list is not null )
+		{
+			context.ClearTexture( handle, value );
+			return;
+		}
+
+		var clear = gpu.BeginCommandList( QueueType.Graphics, "Clear new target" );
+		context.Begin( clear );
+		context.ClearTexture( handle, value );
+		context.Finish();
+		gpu.Submit( clear );
 	}
 
 	static GpuFormat FormatOf( ImageFormat format ) => format switch

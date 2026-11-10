@@ -9,6 +9,7 @@ public class PanelGalleryAppSystem : PanelAppSystem
 	readonly List<PanelWindow> _windows = new();
 	int _captureFrame;
 	readonly int _captureAtFrame = Math.Max( 1, IntArg( "-capture-frame", 30 ) );
+	GalleryPageCapture _pageCapture;
 
 	protected override void OnInitialized()
 	{
@@ -30,6 +31,7 @@ public class PanelGalleryAppSystem : PanelAppSystem
 		}
 
 		RegisterUiTests();
+		_pageCapture = GalleryPageCapture.FromCommandLine();
 
 		// Borderless - the title bar in this one is panels, same as everything else. "-width 1600 -height 1400"
 		// overrides the size, for screenshotting a whole page at once.
@@ -48,6 +50,7 @@ public class PanelGalleryAppSystem : PanelAppSystem
 	protected override bool RunFrame()
 	{
 		var running = base.RunFrame();
+		if ( running && _pageCapture is not null ) return _pageCapture.Frame( _windows.FirstOrDefault( x => x.IsOpen ) );
 		if ( !running || ++_captureFrame != _captureAtFrame ) return running;
 
 		var args = Environment.GetCommandLineArgs();

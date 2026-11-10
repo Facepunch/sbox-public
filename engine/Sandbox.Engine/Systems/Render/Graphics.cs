@@ -21,6 +21,14 @@ public static partial class Graphics
 	{
 		IsAvailable = g_pRenderDevice.GetRenderDeviceAPI() != RenderDeviceAPI_t.RENDER_DEVICE_API_EMPTY;
 
+		// -basaltgpu: the process draws on a Basalt.Gpu device of its own (docs/managed/basalt-gpu-path.md, stage 2)
+		if ( IsAvailable && Sandbox.Utility.CommandLine.HasSwitch( "-basaltgpu" ) && RenderBackend.Default is Source2RenderBackend )
+		{
+			var validation = Sandbox.Utility.CommandLine.HasSwitch( "-basaltgpu-validation" );
+			RenderBackend.SetDefault( BasaltGpuRenderBackend.Create( validation, m => Log.Info( $"Basalt.Gpu: {m.Severity} {m.Text}" ), presentation: true, frames: true ) );
+			Log.Info( $"Rendering on Basalt.Gpu ({((BasaltGpuRenderBackend)RenderBackend.Default).Device.Adapter.Name}){(validation ? ", validation on" : "")}" );
+		}
+
 		_mipMapGeneratorShader = IsAvailable ? new ComputeShader( "downsample_cs" ) : null;
 		_spdShader = IsAvailable ? new ComputeShader( "downsample_spd" ) : null;
 
@@ -31,6 +39,13 @@ public static partial class Graphics
 	internal static void Shutdown()
 	{
 		Cmaa2Renderer.Shutdown();
+
+		if ( RenderBackend.Default is BasaltGpuRenderBackend basalt )
+		{
+			RenderBackend.SetDefault( null );
+			basalt.Dispose();
+		}
+
 		IsAvailable = false;
 		_mipMapGeneratorShader = null;
 		_spdShader = null;
