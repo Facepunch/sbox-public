@@ -71,12 +71,9 @@ internal static class MapRealRun
 			if ( !swapChain.Acquire( out image ) ) image = default;
 			var t1 = Stopwatch.GetTimestamp();
 
-			// GPU time: a timestamp before the frame's first list and after its last, three frames back
+			// GPU time: from the start of Basalt's frame list to after its last list, three frames back
 			var slot = (int)(frameNumber % 4);
-			var start = gpu.BeginCommandList( QueueType.Graphics, "Map frame start" );
-			start.ResetTimestamps( timestamps, slot * 2, 2 );
-			start.WriteTimestamp( timestamps, slot * 2 );
-			gpu.Submit( start );
+			map.Backend.FrameStartTimestamp = (timestamps, slot * 2);
 
 			map.Render( view );
 			var t2 = Stopwatch.GetTimestamp();
@@ -102,7 +99,7 @@ internal static class MapRealRun
 		}
 
 		var lines = new List<string>();
-		var csv = new StringBuilder( "view,variant,parallel,material_objects,shadows,frames,wait_ms,render_ms,collect_ms,prepare_ms,setup_ms,record_ms,worker_record_ms,stages_ms,submit_ms,copy_ms,cpu_ms,frame_ms,frame_p95_ms,gpu_ms,draws,depth_draws,shadow_draws,translucent_draws,instances,objects_visible,triangles,model_draws,binds,fragment_draws,sets_written_per_frame,gcs\n" );
+		var csv = new StringBuilder( "view,variant,parallel,material_objects,shadows,frames,wait_ms,render_ms,collect_ms,prepare_ms,setup_ms,record_ms,worker_record_ms,stages_ms,submit_ms,copy_ms,cpu_ms,frame_ms,frame_p95_ms,gpu_ms,draws,depth_draws,shadow_draws,translucent_draws,instances,objects_visible,triangles,model_draws,binds,fragment_draws,ns_per_bind,ns_per_repeat,sets_written_per_frame,gcs\n" );
 		var bindingReport = "";
 
 		foreach ( var view in options.Views )
@@ -146,14 +143,15 @@ internal static class MapRealRun
 				map.Backend.TimeDraws = false;
 				var t = map.Backend.DrawTimes;
 				var (modelDraws, binds, fragmentDraws) = (t.Draws / Counted, t.Binds / Counted, t.IndirectDraws / Counted);
+				var (nsBind, nsRepeat) = (t.NanosecondsPerBind, t.NanosecondsPerRepeat);
 
 				double M( Func<Frame, double> f ) => Percentile( frames.Select( f ).Where( x => !double.IsNaN( x ) ), 0.5 );
 				var cpu = M( f => f.Render + f.Copy );
 				var line = $"{view.Name,-9} {variant.Name,-22} collect {M( f => f.Collect ),6:0.000} prepare {M( f => f.Prepare ),6:0.000} setup {M( f => f.Setup ),6:0.000} record {M( f => f.Record ),6:0.000} (workers {M( f => f.WorkerRecord ):0.000}) submit {M( f => f.Submit ),6:0.000} render {M( f => f.Render ),6:0.000} copy {M( f => f.Copy ),5:0.000} wait {M( f => f.Wait ),6:0.000} frame {Percentile( frameTimes, 0.5 ),6:0.000} gpu {M( f => f.Gpu ),6:0.000}  "
-					+ $"{stats.Draws}+{stats.DepthDraws} depth+{stats.ShadowDraws} shadow draws ({stats.TranslucentDraws} translucent, {stats.Instances} instances), {stats.ObjectsVisible} objects visible, {stats.Triangles / 1e6:0.00}M tris; {modelDraws} model draws, {binds} binds, {fragmentDraws} fragment draws, {setsPerFrame:0.0} sets written/frame, {gcs} GCs";
+					+ $"{stats.Draws}+{stats.DepthDraws} depth+{stats.ShadowDraws} shadow draws ({stats.TranslucentDraws} translucent, {stats.Instances} instances), {stats.ObjectsVisible} objects visible, {stats.Triangles / 1e6:0.00}M tris; {modelDraws} model draws, {binds} binds, {fragmentDraws} fragment draws ({nsBind:0} ns a bind, {nsRepeat:0} ns a repeat draw, timed), {setsPerFrame:0.0} sets written/frame, {gcs} GCs";
 				Console.WriteLine( line );
 				lines.Add( line );
-				csv.AppendLine( FormattableString.Invariant( $"{view.Name},{variant.Name},{variant.Parallel},{variant.MaterialObjects},{variant.Shadows},{frames.Count},{M( f => f.Wait ):0.0000},{M( f => f.Render ):0.0000},{M( f => f.Collect ):0.0000},{M( f => f.Prepare ):0.0000},{M( f => f.Setup ):0.0000},{M( f => f.Record ):0.0000},{M( f => f.WorkerRecord ):0.0000},{M( f => f.Stages ):0.0000},{M( f => f.Submit ):0.0000},{M( f => f.Copy ):0.0000},{cpu:0.0000},{Percentile( frameTimes, 0.5 ):0.0000},{Percentile( frameTimes, 0.95 ):0.0000},{M( f => f.Gpu ):0.0000},{stats.Draws},{stats.DepthDraws},{stats.ShadowDraws},{stats.TranslucentDraws},{stats.Instances},{stats.ObjectsVisible},{stats.Triangles},{modelDraws},{binds},{fragmentDraws},{setsPerFrame:0.0},{gcs}" ) );
+				csv.AppendLine( FormattableString.Invariant( $"{view.Name},{variant.Name},{variant.Parallel},{variant.MaterialObjects},{variant.Shadows},{frames.Count},{M( f => f.Wait ):0.0000},{M( f => f.Render ):0.0000},{M( f => f.Collect ):0.0000},{M( f => f.Prepare ):0.0000},{M( f => f.Setup ):0.0000},{M( f => f.Record ):0.0000},{M( f => f.WorkerRecord ):0.0000},{M( f => f.Stages ):0.0000},{M( f => f.Submit ):0.0000},{M( f => f.Copy ):0.0000},{cpu:0.0000},{Percentile( frameTimes, 0.5 ):0.0000},{Percentile( frameTimes, 0.95 ):0.0000},{M( f => f.Gpu ):0.0000},{stats.Draws},{stats.DepthDraws},{stats.ShadowDraws},{stats.TranslucentDraws},{stats.Instances},{stats.ObjectsVisible},{stats.Triangles},{modelDraws},{binds},{fragmentDraws},{nsBind:0},{nsRepeat:0},{setsPerFrame:0.0},{gcs}" ) );
 			}
 
 			if ( bindingReport.Length == 0 ) bindingReport = DescribeBindings( map.Backend );

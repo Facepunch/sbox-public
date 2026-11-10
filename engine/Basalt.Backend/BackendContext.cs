@@ -131,6 +131,12 @@ internal sealed partial class BackendContext : GpuContext
 		{
 			var queue = AsyncCompute && Gpu.Capabilities.AsyncCompute ? QueueType.Compute : QueueType.Graphics;
 			recording = new Session { List = Gpu.BeginCommandList( queue, frame is null ? "Basalt frame" : "Basalt segment" ) };
+			if ( frame is null && device.FrameStartTimestamp is { } stamp )
+			{
+				device.FrameStartTimestamp = null;
+				recording.List.ResetTimestamps( stamp.Queries, stamp.Index, 2 );
+				recording.List.WriteTimestamp( stamp.Queries, stamp.Index, PipelineStage.TopOfPipe );
+			}
 
 			// A segment with a list of its own may record while others do: its layouts are its own until it's submitted
 			if ( frame is not null ) recording.Layouts = new();

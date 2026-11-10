@@ -104,6 +104,13 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// <summary>Model draws timed with <see cref="TimeDraws"/> on.</summary>
 	public DrawTimings DrawTimes { get; } = new();
 
+	/// <summary>
+	/// When set, the next frame context to begin a list of its own resets timestamps <c>Index</c> and <c>Index + 1</c> of
+	/// <c>Queries</c> and writes the first at the start of its list, so a frame's GPU time can be read from there to a
+	/// timestamp the caller writes after it; cleared once used. For benchmarks.
+	/// </summary>
+	internal (TimestampQueries Queries, int Index)? FrameStartTimestamp { get; set; }
+
 	readonly BackendTexture black;
 	readonly BackendTexture sheetMetadata;
 
