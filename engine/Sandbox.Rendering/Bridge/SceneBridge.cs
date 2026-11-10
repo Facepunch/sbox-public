@@ -208,6 +208,12 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		mirrors.Clear();
 	}
 
+	/// <summary>
+	/// Make the shaders Basalt's render systems share, at startup: layers otherwise make them as they first render, and the
+	/// first frames draw differently.
+	/// </summary>
+	public void WarmUp() => RenderSystem.WarmUp();
+
 	SceneMirror MirrorFor( SceneWorld world )
 	{
 		if ( !mirrors.TryGetValue( world, out var mirror ) ) mirrors[world] = mirror = new SceneMirror( world );
