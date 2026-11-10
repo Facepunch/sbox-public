@@ -86,6 +86,12 @@ public sealed class RenderWorld
 	internal ReadOnlySpan<Matrix> LocalToWorld => _localToWorld.AsSpan( 0, Count );
 
 	/// <summary>
+	/// Mesh objects whose attributes are read as they draw (<see cref="MeshObject.AttributesFrom"/>): a world without any
+	/// skips looking for them.
+	/// </summary>
+	internal int AttributeSources { get; set; }
+
+	/// <summary>
 	/// Add an object. An object can be in one world at a time.
 	/// </summary>
 	public void Add( RenderObject obj )
@@ -109,6 +115,7 @@ public sealed class RenderWorld
 
 		obj.World = this;
 		obj.Index = Count++;
+		if ( obj is MeshObject { AttributesFrom: not null } ) AttributeSources++;
 		_objects[obj.Index] = obj;
 		_treeLeaves[obj.Index] = NotAdded;
 		_dynamicTreeLeaves[obj.Index] = NotAdded;
@@ -149,6 +156,7 @@ public sealed class RenderWorld
 		}
 
 		_objects[last] = null;
+		if ( obj is MeshObject { AttributesFrom: not null } ) AttributeSources--;
 		obj.World = null;
 		obj.Index = -1;
 	}

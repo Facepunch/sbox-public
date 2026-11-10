@@ -299,10 +299,14 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		var centers = world.BoundsCenter;
 		var extents = world.BoundsExtents;
 
-		// Attributes read as the objects draw, here on the main thread, before classifying reads them on several
-		foreach ( var index in CollectionsMarshal.AsSpan( visible ) )
+		// Attributes read as the objects draw, here on the main thread, before classifying reads them on several. A world with
+		// no attribute sources (the lab's own) skips the pass
+		if ( world.AttributeSources > 0 )
 		{
-			if ( objects[index] is MeshObject { AttributesFrom: not null } mesh ) mesh.RefreshAttributes();
+			foreach ( var index in CollectionsMarshal.AsSpan( visible ) )
+			{
+				if ( objects[index] is MeshObject { AttributesFrom: not null } mesh ) mesh.RefreshAttributes();
+			}
 		}
 
 		// LOD uses a radius-0.5 sphere's pixel width. Shadows use the main view to match visible LODs.
