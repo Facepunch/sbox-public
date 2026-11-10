@@ -23,6 +23,7 @@ namespace Sandbox.BasaltLab;
 /// Presets with posed skinned models start them anyway.</item>
 /// <item><c>-ui-parity folder</c> - draw a card of UI through Source 2 and through a Basalt.Gpu device, compare and exit (<see cref="UiParity"/>).</item>
 /// <item><c>-model-parity folder</c> - render s&amp;box models with Basalt on Source 2's device and on a Basalt.Gpu device, compare and exit (<see cref="ModelParity"/>).</item>
+/// <item><c>-map ident</c>, <c>-construct</c> - read a compiled map with Basalt.Source2 and time drawing it on a Basalt.Gpu device, with no Source 2 device (<see cref="Maps.MapRun"/>).</item>
 /// </list>
 /// Startup and frame times go to the log, and a summary to the console.
 /// </summary>
@@ -30,6 +31,9 @@ internal static class BasaltLabApp
 {
 	public static int Run()
 	{
+		// A map on a Basalt.Gpu device of its own: nothing of the engine starts
+		if ( Maps.MapRun.Requested ) return Maps.MapRun.Run();
+
 		// Posing skinned presets takes the animation system, which only the longer list of native modules starts
 		var presets = PresetRun.Selected();
 		var posing = presets.Any( x => x.Preset is { Sequences.Length: > 0 } );
