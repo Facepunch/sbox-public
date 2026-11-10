@@ -40,12 +40,18 @@ internal partial class ShadowMapper
 	/// </summary>
 	struct CascadeCache
 	{
+		/// <summary>
+		/// The mapper that drew them, which forgets them if its frame is never submitted.
+		/// </summary>
+		public ShadowMapper Mapper;
 		public ulong Frame;
 		public object Light;
 		public Vector3 CameraPosition;
 		public float RadiusSquared;
 		public float ViewportArea;
 		public StaticFilter StaticFilter;
+		public uint[] RenderTags, ExcludeTags;
+		public ulong SubWorlds;
 		public GPUDirectionalLight Data;
 	}
 
@@ -344,6 +350,8 @@ internal partial class ShadowMapper
 		// A reflection's mirrored camera neither reuses another view's cascades nor shares its own
 		if ( !View.IsReflection && LastCascades.Frame == FrameCount && LastCascades.Light == light.Key && viewportArea <= LastCascades.ViewportArea
 			&& LastCascades.StaticFilter == staticFilter
+			&& SameTags( LastCascades.RenderTags, View.RenderTags ?? [] ) && SameTags( LastCascades.ExcludeTags, View.ExcludeTags ?? [] )
+			&& LastCascades.SubWorlds == View.SubWorlds
 			&& cameraPosition.DistanceSquared( LastCascades.CameraPosition ) <= LastCascades.RadiusSquared )
 		{
 			gpuShadowData = LastCascades.Data;
@@ -425,12 +433,16 @@ internal partial class ShadowMapper
 		float outerRadius = cascadeCount > 0 ? cascades[cascadeCount - 1].SphereRadius : 0f;
 		if ( !View.IsReflection ) LastCascades = new CascadeCache
 		{
+			Mapper = this,
 			Frame = FrameCount,
 			Light = light.Key,
 			CameraPosition = cameraPosition,
 			RadiusSquared = outerRadius * outerRadius,
 			ViewportArea = viewportArea,
 			StaticFilter = staticFilter,
+			RenderTags = View.RenderTags ?? [],
+			ExcludeTags = View.ExcludeTags ?? [],
+			SubWorlds = View.SubWorlds,
 			Data = gpuShadowData,
 		};
 

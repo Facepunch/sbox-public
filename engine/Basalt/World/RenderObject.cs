@@ -59,18 +59,62 @@ public abstract class RenderObject
 			if ( field == value ) return;
 			field = value;
 			World?.SyncDynamic( this );
+			World?.StaticCasterChanged( this );
 		}
+	}
+
+	/// <summary>
+	/// Tell the world a static object changed how it casts shadows, so lights it reaches redraw their static shadow caches.
+	/// </summary>
+	private protected void ShadowChanged()
+	{
+		if ( IsStatic ) World?.StaticCasterChanged( this );
 	}
 
 	/// <summary>
 	/// String-token tags used by view include/exclude filters.
 	/// </summary>
-	public uint[] Tags { get; set; } = [];
+	public uint[] Tags
+	{
+		get;
+		set
+		{
+			if ( field.AsSpan().SequenceEqual( value ) ) return;
+			field = value;
+			ShadowChanged();
+		}
+	} = [];
 
 	/// <summary>
 	/// Treat as tagged <c>world</c> for view filtering (<c>CSceneSystem</c> world flags).
 	/// </summary>
-	public bool IsWorld { get; set; }
+	public bool IsWorld
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			ShadowChanged();
+		}
+	}
+
+	/// <summary>
+	/// The sub-world this object belongs to: 0 for the world's own objects, or 1 to <see cref="RenderWorld.MaxSubWorlds"/> for
+	/// another world's drawn in this one's views, which only views with its bit in <see cref="RenderView.SubWorlds"/> show. Native
+	/// draws a camera's extra worlds in its view this way, in the same layers and depth as its main world
+	/// (<c>CSceneView::AddWorldToRenderList</c>).
+	/// </summary>
+	public int SubWorld
+	{
+		get;
+		set
+		{
+			ArgumentOutOfRangeException.ThrowIfNegative( value );
+			ArgumentOutOfRangeException.ThrowIfGreaterThan( value, RenderWorld.MaxSubWorlds );
+			field = value;
+		}
+	}
 
 	/// <summary>
 	/// Include in game layers (inverse of <c>SCENEOBJECTFLAG_EXCLUDE_GAME_LAYER</c>). Does not affect shadow casting.
@@ -97,7 +141,16 @@ public abstract class RenderObject
 	/// Exclusive layer match (<c>SceneObject.RenderLayer</c>). Overrides all layer flags, including shadows,
 	/// until cleared; existing flags are retained.
 	/// </summary>
-	public LayerMatch LayerMatch { get; set; }
+	public LayerMatch LayerMatch
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			ShadowChanged();
+		}
+	}
 
 	/// <summary>
 	/// Bounds in object space, before <see cref="Transform"/>.

@@ -31,12 +31,30 @@ public abstract class CustomObject : RenderObject
 	/// <summary>
 	/// Cast shadows in the matching opaque/translucent layer (<c>CSceneSystem::AddShadowView</c>).
 	/// </summary>
-	public bool CastShadows { get; set; }
+	public bool CastShadows
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			ShadowChanged();
+		}
+	}
 
 	/// <summary>
 	/// Enable drawing.
 	/// </summary>
-	public bool Visible { get; set; } = true;
+	public bool Visible
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			ShadowChanged();
+		}
+	} = true;
 
 	/// <summary>
 	/// Skip size culling because custom bounds may be absent or huge.
