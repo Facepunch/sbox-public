@@ -49,6 +49,31 @@ public class WorkTests
 	}
 
 	/// <summary>
+	/// An object in several shadow views is classified for the first of them only: its LOD comes from the main view's
+	/// camera and shadows take no probe, so every shadow view would make the same of it.
+	/// </summary>
+	[TestMethod]
+	public void ShadowViewsClassifyAnObjectOnce()
+	{
+		var world = Boxes( TestMesh( false ), 1000 );
+		world.Add( new LightObject( LightObject.LightKind.Spot, new Transform( new Vector3( 60, 5, 0 ) ) ) { Radius = 200, ConeOuter = 45 } );
+		world.Add( new LightObject( LightObject.LightKind.Spot, new Transform( new Vector3( 60, -5, 0 ) ) ) { Radius = 200, ConeOuter = 45 } );
+		var view = LookingDownX();
+		using var system = new RenderSystem();
+		Basalt.Shadows.ShadowMapper.ResetCache();
+		CollectAndPrepare( system, world, view );
+
+		var feature = system.GetFeature<MeshRenderFeature>();
+		var classified = feature.ObjectsClassified;
+		CollectAndPrepare( system, world, view );
+
+		var shadowVisible = system.ShadowMaps.Passes.ToArray().SelectMany( p => p.Visible( feature ) ).ToList();
+		var distinct = shadowVisible.Distinct().Count();
+		Assert.IsTrue( shadowVisible.Count >= distinct * 2, $"objects in several shadow views: {shadowVisible.Count} in {distinct}" );
+		Assert.AreEqual( system.MainPass.Visible( feature ).Count + distinct, feature.ObjectsClassified - classified );
+	}
+
+	/// <summary>
 	/// The occlusion cull's counts are read back every <see cref="Basalt.Culling.OcclusionCuller.StatsInterval"/> frames, not
 	/// every frame: each read makes a staging buffer in native, a fraction of a millisecond.
 	/// </summary>
