@@ -17,10 +17,12 @@ internal class BasaltRenderTests( string[] presets, bool update )
 	const string LavapipeUrl = $"https://github.com/Facepunch/sbox-thirdparty/releases/download/lavapipe-{LavapipeVersion}/lavapipe-{LavapipeVersion}-win64.zip";
 	const string GoldenTruth = "engine/Tests/GoldenTruth/Basalt";
 
-	// The images were captured at this size and frame, so they're part of the test
+	// The images were captured at this size, frame and sample count, so they're part of the test. Multisampled, as a game's
+	// window is by default: Lavapipe loses the blue of lit surfaces in single-sample targets
 	const int Width = 640;
 	const int Height = 360;
 	const int CaptureFrame = 10;
+	const int Samples = 4;
 
 	// Lavapipe runs a frame's command buffers on one thread, so a BasaltLab keeps about two cores busy: the presets are
 	// split between this many at once
@@ -56,14 +58,11 @@ internal class BasaltRenderTests( string[] presets, bool update )
 		foreach ( var file in Directory.EnumerateFiles( output ) ) File.Delete( file );
 		foreach ( var dir in Directory.EnumerateDirectories( output ) ) Directory.Delete( dir, true );
 
-		// Only Lavapipe, and no implicit layers (vendor switchable graphics, overlays) between it and the engine. Lavapipe's
-		// 256-bit code path loses the blue of lit surfaces in single-sample targets, which these are; its 128-bit one renders
-		// them right, and the same on any x64 CPU
+		// Only Lavapipe, and no implicit layers (vendor switchable graphics, overlays) between it and the engine
 		var environment = new Dictionary<string, string>
 		{
 			["VK_DRIVER_FILES"] = icd,
 			["VK_LOADER_LAYERS_DISABLE"] = "~implicit~",
-			["LP_NATIVE_VECTOR_WIDTH"] = "128",
 		};
 
 		// BasaltLab deals the presets round-robin into the runs itself (-shard), so each preset follows the same ones everywhere
@@ -81,7 +80,7 @@ internal class BasaltRenderTests( string[] presets, bool update )
 		{
 			// Validation warnings too: without -vulkan_validation_warnings the render system only reports errors
 			var arguments = $"{runs[i].Presets} -out \"{runs[i].Folder}\" -golden-truth \"{Path.GetFullPath( Path.Combine( root, GoldenTruth ) )}\"{(update ? " -golden-truth-update" : "")} " +
-				$"-vulkan_allow_cpu -vulkan_enable_validation -vulkan_validation_warnings -width {Width} -height {Height} -capture-frame {CaptureFrame}";
+				$"-vulkan_allow_cpu -vulkan_enable_validation -vulkan_validation_warnings -width {Width} -height {Height} -msaa {Samples} -capture-frame {CaptureFrame}";
 
 			// Each run's output in a file of its own, and anything that says the run didn't end cleanly: a resource still
 			// alive at shutdown, a convar left registered

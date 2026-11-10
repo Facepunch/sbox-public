@@ -16,6 +16,7 @@ namespace Sandbox.BasaltLab;
 /// exit code 1 when any fails. <c>-golden-truth-update</c> writes them.</item>
 /// <item><c>-width</c> / <c>-height</c> - the window or texture size (default 640x360, the render tests' size).</item>
 /// <item><c>-zoom f</c> - the camera at f times its usual distance.</item>
+/// <item><c>-msaa N</c> - capture into a target with N samples (default 1).</item>
 /// <item><c>-frames N</c> - close the window after N frames.</item>
 /// <item><c>-novsync</c> - don't wait for the display.</item>
 /// <item><c>-scene-modules</c> - also start the native modules SceneLab starts (world renderer, animation, physics, sound).
