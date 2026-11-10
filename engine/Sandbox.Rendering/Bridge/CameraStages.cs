@@ -64,6 +64,7 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 	{
 		Camera = camera;
 		reflection = setup.Reflection;
+		view.IsReflection = reflection;
 		camera.ScheduleEarlyPostProcess( Stage.AfterDepthPrepass, false );
 		view.PostProcessEnabled = setup.EnablePostprocessing ?? camera.EnablePostProcessing;
 		EnableUI = setup.EnableUI ?? camera.RenderUI;
