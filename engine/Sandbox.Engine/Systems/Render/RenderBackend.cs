@@ -17,6 +17,57 @@ internal abstract class RenderBackend
 	public static RenderBackend Default { get; } = Source2RenderBackend.Instance;
 
 	//
+	// Blocks and resources
+	//
+
+	/// <summary>
+	/// Start a render block with no view on this device (<see cref="Graphics.Scope.CreateOn"/>): the
+	/// attributes it starts with. Source 2's blocks are made by the scope itself.
+	/// </summary>
+	public virtual RenderAttributes BeginBlock() => throw new NotSupportedException( $"{GetType().Name} has no standalone blocks." );
+
+	/// <summary>Submit what the block recorded.</summary>
+	public virtual void EndBlock() => throw new NotSupportedException( $"{GetType().Name} has no standalone blocks." );
+
+	/// <summary>A texture's bindless index on this device: its linear view; the sRGB view is the next.</summary>
+	public abstract int TextureIndex( Texture texture );
+
+	/// <summary>A sampler state's bindless index on this device.</summary>
+	public abstract int SamplerIndex( SamplerState state );
+
+	/// <summary>
+	/// What uploads are counted against: copies made under one key are visible to later draws under it. Source 2's is the
+	/// block's render context (none outside a block).
+	/// </summary>
+	public abstract IntPtr UploadContext { get; }
+
+	/// <summary>Forget what this device holds for an engine texture or buffer that's being disposed.</summary>
+	public virtual void Release( object resource ) { }
+
+	static readonly List<RenderBackend> others = new();
+
+	/// <summary>Devices other than <see cref="Default"/> that hold backings, to release them from.</summary>
+	protected static void Register( RenderBackend backend )
+	{
+		lock ( others ) others.Add( backend );
+	}
+
+	protected static void Unregister( RenderBackend backend )
+	{
+		lock ( others ) others.Remove( backend );
+	}
+
+	/// <summary>Release an engine resource's backings on every other device.</summary>
+	internal static void ReleaseEverywhere( object resource )
+	{
+		if ( others.Count == 0 ) return;
+		lock ( others )
+		{
+			foreach ( var backend in others ) backend.Release( resource );
+		}
+	}
+
+	//
 	// Targets and viewport
 	//
 

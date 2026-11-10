@@ -161,6 +161,8 @@ public sealed unsafe partial class CommandList
 			Attributes.ClearRenderTargets();
 			drawAttributeAccess?.ClearRenderTargets();
 			drawAttributes?.Clear( false );
+			managedDrawAttributes?.Clear( false );
+			currentDrawAttributes = null;
 			_entries.Clear();
 		}
 	}

@@ -90,6 +90,18 @@ public static partial class Graphics
 	internal static RenderBackend Backend => _state.backend ?? RenderBackend.Default;
 
 	/// <summary>
+	/// Make <paramref name="backend"/> the device outside render blocks on this thread - where a recording that will draw
+	/// on it uploads its buffers and resolves its bindless indices - until the returned one is put back. Null is the
+	/// process's.
+	/// </summary>
+	internal static RenderBackend SetRecordingBackend( RenderBackend backend )
+	{
+		var previous = _state.backend;
+		_state.backend = backend;
+		return previous;
+	}
+
+	/// <summary>
 	/// Whether the block records into an async compute context: compute and copies only.
 	/// </summary>
 	internal static bool OnComputeQueue => _state.computeQueue;
@@ -236,14 +248,32 @@ public static partial class Graphics
 		bool standalone;
 		IRenderContext _context;
 		RenderAttributes _attributes;
+		RenderBackend _backend;
 
 		/// <summary>
 		/// Begins rendering with no scene view: a fresh render context and attributes with the frame's bindless
 		/// texture set bound, as CSceneSystem::InitializeRenderAttributes does for a view. Disposal submits the context.
 		/// </summary>
-		internal static Scope Create()
+		internal static Scope Create() => CreateOn( RenderBackend.Default );
+
+		/// <summary>
+		/// Begins rendering with no scene view on <paramref name="backend"/>'s device. Source 2's is as
+		/// <see cref="Create()"/>; another's block records into its own list, with managed attributes, and disposal submits it.
+		/// </summary>
+		internal static Scope CreateOn( RenderBackend backend )
 		{
 			ThreadSafe.AssertIsMainThread();
+
+			if ( backend is not Source2RenderBackend )
+			{
+				if ( IsActive )
+					throw new InvalidOperationException( "Standalone rendering cannot overlap another render scope." );
+
+				var managed = backend.BeginBlock();
+				var block = new Scope { _previous = _state, standalone = true, _attributes = managed, _backend = backend };
+				_state = new RenderState { active = true, attributes = managed, backend = backend };
+				return block;
+			}
 
 			if ( !IsAvailable )
 				throw new InvalidOperationException( "Graphics is unavailable." );
@@ -323,6 +353,20 @@ public static partial class Graphics
 
 		public void Dispose()
 		{
+			if ( standalone && _backend is not null )
+			{
+				try
+				{
+					_backend.EndBlock();
+				}
+				finally
+				{
+					_state = _previous;
+					ReturnGrabbedTextures();
+				}
+				return;
+			}
+
 			if ( standalone )
 			{
 				try
@@ -355,6 +399,11 @@ public static partial class Graphics
 
 			_state = _previous;
 
+			ReturnGrabbedTextures();
+		}
+
+		static void ReturnGrabbedTextures()
+		{
 			if ( grabbedTextures is not null )
 			{
 				// return to the pool

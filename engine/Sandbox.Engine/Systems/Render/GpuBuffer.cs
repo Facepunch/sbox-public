@@ -85,6 +85,12 @@ public partial class GpuBuffer : IValid, IDisposable
 	public bool IsValid => native != IntPtr.Zero;
 
 	/// <summary>
+	/// The device that was being recorded for when this was made: another device's backing starts with what Source 2's
+	/// copy holds, this one's starts empty.
+	/// </summary>
+	internal RenderBackend Origin { get; private set; }
+
+	/// <summary>
 	/// Creates a new GPU buffer with a specified number of elements and a specific buffer type.
 	/// </summary>
 	/// <param name="elementCount">The total number of elements that the GpuBuffer can hold. This represents the buffer's size in terms of elements, not bytes.</param>
@@ -155,6 +161,7 @@ public partial class GpuBuffer : IValid, IDisposable
 		ElementCount = elementCount;
 		ElementSize = elementSize;
 		Usage = usageFlags;
+		Origin = Graphics.Backend;
 	}
 
 	/// <summary>
@@ -164,6 +171,7 @@ public partial class GpuBuffer : IValid, IDisposable
 	{
 		ThreadSafe.AssertIsMainThread();
 
+		RenderBackend.ReleaseEverywhere( this );
 		Dispose( true );
 		GC.SuppressFinalize( this );
 	}

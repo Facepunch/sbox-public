@@ -17,6 +17,16 @@ internal sealed class Source2RenderBackend : RenderBackend
 	static IRenderContext Context => Graphics.Context;
 
 	//
+	// Blocks and resources
+	//
+
+	public override int TextureIndex( Texture texture ) => g_pRenderDevice.GetTextureViewIndex( texture.native, 0, RenderTextureDimension.RENDER_TEXTURE_DIMENSION_2D );
+
+	public override int SamplerIndex( SamplerState state ) => SamplerState.GetSource2BindlessIndex( state );
+
+	public override IntPtr UploadContext => Graphics.Context;
+
+	//
 	// Targets and viewport
 	//
 
