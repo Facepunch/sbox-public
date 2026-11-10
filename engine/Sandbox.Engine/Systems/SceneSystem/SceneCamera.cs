@@ -731,9 +731,13 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 		}
 	}
 
+	/// <summary>
+	/// CMAA2 runs on a camera's own frames, never on a capture other rendering samples (<see cref="CaptureFrames"/>): in either
+	/// renderer, a cube face, a child view or a reflection draws without it.
+	/// </summary>
 	void ApplyAntiAliasing()
 	{
-		if ( AllowCmaa2 && RenderSettings.Instance.AntiAliasMode == AntiAliasMode.Cmaa2
+		if ( AllowCmaa2 && !Graphics.IsCapture && RenderSettings.Instance.AntiAliasMode == AntiAliasMode.Cmaa2
 			&& Graphics.ToolsVisMode == (int)SceneCameraDebugMode.Normal )
 		{
 			_cmaa2Renderer.Value.Render();

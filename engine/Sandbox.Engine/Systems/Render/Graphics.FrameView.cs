@@ -39,6 +39,12 @@ public static partial class Graphics
 		int CubeFace { get; }
 
 		/// <summary>
+		/// Whether the view is a capture other rendering samples rather than a camera's own frame: a cube face, a child view (a
+		/// refraction, <c>DrawView</c>, <c>DrawReflection</c>) or a reflection (<see cref="Rendering.CaptureFrames.IsCapture"/>).
+		/// </summary>
+		bool IsCapture { get; }
+
+		/// <summary>
 		/// The colour being drawn into. When <paramref name="owned"/>, it's a strong handle the caller destroys.
 		/// </summary>
 		ITexture GetColorTarget( out bool owned );
@@ -120,6 +126,7 @@ public static partial class Graphics
 		public int ToolsVisMode => View.GetToolsVisMode();
 		public bool IsChildView => View.GetParent().IsValid;
 		public int CubeFace => View.GetRenderTargetArrayIndex();
+		public bool IsCapture => Rendering.CaptureFrames.IsCapture( CubeFace, IsChildView, View.GetRenderAttributesPtr().GetBoolValue( "IsReflection", false ) );
 
 		public ITexture GetColorTarget( out bool owned )
 		{
@@ -224,6 +231,11 @@ public static partial class Graphics
 	/// Which face of a cube capture the current view draws (<c>SceneCamera.RenderToCubeTexture</c>), or -1.
 	/// </summary>
 	internal static int CubeFace => View.CubeFace;
+
+	/// <summary>
+	/// Whether the current view is a capture other rendering samples rather than a camera's own frame (<see cref="Rendering.CaptureFrames"/>).
+	/// </summary>
+	internal static bool IsCapture => View.IsCapture;
 
 	/// <summary>
 	/// The current frame's colour target. When <paramref name="owned"/>, it's a strong handle the caller destroys.

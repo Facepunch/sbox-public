@@ -30,6 +30,11 @@ public static partial class Graphics
 		public int CubeFace = -1;
 
 		/// <summary>
+		/// Whether this frame is a reflection (<c>ViewSetup.Reflection</c>): a planar reflection or a <c>DrawReflection</c>.
+		/// </summary>
+		public bool IsReflection;
+
+		/// <summary>
 		/// Whether colour is written through an sRGB view, as a layer's colour space says for native.
 		/// </summary>
 		public bool SrgbWrite = true;
@@ -139,6 +144,7 @@ public static partial class Graphics
 
 		bool IFrameView.IsChildView => IsChild;
 		int IFrameView.CubeFace => CubeFace;
+		bool IFrameView.IsCapture => Rendering.CaptureFrames.IsCapture( CubeFace, IsChild, IsReflection );
 
 		// The renderer owns its targets; callers don't destroy them
 		ITexture IFrameView.GetColorTarget( out bool owned )
