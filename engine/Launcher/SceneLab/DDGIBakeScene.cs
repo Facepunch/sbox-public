@@ -58,20 +58,7 @@ internal static class DDGIBakeScene
 		// No probe relocation: its parallel traces assert in the physics world a scene this new has
 		var volume = Volume( scene );
 		updater = new DDGIProbeUpdaterCubemapper( volume ) { Renderer = renderer };
-
-		// Native's capture copies the first face into every face under CMAA2 (its frame resolve reads the cube's first slice),
-		// so both bake without it
-		var settings = Engine.Settings.RenderSettings.Instance;
-		var antiAlias = settings.AntiAliasMode;
-		settings.AntiAliasMode = Engine.Settings.AntiAliasMode.None;
-		try
-		{
-			updater.BakeNow();
-		}
-		finally
-		{
-			settings.AntiAliasMode = antiAlias;
-		}
+		updater.BakeNow();
 
 		volume.IrradianceTexture = updater.GeneratedIrradianceTexture;
 		volume.DistanceTexture = updater.GeneratedDistanceTexture;
