@@ -117,10 +117,13 @@ public sealed class VertexStreamLayout( int stride, params VertexField[] fields 
 /// Draws read vertices from a stream, or none (every input reads the default stream).
 /// </summary>
 /// <remarks>
-/// <see cref="BackendContext"/> binds materials the same way for Basalt's scene draws; both belong in one material
-/// binding service once Basalt's renderer services sit on Basalt.Gpu (docs/managed/basalt-gpu-path.md).
+/// It binds through the same material objects as Basalt's scene (<see cref="BackendContext"/>): a shader drawn a way is
+/// an object holding its pipeline and persistent sets, with every named resource from the draw's attributes and its
+/// material constants written each draw into the frame's pass constants. Made over a <see cref="BackendDevice"/>, it
+/// shares that device's objects. <see cref="MaterialObjects"/> off binds by reflection every draw instead, which is the
+/// reference the tests compare against; a draw also falls back to it when the frame's pass constants are full.
 /// </remarks>
-public sealed class ShaderDrawer
+public sealed class ShaderDrawer : IDisposable
 {
 	readonly Device gpu;
 	readonly ShaderLibrary shaders;
@@ -128,19 +131,59 @@ public sealed class ShaderDrawer
 	readonly Dictionary<(ShaderFile Shader, string Mode, string Combos), ShaderVariant> variants = new();
 	readonly Dictionary<(ShaderVariant Variant, Format Color, int Samples, VertexStreamLayout Layout, PrimitiveTopology Topology), PipelineHandle> pipelines = new();
 	readonly Dictionary<ShaderVariant, PipelineHandle> computePipelines = new();
+	MaterialObjectCache cache;
+	readonly bool ownsCache;
+	readonly AttributeBindings bindings;
 
 	/// <summary>
-	/// A drawer over a shader library and the placeholders bound for anything a draw doesn't set.
+	/// A drawer over a shader library and the placeholders bound for anything a draw doesn't set, with material objects
+	/// of its own.
 	/// </summary>
 	public ShaderDrawer( Device gpu, ShaderLibrary shaders, ShaderDefaults defaults )
 	{
 		this.gpu = gpu;
 		this.shaders = shaders;
 		this.defaults = defaults;
+		ownsCache = true;
+		bindings = new AttributeBindings( this );
+	}
+
+	/// <summary>
+	/// A drawer sharing <paramref name="device"/>'s shaders, placeholders and material objects: one material binding
+	/// service for the engine's drawing and Basalt's scene on that device.
+	/// </summary>
+	public ShaderDrawer( BackendDevice device )
+	{
+		gpu = device.Gpu;
+		shaders = device.Shaders;
+		defaults = device.Defaults;
+		cache = device.MaterialCache;
+		bindings = new AttributeBindings( this );
 	}
 
 	/// <summary>The library shaders come from.</summary>
 	public ShaderLibrary Shaders => shaders;
+
+	/// <summary>
+	/// Bind through material objects (the default). Off binds by reflection every draw: a transient set per draw, written
+	/// from scratch.
+	/// </summary>
+	public bool MaterialObjects { get; set; } = true;
+
+	MaterialObjectCache Cache => cache ??= new MaterialObjectCache( gpu, defaults );
+
+	/// <summary>Material objects made, descriptor sets written through them, and sets held now, for tests and benchmarks.</summary>
+	public (int Objects, int SetsWritten, int SetsHeld) MaterialObjectStats => cache is null ? default : (cache.Count, cache.SetsWritten, cache.SetCount);
+
+	/// <summary>Draws that fell back to binding by reflection because the frame's pass constants were full.</summary>
+	public int Fallbacks { get; private set; }
+
+	/// <summary>Free the material objects this drawer made for itself (not those of a device it shares).</summary>
+	public void Dispose()
+	{
+		if ( ownsCache ) cache?.Dispose();
+		cache = null;
+	}
 
 	/// <summary>
 	/// The shader's variant for its first mode (or <paramref name="mode"/>) and the attributes' dynamic combos.
@@ -167,9 +210,7 @@ public sealed class ShaderDrawer
 		var variant = Variant( shader, attributes, mode );
 		if ( variant?.Vertex?.Bytecode is null ) return false;
 
-		list.SetPipeline( Pipeline( variant, color, samples, null, PrimitiveTopology.TriangleList ) );
-		SetViewport( list, viewport );
-		Bind( list, variant, attributes, viewport );
+		BindForDraw( list, variant, attributes, color, samples, null, PrimitiveTopology.TriangleList, viewport );
 		list.SetVertexBuffer( 0, defaults.VertexDefaults );
 		list.SetIndexBuffer( indices, IndexFormat.UInt32 );
 		list.DrawIndexed( indexCount, instances );
@@ -186,13 +227,47 @@ public sealed class ShaderDrawer
 		var variant = Variant( shader, attributes, mode );
 		if ( variant?.Vertex?.Bytecode is null ) return false;
 
-		list.SetPipeline( Pipeline( variant, color, samples, layout, topology ) );
-		SetViewport( list, viewport );
-		Bind( list, variant, attributes, viewport );
+		BindForDraw( list, variant, attributes, color, samples, layout, topology, viewport );
 		list.SetVertexBuffer( 0, vertices, offset );
 		list.SetVertexBuffer( 1, defaults.VertexDefaults );
 		list.Draw( vertexCount );
 		return true;
+	}
+
+	void BindForDraw( CommandList list, ShaderVariant variant, ShaderAttributes attributes, Format color, int samples, VertexStreamLayout layout, PrimitiveTopology topology, System.Numerics.Vector4 viewport )
+	{
+		if ( Objects( variant ) )
+		{
+			var key = new MaterialObjectCache.Key( null, variant, layout, color, Format.Unknown, samples, false, false, topology );
+			var materialObject = cache.Get( key, immediate: true, (Drawer: this, Variant: variant, Color: color, Samples: samples, Layout: layout, Topology: topology),
+				static ( s, materialLayout ) => s.Drawer.Pipeline( s.Variant, s.Color, s.Samples, s.Layout, s.Topology, materialLayout.Sets ) );
+			SetViewport( list, viewport );
+			BindObject( list, materialObject, attributes, viewport );
+			return;
+		}
+
+		list.SetPipeline( Pipeline( variant, color, samples, layout, topology, null ) );
+		SetViewport( list, viewport );
+		Bind( list, variant, attributes, viewport );
+	}
+
+	/// <summary>Whether this draw binds through material objects: they're on, and the frame's pass constants have room for it.</summary>
+	bool Objects( ShaderVariant variant )
+	{
+		if ( !MaterialObjects ) return false;
+		if ( Cache.PassSpace >= cache.LayoutOf( variant, immediate: true ).ImmediateBytes ) return true;
+		Fallbacks++;
+		return false;
+	}
+
+	void BindObject( CommandList list, MaterialObject materialObject, ShaderAttributes attributes, System.Numerics.Vector4 viewport )
+	{
+		if ( bindings.Slot < 0 ) bindings.Slot = cache.NewSlot();
+		bindings.Attributes = attributes;
+		bindings.Viewport = viewport;
+		var bound = default( PipelineHandle );
+		materialObject.Bind( list, ref bound, cache.NextEpoch(), bindings );
+		bindings.Attributes = null;
 	}
 
 	/// <summary>
@@ -204,21 +279,18 @@ public sealed class ShaderDrawer
 		var variant = Variant( shader, attributes, mode );
 		if ( variant?.Compute?.Bytecode is null ) return false;
 
-		if ( !computePipelines.TryGetValue( variant, out var pipeline ) )
+		if ( Objects( variant ) )
 		{
-			pipeline = gpu.CreateComputePipeline( new ComputePipelineInfo
-			{
-				Shader = variant.Compute.Module,
-				Entry = variant.Compute.Bytecode.EntryPoint( ShaderProgramType.Compute ),
-				Constants = variant.Compute.Constants,
-				Sets = variant.Sets,
-				Name = variant.ToString(),
-			} );
-			computePipelines[variant] = pipeline;
+			var key = new MaterialObjectCache.Key( null, variant, null, Format.Unknown, Format.Unknown, 0, false, false );
+			var materialObject = cache.Get( key, immediate: true, (Drawer: this, Variant: variant), static ( s, layout ) => s.Drawer.ComputePipeline( s.Variant, layout.Sets ) );
+			BindObject( list, materialObject, attributes, default );
+		}
+		else
+		{
+			list.SetPipeline( ComputePipeline( variant, null ) );
+			Bind( list, variant, attributes, default );
 		}
 
-		list.SetPipeline( pipeline );
-		Bind( list, variant, attributes, default );
 		var (gx, gy, gz) = variant.Compute.Bytecode.ThreadGroupSize;
 		gx = Math.Max( gx, 1 );
 		gy = Math.Max( gy, 1 );
@@ -227,16 +299,35 @@ public sealed class ShaderDrawer
 		return true;
 	}
 
+	/// <summary>A compute pipeline for the reflection path (cached here) or for a material object's sets (the object keeps it).</summary>
+	PipelineHandle ComputePipeline( ShaderVariant variant, BindingLayoutHandle[] sets )
+	{
+		if ( sets is null && computePipelines.TryGetValue( variant, out var cached ) ) return cached;
+
+		var pipeline = gpu.CreateComputePipeline( new ComputePipelineInfo
+		{
+			Shader = variant.Compute.Module,
+			Entry = variant.Compute.Bytecode.EntryPoint( ShaderProgramType.Compute ),
+			Constants = variant.Compute.Constants,
+			Sets = sets ?? variant.Sets,
+			Name = variant.ToString(),
+		} );
+
+		if ( sets is null ) computePipelines[variant] = pipeline;
+		return pipeline;
+	}
+
 	static void SetViewport( CommandList list, System.Numerics.Vector4 viewport )
 	{
 		list.SetViewport( viewport.X, viewport.Y, viewport.Z, viewport.W );
 		list.SetScissor( (int)viewport.X, (int)viewport.Y, (int)MathF.Ceiling( viewport.Z ), (int)MathF.Ceiling( viewport.W ) );
 	}
 
-	PipelineHandle Pipeline( ShaderVariant variant, Format color, int samples, VertexStreamLayout layout, PrimitiveTopology topology )
+	/// <summary>A graphics pipeline for the reflection path (cached here) or for a material object's sets (the object keeps it).</summary>
+	PipelineHandle Pipeline( ShaderVariant variant, Format color, int samples, VertexStreamLayout layout, PrimitiveTopology topology, BindingLayoutHandle[] sets )
 	{
 		var key = (variant, color, samples, layout, topology);
-		if ( pipelines.TryGetValue( key, out var pipeline ) ) return pipeline;
+		if ( sets is null && pipelines.TryGetValue( key, out var pipeline ) ) return pipeline;
 
 		// Inputs the stream lacks (or every input, with no stream) read the default stream
 		GraphicsPipelineInfo info;
@@ -252,10 +343,22 @@ public sealed class ShaderDrawer
 		}
 
 		info.Topology = topology;
+		if ( sets is not null ) info.Sets = sets;
 		pipeline = gpu.CreateGraphicsPipeline( info );
-		pipelines[key] = pipeline;
+		if ( sets is null ) pipelines[key] = pipeline;
 		return pipeline;
 	}
+
+	/// <summary>The binding a reflected resource gets from a draw's attribute value, or its placeholder.</summary>
+	Binding Resource( in ShaderResource resource, object value ) => resource.Kind switch
+	{
+		ShaderResourceKind.Buffer when value is BufferHandle buffer => Binding.Storage( resource.Binding, buffer ),
+		ShaderResourceKind.Texture when value is TextureHandle texture => Binding.Sampled( resource.Binding, texture, resource.Variable.RenderStateId == 1 && gpu.InfoOf( texture ).Format.HasSrgb() ),
+		ShaderResourceKind.Texture when value is TextureViewHandle view => Binding.Sampled( resource.Binding, view ),
+		ShaderResourceKind.StorageTexture when value is TextureHandle texture => Binding.StorageTexture( resource.Binding, texture ),
+		ShaderResourceKind.StorageTexture when value is TextureViewHandle view => Binding.StorageTexture( resource.Binding, view ),
+		_ => defaults.For( resource ),
+	};
 
 	void Bind( CommandList list, ShaderVariant variant, ShaderAttributes attributes, System.Numerics.Vector4 viewport )
 	{
@@ -276,12 +379,7 @@ public sealed class ShaderDrawer
 				{
 					ShaderResourceKind.MaterialConstants => Constants( list, stage, resource.Binding, attributes, viewport ),
 					ShaderResourceKind.ConstantBuffer when value is byte[] data => ConstantBuffer( list, resource.Binding, data ),
-					ShaderResourceKind.Buffer when value is BufferHandle buffer => Binding.Storage( resource.Binding, buffer ),
-					ShaderResourceKind.Texture when value is TextureHandle texture => Binding.Sampled( resource.Binding, texture, resource.Variable.RenderStateId == 1 && gpu.InfoOf( texture ).Format.HasSrgb() ),
-					ShaderResourceKind.Texture when value is TextureViewHandle view => Binding.Sampled( resource.Binding, view ),
-					ShaderResourceKind.StorageTexture when value is TextureHandle texture => Binding.StorageTexture( resource.Binding, texture ),
-					ShaderResourceKind.StorageTexture when value is TextureViewHandle view => Binding.StorageTexture( resource.Binding, view ),
-					_ => defaults.For( resource ),
+					_ => Resource( resource, value ),
 				};
 			}
 
@@ -293,7 +391,14 @@ public sealed class ShaderDrawer
 	{
 		var size = stage.MaterialBuffer.Size;
 		var allocation = list.AllocateUpload( size, gpu.Capabilities.UniformAlignment );
-		stage.WriteMaterialConstants( allocation.Data[..size], variable => variable.Source switch
+		WriteConstants( allocation.Data[..size], stage, attributes, viewport );
+		return Binding.Uniform( binding, allocation.Buffer, allocation.Offset, size );
+	}
+
+	/// <summary>A stage's material constants for a draw: the viewport, texture sizes and attributes over the shader's defaults.</summary>
+	void WriteConstants( Span<byte> data, ShaderStage stage, ShaderAttributes attributes, System.Numerics.Vector4 viewport )
+	{
+		stage.WriteMaterialConstants( data, variable => variable.Source switch
 		{
 			VariableSource.Viewport => [viewport.X, viewport.Y, viewport.Z, viewport.W],
 			VariableSource.InvViewportSize => [1 / viewport.Z, 1 / viewport.W],
@@ -301,7 +406,6 @@ public sealed class ShaderDrawer
 			VariableSource.TextureDimensions or VariableSource.InvTextureDimensions or VariableSource.TextureDimensionsLog2 => TextureSize( stage, variable, attributes ),
 			_ => null,
 		} );
-		return Binding.Uniform( binding, allocation.Buffer, allocation.Offset, size );
 	}
 
 	/// <summary>
@@ -333,5 +437,68 @@ public sealed class ShaderDrawer
 		allocation.Data.Clear();
 		data.CopyTo( allocation.Data );
 		return Binding.Uniform( binding, allocation.Buffer, allocation.Offset, size );
+	}
+
+	/// <summary>
+	/// A draw's attributes as a material object's pass bindings: every named resource by name, and the material
+	/// constants and constant buffers written into the frame's pass constants (or kept by content past the device's
+	/// dynamic limit).
+	/// </summary>
+	sealed class AttributeBindings( ShaderDrawer drawer ) : PassBindings
+	{
+		public ShaderAttributes Attributes;
+		public System.Numerics.Vector4 Viewport;
+
+		public override float[] Floats( string attribute ) => Attributes.Get( attribute ) as float[];
+
+		public override Binding Resolve( in ShaderResource resource, ShaderStage stage, bool dynamic, out uint dynamicOffset )
+		{
+			dynamicOffset = 0;
+			var value = resource.Name is null ? null : Attributes.Get( resource.Name );
+			switch ( resource.Kind )
+			{
+				case ShaderResourceKind.MaterialConstants:
+					{
+						var size = stage.MaterialBuffer.Size;
+						Span<byte> target = dynamic ? Space( size, out dynamicOffset ) : new byte[size];
+						drawer.WriteConstants( target, stage, Attributes, Viewport );
+						return Constants( resource, target, size, dynamic );
+					}
+
+				case ShaderResourceKind.ConstantBuffer when value is byte[] data:
+					{
+						var size = (data.Length + 15) & ~15;
+						Span<byte> target = dynamic ? Space( size, out dynamicOffset ) : new byte[size];
+						target.Clear();
+						data.CopyTo( target );
+						return Constants( resource, target, size, dynamic );
+					}
+
+				case ShaderResourceKind.ConstantBuffer:
+					{
+						var placeholder = drawer.defaults.For( resource );
+						if ( dynamic ) placeholder.Type = BindingType.UniformBufferDynamic;
+						return placeholder;
+					}
+
+				default:
+					return drawer.Resource( resource, value );
+			}
+		}
+
+		Span<byte> Space( int size, out uint offset )
+		{
+			var start = drawer.cache.TryAllocatePassConstants( size, out var data );
+			if ( start < 0 ) throw new InvalidOperationException( "Pass constant region is full" );
+			offset = (uint)start;
+			return data;
+		}
+
+		Binding Constants( in ShaderResource resource, ReadOnlySpan<byte> data, int size, bool dynamic )
+		{
+			var cache = drawer.cache;
+			if ( dynamic ) return new Binding { Slot = resource.Binding, Type = BindingType.UniformBufferDynamic, Buffer = cache.PassBuffer, Size = size };
+			return Binding.Uniform( resource.Binding, cache.MaterialBuffer, cache.KeepPassConstants( data, size ), size );
+		}
 	}
 }

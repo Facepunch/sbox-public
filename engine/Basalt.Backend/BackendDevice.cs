@@ -39,20 +39,64 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	internal ShaderDefaults Defaults { get; }
 
 	/// <summary>
-	/// Draw models through material objects (persistent sets, constants written once) instead of binding by reflection
-	/// every draw. See docs/managed/basalt-materials.md.
+	/// Draw models and dispatch compute through material objects (persistent sets, constants written once), which is the
+	/// default. Off binds by reflection every draw: the reference the tests compare against. See
+	/// docs/managed/basalt-materials.md.
 	/// </summary>
-	public bool MaterialObjects { get; set; }
+	public bool MaterialObjects { get; set; } = true;
 
-	/// <summary>The material objects drawn so far.</summary>
-	internal MaterialObjectCache MaterialCache => materialCache ??= new MaterialObjectCache( this );
+	/// <summary>The material objects drawn so far: the one material binding service of this device.</summary>
+	internal MaterialObjectCache MaterialCache
+	{
+		get
+		{
+			if ( materialCache is { } cache ) return cache;
+			lock ( pipelines ) return materialCache ??= new MaterialObjectCache( Gpu, Defaults );
+		}
+	}
+
 	MaterialObjectCache materialCache;
 
 	/// <summary>Material objects made so far and descriptor sets they wrote, for benchmarks and tests.</summary>
 	public (int Objects, int SetsWritten) MaterialObjectStats => materialCache is null ? default : (materialCache.Count, materialCache.SetsWritten);
 
-	/// <summary>Drop a material's objects after its values changed; they're made again when it next draws.</summary>
+	/// <summary>Drop a material's objects; they're made again when it next draws. Changing a material does this itself.</summary>
 	public void InvalidateMaterial( GpuMaterial material ) => materialCache?.Invalidate( material );
+
+	/// <summary>
+	/// Read a loaded material's compiled file (and its shader and textures) again, after it changed on disk; draws pick
+	/// the new one up. Values set in code stay. Call between frames. False when it isn't loaded.
+	/// </summary>
+	public bool ReloadMaterial( string path )
+	{
+		GpuMaterial loaded;
+		lock ( sharedMaterials )
+		{
+			if ( !sharedMaterials.TryGetValue( path, out loaded ) ) return false;
+		}
+
+		if ( loaded is not BackendMaterial material ) return false;
+		var file = Content.Find( path ) is { } found ? MaterialFile.Load( found ) : null;
+		material.Reload( file is null ? null : Shaders.Load( file.Shader ), file, file is null ? null : Textures( file ) );
+		return true;
+	}
+
+	Dictionary<string, BackendTexture> Textures( MaterialFile file )
+	{
+		var textures = new Dictionary<string, BackendTexture>( StringComparer.OrdinalIgnoreCase );
+		foreach ( var (variable, texture) in file.Textures )
+		{
+			if ( LoadTexture( texture ) is BackendTexture loaded ) textures[variable] = loaded;
+		}
+
+		return textures;
+	}
+
+	BackendMaterial Track( BackendMaterial material )
+	{
+		material.Disposing = m => materialCache?.Invalidate( m );
+		return material;
+	}
 
 	/// <summary>Time every model draw's binding and recording into <see cref="DrawTimes"/>, for benchmarks.</summary>
 	public bool TimeDraws { get; set; }
@@ -246,12 +290,12 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 		lock ( sharedMaterials )
 		{
 			if ( sharedMaterials.TryGetValue( shaderPath, out var material ) ) return material;
-			return sharedMaterials[shaderPath] = new BackendMaterial( shaderPath, Shaders.Load( shaderPath ), null, null );
+			return sharedMaterials[shaderPath] = Track( new BackendMaterial( shaderPath, Shaders.Load( shaderPath ), null, null ) );
 		}
 	}
 
 	/// <inheritdoc/>
-	public override GpuMaterial CreateMaterial( string name, string shaderPath ) => new BackendMaterial( name, Shaders.Load( shaderPath ), null, null );
+	public override GpuMaterial CreateMaterial( string name, string shaderPath ) => Track( new BackendMaterial( name, Shaders.Load( shaderPath ), null, null ) );
 
 	/// <summary>
 	/// A lit material of one colour, for meshes made with <see cref="BackendMesh.Create"/>:
@@ -261,7 +305,7 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	{
 		var values = new Dictionary<string, float[]>( StringComparer.OrdinalIgnoreCase ) { ["g_vColorTint"] = [albedo.r, albedo.g, albedo.b, 0] };
 		return Content.Find( "materials/default/white.vmat" ) is null
-			? new BackendMaterial( name, Shaders.Load( "shaders/complex.shader" ), null, null, values )
+			? Track( new BackendMaterial( name, Shaders.Load( "shaders/complex.shader" ), null, null, values ) )
 			: Material( "materials/default/white.vmat", values, name );
 	}
 
@@ -275,15 +319,8 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	BackendMaterial Material( string path, Dictionary<string, float[]> values, string name = null )
 	{
 		var file = Content.Find( path ) is { } found ? MaterialFile.Load( found ) : null;
-		if ( file is null ) return new BackendMaterial( name ?? path, null, null, null, values );
-
-		var textures = new Dictionary<string, BackendTexture>( StringComparer.OrdinalIgnoreCase );
-		foreach ( var (variable, texture) in file.Textures )
-		{
-			if ( LoadTexture( texture ) is BackendTexture loaded ) textures[variable] = loaded;
-		}
-
-		return new BackendMaterial( name ?? path, Shaders.Load( file.Shader ), file, textures, values );
+		if ( file is null ) return Track( new BackendMaterial( name ?? path, null, null, null, values ) );
+		return Track( new BackendMaterial( name ?? path, Shaders.Load( file.Shader ), file, Textures( file ), values ) );
 	}
 
 	/// <summary>
@@ -345,10 +382,10 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 
 	internal readonly record struct PipelineKey( ShaderVariant Variant, VertexLayout Layout, Format Color, Format Depth, int Samples, bool DepthOnly, BindingLayoutHandle[] Sets = null );
 
-	/// <summary>A compute pipeline for a compute shader's variant, made once.</summary>
-	internal PipelineHandle ComputePipeline( ShaderVariant variant )
+	/// <summary>A compute pipeline for a compute shader's variant (with <paramref name="sets"/> for its layout's), made once.</summary>
+	internal PipelineHandle ComputePipeline( ShaderVariant variant, BindingLayoutHandle[] sets = null )
 	{
-		var key = new PipelineKey( variant, null, Format.Unknown, Format.Unknown, 0, false );
+		var key = new PipelineKey( variant, null, Format.Unknown, Format.Unknown, 0, false, sets );
 		lock ( pipelines )
 		{
 			if ( pipelines.TryGetValue( key, out var pipeline ) ) return pipeline;
@@ -357,7 +394,7 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 				Shader = variant.Compute.Module,
 				Entry = variant.Compute.Bytecode.EntryPoint( ShaderProgramType.Compute ),
 				Constants = variant.Compute.Constants,
-				Sets = variant.Sets,
+				Sets = sets ?? variant.Sets,
 				Name = variant.ToString(),
 			} );
 			pipelines[key] = pipeline;

@@ -16,18 +16,7 @@ internal static class Capture
 	public static void Save( Device device, TextureHandle texture, ImageLayout layout, string path )
 	{
 		var info = device.InfoOf( texture );
-		var size = info.Width * info.Height * info.Format.BytesPerBlock();
-		var buffer = device.CreateBuffer( new BufferInfo { Size = size, Memory = MemoryLocation.Readback, Name = "Capture" } );
-
-		var list = device.BeginCommandList( QueueType.Graphics, "Capture" );
-		list.Barrier( TextureBarrier.Transition( texture, layout, ImageLayout.CopySource, PipelineStage.AllCommands, MemoryAccess.MemoryWrite, PipelineStage.Transfer, MemoryAccess.TransferRead ) );
-		list.CopyTextureToBuffer( texture, 0, 0, buffer );
-		list.Barrier( new BufferBarrier { Buffer = buffer, SourceStage = PipelineStage.Transfer, SourceAccess = MemoryAccess.TransferWrite, DestinationStage = PipelineStage.Host, DestinationAccess = MemoryAccess.HostRead } );
-		device.Wait( device.Submit( list ) );
-
-		var data = device.Map( buffer ).ToArray();
-		device.Destroy( buffer );
-
+		var data = Read( device, texture, layout );
 		var pixels = new byte[info.Width * info.Height * 4];
 		if ( info.Format == Format.RGBA16Float )
 		{
@@ -45,6 +34,27 @@ internal static class Capture
 
 		Directory.CreateDirectory( Path.GetDirectoryName( Path.GetFullPath( path ) ) );
 		File.WriteAllBytes( path, Png( pixels, info.Width, info.Height ) );
+	}
+
+	/// <summary>
+	/// Mip 0 of <paramref name="texture"/>'s bytes (it was last used in <paramref name="layout"/>, and is left in
+	/// <see cref="ImageLayout.CopySource"/>).
+	/// </summary>
+	public static byte[] Read( Device device, TextureHandle texture, ImageLayout layout )
+	{
+		var info = device.InfoOf( texture );
+		var size = info.Width * info.Height * info.Format.BytesPerBlock();
+		var buffer = device.CreateBuffer( new BufferInfo { Size = size, Memory = MemoryLocation.Readback, Name = "Capture" } );
+
+		var list = device.BeginCommandList( QueueType.Graphics, "Capture" );
+		list.Barrier( TextureBarrier.Transition( texture, layout, ImageLayout.CopySource, PipelineStage.AllCommands, MemoryAccess.MemoryWrite, PipelineStage.Transfer, MemoryAccess.TransferRead ) );
+		list.CopyTextureToBuffer( texture, 0, 0, buffer );
+		list.Barrier( new BufferBarrier { Buffer = buffer, SourceStage = PipelineStage.Transfer, SourceAccess = MemoryAccess.TransferWrite, DestinationStage = PipelineStage.Host, DestinationAccess = MemoryAccess.HostRead } );
+		device.Wait( device.Submit( list ) );
+
+		var data = device.Map( buffer ).ToArray();
+		device.Destroy( buffer );
+		return data;
 	}
 
 	static byte[] Png( byte[] rgba, int width, int height )

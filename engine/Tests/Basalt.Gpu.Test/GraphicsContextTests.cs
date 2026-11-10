@@ -31,6 +31,7 @@ public class GraphicsContextTests : GpuTest
 	public void DestroyDrawer()
 	{
 		Device?.WaitIdle();
+		drawer?.Dispose();
 		library?.Dispose();
 		defaults?.Dispose();
 	}
