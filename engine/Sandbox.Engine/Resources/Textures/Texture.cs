@@ -66,10 +66,24 @@ public partial class Texture : Resource, IDisposable
 	/// I suspect that there might be a decent way to do this in native using the resource system.
 	/// In which case we should change all this code to use that way instead of doing this.
 	/// </summary>
+	/// <summary>
+	/// What the texture was made with, kept when the process draws on a device other than Source 2's
+	/// (<see cref="RenderBackend.Default"/>) or has another device beside it, which makes its copy from them: the pixel
+	/// data, or the colour it was cleared to.
+	/// Null once the texture has been changed since.
+	/// </summary>
+	internal byte[] InitialPixels { get; set; }
+	internal Color? InitialColor { get; set; }
+
 	internal void CopyFrom( Texture texture )
 	{
 		if ( !texture.IsValid() )
 			return;
+
+		// What other devices made of the old contents is stale
+		RenderBackend.ReleaseEverywhere( this );
+		InitialPixels = texture.InitialPixels;
+		InitialColor = texture.InitialColor;
 
 		if ( !native.IsNull )
 		{

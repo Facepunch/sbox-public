@@ -47,6 +47,13 @@ public class GalleryWindow : Panel
 	{
 		base.Tick();
 
+		// Captured pages are compared pixel for pixel; a frame rate in the title bar would differ every time
+		if ( Capturing )
+		{
+			_frameRate.Text = "-- FPS";
+			return;
+		}
+
 		var stats = _window.Root.Stats;
 		var frames = stats.RenderCount;
 		if ( frames == 0 ) return;
@@ -195,7 +202,10 @@ public class GalleryWindow : Panel
 		}
 	}
 
-	void Open( GalleryPageInfo page )
+	/// <summary>Pages are being captured (<see cref="GalleryPageCapture"/>): hold the title bar still.</summary>
+	internal static bool Capturing { get; set; }
+
+	internal void Open( GalleryPageInfo page )
 	{
 		if ( _current == page ) return;
 		_current = page;

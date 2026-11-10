@@ -23,7 +23,7 @@ public partial class Texture
 	/// </summary>
 	public static Texture Transparent { get; internal set; } = Create( 1, 1 ).WithData( new byte[4] { 128, 128, 128, 0 } ).Finish();
 
-	internal static Texture Create( string name, bool anonymous, TextureBuilder builder, IntPtr data, int dataSize )
+	internal static unsafe Texture Create( string name, bool anonymous, TextureBuilder builder, IntPtr data, int dataSize )
 	{
 		var config = builder._config.GetWithFixes();
 
@@ -38,6 +38,13 @@ public partial class Texture
 		var result = FromNative( texture );
 		if ( !string.IsNullOrWhiteSpace( name ) )
 			result?.RegisterWeakResourceId( name );
+
+		// Another device makes its copy from these rather than reading Source 2's back
+		if ( result is not null && (RenderBackend.Default is not Source2RenderBackend || RenderBackend.OthersExist) )
+		{
+			result.InitialPixels = data != IntPtr.Zero && dataSize > 0 ? new ReadOnlySpan<byte>( (void*)data, dataSize ).ToArray() : null;
+			result.InitialColor = builder._initialColor ?? Color.Transparent;
+		}
 
 		return result;
 	}

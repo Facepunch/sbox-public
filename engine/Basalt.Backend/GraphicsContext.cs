@@ -109,7 +109,7 @@ public sealed class GraphicsContext
 	public void Clear( Num.Vector4 color )
 	{
 		EndScope();
-		Transition( Target, ImageLayout.CopyDestination );
+		TransitionForWrite( Target, ImageLayout.CopyDestination );
 		List.ClearTexture( Target, color );
 	}
 
@@ -172,7 +172,7 @@ public sealed class GraphicsContext
 	public void ClearTexture( TextureHandle texture, Num.Vector4 color )
 	{
 		EndScope();
-		Transition( texture, ImageLayout.CopyDestination );
+		TransitionForWrite( texture, ImageLayout.CopyDestination );
 		List.ClearTexture( texture, color );
 	}
 
@@ -316,6 +316,24 @@ public sealed class GraphicsContext
 	public void Finish() => EndScope();
 
 	/// <summary>
+	/// Copy mip 0 of <paramref name="source"/> over the whole of a swap chain image just acquired (its contents are
+	/// undefined), converting the format if they differ, and leave the image ready to present. The image isn't tracked
+	/// after this.
+	/// </summary>
+	public void CopyToPresent( TextureHandle source, TextureHandle image )
+	{
+		var from = gpu.InfoOf( source );
+		var to = gpu.InfoOf( image );
+		EndScope();
+		Transition( source, ImageLayout.CopySource );
+		layouts[image] = ImageLayout.Undefined;
+		Transition( image, ImageLayout.CopyDestination );
+		List.Blit( source, (0, 0, Math.Min( from.Width, to.Width ), Math.Min( from.Height, to.Height )), image, (0, 0, Math.Min( from.Width, to.Width ), Math.Min( from.Height, to.Height )), Filter.Nearest );
+		Transition( image, ImageLayout.Present );
+		layouts.Remove( image );
+	}
+
+	/// <summary>
 	/// Close any open rendering scope and leave every texture readable, as a block's last commands: later lists can then
 	/// sample what this one drew by bindless index, which no layout tracking sees.
 	/// </summary>
@@ -371,6 +389,32 @@ public sealed class GraphicsContext
 	}
 
 	ImageLayout Layout( TextureHandle texture ) => layouts.TryGetValue( texture, out var layout ) ? layout : ImageLayout.ShaderRead;
+
+	/// <summary>
+	/// <see cref="Transition"/> for a write: one already in <paramref name="layout"/> still waits for what wrote it last, as
+	/// two clears in a row must.
+	/// </summary>
+	void TransitionForWrite( TextureHandle texture, ImageLayout layout )
+	{
+		if ( Layout( texture ) != layout )
+		{
+			Transition( texture, layout );
+			return;
+		}
+
+		List.Barrier( new TextureBarrier
+		{
+			Texture = texture,
+			OldLayout = layout,
+			NewLayout = layout,
+			SourceStage = PipelineStage.AllCommands,
+			SourceAccess = MemoryAccess.MemoryWrite,
+			DestinationStage = PipelineStage.AllCommands,
+			DestinationAccess = MemoryAccess.MemoryRead | MemoryAccess.MemoryWrite,
+			MipCount = 0,
+			LayerCount = 0,
+		} );
+	}
 
 	/// <summary>Move a whole texture to <paramref name="layout"/>, conservatively ordered after everything before it.</summary>
 	void Transition( TextureHandle texture, ImageLayout layout )
