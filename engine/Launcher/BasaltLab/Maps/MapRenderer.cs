@@ -3,16 +3,15 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
+using GpuCullMode = Basalt.Gpu.CullMode;
 using GpuDevice = Basalt.Gpu.Device;
+using GpuVertexAttribute = Basalt.Gpu.VertexAttribute;
 using Matrix4x4 = System.Numerics.Matrix4x4;
 using TextureBarrier = Basalt.Gpu.TextureBarrier;
 using V3 = System.Numerics.Vector3;
 using V4 = System.Numerics.Vector4;
 
 namespace Sandbox.BasaltLab.Maps;
-
-using CullMode = Basalt.Gpu.CullMode;
-using VertexAttribute = Basalt.Gpu.VertexAttribute;
 
 /// <summary>How a frame's draws are issued to Basalt.Gpu.</summary>
 internal enum IssueMode
@@ -187,10 +186,10 @@ internal sealed unsafe class MapRenderer : IDisposable
 
 		var sets = mode == 2 ? new[] { set0[mode] } : new[] { set0[mode], set1[mode] };
 		VertexBufferLayout[] buffers = [new VertexBufferLayout( sizeof( MapVertex ) )];
-		VertexAttribute[] attributes = [new VertexAttribute( 0, 0, VertexFormat.Float3, 0 ), new VertexAttribute( 1, 0, VertexFormat.Byte4Norm, 12 ), new VertexAttribute( 2, 0, VertexFormat.Float2, 16 )];
+		GpuVertexAttribute[] attributes = [new GpuVertexAttribute( 0, 0, VertexFormat.Float3, 0 ), new GpuVertexAttribute( 1, 0, VertexFormat.Byte4Norm, 12 ), new GpuVertexAttribute( 2, 0, VertexFormat.Float2, 16 )];
 		SpecializationConstant[] alpha = [new SpecializationConstant( 0, 1 )];
 
-		PipelineHandle Make( string name, bool pixel, bool alphaTest, bool lit, CullMode cull, int samples, Format[] colors, bool depthWrite, CompareFunction compare, bool bias, BlendState blend = default )
+		PipelineHandle Make( string name, bool pixel, bool alphaTest, bool lit, GpuCullMode cull, int samples, Format[] colors, bool depthWrite, CompareFunction compare, bool bias, BlendState blend = default )
 		{
 			return gpu.CreateGraphicsPipeline( new GraphicsPipelineInfo
 			{
@@ -225,14 +224,14 @@ internal sealed unsafe class MapRenderer : IDisposable
 		for ( int kind = 0; kind < 4; kind++ )
 		{
 			var alphaTest = (kind & 1) != 0;
-			var cull = (kind & 2) != 0 ? CullMode.None : CullMode.Back;
+			var cull = (kind & 2) != 0 ? GpuCullMode.None : GpuCullMode.Back;
 			prepass[mode][kind] = Make( $"prepass {kind}", alphaTest, alphaTest, false, cull, Samples, [], true, CompareFunction.GreaterEqual, false );
 			forward[mode][kind] = Make( $"forward {kind}", true, alphaTest, true, cull, Samples, hdr, false, CompareFunction.GreaterEqual, false );
 		}
 
-		shadows[mode][0] = Make( "shadow", false, false, false, CullMode.None, 1, [], true, CompareFunction.LessEqual, true );
-		shadows[mode][1] = Make( "shadow alpha", true, true, false, CullMode.None, 1, [], true, CompareFunction.LessEqual, true );
-		translucent[mode] = Make( "translucent", true, false, true, CullMode.None, Samples, hdr, false, CompareFunction.GreaterEqual, false, BlendState.AlphaBlend );
+		shadows[mode][0] = Make( "shadow", false, false, false, GpuCullMode.None, 1, [], true, CompareFunction.LessEqual, true );
+		shadows[mode][1] = Make( "shadow alpha", true, true, false, GpuCullMode.None, 1, [], true, CompareFunction.LessEqual, true );
+		translucent[mode] = Make( "translucent", true, false, true, GpuCullMode.None, Samples, hdr, false, CompareFunction.GreaterEqual, false, BlendState.AlphaBlend );
 	}
 
 	//
@@ -491,7 +490,7 @@ internal sealed unsafe class MapRenderer : IDisposable
 		for ( int i = 1; i <= Cascades; i++ )
 		{
 			var t = (float)i / Cascades;
-			splits[i] = Lambda * near * MathF.Pow( Far / near, t ) + (1 - Lambda) * (near + (Far - near) * t );
+			splits[i] = Lambda * near * MathF.Pow( Far / near, t ) + (1 - Lambda) * (near + (Far - near) * t);
 		}
 
 		var light = -SunDirection;
