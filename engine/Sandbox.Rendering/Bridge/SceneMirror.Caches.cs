@@ -12,7 +12,7 @@ internal readonly record struct MirrorCacheCounts( int Objects, int Meshes, int 
 	int Attributed, int Sharing, int Shareable, int Deleted, long Built, long Evicted, long Reloaded )
 {
 	public override string ToString()
-		=> $"{Objects} objects, {Meshes} meshes ({FailedMeshes} failed), {Variants} variants, {IdleMeshes} idle; lightmaps {Lightmaps}/{LightmapKeys}; attributes {Attributed} polled, {Sharing} sharing, {Shareable} shareable; {Deleted} deleted; built {Built}, evicted {Evicted}, reloaded {Reloaded}";
+		=> $"{Objects} objects, {Meshes} meshes ({FailedMeshes} failed), {Variants} variants, {IdleMeshes} idle; lightmaps {Lightmaps}/{LightmapKeys}; attributes {Attributed} tracked, {Sharing} sharing, {Shareable} shareable; {Deleted} deleted; built {Built}, evicted {Evicted}, reloaded {Reloaded}";
 }
 
 /// <summary>
