@@ -195,6 +195,18 @@ public static class PlatformMenu
 	}
 
 	/// <summary>
+	/// Out of whatever's being played, onto Sandbox - the way out of a game, whatever it does with its scenes
+	/// </summary>
+	public static void LeaveToDefault()
+	{
+		Run( async () =>
+		{
+			if ( await MenuUtility.FetchDefaultGameAsync() is { } sandbox )
+				await Switch( sandbox );
+		} );
+	}
+
+	/// <summary>
 	/// Back onto <see cref="Current"/>'s menu after a game closed itself - once it's gone. Its teardown runs a tick
 	/// after it closes, and would reset everything under a load started before then.
 	/// </summary>

@@ -127,14 +127,10 @@
     bool LibraryOpen => Shelf == PlatformShelf.YourGames;
 
     /// <summary>
-    /// Your games - or in a game, where switching can't happen, asking to leave it first (PlatformRoot.LeaveToLibrary):
-    /// the way out, there even when the game puts its own pause screen in front of everything
+    /// Your games - in a game too, where picking one leaves it for that one (PlatformRoot.Picked): the way out, there
+    /// even when the game puts its own pause screen in front of everything
     /// </summary>
-    void SwitchGame()
-    {
-        if ( PlatformMenu.CanSwitch ) Root?.ToggleShelf( PlatformShelf.YourGames );
-        else Root?.LeaveToLibrary();
-    }
+    void SwitchGame() => Root?.ToggleShelf( PlatformShelf.YourGames );
 
     Panel InviteButton;
     Panel PartyButton;

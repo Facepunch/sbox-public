@@ -88,7 +88,7 @@
             // Under the avatar editor, which is a scene of its own
             if ( MenuHelpers.InAvatarEditor ) return false;
 
-            return PlatformMenu.CanSwitch || Paused || SettingsPage is not null;
+            return PlatformMenu.CanSwitch || Paused || Shelf is not null || SettingsPage is not null;
         }
     }
 
@@ -223,22 +223,6 @@
     public void Resume() => Paused = false;
 
     /// <summary>
-    /// In a game, the dock's Library - asks to leave it, as the pause menu's Leave does, then opens your games once
-    /// it's back on the menu. The way out whatever the game does with its own pause screen.
-    /// </summary>
-    public void LeaveToLibrary() => MenuHelpers.ConfirmLeave( () =>
-    {
-        Resume();
-        libraryOnMenu = true;
-        Game.ReturnToMenu();
-    } );
-
-    /// <summary>
-    /// Left a game for the library - it opens as soon as the menu's back
-    /// </summary>
-    bool libraryOnMenu;
-
-    /// <summary>
     /// A press anywhere on the menu folds the party window back into the dock - and still goes to what was pressed.
     /// Not on the dock's party strip, which folds and unfolds it itself.
     /// </summary>
@@ -361,10 +345,18 @@
 
         if ( package is null || PlatformMenu.SameGame( package, PlatformMenu.Current ) ) return;
 
-        // Games are only switched from the menu - leave the game first
-        if ( !PlatformMenu.CanSwitch ) return;
+        if ( PlatformMenu.CanSwitch )
+        {
+            PlatformMenu.SwitchTo( package );
+            return;
+        }
 
-        PlatformMenu.SwitchTo( package );
+        // In a game - left for the one picked, once it's confirmed
+        MenuHelpers.ConfirmLeave( () =>
+        {
+            Resume();
+            PlatformMenu.SwitchTo( package );
+        } );
     }
 
     public override void Tick()
@@ -376,13 +368,6 @@
         // Started or back on its menu since - not paused any more
         if ( Paused && PlatformMenu.CanSwitch )
             Paused = false;
-
-        // Back on the menu after leaving for the library (LeaveToLibrary)
-        if ( libraryOnMenu && PlatformMenu.CanSwitch && !PlatformMenu.IsSwitching && !LoadingScreen.IsVisible )
-        {
-            libraryOnMenu = false;
-            if ( Shelf != PlatformShelf.YourGames ) ToggleShelf( PlatformShelf.YourGames );
-        }
 
         // A game started under the avatar shelf - it goes, it's only for a menu
         if ( Shelf is { } shelf && !CanShow( shelf ) )

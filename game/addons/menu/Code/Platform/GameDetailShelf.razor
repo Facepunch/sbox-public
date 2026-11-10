@@ -181,7 +181,7 @@
 
                             @if ( !IsCurrent )
                             {
-                                <div class="action primary @(PlatformMenu.CanSwitch ? "" : "disabled")" onclick=@Switch tooltip="@(PlatformMenu.CanSwitch ? "" : "Leave the game to switch")">
+                                <div class="action primary" onclick=@Switch>
                                     <i>@(Downloaded ? "check" : "download")</i>
                                     <label>@(Downloaded ? "Select" : "Download")</label>
                                 </div>
@@ -469,7 +469,7 @@
 
     void Switch()
     {
-        if ( PlatformMenu.CanSwitch && Package is not null ) PlatformRoot.Instance?.Picked( Package );
+        if ( Package is not null ) PlatformRoot.Instance?.Picked( Package );
     }
 
     public override void Tick()

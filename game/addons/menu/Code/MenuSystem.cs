@@ -104,7 +104,7 @@ public partial class MenuSystem : IMenuSystem
 
 	void TickEscapeToClose()
 	{
-		// The platform menu leaves a game for its menu - already there, there's nowhere to go
+		// The platform menu leaves a game for Sandbox's front - on a game's menu, there's nowhere to go
 		var platform = MenuProject.Platform.PlatformMenu.Enabled;
 
 		if ( Game.InGame && !(platform && Game.IsOnMenu) )
@@ -130,7 +130,7 @@ public partial class MenuSystem : IMenuSystem
 					gameClosingPanel?.Delete();
 					gameClosingPanel = null;
 
-					if ( platform ) Game.ReturnToMenu();
+					if ( platform ) MenuProject.Platform.PlatformMenu.LeaveToDefault();
 					else Game.Close();
 				}
 			}
