@@ -81,5 +81,9 @@ internal sealed class Source2LabContent : ILabContent, IDisposable
 		animationWorld?.Delete();
 		animationWorld = null;
 		meshes.Clear();
+
+		// Made here rather than loaded, so nothing else lets it go
+		skyCube?.Dispose();
+		skyCube = null;
 	}
 }

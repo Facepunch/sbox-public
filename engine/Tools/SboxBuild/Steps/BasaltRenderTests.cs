@@ -17,14 +17,19 @@ internal class BasaltRenderTests( string[] presets, bool update )
 	const string LavapipeUrl = $"https://github.com/Facepunch/sbox-thirdparty/releases/download/lavapipe-{LavapipeVersion}/lavapipe-{LavapipeVersion}-win64.zip";
 	const string GoldenTruth = "engine/Tests/GoldenTruth/Basalt";
 
-	// The images were captured at this size and frame, so they're part of the test
+	// The images were captured at this size, frame and sample count, so they're part of the test. Multisampled, as a game's
+	// window is by default: Lavapipe loses the blue of lit surfaces in single-sample targets
 	const int Width = 640;
 	const int Height = 360;
 	const int CaptureFrame = 10;
+	const int Samples = 4;
 
 	// Lavapipe runs a frame's command buffers on one thread, so a BasaltLab keeps about two cores busy: the presets are
 	// split between this many at once
 	const int Runs = 4;
+
+	// Lines in BasaltLab's output that mean it didn't shut down cleanly
+	static readonly string[] ShutdownProblems = ["NativeResourceCache: Resource still alive", "was not unregistered"];
 
 	internal ExitCode Run() => BuildDisplay.Run( "Basalt render tests", () =>
 	{
@@ -53,14 +58,11 @@ internal class BasaltRenderTests( string[] presets, bool update )
 		foreach ( var file in Directory.EnumerateFiles( output ) ) File.Delete( file );
 		foreach ( var dir in Directory.EnumerateDirectories( output ) ) Directory.Delete( dir, true );
 
-		// Only Lavapipe, and no implicit layers (vendor switchable graphics, overlays) between it and the engine. Lavapipe's
-		// 256-bit code path loses the blue of lit surfaces in single-sample targets, which these are; its 128-bit one renders
-		// them right, and the same on any x64 CPU
+		// Only Lavapipe, and no implicit layers (vendor switchable graphics, overlays) between it and the engine
 		var environment = new Dictionary<string, string>
 		{
 			["VK_DRIVER_FILES"] = icd,
 			["VK_LOADER_LAYERS_DISABLE"] = "~implicit~",
-			["LP_NATIVE_VECTOR_WIDTH"] = "128",
 		};
 
 		// BasaltLab deals the presets round-robin into the runs itself (-shard), so each preset follows the same ones everywhere
@@ -73,14 +75,27 @@ internal class BasaltRenderTests( string[] presets, bool update )
 		BuildDisplay.Status( $"Rendering on Lavapipe, {parallel} BasaltLabs at a time" );
 
 		var results = new bool[runs.Length];
+		var problems = new List<string>[runs.Length];
 		Parallel.For( 0, runs.Length, new ParallelOptions { MaxDegreeOfParallelism = parallel }, i =>
 		{
 			// Validation warnings too: without -vulkan_validation_warnings the render system only reports errors
-			var arguments = $"{runs[i].Presets} -out \"{runs[i].Folder}\" -golden-truth \"{Path.Combine( root, GoldenTruth )}\"{(update ? " -golden-truth-update" : "")} " +
-				$"-vulkan_allow_cpu -vulkan_enable_validation -vulkan_validation_warnings -width {Width} -height {Height} -capture-frame {CaptureFrame}";
+			var arguments = $"{runs[i].Presets} -out \"{runs[i].Folder}\" -golden-truth \"{Path.GetFullPath( Path.Combine( root, GoldenTruth ) )}\"{(update ? " -golden-truth-update" : "")} " +
+				$"-vulkan_allow_cpu -vulkan_enable_validation -vulkan_validation_warnings -width {Width} -height {Height} -msaa {Samples} -capture-frame {CaptureFrame}";
+
+			// Each run's output in a file of its own, and anything that says the run didn't end cleanly: a resource still
+			// alive at shutdown, a convar left registered
+			var log = new List<string>();
+			problems[i] = new List<string>();
+			void Output( object sender, System.Diagnostics.DataReceivedEventArgs e )
+			{
+				lock ( log ) log.Add( e.Data );
+				if ( ShutdownProblems.Any( x => e.Data.Contains( x, StringComparison.Ordinal ) ) )
+					lock ( problems[i] ) problems[i].Add( e.Data.Trim() );
+			}
 
 			// A preset takes about 15 s on Lavapipe here; a hang mustn't hold the machine for long
-			results[i] = Utility.RunProcess( basaltlab, arguments, game, environment, timeoutMs: 20 * 60 * 1000 );
+			results[i] = Utility.RunProcess( basaltlab, arguments, game, environment, timeoutMs: 20 * 60 * 1000, onDataReceived: Output );
+			lock ( log ) File.WriteAllLines( Path.Combine( output, $"run{i + 1}.log" ), log );
 		} );
 
 		// Into the one folder
@@ -102,7 +117,13 @@ internal class BasaltRenderTests( string[] presets, bool update )
 
 		foreach ( var line in lines ) Log.Info( line );
 
-		if ( !results.All( x => x ) || lines.Count == 0 )
+		for ( int i = 0; i < runs.Length; i++ )
+		{
+			if ( !results[i] ) Log.Error( $"Run {i + 1} ({runs[i].Presets}) failed; its output is in run{i + 1}.log" );
+			foreach ( var problem in problems[i].Take( 10 ) ) Log.Error( $"Run {i + 1}: {problem}" );
+		}
+
+		if ( !results.All( x => x ) || problems.Any( x => x.Count > 0 ) || lines.Count == 0 )
 		{
 			Log.Error( $"Basalt render tests failed. Frames, diffs and .results.json are in {output}" );
 			return ExitCode.Failure;
@@ -120,6 +141,8 @@ internal class BasaltRenderTests( string[] presets, bool update )
 		var env = Environment.GetEnvironmentVariable( "LAVAPIPE_ICD" );
 		if ( !string.IsNullOrEmpty( env ) )
 		{
+			// The Vulkan loader takes a Windows path: with forward slashes the driver fails to load (VK_ERROR_OUT_OF_HOST_MEMORY)
+			env = Path.GetFullPath( env );
 			if ( File.Exists( env ) ) return env;
 			Log.Error( $"LAVAPIPE_ICD is set but {env} doesn't exist." );
 			return null;
