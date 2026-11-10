@@ -49,24 +49,38 @@ internal sealed class Source2Texture : GpuTexture
 }
 
 /// <summary>
-/// A native texture the engine has no <see cref="Texture"/> for - a swap chain's buffers - wrapped once per handle. Not
-/// owned: disposing it does nothing.
+/// A native texture the engine has no <see cref="Texture"/> for - a swap chain's buffers - holding a strong handle of its own,
+/// which each <see cref="Replace"/> releases.
 /// </summary>
 internal sealed class Source2RawTexture : GpuTexture
 {
-	public ITexture Native { get; }
+	public ITexture Native { get; private set; }
+
+	/// <summary>
+	/// A wrapper owning <paramref name="native"/>, a strong handle such as the new one each <c>GetSwapChainTexture</c> returns.
+	/// </summary>
+	public static Source2RawTexture Owning( ITexture native ) => new( native );
 
 	Source2RawTexture( ITexture native )
 	{
 		Native = native;
 	}
 
-	static readonly System.Collections.Concurrent.ConcurrentDictionary<IntPtr, Source2RawTexture> wrapped = new();
-
 	/// <summary>
-	/// The native texture as Basalt's, or null for an invalid one.
+	/// Wrap another strong handle, releasing the one it held. Commands already recorded with it keep the
+	/// texture, which its swap chain holds.
 	/// </summary>
-	public static GpuTexture From( ITexture native ) => native.IsNull ? null : wrapped.GetOrAdd( native.self, static ( _, n ) => new Source2RawTexture( n ), native );
+	public void Replace( ITexture native )
+	{
+		Release();
+		Native = native;
+	}
+
+	void Release()
+	{
+		if ( !Native.IsNull ) Native.DestroyStrongHandle();
+		Native = default;
+	}
 
 	public override int Width => 0;
 	public override int Height => 0;
@@ -82,7 +96,7 @@ internal sealed class Source2RawTexture : GpuTexture
 		srgb ? (byte)RenderColorSpace.RENDER_SRGB : (byte)0,
 		dimension == TextureViewDimension.Texture2D ? RenderTextureDimension.RENDER_TEXTURE_DIMENSION_2D : RenderTextureDimension.RENDER_TEXTURE_DIMENSION_INVALID );
 	public override void KeepResident() { }
-	public override void Dispose() { }
+	public override void Dispose() => Release();
 }
 
 /// <summary>

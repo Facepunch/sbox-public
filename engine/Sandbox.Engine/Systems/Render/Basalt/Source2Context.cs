@@ -117,6 +117,8 @@ internal sealed class Source2Context : GpuContext
 	{
 		fullscreenView?.Dispose();
 		fullscreenView = null;
+		swapChainColor?.Dispose();
+		swapChainColor = null;
 
 		if ( materialBind != IntPtr.Zero )
 		{
@@ -334,9 +336,20 @@ internal sealed class Source2Context : GpuContext
 	}
 
 	/// <summary>
-	/// A swap chain's colour buffer, as a texture to bind.
+	/// A swap chain's colour buffer, as a texture to bind. Each lookup returns a new strong handle: this context keeps the latest
+	/// in one wrapper and releases the last. Caching each by handle kept one wrapper and one handle a frame for good.
 	/// </summary>
-	static GpuTexture SwapChainColor( GpuSwapChain swapChain ) => Source2RawTexture.From( g_pRenderDevice.GetSwapChainTexture( swapChain.Handle, SwapChainBuffer.BufferColor ) );
+	GpuTexture SwapChainColor( GpuSwapChain swapChain )
+	{
+		var native = g_pRenderDevice.GetSwapChainTexture( swapChain.Handle, SwapChainBuffer.BufferColor );
+		if ( native.IsNull ) return null;
+
+		if ( swapChainColor is null ) swapChainColor = Source2RawTexture.Owning( native );
+		else swapChainColor.Replace( native );
+		return swapChainColor;
+	}
+
+	Source2RawTexture swapChainColor;
 
 	/// <summary>
 	/// Merge lightmap then object attributes above context attributes (<c>CBaseSceneObjectDesc::DrawArray</c>).
