@@ -159,7 +159,7 @@ GameFront
 
 	// The pages it goes on to - faded in the first time. Each is a panel of its own (the platform-panel mixin) over the
 	// art: a bar with the way back, what it is and its tools, then what's on it.
-	.pages > CreateGamePage, .pages > ServersPage
+	.pages > CreateGamePage, .pages > ServersPage, .pages > MapsPage
 	{
 		pointer-events: all;
 
@@ -266,9 +266,21 @@ GameFront
 
 	// Down past the front's bottom to where the shelves' panels stop, clear of the dock - the front's 136px off the bottom
 	// of the screen, they're 80px ($platform-above-dock)
-	.pages > CreateGamePage > .panel, .pages > ServersPage > .panel
+	.pages > CreateGamePage > .panel, .pages > ServersPage > .panel, .pages > MapsPage > .panel
 	{
 		margin-bottom: -56px;
+	}
+
+	// A grid of maps wants more room across than a page of rows - and room round the well they're in
+	.pages > MapsPage > .panel
+	{
+		width: 62%;
+		max-width: 1280px;
+
+		> .body
+		{
+			padding: 4px 16px 16px 16px;
+		}
 	}
 
 	// The pause menu's Players page - the player list in the middle, as tall as the front, down to where the shelves'

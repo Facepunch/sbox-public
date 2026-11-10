@@ -1,8 +1,8 @@
 namespace Sandbox;
 
 /// <summary>
-/// A search of the Workshop's games, a page at a time - from <see cref="MenuUtility.SearchWorkshopGames"/>. Just the
-/// ones that can be played here.
+/// A search of the Workshop's games, a page at a time - from <see cref="MenuUtility.SearchWorkshopGames"/> - or its maps,
+/// from <see cref="MenuUtility.SearchWorkshopMaps"/>. Just the ones that can be played here.
 /// </summary>
 public sealed class WorkshopGameSearch
 {
@@ -20,7 +20,7 @@ public sealed class WorkshopGameSearch
 	public bool HasMore { get; private set; } = true;
 
 	/// <summary>
-	/// The next page's games - none once there aren't any more, or the Workshop couldn't be asked
+	/// The next page - none once there aren't any more, or the Workshop couldn't be asked
 	/// </summary>
 	public async Task<WorkshopItemDetails[]> NextAsync()
 	{

@@ -8,9 +8,10 @@
 
 @*
     The default front for a game without a menu scene of its own, made from what the Workshop says about it: its
-    name top left, and under it its pages - its menu, setting up a new game, and its
+    name top left, and under it its pages - its menu, setting up a new game, picking its map, and its
     servers (FrontPages). On a page off its menu, its name fades away and the page takes its room. Paused in a game -
-    any game - it's the pause menu: Resume, the game's own pause actions, and Leave back to its menu.
+    any game - it's the pause menu: Resume, changing its map if it has that, the game's own pause actions, and Leave
+    back to its menu.
 *@
 <root class="@(Paused ? "paused" : "") @(OffHome ? "paging" : "")">
 
@@ -20,13 +21,20 @@
             <label class="title">@game.Title</label>
         </div>
 
-        @if ( Paused && showingPlayers )
+        @if ( Paused && page == OnPlayers )
         {
             @* Its Players page - over the front as its other pages are, back to the pause menu from its bar *@
             <div class="pages">
                 <div class="players-page navigator-body">
-                    <MenuProject.Modals.PlayerList Back=@( () => { showingPlayers = false; } ) />
+                    <MenuProject.Modals.PlayerList Back=@( () => { page = null; } ) />
                 </div>
+            </div>
+        }
+        else if ( Paused && page == OnMaps )
+        {
+            @* The map browser - pick one and the game loads again on it *@
+            <div class="pages">
+                <MapsPage class="navigator-body" Selected=@LaunchArguments.Map OnPicked=@ChangeMap Back=@( () => { page = null; } ) />
             </div>
         }
         else if ( Paused )
@@ -35,9 +43,14 @@
                 <div class="tier">
                     <div class="item" onclick=@Resume><label>Resume</label></div>
 
+                    @if ( CanChangeMap )
+                    {
+                        <div class="item" onclick=@( () => page = OnMaps )><label>Change Map</label></div>
+                    }
+
                     @if ( ShowPlayers )
                     {
-                        <div class="item" onclick=@( () => showingPlayers = true )><label>Players</label></div>
+                        <div class="item" onclick=@( () => page = OnPlayers )><label>Players</label></div>
                     }
                 </div>
 
@@ -84,22 +97,44 @@
     FrontPages Pages;
 
     /// <summary>
-    /// Paused, on its Players page rather than the pause menu
+    /// The host of the game that's loaded, with a say in what's played, in a game that has its map changed from here
+    /// (its MapSettings' ShowChangeMap) - as the old pause menu has it (GameMenu)
     /// </summary>
-    bool showingPlayers;
+    static bool CanChangeMap => (!Networking.IsActive || Networking.IsHost) && MenuHelpers.HasAuthority && (MenuUtility.GamePackage?.Info.ShowsChangeMap ?? false);
+
+    const string OnPlayers = "players";
+    const string OnMaps = "maps";
+
+    /// <summary>
+    /// Paused, the page it's on rather than the pause menu - null on that
+    /// </summary>
+    string page;
 
     public bool Back()
     {
-        if ( Paused && showingPlayers )
+        if ( Paused && page is not null )
         {
-            showingPlayers = false;
+            page = null;
             return true;
         }
 
         return OffHome && Pages.GoBack();
     }
 
-    public bool OffHome => (Paused && showingPlayers) || (Pages.IsValid() && Pages.OffHome);
+    public bool OffHome => (Paused && page is not null) || (Pages.IsValid() && Pages.OffHome);
+
+    /// <summary>
+    /// The game that's loaded, loaded again on <paramref name="map"/> - whoever's in it comes along
+    /// </summary>
+    void ChangeMap( string map )
+    {
+        if ( string.IsNullOrEmpty( map ) || !CanChangeMap ) return;
+
+        LaunchArguments.Map = map;
+        Game.Load( MenuUtility.GamePackage.FullIdent, true );
+
+        Resume();
+    }
 
     void Resume() => OnResume?.Invoke();
 
@@ -127,7 +162,7 @@
         base.Tick();
 
         // Back on the pause menu the next time it's paused - and the page gone if nobody's list is shown any more
-        if ( !Paused || !ShowPlayers ) showingPlayers = false;
+        if ( !Paused || (page == OnPlayers && !ShowPlayers) || (page == OnMaps && !CanChangeMap) ) page = null;
 
         if ( !Paused ) return;
 
@@ -140,5 +175,5 @@
         actionsHash = hash;
     }
 
-    protected override int BuildHash() => HashCode.Combine( Paused, Shown, actionsHash, OffHome, ShowPlayers, showingPlayers );
+    protected override int BuildHash() => HashCode.Combine( Paused, Shown, actionsHash, OffHome, ShowPlayers, page, CanChangeMap );
 }

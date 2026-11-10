@@ -67,7 +67,12 @@
                                         }
                                         else
                                         {
-                                            <MapSelector Map=@Setup.Map GamePackage=@Setup.Package OnValueChanged=@OnMapChanged OnSelectorOpened=@OnMapSelectorOpened />
+                                            <div class="map-tile" @ref="MapTile" onclick=@PickMap>
+                                                <div class="bottom">
+                                                    <i>map</i>
+                                                    <label>@Setup.MapTitle</label>
+                                                </div>
+                                            </div>
                                         }
                                     </div>
                                 </div>
@@ -161,16 +166,32 @@
         return sections.ToArray();
     }
 
-    GameSetup selectingMapFor;
+    Panel MapTile;
 
-    void OnMapSelectorOpened() => selectingMapFor = Setup;
-
-    void OnMapChanged( string map )
+    /// <summary>
+    /// On to the map browser (MapsPage) - back here with the one picked
+    /// </summary>
+    void PickMap()
     {
-        if ( busy || !IsValid || selectingMapFor != Setup ) return;
-        Setup.Map = map;
-        StateHasChanged();
+        if ( busy || Setup is not { } setup ) return;
+
+        FrontPages.Of( this )?.PickMap( setup.Map, map =>
+        {
+            if ( busy || !IsValid || setup != Setup ) return;
+            setup.Map = map;
+            StateHasChanged();
+        } );
     }
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        // The map's picture comes in once it's looked up
+        if ( MapTile.IsValid() && MapTile.Style.BackgroundImage != Setup?.MapThumb )
+            MapTile.Style.BackgroundImage = Setup?.MapThumb;
+    }
+
     WorkshopDownload? download;
     bool busy;
 

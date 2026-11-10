@@ -48,27 +48,24 @@ CreateGamePage
 		padding: 4px 0;
 	}
 
-	MapSelector
+	.map-tile
 	{
+		position: relative;
 		width: 256px;
 		height: 144px;
 		border-radius: $platform-radius;
-		border: none;
-		outline: 0px solid transparent;
+		background-color: $platform-button;
+		background-size: cover;
+		background-position: center;
 		overflow: hidden;
+		cursor: pointer;
+		@include platform-sounds;
 		transition: all 0.15s ease;
 
 		&:hover
 		{
-			border: none;
-			outline: 0px solid transparent;
 			transform: translateY( -3px );
 			box-shadow: 0 12px 26px rgba( 0, 0, 0, 0.6 );
-		}
-
-		&::after
-		{
-			display: none;
 		}
 
 		> .bottom
@@ -81,13 +78,15 @@ CreateGamePage
 			gap: 6px;
 			background-image: linear-gradient( 0deg, rgba( 0, 0, 0, 0.65 ) 30%, rgba( 0, 0, 0, 0 ) );
 
-			icon
+			i
 			{
+				font-family: "Material Icons";
 				font-size: 15px;
+				color: #ffffff;
 				text-shadow: 0 1px 2px rgba( 0, 0, 0, 0.7 );
 			}
 
-			h3
+			label
 			{
 				font-size: 15px;
 				font-weight: 600;
