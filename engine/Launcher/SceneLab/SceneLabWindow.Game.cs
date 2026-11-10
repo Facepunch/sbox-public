@@ -52,6 +52,48 @@ internal sealed partial class SceneLabWindow
 	Color32[][] isolatedFaces;
 	int isolatedFaceSize;
 
+	// The volume textures the preset made (SceneLabScene.CaptureVolumes), read back as floats, if it has any
+	Vector4[][] isolatedVolumes;
+
+	/// <summary>
+	/// Float textures' texels, mip 0: a volume's as half floats, a single-channel cube's face by face.
+	/// </summary>
+	static Vector4[][] ReadVolumes( Texture[] volumes )
+	{
+		var texels = new Vector4[volumes.Length][];
+		for ( int i = 0; i < volumes.Length; i++ )
+		{
+			var volume = volumes[i];
+			var count = volume.Width * volume.Height * volume.Depth;
+
+			// A single-channel cube, face by face
+			if ( volume.ImageFormat == ImageFormat.R32F )
+			{
+				var face = volume.Width * volume.Height;
+				var values = new float[face];
+				texels[i] = new Vector4[count];
+				for ( int f = 0; f < volume.Depth; f++ )
+				{
+					volume.GetPixels<float>( (0, 0, volume.Width, volume.Height), f, 0, values.AsSpan(), ImageFormat.R32F );
+					for ( int t = 0; t < face; t++ ) texels[i][f * face + t] = new Vector4( values[t], 0, 0, 0 );
+				}
+
+				continue;
+			}
+
+			var halves = new ushort[count * 4];
+			volume.GetPixels3D<ushort>( (0, 0, 0, volume.Width, volume.Height, volume.Depth), 0, halves.AsSpan(), ImageFormat.RGBA16161616F );
+			texels[i] = new Vector4[count];
+			for ( int t = 0; t < count; t++ )
+			{
+				texels[i][t] = new Vector4( (float)BitConverter.UInt16BitsToHalf( halves[t * 4] ), (float)BitConverter.UInt16BitsToHalf( halves[t * 4 + 1] ),
+					(float)BitConverter.UInt16BitsToHalf( halves[t * 4 + 2] ), (float)BitConverter.UInt16BitsToHalf( halves[t * 4 + 3] ) );
+			}
+		}
+
+		return texels;
+	}
+
 	/// <summary>
 	/// A cube's six faces, mip 0, read back as 8-bit pixels.
 	/// </summary>
@@ -189,6 +231,7 @@ internal sealed partial class SceneLabWindow
 					? (gameBridge ??= new SceneBridge()).RenderManaged( camera, isolatedSize, updateExposure: true )
 					: SceneBridge.RenderNative( camera, isolatedSize, prepare: false );
 				isolatedFaces = Scene.CaptureFaces?.Invoke( game ) is { } cube ? ReadFaces( cube ) : null;
+				isolatedVolumes = Scene.CaptureVolumes?.Invoke( game ) is { } volumes ? ReadVolumes( volumes ) : null;
 			}
 			else if ( Renderer == RendererKind.Managed )
 			{
@@ -353,6 +396,8 @@ internal sealed partial class SceneLabWindow
 			FrameComparison.SavePng( pixels, width, height, nativePath );
 			for ( int i = 0; i < (isolatedFaces?.Length ?? 0); i++ )
 				FrameComparison.SavePng( isolatedFaces[i], isolatedFaceSize, isolatedFaceSize, System.IO.Path.Combine( folder, $"{name}.face{i}.native.png" ) );
+			for ( int i = 0; i < (isolatedVolumes?.Length ?? 0); i++ )
+				System.IO.File.WriteAllBytes( System.IO.Path.Combine( folder, $"{name}.volume{i}.native.f32" ), System.Runtime.InteropServices.MemoryMarshal.AsBytes( isolatedVolumes[i].AsSpan() ).ToArray() );
 			return $"isolated native frame to {nativePath}";
 		}
 
@@ -365,7 +410,53 @@ internal sealed partial class SceneLabWindow
 		if ( native.Length == pixels.Length ) FrameComparison.SavePng( FrameComparison.Difference( pixels, native ), width, height, System.IO.Path.Combine( folder, $"{name}.diff.png" ) );
 		lastParity = result;
 		if ( !result.Matches ) Environment.ExitCode = 2;
-		return $"{result} | isolated{CompareFaces( folder, name )}";
+		var readbacks = $"{CompareFaces( folder, name )}{CompareVolumes( folder, name )}";
+
+		// A readback that fails fails the preset, whatever the frame did
+		if ( result.Matches && lastParity is { Matches: false } ) return $"parity FAILED: a readback differs | {result} | isolated{readbacks}";
+		return $"{result} | isolated{readbacks}";
+	}
+
+	/// <summary>
+	/// Compare each volume texture's texels with native's: the mean difference over the mean of native's values, which fails
+	/// the capture over 0.1%.
+	/// </summary>
+	string CompareVolumes( string folder, string name )
+	{
+		if ( isolatedVolumes is not { } volumes ) return "";
+
+		var text = new System.Text.StringBuilder( " | volumes:" );
+		for ( int i = 0; i < volumes.Length; i++ )
+		{
+			var nativePath = System.IO.Path.Combine( folder, $"{name}.volume{i}.native.f32" );
+			if ( !System.IO.File.Exists( nativePath ) ) return $"{text} no native volumes to compare";
+
+			var native = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, Vector4>( System.IO.File.ReadAllBytes( nativePath ) );
+			var mine = volumes[i];
+			System.IO.File.WriteAllBytes( System.IO.Path.Combine( folder, $"{name}.volume{i}.f32" ), System.Runtime.InteropServices.MemoryMarshal.AsBytes( mine.AsSpan() ).ToArray() );
+			if ( native.Length != mine.Length ) return $"{text} {i}: sizes differ";
+
+			double difference = 0, magnitude = 0, largest = 0;
+			for ( int t = 0; t < mine.Length; t++ )
+			{
+				var d = mine[t] - native[t];
+				var absolute = Math.Abs( d.x ) + Math.Abs( d.y ) + Math.Abs( d.z ) + Math.Abs( d.w );
+				difference += absolute;
+				largest = Math.Max( largest, absolute );
+				magnitude += Math.Abs( native[t].x ) + Math.Abs( native[t].y ) + Math.Abs( native[t].z ) + Math.Abs( native[t].w );
+			}
+
+			var relative = magnitude > 0 ? difference / magnitude : difference;
+			text.Append( $" {i}: {relative * 100:0.000}% of native's mean, largest texel {largest:0.###}" );
+			if ( relative > 0.001 )
+			{
+				text.Append( " FAILED" );
+				lastParity = lastParity is { } frame ? frame with { Different = frame.Compared } : null;
+				Environment.ExitCode = 2;
+			}
+		}
+
+		return text.ToString();
 	}
 
 	/// <summary>

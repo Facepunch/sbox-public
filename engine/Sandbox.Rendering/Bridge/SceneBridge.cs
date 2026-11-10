@@ -809,17 +809,17 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 	Texture captureColor, captureDepth;
 
 	/// <summary>
-	/// Render a cube capture (an envmap probe): six 90-degree faces, each a Basalt frame of its own submitted in face order, as
-	/// native's six face views (<c>CCameraRenderer::RenderToCubeTexture</c>). Each face's frame ends by copying it into its slice
-	/// of the cube, and the last then runs <paramref name="afterFaces"/>. A camera with render stage hooks of its own (DDGI's
-	/// bake, which copies each face's depth and reads native's face views) renders natively, as does a capture asked for inside
-	/// a frame.
+	/// Render a cube capture (an envmap probe, a DDGI probe): six 90-degree faces, each a Basalt frame of its own submitted in
+	/// face order, as native's six face views (<c>CCameraRenderer::RenderToCubeTexture</c>). Each face's frame ends by copying it
+	/// into its slice of the cube, and the last then runs <paramref name="afterFaces"/>. A camera with stage hooks of its own
+	/// gets the face so far in its slice before each stage, as native's face draws straight into it. A capture asked for
+	/// inside a frame renders natively.
 	/// </summary>
 	public void RenderToCube( SceneCamera camera, Texture cube, in ViewSetup setup, CommandList afterFaces = null )
 	{
 		if ( cube is null || cube.native.IsNull ) return;
 
-		if ( Graphics.IsActive || camera.OnRenderStageHook is not null || NotYetInBasalt( camera, setup ) is not null )
+		if ( Graphics.IsActive || NotYetInBasalt( camera, setup ) is not null )
 		{
 			SceneRenderer.Native.RenderToCube( camera, cube, setup, afterFaces );
 			return;

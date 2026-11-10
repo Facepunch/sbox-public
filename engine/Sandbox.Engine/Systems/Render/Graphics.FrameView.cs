@@ -34,6 +34,11 @@ public static partial class Graphics
 		bool IsChildView { get; }
 
 		/// <summary>
+		/// Which face of a cube capture the view draws (its render target array index), or -1.
+		/// </summary>
+		int CubeFace { get; }
+
+		/// <summary>
 		/// The colour being drawn into. When <paramref name="owned"/>, it's a strong handle the caller destroys.
 		/// </summary>
 		ITexture GetColorTarget( out bool owned );
@@ -114,6 +119,7 @@ public static partial class Graphics
 		public bool PostProcessEnabled => View.GetPostProcessEnabled();
 		public int ToolsVisMode => View.GetToolsVisMode();
 		public bool IsChildView => View.GetParent().IsValid;
+		public int CubeFace => View.GetRenderTargetArrayIndex();
 
 		public ITexture GetColorTarget( out bool owned )
 		{
@@ -213,6 +219,11 @@ public static partial class Graphics
 	/// Whether the current view is another's child: a native child view, or a managed frame rendered inside another.
 	/// </summary>
 	internal static bool IsChildView => View.IsChildView;
+
+	/// <summary>
+	/// Which face of a cube capture the current view draws (<c>SceneCamera.RenderToCubeTexture</c>), or -1.
+	/// </summary>
+	internal static int CubeFace => View.CubeFace;
 
 	/// <summary>
 	/// The current frame's colour target. When <paramref name="owned"/>, it's a strong handle the caller destroys.

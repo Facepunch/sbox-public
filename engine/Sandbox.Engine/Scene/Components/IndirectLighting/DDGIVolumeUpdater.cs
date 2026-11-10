@@ -73,7 +73,7 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 				return;
 
 			// We don't render depth to cubemap, so we copy it manually using a compute shader
-			int face = Graphics.SceneView.GetRenderTargetArrayIndex();
+			int face = Graphics.CubeFace;
 			var depth = Graphics.GetDepthTarget( out var owned );
 			try
 			{
@@ -155,17 +155,7 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 
 		for ( _pass = 0; _pass < 2; _pass++ )
 		{
-			if ( _pass == 1 )
-			{
-				// The volume preview keeps the completed first pass as a frozen bounce source.
-				var irradiance = CreateVolumeTexture(
-					new Vector3Int( GeneratedIrradianceTexture.Width, GeneratedIrradianceTexture.Height, GeneratedIrradianceTexture.Depth ),
-					ImageFormat.RGBA16161616F, "Irradiance" );
-				_firstPassIrradiance = GeneratedIrradianceTexture;
-				GeneratedIrradianceTexture = irradiance;
-			}
-
-			UpdateCaptureVolumes();
+			BeginPass();
 			foreach ( var probeIndex in _pendingProbes )
 			{
 				if ( token.IsCancellationRequested || progressToken.IsCancellationRequested )
@@ -192,6 +182,47 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 		progress.Subtitle = $"Complete!";
 
 		return true;
+	}
+
+	/// <summary>
+	/// Start a pass: the second keeps the completed first as a frozen bounce source, and each captures with the volumes as they
+	/// are when it starts.
+	/// </summary>
+	void BeginPass()
+	{
+		if ( _pass == 1 )
+		{
+			// The volume preview keeps the completed first pass as a frozen bounce source.
+			var irradiance = CreateVolumeTexture(
+				new Vector3Int( GeneratedIrradianceTexture.Width, GeneratedIrradianceTexture.Height, GeneratedIrradianceTexture.Depth ),
+				ImageFormat.RGBA16161616F, "Irradiance" );
+			_firstPassIrradiance = GeneratedIrradianceTexture;
+			GeneratedIrradianceTexture = irradiance;
+		}
+
+		UpdateCaptureVolumes();
+	}
+
+	/// <summary>
+	/// The renderer probes capture through, rather than the frame's (<see cref="SceneRenderer.Current"/>): for tools that
+	/// compare them.
+	/// </summary>
+	internal ISceneRenderer Renderer { get; set; }
+
+	/// <summary>
+	/// Bake both passes now, without the editor's progress or yielding between probes: for tools and tests.
+	/// </summary>
+	internal void BakeNow()
+	{
+		for ( _pass = 0; _pass < 2; _pass++ )
+		{
+			BeginPass();
+			foreach ( var probeIndex in _pendingProbes )
+			{
+				PrepareProbe( probeIndex );
+				CaptureProbe();
+			}
+		}
 	}
 
 	/// <summary>
@@ -228,6 +259,24 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 
 	private async Task<bool> RenderProbe( Vector3Int probeIndex, CancellationToken token, CancellationToken progressToken )
 	{
+		PrepareProbe( probeIndex );
+
+		await Task.Yield();
+
+		if ( token.IsCancellationRequested || progressToken.IsCancellationRequested )
+			return false;
+
+		CaptureProbe();
+
+		await Task.Yield();
+		return true;
+	}
+
+	/// <summary>
+	/// Move the capture camera to a probe, with the scene's attributes and the volumes the pass captures with.
+	/// </summary>
+	void PrepareProbe( Vector3Int probeIndex )
+	{
 		_renderedIndex = probeIndex;
 
 		_camera.Position = _volume.GetRelocatedProbeWorldPosition( probeIndex );
@@ -237,19 +286,18 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 		_volume.Scene.RenderAttributes.MergeTo( _camera.Attributes );
 		_camera.Attributes.Set( "DDGI_Volumes", _captureVolumes );
 		_camera.Attributes.Set( "DDGI_VolumeCount", _captureVolumeCount );
+	}
 
-		await Task.Yield();
-
-		if ( token.IsCancellationRequested || progressToken.IsCancellationRequested )
-			return false;
-
+	/// <summary>
+	/// Capture the probe's cube; the camera's stage hook copies each face's depth and integrates the probe after the sixth.
+	/// </summary>
+	void CaptureProbe()
+	{
 		foreach ( var texture in _captureTextures )
 			texture.MarkUsed( ushort.MaxValue );
 
-		_camera.RenderToCubeTexture( _captureTexture );
-
-		await Task.Yield();
-		return true;
+		if ( Renderer is null ) _camera.RenderToCubeTexture( _captureTexture );
+		else Renderer.RenderToCube( _camera, _captureTexture, default );
 	}
 
 	private void InitializeProbeQueue()
