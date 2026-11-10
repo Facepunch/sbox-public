@@ -144,7 +144,7 @@ public class PipelineTests
 
 		var view = LookingDownX();
 
-		(List<int>[] Visible, List<MeshRenderFeature.Run>[] Runs) Frame( bool parallel )
+		(List<int>[] Visible, List<string>[] Runs) Frame( bool parallel )
 		{
 			using var system = new RenderSystem { ParallelRecording = parallel };
 			var stats = new RenderStats();
@@ -154,7 +154,9 @@ public class PipelineTests
 			var pass = system.MainPass;
 			var meshFeature = system.GetFeature<MeshRenderFeature>();
 			var visible = pass.VisibleByFeature.Select( x => x.ToList() ).ToArray();
-			var runs = pass.State<MeshRenderFeature.RunLists>( meshFeature ).ByBit.Select( x => x.ToList() ).ToArray();
+			// Each system has bins of its own, so runs compare by what they draw
+			var runs = pass.State<MeshRenderFeature.RunLists>( meshFeature ).ByBit
+				.Select( x => x.Select( r => $"{r.Mesh?.GetHashCode()} {r.Lod} {r.Override?.GetHashCode()} {r.Filter} {r.Attributes?.GetHashCode()} {r.Custom?.GetHashCode()} {r.FirstInstance} {r.Count} {r.CullDraw}" ).ToList() ).ToArray();
 			return (visible, runs);
 		}
 
@@ -163,7 +165,7 @@ public class PipelineTests
 		var classifyThreshold = MeshRenderFeature.MinParallelClassify;
 		RenderSystem.MinParallelCullCandidates = 0;
 		MeshRenderFeature.MinParallelClassify = 0;
-		(List<int>[] Visible, List<MeshRenderFeature.Run>[] Runs) serial, parallel;
+		(List<int>[] Visible, List<string>[] Runs) serial, parallel;
 		try
 		{
 			serial = Frame( false );

@@ -408,7 +408,10 @@ internal sealed class HeadlessContext : GpuContext
 	}
 
 	public override void UploadBuffer<T>( GpuBuffer buffer, ReadOnlySpan<T> data, int offsetBytes )
-		=> Record( Command( GpuOp.Upload ) with { Buffer = buffer, Count = data.Length } );
+	{
+		((HeadlessBuffer)buffer.Resource).Upload( System.Runtime.InteropServices.MemoryMarshal.AsBytes( data ), offsetBytes );
+		Record( Command( GpuOp.Upload ) with { Buffer = buffer, Count = data.Length } );
+	}
 
 	public override void BindInstances( int stream, int firstInstance ) => Record( Command( GpuOp.BindInstances ) with { Count = firstInstance } );
 

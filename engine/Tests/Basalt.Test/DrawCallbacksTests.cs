@@ -80,7 +80,7 @@ public class DrawCallbacksTests
 		var between = forward.Where( i => i > marks[0] && i < marks[1] ).ToList();
 		Assert.AreEqual( 1, between.Count );
 		Assert.AreEqual( 1, commands[between[0]].Count );
-		Assert.AreEqual( 3, forward.Sum( i => commands[i].Count ) );
+		Assert.AreEqual( 2, forward.Count, "the other two instanced together, and it alone" );
 
 		callbacks.Marker.Dispose();
 	}

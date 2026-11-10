@@ -29,6 +29,7 @@ public sealed class MeshObject : RenderObject
 			mesh = value;
 			LocalBounds = value?.Bounds ?? default;
 			WantsFrameBufferCopy = MaterialOverride is { } material ? RenderMesh.ReadsFrameBuffer( material ) : value?.ReadsFrameBufferCopy ?? false;
+			DrawChanged();
 		}
 	}
 
@@ -41,10 +42,14 @@ public sealed class MeshObject : RenderObject
 		get;
 		set
 		{
-			// Only alpha reaches a shadow: a faded caster dithers
+			// Only alpha reaches a shadow: a faded caster dithers. Fading or not decides its lists
 			var faded = field.a != value.a;
+			var lists = field.a < 1 != value.a < 1;
+			var changed = !field.Equals( value );
 			field = value;
 			if ( faded ) ShadowChanged();
+			if ( lists ) DrawChanged();
+			if ( changed ) World?.EntryChanged( this );
 		}
 	} = Color.White;
 
@@ -61,7 +66,9 @@ public sealed class MeshObject : RenderObject
 			OverrideTranslucent = RenderMesh.IsTranslucent( value );
 			OverrideAlphaTest = RenderMesh.IsAlphaTest( value );
 			WantsFrameBufferCopy = value is not null ? RenderMesh.ReadsFrameBuffer( value ) : mesh?.ReadsFrameBufferCopy ?? false;
-			if ( changed ) ShadowChanged();
+			if ( !changed ) return;
+			ShadowChanged();
+			DrawChanged();
 		}
 	}
 
@@ -69,17 +76,44 @@ public sealed class MeshObject : RenderObject
 	/// Translucent draws need a frame copy and refraction depth (<c>SCENEOBJECTFLAG_WANTS_FRAMEBUFFER_COPY_TEXTURE</c>).
 	/// Recomputed when the mesh or material override changes.
 	/// </summary>
-	public bool WantsFrameBufferCopy { get; set; }
+	public bool WantsFrameBufferCopy
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			DrawChanged();
+		}
+	}
 
 	/// <summary>
 	/// Work run around this object's draws in colour layers, or null. Prevents instancing.
 	/// </summary>
-	public DrawCallbacks Callbacks { get; set; }
+	public DrawCallbacks Callbacks
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			DrawChanged();
+		}
+	}
 
 	/// <summary>
 	/// Per-object attributes override view attributes and prevent instancing (<c>CBaseSceneObjectDesc</c>).
 	/// </summary>
-	public ShaderParameters Attributes { get; set; }
+	public ShaderParameters Attributes
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			DrawChanged();
+		}
+	}
 
 	/// <summary>
 	/// Where <see cref="Attributes"/> come from when they're read as the object draws rather than set, or null. The views of a
@@ -116,7 +150,16 @@ public sealed class MeshObject : RenderObject
 	/// Forward-only lightmap attributes below object attributes (<c>SetBakedLightingAttributes</c>).
 	/// Supplied by the bridge; prevents instancing.
 	/// </summary>
-	internal ShaderParameters LightmapAttributes { get; set; }
+	internal ShaderParameters LightmapAttributes
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			DrawChanged();
+		}
+	}
 
 	/// <summary>
 	/// The override's material flags, read once when it's set so preparing a frame doesn't call native.
@@ -159,6 +202,7 @@ public sealed class MeshObject : RenderObject
 			if ( field == value ) return;
 			field = value;
 			ShadowChanged();
+			DrawChanged();
 		}
 	} = true;
 
@@ -173,23 +217,51 @@ public sealed class MeshObject : RenderObject
 			if ( field == value ) return;
 			field = value;
 			ShadowChanged();
+			DrawChanged();
 		}
 	} = true;
 
 	/// <summary>
 	/// Include in the depth prepass (inverse of <c>SCENEOBJECTFLAG_NO_Z_PREPASS</c>).
 	/// </summary>
-	public bool DepthPrepass { get; set; } = true;
+	public bool DepthPrepass
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			DrawChanged();
+		}
+	} = true;
 
 	/// <summary>
 	/// Can be occlusion culled (inverse of <c>SCENEOBJECTFLAG_NO_OCCLUSION_CULLING</c>).
 	/// </summary>
-	public bool OcclusionCulling { get; set; } = true;
+	public bool OcclusionCulling
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			DrawChanged();
+		}
+	} = true;
 
 	/// <summary>
 	/// Light non-lightmapped draws from a probe volume (<c>SCENEOBJECTFLAG_NEEDS_LIGHT_PROBE</c>).
 	/// </summary>
-	public bool NeedsLightProbe { get; set; }
+	public bool NeedsLightProbe
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			DrawChanged();
+		}
+	}
 
 	/// <summary>
 	/// World-space probe selection point; null uses bounds centre (<c>CSceneObject::GetLightingOrigin</c>).
@@ -217,12 +289,30 @@ public sealed class MeshObject : RenderObject
 	/// <summary>
 	/// Include in the decal layer (<c>SCENEOBJECTFLAG_IS_DECAL</c>). Opaque/translucent flags can also enable other layers.
 	/// </summary>
-	public bool Decal { get; set; }
+	public bool Decal
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			DrawChanged();
+		}
+	}
 
 	/// <summary>
 	/// Static-overlay sort order, lowest first (<c>RenderOrder</c>).
 	/// </summary>
-	public int RenderOrder { get; set; }
+	public int RenderOrder
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			DrawChanged();
+		}
+	}
 
 	Transform[] bones = [];
 	Matrix3x4[] boneMatrices = [];
@@ -280,7 +370,17 @@ public sealed class MeshObject : RenderObject
 	/// Shader-layout deformation volumes (<c>CSceneAnimatableObject::SetDeformationVolumes</c>).
 	/// Forces vertex-cache skinning; callers must update bounds.
 	/// </summary>
-	internal DeformationVolume[] DeformationVolumes { get; set; } = [];
+	internal DeformationVolume[] DeformationVolumes
+	{
+		get;
+		set
+		{
+			// Deformed or not decides how it instances
+			var deformed = field.Length > 0 != value.Length > 0;
+			field = value;
+			if ( deformed ) DrawChanged();
+		}
+	} = [];
 
 	/// <summary>
 	/// A model-space anchor per model bone the volumes move it rigidly by (<c>CSceneAnimatableObject::SetDeformationAnchors</c>),
@@ -296,7 +396,16 @@ public sealed class MeshObject : RenderObject
 	/// <summary>
 	/// Supplies this frame's evaluated morphs; null when it doesn't morph.
 	/// </summary>
-	public IMorphSource MorphSource { get; set; }
+	public IMorphSource MorphSource
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			DrawChanged();
+		}
+	}
 
 	/// <summary>
 	/// Per-mesh skinning slots shared by all views this frame.
