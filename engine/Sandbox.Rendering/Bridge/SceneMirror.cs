@@ -143,7 +143,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IDisposable
 	{
 		lock ( gate )
 		{
-			// Native draws a deleted object until its frame ends: keep it as long
+			// Native lights with a deleted light until its frame ends: the frame it was deleted in decides how long it's kept
 			if ( (change & SceneObjectChange.Deleted) != 0 ) deletedFrames[sceneObject] = Application.FrameCount;
 			pending[sceneObject] = pending.GetValueOrDefault( sceneObject ) | change;
 		}
@@ -223,10 +223,10 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IDisposable
 	{
 		if ( (change & (SceneObjectChange.Removed | SceneObjectChange.Deleted)) != 0 )
 		{
-			// Deleted this frame: native draws it until the frame ends, so the frames rendered meanwhile keep it too - even
-			// when something native finished rendering views and destroyed it already (a bitmap render does), which is
-			// when Removed comes
-			if ( DeletedThisFrame( sceneObject, frame ) )
+			// A light deleted this frame: native lights with it until the frame ends, so the frames rendered meanwhile keep it
+			// too - even when something native finished rendering views and destroyed it already (a bitmap render does), which
+			// is when Removed comes. A deleted mesh native stops drawing at once
+			if ( sceneObject is SceneLight && DeletedThisFrame( sceneObject, frame ) )
 			{
 				if ( !lingering.Contains( sceneObject ) ) lingering.Add( sceneObject );
 				return;
