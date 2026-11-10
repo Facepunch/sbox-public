@@ -80,6 +80,10 @@ internal partial class SurfaceWindow : IDisposable, IPanelWindow
 
 	internal SdlWindow Window { get; set; }
 	SceneCamera _camera;
+
+	// With -basaltgpu: the swap chain and target the window presents on Basalt.Gpu, in place of Source 2's swap chain
+	// and the camera drawing into it (which then only holds the background settings)
+	BasaltGpuWindow _basalt;
 	SceneWorld _world;
 
 	/// <summary>
@@ -797,7 +801,8 @@ internal partial class SurfaceWindow : IDisposable, IPanelWindow
 	/// </summary>
 	internal void CreateRenderer( string name, bool vsync )
 	{
-		Window.CreateSwapChain( name, SwapChainMultisample, vsync );
+		if ( RenderBackend.Default is BasaltGpuRenderBackend basalt ) _basalt = new BasaltGpuWindow( basalt, Window.Handle, vsync );
+		else Window.CreateSwapChain( name, SwapChainMultisample, vsync );
 
 		_world = new SceneWorld();
 
@@ -864,6 +869,9 @@ internal partial class SurfaceWindow : IDisposable, IPanelWindow
 
 		var window = Window;
 		Window = null;
+		var basalt = _basalt;
+		_basalt = null;
+		basalt?.ReleaseTarget();
 
 		if ( window is null )
 			return;
@@ -872,6 +880,7 @@ internal partial class SurfaceWindow : IDisposable, IPanelWindow
 		// which needs the window it presented to still there
 		EngineLoop.DisposeAtFrameEnd( new Sandbox.Utility.DisposeAction( () =>
 		{
+			basalt?.Dispose();
 			PanelWindowInput.DetachWindow( window.Handle );
 			window.Dispose();
 		} ) );
