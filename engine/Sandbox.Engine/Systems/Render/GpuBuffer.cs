@@ -269,7 +269,7 @@ public partial class GpuBuffer : IValid, IDisposable
 		var offsetInBytes = start * ElementSize;
 		var sizeInBytes = count * ElementSize;
 
-		Graphics.Context.ReadBufferAsync( this, bytes =>
+		Graphics.Backend.ReadBufferAsync( this, bytes =>
 		{
 			// Reinterpret the byte span as a span of T
 			var typedSpan = MemoryMarshal.Cast<byte, T>( bytes );
@@ -317,7 +317,7 @@ public partial class GpuBuffer : IValid, IDisposable
 
 		fixed ( byte* dataPtr = data )
 		{
-			RenderTools.SetGPUBufferData( Graphics.Context, native, (IntPtr)dataPtr, (uint)data.Length, (uint)elementOffset );
+			Graphics.Backend.SetBufferData( this, (IntPtr)dataPtr, data.Length, elementOffset );
 		}
 	}
 
@@ -334,7 +334,7 @@ public partial class GpuBuffer : IValid, IDisposable
 		if ( !Usage.HasFlag( UsageFlags.Append ) && !Usage.HasFlag( UsageFlags.Structured ) )
 			throw new InvalidOperationException( $"GpuBuffer must be created with UsageFlags.Append or UsageFlags.Structured to CopyStructureCount." );
 
-		RenderTools.CopyGPUBufferHiddenStructureCount( Graphics.Context, native, destBuffer.native, (uint)destBufferOffset );
+		Graphics.Backend.CopyStructureCount( this, destBuffer, (uint)destBufferOffset );
 	}
 
 	/// <summary>
@@ -346,7 +346,7 @@ public partial class GpuBuffer : IValid, IDisposable
 	{
 		ObjectDisposedException.ThrowIf( native == IntPtr.Zero, this );
 
-		RenderTools.FillGPUBuffer( Graphics.Context, native, value );
+		Graphics.Backend.FillBuffer( this, value );
 	}
 
 	/// <summary>
@@ -358,7 +358,7 @@ public partial class GpuBuffer : IValid, IDisposable
 
 		if ( !Usage.HasFlag( UsageFlags.Append ) && !Usage.HasFlag( UsageFlags.Structured ) ) throw new InvalidOperationException( $"GpuBuffer must be created with UsageFlags.Append or UsageFlags.Structured to SetCounterValue." );
 
-		RenderTools.SetGPUBufferHiddenStructureCount( Graphics.Context, native, counterValue );
+		Graphics.Backend.SetStructureCount( this, counterValue );
 	}
 }
 
@@ -422,7 +422,7 @@ public class GpuBuffer<T> : GpuBuffer where T : unmanaged
 
 		var elementSize = Unsafe.SizeOf<T>();
 
-		RenderTools.CopyGPUBuffer( Graphics.Context, native, dst.native,
+		Graphics.Backend.CopyBuffer( this, dst,
 			checked((uint)(srcElementOffset * elementSize)),
 			checked((uint)(destElementOffset * elementSize)),
 			checked((uint)(elementCount * elementSize)) );
