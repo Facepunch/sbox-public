@@ -9,7 +9,7 @@ namespace Sandbox.Rendering.Bridge;
 /// Queues object changes from any thread and applies changed fields before rendering.
 /// Attribute emptiness is polled because values can change in place without notifications.
 /// </summary>
-internal sealed class SceneMirror : ISceneObjectListener, IDisposable
+internal sealed partial class SceneMirror : ISceneObjectListener, IDisposable
 {
 	readonly SceneWorld source;
 
@@ -41,11 +41,6 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 	/// </summary>
 	internal RenderObject Find( SceneObject sceneObject ) => sceneObject is not null && objects.TryGetValue( sceneObject, out var obj ) ? obj : null;
 	readonly HashSet<SceneDirectionalLight> suns = new();
-
-	readonly Dictionary<Model, RenderMesh> meshes = new();
-	// Shared draw-state variants; hash collisions are checked by value.
-	readonly Dictionary<(RenderMesh Mesh, int Hash), List<(RenderMesh.DrawState[] States, RenderMesh Mesh)>> variants = new();
-	readonly List<RenderMesh.DrawState> drawStates = new();
 
 	// Objects whose attribute emptiness must be polled.
 	readonly Dictionary<MeshObject, RenderAttributes> attributed = new();
@@ -547,57 +542,6 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 			ReleaseLightmap( aggregate.LightmapAttributes.Engine() );
 			aggregate.LightmapAttributes = Source2Parameters.From( AcquireLightmap( sceneObject ) );
 		}
-	}
-
-	/// <summary>
-	/// Cache mesh variants by effective draw state so matching objects still instance.
-	/// </summary>
-	RenderMesh VariantFor( SceneObject sceneObject, RenderMesh mesh )
-	{
-		if ( mesh is null ) return null;
-
-		SceneNative.ReadSceneObjectDraws( sceneObject, drawStates );
-		if ( drawStates.Count == 0 ) return mesh;
-
-		// Compare hash matches against scratch data; allocate only for new variants.
-		var states = CollectionsMarshal.AsSpan( drawStates );
-		var hash = new HashCode();
-		foreach ( var state in states ) hash.Add( state );
-
-		var key = (mesh, hash.ToHashCode());
-		if ( !variants.TryGetValue( key, out var candidates ) ) variants[key] = candidates = new();
-
-		foreach ( var candidate in candidates )
-		{
-			if ( states.SequenceEqual( candidate.States ) ) return candidate.Mesh;
-		}
-
-		var kept = states.ToArray();
-		var variant = mesh.WithDraws( kept );
-		candidates.Add( (kept, variant) );
-		return variant;
-	}
-
-	/// <summary>
-	/// Cache model meshes and retain buffers for in-flight frames.
-	/// </summary>
-	RenderMesh MeshFor( Model model )
-	{
-		if ( model is null ) return null;
-		if ( meshes.TryGetValue( model, out var mesh ) ) return mesh;
-
-		try
-		{
-			mesh = Source2Mesh.FromModel( model );
-		}
-		catch ( InvalidOperationException )
-		{
-			// No render geometry
-			mesh = null;
-		}
-
-		meshes[model] = mesh;
-		return mesh;
 	}
 
 	static void ApplyLight( SceneLight sceneLight, LightObject light, SceneObjectChange change )

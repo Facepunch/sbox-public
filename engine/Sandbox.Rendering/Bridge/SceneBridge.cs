@@ -566,6 +566,15 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 	}
 
 	/// <summary>
+	/// What the mirror of a camera view's world holds in its caches, or null before its first render.
+	/// </summary>
+	internal MirrorCacheCounts? CachesFor( SceneCamera camera, in ViewSetup setup )
+	{
+		if ( !views.TryGetValue( new ViewKey( camera._cameraId, setup.ViewHash ), out var state ) ) return null;
+		return state.Drawer.Mirror?.Caches;
+	}
+
+	/// <summary>
 	/// The last <c>Compare</c>'s result.
 	/// </summary>
 	internal FrameComparison.Parity? LastParity { get; set; }
