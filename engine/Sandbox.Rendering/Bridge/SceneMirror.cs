@@ -689,7 +689,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	}
 
 	/// <summary>
-	/// Mirror game, overlay and effect flags from native <c>RenderOptions</c>.
+	/// Mirror game, overlay and effect flags from native <c>RenderOptions</c>, and whether cube captures leave it out.
 	/// </summary>
 	static void ApplyLayerFlags( RenderObject obj, SceneObject.SceneObjectFlagAccessor flags )
 	{
@@ -697,6 +697,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		obj.Overlay = flags.HasFlag( SceneObjectFlags.GameOverlayLayer );
 		obj.Bloom = flags.HasFlag( SceneObjectFlags.EffectsBloomLayer );
 		obj.AfterUI = flags.HasFlag( SceneObjectFlags.UIOverlayLayer );
+		obj.HiddenInCaptures = flags.HasFlag( SceneObjectFlags.HideInCubemaps );
 	}
 
 	/// <summary>

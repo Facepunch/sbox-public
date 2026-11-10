@@ -133,6 +133,12 @@ internal sealed class OutputFlipLayer : RenderLayer
 
 	public OutputFlipLayer() : base( "Output Flip" ) { }
 
+	/// <summary>
+	/// Make the copy's material, on the main thread before any frame records (<see cref="RenderSystem.WarmUp"/>): the engine
+	/// makes no materials while a frame draws, and a flipped child view (a reflection) records inside its parent's frame.
+	/// </summary>
+	internal static void WarmUp() => material ??= RenderHost.Current.Device.MaterialFromShader( "shaders/copytexture.shader" );
+
 	public override bool IsNeeded( RenderFrame frame ) => frame.Output.FlipInto is not null;
 
 	public override void Record( RenderFrame frame, GpuContext rc, ref RenderStats stats )
@@ -140,8 +146,6 @@ internal sealed class OutputFlipLayer : RenderLayer
 		var output = frame.Output;
 		var into = output.FlipInto;
 		var source = output.Texture ?? output.Target.Resolved;
-
-		material ??= RenderHost.Current.Device.MaterialFromShader( "shaders/copytexture.shader" );
 
 		// The bytes as they are: the shader reads without sRGB, so it writes without it too
 		var size = new Vector2( into.Width, into.Height );

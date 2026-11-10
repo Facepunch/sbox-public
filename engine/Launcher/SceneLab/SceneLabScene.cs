@@ -46,6 +46,17 @@ internal sealed record SceneLabScene : LabPreset
 	public Action<Scene> Frame { get; init; }
 
 	/// <summary>
+	/// Runs every frame on a <see cref="Game"/> scene before its cameras render, with the renderer this pass compares: for cube
+	/// captures a preset renders itself (an envmap probe's), so each renderer's frame samples its own.
+	/// </summary>
+	public Action<Scene, Rendering.ISceneRenderer> Capture { get; init; }
+
+	/// <summary>
+	/// A cube an isolated capture reads back too, comparing each face with native's (<c>name.face0.png</c> to <c>face5</c>).
+	/// </summary>
+	public Func<Scene, Texture> CaptureFaces { get; init; }
+
+	/// <summary>
 	/// The view setup a <see cref="Game"/> scene's render target camera renders with, rather than none: for presets that
 	/// compare what a <see cref="Rendering.ViewSetup"/> does.
 	/// </summary>
@@ -214,6 +225,11 @@ internal sealed record SceneLabScene : LabPreset
 		new() { Name = "Instanced Models", Group = "GameObject", Game = InstancedScene.Build, ChangeGame = InstancedScene.Change },
 		new() { Name = "Object Command Lists", Group = "GameObject", Game = ObjectCommandListScene.Build, ChangeGame = ObjectCommandListScene.Change, Isolated = true },
 		new() { Name = "Water Refraction", Group = "Effects", Game = WaterScene.Build, Isolated = true },
+		new() { Name = "Water Planar", Group = "Effects", Game = WaterScene.Planar, Isolated = true },
+		new() { Name = "Water Planar Shadows", Group = "Effects", Game = WaterScene.PlanarShadows, Isolated = true },
+		new() { Name = "Envmap Capture", Group = "Effects", Game = EnvmapCaptureScene.Build, Capture = EnvmapCaptureScene.Capture, CaptureFaces = EnvmapCaptureScene.Cube, Isolated = true },
+		new() { Name = "Mirror Reflection", Group = "Effects", Game = MirrorScene.Build, Isolated = true },
+		new() { Name = "Mirror Reflection Shadows", Group = "Effects", Game = MirrorScene.BuildWithShadows, Isolated = true },
 		new() { Name = "View Projections", Group = "GameObject", Game = ViewSetupScenes.Projections, TargetSetup = ViewSetupScenes.ProjectionSetup, Isolated = true },
 		new() { Name = "View Oblique", Group = "GameObject", Game = ViewSetupScenes.Oblique, TargetSetup = ViewSetupScenes.ObliqueSetup, Isolated = true },
 		new() { Name = "View Overrides", Group = "GameObject", Game = ViewSetupScenes.Overrides, TargetSetup = ViewSetupScenes.OverrideSetup, Isolated = true },

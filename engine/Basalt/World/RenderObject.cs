@@ -132,6 +132,11 @@ public abstract class RenderObject
 	public bool AfterUI { get; set; }
 
 	/// <summary>
+	/// Left out of cube captures (<c>SCENEOBJECTFLAG_HIDE_IN_CUBEMAPS</c>, <see cref="RenderView.Capture"/>).
+	/// </summary>
+	public bool HiddenInCaptures { get; set; }
+
+	/// <summary>
 	/// Exclusive layer match (<c>SceneObject.RenderLayer</c>). Overrides all layer flags, including shadows,
 	/// until cleared; existing flags are retained.
 	/// </summary>

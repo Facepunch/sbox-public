@@ -57,6 +57,21 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		public Texture TextureTargetDepth;
 
 		/// <summary>
+		/// The view's own attributes (<see cref="RenderView.ViewAttributes"/>): its planar reflection.
+		/// </summary>
+		public RenderAttributes ViewAttributes;
+
+		/// <summary>
+		/// The frustum the view's planar reflection planes are tested against.
+		/// </summary>
+		public PlanarFrustum PlanarFrustum;
+
+		/// <summary>
+		/// A face of cube captures (<see cref="RenderView.Capture"/>), shared by every capture's camera.
+		/// </summary>
+		public bool IsCapture;
+
+		/// <summary>
 		/// Whether this view's frame is being rendered now: a child view asked for while it draws can't be this view again.
 		/// </summary>
 		public bool Rendering;
@@ -204,6 +219,16 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 			state.Dispose();
 		views.Clear();
 
+		for ( int i = 0; i < captureFaces.Length; i++ )
+		{
+			captureFaces[i]?.Dispose();
+			captureFaces[i] = null;
+		}
+
+		captureColor?.Dispose();
+		captureDepth?.Dispose();
+		captureColor = captureDepth = null;
+
 		foreach ( var (_, extra) in extras )
 			extra.Mirror.Dispose();
 		extras.Clear();
@@ -240,11 +265,15 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 	{
 		if ( !camera.World.IsValid() ) return "a camera without a world";
 
-		// Not yet in Basalt: the reflection flag (planar reflections)
-		if ( setup.Reflection ) return "planar reflections";
-
 		return null;
 	}
+
+	/// <summary>
+	/// A reflection asked for outside one of our frames: native's planar reflections, which its pipeline sets up for a native
+	/// view while it builds the view's layers. Basalt renders its own frames' reflections (<c>DrawReflection</c>) as their
+	/// children.
+	/// </summary>
+	bool NativeReflection( in ViewSetup setup ) => setup.Reflection && !(Graphics.IsActive && DrawingOurs);
 
 	/// <summary>
 	/// What a swap chain render needs that Basalt doesn't do yet, or null.
@@ -263,7 +292,7 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 	/// <summary>
 	/// Sync the world and prepare camera, target and stages, optionally advancing exposure.
 	/// </summary>
-	(SceneMirror Mirror, CameraState State) Prepare( SceneCamera camera, in ViewSetup setup, Vector2 size, bool updateExposure = true )
+	(SceneMirror Mirror, CameraState State) Prepare( SceneCamera camera, in ViewSetup setup, Vector2 size, bool updateExposure = true, CameraState given = null )
 	{
 		// A child view prepares while its parent's frame records, on workers too, from the mirrors the parent synced: it
 		// changes no world anyone's drawing (an unseen world's mirror is new, and synced once)
@@ -275,12 +304,13 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		if ( parent is null || !mirror.HasSynced ) mirror.Sync( camera );
 		SyncSkybox( mirror, camera, setup );
 
-		var state = StateFor( camera, setup.ViewHash );
+		var state = given ?? StateFor( camera, setup.ViewHash );
 		state.Drawer.Mirror = mirror;
 		state.View.SubWorlds = SyncExtraWorlds( mirror, camera, setup, state.Drawer.ExtraMirrors );
 		state.SyncMs = System.Diagnostics.Stopwatch.GetElapsedTime( syncStart ).TotalMilliseconds;
 		Sandbox.Rendering.ManagedSceneRendering.Report( new Sandbox.Rendering.ManagedFrameCounters { SyncMs = state.SyncMs } );
 		FillView( state.View, camera, setup, size );
+		state.View.Capture = state.IsCapture;
 
 		// A child view takes its parent's render time unless it has its own, as native's child views do
 		// (CSceneSystem::AddDynamicView), and its parent's camera has had its exposure this frame
@@ -293,7 +323,83 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		state.Stages.Renderer = this;
 		state.Stages.IsChild = parent is not null;
 		state.View.ToneMapScalar = state.Stages.BeginFrame( camera, state.View, setup, updateExposure );
+
+		// A top-level view's planar reflection renders first, since it depends on nothing in the view's frame
+		if ( parent is null ) RenderPlanarReflection( camera, mirror, state, setup );
 		return (mirror, state);
+	}
+
+	/// <summary>
+	/// Render a top-level view's planar reflection, as native's pipeline does for its views (<see cref="PlanarReflections"/>): the
+	/// plane covering the most of its screen, mirrored, as a reflection view of its own, submitted before the view, and published
+	/// in the view's own attributes for the water on that plane. Reflections and orthographic views have none.
+	/// </summary>
+	void RenderPlanarReflection( SceneCamera camera, SceneMirror mirror, CameraState state, in ViewSetup setup )
+	{
+		// The frame's attributes start empty, so without one published HasPlanarReflection is off
+		var view = state.View;
+		view.ViewAttributes = null;
+		if ( setup.Reflection || view.Orthographic || camera.World is null ) return;
+
+		var eye = new Transform( view.Position, view.Rotation );
+		var viewport = view.Viewport;
+		var aspect = viewport.Height > 0 ? viewport.Width / viewport.Height : 1;
+		var frustum = state.PlanarFrustum ??= new PlanarFrustum();
+		frustum.Of( view );
+		if ( !PlanarReflections.Plan( camera, eye, view.FieldOfView, aspect, view.ZNear, view.ZFar, viewport.Size, new Visibility( frustum ), out var planned ) )
+			return;
+
+		var reflection = CommandList.ReflectionView( eye, view.FieldOfView, aspect, view.ZNear, view.ZFar, planned.Plane, planned.Setup );
+		var target = planned.Target;
+		camera.ConfigureView( reflection );
+		var rendered = RenderToTexture( camera, reflection, target.ColorTarget, target.DepthTarget, out var reflected, updateExposure: false );
+
+		// The reflection's prepare set the world's 3D skybox up for its view
+		SyncSkybox( mirror, camera, setup );
+		if ( !rendered ) return;
+
+		var attributes = state.ViewAttributes ??= new RenderAttributes();
+		PlanarReflections.Publish( attributes.Get(), planned, ViewDataFor( reflected, target.ColorTarget ) );
+		view.ViewAttributes = Source2Parameters.From( attributes );
+	}
+
+	/// <summary>
+	/// A view's frustum, made only when a reflection plane needs testing against it, from a copy of the view: updating the view
+	/// itself would lose last frame's projection, which it keeps for reprojection.
+	/// </summary>
+	internal sealed class PlanarFrustum
+	{
+		readonly RenderView copy = new();
+		RenderView view;
+
+		public void Of( RenderView view ) => this.view = view;
+
+		public bool Sees( in BBox bounds )
+		{
+			if ( view is not null )
+			{
+				copy.Position = view.Position;
+				copy.Rotation = view.Rotation;
+				copy.FieldOfView = view.FieldOfView;
+				copy.ZNear = view.ZNear;
+				copy.ZFar = view.ZFar;
+				copy.Viewport = view.Viewport;
+				copy.Projection = view.Projection;
+				copy.ClipSpaceBounds = view.ClipSpaceBounds;
+				copy.Update();
+				view = null;
+			}
+
+			return copy.Frustum.Intersects( bounds.Center, bounds.Extents );
+		}
+	}
+
+	/// <summary>
+	/// A plane's reflecting area against a view's frustum.
+	/// </summary>
+	readonly struct Visibility( PlanarFrustum frustum ) : PlanarReflections.IVisibility
+	{
+		public bool Sees( in BBox bounds ) => frustum.Sees( bounds );
 	}
 
 	/// <summary>
@@ -446,7 +552,10 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		view.ToolsView = camera.ToolsView;
 		var toolsVis = DebugOverlay.ToolsVisualization.mat_toolsvis;
 		view.ToolsVisMode = (int)(toolsVis != SceneCameraDebugMode.Normal ? toolsVis : camera.DebugMode);
-		view.DepthNormals = camera.WantsDepthNormals;
+		// A reflection draws a depth-only prepass, and no shadows unless r.reflections.shadows is on (CameraRenderer.Configure)
+		view.Reflection = setup.Reflection;
+		view.ReflectionShadows = setup.Reflection && CommandList.ReflectionShadows;
+		view.DepthNormals = !setup.Reflection && camera.WantsDepthNormals;
 
 		var rect = camera.Rect;
 		view.Viewport = new Rect( rect.Left * size.x, rect.Top * size.y, rect.Width * size.x, rect.Height * size.y );
@@ -541,7 +650,7 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 
 		// Inside a frame (a command list's DrawView, a stage) the view is the frame's child: ours renders it in its own frame,
 		// before what samples it; native's, or a standalone render block, render it natively
-		if ( (Graphics.IsActive && !DrawingOurs) || NotYetInBasalt( camera, setup ) is not null )
+		if ( (Graphics.IsActive && !DrawingOurs) || NotYetInBasalt( camera, setup ) is not null || NativeReflection( setup ) )
 		{
 			SceneRenderer.Native.RenderToTexture( camera, target, size, setup );
 			return;
@@ -565,7 +674,7 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 	{
 		// A native parent's child view (see above), and a caller's depth target that Basalt can't draw into with the colour
 		// target directly, render natively
-		if ( parent != default || (Graphics.IsActive && !DrawingOurs) || NotYetInBasalt( camera, setup ) is not null || !CanDrawInto( target, depthTarget ) )
+		if ( parent != default || (Graphics.IsActive && !DrawingOurs) || NotYetInBasalt( camera, setup ) is not null || NativeReflection( setup ) || !CanDrawInto( target, depthTarget ) )
 			return SceneRenderer.Native.RenderToTexture( camera, target, depthTarget, parent, setup, name, out viewData );
 
 		camera.ConfigureView( setup );
@@ -602,12 +711,20 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 			ChildDepth--;
 		}
 
-		// What native's child view hands its samplers (CCameraRenderer::RenderToTexture): the inverse reverse-Z projection, in
-		// the engine's column-vector layout, the main world's viewport and depth range, and how the colour was flipped
+		viewData = ViewDataFor( state, target );
+		return true;
+	}
+
+	/// <summary>
+	/// What native's texture render hands a view's samplers (<c>CCameraRenderer::RenderToTexture</c>): the inverse reverse-Z
+	/// projection, in the engine's column-vector layout, the main world's viewport and depth range, and how the colour was flipped.
+	/// </summary>
+	static ViewData ViewDataFor( CameraState state, Texture target )
+	{
 		var view = state.View;
 		var size = new Vector2( target.Width, target.Height );
 		var viewport = view.Viewport;
-		viewData = new ViewData
+		return new ViewData
 		{
 			IsValid = true,
 			ProjectionToView = view.ViewToProjection.Inverted.Transpose(),
@@ -615,7 +732,6 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 			DepthRange = new Vector2( state.System.DepthMin, state.System.DepthMax ),
 			DepthUvScaleBias = new Vector4( view.FlipX ? -1 : 1, view.FlipY ? -1 : 1, view.FlipX ? 1 : 0, view.FlipY ? 1 : 0 ),
 		};
-		return true;
 	}
 
 	/// <summary>
@@ -629,12 +745,12 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		return Source2Formats.From( target.ImageFormat ).IsFloat() && Source2Texture.From( target ).Samples == Source2Texture.From( depthTarget ).Samples;
 	}
 
-	bool RenderToTexture( SceneCamera camera, in ViewSetup setup, Texture target, Texture depthTarget, out CameraState state )
+	bool RenderToTexture( SceneCamera camera, in ViewSetup setup, Texture target, Texture depthTarget, out CameraState state, bool updateExposure = true, CameraState given = null )
 	{
 		state = null;
 		if ( target.Width < 1 || target.Height < 1 ) return false;
 
-		(var mirror, state) = Prepare( camera, setup, target.Size );
+		(var mirror, state) = Prepare( camera, setup, target.Size, updateExposure, given );
 		using var drawing = new Drawing( this, state );
 
 		// Non-float outputs need HDR blending before the copy.
@@ -682,10 +798,70 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 	}
 
 	/// <summary>
-	/// Not yet in Basalt: cube captures (six faces into array slices, and the GGX filter hooked to the last face's native view,
-	/// <c>CubemapRendering</c>). They render natively.
+	/// The six faces cube captures render with, each a render system of its own, shared by every capture: a probe's camera is
+	/// new for each capture, and six render systems made for each would cost more than the capture.
 	/// </summary>
-	public void RenderToCube( SceneCamera camera, Texture cube, in ViewSetup setup ) => SceneRenderer.Native.RenderToCube( camera, cube, setup );
+	readonly CameraState[] captureFaces = new CameraState[6];
+
+	/// <summary>
+	/// What a face renders into before it's copied into its cube's slice.
+	/// </summary>
+	Texture captureColor, captureDepth;
+
+	/// <summary>
+	/// Render a cube capture (an envmap probe): six 90-degree faces, each a Basalt frame of its own submitted in face order, as
+	/// native's six face views (<c>CCameraRenderer::RenderToCubeTexture</c>). Each face's frame ends by copying it into its slice
+	/// of the cube, and the last then runs <paramref name="afterFaces"/>. A camera with render stage hooks of its own (DDGI's
+	/// bake, which copies each face's depth and reads native's face views) renders natively, as does a capture asked for inside
+	/// a frame.
+	/// </summary>
+	public void RenderToCube( SceneCamera camera, Texture cube, in ViewSetup setup, CommandList afterFaces = null )
+	{
+		if ( cube is null || cube.native.IsNull ) return;
+
+		if ( Graphics.IsActive || camera.OnRenderStageHook is not null || NotYetInBasalt( camera, setup ) is not null )
+		{
+			SceneRenderer.Native.RenderToCube( camera, cube, setup, afterFaces );
+			return;
+		}
+
+		if ( cube.Depth != 6 ) throw new Exception( "Expected a texture with 6 depth slices for RenderToCubeTexture" );
+
+		var size = cube.Size;
+		if ( size.x <= 0 || size.y <= 0 ) return;
+
+		camera.OnPreRender( size );
+
+		if ( captureColor is null || captureColor.Size != size || captureColor.ImageFormat != cube.ImageFormat )
+		{
+			captureColor?.Dispose();
+			captureDepth?.Dispose();
+			captureColor = Texture.CreateRenderTarget().WithSize( (int)size.x, (int)size.y ).WithFormat( cube.ImageFormat ).Create( "r_managed_scene cube face" );
+			captureDepth = Texture.CreateRenderTarget().WithSize( (int)size.x, (int)size.y ).WithFormat( ImageFormat.D24S8 ).Create( "r_managed_scene cube face depth" );
+		}
+
+		// A float face renders straight into its colour with our depth; another goes through HDR first
+		var depth = Source2Formats.From( cube.ImageFormat ).IsFloat() ? captureDepth : null;
+		for ( int i = 0; i < captureFaces.Length; i++ )
+		{
+			var face = setup;
+			face.Transform = new Transform( camera.Position, camera.Rotation * SceneCamera.CubeRotations[i] );
+			face.FieldOfView = 90;
+			face.EnableUI = false;
+
+			var state = captureFaces[i] ??= new CameraState( camera ) { IsCapture = true };
+			state.Camera.SetTarget( camera );
+			state.Stages.Capture = new CameraStages.CubeFace( cube, i, i == captureFaces.Length - 1 ? afterFaces : null );
+			try
+			{
+				RenderToTexture( camera, face, captureColor, depth, out _, updateExposure: false, given: state );
+			}
+			finally
+			{
+				state.Stages.Capture = default;
+			}
+		}
+	}
 
 	/// <summary>
 	/// Last managed-frame statistics for a camera's view, or null before its first render.
