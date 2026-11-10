@@ -136,6 +136,54 @@ public class AggregateTests : GpuTest
 	}
 
 	/// <summary>
+	/// Sun cascades with nothing to draw (a map whose static geometry casts no shadows, as a baked sun's doesn't) record
+	/// only their clears, in segments sharing the frame's list; they're flushed in order, and the frame draws its ground
+	/// unshadowed, the same twice.
+	/// </summary>
+	[TestMethod]
+	public void PassesThatDrawNothingStillClear()
+	{
+		using var backend = new BackendDevice( Device );
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			using var system = new RenderSystem { ParallelRecording = false };
+			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 4, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Empty passes test" );
+			var (mesh, fragments) = BoxesMesh( backend, backend.CreateMaterial( "Boxes", new Color( 0.8f, 0.6f, 0.4f ) ) );
+			var world = new RenderWorld();
+			world.Lighting.SunDirection = new Vector3( 0.5f, 0.35f, -0.8f ).Normal;
+			world.Lighting.SunShadowCascades = 3;
+			world.Add( new AggregateObject( mesh, fragments ) { CastShadows = false } );
+
+			var view = new RenderView { Name = "Empty passes test", FieldOfView = 70, ZNear = 4, ZFar = 4000, ClearColor = new Color( 0.3f, 0.4f, 0.5f ), Viewport = new Rect( 0, 0, Width, Height ) };
+			view.Position = new Vector3( -500, -300, 300 );
+			view.Rotation = Rotation.LookAt( -view.Position.WithZ( view.Position.z - 40 ) );
+
+			byte[] Frame()
+			{
+				backend.BeginFrame();
+				RenderHost.Current.NextFrame();
+				system.Render( world, view, target );
+				Device.WaitIdle();
+				var (texture, layout) = BackendDevice.Unwrap( target.Resolved );
+				var pixels = ReadBack( texture, layout );
+				BackendDevice.SetLayout( target.Resolved, ImageLayout.CopySource );
+				return pixels;
+			}
+
+			var first = Frame();
+			CollectionAssert.AreEqual( first, Frame(), "the same frame twice" );
+			Assert.AreEqual( 0, system.Stats.ShadowDraws, "nothing drew into the cascades" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
 	/// <see cref="Boxes"/> boxes in a row, in world space, in one mesh of one draw; and a fragment per box over that draw's
 	/// index range, each with its own bounds, as a compiled map's aggregate lays its draws out.
 	/// </summary>

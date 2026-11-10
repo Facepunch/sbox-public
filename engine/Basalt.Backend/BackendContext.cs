@@ -33,6 +33,9 @@ internal sealed partial class BackendContext : GpuContext
 		public bool Srgb;
 		public PipelineHandle Pipeline;
 		public BackendContext Binder;
+
+		/// <summary>The context recording into the list now: its clears still pending are flushed before another records.</summary>
+		public BackendContext Active;
 		public int BindVersion = -1;
 
 		/// <summary>
@@ -120,6 +123,9 @@ internal sealed partial class BackendContext : GpuContext
 		if ( borrowed )
 		{
 			recording = ((BackendContext)shared).recording ?? throw new InvalidOperationException( "The shared context isn't recording" );
+
+			// A clear the context before left pending (a pass that drew nothing) happens before this one records
+			if ( recording.Active is { } previous && previous != this && previous.recording == recording ) previous.FlushClears();
 		}
 		else
 		{
@@ -138,6 +144,7 @@ internal sealed partial class BackendContext : GpuContext
 		passStateCount = 0;
 		OverlayStencil = OverlayStencil.None;
 		recording.BindVersion = -1;
+		recording.Active = this;
 	}
 
 	public override void Submit( GpuSwapChain swapChain = default ) => SubmitNext();
@@ -155,6 +162,7 @@ internal sealed partial class BackendContext : GpuContext
 				return;
 			}
 
+			if ( recording.Active is { } last && last != this && last.recording == recording ) last.FlushClears();
 			CloseScope();
 			if ( recording.Layouts is { Count: > 0 } ) SubmitLayoutFixUps( recording );
 			Span<SyncPoint> waits = stackalloc SyncPoint[1];
