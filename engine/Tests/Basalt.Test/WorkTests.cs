@@ -127,7 +127,7 @@ public class WorkTests
 			+ (system.ShadowMaps.Passes.ToArray().Any( p => p.Visible( feature ).Contains( changed.Index ) ) ? 1 : 0);
 		Assert.IsTrue( kinds > 0, "the changed object is drawn" );
 		Assert.AreEqual( kinds, feature.ObjectsClassified - classified, "objects classified" );
-		Assert.AreEqual( kinds, feature.KeysMade - keys, "batch keys made" );
+		Assert.AreEqual( 1, feature.KeysMade - keys, "one new bin, which the main and shadow views share" );
 	}
 
 	/// <summary>
@@ -191,6 +191,42 @@ public class WorkTests
 			CollectAndPrepare( rebuilt, world, view );
 			Assert.AreEqual( Describe( rebuilt, world ), kept, $"frame {frame}" );
 		}
+	}
+
+	/// <summary>
+	/// Bins nothing draws with are dropped, so objects taking new attributes every frame don't pile them up, and an object out
+	/// of view for longer than a bin lives finds its bin again and still matches a rebuild.
+	/// </summary>
+	[TestMethod]
+	public void UnusedBinsAreDropped()
+	{
+		var world = Boxes( TestMesh( false ), 100 );
+		var away = new MeshObject( TestMesh( false, true ), new Transform( new Vector3( -100, 0, 0 ) ) );
+		world.Add( away );
+		var view = LookingDownX();
+		using var system = new RenderSystem();
+		var feature = system.GetFeature<MeshRenderFeature>();
+
+		var frames = MeshRenderFeature.BinLifetime * 4;
+		var most = 0;
+		for ( int frame = 0; frame < frames; frame++ )
+		{
+			for ( int c = 0; c < 10; c++ )
+				((MeshObject)world.Objects[(frame * 10 + c) % 100]).Attributes = new HeadlessParameters();
+
+			// Behind the camera for most of the run, then back in view
+			away.Transform = new Transform( new Vector3( frame < frames - 4 ? -100 : 120, 0, 0 ) );
+			CollectAndPrepare( system, world, view );
+			if ( frame > MeshRenderFeature.BinLifetime * 2 ) most = Math.Max( most, feature.BinCount );
+		}
+
+		Assert.IsTrue( most < 10 * (MeshRenderFeature.BinLifetime + MeshRenderFeature.BinSweepInterval) + 100, $"{most} bins kept" );
+		Assert.IsTrue( system.MainPass.Visible( feature ).Contains( away.Index ), "back in view" );
+
+		var kept = Describe( system, world );
+		using var rebuilt = new RenderSystem();
+		CollectAndPrepare( rebuilt, world, view );
+		Assert.AreEqual( Describe( rebuilt, world ), kept );
 	}
 
 	/// <summary>
