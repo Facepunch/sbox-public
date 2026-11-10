@@ -130,6 +130,18 @@ public abstract partial class Resource : IValid, IJsonConvert, BytePack.ISeriali
 	{
 	}
 
+	/// <summary>
+	/// How many times this resource has been reloaded. Something made from it compares this with what it was made at.
+	/// </summary>
+	internal int Revision { get; private set; }
+
+	/// <summary>
+	/// How many reloads there have been, of any resource: something made from resources checks their <see cref="Revision"/>
+	/// only when this has moved.
+	/// </summary>
+	internal static int Reloads => System.Threading.Volatile.Read( ref reloads );
+	static int reloads;
+
 	internal static void OnResourceReloaded( string resourceName, IntPtr nativePointer )
 	{
 		Log.Trace( $"Resource Reloaded: '{resourceName}'" );
@@ -141,7 +153,11 @@ public abstract partial class Resource : IValid, IJsonConvert, BytePack.ISeriali
 			library.MoveResource( resource, resourceName );
 
 			Log.Trace( $" - '{resource}'" );
-			resource?.OnReloaded();
+			if ( resource is null ) return;
+
+			resource.Revision++;
+			System.Threading.Interlocked.Increment( ref reloads );
+			resource.OnReloaded();
 		}
 	}
 

@@ -221,4 +221,5 @@ internal sealed class NativeSceneRenderer : ISceneRenderer
 	public void Forget( SceneCamera camera ) { }
 	public void Forget( SceneWorld world ) { }
 	public void Shutdown() { }
+	public void WarmUp() { }
 }

@@ -176,6 +176,7 @@ public class PanelAppSystem : AppSystem
 	/// </summary>
 	static void WarmRenderLayers()
 	{
+		Sandbox.Rendering.SceneRenderer.WarmUp();
 		Sandbox.Rendering.RenderPipeline.WarmUp();
 
 		// Native's shadow callback reads its convar mid-render, so its compute shader would be made there otherwise
