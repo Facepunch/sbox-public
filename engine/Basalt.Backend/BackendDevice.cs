@@ -317,9 +317,22 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	public GpuMaterial LoadMaterial( string path, IReadOnlyDictionary<string, float[]> values, string name = null )
 		=> Material( path, values is null ? null : new( values, StringComparer.OrdinalIgnoreCase ), name );
 
+	/// <summary>A material file, or null when it can't be read (KV3 with binary blobs isn't yet), so it draws nothing.</summary>
+	static MaterialFile ReadMaterial( byte[] data )
+	{
+		try
+		{
+			return MaterialFile.Read( data );
+		}
+		catch ( System.IO.InvalidDataException )
+		{
+			return null;
+		}
+	}
+
 	BackendMaterial Material( string path, Dictionary<string, float[]> values, string name = null )
 	{
-		var file = Content.TryRead( path ) is { } data ? MaterialFile.Read( data ) : null;
+		var file = Content.TryRead( path ) is { } data ? ReadMaterial( data ) : null;
 		if ( file is null ) return Track( new BackendMaterial( name ?? path, null, null, null, values ) );
 		return Track( new BackendMaterial( name ?? path, Shaders.Load( file.Shader ), file, Textures( file ), values ) );
 	}
