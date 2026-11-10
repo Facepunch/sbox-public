@@ -38,6 +38,22 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// <summary>What's bound where nothing else is: black textures, zeroed buffers, the default vertex stream.</summary>
 	internal ShaderDefaults Defaults { get; }
 
+	/// <summary>
+	/// Draw models through material objects (persistent sets, constants written once) instead of binding by reflection
+	/// every draw. See docs/managed/basalt-materials.md.
+	/// </summary>
+	public bool MaterialObjects { get; set; }
+
+	/// <summary>The material objects drawn so far.</summary>
+	internal MaterialObjectCache MaterialCache => materialCache ??= new MaterialObjectCache( this );
+	MaterialObjectCache materialCache;
+
+	/// <summary>Material objects made so far and descriptor sets they wrote, for benchmarks and tests.</summary>
+	public (int Objects, int SetsWritten) MaterialObjectStats => materialCache is null ? default : (materialCache.Count, materialCache.SetsWritten);
+
+	/// <summary>Drop a material's objects after its values changed; they're made again when it next draws.</summary>
+	public void InvalidateMaterial( GpuMaterial material ) => materialCache?.Invalidate( material );
+
 	readonly BackendTexture black;
 	readonly BackendTexture sheetMetadata;
 
@@ -287,9 +303,9 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// has as integers where the shader wants floats (or the other way round), read the default stream 2, as native's
 	/// input layouts do for streams a mesh doesn't have.
 	/// </summary>
-	internal PipelineHandle Pipeline( ShaderVariant variant, VertexLayout layout, Format color, Format depth, int samples, bool depthOnly )
+	internal PipelineHandle Pipeline( ShaderVariant variant, VertexLayout layout, Format color, Format depth, int samples, bool depthOnly, BindingLayoutHandle[] sets = null )
 	{
-		var key = new PipelineKey( variant, layout, color, depth, samples, depthOnly );
+		var key = new PipelineKey( variant, layout, color, depth, samples, depthOnly, sets );
 		lock ( pipelines )
 		{
 			if ( pipelines.TryGetValue( key, out var pipeline ) ) return pipeline;
@@ -305,6 +321,7 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 
 			VertexBufferLayout[] streams = [new( layout.Stride ), new( 4, VertexStepRate.Instance ), new( 0 )];
 			var info = variant.PipelineInfo( streams, attributes, color == Format.Unknown ? [] : [color], depth, samples, depthBias: depthOnly, $"{variant}{(depthOnly ? " depth" : "")}" );
+			if ( sets is not null ) info.Sets = sets;
 
 			// Stripped pixel shaders: depth passes of opaque materials don't need them
 			if ( depthOnly && color == Format.Unknown )
@@ -320,7 +337,7 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 		}
 	}
 
-	internal readonly record struct PipelineKey( ShaderVariant Variant, VertexLayout Layout, Format Color, Format Depth, int Samples, bool DepthOnly );
+	internal readonly record struct PipelineKey( ShaderVariant Variant, VertexLayout Layout, Format Color, Format Depth, int Samples, bool DepthOnly, BindingLayoutHandle[] Sets = null );
 
 	/// <summary>A compute pipeline for a compute shader's variant, made once.</summary>
 	internal PipelineHandle ComputePipeline( ShaderVariant variant )
@@ -468,6 +485,7 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	{
 		Gpu.WaitIdle();
 		Poll();
+		materialCache?.Dispose();
 		lock ( pipelines )
 		{
 			foreach ( var pipeline in pipelines.Values ) Gpu.Destroy( pipeline );
