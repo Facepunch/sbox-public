@@ -30,6 +30,9 @@ internal sealed class BasaltScene : IDisposable
 	/// <summary>Objects in the world.</summary>
 	public int ObjectCount => world.Count;
 
+	/// <summary>Of those, compiled s&amp;box models read from the content.</summary>
+	public int ModelCount { get; }
+
 	/// <summary>What the last frame drew.</summary>
 	public RenderStats Stats => system.Stats;
 
@@ -98,6 +101,16 @@ internal sealed class BasaltScene : IDisposable
 			ConeOuter = 30,
 			CastShadows = false,
 		} );
+
+		// s&box's own compiled models (.vmdl_c), where they're built: a row standing on the ground beside the ring. The
+		// citizen is skinned and draws in its bind pose.
+		string[] models = ["models/dev/box.vmdl", "models/citizen_props/trashcan01.vmdl", "models/citizen/citizen.vmdl", "models/dev/gordon_at_desk.vmdl", "models/citizen_props/wheel01.vmdl"];
+		for ( int i = 0; i < models.Length; i++ )
+		{
+			if ( backend.LoadModel( models[i] ) is not { } model ) continue;
+			world.Add( new MeshObject( model, new Transform( new Vector3( 380, (i - models.Length / 2) * 90, -model.Bounds.Mins.z ), Rotation.FromYaw( 180 ) ) ) );
+			ModelCount++;
+		}
 
 		var spinner = new MeshObject( tower, new Transform( new Vector3( 0, 0, 80 ) ) );
 		world.Add( spinner );

@@ -22,6 +22,7 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	readonly Dictionary<IntPtr, BufferHandle> constantBuffers = new();
 	readonly List<(SyncPoint Point, BufferHandle Buffer, int Bytes, GpuReadback Callback)> readbacks = new();
 	readonly Dictionary<PipelineKey, PipelineHandle> pipelines = new();
+	readonly Dictionary<VertexLayout, VertexLayout> layouts = new();
 	long nextHandle;
 	int vertexCache;
 
@@ -264,27 +265,45 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	}
 
 	/// <summary>
-	/// A pipeline for a variant into targets of these formats, made once. Mesh vertices are stream 0, instance ids
-	/// stream 1 (<c>TEXCOORD13</c>), and inputs a mesh lacks read the default stream 2.
+	/// Compiled models: a <c>.vmdl_c</c> from the content as a mesh Basalt draws, with its LODs and materials, or null
+	/// when it isn't built. See <see cref="BackendModel.Load"/>.
 	/// </summary>
-	internal PipelineHandle Pipeline( ShaderVariant variant, Format color, Format depth, int samples, bool depthOnly )
+	public RenderMesh LoadModel( string path, ulong? meshGroups = null, int materialGroup = 0 ) => BackendModel.Load( this, path, meshGroups, materialGroup );
+
+	/// <summary>One instance of each distinct vertex layout, which pipelines are keyed by.</summary>
+	internal VertexLayout Layout( VertexLayout layout )
 	{
-		var key = new PipelineKey( variant, color, depth, samples, depthOnly );
+		lock ( layouts )
+		{
+			if ( layouts.TryGetValue( layout, out var existing ) ) return existing;
+			layouts[layout] = layout;
+			return layout;
+		}
+	}
+
+	/// <summary>
+	/// A pipeline for a variant drawing vertices laid out as <paramref name="layout"/> into targets of these formats,
+	/// made once. Mesh vertices are stream 0, instance ids stream 1 (<c>TEXCOORD13</c>), and inputs the mesh lacks, or
+	/// has as integers where the shader wants floats (or the other way round), read the default stream 2, as native's
+	/// input layouts do for streams a mesh doesn't have.
+	/// </summary>
+	internal PipelineHandle Pipeline( ShaderVariant variant, VertexLayout layout, Format color, Format depth, int samples, bool depthOnly )
+	{
+		var key = new PipelineKey( variant, layout, color, depth, samples, depthOnly );
 		lock ( pipelines )
 		{
 			if ( pipelines.TryGetValue( key, out var pipeline ) ) return pipeline;
 
-			var attributes = ShaderDefaults.MapVertices( variant.VertexInputs, input => input.Semantic switch
+			var attributes = ShaderDefaults.MapVertices( variant.VertexInputs, input =>
 			{
-				VertexSemantic.Position => new VertexAttribute( 0, 0, VertexFormat.Float3, 0 ),
-				VertexSemantic.Normal => new VertexAttribute( 0, 0, VertexFormat.Float3, 12 ),
-				VertexSemantic.TexCoord when input.SemanticIndex is 0 or 1 => new VertexAttribute( 0, 0, VertexFormat.Float2, 24 ),
-				VertexSemantic.Tangent => new VertexAttribute( 0, 0, VertexFormat.Float4, 32 ),
-				VertexSemantic.TexCoord when input.SemanticIndex == 13 => new VertexAttribute( 0, 1, VertexFormat.UInt, 0 ),
-				_ => null,
+				if ( input.Semantic == VertexSemantic.TexCoord && input.SemanticIndex == 13 ) return new VertexAttribute( 0, 1, VertexFormat.UInt, 0 );
+				if ( layout.Find( input.Semantic, input.SemanticIndex ) is not { } field ) return null;
+				var integer = field.Format is VertexFormat.UByte4 or VertexFormat.UInt or VertexFormat.UInt2 or VertexFormat.UInt4;
+				if ( integer != (input.Kind != SpirvScalar.Float) ) return null;
+				return new VertexAttribute( 0, 0, field.Format, field.Offset );
 			}, defaultBuffer: 2 );
 
-			VertexBufferLayout[] streams = [new( System.Runtime.InteropServices.Marshal.SizeOf<MeshVertex>() ), new( 4, VertexStepRate.Instance ), new( 0 )];
+			VertexBufferLayout[] streams = [new( layout.Stride ), new( 4, VertexStepRate.Instance ), new( 0 )];
 			var info = variant.PipelineInfo( streams, attributes, color == Format.Unknown ? [] : [color], depth, samples, depthBias: depthOnly, $"{variant}{(depthOnly ? " depth" : "")}" );
 
 			// Stripped pixel shaders: depth passes of opaque materials don't need them
@@ -301,12 +320,12 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 		}
 	}
 
-	internal readonly record struct PipelineKey( ShaderVariant Variant, Format Color, Format Depth, int Samples, bool DepthOnly );
+	internal readonly record struct PipelineKey( ShaderVariant Variant, VertexLayout Layout, Format Color, Format Depth, int Samples, bool DepthOnly );
 
 	/// <summary>A compute pipeline for a compute shader's variant, made once.</summary>
 	internal PipelineHandle ComputePipeline( ShaderVariant variant )
 	{
-		var key = new PipelineKey( variant, Format.Unknown, Format.Unknown, 0, false );
+		var key = new PipelineKey( variant, null, Format.Unknown, Format.Unknown, 0, false );
 		lock ( pipelines )
 		{
 			if ( pipelines.TryGetValue( key, out var pipeline ) ) return pipeline;
