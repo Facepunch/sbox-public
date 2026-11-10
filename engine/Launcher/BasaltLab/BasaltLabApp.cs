@@ -33,7 +33,7 @@ internal static class BasaltLabApp
 		var posing = presets.Any( x => x.Preset is { Sequences.Length: > 0 } );
 
 		var backend = new Source2Backend();
-		backend.Start( sceneModules: Args.Has( "-scene-modules" ) || posing );
+		backend.Start( sceneModules: Args.Has( "-scene-modules" ) || posing, windows: !PresetRun.Capturing );
 
 		if ( Args.String( "-ui-parity" ) is { } parity )
 		{
