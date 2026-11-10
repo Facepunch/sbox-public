@@ -81,6 +81,7 @@ internal class AccountInformation
 			if ( login.Id == 0 )
 			{
 				Log.Warning( "Failed to retrieve account information - starting in offline mode.." );
+				Ai.Credits = null;
 				Api.StartOffline();
 				return;
 			}
@@ -88,6 +89,8 @@ internal class AccountInformation
 			NativeErrorReporter.SetTag( "session_id", login.Session );
 			NativeErrorReporter.SetTag( "launch_guid", Api.LaunchGuid );
 
+			var aiCredits = Ai.CreditBalance.FromDto( login.AiCredits );
+			Ai.Credits = SteamId == login.Id ? aiCredits ?? Ai.Credits : aiCredits;
 			SteamId = login.Id;
 			Session = login.Session;
 
