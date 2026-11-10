@@ -153,18 +153,7 @@
     /// <summary>
     /// Out of the game and back to the menu - it asks first, it's the game's unsaved progress.
     /// </summary>
-    void Leave()
-    {
-        ModalSystem.Instance?.Open( new MenuProject.Modals.QuestionModal
-        {
-            Color = Color.Parse( "#ff5d6a" ) ?? Color.Red,
-            Title = "#menu.pause.leave_game_label",
-            Message = "#menu.pause.any_unsaved_progress_will_be_lost",
-            ConfirmText = "#menu.pause.leave",
-            ConfirmIcon = "logout",
-            OnConfirm = () => Game.Close()
-        } );
-    }
+    static void Leave() => MenuHelpers.ConfirmLeave( Game.Close );
 
     //
     // Whether it has achievements - a fetch, once for each game, for its entry

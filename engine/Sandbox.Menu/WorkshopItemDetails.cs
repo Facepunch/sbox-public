@@ -41,7 +41,7 @@ public sealed class WorkshopItemDetails
 	public long OwnerId { get; init; }
 
 	/// <summary>
-	/// Their Steam name, if we know it
+	/// Their Steam name, if Steam knows it - see <see cref="MenuUtility.RequestOwnerNamesAsync"/>
 	/// </summary>
 	public string OwnerName { get; init; }
 
@@ -85,7 +85,7 @@ public sealed class WorkshopItemDetails
 		Images = item.Previews.Where( x => x.Type == Workshop.PreviewType.Image && !string.IsNullOrEmpty( x.Url ) ).Select( x => x.Url ).ToArray(),
 		YouTubeVideos = item.Previews.Where( x => x.Type == Workshop.PreviewType.YouTubeVideo && !string.IsNullOrEmpty( x.Url ) ).Select( x => x.Url ).ToArray(),
 		OwnerId = item.Owner is { } owner ? owner.Id.Value : 0,
-		OwnerName = item.Owner?.Name,
+		OwnerName = item.Owner is { } author ? SteamName( (ulong)author.Id.Value ) : null,
 		Created = item.Created,
 		Updated = item.Updated,
 		VotesUp = item.VotesUp,
@@ -96,4 +96,15 @@ public sealed class WorkshopItemDetails
 		Tags = item.Tags,
 		KeyValues = item.KeyValues
 	};
+
+	/// <summary>
+	/// Someone's name as Steam has it now - an item's own copy is "[unknown]" if Steam hadn't come across them when it
+	/// answered. Null while it still hasn't.
+	/// </summary>
+	static string SteamName( ulong id )
+	{
+		if ( Steamworks.SteamFriends.RequestUserInformation( id ) ) return null;
+
+		return new Steamworks.Friend( id ).Name;
+	}
 }

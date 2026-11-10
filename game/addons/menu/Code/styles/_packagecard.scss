@@ -1,4 +1,4 @@
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 // Landscape tiles: the art is the whole card. Nearly every game has its name in its art, so the
 // title only fades in while a video covers it. The live count sits in the bottom right corner.
@@ -44,7 +44,7 @@
 		}
 	}
 
-	// On the same dark pill as the nominations badge - a glow wasn't enough on busy video.
+	// On a dark pill - a glow wasn't enough on busy video.
 	.package-title
 	{
 		align-self: flex-start;
@@ -61,7 +61,7 @@
 		padding: 1px 7px;
 		margin: 8px 8px 0 8px;
 		border-radius: 5px;
-		// A touch denser than the nominations badge - this sits on moving video
+		// Nearly opaque - this sits on moving video
 		background-color: rgba( 14, 18, 26, 0.94 );
 		font-size: 13.5px;
 		color: #ffffff;
@@ -73,17 +73,6 @@
 	{
 		opacity: 1;
 		transition: opacity 1.2s ease-in-out 0.6s;
-	}
-
-	// The nominations badge shares the title's corner - it steps aside while the title's up.
-	.package-nominations
-	{
-		transition: opacity 0.6s ease-in-out;
-	}
-
-	&.playing .package-nominations
-	{
-		opacity: 0;
 	}
 
 	.package-meta
@@ -133,33 +122,8 @@ PackageCard
 {
 	font-family: $front-font;
 
-	.package-nominations
-	{
-		position: absolute;
-		top: 8px;
-		left: 8px;
-		align-items: center;
-		gap: 5px;
-		padding: 4px 7px;
-		border-radius: 5px;
-		background-color: $front-tile-bar;
-		color: $front-heading;
-
-		icon
-		{
-			font-size: 14px;
-			color: $front-trophy;
-		}
-
-		label
-		{
-			font-size: 11px;
-			font-weight: 600;
-		}
-	}
-
 	// The rails' outline - the same hairline round every panel
-	border: $front-border-width solid $front-border;
+	border: $front-border-width solid $platform-hairline;
 	border-radius: $front-radius;
 	overflow: hidden;
 	transition: all 0.12s ease;
@@ -217,14 +181,14 @@ PackageCard
 		background-color: $front-card;
 		background-image: linear-gradient( 180deg, $front-card-top, $front-card-bottom );
 
-		@include front-grain;
+		@include platform-grain;
 	}
 
 	.package-title
 	{
 		font-size: 14px;
 		font-weight: 600;
-		color: $front-heading;
+		color: $platform-text;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -251,7 +215,7 @@ PackageCard
 		icon
 		{
 			font-size: 12px;
-			color: $front-secondary;
+			color: $platform-muted;
 		}
 
 		label
@@ -260,7 +224,7 @@ PackageCard
 			font-weight: 500;
 			letter-spacing: 0;
 			text-transform: none;
-			color: $front-secondary;
+			color: $platform-muted;
 		}
 
 		.live-dot
@@ -340,9 +304,9 @@ PackageCard
 
 		&:hover
 		{
-			border-color: $front-hairline;
+			border-color: $platform-hairline;
 			box-shadow: none;
-			background-color: rgba( 255, 255, 255, 0.05 );
+			background-color: $platform-hover-wash;
 		}
 	}
 }

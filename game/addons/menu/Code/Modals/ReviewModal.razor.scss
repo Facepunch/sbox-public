@@ -7,77 +7,21 @@ ReviewModal
 	// Three big choices side by side - each lit in its own colour once it's picked
 	.ratings
 	{
-		flex-direction: row;
-		gap: 10px;
+		@include platform-choices;
 	}
 
 	.rating
 	{
-		flex-grow: 1;
-		flex-basis: 0;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		gap: 6px;
-		height: 86px;
-		border-radius: $front-radius;
-		border: 1px solid rgba( 255, 255, 255, 0.1 );
-		background-color: rgba( 255, 255, 255, 0.04 );
-		cursor: pointer;
-		transition: all 0.12s ease;
-
-		i
-		{
-			font-size: 26px;
-			color: $front-secondary;
-		}
-
-		label
-		{
-			font-size: 13.5px;
-			font-weight: 700;
-			color: $front-body;
-		}
+		@include platform-choice;
 
 		&:hover
 		{
 			sound-in: "ui.button.over";
-			background-color: rgba( 255, 255, 255, 0.08 );
-			border-color: rgba( 255, 255, 255, 0.2 );
-
-			i, label
-			{
-				color: $front-heading;
-			}
 		}
 
 		&:active
 		{
 			sound-in: "ui.button.press";
-		}
-
-		&.bad.active
-		{
-			background-color: rgba( $front-danger, 0.16 );
-			border-color: rgba( $front-danger, 0.6 );
-
-			i, label { color: $front-danger; }
-		}
-
-		&.meh.active
-		{
-			background-color: rgba( $front-trophy, 0.14 );
-			border-color: rgba( $front-trophy, 0.6 );
-
-			i, label { color: $front-trophy; }
-		}
-
-		&.good.active
-		{
-			background-color: rgba( $front-reward, 0.16 );
-			border-color: rgba( $front-reward, 0.6 );
-
-			i, label { color: $front-reward; }
 		}
 	}
 }

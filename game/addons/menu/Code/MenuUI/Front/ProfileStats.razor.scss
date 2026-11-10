@@ -1,4 +1,4 @@
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 // Achievements and points, a band of their own between the avatar and the friends list.
 ProfileStats
@@ -24,7 +24,8 @@ ProfileStats
 
 	.stat-label
 	{
-		@include front-section-label;
+		@include platform-caps;
+		color: $platform-muted;
 	}
 
 	// A fixed height, so the number and its loading placeholder take exactly the same room and nothing
@@ -42,7 +43,7 @@ ProfileStats
 			line-height: 24px;
 			font-size: 20px;
 			font-weight: 700;
-			color: $front-heading;
+			color: $platform-text;
 		}
 
 		icon

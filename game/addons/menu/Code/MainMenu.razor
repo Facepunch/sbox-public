@@ -37,6 +37,15 @@
         _ = FetchResolutionsWhenIdle();
     }
 
+    // Gone with its scene - the platform menu switched on (menu_platform), which has no main menu
+    override protected void OnDisabled()
+    {
+        base.OnDisabled();
+
+        if ( Instance == this )
+            Instance = null;
+    }
+
     async Task FetchResolutionsWhenIdle()
     {
         // Fetch resolutions early so opening the settings doesn't stutter later, but not while the menu is first appearing.

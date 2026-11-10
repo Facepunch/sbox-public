@@ -1,0 +1,30 @@
+{
+  "guid": "06ffbc18-00fc-0000-1801-000000000000",
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Ceiling Plaster",
+      "Type": "material",
+      "Org": "facepunch",
+      "Ident": "ceiling_plaster_01",
+      "Schema": 0,
+      "IncludeSourceFiles": true,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "materials/sbox/ceiling/ceiling_plaster_01.vmat",
+        "Summary": "",
+        "Description": "",
+        "Public": true,
+        "AssetLicense": "CC0"
+      }
+    }
+  }
+}

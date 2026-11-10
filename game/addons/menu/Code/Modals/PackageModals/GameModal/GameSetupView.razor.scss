@@ -1,5 +1,5 @@
 @import "/styles/_theme.scss";
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 @import "/styles/_settingsrows.scss";
 
 // A new game's setup, in the game page's place - the settings page's sections and rows
@@ -25,18 +25,18 @@ GameSetupView
 		align-items: center;
 		gap: 10px;
 		padding: 12px 14px;
-		border-radius: $front-radius;
-		background-color: rgba( $front-primary, 0.1 );
-		color: $front-body;
+		border-radius: $platform-radius;
+		background-color: rgba( $platform-primary, 0.1 );
+		color: $platform-text;
 		font-size: 13px;
 		flex-shrink: 0;
 
-		icon { color: $front-secondary; flex-shrink: 0; font-size: 20px; }
+		icon { color: $platform-muted; flex-shrink: 0; font-size: 20px; }
 		label { flex-shrink: 1; }
-		&.error { color: $front-danger; }
+		&.error { color: $platform-danger; }
 	}
 
-	.readonly-value { color: $front-body; }
+	.readonly-value { color: $platform-text; }
 
 	// A narrower control column than the settings page's - it's a narrower page, and the game's own
 	// settings have long names ("Max Constraints Per Player") that want the room more than a slider does
@@ -62,7 +62,7 @@ GameSetupView
 	MapSelector
 	{
 		height: 124px;
-		border-radius: $front-radius;
+		border-radius: $platform-radius;
 		border: none;
 		outline: 0px solid transparent;
 		overflow: hidden;

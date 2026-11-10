@@ -1,4 +1,5 @@
 @import "/styles/_Theme.scss";
+@import "/Platform/_platform.scss";
 
 Carousel {
     border-radius: $rounding-default;
@@ -15,25 +16,13 @@ Carousel {
         position: relative;
 
         .nav-button {
-            @include border;
+            @include platform-tool( 48px, 24px );
             position: absolute;
             z-index: 99;
-            width: 48px;
-            aspect-ratio: 1;
-            border-radius: 50%;
             align-self: center;
-            justify-content: center;
             padding: 0;
-            background-color: $default-950;
             opacity: 1;
-            cursor: pointer;
             pointer-events: all;
-
-            .icon {
-                font-size: $text-large;
-                color: $default-text-light;
-                transition: all 150ms ease;
-            }
 
             &:active {
                 sound-in: "ui.button.press";
@@ -41,11 +30,6 @@ Carousel {
 
             &:hover {
                 sound-in: "ui.button.over";
-                background-color: $default-800;
-
-                .icon {
-                    color: $default-text;
-                }
             }
 
             &.left {

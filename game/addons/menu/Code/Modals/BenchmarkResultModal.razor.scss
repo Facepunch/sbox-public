@@ -1,4 +1,5 @@
 @import '../styles/_theme.scss';
+@import "/Platform/_platform.scss";
 
 BenchmarkResultModal
 {
@@ -6,14 +7,11 @@ BenchmarkResultModal
 
 	.window
 	{
+		@include platform-surface;
 		width: 820px;
-		flex-direction: column;
-		border-radius: $rounding-large;
 		gap: 14px;
 		padding: 20px;
 		pointer-events: all;
-		background: linear-gradient( to bottom, $default-900, $default-950 );
-		box-shadow: 2px 2px 20px #0005;
 	}
 
 	.header
@@ -38,16 +36,8 @@ BenchmarkResultModal
 
 		.close-btn
 		{
-			padding: 4px 8px;
-			border-radius: $rounding-small;
-			cursor: pointer;
-			opacity: 0.4;
-		}
-
-		.close-btn:hover
-		{
-			opacity: 1;
-			background-color: rgba( 255, 255, 255, 0.08 );
+			@include platform-tool;
+			padding: 0;
 		}
 	}
 
@@ -63,8 +53,8 @@ BenchmarkResultModal
 		flex-direction: column;
 		overflow-y: scroll;
 		max-height: 340px;
-		background-color: #323b5233;
-		border-radius: 10px;
+		background-color: rgba( 6, 9, 16, 0.5 );
+		border-radius: $platform-radius;
 		padding: 8px;
 		gap: 2px;
 	}
@@ -75,10 +65,8 @@ BenchmarkResultModal
 		padding: 4px 8px 12px 8px;
 		gap: 8px;
 		align-items: center;
-		opacity: 0.45;
-		font-size: $text-small;
-		font-family: $font-heading;
-		font-weight: 600;
+		@include platform-caps;
+		color: $platform-faint;
 	}
 
 	.test-row
@@ -109,5 +97,12 @@ BenchmarkResultModal
 		flex-direction: row;
 		justify-content: flex-end;
 		padding-top: 2px;
+
+		.primary
+		{
+			@include platform-text-button( 38px );
+			padding: 0 16px;
+			@include platform-button-primary;
+		}
 	}
 }

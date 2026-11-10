@@ -69,6 +69,18 @@ internal sealed record SceneLabScene
 	public int Grid { get; init; } = 1;
 
 	/// <summary>
+	/// Places the objects by hand instead of the grid, for cases a grid can't show: runtime textures and materials, scaled
+	/// and mirrored transforms, extreme depth ranges (<see cref="CoreScenes"/>). The floor, lights, fog and sun settings
+	/// still apply, fitted to what it placed.
+	/// </summary>
+	public Action<LabLayout> Build { get; init; }
+
+	/// <summary>
+	/// Moves the whole scene - objects, lights and camera - this far from the world's origin, for float precision.
+	/// </summary>
+	public Vector3 Origin { get; init; }
+
+	/// <summary>
 	/// Coloured point lights circling over a floor.
 	/// </summary>
 	public int Lights { get; init; }
@@ -237,6 +249,20 @@ internal sealed record SceneLabScene
 
 		// A model whose LODs are different shapes, so LOD choices can be seen and compared with native
 		new() { Name = "LOD Test", Group = "Basics", Models = [LodTestModel.Path], Grid = 40 },
+
+		// Placed by hand (CoreScenes): runtime textures in each format, then sampled with each filter at a grazing angle;
+		// stretched meshes, and mirrored ones (not in the render tests yet: the managed renderer doesn't flip their winding);
+		// the same shadowed scene 100 km from the origin; extreme near and far planes; one model with a material per pass;
+		// casters near contact, and with the sun's bias at its extreme
+		new() { Name = "Texture Formats", Group = "Textures", Build = CoreScenes.TextureFormats, SunDirection = new Vector3( 0.7f, -0.2f, -0.65f ).Normal },
+		new() { Name = "Texture Filtering", Group = "Textures", Build = CoreScenes.TextureFiltering },
+		new() { Name = "Non-Uniform Scale", Group = "Basics", Build = CoreScenes.NonUniformScale, Spot = true, Lights = 2, LightShadows = true, Sun = 0.5f, SunDirection = SideSun },
+		new() { Name = "Mirrored", Group = "Basics", Build = CoreScenes.Mirrored, Spot = true, Lights = 2, LightShadows = true, Sun = 0.5f, SunDirection = SideSun },
+		new() { Name = "Far From Origin", Group = "Precision", Grid = 4, Lights = 8, Spot = true, LightShadows = true, Sun = 0.3f, SunDirection = SideSun, Origin = new Vector3( 2_800_000, -2_800_000, 40_000 ) },
+		new() { Name = "Depth Range", Group = "Precision", Build = CoreScenes.DepthRange, SunDirection = SideSun },
+		new() { Name = "Material Mix", Group = "Blending", Build = CoreScenes.MaterialMix, Floor = true, Lights = 3, Spot = true, LightShadows = true, Sun = 0.5f, SunDirection = SideSun },
+		new() { Name = "Shadow Casters", Group = "Shadows", Build = CoreScenes.ShadowCasters, Spot = true, LightShadows = true, Sun = 0.6f, SunDirection = SideSun },
+		new() { Name = "Shadow Bias", Group = "Shadows", Build = CoreScenes.ShadowBias, Spot = true, LightShadows = true, Sun = 0.6f, SunDirection = SideSun },
 
 		// Big enough to measure - see the -benchmark switch
 		new() { Name = "10k Boxes", Group = "Stress", Grid = 100 },

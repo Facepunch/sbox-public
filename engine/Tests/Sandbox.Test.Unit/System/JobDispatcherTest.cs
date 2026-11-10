@@ -333,21 +333,27 @@ public class JobDispatcherTest
 		Assert.IsTrue( watch.Elapsed.TotalSeconds < 10, $"took {watch.Elapsed.TotalSeconds:F1}s" );
 	}
 
-	[TestMethod]
+	/// <summary>
+	/// A warm call allocates nothing: its state comes from the pool, and the pool and the workers' queue only grow
+	/// when more calls are in flight than ever before.
+	/// </summary>
+	[TestMethod, TestCategory( Allocations.Category )]
 	public void DoesNotAllocateAfterWarmup()
 	{
 		var sum = new long[1];
-		for ( int run = 0; run < 2000; run++ )
-			JobDispatcher.For( 256, sum, static ( s, i ) => Interlocked.Add( ref s[0], i ) );
+		var dispatches = 0;
 
-		var before = GC.GetAllocatedBytesForCurrentThread();
-		for ( int run = 0; run < 1000; run++ )
-			JobDispatcher.For( 256, sum, static ( s, i ) => Interlocked.Add( ref s[0], i ) );
-		var perRun = (GC.GetAllocatedBytesForCurrentThread() - before) / 1000.0;
+		// A loaded machine's workers lag behind, holding on to the batches and queue entries of calls that already
+		// joined: the sleep lets them catch up, so each pass measures a warm dispatcher rather than a growing one
+		Allocations.AssertSettles( "10 dispatches of 256 items", () =>
+		{
+			for ( int run = 0; run < 10; run++ )
+				JobDispatcher.For( 256, sum, static ( s, i ) => Interlocked.Add( ref s[0], i ) );
 
-		// The pool and queue only grow when more calls are in flight than ever before
-		Assert.IsTrue( perRun < 16, $"{perRun:F1} bytes per run" );
-		Assert.AreEqual( 3000L * (255 * 256 / 2), Interlocked.Read( ref sum[0] ) );
+			dispatches += 10;
+		}, beforePass: () => Thread.Sleep( 1 ) );
+
+		Assert.AreEqual( (long)dispatches * (255 * 256 / 2), Interlocked.Read( ref sum[0] ) );
 	}
 
 	[TestMethod]

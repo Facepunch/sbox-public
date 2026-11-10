@@ -26,6 +26,7 @@ public partial class Texture
 	internal static Texture Create( string name, bool anonymous, TextureBuilder builder, IntPtr data, int dataSize )
 	{
 		var config = builder._config.GetWithFixes();
+		config.m_nImageFormat.ThrowIfInvalid();
 
 		var texture = g_pRenderDevice.FindOrCreateTexture2( string.IsNullOrEmpty( name ) ? "unnamed" : name, anonymous, config, data, dataSize );
 		//bool isRenderTarget = builder.common.m_nFlags.HasFlag( RuntimeTextureSpecificationFlags.TSPEC_RENDER_TARGET );

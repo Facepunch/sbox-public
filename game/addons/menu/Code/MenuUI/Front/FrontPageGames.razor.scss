@@ -1,5 +1,5 @@
 ﻿@import "/styles/_theme.scss";
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 FrontPageGames
 {
@@ -31,8 +31,8 @@ FrontPageGames
 
 	.head
 	{
+		@include platform-shelf-header;
 		flex-direction: row;
-		align-items: center;
 		width: 100%;
 		margin-bottom: 14px;
 		// .tiles' 5px side inset plus the card's 2px reserved (transparent) border, so the
@@ -48,18 +48,10 @@ FrontPageGames
 			{
 				cursor: pointer;
 
-				&:hover
+				&:hover .chevron
 				{
-					.title
-					{
-						color: #ffffff;
-					}
-
-					.chevron
-					{
-						opacity: 1;
-						margin-left: 2px;
-					}
+					opacity: 1;
+					margin-left: 2px;
 				}
 			}
 		}
@@ -68,11 +60,9 @@ FrontPageGames
 		// sends one for shelves whose title doesn't explain itself.
 		.description
 		{
-			font-family: $front-font;
 			font-size: 12px;
 			font-weight: 500;
-			color: $front-secondary;
-			opacity: 0.8;
+			color: $platform-muted;
 		}
 
 		.title-row
@@ -84,61 +74,19 @@ FrontPageGames
 			.chevron
 			{
 				font-size: 20px;
-				color: $front-secondary;
+				color: $platform-muted;
 				opacity: 0;
 				transition: all 0.1s ease;
 			}
 		}
 
-		.title
-		{
-			font-family: $front-font;
-			font-size: 20px;
-			font-weight: 700;
-			color: $front-heading;
-		}
-
+		// Its words are bare in the <a>, so they're dressed here as the button's label would be
 		.see-more
 		{
-			padding: 4px 0 4px 8px;
-			cursor: pointer;
-			font-family: $front-font;
-			font-size: 11px;
-			font-weight: 500;
-			color: $front-secondary;
-
-			&:hover
-			{
-				color: $front-heading;
-			}
-		}
-	}
-
-	.section.jam .head
-	{
-		.trophy
-		{
-			font-size: 22px;
-			color: $front-trophy * 2;
-			text-shadow: 0 0 14px rgba( $front-trophy, 0.5 );
-		}
-
-		.title
-		{
-			color: $front-trophy * 2;
-			text-shadow: 0 0 14px rgba( $front-trophy, 0.5 );
-		}
-
-		.see-more
-		{
-			color: $front-trophy * 1.6;
-			border-color: rgba( $front-trophy, 0.5 );
-
-			&:hover
-			{
-				color: $front-trophy * 2.2;
-				border-color: rgba( $front-trophy, 0.9 );
-			}
+			@include platform-text-button( 30px, 12.5px, 15px );
+			@include platform-plain-label( 12.5px );
+			color: $platform-text;
+			padding: 0 12px;
 		}
 	}
 
@@ -188,7 +136,7 @@ FrontPageGames
 				background-color: transparent;
 			}
 			.package-meta { display: none; }
-			PackageFlairBar, .package-nominations { display: none; }
+			PackageFlairBar { display: none; }
 			.package-subtitle
 			{
 				width: 100%;

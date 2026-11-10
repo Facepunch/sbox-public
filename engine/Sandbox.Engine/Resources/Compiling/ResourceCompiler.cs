@@ -37,13 +37,15 @@ public abstract partial class ResourceCompiler
 		return false;
 	}
 
-	internal bool CompileInternal()
+	// Native child compiles share the caller's filesystem and compiler state.
+	// Pump only this compile's continuations, never editor frames or other jobs.
+	internal bool CompileInternal() => AsyncPump.RunSynchronously( CompileInternalAsync );
+
+	internal async Task<bool> CompileInternalAsync()
 	{
 		try
 		{
-			// Native child compiles share the caller's filesystem and compiler state.
-			// Pump only this compile's continuations, never editor frames or other jobs.
-			return AsyncPump.RunSynchronously( Compile );
+			return await Compile();
 		}
 		catch ( System.Exception e )
 		{

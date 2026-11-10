@@ -69,8 +69,21 @@ public class SettingsCatalog
 		Id = "gfx.postprocess",
 		Category = "graphics",
 		Section = "#menu.settings.post_processing",
-		Title = "#menu.settings.post_processing",
+		Title = "#menu.settings.post_processing_quality",
 		Description = "#menu.settings.gfx.postprocess.description"
+	};
+
+	/// <summary>
+	/// What the detail says about the graphics quality preset - as <see cref="PostProcessInfo"/>, there being no stored
+	/// value of its own
+	/// </summary>
+	public SettingItem GraphicsPresetInfo { get; } = new SettingItem
+	{
+		Id = "gfx.preset",
+		Category = "graphics",
+		Section = "#menu.settings.quality",
+		Title = "#menu.settings.graphics_quality",
+		Description = "#menu.settings.sets_everything_under_quality_in_one_go"
 	};
 
 	readonly Dictionary<string, SettingItem> byId = new();
@@ -128,8 +141,8 @@ public class SettingsCatalog
 				break;
 
 			case "game":
-				Preferences.ChatEnabled = true;
-				Preferences.StreamerMode = false;
+				MenuUtility.SetConsoleVariable( "platform.chat.enabled", true );
+				MenuUtility.SetConsoleVariable( "streamer_mode", false );
 				MenuUtility.RunCommand( "language", "en" );
 				break;
 
@@ -861,7 +874,7 @@ public class SettingsCatalog
 			Description = "#menu.settings.audio.voicechat.description",
 			Options = OffOn,
 			Read = () => Preferences.VoiceEnabled,
-			Write = value => Preferences.VoiceEnabled = ToBool( value )
+			Write = value => MenuUtility.SetConsoleVariable( "platform.voice.enabled", ToBool( value ) )
 		} );
 
 		AddVolume( "audio.voice", "#menu.settings.audio.voice_volume.title", "#menu.settings.audio.voice.description", "voip_volume", "#menu.settings.voice", IsVoiceChatOn );
@@ -1055,6 +1068,19 @@ public class SettingsCatalog
 
 	void AddGame()
 	{
+		// Which menu - saved, the menu restarts onto the other one (MenuDll)
+		Items.Add( new SettingItem
+		{
+			Id = "game.menu",
+			Category = "game",
+			Section = "#menu.settings.menu",
+			Title = "#menu.settings.menu_style",
+			Description = "#menu.settings.game.menu.description",
+			Options = [new( "#menu.settings.menu_classic", false ), new( "#menu.settings.menu_new", true )],
+			Read = () => MenuUtility.PlatformMenu,
+			Write = value => MenuUtility.SetConsoleVariable( "menu_platform", ToBool( value ) )
+		} );
+
 		Items.Add( new SettingItem
 		{
 			Id = "game.language",
@@ -1077,7 +1103,7 @@ public class SettingsCatalog
 			Description = "#menu.settings.game.chat.description",
 			Options = OffOn,
 			Read = () => Preferences.ChatEnabled,
-			Write = value => Preferences.ChatEnabled = ToBool( value )
+			Write = value => MenuUtility.SetConsoleVariable( "platform.chat.enabled", ToBool( value ) )
 		} );
 
 		Items.Add( new SettingItem
@@ -1089,7 +1115,7 @@ public class SettingsCatalog
 			Description = "#menu.settings.game.streamer.description",
 			Options = OffOn,
 			Read = () => Preferences.StreamerMode,
-			Write = value => Preferences.StreamerMode = ToBool( value )
+			Write = value => MenuUtility.SetConsoleVariable( "streamer_mode", ToBool( value ) )
 		} );
 	}
 
@@ -1171,7 +1197,7 @@ public class SettingsCatalog
 		if ( devices.Any() )
 			Sandbox.Internal.AudioSettings.SetActiveDevice( devices.First().Id );
 
-		Preferences.VoiceEnabled = true;
+		MenuUtility.SetConsoleVariable( "platform.voice.enabled", true );
 
 		MenuUtility.SetConsoleVariable( "snd_simulation_enable", true );
 		MenuUtility.SetConsoleVariable( "volume", 1.0f );

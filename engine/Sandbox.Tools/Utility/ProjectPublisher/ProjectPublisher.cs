@@ -22,6 +22,20 @@ public partial class ProjectPublisher
 
 	public Action OnProgressChanged { get; set; }
 
+	/// <summary>
+	/// Meta that only goes in the workshop item's <c>metadata.json</c>, never to the backend - the game's menu
+	/// </summary>
+	static readonly HashSet<string> WorkshopOnlyMeta = ["MenuScene", "MenuResources"];
+
+	/// <summary>
+	/// <see cref="Meta"/> as the backend gets it, without what's only for the workshop item. Null if there's none.
+	/// </summary>
+	Dictionary<string, object> BackendMeta()
+	{
+		var meta = Meta.Where( x => !WorkshopOnlyMeta.Contains( x.Key ) ).ToDictionary();
+		return meta.Count > 0 ? meta : null;
+	}
+
 	public void SetMeta( string key, object obj )
 	{
 		Meta[key] = obj;
@@ -261,7 +275,7 @@ public partial class ProjectPublisher
 			Title = "",
 			Description = "",
 			Publish = false,
-			Meta = Meta.Count > 0 ? JsonSerializer.Serialize( Meta ) : null,
+			Meta = BackendMeta() is { } meta ? JsonSerializer.Serialize( meta ) : null,
 			EngineApi = Sandbox.Engine.Protocol.Api
 		};
 
@@ -360,7 +374,7 @@ public partial class ProjectPublisher
 			Title = string.IsNullOrWhiteSpace( manifest.Summary ) ? "Untitled Version" : manifest.Summary,
 			Description = manifest.Description,
 			Publish = true,
-			Meta = Meta.Count > 0 ? Json.Serialize( Meta ) : null,
+			Meta = BackendMeta() is { } meta ? Json.Serialize( meta ) : null,
 			EngineApi = Sandbox.Engine.Protocol.Api,
 			VerifyCompile = Project.Config.Type == "game"
 		};

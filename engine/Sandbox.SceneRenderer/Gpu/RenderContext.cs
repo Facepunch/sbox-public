@@ -631,7 +631,7 @@ internal sealed class RenderContext : IDisposable
 		if ( frame is not null )
 		{
 			// Clear old pass state and inherit this frame's attributes.
-			nativeAttributes.Clear( false, true );
+			Attributes.Clear( false );
 			nativeAttributes.SetParent( frame.nativeAttributes );
 			InstanceIds = frame.InstanceIds;
 			Occlusion = frame.Occlusion;

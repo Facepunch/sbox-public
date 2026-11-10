@@ -1,0 +1,26 @@
+{
+  "guid": "9e77231d-cae7-46a9-9cdf-296418dc65aa",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Plaster C",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "plaster_c",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "materials/sbox/wall/plaster_c.vmat"
+      }
+    }
+  }
+}

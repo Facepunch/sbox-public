@@ -67,6 +67,10 @@ public partial class GpuBuffer : IValid, IDisposable
 {
 	internal RenderBufferHandle_t native;
 
+	readonly System.Threading.Lock lifetimeLock = new();
+	int attributeBindings;
+	RenderBufferHandle_t pendingDestroy;
+
 	/// <summary>
 	/// Number of elements in the buffer.
 	/// </summary>
@@ -107,6 +111,7 @@ public partial class GpuBuffer : IValid, IDisposable
 	{
 		if ( elementCount <= 0 ) throw new ArgumentException( "Element count must be greater than zero." );
 		if ( elementSize <= 0 ) throw new ArgumentException( "Element size must be greater than zero." );
+		if ( ElementCount != 0 ) throw new InvalidOperationException( "GpuBuffer is already initialized." );
 
 		// Structured buffers element size must be 4 byte aligned
 		if ( usageFlags.HasFlag( UsageFlags.Structured ) )
@@ -170,18 +175,71 @@ public partial class GpuBuffer : IValid, IDisposable
 
 	void Dispose( bool disposing )
 	{
-		if ( native == IntPtr.Zero )
-			return;
+		RenderBufferHandle_t copy;
 
-		// Set our pointer to default immediately, keep a copy so we can dispose on main thread
-		var copy = native;
-		native = IntPtr.Zero;
+		lock ( lifetimeLock )
+		{
+			if ( native == IntPtr.Zero )
+				return;
 
+			// Set our pointer to default immediately, keep a copy so we can dispose on main thread
+			copy = native;
+			native = IntPtr.Zero;
+
+			// Still bound to RenderAttributes, destroyed when the last binding is released
+			if ( attributeBindings > 0 )
+			{
+				pendingDestroy = copy;
+				return;
+			}
+		}
+
+		QueueDestroy( copy );
+	}
+
+	static void QueueDestroy( RenderBufferHandle_t handle )
+	{
 		// Queue on the main thread in-case this is disposed from GC (different thread)
 		MainThread.Queue( () =>
 		{
-			g_pRenderDevice.DestroyGPUBuffer( copy );
+			g_pRenderDevice.DestroyGPUBuffer( handle );
 		} );
+	}
+
+	internal RenderBufferHandle_t AddAttributeBinding()
+	{
+		lock ( lifetimeLock )
+		{
+			if ( native == IntPtr.Zero )
+				return default;
+
+			attributeBindings++;
+			return native;
+		}
+	}
+
+	internal void RetainAttributeBinding()
+	{
+		lock ( lifetimeLock )
+		{
+			attributeBindings++;
+		}
+	}
+
+	internal void ReleaseAttributeBinding()
+	{
+		RenderBufferHandle_t destroy;
+
+		lock ( lifetimeLock )
+		{
+			if ( --attributeBindings > 0 || pendingDestroy == IntPtr.Zero )
+				return;
+
+			destroy = pendingDestroy;
+			pendingDestroy = default;
+		}
+
+		QueueDestroy( destroy );
 	}
 
 	/// <summary>
@@ -268,17 +326,19 @@ public partial class GpuBuffer : IValid, IDisposable
 		if ( !SandboxedUnsafe.IsAcceptablePod( typeof( T ) ) )
 			throw new InvalidOperationException( $"{typeof( T )} is not allowed in GPU buffers" );
 
-		ThrowIfOutOfRange( (long)start * ElementSize, (long)count * ElementSize );
+		long offsetInBytes = (long)start * ElementSize;
+		long sizeInBytes = (long)count * ElementSize;
+		ThrowIfOutOfRange( offsetInBytes, sizeInBytes );
 
-		var offsetInBytes = start * ElementSize;
-		var sizeInBytes = count * ElementSize;
+		if ( offsetInBytes + sizeInBytes > int.MaxValue )
+			throw new ArgumentOutOfRangeException( nameof( count ), "GetDataAsync can't read past the first 2GB of a GpuBuffer" );
 
 		Graphics.Context.ReadBufferAsync( this, bytes =>
 		{
 			// Reinterpret the byte span as a span of T
 			var typedSpan = MemoryMarshal.Cast<byte, T>( bytes );
 			callback( typedSpan );
-		}, offsetInBytes, sizeInBytes );
+		}, (int)offsetInBytes, (int)sizeInBytes );
 	}
 
 	/// <summary>
@@ -436,6 +496,8 @@ public class GpuBuffer<T> : GpuBuffer where T : unmanaged
 		if ( elementCount == 0 ) return;
 
 		var elementSize = Unsafe.SizeOf<T>();
+		ThrowIfOutOfRange( (long)srcElementOffset * elementSize, (long)elementCount * elementSize );
+		dst.ThrowIfOutOfRange( (long)destElementOffset * elementSize, (long)elementCount * elementSize );
 
 		RenderTools.CopyGPUBuffer( Graphics.Context, native, dst.native,
 			checked((uint)(srcElementOffset * elementSize)),

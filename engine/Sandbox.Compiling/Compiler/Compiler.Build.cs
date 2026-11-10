@@ -8,15 +8,6 @@ namespace Sandbox;
 
 partial class Compiler
 {
-	private static readonly DiagnosticDescriptor WhitelistRule = new DiagnosticDescriptor(
-		id: "SB1000",
-		title: "Whitelist Error",
-		messageFormat: "'{0}' is not allowed when whitelist is enabled",
-		helpLinkUri: "https://sbox.game/dev/doc/code/code-basics/api-whitelist/",
-		category: "Usage",
-		defaultSeverity: DiagnosticSeverity.Error,
-		isEnabledByDefault: true );
-
 	CodeArchive _currentArchive;
 
 	/// <summary>
@@ -119,23 +110,17 @@ partial class Compiler
 
 		foreach ( var reference in a.References.ToArray() )
 		{
-			if ( !IsPermittedArchiveReference( reference ) )
+			// Archives are untrusted - they arrive from a server or a downloaded package. Don't let one
+			// name a reference a project couldn't; FrameworkReferences will Assembly.Load anything.
+			if ( !_config.IsPermittedArchiveReference( reference ) )
 			{
-				log.Warning( $"Ignoring invalid assembly reference '{reference}' in code archive" );
+				log.Warning( $"Ignoring reference '{reference}' from code archive - not permitted" );
 				a.References.Remove( reference );
 				continue;
 			}
 
 			_references.Add( reference );
 		}
-	}
-
-	bool IsPermittedArchiveReference( string reference )
-	{
-		if ( reference.StartsWith( "package.", StringComparison.OrdinalIgnoreCase ) )
-			return Configuration.IsSimpleAssemblyName( reference );
-
-		return _config.IsPermittedAssemblyReference( reference );
 	}
 
 	CodeArchive BuildArchive( CompilerOutput output )
@@ -245,9 +230,6 @@ partial class Compiler
 
 		bool ilHotloadSupported;
 
-		// An archive update from a host can rebind unchanged trees, so those rescan every source tree
-		var sourceTreePaths = _currentArchive is null ? null : compiler.SyntaxTrees.Select( x => x.FilePath ).ToHashSet();
-
 		{
 			var processor = RunGenerators( compiler, modifiedSyntaxTrees, output );
 
@@ -262,12 +244,11 @@ partial class Compiler
 			}
 		}
 
-		// check for blacklisted methods/types used in compilation
-		// we need this because the c# compiler will post optimize and use tons of blacklisted methods
-		// run this after generators because they can contain user inputs too
+		// Runs after generators but before emit, so compiler-emitted Unsafe calls aren't mistaken for
+		// user code. No tree is exempt, including the compiler-extra one.
 		if ( _config.Whitelist )
 		{
-			RunBlacklistWalker( compiler, _currentArchive is null ? modifiedSyntaxTrees : compiler.SyntaxTrees.Where( x => sourceTreePaths.Contains( x.FilePath ) ).ToList(), output );
+			RunAccessWalker( compiler, output );
 
 			// Errors, fail
 			if ( output.Diagnostics.Any( x => x.Severity == DiagnosticSeverity.Error ) )
@@ -288,27 +269,6 @@ partial class Compiler
 			{
 				output.Successful = true;
 
-				peStream.Seek( 0, System.IO.SeekOrigin.Begin );
-
-				if ( _config.Whitelist && Group.AccessControl is { } access )
-				{
-					var result = access.VerifyAssembly( peStream, out TrustedBinaryStream stream );
-					if ( !result.Success )
-					{
-						log.Error( "Whitelist violation(s), build unsuccessful." );
-
-						output.Successful = false;
-
-						foreach ( var error in result.WhitelistErrors )
-						{
-							foreach ( var location in error.Locations )
-							{
-								output.Diagnostics.Add( Diagnostic.Create( WhitelistRule, location.RoslynLocation ?? Location.None, error.Name ) );
-							}
-						}
-					}
-					stream?.Dispose();
-				}
 			}
 
 			output.AssemblyData = peStream.ToArray();

@@ -2,6 +2,7 @@
 // main menu and the pause menu both import it, so a page looks the same in either. The rail-and-stage
 // frame round the pages is MenuShell's.
 @import '/styles/_Theme.scss';
+@import "/Platform/_platform.scss";
 @import '/styles/mainmenu.scss';
 // Dresses the shared PackageCard in the front page's tile look. Emits rules rather than tokens, so
 // it's only imported where there's a menu to dress.
@@ -13,14 +14,7 @@
 @import '/styles/_multiplayer-list-row.scss';
 
 .tooltip {
-    pointer-events: none;
-    background-color: #656e7e;
-    font-family: Poppins;
-    border: none;
-
-    * {
-        pointer-events: none;
-    }
+    @include platform-tooltip;
 }
 
 .page {

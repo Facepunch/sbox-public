@@ -46,6 +46,7 @@ internal static partial class VoiceManager
 	static string captureDevice;
 	static IntPtr encoder;
 	static IntPtr sharedDecoder;
+	static readonly System.Threading.Lock sharedDecoderLock = new();
 
 	// 200ms is the most we'll read in one tick; native drops anything older than that
 	static float[] captureBuffer = new float[Rate / 5];
@@ -427,15 +428,23 @@ internal static partial class VoiceManager
 	/// </summary>
 	public static void Uncompress( byte[] buffer, Action<Memory<short>> ondata )
 	{
-		if ( sharedDecoder == IntPtr.Zero )
-			sharedDecoder = CreateDecoder();
-
 		var output = ArrayPool<short>.Shared.Rent( MaxPacketSamples );
+		short[] result = null;
 
-		var samples = Decode( sharedDecoder, buffer, output );
-		if ( samples > 0 )
-			ondata?.Invoke( new Memory<short>( output, 0, samples ) );
+		lock ( sharedDecoderLock )
+		{
+			if ( sharedDecoder == IntPtr.Zero )
+				sharedDecoder = CreateDecoder();
+
+			var samples = Decode( sharedDecoder, buffer, output );
+			if ( samples > 0 )
+				result = output.AsSpan( 0, samples ).ToArray();
+		}
 
 		ArrayPool<short>.Shared.Return( output );
+
+		// The callback can keep the Memory, so it must not be backed by a pooled array
+		if ( result is not null )
+			ondata?.Invoke( result );
 	}
 }

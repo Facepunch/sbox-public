@@ -131,6 +131,7 @@ public sealed partial class GraphBuilder
 	{
 		if ( conditions is null || conditions.Length == 0 )
 			throw new ArgumentException( "And needs at least one condition.", nameof( conditions ) );
+		conditions = conditions.ToArray();
 		foreach ( var c in conditions )
 			Require( c, NodeKind.Bool, nameof( conditions ) );
 		return AddNode( NodeKind.Bool, native =>
@@ -153,6 +154,7 @@ public sealed partial class GraphBuilder
 	{
 		if ( conditions is null || conditions.Length == 0 )
 			throw new ArgumentException( "Or needs at least one condition.", nameof( conditions ) );
+		conditions = conditions.ToArray();
 		foreach ( var c in conditions )
 			Require( c, NodeKind.Bool, nameof( conditions ) );
 		return AddNode( NodeKind.Bool, native =>

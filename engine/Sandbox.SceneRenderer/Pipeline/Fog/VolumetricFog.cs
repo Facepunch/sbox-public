@@ -61,6 +61,9 @@ internal sealed class VolumetricFog : IDisposable
 
 	uint frameIndex;
 	uint frameOffset;
+
+	// The jitter's random offsets, from the same seed every time, so the fog's frames repeat run to run
+	Random jitter = new( 0 );
 	int scatteringAtZeroCount;
 	bool renderingDisabled;
 
@@ -150,6 +153,7 @@ internal sealed class VolumetricFog : IDisposable
 		fogVolume = MakeVolume( "volumetric_fog_rt0" );
 
 		frameIndex = 0;
+		jitter = new Random( 0 );
 		scattering = 0.0f;
 		anisotropy = 0.2f;
 		scatteringAtZeroCount = FramesAtZeroScatteringBeforeSwitchingOff;
@@ -214,7 +218,7 @@ internal sealed class VolumetricFog : IDisposable
 		var attributes = rc.Attributes;
 
 		// volume_fog_jitter_offset_random is on: a random blue noise offset each frame
-		attributes.Set( JitterOffsetName, Random.Shared.Next( 0, 128 ) );
+		attributes.Set( JitterOffsetName, jitter.Next( 0, 128 ) );
 		// Too big for a dynamic buffer: its own, as native's fog has (m_hFogLightingConstantBuffer)
 		rc.SetConstantBuffer( ConstantBufferName, constantBuffer, constants );
 		attributes.SetCombo( BakedFogCombo, bakedTexture is not null ? 1 : 0 );

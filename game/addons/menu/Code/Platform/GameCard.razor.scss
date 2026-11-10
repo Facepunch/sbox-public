@@ -1,0 +1,208 @@
+@import "/Platform/_platform.scss";
+
+// A game on a shelf or in Browse's grid - inset in the cell it's in (a shelf's, or the grid's), so there's room round
+// it to scale up into under the mouse without being cut off.
+GameCard
+{
+	position: absolute;
+	left: 6px;
+	top: 6px;
+	right: 6px;
+	bottom: 6px;
+	// Nothing clips in here - a clip's worked out from where it is before it's scaled, so a card lifted under the
+	// mouse would be cut back to its old size. The art rounds its own top corners; names are shortened in code.
+	border-radius: $platform-radius;
+	cursor: pointer;
+	@include platform-sounds;
+	pointer-events: all;
+	transform: scale( 1 );
+	transition: transform 0.15s ease-out;
+
+	&:hover
+	{
+		transform: scale( 1.03 );
+		z-index: 1;
+	}
+
+	&.selected
+	{
+		border: 3px solid $platform-primary;
+	}
+
+	flex-direction: column;
+	background-color: rgba( 22, 28, 40, 0.95 );
+
+	// On top - square, as the card's as tall as it's wide plus the strip under it
+	.art
+	{
+		position: relative;
+		flex-grow: 1;
+		flex-shrink: 1;
+		background-size: cover;
+		background-position: center;
+		background-color: $platform-panel;
+		border-top-left-radius: $platform-radius;
+		border-top-right-radius: $platform-radius;
+	}
+
+	// Inside the selected border its corners are tighter - the radius less the border (4px - 3px)
+	&.selected .art
+	{
+		border-top-left-radius: 1px;
+		border-top-right-radius: 1px;
+	}
+
+	&:hover .art
+	{
+		filter: brightness( 1.12 );
+	}
+
+	.pill
+	{
+		position: absolute;
+		top: 10px;
+		left: 10px;
+		padding: 2px 6px;
+		border-radius: $platform-pill;
+		background-color: $platform-primary;
+		font-size: 10px;
+		font-weight: 700;
+		text-transform: uppercase;
+		color: $platform-primary-text;
+	}
+
+	// What it is, under the art - its rating, what it's called, who made it. GameCard.InfoHeight tall.
+	.info
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		height: 70px;
+		justify-content: center;
+		padding: 6px 12px 8px;
+	}
+
+	.top
+	{
+		align-items: center;
+		height: 16px;
+	}
+
+	.spacer
+	{
+		flex-grow: 1;
+	}
+
+	.stars
+	{
+		i
+		{
+			font-size: 14px;
+			color: $platform-faint;
+
+			&.lit
+			{
+				color: $platform-steam-blue;
+			}
+		}
+
+		&.unrated i
+		{
+			opacity: 0.5;
+		}
+	}
+
+	// Subscribed or not, and the way to change it - a tick when it is, an x pointed at to unsubscribe; a plus to
+	// subscribe when it isn't, only with the pointer on the card
+	.badge
+	{
+		width: 18px;
+		height: 18px;
+		align-items: center;
+		justify-content: center;
+		border-radius: 2px;
+		background-color: rgba( 255, 255, 255, 0.12 );
+		color: $platform-text;
+		cursor: pointer;
+		@include platform-press-sound;
+		opacity: 0;
+		transition: opacity 0.12s ease, background-color 0.12s ease;
+
+		i
+		{
+			font-size: 14px;
+		}
+
+		.hover
+		{
+			display: none;
+		}
+
+		&.on
+		{
+			opacity: 1;
+		}
+
+		&:hover
+		{
+			background-color: $platform-primary;
+			color: $platform-primary-text;
+
+			.state
+			{
+				display: none;
+			}
+
+			.hover
+			{
+				display: flex;
+			}
+		}
+
+		&.on:hover
+		{
+			background-color: $platform-danger;
+		}
+	}
+
+	&:hover .badge
+	{
+		opacity: 1;
+	}
+
+	.favourite
+	{
+		margin-left: 4px;
+		font-size: 16px;
+		color: $front-trophy;
+	}
+
+	.name
+	{
+		flex-shrink: 0;
+		width: 100%;
+		margin-top: 2px;
+		font-size: 15px;
+		font-weight: 600;
+		color: $platform-text;
+		white-space: nowrap;
+	}
+
+	.by-row
+	{
+		flex-shrink: 0;
+		width: 100%;
+		align-items: center;
+		gap: 4px;
+	}
+
+	.by
+	{
+		flex-shrink: 1;
+		min-width: 0;
+		font-size: 12px;
+		color: $platform-muted;
+		white-space: nowrap;
+	}
+
+	@include platform-verified( 13px );
+}

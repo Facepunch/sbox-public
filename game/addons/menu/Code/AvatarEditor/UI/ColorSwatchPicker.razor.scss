@@ -1,18 +1,18 @@
 
+// The platform-slider's track - its recess, height and rounding
 ColorSwatchPicker
 {
-    background-color: #0008;
-    padding: 5px;
-    border-radius: 16px;
+    background-color: rgba( 6, 9, 16, 0.5 );
+    padding: 3px;
+    border-radius: 3px;
     position: relative;
     pointer-events: all;
-    // Match the regular avatar slider's track and inset.
-    height: 42px;
+    height: 24px;
 
     .track
     {
         width: 100%;
-        border-radius: 11px;
+        border-radius: 2px;
         overflow: hidden;
         cursor: pointer;
         position: relative;
@@ -22,14 +22,14 @@ ColorSwatchPicker
     {
         position: absolute;
         z-index: 100;
-        top: 5px;
-        bottom: 5px;
+        top: 3px;
+        bottom: 3px;
         width: 2px;
         pointer-events: none;
         transform: translateZ(-10px);
         color: #fff;
         text-shadow: none;
-        margin-left: 3px;
+        margin-left: 1px;
 
         i
         {

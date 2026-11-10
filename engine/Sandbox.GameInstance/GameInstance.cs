@@ -5,6 +5,7 @@ using Sandbox.Modals;
 using Sandbox.Tasks;
 using Sentry;
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 
 namespace Sandbox;
@@ -79,8 +80,8 @@ internal class GameInstance : IGameInstance
 			}
 		}
 
-		// Show review modal
-		if ( Application.GamePackage is not null )
+		// Show review modal - not from its menu, there's been nothing to review
+		if ( Application.GamePackage is not null && !IsOnMenu )
 		{
 			using ( IMenuDll.Current?.PushScope() )
 			{
@@ -230,17 +231,13 @@ internal class GameInstance : IGameInstance
 		if ( Package.Revision is not null )
 			identWithVersion = $"{identWithVersion}#{Package.Revision.VersionId}";
 
-		// The game and its map, and everything they pull in (libraries, the cloud assets they use), sized
-		// up before any of it starts - so the loading screen's bar has room for the whole load from the
-		// start, rather than the game and then a pile of extras after it
-		await LoadingScreen.ReserveDownloads( new[] { identWithVersion, LaunchArguments.Map }, token, withReferences: true );
-
 		using var loadingScreen = new MenuLoadingScreen();
 
 		// The game itself first, on its own - then everything else together: its references (the install
 		// below prefetches them, finding the game already cached) and the map alongside them. One thing,
-		// then a batch, rather than the game sharing its bandwidth with a pile of small packages
-		if ( _package.IsRemote )
+		// then a batch, rather than the game sharing its bandwidth with a pile of small packages. A workshop
+		// game is one item Steam installs, and the install below does exactly that - so there's nothing to get ahead of.
+		if ( _package.IsRemote && !_package.InstallsFromWorkshop )
 		{
 			await _package.Prefetch( token, new PackageLoadOptions { Loading = loadingScreen } );
 			token.ThrowIfCancellationRequested();
@@ -252,6 +249,7 @@ internal class GameInstance : IGameInstance
 		var downloadOptions = new PackageLoadOptions()
 		{
 			PackageIdent = identWithVersion,
+			Package = _package,
 			ContextTag = "gamemenu",
 			CancellationToken = token,
 			AllowLocalPackages = !_package.IsRemote,
@@ -275,13 +273,6 @@ internal class GameInstance : IGameInstance
 		Api.Activity.LoadStage( "assemblies" );
 		await Task.Yield(); // make frame
 		token.ThrowIfCancellationRequested();
-
-		// Access control is most of the cost of loading the assemblies, check them on a worker while the screen draws
-		if ( !IsDeveloperHost )
-		{
-			await PackageLoader.PreVerifyAsync( Package.FullIdent );
-			token.ThrowIfCancellationRequested();
-		}
 
 		try
 		{
@@ -344,7 +335,11 @@ internal class GameInstance : IGameInstance
 		if ( !IsDeveloperHost )
 		{
 			Log.Trace( $"Loading GameResources" );
-			await ResourceLoader.LoadAllGameResourceAsync( FileSystem.Mounted, token );
+
+			var menuFiles = MenuFileFilter();
+			_menuResourcesOnly = menuFiles is not null;
+
+			await ResourceLoader.LoadAllGameResourceAsync( FileSystem.Mounted, token, includeFile: menuFiles );
 		}
 
 		// Dedicated servers install packages that GameResources reference as they load, wait
@@ -534,6 +529,142 @@ internal class GameInstance : IGameInstance
 
 	public Scene Scene => Game.ActiveScene;
 
+	public bool IsOnMenu => flags.Contains( GameLoadingFlags.Menu ) && !Application.IsDedicatedServer;
+
+	/// <summary>
+	/// The game's own menu scene - null for a game without one
+	/// </summary>
+	string MenuScene => Package?.GetMeta<string>( "MenuScene", null ) is { Length: > 0 } scene ? scene : null;
+
+	/// <summary>
+	/// Only the GameResources its menu needs were loaded - the rest are loaded when it's started
+	/// </summary>
+	bool _menuResourcesOnly;
+
+	/// <summary>
+	/// On its menu, just the GameResources the menu scene needs: the scene, what matches its <c>MenuResources</c> rules
+	/// (what it loads from code), and everything those reference. None for a game without a menu scene. Null for all of
+	/// them - not on its menu.
+	/// </summary>
+	Func<string, bool> MenuFileFilter()
+	{
+		if ( !IsOnMenu ) return null;
+		if ( MenuScene is null ) return _ => false;
+
+		var roots = new List<string> { MenuScene };
+
+		if ( Package.GetMeta<string>( "MenuResources", null ) is { Length: > 0 } rules )
+		{
+			var matcher = new ResourceRuleMatcher( rules );
+			roots.AddRange( FileSystem.Mounted.FindFile( "/", "*", true )
+				.Where( x => matcher.Matches( [ResourceRule.NormalizePath( x ), ResourceRule.NormalizePath( Resource.FixPath( x ) )] ) ) );
+		}
+
+		var files = ResourceLoader.FindReferenced( FileSystem.Mounted, roots );
+		return file => files.Contains( Resource.FixPath( file ) );
+	}
+
+	public async Task<bool> StartFromMenu()
+	{
+		ThreadSafe.AssertIsMainThread();
+
+		if ( !IsOnMenu )
+			return false;
+
+		flags &= ~GameLoadingFlags.Menu;
+
+		// The game's, whoever's asking - the s&box menu has a context of its own
+		using var scope = GlobalContext.GameScope();
+
+		LoadingScreen.IsVisible = true;
+
+		if ( _menuResourcesOnly )
+		{
+			_menuResourcesOnly = false;
+
+			LoadingScreen.Title = "Loading Resources";
+			await ResourceLoader.LoadAllGameResourceAsync( FileSystem.Mounted );
+		}
+
+		LoadingScreen.Title = "Loading Scene";
+		await Task.Yield();
+
+		if ( !OpenStartupScene() )
+		{
+			Log.Warning( "There was a problem opening the StartupScene" );
+
+			// Back on its menu, so it can be started again - or neither, and it's closed
+			flags |= GameLoadingFlags.Menu;
+
+			if ( !OpenStartupScene() )
+			{
+				Log.Warning( "There was a problem opening the MenuScene" );
+				flags &= ~GameLoadingFlags.Menu;
+			}
+
+			LoadingScreen.IsVisible = false;
+			return false;
+		}
+
+		return true;
+	}
+
+	public bool ReturnToMenu()
+	{
+		ThreadSafe.AssertIsMainThread();
+
+		// Joined someone else's game - the code loaded is theirs
+		if ( flags.Contains( GameLoadingFlags.Remote ) || Application.IsDedicatedServer )
+			return false;
+
+		// Nothing to start it again from - the main menu doesn't show a game on its menu, so it needs a menu scene of its own
+		if ( MenuScene is null && IMenuDll.Current?.IsPlatformMenu != true )
+			return false;
+
+		using var scope = GlobalContext.GameScope();
+
+		// Out of the session - handed to someone else if there's anyone to take it
+		if ( Networking.IsActive )
+			Networking.Disconnect();
+
+		flags |= GameLoadingFlags.Menu;
+
+		if ( !OpenStartupScene() )
+		{
+			Log.Warning( "There was a problem opening the MenuScene" );
+			return false;
+		}
+
+		return true;
+	}
+
+	/// <summary>
+	/// On its menu - its menu scene. None of the <see cref="ISceneStartup"/> events: those start the game (host,
+	/// spawn players), which <see cref="Game.StartGame"/> does later. A game without a menu scene gets an empty one.
+	/// </summary>
+	bool OpenMenuScene()
+	{
+		if ( MenuScene is not { } menuScene )
+		{
+			// Loading normally ends when a scene finishes loading - there isn't one
+			OnLoadingFinished();
+			LoadingScreen.IsVisible = false;
+			return true;
+		}
+
+		var options = new SceneLoadOptions();
+		options.IsAdditive = true;
+
+		if ( !options.SetScene( menuScene ) )
+			return false;
+
+		if ( !Game.ActiveScene.Load( options ) )
+			return false;
+
+		Game.ActiveScene.AddSystemScene();
+		return true;
+	}
+
 	public bool OpenStartupScene()
 	{
 		if ( Game.ActiveScene is not null )
@@ -549,6 +680,9 @@ internal class GameInstance : IGameInstance
 
 		if ( Application.IsEditor && !Game.IsPlaying )
 			return true;
+
+		if ( IsOnMenu )
+			return OpenMenuScene();
 
 		var startup_dedicated = Package.GetMeta<string>( "DedicatedServerStartupScene", "" );
 		var startup_game = Package.GetMeta<string>( "StartupScene", "start.scene" );

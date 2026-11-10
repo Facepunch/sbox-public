@@ -12,14 +12,14 @@ namespace Facepunch.Steps;
 /// <summary>
 /// Register pressure for every shader: dumps each combo's SPIR-V with <c>ShaderCompiler --dump-spirv</c>, compiles
 /// it for AMD GPUs with the pipeline compiler from the Radeon GPU Analyzer and writes the worst combo per shader and
-/// stage to <c>docs/shaders/shader-stats.md</c>, so a change in VGPRs or occupancy shows up in the diff.
+/// stage to <c>docs/reference/shader-stats.md</c>, so a change in VGPRs or occupancy shows up in the diff.
 /// </summary>
 internal class ShaderStats( string[] asics, string[] shaders )
 {
 	const string RgaVersion = "2.14.2";
 	const string RgaUrl = $"https://github.com/GPUOpen-Tools/radeon_gpu_analyzer/releases/download/{RgaVersion}/rga-windows-x64-{RgaVersion}.zip";
 	const string RgaDir = $"src/thirdparty/rga/{RgaVersion}";
-	const string Output = "docs/shaders/shader-stats.md";
+	const string Output = "docs/reference/shader-stats.md";
 
 	public static readonly string[] DefaultAsics = ["gfx1100", "gfx1150", "gfx1200"];
 

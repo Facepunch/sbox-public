@@ -127,6 +127,28 @@ public struct LobbyInformation
 	public bool IsPasswordProtected => Data.TryGetValue( "pw", out var value ) && value == "1";
 
 	/// <summary>
+	/// The engine API version it's running - 0 if it doesn't say (a dedicated server's tags can be cut short).
+	/// </summary>
+	public int ApiVersion => Data is not null && Data.TryGetValue( "api", out var value ) && int.TryParse( value, out var api ) ? api : 0;
+
+	/// <summary>
+	/// The network protocol it talks - 0 if it doesn't say.
+	/// </summary>
+	public int NetworkProtocol => Data is not null && Data.TryGetValue( "protocol", out var value ) && int.TryParse( value, out var protocol ) ? protocol : 0;
+
+	/// <summary>
+	/// True if it can't be joined from this version of the game - it runs a different API version or network protocol.
+	/// Lobbies like this are only listed when asked for (Networking.QueryLobbies with includeOutdated). What it doesn't say
+	/// isn't held against it.
+	/// </summary>
+	public bool IsOutdated => (ApiVersion != 0 && ApiVersion != Protocol.Api) || (NetworkProtocol != 0 && NetworkProtocol != Protocol.Network);
+
+	/// <summary>
+	/// True if it's <see cref="IsOutdated"/> the other way - on a newer version than this one, which is what needs updating.
+	/// </summary>
+	public bool IsNewerVersion => ApiVersion > Protocol.Api || ((ApiVersion == 0 || ApiVersion == Protocol.Api) && NetworkProtocol > Protocol.Network);
+
+	/// <summary>
 	/// Return true if this lobby contains a friend.
 	/// </summary>
 	internal bool ContainsFriends => false;

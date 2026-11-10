@@ -57,9 +57,9 @@
   "SteamItemDefinitionId": null,
   "Icon": {
     "Path": "models/citizen_clothes/hair/hair_slickedback/hair_slickedback.clothing.png",
-    "Mode": "Eyes",
-    "UsePositionOffset": false,
-    "PositionOffset": "0,0,0"
+    "Mode": "Head",
+    "UsePositionOffset": true,
+    "PositionOffset": "5.68998384,-0.220000058,0.380000412"
   },
   "__references": [],
   "__version": 0

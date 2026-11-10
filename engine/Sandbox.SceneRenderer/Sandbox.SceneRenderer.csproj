@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    C# scene renderer using IRenderContext directly. See docs/managed/scene-renderer.md.
+    C# scene renderer using IRenderContext directly. See docs/reference/managed-renderer.md.
   -->
 
   <PropertyGroup>

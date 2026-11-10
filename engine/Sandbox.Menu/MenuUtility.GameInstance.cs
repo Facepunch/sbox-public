@@ -28,14 +28,26 @@ public static partial class MenuUtility
 		OpenGame( gameident, false );
 	}
 
-	static async Task LoadAsync( string ident, bool allowLaunchOverride, CancellationToken ct = default )
+	/// <summary>
+	/// Load a game onto its menu - its <c>MenuScene</c>, with its code and just what that scene needs - but don't
+	/// start it. It's started from there with <see cref="Game.StartGame"/>.
+	/// </summary>
+	public static Task OpenGameMenu( string ident )
+	{
+		CloseAllModals();
+		Api.Activity.GameRequested( new( "menu", ident ), replace: false );
+
+		return LoadAsync( ident, false, GameLoadingFlags.Menu );
+	}
+
+	static async Task LoadAsync( string ident, bool allowLaunchOverride, GameLoadingFlags extraFlags = default, CancellationToken ct = default )
 	{
 		ThreadSafe.AssertIsMainThread();
 		LoadingScreen.IsVisible = true;
 		LoadingScreen.Media = null;
 		LoadingScreen.Title = null;
 
-		var flags = GameLoadingFlags.Host | GameLoadingFlags.Reload;
+		var flags = GameLoadingFlags.Host | GameLoadingFlags.Reload | extraFlags;
 		if ( Application.IsEditor ) flags |= GameLoadingFlags.Developer; // todo - is the package we're loading a local package
 
 		await IGameInstanceDll.Current.LoadGamePackageAsync( ident, flags, ct );

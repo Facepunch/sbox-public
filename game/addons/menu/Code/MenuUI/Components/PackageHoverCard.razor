@@ -95,21 +95,6 @@
             </div>
         }
 
-        @if ( ShowJam )
-        {
-            <div class="jam @( _nominated ? "on" : "" )">
-                <icon class="trophy">emoji_events</icon>
-                <div class="text">
-                    <label class="title">@_jam.Title entry</label>
-                    <label class="hint">@JamHint</label>
-                </div>
-                <div class="nominate @( _nominated ? "on" : "" ) @( _busy ? "busy" : "" ) @( CanToggleNomination ? "" : "locked" )" onclick=@( () => _ = ToggleNomination() )>
-                    <icon>@( _nominated ? "check" : CanToggleNomination ? "how_to_vote" : "lock" )</icon>
-                    <label>@( _nominated ? "#menu.games.nominated" : "#menu.games.nominate" )</label>
-                </div>
-            </div>
-        }
-
         <div class="footer">
             @if ( Loading )
             {
@@ -197,13 +182,7 @@
     bool introPending = true;
     bool hoverReported;
 
-    Jam _jam;
-    JamEntryStatus _entry;
-    bool _nominated;
-    bool _busy;
     bool _hiding;
-
-    bool ShowJam => Backend && _jam is not null && _entry.IsEntry;
 
     //
     // Whose facts these are - the backend's, or its Steam Workshop item's. A game's only known to be on the workshop
@@ -264,7 +243,6 @@
         if ( !OnWorkshop )
         {
             _ = LoadPackage();
-            _ = LoadJam();
             return;
         }
 
@@ -308,8 +286,6 @@
         if ( Subscribed ) _ = MenuUtility.UnsubscribeAsync( Package );
         else _ = MenuUtility.SubscribeAsync( Package );
     }
-    bool CanToggleNomination => _nominated || _entry.CanNominate;
-    string JamHint => _nominated ? "#menu.games.you_nominated_it_for_the_jam" : CanToggleNomination ? "#menu.games.liked_it_nominate_it_for_the_jam" : _entry.Reason;
 
     static bool IsShowing( Panel source ) => Current.IsValid() && Current.Source == source;
 
@@ -366,56 +342,6 @@
         {
             Log.Warning( $"Couldn't fetch hover card details for {Package.FullIdent}: {e.Message}" );
         }
-    }
-
-    async Task LoadJam()
-    {
-        var jam = await Jam.GetActive();
-        if ( !this.IsValid() ) return;
-        if ( jam is null || !jam.CommunityVoting || !jam.HasStarted || jam.Now >= jam.NominationsEnd ) return;
-
-        var entry = await jam.GetEntryStatusAsync( Package );
-        if ( !this.IsValid() ) return;
-        if ( entry is not { IsEntry: true } status ) return;
-
-        _jam = jam;
-        _entry = status;
-        _nominated = status.Nominated;
-        StateHasChanged();
-    }
-
-    async Task ToggleNomination()
-    {
-        if ( _busy || !ShowJam || !CanToggleNomination ) return;
-
-        _busy = true;
-        StateHasChanged();
-
-        var removing = _nominated;
-        _nominated = !removing;
-        string reason;
-
-        try
-        {
-            reason = removing ? await _jam.WithdrawNominationAsync( Package ) : await _jam.NominateAsync( Package );
-        }
-        catch ( Exception e )
-        {
-            Log.Warning( e, $"Nominate {Package.FullIdent} failed" );
-            reason = "#menu.games.couldn_t_reach_the_jam_right_now";
-        }
-
-        if ( !this.IsValid() ) return;
-
-        _busy = false;
-
-        if ( reason is not null )
-        {
-            _nominated = removing;
-            ShowToast( reason, "how_to_vote" );
-        }
-
-        StateHasChanged();
     }
 
     async Task Hide()
@@ -617,8 +543,7 @@
     (int Percent, int Count) Rating()
     {
         var (up, down) = Workshop is { } item ? (item.VotesUp, item.VotesDown) : (Package.VotesUp, Package.VotesDown);
-        var votes = up + down;
-        return (votes > 0 ? (int)(up * 100f / votes) : -1, votes);
+        return (MenuHelpers.Rating( up, down ) ?? -1, up + down);
     }
 
     string RatingText()
@@ -700,7 +625,7 @@
         return n.ToString();
     }
 
-    protected override int BuildHash() => HashCode.Combine( Package?.FullIdent, Package?.Usage.UsersNow, showVideo, VideoUrl(), MenuHelpers.HasAuthority, ShowJam, HashCode.Combine( _nominated, _busy, Package?.Interaction.Rating, Package?.Interaction.Favourite, PlayerModes.PartySize, Modes ), HashCode.Combine( decided, OnWorkshop, Workshop, workshopLoaded, WorkshopVote, Subscribed ) );
+    protected override int BuildHash() => HashCode.Combine( Package?.FullIdent, Package?.Usage.UsersNow, showVideo, VideoUrl(), MenuHelpers.HasAuthority, HashCode.Combine( Package?.Interaction.Rating, Package?.Interaction.Favourite, PlayerModes.PartySize, Modes ), HashCode.Combine( decided, OnWorkshop, Workshop, workshopLoaded, WorkshopVote, Subscribed ) );
 
     /// <summary>
     /// Rebuild composed text when translations change.

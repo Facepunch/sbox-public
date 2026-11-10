@@ -186,7 +186,7 @@ file class ParticleModel : Particle.BaseListener
 	/// <param name="p">The particle being enabled.</param>
 	public override void OnEnabled( Particle p )
 	{
-		var entry = Random.Shared.FromList( Renderer.Choices );
+		var entry = ParticleRandom.Shared.FromList( Renderer.Choices );
 		var model = entry?.Model;
 		so = new SceneObject( Renderer.Scene.SceneWorld, model ?? Model.Cube );
 		so.Tags.SetFrom( Renderer.GameObject.Tags );

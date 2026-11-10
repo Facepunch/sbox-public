@@ -1,4 +1,4 @@
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 ChatComposer
 {
@@ -14,18 +14,9 @@ ChatComposer
 
 	.chat-composer textentry
 	{
+		@include platform-field( 44px );
 		width: 0;
-		min-width: 0;
 		flex-grow: 1;
-		padding: 14px;
-		background-color: $front-card-deep;
-		border: 1px solid $front-border;
-		border-radius: $front-radius;
-
-		&:focus
-		{
-			border-color: $front-primary;
-		}
 	}
 
 	.chat-actions
@@ -36,7 +27,7 @@ ChatComposer
 		align-items: center;
 		flex-shrink: 0;
 		font-size: 13px;
-		color: $front-secondary;
+		color: $platform-muted;
 	}
 
 	button
@@ -56,17 +47,13 @@ ChatComposer
 
 	.chat-actions button
 	{
-		@include front-pill;
-
-		iconpanel
-		{
-			font-size: 14px;
-		}
+		@include platform-text-button( 30px, 12.5px, 14px );
+		padding: 0 12px;
 	}
 
 	.chat-composer button
 	{
-		@include front-icon-button;
+		@include platform-tool( 38px );
 		align-self: center;
 	}
 

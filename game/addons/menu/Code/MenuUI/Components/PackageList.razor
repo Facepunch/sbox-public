@@ -44,7 +44,6 @@
                     <MenuProject.UI.PackageCard RightClicked=@(() => OnMenu?.Invoke(package))
                                  Clicked=@(() => OnSelected?.Invoke(package))
                                  Rotation=@Rotation
-                                 ShowNominations=@ShowNominations
                                  HoverPreview=@HoverPreview
                                  ShowSubscribe=@ShowSubscribe
                                  Package=@package></MenuProject.UI.PackageCard>
@@ -103,11 +102,6 @@
 		Query = Packages is null ? Query : null,
 		Packages = FoundPackages,
 	};
-
-	/// <summary>
-	/// Shows jam nomination counts on the package cards.
-	/// </summary>
-	[Parameter] public bool ShowNominations { get; set; }
 
 	[Parameter] public RenderFragment<Package> Item { get; set; }
 

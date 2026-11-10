@@ -48,11 +48,11 @@
 		<PackageReference Include="Svg.Skia" Version="2.0.0.4" />
 		<PackageReference Include="Azure.Messaging.WebPubSub.Client" Version="1.0.0" />
 		<PackageReference Include="System.Numerics.Tensors" Version="10.0.0" />
+		<PackageReference Include="Mono.Cecil" Version="0.11.6" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<ProjectReference Include="../Mounting/Sandbox.Mounting/Sandbox.Mounting.csproj" />
-		<ProjectReference Include="../Sandbox.Access/Sandbox.Access.csproj" />
 		<ProjectReference Include="../Sandbox.CodeUpgrader/Sandbox.CodeUpgrader.csproj" />
 		<ProjectReference Include="../Sandbox.Compiling/Sandbox.Compiling.csproj" />
 		<ProjectReference Include="../Sandbox.Event/Sandbox.Event.csproj" />

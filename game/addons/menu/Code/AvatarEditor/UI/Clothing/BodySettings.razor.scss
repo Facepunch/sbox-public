@@ -1,13 +1,13 @@
+@import "/Platform/_platform.scss";
+
 BodySettings
 {
+    @include platform-surface;
     flex-direction: column;
     gap: 8px;
     overflow-y: scroll;
-    padding-right: 16px;
     padding: 16px;
-    background-color: #0002;
     pointer-events: all;
-    border-radius: 16px;
 
     // Keep controls at their intended size when the list needs to scroll.
     > *
@@ -37,6 +37,5 @@ BodySettings
         width: 70px;
         height: 70px;
         aspect-ratio: 1;
-        border-radius: 8px;
     }
 }

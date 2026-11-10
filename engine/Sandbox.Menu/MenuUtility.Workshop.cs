@@ -8,10 +8,32 @@ public static partial class MenuUtility
 	/// Are we subscribed to this package's workshop item? Always false for packages that aren't on the workshop.
 	/// Works with the partial packages search results give us, as long as we've seen the full one or it's installed.
 	/// </summary>
-	public static bool IsSubscribed( Package package )
+	public static bool IsSubscribed( Package package ) => IsSubscribed( package?.WorkshopFilesId ?? 0 );
+
+	/// <summary>
+	/// Are we subscribed to this Workshop item?
+	/// </summary>
+	public static bool IsSubscribed( ulong workshopId ) => workshopId != 0 && Workshop.IsSubscribed( workshopId );
+
+	/// <summary>
+	/// Is this Workshop item downloaded on this machine - subscribed to or not?
+	/// </summary>
+	public static bool IsInstalled( ulong workshopId ) => workshopId != 0 && Workshop.GetState( workshopId ).IsInstalled;
+
+	/// <summary>
+	/// Subscribe to this Workshop item, so Steam keeps it installed and up to date
+	/// </summary>
+	public static void Subscribe( ulong workshopId )
 	{
-		var id = package?.WorkshopFilesId ?? 0;
-		return id != 0 && Workshop.IsSubscribed( id );
+		if ( workshopId != 0 ) Workshop.Subscribe( workshopId );
+	}
+
+	/// <summary>
+	/// Unsubscribe from this Workshop item. Steam uninstalls it when the game quits.
+	/// </summary>
+	public static void Unsubscribe( ulong workshopId )
+	{
+		if ( workshopId != 0 ) Workshop.Unsubscribe( workshopId );
 	}
 
 	/// <summary>
@@ -84,7 +106,23 @@ public static partial class MenuUtility
 		if ( id == 0 ) return null;
 
 		var item = await Workshop.FetchAsync( id );
-		return item is null ? null : WorkshopItemDetails.From( item );
+		if ( item is null ) return null;
+
+		await RequestOwnerNamesAsync( [item] );
+		return WorkshopItemDetails.From( item );
+	}
+
+	/// <summary>
+	/// Steam only knows the names of people it's come across lately. Ask it about these items' owners, and give it a
+	/// couple of seconds to answer, so their details can say who made them.
+	/// </summary>
+	internal static async Task RequestOwnerNamesAsync( IEnumerable<Workshop.Item> items )
+	{
+		var owners = items.Where( x => x?.Owner is not null ).Select( x => (ulong)x.Owner.Id.Value ).Distinct().ToArray();
+
+		RealTimeSince waiting = 0;
+		while ( owners.Count( x => Steamworks.SteamFriends.RequestUserInformation( x ) ) > 0 && waiting < 2 )
+			await Task.Delay( 50 );
 	}
 
 	/// <summary>

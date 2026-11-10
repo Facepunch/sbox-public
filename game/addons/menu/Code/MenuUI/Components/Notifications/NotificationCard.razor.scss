@@ -1,11 +1,13 @@
 @import "/styles/_theme.scss";
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 // A row in the inbox list. Its own slab rather than a band in a big card, so a long list
 // reads as separate things that happened.
 NotificationCard
 {
-	@include front-card;
+	@include platform-surface;
+	flex-shrink: 0;
+	overflow: hidden;
 
 	flex-direction: row;
 	align-items: center;
@@ -14,25 +16,19 @@ NotificationCard
 	// Unread gets a marker down this edge, so reserve it on every row or the list steps in and
 	// out. Painted in the card's own border colour when there's nothing to mark - transparent
 	// would leave the box with three sides.
-	border-left: 3px solid $front-border;
+	border-left: 3px solid $platform-hairline;
 	transition: all 0.1s ease;
 
 	.art
 	{
-		width: 44px;
-		height: 44px;
-		flex-shrink: 0;
-		align-items: center;
-		justify-content: center;
-		border-radius: 8px;
+		@include platform-tile( 22px, 44px );
 		background-size: cover;
 		background-position: center;
-		background-color: rgba( 0, 0, 0, 0.35 );
 
 		icon
 		{
 			font-size: 22px;
-			color: $front-tertiary;
+			color: $platform-muted;
 		}
 	}
 
@@ -47,10 +43,9 @@ NotificationCard
 
 	.text
 	{
-		font-family: $front-font;
 		font-size: 13.5px;
 		font-weight: 600;
-		color: $front-body;
+		color: $platform-muted;
 	}
 
 	.meta
@@ -66,34 +61,30 @@ NotificationCard
 		@include front-row-meta;
 	}
 
-	// How many times the same thing happened - a pill, so it doesn't read as more prose.
+	// How many times the same thing happened - a chip, so it doesn't read as more prose. A bare label, so the
+	// chip's words are put on it here
 	.times
 	{
-		flex-shrink: 0;
-		padding: 1px 7px;
-		border-radius: 999px;
-		background-color: rgba( 255, 255, 255, 0.07 );
-		font-size: 10px;
-		font-weight: 700;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-		color: $front-secondary;
+		@include platform-chip;
+		font-size: 11.5px;
+		font-weight: 600;
+		color: $platform-text;
 	}
 
 	.go
 	{
 		flex-shrink: 0;
 		font-size: 22px;
-		color: $front-tertiary;
+		color: $platform-faint;
 	}
 
 	&.unread
 	{
-		border-left: 3px solid $front-primary;
+		border-left: 3px solid $platform-primary;
 
 		.text
 		{
-			color: $front-heading;
+			color: $platform-text;
 			font-weight: 700;
 		}
 	}
@@ -110,17 +101,14 @@ NotificationCard
 		pointer-events: all;
 		cursor: pointer;
 
-		// The slab's fill is a gradient, so a hover colour would be painted over - lift the
-		// whole row instead.
 		&:hover
 		{
 			opacity: 1;
-			filter: brightness( 1.25 );
 			sound-in: "ui.button.over";
 
 			.go
 			{
-				color: $front-heading;
+				color: $platform-text;
 			}
 		}
 

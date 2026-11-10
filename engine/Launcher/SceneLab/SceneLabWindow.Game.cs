@@ -31,6 +31,12 @@ internal sealed partial class SceneLabWindow
 	/// </summary>
 	bool isolated => Args.Has( "-isolated" ) || parity?.Isolated == true;
 
+	/// <summary>
+	/// Whether capture frames render the camera into a readback target: isolated captures, and <c>-golden-truth</c>, which
+	/// checks the managed frame against golden truth images and doesn't render native at all.
+	/// </summary>
+	bool readbackCapture => isolated || GoldenTruthRun.Enabled;
+
 	// The last game compare's result, for the parity run
 	FrameComparison.Parity? lastParity;
 
@@ -42,6 +48,11 @@ internal sealed partial class SceneLabWindow
 	{
 		UnloadGame();
 		if ( !scene.IsGame ) return false;
+
+		// The same random numbers every load, for particles and for anything else drawing from the game's, so captures
+		// repeat run to run
+		ParticleRandom.SetSeed( 0 );
+		Game.SetRandomSeed( 0 );
 
 		game = WithGameUI( scene.Game );
 		gameChangedFrame = 0;
@@ -130,7 +141,7 @@ internal sealed partial class SceneLabWindow
 		timer.BeginRender();
 
 		// An isolated capture frame renders the camera once, into its readback target
-		var isolatedCapture = isolated && CapturePath is not null && (frame + 1 == captureFrame || (gameChangedFrame != 0 && frame + 1 == gameChangedFrame)) && (Scene.Ready?.Invoke( game ) ?? true);
+		var isolatedCapture = readbackCapture && CapturePath is not null && (frame + 1 == captureFrame || (gameChangedFrame != 0 && frame + 1 == gameChangedFrame)) && (Scene.Ready?.Invoke( game ) ?? true);
 		isolatedPixels = null;
 
 		using ( game.Push() )
@@ -166,7 +177,7 @@ internal sealed partial class SceneLabWindow
 				gameBridge.Render( camera, swapChain, size );
 
 				// The same camera natively too, where native's history has to keep pace (SceneLabScene.NativeAlongside)
-				if ( Scene.NativeAlongside )
+				if ( Scene.NativeAlongside && !GoldenTruthRun.Enabled )
 				{
 					if ( nativeAlongside is null || nativeAlongside.Size != size )
 					{
@@ -217,7 +228,8 @@ internal sealed partial class SceneLabWindow
 
 		if ( frame == captureFrame )
 		{
-			var result = isolated ? CaptureIsolated( captureFolder, captureName ) : CompareGame( captureFolder, captureName );
+			var result = GoldenTruthRun.Enabled ? CheckGameGoldenTruth( captureFolder, captureName, GoldenTruthRun.ImageName( Scene.Name ) )
+				: isolated ? CaptureIsolated( captureFolder, captureName ) : CompareGame( captureFolder, captureName );
 			Log.Info( $"Scene Lab: {Scene.Name}: {result}" );
 			CapturePlan( CapturePath );
 			parity?.Report( result, lastParity );
@@ -233,7 +245,8 @@ internal sealed partial class SceneLabWindow
 		}
 		else if ( frame == gameChangedFrame )
 		{
-			var result = isolated ? CaptureIsolated( captureFolder, $"{captureName}_changed" ) : CompareGame( captureFolder, $"{captureName}_changed" );
+			var result = GoldenTruthRun.Enabled ? CheckGameGoldenTruth( captureFolder, $"{captureName}_changed", GoldenTruthRun.ImageName( $"{Scene.Name} Changed" ) )
+				: isolated ? CaptureIsolated( captureFolder, $"{captureName}_changed" ) : CompareGame( captureFolder, $"{captureName}_changed" );
 			Log.Info( $"Scene Lab: {Scene.Name}, changed: {result}" );
 			parity?.Report( result, lastParity );
 			CaptureDone();
@@ -295,6 +308,36 @@ internal sealed partial class SceneLabWindow
 		lastParity = result;
 		if ( !result.Matches ) Environment.ExitCode = 2;
 		return $"{result} | isolated";
+	}
+
+	/// <summary>
+	/// <c>-golden-truth</c>: save this frame's managed capture as <c>name.png</c> and check it against the golden truth
+	/// image <paramref name="image"/> - the preset's, or <c>&lt;Preset&gt;Changed.png</c> after its change.
+	/// </summary>
+	string CheckGameGoldenTruth( string folder, string name, string image )
+	{
+		var text = CheckGameGoldenTruth( folder, name, image, out var passed );
+		lastParity = new FrameComparison.Parity( 1, 0, passed ? 0 : 1 );
+		if ( !passed ) Environment.ExitCode = 2;
+		return text;
+	}
+
+	string CheckGameGoldenTruth( string folder, string name, string image, out bool passed )
+	{
+		passed = false;
+
+		// A capture that rendered nothing mustn't leave an older file to stand in for it
+		System.IO.Directory.CreateDirectory( folder );
+		var path = System.IO.Path.Combine( folder, $"{name}.png" );
+		if ( System.IO.File.Exists( path ) ) System.IO.File.Delete( path );
+		if ( isolatedPixels is not { } pixels ) return "golden truth FAILED: no frame rendered";
+
+		FrameComparison.SavePng( pixels, isolatedSize.x, isolatedSize.y, path );
+		var golden = GoldenTruthRun.Check( Scene.Name, path, image );
+		if ( Scene.ValidateGame?.Invoke( game ) is { } error ) return $"FAILED: {error}";
+
+		passed = golden.Passed;
+		return golden.Text;
 	}
 
 	static string FileName( string name ) => new string( name.Where( char.IsLetterOrDigit ).ToArray() ).ToLowerInvariant();

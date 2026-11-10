@@ -286,6 +286,19 @@ internal sealed class Workspace : Widget
 		TryFrameSecondaryView();
 	}
 
+	internal void FocusSecondaryNode( Node node )
+	{
+		if ( _collapsed )
+			ToggleSecondaryView();
+
+		_pendingFrameGraph = null;
+		_preserveCenter = false;
+		_finishResize = false;
+		_secondaryView.SelectNode( node );
+		_secondaryView.CenterOnSelection();
+		_secondaryView.Focus();
+	}
+
 	private void OpenSecondaryGraph()
 	{
 		if ( _secondary is not { } secondary )

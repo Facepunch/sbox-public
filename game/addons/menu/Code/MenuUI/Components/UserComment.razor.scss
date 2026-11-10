@@ -1,4 +1,5 @@
 @import "/styles/_theme.scss";
+@import "/Platform/_platform.scss";
 
 UserComment
 {
@@ -23,36 +24,12 @@ UserComment > .left img
 	cursor: pointer;
 }
 
-UserComment
-{
-	&.positive > .right
-	{
-		border: 1px solid rgba( $primary-green, 0.1 );
-		background-color: rgba( $primary-green, 0.01 );
-	}
-
-	&.negative > .right
-	{
-		border: 1px solid rgba( $primary-red, 0.1 );
-		background-color: rgba( $primary-red, 0.01 );
-	}
-
-	&.promise > .right
-	{
-		border: 1px solid rgba( $primary-yellow, 0.1 );
-		background-color: rgba( $primary-yellow, 0.01 );
-	}
-}
-
 UserComment > .right
 {
+	@include platform-surface;
 	flex-grow: 1;
 	flex-shrink: 1;
-	flex-direction: column;
-	border-radius: $rounding-large;
-	background: $default-900;
 	font-size: $text-small;
-	color: $default-100;
 	min-height: 80px;
 }
 

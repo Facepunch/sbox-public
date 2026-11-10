@@ -1,48 +1,131 @@
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
+// The party window's look, small - its card: the game's art, the party's name and game and how many are in it, then a
+// strip under it saying what it's doing, lit by it (green looking for players, blue in a game or yours, grey full,
+// red and faded once it's gone), with the way in at its end
 PartyInvitationCard
 {
 	align-self: flex-start;
-	max-width: 100%;
-	flex-direction: row;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: 16px;
-	padding: 12px;
-	border: 1px solid $front-border;
-	border-radius: $front-radius;
-	background-color: $front-card-deep;
-	font-family: $front-font;
+	width: 100%;
+	max-width: 380px;
+	@include platform-surface;
 	word-break: normal;
+	overflow: hidden;
 
-	.invitation-summary
+	i
 	{
-		flex-direction: column;
-		flex-shrink: 1;
-		min-width: 0;
-		max-width: 100%;
-		gap: 4px;
+		font-family: "Material Icons";
 	}
 
-	.invitation-name
+	.invite-head
 	{
-		color: $front-heading;
-		font-weight: 600;
+		align-items: center;
+		gap: 10px;
+		padding: 10px 12px;
+	}
+
+	.invite-art
+	{
+		@include platform-tile( 22px, 44px );
+		background-size: cover;
+		background-position: center;
+	}
+
+	.invite-title
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		min-width: 0;
+		gap: 2px;
+	}
+
+	.invite-name
+	{
+		font-size: 14px;
+		font-weight: 700;
+		color: $platform-text;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
 
-	.invitation-details
+	.invite-game
 	{
-		color: $front-secondary;
-		font-size: 12px;
+		align-items: center;
+		gap: 6px;
+		min-width: 0;
+
+		.invite-leader
+		{
+			width: 16px;
+			height: 16px;
+			flex-shrink: 0;
+			border-radius: 3px;
+			background-size: cover;
+		}
+
+		label
+		{
+			font-size: 12px;
+			color: $platform-muted;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
 	}
 
-	button
+	.invite-seats
 	{
-		@include front-pill;
-		cursor: pointer;
+		@include platform-chip;
+		align-self: flex-start;
+	}
+
+	// What it's doing, and the way in
+	.invite-foot
+	{
+		height: 44px;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 8px;
+		padding: 0 8px 0 12px;
+		border-top: 0.5px solid $platform-hairline;
+		background-image: linear-gradient( 90deg, rgba( $platform-reward, 0.14 ), rgba( $platform-reward, 0 ) 70% );
+	}
+
+	.invite-dot
+	{
+		width: 7px;
+		height: 7px;
+		flex-shrink: 0;
+		border-radius: 4px;
+		background-color: $platform-reward;
+	}
+
+	.invite-state
+	{
+		font-size: 12px;
+		font-weight: 600;
+		white-space: nowrap;
+		color: $platform-reward;
+	}
+
+	.invite-spacer
+	{
+		flex-grow: 1;
+	}
+
+	.invite-join
+	{
+		@include platform-text-button( 30px, 12.5px, 16px );
+		@include platform-button-primary;
+		gap: 6px;
+		padding: 0 12px;
+
+		label
+		{
+			white-space: nowrap;
+		}
 
 		&:hover
 		{
@@ -55,25 +138,88 @@ PartyInvitationCard
 		}
 	}
 
-	button.primary
+	// Yours - said, not pressed
+	.invite-note
 	{
-		background-color: $front-primary;
-		border-color: $front-primary;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 4px;
+		padding-right: 4px;
+
+		i
+		{
+			font-size: 16px;
+			color: #7fb0ff;
+		}
 
 		label
 		{
-			color: $front-heading;
-		}
-
-		&:hover
-		{
-			background-color: lighten( $front-primary, 8% );
+			font-size: 12px;
+			font-weight: 600;
+			color: #7fb0ff;
 		}
 	}
 
-	button.disabled
+	&.playing, &.yours
 	{
-		opacity: 0.3;
-		pointer-events: none;
+		.invite-foot
+		{
+			background-image: linear-gradient( 90deg, rgba( $platform-primary, 0.18 ), rgba( $platform-primary, 0 ) 70% );
+		}
+
+		.invite-dot
+		{
+			background-color: $platform-primary;
+		}
+
+		.invite-state
+		{
+			color: #7fb0ff;
+		}
+	}
+
+	&.full, &.checking
+	{
+		.invite-foot
+		{
+			background-image: none;
+		}
+
+		.invite-dot
+		{
+			background-color: $platform-faint;
+		}
+
+		.invite-state
+		{
+			color: $platform-muted;
+		}
+	}
+
+	// Ended, or couldn't be reached - one quiet line, no card
+	&.gone
+	{
+		border-width: 0px;
+		background-color: transparent;
+		backdrop-filter: none;
+
+		&::before
+		{
+			opacity: 0;
+		}
+	}
+
+	.invite-ended
+	{
+		@include platform-chip;
+		align-self: flex-start;
+		flex-shrink: 1;
+		min-width: 0;
+
+		label
+		{
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
 	}
 }

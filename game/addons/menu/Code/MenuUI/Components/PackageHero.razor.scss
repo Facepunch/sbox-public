@@ -1,9 +1,9 @@
 @import "/styles/_theme.scss";
+@import "/Platform/_platform.scss";
 
 PackageHero {
+    @include platform-surface;
     flex-direction: row;
-    background-color: $default-900;
-    border-radius: $rounding-large;
     overflow: hidden;
     flex-shrink: 0;
     position: relative;
@@ -275,13 +275,6 @@ PackageHero.sidebar {
 
     .hero-tags {
         margin-top: 4px;
-
-        badge {
-            font-size: 10px;
-            font-weight: 600;
-            padding: 3px 8px;
-            letter-spacing: 0.3px;
-        }
     }
 }
 

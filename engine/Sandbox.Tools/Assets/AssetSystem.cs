@@ -173,9 +173,11 @@ public static partial class AssetSystem
 		{
 			EditorEvent.RunInterface<IEventListener>( x => x.OnAssetChanged( asset ) );
 
+			// Only drop it: the next draw renders it. A scene's thumbnail loads the whole scene, so rendering it on every
+			// save blocked the editor for as long as the scene takes to load, even with no thumbnail on screen.
 			if ( asset.HasCachedThumbnail )
 			{
-				asset.RebuildThumbnail( true );
+				asset.RebuildThumbnail( false );
 			}
 		}
 
@@ -318,16 +320,17 @@ public static partial class AssetSystem
 		}
 	}
 
-	internal static void InitializeCompilerForFilename( IResourceCompilerContext context, string filename )
+	internal static void InitializeCompilerForFilename( IResourceCompilerContext context, string filename ) => ContentCompilerHost.OnMainThread( () =>
 	{
+		// On the main thread, where the type library changes (see TryManagedCompile)
 		var ext = System.IO.Path.GetExtension( filename )[1..].ToLowerInvariant();
-
 		if ( !IsGameResource( ext ) )
-			return;
+			return false;
 
 		context.SetCompiler( $"ManagedResourceCompiler" );
 		context.SetExtension( ext );
-	}
+		return true;
+	} );
 
 	/// <summary>
 	/// Create an empty <see cref="GameResource"/>.

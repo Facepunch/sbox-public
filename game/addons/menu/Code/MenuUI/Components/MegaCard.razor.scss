@@ -1,5 +1,5 @@
 @import "/styles/_theme.scss";
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 $header-height: 60px;
 
@@ -54,13 +54,13 @@ $header-height: 60px;
 // One slab with one outline; panes inside are divided by hairlines.
 .megacard > .body-outer > .body
 {
-    @include front-card;
+    @include platform-surface;
+    overflow: hidden;
 
-    // The mixin pins flex-shrink to 0; the body must shrink to the modal height.
+    // Shrinks to the modal's height
     flex-grow: 1;
     flex-shrink: 1;
     min-height: 0;
-    box-shadow: 0 30px 90px rgba( $default-950, 0.75 );
     pointer-events: all;
 }
 
@@ -89,6 +89,6 @@ $header-height: 60px;
 {
     flex-shrink: 0;
     padding: 14px 20px;
-    border-top: $front-border-width solid $front-hairline;
+    border-top: 1px solid $platform-hairline;
     background-color: rgba( 0, 0, 0, 0.15 );
 }

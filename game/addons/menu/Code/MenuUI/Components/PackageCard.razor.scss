@@ -1,4 +1,5 @@
 @import "/styles/_theme.scss";
+@import "/Platform/_platform.scss";
 $background-size: 8px;
 
 PackageCard
@@ -112,7 +113,7 @@ PackageCard
 
 		&:hover
 		{
-			background-color: $default-800;
+			background-color: $platform-hover-wash;
 			transform: none;
 
 			&::after
@@ -185,7 +186,7 @@ PackageCard
 			background-color: rgba( $default-950, 0 );
 			transition: all 150ms ease;
 			z-index: -10;
-			border-radius: $rounding-large;
+			border-radius: $platform-radius;
 			pointer-events: none;
 		}
 
@@ -195,16 +196,14 @@ PackageCard
 
 			&::after
 			{
-				background-color: $default-800;
+				background-color: $platform-hover-wash;
 				top: -$background-size;
 				left: -$background-size;
 				right: -$background-size;
 				bottom: -$background-size;
-				box-shadow: 0 0 25px rgba( black, 0.3 );
 			}
 
 			z-index: 100;
-			background-color: $default-900;
 		}
 	}
 }

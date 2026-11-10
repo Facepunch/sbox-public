@@ -98,5 +98,11 @@ public enum GameLoadingFlags
 	/// Set if this is a developer session. It started from an editor session and as such we shouldn't load
 	/// assemblies from the package, they should be loaded from the Network Tables instead.
 	/// </summary>
-	Developer = 8
+	Developer = 8,
+
+	/// <summary>
+	/// Open the game on its <c>MenuScene</c> rather than its startup scene, and don't start it. It's started from
+	/// there with <see cref="Game.StartGame"/>.
+	/// </summary>
+	Menu = 16
 }

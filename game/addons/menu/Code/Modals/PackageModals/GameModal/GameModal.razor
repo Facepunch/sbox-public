@@ -115,38 +115,17 @@
 {
     public Package Package;
     public string PackageIdent { get; set; }
-    public bool HasFullPackage { get; set; }
-
     /// <summary>
-    /// It's on the Steam Workshop - the page says what its item says, rather than the backend
+    /// What the page says, as it's fetched (GamePageLoad)
     /// </summary>
-    public bool OnWorkshop => WorkshopId != 0 || (Package?.InstallsFromWorkshop ?? false);
+    GamePageLoad load;
 
-    /// <summary>
-    /// Still working out what the page says - whether it's on the workshop at all (the full package says), and if it
-    /// is, its item. Nothing that's only one or the other is shown until then, so it doesn't swap from one to the other.
-    /// </summary>
-    public bool PageLoading => OnWorkshop ? !WorkshopLoaded : !HasFullPackage && !FetchFailed;
-
-    /// <summary>
-    /// What the Steam Workshop says about it, once it's been asked - null before then, or if Steam couldn't say
-    /// </summary>
-    public WorkshopItemDetails WorkshopItem { get; private set; }
-
-    /// <summary>
-    /// Its Steam Workshop item, once it's been worked out - 0 before then
-    /// </summary>
-    public ulong WorkshopId { get; private set; }
-
-    /// <summary>
-    /// The Workshop's been asked about it - whether or not it answered
-    /// </summary>
-    bool WorkshopLoaded { get; set; }
-
-    /// <summary>
-    /// The full package didn't come - the page is showing what was cached, which has no gallery.
-    /// </summary>
-    public bool FetchFailed { get; set; }
+    public bool HasFullPackage => load?.HasFullPackage ?? false;
+    public bool OnWorkshop => load?.OnWorkshop ?? Package?.InstallsFromWorkshop ?? false;
+    public bool PageLoading => load?.Loading ?? true;
+    public WorkshopItemDetails WorkshopItem => load?.WorkshopItem;
+    public ulong WorkshopId => load?.WorkshopId ?? 0;
+    public bool FetchFailed => load?.FetchFailed ?? false;
 
     public List<LobbyInformation> Lobbies = new();
 
@@ -387,56 +366,21 @@
 
         Discovery.PreviewOpened( "page", PackageIdent );
 
-        // Get whatever package info we have - keeping the one it was opened with if there's none cached
-        if ( Package.TryGetCached( PackageIdent, out var cached, true ) ) Package = cached;
+        // Starting from the package it was opened with, if it was
+        if ( load?.Ident != PackageIdent ) load = new GamePageLoad( PackageIdent, Package );
 
-        // Known to be on the workshop already - ask Steam about its item while the backend's asked about the package
-        var known = MenuUtility.KnownWorkshopId( Package );
-        var workshop = known != 0 ? FetchWorkshopItem( known ) : null;
-
-        // Get Full Package info - keeping what we had if it doesn't come, so the page still has
-        // something on it and can say what didn't load
-        Package full = null;
-        try
+        var current = load;
+        await current.Run( () =>
         {
-            full = await Package.FetchAsync(PackageIdent, false);
-        }
-        catch ( Exception e )
-        {
-            Log.Warning( $"Couldn't fetch {PackageIdent}: {e.Message}" );
-        }
+            // Moved on to another game while we asked
+            if ( !this.IsValid() || current != load ) return false;
 
-        if ( full is not null ) Package = full;
-        HasFullPackage = full is not null;
-        FetchFailed = full is null;
-        StateHasChanged();
-
-        // Only the full package says it's on the workshop
-        if ( workshop is null && OnWorkshop )
-            workshop = FetchWorkshopItem( await MenuUtility.GetWorkshopIdAsync( Package ) );
-
-        if ( workshop is not null )
-            await workshop;
+            Package = current.Package;
+            StateHasChanged();
+            return true;
+        } );
 
         await RefreshLobbies();
-    }
-
-    async Task FetchWorkshopItem( ulong id )
-    {
-        var ident = PackageIdent;
-
-        // Its change notes can be asked for while its item is
-        WorkshopId = id;
-        StateHasChanged();
-
-        var item = await MenuUtility.FetchWorkshopItemAsync( id );
-
-        // Moved on to another game while we asked
-        if ( !this.IsValid() || ident != PackageIdent ) return;
-
-        WorkshopItem = item;
-        WorkshopLoaded = true;
-        StateHasChanged();
     }
 
     public override void OnDeleted()
@@ -446,5 +390,5 @@
         Discovery.PreviewClosed( "page", PackageIdent );
     }
 
-    protected override int BuildHash() => System.HashCode.Combine(Package, HasFullPackage, FetchFailed, Setup, SetupReadOnly, SetupNotice, SetupError, HashCode.Combine( IsSettingUp, SetupDownload, IsBrowsingSessions, WorkshopItem, WorkshopLoaded, WorkshopId ));
+    protected override int BuildHash() => System.HashCode.Combine(Package, HasFullPackage, FetchFailed, Setup, SetupReadOnly, SetupNotice, SetupError, HashCode.Combine( IsSettingUp, SetupDownload, IsBrowsingSessions, WorkshopItem, PageLoading, WorkshopId ));
 }

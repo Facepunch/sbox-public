@@ -1,5 +1,5 @@
 @import "/styles/_theme.scss";
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 // The same insets as the other tabs - the newest post big across the top, the rest as cards under it
 PackageNews
@@ -23,12 +23,12 @@ PackageNews
 		padding: 64px;
 		justify-content: center;
 		font-size: 13px;
-		color: $front-secondary;
+		color: $platform-muted;
 	}
 
 	.section-label
 	{
-		@include front-section-label;
+		@include platform-section-label;
 		margin-top: 8px;
 	}
 
@@ -52,29 +52,19 @@ PackageNews
 
 	.feature
 	{
-		position: relative;
+		@include platform-surface;
 		flex-shrink: 0;
 		height: 280px;
-		border-radius: $front-radius;
-		border: $front-border-width solid $front-hairline;
-		background-color: $front-card-deep;
 		overflow: hidden;
 		cursor: pointer;
-		transition: border-color 0.12s ease;
 
 		&:hover
 		{
 			sound-in: "ui.button.over";
-			border-color: rgba( 255, 255, 255, 0.24 );
 
 			.picture
 			{
 				transform: scale( 1.03 );
-			}
-
-			.feature-title
-			{
-				color: #ffffff;
 			}
 		}
 
@@ -119,16 +109,15 @@ PackageNews
 	{
 		font-size: 24px;
 		font-weight: 700;
-		color: $front-heading;
+		color: $platform-text;
 		text-shadow: 0 2px 10px rgba( 0, 0, 0, 0.6 );
-		transition: color 0.12s ease;
 	}
 
 	.feature-summary
 	{
 		max-width: 80%;
 		font-size: 13.5px;
-		color: $front-body;
+		color: $platform-text;
 		text-shadow: 0 1px 6px rgba( 0, 0, 0, 0.6 );
 	}
 
@@ -143,7 +132,7 @@ PackageNews
 		{
 			font-size: 12px;
 			font-weight: 600;
-			color: $front-body;
+			color: $platform-text;
 		}
 	}
 
@@ -158,25 +147,23 @@ PackageNews
 		background-color: rgba( 0, 0, 0, 0.35 );
 	}
 
-	// The Changes tab's "Latest update" pill, brighter here - it's on a picture
+	// A label itself, so the chip's own words on it
 	.latest-pill
 	{
-		flex-shrink: 0;
-		padding: 3px 9px;
-		border-radius: 999px;
-		background-color: $front-primary;
-		font-size: 10px;
-		font-weight: 700;
-		text-transform: uppercase;
-		letter-spacing: 0.07em;
-		color: #ffffff;
+		@include platform-chip;
+		font-size: 11.5px;
+		font-weight: 600;
+		color: $platform-text;
 	}
 
-	// How long ago - the one pill, on dark glass here so it reads over the picture
 	.ago
 	{
-		@include front-meta-pill;
+		@include platform-chip;
+	}
 
+	// On dark glass here, so they read over the picture
+	.latest-pill, .ago
+	{
 		background-color: rgba( 0, 0, 0, 0.45 );
 	}
 
@@ -194,34 +181,23 @@ PackageNews
 
 	.card
 	{
-		flex-direction: column;
+		@include platform-surface;
 		flex-grow: 1;
 		flex-shrink: 1;
 		flex-basis: 45%;
 		min-width: 0;
 		// Half the row at most - a lone one on the end stays the size of the rest
 		max-width: 49%;
-		border-radius: $front-radius;
-		border: $front-border-width solid $front-hairline;
-		background-color: $front-card-deep;
 		overflow: hidden;
 		cursor: pointer;
-		transition: border-color 0.12s ease, background-color 0.12s ease;
 
 		&:hover
 		{
 			sound-in: "ui.button.over";
-			border-color: rgba( 255, 255, 255, 0.22 );
-			background-color: #1a1e26;
 
 			.picture
 			{
 				transform: scale( 1.04 );
-			}
-
-			.card-title
-			{
-				color: #ffffff;
 			}
 		}
 
@@ -252,15 +228,14 @@ PackageNews
 	{
 		font-size: 14px;
 		font-weight: 700;
-		color: $front-heading;
+		color: $platform-text;
 		white-space: normal;
-		transition: color 0.12s ease;
 	}
 
 	.card-summary
 	{
 		font-size: 12.5px;
-		color: $front-secondary;
+		color: $platform-muted;
 		white-space: normal;
 	}
 
@@ -276,13 +251,13 @@ PackageNews
 		{
 			font-size: 12px;
 			font-weight: 600;
-			color: $front-body;
+			color: $platform-text;
 		}
 
 		.dot, .when
 		{
 			font-size: 12px;
-			color: $front-secondary;
+			color: $platform-muted;
 		}
 	}
 
@@ -294,7 +269,6 @@ PackageNews
 	{
 		cursor: default;
 		pointer-events: none;
-		border-color: $front-hairline;
 	}
 
 	.feature.skeleton

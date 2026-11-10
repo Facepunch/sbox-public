@@ -125,8 +125,7 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 			var vertices = mesh.CreateFace( face.Handle, face.Transform, selectionColor );
 			if ( vertices is not null )
 			{
-				foreach ( var vertex in vertices )
-					_faceObject.AddVertex( vertex );
+				_faceObject.AddVertex( vertices.AsSpan() );
 			}
 		}
 

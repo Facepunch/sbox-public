@@ -1,3 +1,4 @@
+@import "/Platform/_platform.scss";
 
 menupanel
 {
@@ -18,25 +19,21 @@ menupanel
 
     > .inner
     {
+        @include platform-surface;
         min-width: 200px;
         min-height: 20px;
-        flex-direction: column;
-        font-family: Poppins;
         font-weight: bold;
-        border-radius: 10px;
-        box-shadow: 5px 5px 30px #000e;
-        background-color: #2a2a2a;
         flex-shrink: 0;
 
         .spacer
         {
             height: 1px;
-            background-color: #0005;
+            background-color: $platform-hairline;
         }
 
         .option
         {
-            color: #fffa;
+            color: $platform-muted;
             padding: 0px 8px;
             cursor: pointer;
             flex-shrink: 0;
@@ -44,14 +41,14 @@ menupanel
 
             &:first-child
             {
-                border-top-left-radius: 10px;
-                border-top-right-radius: 10px;
+                border-top-left-radius: 6px;
+                border-top-right-radius: 6px;
             }
 
             &:last-child
             {
-                border-bottom-left-radius: 10px;
-                border-bottom-right-radius: 10px;
+                border-bottom-left-radius: 6px;
+                border-bottom-right-radius: 6px;
             }
 
             .icon
@@ -71,8 +68,8 @@ menupanel
 
             &:hover
             {
-                background-color: #3472e6;
-                color: #f5f8fe;
+                background-color: $platform-primary;
+                color: $platform-primary-text;
             }
         }
     }

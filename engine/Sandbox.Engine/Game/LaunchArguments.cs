@@ -77,6 +77,9 @@ public static class LaunchArguments
 
 	internal static bool CanSetProtected( string name, string value )
 	{
+		// Games pick these keys too (party config, package metadata), so only ever trust the game's own settings
+		if ( ConVarSystem.Find( name ) is not ManagedCommand { IsGameSetting: true } ) return false;
+
 		return _trustedGameSettings is not null && _trustedGameSettings.TryGetValue( name, out var trusted ) && trusted == value;
 	}
 

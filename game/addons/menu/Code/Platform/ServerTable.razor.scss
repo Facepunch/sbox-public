@@ -1,0 +1,400 @@
+@import "/Platform/_platform.scss";
+@import "/styles/_theme.scss";
+
+// A game's servers, filling what it's in - the headings, the rows scrolling under them, and the picked one's card over
+// its bottom. In a panel's body (the platform-panel mixin), whose 4px padding its headings and card reach out past.
+ServerTable
+{
+	position: relative;
+	flex-grow: 1;
+	min-height: 0;
+	flex-direction: column;
+
+	// Over the whole list, in the middle of it
+	> .empty
+	{
+		@include platform-empty;
+		position: absolute;
+		left: 0;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		justify-content: center;
+		pointer-events: none;
+	}
+
+	> table
+	{
+		@include platform-table-flush;
+	}
+
+	// A picked one's card over its bottom - the last row clears it
+	&.picked tbody
+	{
+		padding-bottom: 150px;
+	}
+
+	tr.server
+	{
+		height: 32px;
+		min-height: 32px;
+		cursor: pointer;
+
+		.game-icon, .host
+		{
+			@include platform-tile( 14px, 22px );
+			background-size: cover;
+			background-position: center;
+		}
+
+		.name
+		{
+			align-items: center;
+			gap: 8px;
+
+			.server-name
+			{
+				flex-shrink: 1;
+				font-weight: 600;
+				white-space: nowrap;
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
+
+			.lock
+			{
+				font-size: 14px;
+				color: $platform-muted;
+			}
+
+			.friend
+			{
+				flex-shrink: 0;
+				font-size: 14px;
+				color: $platform-good;
+			}
+		}
+
+		.map
+		{
+			font-family: Inter;
+			color: #c3cad8;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+
+		.players
+		{
+			align-items: center;
+			gap: 10px;
+			font-variant-numeric: tabular-nums;
+
+			// Every digit as wide as the next, set on the label itself - it doesn't come down from the row - and to the
+			// right, so the counts line up over each other
+			label
+			{
+				width: 44px;
+				text-align: right;
+				font-family: Inter;
+				font-variant-numeric: tabular-nums;
+			}
+
+			.fullness
+			{
+				width: 60px;
+				height: 4px;
+				border-radius: 2px;
+				background-color: rgba( 255, 255, 255, 0.1 );
+			}
+
+			.fill
+			{
+				height: 4px;
+				border-radius: 2px;
+				background-color: $platform-primary;
+
+				&.full
+				{
+					background-color: #ff8a94;
+				}
+			}
+		}
+
+		&.full
+		{
+			opacity: 0.55;
+		}
+
+		// On another version - listed, faded back with a tag saying so, and not joined (ServerTable.WhyNotJoin)
+		&.outdated
+		{
+			opacity: 0.5;
+		}
+
+		.outdated-tag
+		{
+			flex-shrink: 0;
+			padding: 1px 6px;
+			border-radius: 3px;
+			background-color: rgba( $platform-warning, 0.16 );
+			font-size: 10px;
+			font-weight: 700;
+			text-transform: uppercase;
+			color: $platform-warning;
+		}
+
+		// A row's shape while they load - its icons, bars where its words go, an empty fullness bar. Only faded in once
+		// it's been a moment, so a quick fetch doesn't flash it.
+		&.skeleton
+		{
+			pointer-events: none;
+			transition: opacity 0.3s ease-out 0.35s;
+
+			&:intro
+			{
+				opacity: 0;
+			}
+
+			.game-icon, .host, .bone
+			{
+				background-color: rgb( 42, 50, 68 );
+				animation: server-breathe 1.4s ease-in-out infinite alternate;
+			}
+
+			.bone
+			{
+				flex-shrink: 0;
+				height: 10px;
+				border-radius: 3px;
+			}
+
+			.count
+			{
+				width: 34px;
+				margin-left: 10px;
+			}
+
+			.ping-bone
+			{
+				width: 24px;
+			}
+		}
+	}
+
+	// Its signal bars, then the number
+	.ping
+	{
+		@include platform-ping;
+		flex-direction: row;
+		align-items: center;
+		justify-content: flex-end;
+		gap: 8px;
+		@include platform-ping-lit;
+
+		.ping-bars
+		{
+			@include platform-ping-bars;
+		}
+	}
+
+	// Picking one doesn't push the list up.
+	.band
+	{
+		position: absolute;
+		// Out to the edges of the panel's body, past its 4px padding - in off the panel's side borders, so they still
+		// run down past it
+		left: -4px;
+		right: -4px;
+		bottom: -4px;
+		z-index: 20;
+		// As a picked shop item's is (AvatarShelf's .band) - a flat shade brighter than the panel
+		border-top-left-radius: 8px;
+		border-top-right-radius: 8px;
+		border-bottom-left-radius: 6px;
+		border-bottom-right-radius: 6px;
+		background-color: $platform-button;
+		transition: opacity 0.25s ease-out, transform 0.3s ease-out;
+
+		&:intro
+		{
+			opacity: 0;
+			transform: translateY( 24px );
+		}
+
+		> .card
+		{
+			flex-grow: 1;
+			align-items: center;
+			gap: 16px;
+			padding: 12px;
+			transition: opacity 0.2s ease-out;
+
+			&:intro
+			{
+				opacity: 0;
+			}
+		}
+
+		.map
+		{
+			position: relative;
+			width: 200px;
+			height: 112px;
+			flex-shrink: 0;
+			align-items: center;
+			justify-content: center;
+			border-radius: $platform-radius;
+			background-color: $platform-button;
+			background-size: cover;
+			background-position: center;
+			overflow: hidden;
+
+			> i
+			{
+				font-size: 36px;
+				color: $platform-faint;
+			}
+		}
+
+		.about
+		{
+			flex-grow: 1;
+			min-width: 0;
+			flex-direction: column;
+			justify-content: center;
+			gap: 8px;
+
+			// Its chips pulled up under it - Poppins' line leaves room under the letters, and a set height would leave
+			// its ellipsis no line to show
+			.server-name
+			{
+				margin-bottom: -6px;
+				font-size: 18px;
+				font-weight: 700;
+				white-space: nowrap;
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
+
+			.chips
+			{
+				gap: 6px;
+			}
+
+			.chip
+			{
+				height: 26px;
+				align-items: center;
+				gap: 6px;
+				padding: 0 10px 0 8px;
+				border-radius: $platform-radius;
+				font-size: 12px;
+				font-weight: 600;
+				background-color: rgba( 255, 255, 255, 0.06 );
+
+				i
+				{
+					font-size: 15px;
+					color: $platform-muted;
+				}
+
+				.ping
+				{
+					font-size: 12px;
+				}
+
+				&.host
+				{
+
+					.avatar
+					{
+						width: 18px;
+						height: 18px;
+						border-radius: 3px;
+						background-size: cover;
+					}
+				}
+
+				&.friend
+				{
+					color: $platform-good;
+					background-color: rgba( 63, 209, 122, 0.12 );
+				}
+
+				&.faces
+				{
+					padding: 0 6px 0 8px;
+					background-color: rgba( 63, 209, 122, 0.12 );
+
+					i
+					{
+						margin-right: 2px;
+						color: $platform-good;
+					}
+
+					.face
+					{
+						width: 18px;
+						height: 18px;
+						margin-left: -5px;
+						border-radius: 3px;
+						border: 1px solid rgba( 9, 12, 20, 1 );
+						background-size: cover;
+
+						// The first after the heart - not tucked under it
+						&:nth-child(2)
+						{
+							margin-left: 0;
+						}
+					}
+				}
+			}
+		}
+
+		.join
+		{
+			width: 210px;
+			height: 44px;
+			flex-shrink: 0;
+			align-items: center;
+			justify-content: center;
+			gap: 8px;
+			border-radius: $platform-pill;
+			font-size: 15px;
+			font-weight: 700;
+			color: white;
+			@include platform-button-primary;
+			cursor: pointer;
+			@include platform-sounds;
+			transition: background-color 0.12s ease;
+
+			i
+			{
+				font-size: 20px;
+			}
+
+			&.disabled
+			{
+				color: $platform-faint;
+				// The button fill a step up from the card's, which is that fill
+				background-color: $platform-button-hover;
+				cursor: default;
+			}
+		}
+	}
+}
+
+
+@keyframes server-breathe
+{
+	from
+	{
+		opacity: 0.6;
+	}
+
+	to
+	{
+		opacity: 1;
+	}
+}

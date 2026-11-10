@@ -1,3 +1,5 @@
+@import "/Platform/_platform.scss";
+
 $screen-w-xl: 1920px;
 
 AvatarUI
@@ -65,39 +67,38 @@ AvatarUI > .controls
 
 .headerbutton
 {
-	align-items: center;
+	@include platform-text-button( 50px, 16px, 24px );
+	padding: 0 18px;
 	gap: 10px;
-	padding: 15px 20px;
-	cursor: pointer;
-	font-size: 20px;
-	border-radius: 20px;
-	backdrop-filter: brightness( 0.4 ) blur( 10px );
 	pointer-events: all;
+	text-shadow: none;
 
 	&.disabled
 	{
-		opacity: 0.02;
 		pointer-events: none;
 	}
 
+	// Its glyph and words are divs, not the i and label the widget dresses
 	.icon
 	{
 		font-family: Material Icons;
-		font-size: 32px;
+		font-size: 24px;
+		color: $platform-muted;
+	}
+
+	.title
+	{
+		@include platform-plain-label( 16px );
+		color: $platform-text;
 	}
 
 	&:hover
 	{
-		opacity: 1;
-		background-color: #08f;
 		sound-in: "ui.button.over";
 	}
 
 	&:active
 	{
-		background-color: white;
-		color: #222;
-		opacity: 1;
 		sound-in: "ui.button.press";
 	}
 }
@@ -141,57 +142,28 @@ AvatarUI > .controls
 	height: 50px;
 }
 
-.bg-round
-{
-	border-radius: 20px;
-	backdrop-filter: brightness( 0.4 ) blur( 10px );
-	color: #eee;
-}
-
 ButtonGroup, .buttongroup
 {
+	@include platform-choices;
 	pointer-events: all;
-	cursor: pointer;
-	font-weight: bold;
-	font-size: 18px;
-	gap: 5px;
-	padding: 5px;
+	text-shadow: none;
 
 	> *
 	{
-		padding: 10px 20px;
-		opacity: 0.5;
-		border-radius: 15px;
+		@include platform-choice;
+		flex-basis: auto;
 		text-align: center;
-		gap: 8px;
-		justify-content: center;
-		align-items: center;
-
-		.iconpanel
-		{
-		font-size: 24px;
-		}
 	}
 
 	> *:hover
 	{
-		opacity: 1;
 		sound-in: "ui.button.over";
 	}
-	
+
 	> *:active
 	{
-		background-color: #2af;
 		sound-in: "ui.button.press";
 	}
-
-	> *.active
-	{
-		opacity: 1;
-		background-color: #08f;
-		text-shadow: 0px 0px 16px #fff6;
-	}
-
 }
 
 TextEntry
@@ -201,29 +173,5 @@ TextEntry
 
 SliderControl.slidercontrol
 {
-	> .inner
-	{
-		> .track
-		{
-			border-radius: 16px;
-			height: 42px;
-			backdrop-filter: brightness( 0.4 ) blur( 10px );
-			overflow: hidden;
-			background-color: transparent;
-			margin: 0px;
-			padding: 5px;
-
-			> .track-active
-			{
-				border-radius: 11px;
-				background-color: #08f;
-				position: relative;
-			}
-
-			> .thumb
-			{
-				display: none;
-			}
-		}
-	}
+	@include platform-slider;
 }

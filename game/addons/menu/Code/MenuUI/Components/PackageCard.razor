@@ -19,14 +19,6 @@
             <MenuProject.UI.PackageFlairBar Flair="@Package.Flair" Limit=@(2) />
         }
 
-		@if ( NominationCount is int nominations )
-		{
-			<div class="package-nominations" tooltip="#menu.games.total_nominations_across_community_categories">
-				<icon>how_to_vote</icon>
-				<label>@nominations.ToString("N0")</label>
-			</div>
-		}
-
         @if ( ShowSubscribe && Package is not null )
         {
             <MenuProject.UI.WorkshopCardActions Package=@Package />
@@ -233,13 +225,6 @@
     /// </summary>
     [Parameter] public DiscoveryContext DiscoveryContext { get; set; }
 
-	/// <summary>
-	/// Displays this package's nomination count from the menu's shared jam state.
-	/// </summary>
-	[Parameter] public bool ShowNominations { get; set; }
-
-	int? NominationCount => ShowNominations ? GameJamSystem.GetNominations( Package?.FullIdent ) : null;
-
     /// <summary>
     /// Takes turns with the other cards sharing it, so only a few play at once.
     /// </summary>
@@ -329,9 +314,8 @@
 
     string VotePercentage()
     {
-        if (Package == null) return "#menu.games.unrated";
-        if (Package.VotesUp == 0 && Package.VotesDown == 0) return "#menu.games.unrated";
-        return $"{(int)(Package.VotesUp * 100f / (Package.VotesUp + Package.VotesDown))}%";
+        if (Package is null || MenuHelpers.Rating( Package.VotesUp, Package.VotesDown ) is not { } rating) return "#menu.games.unrated";
+        return $"{rating}%";
     }
 
     /// <summary>Shortens large player counts - "1.2K" rather than "1204".</summary>
@@ -353,5 +337,5 @@
     };
 
     // ShowVideo mounts the video layer, so hover changes have to re-render.
-    protected override int BuildHash() => System.HashCode.Combine(Package?.FullIdent, Package?.Usage.UsersNow, Package?.Flair.Length, ShowVideo(), VideoReady(), HashCode.Combine( ShowSummary, ShowSubtitle, SquareThumbnail, Package?.Summary ), VideoUrl(), NominationCount);
+    protected override int BuildHash() => System.HashCode.Combine(Package?.FullIdent, Package?.Usage.UsersNow, Package?.Flair.Length, ShowVideo(), VideoReady(), HashCode.Combine( ShowSummary, ShowSubtitle, SquareThumbnail, Package?.Summary ), VideoUrl());
 }

@@ -1,8 +1,9 @@
 @import "/styles/_theme.scss";
+@import "/Platform/_platform.scss";
 
 MapSelector
 {
-    position: relative;
+    @include platform-surface;
     height: 100%;
     aspect-ratio: 16 / 9;
     flex-shrink: 0;
@@ -13,24 +14,17 @@ MapSelector
     cursor: pointer;
     background-position: center;
     background-size: cover;
-    background-color: $default-950;
-    border-radius: $rounding-small;
+    overflow: hidden;
     transition: all .1s ease-out;
-    border: 1px solid $default-border;
 
-    &:hover
-    {
-        border-color: $default-50;
-    }
-
+    // A scrim up from the bottom, so the name reads over the map's art
     &::after
     {
         position: absolute;
         bottom: 0;
-        background: linear-gradient( to bottom, transparent 0%, rgba($default-950, 0.95) 99% );
+        background: linear-gradient( to bottom, transparent 0%, rgba( 6, 9, 16, 0.95 ) 99% );
         height: 100%;
         width: 100%;
-        border-radius: $rounding-small;
     }
 
     > .bottom

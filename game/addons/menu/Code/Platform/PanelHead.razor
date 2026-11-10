@@ -1,0 +1,118 @@
+@using System;
+@using Sandbox;
+@using Sandbox.UI;
+@namespace MenuProject.Platform
+@inherits Panel
+
+@*
+    A panel's bar - the way back, its tile and title, then its tools at the end. Given a search, a tool opens a box across
+    the bar in place of the title, its clear closing it again.
+*@
+<root class="head">
+
+    @if ( Back is not null )
+    {
+        <div class="tool back" onclick=@Back tooltip="Back"><i>arrow_back</i></div>
+    }
+
+    @if ( searching )
+    {
+        <div class="search">
+            <i>search</i>
+            <TextEntry @ref="SearchBox" Placeholder=@Search OnTextEdited=@( ( string text ) => OnSearch?.Invoke( text ) ) />
+            <div class="clear" onclick=@CloseSearch tooltip="Clear"><i>close</i></div>
+        </div>
+    }
+    else
+    {
+        @if ( Heading is not null )
+        {
+            @Heading
+        }
+        else
+        {
+            <div class="heading">
+                <div class="tile" style="@MenuHelpers.BackgroundImage( Art )">
+                    @if ( string.IsNullOrEmpty( Art ) )
+                    {
+                        <i>@Icon</i>
+                    }
+                </div>
+                <label class="title">@Title</label>
+            </div>
+        }
+
+        <div class="spacer"></div>
+
+        @if ( OnSearch is not null )
+        {
+            <div class="tool" onclick=@OpenSearch tooltip="Search"><i>search</i></div>
+        }
+    }
+
+    @Tools
+
+</root>
+
+@code
+{
+    [Parameter] public string Icon { get; set; }
+
+    /// <summary>
+    /// A picture for the tile, in place of its glyph
+    /// </summary>
+    [Parameter] public string Art { get; set; }
+
+    [Parameter] public string Title { get; set; }
+
+    [Parameter] public Action Back { get; set; }
+
+    /// <summary>
+    /// What the search box says before anything's typed in it
+    /// </summary>
+    [Parameter] public string Search { get; set; }
+
+    /// <summary>
+    /// What's typed in the search box as it changes - empty when it's closed. A search tool only when there's this.
+    /// </summary>
+    [Parameter] public Action<string> OnSearch { get; set; }
+
+    /// <summary>
+    /// In place of the tile and title
+    /// </summary>
+    [Parameter] public RenderFragment Heading { get; set; }
+
+    /// <summary>
+    /// At the end of the bar, after the search tool - there while it's searching too
+    /// </summary>
+    [Parameter] public RenderFragment Tools { get; set; }
+
+    public bool Searching => searching;
+
+    bool searching;
+    bool focusSearch;
+    TextEntry SearchBox;
+
+    void OpenSearch()
+    {
+        searching = true;
+        focusSearch = true;
+    }
+
+    public void CloseSearch()
+    {
+        searching = false;
+        OnSearch?.Invoke( "" );
+    }
+
+    protected override void OnAfterTreeRender( bool firstTime )
+    {
+        base.OnAfterTreeRender( firstTime );
+
+        if ( focusSearch && SearchBox.IsValid() )
+        {
+            focusSearch = false;
+            SearchBox.Focus();
+        }
+    }
+}

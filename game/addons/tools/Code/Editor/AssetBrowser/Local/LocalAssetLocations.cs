@@ -94,6 +94,12 @@ public class LocalAssetLocations : AssetLocations
 		}
 
 		{
+			var d = new DirectoryInfo( FileSystem.Root.GetFullPath( "/addons/content/assets/" ) );
+			var loc = new DiskLocation( d );
+			BaseContentNode.AddItem( new FolderNode( loc ) );
+		}
+
+		{
 			var d = new DirectoryInfo( FileSystem.Root.GetFullPath( "/core/" ) );
 			var loc = new DiskLocation( d );
 			BaseContentNode.AddItem( new FolderNode( loc ) );

@@ -1,4 +1,4 @@
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 @import "/styles/_theme.scss";
 
 // The pills' width, and half of it to centre them by - keep them together
@@ -20,6 +20,12 @@ $badge-to-middle: 118px;
 
 // Small, bottom middle - the art in a circle with a ring round it filling up, and a glow behind it so
 // it's still noticed. One row for what's coming down, and one for each that failed above it.
+// Above the platform menu's dock, not over its search box
+.platform WorkshopDownloadOverlay
+{
+	bottom: 112px;
+}
+
 WorkshopDownloadOverlay
 {
 	// Half its width back from the middle
@@ -59,6 +65,7 @@ WorkshopDownloadOverlay
 	// Fixed size, so nothing shifts about as the numbers tick
 	.download
 	{
+		@include platform-surface;
 		flex-shrink: 0;
 		width: 100%;
 		height: 56px;
@@ -66,11 +73,6 @@ WorkshopDownloadOverlay
 		align-items: center;
 		gap: 10px;
 		padding: 5px 14px 5px 5px;
-		border-radius: 999px;
-		background-color: rgba( 8, 10, 14, 0.82 );
-		border: $front-border-width solid $front-border;
-		backdrop-filter: blur( 8px );
-		box-shadow: 0 6px 24px rgba( 0, 0, 0, 0.35 );
 		transform-origin: 28px 50%;
 		transition: border-color 0.3s ease, transform 0.35s cubic-bezier( 0.34, 1.56, 0.64, 1 ), opacity 0.25s ease;
 
@@ -217,11 +219,15 @@ WorkshopDownloadOverlay
 	// flares once before it goes. It's the same row it was, so nothing gets pushed about.
 	.download.complete
 	{
-		background-color: rgba( 8, 10, 14, 0 );
+		background-color: rgba( 12, 16, 26, 0 );
 		border-color: rgba( 255, 255, 255, 0 );
-		box-shadow: none;
 		backdrop-filter: blur( 0px );
-		transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+		transition: background-color 0.3s ease, border-color 0.3s ease;
+
+		&::before
+		{
+			opacity: 0;
+		}
 
 		.text
 		{
@@ -292,22 +298,20 @@ WorkshopDownloadOverlay
 	// Didn't work out - red, with what it means under it
 	.failed
 	{
-		border-color: rgba( $front-danger, 0.45 );
-
 		.glow
 		{
-			background-image: radial-gradient( rgba( $front-danger, 0.5 ) 0%, rgba( $front-danger, 0 ) 70% );
+			background-image: radial-gradient( rgba( $platform-danger, 0.5 ) 0%, rgba( $platform-danger, 0 ) 70% );
 			animation-name: none;
 		}
 
 		.thumb icon
 		{
-			color: $front-danger;
+			color: $platform-danger;
 		}
 
 		.detail
 		{
-			color: $front-danger;
+			color: $platform-danger;
 		}
 	}
 
