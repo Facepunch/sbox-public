@@ -1,7 +1,7 @@
 namespace Sandbox;
 
 /// <summary>
-/// One line of a resource rule list - Resource Files when publishing, or a game's MenuResources
+/// One line of a resource rule list - Resource Files when publishing
 /// </summary>
 internal sealed record ResourceRule( string Pattern, bool Exclude, int Index )
 {

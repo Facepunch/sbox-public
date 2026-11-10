@@ -101,8 +101,8 @@ public enum GameLoadingFlags
 	Developer = 8,
 
 	/// <summary>
-	/// Open the game on its <c>MenuScene</c> rather than its startup scene, and don't start it. It's started from
-	/// there with <see cref="Game.StartGame"/>.
+	/// Open the game on its <c>MenuScene</c>, if it has one, rather than its startup scene. It starts when it changes
+	/// scene.
 	/// </summary>
 	Menu = 16
 }

@@ -397,7 +397,6 @@ public class ResourceSystem
 		return GetByIdLong<T>( filepath.FastHash64() );
 	}
 
-
 	/// <summary>
 	/// Get a cached resource
 	/// </summary>

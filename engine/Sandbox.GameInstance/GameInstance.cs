@@ -336,10 +336,7 @@ internal class GameInstance : IGameInstance
 		{
 			Log.Trace( $"Loading GameResources" );
 
-			var menuFiles = MenuFileFilter();
-			_menuResourcesOnly = menuFiles is not null;
-
-			await ResourceLoader.LoadAllGameResourceAsync( FileSystem.Mounted, token, includeFile: menuFiles );
+			await ResourceLoader.LoadAllGameResourceAsync( FileSystem.Mounted, token );
 		}
 
 		// Dedicated servers install packages that GameResources reference as they load, wait
@@ -529,96 +526,25 @@ internal class GameInstance : IGameInstance
 
 	public Scene Scene => Game.ActiveScene;
 
-	public bool IsOnMenu => flags.Contains( GameLoadingFlags.Menu ) && !Application.IsDedicatedServer;
-
 	/// <summary>
 	/// The game's own menu scene - null for a game without one
 	/// </summary>
 	string MenuScene => Package?.GetMeta<string>( "MenuScene", null ) is { Length: > 0 } scene ? scene : null;
 
-	/// <summary>
-	/// Only the GameResources its menu needs were loaded - the rest are loaded when it's started
-	/// </summary>
-	bool _menuResourcesOnly;
+	bool IsMenuScene( GameResource scene ) => scene is SceneFile && MenuScene is { } menuScene
+		&& string.Equals( Resource.FixPath( menuScene ), Resource.FixPath( scene.ResourcePath ), StringComparison.OrdinalIgnoreCase );
 
 	/// <summary>
-	/// On its menu, just the GameResources the menu scene needs: the scene, what matches its <c>MenuResources</c> rules
-	/// (what it loads from code), and everything those reference. None for a game without a menu scene. Null for all of
-	/// them - not on its menu.
+	/// The scene it's on is its menu scene. The game's own scene, whoever's asking - the s&amp;box menu has one of its own.
 	/// </summary>
-	Func<string, bool> MenuFileFilter()
-	{
-		if ( !IsOnMenu ) return null;
-		if ( MenuScene is null ) return _ => false;
-
-		var roots = new List<string> { MenuScene };
-
-		if ( Package.GetMeta<string>( "MenuResources", null ) is { Length: > 0 } rules )
-		{
-			var matcher = new ResourceRuleMatcher( rules );
-			roots.AddRange( FileSystem.Mounted.FindFile( "/", "*", true )
-				.Where( x => matcher.Matches( [ResourceRule.NormalizePath( x ), ResourceRule.NormalizePath( Resource.FixPath( x ) )] ) ) );
-		}
-
-		var files = ResourceLoader.FindReferenced( FileSystem.Mounted, roots );
-		return file => files.Contains( Resource.FixPath( file ) );
-	}
-
-	public async Task<bool> StartFromMenu()
-	{
-		ThreadSafe.AssertIsMainThread();
-
-		if ( !IsOnMenu )
-			return false;
-
-		flags &= ~GameLoadingFlags.Menu;
-
-		// The game's, whoever's asking - the s&box menu has a context of its own
-		using var scope = GlobalContext.GameScope();
-
-		LoadingScreen.IsVisible = true;
-
-		if ( _menuResourcesOnly )
-		{
-			_menuResourcesOnly = false;
-
-			LoadingScreen.Title = "Loading Resources";
-			await ResourceLoader.LoadAllGameResourceAsync( FileSystem.Mounted );
-		}
-
-		LoadingScreen.Title = "Loading Scene";
-		await Task.Yield();
-
-		if ( !OpenStartupScene() )
-		{
-			Log.Warning( "There was a problem opening the StartupScene" );
-
-			// Back on its menu, so it can be started again - or neither, and it's closed
-			flags |= GameLoadingFlags.Menu;
-
-			if ( !OpenStartupScene() )
-			{
-				Log.Warning( "There was a problem opening the MenuScene" );
-				flags &= ~GameLoadingFlags.Menu;
-			}
-
-			LoadingScreen.IsVisible = false;
-			return false;
-		}
-
-		return true;
-	}
+	public bool IsOnMenu => !Application.IsDedicatedServer && IsMenuScene( GlobalContext.Game.ActiveScene?.Source );
 
 	public bool ReturnToMenu()
 	{
 		ThreadSafe.AssertIsMainThread();
 
-		// Joined someone else's game - the code loaded is theirs
-		if ( flags.Contains( GameLoadingFlags.Remote ) || Application.IsDedicatedServer )
-			return false;
-
-		// Nothing to start it again from - the main menu doesn't show a game on its menu, so it needs a menu scene of its own
-		if ( MenuScene is null && IMenuDll.Current?.IsPlatformMenu != true )
+		// Joined someone else's game - the code loaded is theirs. Or it has no menu to go back to.
+		if ( flags.Contains( GameLoadingFlags.Remote ) || Application.IsDedicatedServer || MenuScene is null )
 			return false;
 
 		using var scope = GlobalContext.GameScope();
@@ -627,41 +553,52 @@ internal class GameInstance : IGameInstance
 		if ( Networking.IsActive )
 			Networking.Disconnect();
 
-		flags |= GameLoadingFlags.Menu;
+		return Game.ChangeScene( MenuScene );
+	}
 
-		if ( !OpenStartupScene() )
+	public bool OnSceneChange( SceneFile scene )
+	{
+		// A game joined is its server's to move between scenes
+		if ( Application.IsDedicatedServer || IsDeveloperHost ) return false;
+		if ( flags.Contains( GameLoadingFlags.Remote ) ) return false;
+		if ( Networking.IsActive && !Networking.IsHost ) return false;
+
+		if ( IsMenuScene( scene ) )
 		{
-			Log.Warning( "There was a problem opening the MenuScene" );
+			// Back on its menu - nobody comes along
+			if ( Networking.IsActive )
+				Networking.Disconnect();
+
 			return false;
 		}
 
-		return true;
+		return IsOnMenu;
 	}
 
 	/// <summary>
-	/// On its menu - its menu scene. None of the <see cref="ISceneStartup"/> events: those start the game (host,
-	/// spawn players), which <see cref="Game.StartGame"/> does later. A game without a menu scene gets an empty one.
+	/// Its menu scene, opened as any scene the game starts on is. The <see cref="ISceneStartup"/> events fire here, and
+	/// again when the game leaves it - what starts the game (hosting, spawning) checks <see cref="Game.IsOnMenu"/>.
 	/// </summary>
 	bool OpenMenuScene()
 	{
-		if ( MenuScene is not { } menuScene )
-		{
-			// Loading normally ends when a scene finishes loading - there isn't one
-			OnLoadingFinished();
-			LoadingScreen.IsVisible = false;
-			return true;
-		}
-
 		var options = new SceneLoadOptions();
 		options.IsAdditive = true;
 
-		if ( !options.SetScene( menuScene ) )
+		if ( !options.SetScene( MenuScene ) )
 			return false;
+
+		// An additive load doesn't say where the scene's from - it's what says the game's on its menu
+		Game.ActiveScene.Source = options.GetSceneFile();
+
+		Game.ActiveScene.RunEvent<ISceneStartup>( x => x.OnHostPreInitialize( options.GetSceneFile() ) );
 
 		if ( !Game.ActiveScene.Load( options ) )
 			return false;
 
 		Game.ActiveScene.AddSystemScene();
+
+		Game.ActiveScene.RunEvent<ISceneStartup>( x => x.OnHostInitialize() );
+		Game.ActiveScene.RunEvent<ISceneStartup>( x => x.OnClientInitialize() );
 		return true;
 	}
 
@@ -681,7 +618,7 @@ internal class GameInstance : IGameInstance
 		if ( Application.IsEditor && !Game.IsPlaying )
 			return true;
 
-		if ( IsOnMenu )
+		if ( flags.Contains( GameLoadingFlags.Menu ) && MenuScene is not null && !Application.IsDedicatedServer )
 			return OpenMenuScene();
 
 		var startup_dedicated = Package.GetMeta<string>( "DedicatedServerStartupScene", "" );

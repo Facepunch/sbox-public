@@ -134,14 +134,14 @@ public static partial class Game
 
 	/// <summary>
 	/// Close the current game. Ignored while it's on its menu (<see cref="IsOnMenu"/>) - that's the platform menu's to
-	/// close, and closing it from under it leaves nothing running; start it with <see cref="StartGame"/> instead.
+	/// close, and closing it from under it leaves nothing running; start it by changing scene instead.
 	/// </summary>
 	public static void Close()
 	{
 		// A warning, not an exception - a Quit button on a game's own menu is common, and it's just ignored
-		if ( IsOnMenu && GlobalContext.Current != GlobalContext.Menu )
+		if ( IsOnMenu && IMenuDll.Current is { IsPlatformMenu: true } && GlobalContext.Current != GlobalContext.Menu )
 		{
-			Log.Warning( "Game.Close() ignored - the game can't close itself while it's on its menu, the platform menu does that. Use Game.StartGame() to start it." );
+			Log.Warning( "Game.Close() ignored - the game can't close itself while it's on its menu, the platform menu does that. Change scene to start it." );
 			return;
 		}
 

@@ -11,21 +11,21 @@ public interface IGameInstance
 	internal void Close();
 
 	/// <summary>
-	/// On its menu - loaded with <see cref="Sandbox.Engine.GameLoadingFlags.Menu"/>, or back from a game, and not started
+	/// The scene it's on is its menu scene
 	/// </summary>
 	internal bool IsOnMenu { get; }
 
 	/// <summary>
-	/// On its menu - load what the menu didn't need, then open the startup scene. False if it wasn't on its menu, or the
-	/// startup scene didn't open - then it's back on its menu if that opened.
-	/// </summary>
-	internal Task<bool> StartFromMenu();
-
-	/// <summary>
-	/// Back to its menu, still loaded. False if it can't be - its code is a server's, or it has no menu scene and the
-	/// platform menu isn't up to start it from.
+	/// Back to its menu scene, out of any session. False if it can't be - its code is a server's, or it has no menu
+	/// scene.
 	/// </summary>
 	internal bool ReturnToMenu();
+
+	/// <summary>
+	/// The active scene is being replaced by <paramref name="scene"/>. True if that's the game leaving its menu scene -
+	/// it's starting. Its menu scene takes it out of any session.
+	/// </summary>
+	internal bool OnSceneChange( SceneFile scene );
 
 	internal InputSettings InputSettings { get; }
 

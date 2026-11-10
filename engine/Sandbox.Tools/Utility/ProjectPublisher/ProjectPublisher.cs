@@ -25,7 +25,7 @@ public partial class ProjectPublisher
 	/// <summary>
 	/// Meta that only goes in the workshop item's <c>metadata.json</c>, never to the backend - the game's menu
 	/// </summary>
-	static readonly HashSet<string> WorkshopOnlyMeta = ["MenuScene", "MenuResources"];
+	static readonly HashSet<string> WorkshopOnlyMeta = ["MenuScene"];
 
 	/// <summary>
 	/// <see cref="Meta"/> as the backend gets it, without what's only for the workshop item. Null if there's none.

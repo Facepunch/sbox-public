@@ -166,15 +166,12 @@ public static class MenuHelpers
 			return;
 		}
 
+		// Already on its own menu, with no map to load it with - it's started from there, by the game
+		if ( mapPackage is null && string.IsNullOrWhiteSpace( package.Info.DefaultMap ) && Game.IsOnMenu && MenuUtility.GamePackage?.FullIdent == package.FullIdent )
+			return;
+
 		// Direct launch
 		ReportPlay( package, via, source );
-
-		// Already loaded onto its menu (the platform menu), with no map to load it with - start it where it is
-		if ( mapPackage is null && string.IsNullOrWhiteSpace( package.Info.DefaultMap ) && Game.IsOnMenu && MenuUtility.GamePackage?.FullIdent == package.FullIdent )
-		{
-			Game.StartGame();
-			return;
-		}
 
 		await PrepareForLoad();
 

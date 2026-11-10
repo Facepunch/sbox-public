@@ -25,8 +25,6 @@ public partial class ProjectPublisher
 
 			configuredPublishPaths.UnionWith( configuredPaths.Select( NormalizePublishPath ) );
 			var roots = FindPublishRoots( assets, AssetPaths, configuredPaths, publishingOptions.Resources );
-			// What the menu loads from code ships too
-			roots.UnionWith( FindMenuRoots( project.Config, assets ) );
 			// A configured scene can also belong to an installed package outside the project's asset directories.
 			foreach ( var path in configuredPaths )
 			{
@@ -80,18 +78,6 @@ public partial class ProjectPublisher
 			yield return config.GetMetaOrDefault( "DedicatedServerStartupScene", "" );
 			yield return config.GetMetaOrDefault( "SystemScene", "" );
 			yield return config.GetMetaOrDefault( "MenuScene", "" );
-		}
-
-		/// <summary>
-		/// The assets matching a game's <c>MenuResources</c> rules - what its menu loads from code
-		/// </summary>
-		static IEnumerable<Asset> FindMenuRoots( ProjectConfig config, IEnumerable<Asset> assets )
-		{
-			var rules = config.GetMetaOrDefault( "MenuResources", "" );
-			if ( string.IsNullOrWhiteSpace( rules ) ) return [];
-
-			var matcher = new ResourceRuleMatcher( rules );
-			return assets.Where( asset => matcher.Matches( AssetPaths( asset ).Where( x => !string.IsNullOrWhiteSpace( x ) ).Select( NormalizePublishPath ).ToArray() ) );
 		}
 
 		internal IEnumerable<string> GetSettingsPaths( ProjectFile file )

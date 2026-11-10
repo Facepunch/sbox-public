@@ -29,8 +29,7 @@ public static partial class MenuUtility
 	}
 
 	/// <summary>
-	/// Load a game onto its menu - its <c>MenuScene</c>, with its code and just what that scene needs - but don't
-	/// start it. It's started from there with <see cref="Game.StartGame"/>.
+	/// Load a game onto its menu scene. It starts when it changes scene.
 	/// </summary>
 	public static Task OpenGameMenu( string ident )
 	{
