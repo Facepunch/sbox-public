@@ -263,9 +263,20 @@ internal partial class SurfaceWindow : IDisposable, IPanelWindow
 	/// <summary>
 	/// Size of the window's client area in real pixels - what the swap chain is sized to, and what
 	/// the surface lays its panels out in. Zero until there's an OS window to measure: a popup
-	/// waits for a frame boundary to make one.
+	/// waits for a frame boundary to make one. Setting it sizes the window to exactly that many
+	/// pixels whatever the display scale, for a window whose contents are a frame of a fixed size.
 	/// </summary>
-	internal Vector2 PixelSize => Window?.PixelSize ?? default;
+	internal Vector2 PixelSize
+	{
+		get => Window?.PixelSize ?? default;
+		set
+		{
+			if ( Handle == IntPtr.Zero ) return;
+
+			var window = PixelsToWindow( value );
+			Sdl.SetWindowSize( Handle, (int)MathF.Ceiling( window.x ), (int)MathF.Ceiling( window.y ) );
+		}
+	}
 
 	//
 	// Three spaces meet at a window, and SDL hands us the one number that isn't obvious:

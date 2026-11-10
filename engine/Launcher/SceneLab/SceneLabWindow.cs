@@ -183,6 +183,11 @@ internal sealed partial class SceneLabWindow : PanelWindow
 		ClearsBackground = false;
 		AlwaysFullFrameRate = true;
 
+		// -width and -height are the frame's size in pixels, which captures and golden truth images are compared at, not
+		// UI units the display scale would make bigger
+		if ( Args.Has( "-width" ) || Args.Has( "-height" ) )
+			Core.PixelSize = new Vector2( Args.Int( "-width", 1280 ), Args.Int( "-height", 760 ) );
+
 		// The render device only records GPU frame times for the main window's swap chain
 		g_pRenderDevice.SetSwapChainIsMainWindow( Window.SwapChain, true );
 		renderer.TimingSwapChain = Window.SwapChain;
