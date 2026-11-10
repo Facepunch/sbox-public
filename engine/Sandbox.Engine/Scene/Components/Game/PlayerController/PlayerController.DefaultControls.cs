@@ -75,7 +75,8 @@ public sealed partial class PlayerController : Component
 		if ( !UseInputControls ) return;
 
 		InputMove();
-		UpdateDuckInput( Input.Down( "duck" ) );
+		if ( !string.IsNullOrWhiteSpace( DuckButton ) )
+			UpdateDuckInput( Input.Down( DuckButton ) );
 		InputJump();
 
 		UpdateEyeTransform();
