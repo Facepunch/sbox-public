@@ -109,7 +109,7 @@ public sealed class GraphicsContext
 	public void Clear( Num.Vector4 color )
 	{
 		EndScope();
-		Transition( Target, ImageLayout.CopyDestination );
+		TransitionForWrite( Target, ImageLayout.CopyDestination );
 		List.ClearTexture( Target, color );
 	}
 
@@ -172,7 +172,7 @@ public sealed class GraphicsContext
 	public void ClearTexture( TextureHandle texture, Num.Vector4 color )
 	{
 		EndScope();
-		Transition( texture, ImageLayout.CopyDestination );
+		TransitionForWrite( texture, ImageLayout.CopyDestination );
 		List.ClearTexture( texture, color );
 	}
 
@@ -389,6 +389,32 @@ public sealed class GraphicsContext
 	}
 
 	ImageLayout Layout( TextureHandle texture ) => layouts.TryGetValue( texture, out var layout ) ? layout : ImageLayout.ShaderRead;
+
+	/// <summary>
+	/// <see cref="Transition"/> for a write: one already in <paramref name="layout"/> still waits for what wrote it last, as
+	/// two clears in a row must.
+	/// </summary>
+	void TransitionForWrite( TextureHandle texture, ImageLayout layout )
+	{
+		if ( Layout( texture ) != layout )
+		{
+			Transition( texture, layout );
+			return;
+		}
+
+		List.Barrier( new TextureBarrier
+		{
+			Texture = texture,
+			OldLayout = layout,
+			NewLayout = layout,
+			SourceStage = PipelineStage.AllCommands,
+			SourceAccess = MemoryAccess.MemoryWrite,
+			DestinationStage = PipelineStage.AllCommands,
+			DestinationAccess = MemoryAccess.MemoryRead | MemoryAccess.MemoryWrite,
+			MipCount = 0,
+			LayerCount = 0,
+		} );
+	}
 
 	/// <summary>Move a whole texture to <paramref name="layout"/>, conservatively ordered after everything before it.</summary>
 	void Transition( TextureHandle texture, ImageLayout layout )

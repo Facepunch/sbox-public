@@ -128,6 +128,7 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 		list = gpu.BeginCommandList( QueueType.Graphics, "Graphics block" );
 		presentTo = null;
 		context.Begin( list );
+		FlushWrites();
 		pendingShader = null;
 		pendingAttributes = null;
 		return RenderAttributes.CreateManaged();
@@ -657,9 +658,49 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 		var handle = BufferOf( buffer );
 		var bytes = new ReadOnlySpan<byte>( (void*)data, size );
 
-		// In a block, in order with its draws; outside one, now
-		if ( list is not null ) context.UpdateBuffer( handle, bytes, offset );
-		else gpu.WriteBuffer( handle, bytes, offset );
+		// In a block, in order with its draws
+		if ( list is not null )
+		{
+			context.UpdateBuffer( handle, bytes, offset );
+			return;
+		}
+
+		// Outside one - a recording uploading its tables - at the start of the next block, which is what draws with
+		// them: writing now would submit and wait for every upload
+		var copy = System.Buffers.ArrayPool<byte>.Shared.Rent( size );
+		bytes.CopyTo( copy );
+		writes.Add( (handle, copy, size, offset) );
+	}
+
+	readonly List<(BufferHandle Buffer, byte[] Data, int Size, int Offset)> writes = new();
+	readonly HashSet<BufferHandle> written = new();
+
+	/// <summary>Record the buffer writes made outside a block, in order, at the start of this one.</summary>
+	void FlushWrites()
+	{
+		if ( writes.Count == 0 ) return;
+
+		written.Clear();
+		foreach ( var (buffer, data, size, offset) in writes )
+		{
+			if ( ownedBuffers.Contains( buffer ) )
+			{
+				// A second write to a buffer waits for the first, in case they overlap
+				if ( !written.Add( buffer ) )
+				{
+					list.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.Transfer, MemoryAccess.TransferWrite );
+					written.Clear();
+					written.Add( buffer );
+				}
+
+				list.UpdateBuffer( buffer, data.AsSpan( 0, size ), offset );
+			}
+
+			System.Buffers.ArrayPool<byte>.Shared.Return( data );
+		}
+
+		writes.Clear();
+		context.MemoryBarrier();
 	}
 
 	public override void ReadBufferAsync( GpuBuffer buffer, AsyncGPUReadback.BufferReadDelegate callback, int offset, int size ) => throw Unsupported( "Buffer readback" );
@@ -712,6 +753,9 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 	{
 		Unregister( this );
 		gpu.WaitIdle();
+
+		foreach ( var write in writes ) System.Buffers.ArrayPool<byte>.Shared.Return( write.Data );
+		writes.Clear();
 
 		foreach ( var handle in textureOwners.Keys )
 		{

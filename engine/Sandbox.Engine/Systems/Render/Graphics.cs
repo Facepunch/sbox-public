@@ -25,8 +25,9 @@ public static partial class Graphics
 		if ( IsAvailable && Sandbox.Utility.CommandLine.HasSwitch( "-basaltgpu" ) && RenderBackend.Default is Source2RenderBackend )
 		{
 			var validation = Sandbox.Utility.CommandLine.HasSwitch( "-basaltgpu-validation" );
-			RenderBackend.SetDefault( BasaltGpuRenderBackend.Create( validation, m => Log.Info( $"Basalt.Gpu: {m.Severity} {m.Text}" ), presentation: true, frames: true ) );
-			Log.Info( $"Rendering on Basalt.Gpu ({((BasaltGpuRenderBackend)RenderBackend.Default).Device.Adapter.Name}){(validation ? ", validation on" : "")}" );
+			_basaltGpu = BasaltGpuRenderBackend.Create( validation, m => Log.Info( $"Basalt.Gpu: {m.Severity} {m.Text}" ), presentation: true, frames: true );
+			RenderBackend.SetDefault( _basaltGpu );
+			Log.Info( $"Rendering on Basalt.Gpu ({_basaltGpu.Device.Adapter.Name}){(validation ? ", validation on" : "")}" );
 		}
 
 		_mipMapGeneratorShader = IsAvailable ? new ComputeShader( "downsample_cs" ) : null;
@@ -36,14 +37,18 @@ public static partial class Graphics
 			Cmaa2Renderer.Initialize();
 	}
 
+	// The process's Basalt.Gpu device, with -basaltgpu
+	static BasaltGpuRenderBackend _basaltGpu;
+
 	internal static void Shutdown()
 	{
 		Cmaa2Renderer.Shutdown();
 
-		if ( RenderBackend.Default is BasaltGpuRenderBackend basalt )
+		if ( _basaltGpu is not null )
 		{
 			RenderBackend.SetDefault( null );
-			basalt.Dispose();
+			_basaltGpu.Dispose();
+			_basaltGpu = null;
 		}
 
 		IsAvailable = false;
