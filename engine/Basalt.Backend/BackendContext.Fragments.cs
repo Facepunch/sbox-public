@@ -42,6 +42,7 @@ internal sealed partial class BackendContext
 		(timedMaterial, timedMode) = (material, shaderMode.Value);
 		device.DrawTimes.Add( ticks, bind, drawn );
 		if ( drawn ) device.DrawTimes.IndirectDraws += count;
+		else device.DrawTimes.Fail( material?.Name );
 		return drawn;
 	}
 

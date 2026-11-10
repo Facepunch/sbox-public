@@ -118,6 +118,7 @@ internal sealed partial class BackendContext
 		var bind = !ReferenceEquals( material, timedMaterial ) || shaderMode.Value != timedMode;
 		(timedMaterial, timedMode) = (material, shaderMode.Value);
 		device.DrawTimes.Add( ticks, bind, drawn );
+		if ( !drawn ) device.DrawTimes.Fail( material?.Name );
 		return drawn;
 	}
 
