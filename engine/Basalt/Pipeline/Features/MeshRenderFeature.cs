@@ -242,6 +242,11 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	GpuMaterial defaultMaterial;
 	GpuMaterial depthOnlyMaterial;
 
+	// One default material for every render system, made by the first: a child view's system starts in the middle of its
+	// parent's frame, where the engine makes no materials. Freed with the last system using it
+	static GpuMaterial s_defaultMaterial;
+	static int s_defaultMaterialUsers;
+
 	/// <summary>
 	/// Collects the main view's rigid opaque instances for occlusion culling. Null when not culling, and never set for shadow views.
 	/// </summary>
@@ -293,6 +298,12 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		var objects = world.Objects;
 		var centers = world.BoundsCenter;
 		var extents = world.BoundsExtents;
+
+		// Attributes read as the objects draw, here on the main thread, before classifying reads them on several
+		foreach ( var index in CollectionsMarshal.AsSpan( visible ) )
+		{
+			if ( objects[index] is MeshObject { AttributesFrom: not null } mesh ) mesh.RefreshAttributes();
+		}
 
 		// LOD uses a radius-0.5 sphere's pixel width. Shadows use the main view to match visible LODs.
 		var root = pass.Root;
@@ -864,7 +875,11 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	internal override void Setup( GpuContext context, RenderWorld world, ViewPass view )
 	{
 		// On the main thread: draws may record on worker threads, where materials can't be made
-		defaultMaterial ??= RenderHost.Current.Device.CreateMaterial( "scene_renderer_default", DefaultShader );
+		if ( defaultMaterial is null )
+		{
+			defaultMaterial = s_defaultMaterial ??= RenderHost.Current.Device.CreateMaterial( "scene_renderer_default", DefaultShader );
+			s_defaultMaterialUsers++;
+		}
 		depthOnlyMaterial ??= RenderHost.Current.Device.LoadMaterial( DepthOnlyMaterial );
 
 		DispatchSkinning( context );
@@ -892,9 +907,16 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 
 	internal override void Dispose()
 	{
-		defaultMaterial?.Dispose();
+		if ( defaultMaterial is not null && --s_defaultMaterialUsers == 0 )
+		{
+			s_defaultMaterial.Dispose();
+			s_defaultMaterial = null;
+		}
+
 		defaultMaterial = null;
 		volumeRing.Dispose();
+		skinningContext?.Dispose();
+		skinningContext = null;
 	}
 
 	/// <summary>

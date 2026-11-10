@@ -24,6 +24,22 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 	}
 
 	/// <summary>
+	/// The renderer drawing the frame, which renders the views its stages ask for (<see cref="Graphics.ManagedView.Renderer"/>).
+	/// </summary>
+	public ISceneRenderer Renderer
+	{
+		set => view.Renderer = value;
+	}
+
+	/// <summary>
+	/// Whether the frame is a child view of another (<see cref="Graphics.IsChildView"/>).
+	/// </summary>
+	public bool IsChild
+	{
+		set => view.IsChild = value;
+	}
+
+	/// <summary>
 	/// The camera whose stages these are.
 	/// </summary>
 	public SceneCamera Camera { get; private set; }
@@ -78,8 +94,9 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 
 	static readonly StringToken ForwardMode = new( "Forward" );
 
-	// What the context's attributes held before the stage running on this thread
-	[ThreadStatic] static CRenderAttributes s_savedAttributes;
+	// What the context's attributes held before the stage running on this thread, one for each child view deep: a stage's
+	// command list can render a child view, whose own stages run meanwhile
+	[ThreadStatic] static CRenderAttributes[] s_savedAttributes;
 
 	/// <summary>
 	/// Start a stage on the context's attributes, inheriting the frame's, and remember what they hold. Native renders each
@@ -94,9 +111,11 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 		var attributes = context.GetAttributesPtrForModify();
 		attributes.SetParent( target.Attributes.Engine().Get() );
 
-		if ( s_savedAttributes.IsNull ) s_savedAttributes = CRenderAttributes.Create();
-		s_savedAttributes.Clear( false, true );
-		attributes.MergeToPtr( s_savedAttributes );
+		s_savedAttributes ??= new CRenderAttributes[SceneBridge.MaxChildDepth + 1];
+		ref var saved = ref s_savedAttributes[SceneBridge.ChildDepth];
+		if ( saved.IsNull ) saved = CRenderAttributes.Create();
+		saved.Clear( false, true );
+		attributes.MergeToPtr( saved );
 		return attributes;
 	}
 
@@ -110,7 +129,7 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 	{
 		attributes.Clear( false, false );
 		attributes.SetParent( target.Attributes.Engine().Get() );
-		s_savedAttributes.MergeToPtr( attributes );
+		s_savedAttributes[SceneBridge.ChildDepth].MergeToPtr( attributes );
 	}
 
 	public bool HasEarlyPostProcess( RenderStage stage, StageQueue queue ) => Camera?.HasEarlyPostProcess( (Stage)stage, (PostProcessQueue)queue ) ?? false;

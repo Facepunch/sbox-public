@@ -64,6 +64,9 @@ internal sealed class SceneObjectDrawer : IDisposable
 		if ( GpuContext.Recording is not { } context || context.NativeContext() != Graphics.Context ) return;
 		if ( Find( sceneObject ) is not MeshObject obj || obj.Mesh is not { } mesh || mesh.Geometry is null ) return;
 
+		// It may not be in any view this frame
+		obj.RefreshAttributes();
+
 		var transforms = system.Transforms;
 		if ( transforms.Generation != generation ) BeginFrame( transforms.Generation );
 

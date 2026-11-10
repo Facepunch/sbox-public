@@ -82,6 +82,29 @@ public sealed class MeshObject : RenderObject
 	public ShaderParameters Attributes { get; set; }
 
 	/// <summary>
+	/// Where <see cref="Attributes"/> come from when they're read as the object draws rather than set, or null. The views of a
+	/// render ask it once, for the objects they prepare (<see cref="RefreshAttributes"/>), so attributes that can change without
+	/// notice aren't read for every object in the world each frame, off screen too.
+	/// </summary>
+	internal IAttributeSource AttributesFrom { get; set; }
+
+	/// <summary>
+	/// The render <see cref="AttributesFrom"/> last brought <see cref="Attributes"/> up to date in.
+	/// </summary>
+	int attributesRender;
+
+	/// <summary>
+	/// Bring <see cref="Attributes"/> up to date from <see cref="AttributesFrom"/>, once a render. Main thread only.
+	/// </summary>
+	internal void RefreshAttributes()
+	{
+		if ( AttributesFrom is not { } source || attributesRender == RenderSystem.RenderNumber ) return;
+
+		attributesRender = RenderSystem.RenderNumber;
+		source.Refresh( this );
+	}
+
+	/// <summary>
 	/// Forward-only lightmap attributes below object attributes (<c>SetBakedLightingAttributes</c>).
 	/// Supplied by the bridge; prevents instancing.
 	/// </summary>

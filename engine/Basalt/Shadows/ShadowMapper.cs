@@ -114,11 +114,24 @@ internal partial class ShadowMapper
 	}
 
 	/// <summary>
+	/// Whether this view's frame chose its shadow maps and hasn't been submitted yet. A child view rendered meanwhile, from the
+	/// middle of its recording, is submitted before it, so it can't use the maps this frame draws (<see cref="DrawnInFlight"/>).
+	/// </summary>
+	internal bool InFlight;
+
+	/// <summary>
+	/// Whether another view's frame, not submitted yet, drew this map this frame: this one draws it again, into the same texture,
+	/// at the same resolution, so the other's commands keep theirs.
+	/// </summary>
+	bool DrawnInFlight( LightEntry entry ) => entry.RenderedFrame == FrameCount && entry.DrawnBy is { InFlight: true } by && by != this;
+
+	/// <summary>
 	/// The view's frame was never submitted: the maps it drew, and the static caches it drew into them, were never drawn
 	/// after all. They're drawn again the next time they're used, and nothing reuses its cascades.
 	/// </summary>
 	internal void Abandon()
 	{
+		InFlight = false;
 		foreach ( var entry in Drawn )
 		{
 			entry.RenderedFrame = 0;
@@ -200,6 +213,11 @@ internal partial class ShadowMapper
 		/// The frame <see cref="StaticCache"/> rendered in.
 		/// </summary>
 		public ulong StaticRenderedFrame;
+
+		/// <summary>
+		/// The mapper whose view last drew the map.
+		/// </summary>
+		internal ShadowMapper DrawnBy;
 
 		/// <summary>
 		/// The world's <see cref="StaticCasterChanges.Revision"/> <see cref="StaticCache"/> is up to date with.
@@ -310,7 +328,8 @@ internal partial class ShadowMapper
 		entry.ScreenSize = flScreenSize;
 
 		// A smaller view later in the same frame (probe bake, mirror) keeps the bigger map already rendered this frame
-		if ( entry.RenderedFrame == FrameCount && desiredResolution < entry.CurrentResolution )
+		// A map another frame in flight drew keeps its size: that frame's commands draw into it
+		if ( entry.RenderedFrame == FrameCount && (desiredResolution < entry.CurrentResolution || DrawnInFlight( entry )) )
 			desiredResolution = entry.CurrentResolution;
 
 		// Do we want a different resolution for this shadow map now?

@@ -96,6 +96,12 @@ public sealed partial class RenderSystem : IDisposable
 	public RenderStats Stats { get; private set; }
 
 	/// <summary>
+	/// Counts renders, by any system, from 1: what objects bring per-render state up to date against
+	/// (<see cref="MeshObject.RefreshAttributes"/>).
+	/// </summary>
+	internal static int RenderNumber { get; private set; } = 1;
+
+	/// <summary>
 	/// Make the shaders render systems share now, on the main thread, before anything renders. Layers otherwise make them
 	/// as they first render, and the first frames can draw differently.
 	/// </summary>
@@ -199,11 +205,47 @@ public sealed partial class RenderSystem : IDisposable
 			scratch = textureScratch;
 		}
 
-		Render( world, view, RenderOutput.ForTexture( textureTarget, output, scratch ), stages );
+		// A flipped view draws into a texture of its own, then into the output mirrored
+		var flipped = view.FlipX || view.FlipY;
+		var drawn = flipped ? FlipColor( size, output.Format, 1 ) : output;
+		Render( world, view, RenderOutput.ForTexture( textureTarget, drawn, scratch ) with { FlipInto = flipped ? output : null, FlipX = view.FlipX, FlipY = view.FlipY }, stages );
 	}
 
 	ViewTarget textureTarget;
 	GpuTexture textureScratch;
+
+	// What a flipped view draws into before it's mirrored into its output (RenderOutput.FlipInto)
+	GpuTexture flipColor, flipResolved;
+	ViewTarget flipTarget;
+
+	/// <summary>
+	/// The colour a flipped view draws into, made again when the size, format or sample count changes.
+	/// </summary>
+	GpuTexture FlipColor( Vector2Int size, TextureFormat format, int samples )
+	{
+		if ( flipColor is { } existing && existing.Size == size && existing.Format == format && existing.Samples == samples ) return existing;
+
+		// The device retains resources used by in-flight frames.
+		flipColor?.Dispose();
+		flipResolved?.Dispose();
+		flipResolved = null;
+		flipTarget = null;
+
+		var device = RenderHost.Current.Device;
+		flipColor = device.CreateTexture( TextureDesc.Target( size.x, size.y, format, samples ), "Basalt flipped output" );
+		if ( samples > 1 ) flipResolved = device.CreateTexture( TextureDesc.Target( size.x, size.y, format ), "Basalt flipped output resolved" );
+		return flipColor;
+	}
+
+	/// <summary>
+	/// A flipped view of a target: colour of its own in the target's format, with the target's depth, which stays as drawn.
+	/// </summary>
+	RenderOutput FlippedOutput( ViewTarget target, RenderView view )
+	{
+		var color = FlipColor( target.Size, target.Color.Format, target.Samples );
+		if ( flipTarget is null || flipTarget.Depth != target.Depth ) flipTarget = new ViewTarget( color, target.Depth, flipResolved );
+		return RenderOutput.ForTarget( flipTarget ) with { FlipInto = target.Resolved, FlipX = view.FlipX, FlipY = view.FlipY };
+	}
 
 	/// <summary>
 	/// Render and submit to a target. The viewport uses target pixels; MSAA resolves into <see cref="ViewTarget.Resolved"/>.
@@ -224,7 +266,7 @@ public sealed partial class RenderSystem : IDisposable
 		ArgumentNullException.ThrowIfNull( target );
 		if ( target.Color is null ) throw new ObjectDisposedException( nameof( ViewTarget ) );
 
-		Render( world, view, RenderOutput.ForTarget( target ), stages );
+		Render( world, view, view.FlipX || view.FlipY ? FlippedOutput( target, view ) : RenderOutput.ForTarget( target ), stages );
 	}
 
 	void Render( RenderWorld world, RenderView view, in RenderOutput output, IRenderStages stages = null )
@@ -233,6 +275,7 @@ public sealed partial class RenderSystem : IDisposable
 		ArgumentNullException.ThrowIfNull( view );
 
 		var stats = new RenderStats { Objects = world.Count };
+		RenderNumber++;
 
 		view.Update();
 		frame.Begin( world, view, output, stages );
@@ -290,6 +333,10 @@ public sealed partial class RenderSystem : IDisposable
 		var submitted = false;
 		try
 		{
+			// Skinning can be recorded on a worker only when the frame's draws aren't on the setup context it must precede
+			meshes.SkinOnWorker = recorder.Parallel;
+			if ( skybox is not null ) skybox.meshes.SkinOnWorker = recorder.Parallel;
+
 			using ( Zones.Setup.Start() ) Setup( frame );
 
 			if ( (frame.DebugViews & DebugViews.ShadowMaps) != 0 ) shadows.Describe( DebugReport, view.Viewport );
@@ -333,11 +380,18 @@ public sealed partial class RenderSystem : IDisposable
 				RenderHost.Current.Device.SetSubmitTag( 0 );
 			}
 			submitted = true;
+			shadows.Submitted();
+			skybox?.shadows.Submitted();
+
+			// A skybox whose frame wasn't planned drew nothing with its setup work
+			skybox?.EndSetupWork( true );
 		}
 		finally
 		{
 			if ( !submitted )
 			{
+				EndSetupWork( false );
+				skybox?.EndSetupWork( false );
 				recorder.End();
 				context.End();
 
@@ -450,6 +504,9 @@ public sealed partial class RenderSystem : IDisposable
 		// Per-view debug mode (ToolsVis.hlsl, SetupShadingMode).
 		context.Attributes.Set( ToolsVisModeName, view.ToolsVisMode );
 
+		// Over the camera's attributes, as CameraRenderer.Configure sets it
+		context.Attributes.Set( LightModulatorsDisabledName, !view.LightModulators );
+
 		// Glass reads the native 3D skybox pipeline's combo (Skybox3DPipeline).
 		if ( isSkybox ) context.Attributes.SetCombo( SkyboxCombo, 1 );
 
@@ -468,12 +525,32 @@ public sealed partial class RenderSystem : IDisposable
 		}
 
 		for ( int i = 0; i < features.Count; i++ )
+		{
+			// An oblique projection's near plane leans with its clip plane, and light clusters' rays meet it behind the camera,
+			// or nowhere where they run along it: bin lights with the view's near plane square to it
+			var square = features[i] == lightBinner && view.Projection is not null;
+			if ( square ) frame.UseSquareConstants( context );
 			features[i].Setup( context, world, mainPass );
+			if ( square ) frame.UseFrameConstants( context );
+		}
 		context.EndGpuScope( scope );
+
+		for ( int i = 0; i < features.Count; i++ )
+			features[i].BeginSetupWork();
+	}
+
+	/// <summary>
+	/// Finish the features' setup work on workers: submit it right after this system's setup context, or discard it.
+	/// </summary>
+	internal void EndSetupWork( bool submit )
+	{
+		for ( int i = 0; i < features.Count; i++ )
+			features[i].EndSetupWork( submit );
 	}
 
 	long lap;
 	static readonly StringToken ToolsVisModeName = new( "ToolsVisMode" );
+	static readonly StringToken LightModulatorsDisabledName = new( "LightModulatorsDisabled" );
 
 	/// <summary>
 	/// Current or last rendered frame.
@@ -669,6 +746,10 @@ public sealed partial class RenderSystem : IDisposable
 		textureTarget?.Dispose();
 		textureScratch?.Dispose();
 		textureTarget = null;
+		flipColor?.Dispose();
+		flipResolved?.Dispose();
+		flipColor = flipResolved = null;
+		flipTarget = null;
 		frameBufferCopy?.Dispose();
 		frameBufferCopy = null;
 		transforms.Dispose();
