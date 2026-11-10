@@ -815,9 +815,14 @@ internal sealed partial class FrameRecorder : IDisposable
 	/// </summary>
 	public void Submit( GpuSwapChain swapChain )
 	{
+		// Each setup context, then the work its features left for workers (skinning), before anything draws
 		frames[0].System.FrameContext.Submit( swapChain );
+		frames[0].System.EndSetupWork( true );
 		for ( int f = 1; f < frames.Count; f++ )
+		{
 			frames[f].System.FrameContext.SubmitNext();
+			frames[f].System.EndSetupWork( true );
+		}
 
 		for ( int i = 0; i < segmentCount; i++ )
 		{
