@@ -29,7 +29,7 @@ internal sealed class ContactShadowLayer : RenderLayer
 	{
 		var lighting = frame.World.Lighting;
 		var view = frame.View;
-		if ( frame.Stages is null || !frame.System.DepthPrepass || !frame.System.Shadows || view.Orthographic ) return null;
+		if ( frame.Stages is null || !frame.System.DepthPrepass || !frame.System.Shadows || view.Orthographic || view.Reflection ) return null;
 		if ( !RenderHost.Current.ContactShadows || !lighting.SunEnabled || !lighting.SunShadows || !lighting.SunContactShadows ) return null;
 
 		var width = (int)view.Viewport.Width;
