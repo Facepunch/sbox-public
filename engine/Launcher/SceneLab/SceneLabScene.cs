@@ -345,7 +345,7 @@ internal sealed record SceneLabScene
 		new() { Name = "Bloom Objects", Group = "Post Processing", Game = GameScenes.BloomObjects, ChangeGame = GameScenes.ChangeBloomObjects },
 		new() { Name = "Dynamic", Group = "Stress", Game = DynamicScene.Build, Frame = DynamicScene.Animate },
 		new() { Name = "Mirror Churn", Group = "Stress", Game = MirrorChurnScene.Build, Frame = MirrorChurnScene.Step, Rewind = MirrorChurnScene.Rewind,
-			BenchmarkFrames = MirrorChurnScene.Frames, ReportMirror = MirrorChurnScene.Report },
+			BenchmarkFrames = MirrorChurnScene.Frames, CaptureFrame = MirrorChurnScene.CaptureFrame, ReportMirror = MirrorChurnScene.Report, Isolated = true },
 		new() { Name = "Heavy Scene", Group = "Stress", Game = HeavyScene.Build, Frame = HeavyScene.Animate },
 		new() { Name = "Heavy Scene AO", Group = "Stress", Game = HeavyScene.BuildWithOcclusion, Frame = HeavyScene.Animate, Isolated = true },
 		new() { Name = "Heavy Scene AO SSR", Group = "Stress", Game = HeavyScene.BuildWithReflectionsAndOcclusion, Frame = HeavyScene.Animate, Isolated = true },
