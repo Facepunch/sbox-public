@@ -225,7 +225,7 @@ public sealed class ModelFile
 	public static ModelFile Load( string path ) => Read( File.ReadAllBytes( path ) );
 
 	/// <summary>Read a model from compiled content by its path, with any external meshes it references.</summary>
-	public static ModelFile Load( ContentFiles content, string path ) => Read( content.Read( path ), mesh => content.Find( mesh ) is { } found ? File.ReadAllBytes( found ) : null );
+	public static ModelFile Load( ContentFiles content, string path ) => Read( content.Read( path ), content.TryRead );
 
 	/// <summary>Blocks in file order, which the control block's block numbers index.</summary>
 	static List<(string Type, int Offset, int Size)> BlockTable( ResourceFile resource )
