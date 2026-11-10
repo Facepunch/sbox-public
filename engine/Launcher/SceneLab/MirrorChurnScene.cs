@@ -77,7 +77,8 @@ internal static class MirrorChurnScene
 			NativeEngine.g_pResourceSystem.ReloadResource( ReloadedMaterial );
 		}
 
-		if ( frame > ChurnFrames ) return;
+		// The first frame draws the stage alone, for the caches' starting size
+		if ( frame == 1 || frame > ChurnFrames ) return;
 
 		// Game code changing what's alive: a new override every frame for some
 		for ( int i = frame % 4; i < alive.Count; i += 4 )
@@ -135,11 +136,12 @@ internal static class MirrorChurnScene
 	}
 
 	/// <summary>
-	/// The script's frame, on the frames whose mirror caches are logged: every few hundred, and those after the reload and
-	/// after the last object goes.
+	/// The script's frame, on the frames whose mirror caches are logged: the first, every few hundred, and those after the
+	/// reload and after the last object goes.
 	/// </summary>
 	public static string Report( Scene scene )
 	{
+		if ( frame == 1 ) return "frame 1, nothing spawned";
 		if ( frame == ReloadFrame ) return $"frame {frame}, {ReloadedModel} and {ReloadedMaterial} reloaded";
 		if ( frame == ChurnFrames + Lifetime ) return $"frame {frame}, emptied";
 		return frame % ReportEvery == 0 ? $"frame {frame}{(frame <= ChurnFrames ? $", {alive.Count} alive" : "")}" : null;

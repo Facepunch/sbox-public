@@ -175,6 +175,9 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IDisposable
 	/// </summary>
 	public void Sync( SceneCamera camera, bool skyboxView = false )
 	{
+		// A reload queues the objects drawing what it changed
+		CheckReloads();
+
 		lock ( gate )
 		{
 			(pending, applying) = (applying, pending);
@@ -195,6 +198,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IDisposable
 		applying.Clear();
 
 		SyncAttributes();
+		SweepCaches( frame );
 
 		// An extra world's objects are lit by the main world's sun, sky, probe volumes and fog, as native lights the view
 		if ( SubWorld == 0 ) SyncLighting( camera, skyboxView );
@@ -387,6 +391,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IDisposable
 
 		if ( obj is MeshObject mesh )
 		{
+			Release( mesh.Mesh );
 			attributed.Remove( mesh );
 			sharing.Remove( mesh );
 			ReleaseLightmap( mesh.LightmapAttributes.Engine() );
@@ -394,6 +399,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IDisposable
 		}
 		else if ( obj is AggregateObject aggregate )
 		{
+			Release( aggregate.Mesh );
 			ReleaseLightmap( aggregate.LightmapAttributes.Engine() );
 			aggregate.LightmapAttributes = null;
 		}
@@ -420,9 +426,11 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IDisposable
 		const SceneObjectChange Draws = SceneObjectChange.Model | SceneObjectChange.Material | SceneObjectChange.Visibility;
 		if ( (change & Draws) != 0 )
 		{
-			var drawn = sceneObject.RenderingEnabled ? VariantFor( sceneObject, MeshFor( sceneObject.Model ) ) : null;
+			var drawn = sceneObject.RenderingEnabled ? VariantFor( sceneObject, ModelFor( sceneObject.Model ) ) : null;
 			if ( drawn != mesh.Mesh )
 			{
+				Release( mesh.Mesh );
+				Hold( drawn );
 				mesh.Mesh = drawn;
 				meshChanged = true;
 
@@ -511,7 +519,9 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IDisposable
 	AggregateObject AggregateFor( SceneObject sceneObject )
 	{
 		var model = SceneNative.AggregateModel( sceneObject, out var lightmapped );
-		if ( MeshFor( model ) is not { } mesh ) return null;
+		if ( ModelFor( model )?.Mesh is not { } mesh ) return null;
+
+		Hold( mesh );
 
 		return new AggregateObject( mesh, SceneNative.ReadAggregateFragments( sceneObject ) ) { Lightmapped = lightmapped };
 	}
