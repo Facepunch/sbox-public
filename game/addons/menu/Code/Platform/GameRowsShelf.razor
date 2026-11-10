@@ -10,7 +10,7 @@
 <root class="game-rows">
     @for ( var i = 0; i < Rows.Length; i++ )
     {
-        <GameShelf Row=@Rows[i] MaxRows=@MaxRows( i ) OnPicked=@Pressed Skip=@ShownAbove( i )
+        <GameShelf Row=@Rows[i] MaxRows=@MaxRows( i ) OnPicked=@Pressed OnPickedItem=@PressedItem Skip=@ShownAbove( i )
                    OnSeeMore=@( ( GameRow row ) => PlatformRoot.Instance?.Browse( null, row.BrowseSort ) ) />
     }
 </root>
@@ -96,6 +96,11 @@
         growRoom = Math.Max( 0, Math.Min( tall, room ) - opens );
         return opens + Math.Min( grown, growRoom );
     }
+
+    /// <summary>
+    /// Your games are switched to by their Workshop item. Discover's open their page, which is by package.
+    /// </summary>
+    Action<WorkshopItemDetails> PressedItem => IsDiscover ? null : item => PlatformRoot.Instance?.Picked( item );
 
     void Pressed( Package package )
     {

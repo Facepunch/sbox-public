@@ -12,18 +12,18 @@
 *@
 <root>
 
-    @if ( Current is { } game )
+    @if ( PlatformMenu.HasGame )
     {
         <div class="nav">
             <div class="tier">
-                @if ( !game.Info.IsDedicatedServerOnly )
+                @if ( !IsDedicatedServerOnly )
                 {
-                    <div class="item @(WhyNot is null ? "" : "disabled")" tooltip="@(WhyNot ?? "")" onclick=@Play><label>@PlayText( game )</label></div>
+                    <div class="item @(WhyNot is null ? "" : "disabled")" tooltip="@(WhyNot ?? "")" onclick=@Play><label>@PlayText</label></div>
                 }
 
-                @if ( IsMultiplayer( game ) && !game.Info.IsQuickPlay )
+                @if ( IsMultiplayer && !IsQuickPlay )
                 {
-                    <div class="item" onclick=@FindMultiplayer><label>@(game.Info.IsDedicatedServerOnly ? "Find a Server" : "Find Multiplayer Game")</label></div>
+                    <div class="item" onclick=@FindMultiplayer><label>@(IsDedicatedServerOnly ? "Find a Server" : "Find Multiplayer Game")</label></div>
                 }
 
                 <div class="item" onclick=@( () => ModalSystem.Instance?.Settings() )><label>Options</label></div>
@@ -37,12 +37,31 @@
 {
     static Package Current => PlatformMenu.Current;
 
-    // A singleplayer game (MenuHelpers.IsSingleplayer) is just played - no servers, whatever its launch mode says
-    static bool IsMultiplayer( Package game ) => !MenuHelpers.IsSingleplayer( game ) && (game.Info.MaxPlayers > 1 || game.Info.IsQuickPlay || game.Info.IsDedicatedServerOnly);
+    /// <summary>
+    /// How it's played - from its Workshop item, so it's known before its package is in. A local project's from its
+    /// package.
+    /// </summary>
+    static string LaunchMode => PlatformMenu.LaunchMode;
 
-    static string PlayText( Package game ) => IsMultiplayer( game ) && !game.Info.IsQuickPlay ? "Start New Game" : "Play";
+    static int MaxPlayers => PlatformMenu.MaxPlayers;
 
-    static string WhyNot => PlatformMenu.WhyCantStart( Current );
+    static bool IsQuickPlay => string.Equals( LaunchMode, "quickplay", StringComparison.OrdinalIgnoreCase );
+
+    static bool IsDedicatedServerOnly => PlatformMenu.IsDedicatedServerOnly;
+
+    // Played on your own, as MenuHelpers.IsSingleplayer has it - no servers, whatever its launch mode says
+    static bool IsSingleplayer => MaxPlayers <= 1 || Modes is { Solo: true, Multiplayer: false };
+
+    static PlayerModes Modes => PlatformMenu.CurrentId != 0 ? PlayerModes.For( PlatformMenu.Details ) : PlayerModes.For( Current );
+
+    static bool IsMultiplayer => !IsSingleplayer && (MaxPlayers > 1 || IsQuickPlay || IsDedicatedServerOnly);
+
+    static string PlayText => IsMultiplayer && !IsQuickPlay ? "Start New Game" : "Play";
+
+    /// <summary>
+    /// Why it can't be played - and until its package is in, that it's still being got
+    /// </summary>
+    static string WhyNot => PlatformMenu.WhyCantStart() ?? (Current is not null ? null : PlatformMenu.PackageFailed ? "Couldn't load this game" : "Getting the game ready");
 
     /// <summary>
     /// Played the way it always is - but one with something to set up first is set up on the next page here, not in
@@ -57,5 +76,5 @@
 
     void FindMultiplayer() => FrontPages.Of( this )?.Navigate( FrontPages.Servers );
 
-    protected override int BuildHash() => HashCode.Combine( Current, WhyNot );
+    protected override int BuildHash() => HashCode.Combine( Current, PlatformMenu.Details, PlatformMenu.HasGame, PlatformMenu.PackageFailed, WhyNot );
 }

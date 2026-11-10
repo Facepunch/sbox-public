@@ -15,10 +15,10 @@
 *@
 <root class="@(Paused ? "paused" : "") @(OffHome ? "paging" : "")">
 
-    @if ( Shown is { } game )
+    @if ( ShownTitle is { } title )
     {
         <div class="header">
-            <label class="title">@game.Title</label>
+            <label class="title">@title</label>
         </div>
 
         @if ( Paused && page == OnPlayers )
@@ -88,6 +88,11 @@
     /// Paused, the game that's loaded - otherwise the platform's
     /// </summary>
     static Package Shown => PlatformMenu.Current ?? MenuUtility.GamePackage;
+
+    /// <summary>
+    /// Paused, the loaded game's name - otherwise the platform's (<see cref="PlatformMenu.Title"/>)
+    /// </summary>
+    string ShownTitle => Paused ? Shown?.Title : PlatformMenu.Title;
 
     /// <summary>
     /// In a networked game that doesn't hide its player list - as the old pause menu has it (PauseHome)
@@ -175,5 +180,5 @@
         actionsHash = hash;
     }
 
-    protected override int BuildHash() => HashCode.Combine( Paused, Shown, actionsHash, OffHome, ShowPlayers, page, CanChangeMap );
+    protected override int BuildHash() => HashCode.Combine( Paused, Shown, ShownTitle, actionsHash, OffHome, ShowPlayers, page, CanChangeMap );
 }

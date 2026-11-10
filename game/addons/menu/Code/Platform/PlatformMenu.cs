@@ -25,8 +25,10 @@ public static class PlatformMenu
 	{
 		Enabled = MenuUtility.PlatformMenu && !Application.IsEditor;
 
+		CurrentId = 0;
 		Current = null;
 		Details = null;
+		PackageFailed = false;
 		IsSwitching = false;
 		IsCovering = false;
 	}
@@ -37,6 +39,19 @@ public static class PlatformMenu
 	/// </summary>
 	public static bool CanSwitch => !Game.InGame || Game.IsOnMenu;
 
+	/// <summary>
+	/// Why the game the platform's on can't be started - a Workshop game's item says, a local project's package does
+	/// </summary>
+	public static string WhyCantStart()
+	{
+		if ( CurrentId == 0 ) return WhyCantStart( Current );
+
+		if ( !MenuHelpers.HasAuthority ) return "Only the party leader can start a game";
+		if ( Details?.GetMeta<ControlModeSettings>( "ControlModes", null )?.IsVROnly == true && !Application.IsVR ) return "This game needs a VR headset";
+
+		return null;
+	}
+
 	public static string WhyCantStart( Package game )
 	{
 		if ( !MenuHelpers.HasAuthority ) return "Only the party leader can start a game";
@@ -46,17 +61,56 @@ public static class PlatformMenu
 	}
 
 	/// <summary>
-	/// The game the platform's on. Null until the first switch.
+	/// The game the platform's on, by its Workshop id - 0 for a local project, or until the first switch
+	/// </summary>
+	public static ulong CurrentId { get; private set; }
+
+	/// <summary>
+	/// The game the platform's on, as a package - for a Workshop game, fetched alongside its Workshop item, so null
+	/// until it's in, or if it couldn't be. Only playing it needs it: everything else about a Workshop game is from its
+	/// item.
 	/// </summary>
 	public static Package Current { get; private set; }
 
 	/// <summary>
-	/// What the Workshop says about <see cref="Current"/> - its art, votes, owner. Null for a local project, or until
-	/// it's fetched.
+	/// The Workshop game's package couldn't be got - it can't be played
+	/// </summary>
+	public static bool PackageFailed { get; private set; }
+
+	/// <summary>
+	/// What the Workshop says about the game the platform's on - its name, art, votes, owner. Null for a local
+	/// project, or until it's fetched.
 	/// </summary>
 	public static WorkshopItemDetails Details { get; private set; }
 
-	public static string Art => Details?.Images.FirstOrDefault() ?? Current?.ThumbWide ?? Current?.Thumb;
+	/// <summary>
+	/// On a game - by its Workshop id, or a local project
+	/// </summary>
+	public static bool HasGame => CurrentId != 0 || Current is not null;
+
+	//
+	// About the game the platform's on - a Workshop game's from its item only, a local project's from its package
+	//
+
+	public static string Title => CurrentId != 0 ? Details?.Title : Current?.Title;
+
+	public static string Art => CurrentId != 0 ? Details?.Images.FirstOrDefault() ?? Details?.Thumb : Current?.ThumbWide ?? Current?.Thumb;
+
+	public static string LaunchMode => (CurrentId != 0 ? Details?.GetMeta( "LaunchMode", "default" ) : Current?.Info.LaunchMode) ?? "default";
+
+	public static int MaxPlayers => (CurrentId != 0 ? Details?.GetMeta( "MaxPlayers", 1 ) : Current?.Info.MaxPlayers) ?? 1;
+
+	public static bool IsDedicatedServerOnly => string.Equals( LaunchMode, "dedicatedserveronly", StringComparison.OrdinalIgnoreCase );
+
+	/// <summary>
+	/// The ident the game the platform's on is played under - what its servers are found by
+	/// </summary>
+	public static string Ident => CurrentId != 0 ? Details?.KeyValues.GetValueOrDefault( "package" ) : Current?.FullIdent;
+
+	/// <summary>
+	/// Sandbox's Workshop item - the game the platform opens on before anything's been picked
+	/// </summary>
+	public const ulong SandboxWorkshopId = 3832911306;
 
 	/// <summary>
 	/// Local projects opened this run (<c>-rungame path/to/game.sbproj</c>). Never remembered.
@@ -70,9 +124,22 @@ public static class PlatformMenu
 	public static bool HasOwnMenu( Package package )
 	{
 		if ( package is null ) return false;
-		if ( !string.IsNullOrWhiteSpace( package.GetMeta<string>( "MenuScene", null ) ) ) return true;
+		return !string.IsNullOrWhiteSpace( package.GetMeta<string>( "MenuScene", null ) );
+	}
 
-		return package == Current && (Details?.KeyValues.Keys.Contains( "MenuScene", StringComparer.OrdinalIgnoreCase ) ?? false);
+	/// <summary>
+	/// The game the platform's on brings its own menu scene - its Workshop item says, before its package is in
+	/// </summary>
+	public static bool CurrentHasOwnMenu => CurrentId != 0 ? Details?.KeyValues.Keys.Contains( "MenuScene", StringComparer.OrdinalIgnoreCase ) ?? false : HasOwnMenu( Current );
+
+	/// <summary>
+	/// <paramref name="package"/> is the game the platform's on
+	/// </summary>
+	public static bool IsCurrent( Package package )
+	{
+		if ( package is null ) return false;
+
+		return SameGame( package, Current ) || (package.IsRemote && CurrentId != 0 && MenuUtility.KnownWorkshopId( package ) == CurrentId);
 	}
 
 	/// <summary>
@@ -99,11 +166,8 @@ public static class PlatformMenu
 		set => Game.Cookies.Set( RecentCookie, value );
 	}
 
-	static async Task Remember( Package package )
+	static void Remember( ulong id )
 	{
-		if ( !package.IsRemote ) return;
-
-		var id = await MenuUtility.GetWorkshopIdAsync( package );
 		if ( id == 0 ) return;
 
 		Game.Cookies.Set( GameCookie, id );
@@ -142,21 +206,48 @@ public static class PlatformMenu
 		if ( Game.InGame && !Game.IsOnMenu && MenuUtility.GamePackage is { } playing )
 		{
 			Current = playing;
-			_ = Remember( playing );
-			_ = FetchDetailsAsync( playing );
+			_ = AdoptAsync( playing );
 			RefreshShelves();
 			return;
 		}
 
-		var startup = StartupGame();
-
 		Run( async () =>
 		{
-			var package = await startup;
-			if ( package is not null ) await Switch( package );
+			var startup = MenuUtility.StartupGameIdent;
+
+			// A local project, or a game by its ident - on the command line
+			if ( startup?.EndsWith( ".sbproj", StringComparison.OrdinalIgnoreCase ) == true )
+			{
+				if ( await MenuUtility.AddLocalGame( startup ) is { } local ) await Switch( local );
+				return;
+			}
+
+			if ( !string.IsNullOrWhiteSpace( startup ) )
+			{
+				if ( await Package.FetchAsync( startup, false ) is { } given ) await Switch( given );
+				return;
+			}
+
+			// The game picked last time, or Sandbox
+			await Switch( Game.Cookies.Get<ulong>( GameCookie, 0 ) is var id and not 0 ? id : SandboxWorkshopId );
 		} );
 
 		RefreshShelves();
+	}
+
+	/// <summary>
+	/// The game being played when the platform came on - its Workshop item, to show it by
+	/// </summary>
+	static async Task AdoptAsync( Package playing )
+	{
+		var id = await MenuUtility.GetWorkshopIdAsync( playing );
+		if ( id == 0 || Current != playing ) return;
+
+		CurrentId = id;
+		Remember( id );
+
+		var details = await MenuUtility.FetchWorkshopItemAsync( id );
+		if ( CurrentId == id ) Details = details;
 	}
 
 	/// <summary>
@@ -166,22 +257,6 @@ public static class PlatformMenu
 	{
 		foreach ( var row in Discover.Prepend( Favourites ).Prepend( YourGames ) )
 			_ = row.RefreshAsync();
-	}
-
-	static async Task<Package> StartupGame()
-	{
-		var startup = MenuUtility.StartupGameIdent;
-
-		if ( startup?.EndsWith( ".sbproj", StringComparison.OrdinalIgnoreCase ) == true )
-			return await MenuUtility.AddLocalGame( startup );
-
-		if ( !string.IsNullOrWhiteSpace( startup ) )
-			return await Package.FetchAsync( startup, false );
-
-		if ( Game.Cookies.Get<ulong>( GameCookie, 0 ) is var id and not 0 && await MenuUtility.FetchWorkshopGameAsync( id ) is { } remembered )
-			return remembered;
-
-		return await MenuUtility.FetchDefaultGameAsync();
 	}
 
 	/// <summary>
@@ -195,16 +270,19 @@ public static class PlatformMenu
 	}
 
 	/// <summary>
+	/// Switch to the game published as Workshop item <paramref name="id"/>, behind the blur
+	/// </summary>
+	public static void SwitchTo( ulong id )
+	{
+		if ( id == 0 ) return;
+
+		Run( () => Switch( id ) );
+	}
+
+	/// <summary>
 	/// Out of whatever's being played, onto Sandbox - the way out of a game, whatever it does with its scenes
 	/// </summary>
-	public static void LeaveToDefault()
-	{
-		Run( async () =>
-		{
-			if ( await MenuUtility.FetchDefaultGameAsync() is { } sandbox )
-				await Switch( sandbox );
-		} );
-	}
+	public static void LeaveToDefault() => SwitchTo( SandboxWorkshopId );
 
 	/// <summary>
 	/// Back onto <see cref="Current"/>'s menu after a game closed itself - once it's gone. Its teardown runs a tick
@@ -215,51 +293,125 @@ public static class PlatformMenu
 		Run( async () =>
 		{
 			await WaitUntil( () => !Game.InGame );
-			await Switch( Current ?? closing );
+
+			if ( CurrentId != 0 ) await Switch( CurrentId );
+			else await Switch( Current ?? closing );
 		} );
 	}
 
+	/// <summary>
+	/// Onto a local project - or a game by its package, which goes by its Workshop id if it has one
+	/// </summary>
 	static async Task Switch( Package package )
 	{
-		// The picker's copy is partial - the full one has its meta
 		if ( package.IsRemote )
+		{
+			if ( await MenuUtility.GetWorkshopIdAsync( package ) is var id and not 0 )
+			{
+				await Switch( id );
+				return;
+			}
+
+			// The picker's copy is partial - the full one has its meta
 			package = await Package.FetchAsync( package.FullIdent, false ) ?? package;
+		}
 
 		if ( !package.IsRemote && !LocalGames.Any( x => SameGame( x, package ) ) )
 			LocalGames.Add( package );
 
+		CurrentId = 0;
 		Current = package;
 		Details = null;
+		PackageFailed = false;
 
-		_ = Remember( package );
-
-		// The front's made from what the Workshop says, which comes in on its own. It's only waited on when it's
-		// what says whether the game has a menu of its own - not when its meta already does
-		var details = FetchDetailsAsync( package );
-		if ( !HasOwnMenu( package ) )
-			await details;
-
-		// Nothing to load for the default front - it's loaded when it's played. Nor in someone else's party, where
-		// the leader picks what's played. Just out of whatever's running - and downloaded, behind the front, so it's
-		// there to play.
-		if ( !HasOwnMenu( package ) || !MenuHelpers.HasAuthority )
+		// Not in someone else's party, where the leader picks what's played
+		if ( HasOwnMenu( package ) && MenuHelpers.HasAuthority )
 		{
-			_ = DownloadAsync( package );
-
-			var art = PreloadArtAsync();
-
-			if ( Game.InGame )
-			{
-				Game.Close();
-				await WaitUntil( () => !Game.InGame );
-			}
-
-			await art;
+			await OpenOwnMenu( package );
 			return;
 		}
 
-		// The load leaves whatever's running itself, before it starts - not closed first, which tears down a tick
-		// later and can reset everything under the load
+		_ = DownloadAsync( package );
+		await ShowFront();
+	}
+
+	/// <summary>
+	/// Onto the game published as Workshop item <paramref name="id"/> - its front's made from the Workshop item, and
+	/// its package comes alongside (<see cref="SideloadAsync"/>). Only a game with its own menu scene waits on that,
+	/// to load it.
+	/// </summary>
+	static async Task Switch( ulong id )
+	{
+		CurrentId = id;
+		Current = null;
+		Details = null;
+		PackageFailed = false;
+
+		Remember( id );
+
+		var details = await MenuUtility.FetchWorkshopItemAsync( id );
+		if ( CurrentId != id ) return;
+
+		Details = details;
+
+		// Not in someone else's party, where the leader picks what's played
+		var ownMenu = CurrentHasOwnMenu && MenuHelpers.HasAuthority;
+		var package = SideloadAsync( id, download: !ownMenu );
+
+		if ( ownMenu && await package is { } loaded && CurrentId == id )
+		{
+			await OpenOwnMenu( loaded );
+			return;
+		}
+
+		await ShowFront();
+	}
+
+	/// <summary>
+	/// The package for Workshop item <paramref name="id"/>, as <see cref="Current"/> once it's in - downloaded, behind
+	/// the front, so it's there to play
+	/// </summary>
+	static async Task<Package> SideloadAsync( ulong id, bool download )
+	{
+		var package = await MenuUtility.FetchWorkshopGameAsync( id );
+		if ( CurrentId != id ) return null;
+
+		if ( package is null )
+		{
+			Log.Warning( $"Couldn't get the package for Workshop item {id}" );
+			PackageFailed = true;
+			return null;
+		}
+
+		Current = package;
+
+		if ( download ) _ = DownloadAsync( package );
+		return package;
+	}
+
+	/// <summary>
+	/// The default front - nothing to load, it's loaded when it's played. Just out of whatever's running, with its art
+	/// ready.
+	/// </summary>
+	static async Task ShowFront()
+	{
+		var art = PreloadArtAsync();
+
+		if ( Game.InGame )
+		{
+			Game.Close();
+			await WaitUntil( () => !Game.InGame );
+		}
+
+		await art;
+	}
+
+	/// <summary>
+	/// Loaded onto its own menu scene. The load leaves whatever's running itself, before it starts - not closed first,
+	/// which tears down a tick later and can reset everything under the load.
+	/// </summary>
+	static async Task OpenOwnMenu( Package package )
+	{
 		await MenuUtility.OpenGameMenu( package.FullIdent );
 		await WaitUntil( () => !LoadingScreen.IsVisible );
 	}
@@ -274,17 +426,6 @@ public static class PlatformMenu
 
 		if ( !await MenuUtility.InstallWorkshopItemAsync( package ) )
 			Log.Warning( $"Couldn't download {package.FullIdent}" );
-	}
-
-	static async Task FetchDetailsAsync( Package package )
-	{
-		var id = await MenuUtility.GetWorkshopIdAsync( package );
-		if ( id == 0 ) return;
-
-		var details = await MenuUtility.FetchWorkshopItemAsync( id );
-		if ( Current != package ) return;
-
-		Details = details;
 	}
 
 	/// <summary>
@@ -386,27 +527,13 @@ public static class PlatformMenu
 		var games = await MenuUtility.FindYourWorkshopGamesAsync( recent );
 
 		// Sandbox is always there - where it was played if it was, otherwise on the end, after everything installed
-		if ( await SandboxWorkshopIdAsync() is not (not 0 and var id) || recent.Contains( id ) ) return games;
+		var id = SandboxWorkshopId;
+		if ( recent.Contains( id ) ) return games;
 
 		var sandbox = games.FirstOrDefault( x => x.Id == id ) ?? await MenuUtility.FetchWorkshopItemAsync( id );
 		if ( sandbox is null ) return games;
 
 		return [.. games.Where( x => x.Id != id ), sandbox];
-	}
-
-	static ulong sandboxWorkshopId;
-
-	/// <summary>
-	/// Sandbox's Workshop id - asked once, then kept
-	/// </summary>
-	static async Task<ulong> SandboxWorkshopIdAsync()
-	{
-		if ( sandboxWorkshopId != 0 ) return sandboxWorkshopId;
-
-		if ( await MenuUtility.FetchDefaultGameAsync() is { } sandbox )
-			sandboxWorkshopId = await MenuUtility.GetWorkshopIdAsync( sandbox );
-
-		return sandboxWorkshopId;
 	}
 
 	/// <summary>

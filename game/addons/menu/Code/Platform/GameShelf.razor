@@ -49,7 +49,7 @@
 
             @foreach ( var item in Games )
             {
-                <div class="cell" style="@CellStyle"><GameCard Item=@item OnPicked=@OnPicked /></div>
+                <div class="cell" style="@CellStyle"><GameCard Item=@item OnPicked=@OnPicked OnPickedItem=@OnPickedItem /></div>
             }
 
             @if ( IsYours && Shown < Columns )
@@ -76,6 +76,8 @@
     List<Package> Local => IsYours ? PlatformMenu.LocalGames : null;
 
     [Parameter] public Action<Package> OnPicked { get; set; }
+
+    [Parameter] public Action<WorkshopItemDetails> OnPickedItem { get; set; }
 
     /// <summary>
     /// Games not to show - they're on a row above already

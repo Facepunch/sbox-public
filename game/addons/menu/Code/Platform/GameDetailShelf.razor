@@ -40,9 +40,9 @@
                     <PackageReactions Package=@Package ShowReviews=@false OnWorkshop=@OnWorkshop Workshop=@WorkshopItem OnHidden=@Back />
                 }
 
-                @if ( OnWorkshop && Package is not null )
+                @if ( OnWorkshop && WorkshopId != 0 )
                 {
-                    <div class="tool" onclick=@( () => _ = MenuUtility.OpenWorkshopPageAsync( Package ) ) tooltip="Open on the Workshop"><i>open_in_new</i></div>
+                    <div class="tool" onclick=@( () => MenuUtility.OpenUrl( $"steam://url/CommunityFilePage/{WorkshopId}" ) ) tooltip="Open on the Workshop"><i>open_in_new</i></div>
                 }
             </Tools>
         </PanelHead>
@@ -391,7 +391,7 @@
         else MenuUtility.Subscribe( WorkshopId );
     }
 
-    bool IsCurrent => PlatformMenu.SameGame( Package, PlatformMenu.Current );
+    bool IsCurrent => (WorkshopId != 0 && WorkshopId == PlatformMenu.CurrentId) || PlatformMenu.IsCurrent( Package );
 
     void Open()
     {
@@ -469,7 +469,9 @@
 
     void Switch()
     {
-        if ( Package is not null ) PlatformRoot.Instance?.Picked( Package );
+        // By its Workshop item when it has one - switched to without waiting on its package
+        if ( WorkshopItem is not null ) PlatformRoot.Instance?.Picked( WorkshopItem );
+        else if ( Package is not null ) PlatformRoot.Instance?.Picked( Package );
     }
 
     public override void Tick()

@@ -98,7 +98,7 @@
         {
             if ( !Visible ) return false;
             if ( Paused || Covered || ClicksOff ) return true;
-            if ( !Game.InGame || !PlatformMenu.HasOwnMenu( PlatformMenu.Current ) ) return true;
+            if ( !Game.InGame || !PlatformMenu.CurrentHasOwnMenu ) return true;
 
             // Over a game's own menu, the game has the mouse - so nothing here's hovered, and asking that would never
             // hand it over. Where the pointer is says if it's over the dock.
@@ -153,7 +153,7 @@
     /// <summary>
     /// Not while a switch is going - it goes out under the veil and comes back in with the new game.
     /// </summary>
-    bool ShowFront => Paused || (!PlatformMenu.IsSwitching && PlatformMenu.Current is not null && PlatformMenu.CanSwitch && !PlatformMenu.HasOwnMenu( PlatformMenu.Current ));
+    bool ShowFront => Paused || (!PlatformMenu.IsSwitching && PlatformMenu.HasGame && PlatformMenu.CanSwitch && (!PlatformMenu.CurrentHasOwnMenu || PlatformMenu.PackageFailed));
 
     readonly List<(int Id, string Art)> backdrops = new();
     int backdropsAdded;
@@ -343,19 +343,38 @@
     {
         Shelves?.Close();
 
-        if ( package is null || PlatformMenu.SameGame( package, PlatformMenu.Current ) ) return;
+        if ( package is null || PlatformMenu.IsCurrent( package ) ) return;
 
+        SwitchWhenLeft( () => PlatformMenu.SwitchTo( package ) );
+    }
+
+    /// <summary>
+    /// A game picked by its Workshop item - switched to without waiting on its package
+    /// </summary>
+    public void Picked( WorkshopItemDetails item )
+    {
+        Shelves?.Close();
+
+        if ( item is null || item.Id == PlatformMenu.CurrentId ) return;
+
+        SwitchWhenLeft( () => PlatformMenu.SwitchTo( item.Id ) );
+    }
+
+    /// <summary>
+    /// Switched now - or in a game, left for it, once that's confirmed
+    /// </summary>
+    void SwitchWhenLeft( Action switchTo )
+    {
         if ( PlatformMenu.CanSwitch )
         {
-            PlatformMenu.SwitchTo( package );
+            switchTo();
             return;
         }
 
-        // In a game - left for the one picked, once it's confirmed
         MenuHelpers.ConfirmLeave( () =>
         {
             Resume();
-            PlatformMenu.SwitchTo( package );
+            switchTo();
         } );
     }
 

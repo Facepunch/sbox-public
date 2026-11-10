@@ -29,7 +29,7 @@
     </div>
 
     <div class="panel" @ref="PanelBox">
-        <PanelHead Title=@(PlatformMenu.Current?.Info.IsDedicatedServerOnly == true ? "Find a Server" : "Find Multiplayer Game") Icon="public" Art=@PlatformMenu.Current?.Thumb
+        <PanelHead Title=@(PlatformMenu.IsDedicatedServerOnly ? "Find a Server" : "Find Multiplayer Game") Icon="public" Art=@PlatformMenu.Art
                    Back=@Back Search="Search servers or maps" OnSearch=@( ( string text ) => { search = text ?? ""; } )>
             <Tools>
                 <div class="tool @(refreshing ? "busy" : "")" onclick=@Refresh tooltip="Refresh"><i>refresh</i></div>
@@ -77,7 +77,7 @@
     double nextRefresh;
     string loadedFor;
 
-    static string Ident => PlatformMenu.Current?.FullIdent;
+    static string Ident => PlatformMenu.Ident;
 
     List<LobbyInformation> Shown
     {

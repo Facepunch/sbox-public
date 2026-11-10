@@ -70,9 +70,14 @@
 
     [Parameter] public Action<Package> OnPicked { get; set; }
 
+    /// <summary>
+    /// A Workshop game picked by its item, rather than its package (<see cref="OnPicked"/>)
+    /// </summary>
+    [Parameter] public Action<WorkshopItemDetails> OnPickedItem { get; set; }
+
     bool Selected => Local is not null
         ? PlatformMenu.SameGame( Local, PlatformMenu.Current )
-        : Item is not null && Item.Id == MenuUtility.KnownWorkshopId( PlatformMenu.Current );
+        : Item is not null && Item.Id == PlatformMenu.CurrentId;
 
     bool Subscribed => Item is not null && MenuUtility.IsSubscribed( Item.Id );
 
@@ -118,6 +123,12 @@
         }
 
         if ( Item is null ) return;
+
+        if ( OnPickedItem is not null )
+        {
+            OnPickedItem( Item );
+            return;
+        }
 
         var game = await MenuUtility.FetchWorkshopGameAsync( Item.Id );
         if ( game is null )
