@@ -12,6 +12,12 @@ public static partial class MenuUtility
 	public static bool PlatformMenu { get; set; }
 
 	/// <summary>
+	/// The part of the screen that's the game's (<see cref="Screen.SafeArea"/>) - what the platform menu leaves clear,
+	/// its dock over a game's own menu. Null gives it the whole screen again.
+	/// </summary>
+	public static void SetSafeArea( Rect? area ) => Screen.SafeAreaOverride = area;
+
+	/// <summary>
 	/// Add a game project from disk (its .sbproj) and compile it here, against this engine - so a game can be tried in
 	/// the menu without publishing it. Its local package, or null if it didn't load.
 	/// </summary>

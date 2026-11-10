@@ -133,9 +133,25 @@ public static partial class Game
 	public static SceneTrace SceneTrace => Game.ActiveScene.Trace;
 
 	/// <summary>
-	/// Close the current game.
+	/// Close the current game. Ignored while it's on its menu (<see cref="IsOnMenu"/>) - that's the platform menu's to
+	/// close, and closing it from under it leaves nothing running; start it with <see cref="StartGame"/> instead.
 	/// </summary>
 	public static void Close()
+	{
+		// A warning, not an exception - a Quit button on a game's own menu is common, and it's just ignored
+		if ( IsOnMenu && GlobalContext.Current != GlobalContext.Menu )
+		{
+			Log.Warning( "Game.Close() ignored - the game can't close itself while it's on its menu, the platform menu does that. Use Game.StartGame() to start it." );
+			return;
+		}
+
+		CloseGame();
+	}
+
+	/// <summary>
+	/// Close the current game, whatever it's on - the engine's own way out, under <see cref="Close"/>'s check
+	/// </summary>
+	internal static void CloseGame()
 	{
 		// Editor only: just exit playmode
 		if ( IToolsDll.Current is not null )

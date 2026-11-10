@@ -615,7 +615,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 		// cancel any in-progress load right now instead of waiting for tick
 		CancelLoad();
-		Game.Close();
+		Game.CloseGame();
 
 		if ( !string.IsNullOrEmpty( message ) )
 		{

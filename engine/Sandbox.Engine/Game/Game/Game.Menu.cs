@@ -22,7 +22,7 @@ public static partial class Game
 
 		// Couldn't open its startup scene, nor its menu again
 		if ( !await instance.StartFromMenu() && !instance.IsOnMenu )
-			Close();
+			CloseGame();
 	}
 
 	/// <summary>
@@ -36,6 +36,6 @@ public static partial class Game
 		await Task.Yield();
 
 		if ( IGameInstance.Current is { } instance && !instance.ReturnToMenu() )
-			Close();
+			CloseGame();
 	}
 }

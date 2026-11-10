@@ -136,8 +136,8 @@ public static class MenuHelpers
 			return;
 		}
 
-		// QuickPlay: try to join an existing lobby first
-		if ( package.Info.IsQuickPlay )
+		// QuickPlay: try to join an existing lobby first - not for a game played on your own, whatever its launch mode
+		if ( package.Info.IsQuickPlay && !IsSingleplayer( package ) )
 		{
 			// A lobby search is a go at playing it, whether it finds one or makes its own after
 			ReportPlay( package, via, source );
@@ -306,9 +306,22 @@ public static class MenuHelpers
 		await Task.Delay( LoadWarmUpMilliseconds );
 	}
 
+	/// <summary>
+	/// Played on your own - one player at most, or made for one (its RecommendedMaxPlayers, coop and versus, or failing
+	/// those its tags - PlayerModes). Never a lobby search or a server's settings, whatever its launch mode or player
+	/// count says.
+	/// </summary>
+	public static bool IsSingleplayer( Package package )
+	{
+		if ( package.Info.MaxPlayers <= 1 ) return true;
+
+		var modes = MenuProject.PlayerModes.For( package );
+		return modes.Solo && !modes.Multiplayer;
+	}
+
 	static bool NeedsSetup( Package package )
 	{
-		if ( package.Tags.Contains( "multiplayer" ) || package.Info.MaxPlayers > 1 )
+		if ( !IsSingleplayer( package ) && (package.Tags.Contains( "multiplayer" ) || package.Info.MaxPlayers > 1) )
 			return true;
 
 		if ( package.Info.UsesCreateGameModal )

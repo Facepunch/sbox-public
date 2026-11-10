@@ -393,6 +393,33 @@
             CloseSide();
 
         UpdateBackdrops();
+        UpdateSafeArea();
+    }
+
+    Rect? safeArea;
+
+    /// <summary>
+    /// Over a game's own menu, the screen above the dock is the game's (Screen.SafeArea) - its screen panels laid out
+    /// there rather than under it. The whole screen again once it's being played, or the dock's not up.
+    /// </summary>
+    void UpdateSafeArea()
+    {
+        Rect? area = Visible && Game.InGame && Game.IsOnMenu && DockPanel.IsValid()
+            ? new Rect( 0, 0, Screen.Width, DockPanel.Box.Rect.Top )
+            : null;
+
+        if ( area == safeArea ) return;
+
+        safeArea = area;
+        MenuUtility.SetSafeArea( area );
+    }
+
+    public override void OnDeleted()
+    {
+        base.OnDeleted();
+
+        // Gone with the menu - the game has the whole screen back
+        MenuUtility.SetSafeArea( null );
     }
 
     protected override int BuildHash() => HashCode.Combine( Visible, ShowFront, Paused, Shelf, SettingsPage, HashCode.Combine( backdrops.Count, backdropsAdded, Paging ), HashCode.Combine( PlatformMenu.IsSwitching, PlatformMenu.IsCovering, Downloading, Side, ClicksOff ) );

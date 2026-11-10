@@ -29,6 +29,31 @@ public static class Screen
 	public static float Height => Size.y;
 
 	/// <summary>
+	/// The part of the screen that's the game's to put its UI in - all of it, unless the platform menu has something
+	/// over part of it (its dock, over a game's own menu). Screen panels lay out inside it.
+	/// </summary>
+	public static Rect SafeArea
+	{
+		get
+		{
+			var screen = new Rect( 0, 0, Width, Height );
+			if ( SafeAreaOverride is not { } area ) return screen;
+
+			// Kept to the screen, as it may have changed size since
+			var left = Math.Clamp( area.Left, 0, Width );
+			var top = Math.Clamp( area.Top, 0, Height );
+			var right = Math.Clamp( area.Right, left, Width );
+			var bottom = Math.Clamp( area.Bottom, top, Height );
+			return new Rect( left, top, MathF.Max( 1, right - left ), MathF.Max( 1, bottom - top ) );
+		}
+	}
+
+	/// <summary>
+	/// Set by the platform menu (MenuUtility.SetSafeArea) - null is the whole screen
+	/// </summary>
+	internal static Rect? SafeAreaOverride { get; set; }
+
+	/// <summary>
 	/// The aspect ratio of the screen. Equal to Width/Height, or 1 if the screen size is not yet known.
 	/// </summary>
 	public static float Aspect => Height > 0 ? Width / Height : 1f;

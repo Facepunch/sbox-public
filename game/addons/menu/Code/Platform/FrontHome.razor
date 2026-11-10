@@ -37,7 +37,8 @@
 {
     static Package Current => PlatformMenu.Current;
 
-    static bool IsMultiplayer( Package game ) => game.Info.MaxPlayers > 1 || game.Info.IsQuickPlay || game.Info.IsDedicatedServerOnly;
+    // A singleplayer game (MenuHelpers.IsSingleplayer) is just played - no servers, whatever its launch mode says
+    static bool IsMultiplayer( Package game ) => !MenuHelpers.IsSingleplayer( game ) && (game.Info.MaxPlayers > 1 || game.Info.IsQuickPlay || game.Info.IsDedicatedServerOnly);
 
     static string PlayText( Package game ) => IsMultiplayer( game ) && !game.Info.IsQuickPlay ? "Start New Game" : "Play";
 
