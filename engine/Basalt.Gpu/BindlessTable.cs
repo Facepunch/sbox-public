@@ -7,7 +7,8 @@ namespace Basalt.Gpu;
 /// <c>g_globalLateBoundBindlessSet</c> (<see cref="ShaderAbi"/>): samplers at 29, the vertex cache at 49, pipeline
 /// texture indices at 60, sampled textures at 62 and storage textures at 190. Textures take linear/sRGB pairs of slots.
 /// Every binding is partially bound and update-after-bind; a freed slot is reused only once the device has finished
-/// the frames that could read it (the device defers removals).
+/// the frames that could read it (the device defers removals). Texture slots 0 and 1 are never handed out: s&amp;box's
+/// shaders read a texture index of 0 as none (an image-less UI box, a disabled pipeline texture), as native's table does.
 /// </summary>
 internal sealed unsafe class BindlessTable : IDisposable
 {
@@ -24,12 +25,12 @@ internal sealed unsafe class BindlessTable : IDisposable
 	public ulong Set { get; }
 
 	/// <summary>
-	/// Hands out slots: never-used ones first, then freed ones.
+	/// Hands out slots from <paramref name="first"/>: never-used ones first, then freed ones.
 	/// </summary>
-	sealed class SlotAllocator( int capacity, int stride, string kind )
+	sealed class SlotAllocator( int capacity, int stride, string kind, int first = 0 )
 	{
 		readonly Stack<int> free = new();
-		int next;
+		int next = first;
 
 		public int Allocate()
 		{
@@ -53,7 +54,7 @@ internal sealed unsafe class BindlessTable : IDisposable
 	{
 		this.device = device;
 		vk = device.Vk;
-		textures = new SlotAllocator( textureCount, 2, "texture" );
+		textures = new SlotAllocator( textureCount, 2, "texture", first: 2 );
 		samplers = new SlotAllocator( samplerCount, 1, "sampler" );
 		storage = new SlotAllocator( storageCount, 1, "storage texture" );
 
