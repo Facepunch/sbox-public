@@ -445,6 +445,11 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		camera.OnPreRender( renderSize );
 		var (mirror, state) = Prepare( camera, setup, renderSize );
 		state.System.Render( mirror.World, state.View, new GpuSwapChain( swapChain ), renderSize, state.Stages );
+
+		// Native's swap chain render adds DefaultGameUI to the camera's view with engine overlays (CCameraRenderer::Render,
+		// AddOverlaysToView): here it's a native view of its own, after the frame
+		if ( setup.EnableDebugOverlays ?? camera.EnableEngineOverlays )
+			CCameraRenderer.RenderDefaultGameUI( swapChain );
 	}
 
 	public void RenderToTexture( SceneCamera camera, Texture target, Vector2? size, in ViewSetup setup )
