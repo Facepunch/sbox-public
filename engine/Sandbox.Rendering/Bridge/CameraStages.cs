@@ -63,6 +63,7 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 	public float BeginFrame( SceneCamera camera, RenderView renderView, in ViewSetup setup, bool updateExposure )
 	{
 		Camera = camera;
+		reflection = setup.Reflection;
 		camera.ScheduleEarlyPostProcess( Stage.AfterDepthPrepass, false );
 		view.PostProcessEnabled = setup.EnablePostprocessing ?? camera.EnablePostProcessing;
 		EnableUI = setup.EnableUI ?? camera.RenderUI;
@@ -79,6 +80,12 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 	}
 
 	RenderView mainView;
+
+	/// <summary>
+	/// Whether the frame is a reflection (<see cref="ViewSetup.Reflection"/>): no screen-space reflections or auto exposure, as
+	/// native's pipeline leaves them out of one.
+	/// </summary>
+	bool reflection;
 
 	/// <summary>
 	/// Restore the main camera and forward layer for stage rendering: the view as rendered, with any overrides of the camera.
@@ -176,9 +183,9 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 	/// <summary>
 	/// Whether the frame traces screen-space reflections: the camera's main views only, as native's pipeline leaves them out of
 	/// child views (<c>StandardPipeline</c>: a view with a parent). Traced in a child too, they'd share the camera's history and
-	/// output, and add reflections native's child doesn't have.
+	/// output, and add reflections native's child doesn't have. Nor in a reflection.
 	/// </summary>
-	public bool HasScreenSpaceReflections => !view.IsChild && Camera?.ScreenSpaceReflections is not null;
+	public bool HasScreenSpaceReflections => !view.IsChild && !reflection && Camera?.ScreenSpaceReflections is not null;
 
 	public void RenderScreenSpaceReflections( bool history, in StageTarget target )
 	{
@@ -228,8 +235,8 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 		// Inherit frame constants, lighting and bindless descriptors.
 		var contextAttributes = BeginStageAttributes( context, target );
 
-		// Query HDR luminance before tonemapping, with HDR colour unbound.
-		if ( stage == RenderStage.Tonemapping && tonemap.IsValid )
+		// Query HDR luminance before tonemapping, with HDR colour unbound. Nothing reads a reflection's.
+		if ( stage == RenderStage.Tonemapping && tonemap.IsValid && !reflection )
 		{
 			RenderTools.BindColorAndDepthTarget( context, default, target.Depth.Native(), false );
 			var rect = target.Viewport;

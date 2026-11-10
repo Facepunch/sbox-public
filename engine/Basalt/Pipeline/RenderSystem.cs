@@ -109,6 +109,7 @@ public sealed partial class RenderSystem : IDisposable
 	{
 		SharedPasses.WarmUp();
 		Gpu.ContactShadows.WarmUp();
+		OutputFlipLayer.WarmUp();
 	}
 
 	/// <summary>
@@ -305,11 +306,12 @@ public sealed partial class RenderSystem : IDisposable
 		lap = prepared;
 
 		// Update fog settings, history and resources.
-		fog.BeginFrame( world.Lighting.VolumetricFog, world.FogVolumes.Count > 0 );
+		fog.BeginFrame( world.Lighting.VolumetricFog, world.FogVolumes.Count > 0 && !view.Reflection );
 
 		// Acquire the mask before setup writes its index to sun constants.
 		_ = Layers;
 		frame.ContactShadowMask = contactShadows?.MaskFor( frame );
+		if ( frame.Output.FlipInto is not null ) OutputFlipLayer.WarmUp();
 
 		// Plan first: serial recording shares the frame context with skybox setup.
 		var skyFrame = frame.Skybox;
@@ -507,6 +509,14 @@ public sealed partial class RenderSystem : IDisposable
 		// Over the camera's attributes, as CameraRenderer.Configure sets it
 		context.Attributes.Set( LightModulatorsDisabledName, !view.LightModulators );
 
+		// A reflection's, over the camera's (CameraRenderer.Configure): nothing in it reads prepass normals
+		if ( view.Reflection )
+		{
+			context.Attributes.Set( IsReflectionName, true );
+			context.Attributes.Set( ReflectionShadowsName, view.ReflectionShadows );
+			context.Attributes.Set( NeedsDepthNormalsName, false );
+		}
+
 		// Glass reads the native 3D skybox pipeline's combo (Skybox3DPipeline).
 		if ( isSkybox ) context.Attributes.SetCombo( SkyboxCombo, 1 );
 
@@ -551,6 +561,9 @@ public sealed partial class RenderSystem : IDisposable
 	long lap;
 	static readonly StringToken ToolsVisModeName = new( "ToolsVisMode" );
 	static readonly StringToken LightModulatorsDisabledName = new( "LightModulatorsDisabled" );
+	static readonly StringToken IsReflectionName = new( "IsReflection" );
+	static readonly StringToken ReflectionShadowsName = new( "ReflectionShadows" );
+	static readonly StringToken NeedsDepthNormalsName = new( "NeedsDepthNormals" );
 
 	/// <summary>
 	/// Current or last rendered frame.

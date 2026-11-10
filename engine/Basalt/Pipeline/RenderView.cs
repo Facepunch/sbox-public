@@ -100,6 +100,18 @@ public sealed class RenderView
 	public bool DepthNormals { get; set; }
 
 	/// <summary>
+	/// A reflection (<c>ViewSetup.Reflection</c>), drawn as native's pipeline draws one: no contact shadows, volumetric fog or
+	/// bloom objects, and no shadows unless <see cref="ReflectionShadows"/>, then cascades no other view shares. Shaders and
+	/// command lists see <c>IsReflection</c>, <c>ReflectionShadows</c> and <c>NeedsDepthNormals</c> (off).
+	/// </summary>
+	public bool Reflection { get; set; }
+
+	/// <summary>
+	/// Whether a <see cref="Reflection"/> draws shadows (<c>r.reflections.shadows</c>).
+	/// </summary>
+	public bool ReflectionShadows { get; set; }
+
+	/// <summary>
 	/// Optional camera and scene attributes, merged before pipeline overrides (<c>CCameraRenderer::CreateView</c>).
 	/// </summary>
 	internal ShaderParameters CameraAttributes { get; set; }

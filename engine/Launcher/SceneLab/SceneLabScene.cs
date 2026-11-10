@@ -214,6 +214,8 @@ internal sealed record SceneLabScene : LabPreset
 		new() { Name = "Instanced Models", Group = "GameObject", Game = InstancedScene.Build, ChangeGame = InstancedScene.Change },
 		new() { Name = "Object Command Lists", Group = "GameObject", Game = ObjectCommandListScene.Build, ChangeGame = ObjectCommandListScene.Change, Isolated = true },
 		new() { Name = "Water Refraction", Group = "Effects", Game = WaterScene.Build, Isolated = true },
+		new() { Name = "Mirror Reflection", Group = "Effects", Game = MirrorScene.Build, Isolated = true },
+		new() { Name = "Mirror Reflection Shadows", Group = "Effects", Game = MirrorScene.BuildWithShadows, Isolated = true },
 		new() { Name = "View Projections", Group = "GameObject", Game = ViewSetupScenes.Projections, TargetSetup = ViewSetupScenes.ProjectionSetup, Isolated = true },
 		new() { Name = "View Oblique", Group = "GameObject", Game = ViewSetupScenes.Oblique, TargetSetup = ViewSetupScenes.ObliqueSetup, Isolated = true },
 		new() { Name = "View Overrides", Group = "GameObject", Game = ViewSetupScenes.Overrides, TargetSetup = ViewSetupScenes.OverrideSetup, Isolated = true },

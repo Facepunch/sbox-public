@@ -240,11 +240,15 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 	{
 		if ( !camera.World.IsValid() ) return "a camera without a world";
 
-		// Not yet in Basalt: the reflection flag (planar reflections)
-		if ( setup.Reflection ) return "planar reflections";
-
 		return null;
 	}
+
+	/// <summary>
+	/// A reflection asked for outside one of our frames: native's planar reflections, which its pipeline sets up for a native
+	/// view while it builds the view's layers. Basalt renders its own frames' reflections (<c>DrawReflection</c>) as their
+	/// children.
+	/// </summary>
+	bool NativeReflection( in ViewSetup setup ) => setup.Reflection && !(Graphics.IsActive && DrawingOurs);
 
 	/// <summary>
 	/// What a swap chain render needs that Basalt doesn't do yet, or null.
@@ -446,7 +450,10 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		view.ToolsView = camera.ToolsView;
 		var toolsVis = DebugOverlay.ToolsVisualization.mat_toolsvis;
 		view.ToolsVisMode = (int)(toolsVis != SceneCameraDebugMode.Normal ? toolsVis : camera.DebugMode);
-		view.DepthNormals = camera.WantsDepthNormals;
+		// A reflection draws a depth-only prepass, and no shadows unless r.reflections.shadows is on (CameraRenderer.Configure)
+		view.Reflection = setup.Reflection;
+		view.ReflectionShadows = setup.Reflection && CommandList.ReflectionShadows;
+		view.DepthNormals = !setup.Reflection && camera.WantsDepthNormals;
 
 		var rect = camera.Rect;
 		view.Viewport = new Rect( rect.Left * size.x, rect.Top * size.y, rect.Width * size.x, rect.Height * size.y );
@@ -541,7 +548,7 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 
 		// Inside a frame (a command list's DrawView, a stage) the view is the frame's child: ours renders it in its own frame,
 		// before what samples it; native's, or a standalone render block, render it natively
-		if ( (Graphics.IsActive && !DrawingOurs) || NotYetInBasalt( camera, setup ) is not null )
+		if ( (Graphics.IsActive && !DrawingOurs) || NotYetInBasalt( camera, setup ) is not null || NativeReflection( setup ) )
 		{
 			SceneRenderer.Native.RenderToTexture( camera, target, size, setup );
 			return;
@@ -565,7 +572,7 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 	{
 		// A native parent's child view (see above), and a caller's depth target that Basalt can't draw into with the colour
 		// target directly, render natively
-		if ( parent != default || (Graphics.IsActive && !DrawingOurs) || NotYetInBasalt( camera, setup ) is not null || !CanDrawInto( target, depthTarget ) )
+		if ( parent != default || (Graphics.IsActive && !DrawingOurs) || NotYetInBasalt( camera, setup ) is not null || NativeReflection( setup ) || !CanDrawInto( target, depthTarget ) )
 			return SceneRenderer.Native.RenderToTexture( camera, target, depthTarget, parent, setup, name, out viewData );
 
 		camera.ConfigureView( setup );
