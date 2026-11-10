@@ -294,6 +294,7 @@ internal sealed record SceneLabScene
 		new() { Name = "Debug Views", Group = "Tools", Game = GameScenes.DebugViews, ChangeGame = GameScenes.ChangeDebugViews },
 		new() { Name = "Volumetric Fog", Group = "Effects", Game = GameScenes.VolumetricFog, ChangeGame = GameScenes.ChangeVolumetricFog, NativeAlongside = true },
 		new() { Name = "Dense Smoke", Group = "Effects", Game = GameScenes.DenseSmoke },
+		new() { Name = "Volumetric Fog, 64 Lights", Group = "Effects", Game = GameScenes.VolumetricFogLights, NativeAlongside = true },
 		new() { Name = "Contact Shadows", Group = "Shadows", Game = GameScenes.ContactShadows, ChangeGame = GameScenes.ChangeContactShadows },
 		new() { Name = "Decal Geometry", Group = "Effects", Game = GameScenes.DecalGeometry, ChangeGame = GameScenes.ChangeDecalGeometry },
 		new() { Name = "Soft Particles", Group = "Effects", Game = GameScenes.SoftParticles },
