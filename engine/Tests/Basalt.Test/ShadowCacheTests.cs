@@ -1,5 +1,7 @@
 using Basalt;
 using Basalt.Features;
+using Basalt.Gpu;
+using BasaltTests.Headless;
 using System;
 using static BasaltTests.TestScenes;
 
@@ -136,5 +138,57 @@ public class ShadowCacheTests
 		light.Color = Color.Red;
 		CollectAndPrepare( system, world, view );
 		Assert.AreEqual( 0, system.ShadowMaps.Passes.Length, "colour doesn't change the shadow" );
+	} );
+
+	/// <summary>
+	/// Throws while the main view's forward layer records, as a frame that fails part way does.
+	/// </summary>
+	sealed class FailingCallbacks : DrawCallbacks
+	{
+		public bool Fail;
+
+		internal override void Render( GpuContext context, ViewPass view, MeshLayer layer, bool after )
+		{
+			if ( Fail ) throw new InvalidOperationException( "the frame failed" );
+		}
+	}
+
+	/// <summary>
+	/// A frame that fails before it's submitted draws nothing, so the maps it would have drawn, and a static cache it would
+	/// have filled, aren't kept: the next frame draws them.
+	/// </summary>
+	[TestMethod]
+	public void AFrameThatIsNeverSubmittedLeavesItsShadowsUndrawn() => WithoutUpdates( () =>
+	{
+		using var material = new HeadlessMaterial( "box", "complex" );
+		var mesh = new RenderMesh( new HeadlessMesh( "box" ), UnitBox, [[new RenderMesh.Draw( 0, 0, 0, 36, 24, 0, material )]] );
+
+		var world = new RenderWorld();
+		world.Lighting.SunColor = Color.Black;
+		world.Add( new MeshObject( mesh, new Transform( new Vector3( 300, 0, -20 ) ) ) { IsStatic = true } );
+		var callbacks = new FailingCallbacks { Before = true, Fail = true };
+		world.Add( new MeshObject( mesh, new Transform( new Vector3( 300, 0, 20 ) ) ) { Callbacks = callbacks } );
+		world.Add( new LightObject( LightObject.LightKind.Point, new Transform( new Vector3( 300, 0, 0 ) ) ) { Radius = 50, IsStatic = true } );
+
+		using var target = ViewTarget.Create( new Vector2Int( 640, 480 ) );
+		using var system = new RenderSystem();
+
+		void Render()
+		{
+			using var frame = HeadlessRenderHost.Headless.Capture();
+			RenderHost.Current.NextFrame();
+			system.Render( world, LookingDownX(), target );
+		}
+
+		Assert.ThrowsException<InvalidOperationException>( Render );
+		Assert.AreEqual( 6, StaticCacheViews( system ), "the failed frame would have filled the static cache" );
+
+		callbacks.Fail = false;
+		Render();
+		Assert.AreEqual( 12, system.ShadowMaps.Passes.Length, "so the next one fills it, and draws the map" );
+		Assert.AreEqual( 6, StaticCacheViews( system ) );
+
+		Render();
+		Assert.AreEqual( 0, system.ShadowMaps.Passes.Length, "a submitted frame's are kept" );
 	} );
 }

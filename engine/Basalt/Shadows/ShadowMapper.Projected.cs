@@ -111,6 +111,7 @@ internal partial class ShadowMapper
 
 		cacheEntry.Projected = shadow;
 		cacheEntry.RenderedFrame = FrameCount;
+		Drawn.Add( cacheEntry );
 		ProjectedShadowsRendered++;
 
 		return AddProjectedShadow( cacheEntry );

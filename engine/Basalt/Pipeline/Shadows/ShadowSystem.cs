@@ -98,6 +98,11 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 	}
 
 	/// <summary>
+	/// The frame was never submitted: forget that its shadow maps were drawn, so they're drawn again.
+	/// </summary>
+	public void Abandon() => mapper.Abandon();
+
+	/// <summary>
 	/// Start culling the selected views on the job dispatcher's workers, so the caller can prepare the main view
 	/// meanwhile. Culling reads the world and writes only the shadow views. Join before <see cref="PreparePasses"/>.
 	/// </summary>

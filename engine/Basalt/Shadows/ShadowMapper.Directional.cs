@@ -40,6 +40,10 @@ internal partial class ShadowMapper
 	/// </summary>
 	struct CascadeCache
 	{
+		/// <summary>
+		/// The mapper that drew them, which forgets them if its frame is never submitted.
+		/// </summary>
+		public ShadowMapper Mapper;
 		public ulong Frame;
 		public object Light;
 		public Vector3 CameraPosition;
@@ -425,6 +429,7 @@ internal partial class ShadowMapper
 		float outerRadius = cascadeCount > 0 ? cascades[cascadeCount - 1].SphereRadius : 0f;
 		if ( !View.IsReflection ) LastCascades = new CascadeCache
 		{
+			Mapper = this,
 			Frame = FrameCount,
 			Light = light.Key,
 			CameraPosition = cameraPosition,

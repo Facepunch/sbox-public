@@ -65,6 +65,11 @@ internal partial class ShadowMapper
 	readonly List<LightEntry> PointEntries = new();
 
 	/// <summary>
+	/// The cache entries this view drew, which aren't drawn until its frame is submitted (<see cref="Abandon"/>).
+	/// </summary>
+	readonly List<LightEntry> Drawn = new();
+
+	/// <summary>
 	/// This view's cascades.
 	/// </summary>
 	internal ReadOnlySpan<ShadowMap> Cascades => CascadeShadowMaps.AsSpan( 0, CascadeShadowMapCount );
@@ -94,6 +99,7 @@ internal partial class ShadowMapper
 		ProjectedCubeShadowMaps.Clear();
 		SpotEntries.Clear();
 		PointEntries.Clear();
+		Drawn.Clear();
 		CascadeShadowMapCount = 0;
 		GPUDirectionalLightData.CascadeCount = 0;
 		GPUDirectionalLightData.Enabled = false;
@@ -105,6 +111,26 @@ internal partial class ShadowMapper
 		ProjectedShadowsCulledLastFrame = ProjectedShadowsCulled;
 		ProjectedShadowsRendered = 0;
 		ProjectedShadowsCulled = 0;
+	}
+
+	/// <summary>
+	/// The view's frame was never submitted: the maps it drew, and the static caches it drew into them, were never drawn
+	/// after all. They're drawn again the next time they're used, and nothing reuses its cascades.
+	/// </summary>
+	internal void Abandon()
+	{
+		foreach ( var entry in Drawn )
+		{
+			entry.RenderedFrame = 0;
+			if ( entry.StaticRenderedFrame != FrameCount ) continue;
+
+			ReleaseTexture( entry.StaticCache, entry.CurrentResolution, entry.IsCube );
+			entry.StaticCache = null;
+			entry.StaticRenderedFrame = 0;
+		}
+
+		Drawn.Clear();
+		if ( LastCascades.Mapper == this ) LastCascades = default;
 	}
 
 	/// <summary>
