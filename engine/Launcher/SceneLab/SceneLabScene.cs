@@ -57,6 +57,12 @@ internal sealed record SceneLabScene : LabPreset
 	public Func<Scene, Texture> CaptureFaces { get; init; }
 
 	/// <summary>
+	/// Float textures an isolated capture reads back too, comparing their texels with native's: a volume's, or a single-channel
+	/// cube's faces (a DDGI probe's depth).
+	/// </summary>
+	public Func<Scene, Texture[]> CaptureVolumes { get; init; }
+
+	/// <summary>
 	/// The view setup a <see cref="Game"/> scene's render target camera renders with, rather than none: for presets that
 	/// compare what a <see cref="Rendering.ViewSetup"/> does.
 	/// </summary>
@@ -228,6 +234,7 @@ internal sealed record SceneLabScene : LabPreset
 		new() { Name = "Water Planar", Group = "Effects", Game = WaterScene.Planar, Isolated = true },
 		new() { Name = "Water Planar Shadows", Group = "Effects", Game = WaterScene.PlanarShadows, Isolated = true },
 		new() { Name = "Envmap Capture", Group = "Effects", Game = EnvmapCaptureScene.Build, Capture = EnvmapCaptureScene.Capture, CaptureFaces = EnvmapCaptureScene.Cube, Isolated = true },
+		new() { Name = "DDGI Bake", Group = "Effects", Game = DDGIBakeScene.Build, Capture = DDGIBakeScene.Capture, CaptureFaces = DDGIBakeScene.ColorCapture, CaptureVolumes = DDGIBakeScene.Readbacks, Isolated = true },
 		new() { Name = "Mirror Reflection", Group = "Effects", Game = MirrorScene.Build, Isolated = true },
 		new() { Name = "Mirror Reflection Shadows", Group = "Effects", Game = MirrorScene.BuildWithShadows, Isolated = true },
 		new() { Name = "View Projections", Group = "GameObject", Game = ViewSetupScenes.Projections, TargetSetup = ViewSetupScenes.ProjectionSetup, Isolated = true },

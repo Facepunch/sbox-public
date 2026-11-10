@@ -94,9 +94,20 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 
 	/// <summary>
 	/// The cube capture face being rendered, if one is (<see cref="SceneBridge.RenderToCube"/>): its frame ends by copying itself
-	/// into the cube's slice, after the last stage, and the last face then runs the work after the faces (the GGX filter).
+	/// into the cube's slice, after the last stage, and the last face then runs the work after the faces (the GGX filter). Its
+	/// stages see the face as <see cref="Graphics.CubeFace"/>.
 	/// </summary>
-	public CubeFace Capture { get; set; }
+	public CubeFace Capture
+	{
+		get => capture;
+		set
+		{
+			capture = value;
+			view.CubeFace = value.Cube is null ? -1 : value.Slice;
+		}
+	}
+
+	CubeFace capture;
 
 	/// <summary>
 	/// Restore the main camera and forward layer for stage rendering: the view as rendered, with any overrides of the camera.
@@ -287,6 +298,14 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 		if ( gamma ) view.SrgbWrite = false;
 		view.TargetSrgbWrite = !gamma;
 		if ( ui ) contextAttributes.SetIntValue( UIGammaOutput, gamma ? 1 : 0 );
+
+		// A cube face's own stage hooks may read the cube (DDGI's bake integrates a probe from it after the sixth face's
+		// transparent pass), as native's face draws straight into its slice: so the face so far goes into its slice first
+		if ( Capture.Cube is { } faceCube && Camera.OnRenderStageHook is not null && !ui && target.Color is not null )
+		{
+			var rect = new NativeRect( 0, 0, (int)target.Size.x, (int)target.Size.y );
+			RenderTools.CopyTexture( context, target.Color.Native(), faceCube.native, rect, 0, 0, 0, 0, 0, (uint)Capture.Slice );
+		}
 
 		using ( new Graphics.Scope( context, view ) )
 		{

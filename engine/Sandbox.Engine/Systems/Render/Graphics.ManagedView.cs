@@ -25,6 +25,11 @@ public static partial class Graphics
 		public int DepthSlice;
 
 		/// <summary>
+		/// The cube face this frame is of a cube capture (<see cref="Graphics.CubeFace"/>), or -1.
+		/// </summary>
+		public int CubeFace = -1;
+
+		/// <summary>
 		/// Whether colour is written through an sRGB view, as a layer's colour space says for native.
 		/// </summary>
 		public bool SrgbWrite = true;
@@ -133,6 +138,7 @@ public static partial class Graphics
 		int IFrameView.ToolsVisMode => ToolsVisMode;
 
 		bool IFrameView.IsChildView => IsChild;
+		int IFrameView.CubeFace => CubeFace;
 
 		// The renderer owns its targets; callers don't destroy them
 		ITexture IFrameView.GetColorTarget( out bool owned )
