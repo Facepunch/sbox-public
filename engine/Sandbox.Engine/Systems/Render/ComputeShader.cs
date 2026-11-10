@@ -1,5 +1,4 @@
 using NativeEngine;
-using Sandbox.VR;
 
 namespace Sandbox;
 
@@ -22,6 +21,16 @@ public class ComputeShader
 	public ComputeShader( string path )
 	{
 		var material = Material.FromShader( path );
+		Assert.NotNull( material );
+		ComputeMaterial = material;
+	}
+
+	/// <summary>
+	/// Create a compute shader from the specified shader.
+	/// </summary>
+	public ComputeShader( Shader shader )
+	{
+		var material = Material.FromShader( shader );
 		Assert.NotNull( material );
 		ComputeMaterial = material;
 	}
