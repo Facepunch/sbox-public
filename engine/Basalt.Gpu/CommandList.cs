@@ -59,6 +59,9 @@ public sealed unsafe class CommandList
 	ulong lastLayout;
 	readonly ulong[] sets = new ulong[4];
 	readonly ulong[] setLayouts = new ulong[4];
+	const int MaxDynamicOffsets = 16;
+	readonly uint[] setOffsets = new uint[4 * MaxDynamicOffsets];
+	readonly int[] setOffsetCounts = new int[4];
 
 	// Transient descriptor sets and upload memory, recycled with the frame
 	readonly List<ulong> descriptorPools = new();
@@ -96,6 +99,7 @@ public sealed unsafe class CommandList
 		dirty[0] = dirty[1] = 0;
 		Array.Clear( sets );
 		Array.Clear( setLayouts );
+		Array.Clear( setOffsetCounts );
 		Submitted = default;
 
 		labelled = name is not null && device.Instance.vkCmdBeginDebugUtilsLabelEXT != null;
@@ -470,64 +474,31 @@ public sealed unsafe class CommandList
 		var setLayout = device.Get( layout ).SetLayout;
 		var descriptorSet = AllocateSet( setLayout );
 
-		var writes = stackalloc VkWriteDescriptorSet[Math.Max( bindings.Length, 1 )];
-		var buffers = stackalloc VkDescriptorBufferInfo[Math.Max( bindings.Length, 1 )];
-		var images = stackalloc VkDescriptorImageInfo[Math.Max( bindings.Length, 1 )];
-
-		for ( int i = 0; i < bindings.Length; i++ )
-		{
-			ref readonly var binding = ref bindings[i];
-			writes[i] = new VkWriteDescriptorSet
-			{
-				sType = VkStructureType.WriteDescriptorSet,
-				dstSet = descriptorSet,
-				dstBinding = (uint)binding.Slot,
-				dstArrayElement = (uint)binding.ArrayElement,
-				descriptorCount = 1,
-			};
-
-			switch ( binding.Type )
-			{
-				case BindingType.UniformBuffer:
-				case BindingType.StorageBuffer:
-					{
-						ref var buffer = ref device.Get( binding.Buffer );
-						buffers[i] = new VkDescriptorBufferInfo { buffer = buffer.Buffer, offset = (ulong)binding.Offset, range = binding.Size > 0 ? (ulong)binding.Size : Vulkan.Vk.WholeSize };
-						writes[i].descriptorType = binding.Type == BindingType.UniformBuffer ? VkDescriptorType.UniformBuffer : VkDescriptorType.StorageBuffer;
-						writes[i].pBufferInfo = &buffers[i];
-						break;
-					}
-
-				case BindingType.SampledTexture:
-					{
-						var view = binding.View.IsValid ? device.Get( binding.View ).View : binding.Srgb ? device.Get( binding.Texture ).SrgbView : device.Get( binding.Texture ).View;
-						var imageLayout = binding.Layout == ImageLayout.Undefined ? VkImageLayout.ReadOnlyOptimal : binding.Layout.ToVk();
-						images[i] = new VkDescriptorImageInfo { imageView = view, imageLayout = imageLayout };
-						writes[i].descriptorType = VkDescriptorType.SampledImage;
-						writes[i].pImageInfo = &images[i];
-						break;
-					}
-
-				case BindingType.StorageTexture:
-					{
-						var view = binding.View.IsValid ? device.Get( binding.View ).View : device.Get( binding.Texture ).StorageView;
-						images[i] = new VkDescriptorImageInfo { imageView = view, imageLayout = VkImageLayout.General };
-						writes[i].descriptorType = VkDescriptorType.StorageImage;
-						writes[i].pImageInfo = &images[i];
-						break;
-					}
-
-				default:
-					images[i] = new VkDescriptorImageInfo { sampler = device.Get( binding.Sampler ).Sampler };
-					writes[i].descriptorType = VkDescriptorType.Sampler;
-					writes[i].pImageInfo = &images[i];
-					break;
-			}
-		}
-
-		vk.vkUpdateDescriptorSets( vk.Device, (uint)bindings.Length, writes, 0, null );
+		device.WriteDescriptors( descriptorSet, bindings );
 		sets[set] = descriptorSet;
+		setOffsetCounts[set] = 0;
 		setLayouts[set] = setLayout;
+		dirty[0] |= 1 << set;
+		dirty[1] |= 1 << set;
+	}
+
+	/// <summary>
+	/// Bind a persistent set (<see cref="Device.CreateBindingSet"/>) for the draws and dispatches that follow, with the offsets
+	/// of its <see cref="BindingType.UniformBufferDynamic"/> bindings in binding order.
+	/// </summary>
+	public void SetBindingSet( int set, BindingSetHandle bindingSet, ReadOnlySpan<uint> dynamicOffsets = default )
+	{
+		if ( (uint)set >= ShaderAbi.BindlessSet ) throw new ArgumentOutOfRangeException( nameof( set ), "Pipeline sets are 0 to 3" );
+		if ( dynamicOffsets.Length > MaxDynamicOffsets ) throw new ArgumentException( $"At most {MaxDynamicOffsets} dynamic offsets a set" );
+
+		ref var record = ref device.Get( bindingSet );
+		var changed = sets[set] != record.Set || setOffsetCounts[set] != dynamicOffsets.Length || !dynamicOffsets.SequenceEqual( setOffsets.AsSpan( set * MaxDynamicOffsets, dynamicOffsets.Length ) );
+		if ( !changed ) return;
+
+		sets[set] = record.Set;
+		setLayouts[set] = record.SetLayout;
+		dynamicOffsets.CopyTo( setOffsets.AsSpan( set * MaxDynamicOffsets ) );
+		setOffsetCounts[set] = dynamicOffsets.Length;
 		dirty[0] |= 1 << set;
 		dirty[1] |= 1 << set;
 	}
@@ -580,7 +551,8 @@ public sealed unsafe class CommandList
 			if ( wanted != setLayouts[set] ) continue;
 
 			var descriptorSet = sets[set];
-			vk.vkCmdBindDescriptorSets( Handle, bindPoint, layout, (uint)set, 1, &descriptorSet, 0, null );
+			fixed ( uint* offsets = &setOffsets[set * MaxDynamicOffsets] )
+				vk.vkCmdBindDescriptorSets( Handle, bindPoint, layout, (uint)set, 1, &descriptorSet, (uint)setOffsetCounts[set], offsets );
 		}
 
 		if ( (mask & (1 << ShaderAbi.BindlessSet)) != 0 )

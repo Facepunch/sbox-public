@@ -24,6 +24,9 @@ internal sealed class BasaltScene : IDisposable
 	/// <summary>The renderer.</summary>
 	public RenderSystem System => system;
 
+	/// <summary>The device it renders through.</summary>
+	public BackendDevice Backend => backend;
+
 	/// <summary>The world's sun, ambient and sky.</summary>
 	public SceneLighting Lighting => world.Lighting;
 

@@ -12,7 +12,8 @@ namespace BasaltGpuSample;
 /// <c>-frames N</c> and <c>-seconds S</c> stop it; <c>-resize</c> resizes the window every 20 frames;
 /// <c>-novalidation</c> turns the validation layer off, <c>-syncvalidation</c> adds its synchronisation checks;
 /// <c>-immediate</c> presents without vsync. <c>-basalt</c> draws Basalt's own renderer instead
-/// (<see cref="BasaltScene"/>); <c>-capture path.png</c> saves its last frame.
+/// (<see cref="BasaltScene"/>); <c>-capture path.png</c> saves its last frame. <c>-materialbench</c> runs
+/// <see cref="MaterialBench"/> offscreen instead (<c>-frames</c>, <c>-runs</c>, <c>-models</c> limit it).
 /// </remarks>
 internal static class Program
 {
@@ -31,6 +32,12 @@ internal static class Program
 		{
 			Console.Error.WriteLine( "The sample's window is Win32; Basalt.Gpu itself also takes Xlib and Wayland surfaces." );
 			return 2;
+		}
+
+		if ( args.Contains( "-materialbench" ) )
+		{
+			using var gpu = Device.Create( new DeviceOptions { ApplicationName = "Basalt.Gpu material bench", Validation = validation, Message = m => { if ( m.Severity >= MessageSeverity.Warning ) Console.WriteLine( $"[{m.Severity}] {m.Id}: {m.Text}" ); } } );
+			return MaterialBench.Run( gpu, IntArg( args, "-frames", 100 ), IntArg( args, "-runs", 4 ), IntArg( args, "-models", int.MaxValue ) );
 		}
 
 		var errors = 0;

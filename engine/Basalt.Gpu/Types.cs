@@ -186,6 +186,12 @@ public enum BindingType
 
 	/// <summary>A sampler (<c>s#</c>).</summary>
 	Sampler,
+
+	/// <summary>
+	/// A constant buffer whose offset is given when its set is bound (<see cref="CommandList.SetBindingSet"/>), so a
+	/// persistent set can point at constants that move every frame.
+	/// </summary>
+	UniformBufferDynamic,
 }
 
 /// <summary>

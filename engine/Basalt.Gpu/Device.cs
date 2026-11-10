@@ -187,6 +187,7 @@ public sealed unsafe partial class Device : IDisposable
 				MaxTextureSize = (int)Limits.maxImageDimension2D,
 				ColorSampleCounts = (int)Limits.framebufferColorSampleCounts,
 				UniformAlignment = (int)Limits.minUniformBufferOffsetAlignment,
+				MaxDynamicUniformBuffers = (int)Limits.maxDescriptorSetUniformBuffersDynamic,
 				StorageAlignment = (int)Limits.minStorageBufferOffsetAlignment,
 				BindlessTextures = bindlessTextures,
 				BindlessSamplers = bindlessSamplers,
