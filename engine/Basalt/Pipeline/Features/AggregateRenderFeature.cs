@@ -118,8 +118,8 @@ internal sealed class AggregateRenderFeature : RenderFeature
 	/// </summary>
 	static void WriteTransforms( AggregateObject aggregate, TransformBuffer transforms )
 	{
-		if ( aggregate.SlotGeneration == transforms.Generation ) return;
-		aggregate.SlotGeneration = transforms.Generation;
+		if ( aggregate.TransformsGeneration == transforms.Generation ) return;
+		aggregate.TransformsGeneration = transforms.Generation;
 
 		var tint = aggregate.Tint;
 		var fragments = aggregate.Fragments;

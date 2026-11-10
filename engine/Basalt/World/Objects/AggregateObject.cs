@@ -81,7 +81,7 @@ internal sealed class AggregateObject : RenderObject
 			bounds = bounds.AddPoint( fragment.BoundsMin ).AddPoint( fragment.BoundsMax );
 		}
 
-		SlotGeneration = -1;
+		TransformsGeneration = -1;
 		LocalBounds = bounds;
 	}
 
@@ -117,9 +117,14 @@ internal sealed class AggregateObject : RenderObject
 
 	/// <summary>
 	/// Where this frame's instance ids for the fragments start: fragment i's transform is the id at this plus i.
-	/// Valid while <see cref="RenderObject.SlotGeneration"/> is the frame's.
+	/// Valid while <see cref="TransformsGeneration"/> is the frame's.
 	/// </summary>
 	internal int FirstInstance;
+
+	/// <summary>
+	/// The <see cref="Gpu.TransformBuffer.Generation"/> its fragments' transforms were last written in.
+	/// </summary>
+	internal int TransformsGeneration = -1;
 }
 
 /// <summary>

@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 
@@ -68,16 +69,37 @@ internal sealed class TransformBuffer : IDisposable
 	}
 
 	/// <summary>
+	/// Each object's entry this frame, by its world index, and the <see cref="Generation"/> it was written in. Kept here
+	/// rather than on the objects: writing an object while workers read it to cull shadow views makes the cores fight
+	/// over its memory.
+	/// </summary>
+	(int Generation, int Slot)[] objectSlots = [];
+
+	/// <summary>
 	/// An object's entry this frame: written the first time a view asks for it, the same slot after that.
 	/// </summary>
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
 	public int SlotFor( RenderObject obj, in Matrix m, Color tint )
 	{
-		if ( obj.SlotGeneration == Generation ) return obj.Slot;
+		ref var entry = ref ObjectSlot( obj );
+		if ( entry.Generation == Generation ) return entry.Slot;
 
-		obj.SlotGeneration = Generation;
-		obj.Slot = Add( m, tint );
-		return obj.Slot;
+		entry = (Generation, Add( m, tint ));
+		return entry.Slot;
 	}
+
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	ref (int Generation, int Slot) ObjectSlot( RenderObject obj )
+	{
+		var index = obj.Index;
+		if ( (uint)index >= (uint)objectSlots.Length ) Array.Resize( ref objectSlots, Math.Max( index + 1, objectSlots.Length * 2 ) );
+		return ref objectSlots[index];
+	}
+
+	/// <summary>
+	/// The entry an object was given this frame, or -1 - for the tests.
+	/// </summary>
+	internal int SlotOf( RenderObject obj ) => (uint)obj.Index < (uint)objectSlots.Length && objectSlots[obj.Index].Generation == Generation ? objectSlots[obj.Index].Slot : -1;
 
 	/// <summary>
 	/// Write or reuse rigid per-draw entries across all LODs, combining object and draw tints
@@ -85,10 +107,10 @@ internal sealed class TransformBuffer : IDisposable
 	/// </summary>
 	public int TintedSlotsFor( RenderObject obj, in Matrix m, Color tint, RenderMesh mesh )
 	{
-		if ( obj.SlotGeneration == Generation ) return obj.Slot;
+		ref var slot = ref ObjectSlot( obj );
+		if ( slot.Generation == Generation ) return slot.Slot;
 
-		obj.SlotGeneration = Generation;
-		obj.Slot = Count;
+		slot = (Generation, Count);
 		for ( int lod = 0; lod < mesh.LodCount; lod++ )
 		{
 			foreach ( var draw in mesh.DrawsForLod( lod ) )
@@ -98,12 +120,13 @@ internal sealed class TransformBuffer : IDisposable
 			}
 		}
 
-		return obj.Slot;
+		return slot.Slot;
 	}
 
 	/// <summary>
 	/// Append a transform slot to the instance-ID stream and return its index.
 	/// </summary>
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
 	public int AddInstance( int slot )
 	{
 		if ( InstanceCount == ids.Length ) Array.Resize( ref ids, ids.Length * 2 );
@@ -119,9 +142,21 @@ internal sealed class TransformBuffer : IDisposable
 	{
 		if ( Count == entries.Length ) Array.Resize( ref entries, entries.Length * 2 );
 
-		entries[Count] = MakeEntry( m, tint );
+		// Most objects share a tint: pack it once
+		if ( tint.r != packedTint.r || tint.g != packedTint.g || tint.b != packedTint.b )
+		{
+			packedTint = tint;
+			packedRgb = PackRgb888( tint );
+		}
+
+		ref var entry = ref entries[Count];
+		entry = MakeEntry( m, packedRgb );
+		entry.Alpha = tint.a;
 		return Count++;
 	}
+
+	Color packedTint = Color.White;
+	uint packedRgb = PackRgb888( Color.White );
 
 	/// <summary>
 	/// Write a transform already in native's row layout (<c>matrix3x4_t</c>) and a tint, returning its slot.
@@ -139,14 +174,21 @@ internal sealed class TransformBuffer : IDisposable
 	/// </summary>
 	internal static Entry MakeEntry( in Matrix m, Color tint )
 	{
+		var entry = MakeEntry( m, PackRgb888( tint ) );
+		entry.Alpha = tint.a;
+		return entry;
+	}
+
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	static Entry MakeEntry( in Matrix m, uint tintRgb888 )
+	{
 		// Transpose into native column-vector layout.
 		return new Entry
 		{
 			Row0 = new( m.M11, m.M21, m.M31, m.M41 ),
 			Row1 = new( m.M12, m.M22, m.M32, m.M42 ),
 			Row2 = new( m.M13, m.M23, m.M33, m.M43 ),
-			Alpha = tint.a,
-			TintRgb888 = PackRgb888( tint ),
+			TintRgb888 = tintRgb888,
 		};
 	}
 
