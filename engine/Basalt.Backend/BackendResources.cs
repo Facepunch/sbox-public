@@ -273,13 +273,24 @@ public struct MeshVertex( Vector3 position, Vector3 normal, Vector2 uv )
 /// <summary>
 /// Geometry from raw vertex and index data, in a vertex and an index buffer on the GPU.
 /// </summary>
-public sealed class BackendMesh : GpuMesh
+public sealed class BackendMesh : GpuMesh, IBackendGeometry
 {
 	internal BufferHandle Vertices { get; }
 	internal BufferHandle Indices { get; }
 	internal IndexFormat IndexFormat { get; }
 
 	readonly string name;
+	readonly DrawGeometry geometry;
+
+	/// <summary>Position, normal, uv and tangent, as <see cref="MeshVertex"/> lays them out.</summary>
+	internal static readonly VertexLayout Layout = new( Marshal.SizeOf<MeshVertex>(),
+	[
+		new( VertexSemantic.Position, 0, VertexFormat.Float3, 0 ),
+		new( VertexSemantic.Normal, 0, VertexFormat.Float3, 12 ),
+		new( VertexSemantic.TexCoord, 0, VertexFormat.Float2, 24 ),
+		new( VertexSemantic.TexCoord, 1, VertexFormat.Float2, 24 ),
+		new( VertexSemantic.Tangent, 0, VertexFormat.Float4, 32 ),
+	] );
 
 	BackendMesh( BufferHandle vertices, BufferHandle indices, IndexFormat format, string name )
 	{
@@ -287,7 +298,10 @@ public sealed class BackendMesh : GpuMesh
 		Indices = indices;
 		IndexFormat = format;
 		this.name = name;
+		geometry = new DrawGeometry( vertices, 0, indices, 0, format, 0, Layout, UncompressedTangentFrame: true );
 	}
+
+	DrawGeometry IBackendGeometry.For( int mesh, int drawCall ) => geometry;
 
 	/// <inheritdoc/>
 	public override string Name => name;
