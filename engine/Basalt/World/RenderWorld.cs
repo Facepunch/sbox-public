@@ -18,6 +18,7 @@ public sealed class RenderWorld
 	Vector3[] _boundsExtents = new Vector3[InitialCapacity];
 	Matrix[] _localToWorld = new Matrix[InitialCapacity];
 	int[] _treeLeaves = new int[InitialCapacity];
+	int[] _drawVersions = new int[InitialCapacity];
 
 	/// <summary>
 	/// Spatial index of size-culled objects.
@@ -86,6 +87,25 @@ public sealed class RenderWorld
 	internal ReadOnlySpan<Matrix> LocalToWorld => _localToWorld.AsSpan( 0, Count );
 
 	/// <summary>
+	/// Each object's draw version, by index: a number no other object or change has had, given again whenever something
+	/// that decides how the object draws changes (<see cref="DrawChanged"/>), and when it moves to another index. What a
+	/// render system keeps of an object between frames is good while the version it was made at is still the object's.
+	/// </summary>
+	internal ReadOnlySpan<int> DrawVersions => _drawVersions.AsSpan( 0, Count );
+
+	static int s_lastDrawVersion;
+
+	static int NextDrawVersion() => System.Threading.Interlocked.Increment( ref s_lastDrawVersion );
+
+	/// <summary>
+	/// Note a change to how an object draws: its mesh, materials, attributes, flags or layers.
+	/// </summary>
+	internal void DrawChanged( RenderObject obj )
+	{
+		if ( obj.Index >= 0 ) _drawVersions[obj.Index] = NextDrawVersion();
+	}
+
+	/// <summary>
 	/// Mesh objects whose attributes are read as they draw (<see cref="MeshObject.AttributesFrom"/>): a world without any
 	/// skips looking for them.
 	/// </summary>
@@ -110,6 +130,7 @@ public sealed class RenderWorld
 			Array.Resize( ref _boundsExtents, capacity );
 			Array.Resize( ref _localToWorld, capacity );
 			Array.Resize( ref _treeLeaves, capacity );
+			Array.Resize( ref _drawVersions, capacity );
 			Array.Resize( ref _dynamicTreeLeaves, capacity );
 		}
 
@@ -119,6 +140,7 @@ public sealed class RenderWorld
 		_objects[obj.Index] = obj;
 		_treeLeaves[obj.Index] = NotAdded;
 		_dynamicTreeLeaves[obj.Index] = NotAdded;
+		_drawVersions[obj.Index] = NextDrawVersion();
 		Sync( obj );
 	}
 
@@ -148,6 +170,7 @@ public sealed class RenderWorld
 			_localToWorld[index] = _localToWorld[last];
 			_treeLeaves[index] = _treeLeaves[last];
 			_dynamicTreeLeaves[index] = _dynamicTreeLeaves[last];
+			_drawVersions[index] = NextDrawVersion();
 			moved.Index = index;
 
 			if ( _treeLeaves[index] >= 0 ) Tree.SetItem( _treeLeaves[index], index );

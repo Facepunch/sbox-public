@@ -200,11 +200,59 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	(RenderWorld World, ViewPass Pass, List<int> Visible, Vector3 Camera, float TanHalfFov, float ScreenWidth, Vector3 SortCamera, List<LightProbeVolume> Volumes, long VolumesKey, int Generation) classifying;
 
 	/// <summary>
-	/// What the frame's first shadow view to see an object made of it, by world index, and the frame's
-	/// <see cref="TransformBuffer.Generation"/>. Every shadow view would make the same: the LOD comes from the main view's
-	/// camera and shadows take no probe, so later shadow views copy it. Only the translucent sort distance is each view's own.
+	/// The frame (<see cref="TransformBuffer.Generation"/>) each object's LOD in <see cref="lods"/> was chosen in, by world index:
+	/// every view of a frame takes the LOD the first chose, as all of them choose it from the main view's camera.
 	/// </summary>
-	(int Generation, byte Lod, Classified Classified)[] shadowClasses = new (int, byte, Classified)[256];
+	int[] lodFrames = new int[256];
+
+	/// <summary>
+	/// What main views made of each object, by world index, kept between frames (<see cref="Kept"/>).
+	/// </summary>
+	Kept[] keptMain = new Kept[256];
+
+	/// <summary>
+	/// What shadow views made of each object, by world index, kept between frames. Every shadow view makes the same of an
+	/// object: its LOD comes from the main view's camera and shadows take no probe. Only the sort distance is each view's own.
+	/// </summary>
+	Kept[] keptShadow = new Kept[256];
+
+	/// <summary>
+	/// What an object is classified as, kept between frames while its draw version (<see cref="RenderWorld.DrawVersions"/>)
+	/// is the one it was made at and its LOD and probe are the ones it was made for. Whatever else decides its lists and
+	/// batch key gives it a new draw version when it changes.
+	/// </summary>
+	struct Kept
+	{
+		public int Version;
+		public KeptFlags Flags;
+
+		/// <summary>
+		/// The LOD <see cref="Class"/> is for, or -1 while it isn't made.
+		/// </summary>
+		public int Lod;
+
+		/// <summary>
+		/// The light probe volume attributes <see cref="Class"/> is for.
+		/// </summary>
+		public ShaderParameters Probe;
+
+		/// <summary>
+		/// Its lists and keys, without a sort distance, which is each view's own.
+		/// </summary>
+		public Classified Class;
+	}
+
+	/// <summary>
+	/// What kind of object a <see cref="Kept"/> is, which only a change alters.
+	/// </summary>
+	[Flags]
+	enum KeptFlags : byte
+	{
+		Custom = 1,
+		NoMesh = 2,
+		Lods = 4,
+		NeedsProbe = 8,
+	}
 
 	struct Classified
 	{
@@ -323,7 +371,9 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 
 		if ( lods.Length < objects.Length ) Array.Resize( ref lods, Math.Max( objects.Length, lods.Length * 2 ) );
 		if ( probes.Length < lods.Length ) Array.Resize( ref probes, lods.Length );
-		if ( shadowClasses.Length < lods.Length ) Array.Resize( ref shadowClasses, lods.Length );
+		if ( lodFrames.Length < lods.Length ) Array.Resize( ref lodFrames, lods.Length );
+		if ( keptMain.Length < lods.Length ) Array.Resize( ref keptMain, lods.Length );
+		if ( keptShadow.Length < lods.Length ) Array.Resize( ref keptShadow, lods.Length );
 		if ( classified.Length < visible.Count ) Array.Resize( ref classified, Math.Max( visible.Count, classified.Length * 2 ) );
 		var volumes = world.LightProbeVolumes;
 		var volumesKey = volumes.Count > 0 && !pass.IsShadow ? LightProbeVolume.Key( volumes ) : 0;
@@ -383,14 +433,17 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	/// <summary>
 	/// Classify visible objects [<paramref name="start"/>, <paramref name="end"/>) of the view in <see cref="classifying"/>:
 	/// each mesh's LOD, probe, lists and sort keys. Writes only what's the object's own, so ranges can run on any thread.
+	/// Lists and keys come from what was kept of the object (<see cref="Kept"/>), and are made again only when it changed.
 	/// </summary>
 	void Classify( int start, int end )
 	{
 		var (world, pass, visible, camera, tanHalfFov, screenWidth, sortCamera, volumes, volumesKey, generation) = classifying;
 		var objects = world.Objects;
+		var versions = world.DrawVersions;
 		var centers = world.BoundsCenter;
 		var extents = world.BoundsExtents;
 		var shadow = pass.IsShadow;
+		var kept = shadow ? keptShadow : keptMain;
 
 		// The last sort key and what it came from. Neighbours mostly share them, and hashing an object's references
 		// costs more than the rest of classifying it
@@ -401,65 +454,112 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		{
 			var index = visible[k];
 			ref var c = ref classified[k];
+			ref var keep = ref kept[index];
 
-			// An earlier shadow view this frame classified it
-			if ( shadow && shadowClasses[index].Generation == generation )
+			// Changed since it was kept, or never kept
+			if ( keep.Version != versions[index] ) keep = Rebase( objects[index], versions[index], shadow );
+
+			if ( (keep.Flags & (KeptFlags.Custom | KeptFlags.NoMesh)) != 0 )
 			{
-				ref readonly var cached = ref shadowClasses[index];
-				c = cached.Classified;
-				lods[index] = cached.Lod;
-				if ( probes[index] is not null ) probes[index] = null;
-				if ( (c.Runs & DistanceSortedLists) != 0 ) c.Distance = TranslucentSortDistance( centers[index], extents[index], sortCamera );
+				c = default;
+				c.Custom = (keep.Flags & KeptFlags.Custom) != 0;
 				continue;
 			}
 
-			c = default;
-
-			// Anything else this feature takes is a custom object
-			if ( objects[index] is not MeshObject obj )
+			// One LOD a frame, whichever view chooses it. Only a mesh with LODs needs its object for that
+			int lod;
+			if ( lodFrames[index] == generation ) lod = lods[index];
+			else
 			{
-				c.Custom = true;
-				continue;
+				lod = 0;
+				if ( (keep.Flags & KeptFlags.Lods) != 0 )
+				{
+					var obj = (MeshObject)objects[index];
+					lod = ChooseLod( obj, centers[index], camera, tanHalfFov, screenWidth );
+
+					// Written only when it changes: a write from a worker would leave the object's memory on that core, for the
+					// main thread to fetch back when it emits the object
+					if ( !shadow && obj.DrawnLod != lod ) obj.DrawnLod = lod;
+				}
+
+				lods[index] = (byte)lod;
+				lodFrames[index] = generation;
 			}
-
-			if ( obj.Mesh is null ) continue;
-
-			made++;
-			var lod = ChooseLod( obj, centers[index], camera, tanHalfFov, screenWidth );
-			var blend = obj.BlendForLod( lod );
-			lods[index] = (byte)lod;
-
-			// Written only when it changes: a write from a worker would leave the object's memory on that core, for the
-			// main thread to fetch back when it emits the object
-			if ( !shadow && obj.DrawnLod != lod ) obj.DrawnLod = lod;
 
 			// Probe lighting is forward-only (CBaseSceneObjectDesc::GeneratePrimitives).
-			var probe = -1;
-			if ( obj.NeedsLightProbe && !shadow && volumes.Count > 0 ) probe = ProbeFor( obj, volumes, volumesKey, centers[index], extents[index] );
-			var probeAttributes = probe >= 0 ? volumes[probe].Attributes : null;
+			ShaderParameters probeAttributes = null;
+			if ( !shadow && (keep.Flags & KeptFlags.NeedsProbe) != 0 && volumes.Count > 0 )
+			{
+				var probe = ProbeFor( (MeshObject)objects[index], volumes, volumesKey, centers[index], extents[index] );
+				probeAttributes = probe >= 0 ? volumes[probe].Attributes : null;
+			}
 			if ( probeAttributes is not null || probes[index] is not null ) probes[index] = probeAttributes;
 
-			var runs = ListsFor( obj, blend, shadow );
-			if ( runs != 0 )
+			if ( keep.Lod != lod || keep.Probe != probeAttributes )
 			{
-				c.Runs = runs;
-
-				// A translucent layer copies the frame for what reads it
-				if ( obj.WantsFrameBufferCopy && !shadow ) c.FrameBufferReads = runs & FrameBufferCopyingLists;
-
-				// Only the sort keys its lists use
-				if ( (runs & (BatchedLists | RenderOrderLists)) != 0 ) c.OpaqueKey = key.For( obj, lod, probeAttributes );
-				c.Distance = (runs & DistanceSortedLists) != 0 ? TranslucentSortDistance( centers[index], extents[index], sortCamera ) : 0;
-				c.OnlyTranslucent = blend == MeshBlend.Translucent;
-				c.Callbacks = obj.Callbacks is not null && !shadow;
-				c.RenderOrder = obj.RenderOrder;
+				made++;
+				keep.Lod = lod;
+				keep.Probe = probeAttributes;
+				keep.Class = ClassOf( (MeshObject)objects[index], lod, probeAttributes, shadow, ref key );
 			}
 
-			if ( shadow ) shadowClasses[index] = (generation, (byte)lod, c);
+			c = keep.Class;
+			if ( (c.Runs & DistanceSortedLists) != 0 ) c.Distance = TranslucentSortDistance( centers[index], extents[index], sortCamera );
 		}
 
 		if ( key.Made > 0 ) Interlocked.Add( ref keysMade, key.Made );
 		if ( made > 0 ) Interlocked.Add( ref objectsClassified, made );
+	}
+
+	/// <summary>
+	/// Keep an object again from its new draw version: what kind it is. Its lists are made when it's next classified.
+	/// </summary>
+	static Kept Rebase( RenderObject obj, int version, bool shadow )
+	{
+		var keep = new Kept { Version = version, Lod = -1 };
+
+		// Anything else this feature takes is a custom object
+		if ( obj is not MeshObject mesh )
+		{
+			keep.Flags = KeptFlags.Custom;
+			return keep;
+		}
+
+		if ( mesh.Mesh is not { } model )
+		{
+			keep.Flags = KeptFlags.NoMesh;
+			return keep;
+		}
+
+		// A mesh without LODs draws its only one
+		if ( model.LodCount > 1 ) keep.Flags |= KeptFlags.Lods;
+		else if ( !shadow && mesh.DrawnLod != 0 ) mesh.DrawnLod = 0;
+
+		if ( mesh.NeedsLightProbe ) keep.Flags |= KeptFlags.NeedsProbe;
+		return keep;
+	}
+
+	/// <summary>
+	/// A mesh's lists and keys at a LOD and probe, without a sort distance.
+	/// </summary>
+	static Classified ClassOf( MeshObject obj, int lod, ShaderParameters probe, bool shadow, ref KeyInputs key )
+	{
+		var c = default( Classified );
+		var blend = obj.BlendForLod( lod );
+		var runs = ListsFor( obj, blend, shadow );
+		if ( runs == 0 ) return c;
+
+		c.Runs = runs;
+
+		// A translucent layer copies the frame for what reads it
+		if ( obj.WantsFrameBufferCopy && !shadow ) c.FrameBufferReads = runs & FrameBufferCopyingLists;
+
+		// Only the sort keys its lists use
+		if ( (runs & (BatchedLists | RenderOrderLists)) != 0 ) c.OpaqueKey = key.For( obj, lod, probe );
+		c.OnlyTranslucent = blend == MeshBlend.Translucent;
+		c.Callbacks = obj.Callbacks is not null && !shadow;
+		c.RenderOrder = obj.RenderOrder;
+		return c;
 	}
 
 	int keysMade;

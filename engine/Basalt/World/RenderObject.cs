@@ -66,6 +66,12 @@ public abstract class RenderObject
 	}
 
 	/// <summary>
+	/// Tell the world something that decides how this draws changed, so what renderers kept of it is made again
+	/// (<see cref="RenderWorld.DrawVersions"/>).
+	/// </summary>
+	private protected void DrawChanged() => World?.DrawChanged( this );
+
+	/// <summary>
 	/// String-token tags used by view include/exclude filters.
 	/// </summary>
 	public uint[] Tags
@@ -113,23 +119,59 @@ public abstract class RenderObject
 	/// <summary>
 	/// Include in game layers (inverse of <c>SCENEOBJECTFLAG_EXCLUDE_GAME_LAYER</c>). Does not affect shadow casting.
 	/// </summary>
-	public bool GameLayers { get; set; } = true;
+	public bool GameLayers
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			DrawChanged();
+		}
+	} = true;
 
 	/// <summary>
 	/// Redraw in front as a viewmodel, in addition to world rendering (<c>SCENEOBJECTFLAG_GAME_OVERLAY_LAYER</c>).
 	/// </summary>
-	public bool Overlay { get; set; }
+	public bool Overlay
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			DrawChanged();
+		}
+	}
 
 	/// <summary>
 	/// Include in quarter-resolution bloom (<c>SCENEOBJECTFLAG_EFFECTS_BLOOM_LAYER</c>).
 	/// Disable <see cref="GameLayers"/> for bloom without a visible surface.
 	/// </summary>
-	public bool Bloom { get; set; }
+	public bool Bloom
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			DrawChanged();
+		}
+	}
 
 	/// <summary>
 	/// Redraw above screen UI without depth (<c>SCENEOBJECTFLAG_UI_OVERLAY_LAYER</c>).
 	/// </summary>
-	public bool AfterUI { get; set; }
+	public bool AfterUI
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			DrawChanged();
+		}
+	}
 
 	/// <summary>
 	/// Exclusive layer match (<c>SceneObject.RenderLayer</c>). Overrides all layer flags, including shadows,
@@ -143,6 +185,7 @@ public abstract class RenderObject
 			if ( field == value ) return;
 			field = value;
 			ShadowChanged();
+			DrawChanged();
 		}
 	}
 
