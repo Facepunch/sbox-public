@@ -53,6 +53,11 @@ sealed class ScenePhysicsSystem : GameObjectSystem<ScenePhysicsSystem>
 		base.Dispose();
 
 		DisconnectWorld();
+
+		foreach ( var c in KeyframeColliders.EnumerateLocked() )
+			c.KeyframeQueued = false;
+
+		KeyframeColliders.Clear();
 	}
 
 	void DisconnectWorld()
@@ -104,15 +109,17 @@ sealed class ScenePhysicsSystem : GameObjectSystem<ScenePhysicsSystem>
 			return;
 
 		//
-		// Tell all the keyframe colliders to "move" their keyframes to their new position
+		// Tell the keyframe colliders that moved to "move" their keyframes to their new position
 		// - we do this right before the physics step
 		// - this means that changes in FixedUpdate are immediate
+		// - they leave the set once their body is on target, transform changes and body moves add them back
 		//
 		// Box3D doesn't like us threading things
 		// System.Threading.Tasks.Parallel.ForEach( KeyframeColliders.EnumerateLocked( true ), c => c.UpdateKeyframeTransform() );
 		foreach ( var c in KeyframeColliders.EnumerateLocked( true ) )
 		{
-			c.UpdateKeyframeTransform();
+			if ( c.UpdateKeyframeTransform() )
+				RemoveKeyframe( c );
 		}
 
 		// The actual physics step
@@ -203,8 +210,17 @@ sealed class ScenePhysicsSystem : GameObjectSystem<ScenePhysicsSystem>
 		}
 	}
 
-	internal void AddKeyframe( Collider collider ) => KeyframeColliders.Add( collider );
-	internal void RemoveKeyframe( Collider collider ) => KeyframeColliders.Remove( collider );
+	internal void AddKeyframe( Collider collider )
+	{
+		KeyframeColliders.Add( collider );
+		collider.KeyframeQueued = true;
+	}
+
+	internal void RemoveKeyframe( Collider collider )
+	{
+		KeyframeColliders.Remove( collider );
+		collider.KeyframeQueued = false;
+	}
 
 	internal void AddRigidBody( Rigidbody rigidBody )
 	{

@@ -1005,8 +1005,14 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot, INetworkWa
 		LocalSnapshotState.Version = msg.SnapshotVersion;
 
 		var parent = GameObject.Scene.Directory.FindByGuid( msg.Parent );
-		GameObject.Transform.SetLocalTransformFast( msg.Transform );
+		var oldParent = GameObject.Parent;
+		var moved = GameObject.Transform.SetLocalTransformFast( msg.Transform );
 		GameObject.SetParentFromNetwork( parent );
+
+		// Reparenting already notified
+		if ( moved && GameObject.Parent == oldParent )
+			GameObject.Transform.TransformChanged();
+
 		GameObject.Enabled = msg.Enabled;
 		ReadDataTable( msg.TableData );
 	}
