@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace Basalt.Features;
 
@@ -416,7 +417,18 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			c.Callbacks = obj.Callbacks is not null && !shadow;
 			c.RenderOrder = obj.RenderOrder;
 		}
+
+		if ( key.Made > 0 ) Interlocked.Add( ref keysMade, key.Made );
 	}
+
+	int keysMade;
+
+	/// <summary>
+	/// Batch keys hashed (<see cref="OpaqueKey"/>) and buckets sorted since the feature was made - for the tests, which count
+	/// work rather than time it.
+	/// </summary>
+	internal int KeysMade => Volatile.Read( ref keysMade );
+	internal int BucketsSorted { get; private set; }
 
 	ulong[] itemKeys = new ulong[256];
 	DrawItem[] itemScratch = new DrawItem[256];
@@ -591,6 +603,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		public ShaderParameters Lightmap;
 		public ShaderParameters Probe;
 		public ulong Key;
+		public int Made;
 
 		public ulong For( MeshObject obj, int lod, ShaderParameters probe )
 		{
@@ -604,6 +617,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			Lightmap = obj.LightmapAttributes;
 			Probe = probe;
 			Key = OpaqueKey( obj, lod, probe );
+			Made++;
 			return Key;
 		}
 	}
@@ -641,7 +655,11 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		// Skip sorting already ordered buckets, common in heavily instanced scenes.
 		var items = bucket.Items.AsSpan( 0, count );
 		var keys = bucket.Keys.AsSpan( 0, count );
-		if ( !IsSorted( keys ) ) keys.Sort( items );
+		if ( !IsSorted( keys ) )
+		{
+			keys.Sort( items );
+			BucketsSorted++;
+		}
 
 		var objects = world.Objects;
 		var matrices = world.LocalToWorld;
