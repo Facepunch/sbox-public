@@ -159,6 +159,33 @@ public class ModelFileTests
 	}
 
 	/// <summary>
+	/// What the engine reports for these models (<c>Model.MeshInfo</c> and <c>Model.Bounds</c>, read once through
+	/// <c>basaltlab -model-parity</c>, which also checks every draw's range and material and every vertex against the
+	/// engine's own buffers): vertices as <c>CRenderMesh::CalculateNumTriangles</c> counts them, triangles, draws, LODs
+	/// (at least one) and bounds, with each LOD's materials from the reader.
+	/// </summary>
+	[TestMethod]
+	[DataRow( "models/dev/box.vmdl", 24, 12, 1, 1, -25f, -25f, -25f, 25f, 25f, 25f, "materials/dev/primary_white.vmat" )]
+	[DataRow( "models/dev/gordon_at_desk.vmdl", 1400, 830, 3, 1, -8.8459f, -13.1256f, -52.6451f, 35.9664f, 13.1256f, 6.4164f, "materials/models/editor/player_start.vmat;dev/helper/reflectivity_90b.vmat;dev/helper/testgrid.vmat" )]
+	[DataRow( "models/citizen_props/trashcan01.vmdl", 1287, 1681, 6, 3, -17.7754f, -16.8806f, 0.206f, 17.9443f, 18.2964f, 45.9803f, "models/citizen_props/trashcan01.vmat;models/citizen_props/trashbag01.vmat" )]
+	[DataRow( "models/citizen/citizen.vmdl", 12684, 21216, 23, 5, -5.2418f, -25.683f, -0.0353f, 8.6324f, 25.683f, 71.6743f, null )]
+	[DataRow( "models/citizen_human/human.vmdl", 70474, 128891, 69, 4, -5.7833f, -23.933f, -0.0696f, 6.3864f, 23.9598f, 68.9154f, null )]
+	public void MatchesEngine( string path, int vertices, int triangles, int draws, int lods, float minX, float minY, float minZ, float maxX, float maxY, float maxZ, string lod0Materials )
+	{
+		var model = Load( path );
+		Assert.AreEqual( vertices, model.Meshes.Sum( m => m.VertexCount ), "vertices" );
+		Assert.AreEqual( triangles, model.Meshes.Sum( m => m.TriangleCount ), "triangles" );
+		Assert.AreEqual( draws, model.Meshes.Sum( m => m.DrawCalls.Count ), "draws" );
+		Assert.AreEqual( lods, model.LodCount, "LODs" );
+		Assert.IsTrue( V3.Distance( new V3( minX, minY, minZ ), model.Mins ) < 1e-3f, $"mins {model.Mins}" );
+		Assert.IsTrue( V3.Distance( new V3( maxX, maxY, maxZ ), model.Maxs ) < 1e-3f, $"maxs {model.Maxs}" );
+
+		if ( lod0Materials is null ) return;
+		var materials = model.Meshes.Where( m => (m.LodMask & 1) != 0 ).SelectMany( m => m.DrawCalls ).Select( d => d.Material ).Distinct().ToArray();
+		CollectionAssert.AreEqual( lod0Materials.Split( ';' ), materials );
+	}
+
+	/// <summary>
 	/// The citizen: twenty meshes over five LODs, five body groups each with two choices, a 95-bone skeleton, and a head
 	/// with morphs (not read). Its first bone's bind pose matches its first mesh's inverse bind pose.
 	/// </summary>

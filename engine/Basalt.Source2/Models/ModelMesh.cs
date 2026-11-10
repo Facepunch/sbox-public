@@ -4,6 +4,7 @@ using Basalt.Source2.Resources;
 using Basalt.Source2.Shaders;
 using System.Buffers.Binary;
 using System.IO;
+using System.Linq;
 using System.Numerics;
 using System.Text;
 
@@ -58,6 +59,30 @@ public sealed class ModelMesh
 	/// <summary>Whether it's skinned: it has bones.</summary>
 	public bool IsSkinned => Bones.Count > 0;
 
+	/// <summary>
+	/// Vertices its draws use, as <c>CRenderMesh::CalculateNumTriangles</c> counts them: each draw's count, once per
+	/// vertex buffer per scene object.
+	/// </summary>
+	public int VertexCount
+	{
+		get
+		{
+			var count = 0;
+			var counted = new HashSet<(int, int)>();
+			foreach ( var draw in DrawCalls )
+			{
+				var added = false;
+				foreach ( var (buffer, _) in draw.VertexBuffers ) added |= counted.Add( (draw.SceneObject, buffer) );
+				if ( added ) count += draw.VertexCount;
+			}
+
+			return count;
+		}
+	}
+
+	/// <summary>Triangles its draws draw.</summary>
+	public int TriangleCount => DrawCalls.Sum( x => x.IndexCount / 3 );
+
 	/// <inheritdoc/>
 	public override string ToString() => Name;
 
@@ -72,11 +97,13 @@ public sealed class ModelMesh
 		var draws = new List<MeshDrawCall>();
 		var mins = new Vector3( float.MaxValue );
 		var maxs = new Vector3( float.MinValue );
+		var sceneObjects = 0;
 		foreach ( var sceneObject in Kv.Objects( root.Get( "m_sceneObjects" ) ) )
 		{
 			mins = Vector3.Min( mins, Kv.Vector3( sceneObject.Get( "m_vMinBounds" ) ) );
 			maxs = Vector3.Max( maxs, Kv.Vector3( sceneObject.Get( "m_vMaxBounds" ) ) );
-			foreach ( var draw in Kv.Objects( sceneObject.Get( "m_drawCalls" ) ) ) draws.Add( MeshDrawCall.Read( draw, vertexBuffers, name ) );
+			foreach ( var draw in Kv.Objects( sceneObject.Get( "m_drawCalls" ) ) ) draws.Add( MeshDrawCall.Read( draw, vertexBuffers, name ) with { SceneObject = sceneObjects } );
+			sceneObjects++;
 		}
 
 		if ( draws.Count == 0 ) mins = maxs = Vector3.Zero;
@@ -304,6 +331,9 @@ public readonly record struct VertexField( string Semantic, int SemanticIndex, C
 /// </summary>
 public sealed record MeshDrawCall
 {
+	/// <summary>The scene object (<c>CSceneObjectData</c>) of its mesh it's in; almost always 0.</summary>
+	public int SceneObject { get; init; }
+
 	/// <summary>The primitive (<c>RenderPrimitiveType_t</c>): triangles for every compiled model.</summary>
 	public PrimitiveKind Primitive { get; init; }
 
