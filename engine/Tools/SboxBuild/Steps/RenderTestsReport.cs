@@ -58,7 +58,8 @@ internal static class RenderTestsReport
 		var first = Directory.EnumerateFiles( output, "*.results.json" ).Select( x => JsonNode.Parse( File.ReadAllText( x ) ) ).FirstOrDefault();
 		if ( first is not null ) run = $"{run}   {(string)first["gpu"]}   {(string)first["cpuFeatures"]}";
 
-		var data = new JsonObject { ["run"] = run, ["tests"] = tests };
+		// On CI, the run whose artifact these captures are, for render-tests --from-ci
+		var data = new JsonObject { ["run"] = run, ["ciRun"] = Environment.GetEnvironmentVariable( "GITHUB_RUN_ID" ), ["tests"] = tests };
 		var path = Path.Combine( output, "index.html" );
 		File.WriteAllText( path, Page.Replace( "/*DATA*/null", data.ToJsonString() ) );
 		return path;
@@ -229,7 +230,7 @@ function facts() {
     `<span class="k">histogram</span><span class="mono">${esc(diffs)}</span><span class="k">thresholds</span><span class="mono">${esc(th)}</span>` +
     (t.error ? `<span class="k">error</span><span class="mono fail-t" style="grid-column: 2 / -1">${esc(t.error)}</span>` : '') +
     (msgs ? `<div id="msgs" class="mono">${esc(msgs)}</div>` : '') +
-    `<div class="cmd">accept this capture: <code>dotnet run --project engine/Tools/SboxBuild/SboxBuild.csproj -- render-tests --update --preset "${esc(t.accept)}"</code></div>`;
+    `<div class="cmd">accept this capture: <code>dotnet run --project engine/Tools/SboxBuild/SboxBuild.csproj -- render-tests ${data.ciRun ? '--from-ci ' + esc(data.ciRun) : '--update'} --preset "${esc(t.accept)}"</code></div>`;
 }
 
 function maxDiff(a, b, o) {

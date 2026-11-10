@@ -94,7 +94,7 @@ Other switches:
   Every run renders the same pixels: textures load whole (`SetForcePreloadStreamingData`) instead of streaming in over
   real time, which had moved the citizens' heads and reflections by a few mips, scenes tick at a fixed 1/60 s, and every
   GameObject load seeds the particles' random numbers (`ParticleRandom`) and `Game.Random`. `SboxBuild render-tests
-  [--suite core|extended|all] [--preset X] [--update]` renders presets on Lavapipe, Mesa's software Vulkan driver
+  [--suite core|extended|all] [--preset X] [--update | --from-ci [run]]` renders presets on Lavapipe, Mesa's software Vulkan driver
   (fetched into `src/thirdparty/lavapipe`, the runner's tool cache on CI, or `LAVAPIPE_ICD`), at 640x360 with
   `-vulkan_allow_cpu -vulkan_enable_validation -vulkan_validation_warnings` and `-capture-frame 10` (Lavapipe takes up
   to a couple of seconds over a post processed frame), so it needs no GPU. Its presets come in two suites
@@ -111,7 +111,11 @@ Other switches:
   a CI runner. Terrain and Clutter, Morphs and Model Deformers repeat exactly too but are left out of extended for
   time (3.5 minutes between them). Lavapipe is pixel-exact run to run (Ambient Occlusion's first frame once came out
   with 4 pixels 1 off, inside the default threshold); a GPU differs from it by 40-80 dB PSNR, so each device has its own
-  bucket. A Lavapipe run deletes the GPU's Vulkan pipeline cache (vendor mismatch), so the next GPU run recompiles its
+  bucket. Lavapipe also differs a little between CPU models, enough to fail some GameObject presets, so golden truth
+  images come from CI: `render-tests --from-ci [run ID or URL]` downloads a run's
+  `render-tests` artifact, the newest for the commit checked out without one, and copies its failing captures over their
+  golden truth images (`--preset` narrows it; needs `gh`). The report's accept command names its run. Local
+  `--update` warns. A Lavapipe run deletes the GPU's Vulkan pipeline cache (vendor mismatch), so the next GPU run recompiles its
   pipelines. It fails if a requested preset isn't checked, or if the validation layer doesn't load (no Vulkan SDK)
   rather than passing unvalidated. On CI it runs after the tests: on a pull request only when the PR changes rendering
   (`RenderTests.RenderingPaths`), which also gives it the `render-tests` label; add that label to run them anyway or
@@ -124,7 +128,8 @@ Other switches:
   with the first one's sampler natively (2026-11-07).
 - **Animation:** `-sequence-time f` (0 to 1) poses skinned presets at another frame. Skinned objects are posed by a
   `SceneModel` in a world that's never rendered, and the native reference sets the same bones on its own.
-- **Camera and window:** `-zoom`, `-width`, `-height`.
+- **Camera and window:** `-zoom`, `-width`, `-height`. The size is in pixels whatever the display scale, so a capture
+  is the size asked for; without either the window is 1280x760 in UI units.
 - **Renderer:** `-noprepass`, `-nosizecull`, `-noshadows`, `-debugshader`, `-native-renderer`, `-novsync`,
   `-serialrecording` (record every segment on the main thread, for the lab's renderer and the bridge's alike).
 - **Target:** `-target` renders into a `ViewTarget` instead of the swap chain; `-msaa 2|4|8` multisamples it and

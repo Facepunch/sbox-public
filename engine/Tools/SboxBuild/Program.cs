@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.CommandLine;
+using System.CommandLine.Invocation;
 using Facepunch.Steps;
 using static Facepunch.Constants;
 
@@ -214,8 +215,11 @@ internal class Program
 			getDefaultValue: () => [] )
 		{ AllowMultipleArgumentsPerToken = true };
 		var updateOption = new Option<bool>( "--update",
-			description: "Write each frame as its preset's golden truth image",
+			description: "Write each frame rendered here as its preset's golden truth image. Golden truth comes from CI: prefer --from-ci",
 			getDefaultValue: () => false );
+		var fromCiOption = new Option<string>( "--from-ci",
+			description: "Accept CI's failing captures as golden truth images instead of rendering: from a run ID or URL, or with none, the newest run for the commit checked out" )
+		{ Arity = ArgumentArity.ZeroOrOne };
 		var pullRequestOption = new Option<bool>( "--pull-request",
 			description: "On a pull request, run only with the render-tests label, or when it changes rendering (which adds the label); skip with skip-render-tests",
 			getDefaultValue: () => false );
@@ -225,10 +229,25 @@ internal class Program
 		cmd.AddOption( suiteOption );
 		cmd.AddOption( presetOption );
 		cmd.AddOption( updateOption );
+		cmd.AddOption( fromCiOption );
 		cmd.AddOption( pullRequestOption );
 		cmd.AddOption( slackOption );
-		cmd.SetHandler( ( string suite, string[] presets, bool update, bool pullRequest, bool notifySlack ) =>
+		cmd.SetHandler( ( InvocationContext context ) =>
 		{
+			var parse = context.ParseResult;
+			var suite = parse.GetValueForOption( suiteOption );
+			var presets = parse.GetValueForOption( presetOption );
+			var update = parse.GetValueForOption( updateOption );
+			var pullRequest = parse.GetValueForOption( pullRequestOption );
+			var notifySlack = parse.GetValueForOption( slackOption );
+
+			// Present without a value means the commit checked out
+			if ( parse.FindResultFor( fromCiOption ) is not null )
+			{
+				Environment.ExitCode = (int)new RenderTestsFromCi( parse.GetValueForOption( fromCiOption ), presets ).Run();
+				return;
+			}
+
 			if ( presets.Length == 0 ) presets = RenderTests.Suite( suite );
 			if ( presets is null )
 			{
@@ -238,7 +257,7 @@ internal class Program
 			}
 
 			Environment.ExitCode = (int)new RenderTests( presets, update, pullRequest, notifySlack ).Run();
-		}, suiteOption, presetOption, updateOption, pullRequestOption, slackOption );
+		} );
 		rootCommand.Add( cmd );
 	}
 

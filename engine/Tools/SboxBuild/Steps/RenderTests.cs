@@ -8,8 +8,8 @@ namespace Facepunch.Steps;
 /// <summary>
 /// Render regression tests without a GPU: SceneLab renders presets on Lavapipe, Mesa's software Vulkan driver, and
 /// checks each frame against its golden truth image in <c>engine/Tests/GoldenTruth</c> (<c>scenelab -golden-truth</c>),
-/// with Vulkan validation on. Lavapipe renders the same pixels on every machine with the same CPU features, so the
-/// golden truth images hold on any runner, GPU or not.
+/// with Vulkan validation on. Lavapipe renders the same pixels run to run, but they differ a little between CPU models,
+/// so the golden truth images come from CI's runners (<see cref="RenderTestsFromCi"/>), GPU or not.
 /// </summary>
 internal class RenderTests( string[] presets, bool update, bool pullRequest = false, bool notifySlack = false )
 {
@@ -112,6 +112,9 @@ internal class RenderTests( string[] presets, bool update, bool pullRequest = fa
 		}
 
 		if ( pullRequest && !RunForPullRequest() ) return ExitCode.Success;
+
+		// Lavapipe's pixels differ a little between CPU models, so a frame from here can fail on CI
+		if ( update && !Utility.IsCi() ) Log.Warning( "Golden truth images come from CI's runners, whose CPUs can round differently from this one: prefer render-tests --from-ci." );
 
 		// An empty list would have SceneLab's parity run compare every preset it has
 		if ( presets.Length == 0 )
