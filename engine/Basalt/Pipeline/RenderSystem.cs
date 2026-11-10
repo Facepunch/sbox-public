@@ -699,7 +699,7 @@ public sealed partial class RenderSystem : IDisposable
 		transforms.Clear();
 
 		// Shadows, skyboxes and views without a prepass never cull
-		var wanted = RenderHost.Current.OcclusionCulling && DepthPrepass && !isSkybox;
+		var wanted = RenderHost.Current.OcclusionCulling && DepthPrepass && !isSkybox && !view.Capture;
 		Occlusion.Begin();
 		meshes.Occlusion = wanted ? Occlusion : null;
 		aggregates.Occlusion = meshes.Occlusion;

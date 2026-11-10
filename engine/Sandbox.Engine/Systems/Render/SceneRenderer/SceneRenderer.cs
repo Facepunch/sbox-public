@@ -32,9 +32,10 @@ internal interface ISceneRenderer
 	void RenderToBitmap( SceneCamera camera, Bitmap bitmap, in ViewSetup setup );
 
 	/// <summary>
-	/// Render the camera's six directions into a cube texture.
+	/// Render the camera's six directions into a cube texture, then <paramref name="afterFaces"/> (the GGX filter), on the GPU
+	/// after the sixth face.
 	/// </summary>
-	void RenderToCube( SceneCamera camera, Texture cube, in ViewSetup setup );
+	void RenderToCube( SceneCamera camera, Texture cube, in ViewSetup setup, CommandList afterFaces = null );
 
 	/// <summary>
 	/// Free what's held for a camera that's been disposed, now rather than whenever the GC notices.

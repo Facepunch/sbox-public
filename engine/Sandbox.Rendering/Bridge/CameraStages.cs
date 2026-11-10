@@ -88,6 +88,17 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 	bool reflection;
 
 	/// <summary>
+	/// A cube capture face: its cube, its slice, and for the last face what runs after the faces.
+	/// </summary>
+	internal readonly record struct CubeFace( Texture Cube, int Slice, CommandList AfterFaces );
+
+	/// <summary>
+	/// The cube capture face being rendered, if one is (<see cref="SceneBridge.RenderToCube"/>): its frame ends by copying itself
+	/// into the cube's slice, after the last stage, and the last face then runs the work after the faces (the GGX filter).
+	/// </summary>
+	public CubeFace Capture { get; set; }
+
+	/// <summary>
 	/// Restore the main camera and forward layer for stage rendering: the view as rendered, with any overrides of the camera.
 	/// </summary>
 	void SetMainCamera()
@@ -185,7 +196,7 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 	/// child views (<c>StandardPipeline</c>: a view with a parent). Traced in a child too, they'd share the camera's history and
 	/// output, and add reflections native's child doesn't have. Nor in a reflection.
 	/// </summary>
-	public bool HasScreenSpaceReflections => !view.IsChild && !reflection && Camera?.ScreenSpaceReflections is not null;
+	public bool HasScreenSpaceReflections => !view.IsChild && !reflection && Capture.Cube is null && Camera?.ScreenSpaceReflections is not null;
 
 	public void RenderScreenSpaceReflections( bool history, in StageTarget target )
 	{
@@ -280,6 +291,19 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 		using ( new Graphics.Scope( context, view ) )
 		{
 			((IManagedCamera)Camera).OnRenderStage( (Stage)stage );
+		}
+
+		// A cube face, finished: into its slice, and after the last, what the capture runs after the faces
+		if ( stage == RenderStage.AfterUI && Capture.Cube is { } cube )
+		{
+			var rect = new NativeRect( 0, 0, (int)target.Size.x, (int)target.Size.y );
+			RenderTools.CopyTexture( context, target.Color.Native(), cube.native, rect, 0, 0, 0, 0, 0, (uint)Capture.Slice );
+
+			if ( Capture.AfterFaces is { } afterFaces )
+			{
+				using ( new Graphics.Scope( context, view ) )
+					afterFaces.ExecuteOnRenderThread();
+			}
 		}
 
 		// Before the pipeline texture upload below, which the frame's later passes read from the context's attributes

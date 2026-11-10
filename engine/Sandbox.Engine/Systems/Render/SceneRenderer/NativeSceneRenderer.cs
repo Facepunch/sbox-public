@@ -116,11 +116,36 @@ internal sealed class NativeSceneRenderer : ISceneRenderer
 		}
 	}
 
-	public void RenderToCube( SceneCamera camera, Texture texture, in ViewSetup config )
+	public void RenderToCube( SceneCamera camera, Texture texture, in ViewSetup config, CommandList afterFaces = null )
 	{
 		if ( texture is null || texture.native.IsNull )
 			return;
 
+		// Faces record in parallel but submit in array order, so the work after them goes in the last face's view, after its
+		// post processing
+		Action<Stage, SceneCamera> hook = null;
+		if ( afterFaces is not null )
+		{
+			hook = ( stage, _ ) =>
+			{
+				if ( stage == Stage.AfterPostProcess && Graphics.SceneView.GetRenderTargetArrayIndex() == 5 )
+					afterFaces.ExecuteOnRenderThread();
+			};
+			camera.OnRenderStageHook += hook;
+		}
+
+		try
+		{
+			RenderFaces( camera, texture, config );
+		}
+		finally
+		{
+			if ( hook is not null ) camera.OnRenderStageHook -= hook;
+		}
+	}
+
+	static void RenderFaces( SceneCamera camera, Texture texture, in ViewSetup config )
+	{
 		if ( texture.Depth != 6 ) throw new Exception( "Expected a texture with 6 depth slices for RenderToCubeTexture" );
 
 		var renderSize = texture.Size;

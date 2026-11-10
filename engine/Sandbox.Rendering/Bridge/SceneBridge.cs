@@ -67,6 +67,11 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		public PlanarFrustum PlanarFrustum;
 
 		/// <summary>
+		/// A face of cube captures (<see cref="RenderView.Capture"/>), shared by every capture's camera.
+		/// </summary>
+		public bool IsCapture;
+
+		/// <summary>
 		/// Whether this view's frame is being rendered now: a child view asked for while it draws can't be this view again.
 		/// </summary>
 		public bool Rendering;
@@ -214,6 +219,16 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 			state.Dispose();
 		views.Clear();
 
+		for ( int i = 0; i < captureFaces.Length; i++ )
+		{
+			captureFaces[i]?.Dispose();
+			captureFaces[i] = null;
+		}
+
+		captureColor?.Dispose();
+		captureDepth?.Dispose();
+		captureColor = captureDepth = null;
+
 		foreach ( var (_, extra) in extras )
 			extra.Mirror.Dispose();
 		extras.Clear();
@@ -277,7 +292,7 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 	/// <summary>
 	/// Sync the world and prepare camera, target and stages, optionally advancing exposure.
 	/// </summary>
-	(SceneMirror Mirror, CameraState State) Prepare( SceneCamera camera, in ViewSetup setup, Vector2 size, bool updateExposure = true )
+	(SceneMirror Mirror, CameraState State) Prepare( SceneCamera camera, in ViewSetup setup, Vector2 size, bool updateExposure = true, CameraState given = null )
 	{
 		// A child view prepares while its parent's frame records, on workers too, from the mirrors the parent synced: it
 		// changes no world anyone's drawing (an unseen world's mirror is new, and synced once)
@@ -289,12 +304,13 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		if ( parent is null || !mirror.HasSynced ) mirror.Sync( camera );
 		SyncSkybox( mirror, camera, setup );
 
-		var state = StateFor( camera, setup.ViewHash );
+		var state = given ?? StateFor( camera, setup.ViewHash );
 		state.Drawer.Mirror = mirror;
 		state.View.SubWorlds = SyncExtraWorlds( mirror, camera, setup, state.Drawer.ExtraMirrors );
 		state.SyncMs = System.Diagnostics.Stopwatch.GetElapsedTime( syncStart ).TotalMilliseconds;
 		Sandbox.Rendering.ManagedSceneRendering.Report( new Sandbox.Rendering.ManagedFrameCounters { SyncMs = state.SyncMs } );
 		FillView( state.View, camera, setup, size );
+		state.View.Capture = state.IsCapture;
 
 		// A child view takes its parent's render time unless it has its own, as native's child views do
 		// (CSceneSystem::AddDynamicView), and its parent's camera has had its exposure this frame
@@ -729,12 +745,12 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		return Source2Formats.From( target.ImageFormat ).IsFloat() && Source2Texture.From( target ).Samples == Source2Texture.From( depthTarget ).Samples;
 	}
 
-	bool RenderToTexture( SceneCamera camera, in ViewSetup setup, Texture target, Texture depthTarget, out CameraState state, bool updateExposure = true )
+	bool RenderToTexture( SceneCamera camera, in ViewSetup setup, Texture target, Texture depthTarget, out CameraState state, bool updateExposure = true, CameraState given = null )
 	{
 		state = null;
 		if ( target.Width < 1 || target.Height < 1 ) return false;
 
-		(var mirror, state) = Prepare( camera, setup, target.Size, updateExposure );
+		(var mirror, state) = Prepare( camera, setup, target.Size, updateExposure, given );
 		using var drawing = new Drawing( this, state );
 
 		// Non-float outputs need HDR blending before the copy.
@@ -782,10 +798,70 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 	}
 
 	/// <summary>
-	/// Not yet in Basalt: cube captures (six faces into array slices, and the GGX filter hooked to the last face's native view,
-	/// <c>CubemapRendering</c>). They render natively.
+	/// The six faces cube captures render with, each a render system of its own, shared by every capture: a probe's camera is
+	/// new for each capture, and six render systems made for each would cost more than the capture.
 	/// </summary>
-	public void RenderToCube( SceneCamera camera, Texture cube, in ViewSetup setup ) => SceneRenderer.Native.RenderToCube( camera, cube, setup );
+	readonly CameraState[] captureFaces = new CameraState[6];
+
+	/// <summary>
+	/// What a face renders into before it's copied into its cube's slice.
+	/// </summary>
+	Texture captureColor, captureDepth;
+
+	/// <summary>
+	/// Render a cube capture (an envmap probe): six 90-degree faces, each a Basalt frame of its own submitted in face order, as
+	/// native's six face views (<c>CCameraRenderer::RenderToCubeTexture</c>). Each face's frame ends by copying it into its slice
+	/// of the cube, and the last then runs <paramref name="afterFaces"/>. A camera with render stage hooks of its own (DDGI's
+	/// bake, which copies each face's depth and reads native's face views) renders natively, as does a capture asked for inside
+	/// a frame.
+	/// </summary>
+	public void RenderToCube( SceneCamera camera, Texture cube, in ViewSetup setup, CommandList afterFaces = null )
+	{
+		if ( cube is null || cube.native.IsNull ) return;
+
+		if ( Graphics.IsActive || camera.OnRenderStageHook is not null || NotYetInBasalt( camera, setup ) is not null )
+		{
+			SceneRenderer.Native.RenderToCube( camera, cube, setup, afterFaces );
+			return;
+		}
+
+		if ( cube.Depth != 6 ) throw new Exception( "Expected a texture with 6 depth slices for RenderToCubeTexture" );
+
+		var size = cube.Size;
+		if ( size.x <= 0 || size.y <= 0 ) return;
+
+		camera.OnPreRender( size );
+
+		if ( captureColor is null || captureColor.Size != size || captureColor.ImageFormat != cube.ImageFormat )
+		{
+			captureColor?.Dispose();
+			captureDepth?.Dispose();
+			captureColor = Texture.CreateRenderTarget().WithSize( (int)size.x, (int)size.y ).WithFormat( cube.ImageFormat ).Create( "r_managed_scene cube face" );
+			captureDepth = Texture.CreateRenderTarget().WithSize( (int)size.x, (int)size.y ).WithFormat( ImageFormat.D24S8 ).Create( "r_managed_scene cube face depth" );
+		}
+
+		// A float face renders straight into its colour with our depth; another goes through HDR first
+		var depth = Source2Formats.From( cube.ImageFormat ).IsFloat() ? captureDepth : null;
+		for ( int i = 0; i < captureFaces.Length; i++ )
+		{
+			var face = setup;
+			face.Transform = new Transform( camera.Position, camera.Rotation * SceneCamera.CubeRotations[i] );
+			face.FieldOfView = 90;
+			face.EnableUI = false;
+
+			var state = captureFaces[i] ??= new CameraState( camera ) { IsCapture = true };
+			state.Camera.SetTarget( camera );
+			state.Stages.Capture = new CameraStages.CubeFace( cube, i, i == captureFaces.Length - 1 ? afterFaces : null );
+			try
+			{
+				RenderToTexture( camera, face, captureColor, depth, out _, updateExposure: false, given: state );
+			}
+			finally
+			{
+				state.Stages.Capture = default;
+			}
+		}
+	}
 
 	/// <summary>
 	/// Last managed-frame statistics for a camera's view, or null before its first render.

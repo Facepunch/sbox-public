@@ -112,6 +112,13 @@ public sealed class RenderView
 	public bool ReflectionShadows { get; set; }
 
 	/// <summary>
+	/// A face of a cube capture (an envmap probe), drawn as native's pipeline draws one: the world only, without objects
+	/// <see cref="RenderObject.HiddenInCaptures"/> or viewmodels (<see cref="RenderObject.Overlay"/>), screen overlays or after-UI
+	/// objects, and without occlusion culling, since its history would be another face's or another probe's.
+	/// </summary>
+	public bool Capture { get; set; }
+
+	/// <summary>
 	/// Optional camera and scene attributes, merged before pipeline overrides (<c>CCameraRenderer::CreateView</c>).
 	/// </summary>
 	internal ShaderParameters CameraAttributes { get; set; }
@@ -193,6 +200,7 @@ public sealed class RenderView
 	internal bool Shows( RenderObject obj )
 	{
 		if ( !ShowsSubWorld( obj ) ) return false;
+		if ( Capture && (obj.HiddenInCaptures || obj.Overlay) ) return false;
 
 		var render = RenderTags;
 		var exclude = ExcludeTags;
