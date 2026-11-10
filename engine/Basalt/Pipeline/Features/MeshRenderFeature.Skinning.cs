@@ -150,11 +150,109 @@ internal sealed partial class MeshRenderFeature
 	}
 
 	/// <summary>
-	/// Compute-skin uploaded transforms before any render pass.
+	/// The fewest skinning jobs worth recording on a worker (<see cref="BeginSetupWork"/>).
+	/// </summary>
+	internal static int MinWorkerSkinningJobs { get; set; } = 16;
+
+	/// <summary>
+	/// Records the frame's skinning when a worker does, submitted right after the frame's setup context.
+	/// </summary>
+	GpuContext skinningContext;
+
+	/// <summary>
+	/// Whether skinning may be recorded on a worker this frame: only when workers record its segments, each on a context of its
+	/// own. A frame that records serially draws on its setup context, which skinning must come before.
+	/// </summary>
+	internal bool SkinOnWorker { get; set; }
+	GpuContext skinningFrame;
+	JobHandle skinning;
+	bool skinningStarted;
+
+	/// <summary>
+	/// Compute-skin uploaded transforms before any render pass: on the frame's setup context, or, for many dispatches while
+	/// recording in parallel, on a context of its own that a worker records once setup is done (<see cref="BeginSetupWork"/>)
+	/// and that's submitted right after the setup context (<see cref="EndSetupWork"/>). Each dispatch is a material bind and
+	/// a constant buffer of native work, about 5 us, so a scene of dressed citizens spends a third of a millisecond on them.
 	/// </summary>
 	void DispatchSkinning( GpuContext context )
 	{
-		if ( skinJobs.Count == 0 || frameTransforms is null ) return;
+		if ( !PrepareSkinning( context ) ) return;
+
+		if ( SkinOnWorker && skinJobs.Count >= MinWorkerSkinningJobs && JobDispatcher.MaxDegreeOfParallelism > 1 )
+		{
+			skinningFrame = context;
+			return;
+		}
+
+		RecordSkinning( context );
+	}
+
+	/// <summary>
+	/// Start recording the skinning <see cref="DispatchSkinning"/> left for a worker, now that setup has finished writing the
+	/// frame's attributes, which its context inherits.
+	/// </summary>
+	internal override void BeginSetupWork()
+	{
+		if ( skinningFrame is null ) return;
+
+		skinningContext ??= RenderHost.Current.Device.CreateContext( skinningFrame );
+		skinningStarted = true;
+		skinning = JobDispatcher.Begin( 1, this, static ( feature, _ ) => feature.RecordSkinningOnWorker() );
+	}
+
+	void RecordSkinningOnWorker()
+	{
+		var recording = GpuContext.Recording;
+		try
+		{
+			skinningContext.BeginSegment( skinningFrame, null );
+			GpuContext.Recording = skinningContext;
+			RecordSkinning( skinningContext );
+		}
+		finally
+		{
+			GpuContext.Recording = recording;
+		}
+	}
+
+	/// <summary>
+	/// Join the worker's skinning, and submit it after the frame's setup context, or discard it with a frame that isn't
+	/// submitted.
+	/// </summary>
+	internal override void EndSetupWork( bool submit )
+	{
+		if ( !skinningStarted )
+		{
+			skinningFrame = null;
+			return;
+		}
+
+		// Joining records it here if no worker took it yet, so the frame it begins on stays set until then
+		skinningStarted = false;
+		try
+		{
+			skinning.Join();
+		}
+		catch
+		{
+			skinningContext.End();
+			throw;
+		}
+		finally
+		{
+			skinningFrame = null;
+		}
+
+		if ( submit ) skinningContext.SubmitNext();
+		else skinningContext.End();
+	}
+
+	/// <summary>
+	/// Sort the jobs into batches and upload their deformation data on the setup context. False when there's nothing to skin.
+	/// </summary>
+	bool PrepareSkinning( GpuContext context )
+	{
+		if ( skinJobs.Count == 0 || frameTransforms is null ) return false;
 
 		skinningShader ??= RenderHost.Current.Device.LoadMaterial( SkinningShader );
 
@@ -200,8 +298,21 @@ internal sealed partial class MeshRenderFeature
 				frameAnchors.Add( (uint)master < (uint)anchors.Length ? anchors[master] : default );
 		}
 
-		GpuBuffer volumeBuffer = frameVolumes.Count > 0 ? volumeRing.Upload( context, CollectionsMarshal.AsSpan( frameVolumes ) ) : null;
-		GpuBuffer anchorBuffer = frameVolumes.Count > 0 ? anchorRing.Upload( context, CollectionsMarshal.AsSpan( frameAnchors ) ) : null;
+		skinningVolumes = frameVolumes.Count > 0 ? volumeRing.Upload( context, CollectionsMarshal.AsSpan( frameVolumes ) ) : null;
+		skinningAnchors = frameVolumes.Count > 0 ? anchorRing.Upload( context, CollectionsMarshal.AsSpan( frameAnchors ) ) : null;
+		return true;
+	}
+
+	GpuBuffer skinningVolumes, skinningAnchors;
+
+	/// <summary>
+	/// Record the prepared batches' dispatches, between the vertex cache's barriers.
+	/// </summary>
+	void RecordSkinning( GpuContext context )
+	{
+		var jobs = CollectionsMarshal.AsSpan( skinJobs );
+		var volumeBuffer = skinningVolumes;
+		var anchorBuffer = skinningAnchors;
 
 		context.BarrierVertexCacheToWrite();
 		for ( int first = 0; first < jobs.Length; )

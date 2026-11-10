@@ -47,6 +47,17 @@ internal abstract class RenderFeature
 	internal virtual void Setup( GpuContext context, RenderWorld world, ViewPass view ) { }
 
 	/// <summary>
+	/// Start work <see cref="Setup"/> left for a worker, once every feature's setup is done. Main thread.
+	/// </summary>
+	internal virtual void BeginSetupWork() { }
+
+	/// <summary>
+	/// Finish that work: submit it right after the frame's setup context, or discard it when the frame isn't submitted.
+	/// Called once a render whether or not any was started. Main thread.
+	/// </summary>
+	internal virtual void EndSetupWork( bool submit ) { }
+
+	/// <summary>
 	/// Number of runs available for this view and layer: what <see cref="Draw"/> ranges index. A feature picks its unit; meshes
 	/// record single draws.
 	/// </summary>

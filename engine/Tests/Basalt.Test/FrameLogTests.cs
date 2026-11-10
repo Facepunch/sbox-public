@@ -226,4 +226,37 @@ public class FrameLogTests
 		Assert.IsNull( parameters.Get( tint ), "the camera stopped setting it" );
 		Assert.AreEqual( 4, parameters.Get( mode ) );
 	}
+
+	/// <summary>
+	/// Many skinned objects are skinned on a context a worker records, submitted right after the frame's setup context and
+	/// before anything draws; recording serially, the setup context skins them itself, before the draws it records too.
+	/// </summary>
+	[TestMethod]
+	[DataRow( true )]
+	[DataRow( false )]
+	public void SkinningIsSubmittedBeforeAnythingDraws( bool parallel )
+	{
+		// Skinned as TestSkinnedMesh, with geometry to skin: a model each, so they draw apart, as many as make the frame record
+		// in parallel
+		var skinned = TestSkinnedMesh( 2 );
+		var world = new RenderWorld();
+		for ( int i = 0; i < 80; i++ )
+		{
+			var mesh = new RenderMesh( new HeadlessMesh( $"body {i}" ), UnitBox, [[new RenderMesh.Draw( 0, 0, 0, 36, 24, 0, null )]] );
+			mesh.SetSkinning( [skinned.SkinFor( 0 )], skinned.BindPose );
+			world.Add( new MeshObject( mesh, new Transform( new Vector3( 60, i % 40 * 3 - 60, i / 40 * 3 ) ) ) );
+		}
+
+		using var target = ViewTarget.Create( new Vector2Int( 640, 480 ) );
+		using var system = new RenderSystem { ParallelRecording = parallel };
+
+		var submissions = Render( system, world, target ).Submissions;
+		var skinning = submissions.Single( s => s.Commands.Any( c => c.Op == GpuOp.DispatchSkinning ) );
+		Assert.AreEqual( 80, skinning.Commands.Where( c => c.Op == GpuOp.DispatchSkinning ).Sum( c => c.Count ), "every object's mesh" );
+
+		// In submission order, every dispatch before the first draw
+		var commands = submissions.SelectMany( s => s.Commands ).ToList();
+		Assert.IsTrue( commands.FindLastIndex( c => c.Op == GpuOp.DispatchSkinning ) < commands.FindIndex( c => c.IsDraw ), "skinned before anything draws" );
+		Assert.AreEqual( parallel ? 1 : 0, IndexOf( submissions, skinning ), parallel ? "right after the setup context" : "in the setup context" );
+	}
 }
