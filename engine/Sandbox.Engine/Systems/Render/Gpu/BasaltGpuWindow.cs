@@ -56,7 +56,9 @@ internal sealed class BasaltGpuWindow : IDisposable
 	/// </summary>
 	public bool Present( Color background, bool clear, Action draw )
 	{
-		if ( target is null || !swapChain.Acquire( out _ ) ) return false;
+		if ( target is null ) return false;
+		backend.BeforeAcquire( swapChain );
+		if ( !swapChain.Acquire( out _ ) ) return false;
 
 		Draw( backend, target, background, clear, draw, swapChain );
 		swapChain.Present();
@@ -90,6 +92,7 @@ internal sealed class BasaltGpuWindow : IDisposable
 
 	public void Dispose()
 	{
+		backend.Forget( swapChain );
 		swapChain.Dispose();
 		ReleaseTarget();
 	}

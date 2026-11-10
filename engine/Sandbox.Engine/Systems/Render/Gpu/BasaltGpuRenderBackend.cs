@@ -91,6 +91,14 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 	bool followsFrames;
 	ulong frame;
 
+	/// <summary>Each engine frame is a device frame: starting one waits for the frame before last, then recycles what it used.</summary>
+	void FollowFrame()
+	{
+		if ( !followsFrames || frame == Application.FrameCount ) return;
+		frame = Application.FrameCount;
+		gpu.BeginFrame();
+	}
+
 	BasaltGpuRenderBackend( GpuDevice gpu, bool ownsDevice )
 	{
 		this.gpu = gpu;
@@ -118,13 +126,7 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 	{
 		if ( list is not null ) throw new InvalidOperationException( "A Basalt.Gpu block is already recording." );
 
-		// Each engine frame is a device frame: this waits for the frame before last, then recycles what it used
-		if ( followsFrames && frame != Application.FrameCount )
-		{
-			frame = Application.FrameCount;
-			gpu.BeginFrame();
-		}
-
+		FollowFrame();
 		list = gpu.BeginCommandList( QueueType.Graphics, "Graphics block" );
 		presentTo = null;
 		context.Begin( list );
@@ -150,6 +152,23 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 	}
 
 	SwapChain presentTo;
+	readonly Dictionary<SwapChain, ulong> acquiredIn = new();
+
+	/// <summary>
+	/// Call before a swap chain acquires: a second acquire in one device frame (a window drawn twice in an engine frame,
+	/// from a resize) starts the next device frame, since each frame slot has one acquire semaphore per swap chain.
+	/// </summary>
+	public void BeforeAcquire( SwapChain swapChain )
+	{
+		// The frame has to have started before the acquire, so the acquire's semaphore belongs to the frame whose submit
+		// waits on it
+		FollowFrame();
+		if ( acquiredIn.TryGetValue( swapChain, out var last ) && last == gpu.FrameNumber ) gpu.BeginFrame();
+		acquiredIn[swapChain] = gpu.FrameNumber;
+	}
+
+	/// <summary>Forget a swap chain that's going away.</summary>
+	public void Forget( SwapChain swapChain ) => acquiredIn.Remove( swapChain );
 
 	/// <summary>
 	/// A swap chain on a window, presenting with vsync or as soon as it can.
