@@ -103,6 +103,11 @@ internal struct ShadowViewInfo
 	public bool IsSkybox;
 
 	/// <summary>
+	/// The view's tags, which shadow views filter casters by, as native's inherit their parent view's. Null for none.
+	/// </summary>
+	public uint[] RenderTags, ExcludeTags;
+
+	/// <summary>
 	/// A reflection view: no contact shadows, and its cascades fit a mirrored camera, so no other view may reuse them.
 	/// </summary>
 	public bool IsReflection;

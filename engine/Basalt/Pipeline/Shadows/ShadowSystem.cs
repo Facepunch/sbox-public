@@ -89,6 +89,8 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 			ViewToWorldRotation = view.WorldToViewRotation.Transpose(),
 			CameraPosition = view.Position,
 			ViewportSize = new Vector2( view.Viewport.Width, view.Viewport.Height ),
+			RenderTags = view.RenderTags,
+			ExcludeTags = view.ExcludeTags,
 			IsSkybox = skybox,
 		};
 		mapper.InitForView();

@@ -50,6 +50,7 @@ internal partial class ShadowMapper
 		public float RadiusSquared;
 		public float ViewportArea;
 		public StaticFilter StaticFilter;
+		public uint[] RenderTags, ExcludeTags;
 		public GPUDirectionalLight Data;
 	}
 
@@ -348,6 +349,7 @@ internal partial class ShadowMapper
 		// A reflection's mirrored camera neither reuses another view's cascades nor shares its own
 		if ( !View.IsReflection && LastCascades.Frame == FrameCount && LastCascades.Light == light.Key && viewportArea <= LastCascades.ViewportArea
 			&& LastCascades.StaticFilter == staticFilter
+			&& SameTags( LastCascades.RenderTags, View.RenderTags ?? [] ) && SameTags( LastCascades.ExcludeTags, View.ExcludeTags ?? [] )
 			&& cameraPosition.DistanceSquared( LastCascades.CameraPosition ) <= LastCascades.RadiusSquared )
 		{
 			gpuShadowData = LastCascades.Data;
@@ -436,6 +438,8 @@ internal partial class ShadowMapper
 			RadiusSquared = outerRadius * outerRadius,
 			ViewportArea = viewportArea,
 			StaticFilter = staticFilter,
+			RenderTags = View.RenderTags ?? [],
+			ExcludeTags = View.ExcludeTags ?? [],
 			Data = gpuShadowData,
 		};
 

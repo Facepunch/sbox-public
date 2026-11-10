@@ -191,4 +191,122 @@ public class ShadowCacheTests
 		Render();
 		Assert.AreEqual( 0, system.ShadowMaps.Passes.Length, "a submitted frame's are kept" );
 	} );
+
+	/// <summary>
+	/// A camera's tags filter its shadows' casters, as native's shadow views inherit their camera's. A light seen by two
+	/// cameras with different tags keeps a map for each, static cache and all, rather than whichever drew first.
+	/// </summary>
+	[TestMethod]
+	public void CamerasWithOtherTagsKeepTheirOwnShadows() => WithoutUpdates( () =>
+	{
+		var viewer = new StringToken( "viewer" ).Value;
+		var ui = new StringToken( "ui" ).Value;
+		var world = new RenderWorld();
+		world.Lighting.SunColor = Color.Black;
+		var body = new MeshObject( null, new Transform( new Vector3( 300, 0, -20 ) ) ) { LocalBounds = UnitBox, Tags = [viewer] };
+		var statue = StaticBox( world, new Vector3( 300, 0, 20 ) );
+		statue.Tags = [viewer];
+		world.Add( body );
+		world.Add( new LightObject( LightObject.LightKind.Point, new Transform( new Vector3( 300, 0, 0 ) ) ) { Radius = 50, IsStatic = true } );
+
+		var firstPerson = LookingDownX();
+		firstPerson.ExcludeTags = [viewer, ui];
+		var spectator = LookingDownX();
+
+		using var first = new RenderSystem();
+		using var second = new RenderSystem();
+		var mesh = first.GetFeature<MeshRenderFeature>();
+
+		static int[] Drawn( RenderSystem system, MeshRenderFeature mesh ) => system.ShadowMaps.Passes.ToArray().SelectMany( p => p.Visible( mesh ) ).ToArray();
+
+		// Both cameras in one frame
+		RenderHost.Current.NextFrame();
+		Prepare( first, world, firstPerson );
+		Assert.AreEqual( 12, first.ShadowMaps.Passes.Length, "the cube and its static cache" );
+		CollectionAssert.DoesNotContain( Drawn( first, mesh ), body.Index );
+		CollectionAssert.DoesNotContain( Drawn( first, mesh ), statue.Index );
+
+		Prepare( second, world, spectator );
+		Assert.AreEqual( 12, second.ShadowMaps.Passes.Length, "the spectator's own cube and static cache" );
+		CollectionAssert.Contains( Drawn( second, mesh ), body.Index );
+		CollectionAssert.Contains( Drawn( second, mesh ), statue.Index );
+
+		// Then each keeps its own
+		RenderHost.Current.NextFrame();
+		Prepare( first, world, firstPerson );
+		Prepare( second, world, spectator );
+		Assert.AreEqual( 0, first.ShadowMaps.Passes.Length );
+		Assert.AreEqual( 0, second.ShadowMaps.Passes.Length );
+
+		// The same tags in another order are the same filter
+		var again = LookingDownX();
+		again.ExcludeTags = [ui, viewer];
+		RenderHost.Current.NextFrame();
+		Prepare( first, world, again );
+		Assert.AreEqual( 0, first.ShadowMaps.Passes.Length );
+	} );
+
+	/// <summary>
+	/// A static cache is kept while the camera moves, so it keeps casters too small to see from where the camera was when it
+	/// was drawn. Maps that are drawn again as they update still size cull from the camera.
+	/// </summary>
+	[TestMethod]
+	public void StaticCachesKeepSmallCasters()
+	{
+		var world = new RenderWorld();
+		world.Lighting.SunColor = Color.Black;
+		var small = new BBox( new Vector3( -0.1f ), new Vector3( 0.1f ) );
+		var pebble = new MeshObject( null, new Transform( new Vector3( 900, 0, -20 ) ) ) { LocalBounds = small, IsStatic = true };
+		var marble = new MeshObject( null, new Transform( new Vector3( 900, 0, 20 ) ) ) { LocalBounds = small };
+		world.Add( pebble );
+		world.Add( marble );
+		world.Add( new LightObject( LightObject.LightKind.Point, new Transform( new Vector3( 900, 0, 0 ) ) ) { Radius = 50, IsStatic = true } );
+
+		using var system = new RenderSystem();
+		var mesh = system.GetFeature<MeshRenderFeature>();
+		CollectAndPrepare( system, world, LookingDownX() );
+
+		var passes = system.ShadowMaps.Passes.ToArray();
+		Assert.AreEqual( 12, passes.Length );
+		CollectionAssert.Contains( passes.Where( p => p.StaticFilter == StaticFilter.OnlyStatic ).SelectMany( p => p.Visible( mesh ) ).ToArray(), pebble.Index );
+		CollectionAssert.DoesNotContain( passes.SelectMany( p => p.Visible( mesh ) ).ToArray(), marble.Index, "too small from here" );
+	}
+
+	/// <summary>
+	/// A second camera in the same frame reuses the first's sun cascades only if it shows the same casters.
+	/// </summary>
+	[TestMethod]
+	public void CascadesAreSharedOnlyWithTheSameTags()
+	{
+		var viewer = new StringToken( "viewer" ).Value;
+		var world = new RenderWorld();
+		var body = new MeshObject( null, new Transform( new Vector3( 10, 0, 0 ) ) ) { LocalBounds = UnitBox, Tags = [viewer] };
+		world.Add( body );
+
+		var firstPerson = LookingDownX();
+		firstPerson.ExcludeTags = [viewer];
+
+		using var first = new RenderSystem();
+		using var second = new RenderSystem();
+		using var third = new RenderSystem();
+		var mesh = first.GetFeature<MeshRenderFeature>();
+
+		RenderHost.Current.NextFrame();
+		Prepare( first, world, firstPerson );
+		Assert.AreNotEqual( 0, first.ShadowMaps.Passes.Length );
+
+		Prepare( second, world, LookingDownX() );
+		Assert.AreEqual( first.ShadowMaps.Passes.Length, second.ShadowMaps.Passes.Length, "its own cascades" );
+		CollectionAssert.Contains( second.ShadowMaps.Passes.ToArray().SelectMany( p => p.Visible( mesh ) ).ToArray(), body.Index );
+
+		Prepare( third, world, LookingDownX() );
+		Assert.AreEqual( 0, third.ShadowMaps.Passes.Length, "the same tags share the last cascades" );
+	}
+
+	static void Prepare( RenderSystem system, RenderWorld world, RenderView view )
+	{
+		var stats = new RenderStats();
+		system.Collect( world, view, ref stats );
+		system.Prepare( world, view );
+	}
 }
