@@ -9,9 +9,10 @@ global using System.Threading.Tasks;
 global using static Sandbox.Internal.GlobalSystemNamespace;
 using System.Runtime.CompilerServices;
 
-[assembly: InternalsVisibleTo( "Sandbox.Test" )]
 [assembly: InternalsVisibleTo( "Sandbox.Test.Unit" )]
-[assembly: InternalsVisibleTo( "Sandbox.Hotload.Test" )]
+[assembly: InternalsVisibleTo( "Sandbox.Test.Engine" )]
+[assembly: InternalsVisibleTo( "Sandbox.Test.Integration" )]
+[assembly: InternalsVisibleTo( "Sandbox.Test.NetSim" )]
 [assembly: InternalsVisibleTo( "Sandbox.GameInstance" )]
 [assembly: InternalsVisibleTo( "Sandbox.Tools" )]
 [assembly: InternalsVisibleTo( "Sandbox.Menu" )]
@@ -20,13 +21,15 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo( "ShaderCompiler" )]
 [assembly: InternalsVisibleTo( "Sandbox.Mounting.Test" )]
 [assembly: InternalsVisibleTo( "sbox-launcher" )]
+[assembly: InternalsVisibleTo( "panelgallery" )]
+[assembly: InternalsVisibleTo( "scenelab" )]
+[assembly: InternalsVisibleTo( "Sandbox.SceneRenderer" )]
 [assembly: InternalsVisibleTo( "sbox-server" )]
 [assembly: InternalsVisibleTo( "sbox-dev" )]
 [assembly: InternalsVisibleTo( "sbox" )]
 [assembly: InternalsVisibleTo( "sbox-standalone" )]
 [assembly: InternalsVisibleTo( "sbox-profiler" )]
 [assembly: InternalsVisibleTo( "benchmark" )]
-[assembly: InternalsVisibleTo( "CreateGameCache" )]
 
 [assembly: TasksPersistOnContextReset]
 

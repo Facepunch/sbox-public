@@ -8,7 +8,7 @@ public struct TextureCubeBuilder
 	internal int Width { set => builder._config.m_nWidth = (short)value; }
 	internal int Height { set => builder._config.m_nHeight = (short)value; }
 	internal int Depth { set => builder._config.m_nDepth = (short)value; }
-	internal ImageFormat Format { set => builder._config.m_nImageFormat = value; }
+	internal ImageFormat Format { set => builder.WithFormat( value ); }
 
 
 	internal string _name = null;
@@ -136,7 +136,7 @@ public struct TextureCubeBuilder
 	#endregion
 
 	/// <summary>
-	/// Provide a name to identify the texture by
+	/// Provide a name to identify the texture by, allowing it to be retrieved with <see cref="Texture.Load(string, bool)"/>.
 	/// </summary>
 	/// <param name="name">Desired texture name</param>
 	public TextureCubeBuilder WithName( string name )
@@ -260,10 +260,10 @@ public struct TextureCubeBuilder
 
 		if ( _dataPtr != IntPtr.Zero )
 		{
-			return Texture.Create( string.IsNullOrEmpty( _name ) ? "unnamed" : _name, _asAnonymous, builder, _dataPtr, _dataLength );
+			return Texture.Create( _name, _asAnonymous, builder, _dataPtr, _dataLength );
 		}
 
-		return builder.Create( string.IsNullOrEmpty( _name ) ? "unnamed" : _name, _asAnonymous, _data, _dataLength );
+		return builder.Create( _name, _asAnonymous, _data, _dataLength );
 	}
 
 	/// Custom methods

@@ -150,34 +150,29 @@ public static class ClipExtensions
 	/// </summary>
 	public static bool Update( this IMovieClip clip, MovieTime time, TrackBinder? binder = null )
 	{
-		var anyChanges = false;
+		var updateBuilder = new MovieUpdateBuilder( binder );
 
-		foreach ( var track in clip.GetTracks( time ).OfType<IPropertyTrack>() )
-		{
-			anyChanges |= track.Update( time, binder );
-		}
+		updateBuilder.Add( clip, time );
 
-		return anyChanges;
+		return updateBuilder.Apply();
 	}
 
 	/// <summary>
 	/// If we have a mapped property for <paramref name="track"/>, set the property value to whatever value
 	/// is stored in the track at the given <paramref name="time"/>.
 	/// </summary>
+	[Obsolete( $"Use {nameof( MovieUpdateBuilder )}" )]
 	public static bool Update( this IPropertyTrack track, MovieTime time, TrackBinder? binder = null )
 	{
-		binder ??= TrackBinder.Default;
+		var updateBuilder = new MovieUpdateBuilder( binder );
 
-		return binder.Get( track ).Update( track, time );
+		updateBuilder.Add( track, time );
+
+		return updateBuilder.Apply();
 	}
 
 	/// <inheritdoc cref="Update(IPropertyTrack,MovieTime,TrackBinder?)"/>
-	public static bool Update<T>( this IPropertyTrack<T> track, MovieTime time, TrackBinder? binder = null )
-	{
-		binder ??= TrackBinder.Default;
-
-		binder.Get( track ).Update( track, time );
-
-		return true;
-	}
+	[Obsolete( $"Use {nameof( MovieUpdateBuilder )}" )]
+	public static bool Update<T>( this IPropertyTrack<T> track, MovieTime time, TrackBinder? binder = null ) =>
+		((IPropertyTrack)track).Update( time, binder );
 }

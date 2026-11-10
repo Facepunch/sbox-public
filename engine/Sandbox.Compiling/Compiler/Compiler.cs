@@ -60,7 +60,7 @@ public sealed partial class Compiler : IDisposable
 	/// <summary>
 	/// Directories to search for code
 	/// </summary>
-	private List<BaseFileSystem> SourceLocations { get; } = new();
+	internal List<BaseFileSystem> SourceLocations { get; } = new();
 
 	/// <summary>
 	/// An aggregate of all the filesystem this compiler has
@@ -213,7 +213,6 @@ public sealed partial class Compiler : IDisposable
 		foreach ( var name in archive.References )
 		{
 			// We already got it from a package reference
-			// this is cool for when referencing something that includes package.base.dll
 			if ( foundHash.Contains( name ) )
 				continue;
 
@@ -230,14 +229,14 @@ public sealed partial class Compiler : IDisposable
 	}
 
 	/// <summary>
-	/// Waits for the current build to finish, then outputs that build's result.
-	/// This is only valid during <see cref="CompileGroup.BuildAsync"/>.
+	/// Fetch the build result, awaitable if we're still building.
 	/// </summary>
 	internal Task<CompilerOutput> GetCompileOutputAsync()
 	{
-		// Build hasn't started
-
-		Assert.NotNull( _compileTcs, $"The containing group isn't currently compiling ({Name})" );
+		if ( _compileTcs is null )
+		{
+			return Task.FromResult( Output );
+		}
 
 		return _compileTcs.Task;
 	}

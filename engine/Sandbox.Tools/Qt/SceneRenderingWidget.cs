@@ -11,6 +11,7 @@ public class SceneRenderingWidget : Frame
 	private static readonly HashSet<SceneRenderingWidget> All = new();
 
 	internal SwapChainHandle_t SwapChain;
+	bool renderingStopped;
 
 	/// <summary>
 	/// The active scene that we're rendering
@@ -41,6 +42,12 @@ public class SceneRenderingWidget : Frame
 		SetFlag( Flag.WA_NoSystemBackground, true );
 		SetFlag( Flag.WA_OpaquePaintEvent, true );
 
+		// On Linux/XWayland, Qt's software paint cycle fires on mouse-enter and click
+		// expose events, briefly clearing the native window before the next SwapChain
+		// present and causing a visible flash. Since all rendering goes through the
+		// SwapChain, the Qt paint path serves no purpose and can be suppressed entirely.
+		OnPaintOverride = () => true;
+
 		SwapChain = WidgetUtil.CreateSwapChain( _widget, RenderSettings.Instance.AntiAliasQuality.ToEngine() );
 		RenderSettings.Instance.OnVideoSettingsChanged += HandleVideoChanged;
 
@@ -49,17 +56,42 @@ public class SceneRenderingWidget : Frame
 		All.Add( this );
 	}
 
+	internal override void OnDestroyingLater()
+	{
+		ReleaseSwapChain();
+		base.OnDestroyingLater();
+	}
+
+	internal override void NativeDestroying() => ReleaseSwapChain();
+
+	internal static void ShutdownRendering()
+	{
+		foreach ( var widget in All.ToArray() )
+			widget.ReleaseSwapChain();
+	}
+
+	void ReleaseSwapChain()
+	{
+		if ( renderingStopped ) return;
+		renderingStopped = true;
+
+		if ( GameMode.IsPlayWidget( this ) )
+			GameMode.ClearPlayMode();
+
+		RenderSettings.Instance.OnVideoSettingsChanged -= HandleVideoChanged;
+
+		if ( SwapChain == default ) return;
+		// Finish outstanding rendering while the native window is still alive.
+		g_pRenderDevice.Flush();
+		g_pRenderDevice.ForceFlushGPU( SwapChain );
+		g_pRenderDevice.DestroySwapChain( SwapChain );
+		SwapChain = default;
+	}
+
 	internal override void NativeShutdown()
 	{
 		base.NativeShutdown();
-
 		All.Remove( this );
-		RenderSettings.Instance.OnVideoSettingsChanged -= HandleVideoChanged;
-
-		// The swapchain might still be in use by native, so defer its destruction until the end of the frame.
-		// Otherwise, a race condition could occur where render targets are accessed after destruction, causing a delayed crash.
-		EngineLoop.DisposeAtFrameEnd( new Sandbox.Utility.DisposeAction( () => g_pRenderDevice.DestroySwapChain( SwapChain ) ) );
-		SwapChain = default;
 
 		GizmoInstance?.Dispose();
 		GizmoInstance = default;
@@ -77,6 +109,7 @@ public class SceneRenderingWidget : Frame
 			var go = new GameObject( true, "editor_camera" );
 			go.Flags = GameObjectFlags.Hidden | GameObjectFlags.NotSaved | GameObjectFlags.EditorOnly | GameObjectFlags.Absolute;
 			var camera = go.AddComponent<CameraComponent>();
+			camera.RenderExcludeTags.Add( "hidden" );
 			camera.IsMainCamera = false;
 			camera.IsSceneEditorCamera = true;
 			return camera;
@@ -158,13 +191,20 @@ public class SceneRenderingWidget : Frame
 
 		if ( SwapChain == default ) return;
 
-		using ( Scene.Push() )
+		using ( Scene.PushScope() )
 		{
-			using ( GizmoInstance.Push() )
+			using ( GizmoInstance.PushScope() )
 			{
 				PreFrame();
 				RenderScene();
 			}
+		}
+
+		if ( SwapChain == default ) return;
+
+		if ( GameMode.IsPlayWidget( this ) )
+		{
+			CCameraRenderer.RenderOverlay( SwapChain );
 		}
 
 		g_pRenderDevice.Present( SwapChain );
@@ -233,15 +273,16 @@ public class SceneRenderingWidget : Frame
 
 	internal void HandleVideoChanged()
 	{
-		var msaaAmount = RenderSettings.Instance.AntiAliasQuality.ToEngine();
+		if ( renderingStopped ) return;
+		var aa = RenderSettings.Instance.AntiAliasQuality.ToEngine();
 
 		if ( SwapChain == default )
 		{
-			SwapChain = WidgetUtil.CreateSwapChain( _widget, msaaAmount );
+			SwapChain = WidgetUtil.CreateSwapChain( _widget, aa );
 			return;
 		}
 
-		WidgetUtil.UpdateSwapChainMSAA( SwapChain, msaaAmount );
+		WidgetUtil.UpdateSwapChainMSAA( SwapChain, aa );
 	}
 
 	internal static void RenderAll()

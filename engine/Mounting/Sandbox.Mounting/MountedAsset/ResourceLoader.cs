@@ -19,6 +19,9 @@ public abstract class ResourceLoader
 	/// </summary>
 	public ResourceType Type { get; private set; }
 
+	internal bool IsShutdown { get; private set; }
+	internal event Action ShutdownActions;
+
 	static Dictionary<ResourceType, string> extensions = new()
 	{
 		{ ResourceType.Model, ".vmdl" },
@@ -33,6 +36,8 @@ public abstract class ResourceLoader
 	/// The path to the asset
 	/// </summary>
 	public string Path { get; private set; }
+
+	public string RelativePath { get; private set; }
 
 	/// <summary>
 	/// The filename of the asset, without extension
@@ -61,10 +66,10 @@ public abstract class ResourceLoader
 	internal void InitializeInternal( ResourceType type, string path, BaseGameMount mount )
 	{
 		_mount = mount;
+		IsShutdown = false;
 
 		// Standardize the path into a mount path
 		path = path.Replace( '\\', '/' ).Trim( '/' );
-		path = $"mount://{_mount.Ident}/{path}";
 
 		// Force an engine specific extension, if it isn't already set
 		if ( extensions.TryGetValue( type, out var extension ) )
@@ -73,7 +78,8 @@ public abstract class ResourceLoader
 				path += extension;
 		}
 
-		Path = path;
+		RelativePath = path;
+		Path = $"mount://{_mount.Ident}/{RelativePath}";
 		Type = type;
 		Name = System.IO.Path.GetFileNameWithoutExtension( path );
 
@@ -96,7 +102,8 @@ public abstract class ResourceLoader
 
 		_lock.Enter();
 
-		if ( _cachedResult is not null )
+		object result = _cachedResult;
+		if ( _cachedResult is not null && (_cachedResult is not IValid v || v.IsValid) )
 		{
 			_lock.Exit();
 			return _cachedResult;
@@ -110,7 +117,9 @@ public abstract class ResourceLoader
 			{
 				await _loadTask;
 
-				_cachedResult = _loadTask.Result;
+				result = _loadTask.Result;
+				if ( Type != ResourceType.GameResource )
+					_cachedResult = result;
 			}
 		}
 		catch ( System.Exception e )
@@ -124,7 +133,7 @@ public abstract class ResourceLoader
 
 		_loadTask = default;
 
-		return _cachedResult;
+		return result;
 	}
 
 	/// <summary>
@@ -140,12 +149,22 @@ public abstract class ResourceLoader
 	/// </summary>
 	protected virtual object Load()
 	{
-		return null; ;
+		return null;
 	}
 
 	internal void ShutdownInternal()
 	{
-		Shutdown();
+		IsShutdown = true;
+		try
+		{
+			Shutdown();
+		}
+		finally
+		{
+			var actions = ShutdownActions;
+			ShutdownActions = null;
+			actions?.Invoke();
+		}
 	}
 
 	protected virtual void Shutdown()

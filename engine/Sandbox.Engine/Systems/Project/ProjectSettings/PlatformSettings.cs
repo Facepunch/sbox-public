@@ -1,0 +1,71 @@
+namespace Sandbox;
+
+/// <summary>
+/// Platform-level settings for a game project. These control engine-provided
+/// features like text chat that exist outside of any specific scene.
+/// </summary>
+[Expose]
+public class PlatformSettings : ConfigData
+{
+	/// <summary>
+	/// Whether the built-in text chat system is enabled for this game.
+	/// </summary>
+	[Group( "Chat Settings" ), Title( "Enabled" )]
+	public bool ChatEnabled
+	{
+		get
+		{
+			if ( Application.IsEditor )
+				return field;
+
+			// This will be false for published games that didn't include Platform.config 
+			if ( !LoadedFromDisk )
+				return false;
+
+			return field;
+		}
+		set;
+	} = true;
+
+	/// <summary>
+	/// Show the default chat UI overlay. When false, messages are still processed
+	/// and events still fire, but the built-in overlay is hidden. Use this when
+	/// implementing a custom chat UI.
+	/// </summary>
+	[Group( "Chat Settings" ), Title( "Show UI" )]
+	public bool ChatShowUI { get; set; } = true;
+
+	/// <summary>
+	/// Maximum length of a single chat message in characters.
+	/// </summary>
+	[Group( "Chat Settings" )]
+	[Range( 32, 256 ), Title( "Chat Max Length" )]
+	public int ChatMaxMessageLength { get; set; } = 255;
+
+	/// <summary>
+	/// Whether players without a <see cref="Voice"/> component can talk to everyone in multiplayer.
+	/// It stops once the scene has any <see cref="Voice"/> components. They work whether this is on or off.
+	/// </summary>
+	/// <remarks>
+	/// On for existing games too, lots of published multiplayer games never added <see cref="Voice"/> components.
+	/// </remarks>
+	[Group( "Voice Chat Settings" ), Title( "Enabled" )]
+	public bool VoiceChatEnabled { get; set; } = true;
+
+	/// <summary>
+	/// Show the built-in list of who's talking. Turn this off if your game shows its own.
+	/// Never shown once the scene has <see cref="Voice"/> components, those games show their own.
+	/// The microphone indicator is always shown.
+	/// </summary>
+	[Group( "Voice Chat Settings" ), Title( "Show Speaker List" )]
+	public bool VoiceChatShowSpeakers { get; set; } = true;
+
+	/// <summary>
+	/// Show the default subtitle UI overlay for sounds with subtitle tracks. When
+	/// false, the tracks still load and <see cref="SubtitlesGameObjectSystem.GetActive"/>
+	/// still works, but the built-in overlay is hidden. Use this when implementing
+	/// a custom subtitle UI.
+	/// </summary>
+	[Group( "Subtitle Settings" ), Title( "Show UI" )]
+	public bool SubtitlesShowUI { get; set; } = true;
+}

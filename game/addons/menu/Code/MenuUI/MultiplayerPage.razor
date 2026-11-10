@@ -1,153 +1,145 @@
-﻿@using MenuProject.MenuUI.Components
-@using MenuProject.MenuUI.Components.Multiplayer
-@using MenuProject.MenuUI.Layout
 @using Sandbox;
-@using Sandbox.Modals
-@using Sandbox.UI;
-@using Sandbox.Network;
-@using Sandbox.UI.Navigation
-
-@page "/multiplayer"
+@using MenuProject.Multiplayer;
+@using MenuProject.MenuUI.Components.Multiplayer;
 @inherits Panel
-@implements INavigatorPage
+@page "/multiplayer"
+@implements Sandbox.UI.Navigation.INavigatorPage
 
-<root class="root">
-    <Page>
-
-        <Left>
-	        <TextEntry Icon="search" @ref="SearchEntry" placeholder="Search.." onchange="@OnSearchChanged"></TextEntry>
-
-	        @if ( GamePackage is not null )
-	        {
-		        <h2 class="filter-heading"><WithIcon Icon="sports_esports" Text="Game"></WithIcon></h2>
-
-		        <span>
-			        <Button class="is-icon" Active="@(true)" Text="@GamePackage.Title" Icon="clear" onclick=@ClearGamePackage />
-		        </span>
-	        }
-
-	        <h2 class="filter-heading"><WithIcon Icon="filter_alt" Text="Filters"></WithIcon></h2>
-
-	        <span>
-		        <Button class="is-icon" Active="@(showEmpty)" Text="Show Empty" Icon="no_accounts" onclick=@ToggleShowEmpty />
-		        <Button class="is-icon" Active="@(showFull)" Text="Show Full" Icon="join_full" onclick=@ToggleShowFull />
-	        </span>
-
-            <div class="grow" />
-
-            <button class="clicky button" onclick="@(() => ServerList.RefreshLobbies())"><h2><WithIcon Icon="cached" Text="Refresh"></WithIcon></h2></button>
-        </Left>
-
-        <Body>
-            <ServerList @ref=ServerList Config="@(new ServerListConfig( GamePackage?.FullIdent ))" Filter="@FilterLobby"></ServerList>
-        </Body>
-    </Page>
+<root>
+	<div class="multiplayer-body">
+		<DockHost @ref="dock" />
+	</div>
 </root>
 
-@code 
+@code
 {
+	bool pageOpen = true;
+	DockHost dock;
+	GlobalChat chat;
+	MultiplayerServers servers;
+	OpenParties parties;
+
+	protected override void OnAfterTreeRender( bool firstTime )
+	{
+		base.OnAfterTreeRender( firstTime );
+
+		dock.LayoutChanged -= ConfigureTabs;
+		dock.LayoutChanged += ConfigureTabs;
+		ConfigureTabs();
+
+		if ( servers.IsValid() ) servers.OnGameSelected = OpenGame;
+		if ( dock.Items.Count > 0 ) return;
+
+		chat = new GlobalChat();
+		servers = new MultiplayerServers { OnGameSelected = OpenGame };
+		parties = new OpenParties();
+		dock.Register( "servers", "#menu.multiplayer.active_games", servers, canClose: false, icon: "sports_esports" );
+		dock.Register( "parties", "#menu.multiplayer.open_parties", parties, canClose: false, icon: "groups" );
+		dock.Register( "chat", "#menu.multiplayer.global_chat", chat, canClose: false, icon: "chat_bubble" );
+
+		dock.Dock( "servers" );
+		dock.Dock( "parties", "servers", DockPosition.Right, 2f / 3f );
+		dock.Dock( "chat", "parties", DockPosition.Right );
+	}
+
 	/// <summary>
-	/// Specify a game package to show results for.
+	/// Apply icons and suppress docking tooltips on existing and newly opened tabs.
 	/// </summary>
-	[Parameter] public string Package { get; set; }
+	void ConfigureTabs()
+	{
+		foreach ( var tab in dock.Descendants.OfType<Tab>().Where( x => x.HasClass( "dock-tab" ) ) )
+		{
+			// Existing tabs survive hotload, so also give them their newly added icons.
+			if ( string.IsNullOrEmpty( tab.Icon ) )
+			{
+				tab.Icon = tab.Text switch
+				{
+					"Open Parties" => "groups",
+					"Global Chat" => "chat_bubble",
+					var title when title == Language.GetPhrase( "menu.multiplayer.open_parties" ) => "groups",
+					var title when title == Language.GetPhrase( "menu.multiplayer.global_chat" ) => "chat_bubble",
+					_ => "sports_esports"
+				};
+			}
 
-	private bool _isLoadingGamePackage;
-	private Package GamePackage { get; set; }
+			tab.Tooltip = null;
 
+			foreach ( var close in tab.Children.Where( x => x.HasClass( "tab-close" ) ) )
+			{
+				close.Tooltip = null;
+			}
+		}
+	}
+
+	/// <summary>
+	/// Opens one closable tab per game, preserving the active list and each tab's filters.
+	/// </summary>
+	void OpenGame( string gameIdent )
+	{
+		var id = $"game:{gameIdent}";
+		if ( dock.IsOpen( id ) )
+		{
+			dock.Activate( id );
+			return;
+		}
+
+		if ( dock.Find( id ) is null )
+		{
+			Package.TryGetCached( gameIdent, out var package, true );
+
+			var browser = new MultiplayerServers
+			{
+				GameIdent = gameIdent,
+				HideFullServers = servers.HideFullServers,
+				HideEmptyServers = servers.HideEmptyServers
+			};
+
+			dock.Register( id, package?.Title ?? gameIdent, browser, canClose: true, icon: "sports_esports" );
+		}
+
+		// Reopen closed tabs beside Active Games; existing open tabs keep their dock position.
+		dock.Dock( id, "servers", DockPosition.Center );
+	}
+
+	void UpdateChat()
+	{
+		if ( pageOpen && IsVisible && chat.IsValid() && chat.IsVisible )
+		{
+			GlobalChatService.Open();
+		}
+		else
+		{
+			GlobalChatService.Close();
+		}
+	}
+
+	void Sandbox.UI.Navigation.INavigatorPage.OnNavigationOpen()
+	{
+		pageOpen = true;
+		UpdateChat();
+	}
+
+	void Sandbox.UI.Navigation.INavigatorPage.OnNavigationClose()
+	{
+		pageOpen = false;
+		GlobalChatService.Close();
+	}
+
+	/// <summary>
+	/// Join chat only while its docked panel is visible.
+	/// </summary>
 	public override void Tick()
 	{
-		if ( !string.IsNullOrEmpty( Package ) && ( GamePackage is null || GamePackage.FullIdent != Package ) )
-		{
-			if ( !_isLoadingGamePackage )
-				LoadGamePackage();
-		}
-
 		base.Tick();
+		UpdateChat();
 	}
 
-	private async void LoadGamePackage()
+	/// <summary>
+	/// Leave global chat when this page is removed.
+	/// </summary>
+	public override void OnDeleted()
 	{
-		_isLoadingGamePackage = true;
-
-		GamePackage = await Sandbox.Package.Fetch( Package, false );
-
-		if ( GamePackage is not null && ServerList is not null )
-		{
-			ServerList.Config = new ServerListConfig( GamePackage.FullIdent );
-			ServerList.StateHasChanged();
-		}
-
-		StateHasChanged();
-
-		_isLoadingGamePackage = false;
+		GlobalChatService.Close();
+		base.OnDeleted();
 	}
-
-	ServerList ServerList = default;
-    TextEntry SearchEntry = default;
-
-    bool showEmpty = true;
-    bool showFull = true;
-
-    string SearchText => SearchEntry?.Text?.Trim() ?? "";
-
-    void ClearGamePackage()
-    {
-	    GamePackage = null;
-	    Package = null;
-
-	    StateHasChanged();
-    }
-
-    bool FilterLobby( LobbyInformation lobby )
-    {
-        if ( !showEmpty && lobby.Members == 0 )
-            return false;
-
-        if ( !showFull && lobby.IsFull )
-            return false;
-
-        if ( SearchText.Length > 0 )
-        {
-            var search = SearchText;
-
-            if ( lobby.Name?.Contains( search, StringComparison.OrdinalIgnoreCase ) == true )
-                return true;
-
-            if ( lobby.Game?.Contains( search, StringComparison.OrdinalIgnoreCase ) == true )
-                return true;
-
-            if ( lobby.Data?.TryGetValue( "gameident", out var ident ) == true
-                && ident?.Contains( search, StringComparison.OrdinalIgnoreCase ) == true )
-                return true;
-
-            return false;
-        }
-
-        return true;
-    }
-
-    void INavigatorPage.OnNavigationOpen()
-    {
-	    GamePackage = null;
-	    Package = null;
-
-	    StateHasChanged();
-    }
-
-    void OnSearchChanged()
-    {
-        ServerList.StateHasChanged();
-    }
-
-    void ToggleShowEmpty()
-    {
-        showEmpty = !showEmpty;
-        ServerList.StateHasChanged();
-    }
-
-    void ToggleShowFull()
-    {
-        showFull = !showFull;
-        ServerList.StateHasChanged();
-    }
 }

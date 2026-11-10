@@ -18,6 +18,7 @@ internal struct Color24
 /// </summary>
 [JsonConverter( typeof( Sandbox.Internal.JsonConvert.Color32Converter ) )]
 [StructLayout( LayoutKind.Sequential )]
+[Description( "A 32-bit color with red, green, blue and alpha components stored as bytes, in the range 0 to 255." )]
 public struct Color32 : IEquatable<Color32>
 {
 	/// <summary>
@@ -120,12 +121,6 @@ public struct Color32 : IEquatable<Color32>
 		return new Color32( (byte)(rgba >> 24), (byte)(rgba >> 16), (byte)(rgba >> 8), (byte)rgba );
 	}
 
-	internal static float SrgbGammaToLinear( float v )
-	{
-		v = v.Clamp( 0.0f, 1.0f );
-		return (v <= 0.04045f) ? (v / 12.92f) : (MathF.Pow( (v + 0.055f) / 1.055f, 2.4f ));
-	}
-
 	/// <summary>
 	/// Convert this object to <see cref="Color"/>.
 	/// </summary>
@@ -146,9 +141,7 @@ public struct Color32 : IEquatable<Color32>
 
 		if ( srgb )
 		{
-			c.r = SrgbGammaToLinear( c.r );
-			c.g = SrgbGammaToLinear( c.g );
-			c.b = SrgbGammaToLinear( c.b );
+			return c.ToLinear();
 		}
 
 		return c;
@@ -233,7 +226,7 @@ public struct Color32 : IEquatable<Color32>
 		writer.Write( r );
 		writer.Write( g );
 		writer.Write( b );
-		writer.Write( b );
+		writer.Write( a );
 	}
 
 	/// <summary>
@@ -275,4 +268,29 @@ public struct Color32 : IEquatable<Color32>
 	public readonly bool Equals( Color32 o ) => (r, g, b, a) == (o.r, o.g, o.b, o.a);
 	public readonly override int GetHashCode() => HashCode.Combine( r, g, b, a );
 	#endregion
+
+	/// <summary>
+	/// Performs linear interpolation between two colors.
+	/// </summary>
+	/// <param name="a">The source color.</param>
+	/// <param name="b">The target color.</param>
+	/// <param name="frac">Fraction to the target color. 0 will return source color, 1 will return target color, 0.5 will "mix" the 2 colors equally.</param>
+	/// <returns>The interpolated color.</returns>
+	public static Color32 Lerp( in Color32 a, in Color32 b, float frac )
+	{
+		return new Color32(
+			(byte)(a.r + (b.r - a.r) * frac),
+			(byte)(a.g + (b.g - a.g) * frac),
+			(byte)(a.b + (b.b - a.b) * frac),
+			(byte)(a.a + (b.a - a.a) * frac)
+		);
+	}
+
+	/// <summary>
+	/// Performs linear interpolation between this and given colors.
+	/// </summary>
+	/// <param name="target">Color B</param>
+	/// <param name="frac">Fraction, where 0 would return this, 0.5 would return a point between this and given colors, and 1 would return the given color.</param>
+	/// <returns></returns>
+	public readonly Color32 LerpTo( in Color32 target, float frac ) => Lerp( this, target, frac );
 }

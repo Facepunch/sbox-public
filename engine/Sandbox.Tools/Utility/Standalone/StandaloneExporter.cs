@@ -19,6 +19,7 @@ public partial class StandaloneExporter
 	public Action<ExportProgress> OnProgressChanged { get; set; }
 
 	private List<QueuedFile> _files = new();
+	private readonly List<string> _temporarySources = new();
 	private ExportConfig _exportConfig;
 
 	StandaloneExporter( ExportConfig config )
@@ -75,21 +76,26 @@ public partial class StandaloneExporter
 	{
 		Logger.Info( $"Exporting {Project.Config.Title} to {_exportConfig.TargetDir}" );
 
+		ValidateExecutableName( _exportConfig.ExecutableName );
+
 		Logger.Info( $"Compiling assemblies.." );
 		await Compile();
 
 		Logger.Info( $"Building manifest.." );
 		await BuildManifest();
 
+		Logger.Info( $"Writing executable.." );
+		WriteExecutable();
+
 		Logger.Info( $"Copying files.." );
 		await CopyAllFiles();
 
 		Logger.Info( $"Export complete!" );
-		OnFinish();
 	}
 
 	private async Task BuildManifest()
 	{
+		// The compiled game assemblies, into assets/.bin
 		if ( _exportConfig.AssemblyFiles is not null )
 		{
 			foreach ( var f in _exportConfig.AssemblyFiles )
@@ -97,11 +103,6 @@ public partial class StandaloneExporter
 				if ( f.Value is byte[] bytes )
 				{
 					await AddFile( bytes, f.Key );
-				}
-
-				if ( f.Value is string json )
-				{
-					await AddFile( json, f.Key );
 				}
 			}
 		}
@@ -115,39 +116,35 @@ public partial class StandaloneExporter
 		// Make sure we're copying into a directory that exists
 		Directory.CreateDirectory( _exportConfig.TargetDir );
 
-		// Create standalone properties
+		// Create standalone properties - these go into the executable's resources, see WriteExecutable
 		StandaloneManifest = CreateStandaloneManifest( _exportConfig.TargetDir );
-		WriteStandaloneManifest( _exportConfig.TargetDir );
 
 		// Build queue
 		QueueAddonFiles( _exportConfig.TargetDir, BuildStep.CopyProjectAssets );
 		QueueBaseFiles( _exportConfig.TargetDir );
 	}
 
-	private void OnFinish()
-	{
-		if ( !string.IsNullOrEmpty( _exportConfig.TargetIcon ) )
-			IconUpdater.UpdateExeIcon( $"{_exportConfig.TargetDir}/{StandaloneManifest.ExecutableName}.exe", _exportConfig.TargetIcon );
-	}
-
 	private async Task CopyAllFiles()
 	{
 		var orderedFiles = _files.OrderBy( x => x.Step );
-		foreach ( var f in orderedFiles )
+		try
 		{
-			await CopyFileAsync( f );
+			foreach ( var f in orderedFiles )
+			{
+				await CopyFileAsync( f );
+			}
+		}
+		finally
+		{
+			foreach ( var source in _temporarySources )
+			{
+				try { File.Delete( source ); }
+				catch ( Exception exception ) { Logger.Warning( exception, $"Couldn't remove temporary export file {source}" ); }
+			}
+			_temporarySources.Clear();
 		}
 	}
 
-	private void WriteStandaloneManifest( string targetDir )
-	{
-		var gameDataPath = Path.Combine( targetDir, Standalone.GamePath );
-		Directory.CreateDirectory( gameDataPath );
-
-		var serializedProperties = JsonSerializer.Serialize( StandaloneManifest );
-		var manifestPath = Path.Combine( targetDir, Standalone.GamePath, Standalone.ManifestName );
-		File.WriteAllText( manifestPath, serializedProperties );
-	}
 
 	private StandaloneManifest CreateStandaloneManifest( string baseDir )
 	{
@@ -199,7 +196,14 @@ public partial class StandaloneExporter
 			// Get all core files - only the ones we absolutely need, because everything else should
 			// already have been copied into the addon itself.
 			// This is mainly stuff like dev textures that are necessary for the engine to run.
-			QueueFrom( GetCoreFiles( engineDir ) );
+			var coreFiles = GetCoreFiles( engineDir );
+			QueueFrom( coreFiles );
+
+			// Surfaces aren't any use without their impact sounds, decals etc.
+			foreach ( var reference in GetSurfaceReferences( coreFiles ) )
+			{
+				QueueCopy( reference.AbsolutePath, Path.Combine( baseDir, "core", reference.RelativePath ), BuildStep.CopyCoreAssets );
+			}
 
 			// Fetch all the DLLs we need to run the engine
 			QueueFrom( GetDllFiles( engineDir ) );
@@ -209,27 +213,6 @@ public partial class StandaloneExporter
 		// Copy core compiled files
 		//
 		{
-			void QueueCompiled( string dir, BuildStep type )
-			{
-				foreach ( var subdir in Directory.GetDirectories( dir ) )
-				{
-					QueueCompiled( subdir, type );
-				}
-
-				foreach ( var file in Directory.GetFiles( dir ) )
-				{
-					var relativePath = Path.GetRelativePath( engineDir, file );
-					var targetPath = Path.Combine( baseDir, relativePath );
-
-					if ( Path.GetExtension( file ).EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) )
-						QueueCopy( file, targetPath, type );
-				}
-			}
-
-			// Copy all from enabled addons, in case they reference anything at runtime
-			// (e.g. UI shaders in base)
-			QueueCompiled( $"{engineDir}/addons/base", BuildStep.CopyProjectAssets );
-
 			// Get all core files - only the ones we absolutely need, because everything else should
 			// already have been copied into the addon itself.
 			// This is mainly stuff like dev textures that are necessary for the engine to run.
@@ -266,52 +249,6 @@ public partial class StandaloneExporter
 		}
 
 		//
-		// Copy:
-		// - addons/base/ui/*
-		// - addons/base/fonts/*
-		//
-		{
-			void QueueAll( string dir, BuildStep type )
-			{
-				foreach ( var subdir in Directory.GetDirectories( dir ) )
-				{
-					QueueAll( subdir, type );
-				}
-
-				foreach ( var file in Directory.GetFiles( dir ) )
-				{
-					var relativePath = Path.GetRelativePath( engineDir, file );
-					var targetPath = Path.Combine( baseDir, relativePath );
-
-					QueueCopy( file, targetPath, type );
-				}
-			}
-
-			QueueAll( $"{engineDir}/addons/base/assets/ui", BuildStep.CopyBaseAssets ); // Necessary
-			QueueAll( $"{engineDir}/addons/base/assets/fonts", BuildStep.CopyBaseAssets ); // Necessary
-		}
-
-		//
-		// Copy exe
-		//
-		{
-			QueueCopy( $"{engineDir}/sbox-standalone.exe", $"{baseDir}/{StandaloneManifest.ExecutableName}.exe", BuildStep.FinalizeExecutable );
-
-			// Can we get rid of these somehow?
-			QueueCopy( $"{engineDir}/sbox-standalone.dll", $"{baseDir}/sbox-standalone.dll", BuildStep.FinalizeExecutable );
-			QueueCopy( $"{engineDir}/sbox-standalone.runtimeconfig.json", $"{baseDir}/sbox-standalone.runtimeconfig.json", BuildStep.FinalizeExecutable );
-		}
-
-		//
-		// Copy sbproj for base + addon - ideally we should store these in an embedded resource inside the exe
-		//
-		{
-			var sbprojPath = Path.Combine( baseDir, Standalone.GamePath, ".sbproj" );
-			QueueCopy( $"{_exportConfig.Project.ConfigFilePath}", sbprojPath, BuildStep.CopyMisc );
-			QueueCopy( $"{engineDir}/addons/base/.sbproj", $"{baseDir}/addons/base/.sbproj", BuildStep.CopyMisc );
-		}
-
-		//
 		// Copy loose files
 		//
 		{
@@ -327,7 +264,45 @@ public partial class StandaloneExporter
 		{
 			var path = _exportConfig.StartupImage;
 			var startupImagePath = Path.Combine( _exportConfig.Project.GetAssetsPath(), path + "_c" );
-			QueueCopy( $"{startupImagePath}", $"{baseDir}/core/materials/startup_background.vtex_c", BuildStep.CopyMisc );
+
+			// The image picker stores the file's absolute path, but the resource system only loads asset-relative paths
+			if ( Path.IsPathRooted( path ) && AssetSystem.FindByPath( path ) is { } startupAsset )
+			{
+				path = startupAsset.Path;
+				startupImagePath = startupAsset.GetCompiledFile( true ) ?? startupImagePath;
+			}
+
+			QueueCopy( startupImagePath, $"{baseDir}/core/materials/startup_background.vtex_c", BuildStep.CopyMisc );
+			QueueStartupImagePng( path, $"{baseDir}/core/materials/startup_background_color.png" );
+		}
+	}
+
+	private void QueueStartupImagePng( string resourcePath, string destination )
+	{
+		var texture = Texture.Load( resourcePath, false );
+		if ( texture is null || !texture.IsValid || texture.IsError )
+			throw new InvalidOperationException( $"Couldn't load selected startup image '{resourcePath}'" );
+
+		using var bitmap = texture.GetBitmap();
+		if ( bitmap is null || !bitmap.IsValid )
+			throw new InvalidOperationException( $"Couldn't read selected startup image '{resourcePath}'" );
+
+		var desc = g_pRenderDevice.GetTextureDesc( texture.native );
+		var width = desc.m_nDisplayRectWidth > 0 ? Math.Min( desc.m_nDisplayRectWidth, bitmap.Width ) : bitmap.Width;
+		var height = desc.m_nDisplayRectHeight > 0 ? Math.Min( desc.m_nDisplayRectHeight, bitmap.Height ) : bitmap.Height;
+		using var image = bitmap.Crop( new Rect( 0, 0, width, height ) );
+
+		var source = Path.Combine( Path.GetTempPath(), $"sbox-startup-{Guid.NewGuid():N}.png" );
+		try
+		{
+			File.WriteAllBytes( source, image.ToPng() );
+			_temporarySources.Add( source );
+			QueueCopy( source, destination, BuildStep.CopyMisc );
+		}
+		catch
+		{
+			File.Delete( source );
+			throw;
 		}
 	}
 

@@ -11,7 +11,6 @@ internal class QuadSceneObject : SceneCustomObject
 	public QuadSceneObject( SceneWorld sceneWorld ) : base( sceneWorld )
 	{
 		RenderLayer = SceneRenderLayer.OverlayWithoutDepth;
-		managedNative.ExecuteOnMainThread = false;
 	}
 
 	public override void RenderSceneObject()

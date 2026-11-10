@@ -343,7 +343,7 @@ namespace Microsoft.AspNetCore.Razor.Language.Components
 						attribute.GloballyQualifiedTypeName = globallyQualifiedTypeName;
 					}
 
-					if ( attribute.BoundAttribute?.IsGenericTypedProperty() ?? false && attribute.TypeName != null )
+					if ( (attribute.BoundAttribute?.IsGenericTypedProperty() ?? false) && attribute.TypeName != null )
 					{
 						// If we know the type name, then replace any generic type parameter inside it with
 						// the known types.
@@ -368,7 +368,7 @@ namespace Microsoft.AspNetCore.Razor.Language.Components
 
 				foreach ( var childContent in node.ChildContents )
 				{
-					if ( childContent.BoundAttribute?.IsGenericTypedProperty() ?? false && childContent.TypeName != null )
+					if ( (childContent.BoundAttribute?.IsGenericTypedProperty() ?? false) && childContent.TypeName != null )
 					{
 						// If we know the type name, then replace any generic type parameter inside it with
 						// the known types.

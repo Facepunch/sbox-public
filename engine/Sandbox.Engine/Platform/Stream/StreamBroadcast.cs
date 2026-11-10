@@ -1,11 +1,12 @@
-using System;
 using Sandbox.Twitch;
 
-namespace Sandbox
+namespace Sandbox;
+
+public static partial class Streamer
 {
-	internal struct StreamBroadcast
+	internal struct Broadcast
 	{
-		internal StreamBroadcast( TwitchAPI.StreamResponse stream )
+		internal Broadcast( TwitchAPI.StreamResponse stream )
 		{
 			Id = stream.Id;
 			UserId = stream.UserId;
@@ -16,7 +17,7 @@ namespace Sandbox
 			Type = stream.Type;
 			Title = stream.Title;
 			ViewerCount = stream.ViewerCount;
-			StartedAt = DateTimeOffset.Parse( stream.StartedAt );
+			StartedAt = stream.StartedAt;
 			Language = stream.Language;
 			ThumbnailUrl = stream.ThumbnailUrl;
 			TagIds = stream.TagIds;

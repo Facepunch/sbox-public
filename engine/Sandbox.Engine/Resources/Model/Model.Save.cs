@@ -31,11 +31,13 @@ sealed class VmdlWriter
 	const uint RESOURCE_BLOCK_ID_PHYS = 0x53594850; // 'PHYS'
 
 	readonly IModel _native;
+	readonly Model _model;
 	readonly ResourceWriter _resource;
 
 	public VmdlWriter( Model model )
 	{
 		_native = model.native;
+		_model = model;
 
 		_resource = new ResourceWriter
 		{
@@ -45,12 +47,25 @@ sealed class VmdlWriter
 
 	public byte[] Write()
 	{
-		WriteCTRLBlock();
+		WriteExternalReferences();
+
+		var physBlock = WritePHYSBlock();
+
+		WriteCTRLBlock( physBlock );
 		WriteDATABlock();
 		return _resource.ToArray();
 	}
 
-	void WriteCTRLBlock()
+	void WriteExternalReferences()
+	{
+		foreach ( var material in _model.Materials )
+		{
+			if ( material.IsValid() )
+				_resource.AddExternalReference( material.ResourcePath );
+		}
+	}
+
+	void WriteCTRLBlock( int physBlock )
 	{
 		var ctrl = KeyValues3.Create();
 
@@ -61,6 +76,13 @@ sealed class VmdlWriter
 
 			var meshCount = _native.GetNumMeshes();
 			for ( int i = 0; i < meshCount; i++ ) WriteEmbeddedMesh( embeddedMeshes, i );
+
+			if ( physBlock >= 0 )
+			{
+				var embeddedPhysics = ctrl.FindOrCreateMember( "embedded_physics" );
+				embeddedPhysics.SetToEmptyTable();
+				embeddedPhysics.SetMemberInt( "phys_data_block", physBlock );
+			}
 
 			using var buffer = ctrl.Save();
 			_resource.RegisterAdditionalBlock( RESOURCE_BLOCK_ID_CTRL, buffer.ToArray() );
@@ -101,5 +123,12 @@ sealed class VmdlWriter
 		using var buffer = MeshGlue.SerializeModelData( _native );
 		if ( buffer.IsNull || buffer.TellMaxPut() <= 0 ) return;
 		_resource.SetDataBlock( buffer.ToArray() );
+	}
+
+	int WritePHYSBlock()
+	{
+		using var buffer = MeshGlue.SerializePhysicsData( _native );
+		if ( buffer.IsNull || buffer.TellMaxPut() <= 0 ) return -1;
+		return _resource.RegisterAdditionalBlock( RESOURCE_BLOCK_ID_PHYS, buffer.ToArray() );
 	}
 }

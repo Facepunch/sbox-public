@@ -1,0 +1,21 @@
+{
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "traffic_bollard",
+      "Type": "map",
+      "Org": "local",
+      "Ident": "traffic_bollard",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": [],
+      "EditorReferences": [],
+      "IsWhitelistDisabled": false,
+      "Metadata": {
+        "SingleAssetSource": "maps/prefabs/traffic_bollard.vmap"
+      }
+    }
+  },
+  "guid": "29f3d800-0f01-4c4a-b76a-4ec24a71e982"
+}

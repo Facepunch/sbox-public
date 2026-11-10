@@ -1,0 +1,470 @@
+﻿@using System;
+@using System.Collections.Generic;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+
+<root class="@( Group is null ? "loading" : "" )">
+    @if ( Group is null )
+    {
+        @* Still fetching - shelves in the real ones' shape, enough to fill the page *@
+        @for ( var i = 0; i < SkeletonShelves; i++ )
+        {
+            <div class="section">
+                <div class="head">
+                    <div class="bone shelf-title"></div>
+                </div>
+
+                <div class="tiles">
+                    <div class="row">
+                        @for ( var j = 0; j < SkeletonTiles; j++ )
+                        {
+                            <div class="bone-tile">
+                                <div class="bone art"></div>
+                                <div class="bone line title"></div>
+                                <div class="bone line meta"></div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+    @if ( Group is not null && !StarterDismissed )
+    {
+        <StarterShelf Dismissed=@(() => SetStarterDismissed( true )) />
+    }
+
+    @if ( Group is not null && Sections.Count == 0 && StarterDismissed )
+    {
+        <div class="empty-wrap">
+            <EmptyState Icon="search_off" Title="#menu.home.nothing_to_show" Subtitle="#menu.home.no_games_came_back_for_this_feed_try_another_tab_or_check_back_in_a_bit" />
+        </div>
+    }
+
+    @foreach ( var section in Sections )
+    {
+        <div class="section @(section.ContinuePlaying ? "continue-playing" : "")">
+
+            <div class="head">
+                @* Title and blurb are one link, so hovering either lights the title up. *@
+                @if ( section.Url is not null )
+                {
+                    <a class="head-text link" href="@section.Url">
+                        <div class="title-row">
+                            <label class="title">@section.Title</label>
+                            <icon class="chevron">chevron_right</icon>
+                        </div>
+                        @if ( !string.IsNullOrEmpty( section.Description ) )
+                        {
+                            <label class="description">@section.Description</label>
+                        }
+                    </a>
+                }
+                else
+                {
+                    <div class="head-text">
+                        <div class="title-row">
+                            <label class="title">@section.Title</label>
+                        </div>
+                        @if ( !string.IsNullOrEmpty( section.Description ) )
+                        {
+                            <label class="description">@section.Description</label>
+                        }
+                    </div>
+                }
+                <div class="grow" />
+                @if ( section.Url is not null )
+                {
+                    <a class="see-more" href="@section.Url">#menu.home.see_more</a>
+                }
+            </div>
+
+            @if ( section.Big is not null )
+            {
+                <div class="tiles mosaic @( section.BigRight ? "big-right" : "big-left" )">
+                    @* The wrapper owns the width - PackageCard sets its own root class/style, so
+                       anything passed straight to it gets clobbered. *@
+                    <div class="big" style="width: @( (int)BigWidth )px;">
+                        <MenuProject.UI.PackageCard Package=@section.Big DiscoveryContext=@section.Discovery
+                                     Rotation=@section.Rotation VideoWeight=@BigVideoWeight
+                                     Clicked="@(() => section.Big.OpenModal())"
+                                     RightClicked="@(() => MenuHelpers.OpenPackageMenu( this, section.Big ))" />
+                    </div>
+
+                    <div class="grid">
+                        <div class="row">
+                            @foreach ( var package in section.RowOne )
+                            {
+                                <MenuProject.UI.PackageCard Package=@package style="@section.RowOneStyle" DiscoveryContext=@section.Discovery
+                                             Rotation=@section.Rotation
+                                             Clicked="@(() => package.OpenModal())"
+                                             RightClicked="@(() => MenuHelpers.OpenPackageMenu( this, package ))" />
+                            }
+                        </div>
+                        @if ( section.RowTwo.Count > 0 )
+                        {
+                            <div class="row">
+                                @foreach ( var package in section.RowTwo )
+                                {
+                                    <MenuProject.UI.PackageCard Package=@package style="@section.RowTwoStyle" DiscoveryContext=@section.Discovery
+                                                 Rotation=@section.Rotation
+                                                 Clicked="@(() => package.OpenModal())"
+                                                 RightClicked="@(() => MenuHelpers.OpenPackageMenu( this, package ))" />
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="tiles">
+                    <div class="row">
+                        @foreach ( var package in section.RowOne )
+                        {
+                            <MenuProject.UI.PackageCard Package=@package Videos=@(!section.ContinuePlaying) SquareThumbnail=@section.ContinuePlaying ShowSubtitle=@section.ContinuePlaying style="@section.RowOneStyle" DiscoveryContext=@section.Discovery
+                                         Rotation=@section.Rotation
+                                         Clicked="@(() => package.OpenModal())"
+                                         RightClicked="@(() => MenuHelpers.OpenPackageMenu( this, package ))" />
+                        }
+                    </div>
+                </div>
+            }
+
+            @if ( section.ExtraRow.Count > 0 )
+            {
+                <div class="tiles">
+                    <div class="row">
+                        @foreach ( var package in section.ExtraRow )
+                        {
+                            <MenuProject.UI.PackageCard Package=@package style="@section.ExtraRowStyle" DiscoveryContext=@section.Discovery
+                                         Rotation=@section.Rotation
+                                         Clicked="@(() => package.OpenModal())"
+                                         RightClicked="@(() => MenuHelpers.OpenPackageMenu( this, package ))" />
+                        }
+                    </div>
+                </div>
+            }
+
+        </div>
+    }
+</root>
+
+@code
+{
+    // Keep in sync with .row PackageCard width and the gap in FrontPageGames.razor.scss.
+    const float TileWidth = 300f;
+    const float TileGap = 12f;
+    // Preserve the original column breakpoints while making room for wider gaps.
+    const float ColumnSizingGap = 8f;
+
+    [Parameter] public Package.ListResult Group { get; set; }
+
+    // While loading - more shelves than any screen shows, so it's full whatever its height
+    const int SkeletonShelves = 6;
+    const int SkeletonTiles = 4;
+
+    /// <summary>
+    /// How many tile columns fit across a row at the current width. The big tile spans two of them.
+    /// </summary>
+    int Columns { get; set; } = 5;
+
+    /// <summary>
+    /// The big tile is exactly two tiles plus the gap between them, in unscaled px - so its
+    /// far edge lands where a second column's would.
+    /// </summary>
+    float BigWidth { get; set; } = TileWidth * 2 + TileGap;
+
+    /// <summary>
+    /// One shelf. Each keeps its own rotation, so it only plays its own quota.
+    /// </summary>
+    class Section
+    {
+        public string Title;
+        public string Description;
+        public string Url;
+        public bool ContinuePlaying;
+        public int Priority;
+
+        public bool BigRight;
+        public Package Big;
+        public List<Package> RowOne = new();
+        public List<Package> RowTwo = new();
+        public List<Package> ExtraRow = new();
+        public string RowOneStyle = "";
+        public string RowTwoStyle = "";
+        public string ExtraRowStyle = "";
+
+        public MenuProject.UI.CardVideoRotation Rotation;
+        public DiscoveryContext Discovery;
+    }
+
+    List<Section> Sections { get; set; } = new();
+
+    const string StarterDismissedCookie = "menu.discovery.starter.dismissed";
+
+    bool StarterDismissed => Game.Cookies.Get( StarterDismissedCookie, false );
+
+    void SetStarterDismissed( bool dismissed )
+    {
+        Game.Cookies.Set( StarterDismissedCookie, dismissed );
+        ScrollTo( Vector2.Zero );
+        StateHasChanged();
+    }
+
+    [MenuConCmd( "menu_starter_reset", Help = "Bring back the getting-started guide on the front page after it's been dismissed" )]
+    static void ResetStarter() => Game.Cookies.Set( StarterDismissedCookie, false );
+
+    [ConCmd( "menu_starter_reset_editor", Help = "Editor only: bring back the getting-started guide in the menu project you're playing" )]
+    static void ResetStarterInEditor() => Game.Cookies.Set( StarterDismissedCookie, false );
+
+    // The big tile is the shelf's showpiece, so it takes its turn this many times as often.
+    const float BigVideoWeight = 3f;
+
+    Package.ListResult builtGroup;
+    int builtColumns = -1;
+    float builtBigWidth = -1;
+
+    /// <summary>
+    /// Inline style for tiles in a row that came up short: pin them to a full row's tile
+    /// width instead of letting them grow into the space.
+    /// </summary>
+    string ShortRowTileStyle => $"flex-grow: 0; width: {(int)((BigWidth - TileGap) / 2)}px;";
+
+    protected override void OnParametersSet()
+    {
+        base.OnParametersSet();
+
+        BuildSections();
+    }
+
+    /// <summary>
+    /// Only depends on the group and the measured tile sizes, so rebuild when those move.
+    /// </summary>
+    void BuildSections()
+    {
+        if ( builtGroup == Group && builtColumns == Columns && builtBigWidth == BigWidth )
+            return;
+
+        builtGroup = Group;
+        builtColumns = Columns;
+        builtBigWidth = BigWidth;
+
+        // Carry rotations over so a resize doesn't restart everything mid-turn.
+        var previous = Sections;
+        Sections = new List<Section>();
+
+        if ( Group?.Groupings is null )
+            return;
+
+        var mosaicIndex = 0;
+
+        // Keep the two main shelves first, preserving the feed's order for everything else.
+        var groupings = Group.Groupings.OrderBy( ShelfPriority ).ToArray();
+        for ( int i = 0; i < groupings.Length; i++ )
+        {
+            var grouping = groupings[i];
+            var packages = grouping.Packages ?? Array.Empty<Package>();
+
+            var section = new Section
+            {
+                Title = grouping.Title,
+                Description = grouping.Description,
+                Url = GroupUrl( grouping ),
+                ContinuePlaying = ShelfPriority( grouping ) == 0,
+                Priority = ShelfPriority( grouping ),
+                Rotation = i < previous.Count ? previous[i].Rotation : new MenuProject.UI.CardVideoRotation(),
+            };
+
+            // No query means the title would land on an unrelated list, so don't link at all.
+            if ( string.IsNullOrEmpty( grouping.QueryString ) )
+                section.Url = null;
+
+            // Featured groups get a mosaic, alternating which side the big tile sits on.
+            var big = !section.ContinuePlaying && grouping.Style == "large" ? PickBig( packages ) : null;
+
+            if ( big is not null && Columns >= 3 && packages.Length >= 3 )
+            {
+                var smallCols = Columns - 2;
+
+                section.BigRight = mosaicIndex++ % 2 == 1;
+                section.Big = big;
+
+                var rest = packages.Where( x => x != big ).ToArray();
+
+                section.RowOne.AddRange( rest.Take( smallCols ) );
+                section.RowTwo.AddRange( rest.Skip( smallCols ).Take( smallCols ) );
+
+                // A row that ran out of packages keeps full-row tile widths and leaves the
+                // gap empty - stretched tiles would break the grid.
+                section.RowOneStyle = section.RowOne.Count < smallCols ? ShortRowTileStyle : "";
+                section.RowTwoStyle = section.RowTwo.Count < smallCols ? ShortRowTileStyle : "";
+            }
+            else
+            {
+                section.RowOne.AddRange( packages.Take( Columns ) );
+
+                // Same as the mosaic rows - a shelf with only a couple of games keeps normal
+                // tile widths instead of one card stretching across the whole shelf.
+                section.RowOneStyle = section.RowOne.Count < Columns ? ShortRowTileStyle : "";
+            }
+
+            // Give the curated Featured shelf another full row below its mosaic (or its
+            // regular row on narrow screens), without repeating any of the games above.
+            if ( section.Priority == 1 )
+            {
+                var shown = new[] { section.Big }.Concat( section.RowOne ).Concat( section.RowTwo ).ToHashSet();
+                section.ExtraRow.AddRange( packages.Where( x => !shown.Contains( x ) ).Take( Columns ) );
+                section.ExtraRowStyle = section.ExtraRow.Count < Columns ? ShortRowTileStyle : "";
+            }
+
+            section.Discovery = new DiscoveryContext
+            {
+                Surface = "home",
+                Shelf = grouping.Title,
+                List = Group.RequestId,
+                Packages = new[] { section.Big }.Where( x => x is not null ).Concat( section.RowOne ).Concat( section.RowTwo ).Concat( section.ExtraRow ).ToArray(),
+            };
+
+            Sections.Add( section );
+        }
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        UpdateColumns();
+
+        foreach ( var section in Sections )
+        {
+            section.Rotation.Count = MenuProject.UI.PackageCard.VideoThumbsPerShelf;
+            section.Rotation.Interval = MenuProject.UI.PackageCard.VideoThumbsSeconds;
+            section.Rotation.Tick();
+        }
+    }
+
+    void UpdateColumns()
+    {
+        // Measure a real row rather than guessing at paddings from our own box.
+        var tiles = FirstTilesRow();
+        var scale = ScaleToScreen;
+
+        if ( tiles is null || scale <= 0 || tiles.Box.RectInner.Width <= 0 )
+            return;
+
+        // Inner rect - the tiles lay out inside .tiles' padding.
+        var rowWidth = tiles.Box.RectInner.Width / scale;
+        var fit = Math.Max( 1, (int)((rowWidth + ColumnSizingGap) / (TileWidth + ColumnSizingGap)) );
+
+        var tileWidth = (rowWidth - (fit - 1) * TileGap) / fit;
+        var bigWidth = MathF.Round( tileWidth * 2 + TileGap );
+
+        if ( fit != Columns || !bigWidth.AlmostEqual( BigWidth, 0.5f ) )
+        {
+            Columns = fit;
+            BigWidth = bigWidth;
+
+            BuildSections();
+            StateHasChanged();
+        }
+    }
+
+    Panel FirstTilesRow()
+    {
+        foreach ( var section in Children )
+        {
+            foreach ( var child in section.Children )
+            {
+                if ( child.HasClass( "tiles" ) )
+                    return child;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The big tile is the group's first package that has a video - it's the one that
+    /// plays. None with a video means no big tile.
+    /// </summary>
+    static Package PickBig( Package[] packages ) => packages.FirstOrDefault( x => !string.IsNullOrEmpty( x?.VideoThumb ) );
+
+    static int ShelfPriority( Package.ListResult.Grouping grouping )
+    {
+        var query = grouping.QueryString?.Split( ' ', StringSplitOptions.RemoveEmptyEntries ) ?? Array.Empty<string>();
+        if ( query.Contains( "sort:used", StringComparer.OrdinalIgnoreCase ) ) return 0;
+        if ( query.Contains( "in:facepunch.featured-games", StringComparer.OrdinalIgnoreCase ) ) return 1;
+        return 2;
+    }
+
+    static string GroupUrl( Package.ListResult.Grouping g ) => $"/home/group?Query={g.QueryString}&title={g.Title}&subtitle={g.Description}";
+
+    /// <summary>
+    /// Drop a package the player just hid.
+    /// </summary>
+    /// <summary>
+    /// Take a package off every shelf it's on. Hands back how to put it back where it was - for undoing it.
+    /// </summary>
+    public Action RemovePackage( Package package )
+    {
+        if ( Group?.Groupings is null || package is null )
+            return null;
+
+        var before = new List<(Package.ListResult.Grouping Grouping, int Index)>();
+
+        foreach ( var grouping in Group.Groupings )
+        {
+            if ( grouping.Packages is null )
+                continue;
+
+            var index = Array.FindIndex( grouping.Packages, x => x?.FullIdent == package.FullIdent );
+            if ( index < 0 )
+                continue;
+
+            before.Add( (grouping, index) );
+            grouping.Packages = grouping.Packages.Where( x => x?.FullIdent != package.FullIdent ).ToArray();
+        }
+
+        Rebuild();
+
+        return () =>
+        {
+            if ( !this.IsValid() ) return;
+
+            foreach ( var (grouping, index) in before )
+            {
+                var current = grouping.Packages ?? Array.Empty<Package>();
+                if ( current.Any( x => x?.FullIdent == package.FullIdent ) )
+                    continue;
+
+                var insertAt = Math.Min( index, current.Length );
+                var restored = new Package[current.Length + 1];
+                Array.Copy( current, 0, restored, 0, insertAt );
+                restored[insertAt] = package;
+                Array.Copy( current, insertAt, restored, insertAt + 1, current.Length - insertAt );
+                grouping.Packages = restored;
+            }
+
+            Rebuild();
+        };
+    }
+
+    void Rebuild()
+    {
+        builtGroup = null;
+        BuildSections();
+        StateHasChanged();
+    }
+
+    public override void OnHotloaded()
+    {
+        base.OnHotloaded();
+        Rebuild();
+    }
+
+    protected override int BuildHash() => HashCode.Combine( Group, Sections.Count, Columns, BigWidth, StarterDismissed );
+}

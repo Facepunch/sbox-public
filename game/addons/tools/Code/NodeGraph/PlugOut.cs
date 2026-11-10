@@ -58,7 +58,9 @@ public class PlugOut : Plug
 		var spacex = 4f;
 
 		var config = HandleConfig;
-		var color = config.Color;
+		var color = isTarget && Node.Graph.Preview.IsInvalidPreview
+			? Theme.Red
+			: config.Color;
 
 		if ( !highlight )
 		{

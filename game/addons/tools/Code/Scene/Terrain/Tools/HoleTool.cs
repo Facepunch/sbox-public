@@ -7,7 +7,7 @@
 /// 
 [Title( "Hole" )]
 [Icon( "trip_origin" )]
-[Alias( "hole" )]
+[Alias( "tools.terrain.hole" )]
 [Group( "1" )]
 [Order( 0 )]
 public class HoleTool : BaseBrushTool

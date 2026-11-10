@@ -47,7 +47,8 @@ internal static class Image
 				var animation = new Texture.Animation( codec );
 				codec = null; // ownership transferred to Animation
 
-				var texture = CreateTexture( animation.Bitmap, debugName );
+				var texture = CreateTexture( animation.Bitmap );
+				texture.IsAnimated = true;
 				animation.Texture = new System.WeakReference<Texture>( texture );
 				Texture.Animations.Add( animation );
 
@@ -55,10 +56,19 @@ internal static class Image
 			}
 			else
 			{
-				using var image = SKImage.FromEncodedData( data );
-				using var bitmap = SKBitmap.FromImage( image );
+				// Decode straight from the codec asking for straight (unpremultiplied) alpha, the same as
+				// Bitmap.Loading does. Going via SKImage.FromEncodedData / SKBitmap.FromImage silently
+				// gives premultiplied pixels, which nothing downstream expects.
+				var info = new SKImageInfo( codec.Info.Width, codec.Info.Height, SKColorType.Rgba8888, SKAlphaType.Unpremul );
+				using var bitmap = SKBitmap.Decode( codec, info );
 
-				var texture = CreateTexture( bitmap, debugName );
+				if ( bitmap is null )
+				{
+					Log.Warning( $"Error decoding image: {debugName}" );
+					return default;
+				}
+
+				var texture = CreateTexture( bitmap );
 				return texture;
 			}
 		}
@@ -100,7 +110,6 @@ internal static class Image
 			}
 
 			var texture = Texture.Create( width, height, format )
-				.WithName( filename )
 				.WithData( data, dataSize )
 				.WithMips( numMips )
 				.Finish();
@@ -113,7 +122,7 @@ internal static class Image
 		}
 	}
 
-	private static Texture CreateTexture( SKBitmap bitmap, string name )
+	private static Texture CreateTexture( SKBitmap bitmap )
 	{
 		var format = bitmap.ColorType switch
 		{
@@ -126,7 +135,6 @@ internal static class Image
 		int numMips = (int)Math.Log2( Math.Min( bitmap.Width, bitmap.Height ) ) + 1;
 
 		var texture = Texture.Create( bitmap.Width, bitmap.Height, format )
-			.WithName( name )
 			.WithData( bitmap.GetPixels(), bitmap.ByteCount )
 			.WithMips( numMips )
 			.Finish();
@@ -137,9 +145,6 @@ internal static class Image
 	public static Texture Load( BaseFileSystem filesystem, string filename, bool warnOnMissing = true )
 	{
 		filename = filename.Normalize();
-
-		if ( Game.Resources.Get<Texture>( filename ) is { } cached )
-			return cached;
 
 		try
 		{
@@ -164,7 +169,6 @@ internal static class Image
 				tex = Load( stream, filename );
 			}
 
-			tex?.RegisterWeakResourceId( filename );
 			return tex;
 		}
 		catch ( System.IO.FileNotFoundException e )

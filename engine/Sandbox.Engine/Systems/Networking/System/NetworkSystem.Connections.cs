@@ -14,6 +14,12 @@ internal partial class NetworkSystem
 	public IEnumerable<Connection> Connections => _connections;
 
 	/// <summary>
+	/// Stand-ins for peers we have no direct connection to, see <see cref="Connection.Find"/>.
+	/// </summary>
+	[SkipHotload]
+	internal readonly Dictionary<Guid, Connection> MockConnections = new();
+
+	/// <summary>
 	/// If true then this host is sending assemblies and other files via network tables
 	/// and as such, does not need to load assemblies from the package (if it even exists).
 	/// </summary>
@@ -90,10 +96,14 @@ internal partial class NetworkSystem
 			MapName = Networking.MapName,
 			EngineVersion = 234,
 			GamePackage = Application.GamePackage?.GetIdent( false, true ) ?? "",
-			MapPackage = Application.MapPackage?.GetIdent( false, true ) ?? "",
+			GameWorkshopVersion = Application.GamePackage is { InstallsFromWorkshop: true } game ? Workshop.GetInstalledVersion( game.WorkshopId ) : 0,
+			Map = Application.Map,
 			Host = new ChannelInfo { Id = Connection.Local.Id },
+			HostSteamId = Connection.Local.SteamId,
 			Assigned = new ChannelInfo { Id = channel.Id },
 			IsDeveloperHost = IsDeveloperHost,
+			HostMigration = IsHostMigrationEnabled,
+			PasswordRequired = NeedsPassword( channel ),
 			HandshakeId = channel.HandshakeId
 		};
 
@@ -107,7 +117,7 @@ internal partial class NetworkSystem
 	/// </summary>
 	internal void RestartHandshake()
 	{
-		var host = _connections.FirstOrDefault( c => c.IsHost );
+		var host = HostConnection;
 		if ( host is null )
 			return;
 
@@ -127,6 +137,43 @@ internal partial class NetworkSystem
 
 	internal void OnDisconnected( Connection source )
 	{
+		if ( !_connections.Contains( source ) )
+			return;
+
+		// The leaving host is removed once we've loaded their snapshot
+		if ( _isBecomingHost && source == _leavingHost )
+			return;
+
+		if ( !IsHost && source == HostConnection )
+		{
+			OnHostLost( source );
+		}
+
+		RemovePeer( source );
+	}
+
+	/// <summary>
+	/// Forget a peer; tell the game if it had been told they joined.
+	/// </summary>
+	void RemovePeer( Connection source )
+	{
+		var known = _connections.Remove( source );
+		_pendingLeaveAcks.Remove( source.Id );
+		_pendingResyncs.Remove( source.Id );
+
+		// The server channel of a star topology client
+		if ( Connection == source )
+		{
+			Connection.Close( 0, "Host changed" );
+			Connection = null;
+			known = true;
+		}
+
+		if ( !known )
+			return;
+
+		Sandbox.Diagnostics.DevTools.NetworkLog.Session( "Peer left", source );
+
 		if ( source.State >= Connection.ChannelState.Welcome )
 		{
 			// We only need to call this if we called OnConnected, which would only
@@ -135,14 +182,13 @@ internal partial class NetworkSystem
 		}
 
 		_connectionLookup.Remove( source.Id );
-		_connections.Remove( source );
 
 		source.State = Connection.ChannelState.Unconnected;
 
 		if ( !IsHost )
 			return;
 
-		Log.Info( $"{source.DisplayName} [{source.SteamId}] disconnected" );
+		Log.Info( $"{source.Name} [{source.SteamId}] disconnected" );
 
 		ConnectionInfo.Remove( source.Id );
 		OnConnectionInfoUpdated();
@@ -154,12 +200,17 @@ internal partial class NetworkSystem
 	/// </summary>
 	internal void OnServerDisconnection( int reasonCode, string reasonString )
 	{
+		var message = IsBadPassword( reasonString ) ? "Wrong password." : $"The server connection closed.\nReason: {reasonString} (code {reasonCode}).";
 		if ( Connection.Local.State == Connection.ChannelState.Unconnected )
+		{
+			// Keep diagnostics for a failed join without showing another dialog after teardown.
+			FailureReason ??= message;
 			return;
+		}
 
-		IGameInstanceDll.Current.Disconnect();
-		IMenuSystem.ShowServerError( "Disconnected", reasonString );
-		Log.Warning( $"Disconnecting - {reasonString}" );
+		FailureReason = message;
+		Sandbox.Diagnostics.DevTools.NetworkLog.Session( $"Ended: {reasonString}", HostConnection, ends: true );
+		IGameInstanceDll.Current.Disconnect( FailureReason );
 	}
 
 	/// <summary>

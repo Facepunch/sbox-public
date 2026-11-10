@@ -1,0 +1,72 @@
+@import "/styles/_theme.scss";
+@import "/Platform/_platform.scss";
+
+// The game's own buttons, on its Game info - the middle of the screen, under the cards, a heading
+// over them, the buttons big and stacked. What you're most likely here to press
+GameActions
+{
+	// Across the page, its height down it set from code - so its middle is the screen's
+	position: absolute;
+	left: 0;
+	right: 0;
+	flex-direction: column;
+	align-items: center;
+	gap: 16px;
+	font-family: $platform-font;
+
+	// Not seen until it's been put in the middle of the screen - otherwise its first frame's at the top
+	opacity: 0;
+
+	&.placed
+	{
+		opacity: 1;
+	}
+
+	// A game without any - not there at all
+	&.empty
+	{
+		display: none;
+	}
+
+	.eyebrow
+	{
+		@include platform-section-label;
+	}
+
+	.buttons
+	{
+		flex-direction: column;
+		align-items: stretch;
+		gap: 10px;
+		width: 440px;
+	}
+
+	// Its name, and what it does under it - as tall as they need
+	.text
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		min-width: 0;
+		gap: 2px;
+	}
+
+	.action
+	{
+		@include platform-text-button( 68px, 15px, 24px );
+
+		// Its tooltip can run to a second line under the name
+		height: auto;
+		min-height: 68px;
+		padding: 12px 24px;
+		gap: 14px;
+
+		.description
+		{
+			font-size: 12.5px;
+			font-weight: 500;
+			color: $platform-muted;
+			white-space: normal;
+		}
+	}
+}

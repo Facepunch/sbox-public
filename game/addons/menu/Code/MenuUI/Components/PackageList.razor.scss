@@ -1,0 +1,77 @@
+.package-list
+{
+    position: relative;
+    flex-shrink: 1;
+    flex-wrap: wrap;
+    flex-grow: 1;
+
+    h1
+    {
+        width: 100%;
+        margin-top: 50px;
+        font-size: 40px;
+    }
+
+    .empty-wrap
+    {
+        flex-grow: 1;
+        width: 100%;
+        height: 100%;
+        align-items: center;
+        justify-content: center;
+        padding: 32px;
+    }
+
+    PackageCard
+    {
+        &:hover
+        {
+            sound-in: "ui.button.over";
+        }
+    }
+
+    VirtualGrid
+    {
+        width: 100%;
+        height: 100%;
+
+        gap: 16px;
+        padding: 32px;
+
+        // Fill the cell - the grid stretches cells to use the whole row, and a
+        // fixed-size card would leave ragged gaps between columns.
+        PackageCard
+        {
+            width: 100%;
+            height: auto;
+        }
+    }
+
+    // Still looking - a tile's shape, pulsing
+    .skeleton-tile
+    {
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        border-radius: 8px;
+        background-color: rgba( 255, 255, 255, 0.05 );
+        animation: package-list-bone 1.2s ease-in-out infinite alternate;
+    }
+
+    VirtualGrid.skeleton
+    {
+        pointer-events: none;
+    }
+}
+
+@keyframes package-list-bone
+{
+    0%
+    {
+        opacity: 0.55;
+    }
+
+    100%
+    {
+        opacity: 1;
+    }
+}

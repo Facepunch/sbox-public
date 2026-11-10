@@ -19,19 +19,79 @@ public static class LaunchArguments
 	public static int MaxPlayers { get; set; }
 
 	/// <summary>
-	/// Default privacy for lobbies created on game start.
+	/// Privacy for lobbies created on game start. The more private of this and the lobby's own config wins,
+	/// so neither the menu nor the game can open up a lobby the other made private. If not explicitly set,
+	/// lobbies use their own config.
 	/// </summary>
-	public static LobbyPrivacy Privacy { get; set; } = LobbyPrivacy.Public;
+	public static LobbyPrivacy Privacy
+	{
+		get => PrivacyOverride ?? LobbyPrivacy.Public;
+		set => PrivacyOverride = value;
+	}
+
+	internal static LobbyPrivacy? PrivacyOverride { get; private set; }
+
+	/// <summary>
+	/// The privacy a lobby asking for <paramref name="requested"/> ends up with - the more private of that and
+	/// <see cref="PrivacyOverride"/>.
+	/// </summary>
+	internal static LobbyPrivacy ResolvePrivacy( LobbyPrivacy requested )
+	{
+		if ( PrivacyOverride is not { } privacy ) return requested;
+		return Rank( privacy ) > Rank( requested ) ? privacy : requested;
+	}
+
+	/// <summary>
+	/// How closed a privacy mode is. Not the enum's own order, which has Private before FriendsOnly.
+	/// </summary>
+	static int Rank( LobbyPrivacy privacy ) => privacy switch
+	{
+		LobbyPrivacy.Public => 0,
+		LobbyPrivacy.FriendsOnly => 1,
+		_ => 2
+	};
 
 	/// <summary>
 	/// The game settings to apply on join. These are a list of convars.
 	/// </summary>
-	public static Dictionary<string, string> GameSettings { get; set; }
+	public static Dictionary<string, string> GameSettings
+	{
+		get => _gameSettings;
+		set
+		{
+			_gameSettings = value;
+			_trustedGameSettings = null;
+		}
+	}
+
+	static Dictionary<string, string> _gameSettings;
+
+	// Snapshot taken when the engine or menu set the settings, since anyone can still edit the live dictionary
+	static Dictionary<string, string> _trustedGameSettings;
+
+	internal static void SetTrustedGameSettings( Dictionary<string, string> value )
+	{
+		_gameSettings = value;
+		_trustedGameSettings = value is null ? null : new( value );
+	}
+
+	internal static bool CanSetProtected( string name, string value )
+	{
+		// Games pick these keys too (party config, package metadata), so only ever trust the game's own settings
+		if ( ConVarSystem.Find( name ) is not ManagedCommand { IsGameSetting: true } ) return false;
+
+		return _trustedGameSettings is not null && _trustedGameSettings.TryGetValue( name, out var trusted ) && trusted == value;
+	}
 
 	/// <summary>
 	/// The hostname for the server.
 	/// </summary>
 	public static string ServerName { get; set; }
+
+	/// <summary>
+	/// The password for lobbies created on game start. Write only, games don't get to read it.
+	/// </summary>
+	public static string Password { internal get; set; }
 
 	/// <summary>
 	/// Should be called when leaving a game to set the properties back to default. We need to be
@@ -41,9 +101,10 @@ public static class LaunchArguments
 	{
 		GameSettings = default;
 		Map = default;
-		Privacy = default;
+		PrivacyOverride = null;
 		ServerName = default;
-		MaxPlayers = 1;
+		Password = default;
+		MaxPlayers = 0;
 	}
 
 	// TODO - save launch arguments and restore them, per game.

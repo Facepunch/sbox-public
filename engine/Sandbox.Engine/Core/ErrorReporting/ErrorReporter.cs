@@ -9,27 +9,21 @@ namespace Sandbox.Engine;
 [SkipHotload]
 internal static class ErrorReporter
 {
-	static bool _initialized;
+#if RETAIL
+	internal static bool IsUsingSentry => !Application.IsStandalone && !Application.IsUnitTest;
+	internal static string ManagedDsn => "https://4f8440da406da20cfc2834a214f2ffad@o13219.ingest.sentry.io/5715364";
+#else
+	internal static bool IsUsingSentry => false;
+	internal static string ManagedDsn => null;
+#endif
 
-	public static void Initialize( bool testing = false )
+	public static void Initialize()
 	{
-		// alex: Don't init sentry in Standalone
-		if ( Application.IsStandalone )
-			return;
-
-		if ( _initialized ) return;
-		_initialized = true;
+		if ( !IsUsingSentry ) return;
 
 		SentrySdk.Init( config =>
 		{
-			config.Dsn = "https://4f8440da406da20cfc2834a214f2ffad@o13219.ingest.sentry.io/5715364";
-
-			// use this DSN when testing (also comment out the Application.IsRetail check)
-			// this will stop it being rate limited.
-			if ( testing )
-			{
-				config.Dsn = "https://297d56845b11cde01c3e83727de8ef22@o13219.ingest.us.sentry.io/5715364";
-			}
+			config.Dsn = ManagedDsn;
 
 			config.AutoSessionTracking = true;
 			config.SetBeforeSend( BeforeSend );
@@ -42,17 +36,16 @@ internal static class ErrorReporter
 			config.DetectStartupTime = StartupTimeDetectionMode.None;
 		} );
 
+		ManagedExceptionReporting.Initialize();
 		Logging.OnException = ReportException;
 	}
 
 	public static void Flush()
 	{
-		// alex: Don't report exceptions in Standalone
-		if ( Application.IsStandalone )
-			return;
+		if ( !IsUsingSentry ) return;
 
-		if ( !_initialized ) return;
 		SentrySdk.Flush();
+		ManagedExceptionReporting.Flush();
 	}
 
 	private static SentryEvent BeforeSend( SentryEvent ev, SentryHint hint )
@@ -65,6 +58,9 @@ internal static class ErrorReporter
 		ev.SetTag( "game", $"{Application.GameIdent}" );
 		ev.SetTag( "gameversion", $"{Application.GamePackage?.Revision?.VersionId}" );
 		ev.SetTag( "host", Application.IsDedicatedServer ? "dedicated" : "game" );
+		ev.SetTag( "hags", SystemInfo.WinHags?.ToString() ?? "unknown" );
+		ev.SetTag( "monitors", $"{SystemInfo.MonitorCount}" );
+		ev.SetTag( "refresh", $"{SystemInfo.DisplayRefreshRate}" );
 
 		ev.Contexts.Gpu.Name = SystemInfo.Gpu;
 		ev.Contexts.Gpu.Version = SystemInfo.GpuVersion;
@@ -79,6 +75,7 @@ internal static class ErrorReporter
 		ev.Contexts.Device.StorageSize = SystemInfo.StorageSizeTotal;
 		ev.Contexts.Device.FreeStorage = SystemInfo.StorageSizeAvailable;
 
+		ManagedExceptionReporting.Copy( ev );
 		return ev;
 	}
 
@@ -92,14 +89,9 @@ internal static class ErrorReporter
 
 	public static void ReportException( Exception exception )
 	{
-		// alex: Don't report exceptions in Standalone
-		if ( Application.IsStandalone )
-			return;
-
 		Application.ExceptionCount++;
 
-		if ( !_initialized )
-			return;
+		if ( !IsUsingSentry ) return;
 
 		// If the exception is a ?.Invoke() - we're really only interested
 		// in the underlying error, not the invocation error. So report that instead.
@@ -144,7 +136,7 @@ internal static class ErrorReporter
 
 		// We should only get engine/menu errors via this now!
 
-		Sentry.SentrySdk.CaptureException( exception, ( scope ) =>
+		SentrySdk.CaptureException( exception, ( scope ) =>
 		{
 			// The source is a way for us to filter the exceptions by menu, engine, tools or addon
 			scope.SetTag( "source", source );
@@ -154,10 +146,6 @@ internal static class ErrorReporter
 	private static bool TryReportPackageException( Exception exception, StackTrace stackTrace, out string source )
 	{
 		source = "engine";
-
-		// alex: Should never be called really (invoked by ReportException) but doing this for good measure
-		if ( Application.IsStandalone )
-			return false;
 
 		const string menuAssembly = "package.local.menu";
 		const string toolsAssembly = "package.toolbase";

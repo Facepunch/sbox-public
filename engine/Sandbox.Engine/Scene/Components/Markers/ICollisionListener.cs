@@ -13,7 +13,8 @@ public abstract partial class Component
 		void OnCollisionStart( Collision collision ) { }
 
 		/// <summary>
-		/// Called once per physics step for every collider being touched.
+		/// Called once per physics step for every collider being touched, while the collision is awake.
+		/// Sleeping contacts don't send updates, use <see cref="Collider.Touching"/> to track resting contacts.
 		/// </summary>
 		void OnCollisionUpdate( Collision collision ) { }
 
@@ -34,9 +35,8 @@ public readonly struct CollisionSource
 		Body = target.Body;
 		Shape = target.Shape;
 		Surface = target.Surface;
-		Collider = target.Shape.Collider;
-		Component = Collider;
-		GameObject = Collider.IsValid() ? Collider.GameObject : Body.GameObject;
+		Collider = target.Shape?.Collider;
+		GameObject = Collider.IsValid() ? Collider.GameObject : Body?.GameObject;
 	}
 
 	public bool IsTrigger => Collider.IsValid() && Collider.IsTrigger;
@@ -46,5 +46,4 @@ public readonly struct CollisionSource
 	public readonly Surface Surface;
 	public readonly Collider Collider;
 	public readonly GameObject GameObject;
-	internal readonly Component Component;
 }

@@ -2,7 +2,10 @@
 
 public partial class DebugOverlaySystem
 {
-	readonly Material LineMaterial;
+	/// <summary>
+	/// Loaded on first draw, so scenes that never draw a debug overlay don't load it.
+	/// </summary>
+	Material LineMaterial => field ??= Material.Load( "materials/gizmo/line.vmat" );
 
 	/// <summary>
 	/// Draw a line 

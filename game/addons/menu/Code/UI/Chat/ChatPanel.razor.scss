@@ -1,0 +1,130 @@
+@import "/styles/_chat.scss";
+
+ChatPanel
+{
+	flex-direction: column;
+	font-size: $text-medium;
+	font-family: $font-default;
+	font-weight: 600;
+	gap: 10px;
+
+	.channel-label
+	{
+		font-size: $text-small;
+		font-weight: 700;
+		text-transform: uppercase;
+		padding: 4px 10px;
+		border-radius: $rounding-small;
+		flex-shrink: 0;
+		letter-spacing: 0.5px;
+		background-color: #383850;
+		color: $default-200;
+		opacity: 1;
+		box-shadow: 1px 1px 3px rgba( black, 0.25 );
+	}
+
+	.messages
+	{
+		flex-grow: 1;
+		flex-direction: column;
+		justify-content: flex-end;
+		align-items: stretch;
+		overflow-y: scroll;
+		overflow-x: hidden;
+		max-height: 400px;
+		gap: 5px;
+
+		&:empty
+		{
+			display: none;
+		}
+
+		.chat-entry
+		{
+			transition: opacity 0.3s $easing;
+			opacity: 1;
+			align-items: flex-start;
+
+			&:hover
+			{
+				background-color: rgba( white, 0.05 );
+			}
+
+			&.faded
+			{
+				opacity: 0;
+			}
+
+			&.system
+			{
+				opacity: 0.7;
+
+				&.faded
+				{
+					opacity: 0;
+				}
+
+				.name
+				{
+					color: $default-300;
+					font-weight: 900;
+				}
+
+				.text
+				{
+					color: $default-100;
+					font-weight: 600;
+				}
+			}
+
+			.channel-label
+			{
+				margin-top: 3px;
+			}
+
+			.name
+			{
+				&.clickable
+				{
+					cursor: pointer;
+
+					&:hover
+					{
+						color: white;
+					}
+				}
+			}
+
+			.text
+			{
+				font-weight: 500;
+				font-size: $text-medium;
+				color: $default-text;
+				white-space: normal;
+				text-shadow: 1px 1px 0px rgba( black, 0.75 );
+				margin-top: 3px;
+				min-width: 0;
+				flex-shrink: 1;
+			}
+		}
+	}
+
+	.input-bar
+	{
+		color: $default-text;
+		align-items: center;
+		gap: 8px;
+
+		.textentry
+		{
+			flex-grow: 1;
+			background-color: $default-900;
+			color: $default-text;
+			padding: 8px 12px;
+			border-radius: $rounding-large;
+			border: 1px solid $default-border;
+			font-size: $text-medium;
+			font-weight: 500;
+		}
+	}
+}

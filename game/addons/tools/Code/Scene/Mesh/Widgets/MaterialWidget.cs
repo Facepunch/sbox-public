@@ -180,6 +180,10 @@ class MaterialWidget : Widget
 
 			OnMaterialDropped( mat );
 		}
+		catch ( AggregateException ex )
+		{
+			Log.Warning( ex, $"Error installing material package {identUrl}" );
+		}
 		finally
 		{
 			_isDownloading = false;

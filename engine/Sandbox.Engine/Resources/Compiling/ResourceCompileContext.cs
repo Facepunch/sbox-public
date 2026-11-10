@@ -1,4 +1,5 @@
-﻿using System.Text.Json.Nodes;
+﻿using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace Sandbox.Resources;
 
@@ -22,20 +23,68 @@ public abstract class ResourceCompileContext
 	internal abstract int WriteBlock( string blockName, IntPtr data, int count );
 
 	/// <summary>
+	/// Write a named block of data into the compiled resource. The name is a four
+	/// character code, eg "LIPS". Read it back at runtime when the resource loads,
+	/// in <see cref="Resource.OnLoaded"/>.
+	/// </summary>
+	public unsafe void WriteBlock( string blockName, ReadOnlySpan<byte> data )
+	{
+		if ( blockName is null || blockName.Length != 4 )
+			throw new ArgumentException( "Block names are four character codes, eg \"LIPS\"", nameof( blockName ) );
+
+		if ( data.IsEmpty )
+			return;
+
+		fixed ( byte* ptr = data )
+		{
+			WriteBlock( blockName, (IntPtr)ptr, data.Length );
+		}
+	}
+
+	/// <summary>
+	/// Serialize an object to json and write it to a named block in the compiled
+	/// resource. Read it back at runtime in <see cref="Resource.OnLoaded"/>.
+	/// </summary>
+	public void WriteBlockJson( string blockName, object obj )
+	{
+		WriteBlock( blockName, JsonSerializer.SerializeToUtf8Bytes( obj, Json.options ) );
+	}
+
+	/// <summary>
 	/// Add a reference. This means that the resource we're compiling depends on this resource.
 	/// </summary>
 	public abstract void AddRuntimeReference( string path );
 
 	/// <summary>
 	/// Add a reference that is needed to compile this resource, but isn't actually needed once compiled.
+	/// Optional references may not exist - the compile won't fail without them, but if the file is
+	/// created or modified later we'll recompile.
 	/// </summary>
-	public abstract void AddCompileReference( string path );
+	public abstract void AddCompileReference( string path, bool optional = false );
 
 	/// <summary>
 	/// Add a game file reference. This file will be included in packages but is not a native resource.
 	/// Use this for arbitrary data files that are loaded by managed code (e.g. navdata files).
 	/// </summary>
 	public abstract void AddGameFileReference( string path );
+
+	/// <summary>
+	/// Another asset's compiled output this compile reads, by the path of its source (a texture whose pixels are
+	/// copied, a model whose skeleton is used), before reading it. A content build compiles that asset first and
+	/// rebuilds this one when it changes. Declare every one even while <see cref="Describing"/>.
+	/// </summary>
+	public abstract void AddCompiledReference( string path );
+
+	/// <summary>
+	/// A content build is asking what this compile reads before anything is built: declare the compiled outputs it
+	/// reads with <see cref="AddCompiledReference"/>, then return without doing the work. Anything written is discarded.
+	/// </summary>
+	public abstract bool Describing { get; }
+
+	/// <summary>
+	/// The compile fails, whatever the compiler returns: something it had to do (a child, an embedded resource) didn't happen.
+	/// </summary>
+	internal abstract void Fail( string error );
 
 	/// <summary>
 	/// Get the streaming data to write to
@@ -58,9 +107,104 @@ public abstract class ResourceCompileContext
 	public abstract string ScanJson( string json );
 
 	/// <summary>
+	/// <see cref="ScanJson"/>, awaiting the embedded resources it generates (see <see cref="CompileChild"/>) rather than
+	/// blocking on them (<see cref="Child.CompileAsync"/>). They're compiled when it returns.
+	/// </summary>
+	internal async Task<string> ScanJsonAsync( string json )
+	{
+		deferred = [];
+		List<(Child Child, string Path)> children;
+		try
+		{
+			json = ScanJson( json );
+		}
+		finally
+		{
+			children = deferred;
+			deferred = null;
+		}
+
+		foreach ( var (child, path) in children )
+		{
+			if ( !await child.CompileAsync() ) Fail( $"Couldn't generate {path}" );
+		}
+		return json;
+	}
+
+	/// <summary>
+	/// Compiles a generated child now, or once <see cref="ScanJsonAsync"/> scanning it is done. False if it failed.
+	/// </summary>
+	internal bool CompileChild( Child child, string path )
+	{
+		if ( deferred is not null )
+		{
+			deferred.Add( (child, path) );
+			return true;
+		}
+		return child.Compile();
+	}
+
+	List<(Child Child, string Path)> deferred;
+
+	/// <summary>
 	/// Read the source, either from in memory, or from disk
 	/// </summary>
 	public abstract byte[] ReadSource();
+
+	JsonObject _meta;
+	bool _metaRead;
+
+	/// <summary>
+	/// The asset's .meta file as json, or null if it doesn't have one.
+	/// </summary>
+	public JsonObject ReadMeta()
+	{
+		if ( _metaRead )
+			return _meta;
+
+		_metaRead = true;
+
+		var metaPath = AbsolutePath + ".meta";
+
+		// Depend on the meta even when it doesn't exist yet - authoring one later
+		// (eg adding visemes to a sound for the first time) should recompile us
+		AddCompileReference( metaPath, optional: true );
+
+		try
+		{
+			if ( System.IO.File.Exists( metaPath ) )
+			{
+				_meta = Json.ParseToJsonObject( System.IO.File.ReadAllText( metaPath ) );
+			}
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( e, $"Couldn't read meta file {metaPath}" );
+		}
+
+		return _meta;
+	}
+
+	/// <summary>
+	/// Read a value from the asset's .meta file,
+	/// eg <c>Context.ReadMeta&lt;List&lt;VisemeFrame&gt;&gt;( "visemes" )</c>.
+	/// </summary>
+	public T ReadMeta<T>( string key, T defaultValue = default )
+	{
+		var meta = ReadMeta();
+		if ( meta is null || meta[key] is not JsonNode node )
+			return defaultValue;
+
+		try
+		{
+			return node.Deserialize<T>( Json.options );
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( e, $"Couldn't read '{key}' from {AbsolutePath}.meta" );
+			return defaultValue;
+		}
+	}
 
 	/// <summary>
 	/// Read the source, either from in memory, or from disk
@@ -92,6 +236,11 @@ public abstract class ResourceCompileContext
 	public abstract class Child
 	{
 		public abstract bool Compile();
+
+		/// <summary>
+		/// <see cref="Compile"/>, awaited where the compile can let its thread go meanwhile.
+		/// </summary>
+		internal virtual Task<bool> CompileAsync() => Task.FromResult( Compile() );
 		public abstract void SetInputData( string data );
 	}
 

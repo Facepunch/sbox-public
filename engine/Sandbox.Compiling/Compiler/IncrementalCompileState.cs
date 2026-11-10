@@ -12,7 +12,6 @@ class IncrementalCompileState
 {
 	public ImmutableArray<SyntaxTree> OldSyntaxTrees;
 	public ImmutableArray<SyntaxTree> SyntaxTrees;
-	public ImmutableArray<SyntaxTree> PreHotloadSyntaxTrees;
 
 	public ImmutableDictionary<string, ulong> FileHashMap { get; private set; }
 
@@ -25,22 +24,20 @@ class IncrementalCompileState
 		Compilation = null;
 		OldSyntaxTrees = default;
 		SyntaxTrees = default;
-		PreHotloadSyntaxTrees = default;
 
 		FileHashMap = [];
 	}
 
-	internal void Update( CodeArchive archive, IEnumerable<SyntaxTree> syntaxTrees, ImmutableArray<SyntaxTree> beforeIlHotloadProcessingTrees, CSharpCompilation compiler )
+	internal void Update( CodeArchive archive, IEnumerable<SyntaxTree> syntaxTrees, CSharpCompilation compiler )
 	{
 		OldSyntaxTrees = SyntaxTrees;
 		SyntaxTrees = syntaxTrees.ToImmutableArray();
-		PreHotloadSyntaxTrees = beforeIlHotloadProcessingTrees;
 		Compilation = compiler;
 
 		FileHashMap = archive.FileHashMap.ToImmutableDictionary();
 	}
 
-	public Dictionary<string, object> GetChangeSummary( IEnumerable<BaseFileSystem> fileLocations = default )
+	public Dictionary<string, object> GetChangeSummary( IReadOnlyList<BaseFileSystem> fileLocations = null )
 	{
 		if ( OldSyntaxTrees.IsDefaultOrEmpty || SyntaxTrees.IsDefaultOrEmpty )
 		{

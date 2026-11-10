@@ -13,8 +13,29 @@ namespace Sandbox;
 [Category( "Effects" )]
 [Icon( "electric_bolt" )]
 [EditorHandle( Icon = "electric_bolt" )]
-public sealed class BeamEffect : Component, Component.ExecuteInEditor, Component.ITemporaryEffect
+public sealed class BeamEffect : Component, Component.ExecuteInEditor, Component.ITemporaryEffect, ITargetedEffect
 {
+	/// <summary>
+	/// <see cref="ITargetedEffect"/>: aim the beam - at the anchor's object when it has one, so the
+	/// beam follows it, otherwise at the fixed position.
+	/// </summary>
+	public void SetTarget( SceneAnchor target )
+	{
+		if ( target.IsAnchored )
+		{
+			TargetGameObject = target.Parent;
+			return;
+		}
+
+		TargetGameObject = null;
+		TargetPosition = target.Position;
+	}
+
+	/// <summary>
+	/// <see cref="ITargetedEffect"/>: where the beam starts from.
+	/// </summary>
+	public void SetStartPoint( SceneAnchor start ) => WorldPosition = start.Position;
+
 
 	/// <summary>
 	/// Thickness of the beam in world units. Controls how wide the beam appears.

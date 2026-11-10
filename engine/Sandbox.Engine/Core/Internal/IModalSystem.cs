@@ -1,4 +1,7 @@
-﻿namespace Sandbox.Modals;
+﻿using Sandbox.Engine;
+using Sandbox.UI;
+
+namespace Sandbox.Modals;
 
 public interface IModalSystem
 {
@@ -9,10 +12,12 @@ public interface IModalSystem
 	public void Game( string packageIdent );
 	public void Map( string packageIdent );
 	public void Package( string packageIdent, string page );
-	public void Organization( Package.Organization org );
 	public void Review( Package package );
+	public void Report( string packageIdent );
 	public void PackageSelect( string query, Action<Package> onPackageSelected, Action<string> onFilterChanged = null );
+	public void MapSelect( Action<string> onMapSelected, string selected = null );
 	public void FriendsList( in FriendsListModalOptions options );
+	public void Server( Sandbox.Network.LobbyInformation lobby );
 	public void ServerList( in ServerListConfig config );
 	public void Settings( string page = "" );
 	public void CreateGame( in CreateGameOptions options );
@@ -20,11 +25,28 @@ public interface IModalSystem
 	public void News( Sandbox.Services.News newsitem );
 	public void PlayerList();
 	public void WorkshopPublish( in WorkshopPublishOptions options );
+	public void Notice( string title, string message, string icon );
+
+	/// <summary>
+	/// Ask for the password of a server we're joining. Null or empty if they'd rather not join.
+	/// </summary>
+	public Task<string> ServerPassword( string serverName ) => Task.FromResult<string>( null );
+	public void ServiceConnector();
+
+	/// <summary>
+	/// Ask whether to open this url in the browser. It's already been checked to be http(s).
+	/// </summary>
+	public void OpenUrl( string url ) { }
 
 	/// <summary>
 	/// The menu that is shown when escape is pressed while playing.
 	/// </summary>
 	public void PauseMenu();
+
+	/// <summary>
+	/// Shows the benchmark results panel after a local benchmark run completes.
+	/// </summary>
+	public void BenchmarkResults( Guid batchId, IReadOnlyList<BenchmarkTestSummary> summaries );
 
 	public bool IsModalOpen { get; }
 	public bool IsPauseMenuOpen { get; }
@@ -46,6 +68,62 @@ public struct FriendsListModalOptions
 	/// Show online (but not in-game) members
 	/// </summary>
 	public bool ShowOnlineMembers { get; set; } = true;
+
+	/// <summary>
+	/// If set, the modal will open anchored next to a panel (eg. the button that opened it)
+	/// instead of centered on screen.
+	/// </summary>
+	public Anchoring? Anchor { get; set; }
+
+	/// <summary>
+	/// Anchors a modal next to a source panel (eg. the button that opened it), instead of it
+	/// opening centered on screen. See <see cref="FriendsListModalOptions.Anchor"/>.
+	/// </summary>
+	public struct Anchoring
+	{
+		public Anchoring() { }
+
+		/// <summary>
+		/// The panel to anchor next to.
+		/// </summary>
+		public Panel Panel { get; set; }
+
+		/// <summary>
+		/// Which side of <see cref="Panel"/> to anchor to.
+		/// </summary>
+		public ModalAnchorPosition Position { get; set; } = ModalAnchorPosition.BelowRight;
+
+		/// <summary>
+		/// Gap between <see cref="Panel"/> and the modal.
+		/// </summary>
+		public float Offset { get; set; } = 8.0f;
+	}
+}
+
+/// <summary>
+/// Where to anchor a modal relative to a source panel. See <see cref="FriendsListModalOptions.Anchoring"/>.
+/// </summary>
+public enum ModalAnchorPosition
+{
+	/// <summary>
+	/// Below the source panel, aligned to its left edge.
+	/// </summary>
+	BelowLeft,
+
+	/// <summary>
+	/// Below the source panel, aligned to its right edge.
+	/// </summary>
+	BelowRight,
+
+	/// <summary>
+	/// Above the source panel, aligned to its left edge.
+	/// </summary>
+	AboveLeft,
+
+	/// <summary>
+	/// Above the source panel, aligned to its right edge.
+	/// </summary>
+	AboveRight,
 }
 
 
@@ -74,6 +152,21 @@ public struct CreateGameOptions
 
 	public Package Package { get; set; }
 	public Action<CreateGameResults> OnComplete { get; set; }
+
+	/// <summary>
+	/// The setup to edit instead of loading the player's last saved setup for this game.
+	/// </summary>
+	public CreateGameResults? InitialSettings { get; set; }
+
+	/// <summary>
+	/// Show this as a settings form with a Save Settings button. The completion callback decides what happens next.
+	/// </summary>
+	public bool ConfigureOnly { get; set; }
+
+	/// <summary>
+	/// Minimum server capacity required by the caller, such as the number of players in a party.
+	/// </summary>
+	public int MinimumPlayers { get; set; }
 }
 
 public struct CreateGameResults
@@ -84,13 +177,24 @@ public struct CreateGameResults
 
 	public Dictionary<string, string> GameSettings { get; set; } = new();
 
-	public string MapIdent { get; set; }
+	[Obsolete( "Use Map instead" )]
+	public string MapIdent => Map;
+
+	/// <summary>
+	/// The user selected map. This can be an ident of a package, or path to a mount scene.
+	/// </summary>
+	public string Map { get; set; }
 
 	public int MaxPlayers { get; set; }
 
 	public string ServerName { get; set; }
 
 	public Sandbox.Network.LobbyPrivacy Privacy { get; set; }
+
+	/// <summary>
+	/// Players need this to join. Empty for none.
+	/// </summary>
+	public string Password { get; set; }
 }
 
 /// <summary>
@@ -163,7 +267,9 @@ public struct WorkshopPublishOptions
 	/// <summary>
 	/// Defined categories to show in the workshop publish modal
 	/// </summary>
-	public Dictionary<string, SerializedProperty> Categories { get; } = [];
+	public Dictionary<string, SerializedProperty> Categories { get; internal set; } = [];
+
+	internal List<(string Name, Type EnumType, Func<Dictionary<string, string>, SerializedProperty> Create)> CategoryFactories { get; } = [];
 
 	/// <summary>
 	/// Adds a new category associated with the specified enum type to the collection. 
@@ -172,17 +278,32 @@ public struct WorkshopPublishOptions
 	/// </summary>
 	public void AddCategory<TEnum>( string name ) where TEnum : struct, Enum
 	{
-		var t = Game.TypeLibrary.GetEnumDescription( typeof( TEnum ) );
-		if ( t == null )
-			throw new Exception( $"Type {typeof( TEnum ).FullName} is not registered in the TypeLibrary" );
-
 		KeyValues ??= [];
-		var kv = KeyValues;
+
+		Categories[name] = CreateCategory<TEnum>( name, KeyValues );
+		CategoryFactories.Add( (name, typeof( TEnum ), kv => CreateCategory<TEnum>( name, kv )) );
+	}
+
+	static SerializedProperty CreateCategory<TEnum>( string name, Dictionary<string, string> kv ) where TEnum : struct, Enum
+	{
 		var get = () => kv.TryGetValue( name, out string val ) ? (Enum.TryParse( val, true, out TEnum r ) ? r : default) : default;
 		var set = ( TEnum x ) => { kv[name] = x.ToString(); };
 
-		var prop = Game.TypeLibrary.CreateProperty( name, get, set );
-
-		Categories[name] = prop;
+		return GlobalContext.Current.TypeLibrary.CreateProperty( name, get, set );
 	}
+}
+
+/// <summary>
+/// Display-ready summary of a single benchmark test, passed to IModalSystem.BenchmarkResults.
+/// </summary>
+public struct BenchmarkTestSummary
+{
+	public string Name { get; set; }
+	public double AvgFps { get; set; }
+	public double AvgFrameTimeMs { get; set; }
+	/// <summary>P99 frame time — time exceeded by 1% of frames.</summary>
+	public double OnePercentLowMs { get; set; }
+	public double AvgGpuFrametimeMs { get; set; }
+	public double Stuttering { get; set; }
+	public double DurationSeconds { get; set; }
 }

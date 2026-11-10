@@ -1,24 +1,14 @@
-﻿namespace Editor
+﻿namespace Editor;
+
+public enum DockArea
 {
-	public enum DockArea
-	{
-		LastUsed = DockManager.Area.LastUsedArea,
+	Hidden = DockManager.Area.NoDockWidgetArea,
 
-		Floating = DockManager.Area.NewFloatingArea,
+	Left = DockManager.Area.LeftDockWidgetArea,
+	Right = DockManager.Area.RightDockWidgetArea,
+	Top = DockManager.Area.TopDockWidgetArea,
+	Bottom = DockManager.Area.BottomDockWidgetArea,
+	Center = DockManager.Area.CenterDockWidgetArea,
 
-		Hidden = DockManager.Area.NoArea,
-
-		Inside = DockManager.Area.AddTo,
-
-		Left = DockManager.Area.LeftOf,
-		Right,
-		Top,
-		Bottom,
-
-		LeftOuter = DockManager.Area.LeftWindowSide,
-		RightOuter,
-		TopOuter,
-		BottomOuter,
-
-	};
+	AutoHideBottom = DockManager.Area.BottomAutoHideArea,
 }

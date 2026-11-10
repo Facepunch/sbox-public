@@ -59,9 +59,11 @@ unsafe class ResourceCompileContextImp : ResourceCompileContext, IDisposable
 	/// <summary>
 	/// Add a reference that is needed to compile this resource, but isn't actually needed once compiled.
 	/// </summary>
-	public override void AddCompileReference( string path )
+	public override void AddCompileReference( string path, bool optional = false )
 	{
-		_context.RegisterInputFileDependency( path, 0 );
+		// INPUT_FILE_DEPENDENCY_OPTIONAL - a missing optional file doesn't fail the
+		// compile, but still recompiles us if it appears or changes later
+		_context.RegisterInputFileDependency( path, optional ? 1 : 0 );
 	}
 
 	/// <summary>
@@ -76,9 +78,20 @@ unsafe class ResourceCompileContextImp : ResourceCompileContext, IDisposable
 		}
 	}
 
-	/// <summary>
-	/// Create a child resource
-	/// </summary>
+	public override void AddCompiledReference( string path )
+	{
+		_context.ReportBuildPrerequisite( path );
+	}
+
+	public override bool Describing => _context.IsDescribeOnly();
+
+	internal override void Fail( string error )
+	{
+		Log.Error( $"{AbsolutePath}: {error}" );
+		_context.MarkErrorDuringCompile( error );
+	}
+
+
 	public override Child CreateChild( string path )
 	{
 		var childContext = _context.CreateChildContext( path );
@@ -92,7 +105,7 @@ unsafe class ResourceCompileContextImp : ResourceCompileContext, IDisposable
 	public override byte[] ReadSource()
 	{
 		// read from in memory, if we have an override
-		var buffer = _context.GetOverrideData();
+		var buffer = _context.GetOverrideData( true );
 		if ( buffer.IsValid )
 		{
 			IntPtr basePtr = buffer.Base();
@@ -127,6 +140,13 @@ unsafe class ResourceCompileContextImp : ResourceCompileContext, IDisposable
 
 		Log.Warning( $"Couldn't read source file: [{AbsolutePath}]" );
 		return null;
+	}
+
+	internal bool TryReadOverrideInput( out byte[] data )
+	{
+		var buffer = _context.GetOverrideData( false );
+		data = buffer.IsValid ? buffer.ToArray() : null;
+		return buffer.IsValid;
 	}
 
 	/// <summary>
@@ -191,6 +211,10 @@ unsafe class ResourceCompileContextImp : ResourceCompileContext, IDisposable
 
 			foreach ( var e in jsonobj )
 			{
+				// Serialized type and graph node identifiers can look like asset paths.
+				if ( ResourceJsonMetadata.IsTypeMetadata( jsonobj, e.Key ) )
+					continue;
+
 				//
 				// An object with a $compiler has been found. 
 				// This is an embedded resource definition.
@@ -198,36 +222,39 @@ unsafe class ResourceCompileContextImp : ResourceCompileContext, IDisposable
 				//
 				if ( e.Key == "$compiler" )
 				{
+					EmbeddedResource serialized;
 					try
 					{
-						EmbeddedResource serialized = JsonSerializer.Deserialize<EmbeddedResource>( jsonobj );
-						if ( string.IsNullOrWhiteSpace( serialized.ResourceCompiler ) ) continue;
-
-						var allCompilers = EditorTypeLibrary.GetTypes<ResourceCompiler>();
-
-						var compilerType = allCompilers
-											.Where( x => x.Attributes
-												.OfType<ResourceCompiler.ResourceIdentityAttribute>()
-												.Any( y => y.Name == serialized.ResourceCompiler ) )
-												.FirstOrDefault();
-
-						if ( compilerType is null ) continue;
-
-						var compiler = compilerType.Create<ResourceCompiler>();
-						if ( compiler is not null )
-						{
-							compiler.SetContext( this );
-
-							if ( compiler.CompileEmbeddedInternal( ref serialized ) )
-							{
-								jsonobj.ReplaceWith( JsonSerializer.SerializeToElement( serialized ) );
-							}
-						}
-
+						serialized = JsonSerializer.Deserialize<EmbeddedResource>( jsonobj );
 					}
 					catch ( System.Exception exception )
 					{
-						Log.Warning( exception, "Couldn't deserialize embedded resource {}" );
+						Fail( $"Couldn't read an embedded resource: {exception.Message}" );
+						continue;
+					}
+
+					if ( string.IsNullOrWhiteSpace( serialized.ResourceCompiler ) ) continue;
+
+					var allCompilers = EditorTypeLibrary.GetTypes<ResourceCompiler>();
+
+					var compilerType = allCompilers
+										.Where( x => x.Attributes
+											.OfType<ResourceCompiler.ResourceIdentityAttribute>()
+											.Any( y => y.Name == serialized.ResourceCompiler ) )
+											.FirstOrDefault();
+
+					// Embedded resources made where they're used ("embed") have no compiler
+					if ( compilerType is null ) continue;
+
+					var compiler = compilerType.Create<ResourceCompiler>();
+					if ( compiler is not null )
+					{
+						compiler.SetContext( this );
+
+						if ( compiler.CompileEmbeddedInternal( ref serialized ) )
+						{
+							jsonobj.ReplaceWith( JsonSerializer.SerializeToElement( serialized ) );
+						}
 					}
 				}
 
@@ -249,37 +276,61 @@ unsafe class ResourceCompileContextImp : ResourceCompileContext, IDisposable
 			if ( string.IsNullOrWhiteSpace( extension ) )
 				return;
 
-			if ( AssetSystem.FindByPath( str ) is { } asset )
+			// An asset's file type, compiled or not: a game resource's, or the engine's (an image's compiles to nothing)
+			var type = extension[1..];
+			if ( type.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) ) type = type[..^2];
+			var main = AssetSystem.IsGameResource( type ) ? type : IResourceCompilerSystem.FindAssetTypeExtension( type );
+			if ( main is null )
+				return;
+
+			if ( MountedPath( str ) is { } relative )
 			{
-				// If the file type doesn't compile to a file (like images don't) then 
+				// If the file type doesn't compile to a file (like images don't) then
 				// we should just add it as a compile reference.
 				// If we use AddRuntimeReference it's going to try to load it when this
 				// resource loads. But if it's an image etc, it won'#t be able to, you'll end
 				// up with loads of Error loading resource file "textures/sprites/zombie_elite/zombie_elite_00.jpg_c"
-				if ( asset.AssetType == AssetType.ImageFile )
+				if ( IResourceCompilerSystem.IsImageExtension( type ) )
 				{
 					AddCompileReference( str );
-					Log.Trace( $"AddCompileReference: {str} {asset.Path}" );
+					Log.Trace( $"AddCompileReference: {str}" );
 				}
 				else
 				{
-					AddRuntimeReference( asset.Path );
-					Log.Trace( $"AddRuntimeReference: {str} {asset.Path}" );
+					// The asset's path: where the mounts have it, with its type's extension
+					var path = System.IO.Path.ChangeExtension( relative, main ).NormalizeFilename( false );
+					AddRuntimeReference( path );
+					Log.Trace( $"AddRuntimeReference: {str} {path}" );
 				}
-
-
 			}
-			else if ( AssetType.FromExtension( extension ) is { } type )
+			else if ( string.Equals( type, main, StringComparison.OrdinalIgnoreCase ) )
 			{
+				// A missing file is taken for an asset by its type's main extension only (a .vmdl, not a .png or .wav)
 				// the c++ asset system supports refs to currently unrecognized assets where, if/when that asset is registered,
 				// our dependency tree will be rebuilt, and include proper refs to those assets - so lets make sure we use that, otherwise this is all order dependent
 				// (we're really just guessing this is an asset path, is there a better way to do this?)
 				AddRuntimeReference( str );
-				Log.Trace( $"RegisterUnrecognizedReference: {str} (Type: {type.FriendlyName})" );
+				Log.Trace( $"RegisterUnrecognizedReference: {str} (Type: {main})" );
 			}
 		}
 	}
 
+
+	/// <summary>
+	/// Where the mounts (generated resources' too) have an asset's file: its path in the root that has it (a later
+	/// root's shadowing an earlier one's), or null if none does. A compiled file is an asset's by its absolute path only,
+	/// as the asset system knows them.
+	/// </summary>
+	static string MountedPath( string path )
+	{
+		if ( System.IO.Path.IsPathFullyQualified( path ) )
+			return System.IO.File.Exists( path ) ? FileSystem.Mounted?.GetRelativePath( path )?.TrimStart( '/' ) : null;
+
+		if ( path.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) )
+			return null;
+
+		return FileSystem.Mounted?.FileExists( path ) == true ? path.TrimStart( '/', '\\' ) : null;
+	}
 
 	class ChildImplementation : ResourceCompileContext.Child
 	{
@@ -294,6 +345,8 @@ unsafe class ResourceCompileContextImp : ResourceCompileContext, IDisposable
 		{
 			return _context.CompileImmediately();
 		}
+
+		internal override Task<bool> CompileAsync() => ContentCompilerHost.CompileChild( Compile );
 
 		public override void SetInputData( string data )
 		{

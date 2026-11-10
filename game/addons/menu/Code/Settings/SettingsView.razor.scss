@@ -1,0 +1,409 @@
+@import "/Platform/_platform.scss";
+@import "/styles/_settingsrows.scss";
+
+// Scoped under SettingsView: stylesheets are global, and this used to dress every <row> in
+// the menu by accident.
+
+$settings-rail: 300px;
+$settings-detail: 370px;
+
+SettingsView
+{
+	flex-direction: row;
+	flex-grow: 1;
+	gap: $front-chrome-gap;
+	padding: $front-chrome-gap;
+	font-family: $platform-font;
+	font-size: 15px;
+	color: $platform-text;
+	overflow: hidden;
+
+	> .rail
+	{
+		@include platform-surface;
+		width: $settings-rail;
+		flex-shrink: 0;
+		padding: 16px 0;
+		gap: 16px;
+		overflow: hidden;
+	}
+
+	// Not ".search": TextEntry gives its IconPanel a class named after the icon.
+	.settings-search
+	{
+		@include platform-field;
+		flex-shrink: 0;
+		margin: 0 12px;
+		pointer-events: all;
+
+		iconpanel
+		{
+			position: absolute;
+			left: 10px;
+			font-size: 18px;
+			color: $platform-muted;
+		}
+
+		label
+		{
+			margin-left: 24px;
+		}
+	}
+
+	.cats
+	{
+		flex-direction: column;
+		flex-shrink: 1;
+		overflow-y: scroll;
+		gap: 4px;
+		padding: 0 8px;
+
+		> *
+		{
+			flex-shrink: 0;
+		}
+	}
+
+	.cat
+	{
+		@include platform-nav-item;
+		pointer-events: all;
+
+		label
+		{
+			flex-grow: 1;
+		}
+
+		&.dimmed
+		{
+			opacity: 0.35;
+		}
+
+		.count
+		{
+			flex-shrink: 0;
+			min-width: 20px;
+			height: 18px;
+			align-items: center;
+			justify-content: center;
+			padding: 0 6px;
+			border-radius: 9px;
+			background-color: $platform-primary;
+			font-size: 11px;
+			font-weight: 700;
+			color: $platform-primary-text;
+		}
+
+		&.active .count
+		{
+			background-color: white;
+			color: $platform-primary;
+		}
+	}
+
+	> .body
+	{
+		@include platform-surface;
+		flex-grow: 1;
+		flex-shrink: 1;
+		// width 0 + grow: take the leftover space, not the content's.
+		width: 0;
+		overflow: hidden;
+	}
+
+	// Its bar (PanelHead), in from the card's edges as the rows are
+	> .body > PanelHead
+	{
+		height: 56px;
+		padding: 0 20px;
+		border-bottom: 1px solid $platform-hairline;
+	}
+
+	.scroll
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		overflow-y: scroll;
+		padding: 18px 28px 32px 28px;
+		gap: 22px;
+		scrollbar-width: thin;
+		scrollbar-color: $platform-faint transparent;
+
+		> *
+		{
+			flex-shrink: 0;
+		}
+	}
+
+	// The rows and their controls - shared with a new game's setup
+	@include settings-rows;
+
+	.empty
+	{
+		@include platform-empty;
+		padding: 64px;
+	}
+
+	// The rows' strip of choices, in the rows' column, so they line up down the page
+	.presets, SettingsPostProcessPreset
+	{
+		.tiers
+		{
+			@include platform-choices;
+			flex-grow: 1;
+		}
+
+		.tiers .tier
+		{
+			@include platform-choice;
+			flex-basis: 0;
+		}
+
+		// Where you land changing one by hand - not something to pick
+		.tiers .tier.custom
+		{
+			cursor: default;
+		}
+	}
+
+	// Auto-detect - the glyph alone, its tooltip saying what it does
+	.presets .tier.detect
+	{
+		@include platform-tool( 34px, 18px );
+		margin-right: -8px;
+	}
+
+	SettingsActions
+	{
+		flex-direction: row;
+		align-items: center;
+		flex-shrink: 0;
+		gap: 10px;
+		padding: 14px 28px;
+		border-top: 1px solid $platform-hairline;
+
+		.grow
+		{
+			flex-grow: 1;
+		}
+
+		.unsaved
+		{
+			font-size: 13px;
+			font-weight: 600;
+			color: #f5a623;
+			margin-right: 4px;
+		}
+
+		.button
+		{
+			@include platform-text-button( 38px, 14px, 18px );
+			padding: 0 18px;
+			pointer-events: all;
+		}
+
+		.primary
+		{
+			@include platform-button-primary;
+		}
+	}
+
+	> .detail
+	{
+		@include platform-surface;
+		width: $settings-detail;
+		flex-shrink: 0;
+		overflow: hidden;
+
+		> .text
+		{
+			flex-direction: column;
+			flex-shrink: 0;
+			gap: 8px;
+			padding: 2px 18px 20px 18px;
+		}
+
+		.note
+		{
+			flex-direction: row;
+			align-items: flex-start;
+			gap: 10px;
+			margin-top: 6px;
+			padding: 10px 12px;
+			border-radius: $platform-radius;
+
+			i
+			{
+				flex-shrink: 0;
+				font-size: 18px;
+			}
+
+			label
+			{
+				flex-grow: 1;
+				font-size: 13px;
+				line-height: 18px;
+				color: $platform-text;
+			}
+
+			&.warn
+			{
+				background-color: rgba( $platform-warning, 0.1 );
+
+				i { color: $platform-warning; }
+			}
+
+			&.locked
+			{
+				background-color: rgba( 255, 255, 255, 0.05 );
+
+				i { color: $platform-muted; }
+			}
+		}
+
+		.about
+		{
+			font-size: 14px;
+			line-height: 20px;
+			color: $platform-muted;
+		}
+
+		.hint
+		{
+			@include platform-empty;
+			flex-grow: 1;
+			justify-content: center;
+			text-align: center;
+		}
+	}
+
+	// Key binds, storage and About bring their own markup from when each was its own page.
+
+	.scroll.custom
+	{
+		padding: 0;
+		overflow: hidden;
+
+		// Bounded, or the list runs past the card and takes the footer bar with it.
+		.page-inner
+		{
+			flex-direction: column;
+			flex-grow: 1;
+			flex-shrink: 1;
+			height: 100%;
+		}
+
+		.page-content
+		{
+			flex-direction: column;
+			flex-grow: 1;
+			flex-shrink: 1;
+			height: 0;
+			overflow-y: scroll;
+			padding: 18px 28px 32px 28px;
+			gap: 2px;
+			scrollbar-width: thin;
+			scrollbar-color: $platform-faint transparent;
+		}
+
+		.page-footer
+		{
+			flex-direction: row;
+			justify-content: flex-end;
+			flex-shrink: 0;
+			gap: 10px;
+			padding: 14px 28px;
+			border-top: 1px solid $platform-hairline;
+		}
+
+		h2
+		{
+			@include platform-group-title;
+			margin: 18px 0 6px 2px;
+
+			&:first-child
+			{
+				margin-top: 0;
+			}
+		}
+
+		// The rows' bands
+		row
+		{
+			flex-direction: row;
+			align-items: center;
+			justify-content: space-between;
+			flex-shrink: 0;
+			min-height: 44px;
+			gap: 16px;
+			padding: 0 6px 0 14px;
+			border-radius: $platform-radius;
+			background-color: rgba( 255, 255, 255, 0.04 );
+
+			&:hover
+			{
+				background-color: rgba( 255, 255, 255, 0.09 );
+			}
+		}
+
+		.empty
+		{
+			flex-direction: column;
+			flex-shrink: 0;
+			gap: 6px;
+			padding: 24px 0;
+
+			.hint
+			{
+				font-size: 14px;
+				color: $platform-muted;
+			}
+		}
+
+		.is-label
+		{
+			flex-grow: 1;
+			font-size: 14px;
+			font-weight: 500;
+			color: #d5dbe6;
+		}
+
+		KeyBind
+		{
+			@include platform-button( 34px );
+			justify-content: center;
+			min-width: 128px;
+			gap: 4px;
+			font-size: 13.5px;
+			font-weight: 600;
+			color: $platform-text;
+			pointer-events: all;
+
+			Image
+			{
+				width: 28px;
+				transition: opacity 0.25s ease;
+			}
+
+			&.rebinding
+			{
+				background-color: $platform-primary;
+
+				Image { opacity: 0.25; }
+			}
+		}
+
+		.button
+		{
+			@include platform-text-button( 38px, 14px, 18px );
+			padding: 0 18px;
+			pointer-events: all;
+		}
+
+		.primary
+		{
+			@include platform-button-primary;
+		}
+	}
+}

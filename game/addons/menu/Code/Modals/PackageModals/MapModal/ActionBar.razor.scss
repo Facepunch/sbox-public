@@ -1,66 +1,43 @@
+@import "/styles/_theme.scss";
+@import "/Platform/_platform.scss";
 
 ActionBar
 {
     width: 100%;
-    border-top: 1px solid #3334;
     flex-shrink: 0;
 }
 
-    ActionBar > .left
-    {
-        flex-grow: 1;
-        width: 100px;
-        padding: 32px;
-    }
+ActionBar > .left
+{
+    flex-grow: 1;
+    align-items: center;
+    gap: 10px;
+}
 
-    ActionBar > .right
-    {
-        justify-content: flex-end;
-        gap: 10px;
-        padding: 32px;
-    }
+ActionBar > .right
+{
+    justify-content: flex-end;
+    align-items: center;
+    gap: 6px;
+}
 
+// The game modal's action bar's buttons - grey, Play blue
 Button
 {
-    border-radius: 8px;
+    @include platform-text-button( 38px );
+    padding: 0 14px;
     flex-shrink: 0;
-    gap: 0px;
+
+    &:hover { sound-in: "ui.button.over"; }
+    &:active { sound-in: "ui.button.press"; }
 }
 
-Button
+Button.play
 {
-    font-size: 16px;
-    font-weight: bold;
-    font-family: Poppins;
+    @include platform-button-primary;
+
+    &.disabled
+    {
+        pointer-events: none;
+    }
 }
-
-    Button .count
-    {
-        background-color: #666;
-        padding: 0px 5px;
-        border-radius: 5px;
-        opacity: 0.2;
-        margin-left: 8px;
-        font-size: 12px;
-    }
-
-    Button.play
-    {
-        background-color: #6a4;
-        color: #cfb;
-        transition: all 0.2s ease;
-
-        &:hover
-        {
-            background-color: #8c7;
-            color: #fff;
-        }
-
-        &.disabled
-        {
-            opacity: 0.2;
-            pointer-events: none;
-            background-color: #444;
-            color: #777;
-        }
-    }

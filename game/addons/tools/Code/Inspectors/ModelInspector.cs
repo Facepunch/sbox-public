@@ -6,17 +6,19 @@ namespace Editor.Inspectors;
 [CanEdit( "asset:vmdl" )]
 public class ModelInspector : Widget, IAssetInspector
 {
-	private Model Model;
-	private AssetPreview AssetPreview;
+	private Model _model;
+	private AssetPreview _assetPreview;
 
-	private readonly ExpandGroup AnimationGroup;
-	private readonly ExpandGroup ParameterGroup;
-	private readonly ExpandGroup AttachmentGroup;
-	private readonly ExpandGroup SkeletonGroup;
-	private readonly AnimationList Animations;
-	private readonly AnimationParameterList Parameters;
-	private readonly AttachmentList Attachments;
-	private readonly BoneList Bones;
+	private readonly CollapsibleCategory _infoGroup;
+	private readonly CollapsibleCategory _meshGroup;
+	private readonly CollapsibleCategory _animationGroup;
+	private readonly CollapsibleCategory _parameterGroup;
+	private readonly CollapsibleCategory _attachmentGroup;
+	private readonly CollapsibleCategory _skeletonGroup;
+	private readonly AnimationList _animations;
+	private readonly AnimationParameterList _parameters;
+	private readonly AttachmentList _attachments;
+	private readonly BoneList _bones;
 
 	public ModelInspector( Widget parent ) : base( parent )
 	{
@@ -24,168 +26,247 @@ public class ModelInspector : Widget, IAssetInspector
 		Layout.Margin = 4;
 		Layout.Spacing = 4;
 
-		AnimationGroup = new ExpandGroup( this );
-		AnimationGroup.StateCookieName = $"{nameof( ModelInspector )}.{nameof( AnimationGroup )}";
-		AnimationGroup.Icon = "directions_run";
-		AnimationGroup.Title = $"Animations";
-		AnimationGroup.Visible = false;
-		Layout.Add( AnimationGroup );
+		_infoGroup = AddGroup( "Stats", "info" );
+		_meshGroup = AddGroup( "Meshes", "view_in_ar" );
+		_animationGroup = AddGroup( "Animations", "directions_run" );
+		_parameterGroup = AddGroup( "Parameters", "tune" );
+		_skeletonGroup = AddGroup( "Skeleton", "accessibility" );
+		_attachmentGroup = AddGroup( "Attachments", "hub" );
 
-		ParameterGroup = new ExpandGroup( this );
-		ParameterGroup.StateCookieName = $"{nameof( ModelInspector )}.{nameof( ParameterGroup )}";
-		ParameterGroup.Icon = "account_tree";
-		ParameterGroup.Title = $"Parameters";
-		ParameterGroup.Visible = false;
-		Layout.Add( ParameterGroup );
+		_animations = new AnimationList( null );
+		_animations.ItemSelected = PlayAnimation;
+		_animationGroup.Container.Layout.Add( _animations );
 
-		SkeletonGroup = new ExpandGroup( this );
-		SkeletonGroup.StateCookieName = $"{nameof( ModelInspector )}.{nameof( SkeletonGroup )}";
-		SkeletonGroup.Icon = "accessibility";
-		SkeletonGroup.Title = $"Skeleton";
-		SkeletonGroup.Visible = false;
-		Layout.Add( SkeletonGroup );
+		_parameters = new AnimationParameterList( null );
+		_parameterGroup.Container.Layout.Add( _parameters );
 
-		AttachmentGroup = new ExpandGroup( this );
-		AttachmentGroup.StateCookieName = $"{nameof( ModelInspector )}.{nameof( AttachmentGroup )}";
-		AttachmentGroup.Icon = "hub";
-		AttachmentGroup.Title = $"Attachments";
-		AttachmentGroup.Visible = false;
-		Layout.Add( AttachmentGroup );
+		_bones = new BoneList( null );
+		_skeletonGroup.Container.Layout.Add( _bones );
 
-		Animations = new AnimationList( AnimationGroup );
-		Animations.ItemSelected = PlayAnimation;
-		AnimationGroup.SetWidget( Animations );
+		_attachments = new AttachmentList( null );
+		_attachmentGroup.Container.Layout.Add( _attachments );
+	}
 
-		Parameters = new AnimationParameterList( ParameterGroup );
-		ParameterGroup.SetWidget( Parameters );
-
-		Bones = new BoneList( SkeletonGroup );
-		SkeletonGroup.SetWidget( Bones );
-
-		Attachments = new AttachmentList( AttachmentGroup );
-		AttachmentGroup.SetWidget( Attachments );
+	private CollapsibleCategory AddGroup( string title, string icon )
+	{
+		var group = new CollapsibleCategory( null, title, icon );
+		group.StateCookieName = $"ModelInspector.{title}";
+		group.Visible = false;
+		Layout.Add( group );
+		return group;
 	}
 
 	private void PlayAnimation( string name )
 	{
-		if ( AssetPreview is null )
+		if ( _assetPreview is null )
 			return;
 
-		if ( AssetPreview.PrimaryObject?.GetComponent<SkinnedModelRenderer>() is { } smr )
+		if ( _assetPreview.PrimaryObject?.GetComponent<SkinnedModelRenderer>() is { } smr )
 		{
 			smr.UseAnimGraph = string.IsNullOrWhiteSpace( name );
 			smr.Sequence.Name = name;
 		}
 	}
 
-	private class AnimationParameterCollection : AnimationParameterList.IAccessor
-	{
-		public SerializedProperty ParentProperty => null;
-
-		private readonly AssetPreview preview;
-		private SkinnedModelRenderer SceneModel => preview?.PrimaryObject?.GetComponent<SkinnedModelRenderer>();
-
-		private readonly HashSet<string> _parameters = new( StringComparer.OrdinalIgnoreCase );
-
-		public AnimationParameterCollection( AssetPreview preview )
-		{
-			this.preview = preview;
-		}
-
-		public bool GetBool( string name ) => SceneModel.IsValid() && SceneModel.GetBool( name );
-		public float GetFloat( string name ) => SceneModel.IsValid() ? SceneModel.GetFloat( name ) : default;
-		public int GetInt( string name ) => SceneModel.IsValid() ? SceneModel.GetInt( name ) : default;
-		public Rotation GetRotation( string name ) => SceneModel.IsValid() ? SceneModel.GetRotation( name ) : default;
-		public Vector3 GetVector( string name ) => SceneModel.IsValid() ? SceneModel.GetVector( name ) : default;
-
-		public void Set( string name, bool value )
-		{
-			SceneModel?.Set( name, value );
-			_parameters.Add( name );
-		}
-
-		public void Set( string name, float value )
-		{
-			SceneModel?.Set( name, value );
-			_parameters.Add( name );
-		}
-
-		public void Set( string name, Vector3 value )
-		{
-			SceneModel?.Set( name, value );
-			_parameters.Add( name );
-		}
-
-		public void Set( string name, int value )
-		{
-			SceneModel?.Set( name, value );
-			_parameters.Add( name );
-		}
-
-		public void Set( string name, Rotation value )
-		{
-			SceneModel?.Set( name, value );
-			_parameters.Add( name );
-		}
-
-		public void Clear()
-		{
-			SceneModel?.Reset();
-			_parameters.Clear();
-		}
-
-		public void Clear( string name )
-		{
-			_parameters.Remove( name );
-		}
-
-		public bool Contains( string name )
-		{
-			return _parameters.Contains( name );
-		}
-	}
-
 	public void SetAssetPreview( AssetPreview preview )
 	{
-		AssetPreview = preview;
-		Parameters.SetAccessor( new AnimationParameterCollection( preview ) );
+		_assetPreview = preview;
+		RebuildParameters();
+	}
+
+	private void RebuildParameters()
+	{
+		var graph = _model?.AnimationGraph;
+		_parameterGroup.Visible = graph is { Parameters.Count: > 0 };
+		_parameters.SetGraph( graph );
+		_parameters.SetAccessor( new ModelPreviewParameters( () =>
+			_assetPreview?.PrimaryObject?.GetComponent<SkinnedModelRenderer>() ) );
 	}
 
 	public void SetAsset( Asset asset )
 	{
-		Model = asset.LoadResource<Model>();
-		if ( Model == null || Model.IsError )
+		_model = asset.LoadResource<Model>();
+		if ( _model == null || _model.IsError )
 			return;
 
-		if ( Model.AnimationCount > 0 )
+		RebuildParameters();
+
+		var meshInfo = _model.MeshInfo;
+
+		_infoGroup.Container.Layout.Clear( true );
+		BuildInfoGroup( _model, meshInfo );
+		_infoGroup.Visible = true;
+
+		// Per-mesh breakdown grouped by LOD
+		if ( _model.MeshCount > 0 )
 		{
-			AnimationGroup.Visible = true;
-			Animations.SetModel( Model );
+			_meshGroup.Container.Layout.Clear( true );
+			BuildMeshGroups( _model, meshInfo );
+			_meshGroup.Visible = true;
 		}
 
-		var animgraph = Model.AnimGraph;
-		if ( animgraph != null && animgraph.ParamCount > 0 )
+		if ( _model.AnimationCount > 0 )
 		{
-			ParameterGroup.Visible = true;
-			Parameters.SetGraph( animgraph );
+			_animationGroup.Visible = true;
+			_animations.SetModel( _model );
 		}
 
-		if ( Model.Attachments.Count > 0 )
+		if ( _model.Attachments.Count > 0 )
 		{
-			AttachmentGroup.Visible = true;
-			Attachments.SetModel( Model );
+			_attachmentGroup.Visible = true;
+			_attachments.SetModel( _model );
 		}
 
-		if ( Model.BoneCount > 0 )
+		if ( _model.BoneCount > 0 )
 		{
-			SkeletonGroup.Visible = true;
-			Bones.SetModel( Model );
+			_skeletonGroup.Visible = true;
+			_bones.SetModel( _model );
+		}
+	}
+
+	static int GetLowestLodLevel( int mask )
+	{
+		if ( mask == 0 ) return 0;
+		for ( int i = 0; i < 8; i++ )
+			if ( (mask & (1 << i)) != 0 ) return i;
+		return 0;
+	}
+
+	static string FormatNumber( int n ) => n.ToString( "N0" );
+
+	static string GetTranslucencyTypeName( int type ) => type switch
+	{
+		1 => "Partial",
+		2 => "Full",
+		_ => "Opaque"
+	};
+
+	static string GetPrimitiveTypeName( int primType ) => primType switch
+	{
+		0 => "Points",
+		1 => "Lines",
+		2 => "Lines w/ Adjacency",
+		3 => "Line Strip",
+		4 => "Line Strip w/ Adjacency",
+		5 => "Triangles",
+		6 => "Triangles w/ Adjacency",
+		7 => "Triangle Strip",
+		8 => "Triangle Strip w/ Adjacency",
+		9 => "Instanced Quads",
+		10 => "Heterogenous",
+		_ => $"Unknown ({primType})"
+	};
+
+	void BuildInfoGroup( Model model, Model.ModelMeshInfo meshInfo )
+	{
+		var layout = _infoGroup.Container.Layout;
+
+		layout.Add( new InfoRow( null, "scatter_plot", "Vertices", FormatNumber( meshInfo.TotalVertices ) ) );
+		layout.Add( new InfoRow( null, "change_history", "Triangles", FormatNumber( meshInfo.TotalTriangles ) ) );
+		layout.Add( new InfoRow( null, "view_in_ar", "Meshes", FormatNumber( model.MeshCount ) ) );
+		layout.Add( new InfoRow( null, "brush", "Draw Calls", FormatNumber( meshInfo.TotalDrawCalls ) ) );
+		layout.Add( new InfoRow( null, "palette", "Materials", FormatNumber( model.Materials.Length ) ) );
+
+		var size = model.RenderBounds.Size;
+		layout.Add( new InfoRow( null, "straighten", "Bounds", $"{size.x:0.#} × {size.y:0.#} × {size.z:0.#}" ) );
+	}
+
+	void BuildMeshGroups( Model model, Model.ModelMeshInfo meshInfo )
+	{
+		bool hasLods = meshInfo.LodCount > 1;
+		var layout = _meshGroup.Container.Layout;
+
+		var meshes = meshInfo.Meshes.Select( ( info, index ) => (Index: index, Info: info) ).ToList();
+
+		meshes.Sort( ( a, b ) =>
+		{
+			int lodA = GetLowestLodLevel( a.Info.LodMask );
+			int lodB = GetLowestLodLevel( b.Info.LodMask );
+			int cmp = lodA.CompareTo( lodB );
+			return cmp != 0 ? cmp : a.Index.CompareTo( b.Index );
+		} );
+
+		if ( !hasLods )
+		{
+			foreach ( var (index, info) in meshes )
+			{
+				var title = string.IsNullOrEmpty( info.Name ) ? $"Mesh {index}" : info.Name;
+				var meshGroup = new MeshSubGroup( null, title );
+				meshGroup.StateCookieName = $"{nameof( ModelInspector )}.Mesh{index}";
+				BuildMeshInfoRows( info, meshGroup );
+				BuildDrawCallGroups( index, info, meshGroup );
+				layout.Add( meshGroup );
+			}
+			return;
 		}
 
-		AnimationGroup.Update();
-		ParameterGroup.Update();
-		AttachmentGroup.Update();
-		SkeletonGroup.Update();
+		// Group by LOD level with collapsible sub-groups
+		var groups = meshes.GroupBy( m => GetLowestLodLevel( m.Info.LodMask ) ).OrderBy( g => g.Key );
+		foreach ( var lodGroup in groups )
+		{
+			int lodTris = lodGroup.Sum( m => m.Info.Triangles );
+			int lodVerts = lodGroup.Sum( m => m.Info.Vertices );
+
+			var subGroup = new MeshSubGroup( null, $"LOD {lodGroup.Key}" );
+			subGroup.StateCookieName = $"{nameof( ModelInspector )}.LOD{lodGroup.Key}";
+
+			subGroup.AddRow( new InfoRow( null, "scatter_plot", "Vertices", FormatNumber( lodVerts ) ) );
+			subGroup.AddRow( new InfoRow( null, "change_history", "Triangles", FormatNumber( lodTris ) ) );
+
+			foreach ( var (index, info) in lodGroup )
+			{
+				var title = string.IsNullOrEmpty( info.Name ) ? $"Mesh {index}" : info.Name;
+				var meshGroup = new MeshSubGroup( null, title );
+				meshGroup.StateCookieName = $"{nameof( ModelInspector )}.Mesh{index}";
+				BuildMeshInfoRows( info, meshGroup );
+				BuildDrawCallGroups( index, info, meshGroup );
+				subGroup.AddRow( meshGroup );
+			}
+
+			layout.Add( subGroup );
+		}
+	}
+
+	void BuildMeshInfoRows( Model.ModelMeshInfo.MeshData info, MeshSubGroup group )
+	{
+		group.AddRow( new InfoRow( null, "scatter_plot", "Vertices", FormatNumber( info.Vertices ) ) );
+		group.AddRow( new InfoRow( null, "change_history", "Triangles", FormatNumber( info.Triangles ) ) );
+
+		if ( info.TranslucencyType != 0 )
+			group.AddRow( new InfoRow( null, "opacity", "Translucency", GetTranslucencyTypeName( info.TranslucencyType ) ) );
+
+		var size = info.BoundsMax - info.BoundsMin;
+		if ( size.Length > 0 )
+			group.AddRow( new InfoRow( null, "straighten", "Bounds", $"{size.x:0.#} × {size.y:0.#} × {size.z:0.#}" ) );
+	}
+
+	void BuildDrawCallGroups( int meshIndex, Model.ModelMeshInfo.MeshData mesh, MeshSubGroup parent )
+	{
+		for ( int d = 0; d < mesh.DrawCalls.Length; d++ )
+		{
+			var dc = mesh.DrawCalls[d];
+
+			var drawGroup = new MeshSubGroup( null, $"Draw Call {d}" );
+			drawGroup.StateCookieName = $"{nameof( ModelInspector )}.Mesh{meshIndex}.Draw{d}";
+
+			drawGroup.AddRow( new InfoRow( null, "scatter_plot", "Vertices", FormatNumber( dc.Vertices ) ) );
+			drawGroup.AddRow( new InfoRow( null, "tag", "Indices", FormatNumber( dc.Indices ) ) );
+			drawGroup.AddRow( new InfoRow( null, "category", "Primitive", GetPrimitiveTypeName( dc.PrimitiveType ) ) );
+
+			if ( dc.UvDensity > 0 )
+				drawGroup.AddRow( new InfoRow( null, "grid_on", "UV Density", $"{dc.UvDensity:0.##}" ) );
+
+			if ( dc.InstanceCount > 1 )
+				drawGroup.AddRow( new InfoRow( null, "content_copy", "Instances", FormatNumber( dc.InstanceCount ) ) );
+
+			if ( dc.AlphaBlended )
+				drawGroup.AddRow( new InfoRow( null, "opacity", "Alpha Blended", "Yes" ) );
+
+			if ( dc.Material is not null )
+				drawGroup.AddRow( new InfoRow( null, "palette", "Material", dc.Material.Name ) );
+
+			parent.AddRow( drawGroup );
+		}
 	}
 
 	private class BoneList : Widget
@@ -214,7 +295,7 @@ public class ModelInspector : Widget, IAssetInspector
 			{
 				if ( string.IsNullOrWhiteSpace( t ) )
 				{
-					SetItems();
+					SetModel( Model );
 				}
 				else
 				{
@@ -232,21 +313,13 @@ public class ModelInspector : Widget, IAssetInspector
 		public void SetModel( Model model )
 		{
 			Model = model;
-
-			SetItems();
-		}
-
-		private void SetItems()
-		{
 			TreeView.SetItems( Model.Bones.AllBones
 				.Where( x => x.Parent is null )
 				.OrderBy( x => x.Name )
 				.Select( x => new BoneTreeNode( x, true ) ) );
 
 			foreach ( var item in TreeView.Items )
-			{
 				TreeView.Open( item );
-			}
 		}
 
 		class BoneTreeNode : TreeNode
@@ -263,14 +336,8 @@ public class ModelInspector : Widget, IAssetInspector
 			public override bool OnContextMenu()
 			{
 				var m = new ContextMenu();
-
-				m.AddOption( "Copy", "content_copy", () =>
-				{
-					EditorUtility.Clipboard.Copy( Bone.Name );
-				} );
-
+				m.AddOption( "Copy", "content_copy", () => EditorUtility.Clipboard.Copy( Bone.Name ) );
 				m.OpenAtCursor();
-
 				return true;
 			}
 
@@ -305,10 +372,7 @@ public class ModelInspector : Widget, IAssetInspector
 		public override string ItemName => "Animation";
 		public override string ItemIcon => "animgraph_editor/single_frame_icon.png";
 
-		public AnimationList( Widget parent ) : base( parent )
-		{
-
-		}
+		public AnimationList( Widget parent ) : base( parent ) { }
 
 		public override void SetModel( Model model )
 		{
@@ -326,10 +390,7 @@ public class ModelInspector : Widget, IAssetInspector
 		public override string ItemName => "Attachment";
 		public override string ItemIcon => "modeldoc_editor/preview_outliner_attachment.png";
 
-		public AttachmentList( Widget parent ) : base( parent )
-		{
-
-		}
+		public AttachmentList( Widget parent ) : base( parent ) { }
 
 		static string GetName( ModelAttachments.Attachment att )
 		{
@@ -399,12 +460,7 @@ public class ModelInspector : Widget, IAssetInspector
 			if ( obj is not string name ) return;
 
 			var m = new ContextMenu();
-
-			m.AddOption( "Copy", "content_copy", () =>
-			{
-				EditorUtility.Clipboard.Copy( name );
-			} );
-
+			m.AddOption( "Copy", "content_copy", () => EditorUtility.Clipboard.Copy( name ) );
 			m.OpenAtCursor();
 		}
 
@@ -443,36 +499,201 @@ public class ModelInspector : Widget, IAssetInspector
 
 			Paint.SetDefaultFont();
 			Paint.SetPen( fg );
-			Paint.DrawText( textRect, $"{name}", TextFlag.LeftCenter );
+			Paint.DrawText( textRect, name, TextFlag.LeftCenter );
 		}
 	}
+
+	private class InfoRow : Widget
+	{
+		readonly string Icon;
+		readonly string Label;
+		readonly string Value;
+
+		public InfoRow( Widget parent, string icon, string label, string value ) : base( parent )
+		{
+			Icon = icon;
+			Label = label;
+			Value = value;
+			FixedHeight = 20;
+		}
+
+		protected override void OnPaint()
+		{
+			var rect = LocalRect;
+			Paint.Antialiasing = true;
+
+			float iconSize = 14;
+			if ( !string.IsNullOrEmpty( Icon ) )
+			{
+				var iconRect = new Rect( 8, (rect.Height - iconSize) / 2, iconSize, iconSize );
+				Paint.SetPen( Theme.Text.WithAlpha( 0.4f ) );
+				Paint.DrawIcon( iconRect, Icon, iconSize );
+			}
+
+			float textLeft = string.IsNullOrEmpty( Icon ) ? 8 : 30;
+
+			Paint.SetDefaultFont( size: 8, weight: 400 );
+			Paint.SetPen( Theme.Text.WithAlpha( 0.5f ) );
+			Paint.DrawText( new Rect( textLeft, 0, 100, rect.Height ), Label, TextFlag.LeftCenter );
+
+			Paint.SetPen( Theme.Text.WithAlpha( 0.8f ) );
+			Paint.DrawText( new Rect( 120, 0, rect.Width - 128, rect.Height ), Value, TextFlag.LeftCenter );
+		}
+	}
+
+	private class MeshSubGroup : Widget
+	{
+		readonly string Title;
+		readonly Widget Body;
+		bool IsOpen;
+
+		string _stateCookieName;
+		public string StateCookieName
+		{
+			get => _stateCookieName;
+			set
+			{
+				_stateCookieName = value;
+				IsOpen = EditorCookie.Get( _stateCookieName, IsOpen );
+				Body.Visible = IsOpen;
+			}
+		}
+
+		public MeshSubGroup( Widget parent, string title ) : base( parent )
+		{
+			Title = title;
+			IsOpen = false;
+			Cursor = CursorShape.Finger;
+
+			Layout = Layout.Column();
+			Layout.Margin = new Margin( 0, 0, 12, 0 );
+
+			// Header spacer
+			Layout.AddSpacingCell( Theme.RowHeight );
+
+			Body = new Widget( null );
+			Body.Layout = Layout.Column();
+			Body.Layout.Margin = new Margin( 12, 4, 0, 4 );
+			Body.Visible = IsOpen;
+			Layout.Add( Body );
+		}
+
+		public void AddRow( Widget row )
+		{
+			Body.Layout.Add( row );
+		}
+
+		protected override void OnMousePress( MouseEvent e )
+		{
+			if ( e.Button == MouseButtons.Left && e.LocalPosition.y < Theme.RowHeight )
+			{
+				IsOpen = !IsOpen;
+				Body.Visible = IsOpen;
+
+				if ( _stateCookieName is not null )
+					EditorCookie.Set( _stateCookieName, IsOpen );
+
+				Update();
+			}
+		}
+
+		protected override void OnPaint()
+		{
+			var headerRect = new Rect( 0, 0, Width, Theme.RowHeight );
+
+			// +/- circle button
+			var circleRect = headerRect.Shrink( 3, 4, 0, 4 );
+			circleRect.Height = 22 - 8;
+			circleRect.Width = circleRect.Height;
+
+			var backgroundColor = Theme.WindowBackground.Lighten( 0.2f ).WithAlphaMultiplied( IsOpen ? 1f : 0.5f );
+			Paint.SetBrushAndPen( backgroundColor );
+			Paint.DrawRect( circleRect, 6 );
+
+			Paint.ClearBrush();
+
+			var iconIntensity = IsUnderMouse ? 1.5f : 1f;
+			if ( IsOpen )
+			{
+				Paint.Pen = Theme.TextControl.WithAlpha( 0.2f * iconIntensity );
+				Paint.DrawIcon( circleRect, "remove", 12, TextFlag.Center );
+			}
+			else
+			{
+				Paint.Pen = Theme.TextControl.WithAlpha( 0.4f * iconIntensity );
+				Paint.DrawIcon( circleRect, "add", 12, TextFlag.Center );
+			}
+
+			// Title text
+			Paint.Pen = Theme.TextControl.WithAlpha( IsOpen ? 1f : 0.8f );
+			Paint.SetDefaultFont( 11, weight: 400, sizeInPixels: true );
+			Paint.DrawText( headerRect.Shrink( circleRect.Right + 5, 0, 0, 0 ), Title, TextFlag.LeftCenter );
+
+			// Vertical line on left when expanded
+			if ( IsOpen )
+			{
+				var lineRect = LocalRect.Shrink( 8, Theme.RowHeight, 0, 0 );
+				lineRect.Width = 3;
+				Paint.SetBrushAndPen( Theme.WindowBackground );
+				Paint.DrawRect( lineRect, 5 );
+
+				var bottomRect = LocalRect.Shrink( 10, 0, 0, 0 );
+				bottomRect.Top = bottomRect.Bottom - 3;
+				bottomRect.Width = 8;
+				Paint.SetBrushAndPen( Theme.WindowBackground );
+				Paint.DrawRect( bottomRect, 5 );
+			}
+		}
+	}
+}
+
+file class ModelPreviewParameters( Func<SkinnedModelRenderer> getRenderer ) : AnimationParameterList.IAccessor
+{
+	private Sandbox.Animation.GraphParameters Accessor => getRenderer()?.Animation.Parameters;
+
+	public SerializedProperty ParentProperty => null;
+
+	public bool GetBool( string name ) => Accessor?.GetBool( name ) ?? false;
+	public float GetFloat( string name ) => Accessor?.GetFloat( name ) ?? 0f;
+	public Vector3 GetVector( string name ) => Accessor?.GetVector( name ) ?? Vector3.Zero;
+	public string GetString( string name ) => Accessor?.GetString( name ) ?? "";
+
+	public void Set( string name, bool value ) => Accessor?.Set( name, value, persist: true );
+	public void Set( string name, float value ) => Accessor?.Set( name, value, persist: true );
+	public void Set( string name, Vector3 value ) => Accessor?.Set( name, value, persist: true );
+	public void Set( string name, string value ) => Accessor?.Set( name, value, persist: true );
+
+	public void Clear() => Accessor?.Clear();
+	public void Clear( string name ) => Accessor?.Clear( name );
+	public bool Contains( string name ) => Accessor?.Contains( name ) ?? false;
 }
 
 public class AnimationParameterList : Widget
 {
 	private readonly ControlSheet Sheet;
-	private AnimationGraph Graph;
+	private readonly LineEdit Search;
+	private readonly Label Empty;
+	private readonly Widget Toolbar;
+	private Sandbox.Animation.Graph Graph;
 	private IAccessor Accessor;
 
 	public interface IAccessor
 	{
 		/// <summary>
 		/// Optional property that contains the parameter list when inspecting,
-		/// for example <see cref="SkinnedModelRenderer.Parameters"/>.
+		/// for example <see cref="Sandbox.Animation.AnimationAccessor.Parameters"/>.
 		/// </summary>
 		SerializedProperty ParentProperty { get; }
 
 		void Set( string name, bool value );
 		void Set( string name, float value );
 		void Set( string name, Vector3 value );
-		void Set( string name, int value );
-		void Set( string name, Rotation value );
+		void Set( string name, string value );
 
-		Rotation GetRotation( string name );
 		Vector3 GetVector( string name );
 		bool GetBool( string name );
 		float GetFloat( string name );
-		int GetInt( string name );
+		string GetString( string name );
 
 		void Clear();
 		void Clear( string name );
@@ -481,52 +702,114 @@ public class AnimationParameterList : Widget
 
 	public void SetAccessor( IAccessor accessor )
 	{
-		if ( Graph is null )
-			return;
-
 		Accessor = accessor;
-
-		Sheet.Clear( true );
-		Sheet.AddObject( new GraphParamsObject( Graph, Accessor ) );
+		Rebuild();
 	}
 
-	public void SetGraph( AnimationGraph graph )
+	private void Rebuild()
+	{
+		Sheet.Clear( true );
+		Toolbar.Enabled = Graph is not null && Accessor is not null;
+		Empty.Visible = false;
+
+		if ( Graph is null || Accessor is null )
+			return;
+
+		var properties = new GraphParamsObject( Graph, Accessor );
+		var filter = Search.Text.Trim();
+		bool Matches( SerializedProperty property ) => property.Name.Contains( filter, StringComparison.OrdinalIgnoreCase );
+		Sheet.AddObject( properties, Matches );
+		Empty.Visible = !properties.Any( Matches );
+	}
+
+	public void SetGraph( Sandbox.Animation.Graph graph )
 	{
 		Graph = graph;
+		Rebuild();
+	}
+
+	private void EditParameters( Action edit )
+	{
+		if ( ReadOnly || Graph is null || Accessor is null )
+			return;
+
+		var property = Accessor?.ParentProperty;
+		property?.Parent.NoteStartEdit( property );
+		edit();
+		property?.Parent.NoteFinishEdit( property );
+		Rebuild();
+	}
+
+	private void Randomize()
+	{
+		foreach ( var parameter in Graph.Parameters )
+		{
+			if ( parameter.Type == typeof( float ) )
+				Accessor.Set( parameter.Name, parameter.HasRange ? Random.Shared.Float( parameter.MinValue, parameter.MaxValue ) : Random.Shared.Float() );
+			else if ( parameter.Type == typeof( bool ) )
+				Accessor.Set( parameter.Name, Random.Shared.Float() > 0.5f );
+			else if ( parameter.Type == typeof( Vector3 ) )
+				Accessor.Set( parameter.Name, Random.Shared.VectorInSphere() );
+			else if ( parameter.Type == typeof( string ) && parameter.Options.Count > 0 )
+				Accessor.Set( parameter.Name, parameter.Options[Random.Shared.Next( parameter.Options.Count )] );
+		}
 	}
 
 	public AnimationParameterList( Widget parent ) : base( parent )
 	{
+		Name = "AnimationParameterList";
+		SetStyles( $"#AnimationParameterList {{ background-color: {Theme.SurfaceBackground.Hex}; }}" );
 		Layout = Layout.Column();
+		Layout.Spacing = 2;
+		Layout.Alignment = TextFlag.LeftTop;
 
-		var headerButtons = Layout.AddRow();
-		headerButtons.Spacing = 8;
+		Toolbar = Layout.Add( new Widget( this ) { FixedHeight = Theme.RowHeight, Enabled = false } );
+		var toolbar = Toolbar.Layout = Layout.Row();
+		toolbar.Spacing = 2;
+		Search = toolbar.Add( new LineEdit { PlaceholderText = "Search parameters...", ClearButtonEnabled = true, FixedHeight = Theme.RowHeight }, 1 );
+		Search.TextChanged += _ => Rebuild();
 
+		toolbar.Add( new IconButton( "restart_alt", () => EditParameters( () => Accessor.Clear() ) )
 		{
-			var btn = headerButtons.Add( new Button( "Clear" ) );
-			btn.Clicked = () =>
-			{
-				Accessor?.Clear();
-				Update();
-			};
-		}
+			ToolTip = "Clear all parameter overrides",
+			IconSize = 14,
+			Background = Theme.ControlBackground,
+			Foreground = Theme.Primary
+		} );
+		toolbar.Add( new IconButton( "casino", () => EditParameters( Randomize ) )
+		{
+			ToolTip = "Randomize all parameters",
+			IconSize = 14,
+			Background = Theme.ControlBackground,
+			Foreground = Theme.Primary
+		} );
 
+		var scroller = Layout.Add( new ScrollArea( this )
+		{
+			Name = "AnimationParameterScroll",
+			MaximumHeight = 300,
+			VerticalSizeMode = SizeMode.CanShrink | SizeMode.CanGrow
+		} );
+		scroller.SetStyles( $"#AnimationParameterScroll, #AnimationParameterScroll > QWidget {{ border: none; background-color: {Theme.SurfaceBackground.Hex}; }}" );
+		scroller.Canvas = new Widget( scroller ) { Layout = Layout.Column() };
 		Sheet = new ControlSheet();
-		Layout.Add( Sheet, 1 );
+		scroller.Canvas.Layout.Add( Sheet );
+		Empty = scroller.Canvas.Layout.Add( new Label( "No matching parameters" ) { Color = Theme.TextLight, Visible = false } );
 	}
 }
 
-#region Serialized Object
-
 /// <summary>
-/// <see cref="SerializedObject"/> with properties for each parameter of an <see cref="AnimationGraph"/>.
+/// <see cref="SerializedObject"/> with properties for each parameter of an
+/// <see cref="Sandbox.Animation.Graph"/>.
 /// </summary>
 file class GraphParamsObject : SerializedObject
 {
-	public AnimationGraph Graph { get; }
+	public Sandbox.Animation.Graph Graph { get; }
 	public AnimationParameterList.IAccessor Accessor { get; }
 
-	public GraphParamsObject( AnimationGraph graph, AnimationParameterList.IAccessor accessor )
+	public override IEnumerable<object> Targets => [Accessor];
+
+	public GraphParamsObject( Sandbox.Animation.Graph graph, AnimationParameterList.IAccessor accessor )
 	{
 		Graph = graph;
 		Accessor = accessor;
@@ -539,12 +822,9 @@ file class GraphParamsObject : SerializedObject
 	{
 		PropertyList = new List<SerializedProperty>();
 
-		var parameterIndices = Enumerable.Range( 0, Graph.ParamCount )
-			.OrderBy( Graph.GetParameterName );
-
-		foreach ( var index in parameterIndices )
+		foreach ( var parameter in Graph.Parameters.OrderBy( p => p.Name ) )
 		{
-			if ( ParamProperty.Create( this, index ) is { } property )
+			if ( ParamProperty.Create( this, parameter ) is { } property )
 			{
 				PropertyList.Add( property );
 			}
@@ -555,31 +835,16 @@ file class GraphParamsObject : SerializedObject
 /// <summary>
 /// Base class for animation parameter properties contained in a <see cref="GraphParamsObject"/>.
 /// </summary>
-file abstract class ParamProperty : SerializedProperty
+file abstract class ParamProperty( GraphParamsObject parent, string name, Type type ) : SerializedProperty
 {
-	public static ParamProperty Create( GraphParamsObject parent, int index )
+	public static ParamProperty Create( GraphParamsObject parent, Sandbox.Animation.Graph.Parameter parameter )
 	{
-		var name = parent.Graph.GetParameterName( index );
-		var type = parent.Graph.GetParameterType( index );
+		var type = parameter.Type;
+		var name = parameter.Name;
 
 		if ( type == typeof( float ) )
 		{
-			return new FloatParamProperty( parent, name );
-		}
-
-		if ( type == typeof( int ) )
-		{
-			return new IntParamProperty( parent, name );
-		}
-
-		if ( type == typeof( Vector3 ) )
-		{
-			return new Vector3ParamProperty( parent, name );
-		}
-
-		if ( type == typeof( Rotation ) )
-		{
-			return new RotationParamProperty( parent, name );
+			return new FloatParamProperty( parent, name, parameter.HasRange ? new Vector2( parameter.MinValue, parameter.MaxValue ) : null );
 		}
 
 		if ( type == typeof( bool ) )
@@ -587,31 +852,28 @@ file abstract class ParamProperty : SerializedProperty
 			return new BoolParamProperty( parent, name );
 		}
 
-		if ( type == typeof( byte ) )
+		if ( type == typeof( Vector3 ) )
 		{
-			return new EnumParamProperty( parent, name );
+			return new Vector3ParamProperty( parent, name );
+		}
+
+		if ( type == typeof( string ) )
+		{
+			return new IdParamProperty( parent, name, parameter.Options );
 		}
 
 		return null;
 	}
 
-	private GraphParamsObject _parent;
+	private GraphParamsObject _parent = parent;
 
 	public override SerializedObject Parent => _parent;
-	public override Type PropertyType { get; }
+	public override Type PropertyType { get; } = type.IsValueType ? typeof( Nullable<> ).MakeGenericType( type ) : type;
 	public override string DisplayName => Name;
-	public override string Name { get; }
+	public override string Name { get; } = name;
 	public override string Description => Name;
 
 	protected AnimationParameterList.IAccessor Accessor => _parent.Accessor;
-
-	public ParamProperty( GraphParamsObject parent, string name, Type type )
-	{
-		_parent = parent;
-
-		Name = name;
-		PropertyType = type.IsValueType ? typeof( Nullable<> ).MakeGenericType( type ) : type;
-	}
 
 	public bool Enabled
 	{
@@ -622,19 +884,11 @@ file abstract class ParamProperty : SerializedProperty
 /// <summary>
 /// Typed <see cref="ParamProperty"/> that implements getting / setting.
 /// </summary>
-file abstract class ParamProperty<TValue> : ParamProperty
+file abstract class ParamProperty<TValue>( GraphParamsObject parent, string name ) : ParamProperty( parent, name, typeof( TValue ) )
 {
 	private IReadOnlyList<Attribute> _attributes;
 
-	protected AnimParam<TValue> Parameter { get; }
-
 	public abstract TValue Value { get; set; }
-
-	protected ParamProperty( GraphParamsObject parent, string name )
-		: base( parent, name, typeof( TValue ) )
-	{
-		Parameter = parent.Graph.GetParameter<TValue>( name );
-	}
 
 	protected void SetAttributes( params Attribute[] attributes )
 	{
@@ -652,7 +906,6 @@ file abstract class ParamProperty<TValue> : ParamProperty
 	{
 		if ( value is null )
 		{
-			SetValue( GetDefault() );
 			Accessor.Clear( Name );
 
 			return;
@@ -673,12 +926,13 @@ file class FloatParamProperty : ParamProperty<float>
 {
 	public Vector2 Range { get; private init; }
 
-	public FloatParamProperty( GraphParamsObject parent, string name )
+	public FloatParamProperty( GraphParamsObject parent, string name, Vector2? range )
 		: base( parent, name )
 	{
-		Range = new Vector2( Parameter.MinValue, Parameter.MaxValue );
+		Range = range ?? default;
 
-		SetAttributes( new RangeAttribute( Range.x, Range.y ), new DefaultValueAttribute( Parameter.DefaultValue ) );
+		if ( range is { } r )
+			SetAttributes( new RangeAttribute( r.x, r.y ) );
 	}
 
 	public override float Value
@@ -688,26 +942,7 @@ file class FloatParamProperty : ParamProperty<float>
 	}
 }
 
-file class IntParamProperty : ParamProperty<int>
-{
-	public Vector2 Range { get; private init; }
-
-	public override int Value
-	{
-		get => Accessor.GetInt( Name );
-		set => Accessor.Set( Name, value );
-	}
-
-	public IntParamProperty( GraphParamsObject parent, string name )
-		: base( parent, name )
-	{
-		Range = new Vector2( Parameter.MinValue, Parameter.MaxValue );
-
-		SetAttributes( new RangeAttribute( Range.x, Range.y ), new DefaultValueAttribute( Parameter.DefaultValue ) );
-	}
-}
-
-file class Vector3ParamProperty : ParamProperty<Vector3>
+file class Vector3ParamProperty( GraphParamsObject parent, string name ) : ParamProperty<Vector3>( parent, name )
 {
 	public override Vector3 Value
 	{
@@ -715,29 +950,9 @@ file class Vector3ParamProperty : ParamProperty<Vector3>
 		set => Accessor.Set( Name, value );
 	}
 
-	public Vector3ParamProperty( GraphParamsObject parent, string name )
-		: base( parent, name )
-	{
-		SetAttributes( new DefaultValueAttribute( Parameter.DefaultValue ) );
-	}
 }
 
-file class RotationParamProperty : ParamProperty<Rotation>
-{
-	public override Rotation Value
-	{
-		get => Accessor.GetRotation( Name );
-		set => Accessor.Set( Name, value );
-	}
-
-	public RotationParamProperty( GraphParamsObject parent, string name )
-		: base( parent, name )
-	{
-		SetAttributes( new DefaultValueAttribute( Parameter.DefaultValue ) );
-	}
-}
-
-file class BoolParamProperty : ParamProperty<bool>
+file class BoolParamProperty( GraphParamsObject parent, string name ) : ParamProperty<bool>( parent, name )
 {
 	public override bool Value
 	{
@@ -745,38 +960,32 @@ file class BoolParamProperty : ParamProperty<bool>
 		set => Accessor.Set( Name, value );
 	}
 
-	public BoolParamProperty( GraphParamsObject parent, string name )
-		: base( parent, name )
-	{
-		SetAttributes( new DefaultValueAttribute( Parameter.DefaultValue ) );
-	}
 }
 
-file sealed class EnumParamAttribute : Attribute;
+file sealed class IdOptionsAttribute : Attribute;
 
-file class EnumParamProperty : ParamProperty<byte>
+file class IdParamProperty : ParamProperty<string>
 {
 	public string[] Options { get; private init; }
 
-	public override byte Value
+	public override string Value
 	{
-		get => (byte)Accessor.GetInt( Name );
+		get => Accessor.GetString( Name ) ?? "";
 		set => Accessor.Set( Name, value );
 	}
 
-	public EnumParamProperty( GraphParamsObject parent, string name )
+	public IdParamProperty( GraphParamsObject parent, string name, IReadOnlyList<string> options )
 		: base( parent, name )
 	{
-		Options = Parameter.OptionNames;
+		Options = options?.ToArray() ?? [];
 
-		SetAttributes( new EnumParamAttribute(), new DefaultValueAttribute( Parameter.DefaultValue ) );
+		if ( Options.Length > 0 )
+			SetAttributes( new IdOptionsAttribute() );
 	}
 }
 
-#endregion
-
-[CustomEditor( typeof( byte ), WithAllAttributes = [typeof( EnumParamAttribute )] )]
-file class EnumParamControlWidget : ControlWidget
+[CustomEditor( typeof( string ), WithAllAttributes = [typeof( IdOptionsAttribute )] )]
+file class IdParamControlWidget : ControlWidget
 {
 	public override bool IsControlActive => base.IsControlActive || _menu.IsValid();
 	public override bool IsControlButton => true;
@@ -785,14 +994,14 @@ file class EnumParamControlWidget : ControlWidget
 
 	public string[] Options { get; set; }
 
-	public EnumParamControlWidget( SerializedProperty property ) : base( property )
+	public IdParamControlWidget( SerializedProperty property ) : base( property )
 	{
 		Cursor = CursorShape.Finger;
 
 		Layout = Layout.Row();
 		Layout.Spacing = 2;
 
-		Options = (SerializedProperty as EnumParamProperty)?.Options;
+		Options = (SerializedProperty as IdParamProperty)?.Options;
 	}
 
 	protected override void PaintControl()
@@ -800,7 +1009,7 @@ file class EnumParamControlWidget : ControlWidget
 		if ( Options is null )
 			return;
 
-		var value = SerializedProperty.GetValue<byte>();
+		var value = SerializedProperty.GetValue<string>();
 
 		var color = IsControlHovered ? Theme.Blue : Theme.TextControl;
 		if ( IsControlDisabled ) color = color.WithAlpha( 0.5f );
@@ -810,7 +1019,7 @@ file class EnumParamControlWidget : ControlWidget
 		rect = rect.Shrink( 8, 0 );
 
 		Paint.SetPen( color );
-		Paint.DrawText( rect, Options[value] ?? "Unset", TextFlag.LeftCenter );
+		Paint.DrawText( rect, string.IsNullOrEmpty( value ) ? "Unset" : value, TextFlag.LeftCenter );
 
 		Paint.SetPen( color );
 		Paint.DrawIcon( rect, "Arrow_Drop_Down", 17, TextFlag.RightCenter );
@@ -861,9 +1070,9 @@ file class EnumParamControlWidget : ControlWidget
 			VerticalSizeMode = SizeMode.CanGrow | SizeMode.Expand
 		};
 
-		for ( var i = 0; i < Options.Length; ++i )
+		foreach ( var option in Options )
 		{
-			var b = scroller.Canvas.Layout.Add( new MenuOption( Options[i], (byte)i, SerializedProperty ) );
+			var b = scroller.Canvas.Layout.Add( new IdMenuOption( option, SerializedProperty ) );
 			b.MouseLeftPress = () =>
 			{
 				SerializedProperty.SetValue( b.Value );
@@ -890,31 +1099,29 @@ file class EnumParamControlWidget : ControlWidget
 	}
 }
 
-file class MenuOption : Widget
+file class IdMenuOption : Widget
 {
 	private SerializedProperty _property;
-	private byte _value;
 
-	public byte Value => _value;
+	public string Value { get; }
 
-	public MenuOption( string name, byte value, SerializedProperty p ) : base( null )
+	public IdMenuOption( string value, SerializedProperty p ) : base( null )
 	{
 		_property = p;
-		_value = value;
+		Value = value;
 
 		Layout = Layout.Row();
 		Layout.Margin = 8;
 
 		Layout.AddSpacingCell( 8 );
 		var c = Layout.AddColumn();
-		var title = c.Add( new Label( name ) );
+		var title = c.Add( new Label( value ) );
 		title.SetStyles( "font-size: 12px; font-weight: bold; font-family: Poppins; color: white;" );
 	}
 
 	bool HasValue()
 	{
-		var value = _property.GetValue<byte>( 0 );
-		return value == _value;
+		return _property.GetValue<string>() == Value;
 	}
 
 	protected override void OnPaint()

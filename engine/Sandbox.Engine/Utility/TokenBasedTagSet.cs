@@ -26,6 +26,19 @@
 			return Tags;
 		}
 
+		public override void SetFrom( ITagSet set )
+		{
+			// Cameras copy their tags in every frame and they rarely change, so skip the string
+			// comparisons when we already hold exactly the source's tokens
+			if ( set is TagSet && set.GetTokens() is HashSet<uint> tokens && Tags.SetEquals( tokens ) )
+				return;
+
+			if ( set is TokenBasedTagSet other && Tags.SetEquals( other.Tags ) )
+				return;
+
+			base.SetFrom( set );
+		}
+
 		public override bool Has( string tag )
 		{
 			return Tags.Contains( StringToken.FindOrCreate( tag ) );

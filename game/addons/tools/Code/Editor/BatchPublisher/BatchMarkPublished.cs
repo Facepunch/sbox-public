@@ -11,7 +11,7 @@ public class BatchMarkPublishedWidget : Widget
 	string _org;
 	Button continueButton;
 
-	[Editor( "organisation" )]
+	[Editor( "organization" )]
 	public string TargetOrg
 	{
 		get => _org;
@@ -21,7 +21,7 @@ public class BatchMarkPublishedWidget : Widget
 
 			if ( continueButton.IsValid() )
 			{
-				continueButton.Enabled = !string.IsNullOrWhiteSpace( _org ) && _org != "local";
+				continueButton.Enabled = !string.IsNullOrWhiteSpace( value ) && value != "local";
 			}
 
 			_org = value;
@@ -84,12 +84,7 @@ public class BatchMarkPublishedWidget : Widget
 		foreach ( var a in assets )
 		{
 			a.Publishing.Enabled = true;
-
-			if ( string.IsNullOrWhiteSpace( a.Publishing.ProjectConfig.Org ) )
-			{
-				a.Publishing.ProjectConfig.Org = TargetOrg;
-			}
-
+			a.Publishing.ProjectConfig.Org = TargetOrg;
 			a.Publishing.Save();
 		}
 

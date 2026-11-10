@@ -1,4 +1,4 @@
-﻿using Sandbox.DataModel;
+using Sandbox.DataModel;
 using Sandbox.Services;
 using System;
 using System.Text.Json;
@@ -22,6 +22,20 @@ public partial class ProjectPublisher
 
 	public Action OnProgressChanged { get; set; }
 
+	/// <summary>
+	/// Meta that only goes in the workshop item's <c>metadata.json</c>, never to the backend - the game's menu
+	/// </summary>
+	static readonly HashSet<string> WorkshopOnlyMeta = ["MenuScene", "MenuResources"];
+
+	/// <summary>
+	/// <see cref="Meta"/> as the backend gets it, without what's only for the workshop item. Null if there's none.
+	/// </summary>
+	Dictionary<string, object> BackendMeta()
+	{
+		var meta = Meta.Where( x => !WorkshopOnlyMeta.Contains( x.Key ) ).ToDictionary();
+		return meta.Count > 0 ? meta : null;
+	}
+
 	public void SetMeta( string key, object obj )
 	{
 		Meta[key] = obj;
@@ -34,13 +48,16 @@ public partial class ProjectPublisher
 		if ( asset.Publishing is null )
 			return null;
 
-		var fakeProject = asset.Publishing.CreateTemporaryProject();
+		// We don't have a better way right now. In the future we'll allow them to define which
+		// code to include and whatever.
+		var context = asset.Publishing.BuildPublishContext();
+		var fakeProject = asset.Publishing.CreateTemporaryProject( context.IncludeCode ? Project.Current?.RootDirectory : null );
 
 		var p = new ProjectPublisher( fakeProject );
 		// p.Manifest.IncludeSourceFiles = asset.Publishing.ProjectConfig.IncludeSourceFiles;
 		p.Manifest.IncludeSourceFiles = false; // tony: Disabled this until we implement it in a better way
 		p.SetMetaFromAsset( asset );
-		await p.Manifest.BuildFrom( asset );
+		await p.Manifest.BuildFrom( asset, fakeProject );
 
 		// include thumbnail!
 		var thumb = await asset.RenderThumb();
@@ -49,10 +66,16 @@ public partial class ProjectPublisher
 			await p.AddFile( thumb.GetPng(), $"/{p.TargetPackageIdent}/thumb.png" );
 		}
 
+		if ( IsWorkshopAsset( asset ) )
+		{
+			p.WorkshopType = asset.Publishing.PackageType();
+			p.WorkshopAsset = asset;
+		}
+
 		return p;
 	}
 
-	public static async Task<ProjectPublisher> FromProject( Project project )
+	public static async Task<ProjectPublisher> FromProject( Project project, bool previewOnly = false, CancellationToken cancel = default )
 	{
 		// library
 		if ( project.IsSourcePublish() )
@@ -70,7 +93,8 @@ public partial class ProjectPublisher
 		// game
 		{
 			var p = new ProjectPublisher( project );
-			await p.GenerateAssetManifest();
+			await p.GenerateAssetManifest( cancel: cancel, previewOnly: previewOnly );
+			p.WorkshopType = WorkshopTypeFor( project );
 			return p;
 		}
 	}
@@ -90,7 +114,7 @@ public partial class ProjectPublisher
 
 		foreach ( var cvar in vars )
 		{
-			var e = new GameSetting( cvar.Attribute.Name, cvar.Member.Name, cvar.Member.Group );
+			var e = new GameSetting( cvar.Attribute.Name, cvar.Member.Title, cvar.Member.Group );
 
 			if ( e.Min != 0f )
 			{
@@ -162,9 +186,9 @@ public partial class ProjectPublisher
 	/// <summary>
 	/// Build a list of files to upload for this version. Return false if errors that would prevent the upload.
 	/// </summary>
-	async Task GenerateAssetManifest( IProgress progress = null, CancellationToken cancel = default )
+	async Task GenerateAssetManifest( IProgress progress = null, CancellationToken cancel = default, bool previewOnly = false )
 	{
-		await Manifest.BuildFromAssets( Project, progress, cancel );
+		await Manifest.BuildFromAssets( Project, progress, cancel, previewOnly: previewOnly );
 	}
 
 	/// <summary>
@@ -181,16 +205,37 @@ public partial class ProjectPublisher
 	}
 
 	/// <summary>
+	/// Projects with the whitelist disabled are standalone only and can't be published
+	/// </summary>
+	void ThrowIfWhitelistDisabled()
+	{
+		if ( Project.Config.IsStandaloneOnly )
+			throw new InvalidOperationException( $"This project has the whitelist disabled (Disable Whitelist in Project Settings > Game Exporting), so it can't be published to {Global.BackendTitle}." );
+	}
+
+	/// <summary>
 	/// Publish a new revision
 	/// </summary>
 	public async Task Publish( IProgress progress = null, CancellationToken cancel = default )
 	{
-		if ( Project.Config.IsStandaloneOnly )
-			return;
+		Manifest.RequireUploadManifest();
+		ThrowIfWhitelistDisabled();
 
 		await TryWorkshopUpload();
 
-		await PostManifest( Manifest, cancel );
+		if ( HasWorkshopUpload )
+		{
+			await PublishToWorkshop( cancel );
+
+			// Only once the workshop has the files - if Steam turned us down, the backend never hears about it
+			await UploadFiles();
+
+			if ( Manifest.Assets.Any( x => !x.Skip ) )
+				throw new System.Exception( $"Couldn't upload the files that stay on {Global.BackendTitle}, the console has more about why." );
+		}
+
+		if ( !await PostManifest( Manifest, progress, cancel ) )
+			throw new System.Exception( "The backend didn't accept the new revision, the console has more about why." );
 	}
 
 	/// <summary>
@@ -198,10 +243,9 @@ public partial class ProjectPublisher
 	/// </summary>
 	public async Task PrePublish( CancellationToken cancellationToken = default )
 	{
+		Manifest.RequireUploadManifest();
 		FinishAddingFiles();
-
-		if ( Project.Config.IsStandaloneOnly )
-			return;
+		ThrowIfWhitelistDisabled();
 
 		if ( Manifest.Assets.Count == 0 )
 		{
@@ -219,13 +263,19 @@ public partial class ProjectPublisher
 			}
 		}
 
+		// Before the backend gets anything, so a problem with the workshop item shows up first
+		await CheckWorkshopItem();
+
+		// After lowercasing, the workshop item's files are laid out by these names
+		MoveFilesToWorkshop();
+
 		var publish = new PublishManifest
 		{
 			Assets = Manifest.Assets.Select( x => new ManifestFile( x.Name, x.Size, x.Hash ) ).ToArray(),
 			Title = "",
 			Description = "",
 			Publish = false,
-			Meta = Meta.Count > 0 ? JsonSerializer.Serialize( Meta ) : null,
+			Meta = BackendMeta() is { } meta ? JsonSerializer.Serialize( meta ) : null,
 			EngineApi = Sandbox.Engine.Protocol.Api
 		};
 
@@ -310,7 +360,7 @@ public partial class ProjectPublisher
 		throw new System.Exception( $"Unhandled status: {result}" );
 	}
 
-	async Task<bool> PostManifest( PackageManifest manifest, CancellationToken cancellationToken )
+	async Task<bool> PostManifest( PackageManifest manifest, IProgress progress, CancellationToken cancellationToken )
 	{
 		if ( Project.Config.IsStandaloneOnly )
 			return false;
@@ -324,8 +374,9 @@ public partial class ProjectPublisher
 			Title = string.IsNullOrWhiteSpace( manifest.Summary ) ? "Untitled Version" : manifest.Summary,
 			Description = manifest.Description,
 			Publish = true,
-			Meta = Meta.Count > 0 ? Json.Serialize( Meta ) : null,
-			EngineApi = Sandbox.Engine.Protocol.Api
+			Meta = BackendMeta() is { } meta ? Json.Serialize( meta ) : null,
+			EngineApi = Sandbox.Engine.Protocol.Api,
+			VerifyCompile = Project.Config.Type == "game"
 		};
 
 		publish.Config = new ManifestConfig
@@ -344,6 +395,21 @@ public partial class ProjectPublisher
 		try
 		{
 			result = await Backend.Package.PublishManifest( publish );
+
+			// The backend compiles the code before the revision goes live, holding each post for a while - keep
+			// posting until it's done. It gives up on its side and publishes anyway if its compiler is stuck.
+			while ( result.Status == "compiling" )
+			{
+				progress?.SetProgressMessage( "Compiling on the server" );
+				await Task.Delay( CompileRetryDelay, cancellationToken );
+				result = await Backend.Package.PublishManifest( publish );
+			}
+		}
+		catch ( Refit.ApiException e ) when ( e.StatusCode == System.Net.HttpStatusCode.BadRequest && ReadError( e.Content ) is { } error )
+		{
+			// The backend's reason, such as the code not compiling on the server - the errors are in the detail
+			Log.Warning( $"PublishManifest: {error.Summary}\n{error.Detail}" );
+			throw new System.Exception( string.IsNullOrWhiteSpace( error.Detail ) || error.Detail == error.Summary ? error.Summary : $"{error.Summary}\n\n{FirstLines( error.Detail, 20 )}" );
 		}
 		catch ( Refit.ApiException e )
 		{
@@ -376,6 +442,35 @@ public partial class ProjectPublisher
 
 		return false;
 
+	}
+
+	/// <summary>
+	/// How long to wait before posting the manifest again while the backend compiles. It holds each post ~20s itself.
+	/// </summary>
+	static readonly TimeSpan CompileRetryDelay = TimeSpan.FromSeconds( 10 );
+
+	record struct BackendError( string Summary, string Detail );
+
+	/// <summary>
+	/// The <c>{ Summary, Detail }</c> the backend answers a bad request with, or null if that's not what it sent.
+	/// </summary>
+	static BackendError? ReadError( string content )
+	{
+		try
+		{
+			var error = JsonSerializer.Deserialize<BackendError>( content ?? "", new JsonSerializerOptions { PropertyNameCaseInsensitive = true } );
+			return string.IsNullOrWhiteSpace( error.Summary ) ? null : error;
+		}
+		catch ( JsonException )
+		{
+			return null;
+		}
+	}
+
+	static string FirstLines( string text, int count )
+	{
+		var lines = text.Split( '\n' );
+		return lines.Length <= count ? text : string.Join( '\n', lines.Take( count ) ) + $"\n... and {lines.Length - count} more lines, the console has them all";
 	}
 
 	void SetMetaFromAsset( Asset asset )
@@ -411,6 +506,7 @@ public partial class ProjectPublisher
 
 	public async Task UploadFiles()
 	{
+		Manifest.RequireUploadManifest();
 		// upload
 		var uploads = Manifest.Assets.Where( x => !x.Skip ).ToArray();
 
@@ -427,8 +523,9 @@ public partial class ProjectPublisher
 			//
 			while ( tasks.Count > 8 )
 			{
-				await Task.WhenAny( tasks.ToArray() );
-				tasks.RemoveAll( x => x.IsCompleted );
+				var completed = await Task.WhenAny( tasks );
+				await completed;
+				tasks.Remove( completed );
 			}
 		}
 
@@ -475,6 +572,28 @@ public partial class ProjectPublisher
 	}
 
 	/// <summary>
+	/// Was the package's thumb picked for this publish, rather than rendered from its asset?
+	/// </summary>
+	bool ThumbnailChosen;
+
+	/// <summary>
+	/// Use this image as the package's thumb instead of the one rendered from its asset - the middle of it, cut
+	/// square (<see cref="CropToSquare"/>). Any image a <see cref="Bitmap"/> can read - it goes up as a png. Before
+	/// <see cref="PrePublish"/>, so it's uploaded.
+	/// </summary>
+	public Task SetThumbnail( byte[] image )
+	{
+		using var bitmap = Bitmap.CreateFromBytes( image ) ?? throw new ArgumentException( "Couldn't read the thumbnail image" );
+		using var square = CropToSquare( bitmap );
+
+		var name = $"/{TargetPackageIdent}/thumb.png";
+		Manifest.Assets.RemoveAll( x => string.Equals( x.Name, name, StringComparison.OrdinalIgnoreCase ) );
+		ThumbnailChosen = true;
+
+		return AddFile( square.ToPng(), name );
+	}
+
+	/// <summary>
 	/// If the code is referencing a package - we can add it to the manifest using this.
 	/// </summary>
 	public Task AddCodePackageReference( string package )
@@ -486,11 +605,15 @@ public partial class ProjectPublisher
 
 	void TriggerProgessChanged()
 	{
+		// Nobody's listening - workshop publishes upload their manifest without a page showing it
+		if ( OnProgressChanged is not { } changed )
+			return;
+
 		if ( timeSinceTrigger <= (1.0f / 30.0f) )
 			return;
 
 		timeSinceTrigger = 0;
-		MainThread.Queue( OnProgressChanged );
+		MainThread.Queue( changed );
 	}
 
 	/// <summary>
@@ -512,9 +635,7 @@ public partial class ProjectPublisher
 	/// </summary>
 	public static bool CanPublishFile( Asset a )
 	{
-		// Core/base shaders should never be uploaded
-		// Ideally I'd just check against mod_base and mod_core but we have weird c# filesystem
-		if ( a.AbsolutePath.Contains( "/addons/base/assets/shaders/", StringComparison.OrdinalIgnoreCase ) ) return false;
+		// Core shaders should never be uploaded
 		if ( a.AbsolutePath.Contains( "/core/shaders/", StringComparison.OrdinalIgnoreCase ) ) return false;
 
 		return true;
@@ -536,7 +657,7 @@ public partial class ProjectPublisher
 		await WorkshopUtils.UploadAsset( asset );
 
 		// look up the workshop id
-		if ( asset.MetaData.Get<ulong>( "WorkshopId" ) is var id )
+		if ( asset.MetaData.Get( "WorkshopId", 0UL ) is var id && id != 0 )
 		{
 			// Publish this info with the asset
 			SetMeta( "WorkshopId", id );

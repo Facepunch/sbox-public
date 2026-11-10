@@ -1,4 +1,6 @@
-﻿using System.Text.Json.Serialization;
+﻿using Sandbox.Services;
+using System.Collections.Immutable;
+using System.Text.Json.Serialization;
 using System.Threading;
 
 namespace Sandbox;
@@ -18,10 +20,30 @@ public partial class Package
 	/// </summary>
 	public Organization Org { get; set; }
 
+	string _fullIdent;
+	string _fullIdentOrg;
+	string _fullIdentIdent;
+
 	/// <summary>
-	/// Full unique identity of this package.
+	/// Full unique identity of this package. Cached against the org and ident it was
+	/// built from, so it's only formatted when they change.
 	/// </summary>
-	public string FullIdent => FormatIdent( Org.Ident, Ident, local: !IsRemote );
+	public string FullIdent
+	{
+		get
+		{
+			var org = Org.Ident;
+
+			if ( _fullIdent is null || _fullIdentOrg != org || _fullIdentIdent != Ident )
+			{
+				_fullIdent = FormatIdent( org, Ident, local: !IsRemote );
+				_fullIdentOrg = org;
+				_fullIdentIdent = Ident;
+			}
+
+			return _fullIdent;
+		}
+	}
 
 	/// <summary>
 	/// Unique identity of this package within its <see cref="Org">organization.</see>.
@@ -163,6 +185,7 @@ public partial class Package
 		/// <summary>
 		/// The trend is a number that represents whether it's been popular recently. Higher means more popular.
 		/// </summary>
+		[Obsolete]
 		public double Trend { get; set; }
 	}
 
@@ -191,6 +214,7 @@ public partial class Package
 	/// <summary>
 	/// Link to this package's sources, if set.
 	/// </summary>
+	[Obsolete]
 	public string Source { get; set; }
 
 	/// <summary>
@@ -268,7 +292,53 @@ public partial class Package
 	/// </summary>
 	public int Referenced { get; set; }
 
-	public record struct ReviewStats( int Total, float Score );
+	public readonly struct ReviewStats
+	{
+		/// <summary>
+		/// Gets the total number of ratings, including positive, negative, and promise ratings.
+		/// </summary>
+		public readonly int Total => PositiveRatings + NegativeRatings + PromiseRatings;
+
+		/// <summary>
+		/// A normalized score from 0 to 1, where 1 means all ratings are positive.
+		/// </summary>
+		public readonly float Score;
+
+		/// <summary>
+		/// Gets the number of positive ratings associated with the item.
+		/// </summary>
+		public readonly int PositiveRatings;
+
+		/// <summary>
+		/// Gets the number of negative ratings associated with the item.
+		/// </summary>
+		public readonly int NegativeRatings;
+
+		/// <summary>
+		/// Represents the number of promise ratings associated with the current instance.
+		/// </summary>
+		public readonly int PromiseRatings;
+
+		/// <summary>
+		/// Gets a read-only dictionary containing the count of each positive review tag associated with the item.
+		/// </summary>
+		public readonly ImmutableDictionary<Review.PositiveTags, int> PositiveTags;
+
+		/// <summary>
+		/// Gets a read-only dictionary containing the negative review tags and their corresponding counts.
+		/// </summary>
+		public readonly ImmutableDictionary<Review.NegativeTags, int> NegativeTags;
+
+		internal ReviewStats( PackageReviewStats reviews )
+		{
+			Score = reviews?.ToPercentage() ?? 0;
+			PositiveRatings = reviews?.PositiveRatings ?? 0;
+			NegativeRatings = reviews?.NegativeRatings ?? 0;
+			PromiseRatings = reviews?.PromiseRatings ?? 0;
+			PositiveTags = reviews?.PositiveTags.ToImmutableDictionary( x => (Review.PositiveTags)x.Key, x => x.Value ) ?? ImmutableDictionary<Review.PositiveTags, int>.Empty;
+			NegativeTags = reviews?.NegativeTags.ToImmutableDictionary( x => (Review.NegativeTags)x.Key, x => x.Value ) ?? ImmutableDictionary<Review.NegativeTags, int>.Empty;
+		}
+	}
 
 	/// <summary>
 	/// Stats for the reviews. Gives the number of reviews, and the fraction of the total score.
@@ -325,14 +395,11 @@ public partial class Package
 		/// </summary>
 		public DateTimeOffset Created { get; set; }
 
-		internal static Organization FromDto( Services.OrganizationDto x )
+		internal static Organization FromDto( Services.OrganizationMinimal x )
 		{
 			var o = new Organization();
 			o.Ident = x.Ident;
 			o.Title = x.Title;
-			o.SocialTwitter = x.Twitter;
-			o.SocialWeb = x.WebUrl;
-			o.Description = x.Description;
 			o.Thumb = x.Thumb;
 			return o;
 		}
@@ -456,12 +523,28 @@ public partial class Package
 		public long Seconds { get; set; }
 	}
 
-	internal virtual IEnumerable<string> EnumeratePackageReferences()
+	internal virtual IEnumerable<string> EnumerateInstallDependencies()
 	{
 		if ( PackageReferences is not null )
 		{
 			foreach ( var p in PackageReferences )
 				yield return p;
+		}
+	}
+
+	internal virtual IEnumerable<string> EnumeratePackageReferences()
+	{
+		foreach ( var package in EnumerateInstallDependencies() )
+			yield return package;
+
+		// A targeted addon/asset depends on its parent game - except maps
+		// Bit of a shitty edge case, but we don't want a map to load a second,
+		// DIFFERENT game when loading it in another game like Sandbox 
+		if ( !string.Equals( TypeName, "map", StringComparison.OrdinalIgnoreCase ) )
+		{
+			var parent = Info.ParentPackage;
+			if ( TryParseIdent( parent, out _ ) )
+				yield return parent;
 		}
 	}
 

@@ -1,4 +1,5 @@
-﻿using System.Collections.Immutable;
+﻿using Sandbox.Engine;
+using System.Collections.Immutable;
 using System.Reflection;
 using System.Text.Json.Serialization;
 
@@ -12,18 +13,32 @@ internal static class ReflectionQueryCache
 {
 	private static Dictionary<Type, bool> _isTypeCloneableByCopy = new();
 	private static Dictionary<Type, bool> _isICloneableSafe = new();
+	private static Dictionary<Type, bool> _isResourceType = new();
 	private static Dictionary<Type, MemberDescription[]> _orderedMemberCache = new();
+
+	// Holds compiled delegates, which hotload can't upgrade; cleared explicitly in ClearTypeCache instead.
+	[SkipHotload]
+	private static Dictionary<Type, MemberCloner[]> _clonePlanCache = new();
 	private static Dictionary<Type, PropertyDescription[]> _requiredComponentMemberCache = new();
 
-	public record SyncVarPropertyAndAttribute( PropertyInfo Property, SyncAttribute Attribute );
+	public record SyncVarPropertyAndAttribute( PropertyInfo Property, SyncAttribute Attribute )
+	{
+		/// <summary>
+		/// Hash of the declaring type and property name, used to build network slots.
+		/// </summary>
+		public int NameHash { get; init; }
+
+		public string DebugName { get; init; }
+	}
 	private static Dictionary<Type, SyncVarPropertyAndAttribute[]> _syncVarMemberCache = new();
 
 	internal static bool IsEmpty => _isTypeCloneableByCopy.Count == 0
 		&& _isICloneableSafe.Count == 0
+		&& _isResourceType.Count == 0
 		&& _orderedMemberCache.Count == 0
 		&& _requiredComponentMemberCache.Count == 0
 		&& _syncVarMemberCache.Count == 0
-		&& MemberCopyCache.IsEmpty;
+		&& _clonePlanCache.Count == 0;
 
 	/// <summary>
 	/// Clears the type cache, called after HotLoad and after a game ended.
@@ -33,10 +48,11 @@ internal static class ReflectionQueryCache
 	{
 		_isTypeCloneableByCopy.Clear();
 		_isICloneableSafe.Clear();
+		_isResourceType.Clear();
 		_orderedMemberCache.Clear();
 		_requiredComponentMemberCache.Clear();
 		_syncVarMemberCache.Clear();
-		MemberCopyCache.Clear();
+		_clonePlanCache.Clear();
 	}
 
 	/// <summary>
@@ -50,24 +66,57 @@ internal static class ReflectionQueryCache
 		if ( _isICloneableSafe.TryGetValue( t, out var cached ) )
 			return cached;
 
-		var isSafe = t.GetMethod( nameof( ICloneable.Clone ), Type.EmptyTypes )?.DeclaringType == t;
+		bool isSafe = false;
+
+		if ( typeof( ICloneable ).IsAssignableFrom( t ) )
+		{
+			// Resolve via the interface map so explicit/non-public Clone() implementations are caught too
+			var map = t.GetInterfaceMap( typeof( ICloneable ) );
+			var target = map.TargetMethods.Length > 0 ? map.TargetMethods[0] : null;
+			isSafe = target is not null && target.DeclaringType == t;
+		}
 
 		_isICloneableSafe[t] = isSafe;
 		return isSafe;
 	}
 
 	/// <summary>
+	/// Returns true if the given type is a Resource subtype. Cached per type.
+	/// </summary>
+	public static bool IsResourceType( Type t )
+	{
+		if ( _isResourceType.TryGetValue( t, out var cached ) )
+			return cached;
+
+		var result = t.IsAssignableTo( typeof( Resource ) );
+		_isResourceType[t] = result;
+		return result;
+	}
+
+	/// <summary>
+	/// Returns true if the value is an inline embedded resource (no disk path and holds generator data).
+	/// Uses <see cref="IsResourceType"/> as a cached type-level gate to skip the instance check for non-Resource types.
+	/// </summary>
+	public static bool IsInlineEmbeddedResource( object value, Type valueType )
+	{
+		if ( !IsResourceType( valueType ) )
+			return false;
+
+		return value is Resource { ResourcePath: null or "", EmbeddedResource: not null };
+	}
+
+	/// <summary>
 	/// Returns all properties and fields that should be (de)serialized.
 	/// Also sorts the members for historic reasons.
 	/// </summary>
-	public static IEnumerable<MemberDescription> OrderedSerializableMembers( Type t )
+	public static MemberDescription[] OrderedSerializableMembers( Type t )
 	{
 		if ( _orderedMemberCache.TryGetValue( t, out var members ) )
 		{
 			return members;
 		}
 
-		var type = Game.TypeLibrary.GetType( t );
+		var type = GlobalContext.Current.TypeLibrary.GetType( t );
 
 		if ( type is null )
 		{
@@ -83,6 +132,27 @@ internal static class ReflectionQueryCache
 		return fieldAndPropertyMembers;
 	}
 
+	/// <summary>
+	/// One <see cref="MemberCloner"/> per serializable member, in <see cref="OrderedSerializableMembers"/> order.
+	/// </summary>
+	public static MemberCloner[] ClonePlan( Type t )
+	{
+		if ( _clonePlanCache.TryGetValue( t, out var plan ) )
+		{
+			return plan;
+		}
+
+		var members = OrderedSerializableMembers( t );
+		plan = new MemberCloner[members.Length];
+		for ( int i = 0; i < members.Length; i++ )
+		{
+			plan[i] = new MemberCloner( members[i] );
+		}
+
+		_clonePlanCache[t] = plan;
+		return plan;
+	}
+
 	private static bool ShouldSerializeMember( MemberDescription memberDesc )
 	{
 		if ( memberDesc is not PropertyDescription && memberDesc is not FieldDescription ) return false;
@@ -94,14 +164,14 @@ internal static class ReflectionQueryCache
 	/// <summary>
 	/// Returns all properties that have a [RequireComponent] attribute.
 	/// </summary>
-	public static IEnumerable<PropertyDescription> RequiredComponentMembers( Type t )
+	public static PropertyDescription[] RequiredComponentMembers( Type t )
 	{
 		if ( _requiredComponentMemberCache.TryGetValue( t, out var members ) )
 		{
 			return members;
 		}
 
-		var type = Game.TypeLibrary.GetType( t );
+		var type = GlobalContext.Current.TypeLibrary.GetType( t );
 
 		if ( type is null )
 		{
@@ -151,7 +221,13 @@ internal static class ReflectionQueryCache
 				var syncAttribute = prop.GetCustomAttributes( typeof( SyncAttribute ), inherit: true ).FirstOrDefault() as SyncAttribute;
 				if ( syncAttribute != null )
 				{
-					return new SyncVarPropertyAndAttribute( prop, syncAttribute );
+					var originType = prop.DeclaringType ?? t;
+
+					return new SyncVarPropertyAndAttribute( prop, syncAttribute )
+					{
+						NameHash = $"{originType.FullName}.{prop.Name}".FastHash(),
+						DebugName = $"{originType.Name}.{prop.Name}"
+					};
 				}
 				return null;
 			} )
@@ -194,7 +270,7 @@ internal static class ReflectionQueryCache
 			return true;
 		}
 
-		// Resource references can just be copied,
+		// Resource references can just be copied, embedded resoures are handled further during cloning
 		if ( t.HasBaseType( "Sandbox.Resource" ) )
 		{
 			return true;

@@ -2,60 +2,66 @@
 @inherits MenuProject.Modals.BaseModal
 @using Sandbox;
 @using Sandbox.UI;
-@using Menu;
+@using SboxMenu;
 @using System;
 @using Sandbox.Services;
 
 @if (Package is null) return;
 
-@if (_posting)
-{
-    <root class="posting">
-        <i>outgoing_mail</i>
-    </root>
-    return;
-}
-
+@*
+    What you thought of a game - how you'd rate it, what stood out and what held it back, and a few
+    words. A window of the menu's own look, like the pause menu's pages.
+*@
 <root>
+    <div class="window">
 
-    <h1>What did you think of @(Package.Title)?</h1>
+        <div class="head">
+            <div class="text">
+                <label class="eyebrow">#menu.review.write_a_review</label>
+                <label class="title">What did you think of @Package.Title?</label>
+            </div>
+            <div class="grow"></div>
+            <div class="close" onclick=@( () => CloseModal( false ) ) tooltip="#menu.common.close"><i>close</i></div>
+        </div>
 
-    <div class="inner">
+        <div class="body">
 
-        <div class="container">
-
+            @* The one it needs - three big choices, each lit in its own colour when it's picked *@
             <div class="ratings">
-
-                <div class="rating @( Score == Review.ReviewScore.Negative ? "active" : "" )" @onclick="@( () => SetRating( Review.ReviewScore.Negative ) )">
-                    <div class="icon">💩</div>
-                    <div class="text">Needs Work</div>
-                </div>
-
-                <div class="rating @( Score == Review.ReviewScore.Promise ? "active" : "" )" @onclick="@( () => SetRating( Review.ReviewScore.Promise ) )">
-                    <div class="icon">😐</div>
-                    <div class="text">Promising</div>
-                </div>
-
-                <div class="rating @( Score == Review.ReviewScore.Positive ? "active" : "" )" @onclick="@( () => SetRating( Review.ReviewScore.Positive ) )">
-                    <div class="icon">😍</div>
-                    <div class="text">Recommended</div>
-                </div>
-
+                @foreach ( var (score, icon, text, tone) in Ratings )
+                {
+                    <div class="rating @tone @(Score == score ? "active" : "")" onclick=@( () => SetRating( score ) )>
+                        <i>@icon</i>
+                        <label>@text</label>
+                    </div>
+                }
             </div>
 
-            <UserComment Player="@Sandbox.Services.Players.Profile.Local">
-                <Content>
-                    <TextEntry @ref=_textEntry Value:bind=@ReviewText Multiline="@true" Placeholder="Enter Your Review.."></TextEntry>
-                </Content>
-            </UserComment>
+            <div class="tags positive">
+                <label class="section-label">#menu.review.what_stood_out</label>
+                <TagSelector Value:bind=@PositiveTags />
+            </div>
 
-            <div class="footer">
-                <Button @onclick="@PostReview" Disabled="@( Score == Review.ReviewScore.None || string.IsNullOrWhiteSpace(ReviewText) )" Icon="send" Text="Post Review"></Button>
+            <div class="tags negative">
+                <label class="section-label">#menu.review.what_held_it_back</label>
+                <TagSelector Value:bind=@NegativeTags />
+            </div>
+
+            <div class="words">
+                <label class="section-label">#menu.review.your_review</label>
+                <TextEntry @ref=_textEntry Value:bind=@ReviewText Multiline="@true" Placeholder="#menu.review.say_what_you_thought" />
             </div>
 
         </div>
-    </div>
 
+        <div class="footer">
+            <label class="note">#menu.review.shown_publicly_on_the_game_s_page</label>
+            <div class="grow"></div>
+            <Button class="cancel" Text="#menu.common.cancel" onclick=@( () => CloseModal( false ) ) />
+            <Button class="post" Icon="send" Text="@(_posting ? "#menu.review.posting" : "#menu.review.post_review")" Disabled=@( !CanPost ) onclick=@PostReview />
+        </div>
+
+    </div>
 </root>
 
 @code
@@ -64,17 +70,31 @@
 
     string ReviewText{ get; set; }
     Review.ReviewScore Score { get; set; }
+    Review.PositiveTags PositiveTags { get; set; }
+    Review.NegativeTags NegativeTags { get; set; }
 
     TextEntry _textEntry = default;
     bool _posting;
 
-    protected override int BuildHash() => System.HashCode.Combine(Package);
+    static readonly (Review.ReviewScore Score, string Icon, string Text, string Tone)[] Ratings =
+    {
+        (Review.ReviewScore.Negative, "thumb_down", "#menu.review.needs_work", "bad"),
+        (Review.ReviewScore.Promise, "trending_up", "#menu.review.promising", "meh"),
+        (Review.ReviewScore.Positive, "thumb_up", "#menu.review.recommended", "good"),
+    };
+
+    bool CanPost => !_posting && Score != Review.ReviewScore.None && !string.IsNullOrWhiteSpace( ReviewText );
+
+    protected override int BuildHash() => System.HashCode.Combine( Package, Score, CanPost, _posting );
 
     protected override async Task OnParametersSetAsync()
     {
         var oldReview = await Sandbox.Services.Review.Get(Package.FullIdent, Sandbox.Utility.Steam.SteamId);
         ReviewText = oldReview?.Content;
+        PositiveTags = oldReview?.Positives ?? Review.PositiveTags.None;
+        NegativeTags = oldReview?.Negatives ?? Review.NegativeTags.None;
         Score = oldReview?.Score ?? Review.ReviewScore.None;
+        StateHasChanged();
     }
 
     protected override void OnAfterTreeRender(bool firstTime)
@@ -95,15 +115,14 @@
 
     async Task PostReview()
     {
-        if ( Score == Review.ReviewScore.None ) return;
-        if ( string.IsNullOrWhiteSpace( ReviewText ) ) return;
+        if ( !CanPost ) return;
 
         _posting = true;
         StateHasChanged();
 
         try
         {
-            await MenuUtility.PostReview(Package.FullIdent, Score, ReviewText);
+            await MenuUtility.PostReview(Package.FullIdent, Score, ReviewText, PositiveTags, NegativeTags);
             CloseModal(true);
         }
         finally

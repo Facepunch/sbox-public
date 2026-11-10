@@ -1,0 +1,249 @@
+@namespace MenuProject.Modals.PackageModalComponents
+@inherits Panel
+@using Sandbox;
+@using Sandbox.UI;
+@using SboxMenu;
+@using System;
+
+@*
+    Beside a package's gallery, like a store page's capsule - its art, its name, its numbers, who made it,
+    when it was updated and came out as label and value, then how many it's for and its tags as chips. Its workshop item's when it has
+    one, the package's where it hasn't. Bones until it's known which. Part of PackageStore.
+*@
+
+<root>
+
+    @if (Loading)
+    {
+        <div class="art bone @(Square ? "square" : "")"></div>
+        <div class="bone title-bone"></div>
+        <div class="facts">
+            @for (var i = 0; i < 5; i++)
+            {
+                <div class="fact">
+                    <div class="bone key-bone"></div>
+                    <div class="bone value-bone"></div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="art @(Square ? "square" : "")" style="background-image: url(@Art)"></div>
+
+        <label class="title">@(Workshop?.Title ?? Package.Title)</label>
+
+        <div class="facts">
+            @{ var (up, down) = Votes; var total = up + down; var score = MenuHelpers.Rating( up, down ) ?? 0; var rating = RatingClass( total, score ); }
+            <div class="fact">
+                <label class="key">#menu.workshop.rating</label>
+                <div class="value rating @rating">
+                    @if (rating is "positive" or "negative")
+                    {
+                        <i>@(rating == "positive" ? "thumb_up" : "thumb_down")</i>
+                    }
+                    <label>@(total > 0 ? $"{score:0}%" : "#menu.workshop.no_votes_yet")</label>
+                </div>
+            </div>
+
+            <div class="fact">
+                <label class="key">#menu.games.players</label>
+                <div class="value"><label>@Package.Usage.Total.Users.ToMetric()</label></div>
+            </div>
+
+            @if (Workshop is { } item)
+            {
+                <div class="fact">
+                    <label class="key">#menu.workshop.subscribers</label>
+                    <div class="value"><label>@item.Subscriptions.ToMetric()</label></div>
+                </div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(Workshop?.OwnerName))
+            {
+                <div class="fact">
+                    <label class="key">#menu.games.creator</label>
+                    <div class="value"><label class="creator">@Workshop.OwnerName</label></div>
+                </div>
+            }
+            else if (Package.Org != null)
+            {
+                <div class="fact">
+                    <label class="key">#menu.games.creator</label>
+                    <div class="value"><label class="creator">@Package.Org.Title</label></div>
+                </div>
+            }
+
+            @* Through to the Changes tab when there's something there *@
+            <div class="fact @(CanOpenChanges ? "clickable" : "")" @onclick="@(() => { if ( CanOpenChanges ) OnChangelogClicked?.Invoke(); })">
+                <label class="key">#menu.games.updated</label>
+                <div class="value"><label class="@(CanOpenChanges ? "creator link" : "")">@MenuHelpers.TimeAgo( Workshop?.Updated ?? Package.Updated )</label></div>
+            </div>
+
+            @if ((Workshop?.Created ?? Package.Created) is { } released && released != default)
+            {
+                <div class="fact">
+                    <label class="key">#menu.games.released</label>
+                    <div class="value"><label>@released.ToLocalTime().ToString( "d MMM yyyy" )</label></div>
+                </div>
+            }
+        </div>
+
+        @* How many it's for on a row of its own - green when your party's what it's made for, orange when it isn't,
+           the modes on hover - then its tags under it, the same space between the rows as between tags that wrap *@
+        <div class="chip-rows">
+            @if (PlayerModes.For(Package, OnWorkshop ? Workshop : null) is { Label: { } modeLabel } modes)
+            {
+                var fit = modes.FitFor( PlayerModes.PartySize );
+
+                <div class="chips">
+                    <div class="chip mode @FitClass( fit.Fit )" tooltip="@(fit.Why ?? Language.GetPhrase( modeLabel.TrimStart( '#' ) ))">
+                        <i>@(fit.Fit == PlayerModes.FitKind.Poor ? "group_off" : modes.Icon)</i>
+                        <label>@(ModeHint( modes ) ?? modeLabel)</label>
+                    </div>
+                </div>
+            }
+
+            @if (Tags.Any())
+            {
+                <div class="chips">
+                    @foreach (var tag in Tags)
+                    {
+                        <div class="chip"><label>@tag</label></div>
+                    }
+                </div>
+            }
+        </div>
+    }
+
+</root>
+
+@code
+{
+	[Parameter] public Package Package { get; set; }
+
+	/// <summary>
+	/// What the Steam Workshop says about it, for a package on the workshop - its facts come from that instead of
+	/// the backend. Null while it's being asked.
+	/// </summary>
+	[Parameter] public WorkshopItemDetails Workshop { get; set; }
+
+	/// <summary>
+	/// Still working out what it says - whether it's the backend's or its workshop item's. Bones in the meantime.
+	/// </summary>
+	[Parameter] public bool Loading { get; set; }
+
+	/// <summary>
+	/// Say what the Steam Workshop says, not the backend - the game page, for a package on the workshop
+	/// </summary>
+	[Parameter] public bool OnWorkshop { get; set; }
+
+	/// <summary>Called when its last update is clicked - opens the Changes tab.</summary>
+	[Parameter] public Action OnChangelogClicked { get; set; }
+
+	/// <summary>
+	/// The Changes tab has something to show - a workshop item's change notes, or the package's changelog
+	/// </summary>
+	bool CanOpenChanges => OnWorkshop || Package?.LatestChangeLists is { Length: > 0 };
+
+	/// <summary>
+	/// Its art's square - a game's
+	/// </summary>
+	bool Square => Package?.TypeName == "game";
+
+	string Art => Square ? Workshop?.Thumb ?? Package.Thumb : Package.ThumbWide ?? Package.Thumb;
+
+	/// <summary>
+	/// Its likes and dislikes - its workshop item's on Steam when it has one, the package's otherwise
+	/// </summary>
+	(int Up, int Down) Votes => Workshop is { } item ? (item.VotesUp, item.VotesDown) : (Package.VotesUp, Package.VotesDown);
+
+	/// <summary>
+	/// Tags its workshop item gets that aren't picked - its type, and how it's played, which the mode chip says
+	/// </summary>
+	static readonly string[] WorkshopOwnTags = ["game", "map", "Singleplayer", "Multiplayer", "Co-op", "Versus"];
+
+	/// <summary>
+	/// Its first few tags, capitalised - on the workshop, the ones picked for its item, not the backend's
+	/// </summary>
+	IEnumerable<string> Tags => (OnWorkshop
+			? (Workshop?.Tags ?? []).Where( x => !WorkshopOwnTags.Contains( x, StringComparer.OrdinalIgnoreCase ) )
+			: Package.Tags ?? [])
+		.Where( x => !string.IsNullOrWhiteSpace( x ) )
+		.Select( x => char.ToUpperInvariant( x[0] ) + x[1..] )
+		.Distinct( StringComparer.OrdinalIgnoreCase )
+		.Take( 5 );
+
+	/// <summary>
+	/// How many it's for, the mode chip's words - what it's made for when it says, the lobby's limit if not. Null
+	/// when it says neither.
+	/// </summary>
+	string ModeHint( MenuProject.PlayerModes modes )
+	{
+		// Made for one - it's a singleplayer game, not "1 player"
+		if ( modes.RecommendedMax == 1 && modes.RecommendedMin <= 1 ) return "#menu.games.singleplayer";
+		if ( modes.PlayersText is { } players ) return players;
+
+		var max = modes.MaxPlayers > 0 ? modes.MaxPlayers : Package?.Info.MaxPlayers ?? 0;
+		return modes.Multiplayer && max > 1 ? $"Up to {max} players" : null;
+	}
+
+	static string FitClass( MenuProject.PlayerModes.FitKind fit ) => fit switch
+	{
+		MenuProject.PlayerModes.FitKind.Good => "fits",
+		MenuProject.PlayerModes.FitKind.Poor => "mismatch",
+		_ => ""
+	};
+
+	/// <summary>
+	/// Steam's words for a review score - how positive, and how sure (how many reviews) it is.
+	/// Under ten reviews there's not enough to say. The pause menu's Overview says it too.
+	/// </summary>
+	public static string RatingText( Package package ) => RatingText( package.Reviews.Total, package.Reviews.Score );
+
+	/// <inheritdoc cref="RatingText(Package)"/>
+	static string RatingText( int total, float score )
+	{
+		if ( total <= 0 ) return "#menu.games.no_reviews_yet";
+		if ( total < 10 ) return $"{total} review{(total == 1 ? "" : "s")}";
+
+		if ( score >= 80 )
+		{
+			if ( score >= 95 && total >= 500 ) return "#menu.games.overwhelmingly_positive";
+			return total >= 50 ? "#menu.games.very_positive" : "#menu.games.positive";
+		}
+
+		if ( score >= 70 ) return "#menu.games.mostly_positive";
+		if ( score >= 40 ) return "#menu.games.mixed";
+		if ( score >= 20 ) return "#menu.games.mostly_negative";
+		if ( total >= 500 ) return "#menu.games.overwhelmingly_negative";
+		return total >= 50 ? "#menu.games.very_negative" : "#menu.games.negative";
+	}
+
+	/// <summary>
+	/// "positive", "mixed" or "negative" for colouring <see cref="RatingText"/> - "none" with none yet.
+	/// </summary>
+	public static string RatingClass( Package package ) => RatingClass( package.Reviews.Total, package.Reviews.Score );
+
+	/// <inheritdoc cref="RatingClass(Package)"/>
+	public static string RatingClass( int total, float score )
+	{
+		if ( total <= 0 ) return "none";
+
+		if ( score >= 70 ) return "positive";
+		if ( score >= 40 ) return "mixed";
+		return "negative";
+	}
+
+	// The party's size too - the mode chip goes green or orange with it, while the page is open
+	protected override int BuildHash() => System.HashCode.Combine( Package, Package?.VotesUp, Package?.VotesDown, PlayerModes.PartySize, Workshop, OnWorkshop, Loading );
+
+	/// <summary>
+	/// Rebuild composed text when translations change.
+	/// </summary>
+	public override void LanguageChanged()
+	{
+		base.LanguageChanged();
+		StateHasChanged();
+	}
+}

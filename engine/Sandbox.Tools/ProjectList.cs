@@ -41,21 +41,18 @@ public class ProjectList
 	}
 
 	/// <summary>
-	/// Tries to add a project from a file. Returns true if it was added, or already existed.
-	/// Project list is saved if it was added.
+	/// Tries to add a project from a file. Returns the project, or the existing entry if it was
+	/// already in the list, or null if it didn't load. Doesn't save the list - call SaveList.
 	/// </summary>
 	public Project TryAddFromFile( string path )
 	{
-		if ( !path.EndsWith( ".sbproj" ) )
-			path = System.IO.Path.Combine( path, ".sbproj" );
-
-		var cleanPath = System.IO.Path.GetFullPath( path );
+		var cleanPath = Project.NormalizeConfigFilePath( path );
 
 		// Don't add the same project twice
 		if ( All.Where( a => a.ConfigFilePath == cleanPath ).FirstOrDefault() is Project lp )
 			return lp;
 
-		var project = new Project { ConfigFilePath = cleanPath, LastOpened = DateTime.Now - TimeSpan.FromSeconds( 10 ) };
+		var project = new Project( cleanPath ) { LastOpened = DateTime.Now - TimeSpan.FromSeconds( 10 ) };
 		project.LoadMinimal();
 
 		// If it loaded broken, don't bother with it

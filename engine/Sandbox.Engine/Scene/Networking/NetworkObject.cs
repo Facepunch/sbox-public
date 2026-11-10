@@ -1,16 +1,17 @@
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using Sandbox.Network;
 using System.Runtime.InteropServices;
 using System.Text.Json.Nodes;
 
 namespace Sandbox;
 
-internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
+internal sealed partial class NetworkObject : IValid, IDeltaSnapshot, INetworkWakeable
 {
 	internal NetworkObject RootNetworkObject => GameObject.RootNetwork.RootGameObject._net;
 	internal GameObject GameObject { get; set; }
 
 	Guid IDeltaSnapshot.Id => Id;
+	uint IDeltaSnapshot.DirtyRevision => DirtyRevision;
 
 	/// <summary>
 	/// The unique <see cref="Guid"/> of the underlying <see cref="GameObject"/>.
@@ -72,15 +73,21 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 	/// </summary>
 	public bool IsProxy { get; private set; }
 
+	/// <summary>
+	/// Whether this object has been culled for every connection long enough to leave the pending update set.
+	/// Its visibility is still checked every tick, which wakes it.
+	/// </summary>
+	public bool IsDeltaDormant { get; private set; }
+
+	/// <summary>
+	/// Whether all current recipients have acknowledged this object's snapshot.
+	/// </summary>
+	public bool IsFullyUpdated { get; set; }
+
 	private void UpdateIsProxy()
 	{
-		if ( _isNetworkSpawning || IsOwner || (IsUnowned && Networking.IsHost) )
-		{
-			IsProxy = false;
-			return;
-		}
-
-		IsProxy = true;
+		IsProxy = !(_isNetworkSpawning || IsOwner || (IsUnowned && Networking.IsHost));
+		RefreshKeepsAwake();
 	}
 
 	private void UpdateIsOwner()
@@ -102,6 +109,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 	{
 		// Build the network table again as properties may have changed.
 		CreateDataTable();
+		MarkDirty();
 	}
 
 	internal NetworkObject( GameObject source )
@@ -212,8 +220,132 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 
 	internal void ClearInterpolation()
 	{
+		ClearStep();
+
 		if ( IsProxy ) return;
 		_clearInterpolationFlag = true;
+		MarkDirty();
+	}
+
+	/// <summary>
+	/// Only changes to locally authored, synchronized transform channels need a new snapshot.
+	/// Interpolated poses and inherited world transforms are not replicated state.
+	/// </summary>
+	internal void MarkTransformDirty( in Transform previous, in Transform value )
+	{
+		if ( IsProxy ) return;
+		if ( HasSyncedTransformChange( previous, value ) )
+			MarkDirty();
+	}
+
+	private bool HasSyncedTransformChange( in Transform previous, in Transform value )
+	{
+		var flags = GameObject.Network.Flags;
+		return ((flags & NetworkFlags.NoPositionSync) == 0 && !previous.Position.Equals( value.Position ))
+			|| ((flags & NetworkFlags.NoRotationSync) == 0 && !previous.Rotation.Equals( value.Rotation ))
+			|| ((flags & NetworkFlags.NoScaleSync) == 0 && !previous.Scale.Equals( value.Scale ));
+	}
+
+	/// <summary>
+	/// Whether this object is in the scene's pending network update set.
+	/// </summary>
+	internal bool IsDirty { get; set; }
+
+	internal uint DirtyRevision { get; private set; }
+
+	// Use game time so paused or slowed simulations keep recently changed objects awake.
+	private double _dormantAfter;
+
+	private void ExtendDormancyGrace() => _dormantAfter = Time.NowDouble + 1.0;
+
+	/// <summary>
+	/// Whether this peer controls entries that must be polled (<see cref="SyncFlags.Query"/>, plain collections).
+	/// Cached on property and control changes to avoid scanning the table every send.
+	/// </summary>
+	internal bool KeepsAwake { get; private set; }
+
+	internal void RefreshKeepsAwake()
+	{
+		var keepsAwake = dataTable?.HasControlledPollEntries() == true;
+		if ( keepsAwake == KeepsAwake ) return;
+
+		KeepsAwake = keepsAwake;
+
+		if ( IsDirty )
+			GameObject?.Scene?.MoveNetworkObjectPendingList( this );
+	}
+
+	/// <summary>
+	/// Whether this object may leave the pending update set at <paramref name="now"/>, read once per send by the caller.
+	/// </summary>
+	internal bool CanSleepAt( double now ) => !KeepsAwake && now >= _dormantAfter;
+
+	/// <summary>
+	/// Wake this object and keep it pending until its current state is acknowledged.
+	/// </summary>
+	public void MarkDirty()
+	{
+		// Network containers can outlive the object that owns them.
+		if ( !IsValid ) return;
+		if ( IsProxy && !Networking.IsHost ) return;
+
+		// Animation sets bone and attachment transforms from worker threads.
+		if ( !ThreadSafe.IsMainThread )
+		{
+			GameObject.Scene.QueueWorkerThreadNetworkWake( this );
+			return;
+		}
+
+		DirtyRevision = unchecked(DirtyRevision + 1);
+		IsFullyUpdated = false;
+		ExtendDormancyGrace();
+		IsDeltaDormant = false;
+		GameObject.Scene.MarkNetworkObjectDirty( this );
+	}
+
+	// Fixed update moves us a step at a time, we send where the owner shows us in between like local interpolation does
+	Transform _stepFrom;
+	double _stepStart;
+	double _stepEnd;
+
+	internal void ClearStep() => _stepEnd = 0;
+
+	/// <summary>
+	/// <paramref name="stepped"/> is whether the owner interpolates to it, otherwise it snaps there.
+	/// </summary>
+	internal void OnLocalTransformSet( in Transform from, in Transform to, bool stepped )
+	{
+		if ( stepped )
+		{
+			if ( _stepStart != Time.NowDouble )
+			{
+				_stepFrom = from;
+				_stepStart = Time.NowDouble;
+				_stepEnd = Time.NowDouble + Time.Delta;
+			}
+
+			return;
+		}
+
+		if ( from.Position != to.Position ) _stepFrom.Position = to.Position;
+		if ( from.Rotation != to.Rotation ) _stepFrom.Rotation = to.Rotation;
+		if ( from.Scale != to.Scale ) _stepFrom.Scale = to.Scale;
+	}
+
+	/// <summary>
+	/// Our local transform at <paramref name="time"/>, between the last fixed update step's start and its target.
+	/// </summary>
+	internal Transform SampleLocal( double time )
+	{
+		var target = GameObject.Transform.TargetLocal;
+		if ( IsProxy || time >= _stepEnd || GameObject.Flags.Contains( GameObjectFlags.NoInterpolation ) )
+			return target;
+
+		var t = (float)Math.Clamp( (time - _stepStart) / (_stepEnd - _stepStart), 0, 1 );
+		return new Transform(
+			Vector3.Lerp( _stepFrom.Position, target.Position, t ),
+			Rotation.Slerp( _stepFrom.Rotation, target.Rotation, t ),
+			Vector3.Lerp( _stepFrom.Scale, target.Scale, t ) );
 	}
 
 	internal bool CanDropOwnership( Connection source )
@@ -263,6 +395,18 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		SceneNetworkSystem.Instance.NetworkDestroyBroadcast( this );
 	}
 
+	// Snapshots sent after a refresh can get there before it. A new version has the receiver turn them away, so their
+	// values are sent again once it has the refresh.
+	LocalSnapshotState WriteRefreshSnapshot()
+	{
+		// Transforms are sampled at the send time, which is from the last send otherwise
+		SceneNetworkSystem.Instance?.DeltaSnapshots.UpdateTime();
+
+		LocalSnapshotState.Version++;
+		MarkDirty();
+		return WriteSnapshotState();
+	}
+
 	private static readonly GameObject.SerializeOptions _refreshSerializeOptions = new() { SingleNetworkObject = true, SkipNulls = true };
 
 	internal ObjectRefreshMsg GetRefreshMessage()
@@ -271,7 +415,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		if ( system is null )
 			throw new Exception( "SceneNetworkSystem is null" );
 
-		var snapshot = ((IDeltaSnapshot)this).WriteSnapshotState();
+		var snapshot = WriteRefreshSnapshot();
 
 		using var blobs = BlobDataSerializer.Capture();
 		var msg = new ObjectRefreshMsg
@@ -321,7 +465,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 			return;
 
 		{
-			var snapshot = ((IDeltaSnapshot)this).WriteSnapshotState();
+			var snapshot = WriteRefreshSnapshot();
 
 			using var blobs = BlobDataSerializer.Capture();
 			var msg = new ObjectRefreshDescendantMsg
@@ -345,7 +489,8 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 
 		if ( component is null ) return;
 
-		if ( !component.IsValid() )
+		// Destroying a component takes it out of the directory straight away, but it stays valid until its callback batch ends.
+		if ( !component.IsValid() || component.Scene.Directory.FindComponentByGuid( component.Id ) != component )
 		{
 			// We want to tell clients that this component has been destroyed...
 			var msg = new ObjectDestroyComponentMsg
@@ -358,7 +503,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		}
 
 		{
-			var snapshot = ((IDeltaSnapshot)this).WriteSnapshotState();
+			var snapshot = WriteRefreshSnapshot();
 
 			using var blobs = BlobDataSerializer.Capture();
 			var msg = new ObjectRefreshComponentMsg
@@ -392,6 +537,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 	internal readonly LocalSnapshotState LocalSnapshotState = new();
 
 	private readonly HashSet<Guid> _culledConnections = [];
+	private readonly HashSet<Guid> _createMessageConnections = [];
 	private readonly Dictionary<Guid, CullState> _cullStates = new();
 	private readonly SnapshotValueCache _snapshotCache = new();
 	private TimeUntil _nextUpdateCachedBounds;
@@ -403,13 +549,31 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 	private const float CullDelay = 2f;
 
 	/// <summary>
+	/// How long an object must have been culled for every connection before it leaves the pending update set.
+	/// </summary>
+	private const float DormancyThreshold = 3f;
+
+	private bool IsCulledForAll( Connection[] targets, float timeNow )
+	{
+		for ( var i = 0; i < targets.Length; i++ )
+		{
+			if ( !_cullStates.TryGetValue( targets[i].Id, out var state )
+				|| !state.Culled
+				|| timeNow - state.LastVisibleAt < DormancyThreshold )
+				return false;
+		}
+
+		return true;
+	}
+
+	/// <summary>
 	/// Remove a connection id from any internal data structures.
 	/// </summary>
 	/// <param name="id"></param>
 	internal void RemoveConnection( Guid id )
 	{
-		LocalSnapshotState.RemoveConnection( id );
 		_culledConnections.Remove( id );
+		_createMessageConnections.Remove( id );
 		_cullStates.Remove( id );
 	}
 
@@ -419,7 +583,9 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 	internal void OnHostChanged( Connection previousHost, Connection newHost )
 	{
 		ClearConnections();
+		UpdateIsOwner();
 		UpdateIsProxy();
+		MarkDirty();
 	}
 
 	/// <summary>
@@ -428,6 +594,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 	private void ClearConnections()
 	{
 		LocalSnapshotState.ClearConnections();
+		_createMessageConnections.Clear();
 	}
 
 	bool IDeltaSnapshot.ShouldTransmit( Connection target )
@@ -435,10 +602,14 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		return GameObject.Network.AlwaysTransmit || !_culledConnections.Contains( target.Id );
 	}
 
-	bool IDeltaSnapshot.UpdateTransmitState( Connection[] targets )
+	bool IDeltaSnapshot.UpdateTransmitState( Connection[] targets ) => UpdateTransmitState( targets );
+
+	private bool UpdateTransmitState( Connection[] targets )
 	{
 		if ( GameObject.Network.AlwaysTransmit )
 		{
+			IsDeltaDormant = false;
+
 			for ( var i = 0; i < targets.Length; i++ )
 			{
 				var target = targets[i];
@@ -446,10 +617,17 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 				if ( !_culledConnections.Remove( target.Id ) )
 					continue;
 
+				EnsureCreateMessageSent( target );
 				GameObject.Network.SetCullState( target, false );
 			}
 
 			return true;
+		}
+
+		if ( targets.Length == 0 )
+		{
+			IsDeltaDormant = false;
+			return false;
 		}
 
 		if ( _nextUpdateCachedBounds )
@@ -488,14 +666,18 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 			{
 				state.LastVisibleAt = timeNow;
 
+				// Ensure a create before transmitting; objects omitted from a join snapshot start un-culled.
+				EnsureCreateMessageSent( target );
+
 				if ( !state.Culled )
 					continue;
 
 				if ( !_culledConnections.Remove( target.Id ) )
 					continue;
 
-				LocalSnapshotState.RemoveConnection( target.Id );
+				SceneNetworkSystem.Instance?.DeltaSnapshots.ForgetObject( LocalSnapshotState, target );
 				GameObject.Network.SetCullState( target, false );
+				MarkDirty();
 
 				shouldTransmitToAny = true;
 				state.Culled = false;
@@ -515,7 +697,60 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 			}
 		}
 
+		IsDeltaDormant = !shouldTransmitToAny && IsCulledForAll( targets, timeNow ) && CanSleepAt( Time.NowDouble );
+
 		return shouldTransmitToAny;
+	}
+
+	internal bool CanProbeVisibility => (!IsProxy || Networking.IsHost) && !GameObject.Network.AlwaysTransmit;
+
+	internal bool ProbeVisibility( Connection[] targets )
+	{
+		var revision = DirtyRevision;
+		UpdateTransmitState( targets );
+		return DirtyRevision != revision;
+	}
+
+	/// <summary>
+	/// Ensure that a create message has been sent to the specified <see cref="Connection"/>. If it has not, then send it.
+	/// </summary>
+	/// <param name="target"></param>
+	internal void EnsureCreateMessageSent( Connection target )
+	{
+		if ( GameObject?.IsDestroyed ?? true )
+			return;
+
+		if ( !Networking.IsHost )
+			return;
+
+		if ( !_createMessageConnections.Add( target.Id ) )
+			return;
+
+		target.SendMessage( GetCreateMessage() );
+		MarkDirty();
+	}
+
+	/// <summary>
+	/// Should this object be included in an initial snapshot for the given connection? True if it's
+	/// always transmitted, snapshot-only, or currently visible to the connection.
+	/// </summary>
+	internal bool ShouldIncludeInSnapshot( Connection source )
+	{
+		var go = GameObject;
+		if ( !go.IsValid() )
+			return false;
+
+		return go.Network.AlwaysTransmit || go.NetworkMode == NetworkMode.Snapshot
+			|| IsVisible( source, go.GetLocalBounds() + go.WorldPosition );
+	}
+
+	/// <summary>
+	/// Mark that a create message has been sent to the specified <see cref="Connection"/>.
+	/// </summary>
+	/// <param name="target"></param>
+	internal void MarkCreateMessageSent( Connection target )
+	{
+		_createMessageConnections.Add( target.Id );
 	}
 
 	/// <summary>
@@ -523,45 +758,17 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 	/// have a culler component and use that, but we'll also use our bounds to determine if we're
 	/// visible.
 	/// </summary>
-	private bool IsVisible( Connection target, BBox worldBounds )
+	internal bool IsVisible( Connection target, BBox worldBounds )
 	{
 		// Do we have a INetworkVisible? We're going to let that take priority.
 		var go = GameObject;
-		if ( go.IsValid() && go.Enabled && go.NetworkVisibility is not null )
+		if ( go.Enabled && go.NetworkVisibility is not null )
 		{
 			return go.NetworkVisibility.IsVisibleToConnection( target, worldBounds );
 		}
 
 		// Global culling
-		return GameObject.Scene.IsBBoxVisibleToConnection( target, worldBounds );
-	}
-
-	void IDeltaSnapshot.OnSnapshotAck( Connection source, DeltaSnapshot snapshot, RemoteSnapshotState state )
-	{
-		IDeltaSnapshot snapshotter = this;
-
-		if ( !snapshotter.ShouldTransmit( source ) )
-			return;
-
-		var hasFullSnapshotState = true;
-
-		foreach ( var entry in LocalSnapshotState.Entries )
-		{
-			if ( state.IsValueHashEqual( entry.Slot, entry.Hash, snapshot.SnapshotId ) )
-			{
-				entry.Connections.Add( source.Id );
-			}
-			else
-			{
-				entry.Connections.Remove( source.Id );
-				hasFullSnapshotState = false;
-			}
-		}
-
-		if ( hasFullSnapshotState )
-			LocalSnapshotState.UpdatedConnections.Add( source.Id );
-		else
-			LocalSnapshotState.UpdatedConnections.Remove( source.Id );
+		return go.Scene.IsBBoxVisibleToConnection( target, worldBounds );
 	}
 
 	private const int SnapshotPositionSlot = 1;
@@ -570,7 +777,9 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 	private const int SnapshotInterpolationSlot = 4;
 	private const int SnapshotEnabledSlot = 5;
 
-	LocalSnapshotState IDeltaSnapshot.WriteSnapshotState()
+	LocalSnapshotState IDeltaSnapshot.WriteSnapshotState() => WriteSnapshotState();
+
+	private LocalSnapshotState WriteSnapshotState()
 	{
 		var system = SceneNetworkSystem.Instance;
 		if ( system is null ) return null;
@@ -579,13 +788,13 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 
 		LocalSnapshotState.Begin();
 		LocalSnapshotState.SnapshotId = system.DeltaSnapshots.CreateSnapshotId( Id );
-		LocalSnapshotState.ParentId = GameObject.Parent is Scene ? Guid.Empty : GameObject.Parent.Id;
+		LocalSnapshotState.ParentId = GameObject.Parent is null or Scene ? Guid.Empty : GameObject.Parent.Id;
 		LocalSnapshotState.ObjectId = Id;
 		LocalSnapshotState.Flags = flags;
 
 		if ( !IsProxy )
 		{
-			var tx = GameObject.Transform.TargetLocal;
+			var tx = SampleLocal( system.DeltaSnapshots.SendTime );
 
 			if ( (flags & NetworkFlags.NoPositionSync) == 0 )
 				LocalSnapshotState.AddCached( _snapshotCache, SnapshotPositionSlot, tx.Position, LocalSnapshotState.HashFlags.All );
@@ -606,7 +815,8 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 			LocalSnapshotState.AddCached( _snapshotCache, SnapshotEnabledSlot, GameObject.Enabled );
 		}
 
-		dataTable.QueryValues();
+		if ( dataTable.QueryValues() )
+			ExtendDormancyGrace();
 		dataTable.WriteSnapshotState( LocalSnapshotState );
 
 		_clearInterpolationFlag = false;
@@ -616,8 +826,8 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 
 	void IDeltaSnapshot.SendNetworkUpdate( bool queryValues )
 	{
-		if ( queryValues )
-			dataTable.QueryValues( true );
+		if ( queryValues && dataTable.QueryValues( true ) )
+			ExtendDormancyGrace();
 
 		if ( !dataTable.HasReliableChanges() )
 			return;
@@ -636,11 +846,13 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 	internal void TransmitStateChanged()
 	{
 		LocalSnapshotState.ClearConnections();
+		MarkDirty();
 	}
 
 	private static readonly GameObject.SerializeOptions _createSerializeOptions = new() { SingleNetworkObject = true, SkipNulls = true };
+	private static readonly GameObject.SerializeOptions _handoffSerializeOptions = new() { SingleNetworkObject = true, SkipNulls = true, IncludeLocalObjects = true };
 
-	internal ObjectCreateMsg GetCreateMessage()
+	internal ObjectCreateMsg GetCreateMessage( bool includeLocalObjects = false, SnapshotCapture capture = null )
 	{
 		if ( GameObject.Parent is null )
 		{
@@ -648,19 +860,20 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		}
 
 		using var blobs = BlobDataSerializer.Capture();
-		var jsonData = GameObject.Serialize( _createSerializeOptions );
+		var jsonData = GameObject.Serialize( includeLocalObjects ? _handoffSerializeOptions : _createSerializeOptions );
 		if ( jsonData is null )
 		{
 			throw new( $"Unable to serialize {GameObject.Id} ({GameObject.Name})" );
 		}
 
+		capture?.AddObject( jsonData, blobs );
 		var create = new ObjectCreateMsg
 		{
 			Guid = GameObject.Id,
 			SnapshotVersion = GameObject._net.LocalSnapshotState.Version,
-			Transform = GameObject.Transform.TargetLocal,
-			JsonData = jsonData.ToJsonString(),
-			BlobData = blobs.ToByteArray(),
+			Transform = includeLocalObjects ? GameObject.Transform.TargetLocal : SampleLocal( Time.NowDouble ),
+			JsonData = capture is null ? jsonData.ToJsonString() : null,
+			BlobData = capture is null ? blobs.ToByteArray() : null,
 			Creator = Creator,
 			Parent = GameObject.Parent.Id,
 			Owner = Owner,
@@ -669,6 +882,15 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		};
 
 		return create;
+	}
+
+	/// <summary>
+	/// Re-apply the sync table after lifecycle callbacks, which may have overwritten it.
+	/// </summary>
+	internal void ReapplyCreateTable( ObjectCreateMsg msg )
+	{
+		if ( GameObject.IsValid() )
+			ReadDataTable( msg.TableData );
 	}
 
 	internal void DoOrphanedAction()
@@ -730,7 +952,10 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 
 			// Only the host can modify network flags after the object has been spawned.
 			if ( !source.IsHost )
+			{
 				jsonObj.Remove( GameObject.JsonKeys.NetworkFlags );
+				GameObject.PreserveFromHostSyncMembers( jsonObj );
+			}
 
 			GameObject.SetParentFromNetwork( scene.Directory.FindByGuid( message.Parent ) );
 			GameObject.NetworkRefresh( jsonObj );
@@ -765,6 +990,10 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		if ( system is null ) return;
 
 		ReadDataTable( tableData );
+		// Owner and host can refresh at once, an older refresh must not roll the version back
+		var version = DeltaSnapshotSystem.ReadVersion( snapshotData );
+		if ( (short)(version - LocalSnapshotState.Version) > 0 )
+			LocalSnapshotState.Version = version;
 
 		var bs = ByteStream.CreateReader( snapshotData );
 		system.DeltaSnapshots.OnDeltaSnapshot( source, bs );
@@ -776,8 +1005,14 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		LocalSnapshotState.Version = msg.SnapshotVersion;
 
 		var parent = GameObject.Scene.Directory.FindByGuid( msg.Parent );
-		GameObject.Transform.SetLocalTransformFast( msg.Transform );
+		var oldParent = GameObject.Parent;
+		var moved = GameObject.Transform.SetLocalTransformFast( msg.Transform );
 		GameObject.SetParentFromNetwork( parent );
+
+		// Reparenting already notified
+		if ( moved && GameObject.Parent == oldParent )
+			GameObject.Transform.TransformChanged();
+
 		GameObject.Enabled = msg.Enabled;
 		ReadDataTable( msg.TableData );
 	}
@@ -817,7 +1052,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 
 			if ( didTransformChange )
 			{
-				GameObject.Transform.FromNetwork( transform, clearInterpolation );
+				GameObject.Transform.FromNetwork( transform, clearInterpolation, snapshot.Time );
 			}
 			else if ( clearInterpolation )
 			{
@@ -877,6 +1112,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		system?.DeltaSnapshots.ClearNetworkObject( this );
 
 		LocalSnapshotState.ClearConnections();
+		MarkDirty();
 
 		if ( !isOwner )
 			return;

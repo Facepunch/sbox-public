@@ -1,0 +1,15 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+  </Configurations>
+  <Project Path="Code/glass_test.csproj" />
+  <Project Path="Editor/glass_test.editor.csproj" />
+  <Folder Name="/Tools/">
+    <Project Path="../../../addons/tools/Code/Base Editor Library.csproj" />
+    <Project Path="../../../editor/ActionGraph/Code/actiongraph.csproj" />
+    <Project Path="../../../editor/DooEditor/Code/dooeditor.csproj" />
+    <Project Path="../../../editor/Hammer/Code/hammer.csproj" />
+    <Project Path="../../../editor/MovieMaker/Code/moviemaker.csproj" />
+    <Project Path="../../../editor/ShaderGraph/Code/shadergraph.csproj" />
+  </Folder>
+</Solution>

@@ -39,6 +39,7 @@ public class FastTextureWindow : Window
 
 	public override void Close()
 	{
+		SaveSettingsAndCleanup();
 		base.Destroy();
 	}
 
@@ -93,6 +94,9 @@ public class FastTextureWindow : Window
 
 		Settings.FastTextureSettings.Load();
 
+		var savedMin = Settings.FastTextureSettings.SavedRectMin;
+		var savedMax = Settings.FastTextureSettings.SavedRectMax;
+
 		// Get the initial rect from the existing UVs
 		var originalMapping = Settings.FastTextureSettings.Mapping;
 		Settings.FastTextureSettings.Mapping = MappingMode.UseExisting;
@@ -101,23 +105,27 @@ public class FastTextureWindow : Window
 		var meshRect = Document.Rectangles.OfType<Document.MeshRectangle>().FirstOrDefault();
 		if ( meshRect != null )
 		{
-			// Constrain the rectangle to UV space [0,1]
-			var min = new Vector2(
-				Math.Clamp( meshRect.Min.x, 0f, 1f ),
-				Math.Clamp( meshRect.Min.y, 0f, 1f )
-			);
-			var max = new Vector2(
-				Math.Clamp( meshRect.Max.x, 0f, 1f ),
-				Math.Clamp( meshRect.Max.y, 0f, 1f )
-			);
-
-			if ( min.x < max.x && min.y < max.y )
+			if ( originalMapping != MappingMode.UseExisting )
 			{
-				meshRect.Min = min;
-				meshRect.Max = max;
+				var min = new Vector2(
+					Math.Clamp( meshRect.Min.x, 0f, 1f ),
+					Math.Clamp( meshRect.Min.y, 0f, 1f )
+				);
+				var max = new Vector2(
+					Math.Clamp( meshRect.Max.x, 0f, 1f ),
+					Math.Clamp( meshRect.Max.y, 0f, 1f )
+				);
+
+				if ( min.x < max.x && min.y < max.y )
+				{
+					meshRect.Min = min;
+					meshRect.Max = max;
+				}
 			}
 
-			_savedRectBounds = (meshRect.Min, meshRect.Max);
+			_savedRectBounds = originalMapping != MappingMode.UseExisting && savedMin != savedMax
+				? (savedMin, savedMax)
+				: (meshRect.Min, meshRect.Max);
 		}
 
 		// Restore original mapping mode (this will trigger OnMappingModeChanged which handles the rest)
@@ -256,7 +264,7 @@ public class FastTextureWindow : Window
 		}
 	}
 
-	[Shortcut( "editor.cancel", "ESC" )]
+	[Shortcut( "editor.cancel", "ESC", ShortcutType.Window )]
 	public void Cancel()
 	{
 		if ( MeshFaces != null && OriginalUVs != null && MeshFaces.Length == OriginalUVs.Count )
@@ -292,6 +300,12 @@ public class FastTextureWindow : Window
 
 	protected override bool OnClose()
 	{
+		SaveSettingsAndCleanup();
+		return true;
+	}
+
+	private void SaveSettingsAndCleanup()
+	{
 		var meshRect = Document?.Rectangles.OfType<Document.MeshRectangle>().FirstOrDefault();
 		if ( meshRect != null )
 		{
@@ -303,8 +317,6 @@ public class FastTextureWindow : Window
 
 		_undoScope?.Dispose();
 		_undoScope = null;
-
-		return true;
 	}
 }
 
@@ -438,6 +450,7 @@ public class RectViewToolbar : Widget
 				CreateModeButton( toggleRow, "swap_horiz", "Flip H", () => false, () => Settings.IsFlippedHorizontal = !Settings.IsFlippedHorizontal );
 				CreateModeButton( toggleRow, "swap_vert", "Flip V", () => false, () => Settings.IsFlippedVertical = !Settings.IsFlippedVertical );
 				CreateModeButton( toggleRow, "border_vertical", "Pick", () => Settings.IsPickingEdge, () => Settings.PickEdge() );
+				CreateModeButton( toggleRow, "control_point", "Edit Verts", () => Settings.EditVertices, () => Settings.EditVertices = !Settings.EditVertices );
 			} );
 		}
 
@@ -573,6 +586,9 @@ public class RectViewToolbar : Widget
 			{
 				CreateModeButton( layout, "grid_4x4", "Toggle Tile View", () => Settings.IsTileView, () => Settings.IsTileView = !Settings.IsTileView );
 				CreateModeButton( layout, "rectangle", "Show Atlas Rects", () => Settings.ShowRects, () => Settings.ShowRects = !Settings.ShowRects );
+				CreateModeButton( layout, "grid_on", "Toggle Grid (Ctrl+G)", () => Window.GridEnabled, () => Window.SetGridEnabled( !Window.GridEnabled ) );
+				CreateModeButton( layout, "keyboard_arrow_down", "Decrease Grid Size ([)", () => false, () => Window.SmallerGrid() );
+				CreateModeButton( layout, "keyboard_arrow_up", "Increase Grid Size (])", () => false, () => Window.BiggerGrid() );
 			} );
 
 			AddGroup( viewCol, "Actions", layout =>

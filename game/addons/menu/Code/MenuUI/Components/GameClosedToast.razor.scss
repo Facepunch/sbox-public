@@ -1,261 +1,205 @@
+@import "/Platform/_platform.scss";
 
+// The menu's card - the slab, hairline, rounding - in the bottom right corner. Everything's scoped
+// under it: stylesheets are global, and a bare .head or .close would restyle half the menu.
 GameClosedToast
 {
-    border-radius: 12px;
-    color: #fff;
-    font-family: "poppins";
-    font-size: 18px;
-    font-weight: 600;
-    pointer-events: none;
-    box-shadow: 5px 5px 20px rgba( black, 0.8 );
-    opacity: 1;
-    transition: all 0.2s ease-out;
-    sound-in: ui.popup.message.open;
-    overflow: hidden;
-    flex-direction: row;
-    background-color: #1b202c;
-    border: 1px solid #8e9ec244;
-    opacity: 1;
-    padding: 16px;
-    margin-bottom: 16px;
-    height: 190px;
-    width: 350px;
-    pointer-events: all;
-    position: relative;
-    left: 0px;
-    flex-direction: column;
-    gap: 8px;
+	@include platform-surface;
+	flex-shrink: 0;
+	overflow: hidden;
 
-    &:intro
-    {
-        left: 1000px;
-        height: 0px;
-        margin-bottom: 0px;
-        opacity: 0;
-        padding: 0px;
-    }
+	position: relative;
+	width: 360px;
+	top: 0px;
+	pointer-events: all;
+	transition: all 0.2s ease-out;
+	sound-in: "ui.popup.message.open";
 
-    &:outro
-    {
-        left: 100px;
-        height: 0px;
-        opacity: 0;
-        transition: all 0.2s ease-in;
-    }
+	// Rises up from the bottom edge it sits on, and sinks back into it
+	&:intro
+	{
+		top: 40px;
+		opacity: 0;
+	}
 
-    .left
-    {
-        .game-icon
-        {
-            width: 70px;
-            height: 70px;
-            background-size: cover;
-            border-radius: 10px;
-            cursor: pointer;
-        }
-    }
+	&:outro
+	{
+		top: 40px;
+		opacity: 0;
+		transition: all 0.2s ease-in;
+	}
 
-    .right
-    {
-        flex-direction: column;
-        font-size: 11px;
-        padding: 4px 16px;
-        justify-content: center;
-        gap: 8px;
+	i
+	{
+		font-family: "Material Icons";
+	}
 
-        .game-title
-        {
-            font-size: 17px;
-            font-weight: bold;
-            line-height: 70%;
-        }
+	//
+	// The game
+	//
 
-        .game-author
-        {
-            justify-content: flex-start;
-            color: #86b0ff;
-            font-weight: 400;
-        }
+	.head
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 14px;
+		padding: 16px 12px 14px $front-inset;
+	}
 
-        .now-playing, .more-info
-        {
-            color: #86b0ff;
-        }
+	.game-icon
+	{
+		flex-shrink: 0;
+		width: 56px;
+		height: 56px;
+		border-radius: 8px;
+		background-size: cover;
+		background-position: center;
+		background-color: rgba( 0, 0, 0, 0.35 );
+		cursor: pointer;
+		transition: all 0.1s ease;
 
-        .now-playing
-        {
-            margin-bottom: 8px;
-        }
+		&:hover
+		{
+			filter: brightness( 1.15 );
+			sound-in: "ui.button.over";
+		}
+	}
 
-        .more-info
-        {
-            font-size: 9px;
-            justify-content: flex-start;
-            align-items: center;
-            margin-top: 8px;
-            height: 32px;
-            gap: 4px;
-            animation-name: loader-spin;
-            animation-duration: 0.8s;
-            animation-timing-function: ease;
-            animation-iteration-count: 1;
-            animation-delay: 1.0s;
-            animation-fill-mode: both;
-        }
-    }
+	.head-text
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		min-width: 0;
+		cursor: pointer;
 
-    .button
-    {
-        padding: 0;
-        background-color: white;
-        padding: 1px 4px;
-        border-radius: 4px;
-        box-shadow: 2px 2px 5px #0003;
-    }
-}
+		&:hover .game-title
+		{
+			color: #ffffff;
+		}
+	}
 
-.top
-{
-    width: 100%;
-    border-radius: 8px;
-    cursor: pointer;
-    flex-shrink: 0;
+	.eyebrow
+	{
+		@include platform-section-label;
+		margin-bottom: 2px;
+	}
 
-    &:hover
-    {
-        color: white;
-        filter: brightness( 2 );
-    }
-}
+	.game-title
+	{
+		font-size: 15px;
+		font-weight: 700;
+		color: $front-heading;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		transition: color 0.1s ease;
+	}
 
-.body
-{
-    flex-grow: 1;
-}
+	.game-org
+	{
+		font-size: 12px;
+		font-weight: 500;
+		color: $front-secondary;
+	}
 
-.close
-{
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    padding: 8px;
-    cursor: pointer;
-    z-index: 10;
-    border-radius: 8px;
+	// Top right, level with the eyebrow
+	.close
+	{
+		@include platform-tool( 28px, 16px );
 
-    &:hover
-    {
-        background-color: #fff1;
-    }
-}
+		align-self: flex-start;
+		margin-top: -6px;
+	}
 
+	//
+	// What you thought - buttons along a hairlined band
+	//
 
-@keyframes loader-spin
-{
-    0%
-    {
-        height: 1px;
-        opacity: 0;
-    }
+	.actions
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 8px;
+		padding: 12px $front-inset 16px $front-inset;
+		border-top: $front-border-width solid $front-hairline;
 
-    50%
-    {
-        height: 16px;
-        opacity: 0.25;
-    }
+		.grow
+		{
+			flex-grow: 1;
+		}
+	}
 
+	.actions > .action
+	{
+		@include platform-text-button( 34px, 12.5px, 15px );
+		padding: 0 12px 0 10px;
 
-    80%
-    {
-        height: 16px;
-        opacity: 0.5;
-    }
+		&:hover
+		{
+			sound-in: "ui.button.over";
+		}
 
+		&:active
+		{
+			sound-in: "ui.button.press";
+		}
 
-    90%
-    {
-        opacity: 1;
-        height: 16px;
-    }
+		// Yours - lit, as a toggle that's on
+		&.favourite.active
+		{
+			@include platform-button-selected;
+		}
+	}
 
-    100%
-    {
-        opacity: 1;
-        height: 16px;
-    }
-}
+	// Up and down as one pair of choices
+	.votes
+	{
+		@include platform-choices;
 
+		.action
+		{
+			@include platform-choice;
+			// As wide as what's on them - the strip has no width of its own to share out
+			flex-grow: 0;
+			flex-basis: auto;
+			padding: 0 10px;
 
-.body
-{
-    gap: 8px;
-    padding: 0px;
-}
+			&:hover
+			{
+				sound-in: "ui.button.over";
+			}
 
-.body .option
-{
-    flex-grow: 1;
-    flex-shrink: 0;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    gap: 1rem;
-    font-size: 11px;
-    cursor: pointer;
-    color: #b2bfd8;
-    background-color: #b2bfd805;
-    padding: 1rem;
-    border-radius: 8px;
+			&:active
+			{
+				sound-in: "ui.button.press";
+			}
+		}
+	}
 
-    &:hover
-    {
-        background-color: #b2bfd822;
-    }
+	//
+	// Time left - a hairline along the very bottom edge, running down
+	//
 
-    &.active
-    {
-        color: white;
-    }
-}
+	.timer
+	{
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		height: 2px;
 
-.body .option i
-{
-    font-size: 18px;
-}
+		.fill
+		{
+			height: 100%;
+			background-color: rgba( $front-primary, 0.8 );
+			transition: background-color 0.2s ease;
+		}
+	}
 
-.body .option.favourite.active i
-{
-    color: #e93b6d;
-}
-
-
-.body .group
-{
-    border-radius: 8px;
-    overflow: hidden;
-    flex-grow: 2;
-    gap: 1px;
-}
-
-.body .group .option
-{
-    border-radius: 0;
-}
-
-.close-progress
-{
-    height: 5px;
-    border-radius: 2px;
-    overflow: hidden;
-    left: 0px;
-    right: 0px;
-    background-color: black;
-    z-index: 10;
-    flex-shrink: 0;
-
-    .inner
-    {
-        background-color: #467de4;
-        width: 30%;
-    }
+	// Paused while you're on it - dimmed so it reads as stopped
+	&:hover .timer .fill
+	{
+		background-color: rgba( 255, 255, 255, 0.2 );
+	}
 }

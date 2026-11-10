@@ -19,17 +19,18 @@ public static partial class Graphics
 
 		AssertRenderBlock();
 
-		if ( !SceneLayer.IsValid ) return;
-
 		// Get the layout for this vertex. This will create if not found.
 		var vertexType = VertexLayout.Get<T>();
 		if ( !vertexType.IsValid ) return;
 
+		if ( vertexType.m_Size > sizeof( T ) )
+			throw new ArgumentException( $"{typeof( T )} vertex layout is larger than the vertex type" );
+
 		// Set the material etc
-		if ( !RenderTools.SetRenderState( Context, attributes.Get(), material.native.GetMode( SceneLayer ), vertexType, Graphics.Stats ) )
+		if ( !RenderTools.SetRenderState( Context, attributes.Get(), ModeFor( material ), vertexType, Graphics.Stats ) )
 			return;
 
-		var totalSize = sizeof( T ) * vertCount;
+		var totalSize = (long)sizeof( T ) * vertCount;
 		if ( indices is not null || totalSize < maxDynamicVertexBuffer )
 		{
 			RenderTools.Draw( Context, (NativeEngine.RenderPrimitiveType)primitiveType, vertexType, (IntPtr)vertices, vertCount, (IntPtr)indices, indexCount, Graphics.Stats );
@@ -56,11 +57,22 @@ public static partial class Graphics
 		}
 	}
 
+	internal static void ValidateDrawCounts( int vertCount, int vertexLength, int indexCount = 0, int indexLength = 0 )
+	{
+		if ( vertCount < 0 || vertCount > vertexLength )
+			throw new ArgumentOutOfRangeException( nameof( vertCount ), $"{nameof( vertCount )} ({vertCount}) must be between 0 and the number of vertices ({vertexLength})" );
+
+		if ( indexCount < 0 || indexCount > indexLength )
+			throw new ArgumentOutOfRangeException( nameof( indexCount ), $"{nameof( indexCount )} ({indexCount}) must be between 0 and the number of indices ({indexLength})" );
+	}
+
 	/// <summary>
 	/// Draw a bunch of vertices
 	/// </summary>
 	public static unsafe void Draw( Span<Vertex> vertices, int vertCount, Material material, RenderAttributes attributes = null, PrimitiveType primitiveType = PrimitiveType.Triangles )
 	{
+		ValidateDrawCounts( vertCount, vertices.Length );
+
 		fixed ( Vertex* ptr = vertices )
 		{
 			DrawInternal( ptr, vertCount, default, default, material, attributes, primitiveType );
@@ -75,6 +87,8 @@ public static partial class Graphics
 	/// </summary>
 	internal static unsafe void Draw<T>( Span<T> vertices, int vertCount, Material material, RenderAttributes attributes = null, PrimitiveType primitiveType = PrimitiveType.Triangles ) where T : unmanaged
 	{
+		ValidateDrawCounts( vertCount, vertices.Length );
+
 		fixed ( T* ptr = vertices )
 		{
 			DrawInternal( ptr, vertCount, default, default, material, attributes, primitiveType );
@@ -105,6 +119,8 @@ public static partial class Graphics
 	/// </summary>
 	public static unsafe void Draw( Span<Vertex> vertices, int vertCount, Span<ushort> indices, int indexCount, Material material, RenderAttributes attributes = null, PrimitiveType primitiveType = PrimitiveType.Triangles )
 	{
+		ValidateDrawCounts( vertCount, vertices.Length, indexCount, indices.Length );
+
 		fixed ( Vertex* vptr = vertices )
 		fixed ( ushort* iptr = indices )
 		{
@@ -149,16 +165,11 @@ public static partial class Graphics
 	public static void Render( SceneObject obj, Transform? transform = null, Color? color = null, Material material = null )
 	{
 		AssertRenderBlock();
-		if ( !SceneLayer.IsValid ) return;
+
 		if ( !obj.IsValid() ) return;
 
-		var tx = transform ?? obj.Transform;
-		var cl = color ?? Color.White;
-		var mat = material?.native ?? default;
-
-		var attributes = Attributes;
-
-		RenderTools.DrawSceneObject( Context, SceneLayer, obj, tx, cl, mat, attributes.Get() );
+		// Native draws it through its layer's view; a managed frame (r_managed_scene) draws it from its own copy of the object
+		_state.view?.RenderSceneObject( Context, obj, transform ?? obj.Transform, color ?? Color.White, material, Attributes );
 	}
 
 	/// <summary>
@@ -222,15 +233,8 @@ public static partial class Graphics
 	/// </summary>
 	public static Rect DrawText( in Rect position, in TextRendering.Scope scope, TextFlag flags = TextFlag.Center )
 	{
-		var texture = TextRendering.GetOrCreateTexture( scope, flag: flags );
-
-		Attributes.Set( "Texture", texture );
-		Attributes.Set( "SamplerIndex", SamplerState.GetBindlessIndex( new SamplerState() { Filter = scope.FilterMode } ) );
-
-		var rect = position.Align( texture.Size, flags );
-		DrawQuad( rect.Floor(), Material.UI.Text, Color.White );
-
-		return rect;
+		var block = TextRendering.GetOrCreateTextBlock( scope, flags );
+		return block is null ? position : DrawText( block, position, flags, 0 );
 	}
 
 	/// <summary>
@@ -238,13 +242,26 @@ public static partial class Graphics
 	/// </summary>
 	internal static void DrawText( in Rect position, float angle, in TextRendering.Scope scope, TextFlag flags = TextFlag.Center )
 	{
-		var texture = TextRendering.GetOrCreateTexture( scope, flag: flags );
+		var block = TextRendering.GetOrCreateTextBlock( scope, flags );
+		if ( block is not null ) DrawText( block, position, flags, angle );
+	}
 
-		Attributes.Set( "Texture", texture );
-		Attributes.Set( "SamplerIndex", SamplerState.GetBindlessIndex( new SamplerState() { Filter = scope.FilterMode } ) );
+	/// <summary>
+	/// Draws a text block aligned in position as one quad with Material.UI.Text, composited per pixel from its glyph outlines.
+	/// </summary>
+	internal static Rect DrawText( TextRendering.TextBlock block, in Rect position, TextFlag flags, float angle )
+	{
+		var rect = position.Align( block.Size, flags );
+		if ( block.IsEmpty ) return rect;
 
-		var rect = position.Align( texture.Size, flags );
-		DrawQuad( rect, angle, Material.UI.Text, Color.White );
+		GpuFontText.Bind( Attributes, block.Upload() );
+
+		if ( angle == 0f )
+			DrawQuad( rect.Floor(), Material.UI.Text, Color.White );
+		else
+			DrawQuad( rect.Floor(), angle, Material.UI.Text, Color.White );
+
+		return rect;
 	}
 
 	/// <summary>
@@ -270,9 +287,8 @@ public static partial class Graphics
 	/// </summary>
 	public static Rect MeasureText( in Rect position, in TextRendering.Scope scope, TextFlag flags = TextFlag.Center )
 	{
-		var block = TextRendering.GetOrCreateTexture( scope, position.Size, flags );
-		var rect = new Rect( position.Position, block.Size );
-		return rect;
+		var block = TextRendering.GetOrCreateTextBlock( scope, flags, position.Size );
+		return block is null ? position : new Rect( position.Position, block.Size );
 	}
 
 	/// <summary>
@@ -287,13 +303,19 @@ public static partial class Graphics
 	}
 
 	/// <summary>
-	/// Draw a rounded rectangle, with optional border, in Material.UI.Box
+	/// Draw a rounded rectangle, with optional border, in Material.UI.Box. Corner radii are
+	/// (bottom-right, top-right, bottom-left, top-left); radii too big for the rect are scaled to fit, like CSS.
+	/// Border widths are left, top, right, bottom.
 	/// </summary>
 	public static unsafe void DrawRoundedRectangle( in Rect rect, in Color color, in Vector4 cornerRadius = default, in Vector4 borderWidth = default, in Color borderColor = default )
 	{
+		var radii = BorderRadii.FromPublic( cornerRadius ).Clamped( rect.Width, rect.Height );
+
 		Attributes.Set( "BoxPosition", new Vector2( rect.Left, rect.Top ) );
 		Attributes.Set( "BoxSize", new Vector2( rect.Width, rect.Height ) );
-		Attributes.Set( "BorderRadius", cornerRadius );
+		Attributes.Set( "BoxBloat", 1.0f );
+		Attributes.Set( "BorderRadius", radii.Horizontal );
+		Attributes.Set( "BorderRadiusV", radii.Vertical );
 		Attributes.SetCombo( "D_BACKGROUND_IMAGE", 0 );
 
 		if ( !borderWidth.IsNearZeroLength )
@@ -313,7 +335,10 @@ public static partial class Graphics
 			Attributes.SetCombo( "D_BORDER_IMAGE", 0 );
 		}
 
-		DrawQuad( rect, Material.UI.Box, color );
+		DrawQuad( rect.Grow( 1 ), Material.UI.Box, color );
+
+		// Attributes are global, don't leave the bloat on for anyone drawing with Material.UI.Box themselves
+		Attributes.Set( "BoxBloat", 0.0f );
 	}
 
 }

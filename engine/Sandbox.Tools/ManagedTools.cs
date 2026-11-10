@@ -1,5 +1,4 @@
-﻿using NativeEngine;
-using Sandbox.Internal;
+﻿using Sandbox.Internal;
 using System;
 
 namespace Editor;
@@ -56,14 +55,18 @@ internal static class ManagedTools
 
 	public static void InitQt()
 	{
-		var root = Environment.CurrentDirectory;
+		// Qt needs real paths on disk, but which case those are spelled in is the filesystem's
+		// business, not ours - so ask it rather than gluing strings onto the working directory.
+		QDir.addSearchPath( "toolimages", FileSystem.Root.GetFullPath( "/core/tools/images" ) );
+		QDir.addSearchPath( "toolimages", FileSystem.Root.GetFullPath( "/addons/tools/assets" ) );
 
-		QDir.addSearchPath( "toolimages", $"{root}/core/tools/images" );
-		QDir.addSearchPath( "toolimages", $"{root}/addons/tools/assets" );
+		// Same for the fonts, which is what bit: this folder is really called Assets, so
+		// enumerating a spelled-out path found nothing and Qt never got a font.
+		const string fontFolder = "/core/fonts";
 
-		foreach ( var file in System.IO.Directory.EnumerateFiles( $"{root}/addons/base/assets/fonts/", "*.ttf" ) )
+		foreach ( var file in FileSystem.Root.FindFile( fontFolder, "*.ttf" ) )
 		{
-			QFontDatabase.addApplicationFont( file );
+			QFontDatabase.addApplicationFont( FileSystem.Root.GetFullPath( $"{fontFolder}/{file}" ) );
 		}
 	}
 
@@ -80,22 +83,29 @@ internal static class ManagedTools
 		Log.Info( "Compiling Tools" );
 		RunFrame();
 
-		while ( !AccountLoginTask.IsCompleted )
+		while ( AccountLoginTask is not null && !AccountLoginTask.IsCompleted )
 		{
 			Sandbox.Engine.IToolsDll.Current?.Spin();
 			System.Threading.Thread.Sleep( 16 );
 		}
 
-		// If the avatar was found on the backend, replace the cookie one
 		if ( !string.IsNullOrWhiteSpace( AccountInformation.AvatarJson ) )
-		{
 			Avatar.AvatarJson = AccountInformation.AvatarJson;
-		}
 	}
+
+	static bool _wasActiveWindow;
 
 	public static void RunFrame()
 	{
 		Application.StartFrame();
+
+		// Release all shortcut key states when the editor loses focus (alt-tab)
+		var isActive = EditorMainWindow.Current?.IsActiveWindow ?? false;
+		if ( _wasActiveWindow && !isActive )
+		{
+			EditorShortcuts.ReleaseAll();
+		}
+		_wasActiveWindow = isActive;
 
 		if ( AssembliesDirty )
 		{
@@ -117,6 +127,12 @@ internal static class ManagedTools
 	public static void Shutdown()
 	{
 		stylesWatcher?.Dispose();
+
+		// Panel UI windows and their swap chains, before the render device goes away
+		PanelWindow.DisposeAll();
+		SceneRenderingWidget.ShutdownRendering();
+		PanelSurfaceWidget.ShutdownRendering();
+		EngineLoop.DrainFrameEndDisposables();
 
 		AssetSystem.Shutdown();
 	}
@@ -158,8 +174,11 @@ internal static class ManagedTools
 		}
 	}
 
-	internal static void GlobalMouseWheel( int x, int y )
+	internal static void GlobalMouseWheel( int x, int y, int modifiers )
 	{
+		if ( EditorShortcuts.InvokeWheel( y, QtHelpers.Translate( (QtKeyboardModifiers)modifiers ) ) )
+			return;
+
 		Application.accumulatedCursorDelta += new Vector2( x / 120, y / 120 );
 	}
 
@@ -215,6 +234,8 @@ internal static class ManagedTools
 		return !EditorShortcuts.AllowShortcuts;
 	}
 
+	internal static void RunConsoleCommand( string command ) => Sandbox.ConVarSystem.Run( command );
+
 	internal static void OnToolCommand( string v )
 	{
 		var parts = v.SplitQuotesStrings();
@@ -226,7 +247,11 @@ internal static class ManagedTools
 
 	internal static void StartSplashScreen()
 	{
-		new EditorSplashScreen();
+		// Panel UI is drawn before Bootstrap.Init gets to its normal material preload.
+		Material.Preload();
+		FontManager.Instance.LoadAll( EngineFileSystem.CoreContent );
+		EditorSplashScreen.Singleton = new EditorSplashScreen();
+		EditorSplashScreen.Pump();
 
 		g_pToolFramework2.Spin();
 	}
@@ -235,6 +260,7 @@ internal static class ManagedTools
 	/// </summary>
 	public static void OnQtHeartbeat()
 	{
+		EditorSplashScreen.Pump();
 		BlockingLoopPumper.Pump();
 	}
 }

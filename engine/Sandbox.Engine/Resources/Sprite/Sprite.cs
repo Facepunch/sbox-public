@@ -29,7 +29,7 @@ public sealed partial class Sprite : GameResource
 	{
 		for ( int i = 0; i < Animations.Count; i++ )
 		{
-			if ( Animations[i].Name.ToLowerInvariant() == name.ToLowerInvariant() )
+			if ( string.Equals( Animations[i].Name, name, StringComparison.OrdinalIgnoreCase ) )
 			{
 				return i;
 			}

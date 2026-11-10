@@ -18,7 +18,7 @@ partial record PropertySignal<T>
 		return new ToLocalOperation<T>( a, b );
 	}
 
-	[return: NotNullIfNotNull( nameof(a) )]
+	[return: NotNullIfNotNull( nameof( a ) )]
 	public static PropertySignal<T> operator +( PropertySignal<T> a, PropertySignal<T> b )
 	{
 		if ( Transformer.GetDefault<T>() is null ) return a;

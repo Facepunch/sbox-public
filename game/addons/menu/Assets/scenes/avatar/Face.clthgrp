@@ -16,9 +16,10 @@
           "Offset": "0,0",
           "Rotate": 0,
           "FlipVertical": false,
-          "FlipHorizontal": false
+          "FlipHorizontal": false,
+          "FormatOverride": null
         },
-        "compiled": "textures/generated/svgsource/460cde81c219cffa.vtex"
+        "compiled": "textures/generated/svgsource/7315df56c08cdf16.vtex"
       },
       "ShowAll": true,
       "SubCategories": [
@@ -37,9 +38,10 @@
               "Offset": "0,0",
               "Rotate": 0,
               "FlipVertical": false,
-              "FlipHorizontal": false
+              "FlipHorizontal": false,
+              "FormatOverride": null
             },
-            "compiled": "textures/generated/svgsource/45d91cb78deecf42.vtex"
+            "compiled": "textures/generated/svgsource/34f4e569e04e4f86.vtex"
           },
           "Categories": [
             "Hair",
@@ -61,9 +63,10 @@
               "Offset": "0,0",
               "Rotate": 0,
               "FlipVertical": false,
-              "FlipHorizontal": false
+              "FlipHorizontal": false,
+              "FormatOverride": null
             },
-            "compiled": "textures/generated/svgsource/247c5314ea8ec591.vtex"
+            "compiled": "textures/generated/svgsource/36b07ce1978676d0.vtex"
           },
           "Categories": [
             "HairMedium"
@@ -84,9 +87,10 @@
               "Offset": "0,0",
               "Rotate": 0,
               "FlipVertical": false,
-              "FlipHorizontal": false
+              "FlipHorizontal": false,
+              "FormatOverride": null
             },
-            "compiled": "textures/generated/svgsource/b41668cb317db4dc.vtex"
+            "compiled": "textures/generated/svgsource/c98d830c2bed75bd.vtex"
           },
           "Categories": [
             "HairLong"
@@ -107,9 +111,10 @@
               "Offset": "0,0",
               "Rotate": 0,
               "FlipVertical": false,
-              "FlipHorizontal": false
+              "FlipHorizontal": false,
+              "FormatOverride": null
             },
-            "compiled": "textures/generated/svgsource/5fbfd47caeced469.vtex"
+            "compiled": "textures/generated/svgsource/9222a04c12c70983.vtex"
           },
           "Categories": [
             "HairUpdo"
@@ -130,9 +135,10 @@
               "Offset": "0,0",
               "Rotate": 0,
               "FlipVertical": false,
-              "FlipHorizontal": false
+              "FlipHorizontal": false,
+              "FormatOverride": null
             },
-            "compiled": "textures/generated/svgsource/254ef6613b701a66.vtex"
+            "compiled": "textures/generated/svgsource/a4a9879ae65e0fd2.vtex"
           },
           "Categories": [
             "HairSpecial"
@@ -247,9 +253,10 @@
           "Offset": "0,0",
           "Rotate": 0,
           "FlipVertical": false,
-          "FlipHorizontal": false
+          "FlipHorizontal": false,
+          "FormatOverride": null
         },
-        "compiled": "textures/generated/svgsource/5841bc8e0286987.vtex"
+        "compiled": "textures/generated/svgsource/4d1f4351bf27ad3f.vtex"
       },
       "ShowAll": false,
       "SubCategories": [
@@ -297,6 +304,30 @@
           },
           "Categories": [
             "MakeupEyeshadow"
+          ]
+        },
+        {
+          "Name": "eyeliner",
+          "Title": "Eyeliner",
+          "Icon": {
+            "$compiler": "texture",
+            "$source": "svgsource",
+            "data": {
+              "Size": "256,256",
+              "Source": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg width=\"1200pt\" height=\"1200pt\" version=\"1.1\" viewBox=\"0 0 1200 1200\" xmlns=\"http://www.w3.org/2000/svg\">\n <path d=\"m1198.5 4.418c-2.5273-3.9805-7.582-5.5078-11.895-3.6016-25.574 11.32-51.113 24.023-75.91 37.762-28.613 15.895-56.598 33.363-83.184 51.922-0.003907 0.003906-0.003907 0.003906-0.007813 0.003906-34.406 23.309-68.188 48.141-100.3 73.727l-1.0391 0.82812c-28.754 22.965-57.16 47.766-84.43 73.707-12.855 12.238-25.633 24.867-37.973 37.543l-296.73 304.85-0.003906 0.003906c-0.1875 0.17578-0.375 0.35938-0.55859 0.55078-1.8203 1.7578-3.5781 3.5625-5.2305 5.3672-0.20312 0.19922-0.34375 0.36328-0.5 0.53906l-498.04 511.62c-1.7695 1.8203-2.7422 4.2695-2.6992 6.8047 0.042969 2.5352 1.0977 4.9531 2.9297 6.7109l88.219 84.602c1.8438 1.7656 4.2148 2.6445 6.5898 2.6445 2.4805 0 4.9609-0.96484 6.8281-2.8828l801.07-822.93c12.359-12.691 24.645-25.801 36.512-38.957 25.18-27.934 49.172-56.965 71.312-86.277 0.054687-0.070312 0.10547-0.14453 0.16016-0.21875 0.15625-0.22266 0.3125-0.42188 0.5625-0.74609 24.82-32.961 48.684-67.359 70.918-102.23 0.003906-0.003906 0.007812-0.007812 0.011719-0.015624 12.688-19.762 26.715-39.012 41.695-57.211 21.191-25.738 44.715-49.898 69.922-71.816 3.5469-3.0938 4.3086-8.3203 1.7773-12.297zm-544.41 547.9c-25.023 5.2031-48.059 13.672-68.227 25.203-35.352 20.215-58.68 48.535-65.691 79.762-1.8008 8.0703-2.5195 16.105-2.1992 24.539 1.5586 43.191-19.758 82.828-55.637 103.45-6.5508 3.7695-13.539 7.2109-20.766 10.223-28.875 12.027-56.559 14.902-79.957 13.789 69.27-14.73 118.88-51.027 127.5-97.09 1.668-8.8633 1.7227-18.195 0.15625-27.73-4.4414-27.117 1.5664-53.285 16.906-73.66 2.7812-3.6719 5.543-6.9883 8.4414-10.137 0.042969-0.050781 0.085938-0.09375 0.12891-0.14453 0.035156-0.035157 0.0625-0.070313 0.097656-0.10156 0.003906-0.003906 0.011719-0.007813 0.015625-0.015625l5.2148-5.3555c0.003906-0.003906 0.007812-0.011719 0.015625-0.015625 0.035156-0.039062 0.074219-0.074218 0.10938-0.10938l0.19531-0.19141c33.086-31.984 81.402-46.711 133.69-42.418zm344.87-315.8c-0.26172 0.34375-0.52734 0.6875-0.78906 1.0547-19.863 26.297-41.254 52.344-63.648 77.574l-72.398-69.418c24.641-23.082 50.129-45.18 75.812-65.699l1.0312-0.82031c29.887-23.812 61.137-46.895 92.977-68.688l32.891 31.523c-20.77 32.223-42.91 63.977-65.875 94.473z\"/>\n <path d=\"m1039.2 486.05c-23.293-22.34-49.918-28.566-63.719-30.293-2.9609-0.375-5.9258 0.66797-8.0078 2.8086-57.883 59.477-115.77 118.94-173.66 178.41l-96.215 98.832c-2.1523 2.2109-3.1016 5.3281-2.543 8.3633 0.55859 3.0352 2.5508 5.6133 5.3516 6.9141 18.012 8.3789 34.375 19.559 48.637 33.234 14.285 13.707 26.102 29.547 35.125 47.082 1.4023 2.7227 4.0312 4.6055 7.0625 5.0586 0.46875 0.070312 0.94141 0.10547 1.4062 0.10547 2.5508 0 5.0156-1.0273 6.8242-2.8828l269.88-277.24c2.1016-2.1602 3.0586-5.1914 2.5781-8.168-5.1562-31.809-22.711-52.637-32.715-62.223z\"/>\n</svg>\n",
+              "Colorize": true,
+              "TargetColor": "1,1,1,1",
+              "Scale": 0.95,
+              "Offset": "0,0",
+              "Rotate": 0,
+              "FlipVertical": false,
+              "FlipHorizontal": false,
+              "FormatOverride": null
+            },
+            "compiled": "textures/generated/svgsource/d6d4bc0f1e711f68.vtex"
+          },
+          "Categories": [
+            "MakeupEyeliner"
           ]
         },
         {
@@ -385,9 +416,10 @@
           "Offset": "0,0",
           "Rotate": 0,
           "FlipVertical": false,
-          "FlipHorizontal": false
+          "FlipHorizontal": false,
+          "FormatOverride": null
         },
-        "compiled": "textures/generated/svgsource/3ea6beb2214c31ef.vtex"
+        "compiled": "textures/generated/svgsource/d148e4f02df7dcae.vtex"
       },
       "ShowAll": false,
       "SubCategories": [
@@ -406,9 +438,10 @@
               "Offset": "0,0",
               "Rotate": 0,
               "FlipVertical": false,
-              "FlipHorizontal": false
+              "FlipHorizontal": false,
+              "FormatOverride": null
             },
-            "compiled": "textures/generated/svgsource/e52da4f8d07de795.vtex"
+            "compiled": "textures/generated/svgsource/4cadaacc0a108a3a.vtex"
           },
           "Categories": [
             "ComplexionFreckles"
@@ -429,9 +462,10 @@
               "Offset": "0,0",
               "Rotate": 0,
               "FlipVertical": false,
-              "FlipHorizontal": false
+              "FlipHorizontal": false,
+              "FormatOverride": null
             },
-            "compiled": "textures/generated/svgsource/a6c3831512662375.vtex"
+            "compiled": "textures/generated/svgsource/ffe7aed46bff99dd.vtex"
           },
           "Categories": [
             "ComplexionAcne"
@@ -452,9 +486,10 @@
               "Offset": "0,0",
               "Rotate": 0,
               "FlipVertical": false,
-              "FlipHorizontal": false
+              "FlipHorizontal": false,
+              "FormatOverride": null
             },
-            "compiled": "textures/generated/svgsource/eed51c52ea8fa94e.vtex"
+            "compiled": "textures/generated/svgsource/31568b04e4ac2ce5.vtex"
           },
           "Categories": [
             "ComplexionScars"
@@ -477,9 +512,10 @@
           "Offset": "0,0",
           "Rotate": 0,
           "FlipVertical": false,
-          "FlipHorizontal": false
+          "FlipHorizontal": false,
+          "FormatOverride": null
         },
-        "compiled": "textures/generated/svgsource/13305c904effd10e.vtex"
+        "compiled": "textures/generated/svgsource/982ea82805165ea.vtex"
       },
       "ShowAll": false,
       "SubCategories": [
@@ -526,7 +562,8 @@
             "compiled": "textures/generated/svgsource/c78ceedcdf59431d.vtex"
           },
           "Categories": [
-            "FacialHairBeard"
+            "FacialHairBeard",
+            "Facial"
           ]
         },
         {
@@ -567,9 +604,10 @@
               "Offset": "0,0",
               "Rotate": 0,
               "FlipVertical": false,
-              "FlipHorizontal": true
+              "FlipHorizontal": true,
+              "FormatOverride": null
             },
-            "compiled": "textures/generated/svgsource/cb60883cfcda3bd0.vtex"
+            "compiled": "textures/generated/svgsource/7019a30ae4a60007.vtex"
           },
           "Categories": [
             "FacialHairSideburns"
@@ -590,9 +628,10 @@
               "Offset": "0,0",
               "Rotate": 0,
               "FlipVertical": false,
-              "FlipHorizontal": false
+              "FlipHorizontal": false,
+              "FormatOverride": null
             },
-            "compiled": "textures/generated/svgsource/7a6aa3f94cecfa10.vtex"
+            "compiled": "textures/generated/svgsource/861c5386a8d47eac.vtex"
           },
           "Categories": [
             "FacialHairGoatee"

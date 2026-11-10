@@ -21,6 +21,7 @@
   "SlotsUnder": "LeftFoot, RightFoot",
   "SlotsOver": 0,
   "HideBody": "Feet",
+  "DeformationMode": "Normal",
   "AllowTintSelect": false,
   "TintSelection": {
     "blend": "Linear",
@@ -37,7 +38,8 @@
   "Icon": {
     "Path": "models/citizen_clothes/shoes/boot_heels/boot_heels_black.clothing.png",
     "Mode": "Foot",
-    "PositionOffset": "13.49999,1.099999,1.8"
+    "UsePositionOffset": false,
+    "PositionOffset": "13.4999905,1.09999895,1.79999995"
   },
   "__references": [],
   "__version": 0

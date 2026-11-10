@@ -1,0 +1,16 @@
+{
+  "Title": "resources test",
+  "Type": "content",
+  "Org": "local",
+  "Ident": "testresources",
+  "Schema": 1,
+  "IncludeSourceFiles": false,
+  "Resources": null,
+  "PackageReferences": [],
+  "EditorReferences": null,
+  "Mounts": null,
+  "IsStandaloneOnly": false,
+  "Metadata": {
+    "ProjectTemplate": null
+  }
+}

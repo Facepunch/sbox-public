@@ -1,49 +1,62 @@
-@import "/styles/_vars.scss";
+@import "/Platform/_platform.scss";
 
+// A panel of the platform's look at the top of the screen - its glyph in a tile, what's happening, and how far along
+// in a thin bar across its bottom. Down in from above, and back up out when let go.
 .game-closing
 {
-    background-color: $primary;
-    height: 64px;
-    border-radius: 32px;
-    padding: 0px 32px;
-    color: #fff;
-    font-family: "poppins";
-    font-size: 18px;
-    font-weight: 600;
-    align-items: center;
-    pointer-events: none;
-    box-shadow: 5px 5px 20px rgba( black, 0.5 );
-    opacity: 1;
-    transition: all 0.4s bounce-out;
-    sound-in: ui.popup.message.open;
-    overflow: hidden;
-    padding-left: 70px;
-    position: relative;
+	@include platform-surface;
+	flex-direction: row;
+	align-items: center;
+	gap: 10px;
+	margin-top: 24px;
+	padding: 8px 18px 8px 8px;
+	overflow: hidden;
+	pointer-events: none;
+	sound-in: "ui.popup.message.open";
+	transition: opacity 0.15s ease-out, transform 0.18s ease-out;
 
-    .progress
-    {
-        background-color: #1115;
-        position: absolute;
-        bottom: 0px;
-        top: 0px;
-        left: 0px;
-    }
+	&:intro, &:outro
+	{
+		opacity: 0;
+		transform: translateY( -12px );
+	}
 
-    .iconpanel
-    {
-        position: absolute;
-        top: 8px;
-        left: 8px;
-        width: 48px;
-        height: 48px;
-        aspect-ratio: 1;
-        border-radius: 100px;
-        align-items: center;
-        text-align: center;
-        font-size: 24px;
-        color: rgba( $primary-fg, 0.9 );
-        background-position: center;
-        background-size: cover;
-        background-color: rgba( black, 0.3 );
-    }
+	&:outro
+	{
+		transition: opacity 0.1s ease-in, transform 0.12s ease-in;
+	}
+
+	i
+	{
+		font-family: "Material Icons";
+	}
+
+	.tile
+	{
+		@include platform-tile;
+	}
+
+	.title
+	{
+		font-size: 15px;
+		font-weight: 700;
+		white-space: nowrap;
+	}
+
+	// How long it's been held - the platform's blue filling the bottom edge
+	.track
+	{
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		height: 3px;
+		background-color: rgba( 255, 255, 255, 0.08 );
+	}
+
+	.fill
+	{
+		height: 100%;
+		background-color: $platform-primary;
+	}
 }

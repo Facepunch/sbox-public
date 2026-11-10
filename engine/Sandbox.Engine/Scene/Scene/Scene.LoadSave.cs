@@ -1,4 +1,5 @@
-﻿using Facepunch.ActionGraphs;
+﻿using Sandbox.Engine;
+using Facepunch.ActionGraphs;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -8,7 +9,7 @@ public partial class Scene : GameObject
 {
 	/// <summary>
 	/// Load from the provided <see cref="SceneFile"/>. This will not load the scene for other clients in a
-	/// multiplayer session, you should instead use <see cref="Game.ChangeScene"/>
+	/// multiplayer session, you should instead use <see cref="Game.ChangeScene(SceneFile)"/>
 	/// if you want to bring other clients.
 	/// </summary>
 	public virtual bool Load( GameResource resource )
@@ -28,7 +29,7 @@ public partial class Scene : GameObject
 
 	/// <summary>
 	/// Load from the provided <see cref="SceneLoadOptions"/>. This will not load the scene for other clients in a
-	/// multiplayer session, you should instead use <see cref="Game.ChangeScene"/>
+	/// multiplayer session, you should instead use <see cref="Game.ChangeScene(SceneFile)"/>
 	/// if you want to bring other clients.
 	/// </summary>
 	public bool Load( SceneLoadOptions options )
@@ -43,7 +44,7 @@ public partial class Scene : GameObject
 
 		if ( sceneFile.ResourceName != null )
 		{
-			Name = sceneFile.ResourceName.ToTitleCase();
+			Name = sceneFile.ResourceName;
 		}
 
 		ProcessDeletes();
@@ -59,9 +60,22 @@ public partial class Scene : GameObject
 				// get all the gameobjects that should survive
 				var savedObjects = GetAllObjects( false ).Where( x => x.Flags.Contains( GameObjectFlags.DontDestroyOnLoad ) );
 
-				// move them to the scene root
+				// move only DontDestroyOnLoad roots that are not already under another DontDestroyOnLoad ancestor to the scene root
 				foreach ( var saved in savedObjects )
 				{
+					bool hasSurvivingAncestor = false;
+					for ( var parent = saved.Parent; parent != this; parent = parent.Parent )
+					{
+						if ( parent?.Flags.Contains( GameObjectFlags.DontDestroyOnLoad ) == true )
+						{
+							hasSurvivingAncestor = true;
+							break;
+						}
+					}
+
+					if ( hasSurvivingAncestor )
+						continue;
+
 					saved.SetParent( this );
 				}
 
@@ -69,6 +83,17 @@ public partial class Scene : GameObject
 			}
 
 			ProcessDeletes();
+			NavMesh.Reset();
+
+			if ( HasPhysicsWorld )
+			{
+				var worldBody = _physicsWorld.Body;
+				if ( worldBody.IsValid() && _physicsWorld.BodyCount == 1 && worldBody.ShapeCount == 0 )
+				{
+					_physicsWorld.Delete();
+					_physicsWorld = null;
+				}
+			}
 		}
 
 		if ( !IsEditor && options.ShowLoadingScreen )
@@ -98,9 +123,6 @@ public partial class Scene : GameObject
 			// Depending on if we load a scene from file or from memory, we need to account for that here
 			using var blobs = BlobDataSerializer.Load( sceneFile.BinaryData, sceneFile.ResourcePath );
 			using var batchGroup = CallbackBatch.Batch();
-
-			// Clear cached binary data now that we've loaded it
-			sceneFile.BinaryData = null;
 
 			if ( sceneFile.GameObjects is not null )
 			{
@@ -158,7 +180,7 @@ public partial class Scene : GameObject
 
 	/// <summary>
 	/// Load from the provided file name. This will not load the scene for other clients in a
-	/// multiplayer session, you should instead use <see cref="Game.ChangeScene"/>
+	/// multiplayer session, you should instead use <see cref="Game.ChangeScene(SceneFile)"/>
 	/// if you want to bring other clients.
 	/// </summary>
 	public bool LoadFromFile( string filename )
@@ -201,6 +223,17 @@ public partial class Scene : GameObject
 		return json;
 	}
 
+	internal void Reload()
+	{
+		var json = Serialize();
+
+		_physicsWorld?.Delete();
+		_physicsWorld = null;
+
+		ReloadSystems();
+		Deserialize( json );
+	}
+
 	public override void Deserialize( JsonObject node, DeserializeOptions option )
 	{
 		if ( this is PrefabScene )
@@ -239,7 +272,7 @@ public partial class Scene : GameObject
 	{
 		var jso = new JsonObject();
 
-		foreach ( var prop in Game.TypeLibrary.GetType<Scene>()
+		foreach ( var prop in GlobalContext.Current.TypeLibrary.GetType<Scene>()
 			.Properties
 			.Where( x => x.HasAttribute<PropertyAttribute>() )
 			.OrderBy( x => x.Name ) )
@@ -268,23 +301,26 @@ public partial class Scene : GameObject
 
 	JsonNode SerializeGameObjectSystems()
 	{
-		var systemsToSerialize = new Dictionary<string, Dictionary<string, object>>();
+		// Sorted by type name so the serialized order is stable across saves.
+		var systemsToSerialize = new SortedDictionary<string, SortedDictionary<string, object>>( StringComparer.Ordinal );
 
 		foreach ( var system in GetSystems() )
 		{
-			var systemType = Game.TypeLibrary.GetType( system.GetType() );
+			var systemType = GlobalContext.Current.TypeLibrary.GetType( system.GetType() );
 			if ( systemType is null ) continue;
 
 			var systemTypeName = systemType.FullName;
-			Dictionary<string, object> propertiesToSerialize = null;
+			SortedDictionary<string, object> propertiesToSerialize = null;
 
 			foreach ( var property in systemType.Properties.Where( x => x.HasAttribute<PropertyAttribute>() ) )
 			{
 				if ( !property.CanWrite ) continue;
 
-				var currentValue = property.GetValue( system );
+				var currentValue = TryGetPreTransientValue( system, property, out var preTransientValue )
+					? preTransientValue
+					: property.GetValue( system );
 				var hasGlobalValue = ProjectSettings.Systems.TryGetPropertyValue( systemType, property, out var globalValue );
-				var compareValue = hasGlobalValue ? globalValue : property.GetCustomAttribute<DefaultValueAttribute>()?.Value;
+				var compareValue = hasGlobalValue ? globalValue : SystemsConfig.GetDefaultValue( property );
 
 				var currentJson = JsonSerializer.SerializeToNode( currentValue, Json.options );
 				var compareJson = JsonSerializer.SerializeToNode( compareValue, Json.options );
@@ -292,7 +328,7 @@ public partial class Scene : GameObject
 				// Is this slow?
 				if ( !JsonNode.DeepEquals( currentJson, compareJson ) )
 				{
-					propertiesToSerialize ??= new Dictionary<string, object>();
+					propertiesToSerialize ??= new SortedDictionary<string, object>( StringComparer.Ordinal );
 					propertiesToSerialize[property.Name] = currentValue;
 				}
 			}
@@ -324,7 +360,7 @@ public partial class Scene : GameObject
 
 	void DeserializeProperties( JsonObject data, bool isSystemScene = false )
 	{
-		var sceneType = Game.TypeLibrary.GetType<Scene>();
+		var sceneType = GlobalContext.Current.TypeLibrary.GetType<Scene>();
 		Assert.NotNull( sceneType, "Scene type is inaccessible!" );
 
 		foreach ( var prop in sceneType.Properties.Where( x => x.HasAttribute<PropertyAttribute>() ) )
@@ -346,7 +382,12 @@ public partial class Scene : GameObject
 			}
 		}
 
-		if ( data.TryGetPropertyValue( "GameObjectSystems", out var systemOverridesNode ) )
+		//
+		// We don't want system scene loads to overwrite the main scene's system properties.
+		// System scenes can add GameObjects, but they should not reconfigure systems that
+		// already belong to the main scene (same reason NavMesh is guarded below).
+		//
+		if ( !isSystemScene && data.TryGetPropertyValue( "GameObjectSystems", out var systemOverridesNode ) )
 		{
 			ApplyGameObjectSystemOverrides( systemOverridesNode );
 		}

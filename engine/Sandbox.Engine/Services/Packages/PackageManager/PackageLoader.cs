@@ -26,10 +26,6 @@ internal sealed partial class PackageLoader : IDisposable
 	/// </summary>
 	public bool ToolsMode { get; set; }
 
-	/// <summary>
-	/// Disables access control on all loaded local packages, but not remote packages.
-	/// </summary>
-	private bool DisableAccessControl { get; init; }
 
 	Logger log { get; } = new Logger( "PackageLoader" );
 	HashSet<PackageManager.ActivePackage> loadedPackages = new();
@@ -38,7 +34,7 @@ internal sealed partial class PackageLoader : IDisposable
 	/// <summary>
 	/// Called on Game Loop Init
 	/// </summary>
-	public PackageLoader( string name, Assembly parentAssembly, bool disableAccessControl = false )
+	public PackageLoader( string name, Assembly parentAssembly )
 	{
 		log = new Logger( $"PackageLoader/{name}" );
 		LoadContext = new LoadContext( parentAssembly );
@@ -49,11 +45,23 @@ internal sealed partial class PackageLoader : IDisposable
 		}
 		HotloadManager = new HotloadManager( name );
 		HotloadManager.OnSuccess += OnFullHotloadSuccess;
-		HotloadManager.AssemblyResolver = PackageManager.AccessControl;
-		DisableAccessControl = disableAccessControl;
+		HotloadManager.AssemblyResolver = PackageManager.AssemblyResolver;
 
 		loadedPackages.Clear();
 		changedPackageDlls.Clear();
+	}
+
+	internal void QueueCompiledAssemblies( IReadOnlyList<CompilerOutput> outputs )
+	{
+		foreach ( var output in outputs )
+		{
+			var package = loadedPackages.FirstOrDefault( x => x.Package is LocalPackage local
+				&& (local.Compiler == output.Compiler || local.EditorCompiler == output.Compiler) );
+			if ( package is null )
+				continue;
+
+			changedPackageDlls.Add( (package, $"/.bin/{output.Compiler.AssemblyName}.dll") );
+		}
 	}
 
 	public void Dispose()
@@ -79,70 +87,25 @@ internal sealed partial class PackageLoader : IDisposable
 		HotloadManager = null;
 	}
 
-	/// <summary>
-	/// Make sure we should be able to load this dll
-	/// </summary>
-	bool TestAccessControl( System.IO.Stream dll, out TrustedBinaryStream trustedDll )
-	{
-		var eventRecord = new Api.Events.EventRecord( $"TestAccessControl" );
-		eventRecord.SetValue( "AssemblySize", dll.Length );
-		eventRecord.StartTimer( "Time" );
-
-		AccessControlResult result = new AccessControlResult();
-		try
-		{
-			result = PackageManager.AccessControl.VerifyAssembly( dll, out trustedDll );
-			if ( result.Success )
-			{
-				eventRecord.FinishTimer( "Time" );
-				eventRecord.Submit();
-
-				return true;
-			}
-		}
-		catch ( System.Exception e )
-		{
-			log.Warning( e, $"Assembly Exception: {e.Message}" );
-		}
-
-		foreach ( var error in result.Errors )
-		{
-			log.Warning( $"Whitelist Error: {error}" );
-		}
-
-		foreach ( var error in result.WhitelistErrors )
-		{
-			var metric = new Api.Events.EventRecord( $"accesscontrol.whitelist" );
-			metric.SetValue( "type", error.Name );
-			metric.SetValue( "locations", error.Locations );
-			metric.Submit();
-		}
-
-		trustedDll = null;
-		return false;
-	}
-
 
 
 	private void LoadPendingChanges()
 	{
 		log.Trace( "Loading Pending Changes" );
 
-		var changedPackageDlls = this.changedPackageDlls
-										.Where( x => x.ap is not null )
-										.ToArray();
+		var allChangedDlls = this.changedPackageDlls.ToArray();
 		this.changedPackageDlls.Clear();
 
-		//
-		// This can happen when recieving assemblies from a server
-		//
-		if ( !changedPackageDlls.Any() )
+		if ( !allChangedDlls.Any() )
 			return;
 
-		var changedPackages = changedPackageDlls
-									.Select( x => x.ap )
-									.Distinct()
-									.ToArray();
+		// Entries without a package come from a stream (e.g. assemblies sent by a server)
+		// and were already swapped in by AddAssembly when they arrived.
+		var changedPackageDlls = allChangedDlls
+										.Where( x => x.ap is not null )
+										.ToArray();
+
+		var changedPackages = new HashSet<PackageManager.ActivePackage>();
 
 		//
 		// We need to force-reload any package assemblies that depend on a changed package.
@@ -150,13 +113,32 @@ internal sealed partial class PackageLoader : IDisposable
 
 		var hotloadedPackages = new HashSet<PackageManager.ActivePackage>();
 
+		//
+		// Resolve stream-swapped assemblies back to their loaded package, so packages that
+		// depend on them (e.g. targeted addons referencing their parent game) reload below.
+		//
+		foreach ( var e in allChangedDlls.Where( x => x.ap is null ) )
+		{
+			// only full swaps matter - a fast hotload keeps the same assembly instance
+			if ( !IncomingThisHotload.Any( x => e.filename.Equals( x.Name, StringComparison.OrdinalIgnoreCase ) ) )
+				continue;
+
+			var owner = FindLoadedPackageForAssembly( e.filename );
+			if ( owner is not null )
+			{
+				hotloadedPackages.Add( owner );
+			}
+		}
+
 		foreach ( var e in Package.SortByReferences( changedPackageDlls, x => x.ap.Package ) )
 		{
 			// don't load editor dlls here unless we're in tools mode
 			if ( e.filename.EndsWith( ".editor.dll", StringComparison.OrdinalIgnoreCase ) && !ToolsMode )
 				continue;
 
-			var result = LoadAssemblyFromPackage( e.ap, e.filename );
+			var result = LoadAssemblyFromPackage( e.ap, e.filename, skipUnchanged: true );
+			if ( result is not null )
+				changedPackages.Add( e.ap );
 
 			if ( result is not null && !result.FastHotload )
 			{
@@ -164,25 +146,12 @@ internal sealed partial class PackageLoader : IDisposable
 			}
 		}
 
-		var baseHotloaded = hotloadedPackages.Any( x => x.Package.IsNamed( "local.base" ) );
 		var toolBaseHotloaded = hotloadedPackages.Any( x => x.Package.IsNamed( "local.toolbase" ) );
 
 		bool ReferencesHotloadedPackage( Package package )
 		{
-			switch ( package.TypeName )
-			{
-				case "tool":
-					if ( toolBaseHotloaded ) return true;
-					break;
-
-				case "game":
-				case "addon":
-					if ( baseHotloaded ) return true;
-					break;
-
-				default:
-					return false;
-			}
+			if ( package.TypeName == "tool" && toolBaseHotloaded )
+				return true;
 
 			return package.EnumeratePackageReferences()
 				.Any( x => hotloadedPackages
@@ -190,7 +159,7 @@ internal sealed partial class PackageLoader : IDisposable
 		}
 
 		var dependentPackages = loadedPackages
-			.Where( x => !changedPackages.Contains( x ) )
+			.Where( x => !changedPackages.Contains( x ) && !hotloadedPackages.Contains( x ) )
 			.Where( x => ReferencesHotloadedPackage( x.Package ) )
 			.ToArray();
 
@@ -200,25 +169,53 @@ internal sealed partial class PackageLoader : IDisposable
 		}
 	}
 
+	/// <summary>
+	/// Find the loaded package an assembly belongs to, given its name (without extension).
+	/// Used for assemblies that arrived without a package, e.g. streamed from a server.
+	/// </summary>
+	private PackageManager.ActivePackage FindLoadedPackageForAssembly( string assemblyName )
+	{
+		var owner = loadedPackages.FirstOrDefault( x => x.AssemblyFileSystem?.FileExists( $"{assemblyName}.dll" ) == true );
+		if ( owner is not null )
+			return owner;
+
+		// Package assemblies are named "package.{org}.{ident}" - fall back to matching by ident,
+		// for packages whose assemblies don't exist on disk (e.g. compiled from a code archive).
+		if ( assemblyName.StartsWith( "package.", StringComparison.OrdinalIgnoreCase ) )
+		{
+			var ident = assemblyName["package.".Length..];
+			return loadedPackages.FirstOrDefault( x => x.Package.IsNamed( ident ) );
+		}
+
+		return null;
+	}
+
 	private bool LoadAssemblyFromStream( string assmName, Stream stream, out LoadedAssembly assembly )
 	{
 		assembly = null;
 
-		if ( !TestAccessControl( stream, out var trustedDll ) )
+		byte[] bytes;
+		using ( var ms = new System.IO.MemoryStream() )
 		{
-			log.Warning( $"Couldn't load {assmName} - access control error" );
-			trustedDll?.Dispose();
-			return false;
+			stream.CopyTo( ms );
+			bytes = ms.ToArray();
 		}
 
-		assembly = AddAssembly( null, assmName, trustedDll, null );
+		try
+		{
+			assembly = AddAssembly( null, assmName, bytes, null );
+		}
+		catch ( Exception e )
+		{
+			log.Warning( e, $"Couldn't load streamed assembly '{assmName}'" );
+			return false;
+		}
 		changedPackageDlls.Add( (null, assmName) );
 
-		trustedDll?.Dispose();
 		return assembly is not null;
 	}
 
-	private LoadedAssembly LoadAssemblyFromPackage( PackageManager.ActivePackage ap, string filename, byte[] bytes = null )
+	private LoadedAssembly LoadAssemblyFromPackage( PackageManager.ActivePackage ap, string filename, byte[] bytes = null, bool skipUnchanged = false )
 	{
 		log.Trace( $"Loading \"{filename}\" from {ap.Package.Title}" );
 
@@ -232,43 +229,11 @@ internal sealed partial class PackageLoader : IDisposable
 		Assert.True( ap.AssemblyFileSystem.FileExists( filename ), "File doesn't exist? Maybe a case sensitivity issue??" );
 
 		bytes ??= ap.AssemblyFileSystem.ReadAllBytes( filename ).ToArray();
-		var dll_stream = new System.IO.MemoryStream( bytes );
-
-		TrustedBinaryStream trustedDll = null;
-
-		//
-		// Careful now. Remote packages should ALWAYS be access controlled.
-		// Local packages, doesn't matter so much.
-		//
-		bool needsAccessControl = true;
-		if ( ap.Package is LocalPackage localPackage )
+		if ( skipUnchanged )
 		{
-			if ( DisableAccessControl ) needsAccessControl = false;
-			if ( ToolsMode && isToolAssembly ) needsAccessControl = false;
-			if ( localPackage.Project.Config.IsStandaloneOnly ) needsAccessControl = false;
-		}
-
-		//
-		// If this is a locally compiled package, and it's enabled - then skip
-		// access control. This is used for tool packages which are ALWAYS local.
-		//
-		if ( !needsAccessControl )
-		{
-			trustedDll = PackageManager.AccessControl.TrustUnsafe( bytes );
-		}
-
-		//
-		// otherwise, we need to do access control
-		//
-		else
-		{
-			if ( !TestAccessControl( dll_stream, out trustedDll ) )
-			{
-				trustedDll?.Dispose();
-				log.Warning( $"Couldn't load {assmName} - access control error" );
+			var loaded = Loaded.FirstOrDefault( x => string.Equals( x.Name, assmName, StringComparison.OrdinalIgnoreCase ) );
+			if ( loaded?.CompiledAssemblyBytes is { } previous && bytes.AsSpan().SequenceEqual( previous ) )
 				return null;
-			}
-			trustedDll?.Dispose();
 		}
 
 		//
@@ -296,7 +261,7 @@ internal sealed partial class PackageLoader : IDisposable
 			codeArchive = ap.AssemblyFileSystem.ReadAllBytes( codearchivefilename ).ToArray();
 		}
 
-		var result = AddAssembly( ap.Package, assmName, trustedDll, codeArchive );
+		var result = AddAssembly( ap.Package, assmName, bytes, codeArchive );
 
 		if ( result.FastHotload && ap.Package is LocalPackage lp )
 		{
@@ -357,15 +322,6 @@ internal sealed partial class PackageLoader : IDisposable
 			{
 				bool needsToolsPackage = packageLocal.TypeName == "tool";
 
-				if ( packageLocal.NeedsLocalBasePackage() )
-				{
-					LoadPackage( "local.base#local" );
-
-					// if we're loading a local game, then load the tools package first, because
-					// we are assuming that there is an editor folder, which will require it.
-					needsToolsPackage = packageLocal.TypeName == "game" && ToolsMode;
-				}
-
 				if ( needsToolsPackage )
 				{
 					LoadPackage( "local.toolbase#local" );
@@ -378,19 +334,22 @@ internal sealed partial class PackageLoader : IDisposable
 		//
 		foreach ( var child in ap.Package.EnumeratePackageReferences() )
 		{
-			LoadPackage( child );
-		}
+			if ( PackageManager.Find( child, true, false ) == null )
+			{
+				log.Warning( $"LoadPackage: skipping missing dependency '{child}'" );
+				continue;
+			}
 
-		var parent = ap.Package.GetMeta<string>( "ParentPackage", null );
-		if ( !string.IsNullOrWhiteSpace( parent ) && Package.TryParseIdent( parent, out var _ ) )
-		{
-			LoadPackage( parent );
+			LoadPackage( child );
 		}
 
 		try
 		{
-			using var gr = new HeavyGarbageRegion();
 			LoadAllAssembliesFromPackage( ap );
+
+			// Make sure we load the loose content as well
+			FileSystem.Mounted.Mount( ap.FileSystem );
+			System.Threading.Interlocked.Increment( ref PackageManager.MountGeneration );
 		}
 		catch
 		{
@@ -408,47 +367,43 @@ internal sealed partial class PackageLoader : IDisposable
 	{
 		ArgumentNullException.ThrowIfNull( package );
 
+		// An assembly runs its static constructors as soon as it's added, so everything it references has to be
+		// loaded first. The filesystem lists them alphabetically, which can put a game ahead of its libraries.
 		var ordered = new AssemblyOrderer();
 
-		var assemblyList = package.AssemblyFileSystem.FindFile( "", "*.dll", true ).ToArray();
-
-		foreach ( var assemblyName in assemblyList.OrderBy( x => x.Length ) ) // TODO - we'll have to deal with this at some point
+		foreach ( var assemblyName in package.AssemblyFileSystem.FindFile( "", "*.dll", true ) )
 		{
-			// don't load editor dlls here unless we're in tools mode
 			if ( assemblyName.EndsWith( ".editor.dll", StringComparison.OrdinalIgnoreCase ) && !ToolsMode )
 				continue;
 
-			var fileName = assemblyName;
-			var bytes = package.AssemblyFileSystem.ReadAllBytes( fileName ).ToArray();
-			ordered.Add( fileName, bytes );
+			ordered.Add( assemblyName, package.AssemblyFileSystem.ReadAllBytes( assemblyName ).ToArray() );
 		}
 
-		foreach ( (var name, var bytes) in ordered.GetDependencyOrdered() )
+		foreach ( var (assemblyName, bytes) in ordered.GetDependencyOrdered() )
 		{
-			var result = LoadAssemblyFromPackage( package, name, bytes );
+			var result = LoadAssemblyFromPackage( package, assemblyName, bytes );
 
 			if ( result?.Assembly == null )
-				throw new System.Exception( $"Error loading {name}" );
+				throw new System.Exception( $"Error loading {assemblyName}" );
 		}
 	}
 
-	LoadedAssembly AddAssembly( Package package, string assemblyName, TrustedBinaryStream dllStream, byte[] codeArchive )
+	LoadedAssembly AddAssembly( Package package, string assemblyName, byte[] dllBytes, byte[] codeArchive )
 	{
+		// A remote or streamed assembly picks its own name, it can't take the place of one the access check never ran on
+		if ( package is not LocalPackage && PackageManager.ActivePackages.Any( x => PackageManager.ActivePackage.IsUncheckedLocalAssembly( x, assemblyName ) ) )
+			throw new InvalidDataException( $"'{assemblyName}' from {package?.FullIdent ?? "the network"} has the name of a local assembly" );
+
 		LoadedAssembly loaded = new LoadedAssembly();
 		loaded.Name = assemblyName;
 		loaded.Package = package;
 		loaded.CodeArchiveBytes = codeArchive;
+		loaded.CompiledAssemblyBytes = dllBytes;
 
-		// read the compiled binary to a byte array
+		if ( dllBytes is not null )
 		{
-			using var ms = new MemoryStream();
-			dllStream.CopyTo( ms );
-			loaded.CompiledAssemblyBytes = ms.ToArray();
-		}
-
-		if ( dllStream is not null )
-		{
-			loaded.Assembly = LoadContext.LoadWithEmbeds( loaded.CompiledAssemblyBytes, false );
+			PackageManager.AssemblyResolver.AddAssembly( dllBytes, assemblyName );
+			loaded.Assembly = LoadContext.LoadWithEmbeds( dllBytes, false );
 			loaded.Version = loaded.Assembly?.GetName().Version;
 			loaded.Name = loaded.Assembly?.GetName().Name;
 		}
@@ -490,6 +445,7 @@ internal sealed partial class PackageLoader : IDisposable
 		{
 			Loaded.Remove( outgoing );
 			log.Trace( $"	Unloading {outgoing}" );
+			ILHotload?.RemoveDetours( outgoing.Assembly );
 			LoadContext?.UnloadChild( outgoing.Assembly );
 		}
 
@@ -504,16 +460,7 @@ internal sealed partial class PackageLoader : IDisposable
 
 			if ( !ToolsMode )
 			{
-				try
-				{
-					var ft = FastTimer.StartNew();
-					ReflectionUtility.PreJIT( incoming.Assembly );
-					Log.Trace( $"PreJit {incoming.Name} took {ft.Elapsed.TotalSeconds:0.00}" );
-				}
-				catch ( Exception ex )
-				{
-					Log.Warning( ex, $"{ex.GetType().Name} thrown while calling PreJIT on {incoming.Name} ({ex.Message})" );
-				}
+				_ = ReflectionUtility.PreJITAsync( incoming.Assembly );
 			}
 
 			//
@@ -566,7 +513,7 @@ internal sealed partial class PackageLoader : IDisposable
 
 		var sw = Stopwatch.StartNew();
 
-		if ( ILHotload.Replace( outgoing?.Assembly, outgoing?.ModifiedAssembly ?? outgoing?.Assembly, incoming?.Assembly ) == false )
+		if ( !ILHotload.Replace( outgoing?.Assembly, outgoing?.ModifiedAssembly ?? outgoing?.Assembly, incoming?.Assembly ) )
 			return false;
 
 		sw.Stop();
@@ -583,6 +530,7 @@ internal sealed partial class PackageLoader : IDisposable
 		outgoing.FastHotload = true;
 		outgoing.ModifiedAssembly = incoming?.Assembly;
 		outgoing.CodeArchiveBytes = incoming.CodeArchiveBytes;
+		outgoing.CompiledAssemblyBytes = incoming.CompiledAssemblyBytes;
 		outgoing.Version = incoming.Assembly.GetName().Version;
 		return true;
 	}
@@ -708,14 +656,6 @@ internal sealed partial class PackageLoader : IDisposable
 
 		if ( deep )
 		{
-			if ( package.Package is LocalPackage pl && pl.NeedsLocalBasePackage() )
-			{
-				var children = GetLoadedAssemblies( "local.base#local", deep, allowEditor );
-
-				foreach ( var c in children )
-					foundList.Add( c );
-			}
-
 			foreach ( var child in package.Package.EnumeratePackageReferences() )
 			{
 				var children = GetLoadedAssemblies( child, deep, allowEditor );
@@ -755,12 +695,20 @@ internal sealed partial class PackageLoader : IDisposable
 		HotloadManager.Ignore( assembly );
 	}
 
+	/// <summary>
+	/// While this says so, changed assemblies wait to load: code that runs across frames (a content build's managed
+	/// compile in the editor) finishes with the code it started with.
+	/// </summary>
+	internal static Func<bool> HoldHotload { get; set; }
+
 	public void Tick()
 	{
 		if ( !changedPackageDlls.Any() && IncomingThisHotload.Count == 0 )
 		{
 			return;
 		}
+
+		if ( HoldHotload?.Invoke() == true ) return;
 
 		LoadPendingChanges();
 

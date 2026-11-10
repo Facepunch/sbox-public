@@ -1,0 +1,90 @@
+@using SboxMenu;
+@using Sandbox
+@using Sandbox.Modals
+@using Sandbox.UI
+
+@namespace MenuProject.Modals
+@inherits MenuProject.Modals.BaseModal
+
+<root>
+    <div class="window">
+
+        <div class="header">
+            <i>speed</i>
+            <label class="title">#menu.benchmark.benchmark_results</label>
+            <Button class="close-btn" onclick=@(() => CloseModal( true ))><i>close</i></Button>
+        </div>
+
+        <div class="summary-cards">
+            <StatCard Icon="emoji_events" Value=@OverallScoreText Subtitle="#menu.benchmark.overall_score" />
+            <StatCard Icon="speed"        Value=@AvgFpsText        Subtitle="#menu.benchmark.avg_fps" />
+            <StatCard Icon="checklist"    Value=@TestCountText     Subtitle="#menu.benchmark.tests" />
+            <StatCard Icon="timer"        Value=@DurationText      Subtitle="#menu.benchmark.duration" />
+        </div>
+
+        <div class="test-table">
+
+            <div class="test-row header-row">
+                <label class="col-name">#menu.benchmark.test</label>
+                <label class="col-num">#menu.benchmark.avg_fps</label>
+                <label class="col-num">#menu.benchmark.frame_ms</label>
+                <label class="col-num">#menu.benchmark.1_low_ms</label>
+                <label class="col-num">#menu.benchmark.gpu_ms</label>
+                <label class="col-num">#menu.benchmark.stutter</label>
+            </div>
+
+            @foreach ( var t in Summaries )
+            {
+                <div class="test-row">
+                    <label class="col-name">@t.Name</label>
+                    <label class="col-num">@t.AvgFps.ToString( "F1" )</label>
+                    <label class="col-num">@t.AvgFrameTimeMs.ToString( "F2" )</label>
+                    <label class="col-num">@t.OnePercentLowMs.ToString( "F2" )</label>
+                    <label class="col-num">@t.AvgGpuFrametimeMs.ToString( "F2" )</label>
+                    <label class="col-num">@t.Stuttering.ToString( "F1" )</label>
+                </div>
+            }
+
+        </div>
+
+        <div class="footer">
+            <Button class="primary" Icon="open_in_new" onclick=@ViewOnline>#menu.benchmark.view_online</Button>
+        </div>
+
+    </div>
+</root>
+
+@code
+{
+    public Guid BatchId { get; }
+    public IReadOnlyList<BenchmarkTestSummary> Summaries { get; }
+
+    public BenchmarkResultModal( Guid batchId, IReadOnlyList<BenchmarkTestSummary> summaries )
+    {
+        BatchId = batchId;
+        Summaries = summaries ?? Array.Empty<BenchmarkTestSummary>();
+    }
+
+    double OverallScore
+    {
+        get
+        {
+            if ( Summaries.Count == 0 ) return 0;
+            var logSum = Summaries.Sum( t => Math.Log( Math.Max( t.AvgFps, 0.001 ) ) );
+            return Math.Exp( logSum / Summaries.Count );
+        }
+    }
+
+    string OverallScoreText => OverallScore.ToString( "F0" );
+    string AvgFpsText       => Summaries.Count > 0 ? Summaries.Average( t => t.AvgFps ).ToString( "F1" ) : "—";
+    string TestCountText    => Summaries.Count.ToString();
+    string DurationText     => TimeSpan.FromSeconds( Summaries.Sum( t => t.DurationSeconds ) ).ToString( @"m\:ss" );
+
+    void ViewOnline()
+    {
+        var url = BatchId != Guid.Empty
+            ? $"https://sbox.game/benchmarks/view/{BatchId}"
+            : "https://sbox.game/benchmarks";
+        MenuUtility.OpenUrl( url );
+    }
+}

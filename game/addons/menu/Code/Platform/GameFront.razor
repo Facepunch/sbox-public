@@ -1,0 +1,144 @@
+@using System;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.UI;
+@using Sandbox.Modals;
+@namespace MenuProject.Platform
+@inherits Panel
+
+@*
+    The default front for a game without a menu scene of its own, made from what the Workshop says about it: its
+    name top left, and under it its pages - its menu, setting up a new game, and its
+    servers (FrontPages). On a page off its menu, its name fades away and the page takes its room. Paused in a game -
+    any game - it's the pause menu: Resume, the game's own pause actions, and Leave back to its menu.
+*@
+<root class="@(Paused ? "paused" : "") @(OffHome ? "paging" : "")">
+
+    @if ( Shown is { } game )
+    {
+        <div class="header">
+            <label class="title">@game.Title</label>
+        </div>
+
+        @if ( Paused && showingPlayers )
+        {
+            @* Its Players page - over the front as its other pages are, back to the pause menu from its bar *@
+            <div class="pages">
+                <div class="players-page navigator-body">
+                    <MenuProject.Modals.PlayerList Back=@( () => { showingPlayers = false; } ) />
+                </div>
+            </div>
+        }
+        else if ( Paused )
+        {
+            <div class="nav">
+                <div class="tier">
+                    <div class="item" onclick=@Resume><label>Resume</label></div>
+
+                    @if ( ShowPlayers )
+                    {
+                        <div class="item" onclick=@( () => showingPlayers = true )><label>Players</label></div>
+                    }
+                </div>
+
+                @if ( Actions.Count > 0 )
+                {
+                    <div class="tier">
+                        @foreach ( var action in Actions )
+                        {
+                            <div class="item @(action.IsEnabled ? "" : "disabled")" tooltip="@(action.Tooltip ?? "")" onclick=@( () => Press( action ) )><label>@action.Title</label></div>
+                        }
+                    </div>
+                }
+
+                <div class="tier">
+                    <div class="item" onclick=@( () => ModalSystem.Instance?.Settings() )><label>Options</label></div>
+                    <div class="item leave" onclick=@Leave><label>Leave Game</label></div>
+                </div>
+            </div>
+        }
+        else
+        {
+            <FrontPages class="pages" @ref="Pages" />
+        }
+    }
+
+</root>
+
+@code
+{
+    [Parameter] public bool Paused { get; set; }
+
+    [Parameter] public Action OnResume { get; set; }
+
+    /// <summary>
+    /// Paused, the game that's loaded - otherwise the platform's
+    /// </summary>
+    static Package Shown => PlatformMenu.Current ?? MenuUtility.GamePackage;
+
+    /// <summary>
+    /// In a networked game that doesn't hide its player list - as the old pause menu has it (PauseHome)
+    /// </summary>
+    static bool ShowPlayers => MenuProject.Modals.PlayerList.IsMocking || (Networking.IsActive && (Shown?.Info.ShowsPlayerList ?? true));
+
+    FrontPages Pages;
+
+    /// <summary>
+    /// Paused, on its Players page rather than the pause menu
+    /// </summary>
+    bool showingPlayers;
+
+    public bool Back()
+    {
+        if ( Paused && showingPlayers )
+        {
+            showingPlayers = false;
+            return true;
+        }
+
+        return OffHome && Pages.GoBack();
+    }
+
+    public bool OffHome => (Paused && showingPlayers) || (Pages.IsValid() && Pages.OffHome);
+
+    void Resume() => OnResume?.Invoke();
+
+    readonly List<MenuUtility.PauseAction> Actions = new();
+    int actionsHash;
+
+    void Press( MenuUtility.PauseAction action )
+    {
+        if ( !action.IsEnabled ) return;
+
+        action.Press?.Invoke();
+
+        if ( action.DismissOnPress )
+            Resume();
+    }
+
+    void Leave() => MenuHelpers.ConfirmLeave( () =>
+    {
+        Resume();
+        Game.ReturnToMenu();
+    } );
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        // Back on the pause menu the next time it's paused - and the page gone if nobody's list is shown any more
+        if ( !Paused || !ShowPlayers ) showingPlayers = false;
+
+        if ( !Paused ) return;
+
+        MenuUtility.GetPauseActions( Actions );
+
+        var hash = 0;
+        foreach ( var a in Actions )
+            hash = HashCode.Combine( hash, a.Title, a.Tooltip, a.IsEnabled );
+
+        actionsHash = hash;
+    }
+
+    protected override int BuildHash() => HashCode.Combine( Paused, Shown, actionsHash, OffHome, ShowPlayers, showingPlayers );
+}

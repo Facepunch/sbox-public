@@ -1,120 +1,95 @@
-﻿@using Sandbox.Modals
+@using Sandbox.Modals
 @using Sandbox
 @using Sandbox.UI
+@using Sandbox.UI.Navigation
 @using Sandbox.Menu
 @using MenuProject.MenuUI.Components
 
 @inherits MenuProject.Modals.BaseModal
 
+@*
+    The main menu, mid-game - the same frame (MenuShell), its own navigator, minus the scene behind,
+    opening on the game's own page (PauseHome) - its pages, and the buttons back to it and out of it,
+    down the left (GameMenu).
+*@
 <root>
 
-	<div class="inner">
+    @* A shade coming down from the top of the screen, behind everything - so what sits straight on
+       the game up there (the Overview's name and pills) reads over it. Across the whole width, the
+       rail's side too, so it's one even darkening rather than a patch *@
+    <div class="screen-shade"></div>
 
-        <div class="tiles-container">
-        
-               <div class="left">
-                    @if ( game is not null )
-                    {
-                        <GameInfoBox Package="@game"></GameInfoBox>
-                    }
-                    else
-                    {
-                        <div class="info">
-                            <h2>@Game.Ident</h2>
-                            <h3>Unpublished Game -- no info to show</h3>
-                        </div>
-                    }
-               </div>
-
-               <div class="right">
-                   @if ( game is not null ) 
-                   {
-                       <HtmlPanel Html="@game.Description"></HtmlPanel>
-                   }
-               </div>
-
-        </div>
-
-        <div class="bottom-bar">
-
-            <div class="left">
-                <Button class="exit" Tooltip="Return to s&box main menu" Icon="west" @onclick="@(() => Game.Close())" Text="Leave"></Button>
-            </div>
-
-            <div class="center">
-
-                @if (CanChangeMap)
-                {
-                    <Button class="circle" Tooltip="Change Map" Icon="map" onclick=@ChangeMap></Button>
-                }
-
-                @if (Networking.IsActive && (game?.GetValue<bool>("ShowPlayerList", true) ?? true))
-                {
-                    <Button class="circle" Icon="groups" Tooltip="Player List" @onclick="@(() => Game.Overlay.ShowPlayerList())"></Button>
-                }
-
-                <Button class="circle" Tooltip="Reconfigure Controls" Icon="gamepad" @onclick="@(() => Game.Overlay.ShowBinds())"></Button>
-                <Button class="circle" Tooltip="Open Settings" Icon="settings" @onclick="@(() => Game.Overlay.ShowSettingsModal())"></Button>
-
-            </div>
-
-            <div class="right">
-                <Button class="resume" Icon="play_arrow" @onclick="@(() => this.Delete())" Text="Resume"></Button>
-            </div>
-
-        </div>
-
-	</div>
+    <MenuShell @ref="Navigator" />
 
 </root>
 
 @code
 {
+    MenuShell Navigator;
 
-    bool CanChangeMap
-    {
-        get
-        {
-            if ( Networking.IsActive && !Networking.IsHost ) return false;
+    /// <summary>
+    /// The game the open pause menu's for - the full package once it's fetched. What its pages show.
+    /// </summary>
+    public static Package CurrentGame { get; private set; }
 
-            return game?.GetValue( "ShowChangeMap", false ) ?? false;
-        }
-    }
+    /// <summary>
+    /// The pause menu, if there is one - up, or hidden while you're back in the game.
+    /// </summary>
+    public static PauseModal Instance { get; private set; }
+
+    /// <summary>
+    /// The pause menu while it's up - null when there isn't one, or it's hidden.
+    /// </summary>
+    public static PauseModal Open => Instance is { } pause && pause.IsValid() && pause.IsPauseMenuOpen() ? pause : null;
 
     Package game;
 
-
-    void OnCreateGame( CreateGameResults x )
-    {
-        if ( Networking.IsActive && !Networking.IsHost )
-            return;
-
-        if ( !string.IsNullOrEmpty( x.MapIdent ) )
-        {
-            LaunchArguments.Map = x.MapIdent;
-        }
-
-        Game.Load( Game.Ident, true );
-
-        this.CloseModal( true );
-    }
-
-    void ChangeMap()
-    {
-        Game.Overlay.CreateGame( new CreateGameOptions( game, OnCreateGame ) );
-    }
+    public void Resume() => Delete();
 
     public PauseModal() : base()
     {
+        Instance = this;
         game = MenuUtility.GamePackage;
+        CurrentGame = game;
+    }
+
+    protected override void OnAfterTreeRender( bool firstTime )
+    {
+        if ( !firstTime || !Navigator.IsValid() ) return;
+
+        // The game's own page, told to this navigator rather than routed - the main menu's can't get to it.
+        // Where it opens, and where a url it can't find ends up
+        Navigator.AddDestination( PauseHome.Url, typeof( PauseHome ) );
+        Navigator.DefaultUrl = PauseHome.Url;
+
+        // Only the first time it's up - hidden and shown again, it's still on whatever page you left it on
+        if ( Navigator.CurrentUrl is null )
+            Navigator.Navigate( PauseHome.Url );
+    }
+
+    /// <summary>
+    /// The page it's on - its navigator's, not the main menu's.
+    /// </summary>
+    public string CurrentUrl => Navigator?.CurrentUrl;
+
+    /// <summary>
+    /// Open one of its pages - how the settings end up in here rather than a modal over it.
+    /// </summary>
+    public bool Navigate( string url )
+    {
+        if ( !Navigator.IsValid() ) return false;
+
+        Navigator.Navigate( url );
+        return true;
     }
 
     protected override async Task OnParametersSetAsync()
     {
-        if ( !game.IsRemote )
+        if ( game is not null && !game.IsRemote )
         {
             var ident = game.FullIdent.Split('#')[0];
             game = await Package.FetchAsync(ident, false) ?? game;
+            CurrentGame = game;
             StateHasChanged();
         }
     }
@@ -124,6 +99,23 @@
         base.Tick();
 
         CheckForDelete();
+    }
+
+    public override void Delete( bool immediate = false )
+    {
+        // The party deck lives in here while it's up - send it back to the overlay, or it goes with us
+        if ( MenuProject.PartyDeck.Instance is { } deck && deck.Parent == this )
+            deck.Parent = MenuOverlay.Instance;
+
+        base.Delete( immediate );
+    }
+
+    public override void OnDeleted()
+    {
+        base.OnDeleted();
+
+        if ( CurrentGame == game ) CurrentGame = null;
+        if ( Instance == this ) Instance = null;
     }
 
     bool CheckForDelete()
@@ -145,7 +137,7 @@
 
     public bool IsPauseMenuOpen()
     {
-        if (CheckForDelete() ) 
+        if (CheckForDelete() )
             return false;
 
         return !HasClass( "hidden" );

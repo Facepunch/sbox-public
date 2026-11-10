@@ -1,4 +1,5 @@
-﻿
+﻿#include "engine2/entitykeyvalues.h"
+
 native accessor g_pWorldRendererMgr
 {
 	void ServiceWorldRequests();

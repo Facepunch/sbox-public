@@ -7,7 +7,7 @@ namespace Editor.MeshEditor;
 /// <b>Shift</b> - extrude selection
 /// </summary>
 [Title( "Rotate" )]
-[Icon( "360" )]
+[Icon( "meshtools/move_modes/rotate.png" )]
 [Alias( "mesh.rotate.mode" )]
 [Order( 1 )]
 public sealed class RotateMode : MoveMode
@@ -20,7 +20,7 @@ public sealed class RotateMode : MoveMode
 	{
 		_moveDelta = Rotation.Identity;
 		_basis = tool.CalculateSelectionBasis();
-		_origin = tool.Pivot;
+		_origin = tool.Pivot.Position;
 	}
 
 	protected override void OnUpdate( SelectionTool tool )

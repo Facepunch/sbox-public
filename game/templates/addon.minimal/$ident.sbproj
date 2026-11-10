@@ -30,7 +30,7 @@
     "ProjectTemplate": {
       "Icon": "extension",
       "Order": 100,
-      "Description": "You want to make a map or a model"
+      "Description": "Create a custom addon for any game you wish to target"
     }
   }
 }

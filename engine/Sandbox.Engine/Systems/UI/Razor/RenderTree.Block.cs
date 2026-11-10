@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Components;
+﻿using Sandbox.Engine;
+using Microsoft.AspNetCore.Components;
 
 namespace Sandbox.UI;
 
@@ -14,6 +15,7 @@ public partial class PanelRenderTreeBuilder : Microsoft.AspNetCore.Components.Re
 	class Block
 	{
 		public int Hash;
+		public Block Parent;
 		public List<Block> Children;
 
 		public bool IsRootElement;
@@ -25,18 +27,35 @@ public partial class PanelRenderTreeBuilder : Microsoft.AspNetCore.Components.Re
 
 		public bool WasSeen;
 
+		// True when this block or anything below it might have binds. Starts true so
+		// new blocks get scanned once, then UpdateBinds keeps it exact.
+		bool hasBindsDeep = true;
+
+		/// <summary>
+		/// Mark this block and its ancestors as containing binds, so UpdateBinds visits them.
+		/// </summary>
+		public void MarkHasBinds()
+		{
+			for ( var b = this; b is not null; b = b.Parent )
+			{
+				b.hasBindsDeep = true;
+			}
+		}
+
 		public Block()
 		{
 
 		}
 
-		internal void Destroy()
+		internal void Destroy( Panel outroParent = null, bool immediate = false )
 		{
+			var owner = immediate ? null : (IsRootElement ? outroParent : ElementPanel ?? outroParent);
+
 			if ( Children != null )
 			{
 				foreach ( var child in Children )
 				{
-					child?.Destroy();
+					child?.Destroy( owner, immediate );
 				}
 
 				Children = null;
@@ -46,7 +65,7 @@ public partial class PanelRenderTreeBuilder : Microsoft.AspNetCore.Components.Re
 			{
 				foreach ( var panel in MarkupPanels )
 				{
-					panel?.Delete( true );
+					panel?.DeleteFromRenderTree( owner, true );
 				}
 
 				MarkupPanels.Clear();
@@ -54,9 +73,7 @@ public partial class PanelRenderTreeBuilder : Microsoft.AspNetCore.Components.Re
 			}
 
 			if ( !IsRootElement )
-			{
-				ElementPanel?.Delete( false );
-			}
+				ElementPanel?.DeleteFromRenderTree( immediate ? null : outroParent, immediate );
 
 			ElementPanel = null;
 
@@ -80,7 +97,7 @@ public partial class PanelRenderTreeBuilder : Microsoft.AspNetCore.Components.Re
 			{
 				Panel panel = null;
 				if ( elementName == "div" || elementName == "p" || elementName == "span" ) panel ??= new Panel();
-				else panel = Game.TypeLibrary.Create<Panel>( elementName, false );
+				else panel = GlobalContext.Current.TypeLibrary.Create<Panel>( elementName, false );
 				panel ??= new Panel();
 				panel.ElementName = elementName;
 				panel.Parent = parent;
@@ -118,15 +135,23 @@ public partial class PanelRenderTreeBuilder : Microsoft.AspNetCore.Components.Re
 
 		public bool UpdateBinds()
 		{
+			if ( !hasBindsDeep )
+				return false;
+
 			bool b = false;
+			bool foundBinds = Binds is { Count: > 0 };
 
 			if ( Children is not null )
 			{
 				for ( int i = 0; i < Children.Count; i++ )
 				{
-					b = Children[i].UpdateBinds() || b;
+					var child = Children[i];
+					b = child.UpdateBinds() || b;
+					foundBinds |= child.hasBindsDeep;
 				}
 			}
+
+			hasBindsDeep = foundBinds;
 
 			if ( Binds is not null )
 			{
@@ -167,19 +192,13 @@ public partial class PanelRenderTreeBuilder : Microsoft.AspNetCore.Components.Re
 
 		internal bool DestroyUnseen()
 		{
-			if ( Children != null )
-			{
-				foreach ( var child in Children.Where( x => x.DestroyUnseen() ).ToArray() )
-				{
-					Children.Remove( child );
-				}
-			}
-
 			if ( !WasSeen )
 			{
 				Destroy();
 				return true;
 			}
+
+			Children?.RemoveAll( static x => x.DestroyUnseen() );
 
 			return false;
 		}
@@ -188,11 +207,22 @@ public partial class PanelRenderTreeBuilder : Microsoft.AspNetCore.Components.Re
 		{
 			Children ??= new();
 
-			var child = Children.FirstOrDefault( x => x.Hash == hash );
+			// Not FirstOrDefault - the predicate would capture hash and allocate a closure every call.
+			Block child = null;
+
+			foreach ( var candidate in Children )
+			{
+				if ( candidate.Hash != hash ) continue;
+
+				child = candidate;
+				break;
+			}
+
 			if ( child == null )
 			{
 				child = new Block();
 				child.Hash = hash;
+				child.Parent = this;
 				Children.Add( child );
 			}
 

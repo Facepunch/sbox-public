@@ -2,6 +2,32 @@ namespace Sandbox;
 
 public partial class Surface
 {
+	public struct ScrapeEffectData
+	{
+		[DefaultValue( 1.0f )]
+		public float RoughnessFactor { get; set; } = 1.0f;
+
+		[DefaultValue( 0.5f )]
+		public float RoughThreshold { get; set; } = 0.5f;
+
+		[Obsolete, Hide, ResourceType( "vpcf" )]
+		public List<string> SmoothParticles { get; set; }
+
+		[Obsolete, Hide, ResourceType( "vpcf" )]
+		public List<string> RoughParticles { get; set; }
+
+		[Obsolete, Hide, ResourceType( "decal" )]
+		public List<string> SmoothDecal { get; set; }
+
+		[Obsolete, Hide, ResourceType( "decal" )]
+		public List<string> RoughDecal { get; set; }
+
+		public ScrapeEffectData() { }
+	}
+
+	[InlineEditor, Title( "Scraping" )]
+	public ScrapeEffectData ScrapeEffects { get; set; } = new();
+
 	/// <summary>
 	/// Play a collision sound based on this shape's surface. Can return null if sound is invalid, or too quiet to play.
 	/// </summary>
@@ -35,5 +61,22 @@ public partial class Surface
 			s.Volume *= volume;
 		}
 		return s;
+	}
+
+	internal SoundEvent GetScrapeSound( Surface other )
+	{
+		var smooth = other is not null && other.ScrapeEffects.RoughnessFactor < ScrapeEffects.RoughThreshold;
+		return smooth
+			? _sounds.ScrapeSmooth ?? _sounds.ScrapeRough
+			: _sounds.ScrapeRough ?? _sounds.ScrapeSmooth;
+	}
+
+	internal SoundEvent GetScrapeSound( int otherSurfaceIndex )
+	{
+		if ( _sounds.ScrapeRough is null )
+			return _sounds.ScrapeSmooth;
+		if ( _sounds.ScrapeSmooth is null )
+			return _sounds.ScrapeRough;
+		return GetScrapeSound( All.GetValueOrDefault( otherSurfaceIndex ) );
 	}
 }

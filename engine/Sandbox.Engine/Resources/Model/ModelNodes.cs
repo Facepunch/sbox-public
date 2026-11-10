@@ -36,6 +36,7 @@ public class ModelPropData
 	/// When this model is used as prop_static, it will bake lighting by default depending on this value.
 	/// </summary>
 	[Title( "Bake Lighting As Static Prop" )]
+	[JsonPropertyName( "bakelighting" )]
 	public bool BakeLighting { get; set; } = true;
 
 	/// <summary>

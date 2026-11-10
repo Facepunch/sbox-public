@@ -37,9 +37,19 @@ internal class AccountInformation
 	public static long Score { get; set; }
 
 	/// <summary>
+	/// The first time we've seen this user
+	/// </summary>
+	public static DateTimeOffset FirstSeen { get; set; }
+
+	/// <summary>
 	/// The current logged in user's avatar, from the backend
 	/// </summary>
 	public static string AvatarJson { get; set; }
+
+	/// <summary>
+	/// If true then this user will send us analytic data, like errors and performance metrics.
+	/// </summary>
+	public static bool UseAnalytics { get; set; } = true;
 
 
 	static Task<LoginResult> updateTask;
@@ -70,9 +80,8 @@ internal class AccountInformation
 
 			if ( login.Id == 0 )
 			{
-				Log.Warning( "There was a problem retrieving account information, so we're offline" );
+				Log.Warning( "Failed to retrieve account information - starting in offline mode.." );
 				Api.StartOffline();
-
 				return;
 			}
 
@@ -81,10 +90,13 @@ internal class AccountInformation
 
 			SteamId = login.Id;
 			Session = login.Session;
+
 			Links = login.Links?.Select( x => (StreamService)x ).ToList() ?? new();
 			Favourites = login.Favourites?.Select( x => RemotePackage.FromDto( x ) ).ToList() ?? new();
 			Memberships = login.Memberships?.Select( x => Package.Organization.FromDto( x ) ).ToList() ?? new();
 			Score = login.Player?.Score ?? 0;
+			FirstSeen = login.FirstSeen;
+			UseAnalytics = login.UseAnalytics;
 
 			if ( !string.IsNullOrWhiteSpace( login.AvatarJson ) )
 			{
@@ -135,7 +147,7 @@ internal class AccountInformation
 
 	private static async void OnMessageFromBackend( Messaging.Message msg )
 	{
-		if ( msg.Data is AccountMsg.Edited accountMsg )
+		if ( msg.Data is ClientMsg.AccountEdited accountMsg )
 		{
 			Log.Info( "Account information has changed.. refreshing.." );
 			await Update();

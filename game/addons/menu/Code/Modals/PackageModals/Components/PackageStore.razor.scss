@@ -1,0 +1,117 @@
+@import "/styles/_theme.scss";
+@import "/Platform/_platform.scss";
+
+// 16 everywhere - round the outside, between the columns, the rows and the cards
+$space: 16px;
+
+// The side column narrow, the main one the rest - narrow enough that its square art and facts come out about
+// as tall as the 16:9 gallery beside them
+$side-width: 230px;
+
+// As tall as what's in it - the page sizes itself to fit
+PackageStore
+{
+	flex-direction: column;
+	flex-shrink: 0;
+	background-color: rgba( 255, 255, 255, 0.025 );
+
+	> .row
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: flex-start;
+		gap: $space;
+		padding: 0 $space;
+
+		> .main
+		{
+			flex-direction: column;
+			flex-grow: 1;
+			flex-shrink: 1;
+			min-width: 0;
+		}
+
+		> .side
+		{
+			flex-direction: column;
+			flex-shrink: 0;
+			width: $side-width;
+			gap: $space;
+		}
+	}
+
+	// The top a shade brighter, edge to edge
+	> .row.top
+	{
+		padding: $space;
+	}
+
+	// The rest of the page under it, on the page's own navy - no fill of its own. As tall as your time and
+	// achievements on the right - the description fits in beside them, scrolling, the only thing that does
+	> .row.bottom
+	{
+		flex-shrink: 0;
+		align-items: stretch;
+		// Some room for the description when there's nothing beside it - not played, no achievements
+		min-height: 140px;
+		padding: $space;
+
+		> .main
+		{
+			position: relative;
+
+			> PackageAbout
+			{
+				position: absolute;
+				top: 0;
+				left: 0;
+				right: 0;
+				bottom: 0;
+			}
+		}
+	}
+
+	// The grid's padding is the page's - the gallery and the words just fill their cells
+	Media
+	{
+		padding: 0;
+	}
+
+
+	Card,
+	Card.achievements-card
+	{
+		@include platform-surface;
+		padding: 12px 14px;
+		gap: 8px;
+		flex-shrink: 0;
+		cursor: pointer;
+
+		label, .achievement-icon, badge
+		{
+			cursor: pointer;
+		}
+	}
+
+	// A game without any - the same shape as one with, its heading over a row the icons' height
+	Card.achievements-card.empty
+	{
+		gap: 10px;
+		cursor: default;
+
+		label { cursor: default; }
+
+		.none
+		{
+			height: 36px;
+			align-items: center;
+
+			label
+			{
+				font-size: 12px;
+				font-weight: 500;
+				color: $platform-faint;
+			}
+		}
+	}
+}

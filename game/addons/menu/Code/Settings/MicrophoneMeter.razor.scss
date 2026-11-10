@@ -1,0 +1,97 @@
+@import "/Platform/_platform.scss";
+
+// A slider's shape (platform-slider) - the bar, then its number, then the light that's on while it's heard
+MicrophoneMeter
+{
+	flex-direction: row-reverse;
+	align-items: center;
+	flex-grow: 1;
+	gap: 10px;
+	cursor: pointer;
+	pointer-events: all;
+
+	.light
+	{
+		flex-shrink: 0;
+		font-size: 18px;
+		color: $platform-faint;
+		transition: color 0.1s ease-out;
+
+		&.on
+		{
+			color: $platform-good;
+		}
+	}
+
+	.meter
+	{
+		position: relative;
+		flex-grow: 1;
+		height: 24px;
+		border-radius: 3px;
+		overflow: hidden;
+		background-image: linear-gradient( to right, #3fc76a 0%, #8fd14f 55%, #f5a623 80%, #ff5d6a 100% );
+	}
+
+	// Hides the part of the bar above the microphone level, before AGC - solid, the slider's empty track's colour,
+	// and a pixel past the bar's edges so none of the colours show round them
+	.cover
+	{
+		position: absolute;
+		top: -1px;
+		bottom: -1px;
+		right: -1px;
+		// Its left is the level, set in code - a pixel further, so at none it covers the bar's left edge too
+		margin-left: -1px;
+		background-color: rgb( 14, 18, 27 );
+	}
+
+	.noise, .processed, .threshold
+	{
+		position: absolute;
+		top: 0px;
+		bottom: 0px;
+		width: 3px;
+		transform: translateX( -50% );
+	}
+
+	// The level that's sent after AGC, and the background noise it's heard. Only while AGC is on
+	// and there's something to show.
+	.noise, .processed
+	{
+		display: none;
+
+		&.visible
+		{
+			display: flex;
+		}
+	}
+
+	.noise
+	{
+		background-color: $front-danger;
+	}
+
+	.processed
+	{
+		background-color: $front-primary;
+	}
+
+	.threshold
+	{
+		background-color: white;
+	}
+
+	.readout
+	{
+		flex-shrink: 0;
+		width: 52px;
+		text-align: right;
+		font-family: Inter;
+		font-size: 13px;
+		font-weight: 600;
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+		color: $platform-text;
+	}
+}

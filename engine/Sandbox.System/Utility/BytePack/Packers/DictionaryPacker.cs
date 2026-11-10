@@ -29,7 +29,7 @@ internal partial class BytePack
 			}
 		}
 
-		public override object Read( ref ByteStream bs )
+		public override object Read( ref ByteStream bs, int depth )
 		{
 			var len = bs.Read<int>();
 			var keyHandler = GetHandlerFor( ref bs );
@@ -39,8 +39,8 @@ internal partial class BytePack
 
 			for ( int i = 0; i < len; i++ )
 			{
-				var k = keyHandler.Read( ref bs );
-				var v = valueHandler.Read( ref bs );
+				var k = keyHandler.Read( ref bs, depth + 1 );
+				var v = valueHandler.Read( ref bs, depth + 1 );
 				dict.Add( k, v );
 			}
 

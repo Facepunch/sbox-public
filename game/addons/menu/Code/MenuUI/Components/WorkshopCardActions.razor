@@ -1,0 +1,111 @@
+@using Sandbox;
+@using Sandbox.UI;
+@namespace MenuProject.UI
+@inherits Panel
+
+@*
+    A package's Steam Workshop item, from the card it's on - subscribe or unsubscribe, and open its
+    page in Steam. Clicking these doesn't pick the card. Only there for packages on the Workshop - search
+    results don't say, so it's looked up first.
+*@
+<root class="@( Subscribed ? "subscribed" : "" )">
+    @if ( OnWorkshop )
+    {
+        <div class="action subscribe @( Busy ? "busy" : "" )" tooltip="@SubscribeTooltip()">
+            <icon>@( Subscribed ? "check" : Busy ? "hourglass_empty" : "add" )</icon>
+            <label class="when-idle">@( Subscribed ? "#menu.workshop.subscribed" : "#menu.workshop.subscribe" )</label>
+            @if ( Subscribed )
+            {
+                <label class="when-hovered">#menu.workshop.unsubscribe</label>
+            }
+        </div>
+
+        <div class="action open" tooltip="#menu.workshop.open_page"><icon>open_in_new</icon></div>
+
+        @if ( !Subscribed && MenuUtility.IsDownloadedOnly( Package ) )
+        {
+            <div class="action remove" tooltip="#menu.workshop.remove_download_tooltip"><icon>delete</icon></div>
+        }
+    }
+</root>
+
+@code
+{
+    [Parameter] public Package Package { get; set; }
+
+    bool Busy;
+
+    /// <summary>
+    /// Is it on the Workshop - and which package that was worked out for
+    /// </summary>
+    bool OnWorkshop;
+    Package checkedPackage;
+
+    bool Subscribed => MenuUtility.IsSubscribed( Package );
+
+    string SubscribeTooltip() => Subscribed ? "#menu.workshop.unsubscribe_tooltip" : "#menu.workshop.subscribe_tooltip";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if ( Package == checkedPackage ) return;
+
+        var package = checkedPackage = Package;
+        OnWorkshop = false;
+
+        var onWorkshop = package is not null && await MenuUtility.IsOnWorkshopAsync( package );
+
+        // Moved on to another package while we looked this one up
+        if ( package != Package ) return;
+
+        OnWorkshop = onWorkshop;
+        StateHasChanged();
+    }
+
+    protected override async void OnClick( MousePanelEvent e )
+    {
+        // We're on the card - don't pick the card too
+        e.StopPropagation();
+
+        if ( Busy || !OnWorkshop || Package is null ) return;
+
+        if ( IsWithin( e.Target, "remove" ) )
+        {
+            MenuUtility.RemoveDownloaded( Package );
+            StateHasChanged();
+            return;
+        }
+
+        var open = IsWithin( e.Target, "open" );
+        if ( !open && !IsWithin( e.Target, "subscribe" ) ) return;
+
+        Busy = true;
+        StateHasChanged();
+
+        try
+        {
+            _ = open ? await MenuUtility.OpenWorkshopPageAsync( Package )
+                : Subscribed ? await MenuUtility.UnsubscribeAsync( Package )
+                : await MenuUtility.SubscribeAsync( Package );
+        }
+        finally
+        {
+            Busy = false;
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>
+    /// Was the click on this child, or something inside it?
+    /// </summary>
+    bool IsWithin( Panel target, string className )
+    {
+        for ( var p = target; p is not null && p != this; p = p.Parent )
+        {
+            if ( p.HasClass( className ) ) return true;
+        }
+
+        return false;
+    }
+
+    protected override int BuildHash() => System.HashCode.Combine( Package, Subscribed, Busy, OnWorkshop, MenuUtility.IsDownloadedOnly( Package ) );
+}

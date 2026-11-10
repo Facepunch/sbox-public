@@ -1,35 +1,22 @@
 ﻿namespace Editor;
 
+/// <summary>
+/// A full-width colour swatch. Click it to open the colour picker; hover it for the exact values.
+/// </summary>
 [CustomEditor( typeof( Color ) )]
 [CustomEditor( typeof( Color32 ) )]
 [CustomEditor( typeof( ColorHsv ) )]
 public class ColorControlWidget : ControlWidget
 {
-	private ColorStringWidget stringWidget;
 	public override bool SupportsMultiEdit => true;
 
 	ColorSwatchWidget colorSwatchWidget;
 
 	public ColorControlWidget( SerializedProperty property ) : base( property )
 	{
-		var isColor32 = property.PropertyType == typeof( Color32 );
-		var isColorHsv = property.PropertyType == typeof( ColorHsv );
-
 		Layout = Layout.Row();
-		Layout.Spacing = 2;
 
-		colorSwatchWidget = Layout.Add( new ColorSwatchWidget( property ) { FixedWidth = Theme.RowHeight, FixedHeight = Theme.RowHeight } );
-
-		stringWidget = new ColorStringWidget( property ) { MinimumWidth = 100, HorizontalSizeMode = SizeMode.Default };
-		Layout.Add( stringWidget );
-
-		if ( isColor32 || isColorHsv )
-		{
-			stringWidget.Visible = false;
-
-			var vectorWidget = new ColorVectorWidget( property ) { HorizontalSizeMode = SizeMode.Expand };
-			Layout.Add( vectorWidget );
-		}
+		colorSwatchWidget = Layout.Add( new ColorSwatchWidget( property ) { FixedHeight = Theme.RowHeight, HorizontalSizeMode = SizeMode.Expand } );
 	}
 
 	protected override void OnPaint()
@@ -37,15 +24,29 @@ public class ColorControlWidget : ControlWidget
 		// nothing
 	}
 
-	public override string ToClipboardString()
-	{
-		return stringWidget.ToClipboardString();
-	}
-
+	/// <summary>
+	/// Copying keeps full float precision. Pasting also accepts hex, named and css colours.
+	/// </summary>
 	public override void FromClipboardString( string clipboard )
 	{
-		stringWidget.FromClipboardString( clipboard );
+		clipboard = clipboard.Trim();
+
+		if ( IsNumberList( clipboard ) || !Color.TryParse( clipboard, out var color ) )
+		{
+			base.FromClipboardString( clipboard );
+			return;
+		}
+
+		object value = color;
+		if ( SerializedProperty.PropertyType == typeof( Color32 ) ) value = color.ToColor32();
+		else if ( SerializedProperty.PropertyType == typeof( ColorHsv ) ) value = color.ToHsv();
+
+		SerializedProperty.Parent.NoteStartEdit( SerializedProperty );
+		SerializedProperty.SetValue( value );
+		SerializedProperty.Parent.NoteFinishEdit( SerializedProperty );
 	}
+
+	static bool IsNumberList( string text ) => text.Split( ',' ).All( x => float.TryParse( x, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _ ) );
 
 	public void OpenColorPopup()
 	{
@@ -59,34 +60,91 @@ public class ColorSwatchWidget : ControlWidget
 	public override bool SupportsMultiEdit => true;
 	bool IsColor32 = false;
 	bool IsColorHsv = false;
+	bool HasAlpha = true;
+	string _toolTipColor;
 
 	public ColorSwatchWidget( SerializedProperty property ) : base( property )
 	{
 		Cursor = CursorShape.Finger;
 		IsColor32 = property.PropertyType == typeof( Color32 );
 		IsColorHsv = property.PropertyType == typeof( ColorHsv );
+
+		if ( property.TryGetAttribute<ColorUsageAttribute>( out var colorUsage ) )
+			HasAlpha = colorUsage.HasAlpha;
+	}
+
+	Color GetColor()
+	{
+		if ( IsColor32 ) return SerializedProperty.GetValue( Color32.White ).ToColor();
+		if ( IsColorHsv ) return SerializedProperty.GetValue( Color.Magenta.ToHsv() ).ToColor();
+		return SerializedProperty.GetValue( Color.Magenta );
 	}
 
 	protected override void OnPaint()
 	{
-		var color = Color.Magenta;
-
-		if ( IsColor32 )
-			color = SerializedProperty.GetValue( Color32.White ).ToColor();
-		else if ( IsColorHsv )
-			color = SerializedProperty.GetValue( Color.Magenta.ToHsv() ).ToColor();
-		else
-			color = SerializedProperty.GetValue( Color.Magenta );
-
 		Paint.Antialiasing = true;
 		Paint.TextAntialiasing = true;
 
 		PaintUnder();
 
 		if ( SerializedProperty.IsMultipleDifferentValues )
+		{
+			Paint.SetPen( Theme.TextControl.WithAlpha( 0.5f ) );
+			Paint.SetDefaultFont();
+			Paint.DrawText( LocalRect, "Multiple Values", TextFlag.Center );
+			return;
+		}
+
+		var color = GetColor();
+		UpdateToolTip( color );
+
+		var rect = LocalRect.Shrink( 3 );
+
+		// Alpha shows as a bar along the bottom: white for the opaque fraction, black for the rest.
+		var showAlpha = HasAlpha && color.a < 1;
+		var swatchRect = showAlpha ? rect.Shrink( 0, 0, 0, 4 ) : rect;
+
+		// HDR colours show their hue at full brightness, with a tag for the overbright part.
+		var max = MathF.Max( color.r, MathF.Max( color.g, color.b ) );
+		var shown = (max > 1 ? color * (1 / max) : color).WithAlpha( 1 );
+		if ( IsControlDisabled )
+			shown = shown.Desaturate( 0.5f ).Darken( 0.3f );
+
+		Paint.ClearPen();
+		Paint.SetBrush( shown );
+		Paint.DrawRect( swatchRect, 2 );
+
+		if ( showAlpha )
+		{
+			var barRect = rect.Shrink( 0, rect.Height - 3, 0, 0 );
+			Paint.SetBrush( Color.Black );
+			Paint.DrawRect( barRect );
+			Paint.SetBrush( Color.White );
+			Paint.DrawRect( barRect.Shrink( 0, 0, barRect.Width * (1 - color.a.Clamp( 0, 1 )), 0 ) );
+		}
+
+		if ( max > 1 )
+		{
+			Paint.SetPen( shown.Luminance > 0.5f ? Color.Black.WithAlpha( 0.7f ) : Color.White.WithAlpha( 0.8f ) );
+			Paint.SetDefaultFont( 7, 600 );
+			Paint.DrawText( swatchRect.Shrink( 6, 0 ), "HDR", TextFlag.RightCenter );
+		}
+	}
+
+	void UpdateToolTip( Color color )
+	{
+		var text = HasAlpha
+			? $"R {color.r:0.###}  G {color.g:0.###}  B {color.b:0.###}  A {color.a:0.###}"
+			: $"R {color.r:0.###}  G {color.g:0.###}  B {color.b:0.###}";
+
+		if ( color.IsSdr )
+			text += $"\n{color.Hex}";
+
+		if ( text == _toolTipColor )
 			return;
 
-		ColorPalette.PaintSwatch( color, LocalRect.Shrink( 3 ), false, radius: 2, disabled: IsControlDisabled );
+		_toolTipColor = text;
+		ToolTip = text;
 	}
 
 	protected override void OnMouseReleased( MouseEvent e )
@@ -98,11 +156,7 @@ public class ColorSwatchWidget : ControlWidget
 
 	public void OpenColorPopup()
 	{
-		var color = Color.Magenta;
-
-		if ( IsColor32 ) color = SerializedProperty.GetValue( Color32.White ).ToColor();
-		else if ( IsColorHsv ) color = SerializedProperty.GetValue( Color.Magenta.ToHsv() ).ToColor();
-		else color = SerializedProperty.GetValue( Color.Magenta );
+		var color = GetColor();
 
 		var picker = ColorPicker.OpenColorPopup( color, c =>
 		{

@@ -1,5 +1,6 @@
 ﻿using Sandbox.Internal;
 using System.Collections.Concurrent;
+using System.Linq.Expressions;
 using System.Runtime.CompilerServices;
 
 namespace Sandbox;
@@ -59,6 +60,11 @@ public sealed class TypeDescription : ISourceLineProvider
 	/// All methods of this type.
 	/// </summary>
 	public MethodDescription[] Methods { get; private set; }
+
+	/// <summary>
+	/// Overloaded operators and conversions exposed by this type. These are also included in Methods and Members.
+	/// </summary>
+	public MethodDescription[] Operators { get; private set; }
 
 	/// <summary>
 	/// All properties of this type.
@@ -171,6 +177,9 @@ public sealed class TypeDescription : ISourceLineProvider
 
 	private bool _useClassNameWhenSerializing;
 
+	// Assembly.GetName() allocates and takes a global culture lock, which is far too slow to call per member.
+	static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Assembly, string> AssemblyNames = new();
+
 	static bool ShouldExposeMember( MemberInfo member, Internal.TypeLibrary lib, TypeDescription source )
 	{
 		// |               |  public  | protected | private |
@@ -190,6 +199,10 @@ public sealed class TypeDescription : ISourceLineProvider
 			}
 		}
 
+		// Ignore compiler generated properties, such as a record's EqualityContract
+		if ( member is PropertyInfo propa && propa.HasAttribute( typeof( CompilerGeneratedAttribute ) ) )
+			return false;
+
 		if ( member is MethodInfo methodInfo )
 		{
 			// Very special case, destructors implement this as a virtual that automatically calls base destructors
@@ -197,8 +210,8 @@ public sealed class TypeDescription : ISourceLineProvider
 			// And there is no reason to explicitly call Object.Finalize for something
 			if ( methodInfo.Name == Microsoft.CodeAnalysis.WellKnownMemberNames.DestructorName ) return false;
 
-			// Ignore getter/setter methods
-			if ( methodInfo.IsSpecialName ) return false;
+			// Operators are callable members. Other special methods (such as accessors) are represented separately.
+			if ( methodInfo.IsSpecialName && MethodDescription.ClassifyOperator( methodInfo ) == OperatorKind.None ) return false;
 			if ( methodInfo.Name == "GetType" ) return false;
 			if ( methodInfo.Name == "ToString" ) return false;
 			if ( methodInfo.Name == "Equals" ) return false;
@@ -226,7 +239,7 @@ public sealed class TypeDescription : ISourceLineProvider
 			if ( dt is not null && dt.IsDynamicAssembly ) return true;
 		}
 
-		var asmName = assembly.GetName().Name!;
+		var asmName = AssemblyNames.GetValue( assembly, static a => a.GetName().Name! );
 
 		//
 		// Keeping this around because we can't totally rely on the above. But the above is needed.
@@ -320,6 +333,10 @@ public sealed class TypeDescription : ISourceLineProvider
 		GenericArguments = type.GetGenericArguments();
 		Interfaces = type.GetInterfaces();
 
+		// Reset cached factory so it recompiles against the new Type after hotload
+		_parameterlessFactory = null;
+		_parameterlessFactoryResolved = false;
+
 		var members = type.GetMembers( BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static )
 								.Where( x => ShouldExposeMember( x, library, this ) )
 								.ToList();
@@ -338,7 +355,7 @@ public sealed class TypeDescription : ISourceLineProvider
 		ConcurrentBag<MemberDescription> md = new();
 		System.Threading.Tasks.Parallel.ForEach( members, x =>
 		{
-			var ident = GetMemberIdentity( x );
+			var ident = StringPool.Get( GetMemberIdentity( x ) );
 
 			MemberDescription previous = null;
 			previousPool?.TryGetValue( ident, out previous );
@@ -363,6 +380,7 @@ public sealed class TypeDescription : ISourceLineProvider
 		Members = md.OrderBy( x => x.SourceLine ).ToArray();
 		DeclaredMembers = Members.Where( x => x.MemberInfo.DeclaringType == type ).ToArray();
 		Methods = Members.OfType<MethodDescription>().ToArray();
+		Operators = Methods.Where( x => x.IsOperator ).ToArray();
 		Properties = Members.OfType<PropertyDescription>().ToArray();
 		Fields = Members.OfType<FieldDescription>().ToArray();
 
@@ -632,6 +650,34 @@ public sealed class TypeDescription : ISourceLineProvider
 	public Type[] Interfaces { get; private set; }
 
 	/// <summary>
+	/// Compiled factory delegate for parameterless construction.
+	/// Avoids Activator.CreateInstance + DefaultBinder overhead on every call.
+	/// </summary>
+	private Func<object> _parameterlessFactory;
+	private bool _parameterlessFactoryResolved;
+
+	private Func<object> GetParameterlessFactory()
+	{
+		if ( _parameterlessFactoryResolved )
+			return _parameterlessFactory;
+
+		_parameterlessFactoryResolved = true;
+
+		if ( TargetType.IsAbstract || TargetType.IsInterface )
+			return null;
+
+		var ctor = TargetType.GetConstructor( Type.EmptyTypes );
+		if ( ctor is null )
+			return null;
+
+		_parameterlessFactory = Expression.Lambda<Func<object>>(
+			Expression.Convert( Expression.New( ctor ), typeof( object ) )
+		).Compile();
+
+		return _parameterlessFactory;
+	}
+
+	/// <summary>
 	/// Create an instance of this class, return it as a T.
 	/// If it can't be cast to a T we won't create it and will return null.
 	/// </summary>
@@ -641,6 +687,13 @@ public sealed class TypeDescription : ISourceLineProvider
 
 		if ( !TargetType.IsAssignableTo( type ) )
 			return default;
+
+		if ( args is null or { Length: 0 } )
+		{
+			var factory = GetParameterlessFactory();
+			if ( factory is not null )
+				return (T)factory();
+		}
 
 		return (T)System.Activator.CreateInstance( TargetType, args );
 	}

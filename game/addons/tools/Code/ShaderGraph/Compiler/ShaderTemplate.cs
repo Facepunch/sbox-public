@@ -444,7 +444,7 @@ float3 HSV2RGB( float3 c )
 	public static string TexTriplanar_Color => @"
 float4 TexTriplanar_Color( in Texture2D tTex, in SamplerState sSampler, float3 vPosition, float3 vNormal )
 {
-	float2 uvX = vPosition.zy;
+	float2 uvX = vPosition.yz;
 	float2 uvY = vPosition.xz;
 	float2 uvZ = vPosition.xy;
 
@@ -469,7 +469,7 @@ float4 TexTriplanar_Color( in Texture2D tTex, in SamplerState sSampler, float3 v
 	public static string TexTriplanar_Normal => @"
 float3 TexTriplanar_Normal( in Texture2D tTex, in SamplerState sSampler, float3 vPosition, float3 vNormal )
 {
-	float2 uvX = vPosition.zy;
+	float2 uvX = vPosition.yz;
 	float2 uvY = vPosition.xz;
 	float2 uvZ = vPosition.xy;
 
@@ -490,12 +490,12 @@ float3 TexTriplanar_Normal( in Texture2D tTex, in SamplerState sSampler, float3 
 	tnormalY.x *= axisSign.y;
 	tnormalZ.x *= -axisSign.z;
 
-	tnormalX = half3( tnormalX.xy + vNormal.zy, vNormal.x );
+	tnormalX = half3( tnormalX.xy + vNormal.yz, vNormal.x );
 	tnormalY = half3( tnormalY.xy + vNormal.xz, vNormal.y );
 	tnormalZ = half3( tnormalZ.xy + vNormal.xy, vNormal.z );
 
 	return normalize(
-		tnormalX.zyx * triblend.x +
+		tnormalX.zxy * triblend.x +
 		tnormalY.xzy * triblend.y +
 		tnormalZ.xyz * triblend.z +
 		vNormal

@@ -1,0 +1,18 @@
+@import "/styles/_gallery-palette.scss";
+BorderShapeTests
+{
+	.oversized-child
+	{
+		position: absolute;
+		left: -25px;
+		top: 25px;
+		width: 270px;
+		height: 60px;
+		align-items: center;
+		justify-content: center;
+		background-image: linear-gradient( to right, $gallery-pink, $gallery-cyan );
+		font-size: 18px;
+		font-weight: 700;
+		color: white;
+	}
+}

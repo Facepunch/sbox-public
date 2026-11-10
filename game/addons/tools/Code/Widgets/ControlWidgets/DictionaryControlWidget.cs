@@ -98,7 +98,7 @@ public class DictionaryControlWidget : ControlObjectWidget
 
 			var index = y;
 			//grid.AddCell( 0, y, new IconButton( "drag_handle" ) { IconSize = 13, Foreground = Theme.ControlBackground, Background = Color.Transparent, FixedWidth = Theme.RowHeight, FixedHeight = Theme.RowHeight } );
-			grid.AddCell( 1, y, keyControl, 1, 1, keyControl.CellAlignment );
+			grid.AddCell( 1, y, keyControl, 1, 1, TextFlag.Top );
 			grid.AddCell( 2, y, new IconButton( ":" ) { IconSize = 13, Foreground = Theme.TextControl, Background = Color.Transparent, FixedWidth = Theme.RowHeight, FixedHeight = Theme.RowHeight } );
 			grid.AddCell( 3, y, valControl, 1, 1, valControl.CellAlignment );
 

@@ -10,16 +10,9 @@ public sealed class StringBlockItem : PropertyBlockItem<string?>
 	{
 		base.OnPaint();
 
-		if ( Block is IPaintHintBlock hintBlock )
+		foreach ( var hintRange in GetPaintBlocks( Block.TimeRange ) )
 		{
-			foreach ( var hintRange in hintBlock.GetPaintHints( Block.TimeRange ) )
-			{
-				PaintRange( hintRange );
-			}
-		}
-		else
-		{
-			PaintRange( Block.TimeRange );
+			PaintRange( hintRange );
 		}
 	}
 
@@ -27,6 +20,6 @@ public sealed class StringBlockItem : PropertyBlockItem<string?>
 	{
 		if ( Block.GetValue( range.Start ) is not { } value ) return;
 
-		PaintText( range, value );
+		PaintText( GetRect( range ), value );
 	}
 }

@@ -53,7 +53,7 @@ PS_INPUT VS_SharedStandardProcessing( const VS_INPUT i )
 	//
 	// Detail texturing
 	//
-	#if ( S_DETAIL_TEXTURE )
+	#if S_DETAIL_TEXTURE
 	{
 		float2 vDetailTextureCoords = GetUVDefault1( g_bUseSecondaryUvForDetailTexture, o.vTextureCoords );
 		o.vDetailTextureCoords.xy = CalculateDetailTextureCoordinates( vDetailTextureCoords.xy );

@@ -3,7 +3,7 @@ include "mathlib/mathlib.h"
 include "mathlib/noise.h"
 include "mathlib/aabb.h"
 include "mathlib/transform.h"
-include "physicslib/serialize.h"
+include "physics/serialize.h"
 
 native struct Vector is Vector3
 

@@ -1,5 +1,5 @@
-﻿using System.Text.RegularExpressions;
-using Sandbox.Internal;
+﻿using Sandbox.Internal;
+using System.Text.RegularExpressions;
 
 namespace Sandbox
 {
@@ -201,6 +201,7 @@ namespace Sandbox
 					if ( !string.IsNullOrWhiteSpace( display.Name ) ) info.Name = display.Name;
 					if ( !string.IsNullOrWhiteSpace( display.GroupName ) ) info.Group = display.GroupName;
 					if ( !string.IsNullOrWhiteSpace( display.Description ) ) info.Description = display.Description;
+					if ( !string.IsNullOrWhiteSpace( display.ShortName ) ) info.Icon ??= display.ShortName;
 
 					info.Order = display.GetOrder() ?? info.Order;
 				}
@@ -244,6 +245,13 @@ namespace Sandbox
 			{
 				info.Tags = tags.ToArray();
 			}
+
+			// An inherited member's display info is built again for every derived type, one shared copy of its strings.
+			info.Name = StringPool.Get( info.Name );
+			info.ClassName = StringPool.Get( info.ClassName );
+			info.Description = StringPool.Get( info.Description );
+			info.Group = StringPool.Get( info.Group );
+			info.Fullname = StringPool.Get( info.Fullname );
 
 			return info;
 		}

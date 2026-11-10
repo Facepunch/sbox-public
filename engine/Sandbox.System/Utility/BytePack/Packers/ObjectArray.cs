@@ -42,7 +42,7 @@ internal partial class BytePack
 			}
 		}
 
-		public override object Read( ref ByteStream bs )
+		public override object Read( ref ByteStream bs, int depth )
 		{
 			var len = bs.Read<int>();
 			var type = bs.Read<byte>();
@@ -53,7 +53,7 @@ internal partial class BytePack
 
 				for ( int i = 0; i < len; i++ )
 				{
-					array.SetValue( Deserialize( ref bs ), i );
+					array.SetValue( Deserialize( ref bs, depth + 1 ), i );
 				}
 
 				return array;
@@ -67,7 +67,7 @@ internal partial class BytePack
 
 				for ( int i = 0; i < len; i++ )
 				{
-					array.SetValue( handler.Deserialize( ref bs ), i );
+					array.SetValue( handler.Deserialize( ref bs, depth + 1 ), i );
 				}
 
 				return array;

@@ -1,19 +1,23 @@
-﻿using Sandbox.Engine;
+using Sandbox.Engine;
 
 namespace Sandbox.UI;
 
 /// <summary>
-/// Handles input focus for <see cref="Panel"/>s.
+/// Input focus in the game's UI. Focus belongs to a UI system, and a panel always uses its own -
+/// see <see cref="Panel.Focus"/>. This is the shorthand for the game's, which is the only one most
+/// code has.
 /// </summary>
 public class InputFocus
 {
+	static UISystem System => GlobalContext.Current.UISystem;
+
 	/// <summary>
 	/// The panel that currently has input focus.
 	/// </summary>
 	public static Panel Current
 	{
-		get => GlobalContext.Current.UISystem.CurrentFocus;
-		internal set => GlobalContext.Current.UISystem.CurrentFocus = value;
+		get => System.CurrentFocus;
+		internal set => System.CurrentFocus = value;
 	}
 
 	/// <summary>
@@ -21,138 +25,25 @@ public class InputFocus
 	/// </summary>
 	public static Panel Next
 	{
-		get => GlobalContext.Current.UISystem.NextFocus;
-		internal set => GlobalContext.Current.UISystem.NextFocus = value;
-	}
-
-	static bool PendingChange
-	{
-		get => GlobalContext.Current.UISystem.FocusPendingChange;
-		set => GlobalContext.Current.UISystem.FocusPendingChange = value;
+		get => System.NextFocus;
+		internal set => System.NextFocus = value;
 	}
 
 	/// <summary>
 	/// Set the focus to this panel (or its nearest ancestor with AcceptsFocus).
 	/// Note that <see cref="Current"/> won't change until the next frame.
 	/// </summary>
-	public static bool Set( Panel panel )
-	{
-		return TrySetOrParent( panel );
-	}
+	public static bool Set( Panel panel ) => System.SetFocus( panel );
 
 	/// <summary>
 	/// Clear focus away from this panel.
 	/// </summary>
-	public static bool Clear( Panel panel )
-	{
-		Next = null;
-		PendingChange = true;
-
-		Set( panel?.Parent );
-
-		return true;
-	}
+	public static bool Clear( Panel panel ) => System.ClearFocus( panel );
 
 	/// <summary>
-	/// Clear keyboard focus
+	/// Clear keyboard focus.
 	/// </summary>
-	public static bool Clear()
-	{
-		if ( Current == null )
-			return false;
+	public static bool Clear() => System.ClearFocus();
 
-		Next = null;
-		PendingChange = true;
-		return true;
-	}
-
-	static bool TrySetOrParent( Panel panel )
-	{
-		if ( panel == null ) return false;
-		if ( Next == panel ) return true;
-
-		//
-		// Note that we're not judging eligibility based on styles here
-		// That happens in the Tick because those styles might not have been
-		// calculated yet.
-		//
-
-		if ( panel.AcceptsFocus )
-		{
-			Next = panel;
-			PendingChange = true;
-			return true;
-		}
-
-		return TrySetOrParent( panel.Parent );
-	}
-
-	internal static void Tick()
-	{
-		// TODO - maintain - make sure Current/Next can still be the focus
-		// move the focus up if they can't
-
-		// TODO - make sure current selected is a child of one of the root panels
-		// if the panel was removed then it's no good to us
-
-		//
-		// If our focus became uneligable then defocus
-		//
-		if ( Current != null )
-		{
-			if ( !IsPanelEligibleForFocus( Current ) )
-			{
-				if ( !PendingChange || Next == Current )
-				{
-					// TODO - should we shift focus to a parent
-					// or should that logic be in panels?
-					Next = null;
-					PendingChange = true;
-				}
-			}
-		}
-
-		//
-		// Don't swap to an uneligable panel
-		//
-		if ( PendingChange && Next != null )
-		{
-			if ( !Next.AcceptsFocus )
-			{
-				Next = null;
-				PendingChange = false;
-			}
-		}
-
-
-		if ( PendingChange )
-		{
-			PendingChange = false;
-
-			if ( Current != Next )
-			{
-				if ( Current != null )
-				{
-					Panel.Switch( PseudoClass.Focus, false, Current, Next );
-					Current.CreateEvent( new PanelEvent( "onblur", Current ) );
-				}
-
-				Current = Next;
-
-				Panel.Switch( PseudoClass.Focus, true, Current, null );
-				Current?.CreateEvent( new PanelEvent( "onfocus", Current ) );
-			}
-		}
-
-		//Log.Info( $"InputRouter.NeedsKeyboardInput = {InputRouter.NeedsKeyboardInput} ({Current})" );
-		Next = null;
-	}
-
-	static bool IsPanelEligibleForFocus( Panel panel )
-	{
-		if ( !panel.IsVisible ) return false;
-		if ( !panel.AcceptsFocus ) return false;
-
-		return true;
-	}
+	internal static void Tick() => System.TickFocus();
 }

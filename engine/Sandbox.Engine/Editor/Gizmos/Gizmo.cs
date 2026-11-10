@@ -342,6 +342,31 @@ public static partial class Gizmo
 	}
 
 	/// <summary>
+	/// Snaps a world position to the grid along the given space's local axes. <paramref name="start"/>
+	/// is the drag origin and <paramref name="movement"/> the accumulated delta.
+	/// </summary>
+	public static Vector3 Snap( Vector3 start, Vector3 movement, Rotation space )
+	{
+		if ( Settings.SnapToGrid == IsCtrlPressed )
+			return start + movement;
+
+		if ( IsAxisAligned( space ) )
+			return Snap( start + movement, movement );
+
+		var localStart = start * space.Inverse;
+		var localMove = movement * space.Inverse;
+		var snapped = Snap( localStart + localMove, localMove );
+		return start + (snapped - localStart) * space;
+	}
+
+	static bool IsAxisAligned( Rotation rotation )
+	{
+		return IsAligned( rotation.Forward ) && IsAligned( rotation.Right ) && IsAligned( rotation.Up );
+	}
+
+	static bool IsAligned( Vector3 axis ) => axis.AlmostEqual( axis.SnapToGrid( 1.0f ) );
+
+	/// <summary>
 	/// Will snap this position, depending on the current snap settings and keys that are pressed.
 	/// Will snap along if movement is detected along that axis. For example, if movement is 1,0,0 then we'll
 	/// only snap on the x axis.
@@ -373,8 +398,10 @@ public static partial class Gizmo
 		// Extract axis and angle from quaternion
 		var quat = rotationDelta._quat;
 
+		var w = quat.W.Clamp( -1.0f, 1.0f );
+
 		// Calculate angle from w component (in degrees)
-		var angle = 2.0f * MathF.Acos( quat.W ) * 180.0f / MathF.PI;
+		var angle = 2.0f * MathF.Acos( w ) * 180.0f / MathF.PI;
 
 		var snappedAngle = angle.SnapToGrid( Settings.AngleSpacing );
 
@@ -382,7 +409,7 @@ public static partial class Gizmo
 			return Rotation.Identity;
 
 		// Calculate axis
-		var sinHalfAngle = MathF.Sqrt( 1.0f - quat.W * quat.W );
+		var sinHalfAngle = MathF.Sqrt( 1.0f - w * w );
 		Vector3 axis;
 		if ( sinHalfAngle > 0.0001f )
 		{

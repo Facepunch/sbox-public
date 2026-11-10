@@ -1,5 +1,4 @@
 ﻿using Sandbox.MovieMaker;
-using Sandbox.Services;
 
 namespace Editor.MovieMaker;
 
@@ -95,45 +94,43 @@ public sealed class GridLines : GraphicsItem
 	public float Thickness { get; set; } = 2f;
 	public float Interval { get; set; } = 16f;
 
-	private int? _pixmapHash;
+	private PixmapKey? _pixmapKey;
 	private Pixmap _pixmap;
 
 	private const int PixmapHeight = 1;
 
-	private int CalculatePixmapHash() => HashCode.Combine( Color, Thickness, (int)MathF.Round( Interval ) );
+	private readonly record struct PixmapKey( Color Color, float Thickness, float Interval, int Width );
 
 	public GridLines( GraphicsItem parent = null ) : base( parent ) { }
 
 	private Pixmap GetPixmap()
 	{
-		var hash = CalculatePixmapHash();
+		var pixmapWidth = Math.Max( (int)Math.Ceiling( Width * 1.25f ), 1 );
+		var key = new PixmapKey( Color, Thickness, Interval, pixmapWidth );
 
-		if ( _pixmap is { } pixmap && _pixmapHash == hash )
+		if ( _pixmap is { } pixmap && _pixmapKey == key )
 		{
 			return pixmap;
 		}
 
-		_pixmapHash = hash;
+		_pixmapKey = key;
 
-		// Use nearest power of 2 to avoid allocating too often
-
-		var width = Interval.NearestPowerOfTwo();
-
-		if ( _pixmap?.Width != width )
+		if ( _pixmap?.Width != key.Width )
 		{
-			_pixmap = new Pixmap( width, PixmapHeight );
+			_pixmap = new Pixmap( key.Width, PixmapHeight );
 		}
 
 		_pixmap.Clear( Color.Transparent );
 
 		using ( Paint.ToPixmap( _pixmap ) )
 		{
-			Paint.SetPen( Color, Thickness );
+			Paint.ClearBrush();
+			Paint.SetPen( key.Color, key.Thickness );
 
-			// Draw line on both left and right edge so lines more than 1 px wide don't cut off
-
-			Paint.DrawLine( 0, new Vector2( 0, PixmapHeight ) );
-			Paint.DrawLine( _pixmap.Width, new Vector2( _pixmap.Width, PixmapHeight ) );
+			for ( var x = 0f; x < _pixmap.Width + key.Interval; x += key.Interval )
+			{
+				Paint.DrawLine( new Vector2( x, 0f ), new Vector2( x, PixmapHeight ) );
+			}
 		}
 
 		return _pixmap;
@@ -143,16 +140,17 @@ public sealed class GridLines : GraphicsItem
 	{
 		var pixmap = GetPixmap();
 		var offset = ToScene( Position ).x;
-		var scale = Interval / pixmap.Width;
+
+		offset -= MathF.Floor( offset / Interval ) * Interval;
+
+		var localRect = LocalRect;
+
+		localRect.Left += offset;
+		localRect.Right += offset;
 
 		Paint.ClearPen();
 		Paint.Translate( new Vector2( -offset, 0f ) );
-		Paint.Scale( scale, 1f );
 		Paint.SetBrush( pixmap );
-		Paint.DrawRect( LocalRect with
-		{
-			Left = LocalRect.Left + offset / scale,
-			Right = LocalRect.Left + LocalRect.Width / scale + offset / scale
-		} );
+		Paint.DrawRect( localRect );
 	}
 }

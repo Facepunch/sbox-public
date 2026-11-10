@@ -58,20 +58,15 @@ namespace Sandbox
 	}
 
 	[AttributeUsage( AttributeTargets.Assembly )]
-	public sealed class SupportsILHotloadAttribute : Attribute
+	public sealed class SupportsILHotloadAttribute( string previousAssemblyVersion ) : Attribute
 	{
-		public string PreviousAssemblyVersion { get; }
-
-		public SupportsILHotloadAttribute( string previousAssemblyVersion )
-		{
-			PreviousAssemblyVersion = previousAssemblyVersion;
-		}
+		public string PreviousAssemblyVersion { get; } = previousAssemblyVersion;
 	}
 
 	[AttributeUsage( AttributeTargets.Method )]
-	public sealed class MethodBodyChangeAttribute : Attribute
+	public sealed class MethodBodyChangeAttribute( string changedAssemblyVersion ) : Attribute
 	{
-
+		public string ChangedAssemblyVersion { get; } = changedAssemblyVersion;
 	}
 
 	public enum PropertyAccessor
@@ -80,15 +75,10 @@ namespace Sandbox
 		Set
 	}
 
-
 	[AttributeUsage( AttributeTargets.Property, AllowMultiple = true )]
-	public sealed class PropertyAccessorBodyChangeAttribute : Attribute
+	public sealed class PropertyAccessorBodyChangeAttribute( PropertyAccessor accessor, string changedAssemblyVersion ) : Attribute
 	{
-		public PropertyAccessor Accessor { get; }
-
-		public PropertyAccessorBodyChangeAttribute( PropertyAccessor accessor )
-		{
-			Accessor = accessor;
-		}
+		public PropertyAccessor Accessor { get; } = accessor;
+		public string ChangedAssemblyVersion { get; } = changedAssemblyVersion;
 	}
 }

@@ -40,7 +40,7 @@ public abstract partial record PropertySignal : IPropertySignal
 public abstract partial record PropertySignal<T>() : PropertySignal, IPropertySignal<T>
 {
 	[JsonIgnore]
-	public sealed override Type PropertyType => typeof(T);
+	public sealed override Type PropertyType => typeof( T );
 
 	protected PropertySignal( PropertySignal<T> copy )
 		: base( copy )
@@ -59,7 +59,10 @@ public abstract partial record PropertySignal<T>() : PropertySignal, IPropertySi
 	/// <param name="end">Optional end time, we can discard any features after this if given.</param>
 	public PropertySignal<T> Reduce( MovieTime? start = null, MovieTime? end = null )
 	{
-		return start >= end && !GetKeyframes( start.Value ).Any() ? GetValue( start.Value ) : OnReduce( start, end );
+		// Edge case: reduce down to a constant if we're trimming down to a single moment in time,
+		// but only if there isn't a keyframe at that moment.
+
+		return start >= end && Keyframes.All( x => x.Time != start.Value ) ? GetValue( start.Value ) : OnReduce( start, end );
 	}
 
 	public PropertySignal<T> Reduce( MovieTimeRange timeRange ) =>

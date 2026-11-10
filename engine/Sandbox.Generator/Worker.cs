@@ -1,4 +1,4 @@
-﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Sandbox.Utility;
@@ -84,11 +84,6 @@ namespace Sandbox.Generator
 			Model = Compilation.GetSemanticModel( tree );
 			AddonFileMap = map;
 		}
-
-		/// <summary>
-		/// Keep track of what classes we visited this run, so we don't end up putting duplicate DescriptionAttributes on partial classes
-		/// </summary>
-		internal static List<string> VisitedClasses = new List<string>();
 
 		/// <summary>
 		/// Runs in the thread pool, processes the syntax tree and returns
@@ -199,16 +194,71 @@ namespace Sandbox.Generator
 		public override SyntaxNode VisitInvocationExpression( InvocationExpressionSyntax node )
 		{
 			var location = node.GetLocation();
-			var symbolInfo = Model.GetSymbolInfo( node.Expression );
+			var symlist = NeedsInvokedSymbols( node ) ? GetInvokedSymbols( node ) : ImmutableArray<ISymbol>.Empty;
 			node = base.VisitInvocationExpression( node ) as InvocationExpressionSyntax;
-
-			var symlist = symbolInfo.CandidateSymbols;
-			if ( symbolInfo.Symbol is not null ) symlist = ImmutableArray.Create( symbolInfo.Symbol );
 
 			CloudAssetProvider.VisitInvocation( ref node, location, symlist, this );
 			StringTokenUpgrader.VisitInvocation( ref node, location, symlist, this );
 
 			return node;
+		}
+
+		/// <summary>
+		/// Binding every call is most of the generator's time, and the units that look at the invoked
+		/// method only rewrite calls with a literal argument. Without one, the symbol can only feed a
+		/// CloudAssetProvider diagnostic, so skip it when nobody reads those.
+		/// </summary>
+		bool NeedsInvokedSymbols( InvocationExpressionSyntax node )
+		{
+			if ( !Processor.IgnoreDiagnostics ) return true;
+
+			foreach ( var argument in node.ArgumentList.Arguments )
+			{
+				if ( argument.Expression is LiteralExpressionSyntax ) return true;
+			}
+
+			return false;
+		}
+
+		/// <summary>
+		/// The method an invocation calls, or the candidates if it didn't bind. Asking about the
+		/// method group (node.Expression) makes Roslyn collect every extension method in scope on
+		/// each call, which was most of the generator's time. Asking about the invocation gives the
+		/// same method when overload resolution picked one, so only fall back for everything else.
+		/// </summary>
+		ImmutableArray<ISymbol> GetInvokedSymbols( InvocationExpressionSyntax node )
+		{
+			if ( Model.GetSymbolInfo( node ).Symbol is IMethodSymbol { MethodKind: not MethodKind.DelegateInvoke } method )
+				return ImmutableArray.Create<ISymbol>( method );
+
+			var symbolInfo = Model.GetSymbolInfo( node.Expression );
+			if ( symbolInfo.Symbol is not null ) return ImmutableArray.Create( symbolInfo.Symbol );
+
+			return symbolInfo.CandidateSymbols;
+		}
+
+		public override SyntaxNode VisitIdentifierName( IdentifierNameSyntax node )
+		{
+			var rewritten = StringBuilderRedirect.VisitIdentifierName( node, this );
+			if ( rewritten is not null )
+				return rewritten;
+
+			rewritten = ArrayPoolSharedRedirect.VisitIdentifierName( node, this );
+			if ( rewritten is not null )
+				return rewritten;
+
+			return base.VisitIdentifierName( node );
+		}
+
+		public override SyntaxNode VisitQualifiedName( QualifiedNameSyntax node )
+		{
+			// Check before visiting children so the original node is used for semantic-model queries
+			// and we avoid descending into a qualified name we're about to replace entirely.
+			var rewritten = StringBuilderRedirect.VisitQualifiedName( node, this );
+			if ( rewritten is not null )
+				return rewritten;
+
+			return base.VisitQualifiedName( node );
 		}
 
 		public override SyntaxNode VisitMemberAccessExpression( MemberAccessExpressionSyntax node )
@@ -290,6 +340,46 @@ namespace Sandbox.Generator
 			return node;
 		}
 
+		public override SyntaxNode VisitStructDeclaration( StructDeclarationSyntax original )
+		{
+			var symbol = Model.GetDeclaredSymbol( original ) as INamedTypeSymbol;
+			var node = (StructDeclarationSyntax)base.VisitStructDeclaration( original );
+			Description.VisitType( ref node, original, symbol, this );
+			return node;
+		}
+
+		public override SyntaxNode VisitRecordDeclaration( RecordDeclarationSyntax original )
+		{
+			var symbol = Model.GetDeclaredSymbol( original ) as INamedTypeSymbol;
+			var node = (RecordDeclarationSyntax)base.VisitRecordDeclaration( original );
+			Description.VisitType( ref node, original, symbol, this );
+			return node;
+		}
+
+		public override SyntaxNode VisitInterfaceDeclaration( InterfaceDeclarationSyntax original )
+		{
+			var symbol = Model.GetDeclaredSymbol( original ) as INamedTypeSymbol;
+			var node = (InterfaceDeclarationSyntax)base.VisitInterfaceDeclaration( original );
+			Description.VisitType( ref node, original, symbol, this );
+			return node;
+		}
+
+		public override SyntaxNode VisitEnumDeclaration( EnumDeclarationSyntax original )
+		{
+			var symbol = Model.GetDeclaredSymbol( original ) as INamedTypeSymbol;
+			var node = (EnumDeclarationSyntax)base.VisitEnumDeclaration( original );
+			Description.VisitType( ref node, original, symbol, this );
+			return node;
+		}
+
+		public override SyntaxNode VisitDelegateDeclaration( DelegateDeclarationSyntax original )
+		{
+			var symbol = Model.GetDeclaredSymbol( original ) as INamedTypeSymbol;
+			var node = (DelegateDeclarationSyntax)base.VisitDelegateDeclaration( original );
+			Description.VisitType( ref node, original, symbol, this );
+			return node;
+		}
+
 		public override SyntaxNode VisitClassDeclaration( ClassDeclarationSyntax _node )
 		{
 			var symbol = Model.GetDeclaredSymbol( _node ) as INamedTypeSymbol;
@@ -308,7 +398,7 @@ namespace Sandbox.Generator
 			{
 				node = base.VisitClassDeclaration( _node ) as ClassDeclarationSyntax;
 
-				Description.VisitClass( ref node, symbol, this );
+				Description.VisitType( ref node, _node, symbol, this );
 				node = ClassFileLocation.VisitNode( node, _node, symbol, this, TreeInput ) as ClassDeclarationSyntax;
 
 				//

@@ -28,9 +28,13 @@ namespace Editor
 
 		internal static TraceResult From( in NativeHammer.TraceResult result )
 		{
+			// Native leaves everything but the hit flag uninitialized on a miss
+			if ( !result.Hit )
+				return default;
+
 			return new TraceResult
 			{
-				Hit = result.Hit,
+				Hit = true,
 				HitPosition = result.HitPos,
 				Normal = result.HitNormal,
 				MapNode = HandleIndex.Get<MapNode>( result.HitMapNodeHandle ),
@@ -79,6 +83,17 @@ namespace Editor
 		{
 			var t = this;
 			t.request.TraceFlags = t.request.TraceFlags | NativeHammer.TraceFlags.TRACE_FLAG_SKIP_TOOLS_MATERIALS;
+			return t;
+		}
+
+		/// <summary>
+		/// Hit back facing geometry too - by default only faces pointing towards the ray are hit.
+		/// A back face hit (normal pointing along the ray) means the ray started inside something.
+		/// </summary>
+		public readonly Trace HitBackfaces()
+		{
+			var t = this;
+			t.request.TraceFlags = t.request.TraceFlags | NativeHammer.TraceFlags.TRACE_FLAG_CULL_NONE;
 			return t;
 		}
 

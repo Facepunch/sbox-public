@@ -1,43 +1,51 @@
 ﻿using System;
-using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace Facepunch.InteropGen;
 
+/// <summary>
+/// One argument (parameter, return value or variable type) and the rules for marshalling it across
+/// the boundary. Each concrete type knows its managed/native type names and how to convert a value
+/// <see cref="ToInterop"/> / <see cref="FromInterop"/> on each <see cref="Side"/>. Parsed from a .def
+/// token by <see cref="Parse"/>.
+/// </summary>
 public class Arg
 {
-	// Static cache for type mappings - thread-safe
-	private static readonly ConcurrentDictionary<string, Type> _typeCache = new( StringComparer.OrdinalIgnoreCase );
+	/// <summary>
+	/// Maps a [TypeName] string (e.g. "int", "float") to the Arg type that handles it.
+	/// Built once from reflection and only read afterwards.
+	/// </summary>
+	private static readonly Dictionary<string, Type> TypesByName = BuildTypeMap();
 
-	// Thread-safe cache for parsed string operations
-	private static readonly ConcurrentDictionary<string, (string type, string name, string[] flags, Type wrapper)> _parseCache
-		= new();
-
-	// Pre-compiled separators for faster parsing
-	private static readonly char[] _spaceSeparator = [' '];
-	private static readonly char[] _commaSeparator = [','];
-
-	// Static constructor to initialize the cache once
-	static Arg()
+	private static Dictionary<string, Type> BuildTypeMap()
 	{
-		InitializeTypeCache();
-	}
+		Dictionary<string, Type> map = new( StringComparer.OrdinalIgnoreCase );
 
-	private static void InitializeTypeCache()
-	{
 		foreach ( Type t in typeof( Arg ).Assembly.GetTypes().Where( x => typeof( Arg ).IsAssignableFrom( x ) ) )
 		{
 			foreach ( TypeNameAttribute a in t.GetCustomAttributes( typeof( TypeNameAttribute ), false ) )
 			{
-				_ = _typeCache.TryAdd( a.TypeName, t );
+				_ = map.TryAdd( a.TypeName, t );
 			}
 		}
+
+		return map;
 	}
 
 	public bool IsSelf { get; set; }
 	public virtual string Name { get; set; }
-	public Type Wrapper { get; private set; }
+
+	/// <summary>
+	/// The wrapper type applied to arrays (ArgArray), or null for a plain argument.
+	/// </summary>
+	public Type ArrayWrapper { get; private set; }
 	public string[] Flags { get; set; }
+
+	/// <summary>
+	/// The managed class whose helpers marshal strings across the boundary.
+	/// </summary>
+	internal const string StringTools = "Sandbox.Interop";
 
 	public bool HasFlag( string flag )
 	{
@@ -52,14 +60,14 @@ public class Arg
 	public virtual string DefaultValue => "0";
 	public bool IsReturn => Name == "returnvalue";
 
-	public virtual string GetManagedDelegateType( bool incoming )
+	/// <summary>
+	/// The type used in the unmanaged function-pointer signature for this argument, for the given
+	/// side and direction. Defaults to ManagedDelegateType / NativeDelegateType; types with
+	/// direction-sensitive marshalling (structs, handles, pointers) override this.
+	/// </summary>
+	public virtual string DelegateType( Side side, Dir dir )
 	{
-		return ManagedDelegateType;
-	}
-
-	public virtual string GetNativeDelegateType( bool incoming )
-	{
-		return NativeDelegateType;
+		return side == Side.Managed ? ManagedDelegateType : NativeDelegateType;
 	}
 
 	/// <summary>
@@ -68,49 +76,33 @@ public class Arg
 	/// </summary>
 	public virtual bool IsRealArgument => true;
 
-	public virtual string ToInterop( bool native, string code = null )
+	public virtual string ToInterop( Side side, string code = null )
 	{
 		code ??= Name;
 		return code;
 	}
 
-	public virtual string FromInterop( bool native, string code = null )
+	public virtual string FromInterop( Side side, string code = null )
 	{
 		code ??= Name;
 		return code;
 	}
 
+	/// <summary>
+	/// Parse a single argument like "const char* name" or "[literal]" into an Arg.
+	/// </summary>
 	internal static Arg Parse( string line )
 	{
-		string trimmedLine = line.Trim();
+		string type = line.Trim();
 
-		// Check parse cache first - thread-safe
-		if ( _parseCache.TryGetValue( trimmedLine, out (string type, string name, string[] flags, Type wrapper) cached ) )
-		{
-			return CreateArgFromCached( cached );
-		}
-
-		(string type, string name, string[] flags, Type wrapper) result = ParseInternal( trimmedLine );
-
-		// Cache the result with size limit - thread-safe
-		if ( _parseCache.Count < 1000 )
-		{
-			_ = _parseCache.TryAdd( trimmedLine, result );
-		}
-
-		return CreateArgFromCached( result );
-	}
-
-	private static (string type, string name, string[] flags, Type wrapper) ParseInternal( string type )
-	{
-		string name = "none";
-
+		// A literal, e.g. [true] - passed straight through, not a real argument
 		if ( type.StartsWith( '[' ) && type.EndsWith( ']' ) )
 		{
-			// Special case for literals - return early
-			return ("literal", type[1..^1], null, null);
+			return new ArgLiteral( type[1..^1] );
 		}
 
+		// The name is whatever follows the last space
+		string name = "none";
 		int lastSpaceIndex = type.LastIndexOf( ' ' );
 		if ( lastSpaceIndex > 0 )
 		{
@@ -120,70 +112,58 @@ public class Arg
 
 		if ( type == "const" )
 		{
-			throw new System.Exception( "Invalid argument" );
+			throw new Exception( "Invalid argument" );
 		}
 
-		Type wrapper = null;
+		// Anything still before a space is a flag (out, ref, const, etc.)
 		string[] flags = null;
-
-		// Parse flags more efficiently
 		if ( type.Contains( ' ' ) )
 		{
 			int lastSpace = type.LastIndexOf( ' ' );
-			string flagsString = type[..lastSpace];
-			flags = flagsString.Split( _spaceSeparator, StringSplitOptions.RemoveEmptyEntries );
+			flags = type[..lastSpace].Split( ' ', StringSplitOptions.RemoveEmptyEntries );
 			type = type[(lastSpace + 1)..];
 		}
 
-		// Check for array wrapper
+		// A trailing [] makes it an array
+		Type arrayWrapper = null;
 		if ( type.EndsWith( "[]" ) )
 		{
 			type = type[..^2];
-			wrapper = typeof( ArgArray );
+			arrayWrapper = typeof( ArgArray );
 		}
 
-		return (type, name, flags, wrapper);
-	}
-
-	private static Arg CreateArgFromCached( (string type, string name, string[] flags, Type wrapper) cached )
-	{
-		// Handle literal case
-		if ( cached.type == "literal" )
+		if ( TypesByName.TryGetValue( type, out Type argType ) )
 		{
-			return new ArgLiteral( cached.name );
-		}
-
-		string normalizedType = cached.type.ToLowerInvariant();
-
-		// Use cached lookup instead of reflection - thread-safe
-		if ( _typeCache.TryGetValue( normalizedType, out Type argType ) )
-		{
-			Arg arg = Activator.CreateInstance( argType ) as Arg;
-			arg.Name = cached.name;
-			arg.Wrapper = cached.wrapper;
-			arg.Flags = cached.flags;
+			Arg arg = (Arg)Activator.CreateInstance( argType );
+			arg.Name = name;
+			arg.ArrayWrapper = arrayWrapper;
+			arg.Flags = flags;
 
 			return arg.Wrap( arg );
 		}
 
 		return new ArgUnknown
 		{
-			Type = cached.type,
-			Name = cached.name,
-			Wrapper = cached.wrapper,
-			Flags = cached.flags
+			Type = type,
+			Name = name,
+			ArrayWrapper = arrayWrapper,
+			Flags = flags
 		};
 	}
 
-	//
-	// funccall( args, args, args ) to
-	// returnvalue = funccall( args, args, args );
-	//
-	public virtual string ReturnWrapCall( string functionCall, bool native )
+	/// <summary>
+	/// Wraps a call expression into the statement that returns its result, e.g.
+	/// <c>funccall( args )</c> becomes <c>return funccall( args );</c>. Types that need to convert the
+	/// return value (strings, structs, casts) override this.
+	/// </summary>
+	public virtual string ReturnWrapCall( string functionCall, Side side )
 	{
 		return $"return {functionCall};";
 	}
 
+	/// <summary>
+	/// Parse a comma-separated parameter list into its arguments.
+	/// </summary>
 	internal static Arg[] ParseMany( string value )
 	{
 		if ( string.IsNullOrWhiteSpace( value ) )
@@ -191,35 +171,28 @@ public class Arg
 			return Array.Empty<Arg>();
 		}
 
-		// Use pre-allocated separator array and StringSplitOptions for better performance
-		string[] parts = value.Split( _commaSeparator, StringSplitOptions.RemoveEmptyEntries );
-		Arg[] result = new Arg[parts.Length];
-
-		for ( int i = 0; i < parts.Length; i++ )
-		{
-			result[i] = Parse( parts[i].Trim() );
-		}
-
-		return result;
+		return value.Split( ',', StringSplitOptions.RemoveEmptyEntries )
+			.Select( x => Parse( x.Trim() ) )
+			.ToArray();
 	}
 
-	public virtual string WrapFunctionCall( string functionCall, bool native )
+	public virtual string WrapFunctionCall( string functionCall, Side side )
 	{
 		return functionCall;
 	}
 
 	/// <summary>
-	/// If the unknown type is an array etc, we need to wrap it with an array type
+	/// True when <see cref="WrapFunctionCall"/> wraps the managed call in real code (string
+	/// marshalling, try/finally). Wrappers with a fat body like that aren't worth force-inlining.
+	/// </summary>
+	public virtual bool WrapsManagedCall => false;
+
+	/// <summary>
+	/// Wrap a freshly-parsed argument: arrays get their ArrayWrapper, everything else gets the
+	/// flags wrapper that applies out/ref/cast/etc.
 	/// </summary>
 	public Arg Wrap( Arg arg )
 	{
-		if ( Wrapper == null )
-		{
-			return new ArgFlagsWrapper( arg );
-		}
-
-		Arg a = Activator.CreateInstance( Wrapper, arg ) as Arg;
-
-		return a;
+		return ArrayWrapper != null ? (Arg)Activator.CreateInstance( ArrayWrapper, arg ) : new ArgFlagsWrapper( arg );
 	}
 }

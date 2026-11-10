@@ -1,18 +1,21 @@
+@import "/styles/_theme.scss";
 
 PackageDescription
 {
-    flex-shrink: 0;
-    padding: 32px;
-    color: #6f7688;
-    overflow: hidden;
-    width: 100%;
-    
+	flex-shrink: 0;
+	// The gallery's 24 at the sides, so the two line up. 13 on top, plus the thumbnail strip's own 3
+	// under it - 16 off the gallery
+	padding: 13px 24px 64px 24px;
+	color: #ADB3CB;
+	width: 100%;
 }
 
 PackageDescription HtmlPanel
 {
     flex-grow: 1;
     flex-shrink: 0;
+    width: 100%;
+    max-width: 100%;
 }
 
 h1
@@ -30,9 +33,9 @@ image
 
 blockquote
 {
-    padding: 10px;
-    padding-left: 20px;
-    border-left: 2px solid #3273eb;
+	margin: 1rem 0 1rem 0;
+	padding-left: 1rem;
+	border-left: 2px solid #3273eb;
 }
 
 ul, ol

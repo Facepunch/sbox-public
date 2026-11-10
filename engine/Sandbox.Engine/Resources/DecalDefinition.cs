@@ -63,13 +63,24 @@ public sealed class DecalDefinition : GameResource
 	public float ParallaxStrength { get; set; } = 1.0f;
 
 	/// <summary>
+	/// Adjusts the opacity mask based on the height map.
+	/// </summary>
+	[HideIf( "HeightTexture", null )]
+	public float CoverageAmount { get; set; } = 1.0f;
+
+	/// <summary>
 	/// Tints the color of the decal's albedo and can be used to adjust the overall opacity of the decal.
 	/// </summary>
 	[Header( "Parameters" )]
 	public Color Tint { get; set; } = Color.White;
 
 	/// <summary>
-	/// Controls the opacity of the decal's color texture without reducing the impact of the normal or rmo texture.
+	/// How the decal's color blends with the receiving surface. Defaults to <see cref="DecalBlendMode.Alpha"/>.
+	/// </summary>
+	public DecalBlendMode BlendMode { get; set; }
+
+	/// <summary>
+	/// Controls the strength of color blending without reducing the impact of the normal or rmo texture.
 	/// Set to 0 to create a normal/rmo only decal masked by the color textures alpha.
 	/// </summary>
 	[Range( 0, 1 )]

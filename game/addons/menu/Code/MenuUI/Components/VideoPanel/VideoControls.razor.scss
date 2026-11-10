@@ -1,108 +1,174 @@
-﻿
+@import "/Platform/_platform.scss";
+
+// Over the foot of the video - no box, a scrim fading up from the bottom edge, so the controls sit
+// on the video rather than in a panel on top of it
 .videocontrols
 {
-    background-color: #0005;
-    backdrop-filter: blur( 10px );
-    min-width: 200px;
-    max-width: 800px;
-    flex-grow: 1;
-    border-radius: 10px;
-    pointer-events: all;
-    flex-direction: row;
+	flex-direction: column;
+	flex-grow: 1;
+	width: 100%;
+	gap: 4px;
+	padding: 36px 14px 10px 14px;
+	pointer-events: all;
+	background-image: linear-gradient( to top, rgba( 0, 0, 0, 0.8 ) 0%, rgba( 0, 0, 0, 0.45 ) 55%, rgba( 0, 0, 0, 0 ) 100% );
+	font-family: $platform-font;
 
+	i
+	{
+		font-family: "Material Icons";
+	}
 
-    > .left
-    {
-        .playbutton
-        {
-            font-size: 60px;
-            padding: 20px;
-            pointer-events: all;
-            justify-content: center;
-            align-items: center;
-        }
-    }
+	//
+	// Sliders - thin rounded tracks, filled in the menu blue, a dot riding the end
+	//
 
-    > .right
-    {
-        flex-grow: 1;
-        flex-direction: column;
-        padding: 16px 32px;
-        padding-left: 0px;
-        gap: 5px;
-    }
+	.slidercontrol
+	{
+		.entry
+		{
+			display: none;
+		}
 
-    .meta
-    {
-        align-items: center;
+		.inner
+		{
+			min-height: 14px;
+			justify-content: center;
+		}
 
-        .left
-        {
-            flex-grow: 1;
+		.track
+		{
+			margin: 0;
+			height: 4px;
+			border-radius: 999px;
+			background-color: rgba( 255, 255, 255, 0.22 );
+			transition: height 0.1s ease;
+		}
 
-            i
-            {
-                position: relative;
-                top: 3px;
-                font-size: 25px;
-            }
+		.track-active
+		{
+			border-radius: 999px;
+			background-color: $platform-primary;
+		}
 
-            SliderControl
-            {
-                max-width: 200px;
+		.thumb
+		{
+			width: 12px;
+			height: 12px;
+			border-radius: 50%;
+			background-color: white;
+			box-shadow: 0 1px 4px rgba( 0, 0, 0, 0.5 );
+			opacity: 0;
+			transition: opacity 0.1s ease;
+		}
 
-                .inner
-                {
-                    .track
-                    {
-                        background-color: rgba(white, 0.2);
-                    }
+		&:hover
+		{
+			.track
+			{
+				height: 6px;
+			}
 
-                    .track-active
-                    {
-                        background-color: white;
-                    }
-                }
-            }
-        }
+			.thumb
+			{
+				opacity: 1;
+			}
+		}
+	}
 
-        .right
-        {
-            font-size: 15px;
-            opacity: 0.8;
-            gap: 5px;
-        }
-    }
+	// The timeline, the full width
+	.timeline
+	{
+		flex-shrink: 0;
+		width: 100%;
 
-    .video-control-button
-    {
-        opacity: 0.8;
-        cursor: pointer;
+		.slidercontrol
+		{
+			flex-grow: 1;
+		}
+	}
 
-        &:hover
-        {
-            opacity: 1;
-        }
+	//
+	// Under it: play, volume, the time
+	//
 
-        &.disabled
-        {
-            pointer-events: none;
-            opacity: 0.2;
-        }
-    }
+	.meta
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 4px;
+	}
 
-    .slidercontrol 
-    {
-        .thumb
-        {
-            display: none;
-        }
+	.control
+	{
+		@include platform-tool( 34px, 22px );
 
-        .track
-        {
-            margin: 0;
-            height: 10px;
-            overflow: hidden;
-        }
-    }
+		i
+		{
+			width: 22px;
+			height: 22px;
+			text-align: center;
+		}
+
+		&:hover
+		{
+			sound-in: "ui.button.over";
+		}
+
+		&.play i
+		{
+			width: 26px;
+			height: 26px;
+			font-size: 26px;
+		}
+
+		&.disabled
+		{
+			pointer-events: none;
+		}
+	}
+
+	// The volume - its slider beside the speaker, short
+	.volume
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 2px;
+
+		.slidercontrol
+		{
+			width: 72px;
+		}
+	}
+
+	// 00:07 / 01:00 - the time so far white, the length dimmer; fixed-width digits so it doesn't
+	// shuffle as it counts
+	.time
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 5px;
+		margin-left: 10px;
+
+		label
+		{
+			font-family: Inter;
+			font-variant-numeric: tabular-nums;
+			font-size: 12px;
+			font-weight: 600;
+			text-shadow: 0 1px 3px rgba( 0, 0, 0, 0.6 );
+		}
+
+		.now
+		{
+			color: white;
+		}
+
+		.sep, .total
+		{
+			color: rgba( 255, 255, 255, 0.6 );
+		}
+	}
 }

@@ -8,6 +8,11 @@ internal static partial class ConVarSystem
 	public delegate void ConVarChangedDelegate( Command command, string oldValue );
 
 	/// <summary>
+	/// The ConVar that decides whether cheat ConVars are allowed to be changed.
+	/// </summary>
+	internal const string CheatsVariableName = "sv_cheats";
+
+	/// <summary>
 	/// Called when the ConVar is changed.
 	/// </summary>
 	public static ConVarChangedDelegate ConVarChanged { get; set; }
@@ -32,43 +37,57 @@ internal static partial class ConVarSystem
 		if ( assembly == null )
 			return;
 
-		foreach ( var t in assembly.GetTypes() )
+		// Reading attributes for every member is slow, so do the scan in parallel and register in the original order.
+		var candidates = assembly.GetTypes()
+			.AsParallel()
+			.AsOrdered()
+			.SelectMany( t => t.GetMembers( BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public )
+				.Select( member =>
+				{
+					try
+					{
+						return (member, attribute: member.GetCustomAttribute<ConVarAttribute>());
+					}
+					catch ( Exception e )
+					{
+						Log.Error( e );
+						return (member, attribute: (ConVarAttribute)null);
+					}
+				} )
+				.Where( x => x.attribute is not null ) )
+			.ToArray();
+
+		foreach ( var (member, attribute) in candidates )
 		{
-			var methods = t.GetMembers( BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public );
-			foreach ( var member in methods )
+			if ( attribute.Context != context ) continue;
+
+			try
 			{
-				var attribute = member.GetCustomAttribute<ConVarAttribute>();
-				if ( attribute == null ) continue;
-				if ( attribute.Context != context ) continue;
-
-				try
+				if ( member is PropertyInfo prop )
 				{
-					if ( member is PropertyInfo prop )
-					{
-						var get = prop.GetGetMethod( true );
-						var set = prop.GetSetMethod( true );
+					var get = prop.GetGetMethod( true );
+					var set = prop.GetSetMethod( true );
 
-						if ( get == null || set == null )
-							continue;
+					if ( get == null || set == null )
+						continue;
 
-						if ( !get.IsStatic )
-							continue;
+					if ( !get.IsStatic )
+						continue;
 
-						AddConVar( new ManagedCommand( assembly, member, attribute, GetCookies( cookies ) ) );
-					}
-
-					if ( member is MethodInfo method )
-					{
-						if ( !method.IsStatic )
-							continue;
-
-						AddCommand( new ManagedCommand( assembly, member, attribute, GetCookies( cookies ) ) );
-					}
+					AddConVar( new ManagedCommand( assembly, member, attribute, GetCookies( cookies ) ) );
 				}
-				catch ( Exception e )
+
+				if ( member is MethodInfo method )
 				{
-					Log.Error( e );
+					if ( !method.IsStatic )
+						continue;
+
+					AddCommand( new ManagedCommand( assembly, member, attribute, GetCookies( cookies ) ) );
 				}
+			}
+			catch ( Exception e )
+			{
+				Log.Error( e );
 			}
 		}
 	}
@@ -127,6 +146,12 @@ internal static partial class ConVarSystem
 		{
 			command.Value = rememberedValue;
 		}
+
+		// Cookies, the command line and hotloads can all bring back a value we're not allowed to set
+		if ( command.IsCheat && command.DefaultValue is not null && !Game.CheatsEnabled )
+		{
+			command.Value = command.DefaultValue;
+		}
 	}
 
 	internal static Command Find( string name )
@@ -179,7 +204,7 @@ internal static partial class ConVarSystem
 	/// </summary>
 	public static int GetInt( string name, int defaultValue, bool allowEngineVariable )
 	{
-		var value = GetValue( name, defaultValue.ToString(), allowEngineVariable );
+		var value = GetValue( name, null, allowEngineVariable );
 
 		if ( bool.TryParse( value, out var boolean ) )
 			return boolean ? 1 : 0;
@@ -192,7 +217,7 @@ internal static partial class ConVarSystem
 	/// </summary>
 	public static float GetFloat( string name, float defaultValue, bool allowEngineVariable )
 	{
-		return float.TryParse( GetValue( name, defaultValue.ToString(), allowEngineVariable ), out var value ) ? value : defaultValue;
+		return float.TryParse( GetValue( name, null, allowEngineVariable ), out var value ) ? value : defaultValue;
 	}
 
 	/// <summary>
@@ -226,6 +251,50 @@ internal static partial class ConVarSystem
 	public static void SetFloat( string name, float value, bool allowProtected )
 	{
 		SetValue( name, value.ToString(), allowProtected );
+	}
+
+	/// <summary>
+	/// Give up cheat authority and undo anything it allowed - cheats go back off (unless this
+	/// session was launched with them on) and every cheat ConVar goes back to its default.
+	/// Cheat ConVars are reset either way, a new game should always start from a clean slate.
+	/// </summary>
+	internal static void ResetCheats()
+	{
+		if ( Find( CheatsVariableName ) is { } cheats )
+		{
+			cheats.Value = cheats.DefaultValue;
+
+			// A dedicated server or test session launched with +sv_cheats 1 meant it
+			cheats.SetVariableFromCommandLine();
+		}
+
+		// Changing sv_cheats above only queues a notification for next frame, which might never
+		// come if we're shutting down - so do it now. Running twice is harmless.
+		ResetCheatConVars();
+	}
+
+	/// <summary>
+	/// Reset every cheat ConVar to its default. A cheat can only be changed while cheats are on,
+	/// but nothing stops the value outliving that authority - so call this whenever it's lost.
+	/// </summary>
+	internal static void ResetCheatConVars()
+	{
+		// sv_cheats is not itself a cheat ConVar, so this can never recurse
+		foreach ( var convar in Members.Values.Where( x => x.IsVariable && x.IsCheat ).ToArray() )
+		{
+			// No known default, leave it alone rather than guessing
+			if ( convar.DefaultValue is null ) continue;
+
+			try
+			{
+				convar.Value = convar.DefaultValue;
+			}
+			catch ( Exception e )
+			{
+				// One addon's setter throwing can't leave every other cheat switched on
+				Log.Warning( e, $"Couldn't reset cheat ConVar {convar.Name}" );
+			}
+		}
 	}
 
 	/// <summary>
@@ -379,6 +448,12 @@ internal static partial class ConVarSystem
 			{
 				Connection.Local?.SetUserData( command.Name, command.Value );
 			}
+		}
+
+		// Losing cheat authority has to undo everything cheats let you change
+		if ( command.Name.Equals( CheatsVariableName, StringComparison.OrdinalIgnoreCase ) && !Game.CheatsEnabled )
+		{
+			ResetCheatConVars();
 		}
 
 		ConVarChanged?.Invoke( command, oldValue );

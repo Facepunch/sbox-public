@@ -1,4 +1,4 @@
-<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc29:version{3cec427c-1b0e-4d48-a90a-0436f33a6041} -->
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
 {
 	rootNode = 
 	{
@@ -12,6 +12,14 @@
 					{
 						_class = "LODGroup"
 						switch_threshold = 0.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
 						meshes = 
 						[
 							"LOD0",
@@ -20,6 +28,14 @@
 					{
 						_class = "LODGroup"
 						switch_threshold = 10.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
 						meshes = 
 						[
 							"LOD1",
@@ -28,6 +44,14 @@
 					{
 						_class = "LODGroup"
 						switch_threshold = 20.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
 						meshes = 
 						[
 							"LOD2",
@@ -36,6 +60,14 @@
 					{
 						_class = "LODGroup"
 						switch_threshold = 40.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
 						meshes = 
 						[
 							"LOD3",
@@ -113,6 +145,7 @@
 							[
 								"cut_male_legs",
 								"boxers_LOD1",
+								"cut_citizen_leg",
 							]
 						}
 					},
@@ -134,6 +167,7 @@
 							[
 								"cut_male_legs",
 								"boxers_LOD2",
+								"cut_citizen_leg",
 							]
 						}
 					},
@@ -155,6 +189,7 @@
 							[
 								"cut_male_legs",
 								"boxers_LOD3",
+								"cut_citizen_leg",
 							]
 						}
 					},

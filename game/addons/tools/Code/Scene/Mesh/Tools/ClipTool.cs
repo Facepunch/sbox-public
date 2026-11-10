@@ -1,4 +1,3 @@
-
 namespace Editor.MeshEditor;
 
 [Alias( "tools.clip-tool" )]
@@ -23,6 +22,8 @@ public partial class ClipTool : EditorTool
 			if ( field == value ) return;
 			field = value;
 
+			EditorCookie.Set( "ClipTool.CapNewSurfaces", value );
+
 			ApplyClipPreview();
 		}
 	}
@@ -39,6 +40,9 @@ public partial class ClipTool : EditorTool
 		{
 			if ( field == value ) return;
 			field = value;
+
+
+			EditorCookie.Set( "ClipTool.KeepMode", value );
 
 			ApplyClipPreview();
 		}
@@ -72,7 +76,9 @@ public partial class ClipTool : EditorTool
 
 			foreach ( var group in Selection.OfType<MeshFace>().GroupBy( f => f.Component ) )
 			{
-				_targets[group.Key] = (group.Key.Mesh, [.. group.Select( f => f.Handle )]);
+				var selectedFaces = new HashSet<HalfEdgeMesh.FaceHandle>( group.Select( f => f.Handle ) );
+				var targetFaces = selectedFaces.Count == group.Key.Mesh.FaceHandles.Count() ? null : selectedFaces;
+				_targets[group.Key] = (group.Key.Mesh, targetFaces);
 			}
 		}
 
@@ -81,6 +87,9 @@ public partial class ClipTool : EditorTool
 
 	public override void OnEnabled()
 	{
+		KeepMode = EditorCookie.Get( "ClipTool.KeepMode", ClipKeepMode.Front );
+		CapNewSurfaces = EditorCookie.Get( "ClipTool.CapNewSurfaces", false );
+
 		Reset();
 		CacheSelectedMeshes();
 	}
@@ -99,10 +108,58 @@ public partial class ClipTool : EditorTool
 
 	static Vector3 SnapToPlaneGrid( Vector3 point, Vector3 planeNormal )
 	{
-		var rotation = Rotation.LookAt( planeNormal );
-		var local = point * rotation.Inverse;
-		local = Gizmo.Snap( local, new Vector3( 0, 1, 1 ) );
-		return local * rotation;
+		var plane = new Plane( point, planeNormal );
+		plane.Distance = MathF.Floor( plane.Distance / 0.01f + 0.5f ) * 0.01f;
+
+		var spacing = Gizmo.Settings.GridSpacing;
+		if ( Gizmo.Settings.SnapToGrid == Gizmo.IsCtrlPressed || spacing == 0.0f )
+			return plane.SnapToPlane( point );
+
+		var min = new Vector3(
+			MathF.Floor( point.x / spacing ) * spacing,
+			MathF.Floor( point.y / spacing ) * spacing,
+			MathF.Floor( point.z / spacing ) * spacing );
+		var max = new Vector3(
+			MathF.Ceiling( point.x / spacing ) * spacing,
+			MathF.Ceiling( point.y / spacing ) * spacing,
+			MathF.Ceiling( point.z / spacing ) * spacing );
+
+		var best = point;
+		var bestDistance = float.MaxValue;
+		for ( var axis = 0; axis < 3; axis++ )
+		{
+			var firstAxis = axis == 0 ? 1 : 0;
+			var secondAxis = axis == 2 ? 1 : 2;
+
+			for ( var corner = 0; corner < 4; corner++ )
+			{
+				var start = min;
+				start[firstAxis] = (corner & 2) == 0 ? min[firstAxis] : max[firstAxis];
+				start[secondAxis] = (corner & 1) == 0 ? min[secondAxis] : max[secondAxis];
+				start[axis] -= 1;
+
+				var length = max[axis] - min[axis] + 2;
+				var denominator = plane.Normal[axis] * length;
+				if ( denominator == 0.0f )
+					continue;
+
+				var fraction = -plane.GetDistance( start ) / denominator;
+				if ( fraction < 0.0f || fraction > 1.0f )
+					continue;
+
+				var hit = start;
+				hit[axis] += length * fraction;
+
+				var distance = point.Distance( hit );
+				if ( distance >= bestDistance )
+					continue;
+
+				best = hit;
+				bestDistance = distance;
+			}
+		}
+
+		return best;
 	}
 
 	Vector3 _dragStartP1;
@@ -175,7 +232,7 @@ public partial class ClipTool : EditorTool
 				var drag = Gizmo.GetMouseDrag( _dragStartP1, normal );
 
 				_point1 = SnapToPlaneGrid( _dragStartP1 - drag, normal );
-				_point2 = SnapToPlaneGrid( _dragStartP2 - drag, normal );
+				_point2 = _dragStartP2 + (_point1 - _dragStartP1);
 
 				UpdateClipPlane();
 			}
@@ -207,35 +264,47 @@ public partial class ClipTool : EditorTool
 	{
 		if ( Gizmo.Pressed.Any ) return default;
 
-		SceneTraceResult tr = default;
-
-		if ( _hitPlane.HasValue )
+		static Vector3 SnapNormalToAxis( Vector3 n )
 		{
-			var plane = _hitPlane.Value;
+			var abs = n.Abs();
+
+			if ( abs.x >= abs.y && abs.x >= abs.z ) return new Vector3( MathF.Sign( n.x ), 0, 0 );
+			if ( abs.y >= abs.z ) return new Vector3( 0, MathF.Sign( n.y ), 0 );
+
+			return new Vector3( 0, 0, MathF.Sign( n.z ) );
+		}
+
+		static SceneTraceResult PlaneTrace( Plane plane )
+		{
+			SceneTraceResult tr = default;
+
 			if ( plane.TryTrace( Gizmo.CurrentRay, out var hit, true ) )
 			{
 				tr.Hit = true;
 				tr.Normal = plane.Normal;
 				tr.HitPosition = hit;
 			}
+
+			return tr;
 		}
-		else
+
+		if ( Gizmo.IsLeftMouseDown && !Gizmo.WasLeftMousePressed && _hitPlane is { } locked )
+			return PlaneTrace( locked );
+
+		if ( Gizmo.Camera.Ortho )
+			return PlaneTrace( new Plane( SnapNormalToAxis( -Gizmo.Camera.Rotation.Forward ), 0 ) );
+
+		var tr = MeshTrace.Run();
+		if ( tr.Hit )
 		{
-			tr = MeshTrace.Run();
-
-			if ( !tr.Hit )
-			{
-				var plane = new Plane( Vector3.Up, 0 );
-				if ( plane.TryTrace( Gizmo.CurrentRay, out var hit ) )
-				{
-					tr.Hit = true;
-					tr.Normal = plane.Normal;
-					tr.HitPosition = hit;
-				}
-			}
+			return tr;
 		}
 
-		return tr;
+		tr = PlaneTrace( _hitPlane ?? new Plane( Vector3.Up, 0 ) );
+		if ( tr.Hit ) return tr;
+
+		var normal = SnapNormalToAxis( -Gizmo.Camera.Rotation.Forward );
+		return PlaneTrace( new Plane( Gizmo.CurrentRay.Project( 512f ), normal ) );
 	}
 
 	void UpdatePoints( SceneTraceResult tr )
@@ -276,11 +345,17 @@ public partial class ClipTool : EditorTool
 
 	void Apply()
 	{
+		Apply( true );
+	}
+
+	void Apply( bool closeTool = true )
+	{
 		if ( !CanApply ) return;
 
 		_applied = true;
 
 		var components = _targets.Keys.Where( x => x.IsValid() ).ToArray();
+		var selectAllFacesAfterApply = _faceSelection && _targets.Values.Any( x => x.Faces is null );
 
 		_newEdges.Clear();
 
@@ -294,7 +369,8 @@ public partial class ClipTool : EditorTool
 			.WithGameObjectCreations()
 			.Push() )
 		{
-			Selection.Clear();
+			if ( closeTool || _faceSelection )
+				Selection.Clear();
 
 			foreach ( var (component, data) in _targets.ToArray() )
 			{
@@ -303,14 +379,15 @@ public partial class ClipTool : EditorTool
 				if ( _faceSelection == false && KeepMode == ClipKeepMode.Both )
 				{
 					var newMesh = ApplyClipBoth( component, data.Faces );
-					Selection.Add( newMesh.GameObject );
+					if ( closeTool )
+						Selection.Add( newMesh.GameObject );
 				}
 				else
 				{
 					ApplyClip( component, _plane.Value, KeepMode, data.Faces );
 				}
 
-				if ( _faceSelection == false )
+				if ( closeTool && _faceSelection == false )
 				{
 					Selection.Add( component.GameObject );
 				}
@@ -318,19 +395,33 @@ public partial class ClipTool : EditorTool
 
 			if ( _faceSelection )
 			{
-				foreach ( var edge in _newEdges )
+				if ( selectAllFacesAfterApply )
 				{
-					if ( !edge.IsValid() )
-						continue;
+					foreach ( var (component, data) in _targets )
+					{
+						if ( !component.IsValid() || data.Faces is not null )
+							continue;
 
-					var mesh = edge.Component.Mesh;
-					mesh.GetFacesConnectedToEdge( edge.Handle, out var faceA, out var faceB );
+						foreach ( var face in component.Mesh.FaceHandles )
+							Selection.Add( new MeshFace( component, face ) );
+					}
+				}
+				else
+				{
+					foreach ( var edge in _newEdges )
+					{
+						if ( !edge.IsValid() )
+							continue;
 
-					if ( faceA.IsValid )
-						Selection.Add( new MeshFace( edge.Component, faceA ) );
+						var mesh = edge.Component.Mesh;
+						mesh.GetFacesConnectedToEdge( edge.Handle, out var faceA, out var faceB );
 
-					if ( faceB.IsValid )
-						Selection.Add( new MeshFace( edge.Component, faceB ) );
+						if ( faceA.IsValid )
+							Selection.Add( new MeshFace( edge.Component, faceA ) );
+
+						if ( faceB.IsValid )
+							Selection.Add( new MeshFace( edge.Component, faceB ) );
+					}
 				}
 			}
 
@@ -339,12 +430,22 @@ public partial class ClipTool : EditorTool
 		}
 
 		Reset();
+		_applied = false;
 
-		EditorToolManager.SetSubTool( _faceSelection ? nameof( FaceTool ) : nameof( ObjectSelection ) );
+		if ( closeTool )
+		{
+			EditorToolManager.SetSubTool( _faceSelection ? nameof( FaceTool ) : nameof( ObjectSelection ) );
+		}
+		else if ( _faceSelection )
+		{
+			CacheSelectedMeshes();
+		}
 	}
 
 	void Cancel()
 	{
+		var hadLine = _plane.HasValue;
+
 		foreach ( var (component, data) in _targets )
 		{
 			if ( component.Mesh == data.Mesh ) continue;
@@ -354,6 +455,11 @@ public partial class ClipTool : EditorTool
 		}
 
 		Reset();
+
+		if ( !hadLine )
+		{
+			EditorToolManager.SetSubTool( _faceSelection ? nameof( FaceTool ) : nameof( ObjectSelection ) );
+		}
 	}
 
 	MeshComponent ApplyClipBoth( MeshComponent mesh, HashSet<HalfEdgeMesh.FaceHandle> faces )
@@ -365,6 +471,7 @@ public partial class ClipTool : EditorTool
 		var go = new GameObject( true, mesh.GameObject.Name );
 		go.MakeNameUnique();
 		go.WorldTransform = mesh.WorldTransform;
+		go.IsStatic = mesh.GameObject.IsStatic;
 
 		var mc = go.Components.Create<MeshComponent>( false );
 		mc.Mesh = newMesh;
@@ -458,16 +565,22 @@ public partial class ClipTool : EditorTool
 			Gizmo.Draw.LineThickness = 1;
 			Gizmo.Draw.IgnoreDepth = true;
 			Gizmo.Draw.Color = edgeColor.Darken( 0.3f ).WithAlpha( 0.2f );
-
-			foreach ( var v in mesh.GetEdges() )
-				Gizmo.Draw.Line( v );
+			Gizmo.Draw.Lines( mesh.GetVisibleEdges() );
 
 			Gizmo.Draw.Color = edgeColor;
 			Gizmo.Draw.IgnoreDepth = false;
 			Gizmo.Draw.LineThickness = 2;
-
-			foreach ( var v in mesh.GetEdges() )
-				Gizmo.Draw.Line( v );
+			Gizmo.Draw.Lines( mesh.GetVisibleEdges() );
 		}
+	}
+
+	void CycleMode()
+	{
+		KeepMode = KeepMode switch
+		{
+			ClipKeepMode.Front => ClipKeepMode.Back,
+			ClipKeepMode.Back => ClipKeepMode.Both,
+			_ => ClipKeepMode.Front
+		};
 	}
 }

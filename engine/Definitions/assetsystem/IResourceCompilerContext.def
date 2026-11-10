@@ -11,6 +11,9 @@ native class IResourceCompilerContext
 
 	void SpecifyResourceVersion( int nVersion );
 	void RegisterSpecialDependency( string str, uint nUserData, uint nFingerprint );
+	void ReportBuildPrerequisite( string pContentPath );
+	bool IsDescribeOnly();
+	void MarkErrorDuringCompile( string error );
 
 	inline bool RegisterReference( string filename )
 	{
@@ -40,9 +43,9 @@ native class IResourceCompilerContext
 		return self->RegisterAdditionalBlock(  blockId, data, count );
 	}
 
-	inline CUtlBuffer GetOverrideData()
+	inline CUtlBuffer GetOverrideData( bool trackChanges )
 	{
-		return self->RequestBufferArg( "___OverrideInputData___", INPUT_DEPENDENCY_NORMAL );
+		return self->RequestBufferArg( "___OverrideInputData___", trackChanges ? INPUT_DEPENDENCY_NORMAL : INPUT_DEPENDENCY_SUPPRESS );
 	}
 
 	CResourceStream Data();

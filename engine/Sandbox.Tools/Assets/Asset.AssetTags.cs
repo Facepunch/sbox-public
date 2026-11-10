@@ -89,7 +89,14 @@ public partial class Asset
 	bool suppressTagSaving = false;
 	internal void UpdateAutoTags()
 	{
+		// this hasn't been initialised yet
+		if ( AssetType is null )
+			return;
+
 		suppressTagSaving = true;
+
+		// Tags are refreshed when the asset changes, so read the publish settings again for @published
+		_publishSettingsAbsent = false;
 
 		foreach ( var tag in AssetTagSystem.All.Where( x => x.AutoTag ) )
 		{

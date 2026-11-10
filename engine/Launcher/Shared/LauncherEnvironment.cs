@@ -1,6 +1,7 @@
-﻿using System;
+using System;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 
 namespace Sandbox;
 
@@ -20,14 +21,13 @@ public static class LauncherEnvironment
 	{
 		get
 		{
-			if ( OperatingSystem.IsWindows() )
-				return "win64";
-			if ( OperatingSystem.IsLinux() )
-				return "linuxsteamrt64";
-			if ( OperatingSystem.IsMacOS() )
-				return "osxarm64";
+			var platform = OperatingSystem.IsWindows() ? "win"
+				: OperatingSystem.IsLinux() ? "linuxsteamrt"
+				: OperatingSystem.IsMacOS() ? "osx"
+				: throw new Exception( "Unsupported platform" );
 
-			throw new Exception( "Unsupported platform" );
+			var architecture = RuntimeInformation.OSArchitecture == Architecture.Arm64 ? "arm64" : "64";
+			return $"{platform}{architecture}";
 		}
 	}
 
@@ -35,10 +35,10 @@ public static class LauncherEnvironment
 	{
 		AppDomain.CurrentDomain.AssemblyResolve += CurrentDomain_AssemblyResolve;
 
-		GamePath = AppContext.BaseDirectory;
+		GamePath = System.IO.Path.TrimEndingDirectorySeparator( AppContext.BaseDirectory );
 
-		// this exe is in the bin folder
-		if ( GamePath.EndsWith( System.IO.Path.Combine( "bin", PlatformName ) ) )
+		// this exe is in a folder inside bin - bin/win64, bin/managed
+		if ( System.IO.Path.GetFileName( System.IO.Path.GetDirectoryName( GamePath ) ) == "bin" )
 		{
 			// go up two folders
 			GamePath = System.IO.Path.GetDirectoryName( GamePath );
@@ -52,15 +52,35 @@ public static class LauncherEnvironment
 		// make the game dir our current dir
 		Environment.CurrentDirectory = GamePath;
 
-		//
-		// Allows unit tests and csproj to find the engine path.
-		//
-		if ( System.Environment.GetEnvironmentVariable( "FACEPUNCH_ENGINE", EnvironmentVariableTarget.User ) != GamePath )
-		{
-			System.Environment.SetEnvironmentVariable( "FACEPUNCH_ENGINE", GamePath, EnvironmentVariableTarget.User );
-		}
+		System.Environment.SetEnvironmentVariable( "FACEPUNCH_ENGINE", GamePath );
 
 		UpdateNativeDllPath( nativeDllPath );
+
+		// Don't update the user-level FACEPUNCH_ENGINE env var if we're running an exported standalone game!
+#if !SBOX_STANDALONE
+		_ = UpdateEnginePathAsync( GamePath );
+#endif
+	}
+
+	/// <summary>
+	/// Allows unit tests and csproj to find the engine path.
+	/// </summary>
+	private static async Task UpdateEnginePathAsync( string gamePath )
+	{
+		try
+		{
+			await Task.Run( () =>
+			{
+				if ( System.Environment.GetEnvironmentVariable( "FACEPUNCH_ENGINE", EnvironmentVariableTarget.User ) != gamePath )
+				{
+					System.Environment.SetEnvironmentVariable( "FACEPUNCH_ENGINE", gamePath, EnvironmentVariableTarget.User );
+				}
+			} ).ConfigureAwait( false );
+		}
+		catch ( Exception e )
+		{
+			Console.Error.WriteLine( $"Failed to update FACEPUNCH_ENGINE: {e}" );
+		}
 	}
 
 	private static void UpdateNativeDllPath( string nativeDllPath )
@@ -90,6 +110,14 @@ public static class LauncherEnvironment
 
 		// dlls with resources inside appear as a different name
 		name = name.Replace( ".resources.dll", ".dll" );
+
+		// Assembly names can come from untrusted code archives, never load from outside the managed folder
+		if ( string.IsNullOrEmpty( ManagedDllPath ) )
+			return null;
+
+		name = System.IO.Path.GetFullPath( name );
+		if ( !name.StartsWith( System.IO.Path.TrimEndingDirectorySeparator( System.IO.Path.GetFullPath( ManagedDllPath ) ) + System.IO.Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase ) )
+			return null;
 
 		if ( System.IO.File.Exists( name ) )
 		{

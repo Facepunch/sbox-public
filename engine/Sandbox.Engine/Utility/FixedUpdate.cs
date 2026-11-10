@@ -29,7 +29,7 @@ internal class FixedUpdate
 		while ( _step < curStep )
 		{
 			_step++;
-			using var timeScope = Time.Scope( (_step * delta), delta );
+			using var timeScope = Time.PushScope( (_step * delta), delta );
 			fixedUpdate();
 		}
 

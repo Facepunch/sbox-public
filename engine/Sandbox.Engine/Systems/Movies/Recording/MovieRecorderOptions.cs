@@ -1,4 +1,5 @@
-﻿using System.Collections.Immutable;
+﻿using Sandbox.Engine;
+using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Sandbox.Internal;
@@ -31,7 +32,13 @@ public sealed class DefaultMovieRecorderOptionsAttribute : Attribute;
 /// should be recorded.
 /// </summary>
 /// <param name="SampleRate">How often to capture the value of recorded properties.</param>
-public sealed record MovieRecorderOptions( int SampleRate = MovieRecorderOptions.DefaultSampleRate )
+/// <param name="BufferDuration">
+/// Keep only the most recent samples in memory, with this duration. If <see langword="null"/>,
+/// samples won't be discarded and the recording will keep growing in size until stopped.
+/// </param>
+public sealed record MovieRecorderOptions(
+	int SampleRate = MovieRecorderOptions.DefaultSampleRate,
+	MovieTime? BufferDuration = null )
 {
 	/// <summary>
 	/// Default value for <see cref="SampleRate"/>.
@@ -104,7 +111,7 @@ public sealed record MovieRecorderOptions( int SampleRate = MovieRecorderOptions
 
 		// Add recorders from TypeLibrary
 
-		foreach ( var type in GlobalGameNamespace.TypeLibrary.GetTypes<IComponentCapturer>() )
+		foreach ( var type in GlobalContext.Current.TypeLibrary.GetTypes<IComponentCapturer>() )
 		{
 			if ( type.IsAbstract ) continue;
 			if ( type.IsGenericType ) continue;
@@ -134,13 +141,24 @@ public sealed record MovieRecorderOptions( int SampleRate = MovieRecorderOptions
 			.WithCaptureAll<Renderer>()
 			.WithCaptureAll<Light>()
 			.WithCaptureAll<AmbientLight>()
+			.WithCaptureAll<Fog>()
+#pragma warning disable CS0618 // Retain legacy fog support for existing content.
+			.WithCaptureAll<GradientFog>()
+			.WithCaptureAll<CubemapFog>()
+#pragma warning restore CS0618
+			.WithCaptureAll<VolumetricFogVolume>()
+			.WithCaptureAll<SkyBox2D>()
 			.WithCaptureAll<ParticleEffect>()
 			.WithCaptureAll<ParticleEmitter>()
+			.WithCaptureAll<BeamEffect>()
 			.WithCaptureAll<SoundPointComponent>();
 	}
 
 	public MovieRecorderOptions WithCaptureGameObject( GameObject gameObject ) =>
 		WithCaptureAction( recorder => recorder.GetTrackRecorder( gameObject )?.Capture() );
+
+	public MovieRecorderOptions WithCaptureGameObject( GameObject gameObject, string trackName ) =>
+		WithCaptureAction( recorder => recorder.GetTrackRecorder( gameObject, trackName )?.Capture() );
 
 	public MovieRecorderOptions WithCaptureComponent( Component component ) =>
 		WithCaptureAction( recorder => recorder.GetTrackRecorder( component )?.Capture() );
@@ -151,7 +169,7 @@ public sealed record MovieRecorderOptions( int SampleRate = MovieRecorderOptions
 			.WithDefaultCaptureActions()
 			.WithDefaultComponentCapturers();
 
-		foreach ( var (method, _) in GlobalGameNamespace.TypeLibrary.GetMethodsWithAttribute<DefaultMovieRecorderOptionsAttribute>() )
+		foreach ( var (method, _) in GlobalContext.Current.TypeLibrary.GetMethodsWithAttribute<DefaultMovieRecorderOptionsAttribute>() )
 		{
 			try
 			{

@@ -49,7 +49,7 @@ public partial class Package
 			return new FindResult
 			{
 				Packages = l.Packages.Select( x => RemotePackage.FromDto( x ) ).ToArray(),
-				TotalCount = l.TotalCount,
+				TotalCount = (int)l.TotalCount,
 				Tags = l.Tags?.Select( x => new TagEntry( x.Key, x.Value ) ).ToArray() ?? Array.Empty<TagEntry>(),
 				Facets = l.Facets?.Select( Package.Facet.FromDto ).ToArray() ?? Array.Empty<Facet>(),
 				Orders = l.Orders?.Select( x => new SortOrder( x.Name, x.Title, x.Icon ) ).ToArray() ?? Array.Empty<SortOrder>(),

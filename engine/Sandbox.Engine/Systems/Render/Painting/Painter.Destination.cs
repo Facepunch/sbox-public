@@ -1,0 +1,235 @@
+using Sandbox.Rendering;
+using System.Runtime.CompilerServices;
+
+namespace Sandbox;
+
+public readonly ref partial struct Painter
+{
+	PainterBatcher Output => GetActiveContext().Batcher;
+
+	internal Scissoring DestinationClip => Output.Destination.Scissor;
+	internal float InheritedOpacity => GetActiveContext().InheritedOpacity;
+	internal BlendMode InheritedBlendMode => GetActiveContext().InitialBlendMode;
+	internal int InstanceCount => Output.Count;
+	internal int DrawCount => Output.DrawCalls;
+	internal int FrameGrabCount => Output.FrameGrabs;
+
+	internal void Flush() => Output.Flush();
+
+	internal void SetViewport( Rect bounds, Matrix? worldMatrix = null )
+	{
+		Output.SetViewport( bounds, worldMatrix );
+	}
+
+	internal DestinationScope WithDestination( Rect bounds, float scale, float opacity, BlendMode blendMode, Matrix transform, bool? playbackPaused = null )
+	{
+		return new DestinationScope( this, bounds, scale, opacity, blendMode, transform, playbackPaused );
+	}
+
+	internal ContentScope WithContentOrigin( Vector2 origin ) => new( GetActiveContext(), origin );
+
+	internal ref struct ContentScope
+	{
+		Context _context;
+		readonly Matrix _origin;
+
+		internal Painter Painter => new( _context );
+
+		internal ContentScope( Context context, Vector2 origin )
+		{
+			_context = context;
+			_origin = context.BaseTransform;
+			context.ResetDrawingState( context.InitialBlendMode );
+			context.BaseTransform = Matrix.CreateTranslation( new Vector3( origin, 0 ) );
+		}
+
+		public void Dispose()
+		{
+			if ( _context is null ) return;
+			_context.ResetDrawingState( _context.InitialBlendMode );
+			_context.BaseTransform = _origin;
+			_context = null;
+		}
+	}
+
+	internal ref struct DestinationScope
+	{
+		Context _context;
+		readonly PainterBatcher _output;
+		readonly Matrix _transform;
+		readonly bool? _playbackPaused;
+		readonly Rect _bounds;
+		readonly float _scale;
+		readonly float _opacity;
+		readonly Matrix _baseTransform;
+		readonly BlendMode _blendMode;
+
+		internal Painter Painter => new( _context );
+
+		internal DestinationScope( Painter painter, Rect bounds, float scale, float opacity, BlendMode blendMode, Matrix transform, bool? playbackPaused )
+		{
+			_context = painter.GetActiveContext();
+			_output = painter.Output;
+			_transform = _output.Destination.Transform;
+			_playbackPaused = _output.Destination.PlaybackPaused;
+			_bounds = _context.Bounds;
+			_scale = _context.ScaleToScreen;
+			_opacity = _context.InheritedOpacity;
+			_baseTransform = _context.BaseTransform;
+			_blendMode = _context.InitialBlendMode;
+			_context.ResetDrawingState( blendMode );
+			_context.Bounds = bounds;
+			_context.ScaleToScreen = scale;
+			_context.InheritedOpacity = opacity;
+			_context.BaseTransform = Matrix.Identity;
+			_context.DestinationDepth++;
+			_output.Destination.Transform = transform;
+			_output.Destination.PlaybackPaused = playbackPaused;
+		}
+
+		public void Dispose()
+		{
+			if ( _context is null ) return;
+			_output.Destination.Transform = _transform;
+			_output.Destination.PlaybackPaused = _playbackPaused;
+			// Drawing state belongs to the panel; only destination settings are inherited.
+			_context.ResetDrawingState( _blendMode );
+			_context.Bounds = _bounds;
+			_context.ScaleToScreen = _scale;
+			_context.InheritedOpacity = _opacity;
+			_context.BaseTransform = _baseTransform;
+			_context.DestinationDepth--;
+			_context = null;
+		}
+	}
+
+	internal DestinationClipScope ClipDestination( Rect rect, BorderRadii radii, Matrix transform ) => new( GetActiveContext(), rect, radii, transform );
+
+	internal ref struct DestinationClipScope
+	{
+		Context _context;
+		readonly long _recording;
+		readonly int _index;
+
+		internal DestinationClipScope( Context context, Rect rect, BorderRadii radii, Matrix transform )
+		{
+			_context = context;
+			_recording = context.Recording;
+			_index = context.Batcher.PushClip( rect, radii, transform );
+		}
+
+		public void Dispose()
+		{
+			if ( _context is null ) return;
+			if ( _context.IsActive && _context.Recording == _recording )
+				_context.Batcher.PopClip( _index );
+			_context = null;
+		}
+	}
+
+	internal TargetScope Target( string name, Rect bounds, int numMips, ref (int Hash, ulong Frame) cache ) => new( this, name, bounds, numMips, ref cache );
+	internal TargetScope Target( string name, Rect bounds, int numMips = 1 ) => new( this, name, bounds, numMips, ref Unsafe.NullRef<(int Hash, ulong Frame)>() );
+
+	internal ref struct TargetScope
+	{
+		Context _context;
+		readonly long _recording;
+		readonly int _index;
+		readonly RenderTargetHandle _target;
+		readonly int _numMips;
+		readonly int _checkpoint;
+		readonly int _start, _volatile;
+		readonly ref (int Hash, ulong Frame) _cache;
+
+		internal TargetScope( Painter painter, string name, Rect bounds, int numMips, ref (int Hash, ulong Frame) cache )
+		{
+			_context = painter.GetActiveContext();
+			_recording = _context.Recording;
+			_numMips = numMips;
+			_cache = ref cache;
+			var output = _context.Batcher;
+			output.Flush();
+			// The bounds and mip count ride along in the content hash: either changing means a different pooled texture
+			_start = output.ContentSum - HashCode.Combine( bounds, numMips );
+			_volatile = output.Volatile;
+			_index = output.PushTarget();
+			var commands = output.CommandList;
+			_target = commands.GetRenderTarget( name, (int)bounds.Width, (int)bounds.Height, ImageFormat.RGBA8888, ImageFormat.None, numMips: numMips );
+			_checkpoint = commands.GetCheckpoint();
+			try
+			{
+				commands.PushRenderTarget();
+				commands.SetRenderTarget( _target );
+				commands.Clear( Color.Transparent );
+				output.Destination.MapScreenPixels = false;
+				output.Destination.Layered = true;
+				output.Destination.ForgetSpatial();
+				// Draws inside keep their screen transforms and clips. This cancels the layer's own share,
+				// which the composite applies again, and moves the layer's bounds onto the target.
+				output.Destination.LayerMatrix = output.Destination.Transform.Inverted * Matrix.CreateTranslation( bounds.Position * -1.0f );
+				output.Destination.WorldPanelCombo = 0;
+				output.ApplyDestinationAttributes();
+			}
+			catch
+			{
+				output.PopTarget( _index );
+				commands.Rewind( _checkpoint );
+				throw;
+			}
+		}
+
+		public void Dispose()
+		{
+			if ( _context is null ) return;
+			var context = _context;
+			if ( !context.IsActive || context.Recording != _recording )
+			{
+				_context = null;
+				return;
+			}
+
+			var output = context.Batcher;
+			try
+			{
+				try
+				{
+					output.Flush();
+					if ( _numMips > 1 )
+						output.CommandList.GenerateMipMaps( _target, Graphics.DownsampleMethod.GaussianBorder );
+				}
+				finally
+				{
+					output.CommandList.PopRenderTarget();
+				}
+				if ( Unsafe.IsNullRef( ref _cache ) ) return;
+				// Same content as last frame: drop the draws, the pooled texture still holds them. A skipped frame may have recycled it
+				var hash = output.ContentSum - _start;
+				if ( _cache == (hash, Application.FrameCount - 1) && output.Volatile == _volatile ) output.CommandList.Rewind( _checkpoint );
+				_cache = output.Volatile == _volatile ? (hash, Application.FrameCount) : default; // A volatile layer can't vouch for next frame
+			}
+			finally
+			{
+				output.PopTarget( _index );
+				_context = null;
+				output.ApplyDestinationAttributes();
+			}
+		}
+	}
+
+	internal CommandList NativeCommands( bool objectSpace = false )
+	{
+		var output = Output;
+		output.Flush();
+		output.ApplyDestinationAttributes( objectSpace );
+		output.Volatile++;
+		return output.CommandList;
+	}
+
+	internal void ApplyDestinationAttributes( bool objectSpace = false ) => Output.ApplyDestinationAttributes( objectSpace );
+
+	internal void FilterBackdrop( Rect rect, Filter filter, BorderRadii radii, in UICssBoxBatched.BorderShape shape = default )
+	{
+		var data = new BackdropData( rect, filter, radii, InheritedOpacity, shape );
+		Output.AddBackdrop( data, InheritedBlendMode );
+	}
+}

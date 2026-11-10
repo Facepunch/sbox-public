@@ -28,6 +28,7 @@ native accessor g_pRenderDevice
 	void AsyncSetTextureData2( ITexture hTexture, void* pData, int nDataSize, Rect3D rect );
 
 	ITexture GetSwapChainTexture( SwapChainHandle_t swapChain, SwapChainBuffer bufferType );
+	ITexture GetSheetMetaDataTexture();
 	bool GetGPUFrameTimeMS( SwapChainHandle_t swapChain, out float pGPUFrameTimeMSOut, out uint pFrameNumberOut );
 	
 	asref cast CTextureDesc GetTextureDesc( ITexture hTexture );
@@ -43,15 +44,43 @@ native accessor g_pRenderDevice
 
 	IRenderContext CreateRenderContext( uint flags );
 	void ReleaseRenderContext( IRenderContext context );
+	void BeginSubmittingDisplayLists();
+
+	// Starts a swap chain's frame for GPU timing (GetGPUFrameTimeMS) - call before the frame's first submit
+	void BeginSubmittingDisplayLists( SwapChainHandle_t hSwapChain );
+
+	// Tags the display lists submitted until it's set back to 0, so GPU timings can tell whose frame a submission was
+	void SetSubmitTag( ulong nTag );
 
 	bool ReadTexturePixels( ITexture hTexture, ref Rect_t pSrcRect, int nSrcSlice, int nSrcMip, ref Rect_t pDstRect, void* pData, ImageFormat dstFormat, int nDstStride );
 
+	SwapChainHandle_t CreateSwapChain( CastTo[PlatWindow_t] IntPtr window, RenderDeviceInfo_t mode, string debugName );
+	bool UpdateSwapChain( SwapChainHandle_t swapChain, RenderDeviceInfo_t mode );
 	void DestroySwapChain( SwapChainHandle_t hSwapChain );
+
+	inline string GetGpuStatsSummary()
+	{
+		static thread_local CBufferString str;
+		str.RemoveAll();
+		g_pRenderDevice->AppendStatsSummaryString( &str );
+		return str.String();
+	}
+
+	inline void GetTexturePoolStats( out ulong pPoolUsedBytesOut, out ulong pPoolLimitBytesOut, out ulong pNonEvictableBytesOut )
+	{
+		uint64 used = 0, limit = 0, pinned = 0;
+		g_pRenderDevice->GetTexturePoolStats( &used, &limit, &pinned );
+		*pPoolUsedBytesOut = used;
+		*pPoolLimitBytesOut = limit;
+		*pNonEvictableBytesOut = pinned;
+	}
 
 	bool Present( SwapChainHandle_t chain );
 	void Flush();
+	void FlushPipelineCache();
 	void ForceFlushGPU( SwapChainHandle_t hSwapChain );
 	bool CanRenderToSwapChain( SwapChainHandle_t chain );
+	void SetSwapChainIsMainWindow( SwapChainHandle_t chain, bool bIsMainWindow );
 
 	bool IsUsing32BitDepthBuffer();
 
@@ -62,8 +91,6 @@ native accessor g_pRenderDevice
 		return Vector2D( (float)nBBWidth, (float)nBBHeight );
 	}
 
-	RenderShaderHandle_t CompileAndCreateShader( RenderShaderType nType, string pProgram, uint nBufLen, string pShaderVersion, string pDebugName );
-
 	int GetTextureLastUsed( ITexture hTexture );
 
 	void UnThrottleTextureStreamingForNFrames( uint nNumberOfFramesForUnthrottledTextureLoading );
@@ -72,11 +99,14 @@ native accessor g_pRenderDevice
 
 	RenderDeviceAPI_t GetRenderDeviceAPI();
 
+	[nogc]
 	void MarkTextureUsed( ITexture texture, int nRequiredMipSize );
 
 	bool IsTextureRenderTarget( ITexture texture );
 
 	bool IsRayTracingSupported();
+
+	bool AreDebugMarkersEnabled();
 
 	inline RenderBufferHandle_t CreateGPUBuffer( RenderBufferType_t nType, BufferDesc_t desc, RenderBufferFlags_t usage, string pDebugName )
 	{
@@ -94,7 +124,16 @@ native accessor g_pRenderDevice
 	
 	int GetTextureViewIndex( ITexture hTexture, CastTo[RenderColorSpace_t] byte colorSpace, RenderTextureDimension_t dim );
 
-	inline void GetTextureResidencyInfo( CUtlVectorTexture pTextures, CUtlVectorString pNames )
+	inline void GetVideoMemoryInfo( out ulong budgetBytes, out ulong usageBytes, out ulong renderSystemUsageBytes )
+	{
+		uint64 budget = 0, usage = 0, rsUsage = 0;
+		::g_pRenderDeviceMgr->GetVideoMemoryInfo( g_pRenderDevice->GetCurrentAdapter(), &budget, &usage, &rsUsage );
+		*budgetBytes = budget;
+		*usageBytes = usage;
+		*renderSystemUsageBytes = rsUsage;
+	}
+
+	inline void GetTextureResidencyInfo( CUtlVectorTexture pTextures, CUtlVectorString pNames, CUtlVectorUInt32 pRefCounts )
 	{
 		TextureResidencyStats_t textureResidencyStats;
 		CUtlVector<TextureResidencyInfo_t> rawTextures;
@@ -103,6 +142,7 @@ native accessor g_pRenderDevice
 
 		pTextures->EnsureCapacity( rawTextures.Count() );
 		pNames->EnsureCapacity( rawTextures.Count() );
+		pRefCounts->EnsureCapacity( rawTextures.Count() );
 
 		for ( const TextureResidencyInfo_t &info : rawTextures )
 		{
@@ -111,8 +151,14 @@ native accessor g_pRenderDevice
 			CPathBufferString texName;
 			info.m_hTexture.GetResourceName( &texName );
 
+			// Capture the refcount BEFORE AddToTail bumps it so callers see the
+			// "external" reference count (what's holding the texture alive
+			// outside this diagnostic call).
+			int nRefCount = info.m_hTexture.GetRefCount();
+
 			pTextures->AddToTail( info.m_hTexture );
 			pNames->AddToTail( texName );
+			pRefCounts->AddToTail( (uint32)nRefCount );
 		}
 	}
 

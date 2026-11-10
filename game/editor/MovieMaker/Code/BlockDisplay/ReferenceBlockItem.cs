@@ -14,15 +14,17 @@ public sealed class ReferenceBlockItem<T> : PropertyBlockItem<BindingReference<T
 	{
 		base.OnPaint();
 
+		var rect = GetRect( Block.TimeRange );
+
 		if ( Block.GetValue( Block.TimeRange.Start ).TrackId is { } trackId )
 		{
 			var track = Track.Project.GetTrack( trackId ) as IReferenceTrack;
 
-			PaintText( Block.TimeRange, track?.GetPathString() ?? "unknown" );
+			PaintText( rect, track?.GetPathString() ?? "unknown" );
 		}
 		else
 		{
-			PaintText( Block.TimeRange, "null" );
+			PaintText( rect, "null" );
 		}
 	}
 }

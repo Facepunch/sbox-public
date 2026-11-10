@@ -9,9 +9,14 @@ public class ArgPointer : Arg
 
 	public override string NativeDelegateType => "void*";
 
-	public override string GetNativeDelegateType( bool incoming )
+	public override string DelegateType( Side side, Dir dir )
 	{
-		return !incoming && !HasFlag( "asref" ) ? "const void*" : NativeDelegateType;
+		if ( side == Side.Native )
+		{
+			return dir == Dir.Outgoing && !HasFlag( "asref" ) ? "const void*" : NativeDelegateType;
+		}
+
+		return base.DelegateType( side, dir );
 	}
 
 }

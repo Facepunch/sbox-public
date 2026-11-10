@@ -1,22 +1,19 @@
-﻿namespace Sandbox.Physics;
+namespace Sandbox.Physics;
 
 /// <summary>
 /// A generic "rope" type constraint.
 /// </summary>
-/// <remarks>
-/// TODO: How is this different from <see cref="SpringJoint"/>? Should they be merged?
-/// </remarks>
 public partial class FixedJoint : PhysicsJoint
 {
-	internal FixedJoint( HandleCreationData _ ) { }
+	internal FixedJoint( PhysicsJointInternal joint ) : base( joint ) { }
 
 	/// <summary>
 	/// How springy and tight the joint will be in its movement.
 	/// </summary>
 	public PhysicsSpring SpringLinear
 	{
-		get => native.GetLinearSpring();
-		set => native.SetLinearSpring( value );
+		get => _joint?.SpringLinear ?? default;
+		set => _joint?.SpringLinear = value;
 	}
 
 	/// <summary>
@@ -24,7 +21,7 @@ public partial class FixedJoint : PhysicsJoint
 	/// </summary>
 	public PhysicsSpring SpringAngular
 	{
-		get => native.GetAngularSpring();
-		set => native.SetAngularSpring( value );
+		get => _joint?.SpringAngular ?? default;
+		set => _joint?.SpringAngular = value;
 	}
 }

@@ -1,55 +1,21 @@
+@import "/Platform/_platform.scss";
 
+// A tab's words - its look is its PortalButton's, a choice in PackageTabs' strip
 SearchlightTab
 {
-    color: #c6d4ee;
-    font-size: 14px;
     align-items: center;
-    gap: 1rem;
-    padding: 10px 15px;
-    border-bottom: 2px solid transparent;
     pointer-events: all;
     cursor: pointer;
 
-    i
-    {
-        color: #6a7181;
-        font-size: 22px;
-    }
-
-    .title
-    {
-        font-weight: 600;
-    }
+    i { display: none; }
 }
 
 SearchlightTab:hover
 {
-
-    i
-    {
-        color: white;
-    }
-
-    .title
-    {
-        color: white;
-    }
+    sound-in: "ui.button.over";
 }
-
 
 .active SearchlightTab
 {
-    border-bottom: 2px solid #3472e6;
-    background: linear-gradient( to bottom, #3472e600, #3472e666 );
     cursor: auto;
-
-    i
-    {
-        color: #3472e6;
-    }
-
-    .title
-    {
-        color: white;
-    }
 }

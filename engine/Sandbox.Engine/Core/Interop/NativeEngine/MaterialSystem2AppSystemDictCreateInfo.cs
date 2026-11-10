@@ -14,7 +14,6 @@ internal enum MaterialSystem2AppSystemDictFlags
 [StructLayout( LayoutKind.Sequential )]
 internal struct MaterialSystem2AppSystemDictCreateInfo
 {
-	public IntPtr pWindowTitle;
 	public MaterialSystem2AppSystemDictFlags iFlags;
 	public uint nSteamAppId;
 

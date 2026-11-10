@@ -12,21 +12,29 @@ public partial class Project
 	[JsonIgnore]
 	public bool HasCompiler => Compiler is not null || EditorCompiler is not null;
 
+	/// <summary>
+	/// The compiler for this project's game code, null when it has none. Internal so game code
+	/// can't see it - editor code reaches it through the Sandbox.Tools Project extensions.
+	/// </summary>
 	[JsonIgnore]
 	internal Compiler Compiler { get; private set; }
 
+	/// <summary>
+	/// The compiler for this project's editor code, null when it has none. Internal so game code
+	/// can't see it - editor code reaches it through the Sandbox.Tools Project extensions.
+	/// </summary>
 	[JsonIgnore]
 	internal Compiler EditorCompiler { get; private set; }
 
 	int lastCompilerHash;
 
 	// anything that means we need to re-create the compiler and recompile should be here
-	int CompilerHash => HashCode.Combine( Active, Current == this, Json.SerializeAsObject( Config.GetCompileSettings() ).ToJsonString(), Config.IsStandaloneOnly, Config.Org, Config.Ident, Config.Type, string.Join( ";", PackageReferences() ) );
+	int CompilerHash => HashCode.Combine( Active, Current == this, Json.SerializeAsObject( Config.GetCompileSettings() ).ToJsonString(), Config.IsStandaloneOnly, Config.Org, Config.Ident, Config.Type, string.Join( ";", PackageReferences().Concat( EditorPackageReferences() ).Select( x => x.FullIdent ) ) );
 
 	/// <summary>
-	/// These package types should reference package.base
+	/// Whether to save/load compiled assemblies to disk.
 	/// </summary>
-	private static HashSet<string> BaseReferencingTypes { get; } = new HashSet<string> { "game", "addon", "library" };
+	bool CacheAssemblies => IsBuiltIn && Application.IsRetail && Application.IsEditor;
 
 	private void UpdateCompiler()
 	{
@@ -87,17 +95,11 @@ public partial class Project
 			var compilerName = $"{Config.Org}.{Config.Ident}".Trim( '.' );
 			var codePath = GetCodePath();
 
-			if ( compilerName == "local.base" ) compilerName = "base";
 			if ( compilerName == "local.toolbase" ) compilerName = "toolbase";
 
 			Log.Trace( $"Create Compiler `{compilerName}`" );
 
 			Compiler = CompileGroup.CreateCompiler( compilerName, codePath, compilerSettings );
-
-			if ( BaseReferencingTypes.Contains( Config.Type ) && compilerName != "base" )
-			{
-				Compiler.AddBaseReference();
-			}
 
 			Compiler.GeneratedCode.AppendLine( $"global using Microsoft.AspNetCore.Components;" );
 			Compiler.GeneratedCode.AppendLine( $"global using Microsoft.AspNetCore.Components.Rendering;" );
@@ -126,6 +128,8 @@ public partial class Project
 				}
 			}
 
+			Compiler.GeneratedCode.AppendLine( $"[assembly: global::System.Reflection.AssemblyMetadata( \"Ident\", {Config.FullIdent.QuoteSafe()} )]" );
+			Compiler.GeneratedCode.AppendLine( $"[assembly: global::System.Reflection.AssemblyMetadata( \"EngineVersion\", {Engine.Protocol.Api.ToString().QuoteSafe()} )]" );
 			Compiler.GeneratedCode.AppendLine( $"[assembly: global::System.Reflection.AssemblyMetadata( \"EngineMinorVersion\", {1.ToString().QuoteSafe()} )]" );
 
 			foreach ( var reference in PackageReferences() )
@@ -138,16 +142,128 @@ public partial class Project
 				Compiler.AddReference( reference );
 			}
 
+			//
+			// If we have a parent package, set up the reference provider so the
+			// compiler can resolve the parent package's types. The addon's own
+			// ActivePackage Lookup() will find the parent in the other active packages.
+			//
+			if ( Config.Type == "addon" )
+			{
+				var parentPackage = Config.GetMetaOrDefault<string>( "ParentPackage", null );
+				if ( !string.IsNullOrWhiteSpace( parentPackage ) && Package.TryParseIdent( parentPackage, out var parentParts ) )
+				{
+					var currentAp = PackageManager.Find( Config.FullIdent, true, false );
+					if ( currentAp is not null )
+					{
+						CompileGroup.ReferenceProvider = currentAp;
+						Compiler.AddReference( $"package.{parentParts.org}.{parentParts.package}" );
+					}
+				}
+			}
+
 			Compiler.WatchForChanges();
 		}
 
-		// We don't need to update editor compiler if we're not running in the editor
-		if ( !Application.IsEditor )
-			return;
-
-		if ( Config.Type == "game" || Config.Type == "library" || Config.Type == "addon" )
+		if ( Application.IsEditor )
 		{
-			UpdateEditorCompiler();
+			// update editor compiler if we're running in the editor
+
+			if ( Config.Type == "game" || Config.Type == "library" || Config.Type == "addon" )
+			{
+				UpdateEditorCompiler();
+			}
+		}
+
+		if ( CacheAssemblies )
+		{
+			// see if we've got cached assemblies from a previous compile
+			foreach ( var compiler in new[] { Compiler, EditorCompiler } )
+			{
+				if ( compiler is null ) continue;
+
+				LoadCachedAssembly( compiler );
+
+				if ( compiler.BuildSuccess )
+					compiler.Group.ClearForRecompile( compiler );
+			}
+		}
+	}
+
+	private bool LoadCachedAssembly( Compiler compiler )
+	{
+		try
+		{
+			string directory = Path.Combine( GetRootPath(), ".sbox", "bin" );
+			string binPath = Path.Combine( directory, $"{compiler.AssemblyName}.dll" );
+			if ( !File.Exists( binPath ) )
+				return false;
+
+			byte[] bytes = File.ReadAllBytes( binPath );
+			if ( bytes is null )
+				return false;
+
+			var attrs = AssemblyMetadata.GetCustomAttributes( bytes );
+			var metadata = attrs
+				.Where( a => a.AttributeFullName == "System.Reflection.AssemblyMetadataAttribute" )
+				.Where( a => a.Arguments.Length == 2 )
+				.ToDictionary(
+					a => (string)a.Arguments[0],
+					a => (string)a.Arguments[1]
+				);
+
+			//
+			// Check Fingerprint
+			// Can only be reused if it's from the same project and engine version, otherwise we'll need a full recompile.
+			//
+			if ( metadata.TryGetValue( "Ident", out var ident ) == false || ident != Config.FullIdent )
+				return false;
+
+			if ( metadata.TryGetValue( "EngineVersion", out var ver ) == false || ver != Sandbox.Engine.Protocol.Api.ToString() )
+				return false;
+
+			if ( metadata.TryGetValue( "CompileTime", out var timeStr ) == false ||
+				!DateTime.TryParse( timeStr, null, System.Globalization.DateTimeStyles.RoundtripKind, out var compileTime ) )
+				return false;
+
+			//
+			// Finally, check if it's out of date.
+			// If any source files have been modified since the assembly was compiled, we can't use it.
+			//
+			foreach ( var fs in compiler.SourceLocations )
+			{
+				var files = fs.FindFile( "/", "*.*", true );
+				foreach ( var file in files )
+				{
+					string ext = Path.GetExtension( file );
+					if ( ext != ".cs" && ext != ".razor" )
+						continue; // only care about source files
+
+					string path = fs.GetFullPath( file );
+					if ( File.GetLastWriteTimeUtc( path ) > compileTime )
+					{
+						Log.Info( $"{compiler.Name}: Source file {file} was modified after the cached assembly was compiled. Forcing recompile." );
+						return false;
+					}
+
+					if ( File.GetCreationTimeUtc( path ) > compileTime )
+					{
+						Log.Info( $"{compiler.Name}: Source file {file} was added after the cached assembly was compiled. Forcing recompile." );
+						return false;
+					}
+				}
+			}
+
+			AssemblyFileSystem.CreateDirectory( "/.bin" );
+
+			// All good, swap in the assembly
+			compiler.UpdateFromAssembly( bytes );
+			AssemblyFileSystem.WriteAllBytes( $"/.bin/{compiler.AssemblyName}.dll", bytes );
+
+			return true;
+		}
+		catch
+		{
+			return false;
 		}
 	}
 
@@ -156,6 +272,20 @@ public partial class Project
 		if ( (Config.Type == "game" || Config.Type == "addon") && !IsBuiltIn )
 		{
 			foreach ( var library in Project.Libraries.Where( x => x.HasCodePath() ) )
+			{
+				yield return library.Package;
+			}
+		}
+	}
+
+	/// <summary>
+	/// Libraries whose editor code the editor compiler references.
+	/// </summary>
+	IEnumerable<Package> EditorPackageReferences()
+	{
+		if ( (Config.Type == "game" || Config.Type == "addon") && !IsBuiltIn )
+		{
+			foreach ( var library in Project.Libraries.Where( x => x.HasEditorPath() ) )
 			{
 				yield return library.Package;
 			}
@@ -200,7 +330,6 @@ public partial class Project
 			EditorCompiler.AddReference( Compiler );
 		}
 
-		EditorCompiler.AddBaseReference();
 		EditorCompiler.AddToolBaseReference();
 
 		EditorCompiler.AddReference( "Sandbox.Tools" );
@@ -224,13 +353,9 @@ public partial class Project
 			EditorCompiler.AddReference( reference );
 		}
 
-		if ( (Config.Type == "game" || Config.Type == "addon") && !IsBuiltIn )
+		foreach ( var reference in EditorPackageReferences() )
 		{
-			// editor libraries
-			foreach ( var library in Libraries.Where( x => x.HasEditorPath() ) )
-			{
-				EditorCompiler.AddEditorReference( library.Package );
-			}
+			EditorCompiler.AddEditorReference( reference );
 		}
 
 		EditorCompiler.AddReference( "package.local.actiongraph" );
@@ -238,6 +363,7 @@ public partial class Project
 		EditorCompiler.AddReference( "package.local.moviemaker" );
 		EditorCompiler.AddReference( "package.local.hammer" );
 		EditorCompiler.AddReference( "package.local.dooeditor" );
+		EditorCompiler.AddReference( "package.local.animgraph" );
 
 		foreach ( var reference in compilerSettings.DistinctAssemblyReferences )
 		{
@@ -283,9 +409,27 @@ public partial class Project
 					continue;
 				}
 
+				var cll = assembly.Archive.Serialize();
+
 				project.AssemblyFileSystem.CreateDirectory( "/.bin" );
 				project.AssemblyFileSystem.WriteAllBytes( $"/.bin/{assembly.Compiler.AssemblyName}.dll", assembly.AssemblyData );
-				project.AssemblyFileSystem.WriteAllBytes( $"/.bin/{assembly.Compiler.AssemblyName}.cll", assembly.Archive.Serialize() );
+				project.AssemblyFileSystem.WriteAllBytes( $"/.bin/{assembly.Compiler.AssemblyName}.cll", cll );
+
+				if ( project.CacheAssemblies )
+				{
+					try
+					{
+						string binPath = Path.Combine( project.GetRootPath(), ".sbox", "bin" );
+						Directory.CreateDirectory( binPath );
+
+						File.WriteAllBytes( Path.Combine( binPath, $"{assembly.Compiler.AssemblyName}.dll" ), assembly.AssemblyData );
+						File.WriteAllBytes( Path.Combine( binPath, $"{assembly.Compiler.AssemblyName}.cll" ), cll );
+					}
+					catch ( Exception ex )
+					{
+						Log.Warning( $"Failed to write cached assembly for project {project.Config.FullIdent}: {ex.Message}" );
+					}
+				}
 			}
 		}
 	}

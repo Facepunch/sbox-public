@@ -62,13 +62,30 @@ partial class Node : INode
 
 	void INode.SetPseudoClass( PseudoClass c ) => _ps = c;
 
-	bool IStyleTarget.HasClasses( string[] classes )
+	public bool HasClass( string classname )
 	{
-		if ( GetAttribute( "class" ) is not { } c )
+		if ( string.IsNullOrWhiteSpace( classname ) )
 			return false;
 
-		var all = c.Split();
-		return all.Any( classes.Contains );
+		var classes = GetAttribute( "class" ).AsSpan();
+		foreach ( var range in classes.SplitAny( " \t\r\n\f" ) )
+		{
+			if ( classes[range].SequenceEqual( classname ) )
+				return true;
+		}
+
+		return false;
+	}
+
+	bool IStyleTarget.HasClasses( string[] classes )
+	{
+		foreach ( var classname in classes )
+		{
+			if ( !HasClass( classname ) )
+				return false;
+		}
+
+		return true;
 	}
 
 	public IEnumerable<INode> Children
@@ -507,11 +524,13 @@ partial class Node : INode
 		if ( !HasAttributes )
 			return def;
 
-		Attribute att = Attributes.FirstOrDefault( x => string.Compare( x.Name, name, true ) == 0 );
-		if ( att == null )
-			return def;
+		foreach ( var attribute in Attributes )
+		{
+			if ( string.Compare( attribute.Name, name, true ) == 0 )
+				return attribute.Value;
+		}
 
-		return att.Value;
+		return def;
 	}
 
 	public T GetAttribute<T>( string name, T def = default )

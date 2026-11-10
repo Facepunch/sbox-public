@@ -1,5 +1,5 @@
 ﻿using Sandbox.Engine;
-using Sandbox.Internal;
+using Sandbox.Modals;
 
 namespace Sandbox.Network;
 
@@ -35,8 +35,10 @@ internal partial class NetworkSystem
 			return;
 
 		IsDeveloperHost = msg.IsDeveloperHost;
+		IsHostMigrationEnabled = msg.HostMigration;
 
 		source.UpdateFrom( msg.Host );
+		source.HostSteamId = msg.HostSteamId;
 		source.State = Connection.ChannelState.LoadingServerInformation;
 
 		Connection.Local = new LocalConnection( msg.Assigned.Id )
@@ -52,12 +54,23 @@ internal partial class NetworkSystem
 
 		if ( !source.OnReceiveServerInfo( ref output, msg ) )
 		{
-			IGameInstanceDll.Current.Disconnect();
 			return;
 		}
 
+		//
+		// sv_password - before we load anything for it
+		//
+		if ( msg.PasswordRequired )
+		{
+			var password = await GetServerPassword( msg.ServerName );
+			if ( password is null )
+				return;
+
+			output.Password = password;
+		}
+
 		log.Trace( $"Server Id is {source.Id}" );
-		log.Trace( $"Map Name is {msg.MapName}" );
+		log.Trace( $"Map is {msg.MapName} ({msg.Map})" );
 		log.Trace( $"Server Name is {msg.ServerName}" );
 		log.Trace( $"Engine version is {msg.EngineVersion}" );
 		log.Trace( $"Game Package is {msg.GamePackage}" );
@@ -66,7 +79,7 @@ internal partial class NetworkSystem
 		// This is a bit of a mess, it needs a good cleaning up. If they have a menu package, then load it first.
 		if ( !string.IsNullOrEmpty( msg.GamePackage ) )
 		{
-			UpdateLoading( $"Loading {msg.GamePackage}" );
+			LoadingScreen.Title = $"Loading {msg.GamePackage}";
 
 			log.Trace( $"Loading menu package.. {msg.GamePackage}" );
 
@@ -75,9 +88,28 @@ internal partial class NetworkSystem
 
 			if ( !Application.IsStandalone )
 			{
-				LaunchArguments.Map = msg.MapPackage;
+				LaunchArguments.Map = msg.Map;
 
-				await IGameInstanceDll.Current.LoadGamePackageAsync( msg.GamePackage, flags, default );
+				bool success = await IGameInstanceDll.Current.LoadGamePackageAsync( msg.GamePackage, flags, default );
+				if ( !success )
+				{
+					// Failed to load the game package, we can't continue
+					Networking.Disconnect();
+					return;
+				}
+
+				// Like the server's packages - if its game's files are different to ours, we can't play with what it has
+				if ( Application.GamePackage is { InstallsFromWorkshop: true } game )
+				{
+					var ours = Workshop.GetInstalledVersion( game.WorkshopId );
+
+					if ( msg.GameWorkshopVersion != 0 && ours != 0 && msg.GameWorkshopVersion != ours )
+					{
+						IGameInstanceDll.Current.Disconnect( ServerPackages.MismatchMessage( [new Workshop.Item { Id = game.WorkshopId, Title = game.Title }] ) );
+						Networking.Disconnect();
+						return;
+					}
+				}
 			}
 		}
 		else
@@ -100,13 +132,41 @@ internal partial class NetworkSystem
 		Networking.ServerName = msg.ServerName;
 		Networking.MapName = msg.MapName;
 
-		InstallStringTables();
-		log.Trace( $"Fetching Server Data.." );
+		//
+		// Check any required mount for this map
+		//
+		if ( Mounting.MountUtility.TryParse( msg.Map, out string ident ) )
+		{
+			// make sure the mount exists and is mounted
+			var mount = Mounting.Directory.Get( ident );
+			if ( mount is null || !mount.IsInstalled )
+			{
+				IGameInstanceDll.Current.Disconnect( $"Mount is not available: {ident}" );
+				Networking.Disconnect();
+				return;
+			}
+
+			LoadingScreen.Title = $"Mounting {mount.Title}";
+			await Mounting.Directory.Mount( ident );
+
+			// load the scene now so that it's ready by the time we get to snapshot
+			// which may/will reference procedural resources and could be out of order from the MapInstance doing it's thing (woof)
+			var scenefile = SceneFile.Load( msg.MapName );
+			if ( scenefile is null )
+			{
+				IGameInstanceDll.Current.Disconnect( $"Map not found: {msg.MapName}" );
+				Networking.Disconnect();
+				return;
+			}
+		}
 
 		//
 		// Tell me what I need
 		//
-		UpdateLoading( $"Fetching Server Data" );
+		LoadingScreen.Title = "Fetching Server Data";
+
+		InstallStringTables();
+		log.Trace( $"Fetching Server Data.." );
 
 		source.SendMessage( output with
 		{
@@ -114,9 +174,66 @@ internal partial class NetworkSystem
 		} );
 	}
 
+	/// <summary>
+	/// The password for a server that wants one: the password convar, or else we ask the player. Null if
+	/// there isn't one, and we've disconnected.
+	/// </summary>
+	async Task<string> GetServerPassword( string serverName )
+	{
+		if ( !string.IsNullOrEmpty( Networking.Password ) )
+			return Networking.Password;
+
+		if ( Networking.IsMatchmaking || IModalSystem.Current is null )
+		{
+			IGameInstanceDll.Current.Disconnect( "This server needs a password. Set it with password \"...\" and connect again." );
+			Networking.Disconnect();
+			return null;
+		}
+
+		LoadingScreen.IsVisible = false;
+
+		Task<string> prompt;
+		using ( GlobalContext.MenuScope() )
+		{
+			prompt = IModalSystem.Current.ServerPassword( serverName );
+		}
+
+		var password = await prompt;
+
+		// Gave up on it, or went somewhere else while it was up
+		if ( !ReferenceEquals( Networking.System, this ) || IsDisconnected )
+			return null;
+
+		if ( string.IsNullOrEmpty( password ) )
+		{
+			IGameInstanceDll.Current.Disconnect();
+			Networking.Disconnect();
+			return null;
+		}
+
+		// Kept like Source's, so a reconnect doesn't ask again
+		Networking.Password = password;
+		LoadingScreen.IsVisible = true;
+
+		return password;
+	}
+
+	/// <summary>
+	/// The host turned us away for the wrong password. Forget it, so joining again asks for it.
+	/// </summary>
+	static bool IsBadPassword( string reason )
+	{
+		if ( reason != JoinAccess.BadPasswordReason )
+			return false;
+
+		Networking.Password = "";
+		return true;
+	}
+
 	async Task On_Handshake_ClientInfo( UserInfo msg, Connection source, Guid msgId )
 	{
-		if ( source.IsHost )
+		// Only the host lets people in. A peer would check them against rules it doesn't have.
+		if ( !IsHost || source.IsHost )
 			return;
 
 		if ( msg.HandshakeId != source.HandshakeId )
@@ -125,7 +242,7 @@ internal partial class NetworkSystem
 		if ( source.State != Connection.ChannelState.LoadingServerInformation )
 		{
 			source.Kick( $"Invalid Handshake State {source.State}" );
-			Log.Info( $"Kicking {source.DisplayName} [{source.SteamId}] Invalid Handshake State {source.State}" );
+			Log.Info( $"Kicking {source.Name} [{source.SteamId}] Invalid Handshake State {source.State}" );
 			return;
 		}
 
@@ -133,36 +250,13 @@ internal partial class NetworkSystem
 			return;
 
 		//
-		// Lobbies and steam network connections are trusted, so we can take the display name and Steam Id from them,
+		// Lobbies and steam network connections are trusted, so we can take the Steam Id from them,
 		// we shouldn't trust any other type of connection... but local TCP we can let slide.
 		//
 		if ( source is SteamLobbyConnection slob )
 		{
-			var friend = new Friend( slob.Friend.Id );
 			msg.SteamId = slob.Friend.Id;
-			msg.DisplayName = friend.Name;
 		}
-
-		Log.Info( $"{msg.DisplayName} [{msg.SteamId}] is connecting" );
-
-		//
-		// If the lobby is set to FriendsOnly, only allow players who are Steam friends with the host.
-		//
-		if ( !Application.IsDedicatedServer && Config.Privacy == LobbyPrivacy.FriendsOnly )
-		{
-			var hostSteamId = Utility.Steam.SteamId;
-
-			// Host is always allowed
-			if ( msg.SteamId != hostSteamId.Value && !new Friend( msg.SteamId ).IsFriend )
-			{
-				Log.Info( $"Kicked {msg.DisplayName} [{msg.SteamId}] - not friends with host [{hostSteamId}]" );
-				source.Kick( "This lobby is Friends Only." );
-				return;
-			}
-		}
-
-
-		var denialReason = "";
 
 		source.PreInfo = new ConnectionInfo( null )
 		{
@@ -172,17 +266,51 @@ internal partial class NetworkSystem
 
 		source.PreInfo.Update( msg );
 
+		Log.Info( $"{msg.Name} [{msg.SteamId}] is connecting" );
+
+		//
+		// Private and friends-only lobbies. Steam lets anyone with the lobby id join it, so this is
+		// the only thing keeping people out. Only lobby connections have a Steam Id we can trust; the
+		// rest are loopback (local instances), or a dedicated server's, which this doesn't cover.
+		//
+		if ( !Application.IsDedicatedServer && source is SteamLobbyConnection )
+		{
+			if ( !Access.CanJoin( msg.SteamId, out var privacyDenial ) )
+			{
+				Log.Info( $"Kicked {msg.Name} [{msg.SteamId}] - not allowed into this {Access.Privacy} lobby" );
+				source.Kick( privacyDenial );
+				return;
+			}
+		}
+
+		//
+		// sv_password. Asked of every kind of connection, dedicated servers included.
+		//
+		if ( NeedsPassword( source ) && !Access.CheckPassword( msg.Password ) )
+		{
+			Log.Info( $"Kicked {msg.Name} [{msg.SteamId}] - {(string.IsNullOrEmpty( msg.Password ) ? "no password" : "bad password")}" );
+			source.Kick( JoinAccess.BadPasswordReason );
+			return;
+		}
+
+		var denialReason = "";
+
 		if ( GameSystem is not null && !GameSystem.AcceptConnection( source, ref denialReason ) )
 		{
-			Log.Info( $"Kicking {msg.DisplayName} [{msg.SteamId}] - {denialReason}" );
+			Log.Info( $"Kicking {msg.Name} [{msg.SteamId}] - {denialReason}" );
 			source.Kick( denialReason );
 			return;
+		}
+
+		// They're in, so they can come back - even after the host has changed
+		if ( source is SteamLobbyConnection )
+		{
+			Access.Admit( msg.SteamId );
 		}
 
 		source.PreInfo = null;
 		source.State = Connection.ChannelState.Welcome;
 
-		//log.Info( $"Client Name is {data.DisplayName}" );
 		//log.Info( $"Client SteamId is {data.SteamId}" );
 		//log.Info( $"Client EngineVersion is {data.EngineVersion}" );
 
@@ -198,18 +326,6 @@ internal partial class NetworkSystem
 		// They're connected now dummy
 		//
 		msg.ConnectionTime = DateTime.UtcNow;
-
-		//
-		// Make their name unique
-		//
-		var displayName = msg.DisplayName;
-		var index = 2;
-		while ( ConnectionInfo.All.Values.Any( x => string.Equals( x.DisplayName, displayName, StringComparison.OrdinalIgnoreCase ) ) )
-		{
-			displayName = $"{msg.DisplayName} ({index})";
-			index++;
-		}
-		msg.DisplayName = displayName;
 
 		//
 		// Add player info to the manager. This will get sent to all the other players, so this
@@ -244,15 +360,18 @@ internal partial class NetworkSystem
 
 		Connection.Local.State = Connection.ChannelState.Welcome;
 
-		log.Trace( $"Welcome!" );
+		log.Trace( "Welcome!" );
 
-		UpdateLoading( $"Loading Network Tables" );
+		LoadingScreen.Title = "Loading Network Tables";
+		if ( !await IGameInstanceDll.Current?.LoadNetworkTables( this ) )
+		{
+			// code archive compile failed or something
+			Networking.Disconnect();
+			return;
+		}
 
-		await IGameInstanceDll.Current?.LoadNetworkTables( this );
-
-		UpdateLoading( $"Init Game System" );
-
-		InitializeGameSystem();
+		LoadingScreen.Title = "Init Game System";
+		await InitializeGameSystemAsync();
 
 		log.Trace( $"Game Network System: {GameSystem}" );
 
@@ -260,7 +379,7 @@ internal partial class NetworkSystem
 		// Here would be a goodish place to send a bunch of CRC's of the loaded state, so
 		// the server can compare and reject if we're loading assemblies wrong (cheater)
 		//
-		UpdateLoading( "Fetching Snapshot" );
+		LoadingScreen.Title = "Fetching Snapshot";
 
 		var output = new RequestMountedVPKs { HandshakeId = msg.HandshakeId };
 		source.SendMessage( output );
@@ -268,7 +387,7 @@ internal partial class NetworkSystem
 
 	Task On_Handshake_RequestMountedVPKs( RequestMountedVPKs msg, Connection source, Guid msgId )
 	{
-		if ( source.IsHost )
+		if ( !IsHost || source.IsHost )
 			return Task.CompletedTask;
 
 		if ( msg.HandshakeId != source.HandshakeId )
@@ -277,7 +396,7 @@ internal partial class NetworkSystem
 		if ( source.State != Connection.ChannelState.Welcome )
 		{
 			source.Kick( $"Invalid Handshake State {source.State}" );
-			Log.Info( $"Kicking {source.DisplayName} [{source.SteamId}] Invalid Handshake State {source.State}" );
+			Log.Info( $"Kicking {source.Name} [{source.SteamId}] Invalid Handshake State {source.State}" );
 			return Task.CompletedTask;
 		}
 
@@ -320,7 +439,7 @@ internal partial class NetworkSystem
 
 	Task On_Handshake_RequestSnapshot( RequestInitialSnapshot msg, Connection source, Guid msgId )
 	{
-		if ( source.IsHost )
+		if ( !IsHost || source.IsHost )
 			return Task.CompletedTask;
 
 		if ( msg.HandshakeId != source.HandshakeId )
@@ -329,7 +448,7 @@ internal partial class NetworkSystem
 		if ( source.State != Connection.ChannelState.MountVPKs )
 		{
 			source.Kick( $"Invalid Handshake State {source.State}" );
-			Log.Info( $"Kicking {source.DisplayName} [{source.SteamId}] Invalid Handshake State {source.State}" );
+			Log.Info( $"Kicking {source.Name} [{source.SteamId}] Invalid Handshake State {source.State}" );
 			return Task.CompletedTask;
 		}
 
@@ -342,27 +461,22 @@ internal partial class NetworkSystem
 
 		log.Trace( $"[{this}] Requesting a snapshot" );
 
-		var snapshot = new SnapshotMsg
+		var handshakeId = source.HandshakeId;
+		if ( GameSystem is not null )
 		{
-			GameObjectSystems = [],
-			NetworkObjects = new( 64 )
-		};
-
-		GameSystem?.GetSnapshot( source, ref snapshot );
-
-		var output = new InitialSnapshotResponse
+			GameSystem.SendSnapshot( source, snapshot => new InitialSnapshotResponse { HandshakeId = handshakeId, Snapshot = snapshot } );
+		}
+		else
 		{
-			HandshakeId = source.HandshakeId,
-			Snapshot = snapshot
-		};
-
-		source.SendMessage( output );
+			source.SendMessage( new InitialSnapshotResponse { HandshakeId = handshakeId, Snapshot = SnapshotMsg.Create() } );
+		}
 		return Task.CompletedTask;
 	}
 
 	async Task On_Handshake_Snapshot( InitialSnapshotResponse msg, Connection source, Guid msgId )
 	{
 		NetworkDebugSystem.Current?.Record( NetworkDebugSystem.MessageType.Snapshot, msg );
+		Sandbox.Diagnostics.DevTools.NetworkLog.Message( Sandbox.Diagnostics.DevTools.NetworkLog.Kind.Snapshot, "SceneSnapshot", msg, false, source );
 
 		if ( !source.IsHost )
 			return;
@@ -378,7 +492,7 @@ internal partial class NetworkSystem
 
 		Connection.Local.State = Connection.ChannelState.Snapshot;
 
-		UpdateLoading( "Loading Snapshot" );
+		LoadingScreen.Title = "Loading Snapshot";
 		Log.Trace( $"[{this}] Got a snapshot" );
 
 		//
@@ -394,10 +508,8 @@ internal partial class NetworkSystem
 			}
 			catch ( Exception e )
 			{
-				IGameInstanceDll.Current.Disconnect();
-				IMenuSystem.ShowServerError( "Disconnected", "Error Deserializing Snapshot" );
 				Log.Error( e );
-
+				IGameInstanceDll.Current.Disconnect( "Error Deserializing Snapshot" );
 				return;
 			}
 		}
@@ -414,7 +526,7 @@ internal partial class NetworkSystem
 
 	Task On_Handshake_ClientReady( ClientReady msg, Connection source, Guid msgId )
 	{
-		if ( source.IsHost )
+		if ( !IsHost || source.IsHost )
 			return Task.CompletedTask;
 
 		if ( msg.HandshakeId != source.HandshakeId )
@@ -425,11 +537,12 @@ internal partial class NetworkSystem
 		if ( source.State != Connection.ChannelState.Snapshot )
 		{
 			source.Kick( $"Invalid Handshake State {source.State}" );
-			Log.Info( $"Kicking {source.DisplayName} [{source.SteamId}] Invalid Handshake State {source.State}" );
+			Log.Info( $"Kicking {source.Name} [{source.SteamId}] Invalid Handshake State {source.State}" );
 			return Task.CompletedTask;
 		}
 
 		source.State = Connection.ChannelState.Connected;
+		Sandbox.Diagnostics.DevTools.NetworkLog.Session( "Peer joined", source );
 
 		//
 		// Tell game this guy is fully active.
@@ -441,14 +554,14 @@ internal partial class NetworkSystem
 
 		source.SendMessage( output );
 
-		Log.Info( $"{source.DisplayName} [{source.SteamId}] is connected" );
+		Log.Info( $"{source.Name} [{source.SteamId}] is connected" );
 
 		return Task.CompletedTask;
 	}
 
 	Task On_Handshake_Restart( RestartHandshakeMsg msg, Connection source, Guid msgId )
 	{
-		if ( source.IsHost )
+		if ( !IsHost || source.IsHost )
 			return Task.CompletedTask;
 
 		StartHandshake( source );
@@ -464,10 +577,9 @@ internal partial class NetworkSystem
 			return Task.CompletedTask;
 		}
 
-		IGameInstanceDll.Current.Disconnect();
-		IMenuSystem.ShowServerError( "Disconnected", msg.Reason );
-		Log.Warning( $"Disconnecting - {msg.Reason}" );
-
+		FailureReason = IsBadPassword( msg.Reason ) ? "Wrong password." : $"Kicked from server.\n\nReason: {msg.Reason}";
+		Api.Activity.SetExitReason( "kicked", msg.Reason );
+		IGameInstanceDll.Current.Disconnect( FailureReason );
 		return Task.CompletedTask;
 	}
 
@@ -482,11 +594,21 @@ internal partial class NetworkSystem
 		if ( msg.HandshakeId != Connection.Local.HandshakeId )
 			return Task.CompletedTask;
 
+		if ( Application.IsEditor )
+		{
+			IToolsDll.Current?.SetPlaying();
+		}
+
 		Log.Trace( $"[{this}] I am spawning into the game!" );
 		LoadingScreen.IsVisible = false;
+		Api.Activity.LoadFinished();
 
 		Connection.Local.State = Connection.ChannelState.Connected;
+		Sandbox.Diagnostics.DevTools.NetworkLog.Session( "Joined", source, starts: true );
 		source.State = Connection.ChannelState.Connected;
+
+		// Before the party sees we're in and follows
+		InviteParty();
 
 		return Task.CompletedTask;
 	}

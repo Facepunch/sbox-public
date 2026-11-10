@@ -36,5 +36,5 @@ file sealed class MorphPropertyFactory : ITrackPropertyFactory<ITrackProperty<Mo
 			: Enumerable.Empty<string>();
 	}
 
-	public string GetCategoryName( ITrackProperty<MorphAccessor?> parent, string name ) => "Morphs";
+	public string BaseCategoryName => "Morphs";
 }

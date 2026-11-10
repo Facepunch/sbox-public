@@ -22,6 +22,14 @@ public static class LZ4
 	}
 
 	/// <summary>
+	/// Worst-case compressed size for the given input length. Use to size a destination buffer.
+	/// </summary>
+	internal static int MaxCompressedSize( int sourceLength )
+	{
+		return NativeEngine.LZ4Glue.CompressBound( sourceLength );
+	}
+
+	/// <summary>
 	/// Encode data as an LZ4 block.
 	/// </summary>
 	/// <param name="data">Input buffer</param>
@@ -32,25 +40,39 @@ public static class LZ4
 		if ( data.IsEmpty )
 			return Array.Empty<byte>();
 
-		int maxLength = NativeEngine.LZ4Glue.CompressBound( data.Length );
-		using var compressed = new PooledSpan<byte>( maxLength );
+		using var compressed = new PooledSpan<byte>( MaxCompressedSize( data.Length ) );
+		int resultLength = CompressBlock( data, compressed.Span, compressionLevel );
+		return compressed.Span.Slice( 0, resultLength ).ToArray();
+	}
+
+	/// <summary>
+	/// Encode an LZ4 block into a caller-provided buffer (must be at least <see cref="MaxCompressedSize"/> bytes). Returns bytes written.
+	/// </summary>
+	internal static int CompressBlock( ReadOnlySpan<byte> data, Span<byte> dest, CompressionLevel compressionLevel = CompressionLevel.Fastest )
+	{
+		if ( data.IsEmpty )
+			return 0;
+
+		int maxLength = MaxCompressedSize( data.Length );
+		if ( dest.Length < maxLength )
+			throw new ArgumentException( $"Destination buffer too small ({dest.Length}b, need at least {maxLength}b).", nameof( dest ) );
 
 		int resultLength;
 		unsafe
 		{
 			fixed ( byte* srcPtr = data )
-			fixed ( byte* dstPtr = compressed.Span )
+			fixed ( byte* dstPtr = dest )
 			{
 				int level = CompressionLevelToLZ4Level( compressionLevel );
 				if ( level <= 1 )
 				{
 					// Use fast compression
-					resultLength = NativeEngine.LZ4Glue.Compress( (nint)srcPtr, (nint)dstPtr, data.Length, maxLength );
+					resultLength = NativeEngine.LZ4Glue.Compress( (nint)srcPtr, (nint)dstPtr, data.Length, dest.Length );
 				}
 				else
 				{
 					// Use HC (high compression) mode
-					resultLength = NativeEngine.LZ4Glue.CompressHC( (nint)srcPtr, (nint)dstPtr, data.Length, maxLength, level );
+					resultLength = NativeEngine.LZ4Glue.CompressHC( (nint)srcPtr, (nint)dstPtr, data.Length, dest.Length, level );
 				}
 			}
 		}
@@ -58,7 +80,7 @@ public static class LZ4
 		if ( resultLength <= 0 )
 			throw new InvalidDataException( "LZ4 encode failed." );
 
-		return compressed.Span.Slice( 0, resultLength ).ToArray();
+		return resultLength;
 	}
 
 

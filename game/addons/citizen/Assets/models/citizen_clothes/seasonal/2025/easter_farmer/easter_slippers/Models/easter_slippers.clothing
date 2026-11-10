@@ -11,16 +11,17 @@
   "Category": "Footwear",
   "ConditionalModels": {},
   "Tags": null,
-  "Parent": null,
   "Model": "models/citizen_clothes/seasonal/2025/easter_farmer/easter_slippers/models/easter_slippers.vmdl",
   "HumanAltModel": "models/citizen_clothes/seasonal/2025/easter_farmer/easter_slippers/models/easter_slippers_m_human.vmdl",
   "HumanAltFemaleModel": null,
   "SkinMaterial": null,
   "EyesMaterial": null,
   "MaterialGroup": null,
+  "HeelHeight": 0,
   "SlotsUnder": "LeftFoot, RightFoot",
   "SlotsOver": 0,
   "HideBody": "Feet",
+  "DeformationMode": "Normal",
   "AllowTintSelect": false,
   "TintSelection": {
     "blend": "Linear",
@@ -37,6 +38,7 @@
   "Icon": {
     "Path": "models/citizen_clothes/seasonal/2025/easter_farmer/easter_slippers/models/easter_slippers.clothing.png",
     "Mode": "Foot",
+    "UsePositionOffset": false,
     "PositionOffset": "0,0,0"
   },
   "__references": [],

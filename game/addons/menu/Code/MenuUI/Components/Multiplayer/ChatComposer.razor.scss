@@ -1,0 +1,65 @@
+@import "/Platform/_platform.scss";
+
+ChatComposer
+{
+	flex-direction: column;
+	flex-shrink: 0;
+
+	.chat-composer
+	{
+		margin: 0 $front-inset;
+		gap: 8px;
+		flex-shrink: 0;
+	}
+
+	.chat-composer textentry
+	{
+		@include platform-field( 44px );
+		width: 0;
+		flex-grow: 1;
+	}
+
+	.chat-actions
+	{
+		flex-wrap: wrap;
+		padding: $front-inset;
+		gap: 12px;
+		align-items: center;
+		flex-shrink: 0;
+		font-size: 13px;
+		color: $platform-muted;
+	}
+
+	button
+	{
+		cursor: pointer;
+
+		&:hover
+		{
+			sound-in: "ui.button.over";
+		}
+
+		&:active
+		{
+			sound-in: "ui.button.press";
+		}
+	}
+
+	.chat-actions button
+	{
+		@include platform-text-button( 30px, 12.5px, 14px );
+		padding: 0 12px;
+	}
+
+	.chat-composer button
+	{
+		@include platform-tool( 38px );
+		align-self: center;
+	}
+
+	button.disabled
+	{
+		opacity: 0.3;
+		pointer-events: none;
+	}
+}

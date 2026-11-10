@@ -16,7 +16,7 @@ namespace Sandbox.MovieMaker;
 /// to tracks. Alternatively, call <see cref="Start"/> to automatically advance and capture every fixed update, and <see cref="Stop"/> to finish recording.
 /// </para>
 /// <para>
-/// Convert the recording to a <see cref="MovieClip"/> by calling <see cref="ToClip"/>. This clip can then be
+/// Convert the recording to a <see cref="MovieClip"/> by calling <see cref="ToClip()"/>. This clip can then be
 /// played back immediately, or serialized to later use.
 /// </para>
 /// </summary>
@@ -44,7 +44,9 @@ public sealed partial class MovieRecorder
 	/// <summary>
 	/// Recorded time range, spanning from the first capture to the current value of <see cref="Time"/>.
 	/// </summary>
-	public MovieTimeRange TimeRange => (_firstCaptureTime ?? default, Time);
+	public MovieTimeRange TimeRange => Options.BufferDuration is { } duration
+		? (MovieTime.Max( _firstCaptureTime ?? default, Time - duration ), Time)
+		: (_firstCaptureTime ?? default, Time);
 
 	private List<MovieGameObjectTrackRecorder> RootTrackRecorders { get; } = new();
 
@@ -91,10 +93,20 @@ public sealed partial class MovieRecorder
 
 	/// <summary>
 	/// Gets a <see cref="IMovieTrackRecorder"/> for the given <paramref name="gameObject"/>, creating one if it doesn't
-	/// exist. If <see cref="MovieRecorderOptions.Filters"/> reject this game object, returns null instead.
+	/// exist. If <see cref="MovieRecorderOptions.Filters"/> reject this game object, returns null instead. Will use
+	/// <paramref name="gameObject"/>'s <see cref="GameObject.Name"/> as the track name.
 	/// </summary>
 	/// <param name="gameObject">Object in the scene to record.</param>
-	public IMovieTrackRecorder? GetTrackRecorder( GameObject? gameObject ) => GetGameObjectTrackRecorderInternal( gameObject );
+	public IMovieTrackRecorder? GetTrackRecorder( GameObject? gameObject ) => GetGameObjectTrackRecorderInternal( gameObject, null );
+
+	/// <summary>
+	/// Gets a <see cref="IMovieTrackRecorder"/> for the given <paramref name="gameObject"/>, creating one if it doesn't
+	/// exist. If <see cref="MovieRecorderOptions.Filters"/> reject this game object, returns null instead. Will name
+	/// the created track <paramref name="trackName"/>.
+	/// </summary>
+	/// <param name="gameObject">Object in the scene to record.</param>
+	/// <param name="trackName">Name to use for the recorded track.</param>
+	public IMovieTrackRecorder? GetTrackRecorder( GameObject? gameObject, string trackName ) => GetGameObjectTrackRecorderInternal( gameObject, trackName );
 
 	public IMovieTrackRecorder? GetTrackRecorder( IValid? gameObjectOrComponent )
 	{
@@ -106,7 +118,7 @@ public sealed partial class MovieRecorder
 		};
 	}
 
-	private MovieGameObjectTrackRecorder? GetGameObjectTrackRecorderInternal( GameObject? gameObject )
+	private MovieGameObjectTrackRecorder? GetGameObjectTrackRecorderInternal( GameObject? gameObject, string? trackName )
 	{
 		// Don't record invalid stuff!
 
@@ -139,11 +151,11 @@ public sealed partial class MovieRecorder
 
 		if ( gameObject.Parent is not Sandbox.Scene and not null )
 		{
-			var parentTrack = GetGameObjectTrackRecorderInternal( gameObject.Parent );
+			var parentTrack = GetGameObjectTrackRecorderInternal( gameObject.Parent, null );
 
 			// If parent isn't recordable, don't record this object either!
 
-			recorder = parentTrack?.Child( gameObject );
+			recorder = parentTrack?.Child( gameObject, trackName );
 			GameObjectTrackRecorderCache.AddOrUpdate( gameObject, recorder );
 
 			return recorder;
@@ -151,13 +163,18 @@ public sealed partial class MovieRecorder
 
 		// Look for a recorder that currently targets this object, or is unbound and can target it
 
-		recorder = RootTrackRecorders.FirstOrDefault( x => x.CanTarget( gameObject ) );
+		recorder = RootTrackRecorders.FirstOrDefault( x => x.CanTarget( gameObject, trackName ) );
 
 		if ( recorder is null )
 		{
 			// Create a new root recorder for this GameObject
 
-			var track = MovieClip.RootGameObject( gameObject.Name, metadata: new TrackMetadata( gameObject.Id, gameObject.PrefabInstanceSource ) );
+			var metadata = new TrackMetadata(
+				ReferenceId: gameObject.Id,
+				PrefabSource: gameObject.PrefabInstanceSource,
+				Order: 1_000 + RootTrackRecorders.Count );
+
+			var track = MovieClip.RootGameObject( trackName ?? gameObject.Name, metadata: metadata );
 
 			recorder = new MovieGameObjectTrackRecorder( this, track );
 
@@ -193,7 +210,7 @@ public sealed partial class MovieRecorder
 
 		if ( (component.Flags & ComponentFlags.Hidden) != 0 ) return null;
 
-		recorder = GetGameObjectTrackRecorderInternal( component.GameObject )?.Component( component );
+		recorder = GetGameObjectTrackRecorderInternal( component.GameObject, null )?.Component( component );
 
 		ComponentTrackRecorderCache.AddOrUpdate( component, recorder );
 
@@ -309,7 +326,19 @@ public sealed partial class MovieRecorder
 	/// <summary>
 	/// Convert the current recording to a <see cref="MovieClip"/> that can be serialized or played back.
 	/// </summary>
-	public MovieClip ToClip() => MovieClip.FromTracks( RootTrackRecorders.SelectMany( x => x.Compile() ) );
+	public MovieClip ToClip()
+	{
+		var startTime = Options.BufferDuration is { } duration
+			? MovieTime.Max( MovieTime.Zero, Time - duration )
+			: MovieTime.Zero;
+
+		return ToClip( (startTime, Time) );
+	}
+
+	public MovieClip ToClip( MovieTimeRange timeRange )
+	{
+		return MovieClip.FromTracks( RootTrackRecorders.SelectMany( x => x.Compile( timeRange ) ) );
+	}
 
 	/// <summary>
 	/// Convert the current recording to a <see cref="IMovieResource"/> that can be saved as a .movie asset.
@@ -335,6 +364,7 @@ public sealed partial class MovieRecorder
 /// <summary>
 /// Ticks all <see cref="MovieRecorder"/>s for the current scene.
 /// </summary>
+[Title( "Movie Recorder" )]
 internal sealed class MovieRecorderSystem : GameObjectSystem<MovieRecorderSystem>
 {
 	private readonly HashSet<MovieRecorder> _activeRecorders = new();

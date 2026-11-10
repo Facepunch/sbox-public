@@ -1,5 +1,9 @@
 ﻿namespace Facepunch.InteropGen;
 
+/// <summary>
+/// A native class passed across the boundary as a pointer (or, for handle/resource-handle types, as a
+/// handle id), with the conversions each of those cases needs.
+/// </summary>
 public class ArgDefinedClass : Arg
 {
 	public Class Class { get; set; }
@@ -17,9 +21,18 @@ public class ArgDefinedClass : Arg
 
 	public override string ManagedDelegateType => "IntPtr";
 
-	public override string GetManagedDelegateType( bool incoming )
+	public override string DelegateType( Side side, Dir dir )
 	{
-		return (Class.IsHandleType || Class.IsChildHandleType) && incoming ? "int" : "IntPtr";
+		if ( side == Side.Managed )
+		{
+			return (Class.IsHandleType || Class.IsChildHandleType) && dir == Dir.Incoming ? "int" : "IntPtr";
+		}
+
+		return Class.IsResourceHandle
+			? $"{Class.ResourceHandleName}Strong*"
+			: dir == Dir.Outgoing && (Class.IsHandleType || Class.IsChildHandleType)
+			? "int"
+			: IsReturn ? $"const {Class.NativeNameWithNamespace}*" : NativeType;
 	}
 
 
@@ -29,22 +42,13 @@ public class ArgDefinedClass : Arg
 				? $"{Class.ResourceHandleName}Strong*"
 				: Class.IsHandleType || Class.IsChildHandleType ? "int" : NativeType;
 
-	public override string GetNativeDelegateType( bool incoming )
-	{
-		return Class.IsResourceHandle
-			? $"{Class.ResourceHandleName}Strong*"
-			: !incoming && (Class.IsHandleType || Class.IsChildHandleType)
-			? "int"
-			: IsReturn ? $"const {Class.NativeNameWithNamespace}*" : NativeType;
-	}
-
-	public override string FromInterop( bool native, string code = null )
+	public override string FromInterop( Side side, string code = null )
 	{
 		code ??= Name;
 
 		if ( Class.IsHandleType )
 		{
-			if ( !native )
+			if ( side == Side.Managed )
 			{
 				return $"Sandbox.HandleIndex.Get<{Class.HandleIndex}>( {code} )";
 			}
@@ -52,29 +56,29 @@ public class ArgDefinedClass : Arg
 
 		if ( Class.IsResourceHandle )
 		{
-			if ( native )
+			if ( side == Side.Native )
 			{
-				// Using custom functions to call ->GetHandle() so we can 
+				// Using custom functions to call ->GetHandle() so we can
 				// handle if {code} is null in it by returning an invalid handle
 				return $"ResourceHandle_GetHandle( {code} )";
 			}
 		}
 
-		return native ? $"({NativeType}){code}" : base.FromInterop( native, code );
+		return side == Side.Native ? $"({NativeType}){code}" : base.FromInterop( side, code );
 	}
 
-	public override string ToInterop( bool native, string code = null )
+	public override string ToInterop( Side side, string code = null )
 	{
 		code ??= Name;
 
 		if ( Class.IsHandleType || Class.IsChildHandleType )
 		{
-			return native ? $"GetManagedHandle( {code} )" : $"{code} == null ? IntPtr.Zero : {code}.native";
+			return side == Side.Native ? $"GetManagedHandle( {code} )" : $"{code} == null ? IntPtr.Zero : {code}.native";
 		}
 
 		if ( Class.IsResourceHandle )
 		{
-			if ( native && IsReturn )
+			if ( side == Side.Native && IsReturn )
 			{
 				return $"new {Class.ResourceHandleName}StrongCopyable( {code} )";
 			}
@@ -84,11 +88,11 @@ public class ArgDefinedClass : Arg
 		// Passing a managed class to native - we just use the .NativePointer property
 		// Which should be using the NativePointer class to create a GCHandle.
 		//
-		return !native && !Class.Native
+		return side == Side.Managed && !Class.Native
 			? $" ( {code} == null ? IntPtr.Zero : Sandbox.InteropSystem.GetAddress( {code}, true ) )"
-			: native && !Class.Native
+			: side == Side.Native && !Class.Native
 			? $" ( {code} == nullptr ? nullptr : {code}->ptr() )"
-			: native ? $"{code}" : base.ToInterop( native, code );
+			: side == Side.Native ? $"{code}" : base.ToInterop( side, code );
 	}
 
 }

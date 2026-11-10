@@ -1,5 +1,5 @@
 {
-  "Title": "Game - Minimal",
+  "Title": "Game - Empty",
   "Type": "game",
   "Org": "local",
   "Ident": "game.minimal",
@@ -8,6 +8,7 @@
   "HasAssets": true,
   "AssetsPath": "",
   "Resources": null,
+  "PublishUsedAssetsOnly": true,
   "MenuResources": "*",
   "HasCode": true,
   "CodePath": "/code/",
@@ -30,7 +31,7 @@
     "ProjectTemplate": {
       "Icon": "sports_esports",
       "Order": -10,
-      "Description": "The bare minimum required to create a game in s&box."
+      "Description": "The bare minimum required to create a game in s&box"
     }
   }
 }

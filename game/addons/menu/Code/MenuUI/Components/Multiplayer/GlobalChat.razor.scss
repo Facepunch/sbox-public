@@ -1,0 +1,88 @@
+@import "/Platform/_platform.scss";
+GlobalChat
+{
+	@include platform-surface;
+	overflow: hidden;
+	flex-direction: row;
+	flex-shrink: 1;
+	min-width: 500px;
+	flex-grow: 1;
+	min-height: 0;
+	gap: 0;
+	.global-conversation
+	{
+		min-height: 0;
+		width: 0;
+		flex-shrink: 1;
+		flex-grow: 1;
+		min-width: 0;
+		flex-direction: column;
+	}
+
+	.conversation-heading
+	{
+		align-items: center;
+		gap: 8px;
+		padding: $front-inset;
+		border-bottom: 1px solid $platform-hairline;
+		flex-shrink: 0;
+
+		> div
+		{
+			flex-direction: column;
+			flex-grow: 1;
+			gap: 5px;
+
+			> label
+			{
+				font-size: 17px;
+				font-weight: 600;
+				color: $platform-text;
+			}
+
+			span
+			{
+				font-size: 11px;
+				color: $platform-muted;
+			}
+		}
+
+		button
+		{
+			@include platform-tool( 38px );
+		}
+	}
+
+	.chat-notice
+	{
+		margin: 12px 24px 0;
+		padding: 12px;
+		background-color: rgba( $platform-primary, 0.12 );
+		color: $platform-text;
+		flex-shrink: 0;
+	}
+
+	.chat-notice.error
+	{
+		background-color: rgba( $platform-danger, 0.1 );
+		color: $platform-danger;
+	}
+
+	.chat-messages
+	{
+		flex-grow: 1;
+		min-height: 0;
+		flex-direction: column;
+		overflow-y: scroll;
+		overflow-x: hidden;
+		padding: $front-inset;
+		gap: 18px;
+	}
+
+	.chat-empty
+	{
+		@include platform-empty;
+		flex-grow: 1;
+		justify-content: center;
+	}
+}

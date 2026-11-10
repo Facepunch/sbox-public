@@ -11,16 +11,17 @@
   "Category": "Boots",
   "ConditionalModels": {},
   "Tags": null,
-  "Parent": "models/citizen_clothes/shoes/boxing_boots/boxing_boots.clothing",
   "Model": "models/citizen_clothes/shoes/boxing_boots/models/boxing_boots_blue.vmdl",
   "HumanAltModel": "models/citizen_clothes/shoes/boxing_boots/models/boxing_boots_blue_m_human.vmdl",
   "HumanAltFemaleModel": null,
   "SkinMaterial": null,
   "EyesMaterial": null,
   "MaterialGroup": "",
+  "HeelHeight": 0,
   "SlotsUnder": "LeftFoot, RightFoot",
   "SlotsOver": 0,
   "HideBody": "Feet",
+  "DeformationMode": "Normal",
   "AllowTintSelect": false,
   "TintSelection": {
     "blend": "Linear",
@@ -37,6 +38,7 @@
   "Icon": {
     "Path": "models/citizen_clothes/shoes/boxing_boots/boxing_boots_blue.clothing.png",
     "Mode": "Foot",
+    "UsePositionOffset": false,
     "PositionOffset": "0,0,0"
   },
   "__references": [],

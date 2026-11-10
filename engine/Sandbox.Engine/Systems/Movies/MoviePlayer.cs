@@ -1,5 +1,4 @@
 ﻿using Sandbox.MovieMaker.Properties;
-using Sandbox.Utility;
 
 namespace Sandbox.MovieMaker;
 
@@ -10,21 +9,19 @@ namespace Sandbox.MovieMaker;
 /// </summary>
 [Icon( "live_tv" )]
 [Category( "Movie Maker" )]
-public sealed class MoviePlayer : Component
+public sealed partial class MoviePlayer : Component
 {
 	private MovieTime _position;
 	private bool _isPlaying;
-	private bool _createTargets = true;
 
 	private IMovieResource? _source;
 	private IMovieClip? _clip;
-	private TrackBinder? _binder;
 
 	/// <summary>
 	/// Maps <see cref="ITrack"/>s to game objects, components, and property <see cref="ITrackTarget"/>s in the scene.
 	/// </summary>
 	[Property, Hide]
-	public TrackBinder Binder => _binder ??= new TrackBinder( Scene );
+	public TrackBinder Binder => field ??= new TrackBinder( Scene );
 
 	/// <summary>
 	/// Contains a <see cref="IMovieClip"/> to play. Can be a <see cref="MovieResource"/> or <see cref="EmbeddedMovieResource"/>.
@@ -64,21 +61,6 @@ public sealed class MoviePlayer : Component
 
 	[Property, Group( "Playback" )]
 	public bool IsLooping { get; set; }
-
-	/// <summary>
-	/// If true, creates any missing <see cref="GameObject"/>s and <see cref="Component"/>s for the
-	/// current movie to target.
-	/// </summary>
-	[Property, Group( "Playback" )]
-	public bool CreateTargets
-	{
-		get => _createTargets;
-		set
-		{
-			_createTargets = value;
-			UpdatePosition();
-		}
-	}
 
 	[Property, Group( "Playback" ), Range( 0f, 2f ), Step( 0.1f )]
 	public float TimeScale { get; set; } = 1f;
@@ -141,38 +123,14 @@ public sealed class MoviePlayer : Component
 		UpdatePosition();
 	}
 
-	/// <summary>
-	/// Forces the creation of any missing <see cref="GameObject"/>s or <see cref="Component"/>s for the current <see cref="Clip"/> to target.
-	/// </summary>
-	public void UpdateTargets()
-	{
-		UpdateTargets( CreateTargets ? Clip : null, force: true );
-	}
-
-	private IMovieClip? _targetSource;
-
-	private void UpdateTargets( IMovieClip? clip, bool force = false )
-	{
-		if ( !force && _targetSource == clip ) return;
-
-		_targetSource = clip;
-
-		if ( clip is not null )
-		{
-			Binder.CreateTargets( clip, replace: true, rootParent: GameObject );
-		}
-		else
-		{
-			Binder.DestroyTargets();
-		}
-	}
-
 	protected override void OnDestroy()
 	{
 		// Destroy any objects created for playback
 
 		UpdateTargets( null );
 	}
+
+	private MovieUpdateBuilder UpdateBuilder => field ??= new MovieUpdateBuilder( Binder );
 
 	/// <summary>
 	/// Apply the movie clip to the scene at the current time position.
@@ -192,15 +150,16 @@ public sealed class MoviePlayer : Component
 
 		if ( Clip is not { } clip ) return;
 
+		var updateBuilder = UpdateBuilder;
+
 		foreach ( var renderer in Binder.GetComponents<SkinnedModelRenderer>( clip ) )
 		{
 			MovieBoneAnimatorSystem.Current?.ClearBones( renderer );
 		}
 
-		using ( BeginApplyFrameInternal() )
-		{
-			clip.Update( _position, Binder );
-		}
+		updateBuilder.Clear();
+		updateBuilder.Add( clip, Position );
+		updateBuilder.Apply();
 
 		if ( IsPlaying )
 		{
@@ -210,25 +169,6 @@ public sealed class MoviePlayer : Component
 		{
 			StopControllingRigidBodies();
 		}
-	}
-
-	internal IDisposable BeginApplyFrameInternal()
-	{
-		// TODO: move ClearBones / UpdateAnimationPlaybackRate etc here, avoid duplication in editor code
-
-		var sceneScope = Scene.Push();
-
-		// We need to batch any property changes in case we're setting Enabled on multiple
-		// components / game objects. This batch will make sure OnEnabled gets called in the
-		// correct order.
-
-		var batchScope = CallbackBatch.Batch();
-
-		return new DisposeAction( () =>
-		{
-			batchScope?.Dispose();
-			sceneScope?.Dispose();
-		} );
 	}
 
 	protected override void OnEnabled()

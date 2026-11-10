@@ -11,7 +11,7 @@ namespace Sandbox.Resources;
 ///
 /// All offsets in CResourcePointer/CResourceArray are relative to the field's own position.
 /// </summary>
-internal class ResourceWriter
+internal partial class ResourceWriter
 {
 	const ushort RESOURCE_FILE_HEADER_VERSION = 12;
 	const uint RESOURCE_BLOCK_ID_DATA = 0x41544144; // 'DATA'
@@ -53,7 +53,13 @@ internal class ResourceWriter
 	/// </summary>
 	public byte[] ToArray()
 	{
-		int blockCount = _blocks.Count;
+		var blocks = new List<Block>( _blocks.Count + 1 );
+		blocks.AddRange( _blocks );
+
+		if ( _externalRefs.Count > 0 )
+			blocks.Add( new Block( RESOURCE_BLOCK_ID_RERL, BuildRERLBlock() ) );
+
+		int blockCount = blocks.Count;
 		int streamingSize = _streamingData?.Length ?? 0;
 
 		//
@@ -83,7 +89,7 @@ internal class ResourceWriter
 		for ( int i = 0; i < blockCount; i++ )
 		{
 			blockPositions[i] = nonStreamingSize;
-			nonStreamingSize += _blocks[i].Data.Length;
+			nonStreamingSize += blocks[i].Data.Length;
 		}
 
 		using var buffer = ByteStream.Create( nonStreamingSize + streamingSize );
@@ -111,7 +117,7 @@ internal class ResourceWriter
 			int entryPos = blockArrayPos + (i * blockEntrySize);
 			int pointerFieldPos = entryPos + 4;
 
-			var block = _blocks[i];
+			var block = blocks[i];
 			int dataPos = blockPositions[i];
 
 			buffer.Write( block.TypeId );
@@ -121,7 +127,7 @@ internal class ResourceWriter
 
 		for ( int i = 0; i < blockCount; i++ )
 		{
-			buffer.Write( _blocks[i].Data );
+			buffer.Write( blocks[i].Data );
 		}
 
 		// ===== Streaming data =====

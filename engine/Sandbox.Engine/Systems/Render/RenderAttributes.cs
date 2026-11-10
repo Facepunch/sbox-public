@@ -73,15 +73,23 @@ public partial class RenderAttributes
 	public void Clear()
 	{
 		if ( !attributes.IsValid ) return;
-		attributes.Clear( true, true );
-		ClearUsedTextures();
+
+		lock ( usedTexturesLock )
+		{
+			attributes.Clear( true, true );
+			ClearUsedTextures();
+		}
 	}
 
 	internal void Clear( bool freeMemory )
 	{
 		if ( !attributes.IsValid ) return;
-		attributes.Clear( freeMemory, true );
-		ClearUsedTextures();
+
+		lock ( usedTexturesLock )
+		{
+			attributes.Clear( freeMemory, true );
+			ClearUsedTextures();
+		}
 	}
 
 	public void SetCombo( in StringToken k, in int value )
@@ -147,6 +155,12 @@ public partial class RenderAttributes
 		attributes.SetIntValue( k, value );
 	}
 
+	public void Set( in StringToken k, in uint value )
+	{
+		if ( !attributes.IsValid ) return;
+		attributes.SetIntValue( k, unchecked((int)value) );
+	}
+
 	public void Set( in StringToken k, in Vector2Int value )
 	{
 		if ( !attributes.IsValid ) return;
@@ -164,9 +178,21 @@ public partial class RenderAttributes
 		if ( !attributes.IsValid ) return;
 
 		var native = value?.native ?? default;
-		Set( k, native, mip );
 
-		SetUsedTexture( k, value );
+		// Native and tracked texture have to change together or a parallel set can leave native bound to a released handle
+		lock ( usedTexturesLock )
+		{
+			Set( k, native, ClampMip( value, mip ) );
+			SetUsedTexture( k, value );
+		}
+	}
+
+	internal static int ClampMip( Texture texture, int mip )
+	{
+		if ( texture is null || mip == -1 )
+			return mip;
+
+		return Math.Clamp( mip, 0, Math.Max( texture.Mips - 1, 0 ) );
 	}
 
 	public void Set( in StringToken k, in SamplerState value )
@@ -231,7 +257,23 @@ public partial class RenderAttributes
 	public void Set( in StringToken k, in GpuBuffer value )
 	{
 		if ( !attributes.IsValid ) return;
-		attributes.SetBufferValue( k, value is not null ? value.native : default );
+		attributes.SetBufferValue( k, SetUsedBuffer( k, value ) );
+	}
+
+	// For attributes that only live for one draw, whoever owns the buffer keeps it bound
+	internal void SetUntracked( in StringToken k, GpuBuffer value )
+	{
+		if ( !attributes.IsValid ) return;
+		attributes.SetBufferValue( k, value?.native ?? default );
+	}
+
+	// Largest pooled dynamic constant buffer bucket, 512 float4s
+	internal const int MaxConstantBufferSize = 8 * 1024;
+
+	static void ThrowIfConstantBufferTooLarge( long size )
+	{
+		if ( size > MaxConstantBufferSize )
+			throw new ArgumentOutOfRangeException( "value", $"Constant buffer data is {size} bytes, the maximum is {MaxConstantBufferSize}" );
 	}
 
 	/// <summary>
@@ -242,10 +284,11 @@ public partial class RenderAttributes
 		if ( !SandboxedUnsafe.IsAcceptablePod<T>() )
 			throw new ArgumentException( $"{nameof( T )} must be a POD type" );
 
-		int actualSize = value.Length * Unsafe.SizeOf<T>();
+		long actualSize = (long)value.Length * Unsafe.SizeOf<T>();
 		if ( actualSize <= 0 ) return;
+		ThrowIfConstantBufferTooLarge( actualSize );
 		fixed ( T* ptr = value )
-			RenderTools.SetDynamicConstantBufferData( attributes, k, Graphics.Context, (IntPtr)ptr, actualSize );
+			RenderTools.SetDynamicConstantBufferData( attributes, k, Graphics.Context, (IntPtr)ptr, (int)actualSize );
 	}
 
 	/// <summary>
@@ -259,6 +302,7 @@ public partial class RenderAttributes
 		if ( !attributes.IsValid ) return;
 		int actualSize = Unsafe.SizeOf<T>();
 		if ( actualSize <= 0 ) return;
+		ThrowIfConstantBufferTooLarge( actualSize );
 		RenderTools.SetDynamicConstantBufferData( attributes, k, Graphics.Context, (IntPtr)(&value), actualSize );
 	}
 
@@ -340,6 +384,15 @@ public partial class RenderAttributes
 	}
 
 	/// <summary>
+	/// Get a uint value - else defaultValue if missing
+	/// </summary>
+	public uint GetUInt( in StringToken name, in uint defaultValue = default )
+	{
+		if ( !attributes.IsValid ) return defaultValue;
+		return unchecked((uint)attributes.GetIntValue( name, unchecked((int)defaultValue) ));
+	}
+
+	/// <summary>
 	/// Get a matrix value - else defaultValue if missing
 	/// </summary>
 	public Matrix GetMatrix( in StringToken name, in Matrix defaultValue = default )
@@ -371,6 +424,14 @@ public partial class RenderAttributes
 		if ( renderAttributes is null ) throw new ArgumentNullException( nameof( renderAttributes ) );
 		if ( !attributes.IsValid || !renderAttributes.attributes.IsValid ) return;
 		attributes.MergeToPtr( renderAttributes.attributes );
+		MergeUsedBuffersTo( renderAttributes );
+	}
+
+	// For attributes that only live for one draw, the source keeps its buffers bound
+	internal void MergeToUntracked( RenderAttributes renderAttributes )
+	{
+		if ( !attributes.IsValid || !renderAttributes.attributes.IsValid ) return;
+		attributes.MergeToPtr( renderAttributes.attributes );
 	}
 
 	// These are for backwards compatibility with compiled shit
@@ -378,6 +439,7 @@ public partial class RenderAttributes
 	public void SetCombo( [StringToken.Convert] in string k, in bool value ) => SetCombo( (StringToken)k, value );
 	public void Set( [StringToken.Convert] in string k, in bool value ) => Set( (StringToken)k, value );
 	public void Set( [StringToken.Convert] in string k, in int value ) => Set( (StringToken)k, value );
+	public void Set( [StringToken.Convert] in string k, in uint value ) => Set( (StringToken)k, value );
 	public void Set( [StringToken.Convert] in string k, in Vector2Int value ) => Set( (StringToken)k, value );
 	public void Set( [StringToken.Convert] in string k, in Vector3Int value ) => Set( (StringToken)k, value );
 	public void Set( [StringToken.Convert] in string k, in Vector4 value ) => Set( (StringToken)k, value );

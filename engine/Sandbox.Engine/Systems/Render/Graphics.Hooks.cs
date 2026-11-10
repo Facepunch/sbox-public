@@ -1,4 +1,6 @@
 using Sandbox.Engine;
+using Sandbox.Rendering;
+using NativeEngine;
 
 namespace Sandbox;
 
@@ -19,6 +21,11 @@ public static partial class Graphics
 			{
 				RenderUiOverlay();
 				DebugOverlay.Render();
+				ScreenCaptureUtility.CaptureFrame();
+				ScreenCaptureUtility.DrawRecordingBorder();
+
+				// Over everything, and after the capture so recordings don't have it in
+				Sandbox.Diagnostics.DevTools.RenderGameDock();
 			}
 
 			return;
@@ -51,4 +58,5 @@ public static partial class Graphics
 		using var _ = GlobalContext.MenuScope();
 		GlobalContext.Current.UISystem.Render();
 	}
+
 }

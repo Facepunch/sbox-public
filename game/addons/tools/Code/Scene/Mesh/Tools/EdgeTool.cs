@@ -6,11 +6,41 @@ namespace Editor.MeshEditor;
 /// Select and edit edges.
 /// </summary>
 [Title( "Edge Tool" )]
-[Icon( "show_chart" )]
+[Icon( "meshtools/sub-tools/edge_tool.png" )]
 [Alias( "tools.edge-tool" )]
 [Group( "2" )]
 public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>( tool )
 {
+	public override void BuildSceneContextMenu( Menu menu, Ray ray, SceneTraceResult? trace )
+	{
+		base.BuildSceneContextMenu( menu, ray, trace );
+
+		var edges = Selection.OfType<MeshEdge>().Where( x => x.IsValid() ).ToArray();
+		int count = edges.Length;
+		if ( count == 0 ) return;
+
+		bool canFill = edges.Any( x => x.IsOpen );
+
+		menu.AddSeparator();
+
+		var ops = menu.AddMenu( "Edge Operations", "build" );
+		AddMenuOption( ops, "Merge Edges", "meshtools/edge_tool_button/merge_1.png", "mesh.merge", count > 1 );
+		AddMenuOption( ops, "Split Edges", "meshtools/edge_tool_button/split.png", "mesh.split", true );
+		AddMenuOption( ops, "Bridge Edges", "meshtools/edge_tool_button/bridge.png", "mesh.bridge-tool", count > 1 );
+		AddMenuOption( ops, "Fill Hole", "meshtools/edge_tool_button/fill_hole.png", "mesh.fill-hole", canFill );
+		AddMenuOption( ops, "Connect Edges", "meshtools/edge_tool_button/connect_1.png", "mesh.connect", count > 1 );
+		AddMenuOption( ops, "Bevel Edges", "meshtools/edge_tool_button/bevel_1.png", "mesh.edge-bevel", true );
+		AddMenuOption( ops, "Dissolve Edges", "meshtools/edge_tool_button/dissolve.png", "mesh.dissolve", true );
+		AddMenuOption( ops, "Collapse Edges", "meshtools/edge_tool_button/collapse.png", "mesh.collapse", true );
+
+		var sel = menu.AddMenu( "Edge Selection", "select_all" );
+		AddMenuOption( sel, "Select Loop", "meshtools/edge_tool_button/select_loop.png", "mesh.select-loop", true );
+		AddMenuOption( sel, "Select Ring", "meshtools/edge_tool_button/select_ring.png", "mesh.select-ring", true );
+		AddMenuOption( sel, "Select Ribs", "meshtools/edge_tool_button/select_ribs.png", "mesh.select-ribs", true );
+		AddMenuOption( sel, "Select Path", "meshtools/edge_tool_button/select_path.png", "mesh.select-path", count == 2 && edges[0].Component == edges[1].Component );
+		AddMenuOption( sel, "Invert Selection", "swap_vert", InvertCurrentSelection, "mesh.invert-selection", true );
+		sel.AddOption( "Select All", "select_all", () => InvokeShortcut( "mesh.select-all" ), "mesh.select-all" );
+	}
 
 	public override void OnUpdate()
 	{
@@ -60,8 +90,20 @@ public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>(
 			}
 		}
 
+		if ( ShowSelectionBounds )
+			DrawBounds();
+
 		if ( edges.Count == 2 )
 			AngleFromEdges( edges[0], edges[1] );
+	}
+
+	private void DrawBounds()
+	{
+		using ( Gizmo.Scope( "Edge Size" ) )
+		{
+			var box = CalculateSelectionBounds();
+			DimensionDisplay.DrawBounds( box );
+		}
 	}
 
 	protected override IEnumerable<MeshEdge> ConvertSelectionToCurrentType()
@@ -117,17 +159,21 @@ public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>(
 		}
 	}
 
+	private const float OpenEdgeHashLength = 12.0f;
+	private const float OpenEdgeHashSpacing = 20.0f;
+
+	private static float ScreenSize( Vector3 position, float scale )
+	{
+		return scale * Gizmo.Camera.Position.Distance( position ) / 1000.0f;
+	}
+
 	private static void DrawOpenEdge( MeshEdge edge )
 	{
 		var mesh = edge.Component.Mesh;
 		var hFace = mesh.GetHalfEdgeFace( edge.Handle );
-		var spacing = 1.5f;
 
 		if ( !hFace.IsValid )
-		{
 			hFace = mesh.GetHalfEdgeFace( mesh.GetOppositeHalfEdge( edge.Handle ) );
-			spacing *= -1.0f;
-		}
 
 		if ( !hFace.IsValid )
 			return;
@@ -137,24 +183,38 @@ public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>(
 		var b = edge.Transform.PointToWorld( line.End );
 		var length = a.Distance( b );
 
+		if ( length <= 0.0f )
+			return;
+
 		mesh.ComputeFaceNormal( hFace, out var normal );
+		normal = edge.Transform.NormalToWorld( normal );
+
 		var direction = (b - a).Normal;
 		var tangent = normal.Cross( direction );
 
-		var cameraDistance = Gizmo.Camera.Position.Distance( (a + b) * 0.5f );
-		var visualScale = (cameraDistance * 0.008f).Clamp( 0.05f, 3f );
+		if ( tangent.IsNearlyZero( 0.0001f ) )
+			return;
 
-		spacing *= visualScale;
+		tangent = tangent.Normal;
 
-		var hashSpacing = (2.5f * visualScale).Clamp( 0.5f, 50f );
-		var numHashes = Math.Max( 3, (int)(length / hashSpacing) );
+		var faceCenter = edge.Transform.PointToWorld( mesh.GetFaceCenter( hFace ) );
 
-		for ( int i = 0; i < numHashes; i++ )
+		if ( tangent.Dot( faceCenter - (a + b) * 0.5f ) < 0.0f )
+			tangent = -tangent;
+
+		var travelled = 0.0f;
+
+		for ( int i = 0; i < 256; i++ )
 		{
-			var t = i / (float)(numHashes - 1);
-			var position = Vector3.Lerp( a, b, t );
-			var hashEnd = position + tangent * spacing;
+			var position = Vector3.Lerp( a, b, travelled / length );
+			var hashEnd = position + tangent * ScreenSize( position, OpenEdgeHashLength );
 			Gizmo.Draw.Line( position, hashEnd );
+
+			if ( travelled >= length )
+				break;
+
+			var step = MathF.Min( ScreenSize( position, OpenEdgeHashSpacing ), length * 0.5f );
+			travelled = MathF.Min( travelled + MathF.Max( step, 0.01f ), length );
 		}
 	}
 
@@ -245,48 +305,44 @@ public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>(
 		if ( !targetEdge.IsValid() )
 			return;
 
-		if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift ) && TrySelectEdgePath( targetEdge ) )
-			return;
+		var modifiers = Application.KeyboardModifiers;
+		var shift = modifiers.HasFlag( KeyboardModifiers.Shift );
+		var ctrl = modifiers.HasFlag( KeyboardModifiers.Ctrl );
 
-		if ( !Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift ) )
-			Selection.Clear();
+		using var undoScope = SceneEditorSession.Active.UndoScope( "Select Edge Loop" ).Push();
+		if ( !shift && !ctrl )
+			Selection.Set( targetEdge );
+		else
+			Selection.Add( targetEdge );
 
-		if ( !Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
+		var mesh = targetEdge.Component.Mesh;
+		var selected = Selection.OfType<MeshEdge>()
+			.Where( e => e.IsValid() && e.Component == targetEdge.Component )
+			.Select( e => e.Handle )
+			.Distinct()
+			.ToArray();
+
+		mesh.FindEdgeLoopForEdges( selected, out var loopEdges );
+		var singleLoop = loopEdges;
+		if ( shift || ctrl )
+			mesh.FindEdgeLoopForEdges( [targetEdge.Handle], out singleLoop );
+
+		var singleLoopEdges = singleLoop.ToHashSet();
+
+		foreach ( var edge in loopEdges )
 		{
-			targetEdge.Component.Mesh.FindEdgeLoopForEdges( [targetEdge.Handle], out var hEdges );
-			foreach ( var hEdge in hEdges )
-				Selection.Add( new MeshEdge( targetEdge.Component, hEdge ) );
+			if ( !singleLoopEdges.Contains( edge ) && !singleLoopEdges.Contains( mesh.GetOppositeHalfEdge( edge ) ) )
+				continue;
+
+			var meshEdge = new MeshEdge( targetEdge.Component, edge );
+			if ( ctrl && (!shift || Selection.Contains( meshEdge )) )
+				Selection.Remove( meshEdge );
+			else
+				Selection.Add( meshEdge );
 		}
 	}
 
-	private bool TrySelectEdgePath( MeshEdge targetEdge )
-	{
-		var selected = Selection.OfType<MeshEdge>()
-			.Where( e => e.IsValid() && e.Component == targetEdge.Component )
-			.ToList();
-
-		if ( selected.Count == 0 || selected.Count > 2 )
-			return false;
-
-		var startEdge = selected.FirstOrDefault( e =>
-			e.Handle != targetEdge.Handle &&
-			e.Handle != targetEdge.Component.Mesh.GetOppositeHalfEdge( targetEdge.Handle )
-		);
-
-		if ( !startEdge.IsValid() )
-			return false;
-
-		var path = FindShortestEdgePath( startEdge, targetEdge );
-		if ( path == null || path.Count == 0 )
-			return false;
-
-		foreach ( var edge in path.Where( e => !Selection.Contains( e ) ) )
-			Selection.Add( edge );
-
-		return true;
-	}
-
-	private List<MeshEdge> FindShortestEdgePath( MeshEdge start, MeshEdge end )
+	internal static List<MeshEdge> FindShortestEdgePath( MeshEdge start, MeshEdge end )
 	{
 		if ( start.Component != end.Component )
 			return null;

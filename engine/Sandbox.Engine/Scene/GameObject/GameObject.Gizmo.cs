@@ -1,4 +1,5 @@
-﻿namespace Sandbox;
+﻿using Sandbox.Engine;
+namespace Sandbox;
 
 public partial class GameObject
 {
@@ -6,11 +7,31 @@ public partial class GameObject
 	{
 		public Texture Texture { get; set; }
 		public string Icon { get; set; }
+
+		/// <summary>Base color from the <see cref="EditorHandleAttribute"/>, used when there's no color provider.</summary>
 		public Color Color { get; set; }
+
+		/// <summary>Color provider (usually a light), read live each frame so its color stays current.</summary>
+		public Component.IColorProvider ColorProvider { get; set; }
+
+		/// <summary>The color to draw the handle with this frame.</summary>
+		public Color EffectiveColor
+		{
+			get
+			{
+				if ( ColorProvider is null )
+					return Color;
+
+				// this is mainly for lights, we don't want any black bulbs, but we do want to indicate light color
+				// so if anything else starts using this we should probably move this logic into the light component implementation
+				return ((Vector3)ColorProvider.ComponentColor).Normal * 2;
+			}
+		}
 	}
 
 	GameObjectHandle _handle;
 	bool handleBuilt;
+	int _handleGen = -1;
 
 	[Obsolete( "Use HasGizmoHandle" )]
 	public bool HasGimzoHandle { get => HasGizmoHandle; private set => HasGizmoHandle = value; }
@@ -18,18 +39,37 @@ public partial class GameObject
 
 	void BuildGizmoDetails()
 	{
-		if ( handleBuilt )
+		// Rebuilt only when the component list changes (ClearInternalCache) or a gizmo type is toggled.
+		if ( handleBuilt && _handleGen == Gizmo.GizmoTypeGeneration )
 			return;
 
-		_handle = default;
+		handleBuilt = true;
+		_handleGen = Gizmo.GizmoTypeGeneration;
+		_handle = null;
 
-		var handles = Components.GetAll()
-			.Where( x => x is not null )
-			.Select( x => Game.TypeLibrary.GetType( x.GetType() ) )
-			.Where( x => x is not null )
-			.Where( x => Gizmo.Settings.IsGizmoEnabled( x.TargetType ) )
-			.SelectMany( x => x.GetAttributes<EditorHandleAttribute>( true ) )
-			.FirstOrDefault();
+		EditorHandleAttribute handles = null;
+
+		foreach ( var c in Components.GetAll() )
+		{
+			if ( c is null )
+				continue;
+
+			var typeDesc = GlobalContext.Current.TypeLibrary.GetType( c.GetType() );
+			if ( typeDesc is null )
+				continue;
+
+			if ( !Gizmo.Settings.IsGizmoEnabled( typeDesc.TargetType ) )
+				continue;
+
+			foreach ( var attr in typeDesc.GetAttributes<EditorHandleAttribute>( true ) )
+			{
+				handles = attr;
+				break;
+			}
+
+			if ( handles is not null )
+				break;
+		}
 
 		if ( handles is null )
 			return;
@@ -37,16 +77,7 @@ public partial class GameObject
 		_handle = new GameObjectHandle();
 		_handle.Icon = handles.Icon;
 		_handle.Color = handles.Color;
-
-		var colorProvider = Components.GetAll<Component.IColorProvider>().FirstOrDefault();
-		if ( colorProvider is not null )
-		{
-			_handle.Color = colorProvider.ComponentColor;
-
-			// this is mainly for lights, we don't want any black bulbs, but we do want to indicate light color
-			// so if anything else starts using this we should probably move this logic into the light component implementation
-			_handle.Color = ((Vector3)_handle.Color).Normal * 2;
-		}
+		_handle.ColorProvider = Components.GetAll<Component.IColorProvider>().FirstOrDefault();
 
 		if ( !string.IsNullOrWhiteSpace( handles.Texture ) )
 		{
@@ -65,19 +96,28 @@ public partial class GameObject
 		if ( _handle is null )
 			return;
 
+		var renderDistance = Gizmo.Settings.GizmoRenderDistance;
+		if ( renderDistance > 0 )
+		{
+			var dist = Gizmo.Camera.Position.Distance( Gizmo.Transform.Position );
+			if ( dist > renderDistance )
+				return;
+		}
+
 		bool isSelected = Gizmo.IsSelected;
 		bool selected = Gizmo.IsSelected;
+		bool worldSpace = Gizmo.Settings.WorldSpaceGizmos;
 
 		using ( Gizmo.Scope( "Handle" ) )
 		{
 			Gizmo.Transform = Gizmo.Transform.WithScale( 1.0f );
 
-			float size = 32;
+			float size = worldSpace ? 8 : 32;
 
 			if ( !selected )
 			{
 				Gizmo.Hitbox.DepthBias = 0.1f;
-				Gizmo.Hitbox.Sprite( 0, size * Gizmo.Settings.GizmoScale, false );
+				Gizmo.Hitbox.Sprite( 0, size * Gizmo.Settings.GizmoScale, worldSpace );
 
 				clicked = clicked || Gizmo.WasClicked;
 			}
@@ -87,9 +127,9 @@ public partial class GameObject
 			if ( Gizmo.IsHovered ) opacity = 1;
 			if ( isSelected ) opacity = 1;
 
-			if ( Gizmo.IsHovered && Gizmo.Settings.Selection ) size = 40;
+			if ( Gizmo.IsHovered && Gizmo.Settings.Selection ) size = worldSpace ? 10 : 40;
 
-			Gizmo.Draw.IgnoreDepth = true;
+			Gizmo.Draw.IgnoreDepth = !Gizmo.Settings.GizmoDepthTest;
 
 			if ( _handle.Texture is not null )
 			{
@@ -97,8 +137,8 @@ public partial class GameObject
 				// Texture mode
 				//
 
-				Gizmo.Draw.Color = isSelected ? Color.Yellow : _handle.Color;
-				Gizmo.Draw.Sprite( Vector3.Zero, size * Gizmo.Settings.GizmoScale, _handle.Texture, false );
+				Gizmo.Draw.Color = isSelected ? Color.Yellow : _handle.EffectiveColor;
+				Gizmo.Draw.Sprite( Vector3.Zero, size * Gizmo.Settings.GizmoScale, _handle.Texture, worldSpace );
 			}
 			else if ( _handle.Icon is not null )
 			{
@@ -106,13 +146,13 @@ public partial class GameObject
 				// Icon mode
 				//
 
-				var text = new TextRendering.Scope( _handle.Icon, _handle.Color, 64, "Material Icons", 400 );
+				var text = new TextRendering.Scope( _handle.Icon, _handle.EffectiveColor, 64, "Material Icons", 400 );
 				text.Shadow = new TextRendering.Shadow { Enabled = true, Color = Color.Black, Offset = 2, Size = 8 };
 				var tex = TextRendering.GetOrCreateTexture( text, flag: TextFlag.Center );
 				if ( tex is not null )
 				{
 					Gizmo.Draw.Color = Color.White.WithAlphaMultiplied( opacity );
-					Gizmo.Draw.Sprite( Vector3.Zero, size * Gizmo.Settings.GizmoScale, tex, false );
+					Gizmo.Draw.Sprite( Vector3.Zero, size * Gizmo.Settings.GizmoScale, tex, worldSpace );
 				}
 			}
 		}
@@ -141,15 +181,27 @@ public partial class GameObject
 			{
 				DrawGizmoHandle( ref clicked );
 
-				Components.ForEach( "DrawGizmos", false, c =>
+				// Plain loop rather than Components.ForEach, a lambda capturing clicked allocates per object per frame
+				for ( int i = Components.Count - 1; i >= 0 && i < Components.Count; i-- )
 				{
-					if ( !c.Flags.Contains( ComponentFlags.Hidden ) )
+					var c = Components[i];
+					if ( c is null || !c.Active )
+						continue;
+
+					if ( !c.OverridesDrawGizmos || c.Flags.Contains( ComponentFlags.Hidden ) || !Gizmo.Settings.IsGizmoEnabled( c.GetType() ) )
+						continue;
+
+					try
 					{
 						using var scope = Gizmo.Scope();
 						c.DrawGizmosInternal();
 						clicked = clicked || Gizmo.WasClicked;
 					}
-				} );
+					catch ( System.Exception e )
+					{
+						Log.Warning( e, $"Exception when calling DrawGizmos on {c}: {e.Message}" );
+					}
+				}
 			}
 
 			if ( clicked )
@@ -167,7 +219,7 @@ public partial class GameObject
 
 			ForEachChild( "DrawGizmos", false, c =>
 			{
-				if ( !c.Flags.Contains( GameObjectFlags.Hidden ) )
+				if ( !c.Flags.Contains( GameObjectFlags.Hidden ) && !c.Tags.Has( "hidden" ) )
 				{
 					c.DrawGizmos();
 				}
@@ -218,6 +270,12 @@ public partial class GameObject
 
 			Gizmo.Hitbox.Sphere( new Sphere( 0, 0.4f ) );
 
+			if ( Gizmo.IsHovered || Gizmo.IsSelected )
+			{
+				var textPos = Gizmo.Transform.Position + Gizmo.CameraTransform.Up * 0.8f;
+				Gizmo.Draw.Text( Name, Gizmo.Transform.ToLocal( new Transform( textPos ) ), flags: TextFlag.Center );
+			}
+
 			if ( Gizmo.WasClicked )
 				GizmoSelect();
 		}
@@ -228,7 +286,7 @@ public partial class GameObject
 	/// </summary>
 	GameObject FindSelectionBase()
 	{
-		var isSelectionBase = IsNetworkRoot || IsOutermostPrefabInstanceRoot || Components.GetAll().Any( x => Game.TypeLibrary.GetType( x?.GetType() )?.HasAttribute<SelectionBaseAttribute>() == true );
+		var isSelectionBase = IsNetworkRoot || IsOutermostPrefabInstanceRoot || Components.GetAll().Any( x => GlobalContext.Current.TypeLibrary.GetType( x?.GetType() )?.HasAttribute<SelectionBaseAttribute>() == true );
 
 		if ( isSelectionBase ) return this;
 

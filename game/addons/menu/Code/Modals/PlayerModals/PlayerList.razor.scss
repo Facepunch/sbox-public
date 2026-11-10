@@ -1,0 +1,94 @@
+@import "/Platform/_platform.scss";
+
+// A panel of the platform's - its bar, then its table. As tall as its rows, up to the room it's in (the modal gives it a
+// size of its own)
+PlayerList
+{
+	@include platform-panel;
+	align-self: flex-start;
+	width: 100%;
+	max-height: 100%;
+
+	> PanelHead .count
+	{
+		font-size: 12px;
+		font-weight: 600;
+		color: $platform-muted;
+	}
+
+	table
+	{
+		@include platform-table-flush;
+	}
+
+	.empty
+	{
+		@include platform-empty;
+	}
+
+	tr.player
+	{
+		height: 40px;
+		min-height: 40px;
+		cursor: pointer;
+
+		&:hover
+		{
+			background-color: $platform-hover-wash;
+		}
+
+		.avatar
+		{
+			@include platform-tile( 14px, 28px );
+			background-size: cover;
+		}
+
+		.name
+		{
+			align-items: center;
+			gap: 8px;
+
+			.player-name
+			{
+				flex-shrink: 1;
+				font-weight: 600;
+				white-space: nowrap;
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
+		}
+
+		.friend
+		{
+			flex-shrink: 0;
+			font-size: 14px;
+			color: $platform-good;
+		}
+
+		&.me
+		{
+			background-color: rgba( $platform-primary, 0.14 );
+
+			&:hover
+			{
+				background-color: rgba( $platform-primary, 0.2 );
+			}
+
+			.player-name
+			{
+				color: white;
+			}
+		}
+
+		.ping .host
+		{
+			font-size: 16px;
+			color: $platform-muted;
+		}
+
+		.ping
+		{
+			@include platform-ping;
+		}
+	}
+}

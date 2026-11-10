@@ -31,7 +31,7 @@ public abstract class AudioProcessor<T> : AudioProcessor where T : AudioProcesso
 		// New current state.
 		CurrentState = new T();
 
-		_states ??= new();
+		_states ??= new( ReferenceEqualityComparer.Instance );
 		_states[listener] = CurrentState;
 	}
 

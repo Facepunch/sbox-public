@@ -173,6 +173,9 @@ public static partial class Json
 
 		public HashSet<string> IgnoredProperties;
 
+		/// <summary>The JSON property key used to identify objects of this type (e.g. "__guid").</summary>
+		public string IdProperty;
+
 		/// <summary>
 		/// Creates a TrackedObjectDefinition that identifies objects based on the presence of specific fields.
 		/// </summary>
@@ -185,20 +188,22 @@ public static partial class Json
 			bool atomic = false,
 			IEnumerable<string> ignoredProperties = null )
 		{
+			var fields = requiredFields?.ToArray() ?? Array.Empty<string>();
+			var fieldCount = fields.Length;
+
 			return new TrackedObjectDefinition
 			{
 				Type = type,
 				// Return the count of required fields if all required fields are present
 				MatchScore = ( jsonObject ) =>
 				{
-					if ( idProperty != null && !jsonObject.ContainsKey( idProperty ) ) return 0f;
+					if ( fieldCount == 0 ) return 0f;
 
-					if ( requiredFields == null || requiredFields.Count() == 0 ) return 0f;
-
-					var matchingRequiredFields = requiredFields.Count( jsonObject.ContainsKey );
+					foreach ( var f in fields )
+						if ( !jsonObject.ContainsKey( f ) ) return 0f;
 
 					// Only match if all required fields are present
-					return matchingRequiredFields == requiredFields.Count() ? requiredFields.Count() : 0f;
+					return fieldCount;
 				},
 				// Extract the ID from the specified property
 				ToId = ( jsonObject ) =>
@@ -214,6 +219,7 @@ public static partial class Json
 				ParentType = parentType,
 				AllowedAsRoot = allowedAsRoot,
 				Atomic = atomic,
+				IdProperty = idProperty,
 				IgnoredProperties = ignoredProperties is null ? new HashSet<string>() : ignoredProperties.ToHashSet()
 			};
 		}
@@ -233,6 +239,9 @@ public static partial class Json
 		/// <summary>The object's JSON data without its children</summary>
 		public JsonObject Data;
 
+		// Diffing can borrow leaf data; anything returned in a patch must own its nodes.
+		public bool BorrowsData;
+
 		/// <summary>Reference to this object's parent (null for root objects)</summary>
 		public TrackedObject Parent;
 
@@ -245,11 +254,16 @@ public static partial class Json
 		/// <summary>The previous sibling element when contained in an array (null if first or not in array)</summary>
 		public TrackedObject PreviousElement;
 
+		/// <summary>The original next array sibling, used to preserve unchanged runs when moving their first element.</summary>
+		public TrackedObject NextElement;
+
 		/// <summary>Hash of the path to this object in the JSON structure</summary>
 		public ulong PathHash;
 
-		/// <summary>Child objects belonging to this object</summary>
-		public LinkedList<TrackedObject> Children = new();
+		// Null for leaves — lazy-init avoids one LinkedList allocation per component.
+		private LinkedList<TrackedObject> _children;
+		public LinkedList<TrackedObject> Children => _children ??= new LinkedList<TrackedObject>();
+		public bool HasChildren => _children is { Count: > 0 };
 
 		/// <summary>Reference to this object's node in parent's Children list (for O(1) removal)</summary>
 		public LinkedListNode<TrackedObject> ChildNode;
@@ -259,33 +273,47 @@ public static partial class Json
 		/// </summary>
 		public JsonNode ToJson()
 		{
-			var root = Data.DeepClone().AsObject();
+			// Data.Parent is null after CopyStrippedData (normal case).
+			// Exception: a TrackedObject overwritten in IdToTrackedObject by a later duplicate
+			// (contract violation — IDs must be unique). Its Data still points to the source
+			// tree; clone it on the spot so we can safely reparent.
+			var root = Data.Parent == null ? Data : Data.DeepClone().AsObject();
 
-			foreach ( var child in Children )
+			if ( _children == null )
+				return root;
+
+			foreach ( var child in _children )
 			{
-				var pathSegments = child.ContainerProperty.Split( '.' );
+				var finalSegment = child.ContainerProperty;
 				var currentObject = root;  // Start from the root for each child
 
-				// Navigate to the correct container, creating objects as needed
-				for ( var i = 0; i < pathSegments.Length - 1; i++ )
+				// Most containers (Children, Components) are direct properties.
+				// Only split paths for objects inside nested, untracked containers.
+				if ( finalSegment.Contains( '.' ) )
 				{
-					var pathSegment = pathSegments[i];
-					if ( !currentObject.ContainsKey( pathSegment ) )
+					var pathSegments = finalSegment.Split( '.' );
+					for ( var i = 0; i < pathSegments.Length - 1; i++ )
 					{
-						currentObject[pathSegment] = new JsonObject();
+						var pathSegment = pathSegments[i];
+						if ( !currentObject.TryGetPropertyValue( pathSegment, out var container ) )
+						{
+							container = new JsonObject();
+							currentObject[pathSegment] = container;
+						}
+						currentObject = container.AsObject();
 					}
-					currentObject = currentObject[pathSegment].AsObject();
+					finalSegment = pathSegments[^1];
 				}
 
 				// Handle the final path segment
-				var finalSegment = pathSegments[pathSegments.Length - 1];
 				if ( child.IsContainedInArray )
 				{
-					if ( !currentObject.ContainsKey( finalSegment ) )
+					if ( !currentObject.TryGetPropertyValue( finalSegment, out var container ) )
 					{
-						currentObject[finalSegment] = new JsonArray();
+						container = new JsonArray();
+						currentObject[finalSegment] = container;
 					}
-					var parentArray = currentObject[finalSegment].AsArray();
+					var parentArray = container.AsArray();
 					parentArray.Add( child.ToJson() );
 				}
 				else
@@ -308,7 +336,7 @@ public static partial class Json
 	private static (ObjectIdentifier?, TrackedObjectDefinition) TryGetObjectIdentifier(
 		JsonObject jsonObject,
 		string parentType,
-		IEnumerable<TrackedObjectDefinition> definitions )
+		HashSet<TrackedObjectDefinition> definitions )
 	{
 		ObjectIdentifier? bestCandidate = null;
 		TrackedObjectDefinition bestDefinition = null;
@@ -333,6 +361,10 @@ public static partial class Json
 			if ( !string.IsNullOrEmpty( definition.ParentType ) && !definition.ParentType.Equals( parentType, StringComparison.OrdinalIgnoreCase ) && !definition.AllowedAsRoot )
 				continue;
 
+			// Skip MatchScore dispatch entirely if the required ID key is absent.
+			if ( definition.IdProperty != null && !jsonObject.ContainsKey( definition.IdProperty ) )
+				continue;
+
 			var defintionScore = definition.MatchScore( jsonObject );
 
 			if ( defintionScore == 0f )
@@ -340,7 +372,22 @@ public static partial class Json
 
 			if ( defintionScore > bestCandidateScore )
 			{
-				var id = definition.ToId( jsonObject );
+				// Fast path: read the ID directly from the known key; validate it's a scalar so
+				// null-valued or non-scalar properties don't throw (same error path as ToId).
+				string id;
+				if ( definition.IdProperty != null )
+				{
+					if ( jsonObject[definition.IdProperty] is not JsonValue idNode )
+					{
+						Log.Error( $"Object of type '{definition.Type}' does not have a valid id property '{definition.IdProperty}'" );
+						continue;
+					}
+					id = idNode.GetValue<object>()?.ToString();
+				}
+				else
+				{
+					id = definition.ToId != null ? definition.ToId( jsonObject ) : null;
+				}
 
 				// We allow an empty ids only root level objects
 				if ( id == null && !definition.AllowedAsRoot )
@@ -364,7 +411,8 @@ public static partial class Json
 
 	private static TrackedObjects FindTrackedObjectsInJson(
 		JsonObject root,
-		HashSet<TrackedObjectDefinition> definitions )
+		HashSet<TrackedObjectDefinition> definitions,
+		bool forDiff = false )
 	{
 		var result = new TrackedObjects();
 
@@ -373,21 +421,72 @@ public static partial class Json
 			return result;
 		}
 
-		var clonedRoot = root.DeepClone().AsObject();
+		// Pass 1: traverse without cloning — Data references point into the original tree.
+		TraverseNode( root, 0UL, definitions, result, null, null, false );
 
-		TraverseNode( clonedRoot, 0UL, definitions, result, null, null, false );
-
-		// Sanitize objects to remove tracked objects
-		foreach ( var (objId, trackedObj) in result.IdToTrackedObject )
+		// Pass 2: strip tracked descendants. Patching always needs owned nodes
+		// (Parent == null), so ToJson() can reparent them freely.
+		foreach ( var (_, trackedObj) in result.IdToTrackedObject )
 		{
-			if ( trackedObj.Definition.Atomic ) continue;
-			trackedObj.Data = StripNestedObjects( trackedObj, result.TrackedPaths );
+			// Leaves have no tracked descendants to strip. Diffing only reads them,
+			// so defer copying until an addition or property override needs owned data.
+			if ( forDiff && !trackedObj.HasChildren )
+			{
+				trackedObj.BorrowsData = true;
+				continue;
+			}
+
+			trackedObj.Data = trackedObj.HasChildren
+				? CopyStrippedData( trackedObj.Data, trackedObj.PathHash, result.TrackedPaths )
+				: trackedObj.Data.DeepClone().AsObject();
 		}
 
 		return result;
 	}
 
-	private static void TraverseNode(
+	/// <summary>
+	/// Builds a new JsonObject containing only the non-tracked own properties of
+	/// <paramref name="source"/>. Tracked child paths are omitted; nested non-tracked
+	/// containers are copied recursively. The returned object has no parent.
+	/// </summary>
+	private static JsonObject CopyStrippedData( JsonObject source, ulong pathHash, HashSet<ulong> trackedPaths )
+	{
+		var copy = new JsonObject();
+		foreach ( var (key, value) in source )
+		{
+			var propHash = HashAppend( pathHash, key );
+			if ( trackedPaths.Contains( propHash ) )
+			{
+				// Preserve tracked arrays as empty so they survive when all children are removed.
+				// Tracked direct-object properties are omitted; ToJson() reassigns them.
+				if ( value is JsonArray )
+					copy[key] = new JsonArray();
+			}
+			else
+			{
+				copy[key] = CopyStrippedNode( value, propHash, trackedPaths );
+			}
+		}
+		return copy;
+	}
+
+	private static JsonNode CopyStrippedNode( JsonNode node, ulong pathHash, HashSet<ulong> trackedPaths )
+	{
+		if ( node is JsonObject obj )
+			return CopyStrippedData( obj, pathHash, trackedPaths );
+
+		if ( node is JsonArray arr )
+		{
+			var copy = new JsonArray();
+			for ( var i = 0; i < arr.Count; i++ )
+				copy.Add( CopyStrippedNode( arr[i], HashAppend( pathHash, i ), trackedPaths ) );
+			return copy;
+		}
+
+		return node?.DeepClone();
+	}
+
+	private static TrackedObject TraverseNode(
 		JsonNode node,
 		ulong pathHash,
 		HashSet<TrackedObjectDefinition> definitions,
@@ -404,9 +503,10 @@ public static partial class Json
 			// Try to get an object identifier
 			var (currentIdentifier, matchedDefintion) = TryGetObjectIdentifier( jsonObject, parentType, definitions );
 
+			TrackedObject currentTrackedObj = null;
 			if ( currentIdentifier.HasValue )
 			{
-				var trackedObj = new TrackedObject
+				currentTrackedObj = new TrackedObject
 				{
 					Id = currentIdentifier.Value,
 					Definition = matchedDefintion,
@@ -416,16 +516,16 @@ public static partial class Json
 					IsContainedInArray = containerIsArray,
 					PathHash = pathHash,
 				};
-				result.IdToTrackedObject[currentIdentifier.Value] = trackedObj;
+				result.IdToTrackedObject[currentIdentifier.Value] = currentTrackedObj;
 				if ( parent != null )
 				{
-					trackedObj.ChildNode = parent.Children.AddLast( trackedObj );
+					currentTrackedObj.ChildNode = parent.Children.AddLast( currentTrackedObj );
 				}
 
 				// If parent is null set our root
 				if ( parent == null )
 				{
-					result.Root = result.IdToTrackedObject[currentIdentifier.Value];
+					result.Root = currentTrackedObj;
 				}
 
 				result.TrackedPaths.Add( pathHash );
@@ -433,7 +533,7 @@ public static partial class Json
 				if ( matchedDefintion.Atomic )
 				{
 					// If the object is self contained we don't need to traverse its children
-					return;
+					return currentTrackedObj;
 				}
 			}
 
@@ -446,9 +546,11 @@ public static partial class Json
 					continue;
 
 				var newPathHash = HashAppend( pathHash, propName );
-				var newParent = currentIdentifier.HasValue && result.IdToTrackedObject.ContainsKey( currentIdentifier.Value ) ? result.IdToTrackedObject[currentIdentifier.Value] : parent;
-				// Reset containerproperty name if we found a tracked object
-				var newContainerProperty = currentIdentifier.HasValue ? propName : $"{containerProperty}.{propName}";
+				var newParent = currentTrackedObj ?? parent;
+				// When descending through a non-tracked container carry the path prefix forward.
+				// Guard against a null containerProperty (happens at the tree root) to avoid "null.propName".
+				var newContainerProperty = currentTrackedObj != null ? propName
+					: containerProperty != null ? $"{containerProperty}.{propName}" : propName;
 				TraverseNode(
 					propValue,
 					newPathHash,
@@ -458,6 +560,8 @@ public static partial class Json
 					newContainerProperty,
 					false );
 			}
+
+			return currentTrackedObj;
 		}
 		else if ( node is JsonArray jsonArray )
 		{
@@ -468,30 +572,31 @@ public static partial class Json
 				var item = jsonArray[i];
 				var childPathHash = HashAppend( pathHash, i );
 
-				if ( item is JsonObject jsonArrayObject )
+				if ( item is JsonObject )
 				{
-					// Try to get identifier for this object
-					var (elementId, _) = TryGetObjectIdentifier( jsonArrayObject, parent?.Id.Type, definitions );
-
-					// Process this object
-					TraverseNode( item, childPathHash, definitions, result, parent, containerProperty, true );
+					// Process this object — TraverseNode returns the TrackedObject it created (if any).
+					var trackedObj = TraverseNode( item, childPathHash, definitions, result, parent, containerProperty, true );
 
 					// If we found a valid identifier, update its node with previous element info
-					if ( elementId.HasValue && result.IdToTrackedObject.TryGetValue( elementId.Value, out var trackedObj ) )
+					if ( trackedObj != null )
 					{
 						result.TrackedPaths.Add( pathHash );
 
 						// Set the previous element reference
 						trackedObj.PreviousElement = previousElement;
+						if ( previousElement != null )
+							previousElement.NextElement = trackedObj;
 
 						// Current becomes previous for next iteration
-						previousElement = result.IdToTrackedObject[elementId.Value];
+						previousElement = trackedObj;
 					}
 				}
 				// We only support objects and value arrays
 				// so don't do anything if array contains values or other arrays
 			}
 		}
+
+		return null;
 	}
 
 	/// <summary>
@@ -540,15 +645,30 @@ public static partial class Json
 		JsonObject newRoot,
 		HashSet<TrackedObjectDefinition> definitions )
 	{
+		// Find objects in old and new JSON structures
+		var oldObjects = FindTrackedObjectsInJson( oldRoot, definitions, forDiff: true );
+		var newObjects = FindTrackedObjectsInJson( newRoot, definitions, forDiff: true );
+		return CalculateDifferences( oldObjects, newObjects );
+	}
+
+	/// <summary>
+	/// Captures a source once for repeated comparisons without exposing the tracking graph.
+	/// Recreate the calculator when the source or object definitions change.
+	/// </summary>
+	internal static Func<JsonObject, Patch> CreateDifferenceCalculator( JsonObject source, HashSet<TrackedObjectDefinition> definitions )
+	{
+		var oldObjects = FindTrackedObjectsInJson( source?.DeepClone().AsObject(), definitions, forDiff: true );
+		return target => CalculateDifferences( oldObjects, FindTrackedObjectsInJson( target, definitions, forDiff: true ) );
+	}
+
+	private static Patch CalculateDifferences( TrackedObjects oldObjects, TrackedObjects newObjects )
+	{
 		var patch = new Patch();
 
-		// Find objects in old and new JSON structures
-		var oldObjects = FindTrackedObjectsInJson( oldRoot, definitions );
-		var newObjects = FindTrackedObjectsInJson( newRoot, definitions );
-
 		// Find removed objects
-		foreach ( var oldObj in oldObjects.IdToTrackedObject.Where( o => o.Value.Parent != null ) )
+		foreach ( var oldObj in oldObjects.IdToTrackedObject )
 		{
+			if ( oldObj.Value.Parent == null ) continue;
 			if ( !newObjects.IdToTrackedObject.ContainsKey( oldObj.Key ) )
 			{
 				patch.RemovedObjects.Add( new RemovedObject
@@ -561,7 +681,7 @@ public static partial class Json
 		// Find added objects and property overrides
 		foreach ( var newObj in newObjects.IdToTrackedObject )
 		{
-			if ( !oldObjects.IdToTrackedObject.ContainsKey( newObj.Key ) )
+			if ( !oldObjects.IdToTrackedObject.TryGetValue( newObj.Key, out var oldTrackedObj ) )
 			{
 				// Object is in new but not in old
 				if ( newObj.Value.Parent != null )
@@ -572,18 +692,18 @@ public static partial class Json
 						Parent = newObj.Value.Parent.Id,
 						ContainerProperty = newObj.Value.ContainerProperty,
 						IsContainerArray = newObj.Value.IsContainedInArray,
-						Data = newObj.Value.Data.DeepClone().AsObject(),
+						Data = newObj.Value.BorrowsData ? newObj.Value.Data.DeepClone().AsObject() : newObj.Value.Data,
 						PreviousElement = newObj.Value.PreviousElement?.Id
 					} );
 				}
 			}
 			else
 			{
+				var oldObjValue = oldTrackedObj.Data;
+
 				// Check for new or modified properties
 				foreach ( var property in newObj.Value.Data )
 				{
-					var oldObjValue = oldObjects.IdToTrackedObject[newObj.Key].Data;
-
 					var propName = property.Key;
 					var newValue = property.Value;
 
@@ -631,8 +751,8 @@ public static partial class Json
 				}
 
 				// Check if object has moved (different parent or different position in array)
-				if ( newObj.Value.PreviousElement?.Id != oldObjects.IdToTrackedObject[newObj.Key].PreviousElement?.Id ||
-					newObj.Value.Parent?.Id != oldObjects.IdToTrackedObject[newObj.Key].Parent?.Id )
+				if ( newObj.Value.PreviousElement?.Id != oldTrackedObj.PreviousElement?.Id ||
+					newObj.Value.Parent?.Id != oldTrackedObj.Parent?.Id )
 				{
 					patch.MovedObjects.Add( new MovedObject
 					{
@@ -647,73 +767,6 @@ public static partial class Json
 		}
 
 		return patch;
-	}
-
-	private static JsonObject StripNestedObjects(
-		TrackedObject original,
-		HashSet<ulong> trackedPaths )
-	{
-		var sanitized = original.Data;
-		RemoveTrackedObjects( sanitized, original.PathHash, trackedPaths );
-		return sanitized;
-	}
-
-	private static void RemoveTrackedObjects(
-		JsonNode node,
-		ulong pathHash,
-		HashSet<ulong> trackedPaths )
-	{
-		if ( node is JsonObject jsonObject )
-		{
-			// Process all properties of the object
-			foreach ( var property in jsonObject.ToList() )
-			{
-				var propName = property.Key;
-				var propValue = property.Value;
-				var propHash = HashAppend( pathHash, propName );
-
-				if ( propValue is JsonObject propObject )
-				{
-					// Check if the object is tracked
-					if ( trackedPaths.Contains( propHash ) )
-					{
-						jsonObject.Remove( propName );
-						continue;
-					}
-
-					// Recursively process this object if it's not tracked itself
-					RemoveTrackedObjects( propObject, propHash, trackedPaths );
-				}
-				else if ( propValue is JsonArray propArray )
-				{
-					// Check if the array itself is tracked
-					if ( trackedPaths.Contains( propHash ) )
-					{
-						propArray.Clear();
-						continue;
-					}
-
-					// Check array items (only if containing objects)
-					for ( int i = propArray.Count - 1; i >= 0; i-- )
-					{
-						if ( propArray[i] is JsonObject arrayObj )
-						{
-							var itemHash = HashAppend( propHash, i );
-							if ( trackedPaths.Contains( itemHash ) )
-							{
-								// Remove tracked array items
-								propArray.RemoveAt( i );
-							}
-							else
-							{
-								// Recursively process untracked objects in the array
-								RemoveTrackedObjects( arrayObj, itemHash, trackedPaths );
-							}
-						}
-					}
-				}
-			}
-		}
 	}
 
 	/// <summary>
@@ -782,7 +835,7 @@ public static partial class Json
 			sourceTrackedObjects.IdToTrackedObject[addition.Id] = new TrackedObject
 			{
 				Id = addition.Id,
-				Data = addition.Data,
+				Data = addition.Data.DeepClone().AsObject(),
 				ContainerProperty = addition.ContainerProperty,
 				IsContainedInArray = addition.IsContainerArray,
 			};
@@ -826,7 +879,8 @@ public static partial class Json
 				movedObject.ContainerProperty = move.NewContainerProperty;
 				movedObject.IsContainedInArray = move.IsNewContainerArray;
 				movedObject.PreviousElement = move.NewPreviousElement.HasValue ? sourceTrackedObjects.IdToTrackedObject.GetValueOrDefault( move.NewPreviousElement.Value ) : null;
-				movedObject.ChildNode = movedObject.Parent.Children.AddLast( movedObject );
+				movedObject.ChildNode ??= new LinkedListNode<TrackedObject>( movedObject );
+				movedObject.Parent.Children.AddLast( movedObject.ChildNode );
 			}
 			else
 			{
@@ -856,17 +910,36 @@ public static partial class Json
 
 	private static void ReorderAddedObjects( Patch patch, TrackedObjects sourceObjects )
 	{
-		// Get objects that need reordering (added + moved, with valid parents)
-		// Materialize to avoid re-evaluating LINQ on each iteration
-		var addedObjects = patch.AddedObjects
-			.Select( a => sourceObjects.IdToTrackedObject[a.Id] )
-			.Concat( patch.MovedObjects.Select( m => sourceObjects.IdToTrackedObject.GetValueOrDefault( m.Id ) ) )
-			.Where( o => o?.Parent != null )
-			.ToList();
+		if ( patch.AddedObjects.Count == 0 && patch.MovedObjects.Count == 0 )
+			return;
 
-		// Keep reordering until stable - objects may depend on each other's positions
-		// Limit iterations to prevent infinite loops from unresolvable conflicts
-		int maxIterations = addedObjects.Count + 1;
+		// Get objects that need reordering (added + moved, with valid parents)
+		var addedObjects = new List<TrackedObject>( patch.AddedObjects.Count + patch.MovedObjects.Count );
+		foreach ( var a in patch.AddedObjects )
+		{
+			if ( sourceObjects.IdToTrackedObject.TryGetValue( a.Id, out var o ) && o.Parent != null )
+				addedObjects.Add( o );
+		}
+		foreach ( var m in patch.MovedObjects )
+		{
+			if ( sourceObjects.IdToTrackedObject.TryGetValue( m.Id, out var o ) && o?.Parent != null )
+				addedObjects.Add( o );
+		}
+
+		// Resolve predecessor dependencies first, so each object only needs moving once.
+		// Conflicting or cyclic partial patches retain the bounded best-effort fallback.
+		var explicitCount = addedObjects.Count;
+		IncludeUnmovedSuccessors( addedObjects );
+		int maxIterations = explicitCount + 1;
+		if ( TrySortReorderObjects( addedObjects, out var orderedObjects ) )
+		{
+			addedObjects = orderedObjects;
+			maxIterations = 1;
+		}
+		else
+		{
+			addedObjects.RemoveRange( explicitCount, addedObjects.Count - explicitCount );
+		}
 		for ( var iteration = 0; iteration < maxIterations; iteration++ )
 		{
 			var changed = false;
@@ -889,12 +962,14 @@ public static partial class Json
 				// Remove from current position
 				if ( obj.ChildNode != null )
 					parent.Children.Remove( obj.ChildNode );
+				else
+					obj.ChildNode = new LinkedListNode<TrackedObject>( obj );
 
 				// Insert at correct position
 				if ( prevNode != null )
-					obj.ChildNode = parent.Children.AddAfter( prevNode, obj );
+					parent.Children.AddAfter( prevNode, obj.ChildNode );
 				else
-					obj.ChildNode = parent.Children.AddFirst( obj );
+					parent.Children.AddFirst( obj.ChildNode );
 
 				changed = true;
 			}
@@ -902,6 +977,74 @@ public static partial class Json
 			if ( !changed )
 				break;
 		}
+	}
+
+	private static void IncludeUnmovedSuccessors( List<TrackedObject> objects )
+	{
+		// The diff only records changed predecessor IDs. When a block moves, its
+		// remaining elements still name the same predecessor and have no move entry.
+		// Restore those relationships too, including for patches saved before this fix.
+		var predecessors = new HashSet<TrackedObject>();
+		foreach ( var obj in objects )
+		{
+			if ( obj.PreviousElement != null )
+				predecessors.Add( obj.PreviousElement );
+		}
+
+		for ( var i = 0; i < objects.Count; i++ )
+		{
+			var obj = objects[i];
+			var next = obj.NextElement;
+			if ( next?.ChildNode == null || next.PreviousElement != obj ||
+				next.Parent != obj.Parent || next.ContainerProperty != obj.ContainerProperty )
+				continue;
+
+			// Explicit insertions/moves take precedence over an unchanged source link.
+			if ( predecessors.Add( obj ) )
+				objects.Add( next );
+		}
+	}
+
+	private static bool TrySortReorderObjects( List<TrackedObject> objects, out List<TrackedObject> ordered )
+	{
+		ordered = new List<TrackedObject>( objects.Count );
+		var states = new Dictionary<TrackedObject, byte>( objects.Count );
+		var positions = new HashSet<(TrackedObject Parent, string Container, TrackedObject Previous)>();
+		foreach ( var obj in objects )
+		{
+			var previous = obj.PreviousElement?.ChildNode != null ? obj.PreviousElement : null;
+			if ( !states.TryAdd( obj, 0 ) ||
+				!positions.Add( (obj.Parent, obj.ContainerProperty, previous) ) )
+				return false;
+
+			if ( previous != null && (previous.Parent != obj.Parent || previous.ContainerProperty != obj.ContainerProperty) )
+				return false;
+		}
+
+		// Walk backwards iteratively: a long sibling chain must not consume the call stack.
+		var chain = new List<TrackedObject>();
+		foreach ( var obj in objects )
+		{
+			var current = obj;
+			while ( current != null && states.TryGetValue( current, out var state ) && state != 2 )
+			{
+				if ( state == 1 )
+					return false;
+
+				states[current] = 1;
+				chain.Add( current );
+				current = current.PreviousElement?.ChildNode != null ? current.PreviousElement : null;
+			}
+
+			for ( var i = chain.Count - 1; i >= 0; i-- )
+			{
+				states[chain[i]] = 2;
+				ordered.Add( chain[i] );
+			}
+			chain.Clear();
+		}
+
+		return true;
 	}
 
 	/// <summary>

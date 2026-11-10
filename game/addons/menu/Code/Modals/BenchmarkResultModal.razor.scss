@@ -1,0 +1,108 @@
+@import '../styles/_theme.scss';
+@import "/Platform/_platform.scss";
+
+BenchmarkResultModal
+{
+	font-family: $font-default;
+
+	.window
+	{
+		@include platform-surface;
+		width: 820px;
+		gap: 14px;
+		padding: 20px;
+		pointer-events: all;
+	}
+
+	.header
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 8px;
+
+		i
+		{
+			font-size: 20px;
+			opacity: 0.5;
+		}
+
+		.title
+		{
+			font-size: $text-large;
+			font-family: $font-heading;
+			font-weight: 600;
+			flex-grow: 1;
+		}
+
+		.close-btn
+		{
+			@include platform-tool;
+			padding: 0;
+		}
+	}
+
+	.summary-cards
+	{
+		flex-direction: row;
+		gap: 8px;
+		justify-content: center;
+	}
+
+	.test-table
+	{
+		flex-direction: column;
+		overflow-y: scroll;
+		max-height: 340px;
+		background-color: rgba( 6, 9, 16, 0.5 );
+		border-radius: $platform-radius;
+		padding: 8px;
+		gap: 2px;
+	}
+
+	.header-row
+	{
+		flex-direction: row;
+		padding: 4px 8px 12px 8px;
+		gap: 8px;
+		align-items: center;
+		@include platform-caps;
+		color: $platform-faint;
+	}
+
+	.test-row
+	{
+		flex-direction: row;
+		padding: 9px 8px;
+		gap: 8px;
+		align-items: center;
+		font-family: $font-default;
+	}
+
+	.col-name
+	{
+		flex-grow: 1;
+		overflow: hidden;
+	}
+
+	.col-num
+	{
+		min-width: 75px;
+		max-width: 75px;
+		text-align: right;
+		opacity: 0.85;
+	}
+
+	.footer
+	{
+		flex-direction: row;
+		justify-content: flex-end;
+		padding-top: 2px;
+
+		.primary
+		{
+			@include platform-text-button( 38px );
+			padding: 0 16px;
+			@include platform-button-primary;
+		}
+	}
+}

@@ -10,6 +10,8 @@ public class NewsPostDto
 	public Player Author { get; set; }
 	public string Package { get; set; }
 	public string Media { get; set; }
+	public string Image { get; set; }
+	public string ImageThumb { get; set; }
 	public NewsSectionDto[] Sections { get; set; }
 }
 

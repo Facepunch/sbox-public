@@ -15,8 +15,13 @@ public struct ParticleGradient
 	public ValueType Type { readonly get; set; }
 	public EvaluationType Evaluation { readonly get; set; }
 
-	public Gradient GradientA { readonly get; set; } = Color.White;
-	public Gradient GradientB { readonly get; set; } = Color.White;
+	// Built once. Writing Color.White here instead runs the implicit Color -> Gradient conversion on every
+	// construction, and each one allocates an ImmutableList node - including from the Color -> ParticleGradient
+	// operator below, which doesn't even read these. Sharing is safe because Gradient's list is immutable.
+	static readonly Gradient WhiteGradient = Color.White;
+
+	public Gradient GradientA { readonly get; set; } = WhiteGradient;
+	public Gradient GradientB { readonly get; set; } = WhiteGradient;
 	public Color ConstantA { readonly get; set; } = Color.White;
 	public Color ConstantB { readonly get; set; } = Color.White;
 
@@ -54,7 +59,7 @@ public struct ParticleGradient
 		var d = Evaluation switch
 		{
 			EvaluationType.Life => delta,
-			EvaluationType.Frame => Random.Shared.Float( 0, 1 ),
+			EvaluationType.Frame => ParticleRandom.Shared.Float( 0, 1 ),
 			EvaluationType.Particle => randomFixed,
 			_ => delta,
 		};

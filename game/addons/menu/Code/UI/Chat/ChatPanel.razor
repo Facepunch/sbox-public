@@ -1,0 +1,199 @@
+﻿@using Sandbox;
+@using Sandbox.UI;
+@using MenuProject.MenuUI.Popups;
+@inherits Panel
+@namespace MenuProject.UI
+
+<root class="@RootClasses">
+
+	<div @ref="MessageList" class="messages">
+		@foreach ( var entry in Entries )
+		{
+			var fadeClass = !ShowInput && entry.TimeSinceAdded > MessageFadeTime ? "faded" : "";
+
+			<div class="chat-entry @fadeClass @entry.ExtraClass @entry.Channel">
+				@if ( entry.SteamId > 0 )
+				{
+					<div class="avatar" style="background-image: url( avatar:@entry.SteamId )"
+						onclick=@(e => OpenUserMenu( e, entry )) onrightclick=@(e => OpenUserMenu( e, entry ))></div>
+				}
+				@if ( !string.IsNullOrEmpty( entry.Name ) )
+				{
+					<span class="name @(entry.SteamId > 0 ? "clickable" : "")" onclick=@(e => OpenUserMenu( e, entry ))
+						onrightclick=@(e => OpenUserMenu( e, entry ))>@entry.Name</span>
+				}
+				@if ( entry.Channel == "party" && ShowChannelLabel )
+				{
+					<span class="channel-label">#menu.home.party</span>
+				}
+				<span class="text">@entry.Message</span>
+			</div>
+		}
+	</div>
+	
+	@if ( ShowInput )
+	{
+		<div class="input-bar">
+				@if ( !string.IsNullOrEmpty( InputPrefix ) )
+				{
+					<span class="channel-label">@InputPrefix</span>
+				}
+				<TextEntry @ref="InputBox" MaxLength="@(Sandbox.Platform.Chat.MaxMessageLength)" Placeholder="#menu.home.type_a_message" onsubmit="@OnInputSubmit" />
+		</div>
+	}
+
+</root>
+
+@code
+{
+	record ChatLine( string Name, string Message, long SteamId, RealTimeSince TimeSinceAdded, string ExtraClass = "", string Channel = "" );
+
+	Panel MessageList;
+	TextEntry InputBox;
+	readonly List<ChatLine> Entries = new();
+	bool WantsFocus;
+
+	string RootClasses => ShowInput ? "input-visible" : "input-hidden";
+
+	/// <summary>
+	/// Fired when the user submits text in the input box.
+	/// </summary>
+	[Parameter] public Action<string> OnSubmit { get; set; }
+
+	/// <summary>
+	/// Fired when the input is dismissed (submit with empty text).
+	/// </summary>
+	[Parameter] public Action OnDismiss { get; set; }
+
+	/// <summary>
+	/// Whether the text input is currently shown.
+	/// </summary>
+	[Parameter] public bool ShowInput { get; set; }
+
+	/// <summary>
+	/// Whether to show channel labels on messages.
+	/// </summary>
+	[Parameter] public bool ShowChannelLabel { get; set; }
+
+	/// <summary>
+	/// How long before messages start fading (seconds).
+	/// </summary>
+	[Parameter] public float MessageFadeTime { get; set; } = 8f;
+
+	/// <summary>
+	/// Maximum number of visible messages in the list.
+	/// </summary>
+	[Parameter] public int MaxVisibleMessages { get; set; } = 50;
+
+	/// <summary>
+	/// Text shown to the left of the input box (e.g. "Say" or "Party").
+	/// </summary>
+	[Parameter] public string InputPrefix { get; set; }
+
+	/// <summary>
+	/// Add a user message to the chat.
+	/// </summary>
+	public void AddMessage( string name, string text, long steamId = 0, string channel = "" )
+	{
+		if ( string.IsNullOrWhiteSpace( text ) ) return;
+
+		Entries.Add( new ChatLine( name, text, steamId, 0, Channel: channel ) );
+		TrimEntries();
+		StateHasChanged();
+		MessageList?.TryScrollToBottom();
+	}
+
+	/// <summary>
+	/// Add a system message (join/leave/info).
+	/// </summary>
+	public void AddSystemMessage( string icon, string text )
+	{
+		if ( string.IsNullOrWhiteSpace( text ) ) return;
+
+		Entries.Add( new ChatLine( icon, text, 0, 0, "system" ) );
+		TrimEntries();
+		StateHasChanged();
+		MessageList?.TryScrollToBottom();
+	}
+
+	/// <summary>
+	/// Focus the text input.
+	/// </summary>
+	public void FocusInput()
+	{
+		WantsFocus = true;
+
+		if ( InputBox is not null )
+			InputBox.Focus();
+	}
+
+	/// <summary>
+	/// Blur the text input.
+	/// </summary>
+	public void BlurInput() => InputBox?.Blur();
+
+	/// <summary>
+	/// Whether the text input currently has focus.
+	/// </summary>
+	public bool HasInputFocus => InputBox?.HasFocus ?? false;
+
+	protected override void OnAfterTreeRender( bool firstTime )
+	{
+		if ( WantsFocus && InputBox is not null )
+		{
+			InputBox.Focus();
+			WantsFocus = false;
+		}
+	}
+
+	public override void Tick()
+	{
+		if ( WantsFocus && InputBox is not null )
+		{
+			InputBox.Focus();
+
+			if ( InputBox.HasFocus )
+				WantsFocus = false;
+		}
+	}
+
+	void OnInputSubmit()
+	{
+		if ( InputBox is null ) return;
+
+		var text = InputBox.Text?.Trim();
+		InputBox.Text = "";
+
+		if ( !string.IsNullOrWhiteSpace( text ) )
+		{
+			InputBox.AddToHistory( text );
+			OnSubmit?.Invoke( text );
+		}
+		else
+		{
+			OnDismiss?.Invoke();
+		}
+	}
+
+	void TrimEntries()
+	{
+		while ( Entries.Count > MaxVisibleMessages )
+			Entries.RemoveAt( 0 );
+	}
+
+	void OpenUserMenu( PanelEvent e, ChatLine entry )
+	{
+		if ( entry.SteamId <= 0 ) return;
+
+		FriendCard.ShowFromClick( e, new Friend( entry.SteamId ) );
+	}
+
+	protected override int BuildHash()
+	{
+		// Rebuilt as each one's due to fade - by its own real time since it came in. Time.Now is the
+		// menu scene's clock, which stands still while a game's running, so a message that came in
+		// then (someone joining) never faded until something else rebuilt it
+		var faded = Entries.Count( x => x.TimeSinceAdded > MessageFadeTime );
+		return System.HashCode.Combine( ShowInput, InputPrefix, Entries.Count, faded );
+	}
+}

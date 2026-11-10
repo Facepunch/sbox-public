@@ -22,17 +22,12 @@ internal interface IMenuDll
 	void LateTick();
 	void Reset();
 
-	/// <summary>
-	/// Called when a game session starts. Destroys the menu scene to free resources.
-	/// </summary>
-	void OnGameEntered();
-
-	/// <summary>
-	/// Called when a game session ends. Recreates the menu scene.
-	/// </summary>
-	void OnGameExited();
-
 	IDisposable PushScope();
+
+	/// <summary>
+	/// The platform menu's the one running, rather than the main menu
+	/// </summary>
+	bool IsPlatformMenu => false;
 
 	public Scene Scene { get; }
 }

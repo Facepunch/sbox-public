@@ -12,6 +12,7 @@ using Sandbox.Interpolation;
 /// </summary>
 [JsonConverter( typeof( Sandbox.Internal.JsonConvert.RotationConverter ) )]
 [StructLayout( LayoutKind.Sequential )]
+[Description( "A quaternion rotation in 3D space. Unlike Angles, it cannot store multiple revolutions around an axis." )]
 public struct Rotation : System.IEquatable<Rotation>, IParsable<Rotation>, IInterpolator<Rotation>
 {
 	internal System.Numerics.Quaternion _quat;
@@ -675,20 +676,24 @@ public struct Rotation : System.IEquatable<Rotation>, IParsable<Rotation>, IInte
 
 	/// <summary>
 	/// Returns true if we're nearly equal to the passed rotation.
-	/// Uses the absolute dot product so that antipodal quaternions (q and -q),
-	/// which represent the same orientation, are correctly treated as equal.
+	/// Checks if each component is within a threshold, and handles the fact that
+	/// there are two ways to represent the same rotation as a quaternion.
 	/// </summary>
 	/// <param name="r">The value to compare with</param>
-	/// <param name="delta">Dot-product threshold: rotations are equal when |Dot(a, b)| &gt; 1 - delta.
-	/// For unit quaternions Dot = cos(θ/2), so delta = 0.0000001 ≈ 0.05° angular tolerance.
-	/// This is near the float32 precision floor (ULP at 1.0 ≈ 6e-8).</param>
+	/// <param name="delta">Per-component threshold.</param>
 	/// <returns>True if nearly equal</returns>
-	public readonly bool AlmostEqual( in Rotation r, float delta = 0.0000001f )
+	public readonly bool AlmostEqual( in Rotation r, float delta = 0.00001f )
 	{
-		// Exact match covers zero-length quaternions (default) where the dot-product metric below is undefined.
-		if ( _quat.Equals( r._quat ) ) return true;
+		// quat and -quat represent the same rotation
+		return AlmostEqualCore( _quat, r._quat, delta ) || AlmostEqualCore( _quat, -r._quat, delta );
+	}
 
-		return MathF.Abs( Quaternion.Dot( _quat, r._quat ) ) > 1.0f - delta;
+	private static bool AlmostEqualCore( in Quaternion a, in Quaternion b, float delta )
+	{
+		return a.X.AlmostEqual( b.X, delta )
+			&& a.Y.AlmostEqual( b.Y, delta )
+			&& a.Z.AlmostEqual( b.Z, delta )
+			&& a.W.AlmostEqual( b.W, delta );
 	}
 	#endregion
 
@@ -696,4 +701,10 @@ public struct Rotation : System.IEquatable<Rotation>, IParsable<Rotation>, IInte
 	{
 		return a.LerpTo( b, delta );
 	}
+
+	/// <summary>
+	/// Returns true if x, y, z and w are all finite, so neither NaN nor infinity
+	/// </summary>
+	[JsonIgnore]
+	public readonly bool IsFinite => float.IsFinite( x ) && float.IsFinite( y ) && float.IsFinite( z ) && float.IsFinite( w );
 }

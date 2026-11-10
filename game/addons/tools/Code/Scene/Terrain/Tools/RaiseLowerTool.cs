@@ -8,7 +8,7 @@ namespace Editor.TerrainEditor;
 /// 
 [Title( "Raise / Lower" )]
 [Icon( "height" )]
-[Alias( "raise_lower" )]
+[Alias( "tools.terrain.raise-lower" )]
 [Group( "1" )]
 [Order( 0 )]
 public class RaiseLowerTool : BaseBrushTool

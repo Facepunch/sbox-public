@@ -1,0 +1,21 @@
+@import "/Platform/_platform.scss";
+
+// A strip of choices - each tab's PortalButton is one (it's what goes .active), the one showing blue
+PackageTabs
+{
+	@include platform-choices;
+	margin-bottom: 8px;
+
+	> PortalButton
+	{
+		display: flex;
+		@include platform-choice;
+		flex-grow: 0;
+		flex-basis: auto;
+
+		> Button
+		{
+			padding: 0;
+		}
+	}
+}

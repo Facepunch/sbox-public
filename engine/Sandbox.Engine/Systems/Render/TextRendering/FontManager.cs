@@ -1,146 +1,219 @@
-﻿using SkiaSharp;
-using System.Collections.Concurrent;
-using System.Diagnostics.CodeAnalysis;
+﻿using Sandbox.Engine;
+using SkiaSharp;
 using Topten.RichTextKit;
 
 namespace Sandbox;
 
-file class SKTypefaceEqualityComparer : IEqualityComparer<SKTypeface>
+/// <summary>
+/// Loads the font files under /fonts/ and picks the best face for a text style.
+/// </summary>
+internal class FontManager : FontMapper, ICharacterMatcher
 {
-	public bool Equals( SKTypeface x, SKTypeface y )
+	public static readonly FontManager Instance = new();
+
+	/// <summary>
+	/// One loaded font file. Menu fonts survive a game's Clear.
+	/// </summary>
+	record struct LoadedFont( SKTypeface Typeface, bool IsMenu );
+
+	Dictionary<(string family, int weight, int width, SKFontStyleSlant slant), LoadedFont> _loadedFonts = new();
+	Dictionary<(string family, int weight, bool italic), SKTypeface> _cache = new();
+	List<FileWatch> _watchers = new();
+
+	static FontManager()
 	{
-		return x.FamilyName == y.FamilyName
-			&& x.FontWeight == y.FontWeight
-			&& x.FontSlant == y.FontSlant;
+		// Do a custom glyph matcher for Linux/Mac to custom handle COLRv0 Emojis
+		// They dont ship with vector emoji support on a system level, let's make it find
+		// A font that does.
+		if ( !OperatingSystem.IsWindows() )
+			FontFallback.CharacterMatcher = Instance;
 	}
 
-	public int GetHashCode( [DisallowNull] SKTypeface obj )
+	/// <summary>
+	/// Every family name we have a face for.
+	/// </summary>
+	public IEnumerable<string> FontFamilies
 	{
-		return HashCode.Combine( obj.FamilyName, obj.FontWeight, obj.FontSlant );
-	}
-}
-
-internal class FontManager : FontMapper
-{
-	public static FontManager Instance = new FontManager();
-
-	static ConcurrentDictionary<int, SKTypeface> LoadedFonts = new();
-
-	static Dictionary<int, SKTypeface> Cache = new();
-
-	public static IEnumerable<string> FontFamilies => LoadedFonts.Values.Select( x => x.FamilyName ).Distinct();
-
-	private void Load( System.IO.Stream stream )
-	{
-		if ( stream == null ) return;
-
-		var face = SKTypeface.FromStream( stream );
-		if ( face is null ) return;
-
-		var hash = HashCode.Combine( face.FamilyName, face.FontWeight, face.FontSlant );
-
-		LoadedFonts[hash] = face;
-
-		Log.Trace( $"Loaded font {face.FamilyName} weight {face.FontWeight}" );
-	}
-
-	List<FileWatch> watchers = new();
-
-	public void LoadAll( BaseFileSystem fileSystem )
-	{
-		// If we're loading new fonts, we may have cached it already
-		Cache.Clear();
-
-		var fontFiles = fileSystem.FindFile( "/fonts/", "*.ttf", true )
-			.Union( fileSystem.FindFile( "/fonts/", "*.otf", true ) );
-
-		Parallel.ForEach( fontFiles, ( string font ) =>
+		get
 		{
-			Load( fileSystem.OpenRead( $"/fonts/{font}" ) );
-		} );
-
-		// Load any new fonts
-		var ttfWatch = fileSystem.Watch( $"*.ttf" );
-		ttfWatch.OnChanges += ( w ) => OnFontFilesChanged( w, fileSystem );
-		var otfWatch = fileSystem.Watch( $"*.otf" );
-		otfWatch.OnChanges += ( w ) => OnFontFilesChanged( w, fileSystem );
-
-		watchers.Add( ttfWatch );
-		watchers.Add( otfWatch );
-	}
-
-	private void OnFontFilesChanged( FileWatch w, BaseFileSystem fs )
-	{
-		Cache.Clear();
-
-		foreach ( var file in w.Changes )
-		{
-			Load( fs.OpenRead( file ) );
+			lock ( _loadedFonts )
+			{
+				return _loadedFonts.Values.Select( x => x.Typeface.FamilyName ).Distinct().ToList();
+			}
 		}
 	}
 
 	/// <summary>
-	/// Tries to get the best matching font for the given style.
-	/// Will return a matching font family with the closest font weight and optionally slant.
+	/// Load every .ttf and .otf under /fonts/ and keep watching the folder for new ones.
+	/// </summary>
+	public void LoadAll( BaseFileSystem fileSystem )
+	{
+		lock ( _cache )
+		{
+			// new fonts can replace fallbacks and best-matches
+			_cache.Clear();
+		}
+
+		var fontFiles = fileSystem.FindFile( "/fonts/", "*.ttf", true )
+			.Union( fileSystem.FindFile( "/fonts/", "*.otf", true ) );
+
+		Parallel.ForEach( fontFiles, font => Load( fileSystem.OpenRead( $"/fonts/{font}" ) ) );
+
+		foreach ( var pattern in new[] { "*.ttf", "*.otf" } )
+		{
+			var watch = fileSystem.Watch( pattern );
+			watch.OnChanges += w => OnFontFilesChanged( w, fileSystem );
+			_watchers.Add( watch );
+		}
+	}
+
+	private void OnFontFilesChanged( FileWatch watch, BaseFileSystem fileSystem )
+	{
+		lock ( _cache )
+		{
+			_cache.Clear();
+		}
+
+		foreach ( var file in watch.Changes )
+		{
+			Load( fileSystem.OpenRead( file ) );
+		}
+	}
+
+	private void Load( System.IO.Stream stream )
+	{
+		if ( stream is null ) return;
+
+		var face = SKTypeface.FromStream( stream );
+		if ( face is null ) return;
+
+		bool isMenu = GlobalContext.Current == GlobalContext.Menu;
+		var key = (face.FamilyName, face.FontWeight, face.FontWidth, face.FontSlant);
+
+		lock ( _loadedFonts )
+		{
+			// the first file in wins, later copies of the same face are dropped
+			if ( !_loadedFonts.TryAdd( key, new LoadedFont( face, isMenu ) ) )
+			{
+				face.Dispose();
+				return;
+			}
+		}
+
+		Log.Trace( $"Loaded font {face.FamilyName} weight {face.FontWeight} width {face.FontWidth} (IsMenu: {isMenu})" );
+	}
+
+	/// <summary>
+	/// The face to draw this style with. Falls back to a system font when we don't have the family.
+	/// </summary>
+	public override SKTypeface TypefaceFromStyle( IStyle style, bool ignoreFontVariants )
+	{
+		var key = (style.FontFamily, style.FontWeight, style.FontItalic);
+
+		lock ( _cache )
+		{
+			if ( _cache.TryGetValue( key, out var cached ) ) return cached;
+		}
+
+		var face = GetBestTypeface( style );
+		if ( face is null )
+		{
+			// The default mapper also returns a face for missing families, so check availability separately.
+			if ( !string.IsNullOrEmpty( style.FontFamily ) )
+			{
+				using var systemFonts = SKFontManager.Default.GetFontStyles( style.FontFamily );
+				if ( systemFonts.Count == 0 )
+				{
+					Log.Warning( $"FontManager: Font '{style.FontFamily}' not found" );
+				}
+			}
+
+			face = Default.TypefaceFromStyle( style, ignoreFontVariants );
+		}
+
+		lock ( _cache )
+		{
+			_cache[key] = face;
+		}
+
+		return face;
+	}
+
+	/// <summary>
+	/// The closest face we have in the style's family: matching slant if there is one, then the
+	/// closest weight. Ties are settled by the faces themselves, never by the order they loaded in.
 	/// </summary>
 	private SKTypeface GetBestTypeface( IStyle style )
 	{
-		// Must be of same family
-		var familyFonts = LoadedFonts.Values.Where( x => string.Equals( x.FamilyName, style.FontFamily, StringComparison.OrdinalIgnoreCase ) );
-		if ( !familyFonts.Any() ) return null;
+		lock ( _loadedFonts )
+		{
+			var familyFonts = _loadedFonts.Values.Select( x => x.Typeface )
+				.Where( x => string.Equals( x.FamilyName, style.FontFamily, StringComparison.OrdinalIgnoreCase ) );
+			if ( !familyFonts.Any() ) return null;
 
-		// Get matching slants, if no matching fallback to regular
-		var slantFonts = familyFonts.Where( x => x.IsItalic == style.FontItalic );
-		if ( slantFonts.Any() ) familyFonts = slantFonts;
+			var slantFonts = familyFonts.Where( x => x.IsItalic == style.FontItalic );
+			if ( slantFonts.Any() ) familyFonts = slantFonts;
 
-		// Finally get the closest font weight
-		return familyFonts.Select( x => new { x, distance = Math.Abs( x.FontWeight - style.FontWeight ) } )
-			.OrderBy( x => x.distance )
-			.First().x;
+			// Normal width beats condensed or expanded (Skia files those under the plain family name), then the closest weight.
+			// The last two only make the order total.
+			return familyFonts
+				.OrderBy( x => Math.Abs( x.FontWidth - (int)SKFontStyleWidth.Normal ) )
+				.ThenBy( x => WeightDistance( x.FontWeight, style.FontWeight ) )
+				.ThenBy( x => x.FontWidth )
+				.ThenBy( x => x.FontSlant )
+				.First();
+		}
 	}
 
-	public override SKTypeface TypefaceFromStyle( IStyle style, bool ignoreFontVariants )
+	/// <summary>
+	/// How far a face's weight is from the one asked for. Ties go the way CSS settles them:
+	/// heavier for 400 and anything above 500, lighter for the rest.
+	/// </summary>
+	static int WeightDistance( int weight, int wanted )
 	{
-		var hash = HashCode.Combine( style.FontFamily, style.FontWeight, style.FontItalic );
-
-		lock ( Cache )
-		{
-			if ( Cache.TryGetValue( hash, out var cachedFace ) ) return cachedFace;
-		}
-
-		var f = GetBestTypeface( style );
-
-		// Fallback on system font
-		f ??= Default.TypefaceFromStyle( style, ignoreFontVariants );
-
-		lock ( Cache )
-		{
-			Cache[hash] = f;
-		}
-
-		return f;
+		bool preferHeavier = wanted == 400 || wanted > 500;
+		bool preferredSide = (weight > wanted) == preferHeavier;
+		return Math.Abs( weight - wanted ) * 2 + (preferredSide ? 0 : 1);
 	}
 
-	public void Reset()
+	/// <summary>
+	/// Drop every loaded font and stop watching for new ones. Menu fonts stay unless removeMenu is set.
+	/// </summary>
+	public void Clear( bool removeMenu )
 	{
-		foreach ( var watcher in watchers )
+		foreach ( var watcher in _watchers )
 		{
 			watcher.Dispose();
 		}
-		watchers.Clear();
+		_watchers.Clear();
 
-		foreach ( var (_, font) in LoadedFonts )
+		lock ( _loadedFonts )
 		{
-			font?.Dispose();
+			foreach ( var (key, font) in _loadedFonts.ToArray() )
+			{
+				if ( !removeMenu && font.IsMenu )
+					continue;
+
+				_loadedFonts.Remove( key );
+				font.Typeface.Dispose();
+			}
 		}
 
-		foreach ( var (_, font) in Cache )
+		lock ( _cache )
 		{
-			font?.Dispose();
+			_cache.Clear();
+		}
+	}
+
+	public SKTypeface MatchCharacter( string familyName, int weight, int width, SKFontStyleSlant slant, string[] bcp47, int character )
+	{
+		lock ( _loadedFonts )
+		{
+			foreach ( var font in _loadedFonts.Values )
+				if ( font.Typeface.ContainsGlyph( character ) )
+					return font.Typeface;
 		}
 
-		LoadedFonts.Clear();
-		Cache.Clear();
+		return SKFontManager.Default.MatchCharacter( familyName, weight, width, slant, bcp47, character );
 	}
 }
-

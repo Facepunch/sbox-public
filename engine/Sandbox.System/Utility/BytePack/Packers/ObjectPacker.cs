@@ -20,9 +20,9 @@ internal partial class BytePack
 			Serialize( ref bs, obj );
 		}
 
-		public override object Read( ref ByteStream data )
+		public override object Read( ref ByteStream data, int depth )
 		{
-			return Deserialize( ref data );
+			return Deserialize( ref data, depth + 1 );
 		}
 	}
 }

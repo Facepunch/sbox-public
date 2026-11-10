@@ -32,6 +32,10 @@ namespace Editor
 			base.NativeInit( ptr );
 		}
 
+		internal virtual void NativeDestroying()
+		{
+		}
+
 		internal override void NativeShutdown()
 		{
 			_frame = default;

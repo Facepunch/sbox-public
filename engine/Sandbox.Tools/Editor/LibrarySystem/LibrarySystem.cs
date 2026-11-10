@@ -84,12 +84,15 @@ public static class LibrarySystem
 				IAssetSystem.UpdateMods();
 			}
 
-			ResourceLoader.LoadAllGameResource( FileSystem.Mounted );
+			await ResourceLoader.LoadAllGameResourceAsync( FileSystem.Mounted, token );
 		}
 
 		// install it
 		await PackageManager.InstallAsync( new PackageLoadOptions( project.Project.Package.FullIdent, "local", token ) );
 		await PackageManager.InstallAsync( new PackageLoadOptions( project.Project.Package.FullIdent, "gamemenu", token ) );
+
+		// open game/addon compilers were made before this library existed
+		Project.UpdateLibraryReferences();
 
 		// update the sln with the new projects
 		await Project.GenerateSolution();
@@ -292,14 +295,14 @@ public class LibraryProject
 		// add the content path
 		if ( project.HasAssetsPath() )
 		{
-			var assetPath = project.GetAssetsPath();
+			var assets = project.AssetsFileSystem;
 
 			// Add to our c# content search path
-			FileSystem.Content.CreateAndMount( assetPath );
-			FileSystem.Mounted.CreateAndMount( assetPath );
+			FileSystem.Content.Mount( assets );
+			FileSystem.Mounted.Mount( assets );
 
 			// make content available to the game
-			EngineFileSystem.LibraryContent.CreateAndMount( assetPath );
+			EngineFileSystem.LibraryContent.Mount( assets );
 
 			// Add to the c++ filesystem search path
 			NativeEngine.FullFileSystem.AddProjectPath( project.Config.FullIdent, project.GetAssetsPath() );
@@ -308,7 +311,7 @@ public class LibraryProject
 		if ( project.HasCodePath() )
 		{
 			// make .scss etc available to the game
-			EngineFileSystem.LibraryContent.CreateAndMount( project.GetCodePath() );
+			EngineFileSystem.LibraryContent.Mount( project.CodeFileSystem );
 		}
 	}
 

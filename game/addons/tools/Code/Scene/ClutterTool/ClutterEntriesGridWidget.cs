@@ -15,6 +15,8 @@ public class ClutterEntriesGridWidget : ControlWidget
 
 	public override bool SupportsMultiEdit => false;
 
+	public Action<ClutterEntry> OnEntrySelected { get; set; }
+
 	public ClutterEntriesGridWidget( SerializedProperty property ) : base( property )
 	{
 		_listProperty = property;
@@ -25,6 +27,7 @@ public class ClutterEntriesGridWidget : ControlWidget
 
 		_listView = new ClutterEntriesListView( this, _listProperty );
 		_listView.VerticalSizeMode = SizeMode.CanGrow;
+		_listView.OnSelectionChanged += ( selection ) => OnEntrySelected?.Invoke( selection.FirstOrDefault() as ClutterEntry );
 		Layout.Add( _listView, 1 );
 
 		var buttonRow = Layout.AddRow();
@@ -167,6 +170,13 @@ public class ClutterEntriesGridWidget : ControlWidget
 			else
 			{
 				SetItems( [] );
+			}
+
+			var selected = SelectedItems.ToArray();
+			var hasStaleSelection = selected.Any( s => s is not ClutterEntry entry || entries is null || !entries.Contains( entry ) );
+			if ( selected.Length > 0 && hasStaleSelection )
+			{
+				UnselectAll();
 			}
 		}
 
@@ -395,6 +405,13 @@ public class ClutterEntriesGridWidget : ControlWidget
 					Paint.SetPen( Theme.Primary, 2f );
 					Paint.DrawRect( item.Rect.Shrink( 1 ), 4 );
 				}
+			}
+
+			if ( item.Selected )
+			{
+				Paint.ClearBrush();
+				Paint.SetPen( Theme.Blue, 2f );
+				Paint.DrawRect( item.Rect.Shrink( 1 ), 4 );
 			}
 
 			Paint.SetBrush( Theme.ControlBackground );

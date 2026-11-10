@@ -15,6 +15,7 @@ partial class StandaloneExporter
 		"rendersystemdx11.dll",
 		"steamdatagram_gamecoordinator.dll",
 		"toolframework2.dll",
+		"qtadvanceddocking.dll",
 		"toolscenenodes.dll",
 		"steamclient64.dll",
 		"propertyeditor.dll",
@@ -33,39 +34,71 @@ partial class StandaloneExporter
 	}
 
 	private static string[] CoreWhitelist = [
-		// Error particle
-		"particles/error/error.vtex_c",
-		"particles/error_particle.vtex_c",
-		
 		// Shaders
-		"shaders/*.shader_c",
+		"shaders/**/*.shader_c",
 		
-		// Dev textures, materials, models (contains error assets etc.)
+		// Dev textures, models (contains error assets etc.)
 		"textures/dev/**/*.vtex_c",
 		"models/dev/**/*.vmdl_c",
-		"materials/dev/**/*.vmat_c",
-		"materials/dev/**/*.vtex_c",
+		"models/dev/**/*.vmat_c",
+		"models/dev/**/*.vtex_c",
+		"textures/**/*.vtex_c",
+		"debug/*",
 
-		// Default materials (solid colors)
-		"materials/default/**/*.vmat_c",
-		"materials/default/**/*.vtex_c",
+		// Default materials
+		"materials/**/*.vmat_c",
+		"materials/**/*.vtex_c",
 		"dev/helper/**/*.vmat_c",
 		"dev/helper/**/*.vtex_c",
-		"materials/error.vmat_c",
-		
-		// Splash screen
+		"dev/vgui/**/*.vmat_c",
+		"dev/*.vtex_c",
+		// Splash screen images. The software splash reads these raw PNGs before the resource system starts.
+		"materials/startup_background_color.png",
+		"materials/startup_backdrop_color.png",
 		"materials/startup_background.vtex_c",
+		// Interface
+		"fonts/*.ttf",
+		"styles/**/*",
+		"ui/**/*",
 
 		// Config files
 		"cfg/*",
 
-		// Sound mixers (required for engine boot?)
-		"scripts/soundmixers.txt",
+		// Physics surfaces - materials find these by name, so nothing references them as assets
+		"surfaces/*.surface_c",
 	];
 
 	private IEnumerable<string> GetCoreFiles( string engineDir )
 	{
 		return GetWhitelistedFiles( CoreWhitelist, Path.Combine( engineDir, "core" ) );
+	}
+
+	/// <summary>
+	/// Everything the core surfaces reference (impact sounds, decals, prefabs). Some of these
+	/// live outside core, so they're found through the asset system rather than a whitelist.
+	/// </summary>
+	private static IEnumerable<CodeResource> GetSurfaceReferences( IEnumerable<string> coreFiles )
+	{
+		foreach ( var file in coreFiles.Where( x => x.EndsWith( ".surface_c", StringComparison.OrdinalIgnoreCase ) ) )
+		{
+			var asset = AssetSystem.FindByPath( file );
+			if ( asset is null )
+			{
+				Logger.Warning( $"Couldn't find surface asset for {file}, its references won't be exported" );
+				continue;
+			}
+
+			foreach ( var reference in asset.GetReferences( true ) )
+			{
+				var relativePath = reference.GetCompiledFile( false );
+				var absolutePath = reference.GetCompiledFile( true );
+
+				if ( string.IsNullOrEmpty( relativePath ) || string.IsNullOrEmpty( absolutePath ) )
+					continue;
+
+				yield return new CodeResource( relativePath.TrimStart( '/', '\\' ), absolutePath );
+			}
+		}
 	}
 
 	private static IEnumerable<string> GetBlacklistedFiles( string[] blacklist, string absoluteDirectory )

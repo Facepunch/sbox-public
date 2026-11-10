@@ -1,0 +1,3152 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:animgraph2:version{0f7898b8-5471-45c4-9867-cd9c46bcfdb5} -->
+{
+	_class = "CAnimationSubGraph"
+	m_nodeManager =
+	{
+		_class = "CAnimNodeManager"
+		m_nodes =
+		[
+			{
+				key =
+				{
+					m_id = 2100000000
+				}
+				value =
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "01 - Holdtype poses"
+					m_vecPosition = [ -1056.0, 544.0 ]
+					m_nNodeID =
+					{
+						m_id = 2100000000
+					}
+					m_sNote = "Prepare the weapon poses and the center-pose delta used by ground locomotion. Pose, breathing and pelvis outputs remain separate because the shared compositor uses them differently. Absolute aim/breathing poses and additive pelvis/center offsets are separate outputs."
+					m_inputNodeID =
+					{
+						m_id = 2100000006
+					}
+					m_outputNodeID =
+					{
+						m_id = 2100000012
+					}
+					m_inputConnectionMap = [  ]
+					m_subGraphFilename = "models/citizen/subgraphs/citizen_holdtypes.vsubgrph"
+				}
+			},
+			{
+				key =
+				{
+					m_id = 2100000001
+				}
+				value =
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "02 - Ground locomotion"
+					m_vecPosition = [ -416.0, 0.0 ]
+					m_nNodeID =
+					{
+						m_id = 2100000001
+					}
+					m_sNote = "Standing, crouching, movement style, skidding, wish layers, turning and sitting selection. Tag detectors and reset blockers preserve foot-cycle timing; they are part of the behavior."
+					m_inputNodeID =
+					{
+						m_id = 2100000007
+					}
+					m_outputNodeID =
+					{
+						m_id = 2100000013
+					}
+					m_inputConnectionMap =
+					[
+						{
+							key =
+							{
+								m_id = 2100000027
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 2100000000
+								}
+								m_outputID =
+								{
+									m_id = 2100000026
+								}
+							}
+						},
+						{
+							key =
+							{
+								m_id = 2100000057
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 1555004921
+								}
+								m_outputID =
+								{
+									m_id = 1431077689
+								}
+							}
+						},
+					]
+					m_subGraphFilename = "models/citizen/subgraphs/citizen_locomotion.vsubgrph"
+				}
+			},
+			{
+				key =
+				{
+					m_id = 2100000002
+				}
+				value =
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "03 - Movement overrides"
+					m_vecPosition = [ 224.0, 0.0 ]
+					m_nNodeID =
+					{
+						m_id = 2100000002
+					}
+					m_sNote = "Jumping, falling, landing and swimming feed the ledge/roll/slide selection. Noclip is the final movement override."
+					m_inputNodeID =
+					{
+						m_id = 2100000008
+					}
+					m_outputNodeID =
+					{
+						m_id = 2100000014
+					}
+					m_inputConnectionMap =
+					[
+						{
+							key =
+							{
+								m_id = 2100000019
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 2100000001
+								}
+								m_outputID =
+								{
+									m_id = 2100000018
+								}
+							}
+						},
+					]
+					m_subGraphFilename = "models/citizen/subgraphs/citizen_movement.vsubgrph"
+				}
+			},
+			{
+				key =
+				{
+					m_id = 2100000003
+				}
+				value =
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "04 - Avatar adjustments"
+					m_vecPosition = [ 864.0, 0.0 ]
+					m_nNodeID =
+					{
+						m_id = 2100000003
+					}
+					m_sNote = "Avatar-menu poses and character-specific corrections. The shared height-scaling subgraph follows this stage."
+					m_inputNodeID =
+					{
+						m_id = 2100000009
+					}
+					m_outputNodeID =
+					{
+						m_id = 2100000015
+					}
+					m_inputConnectionMap =
+					[
+						{
+							key =
+							{
+								m_id = 2100000021
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 2100000002
+								}
+								m_outputID =
+								{
+									m_id = 2100000020
+								}
+							}
+						},
+					]
+					m_subGraphFilename = "models/citizen/subgraphs/citizen_avatar.vsubgrph"
+				}
+			},
+			{
+				key =
+				{
+					m_id = 2100000004
+				}
+				value =
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "05 - Holdtype actions"
+					m_vecPosition = [ 2016.0, 544.0 ]
+					m_nNodeID =
+					{
+						m_id = 2100000004
+					}
+					m_sNote = "Choose the holdtype after its shared compositor, attack/deploy layers and handedness-dependent arm IK. The weaponless path keeps its original reset blockers."
+					m_inputNodeID =
+					{
+						m_id = 2100000010
+					}
+					m_outputNodeID =
+					{
+						m_id = 2100000016
+					}
+					m_inputConnectionMap =
+					[
+						{
+							key =
+							{
+								m_id = 2100000022
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 1150786460
+								}
+								m_outputID =
+								{
+									m_id = 1396696161
+								}
+							}
+						},
+						{
+							key =
+							{
+								m_id = 2100000029
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 1183325861
+								}
+								m_outputID =
+								{
+									m_id = 1562669478
+								}
+							}
+						},
+						{
+							key =
+							{
+								m_id = 2100000034
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 1221840034
+								}
+								m_outputID =
+								{
+									m_id = 1562669478
+								}
+							}
+						},
+						{
+							key =
+							{
+								m_id = 2100000036
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 924915088
+								}
+								m_outputID =
+								{
+									m_id = 1562669478
+								}
+							}
+						},
+						{
+							key =
+							{
+								m_id = 2100000037
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 1298963528
+								}
+								m_outputID =
+								{
+									m_id = 1562669478
+								}
+							}
+						},
+						{
+							key =
+							{
+								m_id = 2100000040
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 177417161
+								}
+								m_outputID =
+								{
+									m_id = 1562669478
+								}
+							}
+						},
+						{
+							key =
+							{
+								m_id = 2100000041
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 1218789081
+								}
+								m_outputID =
+								{
+									m_id = 1562669478
+								}
+							}
+						},
+						{
+							key =
+							{
+								m_id = 2100000042
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 1648049320
+								}
+								m_outputID =
+								{
+									m_id = 1562669478
+								}
+							}
+						},
+						{
+							key =
+							{
+								m_id = 2100000060
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 419618803
+								}
+								m_outputID =
+								{
+									m_id = 1562669478
+								}
+							}
+						},
+					]
+					m_subGraphFilename = "models/citizen/subgraphs/citizen_actions.vsubgrph"
+				}
+			},
+			{
+				key =
+				{
+					m_id = 2100000005
+				}
+				value =
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "06 - Final pose"
+					m_vecPosition = [ 3296.0, 544.0 ]
+					m_nNodeID =
+					{
+						m_id = 2100000005
+					}
+					m_sNote = "After facial animation: first-person and direct/choreography playback, pelvis/foot offsets, hit reaction, animation and manual IK, eye look, static poses, change tags and helper-bone cleanup. Receives an absolute body/facial pose. Preserve the order of playback overrides, offsets, IK, eyes and helper cleanup."
+					m_inputNodeID =
+					{
+						m_id = 2100000011
+					}
+					m_outputNodeID =
+					{
+						m_id = 2100000017
+					}
+					m_inputConnectionMap =
+					[
+						{
+							key =
+							{
+								m_id = 2100000035
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 266327516
+								}
+								m_outputID =
+								{
+									m_id = 1583786703
+								}
+							}
+						},
+					]
+					m_subGraphFilename = "models/citizen/subgraphs/citizen_postprocess.vsubgrph"
+				}
+			},
+			{
+				key =
+				{
+					m_id = 177417161
+				}
+				value =
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "Shotgun / locomotion composite"
+					m_vecPosition = [ 864.0, 928.0 ]
+					m_nNodeID =
+					{
+						m_id = 177417161
+					}
+					m_sNote = ""
+					m_inputNodeID =
+					{
+						m_id = 2147145089
+					}
+					m_outputNodeID =
+					{
+						m_id = 705740996
+					}
+					m_subGraphFilename = "models\\citizen\\subgraphs\\citizen_holdtype_compositing.vsubgrph"
+					m_inputConnectionMap =
+					[
+						{
+							key =
+							{
+								m_id = 304654347
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 1150786460
+								}
+								m_outputID =
+								{
+									m_id = 1396696161
+								}
+							}
+						},
+						{
+							key =
+							{
+								m_id = 379561548
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 2100000000
+								}
+								m_outputID =
+								{
+									m_id = 2100000024
+								}
+							}
+						},
+						{
+							key =
+							{
+								m_id = 538081040
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 2100000000
+								}
+								m_outputID =
+								{
+									m_id = 2100000025
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key =
+				{
+					m_id = 266327516
+				}
+				value =
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "Facial animation"
+					m_vecPosition = [ 2720.0, 544.0 ]
+					m_nNodeID =
+					{
+						m_id = 266327516
+					}
+					m_sNote = ""
+					m_inputNodeID =
+					{
+						m_id = 320640141
+					}
+					m_outputNodeID =
+					{
+						m_id = 1855511115
+					}
+					m_subGraphFilename = "models\\citizen\\subgraphs\\citizen_face.vsubgrph"
+					m_inputConnectionMap =
+					[
+						{
+							key =
+							{
+								m_id = 179199366
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 2100000004
+								}
+								m_outputID =
+								{
+									m_id = 2100000028
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key =
+				{
+					m_id = 419618803
+				}
+				value =
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "RPG / locomotion composite"
+					m_vecPosition = [ 864.0, 1696.0 ]
+					m_nNodeID =
+					{
+						m_id = 419618803
+					}
+					m_sNote = ""
+					m_inputNodeID =
+					{
+						m_id = 2147145089
+					}
+					m_outputNodeID =
+					{
+						m_id = 705740996
+					}
+					m_subGraphFilename = "models\\citizen\\subgraphs\\citizen_holdtype_compositing.vsubgrph"
+					m_inputConnectionMap =
+					[
+						{
+							key =
+							{
+								m_id = 304654347
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 1150786460
+								}
+								m_outputID =
+								{
+									m_id = 1396696161
+								}
+							}
+						},
+						{
+							key =
+							{
+								m_id = 379561548
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 2100000000
+								}
+								m_outputID =
+								{
+									m_id = 2100000032
+								}
+							}
+						},
+						{
+							key =
+							{
+								m_id = 538081040
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 2100000000
+								}
+								m_outputID =
+								{
+									m_id = 2100000033
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key =
+				{
+					m_id = 723792867
+				}
+				value =
+				{
+					_class = "CCommentAnimNode"
+					m_sName = "[ℹ️] LIST OF PARAMETERS"
+					m_vecPosition = [ -352.0, 2304.0 ]
+					m_nNodeID =
+					{
+						m_id = 723792867
+					}
+					m_sNote = ""
+					m_commentText = "— MOVEMENT:\n\n+X is forwards, +Y is right, +Z is up.\n\n• move_x/y/z describe our current move speed in absolute units per second in either axis. They allow a 2D Blendspace to be formed from these values.\n• move_groundspeed describes horizontal speed in units per second, irrespective of direction. It supplies a single value for conditions and blends that should respond to movement along either X or Y.\n• \"wish_*\" values are similar, but with a crucial difference: they describe the *input*, while \"move\" values describe the physical reality of what's happening. Physical forces get in the way, such as friction, acceleration, or simply running into an obstacle, so these two sets of values greatly differ.\n• \"duck\" is a float used for crouching; 0 is standing, 1 is crouching, and 2 is extra low. (see dedicated comment)\n• \"skid\": see dedicated comment in section 02\n• \"special_movement_states\" implement a bunch of mutually-exclusive special states that are uncommon\n\n— POSES & HOLDTYPES\n\n• \"holdtype_handedness\" is either 2H, RH, LH and can be seen as a way to specify a \"variant\" of a holdtype\n• \"holdtype_pose\" further controls which variant of a weapon branch you'd like to use. You can also choose the weaponless \"long idle\" pose with it.\n• \"holdtype_attack\" lets you pick which attack animation you want to use\n\n— MISCELLANEOUS:\n\n• \"voice\" opens and closes the mouth very simply, HL1-style, to animate it according to voice chat volume.\n• the \"hit\" params are used solely for procedural hit reactions, but they could have other interesting uses (what if the hit bone was the head = trigger an animation based on this?)\n• _character_type selects citizen / human male / human female behavior. The three entry graphs retain distinct defaults and share this implementation."
+					m_size = [ 496.0, 1280.0 ]
+					m_color = [ 100, 0, 50, 255 ]
+				}
+			},
+			{
+				key =
+				{
+					m_id = 924915088
+				}
+				value =
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "Physgun / locomotion composite"
+					m_vecPosition = [ 864.0, 1888.0 ]
+					m_nNodeID =
+					{
+						m_id = 924915088
+					}
+					m_sNote = ""
+					m_inputNodeID =
+					{
+						m_id = 2147145089
+					}
+					m_outputNodeID =
+					{
+						m_id = 705740996
+					}
+					m_subGraphFilename = "models\\citizen\\subgraphs\\citizen_holdtype_compositing.vsubgrph"
+					m_inputConnectionMap =
+					[
+						{
+							key =
+							{
+								m_id = 304654347
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 1150786460
+								}
+								m_outputID =
+								{
+									m_id = 1396696161
+								}
+							}
+						},
+						{
+							key =
+							{
+								m_id = 379561548
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 2100000000
+								}
+								m_outputID =
+								{
+									m_id = 2100000038
+								}
+							}
+						},
+						{
+							key =
+							{
+								m_id = 538081040
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 2100000000
+								}
+								m_outputID =
+								{
+									m_id = 2100000039
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key =
+				{
+					m_id = 1150786460
+				}
+				value =
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "Scale character height"
+					m_vecPosition = [ 1440.0, 0.0 ]
+					m_nNodeID =
+					{
+						m_id = 1150786460
+					}
+					m_sNote = ""
+					m_inputNodeID =
+					{
+						m_id = 433044021
+					}
+					m_outputNodeID =
+					{
+						m_id = 47292656
+					}
+					m_subGraphFilename = "models\\citizen\\subgraphs\\citizen_scale.vsubgrph"
+					m_inputConnectionMap =
+					[
+						{
+							key =
+							{
+								m_id = 401695544
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 2100000003
+								}
+								m_outputID =
+								{
+									m_id = 2100000044
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key =
+				{
+					m_id = 1183325861
+				}
+				value =
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "Punching / locomotion composite"
+					m_vecPosition = [ 864.0, 1312.0 ]
+					m_nNodeID =
+					{
+						m_id = 1183325861
+					}
+					m_sNote = ""
+					m_inputNodeID =
+					{
+						m_id = 2147145089
+					}
+					m_outputNodeID =
+					{
+						m_id = 705740996
+					}
+					m_subGraphFilename = "models\\citizen\\subgraphs\\citizen_holdtype_compositing.vsubgrph"
+					m_inputConnectionMap =
+					[
+						{
+							key =
+							{
+								m_id = 304654347
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 1150786460
+								}
+								m_outputID =
+								{
+									m_id = 1396696161
+								}
+							}
+						},
+						{
+							key =
+							{
+								m_id = 379561548
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 2100000000
+								}
+								m_outputID =
+								{
+									m_id = 2100000045
+								}
+							}
+						},
+						{
+							key =
+							{
+								m_id = 538081040
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 2100000000
+								}
+								m_outputID =
+								{
+									m_id = 2100000046
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key =
+				{
+					m_id = 1218789081
+				}
+				value =
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "Rifle / locomotion composite"
+					m_vecPosition = [ 864.0, 736.0 ]
+					m_nNodeID =
+					{
+						m_id = 1218789081
+					}
+					m_sNote = ""
+					m_inputNodeID =
+					{
+						m_id = 2147145089
+					}
+					m_outputNodeID =
+					{
+						m_id = 705740996
+					}
+					m_subGraphFilename = "models\\citizen\\subgraphs\\citizen_holdtype_compositing.vsubgrph"
+					m_inputConnectionMap =
+					[
+						{
+							key =
+							{
+								m_id = 304654347
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 1150786460
+								}
+								m_outputID =
+								{
+									m_id = 1396696161
+								}
+							}
+						},
+						{
+							key =
+							{
+								m_id = 379561548
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 2100000000
+								}
+								m_outputID =
+								{
+									m_id = 2100000047
+								}
+							}
+						},
+						{
+							key =
+							{
+								m_id = 538081040
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 2100000000
+								}
+								m_outputID =
+								{
+									m_id = 2100000048
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key =
+				{
+					m_id = 1221840034
+				}
+				value =
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "Held item / locomotion composite"
+					m_vecPosition = [ 864.0, 1120.0 ]
+					m_nNodeID =
+					{
+						m_id = 1221840034
+					}
+					m_sNote = ""
+					m_inputNodeID =
+					{
+						m_id = 2147145089
+					}
+					m_outputNodeID =
+					{
+						m_id = 705740996
+					}
+					m_subGraphFilename = "models\\citizen\\subgraphs\\citizen_holdtype_compositing.vsubgrph"
+					m_inputConnectionMap =
+					[
+						{
+							key =
+							{
+								m_id = 304654347
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 1150786460
+								}
+								m_outputID =
+								{
+									m_id = 1396696161
+								}
+							}
+						},
+						{
+							key =
+							{
+								m_id = 379561548
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 2100000000
+								}
+								m_outputID =
+								{
+									m_id = 2100000049
+								}
+							}
+						},
+						{
+							key =
+							{
+								m_id = 538081040
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 4294967295
+								}
+								m_outputID =
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key =
+				{
+					m_id = 1298963528
+				}
+				value =
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "Melee weapon / locomotion composite"
+					m_vecPosition = [ 864.0, 1504.0 ]
+					m_nNodeID =
+					{
+						m_id = 1298963528
+					}
+					m_sNote = ""
+					m_inputNodeID =
+					{
+						m_id = 2147145089
+					}
+					m_outputNodeID =
+					{
+						m_id = 705740996
+					}
+					m_subGraphFilename = "models\\citizen\\subgraphs\\citizen_holdtype_compositing.vsubgrph"
+					m_inputConnectionMap =
+					[
+						{
+							key =
+							{
+								m_id = 304654347
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 1150786460
+								}
+								m_outputID =
+								{
+									m_id = 1396696161
+								}
+							}
+						},
+						{
+							key =
+							{
+								m_id = 379561548
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 2100000000
+								}
+								m_outputID =
+								{
+									m_id = 2100000050
+								}
+							}
+						},
+						{
+							key =
+							{
+								m_id = 538081040
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 2100000000
+								}
+								m_outputID =
+								{
+									m_id = 2100000051
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key =
+				{
+					m_id = 1489500318
+				}
+				value =
+				{
+					_class = "CCommentAnimNode"
+					m_sName = "Derived parameter values"
+					m_vecPosition = [ 352.0, 2304.0 ]
+					m_nNodeID =
+					{
+						m_id = 1489500318
+					}
+					m_sNote = ""
+					m_commentText = "Some values are inherently derivative. For example, move_x and move_y tell me the exact direction and speed of two 2D axises, but move_groundspeed tells me the horizontal speed irrespective of direction.\n\nThis is because when I blend things using these values, or run certain condition checks, it only makes sense to do that a SINGLE value.\n\nFor example, let's say I want to check if you're moving, I can't just check move_x, because what if you're running completely sideways?\n\nAnd this is why a lot of conditions checks involving the move_* values don't look at move_x/y, but at move_groundspeed instead.\n\nAs for blends... in math terms,if you tried to chain two 1D Blendspaces to blend against X/Y values, and it was at 0.5, your final output would be 0.25, because you'd be running ((X*0.5)*0.5). Hence, a single derived value is very useful and lets me do everything as intended."
+					m_size = [ 576.0, 512.0 ]
+					m_color = [ 100, 0, 50, 255 ]
+				}
+			},
+			{
+				key =
+				{
+					m_id = 1555004921
+				}
+				value =
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "Sitting poses"
+					m_vecPosition = [ -1056.0, 0.0 ]
+					m_nNodeID =
+					{
+						m_id = 1555004921
+					}
+					m_sNote = ""
+					m_inputNodeID =
+					{
+						m_id = 91723257
+					}
+					m_outputNodeID =
+					{
+						m_id = 1384971267
+					}
+					m_subGraphFilename = "models\\citizen\\subgraphs\\citizen_sit.vsubgrph"
+					m_inputConnectionMap = [  ]
+				}
+			},
+			{
+				key =
+				{
+					m_id = 1589563892
+				}
+				value =
+				{
+					_class = "CCommentAnimNode"
+					m_sName = "[ℹ️] OTHER THINGS THAT ARE GOOD TO KNOW"
+					m_vecPosition = [ 1056.0, 2304.0 ]
+					m_nNodeID =
+					{
+						m_id = 1589563892
+					}
+					m_sNote = ""
+					m_commentText = "Some floats will need to be \"dampened\"/\"smoothed\" by the controller itself, such as duck and skid. This is because State Machines don't implement something I'd call \"reversible transitions\" — if you're switching from state A to state B but have to \"cancel\" it halfway through, it will *snap* to B before switching to A.\n\n— USEFUL WAYS TO PREVIEW IN-GAME AND DEBUG THINGS:\n\n(THIS IS CURRENTLY BROKEN AS OF 2023-01-22, A REPLACEMENT FOR THIS FEATURE IS BEING ENVISIONED.)\n\nthirdperson_orbit 1 to\n\n• Hold ALT and drag to orbit the camera.\n• ALT + LEFT CLICK and DRAG to dolly in/out.\n• ALT + RIGHT CLICK and DRAG to pedestal up/down."
+					m_size = [ 576.0, 544.0 ]
+					m_color = [ 100, 0, 50, 255 ]
+				}
+			},
+			{
+				key =
+				{
+					m_id = 1648049320
+				}
+				value =
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "Pistol / locomotion composite"
+					m_vecPosition = [ 864.0, 544.0 ]
+					m_nNodeID =
+					{
+						m_id = 1648049320
+					}
+					m_sNote = ""
+					m_inputNodeID =
+					{
+						m_id = 2147145089
+					}
+					m_outputNodeID =
+					{
+						m_id = 705740996
+					}
+					m_subGraphFilename = "models\\citizen\\subgraphs\\citizen_holdtype_compositing.vsubgrph"
+					m_inputConnectionMap =
+					[
+						{
+							key =
+							{
+								m_id = 304654347
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 1150786460
+								}
+								m_outputID =
+								{
+									m_id = 1396696161
+								}
+							}
+						},
+						{
+							key =
+							{
+								m_id = 379561548
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 2100000000
+								}
+								m_outputID =
+								{
+									m_id = 2100000055
+								}
+							}
+						},
+						{
+							key =
+							{
+								m_id = 538081040
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 2100000000
+								}
+								m_outputID =
+								{
+									m_id = 2100000056
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key =
+				{
+					m_id = 2000016063
+				}
+				value =
+				{
+					_class = "CCommentAnimNode"
+					m_sName = "[ℹ️] READ ME FIRST"
+					m_vecPosition = [ -1056.0, 2304.0 ]
+					m_nNodeID =
+					{
+						m_id = 2000016063
+					}
+					m_sNote = ""
+					m_commentText = "Welcome to the Citizen animgraph. It's not as scary as it looks! (I promise.)\n\nThe game (specifically the controller a.k.a. \"Animator\") sends values (\"Parameters\") to us. We make use of these to know which animation(s) to play, and to make the graph take different paths, through configured State Machines and other various nodes. To figure out how something works, click the \"running figure\" icon to start the simulation, then start tweaking the Parameters, and look at the path that lights up!\n\nBroadly speaking, here are the \"design goals\" that I've tried to keep in mind while creating all of this. The graph should be:\n\n• POSE-DRIVEN as much as possible, to reduce the need for animation-specific knowledge. You could go into the SFM, create or modify a pose, export it out, and you'd be able to integrate it here fast.\n\n• EXTENSIBLE as easily as possible: we are here to create and mod things, and while hyper-specific features and flourishes are nice to have, I chose to prioritize what was not only easy to understand, but also the most broadly-applicable. The number of combos/permutations required to do something should be kept as low as possible. There's a lot of things I could've already implemented if I'd required every hold type to have 50 different poses, but that's not sustainable for anybody.\n\n• UNIVERSAL: this graph is trying its best to not assume any things about the gamemode it's running inside of. It's loosely recreating the Gmod 13 set of features. Really, the biggest assumption it's making right now is that there's going to be weapons, most of which are guns. It is definitely serving us and our own games first and firemost, but I am trying to make sure it can serve you as well.\n\n• NOT AUTHORITATIVE. The animation isn't a \"blocker\", it's not driving the player (think cinematic-feeling games). Player input is always driving the animation, and never the opposite. The Controller sends me Parameter values, and I try to account for as many things possible that can happen... though I am operating under the assumption that the Controller is at least operating with *some* baseline level of sanity. For example, b_attack only becomes true if an attack actually goes off, not if you press the attack button at any time.\n\nAnd MOST IMPORTANTLY, please always remember this: while I hope this graph will be a useful resource to look at & learn from, it should not be taken as the ultimate gospel. There are many, many equally-valid ways to achieve particular goals. I can't possibly claim to have chosen the best solution to all the challenges this graph attempted to solve. Keep an open mind!"
+					m_size = [ 576.0, 1280.0 ]
+					m_color = [ 100, 0, 50, 255 ]
+				}
+			},
+			{
+				key =
+				{
+					m_id = 2100100001
+				}
+				value =
+				{
+					_class = "CGroupOutputAnimNode"
+					m_sName = "Final animation pose"
+					m_vecPosition = [ 4544.0, 544.0 ]
+					m_nNodeID =
+					{
+						m_id = 2100100001
+					}
+					m_sNote = ""
+					m_proxyItems =
+					[
+						{
+							m_name = "Final pose"
+							m_outputID =
+							{
+								m_id = 2100100002
+							}
+							m_inputConnection =
+							{
+								m_nodeID =
+								{
+									m_id = 2100300000
+								}
+								m_outputID =
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key =
+				{
+					m_id = 2100000064
+				}
+				value =
+				{
+					_class = "CCommentAnimNode"
+					m_sName = "Citizen animation - start here"
+					m_vecPosition = [ -1056.0, -560.0 ]
+					m_nNodeID =
+					{
+						m_id = 2100000064
+					}
+					m_sNote = ""
+					m_commentText = "Shared by citizen, human male and human female. Edit animation behavior here; the entry graphs retain their parameter defaults and preview settings.\n\n01 prepares absolute holdtype poses and additive center/pelvis offsets. 02 -> 03 -> 04 builds movement; height scaling then feeds the eight shared compositors. 05 applies holdtype actions and selects the result. Facial animation feeds 06 and the final pose.\n\nDouble-click a subgraph to edit that system. Preserve pose/delta contracts, masks, tag handling, resets, transition timing and stage order. Authoring reference notes are below."
+					m_size = [ 1152.0, 400.0 ]
+					m_color = [ 0, 50, 100, 255 ]
+				}
+			},
+			{
+				key =
+				{
+					m_id = 2100300000
+				}
+				value =
+				{
+					_class = "CStateMachineAnimNode"
+					m_sName = "Relaxed weapon pose eligibility"
+					m_vecPosition = [ 3904.0, 544.0 ]
+					m_nNodeID =
+					{
+						m_id = 2100300000
+					}
+					m_sNote = "Pass the pose through unchanged and publish the existing long-idle permission tag. b_weapon_lower enables the authored relaxed two-handed weapon poses while grounded, standing and stationary. Crouching, movement, sitting, swimming, noclip, special movement and reloads revoke permission. Weapon branches retain their existing raise/lower timing and fast attack transitions."
+					m_states =
+					[
+						{
+							_class = "CAnimState"
+							m_transitions =
+							[
+								{
+									_class = "CAnimStateTransition"
+									m_conditions =
+									[
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 0
+											m_paramID =
+											{
+												m_id = 1630393603
+											}
+											m_comparisonValue =
+											{
+												m_nType = 1
+												m_data = true
+											}
+										},
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 0
+											m_paramID =
+											{
+												m_id = 660872845
+											}
+											m_comparisonValue =
+											{
+												m_nType = 1
+												m_data = true
+											}
+										},
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 4
+											m_paramID =
+											{
+												m_id = 1596905024
+											}
+											m_comparisonValue =
+											{
+												m_nType = 4
+												m_data = 0.1
+											}
+										},
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 4
+											m_paramID =
+											{
+												m_id = 1285441981
+											}
+											m_comparisonValue =
+											{
+												m_nType = 4
+												m_data = 10.0
+											}
+										},
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 0
+											m_paramID =
+											{
+												m_id = 1677366560
+											}
+											m_comparisonValue =
+											{
+												m_nType = 2
+												m_data = 0
+											}
+										},
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 0
+											m_paramID =
+											{
+												m_id = 1598339350
+											}
+											m_comparisonValue =
+											{
+												m_nType = 2
+												m_data = 0
+											}
+										},
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 0
+											m_paramID =
+											{
+												m_id = 947135196
+											}
+											m_comparisonValue =
+											{
+												m_nType = 1
+												m_data = false
+											}
+										},
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 0
+											m_paramID =
+											{
+												m_id = 1705107189
+											}
+											m_comparisonValue =
+											{
+												m_nType = 1
+												m_data = false
+											}
+										},
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 0
+											m_paramID =
+											{
+												m_id = 1043732780
+											}
+											m_comparisonValue =
+											{
+												m_nType = 2
+												m_data = 0
+											}
+										},
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 0
+											m_paramID =
+											{
+												m_id = 492042286
+											}
+											m_comparisonValue =
+											{
+												m_nType = 1
+												m_data = false
+											}
+										},
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 0
+											m_paramID =
+											{
+												m_id = 1744787321
+											}
+											m_comparisonValue =
+											{
+												m_nType = 1
+												m_data = false
+											}
+										},
+										{
+											_class = "CTagCondition"
+											m_comparisonOp = 0
+											m_tagID =
+											{
+												m_id = 1826470211
+											}
+											m_comparisonValue = false
+										},
+									]
+									m_blendDuration = 0.0
+									m_destState =
+									{
+										m_id = 2100300002
+									}
+									m_bReset = false
+									m_resetCycleOption = "SameCycleAsSource"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve =
+									{
+										m_vControlPoint1 = [ 0.5, 0.0 ]
+										m_vControlPoint2 = [ 0.5, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+							]
+							m_tags = [  ]
+							m_tagBehaviors = [  ]
+							m_name = "Normal weapon pose"
+							m_inputConnection =
+							{
+								m_nodeID =
+								{
+									m_id = 2100000005
+								}
+								m_outputID =
+								{
+									m_id = 2100000063
+								}
+							}
+							m_stateID =
+							{
+								m_id = 2100300001
+							}
+							m_position = [ 0.0, 0.0 ]
+							m_bIsStartState = true
+							m_bIsEndtState = false
+							m_bIsPassthrough = false
+							m_bIsRootMotionExclusive = false
+							m_bAlwaysEvaluate = false
+						},
+						{
+							_class = "CAnimState"
+							m_transitions =
+							[
+								{
+									_class = "CAnimStateTransition"
+									m_conditions =
+									[
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 1
+											m_paramID =
+											{
+												m_id = 1630393603
+											}
+											m_comparisonValue =
+											{
+												m_nType = 1
+												m_data = true
+											}
+										},
+									]
+									m_blendDuration = 0.0
+									m_destState =
+									{
+										m_id = 2100300001
+									}
+									m_bReset = false
+									m_resetCycleOption = "SameCycleAsSource"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve =
+									{
+										m_vControlPoint1 = [ 0.5, 0.0 ]
+										m_vControlPoint2 = [ 0.5, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+								{
+									_class = "CAnimStateTransition"
+									m_conditions =
+									[
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 1
+											m_paramID =
+											{
+												m_id = 660872845
+											}
+											m_comparisonValue =
+											{
+												m_nType = 1
+												m_data = true
+											}
+										},
+									]
+									m_blendDuration = 0.0
+									m_destState =
+									{
+										m_id = 2100300001
+									}
+									m_bReset = false
+									m_resetCycleOption = "SameCycleAsSource"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve =
+									{
+										m_vControlPoint1 = [ 0.5, 0.0 ]
+										m_vControlPoint2 = [ 0.5, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+								{
+									_class = "CAnimStateTransition"
+									m_conditions =
+									[
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 3
+											m_paramID =
+											{
+												m_id = 1596905024
+											}
+											m_comparisonValue =
+											{
+												m_nType = 4
+												m_data = 0.1
+											}
+										},
+									]
+									m_blendDuration = 0.0
+									m_destState =
+									{
+										m_id = 2100300001
+									}
+									m_bReset = false
+									m_resetCycleOption = "SameCycleAsSource"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve =
+									{
+										m_vControlPoint1 = [ 0.5, 0.0 ]
+										m_vControlPoint2 = [ 0.5, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+								{
+									_class = "CAnimStateTransition"
+									m_conditions =
+									[
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 3
+											m_paramID =
+											{
+												m_id = 1285441981
+											}
+											m_comparisonValue =
+											{
+												m_nType = 4
+												m_data = 10.0
+											}
+										},
+									]
+									m_blendDuration = 0.0
+									m_destState =
+									{
+										m_id = 2100300001
+									}
+									m_bReset = false
+									m_resetCycleOption = "SameCycleAsSource"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve =
+									{
+										m_vControlPoint1 = [ 0.5, 0.0 ]
+										m_vControlPoint2 = [ 0.5, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+								{
+									_class = "CAnimStateTransition"
+									m_conditions =
+									[
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 1
+											m_paramID =
+											{
+												m_id = 1677366560
+											}
+											m_comparisonValue =
+											{
+												m_nType = 2
+												m_data = 0
+											}
+										},
+									]
+									m_blendDuration = 0.0
+									m_destState =
+									{
+										m_id = 2100300001
+									}
+									m_bReset = false
+									m_resetCycleOption = "SameCycleAsSource"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve =
+									{
+										m_vControlPoint1 = [ 0.5, 0.0 ]
+										m_vControlPoint2 = [ 0.5, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+								{
+									_class = "CAnimStateTransition"
+									m_conditions =
+									[
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 1
+											m_paramID =
+											{
+												m_id = 1598339350
+											}
+											m_comparisonValue =
+											{
+												m_nType = 2
+												m_data = 0
+											}
+										},
+									]
+									m_blendDuration = 0.0
+									m_destState =
+									{
+										m_id = 2100300001
+									}
+									m_bReset = false
+									m_resetCycleOption = "SameCycleAsSource"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve =
+									{
+										m_vControlPoint1 = [ 0.5, 0.0 ]
+										m_vControlPoint2 = [ 0.5, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+								{
+									_class = "CAnimStateTransition"
+									m_conditions =
+									[
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 1
+											m_paramID =
+											{
+												m_id = 947135196
+											}
+											m_comparisonValue =
+											{
+												m_nType = 1
+												m_data = false
+											}
+										},
+									]
+									m_blendDuration = 0.0
+									m_destState =
+									{
+										m_id = 2100300001
+									}
+									m_bReset = false
+									m_resetCycleOption = "SameCycleAsSource"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve =
+									{
+										m_vControlPoint1 = [ 0.5, 0.0 ]
+										m_vControlPoint2 = [ 0.5, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+								{
+									_class = "CAnimStateTransition"
+									m_conditions =
+									[
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 1
+											m_paramID =
+											{
+												m_id = 1705107189
+											}
+											m_comparisonValue =
+											{
+												m_nType = 1
+												m_data = false
+											}
+										},
+									]
+									m_blendDuration = 0.0
+									m_destState =
+									{
+										m_id = 2100300001
+									}
+									m_bReset = false
+									m_resetCycleOption = "SameCycleAsSource"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve =
+									{
+										m_vControlPoint1 = [ 0.5, 0.0 ]
+										m_vControlPoint2 = [ 0.5, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+								{
+									_class = "CAnimStateTransition"
+									m_conditions =
+									[
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 1
+											m_paramID =
+											{
+												m_id = 1043732780
+											}
+											m_comparisonValue =
+											{
+												m_nType = 2
+												m_data = 0
+											}
+										},
+									]
+									m_blendDuration = 0.0
+									m_destState =
+									{
+										m_id = 2100300001
+									}
+									m_bReset = false
+									m_resetCycleOption = "SameCycleAsSource"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve =
+									{
+										m_vControlPoint1 = [ 0.5, 0.0 ]
+										m_vControlPoint2 = [ 0.5, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+								{
+									_class = "CAnimStateTransition"
+									m_conditions =
+									[
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 1
+											m_paramID =
+											{
+												m_id = 492042286
+											}
+											m_comparisonValue =
+											{
+												m_nType = 1
+												m_data = false
+											}
+										},
+									]
+									m_blendDuration = 0.0
+									m_destState =
+									{
+										m_id = 2100300001
+									}
+									m_bReset = false
+									m_resetCycleOption = "SameCycleAsSource"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve =
+									{
+										m_vControlPoint1 = [ 0.5, 0.0 ]
+										m_vControlPoint2 = [ 0.5, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+								{
+									_class = "CAnimStateTransition"
+									m_conditions =
+									[
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 1
+											m_paramID =
+											{
+												m_id = 1744787321
+											}
+											m_comparisonValue =
+											{
+												m_nType = 1
+												m_data = false
+											}
+										},
+									]
+									m_blendDuration = 0.0
+									m_destState =
+									{
+										m_id = 2100300001
+									}
+									m_bReset = false
+									m_resetCycleOption = "SameCycleAsSource"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve =
+									{
+										m_vControlPoint1 = [ 0.5, 0.0 ]
+										m_vControlPoint2 = [ 0.5, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+								{
+									_class = "CAnimStateTransition"
+									m_conditions =
+									[
+										{
+											_class = "CTagCondition"
+											m_comparisonOp = 1
+											m_tagID =
+											{
+												m_id = 1826470211
+											}
+											m_comparisonValue = false
+										},
+									]
+									m_blendDuration = 0.0
+									m_destState =
+									{
+										m_id = 2100300001
+									}
+									m_bReset = false
+									m_resetCycleOption = "SameCycleAsSource"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve =
+									{
+										m_vControlPoint1 = [ 0.5, 0.0 ]
+										m_vControlPoint2 = [ 0.5, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+							]
+							m_tags =
+							[
+								{
+									m_id = 564997034
+								},
+							]
+							m_tagBehaviors = [  ]
+							m_name = "Allow relaxed weapon pose"
+							m_inputConnection =
+							{
+								m_nodeID =
+								{
+									m_id = 2100000005
+								}
+								m_outputID =
+								{
+									m_id = 2100000063
+								}
+							}
+							m_stateID =
+							{
+								m_id = 2100300002
+							}
+							m_position = [ 320.0, 0.0 ]
+							m_bIsStartState = false
+							m_bIsEndtState = false
+							m_bIsPassthrough = false
+							m_bIsRootMotionExclusive = false
+							m_bAlwaysEvaluate = false
+						},
+					]
+					m_bBlockWaningTags = false
+					m_bLockStateWhenWaning = false
+				}
+			},
+		]
+	}
+	m_localParameters =
+	[
+		{
+			_class = "CVectorAnimParameter"
+			m_name = "aim_head"
+			m_id =
+			{
+				m_id = 1205941383
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_defaultValue = [ 100.0, 0.0, 0.0 ]
+		},
+		{
+			_class = "CFloatAnimParameter"
+			m_name = "aim_head_weight"
+			m_id =
+			{
+				m_id = 1414089017
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_fDefaultValue = 1.0
+			m_fMinValue = 0.0
+			m_fMaxValue = 1.0
+		},
+		{
+			_class = "CBoolAnimParameter"
+			m_name = "b_grounded"
+			m_id =
+			{
+				m_id = 660872845
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_bDefaultValue = true
+		},
+		{
+			_class = "CBoolAnimParameter"
+			m_name = "b_jump"
+			m_id =
+			{
+				m_id = 1712449780
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = true
+			m_bDefaultValue = false
+		},
+		{
+			_class = "CEnumAnimParameter"
+			m_name = "holdtype"
+			m_id =
+			{
+				m_id = 1322758033
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = true
+			m_bAutoReset = false
+			m_defaultValue = 0
+			m_enumOptions = [ "none", "pistol", "rifle", "shotgun", "holditem", "melee_punch", "melee_weapons", "rpg", "physgun" ]
+		},
+		{
+			_class = "CFloatAnimParameter"
+			m_name = "aim_body_weight"
+			m_id =
+			{
+				m_id = 1874579477
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_fDefaultValue = 1.0
+			m_fMinValue = 0.0
+			m_fMaxValue = 1.0
+		},
+		{
+			_class = "CVectorAnimParameter"
+			m_name = "aim_body"
+			m_id =
+			{
+				m_id = 1442178442
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_defaultValue = [ 100.0, 0.0, 0.0 ]
+		},
+		{
+			_class = "CBoolAnimParameter"
+			m_name = "b_swim"
+			m_id =
+			{
+				m_id = 947135196
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_bDefaultValue = false
+		},
+		{
+			_class = "CBoolAnimParameter"
+			m_name = "b_attack"
+			m_id =
+			{
+				m_id = 1553483055
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = true
+			m_bDefaultValue = false
+		},
+		{
+			_class = "CBoolAnimParameter"
+			m_name = "b_reload"
+			m_id =
+			{
+				m_id = 1744787321
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = true
+			m_bDefaultValue = false
+		},
+		{
+			_class = "CBoolAnimParameter"
+			m_name = "b_noclip"
+			m_id =
+			{
+				m_id = 1705107189
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_bDefaultValue = false
+		},
+		{
+			_class = "CBoolAnimParameter"
+			m_name = "hit"
+			m_id =
+			{
+				m_id = 1531071999
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = true
+			m_bDefaultValue = false
+		},
+		{
+			_class = "CIntAnimParameter"
+			m_name = "hit_bone"
+			m_id =
+			{
+				m_id = 1948856038
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = true
+			m_bAutoReset = false
+			m_defaultValue = 20
+			m_minValue = 0
+			m_maxValue = 127
+		},
+		{
+			_class = "CVectorAnimParameter"
+			m_name = "hit_offset"
+			m_id =
+			{
+				m_id = 750655510
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = true
+			m_bAutoReset = false
+			m_defaultValue = [ 100.0, 0.0, 0.0 ]
+		},
+		{
+			_class = "CVectorAnimParameter"
+			m_name = "hit_direction"
+			m_id =
+			{
+				m_id = 777850505
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = true
+			m_bAutoReset = false
+			m_defaultValue = [ 100.0, 0.0, 0.0 ]
+		},
+		{
+			_class = "CFloatAnimParameter"
+			m_name = "hit_strength"
+			m_id =
+			{
+				m_id = 1091955609
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = true
+			m_bAutoReset = false
+			m_fDefaultValue = 0.2
+			m_fMinValue = 0.0
+			m_fMaxValue = 1.0
+		},
+		{
+			_class = "CFloatAnimParameter"
+			m_name = "duck"
+			m_id =
+			{
+				m_id = 1596905024
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_fDefaultValue = 0.0
+			m_fMinValue = 0.0
+			m_fMaxValue = 2.0
+		},
+		{
+			_class = "CVectorAnimParameter"
+			m_name = "aim_eyes"
+			m_id =
+			{
+				m_id = 1722198213
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_defaultValue = [ 100.0, 0.0, 0.0 ]
+		},
+		{
+			_class = "CFloatAnimParameter"
+			m_name = "move_groundspeed"
+			m_id =
+			{
+				m_id = 1285441981
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_fDefaultValue = 0.0
+			m_fMinValue = 0.0
+			m_fMaxValue = 1000.0
+		},
+		{
+			_class = "CFloatAnimParameter"
+			m_name = "wish_groundspeed"
+			m_id =
+			{
+				m_id = 1179231407
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_fDefaultValue = 0.0
+			m_fMinValue = 0.0
+			m_fMaxValue = 1000.0
+		},
+		{
+			_class = "CEnumAnimParameter"
+			m_name = "holdtype_handedness"
+			m_id =
+			{
+				m_id = 1677366560
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = true
+			m_bAutoReset = false
+			m_defaultValue = 0
+			m_enumOptions = [ "2H", "RH", "LH" ]
+		},
+		{
+			_class = "CFloatAnimParameter"
+			m_name = "holdtype_pose_hand"
+			m_id =
+			{
+				m_id = 1234271754
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = true
+			m_bAutoReset = false
+			m_fDefaultValue = 0.0
+			m_fMinValue = 0.0
+			m_fMaxValue = 1.0
+		},
+		{
+			_class = "CFloatAnimParameter"
+			m_name = "holdtype_pose"
+			m_id =
+			{
+				m_id = 1529188552
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = true
+			m_bAutoReset = false
+			m_fDefaultValue = 0.0
+			m_fMinValue = -1.0
+			m_fMaxValue = 16.0
+		},
+		{
+			_class = "CFloatAnimParameter"
+			m_name = "holdtype_attack"
+			m_id =
+			{
+				m_id = 826923118
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = true
+			m_bAutoReset = false
+			m_fDefaultValue = 0.0
+			m_fMinValue = 0.0
+			m_fMaxValue = 8.0
+		},
+		{
+			_class = "CFloatAnimParameter"
+			m_name = "move_x"
+			m_id =
+			{
+				m_id = 48706934
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_fDefaultValue = 0.0
+			m_fMinValue = -1000.0
+			m_fMaxValue = 1000.0
+		},
+		{
+			_class = "CFloatAnimParameter"
+			m_name = "move_y"
+			m_id =
+			{
+				m_id = 582995392
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_fDefaultValue = 0.0
+			m_fMinValue = -1000.0
+			m_fMaxValue = 1000.0
+		},
+		{
+			_class = "CBoolAnimParameter"
+			m_name = "b_deploy"
+			m_id =
+			{
+				m_id = 1521804861
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = true
+			m_bDefaultValue = false
+		},
+		{
+			_class = "CFloatAnimParameter"
+			m_name = "wish_x"
+			m_id =
+			{
+				m_id = 492911267
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_fDefaultValue = 0.0
+			m_fMinValue = -1000.0
+			m_fMaxValue = 1000.0
+		},
+		{
+			_class = "CFloatAnimParameter"
+			m_name = "wish_z"
+			m_id =
+			{
+				m_id = 1168766646
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_fDefaultValue = 0.0
+			m_fMinValue = -1000.0
+			m_fMaxValue = 1000.0
+		},
+		{
+			_class = "CEnumAnimParameter"
+			m_name = "special_idle_states"
+			m_id =
+			{
+				m_id = 2034827449
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_defaultValue = 0
+			m_enumOptions = [ "normal", "avatar_menu" ]
+		},
+		{
+			_class = "CFloatAnimParameter"
+			m_name = "move_z"
+			m_id =
+			{
+				m_id = 777307590
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_fDefaultValue = 0.0
+			m_fMinValue = -1000.0
+			m_fMaxValue = 1000.0
+		},
+		{
+			_class = "CFloatAnimParameter"
+			m_name = "skid"
+			m_id =
+			{
+				m_id = 346675350
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_fDefaultValue = 0.0
+			m_fMinValue = 0.0
+			m_fMaxValue = 1.0
+		},
+		{
+			_class = "CFloatAnimParameter"
+			m_name = "wish_y"
+			m_id =
+			{
+				m_id = 2125774116
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_fDefaultValue = 0.0
+			m_fMinValue = -1000.0
+			m_fMaxValue = 1000.0
+		},
+		{
+			_class = "CFloatAnimParameter"
+			m_name = "voice"
+			m_id =
+			{
+				m_id = 2090880745
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_fDefaultValue = 0.0
+			m_fMinValue = 0.0
+			m_fMaxValue = 1.0
+		},
+		{
+			_class = "CBoolAnimParameter"
+			m_name = "b_weapon_lower"
+			m_id =
+			{
+				m_id = 1630393603
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_bDefaultValue = false
+		},
+		{
+			_class = "CBoolAnimParameter"
+			m_name = "b_long_idle"
+			m_id =
+			{
+				m_id = 1706706032
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_bDefaultValue = false
+		},
+		{
+			_class = "CFloatAnimParameter"
+			m_name = "aim_body_pitch"
+			m_id =
+			{
+				m_id = 995117350
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_fDefaultValue = 0.0
+			m_fMinValue = -90.0
+			m_fMaxValue = 90.0
+		},
+		{
+			_class = "CFloatAnimParameter"
+			m_name = "sit_offset_height"
+			m_id =
+			{
+				m_id = 803321634
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_fDefaultValue = 0.0
+			m_fMinValue = -12.0
+			m_fMaxValue = 12.0
+		},
+		{
+			_class = "CEnumAnimParameter"
+			m_name = "sit"
+			m_id =
+			{
+				m_id = 1598339350
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_defaultValue = 0
+			m_enumOptions = [ "not_sitting", "sitting_01", "sitting_02", "sitting_03", "sitting_ground_01", "sitting_ground_02", "sitting_ground_03", "sitting_ground_04" ]
+		},
+		{
+			_class = "CFloatAnimParameter"
+			m_name = "move_rotationspeed"
+			m_id =
+			{
+				m_id = 573234817
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_fDefaultValue = 0.0
+			m_fMinValue = -720.0
+			m_fMaxValue = 720.0
+		},
+		{
+			_class = "CFloatAnimParameter"
+			m_name = "scale_height"
+			m_id =
+			{
+				m_id = 1570594852
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_fDefaultValue = 1.0
+			m_fMinValue = 0.5
+			m_fMaxValue = 2.0
+		},
+		{
+			_class = "CEnumAnimParameter"
+			m_name = "special_movement_states"
+			m_id =
+			{
+				m_id = 1043732780
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_defaultValue = 0
+			m_enumOptions = [ "none", "ledge_grab", "roll", "slide", "" ]
+		},
+		{
+			_class = "CFloatAnimParameter"
+			m_name = "speed_scale"
+			m_id =
+			{
+				m_id = 61537621
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_fDefaultValue = 1.0
+			m_fMinValue = 0.0
+			m_fMaxValue = 10.0
+		},
+		{
+			_class = "CEnumAnimParameter"
+			m_name = "move_style"
+			m_id =
+			{
+				m_id = 1547794372
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_defaultValue = 0
+			m_enumOptions = [ "default", "walk_only", "run_only", "tbd" ]
+		},
+		{
+			_class = "CQuaternionAnimParameter"
+			m_name = "ik.hand_left.rotation"
+			m_id =
+			{
+				m_id = 227489733
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_defaultValue = [ 0.0, 0.0, 0.0, 1.0 ]
+		},
+		{
+			_class = "CQuaternionAnimParameter"
+			m_name = "ik.hand_right.rotation"
+			m_id =
+			{
+				m_id = 1600416393
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_defaultValue = [ 0.0, 0.0, 0.0, 1.0 ]
+		},
+		{
+			_class = "CQuaternionAnimParameter"
+			m_name = "ik.foot_left.rotation"
+			m_id =
+			{
+				m_id = 1211714571
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_defaultValue = [ 0.0, 0.0, 0.0, 1.0 ]
+		},
+		{
+			_class = "CQuaternionAnimParameter"
+			m_name = "ik.foot_right.rotation"
+			m_id =
+			{
+				m_id = 579398893
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_defaultValue = [ 0.0, 0.0, 0.0, 1.0 ]
+		},
+		{
+			_class = "CVectorAnimParameter"
+			m_name = "ik.hand_left.position"
+			m_id =
+			{
+				m_id = 937870857
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_defaultValue = [ 0.0, 0.0, 0.0 ]
+		},
+		{
+			_class = "CVectorAnimParameter"
+			m_name = "ik.hand_right.position"
+			m_id =
+			{
+				m_id = 1651085716
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_defaultValue = [ 0.0, 0.0, 0.0 ]
+		},
+		{
+			_class = "CVectorAnimParameter"
+			m_name = "ik.foot_left.position"
+			m_id =
+			{
+				m_id = 828245487
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_defaultValue = [ 0.0, 0.0, 0.0 ]
+		},
+		{
+			_class = "CVectorAnimParameter"
+			m_name = "ik.foot_right.position"
+			m_id =
+			{
+				m_id = 1040390066
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_defaultValue = [ 0.0, 0.0, 0.0 ]
+		},
+		{
+			_class = "CBoolAnimParameter"
+			m_name = "ik.hand_left.enabled"
+			m_id =
+			{
+				m_id = 1598349679
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_bDefaultValue = false
+		},
+		{
+			_class = "CBoolAnimParameter"
+			m_name = "ik.hand_right.enabled"
+			m_id =
+			{
+				m_id = 2309985
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_bDefaultValue = false
+		},
+		{
+			_class = "CBoolAnimParameter"
+			m_name = "ik.foot_left.enabled"
+			m_id =
+			{
+				m_id = 692834498
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_bDefaultValue = false
+		},
+		{
+			_class = "CBoolAnimParameter"
+			m_name = "ik.foot_right.enabled"
+			m_id =
+			{
+				m_id = 429120056
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_bDefaultValue = false
+		},
+		{
+			_class = "CEnumAnimParameter"
+			m_name = "face_override"
+			m_id =
+			{
+				m_id = 1522890659
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_defaultValue = 0
+			m_enumOptions = [ "NO_OVERRIDE", "smile", "frown", "surprise", "sad", "angry", "eyes_closed" ]
+		},
+		{
+			_class = "CFloatAnimParameter"
+			m_name = "skid_x"
+			m_id =
+			{
+				m_id = 1911702139
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_fDefaultValue = 0.0
+			m_fMinValue = -1.0
+			m_fMaxValue = 1.0
+		},
+		{
+			_class = "CFloatAnimParameter"
+			m_name = "skid_y"
+			m_id =
+			{
+				m_id = 1633033295
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_fDefaultValue = 0.0
+			m_fMinValue = -1.0
+			m_fMaxValue = 1.0
+		},
+		{
+			_class = "CBoolAnimParameter"
+			m_name = "b_firstperson"
+			m_id =
+			{
+				m_id = 927559664
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_bDefaultValue = false
+		},
+		{
+			_class = "CIntAnimParameter"
+			m_name = "static_pose"
+			m_id =
+			{
+				m_id = 360452936
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_defaultValue = 0
+			m_minValue = 0
+			m_maxValue = 100
+		},
+		{
+			_class = "CEnumAnimParameter"
+			m_name = "_character_type"
+			m_id =
+			{
+				m_id = 736115688
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_defaultValue = 0
+			m_enumOptions = [ "citizen", "human_m", "human_f" ]
+		},
+		{
+			_class = "CFloatAnimParameter"
+			m_name = "speed_reload"
+			m_id =
+			{
+				m_id = 1012713408
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_fDefaultValue = 1.0
+			m_fMinValue = 0.05
+			m_fMaxValue = 5.0
+		},
+		{
+			_class = "CBoolAnimParameter"
+			m_name = "b_reloading"
+			m_id =
+			{
+				m_id = 492042286
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_bDefaultValue = false
+		},
+		{
+			_class = "CBoolAnimParameter"
+			m_name = "b_reloading_insert"
+			m_id =
+			{
+				m_id = 32102184
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = true
+			m_bDefaultValue = false
+		},
+		{
+			_class = "CFloatAnimParameter"
+			m_name = "scale_heel"
+			m_id =
+			{
+				m_id = 211489935
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_fDefaultValue = 0.0
+			m_fMinValue = -1.0
+			m_fMaxValue = 1.0
+		},
+		{
+			_class = "CFloatAnimParameter"
+			m_name = "thrill"
+			m_id =
+			{
+				m_id = 1146062733
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_fDefaultValue = 0.0
+			m_fMinValue = 0.0
+			m_fMaxValue = 1.0
+		},
+		{
+			_class = "CFloatAnimParameter"
+			m_name = "pelvis_offset_height"
+			m_id =
+			{
+				m_id = 1910987512
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_fDefaultValue = 0.0
+			m_fMinValue = -35.0
+			m_fMaxValue = 35.0
+		},
+		{
+			_class = "CFloatAnimParameter"
+			m_name = "ik.foot_left.additive_height_offset"
+			m_id =
+			{
+				m_id = 109939724
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_fDefaultValue = 0.0
+			m_fMinValue = -20.0
+			m_fMaxValue = 20.0
+		},
+		{
+			_class = "CFloatAnimParameter"
+			m_name = "ik.foot_right.additive_height_offset"
+			m_id =
+			{
+				m_id = 128844436
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_fDefaultValue = 0.0
+			m_fMinValue = -20.0
+			m_fMaxValue = 20.0
+		},
+	]
+	m_localTags =
+	[
+		{
+			_class = "CStringAnimTag"
+			m_name = "Idle (not moving)"
+			m_tagID =
+			{
+				m_id = 314804499
+			}
+		},
+		{
+			_class = "CStringAnimTag"
+			m_name = "Walking"
+			m_tagID =
+			{
+				m_id = 360622775
+			}
+		},
+		{
+			_class = "CStringAnimTag"
+			m_name = "Running"
+			m_tagID =
+			{
+				m_id = 573079082
+			}
+		},
+		{
+			_class = "CStringAnimTag"
+			m_name = "Reloading"
+			m_tagID =
+			{
+				m_id = 1826470211
+			}
+		},
+		{
+			_class = "CStringAnimTag"
+			m_name = "Crouching"
+			m_tagID =
+			{
+				m_id = 40023065
+			}
+		},
+		{
+			_class = "CStringAnimTag"
+			m_name = "Sitting"
+			m_tagID =
+			{
+				m_id = 756568257
+			}
+		},
+		{
+			_class = "CStringAnimTag"
+			m_name = "Jumping"
+			m_tagID =
+			{
+				m_id = 345054731
+			}
+		},
+		{
+			_class = "CStringAnimTag"
+			m_name = "Falling"
+			m_tagID =
+			{
+				m_id = 2135576891
+			}
+		},
+		{
+			_class = "CStringAnimTag"
+			m_name = "Swimming"
+			m_tagID =
+			{
+				m_id = 106245667
+			}
+		},
+		{
+			_class = "CStringAnimTag"
+			m_name = "Attacking"
+			m_tagID =
+			{
+				m_id = 1069433738
+			}
+		},
+		{
+			_class = "CStringAnimTag"
+			m_name = "Weapon branch is idle (at pre-composite)"
+			m_tagID =
+			{
+				m_id = 315072805
+			}
+		},
+		{
+			_class = "CStringAnimTag"
+			m_name = "Weapon branch can do long idle pose"
+			m_tagID =
+			{
+				m_id = 564997034
+			}
+		},
+		{
+			_class = "CStringAnimTag"
+			m_name = "Handedness is two-handed"
+			m_tagID =
+			{
+				m_id = 1487868526
+			}
+		},
+		{
+			_class = "CStringAnimTag"
+			m_name = "Handedness is right-handed"
+			m_tagID =
+			{
+				m_id = 81905938
+			}
+		},
+		{
+			_class = "CStringAnimTag"
+			m_name = "Handedness is left-handed"
+			m_tagID =
+			{
+				m_id = 1584013562
+			}
+		},
+		{
+			_class = "CStringAnimTag"
+			m_name = "Fidget is playing"
+			m_tagID =
+			{
+				m_id = 1763373061
+			}
+		},
+		{
+			_class = "CStringAnimTag"
+			m_name = "Disable eye look chains"
+			m_tagID =
+			{
+				m_id = 1866644473
+			}
+		},
+		{
+			_class = "CStringAnimTag"
+			m_name = "Pose has right foot forward"
+			m_tagID =
+			{
+				m_id = 1536236653
+			}
+		},
+		{
+			_class = "CStringAnimTag"
+			m_name = "Pose has left foot forward"
+			m_tagID =
+			{
+				m_id = 1917451310
+			}
+		},
+		{
+			_class = "CStringAnimTag"
+			m_name = "To weapon branch: disable aim"
+			m_tagID =
+			{
+				m_id = 2128448084
+			}
+		},
+		{
+			_class = "CStringAnimTag"
+			m_name = "To weapon branch: disable/enable IK"
+			m_tagID =
+			{
+				m_id = 1159356952
+			}
+		},
+		{
+			_class = "CStringAnimTag"
+			m_name = "Handedness has changed in the last 500ms"
+			m_tagID =
+			{
+				m_id = 1686344274
+			}
+		},
+		{
+			_class = "CStringAnimTag"
+			m_name = "Holdtype has changed in the last 250ms"
+			m_tagID =
+			{
+				m_id = 562499854
+			}
+		},
+		{
+			_class = "CStringAnimTag"
+			m_name = "Disable global feet IK (done over 200ms)"
+			m_tagID =
+			{
+				m_id = 2097192094
+			}
+		},
+		{
+			_class = "CStringAnimTag"
+			m_name = "Disable scale_height main pelvis offset (done over 350ms)"
+			m_tagID =
+			{
+				m_id = 169420729
+			}
+		},
+	]
+}

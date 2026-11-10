@@ -29,7 +29,7 @@ public class SceneLoadOptions
 
 	public bool SetScene( string sceneFileName )
 	{
-		var file = ResourceLibrary.Get<SceneFile>( sceneFileName );
+		var file = SceneFile.Load( sceneFileName );
 		if ( file is null )
 		{
 			Log.Warning( $"LoadFromFile: Couldn't find {sceneFileName}" );

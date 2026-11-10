@@ -32,20 +32,21 @@ internal static partial class SteamNetwork
 		e.Submit();
 	}
 
-	internal static void OnSessionFailed( HSteamListenSocket socketHandle, ulong steamId )
+	internal static void OnSessionFailed( HSteamListenSocket socketHandle, ulong steamId, int reasonCode, string reason )
 	{
 		var system = Networking.System;
 		if ( system is null ) return;
 
 		var ourSteamId = SteamClient.SteamId;
 		var e = new Api.Events.EventRecord( "SteamNetwork.SessionFailed" );
+		e.SetValue( "ReasonCode", reasonCode );
 		e.SetValue( "LocalSteamId", ourSteamId );
 		e.SetValue( "RemoteSteamId", steamId );
 		e.Submit();
 
 		foreach ( var socket in system.Sockets )
 		{
-			socket.OnSessionFailed( steamId );
+			socket.OnSessionFailed( steamId, reasonCode, reason );
 		}
 	}
 

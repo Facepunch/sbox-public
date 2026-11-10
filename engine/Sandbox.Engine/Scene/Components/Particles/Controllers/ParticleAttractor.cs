@@ -4,7 +4,7 @@
 /// Attract particles to a GameObject in the scene
 /// </summary>
 [Title( "Particle Attractor" )]
-[Category( "Particles" )]
+[Category( "Effects" )]
 [Icon( "attractions" )]
 public class ParticleAttractor : ParticleController
 {

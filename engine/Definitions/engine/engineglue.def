@@ -8,21 +8,22 @@ native static class EngineGlue as NativeEngine.EngineGlue
 	string KeyValues3ToJson( KeyValues3 kv );
 	KeyValues3 LoadKeyValues3( string kvString );
 	uint GetStringToken( string str );
-	string GetStringTokenValue( uint token );
+	stable string GetStringTokenValue( uint token );
 
 	void AddSearchPath( string path, string groupid, bool head );
 	bool RemoveSearchPath( string path, string groupid );
 
 	ulong ApproximateProcessMemoryUsage();
 
-	string ReadCompiledResourceFileJson( void* data );
+	string ReadCompiledResourceFileJson( void* data, int nDataSize );
 
-	inline void* ReadCompiledResourceFileBlock( string blockName, CastTo[ResourceFileHeader_t*] void* pHeader, cref out int nSize )
+	inline void* ReadCompiledResourceFileBlock( string blockName, CastTo[ResourceFileHeader_t*] void* pHeader, int nDataSize, cref out int nSize )
 	{
+		*__nSize = 0;
 		auto blockId = MK_RSRC_BLOCK_ID( blockName[0], blockName[1], blockName[2], blockName[3] );
 
 		ResourceHeaderBlockInfo_t info;
-		if ( !Resource_FindBlockInfo( pHeader, blockId, &info ) )
+		if ( nDataSize < 0 || !Resource_FindBlockInfo( pHeader, (uint32)nDataSize, blockId, &info ) )
 			return nullptr;
 
 		*__nSize = info.m_nBlockSize;

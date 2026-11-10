@@ -1,4 +1,5 @@
-﻿using Refit;
+using Refit;
+using System.Text.Json.Serialization;
 
 namespace Sandbox.Services;
 
@@ -6,13 +7,16 @@ public partial class ServiceApi
 {
 	public interface IPackageApi
 	{
-		[Get( "/package/get/{packageIdent}" )]
+		[Get( "/package/get/2/{packageIdent}" )]
 		Task<PackageDto> Get( string packageIdent );
 
-		[Post( "/package/favourite/{packageIdent}" )]
+		[Get( "/package/changelists/2/{packageIdent}" )]
+		Task<BasePagedResponse<PackageChangeList>> GetChangeLists( string packageIdent, [Query] int page = 1 );
+
+		[Post( "/package/favourite/2/{packageIdent}" )]
 		Task<PackageFavouriteResult> SetFavourite( string packageIdent, [Query] bool state );
 
-		[Post( "/package/rate/{packageIdent}" )]
+		[Post( "/package/rate/1/{packageIdent}" )]
 		Task<PackageRateResult> SetRating( string packageIdent, [Query] int rating );
 
 		[Post( "/package/upload/file" )]
@@ -21,33 +25,56 @@ public partial class ServiceApi
 		[Post( "/package/upload/video" )]
 		Task<FileUploadResult> UploadVideo( [Body] VideoUploadRequest file );
 
-		[Get( "/package/list/" )]
+		[Get( "/package/list/1" )]
 		Task<PackageGroups> GetList( [Query] string id = null );
 
-		[Get( "/package/find" )]
+		[Get( "/package/find/2" )]
 		Task<PackageFindResult> Find( [Query] string q, int take = 100, int skip = 0 );
+
+		[Get( "/package/types" )]
+		Task<PackageTypeOverview[]> GetTypes( [Query] int take = 10 );
 
 		[Post( "/package/manifest" )]
 		Task<PublishManifestResult> PublishManifest( [Body] PublishManifest manifest );
 
-		[Post( "/package/update/{packageIdent}" )]
+		[Get( "/package/manifest/1/{packageIdent}/{revisionId}" )]
+		Task<PackageManifestDto> GetManifest( string packageIdent, long? revisionId = null );
+
+		/// <summary>
+		/// A revision's dll compiled against engine version <paramref name="ev"/>. The first request queues the
+		/// compile and is held open while it runs, then answers 202 Pending if it's still going. 422 when the compile
+		/// failed, 404 when there's nothing to compile.
+		/// </summary>
+		[Get( "/package/dll/1/{packageIdent}/{revisionId}" )]
+		Task<IApiResponse<PackageDllResult>> GetDll( string packageIdent, long revisionId, [Query] int ev, CancellationToken token = default );
+
+		[Post( "/package/update/1/{packageIdent}" )]
 		Task<PackageDto> Update( string packageIdent, [Query] string key, [Query] string value );
 
 		[Get( "/package/reviews/{packageIdent}" )]
-		Task<PackageReviewList> GetReviews( string packageIdent, [Query] int skip, [Query] int take );
+		Task<PackageReviewList> GetReviews( string packageIdent, [Query] int skip, [Query] int take, [Query] int score = 0, [Query] int positives = 0, [Query] int negatives = 0 );
 
 		[Get( "/package/reviews/{packageIdent}/{steamid}" )]
 		Task<PackageReviewDto> GetReview( string packageIdent, long steamid );
 
 		[Post( "/package/reviews/{packageIdent}" )]
-		Task PostReview( string packageIdent, string text, int rating );
+		Task PostReview( string packageIdent, string text, int rating, int positives, int negatives );
+
+		[Post( "/package/reports/{packageIdent}" )]
+		Task<bool> PostReport( string packageIdent, [Query] int reasons, [Query] string comment );
+
+		[Get( "/organization/{orgIdent}" )]
+		Task<OrganizationDto> GetOrganization( string orgIdent );
+
+		[Post( "/organization/reports/{orgIdent}" )]
+		Task<bool> PostOrganizationReport( string orgIdent, [Query] int reasons, [Query] string comment );
 	}
 }
 
 public class PackageFindResult
 {
 	public List<PackageWrapMinimal> Packages { get; set; }
-	public int TotalCount { get; set; }
+	public long TotalCount { get; set; }
 	public List<PackageFacet> Facets { get; set; }
 	public Dictionary<string, int> Tags { get; set; }
 	public List<SortOrder> Orders { get; set; }
@@ -58,6 +85,12 @@ public struct PackageFacet
 {
 	public string Name { get; set; }
 	public string Title { get; set; }
+
+	/// <summary>
+	/// Pre-sorted on the server. Renderers should display in given order — no
+	/// client-side reordering. Lets each facet pick its own sort semantics
+	/// (count desc for review tags, alphabetical for categories, etc.).
+	/// </summary>
 	public List<Entry> Entries { get; set; }
 
 	public record struct Entry( string Name, string Title, string Icon, int Count, List<Entry> Children );
@@ -156,6 +189,12 @@ public struct PublishManifest
 	public bool Publish { get; set; }
 	public int EngineApi { get; set; }
 	public string Meta { get; set; }
+
+	/// <summary>
+	/// Have the backend compile the code before it publishes. It answers <c>compiling</c> until that's done, and
+	/// 400 with the compiler errors when it doesn't compile.
+	/// </summary>
+	public bool VerifyCompile { get; set; }
 }
 
 public record struct ManifestFile( string Name, int Size, string Hash );
@@ -176,4 +215,113 @@ public struct PublishManifestResult
 	public string Status { get; set; }
 	public string[] Files { get; set; }
 	public long VersionId { get; set; }
+}
+
+public class PackageDllResult
+{
+	/// <summary>
+	/// Compiled, Pending or Failed
+	/// </summary>
+	public string Status { get; set; }
+
+	/// <summary>
+	/// The package's own assembly and any libraries it bundles, when Compiled
+	/// </summary>
+	public PackageDllFile[] Dlls { get; set; }
+	public string Error { get; set; }
+}
+
+public class PackageDllFile
+{
+	/// <summary>
+	/// Where it goes in the package, like <c>.bin/package.org.ident.dll</c>
+	/// </summary>
+	public string Path { get; set; }
+	public string Url { get; set; }
+
+	/// <summary>
+	/// CRC64.ToString( "x" )
+	/// </summary>
+	public string Crc { get; set; }
+	public long Size { get; set; }
+}
+
+/// <summary>
+/// A package revision's download manifest - the list of files to download. Without a
+/// revision id you get the package's live version.
+/// </summary>
+public class PackageManifestDto
+{
+	public int Schema { get; set; }
+
+	/// <summary>
+	/// The package id
+	/// </summary>
+	public long Asset { get; set; }
+
+	public ManifestFileEntry[] Files { get; set; }
+
+	/// <summary>
+	/// The organization's short name
+	/// </summary>
+	public string Organization { get; set; }
+
+	/// <summary>
+	/// The package ident
+	/// </summary>
+	public string Package { get; set; }
+
+	public int EngineVersion { get; set; }
+	public long TotalSize { get; set; }
+	public long FileCount { get; set; }
+	public DateTimeOffset Created { get; set; }
+}
+
+// File entries are lowercase on the wire - manifests have always been written that way
+// and engines in the wild parse them case-sensitively.
+public record struct ManifestFileEntry(
+	[property: JsonPropertyName( "url" )] string Url,
+	[property: JsonPropertyName( "crc" )] string Crc,
+	[property: JsonPropertyName( "path" )] string Path,
+	[property: JsonPropertyName( "size" )] long Size )
+{
+	[JsonPropertyName( "texture" ), JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )]
+	public TextureWebStreamingInfo Texture { get; init; }
+}
+
+/// <summary>
+/// Cumulative partial download prefixes for a compiled texture. Clients choose the initial mip;
+/// full-resolution downloads use the ordinary file size and checksum instead.
+/// </summary>
+public sealed class TextureWebStreamingInfo
+{
+	public const int CurrentVersion = 2;
+
+	// Leave the default at zero so metadata without a version is reprocessed.
+	[JsonPropertyName( "version" )]
+	public int Version { get; set; }
+
+	[JsonPropertyName( "width" )]
+	public int Width { get; set; }
+
+	[JsonPropertyName( "height" )]
+	public int Height { get; set; }
+
+	[JsonPropertyName( "mips" )]
+	public Mip[] Mips { get; set; } = [];
+
+	public sealed class Mip
+	{
+		/// <summary>One is half resolution. Entries are ordered by level; full resolution (zero) is omitted.</summary>
+		[JsonPropertyName( "level" )]
+		public int Level { get; set; }
+
+		/// <summary>Bytes from the start of the file, including the header and all smaller mips.</summary>
+		[JsonPropertyName( "prefixSize" )]
+		public int PrefixSize { get; set; }
+
+		/// <summary>SHA-256 of that entire prefix.</summary>
+		[JsonPropertyName( "prefixHash" )]
+		public string PrefixHash { get; set; }
+	}
 }

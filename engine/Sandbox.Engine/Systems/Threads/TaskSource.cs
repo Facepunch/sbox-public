@@ -69,10 +69,10 @@ public static class GameTask
 	public static Task<T[]> WhenAll<T>( IEnumerable<Task<T>> tasks ) => source.WhenAll<T>( tasks );
 
 	/// <inheritdoc cref="TaskSource.WhenAny(Task[])"/>
-	public static Task WhenAny( params Task[] tasks ) => source.WhenAny( tasks );
+	public static Task<Task> WhenAny( params Task[] tasks ) => source.WhenAny( tasks );
 
 	/// <inheritdoc cref="TaskSource.WhenAny(IEnumerable{Task})"/>
-	public static Task WhenAny( IEnumerable<Task> tasks ) => source.WhenAny( tasks );
+	public static Task<Task> WhenAny( IEnumerable<Task> tasks ) => source.WhenAny( tasks );
 
 	/// <inheritdoc cref="TaskSource.WhenAny{T}(Task{T}[])"/>
 	public static Task<Task<T>> WhenAny<T>( params Task<T>[] tasks ) => source.WhenAny<T>( tasks );
@@ -207,9 +207,11 @@ public struct TaskSource
 	/// <summary>
 	/// Measured actual granularity of <see cref="Task.Delay( int )"/> on this platform/OS configuration.
 	/// Anything with more time remaining than this gets a single bulk <see cref="Task.Delay( int )"/>;
-	/// the sub-granularity tail is polled per frame.
+	/// the sub-granularity tail is polled per frame. Measuring takes a while, so a typical value is used until it finishes.
 	/// </summary>
-	internal static readonly int DelayPollingThresholdMs = MeasureTimerGranularityMs();
+	internal static int DelayPollingThresholdMs { get; private set; } = 16;
+
+	static readonly Task TimerGranularityProbe = Task.Run( () => DelayPollingThresholdMs = MeasureTimerGranularityMs() );
 
 	private static int MeasureTimerGranularityMs()
 	{
@@ -528,17 +530,19 @@ public struct TaskSource
 	}
 
 	/// <inheritdoc cref="Task.WhenAny(Task[])" />
-	public async Task WhenAny( params Task[] tasks )
+	public async Task<Task> WhenAny( params Task[] tasks )
 	{
-		await Task.WhenAny( tasks ).WaitAsync( _cancellation );
+		var result = await Task.WhenAny( tasks ).WaitAsync( _cancellation );
 		CancelIfInvalid();
+		return result;
 	}
 
 	/// <inheritdoc cref="Task.WhenAny(IEnumerable{Task})" />
-	public async Task WhenAny( IEnumerable<Task> tasks )
+	public async Task<Task> WhenAny( IEnumerable<Task> tasks )
 	{
-		await Task.WhenAny( tasks ).WaitAsync( _cancellation );
+		var result = await Task.WhenAny( tasks ).WaitAsync( _cancellation );
 		CancelIfInvalid();
+		return result;
 	}
 
 	/// <inheritdoc cref="Task.WaitAny(Task[])" />

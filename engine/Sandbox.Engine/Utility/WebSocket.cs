@@ -197,7 +197,7 @@ public sealed class WebSocket : IDisposable
 
 		var uri = ParseWebSocketUri( websocketUri );
 
-		if ( !Http.IsAllowed( uri ) )
+		if ( !await Http.IsAllowedAsync( uri ) )
 		{
 			throw new InvalidOperationException( $"Access to '{websocketUri}' is not allowed." );
 		}

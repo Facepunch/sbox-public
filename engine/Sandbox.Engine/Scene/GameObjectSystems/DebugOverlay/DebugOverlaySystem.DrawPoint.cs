@@ -24,7 +24,6 @@ file class PointSceneObject : SceneCustomObject
 	{
 		Size = size;
 		Flags.CastShadows = false;
-		managedNative.ExecuteOnMainThread = false;
 	}
 
 	public override void RenderSceneObject()

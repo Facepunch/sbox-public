@@ -12,6 +12,11 @@ public abstract class AssetPicker : Dialog
 		public bool EnableCloud { get; set; } = true;
 
 		/// <summary>
+		/// Allows searching and selecting assets from mounted games
+		/// </summary>
+		public bool EnableMounts { get; set; } = true;
+
+		/// <summary>
 		/// Cloud assets will be shown in a separate tab
 		/// </summary>
 		public bool SeparateCloudTab { get; set; } = true;
@@ -124,7 +129,16 @@ public abstract class AssetPicker : Dialog
 			if ( !AssetSystem.IsCloudInstalled( package ) )
 			{
 				Hide();
-				a = await AssetSystem.InstallAsync( package.FullIdent );
+				try
+				{
+					a = await AssetSystem.InstallAsync( package.FullIdent );
+				}
+				catch ( AggregateException ex )
+				{
+					Log.Error( ex, $"Failed to install package: {package.FullIdent}" );
+					if ( IsValid ) Show();
+					return;
+				}
 				if ( a is null )
 				{
 					Log.Error( $"Failed to install package: {package.FullIdent}" );

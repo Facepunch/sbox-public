@@ -1,6 +1,4 @@
-﻿using System.Collections.Concurrent;
-
-namespace Sandbox;
+﻿namespace Sandbox;
 
 /// <summary>
 /// Updates NavMeshAgent ground positions in parallel during PrePhysicsStep.
@@ -23,7 +21,7 @@ internal sealed class NavMeshGameSystem : GameObjectSystem
 		Scene.GetAll<NavMeshAgent>( _agents );
 		if ( _agents.Count == 0 ) return;
 
-		System.Threading.Tasks.Parallel.ForEach( Partitioner.Create( _agents, loadBalance: true ), FindPhysicsGroundZ );
+		JobDispatcher.For( _agents.Count, this, static ( system, i ) => system.FindPhysicsGroundZ( system._agents[i] ) );
 	}
 
 	/// <summary>
@@ -51,7 +49,8 @@ internal sealed class NavMeshGameSystem : GameObjectSystem
 	/// </summary>
 	private void FindPhysicsGroundZ( NavMeshAgent agent )
 	{
-		if ( agent.agentInternal == null ) return;
+		var simulationAgent = agent.agentInternal;
+		if ( simulationAgent is null ) return;
 
 		if ( agent.timeUntilNextGroundTrace > 0f )
 		{
@@ -61,10 +60,10 @@ internal sealed class NavMeshGameSystem : GameObjectSystem
 		// Introduce some random jitter so not all agents trace on the same frame
 		agent.timeUntilNextGroundTrace = Random.Shared.Int( 2, 4 ) * Time.Delta;
 
-		var footRadius = agent.agentInternal.option.radius * 0.1f;
+		var footRadius = agent.Radius * 0.1f;
 		var traceStartOffset = MathF.Max( 64f, Scene.NavMesh.AgentHeight ) * 8f;
 
-		var navMeshPos = agent.AgentPosition;
+		var navMeshPos = Navigation.NavMesh.FromNav( simulationAgent.State.Position );
 
 		var traceStart = navMeshPos + Vector3.Up * Scene.NavMesh.AgentHeight * 0.3f;
 
@@ -91,7 +90,7 @@ internal sealed class NavMeshGameSystem : GameObjectSystem
 		var downResult = downTrace.Run();
 		var upResult = upTrace.Run();
 
-		var bestZ = 0f;
+		var bestZ = navMeshPos.z;
 		var closestDistanceToTraceStart = float.MaxValue;
 
 		// Process downTrace result
@@ -116,5 +115,13 @@ internal sealed class NavMeshGameSystem : GameObjectSystem
 		}
 
 		agent.groundTraceZ = bestZ;
+		if ( downResult.Hit || upResult.Hit )
+		{
+			lock ( simulationAgent.Owner.Gate )
+			{
+				if ( simulationAgent.Path.Count == 0 && simulationAgent.Link is null )
+					simulationAgent.Position.y = bestZ;
+			}
+		}
 	}
 }

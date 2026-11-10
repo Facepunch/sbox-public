@@ -1,4 +1,4 @@
-<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc29:version{3cec427c-1b0e-4d48-a90a-0436f33a6041} -->
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
 {
 	rootNode = 
 	{
@@ -74,6 +74,7 @@
 							exclude_by_default = false
 							exception_list = 
 							[
+								"human_male_underwear",
 								"human_male_feet",
 								"human_male_arms",
 								"human_male_torso",
@@ -104,6 +105,246 @@
 								"human_male_legs",
 								"human_male_chest",
 								"human_male_underwear",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "chest_lod1"
+						filename = "models/citizen_human/bodies/male/citizen_human_male_LOD1.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"human_male_chest_LOD1",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "hands_lod1"
+						filename = "models/citizen_human/bodies/male/citizen_human_male_LOD1.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"human_male_hands_LOD1",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "legs_lod1"
+						filename = "models/citizen_human/bodies/male/citizen_human_male_LOD1.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"human_male_legs_LOD1",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "feet_lod1"
+						filename = "models/citizen_human/bodies/male/citizen_human_male_LOD1.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"human_male_feet_LOD1",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "chest_lod2"
+						filename = "models/citizen_human/bodies/male/citizen_human_male_LOD2.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"human_male_chest_LOD2",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "hands_lod2"
+						filename = "models/citizen_human/bodies/male/citizen_human_male_LOD2.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"human_male_hands_LOD2",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "legs_lod2"
+						filename = "models/citizen_human/bodies/male/citizen_human_male_LOD2.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"human_male_legs_LOD2",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "feet_lod2"
+						filename = "models/citizen_human/bodies/male/citizen_human_male_LOD2.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"human_male_feet_LOD2",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "chest_lod3"
+						filename = "models/citizen_human/bodies/male/citizen_human_male_LOD3.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"human_male_chest_LOD3",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "hands_lod3"
+						filename = "models/citizen_human/bodies/male/citizen_human_male_LOD3.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"human_male_hands_LOD3",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "legs_lod3"
+						filename = "models/citizen_human/bodies/male/citizen_human_male_LOD3.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"human_male_legs_LOD3",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "feet_lod3"
+						filename = "models/citizen_human/bodies/male/citizen_human_male_LOD3.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"human_male_feet_LOD3",
 							]
 						}
 					},
@@ -178,6 +419,46 @@
 					},
 					{
 						_class = "RenderMeshFile"
+						name = "head_01_lod2"
+						filename = "models/citizen_human/heads/citizen_human_malehead01/citizen_human_male_head_LOD2.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"Male_Head_01_LOD2",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "head_01_lod3"
+						filename = "models/citizen_human/heads/citizen_human_malehead01/citizen_human_male_head_LOD3.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"Male_Head_01_LOD3",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
 						name = "head_02"
 						filename = "models/citizen_human/heads/citizen_human_malehead02/citizen_human_malehead02.fbx"
 						import_translation = [ 0.0, 0.0, 0.0 ]
@@ -242,6 +523,591 @@
 								"human_male_legs",
 								"human_male_feet",
 								"human_male_arms",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "head_02_lod2"
+						filename = "models/citizen_human/heads/citizen_human_malehead02/citizen_human_malehead02_LOD2.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"Head_George_LOD2",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "head_02_lod3"
+						filename = "models/citizen_human/heads/citizen_human_malehead02/citizen_human_malehead02_LOD3.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"Male_Head_01_LOD3",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "head_03"
+						filename = "models/citizen_human/heads/citizen_human_malehead03/citizen_human_malehead03.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = false
+							exception_list = 
+							[
+								"human_male_hands",
+								"human_male_legs",
+								"human_male_feet",
+								"human_male_arms",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "eyes_03"
+						filename = "models/citizen_human/heads/citizen_human_malehead01/citizen_human_malehead01_eyes.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = false
+							exception_list = 
+							[
+								"human_male_hands",
+								"human_male_legs",
+								"human_male_feet",
+								"human_male_arms",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "jaw_03"
+						filename = "models/citizen_human/heads/citizen_human_malehead01/citizen_human_malehead01_jaw.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = false
+							exception_list = 
+							[
+								"human_male_hands",
+								"human_male_legs",
+								"human_male_feet",
+								"human_male_arms",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "head_03_lod2"
+						filename = "models/citizen_human/heads/citizen_human_malehead03/citizen_human_malehead03_LOD2.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"human_male_head_02_LOD2",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "head_03_lod3"
+						filename = "models/citizen_human/heads/citizen_human_malehead03/citizen_human_malehead03_LOD3.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"Male_Head_01_LOD3",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "head_04"
+						filename = "models/citizen_human/heads/citizen_human_malehead04/citizen_human_malehead04.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = false
+							exception_list = 
+							[
+								"human_male_hands",
+								"human_male_legs",
+								"human_male_feet",
+								"human_male_arms",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "eyes_04"
+						filename = "models/citizen_human/heads/citizen_human_malehead01/citizen_human_malehead01_eyes.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = false
+							exception_list = 
+							[
+								"human_male_hands",
+								"human_male_legs",
+								"human_male_feet",
+								"human_male_arms",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "jaw_04"
+						filename = "models/citizen_human/heads/citizen_human_malehead01/citizen_human_malehead01_jaw.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = false
+							exception_list = 
+							[
+								"human_male_hands",
+								"human_male_legs",
+								"human_male_feet",
+								"human_male_arms",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "head_04_lod2"
+						filename = "models/citizen_human/heads/citizen_human_malehead04/citizen_human_malehead04_LOD2.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"human_male_head_02_LOD3",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "head_04_lod3"
+						filename = "models/citizen_human/heads/citizen_human_malehead04/citizen_human_malehead04_LOD3.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"Male_Head_01_LOD3",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "head_05"
+						filename = "models/citizen_human/heads/citizen_human_malehead05/citizen_human_malehead05.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = false
+							exception_list = 
+							[
+								"human_male_hands",
+								"human_male_legs",
+								"human_male_feet",
+								"human_male_arms",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "eyes_05"
+						filename = "models/citizen_human/heads/citizen_human_malehead01/citizen_human_malehead01_eyes.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = false
+							exception_list = 
+							[
+								"human_male_hands",
+								"human_male_legs",
+								"human_male_feet",
+								"human_male_arms",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "jaw_05"
+						filename = "models/citizen_human/heads/citizen_human_malehead01/citizen_human_malehead01_jaw.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = false
+							exception_list = 
+							[
+								"human_male_hands",
+								"human_male_legs",
+								"human_male_feet",
+								"human_male_arms",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "head_05_lod2"
+						filename = "models/citizen_human/heads/citizen_human_malehead05/citizen_human_malehead05_LOD2.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"human_male_head_05_LOD2",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "head_05_lod3"
+						filename = "models/citizen_human/heads/citizen_human_malehead05/citizen_human_malehead05_LOD3.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"Male_Head_01_LOD3",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "head_06"
+						filename = "models/citizen_human/heads/citizen_human_malehead06/citizen_human_malehead06.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = false
+							exception_list = 
+							[
+								"human_male_hands",
+								"human_male_legs",
+								"human_male_feet",
+								"human_male_arms",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "eyes_06"
+						filename = "models/citizen_human/heads/citizen_human_malehead01/citizen_human_malehead01_eyes.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = false
+							exception_list = 
+							[
+								"human_male_hands",
+								"human_male_legs",
+								"human_male_feet",
+								"human_male_arms",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "jaw_06"
+						filename = "models/citizen_human/heads/citizen_human_malehead01/citizen_human_malehead01_jaw.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = false
+							exception_list = 
+							[
+								"human_male_hands",
+								"human_male_legs",
+								"human_male_feet",
+								"human_male_arms",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "head_06_lod2"
+						filename = "models/citizen_human/heads/citizen_human_malehead06/citizen_human_malehead06_LOD2.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"human_male_head_05_LOD2",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "head_06_lod3"
+						filename = "models/citizen_human/heads/citizen_human_malehead06/citizen_human_malehead06_LOD3.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"Male_Head_01_LOD3",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "head_07"
+						filename = "models/citizen_human/heads/citizen_human_malehead07/citizen_human_malehead07.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = false
+							exception_list = 
+							[
+								"human_male_hands",
+								"human_male_legs",
+								"human_male_feet",
+								"human_male_arms",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "eyes_07"
+						filename = "models/citizen_human/heads/citizen_human_malehead01/citizen_human_malehead01_eyes.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = false
+							exception_list = 
+							[
+								"human_male_hands",
+								"human_male_legs",
+								"human_male_feet",
+								"human_male_arms",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "jaw_07"
+						filename = "models/citizen_human/heads/citizen_human_malehead01/citizen_human_malehead01_jaw.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = false
+							exception_list = 
+							[
+								"human_male_hands",
+								"human_male_legs",
+								"human_male_feet",
+								"human_male_arms",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "head_07_lod2"
+						filename = "models/citizen_human/heads/citizen_human_malehead07/citizen_human_malehead07_LOD2.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"Head_George_LOD2",
+							]
+						}
+					},
+					{
+						_class = "RenderMeshFile"
+						name = "head_07_lod3"
+						filename = "models/citizen_human/heads/citizen_human_malehead07/citizen_human_malehead07_LOD3.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter =
+						{
+							exclude_by_default = true
+							exception_list =
+							[
+								"Male_Head_01_LOD3",
 							]
 						}
 					},

@@ -1,0 +1,50 @@
+﻿@using Sandbox
+@using Sandbox.UI
+@using System
+@using MenuProject.Platform
+@namespace MenuProject.Settings
+@inherits Panel
+
+<root class="detail @(Item is null ? "empty" : "")">
+
+	@if ( Item is not null )
+	{
+		<PanelHead Icon="info" Title=@Item.Title />
+
+		<div class="text">
+			<label class="about">@Item.Description</label>
+
+			@if ( Item.Disabled is { } locked )
+			{
+				<div class="note locked">
+					<i>lock</i>
+					<label>@locked</label>
+				</div>
+			}
+			else if ( Item.Warning?.Invoke() is { } warning )
+			{
+				<div class="note warn">
+					<i>warning</i>
+					<label>@warning</label>
+				</div>
+			}
+		</div>
+	}
+	else
+	{
+		<div class="hint">
+			<i>info</i>
+			<label>#menu.settings.hover_a_setting_to_read_what_it_does</label>
+		</div>
+	}
+
+</root>
+
+@code
+{
+	[Parameter] public SettingsView View { get; set; }
+
+	SettingItem Item => View?.Described;
+
+	protected override int BuildHash() => HashCode.Combine( Item?.Id, Item?.Disabled, Item?.Warning?.Invoke() );
+}

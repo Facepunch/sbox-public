@@ -6,6 +6,11 @@ public static partial class Gizmo
 {
 	public static SceneSettings Settings => Active?.Settings;
 
+	/// <summary>
+	/// Bumped when gizmo type enable/disable settings change, so cached handles know to rebuild.
+	/// </summary>
+	internal static int GizmoTypeGeneration { get; private set; }
+
 	[Expose]
 	public enum GridAxis
 	{
@@ -42,6 +47,25 @@ public static partial class Gizmo
 		/// </summary>
 		[Range( 0, 2 )]
 		public float GizmoScale { get; set; } = 1.0f;
+
+		/// <summary>
+		/// When enabled, component gizmo handles are drawn at a fixed world size
+		/// instead of maintaining a constant screen size regardless of distance.
+		/// </summary>
+		public bool WorldSpaceGizmos { get; set; } = false;
+
+		/// <summary>
+		/// When enabled, component gizmo handles are depth tested against scene geometry.
+		/// When disabled, they render on top of everything.
+		/// </summary>
+		public bool GizmoDepthTest { get; set; } = false;
+
+		/// <summary>
+		/// Maximum distance from the camera at which component gizmo handles are visible.
+		/// Set to 0 for unlimited distance.
+		/// </summary>
+		[Range( 0, 50000, slider: false ), Step( 100 )]
+		public float GizmoRenderDistance { get; set; } = 0;
 
 		/// <summary>
 		/// Grid spacing
@@ -94,6 +118,7 @@ public static partial class Gizmo
 			if ( type is null ) return;
 
 			DisabledGizmos[type.FullName] = !enabled;
+			GizmoTypeGeneration++;
 		}
 
 		/// <summary>
@@ -102,6 +127,7 @@ public static partial class Gizmo
 		public void ClearEnabledGizmos()
 		{
 			DisabledGizmos.Clear();
+			GizmoTypeGeneration++;
 		}
 	}
 }

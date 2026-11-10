@@ -9,12 +9,14 @@ namespace Editor;
 /// A SceneEditorSession holds a Scene that is open in the editor.
 /// It creates a widget, has a selection and undo system.
 /// </summary>
-public partial class SceneEditorSession : Scene.ISceneEditorSession
+public partial class SceneEditorSession : Scene.ISceneEditorSession, AssetSystem.IEventListener
 {
 	/// <summary>
 	/// All open editor sessions
 	/// </summary>
 	public static List<SceneEditorSession> All { get; } = new();
+
+	internal static SceneEditorSession Playing => All.FirstOrDefault( x => x.GameSession is not null );
 
 	/// <summary>
 	/// The editor session that is currently active
@@ -60,6 +62,7 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 
 		InitUndo();
 		timeSinceSavedState = 0;
+		_reloadHash = scene.ReloadHash;
 
 		if ( this is not GameEditorSession )
 		{
@@ -71,59 +74,16 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	}
 
 	/// <summary>
-	/// Create the tabbed dock widget that holds the scene view
+	/// Create the scene view widget and open it as a tab in the central scene area
 	/// </summary>
 	void CreateSceneDock()
 	{
 		SceneDock = EditorTypeLibrary.Create<Widget>( "SceneDock", new object[] { this } );
 		SceneDock.Name = $"SceneDock:{(Scene.Source?.ResourcePath ?? "untitled")}";
 
-		SceneDock.Parent = EditorWindow;
-		SceneDock.Visible = true;
+		EditorWindow.SceneTabs.Open( this );
 
 		UpdateEditorTitle();
-
-		Dock();
-	}
-
-	internal static void OnEditorWindowRestoreLayout()
-	{
-		// When we restore a layout it hides all windows and restores a default layout
-		// Our currently open scenes are going to be in limbo with no area
-		// So we need to show and dock them
-
-		// Restoring will open a blank SceneDock as an area for the others to dock on
-		var dummy = All.Where( x => x.Scene.Source is null && EditorWindow.DockManager.IsDockOpen( x.SceneDock ) ).FirstOrDefault();
-
-		foreach ( var entry in All )
-		{
-			if ( EditorWindow.DockManager.IsDockOpen( entry.SceneDock ) )
-				continue;
-
-			entry.Dock();
-		}
-
-		// Remove our dummy dock, unless it's the only one open somehow
-		if ( All.Count > 1 )
-			dummy?.Destroy();
-	}
-
-	void Dock()
-	{
-		// Don't try to dock if we're being made by the DockManager (it will dock us after)
-		if ( EditorWindow.DockManager._creatingDock )
-			return;
-
-		// Dock inside the same area as other scenes (must be open)
-		var siblingDock = All.Where( x => x != this && EditorWindow.DockManager.IsDockOpen( x.SceneDock ) ).FirstOrDefault();
-		if ( siblingDock is not null )
-		{
-			EditorWindow.DockManager.AddDock( siblingDock.SceneDock, SceneDock, DockArea.Inside );
-			return;
-		}
-
-		// It should be impossible to have no scenes open, fail safe
-		EditorWindow.DockManager.AddDock( null, SceneDock, DockArea.LastUsed );
 	}
 
 	bool _destroyed;
@@ -134,6 +94,9 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 			return;
 
 		_destroyed = true;
+
+		if ( GameSession is not null && Game.IsPlaying )
+			EditorScene.Stop();
 
 		// If this is the active scene
 		// switch away to a sibling
@@ -153,6 +116,9 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 
 		All.Remove( this );
 		EditorEvent.Unregister( this );
+
+		// remove the tab before destroying its scene view
+		EditorWindow?.SceneTabs?.Remove( this );
 
 		Scene?.Destroy();
 		Scene = null;
@@ -182,15 +148,13 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	/// </summary>
 	public void BringToFront()
 	{
-		if ( EditorWindow.DockManager.IsDockOpen( SceneDock, false ) )
-		{
-			EditorWindow.DockManager.RaiseDock( SceneDock );
-		}
+		EditorWindow?.SceneTabs?.MakeCurrent( this );
 
 		UpdateEditorTitle();
 	}
 
 	RealTimeSince timeSinceSavedState;
+	int _reloadHash;
 
 	public void Tick()
 	{
@@ -198,6 +162,14 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		// If this is an editor scene, tick it to flush deleted objects etc
 		//
 		Scene.ProcessDeletes();
+
+		// Reload the scene if settings that affect world setup have changed
+		var hash = Scene.ReloadHash;
+		if ( hash != _reloadHash )
+		{
+			_reloadHash = hash;
+			Scene.Reload();
+		}
 
 		// Save camera state to disk
 		if ( timeSinceSavedState > 1.0f )
@@ -207,12 +179,26 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		}
 	}
 
+	void AssetSystem.IEventListener.OnAssetChanged( Asset asset )
+	{
+		if ( asset is null || asset.Guid == Guid.Empty )
+			return;
+
+		foreach ( var session in All )
+		{
+			if ( session.IsMounted || session.Scene?.Source is not SceneFile source || source.Guid != asset.Guid )
+				continue;
+
+			SceneSource.FindAsset( source );
+		}
+	}
+
 	internal void UpdateEditorTitle()
 	{
 		if ( !SceneDock.IsValid() )
 			return;
 
-		var name = Scene.Name.ToTitleCase().Trim();
+		var name = Scene.Name.Trim();
 		if ( Scene.Editor?.HasUnsavedChanges ?? false ) name += "*";
 
 		EditorWindow?.UpdateEditorTitle( name );
@@ -231,6 +217,8 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 				SceneDock.SetWindowIcon( "grid_4x4" );
 				SceneDock.WindowTitle = name;
 			}
+
+			EditorWindow?.SceneTabs?.UpdateTitle( this );
 		}
 	}
 
@@ -279,9 +267,16 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	}
 
 	bool unsavedChanges;
+
+	/// <summary>
+	/// True if this session is editing a scene opened from a mount. Mounted scenes live at a
+	/// read-only mount:// path, so they can't be saved and never report unsaved changes.
+	/// </summary>
+	public bool IsMounted => Sandbox.Mounting.MountUtility.IsMountPath( Scene?.Source?.ResourcePath );
+
 	public bool HasUnsavedChanges
 	{
-		get => unsavedChanges;
+		get => unsavedChanges && !IsMounted;
 		set
 		{
 			editedScenes.Add( this );
@@ -301,14 +296,29 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		if ( Scene.Source is null )
 			return;
 
+		var source = Scene.Source;
+		if ( source is SceneFile sceneFile && SceneSource.FindAsset( sceneFile ) is Asset asset && File.Exists( asset.GetSourceFile( true ) ) )
+		{
+			var file = SceneSource.LoadForEditing( asset );
+			SceneSource.TrackSource( file );
+			source = file;
+		}
+
 		InitUndo();
-		Scene.Load( Scene.Source );
+		Scene.Load( source );
 
 		Selection.Clear();
 	}
 
 	public void Save( bool saveAs )
 	{
+		// Mounted scenes live at a read-only mount:// path - they can't be saved or saved as.
+		if ( IsMounted )
+			return;
+
+		if ( Scene.Source is SceneFile source )
+			SceneSource.FindAsset( source );
+
 		bool isPrefab = Scene is PrefabScene;
 		string extension = isPrefab ? "prefab" : "scene";
 		string fileType = isPrefab ? "Prefab" : "Scene";
@@ -345,18 +355,29 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 
 		EditorEvent.Run( "scene.beforesave", Active.Scene );
 
+		if ( !isPrefab && !saveAs && !HasUnsavedChanges && Scene.Source is not null && File.Exists( saveLocation ) )
+		{
+			EditorEvent.Run( "scene.saved", Scene );
+			return;
+		}
+
 		var asset = AssetSystem.CreateResource( extension, saveLocation );
 		Assert.NotNull( asset, $"Failed to CreateResource for {fileType} at {saveLocation}" );
 
 		GameResource resource = Scene is PrefabScene prefabScene ? prefabScene.ToPrefabFile() : Scene.CreateSceneFile();
-		asset.SaveToDisk( resource );
+		var saved = resource is SceneFile sceneFile ? SceneSource.Save( asset, sceneFile ) : asset.SaveToDisk( resource );
+		if ( !saved )
+		{
+			Log.Error( $"Could not save {asset.Path}." );
+			return;
+		}
 
 		// Update this scene's path
 		Scene.Source = resource;
 		Scene.Name = System.IO.Path.GetFileNameWithoutExtension( saveLocation );
 
 		HasUnsavedChanges = false;
-		EditorEvent.Run( "scene.saved", Active.Scene );
+		EditorEvent.Run( "scene.saved", Scene );
 
 		UpdateEditorTitle();
 	}
@@ -435,6 +456,53 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	}
 
 	/// <summary>
+	/// Persist the list of open scenes so they can be reopened next session.
+	/// </summary>
+	internal static void SaveOpenSessions()
+	{
+		foreach ( var session in All )
+		{
+			if ( !session.IsMounted && session.Scene?.Source is SceneFile source )
+				SceneSource.FindAsset( source );
+		}
+
+		var open = All
+			.Where( x => x is not GameEditorSession )
+			.Select( x => x.Scene.Source?.ResourcePath )
+			.Where( x => !string.IsNullOrEmpty( x ) )
+			.Distinct()
+			.ToArray();
+
+		ProjectCookie?.Set( "editor.openscenes", open );
+		ProjectCookie?.Set( "editor.activescene", Active?.Scene.Source?.ResourcePath );
+	}
+
+	/// <summary>
+	/// Reopen the scenes that were open last session. Falls back to the project's
+	/// startup scene (or a blank scene) if there's nothing to restore.
+	/// </summary>
+	internal static void RestoreOpenSessions()
+	{
+		foreach ( var path in ProjectCookie?.Get( "editor.openscenes", Array.Empty<string>() ) ?? [] )
+		{
+			CreateFromPath( path );
+		}
+
+		if ( All.Count == 0 )
+		{
+			var startupScene = Project.Current?.Config.GetMetaOrDefault<string>( "StartupScene", null );
+			var session = string.IsNullOrWhiteSpace( startupScene ) ? null : CreateFromPath( startupScene );
+			session ??= CreateDefault();
+			session.MakeActive();
+			return;
+		}
+
+		var activePath = ProjectCookie?.Get<string>( "editor.activescene", null );
+		var active = All.FirstOrDefault( x => x.Scene.Source?.ResourcePath == activePath ) ?? All[0];
+		active.MakeActive();
+	}
+
+	/// <summary>
 	/// Make a new SceneEditorSession with a default scene
 	/// </summary>
 	public static SceneEditorSession CreateDefault()
@@ -466,7 +534,18 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	/// </summary>
 	public static SceneEditorSession CreateFromPath( string path )
 	{
-		var resource = ResourceLibrary.Get<Resource>( path );
+		Resource resource = null;
+
+		if ( AssetSystem.FindByPath( path ) is Asset asset && asset.AssetType.FileExtension == "scene" && File.Exists( asset.GetSourceFile( true ) ) )
+		{
+			resource = SceneSource.LoadForEditing( asset );
+		}
+
+		resource ??= ResourceLibrary.Get<Resource>( path );
+
+		// Not loaded yet? It might be a mounted scene/prefab.
+		resource ??= SceneFile.Load( path );
+		resource ??= PrefabFile.Load( path );
 
 		if ( resource is SceneFile sceneFile )
 		{
@@ -480,6 +559,7 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 			using var _ = openingScene.Push();
 
 			openingScene.Load( sceneFile );
+			SceneSource.TrackSource( sceneFile );
 
 			var session = new SceneEditorSession( openingScene );
 			return session;
@@ -515,15 +595,15 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 
 	public Editor.SceneFolder GetSceneFolder()
 	{
-		if ( Scene?.Source?.ResourcePath == null )
+		if ( Scene?.Source?.ResourcePath is not { } path || AssetSystem.FindByPath( path ) is not { } sourceAsset )
 			return default;
 
-		if ( AssetSystem.FindByPath( Scene.Source.ResourcePath ) is Asset sourceAsset )
-		{
-			return new AssetFolderInstance( sourceAsset );
-		}
+		var relativePath = sourceAsset.GetSourceFile( false );
+		var assetPath = sourceAsset.GetSourceFile( true );
+		if ( string.IsNullOrEmpty( relativePath ) || string.IsNullOrEmpty( assetPath ) )
+			return default;
 
-		return default;
+		return new AssetFolderInstance( relativePath, assetPath );
 	}
 }
 
@@ -533,11 +613,8 @@ file class AssetFolderInstance : SceneFolder
 	string _relativeFolder;
 	BaseFileSystem _fs;
 
-	public AssetFolderInstance( Asset sourceAsset )
+	public AssetFolderInstance( string relativePath, string assetPath )
 	{
-		var relativePath = sourceAsset.GetSourceFile( false );
-		var assetPath = sourceAsset.GetSourceFile( true );
-
 		var extension = System.IO.Path.GetExtension( assetPath ).Replace( ".", "_" );
 		_folder = System.IO.Path.ChangeExtension( assetPath, null );
 		_folder = $"{_folder}{extension}_data";

@@ -83,14 +83,15 @@ namespace Sandbox.SolutionGenerator
 					IgnoreFolders = p.Settings.IgnoreFolders.ToList(),
 					IsEditorProject = p.IsEditorProject,
 					IsUnitTestProject = p.IsUnitTestProject,
-					IgnoreFiles = p.IgnoreFiles
+					IgnoreFiles = p.IgnoreFiles,
+					CompilerProperties = p.CompilerProperties
 				};
 
 				foreach ( var proj in p.PackageReferences.Distinct().Order() )
 				{
 					if ( proj.Contains( "\\" ) )
 					{
-						csproj.ProjectReferences += $"		<Reference Include=\"{proj}\" />\n";
+						csproj.ProjectReferences += $"		<Reference Include=\"{System.Security.SecurityElement.Escape( proj )}\" />\n";
 						continue;
 					}
 
@@ -115,7 +116,7 @@ namespace Sandbox.SolutionGenerator
 					var propertiesPath = Path.Combine( p.Path, "Properties" );
 					Directory.CreateDirectory( propertiesPath );
 
-					var absoluteExePath = Path.Combine( relativePath, "sbox-dev.exe" );
+					var absoluteExePath = Path.Combine( relativePath, OperatingSystem.IsWindows() ? "sbox-dev.exe" : "sbox-dev" );
 					var relativeExePath = AttemptAbsoluteToRelative( propertiesPath, absoluteExePath );
 
 					var launchSettings = new LaunchSettings { Profiles = new() };

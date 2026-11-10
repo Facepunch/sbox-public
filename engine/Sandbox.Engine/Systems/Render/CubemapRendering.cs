@@ -8,7 +8,9 @@ namespace Sandbox;
 /// </summary>
 internal static class CubemapRendering
 {
-	static ComputeShader EnvmapFilter = new( "envmap_filtering_cs" );
+	// Made in Render, before rendering. As a static initializer it was first reached from Filter, in the cube camera's render
+	// stage hook, during rendering, where Material.Create throws: the type failed to initialize, and every render after threw.
+	static ComputeShader EnvmapFilter;
 
 	/// <summary>
 	/// Specifies the quality level for GGX filtering of environment maps.
@@ -35,10 +37,13 @@ internal static class CubemapRendering
 	/// <param name="znear">The near plane distance for the camera.</param>
 	/// <param name="zfar">The far plane distance for the camera.</param>
 	/// <param name="filterType">The quality level for GGX filtering.</param>
-	public static void Render( SceneWorld world, Texture cubemapTexture, Transform cubemapTransform, float znear, float zfar, GGXFilterType filterType )
+	/// <param name="excludeTags">Objects with any of these tags will be excluded from the render.</param>
+	public static void Render( SceneWorld world, Texture cubemapTexture, Transform cubemapTransform, float znear, float zfar, GGXFilterType filterType, ITagSet excludeTags = null )
 	{
-		if ( Application.IsHeadless )
+		if ( !Graphics.IsAvailable )
 			throw new Exception( "Tried to call CubemapRendering.Render from a dedicated server" );
+
+		EnvmapFilter ??= new ComputeShader( "envmap_filtering_cs" );
 
 		using var camera = new SceneCamera( "CubemapRendering" );
 		camera.FieldOfView = 90;
@@ -49,21 +54,26 @@ internal static class CubemapRendering
 		camera.World = world;
 		camera.ExcludeFromTextureStreaming = true;
 
+		if ( excludeTags is not null )
+		{
+			camera.ExcludeTags.SetFrom( excludeTags );
+		}
+
+		// Hide In Game meshes are still visible in the editor, keep them out of bakes
+		camera.ExcludeTags.Add( MeshComponent.HideInGameTag );
+
 		// We need to filter with GGX after rendering is done so that roughness levels sample correctly.
 		// SceneCameras don't abstract Command Lists directly, so we hook into the render stage for same behavior.
 		//
-		// We render 6 faces, so we wait until the last face is done before filtering. Once we move to multiview we don't need to count faces.
-		const int numFaces = 6;
-		int i = 0;
+		// Faces record in parallel, but submit in array order. Attach filtering to the last
+		// submitted face, regardless of which recording callback happens to finish last.
 
 		camera.OnRenderStageHook += ( stage, camera ) =>
 		{
 			if ( stage != Stage.AfterPostProcess )
 				return;
 
-			i++;
-			// Only filter when the last face is rendered
-			if ( i < numFaces )
+			if ( Graphics.SceneView.GetRenderTargetArrayIndex() != 5 )
 				return;
 
 			// Apply filtering after rendering is done

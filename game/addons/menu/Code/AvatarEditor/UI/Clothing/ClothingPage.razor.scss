@@ -1,6 +1,16 @@
 ClothingPage
 {
     display: contents;
+
+    // Leave room for the fixed Back / Save controls below the settings list.
+    > .body-left
+    {
+        margin-bottom: 192px;
+        min-height: 0;
+
+        // Size the settings panel to its contents instead of stretching it down the column
+        align-items: flex-start;
+    }
 }
 
 ClothingPage > .body-right

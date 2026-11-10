@@ -36,6 +36,13 @@ public record DiskLocation : LocalAssetBrowser.Location
 				Icon = "face";
 				Type = LocalAssetBrowser.LocationType.Assets;
 			}
+			else if ( v.Contains( "/addons/content/assets" ) )
+			{
+				RootPath = FileSystem.Root.GetFullPath( "/addons/content/assets/" );
+				RootTitle = "Default Content";
+				Icon = "perm_media";
+				Type = LocalAssetBrowser.LocationType.Assets;
+			}
 		}
 
 		if ( string.Equals( RootPath, Path, StringComparison.OrdinalIgnoreCase ) )
@@ -105,6 +112,9 @@ public record DiskLocation : LocalAssetBrowser.Location
 
 	public override IEnumerable<LocalAssetBrowser.Location> GetDirectories()
 	{
+		if ( !Directory.Exists( Path ) )
+			yield break;
+
 		foreach ( var subDir in Directory.GetDirectories( Path ) )
 		{
 			var dir = new DirectoryInfo( subDir );

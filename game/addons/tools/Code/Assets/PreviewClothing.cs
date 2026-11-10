@@ -8,7 +8,7 @@ class PreviewClothing : PreviewImage
 	{
 		if ( Asset.TryLoadResource<Clothing>( out var clothing ) && !string.IsNullOrEmpty( clothing.Icon.Path ) )
 		{
-			texture = Texture.Load( clothing.Icon.Path );
+			Texture = Texture.Load( clothing.Icon.Path );
 		}
 	}
 }

@@ -73,4 +73,19 @@ internal enum LayerFlags : UInt64
 	/// Use pyramid geometry for light rendering instead of cone geo. Don't restrict to geometry
 	/// </summary>
 	UseVolumePyramidSpotlightGeo = 0x0000010000000000,
+
+	/// <summary>
+	/// Only draw what passed the view's GPU occlusion cull.
+	/// </summary>
+	OcclusionCulled = 0x0000020000000000,
+
+	/// <summary>
+	/// Depth prepass that only draws what passed the occlusion cull against last frame's depth.
+	/// </summary>
+	OcclusionCulledEarly = 0x0000040000000000,
+
+	/// <summary>
+	/// Depth prepass for what the early occlusion cull rejected but is visible now.
+	/// </summary>
+	OcclusionCulledLate = 0x0000080000000000,
 };

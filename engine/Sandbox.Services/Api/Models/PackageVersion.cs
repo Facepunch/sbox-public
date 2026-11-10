@@ -15,6 +15,11 @@ public class PackageVersion
 	public int EngineVersion { get; set; }
 	public string Meta { get; set; }
 
+	/// <summary>
+	/// Extra metadata extracted from the version's files (model stats etc), or null if not processed.
+	/// </summary>
+	public BaseMetaData Extra { get; set; }
+
 	// backwards compatibility
 	public long AssetVersionId { get; set; }
 }

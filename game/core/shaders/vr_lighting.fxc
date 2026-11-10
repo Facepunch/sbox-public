@@ -55,9 +55,22 @@ bool g_bShowLPVVoxels < Attribute( "g_bShowLPVVoxels" ); >;
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Self shadow normal maps
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-#if ( S_ENABLE_NORMAL_SELF_SHADOW )
-float g_flLightRangeForSelfShadowNormals < Default( 0.707 ); Range( 0.0, 1.0 ); UiGroup( "Normal" ); >;
+#ifndef S_ENABLE_NORMAL_SELF_SHADOW
+#define S_ENABLE_NORMAL_SELF_SHADOW 0
 #endif
+#ifndef S_CLOTH_SHADING
+#define S_CLOTH_SHADING 0
+#endif
+#ifndef S_TRANSMISSIVE_BACKFACE_NDOTL
+#define S_TRANSMISSIVE_BACKFACE_NDOTL 0
+#endif
+#ifndef S_TRANSMISSIVE
+#define S_TRANSMISSIVE 0
+#endif
+#ifndef S_DIFFUSE_TWO_SIDED
+#define S_DIFFUSE_TWO_SIDED 0
+#endif
+float g_flLightRangeForSelfShadowNormals < Default( 0.707 ); Range( 0.0, 1.0 ); UiGroup( "Normal" ); >;
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 struct LightingTerms_t
@@ -134,13 +147,12 @@ void ComputeDiffuseAndSpecularTerms( out float3 o_vDiffuseTerm, out float3 o_vSp
 	float3 vNormalWs = f.vNormalWs.xyz;
 
 	// Gets rid of bumps as light direction becomes more grazing
-	#if ( S_ENABLE_NORMAL_SELF_SHADOW )
+	if ( S_ENABLE_NORMAL_SELF_SHADOW != 0 )
 	{
 		float flDot = dot( vPositionToLightDirWs.xyz, f.vNormalWs.xyz ) * ( 1.0 / g_flLightRangeForSelfShadowNormals );
 		vNormalWs.xyz = lerp( f.vNormalWs.xyz, vNormalWs.xyz, saturate( flDot ) );
 		vNormalWs.xyz = normalize( vNormalWs.xyz );
 	}
-	#endif
 
 	// Diffuse
 	o_vDiffuseTerm = float3( 0.0, 0.0, 0.0 );
@@ -178,7 +190,9 @@ void ComputeDiffuseAndSpecularTerms( out float3 o_vDiffuseTerm, out float3 o_vSp
 			#else
 			{
 				float flDiffuseExponent = ( vDiffuseExponent.x + vDiffuseExponent.y ) * 0.5;
-				o_vDiffuseTerm.rgb = pow( flNDotL, flDiffuseExponent ) * ( ( flDiffuseExponent + 1.0 ) * 0.5 ).xxx;
+				// Two-sided diffuse leaves the clamped N.L used by specular unchanged.
+				float flDiffuseNdotL = S_DIFFUSE_TWO_SIDED ? abs( dot( f.vNormalWs.xyz, vPositionToLightDirWs.xyz ) ) : flNDotL;
+				o_vDiffuseTerm.rgb = pow( flDiffuseNdotL, flDiffuseExponent ) * ( ( flDiffuseExponent + 1.0 ) * 0.5 ).xxx;
 			}
 			#endif
 		}
@@ -186,7 +200,7 @@ void ComputeDiffuseAndSpecularTerms( out float3 o_vDiffuseTerm, out float3 o_vSp
 
 	// Specular
 	o_vSpecularTerm = float3( 0.0, 0.0, 0.0 );
-	[branch] if ( bSpecular )
+	[branch] if ( bSpecular && ( !S_DIFFUSE_TWO_SIDED || flNDotL > 0.0 ) )
 	{
 		float3 vHalfAngleDirWs = normalize( vPositionToLightDirWs.xyz + vPositionToCameraDirWs.xyz );
 
@@ -207,13 +221,14 @@ void ComputeDiffuseAndSpecularTerms( out float3 o_vDiffuseTerm, out float3 o_vSp
 		float flVdotH = ClampToPositive( dot( vPositionToCameraDirWs.xyz, vHalfAngleDirWs.xyz ) );
 
 		float flSpecularTerm = 0.0;
-		#if ( S_CLOTH_SHADING )
+		if ( S_CLOTH_SHADING != 0 )
 		{
 			float flIsotropicRoughness = IsotropicRoughnessFromAnisotropicRoughness( f.vRoughness.xy );
 			flSpecularTerm = ComputeCharlieSheenBRDF( flIsotropicRoughness, flNDotL, flNdotV, flNdotH );
 			flSpecularTerm *= flNDotL;
 		}
-		#elif ( S_ANISOTROPIC_GLOSS ) // Adds 34 asm instructions compared to isotropic spec in #else below
+		else
+		#if ( S_ANISOTROPIC_GLOSS ) // Adds 34 asm instructions compared to isotropic spec in #else below
 		{
 			flSpecularTerm = ComputeGGXAnisoBRDF( f.vRoughness.xy, flNDotL, flNdotV, flNdotH, flXdotH, flYdotH, flVdotH, f.vPositionSs.xy );
 			flSpecularTerm *= flNDotL;
@@ -241,12 +256,11 @@ void ComputeDiffuseAndSpecularTerms( out float3 o_vDiffuseTerm, out float3 o_vSp
 	}
 
 	o_vTransmissiveTerm.rgb = float3( 0.0, 0.0, 0.0 );
-	#if ( S_TRANSMISSIVE_BACKFACE_NDOTL || S_TRANSMISSIVE )
+	if ( S_TRANSMISSIVE_BACKFACE_NDOTL != 0 || S_TRANSMISSIVE != 0 )
 	{
 		float flBackfaceNdotL = ClampToPositive( -dot( f.vNormalWs.xyz, vPositionToLightDirWs.xyz ) );
 		o_vTransmissiveTerm.rgb = flBackfaceNdotL.xxx;
 	}
-	#endif
 }
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -302,83 +316,39 @@ float3 GetTransmissiveThickness( const FinalCombinerInput_t f, const BinnedLight
 	return 1.0f;
 }
 
-//-------------------------------------------------------------------------------------------------------------------------------------------------------------
-// Todo: Make this single path for everything? This is much nicer, and LTC makes this pretty cheap
-// Missing: Transmissive, Anisotropic, Two Lobe Specular, Cloth Shading BRDF
-//-------------------------------------------------------------------------------------------------------------------------------------------------------------
-void ComputeDirectLightingForAreaLight( const FinalCombinerInput_t f, const BinnedLight lightData, inout float3 vDiffuse, inout float3 vSpecular, inout float3 vTransmissive, float flFalloff = 1.0f, bool bBaked = false )
-{
-	float3 vPositionToCameraDirWs = CalculatePositionToCameraDirWs( f.vPositionWs.xyz);
-	float flRoughness = IsotropicRoughnessFromAnisotropicRoughness( f.vRoughness.xy );
-	float flNDotV					= ClampToPositive( dot( vPositionToCameraDirWs.xyz, f.vNormalWs.xyz ) );
-	float3 vBRDF = CalcBRDFReflectionFactor( flNDotV, flRoughness, f.vSpecularColor);
-	float flShadow = 1.0f; // Not yet
-
-	if( lightData.IsDiffuseEnabled()  )
-	{
-		vDiffuse += !bBaked ? ( LTC::Contribution(
-							lightData,                          // Light data
-							f.vPositionWs.xyz,                  // World-space position (P)
-							f.vNormalWs.xyz,                    // World-space normal (N)
-							normalize(vPositionToCameraDirWs),  // World-space view direction (V)
-							flRoughness,                     // Material roughness parameter
-							false
-		) * flShadow * flFalloff ) : lightData.Color;
-	}
-
-	if( lightData.IsSpecularEnabled() )
-	{
-        vSpecular += LTC::Contribution(
-                         lightData,                         // Light data
-                         f.vPositionWs.xyz,                 // World-space position (P)
-                         f.vNormalWs.xyz,                   // World-space normal (N)
-                         normalize(vPositionToCameraDirWs), // World-space view direction (V)
-                         flRoughness,                       // Material roughness parameter
-                         true
-		) * flShadow * flFalloff * vBRDF;
-	}
-	
-	// Todo: Transmissive
-}
 //---------------------------------------------------------------------------------------------------------------------------------------------------------
-void ComputeDirectLightingForLight( const FinalCombinerInput_t f, const BinnedLight lightData, inout float3 vDiffuse, inout float3 vSpecular, inout float3 vTransmissive, bool bBaked = false )
+void ComputeDirectLightingForLight( const FinalCombinerInput_t f, float3 vReceiverNormalWs, const BinnedLight lightData, inout float3 vDiffuse, inout float3 vSpecular, inout float3 vTransmissive, bool bBaked = false, bool bModulators = false )
 {
 	const float2 vDiffuseExponent = ( ( 1.0 - f.vRoughness.xy ) * 0.8 ) + 0.6; // 0.8 and 0.6 are magic numbers;
 
 	float3 vLightColor		= lightData.Color;
 	float3 vLightPositionWs = lightData.GetPosition();
 	float3 vPositionToLightRayWs = vLightPositionWs - f.vPositionWs.xyz; // "L"
-	float3 vPositionToCameraDirWs = CalculatePositionToCameraDirWs( f.vPositionWs.xyz);
-
-	float3 vPositionToLightDirWs = normalize(vPositionToLightRayWs.xyz);
-
 	float flDistToLightSq = dot( vPositionToLightRayWs.xyz, vPositionToLightRayWs.xyz );
-	float flNDotL = ClampToPositive( dot( f.vNormalWs.xyz, vPositionToLightDirWs.xyz ) );
 
-	if ( flDistToLightSq > lightData.RadiusSquared && !bBaked ) // .z stores radius squared of light
-	{
-		// Outside light range
+	// Reject before any other work: clusters are coarse, so many pixels in a light's list are out of its range
+	if ( flDistToLightSq > lightData.RadiusSquared && !bBaked )
 		return;
-	}
+
+	float3 vPositionToCameraDirWs = CalculatePositionToCameraDirWs( f.vPositionWs.xyz);
+	float3 vPositionToLightDirWs = vPositionToLightRayWs * rsqrt( flDistToLightSq );
+	float flNDotL = ClampToPositive( dot( f.vNormalWs.xyz, vPositionToLightDirWs.xyz ) );
 
 	float flOuterConeCos = lightData.SpotLightInnerOuterConeCosines.y;
 	float flConeToDirection = dot( vPositionToLightDirWs.xyz, -lightData.GetDirection() ) - flOuterConeCos;
-	if ( flConeToDirection <= 0.0 && !bBaked )
-	{
-		// Outside spotlight cone
-		return;
-	}
-	
-	bool isAreaLight = lightData.ShapeSize.x > 1.0f;
-	if( isAreaLight )
-    {
-		// We do some weird math for falloff calculation in lightdesc for point lights, we only want the truncation value of this for area lights since
-		// LTC already does falloff by itself, this approximates the falloff value correctly, soon should use barn lights system without this bs
-		const float flAreaFalloff = ( lightData.FalloffBias * ( lightData.RadiusSquared / 10000.0f ) ) * ( 1.0 - ( flDistToLightSq / lightData.RadiusSquared ) );
 
-        ComputeDirectLightingForAreaLight(f, lightData, vDiffuse, vSpecular, vTransmissive, flAreaFalloff, bBaked );
+	// Cone and facing tests share one branch so their light data loads in one round trip; bitwise |, && would split it
+	bool bReject = !bBaked && ( flConeToDirection <= 0.0 );
+
+	#if ( !S_TRANSMISSIVE && !S_SUBSURFACE_SCATTERING && !S_DIFFUSE_TWO_SIDED )
+		// Facing away: diffuse is pow( N.L ) and every specular lobe is scaled by N.L, so the light adds nothing.
+		// S_TRANSMISSIVE_BACKFACE_NDOTL is a spec constant, so #if would always read it as 0
+		if ( S_TRANSMISSIVE_BACKFACE_NDOTL == 0 )
+			bReject = bReject | ( ( flNDotL <= 0.0 ) & !g_bNonDirectionalDiffuseLighting );
+	#endif
+
+	if ( bReject )
 		return;
-	}
 
     float flSpotAtten = flConeToDirection * lightData.SpotLightInnerOuterConeCosines.z;
     float flLightFalloff = CalculateDistanceFalloff(flDistToLightSq, lightData.LinearFalloff, lightData.QuadraticFalloff, lightData.FalloffBias, 1.0);
@@ -407,11 +377,11 @@ void ComputeDirectLightingForLight( const FinalCombinerInput_t f, const BinnedLi
 	{
 		if ( lightData.Type == LightType::LightTypePoint )
 		{
-			flShadowScalar = ProjectedShadowCube::GetVisibility( shadowIndex, f.vPositionWs.xyz );
+			flShadowScalar = ProjectedShadowCube::GetVisibility( shadowIndex, f.vPositionWs.xyz, vReceiverNormalWs );
 		}
 		else if ( lightData.Type == LightType::LightTypeSpot )
 		{
-			flShadowScalar = ProjectedShadow::GetVisibility( shadowIndex, f.vPositionWs.xyz, f.vPositionSs.xy );
+			flShadowScalar = ProjectedShadow::GetVisibility( shadowIndex, f.vPositionWs.xyz, vReceiverNormalWs, f.vPositionSs.xy );
 		}
 
 		// Dont do this fancy SSS stuff with shadows disabled else it looks shit, we calculate the thickness from the light surface
@@ -423,7 +393,7 @@ void ComputeDirectLightingForLight( const FinalCombinerInput_t f, const BinnedLi
 	// Directional lights use their own CSM shadow path
 	if ( lightData.Type == LightType::LightTypeDirectional && g_DirectionalLightCascadeCount > 0 )
 	{
-		flShadowScalar = DirectionalLightShadow::GetVisibility( f.vPositionWs.xyz, f.vPositionSs.xy );
+		flShadowScalar = DirectionalLightShadow::GetVisibilityWithOffset( f.vPositionWithOffsetWs.xyz, vReceiverNormalWs, f.vPositionSs );
 	}
 
 	#if ( !S_TRANSMISSIVE )
@@ -432,6 +402,23 @@ void ComputeDirectLightingForLight( const FinalCombinerInput_t f, const BinnedLi
 			return;
 	#endif
 	
+	// Apply transmission after range, cone and shadow rejection, to this light alone.
+	// bModulators is uniform: the clustered loop passes its wave's cluster features
+	[branch]
+	if ( bModulators )
+	{
+		if ( lightData.Type == LightType::LightTypeDirectional )
+		{
+			// Indexed baked sun matrices already point from the receiver toward the source.
+			vLightColor *= LightModulators::EvaluateSun( f.vPositionWs.xyz, lightData.GetDirection() );
+		}
+		else
+		{
+			vLightColor *= LightModulators::Evaluate( f.vPositionWs.xyz, vPositionToLightDirWs,
+				sqrt( flDistToLightSq ), lightData.LightModulatorOffset, lightData.LightModulatorCount );
+		}
+	}
+
 	float3 vDiffuseTerm, vSpecularTerm, vTransmissiveTerm;
 	ComputeDiffuseAndSpecularTerms(
 		vDiffuseTerm,
@@ -452,7 +439,7 @@ void ComputeDirectLightingForLight( const FinalCombinerInput_t f, const BinnedLi
 }
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------------
-void ComputeDirectionalLight( const FinalCombinerInput_t f, inout float3 vDiffuse, inout float3 vSpecular, inout float3 vTransmissive )
+void ComputeDirectionalLight( const FinalCombinerInput_t f, float3 vReceiverNormalWs, inout float3 vDiffuse, inout float3 vSpecular, inout float3 vTransmissive )
 {
 	if ( !g_DirectionalLightEnabled )
 		return;
@@ -460,6 +447,9 @@ void ComputeDirectionalLight( const FinalCombinerInput_t f, inout float3 vDiffus
 	const float2 vDiffuseExponent = ( ( 1.0 - f.vRoughness.xy ) * 0.8 ) + 0.6;
 
 	float3 vLightColor = g_DirectionalLightColor.rgb;
+	[branch]
+	if ( LightModulators::Active() )
+		vLightColor *= LightModulators::EvaluateSun( f.vPositionWs.xyz, -g_DirectionalLightDirection.xyz );
 
 	float3 vPositionToLightDirWs = -g_DirectionalLightDirection.xyz;
 	float3 vPositionToCameraDirWs = CalculatePositionToCameraDirWs( f.vPositionWs.xyz );
@@ -470,7 +460,7 @@ void ComputeDirectionalLight( const FinalCombinerInput_t f, inout float3 vDiffus
 	// Only sample shadows if cascades exist
 	if ( g_DirectionalLightCascadeCount > 0 )
 	{
-		flShadowScalar = DirectionalLightShadow::GetVisibility( f.vPositionWs.xyz, f.vPositionSs.xy );
+		flShadowScalar = DirectionalLightShadow::GetVisibilityWithOffset( f.vPositionWithOffsetWs.xyz, vReceiverNormalWs, f.vPositionSs );
 	}
 
 	float3 vTransmissiveThickness = 1.0f;
@@ -504,17 +494,25 @@ void ComputeDirectionalLight( const FinalCombinerInput_t f, inout float3 vDiffus
 }
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------------
-void ComputeDirectLighting( inout LightingTerms_t o, const FinalCombinerInput_t f )
+// nClusterIndex is Cluster::Index( f.vPositionSs ), taken once by callers that also light indirectly. Transmission starts
+// at vTransmissiveStart: it is only ever added to the final colour, so a caller can park emissive in it rather than
+// keep emissive live through the light loops.
+void ComputeDirectLighting( inout LightingTerms_t o, const FinalCombinerInput_t f, uint nClusterIndex, float3 vTransmissiveStart )
 {
 	o.vDiffuse 		= float3( 0.0, 0.0, 0.0 );
 	o.vSpecular 	= float3( 0.0, 0.0, 0.0 );
-	o.vTransmissive = float3( 0.0, 0.0, 0.0 );
+	o.vTransmissive = vTransmissiveStart;
+
+	// Receiver normal for the shadow normal offset. It comes from screen-space derivatives, which are only
+	// defined in uniform control flow: take it once here, never inside the per-light loop below, where the
+	// lanes of a quad diverge whenever neighbouring pixels sit in different clusters.
+	const float3 vReceiverNormalWs = ComputeShadowReceiverNormal( f.vPositionWithOffsetWs.xyz );
 
 	// Directional light fast path — skip for baked surfaces since they get the
 	// directional light through the indexed baked light loop with per-texel strength
 	// and CSM shadows are sampled inside ComputeDirectLightingForLight.
 	if ( !LightmappedLight::UsesLightmaps() && !ProbeLight::UsesProbes() )
-		ComputeDirectionalLight( f, o.vDiffuse.rgb, o.vSpecular.rgb, o.vTransmissive.rgb );
+		ComputeDirectionalLight( f, vReceiverNormalWs, o.vDiffuse.rgb, o.vSpecular.rgb, o.vTransmissive.rgb );
 
 	// Cascade debug visualization — always runs regardless of baked/dynamic path
 	if ( DirectionalLightDebug > 0 && g_DirectionalLightCascadeCount > 0 )
@@ -524,19 +522,30 @@ void ComputeDirectLighting( inout LightingTerms_t o, const FinalCombinerInput_t 
 	}
 
 	// Dynamic lights from cluster culling
-	ClusterRange lightRange = Cluster::Query( ClusterItemType_Light, f.vPositionSs );
+	ClusterRange lightRange = Cluster::Query( ClusterItemType_Light, nClusterIndex );
 
-	[loop]
-	for ( uint i = 0; i < lightRange.Count; i++ )
-	{
-		const uint index = Cluster::LoadItem( lightRange, i );
-		const BinnedLight lightData = DynamicLightConstantByIndex( index );
-		ComputeDirectLightingForLight( f, lightData, o.vDiffuse.rgb, o.vSpecular.rgb, o.vTransmissive.rgb );
-	}
+	// Waves with no lights skip the loop with a ballot. On the RX 580 this cut the forward pass by a third even in
+	// scenes with no local lights, far more than the instructions it skips: it changes register allocation, so
+	// benchmark before moving it
+	if ( !WaveActiveAnyTrue( lightRange.Count > 0 ) )
+		return;
+
+	// Whether any lane's cluster has a modulated light, uniform across the wave. One loop with a uniform branch inside:
+	// a second copy of the loop without modulators doubled the light code in every combo (compile time, and a wave of
+	// occupancy on the heaviest combos) for a few percent in light-heavy scenes.
+	uint features = Cluster::WaveFeatures( lightRange ) & ( LightModulators::Active() ? ClusterFeature_LightModulators : 0 );
+
+	ClusterForEach( lightRange )
+		ComputeDirectLightingForLight( f, vReceiverNormalWs, DynamicLightConstantByIndex( lightRange.Item ), o.vDiffuse.rgb, o.vSpecular.rgb, o.vTransmissive.rgb, false, features != 0 );
+}
+
+void ComputeDirectLighting( inout LightingTerms_t o, const FinalCombinerInput_t f )
+{
+	ComputeDirectLighting( o, f, Cluster::Index( f.vPositionSs ), float3( 0.0, 0.0, 0.0 ) );
 }
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------------
-void CalcBakedLightingForLight( const FinalCombinerInput_t finalCombinerInput, int iLightIndex, float flStrength,
+void CalcBakedLightingForLight( const FinalCombinerInput_t finalCombinerInput, float3 vReceiverNormalWs, int iLightIndex, float flStrength,
 	inout float3 io_vDiffuse, inout float3 io_vSpecular, inout float3 io_vTransmissive )
 {
 	[branch]
@@ -548,7 +557,7 @@ void CalcBakedLightingForLight( const FinalCombinerInput_t finalCombinerInput, i
 		float3 vSpecular = 0;
 		float3 vTransmissive = 0;
 
-		ComputeDirectLightingForLight( finalCombinerInput, lightData, vDiffuse, vSpecular, vTransmissive, true );
+		ComputeDirectLightingForLight( finalCombinerInput, vReceiverNormalWs, lightData, vDiffuse, vSpecular, vTransmissive, true, LightModulators::Active() );
 
 		io_vDiffuse += vDiffuse.xyz * flStrength;
 		io_vSpecular += vSpecular.xyz * flStrength;
@@ -556,8 +565,69 @@ void CalcBakedLightingForLight( const FinalCombinerInput_t finalCombinerInput, i
 	}
 }
 
+//---------------------------------------------------------------------------------------------------------------------------------------------------------
+void ComputeBakedLighting( inout LightingTerms_t o, const FinalCombinerInput_t f )
+{
+	if ( !LightmappedLight::UsesLightmaps() && !ProbeLight::UsesProbes() )
+		return;
+
+	int4 vLightIndices;
+	float4 vLightStrengths;
+	if ( LightmappedLight::UsesLightmaps() )
+	{
+		float3 vLightmapUVW = float3( f.vLightmapUV, 0 );
+		vLightIndices = int4( Tex2DArrayS( LightMap( 0 ), g_sPointClamp, vLightmapUVW ).rgba * 255.0 );
+		vLightStrengths = Tex2DArrayS( LightMap( 1 ), g_sTrilinearClamp, vLightmapUVW ).rgba;
+		vLightStrengths *= vLightStrengths;
+	}
+	else
+	{
+		SampleLightProbeVolumeIndexedDirectLighting( vLightIndices, vLightStrengths, f.vPositionWs.xyz );
+	}
+
+	// Derivatives must be evaluated before the per-light branch diverges.
+	const float3 vReceiverNormalWs = ComputeShadowReceiverNormal( f.vPositionWs.xyz );
+
+	// Slots this lane still has to add, a bit each
+	uint nPending = 0;
+	[unroll]
+	for ( uint j = 0; j < 4; j++ )
+		nPending |= ( vLightStrengths[j] > 0.0001 ) ? ( 1u << j ) : 0u;
+
+	// Walk the wave's baked lights lowest index first, as ClusterForEach walks a cluster's, so each light's data is
+	// the same for the whole wave and loads once into scalar registers instead of per lane
+	for ( ;; )
+	{
+		uint nLaneLowest = 0xFFFFFFFF;
+		[unroll]
+		for ( uint j = 0; j < 4; j++ )
+		{
+			if ( nPending & ( 1u << j ) )
+				nLaneLowest = min( nLaneLowest, uint( vLightIndices[j] ) );
+		}
+
+		const uint nLight = WaveActiveMin( nLaneLowest );
+		if ( nLight == 0xFFFFFFFF )
+			break;
+
+		// This lane's strength for it, from every slot that holds it
+		float flStrength = 0.0;
+		[unroll]
+		for ( uint k = 0; k < 4; k++ )
+		{
+			if ( ( nPending & ( 1u << k ) ) && uint( vLightIndices[k] ) == nLight )
+			{
+				flStrength += vLightStrengths[k];
+				nPending &= ~( 1u << k );
+			}
+		}
+
+		CalcBakedLightingForLight( f, vReceiverNormalWs, nLight, flStrength, o.vDiffuse, o.vSpecular, o.vTransmissive );
+	}
+}
+
 // https://sms.playstation.com/stories/gdc-2019-indirect-lighting
-float NormalizeCubeBrightness( uint iCubeID, float3 vNormalWs, float flIsotropicRoughness, float flTargetLuminanceOfCubemap )
+float NormalizeCubeBrightness( uint iCubeID, TextureCube tCube, float3 vNormalCubemapLocal, float flIsotropicRoughness, float flTargetLuminanceOfCubemap )
 {
 	const float flRoughnessBegin = 0.1f;
 	const float flNormalizationCeiling = 32.0f;
@@ -566,7 +636,7 @@ float NormalizeCubeBrightness( uint iCubeID, float3 vNormalWs, float flIsotropic
 		flNormalizationCeiling - ( flNormalizationCeiling - 1.0f ) / ( 1.0f - flRoughnessBegin ) );
 
 	// Our cubemaps are pre-filtered, use a roughly blurred mip of them in place of spherical harmonics to do the normalization
-	float flMeasuredLuminanceOfCubemap = max( length( SampleEnvironmentMapLevel(vNormalWs, 1.0f, iCubeID) ), 0.001 );
+	float flMeasuredLuminanceOfCubemap = max( RelativeLuminance( SampleEnvironmentMapLevel(vNormalCubemapLocal, 1.0f, iCubeID, tCube) ), 0.001 );
 
 	float flNormalizationMax = flIsotropicRoughness * vNormalizationParams.x + vNormalizationParams.y;
 	flNormalizationMax = max(flNormalizationMax, 1.0f);
@@ -574,8 +644,11 @@ float NormalizeCubeBrightness( uint iCubeID, float3 vNormalWs, float flIsotropic
 }
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------------
-void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const FinalCombinerInput_t finalCombinerData )
+void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const FinalCombinerInput_t finalCombinerData, uint nClusterIndex )
 {
+	// Finish the baked light loop before indirect lighting results have to stay live.
+	ComputeBakedLighting( lightingTerms, finalCombinerData );
+
 	float3 vNormalTs				= finalCombinerData.vNormalTs;
 	float3 vPositionWs				= finalCombinerData.vPositionWs;
 	float3 vPositionWithOffsetWs	= finalCombinerData.vPositionWithOffsetWs;
@@ -611,11 +684,9 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 	bool bHasBakedLighting = true;
 	bool bHasCubeBrightnessNormalization = true;
 
-
 	if ( LightmappedLight::UsesLightmaps() )
 	{
 		float3 vLightmapUVW = float3( finalCombinerData.vLightmapUV, 0 );
-		float4 vLightIndexFloats = Tex2DArrayS( LightMap( 0 ), g_sPointClamp, vLightmapUVW ).rgba;
 
 		// Ambient Highlight Direction (directional lightmap) data
 		float3 vIrradiance = Tex2DArrayS( LightMap( 2 ), g_sTrilinearClamp, vLightmapUVW ).rgb;
@@ -649,17 +720,6 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 		flTargetLuminanceOfCubemap = RelativeLuminance( vIrradiance.rgb );
 
 		lightingTerms.vIndirectDiffuse += float3( vIrradiance.xyz );
-
-		// Evaluate indexed baked lights from lightmap
-		float4 vLightStrengths = Tex2DArrayS( LightMap( 1 ), g_sTrilinearClamp, vLightmapUVW ).rgba;
-		vLightStrengths *= vLightStrengths;
-		int4 vLightIndices = int4( vLightIndexFloats.xyzw * 255.0 );
-
-		for ( int j = 0; j < 4; j++ )
-		{
-			CalcBakedLightingForLight( finalCombinerData, vLightIndices[j], vLightStrengths[j],
-				lightingTerms.vDiffuse, lightingTerms.vSpecular, lightingTerms.vTransmissive );
-		}
 	}
 	else if ( ProbeLight::UsesProbes() )
 	{
@@ -669,7 +729,7 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 
 		if ( g_bNonDirectionalDiffuseLighting )
 		{
-			for ( int a = 0; a < 6; a++ )
+			[unroll] for ( int a = 0; a < 6; a++ )
 			{
 				lightingTerms.vIndirectDiffuse.rgb += vAmbientCube[a].rgb;
 			}
@@ -677,13 +737,14 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 		}
 		else
 		{
-			#if ( S_TRANSMISSIVE_BACKFACE_NDOTL )
+			if ( S_TRANSMISSIVE_BACKFACE_NDOTL != 0 )
 			{
 				flTargetLuminanceOfCubemap = RelativeLuminance( SampleIrradiance( vAmbientCube, vNormalWs.xyz ) );
 				lightingTerms.vIndirectDiffuse.rgb = SampleIrradiance( vAmbientCube, vNormalWs.xyz );
-				lightingTerms.vTransmissive.rgb += SampleIrradiance( vAmbientCube, -vNormalWs.xyz );
+				lightingTerms.vTransmissive.rgb += vTransmissiveMask.rgb * SampleIrradiance( vAmbientCube, -vNormalWs.xyz );
 			}
-			#elif ( S_SUBSURFACE_SCATTERING == SUBSURFACE_SCATTERING_PREINTEGRATED )
+			else
+			#if ( S_SUBSURFACE_SCATTERING == SUBSURFACE_SCATTERING_PREINTEGRATED )
 			{
 				float3 vNormalR = normalize( lerp( finalCombinerData.vNormalWs.xyz, vNormalWs, g_vAmbientNormalSoftness.r * finalCombinerData.flSSSMask ) );
 				float3 vNormalG = normalize( lerp( finalCombinerData.vNormalWs.xyz, vNormalWs, g_vAmbientNormalSoftness.g * finalCombinerData.flSSSMask ) );
@@ -714,18 +775,6 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 			}
 			#endif
 		}
-
-		// Evaluate indexed baked lights from probe volume
-		int4 vLightIndices;
-		float4 vLightStrengths;
-		SampleLightProbeVolumeIndexedDirectLighting( vLightIndices, vLightStrengths, vPositionWs.xyz );
-
-		for ( int j = 0; j < 4; j++ )
-		{
-			CalcBakedLightingForLight( finalCombinerData, vLightIndices[j], vLightStrengths[j],
-				lightingTerms.vDiffuse, lightingTerms.vSpecular, lightingTerms.vTransmissive );
-		}
-
 	}
 	else
 	{
@@ -738,20 +787,9 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
     // Add DDGI indirect lighting
 	// This is done after lightmaps/probes because those actually calculate direct lighting on this block :^(
     //
+	float4 ddgi = 0.0f;
 	if ( DDGI::IsEnabled() )
-	{
-		DDGIVolume ddgiVolume = DDGI::GetVolume( vPositionWs );
-		if ( ddgiVolume.IsValid() )
-		{
-			float3 ddgiIrradiance = DDGI::Evaluate( ddgiVolume, vPositionWs, vNormalWs, vPositionToCameraDirWs.xyz );
-			lightingTerms.vIndirectDiffuse.rgb = ddgiIrradiance;
-
-			bHasBakedLighting = true;
-			bHasCubeBrightnessNormalization = true;
-
-			flTargetLuminanceOfCubemap = RelativeLuminance( ddgiIrradiance );
-		}
-	}
+		ddgi = DDGI::EvaluateVolumes( vPositionWs, vNormalWs, vPositionToCameraDirWs.xyz );
 
 	//
 	// Apply specular from cube maps
@@ -772,13 +810,18 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 		
         float flDistAccumulated = 0;
 
-		ClusterRange envRange = Cluster::Query( ClusterItemType_EnvMap, finalCombinerData.vPositionSs );
+		ClusterRange envRange = Cluster::Query( ClusterItemType_EnvMap, nClusterIndex );
 
 		float2 vLevel = vSQRTRoughness.xy;
+
+		// For cloth shading, roughness needs be very low to fit with the specular shading.  The power here is arbitrary, based on look
+		if ( S_CLOTH_SHADING != 0 )
+			vLevel = pow( flIsotropicRoughness, 0.125 );
 		
-		for ( uint i = 0; i < envRange.Count; i++ )
+		ClusterForEach( envRange )
 		{
-			const uint index = Cluster::LoadItem( envRange, i );
+			// Wave-uniform by construction (WaveActiveMin in Cluster::Next), but Slang can't prove it, hence asDynamicUniform
+			const uint index = envRange.Item;
 
 			const float3 vCubePos = mul( float4( vPositionWs.xyz, 1.0 ), EnvMapWorldToLocal( index ) ).xyz;
 
@@ -799,6 +842,9 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 			if( flDistance + max( flEdgeFeathering, 0.0f ) < 0.0 )
 				continue;
 
+			// Cube lookups are in probe space, realtime probes are mirrored so the world normal can't be used directly
+			const float3 vNormalCubemapLocal = normalize( mul( float4( vNormalWs.xyz, 0.0f ), EnvMapWorldToLocal( index ) ).xyz );
+
 			float3 vParallaxReflectionCubemapLocal = CalcParallaxReflectionCubemapLocal( vPositionWs, vNormalWs, vAnisotropy, flRetroReflectivity, vTangentUWs, vTangentVWs, index );
 
 			//---------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -806,43 +852,44 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 			//---------------------------------------------------------------------------------------------------------------------------------------------------------
 			float3 vCubeMapTexel = 0.0f;
 
-			#if ( S_CLOTH_SHADING )
-			{
-				// For cloth shading, roughness needs be very low to fit with the specular shading.  The power here is arbitrary, based on look
-				vLevel /= vSQRTRoughness.xy;
-				vLevel *= pow( flIsotropicRoughness, 0.125 );
-			}
-			#endif
-
-			float3 vNormalWarpWs = normalize( lerp( vParallaxReflectionCubemapLocal.xyz, vNormalWs.xyz, vLevel.x ) ); // Used to deal with specular aliasing
-			vCubeMapTexel = SampleEnvironmentMapLevel( vNormalWarpWs.xyz, vLevel.x, index );
+			float3 vNormalWarpWs = normalize( lerp( vParallaxReflectionCubemapLocal.xyz, vNormalCubemapLocal.xyz, vLevel.x ) ); // Used to deal with specular aliasing
+			vCubeMapTexel = SampleEnvironmentMapLevel( vNormalWarpWs.xyz, vLevel.x, index, EnvMapTexture( asDynamicUniform( UniformIndex( index ) ) ) );
 
 			// Apply BRDFs
-			#if (S_CLOTH_SHADING)
+			if ( S_CLOTH_SHADING != 0 )
             {
 				float3 vHalfAngleDirWs = normalize(vNormalWs.xyz + vPositionToCameraDirWs.xyz);
                 float flNdotH = dot(vHalfAngleDirWs.xyz, vNormalWs.xyz);
                 vCubeMapTexel *= ComputeCharlieSheenBRDF(flIsotropicRoughness, 1, flNDotV, flNdotH);
             }
-			#else
+			else
             {
-                vCubeMapTexel *= CalcBRDFReflectionFactor(flNDotV, flIsotropicRoughness, finalCombinerData.vSpecularColor);
+                #if ( S_TWO_LOBE_SPECULAR )
+                    vCubeMapTexel *= CalcBRDFReflectionFactor( flNDotV, vRoughness.x, finalCombinerData.vSpecularColor );
+                #else
+                    vCubeMapTexel *= CalcBRDFReflectionFactor( flNDotV, flIsotropicRoughness, finalCombinerData.vSpecularColor );
+                #endif
             }
-			#endif
 
 			// Two lobe specular has different logic
 			#if ( S_TWO_LOBE_SPECULAR )
 			{
 				// Glossy lobe
-				vNormalWarpWs = normalize( lerp( vParallaxReflectionCubemapLocal.xyz, vNormalWs.xyz, vLevel.y ) );
-				float3 vCubeMapTexelGlossy = SampleEnvironmentMapLevel( vNormalWarpWs.xyz, vLevel.y, index );
+				vNormalWarpWs = normalize( lerp( vParallaxReflectionCubemapLocal.xyz, vNormalCubemapLocal.xyz, vLevel.y ) );
+				float3 vCubeMapTexelGlossy = SampleEnvironmentMapLevel( vNormalWarpWs.xyz, vLevel.y, index, EnvMapTexture( asDynamicUniform( UniformIndex( index ) ) ) );
 				vCubeMapTexelGlossy *= CalcBRDFReflectionFactor( flNDotV, vRoughness.y, finalCombinerData.vSpecularColor );
-				
+				vCubeMapTexel = lerp( vCubeMapTexel, vCubeMapTexelGlossy, flTwoLobeSpecularRatio );
 			}
 			#endif
 
-			if( bHasCubeBrightnessNormalization )
-				vCubeMapTexel *= NormalizeCubeBrightness( index, vNormalWs, vRoughness.x, flTargetLuminanceOfCubemap );
+			float normalization = bHasCubeBrightnessNormalization
+				? NormalizeCubeBrightness( index, EnvMapTexture( asDynamicUniform( UniformIndex( index ) ) ), vNormalCubemapLocal, vRoughness.x, flTargetLuminanceOfCubemap ) : 1.0f;
+			if ( ddgi.a > 0.0f )
+			{
+				float ddgiLuminance = RelativeLuminance( ddgi.rgb / ddgi.a );
+				normalization = lerp( normalization, NormalizeCubeBrightness( index, EnvMapTexture( asDynamicUniform( UniformIndex( index ) ) ), vNormalCubemapLocal, vRoughness.x, ddgiLuminance ), ddgi.a );
+			}
+			vCubeMapTexel *= normalization;
 
 			vCubeMapTexel_Specular = lerp( vCubeMapTexel_Specular, vCubeMapTexel, 1.0 - flDistAccumulated );
 
@@ -851,23 +898,23 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 			//---------------------------------------------------------------------------------------------------------------------------------------------------------
 			{
 				const float3 vPositionCubemapLocal 		= mul( float4( vPositionWs.xyz, 1.0f ), EnvMapWorldToLocal( index ) ).xyz;
-				const float3 vReflectionCubemapLocal 	= mul( float4( vNormalWs.xyz, 0.0f ), 	EnvMapWorldToLocal( index ) ).xyz;
+				const float3 vReflectionCubemapLocal 	= vNormalCubemapLocal;
 
                 // Sam: Avoid using parallax for diffuse IBLs, it's causing issues with non-uniform scaled envmaps for minimal gains
                 // https://files.facepunch.com/sampavlovic/1b1711b1/SMr1GfypB3.png
                 const float3 vDiffuseIBLNormal = vReflectionCubemapLocal; //CubeMapBoxProjection(vReflectionCubemapLocal.xyz, vPositionCubemapLocal.xyz, EnvMapBoxMins(index).xyz, EnvMapBoxMaxs(index).xyz);
-				float3 vCubeMapTexelDiffuse = SampleEnvironmentMapLevel( vDiffuseIBLNormal.xyz, 1.0f, index );
+				float3 vCubeMapTexelDiffuse = SampleEnvironmentMapLevel( vDiffuseIBLNormal.xyz, 1.0f, index, EnvMapTexture( asDynamicUniform( UniformIndex( index ) ) ) );
 
 				// Apply from the normal warp if we have SSS
 				#if ( S_SUBSURFACE_SCATTERING == SUBSURFACE_SCATTERING_PREINTEGRATED )
 				{
-					float3 vNormalR = normalize( lerp( vDiffuseIBLNormal.xyz, vNormalWs.xyz, g_vAmbientNormalSoftness.r * finalCombinerData.flSSSMask ) );
-					float3 vNormalG = normalize( lerp( vDiffuseIBLNormal.xyz, vNormalWs.xyz, g_vAmbientNormalSoftness.g * finalCombinerData.flSSSMask ) );
-					float3 vNormalB = normalize( lerp( vDiffuseIBLNormal.xyz, vNormalWs.xyz, g_vAmbientNormalSoftness.b * finalCombinerData.flSSSMask ) );
+					float3 vNormalR = normalize( lerp( vDiffuseIBLNormal.xyz, vNormalCubemapLocal.xyz, g_vAmbientNormalSoftness.r * finalCombinerData.flSSSMask ) );
+					float3 vNormalG = normalize( lerp( vDiffuseIBLNormal.xyz, vNormalCubemapLocal.xyz, g_vAmbientNormalSoftness.g * finalCombinerData.flSSSMask ) );
+					float3 vNormalB = normalize( lerp( vDiffuseIBLNormal.xyz, vNormalCubemapLocal.xyz, g_vAmbientNormalSoftness.b * finalCombinerData.flSSSMask ) );
 					
-					vCubeMapTexelDiffuse.r = SampleEnvironmentMapLevel( vNormalR.xyz, 1.0f, index ).r;
-					vCubeMapTexelDiffuse.g = SampleEnvironmentMapLevel( vNormalG.xyz, 1.0f, index ).g;
-					vCubeMapTexelDiffuse.b = SampleEnvironmentMapLevel( vNormalB.xyz, 1.0f, index ).b;
+					vCubeMapTexelDiffuse.r = SampleEnvironmentMapLevel( vNormalR.xyz, 1.0f, index, EnvMapTexture( asDynamicUniform( UniformIndex( index ) ) ) ).r;
+					vCubeMapTexelDiffuse.g = SampleEnvironmentMapLevel( vNormalG.xyz, 1.0f, index, EnvMapTexture( asDynamicUniform( UniformIndex( index ) ) ) ).g;
+					vCubeMapTexelDiffuse.b = SampleEnvironmentMapLevel( vNormalB.xyz, 1.0f, index, EnvMapTexture( asDynamicUniform( UniformIndex( index ) ) ) ).b;
 				}
 				#endif
 
@@ -901,6 +948,10 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 		if( !bHasBakedLighting )
 			lightingTerms.vIndirectDiffuse.rgb = lerp( vCubeMapTexel_Diffuse.rgb, lightingTerms.vIndirectDiffuse.rgb, AmbientLightColor.w );
 	}
+
+	// Resolve the existing IBL/lightmap fallback before fading it out under DDGI.
+	if ( ddgi.a > 0.0f )
+		lightingTerms.vIndirectDiffuse.rgb = ddgi.rgb + (1.0f - ddgi.a) * lightingTerms.vIndirectDiffuse.rgb;
 	
 	// Apply indirect transmissive lighting
 	lightingTerms.vTransmissive.rgb += vTransmissiveMask.rgb * lightingTerms.vIndirectDiffuse.rgb;
@@ -917,6 +968,11 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 		lightingTerms.vSpecular.rgb *= flTexelMod;
 		lightingTerms.vDiffuse.rgb *= flTexelMod;
 	}
+}
+
+void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const FinalCombinerInput_t finalCombinerData )
+{
+	CalculateIndirectLighting( lightingTerms, finalCombinerData, Cluster::Index( finalCombinerData.vPositionSs ) );
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------

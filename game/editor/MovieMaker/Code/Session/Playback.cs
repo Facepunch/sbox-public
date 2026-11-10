@@ -53,6 +53,8 @@ public sealed partial class Session
 		}
 	}
 
+	private MovieUpdateBuilder UpdateBuilder => field ??= new MovieUpdateBuilder( Binder );
+
 	public void ApplyFrame( MovieTime time )
 	{
 		if ( !Player.Scene.IsValid() ) return;
@@ -66,8 +68,6 @@ public sealed partial class Session
 			MovieBoneAnimatorSystem.Current?.ClearBones( renderer );
 		}
 
-		using var scope = Player.BeginApplyFrame();
-
 		if ( IsOpenInEditor && SyncPlayback )
 		{
 			foreach ( var player in Player.Scene.GetAllComponents<MoviePlayer>() )
@@ -78,21 +78,41 @@ public sealed partial class Session
 			}
 		}
 
-		ApplyFrameCore( time );
-	}
+		var rootTime = LocalTimeToRoot( time );
+		var lastRootTime = LocalTimeToRoot( _lastAppliedTime );
 
-	private void ApplyFrameCore( MovieTime time )
-	{
-		Parent?.ApplyFrameCore( SequenceTransform * time );
+		var updateBuilder = UpdateBuilder;
 
-		foreach ( var view in TrackList.AllTracks )
-		{
-			view.ApplyFrame( time );
-		}
+		updateBuilder.Clear();
 
-		AdvanceAnimations( time - _lastAppliedTime );
+		Root.PrepareUpdate( rootTime, updateBuilder );
+
+		updateBuilder.Apply();
+
+		Root.PostApplyFrame( rootTime - lastRootTime );
 
 		_lastAppliedTime = time;
+	}
+
+	private MovieTime LocalTimeToRoot( MovieTime time )
+	{
+		var current = this;
+
+		while ( current.Parent is { } parent )
+		{
+			time = current.SequenceTransform * time;
+			current = parent;
+		}
+
+		return time;
+	}
+
+	internal void PrepareUpdate( MovieTime time, MovieUpdateBuilder updateBuilder )
+	{
+		foreach ( var view in TrackList.AllTracks )
+		{
+			view.PrepareUpdate( time, updateBuilder );
+		}
 	}
 
 	public void RefreshNextFrame()

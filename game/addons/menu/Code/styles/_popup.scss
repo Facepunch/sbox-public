@@ -1,64 +1,69 @@
-.popup
+@import "/Platform/_platform.scss";
+
+// A DropDown's list - hanging off its open button (platform-dropdown), as wide and the same fill, one piece with it; its
+// choices in the button's type, the one picked lit blue as a choice strip's is
+.popup-panel.below-stretch.flat-top
 {
-	background-color: rgba( #222, 0.95 );
+	@include platform-surface;
+	// Placed by the engine, over the page
 	position: absolute;
-	left: 0;
-	right: 0;
-	top: 0;
-	bottom: 0;
-	z-index: 1000;
-	opacity: 0;
-	justify-content: center;
-	align-items: center;
-	pointer-events: all;
+	flex-shrink: 0;
+	padding: 4px;
+	gap: 2px;
+	border: 0px solid transparent;
+	border-radius: 0px 0px $platform-radius $platform-radius;
+	background-color: $platform-dropdown-open;
+	backdrop-filter: none;
+	box-shadow: 0 16px 40px rgba( 0, 0, 0, 0.6 );
+	overflow-y: scroll;
 
-	> .inner
+	> .button
 	{
-		background-color: rgba( black, 0.5 );
-		border-radius: 10px;
-		width: 700px;
-		flex-direction: column;
-		padding-bottom: 100px;
+		flex-direction: row;
+		align-items: center;
+		justify-content: flex-start;
+		flex-shrink: 0;
+		// At least a line tall, taller when a long choice wraps
+		min-height: 30px;
+		padding: 6px 8px;
+		gap: 8px;
+		border: 0px solid transparent;
+		border-radius: 3px;
+		background-color: transparent;
+		font-size: 13.5px;
+		font-weight: 600;
+		color: $platform-muted;
+		cursor: pointer;
 
-		.title
+		> .icon
 		{
-			color: white;
-			font-family: Poppins;
-			font-weight: 700;
-			padding: 20px;
-			font-size: 30px;
-			opacity: 0.5;
-		}
-
-		.message
-		{
-			color: white;
-			font-family: Roboto;
-			padding: 20px 30px;
+			width: 18px;
+			flex-shrink: 0;
 			font-size: 16px;
 		}
 
-		button
+		.button-right-column
 		{
-			color: white;
-			font-family: Poppins;
-			padding: 20px;
-			font-size: 20px;
-			opacity: 0.5;
-			cursor: pointer;
-			position: absolute;
-			right: 0px;
-			bottom: 0px;
+			min-width: 0;
+			flex-grow: 1;
+		}
 
-			&:hover
-			{
-				opacity: 1.0;
-			}
+		.button-text
+		{
+			text-align: left;
+		}
+
+		&:hover, &:focus
+		{
+			background-color: $platform-button-hover;
+			color: $platform-text;
+		}
+
+		&.active
+		{
+			background-color: $platform-primary;
+			background-image: $platform-sheen-on;
+			color: $platform-selected-text;
 		}
 	}
-}
-
-.popup-active .popup
-{
-	opacity: 1;
 }

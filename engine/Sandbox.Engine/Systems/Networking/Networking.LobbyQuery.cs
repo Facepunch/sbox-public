@@ -24,7 +24,13 @@ public static partial class Networking
 	public static Task<List<LobbyInformation>> QueryLobbies( string gameIdent, string mapIdent, CancellationToken ct = default ) =>
 		QueryLobbies( new Dictionary<string, string> { { "game", gameIdent }, { "map", mapIdent } }, true, ct );
 
-	private static async Task<List<LobbyInformation>> QueryServers( string gameIdent, string mapIdent, IReadOnlyDictionary<string, string> filters, CancellationToken ct )
+	/// <summary>
+	/// Dedicated servers for a specific game on the local network.
+	/// </summary>
+	public static Task<List<LobbyInformation>> QueryLanServers( string gameIdent, CancellationToken ct = default ) =>
+		QueryServers( gameIdent, null, new Dictionary<string, string>(), ct, lan: true );
+
+	private static async Task<List<LobbyInformation>> QueryServers( string gameIdent, string mapIdent, IReadOnlyDictionary<string, string> filters, CancellationToken ct, bool lan = false )
 	{
 		var list = new List<LobbyInformation>();
 
@@ -58,7 +64,8 @@ public static partial class Networking
 				}
 			}
 
-			serverList.Query();
+			if ( lan ) serverList.QueryLan();
+			else serverList.Query();
 
 			while ( serverList.IsQuerying )
 			{
@@ -82,6 +89,7 @@ public static partial class Networking
 					Map = e.Map,
 					Members = e.Players,
 					MaxMembers = e.MaxPlayers,
+					Ping = e.Ping,
 					Data = new()
 				};
 
@@ -110,6 +118,9 @@ public static partial class Networking
 					lobby.Data.Add( key, value );
 				}
 
+				// Steam's own flag, not a tag - same key as a lobby's
+				lobby.Data["pw"] = e.HasPassword ? "1" : "0";
+
 				list.Add( lobby );
 			}
 		}
@@ -129,7 +140,15 @@ public static partial class Networking
 	/// <summary>
 	/// Get all lobbies that match the specified filters.
 	/// </summary>
-	public static async Task<List<LobbyInformation>> QueryLobbies( Dictionary<string, string> filters, bool includeServers = true, CancellationToken ct = default )
+	public static Task<List<LobbyInformation>> QueryLobbies( Dictionary<string, string> filters, bool includeServers = true, CancellationToken ct = default ) =>
+		QueryLobbies( filters, includeServers, false, ct );
+
+	/// <summary>
+	/// Get all lobbies that match the specified filters - and with <paramref name="includeOutdated"/>, the ones on another
+	/// API version or network protocol too, which can't be joined (<see cref="LobbyInformation.IsOutdated"/>), to show
+	/// them as such. Dedicated servers are listed whatever their version either way: their tags can be cut short.
+	/// </summary>
+	public static async Task<List<LobbyInformation>> QueryLobbies( Dictionary<string, string> filters, bool includeServers, bool includeOutdated, CancellationToken ct = default )
 	{
 		if ( Application.IsDedicatedServer )
 		{
@@ -152,9 +171,12 @@ public static partial class Networking
 		var q = Steamworks.SteamMatchmaking.LobbyList;
 		q = q.FilterDistanceWorldwide();
 		q = q.WithKeyValue( "lobby_type", "scene" );
-		q = q.WithKeyValue( "protocol", $"{Protocol.Network}" );
-		q = q.WithKeyValue( "api", $"{Protocol.Api}" );
-		q = q.WithNotEqual( "toxic", 1 );
+
+		if ( !includeOutdated )
+		{
+			q = q.WithKeyValue( "protocol", $"{Protocol.Network}" );
+			q = q.WithKeyValue( "api", $"{Protocol.Api}" );
+		}
 
 		foreach ( var filter in filters )
 		{
@@ -177,13 +199,13 @@ public static partial class Networking
 		// by key name
 		q = q.WithMaxResults( 1000 );
 
-		var lobbies = await q.RequestAsync( ct );
+		var lobbies = await q.RequestAsync( ct ).ConfigureAwait( false );
 
 		var found = new List<LobbyInformation>();
 
 		try
 		{
-			var servers = await serverListTask;
+			var servers = await serverListTask.ConfigureAwait( false );
 			if ( servers is not null && servers.Any() )
 			{
 				found.AddRange( servers );
@@ -202,6 +224,8 @@ public static partial class Networking
 			var item = new LobbyInformation();
 			item.LobbyId = l.Id;
 			item.OwnerId = l.Owner.Id;
+			item.Ping = LobbyPing.Estimate( item.OwnerId, l.GetData( LobbyPing.MetadataKey ) );
+			item.IsPingEstimated = item.Ping >= 0;
 
 			item.MaxMembers = l.MaxMembers;
 			item.Members = l.MemberCount;
@@ -219,54 +243,6 @@ public static partial class Networking
 		}
 
 		return found;
-	}
-
-	/// <summary>
-	/// The client has been told to reconnect to the server. So disconnect and keep trying to connect.
-	/// </summary>
-	internal static void StartReconnecting( ReconnectMsg data )
-	{
-		IGameInstanceDll.Current?.CloseGame();
-
-		LoadingScreen.IsVisible = true;
-		LoadingScreen.Title = "Server Loading..";
-
-		var lastConnection = LastConnectionString;
-
-		Disconnect();
-
-		if ( string.IsNullOrWhiteSpace( lastConnection ) )
-		{
-			Log.Warning( "Tried to reconnect but no connection string" );
-			LoadingScreen.IsVisible = false;
-			return;
-		}
-
-		_ = Reconnect( data, lastConnection );
-	}
-
-	/// <summary>
-	/// The client has been told to reconnect to the server. Keep trying for 30 seconds.
-	/// </summary>
-	static async Task Reconnect( ReconnectMsg data, string address )
-	{
-		await Task.Delay( 1000 );
-
-		RealTimeSince timeSinceStarted = 0;
-
-		Log.Info( $"Reconnecting to {address}" );
-
-		while ( timeSinceStarted < 60f )
-		{
-			if ( !await TryConnect( address, 1 ) )
-				continue;
-
-			Log.Info( "Reconnect succeeded." );
-			return;
-		}
-
-		LoadingScreen.IsVisible = false;
-		Log.Info( "Reconnect failed." );
 	}
 
 }

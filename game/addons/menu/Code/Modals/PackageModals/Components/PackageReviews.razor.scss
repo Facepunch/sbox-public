@@ -1,73 +1,360 @@
+@import "/styles/_theme.scss";
+@import "/Platform/_platform.scss";
+
+// The Reviews tab - the verdict, what players liked and didn't, then the reviews, a card each. All of it
+// scoped under here, the review cards' look included (UserComment is used elsewhere too)
 PackageReviews
 {
-    flex-direction: column;
+	flex-direction: column;
+	overflow: hidden;
+	max-width: 100%;
+	overflow-y: scroll;
+	flex-shrink: 0;
+	// The same insets as the other tabs
+	padding: 24px 24px 64px 24px;
+	gap: 16px;
+	font-family: $front-font;
+
+	i, icon
+	{
+		font-family: "Material Icons";
+	}
+
+	// A page's small blue label, like the Overview's
+	.eyebrow
+	{
+		@include platform-section-label;
+
+		&.bad icon
+		{
+			color: $platform-danger;
+		}
+	}
+
+	//
+	// What they liked, and didn't - a card, a row of chips for each
+	//
+
+	.tags
+	{
+		@include platform-surface;
+		flex-shrink: 0;
+		gap: 16px;
+		padding: 16px 20px 18px 20px;
+	}
+
+	.tag-group
+	{
+		flex-direction: column;
+		gap: 10px;
+	}
+
+	.chips
+	{
+		flex-direction: row;
+		flex-wrap: wrap;
+		gap: 6px;
+	}
+
+	// A tag - its glyph in its side's colour, its name, how many said so
+	.chip
+	{
+		@include platform-chip;
+
+		.n
+		{
+			font-family: Inter;
+			font-variant-numeric: tabular-nums;
+		}
+
+		&.good icon { color: $platform-good; }
+		&.bad icon { color: $platform-danger; }
+	}
+
+	//
+	// Which of them - a strip of choices, the one showing picked
+	//
+
+	.filters
+	{
+		@include platform-choices;
+		align-self: flex-start;
+	}
+
+	.filter
+	{
+		@include platform-choice;
+		flex-grow: 0;
+		flex-basis: auto;
+
+		// platform-choice dresses i and iconpanel - these are <icon>, so the same colours by hand
+		icon
+		{
+			font-size: 16px;
+			color: $platform-muted;
+		}
+
+		&:hover icon
+		{
+			color: $platform-text;
+		}
+
+		&.active icon
+		{
+			color: white;
+		}
+
+		.n
+		{
+			font-family: Inter;
+			font-variant-numeric: tabular-nums;
+		}
+
+		&:hover
+		{
+			sound-in: "ui.button.over";
+		}
+
+		&:active
+		{
+			sound-in: "ui.button.press";
+		}
+
+		&.active
+		{
+			cursor: default;
+		}
+	}
+
+	//
+	// The reviews - a card each: who, when and how long they played along the top with their verdict on
+	// the end, what they said, the tags they gave
+	//
+
+	.review-list
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		gap: 12px;
+		width: 100%;
+	}
+
+	// A review swapped for its room or back - gone at once, rather than beside the other for a frame
+	.review-list > *:outro
+	{
+		display: none;
+	}
+
+	// A review that's off screen - just its card's room, so the list and its scrollbar stay put
+	.review-placeholder
+	{
+		@include platform-surface;
+		flex-shrink: 0;
+	}
+
+	// Still coming - a review card's shape: a round avatar, a line for who, a few for what they said
+	.review-skeleton
+	{
+		@include platform-surface;
+		flex-direction: row;
+		flex-shrink: 0;
+		gap: 14px;
+		padding: 16px 20px 18px 16px;
+
+		.bone
+		{
+			border-radius: 6px;
+			background-color: rgba( 255, 255, 255, 0.06 );
+			animation: review-bone 1.2s ease-in-out infinite alternate;
+		}
+
+		.avatar
+		{
+			flex-shrink: 0;
+			width: 40px;
+			height: 40px;
+			border-radius: 50%;
+		}
+
+		.lines
+		{
+			flex-direction: column;
+			flex-grow: 1;
+			gap: 10px;
+		}
+
+		.line
+		{
+			height: 12px;
+			width: 92%;
+		}
+
+		.top
+		{
+			width: 30%;
+			height: 14px;
+			margin-bottom: 4px;
+		}
+
+		.short
+		{
+			width: 55%;
+		}
+	}
+
+	.no-reviews
+	{
+		padding: 48px 32px;
+		justify-content: center;
+		font-size: 13px;
+		color: $platform-muted;
+	}
+
+	UserComment
+	{
+		@include platform-surface;
+		flex-direction: row;
+		flex-shrink: 0;
+		gap: 14px;
+		padding: 16px 20px 18px 16px;
+
+		> .left
+		{
+			width: 40px;
+			min-width: 40px;
+			padding-top: 0;
+
+			img
+			{
+				width: 40px;
+				height: 40px;
+				max-width: 40px;
+				border-radius: 50%;
+			}
+		}
+
+		> .right
+		{
+			min-height: 0;
+			gap: 10px;
+			border: none;
+			border-radius: 0;
+			background-color: transparent;
+			font-size: 12.5px;
+			color: $platform-muted;
+		}
+
+		> .right > .header
+		{
+			padding: 0;
+			gap: 8px;
+
+			.username
+			{
+				font-size: 14px;
+				font-weight: 700;
+				color: $platform-text;
+
+				&:hover
+				{
+					color: #ffffff;
+				}
+			}
+
+			label
+			{
+				font-size: 12px;
+				color: $platform-muted;
+			}
+		}
+
+		> .right > .content
+		{
+			padding: 0;
+			gap: 12px;
+		}
+
+		// No tint of their own - the verdict pill says it
+		&.positive > .right, &.negative > .right, &.promise > .right
+		{
+			border: none;
+			background-color: transparent;
+		}
+	}
+
+	// What they said
+	.review-content
+	{
+		font-size: 13.5px;
+		line-height: 20px;
+		color: $platform-text;
+		white-space: normal;
+	}
+
+	// Their verdict, on the end of the top line - a chip, its glyph in its colour
+	.verdict-pill
+	{
+		@include platform-chip;
+
+		&.good icon { color: $platform-good; }
+		&.meh icon { color: $front-trophy; }
+		&.bad icon { color: $platform-danger; }
+	}
+
+	//
+	// Which page of them - at the foot, the one you're on blue
+	//
+
+	.pagination
+	{
+		flex-direction: row;
+		justify-content: center;
+		align-items: center;
+		flex-shrink: 0;
+		gap: 6px;
+		padding-top: 8px;
+	}
+
+	.page-button
+	{
+		@include platform-text-button( 34px, 12.5px, 18px );
+		min-width: 34px;
+		padding: 0 10px;
+		justify-content: center;
+
+		label
+		{
+			font-family: Inter;
+			font-variant-numeric: tabular-nums;
+		}
+
+		&:hover
+		{
+			sound-in: "ui.button.over";
+		}
+
+		&.current
+		{
+			@include platform-button-primary;
+			cursor: default;
+		}
+
+		&.disabled
+		{
+			pointer-events: none;
+		}
+	}
 }
 
-PackageReviews .review-list
+@keyframes review-bone
 {
-    flex-direction: column;
-    padding: 32px;
-    flex-shrink: 1;
-    gap: 1rem;
-    overflow: hidden;
-    width: 100%;
-}
+	0%
+	{
+		opacity: 0.55;
+	}
 
-PackageReviews
-{
-    overflow: hidden;
-    max-width: 100%;
-    overflow-y: scroll;
-    flex-shrink: 0;
-}
-
-PackageReviews > h2
-{
-    padding: 8px 16px;
-    background-color: #ffffff02;
-    color: #ffffff88;
-    font-weight: bold;
-}
-
-.rating-stamp
-{
-    display: flex;
-    gap: 0.5rem;
-    padding: 3px 8px;
-    font-size: 12px;
-}
-
-.rating-positive
-{
-    color: #c8ff00aa;
-    background: linear-gradient(to right, #c8ff0033, #c8ff0011);
-}
-
-.rating-promise
-{
-    color: #6b9ef9aa;
-    background: linear-gradient(to right, #6b9ef944, #6b9ef900);
-}
-
-.rating-negative
-{
-    color: #d59927aa;
-    background: linear-gradient(to right, #d5992733, #d5992700);
-}
-
-.review-button
-{
-    background-color: #457be1;
-    flex-direction: column;
-    border-radius: 8px;
-}
-
-.review-button .icon
-{
-    font-size: 64px;
-}
-
-.review-button:hover
-{
-    filter: brightness( 2 );
+	100%
+	{
+		opacity: 1;
+	}
 }

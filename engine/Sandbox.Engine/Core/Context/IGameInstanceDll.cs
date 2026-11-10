@@ -30,26 +30,32 @@ internal unsafe interface IGameInstanceDll
 	//
 	// Game Menu Shit
 	//
-	public Task LoadGamePackageAsync( string ident, GameLoadingFlags flags, CancellationToken ct );
+	public Task<bool> LoadGamePackageAsync( string ident, GameLoadingFlags flags, CancellationToken ct );
 
 	//
 	// Scene
 	//
-	public IDisposable PushScope();
-	public void EditorPlay(); // play game button pressed in editor
+	public ScenePushScope PushScope();
+	public bool EditorPlay(); // play game button pressed in editor
 
 	//
 	// Network
 	//
 
 	GameNetworkSystem CreateGameNetworking( NetworkSystem system );
+	Task<GameNetworkSystem> CreateGameNetworkingAsync( NetworkSystem system );
 	public void InstallNetworkTables( NetworkSystem system );
-	public Task LoadNetworkTables( NetworkSystem system );
+
+	/// <summary>
+	/// We took over as host; adopt anything mirrored from the previous host.
+	/// </summary>
+	public void OnBecameHost() { }
+	public Task<bool> LoadNetworkTables( NetworkSystem system );
 
 	/// <summary>
 	/// Called when the "disconnect" command is ran.
 	/// </summary>
-	public void Disconnect();
+	public void Disconnect( string message = null );
 
 	/// <summary>
 	/// Closes the current GameInstance immediately
@@ -92,5 +98,11 @@ public enum GameLoadingFlags
 	/// Set if this is a developer session. It started from an editor session and as such we shouldn't load
 	/// assemblies from the package, they should be loaded from the Network Tables instead.
 	/// </summary>
-	Developer = 8
+	Developer = 8,
+
+	/// <summary>
+	/// Open the game on its <c>MenuScene</c> rather than its startup scene, and don't start it. It's started from
+	/// there with <see cref="Game.StartGame"/>.
+	/// </summary>
+	Menu = 16
 }

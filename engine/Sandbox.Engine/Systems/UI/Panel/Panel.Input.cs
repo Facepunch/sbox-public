@@ -1,8 +1,28 @@
-﻿namespace Sandbox.UI;
+namespace Sandbox.UI;
 
 
 public partial class Panel
 {
+	/// <summary>
+	/// Current mouse position in this panel's surface, top left is 0,0. This is the one to
+	/// use inside panel code - <see cref="Mouse.Position"/> is the game window's cursor,
+	/// which is a different window when the panel lives in a panel window.
+	/// </summary>
+	internal Vector2 ScreenMousePosition => FindRootPanel()?.MousePos ?? default;
+
+	/// <summary>
+	/// The size of this panel's surface in pixels. The one to use inside panel code -
+	/// <see cref="Screen"/> is the game window, which is a different window when the panel
+	/// lives in a panel window.
+	/// </summary>
+	internal Vector2 ScreenSurfaceSize => FindRootPanel()?.Box.Rect.Size ?? default;
+
+	/// <summary>
+	/// Where IME composition happens in this panel, so the candidate window can sit next to
+	/// the caret instead of covering it. The whole panel when there's no better answer.
+	/// </summary>
+	internal virtual Rect ImeCaretRect => Box.Rect;
+
 	/// <summary>
 	/// Current mouse position local to this panels top left corner.
 	/// </summary>
@@ -43,6 +63,8 @@ public partial class Panel
 	/// <param name="pos">The position to test, in screen coordinates.</param>
 	public bool IsInside( Vector2 pos )
 	{
+		if ( LayoutTree?.IsInlineParticipant == true ) return LayoutTree.ContainsInlineContent( pos );
+
 		var rect = Box.Rect;
 
 		if ( pos.x < rect.Left || pos.x > rect.Right ) return false;
@@ -51,47 +73,59 @@ public partial class Panel
 		var s = ComputedStyle;
 		if ( s == null ) return false;
 
+		var local = pos - rect.Position;
+		if ( s.BorderShape?.IsNone == false )
+		{
+			if ( s.BorderShape.Kind == BorderShapeKind.Circle )
+			{
+				var circle = s.BorderShape.ResolveCircle( new Rect( Vector2.Zero, rect.Size ) );
+				if ( Vector2.Distance( local, circle.Center ) > circle.Radius ) return false;
+			}
+			else if ( !IsInsideShapePolygon( local, rect.Size, s.BorderShape.Points ) ) return false;
+		}
+
+		if ( !s.HasBorderRadius ) return true;
+
+		var radii = _paintCache.OuterRadii;
+
 		pos.x -= rect.Left;
 		pos.y -= rect.Top;
 
+		var right = rect.Width - pos.x;
+		var bottom = rect.Height - pos.y;
 
-		if ( s.BorderTopLeftRadius.HasValue && s.BorderTopLeftRadius.Value.Unit > 0 )
-		{
-			var r = s.BorderTopLeftRadius.Value.GetPixels( (rect.Width + rect.Height) * 0.5f );
-			r = MathF.Min( MathF.Min( r, rect.Width / 2.0f ), rect.Height / 2.0f );
-			var c = new Vector2( r, r );
-			if ( pos.x < c.x && pos.y < c.y && Vector2.Distance( pos, c ) > r )
-				return false;
-		}
-
-		if ( s.BorderTopRightRadius.HasValue && s.BorderTopRightRadius.Value.Unit > 0 )
-		{
-			var r = s.BorderTopRightRadius.Value.GetPixels( (rect.Width + rect.Height) * 0.5f );
-			r = MathF.Min( MathF.Min( r, rect.Width / 2.0f ), rect.Height / 2.0f );
-			var c = new Vector2( rect.Width - r, r );
-			if ( pos.x > c.x && pos.y < c.y && Vector2.Distance( pos, c ) > r )
-				return false;
-		}
-
-		if ( s.BorderBottomRightRadius.HasValue && s.BorderBottomRightRadius.Value.Unit > 0 )
-		{
-			var r = s.BorderBottomRightRadius.Value.GetPixels( (rect.Width + rect.Height) * 0.5f );
-			r = MathF.Min( MathF.Min( r, rect.Width / 2.0f ), rect.Height / 2.0f );
-			var c = new Vector2( rect.Width - r, rect.Height - r );
-			if ( pos.x > c.x && pos.y > c.y && Vector2.Distance( pos, c ) > r )
-				return false;
-		}
-
-		if ( s.BorderBottomLeftRadius.HasValue && s.BorderBottomLeftRadius.Value.Unit > 0 )
-		{
-			var r = s.BorderBottomLeftRadius.Value.GetPixels( (rect.Width + rect.Height) * 0.5f );
-			r = MathF.Min( MathF.Min( r, rect.Width / 2.0f ), rect.Height / 2.0f );
-			var c = new Vector2( r, rect.Height - r );
-			if ( pos.x < c.x && pos.y > c.y && Vector2.Distance( pos, c ) > r )
-				return false;
-		}
+		if ( OutsideCorner( radii.TopLeft, pos.x, pos.y ) ) return false;
+		if ( OutsideCorner( radii.TopRight, right, pos.y ) ) return false;
+		if ( OutsideCorner( radii.BottomRight, right, bottom ) ) return false;
+		if ( OutsideCorner( radii.BottomLeft, pos.x, bottom ) ) return false;
 
 		return true;
+	}
+
+	static bool IsInsideShapePolygon( Vector2 pos, Vector2 size, BorderShape.PointCollection points )
+	{
+		bool inside = false;
+		for ( int i = 0, j = points.Count - 1; i < points.Count; j = i++ )
+		{
+			var a = new Vector2( points[i].X.GetPixels( size.x ), points[i].Y.GetPixels( size.y ) );
+			var b = new Vector2( points[j].X.GetPixels( size.x ), points[j].Y.GetPixels( size.y ) );
+			if ( (a.y > pos.y) != (b.y > pos.y) && pos.x < (b.x - a.x) * (pos.y - a.y) / (b.y - a.y) + a.x ) inside = !inside;
+		}
+		return inside;
+	}
+
+	/// <summary>
+	/// Whether a point falls outside a corner's quarter ellipse. Distances are from the panel's
+	/// two edges at that corner, so both are below the radius only within the corner itself.
+	/// </summary>
+	static bool OutsideCorner( Vector2 radius, float fromSide, float fromTopOrBottom )
+	{
+		if ( fromSide >= radius.x || fromTopOrBottom >= radius.y ) return false;
+
+		var x = (radius.x - fromSide) / radius.x;
+		var y = (radius.y - fromTopOrBottom) / radius.y;
+
+		return x * x + y * y > 1.0f;
 	}
 
 	/// <summary>
@@ -110,6 +144,20 @@ public partial class Panel
 	/// </summary>
 	[Property]
 	public bool AcceptsFocus { get; set; }
+
+	/// <summary>
+	/// True by default. Whether clicking this panel gives it focus. Controls that only want focus for
+	/// keyboard navigation, like buttons, turn this off - clicking one focuses its nearest ancestor
+	/// that takes focus from a click instead, or clears focus if there isn't one.
+	/// </summary>
+	[Hide]
+	public bool FocusOnClick { get; set; } = true;
+
+	/// <summary>
+	/// The panel this one belongs to for focus - where a click that this panel won't take focus
+	/// for looks next. Usually the parent, but a popup belongs to the panel that opened it.
+	/// </summary>
+	internal virtual Panel FocusOwner => Parent;
 
 	/// <summary>
 	/// Describe what to do with keyboard input. The default is InputMode.UI which means that when
@@ -131,7 +179,7 @@ public partial class Panel
 	/// </summary>
 	public bool Focus()
 	{
-		return InputFocus.Set( this );
+		return UISystem.SetFocus( this );
 	}
 
 	/// <summary>
@@ -139,7 +187,55 @@ public partial class Panel
 	/// </summary>
 	public bool Blur()
 	{
-		return InputFocus.Clear( this );
+		return UISystem.ClearFocus( this );
+	}
+
+	/// <summary>
+	/// Where this panel sits in the Tab order. 0, the default, is tree order. Positive values come
+	/// before that, lowest first. Negative means Tab skips it, though it can still be focused by
+	/// clicking or <see cref="Focus"/>.
+	/// </summary>
+	[Property]
+	public int TabIndex { get; set; }
+
+	/// <summary>
+	/// Move focus to the panel after this one in Tab order.
+	/// </summary>
+	public bool FocusNext()
+	{
+		return UISystem.MoveFocus( this, false );
+	}
+
+	/// <summary>
+	/// Move focus to the panel before this one in Tab order.
+	/// </summary>
+	public bool FocusPrevious()
+	{
+		return UISystem.MoveFocus( this, true );
+	}
+
+	/// <summary>
+	/// Enter or Space on a focused control clicks it. Returns true when the key was one of those
+	/// and the click was sent.
+	/// </summary>
+	internal bool TryClickFromKeyboard( ButtonEvent e )
+	{
+		if ( !e.Pressed ) return false;
+		if ( e.Button is not ("enter" or "space") ) return false;
+
+		CreateEvent( new MousePanelEvent( "onclick", this, "mouseleft" ) );
+		return true;
+	}
+
+	/// <summary>
+	/// Scroll every scrolling ancestor the least amount that brings this panel into view.
+	/// </summary>
+	internal void ScrollAncestorsIntoView()
+	{
+		for ( var p = Parent; p is not null; p = p.Parent )
+		{
+			p.ScrollIntoView( Box.Rect );
+		}
 	}
 
 	/// <summary>
@@ -156,6 +252,15 @@ public partial class Panel
 	public virtual void OnKeyTyped( char k )
 	{
 		Parent?.OnKeyTyped( k );
+	}
+
+	/// <summary>
+	/// Called for a typed character with the modifier keys held when it was received.
+	/// By default, forwards to <see cref="OnKeyTyped(char)"/>.
+	/// </summary>
+	public virtual void OnKeyTyped( char k, KeyboardModifiers modifiers )
+	{
+		OnKeyTyped( k );
 	}
 
 	/// <summary>
@@ -180,6 +285,7 @@ public partial class Panel
 	/// </summary>
 	public virtual string GetClipboardValue( bool cut )
 	{
+		if ( LayoutTree?.IsInlineParticipant == true ) return LayoutTree.SelectedInlineText;
 		if ( AllowChildSelection )
 			return CollectSelectedChildrenText( this );
 
@@ -195,38 +301,78 @@ public partial class Panel
 	/// <param name="value">The scroll wheel delta. Positive values are scrolling down, negative - up.</param>
 	public virtual void OnMouseWheel( Vector2 value )
 	{
-		if ( TryScroll( value ) )
-			return;
-
-		Parent?.OnMouseWheel( value );
+		TryScroll( value, out var remaining );
+		if ( remaining != Vector2.Zero ) Parent?.OnMouseWheel( remaining );
 	}
 
 	/// <summary>
 	/// Called from <see cref="OnMouseWheel"/> to try to scroll.
 	/// </summary>
 	/// <param name="value">The scroll wheel delta. Positive values are scrolling down, negative - up.</param>
-	/// <returns>Return true to NOT propagate the event to the <see cref="Parent"/>.</returns>
-	public bool TryScroll( Vector2 value )
-	{
-		if ( ComputedStyle == null ) return false;
-		if ( !HasScrollY && !HasScrollX ) return false;
+	/// <returns>True if this panel consumes input on either axis. <see cref="OnMouseWheel"/> forwards unconsumed axes to the parent.</returns>
+	public bool TryScroll( Vector2 value ) => TryScroll( value, out _ );
 
-		// If we're not scrolling in the same direction that this panel overflows in, ignore
-		if ( ComputedStyle.OverflowX != OverflowMode.Scroll && value.x != 0 ) return false;
-		if ( ComputedStyle.OverflowY != OverflowMode.Scroll && value.y != 0 ) return false;
+	bool TryScroll( Vector2 value, out Vector2 remaining )
+	{
+		remaining = value;
+		if ( ComputedStyle == null ) return false;
 
 		var velocityAdd = Vector2.Zero;
-
-		if ( ComputedStyle.OverflowX == OverflowMode.Scroll && HasScrollX ) velocityAdd += new Vector2( value.x * -20, 0 );
-		if ( ComputedStyle.OverflowY == OverflowMode.Scroll && HasScrollY ) velocityAdd += new Vector2( 0, value.y * 20 );
+		if ( ConsumeWheelAxis( -value.x, true ) )
+		{
+			remaining.x = 0;
+			if ( HasScrollX ) velocityAdd.x = value.x * -20;
+		}
+		if ( ConsumeWheelAxis( value.y, false ) )
+		{
+			remaining.y = 0;
+			if ( HasScrollY ) velocityAdd.y = value.y * 20;
+		}
 
 		velocityAdd *= (1 + ScrollVelocity.Length / 100.0f);
 		ScrollVelocity += velocityAdd;
+		// Keep pathological event bursts finite without changing ordinary wheel acceleration.
+		var maxVelocity = 1000000.0f * ScaleToScreen;
+		if ( velocityAdd.x != 0 ) ScrollVelocity.x = ScrollVelocity.x.Clamp( -maxVelocity, maxVelocity );
+		if ( velocityAdd.y != 0 ) ScrollVelocity.y = ScrollVelocity.y.Clamp( -maxVelocity, maxVelocity );
 
-		if ( velocityAdd.Length.AlmostEqual( 0 ) )
-			return false;
+		return remaining != value;
+	}
 
-		return true;
+	bool ConsumeWheelAxis( float direction, bool horizontal )
+	{
+		if ( direction == 0 || !IsScrollContainer( horizontal ) ) return false;
+		if ( GetOverscrollBehavior( horizontal ) != OverscrollBehavior.Auto ) return true;
+		if ( CanScrollInDirection( direction, horizontal ) ) return true;
+		if ( FindScrollChainTarget( direction, horizontal ) != null ) return false;
+		// The last scrollable container keeps the local boundary bounce.
+		return horizontal ? HasScrollX : HasScrollY;
+	}
+
+	bool IsScrollContainer( bool horizontal ) => (horizontal ? ComputedStyle?.OverflowX : ComputedStyle?.OverflowY) == OverflowMode.Scroll;
+
+	OverscrollBehavior GetOverscrollBehavior( bool horizontal ) =>
+		(horizontal ? ComputedStyle?.OverscrollBehaviorX : ComputedStyle?.OverscrollBehaviorY) ?? OverscrollBehavior.Auto;
+
+	bool CanScrollInDirection( float direction, bool horizontal )
+	{
+		var extent = horizontal ? ScrollSize.x : ScrollSize.y;
+		if ( extent <= 0 ) return false;
+		var offset = horizontal ? ScrollOffset.x : ScrollOffset.y;
+		var min = IsScrollAxisReversed ? -extent : 0;
+		var max = IsScrollAxisReversed ? 0 : extent;
+		return direction < 0 ? offset > min : offset < max;
+	}
+
+	Panel FindScrollChainTarget( float direction, bool horizontal )
+	{
+		for ( var panel = Parent; panel != null; panel = panel.Parent )
+		{
+			if ( !panel.IsScrollContainer( horizontal ) ) continue;
+			if ( panel.GetOverscrollBehavior( horizontal ) != OverscrollBehavior.Auto || panel.CanScrollInDirection( direction, horizontal ) )
+				return panel;
+		}
+		return null;
 	}
 
 	/// <summary>
@@ -240,7 +386,67 @@ public partial class Panel
 
 		ScrollOffset = new Vector2( ScrollOffset.x, ScrollSize.y );
 		IsScrollAtBottom = true;
-		ScrollVelocity = new Vector2( 0, 0 );
+		StopScrollVelocity();
+		return true;
+	}
+
+	/// <summary>
+	/// Jump to a scroll position, clamped to the scrollable area. Stops any inertia.
+	/// </summary>
+	public void ScrollTo( Vector2 offset )
+	{
+		var min = IsScrollAxisReversed ? -ScrollSize : Vector2.Zero;
+		var max = IsScrollAxisReversed ? Vector2.Zero : ScrollSize;
+
+		offset = Vector2.Max( Vector2.Min( offset, max ), min );
+
+		StopScrollVelocity();
+		IsScrollAtBottom = offset.y >= ScrollSize.y;
+
+		if ( ScrollOffset == offset )
+			return;
+
+		ScrollOffset = offset;
+		SetNeedsFinalLayout();
+	}
+
+	/// <summary>
+	/// Scroll the least amount that brings a screen-space rect inside the content box. Returns false if
+	/// nothing scrolled. The offset isn't clamped here: content that has just grown hasn't updated the
+	/// scroll range yet, and the next layout clamps anyway.
+	/// </summary>
+	public bool ScrollIntoView( Rect rect )
+	{
+		if ( ComputedStyle is null ) return false;
+		if ( ComputedStyle.Overflow != OverflowMode.Scroll ) return false;
+
+		var view = Box.RectInner;
+		var clip = ContentClipRect;
+		view.Left = Math.Max( view.Left, clip.Left );
+		view.Right = Math.Min( view.Right, clip.Right );
+
+		var offset = ScrollOffset;
+
+		// A scroll requested but not yet laid out will move the rect, so work from where it's going to be
+		rect.Position -= offset - _laidOutScrollOffset;
+
+		if ( ComputedStyle.OverflowY == OverflowMode.Scroll )
+		{
+			if ( rect.Bottom > view.Bottom ) offset.y += MathF.Ceiling( rect.Bottom - view.Bottom );
+			if ( rect.Top < view.Top ) offset.y -= MathF.Ceiling( view.Top - rect.Top );
+		}
+
+		if ( ComputedStyle.OverflowX == OverflowMode.Scroll )
+		{
+			if ( rect.Right > view.Right ) offset.x += MathF.Ceiling( rect.Right - view.Right );
+			if ( rect.Left < view.Left ) offset.x -= MathF.Ceiling( view.Left - rect.Left );
+		}
+
+		if ( offset == ScrollOffset ) return false;
+
+		StopScrollVelocity();
+		ScrollOffset = offset;
+		SetNeedsFinalLayout();
 		return true;
 	}
 

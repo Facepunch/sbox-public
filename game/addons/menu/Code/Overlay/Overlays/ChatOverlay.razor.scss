@@ -1,0 +1,105 @@
+@import "/styles/_theme.scss";
+@import "/Platform/_platform.scss";
+
+ChatOverlay
+{
+	position: absolute;
+	left: calc( $front-rail-width + $front-chrome-gap + $front-chrome-gap );
+	bottom: 96px;
+	width: 570px;
+	flex-direction: column;
+	pointer-events: none;
+	z-index: -1000;
+
+	&.in-game
+	{
+		left: 64px;
+		bottom: 20%;
+		width: 600px;
+	}
+
+	&:not( .open )
+	{
+		ChatPanel .messages .chat-entry
+		{
+			align-self: flex-start;
+			max-width: 100%;
+			background-color: rgba( black, 0.3 );
+			backdrop-filter: blur( 10px );
+		}
+	}
+
+	&.open
+	{
+		pointer-events: all;
+
+		ChatPanel
+		{
+			@include platform-surface;
+		}
+	}
+
+	// In the platform's look - Poppins, the channel a blue chip, the box to type in a round-ended field, a line from
+	// the menu itself quieter than what people say
+	ChatPanel
+	{
+		flex-grow: 1;
+		padding: 12px;
+		gap: 10px;
+		font-family: $platform-font;
+
+		.channel-label
+		{
+			@include platform-chip;
+			height: 24px;
+			padding: 0 10px;
+			box-shadow: none;
+			font-size: 11px;
+			font-weight: 700;
+			letter-spacing: 1px;
+			color: $platform-icon;
+		}
+
+		.messages .chat-entry
+		{
+			gap: 8px;
+			padding: 2px 6px;
+			border-radius: $platform-radius;
+
+			.text
+			{
+				font-family: $platform-font;
+				text-shadow: none;
+			}
+
+			&.system
+			{
+				opacity: 1;
+
+				.name:empty
+				{
+					display: none;
+				}
+
+				.text
+				{
+					font-size: 13px;
+					font-weight: 500;
+					color: $platform-muted;
+				}
+			}
+		}
+
+		.input-bar
+		{
+			gap: 8px;
+
+			.textentry
+			{
+				@include platform-field( 38px );
+				flex-grow: 1;
+				font-family: $platform-font;
+			}
+		}
+	}
+}

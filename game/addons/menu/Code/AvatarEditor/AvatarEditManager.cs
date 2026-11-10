@@ -1,20 +1,32 @@
 using Sandbox;
+using System.Threading;
 using static Sandbox.ClothingContainer;
 
 public sealed partial class AvatarEditManager : Component
 {
+	/// <summary>
+	/// The Human body used to preview the edited avatar.
+	/// </summary>
 	[Header( "Bodies" )]
-	[Property] public GameObject Citizen { get; set; }
 	[Property] public GameObject Human { get; set; }
-	[Property]
-	public bool CitizenActive
-	{
-		get => !Container.PrefersHuman;
-		set => Container.PrefersHuman = !value;
-	}
 
 	string lastSaved;
-	public ClothingContainer Container { get; set; } = new ClothingContainer();
+	string currentAppearance;
+	CancellationTokenSource appearanceUpdate;
+
+	/// <summary>
+	/// The selected outfit and appearance values being edited.
+	/// </summary>
+	public ClothingContainer Container
+	{
+		get;
+		set
+		{
+			value.PrefersHuman = true;
+			field = value;
+			InvalidateUnsavedChanges();
+		}
+	} = new ClothingContainer { PrefersHuman = true };
 	public ClothingContainer PreviewContainer { get; set; } = new ClothingContainer();
 
 	protected override void OnAwake()
@@ -45,6 +57,9 @@ public sealed partial class AvatarEditManager : Component
 			if ( allClothing.Any( x => x.SteamItemDefinitionId == item.Id ) )
 				continue;
 
+			if ( item.StoreHidden && !Sandbox.Services.Inventory.HasItem( item.Id ) )
+				continue;
+
 			var clothing = new Clothing();
 			clothing.Title = item.Name;
 			clothing.Category = Enum.TryParse<Clothing.ClothingCategory>( item.Category, out var category ) ? category : Clothing.ClothingCategory.HairLong;
@@ -58,18 +73,11 @@ public sealed partial class AvatarEditManager : Component
 		}
 	}
 
-	public IEnumerable<Clothing> GetAllClothing()
-	{
-		return allClothing;
-	}
+	public IEnumerable<Clothing> GetAllClothing() => allClothing;
 
 	protected override void OnUpdate()
 	{
-		Citizen.Enabled = CitizenActive;
-		Human.Enabled = !CitizenActive;
-
-		var active = CitizenActive ? Citizen : Human;
-		var renderer = active.GetComponent<SkinnedModelRenderer>();
+		var renderer = Human.GetComponent<SkinnedModelRenderer>();
 
 		UpdateEyes( renderer );
 		UpdateCamera( renderer );
@@ -93,7 +101,11 @@ public sealed partial class AvatarEditManager : Component
 	public string DisplayName
 	{
 		get => Container.DisplayName;
-		set => Container.DisplayName = value;
+		set
+		{
+			Container.DisplayName = value;
+			InvalidateUnsavedChanges();
+		}
 	}
 
 	public float Height
@@ -102,7 +114,7 @@ public sealed partial class AvatarEditManager : Component
 		set
 		{
 			Container.Height = value;
-			ApplyChangesToModel();
+			ApplyAppearanceChanges();
 		}
 	}
 
@@ -112,7 +124,7 @@ public sealed partial class AvatarEditManager : Component
 		set
 		{
 			Container.Age = value;
-			ApplyChangesToModel();
+			ApplyAppearanceChanges();
 		}
 	}
 
@@ -122,10 +134,13 @@ public sealed partial class AvatarEditManager : Component
 		set
 		{
 			Container.Tint = value;
-			ApplyChangesToModel();
+			ApplyAppearanceChanges();
 		}
 	}
 
+	/// <summary>
+	/// Previews a workshop item until another appearance request replaces it.
+	/// </summary>
 	public void PreviewPackage( Package package )
 	{
 		if ( package == null )
@@ -134,13 +149,29 @@ public sealed partial class AvatarEditManager : Component
 			return;
 		}
 
-		MenuUtility.RunTask( () => PreviewPackageAsync( package ) );
+		var token = BeginAppearanceUpdate();
+		MenuUtility.RunTask( () => PreviewPackageAsync( package, token ) );
 	}
 
-	public async Task PreviewPackageAsync( Package package )
+	/// <summary>
+	/// Loads and previews a workshop item unless the preview is superseded.
+	/// </summary>
+	public Task PreviewPackageAsync( Package package ) => PreviewPackageAsync( package, BeginAppearanceUpdate() );
+
+	async Task PreviewPackageAsync( Package package, CancellationToken token )
 	{
-		var clothing = await Cloud.Load<Clothing>( package.FullIdent );
-		OnClothingHover( clothing );
+		try
+		{
+			token.ThrowIfCancellationRequested();
+			var clothing = await Cloud.Load<Clothing>( package.FullIdent );
+			token.ThrowIfCancellationRequested();
+
+			OnClothingHover( clothing );
+		}
+		catch ( OperationCanceledException ) when ( token.IsCancellationRequested )
+		{
+			// A newer appearance request owns the preview now.
+		}
 	}
 
 	public void OnClothingHover( Clothing clothing )
@@ -167,7 +198,7 @@ public sealed partial class AvatarEditManager : Component
 		if ( e is null ) return;
 
 		e.Tint = f;
-		ApplyChangesToModel();
+		ApplyAppearanceChanges();
 	}
 
 	public float GetTint( Clothing clothing )
@@ -189,30 +220,97 @@ public sealed partial class AvatarEditManager : Component
 			return;
 		}
 
-		RevertHovered();
-
 		Container.Toggle( clothing );
 		ApplyChangesToModel();
 	}
 
-	public void ApplyPreviewToModel()
-	{
-		// We have to run it this way so it'll be in the menu context
-		MenuUtility.RunTask( () => ApplyAsync( PreviewContainer, Citizen.GetComponent<SkinnedModelRenderer>( true ) ) );
-		MenuUtility.RunTask( () => ApplyAsync( PreviewContainer, Human.GetComponent<SkinnedModelRenderer>( true ) ) );
-	}
+	/// <summary>
+	/// Applies the hovered outfit, cancelling any previous appearance request.
+	/// </summary>
+	public void ApplyPreviewToModel() => ApplyToModels( PreviewContainer );
 
+	/// <summary>
+	/// Applies the selected outfit, cancelling any pending hover preview.
+	/// </summary>
 	public void ApplyChangesToModel()
 	{
-		// We have to run it this way so it'll be in the menu context
-		MenuUtility.RunTask( () => ApplyAsync( Container, Citizen.GetComponent<SkinnedModelRenderer>( true ) ) );
-		MenuUtility.RunTask( () => ApplyAsync( Container, Human.GetComponent<SkinnedModelRenderer>( true ) ) );
+		Container.PrefersHuman = true;
+		InvalidateUnsavedChanges();
+		ApplyToModels( Container );
 	}
 
-	async Task ApplyAsync( ClothingContainer container, SkinnedModelRenderer targetRenderer )
+	void ApplyToModels( ClothingContainer container )
 	{
-		// apply the clothing
-		await container.ApplyAsync( targetRenderer, default );
+		var token = BeginAppearanceUpdate();
+
+		// We have to run it this way so it'll be in the menu context
+		MenuUtility.RunTask( () => ApplyAsync( container, Human, token ) );
+	}
+
+	CancellationToken BeginAppearanceUpdate()
+	{
+		CancelAppearanceUpdate();
+		appearanceUpdate = new CancellationTokenSource();
+		return appearanceUpdate.Token;
+	}
+
+	void CancelAppearanceUpdate()
+	{
+		appearanceUpdate?.Cancel();
+		appearanceUpdate?.Dispose();
+		appearanceUpdate = null;
+	}
+
+	protected override void OnDisabled() => CancelAppearanceUpdate();
+
+	protected override void OnDestroy() => CancelAppearanceUpdate();
+
+	async Task ApplyAsync( ClothingContainer container, GameObject target, CancellationToken token )
+	{
+		try
+		{
+			token.ThrowIfCancellationRequested();
+			if ( !target.IsValid() )
+				return;
+
+			var targetRenderer = target.GetComponent<SkinnedModelRenderer>( true );
+			if ( !targetRenderer.IsValid() )
+				return;
+
+			var dresser = Dresser.GetOrCreate( targetRenderer );
+			dresser.UpdateAppearance( Container );
+			await dresser.ApplyAsync( container, token );
+
+			// A human skin swaps the body model, which rebuilds the anim graph with default
+			// parameters - put it back on the avatar menu's looping idles, skipping the entry wave
+#pragma warning disable CS0618
+			targetRenderer.Set( "b_avatar_skip_intro", true );
+			targetRenderer.Set( "special_idle_states", "avatar_menu" );
+#pragma warning restore CS0618
+		}
+		catch ( OperationCanceledException ) when ( token.IsCancellationRequested )
+		{
+			// Unhovering, editing or closing the avatar editor supersedes this outfit.
+		}
+		finally
+		{
+			// Applying clothing can normalize the selected outfit or resolve downloaded items.
+			if ( ReferenceEquals( container, Container ) )
+				InvalidateUnsavedChanges();
+		}
+	}
+
+	void ApplyAppearanceChanges()
+	{
+		InvalidateUnsavedChanges();
+		UpdateBody( Human );
+
+		void UpdateBody( GameObject target )
+		{
+			var renderer = target?.GetComponent<SkinnedModelRenderer>( true );
+			if ( renderer.IsValid() )
+				Dresser.GetOrCreate( renderer ).UpdateAppearance( Container );
+		}
 	}
 
 	void RevertHovered()
@@ -220,7 +318,12 @@ public sealed partial class AvatarEditManager : Component
 		ApplyChangesToModel();
 	}
 
-	public bool HasUnsavedChanges => lastSaved != Container.Serialize();
+	/// <summary>
+	/// Whether the edited values differ from the saved avatar. Rechecks only after an edit or clothing load.
+	/// </summary>
+	public bool HasUnsavedChanges => lastSaved != (currentAppearance ??= Container.Serialize());
+
+	void InvalidateUnsavedChanges() => currentAppearance = null;
 
 	public void SaveChanges()
 	{
@@ -235,11 +338,4 @@ public sealed partial class AvatarEditManager : Component
 		Container.Deserialize( lastSaved );
 		ApplyChangesToModel();
 	}
-}
-
-
-public struct ColorSwatch
-{
-	public float Value;
-	public Color Color;
 }

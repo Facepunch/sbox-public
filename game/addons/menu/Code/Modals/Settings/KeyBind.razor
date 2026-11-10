@@ -30,7 +30,7 @@
     }
     else
     {
-        <label>Not Set</label>
+        <label>#menu.settings.not_set</label>
     }
 </root>
 
@@ -53,7 +53,7 @@
         if ( string.IsNullOrEmpty( input ) )
             yield break;
 
-        var keys = input.Split( new[] { " + " }, StringSplitOptions.RemoveEmptyEntries );
+        var keys = input.Split( '+', StringSplitOptions.RemoveEmptyEntries );
         foreach ( var key in keys )
         {
             yield return key.Trim();
@@ -75,7 +75,7 @@
 
             MenuUtility.Input.TrapButtons( (buttons) =>
             {
-                if ( buttons.Contains( "escape", StringComparer.OrdinalIgnoreCase ) )
+                if ( buttons.Length == 0 )
                 {
                     Cancel();
                     return;

@@ -1,0 +1,152 @@
+@using Sandbox;
+@using Sandbox.UI;
+@using MenuProject.UI;
+@inherits Panel
+
+@if ( steps.Count == 0 ) return;
+
+<root class="@(AllDone ? "complete" : "")">
+    <div class="guide-blueprint-background" />
+    <div class="guide-top">
+        <label>#menu.home.getting_started</label>
+        <Button class="guide-dismiss" Text="#menu.home.yeah_yeah_i_got_it" Icon="close" onclick=@(() => Dismissed?.Invoke()) />
+    </div>
+    <div class="guide-content">
+        <div class="guide-intro">
+            <div class="guide-title">
+                <label>Welcome</label>
+                <label>to s&box.</label>
+            </div>
+            <label class="guide-description">#menu.home.everything_here_is_made_by_the_community_nothing_to</label>
+            <div class="guide-progress">
+                <div class="progress-marks">
+                    @foreach ( var step in steps )
+                    {
+                        <div class="progress-mark @(step.Done ? "done" : "")" />
+                    }
+                </div>
+                <label>@DoneCount / @steps.Count games tried</label>
+            </div>
+        </div>
+        <div class="guide-games">
+            @foreach ( var step in steps )
+            {
+                var done = step.Done;
+                <div class="guide-step @step.Style @(done ? "done" : "")">
+                    <div class="step-heading"><icon>@step.Icon</icon><label>@step.Title</label></div>
+                    <div class="step-art">
+                        <MenuProject.UI.PackageCard Package=@step.Package DiscoveryContext=@discovery Rotation=@rotation
+                                     Clicked=@(() => step.Package.OpenModal())
+                                     RightClicked=@(() => MenuHelpers.OpenPackageMenu( this, step.Package )) />
+                        @if ( done )
+                        {
+                            <div class="step-stamp"><icon>check</icon><label>#menu.home.played</label></div>
+                        }
+                    </div>
+                    <div class="step-body">
+                        <label class="step-game">@step.Package.Title</label>
+                        <label class="step-description">@step.Task</label>
+                        <Button class="step-open" Text="@(done ? "#menu.home.play_again" : "#menu.home.check_it_out")" Icon="arrow_forward" onclick=@(() => OpenStep( step )) />
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="guide-foot">
+        <div class="creator-icon"><icon>construction</icon></div>
+        <div class="creator-copy"><label class="creator-title">#menu.home.create_your_own_game</label><label class="creator-description">#menu.home.the_editor_is_included_we_ll_help_you_get_started</label></div>
+        <a class="guide-learn" onclick=@(() => MenuUtility.OpenUrl( "https://sbox.game/learn" ))><label>#menu.home.learn_to_create</label><icon>arrow_outward</icon></a>
+    </div>
+</root>
+
+@code
+{
+    [Parameter] public Action Dismissed { get; set; }
+
+    /// <summary>
+    /// Each pick introduces a different side of s&box.
+    /// </summary>
+    readonly (string Ident, string Title, string Task, string Icon, string Style)[] Guide =
+    {
+        ( "jco.drill", "#menu.home.go_solo", "#menu.home.make_another_run_and_beat_your_best_in_this_singleplayer_shooter", "person", "solo" ),
+        ( "glag.ex_zone", "#menu.home.team_up", "#menu.home.grab_your_friends_and_head_out_on_a_co_op_mission", "groups", "together" ),
+        ( "priceless.deliveryhopper", "#menu.home.take_it_easy", "#menu.home.hop_across_busy_roads_and_get_dinner_to_the_door_while_it_s_hot", "weekend", "casual" ),
+        ( "facepunch.blockparty", "#menu.home.just_one_more", "#menu.home.dodge_deadly_blocks_and_chase_a_new_best_in_this_2d_platformer", "sports_esports", "twod" ),
+    };
+
+    record Step( Package Package, string Title, string Task, string Icon, string Style )
+    {
+        public bool Done => Package.Interaction.Seconds > 0;
+    }
+
+    List<Step> steps = new();
+    DiscoveryContext discovery;
+    readonly MenuProject.UI.CardVideoRotation rotation = new();
+
+    int DoneCount => steps.Count( x => x.Done );
+    bool AllDone => steps.Count > 0 && DoneCount == steps.Count;
+
+    void OpenStep( Step step )
+    {
+        Discovery.Clicked( discovery, step.Package );
+        step.Package.OpenModal();
+    }
+
+    bool refreshing;
+    float nextRefresh;
+    int revision;
+    bool deleted;
+
+    public override void Tick()
+    {
+        base.Tick();
+        SetClass( "compact", Box.Rect.Width * ScaleFromScreen < 1100 );
+
+        rotation.Count = MenuProject.UI.PackageCard.VideoThumbsPerShelf;
+        rotation.Interval = MenuProject.UI.PackageCard.VideoThumbsSeconds;
+        rotation.Tick();
+
+        if ( IsVisible && !refreshing && RealTime.Now >= nextRefresh ) _ = Refresh();
+    }
+
+    /// <summary>
+    /// Fetch the guide's packages fresh, so a step ticks off once the player has been in the game.
+    /// </summary>
+    async Task Refresh()
+    {
+        refreshing = true;
+        try
+        {
+            var fetched = new List<Step>();
+            foreach ( var (ident, title, task, icon, style) in Guide )
+            {
+                var package = await Package.FetchAsync( ident, false );
+                if ( package is null || (package.Info.IsVrOnly && !Application.IsVR) ) continue;
+                fetched.Add( new Step( package, title, task, icon, style ) );
+            }
+
+            steps = fetched;
+            discovery = new DiscoveryContext { Surface = "home", Shelf = "starter", Packages = steps.Select( x => x.Package ).ToArray() };
+        }
+        catch ( Exception e )
+        {
+            Log.Warning( $"Couldn't refresh the starter games ({e.Message})" );
+        }
+        finally
+        {
+            refreshing = false;
+            nextRefresh = RealTime.Now + 60;
+            revision++;
+            if ( !deleted ) StateHasChanged();
+        }
+    }
+
+    public override void OnDeleted()
+    {
+        deleted = true;
+        base.OnDeleted();
+    }
+
+    protected override int BuildHash() => HashCode.Combine( revision, Application.IsVR );
+}

@@ -31,10 +31,17 @@ namespace Editor
 			if ( string.IsNullOrWhiteSpace( StateCookie ) )
 				return;
 
-			var state = EditorCookie.GetString( $"Window.{StateCookie}.State", null );
-			var geo = EditorCookie.GetString( $"Window.{StateCookie}.Geometry", null );
+			// We restore geometry from a plain rect we save ourselves - Qt's saved
+			// geometry blob rescales unpredictably across monitors with different DPI
+			if ( !EditorCookie.TryGet( $"Window.{StateCookie}.Rect", out Rect rect ) || !_widget.tryRestoreGeometry( rect ) )
+			{
+				Center();
+			}
 
-			if ( geo != null ) RestoreGeometry( geo );
+			if ( EditorCookie.Get( $"Window.{StateCookie}.Maximized", false ) )
+				SetMaximized( true );
+
+			var state = EditorCookie.GetString( $"Window.{StateCookie}.State", null );
 			if ( state != null ) RestoreState( state );
 		}
 
@@ -53,10 +60,15 @@ namespace Editor
 				return;
 
 			var state = SaveState();
-			var geo = SaveGeometry();
 
 			EditorCookie.SetString( $"Window.{StateCookie}.State", state );
-			EditorCookie.SetString( $"Window.{StateCookie}.Geometry", geo );
+			EditorCookie.Set( $"Window.{StateCookie}.Maximized", IsMaximized );
+
+			// Only when plain windowed, so the rect always holds the last normal geometry
+			if ( !IsMinimized && !IsMaximized )
+			{
+				EditorCookie.Set( $"Window.{StateCookie}.Rect", _widget.windowGeometry().Rect );
+			}
 		}
 	}
 }

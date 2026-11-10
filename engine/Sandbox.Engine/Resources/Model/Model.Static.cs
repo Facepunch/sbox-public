@@ -23,7 +23,8 @@ public partial class Model
 			return model;
 		}
 
-		model = new Model( native, name ?? native.GetModelName(), procedural );
+		name ??= procedural ? native.GetModelName() : NativeGlue.Resources.GetModelResourceName( native );
+		model = new Model( native, name, procedural );
 		NativeResourceCache.Add( instanceId, model );
 
 		// Keeping this because some legacy game loop depends on this for logic, can't be fucked solving for legacy.

@@ -1,0 +1,154 @@
+@import "/styles/_theme.scss";
+@import "/Platform/_platform.scss";
+@import "/styles/_button.scss";
+
+RewardUnboxUI
+{
+	width: 100%;
+	height: 100%;
+	flex-direction: column;
+	justify-content: space-between;
+	color: $default-text;
+	font-family: $font-default;
+	pointer-events: none;
+
+	.button
+	{
+		@include platform-text-button( 40px );
+		justify-content: center;
+		padding: 0 18px;
+
+		&.primary
+		{
+			@include platform-button-primary;
+		}
+	}
+
+	.topbar
+	{
+		flex-shrink: 0;
+		flex-direction: row;
+		padding: 24px;
+		pointer-events: all;
+
+		.back
+		{
+			align-self: flex-start;
+		}
+	}
+
+	.center
+	{
+		flex-grow: 1;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 18px;
+		pointer-events: all;
+
+		.sub
+		{
+			font-family: $font-heading;
+			color: $default-300;
+		}
+
+		.spinner
+		{
+			align-items: center;
+			justify-content: center;
+			margin-bottom: 4px;
+
+			icon
+			{
+				font-size: 56px;
+				color: $default-300;
+				animation: reward-spin 1.1s linear infinite;
+			}
+		}
+
+		.title
+		{
+			font-family: $font-heading;
+			font-size: 24px;
+			font-weight: 700;
+		}
+	}
+
+	.claim-bar
+	{
+		flex-shrink: 0;
+		flex-direction: row;
+		justify-content: space-between;
+		align-items: center;
+		padding: 20px 32px;
+		pointer-events: all;
+		background-color: $platform-glass;
+		border-top: 1px solid $platform-hairline;
+		backdrop-filter: blur( 24px );
+
+		.claim-info
+		{
+			flex-direction: column;
+			gap: 6px;
+
+			.select-banner
+			{
+				@include platform-chip;
+				align-self: flex-start;
+			}
+
+			.blurb
+			{
+				font-family: $font-heading;
+				color: $default-300;
+				font-size: $text-small;
+			}
+		}
+
+		.claim
+		{
+			@include platform-text-button( 48px );
+			@include platform-button-primary;
+			width: 250px;
+			justify-content: center;
+			padding: 0 24px;
+
+			label
+			{
+				flex-grow: 0;
+			}
+
+			&.disabled
+			{
+				pointer-events: none;
+			}
+		}
+	}
+
+	.result-bar
+	{
+		flex-shrink: 0;
+		flex-direction: row;
+		align-items: center;
+		justify-content: center;
+		gap: 16px;
+		padding: 24px 32px;
+		pointer-events: all;
+		background-color: $platform-glass;
+		border-top: 1px solid $platform-hairline;
+		backdrop-filter: blur( 24px );
+
+		.result-icon
+		{
+			font-size: 32px;
+			color: $primary-yellow;
+		}
+
+		.result-text
+		{
+			font-family: $font-heading;
+			font-size: 24px;
+			font-weight: 700;
+		}
+	}
+}

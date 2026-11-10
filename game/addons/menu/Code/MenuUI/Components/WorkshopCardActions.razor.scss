@@ -1,0 +1,86 @@
+@import "/Platform/_platform.scss";
+
+// On a card's art, bottom right - only while you're pointing at the card (see PackageCard), unless
+// you've already subscribed, so you can see which ones you have
+WorkshopCardActions
+{
+	position: absolute;
+	right: 8px;
+	bottom: 8px;
+	z-index: 3;
+	flex-direction: row;
+	gap: 4px;
+	opacity: 0;
+	transition: opacity 0.12s ease;
+
+	&.subscribed
+	{
+		opacity: 1;
+	}
+
+	.action
+	{
+		@include platform-text-button( 26px, 12px, 15px );
+		flex-direction: row;
+		gap: 4px;
+		padding: 0 10px 0 8px;
+		pointer-events: all;
+
+		&:hover
+		{
+			sound-in: "ui.button.over";
+		}
+
+		&:active
+		{
+			sound-in: "ui.button.press";
+		}
+
+		&.busy
+		{
+			cursor: default;
+		}
+	}
+
+	// Just the icon
+	.open, .remove
+	{
+		padding: 0 6px;
+	}
+
+	.remove icon
+	{
+		color: $platform-danger;
+	}
+
+	.when-hovered
+	{
+		display: none;
+	}
+
+	&.subscribed .subscribe
+	{
+		@include platform-button-primary;
+
+		// Pointing at it says what clicking does - back to grey, the way out in red
+		&:hover
+		{
+			@include platform-button( 26px );
+
+			icon, label
+			{
+				color: $platform-danger;
+			}
+
+			.when-idle
+			{
+				display: none;
+			}
+
+			.when-hovered
+			{
+				display: flex;
+			}
+		}
+	}
+}

@@ -13,7 +13,10 @@ public class SpotLight : Light
 {
 	SceneSpotLight _so;
 
-	[Property]
+	/// <summary>
+	/// Maximum distance reached by this light.
+	/// </summary>
+	[Property, Group( "Influence", Order = 0 ), Order( 0 )]
 	public float Radius
 	{
 		get;
@@ -27,8 +30,10 @@ public class SpotLight : Light
 		}
 	} = 500;
 
-	[Range( 0, 90 )]
-	[Property]
+	/// <summary>
+	/// Outer angle of the light cone in degrees, beyond which the beam emits no light.
+	/// </summary>
+	[Property, Range( 0, 90 ), Group( "Beam", Order = 1 ), Order( 1 ), Title( "Outer Cone" )]
 	public float ConeOuter
 	{
 		get;
@@ -42,8 +47,10 @@ public class SpotLight : Light
 		}
 	} = 45;
 
-	[Range( 0, 90 )]
-	[Property]
+	/// <summary>
+	/// Inner angle of the light cone in degrees, before the beam fades toward its outer edge.
+	/// </summary>
+	[Property, Range( 0, 90 ), Group( "Beam", Order = 1 ), Order( 0 ), Title( "Inner Cone" )]
 	public float ConeInner
 	{
 		get;
@@ -57,7 +64,10 @@ public class SpotLight : Light
 		}
 	} = 15;
 
-	[Property, Range( 0, 10 )]
+	/// <summary>
+	/// Quadratic term controlling how this light fades with distance.
+	/// </summary>
+	[Property, Range( 0, 10 ), Group( "Influence", Order = 0 ), Order( 1 )]
 	public float Attenuation
 	{
 		get;
@@ -71,7 +81,10 @@ public class SpotLight : Light
 		}
 	} = 1.0f;
 
-	[Property]
+	/// <summary>
+	/// Texture projected by this light to shape the beam's appearance.
+	/// </summary>
+	[Property, Group( "Beam", Order = 1 ), Order( 2 )]
 	public Texture Cookie
 	{
 		get;
@@ -83,11 +96,6 @@ public class SpotLight : Light
 			if ( _so.IsValid() )
 				_so.LightCookie = value;
 		}
-	}
-
-	public SpotLight()
-	{
-		LightColor = "#E9FAFF";
 	}
 
 	protected override SceneLight CreateSceneObject()

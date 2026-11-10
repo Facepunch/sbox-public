@@ -12,7 +12,13 @@
     [Parameter] public PortalTarget Portal { get; set; }
     [Parameter] public bool StartActive { get; set; }
 
-    bool IsActivePortalUser => Portal is not null && Content is not null && Portal.Content == Content;
+    /// <summary>
+    /// Which one it is, for whoever made a row of them to find it again.
+    /// </summary>
+    [Parameter] public string Name { get; set; }
+
+    // Ours is the one showing - by who put it there, not the content, which is a new fragment each redraw
+    bool IsActivePortalUser => Portal is not null && Portal.Source == this;
 
     protected override void OnMouseDown(MousePanelEvent e)
     {
@@ -21,7 +27,18 @@
 
     protected override void OnParametersSet()
     {
-        if (StartActive)
+        if (Portal is null) return;
+
+        // Showing already - keep what it shows up to date with the redraw
+        if (IsActivePortalUser)
+        {
+            Portal.Content = Content;
+            return;
+        }
+
+        // First, until something's been shown - not every redraw, or it'd take the page back from
+        // whichever tab's been picked since
+        if (StartActive && Portal.Source is null)
         {
             ActivatePage();
         }
@@ -37,10 +54,11 @@
         }
     }
 
-    void ActivatePage()
+    public void ActivatePage()
     {
         if (Portal is not null)
         {
+            Portal.Source = this;
             Portal.Content = Content;
             StateHasChanged();
 

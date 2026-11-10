@@ -25,6 +25,7 @@ namespace Sandbox
 			{
 				if ( !SceneObject.native.IsValid ) return;
 				SceneObject.native.AddTag( StringToken.FindOrCreate( tag ) );
+				SceneObject.NotifyChanged( Rendering.SceneObjectChange.Tags );
 			}
 
 			public override IEnumerable<string> TryGetAll()
@@ -60,12 +61,14 @@ namespace Sandbox
 			{
 				if ( !SceneObject.native.IsValid ) return;
 				SceneObject.native.RemoveTag( StringToken.FindOrCreate( tag ) );
+				SceneObject.NotifyChanged( Rendering.SceneObjectChange.Tags );
 			}
 
 			public override void RemoveAll()
 			{
 				if ( !SceneObject.native.IsValid ) return;
 				SceneObject.native.RemoveAllTags();
+				SceneObject.NotifyChanged( Rendering.SceneObjectChange.Tags );
 			}
 		}
 	}

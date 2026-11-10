@@ -1,0 +1,289 @@
+@import "/styles/_theme.scss";
+@import "/Platform/_platform.scss";
+
+$starter-mint: #8fab9b;
+$starter-blue: #8cabc9;
+$starter-orange: #bba184;
+$starter-pink: #b49bab;
+
+StarterShelf
+{
+	position: relative;
+	flex-direction: column;
+	flex-shrink: 0;
+	width: 100%;
+	max-width: $screen-w-xl;
+	margin: 0 auto 30px auto;
+	@include platform-surface;
+	overflow: hidden;
+
+	.guide-blueprint-background
+	{
+		position: absolute;
+		left: 0;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		background-image: url( "/ui/starter-welcome-grid.svg" );
+		background-size: cover;
+		background-position: center;
+		pointer-events: none;
+		z-index: 0;
+	}
+
+	.guide-top, .guide-content, .guide-foot { position: relative; z-index: 1; }
+
+	.guide-top
+	{
+		align-items: center;
+		justify-content: space-between;
+		flex-shrink: 0;
+		padding: 12px 20px;
+
+		> label
+		{
+			font-size: 14px;
+			font-weight: 600;
+			color: $platform-muted;
+		}
+	}
+
+	.guide-dismiss
+	{
+		@include platform-text-button( 30px, 12.5px, 15px );
+		flex-shrink: 0;
+		padding: 0 10px;
+	}
+
+	.guide-content
+	{
+		flex-shrink: 0;
+		gap: 12px;
+		padding: 0 20px 20px 20px;
+	}
+
+	.guide-intro
+	{
+		position: relative;
+		flex-direction: column;
+		flex-shrink: 0;
+		width: 20%;
+		padding: 20px;
+		border-radius: 5px;
+		background-color: transparent;
+		color: $front-heading;
+		gap: 12px;
+		overflow: hidden;
+	}
+
+
+	.guide-title
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		font-size: 30px;
+		font-weight: 800;
+		line-height: 34px;
+		letter-spacing: -0.03em;
+	}
+
+	.guide-description
+	{
+		font-size: 12px;
+		font-weight: 500;
+		color: $front-secondary;
+		flex-grow: 1;
+	}
+
+	.guide-progress
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		gap: 7px;
+		margin-top: 8px;
+
+		> label
+		{
+			font-size: 11px;
+			font-weight: 600;
+			color: $front-secondary;
+		}
+	}
+
+	.progress-marks { gap: 5px; }
+	.progress-mark
+	{
+		flex-grow: 1;
+		height: 5px;
+		border-radius: 2px;
+		background-color: $front-track;
+		&.done { background-color: $starter-mint; }
+	}
+
+	.guide-games
+	{
+		flex-grow: 1;
+		flex-shrink: 1;
+		width: 0;
+		gap: 12px;
+	}
+
+	.guide-step
+	{
+		flex-grow: 1;
+		flex-shrink: 1;
+		width: 0;
+		min-width: 0;
+		@include platform-surface;
+		overflow: hidden;
+	}
+
+	.step-heading
+	{
+		flex-shrink: 0;
+		align-items: center;
+		gap: 7px;
+		padding: 10px 14px;
+		color: $front-body;
+
+		label
+		{
+			font-size: 13px;
+			font-weight: 600;
+			text-transform: none;
+		}
+
+		icon { font-size: 17px; color: $starter-blue; }
+	}
+
+	.step-art
+	{
+		position: relative;
+		width: 100%;
+		flex-shrink: 0;
+
+		PackageCard
+		{
+			width: 100%;
+			height: auto;
+			border-radius: 0;
+
+			.image
+			{
+				flex-grow: 0;
+				aspect-ratio: 16 / 9;
+				border-radius: 0;
+			}
+
+			column { display: none; }
+
+			&.package-card:not(.list):hover
+			{
+				transform: none;
+				box-shadow: none;
+			}
+		}
+	}
+
+	// Over the art - the glass behind it, so it reads on any picture
+	.step-stamp
+	{
+		@include platform-chip;
+		position: absolute;
+		bottom: 6px;
+		left: 6px;
+		background-color: $platform-glass;
+		pointer-events: none;
+		z-index: 110;
+	}
+
+	.step-body
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		gap: 7px;
+		padding: 14px;
+	}
+
+	.step-game
+	{
+		@include front-row-title;
+		font-size: 15px;
+	}
+
+	.step-description
+	{
+		flex-grow: 1;
+		font-size: 12px;
+		color: $platform-muted;
+	}
+
+	.step-open
+	{
+		@include platform-text-button( 34px, 13px, 18px );
+		flex-shrink: 0;
+		justify-content: space-between;
+		flex-direction: row-reverse;
+		margin-top: 8px;
+		padding: 0 12px;
+	}
+
+	.casual
+	{
+		.step-heading icon { color: $starter-orange; }
+	}
+
+	.together
+	{
+		.step-heading icon { color: $starter-pink; }
+	}
+
+	.twod
+	{
+		.step-heading icon { color: $starter-mint; }
+	}
+
+	&.compact
+	{
+		.guide-content { flex-direction: column; }
+		.guide-intro { width: 100%; }
+		.guide-title { flex-direction: row; flex-wrap: wrap; gap: 8px; }
+		.guide-games { width: 100%; flex-wrap: wrap; }
+		.guide-step { flex-basis: 40%; min-width: 200px; }
+		.guide-foot { flex-wrap: wrap; }
+	}
+
+	.guide-foot
+	{
+		flex-shrink: 0;
+		align-items: center;
+		gap: 14px;
+		padding: 14px 20px;
+		border-top: 1px solid $platform-hairline;
+	}
+
+	.creator-icon
+	{
+		@include platform-tile( 24px, 38px );
+		icon { font-size: 24px; color: $platform-muted; }
+	}
+
+	.creator-copy
+	{
+		flex-grow: 1;
+		flex-shrink: 1;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.creator-title { font-size: 14px; font-weight: 700; color: $platform-text; }
+	.creator-description { font-size: 12px; color: $platform-muted; }
+
+	.guide-learn
+	{
+		@include platform-text-button( 38px, 13px, 18px );
+		@include platform-button-primary;
+		flex-shrink: 0;
+		padding: 0 14px;
+	}
+}

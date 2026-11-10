@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Threading;
 using static Sandbox.Diagnostics.PerformanceStats;
 
@@ -10,21 +10,135 @@ internal static partial class Api
 	{
 		static FastTimer time = FastTimer.StartNew();
 
-		static float lastFrame;
+		static double lastFrame;
 		static float startTime;
 
 		static int FrameCount;
 
 		static int[] FrameBucket = new int[10];
-		static Dictionary<string, PeriodMetric> Stages = new Dictionary<string, PeriodMetric>( 16 );
-		static Dictionary<string, List<double>> statDict = new( 16 );
+		static Dictionary<string, Accum> Stages = new Dictionary<string, Accum>( 16 );
+		static Dictionary<string, Accum> statDict = new( 16 );
 
 		static Lock Lock = new Lock();
+		static readonly Diagnostics.GpuPassTimings gpuPassTimings = new();
+		static readonly Diagnostics.GpuTimingSamplingWindow gpuSamplingWindow = new();
+		static bool wasSamplingGpu;
+		static Guid gpuSession;
+		static Diagnostics.GpuFrameTimeline gpuTimeline;
+		static ulong timelineAfterFrame;
+		static double lastTimelineCapture = double.NegativeInfinity;
+
+		[ConVar( "gpu_timing_telemetry", ConVarFlags.Protected, Help = "Sample GPU pass timings for performance reports for one second every thirty seconds" )]
+		internal static bool GpuTimingTelemetry { get; set; } = true;
+
+		[ConVar( "gpu_timeline_interval", ConVarFlags.Protected, Help = "Seconds between telemetry timeline captures (minimum 60). Uploaded on the next activity heartbeat. 0 disables timeline uploads." )]
+		internal static int GpuTimelineInterval { get; set; } = 300;
+
+		// Called under the Frame lock. GPU samples are deduplicated by completed GPU frame,
+		// with their own exposure count because profiling only runs during sampling windows.
+		static void CollectGpuStats()
+		{
+			var allowed = GpuTimingTelemetry && AccountInformation.UseAnalytics && Activity.IsSessionActive
+				&& !Application.IsEditor && !Application.IsHeadless && !Application.IsStandalone;
+
+			if ( gpuSession != SessionId )
+			{
+				gpuSession = SessionId;
+				gpuPassTimings.Clear();
+				gpuTimeline = null;
+				gpuSamplingWindow.Reset();
+				wasSamplingGpu = false;
+				lastTimelineCapture = double.NegativeInfinity;
+			}
+
+			if ( !allowed )
+			{
+				gpuPassTimings.Clear();
+				gpuTimeline = null;
+			}
+
+			if ( GpuTimelineInterval <= 0 ) gpuTimeline = null;
+
+			var sampling = gpuSamplingWindow.Update( RealTime.Now, allowed );
+			Diagnostics.GpuProfilerStats.Enabled = Diagnostics.DevTools.WantsGpuTimings || sampling;
+			Diagnostics.GpuProfilerStats.Update();
+
+			if ( sampling )
+			{
+				if ( !wasSamplingGpu )
+				{
+					timelineAfterFrame = Diagnostics.GpuProfilerStats.FrameId;
+					gpuPassTimings.SkipFrame( timelineAfterFrame );
+				}
+				else
+				{
+					gpuPassTimings.AddFrame( Diagnostics.GpuProfilerStats.FrameId, Diagnostics.GpuProfilerStats.Rows, Diagnostics.GpuProfilerStats.Renderer );
+					if ( gpuTimeline?.Renderer != Diagnostics.GpuProfilerStats.Renderer )
+					{
+						gpuTimeline = null;
+					}
+
+					if ( gpuTimeline is null && GpuTimelineInterval > 0
+						&& RealTime.Now - lastTimelineCapture >= Math.Max( 60, GpuTimelineInterval )
+						&& Diagnostics.GpuProfilerStats.FrameId > timelineAfterFrame )
+					{
+						gpuTimeline = Diagnostics.GpuFrameTimeline.Capture();
+						if ( gpuTimeline is not null ) lastTimelineCapture = RealTime.Now;
+					}
+				}
+			}
+
+			wasSamplingGpu = sampling;
+		}
+
+		struct Accum
+		{
+			public int Cnt;
+			public double Min;
+			public double Max;
+			public double Sum;
+			public double Mean;
+			public double M2;
+			public long Calls;
+
+			public void Add( double value, long calls = 1 )
+			{
+				if ( Cnt == 0 )
+				{
+					Min = value;
+					Max = value;
+				}
+				else
+				{
+					if ( value < Min ) Min = value;
+					if ( value > Max ) Max = value;
+				}
+
+				Cnt++;
+				Sum += value;
+				Calls += calls;
+
+				var d = value - Mean;
+				Mean += d / Cnt;
+				M2 += d * (value - Mean);
+			}
+
+			public object ToMetric() => new
+			{
+				Cnt,
+				Min,
+				Max,
+				Sum,
+				Avg = Mean,
+				Dev = Cnt > 1 ? Math.Sqrt( M2 / (Cnt - 1) ) : 0.0,
+				Calls,
+			};
+		}
 
 		public static void Frame()
 		{
-			var t = time.Elapsed.Milliseconds;
-			var delta = (t - lastFrame);
+			var t = time.ElapsedMilliSeconds;
+			float delta = (float)(t - lastFrame);
 			if ( delta < 0 ) delta = 0;
 
 			// new, bucketed frames
@@ -34,9 +148,12 @@ internal static partial class Api
 
 			lock ( Lock )
 			{
-				foreach ( var stat in Timings.GetMain() )
+				CollectGpuStats();
+
+				var main = Timings.Main;
+				for ( int i = 0; i < main.Count; i++ )
 				{
-					FlipStat( stat );
+					FlipStat( main[i] );
 				}
 
 				var s = FrameStats.Current;
@@ -54,6 +171,7 @@ internal static partial class Api
 				CollectStat( "ShadowedLights", s.ShadowedLightsInView );
 				CollectStat( "UnshadowedLights", s.UnshadowedLightsInView );
 				CollectStat( "ShadowMaps", s.ShadowMaps );
+				CollectStat( "GpuFrametime", PerformanceStats.GpuFrametime );
 				CollectStat( "GC0", PerformanceStats.Gen0Collections );
 				CollectStat( "GC1", PerformanceStats.Gen1Collections );
 				CollectStat( "GC2", PerformanceStats.Gen2Collections );
@@ -72,32 +190,18 @@ internal static partial class Api
 		/// </summary>
 		internal static void CollectStat( string name, double value )
 		{
-			if ( !statDict.TryGetValue( name, out var list ) )
-			{
-				list = new List<double>();
-				statDict[name] = list;
-			}
-
-			list.Add( value );
+			statDict.TryGetValue( name, out var a );
+			a.Add( value, 0 );
+			statDict[name] = a;
 		}
 
 		private static void FlipStat( Timings stat )
 		{
-			var timings = stat.GetMetric( 1 );
+			var m = stat.GetMetric( 1 );
 
-			// I think this is a good way to get the metrics, maybe?
-
-			if ( Stages.TryGetValue( stat.Name, out var existing ) )
-			{
-				Stages[stat.Name] = new PeriodMetric( MathF.Min( existing.Min, timings.Min ),
-											MathF.Max( existing.Max, timings.Max ),
-											(existing.Avg + timings.Avg) / 2.0f,
-											existing.Calls + timings.Calls );
-			}
-			else
-			{
-				Stages[stat.Name] = timings;
-			}
+			Stages.TryGetValue( stat.Name, out var a );
+			a.Add( m.Avg, m.Calls );
+			Stages[stat.Name] = a;
 		}
 
 		public static object Flip()
@@ -110,6 +214,7 @@ internal static partial class Api
 			lock ( Lock )
 			{
 				var msPerFrame = (delta * 1000.0f) / ((float)FrameCount);
+				var gpuPasses = gpuPassTimings.Flip();
 
 				Process currentProc = Process.GetCurrentProcess();
 
@@ -120,19 +225,17 @@ internal static partial class Api
 					Avg = msPerFrame,
 					Memory = (int)(currentProc.WorkingSet64 / (1024 * 1024)),
 					FrameBucket = FrameBucket.ToArray(), // need to copy
-					Stages = Stages.Where( x => x.Value.Calls > 0 ).ToDictionary( x => x.Key, x => x.Value ), // need to copy
+					Stages = Stages.Where( x => x.Value.Calls > 0 ).ToDictionary( x => x.Key, x => x.Value.ToMetric() ), // need to copy
 					Stats = BuildStats(),
+					GpuPasses = AccountInformation.UseAnalytics && GpuTimingTelemetry ? gpuPasses : null,
+					GpuTimeline = AccountInformation.UseAnalytics && GpuTimingTelemetry && GpuTimelineInterval > 0 ? gpuTimeline?.ToTelemetry() : null,
 				};
 
 				FrameCount = 0;
+				gpuTimeline = null;
 				startTime = time;
 				Stages.Clear();
-
-				foreach ( var e in statDict )
-				{
-					e.Value.Clear();
-				}
-
+				statDict.Clear();
 
 				for ( int i = 0; i < FrameBucket.Length; i++ )
 				{
@@ -148,32 +251,7 @@ internal static partial class Api
 		/// </summary>
 		static object BuildStats()
 		{
-			return statDict.ToDictionary( x => x.Key, x => ArrayToMetric( x.Value ) );
-		}
-
-		/// <summary>
-		///  Here we take the array of values and convert them into an object with a bunch of statistics about them.
-		///  Basically trying to cover our bases as much as possible, in case we need to show this data later on.
-		/// </summary>
-		private static object ArrayToMetric( List<double> data )
-		{
-			var count = data.Count;
-			var min = data.Min();
-			var max = data.Max();
-			var sum = data.Sum();
-			var mean = data.Average();
-			double variance = data.Select( val => (val - mean) * (val - mean) ).Sum() / (count - 1);
-			double stdDeviation = Math.Sqrt( variance );
-
-			return new
-			{
-				Cnt = data.Count,
-				Min = min,
-				Max = max,
-				Sum = sum,
-				Avg = mean,
-				Dev = stdDeviation,
-			};
+			return statDict.ToDictionary( x => x.Key, x => x.Value.ToMetric() );
 		}
 	}
 }

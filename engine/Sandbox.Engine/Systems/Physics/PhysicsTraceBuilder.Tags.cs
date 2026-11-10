@@ -131,6 +131,12 @@
 
 			var t = this;
 
+			if ( tags is TagSet tagSet )
+			{
+				foreach ( var token in tagSet.TokenSet ) t = t.WithOptionalTag( new StringToken( token ) );
+				return t;
+			}
+
 			foreach ( var tag in tags.TryGetAll() )
 			{
 				t = t.WithOptionalTag( tag );
@@ -182,6 +188,12 @@
 
 			var t = this;
 
+			if ( tags is TagSet tagSet )
+			{
+				foreach ( var token in tagSet.TokenSet ) t = t.WithoutTag( new StringToken( token ) );
+				return t;
+			}
+
 			foreach ( var tag in tags.TryGetAll() )
 			{
 				t = t.WithoutTag( tag );
@@ -226,10 +238,41 @@
 			var maxHitResult = asTrigger ? CollisionRules.Result.Trigger : CollisionRules.Result.Collide;
 			var collisionRules = targetWorld.CollisionRules;
 
+			// Snapshot tags once so we don't box the enumerator per-tag inside the RuntimeTags loop.
+			// 64 is 4x SBOX_MAX_COLLISION_TAG_COUNT, so it covers anything that can affect collision.
+			Span<StringToken> tagTokens = stackalloc StringToken[64];
+			int tagCount = 0;
+			// Game tags are already tokenized, enumerating their strings would box an enumerator
+			if ( tags is GameTags gameTags && gameTags.GetTokens() is HashSet<uint> tokenSet )
+			{
+				foreach ( var token in tokenSet )
+				{
+					if ( tagCount >= tagTokens.Length )
+					{
+						Log.Warning( $"WithCollisionRules: tag set exceeded {tagTokens.Length} entries, ignoring the rest" );
+						break;
+					}
+					tagTokens[tagCount++] = new StringToken( token );
+				}
+			}
+			else
+			{
+				foreach ( var tag in tags )
+				{
+					if ( tagCount >= tagTokens.Length )
+					{
+						Log.Warning( $"WithCollisionRules: tag set exceeded {tagTokens.Length} entries, ignoring the rest" );
+						break;
+					}
+					tagTokens[tagCount++] = tag;
+				}
+			}
+			tagTokens = tagTokens[..tagCount];
+
 			foreach ( var other in collisionRules.RuntimeTags )
 			{
 				var result = CollisionRules.Result.Collide;
-				foreach ( var tag in tags )
+				foreach ( var tag in tagTokens )
 				{
 					var r = collisionRules.GetCollisionRule( other, tag );
 					if ( r > result ) result = r;

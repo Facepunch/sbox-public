@@ -1,6 +1,7 @@
-﻿using Sandbox.Engine;
+using Sandbox.Engine;
 using Sandbox.Engine.Settings;
 using Sandbox.Modals;
+using Sandbox.Platform;
 using Sandbox.Services;
 using System;
 using System.Net;
@@ -13,19 +14,97 @@ public static partial class MenuUtility
 {
 	public static Action Tick { get; set; }
 
+	/// <summary>
+	/// The menu's own TypeLibrary. <see cref="Game.TypeLibrary"/> is always the game's.
+	/// </summary>
+	public static Sandbox.Internal.TypeLibrary TypeLibrary => GlobalContext.Menu.TypeLibrary;
+
+	/// <summary>Whether higher-resolution texture data is currently downloading.</summary>
+	public static bool IsTextureWebStreamingActive => NativeGlue.Resources.IsTextureWebStreamingActive();
+
 	public static void SetModalSystem( IModalSystem system )
 	{
 		IModalSystem.Current = system;
 	}
 
+	static event Action<LogEvent> MenuLoggers;
+
 	public static void AddLogger( Action<LogEvent> logger )
 	{
-		Sandbox.Diagnostics.Logging.OnMessage += logger;
+		MenuLoggers += logger;
+
+		Sandbox.Diagnostics.Logging.OnMessage -= DispatchToMenuLoggers;
+		Sandbox.Diagnostics.Logging.OnMessage += DispatchToMenuLoggers;
 	}
 
 	public static void RemoveLogger( Action<LogEvent> logger )
 	{
-		Sandbox.Diagnostics.Logging.OnMessage -= logger;
+		MenuLoggers -= logger;
+	}
+
+	internal static void ClearLoggers()
+	{
+		MenuLoggers = null;
+	}
+
+	/// <summary>
+	/// Messages arrive in whatever context logged them, usually the game's. Menu loggers are menu code - they
+	/// create menu panels - so run them in the menu's context, not against the game's TypeLibrary and UI.
+	/// </summary>
+	static void DispatchToMenuLoggers( LogEvent e )
+	{
+		var loggers = MenuLoggers;
+		if ( loggers is null )
+			return;
+
+		e.Exception = null;
+		e.Arguments = null;
+
+		using var scope = GlobalContext.MenuScope();
+		loggers( e );
+	}
+
+	public static void AddChatListener( Action<ChatMessageEvent> listener )
+	{
+		Platform.Chat.OnMessage += listener;
+	}
+
+	public static void RemoveChatListener( Action<ChatMessageEvent> listener )
+	{
+		Platform.Chat.OnMessage -= listener;
+	}
+
+	public static void AddVoiceChatListener( Action<VoiceChat.PacketEvent> listener )
+	{
+		Platform.VoiceChat.OnPacket += listener;
+	}
+
+	public static void RemoveVoiceChatListener( Action<VoiceChat.PacketEvent> listener )
+	{
+		Platform.VoiceChat.OnPacket -= listener;
+	}
+
+	/// <summary>
+	/// Collect the subtitle lines being spoken right now, from the running game's
+	/// scene (or the menu's own scene when not in a game). Used by the menu's
+	/// subtitle overlay.
+	/// </summary>
+	public static void GetSubtitles( List<SubtitlesGameObjectSystem.Line> lines )
+	{
+		// We're called from the menu context, but the active scene has to be
+		// resolved in the game's - Game.ActiveScene is per-context, and the menu
+		// context's is the menu background scene, not the game the player is in
+		Scene scene;
+
+		using ( GlobalContext.GameScope() )
+		{
+			scene = Application.GetActiveScene();
+		}
+
+		if ( !scene.IsValid() )
+			return;
+
+		scene.GetSystem<SubtitlesGameObjectSystem>()?.GetActive( lines );
 	}
 
 	public static ConCmdAttribute.AutoCompleteResult[] AutoComplete( string text, int maxCount )
@@ -38,26 +117,22 @@ public static partial class MenuUtility
 		IMenuDll.Current?.RunEvent( "ui.skiptransitions" );
 	}
 
+	public static async Task<bool> RefreshAccountInfo()
+	{
+		await AccountInformation.Update();
+		return Api.IsConnected;
+	}
+
 	/// <summary>
 	/// If current game is active, return the package
 	/// </summary>
 	public static Package GamePackage => Application.GamePackage;
 
 	/// <summary>
-	/// Init a stream service
+	/// How long the current game session has been running, or zero when there isn't one.
 	/// </summary>
-	public static async Task<bool> ConnectStream( StreamService service )
-	{
-		return await Sandbox.Engine.Streamer.Init( service );
-	}
+	public static TimeSpan SessionTime => TimeSpan.FromSeconds( Api.Activity.SessionSeconds );
 
-	/// <summary>
-	/// Init a stream service
-	/// </summary>
-	public static void DisconnectStream()
-	{
-		Sandbox.Engine.Streamer.Shutdown();
-	}
 
 	public static SceneWorld CreateSceneWorld()
 	{
@@ -81,6 +156,13 @@ public static partial class MenuUtility
 	/// </summary>
 	public static void OpenFolder( string path )
 	{
+		// UNC paths would connect to the remote share and leak the user's NTLM hash
+		if ( string.IsNullOrWhiteSpace( path ) || !System.IO.Path.IsPathFullyQualified( path ) || path.StartsWith( @"\\" ) || path.StartsWith( "//" ) || !System.IO.Directory.Exists( path ) )
+		{
+			Log.Warning( $"MenuUtility.OpenFolder: not a folder: {path}" );
+			return;
+		}
+
 		System.Diagnostics.Process.Start( new System.Diagnostics.ProcessStartInfo()
 		{
 			FileName = path,
@@ -94,12 +176,29 @@ public static partial class MenuUtility
 	/// </summary>
 	public static void OpenUrl( string path )
 	{
+		if ( !TryGetOpenableUrl( path, out var url ) )
+		{
+			Log.Warning( $"MenuUtility.OpenUrl: not an http(s) or steam url: {path}" );
+			return;
+		}
+
 		System.Diagnostics.Process.Start( new System.Diagnostics.ProcessStartInfo()
 		{
-			FileName = path,
+			FileName = url,
 			UseShellExecute = true,
 			Verb = "open"
 		} );
+	}
+
+	static readonly System.Text.RegularExpressions.Regex SteamUrl = new( @"^steam://(store/\d+|install/\d+|url/CommunityFilePage/\d+)/?$", System.Text.RegularExpressions.RegexOptions.CultureInvariant );
+
+	static bool TryGetOpenableUrl( string path, out string url )
+	{
+		if ( Game.Overlay.TryGetExternalUrl( path, out url ) )
+			return true;
+
+		url = path;
+		return path is not null && SteamUrl.IsMatch( path );
 	}
 
 	static List<Friend> _friendList;
@@ -137,19 +236,40 @@ public static partial class MenuUtility
 		var connectString = friend.GetRichPresence( "connect" );
 		if ( string.IsNullOrWhiteSpace( connectString ) ) return;
 
+		Api.Activity.GameRequested( new( "friend" ) );
+
 		connectString = connectString.Replace( "+connect", "" );
 		connectString = connectString.Replace( " ", "" );
 
 		// Should be left with a Steam Id but otherwise try connecting by IP.
 		if ( ulong.TryParse( connectString, out ulong lobbySteamId ) )
 		{
-			ConsoleSystem.Run( $"connect {lobbySteamId}" );
+			RunCommand( $"connect {lobbySteamId}" );
 		}
 		else
 		{
 			var ipAddress = IPEndPoint.Parse( connectString );
-			ConsoleSystem.Run( $"connect {ipAddress}" );
+			RunCommand( $"connect {ipAddress}" );
 		}
+	}
+
+	/// <summary>
+	/// Are we in a game we can invite friends to?
+	/// </summary>
+	public static bool CanInviteToGame => !string.IsNullOrWhiteSpace( Networking.GetInviteConnectString() );
+
+	/// <summary>
+	/// Invite a friend to the current game.
+	/// </summary>
+	public static bool InviteFriendGame( Friend friend )
+	{
+		var connectString = Networking.GetInviteConnectString();
+		if ( string.IsNullOrWhiteSpace( connectString ) ) return false;
+
+		// Private games only let in who they're told to
+		Networking.AllowJoin( friend.Id );
+
+		return friend.InviteToGame( connectString );
 	}
 
 	/// <summary>
@@ -157,14 +277,17 @@ public static partial class MenuUtility
 	/// </summary>
 	public static string StartupGameIdent => Utility.CommandLine.GetSwitch( "-rungame", null );
 
+	/// <summary>The external hostname carried by the website's Play button, when the browser supplied one.</summary>
+	public static string StartupWebReferrer => Api.Activity.NormalizeWebReferrer( Utility.CommandLine.GetSwitch( "-webreferrer", null ) );
+
 	/// <summary>
 	/// This is called when the cancel button is pressed when loading. 
 	/// We should disconnect and leave the game.
 	/// </summary>
 	public static void CancelLoading()
 	{
+		Api.Activity.CancelRequest( Api.Activity.PendingRequest );
 		IGameInstanceDll.Current.Disconnect();
-		LoadingScreen.IsVisible = false;
 	}
 
 	/// <summary>
@@ -176,13 +299,46 @@ public static partial class MenuUtility
 	}
 
 	/// <summary>
+	/// Get a console variable. Unlike ConsoleSystem.*, this can read protected console variables.
+	/// </summary>
+	public static string GetConsoleVariable( string name, string defaultValue = null )
+	{
+		return ConVarSystem.GetValue( name, defaultValue, true );
+	}
+
+	/// <summary>
+	/// Run a console command. Unlike ConsoleSystem.*, this can run protected commands.
+	/// </summary>
+	public static void RunCommand( string command, params object[] arguments )
+	{
+		ConsoleSystem.RunCommand( command, arguments, true );
+	}
+
+	/// <summary>
 	/// Access to the client's render settings
 	/// </summary>
 	public static RenderSettings RenderSettings => Sandbox.Engine.Settings.RenderSettings.Instance;
 
 	/// <summary>
+	/// The graphics preset this machine should start on.
+	/// </summary>
+	public static GraphicsPreset DetectGraphicsPreset() => Sandbox.Engine.Settings.RenderSettings.DetectPreset();
+
+	/// <summary>
+	/// What a graphics preset writes, keyed by setting name. Lets the settings menu tell which
+	/// preset unsaved edits add up to without keeping its own copy of the preset tables.
+	/// </summary>
+	public static IReadOnlyDictionary<string, string> GraphicsPresetValues( GraphicsPreset preset ) =>
+		Sandbox.Engine.Settings.RenderSettings.SettingsFor( preset );
+
+	/// <summary>What a post-processing preset writes, keyed by setting name.</summary>
+	public static IReadOnlyDictionary<string, string> PostProcessPresetValues( PostProcessQuality preset ) =>
+		Sandbox.Engine.Settings.RenderSettings.SettingsFor( preset );
+
+	/// <summary>
 	/// Listen to the voice
 	/// </summary>
+	[Obsolete( $"Use {nameof( PartyRoom.SetBroadcastVoice )}" )]
 	public static void SetVoiceListen( bool b )
 	{
 		if ( b )
@@ -197,7 +353,17 @@ public static partial class MenuUtility
 	public static void Connect( ulong lobbyId )
 	{
 		CloseAllModals();
+		Api.Activity.GameRequested( new( "server" ) );
 		Networking.Connect( lobbyId );
+	}
+
+	/// <summary>
+	/// Try to join one lobby, e.g. an open session on a map.
+	/// </summary>
+	public static Task<bool> TryJoinLobby( ulong lobbyId )
+	{
+		Api.Activity.GameRequested( new( "quickplay" ), replace: false );
+		return Networking.TryConnectSteamId( lobbyId );
 	}
 
 	/// <summary>
@@ -264,6 +430,34 @@ public static partial class MenuUtility
 	}
 
 	/// <summary>
+	/// The party members shared by this friend, including people outside our friends list.
+	/// Older clients may not share a roster. Requests missing Steam names as they are encountered.
+	/// </summary>
+	public static Friend[] GetPartyMembers( Friend friend )
+	{
+		if ( string.IsNullOrEmpty( friend.GetRichPresence( "party_id" ) ) ) return [];
+		var members = (friend.GetRichPresence( "party_members" ) ?? "").Split( ',' ).Take( 12 )
+			.Select( x => ulong.TryParse( x, out var id ) ? id : 0 ).Where( x => x != 0 ).Distinct()
+			.Select( x => new Friend( x ) ).ToArray();
+		foreach ( var member in members )
+			Steamworks.SteamFriends.RequestUserInformation( member.Id );
+		return members;
+	}
+
+	/// <summary>
+	/// Whether this friend can be invited to your current (or about-to-be-created) party -
+	/// ie. not you, and not already in it. Offline doesn't rule them out: people set to appear
+	/// offline in Steam are often really there, and still get the invite.
+	/// </summary>
+	public static bool CanInviteToParty( Friend friend )
+	{
+		if ( friend.IsMe ) return false;
+		if ( PartyRoom.Current is not null && PartyRoom.Current.Members.Contains( friend ) ) return false;
+
+		return true;
+	}
+
+	/// <summary>
 	/// Opens the invite overlay
 	/// </summary>
 	public static void InviteOverlayToParty()
@@ -274,9 +468,48 @@ public static partial class MenuUtility
 	/// <summary>
 	/// Post a review for a package
 	/// </summary>
-	public static Task PostReview( string packageIdent, Sandbox.Services.Review.ReviewScore score, string content )
+	public static Task PostReview( string packageIdent, Sandbox.Services.Review.ReviewScore score, string content, Sandbox.Services.Review.PositiveTags positives, Sandbox.Services.Review.NegativeTags negatives )
 	{
-		return Sandbox.Services.Review.Post( packageIdent, score, content );
+		return Sandbox.Services.Review.Post( packageIdent, score, content, positives, negatives );
+	}
+
+	/// <summary>
+	/// Post a report for a package
+	/// </summary>
+	public static Task PostReport( string packageIdent, Sandbox.Services.Reports.Reason reason, string content )
+	{
+		return Sandbox.Services.Reports.Post( packageIdent, reason, content );
+	}
+
+	/// <summary>
+	/// Begin linking a third-party service to the player's account (eg "Twitch"). Returns a URL
+	/// to open in a browser, where the player authorizes the service. Completion is delivered
+	/// asynchronously to <see cref="IBackendListener.OnServiceLinked"/>, so there's no need to
+	/// poll - just refresh <see cref="ListServices"/> when notified.
+	/// </summary>
+	public static async Task<string> BeginServiceLink( string service )
+	{
+		var result = await Backend.Account.BeginServiceLink( service );
+		return result.Url;
+	}
+
+	/// <summary>
+	/// List the player's linked services with their public info (name, avatar). Contains no tokens.
+	/// </summary>
+	public static async Task<List<LinkedService>> ListServices()
+	{
+		var services = await Backend.Account.ListServices();
+		return services.Select( x => new LinkedService( x.Type, x.Id, x.Name, x.Avatar ) ).ToList();
+	}
+
+	public static async Task SetMountState( string name, bool state )
+	{
+		await Sandbox.Mounting.Directory.SetMountState( name, state );
+
+		if ( !Application.IsEditor )
+		{
+			Sandbox.Mounting.MountConfig.Save();
+		}
 	}
 
 	/// <summary>
@@ -292,7 +525,18 @@ public static partial class MenuUtility
 		}, null );
 	}
 
+	/// <summary>
+	/// Keep the startup screen up, showing this status, while something is about to appear, so it doesn't pop in
+	/// once the startup screen has faded. Dispose the returned hold once it's there.
+	/// </summary>
+	public static IDisposable HoldStartupScreen( string status ) => StartupScreen.HoldFor( status );
 }
+
+/// <summary>
+/// Public, token-free info about a third-party service account (eg Twitch) linked to the player.
+/// This is the menu-facing proxy for the backend's service link data.
+/// </summary>
+public record struct LinkedService( string Service, string Id, string Name, string Avatar );
 
 public class StoragePublish
 {

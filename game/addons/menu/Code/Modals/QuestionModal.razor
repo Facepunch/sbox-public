@@ -1,0 +1,88 @@
+@using Sandbox
+@using Sandbox.UI
+
+@namespace MenuProject.Modals
+@inherits MenuProject.Modals.BaseModal
+
+@* A yes-or-no question in a panel in the middle of the screen, come up from below - the question,
+   then the two answers, the one that does it in the question's colour. Escape or a click off it is Cancel.
+   Without a CancelText it's just something to be told, with the one button - a notice. With an Entry
+   there's something to type in too, and enter in it is the confirm button. *@
+<root>
+    <div class="window">
+        <label class="title">@Title</label>
+
+        @if ( !string.IsNullOrEmpty( Message ) )
+        {
+            <label class="message">@Message</label>
+        }
+
+        @if ( Entry is not null )
+        {
+            <TextEntry @ref=_entry class="entry" Value:bind=@Entry onsubmit=@Confirm />
+        }
+
+        <div class="buttons">
+            @if ( !string.IsNullOrEmpty( CancelText ) )
+            {
+                <Button class="cancel" Text="@CancelText" onclick=@( () => CloseModal( false ) ) />
+            }
+            <Button class="confirm" Icon="@ConfirmIcon" Text="@ConfirmText" style="background-color: @Color.Rgba;" onclick=@Confirm />
+        </div>
+    </div>
+</root>
+
+@code
+{
+    /// <summary>
+    /// The confirm button's colour - red for something you can't take back.
+    /// </summary>
+    public Color Color { get; set; } = Color.Parse( "#3273eb" ) ?? Color.White;
+
+    public string Title { get; set; }
+
+    public string Message { get; set; }
+
+    public string ConfirmText { get; set; } = "#menu.common.ok";
+    public string ConfirmIcon { get; set; }
+    /// <summary>
+    /// Null for no cancel button - just the one, for a notice.
+    /// </summary>
+    public string CancelText { get; set; } = "#menu.common.cancel";
+
+    /// <summary>
+    /// What's typed in its box. Null for no box.
+    /// </summary>
+    public string Entry { get; set; }
+
+    /// <summary>
+    /// Called after it's closed, when the confirm button's pressed.
+    /// </summary>
+    public Action OnConfirm { get; set; }
+
+    /// <summary>
+    /// Called once it's gone, however it went - answered, or closed with everything else.
+    /// </summary>
+    public Action OnGone { get; set; }
+
+    TextEntry _entry;
+
+    protected override void OnAfterTreeRender( bool firstTime )
+    {
+        if ( firstTime ) _entry?.Focus();
+    }
+
+    public override void OnDeleted()
+    {
+        base.OnDeleted();
+        OnGone?.Invoke();
+    }
+
+    void Confirm()
+    {
+        if ( _entry is not null ) Entry = _entry.Text;
+
+        CloseModal( true );
+        OnConfirm?.Invoke();
+    }
+}

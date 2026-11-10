@@ -79,10 +79,6 @@ public class CompileGroup : IDisposable
 	/// </summary>
 	public ICompileReferenceProvider ReferenceProvider { get; set; }
 
-	/// <summary>
-	/// AccessControl instance to use when verifying whitelist. Must be set to enable compile-time access control.
-	/// </summary>
-	public AccessControl AccessControl { get; set; }
 
 	public CompileGroup( string name )
 	{
@@ -142,7 +138,7 @@ public class CompileGroup : IDisposable
 	}
 
 	/// <summary>
-	/// Mark this assembly as changed.
+	/// Recompile <paramref name="compiler"/> as soon as is appropriate.
 	/// </summary>
 	internal void MarkForRecompile( Compiler compiler )
 	{
@@ -150,6 +146,14 @@ public class CompileGroup : IDisposable
 		{
 			log.Trace( $"MarkForRecompile ({compiler.Name})" );
 		}
+	}
+
+	/// <summary>
+	/// No longer want/need to recompile <paramref name="compiler"/>.
+	/// </summary>
+	internal void ClearForRecompile( Compiler compiler )
+	{
+		_recompileList.Remove( compiler );
 	}
 
 	/// <summary>
@@ -290,7 +294,7 @@ public class CompileGroup : IDisposable
 			//
 			// Accumulate the build result
 			//
-			bool allSuccess = compileList.All( x => x.BuildResult?.Success ?? false );
+			bool allSuccess = compileList.All( x => x.BuildSuccess );
 			result.Failed = !allSuccess;
 
 			foreach ( var compiler in toCompile.OrderBy( x => x.DependencyIndex() ) )
@@ -355,10 +359,6 @@ public class CompileGroup : IDisposable
 	/// </summary>
 	internal async Task<PortableExecutableReference> FindReferenceAsync( string reference, Compiler fromCompiler )
 	{
-		// To retain backwards compatibility
-		if ( reference == "package.local.base" )
-			reference = "package.base";
-
 		var compiler = FindCompilerByAssemblyName( reference );
 		if ( compiler != null )
 		{
@@ -374,7 +374,7 @@ public class CompileGroup : IDisposable
 			// give it a few seconds to build..
 			//
 
-			const double timeoutSeconds = 60d;
+			const double timeoutSeconds = 120d;
 
 			var output = await compiler.GetCompileOutputAsync().WaitAsync( TimeSpan.FromSeconds( timeoutSeconds ) );
 

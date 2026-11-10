@@ -2,11 +2,23 @@
 
 namespace Facepunch.Steps;
 
-internal class ShaderProc( string name ) : Step( name )
+internal class ShaderProc
 {
-	protected override ExitCode RunInternal()
+	internal ExitCode Run()
 	{
-		Facepunch.ShaderProc.Program.Process( "engine" );
-		return ExitCode.Success;
+		return BuildDisplay.Run( "Pack shader sources", () =>
+		{
+			try
+			{
+				BuildDisplay.Status( "Packing shader sources" );
+				Facepunch.ShaderProc.Program.Process( "engine", Log.Info );
+				return ExitCode.Success;
+			}
+			catch ( Exception ex )
+			{
+				Log.Error( $"Shader source packing failed: {ex}" );
+				return ExitCode.Failure;
+			}
+		} );
 	}
 }

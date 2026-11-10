@@ -1,4 +1,4 @@
-﻿using Sandbox.Rendering;
+using Sandbox.Rendering;
 
 namespace Sandbox;
 
@@ -25,13 +25,12 @@ public sealed partial class SpriteRenderer : Renderer, Component.ExecuteInEditor
 	[Property]
 	public Sprite Sprite
 	{
-		get => _sprite;
+		get => _instance.Sprite;
 		set
 		{
-			if ( _sprite == value ) return;
-			_sprite = value;
+			if ( Sprite == value ) return;
+			_instance.Sprite = value;
 			_currentAnimationIndex = 0;
-			_animationState.ResetState();
 		}
 	}
 
@@ -42,10 +41,10 @@ public sealed partial class SpriteRenderer : Renderer, Component.ExecuteInEditor
 	[ShowIf( nameof( IsAnimated ), true )]
 	public string StartingAnimationName
 	{
-		get => CurrentAnimation?.Name ?? (_sprite?.Animations?.FirstOrDefault()?.Name ?? "");
+		get => CurrentAnimation?.Name ?? (Sprite?.Animations?.FirstOrDefault()?.Name ?? "");
 		set
 		{
-			if ( _sprite == null ) return;
+			if ( Sprite == null ) return;
 			PlayAnimation( value );
 		}
 	}
@@ -57,8 +56,8 @@ public sealed partial class SpriteRenderer : Renderer, Component.ExecuteInEditor
 	[ShowIf( nameof( IsAnimated ), true )]
 	public float PlaybackSpeed
 	{
-		get => _animationState.PlaybackSpeed;
-		set => _animationState.PlaybackSpeed = value;
+		get => _instance.PlaybackSpeed;
+		set => _instance.PlaybackSpeed = value;
 	}
 
 	/// <summary>
@@ -114,10 +113,49 @@ public sealed partial class SpriteRenderer : Renderer, Component.ExecuteInEditor
 	public float DepthFeather { get; set; }
 
 	/// <summary>
+	/// Sprites closer to the camera than this are completely invisible.
+	/// </summary>
+	[Property, Category( "Visuals" ), Order( -200 )]
+	public float CameraFadeNear { get; set; }
+
+	/// <summary>
+	/// Sprites further from the camera than this are fully opaque. Between this and
+	/// <see cref="CameraFadeNear"/> they fade out. Leave at zero to disable the fade.
+	/// </summary>
+	[Property, Category( "Visuals" ), Order( -200 )]
+	public float CameraFadeFar { get; set; }
+
+	/// <summary>
 	/// The strength of the fog effect applied to the sprite. This determines how much the sprite blends with any fog in the scene.
 	/// </summary>
 	[Property, Category( "Visuals" ), Order( -200 )]
 	public float FogStrength { get; set; } = 1.0f;
+
+	/// <summary>
+	/// Draw the sprite artwork over a refracted background in one pass. Alpha controls the artwork only.
+	/// Requires a normal texture and translucent, non-additive rendering. The captured scene is already lit and fogged.
+	/// </summary>
+	[Property, ToggleGroup( "Refraction" ), Order( -150 )]
+	public bool Refraction { get; set; }
+
+	/// <summary>
+	/// Tangent-space normal map sampled in linear space, using the same UV layout as the sprite texture.
+	/// Sprite flips and rotation also transform the normal. The map is shared by all animation frames.
+	/// </summary>
+	[Property, ToggleGroup( "Refraction" ), Order( -150 )]
+	public Texture NormalTexture { get; set; }
+
+	/// <summary>
+	/// Maximum refraction offset in render pixels before the normal is applied. Alpha, depth feathering
+	/// and camera fading affect artwork opacity only, never the refraction. Zero leaves the background undistorted.
+	/// </summary>
+	[Property, ToggleGroup( "Refraction" ), Order( -150 ), Range( 0, 64 )]
+	public float RefractionStrength { get; set; } = 8.0f;
+
+	/// <summary>
+	/// Whether this renderer can use scene-color refraction with its current blend settings and normal map.
+	/// </summary>
+	internal bool IsRefractive => Refraction && NormalTexture is not null && !Opaque && !Additive;
 
 	/// <summary>
 	/// Whether or not the sprite should be flipped horizontally.
@@ -170,25 +208,25 @@ public sealed partial class SpriteRenderer : Renderer, Component.ExecuteInEditor
 	/// <summary>
 	/// The animation that is currently being played. Returns null if no sprite is set or the sprite has no animations.
 	/// </summary>
-	public Sprite.Animation CurrentAnimation => _sprite?.GetAnimation( _currentAnimationIndex );
+	public Sprite.Animation CurrentAnimation => Sprite?.GetAnimation( _currentAnimationIndex );
 
 	/// <summary>
 	/// The index of the current frame being displayed. This will change over time if the sprite is animated, and can be set to go to a specific frame even during playback.
 	/// </summary>
 	public int CurrentFrameIndex
 	{
-		get => _animationState.CurrentFrameIndex;
+		get => _instance.CurrentFrameIndex;
 		set
 		{
-			_animationState.CurrentFrameIndex = value;
-			_animationState.TimeSinceLastFrame = 0;
+			_instance.SelectAnimation( CurrentAnimation );
+			_instance.CurrentFrameIndex = value;
 		}
 	}
 
 	/// <summary>
 	/// Whether or not the sprite is animated. This is true if the sprite has more than one animation.
 	/// </summary>
-	public bool IsAnimated => (_sprite?.Animations?.Count ?? 0) > 1;
+	public bool IsAnimated => (Sprite?.Animations?.Count ?? 0) > 1;
 
 	/// <summary>
 	/// The texture of the current frame being displayed. Returns a transparent texture when no valid frame is available.
@@ -219,10 +257,8 @@ public sealed partial class SpriteRenderer : Renderer, Component.ExecuteInEditor
 		}
 	}
 
-	Sprite.AnimationState _animationState = new();
-	HashSet<(MessageType Type, Sprite.BroadcastEvent Content)> _messageQueue = new();
+	readonly SpriteInstance _instance = new( null );
 	int _currentAnimationIndex = 0;
-	Sprite _sprite;
 
 	protected override void DrawGizmos()
 	{
@@ -275,18 +311,18 @@ public sealed partial class SpriteRenderer : Renderer, Component.ExecuteInEditor
 	/// </summary>
 	public void PlayAnimation( int index )
 	{
-		if ( _sprite is null )
+		if ( Sprite is null )
 			return;
-		if ( index < 0 || index >= (_sprite.Animations?.Count ?? 0) )
+		if ( index < 0 || index >= (Sprite.Animations?.Count ?? 0) )
 		{
-			Log.Warning( $"Sprite '{_sprite.ResourceName}' does not have an animation at index {index}." );
+			Log.Warning( $"Sprite '{Sprite.ResourceName}' does not have an animation at index {index}." );
 			return;
 		}
 		if ( _currentAnimationIndex == index )
 			return;
 
 		_currentAnimationIndex = index;
-		_animationState.ResetState();
+		_instance.SelectAnimation( CurrentAnimation, restart: true );
 		OnAnimationStart?.Invoke( CurrentAnimation?.Name );
 	}
 
@@ -295,11 +331,11 @@ public sealed partial class SpriteRenderer : Renderer, Component.ExecuteInEditor
 	/// </summary>
 	public void PlayAnimation( string name )
 	{
-		if ( _sprite is null ) return;
-		int index = _sprite.GetAnimationIndex( name );
+		if ( Sprite is null ) return;
+		int index = Sprite.GetAnimationIndex( name );
 		if ( index < 0 )
 		{
-			Log.Warning( $"Sprite '{_sprite.ResourceName}' does not have an animation named '{name}'." );
+			Log.Warning( $"Sprite '{Sprite.ResourceName}' does not have an animation named '{name}'." );
 			return;
 		}
 
@@ -310,61 +346,27 @@ public sealed partial class SpriteRenderer : Renderer, Component.ExecuteInEditor
 	{
 		base.OnUpdate();
 
-		ProcessMessageQueue();
-	}
+		var animation = CurrentAnimation;
+		// Resources can be edited in place, including replacing the selected animation.
+		_instance.SelectAnimation( animation );
+		if ( !_instance.Update( Time.Delta, singleFrame: true ) ) return;
 
-	internal void AdvanceFrame()
-	{
-		var result = _animationState.TryAdvanceFrame( CurrentAnimation, Game.IsPlaying ? Time.Delta : RealTime.Delta );
-		if ( !result )
+		var frame = animation.Frames.ElementAtOrDefault( CurrentFrameIndex );
+		// Capture before any callbacks: playback changes don't cancel reached-frame events.
+		var messages = frame?.BroadcastMessages is { Count: > 0 } events ? events.ToArray() : null;
+
+		if ( _instance.JustFinished )
 		{
-			return;
+			OnAnimationEnd?.Invoke( animation.Name );
+			if ( !IsValid || GameObject.IsDestroyed ) return;
 		}
 
-		if ( _animationState.JustFinished )
+		if ( messages is null ) return;
+		foreach ( var message in messages )
 		{
-			QueueMessage( MessageType.AnimationEnd, new Sprite.BroadcastEvent() { Message = CurrentAnimation?.Name ?? "" } );
+			if ( message is not null ) RunBroadcastEvent( message );
+			if ( !IsValid || GameObject.IsDestroyed ) return;
 		}
-
-		var newFrameIndex = _animationState.CurrentFrameIndex;
-		var frame = CurrentAnimation?.Frames?[newFrameIndex];
-		if ( frame is not null )
-		{
-			foreach ( var message in frame.BroadcastMessages )
-			{
-				QueueMessage( MessageType.BroadcastMessage, message );
-			}
-		}
-	}
-
-	void QueueMessage( MessageType messageType, Sprite.BroadcastEvent message )
-	{
-		_messageQueue.Add( (messageType, message) );
-	}
-
-	// Process any actions that were queued up during frame advancement
-	void ProcessMessageQueue()
-	{
-		// Do this so the actions end up getting invoked on the main thread
-		if ( _messageQueue.Count == 0 )
-			return;
-
-		foreach ( var ev in _messageQueue )
-		{
-			switch ( ev.Type )
-			{
-				case MessageType.BroadcastMessage:
-					RunBroadcastEvent( ev.Content );
-					break;
-				case MessageType.AnimationStart:
-					OnAnimationStart?.Invoke( ev.Content.Message );
-					break;
-				case MessageType.AnimationEnd:
-					OnAnimationEnd?.Invoke( ev.Content.Message );
-					break;
-			}
-		}
-		_messageQueue.Clear();
 	}
 
 	// Run any user-defined broadcast events
@@ -396,10 +398,4 @@ public sealed partial class SpriteRenderer : Renderer, Component.ExecuteInEditor
 		}
 	}
 
-	enum MessageType
-	{
-		BroadcastMessage,
-		AnimationStart,
-		AnimationEnd
-	}
 }

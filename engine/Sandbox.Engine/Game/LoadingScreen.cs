@@ -18,7 +18,61 @@ public static class LoadingScreen
 			//Log.Info( $"Loading: {value}\n{new StackTrace( true ).ToString()}" );
 
 			_loading = value;
+			_shown = 0;
+			TextureWebStreaming.UpdateDownloadState();
+			Audio.AudioEngine.SetLoading( value );
+
+			// Each load's downloads are its own
+			_downloads.Clear();
+
+			// And so's its progress - kept while the last one's screen fades out full, gone as the next one's shown
+			if ( value )
+				LoadProgress.Forget();
+
+			if ( !value )
+			{
+				Progress = null;
+				StepFraction = null;
+				Package = null;
+			}
 		}
+	}
+
+	/// <summary>
+	/// The game being loaded, once it's been looked up - so the loading screen can show its name, its
+	/// art and what's new in it. Null before then, and when what's loading isn't a game.
+	/// Cleared when the loading screen is hidden.
+	/// </summary>
+	public static Package Package
+	{
+		get => _package;
+		internal set
+		{
+			// The game's art comes in when it's known
+			if ( _package is null && value is not null ) _shown = 0;
+			_package = value;
+		}
+	}
+
+	static Package _package;
+	static RealTimeSince _shown;
+
+	/// <summary>
+	/// How long the loading screen and the game's art take to come in, matching the menu's loading overlay.
+	/// </summary>
+	const float IntroSeconds = 0.6f;
+
+	/// <summary>
+	/// Waits until the loading screen and the game's art have come in. Loading blocks the main thread in chunks, which
+	/// would stutter them.
+	/// </summary>
+	internal static async Task WaitForIntro( System.Threading.CancellationToken token = default )
+	{
+		var remaining = IntroSeconds - _shown;
+		if ( !IsVisible || remaining <= 0 ) return;
+
+		try { await Task.Delay( TimeSpan.FromSeconds( remaining ), token ); }
+		catch ( OperationCanceledException ) { }
 	}
 
 	/// <summary>
@@ -30,6 +84,142 @@ public static class LoadingScreen
 	/// A subtitle to show
 	/// </summary>
 	public static string Subtitle { get; set; } = "";
+
+	/// <summary>
+	/// A snapshot of the current download's progress, or null when progress is unavailable.
+	/// Cleared when the loading screen is hidden.
+	/// </summary>
+	public static Menu.LoadingProgress? Progress { get; internal set; }
+
+	/// <summary>
+	/// How far through the step in <see cref="Title"/> it is, 0 to 1, for a bar while nothing's downloading - like
+	/// updating a package's shaders. Null when the step can't say. Cleared when the loading screen is hidden.
+	/// </summary>
+	public static double? StepFraction
+	{
+		get => double.IsNaN( _stepFraction ) ? null : _stepFraction;
+		// Set from compile threads; a double is written in one go, a double? isn't
+		internal set => _stepFraction = value ?? double.NaN;
+	}
+
+	static double _stepFraction = double.NaN;
+
+	/// <summary>
+	/// How far the whole game load is, 0 to 1, across all its stages - for a bar that keeps moving once the
+	/// downloads are done. 1 once it's made it into the game, so the screen can finish its bar on the way out; null
+	/// when no game is loading and the last one didn't make it, or a new screen's up before its load has begun.
+	/// </summary>
+	public static double? LoadFraction => Api.Activity.CurrentLoad is { Ended: false } ? LoadProgress.Fraction : LoadProgress.Completed ? 1 : null;
+
+	/// <summary>
+	/// The downloads are all done: anything still waiting in <see cref="Downloads"/> was sized up in advance but turned
+	/// out not to need fetching, and would otherwise hold the bar where it was.
+	/// </summary>
+	internal static void CompleteDownloads()
+	{
+		ThreadSafe.AssertIsMainThread();
+
+		foreach ( var download in _downloads )
+		{
+			if ( download.IsComplete ) continue;
+			download.IsComplete = true;
+			download.Mbps = 0;
+		}
+	}
+
+	/// <summary>
+	/// Every package downloaded for the load under way, in the order they became known - for one bar
+	/// across all of them, rather than <see cref="Progress"/>'s one download at a time. Packages known in
+	/// advance (a server's, the game and its map) are added with their sizes before anything starts
+	/// downloading; anything found later is added as it starts. Cleared when the loading screen's shown
+	/// or hidden.
+	/// </summary>
+	public static IReadOnlyList<Menu.LoadingDownload> Downloads => _downloads;
+
+	static readonly List<Menu.LoadingDownload> _downloads = new();
+
+	/// <summary>
+	/// The download for a package, added if it isn't there yet. Null while the loading screen's hidden -
+	/// a running game downloading things isn't a load. Main thread only, like everything that touches the
+	/// list - downloads update it from their main thread loop, the loading screen reads it each frame.
+	/// </summary>
+	internal static Menu.LoadingDownload TrackDownload( string ident, string title )
+	{
+		ThreadSafe.AssertIsMainThread();
+
+		if ( !IsVisible || string.IsNullOrEmpty( ident ) )
+			return null;
+
+		var download = _downloads.FirstOrDefault( x => string.Equals( x.Ident, ident, StringComparison.OrdinalIgnoreCase ) );
+		if ( download is null )
+		{
+			download = new Menu.LoadingDownload { Ident = ident, Title = title };
+			_downloads.Add( download );
+		}
+		else if ( !string.IsNullOrEmpty( title ) )
+		{
+			download.Title = title;
+		}
+
+		return download;
+	}
+
+	/// <summary>
+	/// Make room for packages about to be downloaded - each looked up and checked against the download
+	/// cache, all at once, so <see cref="Downloads"/> knows the whole of it before the first byte comes
+	/// down. Ones that aren't packages, or are local, are skipped. With <paramref name="withReferences"/>,
+	/// everything they reference too, and everything that references - what installing them pulls in
+	/// (a game's libraries and the cloud assets it uses), less anything already installed. Package info
+	/// and manifests only; nothing's downloaded.
+	/// </summary>
+	internal static async Task ReserveDownloads( IEnumerable<string> idents, System.Threading.CancellationToken token = default, bool withReferences = false )
+	{
+		if ( !IsVisible ) return;
+
+		var seen = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
+		bool Unseen( string ident ) { lock ( seen ) return seen.Add( ident ); }
+
+		static bool IsPackage( string ident ) => !string.IsNullOrWhiteSpace( ident ) && !ident.StartsWith( "local.", StringComparison.OrdinalIgnoreCase );
+
+		async Task Reserve( string ident )
+		{
+			try
+			{
+				var package = await Package.Fetch( ident, false );
+				if ( package is null ) return;
+
+				// What it pulls in, sized alongside it rather than after
+				var references = withReferences
+					? package.EnumerateInstallDependencies()
+						.Where( x => IsPackage( x ) && PackageManager.Find( x, false ) is null && Unseen( x ) )
+						.Select( Reserve )
+						.ToList()
+					: new List<Task>();
+
+				if ( package.IsRemote )
+				{
+					var size = await package.GetDownloadSizeAsync( token: token );
+
+					var download = size < 0 ? null : TrackDownload( package.FullIdent, package.Title );
+					if ( download is not null && !download.IsComplete && !download.IsDownloading )
+					{
+						download.TotalSize = size;
+						download.IsComplete = size == 0;
+					}
+				}
+
+				await Task.WhenAll( references );
+			}
+			catch ( OperationCanceledException ) { }
+			catch ( Exception e )
+			{
+				Log.Warning( e, $"Couldn't size up {ident}'s download: {e.Message}" );
+			}
+		}
+
+		await Task.WhenAll( idents.Where( x => IsPackage( x ) && Unseen( x ) ).Select( Reserve ) );
+		token.ThrowIfCancellationRequested();
+	}
 
 	/// <summary>
 	/// A URL or filepath to show as the background image.

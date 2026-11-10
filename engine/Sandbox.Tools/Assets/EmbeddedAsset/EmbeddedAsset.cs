@@ -15,7 +15,7 @@ internal class EmbeddedAsset : Asset
 		Name = property.FindPathInScene()?.ToString();
 	}
 
-	internal override void UpdateInternals( bool compileImmediately = true )
+	internal override void UpdateInternals()
 	{
 
 	}
@@ -61,6 +61,11 @@ internal class EmbeddedAsset : Asset
 	}
 
 	public override List<Asset> GetDependants( bool deep )
+	{
+		return [];
+	}
+
+	public override List<Asset> GetParents( bool deep )
 	{
 		return [];
 	}

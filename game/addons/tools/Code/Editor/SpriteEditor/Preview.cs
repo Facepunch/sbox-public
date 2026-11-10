@@ -22,7 +22,7 @@ public class Preview : Widget
 
 		CreateScene();
 
-		SetSizeMode( SizeMode.Default, SizeMode.CanShrink );
+		SetSizeMode( SizeMode.Default, SizeMode.Flexible );
 
 		SpriteEditor.OnAssetLoaded += UpdateRenderer;
 		SpriteEditor.OnAnimationSelected += UpdateRenderer;
@@ -95,7 +95,7 @@ public class Preview : Widget
 	private void ScenePreFrame()
 	{
 		var texture = Renderer.Texture;
-		if ( texture.Width == 0 || texture.Height == 0 )
+		if ( texture is null || texture.Width == 0 || texture.Height == 0 )
 			return;
 		var ratio = (float)texture.Width / texture.Height;
 		var pivotOffset = new Vector2( 0.5f, 0.5f ) - (SpriteEditor?.SelectedAnimation?.Origin ?? new Vector2( 0.5f, 0.5f ));
@@ -129,6 +129,17 @@ public class Preview : Widget
 		}
 
 		Scene.EditorTick( RealTime.Now, RealTime.Delta );
+
+		// Stop playback when animation reaches the end with LoopMode.None
+		if ( SpriteEditor.IsPlaying && SpriteEditor.SelectedAnimation is not null )
+		{
+			var anim = SpriteEditor.SelectedAnimation;
+			if ( anim.LoopMode == Sprite.LoopMode.None && Renderer.CurrentFrameIndex >= anim.Frames.Count - 1 )
+			{
+				SpriteEditor.IsPlaying = false;
+				SpriteEditor.OnPlayPause?.Invoke();
+			}
+		}
 
 		var overlay = Scene.GetSystem<DebugOverlaySystem>();
 		overlay.Text( Renderer.WorldPosition.WithX( 50 ), new TextRendering.Scope( "add", Color.White, 28, "Material Icons" )

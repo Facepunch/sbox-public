@@ -19,6 +19,11 @@ public sealed class ScreenPanel : Component, IRootPanelComponent
 	[Property] public int ZIndex { get; set; } = 100;
 	[Property] public CameraComponent TargetCamera { get; set; }
 
+	/// <summary>
+	/// Where in the render pipeline this panel is drawn.
+	/// </summary>
+	[Property] public RenderTiming Timing { get; set; } = RenderTiming.AfterPostProcess;
+
 	private GameRootPanel rootPanel;
 
 	public enum AutoScale
@@ -32,6 +37,19 @@ public sealed class ScreenPanel : Component, IRootPanelComponent
 		/// We use the same scaling as the desktop
 		/// </summary>
 		FollowDesktopScaling,
+	}
+
+	public enum RenderTiming
+	{
+		/// <summary>
+		/// Drawn after post processing, unaffected by it
+		/// </summary>
+		AfterPostProcess,
+
+		/// <summary>
+		/// Drawn before post processing, so bloom, tonemapping and color grading apply to the UI
+		/// </summary>
+		BeforePostProcess,
 	}
 
 	protected override void OnValidate()
@@ -101,7 +119,7 @@ public sealed class ScreenPanel : Component, IRootPanelComponent
 	{
 		if ( !rootPanel.IsValid() ) return;
 
-		rootPanel.RenderManual();
+		rootPanel.Render();
 	}
 }
 
@@ -113,8 +131,31 @@ class GameRootPanel : RootPanel
 
 	override public bool IsWorldPanel => false;
 
+	/// <summary>
+	/// What it's laid out on - the whole screen, or a camera's own target. Scaled from this, not the safe area, so
+	/// a smaller safe area moves it rather than shrinking it.
+	/// </summary>
+	Rect laidOutOn;
+
+	/// <summary>
+	/// Laid out on the screen, inside <see cref="Screen.SafeArea"/>.
+	/// Laid out on anything else (a camera's own target), the whole of that.
+	/// </summary>
+	protected override void UpdateBounds( Rect rect )
+	{
+		laidOutOn = rect;
+
+		if ( !IsVR && rect.Size == Screen.Size )
+			rect = Screen.SafeArea;
+
+		base.UpdateBounds( rect );
+	}
+
 	protected override void UpdateScale( Rect screenSize )
 	{
+		// From what it's laid out on, not the safe area it's given
+		screenSize = laidOutOn;
+
 		if ( AutoScale )
 		{
 			if ( ScaleStrategy == ScreenPanel.AutoScale.ConsistentHeight )

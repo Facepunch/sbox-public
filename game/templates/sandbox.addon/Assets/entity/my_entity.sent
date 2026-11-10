@@ -1,0 +1,9 @@
+{
+  "Prefab": "entity/my_entity.prefab",
+  "Title": "My Custom Entity",
+  "Description": "A melon that will follow people! Can be published to the workshop by pressing Enable Publishing above.",
+  "Category": "Npc",
+  "IncludeCode": true,
+  "__references": [],
+  "__version": 0
+}

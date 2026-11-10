@@ -370,9 +370,15 @@ internal static class Description
 		}
 	}
 
-	internal static void VisitClass( ref ClassDeclarationSyntax node, INamedTypeSymbol symbol, Worker master )
+	internal static void VisitType<T>( ref T node, T original, INamedTypeSymbol symbol, Worker master )
+		where T : MemberDeclarationSyntax
 	{
 		if ( !master.IsFullGeneration ) return;
+
+		// All parts share the symbol's documentation. Emit once, on its first declaration,
+		// regardless of which file contains the summary or which worker runs first.
+		var declaration = symbol.DeclaringSyntaxReferences.FirstOrDefault();
+		if ( declaration is null || declaration.SyntaxTree != original.SyntaxTree || declaration.Span != original.Span ) return;
 
 		var memberDoc = MemberDocumentation.FromSymbol( symbol, master );
 		node = AppendDescriptionAttribute( node, null, memberDoc.Summary, symbol, master );

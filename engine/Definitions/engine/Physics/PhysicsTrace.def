@@ -1,5 +1,5 @@
 ﻿
-#include "sbox/physics_trace.h"
+#include "physics/trace_request.h"
 
 native struct PhysicsTrace.Result;
 native struct PhysicsTrace.Request;
@@ -11,6 +11,7 @@ native class CUtlVector<PhysicsTrace.Result> as NativeEngine.CUtlVectorTraceResu
 
 	int Count();
 	PhysicsTrace.Result Element( int i );
+	void RemoveAll();
 }
 
 native static class PhysicsTrace

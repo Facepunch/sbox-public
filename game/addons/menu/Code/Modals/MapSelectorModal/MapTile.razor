@@ -1,0 +1,52 @@
+﻿@using Sandbox;
+@using System;
+@using Sandbox.UI
+@using Sandbox.Mounting
+
+@namespace MenuProject.Modals.MapSelect
+
+@* One of a mounted game's maps to pick - dressed like the menu's package tiles (the Workshop's maps are
+   those, real ones): the picture is the tile, its name over the foot on a scrim *@
+<root>
+	<div class="image" @ref=ThumbnailPanel>
+
+		@if ( !Thumbnail.IsValid() )
+		{
+			<i class="none">no_photography</i>
+		}
+
+		<div class="foot">
+			<label class="title">@Title</label>
+		</div>
+	</div>
+</root>
+
+@code
+{
+	[Parameter]
+	public string Title { get; set; }
+
+	[Parameter]
+	public Texture Thumbnail { get; set; }
+
+	[Parameter]
+	public Action OnSelect { get; set; }
+
+	Panel ThumbnailPanel = null;
+
+	protected override void OnAfterTreeRender(bool firstTime)
+	{
+		base.OnAfterTreeRender(firstTime);
+
+		if ( ThumbnailPanel != null && Thumbnail.IsValid() )
+		{
+			ThumbnailPanel.Style.BackgroundImage = Thumbnail;
+		}
+	}
+
+	protected override void OnClick(MousePanelEvent e)
+	{
+		base.OnClick(e);
+		OnSelect?.Invoke();
+	}
+}

@@ -1,0 +1,126 @@
+@import "/Platform/_platform.scss";
+
+// A panel in the middle of the screen, come up from below like the platform's shelves out of its dock - its edge and
+// fill, its buttons square like the dock's. What's behind it's dimmed, not blurred.
+QuestionModal
+{
+	font-family: $platform-font;
+
+	// On the modal class, to win over every modal's own dim and blur
+	&.modal
+	{
+		background-color: rgba( 8, 10, 16, 0.55 );
+		backdrop-filter: none;
+	}
+
+	// The dim just fades - the panel's own intro and outro do the rest
+	&.modal:intro
+	{
+		transform: none;
+		backdrop-filter: none;
+	}
+
+	// Going - as long as the panel takes to go out of focus, so it's not cut off halfway
+	&.modal:outro
+	{
+		transform: none;
+		backdrop-filter: none;
+		transition: all 0.18s ease-in;
+
+		.window
+		{
+			opacity: 0;
+			filter: blur( 6px );
+			transition: all 0.18s ease-in;
+		}
+	}
+
+	// Solid as a side panel is, over a game's front - the art behind doesn't tint it
+	.window
+	{
+		@include platform-surface;
+		background-color: $platform-panel;
+		width: 420px;
+		align-items: center;
+		gap: 10px;
+		padding: 22px 20px 20px 20px;
+		overflow: hidden;
+		pointer-events: all;
+		transition: all 0.2s ease-out;
+
+		// Up from below, coming into focus as it fades in - and back out of it on the way out (above)
+		&:intro
+		{
+			opacity: 0;
+			filter: blur( 6px );
+			transform: translateY( 60px );
+		}
+	}
+
+	.title
+	{
+		font-size: 20px;
+		font-weight: 700;
+		color: white;
+		text-align: center;
+	}
+
+	// Its width, so it wraps rather than running out past it
+	.message
+	{
+		width: 100%;
+		font-size: 13px;
+		color: $platform-muted;
+		text-align: center;
+		// Kept - a notice's message can come in paragraphs (a load error, then what it said)
+		white-space: pre-line;
+	}
+
+	// A link to open - one long word, so it breaks anywhere rather than running out of the panel
+	&.open-url .message
+	{
+		word-break: break-all;
+	}
+
+	// What's typed in, for a question that wants an answer
+	.entry
+	{
+		@include platform-field;
+		width: 100%;
+		flex-grow: 0;
+		margin-top: 8px;
+	}
+
+	.buttons
+	{
+		width: 100%;
+		flex-direction: row;
+		gap: 6px;
+		margin-top: 10px;
+	}
+
+	.buttons .button
+	{
+		@include platform-text-button( 36px );
+		flex-grow: 1;
+		flex-basis: 0;
+		justify-content: center;
+		padding: 0 14px;
+
+		&:hover
+		{
+			sound-in: "ui.button.over";
+		}
+
+		&:active
+		{
+			sound-in: "ui.button.press";
+		}
+
+		// The answer that does it - its fill the modal's Color, inline
+		&.confirm
+		{
+			@include platform-button-primary;
+		}
+	}
+}

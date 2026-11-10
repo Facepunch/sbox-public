@@ -1,5 +1,4 @@
 ﻿using System.Runtime.CompilerServices;
-using Sandbox.ActionGraphs;
 using System.Threading;
 
 namespace Sandbox;
@@ -90,6 +89,8 @@ public partial class GameObject : IJsonConvert, IComponentLister, BytePack.ISeri
 			_enabled = value;
 
 			UpdateEnabledStatus();
+
+			_net?.MarkDirty();
 		}
 	}
 
@@ -325,6 +326,16 @@ public partial class GameObject : IJsonConvert, IComponentLister, BytePack.ISeri
 		// Network owner could have changed
 		//
 		UpdateNetworkRoot();
+		_net?.MarkDirty();
+
+		//
+		// We might become (in)active now. oldParent is null during the constructor, we don't want
+		// to update enabled status there.
+		//
+		if ( oldParent is not null && Enabled && oldParent.Active != parent.Active )
+		{
+			UpdateEnabledStatus();
+		}
 
 		//
 		// Let components react to this
@@ -332,7 +343,7 @@ public partial class GameObject : IJsonConvert, IComponentLister, BytePack.ISeri
 		Components.ForEach( "OnParentChanged", false, c => c.OnParentChangedInternal( oldParent, parent ) );
 
 		// We should tell our children and they should tell their children, propogate it down
-		// as like a OnHeirachyChanged or something
+		// as like a OnHierarchyChanged or something
 	}
 
 	[ActionGraphInclude( AutoExpand = true )]
@@ -646,6 +657,12 @@ public partial class GameObject : IJsonConvert, IComponentLister, BytePack.ISeri
 		Name = $"{baseName} ({highestNumber + 1})";
 	}
 
+	/// <summary>
+	/// Returns this object and its descendants in depth-first order, optionally skipping disabled subtrees.
+	/// </summary>
+	/// <remarks>
+	/// Descendants are snapshotted after yielding this object.
+	/// </remarks>
 	[ActionGraphInclude, Pure]
 	public IEnumerable<GameObject> GetAllObjects( bool enabled )
 	{
@@ -654,7 +671,42 @@ public partial class GameObject : IJsonConvert, IComponentLister, BytePack.ISeri
 
 		yield return this;
 
-		foreach ( var child in Children.OfType<GameObject>().SelectMany( x => x.GetAllObjects( enabled ) ).ToArray() )
+		if ( Children.Count == 0 )
+			yield break;
+
+		var snapshot = new List<GameObject>( Children.Count );
+		Stack<(GameObject Parent, int ChildIndex)> parents = null;
+		var parent = this;
+		var childIndex = 0;
+
+		while ( true )
+		{
+			if ( childIndex < parent.Children.Count )
+			{
+				var child = parent.Children[childIndex++];
+				if ( child is null || (enabled && !child.Enabled) )
+					continue;
+
+				snapshot.Add( child );
+				if ( child.Children.Count == 0 )
+					continue;
+
+				parents ??= new();
+				parents.Push( (parent, childIndex) );
+				parent = child;
+				childIndex = 0;
+			}
+			else
+			{
+				if ( parents is null || !parents.TryPop( out var previous ) )
+					break;
+
+				parent = previous.Parent;
+				childIndex = previous.ChildIndex;
+			}
+		}
+
+		foreach ( var child in snapshot )
 		{
 			yield return child;
 		}
@@ -671,21 +723,25 @@ public partial class GameObject : IJsonConvert, IComponentLister, BytePack.ISeri
 	[ActionGraphInclude, Pure]
 	public BBox GetBounds()
 	{
-		var result = BBox.FromPositionAndSize( WorldPosition );
+		BBox? result = null;
 
 		Components.ExecuteEnabledInSelfAndDescendants<Component.IHasBounds>( x =>
 		{
-			if ( x is Component c )
-			{
-				result = result.AddBBox( x.LocalBounds.Transform( c.WorldTransform ) );
-			}
-			else
-			{
-				result = result.AddBBox( x.LocalBounds );
-			}
+			var bounds = x is Component c
+				? x.LocalBounds.Transform( c.WorldTransform )
+				: x.LocalBounds;
+
+			// Unbounded contributors (e.g. procedural meshes without Bounds report ±float.MaxValue)
+			// would turn the whole result into NaN/infinity, so leave them out
+			if ( !bounds.Size.IsFinite )
+				return;
+
+			result = result.HasValue
+				? result.Value.AddBBox( bounds )
+				: bounds;
 		} );
 
-		return result;
+		return result ?? BBox.FromPositionAndSize( WorldPosition );
 	}
 
 	/// <summary>

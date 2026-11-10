@@ -1,0 +1,61 @@
+@using System;
+@using Sandbox;
+@using Sandbox.UI;
+@using Sandbox.Modals;
+@namespace MenuProject.Platform
+@page "/platform/front"
+@inherits Panel
+
+@*
+    The default front's menu, under the game's name. Starting a new game, or finding one to join, goes on to the
+    next page (FrontPages).
+*@
+<root>
+
+    @if ( Current is { } game )
+    {
+        <div class="nav">
+            <div class="tier">
+                @if ( !game.Info.IsDedicatedServerOnly )
+                {
+                    <div class="item @(WhyNot is null ? "" : "disabled")" tooltip="@(WhyNot ?? "")" onclick=@Play><label>@PlayText( game )</label></div>
+                }
+
+                @if ( IsMultiplayer( game ) && !game.Info.IsQuickPlay )
+                {
+                    <div class="item" onclick=@FindMultiplayer><label>@(game.Info.IsDedicatedServerOnly ? "Find a Server" : "Find Multiplayer Game")</label></div>
+                }
+
+                <div class="item" onclick=@( () => ModalSystem.Instance?.Settings() )><label>Options</label></div>
+            </div>
+        </div>
+    }
+
+</root>
+
+@code
+{
+    static Package Current => PlatformMenu.Current;
+
+    // A singleplayer game (MenuHelpers.IsSingleplayer) is just played - no servers, whatever its launch mode says
+    static bool IsMultiplayer( Package game ) => !MenuHelpers.IsSingleplayer( game ) && (game.Info.MaxPlayers > 1 || game.Info.IsQuickPlay || game.Info.IsDedicatedServerOnly);
+
+    static string PlayText( Package game ) => IsMultiplayer( game ) && !game.Info.IsQuickPlay ? "Start New Game" : "Play";
+
+    static string WhyNot => PlatformMenu.WhyCantStart( Current );
+
+    /// <summary>
+    /// Played the way it always is - but one with something to set up first is set up on the next page here, not in
+    /// the game setup modal
+    /// </summary>
+    void Play()
+    {
+        if ( WhyNot is not null || Current is not { } game ) return;
+
+        MenuHelpers.PlayGame( game, openSetup: _ => FrontPages.Of( this )?.Navigate( FrontPages.Create ) );
+    }
+
+    void FindMultiplayer() => FrontPages.Of( this )?.Navigate( FrontPages.Servers );
+
+    protected override int BuildHash() => HashCode.Combine( Current, WhyNot );
+}

@@ -2,6 +2,7 @@
 
 namespace Sandbox;
 
+[Expose]
 public class Time
 {
 	/// <summary>
@@ -31,19 +32,36 @@ public class Time
 		NowDouble = now;
 	}
 
-	public static IDisposable Scope( double now, double delta )
+	/// <summary>
+	/// Temporarily override the game clock, restoring it when the scope is disposed.
+	/// </summary>
+	public static IDisposable Scope( double now, double delta ) => PushScope( now, delta );
+
+	/// <summary>
+	/// <see cref="Scope"/> without allocating. Use with <c>using var</c>.
+	/// </summary>
+	internal static TimeScope PushScope( double now, double delta ) => new( now, delta );
+
+	internal struct TimeScope : IDisposable
 	{
-		var dn = NowDouble;
-		var d = Delta;
-		var n = Now;
+		readonly double _nowDouble;
+		readonly float _delta;
+		readonly float _now;
 
-		Update( now, delta );
-
-		return DisposeAction.Create( () =>
+		public TimeScope( double now, double delta )
 		{
-			NowDouble = dn;
-			Delta = d;
-			Now = n;
-		} );
+			_nowDouble = NowDouble;
+			_delta = Delta;
+			_now = Now;
+
+			Update( now, delta );
+		}
+
+		public readonly void Dispose()
+		{
+			NowDouble = _nowDouble;
+			Delta = _delta;
+			Now = _now;
+		}
 	}
 }

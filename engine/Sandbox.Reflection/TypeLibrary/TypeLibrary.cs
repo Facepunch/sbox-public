@@ -97,10 +97,20 @@ public partial class TypeLibrary
 		log.Trace( $"Registering {incoming} (dynamic:{isDynamic}) ({types.Count()} Types)" );
 
 		var added = new ConcurrentBag<Action>();
-		System.Threading.Tasks.Parallel.ForEach( types, t => AddType( t, isDynamic ) );
-
-		foreach ( var t in types )
-			Types.Add( t );
+		try
+		{
+			System.Threading.Tasks.Parallel.ForEach( types, t => AddType( t, isDynamic ) );
+		}
+		finally
+		{
+			// If one type throws, the others are already live - track them so RemoveAssembly takes
+			// them out again, otherwise they outlive hotloads next to the incoming versions
+			foreach ( var t in types )
+			{
+				if ( typedata.ContainsKey( t ) )
+					Types.Add( t );
+			}
+		}
 
 		//
 		// Call the callbacks on the main thread
@@ -123,6 +133,7 @@ public partial class TypeLibrary
 	{
 		// System
 		typeof(object),
+		typeof(Math), typeof(MathF),
 		typeof(char), typeof(string),
 		typeof(bool),
 		typeof(byte), typeof(sbyte),
@@ -146,6 +157,7 @@ public partial class TypeLibrary
 		typeof(ValueTuple<,,,,,,,>),
 
 		// Sandbox
+		typeof(RealTime),
 		typeof(Rect),
 		typeof(RectInt),
 		typeof(Rect3D),
@@ -183,6 +195,7 @@ public partial class TypeLibrary
 		typeof(Sandbox.UI.FlexDirection),
 		typeof(Sandbox.UI.Justify),
 		typeof(Sandbox.UI.DisplayMode),
+		typeof(Sandbox.UI.GridAutoFlow),
 		typeof(Sandbox.UI.PointerEvents),
 		typeof(Sandbox.UI.Wrap),
 		typeof(Sandbox.UI.TextAlign),
@@ -233,7 +246,12 @@ public partial class TypeLibrary
 
 		// If we're a nested type, defer to the class we're declared in
 		if ( t.DeclaringType != null )
+		{
+			if ( System.Attribute.IsDefined( t, typeof( System.Runtime.CompilerServices.CompilerGeneratedAttribute ) ) )
+				return false;
+
 			return ShouldExposeType( t.DeclaringType );
+		}
 
 		return false;
 	}
@@ -326,7 +344,11 @@ public partial class TypeLibrary
 
 		log.Trace( $"Removing {asm}" );
 
-		foreach ( var type in Types.Where( x => x.Assembly == asm ).ToArray() )
+		var outgoing = typedata.Where( x => x.Key.Assembly == asm ).Select( x => x.Key )
+			.Union( Types.Where( x => x.Assembly == asm ) )
+			.ToArray();
+
+		foreach ( var type in outgoing )
 		{
 			Types.Remove( type );
 			log.Trace( $" - {type}" );
@@ -391,9 +413,9 @@ public partial class TypeLibrary
 	public IReadOnlyList<TypeDescription> GetTypes( Type type )
 	{
 		if ( type == null )
-			return Cached( HashCode.Combine( "GetTypes", type ), () => typedata.Values.ToImmutableList() );
+			return Cached( HashCode.Combine( "GetTypes", type ), this, static lib => lib.typedata.Values.ToImmutableList() );
 
-		return Cached( HashCode.Combine( "GetTypes", type ), () => typedata.Values.Where( x => x.TargetType.IsAssignableTo( type ) ).ToImmutableList() );
+		return Cached( HashCode.Combine( "GetTypes", type ), (Library: this, Type: type), static s => s.Library.typedata.Values.Where( x => x.TargetType.IsAssignableTo( s.Type ) ).ToImmutableList() );
 	}
 
 	/// <summary>
@@ -427,7 +449,8 @@ public partial class TypeLibrary
 	/// <param name="exactFullName">If true, the name must match the FullName (or alias) of the type</param>
 	public TypeDescription GetType( Type type, string name, bool preferAddonAssembly = false, bool exactFullName = false )
 	{
-		return Cached( HashCode.Combine( "GetType", type, name, preferAddonAssembly, exactFullName ), () => GetTypes( type ).Where( x => x.IsNamed( name, exactFullName ) ).OrderBy( x => (x.IsDynamicAssembly == preferAddonAssembly) ? 0 : 1 ).FirstOrDefault() );
+		return Cached( HashCode.Combine( "GetType", type, name, preferAddonAssembly, exactFullName ), (Library: this, Type: type, Name: name, PreferAddonAssembly: preferAddonAssembly, ExactFullName: exactFullName),
+			static s => s.Library.GetTypes( s.Type ).Where( x => x.IsNamed( s.Name, s.ExactFullName ) ).OrderBy( x => (x.IsDynamicAssembly == s.PreferAddonAssembly) ? 0 : 1 ).FirstOrDefault() );
 
 	}
 
@@ -655,6 +678,16 @@ public partial class TypeLibrary
 
 		// cache me
 		return new EnumDescription( enumType );
+	}
+
+	/// <summary>
+	/// Get a describtion of an enum value. This is useful if your enum values are decorated with attributes that you want to read, for example.
+	/// </summary>
+	public EnumDescription.Entry GetEnumDescription<T>( T enumValue ) where T : Enum
+	{
+		var ed = GetEnumDescription( typeof( T ) );
+		if ( ed is null ) return default;
+		return ed.GetEntry( enumValue );
 	}
 
 	/// <summary>

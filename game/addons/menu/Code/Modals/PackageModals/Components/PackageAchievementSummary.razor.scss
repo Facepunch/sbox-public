@@ -1,0 +1,102 @@
+@import "/styles/_theme.scss";
+@import "/Platform/_platform.scss";
+
+// The card that wraps the achievements section in the sidebar
+Card.achievements-card
+{
+    cursor: pointer;
+
+    &:hover
+    {
+        sound-in: "ui.button.over";
+    }
+
+    &:active { sound-in: "ui.button.press"; }
+}
+
+.active Card.achievements-card
+{
+    cursor: default;
+}
+
+AchievementSummary
+{
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+// Heading on top, icons under it across the full width
+PackageAchievementSummary.with-header
+{
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    flex-shrink: 0;
+
+    .ach-head
+    {
+        flex-direction: row;
+        align-items: center;
+
+        .section-label
+        {
+            margin-bottom: 0;
+        }
+
+        .grow
+        {
+            flex-grow: 1;
+        }
+    }
+
+    // How many you've got - small, a trophy in front
+    .ach-count
+    {
+        @include platform-chip;
+    }
+
+    .achievement-buttons
+    {
+        flex-basis: auto;
+        width: 100%;
+    }
+}
+
+// Takes the room left beside the count, whatever's in it - the code measures it to work out how
+// many icons fit, so its width mustn't depend on them
+.achievement-buttons
+{
+    flex-direction: row;
+    gap: 4px;
+    flex-grow: 1;
+    flex-shrink: 1;
+    flex-basis: 0;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.achievement-icon
+{
+    @include platform-tile( 19px, 36px );
+    background-position: center;
+    background-size: cover;
+
+    &.locked
+    {
+        filter: saturate( 0.2 ) brightness( 0.5 );
+        opacity: 0.35;
+    }
+
+    // The last spot, when they don't all fit - how many more
+    &.more
+    {
+        label
+        {
+            font-size: 12px;
+            font-weight: 700;
+            color: $platform-muted;
+        }
+    }
+}

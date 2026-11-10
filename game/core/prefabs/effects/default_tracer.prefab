@@ -1,0 +1,162 @@
+{
+  "RootObject": {
+    "__guid": "b3a1c6e2-4f7d-4a8b-9c1e-2d5f8a7b3c41",
+    "__version": 2,
+    "Flags": 0,
+    "Name": "default_tracer",
+    "Position": "0,0,0",
+    "Rotation": "0,0,0,1",
+    "Scale": "1,1,1",
+    "Tags": "",
+    "Enabled": true,
+    "NetworkMode": 0,
+    "NetworkFlags": 0,
+    "NetworkOrphaned": 0,
+    "NetworkTransmit": true,
+    "OwnerTransfer": 1,
+    "Components": [
+      {
+        "__type": "TemporaryEffect",
+        "__guid": "7c2e9f1a-8b3d-4e5c-a6f2-1d4b7e9c8a53",
+        "__enabled": true,
+        "Flags": 0,
+        "BecomeOrphan": false,
+        "DestroyAfterSeconds": 2,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "WaitForChildEffects": true
+      },
+      {
+        "__type": "Sandbox.TracerEffect",
+        "__guid": "e5d8b2c4-1a6f-4c9e-b3d7-8f2a5c1e6b94",
+        "__enabled": true,
+        "Flags": 0,
+        "CastShadows": false,
+        "DistancePerSecond": 9000,
+        "EnableLight": true,
+        "EndCap": "Rounded",
+        "EndPoint": {
+          "LocalPosition": "0,0,0",
+          "LocalRotation": "0,0,0,0",
+          "Parent": null,
+          "IsAnchored": false,
+          "Position": "0,0,0"
+        },
+        "Length": 400,
+        "LightColor": {
+          "blend": "Linear",
+          "color": [
+            {
+              "t": 0,
+              "c": "1,1,1,1"
+            },
+            {
+              "t": 1,
+              "c": "1,1,1,1"
+            }
+          ],
+          "alpha": null
+        },
+        "LightPosition": 0,
+        "LightRadius": {
+          "rangey": "0,128",
+          "frames": [
+            {
+              "x": 0,
+              "y": 1,
+              "in": 1,
+              "out": -1,
+              "mode": "Mirrored"
+            },
+            {
+              "x": 1,
+              "y": 0,
+              "in": 1,
+              "out": -1,
+              "mode": "Mirrored"
+            }
+          ]
+        },
+        "LineColor": {
+          "blend": "Linear",
+          "color": [
+            {
+              "t": 0,
+              "c": "8,6.2,3.4,1"
+            },
+            {
+              "t": 1,
+              "c": "2,1.2,0.4,0"
+            }
+          ],
+          "alpha": []
+        },
+        "LineWidth": [
+          {
+            "x": 0,
+            "y": 1,
+            "in": 0,
+            "out": 0,
+            "mode": "Linear"
+          },
+          {
+            "x": 1,
+            "y": 0,
+            "in": 0,
+            "out": 0,
+            "mode": "Linear"
+          }
+        ],
+        "Material": null,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "Opaque": false,
+        "RenderOptions": {
+          "GameLayer": true,
+          "OverlayLayer": false,
+          "BloomLayer": false,
+          "AfterUILayer": false
+        },
+        "StartCap": "Rounded",
+        "StartDistance": 200
+      }
+    ],
+    "Children": [],
+    "__properties": {
+      "NetworkInterpolation": true,
+      "TimeScale": 1,
+      "WantsSystemScene": true,
+      "Metadata": {},
+      "NavMesh": {
+        "Enabled": false,
+        "IncludeStaticBodies": true,
+        "IncludeKeyframedBodies": true,
+        "EditorAutoUpdate": false,
+        "AgentHeight": 64,
+        "AgentRadius": 16,
+        "AgentStepSize": 18,
+        "AgentMaxSlope": 40,
+        "ExcludedBodies": "",
+        "IncludedBodies": "",
+        "DeferGeneration": false,
+        "CustomBounds": false
+      }
+    },
+    "__variables": []
+  },
+  "ResourceVersion": 2,
+  "ShowInMenu": false,
+  "MenuPath": null,
+  "MenuIcon": null,
+  "DontBreakAsTemplate": false,
+  "__references": [],
+  "__version": 2
+}

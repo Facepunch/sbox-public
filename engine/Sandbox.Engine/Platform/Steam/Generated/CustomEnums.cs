@@ -222,6 +222,10 @@ namespace Steamworks
 		ActiveBeaconsUpdated = 5306,
 		SteamRemotePlaySessionConnected = 5701,
 		SteamRemotePlaySessionDisconnected = 5702,
+		SteamRemotePlayTogetherGuestInvite = 5703,
+		SteamRemotePlaySessionAvatarLoaded = 5704,
+		SteamTimelineGamePhaseRecordingExists = 6001,
+		SteamTimelineEventRecordingExists = 6002,
 	}
 	internal static partial class CallbackTypeFactory
 	{
@@ -422,6 +426,10 @@ namespace Steamworks
 			{ CallbackType.ActiveBeaconsUpdated, typeof( ActiveBeaconsUpdated_t )},
 			{ CallbackType.SteamRemotePlaySessionConnected, typeof( SteamRemotePlaySessionConnected_t )},
 			{ CallbackType.SteamRemotePlaySessionDisconnected, typeof( SteamRemotePlaySessionDisconnected_t )},
+			{ CallbackType.SteamRemotePlayTogetherGuestInvite, typeof( SteamRemotePlayTogetherGuestInvite_t )},
+			{ CallbackType.SteamRemotePlaySessionAvatarLoaded, typeof( SteamRemotePlaySessionAvatarLoaded_t )},
+			{ CallbackType.SteamTimelineGamePhaseRecordingExists, typeof( SteamTimelineGamePhaseRecordingExists_t )},
+			{ CallbackType.SteamTimelineEventRecordingExists, typeof( SteamTimelineEventRecordingExists_t )},
 		};
 	}
 }

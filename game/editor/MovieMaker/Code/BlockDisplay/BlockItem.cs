@@ -1,4 +1,5 @@
 ﻿using Sandbox.MovieMaker;
+using Sandbox.MovieMaker.Compiled;
 
 namespace Editor.MovieMaker.BlockDisplays;
 
@@ -105,7 +106,7 @@ public abstract partial class BlockItem : GraphicsItem, ISnapSource
 		Paint.DrawLine( LocalRect.BottomRight, LocalRect.TopRight );
 	}
 
-	public void PaintText( MovieTimeRange range, string value )
+	public Rect GetRect( MovieTimeRange range )
 	{
 		var timeline = Parent.Timeline;
 
@@ -113,8 +114,13 @@ public abstract partial class BlockItem : GraphicsItem, ISnapSource
 		var left = timeline.TimeToPixels( range.Start ) - origin;
 		var right = timeline.TimeToPixels( range.End ) - origin;
 
+		return new Rect( left, LocalRect.Top, right - left, LocalRect.Height );
+	}
+
+	public void PaintText( Rect rect, string value )
+	{
 		Paint.SetPen( Color.White.WithAlpha( 0.5f ), 12f );
-		Paint.DrawText( new Rect( left, LocalRect.Top, right - left, LocalRect.Height ), value );
+		Paint.DrawText( rect, value );
 	}
 
 	public virtual IEnumerable<SnapTarget> GetSnapTargets( MovieTime sourceTime, bool isPrimary ) =>
@@ -124,6 +130,8 @@ public abstract partial class BlockItem : GraphicsItem, ISnapSource
 public interface IBlockItem
 {
 	MovieTime Offset { get; }
+
+
 }
 
 public interface IBlockItem<T> : IBlockItem;
@@ -134,6 +142,55 @@ public abstract class BlockItem<T> : BlockItem, IBlockItem<T>
 	public new T Block => (T)base.Block;
 }
 
-public interface IPropertyBlockItem<T> : IBlockItem<T>;
+public interface IPropertyBlockItem : IBlockItem
+{
+	IEnumerable<MovieTimeRange> GetPaintHints( MovieTimeRange timeRange );
+}
 
-public abstract class PropertyBlockItem<T> : BlockItem<IPropertyBlock<T>>, IPropertyBlockItem<T>;
+public interface IPropertyBlockItem<T> : IBlockItem<T>, IPropertyBlockItem;
+
+public abstract class PropertyBlockItem<T> : BlockItem<IPropertyBlock<T>>, IPropertyBlockItem<T>
+{
+	/// <inheritdoc cref="IPaintHintBlock.GetPaintHints"/>
+	public IEnumerable<MovieTimeRange> GetPaintHints( MovieTimeRange timeRange )
+	{
+		var clamped = Block.TimeRange.Clamp( timeRange );
+
+		return Block switch
+		{
+			IPaintHintBlock paintHintBlock => paintHintBlock.GetPaintHints( clamped ),
+			CompiledSampleBlock<T> => [clamped],
+			_ => []
+		};
+	}
+
+	/// <summary>
+	/// Gets time regions that should be painted as separate blocks, within <paramref name="timeRange"/>.
+	/// </summary>
+	public IEnumerable<MovieTimeRange> GetPaintBlocks( MovieTimeRange timeRange )
+	{
+		var hints = GetPaintHints( timeRange );
+
+		var prev = timeRange.Start;
+
+		foreach ( var hint in hints )
+		{
+			if ( hint.Start > prev )
+			{
+				yield return (prev, hint.Start);
+				prev = hint.Start;
+			}
+
+			if ( hint.End > prev )
+			{
+				yield return (prev, hint.End);
+				prev = hint.End;
+			}
+		}
+
+		if ( prev < timeRange.End )
+		{
+			yield return (prev, timeRange.End);
+		}
+	}
+}

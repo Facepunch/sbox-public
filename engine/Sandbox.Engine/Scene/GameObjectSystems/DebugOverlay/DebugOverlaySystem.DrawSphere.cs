@@ -31,7 +31,6 @@ file class DebugSphereSceneObject : SceneCustomObject
 
 	public DebugSphereSceneObject( SceneWorld sceneWorld ) : base( sceneWorld )
 	{
-
 	}
 
 	public override void RenderSceneObject()

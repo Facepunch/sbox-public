@@ -14,7 +14,7 @@ namespace Steamworks
 	{
 		internal static ISteamFriends Internal => Interface as ISteamFriends;
 
-		private static bool IsInstalled => Internal?.IsValid ?? false;
+		internal static bool IsInstalled => Internal?.IsValid ?? false;
 
 		internal override void InitializeInterface( bool server )
 		{
@@ -83,6 +83,16 @@ namespace Steamworks
 		{
 			if ( !IsInstalled ) return;
 			Internal.ActivateGameOverlayToUser( type, id );
+		}
+
+		/// <summary>
+		/// Activates the Steam Overlay's web browser at this url. False if there's no Steam to do it.
+		/// </summary>
+		internal static bool OpenWebOverlay( string url )
+		{
+			if ( !IsInstalled ) return false;
+			Internal.ActivateGameOverlayToWebPage( url, ActivateGameOverlayToWebPageMode.Default );
+			return true;
 		}
 
 		/// <summary>

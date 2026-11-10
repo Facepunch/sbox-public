@@ -7,6 +7,8 @@ namespace Editor;
 [CustomEditor( typeof( ParticleGradient ) )]
 public class ParticleGradientControlWidget : ControlWidget
 {
+	public override bool SupportsMultiEdit => true;
+
 	Layout ControlArea;
 
 	SerializedObject Target;

@@ -2,6 +2,18 @@ native struct SteamNetConnectionRealTimeStatus_t as Steamworks.Data.SteamNetConn
 
 native class ISteamNetworkingMessages
 {
+	// Copy diagnostics while the session still exists; closing it discards its failure reason.
+	inline int GetSessionState( ulong steamid, void* endReason, void* debugMsg )
+	{
+		SteamNetworkingIdentity ident;
+		ident.SetSteamID( steamid );
+		SteamNetConnectionInfo_t info = {};
+		auto state = self->GetSessionConnectionInfo( ident, &info, nullptr );
+		*(int*)endReason = info.m_eEndReason;
+		V_strncpy( (char*)debugMsg, info.m_szEndDebug, 256 );
+		return (int)state;
+	}
+
 	inline int SendMessageToUser( ulong steamid, void* data, int dataSize, int flags, int channel )
 	{
 		SteamNetworkingIdentity ident;

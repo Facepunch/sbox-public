@@ -1,5 +1,4 @@
-﻿using NativeEngine;
-using Sandbox.Engine.Settings;
+using NativeEngine;
 using Sandbox.Network;
 using Sandbox.Utility;
 using Sandbox.VR;
@@ -22,22 +21,155 @@ internal static class Bootstrap
 
 	internal static Api.Events.EventRecord StartupTiming;
 
+	static readonly Stopwatch StartupClock = new();
+	static TimeSpan timeBeforeClock;
+	static int? timeToWindow;
+	static int? timeToLoaded;
+
+	internal static void StartStartupClock()
+	{
+		// The user started waiting when the process launched, not when we got here
+		using var process = Process.GetCurrentProcess();
+		timeBeforeClock = DateTime.UtcNow - process.StartTime.ToUniversalTime();
+		timeToWindow = null;
+		timeToLoaded = null;
+		StartupClock.Restart();
+	}
+
 	/// <summary>
-	/// Called before anything else. This should set up any low level stuff that
-	/// might be relied on if static functions are called.
+	/// Milliseconds since the process launched.
 	/// </summary>
-	internal static void PreInit( CMaterialSystem2AppSystemDict appDict )
+	static int TimeSinceLaunch => (int)(timeBeforeClock + StartupClock.Elapsed).TotalMilliseconds;
+
+	internal static void MarkStartupWindowVisible()
+	{
+		if ( StartupClock.IsRunning )
+			timeToWindow = TimeSinceLaunch;
+	}
+
+	internal static void MarkMenuReady()
+	{
+		if ( StartupClock.IsRunning )
+			StartupTiming?.SetValue( "TimeToMenu", TimeSinceLaunch );
+	}
+
+	/// <summary>
+	/// Set up application flags, the main thread and filesystems so the startup window can read its settings.
+	/// </summary>
+	internal static void InitApplication( CMaterialSystem2AppSystemDict appDict, string rootFolder = null )
 	{
 		Application.Initialize( appDict.IsDedicatedServer(), appDict.IsConsoleApp(), appDict.IsInToolsMode(), appDict.IsInTestMode(), EngineGlobal.IsRetail() );
+		InitFileSystem( rootFolder ?? EngineGlobal.GetGameRootFolder() );
+		DLLImportResolver.SetupResolvers();
+	}
+
+	static Task preparedTypeLibraries;
+	static readonly HashSet<GlobalContext> preparedContexts = new();
+
+	/// <summary>
+	/// Builds the menu and game type libraries on a worker, so the slow reflection work overlaps native startup.
+	/// <see cref="Game.InitHost"/> picks the results up when the contexts bootstrap.
+	/// </summary>
+	internal static void PrepareTypeLibraries()
+	{
+		if ( !Application.IsInitialized || Application.IsEditor || Application.IsStandalone || Application.IsHeadless ) return;
+		if ( IMenuDll.Current?.GetType().Assembly is not { } menu || IGameInstanceDll.Current?.GetType().Assembly is not { } game ) return;
+
+		preparedTypeLibraries = Task.Run( () =>
+		{
+			var culture = Thread.CurrentThread.CurrentCulture;
+			Thread.CurrentThread.CurrentCulture = System.Globalization.CultureInfo.CreateSpecificCulture( "en-US" );
+
+			try
+			{
+				BuildTypeLibrary( GlobalContext.Menu, menu );
+				BuildTypeLibrary( GlobalContext.Game, game );
+			}
+			finally
+			{
+				GlobalContext.Current = null;
+				Thread.CurrentThread.CurrentCulture = culture;
+			}
+		} );
+	}
+
+	static void BuildTypeLibrary( GlobalContext context, System.Reflection.Assembly assembly )
+	{
+		GlobalContext.Current = context;
+		context.LocalAssembly = assembly;
+		Game.InitTypeLibrary();
+
+		lock ( preparedContexts ) preparedContexts.Add( context );
+	}
+
+	/// <summary>
+	/// True if the current context's type library was already built by <see cref="PrepareTypeLibraries"/>.
+	/// Falls back to building it normally if preparation failed.
+	/// </summary>
+	internal static bool ConsumePreparedTypeLibrary()
+	{
+		if ( preparedTypeLibraries is null ) return false;
 
 		try
 		{
-			InitMinimal( EngineGlobal.GetGameRootFolder() );
+			preparedTypeLibraries.GetAwaiter().GetResult();
+		}
+		catch ( Exception e )
+		{
+			log.Warning( e, "Couldn't prepare type libraries early" );
+		}
 
-			DLLImportResolver.SetupResolvers();
+		lock ( preparedContexts ) return preparedContexts.Remove( GlobalContext.Current );
+	}
+
+	[Conditional( "DEBUG" )]
+	internal static void AssertTypeLibraryReady()
+	{
+		global::System.Diagnostics.Debug.Assert( !ThreadSafe.IsMainThread || preparedTypeLibraries is null || preparedTypeLibraries.IsCompleted,
+			"The main thread accessed shared startup state before the prepared type libraries finished building." );
+	}
+
+	static Task earlyResourceScan;
+
+	/// <summary>
+	/// Scanning the resource database walks every mounted file. Start it as soon as the native file system is
+	/// ready, so it overlaps the rest of startup instead of blocking the menu from loading its resources.
+	/// </summary>
+	internal static void BeginResourceScan()
+	{
+		if ( preparedTypeLibraries is null ) return;
+
+		earlyResourceScan = Task.Run( () => g_pResourceSystem.InvalidateDatabase() );
+	}
+
+	/// <summary>
+	/// The scan started by <see cref="BeginResourceScan"/>, once, or null if the caller needs to scan itself.
+	/// </summary>
+	internal static Task TakeResourceScan()
+	{
+		var scan = earlyResourceScan;
+		earlyResourceScan = null;
+		return scan;
+	}
+
+
+	/// <summary>
+	/// Bootstrap managed services after the startup window has been painted.
+	/// </summary>
+	internal static void PreInit( Action initializeWindow = null )
+	{
+		try
+		{
+			initializeWindow?.Invoke();
+			InitServices();
+			Graphics.Initialize();
+			GameWindow.Current?.UpdateStartupProgress( 0.16f, "Loading the engine" );
+
 
 			StartupTiming = new Api.Events.EventRecord( $"StartupTiming.{(Application.IsEditor ? "Editor" : (Application.IsHeadless ? "Server" : "Game"))}" );
-			StartupTiming.StartTimer( "Time" );
+			StartupTiming.SetValue( "Launch", TimeSinceLaunch );
+			if ( timeToWindow is { } windowTime )
+				StartupTiming.SetValue( "TimeToWindow", windowTime );
 
 			// This also calls SetSynchronizationContext
 			SyncContext.Init();
@@ -53,10 +185,14 @@ internal static class Bootstrap
 			Logging.OnException = ErrorReporter.ReportException;
 			Logging.PrintToConsole = Application.IsHeadless;
 
+			if ( Application.IsEditor || CommandLine.HasSwitch( "-mcp" ) )
+			{
+				Editor.Mcp.LogBuffer.StartCapture();
+			}
+
 			{
 				using var timerFs = StartupTiming?.ScopeTimer( "FilesystemInit" );
 
-				EngineFileSystem.InitializeAddonsFolder();
 				EngineFileSystem.InitializeDataFolder();
 
 				if ( !Application.IsStandalone )
@@ -71,6 +207,7 @@ internal static class Bootstrap
 			}
 
 			Api.Init();
+			GameWindow.Current?.UpdateStartupProgress( 0.17f, "Loading the engine" );
 
 			if ( Application.IsStandalone )
 			{
@@ -93,11 +230,20 @@ internal static class Bootstrap
 
 				Mounting.Directory.LoadAssemblies();
 			}
+
+			GameWindow.Current?.UpdateStartupProgress( 0.19f, "Starting the engine" );
 		}
 		catch ( Exception ex )
 		{
+			// Window creation can fail before services and the exception logger are initialized.
+			try
+			{
+				ErrorReporter.Initialize();
+				ErrorReporter.ReportException( ex );
+				ErrorReporter.Flush();
+			}
+			catch { }
 			Log.Error( ex );
-			ErrorReporter.Flush();
 			EngineGlobal.Plat_MessageBox( "Bootstrap::PreInit Error", $"Failed to bootstrap engine: {ex.Message}\n\n{ex.StackTrace}" );
 			try { NLog.LogManager.Shutdown(); } catch { }
 			EngineGlobal.Plat_ExitProcess( 1 );
@@ -141,6 +287,10 @@ internal static class Bootstrap
 	{
 		try
 		{
+			using ( var _ = StartupTiming?.ScopeTimer( "Material Preload" ) )
+				Material.Preload();
+			GameWindow.Current?.UpdateStartupProgress( 0.24f, "Starting the engine" );
+
 			IToolsDll.Current?.Spin();
 
 #pragma warning disable CS0612 // Type or member is obsolete
@@ -151,15 +301,20 @@ internal static class Bootstrap
 				var steamCommandLine = NativeEngine.Steam.SteamApps().GetCommandLine();
 				if ( !Application.IsHeadless && !string.IsNullOrEmpty( steamCommandLine ) )
 				{
-					CommandLine.CommandLineString = steamCommandLine;
-					CommandLine.Parse();
+					// Any web page or a friend's rich presence can set this, so only take what opening or joining a game needs
+					CommandLine.AddSwitches( steamCommandLine, "rungame", "webreferrer", "connect", "connect_lobby" );
 				}
 			}
 
 #pragma warning restore CS0612 // Type or member is obsolete
 
-			ReflectionUtility.RunAllStaticConstructors( "Sandbox.System" );
-			ReflectionUtility.RunAllStaticConstructors( "Sandbox.Engine" );
+			using ( var _ = StartupTiming?.ScopeTimer( "Static Constructors" ) )
+			{
+				ReflectionUtility.RunAllStaticConstructors( "Sandbox.System" );
+				ReflectionUtility.RunAllStaticConstructors( "Sandbox.Engine" );
+				Rendering.RenderPipeline.WarmUp();
+			}
+			GameWindow.Current?.UpdateStartupProgress( 0.29f, "Loading the menu" );
 
 			//log.Trace( "Bootstrap::Init" );
 			//log.Trace( $"Current Directory is {System.IO.Directory.GetCurrentDirectory()}" );
@@ -174,7 +329,14 @@ internal static class Bootstrap
 				SyncContext.RunBlocking( Project.InitializeBuiltIn() );
 			}
 
+			GameWindow.Current?.UpdateStartupProgress( 0.30f, "Connecting to Steam" );
+
 			InitEngineConVars();
+			ConsoleConfig.ExecuteAutoexec();
+
+			// After registration, or the managed half of every quality profile is dropped on the
+			// floor and shadows and post-processing sit at their code defaults.
+			Settings.RenderSettings.Instance.ApplyQualityProfiles();
 
 			if ( IToolsDll.Current is not null )
 			{
@@ -189,20 +351,40 @@ internal static class Bootstrap
 
 			Screen.UpdateFromEngine();
 
+			// Not in RenderSettings' constructor: SystemInfo is only filled in at the tail of SourceEngineInit.
+			if ( Graphics.IsAvailable && !Application.IsEditor )
+			{
+				Settings.RenderSettings.Instance.EnsureFirstRunPreset();
+			}
+
+			// The editor's asset system compiles shaders, nobody edits core shaders on a retail build
+			if ( Graphics.IsAvailable && !Application.IsEditor && !Application.IsRetail )
+			{
+				Sandbox.Engine.Shaders.ShaderHotload.Watch( EngineFileSystem.CoreContent );
+			}
+
 			if ( !Application.IsHeadless && !Application.IsStandalone )
 			{
-				// we really want the items available before we continue
-				// here we'll wait up to 5 seconds for them, but they're
-				// generally available completely immediately.
 				using var timeout = new CancellationTokenSource( 5000 );
 				SyncContext.RunBlocking( Services.Inventory.WaitForSteamInventoryItems( timeout.Token ) );
 			}
+
+			if ( !Application.IsStandalone )
+			{
+				// Know what's subscribed before the menu or a game asks for a package
+				Services.Ugc.InitializeSubscriptions();
+			}
+
+			GameWindow.Current?.UpdateStartupProgress( 0.31f, "Loading the menu" );
 
 			if ( IMenuDll.Current is not null )
 			{
 				using var x = StartupTiming?.ScopeTimer( $"MenuBootstrap" );
 				SyncContext.RunBlocking( IMenuDll.Current.Initialize() );
+				MarkMenuReady();
 			}
+
+			GameWindow.Current?.UpdateStartupProgress( 0.38f, "Loading the menu" );
 
 			if ( IGameInstanceDll.Current is not null )
 			{
@@ -210,7 +392,9 @@ internal static class Bootstrap
 				SyncContext.RunBlocking( IGameInstanceDll.Current.Initialize() );
 			}
 
-			if ( SteamClient.IsValid )
+			GameWindow.Current?.UpdateStartupProgress( 0.385f, "Loading the menu" );
+
+			if ( SteamClient.IsValid && ErrorReporter.IsUsingSentry )
 			{
 				SentrySdk.ConfigureScope( scope =>
 				{
@@ -235,6 +419,10 @@ internal static class Bootstrap
 				LoadingFinished();
 			}
 
+			// Steam starts us with a friend's "connect" rich presence when joining them from Steam
+			if ( CommandLine.HasSwitch( "+connect" ) )
+				Api.Activity.GameRequested( new( "invite" ) );
+
 			// Run any commands
 			foreach ( var sw in CommandLine.GetSwitches() )
 			{
@@ -254,8 +442,18 @@ internal static class Bootstrap
 			//
 			Networking.Bootstrap();
 
+			// Local automation uses a separate same-user pipe for every process. Games opt in;
+			// editors follow the project's AI preferences, including when launched with -mcp.
+			if ( Application.IsEditor
+				? Project.Current?.Config.AI?.EnableMcpCommunication != false
+				: CommandLine.HasSwitch( "-mcp" ) )
+			{
+				Editor.Mcp.McpPipeServer.Start();
+			}
+
 			if ( Application.IsJoinLocal )
 			{
+				Api.Activity.GameRequested( new( "local" ) );
 				NetworkConsoleCommands.ConnectToServer( "local" );
 			}
 		}
@@ -281,10 +479,22 @@ internal static class Bootstrap
 
 	internal static void InitMinimal( string rootFolder )
 	{
-		Environment.CurrentDirectory = rootFolder;
+		InitFileSystem( rootFolder );
+		InitServices();
+	}
 
-		Sandbox.Utility.Steam.InitializeClient();
+	static void InitFileSystem( string rootFolder )
+	{
+		Environment.CurrentDirectory = rootFolder;
 		ThreadSafe.MarkMainThread();
+		EngineFileSystem.Initialize( rootFolder );
+		EngineFileSystem.InitializeConfigFolder();
+	}
+
+	static void InitServices()
+	{
+		if ( !Application.IsDedicatedServer )
+			Sandbox.Utility.Steam.InitializeClient();
 
 		ThreadPool.SetMinThreads( Environment.ProcessorCount, Environment.ProcessorCount );
 
@@ -293,9 +503,6 @@ internal static class Bootstrap
 
 		//System.Net.ServicePointManager.ServerCertificateValidationCallback += ( sender, cert, chain, sslPolicyErrors ) => true;
 
-		EngineFileSystem.Initialize( Environment.CurrentDirectory );
-		EngineFileSystem.InitializeConfigFolder();
-
 		if ( !Application.IsStandalone )
 		{
 			ErrorReporter.Initialize();
@@ -303,57 +510,46 @@ internal static class Bootstrap
 	}
 
 	/// <summary>
-	/// Should be called when startup has finished.
-	/// If we have a client, this is when the menu is first entered.
+	/// Should be called when the engine has finished loading. Startup carries on until the first frames
+	/// have shown it, see <see cref="TryFinishStartup"/>.
 	/// </summary>
 	internal static void LoadingFinished()
 	{
 		if ( StartupTiming != null )
 		{
-			StartupTiming.FinishTimer( "Time" );
+			timeToLoaded = TimeSinceLaunch;
 			StartupTiming.SetValue( "package.ident", Application.GameIdent );
-			StartupTiming.Submit( true );
 		}
 
 		if ( Application.IsBenchmark )
-		{
-			if ( !Api.IsConnected )
-			{
-				Log.Warning( "Not connected to backend - quitting." );
-				Environment.Exit( 10 );
-			}
-
-			RenderSettings.Instance.ApplySettingsForBenchmarks();
-
-			// Load First Benchmark package
-			if ( !TryLoadNextBenchmarkPackage() )
-			{
-				Console.WriteLine( "Quitting" );
-				ConVarSystem.Run( "quit" );
-			}
-		}
+			BenchmarkOrchestrator.InitFromCli();
 	}
 
-	private readonly record struct BenchmarkPackage( string PackageName, Dictionary<string, string> GameSettings = null );
-
-	private static int _currentBenchmarkGameIndex = 0;
-
-	private static List<BenchmarkPackage> _benchmarkGames = new()
+	/// <summary>
+	/// Called after every frame. Startup has finished once loading has and nothing covers it any more,
+	/// as a game's startup screen stays over the menu until the menu has finished coming in.
+	/// </summary>
+	internal static void TryFinishStartup()
 	{
-		new BenchmarkPackage( "facepunch.benchmark" ),
-		new BenchmarkPackage( "facepunch.sbdm", new Dictionary<string, string> { { "sbdm.dev.benchmark", "1" } } ),
-	};
+		if ( StartupTiming is not { } timing || timeToLoaded is not { } loaded || StartupScreen.IsCovering )
+			return;
 
-	internal static bool TryLoadNextBenchmarkPackage()
-	{
-		if ( _currentBenchmarkGameIndex >= _benchmarkGames.Count ) return false;
+		// Nothing should add to it once it's been submitted
+		StartupTiming = null;
 
-		var benchmarkGame = _benchmarkGames[_currentBenchmarkGameIndex];
-		LaunchArguments.GameSettings = benchmarkGame.GameSettings;
-		_ = IGameInstanceDll.Current.LoadGamePackageAsync( benchmarkGame.PackageName, GameLoadingFlags.Host, default );
-		_currentBenchmarkGameIndex++;
+		var time = TimeSinceLaunch;
+		timing.SetValue( "First Frames", time - loaded );
+		timing.SetValue( "Time", time );
+		timing.Submit( true );
 
-		return true;
+		try
+		{
+			StartupProfiler.Write( timing );
+		}
+		catch ( Exception ex )
+		{
+			Log.Warning( ex, "Couldn't write startup profile" );
+		}
 	}
 
 	static void InitEngineConVars()

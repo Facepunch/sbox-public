@@ -14,6 +14,12 @@ public partial class Particle : IDynamicFloatContext
 
 	[ActionGraphInclude]
 	public Vector3 Velocity;
+
+	/// <summary>
+	/// The last non-zero velocity, used by velocity aligned billboards to keep their orientation when the particle stops moving.
+	/// </summary>
+	internal Vector3 LastVelocity;
+
 	public Color Color;
 	public Color OverlayColor;
 	public float Alpha;
@@ -24,9 +30,18 @@ public partial class Particle : IDynamicFloatContext
 	public int Sequence;
 	public Vector3 SequenceTime;
 	public int Frame;
+	public Angles StartAngles;
+	public float StartScale;
 
 	int RandomSeed;
 	internal bool hasUpdated;
+
+	/// <summary>
+	/// Set by the parallel update when the particle reached the end of its life; swept in PostStep.
+	/// </summary>
+	internal bool IsDead;
+	internal bool IsReleased;
+	internal uint Generation;
 
 	[System.Obsolete]
 	public float Random01;
@@ -76,6 +91,16 @@ public partial class Particle : IDynamicFloatContext
 	/// </summary>
 	internal GameObject Follower;
 
+	/// <summary>
+	/// When >= 0, local space simulation follows this bone on <see cref="AttachTarget"/>.
+	/// </summary>
+	internal int AttachBoneIndex = -1;
+
+	/// <summary>
+	/// The skinned model this particle follows in local space, paired with <see cref="AttachBoneIndex"/>.
+	/// </summary>
+	internal SkinnedModelRenderer AttachTarget;
+
 
 	public float LifeTimeRemaining => DeathTime - BornTime;
 
@@ -84,33 +109,42 @@ public partial class Particle : IDynamicFloatContext
 
 	private Dictionary<string, object> _data;
 
+	[System.Obsolete( "Particles are pooled per scene" )]
 	public static Queue<Particle> Pool = new( 512 );
 
-	public static Particle Create()
-	{
-		if ( !Pool.TryDequeue( out Particle p ) )
-		{
-			p = new Particle();
-		}
+	public static Particle Create() => Create( null );
 
-		p.RandomSeed = Random.Shared.Int( 0, 10000 );
+	internal static Particle Create( Queue<Particle> pool )
+	{
+		if ( pool is null || !pool.TryDequeue( out var p ) )
+			p = new Particle();
+
+		p.RandomSeed = ParticleRandom.Shared.Int( 0, 10000 );
 		p.BornTime = Time.Now;
 		p.Age = 0;
 		p.Angles = Angles.Zero;
+		p.StartAngles = Angles.Zero;
 		p.Frame = 0;
 		p.Velocity = 0;
+		p.LastVelocity = 0;
 		p.Color = Color.White;
 		p.OverlayColor = Color.White.WithAlpha( 0 );
 		p.Alpha = 1;
 		p.Sequence = 0;
 		p.SequenceTime = 0;
 		p.Size = 5;
+		p.StartScale = 1;
 		p.HitTime = -1000;
 		p.LastHitTime = -1000;
 		p.TimeScale = 1;
 		p._data?.Clear();
 		p._controllers?.Clear();
 		p.hasUpdated = false;
+		p.IsDead = false;
+		p.IsReleased = false;
+		p.Generation++;
+		p.AttachBoneIndex = -1;
+		p.AttachTarget = null;
 
 		return p;
 	}

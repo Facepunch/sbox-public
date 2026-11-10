@@ -1,136 +1,27 @@
+@import "/styles/_formmodal.scss";
 
-ReviewModal.modal
+ReviewModal
 {
-    flex-shrink: 0;
-    font-family: Poppins;
-    font-size: 24px;
+	@include front-form-modal;
 
-    h1
-    {
-        white-space: nowrap;
-        overflow: hidden;
-        font-weight: 700;
-    }
+	// Three big choices side by side - each lit in its own colour once it's picked
+	.ratings
+	{
+		@include platform-choices;
+	}
 
-    .inner
-    {
-        width: 1000px;
-        max-height: 800px;
-        flex-shrink: 1;
-        flex-grow: 1;
-        overflow: hidden;        
-        flex-direction: column;
-    }
-}
+	.rating
+	{
+		@include platform-choice;
 
-.container
-{
-    padding: 32px;
-    flex-direction: column;
-    align-items: center;
-    gap: 64px;
-    gap: 64px;
-}
+		&:hover
+		{
+			sound-in: "ui.button.over";
+		}
 
-
-ReviewModal.modal UserComment
-{
-    width: 100%;
-    pointer-events: all;
-
-    TextEntry
-    {
-        flex-grow: 1;
-        max-height: 400px;
-        min-height: 200px;
-    }
-}
-
-.footer
-{
-    width: 100%;
-    justify-content: flex-end;
-    flex-grow: 0;
-    flex-shrink: 0;
-}
-
-.footer .button
-{
-    background-color: #457be0;
-    border-radius: 8px;
-    padding: 1rem 2rem;
-    font-weight: 600;
-    gap: 1rem;
-    pointer-events: all;
-}
-
-.footer .button.disabled
-{
-    opacity: 0.2;
-    cursor: default;
-}
-
-.ratings
-{
-    gap: 1rem;
-}
-
-.ratings .rating
-{
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    gap: 1rem;
-    pointer-events: all;
-    opacity: 0.5;
-    cursor: pointer;
-    font-size: 13px;
-    padding: 2rem;
-    background-color: #3336;
-    border-radius: 16px;
-    border: 4px solid transparent;
-}
-
-.ratings .rating:hover
-{
-    opacity: 1;
-    background-color: #457be044;
-}
-
-.ratings .rating.active
-{
-    opacity: 1;
-    background-color: #457be044;
-    border: 4px solid #457be0;
-}
-
-.ratings .rating .icon
-{
-    font-size: 64px;
-}
-
-.ratings .rating .icon
-{
-    font-size: 64px;
-}
-
-.posting i
-{
-    font-size: 256px;
-    animation: progress 0.2s infinite alternate ease;
-}
-
-@keyframes progress
-{
-    0%
-    {
-        opacity: 0.8;
-        transform: scale( 0.95 );
-    }
-
-    100%
-    {
-        opacity: 1;
-        transform: scale( 1 );
-    }
+		&:active
+		{
+			sound-in: "ui.button.press";
+		}
+	}
 }

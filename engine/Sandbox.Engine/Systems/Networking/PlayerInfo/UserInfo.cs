@@ -4,7 +4,7 @@
 internal struct UserInfo
 {
 	public SteamId SteamId { get; set; }
-	public string DisplayName { get; set; }
+	public string Name { get; set; }
 	public DateTimeOffset ConnectionTime { get; set; }
 	public Dictionary<string, string> UserData { get; set; }
 	public int EngineVersion { get; internal set; }
@@ -13,6 +13,11 @@ internal struct UserInfo
 	public Guid HandshakeId { get; set; }
 	public bool IsVr { get; set; }
 	public byte[] InventoryBlob { get; set; }
+
+	/// <summary>
+	/// The server's password, only sent when it asks for one. Never goes into the connection info everyone sees.
+	/// </summary>
+	public string Password { get; set; }
 
 	/// <summary>
 	/// Build info for the local user, which will then get sent to the server and possibly shared between all clients
@@ -25,7 +30,7 @@ internal struct UserInfo
 			{
 				ConnectionTime = DateTime.UtcNow,
 				SteamId = Utility.Steam.SteamId,
-				DisplayName = Utility.Steam.PersonaName,
+				Name = Utility.Steam.PersonaName,
 				EngineVersion = Engine.Protocol.Network,
 				UserData = new(),
 				PartyId = PartyRoom.Current?.Id ?? new( 0 ),

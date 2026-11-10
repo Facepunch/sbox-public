@@ -6,6 +6,7 @@ namespace Sandbox;
 /// A class to add functionality to the math library that System.Math and System.MathF don't provide.
 /// A lot of these methods are also extensions, so you can use for example `int i = 1.0f.FloorToInt();`
 /// </summary>
+[Description( "Additional math functions and extensions beyond System.Math and System.MathF." )]
 public static partial class MathX
 {
 	internal const float toRadians = (float)Math.PI * 2F / 360F;
@@ -80,8 +81,8 @@ public static partial class MathX
 	public static float SnapToGrid( this float f, float gridSize )
 	{
 		if ( gridSize.AlmostEqual( 0.0f ) ) return f;
-		var inv = 1 / gridSize;
-		return MathF.Round( f * inv ) / inv;
+		var snapped = MathF.Round( f / gridSize ) * gridSize;
+		return snapped == 0.0f ? 0.0f : snapped;
 	}
 
 	/// <summary>

@@ -49,10 +49,7 @@ public sealed partial class PlayerController : Component
 				UpdateLookAt();
 			}
 
-			if ( UseCameraControls )
-			{
-				UpdateCameraPosition();
-			}
+			UpdateCameraInput();
 
 			UpdateEyeTransform();
 		}
@@ -68,6 +65,8 @@ public sealed partial class PlayerController : Component
 	protected override void OnFixedUpdate()
 	{
 		if ( Scene.IsEditor ) return;
+		// Seats disable the body, so mode changes cannot rely on physics callbacks alone.
+		if ( !Body.Enabled ) ChooseBestMoveMode();
 
 		UpdateHeadroom();
 		UpdateFalling();
@@ -78,7 +77,7 @@ public sealed partial class PlayerController : Component
 		if ( !UseInputControls ) return;
 
 		InputMove();
-		UpdateDucking( Input.Down( "duck" ) );
+		UpdateDuckInput( Input.Down( "duck" ) );
 		InputJump();
 
 		UpdateEyeTransform();
@@ -86,7 +85,8 @@ public sealed partial class PlayerController : Component
 
 	void UpdateHeadroom()
 	{
-		var tr = TraceBody( WorldPosition + Vector3.Up * CurrentHeight * 0.5f, WorldPosition + Vector3.Up * (100 + CurrentHeight * 0.5f), 0.75f, 0.5f );
+		var up = UpDirection;
+		var tr = TraceBody( WorldPosition + up * CurrentHeight * 0.5f, WorldPosition + up * (100 + CurrentHeight * 0.5f), 0.75f, 0.5f );
 		Headroom = tr.Distance;
 	}
 
@@ -106,10 +106,11 @@ public sealed partial class PlayerController : Component
 		if ( !IsOnGround || _wasFalling )
 		{
 			var fallDelta = WorldPosition - prevPosition;
-			if ( fallDelta.z < 0.0f )
+			var fallDistanceDelta = fallDelta.Dot( UpDirection );
+			if ( fallDistanceDelta < 0.0f )
 			{
 				_wasFalling = true;
-				fallDistance -= fallDelta.z;
+				fallDistance -= fallDistanceDelta;
 			}
 		}
 

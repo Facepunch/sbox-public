@@ -81,11 +81,9 @@ internal class EditorToolButton : Widget
 		Paint.DrawIcon( LocalRect, GetIcon(), HeaderBarStyle.IconSize, TextFlag.Center );
 	}
 
+	[EditorEvent.Frame]
 	public void UpdateState()
 	{
-		if ( IsActive is null )
-			return;
-
-		SetContentHash( HashCode.Combine( IsActive() ), 0.1f );
+		SetContentHash( HashCode.Combine( IsActive?.Invoke() ?? false, Color ), 0.1f );
 	}
 }

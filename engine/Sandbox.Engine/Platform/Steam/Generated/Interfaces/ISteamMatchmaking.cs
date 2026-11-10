@@ -264,14 +264,26 @@ namespace Steamworks
 		private static extern bool _GetLobbyDataByIndex( IntPtr self, SteamId steamIDLobby, int iLobbyData, IntPtr pchKey, int cchKeyBufferSize, IntPtr pchValue, int cchValueBufferSize );
 
 		#endregion
-		internal bool GetLobbyDataByIndex( SteamId steamIDLobby, int iLobbyData, out string pchKey, out string pchValue )
+		internal unsafe bool GetLobbyDataByIndex( SteamId steamIDLobby, int iLobbyData, out string pchKey, out string pchValue )
 		{
-			using var mempchKey = Helpers.TakeMemory();
-			using var mempchValue = Helpers.TakeMemory();
-			var returnValue = _GetLobbyDataByIndex( Self, steamIDLobby, iLobbyData, mempchKey, (1024 * 32), mempchValue, (1024 * 32) );
-			pchKey = Helpers.MemoryToString( mempchKey );
-			pchValue = Helpers.MemoryToString( mempchValue );
-			return returnValue;
+			const int KeyBufferSize = 256;
+			const int ValueBufferSize = 8192;
+
+			byte* keyBuffer = stackalloc byte[KeyBufferSize];
+			byte* valueBuffer = stackalloc byte[ValueBufferSize];
+
+			var returnValue = _GetLobbyDataByIndex( Self, steamIDLobby, iLobbyData, (IntPtr)keyBuffer, KeyBufferSize, (IntPtr)valueBuffer, ValueBufferSize );
+
+			if ( !returnValue )
+			{
+				pchKey = string.Empty;
+				pchValue = string.Empty;
+				return false;
+			}
+
+			pchKey = Helpers.MemoryToString( (IntPtr)keyBuffer, KeyBufferSize );
+			pchValue = Helpers.MemoryToString( (IntPtr)valueBuffer, ValueBufferSize );
+			return true;
 		}
 
 		#region FunctionMeta

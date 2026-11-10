@@ -2,6 +2,8 @@
 
 internal static partial class ConVarSystem
 {
+	internal static IEnumerable<Command> ArchivedNativeVariables => Members.Values.OfType<NativeConVar>().Where( x => x.IsSaved );
+
 	/// <summary>
 	/// Called from native as a result of calling RefreshNativeVariables
 	/// </summary>
@@ -18,6 +20,14 @@ internal static partial class ConVarSystem
 	{
 		var command = new NativeCommand( value );
 		AddCommand( command );
+	}
+
+	/// <summary>
+	/// Read a native ConVar as an integer, as native code does, without going through a string.
+	/// </summary>
+	internal static int GetNativeInt( string name, int defaultValue )
+	{
+		return Find( name ) is NativeConVar native ? native.GetInt() : defaultValue;
 	}
 
 	internal static void ClearNativeCommands()
@@ -107,5 +117,7 @@ file class NativeConVar : Command
 	}
 
 	public override string DefaultValue => _native.GetDefault();
+
+	public int GetInt() => _native.GetInt();
 }
 

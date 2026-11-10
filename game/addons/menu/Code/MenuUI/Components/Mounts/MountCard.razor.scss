@@ -1,0 +1,179 @@
+@import "/styles/_theme.scss";
+@import "/Platform/_platform.scss";
+
+MountCard
+{
+	@include platform-surface;
+	flex-direction: column;
+	flex-shrink: 0;
+	// 4 to a row at 1920 with room to spare. Art is 460x215 Steam capsule, so the art box
+	// keeps that ratio - anything else letterboxes or squashes it.
+	width: 312px;
+	overflow: hidden;
+	pointer-events: all;
+	cursor: pointer;
+	transition: all 0.12s ease;
+	opacity: 0.8;
+
+	.art
+	{
+		// Positioned, so the action button anchors here and not on some ancestor.
+		position: relative;
+		flex-shrink: 0;
+		height: 146px;
+		align-items: center;
+		justify-content: center;
+		background-size: cover;
+		background-position: center;
+		// Darker than the tile, so a game with no art reads as intentional.
+		background-color: #0b0d14;
+		transition: all 0.12s ease;
+		// Only shown when there's no capsule to draw. Direct child - as a descendant rule this
+		// also caught the action button's icon and stretched it across the whole tile.
+		> icon
+		{
+			width: 100%;
+			text-align: center;
+			font-size: 34px;
+			color: $platform-faint;
+		}
+	}
+	// Pin both edges and right-align, same as PackageFlairBar. `right` alone leaves a
+	// content-sized absolute node without a definite width, and the pill overhangs the tile
+	// and gets clipped by its overflow.
+	.art-actions
+	{
+		position: absolute;
+		top: 8px;
+		left: 8px;
+		right: 8px;
+		flex-direction: row;
+		justify-content: flex-end;
+	}
+	// The one live control on a tile you can't toggle, so it gets its own pointer and feedback
+	// rather than inheriting the tile's.
+	.action
+	{
+		@include platform-text-button( 30px, 12.5px, 15px );
+		padding: 0 12px;
+		flex-shrink: 0;
+		pointer-events: all;
+
+		label
+		{
+			white-space: nowrap;
+		}
+
+		&:hover
+		{
+			sound-in: "ui.button.over";
+		}
+
+		&:active
+		{
+			sound-in: "ui.button.press";
+		}
+	}
+	// A band below the art - the art stays unobstructed. min-height so a tile without the second line still
+	// matches the others in its row.
+	.bar
+	{
+		flex-direction: row;
+		align-items: center;
+		flex-shrink: 0;
+		min-height: 54px;
+		gap: 10px;
+		padding: 9px 12px 11px 12px;
+	}
+	// width 0 + grow so a long title ellipsises instead of pushing the switch off the tile.
+	.body
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		width: 0;
+		gap: 2px;
+	}
+
+	.title
+	{
+		@include front-row-title;
+		font-size: 14px;
+		font-weight: 600;
+	}
+
+	.meta
+	{
+		font-size: 11px;
+		font-weight: 500;
+		color: $platform-faint;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.switch
+	{
+		@include platform-switch;
+	}
+	// Only a tile with something to toggle, and not already working, reacts to the pointer.
+	&.installed:not( .busy ), &.mounted:not( .busy )
+	{
+		&:hover
+		{
+			sound-in: "ui.button.over";
+		}
+
+		&:active
+		{
+			sound-in: "ui.button.press";
+		}
+	}
+
+	&.mounted
+	{
+		opacity: 1;
+
+		.meta
+		{
+			color: $platform-muted;
+		}
+	}
+	// Mid-operation. The knob parks half way so the switch reads as in transit rather than as
+	// either state, and there's nothing to click until it lands. The switch isn't .on while it's busy.
+	&.busy
+	{
+		cursor: default;
+
+		.switch .knob
+		{
+			transform: translateX( 7px );
+			background-color: $platform-primary;
+		}
+
+		.meta
+		{
+			color: $platform-primary;
+		}
+	}
+	// Nothing to toggle until the game is on disk, so neither tile behaves like a button. The art
+	// drains of colour, but the action button keeps its weight - it's the way out of here.
+	&.owned, &.missing
+	{
+		cursor: default;
+
+		.title
+		{
+			color: $platform-muted;
+		}
+	}
+	// Already yours, one free click from usable - stays close to full colour.
+	&.owned .art
+	{
+		filter: saturate( 0.75 );
+	}
+	// Something you'd have to buy. Pushed furthest back of the three.
+	&.missing .art
+	{
+		filter: saturate( 0.2 );
+		opacity: 0.75;
+	}
+}

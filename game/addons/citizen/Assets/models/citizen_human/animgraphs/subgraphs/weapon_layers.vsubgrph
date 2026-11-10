@@ -1,0 +1,1181 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:animgraph2:version{0f7898b8-5471-45c4-9867-cd9c46bcfdb5} -->
+{
+	_class = "CAnimationSubGraph"
+	m_nodeManager = 
+	{
+		_class = "CAnimNodeManager"
+		m_nodes = 
+		[
+			{
+				key = 
+				{
+					m_id = 177417161
+				}
+				value = 
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "Shotgun / locomotion composite"
+					m_vecPosition = [ 864.0, 928.0 ]
+					m_nNodeID = 
+					{
+						m_id = 177417161
+					}
+					m_sNote = ""
+					m_inputNodeID = 
+					{
+						m_id = 2147145089
+					}
+					m_outputNodeID = 
+					{
+						m_id = 705740996
+					}
+					m_subGraphFilename = "models\\citizen_human\\animgraphs\\subgraphs\\holdtype_compositing.vsubgrph"
+					m_inputConnectionMap = 
+					[
+						{
+							key = 
+							{
+								m_id = 304654347
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 2232000001
+								}
+								m_outputID = 
+								{
+									m_id = 2232000003
+								}
+							}
+						},
+						{
+							key = 
+							{
+								m_id = 379561548
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 2232000001
+								}
+								m_outputID = 
+								{
+									m_id = 2232000004
+								}
+							}
+						},
+						{
+							key = 
+							{
+								m_id = 538081040
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 2232000001
+								}
+								m_outputID = 
+								{
+									m_id = 2232000005
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 419618803
+				}
+				value = 
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "RPG / locomotion composite"
+					m_vecPosition = [ 864.0, 1696.0 ]
+					m_nNodeID = 
+					{
+						m_id = 419618803
+					}
+					m_sNote = ""
+					m_inputNodeID = 
+					{
+						m_id = 2147145089
+					}
+					m_outputNodeID = 
+					{
+						m_id = 705740996
+					}
+					m_subGraphFilename = "models\\citizen_human\\animgraphs\\subgraphs\\holdtype_compositing.vsubgrph"
+					m_inputConnectionMap = 
+					[
+						{
+							key = 
+							{
+								m_id = 304654347
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 2232000001
+								}
+								m_outputID = 
+								{
+									m_id = 2232000003
+								}
+							}
+						},
+						{
+							key = 
+							{
+								m_id = 379561548
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 2232000001
+								}
+								m_outputID = 
+								{
+									m_id = 2232000006
+								}
+							}
+						},
+						{
+							key = 
+							{
+								m_id = 538081040
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 2232000001
+								}
+								m_outputID = 
+								{
+									m_id = 2232000007
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 924915088
+				}
+				value = 
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "Physgun / locomotion composite"
+					m_vecPosition = [ 864.0, 1888.0 ]
+					m_nNodeID = 
+					{
+						m_id = 924915088
+					}
+					m_sNote = ""
+					m_inputNodeID = 
+					{
+						m_id = 2147145089
+					}
+					m_outputNodeID = 
+					{
+						m_id = 705740996
+					}
+					m_subGraphFilename = "models\\citizen_human\\animgraphs\\subgraphs\\holdtype_compositing.vsubgrph"
+					m_inputConnectionMap = 
+					[
+						{
+							key = 
+							{
+								m_id = 304654347
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 2232000001
+								}
+								m_outputID = 
+								{
+									m_id = 2232000003
+								}
+							}
+						},
+						{
+							key = 
+							{
+								m_id = 379561548
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 2232000001
+								}
+								m_outputID = 
+								{
+									m_id = 2232000008
+								}
+							}
+						},
+						{
+							key = 
+							{
+								m_id = 538081040
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 2232000001
+								}
+								m_outputID = 
+								{
+									m_id = 2232000009
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1183325861
+				}
+				value = 
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "Punching / locomotion composite"
+					m_vecPosition = [ 864.0, 1312.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1183325861
+					}
+					m_sNote = ""
+					m_inputNodeID = 
+					{
+						m_id = 2147145089
+					}
+					m_outputNodeID = 
+					{
+						m_id = 705740996
+					}
+					m_subGraphFilename = "models\\citizen_human\\animgraphs\\subgraphs\\holdtype_compositing.vsubgrph"
+					m_inputConnectionMap = 
+					[
+						{
+							key = 
+							{
+								m_id = 304654347
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 2232000001
+								}
+								m_outputID = 
+								{
+									m_id = 2232000003
+								}
+							}
+						},
+						{
+							key = 
+							{
+								m_id = 379561548
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 2232000001
+								}
+								m_outputID = 
+								{
+									m_id = 2232000010
+								}
+							}
+						},
+						{
+							key = 
+							{
+								m_id = 538081040
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 2232000001
+								}
+								m_outputID = 
+								{
+									m_id = 2232000011
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1218789081
+				}
+				value = 
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "Rifle / locomotion composite"
+					m_vecPosition = [ 864.0, 736.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1218789081
+					}
+					m_sNote = ""
+					m_inputNodeID = 
+					{
+						m_id = 2147145089
+					}
+					m_outputNodeID = 
+					{
+						m_id = 705740996
+					}
+					m_subGraphFilename = "models\\citizen_human\\animgraphs\\subgraphs\\holdtype_compositing.vsubgrph"
+					m_inputConnectionMap = 
+					[
+						{
+							key = 
+							{
+								m_id = 304654347
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 2232000001
+								}
+								m_outputID = 
+								{
+									m_id = 2232000003
+								}
+							}
+						},
+						{
+							key = 
+							{
+								m_id = 379561548
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 2232000001
+								}
+								m_outputID = 
+								{
+									m_id = 2232000012
+								}
+							}
+						},
+						{
+							key = 
+							{
+								m_id = 538081040
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 2232000001
+								}
+								m_outputID = 
+								{
+									m_id = 2232000013
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1221840034
+				}
+				value = 
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "Held item / locomotion composite"
+					m_vecPosition = [ 864.0, 1120.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1221840034
+					}
+					m_sNote = ""
+					m_inputNodeID = 
+					{
+						m_id = 2147145089
+					}
+					m_outputNodeID = 
+					{
+						m_id = 705740996
+					}
+					m_subGraphFilename = "models\\citizen_human\\animgraphs\\subgraphs\\holdtype_compositing.vsubgrph"
+					m_inputConnectionMap = 
+					[
+						{
+							key = 
+							{
+								m_id = 304654347
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 2232000001
+								}
+								m_outputID = 
+								{
+									m_id = 2232000003
+								}
+							}
+						},
+						{
+							key = 
+							{
+								m_id = 379561548
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 2232000001
+								}
+								m_outputID = 
+								{
+									m_id = 2232000014
+								}
+							}
+						},
+						{
+							key = 
+							{
+								m_id = 538081040
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 4294967295
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1298963528
+				}
+				value = 
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "Melee weapon / locomotion composite"
+					m_vecPosition = [ 864.0, 1504.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1298963528
+					}
+					m_sNote = ""
+					m_inputNodeID = 
+					{
+						m_id = 2147145089
+					}
+					m_outputNodeID = 
+					{
+						m_id = 705740996
+					}
+					m_subGraphFilename = "models\\citizen_human\\animgraphs\\subgraphs\\holdtype_compositing.vsubgrph"
+					m_inputConnectionMap = 
+					[
+						{
+							key = 
+							{
+								m_id = 304654347
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 2232000001
+								}
+								m_outputID = 
+								{
+									m_id = 2232000003
+								}
+							}
+						},
+						{
+							key = 
+							{
+								m_id = 379561548
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 2232000001
+								}
+								m_outputID = 
+								{
+									m_id = 2232000015
+								}
+							}
+						},
+						{
+							key = 
+							{
+								m_id = 538081040
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 2232000001
+								}
+								m_outputID = 
+								{
+									m_id = 2232000016
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1648049320
+				}
+				value = 
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "Pistol / locomotion composite"
+					m_vecPosition = [ 864.0, 544.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1648049320
+					}
+					m_sNote = ""
+					m_inputNodeID = 
+					{
+						m_id = 2147145089
+					}
+					m_outputNodeID = 
+					{
+						m_id = 705740996
+					}
+					m_subGraphFilename = "models\\citizen_human\\animgraphs\\subgraphs\\holdtype_compositing.vsubgrph"
+					m_inputConnectionMap = 
+					[
+						{
+							key = 
+							{
+								m_id = 304654347
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 2232000001
+								}
+								m_outputID = 
+								{
+									m_id = 2232000003
+								}
+							}
+						},
+						{
+							key = 
+							{
+								m_id = 379561548
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 2232000001
+								}
+								m_outputID = 
+								{
+									m_id = 2232000017
+								}
+							}
+						},
+						{
+							key = 
+							{
+								m_id = 538081040
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 2232000001
+								}
+								m_outputID = 
+								{
+									m_id = 2232000018
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 2100000004
+				}
+				value = 
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "05 - Holdtype actions"
+					m_vecPosition = [ 2016.0, 544.0 ]
+					m_nNodeID = 
+					{
+						m_id = 2100000004
+					}
+					m_sNote = "Choose the holdtype after its shared compositor, attack/deploy layers and handedness-dependent arm IK. The weaponless path keeps its original reset blockers."
+					m_inputNodeID = 
+					{
+						m_id = 2100000010
+					}
+					m_outputNodeID = 
+					{
+						m_id = 2100000016
+					}
+					m_subGraphFilename = "models\\citizen_human\\animgraphs\\subgraphs\\actions.vsubgrph"
+					m_inputConnectionMap = 
+					[
+						{
+							key = 
+							{
+								m_id = 2100000022
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 2232000001
+								}
+								m_outputID = 
+								{
+									m_id = 2232000003
+								}
+							}
+						},
+						{
+							key = 
+							{
+								m_id = 2100000029
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 1183325861
+								}
+								m_outputID = 
+								{
+									m_id = 1562669478
+								}
+							}
+						},
+						{
+							key = 
+							{
+								m_id = 2100000034
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 1221840034
+								}
+								m_outputID = 
+								{
+									m_id = 1562669478
+								}
+							}
+						},
+						{
+							key = 
+							{
+								m_id = 2100000036
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 924915088
+								}
+								m_outputID = 
+								{
+									m_id = 1562669478
+								}
+							}
+						},
+						{
+							key = 
+							{
+								m_id = 2100000037
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 1298963528
+								}
+								m_outputID = 
+								{
+									m_id = 1562669478
+								}
+							}
+						},
+						{
+							key = 
+							{
+								m_id = 2100000040
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 177417161
+								}
+								m_outputID = 
+								{
+									m_id = 1562669478
+								}
+							}
+						},
+						{
+							key = 
+							{
+								m_id = 2100000041
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 1218789081
+								}
+								m_outputID = 
+								{
+									m_id = 1562669478
+								}
+							}
+						},
+						{
+							key = 
+							{
+								m_id = 2100000042
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 1648049320
+								}
+								m_outputID = 
+								{
+									m_id = 1562669478
+								}
+							}
+						},
+						{
+							key = 
+							{
+								m_id = 2100000060
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 419618803
+								}
+								m_outputID = 
+								{
+									m_id = 1562669478
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 2232000001
+				}
+				value = 
+				{
+					_class = "CGroupInputAnimNode"
+					m_sName = "Inputs"
+					m_vecPosition = [ -480.0, 0.0 ]
+					m_nNodeID = 
+					{
+						m_id = 2232000001
+					}
+					m_sNote = ""
+					m_proxyItems = 
+					[
+						{
+							m_name = "Scale character height"
+							m_outputID = 
+							{
+								m_id = 2232000003
+							}
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 4294967295
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+						{
+							m_name = "01 - Holdtype poses"
+							m_outputID = 
+							{
+								m_id = 2232000004
+							}
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 4294967295
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+						{
+							m_name = "01 - Holdtype poses"
+							m_outputID = 
+							{
+								m_id = 2232000005
+							}
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 4294967295
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+						{
+							m_name = "01 - Holdtype poses"
+							m_outputID = 
+							{
+								m_id = 2232000006
+							}
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 4294967295
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+						{
+							m_name = "01 - Holdtype poses"
+							m_outputID = 
+							{
+								m_id = 2232000007
+							}
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 4294967295
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+						{
+							m_name = "01 - Holdtype poses"
+							m_outputID = 
+							{
+								m_id = 2232000008
+							}
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 4294967295
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+						{
+							m_name = "01 - Holdtype poses"
+							m_outputID = 
+							{
+								m_id = 2232000009
+							}
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 4294967295
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+						{
+							m_name = "01 - Holdtype poses"
+							m_outputID = 
+							{
+								m_id = 2232000010
+							}
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 4294967295
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+						{
+							m_name = "01 - Holdtype poses"
+							m_outputID = 
+							{
+								m_id = 2232000011
+							}
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 4294967295
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+						{
+							m_name = "01 - Holdtype poses"
+							m_outputID = 
+							{
+								m_id = 2232000012
+							}
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 4294967295
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+						{
+							m_name = "01 - Holdtype poses"
+							m_outputID = 
+							{
+								m_id = 2232000013
+							}
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 4294967295
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+						{
+							m_name = "01 - Holdtype poses"
+							m_outputID = 
+							{
+								m_id = 2232000014
+							}
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 4294967295
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+						{
+							m_name = "01 - Holdtype poses"
+							m_outputID = 
+							{
+								m_id = 2232000015
+							}
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 4294967295
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+						{
+							m_name = "01 - Holdtype poses"
+							m_outputID = 
+							{
+								m_id = 2232000016
+							}
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 4294967295
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+						{
+							m_name = "01 - Holdtype poses"
+							m_outputID = 
+							{
+								m_id = 2232000017
+							}
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 4294967295
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+						{
+							m_name = "01 - Holdtype poses"
+							m_outputID = 
+							{
+								m_id = 2232000018
+							}
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 4294967295
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 2232000002
+				}
+				value = 
+				{
+					_class = "CGroupOutputAnimNode"
+					m_sName = "Outputs"
+					m_vecPosition = [ 2400.0, 0.0 ]
+					m_nNodeID = 
+					{
+						m_id = 2232000002
+					}
+					m_sNote = ""
+					m_proxyItems = 
+					[
+						{
+							m_name = "05 - Holdtype actions"
+							m_outputID = 
+							{
+								m_id = 2232000019
+							}
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 2100000004
+								}
+								m_outputID = 
+								{
+									m_id = 2100000028
+								}
+							}
+						},
+					]
+				}
+			},
+		]
+	}
+	m_localParameters = [  ]
+	m_localTags = [  ]
+}

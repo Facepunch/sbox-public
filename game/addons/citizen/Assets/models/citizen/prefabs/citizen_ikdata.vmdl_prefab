@@ -1,4 +1,4 @@
-<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc29:version{3cec427c-1b0e-4d48-a90a-0436f33a6041} -->
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
 {
 	rootNode = 
 	{
@@ -134,17 +134,15 @@
 											{
 												_class = "IKChainJoint"
 												name = "ankle_R"
-												children = 
-												[
-													{
-														_class = "IKJointConstraint_Hinge"
-														constrained_joint = ""
-														hinge_axis = "Up"
-														min_radians = -2.094395
-														max_radians = 0.0
-													},
-												]
 												bone = "ankle_R"
+											},
+											{
+												_class = "IKJointConstraint_Hinge"
+												note = "YES, this looks incorrect, but I can assure you this is the right data. Also, the two-bone IK solver completely ignores min/max degrees."
+												constrained_joint = ""
+												hinge_axis = "Up"
+												min_radians = -1.570796
+												max_radians = 1.570796
 											},
 										]
 										bone = "leg_lower_R"
@@ -189,17 +187,15 @@
 											{
 												_class = "IKChainJoint"
 												name = "ankle_L"
-												children = 
-												[
-													{
-														_class = "IKJointConstraint_Hinge"
-														constrained_joint = ""
-														hinge_axis = "Up"
-														min_radians = -2.094395
-														max_radians = 0.0
-													},
-												]
 												bone = "ankle_L"
+											},
+											{
+												_class = "IKJointConstraint_Hinge"
+												note = "YES, this looks incorrect, but I can assure you this is the right data. Also, the two-bone IK solver completely ignores min/max degrees.\n"
+												constrained_joint = ""
+												hinge_axis = "Up"
+												min_radians = -1.570796
+												max_radians = 1.570796
 											},
 										]
 										bone = "leg_lower_L"

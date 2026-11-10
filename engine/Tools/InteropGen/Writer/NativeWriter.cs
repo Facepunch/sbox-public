@@ -3,6 +3,10 @@ using System.Linq;
 
 namespace Facepunch.InteropGen;
 
+/// <summary>
+/// Emits the native (C++) source: the import function pointers and their implementations, the exported
+/// thunks native exposes to managed, and the igen_* initializer that exchanges the function tables.
+/// </summary>
 internal partial class NativeWriter : BaseWriter
 {
 	public NativeWriter( Definition definitions, string targetName ) : base( definitions, targetName )
@@ -12,9 +16,6 @@ internal partial class NativeWriter : BaseWriter
 	public override void Generate()
 	{
 		string headerName = System.IO.Path.GetFileName( definitions.SaveFileCppH );
-		int functionCount = definitions.Classes
-										.SelectMany( x => x.Functions )
-										.Count();
 
 		if ( !string.IsNullOrWhiteSpace( definitions.PrecompiledHeader ) )
 		{
@@ -25,17 +26,9 @@ internal partial class NativeWriter : BaseWriter
 
 		WriteLine( $"#include \"{headerName}\"" );
 
-		foreach ( string inc in definitions.CppIncludes.Distinct() )
-		{
-			WriteLine( $"#include \"{inc}\"" );
-		}
-
-		if ( definitions.InitFrom == "Native" )
-		{
-			WriteLine( $"#include \"sbox/inetruntime.h\"" );
-			WriteLine( $"#include \"tier0/managedhandle.h\"" );
-			WriteLine( $"#include <string>" );
-		}
+		WriteLine( $"#include \"sbox/inetruntime.h\"" );
+		WriteLine( $"#include \"tier0/managedhandle.h\"" );
+		WriteLine( $"#include <string>" );
 		WriteLine();
 
 		WriteLine( "" );
@@ -69,15 +62,6 @@ internal partial class NativeWriter : BaseWriter
 			EndBlock();
 		}
 
-		if ( definitions.Externs.Count > 0 )
-		{
-			WriteLine( "" );
-			foreach ( string inc in definitions.Externs.Distinct() )
-			{
-				WriteLine( $"extern {inc}" );
-			}
-		}
-
 		Imports();
 
 		Exports();
@@ -88,10 +72,15 @@ internal partial class NativeWriter : BaseWriter
 	}
 
 
+	/// <summary>
+	/// The igen_* initializer that managed calls at startup: verifies the def hash, hands managed the
+	/// native export table, checks struct sizes and receives the managed function pointers. Plus the
+	/// IsReady/Shutdown state the rest of native uses to know if the binds are alive.
+	/// </summary>
 	private void Initialize()
 	{
-		int exports = definitions.Classes.Where( x => x.Native == true ).Sum( x => x.Functions.Count );
-		IEnumerable<Function> imports = definitions.Classes.Where( x => x.Native == false ).Where( x => !ShouldSkip( x ) ).SelectMany( x => x.Functions );
+		IEnumerable<Function> imports = definitions.ManagedClasses.Where( x => !Skip.ShouldSkip( x ) ).SelectMany( x => x.Functions );
+		int importCount = imports.Count();
 
 		WriteLine( "//" );
 		WriteLine( "// MANAGER" );
@@ -113,9 +102,6 @@ internal partial class NativeWriter : BaseWriter
 			EndBlock();
 
 			WriteLine( "" );
-			WriteLine( $"typedef void (CC *fn_initialize)( const char*, int, void*, int*, void* );" );
-			WriteLine( "" );
-
 
 			WriteLine( "bool s_isReady = false;" );
 			WriteLine( "" );
@@ -124,94 +110,29 @@ internal partial class NativeWriter : BaseWriter
 			{
 				StartBlock( $"if ( hash != {definitions.Hash} )" );
 				{
-					WriteLine( "Plat_FatalError( \"Invalid hash in x\" );" );
+					WriteLine( $"Plat_FatalError( \"igen_{definitions.Ident}: interop hash mismatch - managed sent %d, native was built with {definitions.Hash}. The two sides are out of sync - rebuild both.\", hash );" );
 				}
 				EndBlock();
 
-				int i = 0;
 				WriteLine( "" );
-				{
-					WriteLine( $"nativeFunctions[{i++}] = (void*)&Debug_Error;" );
-
-					foreach ( Class c in definitions.Classes.Where( x => x.Native == true ) )
-					{
-						if ( ShouldSkip( c ) )
-						{
-							continue;
-						}
-
-						Class bc = c.BaseClass;
-
-						while ( bc != null )
-						{
-							Class subclass = bc;
-							WriteLine( $"nativeFunctions[{i++}] = (void*)&Exports::From_{subclass.ManagedName}_To_{c.ManagedName};" );
-							WriteLine( $"nativeFunctions[{i++}] = (void*)&Exports::To_{subclass.ManagedName}_From_{c.ManagedName};" );
-							bc = bc.BaseClass;
-						}
-
-						foreach ( Function f in c.Functions )
-						{
-							WriteLine( $"nativeFunctions[{i++}] = (void*)&Exports::{f.MangledName};" );
-						}
-
-						foreach ( Variable f in c.Variables )
-						{
-							WriteLine( $"nativeFunctions[{i++}] = (void*)&Exports::_Get__{f.MangledName};" );
-							WriteLine( $"nativeFunctions[{i++}] = (void*)&Exports::_Set__{f.MangledName};" );
-						}
-					}
-				}
+				NativeFunctionTable();
 				WriteLine( "" );
 
-				i = 0;
-				if ( definitions.Structs.Count > 0 )
-				{
-					foreach ( Struct s in definitions.Structs )
-					{
-						if ( ShouldSkip( s ) )
-						{
-							continue;
-						}
-
-						WriteLine( $"if ( sizeof( {s.NativeNameWithNamespace} ) != structSizes[{i}] ) Plat_FatalError( \"{s.NativeNameWithNamespace} is the wrong size\" );" );
-
-						if ( !s.IsEnum && !s.HasAttribute( "small" ) )
-						{
-							WriteLine( $"static_assert ( sizeof( {s.NativeNameWithNamespace} ) >= 8, \"Please mark struct {s.NativeName} with a [small] - it's smaller than a pointer\" );" );
-						}
-
-						i++;
-					}
-				}
+				StructSizeChecks();
 
 				WriteLine();
 
-				if ( imports.Count() > 0 )
+				if ( importCount > 0 )
 				{
 					WriteLine( "" );
 					WriteLine( $"// Not ready, failed, if any of the imports are null" );
-					WriteLine( $"for ( int f =0; f<{imports.Count()}; f++ ) if ( managedFunctions[f] == nullptr ) Plat_FatalError( \"Huuuuuh\" );" );
+					WriteLine( $"for ( int f =0; f<{importCount}; f++ ) if ( managedFunctions[f] == nullptr ) Plat_FatalError( \"igen_{definitions.Ident}: managed function pointer %d is null\", f );" );
 				}
 
 
 				WriteLine( "" );
 
-				i = 0;
-				foreach ( Function f in imports )
-				{
-					Class c = f.Class;
-					IEnumerable<string> nativeArgs = c.SelfArg( true, f.Static ).Concat( f.Parameters ).Select( x => $"{x.GetNativeDelegateType( false )}" );
-					string nativeArgS = string.Join( ",", nativeArgs );
-
-					string functionType = $"{f.Return.GetNativeDelegateType( false )} (CC *)( {nativeArgS.Trim( ',', ' ' )} )";
-
-					WriteLine( $"Imports::{f.MangledName} = ({functionType}) managedFunctions[{i}];" );
-
-					i++;
-				}
-
-
+				BindManagedFunctions( imports );
 
 				WriteLine();
 				WriteLine( "s_isReady = true;" );
@@ -245,4 +166,73 @@ internal partial class NativeWriter : BaseWriter
 		}
 	}
 
+	/// <summary>
+	/// Fill the nativeFunctions array with a pointer to each exported symbol. Slot order comes from
+	/// <see cref="NativeExportTable"/>, which the managed reader uses too.
+	/// </summary>
+	private void NativeFunctionTable()
+	{
+		int slotIndex = 0;
+		foreach ( NativeSlot slot in NativeExportSlots() )
+		{
+			string symbol = slot.Kind switch
+			{
+				NativeSlotKind.Error => "Debug_Error",
+				NativeSlotKind.CastFromTo => $"Exports::From_{slot.BaseClass.ManagedName}_To_{slot.Class.ManagedName}",
+				NativeSlotKind.CastToFrom => $"Exports::To_{slot.BaseClass.ManagedName}_From_{slot.Class.ManagedName}",
+				NativeSlotKind.Function => $"Exports::{slot.Function.MangledName}",
+				NativeSlotKind.VariableGet => $"Exports::_Get__{slot.Variable.MangledName}",
+				NativeSlotKind.VariableSet => $"Exports::_Set__{slot.Variable.MangledName}",
+				_ => null
+			};
+
+			WriteLine( $"nativeFunctions[{slotIndex++}] = (void*)&{symbol};" );
+		}
+	}
+
+	/// <summary>
+	/// Verify both sides agree on every struct's size, and that no struct smaller than a pointer is
+	/// missing its [small] attribute.
+	/// </summary>
+	private void StructSizeChecks()
+	{
+		int i = 0;
+		foreach ( Struct s in definitions.Structs )
+		{
+			if ( Skip.ShouldSkip( s ) )
+			{
+				continue;
+			}
+
+			WriteLine( $"if ( sizeof( {s.NativeNameWithNamespace} ) != structSizes[{i}] ) Plat_FatalError( \"{s.NativeNameWithNamespace} is the wrong size\" );" );
+
+			if ( !s.IsEnum && !s.HasAttribute( "small" ) )
+			{
+				WriteLine( $"static_assert ( sizeof( {s.NativeNameWithNamespace} ) >= 8, \"Please mark struct {s.NativeName} with a [small] - it's smaller than a pointer\" );" );
+			}
+
+			i++;
+		}
+	}
+
+	/// <summary>
+	/// Read each received managed function pointer out of the managedFunctions array into the matching
+	/// Imports:: field.
+	/// </summary>
+	private void BindManagedFunctions( IEnumerable<Function> imports )
+	{
+		int i = 0;
+		foreach ( Function f in imports )
+		{
+			Class c = f.Class;
+			IEnumerable<string> nativeArgs = c.SelfArg( true, f.Static ).Concat( f.Parameters ).Select( x => $"{x.DelegateType( Side.Native, Dir.Outgoing )}" );
+			string nativeArgS = string.Join( ",", nativeArgs );
+
+			string functionType = $"{f.Return.DelegateType( Side.Native, Dir.Outgoing )} (CC *)( {nativeArgS.Trim( ',', ' ' )} )";
+
+			WriteLine( $"Imports::{f.MangledName} = ({functionType}) managedFunctions[{i}];" );
+
+			i++;
+		}
+	}
 }

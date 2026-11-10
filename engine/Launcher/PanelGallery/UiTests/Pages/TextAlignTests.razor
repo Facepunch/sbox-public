@@ -1,0 +1,25 @@
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+@using Sandbox;
+@using Sandbox.UI;
+@attribute [Group( "Text" )]
+@attribute [Title( "text-align" )]
+@attribute [Description( "Compare text-align values independently." )]
+@attribute [Icon( "text_fields" )]
+
+<root>
+    <h2>text-align</h2>
+    <div class="cases">
+        <UiTestCase Setup="@Text" Css="text-align: left" Caption="left" Text="@Paragraph" />
+        <UiTestCase Setup="@Text" Css="text-align: center" Caption="center" Text="@Paragraph" />
+        <UiTestCase Setup="@Text" Css="text-align: right" Caption="right" Text="@Paragraph" />
+    </div>
+</root>
+
+@code
+{
+    const string Text = UiTestCase.TextSetup;
+    const string Sample = "Sphinx of black quartz";
+    const string Paragraph = "Sphinx of black quartz, judge my vow. Pack my box with five dozen liquor jugs.";
+    const string Digits = "0123456789 1111 8888";
+}

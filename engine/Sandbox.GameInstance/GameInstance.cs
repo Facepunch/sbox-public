@@ -1,9 +1,11 @@
+using Sandbox.Engine;
 using Sandbox.Internal;
 using Sandbox.Menu;
 using Sandbox.Modals;
 using Sandbox.Tasks;
 using Sentry;
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 
 namespace Sandbox;
@@ -27,6 +29,10 @@ internal class GameInstance : IGameInstance
 	public void OnLoadingFinished()
 	{
 		_loadingFinished = true;
+
+		// A joining client isn't in the game until the host activates it
+		if ( flags.Contains( GameLoadingFlags.Host ) )
+			Api.Activity.LoadFinished();
 	}
 
 	public bool IsLoading => !_loadingFinished;
@@ -74,8 +80,8 @@ internal class GameInstance : IGameInstance
 			}
 		}
 
-		// Show review modal
-		if ( Application.GamePackage is not null )
+		// Show review modal - not from its menu, there's been nothing to review
+		if ( Application.GamePackage is not null && !IsOnMenu )
 		{
 			using ( IMenuDll.Current?.PushScope() )
 			{
@@ -111,6 +117,11 @@ internal class GameInstance : IGameInstance
 
 		GlobalContext.Current.UISystem.Clear();
 
+		// Destroy resource manifests before unmounting their package or network-backed files.
+		Game.Resources.Clear();
+
+		Sandbox.Engine.Shaders.GameShaders.Shutdown();
+
 		if ( activePackage != null && !Application.IsStandalone )
 		{
 			Game.Language?.Shutdown();
@@ -128,13 +139,23 @@ internal class GameInstance : IGameInstance
 
 		GameInstanceDll.Current.Shutdown( this );
 
-		// If we were running a benchmark, leave the game
-		if ( Application.IsBenchmark )
+		// If we were running a benchmark, load the next package or finish
+		if ( Application.IsBenchmark || BenchmarkOrchestrator.IsRunning )
 		{
-			if ( !Bootstrap.TryLoadNextBenchmarkPackage() )
+			if ( !BenchmarkOrchestrator.TryLoadNextPackage() )
 			{
-				Console.WriteLine( "Quitting" );
-				ConVarSystem.Run( "quit" );
+				if ( BenchmarkOrchestrator.IsRunning )
+				{
+					BenchmarkOrchestrator.IsRunning = false;
+					BenchmarkOrchestrator.RestoreSettings();
+					Game.Overlay.ShowBenchmarkResults( BenchmarkOrchestrator.LastBatchId, BenchmarkOrchestrator.Summaries );
+				}
+				else
+				{
+					BenchmarkOrchestrator.RestoreSettings();
+					Console.WriteLine( "Quitting" );
+					ConVarSystem.Run( "quit" );
+				}
 			}
 		}
 
@@ -152,7 +173,13 @@ internal class GameInstance : IGameInstance
 		SentrySdk.AddBreadcrumb( $"Loading Game {Ident}", "gameinstance.load" );
 
 		LoadingScreen.Title = "Fetching Package Info";
+		Api.Activity.LoadStage( "fetch" );
 		_package = await Package.FetchAsync( Ident, false );
+
+		// A newer load may have started while we were fetching. Bail before we
+		// touch the shared loading screen state that now belongs to it.
+		if ( token.IsCancellationRequested )
+			return false;
 
 		if ( !IsDeveloperHost )
 		{
@@ -181,11 +208,19 @@ internal class GameInstance : IGameInstance
 			return true;
 		}
 
-		var achievementTask = _package.GetAchievements();
+		if ( Package.TypeName != "game" && !Application.IsEditor )
+		{
+			throw new Exception( $"Package {Ident} is not a game" );
+		}
+
+		// Starts the backend fetch. The game doesn't wait for it: unlocks asked for before it lands are queued.
+		_ = _package.GetAchievements();
 
 		Log.Trace( $"Install Async {Package.Title}" );
 		LoadingScreen.Title = $"Installing {Package.Title}";
+		Api.Activity.LoadStage( "install" );
 		LoadingScreen.Media = Package.LoadingScreen.MediaUrl;
+		LoadingScreen.Package = Package;
 
 		var identWithVersion = Package.FullIdent;
 
@@ -198,9 +233,23 @@ internal class GameInstance : IGameInstance
 
 		using var loadingScreen = new MenuLoadingScreen();
 
+		// The game itself first, on its own - then everything else together: its references (the install
+		// below prefetches them, finding the game already cached) and the map alongside them. One thing,
+		// then a batch, rather than the game sharing its bandwidth with a pile of small packages. A workshop
+		// game is one item Steam installs, and the install below does exactly that - so there's nothing to get ahead of.
+		if ( _package.IsRemote && !_package.InstallsFromWorkshop )
+		{
+			await _package.Prefetch( token, new PackageLoadOptions { Loading = loadingScreen } );
+			token.ThrowIfCancellationRequested();
+		}
+
+		// The map is mounted after the game package, but its downloads can run alongside the references
+		var mapPrefetch = string.IsNullOrWhiteSpace( LaunchArguments.Map ) ? null : PrefetchMapAsync( LaunchArguments.Map, token );
+
 		var downloadOptions = new PackageLoadOptions()
 		{
 			PackageIdent = identWithVersion,
+			Package = _package,
 			ContextTag = "gamemenu",
 			CancellationToken = token,
 			AllowLocalPackages = !_package.IsRemote,
@@ -208,6 +257,7 @@ internal class GameInstance : IGameInstance
 		};
 
 		activePackage = await PackageManager.InstallAsync( downloadOptions );
+		LoadingScreen.CompleteDownloads();
 
 		if ( activePackage is null )
 		{
@@ -220,7 +270,9 @@ internal class GameInstance : IGameInstance
 
 		Log.Trace( $"Loading package {Package.Title}" );
 		LoadingScreen.Title = $"Loading {Package.Title}";
-		await Task.Delay( 5, token ); // make frame
+		Api.Activity.LoadStage( "assemblies" );
+		await Task.Yield(); // make frame
+		token.ThrowIfCancellationRequested();
 
 		try
 		{
@@ -248,7 +300,10 @@ internal class GameInstance : IGameInstance
 		if ( !string.IsNullOrWhiteSpace( LaunchArguments.Map ) )
 		{
 			var map = LaunchArguments.Map;
-			await LoadMapPackage( map, token );
+			Application.Map = map;
+			Api.Activity.LoadStage( "map" );
+
+			await LoadMapPackage( map, mapPrefetch, token );
 			Application.MapPackage = _mapPackage;
 		}
 
@@ -256,12 +311,14 @@ internal class GameInstance : IGameInstance
 		{
 			foreach ( var cvar in LaunchArguments.GameSettings )
 			{
-				ConVarSystem.SetValue( cvar.Key, cvar.Value, true );
+				ConVarSystem.SetValue( cvar.Key, cvar.Value, LaunchArguments.CanSetProtected( cvar.Key, cvar.Value ) );
 			}
 		}
 
 		LoadingScreen.Title = $"Loading Resources";
-		await Task.Delay( 5, token ); // make frame
+		Api.Activity.LoadStage( "resources" );
+		await Task.Yield(); // make frame
+		token.ThrowIfCancellationRequested();
 
 		Log.Trace( $"All Loaded" );
 
@@ -278,17 +335,25 @@ internal class GameInstance : IGameInstance
 		if ( !IsDeveloperHost )
 		{
 			Log.Trace( $"Loading GameResources" );
-			ResourceLoader.LoadAllGameResource( FileSystem.Mounted );
+
+			var menuFiles = MenuFileFilter();
+			_menuResourcesOnly = menuFiles is not null;
+
+			await ResourceLoader.LoadAllGameResourceAsync( FileSystem.Mounted, token, includeFile: menuFiles );
 		}
 
-		if ( !achievementTask.IsCompleted )
+		// Dedicated servers install packages that GameResources reference as they load, wait
+		// for them so their resources are registered before the game starts using them
+		if ( Application.IsDedicatedServer )
 		{
-			LoadingScreen.Title = $"Loading Achievements";
-			await achievementTask;
+			Log.Trace( $"Waiting for referenced packages" );
+			await Game.Resources.WaitForReferencedPackagesAsync( token );
 		}
 
 		LoadingScreen.Title = $"Loading Fonts";
-		await Task.Delay( 5, token ); // make frame
+		Api.Activity.LoadStage( "fonts" );
+		await Task.Yield(); // make frame
+		token.ThrowIfCancellationRequested();
 
 		Log.Trace( $"Loading Fonts" );
 		FontManager.Instance.LoadAll( FileSystem.Mounted );
@@ -322,7 +387,20 @@ internal class GameInstance : IGameInstance
 		return true;
 	}
 
-	private async Task<bool> LoadMapPackage( string map, CancellationToken token )
+	/// <summary>
+	/// The map's package info, manifest and files, so mounting it later finds everything cached.
+	/// </summary>
+	static async Task<Package> PrefetchMapAsync( string map, CancellationToken token )
+	{
+		var package = await Package.FetchAsync( map, false );
+
+		if ( package is { IsRemote: true } )
+			await PackageManager.PrefetchAsync( package, true, false, token );
+
+		return package;
+	}
+
+	private async Task<bool> LoadMapPackage( string map, Task<Package> prefetch, CancellationToken token )
 	{
 		if ( _mapPackage is not null )
 		{
@@ -330,7 +408,7 @@ internal class GameInstance : IGameInstance
 			_mapPackage = default;
 		}
 
-		_mapPackage = await Package.FetchAsync( map, false );
+		_mapPackage = prefetch is not null ? await prefetch : await Package.FetchAsync( map, false );
 
 		if ( _mapPackage is null ) return false;
 		if ( _mapPackage.TypeName != "map" ) return false;
@@ -379,6 +457,12 @@ internal class GameInstance : IGameInstance
 				Texture.Hotload( FileSystem.Mounted, file );
 			}
 		};
+
+		// The editor's asset system compiles shaders
+		if ( !Application.IsEditor && !Application.IsHeadless )
+		{
+			Sandbox.Engine.Shaders.ShaderHotload.Watch( FileSystem.Mounted );
+		}
 
 		var settingsWatcher = EngineFileSystem.ProjectSettings.Watch();
 		settingsWatcher.OnChanges += x =>
@@ -445,6 +529,142 @@ internal class GameInstance : IGameInstance
 
 	public Scene Scene => Game.ActiveScene;
 
+	public bool IsOnMenu => flags.Contains( GameLoadingFlags.Menu ) && !Application.IsDedicatedServer;
+
+	/// <summary>
+	/// The game's own menu scene - null for a game without one
+	/// </summary>
+	string MenuScene => Package?.GetMeta<string>( "MenuScene", null ) is { Length: > 0 } scene ? scene : null;
+
+	/// <summary>
+	/// Only the GameResources its menu needs were loaded - the rest are loaded when it's started
+	/// </summary>
+	bool _menuResourcesOnly;
+
+	/// <summary>
+	/// On its menu, just the GameResources the menu scene needs: the scene, what matches its <c>MenuResources</c> rules
+	/// (what it loads from code), and everything those reference. None for a game without a menu scene. Null for all of
+	/// them - not on its menu.
+	/// </summary>
+	Func<string, bool> MenuFileFilter()
+	{
+		if ( !IsOnMenu ) return null;
+		if ( MenuScene is null ) return _ => false;
+
+		var roots = new List<string> { MenuScene };
+
+		if ( Package.GetMeta<string>( "MenuResources", null ) is { Length: > 0 } rules )
+		{
+			var matcher = new ResourceRuleMatcher( rules );
+			roots.AddRange( FileSystem.Mounted.FindFile( "/", "*", true )
+				.Where( x => matcher.Matches( [ResourceRule.NormalizePath( x ), ResourceRule.NormalizePath( Resource.FixPath( x ) )] ) ) );
+		}
+
+		var files = ResourceLoader.FindReferenced( FileSystem.Mounted, roots );
+		return file => files.Contains( Resource.FixPath( file ) );
+	}
+
+	public async Task<bool> StartFromMenu()
+	{
+		ThreadSafe.AssertIsMainThread();
+
+		if ( !IsOnMenu )
+			return false;
+
+		flags &= ~GameLoadingFlags.Menu;
+
+		// The game's, whoever's asking - the s&box menu has a context of its own
+		using var scope = GlobalContext.GameScope();
+
+		LoadingScreen.IsVisible = true;
+
+		if ( _menuResourcesOnly )
+		{
+			_menuResourcesOnly = false;
+
+			LoadingScreen.Title = "Loading Resources";
+			await ResourceLoader.LoadAllGameResourceAsync( FileSystem.Mounted );
+		}
+
+		LoadingScreen.Title = "Loading Scene";
+		await Task.Yield();
+
+		if ( !OpenStartupScene() )
+		{
+			Log.Warning( "There was a problem opening the StartupScene" );
+
+			// Back on its menu, so it can be started again - or neither, and it's closed
+			flags |= GameLoadingFlags.Menu;
+
+			if ( !OpenStartupScene() )
+			{
+				Log.Warning( "There was a problem opening the MenuScene" );
+				flags &= ~GameLoadingFlags.Menu;
+			}
+
+			LoadingScreen.IsVisible = false;
+			return false;
+		}
+
+		return true;
+	}
+
+	public bool ReturnToMenu()
+	{
+		ThreadSafe.AssertIsMainThread();
+
+		// Joined someone else's game - the code loaded is theirs
+		if ( flags.Contains( GameLoadingFlags.Remote ) || Application.IsDedicatedServer )
+			return false;
+
+		// Nothing to start it again from - the main menu doesn't show a game on its menu, so it needs a menu scene of its own
+		if ( MenuScene is null && IMenuDll.Current?.IsPlatformMenu != true )
+			return false;
+
+		using var scope = GlobalContext.GameScope();
+
+		// Out of the session - handed to someone else if there's anyone to take it
+		if ( Networking.IsActive )
+			Networking.Disconnect();
+
+		flags |= GameLoadingFlags.Menu;
+
+		if ( !OpenStartupScene() )
+		{
+			Log.Warning( "There was a problem opening the MenuScene" );
+			return false;
+		}
+
+		return true;
+	}
+
+	/// <summary>
+	/// On its menu - its menu scene. None of the <see cref="ISceneStartup"/> events: those start the game (host,
+	/// spawn players), which <see cref="Game.StartGame"/> does later. A game without a menu scene gets an empty one.
+	/// </summary>
+	bool OpenMenuScene()
+	{
+		if ( MenuScene is not { } menuScene )
+		{
+			// Loading normally ends when a scene finishes loading - there isn't one
+			OnLoadingFinished();
+			LoadingScreen.IsVisible = false;
+			return true;
+		}
+
+		var options = new SceneLoadOptions();
+		options.IsAdditive = true;
+
+		if ( !options.SetScene( menuScene ) )
+			return false;
+
+		if ( !Game.ActiveScene.Load( options ) )
+			return false;
+
+		Game.ActiveScene.AddSystemScene();
+		return true;
+	}
+
 	public bool OpenStartupScene()
 	{
 		if ( Game.ActiveScene is not null )
@@ -460,6 +680,9 @@ internal class GameInstance : IGameInstance
 
 		if ( Application.IsEditor && !Game.IsPlaying )
 			return true;
+
+		if ( IsOnMenu )
+			return OpenMenuScene();
 
 		var startup_dedicated = Package.GetMeta<string>( "DedicatedServerStartupScene", "" );
 		var startup_game = Package.GetMeta<string>( "StartupScene", "start.scene" );
@@ -529,13 +752,16 @@ class MenuLoadingScreen : ILoadingInterface
 {
 	public void Dispose()
 	{
-		LoadingScreen.Title = "";
 		LoadingScreen.Subtitle = "";
+		LoadingScreen.Progress = null;
 	}
 
 	public void LoadingProgress( LoadingProgress progress )
 	{
+		LoadingScreen.Progress = progress;
 		LoadingScreen.Title = $"{progress.Title}";
-		LoadingScreen.Subtitle = $"{progress.Percent:n0}% • {progress.Mbps:n0}mbps • {progress.CalculateETA().ToRemainingTimeString()}";
+		LoadingScreen.Subtitle = progress.Mbps > 0
+			? $"{progress.Percent:n0}% • {progress.Mbps:n0}mbps • {progress.CalculateETA().ToRemainingTimeString()}"
+			: "";
 	}
 }

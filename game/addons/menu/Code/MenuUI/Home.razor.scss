@@ -1,20 +1,116 @@
 @import "/styles/_theme.scss";
+@import "/Platform/_platform.scss";
 
-Home {
-    align-items: center;
-    justify-content: center;
+Home
+{
+	width: 100%;
+	height: 100%;
+	flex-grow: 1;
 
-    .page {
-        flex-direction: row;
-        align-items: flex-end;
-        justify-content: space-between;
-        width: 100%;
-        max-width: $screen-w-xl;
-        padding: 50px;
-    }
+	.tabs
+	{
+		@include platform-choices;
+		align-self: flex-start;
+		align-items: center;
+		margin: $front-chrome-gap 24px 4px 18px;
 
-    column {
-        height: 100%;
-        justify-content: space-between;
-    }
+		// Splits the sort feeds from the genre feeds.
+		separator.vertical
+		{
+			height: 16px;
+			width: 1px;
+			background-color: $platform-hairline;
+			margin: 0 6px;
+		}
+
+		.button
+		{
+			@include platform-choice;
+			flex-grow: 0;
+			flex-basis: auto;
+			flex-shrink: 0;
+			pointer-events: all;
+
+			&:hover
+			{
+				sound-in: "ui.button.over";
+			}
+
+			&:active
+			{
+				sound-in: "ui.button.press";
+			}
+		}
+	}
+
+	.home-row
+	{
+		flex-direction: row;
+		flex-grow: 1;
+		overflow: hidden;
+	}
+
+	// width 0 + grow: take the leftover space, never the content's width -
+	// otherwise the wide content blocks shove the aside off screen.
+	.feed
+	{
+		position: relative;
+		flex-direction: column;
+		flex-grow: 1;
+		width: 0;
+		overflow: hidden;
+	}
+
+	// Sorted and genre feeds - a plain grid, the tab up top is the heading.
+	.feed PackageList
+	{
+		flex-grow: 1;
+	}
+
+	.feed PackageList VirtualGrid
+	{
+		padding: 12px 24px 48px 24px;
+		gap: 16px;
+	}
+
+	// Right-hand column - one card: your avatar, your stats, then your friends,
+	// split by hairlines rather than gaps.
+	.aside
+	{
+		flex-shrink: 0;
+		width: 400px;
+		flex-direction: column;
+		padding: $front-chrome-gap $front-chrome-gap $front-chrome-gap 0;
+		overflow: hidden;
+
+		.profile-card
+		{
+			@include platform-surface;
+			flex-shrink: 0;
+			overflow: hidden;
+
+			flex-grow: 1;
+			flex-shrink: 1;
+			height: 0;
+
+			// The avatar and stats keep their natural height - the friends list takes the
+			// rest, so the card reaches the bottom of the screen and scrolls inside.
+			> *
+			{
+				flex-shrink: 0;
+			}
+
+			> ProfileStats, > FriendsRail
+			{
+				border-top: 1px solid $platform-hairline;
+			}
+
+			> FriendsRail
+			{
+				flex-grow: 1;
+				flex-shrink: 1;
+				height: 0;
+			}
+		}
+	}
 }

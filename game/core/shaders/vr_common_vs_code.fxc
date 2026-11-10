@@ -18,6 +18,7 @@
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 #include "math_general.fxc"
+#include "common/utils/normal_transform.hlsl"
 #include "instancing.fxc"
 #include "vs_decompress.fxc"
 #include "morph.fxc"
@@ -52,7 +53,7 @@ void VS_DecodeObjectSpaceNormalAndTangent( const VS_INPUT i, out float3 vNormalO
 	//
 	float4 vInputNormalOs = i.vNormalOs;
 	float4 vInputTangentUOs_flTangentVSign = float4( 0.0, 0.0, 1.0, 1.0 );
-	#if ( D_COMPRESSED_NORMALS_AND_TANGENTS != 1 )
+	if ( g_bUncompressedTangentFrame )
 	{
 		vInputNormalOs.w = 1.0f;
 
@@ -66,7 +67,6 @@ void VS_DecodeObjectSpaceNormalAndTangent( const VS_INPUT i, out float3 vNormalO
 		}
 		#endif
 	}
-	#endif
 
 	DecompressNormalTangent( vInputNormalOs.xyzw, vInputTangentUOs_flTangentVSign.xyzw, vNormalOs.xyz, vTangentUOs_flTangentVSign.xyzw );
 }
@@ -122,7 +122,8 @@ PS_INPUT VS_CommonProcessing( VS_INPUT i )
 		//
 		// Transform to world space
 		//
-		o.vNormalWs.xyz = normalize( mul( matObjectToWorld, float4( vNormalOs.xyz, 0.0 ) ) );
+		float flTransformSign;
+		o.vNormalWs.xyz = TransformNormalInverseTranspose( vNormalOs.xyz, (float3x3)matObjectToWorld, flTransformSign );
 	
 		//
 		// Generate & Transform tangents
@@ -137,7 +138,7 @@ PS_INPUT VS_CommonProcessing( VS_INPUT i )
 			vTangentUWs.xyz = normalize( vTangentUWs.xyz - ( o.vNormalWs.xyz * dot( vTangentUWs.xyz, o.vNormalWs.xyz ) ) );
 
 			o.vTangentUWs.xyz = vTangentUWs.xyz;
-			o.vTangentVWs.xyz = cross( o.vNormalWs.xyz, vTangentUWs.xyz ) * vTangentUOs_flTangentVSign.w;
+			o.vTangentVWs.xyz = cross( o.vNormalWs.xyz, vTangentUWs.xyz ) * vTangentUOs_flTangentVSign.w * flTransformSign;
 		}
 		#endif
 	}

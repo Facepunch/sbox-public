@@ -16,4 +16,29 @@ native class ISteamNetworkingUtils
 	{
 	    self->InitRelayNetworkAccess();
 	}
+
+	// Return Steam's opaque relay marker, or an empty string while measurements are unavailable.
+	inline string GetLocalPingLocationString()
+	{
+		SteamNetworkPingLocation_t location;
+		char buffer[k_cchMaxSteamNetworkingPingLocationString] = {};
+
+		if ( self->GetLocalPingLocation( location ) >= 0 )
+		{
+			self->ConvertPingLocationToString( location, buffer, sizeof( buffer ) );
+		}
+
+		return buffer;
+	}
+
+	// Parse using Steam's versioned format and normalise all unavailable estimates to -1.
+	inline int EstimatePingFromLocationString( string locationString )
+	{
+		SteamNetworkPingLocation_t location;
+		if ( !self->ParsePingLocationString( locationString, location ) )
+			return -1;
+
+		int ping = self->EstimatePingTimeFromLocalHost( location );
+		return ping < 0 ? -1 : ping;
+	}
 }

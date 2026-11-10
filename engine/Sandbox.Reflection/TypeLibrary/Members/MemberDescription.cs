@@ -105,6 +105,9 @@ public class MemberDescription : ISourceLineProvider, IMemberNameProvider, ITitl
 	/// <inheritdoc cref="MethodBase.IsFamily"/>
 	public bool IsFamily { get; protected set; }
 
+	// Inherited members keep the rules of the type that declared them, not of the derived description.
+	internal bool IsDeclaredInDynamicAssembly => DeclaringType?.IsDynamicAssembly == true;
+
 	/// <summary>
 	/// True if we're a method
 	/// </summary>
@@ -145,7 +148,7 @@ public class MemberDescription : ISourceLineProvider, IMemberNameProvider, ITitl
 	protected void Init( MemberInfo x )
 	{
 		MemberInfo = x;
-		Name = MemberInfo.Name;
+		Name = StringPool.Get( MemberInfo.Name );
 
 		CaptureAttributes( MemberInfo );
 
@@ -267,7 +270,16 @@ public class MemberDescription : ISourceLineProvider, IMemberNameProvider, ITitl
 	/// </summary>
 	public T GetCustomAttribute<T>() where T : System.Attribute
 	{
-		return Attributes?.OfType<T>().FirstOrDefault() ?? null;
+		var attributes = Attributes;
+		if ( attributes is null ) return null;
+
+		foreach ( var attribute in attributes )
+		{
+			if ( attribute is T t )
+				return t;
+		}
+
+		return null;
 	}
 
 	internal virtual void Dispose()

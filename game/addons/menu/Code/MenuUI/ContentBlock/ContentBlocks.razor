@@ -3,6 +3,9 @@
 @using MenuProject.UI;
 @inherits Panel
 
+@if (Group is null)
+	return;
+
 <root class="content-blocks">
 
     @{

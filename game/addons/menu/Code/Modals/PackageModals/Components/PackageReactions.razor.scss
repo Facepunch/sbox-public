@@ -1,0 +1,65 @@
+@import "/styles/_theme.scss";
+@import "/Platform/_platform.scss";
+
+// Split pills in a row - the game page's footer, and the pause menu's
+PackageReactions
+{
+	flex-direction: row;
+	flex-shrink: 0;
+	align-items: center;
+	gap: 10px;
+
+	// The overlay doesn't get the main menu's theme, where glyphs get their font
+	icon
+	{
+		font-family: "Material Icons";
+	}
+}
+
+PackageReactions .group
+{
+	@include platform-choices;
+
+	.pill
+	{
+		@include platform-choice;
+		flex-grow: 0;
+		flex-basis: auto;
+		min-width: 40px;
+
+		// platform-choice dresses i and iconpanel - these are <icon>, so the same colours by hand
+		icon
+		{
+			font-size: 16px;
+			color: $platform-muted;
+		}
+
+		&:hover icon
+		{
+			color: $platform-text;
+		}
+
+		&.active icon, &.on icon
+		{
+			color: white;
+		}
+
+		// Counts - Inter, which has figures all one width (Poppins hasn't), so a count going up by one
+		// doesn't nudge the pill's width
+		label
+		{
+			font-family: $font-default;
+			font-variant-numeric: tabular-nums;
+		}
+
+		&:hover
+		{
+			sound-in: "ui.button.over";
+		}
+
+		&:active
+		{
+			sound-in: "ui.button.press";
+		}
+	}
+}

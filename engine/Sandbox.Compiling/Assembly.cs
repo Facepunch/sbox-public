@@ -10,4 +10,5 @@ using System.Runtime.CompilerServices;
 
 [assembly: InternalsVisibleTo( "Sandbox.Engine" )]
 [assembly: InternalsVisibleTo( "Sandbox.Tools" )]
-[assembly: InternalsVisibleTo( "Sandbox.Compiling.Test" )]
+[assembly: InternalsVisibleTo( "Sandbox.Test.Unit" )]
+[assembly: InternalsVisibleTo( "WhitelistGen" )]

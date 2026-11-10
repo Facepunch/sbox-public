@@ -1,4 +1,4 @@
-﻿using NativeEngine;
+using NativeEngine;
 
 namespace Sandbox.UI;
 
@@ -11,8 +11,11 @@ class InputEventQueue
 	Queue<PanelEvent> PanelEvents = new();
 	Queue<ButtonEvent> ButtonEvents = new();
 	Queue<string> DoubleClicks = new();
+	Queue<string> TripleClicks = new();
 	Queue<ButtonEvent> ButtonTyped = new();
-	Queue<char> KeyTyped = new();
+	Queue<(char Character, KeyboardModifiers Modifiers)> KeyTyped = new();
+	Queue<Action> Callbacks = new();
+	KeyboardModifiers _keyboardModifiers;
 
 	Vector2 MouseMovement;
 
@@ -44,7 +47,7 @@ class InputEventQueue
 
 		while ( KeyTyped.TryDequeue( out var e ) )
 		{
-			focused?.OnKeyTyped( e );
+			focused?.OnKeyTyped( e.Character, e.Modifiers );
 		}
 
 		while ( ButtonTyped.TryDequeue( out var e ) )
@@ -61,6 +64,19 @@ class InputEventQueue
 
 	internal void Tick( Panel hovered, Panel active )
 	{
+		// Results of input that was taken before it reached the UI (button trapping)
+		while ( Callbacks.TryDequeue( out var callback ) )
+		{
+			try
+			{
+				callback();
+			}
+			catch ( Exception e )
+			{
+				Log.Error( e );
+			}
+		}
+
 		if ( MouseMovement != 0 )
 		{
 			// If we're pressing down on a panel we send all the mouse move events to that
@@ -78,6 +94,13 @@ class InputEventQueue
 			{
 				hovered?.CreateEvent( new MousePanelEvent( "ondoubleclick", hovered, e ) );
 			}
+
+		listSize = TripleClicks.Count;
+		for ( int i = 0; i < listSize; i++ )
+			if ( TripleClicks.TryDequeue( out var e ) )
+			{
+				hovered?.CreateEvent( new MousePanelEvent( "ontripleclick", hovered, e ) );
+			}
 	}
 
 	internal void AddDoubleClick( string button )
@@ -86,26 +109,98 @@ class InputEventQueue
 		DoubleClicks.Enqueue( button );
 	}
 
+	internal void AddTripleClick( string button )
+	{
+		button = NormalizeButtonName( button );
+		TripleClicks.Enqueue( button );
+	}
+
 	internal void QueueInputEvent( PanelEvent e )
 	{
 		PanelEvents.Enqueue( e );
 	}
 
+	/// <summary>
+	/// Run this on the next <see cref="Tick"/>, in the scope of whoever ticks this UI system.
+	/// </summary>
+	internal void QueueCallback( Action callback )
+	{
+		Callbacks.Enqueue( callback );
+	}
+
 	internal void AddButtonEvent( ButtonCode button, bool down, KeyboardModifiers modifiers )
 	{
+		_keyboardModifiers = modifiers;
 		var e = new ButtonEvent( button, down, modifiers );
 		ButtonEvents.Enqueue( e );
 	}
 
+	internal void AddButtonEvent( string button, bool down, int virtualKey, KeyboardModifiers modifiers )
+	{
+		_keyboardModifiers = modifiers;
+		ButtonEvents.Enqueue( new ButtonEvent( button, down, virtualKey, modifiers ) );
+	}
+
+	internal void AddButtonTyped( string button, int virtualKey, KeyboardModifiers modifiers )
+	{
+		_keyboardModifiers = modifiers;
+		ButtonTyped.Enqueue( new ButtonEvent( button, true, virtualKey, modifiers ) );
+	}
+
 	internal void AddKeyTyped( char c )
 	{
-		KeyTyped.Enqueue( c );
+		KeyTyped.Enqueue( (c, _keyboardModifiers) );
 	}
 
 	internal void AddButtonTyped( ButtonCode button, KeyboardModifiers modifiers )
 	{
+		_keyboardModifiers = modifiers;
+		if ( AddClipboardShortcut( button, modifiers ) )
+			return;
+
 		var e = new ButtonEvent( button, true, modifiers );
 		ButtonTyped.Enqueue( e );
+	}
+
+	/// <summary>
+	/// Ctrl+C, Ctrl+V and Ctrl+X become clipboard events here, so every window gets them the
+	/// same way. Equals on purpose - ctrl+shift+c and friends belong to whoever's focused.
+	/// </summary>
+	bool AddClipboardShortcut( ButtonCode button, KeyboardModifiers modifiers )
+	{
+		if ( modifiers != KeyboardModifiers.Ctrl )
+			return false;
+
+		if ( button == ButtonCode.KEY_C )
+		{
+			QueueInputEvent( new CopyEvent() );
+			return true;
+		}
+
+		if ( button == ButtonCode.KEY_X )
+		{
+			QueueInputEvent( new CutEvent() );
+			return true;
+		}
+
+		if ( button == ButtonCode.KEY_V )
+		{
+			if ( NativeEngine.Sdl.HasClipboardText() )
+			{
+				var ptr = NativeEngine.Sdl.GetClipboardText();
+				var text = System.Runtime.InteropServices.Marshal.PtrToStringUTF8( ptr );
+				NativeEngine.Sdl.Free( ptr );
+
+				if ( !string.IsNullOrEmpty( text ) )
+				{
+					QueueInputEvent( new PasteEvent( text ) );
+				}
+			}
+
+			return true;
+		}
+
+		return false;
 	}
 
 	internal void MouseMoved( Vector2 delta )

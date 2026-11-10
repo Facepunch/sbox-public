@@ -11,16 +11,17 @@
   "Category": "HairShort",
   "ConditionalModels": {},
   "Tags": null,
-  "Parent": null,
   "Model": "models/citizen_clothes/hair/hair_slickedback/models/hair_slickedback.vmdl",
   "HumanAltModel": "models/citizen_clothes/hair/hair_slickedback/models/hair_slickedback_m_human.vmdl",
   "HumanAltFemaleModel": null,
   "SkinMaterial": null,
   "EyesMaterial": null,
   "MaterialGroup": "",
+  "HeelHeight": 0,
   "SlotsUnder": "HeadTop",
   "SlotsOver": 0,
   "HideBody": 0,
+  "DeformationMode": "Normal",
   "AllowTintSelect": true,
   "TintSelection": {
     "blend": "Linear",
@@ -56,8 +57,9 @@
   "SteamItemDefinitionId": null,
   "Icon": {
     "Path": "models/citizen_clothes/hair/hair_slickedback/hair_slickedback.clothing.png",
-    "Mode": "Eyes",
-    "PositionOffset": "0,0,0"
+    "Mode": "Head",
+    "UsePositionOffset": true,
+    "PositionOffset": "5.68998384,-0.220000058,0.380000412"
   },
   "__references": [],
   "__version": 0

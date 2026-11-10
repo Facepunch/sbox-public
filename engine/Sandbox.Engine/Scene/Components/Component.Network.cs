@@ -67,7 +67,7 @@ public abstract partial class Component
 					return;
 
 				var attribute = p.GetAttribute<SyncAttribute>();
-				var interpolate = attribute?.Flags.HasFlag( SyncFlags.Interpolate ) ?? false;
+				var interpolate = attribute is not null && (attribute.Flags & SyncFlags.Interpolate) != 0;
 
 				if ( interpolate && p.Value is not null )
 				{
@@ -79,7 +79,9 @@ public abstract partial class Component
 				return;
 			}
 
-			net.dataTable.UpdateSlotHash( slot, p.Value );
+			if ( net.dataTable.UpdateSlotHash( slot, p.Value ) )
+				net.MarkDirty();
+
 			p.Setter?.Invoke( p.Value );
 		}
 		catch ( Exception e )
@@ -91,8 +93,10 @@ public abstract partial class Component
 	[EditorBrowsable( EditorBrowsableState.Never )]
 	protected T __sync_GetValue<T>( WrappedPropertyGet<T> p )
 	{
+		if ( !IsValid ) return p.Value;
+
 		var attribute = p.GetAttribute<SyncAttribute>();
-		var interpolate = attribute?.Flags.HasFlag( SyncFlags.Interpolate ) ?? false;
+		var interpolate = attribute is not null && (attribute.Flags & SyncFlags.Interpolate) != 0;
 		if ( !interpolate ) return p.Value;
 
 		var root = GameObject.FindNetworkRoot();
@@ -123,6 +127,36 @@ public abstract partial class Component
 	{
 		Rpc.OnCallInstanceRpc( GameObject, this, m, argumentList );
 	}
+
+	// Generated RPC wrappers bind to these before the object array overload, so arguments aren't boxed
+
+	[EditorBrowsable( EditorBrowsableState.Never )]
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	protected void __rpc_Wrapper( in WrappedMethod m ) => Rpc.OnCallInstanceRpc( GameObject, this, m, new RpcArgs() );
+
+	[EditorBrowsable( EditorBrowsableState.Never )]
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	protected void __rpc_Wrapper<T1>( in WrappedMethod m, T1 a1 ) => Rpc.OnCallInstanceRpc( GameObject, this, m, new RpcArgs<T1>( a1 ) );
+
+	[EditorBrowsable( EditorBrowsableState.Never )]
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	protected void __rpc_Wrapper<T1, T2>( in WrappedMethod m, T1 a1, T2 a2 ) => Rpc.OnCallInstanceRpc( GameObject, this, m, new RpcArgs<T1, T2>( a1, a2 ) );
+
+	[EditorBrowsable( EditorBrowsableState.Never )]
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	protected void __rpc_Wrapper<T1, T2, T3>( in WrappedMethod m, T1 a1, T2 a2, T3 a3 ) => Rpc.OnCallInstanceRpc( GameObject, this, m, new RpcArgs<T1, T2, T3>( a1, a2, a3 ) );
+
+	[EditorBrowsable( EditorBrowsableState.Never )]
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	protected void __rpc_Wrapper<T1, T2, T3, T4>( in WrappedMethod m, T1 a1, T2 a2, T3 a3, T4 a4 ) => Rpc.OnCallInstanceRpc( GameObject, this, m, new RpcArgs<T1, T2, T3, T4>( a1, a2, a3, a4 ) );
+
+	[EditorBrowsable( EditorBrowsableState.Never )]
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	protected void __rpc_Wrapper<T1, T2, T3, T4, T5>( in WrappedMethod m, T1 a1, T2 a2, T3 a3, T4 a4, T5 a5 ) => Rpc.OnCallInstanceRpc( GameObject, this, m, new RpcArgs<T1, T2, T3, T4, T5>( a1, a2, a3, a4, a5 ) );
+
+	[EditorBrowsable( EditorBrowsableState.Never )]
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	protected void __rpc_Wrapper<T1, T2, T3, T4, T5, T6>( in WrappedMethod m, T1 a1, T2 a2, T3 a3, T4 a4, T5 a5, T6 a6 ) => Rpc.OnCallInstanceRpc( GameObject, this, m, new RpcArgs<T1, T2, T3, T4, T5, T6>( a1, a2, a3, a4, a5, a6 ) );
 
 	/// <summary>
 	/// Get or create a new interpolated variable. This will set the current interpolated value to the

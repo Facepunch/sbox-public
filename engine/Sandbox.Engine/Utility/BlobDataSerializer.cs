@@ -1,4 +1,7 @@
+using System.Buffers.Binary;
 using System.IO;
+using System.Text.Json.Nodes;
+using Sandbox.Hashing;
 
 namespace Sandbox;
 
@@ -13,7 +16,7 @@ internal static class BlobDataSerializer
 	private const int HeaderSize = 8;
 	private const int TocEntrySize = 32;
 
-	private readonly record struct BlobEntry( Guid Guid, int Version, byte[] Data, long Offset );
+	internal readonly record struct RegisteredBlob( BlobData Blob, byte[] Data );
 
 	private static BlobContext _current;
 
@@ -33,17 +36,53 @@ internal static class BlobDataSerializer
 		if ( _current == null )
 			return Guid.Empty;
 
-		var blobs = _current.Blobs;
+		// The id is derived from the serialized content, so unchanged data always produces
+		// the same id - repeated saves stay byte-identical and identical blobs deduplicate.
+		var data = SerializeBlob( blob );
+		var guid = DeriveContentGuid( data );
 
-		var guid = blob.BlobId;
-		if ( guid == Guid.Empty )
-		{
-			guid = Guid.NewGuid();
-			blob.BlobId = guid;
-		}
-
-		blobs[guid] = blob;
+		_current.Blobs[guid] = new RegisteredBlob( blob, data );
 		return guid;
+	}
+
+	/// <summary>
+	/// Serialize a blob to its binary payload: version prefix followed by the blob data.
+	/// </summary>
+	private static byte[] SerializeBlob( BlobData blob )
+	{
+		// Never loaded: its stored bytes are its serialization, no deserialize/serialize round trip
+		if ( blob.PendingData is { } pending )
+			return pending;
+
+		var stream = ByteStream.Create( DefaultStreamSize );
+		try
+		{
+			stream.Write( blob.Version );
+			var writer = new BlobData.Writer { Stream = stream };
+			blob.Serialize( ref writer );
+			stream = writer.Stream;
+			return stream.ToArray();
+		}
+		finally
+		{
+			stream.Dispose();
+		}
+	}
+
+	/// <summary>
+	/// Deterministically derive a blob id from its content, marked as an
+	/// RFC 4122 version 8 (custom) guid so derived ids are well formed.
+	/// </summary>
+	private static Guid DeriveContentGuid( ReadOnlySpan<byte> data )
+	{
+		Span<byte> derived = stackalloc byte[16];
+		BinaryPrimitives.WriteUInt64LittleEndian( derived[..8], XxHash3.HashToUInt64( data ) );
+		BinaryPrimitives.WriteUInt64LittleEndian( derived[8..], XxHash3.HashToUInt64( data, seed: 0x5bd1e9955bd1e995 ) );
+
+		derived[7] = (byte)((derived[7] & 0x0F) | 0x80);
+		derived[8] = (byte)((derived[8] & 0x3F) | 0x80);
+
+		return new Guid( derived );
 	}
 
 	internal static BlobData ReadBlob( Guid guid, Type expectedType )
@@ -51,6 +90,10 @@ internal static class BlobDataSerializer
 		if ( _current == null )
 			return null;
 
+		if ( _current.Blobs.TryGetValue( guid, out var registeredBlob ) )
+			return registeredBlob.Blob;
+
+		// Fall back to pre-existing binary data loaded from file
 		var binaryData = _current.BinaryData;
 		if ( binaryData == null || !binaryData.TryGetValue( guid, out var blobData ) )
 			return null;
@@ -58,8 +101,18 @@ internal static class BlobDataSerializer
 		if ( Activator.CreateInstance( expectedType ) is not BlobData instance )
 			return null;
 
-		instance.BlobId = guid;
+		if ( !instance.TryDeferLoad( blobData ) )
+			LoadInto( instance, blobData );
 
+		return instance;
+	}
+
+	/// <summary>
+	/// Deserialize stored blob data (version prefix + payload) into <paramref name="instance"/>,
+	/// upgrading it if it's an older version.
+	/// </summary>
+	internal static void LoadInto( BlobData instance, byte[] blobData )
+	{
 		var stream = ByteStream.CreateReader( blobData );
 		try
 		{
@@ -75,60 +128,47 @@ internal static class BlobDataSerializer
 		{
 			stream.Dispose();
 		}
-
-		return instance;
 	}
 
-	private static byte[] GetBlobData( Dictionary<Guid, BlobData> blobs )
+	internal readonly record struct CapturedBlob( Guid Id, int Version, byte[] Data );
+
+	private static CapturedBlob[] CaptureBlobs( Dictionary<Guid, RegisteredBlob> blobs ) =>
+		blobs.Select( x => new CapturedBlob( x.Key, x.Value.Blob.Version, x.Value.Data ) ).ToArray();
+
+	private static byte[] GetBlobData( Dictionary<Guid, RegisteredBlob> blobs ) => PackBlobs( CaptureBlobs( blobs ) );
+	internal static byte[] PackBlobs( CapturedBlob[] blobs )
 	{
-		if ( blobs == null || blobs.Count == 0 )
+		if ( blobs == null || blobs.Length == 0 )
 			return null;
 
-		long dataStart = HeaderSize + blobs.Count * TocEntrySize;
+		// Canonical order so unchanged content always produces byte-identical output,
+		// independent of registration order or dictionary enumeration details
+		var ordered = blobs.OrderBy( x => x.Id ).ToArray();
 
-		using var entries = new PooledSpan<BlobEntry>( blobs.Count );
-		var entrySpan = entries.Span;
-		int entryCount = 0;
+		long offset = HeaderSize + blobs.Length * TocEntrySize;
 
-		long offset = dataStart;
-		foreach ( var kvp in blobs )
-		{
-			var blobStream = ByteStream.Create( DefaultStreamSize );
-			try
-			{
-				blobStream.Write( kvp.Value.Version );
-				var writer = new BlobData.Writer { Stream = blobStream };
-				kvp.Value.Serialize( ref writer );
-				blobStream = writer.Stream;
+		long totalSize = offset;
+		foreach ( var kvp in ordered )
+			totalSize += kvp.Data.Length;
 
-				byte[] data = blobStream.ToArray();
-				entrySpan[entryCount++] = new BlobEntry( kvp.Key, kvp.Value.Version, data, offset );
-				offset += data.Length;
-			}
-			finally
-			{
-				blobStream.Dispose();
-			}
-		}
-
-		var outputStream = ByteStream.Create( (int)offset );
+		var outputStream = ByteStream.Create( (int)totalSize );
 		try
 		{
 			outputStream.Write( 1 );
-			outputStream.Write( blobs.Count );
+			outputStream.Write( blobs.Length );
 
-			for ( int i = 0; i < entryCount; i++ )
+			foreach ( var kvp in ordered )
 			{
-				ref readonly var entry = ref entrySpan[i];
-				outputStream.Write( entry.Guid.ToByteArray() );
-				outputStream.Write( entry.Version );
-				outputStream.Write( entry.Offset );
-				outputStream.Write( entry.Data.Length );
+				outputStream.Write( kvp.Id.ToByteArray() );
+				outputStream.Write( kvp.Version );
+				outputStream.Write( offset );
+				outputStream.Write( kvp.Data.Length );
+				offset += kvp.Data.Length;
 			}
 
-			for ( int i = 0; i < entryCount; i++ )
+			foreach ( var kvp in ordered )
 			{
-				outputStream.Write( entrySpan[i].Data );
+				outputStream.Write( kvp.Data );
 			}
 
 			return outputStream.ToArray();
@@ -196,6 +236,30 @@ internal static class BlobDataSerializer
 	}
 
 	/// <summary>
+	/// Temporarily suppresses any active blob context, forcing nested serialization to write
+	/// self-contained (inline) data instead of referencing an ambient context by guid.
+	/// Use this when producing JSON that must remain valid outside the current context's lifetime,
+	/// e.g. a diff patch that's cached and reapplied long after the context that created it is gone.
+	/// </summary>
+	internal static IDisposable Suppress()
+	{
+		return new SuppressScope( _current );
+	}
+
+	private sealed class SuppressScope : IDisposable
+	{
+		private readonly BlobContext _previous;
+
+		public SuppressScope( BlobContext previous )
+		{
+			_previous = previous;
+			_current = null;
+		}
+
+		public void Dispose() => _current = _previous;
+	}
+
+	/// <summary>
 	/// Load blob data from memory if available, otherwise from file path.
 	/// </summary>
 	public static BlobContext Load( byte[] data, string filePath )
@@ -215,28 +279,75 @@ internal static class BlobDataSerializer
 	}
 
 	/// <summary>
+	/// Create a blob deserialization context from blob data stored on a json object
+	/// by <see cref="BlobContext.SaveTo( JsonNode )"/>.
+	/// </summary>
+	internal static BlobContext LoadFrom( JsonNode json )
+	{
+		byte[] data = null;
+
+		if ( json?["__blobdata"]?.GetValue<string>() is string base64 )
+			data = Convert.FromBase64String( base64 );
+
+		return LoadFromMemory( data );
+	}
+
+	/// <summary>
 	/// Create a blob deserialization context from a file.
 	/// </summary>
 	public static BlobContext LoadFrom( string filePath )
 	{
-		Dictionary<Guid, byte[]> binaryData = null;
-
-		if ( !string.IsNullOrEmpty( filePath ) )
-		{
-			if ( filePath.EndsWith( "_c" ) )
-				filePath = filePath[..^2];
-
-			var path = filePath + "_d";
-
-			if ( FileSystem.Mounted?.FileExists( path ) == true )
-				binaryData = ParseFile( FileSystem.Mounted.ReadAllBytes( path ) );
-			else if ( File.Exists( path ) )
-				binaryData = ParseFile( File.ReadAllBytes( path ) );
-		}
-
-		var context = new BlobContext( _current, binaryData );
+		// Most resources have no blobs, so only go looking for the blob data once something asks for it.
+		var context = new BlobContext( _current, () => ResolveBlobData( filePath ) );
 		_current = context;
 		return context;
+	}
+
+	/// <summary>
+	/// Finds and parses the blob table for a resource, searching all relevant filesystems and file variations.
+	/// Checks both "_d" sidecar and compiled "_c" files, with disk fallback if needed (for published resources).
+	/// </summary>
+	private static Dictionary<Guid, byte[]> ResolveBlobData( string filePath )
+	{
+		if ( string.IsNullOrEmpty( filePath ) )
+			return null;
+
+		if ( filePath.EndsWith( "_c" ) )
+			filePath = filePath[..^2];
+
+		var sidecarPath = filePath + "_d";
+		var compiledPath = filePath + "_c";
+
+		ReadOnlySpan<BaseFileSystem> filesystems =
+		[
+			FileSystem.Mounted,
+			PackageManager.MountedFileSystem,
+		];
+
+		foreach ( var fs in filesystems )
+		{
+			if ( fs is null )
+				continue;
+
+			// The "_d" sidecar is already stored in the blob-file format.
+			if ( fs.FileExists( sidecarPath ) )
+				return ParseFile( fs.ReadAllBytes( sidecarPath ) );
+
+			// Otherwise pull the compiled blob block out of the compiled resource.
+			if ( fs.FileExists( compiledPath ) )
+			{
+				var blockData = Game.Resources.ReadCompiledResourceBlock( CompiledBlobName, fs.ReadAllBytes( compiledPath ) );
+				if ( blockData != null )
+					return ParseFile( blockData );
+			}
+		}
+
+		// Final fallback: a loose sidecar on raw disk (e.g. freshly saved in the editor and not
+		// yet visible through a mounted filesystem).
+		if ( File.Exists( sidecarPath ) )
+			return ParseFile( File.ReadAllBytes( sidecarPath ) );
+
+		return null;
 	}
 
 	/// <summary>
@@ -244,18 +355,65 @@ internal static class BlobDataSerializer
 	/// </summary>
 	public sealed class BlobContext : IDisposable
 	{
-		internal readonly Dictionary<Guid, BlobData> Blobs;
-		internal readonly Dictionary<Guid, byte[]> BinaryData;
+		internal readonly Dictionary<Guid, RegisteredBlob> Blobs;
+		private Dictionary<Guid, byte[]> _binaryData;
+		private Func<Dictionary<Guid, byte[]>> _resolveBinaryData;
 		private readonly BlobContext _previous;
+
+		internal Dictionary<Guid, byte[]> BinaryData => _binaryData ??= _resolveBinaryData?.Invoke() ?? new();
 
 		internal BlobContext( BlobContext previous, Dictionary<Guid, byte[]> binaryData = null )
 		{
 			Blobs = new();
-			BinaryData = binaryData ?? new();
+			_binaryData = binaryData ?? new();
+			_previous = previous;
+		}
+
+		internal BlobContext( BlobContext previous, Func<Dictionary<Guid, byte[]>> resolveBinaryData )
+		{
+			Blobs = new();
+			_resolveBinaryData = resolveBinaryData;
 			_previous = previous;
 		}
 
 		public byte[] ToByteArray() => GetBlobData( Blobs );
+
+		internal CapturedBlob[] Detach() => CaptureBlobs( Blobs );
+
+		/// <summary>
+		/// Merge extra serialized blob data into this open context, so separately-captured blobs
+		/// stay readable through one deferred deserialize pass.
+		/// </summary>
+		internal void Load( ReadOnlySpan<byte> data )
+		{
+			if ( data.Length == 0 ) return;
+
+			foreach ( var kvp in ParseFile( data ) )
+				BinaryData[kvp.Key] = kvp.Value;
+		}
+
+		/// <summary>
+		/// Merge blob data stored on a json object by <see cref="SaveTo( JsonNode )"/> into this open context.
+		/// </summary>
+		internal void LoadFrom( JsonNode json )
+		{
+			if ( json?["__blobdata"]?.GetValue<string>() is string base64 )
+				Load( Convert.FromBase64String( base64 ) );
+		}
+
+		/// <summary>
+		/// Store the captured blob data on a json object, so it travels with it.
+		/// </summary>
+		internal bool SaveTo( JsonNode json )
+		{
+			if ( json is not JsonObject jso ) return false;
+
+			var data = GetBlobData( Blobs );
+			if ( data == null || data.Length == 0 ) return false;
+
+			jso["__blobdata"] = Convert.ToBase64String( data );
+			return true;
+		}
 
 		public bool SaveTo( string filePath )
 		{

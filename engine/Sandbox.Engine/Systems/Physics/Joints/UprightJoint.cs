@@ -6,7 +6,7 @@ namespace Sandbox.Physics;
 /// </summary>
 public partial class UprightJoint : PhysicsJoint
 {
-	internal UprightJoint( HandleCreationData _ ) { }
+	internal UprightJoint( PhysicsJointInternal joint ) : base( joint ) { }
 
 	/// <summary>
 	/// The spring stiffness in cycles per second (Hertz).
@@ -14,8 +14,8 @@ public partial class UprightJoint : PhysicsJoint
 	/// </summary>
 	public float Hertz
 	{
-		get => native.Parallel_GetHertz();
-		set => native.Parallel_SetHertz( value );
+		get => _joint?.Parallel_Hertz ?? 0;
+		set => _joint?.Parallel_Hertz = value;
 	}
 
 	/// <summary>
@@ -24,8 +24,8 @@ public partial class UprightJoint : PhysicsJoint
 	/// </summary>
 	public float DampingRatio
 	{
-		get => native.Parallel_GetDampingRatio();
-		set => native.Parallel_SetDampingRatio( value );
+		get => _joint?.Parallel_DampingRatio ?? 0;
+		set => _joint?.Parallel_DampingRatio = value;
 	}
 
 	/// <summary>
@@ -33,7 +33,7 @@ public partial class UprightJoint : PhysicsJoint
 	/// </summary>
 	public float MaxTorque
 	{
-		get => native.Parallel_GetMaxTorque();
-		set => native.Parallel_SetMaxTorque( value );
+		get => _joint?.Parallel_MaxTorque ?? 0;
+		set => _joint?.Parallel_MaxTorque = value;
 	}
 }

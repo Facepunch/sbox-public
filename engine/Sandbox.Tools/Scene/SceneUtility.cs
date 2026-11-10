@@ -9,8 +9,15 @@ public static class SceneEditor
 	/// </summary>
 	public static bool HasComponentInClipboard()
 	{
-		var text = EditorUtility.Clipboard.Paste();
+		return IsComponentJson( EditorUtility.Clipboard.Paste() );
+	}
 
+	/// <summary>
+	/// Does this text look like a serialized <see cref="Component"/> - a json object
+	/// whose __type is a known component type?
+	/// </summary>
+	internal static bool IsComponentJson( string text )
+	{
 		try
 		{
 			if ( JsonNode.Parse( text ) is JsonObject jso )

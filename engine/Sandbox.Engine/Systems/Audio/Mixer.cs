@@ -1,4 +1,5 @@
-﻿using Sandbox.Utility;
+using Sandbox.Utility;
+using System.Runtime.InteropServices;
 using System.Threading;
 
 namespace Sandbox.Audio;
@@ -29,31 +30,27 @@ public partial class Mixer
 	/// <summary>
 	/// Per-listener audio buffers mixed into the final output buffer.
 	/// </summary>
-	readonly Dictionary<Listener, MultiChannelBuffer> _outputBuffers = [];
+	readonly Dictionary<Listener, MultiChannelBuffer> _outputBuffers = new( ReferenceEqualityComparer.Instance );
 
 	/// <summary>
-	/// Tracks which listener buffers were used during the current frame.
+	/// Tracks which listener buffers were written to during this mix frame.
 	/// </summary>
-	readonly HashSet<Listener> _usedListeners = [];
+	readonly HashSet<Listener> _usedListeners = new( ReferenceEqualityComparer.Instance );
 
 	/// <summary>
-	/// We don't want to access sound listeners directly, because it might keep changing
-	/// in the other thread. This is a local copy for us to use.
+	/// Snapshot for the current mix frame, set by StartMixing, read by MixVoices/FinishMixing.
 	/// </summary>
-	IReadOnlyList<Listener> _listeners;
+	VoiceFrameSnapshot _snapshot;
 
 	/// <summary>
-	/// Id of listeners that have been removed so we can dispose of their buffers.
-	/// </summary>
-	IReadOnlyList<Listener> _removedListeners;
-
-	/// <summary>
-	/// The current voices playing on this mixer
+	/// The current voice count for this mixer this frame.
 	/// </summary>
 	int _voiceCount;
 
-	/// Reused working list to avoid per-frame LINQ allocations.
-	readonly List<SoundHandle> _sortedVoices = new();
+	/// <summary>
+	/// Reused list for sorting voices by priority. Stores (createdTime, voiceIndex) pairs.
+	/// </summary>
+	readonly List<(float CreatedTime, int Index)> _sortedVoices = new();
 
 	/// <summary>
 	/// Final mixed output buffer containing audio from all listeners.
@@ -90,39 +87,87 @@ public partial class Mixer
 	/// <summary>
 	/// If true then this mixer will use custom occlusion tags. If false we'll use what our parent uses.
 	/// </summary>
-	[ToggleGroup( "OverrideOcclusion" )]
+	[Obsolete( "Use OverrideOcclusion + BlockingTags / IgnoredTags instead." )]
+	[ToggleGroup( "OverrideOcclusion" ), Hide]
 	public bool OverrideOcclusion { get; set; }
 
 	/// <summary>
-	/// The tags which occlude our physics
+	/// The tags which occlude our physics.
 	/// </summary>
-	[ToggleGroup( "OverrideOcclusion" )]
+	[Obsolete( "Use BlockingTags instead." )]
+	[ToggleGroup( "OverrideOcclusion" ), Hide]
 	public TagSet OcclusionTags { get; private set; } = new TagSet();
 
 	/// <summary>
 	/// Get an array of occlusion tags our sounds want to hit. May return null if there are none defined!
 	/// </summary>
+	[Obsolete( "Use GetBlockingTags() instead." )]
 	public IReadOnlySet<uint> GetOcclusionTags()
 	{
+#pragma warning disable CS0618
 		if ( !OverrideOcclusion )
 		{
 			return Parent?.GetOcclusionTags();
 		}
 
 		return OcclusionTags?.GetTokens();
+#pragma warning restore CS0618
+	}
+
+	/// <summary>
+	/// If non-empty, audio simulation traces (occlusion, transmission, reverb rays) only register hits on
+	/// bodies with one of these tags. Empty = hit everything that isn't in <see cref="IgnoredTags"/>.
+	/// </summary>
+	[Group( "Simulation" )]
+	public TagSet BlockingTags { get; private set; } = new TagSet();
+
+	/// <summary>
+	/// Audio simulation traces always skip bodies with these tags (e.g. triggers, sky, passaudio).
+	/// Applied on top of <see cref="BlockingTags"/>.
+	/// </summary>
+	[Group( "Simulation" )]
+	public TagSet IgnoredTags { get; private set; } = new TagSet();
+
+	/// <summary>
+	/// Walks the parent chain. If either local tag set is non-empty, returns this mixer's <see cref="BlockingTags"/>;
+	/// otherwise inherits from parent. Resolved together with <see cref="GetIgnoredTags"/> to avoid split-brain.
+	/// </summary>
+	public TagSet GetBlockingTags()
+	{
+		if ( !BlockingTags.IsEmpty || !IgnoredTags.IsEmpty ) return BlockingTags;
+		return Parent?.GetBlockingTags();
+	}
+
+	/// <summary>
+	/// Walks the parent chain. See <see cref="GetBlockingTags"/> for inheritance rules.
+	/// </summary>
+	public TagSet GetIgnoredTags()
+	{
+		if ( !BlockingTags.IsEmpty || !IgnoredTags.IsEmpty ) return IgnoredTags;
+		return Parent?.GetIgnoredTags();
 	}
 
 
-	float _spacializing = 1.0f;
+	float _spatializing = 1.0f;
 
 	/// <summary>
-	/// When 0 the sound will come out of all speakers, when 1 it will be fully spacialized
+	/// When 0 the sound will come out of all speakers, when 1 it will be fully spatialized
 	/// </summary>
-	[Range( 0, 1 ), Group( "Voice Handling" )]
+	[Range( 0, 1 ), Group( "Simulation" )]
+	public float Spatializing
+	{
+		get => Volatile.Read( ref _spatializing );
+		set => Interlocked.Exchange( ref _spatializing, value );
+	}
+
+	/// <summary>
+	/// Legacy misspelled alias for <see cref="Spatializing"/>.
+	/// </summary>
+	[Obsolete( "Use Spatializing instead." ), Hide]
 	public float Spacializing
 	{
-		get => Volatile.Read( ref _spacializing );
-		set => Interlocked.Exchange( ref _spacializing, value );
+		get => Spatializing;
+		set => Spatializing = value;
 	}
 
 	float _distanceAttenuation = 1.0f;
@@ -130,7 +175,7 @@ public partial class Mixer
 	/// <summary>
 	/// Sounds get quieter as they go further away
 	/// </summary>
-	[Range( 0, 1 ), Group( "Voice Handling" )]
+	[Range( 0, 1 ), Group( "Simulation" )]
 	public float DistanceAttenuation
 	{
 		get => Volatile.Read( ref _distanceAttenuation );
@@ -141,13 +186,25 @@ public partial class Mixer
 	float _occlusion = 1.0f;
 
 	/// <summary>
-	/// How much these sounds can get occluded
+	/// How much these sounds can get occluded (0 = no occlusion simulation, 1 = full).
 	/// </summary>
-	[Range( 0, 1 ), Group( "Voice Handling" )]
+	[Range( 0, 1 ), Group( "Simulation" )]
 	public float Occlusion
 	{
 		get => Volatile.Read( ref _occlusion );
 		set => Interlocked.Exchange( ref _occlusion, value );
+	}
+
+	float _reverb = 1.0f;
+
+	/// <summary>
+	/// How much reverb is applied to sounds routed through this mixer (0 = dry / disabled, 1 = full).
+	/// </summary>
+	[Range( 0, 1 ), Group( "Simulation" )]
+	public float Reverb
+	{
+		get => Volatile.Read( ref _reverb );
+		set => Interlocked.Exchange( ref _reverb, value );
 	}
 
 	float _airAborb = 1.0f;
@@ -155,7 +212,7 @@ public partial class Mixer
 	/// <summary>
 	/// How much the air absorbs energy from the sound
 	/// </summary>
-	[Range( 0, 1 ), Group( "Voice Handling" )]
+	[Range( 0, 1 ), Group( "Simulation" )]
 	public float AirAbsorption
 	{
 		get => Volatile.Read( ref _airAborb );
@@ -190,34 +247,41 @@ public partial class Mixer
 	}
 
 	/// <summary>
-	/// Called at the start of the mixing frame
+	/// Called at the start of the mixing frame. Stores the snapshot and clears per-frame state.
 	/// </summary>
-	internal void StartMixing( IReadOnlyList<Listener> listeners, IReadOnlyList<Listener> removedListeners )
+	internal void StartMixing( VoiceFrameSnapshot snapshot )
 	{
-		_listeners = listeners;
-		_removedListeners = removedListeners;
+		_snapshot = snapshot;
 		_voiceCount = 0;
-		_usedListeners?.Clear();
-
+		_usedListeners.Clear();
 		_outputBuffer.Silence();
 
-		if ( _outputBuffers is not null )
+		// Dispose per-listener buffers for listeners that were removed this frame.
+		foreach ( var removed in snapshot.RemovedListeners )
 		{
-			// Dispose buffers of removed listeners
-			foreach ( var id in _removedListeners )
-			{
-				if ( _outputBuffers.Remove( id, out var buffer ) )
-				{
-					buffer.Dispose();
-				}
-			}
+			if ( _outputBuffers.Remove( removed, out var buf ) ) buf.Dispose();
 		}
+
+		StartReverbs( snapshot );
 	}
 
 	/// <summary>
-	/// Mix the child mixes
+	/// Get the buffer for this listener, silencing it on first use each frame.
 	/// </summary>
-	internal void MixChildren( List<SoundHandle> voices )
+	MultiChannelBuffer GetListenerBuffer( Listener listener )
+	{
+		if ( !_outputBuffers.TryGetValue( listener, out var buffer ) )
+			buffer = _outputBuffers[listener] = new MultiChannelBuffer( AudioEngine.ChannelCount );
+
+		if ( _usedListeners.Add( listener ) ) buffer.Silence();
+
+		return buffer;
+	}
+
+	/// <summary>
+	/// Recursively mix all child mixers.
+	/// </summary>
+	internal void MixChildren( VoiceFrameSnapshot snapshot )
 	{
 		lock ( Lock )
 		{
@@ -226,58 +290,56 @@ public partial class Mixer
 
 			foreach ( var child in Children )
 			{
-				child.StartMixing( _listeners, _removedListeners );
-				child.MixChildren( voices );
+				child.StartMixing( snapshot );
+				child.MixChildren( snapshot );
 
 				if ( child.ShouldMixVoices() )
-				{
-					child.MixVoices( voices );
-				}
+					child.MixVoices( snapshot );
 
 				child.FinishMixing();
 
-				// add into the main buffer
-				_outputBuffer.MixFrom( child.Output, 1.0f );
+				// Keep the listener split so our processors run over child audio too.
+				foreach ( var listener in child._usedListeners )
+				{
+					if ( !child._outputBuffers.TryGetValue( listener, out var childBuffer ) ) continue;
+
+					GetListenerBuffer( listener ).MixFrom( childBuffer, 1.0f );
+				}
 			}
 		}
 	}
 
-	bool ShouldPlay( SoundHandle voice )
+	bool ShouldPlay( in VoiceState vs )
 	{
-		if ( !voice.CanBeMixed() ) return false;
-		if ( !voice.IsTargettingMixer( this ) ) return false;
+		if ( vs.Sampler is null ) return false;
+		if ( vs.SourceCount == 0 ) return false;
 
-		return true;
+		// vs.TargetMixer == null means "use the default mixer"
+		if ( vs.TargetMixer is null ) return Mixer.Default == this;
+		if ( string.IsNullOrEmpty( Name ) ) return false;
+		return vs.TargetMixer.Name == Name;
 	}
 
 	/// <summary>
-	/// Mix the incoming voices into the mix
+	/// Mix snapshot voices that target this mixer.
+	/// No locks needed, all data comes from the immutable snapshot.
 	/// </summary>
-	internal void MixVoices( List<SoundHandle> voices )
+	internal void MixVoices( VoiceFrameSnapshot snapshot )
 	{
-		// Filter into reusable list and sort newest-first, avoiding LINQ allocations.
 		_sortedVoices.Clear();
-		foreach ( var voice in voices )
+		var voices = CollectionsMarshal.AsSpan( snapshot.Voices );
+		for ( var i = 0; i < voices.Length; i++ )
 		{
-			if ( ShouldPlay( voice ) ) _sortedVoices.Add( voice );
+			if ( ShouldPlay( in voices[i] ) ) _sortedVoices.Add( (voices[i].CreatedTime, i) );
 		}
 
-		_sortedVoices.Sort( SoundHandle.ByCreatedTimeDescending );
+		_sortedVoices.Sort( static ( a, b ) => b.CreatedTime.CompareTo( a.CreatedTime ) );
 
-		// Can't do this in a thread because stream audio hrtf can't handle that
 		var limit = Math.Min( _sortedVoices.Count, _maxVoices );
-		for ( var i = 0; i < limit; i++ )
+		for ( var si = 0; si < limit; si++ )
 		{
-			var voice = _sortedVoices[i];
-			lock ( voice )
-			{
-				// Race condition: sampler may have become null since we filtered
-				if ( !ShouldPlay( voice ) ) continue;
-
-				MixVoice( voice );
-
-				Interlocked.Add( ref _voiceCount, 1 );
-			}
+			MixVoice( snapshot, voices, _sortedVoices[si].Index );
+			Interlocked.Add( ref _voiceCount, 1 );
 		}
 	}
 
@@ -312,223 +374,219 @@ public partial class Mixer
 		lock ( mixer.Lock )
 		{
 			if ( mixer.Children is null ) return false;
-			return mixer.Children.Any( AnySolo );
+			foreach ( var child in mixer.Children )
+			{
+				if ( AnySolo( child ) ) return true;
+			}
+			return false;
 		}
 	}
 
 	/// <summary>
-	/// Mixing is finished. Clean up and finalize
+	/// Mixing is finished. Apply processors, scale by volume, update meter.
 	/// </summary>
 	internal void FinishMixing()
 	{
+		// A muted mixer, or one another's solo silenced, goes quiet at once, tails included
+		if ( ShouldMixVoices() ) MixReverbs();
+		else StopReverbs();
+
 		ApplyProcessors();
 
 		var volume = Volume;
 
-		//
-		// Scale by convar. Todo allow mixers to define convars?
-		//
 		if ( !Application.IsEditor )
 		{
 			if ( string.Equals( Name, "music", StringComparison.OrdinalIgnoreCase ) )
-			{
 				volume *= Preferences.MusicVolume;
-			}
-			else if ( string.Equals( Name, "voip", StringComparison.OrdinalIgnoreCase ) )
-			{
+			else if ( string.Equals( Name, "game", StringComparison.OrdinalIgnoreCase ) )
+				volume *= Preferences.GameVolume;
+			else if ( string.Equals( Name, "voice", StringComparison.OrdinalIgnoreCase ) )
 				volume *= Preferences.VoipVolume;
-			}
 		}
 
-		_outputBuffer.Scale( volume );
+		// Scale per listener, not the collapsed output: our parent reads these buffers directly.
+		foreach ( var listener in _usedListeners )
+		{
+			if ( !_outputBuffers.TryGetValue( listener, out var targetBuffer ) ) continue;
+
+			targetBuffer.Scale( volume );
+			_outputBuffer.MixFrom( targetBuffer, 1.0f );
+		}
+
 		Meter.Add( _outputBuffer, _voiceCount );
 	}
 
-
 	static Superluminal _mixVoice = new( "Mix Voice", "#4d5e73" );
 	MultiChannelBuffer mixBuffer = new( AudioEngine.ChannelCount );
+	readonly MultiChannelBuffer[] _directBuffers = new MultiChannelBuffer[AudioEngine.ChannelCount + 1];
+	readonly MultiChannelBuffer _reverbMonoBuffer = new( 1 );
+	readonly MultiChannelBuffer _reverbFilteredBuffer = new( 1 );
 
 	/// <summary>
-	/// Mix a single voice
+	/// Mix one voice described by the snapshot. No locks, all inputs come from the snapshot,
+	/// outputs go to snapshot.Voices[voiceIndex].Output* fields.
 	/// </summary>
-	void MixVoice( SoundHandle voice )
+	void MixVoice( VoiceFrameSnapshot snapshot, Span<VoiceState> voices, int voiceIndex )
 	{
 		using var _ = _mixVoice.Start();
-		var volume = voice.Volume;
 
-		if ( voice.IsFadingOut )
-		{
-			volume *= voice.Fadeout.EvaluateDelta( (float)voice.TimeUntilFaded.Fraction );
-		}
+		if ( (uint)voiceIndex >= (uint)voices.Length ) return;
+		ref readonly var vs = ref voices[voiceIndex];
 
-		if ( voice.IsFadingIn )
-		{
-			volume *= voice.Fadein.EvaluateDelta( (float)voice.TimeUntilFadedIn.Fraction );
+		var volume = vs.Volume * vs.FadeVolume;
 
-			if ( voice.TimeUntilFadedIn )
-			{
-				voice.IsFadingIn = false;
-			}
-		}
+		if ( vs.IsFadingIn && vs.FadeInTimer ) voices[voiceIndex].OutputFadeInComplete = true;
 
-		var samples = voice.sampler.GetLastReadSamples();
+		var samples = vs.Sampler.GetLastReadSamples();
 		var buffer = samples.Get( AudioChannel.Left );
 
-		// Store the levels on the sound for use later
-		voice.Amplitude = buffer.LevelMax;
+		voices[voiceIndex].OutputAmplitude = buffer.LevelMax;
 
-		// Process lipsync if it's enabled
-		if ( voice.LipSync is not null && voice.LipSync.Enabled )
+		if ( vs.HasLipSync ) vs.LipSync.ProcessLipSync( buffer );
+		if ( vs.Loopback && !AudioEngine.VoiceLoopback ) return;
+
+		var allModels = CollectionsMarshal.AsSpan( snapshot.AllModels );
+		var allBinaurals = CollectionsMarshal.AsSpan( snapshot.AllBinaurals );
+		var allParams = CollectionsMarshal.AsSpan( snapshot.AllParams );
+
+		for ( var i = 0; i < vs.SourceCount; i++ )
 		{
-			voice.LipSync.ProcessLipSync( buffer );
-		}
+			DirectSoundModel source;
+			Listener listener;
+			Transform mixTransform;
 
-		// player voice loopback. Don't mix it if we're not in loopback mode
-		if ( voice.Loopback && !AudioEngine.VoiceLoopback )
-		{
-			return;
-		}
-
-		// If voice is local, we don't need to play it at every listener, just once
-		var listenLocal = voice.ListenLocal || voice.Scene is null;
-		var listenerCount = listenLocal ? 1 : _listeners.Count;
-
-		for ( int i = 0; i < listenerCount; i++ )
-		{
-			var listener = Listener.Local;
-			if ( !listenLocal )
+			if ( vs.ListenLocal )
 			{
-				listener = _listeners[i];
-				if ( listener.Scene != voice.Scene )
-					continue;
+				source = allModels[vs.SourceOffset];
+				listener = Listener.Local;
+				mixTransform = default;
+			}
+			else
+			{
+				var listeners = CollectionsMarshal.AsSpan( snapshot.Listeners );
+				ref readonly var ls = ref listeners[i];
+				if ( ls.Scene != vs.Scene ) continue;
+				source = allModels[vs.SourceOffset + i];
+				listener = ls.Listener;
+				mixTransform = ls.MixTransform;
 			}
 
-			var source = voice.GetSource( listener );
-			if ( source is null )
-				continue;
+			if ( source is null ) continue;
 
-			if ( !_outputBuffers.TryGetValue( listener, out var targetBuffer ) )
+			var sourceParams = allParams[vs.SourceOffset + i];
+
+			float mixerReverbScale = Reverb;
+			if ( vs.HasReverb && mixerReverbScale > 0f && vs.ReverbRoom.Mix > 0.09f )
 			{
-				// Allocate a new buffer for this listener.
-				targetBuffer = _outputBuffers[listener] = new MultiChannelBuffer( AudioEngine.ChannelCount );
-			}
+				var reverbSendLevel = sourceParams.ReverbAmount * mixerReverbScale * ReverbLevel( listener, in sourceParams, vs.ReverbRoom ) * volume;
 
-			// Track which buffers have been used, these buffers will have processors applied to them.
-			if ( _usedListeners.Add( listener ) )
-			{
-				// First use this mix, silence the buffer.
-				targetBuffer.Silence();
-			}
-
-			//
-			// Upmix because samples could be mono.
-			//
-			mixBuffer.CopyFromUpmix( samples );
-
-			//
-			// Apply any attenuation and occlusion
-			//
-			ApplyDirectMix( source, listener, mixBuffer, volume );
-
-			//
-			// Make it stereo, based on location
-			//
-			ConvertToBinaural( source, listener, voice, mixBuffer );
-
-			//
-			// Mix it into the target buffer
-			//
-			targetBuffer.MixFrom( mixBuffer, 1.0f );
-		}
-	}
-
-	MultiChannelBuffer _input;
-
-	void ApplyDirectMix( SteamAudioSource source, Listener listener, MultiChannelBuffer inputoutput, float volume )
-	{
-		if ( source is null )
-			return;
-
-		if ( _input is not null && _input.ChannelCount != inputoutput.ChannelCount )
-		{
-			_input.Dispose();
-			_input = null;
-		}
-
-		_input ??= new MultiChannelBuffer( inputoutput.ChannelCount );
-		_input.CopyFrom( inputoutput );
-
-		source.ApplyDirectMix( listener, _input, inputoutput, Occlusion, volume );
-	}
-
-	/// <summary>
-	/// This will spatialize the voice based on its location
-	/// </summary>
-	void ConvertToBinaural( SteamAudioSource source, Listener listener, SoundHandle voice, MultiChannelBuffer inputoutput )
-	{
-		if ( source is null )
-			return;
-
-		if ( _input is not null && _input.ChannelCount != inputoutput.ChannelCount )
-		{
-			_input.Dispose();
-			_input = null;
-		}
-
-		_input ??= new MultiChannelBuffer( inputoutput.ChannelCount );
-		_input.CopyFrom( inputoutput );
-
-		bool is2d = voice.ListenLocal;
-
-		if ( is2d )
-		{
-			// don't play the sound too close to the listener
-			var pos = voice.Position;
-			while ( pos.Length < 0.5f )
-			{
-				pos += new Vector3( 1, 0, 0 );
-			}
-
-			var spacial = 0.1f * Spacializing;
-
-			// 2D sounds use very low spatialization, nearest neighbor is sufficient
-			source.ApplyBinauralMix( pos, spacial, useNearestInterpolation: true, _input, inputoutput );
-			return;
-		}
-		else
-		{
-			var soundDirectionLocal = listener.MixTransform.PointToLocal( voice.Position );
-			var spacial = voice.SpacialBlend * Spacializing;
-
-			// If sounds are really close, we need to fade them to be non spatial
-			// If the sound is right on the listener, we need to offset it a bit because
-			// steam audio will shit itself if it's right in the middle of the head
-			{
-				var soundDistance = soundDirectionLocal.Length;
-
-				if ( soundDistance < 32.0f )
+				// The send is filtered by the occlusion per band, the gate guesses with the mid band.
+				if ( reverbSendLevel * vs.ReverbRoom.Mix * (sourceParams.OcclusionEnabled ? sourceParams.TransmissionBands.Mid : 1f) >= ReverbAudible )
 				{
-					spacial *= soundDistance.Remap( 1.0f, 32.0f, 0, 1.0f );
-
-					if ( soundDistance <= 0.1f )
-					{
-						soundDirectionLocal = new Vector3( 0.1f, 0, 0 );
-					}
-					else
-					{
-						soundDirectionLocal = soundDirectionLocal.Normal * soundDistance;
-					}
+					// From the dry samples: the reverb doesn't follow the direct sound's distance attenuation.
+					FillReverbSend( samples, reverbSendLevel, source, in sourceParams );
+					GetReverb( listener, in vs.ReverbRoom )?.Feed( _reverbFilteredBuffer, vs.ReverbRoom.Mix );
 				}
 			}
 
-			// Determine HRTF interpolation mode:
-			// - Voice/speech sounds don't benefit from bilinear interpolation
-			// - Player's own voice (loopback) uses nearest
-			// - Low spatial blend means minimal HRTF effect, nearest is sufficient
-			bool useNearest = voice.IsVoice || voice.Loopback || spacial < 0.5f;
+			if ( source.SkipSilent( listener, volume, Occlusion, in sourceParams ) ) continue;
 
-			source.ApplyBinauralMix( soundDirectionLocal, spacial, useNearest, _input, inputoutput );
+			// Mono sources stay mono until the binaural effect makes them stereo.
+			var direct = DirectBuffer( samples.ChannelCount );
+			source.Apply( listener, samples, direct, Occlusion, volume, in sourceParams );
+
+			if ( !ConvertToBinaural( allBinaurals[vs.SourceOffset + i], mixTransform, in vs, direct, mixBuffer ) )
+				mixBuffer.CopyFromUpmix( direct );
+
+			GetListenerBuffer( listener ).MixFrom( mixBuffer, 1.0f );
 		}
+	}
+
+	// Below this a voice's send isn't worth mixing into its room's reverb. Cheap now the reverb is shared.
+	const float ReverbAudible = 0.005f;
+
+	MultiChannelBuffer DirectBuffer( int channels )
+	{
+		channels = Math.Clamp( channels, 1, _directBuffers.Length - 1 );
+		return _directBuffers[channels] ??= new MultiChannelBuffer( channels );
+	}
+
+	// Past the critical distance a room's reverb would match the source at full volume; held a little under so loud,
+	// sharp sounds heard from afar don't drown in it. Same idea as a max wet level elsewhere.
+	const float MaxReverbLevel = 0.7f;
+
+	/// <summary>
+	/// Reverb level of a source in its room. A diffuse field doesn't fall with distance like the direct sound does: it matches
+	/// the direct sound at the room's critical distance and stays there, closer in the direct sound dominates.
+	/// </summary>
+	static float ReverbLevel( Listener listener, in DirectSoundParams p, in ReverbSnapshot room )
+	{
+		if ( !p.DistanceAttenuation ) return 1f;
+
+		var dist = p.Position.Distance( listener.MixTransform.Position );
+		float near = SoundFalloff.MinDistance( p.MinDistance, p.Distance );
+		float critical = MathF.Max( room.CriticalDistanceMeters * 39.37f, 1f );
+
+		// The direct sound's level at the critical distance by whichever falloff the sound uses, quieter still inside its size
+		float diffuse = SoundFalloff.Gain( p.FalloffMode, p.Falloff, p.MinDistance, p.Distance, critical ) * MathF.Min( 1f, dist / near );
+		float fade = p.FalloffMode == SoundFalloffMode.Physical ? SoundFalloff.RangeFade( dist, p.Distance ) : (dist < p.Distance ? 1f : 0f);
+		return MathF.Min( MaxReverbLevel, diffuse ) * fade;
+	}
+
+	/// <summary>
+	/// Mono mix of the dry voice into <see cref="_reverbFilteredBuffer"/>, filtered by the voice's occlusion: the send to its
+	/// room's reverb.
+	/// </summary>
+	void FillReverbSend( MultiChannelBuffer dry, float scale, DirectSoundModel model, in DirectSoundParams p )
+	{
+		var weight = scale / dry.ChannelCount;
+		var mono = _reverbMonoBuffer.Get( 0 );
+		mono.Silence();
+		for ( var inCh = 0; inCh < dry.ChannelCount; inCh++ )
+			mono.MixFrom( dry.Get( inCh ), weight );
+
+		model.FilterReverbSend( _reverbMonoBuffer, _reverbFilteredBuffer, Occlusion, in p );
+	}
+
+	/// <summary>
+	/// Spatialize the voice based on its snapshotted position and spatialization parameters. False when it isn't
+	/// spatialized and <paramref name="output"/> wasn't written.
+	/// </summary>
+	bool ConvertToBinaural( BinauralEffect binaural, Transform mixTransform, in VoiceState vs, MultiChannelBuffer input, MultiChannelBuffer output )
+	{
+		if ( binaural is null ) return false;
+
+		if ( vs.ListenLocal )
+		{
+			var localSpatial = 0.1f * Spatializing;
+			// ListenLocal voices on mixers with Spatializing==0 (music/UI default) would just
+			// run a near-identity HRIR convolution; inputoutput already holds the desired output.
+			if ( localSpatial <= 0f ) return false;
+
+			var pos = vs.Position;
+			while ( pos.Length < 0.5f ) pos += new Vector3( 1, 0, 0 );
+
+			binaural.Apply( pos, localSpatial, useNearestInterpolation: true, input, output );
+			return true;
+		}
+
+		var soundDirectionLocal = mixTransform.PointToLocal( vs.Position );
+		var spacial = vs.SpacialBlend * Spatializing;
+
+		var soundDistance = soundDirectionLocal.Length;
+		if ( soundDistance < 32.0f )
+		{
+			spacial *= soundDistance.Remap( 1.0f, 32.0f, 0, 1.0f );
+			soundDirectionLocal = soundDistance <= 0.1f
+				? new Vector3( 0.1f, 0, 0 )
+				: soundDirectionLocal.Normal * soundDistance;
+		}
+
+		// Bilinear costs no more than nearest and switching between them changes the timbre.
+		bool useNearest = vs.IsVoice || vs.Loopback;
+		binaural.Apply( soundDirectionLocal, spacial, useNearest, input, output );
+		return true;
 	}
 
 	/// <summary>
@@ -539,3 +597,6 @@ public partial class Mixer
 		SoundHandle.StopAll( fade, this );
 	}
 }
+
+
+

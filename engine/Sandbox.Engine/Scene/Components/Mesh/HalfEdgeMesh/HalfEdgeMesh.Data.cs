@@ -16,23 +16,26 @@ partial class Mesh
 
 internal interface IDataStream
 {
-	internal void Allocate( IHandle hSource );
+	internal void Allocate( int sourceIndex );
 	internal void AllocateMultiple( int count );
 }
 
-internal sealed class VertexData<TData> : ComponentData<TData, VertexHandle> where TData : struct
+internal sealed class VertexData<TData> : ComponentData<TData> where TData : struct
 {
+	public TData this[VertexHandle h] { get => this[h.Index]; set => this[h.Index] = value; }
 }
 
-internal sealed class FaceData<TData> : ComponentData<TData, FaceHandle> where TData : struct
+internal sealed class FaceData<TData> : ComponentData<TData> where TData : struct
 {
+	public TData this[FaceHandle h] { get => this[h.Index]; set => this[h.Index] = value; }
 }
 
-internal sealed class HalfEdgeData<TData> : ComponentData<TData, HalfEdgeHandle> where TData : struct
+internal sealed class HalfEdgeData<TData> : ComponentData<TData> where TData : struct
 {
+	public TData this[HalfEdgeHandle h] { get => this[h.Index]; set => this[h.Index] = value; }
 }
 
-internal abstract class ComponentData<T, THandle> : IEnumerable<T>, IDataStream where T : struct where THandle : IHandle
+internal abstract class ComponentData<T> : IEnumerable<T>, IDataStream where T : struct
 {
 	internal readonly List<T> _list = new();
 
@@ -41,13 +44,13 @@ internal abstract class ComponentData<T, THandle> : IEnumerable<T>, IDataStream 
 
 	public int Count => _list.Count;
 
-	public T this[THandle hHandle]
+	public T this[int index]
 	{
-		get => hHandle.Index >= 0 && hHandle.Index < Count ? _list[hHandle.Index] : default;
+		get => index >= 0 && index < Count ? _list[index] : default;
 		set
 		{
-			if ( hHandle.Index >= 0 && hHandle.Index < Count )
-				_list[hHandle.Index] = value;
+			if ( index >= 0 && index < Count )
+				_list[index] = value;
 		}
 	}
 
@@ -58,9 +61,9 @@ internal abstract class ComponentData<T, THandle> : IEnumerable<T>, IDataStream 
 			_list[i] = source[i];
 	}
 
-	void IDataStream.Allocate( IHandle hSource )
+	void IDataStream.Allocate( int sourceIndex )
 	{
-		_list.Add( hSource is not null && hSource.IsValid && hSource.Index < Count ? _list[hSource.Index] : default );
+		_list.Add( sourceIndex >= 0 && sourceIndex < Count ? _list[sourceIndex] : default );
 	}
 
 	void IDataStream.AllocateMultiple( int count )
@@ -90,13 +93,13 @@ internal class ComponentList<T> : IEnumerable<T>
 		internal set => _list[index] = value;
 	}
 
-	public int Allocate( T component, IHandle hSource )
+	public int Allocate( T component, int sourceIndex = -1 )
 	{
 		_list.Add( component );
 		_active.Add( true );
 
 		foreach ( var stream in _streams.Values )
-			stream.Allocate( hSource );
+			stream.Allocate( sourceIndex );
 
 		return Count - 1;
 	}
@@ -114,18 +117,17 @@ internal class ComponentList<T> : IEnumerable<T>
 			stream.AllocateMultiple( count );
 	}
 
-	public void Deallocate( IHandle hHandle )
+	public void Deallocate( int index )
 	{
-		_active[hHandle.Index] = false;
+		_active[index] = false;
 	}
 
-	public bool IsAllocated( IHandle hHandle )
+	public bool IsAllocated( int index )
 	{
-		var index = hHandle.Index;
 		if ( index < 0 || index >= _active.Count )
 			return false;
 
-		return _active[hHandle.Index];
+		return _active[index];
 	}
 
 	public TDataStream CreateDataStream<TDataStream>( string name ) where TDataStream : IDataStream, new()

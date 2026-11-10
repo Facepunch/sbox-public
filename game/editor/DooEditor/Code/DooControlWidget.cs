@@ -7,6 +7,8 @@ namespace Editor.DooEditor;
 [CustomEditor( typeof( Doo ) )]
 public class DooControlWidget : ControlWidget
 {
+	DooEditorWidget _editor;
+
 	public DooControlWidget( SerializedProperty property ) : base( property )
 	{
 		Layout = Layout.Row();
@@ -45,8 +47,16 @@ public class DooControlWidget : ControlWidget
 		SerializedProperty.TryGetAsObject( out var so );
 
 		var title = SerializedProperty.Name ?? "Doo";
-		var editor = DooEditorWidget.Open( so, title );
+		_editor?.InvalidateTarget();
+		_editor = DooEditorWidget.Open( so, title );
 
+	}
+
+	public override void OnDestroyed()
+	{
+		_editor?.InvalidateTarget();
+		_editor = null;
+		base.OnDestroyed();
 	}
 
 	void OnClearClicked()

@@ -1,0 +1,196 @@
+// The settings page's rows - a section's label, then a band to a setting: its name on the left, its control in one
+// column down the right (a row of choices, a dropdown, a slider, something to type in), the controls the platform's
+// own (_platform.scss). Anywhere else that sets things up draws the same SettingsRow and includes this, so it's the one
+// look: the settings page, and a new game's setup.
+@import "/Platform/_platform.scss";
+
+$settings-control: 400px;
+// A row's lock or warning - its size, and in a dropdown how far in from the right (before the chevron) and the room left
+// between it and the choice
+$settings-flag-size: 16px;
+$settings-flag-right: 34px;
+$settings-flag-gap: 4px;
+
+@mixin settings-rows
+{
+	.section
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		gap: 2px;
+	}
+
+	// As the avatar's slot groups are titled (platform-group-title)
+	.section-label
+	{
+		@include platform-group-title;
+		margin: 0 0 8px 2px;
+	}
+
+	// A band - filled, a hairline of the art between it and the next, lit while it's the one being read about. By class,
+	// so the post-processing preset row gets the same shape.
+	.row
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		padding: 0 6px 0 14px;
+		border-radius: $platform-radius;
+		background-color: rgba( 255, 255, 255, 0.04 );
+		transition: background-color 0.1s ease;
+
+		&.focused
+		{
+			background-color: rgba( 255, 255, 255, 0.09 );
+
+			.name
+			{
+				color: white;
+			}
+		}
+
+		// Its control greyed out and not to be pressed - the row still takes the pointer, so the detail can say why
+		&.disabled
+		{
+			.name
+			{
+				color: $platform-muted;
+			}
+
+			.control
+			{
+				opacity: 0.45;
+				pointer-events: none;
+			}
+		}
+
+		.line
+		{
+			flex-direction: row;
+			align-items: center;
+			min-height: 44px;
+			gap: 16px;
+		}
+
+		// Its name, and a glyph after it when it's locked or there's something to watch for - what, in the detail
+		.title
+		{
+			flex-direction: row;
+			flex-grow: 1;
+			flex-shrink: 1;
+			min-width: 0;
+			align-items: center;
+			gap: 8px;
+		}
+
+		.name
+		{
+			flex-shrink: 1;
+			font-size: 14px;
+			font-weight: 500;
+			color: #d5dbe6;
+		}
+
+		// Straight in the line rather than in a .title (the setup's map row) - taking the room the same
+		.line > .name
+		{
+			flex-grow: 1;
+		}
+
+		.flag
+		{
+			flex-shrink: 0;
+			font-size: $settings-flag-size;
+
+			&.locked
+			{
+				color: $platform-muted;
+			}
+
+			&.warn
+			{
+				color: $platform-warning;
+			}
+		}
+
+		.control
+		{
+			position: relative;
+			flex-direction: row;
+			justify-content: flex-end;
+			align-items: center;
+			flex-shrink: 0;
+			width: $settings-control;
+
+			// In the dropdown, just before its chevron - over it, not taking the pointer from it
+			> .flag
+			{
+				position: absolute;
+				right: $settings-flag-right;
+				top: 0;
+				bottom: 0;
+				align-content: center;
+				align-items: center;
+				pointer-events: none;
+			}
+
+			// Holds a control made in code, give it the whole width
+			.custom
+			{
+				flex-grow: 1;
+				flex-direction: row;
+				align-items: center;
+			}
+		}
+
+		.readonly-value
+		{
+			font-size: 13.5px;
+			font-weight: 600;
+			color: $platform-muted;
+		}
+	}
+
+	ButtonGroup
+	{
+		@include platform-choices;
+		flex-grow: 1;
+
+		// All the same width, down the page
+		.button
+		{
+			@include platform-choice;
+			flex-basis: 0;
+		}
+	}
+
+	DropDown.dropdown
+	{
+		@include platform-dropdown;
+		flex-grow: 1;
+
+		// Its choice stops short of the flag over it (.control > .flag), rather than running under it
+		&.flagged
+		{
+			padding-right: calc( $settings-flag-right + $settings-flag-size + $settings-flag-gap );
+		}
+	}
+
+	SliderControl.slidercontrol
+	{
+		@include platform-slider;
+		flex-grow: 1;
+	}
+
+	.action
+	{
+		@include platform-text-button( 34px, 13px, 16px );
+		padding: 0 14px;
+	}
+
+	.row .control TextEntry
+	{
+		@include platform-field;
+		flex-grow: 1;
+		pointer-events: all;
+	}
+}

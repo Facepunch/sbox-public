@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using System.Text;
 
 namespace Facepunch;
 
@@ -31,6 +32,28 @@ internal static class Utility
 	   DataReceivedEventHandler onDataReceived = null )
 	{
 		using Process process = new Process();
+		var output = Log.IsBootstrapActive && !Log.Verbose ? new StringBuilder() : null;
+		void ReceiveOutput( string text, bool error = false )
+		{
+			if ( output != null )
+			{
+				lock ( output ) output.AppendLine( text );
+			}
+			if ( BuildDisplay.IsActive || Log.IsBootstrapActive ) Log.ProcessOutput( text, error );
+			else if ( error ) Log.Error( text );
+			else if ( onDataReceived != null ) Log.Record( text );
+			else Log.Info( text );
+		}
+
+		void ReportFailure( string reason )
+		{
+			var message = $"{reason}\nCommand: {executablePath} {arguments}\nWorking directory: {Path.GetFullPath( string.IsNullOrEmpty( workingDirectory ) ? Directory.GetCurrentDirectory() : workingDirectory )}";
+			if ( output != null )
+			{
+				lock ( output ) message += "\n" + output.ToString();
+			}
+			Log.Error( message );
+		}
 
 		process.StartInfo.FileName = executablePath;
 		process.StartInfo.Arguments = arguments;
@@ -57,6 +80,12 @@ internal static class Utility
 		{
 			foreach ( var envVar in environmentVariables )
 			{
+				if ( envVar.Value is null )
+				{
+					process.StartInfo.EnvironmentVariables.Remove( envVar.Key );
+					continue;
+				}
+
 				process.StartInfo.EnvironmentVariables[envVar.Key] = envVar.Value;
 			}
 		}
@@ -65,13 +94,11 @@ internal static class Utility
 		{
 			if ( e.Data != null )
 			{
+				ReceiveOutput( e.Data );
+
 				if ( onDataReceived != null )
 				{
 					onDataReceived( sender, e );
-				}
-				else
-				{
-					Log.Info( e.Data );
 				}
 			}
 		};
@@ -80,38 +107,42 @@ internal static class Utility
 		{
 			if ( e.Data != null )
 			{
-				Log.Error( e.Data );
+				ReceiveOutput( e.Data, error: true );
 			}
 		};
 
+		Log.ClearTail();
+		Log.Detail( $"Command: {executablePath} {arguments}" );
+		Log.Detail( $"Working directory: {Path.GetFullPath( string.IsNullOrEmpty( process.StartInfo.WorkingDirectory ) ? Directory.GetCurrentDirectory() : process.StartInfo.WorkingDirectory )}" );
 		process.Start();
 
 		process.BeginOutputReadLine();
 		process.BeginErrorReadLine();
 
-		// Wait for process with optional timeout
-		bool exited;
-		if ( timeoutMs > 0 )
+		// Timed waits do not drain asynchronous output handlers. Always finish with WaitForExit().
+		var timer = Stopwatch.StartNew();
+		while ( !process.WaitForExit( 100 ) )
 		{
-			exited = process.WaitForExit( timeoutMs );
-			if ( !exited )
+			if ( timeoutMs > 0 && timer.ElapsedMilliseconds >= timeoutMs )
 			{
-				Log.Error( $"Process timed out after {timeoutMs}ms" );
-				try { process.Kill(); } catch { }
+				try
+				{
+					process.Kill( entireProcessTree: true );
+					process.WaitForExit();
+				}
+				catch ( InvalidOperationException ) { }
+				catch ( System.ComponentModel.Win32Exception ex ) { Log.Error( $"Unable to stop process: {ex.Message}" ); }
+				ReportFailure( $"Process timed out after {timeoutMs}ms" );
 				return false;
 			}
 		}
-		else
-		{
-			process.WaitForExit();
-			exited = true;
-		}
+		process.WaitForExit();
 
-		bool success = exited && process.ExitCode == successExitCode;
+		bool success = process.ExitCode == successExitCode;
 
 		if ( !success )
 		{
-			Log.Error( $"Process failed with exit code: {process.ExitCode}" );
+			ReportFailure( $"Process failed with exit code: {process.ExitCode}" );
 		}
 
 		Log.Info( "" );
@@ -151,14 +182,36 @@ internal static class Utility
 	/// </summary>
 	public static bool PrTouchesNativeCode()
 	{
-		var baseRef = Environment.GetEnvironmentVariable( "GITHUB_BASE_REF" );
-		if ( string.IsNullOrEmpty( baseRef ) )
+		var diffTarget = PrDiffBase();
+		if ( diffTarget is null )
 		{
 			Log.Info( "GITHUB_BASE_REF not set; assuming native code is touched." );
 			return true;
 		}
 
-		var changedFiles = new List<string>();
+		var touchesNative = !NativeInputsMatch( diffTarget );
+
+		if ( touchesNative )
+		{
+			Log.Info( "PR touches native code or interop definitions; full native build required." );
+		}
+		else
+		{
+			Log.Info( "PR does not touch native code; public artifacts will be used." );
+		}
+
+		return touchesNative;
+	}
+
+	/// <summary>
+	/// The commit a PR's changes are measured from: where it forked from its base branch, fetched into a shallow CI
+	/// checkout. Null when this isn't a PR run (no GITHUB_BASE_REF).
+	/// </summary>
+	public static string PrDiffBase()
+	{
+		var baseRef = Environment.GetEnvironmentVariable( "GITHUB_BASE_REF" );
+		if ( string.IsNullOrEmpty( baseRef ) )
+			return null;
 
 		// In shallow CI checkouts origin/{baseRef} won't exist until we fetch it.
 		// Fetch enough history to find the merge-base; a depth of 50 is sufficient for
@@ -194,35 +247,29 @@ internal static class Utility
 			diffTarget = "FETCH_HEAD";
 		}
 
+		return diffTarget;
+	}
+
+	/// <summary>
+	/// Compares native build inputs at a commit against HEAD. Fails closed on Git errors.
+	/// </summary>
+	public static bool NativeInputsMatch( string commit )
+	{
+		var changed = false;
+		// Include the build tooling and generator as well as the native sources and definitions.
 		var success = RunProcess(
 			"git",
-			$"diff --name-only {diffTarget} HEAD",
+			$"diff --name-only --no-renames --no-ext-diff {commit} HEAD -- src/ engine/Definitions/ engine/Tools/SboxBuild/ engine/Tools/InteropGen/ engine/manifest.def",
 			onDataReceived: ( _, e ) =>
 			{
 				if ( !string.IsNullOrWhiteSpace( e.Data ) )
-					changedFiles.Add( e.Data.Trim() );
+					changed = true;
 			} );
 
 		if ( !success )
-		{
-			Log.Warning( "git diff failed; assuming native code is touched." );
-			return true;
-		}
+			Log.Warning( $"Unable to compare native inputs from {commit}; native artifacts cannot be reused." );
 
-		var touchesNative = changedFiles.Any( f =>
-			f.StartsWith( "src/", StringComparison.OrdinalIgnoreCase ) ||
-			f.StartsWith( "engine/Definitions/", StringComparison.OrdinalIgnoreCase ) );
-
-		if ( touchesNative )
-		{
-			Log.Info( "PR touches native code or interop definitions; full native build required." );
-		}
-		else
-		{
-			Log.Info( $"PR does not touch native code ({changedFiles.Count} file(s) changed); public artifacts will be used." );
-		}
-
-		return touchesNative;
+		return success && !changed;
 	}
 
 	public static string CalculateSha256( string filePath )
@@ -232,6 +279,24 @@ internal static class Utility
 		var hash = sha256.ComputeHash( stream );
 		return Convert.ToHexString( hash ).ToLowerInvariant();
 	}
+
+	/// <summary>
+	/// Creates a hard link at <paramref name="linkPath"/> to <paramref name="targetPath"/>. Fails when they're
+	/// on different volumes, or the file system doesn't support them.
+	/// </summary>
+	public static bool TryCreateHardLink( string linkPath, string targetPath )
+	{
+		if ( OperatingSystem.IsWindows() )
+			return CreateHardLinkW( linkPath, targetPath, IntPtr.Zero );
+
+		return link( targetPath, linkPath ) == 0;
+	}
+
+	[DllImport( "kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true )]
+	private static extern bool CreateHardLinkW( string lpFileName, string lpExistingFileName, IntPtr lpSecurityAttributes );
+
+	[DllImport( "libc", SetLastError = true )]
+	private static extern int link( string oldpath, string newpath );
 
 	public static string FormatSize( long bytes )
 	{
@@ -251,5 +316,24 @@ internal static class Utility
 		}
 
 		return $"{size:0.##} {units[unitIndex]}";
+	}
+
+	/// <summary>
+	/// Exports an environment variable to later steps of the same GitHub Actions job by appending it to the
+	/// file referenced by GITHUB_ENV. No-op when not running under Actions (GITHUB_ENV unset), so locally the
+	/// value is simply never seen by subsequent steps.
+	/// </summary>
+	/// <summary>
+	/// Sets a variable for later steps of the job, and for the rest of this process.
+	/// </summary>
+	public static void SetGitHubEnv( string name, string value )
+	{
+		Environment.SetEnvironmentVariable( name, value );
+
+		var githubEnv = Environment.GetEnvironmentVariable( "GITHUB_ENV" );
+		if ( string.IsNullOrEmpty( githubEnv ) )
+			return;
+
+		File.AppendAllText( githubEnv, $"{name}={value}{Environment.NewLine}" );
 	}
 }

@@ -1,127 +1,143 @@
 using Sandbox.Services;
 using Sandbox.Twitch;
 
-namespace Sandbox.Engine
+namespace Sandbox.Engine;
+
+internal static partial class Streamer
 {
-	internal static partial class Streamer
+	internal static IStreamService CurrentService;
+	internal static Sandbox.Streamer.Broadcast CurrentBroadcast;
+
+	internal static ServiceToken _serviceToken;
+	internal static ServiceToken ServiceToken
 	{
-		internal static IStreamService CurrentService;
-		internal static StreamBroadcast CurrentBroadcast;
-
-		internal static ServiceToken _serviceToken;
-		internal static ServiceToken ServiceToken
+		get
 		{
-			get
-			{
-				if ( _serviceToken.Token is null )
-					throw new System.Exception( "No service token" );
+			if ( _serviceToken.Token is null )
+				throw new System.Exception( "No service token" );
 
-				return _serviceToken;
-			}
-
-			private set => _serviceToken = value;
+			return _serviceToken;
 		}
 
-		/// <summary>
-		/// Your own username
-		/// </summary>
-		public static string Username => ServiceToken.Name;
+		private set => _serviceToken = value;
+	}
 
-		/// <summary>
-		/// Your own user id
-		/// </summary>
-		public static string UserId => ServiceToken.Id;
+	/// <summary>
+	/// Your own username, or null if we're not connected
+	/// </summary>
+	public static string Username => _serviceToken.Name;
 
-		internal static string Token => ServiceToken.Token;
+	/// <summary>
+	/// Your own user id, or null if we're not connected
+	/// </summary>
+	public static string UserId => _serviceToken.Id;
 
-		/// <summary>
-		/// The service type (ie "Twitch")
-		/// </summary>
-		public static StreamService ServiceType { get; private set; } = StreamService.None;
+	internal static string Token => ServiceToken.Token;
 
-		/// <summary>
-		/// Are we connected to a service
-		/// </summary>
-		public static bool IsActive => CurrentService != null;
+	/// <summary>
+	/// The service type (ie "Twitch")
+	/// </summary>
+	public static StreamService ServiceType { get; private set; } = StreamService.None;
 
-		internal static void RunEvent( string name )
+	/// <summary>
+	/// Are we connected to a service
+	/// </summary>
+	public static bool IsActive => CurrentService != null;
+
+	static async Task<bool> Init( IStreamService service, ServiceToken token )
+	{
+		_serviceToken = token;
+		CurrentService = service;
+
+		ServiceType = CurrentService != null ? CurrentService.ServiceType : StreamService.None;
+
+		bool success;
+		try
 		{
-			IMenuDll.Current?.RunEvent( name );
+			success = await CurrentService.Connect();
+		}
+		catch ( System.Exception e )
+		{
+			Log.Warning( e, "Connection failed." );
+			success = false;
 		}
 
-		internal static void RunEvent( string name, object argument )
+		if ( !success )
 		{
-			IMenuDll.Current?.RunEvent( name, argument );
-		}
-
-		static async Task<bool> Init( IStreamService service, ServiceToken token )
-		{
-			_serviceToken = token;
-			CurrentService = service;
-
-			ServiceType = CurrentService != null ? CurrentService.ServiceType : StreamService.None;
-
-			var success = await CurrentService.Connect();
-			if ( !success )
-			{
-				ServiceType = StreamService.None;
-				CurrentService = null;
-				Log.Info( "Connection failed." );
-				return false;
-			}
-
-			Log.Info( "Connected" );
-			return true;
-		}
-
-		internal static async Task<bool> Init( StreamService serviceType )
-		{
-			if ( CurrentService != null )
-			{
-				Log.Warning( "Tried to start stream but already connected" );
-				return false;
-			}
-
-			Log.Info( "Getting Service Token.." );
-			IStreamService service = null;
-			var token = await GetLinkedService( serviceType );
-			if ( token.Token is null )
-			{
-				Log.Warning( $"Couldn't retrieve token for {serviceType} (open https://sbox.facepunch.com/link)" );
-				return false;
-			}
-
-			Log.Info( "Creating Service.." );
-
-			switch ( serviceType )
-			{
-				case StreamService.Twitch:
-					service = new TwitchService();
-					break;
-			}
-
-			return await Init( service, token );
-		}
-
-		private static async Task<ServiceToken> GetLinkedService( StreamService serviceType )
-		{
-			var serviceName = $"{serviceType}";
-			serviceName = serviceName.ToLower();
-
 			try
 			{
-				return await Sandbox.Backend.Account.GetService( serviceName );
+				service?.Disconnect();
 			}
-			catch ( System.Exception )
+			catch ( System.Exception e )
 			{
-				return default;
+				Log.Warning( e, "Error disconnecting failed service." );
 			}
+
+			_serviceToken = default;
+			ServiceType = StreamService.None;
+			CurrentService = null;
+			Log.Info( "Connection failed." );
+			return false;
 		}
 
-		internal static void Shutdown()
+		Log.Info( "Connected" );
+		return true;
+	}
+
+	internal static async Task<bool> Init( string serviceType )
+	{
+		if ( CurrentService != null )
 		{
-			CurrentService?.Disconnect();
-			CurrentService = null;
+			Log.Warning( "Tried to start stream but already connected" );
+			return false;
 		}
+
+		Log.Info( "Getting Service Token.." );
+		IStreamService service = null;
+		var token = await GetLinkedService( serviceType );
+		if ( token.Token is null )
+		{
+			Log.Warning( $"Couldn't retrieve token for {serviceType} (open https://sbox.facepunch.com/link)" );
+			return false;
+		}
+
+		Log.Info( $"Creating Service {serviceType}.." );
+
+		switch ( serviceType.ToLowerInvariant() )
+		{
+			case "twitch":
+				service = new TwitchService();
+				break;
+		}
+
+		if ( service == null )
+		{
+			Log.Warning( $"Unsupported service type {serviceType}" );
+			return false;
+		}
+
+		return await Init( service, token );
+	}
+
+	private static async Task<ServiceToken> GetLinkedService( string serviceType )
+	{
+		try
+		{
+			return await Sandbox.Backend.Account.GetService( serviceType );
+		}
+		catch ( System.Exception )
+		{
+			return default;
+		}
+	}
+
+	internal static void Shutdown( string serviceName )
+	{
+		// serviceName ignored for now
+		CurrentService?.Disconnect();
+		CurrentService = null;
+		_serviceToken = default;
+		ServiceType = StreamService.None;
+		ClearViewers();
 	}
 }

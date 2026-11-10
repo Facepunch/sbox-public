@@ -6,6 +6,9 @@ namespace Editor;
 public class ColorSampler
 {
 	public Action<Color> OnPicked;
+	public Action<Vector2> OnPositionPreview;
+	public Func<Vector2, bool> OnPositionPicked;
+	public Action<Vector2, Rect> OnPositionPaint;
 	public Action OnCancelled;
 
 	private List<ColorSamplerOverlay> _overlays;
@@ -20,10 +23,17 @@ public class ColorSampler
 		for ( int i = 0; i < QApp.ScreenCount(); i++ )
 		{
 			var overlay = new ColorSamplerOverlay( i );
-			overlay.OnPicked += _OnPicked;
-			overlay.OnCancelled += _OnCancelled;
-			_overlays.Add( overlay );
+			AddOverlay( overlay );
 		}
+	}
+
+	public void ShowPositionPicker( Func<Rect> screenRect )
+	{
+		AddOverlay( new ColorSamplerOverlay( screenRect )
+		{
+			OnPositionPreview = position => OnPositionPreview?.Invoke( position ),
+			OnPositionPaint = ( position, rect ) => OnPositionPaint?.Invoke( position, rect )
+		} );
 	}
 
 	public void Hide()
@@ -51,14 +61,34 @@ public class ColorSampler
 		OnCancelled?.Invoke();
 		Hide();
 	}
+
+	private void AddOverlay( ColorSamplerOverlay overlay )
+	{
+		overlay.OnPicked += _OnPicked;
+		overlay.OnPositionPicked += _OnPositionPicked;
+		overlay.OnCancelled += _OnCancelled;
+		_overlays.Add( overlay );
+	}
+
+	private void _OnPositionPicked( Vector2 position )
+	{
+		if ( OnPositionPicked?.Invoke( position ) == false )
+			return;
+
+		Hide();
+	}
 }
 
 internal class ColorSamplerOverlay : Widget
 {
 	public Action<Color> OnPicked;
+	public Action<Vector2> OnPositionPreview;
+	public Action<Vector2> OnPositionPicked;
+	public Action<Vector2, Rect> OnPositionPaint;
 	public Action OnCancelled;
 
 	private Pixmap _pixmap;
+	private Func<Rect> _screenRect;
 
 	public ColorSamplerOverlay( int screenNumber ) : base()
 	{
@@ -82,6 +112,25 @@ internal class ColorSamplerOverlay : Widget
 		MouseTracking = true;
 	}
 
+	public ColorSamplerOverlay( Func<Rect> screenRect ) : base()
+	{
+		ArgumentNullException.ThrowIfNull( screenRect );
+
+		_screenRect = screenRect;
+
+		Cursor = CursorShape.Cross;
+		IsFramelessWindow = true;
+		TranslucentBackground = true;
+		NoSystemBackground = true;
+		DeleteOnClose = true;
+		MouseTracking = true;
+
+		SyncPosition();
+		Show();
+		Raise();
+		Focus();
+	}
+
 	public Color CurrentColor()
 	{
 		Vector3 curPos = _widget.mapFromGlobal( Native.QApp.CursorPosition() );
@@ -97,7 +146,11 @@ internal class ColorSamplerOverlay : Widget
 	{
 		base.OnMouseClick( e );
 
-		OnPicked?.Invoke( CurrentColor() );
+		if ( _screenRect is null )
+			OnPicked?.Invoke( CurrentColor() );
+		else
+			OnPositionPicked?.Invoke( e.ScreenPosition );
+
 		e.Accepted = true;
 	}
 
@@ -118,6 +171,12 @@ internal class ColorSamplerOverlay : Widget
 	protected override void OnPaint()
 	{
 		base.OnPaint();
+
+		if ( _screenRect is not null )
+		{
+			OnPositionPaint?.Invoke( Application.CursorPosition, ScreenRect );
+			return;
+		}
 
 		Paint.Draw( ScreenRect.WithoutPosition, _pixmap );
 
@@ -169,6 +228,32 @@ internal class ColorSamplerOverlay : Widget
 		Paint.DrawRect( new Rect( drawPos.x, drawPos.y + Y_OFFSET, PREVIEW_PIXEL_SIZE, PREVIEW_PIXEL_SIZE ) );
 		Paint.PenSize = 1;
 
+	}
+
+	protected override void OnKeyPress( KeyEvent e )
+	{
+		base.OnKeyPress( e );
+
+		if ( _screenRect is not null && e.Key == KeyCode.Escape )
+			OnCancelled?.Invoke();
+	}
+
+	[EditorEvent.Frame]
+	private void Frame()
+	{
+		if ( _screenRect is null )
+			return;
+
+		SyncPosition();
+		OnPositionPreview?.Invoke( Application.CursorPosition );
+		Update();
+	}
+
+	private void SyncPosition()
+	{
+		var rect = _screenRect();
+		Position = rect.Position;
+		Size = rect.Size;
 	}
 
 	protected override void OnBlur( FocusChangeReason reason )

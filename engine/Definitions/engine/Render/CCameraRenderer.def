@@ -12,9 +12,14 @@ native class CCameraRenderer
 	void AddSceneWorld( ISceneWorld world );
 	void SetRenderAttributes( CRenderAttributes attributes );
 	void Render( SwapChainHandle_t targetSwapChain );
-	void RenderToTexture( ITexture hTexture, ISceneView parentView );
+	bool RenderToTexture( ITexture hTexture, ISceneView parentView, ITexture hDepthTexture );
+	Matrix RenderedProjectionToView;
+	Vector4 RenderedViewport;
+	Vector4 RenderedDepthRange;
 	void RenderToCubeTexture( ITexture hTexture, int nSlice );
 	void RenderToBitmap( void* pixels, int width, int height, int bytesPerPixel );
+
+	static void RenderOverlay(  SwapChainHandle_t swapChain );
 
 	void RenderStereo( int eye, int eyeWidth, int eyeHeight, bool bSubmitThisEye );
 	void SubmitStereo( int eyeWidth, int eyeHeight );
@@ -37,6 +42,8 @@ native class CCameraRenderer
 
 	bool EnablePostprocessing;
 	bool EnableEngineOverlays;
+	bool EnableUI;
+	bool UIOnly;
 
 	bool Ortho;
 	float OrthoSize;

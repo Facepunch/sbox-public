@@ -47,16 +47,32 @@ public partial class SoundEvent : GameResource
 	public List<SoundFile> Sounds { get; set; }
 
 	/// <summary>
-	/// Allow this sound to be occluded by geometry 
+	/// Allow this sound to be occluded by geometry
 	/// </summary>
-	[ToggleGroup( "Occlusion" ), HideIf( nameof( UI ), true )]
-	public bool Occlusion { get; set; } = true;
+	[HideIf( nameof( UI ), true )]
+	public bool OcclusionEnabled { get; set; } = true;
+
+	/// <summary>Legacy alias for <see cref="OcclusionEnabled"/>.</summary>
+	[Hide, Obsolete( "Use OcclusionEnabled instead." )]
+	public bool Occlusion
+	{
+		get => OcclusionEnabled;
+		set => OcclusionEnabled = value;
+	}
 
 	/// <summary>
 	/// Allow this sound to trace reflections, allowing it to be heard indirectly
 	/// </summary>
-	[JsonIgnore, Hide, Obsolete]
-	public bool Reflections { get; set; } = true;
+	[HideIf( nameof( UI ), true )]
+	public bool ReverbEnabled { get; set; } = true;
+
+	/// <summary>Legacy alias for <see cref="ReverbEnabled"/>.</summary>
+	[Hide, Obsolete( "Use ReverbEnabled instead." )]
+	public bool Reflections
+	{
+		get => ReverbEnabled;
+		set => ReverbEnabled = value;
+	}
 
 	/// <summary>
 	/// Allow this sound to be absorbed by air
@@ -65,15 +81,15 @@ public partial class SoundEvent : GameResource
 	public bool AirAbsorption { get; set; } = true;
 
 	/// <summary>
-	/// Allow this sound to be transmitted through geometry
+	/// Legacy transmission toggle. Transmission is now derived from occlusion and material response.
 	/// </summary>
-	[HideIf( nameof( UI ), true )]
+	[JsonInclude, Hide, Obsolete( "Transmission is derived from occlusion and material response." )]
 	public bool Transmission { get; set; } = true;
 
 	/// <summary>
-	/// The radius of this sound's occlusion in inches.
+	/// Legacy occlusion radius. No longer used by the simulation.
 	/// </summary>
-	[ToggleGroup( "Occlusion" ), Range( 0, 256 ), HideIf( nameof( UI ), true )]
+	[JsonInclude, Hide, Obsolete( "OcclusionRadius is no longer used by the simulation." )]
 	public float OcclusionRadius { get; set; } = 64.0f;
 
 	/// <summary>
@@ -83,16 +99,28 @@ public partial class SoundEvent : GameResource
 	public bool DistanceAttenuation { get; set; } = true;
 
 	/// <summary>
-	/// How many units the sound can be heard from.
+	/// How many units the sound can be heard from. Past this it isn't considered at all.
 	/// </summary>
-	[ToggleGroup( "DistanceAttenuation" ), DefaultValue( 15_000f ), Description( "How many units the sound can be heard from." ), HideIf( nameof( UI ), true ), AudioDistanceFloat]
+	[ToggleGroup( "DistanceAttenuation" ), DefaultValue( 15_000f ), Description( "How many units the sound can be heard from. Past this it isn't considered at all." ), HideIf( nameof( UI ), true ), AudioDistanceFloat]
 	public float Distance { get; set; } = 15_000f;
 
 	/// <summary>
-	/// The falloff curve for the sound.
+	/// How the volume falls off with distance.
 	/// </summary>
-	[ToggleGroup( "DistanceAttenuation" ), Description( "The falloff curve for the sound." ), HideIf( nameof( UI ), true )]
-	public Curve Falloff { get; set; } = new Curve( new( 0, 1, 0, -1.8f ), new( 0.05f, 0.22f, 3.5f, -3.5f ), new( 0.2f, 0.04f, 0.16f, -0.16f ), new( 1, 0 ) );
+	[ToggleGroup( "DistanceAttenuation" ), Description( "Physical: full volume within the min distance, halving every time the distance doubles. Curve: the falloff curve." ), HideIf( nameof( UI ), true )]
+	public SoundFalloffMode FalloffMode { get; set; } = SoundFalloffMode.Physical;
+
+	/// <summary>
+	/// Radius around the source at full volume, roughly the size of the source. Bigger carries further. 0 picks one from the distance.
+	/// </summary>
+	[ToggleGroup( "DistanceAttenuation" ), DefaultValue( 0f ), Description( "Radius around the source at full volume, roughly the size of the source. Bigger carries further. 0 picks one from the distance." ), ShowIf( nameof( FalloffMode ), SoundFalloffMode.Physical ), HideIf( nameof( UI ), true ), AudioDistanceFloat]
+	public float MinDistance { get; set; }
+
+	/// <summary>
+	/// The falloff curve for the sound, from the source (0) to the distance (1).
+	/// </summary>
+	[ToggleGroup( "DistanceAttenuation" ), Description( "The falloff curve for the sound, from the source (0) to the distance (1)." ), ShowIf( nameof( FalloffMode ), SoundFalloffMode.Curve ), HideIf( nameof( UI ), true )]
+	public Curve Falloff { get; set; } = Audio.SoundFalloff.ClassicCurve;
 
 	/// <summary>
 	/// Default mixer to play this sound with if one isn't provided on play.

@@ -1,0 +1,145 @@
+#ifndef AMBIENTLIGHT_HLSL
+#define AMBIENTLIGHT_HLSL
+
+#include "light_probe_volume.fxc"
+#include "vr_environment_map.fxc"
+#include "common/DDGI/DDGI.hlsl"
+
+enum AmbientLightKind
+{
+    EnvMapProbe,            // Image-based Lighting
+    LightMapProbeVolume,    // Probe-based Lighting
+    DDGI                    // Dynamic Diffuse Global Illumination
+};
+
+/// <summary>
+/// Ambient (Diffuse) light class.
+/// </summary>
+struct AmbientLight
+{
+    static AmbientLightKind GetKind()
+    {
+        if ( DDGI::IsEnabled() )
+        {
+            return AmbientLightKind::DDGI;
+        }
+        else if ( UsesBakedLightingFromProbe )
+        {
+            return AmbientLightKind::LightMapProbeVolume;
+        }
+        else
+        {
+            return AmbientLightKind::EnvMapProbe;
+        }
+    }
+
+    static float3 FromDDGI(float3 WorldPosition, float3 WorldNormal)
+    {
+        float3 cameraDirWs = CalculatePositionToCameraDirWs( WorldPosition );
+        return DDGI::EvaluateVolumes( WorldPosition, WorldNormal, cameraDirWs ).rgb;
+    }
+
+    static float3 FromEnvMapProbe(float3 WorldPosition, float4 PositionSs, float3 WorldNormal)
+    {
+        float accumulatedDistance = 0.0f;
+        float3 ambientLightColor = float3(0.0, 0.0, 0.0);
+
+        // Todo: all this shit could just use EnvMap::From( Roughness 1.0f ) just overgoing the parallax stuff
+    
+        ClusterRange range = Cluster::Query( ClusterItemType_EnvMap, PositionSs );
+        if ( range.Count == 0 )
+        {
+            return lerp( ambientLightColor, AmbientLightColor.rgb, AmbientLightColor.a );
+        }
+
+        // Iterate over environment maps in the tile
+        ClusterForEach( range )
+        {
+            // Wave-uniform by construction (WaveActiveMin in Cluster::Next), but Slang can't prove it, hence asDynamicUniform
+            const uint index = range.Item;
+
+            // Transform world position to environment map local space
+            const float3 localPos = mul(float4(WorldPosition, 1.0f), EnvMapWorldToLocal(index)).xyz;
+
+            // Get edge feathering value
+            const float edgeFeathering = EnvMapFeathering(index);
+
+            // Environment map boundaries
+            const float3 envMapMin = EnvMapBoxMins(index);
+            const float3 envMapMax = EnvMapBoxMaxs(index);
+
+            // Calculate intersection distances
+            const float3 intersectA = min(localPos - envMapMin, envMapMax - localPos);
+            const float3 intersectB = min(localPos - envMapMax, envMapMin - localPos);
+
+            const float distance = min(
+                min(intersectA.x, min(intersectA.y, intersectA.z)),
+                min(-intersectB.x, -min(intersectB.y, intersectB.z))
+            ) + 0.5f; // Offset to avoid edge artifacts
+
+            // Skip if outside of influence range
+            if (distance + max(edgeFeathering, 0.0f) < 0.0)
+                continue;
+
+            // Compute diffuse lighting from environment map
+            const float3 localNormal = mul(float4(WorldNormal, 0.0f), EnvMapWorldToLocal(index)).xyz;
+
+            float3 envMapColor = SampleEnvironmentMapLevel(localNormal, 1.0f, index, EnvMapTexture(asDynamicUniform(UniformIndex(index))));
+
+            // Adjust for subsurface scattering if enabled
+            /*#if (S_SUBSURFACE_SCATTERING == SUBSURFACE_SCATTERING_PREINTEGRATED)
+            {
+                float flSSSMask = 0;
+
+                float3 normalR = normalize(lerp(WorldNormal, vNormalWs, g_vAmbientNormalSoftness.r * flSSSMask));
+                float3 normalG = normalize(lerp(WorldNormal, vNormalWs, g_vAmbientNormalSoftness.g * flSSSMask));
+                float3 normalB = normalize(lerp(WorldNormal, vNormalWs, g_vAmbientNormalSoftness.b * flSSSMask));
+            
+                envMapColor.r = SampleEnvironmentMapLevel(normalR, 1.0f, index).r;
+                envMapColor.g = SampleEnvironmentMapLevel(normalG, 1.0f, index).g;
+                envMapColor.b = SampleEnvironmentMapLevel(normalB, 1.0f, index).b;
+            }
+            #endif*/
+
+            // Blend the ambient light color
+            ambientLightColor = lerp(ambientLightColor, envMapColor, 1.0 - accumulatedDistance);
+
+            // Update the accumulated distance
+            accumulatedDistance += RemapValClamped(distance, min(-edgeFeathering, 0.0f), max(-edgeFeathering, 0.0f), 0.0, 1.0);
+
+            // Break if we've accumulated enough light
+            if (accumulatedDistance >= 1.0)
+                break;
+        }
+
+        // Blend our IBL with the ambient light scalar defined in ViewLightingConfig
+        ambientLightColor = lerp(ambientLightColor, AmbientLightColor.rgb, AmbientLightColor.a);
+
+        return ambientLightColor;
+    }
+
+    static float3 FromLightMapProbeVolume(float3 WorldPosition, float3 WorldNormal)
+    {
+        float3 vAmbientCube[6];
+        SampleLightProbeVolume(vAmbientCube, WorldPosition);
+        return SampleIrradiance(vAmbientCube, WorldNormal);
+    }
+
+    static float3 From( float3 WorldPosition, float4 PositionSs, float3 WorldNormal )
+    {
+        switch( GetKind() )
+        {
+            case AmbientLightKind::DDGI:
+                return FromDDGI( WorldPosition, WorldNormal );
+            case AmbientLightKind::EnvMapProbe:
+                return FromEnvMapProbe( WorldPosition, PositionSs, WorldNormal );
+                break;
+            case AmbientLightKind::LightMapProbeVolume:
+                return FromLightMapProbeVolume( WorldPosition, WorldNormal );
+                break;
+        }
+        return 0.0f;
+    }
+};
+
+#endif // AMBIENTLIGHT_HLSL

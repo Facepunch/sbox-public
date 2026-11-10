@@ -38,10 +38,23 @@ public sealed partial class AmbientOcclusion : BasePostProcess<AmbientOcclusion>
 	public float FalloffRange { get; set; } = 1.0f;
 
 	/// <summary>
-	/// How we should denoise the effect
+	/// Run ambient occlusion at a reduced resolution to save GPU time.
+	/// The AO texture is sampled with bilinear filtering when applied to the scene.
 	/// </summary>
-	[Property, Category( "Quality" )]
-	public DenoiseModes DenoiseMode { get; set; } = DenoiseModes.Temporal;
+	[ConVar( "r_ao_resolution", Min = 1, Max = 8, Help = "Ambient occlusion resolution scale divisor (1: full, 2: half, 4: quarter, 8: eighth)" )]
+	internal static int UserResolution { get; set; } = 2;
+
+	/// <summary>
+	/// Number of same-frame spatial (À-Trous) denoise passes. Each pass doubles the sample step (1, 2, 4).
+	/// </summary>
+	[ConVar( "r_ao_denoise_passes", Min = 1, Max = 3, Help = "Number of spatial (À-Trous) denoise passes (1-3)" )]
+	internal static int UserDenoisePasses { get; set; } = 3;
+
+	/// <summary>
+	/// Ground truth for judging the real thing: this many slices at full resolution, 8 steps each, no denoising.
+	/// </summary>
+	[ConVar( "r_ao_reference", Min = 0, Max = 128, Help = "Debug: render AO at full resolution with this many slices (8 steps each) and no denoising, as a quality reference. 0 is off" )]
+	internal static int ReferenceSlices { get; set; } = 0;
 
 	/// <summary>
 	/// Slightly reduce impact of samples further back to counter the bias from depth-based (incomplete) input scene geometry data
@@ -49,7 +62,10 @@ public sealed partial class AmbientOcclusion : BasePostProcess<AmbientOcclusion>
 	[Property, Category( "Quality" ), Range( 0.0f, 5.0f )]
 	public float ThinCompensation { get; set; } = 5.0f;
 
-	int Frame = 0;
+	/// <summary>
+	/// Blue-noise texture used by GTAO sampling.
+	/// </summary>
+	Texture BlueNoise { get; set; } = Texture.Load( "textures/dev/blue_noise_256.vtex" );
 
 	private struct GTAOConstants
 	{
@@ -67,79 +83,50 @@ public sealed partial class AmbientOcclusion : BasePostProcess<AmbientOcclusion>
 		public float EffectFalloffRange;
 
 		public float RadiusMultiplier = 1.457f;
-		public float TAABlendAmount = 0;
+		public float TAABlendAmount = 0;                 // unused — kept for cbuffer layout match with XeGTAO.h
 		public float FinalValuePower = 2.2f;             // modifies the final ambient occlusion value using power function - this allows some of the above heuristics to do different things
 		public float DenoiseBlurBeta = 1.5f;
-		public float SampleDistributionPower = 2.0f;      // small crevices more important than big surfaces
+		public float SampleDistributionPower = 2.0f;      // unused — the shader squares; kept for cbuffer layout match with XeGTAO.h
 		public float ThinOccluderCompensation = 0.0f;    // the new 'thickness heuristic' approach
 		public float DepthMIPSamplingOffset = 3.30f;     // main trade-off between performance (memory bandwidth) and quality (temporal stability is the first affected, thin objects next)
-		public int NoiseIndex = 0;            // frameIndex % 64 if using TAA or 0 otherwise
+		public int NoiseIndex = 0;            // unused — kept for cbuffer layout match with XeGTAO.h
 		public GTAOConstants() { }
 	};
 
 	enum GTAOPasses
 	{
-		ViewDepthChain,    // XeGTAO depth filter does average depth, a bit similar to our depth chain
+		ViewDepthChain,
 		MainPass,
 		DenoiseSpatial,
-		DenoiseTemporal
+		BilateralUpsample
 	}
 
 	//-------------------------------------------------------------------------
-
-	public enum DenoiseModes
-	{
-		/// <summary>
-		/// Applies spatial denoising to reduce noise by averaging pixel values within a local neighborhood.
-		/// This method smooths out noise by considering the spatial relationship between pixels in a single frame.
-		/// </summary>
-		[Icon( "filter_center_focus" )]
-		Spatial,
-
-		/// <summary>
-		/// Applies temporal denoising to reduce noise by averaging pixel values over multiple frames.
-		/// This method leverages the temporal coherence of consecutive frames to achieve a noise-free result.
-		/// </summary>
-		[Icon( "auto_awesome_motion" )]
-		Temporal
-	}
 
 	GTAOConstants GetGTAOConstants()
 	{
 		var consts = new GTAOConstants();
 
-		// The above is calculated on shader now
+		// Viewport-dependent values are computed in the shader's GetConstants()
 		consts.ViewportSize = Vector2Int.Zero;
 		consts.ViewportPixelSize = Vector2.Zero;
 		consts.DepthUnpackConsts = Vector2.Zero;
 		consts.CameraTanHalfFOV = Vector2.Zero;
 		consts.NDCToViewMul = Vector2.Zero;
 		consts.NDCToViewAdd = Vector2.Zero;
-
 		consts.NDCToViewMul_x_PixelSize = Vector2.Zero;
 
 		//-------------------------------------------------------------------------
 		consts.EffectRadius = GetWeighted( x => x.Radius, 128.0f );
-
 		consts.EffectFalloffRange = GetWeighted( x => x.FalloffRange, 1.0f );
-		consts.DenoiseBlurBeta = 1.2f; // Used only on Spatial denoising
+		consts.DenoiseBlurBeta = 1.2f;
 
-		consts.NoiseIndex = DenoiseMode == DenoiseModes.Temporal ? Frame : 0;
 		consts.ThinOccluderCompensation = ThinCompensation;
-		consts.FinalValuePower = GetWeighted( x => x.Intensity, 1.0f ) * 10.0f;
 
-		switch ( UserQuality )
-		{
-			case 1:
-				consts.TAABlendAmount = 0.95f;
-				break;
-			case 2:
-				consts.TAABlendAmount = 0.95f;
-				break;
-			case 3:
-				consts.TAABlendAmount = 0.95f;
-				break;
-		}
+		// Map [0,1] intensity to a reasonable power curve.
+		// pow(visibility, power) where power=0 gives no darkening, power=4 gives strong AO.
+		consts.FinalValuePower = GetWeighted( x => x.Intensity, 1.0f ) * 4.0f;
+
 		return consts;
 	}
 
@@ -147,69 +134,125 @@ public sealed partial class AmbientOcclusion : BasePostProcess<AmbientOcclusion>
 
 	private static ComputeShader GtaoCs = new ComputeShader( "gtao_cs" );
 
+	// A GPU profiler row per pass. The async compute queue has no timestamps, so +r_managed_async_compute 0 to see them
+	static readonly ProfilingSampler DepthChainSampler = new( "AO Depth Chain" );
+	static readonly ProfilingSampler MainPassSampler = new( "AO Main Pass" );
+	static readonly ProfilingSampler DenoiseSampler = new( "AO Denoise" );
+	static readonly ProfilingSampler UpsampleSampler = new( "AO Upsample" );
+
+	/// <summary>
+	/// Reads the normals and roughness G-buffer the depth-normals prepass writes (<c>NormalsGBuffer</c>), which the managed
+	/// scene renderer draws only for cameras with an effect that needs it.
+	/// </summary>
+	internal override bool NeedsDepthNormals => true;
+
+	// GTAO is compute dispatches and barriers from the depth chain and normals into its own targets
+	internal override PostProcessQueue? EarlyQueue => PostProcessQueue.AsyncCompute;
+
 	public override void Render()
 	{
+		if ( UserQuality <= 0 )
+			return;
+
 		commands.Reset();
 
-		RenderTargetHandle ViewDepthChainTexture = commands.GetRenderTarget( "ViewDepthChainTexture", ImageFormat.R32F, numMips: 5 );
-		RenderTargetHandle WorkingEdgesTexture = commands.GetRenderTarget( "WorkingEdgesTexture", ImageFormat.R16F );
-		RenderTargetHandle WorkingAOTexture = commands.GetRenderTarget( "WorkingAOTexture", ImageFormat.A8 );
-		RenderTargetHandle AOTexture0 = commands.GetRenderTarget( "AOTexture0", ImageFormat.A8 );
-		RenderTargetHandle AOTexture1 = commands.GetRenderTarget( "AOTexture1", ImageFormat.A8 );
+		bool reference = ReferenceSlices > 0;
+		int scale = reference ? 1 : UserResolution.Clamp( 1, 8 );
 
-		bool pingPong = (Frame++ % 2) == 0;
-
-		var AOTextureCurrent = pingPong ? AOTexture0 : AOTexture1;
-		var AOTexturePrev = pingPong ? AOTexture1 : AOTexture0;
+		// All at AO resolution: view depth with MIPs, and visibility twice to ping-pong through the denoiser
+		RenderTargetHandle ViewDepthChainTexture = commands.GetRenderTarget( "ViewDepthChainTexture", ImageFormat.R16F, sizeFactor: scale, numMips: 5 );
+		RenderTargetHandle AOZ0 = commands.GetRenderTarget( "AOZ0", ImageFormat.R16F, sizeFactor: scale );
+		RenderTargetHandle AOZ1 = commands.GetRenderTarget( "AOZ1", ImageFormat.R16F, sizeFactor: scale );
 
 		commands.Attributes.SetData( "GTAOConstants", GetGTAOConstants() );
+		commands.Attributes.Set( "BlueNoise", BlueNoise );
+		commands.Attributes.Set( "ReferenceSlices", ReferenceSlices );
+		commands.Attributes.SetValue( "D_MSAA_NORMALS", RenderValue.MsaaCombo );
+		commands.Attributes.SetCombo( "D_QUALITY", reference ? 3 : (UserQuality - 1).Clamp( 0, 2 ) );
 
-		// 
-		// Bind textures to the compute shader
 		commands.Attributes.Set( "WorkingDepthMIP0", ViewDepthChainTexture.ColorTexture, 0 );
 		commands.Attributes.Set( "WorkingDepthMIP1", ViewDepthChainTexture.ColorTexture, 1 );
 		commands.Attributes.Set( "WorkingDepthMIP2", ViewDepthChainTexture.ColorTexture, 2 );
 		commands.Attributes.Set( "WorkingDepthMIP3", ViewDepthChainTexture.ColorTexture, 3 );
 		commands.Attributes.Set( "WorkingDepthMIP4", ViewDepthChainTexture.ColorTexture, 4 );
 		commands.Attributes.Set( "WorkingDepth", ViewDepthChainTexture.ColorTexture );
-		commands.Attributes.Set( "WorkingAOTerm", WorkingAOTexture.ColorTexture );
-		commands.Attributes.Set( "WorkingEdges", WorkingEdgesTexture.ColorTexture );
-		commands.Attributes.Set( "FinalAOTerm", AOTextureCurrent.ColorTexture );
-		commands.Attributes.Set( "FinalAOTermPrev", AOTexturePrev.ColorTexture );
+		commands.Attributes.Set( "OutAOZ", AOZ0.ColorTexture );
 
-		commands.Attributes.SetCombo( "D_QUALITY", (UserQuality - 1).Clamp( 0, 2 ) );
+		commands.Attributes.Set( "ResolutionScale", scale );
 
-		// View depth chain - each thread writes a 2x2 area, so dispatch at half resolution
+		// View depth chain: a thread for every 2x2 AO texels, rounded up so odd sizes get their last row and column
+		using ( commands.ProfileScope( DepthChainSampler ) )
 		{
 			commands.Attributes.SetCombo( "D_PASS", GTAOPasses.ViewDepthChain );
-			commands.DispatchCompute( GtaoCs, commands.ViewportSizeScaled( 2 ) );
+			commands.DispatchCompute( GtaoCs, commands.ViewportSizeScaled( 2 * scale ) );
+			commands.ResourceBarrierTransition( ViewDepthChainTexture, ResourceState.NonPixelShaderResource );
 		}
 
-		commands.ResourceBarrierTransition( ViewDepthChainTexture, ResourceState.NonPixelShaderResource );
-
-		// Main pass
+		using ( commands.ProfileScope( MainPassSampler ) )
 		{
 			commands.Attributes.SetCombo( "D_PASS", GTAOPasses.MainPass );
-			commands.DispatchCompute( GtaoCs, AOTextureCurrent.Size );
+			commands.DispatchCompute( GtaoCs, AOZ0.Size );
+			commands.ResourceBarrierTransition( AOZ0, ResourceState.NonPixelShaderResource );
 		}
 
-		commands.ResourceBarrierTransition( WorkingAOTexture, ResourceState.NonPixelShaderResource );
-		commands.ResourceBarrierTransition( WorkingEdgesTexture, ResourceState.NonPixelShaderResource );
-
-		// Denoise
+		// Same-frame multi-pass spatial denoise with dilated steps; the reference is converged as it is
+		var current = AOZ0;
+		if ( !reference )
 		{
-			commands.Attributes.SetCombo( "D_PASS", DenoiseMode == DenoiseModes.Temporal ? GTAOPasses.DenoiseTemporal : GTAOPasses.DenoiseSpatial );
-			commands.DispatchCompute( GtaoCs, AOTextureCurrent.Size );
+			using var denoiseScope = commands.ProfileScope( DenoiseSampler );
+
+			commands.Attributes.SetCombo( "D_PASS", GTAOPasses.DenoiseSpatial );
+
+			int passes = UserDenoisePasses.Clamp( 1, 3 );
+			var next = AOZ1;
+
+			// Steps 1 and 2 share a dispatch, step 4 gets its own
+			for ( int pass = 0; pass < passes; )
+			{
+				int steps = pass == 0 ? Math.Min( 2, passes ) : 1;
+
+				commands.ResourceBarrierTransition( next, ResourceState.UnorderedAccess );
+				commands.Attributes.Set( "AOZ", current.ColorTexture );
+				commands.Attributes.Set( "OutDenoised", next.ColorTexture );
+				commands.Attributes.Set( "SpatialStep", 1 << pass );
+				commands.Attributes.Set( "SpatialSteps", steps );
+				commands.DispatchCompute( GtaoCs, next.Size );
+				commands.ResourceBarrierTransition( next, ResourceState.NonPixelShaderResource );
+
+				var swap = current;
+				current = next;
+				next = swap;
+				pass += steps;
+			}
 		}
 
-		commands.ResourceBarrierTransition( AOTextureCurrent, ResourceState.PixelShaderResource );
+		//
+		// Bilateral upsample to full resolution if running at reduced AO resolution. Weighs the coarse texels around
+		// each pixel by their tangent plane's distance to it, so AO doesn't bleed across depth discontinuities.
+		//
+		if ( scale > 1 )
+		{
+			using var upsampleScope = commands.ProfileScope( UpsampleSampler );
 
-		//
-		// Finally pass the AO as a texture for the rest of the pipeline
-		// Technically uses previous frame texture since it'll be applied next frame
-		// We could try to parent rather than merging attributes but it's causing race conditions from managed size and more complex to manage
-		//
-		commands.GlobalAttributes.Set( "ScreenSpaceAmbientOcclusionTexture", AOTextureCurrent.ColorIndex );
+			RenderTargetHandle UpsampledAO = commands.GetRenderTarget( "UpsampledAO", ImageFormat.A8 );
+
+			commands.Attributes.Set( "AOZ", current.ColorTexture );
+			commands.Attributes.Set( "FullResAO", UpsampledAO.ColorTexture );
+
+			commands.Attributes.SetCombo( "D_PASS", GTAOPasses.BilateralUpsample );
+			commands.DispatchCompute( GtaoCs, UpsampledAO.Size );
+
+			commands.ResourceBarrierTransition( UpsampledAO, ResourceState.PixelShaderResource );
+
+			commands.SetPipelineTexture( PipelineTextureSlot.AmbientOcclusion, UpsampledAO.ColorTexture );
+		}
+		else
+		{
+			// Visibility is in red, which is what the forward shaders sample
+			commands.ResourceBarrierTransition( current, ResourceState.PixelShaderResource );
+
+			commands.SetPipelineTexture( PipelineTextureSlot.AmbientOcclusion, current.ColorTexture );
+		}
 
 		InsertCommandList( commands, Stage.AfterDepthPrepass, 0, "Ambient Occlusion" );
 	}

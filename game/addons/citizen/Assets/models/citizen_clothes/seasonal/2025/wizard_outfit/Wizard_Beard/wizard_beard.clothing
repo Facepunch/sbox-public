@@ -11,16 +11,17 @@
   "Category": "FacialHairBeard",
   "ConditionalModels": {},
   "Tags": null,
-  "Parent": null,
   "Model": "models/citizen_clothes/seasonal/2025/wizard_outfit/wizard_beard/models/wizard_beard.vmdl",
   "HumanAltModel": "models/citizen_clothes/seasonal/2025/wizard_outfit/wizard_beard/models/wizard_beard_m_human.vmdl",
   "HumanAltFemaleModel": "models/citizen_clothes/seasonal/2025/wizard_outfit/wizard_beard/models/wizard_beard_m_human.vmdl",
   "SkinMaterial": null,
   "EyesMaterial": null,
   "MaterialGroup": null,
+  "HeelHeight": 0,
   "SlotsUnder": "Face",
   "SlotsOver": 0,
   "HideBody": 0,
+  "DeformationMode": "Normal",
   "AllowTintSelect": true,
   "TintSelection": {
     "blend": "Linear",
@@ -57,7 +58,8 @@
   "Icon": {
     "Path": "models/citizen_clothes/seasonal/2025/wizard_outfit/wizard_beard/wizard_beard.clothing.png",
     "Mode": "Mouth",
-    "PositionOffset": "-3.900004,0.4,-2.899998"
+    "UsePositionOffset": false,
+    "PositionOffset": "-3.90000391,0.400000006,-2.89999795"
   },
   "__references": [],
   "__version": 0

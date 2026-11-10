@@ -23,7 +23,6 @@ public static partial class EditorUtility
 				return default;
 
 			using CompileGroup compileGroup = new CompileGroup( "Publish" );
-			compileGroup.AccessControl = PackageManager.AccessControl;
 
 			compilerSettings.IgnoreFolders.Add( "editor" );
 			compilerSettings.IgnoreFolders.Add( "unittest" );
@@ -34,8 +33,6 @@ public static partial class EditorUtility
 			compiler.UseAbsoluteSourcePaths = false;
 
 			//Log.Info( $"Code Path: {addon.GetCodePath()}" );
-
-			bool hasBase = false;
 
 			//
 			// Install any libraries (unless we are a library)
@@ -60,8 +57,6 @@ public static partial class EditorUtility
 						libCompiler.GeneratedCode.AppendLine( "global using Microsoft.AspNetCore.Components;" );
 						libCompiler.GeneratedCode.AppendLine( "global using Microsoft.AspNetCore.Components.Rendering;" );
 
-						libCompiler.AddBaseReference();
-
 						foreach ( var reference in references )
 						{
 							libCompiler.AddReference( reference.Package );
@@ -76,27 +71,9 @@ public static partial class EditorUtility
 			}
 
 			//
-			// if we're a game or an addon then put the base code in the base
+			// If we have a parent package, add it as a reference so we can resolve the parent's types.
 			//
-			if ( !hasBase )
-			{
-				var baseSettings = new Compiler.Configuration();
-				baseSettings.Clean();
-				baseSettings.ReleaseMode = Compiler.ReleaseMode.Release;
-
-				logOutput?.Invoke( "Adding package.base to compiler" );
-
-				var baseCompiler = compileGroup.CreateCompiler( "base", EngineFileSystem.Root.GetFullPath( "/addons/base/code/" ), baseSettings );
-				baseCompiler.UseAbsoluteSourcePaths = false;
-				baseCompiler.GeneratedCode.AppendLine( "global using static Sandbox.Internal.GlobalGameNamespace;" );
-
-				// Required by razor
-				baseCompiler.GeneratedCode.AppendLine( "global using Microsoft.AspNetCore.Components;" );
-				baseCompiler.GeneratedCode.AppendLine( "global using Microsoft.AspNetCore.Components.Rendering;" );
-
-				// reference this from the main compiler
-				compiler.AddReference( baseCompiler );
-			}
+			AddParentPackageReference( project, compiler, logOutput );
 
 			logOutput?.Invoke( $"Creating package.{project.Config.Org}.{project.Config.Ident} compiler" );
 			logOutput?.Invoke( $"Compile path is {project.GetCodePath()}" );
@@ -119,7 +96,6 @@ public static partial class EditorUtility
 				c.GeneratedCode.AppendLine( $"[assembly: global::System.Reflection.AssemblyMetadata( \"AddonIdent\", {project.Config.Ident.QuoteSafe()} )]" );
 				c.GeneratedCode.AppendLine( $"[assembly: global::System.Reflection.AssemblyMetadata( \"OrgIdent\", {project.Config.Org.QuoteSafe()} )]" );
 				c.GeneratedCode.AppendLine( $"[assembly: global::System.Reflection.AssemblyMetadata( \"Ident\", {project.Config.FullIdent.QuoteSafe()} )]" );
-				c.GeneratedCode.AppendLine( $"[assembly: global::System.Reflection.AssemblyMetadata( \"CompileTime\", {System.DateTime.UtcNow.ToString().QuoteSafe()} )]" );
 				c.GeneratedCode.AppendLine( $"[assembly: global::System.Reflection.AssemblyMetadata( \"EngineVersion\", {Sandbox.Engine.Protocol.Api.ToString().QuoteSafe()} )]" );
 				c.GeneratedCode.AppendLine( $"[assembly: global::System.Reflection.AssemblyMetadata( \"EngineMinorVersion\", {1.ToString().QuoteSafe()} )]" );
 			}
@@ -145,6 +121,43 @@ public static partial class EditorUtility
 
 			return compileGroup.BuildResult.Output.ToArray();
 
+		}
+
+		/// <summary>
+		/// If the project (or the current project) specifies a parent package, add it as a
+		/// compile-time reference so the compiler can resolve the parent's types.
+		/// </summary>
+		private static void AddParentPackageReference( Project project, Compiler compiler, Action<string> logOutput )
+		{
+			var parentPackage = project.Config.GetMetaOrDefault<string>( "ParentPackage", null )
+				?? Project.Current?.Config.GetMetaOrDefault<string>( "ParentPackage", null );
+
+			if ( string.IsNullOrWhiteSpace( parentPackage ) )
+				return;
+
+			if ( !Package.TryParseIdent( parentPackage, out var parentParts ) )
+				return;
+
+			var currentAp = Project.Current is not null
+				? PackageManager.Find( Project.Current.Config.FullIdent, true, false )
+				: null;
+
+			if ( currentAp is null )
+			{
+				logOutput?.Invoke( $"Warning: Could not find ActivePackage to resolve parent package '{parentPackage}'" );
+				return;
+			}
+
+			var referenceName = $"package.{parentParts.org}.{parentParts.package}";
+			if ( currentAp.Lookup( referenceName ) is null )
+			{
+				logOutput?.Invoke( $"Warning: Could not resolve parent package reference '{parentPackage}', skipping" );
+				return;
+			}
+
+			compiler.Group.ReferenceProvider = currentAp;
+			compiler.AddReference( referenceName );
+			logOutput?.Invoke( $"Added parent package reference: {parentPackage}" );
 		}
 
 		/// <summary>

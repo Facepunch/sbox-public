@@ -27,6 +27,7 @@ public partial class DebugOverlaySystem
 		so.RenderLayer = SceneRenderLayer.OverlayWithoutDepth;
 		so.TextBlock = textBlock;
 		so.TextFlags = flags;
+		so.BuildCommandList();
 
 		Add( duration, so );
 	}
@@ -49,13 +50,12 @@ file class ScreenTextSceneObject : SceneCustomObject
 	{
 		RenderLayer = SceneRenderLayer.OverlayWithoutDepth;
 		Flags.CastShadows = false;
-		managedNative.ExecuteOnMainThread = false;
 		TextBlock = TextRendering.Scope.Default;
 	}
 
 	static bool ToScreenWithDirection( Vector3 world, out Vector2 screen )
 	{
-		var frustum = Graphics.SceneView.GetFrustum();
+		var frustum = Graphics.ViewFrustum;
 		var behind = frustum.ScreenTransform( world, out var result );
 		var x = (result.x + 1f) / 2f;
 		var y = ((result.y * -1f) + 1f) / 2f;

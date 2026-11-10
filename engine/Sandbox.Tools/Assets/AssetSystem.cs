@@ -67,9 +67,9 @@ public static partial class AssetSystem
 	}
 
 
-	static void UpdateAsset( Asset asset, bool compileImmediately = true )
+	static void UpdateAsset( Asset asset )
 	{
-		asset.UpdateInternals( compileImmediately );
+		asset.UpdateInternals();
 
 		if ( string.IsNullOrWhiteSpace( asset.Path ) )
 			return;
@@ -142,7 +142,12 @@ public static partial class AssetSystem
 
 		HasChanges = true;
 		Tick();
-		DeleteOrphans();
+
+		// Skip orphan pruning during startup. Custom GameResource types (e.g. .testr) are not
+		// yet registered when UpdateMods first fires (their C# assembly hasn't been compiled).
+		// Pruning here would incorrectly delete transient child assets (e.g. generated vtex_c)
+		// whose parent links can't be established until the types are registered.
+		if ( !StartupLoadProject.IsLoading ) DeleteOrphans();
 	}
 
 	[EditorEvent.Frame]
@@ -161,21 +166,18 @@ public static partial class AssetSystem
 			}
 		}
 
-		Parallel.ForEach( UpdateQueue, ( Asset asset ) => UpdateAsset( asset, false ) );
+		Parallel.ForEach( UpdateQueue, ( Asset asset ) => UpdateAsset( asset ) );
 
 		// Thumbnails have their own queue, so do that all in main
 		foreach ( var asset in UpdateQueue )
 		{
 			EditorEvent.RunInterface<IEventListener>( x => x.OnAssetChanged( asset ) );
 
+			// Only drop it: the next draw renders it. A scene's thumbnail loads the whole scene, so rendering it on every
+			// save blocked the editor for as long as the scene takes to load, even with no thumbnail on screen.
 			if ( asset.HasCachedThumbnail )
 			{
-				asset.RebuildThumbnail( true );
-			}
-
-			if ( !asset.IsCompiled && asset.AssetType.IsGameResource )
-			{
-				asset.Compile( false );
+				asset.RebuildThumbnail( false );
 			}
 		}
 
@@ -194,9 +196,18 @@ public static partial class AssetSystem
 			return null;
 
 		path = path.Replace( '\\', '/' );
-		path = path.TrimStart( '/' );
 
 		if ( assetsByPath.TryGetValue( path, out var asset ) && !asset.IsDeleted )
+		{
+			return asset;
+		}
+
+		// Unix absolute paths and rooted resource paths both begin with '/'.
+		// The exact absolute form was checked first; keep supporting the historical
+		// resource-relative form as a fallback.
+		if ( path[0] == '/' &&
+			assetsByPath.TryGetValue( path.TrimStart( '/' ), out asset ) &&
+			!asset.IsDeleted )
 		{
 			return asset;
 		}
@@ -274,37 +285,52 @@ public static partial class AssetSystem
 	/// </summary>
 	public static void DeleteOrphans()
 	{
+		// What the content build is publishing has no parent links yet
+		if ( EditorContentBuild.IsBuilding ) return;
+
+		// Only delete orphans from the current project's transient folder.
+		// Engine-shipped transients (e.g. addons/menu/Transients/) are shared
+		// across all projects and must not be deleted.
+		var transientRoot = FileSystem.Transient?.GetFullPath( "/" )?.NormalizeFilename( false );
+
 		var orphans = All
 						.Where( x => x.IsTrivialChild )
 						.Where( x => !x.IsDeleted )
 						.Where( x => x.AssetType == AssetType.Texture ) // Note - gib models can be trivial children too, but I don't want to push my luck
-						.Where( x => x.GetDependants( false ).Count == 0 )
+						.Where( x => transientRoot is not null && x.AbsolutePath.StartsWith( transientRoot, StringComparison.OrdinalIgnoreCase ) )
 						.ToArray();
 
 		foreach ( var o in orphans )
 		{
-			log.Trace( $"Deleting Orphan \"{o}\"" );
+			var depCount = o.GetDependants( false ).Count;
+			var parentCount = o.GetParents( false ).Count;
+			var nativeAsset = o as NativeAsset;
+			var pendingDep = nativeAsset?.native.NeedAnyDependencyUpdate_Virtual() ?? false;
 
-			o.Delete();
-			UpdateQueue.Add( o );
-			HasChanges = true;
+			// Skip assets with pending dependency info - parent links may not be resolved yet - and anything a
+			// content build record still lists, whose parent may not be known yet either.
+			if ( depCount == 0 && parentCount == 0 && !pendingDep && !EditorContentBuild.IsOwned( o.AbsolutePath ) )
+			{
+				log.Info( $"Deleting Orphan \"{o}\"" );
+
+				o.Delete();
+				UpdateQueue.Add( o );
+				HasChanges = true;
+			}
 		}
 	}
 
-	internal static void InitializeCompilerForFilename( IResourceCompilerContext context, string filename )
+	internal static void InitializeCompilerForFilename( IResourceCompilerContext context, string filename ) => ContentCompilerHost.OnMainThread( () =>
 	{
+		// On the main thread, where the type library changes (see TryManagedCompile)
 		var ext = System.IO.Path.GetExtension( filename )[1..].ToLowerInvariant();
-		var assetType = AssetType.FromExtension( ext );
-
-		if ( assetType is null )
-			return;
-
-		if ( assetType.IsGameResource == false )
-			return;
+		if ( !IsGameResource( ext ) )
+			return false;
 
 		context.SetCompiler( $"ManagedResourceCompiler" );
 		context.SetExtension( ext );
-	}
+		return true;
+	} );
 
 	/// <summary>
 	/// Create an empty <see cref="GameResource"/>.
@@ -364,15 +390,6 @@ public static partial class AssetSystem
 		{
 			soundFile.OnReloadedInternal();
 		}
-	}
-
-	internal static void OnDemandRecompile( uint index, string reason )
-	{
-		// matt: disabling this for now because it's causing re-entrants in CResourceSystem::ForceSynchronizationAndBlockUntilManifestLoaded()
-		//       which was making the entire resource system shit the bed
-		//       specifically I was seeing this because Qt events run CHammerEditorSession::RenderView but I imagine it can happen
-		//       in a shit load of places... layla said they'd got this in-game too but I'm not sure if it's the same thing
-		// IToolsDll.Current?.Spin();
 	}
 
 	/// <summary>

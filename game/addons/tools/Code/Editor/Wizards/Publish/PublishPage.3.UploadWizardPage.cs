@@ -23,10 +23,21 @@ partial class PublishWizard
 
 		public override async Task OpenAsync()
 		{
-			BodyLayout.Clear( true );
-
 			Enabled = false;
 			Visible = true;
+			Rebuild();
+
+			await Refresh();
+
+			Enabled = true;
+		}
+
+		public override void Rebuild()
+		{
+			var stagingFilter = StagingFilter.IsValid() ? StagingFilter.Text : "";
+			var uploadedFilter = UploadedFilter.IsValid() ? UploadedFilter.Text : "";
+
+			BodyLayout.Clear( true );
 
 			var row = Layout.Row();
 			row.Spacing = 8;
@@ -35,7 +46,7 @@ partial class PublishWizard
 			var left = row.AddColumn();
 			left.Add( new Label( "Pending Upload" ) );
 			left.Spacing = 8;
-			StagingFilter = left.Add( new LineEdit( null ) );
+			StagingFilter = left.Add( new LineEdit( null ) { Text = stagingFilter } );
 			StagingFilter.PlaceholderText = "Filter...";
 			StagingFilter.TextChanged += ( string x ) => UpdateFileList();
 			Pending = new( null );
@@ -46,7 +57,7 @@ partial class PublishWizard
 
 			var right = row.AddColumn();
 			right.Add( new Label( "Uploaded" ) );
-			UploadedFilter = right.Add( new LineEdit( null ) );
+			UploadedFilter = right.Add( new LineEdit( null ) { Text = uploadedFilter } );
 			UploadedFilter.PlaceholderText = "Filter...";
 			UploadedFilter.TextChanged += ( string x ) => UpdateFileList();
 
@@ -70,9 +81,7 @@ partial class PublishWizard
 
 			BodyLayout.Add( bottom );
 
-			await Refresh();
-
-			Enabled = true;
+			UpdateFileList();
 		}
 
 		void PaintFile( VirtualWidget item )
@@ -122,39 +131,11 @@ partial class PublishWizard
 
 		public async Task Refresh()
 		{
-			Publisher = await ProjectPublisher.FromProject( Project );
-
-			if ( Project.Config.Type == "game" )
-			{
-				var settings = Publisher.GetGameSettings( PublishConfig.CompilerOutput );
-				Publisher.SetMeta( "GameSettings", settings );
-			}
-
-			if ( PublishConfig.AssemblyFiles is not null )
-			{
-				foreach ( var f in PublishConfig.AssemblyFiles )
-				{
-					if ( f.Value is byte[] bytes )
-					{
-						await Publisher.AddFile( bytes, f.Key );
-					}
-
-					if ( f.Value is string json )
-					{
-						await Publisher.AddFile( json, f.Key );
-					}
-				}
-			}
-
-			// Add assets from Cloud.Model( .. ) etc
-			foreach ( var package in PublishConfig.CodePackages )
-			{
-				await Publisher.AddCodePackageReference( package );
-			}
-
-			UpdateFileList();
-
-			await Publisher.PrePublish();
+			Publisher = Project.Config.Type == "game" ? PublishConfig.Publisher : null;
+			if ( Publisher is null )
+				Publisher = await CreatePublisher( Project, PublishConfig );
+			else
+				await Publisher.PrePublish();
 
 			UpdateFileList();
 		}
@@ -164,6 +145,8 @@ partial class PublishWizard
 			Pending.Clear();
 			Uploaded.Clear();
 			UsageWidget.Clear();
+
+			if ( Publisher is null ) return;
 
 			var files = Publisher.Files;
 			files = files.OrderByDescending( x => x.Size );
@@ -217,7 +200,7 @@ partial class PublishWizard
 
 			foreach ( var upload in uploads )
 			{
-				token.ThrowIfCancellationRequested();
+				if ( token.IsCancellationRequested ) break;
 
 				var t = UploadFile( upload, token );
 
@@ -233,7 +216,9 @@ partial class PublishWizard
 				}
 			}
 
+			// Drain active uploads before the wizard can restart and replace their publisher/UI.
 			await Task.WhenAll( tasks.ToArray() );
+			token.ThrowIfCancellationRequested();
 		}
 
 		void FileUploadProgress( ProjectPublisher.ProjectFile file, Sandbox.Utility.DataProgress progress )
@@ -287,7 +272,7 @@ partial class PublishWizard
 		{
 			// we need SOME files to upload, even if they've already been uploaded
 			// having no files here indicates an error.
-			if ( Publisher.Files.Count() == 0 ) return false;
+			if ( Publisher is null || Publisher.Files.Count() == 0 ) return false;
 
 			return true;
 		}

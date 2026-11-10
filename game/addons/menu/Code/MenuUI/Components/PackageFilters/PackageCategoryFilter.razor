@@ -8,7 +8,7 @@
     return;
 
 <root>
-    @foreach ( Package.Facet.Entry entry in Facet.Entries.OrderBy(x => x.Title))
+    @foreach ( Package.Facet.Entry entry in Facet.Entries )
     {
         var clss = IsSelected(entry.Name) ? "active" : "";
 

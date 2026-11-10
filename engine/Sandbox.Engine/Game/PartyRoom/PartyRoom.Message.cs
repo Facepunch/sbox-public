@@ -1,3 +1,5 @@
+using Sandbox.Engine;
+
 namespace Sandbox;
 
 partial class PartyRoom
@@ -8,6 +10,7 @@ partial class PartyRoom
 	{
 		ChatMessage = 1001,
 		VoiceMessage = 1002,
+		Kicked = 1003,
 	}
 
 	public void SendChatMessage( string text )
@@ -16,6 +19,22 @@ partial class PartyRoom
 		bs.Write( ProtocolIdentity );
 		bs.Write( MessageIdentity.ChatMessage );
 		bs.Write( text );
+
+		steamLobby.SendChatData( bs.ToArray() );
+	}
+
+	/// <summary>
+	/// Kick a member from the party. Only the owner can kick members.
+	/// </summary>
+	public void Kick( SteamId friend )
+	{
+		if ( !Owner.IsMe )
+			return;
+
+		using var bs = ByteStream.Create( 128 );
+		bs.Write( ProtocolIdentity );
+		bs.Write( MessageIdentity.Kicked );
+		bs.Write( friend );
 
 		steamLobby.SendChatData( bs.ToArray() );
 	}
@@ -35,8 +54,30 @@ partial class PartyRoom
 		if ( ident == MessageIdentity.ChatMessage )
 		{
 			var contents = stream.Read<string>();
+			contents = Utility.Steam.FilterChat( contents, friend.Id );
+
 			Log.Info( $"[Party] {friend}: {contents}" );
+
 			OnChatMessage?.Invoke( friend, contents );
+
+			using ( GlobalContext.MenuScope() )
+			{
+				Event.EventSystem.RunInterface<IEventListener>( x => x.OnChatMessage( friend, contents ) );
+			}
+
+			return;
+		}
+		else if ( ident == MessageIdentity.Kicked )
+		{
+			var kicked = new Friend( stream.Read<ulong>() );
+			if ( !kicked.IsMe )
+				return;
+
+			if ( friend.Id != Owner.Id )
+				return;
+
+			// kicked, leave the party
+			Leave();
 			return;
 		}
 

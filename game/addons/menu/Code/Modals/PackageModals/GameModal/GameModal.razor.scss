@@ -1,0 +1,127 @@
+@import "/styles/_theme.scss";
+@import "/Platform/_platform.scss";
+
+GameModal
+{
+	// Who's playing it - the server list, with the tabs' insets, as tall as its rows, the content
+	// scrolling it
+	.sessions
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		padding: 24px 24px 64px 24px;
+
+		ServerList
+		{
+			flex-shrink: 0;
+			overflow: visible;
+		}
+	}
+
+	.setup-loading
+	{
+		padding: 32px;
+		color: $platform-muted;
+		font-family: $front-font;
+		font-size: 14px;
+	}
+
+	// The game coming down before it can be set up - in the middle of where the setup goes
+	.setup-download
+	{
+		flex-grow: 1;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		padding: 64px;
+		gap: 6px;
+		font-family: $front-font;
+
+		i
+		{
+			font-size: 40px;
+			color: linear-gradient( 180deg, #7fb4ff, $front-primary );
+			margin-bottom: 8px;
+		}
+
+		.title
+		{
+			font-size: 18px;
+			font-weight: 700;
+			color: $platform-text;
+		}
+
+		.track
+		{
+			@include front-track;
+
+			width: 360px;
+			margin-top: 20px;
+
+			.fill
+			{
+				height: 100%;
+				border-radius: 999px;
+				background-image: linear-gradient( 90deg, #1f5fc0, $front-primary );
+				transition: width 0.3s ease-out;
+			}
+		}
+
+		.amount
+		{
+			width: 360px;
+			justify-content: space-between;
+			font-size: 12px;
+			color: $platform-muted;
+		}
+	}
+
+	// The page and its tabs, while a new game's being set up in their place - kept, not shown
+	&.setting-up
+	{
+		PackageTabs, PortalTarget
+		{
+			display: none;
+		}
+	}
+
+	// Where the tabs go while setting up - back to the game, and where you are, on the tabs' line
+	.setup-trail
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 10px;
+		margin-bottom: 8px;
+		pointer-events: all;
+		font-family: $platform-font;
+
+		.back
+		{
+			@include platform-text-button( 30px, 12.5px, 15px );
+			padding: 0 12px;
+
+			i
+			{
+				font-family: "Material Icons";
+			}
+
+			&:hover
+			{
+				sound-in: "ui.button.over";
+			}
+		}
+
+		.sep
+		{
+			font-size: 13px;
+			color: $platform-faint;
+		}
+
+		.here
+		{
+			font-size: 13px;
+			font-weight: 700;
+			color: $platform-text;
+		}
+	}
+}

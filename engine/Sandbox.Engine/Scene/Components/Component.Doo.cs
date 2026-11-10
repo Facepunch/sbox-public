@@ -23,7 +23,7 @@ public abstract partial class Component : Doo.IHost
 	/// <summary>
 	/// Starts executing the given Doo on this component. Optionally configure initial arguments via the callback.
 	/// </summary>
-	public void Run( Doo doo, Action<Doo.Configure> c = null )
+	public void RunDoo( Doo doo, Action<Doo.Configure> c = null )
 	{
 		if ( doo is null || doo.IsEmpty() ) return;
 
@@ -35,7 +35,7 @@ public abstract partial class Component : Doo.IHost
 	/// <summary>
 	/// Stop a specific Doo, if it's running
 	/// </summary>
-	public void Stop( Doo doo )
+	public void StopDoo( Doo doo )
 	{
 		if ( _doos == null ) return;
 		if ( doo is null ) return;
@@ -51,7 +51,7 @@ public abstract partial class Component : Doo.IHost
 	/// <summary>
 	/// Stop all running Doos
 	/// </summary>
-	public void StopAll()
+	public void StopAllDoo()
 	{
 		if ( _doos == null ) return;
 
@@ -64,7 +64,7 @@ public abstract partial class Component : Doo.IHost
 	/// <summary>
 	/// Returns true if the given Doo is currently running on this component.
 	/// </summary>
-	public bool IsRunning( Doo doo )
+	public bool IsRunningDoo( Doo doo )
 	{
 		if ( _doos == null ) return false;
 
@@ -75,5 +75,45 @@ public abstract partial class Component : Doo.IHost
 		}
 
 		return false;
+	}
+}
+
+/// <summary>
+/// Backward-compatible extension methods telling users to switch from Run/Stop/IsRunning to RunDoo/StopDoo/IsRunningDoo.
+/// These are marked as obsolete and hidden from intellisense to encourage migration, and are extensions so you don't get member variable conflicts.
+/// </summary>
+[System.ComponentModel.EditorBrowsable( System.ComponentModel.EditorBrowsableState.Never )]
+public static class ComponentDooExtensions
+{
+	/// <inheritdoc cref="Component.RunDoo"/>
+	[Obsolete( "Use RunDoo instead" )]
+	[System.ComponentModel.EditorBrowsable( System.ComponentModel.EditorBrowsableState.Never )]
+	public static void Run( this Component self, Doo doo, Action<Doo.Configure> c = null )
+	{
+		self.RunDoo( doo, c );
+	}
+
+	/// <inheritdoc cref="Component.StopDoo"/>
+	[Obsolete( "Use StopDoo instead" )]
+	[System.ComponentModel.EditorBrowsable( System.ComponentModel.EditorBrowsableState.Never )]
+	public static void Stop( this Component self, Doo doo )
+	{
+		self.StopDoo( doo );
+	}
+
+	/// <inheritdoc cref="Component.StopAllDoo"/>
+	[Obsolete( "Use StopAllDoo instead" )]
+	[System.ComponentModel.EditorBrowsable( System.ComponentModel.EditorBrowsableState.Never )]
+	public static void StopAll( this Component self )
+	{
+		self.StopAllDoo();
+	}
+
+	/// <inheritdoc cref="Component.IsRunningDoo"/>
+	[Obsolete( "Use IsRunningDoo instead" )]
+	[System.ComponentModel.EditorBrowsable( System.ComponentModel.EditorBrowsableState.Never )]
+	public static bool IsRunning( this Component self, Doo doo )
+	{
+		return self.IsRunningDoo( doo );
 	}
 }

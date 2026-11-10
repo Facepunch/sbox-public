@@ -1,0 +1,27 @@
+{
+  "guid": "0ff6a3ee-1488-40b4-81b4-395c18cfa9e6",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Woodencrates",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "woodencrates",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/warehouse/woodencrates/materials/woodencrates.vmat"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

@@ -24,7 +24,7 @@ partial record PropertySignal<T>
 {
 	public IReadOnlyList<T> Sample( MovieTimeRange timeRange, int sampleRate )
 	{
-		var sampleCount = timeRange.Duration.GetFrameCount( sampleRate );
+		var sampleCount = Math.Max( 1, timeRange.Duration.GetFrameIndex( sampleRate ) + 1 );
 		var samples = new T[sampleCount];
 
 		Sample( timeRange.Start, sampleRate, samples.AsSpan() );

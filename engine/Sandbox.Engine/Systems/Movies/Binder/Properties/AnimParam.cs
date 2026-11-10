@@ -1,17 +1,18 @@
-﻿using System;
-using System.Xml.Linq;
-using static Sandbox.SkinnedModelRenderer;
+﻿using static Sandbox.SkinnedModelRenderer;
 
 namespace Sandbox.MovieMaker.Properties;
 
 #nullable enable
+
+#pragma warning disable CS0618
 
 /// <summary>
 /// Reads / writes an anim graph parameter on a <see cref="SkinnedModelRenderer"/>.
 /// </summary>
 file sealed record AnimParamProperty<T>( ITrackProperty<ParameterAccessor?> Parent, string Name ) : ITrackProperty<T>
 {
-	private IAnimParamAccessor<T> Accessor { get; } = DefaultAnimParamAccessor.Instance as IAnimParamAccessor<T> ?? throw new NotImplementedException();
+	private IAnimParamAccessor<T> Accessor { get; } = DefaultAnimParamAccessor.Instance as IAnimParamAccessor<T>
+		?? throw new NotImplementedException( $"No IAnimParamAccessor for type {typeof( T )}" );
 
 	public bool IsBound => Parent.Value?.Graph?.GetParameterType( Name ) == typeof( T );
 
@@ -45,7 +46,7 @@ file sealed class AnimParamPropertyFactory : ITrackPropertyFactory<ITrackPropert
 		}
 	}
 
-	public string GetCategoryName( ITrackProperty<ParameterAccessor?> parent, string name ) => "Anim Graph";
+	public string BaseCategoryName => "Anim Graph";
 
 	/// <summary>
 	/// Any property in a <see cref="ParameterAccessor"/> is an anim graph parameter, but we

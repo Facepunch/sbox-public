@@ -286,4 +286,55 @@ partial class Mesh
 
 		return true;
 	}
+
+	public void FindClosedFaces( IReadOnlyList<FaceHandle> faceList, out List<FaceHandle> outClosedFaces )
+	{
+		outClosedFaces = new List<FaceHandle>( faceList.Count );
+
+		for ( int iFace = 0; iFace < faceList.Count; ++iFace )
+		{
+			bool isClosed = true;
+
+			var hFace = faceList[iFace];
+			var hStartEdge = GetFirstEdgeInFaceLoop( hFace );
+			var hCurrentEdge = hStartEdge;
+
+			do
+			{
+				var pEdge = hCurrentEdge;
+				var pOppositeEdge = pEdge.OppositeEdge;
+
+				if ( !pOppositeEdge.Face.IsValid )
+				{
+					isClosed = false;
+					break;
+				}
+
+				hCurrentEdge = GetNextEdgeInFaceLoop( hCurrentEdge );
+
+			} while ( hCurrentEdge != hStartEdge );
+
+			if ( isClosed )
+			{
+				outClosedFaces.Add( hFace );
+			}
+		}
+	}
+
+	public void FindBoundaryEdgesConnectedToFaces( IReadOnlyList<FaceHandle> faceList, int numFaces, out List<HalfEdgeHandle> outBoundaryEdges )
+	{
+		FindFullEdgesConnectedToFaces( faceList, numFaces, out var allConnectedEdges, out var edgeFaceCounts );
+
+		int numConnectedEdges = allConnectedEdges.Length;
+
+		outBoundaryEdges = new List<HalfEdgeHandle>( numConnectedEdges );
+
+		for ( int iEdge = 0; iEdge < numConnectedEdges; ++iEdge )
+		{
+			if ( edgeFaceCounts[iEdge] != 2 )
+			{
+				outBoundaryEdges.Add( allConnectedEdges[iEdge] );
+			}
+		}
+	}
 }

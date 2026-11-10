@@ -256,7 +256,8 @@ public static partial class Gizmo
 			float flAngle = 0;
 			float flAngleStep = (2 * MathF.PI) / (float)nNumSegments;
 
-			Vector3[] pVerts = new Vector3[2 * nNumSegments];
+			Vector3[] pVerts = ArrayPool<Vector3>.Shared.Rent( 2 * nNumSegments );
+
 			for ( int i = 0; i < nNumSegments; flAngle += flAngleStep, i++ )
 			{
 				Vector3 vecOffset = vecLeft * MathF.Sin( flAngle ) + vecUp * MathF.Cos( flAngle );
@@ -280,6 +281,8 @@ public static partial class Gizmo
 				if ( i % verticalSegmentInterval == 0 )
 					AddLineInternal( so, pVerts[i], pVerts[i + nNumSegments] );
 			}
+
+			ArrayPool<Vector3>.Shared.Return( pVerts );
 		}
 
 		public void LineCapsule( Capsule capsule, int rings = 12 )

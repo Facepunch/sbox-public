@@ -15,7 +15,7 @@ native class CQHammerMainWnd as Native.CQHammerMainWnd : CFramelessMainWindow
 managed class Editor.MapEditor.HammerMainWindow
 {
 	void WindowInit();
-	void AddNativeDock( string name, string icon, QWidget sibling, QWidget window, Editor.DockArea dockArea, Editor.DockManager.DockProperty properties, float split );
+	void AddNativeDock( string name, string icon, QWidget sibling, QWidget window, Editor.DockArea dockArea );
 
 	void CreateDynamicViewMenu( QMenu menu );
 

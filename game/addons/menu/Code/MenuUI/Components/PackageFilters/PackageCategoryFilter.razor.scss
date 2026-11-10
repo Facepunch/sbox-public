@@ -1,11 +1,12 @@
+@import "/Platform/_platform.scss";
 
+// The categories down a strip, each a choice - lit when it's picked
 PackageCategoryFilter
 {
+    @include platform-choices;
     flex-direction: column;
-    flex-shrink: 0;
     justify-content: space-between;
-    font-size: 16px;
-    color: #b2bfd8;
+	padding-left: 8px;
 }
 
 PackageCategoryFilter gametag
@@ -14,53 +15,28 @@ PackageCategoryFilter gametag
 
 PackageCategoryFilter .option
 {
-    cursor: pointer;
-    padding: 1px 8px;
-    border-radius: 5px;
-    transition: all 0.2s ease;
+    @include platform-choice;
+    flex-grow: 0;
+    flex-basis: auto;
+    justify-content: flex-start;
     gap: 10px;
-    align-items: center;
-}
-
-PackageCategoryFilter .option .iconpanel
-{
-    font-size: 20px;
-    color: #4a515f;
-    transition: all 0.3s ease;
-}
-
-PackageCategoryFilter .option.active
-{
-    cursor: pointer;
-    background-color: #4379dc;
-    color: white;
-    padding: 8px 8px;
-}
-
-PackageCategoryFilter .option.active .iconpanel
-{
-    color: white;
-    opacity: 0.5;
 }
 
 .children
 {
     flex-direction: column;
+    gap: 2px;
     margin-left: 16px;
 }
 
 .count
 {
-    background-color: #4a515f;
-    padding: 1px 5px;
-    border-radius: 5px;
     font-size: 12px;
-    font-weight: bold;
-    color: black;
+    font-weight: 600;
+    color: $platform-faint;
 }
 
 PackageCategoryFilter .option.active .count
 {
-    background-color: #fff3;
-    color: #fffc;
+    color: white;
 }

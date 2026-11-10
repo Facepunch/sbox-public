@@ -1,4 +1,4 @@
-﻿using NativeEngine;
+using NativeEngine;
 
 namespace Sandbox.Network;
 
@@ -8,24 +8,26 @@ namespace Sandbox.Network;
 internal unsafe class SteamLobbyConnection : Connection, IValid
 {
 	private readonly SteamLobbySocket Lobby;
+	internal Steamworks.Result? LastSendError { get; set; }
+	internal SteamSessionStatus? SessionFailure { get; set; }
+	bool _disposed;
 	public Friend Friend { get; private set; }
-	public bool IsValid => true;
-
-	public override bool IsHost => Lobby.HostSteamId == Friend.Id;
+	public bool IsValid => !_disposed;
 
 	public SteamLobbyConnection( SteamLobbySocket lobby, Friend steamId )
 	{
 		Lobby = lobby;
 		Friend = steamId;
+		CloseDirectRoute();
 	}
 
 	public void Dispose()
 	{
+		Close( 0, "Left lobby" );
 		State = ChannelState.Unconnected;
 	}
 
 	public string Description => "Steam Lobby Connection";
-	public override string Name => Friend.Name;
 
 	private RealTimeUntil timeUntilFetchStats;
 	private ConnectionStats cachedStats;
@@ -56,11 +58,11 @@ internal unsafe class SteamLobbyConnection : Connection, IValid
 		}
 	}
 
-	internal override void InternalSend( byte[] data, NetFlags flags )
+	internal override void InternalSend( NetPacket packet, NetFlags flags )
 	{
 		var steamFlags = flags.ToSteamFlags();
 		steamFlags |= 32; // k_nSteamNetworkingSend_AutoRestartBrokenSession
-		Lobby.SendMessage( Friend.Id, data, steamFlags );
+		Lobby.SendMessage( this, packet, steamFlags );
 	}
 
 	internal override void InternalRecv( NetworkSystem.MessageHandler handler )
@@ -70,11 +72,62 @@ internal unsafe class SteamLobbyConnection : Connection, IValid
 
 	internal override void InternalClose( int closeCode, string closeReason )
 	{
-
+		lock ( Networking.NetworkThreadLock )
+		{
+			if ( _disposed ) return;
+			_disposed = true;
+			var net = Steam.SteamNetworkingMessages();
+			if ( net.IsValid ) net.CloseChannelWithUser( Friend.Id, Lobby.NetworkChannel );
+		}
 	}
 
 	internal void UpdateFromInfo( ConnectionInfo info )
 	{
 		Id = info.ConnectionId;
+	}
+
+	/// <summary>
+	/// Steam couldn't keep or set up a session with this peer, which happens between some pairs of peers.
+	/// </summary>
+	internal void OnSessionFailed( SteamSessionStatus failure )
+	{
+		SessionFailure = failure;
+		CloseDirectRoute();
+	}
+
+	RealTimeUntil timeUntilDirectProbe;
+	const float DirectProbeInterval = 5;
+
+	/// <summary>
+	/// Clients only talk to each other directly once Steam has a session up. Until then Steam would queue everything
+	/// as reliable, and drop it all if the session fails, so it goes through the host instead.
+	/// </summary>
+	internal override void Tick( NetworkSystem parent )
+	{
+		if ( _disposed || parent.IsHost )
+			return;
+
+		var state = SteamSessionStatus.Read( Friend.Id ).State;
+
+		if ( state == Steamworks.ConnectionState.Connected )
+		{
+			OpenDirectRoute();
+			return;
+		}
+
+		CloseDirectRoute();
+
+		if ( state is Steamworks.ConnectionState.Connecting or Steamworks.ConnectionState.FindingRoute )
+			return;
+
+		if ( timeUntilDirectProbe > 0 )
+			return;
+
+		timeUntilDirectProbe = DirectProbeInterval;
+
+		// Empty, so receivers drop it. It only gets Steam to set up a session.
+		var probe = NetPacket.Rent( 0 );
+		InternalSend( probe, NetFlags.Unreliable );
+		probe.Release();
 	}
 }

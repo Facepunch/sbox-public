@@ -11,25 +11,28 @@ public static partial class Game
 
 	internal static void InitHost()
 	{
+		if ( Bootstrap.ConsumePreparedTypeLibrary() ) return;
+
 		InitTypeLibrary();
 	}
 
 	internal static void InitTypeLibrary()
 	{
-		TypeLibrary?.Dispose();
+		var context = GlobalContext.Current;
+		context.TypeLibrary?.Dispose();
 
-		GlobalContext.Current.TypeLibrary = new Internal.TypeLibrary();
+		var typeLibrary = context.TypeLibrary = new Internal.TypeLibrary();
 
-		TypeLibrary.ShouldExposePrivateMember = m => m.HasAttribute( typeof( RpcAttribute ) );
-		TypeLibrary.AddIntrinsicTypes();
-		TypeLibrary.AddAssembly( typeof( Vector3 ).Assembly, false );
-		TypeLibrary.AddAssembly( Game.GameAssembly, false );
-		TypeLibrary.AddAssembly( typeof( EngineLoop ).Assembly, false );
-		TypeLibrary.AddAssembly( typeof( Facepunch.ActionGraphs.ActionGraph ).Assembly, false );
+		typeLibrary.ShouldExposePrivateMember = m => m.HasAttribute( typeof( RpcAttribute ) );
+		typeLibrary.AddIntrinsicTypes();
+		typeLibrary.AddAssembly( typeof( Vector3 ).Assembly, false );
+		typeLibrary.AddAssembly( Game.GameAssembly, false );
+		typeLibrary.AddAssembly( typeof( EngineLoop ).Assembly, false );
+		typeLibrary.AddAssembly( typeof( Facepunch.ActionGraphs.ActionGraph ).Assembly, false );
 
-		if ( NodeLibrary is null )
+		if ( !context.HasNodeLibrary )
 		{
-			NodeLibrary = new Facepunch.ActionGraphs.NodeLibrary( new TypeLoader( () => TypeLibrary ), new GraphLoader() );
+			NodeLibrary = new Facepunch.ActionGraphs.NodeLibrary( new TypeLoader( () => context.TypeLibrary ), new GraphLoader() );
 
 			// Immediately log exceptions thrown by async tasks returning void,
 			// instead of spamming TaskScheduler.UnobservedTaskExceptions
@@ -37,7 +40,7 @@ public static partial class Game
 			NodeLibrary.VoidTaskFaulted += ( _, e ) => Log.Error( e );
 		}
 
-		NodeLibrary.Reset();
+		context.ResetNodeLibrary();
 
 		AddNodesFromAssembly( typeof( Vector3 ).Assembly );
 		AddNodesFromAssembly( typeof( LogNodes ).Assembly );

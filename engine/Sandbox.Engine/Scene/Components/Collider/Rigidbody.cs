@@ -88,6 +88,26 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 	}
 
 	/// <summary>
+	/// Multiplier for the calculated rotational inertia.
+	/// </summary>
+	[Advanced, Property, Group( "Mass" )]
+	public float InertiaScale
+	{
+		get;
+		set
+		{
+			if ( !float.IsFinite( value ) || value <= 0 )
+				throw new ArgumentOutOfRangeException( nameof( value ) );
+			if ( field == value )
+				return;
+
+			field = value;
+			if ( _body.IsValid() )
+				_body.ScaleInertia( field );
+		}
+	} = 1.0f;
+
+	/// <summary>
 	/// Override mass for this body, only when value is more than zero
 	/// </summary>
 	[Property, Title( "Mass Override" ), Group( "Mass" )]
@@ -151,7 +171,8 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 		{
 			field = value;
 
-			UpdateBody();
+			if ( _body.IsValid() )
+				_body.Locking = Locking;
 		}
 	}
 
@@ -236,10 +257,13 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 		{
 			if ( _body.IsValid() && !IsProxy )
 			{
+				// Leave _lastVelocity as the last networked value, so PrePhysicsStep sees this change and syncs it
 				_body.Velocity = value;
+				return;
 			}
 
 			_lastVelocity = value;
+			MarkActive();
 		}
 	}
 
@@ -251,9 +275,11 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 			if ( _body.IsValid() && !IsProxy )
 			{
 				_body.AngularVelocity = value;
+				return;
 			}
 
 			_lastAngularVelocity = value;
+			MarkActive();
 		}
 	}
 
@@ -296,7 +322,8 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 	bool _collisionUpdateEventsEnabled = false;
 
 	/// <summary>
-	/// Like CollisionEventsEnabled but means the OnCollisionUpdate gets called when the collision persists
+	/// Like CollisionEventsEnabled but means the OnCollisionUpdate gets called when the collision persists.
+	/// Updates are only sent while the collision is awake, sleeping contacts don't emit them.
 	/// </summary>
 	public bool CollisionUpdateEventsEnabled
 	{
@@ -324,6 +351,7 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 				return;
 
 			_body.Sleeping = value;
+			MarkActive();
 		}
 	}
 
@@ -376,6 +404,30 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 
 			if ( _body.IsValid() ) _body.EnhancedCcd = value;
 		}
+	}
+
+	/// <summary>
+	/// The speed threshold below which this body will be put to sleep. Units per second.
+	/// Increase this to make the body sleep sooner, which is useful for stacking stability.
+	/// </summary>
+	[Advanced, Property, DefaultValue( 2.0f )]
+	public float SleepThreshold
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+
+			field = value;
+
+			if ( _body.IsValid() )
+				_body.SleepThreshold = value;
+		}
+	} = 2.0f;
+
+	void IGameObjectNetworkEvents.NetworkOwnerChanged( Connection newOwner, Connection previousOwner )
+	{
+		MarkActive();
 	}
 
 	void IGameObjectNetworkEvents.BeforeDropOwnership()
@@ -470,27 +522,49 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 	{
 		if ( _body.IsValid() ) return;
 
-		_body = new PhysicsBody( Scene.PhysicsWorld );
+		_isSimulatingPhysics = ShouldSimulatePhysics;
+		var bodyType = Scene.IsEditor
+			? Scene.GetSystem<ScenePhysicsSystem>()?.HasRigidBody( this ) == true ? PhysicsBodyType.Dynamic : PhysicsBodyType.Static
+			: _isSimulatingPhysics && MotionEnabled ? PhysicsBodyType.Dynamic : PhysicsBodyType.Keyframed;
+		var dynamic = bodyType == PhysicsBodyType.Dynamic;
+		var settings = new PhysicsBodySettings
+		{
+			BodyType = bodyType,
+			Position = WorldPosition,
+			Rotation = WorldRotation,
+			Velocity = StartAsleep ? default : _lastVelocity,
+			AngularVelocity = StartAsleep ? default : _lastAngularVelocity,
+			SleepThreshold = SleepThreshold,
+			LinearDamping = dynamic ? LinearDamping : 0,
+			AngularDamping = dynamic ? AngularDamping : 0,
+			GravityScale = dynamic ? GravityScale : 1,
+			Mass = dynamic ? MassOverride : 0,
+			InertiaScale = dynamic ? InertiaScale : 1,
+			MassCenter = dynamic ? MassCenterOverride : default
+		};
+		if ( dynamic )
+		{
+			settings.SetLocks( Locking );
+			if ( !Gravity )
+				settings.Flags &= ~PhysicsBodyCreationFlags.Gravity;
+			if ( OverrideMassCenter )
+				settings.Flags |= PhysicsBodyCreationFlags.OverrideMassCenter;
+		}
+		if ( EnhancedCcd )
+			settings.Flags |= PhysicsBodyCreationFlags.Bullet;
+		if ( StartAsleep )
+			settings.Flags &= ~PhysicsBodyCreationFlags.Awake;
 
+		_body = Scene.PhysicsWorld.CreateBody( settings );
 		_body.Component = this;
-		_body.Transform = WorldTransform;
-		_body.AutoSleep = true;
-
-		//defaults
-		_body.EnableTouch = CollisionEventsEnabled;
-		_body.EnableTouchPersists = CollisionUpdateEventsEnabled;
-
-		// Apply velocities that were set before the body was created
-		_body.Velocity = _lastVelocity;
-		_body.AngularVelocity = _lastAngularVelocity;
-
-		_body.EnhancedCcd = EnhancedCcd;
 
 		// Make sure we clear these so we don't reapply them again later
 		_lastVelocity = default;
 		_lastAngularVelocity = default;
 
-		UpdateBody();
+		_body._body.OnDirty = MarkActive;
+
+		UpdateBody( true );
 	}
 
 	protected override void OnEnabled()
@@ -499,6 +573,7 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 		Assert.NotNull( Scene.PhysicsWorld, "Tried to create physics object but no physics world" );
 
 		EnsureBodyCreated();
+		MarkActive();
 
 		if ( _collisionEvents is not null )
 			_collisionEvents.Rebind( _body );
@@ -513,7 +588,10 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 			_body.Sleeping = StartAsleep;
 		}
 
-		BroadcastToColliders();
+		using ( _body._body.BatchMassUpdates() )
+		{
+			BroadcastToColliders();
+		}
 	}
 
 	internal override void OnDisabledInternal()
@@ -551,10 +629,16 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 	internal void UpdateTransformFromBody()
 	{
 		if ( !_body.IsValid() ) return;
-		if ( IsProxy ) return;
+		if ( !_isSimulatingPhysics ) return;
+
+		_transformSyncPending = false;
 
 		var tx = WorldTransform;
 		var target = _body.Transform.WithScale( tx.Scale );
+
+		if ( Scene.Is2D )
+			target.Position = target.Position.WithZ( tx.Position.z );
+
 		if ( target == tx ) return;
 
 		isUpdatingFromPhysics = true;
@@ -565,7 +649,32 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 	/// <summary>
 	/// Used for transforming a selected rigidbody in editor, if useful for gameplay this could be made public.
 	/// </summary>
-	internal Transform? TargetTransform { get; set; }
+	internal Transform? TargetTransform
+	{
+		get;
+		set
+		{
+			field = value;
+			MarkActive();
+		}
+	}
+
+	/// <summary>
+	/// False while asleep with nothing to do per step, until the body wakes or it or our transform changes.
+	/// </summary>
+	internal bool IsPhysicsActive = true;
+
+	// A change while asleep, like a teleport, still has to reach our transform
+	bool _transformSyncPending = true;
+
+	internal bool NeedsTransformSync => IsPhysicsActive || _transformSyncPending;
+
+	void MarkActive()
+	{
+		IsPhysicsActive = true;
+		_transformSyncPending = true;
+	}
+
 
 	/// <summary>
 	/// Linear velocity before physics step. Internal until someone needs them.
@@ -577,9 +686,25 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 	/// </summary>
 	internal Vector3 PreAngularVelocity { get; private set; }
 
+	bool _isSimulatingPhysics;
+
 	void IScenePhysicsEvents.PrePhysicsStep()
 	{
 		if ( !_body.IsValid() ) return;
+
+		// Impulses and a new transform proxy don't mark us, so check again
+		if ( !IsPhysicsActive && _body.Sleeping && Transform.Proxy is null ) return;
+
+		// Owned and asleep with the synced velocities already zeroed: nothing below would change until something marks us
+		if ( _isSimulatingPhysics && !TargetTransform.HasValue && _lastVelocity == Vector3.Zero && _lastAngularVelocity == Vector3.Zero && !IsProxy && _body.Sleeping && Transform.Proxy is null )
+		{
+			PreVelocity = default;
+			PreAngularVelocity = default;
+			IsPhysicsActive = false;
+			return;
+		}
+
+		IsPhysicsActive = true;
 
 		var angularVelocity = _body.AngularVelocity;
 		var velocity = _body.Velocity;
@@ -592,14 +717,22 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 			// Editor transform uses velocity to move.
 			_body.Move( TargetTransform.Value, Time.Delta );
 		}
-		else if ( IsProxy && GameObject.NetworkMode == NetworkMode.Object )
+		else
 		{
-			// Make damn sure these are disabled.
-			_body.MotionEnabled = false;
-			_body.EnableCollisionSounds = false;
+			var isSimulatingPhysics = ShouldSimulatePhysics;
+			if ( isSimulatingPhysics != _isSimulatingPhysics )
+			{
+				_isSimulatingPhysics = isSimulatingPhysics;
 
-			// Networked proxy should use velocity to move to world transform.
-			_body.Move( Transform.TargetWorld, Time.Delta );
+				// Update physics body properties if we changed from simulating physics on proxy.
+				UpdateBody();
+			}
+
+			// Synced networked proxy should use velocity to move to world transform.
+			if ( !isSimulatingPhysics )
+			{
+				_body.Move( Transform.TargetWorld, Time.Delta );
+			}
 		}
 
 		if ( IsProxy )
@@ -632,6 +765,9 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 	void OnLocalTransformChanged()
 	{
 		if ( isUpdatingFromPhysics ) return;
+
+		MarkActive();
+
 		if ( IsProxy ) return;
 		if ( Transform.InsideChangeCallback ) return;
 
@@ -726,46 +862,56 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 	}
 
 	/// <summary>
+	/// Returns true if this rigidbody is a networked proxy that should simulate physics
+	/// locally instead of being driven by network transform updates.
+	/// </summary>
+	bool ShouldSimulatePhysics =>
+		!IsProxy ||
+		GameObject.NetworkMode != NetworkMode.Object ||
+		GameObject.Network?.Flags.Contains( NetworkFlags.NoTransformSync ) == true;
+
+	/// <summary>
 	/// Updates the physics body with the current properties of this component.
 	/// </summary>
-	internal void UpdateBody()
+	internal void UpdateBody() => UpdateBody( false );
+
+	void UpdateBody( bool initializing )
 	{
 		if ( !_body.IsValid() ) return;
+
+		MarkActive();
 
 		// If we're in editor, check if the editor wants to simulate us
 		if ( Scene.IsEditor )
 		{
 			var system = Scene.GetSystem<ScenePhysicsSystem>();
-			_body.BodyType = system is not null && system.HasRigidBody( this ) ? PhysicsBodyType.Dynamic : PhysicsBodyType.Static;
+			if ( !initializing )
+				_body.BodyType = system is not null && system.HasRigidBody( this ) ? PhysicsBodyType.Dynamic : PhysicsBodyType.Static;
+			_body.EnableCollisionSounds = !RigidbodyFlags.Contains( RigidbodyFlags.DisableCollisionSounds );
 
 			// Always considered dynamic for navmesh
 			_body.NavmeshBodyTypeOverride = PhysicsBodyType.Dynamic;
 		}
 		else
 		{
-			// Only enable motion when it's enabled and we're not a proxy.
-			// Proxies should always be kinematic.
-			_body.MotionEnabled = MotionEnabled && !IsProxy;
-
 			// Reset whatever this is.
 			_body.NavmeshBodyTypeOverride = null;
+
+			if ( !initializing )
+				_body.MotionEnabled = _isSimulatingPhysics && MotionEnabled;
+			_body.EnableCollisionSounds = _isSimulatingPhysics && !RigidbodyFlags.Contains( RigidbodyFlags.DisableCollisionSounds );
 		}
 
-		if ( IsProxy )
+		// All these properties only matter for dynamic.
+		if ( !initializing && _body.BodyType == PhysicsBodyType.Dynamic )
 		{
-			// Proxy doesn't need collision sounds, impacts should be networked.
-			_body.EnableCollisionSounds = false;
-		}
-		else
-		{
-			// None of these properties matter on proxy.
-			_body.EnableCollisionSounds = !RigidbodyFlags.Contains( RigidbodyFlags.DisableCollisionSounds );
 			_body.Locking = Locking;
 			_body.AngularDamping = AngularDamping;
 			_body.LinearDamping = LinearDamping;
 			_body.GravityEnabled = Gravity;
 			_body.GravityScale = GravityScale;
 			_body.Mass = MassOverride;
+			_body.ScaleInertia( InertiaScale );
 			_body.OverrideMassCenter = OverrideMassCenter;
 			_body.LocalMassCenter = MassCenterOverride;
 		}
@@ -783,7 +929,17 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 		{
 			Gizmo.Draw.IgnoreDepth = true;
 			Gizmo.Draw.Color = Color.White;
-			Gizmo.Draw.LineSphere( _body.MotionEnabled ? _body.LocalMassCenter : MassCenterOverride, 1, 4 );
+
+			var center = _body.MotionEnabled ? _body.LocalMassCenter : MassCenterOverride;
+
+			if ( Scene.Is2D )
+			{
+				Gizmo.Draw.LineCircle( center, Vector3.Up, 1 );
+			}
+			else
+			{
+				Gizmo.Draw.LineSphere( center, 1, 4 );
+			}
 		}
 	}
 	void IGameObjectNetworkEvents.StartControl()

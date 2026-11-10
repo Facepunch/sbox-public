@@ -1,5 +1,4 @@
 using Microsoft.Extensions.FileSystemGlobbing;
-using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using static Facepunch.Constants;
@@ -31,16 +30,17 @@ internal record ArtifactManifest
 }
 
 /// <summary>
-/// Syncs the master branch to the public repository by filtering specific paths
+/// Syncs the master branch and tags to the public repository by filtering specific paths
 /// </summary>
-internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
+internal class SyncPublicRepo( bool dryRun = false )
 {
 	private const string PUBLIC_REPO = "Facepunch/sbox-public";
 	private const string PUBLIC_BRANCH = "master";
 	private const string SHALLOW_EXCLUDE_TAG = "public-history-root";
 	private const int MAX_PARALLEL_UPLOADS = 32;
+	private const int PREVIOUS_MANIFEST_SEARCH = 20;
 
-	protected override ExitCode RunInternal()
+	internal ExitCode Run()
 	{
 		try
 		{
@@ -70,24 +70,66 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 	private static readonly string[] RepoFilterPathExcludeGlobs =
 	{
 		"**/*.pdb",
-		"game/core/shaders/**"
-	};
 
-	private static readonly string[] RepoFilterShaderWhitelistGlobs =
-	{
-		"game/core/shaders/**/vr_*",
-		"game/core/shaders/**/*.hlsl",
-		"game/core/shaders/**/*.shader_c",
-		"game/core/shaders/common.fxc",
-		"game/core/shaders/common_samplers.fxc",
-		"game/core/shaders/descriptor_set_support.fxc",
-		"game/core/shaders/system.fxc",
-		"game/core/shaders/tiled_culling.hlsl",
-		"game/core/shaders/skinning_cs.shader",
-		"game/core/shaders/yuv_resolve.shader",
-		"game/core/shaders/sbox_pixel.fxc",
-		"game/core/shaders/sbox_shared.fxc",
-		"game/core/shaders/sbox_vertex.fxc"
+		// Private legacy shader sources, matching depot.game.content.vdf and UploadBuildArtifacts.
+		"game/core/shaders/ambient_cube.fxc",
+		"game/core/shaders/baked_lighting_constants.fxc",
+		"game/core/shaders/bump_strength.fxc",
+		"game/core/shaders/encoded_normals.fxc",
+		"game/core/shaders/ffd.fxc",
+		"game/core/shaders/instancing.fxc",
+		"game/core/shaders/irradiance_probe_lighting.fxc",
+		"game/core/shaders/irradiance_volume.fxc",
+		"game/core/shaders/light_probe_volume.fxc",
+		"game/core/shaders/math_general.fxc",
+		"game/core/shaders/mathlib_base.fxc",
+		"game/core/shaders/morph.fxc",
+		"game/core/shaders/octohedral_encoding.fxc",
+		"game/core/shaders/parallax_occlusion.fxc",
+		"game/core/shaders/pcss.fxc",
+		"game/core/shaders/post_process_common.fxc",
+		"game/core/shaders/quad_overdraw_ps.fxc",
+		"game/core/shaders/sheet_sampling.fxc",
+		"game/core/shaders/sky.fxc",
+		"game/core/shaders/ssbump.fxc",
+		"game/core/shaders/transform_buffer.fxc",
+		"game/core/shaders/volumetric_fog.fxc",
+		"game/core/shaders/vs_decompress.fxc",
+
+		"game/core/shaders/complex.shader",
+		"game/core/shaders/copytexture.shader",
+		"game/core/shaders/cs_compress_dxt5.shader",
+		"game/core/shaders/cs_volumetric_fog.shader",
+		"game/core/shaders/debug_show_texture.shader",
+		"game/core/shaders/debug_wireframe_2d.shader",
+		"game/core/shaders/debugoverlay_wireframe.shader",
+		"game/core/shaders/depth_only.shader",
+		"game/core/shaders/downsample_depth.shader",
+		"game/core/shaders/error.shader",
+		"game/core/shaders/eyeball.shader",
+		"game/core/shaders/generic.shader",
+		"game/core/shaders/morph_composite.shader",
+		"game/core/shaders/simple.shader",
+		"game/core/shaders/skin.shader",
+		"game/core/shaders/sky.shader",
+		"game/core/shaders/static_overlay.shader",
+		"game/core/shaders/tonemap_query.shader",
+		"game/core/shaders/tools_2d_generic.shader",
+		"game/core/shaders/tools_generic.shader",
+		"game/core/shaders/tools_light_probe.shader",
+		"game/core/shaders/tools_selection_outline.shader",
+		"game/core/shaders/tools_selection_overlay.shader",
+		"game/core/shaders/tools_selection_stencil_copy.shader",
+		"game/core/shaders/tools_shading_complexity.shader",
+		"game/core/shaders/tools_solid.shader",
+		"game/core/shaders/tools_sprite.shader",
+		"game/core/shaders/tools_textured_unlit.shader",
+		"game/core/shaders/tools_visualize_collision_mesh.shader",
+		"game/core/shaders/tools_visualize_tangent_frame.shader",
+		"game/core/shaders/tools_wireframe.shader",
+		"game/core/shaders/ui.shader",
+		"game/core/shaders/unlit.shader",
+		"game/core/shaders/visualize_quad_overdraw.shader"
 	};
 
 	private static readonly Dictionary<string, string> RepoFilterPathRenames = new()
@@ -104,9 +146,13 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 		{ "public/.github/workflows/pull_request_checks.yml", ".github/workflows/pull_request_checks.yml" },
 		{ "public/.github/workflows/pull_request_formatting.yml", ".github/workflows/pull_request_formatting.yml" },
 		{ "public/README.md", "README.md" },
+		{ "public/AGENTS.md", "AGENTS.md" },
+		{ "public/CLAUDE.md", "CLAUDE.md" },
 		{ "public/LICENSE.md", "LICENSE.md" },
 		{ "public/CONTRIBUTING.md", "CONTRIBUTING.md" },
 		{ "public/SECURITY.md", "SECURITY.md" },
+		{ "public/Setup.bat", "Setup.bat" },
+		{ "public/Setup.sh", "Setup.sh" },
 		{ "public/Bootstrap.bat", "Bootstrap.bat" }
 	};
 
@@ -117,14 +163,11 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 			return _matcher;
 		}
 
-		// Ordered since we first include everything, then exclude, then re-include specific files
-		_matcher = new Matcher( StringComparison.OrdinalIgnoreCase, preserveFilterOrder: true );
+		_matcher = new Matcher( StringComparison.OrdinalIgnoreCase );
 
 		_matcher.AddIncludePatterns( RepoFilterPathIncludeGlobs );
 
 		_matcher.AddExcludePatterns( RepoFilterPathExcludeGlobs );
-
-		_matcher.AddIncludePatterns( RepoFilterShaderWhitelistGlobs );
 
 		return _matcher;
 	}
@@ -148,33 +191,26 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 		}
 
 		var repositoryRoot = Path.GetFullPath( "." );
+
+		// The build output doesn't come from the clone, so hash it while the clone is made
+		var buildArtifactsTask = Task.Run( () => HashBuildArtifacts( repositoryRoot ) );
+
 		var filteredRepoPath = CreateShallowClone( repositoryRoot );
 		if ( string.IsNullOrEmpty( filteredRepoPath ) )
 		{
+			buildArtifactsTask.Wait();
 			return false;
 		}
 
 		try
 		{
 			var relativeFilteredPath = GetRelativeWorkingDirectory( filteredRepoPath );
-			var uploadedArtifacts = new HashSet<ArtifactFileInfo>();
-			var uploadedArtifactHashes = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
 
-			// Upload windows binaries
-			if ( !TryUploadBuildArtifacts( repositoryRoot, remoteBase, "win64", dryRun, ref uploadedArtifacts, uploadedArtifactHashes ) )
+			var buildArtifacts = buildArtifactsTask.GetAwaiter().GetResult();
+			if ( buildArtifacts is null )
 			{
 				return false;
 			}
-
-			// Upload linux binaries
-			if ( !TryUploadBuildArtifacts( repositoryRoot, remoteBase, "linuxsteamrt64", dryRun, ref uploadedArtifacts, uploadedArtifactHashes ) )
-			{
-				return false;
-			}
-
-			//
-			// Start working with the shallow clone
-			//
 
 			// Make certain we dont have any stray files in our shallow clone
 			if ( !CleanIgnoredFiles( relativeFilteredPath ) )
@@ -182,14 +218,23 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 				return false;
 			}
 
-			// Upload LFS tracked files in the HEAD of the shallow clone
+			// LFS tracked files in the HEAD of the shallow clone
 			var shallowLfsPaths = GetCurrentLfsFiles( relativeFilteredPath );
 			if ( shallowLfsPaths is null )
 			{
 				return false;
 			}
 
-			if ( !TryUploadLfsArtifacts( filteredRepoPath, shallowLfsPaths, remoteBase, dryRun, ref uploadedArtifacts, uploadedArtifactHashes ) )
+			var lfsArtifacts = ReadLfsArtifacts( filteredRepoPath, shallowLfsPaths );
+			if ( lfsArtifacts is null )
+			{
+				return false;
+			}
+
+			var uploadedArtifacts = new List<ArtifactFileInfo>();
+			var uniqueArtifacts = AddToManifest( buildArtifacts.Concat( lfsArtifacts ), uploadedArtifacts );
+
+			if ( !TryUploadArtifacts( uniqueArtifacts, remoteBase, dryRun ) )
 			{
 				return false;
 			}
@@ -254,7 +299,7 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 			{
 				Thread.Sleep( 500 ); // Give any pending file handles a moment to close
 				Log.Info( "Cleaning up temporary filtered repository..." );
-				Directory.Delete( filteredRepoPath, true );
+				DeleteDirectory( filteredRepoPath );
 			}
 			catch ( Exception ex )
 			{
@@ -270,13 +315,36 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 
 		Log.Info( "Creating clone for filtering..." );
 
-		if ( Utility.RunProcess( "git", $"clone --shallow-exclude {SHALLOW_EXCLUDE_TAG} \"{localFilePath}\" \"{filteredRepoPath}\"" ) )
+		// LFS content is read from this checkout's object store, the clone only needs the pointers
+		var environment = new Dictionary<string, string> { ["GIT_LFS_SKIP_SMUDGE"] = "1" };
+
+		if ( Utility.RunProcess( "git", $"clone --config core.longpaths=true --shallow-exclude {SHALLOW_EXCLUDE_TAG} \"{localFilePath}\" \"{filteredRepoPath}\"", environmentVariables: environment ) )
 		{
 			return filteredRepoPath;
 		}
 
 		Log.Error( "Failed to create clone" );
 		return null;
+	}
+
+	/// <summary>
+	/// Deletes a directory tree, including the read-only files git leaves in .git (packs, commit-graph)
+	/// that make Directory.Delete fail on Windows.
+	/// </summary>
+	private static void DeleteDirectory( string path )
+	{
+		if ( !Directory.Exists( path ) )
+			return;
+
+		var options = new EnumerationOptions { RecurseSubdirectories = true, AttributesToSkip = FileAttributes.ReparsePoint };
+		foreach ( var file in Directory.EnumerateFiles( path, "*", options ) )
+		{
+			var attributes = File.GetAttributes( file );
+			if ( attributes.HasFlag( FileAttributes.ReadOnly ) )
+				File.SetAttributes( file, attributes & ~FileAttributes.ReadOnly );
+		}
+
+		Directory.Delete( path, true );
 	}
 
 	private static bool CleanIgnoredFiles( string relativeRepoPath )
@@ -291,53 +359,44 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 		return false;
 	}
 
-	private static bool TryUploadBuildArtifacts( string repositoryRoot, string remoteBase, string platform, bool skipUpload, ref HashSet<ArtifactFileInfo> artifacts, HashSet<string> uploadedHashes )
+	private static readonly string[] BuildPlatforms = { "win64", "linuxsteamrt64", "osxarm64" };
+
+	/// <summary>
+	/// Hashes the binaries for every platform and the compiled assets. Returns null on failure.
+	/// </summary>
+	private static List<(string SourcePath, ArtifactFileInfo Artifact)> HashBuildArtifacts( string repositoryRoot )
 	{
-		var buildArtifactsRoot = Path.Combine( repositoryRoot, "game", "bin", platform );
-		if ( !Directory.Exists( buildArtifactsRoot ) )
+		var files = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
+
+		foreach ( var platform in BuildPlatforms )
 		{
-			Log.Info( $"Build artifacts directory not found, skipping upload: {buildArtifactsRoot}" );
-			return true;
-		}
-
-		// Inline matcher: include everything, exclude managed root folder and pdbs
-		var matcher = new Matcher( StringComparison.OrdinalIgnoreCase, preserveFilterOrder: true );
-		matcher.AddInclude( "**/*" );
-		matcher.AddExclude( "managed/**" );
-		matcher.AddExclude( "**/*.pdb" );
-
-		var filesToUpload = matcher
-			.GetResultsInFullPath( buildArtifactsRoot )
-			.ToHashSet( StringComparer.OrdinalIgnoreCase );
-
-		var compiledAssets = GetCompiledAssetFiles( repositoryRoot );
-		var newCompiledAssets = 0;
-		foreach ( var asset in compiledAssets )
-		{
-			if ( filesToUpload.Add( asset ) )
+			var buildArtifactsRoot = Path.Combine( repositoryRoot, "game", "bin", platform );
+			if ( !Directory.Exists( buildArtifactsRoot ) )
 			{
-				newCompiledAssets++;
+				Log.Info( $"Build artifacts directory not found, skipping upload: {buildArtifactsRoot}" );
+				continue;
 			}
+
+			// Inline matcher: include everything, exclude managed root folder, pdbs, and debug symbols
+			var matcher = new Matcher( StringComparison.OrdinalIgnoreCase, preserveFilterOrder: true );
+			matcher.AddInclude( "**/*" );
+			matcher.AddExclude( "managed/**" );
+			matcher.AddExclude( "**/*.pdb" );
+			matcher.AddExclude( "**/*.dbg" );
+
+			files.UnionWith( matcher.GetResultsInFullPath( buildArtifactsRoot ) );
 		}
 
-		if ( filesToUpload.Count == 0 )
-		{
-			Log.Info( "No build artifacts found to upload" );
-			return true;
-		}
+		var binaries = files.Count;
+		files.UnionWith( GetCompiledAssetFiles( repositoryRoot ) );
 
-		var compiledAssetSuffix = newCompiledAssets > 0 ? $" (including {newCompiledAssets} compiled asset(s))" : string.Empty;
-		Log.Info( $"Found {filesToUpload.Count} build artifact(s) to upload{compiledAssetSuffix}" );
+		Log.Info( $"Found {files.Count} build artifact(s) ({binaries} binaries, {files.Count - binaries} compiled assets)" );
 
-		var candidates = filesToUpload
-			.Select( path =>
-			{
-				var repoRelativePath = Path.GetRelativePath( repositoryRoot, path );
-				return (RepoPath: ToForwardSlash( repoRelativePath ), AbsolutePath: path);
-			} )
+		var candidates = files
+			.Select( path => (RepoPath: ToForwardSlash( Path.GetRelativePath( repositoryRoot, path ) ), AbsolutePath: path) )
 			.ToList();
 
-		return TryUploadArtifacts( candidates, remoteBase, artifacts, uploadedHashes, "build", skipUpload );
+		return HashArtifacts( candidates );
 	}
 
 	private static IReadOnlyCollection<string> GetCompiledAssetFiles( string repositoryRoot )
@@ -377,19 +436,121 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 		return compiledAssets;
 	}
 
-	private static bool TryUploadLfsArtifacts( string repoRoot, IReadOnlyCollection<string> lfsPaths, string remoteBase, bool skipUpload, ref HashSet<ArtifactFileInfo> artifacts, HashSet<string> uploadedHashes )
+	/// <summary>
+	/// The clone's working tree holds LFS pointers. A pointer's oid is the artifact's sha256, so nothing
+	/// needs hashing, and the content comes from this checkout's LFS object store. Returns null on failure.
+	/// </summary>
+	private static List<(string SourcePath, ArtifactFileInfo Artifact)> ReadLfsArtifacts( string repoRoot, IReadOnlyCollection<string> lfsPaths )
 	{
-		if ( lfsPaths.Count == 0 )
+		var objectsDirectory = GetLfsObjectsDirectory();
+		if ( objectsDirectory is null )
 		{
-			return true;
+			return null;
 		}
 
-		var candidates = lfsPaths
-			.Where( p => RepoFileFilter().Match( p ).HasMatches )
-			.Select( path => (RepoPath: path, AbsolutePath: Path.Combine( repoRoot, path.Replace( '/', Path.DirectorySeparatorChar ) )) )
-			.ToList();
+		var paths = lfsPaths.Where( p => RepoFileFilter().Match( p ).HasMatches ).ToList();
+		foreach ( var path in paths )
+		{
+			var extension = Path.GetExtension( path );
+			if ( !string.IsNullOrEmpty( extension ) && ForbiddenArtifactExtensions.Contains( extension ) )
+			{
+				Log.Error( $"Encountered forbidden artifact extension ({extension}): {path}" );
+				return null;
+			}
+		}
 
-		return TryUploadArtifacts( candidates, remoteBase, artifacts, uploadedHashes, "LFS", skipUpload );
+		// In parallel, first opens of the freshly checked out pointers are slow (virus scanning)
+		var results = new (string SourcePath, ArtifactFileInfo Artifact, string Error)[paths.Count];
+		Parallel.For( 0, paths.Count, new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount }, i =>
+		{
+			var path = paths[i];
+			var pointerPath = Path.Combine( repoRoot, path.Replace( '/', Path.DirectorySeparatorChar ) );
+			if ( !TryReadLfsPointer( pointerPath, out var oid, out var size ) )
+			{
+				results[i].Error = $"Expected an LFS pointer in the clone: {path}";
+				return;
+			}
+
+			var objectPath = Path.Combine( objectsDirectory, oid[..2], oid[2..4], oid );
+			var objectInfo = new FileInfo( objectPath );
+			if ( !objectInfo.Exists || objectInfo.Length != size )
+			{
+				results[i].Error = $"LFS object {oid} for {path} is missing from {objectsDirectory}";
+				return;
+			}
+
+			results[i] = (objectPath, new ArtifactFileInfo { Path = path, Sha256 = oid, Size = size }, null);
+		} );
+
+		var artifacts = new List<(string SourcePath, ArtifactFileInfo Artifact)>( results.Length );
+		foreach ( var (sourcePath, artifact, error) in results )
+		{
+			if ( error is not null )
+			{
+				Log.Error( error );
+				return null;
+			}
+
+			artifacts.Add( (sourcePath, artifact) );
+		}
+
+		Log.Info( $"Found {artifacts.Count} LFS artifact(s)" );
+
+		return artifacts;
+	}
+
+	private static bool TryReadLfsPointer( string path, out string oid, out long size )
+	{
+		oid = null;
+		size = -1;
+
+		// Pointers are around 130 bytes, spec caps them at 1024
+		var info = new FileInfo( path );
+		if ( !info.Exists || info.Length > 1024 )
+		{
+			return false;
+		}
+
+		foreach ( var line in File.ReadLines( path ) )
+		{
+			if ( line.StartsWith( "oid sha256:", StringComparison.Ordinal ) )
+			{
+				oid = line["oid sha256:".Length..].Trim().ToLowerInvariant();
+			}
+			else if ( line.StartsWith( "size ", StringComparison.Ordinal ) && long.TryParse( line["size ".Length..], out var parsed ) )
+			{
+				size = parsed;
+			}
+		}
+
+		return oid is { Length: 64 } && oid.All( char.IsAsciiHexDigit ) && size >= 0;
+	}
+
+	private static string GetLfsObjectsDirectory()
+	{
+		var gitDirectory = GetGitCommonDirectory();
+		if ( gitDirectory is null )
+		{
+			Log.Error( "Failed to find the git directory for LFS objects" );
+			return null;
+		}
+
+		return Path.Combine( gitDirectory, "lfs", "objects" );
+	}
+
+	/// <summary>
+	/// The repository's .git directory, shared by all of its worktrees.
+	/// </summary>
+	private static string GetGitCommonDirectory()
+	{
+		string gitDirectory = null;
+		Utility.RunProcess( "git", "rev-parse --git-common-dir", onDataReceived: ( _, e ) =>
+		{
+			if ( !string.IsNullOrWhiteSpace( e.Data ) )
+				gitDirectory ??= e.Data.Trim();
+		} );
+
+		return string.IsNullOrEmpty( gitDirectory ) ? null : Path.GetFullPath( gitDirectory );
 	}
 
 	private bool RunFilterRepo( string relativeRepoPath )
@@ -407,7 +568,6 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 		{
 			IncludeGlobs = RepoFilterPathIncludeGlobs,
 			ExcludeGlobs = RepoFilterPathExcludeGlobs,
-			WhitelistedShaders = RepoFilterShaderWhitelistGlobs,
 			PathRenames = RepoFilterPathRenames.ToDictionary( pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase )
 		};
 
@@ -488,7 +648,7 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 
 	private string PushToPublicRepository( string relativeRepoPath )
 	{
-		Log.Info( "Pushing filtered repository to public..." );
+		Log.Info( "Pushing filtered branch and tags to public..." );
 
 		var token = Environment.GetEnvironmentVariable( "SYNC_GITHUB_TOKEN" );
 		if ( string.IsNullOrEmpty( token ) )
@@ -508,7 +668,9 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 			}
 		}
 
-		if ( !Utility.RunProcess( "git", $"push public {PUBLIC_BRANCH}", relativeRepoPath ) )
+		// git-filter-repo has already rewritten tag targets to their public commits.
+		// Push both lightweight and annotated tags atomically with the branch.
+		if ( !Utility.RunProcess( "git", $"push --atomic public {PUBLIC_BRANCH} --tags", relativeRepoPath ) )
 		{
 			Log.Error( "Failed to push to public repository" );
 			return null;
@@ -602,144 +764,219 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 		".h"
 	};
 
-	private static bool TryUploadArtifacts( IReadOnlyCollection<(string RepoPath, string AbsolutePath)> candidates, string remoteBase, HashSet<ArtifactFileInfo> artifacts, HashSet<string> uploadedHashes, string artifactLabel, bool skipUpload )
+	/// <summary>
+	/// Hashes the candidates in parallel. Returns null if any is missing or forbidden.
+	/// </summary>
+	private static List<(string SourcePath, ArtifactFileInfo Artifact)> HashArtifacts( IReadOnlyList<(string RepoPath, string AbsolutePath)> candidates )
 	{
-		if ( candidates.Count == 0 )
+		foreach ( var (repoPath, absolutePath) in candidates )
 		{
-			Log.Info( $"No {artifactLabel} artifacts found to upload" );
-			return true;
+			if ( !File.Exists( absolutePath ) )
+			{
+				Log.Error( $"Artifact not found on disk: {repoPath}" );
+				return null;
+			}
+
+			var extension = Path.GetExtension( absolutePath );
+			if ( !string.IsNullOrEmpty( extension ) && ForbiddenArtifactExtensions.Contains( extension ) )
+			{
+				Log.Error( $"Encountered forbidden artifact extension ({extension}): {repoPath}" );
+				return null;
+			}
 		}
 
-		var uniqueUploads = new List<(string AbsolutePath, ArtifactFileInfo Artifact)>();
-		var duplicateManifestCount = 0;
-		var duplicateUploadCount = 0;
-
-		// Pre-compute SHA256 hashes in parallel - hashing is CPU+IO bound and benefits from concurrency
-		var hashCache = new ConcurrentDictionary<string, (string Sha256, long Size)>( StringComparer.OrdinalIgnoreCase );
-		Parallel.ForEach( candidates, new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount }, item =>
+		// Hashing is CPU+IO bound and benefits from concurrency
+		var results = new (string SourcePath, ArtifactFileInfo Artifact)?[candidates.Count];
+		Parallel.For( 0, candidates.Count, new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount }, i =>
 		{
-			var (_, absolutePath) = item;
-			if ( !File.Exists( absolutePath ) )
-				return;
-			var ext = Path.GetExtension( absolutePath );
-			if ( !string.IsNullOrEmpty( ext ) && ForbiddenArtifactExtensions.Contains( ext ) )
-				return;
+			var (repoPath, absolutePath) = candidates[i];
 
 			var fileInfo = new FileInfo( absolutePath );
 			var resolvedPath = absolutePath;
 			if ( fileInfo.LinkTarget is not null )
 			{
 				var resolved = fileInfo.ResolveLinkTarget( returnFinalTarget: true );
-				if ( resolved?.Exists == true )
+				if ( resolved?.Exists != true )
 				{
-					resolvedPath = resolved.FullName;
-					fileInfo = new FileInfo( resolvedPath );
+					return; // broken symlink - handled with a warning below
 				}
-				else
-				{
-					return; // broken symlink - handled with a warning in the sequential pass below
-				}
+
+				resolvedPath = resolved.FullName;
+				fileInfo = new FileInfo( resolvedPath );
 			}
 
-			hashCache[absolutePath] = (Utility.CalculateSha256( resolvedPath ), fileInfo.Length);
+			results[i] = (resolvedPath, new ArtifactFileInfo
+			{
+				Path = repoPath,
+				Sha256 = Utility.CalculateSha256( resolvedPath ),
+				Size = fileInfo.Length
+			});
 		} );
 
-		foreach ( var (repoPath, absolutePath) in candidates )
+		var artifacts = new List<(string SourcePath, ArtifactFileInfo Artifact)>( candidates.Count );
+		for ( var i = 0; i < candidates.Count; i++ )
 		{
-			var repoPathNormalized = ToForwardSlash( repoPath );
-
-			if ( !File.Exists( absolutePath ) )
+			if ( results[i] is not { } result )
 			{
-				Log.Error( $"Artifact not found on disk: {repoPathNormalized}" );
-				return false;
-			}
-
-			var extension = Path.GetExtension( absolutePath );
-			if ( !string.IsNullOrEmpty( extension ) && ForbiddenArtifactExtensions.Contains( extension ) )
-			{
-				Log.Error( $"Encountered forbidden artifact extension ({extension}): {repoPathNormalized}" );
-				return false;
-			}
-
-			if ( !hashCache.TryGetValue( absolutePath, out var cached ) )
-			{
-				// Not in cache - must be a broken symlink (resolved in the parallel pass above)
-				Log.Warning( $"Failed to resolve symlink target for {repoPathNormalized}, skipping artifact" );
+				Log.Warning( $"Failed to resolve symlink target for {candidates[i].RepoPath}, skipping artifact" );
 				continue;
 			}
 
-			var artifact = new ArtifactFileInfo
-			{
-				Path = repoPathNormalized,
-				Sha256 = cached.Sha256,
-				Size = cached.Size
-			};
-
-			if ( !artifacts.Add( artifact ) )
-			{
-				duplicateManifestCount++;
-				continue;
-			}
-
-			if ( !uploadedHashes.Add( cached.Sha256 ) )
-			{
-				duplicateUploadCount++;
-				continue;
-			}
-
-			uniqueUploads.Add( (absolutePath, artifact) );
+			artifacts.Add( result );
 		}
 
-		if ( uniqueUploads.Count == 0 )
+		return artifacts;
+	}
+
+	/// <summary>
+	/// Adds each artifact to the manifest, first one wins for a path, and returns one artifact per unique blob.
+	/// </summary>
+	private static List<(string SourcePath, ArtifactFileInfo Artifact)> AddToManifest( IEnumerable<(string SourcePath, ArtifactFileInfo Artifact)> artifacts, List<ArtifactFileInfo> manifest )
+	{
+		var paths = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
+		var hashes = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
+		var unique = new List<(string SourcePath, ArtifactFileInfo Artifact)>();
+
+		foreach ( var (sourcePath, artifact) in artifacts )
 		{
-			Log.Info( $"No unique {artifactLabel} artifacts to upload" );
+			if ( !paths.Add( artifact.Path ) )
+			{
+				continue;
+			}
+
+			manifest.Add( artifact );
+
+			if ( hashes.Add( artifact.Sha256 ) )
+			{
+				unique.Add( (sourcePath, artifact) );
+			}
+		}
+
+		return unique;
+	}
+
+	private static bool TryUploadArtifacts( IReadOnlyCollection<(string SourcePath, ArtifactFileInfo Artifact)> artifacts, string remoteBase, bool skipUpload )
+	{
+		var totalBytes = artifacts.Sum( artifact => artifact.Artifact.Size );
+		Log.Info( $"{artifacts.Count} unique artifacts ({Utility.FormatSize( totalBytes )})" );
+
+		var (previousCommit, previousHashes) = GetPreviouslyUploadedHashes();
+		var uploads = artifacts.Where( artifact => !previousHashes.Contains( artifact.Artifact.Sha256 ) ).ToList();
+		if ( previousCommit is not null )
+		{
+			Log.Info( $"{artifacts.Count - uploads.Count} already uploaded with {previousCommit}" );
+		}
+
+		if ( uploads.Count == 0 )
+		{
+			Log.Info( "No new artifacts to upload" );
 			return true;
 		}
 
-		long batchBytes = 0;
-		foreach ( var upload in uniqueUploads )
-		{
-			batchBytes += upload.Artifact.Size;
-		}
+		var batchBytes = uploads.Sum( upload => upload.Artifact.Size );
 
 		if ( skipUpload )
 		{
-			Log.Info( $"Dry run: {uniqueUploads.Count} unique {artifactLabel} artifacts ({Utility.FormatSize( batchBytes )})" );
+			Log.Info( $"Dry run: would upload {uploads.Count} artifacts ({Utility.FormatSize( batchBytes )})" );
 			return true;
 		}
 
-		Log.Info( $"Uploading {uniqueUploads.Count} {artifactLabel} artifacts ({Utility.FormatSize( batchBytes )})..." );
+		Log.Info( $"Uploading {uploads.Count} artifacts ({Utility.FormatSize( batchBytes )})..." );
 
-		if ( !BatchUploadArtifacts( uniqueUploads, remoteBase, artifactLabel ) )
+		if ( !BatchUploadArtifacts( uploads, remoteBase ) )
 		{
 			return false;
 		}
 
-		Log.Info( $"Uploaded {uniqueUploads.Count} {artifactLabel} artifacts ({Utility.FormatSize( batchBytes )})" );
+		Log.Info( $"Uploaded {uploads.Count} artifacts ({Utility.FormatSize( batchBytes )})" );
 
 		return true;
 	}
 
-	private static bool BatchUploadArtifacts( IReadOnlyCollection<(string AbsolutePath, ArtifactFileInfo Artifact)> uploads, string remoteBase, string artifactLabel )
+	/// <summary>
+	/// Artifact hashes from the newest manifest of a recent ancestor. Manifests are only uploaded once all
+	/// their artifacts are, so these are already in the bucket. Empty if none is found, uploading everything.
+	/// </summary>
+	private static (string Commit, HashSet<string> Hashes) GetPreviouslyUploadedHashes()
 	{
-		var stagingDir = Path.Combine( Path.GetTempPath(), $"sbox-upload-{Guid.NewGuid():N}" );
-		Directory.CreateDirectory( stagingDir );
+		var hashes = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
 
-		Log.Info( $"Staging {uploads.Count} {artifactLabel} artifact(s) for batch upload..." );
+		// Skip HEAD itself, its manifest is about to be written and a 404 for it could get cached
+		var commits = new List<string>();
+		Utility.RunProcess( "git", $"rev-list --first-parent --max-count={PREVIOUS_MANIFEST_SEARCH} HEAD~1", onDataReceived: ( _, e ) =>
+		{
+			if ( !string.IsNullOrWhiteSpace( e.Data ) )
+				commits.Add( e.Data.Trim() );
+		} );
 
 		try
 		{
-			foreach ( var (absolutePath, artifact) in uploads )
+			using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds( 30 ) };
+			foreach ( var commit in commits )
+			{
+				using var response = httpClient.GetAsync( $"{R2.PublicBaseUrl}/manifests/{commit}.json" ).GetAwaiter().GetResult();
+				if ( response.StatusCode == System.Net.HttpStatusCode.NotFound )
+				{
+					continue;
+				}
+
+				response.EnsureSuccessStatusCode();
+
+				using var stream = response.Content.ReadAsStream();
+				var manifest = JsonSerializer.Deserialize<ArtifactManifest>( stream );
+				foreach ( var file in manifest?.Files ?? [] )
+				{
+					if ( !string.IsNullOrEmpty( file?.Sha256 ) )
+						hashes.Add( file.Sha256 );
+				}
+
+				return (commit, hashes);
+			}
+		}
+		catch ( Exception ex )
+		{
+			Log.Warning( $"Failed to fetch a previous manifest, uploading every artifact: {ex.Message}" );
+			return (null, new HashSet<string>( StringComparer.OrdinalIgnoreCase ));
+		}
+
+		Log.Info( $"No manifest found for the last {commits.Count} commit(s), uploading every artifact" );
+		return (null, hashes);
+	}
+
+	private static bool BatchUploadArtifacts( IReadOnlyCollection<(string SourcePath, ArtifactFileInfo Artifact)> uploads, string remoteBase )
+	{
+		// Next to the repository so staging can hard link rather than copy
+		var stagingDir = Path.Combine( GetGitCommonDirectory() ?? Path.GetTempPath(), $"sbox-upload-{Guid.NewGuid():N}" );
+		Directory.CreateDirectory( stagingDir );
+
+		Log.Info( $"Staging {uploads.Count} artifact(s) for batch upload..." );
+
+		try
+		{
+			var copied = 0;
+			foreach ( var (sourcePath, artifact) in uploads )
 			{
 				var destPath = Path.Combine( stagingDir, artifact.Sha256 );
-				File.Copy( absolutePath, destPath, overwrite: true );
+
+				// Read-only files are copied, deleting a link to one would need the shared attribute cleared
+				if ( File.GetAttributes( sourcePath ).HasFlag( FileAttributes.ReadOnly ) || !Utility.TryCreateHardLink( destPath, sourcePath ) )
+				{
+					File.Copy( sourcePath, destPath, overwrite: true );
+					copied++;
+				}
 			}
 
+			if ( copied > 0 )
+			{
+				Log.Info( $"Copied {copied} artifact(s) that couldn't be hard linked" );
+			}
+
+			// --no-traverse checks each file rather than listing every artifact in the bucket
 			var remoteArtifactsPath = $"{remoteBase}/artifacts";
-			var args = $"copy \"{stagingDir}\" \"{remoteArtifactsPath}\" --ignore-existing --transfers {MAX_PARALLEL_UPLOADS} --checkers {MAX_PARALLEL_UPLOADS} -q";
+			var args = $"copy \"{stagingDir}\" \"{remoteArtifactsPath}\" --ignore-existing --no-traverse --transfers {MAX_PARALLEL_UPLOADS} --checkers {MAX_PARALLEL_UPLOADS} --stats-one-line --stats 30s -v";
 			if ( !Utility.RunProcess( "rclone", args, timeoutMs: 3600000 ) )
 			{
-				Log.Error( $"Failed to batch upload {artifactLabel} artifacts" );
+				Log.Error( "Failed to batch upload artifacts" );
 				return false;
 			}
 
@@ -749,6 +986,7 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 		{
 			try
 			{
+				// Plain delete: clearing read-only on a hard link would change the source file too
 				Directory.Delete( stagingDir, true );
 			}
 			catch ( Exception ex )
@@ -822,22 +1060,7 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 		return string.IsNullOrEmpty( relativePath ) ? "." : relativePath;
 	}
 
-	private static string GetR2Base()
-	{
-		var r2AccessKeyId = Environment.GetEnvironmentVariable( "SYNC_R2_ACCESS_KEY_ID" );
-		var r2SecretAccessKey = Environment.GetEnvironmentVariable( "SYNC_R2_SECRET_ACCESS_KEY" );
-		var r2Bucket = Environment.GetEnvironmentVariable( "SYNC_R2_BUCKET" );
-		var r2Endpoint = Environment.GetEnvironmentVariable( "SYNC_R2_ENDPOINT" );
-
-		if ( string.IsNullOrEmpty( r2AccessKeyId ) || string.IsNullOrEmpty( r2SecretAccessKey ) ||
-			 string.IsNullOrEmpty( r2Bucket ) || string.IsNullOrEmpty( r2Endpoint ) )
-		{
-			Log.Error( "R2 credentials not properly configured in environment variables" );
-			return null;
-		}
-
-		return $":s3,bucket={r2Bucket},provider=Cloudflare,access_key_id={r2AccessKeyId},secret_access_key={r2SecretAccessKey},endpoint='{r2Endpoint}':";
-	}
+	private static string GetR2Base() => R2.GetRcloneRemote();
 
 	private static string ToForwardSlash( string path )
 	{
@@ -867,9 +1090,6 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 
 		[JsonPropertyName( "exclude_globs" )]
 		public string[] ExcludeGlobs { get; init; }
-
-		[JsonPropertyName( "whitelisted_shaders" )]
-		public string[] WhitelistedShaders { get; init; }
 
 		[JsonPropertyName( "path_renames" )]
 		public Dictionary<string, string> PathRenames { get; init; }

@@ -5,7 +5,7 @@ namespace Sandbox;
 /// <summary>
 /// Describes an item of clothing and implicitly which other items it can be worn with
 /// </summary>
-[AssetType( Name = "Clothing Definition", Extension = "clothing", Category = "citizen", Flags = AssetTypeFlags.IncludeThumbnails )]
+[AssetType( Name = "Clothing Definition", Extension = "clothing", Category = "citizen", Flags = AssetTypeFlags.IncludeThumbnails, IconColor = "#fdea60" )]
 public sealed partial class Clothing : GameResource
 {
 
@@ -212,6 +212,13 @@ public sealed partial class Clothing : GameResource
 	[Category( "Clothing Setup" )]
 	public BodyGroups HideBody { get; set; }
 
+	/// <summary>
+	/// How this clothing responds to the avatar's body deforms. Normal reshapes it, None ignores them, and Rigid moves it
+	/// without reshaping it, for hard items like earrings or a sword.
+	/// </summary>
+	[Category( "Clothing Setup" )]
+	public SkinnedModelRenderer.DeformationModeType DeformationMode { get; set; } = SkinnedModelRenderer.DeformationModeType.Normal;
+
 	[Category( "User Customization" )]
 	public bool AllowTintSelect { get; set; }
 
@@ -401,11 +408,30 @@ public sealed partial class Clothing : GameResource
 	[Feature( "Icon", Description = "Generate the icon used for the clothing thumbnail" )]
 	public IconSetup Icon { get; set; }
 
+	/// <summary>
+	/// Camera framing and output settings for a clothing icon.
+	/// </summary>
 	public struct IconSetup
 	{
+		/// <summary>
+		/// Saved icon image path.
+		/// </summary>
 		[Hide]
 		public string Path { get; set; }
+		/// <summary>
+		/// View angle preset. Generic chooses a suitable view from the clothing category.
+		/// </summary>
 		public IconModes Mode { get; set; }
+
+		/// <summary>
+		/// Apply a custom offset after fitting the item. Disabled by default so legacy Citizen offsets do not affect Human framing.
+		/// </summary>
+		public bool UsePositionOffset { get; set; }
+
+		/// <summary>
+		/// Camera-relative adjustment to the automatically framed item.
+		/// </summary>
+		[ShowIf( nameof( UsePositionOffset ), true )]
 		public Vector3 PositionOffset { get; set; }
 
 		[Expose]

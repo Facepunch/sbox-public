@@ -1,5 +1,6 @@
 ﻿using System;
-using System.Text.Json;
+using System.Collections.Concurrent;
+using System.IO;
 using System.Text.Json.Nodes;
 using System.Threading;
 
@@ -45,30 +46,26 @@ public class CloudAsset
 	[ConCmd( "install", ConVarFlags.Protected )]
 	public static async Task InstallSingle( string ident )
 	{
-		var asset = await AssetSystem.InstallAsync( ident );
-		EditorUtility.InspectorObject = asset;
+		try
+		{
+			var asset = await AssetSystem.InstallAsync( ident );
+			EditorUtility.InspectorObject = asset;
+		}
+		catch ( AggregateException ex )
+		{
+			Log.Warning( ex, $"Error installing package {ident}" );
+		}
 	}
 
 
 	/// <summary>
-	/// Install multiple packages, skipping what's already installed. Does progress window.
+	/// Some projects were saved with multiple references to different versions of the same
+	/// package. Collapse the references down to one ident per package so we only try to
+	/// install each once - an unpinned reference is upgraded by a version-pinned one, and
+	/// conflicting pins resolve to the newest version. Unparseable idents are dropped.
 	/// </summary>
-	public static async Task<bool> Install( string windowTitle, IEnumerable<string> packages )
+	internal static string[] DeduplicateReferences( IEnumerable<string> packages )
 	{
-		if ( packages.Count() == 0 ) return true;
-
-		if ( Backend.Package is null )
-		{
-			Log.Warning( $"Unable to install cloud assets, backend not available." );
-			return false;
-		}
-
-		using var progress = Application.Editor.ProgressSection();
-		progress.Title = windowTitle;
-		var cancel = progress.GetCancel();
-
-		// Sol: for whatever reason some projects were being saved with multiple refs to different version of the same package?
-		// make sure we're only trying one ref of any package (prefer the newest, version-pinned one) otherwise stuff gets confusing
 		Dictionary<string, int?> versions = new();
 		foreach ( var ident in packages )
 		{
@@ -97,14 +94,27 @@ public class CloudAsset
 			}
 		}
 
-		IEnumerable<string> idents = versions.Select( x =>
-		{
-			var packageIdent = x.Key;
-			if ( x.Value.HasValue ) packageIdent += $"#{x.Value}";
-			return packageIdent;
-		} );
+		return versions.Select( x => x.Value.HasValue ? $"{x.Key}#{x.Value}" : x.Key ).ToArray();
+	}
 
-		var undownloaded = idents.Where( x => !IsInstalled( x ) ).ToArray();
+	/// <summary>
+	/// Install multiple packages, skipping what's already installed. Does progress window.
+	/// </summary>
+	public static async Task<bool> Install( string windowTitle, IEnumerable<string> packages )
+	{
+		if ( packages.Count() == 0 ) return true;
+
+		if ( Backend.Package is null )
+		{
+			Log.Warning( $"Unable to install cloud assets, backend not available." );
+			return false;
+		}
+
+		using var progress = Application.Editor.ProgressSection();
+		progress.Title = windowTitle;
+		var cancel = progress.GetCancel();
+
+		var undownloaded = DeduplicateReferences( packages ).Where( x => !IsInstalled( x ) ).ToArray();
 
 		int total = undownloaded.Count();
 		int i = 0;
@@ -120,7 +130,14 @@ public class CloudAsset
 			progress.Current = ++i;
 
 			Log.Info( $"Installing '{package.FullIdent}' (version: {package.Revision.VersionId})" );
-			await AssetSystem.InstallAsync( package, false, null, cancel );
+			try
+			{
+				await AssetSystem.InstallAsync( package, false, null, cancel );
+			}
+			catch ( AggregateException ex )
+			{
+				Log.Warning( ex, $"Error installing package {ident}" );
+			}
 
 		}, token: cancel, maxRunning: 8 );
 
@@ -141,44 +158,7 @@ public class CloudAsset
 			return false;
 		}
 
-		// Sol: for whatever reason some projects were being saved with multiple refs to different version of the same package?
-		// make sure we're only trying one ref of any package (prefer the newest, version-pinned one) otherwise stuff gets confusing
-		Dictionary<string, int?> versions = new();
-		foreach ( var ident in packages )
-		{
-			if ( !Package.TryParseIdent( ident, out var parts ) )
-				continue;
-
-			string fullIdent = Package.FormatIdent( parts.org, parts.package );
-			var newVer = parts.version;
-
-			if ( !versions.TryGetValue( fullIdent, out var existingVer ) || existingVer == null )
-			{
-				versions[fullIdent] = newVer;
-				continue;
-			}
-
-			if ( newVer == null )
-				continue;
-
-			if ( existingVer != newVer )
-			{
-				// version conflict! choose newest
-				var bestVer = Math.Max( newVer.Value, existingVer.Value );
-				Log.Info( $"Found duplicate reference '{ident}' with conflicting versions (using: {bestVer})" );
-
-				versions[fullIdent] = bestVer;
-			}
-		}
-
-		IEnumerable<string> idents = versions.Select( x =>
-		{
-			var packageIdent = x.Key;
-			if ( x.Value.HasValue ) packageIdent += $"#{x.Value}";
-			return packageIdent;
-		} );
-
-		var undownloaded = idents.Where( x => !IsInstalled( x ) ).ToArray();
+		var undownloaded = DeduplicateReferences( packages ).Where( x => !IsInstalled( x ) ).ToArray();
 
 		int total = undownloaded.Count();
 		if ( total == 0 ) return true;
@@ -281,8 +261,34 @@ public class CloudAsset
 	/// </summary>
 	public static HashSet<string> GetAssetReferences( bool currentProjectOnly )
 	{
+		return new HashSet<string>( GetAssetReferenceSources( currentProjectOnly ).Keys, StringComparer.OrdinalIgnoreCase );
+	}
+
+	/// <summary>
+	/// Gets all referenced cloud assets and all local assets that reference them
+	/// </summary>
+	public static Dictionary<string, List<Asset>> GetAssetReferenceSources( bool currentProjectOnly )
+	{
 		string projectPath = Project.Current.GetAssetsPath().Replace( '\\', '/' );
-		var packages = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
+		var references = new Dictionary<string, List<Asset>>( StringComparer.OrdinalIgnoreCase );
+		var seen = new Dictionary<string, HashSet<Asset>>( StringComparer.OrdinalIgnoreCase );
+
+		void AddReference( string packageIdent, Asset asset )
+		{
+			if ( string.IsNullOrWhiteSpace( packageIdent ) )
+				return;
+
+			if ( !references.TryGetValue( packageIdent, out var sources ) )
+			{
+				sources = new List<Asset>();
+				references[packageIdent] = sources;
+				seen[packageIdent] = new HashSet<Asset>();
+			}
+
+			// A single asset can list the same package more than once, prevent duplicates
+			if ( seen[packageIdent].Add( asset ) )
+				sources.Add( asset );
+		}
 
 		HashSet<string> validAssetPaths = null;
 		if ( currentProjectOnly )
@@ -303,49 +309,34 @@ public class CloudAsset
 			}
 		}
 
+		// Most resources don't change between sessions, so this only has to stat them, see GetCachedReferences
+		var cacheStore = FileSystem.ProjectTemporary;
+		LoadReferenceCache( cacheStore );
+		var scannedFiles = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
+
 		var gr = AssetSystem.All.Where( x => x.AssetType.IsGameResource && (!currentProjectOnly || validAssetPaths.Any( path => x.AbsolutePath.StartsWith( path, StringComparison.OrdinalIgnoreCase ) )) );
 		foreach ( var r in gr )
 		{
-			string json = null;
-			try
+			foreach ( var packageIdent in GetGameResourceReferences( r, scannedFiles ) )
 			{
-				json = r.ReadJson();
-				if ( string.IsNullOrWhiteSpace( json ) ) continue;
-
-				if ( JsonNode.Parse( json ) is not JsonObject jso ) continue;
-				if ( jso["__references"] is not JsonArray references ) continue;
-				if ( references.Count == 0 ) continue;
-
-				foreach ( var jsonNode in references )
-				{
-					string packageIdent = jsonNode.ToString();
-					//Log.Info( $"{packageIdent} ({r.AbsolutePath})");
-					packages.Add( packageIdent );
-				}
-			}
-			catch ( JsonException e )
-			{
-				Log.Info( $"{r.AbsolutePath} - {e.Message}" );
-				Log.Info( json );
-			}
-			catch ( Exception e )
-			{
-				Log.Info( $"{r.AbsolutePath} - {e.Message}" );
+				AddReference( packageIdent, r );
 			}
 		}
+
+		SaveReferenceCache( cacheStore, scannedFiles );
 
 		var nativeResources = AssetSystem.All.Where( x => !x.AssetType.IsGameResource && (!currentProjectOnly || validAssetPaths.Any( path => x.AbsolutePath.StartsWith( path, StringComparison.OrdinalIgnoreCase ) )) ).ToArray();
 		foreach ( var r in nativeResources )
 		{
-			var config = r?.Publishing?.ProjectConfig;
+			// Not Publishing: that creates and keeps default settings for every asset without any, which never have references
+			var config = r?.GetPublishSettings( false )?.ProjectConfig;
 			if ( config is null ) continue;
 
 			if ( config.EditorReferences is not null )
 			{
 				foreach ( var packageIdent in config.EditorReferences )
 				{
-					//Log.Info( $"{packageIdent} ({m.AbsolutePath})" );
-					packages.Add( packageIdent );
+					AddReference( packageIdent, r );
 				}
 			}
 
@@ -353,12 +344,124 @@ public class CloudAsset
 			{
 				foreach ( var packageIdent in config.DistinctPackageReferences )
 				{
-					//Log.Info( $"{packageIdent} ({m.AbsolutePath})" );
-					packages.Add( packageIdent );
+					AddReference( packageIdent, r );
 				}
 			}
 		}
 
+		return references;
+	}
+
+	internal readonly record struct CachedReferences( DateTime WriteTime, long Length, string[] Packages );
+
+	/// <summary>
+	/// Parsed <c>__references</c> per resource file, so repeated scans only re-read files that changed.
+	/// Saved to the project's .sbox folder so the scan on startup doesn't open every resource again.
+	/// </summary>
+	static readonly ConcurrentDictionary<string, CachedReferences> _referenceCache = new( StringComparer.OrdinalIgnoreCase );
+
+	const string ReferenceCacheFile = "cloud_references.json";
+
+	/// <summary>
+	/// The store <see cref="_referenceCache"/> was loaded from. A different one means another project was opened.
+	/// </summary>
+	static BaseFileSystem _referenceCacheStore;
+
+	/// <summary>
+	/// <see cref="_referenceCache"/> differs from what's saved in <see cref="_referenceCacheStore"/>.
+	/// </summary>
+	static bool _referenceCacheDirty;
+
+	internal static void LoadReferenceCache( BaseFileSystem store )
+	{
+		if ( store == _referenceCacheStore )
+			return;
+
+		_referenceCacheStore = store;
+		_referenceCache.Clear();
+		_referenceCacheDirty = false;
+
+		var saved = store?.ReadJsonOrDefault<Dictionary<string, CachedReferences>>( ReferenceCacheFile );
+		if ( saved is null )
+			return;
+
+		foreach ( var (file, entry) in saved )
+		{
+			if ( entry.Packages is not null )
+				_referenceCache[file] = entry;
+		}
+	}
+
+	/// <summary>
+	/// Forget files the scan no longer saw (deleted, moved, or not in the project anymore) and save if anything changed.
+	/// </summary>
+	internal static void SaveReferenceCache( BaseFileSystem store, HashSet<string> scannedFiles )
+	{
+		foreach ( var file in _referenceCache.Keys )
+		{
+			if ( !scannedFiles.Contains( file ) && _referenceCache.TryRemove( file, out _ ) )
+				_referenceCacheDirty = true;
+		}
+
+		if ( !_referenceCacheDirty || store is null )
+			return;
+
+		try
+		{
+			store.WriteJson( ReferenceCacheFile, _referenceCache );
+			_referenceCacheDirty = false;
+		}
+		catch ( Exception e )
+		{
+			// Not fatal, the next scan reads the resources again
+			Log.Warning( e, $"Couldn't save cloud reference cache: {e.Message}" );
+		}
+	}
+
+	static string[] GetGameResourceReferences( Asset asset, HashSet<string> scannedFiles )
+	{
+		// Same file ReadJson reads: source if present, compiled otherwise
+		var file = asset.GetSourceFile( true );
+		if ( string.IsNullOrWhiteSpace( file ) )
+			file = asset.GetCompiledFile( true );
+
+		if ( string.IsNullOrWhiteSpace( file ) )
+			return [];
+
+		scannedFiles.Add( file );
+		return GetCachedReferences( file, asset.ReadJson );
+	}
+
+	/// <summary>
+	/// The top level <c>__references</c> of a resource's json, re-read only when the file's write time or
+	/// length changes. Length catches two saves landing on the same write time.
+	/// </summary>
+	internal static string[] GetCachedReferences( string file, Func<string> readJson )
+	{
+		var info = new FileInfo( file );
+		var writeTime = info.Exists ? info.LastWriteTimeUtc : default;
+		var length = info.Exists ? info.Length : 0;
+
+		if ( _referenceCache.TryGetValue( file, out var cached ) && cached.WriteTime == writeTime && cached.Length == length )
+			return cached.Packages;
+
+		string[] packages = [];
+		try
+		{
+			var json = readJson();
+			if ( !string.IsNullOrWhiteSpace( json ) && JsonNode.Parse( json ) is JsonObject jso && jso["__references"] is JsonArray refs )
+			{
+				packages = refs.Select( x => x?.ToString() ).ToArray();
+			}
+		}
+		catch ( Exception e )
+		{
+			// Cached below, so this only fires again once the file changes
+			Log.Warning( e, $"Couldn't read cloud references from {file}: {e.Message}" );
+		}
+
+		_referenceCache[file] = new CachedReferences( writeTime, length, packages );
+		_referenceCacheDirty = true;
 		return packages;
 	}
 }

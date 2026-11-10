@@ -12,7 +12,7 @@ internal struct QRectF
 
 	public static implicit operator QRectF( in Rect value )
 	{
-		return new QRectF { x = (int)value.Left, y = (int)value.Top, w = (int)value.Width, h = (int)value.Height };
+		return new QRectF { x = value.Left, y = value.Top, w = value.Width, h = value.Height };
 	}
 
 	public readonly Rect Rect => new( (float)x, (float)y, (float)w, (float)h );

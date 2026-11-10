@@ -1,0 +1,13 @@
+@import "/styles/_gallery-palette.scss";
+CssInlineTests
+{
+    .inline-controls { gap: 24px; align-items: center; margin-bottom: 20px; }
+    .inline-controls button { padding: 12px 20px; background-color: #3273eb; color: white; border-radius: 6px; cursor: pointer; }
+    .inline-stage { width: 100%; min-height: 330px; padding: 40px; background-color: #18212b; border-radius: 10px; align-items: center; justify-content: center; }
+    .paragraph { transition: width 0.8s ease-in-out; display: block; font-size: 26px; color: #e6eaf2; pointer-events: all;
+        span { display: inline; }
+        .reward { color: $gallery-pink; }
+        .cool { color: $gallery-cyan; }
+        .inline-link { color: $gallery-lime; text-decoration: underline; cursor: pointer; }
+    }
+}

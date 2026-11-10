@@ -1,0 +1,169 @@
+@using System;
+@using Sandbox;
+@using Sandbox.UI;
+@namespace MenuProject.Platform
+@inherits Panel
+
+@*
+    A game as the Workshop has it - square art, who made it, votes and subscribers, whether you're subscribed (and the
+    way to change it) by its rating, picked out if it's the one you're on. Or a local project, which just has its name.
+    Right-click for what else you can do with it (OpenMenu).
+*@
+<root class="@(Selected ? "selected" : "")" onclick=@Pick onrightclick=@OpenMenu>
+
+    <div class="art" style="@ArtStyle">
+        @if ( Selected )
+        {
+            <label class="pill">Selected</label>
+        }
+    </div>
+
+    <div class="info">
+        <div class="top">
+            @if ( Item is not null )
+            {
+                <div class="stars @(Stars is null ? "unrated" : "")" tooltip="@RatingTip">
+                    @for ( var i = 0; i < 5; i++ )
+                    {
+                        <i class="@(i < (Stars ?? 0) ? "lit" : "")">@(i < (Stars ?? 0) ? "star" : "star_border")</i>
+                    }
+                </div>
+            }
+            <div class="spacer"></div>
+            @if ( Item is not null )
+            {
+                <div class="badge @(Subscribed ? "on" : "")" tooltip="@(Subscribed ? "Click to unsubscribe" : "Click to subscribe")" onclick=@( ( PanelEvent e ) => { e.StopPropagation(); ToggleSubscribed(); } )>
+                    <i class="state">@(Subscribed ? "check" : "add")</i>
+                    <i class="hover">@(Subscribed ? "close" : "add")</i>
+                </div>
+            }
+            @if ( Favourited )
+            {
+                <i class="favourite" tooltip="In your favourites">star</i>
+            }
+        </div>
+        <label class="name">@Shorten( Item?.Title ?? Local?.Title, 26 )</label>
+        <div class="by-row">
+            <label class="by">@Shorten( By, 32 )</label>
+            @if ( MenuHelpers.IsVerified( Item ) )
+            {
+                <i class="verified" tooltip="Verified by Facepunch">verified</i>
+            }
+        </div>
+    </div>
+
+</root>
+
+@code
+{
+    /// <summary>
+    /// How tall the strip under the art is - a card's as tall as it's wide, plus this
+    /// </summary>
+    public const int InfoHeight = 70;
+
+    [Parameter] public WorkshopItemDetails Item { get; set; }
+
+    /// <summary>
+    /// A local project instead - not on the Workshop
+    /// </summary>
+    [Parameter] public Package Local { get; set; }
+
+    [Parameter] public Action<Package> OnPicked { get; set; }
+
+    bool Selected => Local is not null
+        ? PlatformMenu.SameGame( Local, PlatformMenu.Current )
+        : Item is not null && Item.Id == MenuUtility.KnownWorkshopId( PlatformMenu.Current );
+
+    bool Subscribed => Item is not null && MenuUtility.IsSubscribed( Item.Id );
+
+    bool Favourited => Item is not null && PlatformMenu.Favourites.Games?.Any( x => x.Id == Item.Id ) == true;
+
+    /// <summary>
+    /// Out of five, from how it's been voted - null until there's enough votes to say, as the Workshop does
+    /// </summary>
+    int? Stars
+    {
+        get
+        {
+            if ( Item.VotesUp + Item.VotesDown < 5 ) return null;
+
+            return Math.Clamp( (int)MathF.Round( MenuHelpers.Rating( Item.VotesUp, Item.VotesDown ).Value / 20f ), 1, 5 );
+        }
+    }
+
+    string RatingTip
+    {
+        get
+        {
+            var votes = Item.VotesUp + Item.VotesDown;
+            return votes < 5 ? "Not enough ratings" : $"{MenuHelpers.Rating( Item.VotesUp, Item.VotesDown )}% of {votes:n0} ratings · {Item.Subscriptions:n0} subscribers";
+        }
+    }
+
+    /// <summary>
+    /// Cut short with an ellipsis - the card doesn't clip, see its stylesheet
+    /// </summary>
+    static string Shorten( string text, int length ) => text is { } t && t.Length > length ? t[..(length - 1)].TrimEnd() + "…" : text;
+
+    string ArtStyle => (Item?.Thumb ?? Local?.Thumb) is { } thumb ? $"background-image: url( {thumb} );" : "";
+
+    string By => Local is not null ? "Local project" : Item?.OwnerName is { } owner ? $"By {owner}" : "";
+
+    async void Pick()
+    {
+        if ( Local is not null )
+        {
+            OnPicked?.Invoke( Local );
+            return;
+        }
+
+        if ( Item is null ) return;
+
+        var game = await MenuUtility.FetchWorkshopGameAsync( Item.Id );
+        if ( game is null )
+        {
+            Log.Warning( $"Couldn't find the game for Workshop item {Item.Id}" );
+            return;
+        }
+
+        OnPicked?.Invoke( game );
+    }
+
+    /// <summary>
+    /// What you can do with it, by its Workshop id - open it, subscribe, vote on it, see its page. A local project can
+    /// only be opened.
+    /// </summary>
+    void OpenMenu()
+    {
+        if ( Item is null && Local is null ) return;
+
+        var menu = MenuProject.UI.MenuPanel.Open( this );
+        menu.AddOption( "play_arrow", "Open", Pick );
+
+        if ( Item is null ) return;
+
+        menu.AddSpacer();
+        menu.AddOption( Subscribed ? "remove_circle_outline" : "add_circle_outline", Subscribed ? "Unsubscribe" : "Subscribe", ToggleSubscribed );
+        menu.AddOption( "thumb_up", "Like", () => _ = Vote( true ) );
+        menu.AddOption( "thumb_down", "Dislike", () => _ = Vote( false ) );
+
+        menu.AddSpacer();
+        menu.AddOption( "open_in_new", "View on Workshop", () => MenuUtility.OpenUrl( $"steam://url/CommunityFilePage/{Item.Id}" ) );
+    }
+
+    async System.Threading.Tasks.Task Vote( bool up )
+    {
+        if ( await MenuUtility.VoteOnWorkshopAsync( Item.Id, up ) ) return;
+
+        MenuOverlay.Instance?.BottomRight?.Queue( new MenuProject.Toast { Title = "#menu.workshop.vote_failed", Icon = "thumbs_up_down" } );
+    }
+
+    void ToggleSubscribed()
+    {
+        if ( Subscribed ) MenuUtility.Unsubscribe( Item.Id );
+        else MenuUtility.Subscribe( Item.Id );
+        StateHasChanged();
+    }
+
+    protected override int BuildHash() => HashCode.Combine( Item, Local, Selected, Subscribed, Favourited );
+}

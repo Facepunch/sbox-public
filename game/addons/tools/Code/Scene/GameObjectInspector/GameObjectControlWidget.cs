@@ -9,6 +9,10 @@ public class GameObjectControlWidget : ControlWidget
 	bool IsInList => Parent?.Parent is ListControlWidget;
 	IconButton PickerButton;
 
+	public bool ShowFullName { get; set; } = true;
+
+	public string MissingName { get; set; } = "None (GameObject)";
+
 	public GameObjectControlWidget( SerializedProperty property ) : base( property )
 	{
 		if ( !property.IsEditable )
@@ -94,7 +98,7 @@ public class GameObjectControlWidget : ControlWidget
 			Paint.SetPen( Theme.TextControl.WithAlpha( 0.3f ) );
 			Paint.DrawIcon( rect, "radio_button_unchecked", 14, TextFlag.LeftCenter );
 			rect.Left += 22;
-			Paint.DrawText( rect, "None (GameObject)", TextFlag.LeftCenter );
+			Paint.DrawText( rect, MissingName, TextFlag.LeftCenter );
 		}
 		else if ( go is PrefabScene )
 		{
@@ -123,6 +127,11 @@ public class GameObjectControlWidget : ControlWidget
 
 	private string BuildName( GameObject go )
 	{
+		if ( !ShowFullName )
+		{
+			return go.Name;
+		}
+
 		string str = "";
 
 		if ( go.Parent.IsValid() && go.Parent is not Scene )
@@ -204,8 +213,7 @@ public class GameObjectControlWidget : ControlWidget
 
 			if ( picker is GenericPicker genericPicker )
 			{
-				genericPicker.DockManager.AddDock( null, sceneBrowser, DockArea.Inside, DockManager.DockProperty.HideCloseButton
-					| DockManager.DockProperty.DisallowUserDocking | DockManager.DockProperty.DisableDraggableTab );
+				genericPicker.DockManager.AddDock( "Scene Browser", null, sceneBrowser, DockArea.Center );
 				sceneBrowser.ConfirmButton = genericPicker.ConfirmButton;
 				sceneBrowser.OnConfirm = () => picker.Close();
 				if ( go.IsValid() && go is not PrefabScene )

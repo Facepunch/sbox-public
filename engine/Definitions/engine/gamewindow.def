@@ -1,0 +1,34 @@
+#include "engineservicemgr.h"
+#include "inputsystem/iinputsystem.h"
+
+native static class GameWindowGlue as NativeEngine.GameWindowNative
+{
+	inline void* FromNativeHandle( CastTo[OsSpecificWindowHandle_t] IntPtr window )
+	{
+		return (void*)Plat_OsSpecificHandleToPlatWindow( window );
+	}
+
+	inline void Attach( CastTo[PlatWindow_t] IntPtr window, SwapChainHandle_t swapChain )
+	{
+		Plat_RegisterWindow( window );
+		CEngineServiceMgr::SetEngineState( window, swapChain );
+		g_pInputSystem->AttachToWindow( Plat_WindowToOsSpecificHandle( window ) );
+	}
+
+	inline void Detach( CastTo[PlatWindow_t] IntPtr window )
+	{
+		g_pInputSystem->DetachFromWindow( Plat_WindowToOsSpecificHandle( window ) );
+		CEngineServiceMgr::ResetEngineState();
+		Plat_UnregisterWindow( window );
+	}
+
+	inline void SetRenderTarget( CastTo[PlatWindow_t] IntPtr window, SwapChainHandle_t swapChain )
+	{
+		CEngineServiceMgr::SetEngineState( window, swapChain );
+	}
+}
+
+managed static class Sandbox.Engine.GameWindow
+{
+	static bool Present();
+}

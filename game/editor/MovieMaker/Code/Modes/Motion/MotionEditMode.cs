@@ -1,6 +1,5 @@
 ﻿using Sandbox.MovieMaker;
 using System.Linq;
-using Sandbox.MovieMaker.Compiled;
 
 namespace Editor.MovieMaker;
 
@@ -151,13 +150,30 @@ public sealed partial class MotionEditMode : EditMode
 
 	internal void AddTimeSelectionContextMenu( ContextMenuEvent ev, TimeSelection selection )
 	{
-		ev.Menu.AddHeading( "Time Selection" );
+		ev.Title = "Time Selection";
 		ev.Menu.AddOption( "Insert", "keyboard_tab", Insert );
 		ev.Menu.AddOption( "Remove", "backspace", () => Delete( true ) );
 		ev.Menu.AddOption( "Clear", "delete", () => Delete( false ) );
-		ev.Menu.AddOption( "Save As Sequence..", "theaters",
-			() => Session.Editor.SaveAsDialog( "Save As Sequence..",
-				() => CreateSequence( TimeSelection!.Value.TotalTimeRange ) ) );
+
+		if ( !selection.TotalTimeRange.IsEmpty )
+		{
+			ev.Menu.AddOption( "Save As Sequence..", "theaters", () =>
+			{
+				var trackViews = Session.TrackList.EditablePropertyTracks.ToArray();
+				var timeRange = selection.TotalTimeRange;
+
+				Session.Editor.SaveAsDialog( "Save As Sequence..",
+					() => Session.CreateSequence( trackViews, timeRange ),
+					result =>
+					{
+						using var historyScope = Session.History.Push( "Create Sequence" );
+
+						Session.Delete( trackViews, timeRange, false, true );
+						Session.GetOrCreateTrack( result.Resource ).AddBlock( result.StartTime, result.Resource );
+						Session.TrackList.Update();
+					} );
+			} );
+		}
 
 		AddCustomModifications( ev.Menu, selection );
 

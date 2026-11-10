@@ -7,7 +7,7 @@ namespace Sandbox;
 /// </summary>
 [Expose]
 [Title( "Particle Light Renderer" )]
-[Category( "Particles" )]
+[Category( "Effects" )]
 [Icon( "tips_and_updates" )]
 public sealed class ParticleLightRenderer : ParticleController
 {
@@ -44,7 +44,7 @@ public sealed class ParticleLightRenderer : ParticleController
 
 	protected override void OnParticleCreated( Particle p )
 	{
-		if ( Random.Shared.Float( 0, 1 ) > Ratio )
+		if ( ParticleRandom.Shared.Float( 0, 1 ) > Ratio )
 			return;
 
 		if ( currentLightCount > MaximumLights )

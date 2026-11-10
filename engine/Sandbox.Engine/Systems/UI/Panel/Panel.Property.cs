@@ -1,19 +1,17 @@
-﻿using System.Reflection;
-
+﻿using Sandbox.Engine;
 namespace Sandbox.UI;
 
 public partial class Panel
 {
 	/// <summary>
-	/// True when a bind has changed and OnParametersSet call is pending a call
+	/// True when a parameter has changed and OnParametersSet is pending.
 	/// </summary>
-
-	bool templateBindsChanged = true;
+	bool parametersChanged = true;
 	Task parametersSetTask;
 
 	internal void ParametersChanged( bool immediately )
 	{
-		templateBindsChanged = true;
+		parametersChanged = true;
 
 		// task is still running
 		if ( parametersSetTask != null && !parametersSetTask.IsCompleted )
@@ -21,7 +19,7 @@ public partial class Panel
 
 		if ( immediately )
 		{
-			templateBindsChanged = false;
+			parametersChanged = false;
 
 			parametersSetTask = OnParametersSetInternalAsync();
 		}
@@ -33,7 +31,7 @@ public partial class Panel
 		{
 			await OnParametersSetAsync();
 		}
-		catch ( TaskCanceledException )
+		catch ( OperationCanceledException )
 		{
 			return;
 		}
@@ -58,20 +56,11 @@ public partial class Panel
 	}
 
 	/// <summary>
-	/// Same as <see cref="SetProperty"/>, but first tries to set the property on the panel object, then process any special properties such as <c>class</c>.
+	/// Does nothing. Left over from the template system.
 	/// </summary>
-	/// <inheritdoc cref="SetProperty"/>
+	[Obsolete( "Leftover from the template system. Use SetProperty." )]
 	public virtual void SetPropertyObject( string name, object value )
 	{
-		var prop = GetType().GetProperty( name, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.FlattenHierarchy );
-
-		if ( prop != null && prop.PropertyType.IsAssignableFrom( value?.GetType() ) )
-		{
-			prop.SetValue( this, value );
-			return;
-		}
-
-		SetProperty( name, Convert.ToString( value ) );
 	}
 
 	string previousPropertyClass;
@@ -91,7 +80,9 @@ public partial class Panel
 
 		if ( name == "value" )
 		{
+#pragma warning disable CS0618
 			StringValue = value;
+#pragma warning restore CS0618
 			return;
 		}
 
@@ -115,35 +106,37 @@ public partial class Panel
 
 		SetAttribute( name, value );
 
-		Game.TypeLibrary.SetProperty( this, name, value );
+		GlobalContext.Current.TypeLibrary.SetProperty( this, name, value );
 	}
 
-	Dictionary<string, string> Attributes;
+	Dictionary<string, string> _attributes;
 
 	/// <summary>
-	/// Used in templates, gets an attribute that was set in the template.
+	/// Stores an attribute value by name. Every attribute set via <see cref="SetProperty"/> lands here.
 	/// </summary>
 	public void SetAttribute( string k, string v )
 	{
-		Attributes ??= new();
-		Attributes[k] = v;
+		if ( string.IsNullOrEmpty( k ) ) return;
+
+		_attributes ??= [];
+		_attributes[k] = v;
 	}
 
 	/// <summary>
-	/// Used in templates, try to get the attribute that was set in creation.
+	/// Gets an attribute value by name, or <paramref name="defaultIfNotFound"/> if it was never set.
 	/// </summary>
 	public string GetAttribute( string k, string defaultIfNotFound = default )
 	{
-		if ( Attributes == null ) return defaultIfNotFound;
+		if ( _attributes == null ) return defaultIfNotFound;
 
-		if ( Attributes.TryGetValue( k, out var v ) )
+		if ( _attributes.TryGetValue( k, out var v ) )
 			return v;
 
 		return defaultIfNotFound;
 	}
 
 	/// <summary>
-	/// Called after all templated panel binds have been set.
+	/// Called after the razor parameters on this panel have been set or changed.
 	/// </summary>
 	protected virtual void OnParametersSet()
 	{
@@ -151,7 +144,7 @@ public partial class Panel
 	}
 
 	/// <summary>
-	/// Called after all templated panel binds have been set.
+	/// Called after the razor parameters on this panel have been set or changed, before <see cref="OnParametersSet"/>.
 	/// </summary>
 	protected virtual Task OnParametersSetAsync()
 	{
@@ -159,7 +152,7 @@ public partial class Panel
 	}
 
 	/// <summary>
-	/// Called by the templating system when an element has content between its tags.
+	/// Called by the razor renderer when an element has text content between its tags.
 	/// </summary>
 	public virtual void SetContent( string value )
 	{

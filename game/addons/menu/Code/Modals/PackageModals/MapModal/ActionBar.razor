@@ -2,40 +2,48 @@
 @inherits Panel
 @using Sandbox;
 @using Sandbox.UI;
-@using Menu;
+@using SboxMenu;
 @using System;
 @using Sandbox.Network
+@using MenuProject.Modals.PackageModalComponents
 
 <root>
 
+    @* What you thought of it, bottom left - the game page's pills *@
     <div class="left">
+        <PackageReactions Package=@Package ShowReviews=@false OnHidden=@(() => Modal?.CloseModal( false )) />
 
-        @if ( LobbyCount > 0 )
+        @* Subscribing, by its votes - like the game page *@
+        @if (Modal.HasFullPackage && Package.InstallsFromWorkshop)
         {
-            <Button icon="list" class="@(LobbyCount == 0 ? "disabled" : "")" onclick=@OpenLobbyList>@LobbyCount Lobbies</Button>
+            <WorkshopSubscribe Package=@Package />
         }
-
     </div>
 
     <div class="right">
+
+        @* By the launch button, like the game modal's *@
+        @if ( LobbyCount > 0 )
+        {
+			<Button icon="list" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OpenLobbyList>@LobbyCount Lobbies</Button>
+        }
 
 		@if (Modal.HasFullPackage)
 		{
 			@if(GamePackage is null)
 			{
-                <Button icon="sports_esports" onclick=@SelectGame>Select Game</Button>
+                <Button icon="sports_esports" onclick=@SelectGame>#menu.games.select_game</Button>
 			}
 			else
 			{
                 <Button icon="sports_esports" onclick=@SelectGame>@GamePackage.Title</Button>
 			}
 
-            var bc = $"play {(GamePackage is null ? "disabled" : "")}";
-            <Button icon="play_arrow" class="@bc" onclick=@OnPlay>Launch Map</Button>
+			<Button icon="play_arrow" class="play" Disabled=@(GamePackage is null || !MenuHelpers.HasAuthority) onclick=@OnPlay>#menu.games.launch_map</Button>
 		}
 		else
 		{
-            <Button icon="play_arrow" class="play disabled" onclick=@OnPlay>Launch Map</Button>
+            <Button icon="play_arrow" class="play disabled" onclick=@OnPlay>#menu.games.launch_map</Button>
 		}
 
 
@@ -49,17 +57,29 @@
     public Package Package {get;set;}
     public static Package GamePackage { get; set; } = null;
     public static Package MapPackage { get; set; } = null;
+    private static string _gamePackageInitializedFor;
 
-    protected override int BuildHash () => System.HashCode.Combine( Package, Modal?.HasFullPackage, LobbyCount );
+    protected override int BuildHash () => System.HashCode.Combine( Package, Modal?.HasFullPackage, LobbyCount, MenuHelpers.HasAuthority, Package?.Interaction );
 
     int LobbyCount => Modal?.Lobbies?.Count() ?? 0;
 
     protected override async Task OnParametersSetAsync()
     {
-        var target = this.Package.GetMeta<string>("ParentPackage", null);
-        if (string.IsNullOrWhiteSpace(target)) target = "facepunch.sandbox";
+        if ( Package?.FullIdent == _gamePackageInitializedFor ) return;
+        _gamePackageInitializedFor = Package?.FullIdent;
 
-        GamePackage = await Package.FetchAsync( target, false );
+        var target = this.Package.Info.ParentPackage;
+        if ( !string.IsNullOrWhiteSpace( target ) )
+        {
+            var package = await Package.FetchAsync( target, false );
+            if ( package is not null && package.TypeName == "game" )
+            {
+                GamePackage = package;
+                return;
+            }
+        }
+
+        GamePackage = await Package.FetchAsync( MenuHelpers.SANDBOX_IDENT, false );
     }
 
     void OnPlay()
@@ -70,7 +90,7 @@
 
 	void SelectGame()
 	{
-		Game.Overlay.ShowPackageSelector("type:game sort:popular +mapselect", (pkg) => {
+		Game.Overlay.ShowPackageSelector("type:game sort:rankweek", (pkg) => {
 			GamePackage = pkg;
 			StateHasChanged();
 		});

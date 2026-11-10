@@ -1,25 +1,28 @@
 ﻿namespace Facepunch.InteropGen;
 
+/// <summary>
+/// A simple indented text builder: tracks indentation and offers Write/WriteLine/StartBlock/EndBlock
+/// for emitting source code into a StringBuilder.
+/// </summary>
 internal class CodeWriter
 {
 	public int Indent { get; set; }
-	public System.Text.StringBuilder sb { get; protected set; } = new System.Text.StringBuilder();
-	public bool Empty => sb.Length == 0;
+	protected System.Text.StringBuilder Builder { get; set; } = new System.Text.StringBuilder();
 
 	public void Write( string line, bool indent = false )
 	{
 		if ( indent )
 		{
-			_ = sb.Append( new string( '\t', Indent ) );
+			_ = Builder.Append( new string( '\t', Indent ) );
 		}
 
-		_ = sb.Append( line );
+		_ = Builder.Append( line );
 	}
 
 	public void WriteLine( string line = "" )
 	{
-		_ = sb.Append( new string( '\t', Indent ) );
-		_ = sb.AppendLine( line );
+		_ = Builder.Append( new string( '\t', Indent ) );
+		_ = Builder.AppendLine( line );
 	}
 
 	public void WriteLines( string text )
@@ -48,6 +51,6 @@ internal class CodeWriter
 
 	public override string ToString()
 	{
-		return sb.ToString();
+		return Builder.ToString();
 	}
 }

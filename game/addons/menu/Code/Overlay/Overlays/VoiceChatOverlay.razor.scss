@@ -1,0 +1,11 @@
+@import "/styles/_chat.scss";
+
+VoiceChatOverlay {
+	position: absolute;
+	right: 64px;
+	bottom: 20%;
+	width: 600px;
+	flex-direction: column;
+	pointer-events: none;
+	z-index: -1000;
+}

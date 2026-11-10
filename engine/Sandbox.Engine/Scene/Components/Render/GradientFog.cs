@@ -1,8 +1,9 @@
 namespace Sandbox;
 
 /// <summary>
-/// Adds a gradient fog to the world
+/// Legacy gradient fog retained for existing scenes. Use <see cref="Fog"/> for new fog effects.
 /// </summary>
+[Obsolete( "Use Fog instead." ), Hide]
 [Title( "Gradient Fog" )]
 [Category( "Rendering" )]
 [Icon( "foggy" )]

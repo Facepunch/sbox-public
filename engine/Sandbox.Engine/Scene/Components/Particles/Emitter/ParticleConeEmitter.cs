@@ -4,7 +4,7 @@
 /// Emits particles within/along a cone shape.
 /// </summary>
 [Title( "Cone Emitter" )]
-[Category( "Particles" )]
+[Category( "Effects" )]
 [Icon( "change_history" )]
 public sealed class ParticleConeEmitter : ParticleEmitter
 {
@@ -50,9 +50,9 @@ public sealed class ParticleConeEmitter : ParticleEmitter
 		if ( !Gizmo.IsSelected )
 			return;
 
-		var ca = ConeAngle.Evaluate( Delta, Random.Shared.Float() );
-		var cf = ConeFar.Evaluate( Delta, Random.Shared.Float() );
-		var cn = ConeNear.Evaluate( Delta, Random.Shared.Float() );
+		var ca = ConeAngle.Evaluate( Delta, ParticleRandom.Shared.Float() );
+		var cf = ConeFar.Evaluate( Delta, ParticleRandom.Shared.Float() );
+		var cn = ConeNear.Evaluate( Delta, ParticleRandom.Shared.Float() );
 
 		Gizmo.Draw.Color = Color.White.WithAlpha( 0.3f );
 		Gizmo.Draw.LineCircle( Vector3.Forward * (cf - cn), cf * MathF.Tan( ca.DegreeToRadian() ) );
@@ -61,15 +61,15 @@ public sealed class ParticleConeEmitter : ParticleEmitter
 
 	public override bool Emit( ParticleEffect target )
 	{
-		var ca = ConeAngle.Evaluate( Delta, Random.Shared.Float() );
-		var cf = ConeFar.Evaluate( Delta, Random.Shared.Float() );
-		var cn = ConeNear.Evaluate( Delta, Random.Shared.Float() );
+		var ca = ConeAngle.Evaluate( Delta, ParticleRandom.Shared.Float() );
+		var cf = ConeFar.Evaluate( Delta, ParticleRandom.Shared.Float() );
+		var cn = ConeNear.Evaluate( Delta, ParticleRandom.Shared.Float() );
 
 		var len = cn;
 
 		if ( InVolume || OnEdge )
 		{
-			len = Random.Shared.Float( cn, cf );
+			len = ParticleRandom.Shared.Float( cn, cf );
 		}
 
 		var maxRadius = MathF.Tan( ca.DegreeToRadian() ) * len;
@@ -77,19 +77,19 @@ public sealed class ParticleConeEmitter : ParticleEmitter
 
 		if ( !OnEdge )
 		{
-			radius = MathF.Sqrt( Random.Shared.Float( 0f, 1f ) ) * radius;
+			radius = MathF.Sqrt( ParticleRandom.Shared.Float( 0f, 1f ) ) * radius;
 		}
 
-		var centerBias = CenterBias.Evaluate( Delta, Random.Shared.Float() );
+		var centerBias = CenterBias.Evaluate( Delta, ParticleRandom.Shared.Float() );
 		if ( centerBias > 0 )
 		{
-			radius *= MathF.Pow( Random.Shared.Float(), centerBias );
+			radius *= MathF.Pow( ParticleRandom.Shared.Float(), centerBias );
 		}
 
 		var tip = Vector3.Backward * cn;
 		var pos = Vector3.Forward * (len - cn);
 
-		var angle = Random.Shared.Float( MathF.PI * 2.0f );
+		var angle = ParticleRandom.Shared.Float( MathF.PI * 2.0f );
 		pos += Vector3.Left * MathF.Sin( angle ) * radius;
 		pos += Vector3.Up * MathF.Cos( angle ) * radius;
 
@@ -103,7 +103,7 @@ public sealed class ParticleConeEmitter : ParticleEmitter
 		//
 		// More velocity towards the center
 		//
-		var centerBiasVelocity = CenterBiasVelocity.Evaluate( Delta, Random.Shared.Float() );
+		var centerBiasVelocity = CenterBiasVelocity.Evaluate( Delta, ParticleRandom.Shared.Float() );
 		if ( centerBiasVelocity > 0 )
 		{
 			p.Velocity *= MathF.Pow( 1 - (radius / maxRadius), centerBiasVelocity );
@@ -113,16 +113,16 @@ public sealed class ParticleConeEmitter : ParticleEmitter
 		//
 		// Lerp to random if VelocityRandom is set
 		//
-		var velocityRandom = VelocityRandom.Evaluate( Delta, Random.Shared.Float() );
+		var velocityRandom = VelocityRandom.Evaluate( Delta, ParticleRandom.Shared.Float() );
 		if ( velocityRandom > 0 )
 		{
-			p.Velocity = p.Velocity.LerpTo( Vector3.Random, velocityRandom, false ).Normal * p.Velocity.Length;
+			p.Velocity = p.Velocity.LerpTo( ParticleRandom.Shared.VectorInSphere(), velocityRandom, false ).Normal * p.Velocity.Length;
 		}
 
 		//
 		// Scale the velocity
 		//
-		var velocityMultiply = VelocityMultiplier.Evaluate( Delta, Random.Shared.Float() );
+		var velocityMultiply = VelocityMultiplier.Evaluate( Delta, ParticleRandom.Shared.Float() );
 		p.Velocity *= velocityMultiply;
 
 		return true;

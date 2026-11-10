@@ -1,4 +1,3 @@
-using Sandbox.Volumes;
 namespace Sandbox;
 
 /// <summary>
@@ -40,7 +39,7 @@ public sealed partial class PostProcessSystem : GameObjectSystem<PostProcessSyst
 			return;
 		}
 
-		foreach ( var cc in Scene.GetAll<CameraComponent>() )
+		foreach ( var cc in Scene.Query<CameraComponent>() )
 		{
 			UpdateCamera( cc );
 		}
@@ -101,30 +100,22 @@ public sealed partial class PostProcessSystem : GameObjectSystem<PostProcessSyst
 		if ( !cc.EnablePostProcessing )
 			return;
 
-		var pos = cc.PostProcessAnchor.IsValid() ? cc.PostProcessAnchor.WorldPosition : cc.WorldPosition;
+		var pos = cc.PostProcessPosition;
 
-		List<WeightedEffect> effects = cc.GetComponentsInChildren<BasePostProcess>()
-										.Select( x => new WeightedEffect { Effect = x, Weight = 1 } )
-										.ToList();
-
-		var volumes = Scene.GetSystem<VolumeSystem>()?.FindAll<PostProcessVolume>( pos );
-		foreach ( var volume in volumes.OrderBy( x => x.Priority ) )
+		var scratch = RentBuildScratch();
+		try
 		{
-			var weight = volume.GetWeight( pos );
-			effects.AddRange( volume.GetComponentsInChildren<BasePostProcess>().Select( x => new WeightedEffect { Effect = x, Weight = weight } ) );
+			scratch.AddEffects( cc.GameObject, 1 );
+
+			scratch.CollectVolumes( Scene, pos );
+			foreach ( var entry in scratch.Volumes )
+				scratch.AddEffects( entry.Volume.GameObject, entry.Volume.GetWeight( pos ) );
+
+			scratch.Build( cc );
 		}
-
-		foreach ( var group in effects.GroupBy( x => x.Effect.GetType() ) )
+		finally
 		{
-			var effect = group.First();
-
-			var ctx = new PostProcessContext()
-			{
-				Camera = cc,
-				Components = group.ToArray()
-			};
-
-			effect.Effect.Build( ctx );
+			ReturnBuildScratch( scratch );
 		}
 	}
 
@@ -133,23 +124,96 @@ public sealed partial class PostProcessSystem : GameObjectSystem<PostProcessSyst
 	/// </summary>
 	private void PreviewVolume( PostProcessVolume volume )
 	{
-		var data = Scene.Camera.PostProcess;
-		var pos = volume.WorldPosition;
-
-		List<WeightedEffect> effects = volume.GetComponentsInChildren<BasePostProcess>().Select( x => new WeightedEffect { Effect = x, Weight = 1 } ).ToList();
-
-		foreach ( var group in effects.GroupBy( x => x.Effect.GetType() ) )
+		var scratch = RentBuildScratch();
+		try
 		{
-			var effect = group.First();
-
-			var ctx = new PostProcessContext()
-			{
-				Camera = Scene.Camera,
-				Components = group.ToArray()
-			};
-
-			effect.Effect.Build( ctx );
+			scratch.AddEffects( volume.GameObject, 1 );
+			scratch.Build( Scene.Camera );
 		}
+		finally
+		{
+			ReturnBuildScratch( scratch );
+		}
+	}
+
+	/// <summary>
+	/// Build camera effects directly into the destination view, including inactive captures and editor viewports.
+	/// Uses the same effect grouping, volume ordering and volume weights as command-list effects.
+	/// </summary>
+	internal void ApplyCameraEffects( CameraComponent camera, SceneCamera target, bool preview = false )
+	{
+		ThreadSafe.AssertIsMainThread();
+		if ( !EnablePostProcess || !camera.EnablePostProcessing || Application.IsDedicatedServer )
+			return;
+
+		PostProcessVolume previewVolume = null;
+		if ( preview && Scene.IsEditor && Scene.Editor is { IsActive: true, SelectedGameObject: { } selected } )
+		{
+			var owner = GetOwner( selected );
+			if ( owner is CameraComponent selectedCamera )
+			{
+				camera = selectedCamera;
+			}
+			else if ( owner is PostProcessVolume { EditorPreview: true } volume )
+			{
+				previewVolume = volume;
+			}
+		}
+
+		if ( !camera.EnablePostProcessing )
+			return;
+
+		var scratch = RentBuildScratch();
+		try
+		{
+			if ( !scratch.CollectCameraEffects( Scene ) )
+				return;
+
+			scratch.AddCameraEffects( null, 1 );
+			if ( previewVolume is not null )
+			{
+				if ( previewVolume.Active )
+					scratch.AddCameraEffects( previewVolume, 1 );
+			}
+			else
+			{
+				scratch.AddCameraEffects( camera, 1 );
+				var position = camera.PostProcessPosition;
+				scratch.CollectVolumes( Scene, position );
+				foreach ( var entry in scratch.Volumes )
+				{
+					var volume = entry.Volume;
+					if ( Scene.IsEditor && !volume.EditorPreview )
+						continue;
+
+					var weight = volume.GetWeight( position );
+					scratch.AddCameraEffects( volume, weight.Clamp( 0, 1 ) );
+				}
+			}
+
+			scratch.Build( camera, target );
+		}
+		finally
+		{
+			ReturnBuildScratch( scratch );
+		}
+	}
+
+	/// <summary>
+	/// Nearest structural owner, including disabled components. A colocated volume takes precedence over a camera.
+	/// </summary>
+	static Component GetOwner( GameObject gameObject )
+	{
+		for ( var go = gameObject; go.IsValid(); go = go.Parent )
+		{
+			if ( go.GetComponent<PostProcessVolume>( true ) is { } volume )
+				return volume;
+
+			if ( go.GetComponent<CameraComponent>( true ) is { } camera )
+				return camera;
+		}
+
+		return null;
 	}
 
 	/// <summary>
@@ -160,11 +224,11 @@ public sealed partial class PostProcessSystem : GameObjectSystem<PostProcessSyst
 		if ( !EnablePostProcess )
 			return;
 
-		if ( Graphics.SceneView.GetPostProcessEnabled() == false )
+		if ( Graphics.PostProcessEnabled == false )
 			return;
 
 		// Don't run explicit post process effects if we're in ToolsVis, other command lists like SSR/SSAO should still run
-		if ( Graphics.SceneView.GetToolsVisMode() != (int)SceneCameraDebugMode.Normal &&
+		if ( Graphics.ToolsVisMode != (int)SceneCameraDebugMode.Normal &&
 				stage >= Rendering.Stage.BeforePostProcess &&
 				stage <= Rendering.Stage.AfterPostProcess )
 			return;

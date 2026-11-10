@@ -1,0 +1,177 @@
+using Sandbox.Resources;
+using System;
+using System.Threading;
+
+namespace ResourceTests;
+
+/// <summary>
+/// Resource compilers can call native child compilers, so synchronous work and captured
+/// continuations must stay on the thread that entered the native compiler.
+/// </summary>
+[TestClass]
+public class ResourceCompilerThreadTests
+{
+	sealed class CallbackCompiler( Func<Task<bool>> callback ) : ResourceCompiler
+	{
+		protected override Task<bool> Compile() => callback();
+	}
+
+	sealed class FailureContext : ResourceCompileContext
+	{
+		public string Error { get; private set; }
+		internal override void Fail( string error ) => Error = error;
+		public override string AbsolutePath => throw new NotSupportedException();
+		public override string RelativePath => throw new NotSupportedException();
+		public override int ResourceVersion { get; set; }
+		public override bool Describing => false;
+		internal override int WriteBlock( string blockName, IntPtr data, int count ) => throw new NotSupportedException();
+		public override void AddRuntimeReference( string path ) => throw new NotSupportedException();
+		public override void AddCompileReference( string path, bool optional = false ) => throw new NotSupportedException();
+		public override void AddGameFileReference( string path ) => throw new NotSupportedException();
+		public override void AddCompiledReference( string path ) => throw new NotSupportedException();
+		public override Child CreateChild( string absolutePath ) => throw new NotSupportedException();
+		public override string ScanJson( string json ) => throw new NotSupportedException();
+		public override byte[] ReadSource() => throw new NotSupportedException();
+	}
+
+	sealed class CallbackTextureGenerator( Func<Task> callback ) : TextureGenerator
+	{
+		protected override async ValueTask<Texture> CreateTexture( Options options, CancellationToken ct )
+		{
+			await callback();
+			return null;
+		}
+	}
+
+	/// <summary>
+	/// Texture generation retains the caller's context, with or without a compiler in its options.
+	/// </summary>
+	[TestMethod]
+	[DataRow( true )]
+	[DataRow( false )]
+	[Timeout( 5000 )]
+	public void TextureGenerationRetainsCallingThread( bool compiling )
+	{
+		var caller = Environment.CurrentManagedThreadId;
+		var before = 0;
+		var after = 0;
+		var generator = new CallbackTextureGenerator( async () =>
+		{
+			before = Environment.CurrentManagedThreadId;
+			await Task.Yield();
+			after = Environment.CurrentManagedThreadId;
+		} );
+		CallbackCompiler compiler = null;
+		compiler = new CallbackCompiler( async () =>
+		{
+			var options = compiling
+				? new ResourceGenerator.Options { ForDisk = true, Compiler = compiler }
+				: ResourceGenerator.Options.Default;
+
+			await generator.CreateAsync( options, default );
+			return true;
+		} );
+
+		Assert.IsTrue( compiler.CompileInternal() );
+		Assert.AreEqual( caller, before );
+		Assert.AreEqual( caller, after );
+	}
+
+	/// <summary>
+	/// Both the initial call and a yielded continuation retain the native caller's thread.
+	/// </summary>
+	[TestMethod]
+	[Timeout( 5000 )]
+	public void CompilationRetainsCallingThread()
+	{
+		var caller = Environment.CurrentManagedThreadId;
+		var before = 0;
+		var after = 0;
+		var previous = SynchronizationContext.Current;
+		var compiler = new CallbackCompiler( async () =>
+		{
+			before = Environment.CurrentManagedThreadId;
+			await Task.Yield();
+			after = Environment.CurrentManagedThreadId;
+			return true;
+		} );
+
+		Assert.IsTrue( compiler.CompileInternal() );
+		Assert.AreEqual( caller, before );
+		Assert.AreEqual( caller, after );
+		Assert.AreSame( previous, SynchronizationContext.Current );
+	}
+
+	/// <summary>
+	/// A child compiler can yield while its parent continuation is executing, without
+	/// pumping unrelated editor work or losing the parent's synchronization context.
+	/// </summary>
+	[TestMethod]
+	[Timeout( 5000 )]
+	public void NestedCompilationRestoresParentContext()
+	{
+		var caller = Environment.CurrentManagedThreadId;
+		var childThread = 0;
+		SynchronizationContext parent = null;
+		SynchronizationContext restored = null;
+		var child = new CallbackCompiler( async () =>
+		{
+			await Task.Yield();
+			childThread = Environment.CurrentManagedThreadId;
+			return true;
+		} );
+		var compiler = new CallbackCompiler( async () =>
+		{
+			await Task.Yield();
+			parent = SynchronizationContext.Current;
+			var result = child.CompileInternal();
+			restored = SynchronizationContext.Current;
+			return result;
+		} );
+
+		Assert.IsTrue( compiler.CompileInternal() );
+		Assert.AreEqual( caller, childThread );
+		Assert.IsNotNull( parent );
+		Assert.AreSame( parent, restored );
+	}
+
+	/// <summary>
+	/// Completion on a worker wakes the caller even when no continuation was posted.
+	/// </summary>
+	[TestMethod]
+	[Timeout( 5000 )]
+	public void WorkerCompletionDoesNotNeedAQueuedContinuation()
+	{
+		// A thread of its own, not the pool's, which the tests running beside this one can starve
+		var compiler = new CallbackCompiler( () =>
+		{
+			var done = new TaskCompletionSource<bool>();
+			new Thread( () => done.SetResult( false ) ).Start();
+			return done.Task;
+		} );
+		Assert.IsFalse( compiler.CompileInternal() );
+	}
+
+	/// <summary>
+	/// A failed compile must restore the caller's context and record the failure, without allowing native fallback.
+	/// </summary>
+	[TestMethod]
+	[DataRow( false )]
+	[DataRow( true )]
+	[Timeout( 5000 )]
+	public void FailureRestoresCallingContext( bool asynchronous )
+	{
+		var previous = SynchronizationContext.Current;
+		var context = new FailureContext();
+		var compiler = new CallbackCompiler( async () =>
+		{
+			if ( asynchronous ) await Task.Yield();
+			throw new InvalidOperationException( "Expected compiler failure" );
+		} );
+		compiler.SetContext( context );
+
+		Assert.IsTrue( compiler.CompileInternal(), "The failed compile was handled; native compilation must not take over" );
+		StringAssert.Contains( context.Error, "Expected compiler failure" );
+		Assert.AreSame( previous, SynchronizationContext.Current );
+	}
+}

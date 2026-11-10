@@ -60,7 +60,7 @@ float4 vVertexColor : TEXCOORD4;
 
 #else // PS only
 	float4 vPositionSs : SV_Position;
-	#if ( S_RENDER_BACKFACES )
+	#if defined( MATERIAL_CONTROLLED_BACKFACES ) || S_RENDER_BACKFACES
 		bool face : SV_IsFrontFace;
 	#endif
 #endif

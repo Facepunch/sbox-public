@@ -1,28 +1,31 @@
-﻿using static Facepunch.Constants;
+﻿using System.Globalization;
+using static Facepunch.Constants;
 
 namespace Facepunch.Steps;
 
 /// <summary>
 /// Step to write version information to a file
 /// </summary>
-internal class WriteVersion( string name ) : Step( name )
+internal class WriteVersion
 {
-	protected override ExitCode RunInternal()
+	internal ExitCode Run()
 	{
 		try
 		{
 			Log.Info( "Writing version information..." );
 
 			string target = "game/.version";
-			string contents = $"{Utility.VersionName()}\n" +
+			string version = Utility.VersionName();
+			string contents = $"{version}\n" +
 							  $"{Environment.GetEnvironmentVariable( "GITHUB_RUN_ID" )}\n" +
 							  $"{Environment.GetEnvironmentVariable( "GITHUB_JOB" )}\n" +
 							  $"{Environment.GetEnvironmentVariable( "GITHUB_ACTOR" )}\n" +
-							  $"{DateTime.UtcNow}\n";
+							  $"{DateTime.UtcNow.ToString( "dd/MM/yyyy HH:mm:ss", CultureInfo.InvariantCulture )}\n";
 
 			File.WriteAllText( target, contents );
 
 			Log.Info( $"Version information written to {target}" );
+			GitHubActions.Note( $"version {version}" );
 			return ExitCode.Success;
 		}
 		catch ( Exception ex )

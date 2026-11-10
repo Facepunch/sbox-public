@@ -69,6 +69,11 @@ public class FloatControlWidget : StringControlWidget
 				clampAttribute.Slider
 			);
 		}
+
+		if ( SliderWidget is not null )
+		{
+			SliderWidget.TrackGradient = attributes.OfType<SliderGradientAttribute>().FirstOrDefault()?.CreateGradient();
+		}
 	}
 
 	void CreateStepButtons()
@@ -171,7 +176,7 @@ public class FloatControlWidget : StringControlWidget
 
 		if ( SliderWidget is not null )
 		{
-			var sliderRect = rect.Shrink( 2, 0, 60, 0 );
+			var sliderRect = rect.Shrink( 2, 0, SliderDrawing.ValueWidth, 0 );
 			SliderWidget.Position = sliderRect.Position;
 			SliderWidget.Size = sliderRect.Size;
 
@@ -341,7 +346,7 @@ public class FloatControlWidget : StringControlWidget
 			if ( e.ButtonState.Contains( MouseButtons.Right ) ) delta *= 0.1f;
 
 			dragValue += delta;
-			if ( HasRange && RangeClamped ) dragValue = dragValue.Clamp( Range.x, Range.y );
+			if ( HasRange && (RangeClamped || SliderWidget is not null) ) dragValue = dragValue.Clamp( Range.x, Range.y );
 
 			var steppedValue = (RangeStep != 0.0f) ? dragValue.SnapToGrid( RangeStep ) : dragValue;
 			SerializedProperty.As.Float = steppedValue;
@@ -412,6 +417,11 @@ public class FloatControlWidget : StringControlWidget
 
 public class FloatSlider : Widget
 {
+	/// <summary>
+	/// Optional gradient across the whole track, replacing its value-dependent highlight.
+	/// </summary>
+	internal Gradient? TrackGradient { get; set; }
+
 	public float Minimum { get; set; }
 	public float Maximum { get; set; }
 	public Action OnValueEdited { get; set; }
@@ -454,11 +464,11 @@ public class FloatSlider : Widget
 
 	public float Step { get; set; } = 0.01f;
 
-	const float thumbWidth = 6;
-	const float thumbHeight = 12;
-
 	public FloatSlider( Widget parent ) : base( parent )
 	{
+		// Repaint thumb hover when the pointer moves without a button held.
+		MouseTracking = true;
+
 		Minimum = 0;
 		Maximum = 100;
 		Value = 25;
@@ -483,32 +493,26 @@ public class FloatSlider : Widget
 
 	internal void PaintSlider( Rect rect, float pos )
 	{
-		var trackWidth = 5.0f;
-		var center = rect.Height / 2.0f;
-		var halfThumb = thumbWidth * 0.5f;
-		var width = rect.Width;
-		var highlightColor = HighlightColor;
+		var halfHandle = SliderDrawing.HandleWidth * 0.5f;
+		var disabled = !Enabled || ReadOnly;
 
-		Paint.Antialiasing = true;
+		if ( TrackGradient is { Colors.Count: > 0 } gradient )
+		{
+			SliderDrawing.DrawGradientTrack( rect, gradient, disabled );
+		}
+		else
+		{
+			SliderDrawing.DrawTrack( rect, halfHandle, pos + halfHandle, HighlightColor, disabled );
+		}
 
-		Paint.ClearPen();
-
-		Paint.SetBrush( highlightColor.WithAlpha( 0.2f ) );
-		Paint.DrawRect( new( halfThumb, center - trackWidth * 0.5f, width - thumbWidth, trackWidth ), 3.0f );
-
-		Paint.SetBrush( highlightColor.WithAlpha( 0.8f ) );
-		Paint.DrawRect( new( halfThumb, center - trackWidth * 0.5f, pos, trackWidth ), 3.0f );
-
-		Paint.SetBrush( Theme.TextControl );
-		Paint.SetPen( Theme.WindowBackground.WithAlpha( 0.3f ), 1 );
-		Paint.DrawRect( new( pos, center - thumbHeight * 0.5f, thumbWidth, thumbHeight ), 2 );
+		SliderDrawing.DrawHandle( this, rect, pos + halfHandle );
 	}
 
 	protected override void OnPaint()
 	{
 		base.OnPaint();
 
-		var pos = DeltaValue * (Width - thumbWidth);
+		var pos = DeltaValue * (Width - SliderDrawing.HandleWidth);
 
 		if ( SliderPaint is null )
 		{
@@ -525,7 +529,7 @@ public class FloatSlider : Widget
 		if ( ReadOnly )
 			return;
 
-		var delta = (position - thumbWidth * 0.5f) / (Width - thumbWidth);
+		var delta = (position - SliderDrawing.HandleWidth * 0.5f) / (Width - SliderDrawing.HandleWidth);
 		DeltaValue = delta.Clamp( 0.0f, 1.0f );
 		OnValueEdited?.Invoke();
 
@@ -548,6 +552,8 @@ public class FloatSlider : Widget
 
 	protected override void OnMouseMove( MouseEvent e )
 	{
+		Update();
+
 		if ( ReadOnly )
 			return;
 

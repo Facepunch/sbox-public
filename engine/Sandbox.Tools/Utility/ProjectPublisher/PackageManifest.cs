@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Text;
 using System.Text.Json;
@@ -15,7 +15,7 @@ public interface IProgress
 public partial class ProjectPublisher
 {
 
-	public class PackageManifest
+	public partial class PackageManifest
 	{
 		public string Summary { get; set; }
 		public string Description { get; set; }
@@ -28,8 +28,28 @@ public partial class ProjectPublisher
 
 		public List<string> Errors = new List<string>();
 
+		/// <summary>Snapshot of publishing settings, including unsaved edits used by the settings preview.</summary>
+		public sealed record PublishOptions( bool PublishUsedAssetsOnly, string Resources );
+
+		/// <summary>Preview files have sizes but no upload hashes. They must be rebuilt before uploading.</summary>
+		[System.Text.Json.Serialization.JsonIgnore]
+		public bool IsPreview { get; private set; }
+
+		PublishOptions publishingOptions;
 		IProgress progress;
-		ulong scannedBytes;
+		readonly HashSet<string> previewFileNames = new( StringComparer.OrdinalIgnoreCase );
+
+		bool ContainsPublishedFile( string path )
+		{
+			if ( !IsPreview ) return Assets.Any( x => string.Equals( x.Name, path, StringComparison.OrdinalIgnoreCase ) );
+			// Publisher customization can add/remove entries through the public manifest list.
+			if ( previewFileNames.Count != Assets.Count )
+			{
+				previewFileNames.Clear();
+				previewFileNames.UnionWith( Assets.Select( x => ReviewPath( x.Name ) ) );
+			}
+			return previewFileNames.Contains( ReviewPath( path ) );
+		}
 
 		public ProjectFile FindAsset( string relativePath )
 		{
@@ -40,24 +60,38 @@ public partial class ProjectPublisher
 		public List<ProjectFile> Assets { get; set; } = new();
 
 
-		public async Task BuildFromAssets( Project project, IProgress progress = null, CancellationToken cancel = default )
+		void ClearAssets()
 		{
 			Assets.Clear();
+			previewFileNames.Clear();
+			SceneWarnings.Clear();
+			ExcludedAssets.Clear();
+			ExcludedAssetSizes.Clear();
+			CodeAssetWarnings.Clear();
+			RecommendedRules = [];
+			ExclusionOverrides.Clear();
+			ExcludedByRules.Clear();
+			IncludedExclusionReasons.Clear();
+			inclusionReasons.Clear();
+			configuredPublishPaths.Clear();
+			reviewSizeGraph.Clear();
+			reviewIncludedFiles.Clear();
+			reviewImpactCache.Clear();
+			reviewFootprintCache.Clear();
+			reviewDependencyCache.Clear();
+			reviewAssetAliases.Clear();
+		}
+
+		public async Task BuildFromAssets( Project project, IProgress progress = null, CancellationToken cancel = default, PublishOptions options = null, bool previewOnly = false )
+		{
+			ClearAssets();
 
 			var rootFolder = project.RootDirectory.FullName;
 
 
 			this.progress = progress;
-
-			if ( !string.IsNullOrWhiteSpace( project.Config.Resources ) )
-			{
-				cancel.ThrowIfCancellationRequested();
-
-				foreach ( var path in AllAssetPaths( project ) )
-				{
-					await IncludeFiles( path, project.Config.Resources, cancel );
-				}
-			}
+			IsPreview = previewOnly;
+			publishingOptions = options ?? new( project.Config.PublishUsedAssetsOnly, project.Config.Resources );
 
 			//
 			// Collect localization files
@@ -84,20 +118,7 @@ public partial class ProjectPublisher
 			if ( project.Config.Type == "game" )
 			{
 				await IncludeFiles( rootFolder, "ProjectSettings/*", cancel );
-			}
-
-			await Task.Delay( 10 );
-			cancel.ThrowIfCancellationRequested();
-
-			//
-			// If we're a game, include content from /addons/base/code/
-			// This versions things like the styles and dev ui, which is only
-			// going to work with the shipped base code.
-			//
-			if ( project.Config.Type == "game" )
-			{
-				progress?.SetProgressMessage( "Collecting base code assets" );
-				await IncludeFiles( FileSystem.Root.GetFullPath( "/addons/base/code/" ), "*", cancel );
+				await IncludeCursorImages();
 			}
 
 			await Task.Delay( 10 );
@@ -153,14 +174,27 @@ public partial class ProjectPublisher
 			}
 		}
 
-		internal async Task BuildFrom( Asset singleAsset, CancellationToken cancel = default )
+		internal async Task BuildFrom( Asset singleAsset, Project project = null, CancellationToken cancel = default )
 		{
-			Assets.Clear();
+			IsPreview = false;
+			ClearAssets();
 
-			var assetList = new List<Asset>();
-			assetList.Add( singleAsset );
+			var assetList = new List<Asset>
+			{
+				singleAsset
+			};
 
 			await CollectAssets( assetList, cancel );
+
+			var includeCode = singleAsset.Publishing.BuildPublishContext().IncludeCode;
+
+			if ( project is not null && includeCode )
+			{
+				foreach ( var path in AllCodePaths( project ) )
+				{
+					await IncludeFiles( path, "*", cancel, IncludeSourceFiles );
+				}
+			}
 
 			progress = null;
 
@@ -170,7 +204,8 @@ public partial class ProjectPublisher
 
 		public async Task BuildFromSource( Project addon, IProgress progress = null, CancellationToken cancel = default )
 		{
-			Assets.Clear();
+			IsPreview = false;
+			ClearAssets();
 
 			var rootFolder = addon.RootDirectory.FullName;
 
@@ -190,15 +225,40 @@ public partial class ProjectPublisher
 
 		private async Task CollectAssets( Project project, CancellationToken cancel )
 		{
+			var assets = new List<Asset>();
+
 			foreach ( var path in AllAssetPaths( project ) )
 			{
 				var assetPath = path.Replace( '\\', '/' );
 				assetPath = assetPath.TrimEnd( '/' ) + '/';
 
 				progress?.SetProgressMessage( "Finding Assets.." );
-				var assets = AssetSystem.All.Where( x => x.AbsolutePath.StartsWith( assetPath, StringComparison.OrdinalIgnoreCase ) ).ToList();
+				assets.AddRange( AssetSystem.All.Where( x => x.AbsolutePath.StartsWith( assetPath, StringComparison.OrdinalIgnoreCase ) ) );
+			}
 
-				await CollectAssets( assets, cancel );
+			assets = assets.Distinct().ToList();
+			var candidates = assets;
+
+			if ( project.Config.Type == "game" )
+				assets = await FindAssetsToPublish( project, assets, cancel );
+
+			await CollectAssets( assets, cancel, referencesCollected: project.Config.Type == "game" && publishingOptions.PublishUsedAssetsOnly );
+
+			// Compile selected assets before copying loose resources, so a clean build cannot ship their sources.
+			if ( !string.IsNullOrWhiteSpace( publishingOptions.Resources ) )
+			{
+				cancel.ThrowIfCancellationRequested();
+
+				foreach ( var path in AllAssetPaths( project ) )
+				{
+					await IncludeFiles( path, publishingOptions.Resources, cancel, allowSourceFiles: IncludeSourceFiles, matchAssetAliases: true, legacyRules: !publishingOptions.PublishUsedAssetsOnly );
+				}
+			}
+
+			if ( project.Config.Type == "game" )
+			{
+				if ( publishingOptions.PublishUsedAssetsOnly ) await IncludeResourceDirectories( project, cancel );
+				if ( IsPreview || publishingOptions.PublishUsedAssetsOnly ) await BuildAssetReview( project, candidates, cancel, assets );
 			}
 		}
 
@@ -214,9 +274,6 @@ public partial class ProjectPublisher
 
 			foreach ( var file in asset.GetAdditionalContentFiles() )
 			{
-				if ( !IncludeSourceFiles && !file.EndsWith( ".rect" ) )
-					continue;
-
 				var ast = AssetSystem.FindByPath( file );
 				if ( ast == null ) continue;
 
@@ -232,20 +289,28 @@ public partial class ProjectPublisher
 			}
 		}
 
-		private async Task CollectAssets( List<Asset> assets, CancellationToken cancel )
+		private async Task CollectAssets( List<Asset> assets, CancellationToken cancel, bool referencesCollected = false )
 		{
 			HashSet<Asset> AddedAssets = new();
 
 			foreach ( var asset in assets )
 			{
 				cancel.ThrowIfCancellationRequested();
+				await YieldPreview( cancel );
 
 				AddedAssets.Add( asset );
 
-				foreach ( var a in asset.GetReferences( true ) )
+				if ( referencesCollected )
 				{
-					AddedAssets.Add( a );
-					await CollectInputDependencies( a );
+					await CollectInputDependencies( asset );
+				}
+				else
+				{
+					foreach ( var a in asset.GetReferences( true ) )
+					{
+						AddedAssets.Add( a );
+						await CollectInputDependencies( a );
+					}
 				}
 
 				foreach ( var file in asset.GetAdditionalContentFiles() )
@@ -288,8 +353,9 @@ public partial class ProjectPublisher
 
 				while ( tasks.Count > 8 )
 				{
-					await Task.WhenAny( tasks.ToArray() );
-					tasks.RemoveAll( x => x.IsCompleted );
+					var completed = await Task.WhenAny( tasks );
+					await completed;
+					tasks.Remove( completed );
 				}
 			}
 
@@ -360,8 +426,16 @@ public partial class ProjectPublisher
 			//
 			// already added
 			//
-			if ( Assets.Any( x => string.Equals( x.Name, thumbName, StringComparison.OrdinalIgnoreCase ) ) )
+			if ( ContainsPublishedFile( thumbName ) )
 				return;
+
+			if ( IsPreview )
+			{
+				// Cached PNG metadata is enough for preview; do not render or re-encode images per refresh.
+				var cached = AssetThumbnail.GetThumbnailFile( asset, false );
+				if ( File.Exists( cached ) ) await AddFile( cached, thumbName );
+				return;
+			}
 
 			var thumb = asset.GetAssetThumb( true );
 
@@ -373,6 +447,7 @@ public partial class ProjectPublisher
 
 		private async Task AddFile( string absPath, string relativePath )
 		{
+			await YieldPreview();
 			if ( !System.IO.File.Exists( absPath ) )
 			{
 				Errors.Add( $"File not found \"{absPath}\" ({relativePath})" );
@@ -384,58 +459,105 @@ public partial class ProjectPublisher
 			//
 			// already added
 			//
-			if ( Assets.Any( x => string.Equals( x.Name, relativePath, StringComparison.OrdinalIgnoreCase ) ) )
+			if ( ContainsPublishedFile( relativePath ) )
 				return;
 
-			var info = new System.IO.FileInfo( absPath );
+			var e = await ReadPublishFile( absPath, relativePath, IsPreview );
 
-			var e = new ProjectFile
-			{
-				Name = relativePath,
-				Size = (int)info.Length,
-				AbsolutePath = absPath
-			};
+			if ( ContainsPublishedFile( relativePath ) )
+				return;
 
-			// run in a thread to make it happen in the background
-			await Task.Run( async () =>
-			{
-				using ( var stream = info.OpenRead() )
-				{
-					e.Hash = (await Sandbox.Utility.Crc64.FromStreamAsync( stream )).ToString( "x" );
-				}
-			} );
-
-			scannedBytes += (ulong)e.Size;
 
 			Assets.Add( e );
+			if ( IsPreview ) previewFileNames.Add( ReviewPath( e.Name ) );
 		}
 
-		internal async Task IncludeFiles( string root, string wildcardScript, CancellationToken cancel, bool allowSourceFiles = false )
+		/// <summary>Preview needs metadata only; reading and hashing payloads is reserved for upload.</summary>
+		internal static async Task<ProjectFile> ReadPublishFile( string absolutePath, string relativePath, bool previewOnly )
+		{
+			var info = new FileInfo( absolutePath );
+			var file = new ProjectFile { Name = relativePath, Size = (int)info.Length, AbsolutePath = absolutePath };
+			if ( !previewOnly )
+			{
+				file.Hash = await Task.Run( async () =>
+				{
+					using var stream = info.OpenRead();
+					return (await Sandbox.Utility.Crc64.FromStreamAsync( stream )).ToString( "x" );
+				} );
+			}
+			return file;
+		}
+
+		internal void RequireUploadManifest()
+		{
+			if ( IsPreview ) throw new InvalidOperationException( "Build a full publish manifest before uploading a preview." );
+		}
+
+		internal async Task IncludeCursorImages()
+		{
+			if ( FileSystem.ProjectSettings is null || FileSystem.Content is null ) return;
+
+			var settings = EditorUtility.LoadProjectSettings<CursorSettings>( "Cursors.config" );
+			var cursors = settings?.Cursors;
+			if ( cursors is null ) return;
+
+			foreach ( var cursor in cursors.Values )
+			{
+				if ( string.IsNullOrWhiteSpace( cursor.Image ) ) continue;
+
+				var relative = cursor.Image.NormalizeFilename( true, false );
+				if ( !LooseFileAllowed( relative, false ) ) continue;
+
+				var absPath = FileSystem.Content.GetFullPath( cursor.Image );
+				if ( !string.IsNullOrWhiteSpace( absPath ) && File.Exists( absPath ) )
+					await AddFile( absPath, relative );
+			}
+		}
+
+		readonly System.Diagnostics.Stopwatch previewSlice = System.Diagnostics.Stopwatch.StartNew();
+
+		async Task YieldPreview( CancellationToken cancel = default )
+		{
+			if ( !IsPreview || previewSlice.ElapsedMilliseconds < 4 ) return;
+			await Task.Delay( 1, cancel );
+			previewSlice.Restart();
+		}
+
+		internal async Task IncludeFiles( string root, string wildcardScript, CancellationToken cancel, bool allowSourceFiles = false, bool matchAssetAliases = false, bool legacyRules = false )
 		{
 			if ( !System.IO.Directory.Exists( root ) )
 				return;
 
-			var wildcards = wildcardScript.Split( "\n", StringSplitOptions.RemoveEmptyEntries )
-				.Select( x => x.Trim() )
-				.Where( x => !x.StartsWith( "//" ) )
-				.Select( x => x.NormalizeFilename( true, false ) )
-				.ToArray();
-
-			foreach ( var file in System.IO.Directory.EnumerateFiles( root, "*", SearchOption.AllDirectories ) )
+			var matches = new ResourceRuleMatcher( wildcardScript, legacyRules );
+			// Disk enumeration and matching are managed work; do them away from the editor thread.
+			var files = await Task.Run( () =>
 			{
-				var relative = System.IO.Path.GetRelativePath( root, file ).NormalizeFilename( true, false );
-
-				if ( !LooseFileAllowed( relative, allowSourceFiles ) )
-					continue;
-
-				if ( !wildcards.Any( x => relative.WildcardMatch( x ) ) )
-					continue;
-
-				if ( new System.IO.FileInfo( file ).Length < 1 )
-					continue;
-
-				await AddFile( file, relative );
+				var result = new List<(string Absolute, string Relative)>();
+				foreach ( var file in Directory.EnumerateFiles( root, "*", SearchOption.AllDirectories ) )
+				{
+					cancel.ThrowIfCancellationRequested();
+					var relative = Path.GetRelativePath( root, file ).NormalizeFilename( true, false );
+					if ( !LooseFileAllowed( relative, allowSourceFiles ) || !matches.Matches( relative ) ) continue;
+					if ( new FileInfo( file ).Length < 1 ) continue;
+					result.Add( (file, relative) );
+				}
+				return result;
+			}, cancel );
+			foreach ( var (absolute, relative) in files )
+			{
 				cancel.ThrowIfCancellationRequested();
+				await YieldPreview( cancel );
+				if ( matchAssetAliases && AssetSystem.FindByPath( absolute ) is { } asset )
+				{
+					// A compiled sidecar must not bypass an exclusion matching its source alias.
+					if ( matches.HasExclusions && !matches.Matches( AssetPaths( asset ).Where( x => !string.IsNullOrWhiteSpace( x ) ).Select( NormalizePublishPath ) ) ) continue;
+					// A matching standalone file (e.g. .ogg compiled to .vsnd_c) must also ship as-is.
+					// Other compilable assets still require the source option to publish their source files.
+					var compiled = asset.GetCompiledFile();
+					if ( !IncludeSourceFiles && !IsStandaloneSourceFile( asset ) && (asset.IsCompileFailed || !string.IsNullOrEmpty( compiled ))
+						&& !string.Equals( NormalizePublishPath( relative ), string.IsNullOrEmpty( compiled ) ? null : NormalizePublishPath( compiled ), StringComparison.OrdinalIgnoreCase ) ) continue;
+				}
+				await AddFile( absolute, relative );
 			}
 		}
 
@@ -448,11 +570,9 @@ public partial class ProjectPublisher
 		public static bool LooseFileAllowed( string file, bool allowSourceFiles )
 		{
 			if ( file.Contains( "/obj/", StringComparison.OrdinalIgnoreCase ) ) return false;
-			if ( file.Contains( "/.git", StringComparison.OrdinalIgnoreCase ) ) return false;
-			if ( file.Contains( "/.addon", StringComparison.OrdinalIgnoreCase ) ) return false;
 
-			if ( file.Contains( "/.editorconfig", StringComparison.OrdinalIgnoreCase ) ) return false;
-			if ( file.Contains( "/.vs/", StringComparison.OrdinalIgnoreCase ) ) return false;
+			// Ignore all dot folders and dot files (.git, .vs, .idea, .editorconfig, .addon, etc)
+			if ( file.Contains( "/.", StringComparison.OrdinalIgnoreCase ) ) return false;
 			if ( file.Contains( "_bakeresourcecache", StringComparison.OrdinalIgnoreCase ) ) return false;
 			if ( file.Contains( "launchsettings.json", StringComparison.OrdinalIgnoreCase ) ) return false;
 
@@ -462,6 +582,8 @@ public partial class ProjectPublisher
 				if ( file.EndsWith( ".cs", StringComparison.OrdinalIgnoreCase ) ) return false;
 				if ( file.EndsWith( ".razor", StringComparison.OrdinalIgnoreCase ) ) return false;
 				if ( file.EndsWith( ".fbx", StringComparison.OrdinalIgnoreCase ) ) return false;
+				// Editor sidecars can map a compiled resource GUID back to its raw source path.
+				if ( file.EndsWith( ".meta", StringComparison.OrdinalIgnoreCase ) ) return false;
 			}
 
 			if ( DissallowedExtensions.Any( x => file.EndsWith( x, StringComparison.OrdinalIgnoreCase ) ) )
@@ -482,7 +604,7 @@ public partial class ProjectPublisher
 			//
 			// already added
 			//
-			if ( Assets.Any( x => string.Equals( x.Name, relativePath, StringComparison.OrdinalIgnoreCase ) ) )
+			if ( ContainsPublishedFile( relativePath ) )
 				return;
 
 			var e = new ProjectFile
@@ -492,8 +614,8 @@ public partial class ProjectPublisher
 				Contents = contents
 			};
 
-			// run in a thread to make it super fast
-			await Task.Run( async () =>
+			// Preview rows do not need a hash for generated content either.
+			if ( !IsPreview ) await Task.Run( async () =>
 			{
 				using ( var stream = new MemoryStream( contents ) )
 				{
@@ -501,46 +623,11 @@ public partial class ProjectPublisher
 				}
 			} );
 
-			scannedBytes += (ulong)e.Size;
+			if ( ContainsPublishedFile( relativePath ) )
+				return;
+
 			Assets.Add( e );
-		}
-
-		/// <summary>
-		/// Test our wildcards and make sure to pull in any assets that the assets that
-		/// we're whitelisting are referencing. If they're not already included in the wildcard
-		/// then we'll add them by full relative path to the end of the list.
-		/// </summary>
-		internal string[] GrabWildcardReferences( string wildcard )
-		{
-			var script = wildcard ?? "";
-
-			var parts = script
-							.Split( "\n", StringSplitOptions.RemoveEmptyEntries )
-							.Where( x => !x.StartsWith( "//" ) )
-							.ToHashSet( StringComparer.OrdinalIgnoreCase );
-
-			// get a list of included assets that match this wildcard system
-			var assets = Assets.Where( x => parts.Any( y => x.Name.WildcardMatch( y ) ) ).ToArray();
-
-			// loop each hit asset and get references.
-			foreach ( var a in assets )
-			{
-				var asset = AssetSystem.FindByPath( a.AbsolutePath );
-				if ( asset == null ) continue;
-
-				foreach ( var d in asset.GetReferences( true ) )
-				{
-					// aleady have this reference
-					if ( assets.Any( x => x.AbsolutePath == d.AbsolutePath ) )
-						continue;
-
-					// add it to the end
-					parts.Add( d.Path.Replace( "\\", "/" ).TrimStart( '/' ) );
-				}
-			}
-
-			// return collapsed version
-			return parts.ToArray();
+			if ( IsPreview ) previewFileNames.Add( ReviewPath( e.Name ) );
 		}
 
 		/// <summary>

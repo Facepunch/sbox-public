@@ -11,16 +11,17 @@
   "Category": "WristWatch",
   "ConditionalModels": {},
   "Tags": null,
-  "Parent": null,
   "Model": "models/citizen_clothes/watch/modern_watch/models/modern_watch.vmdl",
   "HumanAltModel": "models/citizen_clothes/watch/modern_watch/models/modern_watch_m_human.vmdl",
   "HumanAltFemaleModel": null,
   "SkinMaterial": null,
   "EyesMaterial": null,
   "MaterialGroup": null,
+  "HeelHeight": 0,
   "SlotsUnder": "LeftWrist",
   "SlotsOver": 0,
   "HideBody": 0,
+  "DeformationMode": "Normal",
   "AllowTintSelect": false,
   "TintSelection": {
     "blend": "Linear",
@@ -37,7 +38,8 @@
   "Icon": {
     "Path": "models/citizen_clothes/watch/modern_watch/modern_watch.clothing.png",
     "Mode": "Wrist",
-    "PositionOffset": "0,-0.1,0.2"
+    "UsePositionOffset": false,
+    "PositionOffset": "0,-0.100000001,0.200000003"
   },
   "__references": [],
   "__version": 0

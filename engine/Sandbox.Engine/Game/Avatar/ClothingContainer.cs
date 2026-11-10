@@ -206,16 +206,23 @@ public partial class ClothingContainer
 	/// <summary>
 	/// Return a list of bodygroups and what their value should be
 	/// </summary>
-	public IEnumerable<(string name, int value)> GetBodyGroups( IEnumerable<Clothing> items )
+	public IEnumerable<(string name, int value)> GetBodyGroups( IEnumerable<Clothing> items, Model model = null )
 	{
 		var mask = items.Where( x => x.IsValid() ).Select( x => x.HideBody ).DefaultIfEmpty().Aggregate( ( a, b ) => a | b );
 
-		yield return ("head", (mask & Sandbox.Clothing.BodyGroups.Head) != 0 ? 1 : 0);
-		yield return ("Chest", (mask & Sandbox.Clothing.BodyGroups.Chest) != 0 ? 1 : 0);
-		yield return ("Legs", (mask & Sandbox.Clothing.BodyGroups.Legs) != 0 ? 1 : 0);
-		yield return ("Hands", (mask & Sandbox.Clothing.BodyGroups.Hands) != 0 ? 1 : 0);
-		yield return ("Feet", (mask & Sandbox.Clothing.BodyGroups.Feet) != 0 ? 1 : 0);
+		yield return ("Head", (mask & Sandbox.Clothing.BodyGroups.Head) != 0 ? HiddenChoice( model, "Head" ) : 0);
+		yield return ("Chest", (mask & Sandbox.Clothing.BodyGroups.Chest) != 0 ? HiddenChoice( model, "Chest" ) : 0);
+		yield return ("Legs", (mask & Sandbox.Clothing.BodyGroups.Legs) != 0 ? HiddenChoice( model, "Legs" ) : 0);
+		yield return ("Hands", (mask & Sandbox.Clothing.BodyGroups.Hands) != 0 ? HiddenChoice( model, "Hands" ) : 0);
+		yield return ("Feet", (mask & Sandbox.Clothing.BodyGroups.Feet) != 0 ? HiddenChoice( model, "Feet" ) : 0);
 	}
+
+	/// <summary>
+	/// The hidden choice is always the last bodygroup choice (empty mesh).
+	/// </summary>
+	static int HiddenChoice( Model model, string name ) =>
+		model?.Parts?.All?.FirstOrDefault( x => x.Name.Equals( name, StringComparison.OrdinalIgnoreCase ) )?.Choices?.Count - 1 ?? 1;
+
 
 	IEnumerable<Entry> GetSerializedEntities()
 	{
@@ -239,6 +246,14 @@ public partial class ClothingContainer
 			Age,
 			Tint,
 			PrefersHuman,
+			EyeColor,
+			EyeAlign,
+			NeckSize,
+			WaistSize,
+			ChestSize,
+			HeadShape,
+			NoseSize,
+			ChinSize,
 		};
 
 		var options = new JsonSerializerOptions( JsonSerializerOptions.Default ) { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull };
@@ -251,6 +266,14 @@ public partial class ClothingContainer
 	public void Deserialize( string json )
 	{
 		Clothing.Clear();
+		NeckSize = AvatarDefaults.NeckSize;
+		WaistSize = AvatarDefaults.WaistSize;
+		ChestSize = AvatarDefaults.ChestSize;
+		HeadShape = AvatarDefaults.HeadShape;
+		NoseSize = AvatarDefaults.NoseSize;
+		ChinSize = AvatarDefaults.ChinSize;
+		EyeColor = AvatarDefaults.EyeColor;
+		EyeAlign = AvatarDefaults.EyeAlign;
 
 		if ( string.IsNullOrWhiteSpace( json ) )
 			return;
@@ -271,7 +294,16 @@ public partial class ClothingContainer
 				DisplayName = (string)(jso["DisplayName"]);
 				Age = (float)(jso["Age"] ?? 0.0f);
 				Tint = (float)(jso["Tint"] ?? 0.0f);
+				EyeColor = (float)(jso["EyeColor"] ?? AvatarDefaults.EyeColor);
+				EyeAlign = (float)(jso["EyeAlign"] ?? AvatarDefaults.EyeAlign);
 				PrefersHuman = (bool)(jso["PrefersHuman"] ?? false);
+
+				NeckSize = (float)(jso["NeckSize"] ?? AvatarDefaults.NeckSize);
+				WaistSize = (float)(jso["WaistSize"] ?? AvatarDefaults.WaistSize);
+				ChestSize = (float)(jso["ChestSize"] ?? AvatarDefaults.ChestSize);
+				HeadShape = (float)(jso["HeadShape"] ?? AvatarDefaults.HeadShape);
+				NoseSize = (float)(jso["NoseSize"] ?? AvatarDefaults.NoseSize);
+				ChinSize = (float)(jso["ChinSize"] ?? AvatarDefaults.ChinSize);
 			}
 		}
 		catch ( System.Exception e )
@@ -379,11 +411,13 @@ public partial class ClothingContainer
 	}
 
 	/// <summary>
-	/// Create the container from the local user's setup
+	/// Create the container from the local user's setup, stripped of any unowned items.
 	/// </summary>
 	public static ClothingContainer CreateFromLocalUser()
 	{
-		return CreateFromJson( Avatar.AvatarJson );
+		var container = CreateFromJson( Avatar.AvatarJson );
+		container.RemoveUnownedItems();
+		return container;
 	}
 
 	/// <summary>
@@ -404,6 +438,9 @@ public partial class ClothingContainer
 	/// </summary>
 	public void RemoveUnownedItems()
 	{
+		if ( !Services.Inventory.HasLoaded )
+			return;
+
 		Clothing.RemoveAll( entry =>
 		{
 			if ( entry.Clothing is not null )
@@ -418,6 +455,7 @@ public partial class ClothingContainer
 
 	/// <summary>
 	/// Removes clothing items that the given connection is not verified to own.
+	/// Must be called from the host or from the local player, as clients don't have access to other player inventory data.
 	/// </summary>
 	public void RemoveUnownedItems( Connection connection )
 	{
@@ -427,6 +465,10 @@ public partial class ClothingContainer
 			RemoveUnownedItems();
 			return;
 		}
+
+		// Clients don't have this data for remote players, so don't remove anything.
+		if ( !Networking.IsHost )
+			return;
 
 		// Use Connection.HasInventoryItem for remote players
 		Clothing.RemoveAll( entry =>

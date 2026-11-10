@@ -41,7 +41,7 @@ public sealed class ProjectNavigationWidget : Widget
 
 	protected override void OnMouseClick( MouseEvent e )
 	{
-		base.OnMouseClick(e);
+		base.OnMouseClick( e );
 
 		if ( IsActive ) return;
 

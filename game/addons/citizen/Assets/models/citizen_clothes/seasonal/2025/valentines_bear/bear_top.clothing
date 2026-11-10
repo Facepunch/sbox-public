@@ -11,16 +11,17 @@
   "Category": "Costume",
   "ConditionalModels": {},
   "Tags": null,
-  "Parent": null,
   "Model": "models/citizen_clothes/seasonal/2025/valentines_bear/bear_jumper/models/bear_jumper.vmdl",
   "HumanAltModel": "models/citizen_clothes/seasonal/2025/valentines_bear/bear_jumper/models/bear_jumper_m_human.vmdl",
   "HumanAltFemaleModel": null,
   "SkinMaterial": null,
   "EyesMaterial": null,
   "MaterialGroup": null,
+  "HeelHeight": 0,
   "SlotsUnder": "Chest, LeftArm, RightArm, LeftWrist, RightWrist, LeftHand, RightHand",
   "SlotsOver": "LeftArm, RightArm, LeftWrist, RightWrist, LeftHand, RightHand",
   "HideBody": "Chest, Hands",
+  "DeformationMode": "Normal",
   "AllowTintSelect": false,
   "TintSelection": {
     "blend": "Linear",
@@ -37,7 +38,8 @@
   "Icon": {
     "Path": "models/citizen_clothes/seasonal/2025/valentines_bear/bear_top.clothing.png",
     "Mode": "Chest",
-    "PositionOffset": "-155.1001,0,-1.800002"
+    "UsePositionOffset": false,
+    "PositionOffset": "-155.100098,0,-1.80000198"
   },
   "__references": [],
   "__version": 0

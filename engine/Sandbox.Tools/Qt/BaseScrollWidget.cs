@@ -155,6 +155,12 @@ namespace Editor
 		[EditorEvent.Frame]
 		public virtual void ScrollingFrame()
 		{
+			if ( !IsValid )
+				return;
+
+			if ( VerticalScrollbar is not { IsValid: true } )
+				return;
+
 			const float scrollTime = 0.2f;
 
 			//

@@ -2,7 +2,7 @@
 
 public interface IAnalyzerTest
 {
-	public Task TestWithMarkup( string code );
+	public Task TestWithMarkup( string code, string globalConfig = null );
 }
 
 /// <summary>

@@ -1,4 +1,4 @@
-﻿using System.Buffers;
+using System.Buffers;
 using System.Runtime.InteropServices;
 
 namespace Sandbox.Navigation.Generation;
@@ -34,7 +34,7 @@ internal sealed class Heightfield : IDisposable
 
 	private int ColumnCount => Width * Height;
 
-	private const int _initialColumnCapacity = 48;
+	private const int _initialColumnCapacity = 4;
 
 	private int _columnCapacity = _initialColumnCapacity;
 	private int _totalSpanCount = 0;
@@ -218,6 +218,7 @@ internal sealed class Heightfield : IDisposable
 	/// </summary>
 	public CompactHeightfield BuildCompactHeightfield( int walkableHeight, int walkableClimb )
 	{
+		EnsureCompressed();
 		var compactHeightfield = CompactHeightfield.GetPooled();
 		compactHeightfield.Init( Width, Height, TotalSpanCount, walkableHeight, walkableClimb, BMin, BMax, CellSize, CellHeight );
 
@@ -250,7 +251,7 @@ internal sealed class Heightfield : IDisposable
 					StartY = (ushort)Math.Clamp( bot, 0, 0xFFFF ),
 					Height = (byte)Math.Clamp( top - bot, 0, 0xFF ),
 					Region = 0,
-					Con = 0
+					Con = 0xFFFFFF
 				};
 
 				compactHeightfield.Spans[currentSpanWrite] = cspan;
@@ -266,64 +267,44 @@ internal sealed class Heightfield : IDisposable
 		// Shrink logical span count to actual written spans (skipping any unused tail).
 		compactHeightfield.SpanCount = currentSpanWrite;
 
-		// Neighbor connections (only iterate real spans through cells)
-		const int MAX_LAYERS = Constants.NOT_CONNECTED - 1;
-		int maxLayerIndex = 0;
-		int zStride = Width; // for readability
-
-		for ( int z = 0; z < Height; ++z )
+		// Each adjacent column pair is visited once. The clearance/climb test is
+		// symmetric, but the first matching layer in each direction can differ.
+		for ( int z = 0; z < Height; z++ )
 		{
-			for ( int x = 0; x < Width; ++x )
+			for ( int x = 0; x < Width; x++ )
 			{
-				CompactCell cell = compactHeightfield.Cells[x + z * zStride];
-
-				for ( int i = cell.Index; i < cell.Index + cell.Count; ++i )
-				{
-					CompactSpan span = compactHeightfield.Spans[i];
-
-					for ( int dir = 0; dir < 4; ++dir )
-					{
-						Utils.SetCon( ref span, dir, Constants.NOT_CONNECTED );
-						int neighborX = x + Utils.GetDirOffsetX( dir );
-						int neighborZ = z + Utils.GetDirOffsetZ( dir );
-
-						// Check if neighbor is in bounds
-						if ( neighborX < 0 || neighborZ < 0 || neighborX >= Width || neighborZ >= Height )
-							continue;
-
-						CompactCell neighborCell = compactHeightfield.Cells[neighborX + neighborZ * zStride];
-
-						for ( int k = neighborCell.Index; k < neighborCell.Index + neighborCell.Count; ++k )
-						{
-							CompactSpan neighborSpan = compactHeightfield.Spans[k];
-							int bot = Math.Max( span.StartY, neighborSpan.StartY );
-							int top = Math.Min( span.StartY + span.Height, neighborSpan.StartY + neighborSpan.Height );
-
-							// Check walkable connection
-							if ( (top - bot) >= walkableHeight && Math.Abs( neighborSpan.StartY - span.StartY ) <= walkableClimb )
-							{
-								int layerIndex = k - neighborCell.Index;
-								if ( layerIndex < 0 || layerIndex > MAX_LAYERS )
-								{
-									if ( layerIndex > maxLayerIndex ) maxLayerIndex = layerIndex;
-									continue;
-								}
-
-								Utils.SetCon( ref span, dir, layerIndex );
-								break;
-							}
-						}
-					}
-					compactHeightfield.Spans[i] = span;
-				}
+				int column = x + z * Width;
+				if ( x > 0 ) ConnectColumns( compactHeightfield, column, column - 1, 0, walkableHeight, walkableClimb );
+				if ( z > 0 ) ConnectColumns( compactHeightfield, column, column - Width, 3, walkableHeight, walkableClimb );
 			}
 		}
-
-		if ( maxLayerIndex > MAX_LAYERS )
-		{
-			Log.Warning( $"BuildCompactHeightfield: Heightfield has too many layers: {maxLayerIndex} (max: {MAX_LAYERS})" );
-		}
-
 		return compactHeightfield;
+	}
+
+	private static void ConnectColumns( CompactHeightfield field, int a, int b, int direction, int height, int climb )
+	{
+		var cells = field.Cells;
+		var spans = field.Spans;
+		var ca = cells[a];
+		var cb = cells[b];
+		int opposite = (direction + 2) & 3;
+		int first = 0;
+		for ( int i = 0; i < ca.Count; i++ )
+		{
+			ref var sa = ref spans[ca.Index + i];
+			while ( first < cb.Count && spans[cb.Index + first].StartY < sa.StartY - climb ) first++;
+			for ( int j = first; j < cb.Count; j++ )
+			{
+				ref var sb = ref spans[cb.Index + j];
+				if ( sb.StartY > sa.StartY + climb ) break;
+				int bottom = Math.Max( sa.StartY, sb.StartY );
+				int top = Math.Min( sa.StartY + sa.Height, sb.StartY + sb.Height );
+				if ( top - bottom < height ) continue;
+				if ( j < Constants.NOT_CONNECTED && Utils.GetCon( sa, direction ) == Constants.NOT_CONNECTED )
+					Utils.SetCon( ref sa, direction, j );
+				if ( i < Constants.NOT_CONNECTED && Utils.GetCon( sb, opposite ) == Constants.NOT_CONNECTED )
+					Utils.SetCon( ref sb, opposite, i );
+			}
+		}
 	}
 }

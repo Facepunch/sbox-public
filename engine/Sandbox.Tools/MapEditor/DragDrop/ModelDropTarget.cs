@@ -115,12 +115,26 @@ class ModelDropTarget : IMapViewDropTarget
 		//
 		// Install our package
 		//
-		var asset = await AssetSystem.InstallAsync( package, loading: ( float progress ) =>
+		Asset asset;
+		try
 		{
-			if ( !entity.IsValid() ) return;
-			LoadingProgress[entity] = progress;
-			Hammer.DirtyViewHuds(); // ?
-		} );
+			asset = await AssetSystem.InstallAsync( package, loading: ( float progress ) =>
+			{
+				if ( !entity.IsValid() ) return;
+				LoadingProgress[entity] = progress;
+				Hammer.DirtyViewHuds(); // ?
+			} );
+		}
+		catch ( System.AggregateException ex )
+		{
+			Log.Error( ex, $"Failed to install model package: {package.FullIdent}" );
+			return;
+		}
+		finally
+		{
+			LoadingProgress.Remove( entity );
+			Hammer.DirtyViewHuds();
+		}
 
 		if ( asset == null ) return;
 
@@ -133,8 +147,6 @@ class ModelDropTarget : IMapViewDropTarget
 				entity.SetKeyValue( "model", asset.Path );
 			}
 		}
-
-		LoadingProgress.Remove( entity );
 	}
 
 	static Dictionary<MapEntity, float> LoadingProgress = new();

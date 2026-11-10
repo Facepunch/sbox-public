@@ -15,6 +15,7 @@ native class QLayout as Native.QLayout : QObject
 
 	void setEnabled(bool b);
 	bool isEnabled();
+	bool activate();
 
 	int alignment();
 	void setAlignment( CastTo[Qt::Alignment] int flag );

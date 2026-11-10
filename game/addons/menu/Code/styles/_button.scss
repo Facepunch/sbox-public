@@ -1,3 +1,5 @@
+@import "/Platform/_platform.scss";
+
 
 $button-inactive: red !default;
 $button-inactive-bottom: $button-inactive !default;
@@ -14,12 +16,12 @@ $button-size: 50px;
 
 	&:hover
 	{
-		sound-in: ui.button.over;
+		sound-in: "ui.button.over";
 	}
 
 	&:active
 	{
-		sound-in: ui.button.press;
+		sound-in: "ui.button.press";
 	}
 }
 
@@ -27,38 +29,10 @@ $button-size: 50px;
 {
 	button
 	{
-		background-color: #3171E6;
-		color: white;
-		font-size: 15px;
-		font-weight: bold;
-		padding: 10px 30px;
-		border-radius: 8px;
-		cursor: pointer;
-		opacity: 0.8;
-		border: 3px solid transparent;
+		@include platform-text-button( 38px );
+		padding: 0 18px;
 		margin-right: 10px;
-
-		&:hover
-		{
-			opacity: 1;
-		}
-
-		&:active
-		{
-			transform: scale( 0.9 );
-		}
-
-		&.is-cancel
-		{
-			background-color: #555;
-			color: #aaa;
-		}
-
 		pointer-events: all;
-
-		&.is-danger
-		{
-		}
 	}
 }
 
@@ -69,6 +43,13 @@ Button
 	gap: 8px;
 	cursor: pointer;
 	padding: 8px 16px;
+
+	&.disabled
+	{
+		opacity: 0.2;
+		pointer-events: none;
+		cursor: default;
+	}
 }
 
 Button i
@@ -78,69 +59,12 @@ Button i
 
 Button.primary
 {
-	font-family: Poppins;
-	background-color: #3171E6;
-	color: white;
-	font-size: 14px;
-	font-weight: bold;
-	padding: 4px 16px;
-	border-radius: 8px;
-	cursor: pointer;
-	border: 3px solid transparent;
-	gap: 8px;
-
-	&:hover {
-		filter: brightness( 1.5 );
-	}
-
-	&.active {
-		filter: brightness( 2.5 );
-		color: white;
-	}
-
-	IconPanel {
-		font-size: 28px;
-		opacity: 0.5;
-	}
+	@include platform-text-button( 38px );
+	@include platform-button-primary;
+	padding: 0 18px;
 
 	label {
 		flex-grow: 1;
 		text-align: center;
-	}
-}
-
-Button.uplight
-{
-	color: #c6d4ee;
-	border-bottom: 4px solid #477fe700;
-	cursor: pointer;
-	transition: all 0.2s ease;
-
-	IconPanel
-	{
-		color: #697180;
-	}
-
-	padding: 8px;
-	gap: 8px;
-	transition: all 0.2s ease;
-	text-shadow: 2px 2px 2px #0003;
-	padding: 8px 24px;
-
-	&:hover
-	{
-		color: white;
-	}
-
-	&.active
-	{
-		background-image: linear-gradient( #477fe722, #477fe766 );
-		border-bottom: 4px solid #477fe7aa;
-		color: white;
-
-		IconPanel
-		{
-			color: #477fe7;
-		}
 	}
 }

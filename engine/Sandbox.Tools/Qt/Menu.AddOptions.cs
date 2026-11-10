@@ -198,29 +198,15 @@ partial class Menu
 		}
 	}
 
-	private static void BuildMenu<T>( Menu menu, List<MenuItem<T>> list, Action<T>? action, string defaultMenuIcon )
+	public delegate void CreateOptionDelegate<T>( Menu parent, PathElement display, T value );
+
+	private static void BuildMenu<T>( Menu menu, List<MenuItem<T>> list, CreateOptionDelegate<T> createOption, string defaultMenuIcon )
 	{
 		foreach ( var item in list )
 		{
 			if ( item.SubItems is null )
 			{
-				var option = menu.AddOption( item.Name, item.Icon );
-
-				if ( !string.IsNullOrEmpty( item.Description ) )
-				{
-					menu.ToolTipsVisible = true;
-					option.ToolTip = item.Description;
-				}
-
-				if ( action is not null )
-				{
-					option.Triggered += () => action( item.Value! );
-				}
-				else
-				{
-					option.Enabled = false;
-				}
-
+				createOption( menu, item.PathElement, item.Value! );
 				continue;
 			}
 
@@ -244,7 +230,7 @@ partial class Menu
 				}
 			}
 
-			BuildMenu( subMenu, item.SubItems!, action, defaultMenuIcon );
+			BuildMenu( subMenu, item.SubItems!, createOption, defaultMenuIcon );
 		}
 	}
 
@@ -307,6 +293,28 @@ partial class Menu
 		bool reduce = true,
 		string defaultSubMenuIcon = "folder" )
 	{
+		AddOptions( items, getPath,
+			createOption: ( menu, display, value ) => DefaultCreateOption( menu, display, value, action ),
+			flat: flat,
+			reduce: reduce,
+			defaultSubMenuIcon: defaultSubMenuIcon );
+	}
+
+	/// <summary>
+	/// Adds a bunch of options, creating sub-menus based on their paths.
+	/// </summary>
+	/// <param name="items">Items to create options for.</param>
+	/// <param name="getPath">Gets the path of an item.</param>
+	/// <param name="createOption">Called to create an option for each item in <paramref name="items"/>.</param>
+	/// <param name="flat">If true, flatten each path after sorting.</param>
+	/// <param name="reduce">If true, collapse sub-menus with single items.</param>
+	/// <param name="defaultSubMenuIcon">Use this icon for any sub-menus without an icon specified.</param>
+	public void AddOptions<T>( IEnumerable<T> items, Func<T, PathElement[]> getPath,
+		CreateOptionDelegate<T> createOption,
+		bool flat = false,
+		bool reduce = true,
+		string defaultSubMenuIcon = "folder" )
+	{
 		var itemPaths = items.Select( x =>
 		{
 			var path = getPath( x );
@@ -334,6 +342,26 @@ partial class Menu
 			Reduce( list );
 		}
 
-		BuildMenu( this, list, action, defaultSubMenuIcon );
+		BuildMenu( this, list, createOption, defaultSubMenuIcon );
+	}
+
+	private static void DefaultCreateOption<T>( Menu menu, PathElement display, T value, Action<T>? action )
+	{
+		var option = menu.AddOption( display.Name, display.Icon );
+
+		if ( !string.IsNullOrEmpty( display.Description ) )
+		{
+			menu.ToolTipsVisible = true;
+			option.ToolTip = display.Description;
+		}
+
+		if ( action is not null )
+		{
+			option.Triggered += () => action( value );
+		}
+		else
+		{
+			option.Enabled = false;
+		}
 	}
 }

@@ -1,0 +1,254 @@
+@namespace MenuProject.Modals
+@inherits Panel
+
+@using System;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.UI;
+@using MenuProject.Platform;
+
+@*
+    Everyone in the game with you - a panel: its bar with how many, a search and a way to ask your friends in, then a
+    table of their face, their name and whether they're a friend, and their ping, sorted by either. Click one for their
+    card, right click for the rest. The pause menu's Players page, and the platform's players modal (PlayersModal).
+*@
+<root class="panel">
+
+	<PanelHead Back=@Back Search="#menu.friends.search_players" OnSearch=@( ( string text ) => { Search = text?.Trim(); } )>
+		<Heading>
+			<div class="heading">
+				<div class="tile"><i>group</i></div>
+				<label class="title">#menu.games.players</label>
+				<label class="count">@Everyone.Count</label>
+			</div>
+		</Heading>
+		<Tools>
+			<div class="tool @(FriendsOpen ? "open" : "")" @ref="InviteButton" onclick=@OpenFriends tooltip="Invite friends"><i>person_add</i></div>
+			@if ( OnClose is not null )
+			{
+				<div class="tool" onclick=@OnClose tooltip="#menu.common.close"><i>close</i></div>
+			}
+		</Tools>
+	</PanelHead>
+
+	<div class="body">
+		<table columns="32px 1fr 80px" align="left left right" sortcolumn=@sortBy sortdescending=@sortDescending onsort=@Sort>
+			<thead>
+				<tr>
+					<th></th>
+					<th sort="name">#menu.friends.name</th>
+					<th sort="ping">#menu.friends.ping</th>
+				</tr>
+			</thead>
+
+			<tbody>
+				@if ( Shown.Count == 0 )
+				{
+					<div class="empty">
+						<i>group</i>
+						<label>@(string.IsNullOrEmpty( Search ) ? "#menu.friends.nobody_s_here" : $"No players called {Search}")</label>
+					</div>
+				}
+
+				@foreach ( var player in Shown )
+				{
+					<tr class="player @(player.IsMe ? "me" : "")" @key=@player.SteamId onclick=@( e => ShowCard( e.This, player ) ) onrightclick=@( e => ShowMenu( e.This, player ) )>
+						<td><div class="avatar" style="background-image: url( avatar:@player.SteamId );"></div></td>
+						<td class="name">
+							<label class="player-name">@player.Name</label>
+							@if ( player.IsFriend && !player.IsMe )
+							{
+								<i class="friend" tooltip="Your friend">favorite</i>
+							}
+						</td>
+						@* The host's ping is always nothing - a server's glyph says whose it is instead *@
+						<td class="ping @PingClass( player )">
+							@if ( player.IsHost )
+							{
+								<i class="host" tooltip="#menu.friends.running_the_server">dns</i>
+							}
+							else
+							{
+								@($"{player.Ping:0}")
+							}
+						</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	</div>
+
+</root>
+
+@code
+{
+	/// <summary>
+	/// A close tool on the end of its bar - when it's a modal of its own
+	/// </summary>
+	[Parameter] public Action OnClose { get; set; }
+
+	/// <summary>
+	/// A way back in its bar, for it on a page of its own (the pause menu's)
+	/// </summary>
+	[Parameter] public Action Back { get; set; }
+
+	/// <summary>
+	/// One player, however we know about them - off a connection, or made up for the mock.
+	/// </summary>
+	public record Player( ulong SteamId, string Name, float Ping, bool IsHost, bool IsFriend, bool IsMe, Connection Connection );
+
+	/// <summary>
+	/// Who's in the game - or who we're pretending is, with <c>menu_mock_player_list</c> on.
+	/// </summary>
+	internal static List<Player> Everyone => _mock ?? Connection.All.Select( Of ).ToList();
+
+	static Player Of( Connection c )
+	{
+		var friend = new Friend( (ulong)c.SteamId );
+		return new Player( (ulong)c.SteamId, c.DisplayName, c.Ping, Connection.Host == c, friend.IsFriend, friend.IsMe, c );
+	}
+
+	string Search;
+	string sortBy = "ping";
+	bool sortDescending;
+
+	/// <summary>
+	/// Everyone matching the search, in the table's order - the host's ping is always nothing, so by ping it's first
+	/// </summary>
+	List<Player> Shown
+	{
+		get
+		{
+			var shown = Everyone.Where( x => string.IsNullOrEmpty( Search ) || x.Name.Contains( Search, StringComparison.OrdinalIgnoreCase ) );
+
+			shown = sortBy == "name"
+				? (sortDescending ? shown.OrderByDescending( x => x.Name ) : shown.OrderBy( x => x.Name ))
+				: (sortDescending ? shown.OrderByDescending( x => x.Ping ) : shown.OrderBy( x => x.Ping )).ThenBy( x => x.Name );
+
+			return shown.ToList();
+		}
+	}
+
+	void Sort( PanelEvent e )
+	{
+		if ( e.Value is not TableSort sort ) return;
+
+		sortBy = sort.Column;
+		sortDescending = sort.Descending;
+	}
+
+	static string PingClass( Player player ) => MenuHelpers.PingClass( player.IsHost ? -1 : player.Ping );
+
+	Panel InviteButton;
+
+	bool FriendsOpen => InviteButton.IsValid() && MenuOverlay.Instance.IsValid() && MenuOverlay.Instance.ChildrenOfType<FriendsListModal>().Any( x => x.AnchorPanel == InviteButton );
+
+	/// <summary>
+	/// Your friends, under the button - pick someone for their card, and its "Invite to game"
+	/// </summary>
+	void OpenFriends()
+	{
+		ModalSystem.Instance?.FriendsList( new Sandbox.Modals.FriendsListModalOptions
+		{
+			ShowOnlineMembers = true,
+			ShowOfflineMembers = false,
+			Anchor = new()
+			{
+				Panel = InviteButton,
+				Position = Sandbox.Modals.ModalAnchorPosition.BelowRight,
+				Offset = 8,
+			},
+		} );
+	}
+
+	MenuProject.MenuUI.Popups.FriendCard card;
+	Popup menu;
+
+	/// <summary>
+	/// Their s&box card, where you point - or shut it on a second click
+	/// </summary>
+	void ShowCard( Panel row, Player player )
+	{
+		if ( card.IsValid() )
+		{
+			card.Delete();
+			card = null;
+			return;
+		}
+
+		card = MenuProject.MenuUI.Popups.FriendCard.Show( row, new Friend( player.SteamId ), Popup.PositionMode.UnderMouse, 0 );
+	}
+
+	/// <summary>
+	/// Their Steam profile, a friend request if they're not one, and - for the host - kicking them
+	/// </summary>
+	void ShowMenu( Panel row, Player player )
+	{
+		if ( menu.IsValid() )
+		{
+			menu.Delete();
+			return;
+		}
+
+		menu = new Popup( row, Popup.PositionMode.UnderMouse, 0 );
+
+		var friend = new Friend( player.SteamId );
+		menu.AddOption( "#menu.friends.view_profile", () => friend.OpenInOverlay() );
+
+		if ( player.IsMe )
+			return;
+
+		if ( !player.IsFriend )
+			menu.AddOption( "#menu.friends.send_friend_request", () => friend.OpenAddFriendOverlay() );
+
+		// Only the host can kick - and only someone who's really here
+		if ( !Networking.IsHost || player.Connection is not { } connection )
+			return;
+
+		menu.AddOption( "#menu.friends.kick", "", () => connection.Kick( Language.GetPhrase( "menu.friends.kicked" ) ) );
+	}
+
+	// Once a second, for who's come and gone and their pings
+	protected override int BuildHash() => HashCode.Combine( RealTime.Now.CeilToInt(), Search, sortBy, sortDescending, _mock, FriendsOpen );
+
+	//
+	// The mock - a load of your friends, some of them passed off as strangers
+	//
+
+	static List<Player> _mock;
+
+	/// <summary>
+	/// Showing made up players rather than who's really here.
+	/// </summary>
+	public static bool IsMocking => _mock is not null;
+
+	/// <summary>
+	/// <c>menu_mock_player_list</c> - fill the player list with your friends, you hosting, every third one
+	/// passed off as someone you don't know, so friends-first can be seen against everyone else.
+	/// <c>menu_mock_player_list off</c> puts it back.
+	/// </summary>
+	[MenuConCmd( "menu_mock_player_list", Help = "Fill the player list with your friends, some passed off as strangers - menu_mock_player_list off to stop" )]
+	public static void Mock( string state = null )
+	{
+		if ( state == "off" )
+		{
+			_mock = null;
+			return;
+		}
+
+		var random = new Random();
+		var list = new List<Player>
+		{
+			new( (ulong)Sandbox.Utility.Steam.SteamId, Sandbox.Utility.Steam.PersonaName, 0, true, false, true, null ),
+		};
+
+		var i = 0;
+		foreach ( var friend in MenuUtility.Friends.Where( x => !x.IsMe ).Take( 16 ) )
+		{
+			var passedOff = i++ % 3 == 2;
+			list.Add( new Player( friend.Id, friend.Name, random.Next( 18, 190 ), false, !passedOff, false, null ) );
+		}
+
+		_mock = list;
+	}
+}

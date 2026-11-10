@@ -63,6 +63,11 @@ public partial class HammerSession
 
 	internal void OnPostCompileFinished()
 	{
+		// Remounting the vpk doesn't reload resident resources inside it - force the
+		// world physics to reload so anything using it rebuilds from the new data.
+		var mapFolder = Path.ChangeExtension( MapAsset.Path, null );
+		NativeEngine.g_pResourceSystem.ReloadResource( $"{mapFolder}/world_physics.vphys" );
+
 		SceneMap.OnMapUpdated?.Invoke( "Ignore Me" );
 	}
 

@@ -64,7 +64,7 @@ public abstract partial class ProjectTrack<T>( MovieProject project, Guid id, st
 
 	public Guid Id { get; } = id;
 	public string Name { get; set; } = name;
-	public Type TargetType { get; } = typeof(T);
+	public Type TargetType { get; } = typeof( T );
 
 	public IProjectTrack? Parent { get; private set; }
 	public virtual IEnumerable<MovieResource> References => [];
@@ -98,7 +98,7 @@ public abstract partial class ProjectTrack<T>( MovieProject project, Guid id, st
 	{
 		if ( child.Parent != null )
 		{
-			throw new ArgumentException( "Track already has a parent!", nameof(child) );
+			throw new ArgumentException( "Track already has a parent!", nameof( child ) );
 		}
 
 		child.Parent = this;
@@ -141,7 +141,7 @@ public partial interface IProjectReferenceTrack : IProjectTrack, IReferenceTrack
 {
 	public static IProjectReferenceTrack Create( MovieProject project, Guid id, string name, Type targetType )
 	{
-		var trackType = typeof(ProjectReferenceTrack<>).MakeGenericType( targetType );
+		var trackType = typeof( ProjectReferenceTrack<> ).MakeGenericType( targetType );
 
 		return (IProjectReferenceTrack)Activator.CreateInstance( trackType, project, id, name )!;
 	}
@@ -162,7 +162,7 @@ public partial class ProjectReferenceTrack<T>( MovieProject project, Guid id, st
 	: ProjectTrack<T>( project, id, name ), IProjectReferenceTrack, IReferenceTrack<T>
 	where T : class, IValid
 {
-	public override int Order => -1000;
+	public override int Order => -0x1000_0000 + (Metadata?.Order ?? 0);
 
 	public new ProjectReferenceTrack<GameObject>? Parent => (ProjectReferenceTrack<GameObject>?)base.Parent;
 
@@ -184,7 +184,7 @@ public partial interface IProjectPropertyTrack : IPropertyTrack, IProjectBlockTr
 {
 	public static IProjectPropertyTrack Create( MovieProject project, Guid id, string name, Type targetType )
 	{
-		var trackType = typeof(ProjectPropertyTrack<>).MakeGenericType( targetType );
+		var trackType = typeof( ProjectPropertyTrack<> ).MakeGenericType( targetType );
 
 		return (IProjectPropertyTrack)Activator.CreateInstance( trackType, project, id, name )!;
 	}
@@ -277,7 +277,7 @@ public sealed partial class ProjectPropertyTrack<T>( MovieProject project, Guid 
 
 		if ( headerOnly ) return compiled;
 
-		return compiled with { Blocks = [..Blocks.SelectMany( x => x.Compile( this ) )] };
+		return compiled with { Blocks = [.. Blocks.SelectMany( x => x.Compile( this ) )] };
 	}
 
 	public T GetLastValue( MovieTime time ) => Blocks.GetLastBlock( time ).GetValue( time );
@@ -445,53 +445,18 @@ public sealed partial class ProjectPropertyTrack<T>( MovieProject project, Guid 
 
 		_blocksChanged = false;
 
-		SortBlocks();
-		MergeBlocks();
+		_blocks.Sort( ( a, b ) => a.TimeRange.Start.CompareTo( b.TimeRange.Start ) );
+
+		if ( CanMergeAnyBlocks )
+		{
+			_blocks.Merge();
+		}
+
 		UpdateDuration();
 	}
 
-	/// <summary>
-	/// Sort blocks by time.
-	/// </summary>
-	private void SortBlocks()
-	{
-		_blocks.Sort( ( a, b ) => a.TimeRange.Start.CompareTo( b.TimeRange.Start ) );
-	}
-
-	/// <summary>
-	/// Merge touching blocks that have identical values at their interface.
-	/// </summary>
-	private void MergeBlocks()
-	{
-		if ( !CanMergeBlocks ) return;
-
-		var comparer = EqualityComparer<T>.Default;
-
-		for ( var i = _blocks.Count - 2; i >= 0; --i )
-		{
-			var prev = _blocks[i];
-			var next = _blocks[i + 1];
-
-			if ( prev.TimeRange.End != next.TimeRange.Start ) continue;
-
-			var prevValue = prev.GetValue( prev.TimeRange.End );
-			var nextValue = next.GetValue( next.TimeRange.Start );
-
-			if ( !comparer.Equals( prevValue, nextValue ) )
-			{
-				continue;
-			}
-
-			var combinedTimeRange = prev.TimeRange.Union( next.TimeRange );
-			var combinedSignal = prev.Signal.HardCut( next.Signal, prev.TimeRange.End ).Reduce( combinedTimeRange );
-
-			_blocks[i] = new PropertyBlock<T>( combinedSignal, combinedTimeRange );
-			_blocks.RemoveAt( i + 1 );
-		}
-	}
-
 	// TODO: This reeks, we can't deserialize Resource off the main thread
-	private static bool CanMergeBlocks =>
+	private static bool CanMergeAnyBlocks =>
 		ThreadSafe.IsMainThread || !typeof( T ).IsAssignableTo( typeof( Resource ) );
 
 	private void UpdateDuration()

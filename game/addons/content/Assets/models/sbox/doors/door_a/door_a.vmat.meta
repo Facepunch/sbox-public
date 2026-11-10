@@ -1,0 +1,27 @@
+{
+  "guid": "7ceca43e-5636-4dce-81fc-6de32853ad76",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Door A",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "door_a",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "models/sbox/doors/door_a/door_a.vmat"
+      }
+    },
+    "HammerAutoPackageReferences": null
+  }
+}

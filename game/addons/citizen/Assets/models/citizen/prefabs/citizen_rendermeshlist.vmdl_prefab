@@ -1,4 +1,4 @@
-<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc29:version{3cec427c-1b0e-4d48-a90a-0436f33a6041} -->
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
 {
 	rootNode = 
 	{
@@ -26,7 +26,6 @@
 										high_high_precision_texcoords = true
 										calc_per_vertex_curvature = true
 										prefer_high_density_tris_in_uv_density_calc = false
-										cpu_access = false
 									},
 								]
 								filename = "models/citizen/citizen.fbx"
@@ -58,7 +57,6 @@
 										high_high_precision_texcoords = true
 										calc_per_vertex_curvature = true
 										prefer_high_density_tris_in_uv_density_calc = false
-										cpu_access = false
 									},
 								]
 								filename = "models/citizen/citizen_lod1.fbx"
@@ -151,7 +149,6 @@
 										high_high_precision_texcoords = true
 										calc_per_vertex_curvature = true
 										prefer_high_density_tris_in_uv_density_calc = false
-										cpu_access = false
 									},
 								]
 								filename = "models/citizen/citizen.fbx"
@@ -183,7 +180,6 @@
 										high_high_precision_texcoords = true
 										calc_per_vertex_curvature = true
 										prefer_high_density_tris_in_uv_density_calc = false
-										cpu_access = false
 									},
 								]
 								filename = "models/citizen/citizen_lod1.fbx"
@@ -276,7 +272,6 @@
 										high_high_precision_texcoords = true
 										calc_per_vertex_curvature = true
 										prefer_high_density_tris_in_uv_density_calc = false
-										cpu_access = false
 									},
 								]
 								filename = "models/citizen/citizen.fbx"
@@ -308,7 +303,6 @@
 										high_high_precision_texcoords = true
 										calc_per_vertex_curvature = true
 										prefer_high_density_tris_in_uv_density_calc = false
-										cpu_access = false
 									},
 								]
 								filename = "models/citizen/citizen_lod1.fbx"
@@ -401,7 +395,6 @@
 										high_high_precision_texcoords = true
 										calc_per_vertex_curvature = true
 										prefer_high_density_tris_in_uv_density_calc = false
-										cpu_access = false
 									},
 								]
 								filename = "models/citizen/citizen.fbx"
@@ -433,7 +426,6 @@
 										high_high_precision_texcoords = true
 										calc_per_vertex_curvature = true
 										prefer_high_density_tris_in_uv_density_calc = false
-										cpu_access = false
 									},
 								]
 								filename = "models/citizen/citizen_lod1.fbx"
@@ -529,7 +521,6 @@
 								high_high_precision_texcoords = true
 								calc_per_vertex_curvature = true
 								prefer_high_density_tris_in_uv_density_calc = false
-								cpu_access = false
 							},
 						]
 						filename = "models/citizen/citizen_head.dmx"
@@ -547,6 +538,8 @@
 							[
 								"Citizen_Eyebrows",
 								"Citizen_EyebrowsOld",
+								"Citizen_EyesAO",
+								"Citizen_UpperEyelidAO",
 							]
 						}
 					},

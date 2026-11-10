@@ -1,5 +1,5 @@
 ﻿using Refit;
-using Sandbox.Engine;
+using Sandbox.Internal;
 using Sandbox.Protobuf;
 using System.Collections.Concurrent;
 using System.Net.Http;
@@ -158,14 +158,34 @@ public partial class Package
 
 		if ( Backend.Package is null )
 		{
+			if ( FetchOffline( $"{ident.org}.{ident.package}" ) is { } installed )
+				return installed;
+
 			Log.Warning( $"Unable to fetch package info for {identString}: backend not available." );
 			return null;
 		}
 
+		var packageIdent = $"{ident.org}.{ident.package}";
+		if ( ident.version is not null ) packageIdent += $"#{ident.version}";
+
+		// A fetch already in flight for this ident answers everyone who asks meanwhile
+		var fetch = Fetching.GetOrAdd( packageIdent, _ => FetchFromBackendAsync( identString, packageIdent, ident.version, package ) );
 		try
 		{
-			var packageIdent = $"{ident.org}.{ident.package}";
-			if ( ident.version is not null ) packageIdent += $"#{ident.version}";
+			return await fetch;
+		}
+		finally
+		{
+			Fetching.TryRemove( new KeyValuePair<string, Task<Package>>( packageIdent, fetch ) );
+		}
+	}
+
+	static readonly ConcurrentDictionary<string, Task<Package>> Fetching = new( StringComparer.OrdinalIgnoreCase );
+
+	static async Task<Package> FetchFromBackendAsync( string identString, string packageIdent, int? version, Package package )
+	{
+		try
+		{
 			var result = await Backend.Package.Get( packageIdent );
 			if ( result is null ) return null;
 
@@ -177,8 +197,12 @@ public partial class Package
 
 			(package as RemotePackage).UpdateFromDto( result );
 		}
-		catch ( HttpRequestException e )
+		catch ( Exception e ) when ( e is HttpRequestException or TaskCanceledException )
 		{
+			// Offline, or the backend's timing out
+			if ( FetchOffline( StripVersion( packageIdent ) ) is { } installed )
+				return installed;
+
 			Log.Warning( e, $"Failed to fetch package info for {identString}: {e.Message}" );
 			return null;
 		}
@@ -187,18 +211,19 @@ public partial class Package
 			if ( e.StatusCode == System.Net.HttpStatusCode.NotFound )
 			{
 				Log.Warning( $"Failed to fetch package info for {identString}: package not found." );
-			}
-			else
-			{
-				Log.Warning( e, $"Failed to fetch package info for {identString}: {e.Message}" );
+				return null;
 			}
 
+			if ( FetchOffline( StripVersion( packageIdent ) ) is { } installed )
+				return installed;
+
+			Log.Warning( e, $"Failed to fetch package info for {identString}: {e.Message}" );
 			return null;
 		}
 
 		if ( package is not null )
 		{
-			Cache( package, false, ident.version );
+			Cache( package, false, version );
 		}
 		else
 		{
@@ -333,7 +358,7 @@ public partial class Package
 			var l = await Backend.Package.Find( query, take, skip );
 			return FindResult.FromDto( l );
 		}
-		catch ( ApiException )
+		catch ( Exception e ) when ( e is ApiException or HttpRequestException or TaskCanceledException )
 		{
 			return new FindResult { Packages = Array.Empty<Package>(), TotalCount = 0, Tags = Array.Empty<TagEntry>(), Orders = Array.Empty<SortOrder>() };
 		}
@@ -454,13 +479,13 @@ public partial class Package
 				p.Usage = u;
 			} );
 
-			IMenuDll.Current?.RunEvent( "package.update.users", usageChanged.PackageIdent, usageChanged.UserCount );
+			IMenuSystem.Current?.PackageUsageChanged( usageChanged.PackageIdent, usageChanged.UserCount );
 		}
 
 		if ( msg.Data is PackageMsg.FavouritesChanged favouriteChanged )
 		{
 			UpdatePackage( favouriteChanged.PackageIdent, p => p.Favourited = (int)favouriteChanged.Value );
-			IMenuDll.Current?.RunEvent( "package.update.favourites", favouriteChanged.PackageIdent, favouriteChanged.Value );
+			IMenuSystem.Current?.PackageFavouritesChanged( favouriteChanged.PackageIdent, favouriteChanged.Value );
 		}
 
 		if ( msg.Data is PackageMsg.VotesChanged votesChanged )

@@ -1,0 +1,26 @@
+{
+  "guid": "0ab3eb58-00fc-0000-0401-000000000000",
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Wooden Flooring b",
+      "Type": "material",
+      "Org": "facepunch",
+      "Ident": "woodenflooringb",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "materials/sbox/floor/wooden_flooring_b.vmat"
+      }
+    }
+  }
+}

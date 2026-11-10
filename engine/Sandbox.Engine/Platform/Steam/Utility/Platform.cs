@@ -10,7 +10,11 @@ namespace Steamworks
 {
 	internal static class Platform
 	{
+#if STEAMWORKS_POSIX
+		internal const int StructPlatformPackSize = 4;
+#else
 		internal const int StructPlatformPackSize = 8;
+#endif
 		internal const string LibraryName = "steam_api64";
 
 		internal const CallingConvention CC = CallingConvention.Cdecl;

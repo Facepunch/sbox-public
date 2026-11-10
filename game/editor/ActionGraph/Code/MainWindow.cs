@@ -177,16 +177,20 @@ public partial class MainWindow : DockWindow, EditorEvent.ISceneView, IActionGra
 
 		Views.Add( view );
 
-		if ( !sibling.IsValid() )
+		if ( DockManager.FindDockWidget( view.Name ) is { } existing )
 		{
-			DockManager.AddDock( null, view, DockArea.RightOuter, split: 1f );
-		}
-		else
-		{
-			DockManager.AddDock( sibling, view, DockArea.Inside );
+			var previous = existing.Widget;
+			existing.Widget = view;
+			if ( previous != view ) previous?.Destroy();
+			return view;
 		}
 
-		DockManager.Update();
+		var dock = DockManager.CreateDockWidget( view.Name, view.ActionGraph.Icon ?? "account_tree", view );
+
+		if ( sibling.IsValid() && DockManager.FindDockWidget( sibling.Name ) is { } siblingDock )
+			DockManager.AddDock( dock, siblingDock );
+		else
+			DockManager.AddDock( dock, DockArea.Right );
 
 		return view;
 	}
@@ -208,7 +212,7 @@ public partial class MainWindow : DockWindow, EditorEvent.ISceneView, IActionGra
 
 	public void RebuildUI()
 	{
-		RestoreDefaultDockLayout();
+		BuildDefaultLayout();
 
 		MenuBar.Clear();
 
@@ -255,7 +259,7 @@ public partial class MainWindow : DockWindow, EditorEvent.ISceneView, IActionGra
 	private void OnViewMenu( Menu view )
 	{
 		view.Clear();
-		view.AddOption( "Restore To Default", "settings_backup_restore", RestoreDefaultDockLayout );
+		view.AddOption( "Restore To Default", "settings_backup_restore", ResetLayout );
 		view.AddSeparator();
 
 		foreach ( var dock in DockManager.DockTypes )
@@ -274,28 +278,30 @@ public partial class MainWindow : DockWindow, EditorEvent.ISceneView, IActionGra
 		style.Toggled += b => ActionGraphView.EnableGridAlignedWires = b;
 	}
 
-	protected override void RestoreDefaultDockLayout()
+	protected override void BuildDefaultLayout()
 	{
 		var openViews = Views
 			.Select( x => x.ActionGraph )
 			.ToArray();
 
-		var properties = new Properties( this );
-		var errorList = new ErrorList( null, this );
+		DockManager.RegisterDock( new() { Title = "Inspector", Icon = "edit", Area = DockArea.Left, CreateAction = () => new Properties( this ) } );
+		DockManager.RegisterDock( new() { Title = "ErrorList", Icon = "error", Area = DockArea.Bottom, CreateAction = () => new ErrorList( null, this ) } );
 
-		DockManager.Clear();
-		DockManager.RegisterDockType( "Inspector", "edit", () => new Properties( this ) );
-		DockManager.RegisterDockType( "ErrorList", "error", () => new ErrorList( null, this ) );
+		var inspector = DockManager.OpenDock( "Inspector", DockArea.Left );
+		DockManager.OpenDock( "ErrorList", DockArea.Bottom, inspector );
 
-		DockManager.AddDock( null, properties, DockArea.Left, DockManager.DockProperty.HideOnClose );
-		DockManager.AddDock( properties, errorList, DockArea.Bottom, DockManager.DockProperty.HideOnClose, split: 0.75f );
-
+		// gather the graph views back into a single tab group on the right
+		DockWidget viewArea = null;
 		foreach ( var graph in openViews )
 		{
-			Open( graph );
+			var view = Open( graph );
+			var dock = DockManager.OpenDock( view.Name, viewArea is null ? DockArea.Right : DockArea.Center, viewArea );
+			viewArea ??= dock;
 		}
 
-		DockManager.Update();
+		DockManager.SetSplitterProportions( inspector, 0.75f, 0.25f );
+		if ( viewArea is not null )
+			DockManager.SetSplitterProportions( viewArea, 0.25f, 0.75f );
 	}
 
 	[Shortcut( "editor.quit", "CTRL+Q", ShortcutType.Window )]

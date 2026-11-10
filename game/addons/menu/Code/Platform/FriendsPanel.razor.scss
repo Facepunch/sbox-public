@@ -1,0 +1,133 @@
+@import "/Platform/_platform.scss";
+
+// A section's rows, as one rounded box under its name - as the settings' rows are
+$friends-group: rgba( 255, 255, 255, 0.04 );
+$friends-group-hover: rgba( 255, 255, 255, 0.08 );
+$friends-group-radius: 10px;
+
+FriendsPanel
+{
+	@include platform-side-panel;
+
+	// The list's icons are <icon>s - the font they're drawn in isn't on this root, as it is on the old menu's
+	icon
+	{
+		font-family: "Material Icons";
+		text-transform: none;
+		letter-spacing: 0;
+	}
+
+	> .panel
+	{
+		> FriendsRail
+		{
+			flex-grow: 1;
+			flex-shrink: 1;
+			min-height: 0;
+			height: 0;
+
+			// Its own search band - the bar's search is this panel's
+			> .head
+			{
+				display: none;
+			}
+
+			// In off the panel's sides, as the rewards' cards are - its sections each a rounded box within it. Its
+			// scrollbar over the rows, not given room of its own beside them.
+			> .rows
+			{
+				padding-top: 0;
+				// Up over the gap the first header has above it - nothing before it to split it from
+				margin-top: -8px;
+				padding-left: 8px;
+				padding-right: 8px;
+				scrollbar-width: thin;
+				scrollbar-color: rgba( 255, 255, 255, 0.25 ) transparent;
+				scrollbar-gutter: auto;
+			}
+
+			// A section's rows in one box - its first row (.first) the top of it, its last (.last) the bottom
+			.friend, .party
+			{
+				border-radius: 0;
+				border-bottom-width: 0px;
+				background-color: $friends-group;
+
+				&.first
+				{
+					border-top-left-radius: $friends-group-radius;
+					border-top-right-radius: $friends-group-radius;
+				}
+
+				&.last
+				{
+					border-bottom-left-radius: $friends-group-radius;
+					border-bottom-right-radius: $friends-group-radius;
+				}
+			}
+
+			// Its hover in the box, lighter than it
+			.friend:hover, .party.joinable:hover
+			{
+				background-color: $friends-group-hover;
+			}
+
+			.friend
+			{
+				padding: 5px 10px;
+			}
+
+			.party
+			{
+				padding: 10px;
+
+				&.mine
+				{
+					background-color: rgba( $platform-primary, 0.1 );
+				}
+			}
+
+			// A section's name over its box, on the panel - as tall as the list lays it out (36), the gap over it
+			// splitting it from the box before
+			.group-head
+			{
+				height: 28px;
+				margin: 8px 0 0 0;
+				padding: 0 10px 0 4px;
+				gap: 6px;
+				border-radius: $friends-group-radius;
+
+				icon
+				{
+					font-size: 18px;
+					color: $platform-muted;
+				}
+
+				.group-title
+				{
+					@include platform-caps;
+					color: $platform-text;
+				}
+
+				// A small badge, snug round its number - round for one figure, barely wider for two
+				.group-count
+				{
+					height: 18px;
+					min-width: 18px;
+					padding: 0 5px;
+					margin-left: 2px;
+					border-radius: 9px;
+					background-color: $platform-primary;
+					font-size: 10.5px;
+					font-weight: 700;
+					color: $platform-primary-text;
+				}
+
+				&:hover icon
+				{
+					color: $platform-text;
+				}
+			}
+		}
+	}
+}

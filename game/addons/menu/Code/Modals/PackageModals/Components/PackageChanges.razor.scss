@@ -1,0 +1,379 @@
+@import "/styles/_theme.scss";
+@import "/Platform/_platform.scss";
+
+// The Changes tab - a timeline of update cards, newest first
+PackageChanges
+{
+    flex-direction: column;
+    // The same insets as the other tabs
+    padding: 24px 24px 64px 24px;
+    gap: 20px;
+    overflow: hidden;
+    max-width: 100%;
+    overflow-y: scroll;
+    flex-shrink: 0;
+
+    i
+    {
+        font-family: "Material Icons";
+    }
+
+    .state
+    {
+        flex-grow: 1;
+        align-items: center;
+        justify-content: center;
+        padding: 4rem;
+        color: $platform-muted;
+        font-size: $text-regular;
+    }
+
+    // What it's found fades in, rather than snapping in over the skeleton
+    .timeline, .state
+    {
+        transition: opacity 0.25s ease-out;
+
+        &:intro
+        {
+            opacity: 0;
+        }
+    }
+
+    .timeline
+    {
+        flex-direction: column;
+        flex-shrink: 0;
+    }
+
+    // The skeleton only once it's been a moment - a quick load goes straight to the cards, rather than flashing it
+    .timeline.loading
+    {
+        transition: opacity 0.3s ease-out 0.35s;
+    }
+
+    // One update - a dot on the line down the left, its card beside it
+    .update
+    {
+        flex-direction: row;
+        flex-shrink: 0;
+        gap: 16px;
+    }
+
+    .rail
+    {
+        flex-direction: column;
+        flex-shrink: 0;
+        align-items: center;
+        width: 12px;
+
+        // Level with the middle of the card's glyph - its head's 14 padding and half its 38, less half the dot
+        .dot
+        {
+            flex-shrink: 0;
+            width: 10px;
+            height: 10px;
+            margin-top: 28px;
+            border-radius: 50%;
+            background-color: $front-tertiary;
+            border: 2px solid $front-card-deep;
+        }
+
+        // Runs from this dot on down to the next one - on past its own row into the next, as that one's
+        // dot sits 28 down from its top, so it stops the same 4 short of it as it starts under this one
+        .line
+        {
+            flex-grow: 1;
+            width: 2px;
+            margin-top: 4px;
+            margin-bottom: -24px;
+            background-color: $front-hairline;
+        }
+    }
+
+    // The newest - its dot lit in the menu blue
+    .update.latest .rail .dot
+    {
+        background-color: $front-primary;
+        box-shadow: 0 0 0 3px rgba( $front-primary, 0.25 );
+    }
+
+    // Nothing after the last one - the line stops at its dot
+    .update.last .rail .line
+    {
+        background-color: transparent;
+    }
+
+    // A card swapped for its room or back - gone at once, rather than beside the other for a frame
+    .update > .card:outro
+    {
+        display: none;
+    }
+
+    // Solid, as a game card is (GameCard's fill) - its head over a hairline, then what's in it
+    .card
+    {
+        flex-direction: column;
+        flex-grow: 1;
+        flex-shrink: 1;
+        flex-basis: 0;
+        min-width: 0;
+        margin-bottom: 16px;
+        border-radius: $platform-radius;
+        background-color: rgba( 22, 28, 40, 0.95 );
+        font-family: $platform-font;
+        color: $platform-text;
+
+        > .sections
+        {
+            padding: 16px 20px 20px 20px;
+        }
+    }
+
+    //
+    // The update's glyph, name and when
+    //
+
+    .card-head
+    {
+        flex-direction: row;
+        flex-shrink: 0;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 20px;
+        border-bottom: 1px solid $platform-hairline;
+    }
+
+    .tile
+    {
+        @include platform-tile( 20px, 38px );
+    }
+
+    .update.latest .tile
+    {
+        background-color: rgba( $platform-primary, 0.18 );
+
+        i
+        {
+            color: $platform-primary-hover;
+        }
+    }
+
+    // Its name over when - taking the rest of the line, so the pill after it sits over on the right
+    .head-words
+    {
+        flex-direction: column;
+        flex-grow: 1;
+        flex-shrink: 1;
+        min-width: 0;
+        align-items: flex-start;
+        gap: 4px;
+    }
+
+    // One line, cut off with an ellipsis rather than wrapping - the whole of it on hover. It takes the
+    // rest of the line rather than sizing itself (a clipped label left to size itself measures as
+    // nothing and draws just its ellipsis), so the tags after it sit over on the right
+    .update-name
+    {
+        width: 100%;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: 16px;
+        font-weight: 600;
+        color: $platform-text;
+    }
+
+    // As a game card's pill - the menu blue
+    .latest-pill
+    {
+        flex-shrink: 0;
+        padding: 3px 8px;
+        border-radius: 2px;
+        background-color: $platform-primary;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: $platform-primary-text;
+    }
+
+    .meta-row
+    {
+        flex-direction: row;
+        flex-shrink: 0;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .when
+    {
+        flex-shrink: 0;
+        font-family: $front-font;
+        font-size: 12px;
+        font-weight: 500;
+        color: $front-secondary;
+    }
+
+    // "3 months ago" in a pill, a clock in front - like the loading screen's latest update
+    .ago
+    {
+        @include platform-chip;
+        height: 20px;
+        padding: 0 6px;
+    }
+
+    //
+    // Loading - grey bars in the shape of an update card, breathing
+    //
+
+    .update.skeleton .rail .dot
+    {
+        background-color: $front-tertiary;
+        box-shadow: none;
+    }
+
+    // On a card as solid as a real one - just the bars breathe
+    .bone
+    {
+        flex-shrink: 0;
+        height: 12px;
+        border-radius: 3px;
+        background-color: rgb( 42, 50, 68 );
+        animation: changes-bone 1.2s ease-in-out infinite alternate;
+    }
+
+    .tile-bone
+    {
+        width: 38px;
+        height: 38px;
+        border-radius: $platform-radius;
+    }
+
+    .title-bone
+    {
+        width: 180px;
+        height: 16px;
+    }
+
+    .pill-bone
+    {
+        width: 90px;
+        height: 20px;
+    }
+
+    .bone-section
+    {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .heading-bone
+    {
+        width: 80px;
+        height: 10px;
+    }
+
+    .line-bone
+    {
+        width: 88%;
+
+        &.short { width: 70%; }
+        &.shorter { width: 52%; }
+    }
+
+    // The kinds of change, evenly spaced - there are no empty ones to leave gaps
+    .sections
+    {
+        flex-direction: column;
+        flex-shrink: 0;
+        gap: 16px;
+    }
+
+    // A workshop item's change note, laid out from its lines (NoteLines) - headings as a kind of change's, bullets as
+    // its entries, the rest as paragraphs
+    .note
+    {
+        flex-direction: column;
+        flex-shrink: 0;
+        gap: 8px;
+    }
+
+    .note-heading
+    {
+        @include platform-section-label;
+        margin-top: 8px;
+
+        &:first-child
+        {
+            margin-top: 0;
+        }
+    }
+
+    .note-entry
+    {
+        flex-direction: row;
+        flex-shrink: 0;
+        align-items: flex-start;
+        gap: 10px;
+        padding-left: 2px;
+
+        // A dot on the first line of the text, in the menu blue
+        .bullet
+        {
+            flex-shrink: 0;
+            width: 5px;
+            height: 5px;
+            margin-top: 8px;
+            border-radius: 50%;
+            background-color: rgba( $platform-primary-hover, 0.8 );
+        }
+
+        .text
+        {
+            flex-grow: 1;
+            flex-shrink: 1;
+            flex-basis: 0;
+            min-width: 0;
+            font-size: 13.5px;
+            color: $platform-text;
+        }
+    }
+
+    .note-text
+    {
+        font-size: 13.5px;
+        color: $platform-muted;
+
+        &.empty
+        {
+            color: $platform-faint;
+            font-style: italic;
+        }
+    }
+
+    // Older change notes, a page at a time from Steam
+    .older
+    {
+        flex-shrink: 0;
+        justify-content: center;
+        padding: 8px 0 0 0;
+
+        Button
+        {
+            @include platform-text-button( 30px, 12.5px, 15px );
+            padding: 0 12px;
+        }
+    }
+}
+
+@keyframes changes-bone
+{
+    0%
+    {
+        opacity: 0.55;
+    }
+
+    100%
+    {
+        opacity: 1;
+    }
+}

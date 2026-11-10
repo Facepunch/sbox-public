@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
@@ -161,7 +161,7 @@ public class CollisionRules : ConfigData
 	/// All known tags as <see cref="StringToken"/> values. Built during validation.
 	/// </summary>
 	[JsonIgnore]
-	internal IReadOnlySet<StringToken> RuntimeTags => _runtimeTags;
+	internal HashSet<StringToken> RuntimeTags => _runtimeTags;
 
 	/// <summary>
 	/// Gets or sets <see cref="Pairs"/> in its serialized form for JSON.
@@ -242,6 +242,44 @@ public class CollisionRules : ConfigData
 		}
 
 		return LeastColliding( result, Result.Collide );
+	}
+
+	/// <summary>
+	/// Gets the collision rule between two tag sets, using the same precedence as the native 3D filter:
+	/// take the least colliding of every rule set for a tag pair, and only fall back to the per-tag
+	/// defaults when no pair has an explicit rule.
+	/// </summary>
+	internal Result GetCollisionRule( IReadOnlySet<uint> left, IReadOnlySet<uint> right )
+	{
+		if ( _runtimePairs.Count == 0 && _runtimeDefaults.Count == 0 )
+			return Result.Collide;
+
+		var rule = Result.Unset;
+
+		foreach ( var a in left )
+		{
+			foreach ( var b in right )
+			{
+				if ( !_runtimePairs.TryGetValue( new RuntimePair( new StringToken( a ), new StringToken( b ) ), out var pair ) )
+					continue;
+
+				rule = LeastColliding( rule, pair );
+
+				if ( rule == Result.Ignore )
+					return rule;
+			}
+		}
+
+		if ( rule == Result.Unset )
+		{
+			foreach ( var a in left )
+				rule = LeastColliding( rule, _runtimeDefaults.GetValueOrDefault( new StringToken( a ) ) );
+
+			foreach ( var b in right )
+				rule = LeastColliding( rule, _runtimeDefaults.GetValueOrDefault( new StringToken( b ) ) );
+		}
+
+		return LeastColliding( rule, Result.Collide );
 	}
 
 	/// <summary>

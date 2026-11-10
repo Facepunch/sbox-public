@@ -1,0 +1,201 @@
+@using Sandbox;
+@using Sandbox.UI;
+@using Sandbox.Network;
+@using Sandbox.Platform;
+@using MenuProject.UI;
+
+@inherits Panel
+@implements PartyRoom.IEventListener
+@namespace MenuProject.Overlay.Overlays
+
+<root style="display: @(ChatAvailable ? "flex" : "none")">
+    <ChatPanel @ref="Panel" ShowInput="@IsOpen" MessageFadeTime="@(8f)" ShowChannelLabel="@(InGame && InParty)" InputPrefix="@(IsOpen ? Channel : "")" OnSubmit="@OnChatSubmit" OnDismiss="@Close" />
+</root>
+
+@code
+{
+    public static bool IsOpen { get; private set; }
+
+    ChatPanel Panel;
+    string Channel = "say";
+    bool WasInGame;
+    RealTimeSince TimeSinceOpened;
+    PartyRoom HintedParty;
+
+    /// <summary>
+    /// Does our game / menu context want to show the chat UI?
+    /// - Local preferences
+    /// - Game preferences
+    /// </summary>
+    bool WantsChat => Preferences.ChatEnabled && Chat.Enabled && Chat.ShowUI;
+
+    /// <summary>
+    /// Are we in a game that supports chat, and are we connected to a server?
+    /// </summary>
+    bool InGame => Game.InGame && Networking.IsActive && WantsChat;
+
+    /// <summary>
+    /// Are we in a party that supports chat? Mid-game only while the menu's up (the pause screen), or when
+    /// the game uses the platform's chat UI - a game without chat doesn't get a chat box over it.
+    /// </summary>
+    bool InParty => Preferences.ChatEnabled && PartyRoom.Current is not null && (MenuShowing || WantsChat);
+
+    /// <summary>
+    /// Not in a game, or in one with the menu up over it.
+    /// </summary>
+    bool MenuShowing => !Game.InGame || Game.IsMainMenuVisible || ModalSystem.Instance?.IsPauseMenuOpen == true;
+
+    /// <summary>
+    /// Is the chat available for us?
+    /// </summary>
+    bool ChatAvailable => InGame || InParty;
+
+    protected override void OnAfterTreeRender( bool firstTime )
+    {
+        if ( firstTime )
+        {
+            MenuUtility.AddChatListener( OnChatMessage );
+        }
+    }
+
+    public override void OnButtonTyped( ButtonEvent e )
+    {
+        if ( IsOpen && e.Button == "tab" && InGame && InParty )
+        {
+            Channel = Channel == "say" ? "party" : "say";
+            StateHasChanged();
+        }
+    }
+
+    public override void OnDeleted()
+    {
+        MenuUtility.RemoveChatListener( OnChatMessage );
+    }
+
+    void OnChatMessage( ChatMessageEvent e )
+    {
+        if ( !InGame ) return;
+
+        if ( e.Sender is null )
+        {
+            Panel?.AddSystemMessage( "ℹ", e.Message );
+            return;
+        }
+
+        var steamId = (long)e.Sender.SteamId;
+        Panel?.AddMessage( e.Sender.DisplayName, e.Message, steamId, "game" );
+    }
+
+    void PartyRoom.IEventListener.OnChatMessage( Friend friend, string message )
+    {
+        if ( friend.IsBlocked )
+            return;
+
+        Panel?.AddMessage( friend.Name, message, (long)friend.Id, "party" );
+    }
+
+    void PartyRoom.IEventListener.OnMemberJoin( Friend friend )
+    {
+        Panel?.AddSystemMessage( "👋", $"{friend.Name} joined the party" );
+    }
+
+    void PartyRoom.IEventListener.OnMemberLeave( Friend friend )
+    {
+        Panel?.AddSystemMessage( "🥀", $"{friend.Name} left the party" );
+    }
+
+    /// <summary>
+    /// Handle chat input and show the chat key when entering a party.
+    /// </summary>
+    public override void Tick()
+    {
+        // Left the party, not just out of reach of its chat - otherwise the hint comes back every pause
+        if ( PartyRoom.Current is null ) HintedParty = null;
+
+        if ( !ChatAvailable )
+        {
+            if ( IsOpen ) Close();
+            return;
+        }
+
+        SetClass( "in-game", InGame );
+
+        // Wait for the chat panel to exist before adding the party's welcome hint.
+        if ( InParty && HintedParty != PartyRoom.Current && Panel.IsValid() )
+        {
+            HintedParty = PartyRoom.Current;
+            var key = Input.GetButtonOrigin( "chat" );
+            var hint = string.IsNullOrWhiteSpace( key )
+                ? "#menu.common.set_a_chat_key_in_settings_to_chat_with"
+                : $"Press {key} to chat to your party";
+
+            // No emoji before it - a plain line, as the platform's notices are
+            Panel.AddSystemMessage( "", hint );
+        }
+
+        // Reset to game chat when joining a game
+        if ( InGame && !WasInGame )
+            Channel = "say";
+
+        WasInGame = InGame;
+
+        if ( !IsOpen && Input.Pressed( "chat" ) )
+        {
+            Open();
+        }
+
+        if ( IsOpen && TimeSinceOpened > 0.1f && Panel.IsValid() && !Panel.HasInputFocus )
+        {
+            Close();
+        }
+
+        SetClass( "open", IsOpen );
+    }
+
+    void Open()
+    {
+        IsOpen = true;
+        TimeSinceOpened = 0;
+
+        //
+        // Reset target if current selection is unavailable
+        //
+
+        if ( Channel == "party" && !InParty )
+        {
+            Channel = "say";
+        }
+        else if ( Channel == "say" && !InGame && InParty )
+        {
+            Channel = "party";
+        }
+
+        StateHasChanged();
+        SetClass( "open", true );
+        Panel?.FocusInput();
+    }
+
+    void Close()
+    {
+        IsOpen = false;
+        SetClass( "open", false );
+        Panel?.BlurInput();
+        StateHasChanged();
+    }
+
+    void OnChatSubmit( string text )
+    {
+        if ( Channel == "party" && InParty )
+        {
+            PartyRoom.Current.SendChatMessage( text );
+        }
+        else
+        {
+            Chat.Say( text );
+        }
+
+        Close();
+    }
+
+    protected override int BuildHash() => System.HashCode.Combine( IsOpen, InGame, InParty, Channel );
+}

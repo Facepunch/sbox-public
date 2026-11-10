@@ -33,12 +33,9 @@ file class MeshToolShortcutsWidget : Widget
 	[Shortcut( "tools.face-tool", "3", typeof( SceneViewWidget ) )]
 	public void ActivateFaceTool() => EditorToolManager.SetSubTool( nameof( FaceTool ) );
 
-	[Shortcut( "tools.texture-tool", "4", typeof( SceneViewWidget ) )]
-	public void ActivateTextureTool() => EditorToolManager.SetSubTool( nameof( TextureTool ) );
-
-	[Shortcut( "tools.object-selection", "5", typeof( SceneViewWidget ) )]
+	[Shortcut( "tools.object-selection", "4", typeof( SceneViewWidget ) )]
 	public void ActivateObjectSelection() => EditorToolManager.SetSubTool( nameof( ObjectSelection ) );
 
-	[Shortcut( "tools.vertex-paint-tool", "6", typeof( SceneViewWidget ) )]
+	[Shortcut( "tools.vertex-paint-tool", "5", typeof( SceneViewWidget ) )]
 	public void ActivateVertexPaintTool() => EditorToolManager.SetSubTool( nameof( VertexPaintTool ) );
 }

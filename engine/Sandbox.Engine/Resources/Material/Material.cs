@@ -34,7 +34,7 @@ public sealed partial class Material : Resource
 		this.native = native;
 		this.Name = name;
 
-		RegisterWeakResourceId( name );
+		RegisterWeakResourceId( name, native.GetGuid() );
 
 		CRenderAttributes attributes = this.native.GetRenderAttributes();
 		Attributes = new RenderAttributes( attributes );
@@ -52,6 +52,10 @@ public sealed partial class Material : Resource
 			var n = native;
 			native = default;
 
+			// Evict from NativeResourceCache, as Texture does, so a material native makes later at the same address gets a
+			// wrapper of its own rather than this dead one
+			NativeResourceCache.Remove( n.GetBindingPtr().ToInt64() );
+
 			MainThread.Queue( () => n.DestroyStrongHandle() );
 		}
 
@@ -63,6 +67,13 @@ public sealed partial class Material : Resource
 	/// </summary>
 	public Material CreateCopy( string name = null )
 	{
-		return FromNative( MaterialSystem2.CreateProceduralMaterialCopy( native, 0, true ), name );
+		var copy = FromNative( MaterialSystem2.CreateProceduralMaterialCopy( native, 0, true ), name );
+		if ( copy is not null )
+		{
+			copy.anonymousShader = anonymousShader;
+			// The native copy merges raw buffer pointers, so the copy needs its own bindings
+			Attributes?.MergeUsedBuffersTo( copy.Attributes );
+		}
+		return copy;
 	}
 }

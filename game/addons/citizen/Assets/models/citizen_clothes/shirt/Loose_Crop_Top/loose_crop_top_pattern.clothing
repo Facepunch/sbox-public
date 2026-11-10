@@ -11,16 +11,17 @@
   "Category": "Shirt",
   "ConditionalModels": {},
   "Tags": null,
-  "Parent": null,
   "Model": "models/citizen_clothes/shirt/loose_crop_top/models/loose_crop_top_pattern.vmdl",
   "HumanAltModel": "models/citizen_clothes/shirt/loose_crop_top/models/loose_crop_top_pattern_m_human.vmdl",
   "HumanAltFemaleModel": "models/citizen_clothes/shirt/loose_crop_top/models/loose_crop_top_pattern_f_human.vmdl",
   "SkinMaterial": null,
   "EyesMaterial": null,
   "MaterialGroup": null,
+  "HeelHeight": 0,
   "SlotsUnder": "Chest, LeftArm, RightArm",
   "SlotsOver": 0,
   "HideBody": "Chest",
+  "DeformationMode": "Normal",
   "AllowTintSelect": false,
   "TintSelection": {
     "blend": "Linear",
@@ -37,7 +38,8 @@
   "Icon": {
     "Path": "models/citizen_clothes/shirt/loose_crop_top/loose_crop_top_pattern.clothing.png",
     "Mode": "Chest",
-    "PositionOffset": "137.3,0,0"
+    "UsePositionOffset": false,
+    "PositionOffset": "137.300003,0,0"
   },
   "__references": [],
   "__version": 0

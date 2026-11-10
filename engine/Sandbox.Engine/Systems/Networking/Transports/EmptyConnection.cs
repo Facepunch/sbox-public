@@ -8,12 +8,11 @@
 internal class EmptyConnection : Connection
 {
 	public override string Address => "empty";
-	public override string Name => "empty";
 	public override bool IsHost => false;
 
 	internal override void InternalClose( int closeCode, string closeReason ) { }
 	internal override void InternalRecv( NetworkSystem.MessageHandler handler ) { }
-	internal override void InternalSend( byte[] data, NetFlags flags ) { }
+	internal override void InternalSend( NetPacket packet, NetFlags flags ) { }
 
 	public EmptyConnection( Guid id )
 	{

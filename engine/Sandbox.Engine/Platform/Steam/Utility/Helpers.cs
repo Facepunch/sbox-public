@@ -97,5 +97,21 @@ namespace Steamworks
 
 			return UTF8Encoding.UTF8.GetString( (byte*)ptr, len );
 		}
+
+		internal unsafe static string MemoryToString( IntPtr ptr, int maxLength )
+		{
+			var len = 0;
+
+			for ( len = 0; len < maxLength; len++ )
+			{
+				if ( ((byte*)ptr)[len] == 0 )
+					break;
+			}
+
+			if ( len == 0 )
+				return string.Empty;
+
+			return UTF8Encoding.UTF8.GetString( (byte*)ptr, len );
+		}
 	}
 }

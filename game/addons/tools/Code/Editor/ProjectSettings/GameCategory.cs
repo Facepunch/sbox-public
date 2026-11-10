@@ -6,33 +6,60 @@ internal sealed class GameCategory : ProjectSettingsWindow.Category
 	/// <summary>
 	/// This scene is loaded when the game starts.
 	/// </summary>
-	public SceneFile StartupScene { get; set; }
+	[ResourceType( "scene" )]
+	public string StartupScene { get; set; }
 
 	/// <summary>
 	/// This scene is loaded when a game is started with a targeted map. Leave blank if you don't support map loading.
 	/// </summary>
-	public SceneFile MapStartupScene { get; set; }
+	[ResourceType( "scene" )]
+	public string MapStartupScene { get; set; }
 
 	/// <summary>
 	/// This scene is loaded when the Dedicated Server starts.
 	/// </summary>
-	public SceneFile ServerStartupScene { get; set; }
+	[ResourceType( "scene" )]
+	public string ServerStartupScene { get; set; }
 
 	/// <summary>
 	/// This scene is additive loaded to every scene you load. You can use this to add UI or other common things
 	/// that need to be present in every loaded scene.
 	/// </summary>
-	public SceneFile SystemScene { get; set; }
+	[ResourceType( "scene" )]
+	public string SystemScene { get; set; }
+
+	/// <summary>
+	/// The game's own main menu, for the s&amp;box platform menu. The game opens here, without its startup scene,
+	/// and starts with Game.StartGame(). Only what this scene uses is loaded until then.
+	/// </summary>
+	[ResourceType( "scene" )]
+	public string MenuScene { get; set; }
+
+	/// <summary>
+	/// Resources the menu scene loads from code, which it doesn't reference itself. One rule per line, like Resource Files.
+	/// </summary>
+	[TextArea]
+	public string MenuResources { get; set; }
+
+	/// <summary>
+	/// This game uses the Streamer Api. This will enable the Streamer Mode features in the menu, and allow you to use the Streamer API in your game.
+	/// </summary>
+	public bool UsesStreamerFeatures { get; set; }
 
 	LaunchModes LaunchMode { get; set; }
 
+	MapSettings maps;
+
 	public override void OnInit( Project project )
 	{
-		StartupScene = ResourceLibrary.Get<SceneFile>( Project.Config.GetMetaOrDefault( "StartupScene", "start.scene" ) );
-		MapStartupScene = ResourceLibrary.Get<SceneFile>( Project.Config.GetMetaOrDefault( "MapStartupScene", "" ) );
+		StartupScene = Project.Config.GetMetaOrDefault( "StartupScene", "start.scene" );
+		MapStartupScene = Project.Config.GetMetaOrDefault( "MapStartupScene", "" );
 		LaunchMode = Project.Config.GetMetaOrDefault( "LaunchMode", LaunchModes.Normal );
-		ServerStartupScene = ResourceLibrary.Get<SceneFile>( Project.Config.GetMetaOrDefault( "DedicatedServerStartupScene", "" ) );
-		SystemScene = ResourceLibrary.Get<SceneFile>( Project.Config.GetMetaOrDefault( "SystemScene", "" ) );
+		ServerStartupScene = Project.Config.GetMetaOrDefault( "DedicatedServerStartupScene", "" );
+		SystemScene = Project.Config.GetMetaOrDefault( "SystemScene", "" );
+		MenuScene = Project.Config.GetMetaOrDefault( "MenuScene", "" );
+		MenuResources = Project.Config.GetMetaOrDefault( "MenuResources", "" );
+		UsesStreamerFeatures = Project.Config.GetMetaOrDefault( "UsesStreamerFeatures", false );
 
 		{
 			var so = this.GetSerialized();
@@ -44,19 +71,38 @@ internal sealed class GameCategory : ProjectSettingsWindow.Category
 			sheet.AddRow( so.GetProperty( nameof( SystemScene ) ) );
 			sheet.AddRow( so.GetProperty( nameof( LaunchMode ) ) );
 
+			sheet.AddGroup( "Menu", [so.GetProperty( nameof( MenuScene ) ), so.GetProperty( nameof( MenuResources ) )] );
+			sheet.AddGroup( "Features", [so.GetProperty( nameof( UsesStreamerFeatures ) )] );
+
 			BodyLayout.Add( sheet );
 			ListenForChanges( so );
 		}
 
+		StartSection( "Maps" );
+
+		{
+			maps = WebsiteGameConfig.Maps( project );
+
+			var so = maps.GetSerialized();
+			ListenForChanges( so );
+
+			var sheet = new ControlSheet();
+			sheet.AddObject( so );
+			BodyLayout.Add( sheet );
+		}
 	}
 
 	public override void OnSave()
 	{
-		Project.Config.SetMeta( "StartupScene", StartupScene?.ResourcePath ?? null );
-		Project.Config.SetMeta( "MapStartupScene", MapStartupScene?.ResourcePath ?? null );
+		Project.Config.SetMeta( "StartupScene", string.IsNullOrEmpty( StartupScene ) ? null : StartupScene );
+		Project.Config.SetMeta( "MapStartupScene", string.IsNullOrEmpty( MapStartupScene ) ? null : MapStartupScene );
 		Project.Config.SetMeta( "LaunchMode", LaunchMode );
-		Project.Config.SetMeta( "DedicatedServerStartupScene", ServerStartupScene?.ResourcePath ?? null );
-		Project.Config.SetMeta( "SystemScene", SystemScene?.ResourcePath ?? null );
+		Project.Config.SetMeta( "DedicatedServerStartupScene", string.IsNullOrEmpty( ServerStartupScene ) ? null : ServerStartupScene );
+		Project.Config.SetMeta( "SystemScene", string.IsNullOrEmpty( SystemScene ) ? null : SystemScene );
+		Project.Config.SetMeta( "MenuScene", string.IsNullOrEmpty( MenuScene ) ? null : MenuScene );
+		Project.Config.SetMeta( "MenuResources", string.IsNullOrWhiteSpace( MenuResources ) ? null : MenuResources );
+		Project.Config.SetMeta( "UsesStreamerFeatures", UsesStreamerFeatures ? UsesStreamerFeatures : null );
+		Project.Config.SetMeta( "MapSettings", maps );
 
 		base.OnSave();
 	}

@@ -25,15 +25,34 @@ class ProgramSource
 	/// </summary>
 	internal async Task<bool> Compile( ShaderCompileOptions options, Shader vfx, string source, ShaderCompile.Results result, CancellationToken token, string absolutePath, string relativePath )
 	{
-		//Console.WriteLine( $"	{ProgramType}: {(IsOutOfDate ? "out of date" : "okay")}" );
-
-		bool nonInteractiveConsole = Console.IsOutputRedirected || Console.IsInputRedirected || Console.IsErrorRedirected;
-
 		using var context = ShaderCompile.GetSharedContext( ProgramType );
 		context.MaskedSource = ShaderTools.MaskShaderSource( source, ProgramType, false );
 
 		ShaderPreprocessor preprocessor = new( new ShaderPreprocessorOptions() { ExpandIncludes = true, IgnoreCoreIncludes = true } );
 		context.MaskedSource = preprocessor.Preprocess( context.MaskedSource, absolutePath, relativePath );
+
+		return await CompileCore( options, vfx, result, context, token, relativePath );
+	}
+
+	/// <summary>
+	/// Recompile this program from source that has already been masked and include-expanded - the form embedded
+	/// in a compiled <c>.shader_c</c>. Skips the mask + preprocess steps <see cref="Compile"/> runs on raw
+	/// <c>.shader</c> source, because that source isn't available when recompiling from a published package.
+	/// </summary>
+	internal async Task<bool> RecompileFromMaskedSource( ShaderCompileOptions options, Shader vfx, string maskedSource, ShaderCompile.Results result, CancellationToken token )
+	{
+		using var context = ShaderCompile.GetSharedContext( ProgramType );
+		context.MaskedSource = maskedSource;
+
+		return await CompileCore( options, vfx, result, context, token );
+	}
+
+	/// <summary>
+	/// Compiles every combo for this program using the source already set on <paramref name="context"/>.
+	/// </summary>
+	async Task<bool> CompileCore( ShaderCompileOptions options, Shader vfx, ShaderCompile.Results result, ShaderCompileContext context, CancellationToken token, string relativePath = null )
+	{
+		bool nonInteractiveConsole = Console.IsOutputRedirected || Console.IsInputRedirected || Console.IsErrorRedirected;
 
 		FastTimer fastTimer = FastTimer.StartNew();
 
@@ -50,6 +69,7 @@ class ProgramSource
 								.ToArray();
 
 		var totalCombos = combos.Length;
+		var threads = options.SingleThreaded ? 1 : ShaderCompile.ComboThreads( options );
 
 		stepResult.Name = $"{ProgramType}";
 		stepResult.ComboCount = totalCombos;
@@ -58,7 +78,7 @@ class ProgramSource
 		if ( options.ConsoleOutput )
 		{
 			Console.ForegroundColor = ConsoleColor.Green;
-			Console.WriteLine( $"	{ProgramType} - {totalCombos:n0} {"combo".Pluralize()}" );
+			Console.WriteLine( $"	{ProgramType} - {totalCombos:n0} {"combo".Pluralize()} on {"thread".ToQuantity( threads )}" );
 			Console.ForegroundColor = ConsoleColor.White;
 		}
 
@@ -102,6 +122,7 @@ class ProgramSource
 					}
 
 					allCompiles.Add( result );
+					options.ComboCompiled?.Invoke();
 
 					if ( options.ConsoleOutput && fastTimer.ElapsedMilliSeconds > timeBetweenUpdates )
 					{
@@ -125,9 +146,10 @@ class ProgramSource
 		}
 		else
 		{
+			var parallel = new ParallelOptions { MaxDegreeOfParallelism = threads };
 			await Task.Run( () =>
 			{
-				Parallel.ForEach( combos, compileCombo );
+				Parallel.ForEach( combos, parallel, compileCombo );
 			}, token );
 		}
 
@@ -154,6 +176,11 @@ class ProgramSource
 		if ( allCompiles.Any( x => !x.IsSuccess ) )
 		{
 			return false;
+		}
+
+		if ( !string.IsNullOrEmpty( options.SpirvDumpPath ) && relativePath is not null )
+		{
+			SpirvDump.Write( options.SpirvDumpPath, relativePath, vfx, ProgramType, allCompiles );
 		}
 
 		if ( builder.IsValid )

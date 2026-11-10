@@ -4,12 +4,19 @@
 // than calling into native and using those methods instead. So lets do that.
 //
 
+include "tier0/generichash.h"
+
 [nogc]
 native static class NativeLowLevel
 {
 	inline void Copy( void* dest, void* src, long count )
 	{
 		V_memcpy( dest, src, (size_t)count );
+	}
+
+	inline ulong MurmurHash64( void* key, int len, uint seed )
+	{
+		return ::MurmurHash64( key, len, seed );
 	}
 }
 

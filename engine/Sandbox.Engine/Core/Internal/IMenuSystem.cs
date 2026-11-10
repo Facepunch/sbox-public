@@ -35,15 +35,25 @@ public interface IMenuSystem
 	public void Question( string message, string icon, Action yes, Action no );
 
 	/// <summary>
+	/// A friend's invited us into their party. Unless the menu does something better with it, it's
+	/// a yes/no question like any other.
+	/// </summary>
+	public void OnPartyInvite( Friend from, Action accept, Action decline ) => Question( $"{from.Name} invited you to a party!", "celebration", accept, decline );
+
+	/// <summary>
 	/// Package closed. Add a toast asking if it was cool or not
 	/// </summary>
 	public void OnPackageClosed( Package package );
 
+	/// <summary>
+	/// The backend is telling us that the number of users playing has changed
+	/// </summary>
+	void PackageUsageChanged( string packageIdent, long userCount );
 
-	internal static void ShowServerError( string title, string subtitle )
-	{
-		Current?.Popup( "error", title, subtitle );
-	}
+	/// <summary>
+	/// Notifies that the number of favourites for the specified package has changed.
+	/// </summary>
+	void PackageFavouritesChanged( string packageIdent, long value );
 
 	/// <summary>
 	/// True if we want to force the cursor to be visible and swallow input.

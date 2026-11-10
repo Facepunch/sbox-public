@@ -1,8 +1,7 @@
 @using System;
 @using Sandbox.UI;
 @using Sandbox;
-@using Menu;
-@using MenuProject.MenuUI.Components;
+@using SboxMenu;
 @inherits Panel;
 
 @if (Packages.Count == 0)
@@ -21,7 +20,7 @@
 
     @foreach (var p in Packages.Take( 4 ) )
     {
-        <GameCard class="list" Package=@p />
+        <MenuProject.UI.PackageCard Size=@MenuProject.UI.PackageCard.SizeType.List Package=@p Clicked="@(() => p.OpenModal())" RightClicked="@(() => MenuHelpers.OpenPackageMenu(this, p))" />
     }
 
 </root>

@@ -5,7 +5,10 @@
   "Decibels": 70,
   "SelectionMode": "Random",
   "Sounds": [
-    "sounds/impacts/bullets/bullet-impact-snow-1.vsnd"
+    "sounds/impacts/bullets/bullet-impact-snow-1.vsnd",
+    "sounds/impacts/bullets/bullet-impact-snow-2.vsnd",
+    "sounds/impacts/bullets/bullet-impact-snow-3.vsnd",
+    "sounds/impacts/bullets/bullet-impact-snow-4.vsnd"
   ],
   "Occlusion": true,
   "Reflections": true,

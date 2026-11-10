@@ -1,0 +1,12 @@
+@import "/styles/_gallery-palette.scss";
+BackdropFilterTests {
+    .backdrop-art { position: absolute; width: 100%; height: 100%; background-color: $gallery-cyan; flex-direction: column; justify-content: space-around; color: #16181d; font-size: 36px; font-weight: 800; }
+    .stripe { height: 18px; width: 100%; flex-shrink: 0; }
+    .pink { background-color: $gallery-pink; }
+    .lime { background-color: $gallery-lime; }
+    .backdrop-glass { position: absolute; left: 110px; top: 10px; width: 120px; height: 180px; border-radius: 16px; border: 2px solid white; align-items: flex-end; justify-content: center; padding: 10px; }
+    .backdrop-glass label { background-color: #16181d; color: white; font-size: 14px; padding: 4px 8px; border-radius: 4px; }
+    .backdrop-stack { position: absolute; width: 100%; height: 100%; }
+    .stack-glass { position: absolute; width: 220px; height: 180px; border-radius: 16px; border: 2px solid white; overflow: visible; }
+    .stack-glass > label { position: absolute; left: 6px; top: 6px; background-color: #16181d; color: white; font-size: 14px; padding: 4px 8px; border-radius: 4px; }
+}

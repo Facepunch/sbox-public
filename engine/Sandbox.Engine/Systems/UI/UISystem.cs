@@ -1,18 +1,16 @@
-﻿using Sandbox.Engine;
+using Sandbox.Engine;
 using Sandbox.Internal;
 using Sandbox.Modals;
 using Sandbox.Rendering;
 using Sandbox.UI;
-using System.Threading;
 
 namespace Sandbox;
 
 /// <summary>
 /// Holds onto a list of root panels to tick, input and draw
 /// </summary>
-internal class UISystem
+internal partial class UISystem
 {
-	internal ThreadLocal<PanelRenderer> Renderer = new( () => new PanelRenderer() );
 
 	internal PanelInput Input { get; set; } = new();
 
@@ -22,10 +20,42 @@ internal class UISystem
 	internal List<Panel> DeletionList = new();
 	internal InputEventQueue InputEventQueue = new();
 
+	/// <summary>
+	/// Roots participating in frame and input processing. Keep RootPanels for maintenance and teardown.
+	/// Use indices because panel callbacks can add or remove roots during iteration.
+	/// </summary>
+	internal ActiveRootEnumerable GetActiveRoots( bool reverse = false ) => new( this, reverse );
+
+	/// <summary>
+	/// Tooltips for the panels in this UI. Each instance has its own, so a tooltip in one window
+	/// has nothing to do with the game screen's.
+	/// </summary>
+	internal TooltipSystem Tooltips { get; } = new();
+
+	/// <summary>
+	/// Where popups in this UI open. Null floats them in the panel root, which is what a game
+	/// wants; a window puts each one in an OS window of its own.
+	/// </summary>
+	internal IPopupHost PopupHost { get; set; }
+
 	// focus
 	internal Panel CurrentFocus { get; set; }
 	internal Panel NextFocus { get; set; }
 	internal bool FocusPendingChange { get; set; }
+
+	/// <summary>
+	/// The deepest panel at this position across every root, topmost root first.
+	/// </summary>
+	internal Panel FindPanelAt( Vector2 position )
+	{
+		foreach ( var root in GetActiveRoots( reverse: true ) )
+		{
+			var hit = UISurface.FindPanelAt( root, position, null );
+			if ( hit is not null ) return hit;
+		}
+
+		return null;
+	}
 
 	internal void AddRoot( RootPanel rootPanel )
 	{
@@ -69,10 +99,8 @@ internal class UISystem
 	{
 		GlobalCommandList.Reset();
 
-		for ( int i = RootPanels.Count - 1; i >= 0; i-- )
+		foreach ( var root in GetActiveRoots( reverse: true ) )
 		{
-			var root = RootPanels[i];
-			if ( !root.IsValid ) continue;
 			if ( root.RenderedManually || root.IsWorldPanel ) continue;
 
 			GlobalCommandList.InsertList( root.PanelCommandList );
@@ -84,6 +112,8 @@ internal class UISystem
 		using ( Performance.Scope( "Update Screen Size" ) )
 		{
 			Screen.UpdateFromEngine();
+			Size = Screen.Size;
+			DpiScale = Screen.DesktopScale;
 		}
 
 		using ( Performance.Scope( "Tick Panels" ) )
@@ -96,6 +126,15 @@ internal class UISystem
 			TickInput( allowMouseInput );
 		}
 
+		LayoutAndBuild();
+	}
+
+	/// <summary>
+	/// Lay every root panel out at <see cref="Size"/> and turn them into command lists. This is
+	/// the half of the frame that has nothing to do with input, so any surface can drive it.
+	/// </summary>
+	internal void LayoutAndBuild()
+	{
 		using ( Performance.Scope( "Pre Layout" ) )
 		{
 			PreLayout();
@@ -121,14 +160,8 @@ internal class UISystem
 			RunDeferredDeletion();
 		}
 
-		using ( Performance.Scope( "Build Descriptors" ) )
-		{
-			BuildDescriptors();
-		}
-
 		using ( Performance.Scope( "Build Command Lists" ) )
 		{
-			PanelRenderer.Stats.Reset();
 			BuildCommandLists();
 		}
 
@@ -151,82 +184,101 @@ internal class UISystem
 	{
 		RootPanels.RemoveAll( x => x == null );
 
-		for ( int i = 0; i < RootPanels.Count(); i++ )
+		// Release held input before skipping a suspended scene's panels.
+		if ( NextFocus?.Scene?.IsSuspended == true ) ReleaseFocusSubtree( NextFocus );
+		if ( CurrentFocus?.Scene?.IsSuspended == true ) ReleaseFocusSubtree( CurrentFocus );
+		if ( Panel.MouseCapture?.Scene?.IsSuspended == true ) Panel.MouseCapture.SetMouseCapture( false );
+
+		if ( Input.Active?.Scene?.IsSuspended == true || Input.Hovered?.Scene?.IsSuspended == true )
 		{
-			if ( !RootPanels[i].IsValid ) continue;
-			RootPanels[i].TickInternal();
+			Input.CancelPointerInteraction();
+			Input.SetHovered( null );
+			Input.Clear();
+			Tooltips.Clear();
+		}
+
+		foreach ( var root in GetActiveRoots() )
+		{
+			root.TickInternal();
 		}
 	}
 
 	internal void PreLayout()
 	{
-		var width = Screen.Width;
-		var height = Screen.Height;
+		var screenRect = new Rect( 0, 0, Size.x, Size.y );
 
-		var screenRect = new Rect( 0, 0, width, height );
-
-		for ( int i = 0; i < RootPanels.Count(); i++ )
+		foreach ( var root in GetActiveRoots() )
 		{
-			if ( !RootPanels[i].IsValid ) continue;
-			RootPanels[i].PreLayout( screenRect );
+			root.PreLayout( screenRect );
 		}
 	}
 
 	internal void Layout()
 	{
-		for ( int i = 0; i < RootPanels.Count(); i++ )
+		foreach ( var root in GetActiveRoots() )
 		{
-			if ( !RootPanels[i].IsValid ) continue;
-			RootPanels[i].CalculateLayout();
+			root.CalculateLayout();
 		}
 	}
 
 	internal void PostLayout()
 	{
-		for ( int i = 0; i < RootPanels.Count(); i++ )
+		foreach ( var root in GetActiveRoots() )
 		{
-			if ( !RootPanels[i].IsValid ) continue;
-			RootPanels[i].PostLayout();
-		}
-	}
-
-	internal void BuildDescriptors()
-	{
-		for ( int i = 0; i < RootPanels.Count; i++ )
-		{
-			var root = RootPanels[i];
-			if ( !root.IsValid ) continue;
-
-			root.BuildDescriptors();
+			root.PostLayout();
 		}
 	}
 
 	internal void BuildCommandLists()
 	{
-		Renderer.Value.AdvanceFrame();
+		ThreadSafe.AssertIsMainThread();
 
-		for ( int i = 0; i < RootPanels.Count; i++ )
+		foreach ( var root in GetActiveRoots() )
 		{
-			var root = RootPanels[i];
-			if ( !root.IsValid ) continue;
-			if ( root.RenderedManually ) continue;
+			if ( root is Sandbox.UI.WorldPanel { SceneObject: not null } wp )
+			{
+				wp.SceneObject.BuildCommandList();
+			}
 
 			root.BuildCommandList();
 		}
 	}
 
+	/// <summary>
+	/// The input half of a frame for a surface that isn't the game screen - no game input context,
+	/// no cursor visibility rules, just hover, focus and events for our own root panels.
+	/// </summary>
+	internal void TickSurfaceInput( bool allowMouseInput )
+	{
+		foreach ( var root in GetActiveRoots() )
+		{
+			root.TickInputInternal();
+		}
+
+		Input.Tick( GetScreenInputRoots(), allowMouseInput );
+
+		TickFocus();
+
+		// With nothing focused the keys go to the root, so a surface can have window wide shortcuts
+		// instead of dropping every key press
+		InputEventQueue.TickFocused( CurrentFocus ?? GetActiveRoots().FirstOrDefault() );
+		InputEventQueue.Tick( Input.Hovered, Input.Active );
+
+		Tooltips.SetHovered( allowMouseInput ? Input.Hovered : null, Input.CursorPosition );
+		Tooltips.Frame( Input.CursorPosition, allowMouseInput );
+	}
+
 	internal void TickInput( bool allowMouseInput )
 	{
-		for ( int i = 0; i < RootPanels.Count(); i++ )
+		foreach ( var root in GetActiveRoots() )
 		{
-			if ( !RootPanels[i].IsValid ) continue;
-			RootPanels[i].TickInputInternal();
+			root.TickInputInternal();
 		}
 
 		//
 		// Tick various input systems
 		//
-		Input.Tick( RootPanels.Where( p => !p.IsWorldPanel ).OrderByDescending( x => x.ComputedStyle?.ZIndex ?? 0 ), allowMouseInput && DoAnyPanelsWantMouseVisible() );
+		Input.Tick( GetScreenInputRoots(), allowMouseInput && DoAnyPanelsWantMouseVisible() );
 
 		TickWorldInput();
 
@@ -235,7 +287,7 @@ internal class UISystem
 		// were set at the same time as changing focus will be applied so
 		// that when we judge elibility the logic will be correct
 		//
-		InputFocus.Tick();
+		TickFocus();
 
 		//
 		// Send all key events to the focused panel
@@ -247,6 +299,9 @@ internal class UISystem
 		// WorldInputs simulate this themselves in WorldInputInternal.Tick
 		//
 		InputEventQueue.Tick( Input.Hovered, Input.Active );
+
+		// The input router picks which UI is hovered for tooltips - this just runs the one it picked
+		Tooltips.Frame( Input.CursorPosition, InputRouter.MouseCursorVisible );
 
 		//
 		// Set mouse delta to 0 so it doesn't repeat the last frame's
@@ -292,7 +347,7 @@ internal class UISystem
 			}
 
 			//
-			// The developer console is open
+			// The developer console / chat is open
 			//
 			if ( IMenuSystem.Current?.ForceCursorVisible ?? false )
 			{
@@ -337,35 +392,49 @@ internal class UISystem
 		var scene = Game.ActiveScene;
 		if ( !scene.IsValid() ) return;
 
-		var rootPanels = scene.GetAllComponents<WorldPanel>();
-		var worldInputs = scene.GetAllComponents<WorldInput>();
+		var worldPanels = _worldInputPanels;
+		bool collected = false;
 
-		foreach ( var worldInput in worldInputs )
+		foreach ( var worldInput in scene.Query<WorldInput>() )
 		{
-			worldInput.WorldPanelInput.Tick( rootPanels.Select( x => x.GetPanel() as RootPanel ), true );
+			if ( scene.IsSuspended )
+			{
+				worldInput.WorldPanelInput.CancelPointerInteraction();
+				worldInput.WorldPanelInput.Clear();
+				continue;
+			}
+
+			// Collect after the first input is found, so a scene without world inputs does no work
+			if ( !collected )
+			{
+				collected = true;
+				foreach ( var worldPanel in scene.Query<WorldPanel>() )
+					worldPanels.Add( worldPanel.GetPanel() as RootPanel );
+			}
+
+			worldInput.WorldPanelInput.Tick( worldPanels, true );
 		}
+
+		worldPanels.Clear();
 	}
+
+	readonly List<RootPanel> _worldInputPanels = new();
 
 	bool DoAnyPanelsWantMouseVisible()
 	{
 		if ( Mouse.Visibility == MouseVisibility.Visible ) return true;
 		if ( Mouse.Visibility == MouseVisibility.Hidden && !Game.IsMenu ) return false;
 
-		for ( int i = 0; i < RootPanels.Count; i++ )
+		foreach ( var root in GetActiveRoots() )
 		{
-			if ( !RootPanels[i].IsValid )
+			if ( !root.IsVisible )
 				continue;
 
-			if ( !RootPanels[i].IsVisible )
+			if ( root.IsWorldPanel )
 				continue;
 
-			if ( RootPanels[i].IsWorldPanel )
+			if ( !root.ChildrenWantMouseInput )
 				continue;
-
-			if ( !RootPanels[i].ChildrenWantMouseInput )
-				continue;
-
-			if ( Game.IsMenu && RootPanels[i].RenderedManually && !Game.IsMainMenuVisible ) continue;
 
 			return true;
 		}
@@ -391,9 +460,26 @@ internal class UISystem
 		for ( int i = 0; i < DeletionList.Count; i++ )
 		{
 			var p = DeletionList[i];
+
+			// Hotload can clear the reference; an ancestor can finish deletion before this outro.
+			if ( !p.IsValid() )
+			{
+				DeletionList.RemoveAt( i );
+				i--;
+				continue;
+			}
+
 			if ( !force && p.HasActiveTransitions ) continue;
 
-			p.Delete( true );
+			try
+			{
+				p.Delete( true );
+			}
+			catch ( System.Exception ex )
+			{
+				Log.Warning( ex, $"Exception while deferred-deleting {p}" );
+			}
+
 			DeletionList.RemoveAt( i );
 			i--;
 		}
@@ -420,7 +506,7 @@ internal class UISystem
 	internal void Clear()
 	{
 		// Clear any dangling tooltip panel references before destroying the tree.
-		TooltipSystem.Clear();
+		Tooltips.Clear();
 
 		// Use immediate deletion so child panels are recursively cleaned up
 		// right now. The default (deferred) path just queues an outro
@@ -440,6 +526,12 @@ internal class UISystem
 			}
 		}
 
+		// A panel that was detached from its parent and queued for deletion is in no
+		// root's tree, so the loop above never reaches it. Nothing will run the pump
+		// after this, so delete them now or they keep whatever they own - scene panels
+		// keep an entire Scene alive.
+		RunDeferredDeletion( true );
+
 		RootPanels.Clear();
 		DeletionList.Clear();
 
@@ -448,7 +540,6 @@ internal class UISystem
 		// MouseButtonState, InputEventQueue, etc.
 		Input = new();
 		InputEventQueue = new();
-		Renderer = new( () => new PanelRenderer() );
 		CurrentFocus = null;
 		NextFocus = null;
 	}

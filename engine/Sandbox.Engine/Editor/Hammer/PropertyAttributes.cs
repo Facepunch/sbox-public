@@ -88,6 +88,12 @@ public class ImageAssetPathAttribute : AssetPathAttribute
 [AttributeUsage( AttributeTargets.Property )]
 public class FilePathAttribute : System.Attribute
 {
+	public FilePathAttribute() { }
+	public FilePathAttribute( string extension )
+	{
+		Extension = extension;
+	}
+
 	/// <summary>
 	/// The extension to filter by. If empty, all files are shown.
 	/// Can be a comma separated list of extensions, or a single extension.

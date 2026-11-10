@@ -410,6 +410,8 @@ file class CompressedSampleBlockConverter<T> : JsonConverter<CompiledSampleBlock
 	}
 }
 
+// Mostly used for bone transform tracks, which can be pretty huge
+
 file sealed class CompressedTransformSampleBlockConverter : CompressedSampleBlockConverter<Transform>
 {
 	protected override void OnWriteSamples( ref ByteStream stream, ReadOnlySpan<Transform> samples )
@@ -425,10 +427,8 @@ file sealed class CompressedTransformSampleBlockConverter : CompressedSampleBloc
 
 file sealed class CompressedRotationSampleBlockConverter : CompressedSampleBlockConverter<Rotation>
 {
-	protected override void OnWriteSamples( ref ByteStream stream, ReadOnlySpan<Rotation> samples )
-	{
-		stream.WriteCompressed( samples );
-	}
+	// Write uncompressed for now, camera movements in particular would be too stuttery.
+	// Some old movies might have compressed rotations, so we handle that here.
 
 	protected override ImmutableArray<Rotation> OnReadSamples( ref ByteStream stream )
 	{

@@ -29,8 +29,8 @@ public partial class Panel
 		// Make sure it's always first
 		if ( _beforeElement.IsValid() ) SetChildIndex( _beforeElement, 0 );
 
-		// Make sure it's always last
-		if ( _afterElement.IsValid() ) SetChildIndex( _afterElement, _children.Count - 1 );
+		// Make sure it's always last, before any scrollbars
+		if ( _afterElement.IsValid() ) SetChildIndex( _afterElement, LastContentChildIndex );
 	}
 
 	/// <summary>

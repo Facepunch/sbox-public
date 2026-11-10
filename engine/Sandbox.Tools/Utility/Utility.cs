@@ -171,16 +171,8 @@ public static partial class EditorUtility
 		if ( dirA == dirB )
 			return;
 
-		CopyAssetToDirectory( asset, directory );
-
-		var absoluteSource = asset.GetSourceFile( true );
-		var absoluteCompiled = asset.GetCompiledFile( true );
-
-		if ( !string.IsNullOrEmpty( absoluteSource ) )
-			System.IO.File.Delete( absoluteSource );
-
-		if ( !string.IsNullOrEmpty( absoluteCompiled ) )
-			System.IO.File.Delete( absoluteCompiled );
+		string filename = Path.GetFileName( asset.AbsolutePath );
+		MoveAsset( asset, Path.Combine( dirB, filename ) );
 	}
 
 	public static void RenameDirectory( string directory, string newDirectory, bool recursive = false )
@@ -189,14 +181,16 @@ public static partial class EditorUtility
 			return;
 
 		// don't allow moving a folder inside a subfolder of itself!
-		if ( newDirectory.StartsWith( directory, StringComparison.OrdinalIgnoreCase ) )
+		if ( IsSameOrDescendantDirectory( directory, newDirectory ) )
 			return;
 
 		if ( !System.IO.Directory.Exists( newDirectory ) )
 			System.IO.Directory.CreateDirectory( newDirectory );
 
 
-		var assets = AssetSystem.All.Where( x => x.AbsolutePath.StartsWith( directory.Replace( '\\', '/' ), StringComparison.OrdinalIgnoreCase ) && x.AbsolutePath.Substring( directory.Length ).Contains( '/' ) );
+		var assets = AssetSystem.All
+			.Where( x => IsDirectChildPath( directory, x.AbsolutePath ) )
+			.ToArray();
 		foreach ( var asset in assets )
 		{
 			if ( !System.IO.Path.Exists( asset.AbsolutePath ) ) continue;
@@ -206,67 +200,151 @@ public static partial class EditorUtility
 		var files = System.IO.Directory.GetFiles( directory, "*", System.IO.SearchOption.TopDirectoryOnly );
 		foreach ( var file in files )
 		{
-			var newFile = file.Replace( directory, newDirectory );
+			var newFile = System.IO.Path.Combine( newDirectory, System.IO.Path.GetFileName( file ) );
 			System.IO.File.Move( file, newFile );
 		}
 
 		var folders = System.IO.Directory.GetDirectories( directory, "*", System.IO.SearchOption.TopDirectoryOnly );
 		foreach ( var folder in folders )
 		{
-			RenameDirectory( folder, folder.Replace( directory, newDirectory ), true );
+			var newFolder = System.IO.Path.Combine( newDirectory, System.IO.Path.GetFileName( folder ) );
+			RenameDirectory( folder, newFolder, true );
 		}
 
 		if ( !recursive ) System.IO.Directory.Delete( directory, true );
 	}
 
-	/// <summary>
-	/// Moves a file to the same directory but gives it a new name 
-	/// </summary>
-	/// <param name="asset"></param>
-	/// <param name="newName"></param>
-	public static bool RenameAsset( Asset asset, string newName )
+	internal static bool IsSameOrDescendantDirectory( string directory, string candidate )
 	{
-		if ( string.IsNullOrEmpty( newName ) )
+		var directoryPath = NormalizeDirectoryPath( directory );
+		var candidatePath = NormalizeDirectoryPath( candidate );
+		var directoryPrefix = directoryPath.EndsWith( '/' ) ? directoryPath : $"{directoryPath}/";
+
+		return string.Equals( candidatePath, directoryPath, StringComparison.OrdinalIgnoreCase )
+			|| candidatePath.StartsWith( directoryPrefix, StringComparison.OrdinalIgnoreCase );
+	}
+
+	internal static bool IsDirectChildPath( string directory, string candidate )
+	{
+		if ( string.IsNullOrWhiteSpace( candidate ) )
 			return false;
 
-		newName = newName.Trim().GetFilenameSafe();
-		if ( string.IsNullOrEmpty( newName ) )
+		candidate = candidate.Replace( '\\', '/' );
+		if ( !System.IO.Path.IsPathFullyQualified( candidate ) )
 			return false;
 
-		var compiledPath = asset.GetCompiledFile( true );
-		var newCompiledPath = compiledPath.Replace( asset.Name, newName );
+		var directoryPath = NormalizeDirectoryPath( directory );
+		var candidatePath = NormalizePath( candidate );
+		var directoryPrefix = directoryPath.EndsWith( '/' ) ? directoryPath : $"{directoryPath}/";
 
-		var sourcePath = asset.GetSourceFile( true );
-		var newSourcePath = sourcePath.Replace( asset.Name, newName );
+		return candidatePath.StartsWith( directoryPrefix, StringComparison.OrdinalIgnoreCase )
+			&& candidatePath.IndexOf( '/', directoryPrefix.Length ) == -1;
+	}
 
-		if ( string.Equals( asset.Name, newName, StringComparison.OrdinalIgnoreCase ) )
+	private static string NormalizeDirectoryPath( string path )
+	{
+		return System.IO.Path.TrimEndingDirectorySeparator( NormalizePath( path ) );
+	}
+
+	private static string NormalizePath( string path )
+	{
+		return System.IO.Path.GetFullPath( path.Replace( '\\', '/' ) ).NormalizeFilename( false );
+	}
+
+	/// <summary>
+	/// Rename an asset (and related files) to a new name
+	/// </summary>
+	public static bool RenameAsset( Asset asset, string newName, bool overwrite = false )
+	{
+		string newPath = Path.Combine( Path.GetDirectoryName( asset.AbsolutePath ), newName.GetFilenameSafe() );
+		return MoveAsset( asset, newPath, overwrite );
+	}
+
+	/// <summary>
+	/// Moves an asset (and related files) to a new path.
+	/// </summary>
+	public static bool MoveAsset( Asset asset, string path, bool overwrite = false )
+	{
+		path = path?.Trim().NormalizeFilename( false );
+
+		if ( string.IsNullOrEmpty( path ) )
+			return false;
+
+		var oldPath = asset.AbsolutePath;
+
+		if ( oldPath.EndsWith( "_c" ) ) oldPath = oldPath[..^2];
+		if ( path.EndsWith( "_c" ) ) path = path[..^2];
+
+		if ( string.Equals( oldPath, path, StringComparison.OrdinalIgnoreCase ) )
 		{
-			// we've just changed the capitalisation
-			// nothing's really changed for us as our asset system is case insensitive, so just do OS move
+			// we're just changing the capitalisation
+			overwrite = true;
 		}
-		else
+		else if ( !overwrite )
 		{
-			if ( System.IO.File.Exists( newSourcePath ) )
+			// check if it's gunna succeed first so we don't end up with a half moved asset
+			foreach ( var ext in Asset.RelatedFileExts )
 			{
-				Log.Error( $"Cannot rename asset, '{asset.Name}' already exists!" );
+				if ( !File.Exists( path + ext ) ) continue;
+
+				Log.Error( $"Cannot move asset, '{path + ext}' already exists!" );
 				return false;
 			}
-
-			// if there's a compiled asset of this name already, but NOT a source file, just bin it (?)
-			if ( System.IO.File.Exists( newCompiledPath ) )
-			{
-				System.IO.File.Delete( newCompiledPath );
-			}
-
-			// moving the asset will register another, so let's delete the old one
-			asset.IsDeleted = true;
 		}
 
-		if ( !string.IsNullOrEmpty( compiledPath ) )
-			System.IO.File.Move( compiledPath, newCompiledPath );
+		// TODO: Remove this once we have FileSystem.DeferChanges()
+		FileWatch.SuppressWatchers = RealTime.Now + 999;
 
-		if ( !string.IsNullOrEmpty( sourcePath ) )
-			System.IO.File.Move( sourcePath, newSourcePath );
+		// move all our components: oldpath -> path
+		foreach ( var ext in Asset.RelatedFileExts )
+		{
+			var file = new FileInfo( oldPath + ext );
+			if ( file.Exists ) file.MoveTo( path + ext, overwrite );
+		}
+
+		FileWatch.SuppressWatchers = RealTime.Now;
+
+		return true;
+	}
+
+	/// <summary>
+	/// Create a copy of an asset (and related files) on a new path.
+	/// </summary>
+	public static bool CopyAsset( Asset asset, string path, bool overwrite = false )
+	{
+		path = path?.Trim();
+
+		if ( string.IsNullOrEmpty( path ) )
+			return false;
+
+		var oldPath = asset.AbsolutePath;
+
+		if ( oldPath.EndsWith( "_c" ) ) oldPath = oldPath[..^2];
+		if ( path.EndsWith( "_c" ) ) path = path[..^2];
+
+		if ( !overwrite )
+		{
+			// check if it's gunna succeed first so we don't end up with a half copied asset
+			foreach ( var ext in Asset.RelatedFileExts )
+			{
+				if ( !File.Exists( path + ext ) ) continue;
+
+				Log.Error( $"Cannot copy asset, '{path + ext}' already exists!" );
+				return false;
+			}
+		}
+
+		// TODO: Remove this once we have FileSystem.DeferChanges()
+		FileWatch.SuppressWatchers = RealTime.Now + 999;
+
+		// copy all our components: oldpath -> path
+		foreach ( var ext in Asset.RelatedFileExts )
+		{
+			var file = new FileInfo( oldPath + ext );
+			if ( file.Exists ) file.CopyTo( path + ext, overwrite );
+		}
+
+		FileWatch.SuppressWatchers = RealTime.Now;
 
 		return true;
 	}
@@ -323,6 +401,15 @@ public static partial class EditorUtility
 	public static SceneWorld CreateSceneWorld()
 	{
 		return new SceneWorld() { IsTransient = false };
+	}
+
+	/// <summary>
+	/// Creates an isolated scene for editor previews, with runtime animation and physics
+	/// but without game-defined systems or the project's system scene.
+	/// </summary>
+	public static Scene CreatePreviewScene()
+	{
+		return new Scene( isEditor: false, includeGameSystems: false ) { WantsSystemScene = false };
 	}
 
 	static SoundHandle lastSound;
@@ -510,7 +597,7 @@ public static partial class EditorUtility
 
 		if ( toLauncher )
 		{
-			ProcessStartInfo info = new ProcessStartInfo( "sbox-launcher.exe" );
+			ProcessStartInfo info = new ProcessStartInfo( NetCore.GetExecutablePath( "sbox-launcher" ) );
 			info.WorkingDirectory = System.Environment.CurrentDirectory;
 
 			Process.Start( info );
@@ -665,12 +752,31 @@ public static partial class EditorUtility
 		return EngineGlobal.GetGameSearchPath();
 	}
 
-	public static IEnumerable<string> FontFamilies => FontManager.FontFamilies;
+	public static IEnumerable<string> FontFamilies => FontManager.Instance.FontFamilies;
 
 	/// <summary>
 	/// Access to the client's render settings
 	/// </summary>
 	public static RenderSettings RenderSettings => Sandbox.Engine.Settings.RenderSettings.Instance;
+
+	/// <summary>
+	/// The graphics preset this machine should start on.
+	/// </summary>
+	public static GraphicsPreset DetectGraphicsPreset() => Sandbox.Engine.Settings.RenderSettings.DetectPreset();
+
+	/// <summary>
+	/// Which preset the current settings add up to, or Custom if they don't match one.
+	/// </summary>
+	public static GraphicsPreset CurrentGraphicsPreset => RenderSettings.MatchPreset();
+
+	/// <summary>
+	/// Write every setting a graphics preset covers.
+	/// </summary>
+	public static void ApplyGraphicsPreset( GraphicsPreset preset )
+	{
+		RenderSettings.ApplyPreset( preset );
+		RenderSettings.Apply();
+	}
 
 	/// <summary>
 	/// Some assets are kv3, we want to convert them to json
@@ -684,6 +790,21 @@ public static partial class EditorUtility
 		kv.DeleteThis();
 
 		return json;
+	}
+
+	/// <summary>
+	/// Write json back out as kv3, so an asset we read with <see cref="KeyValues3ToJson"/> stays
+	/// in the format the rest of the tools expect.
+	/// </summary>
+	public static bool JsonToKeyValues3File( string filePath, string json )
+	{
+		var kv = EngineGlue.JsonToKeyValues3( json );
+		if ( kv.IsNull ) return false;
+
+		var saved = kv.SaveToFile( filePath );
+		kv.DeleteThis();
+
+		return saved;
 	}
 
 	/// <summary>
@@ -707,8 +828,8 @@ public static partial class EditorUtility
 	{
 		EditorWindow.Close();
 
-		ProcessStartInfo info = new ProcessStartInfo( "sbox-dev.exe", $"{Environment.CommandLine} -project \"{Project.Current.ConfigFilePath}\"" );
-		info.UseShellExecute = true;
+		ProcessStartInfo info = new ProcessStartInfo( NetCore.GetExecutablePath( "sbox-dev" ), $"{Environment.CommandLine} -project \"{Project.Current.ConfigFilePath}\"" );
+		info.UseShellExecute = OperatingSystem.IsWindows();
 		info.CreateNoWindow = true;
 		info.WorkingDirectory = System.Environment.CurrentDirectory;
 

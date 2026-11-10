@@ -1,28 +1,19 @@
+@import "/Platform/_platform.scss";
 
 GamePackageSortOrder
 {
-    flex-direction: row;
-    flex-shrink: 0;
-    justify-content: space-around;
-}
+    @include platform-choices;
 
+    button
+    {
+        @include platform-choice;
+        // No side padding - small enough to keep all eight options within the filter sidebar
+        padding: 0;
 
-GamePackageSortOrder button
-{
-    color: #c6d4eeaa;
-    font-size: 24px;
-    padding: 8px;
-}
-
-GamePackageSortOrder button:hover
-{
-    background-color: #467de455;
-    border-radius: 100px;
-}
-
-GamePackageSortOrder button.active
-{
-    color: white;
-    background-color: #467de4;
-    border-radius: 100px;
+        .iconpanel
+        {
+            margin: 0;
+            text-align: center;
+        }
+    }
 }

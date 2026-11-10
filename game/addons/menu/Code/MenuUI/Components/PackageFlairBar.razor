@@ -1,0 +1,65 @@
+@using Sandbox;
+@using Sandbox.UI;
+@using System.Collections.Immutable;
+@namespace MenuProject.UI
+@inherits Panel
+
+@* Flair badges over a thumbnail - each filled with its own colour (the one the web gives it), a
+   white glyph on top, so they tell apart at a glance and stand off busy art. *@
+
+@if (Flair.Length > 0)
+{
+    <root>
+        @foreach (var flair in Shown())
+        {
+            <div class="flair flair-@flair.Kind" tooltip="@flair.Tooltip" style="@BadgeStyle( flair )">
+                <icon>@IconOf( flair )</icon>
+            </div>
+        }
+    </root>
+}
+
+@code {
+    [Parameter] public ImmutableArray<Package.PackageFlair> Flair { get; set; } = ImmutableArray<Package.PackageFlair>.Empty;
+
+    /// <summary>At most this many badges, the most relevant first. Tiles pass 2; the hover card shows all.</summary>
+    [Parameter] public int Limit { get; set; } = int.MaxValue;
+
+    // What's about you comes first, then what's notable about the game, then the generic nudges.
+    static int Priority( Package.PackageFlair flair ) => flair.Kind switch
+    {
+        "favourited" => 0,
+        "updated-since-played" => 1,
+        "contest-winner" => 2,
+        "new" => 3,
+        "workshop-approved" => 4,
+        _ => 5
+    };
+
+    IEnumerable<Package.PackageFlair> Shown() => Flair.OrderBy( Priority ).Take( Limit );
+
+    static readonly System.Text.RegularExpressions.Regex BackgroundColor = new( @"background-color\s*:\s*([^;]+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled );
+
+    /// <summary>
+    /// The backend's icon, except where one reads better here - "updated since you last played"
+    /// comes as an up arrow, which at badge size looks like a download or upvote rather than news.
+    /// Not new_releases - that's already the "new" flair's.
+    /// </summary>
+    static string IconOf( Package.PackageFlair flair ) => flair.Kind switch
+    {
+        "updated-since-played" => "update",
+        _ => flair.Icon
+    };
+
+    /// <summary>
+    /// The flair's colour, as the badge's fill. Nothing if it hasn't one - the stylesheet's dark
+    /// fill stands in.
+    /// </summary>
+    static string BadgeStyle( Package.PackageFlair flair )
+    {
+        var match = BackgroundColor.Match( flair.Style ?? "" );
+        return match.Success ? $"background-color: {match.Groups[1].Value.Trim()};" : "";
+    }
+
+    protected override int BuildHash() => System.HashCode.Combine( Flair.Length, Limit );
+}

@@ -5,12 +5,34 @@ namespace Sandbox.Resources;
 public abstract class TextureGenerator : ResourceGenerator<Texture>
 {
 	/// <summary>
-	/// Find an existing texture for this
+	/// When set, the compiled texture will use this format instead of automatically determining one.
+	/// Useful to avoid block compression (BC1/BC7) for textures that require pixel-perfect quality (sprites, UI, icons).
 	/// </summary>
-	protected virtual ValueTask<Texture> CreateTexture( Options options, CancellationToken ct )
+	[Hide]
+	public virtual ImageFormat? FormatOverride => null;
+
+	/// <summary>
+	/// The image this makes on the CPU, for the caller to dispose, or null if it makes its texture another way. Compiling a
+	/// generator that makes one needs no render device, so one that caches to disk should.
+	/// </summary>
+	protected virtual ValueTask<Bitmap> CreateBitmap( Options options, CancellationToken ct )
 	{
 		return default;
 	}
+
+	/// <summary>
+	/// Find an existing texture for this. By default, the texture of <see cref="CreateBitmap"/>'s image.
+	/// </summary>
+	protected virtual async ValueTask<Texture> CreateTexture( Options options, CancellationToken ct )
+	{
+		using var bitmap = await CreateBitmap( options, ct );
+		return bitmap?.ToTexture();
+	}
+
+	/// <summary>
+	/// The image a compile writes, or null if this only makes a texture (which takes a render device to read back).
+	/// </summary>
+	internal ValueTask<Bitmap> CreateImage( Options options, CancellationToken ct ) => CreateBitmap( options, ct );
 
 	/// <summary>
 	/// Create a texture. Will replace a placeholder texture, which will turn into the generated texture later, if it's not immediately available.
@@ -40,11 +62,11 @@ public abstract class TextureGenerator : ResourceGenerator<Texture>
 
 	/// <summary>
 	/// Create a texture. Will wait until the texture is fully loaded and return when done.
+	/// Runs in the caller's context; generators can explicitly offload work when needed.
 	/// </summary>
 	public sealed override async ValueTask<Texture> CreateAsync( Options options, CancellationToken token )
 	{
-		// Call it completely in a new thread
-		var output = await Task.Run( async () => await CreateTexture( options, token ) );
+		var output = await CreateTexture( options, token );
 		if ( output is null ) return default;
 
 		token.ThrowIfCancellationRequested();
@@ -55,12 +77,30 @@ public abstract class TextureGenerator : ResourceGenerator<Texture>
 
 	public virtual EmbeddedResource? CreateEmbeddedResource()
 	{
-		return new EmbeddedResource
+		var di = DisplayInfo.For( this );
+		var data = Json.SerializeAsObject( this );
+
+		var embed = new EmbeddedResource
 		{
 			ResourceCompiler = "texture",
-			ResourceGenerator = DisplayInfo.For( this ).ClassName ?? GetType().FullName,
-			Data = Json.SerializeAsObject( this )
+			ResourceGenerator = di.ClassName ?? GetType().FullName,
+			Data = data
 		};
+
+		// If the generator supports caching to disk, create a deterministic path for the compiled texture
+		if ( CacheToDisk && EngineFileSystem.Mounted is BaseFileSystem mounted )
+		{
+			var generatorName = (di.ClassName ?? di.Name).ToLower().GetFilenameSafe();
+			var crc = Sandbox.Utility.Crc64.FromString( data.ToJsonString() );
+			var compiledPath = $"textures/generated/{generatorName}/{crc:x}.vtex";
+
+			if ( mounted.FileExists( $"{compiledPath}_c" ) )
+			{
+				embed.CompiledPath = compiledPath;
+			}
+		}
+
+		return embed;
 	}
 
 }

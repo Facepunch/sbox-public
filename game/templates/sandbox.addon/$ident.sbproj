@@ -1,5 +1,5 @@
 {
-  "Title": "Sandbox Mode Addon",
+  "Title": "Sandbox Game Addon",
   "Type": "addon",
   "Org": "local",
   "Ident": "sandboxaddon",
@@ -8,14 +8,15 @@
   "Resources": null,
   "PackageReferences": [],
   "EditorReferences": null,
-  "IsWhitelistDisabled": false,
+  "Mounts": null,
+  "IsStandaloneOnly": false,
   "Metadata": {
     "ProjectTemplate": {
       "Icon": "toys",
       "Order": 2000,
-      "Description": "You want to make an entity for Sandbox Mode"
+      "Description": "Create a custom entity for Sandbox Game"
     },
-    "StartupScene": "scenes/sandbox.scene",
+    "StartupScene": "scenes/testing_scene.scene",
     "ParentPackage": "facepunch.sandbox"
   }
 }

@@ -20,7 +20,7 @@ public partial class WorkshopPublishModal : MenuProject.Modals.BaseModal
 
 	protected override void OnParametersSet()
 	{
-		Title = Options.Title ?? "Item Title";
+		Title = Options.Title ?? Language.GetPhrase( "menu.common.item_title" );
 		Description = Options.Description ?? "";
 		Visibility = Options.Visibility;
 

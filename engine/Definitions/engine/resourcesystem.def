@@ -5,13 +5,30 @@ native accessor g_pResourceSystem as NativeEngine.g_pResourceSystem
 {
 	void ReloadSymlinkedResidentResources();
 	void UpdateSimple();
+	inline ITexture LoadTexture( string name )
+	{
+		return g_pResourceSystem->BlockingLoadResourceByName< RESOURCE_TYPE_TEXTURE >( CResourceName( name ), "Managed LoadTexture" );
+	}
 	bool HasPendingWork();
+	int GetNumPendingStreamingRequests();
 	bool IsShuttingDown();
+
+	void InvalidateDatabase();
+
+	// Update the guid mapping for one resource after its .meta was written or deleted. Much
+	// cheaper than InvalidateDatabase, which rescans everything mounted.
+	void NotifyMetaFileChanged( string resourcePath, bool fileExists );
 
 	inline HResourceManifest LoadResourceInManifest( string name )
 	{
 		ResourceManifestCreationInfo_t info( 1, &name, RESOURCE_MANIFEST_TYPE_DEFAULT, RESOURCE_MANIFEST_LOAD_STREAMING_DATA, name );
 		return g_pResourceSystem->CreateResourceManifest( info );
+	}
+
+	// Reload a resource (and anything it references) from disk, firing reload notifications
+	inline void ReloadResource( string name )
+	{
+		g_pResourceSystem->BlockingReloadResources( 1, &name, RESOURCE_MANIFEST_LOAD_STREAMING_DATA, "Managed ReloadResource" );
 	}
 
 	void DestroyResourceManifest( HResourceManifest manifest );
@@ -21,14 +38,24 @@ native accessor g_pResourceSystem as NativeEngine.g_pResourceSystem
 	{
 		g_pResourceSystem->GetCodeResourceManifestManager()->GetAllCodeManifests( *values );
 	}
+
+	bool ResolvePathToGuid( string path, out Guid guid );
+	bool NeedsGuidWrite( string path );
 }
 
 
 managed class Sandbox.Resource
 {
 	static void OnResourceReloaded( string name, void* resourceBinding );
-}
 
+	// Called when a resource's file data has been loaded. The header is the
+	// resource file's non-streaming data and is only valid during the call -
+	// copy out anything you want.
+	static void OnResourceLoaded( string name, void* header, ulong dataSize );
+
+	static void OnGuidChanged( string name, Guid guid );
+	static void OnResourcePathChanged( Guid guid, string newPath );
+}
 
 native class HResourceManifest__ as HResourceManifest
 {

@@ -13,6 +13,7 @@ native enum RenderBarrierPipelineStageFlags_t is NativeEngine.RenderBarrierPipel
 native pointer VertexBufferHandle_t as NativeEngine.VertexBufferHandle_t
 native pointer IndexBufferHandle_t as NativeEngine.IndexBufferHandle_t
 native pointer RenderShaderHandle_t as NativeEngine.RenderShaderHandle_t
+native pointer RenderSemaphoreHandle_t as NativeEngine.RenderSemaphoreHandle_t
 
 native enum RenderImageLayout_t is NativeEngine.RenderImageLayout_t;
 
@@ -30,8 +31,12 @@ native class IRenderContext as NativeEngine.IRenderContext
 	void DrawInstanced( RenderPrimitiveType type, int nFirstVertex, int nVertexCountPerInstance, int nInstanceCount );
 	void DrawIndexed( RenderPrimitiveType type, int nFirstIndex, int nIndexCount, int nMaxVertexCount, int nBaseVertex );
 	void DrawIndexedInstanced( RenderPrimitiveType type, int nFirstIndex, int nIndexCountPerInstance, int nInstanceCount, int nMaxVertexCount, int nBaseVertex );
-	void DrawInstancedIndirect( RenderPrimitiveType type, RenderBufferHandle_t hDrawArgBuffer, uint nBufferOffset );
-	void DrawIndexedInstancedIndirect( RenderPrimitiveType type, RenderBufferHandle_t hDrawArgBuffer, uint nBufferOffset );
+	void DrawInstancedIndirect( RenderPrimitiveType type, RenderBufferHandle_t hDrawArgBuffer, uint nBufferOffset, uint nDrawCount, uint nStride );
+	void DrawIndexedInstancedIndirect( RenderPrimitiveType type, RenderBufferHandle_t hDrawArgBuffer, uint nBufferOffset, uint nDrawCount, uint nStride );
+
+	// Async compute: signal at the end of this context, once; wait at the start of another context, once
+	RenderSemaphoreHandle_t SemaphoreSignalAtEnd();
+	void SemaphoreWaitAtBegin( RenderSemaphoreHandle_t hSemaphoreObject );
 
 	inline void TextureBarrierTransition( ITexture hSrc, int mips, RenderBarrierPipelineStageFlags_t srcStage, RenderBarrierPipelineStageFlags_t dstStage, RenderImageLayout_t layout, RenderBarrierAccessFlags_t srcFlags, RenderBarrierAccessFlags_t dstFlags )
 	{
@@ -66,15 +71,47 @@ native class IRenderContext as NativeEngine.IRenderContext
 		self->Clear( col, flags );
 	}
 
+	// Clears a texture in-band on THIS context, so it's correctly ordered and synchronized
+	// with the surrounding recorded commands (unlike IRenderDevice::ClearTexture which spins
+	// up its own context and submits it immediately, out of band).
+	inline void ClearTexture( ITexture hTexture, Color color )
+	{
+		if ( hTexture == RENDER_TEXTURE_HANDLE_INVALID )
+			return;
+
+		// Despite its name, this does not need to be a UAV
+		uint32 clearValueUINT[ 4 ] = { (uint32)color[ 0 ], (uint32)color[ 1 ], (uint32)color[ 2 ], (uint32)color[ 3 ] };
+		self->ClearUnorderedAccessViewUint( hTexture, 0, clearValueUINT );
+	}
+
+	// Clears a texture to an integer in every channel (a UAV counter or lock), in-band on this context
+	inline void ClearTextureUint( ITexture hTexture, uint nValue )
+	{
+		if ( hTexture == RENDER_TEXTURE_HANDLE_INVALID )
+			return;
+
+		uint32 clearValueUINT[ 4 ] = { nValue, nValue, nValue, nValue };
+		self->ClearUnorderedAccessViewUint( hTexture, 0, clearValueUINT );
+	}
+
 	inline void BindRenderTargets( ITexture colorTexture, ITexture depthTexture, ISceneLayer layer )
 	{
+		const RenderTargetDesc_t &layerDesc = layer->GetRenderTargetDesc();
+
 		// We can have a layer that only renders to color but if we only bind depth assume we want to blit to main framebuffer
 		if( colorTexture == RENDER_TEXTURE_HANDLE_INVALID )
-			colorTexture = layer->GetRenderTargetDesc().m_pColorTargets[0];
+			colorTexture = layerDesc.m_pColorTargets[0];
 
-		RenderTargetDesc_t rtDesc( colorTexture, depthTexture, RENDER_SRGB );
-		
+		// Custom targets bind in the layer's color space, same as RestoreRenderTargets
+		RenderTargetDesc_t rtDesc( colorTexture, depthTexture, layerDesc.m_allowSrgbWrite[0] );
+
 		self->BindRenderTargets( rtDesc );
+	}
+
+	// A target owned by a standalone renderer, without a scene layer.
+	inline void BindRenderTargets( ITexture colorTexture )
+	{
+		self->BindRenderTargets( RenderTargetDesc_t( colorTexture, RENDER_TEXTURE_HANDLE_INVALID, RENDER_LINEAR ) );
 	}
 
 	inline void RestoreRenderTargets( ISceneLayer layer )
@@ -109,6 +146,7 @@ native class IRenderContext as NativeEngine.IRenderContext
 	}
 
 	void Submit();
+	void ForceFlushGPU();
 
 	inline void BindRenderTargets( SwapChainHandle_t swapChain, bool color, bool depth )
 	{
@@ -166,7 +204,10 @@ native class IRenderContext as NativeEngine.IRenderContext
 	void ReadBuffer( RenderBufferHandle_t hBuffer, IReadBufferCallback pCallback, int nOffset, int nBytesToRead, bool bDeleteCallbackWhenFinished );
 	
 	// PIX/RenderDoc markers
-	void BeginPixEvent( string name );
+	inline void BeginPixEvent( void* name )
+	{
+		self->BeginPixEvent( (const char*)name );
+	}
 	void EndPixEvent();
 	void PixSetMarker( string name );
 }

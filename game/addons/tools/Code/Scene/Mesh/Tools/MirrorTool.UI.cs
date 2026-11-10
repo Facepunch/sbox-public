@@ -11,6 +11,7 @@ partial class MirrorTool
 	public class MirrorToolWidget : ToolSidebarWidget
 	{
 		readonly MirrorTool _tool;
+		readonly Button _applyButton;
 
 		public MirrorToolWidget( MirrorTool tool ) : base()
 		{
@@ -22,16 +23,25 @@ partial class MirrorTool
 				var row = Layout.AddRow();
 				row.Spacing = 4;
 
-				var apply = new Button( "Apply", "done" );
-				apply.Clicked = Apply;
-				apply.ToolTip = "[Apply " + EditorShortcuts.GetKeys( "mesh.mirror-apply" ) + "]";
-				row.Add( apply );
+				_applyButton = new Button( "Apply", "done" );
+				_applyButton.Clicked = Apply;
+				_applyButton.ToolTip = "[Apply " + EditorShortcuts.GetKeys( "mesh.mirror-apply" ) + "]";
+				row.Add( _applyButton );
 
 				var cancel = new Button( "Cancel", "close" );
 				cancel.Clicked = Cancel;
 				cancel.ToolTip = "[Cancel " + EditorShortcuts.GetKeys( "mesh.mirror-cancel" ) + "]";
 				row.Add( cancel );
 			}
+
+			Layout.AddSpacingCell( 8 );
+
+			AddShortcuts(
+				("Draw Mirror Line", "LMB Drag"),
+				("Move Line / Handles", "LMB Drag"),
+				("Apply Mirror", EditorShortcuts.GetKeys( "mesh.mirror-apply" )),
+				("Cancel", EditorShortcuts.GetKeys( "mesh.mirror-cancel" ))
+			);
 
 			Layout.AddStretchCell();
 		}
@@ -41,5 +51,11 @@ partial class MirrorTool
 
 		[Shortcut( "mesh.mirror-cancel", "ESC", typeof( SceneViewWidget ) )]
 		void Cancel() => _tool.Cancel();
+
+		[EditorEvent.Frame]
+		public void Frame()
+		{
+			_applyButton?.Enabled = _tool.CanApply;
+		}
 	}
 }

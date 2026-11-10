@@ -55,7 +55,7 @@ public class BlockTree : TreeView
 		{
 			if ( ev.IsDrop )
 			{
-				_doo.Body.Add( block );
+				GetAncestor<DooEditorWidget>().Edit( () => _doo.Body.Add( block ) );
 			}
 
 			return DropAction.Copy;

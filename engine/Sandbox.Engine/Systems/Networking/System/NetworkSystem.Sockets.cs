@@ -1,12 +1,14 @@
-﻿using System.Collections.Concurrent;
+﻿using System.Threading;
 
 namespace Sandbox.Network;
 
 internal partial class NetworkSystem
 {
-	[SkipHotload] readonly ConcurrentBag<NetworkSocket> sockets = new();
+	// Swapped rather than mutated, the network thread reads it without a lock
+	[SkipHotload] NetworkSocket[] sockets = [];
+	[SkipHotload] readonly Lock socketsLock = new();
 
-	internal IEnumerable<NetworkSocket> Sockets => sockets;
+	internal NetworkSocket[] Sockets => sockets;
 
 	internal void AddSocket( NetworkSocket socket )
 	{
@@ -17,11 +19,11 @@ internal partial class NetworkSystem
 			return;
 		}
 
-		sockets.Add( socket );
+		lock ( socketsLock )
+			sockets = [.. sockets, socket];
 
 		socket.OnClientConnect = OnConnected;
 		socket.OnClientDisconnect = OnDisconnected;
-		socket.OnHostChanged = OnHostChanged;
 		socket.Initialize( this );
 	}
 
@@ -37,24 +39,7 @@ internal partial class NetworkSystem
 			socket?.Dispose();
 		}
 
-		sockets.Clear();
-	}
-
-	void OnHostChanged( (Connection previous, Connection current) state )
-	{
-		if ( state.previous is not null )
-		{
-			Log.Info( $"The network host has changed from {state.previous} to {state.current}" );
-		}
-
-		var wasHost = IsHost;
-		IsHost = state.current == Connection.Local;
-
-		if ( IsHost && !wasHost )
-		{
-			GameSystem?.OnBecameHost( state.previous );
-		}
-
-		GameSystem?.OnHostChanged( state.previous, state.current );
+		lock ( socketsLock )
+			sockets = [];
 	}
 }

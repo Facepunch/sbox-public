@@ -1,0 +1,18 @@
+{
+  "UI": false,
+  "Volume": "1",
+  "Pitch": "1",
+  "SelectionMode": "Random",
+  "Sounds": [
+    "sounds/water/enter_large_01.vsnd",
+    "sounds/water/enter_large_02.vsnd",
+    "sounds/water/enter_large_03.vsnd"
+  ],
+  "OcclusionEnabled": true,
+  "ReverbEnabled": true,
+  "AirAbsorption": true,
+  "DistanceAttenuation": true,
+  "Distance": 1024,
+  "__references": [],
+  "__version": 1
+}

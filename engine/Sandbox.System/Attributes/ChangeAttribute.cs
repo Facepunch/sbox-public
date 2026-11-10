@@ -7,7 +7,7 @@
 	/// If no name is provided, we will try to call On[PropertyName]Changed. The callback should have 2 arguments - oldValue and newValue, both of the same type as the property itself.
 	/// </summary>
 	[AttributeUsage( AttributeTargets.Property )]
-	[CodeGenerator( CodeGeneratorFlags.Instance | CodeGeneratorFlags.Static | CodeGeneratorFlags.WrapPropertySet, "Sandbox.ConsoleSystem.OnChangePropertySet", 10 )]
+	[CodeGenerator( CodeGeneratorFlags.Instance | CodeGeneratorFlags.Static | CodeGeneratorFlags.WrapPropertySet, "Sandbox.ChangeCallback.OnPropertySet", 10 )]
 	public class ChangeAttribute : Attribute
 	{
 		/// <summary>

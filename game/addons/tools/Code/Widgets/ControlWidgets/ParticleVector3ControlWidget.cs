@@ -3,6 +3,8 @@
 [CustomEditor( typeof( ParticleVector3 ) )]
 public class ParticleVector3ControlWidget : ControlWidget
 {
+	public override bool SupportsMultiEdit => true;
+
 	SerializedObject Target;
 
 	public ParticleVector3ControlWidget( SerializedProperty property ) : base( property )

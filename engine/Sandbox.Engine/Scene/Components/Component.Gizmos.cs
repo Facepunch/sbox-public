@@ -1,4 +1,6 @@
-﻿namespace Sandbox;
+using System.Reflection;
+
+namespace Sandbox;
 
 public abstract partial class Component
 {
@@ -6,6 +8,11 @@ public abstract partial class Component
 	/// Called in the editor to draw things like bounding boxes etc
 	/// </summary>
 	protected virtual void DrawGizmos() { }
+
+	static readonly ReflectionCache<Type, bool> _typeOverridesDrawGizmos = new(
+		t => t.GetMethod( nameof( DrawGizmos ), BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public, null, Type.EmptyTypes, null )?.DeclaringType != typeof( Component ) );
+
+	internal bool OverridesDrawGizmos => _typeOverridesDrawGizmos[GetType()];
 
 	internal void DrawGizmosInternal()
 	{

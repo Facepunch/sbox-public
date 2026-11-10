@@ -134,7 +134,7 @@ public static partial class Leaderboards
 			try
 			{
 				var targetId = TargetSteamId != 0 ? TargetSteamId : (long)Steamworks.SteamClient.SteamId.Value;
-				var result = await Backend.Leaderboards.Query( query );
+				var result = await Backend.Leaderboards.Query( query.PackageIdent, query.Stat, query );
 
 				if ( result is null )
 					return;
@@ -185,7 +185,15 @@ public static partial class Leaderboards
 			/// <summary>
 			/// Data associated with this entry
 			/// </summary>
+			[Obsolete( "DataUrl contains the url to fetch the data from" )]
 			public readonly Dictionary<string, object> Data;
+
+			/// <summary>
+			/// If set then this entry has an associated data entry. This file is 
+			/// usually a json object which was submitted with the stat. You can use
+			/// this for replays and stuff.
+			/// </summary>
+			public readonly string DataUrl;
 
 			internal Entry( LeaderboardResponseEx.Entry entry )
 			{
@@ -195,7 +203,7 @@ public static partial class Leaderboards
 				CountryCode = entry.CountryCode;
 				DisplayName = entry.DisplayName;
 				Timestamp = entry.Timestamp;
-				Data = entry.Data;
+				DataUrl = entry.DataUrl;
 			}
 		}
 	}

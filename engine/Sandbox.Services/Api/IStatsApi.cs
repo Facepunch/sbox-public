@@ -6,13 +6,13 @@ public partial class ServiceApi
 {
 	public interface IStatsApi
 	{
-		[Get( "/package/stats/{packageIdent}" )]
+		[Get( "/package/stats/2/{packageIdent}" )]
 		Task<GlobalStat[]> GetGlobalPackageStats( string packageIdent );
 
-		[Get( "/package/stats/{packageIdent}/u/{steamid}" )]
+		[Get( "/package/stats/2/{packageIdent}/u/{steamid}" )]
 		Task<PlayerStat[]> GetPlayerPackageStats( string packageIdent, long steamid );
 
-		[Post( "/stats/batch" )]
+		[Post( "/stats/batch/1" )]
 		Task Submit( [Body] object data );
 	}
 }

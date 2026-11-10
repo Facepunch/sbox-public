@@ -1,4 +1,5 @@
-﻿using Sandbox.Services;
+﻿using Sandbox.Engine;
+using Sandbox.Services;
 using System.Threading;
 
 namespace Sandbox;
@@ -43,6 +44,30 @@ internal static partial class Api
 				};
 
 				var result = await Sandbox.Backend.Benchmarks.Submit( data );
+
+				if ( !string.IsNullOrEmpty( BenchmarkOrchestrator.ExportPath ) )
+				{
+					try
+					{
+						var json = System.Text.Json.JsonSerializer.Serialize( new
+						{
+							BatchId = result.Id,
+							data.Host,
+							data.Version,
+							data.VersionDate,
+							data.System,
+							data.Package,
+							data.Entries,
+						}, new System.Text.Json.JsonSerializerOptions { WriteIndented = true } );
+						System.IO.File.WriteAllText( BenchmarkOrchestrator.ExportPath, json );
+						Log.Info( $"Benchmark results written to {BenchmarkOrchestrator.ExportPath}" );
+					}
+					catch ( System.Exception ex )
+					{
+						Log.Warning( ex, "Failed to write benchmark export JSON" );
+					}
+				}
+
 				return result.Id;
 			}
 			catch ( System.Exception e )

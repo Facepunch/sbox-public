@@ -9,7 +9,11 @@ namespace Sandbox;
 
 public partial class Project
 {
-	static CompileGroup CompileGroup;
+	/// <summary>
+	/// The compile group every local project's code builds in. Internal so game code can't see
+	/// it - editor code reaches it through the Sandbox.Tools Project extensions.
+	/// </summary>
+	internal static CompileGroup CompileGroup { get; private set; }
 
 
 	/// <summary>
@@ -36,7 +40,6 @@ public partial class Project
 		CompileGroup?.Dispose();
 
 		CompileGroup = new( "local" );
-		CompileGroup.AccessControl = PackageManager.AccessControl;
 		CompileGroup.PrintErrorsInConsole = !Application.IsEditor;
 		CompileGroup.OnCompileStarted = OnCompileStarted;
 		CompileGroup.OnCompileFinished = OnCompileFinished;
@@ -48,7 +51,6 @@ public partial class Project
 		CompileGroup?.Dispose();
 
 		CompileGroup = new( "local" );
-		CompileGroup.AccessControl = PackageManager.AccessControl;
 		CompileGroup.PrintErrorsInConsole = !Application.IsEditor;
 		CompileGroup.OnCompileStarted = OnCompileStarted;
 		CompileGroup.OnCompileFinished = OnCompileFinished;
@@ -65,6 +67,20 @@ public partial class Project
 			proj.lastCompilerHash = default;
 
 			proj.UpdateCompiler();
+		}
+	}
+
+	/// <summary>
+	/// Game and addon compilers reference every library, and those references are only added when the
+	/// compiler is created. Call this after a library is added while projects are open so their compilers
+	/// are remade with it. Projects whose library references haven't changed are left alone.
+	/// </summary>
+	internal static void UpdateLibraryReferences()
+	{
+		foreach ( var project in All )
+		{
+			if ( project.Config.Type is "game" or "addon" )
+				project.UpdateCompiler();
 		}
 	}
 
@@ -105,8 +121,6 @@ public partial class Project
 	/// </summary>
 	internal static async Task InitializeBuiltIn( bool syncPackageManager = true )
 	{
-		AddFromFileBuiltIn( "addons/base/.sbproj" );
-
 		if ( !Application.IsStandalone && !Application.IsHeadless )
 		{
 			AddFromFileBuiltIn( "addons/menu/.sbproj" );
@@ -120,6 +134,7 @@ public partial class Project
 			AddFromFileBuiltIn( "editor/MovieMaker/.sbproj" );
 			AddFromFileBuiltIn( "editor/Hammer/.sbproj" );
 			AddFromFileBuiltIn( "editor/DooEditor/DooEditor.sbproj" );
+			AddFromFileBuiltIn( "editor/AnimGraph/.sbproj" );
 		}
 
 		if ( syncPackageManager )
@@ -239,32 +254,68 @@ public partial class Project
 		File.WriteAllText( Path.Combine( vscodePath, "settings.json" ), JsonSerializer.Serialize( settings, JsonWriteIndented ) );
 	}
 
-	/// <summary>
-	/// Like AddFromFile but the project is marked as "built in" - which means
-	/// it's always automatically loaded and can't be unloaded.
-	/// </summary>
-	internal static Project AddFromFileBuiltIn( string path )
+	[Flags]
+	internal enum ProjectLoadFlags
 	{
-		var p = AddFromFile( path );
-		if ( p == null ) return null;
+		None = 0,
 
-		p.IsBuiltIn = true;
-		return p;
+		/// <summary>
+		/// Component of the engine, always automatically loaded and can't be unloaded
+		/// </summary>
+		BuiltIn = 1 << 0,
 	}
 
-	internal static Project AddFromFile( string path, bool active = true )
+	internal static Project AddFromFileBuiltIn( string path ) => AddFromFile( path, flags: ProjectLoadFlags.BuiltIn );
+
+	/// <summary>
+	/// Add a game project from its .sbproj - its assets mounted, the libraries in its Libraries folder added
+	/// alongside it - and compile it, so it can be run like a package. Null if it didn't load.
+	/// </summary>
+	internal static async Task<Project> AddGameFromFile( string path )
+	{
+		var project = AddFromFile( path );
+		if ( project is null ) return null;
+
+		NativeEngine.FullFileSystem.AddProjectPath( path, project.GetAssetsPath().ToLowerInvariant() );
+
+		// What the editor's put on disk for it - the cloud assets its own use, and generated files - found from there as
+		// they are in the editor, rather than nowhere
+		var sbox = Path.Combine( project.GetRootPath(), ".sbox" );
+		NativeEngine.FullFileSystem.AddCloudPath( "mod_cloud", Path.Combine( sbox, "cloud" ) );
+		NativeEngine.FullFileSystem.AddCloudPath( "mod_transient", Path.Combine( sbox, "transient" ) );
+
+		var libraries = Path.Combine( project.RootDirectory.FullName, "Libraries" );
+
+		// We should iterate all available libraries and add their projects
+		foreach ( var folder in Directory.Exists( libraries ) ? Directory.EnumerateDirectories( libraries ) : [] )
+		{
+			var configs = Directory.EnumerateFiles( folder, "*.sbproj" ).ToArray();
+			if ( configs.Length != 1 ) continue;
+			AddFromFile( configs[0] );
+		}
+
+		// We need to reload the project since we may have had a bunch of libraries added
+		project.Load();
+
+		await CompileAsync();
+
+		return project.Active ? project : null;
+	}
+
+	internal static Project AddFromFile( string path, bool active = true, ProjectLoadFlags flags = ProjectLoadFlags.None )
 	{
 		// Need an project file
-		if ( !path.EndsWith( ".sbproj" ) )
-			path = System.IO.Path.Combine( path, ".sbproj" );
-
-		var cleanPath = System.IO.Path.GetFullPath( path );
+		var cleanPath = NormalizeConfigFilePath( path );
 
 		// Don't add the same project twice
 		if ( All.Where( a => a.ConfigFilePath == cleanPath ).FirstOrDefault() is Project lp )
 			return lp;
 
-		var project = new Project { ConfigFilePath = cleanPath, Active = active };
+		var project = new Project( cleanPath )
+		{
+			Active = active,
+			IsBuiltIn = flags.HasFlag( ProjectLoadFlags.BuiltIn )
+		};
 		project.Load();
 
 		// If it loaded broken, don't bother with it
@@ -278,6 +329,31 @@ public partial class Project
 		if ( project.Config.Upgrade() )
 		{
 			project.Save();
+		}
+
+		All.Add( project );
+
+		return project;
+	}
+
+	/// <summary>
+	/// Add a project from config JSON rather than a .sbproj on disk, rooted at <paramref name="rootPath"/>.
+	/// This is how an exported standalone game loads itself: the config was embedded in its
+	/// executable at export time, so it's read-only and never upgraded or saved here.
+	/// </summary>
+	internal static Project AddFromEmbeddedConfig( string configJson, string rootPath )
+	{
+		var root = new DirectoryInfo( Path.GetFullPath( rootPath ) );
+
+		if ( All.FirstOrDefault( a => a.RootDirectory?.FullName == root.FullName ) is Project existing )
+			return existing;
+
+		var project = new Project( root, configJson ) { Active = true };
+		project.Load();
+
+		if ( project.Broken )
+		{
+			throw new System.Exception( $"Couldn't add embedded project rooted at {root.FullName}" );
 		}
 
 		All.Add( project );
@@ -312,9 +388,7 @@ public partial class Project
 
 	public static Project Load( string dir )
 	{
-		var cleanPath = System.IO.Path.GetFullPath( dir );
-
-		var project = new Project { ConfigFilePath = cleanPath, Active = false };
+		var project = new Project( NormalizeConfigFilePath( dir ) ) { Active = false };
 		project.Load();
 
 		// If it loaded broken, don't bother with it

@@ -1,0 +1,27 @@
+{
+  "guid": "d296c625-ed45-467c-9a12-09c45454e8b3",
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Wooden Floor Herringbone a",
+      "Type": "material",
+      "Org": "facepunch",
+      "Ident": "woodfloorherringbonea",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "materials/sbox/floor/wooden_floor_herringbone_a.vmat",
+        "AssetLicense": "CC0"
+      }
+    }
+  }
+}

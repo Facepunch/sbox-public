@@ -76,6 +76,7 @@ partial class SkinnedModelRenderer
 			_renderer.ClearPhysicsBones();
 
 			var world = so.Transform;
+			var worldUnscaled = world.WithScale( 1.0f );
 
 			for ( var i = 0; i < _bodies.Count; i++ )
 			{
@@ -98,8 +99,9 @@ partial class SkinnedModelRenderer
 					// Transform physics back into rendering worldspace.
 					var parentBoneWorld = so.GetWorldSpaceAnimationTransform( body.ParentBone );
 					var boneWorld = parentBoneWorld.ToWorld( bodyLocal );
+					var boneWorldUnscaled = worldUnscaled.ToWorld( world.ToLocal( parentBoneWorld ) );
 
-					_bodies[i] = body with { WorldTransform = boneWorld };
+					_bodies[i] = body with { WorldTransform = boneWorldUnscaled.ToWorld( bodyLocal ) };
 
 					// Transform bone world to modelspace.
 					var boneLocal = world.ToLocal( boneWorld );
@@ -113,7 +115,7 @@ partial class SkinnedModelRenderer
 					so.SetBoneOverride( body.Bone, local );
 
 					// Store the target transform of this keyframe body so it can be moved to it in the physics step.
-					_bodies[i] = body with { WorldTransform = boneWorld };
+					_bodies[i] = body with { WorldTransform = worldUnscaled.ToWorld( local ) };
 				}
 			}
 		}
@@ -177,27 +179,34 @@ partial class SkinnedModelRenderer
 			var bones = _renderer.Model.Bones;
 			var targetBones = parent.Model.Bones;
 			var world = _renderer.WorldTransform;
+			var worldUnscaled = world.WithScale( 1.0f );
 			var boneToBody = new Dictionary<int, PhysicsBody>();
 
 			foreach ( var part in physics.Parts )
 			{
 				var bone = bones.GetBone( part.BoneName );
 
-				if ( !_renderer.TryGetBoneTransform( bone, out var boneWorld ) )
-					boneWorld = world.ToWorld( part.Transform );
+				if ( _renderer.TryGetBoneTransform( bone, out var boneWorld ) )
+					boneWorld = worldUnscaled.ToWorld( world.ToLocal( boneWorld ) );
+				else
+					boneWorld = worldUnscaled.ToWorld( part.Transform );
 
-				var body = new PhysicsBody( _physicsWorld )
+				var settings = new PhysicsBodySettings
 				{
-					Transform = boneWorld,
+					Position = boneWorld.Position,
+					Rotation = boneWorld.Rotation,
 					LinearDamping = part.LinearDamping,
 					AngularDamping = part.AngularDamping,
 					Mass = part.Mass,
-					OverrideMassCenter = part.OverrideMassCenter,
-					LocalMassCenter = part.MassCenterOverride,
-					BodyType = targetBones.HasBone( bone.Name ) ? PhysicsBodyType.Keyframed : PhysicsBodyType.Dynamic,
-					UseController = true,
-					EnableCollisionSounds = false,
+					MassCenter = part.MassCenterOverride,
+					BodyType = targetBones.HasBone( bone.Name ) ? PhysicsBodyType.Keyframed : PhysicsBodyType.Dynamic
 				};
+				if ( part.OverrideMassCenter )
+					settings.Flags |= PhysicsBodyCreationFlags.OverrideMassCenter;
+				var body = _physicsWorld.CreateBody( settings );
+				body.UseController = true;
+				body.EnableCollisionSounds = false;
+				using var mass = body._body.BatchMassUpdates();
 
 				boneToBody[bone.Index] = body;
 
@@ -210,13 +219,22 @@ partial class SkinnedModelRenderer
 				} );
 
 				foreach ( var sphere in part.Spheres )
-					body.AddSphereShape( sphere.Sphere ).Surface = sphere.Surface;
+				{
+					using var surface = body._body.UseShapeSurface( sphere.Surface );
+					body.AddSphereShape( sphere.Sphere );
+				}
 
 				foreach ( var capsule in part.Capsules )
-					body.AddCapsuleShape( capsule.Capsule.CenterA, capsule.Capsule.CenterB, capsule.Capsule.Radius ).Surface = capsule.Surface;
+				{
+					using var surface = body._body.UseShapeSurface( capsule.Surface );
+					body.AddCapsuleShape( capsule.Capsule.CenterA, capsule.Capsule.CenterB, capsule.Capsule.Radius );
+				}
 
 				foreach ( var hull in part.Hulls )
-					body.AddHullShape( Vector3.Zero, Rotation.Identity, hull.GetPoints().ToList() ).Surface = hull.Surface;
+				{
+					using var surface = body._body.UseShapeSurface( hull.Surface );
+					body.AddShape( hull, global::Transform.Zero );
+				}
 			}
 
 			var bodyToIndex = new Dictionary<PhysicsBody, int>( _bodies.Count );
@@ -291,7 +309,7 @@ partial class SkinnedModelRenderer
 						var hingeAxis = worldFrame1.Rotation.Up;
 						var targetVelocity = hingeAxis.Dot( jointDesc.AngularTargetVelocity );
 
-						hingeJoint.native.SetAngularMotor( targetVelocity, jointDesc.MaxTorque );
+						hingeJoint.SetAngularMotor( targetVelocity, jointDesc.MaxTorque );
 					}
 
 					joint = hingeJoint;

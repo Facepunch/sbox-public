@@ -21,10 +21,20 @@ public static class Backend
 	public static INotificationApi Notifications { get; private set; }
 	public static IStorageApi Storage { get; private set; }
 	public static IUtilityApi Utility { get; private set; }
+	public static IJamApi Jam { get; private set; }
+	public static ICodeApi Code { get; private set; }
+	public static IForumApi Forum { get; private set; }
+	public static IPlatformApi Platform { get; private set; }
+
+	/// <summary>
+	/// AI queries and cached conversations using the current game session.
+	/// </summary>
+	public static IAiApi Ai { get; private set; }
 
 	private static HttpClient httpClient = null;
 
-	public static void Initialize( DelegatingHandler httpHandler, string url = "https://services.facepunch.com/sbox" )
+	//public static void Initialize( DelegatingHandler httpHandler, string url = "http://localhost:7071" )
+	public static void Initialize( DelegatingHandler httpHandler, string url = "https://public.facepunch.com/sbox" )
 	{
 		var refitSettings = BuildSettings( url );
 
@@ -46,6 +56,11 @@ public static class Backend
 		Notifications = RestService.For<INotificationApi>( httpClient, refitSettings );
 		Storage = RestService.For<IStorageApi>( httpClient, refitSettings );
 		Utility = RestService.For<IUtilityApi>( httpClient, refitSettings );
+		Jam = RestService.For<IJamApi>( httpClient, refitSettings );
+		Code = RestService.For<ICodeApi>( httpClient, refitSettings );
+		Forum = RestService.For<IForumApi>( httpClient, refitSettings );
+		Platform = RestService.For<IPlatformApi>( httpClient, refitSettings );
+		Ai = RestService.For<IAiApi>( httpClient, refitSettings );
 	}
 
 	static RefitSettings BuildSettings( string url )
@@ -62,12 +77,14 @@ public static class Backend
 
 class CustomJsonContentSerializer : IHttpContentSerializer
 {
+	static readonly System.Text.Json.JsonSerializerOptions ReadOptions = new() { PropertyNameCaseInsensitive = true };
+
 	public async Task<T> FromHttpContentAsync<T>( HttpContent content, CancellationToken cancellationToken = default )
 	{
 		var str = await content.ReadAsStringAsync();
 		if ( string.IsNullOrWhiteSpace( str ) ) return default;
 
-		return System.Text.Json.JsonSerializer.Deserialize<T>( str, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true } );
+		return System.Text.Json.JsonSerializer.Deserialize<T>( str, ReadOptions );
 	}
 
 	public string GetFieldNameForProperty( PropertyInfo propertyInfo )
@@ -82,11 +99,7 @@ class CustomJsonContentSerializer : IHttpContentSerializer
 
 	public HttpContent ToHttpContent<T>( T values )
 	{
-		var json = System.Text.Json.JsonSerializer.Serialize( values );
-		var jsonBytes = Encoding.UTF8.GetBytes( json );
-		var jsonStream = new MemoryStream( jsonBytes );
-
-		var content = new ByteArrayContent( jsonBytes );
+		var content = new ByteArrayContent( System.Text.Json.JsonSerializer.SerializeToUtf8Bytes( values ) );
 		content.Headers.ContentType = new MediaTypeHeaderValue( "application/json" );
 		return content;
 

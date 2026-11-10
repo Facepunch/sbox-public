@@ -67,6 +67,10 @@ public partial class GpuBuffer : IValid, IDisposable
 {
 	internal RenderBufferHandle_t native;
 
+	readonly System.Threading.Lock lifetimeLock = new();
+	int attributeBindings;
+	RenderBufferHandle_t pendingDestroy;
+
 	/// <summary>
 	/// Number of elements in the buffer.
 	/// </summary>
@@ -107,6 +111,7 @@ public partial class GpuBuffer : IValid, IDisposable
 	{
 		if ( elementCount <= 0 ) throw new ArgumentException( "Element count must be greater than zero." );
 		if ( elementSize <= 0 ) throw new ArgumentException( "Element size must be greater than zero." );
+		if ( ElementCount != 0 ) throw new InvalidOperationException( "GpuBuffer is already initialized." );
 
 		// Structured buffers element size must be 4 byte aligned
 		if ( usageFlags.HasFlag( UsageFlags.Structured ) )
@@ -170,18 +175,71 @@ public partial class GpuBuffer : IValid, IDisposable
 
 	void Dispose( bool disposing )
 	{
-		if ( native == IntPtr.Zero )
-			return;
+		RenderBufferHandle_t copy;
 
-		// Set our pointer to default immediately, keep a copy so we can dispose on main thread
-		var copy = native;
-		native = IntPtr.Zero;
+		lock ( lifetimeLock )
+		{
+			if ( native == IntPtr.Zero )
+				return;
 
+			// Set our pointer to default immediately, keep a copy so we can dispose on main thread
+			copy = native;
+			native = IntPtr.Zero;
+
+			// Still bound to RenderAttributes, destroyed when the last binding is released
+			if ( attributeBindings > 0 )
+			{
+				pendingDestroy = copy;
+				return;
+			}
+		}
+
+		QueueDestroy( copy );
+	}
+
+	static void QueueDestroy( RenderBufferHandle_t handle )
+	{
 		// Queue on the main thread in-case this is disposed from GC (different thread)
 		MainThread.Queue( () =>
 		{
-			g_pRenderDevice.DestroyGPUBuffer( copy );
+			g_pRenderDevice.DestroyGPUBuffer( handle );
 		} );
+	}
+
+	internal RenderBufferHandle_t AddAttributeBinding()
+	{
+		lock ( lifetimeLock )
+		{
+			if ( native == IntPtr.Zero )
+				return default;
+
+			attributeBindings++;
+			return native;
+		}
+	}
+
+	internal void RetainAttributeBinding()
+	{
+		lock ( lifetimeLock )
+		{
+			attributeBindings++;
+		}
+	}
+
+	internal void ReleaseAttributeBinding()
+	{
+		RenderBufferHandle_t destroy;
+
+		lock ( lifetimeLock )
+		{
+			if ( --attributeBindings > 0 || pendingDestroy == IntPtr.Zero )
+				return;
+
+			destroy = pendingDestroy;
+			pendingDestroy = default;
+		}
+
+		QueueDestroy( destroy );
 	}
 
 	/// <summary>
@@ -218,6 +276,8 @@ public partial class GpuBuffer : IValid, IDisposable
 			throw new InvalidOperationException( $"{typeof( T )} is not allowed in GPU buffers" );
 
 		var arrayElementSize = Unsafe.SizeOf<T>();
+
+		ThrowIfOutOfRange( (long)start * arrayElementSize, (long)count * arrayElementSize );
 
 		GetDataInternal( MemoryMarshal.Cast<T, byte>( data ), (uint)(start * arrayElementSize), (uint)(count * arrayElementSize) );
 	}
@@ -266,15 +326,19 @@ public partial class GpuBuffer : IValid, IDisposable
 		if ( !SandboxedUnsafe.IsAcceptablePod( typeof( T ) ) )
 			throw new InvalidOperationException( $"{typeof( T )} is not allowed in GPU buffers" );
 
-		var offsetInBytes = start * ElementSize;
-		var sizeInBytes = count * ElementSize;
+		long offsetInBytes = (long)start * ElementSize;
+		long sizeInBytes = (long)count * ElementSize;
+		ThrowIfOutOfRange( offsetInBytes, sizeInBytes );
+
+		if ( offsetInBytes + sizeInBytes > int.MaxValue )
+			throw new ArgumentOutOfRangeException( nameof( count ), "GetDataAsync can't read past the first 2GB of a GpuBuffer" );
 
 		Graphics.Context.ReadBufferAsync( this, bytes =>
 		{
 			// Reinterpret the byte span as a span of T
 			var typedSpan = MemoryMarshal.Cast<byte, T>( bytes );
 			callback( typedSpan );
-		}, offsetInBytes, sizeInBytes );
+		}, (int)offsetInBytes, (int)sizeInBytes );
 	}
 
 	/// <summary>
@@ -285,14 +349,17 @@ public partial class GpuBuffer : IValid, IDisposable
 	/// </remarks>
 	/// <param name="data">The Span of data to upload. It should contain items of type T, which is a struct.</param>
 	/// <param name="elementOffset">The offset in terms of elements (not bytes) at which to start uploading data (default is 0).</param>
-	public void SetData<T>( Span<T> data, int elementOffset = 0 ) where T : unmanaged
+	public void SetData<T>( ReadOnlySpan<T> data, int elementOffset = 0 ) where T : unmanaged
 	{
 		ObjectDisposedException.ThrowIf( native == IntPtr.Zero, this );
 
 		if ( !SandboxedUnsafe.IsAcceptablePod( typeof( T ) ) )
 			throw new InvalidOperationException( $"{typeof( T )} is not allowed in GPU buffers" );
 
-		SetDataInternal( MemoryMarshal.Cast<T, byte>( data ), elementOffset * Unsafe.SizeOf<T>() );
+		var bytes = MemoryMarshal.Cast<T, byte>( data );
+		ThrowIfOutOfRange( (long)elementOffset * Unsafe.SizeOf<T>(), bytes.Length );
+
+		SetDataInternal( bytes, elementOffset * Unsafe.SizeOf<T>() );
 	}
 
 	/// <summary>
@@ -308,7 +375,7 @@ public partial class GpuBuffer : IValid, IDisposable
 		SetData<T>( CollectionsMarshal.AsSpan( data ), elementOffset );
 	}
 
-	private unsafe void SetDataInternal( Span<byte> data, int elementOffset )
+	private unsafe void SetDataInternal( ReadOnlySpan<byte> data, int elementOffset )
 	{
 		if ( data.Length > ElementCount * ElementSize )
 		{
@@ -334,7 +401,15 @@ public partial class GpuBuffer : IValid, IDisposable
 		if ( !Usage.HasFlag( UsageFlags.Append ) && !Usage.HasFlag( UsageFlags.Structured ) )
 			throw new InvalidOperationException( $"GpuBuffer must be created with UsageFlags.Append or UsageFlags.Structured to CopyStructureCount." );
 
+		destBuffer.ThrowIfOutOfRange( destBufferOffset, sizeof( uint ) );
+
 		RenderTools.CopyGPUBufferHiddenStructureCount( Graphics.Context, native, destBuffer.native, (uint)destBufferOffset );
+	}
+
+	internal void ThrowIfOutOfRange( long offsetInBytes, long sizeInBytes )
+	{
+		if ( offsetInBytes < 0 || sizeInBytes < 0 || offsetInBytes + sizeInBytes > (long)ElementCount * ElementSize )
+			throw new ArgumentOutOfRangeException( nameof( offsetInBytes ), $"Range {offsetInBytes}+{sizeInBytes} exceeds GpuBuffer size {(long)ElementCount * ElementSize}" );
 	}
 
 	/// <summary>
@@ -384,4 +459,49 @@ public class GpuBuffer<T> : GpuBuffer where T : unmanaged
 	public void SetData( Span<T> data, int elementOffset = 0 ) => SetData<T>( data, elementOffset );
 	public void GetDataAsync( Action<ReadOnlySpan<T>> callback ) => GetDataAsync<T>( callback );
 	public void GetDataAsync( Action<ReadOnlySpan<T>> callback, int start, int count ) => GetDataAsync<T>( callback, start, count );
+
+	/// <summary>
+	/// Tell the GPU to copy all elements from this buffer to <paramref name="dst"/>.
+	/// </summary>
+	public void CopyTo( GpuBuffer<T> dst )
+	{
+		CopyTo( dst, 0, 0, ElementCount );
+	}
+
+	/// <inheritdoc cref="CopyTo(GpuBuffer{T},int,int,int)"/>
+	public void CopyTo( GpuBuffer<T> dst, int elementCount )
+	{
+		CopyTo( dst, 0, 0, elementCount );
+	}
+
+	/// <summary>
+	/// Tell the GPU to copy a range of elements from this buffer to <paramref name="dst"/>.
+	/// </summary>
+	public void CopyTo( GpuBuffer<T> dst, int srcElementOffset, int destElementOffset, int elementCount )
+	{
+		ObjectDisposedException.ThrowIf( native == IntPtr.Zero, this );
+		ObjectDisposedException.ThrowIf( dst.native == IntPtr.Zero, dst );
+
+		ArgumentOutOfRangeException.ThrowIfNegative( elementCount );
+
+		ArgumentOutOfRangeException.ThrowIfNegative( srcElementOffset );
+		ArgumentOutOfRangeException.ThrowIfNegative( destElementOffset );
+
+		var srcEndOffset = checked(srcElementOffset + elementCount);
+		var dstEndOffset = checked(destElementOffset + elementCount);
+
+		ArgumentOutOfRangeException.ThrowIfGreaterThan( srcEndOffset, ElementCount );
+		ArgumentOutOfRangeException.ThrowIfGreaterThan( dstEndOffset, dst.ElementCount );
+
+		if ( elementCount == 0 ) return;
+
+		var elementSize = Unsafe.SizeOf<T>();
+		ThrowIfOutOfRange( (long)srcElementOffset * elementSize, (long)elementCount * elementSize );
+		dst.ThrowIfOutOfRange( (long)destElementOffset * elementSize, (long)elementCount * elementSize );
+
+		RenderTools.CopyGPUBuffer( Graphics.Context, native, dst.native,
+			checked((uint)(srcElementOffset * elementSize)),
+			checked((uint)(destElementOffset * elementSize)),
+			checked((uint)(elementCount * elementSize)) );
+	}
 }

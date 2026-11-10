@@ -1,0 +1,107 @@
+﻿@namespace MenuProject.Modals
+@inherits MenuProject.Modals.BaseModal
+@using Sandbox;
+@using Sandbox.UI;
+@using SboxMenu;
+@using System;
+@using Sandbox.Services;
+
+@if (Package is null) return;
+
+@*
+    Reporting a game or map for breaking the rules - what's wrong with it, and the details. The review
+    window's look (front-form-modal), in the danger red.
+*@
+<root>
+    <div class="window">
+
+        <div class="head">
+            <div class="text">
+                <label class="eyebrow">#menu.report.report_a_problem</label>
+                <label class="title">Reporting @Package.Title</label>
+            </div>
+            <div class="grow"></div>
+            <div class="close" onclick=@( () => CloseModal( false ) ) tooltip="#menu.common.close"><i>close</i></div>
+        </div>
+
+        <div class="body">
+
+            @* What counts, before anything else *@
+            <div class="notice">
+                <i>gavel</i>
+                <div class="notice-text">
+                    <label class="notice-title">#menu.report.tell_us_why_you_think_this_breaks_the_s_box_terms_of_service</label>
+                    <label class="notice-body">#menu.report.we_re_fine_with_most_things_please_only_report</label>
+                </div>
+            </div>
+
+            <div class="tags negative">
+                <div class="tags-head">
+                    <label class="section-label">#menu.report.what_s_the_problem</label>
+                    <label class="hint">#menu.report.select_all_that_apply</label>
+                </div>
+                <TagSelector Value:bind=@Reasons />
+            </div>
+
+            <div class="words">
+                <label class="section-label">#menu.report.details</label>
+                <TextEntry @ref=_textEntry Value:bind=@Message Multiline="@true" Placeholder="#menu.report.what_s_wrong_with_it_and_where" />
+            </div>
+
+        </div>
+
+        <div class="footer">
+            <div class="grow"></div>
+            <Button class="cancel" Text="#menu.common.cancel" onclick=@( () => CloseModal( false ) ) />
+            <Button class="post danger" Icon="flag" Text="@(_posting ? "#menu.report.sending" : "#menu.report.submit_report")" Disabled=@( !CanPost ) onclick=@Post />
+        </div>
+
+    </div>
+</root>
+
+@code
+{
+    public Package Package { get; set; }
+    public string PackageIdent { get; set; }
+
+    Reports.Reason Reasons { get; set; }
+    string Message { get; set; }
+
+    TextEntry _textEntry = default;
+    bool _posting;
+
+    bool CanPost => !_posting && !string.IsNullOrWhiteSpace( Message );
+
+    protected override int BuildHash() => System.HashCode.Combine( Package, CanPost, _posting );
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Package = await Package.FetchAsync(PackageIdent, true);
+    }
+
+    protected override void OnAfterTreeRender(bool firstTime)
+    {
+        if ( firstTime )
+        {
+            _textEntry?.Focus();
+        }
+    }
+
+    async Task Post()
+    {
+        if ( !CanPost ) return;
+
+        _posting = true;
+        StateHasChanged();
+
+        try
+        {
+            await MenuUtility.PostReport(Package.FullIdent, Reasons, Message);
+            CloseModal(true);
+        }
+        finally
+        {
+            _posting = false;
+        }
+    }
+}

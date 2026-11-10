@@ -1,0 +1,127 @@
+﻿@using Sandbox
+@using Sandbox.UI
+@using System
+@namespace MenuProject.Settings
+@inherits Panel
+
+<root>
+	<i class="light" @ref="Light">mic</i>
+
+	@* Before the bar, as a slider's number is *@
+	<label class="readout">@($"{Value:0} dB")</label>
+
+	<div class="meter" @ref="Meter">
+		<div class="cover" @ref="Cover"></div>
+		<div class="noise" @ref="NoiseLine"></div>
+		<div class="processed" @ref="ProcessedLine"></div>
+		<div class="threshold" @ref="Line"></div>
+	</div>
+</root>
+
+@code
+{
+	/// <summary>The setting holding the threshold in decibels, dragged by the line.</summary>
+	public SettingItem Item { get; set; }
+
+	float Value
+	{
+		get => Item?.FloatValue ?? Min;
+		set { if ( Item is not null ) Item.FloatValue = value; }
+	}
+
+	const float Min = -80;
+	const float Max = 0;
+
+	/// <summary>The microphone to listen to, empty for the system default. Read every frame so it follows the dropdown before it's applied.</summary>
+	public Func<string> Device { get; set; }
+
+	/// <summary>Is automatic gain control on? Shows lines for the level that's sent after it, and the background noise it's heard. Read every frame so it follows the toggle before it's applied.</summary>
+	public Func<bool> GainControl { get; set; }
+
+	Panel Light;
+	Panel Meter;
+	Panel Cover;
+	Panel NoiseLine;
+	Panel ProcessedLine;
+	Panel Line;
+
+	float shown = float.MinValue;
+	float shownProcessed = float.MinValue;
+	RealTimeSince timeSinceLoud = 10;
+
+	// Matches VoiceManager's gate, so the light is on exactly when voice would be sent
+	const float GateHoldTime = 0.3f;
+
+	// How fast the bar falls, in decibels a second. Rises instantly.
+	const float FallRate = 40.0f;
+
+	public override void Tick()
+	{
+		base.Tick();
+
+		// Keeps the mic open while we're on screen, it closes itself once we stop asking
+		var gainControl = GainControl?.Invoke() ?? false;
+		Sandbox.Internal.AudioSettings.TestMicrophone( Device?.Invoke() ?? "", gainControl );
+
+		// The bar, light and threshold use the level before AGC, because that's what VoiceManager's gate
+		// compares against the threshold. The processed line shows what's actually sent, after AGC. All of
+		// them, and the noise line, are measured the same way, without rumble.
+		var inputLevel = Sandbox.Internal.AudioSettings.MicrophoneInputLevel;
+		var processedLevel = Sandbox.Internal.AudioSettings.MicrophoneLevel;
+
+		// Already smooth, it only creeps up and drops between words, so it doesn't need to fall
+		var noiseLevel = Sandbox.Internal.AudioSettings.MicrophoneNoiseLevel;
+
+		shown = Fall( inputLevel, shown );
+		shownProcessed = Fall( processedLevel, shownProcessed );
+
+		if ( inputLevel > Value )
+			timeSinceLoud = 0;
+
+		// The light is on when voice would be sent, so only show what it'd be sent at then
+		var transmitting = timeSinceLoud < GateHoldTime;
+
+		Light?.SetClass( "on", transmitting );
+		ProcessedLine?.SetClass( "visible", gainControl && transmitting && Fraction( shownProcessed ) > 0 );
+		NoiseLine?.SetClass( "visible", gainControl && Fraction( noiseLevel ) > 0 );
+
+		// Cover everything above the current level, so the gradient shows up to it
+		if ( Cover is not null ) Cover.Style.Left = Length.Percent( Fraction( shown ) * 100 );
+		if ( NoiseLine is not null ) NoiseLine.Style.Left = Length.Percent( Fraction( noiseLevel ) * 100 );
+		if ( ProcessedLine is not null ) ProcessedLine.Style.Left = Length.Percent( Fraction( shownProcessed ) * 100 );
+		if ( Line is not null ) Line.Style.Left = Length.Percent( Fraction( Value ) * 100 );
+	}
+
+	static float Fall( float level, float shown ) => Math.Max( level, shown - FallRate * RealTime.Delta );
+
+	// The readout follows the value, which changes under us rather than through a parameter
+	protected override int BuildHash() => HashCode.Combine( Value );
+
+	float Fraction( float db ) => MathX.LerpInverse( db, Min, Max, true );
+
+	protected override void OnMouseDown( MousePanelEvent e )
+	{
+		base.OnMouseDown( e );
+
+		DragTo();
+		e.StopPropagation();
+	}
+
+	protected override void OnMouseMove( MousePanelEvent e )
+	{
+		base.OnMouseMove( e );
+
+		if ( !HasActive ) return;
+
+		DragTo();
+		e.StopPropagation();
+	}
+
+	void DragTo()
+	{
+		if ( Meter is null || Meter.Box.Rect.Width <= 0 ) return;
+
+		var fraction = Math.Clamp( Meter.MousePosition.x / Meter.Box.Rect.Width, 0, 1 );
+		Value = MathF.Round( MathX.Lerp( Min, Max, fraction ) );
+	}
+}

@@ -1,0 +1,17 @@
+#include "common_samplers.fxc" // Move me to hlsl
+#include "common/GBuffer.hlsl"
+
+#include "common/classes/ClusterCulling.hlsl"
+#include "common/classes/Light.hlsl"
+#include "common/classes/Bindless.hlsl"
+#include "common/classes/Sheet.hlsl"
+#include "common/classes/Depth.hlsl"
+#include "common/classes/Normals.hlsl"
+#include "common/classes/Fog.hlsl"
+#include "common/classes/DynamicReflections.hlsl"
+#include "common/classes/ScreenSpaceAmbientOcclusion.hlsl"
+#include "common/classes/ScreenSpaceTrace.hlsl"
+#include "common/classes/AmbientLight.hlsl"
+#include "common/classes/EnvMap.hlsl"
+#include "common/classes/ToolsVis.hlsl"
+#include "common/classes/Math/_math.hlsl"

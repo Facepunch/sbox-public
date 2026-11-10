@@ -1,0 +1,27 @@
+@using System;
+@using Sandbox.UI;
+@using Sandbox;
+@using SboxMenu;
+@inherits Panel;
+
+<root class="clicky">
+    <Label>@Target?.Title</Label>
+</root>
+
+@code{
+
+    public Sandbox.Package Target;
+
+    protected override void OnParametersSet()
+    {
+        Tooltip = Target?.Title;
+    }
+
+    protected override void OnMouseDown( MousePanelEvent e )
+    {
+        e.StopPropagation();
+
+        Discovery.Clicked( new DiscoveryContext { Surface = "feed" }, Target );
+        Target?.OpenModal();
+    }
+}

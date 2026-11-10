@@ -24,8 +24,11 @@ public static partial class AssetSystem
 	/// <param name="skipIfInstalled">Skip downloading the remote package if any version of this package is already installed.</param>
 	/// <param name="loading"></param>
 	/// <param name="token"></param>
+	/// <exception cref="AggregateException">One or more files failed to download or verify. The package is not marked installed.</exception>
 	public static async Task<Asset> InstallAsync( Package package, bool skipIfInstalled = true, Action<float> loading = null, CancellationToken token = default )
 	{
+		ThreadSafe.AssertIsMainThread();
+
 		if ( package == null )
 			return null;
 
@@ -40,12 +43,25 @@ public static partial class AssetSystem
 			// download the manifest
 			await package.Revision.DownloadManifestAsync( token );
 
-			await DownloadCloudFiles( package, loading, token );
+			using var suppressWatchers = FileWatch.Suppress();
+			var downloaded = await DownloadCloudFiles( package, loading, token );
 
 			foreach ( var file in package.Revision.Manifest.Files )
 			{
 				var fullPath = FileSystem.Cloud.GetFullPath( file.Path );
-				var asset = RegisterFile( fullPath );
+
+				// A file that was already on disk and is already an asset was registered by the asset system's
+				// own scan, and hasn't changed since - registering it again is a slow native call for nothing.
+				// Anything just written, or not known yet, is registered as before.
+				var asset = downloaded.Contains( file.Path ) ? null : FindByPath( fullPath );
+				if ( asset is not null )
+				{
+					asset.TryLoadGameResource( typeof( GameResource ), out _, true );
+				}
+				else
+				{
+					asset = RegisterFile( fullPath );
+				}
 
 				if ( asset is null )
 					continue;
@@ -82,30 +98,16 @@ public static partial class AssetSystem
 			if ( asset is null || asset.Package != package )
 				continue;
 
-			// some files are shared between packages, so check if any other packages need this file
-			var dependants = asset.GetDependants( false );
-			Package requiredBy = null;
-			foreach ( var dependant in dependants )
-			{
-				if ( dependant.Package is null ) continue;
-
-				if ( !IsCloudInstalled( dependant.Package ) )
-					continue;
-
-				requiredBy = dependant.Package;
-				break;
-			}
-
+			var requiredBy = CloudDirectory.FindPackages( fullPath, file ).FirstOrDefault();
 			if ( requiredBy == null )
 			{
-				// no other packages need this, we can delete it
+				// no other package needs this, we can delete it
 				asset.Delete();
 			}
 			else
 			{
 				// update any assets that depend on this to point to the package that remains
 				ReplaceReferences( asset.GetDependants( false ), package, requiredBy );
-
 				asset.Package = requiredBy;
 			}
 		}
@@ -259,32 +261,52 @@ public static partial class AssetSystem
 	}
 
 	/// <summary>
-	/// Initialize the files from the
+	/// Initialize the files from the package manifest. Returns the manifest paths of the files that were written.
 	/// </summary>
-	private static async Task DownloadCloudFiles( Package package, Action<float> progress, CancellationToken token )
+	private static async Task<HashSet<string>> DownloadCloudFiles( Package package, Action<float> progress, CancellationToken token )
 	{
 		long totalSize = package.Revision.Manifest.Files.Sum( x => x.Size );
 		long downloaded = 0;
+		var written = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
+		var failures = new List<Exception>();
 
 		IToolsDll.Current?.RunEvent( "package.download.start", package, token );
 
-		//
-		// Process 16 files at a time
-		//
 		await package.Revision.Manifest.Files.ForEachTaskAsync( async ( e ) =>
 		{
-			await DownloadFile( package, e, token );
-			downloaded += e.Size;
+			if ( token.IsCancellationRequested ) return;
 
-			float frac = (float)((double)downloaded / (double)totalSize);
-			progress?.Invoke( frac );
-			IToolsDll.Current?.RunEvent( "package.download.update", package, frac );
-		}, 16 );
+			try
+			{
+				if ( await DownloadFile( package, e, token ) )
+					written.Add( e.Path );
+
+				downloaded += e.Size;
+
+				float frac = (float)((double)downloaded / (double)totalSize);
+				progress?.Invoke( frac );
+				IToolsDll.Current?.RunEvent( "package.download.update", package, frac );
+			}
+			catch ( Exception ex )
+			{
+				// Keep failures here: ForEachTaskAsync can discard completed faulted tasks.
+				failures.Add( ex );
+			}
+		}, Package.MaxParallelDownloads );
+
+		// All started downloads have finished before the caller releases its watcher suppression.
+		token.ThrowIfCancellationRequested();
+		if ( failures.Count > 0 )
+			throw new AggregateException( $"Failed to install cloud files for {package.FullIdent}", failures );
 
 		IToolsDll.Current?.RunEvent( "package.download.complete", package );
+		return written;
 	}
 
-	static async Task DownloadFile( Package package, ManifestSchema.File entry, CancellationToken token )
+	/// <summary>
+	/// Download a manifest file into the cloud folder. False if it didn't need writing.
+	/// </summary>
+	static async Task<bool> DownloadFile( Package package, ManifestSchema.File entry, CancellationToken token )
 	{
 		ThreadSafe.AssertIsMainThread();
 
@@ -293,32 +315,36 @@ public static partial class AssetSystem
 		//
 		string path = entry.Path.StartsWith( "/" ) ? entry.Path : $"/{entry.Path}";
 		if ( path == $"/{package.FullIdent}/thumb.png" )
-			return;
+			return false;
 
 		//
 		// Ignore assemblies
 		//
 		if ( entry.Path.EndsWith( ".dll" ) )
-			return;
+			return false;
 
 		//
 		// This file exists in core, no need to download it (at this moment)
 		//
 		if ( EngineFileSystem.CoreContent.FileExists( entry.Path ) )
-			return;
+			return false;
 
-		CloudDirectory.AddFile( entry.Path, entry.Crc, entry.Size, package.FullIdent, package.Revision.VersionId );
+		if ( !CloudDirectory.AddFile( entry.Path, entry.Crc, entry.Size, package ) )
+			return false; // unwanted - newer revision already registered
 
-		//
-		// File exists - we should probably check crcs and shit
-		//
-		if ( FileSystem.Cloud.FileExists( entry.Path ) && FileSystem.Cloud.FileSize( entry.Path ) == entry.Size )
-			return;
+		var crc = Convert.ToUInt64( entry.Crc, 16 );
+		if ( await CloudDirectory.IsFileCurrentAsync( entry.Path, crc, entry.Size, token ) )
+			return false;
 
+		// Hashing yields to other installs. Check that a newer package hasn't claimed this path.
+		if ( !CloudDirectory.AddFile( entry.Path, entry.Crc, entry.Size, package ) )
+			return false;
+
+		CloudDirectory.TryGetFile( entry.Path, out var downloadRecord );
+		CloudDirectory.InvalidateFileVerification( entry.Path );
+		var targetFile = FileSystem.Cloud.GetFullPath( entry.Path );
 		var targetPath = System.IO.Path.GetDirectoryName( entry.Path );
 		FileSystem.Cloud.CreateDirectory( targetPath );
-
-		var targetFile = FileSystem.Cloud.GetFullPath( entry.Path );
 
 		if ( System.IO.File.Exists( targetFile ) )
 		{
@@ -332,8 +358,21 @@ public static partial class AssetSystem
 		else
 		{
 			var url = $"{entry.Url}";
-			await Sandbox.Utility.Web.DownloadFile( url, targetFile, token );
+			if ( !await Sandbox.Utility.Web.DownloadFile( url, targetFile, token ) )
+				throw new System.IO.IOException( $"Failed to download cloud file {entry.Path} from {url}" );
 		}
+
+		var isCurrent = await CloudDirectory.IsFileCurrentAsync( entry.Path, crc, entry.Size, token );
+		if ( !CloudDirectory.TryGetFile( entry.Path, out var currentRecord ) || !ReferenceEquals( downloadRecord, currentRecord ) )
+			return false; // superseded during download or verification - leave the newer record alone
+
+		if ( !isCurrent )
+		{
+			CloudDirectory.InvalidateFileVerification( entry.Path );
+			throw new System.IO.InvalidDataException( $"Downloaded cloud file doesn't match its manifest: {entry.Path}" );
+		}
+
+		return true;
 	}
 }
 

@@ -1,4 +1,6 @@
-﻿@keyframes hourglass-flip
+﻿@import "/Platform/_platform.scss";
+
+@keyframes hourglass-flip
 {
 	0%, 10%
 	{
@@ -29,7 +31,7 @@ Toast
 	{
 		border-radius: 50%;
 		font-size: 24px;
-		color: #4a9eff;
+		color: $platform-primary;
 		opacity: 0.8;
 		transition: all 0.1s ease;
 	}
@@ -49,13 +51,34 @@ Toast
 	{
 		font-size: 14px;
 		font-weight: 600;
-		color: rgba( 255, 255, 255, 0.9 );
+		color: $platform-text;
 	}
 
 	.subtitle
 	{
 		font-size: 12px;
-		color: rgba( 255, 255, 255, 0.5 );
+		color: $platform-muted;
+	}
+
+	// Something to do about it, on the end - "Undo"
+	.action
+	{
+		@include platform-text-button( 30px, 12.5px, 15px );
+		@include platform-plain-label( 12.5px );
+		padding: 0 12px;
+		flex-shrink: 0;
+		margin-left: 8px;
+		color: $platform-text;
+
+		&:hover
+		{
+			sound-in: "ui.button.over";
+		}
+
+		&:active
+		{
+			sound-in: "ui.button.press";
+		}
 	}
 
 	&.loading
@@ -86,8 +109,8 @@ Toast
 			i
 			{
 				border-radius: 50%;
-				background-color: rgba( #4a9eff, 0.9 );
-				color: white;
+				background-color: $platform-primary;
+				color: $platform-primary-text;
 				transform: scale( 1.25 );
 			}
 		}

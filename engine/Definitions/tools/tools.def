@@ -1,4 +1,4 @@
-﻿
+﻿#include "tier0/tools_stall_monitor.h"
 managed static class Editor.ManagedTools
 {
 	void InitQt();
@@ -12,18 +12,24 @@ managed static class Editor.ManagedTools
 
 	void GlobalMousePressed( int button );
 	void GlobalMouseReleased( int button );
-	void GlobalMouseWheel( int x, int y );
+	void GlobalMouseWheel( int x, int y, int modifiers );
 	bool GlobalKeyPressed( bool press, QKeyEvent keyEvent );
 	bool GlobalShortcutPressed();
 
 	void OnToolCommand( string str );
+	void RunConsoleCommand( string command );
 	void OnQtHeartbeat();
 }
 
 native accessor g_pToolFramework2
 {
+	void SetOverrideCursor( bool hideCursor );
 	void SetWantsFullFrameRate( int frames );
 	void SetStallMonitorMainThreadWindow( QWidget window );
+	inline void SetStallMonitorPanelWindow( IntPtr window )
+	{
+		ToolsStallMonitor_SetMainThreadWindow( Plat_WindowToOsSpecificHandle( (PlatWindow_t)window ) );
+	}
 	void Tools_RunFrame();
 	void Tools_OnIdle( int i );
 	void Tools_UnloadPending();

@@ -1,116 +1,235 @@
-﻿
+@import "/styles/_theme.scss";
+@import "/Platform/_platform.scss";
+
+// A portrait card lit by its own rarity: the art floats on a radial wash of the rarity
+// colour, and the border takes the same colour once the item is in the cart.
 ItemTile
 {
-    display: flex;
-    flex-direction: row;
-    gap: 10px;
-    width: 550px;
-    background-color: #0003;
-    border-radius: 10px;
-    overflow: hidden;
-    opacity: 0.8;
-}
+	@include platform-surface;
+	flex-shrink: 0;
+	overflow: hidden;
 
-ItemTile:hover
-{
-    opacity: 1;
-}
+	width: 232px;
+	transition: all 0.15s ease;
+	cursor: default;
 
-ItemTile .left
-{
-    width: 180px;
-    height: 180px;
-    flex-shrink: 0;
-}
+	&:hover
+	{
+		transform: translateY( -3px );
 
-ItemTile .right
-{
-    flex-direction: column;
-    padding: 18px;
-    flex-grow: 1;
-}
+		.art
+		{
+			transform: scale( 1.06 );
+		}
+	}
 
-ItemTile .title
-{
-    font-family: poppins;
-    font-weight: bold;
-    font-size: 20px;
-}
+	// Already in the inventory - still there, but stepped back.
+	&.owned
+	{
+		opacity: 0.55;
 
-ItemTile .description
-{
-    font-size: 15px;
-    opacity: 0.2;
-}
+		&:hover { opacity: 0.85; }
+	}
 
-ItemTile .enddate
-{
-    color: #08f;
-    font-weight: bold;
-}
+	.art-wrap
+	{
+		position: relative;
+		width: 100%;
+		aspect-ratio: 1 / 1;
+		align-items: center;
+		justify-content: center;
+		overflow: hidden;
+		background-color: rgba( 0, 0, 0, 0.25 );
+	}
 
-ItemTile .spacer
-{
-    flex-grow: 1;
-}
+	.art
+	{
+		width: 84%;
+		height: 84%;
+		background-size: contain;
+		background-position: center;
+		background-repeat: no-repeat;
+		transition: transform 0.2s ease;
+	}
 
-.bottom .spacer
-{
-    flex-grow: 1;
-}
+	.tags
+	{
+		position: absolute;
+		top: 8px;
+		left: 8px;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 6px;
+	}
 
-.cart
-{
-    flex-direction: row;
-    align-items: center;
-}
+	.tag
+	{
+		@include platform-chip;
 
-.cart .count
-{
-    padding: 0 5px;
-    justify-content: center;
-    align-items: center;
-    min-width: 32px;
-}
+		&.leaving icon
+		{
+			color: $front-trophy;
+		}
 
-.cart .price
-{
-    flex-grow: 1;
-    padding: 0 20px;
-}
+		&.soon label
+		{
+			color: $front-trophy;
+		}
+	}
 
-.cart .adder
-{
-    background-color: #444a;
-    border-radius: 10px;
-    overflow: hidden;
-}
+	.owned-pill
+	{
+		@include platform-chip;
+		position: absolute;
+		right: 10px;
+		bottom: 10px;
+	}
 
-.cart .add, .cart .remove
-{
-    background: linear-gradient( to bottom, rgba(121,153,5,1) 0%, rgba(83,105,4,1) 95%);
-    padding: 7px;
-    color: #D2E885;
-    border-radius: 4px;
-    cursor: pointer;
-}
+	.body
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 0;
+		padding: 12px 14px 14px;
+		gap: 2px;
+		border-top: 1px solid $platform-hairline;
+	}
 
+	.name
+	{
+		font-family: $front-font;
+		font-size: 15px;
+		font-weight: 700;
+		color: $front-heading;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
 
-.cart .add:hover, .cart .remove:hover
-{
-    color: #fff;
-    filter: brightness( 2 );
-}
+	.rarity
+	{
+		font-size: 10.5px;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+	}
 
-.cart .add:active, .cart .remove:active
-{
-    color: #fff;
-    filter: brightness( 3 );
-}
+	.buy
+	{
+		flex-direction: row;
+		align-items: flex-end;
+		justify-content: space-between;
+		margin-top: auto;
+		padding-top: 12px;
+		gap: 8px;
+	}
 
+	.price
+	{
+		flex-direction: column;
+		flex-shrink: 1;
+		min-width: 0;
+		gap: 1px;
+	}
 
-.owned
-{
-    color: red;
-    font-weight: bold;
+	.now-row
+	{
+		flex-direction: row;
+		align-items: center;
+		flex-shrink: 0;
+		gap: 6px;
+	}
+
+	.now
+	{
+		flex-shrink: 0;
+		white-space: nowrap;
+		font-family: $front-font;
+		font-size: 17px;
+		font-weight: 800;
+		color: $front-heading;
+	}
+
+	.off
+	{
+		flex-shrink: 0;
+		white-space: nowrap;
+		padding: 1px 5px;
+		border-radius: 4px;
+		font-family: $front-font;
+		font-size: 10px;
+		font-weight: 700;
+		color: $front-reward;
+		background-color: rgba( 63, 199, 106, 0.14 );
+	}
+
+	.was
+	{
+		flex-shrink: 0;
+		white-space: nowrap;
+		font-family: $front-font;
+		font-size: 11px;
+		font-weight: 600;
+		color: $front-tertiary;
+		text-decoration: line-through;
+	}
+
+	// Sale prices go green so the number itself says "deal", not just the tag.
+	&.on-sale .now
+	{
+		color: $front-reward;
+	}
+
+	.add
+	{
+		@include platform-text-button( 30px, 12.5px, 15px );
+		@include platform-button-primary;
+		justify-content: center;
+		flex-shrink: 0;
+		padding: 0 12px;
+
+		&:hover { sound-in: "ui.button.over"; }
+		&:active { sound-in: "ui.button.press"; }
+	}
+
+	.adder
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 2px;
+	}
+
+	.step
+	{
+		@include platform-tool( 30px, 16px );
+
+		&:hover { sound-in: "ui.button.over"; }
+		&:active { sound-in: "ui.button.press"; }
+	}
+
+	// The count is typeable - a bare entry between the two step buttons. min/max-height,
+	// margin and flex-grow are stated because other menu stylesheets set them on bare
+	// TextEntry and stylesheets are global. No text-align here: centring a TextEntry's
+	// label kills its text render.
+	.count
+	{
+		@include platform-field( 30px );
+		width: 40px;
+		min-height: 0;
+		max-height: 30px;
+		margin: 0;
+		padding: 0 8px;
+		flex-grow: 0;
+		flex-shrink: 0;
+		justify-content: center;
+
+		// The base style grows the label to fill the entry, which left-aligns the number.
+		.content-label
+		{
+			flex-grow: 0;
+			padding: 0;
+			margin: 0;
+		}
+	}
 }

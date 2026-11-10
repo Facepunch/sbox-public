@@ -1,10 +1,9 @@
 ﻿using Sandbox.Internal;
+using Sandbox.MovieMaker;
+using Sandbox.Rendering;
 using System;
 using System.Collections.Immutable;
 using System.Threading;
-using Facepunch.ActionGraphs;
-using Sandbox.ActionGraphs;
-using Sandbox.MovieMaker;
 
 namespace Sandbox;
 
@@ -29,6 +28,14 @@ public static partial class SandboxToolExtensions
 		targetPixmap.UpdateFromPixels( bitmap );
 
 		return true;
+	}
+
+	/// <summary>
+	/// Expose <see cref="SceneCamera"/>.<c>RenderToTexture</c> for tools.
+	/// </summary>
+	public static void RenderToTexture( this SceneCamera camera, Texture texture, Vector2? size, in ViewSetup config )
+	{
+		camera.RenderToTexture( texture, size, in config );
 	}
 
 	/// <summary>
@@ -234,8 +241,9 @@ public static partial class SandboxToolExtensions
 	/// Creates a scope for applying a frame in a <see cref="MoviePlayer"/>.
 	/// Dispose after modifying any properties controlled by the movie.
 	/// </summary>
+	[Obsolete( $"Not needed when using {nameof( MovieUpdateBuilder )}" )]
 	public static IDisposable BeginApplyFrame( this MoviePlayer player )
 	{
-		return player.BeginApplyFrameInternal();
+		return null;
 	}
 }

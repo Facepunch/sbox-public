@@ -60,7 +60,7 @@ namespace Editor
 		/// True when the asset is ready for use locally.
 		/// For cloud assets, download will only start after the first call to <see cref="GetAssetAsync"/>.
 		/// </summary>
-		public bool IsInstalled => _getAssetTask?.IsCompletedSuccessfully ?? false;
+		public bool IsInstalled => _getAssetTask is { IsCompletedSuccessfully: true } && _getAssetTask.Result is not null;
 
 		private Task<Package?>? _getPackageTask;
 		private Task<Asset?>? _getAssetTask;
@@ -111,6 +111,7 @@ namespace Editor
 		/// Completes when the asset is ready to use. For cloud assets, the first call to this
 		/// will start downloading and installing the source package. This is safe to call
 		/// multiple times, the same task will be returned.
+		/// Returns null if the package cannot be installed.
 		/// </summary>
 		public Task<Asset?> GetAssetAsync() => _getAssetTask ??= GetAssetInternalAsync();
 
@@ -123,11 +124,20 @@ namespace Editor
 				return null;
 			}
 
-			var asset = await AssetSystem.InstallAsync( package, loading: progress =>
+			Asset? asset;
+			try
 			{
-				DownloadProgress = progress;
-				ProgressChanged?.Invoke( progress );
-			} );
+				asset = await AssetSystem.InstallAsync( package, loading: progress =>
+				{
+					DownloadProgress = progress;
+					ProgressChanged?.Invoke( progress );
+				} );
+			}
+			catch ( AggregateException ex )
+			{
+				Log.Error( ex, $"Failed to install dragged package: {package.FullIdent}" );
+				return null;
+			}
 
 			DownloadProgress = 1f;
 			ProgressChanged?.Invoke( 1f );

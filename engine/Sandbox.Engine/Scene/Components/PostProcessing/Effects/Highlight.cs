@@ -12,12 +12,13 @@ public sealed class Highlight : BasePostProcess<Highlight>
 {
 	CommandList commands = new();
 
-	private static Material Shader = Material.FromShader( "postprocess/objecthighlight/objecthighlight.shader" );
+	private static Material Shader = Material.FromShader( "shaders/postprocess/objecthighlight/objecthighlight.shader" );
 
 	public override void Render()
 	{
-		var outlines = Scene.GetAll<HighlightOutline>();
-		if ( !outlines.Any() ) return;
+		if ( Scene.Get<HighlightOutline>() is null ) return;
+
+		var outlines = Scene.Query<HighlightOutline>();
 
 		commands.Reset();
 

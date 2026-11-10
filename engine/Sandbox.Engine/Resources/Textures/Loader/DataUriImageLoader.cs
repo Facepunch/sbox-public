@@ -10,7 +10,7 @@ internal static class ImageDataUri
 
 	internal static bool IsAppropriate( string uri )
 	{
-		return uri.StartsWith( InlinePrefixPng ) || uri.StartsWith( InlinePrefixJpeg );
+		return uri.StartsWith( InlinePrefixPng, StringComparison.OrdinalIgnoreCase ) || uri.StartsWith( InlinePrefixJpeg, StringComparison.OrdinalIgnoreCase );
 	}
 
 	internal static Texture Load( string uri, bool warnOnMissing )
@@ -36,7 +36,7 @@ internal static class ImageDataUri
 
 	private static bool TryParseDataImage( string prefix, string image, out byte[] data )
 	{
-		if ( !image.StartsWith( prefix ) )
+		if ( !image.StartsWith( prefix, StringComparison.OrdinalIgnoreCase ) )
 		{
 			data = null;
 			return false;

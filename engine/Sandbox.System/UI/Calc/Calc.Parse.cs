@@ -55,6 +55,6 @@ partial class Calc
 		if ( operands.Count != 1 )
 			throw new Exception( "Invalid expression" );
 
-		return operands.Pop().Value.GetPixels( dimension );
+		return operands.Pop().Value.GetScaledPixels( dimension );
 	}
 }

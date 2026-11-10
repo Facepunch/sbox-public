@@ -34,13 +34,13 @@
     
     &:hover:not( .active )
     {
-        sound-in: ui.button.over;
+        sound-in: "ui.button.over";
         opacity: 0.8;
     }
 
     &:active:not( .active )
     {
-        sound-in: ui.button.press;
+        sound-in: "ui.button.press";
     }
 }
 

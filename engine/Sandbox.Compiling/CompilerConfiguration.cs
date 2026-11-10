@@ -69,14 +69,36 @@ partial class Compiler
 		/// </summary>
 		public HashSet<string> IgnoreFolders { get; set; } = new HashSet<string>();
 
-		bool IsPermittedAssemblyReference( string assemblyName )
+		// References resolve to {name}.dll on disk, so anything that could form a path is refused
+		internal static bool IsSimpleAssemblyName( string assemblyName )
 		{
+			return !string.IsNullOrEmpty( assemblyName )
+				&& assemblyName.All( c => char.IsAsciiLetterOrDigit( c ) || c is '.' or '_' or '-' );
+		}
+
+		internal bool IsPermittedAssemblyReference( string assemblyName )
+		{
+			if ( !IsSimpleAssemblyName( assemblyName ) )
+				return false;
+
 			if ( !Whitelist )
 				return true;
 
 			return assemblyName.StartsWith( "Sandbox.", StringComparison.OrdinalIgnoreCase )
 				|| assemblyName.StartsWith( "Facepunch.", StringComparison.OrdinalIgnoreCase )
 				|| assemblyName == "Microsoft.AspNetCore.Components";
+		}
+
+		/// <summary>
+		/// As <see cref="IsPermittedAssemblyReference"/>, but also allows sibling package assemblies,
+		/// which a code archive legitimately carries as dependencies.
+		/// </summary>
+		internal bool IsPermittedArchiveReference( string assemblyName )
+		{
+			if ( assemblyName?.StartsWith( "package.", StringComparison.OrdinalIgnoreCase ) == true )
+				return IsSimpleAssemblyName( assemblyName );
+
+			return IsPermittedAssemblyReference( assemblyName );
 		}
 
 		/// <summary>

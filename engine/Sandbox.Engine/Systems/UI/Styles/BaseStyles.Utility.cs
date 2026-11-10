@@ -4,9 +4,17 @@ namespace Sandbox.UI
 {
 	public abstract partial class BaseStyles
 	{
+		//
+		// A CSS number is a plain decimal - it never carries a group separator. The TryParse
+		// overloads that take only a format provider allow one, and under the invariant culture
+		// that separator is the comma, so "0,500" comes back as five hundred rather than failing.
+		// A value written out in a comma-decimal culture would land as a wildly wrong number
+		// instead of being rejected, so say which styles we actually accept.
+		//
+
 		static float? ParseFloat( string value )
 		{
-			if ( float.TryParse( value, CultureInfo.InvariantCulture, out var result ) )
+			if ( float.TryParse( value, NumberStyles.Float, CultureInfo.InvariantCulture, out var result ) )
 				return result;
 
 			return null;
@@ -14,7 +22,7 @@ namespace Sandbox.UI
 
 		static int? ParseInt( string value )
 		{
-			if ( int.TryParse( value, CultureInfo.InvariantCulture, out var result ) )
+			if ( int.TryParse( value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var result ) )
 				return result;
 
 			return null;
@@ -22,7 +30,16 @@ namespace Sandbox.UI
 
 		static float? ParseSeconds( string value )
 		{
-			if ( value.EndsWith( 's' ) )
+			value = value.Trim();
+
+			// Milliseconds - must be checked before the bare 's' suffix since "200ms" also ends in 's'.
+			if ( value.EndsWith( "ms" ) )
+			{
+				var ms = ParseFloat( value.Substring( 0, value.Length - 2 ) );
+				return ms.HasValue ? ms.Value / 1000.0f : default;
+			}
+
+			if ( value.EndsWith( "s" ) )
 			{
 				return ParseFloat( value.Substring( 0, value.Length - 1 ) );
 			}
@@ -32,10 +49,26 @@ namespace Sandbox.UI
 
 		static float? ParseAspectRatio( string value )
 		{
+			value = value.Trim();
+
+			// 'none' clears any ratio a less specific rule set. NaN rather than null: null is
+			// "not set" and gets skipped by the cascade, whereas NaN is a real value that the layout engine
+			// reads as no ratio.
+			if ( value.Equals( "none", System.StringComparison.OrdinalIgnoreCase ) )
+				return float.NaN;
+
+			// 'auto' on its own is the same; 'auto 16/9' means fall back to the given ratio.
+			if ( value.StartsWith( "auto", System.StringComparison.OrdinalIgnoreCase ) )
+			{
+				value = value.Substring( 4 ).Trim();
+				if ( value.Length == 0 ) return float.NaN;
+			}
+
 			var vals = value.Split( new[] { ' ', ':', '/' }, StringSplitOptions.RemoveEmptyEntries );
+			if ( vals.Length == 0 ) return null;
 			if ( vals.Length == 1 )
 			{
-				return ParseFloat( value );
+				return ParseFloat( vals[0] );
 			}
 			return ParseFloat( vals[0] ) / ParseFloat( vals[1] );
 		}
@@ -103,6 +136,11 @@ namespace Sandbox.UI
 				o = from;
 				return;
 			}
+
+			// A fully transparent endpoint fades in place. Its rgb is meaningless - usually
+			// black - and lerping through it darkens the whole transition
+			if ( from.a <= 0.0f ) from = to.WithAlpha( 0.0f );
+			else if ( to.a <= 0.0f ) to = from.WithAlpha( 0.0f );
 
 			o = Color.Lerp( from, to, delta );
 		}

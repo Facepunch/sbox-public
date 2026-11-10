@@ -46,8 +46,9 @@ class PreviewSprite : AssetPreview
 	public override void UpdateScene( float cycle, float timeStep )
 	{
 		var texture = spriteRenderer.Texture;
-		if ( texture.Width == 0 || texture.Height == 0 )
+		if ( !texture.IsValid() || texture.Width == 0 || texture.Height == 0 )
 			return;
+
 		var ratio = (float)texture.Width / texture.Height;
 		var pivotOffset = new Vector2( 0.5f, 0.5f ) - (CurrentAnimation?.Origin ?? new Vector2( 0.5f, 0.5f ));
 		if ( ratio > 1 )

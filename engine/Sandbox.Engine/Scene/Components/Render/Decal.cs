@@ -102,6 +102,28 @@ public sealed partial class Decal : Component, Component.ExecuteInEditor, Compon
 	[Property, Range( 0, 1 )]
 	public float AttenuationAngle { get; set; } = 1.0f;
 
+	/// <summary>
+	/// Adjusts the opacity mask based on the height map. At 1 decal is fully visible, and at 0 it goes invisible.
+	/// This setting requires a valid height map on your decals.
+	/// </summary>
+	[Property, Header( "Height Coverage Mask" ), Range( 0, 1 )]
+	public ParticleFloat CoverageAmount { get; set; } = 1.0f;
+
+	/// <summary>
+	/// Controls the smoothness of height coverage. No fade at 0, maximum fade at 0.5.
+	/// </summary>
+	[Property, Range( 0.0f, 0.5f )]
+	public float CoverageRange { get; set; } = 0.07f;
+
+	/// <summary>
+	/// Duration of fade-in transition for this decal when it is spawned, based on height coverage and heightmap texture.
+	/// 0 will make the fade-in instant. You'll need a valid height map texture on the decal for this effect.
+	/// </summary>
+	[Property, Range( 0, 2 )]
+	public float CoverageFadeIn { get; set; } = 0.0f;
+
+	float CoverageFadeInDelta => CoverageFadeIn > 0 ? Math.Clamp( (float)(Time.NowDouble - _startTime) / CoverageFadeIn, 0, 1 ) : 1;
+
 	private uint _sortLayer;
 
 	/// <summary>
@@ -150,7 +172,6 @@ public sealed partial class Decal : Component, Component.ExecuteInEditor, Compon
 
 		_seed = Random.Shared.Int( 10000 );
 		_startTime = Time.NowDouble;
-		_def = Random.Shared.FromList( Decals );
 		_isActive = true;
 
 		UpdateSceneObject();
@@ -284,7 +305,10 @@ public sealed partial class Decal : Component, Component.ExecuteInEditor, Compon
 		_sceneObject.RenderingEnabled = _isActive;
 		_sceneObject.Color = _def.Tint * ColorTint.Evaluate( delta, Rand( 238 ) );
 		_sceneObject.ColorMix = _def.ColorMix * ColorMix.Evaluate( delta, Rand( 324 ) );
+		_sceneObject.BlendMode = _def.BlendMode;
 		_sceneObject.AttenuationAngle = AttenuationAngle;
+		_sceneObject.CoverageAmount = _def.CoverageAmount * CoverageAmount.Evaluate( delta, Rand( 493 ) ) * CoverageFadeInDelta;
+		_sceneObject.CoverageRange = CoverageRange;
 		_sceneObject.ParallaxStrength = Parallax.Evaluate( delta, Rand( 245 ) ) * _def.ParallaxStrength * 0.25f;
 		_sceneObject.SamplerIndex = SamplerState.GetBindlessIndex( new SamplerState { AddressModeU = TextureAddressMode.Clamp, AddressModeV = TextureAddressMode.Clamp, Filter = _def.FilterMode } );
 		_sceneObject.Transform = tx;
@@ -320,10 +344,14 @@ public sealed partial class Decal : Component, Component.ExecuteInEditor, Compon
 	{
 		if ( !Gizmo.IsSelected )
 		{
+			// The direction arrow is only legible up close - skip it (and its cone) when the camera is far.
+			if ( Gizmo.Camera.Position.Distance( Gizmo.Transform.Position ) > 512.0f )
+				return;
+
 			using ( Gizmo.Scope() )
 			{
 				Gizmo.Transform = Gizmo.Transform.WithScale( 1 );
-				Gizmo.Draw.Arrow( Vector3.Zero, Vector3.Forward * 8.0f, 2, 1 );
+				Gizmo.Draw.Arrow( Vector3.Zero, Vector3.Forward * 8.0f, 2, 0.5f );
 			}
 		}
 		else if ( _def is not null )

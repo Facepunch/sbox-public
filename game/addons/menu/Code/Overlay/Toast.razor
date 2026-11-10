@@ -12,21 +12,56 @@
         <div class="title">@Title</div>
         <div class="subtitle">@Message</div>
     </div>
+
+    @* Something to do about it - "Undo". Its own click, not the toast's dismiss-on-click *@
+    @if ( !string.IsNullOrEmpty( ActionText ) )
+    {
+        <div class="action" onmousedown=@RunAction>@ActionText</div>
+    }
 </root>
 
 @code
 {
+    /// <summary>
+    /// The notification's primary message.
+    /// </summary>
     [Parameter] public string Title { get; set; }
+
+    /// <summary>
+    /// Supporting detail displayed beneath the title.
+    /// </summary>
     [Parameter] public string Message { get; set; }
+
+    /// <summary>
+    /// Material icon identifying the notification.
+    /// </summary>
     [Parameter] public string Icon { get; set; }
+
+    /// <summary>
+    /// Presentation variants from the shared toast stylesheet.
+    /// </summary>
     [Parameter] public string ExtraClasses { get; set; }
+
+    /// <summary>
+    /// A button on the end of it - "Undo". Pressing it runs <see cref="OnAction"/> and puts the toast away.
+    /// </summary>
+    [Parameter] public string ActionText { get; set; }
+
+    [Parameter] public Action OnAction { get; set; }
+
+    void RunAction( PanelEvent e )
+    {
+        e.StopPropagation();
+        OnAction?.Invoke();
+        Dismiss();
+    }
 
     internal ToastArea Area;
 
     /// <summary>
     /// Dismisses this toast.
     /// </summary>
-    public void Dismiss() => Area.Dismiss( this );
+    public void Dismiss() => Area?.Dismiss( this );
 
-    protected override int BuildHash() => HashCode.Combine( Title, Message, Icon );
+    protected override int BuildHash() => HashCode.Combine( Title, Message, Icon, ExtraClasses, ActionText );
 }

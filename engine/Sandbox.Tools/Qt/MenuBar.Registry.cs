@@ -41,7 +41,7 @@ public partial class MenuBar : Widget
 			var shortcut = method.GetCustomAttribute<ShortcutAttribute>();
 			var o = menuBar.AddOption( attr.Path, attr.Icon, () => method.Invoke( null, null ), shortcut?.Identifier ?? null );
 
-			Unregister += () => o.Destroy();
+			Unregister += () => o?.Destroy();
 		}
 
 		if ( member is PropertyDescription property )

@@ -4,6 +4,10 @@ using System.Linq;
 
 namespace Facepunch.InteropGen;
 
+/// <summary>
+/// Emits the native (C++) header: the declarations of the managed classes native imports, split into
+/// one #include'd sub-file per class.
+/// </summary>
 internal class NativeHeaderWriter : BaseWriter
 {
 	public NativeHeaderWriter( Definition definitions, string targetName ) : base( definitions, targetName )
@@ -12,16 +16,16 @@ internal class NativeHeaderWriter : BaseWriter
 
 	public override void Generate()
 	{
-		string HEADER_DEF = "_" + definitions.Filename.Replace( ".def", "" ).Replace( ".", "_" ).ToUpper() + "_H";
+		string headerDef = "_" + definitions.Filename.Replace( ".def", "" ).Replace( ".", "_" ).ToUpper() + "_H";
 
-		WriteLine( $"#ifndef {HEADER_DEF}" );
-		WriteLine( $"#define {HEADER_DEF}" );
+		WriteLine( $"#ifndef {headerDef}" );
+		WriteLine( $"#define {headerDef}" );
 		WriteLine( $"#pragma once" );
 		WriteLine( "" );
 
 		foreach ( string inc in definitions.Includes.Distinct() )
 		{
-			if ( ShouldSkipInclude( inc, "native-header" ) )
+			if ( Skip.ShouldSkipInclude( inc ) )
 			{
 				continue;
 			}
@@ -40,20 +44,14 @@ internal class NativeHeaderWriter : BaseWriter
 
 			WriteLine( "" );
 
-			foreach ( string ns in definitions.ManagedNamespace.Split( "." ) )
+			string[] namespaces = definitions.ManagedNamespace.Split( "." );
+
+			foreach ( string ns in namespaces )
 			{
 				StartBlock( $"namespace {ns}" );
 			}
 
 			{
-				if ( definitions.InitFrom == "Native" )
-				{
-					//WriteLine( "//" );
-					//WriteLine( "// Should be called once at startup to set up all of our function pointers etc" );
-					//WriteLine( "//" );
-					//WriteLine( "void SetupInterop( ::INetRuntime* host );" );
-				}
-
 				WriteLine( "" );
 				WriteLine( "" );
 				WriteLine( "//" );
@@ -68,7 +66,7 @@ internal class NativeHeaderWriter : BaseWriter
 				WriteLine( "//" );
 				WriteLine( "void Shutdown();" );
 			}
-			foreach ( string ns in definitions.ManagedNamespace.Split( "." ) )
+			foreach ( string ns in namespaces )
 			{
 				EndBlock();
 			}
@@ -89,9 +87,9 @@ internal class NativeHeaderWriter : BaseWriter
 		WriteLine( "//" );
 		WriteLine();
 
-		foreach ( Class c in definitions.Classes.Where( x => x.Native == false ).OrderBy( x => x.NativeOrder( definitions.Classes ) ) )
+		foreach ( Class c in definitions.ManagedClasses.OrderBy( x => x.NativeOrder() ) )
 		{
-			if ( ShouldSkip( c, "native-header" ) )
+			if ( Skip.ShouldSkip( c ) )
 			{
 				continue;
 			}
@@ -113,14 +111,8 @@ internal class NativeHeaderWriter : BaseWriter
 				WriteLine( "public:" );
 				Indent++;
 
-				string sttic = "static ";
-				string pv = "";
-
 				if ( !c.Static )
 				{
-					sttic = "";
-					pv = " const";
-
 					WriteLine( $"{c.NativeName}() {{ m_ObjectId = 0;  }}" );
 					WriteLine( $"{c.NativeName}( unsigned int id ) {{ m_ObjectId = id;  }}" );
 					WriteLine( $"unsigned int m_ObjectId = 0;" );
@@ -131,8 +123,8 @@ internal class NativeHeaderWriter : BaseWriter
 
 				foreach ( Function f in c.Functions )
 				{
-					sttic = (c.Static || f.Static) ? "static " : "";
-					pv = (c.Static || f.Static) ? "" : " const";
+					string sttic = (c.Static || f.Static) ? "static " : "";
+					string pv = (c.Static || f.Static) ? "" : " const";
 
 					IEnumerable<string> nativeArgs = f.Parameters.Select( x => $"{x.NativeType} {x.Name}" );
 					string nativeArgS = string.Join( ",", nativeArgs );

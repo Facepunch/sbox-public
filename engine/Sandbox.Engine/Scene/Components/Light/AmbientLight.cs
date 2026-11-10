@@ -4,7 +4,7 @@ namespace Sandbox;
 /// Adds an ambient light to the scene, applied globally.
 /// </summary>
 [Title( "Color Ambient Light" )]
-[Category( "Rendering" )]
+[Category( "Light" )]
 [Icon( "visibility" )]
 [EditorHandle( "materials/gizmo/directionallight.png" )]
 public class AmbientLight : Component, Component.ExecuteInEditor

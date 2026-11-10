@@ -1,120 +1,387 @@
+@import "/Platform/_platform.scss";
 
+// The gallery at the top of a game's page - the big view, a strip of thumbnails under it
 Media
 {
-    gap: 8px;
-    flex-direction: column;
-    flex-shrink: 0;
-    flex-grow: 0;
-    align-items: center;
-    overflow: hidden;
-    width: 100%;
-    padding: 16px;
+	// 9, plus the strip's own 3 of padding for the selected outline - 12 between the big view and
+	// the thumbnails, the same as between the thumbnails and what's under them
+	gap: 9px;
+	flex-direction: column;
+	flex-shrink: 0;
+	flex-grow: 0;
+	justify-content: center;
+	align-items: center;
+	overflow: hidden;
+	width: 100%;
+	padding: 24px 24px 0 24px;
+
+	i
+	{
+		font-family: "Material Icons";
+	}
 }
 
+// A 16:9 frame, rounded and outlined like the menu's panels - no shadow, it showed as a dark smudge under it.
+// The shot sits in it whole; its blurred copy fills round it
 Media > .main
 {
-    flex-grow: 0;
-    flex-shrink: 0;
-    width: 100%;
-    overflow: hidden;
-    justify-content: center;
-    align-items: center;
-    aspect-ratio: 16/9;
-    padding: 1rem;
+	position: relative;
+	flex-grow: 0;
+	flex-shrink: 0;
+	width: 100%;
+	aspect-ratio: 16/9;
+	overflow: hidden;
+	justify-content: center;
+	align-items: center;
+	border-radius: $front-radius;
+	border: $front-border-width solid $front-border;
+	background-color: #0B0D14;
 
-    img, VideoPanel
-    {
-        flex-shrink: 1;
-        max-width: 100%;
-        max-height: 100%;
-        border-radius: 8px;
-    }
+	// Only the one shot, so no strip under it - the strip's 3 of its own, so the description sits
+	// the same distance off it
+	&:last-child
+	{
+		margin-bottom: 3px;
+	}
 
-    .missing
-    {
-        flex-grow: 1;
-        height: 100%;
-        border-radius: 32px;
-        background-color: rgba(white, 0.01);
-        justify-content: center;
-        align-items: center;
-        color: rgba(white, 0.6);
+	.backdrop
+	{
+		position: absolute;
+		left: -40px;
+		right: -40px;
+		top: -40px;
+		bottom: -40px;
+		background-size: cover;
+		background-position: center;
+		filter: blur( 28px ) brightness( 0.45 ) saturate( 1.2 );
+	}
 
-        i
-        {
-            font-size: 72px;
-        }
-    }
+	img, VideoPanel
+	{
+		position: relative;
+		flex-shrink: 1;
+		max-width: 100%;
+		max-height: 100%;
+	}
+
+	// A YouTube video, in YouTube's own player - the whole frame. It gets no clicks: the controls over it are ours
+	MenuWebPanel.youtube
+	{
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		pointer-events: none;
+	}
+
+	// Over the picture - a click plays or pauses it
+	.yt-surface
+	{
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		cursor: pointer;
+	}
+
+	// Our controls along the bottom - always there while it's paused, while it plays only when the mouse is over it
+	.yt-controls
+	{
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		flex-direction: row;
+		align-items: center;
+		gap: 10px;
+		padding: 28px 14px 12px 14px;
+		background-image: linear-gradient( 0deg, rgba( 0, 0, 0, 0.8 ) 20%, rgba( 0, 0, 0, 0 ) );
+		transition: opacity 0.2s ease;
+
+		&.playing
+		{
+			opacity: 0;
+		}
+	}
+
+	&:hover .yt-controls
+	{
+		opacity: 1;
+	}
+
+	.yt-button
+	{
+		@include platform-tool( 32px, 22px );
+
+		&:hover
+		{
+			sound-in: "ui.button.over";
+		}
+
+		&:active
+		{
+			sound-in: "ui.button.press";
+		}
+	}
+
+	.yt-time
+	{
+		flex-shrink: 0;
+		font-size: 12px;
+		font-weight: 600;
+		color: rgba( 255, 255, 255, 0.85 );
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
+
+	// Where it's at - what's loaded behind what's played. Click to go there
+	.yt-scrub
+	{
+		position: relative;
+		flex-grow: 1;
+		height: 5px;
+		border-radius: 999px;
+		background-color: rgba( 255, 255, 255, 0.2 );
+		cursor: pointer;
+		transition: height 0.1s ease;
+
+		&:hover
+		{
+			height: 8px;
+		}
+
+		.yt-buffered, .yt-played
+		{
+			position: absolute;
+			left: 0;
+			top: 0;
+			bottom: 0;
+			border-radius: 999px;
+		}
+
+		.yt-buffered
+		{
+			background-color: rgba( 255, 255, 255, 0.3 );
+		}
+
+		.yt-played
+		{
+			background-color: $platform-primary;
+		}
+	}
+
+	// A video waiting to be played (no autoplay) - its art filling the frame, a big play button on it
+	.video-poster
+	{
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		align-items: center;
+		justify-content: center;
+		background-size: cover;
+		background-position: center;
+		cursor: pointer;
+
+		.play-big
+		{
+			position: absolute;
+			width: 64px;
+			height: 64px;
+			align-items: center;
+			justify-content: center;
+			border-radius: 50%;
+			background-color: rgba( 10, 12, 18, 0.7 );
+			border: 2px solid rgba( 255, 255, 255, 0.25 );
+			transition: all 0.12s ease;
+
+			i
+			{
+				font-size: 36px;
+				color: white;
+				text-align: center;
+			}
+		}
+
+		&:hover
+		{
+			sound-in: "ui.button.over";
+
+			.play-big
+			{
+				background-color: $platform-primary;
+				border-color: $platform-primary-hover;
+				transform: scale( 1.08 );
+			}
+		}
+	}
+
+	// Waiting on the full package - the frame, pulsing
+	.loading
+	{
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		animation: media-loading 1.2s ease-in-out infinite alternate;
+	}
+
+	// Nothing to show, and why - centred on the game's blurred art
+	.notice
+	{
+		position: relative;
+		flex-direction: column;
+		align-items: center;
+		gap: 4px;
+		max-width: 70%;
+
+		i
+		{
+			font-size: 36px;
+			color: $platform-muted;
+			margin-bottom: 6px;
+		}
+
+		.notice-title
+		{
+			font-size: 15px;
+			font-weight: 700;
+			color: $platform-text;
+		}
+
+		.notice-text
+		{
+			font-size: 13px;
+			color: $platform-muted;
+			text-align: center;
+		}
+	}
 }
 
-    Media > .list
-    {
-        overflow-x: scroll;
-        overflow-y: hidden;
-        gap: 16px;
-        padding: 0 1rem;
-        height: 50px;
-        justify-content: flex-start;
-        max-width: 100%;
+@keyframes media-loading
+{
+	0%
+	{
+		background-color: rgba( 255, 255, 255, 0.02 );
+	}
 
-        > .screenshot
-        {
-            height: 100%;
-            aspect-ratio: 16/9;
-            flex-shrink: 0;
-            cursor: pointer;
-            border-radius: 6px;
-            overflow: hidden;
-            position: relative;
-            opacity: 0.5;
+	100%
+	{
+		background-color: rgba( 255, 255, 255, 0.06 );
+	}
+}
 
-            i
-            {
-                position: absolute;
-                top: 0px;
-                left: 0px;
-                bottom: 0px;
-                right: 0px;
-                justify-content: center;
-                align-items: center;
-                text-align: center;
-                font-size: 52px;
-                pointer-events: none;
-            }
+// Holds the strip - no fade over its end, a thumbnail cut off there says there's more. A fade had to be
+// the colour of whatever's behind the gallery, which isn't the same everywhere it's shown
+Media > .strip
+{
+	flex-shrink: 0;
+	max-width: 100%;
+}
 
-            &:hover
-            {
-                opacity: 0.9;
-                sound-in: ui.button.over;
-            }
+// The strip - bigger thumbnails, the one you're on outlined in the menu blue, the rest dimmed and
+// a touch desaturated so it stands out
+Media > .strip > .list
+{
+	overflow-x: scroll;
+	overflow-y: visible;
+	gap: 6px;
+	max-width: 100%;
 
-            &.selected
-            {
-                border: 2px solid #3472e6;
-                opacity: 1;
-            }
-        }
-    }
+	// No scrollbar - the last thumbnail cut off at the end says there's more
+	scrollbar-width: none;
+	height: 69px;
+
+	// A little round them for the selected one's outline
+	padding: 3px;
+
+	> .screenshot
+	{
+		height: 100%;
+		aspect-ratio: 16/9;
+		flex-shrink: 0;
+		cursor: pointer;
+		border-radius: 6px;
+		overflow: hidden;
+		position: relative;
+		background-color: #0B0D14;
+		border: $front-border-width solid $front-border;
+		opacity: 0.55;
+		filter: saturate( 0.6 );
+		transition: opacity 0.12s ease, filter 0.12s ease;
+
+		img
+		{
+			background-size: cover;
+			width: 100%;
+			height: 100%;
+		}
+
+		// A video's thumbnail - a round badge with the play glyph, not a bare glyph on the art
+		.play-badge
+		{
+			position: absolute;
+			left: 0;
+			top: 0;
+			right: 0;
+			bottom: 0;
+			align-items: center;
+			justify-content: center;
+			background-color: rgba( 0, 0, 0, 0.25 );
+			pointer-events: none;
+
+			i
+			{
+				width: 26px;
+				height: 26px;
+				font-size: 18px;
+				text-align: center;
+				border-radius: 50%;
+				background-color: rgba( 10, 12, 18, 0.75 );
+				color: white;
+				padding-top: 4px;
+			}
+		}
+
+		&:hover
+		{
+			opacity: 0.9;
+			filter: saturate( 1 );
+			sound-in: "ui.button.over";
+		}
+
+		&.selected
+		{
+			opacity: 1;
+			filter: saturate( 1 );
+			outline: 2px solid $platform-primary;
+		}
+	}
+}
 
 .skeleton
 {
-    background-color: #333;
-    border-radius: 32px;
-    animation: skeleton 1.5s infinite linear;
-    animation-direction: alternate;
-    background-color: pink;
-    width: 100%;
-    height: 100%;
+	background-color: #333;
+	border-radius: 32px;
+	animation: skeleton 1.5s infinite linear;
+	animation-direction: alternate;
+	background-color: pink;
+	width: 100%;
+	height: 100%;
 }
 
 @keyframes skeleton
 {
-    0%
-    {
-        background-color: rgba(#333, 0.2);
-    }
-    100%
-    {
-        background-color: rgba(#444, 0.2);
-    }
+	0%
+	{
+		background-color: rgba(#333, 0.2);
+	}
+	100%
+	{
+		background-color: rgba(#444, 0.2);
+	}
 }

@@ -1,36 +1,113 @@
-﻿$primary: #3472e6 !default;
+@import '/styles/_Theme.scss';
+@import "/Platform/_platform.scss";
 
-
-.partymember
+// A face in the party card - round, as the seat beside it is. The leader wears a
+// little crown on the corner, and whoever's talking lights up green.
+PartyMember
 {
-    color: $primary;
-    border: 2px solid $primary;
-    width: 48px;
-    height: 48px;
-    margin-right: 10px;
-    position: relative;
-    align-items: center;
-    justify-content: center;
-    border-radius: 100px;
-    padding: 0px;
-    cursor: pointer;
-    background-position: center;
-    background-size: cover;
-}
+	position: relative;
+	flex-shrink: 0;
+	pointer-events: all;
+	cursor: pointer;
 
-.crown
-{
-    position: absolute;
-    top: -14px;
-    font-size: 14px;
-}
+	// Size comes from the deck, which shrinks faces as the party fills up
+	// Beats the online/in-game outlines the avatar has elsewhere - here the ring means talking
+	Avatar .avatar, Avatar .avatar.online, Avatar .avatar.ingame
+	{
+		border-radius: 50%;
+		outline: 2px solid transparent;
+		background-color: rgba( 0, 0, 0, 0.35 );
+		transition: outline 0.1s ease;
+	}
 
-.talking
-{
-    position: absolute;
-    top: -34px;
-    font-size: 14px;
-    background-color: #000a;
-    padding: 3px;
-    border-radius: 8px;
+	&:hover Avatar .avatar, &:hover Avatar .avatar.online, &:hover Avatar .avatar.ingame
+	{
+		outline: 2px solid rgba( 255, 255, 255, 0.35 );
+	}
+
+	&.talking Avatar .avatar, &.talking Avatar .avatar.online, &.talking Avatar .avatar.ingame
+	{
+		outline: 2px solid $primary-green;
+	}
+
+	> .crown
+	{
+		pointer-events: none;
+		position: absolute;
+		top: -9px;
+		right: -7px;
+		font-size: 14px;
+		transform: rotate( 18deg );
+	}
+
+	// Still downloading - a bit faded, so who's holding things up stands out
+	&.busy Avatar .avatar
+	{
+		opacity: 0.75;
+	}
+
+	// Tucked onto the bottom-right corner - a small dark chip, what they're up to in its glyph's colour with a ring of
+	// it: plain to see, without sitting over the face. Download percent, or ready / in the game / stuck.
+	> .status-badge
+	{
+		pointer-events: none;
+		position: absolute;
+		bottom: -3px;
+		right: -3px;
+		width: 14px;
+		height: 14px;
+		align-items: center;
+		justify-content: center;
+		border-radius: 50%;
+		border: 0.5px solid rgba( $platform-primary, 0.6 );
+		background-color: rgba( 12, 15, 22, 0.92 );
+
+		// A square of its own as wide as the glyph, an even pixel in from each side of the chip's 13 inside -
+		// a 10px one landed on half a pixel and the narrow ones (!) sat off to a side
+		icon
+		{
+			width: 11px;
+			height: 11px;
+			font-size: 11px;
+			text-align: center;
+			justify-content: center;
+			align-items: center;
+			color: $platform-primary;
+		}
+
+		// Every digit as wide as the next, so a climbing percent doesn't jiggle
+		label
+		{
+			font-size: 8.5px;
+			font-weight: 700;
+			font-variant-numeric: tabular-nums;
+			color: $platform-primary;
+		}
+
+		// A download percent's as wide as "100%" all the way up, so it doesn't twitch as the number changes
+		&.percent
+		{
+			width: 26px;
+		}
+
+		&.ready
+		{
+			border-color: rgba( $platform-reward, 0.6 );
+
+			icon, label
+			{
+				color: $platform-reward;
+			}
+		}
+
+		&.failed
+		{
+			border-color: rgba( $platform-danger, 0.7 );
+
+			icon, label
+			{
+				color: $platform-danger;
+			}
+		}
+	}
 }

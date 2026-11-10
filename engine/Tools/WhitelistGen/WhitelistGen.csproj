@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <AssemblyName>WhitelistGen</AssemblyName>
+    <RootNamespace>Sandbox.WhitelistGen</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Reuse the analyzer's own Roslyn signature formatter (SymbolSignature) so generated rules
+         cannot drift from what AccessWalker matches against. -->
+    <ProjectReference Include="..\..\Sandbox.Compiling\Sandbox.Compiling.csproj" />
+  </ItemGroup>
+
+</Project>

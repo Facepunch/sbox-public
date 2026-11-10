@@ -11,13 +11,14 @@ public partial class SceneDock : Widget
 {
 	public SceneEditorSession Session => _editorSession.GameSession ?? _editorSession;
 	private SceneEditorSession _editorSession;
+	private SceneViewWidget _sceneView;
 
 	public SceneDock( SceneEditorSession session ) : base( null )
 	{
 		_editorSession = session;
 
 		Layout = Layout.Row();
-		Layout.Add( new SceneViewWidget( session, this ) );
+		_sceneView = Layout.Add( new SceneViewWidget( session, this ) );
 		DeleteOnClose = true;
 
 		Name = session.Scene.Source?.ResourcePath;
@@ -42,6 +43,10 @@ public partial class SceneDock : Widget
 	{
 		base.OnDestroyed();
 
+		// Stopping the session sends scene.stop, which must not rebuild the view while Qt is tearing us down
+		_sceneView?.Destroy();
+		_sceneView = null;
+
 		_editorSession.Destroy();
 		_editorSession = null;
 	}
@@ -53,6 +58,11 @@ public partial class SceneDock : Widget
 		if ( visible )
 		{
 			Session.MakeActive();
+
+			// Focus the viewport for keybinds without activating an editor whose tabs changed in the background.
+			var viewport = _sceneView?.LastSelectedViewportWidget;
+			if ( viewport.IsValid() )
+				viewport.Focus( activateWindow: false );
 		}
 	}
 

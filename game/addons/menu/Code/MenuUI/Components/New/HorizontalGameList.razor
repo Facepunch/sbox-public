@@ -1,5 +1,6 @@
 @using Sandbox;
 @using Sandbox.UI;
+@using SboxMenu;
 @using System.Globalization
 @namespace Sandbox.UI
 @inherits Panel
@@ -19,14 +20,14 @@
         {
             @foreach (var item in Result.Packages)
             {
-                <GameCard Size=@Size Package=@(item) />
+                <MenuProject.UI.PackageCard Size=@Size Package=@item Clicked="@(() => item.OpenModal())" RightClicked="@(() => MenuHelpers.OpenPackageMenu(this, item))" />
             }
         }
     </div>
 </root>
 
 @code {
-    [Property] public GameCard.SizeTypes Size { get; set; } = GameCard.SizeTypes.Default;
+    [Property] public MenuProject.UI.PackageCard.SizeType Size { get; set; } = MenuProject.UI.PackageCard.SizeType.Default;
     [Property] public string Icon { get; set; }
     [Property] public string Title { get; set; }
     [Property] public string Query { get; set; }

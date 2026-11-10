@@ -5,7 +5,9 @@
   "Decibels": 70,
   "SelectionMode": "Random",
   "Sounds": [
-    "sounds/impacts/melee/bluntweapon/glass-1.vsnd"
+    "sounds/impacts/melee/bluntweapon/glass-1.vsnd",
+    "sounds/impacts/melee/bluntweapon/glass-2.vsnd",
+    "sounds/impacts/melee/bluntweapon/glass-3.vsnd"
   ],
   "Occlusion": true,
   "Reflections": true,

@@ -29,7 +29,7 @@ public class ProjectConfig
 	/// The human readable title, for example "Sandbox", "Counter-Strike"
 	/// </summary>
 	[Display( GroupName = "Setup", Order = -100, Name = "Title", Description = "The human readable title, for example \"Sandbox\", \"Counter - Strike\"" )]
-	[MaxLength( 32 )]
+	[MaxLength( 64 )]
 	[MinLength( 3 )]
 	public string Title { get; set; }
 
@@ -52,7 +52,7 @@ public class ProjectConfig
 	[Display( GroupName = "Setup", Order = -100, Name = "Package Ident", Description = "The ident of this addon. A short name with no special characters." )]
 	[MaxLength( 64 )]
 	[MinLength( 2 )]
-	[RegularExpression( @"^[a-z0-9_\-]+$", ErrorMessage = "Lower case letters and underscores, no spaces or other special characters" )]
+	[RegularExpression( @"^[a-z0-9_\-]+$", ErrorMessage = "Lower case letters, numbers, dashes and underscores, no spaces or other special characters" )]
 	public string Ident { get; set; }
 
 	/// <summary>
@@ -82,9 +82,17 @@ public class ProjectConfig
 	public bool IncludeSourceFiles { get; set; }
 
 	/// <summary>
-	/// A list of paths in which to look for extra assets to upload with the addon. Note that compiled asset files are automatically included.
+	/// Paths and wildcard patterns for files to always publish. Matching assets and their dependencies are included
+	/// even when PublishUsedAssetsOnly is enabled. Matching loose files are included unchanged.
 	/// </summary>
 	public string Resources { get; set; }
+
+	/// <summary>
+	/// Publish assets referenced by configured scenes and project settings, assets in the Resources folder at the
+	/// root of each asset directory, explicit Resources patterns, and their dependencies. Code is not scanned.
+	/// Enabled for new games; existing projects continue publishing all assets until they opt in.
+	/// </summary>
+	public bool PublishUsedAssetsOnly { get; set; }
 
 	/// <summary>
 	/// A list of packages that this package depends on. These should be installed alongside this package.
@@ -123,6 +131,12 @@ public class ProjectConfig
 	/// Whether or not this project is standalone-only, and supports disabling the whitelist, compiling with /unsafe, etc.
 	/// </summary>
 	public bool IsStandaloneOnly { get; set; }
+
+	/// <summary>
+	/// Shared preferences for agent instructions and local editor automation.
+	/// </summary>
+	[Hide]
+	public ProjectAISettings AI { get; set; } = new();
 
 	/// <summary>
 	/// Custom key-value storage for this project.

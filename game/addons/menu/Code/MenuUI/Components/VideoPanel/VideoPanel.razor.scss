@@ -1,15 +1,27 @@
-﻿
 .videopanel
 {
-    width: 100%;
+	width: 100%;
 
-    flex-grow: 1;
-    flex-shrink: 0;
+	flex-grow: 1;
+	flex-shrink: 0;
 
-    // Where we want the video controls
-    align-items: flex-end;
-    padding: 16px;
-    justify-content: center;
-    background-position: center;
-    background-size: cover;
+	// The controls along the very bottom edge, full width
+	align-items: flex-end;
+	justify-content: center;
+	background-position: center;
+	background-size: cover;
+	overflow: hidden;
+
+	// Hidden until you're over the video - and up for good while it's paused
+	.videocontrols
+	{
+		opacity: 0;
+		transition: opacity 0.15s ease;
+	}
+
+	&:hover .videocontrols,
+	.videocontrols.paused
+	{
+		opacity: 1;
+	}
 }

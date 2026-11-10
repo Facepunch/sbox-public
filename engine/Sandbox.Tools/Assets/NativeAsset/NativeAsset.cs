@@ -1,4 +1,6 @@
-﻿namespace Editor;
+﻿using System;
+
+namespace Editor;
 
 [SkipHotload]
 internal class NativeAsset : Asset
@@ -11,7 +13,7 @@ internal class NativeAsset : Asset
 		AssetId = native.GetAssetIndexInt();
 	}
 
-	internal override void UpdateInternals( bool compileImmediately = true )
+	internal override void UpdateInternals()
 	{
 		if ( AssetType.AssetTypeCache.TryGetValue( native.GetAssetTypeId(), out var type ) )
 			AssetType = type;
@@ -19,13 +21,22 @@ internal class NativeAsset : Asset
 		Assert.NotNull( AssetType ); // agh? Maybe we mock up an unknown type type?
 
 		AssetId = native.GetAssetIndexInt();
+		Guid = native.GetGuid();
 		Name = native.GetFriendlyName_Transient().NormalizeFilename( false );
 		RelativePath = native.GetRelativePath_Transient( AssetLocation_t.Invalid ).NormalizeFilename( false );
 		Path = System.IO.Path.ChangeExtension( RelativePath, AssetType.FileExtension ).NormalizeFilename( false );
-		AbsolutePath = native.GetAbsolutePath_Transient( AssetLocation_t.Invalid ).NormalizeFilename( false ); // invalid means get any
-		AbsoluteSourcePath = native.GetAbsolutePath_Transient( AssetLocation_t.Content ).NormalizeFilename( false ); // invalid means get any
-		AbsoluteCompiledPath = native.GetAbsolutePath_Transient( AssetLocation_t.Game ).NormalizeFilename( false ); // invalid means get any
+		// These name a file on disk, so they keep the case the disk uses - lower-casing them
+		// only works where the filesystem doesn't care.
+		AbsolutePath = Sandbox.CaseInsensitivePhysicalFileSystem.ResolveNativeCasing( native.GetAbsolutePath_Transient( AssetLocation_t.Invalid ).NormalizeFilename( false, false ) ); // invalid means get any
+		AbsoluteSourcePath = Sandbox.CaseInsensitivePhysicalFileSystem.ResolveNativeCasing( native.GetAbsolutePath_Transient( AssetLocation_t.Content ).NormalizeFilename( false, false ) );
+		AbsoluteCompiledPath = Sandbox.CaseInsensitivePhysicalFileSystem.ResolveNativeCasing( native.GetAbsolutePath_Transient( AssetLocation_t.Game ).NormalizeFilename( false, false ) );
 		IsDeleted = string.IsNullOrEmpty( AbsolutePath );
+
+		if ( MetaData is { } meta && NativeEngine.g_pResourceSystem.NeedsGuidWrite( RelativePath ) )
+		{
+			// DB has minted a new guid for this asset, make sure it's persisted in the .meta
+			meta.Set( "guid", Guid );
+		}
 
 		if ( AssetSystem.CloudDirectory is not null )
 		{
@@ -44,17 +55,14 @@ internal class NativeAsset : Asset
 		// Reload all tags.
 		LoadUserTags();
 		UpdateAutoTags();
-
-		if ( compileImmediately && !IsCompiled && AssetType.IsGameResource )
-		{
-			Compile( false );
-		}
 	}
 
 	/// <summary>
 	/// Can this asset be recompiled?
 	/// </summary>
 	public override bool CanRecompile => native.CanRecompile();
+
+	internal override bool EnsureCurrentForLoad() => IAssetSystem.EnsureAssetCurrentForLoad( native );
 
 	internal override void OnRemoved()
 	{
@@ -71,7 +79,7 @@ internal class NativeAsset : Asset
 	public override string GetCompiledFile( bool absolute = false )
 	{
 		if ( absolute )
-			return native.GetAbsolutePath_Transient( AssetLocation_t.Game ).NormalizeFilename( false );
+			return Sandbox.CaseInsensitivePhysicalFileSystem.ResolveNativeCasing( native.GetAbsolutePath_Transient( AssetLocation_t.Game ).NormalizeFilename( false, false ) );
 
 		return native.GetRelativePath_Transient( AssetLocation_t.Game ).NormalizeFilename( false );
 	}
@@ -84,7 +92,7 @@ internal class NativeAsset : Asset
 	public override string GetSourceFile( bool absolute = false )
 	{
 		if ( absolute )
-			return native.GetAbsolutePath_Transient( AssetLocation_t.Content ).NormalizeFilename( false );
+			return Sandbox.CaseInsensitivePhysicalFileSystem.ResolveNativeCasing( native.GetAbsolutePath_Transient( AssetLocation_t.Content ).NormalizeFilename( false, false ) );
 
 		return native.GetRelativePath_Transient( AssetLocation_t.Content ).NormalizeFilename( false );
 	}
@@ -116,11 +124,20 @@ internal class NativeAsset : Asset
 
 		if ( nativeEditor != null )
 		{
+			if ( !EngineTools.EnsureAvailable( nativeEditor ) )
+			{
+				return;
+			}
+
 			native.OpenInSecondaryTool( nativeEditor );
 			return;
 		}
 
 		if ( IAssetEditor.OpenInEditor( this, out _ ) )
+		{
+			return;
+		}
+		if ( AssetType == AssetType.Model && !EngineTools.EnsureAvailable( "modeldoc_editor" ) )
 		{
 			return;
 		}
@@ -147,6 +164,16 @@ internal class NativeAsset : Asset
 	{
 		var list = NativeEngine.CUtlVectorAsset.Create( 4, 4 );
 		native.GetAssetsReferencingMe( list, deep );
+		return GetAssetList( list, true );
+	}
+
+	/// <summary>
+	/// Returns assets that are parents of this asset.
+	/// </summary>
+	public override List<Asset> GetParents( bool deep )
+	{
+		var list = NativeEngine.CUtlVectorAsset.Create( 4, 4 );
+		native.GetAssetsParentingMe( list, deep );
 		return GetAssetList( list, true );
 	}
 
@@ -251,6 +278,9 @@ internal class NativeAsset : Asset
 			EditorEvent.Run( "compile.shader", Path );
 			return true;
 		}
+
+		if ( !CanRecompile )
+			return false;
 
 		return IAssetSystem.RecompileAsset( native, full );
 	}

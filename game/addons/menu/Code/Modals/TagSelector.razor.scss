@@ -1,0 +1,16 @@
+@import "/Platform/_platform.scss";
+
+.tag-selector
+{
+	display: flex;
+	justify-content: center;
+	gap: 0.5rem;
+	flex-wrap: wrap;
+}
+
+.tag
+{
+	@include platform-choice;
+	flex-grow: 0;
+	flex-basis: auto;
+}

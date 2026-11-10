@@ -25,7 +25,7 @@ partial record PropertySignal<T>
 
 partial record PropertyBlock<T>
 {
-	[return: NotNullIfNotNull( nameof(block) )]
+	[return: NotNullIfNotNull( nameof( block ) )]
 	public static PropertyBlock<T>? operator *( MovieTransform transform, PropertyBlock<T>? block ) =>
 		transform != MovieTransform.Identity && block is not null
 			? new PropertyBlock<T>( transform * block.Signal, transform * block.TimeRange )

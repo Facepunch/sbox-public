@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -7,35 +6,21 @@ using System.Text.RegularExpressions;
 
 namespace Facepunch.InteropGen;
 
+/// <summary>
+/// A method exposed across the interop boundary, with its return type, parameters and any [special]
+/// markers (new/delete). May carry an inline native body or a hand-written call replacement.
+/// </summary>
 public class Function
 {
-	// Cache for compiled regex - thread-safe and compiled for better performance
-	private static readonly Regex _functionRegex = new(
+	private static readonly Regex FunctionRegex = new(
 		@"^(static)?[\s+]?(.+?)\s+([a-zA-Z0-9_]+?)\(((.+?))?\)( const)?;(.+)?",
-		RegexOptions.IgnoreCase | RegexOptions.Compiled
+		RegexOptions.IgnoreCase
 	);
 
-	// Cache parsed function signatures to avoid re-parsing
-	private static readonly ConcurrentDictionary<string, ParsedFunction> _parseCache = new();
-
-	// Struct to hold parsed components efficiently
-	private readonly struct ParsedFunction
-	{
-		public readonly bool IsStatic;
-		public readonly string Name;
-		public readonly string ReturnType;
-		public readonly string Parameters;
-		public readonly string Special;
-
-		public ParsedFunction( bool isStatic, string name, string returnType, string parameters, string special )
-		{
-			IsStatic = isStatic;
-			Name = name;
-			ReturnType = returnType;
-			Parameters = parameters;
-			Special = special;
-		}
-	}
+	private static readonly Regex InlineFunctionRegex = new(
+		@"^inline\s(static)?[\s+]?(.+?)\s+([a-zA-Z0-9_]+?)\(((.+?))?\)( const)?(.+)?",
+		RegexOptions.IgnoreCase
+	);
 
 	public bool Native { get; set; }
 	public bool Static { get; set; }
@@ -50,60 +35,44 @@ public class Function
 	public bool HasReturn => !Return.IsVoid;
 
 	/// <summary>
-	/// If set, then on the managed side we'll print this instead of the function
+	/// If set, the native side emits this hand-written body instead of generating the call.
 	/// </summary>
-	public Func<string> ManagedCallReplacement { get; set; }
 	public string NativeCallReplacement { get; set; }
 
 	internal static Function Parse( string line )
 	{
-		string trimmedLine = line.Trim();
-
-		// Check cache first
-		if ( _parseCache.TryGetValue( trimmedLine, out ParsedFunction cached ) )
-		{
-			return CreateFunctionFromCached( cached );
-		}
-
-		// Parse with regex only if not cached
-		Match match = _functionRegex.Match( trimmedLine );
-		if ( !match.Success )
-		{
-			return null;
-		}
-
-		ParsedFunction parsed = new(
-			isStatic: match.Groups[1].Success,
-			name: match.Groups[3].Value.Trim(),
-			returnType: match.Groups[2].Value,
-			parameters: match.Groups[4].Value,
-			special: match.Groups[7].Value
-		);
-
-		// Cache the result if cache isn't too large
-		if ( _parseCache.Count < 1000 )
-		{
-			_ = _parseCache.TryAdd( trimmedLine, parsed );
-		}
-
-		return CreateFunctionFromCached( parsed );
+		Match match = FunctionRegex.Match( line.Trim() );
+		return match.Success ? FromMatch( match ) : null;
 	}
 
-	private static Function CreateFunctionFromCached( ParsedFunction parsed )
+	/// <summary>
+	/// An inline function carries its native body inline in the .def file (parsed separately by BodyParser).
+	/// </summary>
+	internal static Function ParseInline( string line )
+	{
+		Match match = InlineFunctionRegex.Match( line.Trim() );
+		return match.Success ? FromMatch( match ) : null;
+	}
+
+	private static Function FromMatch( Match match )
 	{
 		Function f = new()
 		{
 			Native = true,
-			Static = parsed.IsStatic,
-			Name = parsed.Name,
-			Return = Arg.Parse( parsed.ReturnType + " returnvalue" ),
-			Parameters = Arg.ParseMany( parsed.Parameters )
+			Static = match.Groups[1].Success,
+			Name = match.Groups[3].Value.Trim(),
+			Return = Arg.Parse( match.Groups[2].Value + " returnvalue" ),
+			Parameters = Arg.ParseMany( match.Groups[4].Value )
 		};
 
-		f.AddSpecial( parsed.Special );
+		f.AddSpecial( match.Groups[7].Value );
 		return f;
 	}
 
+	/// <summary>
+	/// Parse the "[delete] [new]" style specials that can follow a function declaration.
+	/// Each token has at most one surrounding pair of brackets stripped.
+	/// </summary>
 	internal void AddSpecial( string value )
 	{
 		if ( string.IsNullOrEmpty( value ) )
@@ -111,35 +80,23 @@ public class Function
 			return;
 		}
 
-		// Use Span<char> for more efficient parsing on .NET 9
-		ReadOnlySpan<char> span = value.AsSpan();
-
-		// Split more efficiently without allocating intermediate strings
-		int start = 0;
-		for ( int i = 0; i <= span.Length; i++ )
+		foreach ( string token in value.Split( ' ', StringSplitOptions.RemoveEmptyEntries ) )
 		{
-			if ( i == span.Length || span[i] == ' ' )
+			string part = token;
+
+			if ( part.Length > 0 && part[0] == '[' )
 			{
-				if ( i > start )
-				{
-					ReadOnlySpan<char> part = span[start..i];
-					// Trim brackets more efficiently
-					if ( part.Length > 0 && (part[0] == '[' || part[0] == ' ') )
-					{
-						part = part[1..];
-					}
+				part = part[1..];
+			}
 
-					if ( part.Length > 0 && (part[^1] == ']' || part[^1] == ' ') )
-					{
-						part = part[..^1];
-					}
+			if ( part.Length > 0 && part[^1] == ']' )
+			{
+				part = part[..^1];
+			}
 
-					if ( part.Length > 0 )
-					{
-						Special.Add( part.ToString() );
-					}
-				}
-				start = i + 1;
+			if ( part.Length > 0 )
+			{
+				Special.Add( part );
 			}
 		}
 	}
@@ -149,17 +106,17 @@ public class Function
 		return Name == "GetType" ? "GetType_Native" : Name;
 	}
 
-	internal List<string> attr = [];
+	internal List<string> Attributes = [];
 
 	internal void TakeAttributes( List<string> attributes )
 	{
-		attr.AddRange( attributes );
+		Attributes.AddRange( attributes );
 		attributes.Clear();
 	}
 
 	internal bool HasAttribute( string name )
 	{
-		return attr.Contains( name, StringComparer.OrdinalIgnoreCase ) || Class.HasAttribute( name );
+		return Attributes.Contains( name, StringComparer.OrdinalIgnoreCase ) || Class.HasAttribute( name );
 	}
 
 	/// <summary>
@@ -193,8 +150,7 @@ public class Function
 			Class = Class,
 			MangledName = MangledName,
 			Special = Special,
-			attr = attr,
-			ManagedCallReplacement = ManagedCallReplacement,
+			Attributes = Attributes,
 			NativeCallReplacement = NativeCallReplacement,
 			Body = Body
 		};

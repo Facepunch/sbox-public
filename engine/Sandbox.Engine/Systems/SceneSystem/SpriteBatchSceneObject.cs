@@ -1,5 +1,6 @@
 ﻿namespace Sandbox.Rendering;
 
+using NativeEngine;
 using System.Buffers;
 using System.Runtime.InteropServices;
 
@@ -19,10 +20,16 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 
 	private static ComputeShader SpriteComputeShader = new( "sprite/sprite_cs" );
 	private static ComputeShader SortComputeShader = new( "sort_cs" );
-	private readonly RenderAttributes SortComputeShaderAttributes = new();
+	private static readonly uint[] ZeroUint = [0];
 	private readonly GpuBuffer<uint> SpriteAtomicCounter;
+	private readonly CommandList _commandList = new( "SpriteBatch" );
 
 	private static Material SpriteMaterial = Material.FromShader( "sprite/sprite_ps.shader" );
+
+	/// <summary>
+	/// Whether any sprite in the batch is lit, as of its last upload.
+	/// </summary>
+	internal bool HasLitSprites { get; private set; }
 
 	internal Dictionary<Guid, SpriteGroup> SpriteGroups = [];
 
@@ -42,7 +49,8 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		CastShadows = 0x1,
 		FlipX = 0x2,
 		FlipY = 0x4,
-		SnapToFrame = 0x8
+		SnapToFrame = 0x8,
+		Text = 0x10
 	}
 
 	// GPU Resident representation of a sprite
@@ -54,7 +62,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		public Vector2 Scale;
 		public uint TintColor;      // Packed RGBA8
 		public uint OverlayColor;   // Packed RGBA8
-		public int TextureHandle;
+		public int TextureHandle;   // a text sprite carries its block placement in TextureHandle, SamplerIndex, Sequence and SequenceTime, see IBatchedParticleSpriteRenderer
 		public int RenderFlags;
 		public uint BillboardMode;
 		public uint FogStrengthCutout;  // Lower 16 bits: fog, upper 16 bits: alpha cutout
@@ -69,6 +77,17 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		public Vector3 Velocity = Vector3.Zero;
 		public Vector4 BlendSheetUV;
 		public Vector2 Offset;
+		public uint CameraFade;     // Two halves: lower 16 bits near distance, upper 16 bits far distance
+
+		/// <summary>
+		/// Bindless linear normal texture, or zero for ordinary sprites in the same batch.
+		/// </summary>
+		public int NormalTextureHandle;
+
+		/// <summary>
+		/// Maximum distortion in render pixels before normal-map scaling, independent of opacity.
+		/// </summary>
+		public float RefractionStrength;
 		public SpriteData()
 		{
 
@@ -90,6 +109,14 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 			ushort fogPacked = (ushort)(fogStrength.Clamp( 0f, 1f ) * 65535f);
 			ushort alphaPacked = (ushort)(alphaCutout.Clamp( 0f, 1f ) * 65535f);
 			return (uint)(fogPacked | (alphaPacked << 16));
+		}
+
+		// Pack the two camera fade distances (world units) into a single uint as halves
+		internal static uint PackCameraFade( float near, float far )
+		{
+			uint nearPacked = BitConverter.HalfToUInt16Bits( (Half)MathF.Max( near, 0f ) );
+			uint farPacked = BitConverter.HalfToUInt16Bits( (Half)MathF.Max( far, 0f ) );
+			return nearPacked | (farPacked << 16);
 		}
 	}
 	struct SpriteVertex
@@ -164,11 +191,8 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 	bool GPUUploadQueued = false;
 
 	// Set by UploadOnHost after building the staging buffer,
-	// consumed by RenderSceneObject to do the actual GPU upload within a valid render context.
-	bool _gpuUploadPending = false;
-	int _pendingComponentCount = 0;
+	// consumed by RenderSceneObject for early-out guard.
 	int _pendingSpriteCount = 0;
-	int _pendingSplotCount = 0;
 
 	GpuBuffer<SpriteData> SpriteBuffer;
 	GpuBuffer<SpriteData> SpriteBufferOut;
@@ -180,6 +204,16 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 
 	SpriteData[] SpriteDataBuffer = null!;
 	bool SpriteDataBufferRented = false;
+
+
+	int _renderInstanceCount;
+	bool _pendingHasText, _renderHasText;
+	ulong _renderFrame; // the text buffers the sprites' placements point into
+	bool _renderIsSorted;
+	bool _renderFiltered;
+	bool _renderAdditive;
+	bool _renderOpaque;
+	bool _renderRefraction;
 
 	public SpriteBatchSceneObject( Scene scene ) : base( scene.SceneWorld )
 	{
@@ -225,6 +259,20 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 	}
 
 
+	internal void Destroy()
+	{
+		Delete(); // native removal waits for frame end, so also empty what RenderSceneObject replays
+		_pendingSpriteCount = 0;
+		_commandList.Reset();
+		SpriteAtomicCounter.Dispose();
+		VertexBuffer.Dispose();
+		IndexBuffer.Dispose();
+		SpriteBuffer?.Dispose();
+		SpriteBufferOut?.Dispose();
+		GPUSortingBuffer?.Dispose();
+		GPUDistanceBuffer?.Dispose();
+	}
+
 	/// <summary>
 	/// Resizes GPU buffers to the nearest power of 2
 	/// </summary>
@@ -247,6 +295,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		CurrentBufferSize = (int)System.Numerics.BitOperations.RoundUpToPowerOf2( (uint)allocationSize );
 
 		SpriteBuffer?.Dispose();
+		SpriteBufferOut?.Dispose();
 		GPUSortingBuffer?.Dispose();
 		GPUDistanceBuffer?.Dispose();
 
@@ -260,7 +309,102 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 
 	// Pre-allocated buffer to avoid GC allocations in hot path
 	private SpriteRenderer[] _componentBuffer = new SpriteRenderer[16];
-	private readonly object _boundsLock = new();
+	private (Vector3 mins, Vector3 maxs)[] _componentBounds = new (Vector3, Vector3)[16];
+
+	/// <summary>
+	/// Write component sprite <paramref name="i"/> into the staging buffer, and its bounds into <see cref="_componentBounds"/>.
+	/// </summary>
+	void WriteComponentSprite( int i )
+	{
+		var c = _componentBuffer[i];
+		var transform = c.WorldTransform;
+		var spriteSize = c.Size;
+		var rotation = c.WorldRotation.Angles().AsVector3();
+
+		if ( c.Billboard == SpriteRenderer.BillboardMode.Always || c.Billboard == SpriteRenderer.BillboardMode.YOnly )
+		{
+			// We only care about roll in this case
+			rotation.x = 0;
+			rotation.y = 0;
+		}
+
+		spriteSize = spriteSize.Abs();
+
+		// Adjust for aspect ratio
+		var aspectRatio = (c.Texture?.Width ?? 1) / (float)(c.Texture?.Height ?? 1);
+		var size = spriteSize / 2f;
+		var pos = transform.Position;
+		var scale = new Vector3( transform.Scale.x * size.x, transform.Scale.y, transform.Scale.z * size.y );
+		if ( aspectRatio < 1f )
+			scale *= new Vector3( aspectRatio, 1f, 1f );
+		else
+			scale *= new Vector3( 1f, 1f, 1f / aspectRatio );
+
+		pos = pos.RotateAround( transform.Position, transform.Rotation );
+		transform = transform.WithScale( scale ).WithPosition( pos );
+
+		var renderFlags = SpriteFlags.None;
+		if ( c.FlipHorizontal ) renderFlags |= SpriteFlags.FlipX;
+		if ( c.FlipVertical ) renderFlags |= SpriteFlags.FlipY;
+
+		var rgbe = c.Color.ToRgbe();
+		var alpha = (byte)(c.Color.a.Clamp( 0.0f, 1.0f ) * 255.0f);
+		var tintColor = new Color32( rgbe.r, rgbe.g, rgbe.b, alpha );
+
+		var overlayRgbe = c.OverlayColor.ToRgbe();
+		var overlayAlpha = (byte)(c.OverlayColor.a.Clamp( 0.0f, 1.0f ) * 255.0f);
+		var overlayColor = new Color32( overlayRgbe.r, overlayRgbe.g, overlayRgbe.b, overlayAlpha );
+
+		int lightingFlag = c.Lighting ? 1 : 0;
+		uint packedExponent = (uint)(((byte)lightingFlag) | rgbe.a << 16);
+
+		uint packedFogAndAlpha = SpriteData.PackFogAndAlphaCutout( c.FogStrength, c.AlphaCutoff );
+
+		var spritePos = transform.Position;
+		var spriteScale = new Vector2( transform.Scale.x, transform.Scale.z );
+
+		SpriteDataBuffer[i] = new SpriteData
+		{
+			Position = spritePos,
+			Rotation = new( rotation.x, rotation.y, rotation.z ),
+			Scale = spriteScale,
+			TextureHandle = c.Texture is null ? Texture.Invalid.Index : c.Texture.Index,
+			TintColor = tintColor.RawInt,
+			OverlayColor = overlayColor.RawInt,
+			RenderFlags = (int)renderFlags,
+			BillboardMode = (uint)c.Billboard,
+			FogStrengthCutout = packedFogAndAlpha,
+			Lighting = packedExponent,
+			DepthFeather = c.DepthFeather,
+			CameraFade = SpriteData.PackCameraFade( c.CameraFadeNear, c.CameraFadeFar ),
+			NormalTextureHandle = c.IsRefractive ? c.NormalTexture.Index : 0,
+			RefractionStrength = MathF.Max( c.RefractionStrength, 0.0f ),
+			SamplerIndex = SamplerState.GetBindlessIndex( sampler with { Filter = c.TextureFilter } ),
+			Offset = c.Pivot
+		};
+
+		var pivot = c.Pivot;
+		if ( c.Billboard == SpriteRenderer.BillboardMode.None )
+		{
+			var right = transform.Rotation.Right;
+			var up = transform.Rotation.Up;
+			var center = spritePos
+				+ right * ((pivot.x - 0.5f) * 2.0f * spriteScale.x)
+				+ up * ((pivot.y - 0.5f) * 2.0f * spriteScale.y);
+			var extent = right.Abs() * spriteScale.x
+				+ up.Abs() * spriteScale.y
+				+ transform.Rotation.Forward.Abs() * 0.01f;
+			_componentBounds[i] = (center - extent, center + extent);
+			return;
+		}
+
+		float halfSize = MathF.Max(
+			MathF.Max( pivot.x, 1f - pivot.x ) * 2f * spriteScale.x,
+			MathF.Max( pivot.y, 1f - pivot.y ) * 2f * spriteScale.y
+		);
+		var expand = new Vector3( halfSize, halfSize, halfSize );
+		_componentBounds[i] = (spritePos - expand, spritePos + expand);
+	}
 
 	public void RegisterSprite( Guid ownerId, SpriteData[] sharedSprites, int offset, int count, int splotCount, BBox bounds )
 	{
@@ -308,16 +452,8 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 
 	public void OnChanged()
 	{
-		int requiredSize = SplotCount + SpriteCount;
-
 		// Clear cached splot count to force recalculation
 		_splotCount = 0;
-
-		// Only resize if we actually need more space
-		if ( requiredSize > CurrentBufferSize )
-		{
-			ResizeBuffers( requiredSize );
-		}
 
 		GPUUploadQueued = true;
 	}
@@ -333,7 +469,19 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		}
 
 		int spriteCount = SpriteCount;
+		int splotCount = SplotCount;
 		int componentCount = Components.Count;
+
+		bool hasRefraction = false;
+		bool hasLighting = false;
+
+		// Resize GPU buffers here on the main thread, not in OnChanged,
+		// because RenderSceneObject may be using them concurrently on a render thread.
+		int requiredSize = splotCount + spriteCount;
+		if ( requiredSize > CurrentBufferSize )
+		{
+			ResizeBuffers( requiredSize );
+		}
 
 		// Staging buffer only needs to hold component sprites — particle groups
 		// are uploaded directly from SharedSprites in RenderSceneObject.
@@ -364,254 +512,183 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 			foreach ( var component in Components.Values )
 			{
 				_componentBuffer[index++] = component;
+				hasRefraction |= component.IsRefractive;
+				hasLighting |= component.Lighting;
 			}
 
-			object boundsLock = _boundsLock;
-			Parallel.For<(Vector3 mins, Vector3 maxs)>(
-				0, componentCount,
-				() => (new Vector3( float.MaxValue, float.MaxValue, float.MaxValue ),
-					   new Vector3( float.MinValue, float.MinValue, float.MinValue )),
-				( i, _, local ) =>
-				{
-					var c = _componentBuffer[i];
-					var transform = c.WorldTransform;
-					var spriteSize = c.Size;
-					var rotation = c.WorldRotation.Angles().AsVector3();
+			if ( _componentBounds.Length < componentCount )
+			{
+				_componentBounds = new (Vector3, Vector3)[componentCount * 2];
+			}
 
-					if ( c.Billboard == SpriteRenderer.BillboardMode.Always || c.Billboard == SpriteRenderer.BillboardMode.YOnly )
-					{
-						// We only care about roll in this case
-						rotation.x = 0;
-						rotation.y = 0;
-					}
+			JobDispatcher.For( componentCount, this, static ( batch, i ) => batch.WriteComponentSprite( i ) );
 
-					spriteSize = spriteSize.Abs();
-
-					// Adjust for aspect ratio
-					var aspectRatio = (c.Texture?.Width ?? 1) / (float)(c.Texture?.Height ?? 1);
-					var size = spriteSize / 2f;
-					var pos = transform.Position;
-					var scale = new Vector3( transform.Scale.x * size.x, transform.Scale.y, transform.Scale.z * size.y );
-					if ( aspectRatio < 1f )
-						scale *= new Vector3( aspectRatio, 1f, 1f );
-					else
-						scale *= new Vector3( 1f, 1f, 1f / aspectRatio );
-
-					pos = pos.RotateAround( transform.Position, transform.Rotation );
-					transform = transform.WithScale( scale ).WithPosition( pos );
-
-					var renderFlags = SpriteFlags.None;
-					if ( c.FlipHorizontal ) renderFlags |= SpriteFlags.FlipX;
-					if ( c.FlipVertical ) renderFlags |= SpriteFlags.FlipY;
-
-					var rgbe = c.Color.ToRgbe();
-					var alpha = (byte)(c.Color.a.Clamp( 0.0f, 1.0f ) * 255.0f);
-					var tintColor = new Color32( rgbe.r, rgbe.g, rgbe.b, alpha );
-
-					var overlayRgbe = c.OverlayColor.ToRgbe();
-					var overlayAlpha = (byte)(c.OverlayColor.a.Clamp( 0.0f, 1.0f ) * 255.0f);
-					var overlayColor = new Color32( overlayRgbe.r, overlayRgbe.g, overlayRgbe.b, overlayAlpha );
-
-					int lightingFlag = c.Lighting ? 1 : 0;
-					uint packedExponent = (uint)(((byte)lightingFlag) | rgbe.a << 16);
-
-					uint packedFogAndAlpha = SpriteData.PackFogAndAlphaCutout( c.FogStrength, c.AlphaCutoff );
-
-					var spritePos = transform.Position;
-					var spriteScale = new Vector2( transform.Scale.x, transform.Scale.z );
-
-					SpriteDataBuffer[i] = new SpriteData
-					{
-						Position = spritePos,
-						Rotation = new( rotation.x, rotation.y, rotation.z ),
-						Scale = spriteScale,
-						TextureHandle = c.Texture is null ? Texture.Invalid.Index : c.Texture.Index,
-						TintColor = tintColor.RawInt,
-						OverlayColor = overlayColor.RawInt,
-						RenderFlags = (int)renderFlags,
-						BillboardMode = (uint)c.Billboard,
-						FogStrengthCutout = packedFogAndAlpha,
-						Lighting = packedExponent,
-						DepthFeather = c.DepthFeather,
-						SamplerIndex = SamplerState.GetBindlessIndex( sampler with { Filter = c.TextureFilter } ),
-						Offset = c.Pivot
-					};
-
-					var pivot = c.Pivot;
-					float halfSize = MathF.Max(
-						MathF.Max( pivot.x, 1f - pivot.x ) * 2f * spriteScale.x,
-						MathF.Max( pivot.y, 1f - pivot.y ) * 2f * spriteScale.y
-					);
-					var expand = new Vector3( halfSize, halfSize, halfSize );
-					return (Vector3.Min( local.mins, spritePos - expand ), Vector3.Max( local.maxs, spritePos + expand ));
-				},
-				local =>
-				{
-					lock ( boundsLock )
-					{
-						boundsMin = Vector3.Min( boundsMin, local.mins );
-						boundsMax = Vector3.Max( boundsMax, local.maxs );
-					}
-				}
-			);
+			// Combine in a fixed order, so the bounds are the same whichever threads wrote them.
+			for ( int i = 0; i < componentCount; i++ )
+			{
+				boundsMin = Vector3.Min( boundsMin, _componentBounds[i].mins );
+				boundsMax = Vector3.Max( boundsMax, _componentBounds[i].maxs );
+			}
 
 		}
+
+		_pendingHasText = false;
 
 		foreach ( var spriteGroup in SpriteGroups.Values )
 		{
 			boundsMin = Vector3.Min( boundsMin, spriteGroup.Bounds.Mins );
 			boundsMax = Vector3.Max( boundsMax, spriteGroup.Bounds.Maxs );
+
+			// A group is one particle renderer, so its first sprite describes text and refraction for the whole group.
+			_pendingHasText |= spriteGroup.Count > 0 && (spriteGroup.SharedSprites[spriteGroup.Offset].RenderFlags & (int)SpriteFlags.Text) != 0;
+			hasRefraction |= spriteGroup.Count > 0 && spriteGroup.SharedSprites[spriteGroup.Offset].NormalTextureHandle != 0;
+			hasLighting |= spriteGroup.Count > 0 && (spriteGroup.SharedSprites[spriteGroup.Offset].Lighting & 0xFF) != 0;
 		}
+
+		HasLitSprites = hasLighting;
+
+		// Mixed batches keep a single sort order. Only request the shared copy and stencil while a sprite needs them.
+		Flags.WantsFrameBufferCopy = hasRefraction;
 
 		// Use a degenerate zero-size bounds for empty batches so they can be frustum-culled.
 		Bounds = spriteCount > 0 ? new BBox( boundsMin, boundsMax ) : default;
 
-		// Defer the actual GPU upload to RenderSceneObject where we have a valid render context,
-		// avoiding expensive per-call CRenderContextPtr creation.
-		_pendingComponentCount = componentCount;
 		_pendingSpriteCount = spriteCount;
-		_pendingSplotCount = SplotCount;
-		_gpuUploadPending = true;
 		GPUUploadQueued = false;
+
+		BuildCommandList( spriteCount, splotCount, componentCount );
 	}
 
 	private const int GroupSize = 256;
 	private const int MaxDimGroups = 1024;
 	private const int MaxDimThreads = GroupSize * MaxDimGroups;
 
-	private void PreSort()
-	{
-		if ( _pendingSpriteCount < 2 ) return;
-
-		// First we clear the buffers to prepare for sorting
-		SortComputeShaderAttributes.SetCombo( "D_CLEAR", 1 );
-		SortComputeShaderAttributes.Set( "SortBuffer", GPUSortingBuffer );
-		SortComputeShaderAttributes.Set( "DistanceBuffer", GPUDistanceBuffer );
-		SortComputeShaderAttributes.Set( "Count", CurrentBufferSize );
-		SortComputeShader.DispatchWithAttributes( SortComputeShaderAttributes, CurrentBufferSize, 1, 1 );
-
-		Graphics.ResourceBarrierTransition( GPUSortingBuffer, ResourceState.UnorderedAccess, ResourceState.UnorderedAccess );
-		Graphics.ResourceBarrierTransition( GPUDistanceBuffer, ResourceState.UnorderedAccess, ResourceState.UnorderedAccess );
-	}
-
 	/// <summary>
-	/// Performs a GPU bitonic sort
+	/// Build the command list that will be replayed on the render thread.
 	/// </summary>
-	private void Sort()
+	private void BuildCommandList( int spriteCount, int splotCount, int componentCount )
 	{
-		// Distance buffer is already filled by GPU compute shader, no need to update from CPU
-		Graphics.ResourceBarrierTransition( GPUDistanceBuffer, Sandbox.Rendering.ResourceState.Common );
+		_commandList.Reset();
 
-		// Sort
-		SortComputeShaderAttributes.SetCombo( "D_CLEAR", 0 );
+		if ( spriteCount == 0 )
+			return;
 
-		var x = Math.Min( CurrentBufferSize, MaxDimThreads );
-		var y = (CurrentBufferSize + MaxDimThreads - 1) / MaxDimThreads;
-		var z = 1;
-
-		for ( var dim = 2; dim <= CurrentBufferSize; dim <<= 1 )
+		// Upload sprite data to GPU (deferred to render thread, zero-copy)
+		if ( componentCount > 0 )
 		{
-			SortComputeShaderAttributes.Set( "Dim", dim );
+			_commandList.SetBufferData( SpriteBuffer, SpriteDataBuffer, 0, componentCount );
+		}
 
-			for ( var block = dim >> 1; block > 0; block >>= 1 )
+		int currentOffset = componentCount;
+		foreach ( var group in SpriteGroups.Values )
+		{
+			_commandList.SetBufferData( SpriteBuffer, group.SharedSprites, group.Offset, group.Count, currentOffset );
+			currentOffset += group.Count;
+		}
+
+		bool sorted = Sorted;
+		bool filtered = Filtered;
+		bool additive = Additive;
+		bool opaque = Opaque;
+		int bufferSize = CurrentBufferSize;
+		int totalInstances = spriteCount + splotCount;
+
+		_commandList.SetBufferData( SpriteAtomicCounter, ZeroUint );
+
+		if ( sorted && totalInstances >= 2 )
+		{
+			_commandList.Attributes.Set( "SortBuffer", (GpuBuffer)GPUSortingBuffer );
+			_commandList.Attributes.Set( "DistanceBuffer", (GpuBuffer)GPUDistanceBuffer );
+			_commandList.Attributes.Set( "Count", bufferSize );
+			_commandList.Attributes.SetCombo( "D_CLEAR", 1 );
+			_commandList.DispatchCompute( SortComputeShader, bufferSize, 1, 1 );
+
+			_commandList.ResourceBarrierTransition( (GpuBuffer)GPUSortingBuffer, ResourceState.UnorderedAccess, ResourceState.UnorderedAccess );
+			_commandList.ResourceBarrierTransition( (GpuBuffer)GPUDistanceBuffer, ResourceState.UnorderedAccess, ResourceState.UnorderedAccess );
+		}
+
+		_commandList.ResourceBarrierTransition( SpriteAtomicCounter, ResourceState.Common );
+		_commandList.ResourceBarrierTransition( (GpuBuffer)SpriteBuffer, ResourceState.Common );
+		_commandList.ResourceBarrierTransition( (GpuBuffer)SpriteBufferOut, ResourceState.Common );
+		_commandList.ResourceBarrierTransition( (GpuBuffer)GPUDistanceBuffer, ResourceState.Common );
+
+		_commandList.Attributes.Set( "Sprites", (GpuBuffer)SpriteBuffer );
+		_commandList.Attributes.Set( "SpriteBufferOut", (GpuBuffer)SpriteBufferOut );
+		_commandList.Attributes.Set( "SpriteCount", spriteCount );
+		_commandList.Attributes.Set( "AtomicCounter", SpriteAtomicCounter );
+		_commandList.Attributes.Set( "DistanceBuffer", (GpuBuffer)GPUDistanceBuffer );
+		_commandList.DispatchCompute( SpriteComputeShader, spriteCount, 1, 1 );
+
+		_commandList.ResourceBarrierTransition( SpriteAtomicCounter, ResourceState.Common );
+		_commandList.ResourceBarrierTransition( (GpuBuffer)SpriteBufferOut, ResourceState.Common );
+
+		if ( sorted && totalInstances >= 2 )
+		{
+			_commandList.ResourceBarrierTransition( (GpuBuffer)GPUDistanceBuffer, ResourceState.Common );
+			_commandList.Attributes.SetCombo( "D_CLEAR", 0 );
+
+			var x = Math.Min( bufferSize, MaxDimThreads );
+			var y = (bufferSize + MaxDimThreads - 1) / MaxDimThreads;
+
+			for ( var dim = 2; dim <= bufferSize; dim <<= 1 )
 			{
-				SortComputeShaderAttributes.Set( "Block", block );
-				SortComputeShader.DispatchWithAttributes( SortComputeShaderAttributes, x, y, z );
+				_commandList.Attributes.Set( "Dim", dim );
 
-				// Make sure sort buffer is ready to use
-				Graphics.ResourceBarrierTransition( GPUSortingBuffer, ResourceState.UnorderedAccess, ResourceState.UnorderedAccess );
-				Graphics.ResourceBarrierTransition( GPUDistanceBuffer, ResourceState.UnorderedAccess, ResourceState.UnorderedAccess );
+				for ( var block = dim >> 1; block > 0; block >>= 1 )
+				{
+					_commandList.Attributes.Set( "Block", block );
+					_commandList.DispatchCompute( SortComputeShader, x, y, 1 );
+
+					_commandList.ResourceBarrierTransition( (GpuBuffer)GPUSortingBuffer, ResourceState.UnorderedAccess, ResourceState.UnorderedAccess );
+					_commandList.ResourceBarrierTransition( (GpuBuffer)GPUDistanceBuffer, ResourceState.UnorderedAccess, ResourceState.UnorderedAccess );
+				}
 			}
 		}
+
+		bool didSort = sorted && totalInstances >= 2;
+
+		_renderInstanceCount = totalInstances;
+		_renderIsSorted = didSort;
+		_renderFiltered = filtered;
+		_renderAdditive = additive;
+		_renderOpaque = opaque;
+		_renderRefraction = Flags.WantsFrameBufferCopy;
+		_renderHasText = _pendingHasText;
+		_renderFrame = Application.FrameCount;
 	}
 
-	/// <summary>
-	/// Rendering logic of the sprites
-	/// </summary>
 	public override void RenderSceneObject()
 	{
 		base.RenderSceneObject();
 
-		int spriteCount = _pendingSpriteCount;
-		int splotCount = _pendingSplotCount;
-
-		if ( spriteCount == 0 )
-		{
+		if ( _pendingSpriteCount == 0 || !_commandList.Enabled )
 			return;
-		}
 
-		// Upload sprite data to GPU once per frame, reusing the view's render context.
-		// All SetData calls here go through the existing renderContext->SetGPUBufferData()
-		// directly, avoiding expensive CRenderContextPtr creation per call.
-		if ( _gpuUploadPending )
-		{
-			if ( _pendingComponentCount > 0 )
-			{
-				SpriteBuffer.SetData( SpriteDataBuffer.AsSpan( 0, _pendingComponentCount ) );
-			}
-
-			int currentOffset = _pendingComponentCount;
-			foreach ( var group in SpriteGroups.Values )
-			{
-				SpriteBuffer.SetData( group.SharedSprites.AsSpan( group.Offset, group.Count ), currentOffset );
-				currentOffset += group.Count;
-			}
-
-			_gpuUploadPending = false;
-		}
-
-		if ( Sorted )
-		{
-			PreSort();
-		}
-
-		// Generate trails and UVs (this is mainly for particles)
-		SpriteAtomicCounter.SetData( [0] ); // Reset atomic counter
-		Graphics.ResourceBarrierTransition( SpriteAtomicCounter, ResourceState.Common );
-		Graphics.ResourceBarrierTransition( SpriteBuffer, ResourceState.Common );
-		Graphics.ResourceBarrierTransition( SpriteBufferOut, ResourceState.Common );
-		Graphics.ResourceBarrierTransition( GPUDistanceBuffer, ResourceState.Common );
+		Graphics.Attributes.Set( "CameraPosition", Graphics.CameraPosition );
+		_commandList.ExecuteOnRenderThread();
 
 		var attributes = RenderAttributes.Pool.Get();
-
-		attributes.Set( "Sprites", SpriteBuffer );
-		attributes.Set( "SpriteBufferOut", SpriteBufferOut );
-
-		attributes.Set( "SpriteCount", spriteCount );
-		attributes.Set( "AtomicCounter", SpriteAtomicCounter );
-
-		// Sorting
-		attributes.Set( "DistanceBuffer", GPUDistanceBuffer );
-		attributes.Set( "CameraPosition", Graphics.CameraPosition );
-
-		SpriteComputeShader.DispatchWithAttributes( attributes, spriteCount, 1, 1 );
-
-		RenderAttributes.Pool.Return( attributes );
-
-		// Barried for the new sprites generated
-		Graphics.ResourceBarrierTransition( SpriteAtomicCounter, ResourceState.Common );
-		Graphics.ResourceBarrierTransition( SpriteBufferOut, ResourceState.Common );
-
-		Graphics.Attributes.SetCombo( "D_BLEND", Additive ? 1 : 0 );
-		Graphics.Attributes.SetCombo( "D_OPAQUE", Opaque ? 1 : 0 );
-
-		// Sort
-		if ( Sorted )
+		try
 		{
-			Sort();
+			attributes.SetCombo( "D_BLEND", _renderAdditive ? 1 : 0 );
+			attributes.SetCombo( "D_OPAQUE", _renderOpaque ? 1 : 0 );
+			attributes.SetCombo( "D_TEXT", _renderHasText ? 1 : 0 );
+			// The scene binds FrameBufferCopyTexture for readers in translucent layers.
+			bool refractive = _renderRefraction && Graphics.LayerType == SceneLayerType.Translucent;
+			attributes.SetCombo( "D_REFRACTION", refractive ? 1 : 0 );
+			attributes.Set( "IsSorted", _renderIsSorted ? 1 : 0 );
+			attributes.Set( "SpriteCount", _renderInstanceCount );
+			attributes.Set( "Filtered", _renderFiltered );
+			attributes.Set( "Sprites", (GpuBuffer)SpriteBufferOut );
+			attributes.Set( "SortLUT", (GpuBuffer)GPUSortingBuffer );
+			attributes.Set( "Vertices", (GpuBuffer)VertexBuffer );
+			if ( _renderHasText ) GpuFontText.Bind( attributes, _renderFrame );
+
+			Graphics.DrawIndexedInstanced( (GpuBuffer)IndexBuffer, SpriteMaterial, _renderInstanceCount, attributes );
 		}
-
-		// Draw the sprites
-		Graphics.Attributes.Set( "IsSorted", Sorted ? 1 : 0 );
-		Graphics.Attributes.Set( "SpriteCount", spriteCount + splotCount );
-
-		Graphics.Attributes.Set( "Filtered", Filtered );
-		Graphics.Attributes.Set( "Sprites", SpriteBufferOut );
-		Graphics.Attributes.Set( "SortLUT", GPUSortingBuffer ); // Always bind even if not used
-
-		// Vertex Pulling
-		Graphics.Attributes.Set( "Vertices", VertexBuffer );
-		Graphics.Attributes.Set( "g_bNonDirectionalDiffuseLighting", true );
-		Graphics.DrawIndexedInstanced( IndexBuffer, SpriteMaterial, spriteCount + splotCount );
+		finally
+		{
+			RenderAttributes.Pool.Return( attributes );
+		}
 	}
 }

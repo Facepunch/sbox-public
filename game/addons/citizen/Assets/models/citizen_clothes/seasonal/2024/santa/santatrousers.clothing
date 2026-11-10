@@ -11,16 +11,17 @@
   "Category": "Trousers",
   "ConditionalModels": {},
   "Tags": null,
-  "Parent": null,
   "Model": "models/citizen_clothes/seasonal/2024/santa/santa_trousers/models/santa_trousers.vmdl",
   "HumanAltModel": "models/citizen_clothes/seasonal/2024/santa/santa_trousers/models/santa_trousers_m_human.vmdl",
   "HumanAltFemaleModel": null,
   "SkinMaterial": null,
   "EyesMaterial": null,
   "MaterialGroup": null,
+  "HeelHeight": 0,
   "SlotsUnder": "Groin, LeftThigh, RightThigh, LeftKnee, RightKnee, LeftShin, RightShin, LeftFoot, RightFoot",
   "SlotsOver": "Groin, LeftThigh, RightThigh, LeftKnee, RightKnee, LeftShin, RightShin, LeftFoot, RightFoot",
   "HideBody": "Legs, Feet",
+  "DeformationMode": "Normal",
   "AllowTintSelect": false,
   "TintSelection": {
     "blend": "Linear",
@@ -37,7 +38,8 @@
   "Icon": {
     "Path": "models/citizen_clothes/seasonal/2024/santa/santatrousers.clothing.png",
     "Mode": "Chest",
-    "PositionOffset": "-123.3,0,-28.80001"
+    "UsePositionOffset": false,
+    "PositionOffset": "-123.300003,0,-28.8000107"
   },
   "__references": [],
   "__version": 0

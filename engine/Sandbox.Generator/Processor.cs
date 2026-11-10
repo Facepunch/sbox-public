@@ -4,7 +4,6 @@ using Microsoft.CodeAnalysis.Text;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 
@@ -48,12 +47,18 @@ public class Processor
 	public CSharpCompilation Compilation { get; set; }
 	public CSharpCompilation LastSuccessfulCompilation { get; set; }
 	public List<SyntaxTree> SyntaxTrees { get; set; }
-	public ImmutableArray<SyntaxTree> BeforeILHotloadProcessingTrees { get; set; }
 	public Exception Exception { get; internal set; }
 	public SourceProductionContext? Context { get; set; }
 	public bool EnableCorelibPolyfills { get; set; }
 
 	public List<Diagnostic> Diagnostics = new List<Diagnostic>();
+
+	/// <summary>
+	/// Set when the caller throws <see cref="Diagnostics"/> away, so work that could only produce
+	/// a diagnostic is skipped. The generated code is the same either way.
+	/// </summary>
+	public bool IgnoreDiagnostics { get; set; }
+
 	public bool ILHotloadSupported { get; set; }
 
 	/// <summary>
@@ -79,12 +84,10 @@ public class Processor
 	/// </summary>
 	public void Run( CSharpCompilation compilation,
 		List<SyntaxTree> syntaxTrees = null,
-		CSharpCompilation lastSuccessfulCompilation = null,
-		ImmutableArray<SyntaxTree> lastBeforeIlHotloadProcessingTrees = default )
+		CSharpCompilation lastSuccessfulCompilation = null )
 	{
 		Compilation = compilation;
 		LastSuccessfulCompilation = lastSuccessfulCompilation;
-		BeforeILHotloadProcessingTrees = lastBeforeIlHotloadProcessingTrees;
 
 		syntaxTrees ??= compilation.SyntaxTrees.ToList();
 		SyntaxTrees = syntaxTrees;
@@ -170,14 +173,10 @@ public class Processor
 				}
 			}
 
-			var beforeIlHotloadTrees = Compilation.SyntaxTrees;
-
 			if ( Context == null )
 			{
 				ILHotloadProcessor.Process( this );
 			}
-
-			BeforeILHotloadProcessingTrees = beforeIlHotloadTrees;
 		}
 		catch ( System.Exception e )
 		{

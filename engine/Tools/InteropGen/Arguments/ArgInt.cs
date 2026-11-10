@@ -4,5 +4,10 @@
 public class ArgInt : Arg
 {
 	public override string ManagedType => "int";
-	public override string ManagedDelegateType => "int";
+}
+
+[TypeName( "short" )]
+public class ArgShort : Arg
+{
+	public override string ManagedType => "short";
 }

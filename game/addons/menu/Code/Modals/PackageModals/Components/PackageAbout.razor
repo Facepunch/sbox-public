@@ -1,0 +1,58 @@
+@namespace MenuProject.Modals.PackageModalComponents
+@inherits Panel
+@using Sandbox;
+@using Sandbox.UI;
+@using SboxMenu;
+@using System;
+
+@*
+    Under a package's gallery - its heading, then what it says about itself, scrolling under that. Its
+    workshop item's when it has one, the package's.
+*@
+<root>
+
+    <label class="section-label">About</label>
+
+    @* Faded out along the bottom while there's more under it - on this box, not the one that scrolls, which
+       draws a mask wrong *@
+    <div class="body @(MoreBelow ? "more" : "")">
+        <div class="scroll" @ref="Scroller">
+            <PackageDescription Package=@Package Html=@(Workshop is { } item ? Sandbox.Html.BBCodeParser.ToHtml( item.Description ) : null) />
+        </div>
+    </div>
+
+</root>
+
+@code
+{
+	[Parameter] public Package Package { get; set; }
+
+	/// <summary>
+	/// What the Steam Workshop says about it, for a package on the workshop - its description's its item's. Null when
+	/// it isn't, or while it's being asked.
+	/// </summary>
+	[Parameter] public WorkshopItemDetails Workshop { get; set; }
+
+	Panel Scroller;
+
+	/// <summary>
+	/// There's more of the description under where it's scrolled to - it fades out at the bottom. Scrolled to
+	/// the end, or when it all fits, it doesn't.
+	/// </summary>
+	bool MoreBelow;
+
+	public override void Tick()
+	{
+		base.Tick();
+
+		if ( !Scroller.IsValid() ) return;
+
+		var more = Scroller.ScrollSize.y - Scroller.ScrollOffset.y > 2;
+		if ( more == MoreBelow ) return;
+
+		MoreBelow = more;
+		StateHasChanged();
+	}
+
+	protected override int BuildHash() => HashCode.Combine( Package, Workshop, MoreBelow );
+}

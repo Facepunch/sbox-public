@@ -7,12 +7,12 @@ global using System.Text.Json;
 global using static Sandbox.Internal.GlobalSystemNamespace;
 using System.Runtime.CompilerServices;
 
-[assembly: InternalsVisibleTo( "Sandbox.Test" )]
-[assembly: InternalsVisibleTo( "Sandbox.Hotload.Test" )]
 [assembly: InternalsVisibleTo( "Sandbox.Test.Unit" )]
+[assembly: InternalsVisibleTo( "Sandbox.Test.Engine" )]
+[assembly: InternalsVisibleTo( "Sandbox.Test.Integration" )]
+[assembly: InternalsVisibleTo( "Sandbox.Test.NetSim" )]
 [assembly: InternalsVisibleTo( "Benchmark" )]
 
-[assembly: InternalsVisibleTo( "Sandbox.Access" )]
 [assembly: InternalsVisibleTo( "Sandbox.Engine" )]
 [assembly: InternalsVisibleTo( "Sandbox.Tools" )]
 [assembly: InternalsVisibleTo( "Sandbox.Bind" )]
@@ -21,6 +21,8 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo( "Sandbox.GameInstance" )]
 [assembly: InternalsVisibleTo( "Facepunch.Interopgen" )]
 [assembly: InternalsVisibleTo( "Sandbox.AppSystem" )]
+[assembly: InternalsVisibleTo( "Sandbox.SceneRenderer" )]
+[assembly: InternalsVisibleTo( "scenelab" )]
 [assembly: InternalsVisibleTo( "Sbox-Server" )]
 
 [assembly: TasksPersistOnContextReset]

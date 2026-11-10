@@ -19,7 +19,7 @@ public class ModelCollider : Collider, IHasModel
 		{
 			_model = value;
 
-			Rebuild();
+			UpdateShape();
 		}
 	}
 
@@ -35,6 +35,16 @@ public class ModelCollider : Collider, IHasModel
 				_model = renderer.Model;
 			}
 		}
+	}
+
+	internal override void UpdateShape()
+	{
+		var body = PhysicsBody;
+		using var mass = body.IsValid() ? body._body.BatchMassUpdates() : default;
+		base.UpdateShape();
+
+		// Because we rebuild the physics shapes, allow rigidbody to apply their properties.
+		Rigidbody?.UpdateBody();
 	}
 
 	protected override void DrawGizmos()
@@ -94,41 +104,75 @@ public class ModelCollider : Collider, IHasModel
 
 			foreach ( var sphere in part.Spheres )
 			{
-				var shape = targetBody.AddSphereShape( bx.PointToWorld( sphere.Sphere.Center ), sphere.Sphere.Radius * bx.UniformScale );
+				PhysicsShape shape;
+				using ( targetBody._body.UseShapeSurface( sphere.Surface ) )
+				{
+					shape = targetBody.AddSphereShape( bx.PointToWorld( sphere.Sphere.Center ), sphere.Sphere.Radius * bx.UniformScale );
+				}
 				Assert.NotNull( shape, "Sphere shape was null" );
-				shape.Surface = sphere.Surface;
 				shape.BoneIndex = boneIndex;
 				yield return shape;
 			}
 
 			foreach ( var capsule in part.Capsules )
 			{
-				var shape = targetBody.AddCapsuleShape( bx.PointToWorld( capsule.Capsule.CenterA ), bx.PointToWorld( capsule.Capsule.CenterB ), capsule.Capsule.Radius * bx.UniformScale );
+				PhysicsShape shape;
+				using ( targetBody._body.UseShapeSurface( capsule.Surface ) )
+				{
+					shape = targetBody.AddCapsuleShape( bx.PointToWorld( capsule.Capsule.CenterA ), bx.PointToWorld( capsule.Capsule.CenterB ), capsule.Capsule.Radius * bx.UniformScale );
+				}
 				Assert.NotNull( shape, "Capsule shape was null" );
-				shape.Surface = capsule.Surface;
 				shape.BoneIndex = boneIndex;
 				yield return shape;
 			}
 
-			foreach ( var hull in part.Hulls )
+			if ( !Scene.Is2D )
 			{
-				var shape = targetBody.AddShape( hull, bx );
-				Assert.NotNull( shape, "Hull shape was null" );
-				shape.Surface = hull.Surface;
-				shape.BoneIndex = boneIndex;
-				yield return shape;
+				foreach ( var hull in part.Hulls )
+				{
+					PhysicsShape shape;
+					using ( targetBody._body.UseShapeSurface( hull.Surface ) )
+					{
+						shape = targetBody.AddShape( hull, bx );
+					}
+					Assert.NotNull( shape, "Hull shape was null" );
+					shape.BoneIndex = boneIndex;
+					yield return shape;
+				}
+
+				foreach ( var mesh in part.Meshes )
+				{
+					PhysicsShape shape;
+					using ( targetBody._body.UseShapeSurface( mesh.Surface, mesh.Surfaces ) )
+					{
+						shape = targetBody.AddShape( mesh, bx, false, true );
+					}
+					Assert.NotNull( shape, "Mesh shape was null" );
+
+					shape.BoneIndex = boneIndex;
+
+					yield return shape;
+				}
 			}
-
-			foreach ( var mesh in part.Meshes )
+			else if ( targetBody?._body is PhysicsBody2d body2d )
 			{
-				var shape = targetBody.AddShape( mesh, bx, false, true );
-				Assert.NotNull( shape, "Mesh shape was null" );
+				foreach ( var hull in part.Hulls )
+				{
+					foreach ( var shape in body2d.AddHullPartShapes( hull, bx ) )
+					{
+						shape.BoneIndex = boneIndex;
+						yield return shape;
+					}
+				}
 
-				shape.Surface = mesh.Surface;
-				shape.Surfaces = mesh.Surfaces;
-				shape.BoneIndex = boneIndex;
-
-				yield return shape;
+				foreach ( var mesh in part.Meshes )
+				{
+					foreach ( var shape in body2d.AddMeshPartShapes( mesh, bx ) )
+					{
+						shape.BoneIndex = boneIndex;
+						yield return shape;
+					}
+				}
 			}
 
 			if ( part.Mass > 0 )

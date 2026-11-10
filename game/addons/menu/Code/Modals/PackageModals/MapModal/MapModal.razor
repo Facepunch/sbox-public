@@ -2,7 +2,7 @@
 @inherits MenuProject.Modals.BaseModal
 @using Sandbox;
 @using Sandbox.UI;
-@using Menu;
+@using SboxMenu;
 @using System;
 @using Sandbox.Network
 @using MenuProject.Modals.MapModalComponents;
@@ -11,62 +11,21 @@
 
 <root>
 
-    <MegaCard Icon="@Package.ThumbWide">
+    <MegaCard>
         <Metrics>
+            @* Just report - rating's along the bottom now, the rest is on the Overview *@
             <PackageMetrics Package="@Package" />
         </Metrics>
         <Tabs>
-
-            <PortalButton StartActive Portal=@Portal>
-                <Button>
-                    <SearchlightTab Title="Overview" Icon="people" />
-                </Button>
-                <Content>
-                    <Media Package=@Package></Media>
-                    <PackageDescription Package=@Package />
-                </Content>
-            </PortalButton>
-
-            <PortalButton Portal=@Portal>
-                <Button>
-                    <SearchlightTab Title="Reviews" Icon="reviews" />
-                </Button>
-                <Content>
-                    <PackageReviews Package=@Package />
-                </Content>
-            </PortalButton>
-
-            @if (Package.LatestNewsPost is not null)
-            {
-                <PortalButton Portal=@Portal>
-                    <Button>
-                        <SearchlightTab Title="News" Icon="newspaper" />
-                    </Button>
-                    <Content>
-                        <PackageNews Package=@Package />
-                    </Content>
-                </PortalButton>
-            }
-
+            @* A game's tabs - the Overview's the gallery and the map's own write-up *@
+            <PackageTabs @ref=MapTabs Package=@Package Portal=@Portal ShowReviews=@false>
+                <Overview>
+                    <PackageStore Package=@Package Portal=@Portal OnChangelogClicked="@(() => MapTabs?.OpenChanges())">
+                        <Gallery><Media Package=@Package Loaded=@HasFullPackage></Media></Gallery>
+                    </PackageStore>
+                </Overview>
+            </PackageTabs>
         </Tabs>
-        <Left>
-            <PackageSummary Package=@Package></PackageSummary>
-
-            @if (achList is not null)
-            {
-                <h2>Achievements</h2>
-                <PortalButton Portal=@Portal>
-                    <Button>
-                        <AchievementSummary Package="@Package"></AchievementSummary>
-                    </Button>
-                    <Content>
-                        <AchievementList Package="@Package"></AchievementList>
-                    </Content>
-                </PortalButton>
-            }
-
-        </Left>
-
         <Content><PortalTarget @ref=Portal></PortalTarget></Content>
 
         <Footer>
@@ -82,8 +41,8 @@
     public string PackageIdent { get; set; }
     public bool HasFullPackage { get; set; }
 
-    AchievementCollection achList;
     PortalTarget Portal = default;
+    PackageTabs MapTabs = default;
 
 	public List<LobbyInformation> Lobbies = new();
 
@@ -98,9 +57,8 @@
 
 	void OnLobbySelected ( LobbyInformation lobby )
 	{
-        Networking.Connect(lobby.LobbyId);
+        MenuUtility.Connect( lobby.LobbyId );
 		CloseModal(true);
-		OrganizationModal.LastOpened?.CloseModal( true );
 	}
 
     protected override async Task OnParametersSetAsync()
@@ -114,10 +72,6 @@
         // Get Full Package info
         Package = await Package.FetchAsync(PackageIdent, false);
         HasFullPackage = true;
-
-        achList = await Package.GetAchievements();
-        if (!achList.All.Any()) achList = default;
-        if (achList is not null) StateHasChanged();
 
         await RefreshLobbies();
     }

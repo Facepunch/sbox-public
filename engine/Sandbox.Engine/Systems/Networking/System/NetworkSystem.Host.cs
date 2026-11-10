@@ -5,6 +5,9 @@ internal partial class NetworkSystem
 	public void InitializeHost()
 	{
 		IsHost = true;
+		HostConnection = null;
+		Access.Privacy = Config.Privacy;
+		Access.Password = string.IsNullOrEmpty( Config.Password ) ? Networking.ServerPassword : Config.Password;
 		InstallStringTables();
 
 		// Conna: if we're the host then set our state as Connected.
@@ -18,6 +21,9 @@ internal partial class NetworkSystem
 		}
 
 		InitializeGameSystem();
+		Sandbox.Diagnostics.DevTools.NetworkLog.Session( "Hosting", Connection.Local, starts: true );
+
+		InviteParty();
 	}
 }
 

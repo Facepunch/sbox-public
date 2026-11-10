@@ -20,6 +20,9 @@ native class ISceneLayer as NativeEngine.ISceneLayer
 
     string GetDebugName();
 
+    void AddSemaphoreDependency( ISceneLayer pLayer );
+    void SetSemaphore( RenderSemaphoreHandle_t hSemaphore );
+
     ELayerFlags m_nLayerFlags;
     SceneLayerType LayerEnum;
     RenderViewport m_viewport;
@@ -34,6 +37,20 @@ native class ISceneLayer as NativeEngine.ISceneLayer
     void SetLayerNoCull( bool enabled );
 
     void SetBoundingVolumeSizeCullThresholdInPercent( float flSizeCullThreshold );
+
+    void DisableReflectionsAndRefractionsForObjectsInThisLayer( bool bOnOff );
+    void SetFadeTargetLayer( ISceneLayer pLayer );
+    void SetTonemapOverrideScaleValue( float flScale );
+
+    inline void SetShaderMode( StringToken nShaderMode )
+    {
+        self->m_shaderMode = nShaderMode;
+    }
+
+    inline void SetWireframeOverride()
+    {
+        this->SetWireframeOverride();
+    }
     
     void SetClearColor( Vector4 vecColor, int nRenderTargetIndex );
     ITexture GetTextureValue( StringToken nTokenID, ITexture nDefaultValue );
@@ -53,4 +70,30 @@ native class ISceneLayer as NativeEngine.ISceneLayer
     {
         this->m_RenderTargetOutputs.Init( hColor, hDepth );
     }
+
+    inline void SetOutput( HSceneViewRenderTarget hColor, HSceneViewRenderTarget hDepth, RenderColorSpace_t colorSpace )
+    {
+        this->m_RenderTargetOutputs.Init( hColor, hDepth, colorSpace );
+    }
+
+    // Game overlay (viewmodel) stencil helper, see iscenelayer.h
+    inline void SetOverlayStencil( bool bOverlay )
+    {
+		constexpr uint8 GAME_OVERLAY_STENCIL_MASK = 0x80;
+		// Stock shaders skip pixels with this bit set, e.g. a fake clip plane's mask
+		constexpr uint8 SHADER_SKIP_STENCIL_MASK = 0x01;
+
+		RsStencilStateOverride_t stencilOverride;
+		stencilOverride.m_nStencilRefValue = bOverlay ? GAME_OVERLAY_STENCIL_MASK : 0;
+		stencilOverride.m_stencilState = RsStencilStateDesc_t(
+			true, bOverlay ? 0 : ( GAME_OVERLAY_STENCIL_MASK | SHADER_SKIP_STENCIL_MASK ), bOverlay ? GAME_OVERLAY_STENCIL_MASK : 0,
+			RS_STENCIL_OP_KEEP, RS_STENCIL_OP_KEEP, bOverlay ? RS_STENCIL_OP_REPLACE : RS_STENCIL_OP_KEEP, RS_CMP_ALWAYS,
+			RS_STENCIL_OP_KEEP, RS_STENCIL_OP_KEEP, bOverlay ? RS_STENCIL_OP_REPLACE : RS_STENCIL_OP_KEEP, RS_CMP_ALWAYS );
+		if ( !bOverlay )
+		{
+			stencilOverride.m_stencilState.SetFrontStencilFunc( RS_CMP_EQUAL );
+			stencilOverride.m_stencilState.SetBackStencilFunc( RS_CMP_EQUAL );
+		}
+		this->SetStencilStateOverride( stencilOverride );
+	}
 }

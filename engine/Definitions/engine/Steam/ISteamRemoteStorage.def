@@ -1,0 +1,11 @@
+include "steam/isteamremotestorage.h"
+
+native class ISteamRemoteStorage
+{
+	bool FileExists( string name );
+	int GetFileSize( string name );
+	int FileRead( string name, void* data, int size );
+	bool FileWrite( string name, void* data, int size );
+	ulong FileWriteAsync( string name, void* data, uint size );
+	bool FileDelete( string name );
+}

@@ -1,13 +1,30 @@
+@import "/Platform/_platform.scss";
+
 BodySettings
 {
+    @include platform-surface;
     flex-direction: column;
     gap: 8px;
+    overflow-y: scroll;
+    padding: 16px;
+    pointer-events: all;
+
+    // Keep controls at their intended size when the list needs to scroll.
+    > *
+    {
+        flex-shrink: 0;
+    }
+
+    FormRow > .label
+    {
+        width: 120px;
+    }
 }
 
-TextEntry
+.skin-groups
 {
-    font-size: 32px;
-    margin-bottom: 32px;
+    flex-direction: column;
+    gap: 22px;
 }
 
 .skin-items
@@ -20,6 +37,5 @@ TextEntry
         width: 70px;
         height: 70px;
         aspect-ratio: 1;
-        border-radius: 8px;
     }
 }

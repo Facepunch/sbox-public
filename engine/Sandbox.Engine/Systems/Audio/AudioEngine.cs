@@ -1,5 +1,6 @@
 ﻿
 using NativeEngine;
+using Sandbox.Engine;
 
 namespace Sandbox.Audio;
 
@@ -39,7 +40,7 @@ internal static partial class AudioEngine
 
 	static AudioEngine()
 	{
-		if ( Application.IsUnitTest )
+		if ( Application.IsUnitTest && (!Application.IsInitialized || !IsValid) )
 			return;
 
 		if ( IsValid )
@@ -48,6 +49,18 @@ internal static partial class AudioEngine
 		}
 
 		DspFactory.CreateBuiltIn();
+	}
+
+	/// <summary>
+	/// Loading stalls the managed mixer for whole garbage collections, so keep enough mixed ahead to play through them.
+	/// Back to the device's usual lead when loading ends.
+	/// </summary>
+	internal static void SetLoading( bool loading )
+	{
+		if ( Application.IsUnitTest && !Application.IsInitialized ) return;
+		if ( !IsValid ) return;
+
+		g_pAudioDevice.SetMixAhead( loading ? 0.5f : 0f );
 	}
 
 	public static void ClearBuffer()
@@ -75,8 +88,9 @@ internal static partial class AudioEngine
 		// calling g_pAudioDevice.MuteDevice actually starts the audio system for the first time.
 		// if we never call it, the audio system will never start.
 
-		var mute = Mute || (MuteLoseFocus && !InputSystem.IsAppActive());
+		var mute = Mute || (MuteLoseFocus && !WindowInput.IsAppActive());
 		g_pAudioDevice.MuteDevice( mute );
 
+		Game.Music.Tick();
 	}
 }

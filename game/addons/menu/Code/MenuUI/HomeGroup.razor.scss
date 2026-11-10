@@ -1,0 +1,55 @@
+@import "/styles/_theme.scss";
+@import "/Platform/_platform.scss";
+
+HomeGroup
+{
+	background-color: transparent;
+	align-items: center;
+	justify-content: center;
+}
+
+Page
+{
+    width: 100%;
+    max-width: $screen-w-xl;
+}
+
+HomeGroup .section-nav
+{
+	padding-bottom: 16px;
+
+	.see-more
+	{
+		@include platform-text-button( 30px, 12.5px, 15px );
+		padding: 0 12px;
+		flex-grow: 0;
+	}
+}
+
+HomeGroup .section-head
+{
+	flex-direction: column;
+	flex-shrink: 0;
+	padding: 32px 36px 0 36px;
+
+	.title
+	{
+		font-size: 20px;
+		font-weight: 700;
+		color: $platform-text;
+	}
+
+	.description
+	{
+		font-size: 14px;
+		font-weight: 500;
+		color: $platform-muted;
+	}
+}
+
+HomeGroup packagelist virtualgrid
+{
+	padding: 32px;
+	padding-bottom: 132px;
+	gap: 16px;
+}

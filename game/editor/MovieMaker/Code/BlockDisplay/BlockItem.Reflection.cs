@@ -23,7 +23,7 @@ partial class BlockItem
 		{
 			Log.Error( ex );
 
-			BlockItemTypeCache[blockType] = typeof(DefaultBlockItem);
+			BlockItemTypeCache[blockType] = typeof( DefaultBlockItem );
 
 			inst = new DefaultBlockItem();
 			inst.Initialize( parent, block, offset );
@@ -46,15 +46,15 @@ partial class BlockItem
 
 		if ( propertyType is not null && BindingReference.GetUnderlyingType( propertyType ) is { } underlyingType )
 		{
-			return BlockItemTypeCache[targetBlockType] = typeof(ReferenceBlockItem<>).MakeGenericType( underlyingType );
+			return BlockItemTypeCache[targetBlockType] = typeof( ReferenceBlockItem<> ).MakeGenericType( underlyingType );
 		}
 
-		var bestBlockItemType = typeof(DefaultBlockItem);
+		var bestBlockItemType = typeof( DefaultBlockItem );
 		var bestScore = int.MaxValue;
 
 		foreach ( var typeDesc in EditorTypeLibrary.GetTypes<BlockItem>() )
 		{
-			if ( typeDesc.TargetType == typeof(ReferenceBlockItem<>) ) continue;
+			if ( typeDesc.TargetType == typeof( ReferenceBlockItem<> ) ) continue;
 
 			var type = typeDesc.TargetType;
 			var baseDistance = 0;
@@ -113,14 +113,14 @@ partial class BlockItem
 		{
 			if ( !iFace.IsConstructedGenericType ) continue;
 
-			if ( iFace.GetGenericTypeDefinition() == typeof(IBlockItem<>) )
+			if ( iFace.GetGenericTypeDefinition() == typeof( IBlockItem<> ) )
 			{
 				var iFaceTargetType = iFace.GetGenericArguments()[0];
 
 				score = Math.Min( score, GetDistance( iFaceTargetType, targetBlockType ) );
 			}
 
-			if ( iFace.GetGenericTypeDefinition() == typeof(IPropertyBlockItem<>) && propertyType != null )
+			if ( iFace.GetGenericTypeDefinition() == typeof( IPropertyBlockItem<> ) && propertyType != null )
 			{
 				var iFaceTargetType = iFace.GetGenericArguments()[0];
 
@@ -132,7 +132,7 @@ partial class BlockItem
 
 	private static int GetDistance( Type baseType, Type? derivedType )
 	{
-		if ( baseType == typeof(object) ) return int.MaxValue - 1;
+		if ( baseType == typeof( object ) ) return int.MaxValue - 1;
 		if ( !baseType.IsAssignableFrom( derivedType ) ) return int.MaxValue;
 		if ( baseType.IsInterface && !derivedType.IsInterface ) return 1;
 

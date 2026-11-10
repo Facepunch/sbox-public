@@ -8,7 +8,6 @@ internal static class EngineFileSystem
 {
 	public static LocalFileSystem Root { get; private set; }
 	public static BaseFileSystem Config { get; private set; }
-	public static BaseFileSystem Addons { get; private set; }
 	public static BaseFileSystem Data { get; private set; }
 	public static BaseFileSystem CoreContent { get; private set; }
 	public static BaseFileSystem Mounted => GlobalContext.Current.FileMount;
@@ -57,6 +56,7 @@ internal static class EngineFileSystem
 		if ( Application.IsEditor )
 		{
 			LibraryContent = new AggregateFileSystem();
+			Root.CreateDirectory( "/.source2/temp" );
 			EditorTemporary = Root.CreateSubSystem( "/.source2/temp" );
 		}
 
@@ -68,17 +68,16 @@ internal static class EngineFileSystem
 			CoreContent.CreateAndMount( Root, "/core/" );
 
 			Assets.CreateAndMount( Root, "/core/" );
-			Assets.CreateAndMount( Root, "/addons/base/Assets" );
 		}
 		else
 		{
 			CoreContent.CreateAndMount( Root, "/core/" );
-			CoreContent.CreateAndMount( Root, "/addons/base/Assets/" );
 			CoreContent.CreateAndMount( Root, "/addons/citizen/Assets/" );
+			CoreContent.CreateAndMount( Root, "/addons/content/Assets/" );
 
 			Assets.CreateAndMount( Root, "/core/" );
-			Assets.CreateAndMount( Root, "/addons/base/Assets/" );
 			Assets.CreateAndMount( Root, "/addons/citizen/Assets/" );
+			Assets.CreateAndMount( Root, "/addons/content/Assets/" );
 		}
 	}
 
@@ -92,17 +91,6 @@ internal static class EngineFileSystem
 
 		Root.CreateDirectory( "/config" );
 		Config = Root.CreateSubSystem( "/config" );
-	}
-
-	/// <summary>
-	/// Setup Addons parameter (there's no reason for this to exist now?)
-	/// </summary>
-	internal static void InitializeAddonsFolder( string name = "/addons" )
-	{
-		Assert.NotNull( name );
-		Assert.NotNull( Root );
-
-		Addons = Root.CreateSubSystem( "/addons" );
 	}
 
 	/// <summary>
@@ -146,9 +134,6 @@ internal static class EngineFileSystem
 		DownloadedFiles?.Dispose();
 		DownloadedFiles = null;
 
-		Addons?.Dispose();
-		Addons = null;
-
 		Root?.Dispose();
 		Root = null;
 	}
@@ -160,7 +145,7 @@ internal static class EngineFileSystem
 
 	internal static void AddAssetPath( string ident, string path )
 	{
-		Mounted.Mount( new LocalFileSystem( path ) );
+		(Mounted ?? Assets).Mount( new LocalFileSystem( path ) );
 		NativeEngine.FullFileSystem.AddProjectPath( "xxx", path );
 	}
 }

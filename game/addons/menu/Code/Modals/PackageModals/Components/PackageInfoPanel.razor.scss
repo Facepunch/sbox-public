@@ -1,0 +1,167 @@
+@import "/styles/_theme.scss";
+@import "/Platform/_platform.scss";
+
+// A party that isn't what the game's made for
+$mode-warning: #f5a623;
+
+// A column of its own, as tall as what's in it
+PackageInfoPanel
+{
+    flex-direction: column;
+    flex-shrink: 0;
+    gap: 12px;
+    font-family: $front-font;
+
+    // A game's square, a map's wide - the column's width either way
+    .art
+    {
+        flex-shrink: 0;
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        border-radius: $platform-radius;
+        border: 0.5px solid $platform-hairline;
+        background-size: cover;
+        background-position: center;
+
+        &.square
+        {
+            aspect-ratio: 1;
+        }
+    }
+
+    // Snug over its facts - its line height leaves room of its own
+    .title
+    {
+        margin: -4px 0 -8px 0;
+        font-family: $front-font;
+        font-size: 20px;
+        font-weight: 700;
+        color: $platform-text;
+    }
+
+    //
+    // Its numbers and who made it - the label on the left, the value on the right
+    //
+
+    .facts
+    {
+        flex-direction: column;
+        flex-shrink: 0;
+        gap: 3px;
+    }
+
+    .fact
+    {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+
+        .key
+        {
+            flex-shrink: 0;
+            @include platform-section-label;
+        }
+
+        .value
+        {
+            flex-direction: row;
+            flex-shrink: 1;
+            min-width: 0;
+            align-items: center;
+            gap: 4px;
+
+            label
+            {
+                font-size: 13px;
+                font-weight: 600;
+                color: $platform-text;
+                white-space: nowrap;
+                text-overflow: ellipsis;
+                overflow: hidden;
+            }
+
+            i
+            {
+                font-family: "Material Icons";
+                font-size: 14px;
+            }
+        }
+
+        // Steam's colours - blue for good, amber for mixed, red for bad
+        .rating.positive label, .rating.positive i { color: $front-link; }
+        .rating.mixed label, .rating.mixed i { color: $front-trophy; }
+        .rating.negative label, .rating.negative i { color: $front-danger; }
+
+        .creator.link
+        {
+            color: $front-link;
+        }
+
+        &.clickable
+        {
+            cursor: pointer;
+
+            label { cursor: pointer; }
+
+            &:hover .creator.link
+            {
+                color: $front-heading;
+            }
+        }
+    }
+
+    .chip-rows
+    {
+        flex-direction: column;
+        gap: 5px;
+    }
+
+    .chips
+    {
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 5px;
+    }
+
+    .chip
+    {
+        @include platform-chip;
+
+        i
+        {
+            font-family: "Material Icons";
+        }
+
+        // How many it's for - green when your party's what it's made for, orange when it isn't
+        &.mode.fits
+        {
+            label, i { color: $platform-good; }
+        }
+
+        &.mode.mismatch
+        {
+            label, i { color: $mode-warning; }
+        }
+    }
+
+    // Its shape while it's worked out what it says
+    .bone
+    {
+        flex-shrink: 0;
+        border-radius: 999px;
+        background-color: rgba( 255, 255, 255, 0.07 );
+        animation: info-bone 1.2s ease-in-out infinite alternate;
+    }
+
+    .art.bone { border-radius: $platform-radius; }
+    .title-bone { width: 60%; height: 18px; }
+    .key-bone { width: 64px; height: 10px; }
+    .value-bone { width: 56px; height: 12px; }
+}
+
+@keyframes info-bone
+{
+    0% { opacity: 0.55; }
+    100% { opacity: 1; }
+}

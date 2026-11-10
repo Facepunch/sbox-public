@@ -1,109 +1,144 @@
-﻿@using System;
+@using System;
 @using Sandbox;
 @using Sandbox.UI;
-@using MenuProject.MenuUI.Popups;
 @inherits Panel
-@namespace MenuProject.Social
+@implements PartyRoom.IEventListener
+@namespace MenuProject
 
+<root class="@(IsTalking ? "talking" : "") @StatusClass" tooltip=@StatusTooltip>
 
-<root class="partymember" tooltip=@(Friend.IsMe ? null : Friend.Name) style="background-image: url( avatar:@Friend.Id )">
-    
-    @if ( IsOwner )
-    {
-        <div class="crown">👑</div>
-    }
+	@* No status ring - everyone here's in s&box. The only ring in the deck means talking *@
+	<Avatar UserId="@((long)Friend.Id)" ShowStatus="@false" />
 
-    @if ( IsTalking )
-    {
-        <div class="talking">🎙️</div>
-    }
+	@if (IsOwner)
+	{
+		<div class="crown">👑</div>
+	}
 
+	@* What they're up to, at a glance - download progress, ready, in the game, stuck *@
+	@if ( Badge is { } badge )
+	{
+		<div class="status-badge @StatusClass @(Status is { Stage: PartyRoom.JoinStage.Downloading, Progress: not null } ? "percent" : "")">
+			@if ( Status.Stage == PartyRoom.JoinStage.Downloading && Status.Progress is { } progress )
+			{
+				<label>@($"{progress * 100:0}%")</label>
+			}
+			else
+			{
+				<icon>@badge</icon>
+			}
+		</div>
+	}
 </root>
 
 @code
 {
-    public Friend Friend { get; set; }
+	public Friend Friend { get; set; }
 
-    public bool IsOwner { get; set; }
+	/// <summary>
+	/// How they're getting on following the leader.
+	/// </summary>
+	public PartyRoom.MemberStatus Status { get; set; }
 
-    public bool IsTalking { get; set; } = true;
+	/// <summary>
+	/// Whether this member is ready to start the party's selected game.
+	/// </summary>
+	public bool Ready { get; set; }
 
-    FriendPopup popup;
+	string Name => Friend.IsMe ? Language.GetPhrase( "menu.friends.you" ) : Friend.Name;
 
-    protected override int BuildHash() => System.HashCode.Combine(IsTalking);
+	string Badge => Ready ? "check" : Status.Stage switch
+	{
+		PartyRoom.JoinStage.Downloading => "download",
+		PartyRoom.JoinStage.WaitingForHost => "check",
+		PartyRoom.JoinStage.Connecting => "login",
+		PartyRoom.JoinStage.Connected => "sports_esports",
+		PartyRoom.JoinStage.Failed => "priority_high",
+		_ => null
+	};
 
-    protected override void OnMouseOver( MousePanelEvent e )
-    {
-        base.OnMouseOver( e );
+	string StatusClass => Ready ? "ready" : Status.Stage switch
+	{
+		PartyRoom.JoinStage.Downloading or PartyRoom.JoinStage.Connecting => "busy",
+		PartyRoom.JoinStage.WaitingForHost or PartyRoom.JoinStage.Connected => "ready",
+		PartyRoom.JoinStage.Failed => "failed",
+		_ => ""
+	};
 
-        if ( !Friend.IsMe || popup.IsValid() )
-            return;
+	string StatusTooltip => Ready ? $"{Name} - ready to start" : Status.Stage switch
+	{
+		PartyRoom.JoinStage.Downloading when Status.Progress is { } p => $"{Name} - downloading, {p * 100:0}%",
+		PartyRoom.JoinStage.Downloading => $"{Name} - downloading",
+		PartyRoom.JoinStage.WaitingForHost => $"{Name} - ready to join",
+		PartyRoom.JoinStage.Connecting => $"{Name} - joining",
+		PartyRoom.JoinStage.Connected => $"{Name} - in game",
+		PartyRoom.JoinStage.Failed => $"{Name} - couldn't join",
+		_ => Name
+	};
 
-        Popup.CloseAll();
-        popup = FriendPopup.Show( this, Friend, Popup.PositionMode.AboveCenter, 32 );
-    }
+	public bool IsOwner => PartyView.Owner.Id == Friend.Id;
 
-    public PartyMember()
-    {
-        PartyRoom.Current.OnVoiceData += OnVoiceData;
-    }
+	public bool IsTalking => PartyView.IsMemberTalking( Friend );
 
-    public override void OnDeleted()
-    {
-        base.OnDeleted();
+	protected override int BuildHash() => System.HashCode.Combine( IsOwner, IsTalking, Status, Ready );
 
-        if (PartyRoom.Current is not null)
-        {
-            PartyRoom.Current.OnVoiceData -= OnVoiceData;
-        }
-    }
+	//
+	// A bounce when their status changes - finished downloading, joined, fell over - so your eye
+	// goes to who just moved on.
+	//
 
-    public override void Tick()
-    {
-        if ( soundHandle is not null && soundHandle.IsPlaying )
-        {
-            StateHasChanged();
+	const float PopKick = 2.4f;
+	const float PopStiffness = 380f;
+	const float PopDamping = 14f;
 
-            var scale = soundHandle.Amplitude * 0.3f;
+	PartyRoom.JoinStage _lastStage;
+	bool _seenStage;
+	float _pop, _popVelocity;
+	bool _popping;
 
-            Style.Set($"transform: scaley( {1 + scale} ) scalex( {1 - scale} );");
-        }
-
-        IsTalking = soundHandle?.Amplitude > 0;
-    }
-
-    /// <summary>
-    /// How long has it been since this sound played?
-    /// </summary>
-    public RealTimeSince LastPlayed { get; private set; }
-
-    private SoundStream soundStream;
-    private SoundHandle soundHandle;
-
-    void OnVoiceData( Friend friend, byte[] buffer )
-    {
-        if (friend != Friend) return;
-
-        if (soundStream is null)
-        {
-            soundStream = new SoundStream(Sound.VoiceSampleRate);
-        }
-
-        Sound.UncompressVoiceData(buffer, samples =>
+	public override void Tick()
+	{
+		// The first status we see is just where they are - only changes after that bounce
+		if ( !_seenStage )
 		{
-			if ( !soundHandle.IsValid() )
-			{
-				soundHandle = soundStream.Play();
-			}
+			_seenStage = true;
+			_lastStage = Status.Stage;
+		}
+		else if ( Status.Stage != _lastStage )
+		{
+			_lastStage = Status.Stage;
+			_popVelocity += PopKick;
+			_popping = true;
+		}
 
-            soundHandle.LipSync.Enabled = true;
-            soundHandle.Position = 0;
-            soundHandle.ListenLocal = true;
-            soundHandle.Loopback = friend.IsMe;
-			soundStream.WriteData( samples.Span );
+		if ( !_popping )
+			return;
 
-			LastPlayed = 0;
-		} );
-    }
+		var dt = MathF.Min( RealTime.Delta, 0.05f );
+		_popVelocity += (-_pop * PopStiffness - _popVelocity * PopDamping) * dt;
+		_pop += _popVelocity * dt;
 
+		// Settled - put it back exactly and stop touching the style until the next change
+		if ( MathF.Abs( _pop ) < 0.001f && MathF.Abs( _popVelocity ) < 0.01f )
+		{
+			_pop = 0;
+			_popVelocity = 0;
+			_popping = false;
+		}
+
+		var transform = new PanelTransform();
+		transform.AddScale( new Vector3( 1 + _pop, 1 + _pop, 1 ) );
+		Style.Transform = transform;
+		Style.TransformOriginX = Length.Percent( 50 );
+		Style.TransformOriginY = Length.Percent( 50 );
+	}
+
+	/// <summary>
+	/// Rebuild composed text when translations change.
+	/// </summary>
+	public override void LanguageChanged()
+	{
+		base.LanguageChanged();
+		StateHasChanged();
+	}
 }

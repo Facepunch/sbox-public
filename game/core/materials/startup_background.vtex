@@ -1,18 +1,39 @@
+<!-- dmx encoding keyvalues2_noids 4 format vtex 1 -->
+"CDmeVtex"
 {
-  "Images": null,
-  "Sequences": [
-    {
-      "Source": "materials/startup_background_color.tga",
-      "IsLooping": false,
-      "FlipBook": false,
-      "Columns": 0,
-      "Rows": 0,
-      "Frames": 64
-    }
-  ],
-  "InputColorSpace": "Linear",
-  "OutputFormat": "RGBA8888",
-  "OutputColorSpace": "Linear",
-  "OutputMipAlgorithm": "None",
-  "OutputTypeString": "2D"
+	"m_inputTextureArray" "element_array"
+	[
+		"CDmeInputTexture"
+		{
+			"m_name" "string" "logo"
+			"m_fileName" "string" "materials/startup_background_color.png"
+			"m_colorSpace" "string" "linear"
+			"m_typeString" "string" "2D"
+			"m_imageProcessorArray" "element_array"
+			[
+				"CDmeImageProcessor"
+				{
+					"m_algorithm" "string" "FillToPowerOfTwo"
+				}
+			]
+		}
+	]
+	"m_outputTypeString" "string" "2D"
+	"m_outputFormat" "string" "RGBA8888"
+	"m_textureOutputChannelArray" "element_array"
+	[
+		"CDmeTextureOutputChannel"
+		{
+			"m_inputTextureArray" "string_array" [ "logo" ]
+			"m_srcChannels" "string" "rgba"
+			"m_dstChannels" "string" "rgba"
+			"m_outputColorSpace" "string" "linear"
+			"m_mipAlgorithm" "CDmeImageProcessor"
+			{
+				"m_algorithm" "string" "Box"
+			}
+		}
+	]
+	"m_vClamp" "vector3" "1 1 1"
+	"m_bNoLod" "bool" "1"
 }

@@ -1,6 +1,6 @@
 ﻿using System;
+using System.IO;
 using System.Text;
-using System.Text.RegularExpressions;
 using Microsoft.Win32;
 
 namespace Editor.CodeEditors;
@@ -33,117 +33,62 @@ public class Rider : ICodeEditor
 		OpenSolution();
 	}
 
-	public bool IsInstalled() => !string.IsNullOrEmpty( FindRider() );
+	public bool IsInstalled() => FindRider() is not null;
 
-	private static void Launch( string arguments )
-	{
-		var startInfo = new System.Diagnostics.ProcessStartInfo
-		{
-			CreateNoWindow = true,
-			Arguments = arguments,
-			FileName = FindRider()
-		};
-
-		System.Diagnostics.Process.Start( startInfo );
-	}
+	private static void Launch( string arguments ) => CodeEditorLocator.Launch( FindRider(), arguments );
 
 	private static string RiderPath;
 
-	[System.Diagnostics.CodeAnalysis.SuppressMessage( "Interoperability", "CA1416:Validate platform compatibility", Justification = "<Pending>" )]
 	private static string FindRider()
 	{
-		if ( RiderPath != null )
-		{
+		if ( RiderPath is not null )
 			return RiderPath;
+
+		// Prefer whatever the user already has open, as you can have multiple Rider installations.
+		// Process.MainModule isn't supported on macOS, so only bother where it works.
+		if ( !OperatingSystem.IsMacOS() )
+		{
+			foreach ( var p in System.Diagnostics.Process.GetProcessesByName( OperatingSystem.IsWindows() ? "rider64" : "rider" ) )
+				return RiderPath = p.MainModule.FileName;
 		}
 
-		// Always use whatever the user has open first as you can have multiple Rider installations
-		foreach ( var p in System.Diagnostics.Process.GetProcessesByName( "rider64" ) )
-		{
-			RiderPath = p.MainModule.FileName;
-			return RiderPath;
-		}
+		return RiderPath = CodeEditorLocator.Find(
+			// Toolbox puts its launcher scripts on PATH on every platform
+			"rider",
+			"rider64",
+			// Windows
+			"%ProgramFiles%/JetBrains/JetBrains Rider/bin/rider64.exe",
+			// macOS
+			"/Applications/Rider.app/Contents/MacOS/rider",
+			"~/Applications/Rider.app/Contents/MacOS/rider",
+			// Linux
+			"/opt/rider/bin/rider.sh" )
+			?? FindInRegistry();
+	}
 
-		string value = null;
-		using ( var key = Registry.ClassesRoot.OpenSubKey( @"Applications\\rider64.exe\\shell\\open\\command" ) )
-		{
-			value = key?.GetValue( "" ) as string;
-		}
-
-		if ( value == null )
-		{
-			var riderPathsDict = new Dictionary<string, string>();
-
-			using ( var appsSubKey = Registry.ClassesRoot.OpenSubKey( "Applications" ) )
-			{
-				var riderKeyNames = appsSubKey?.GetSubKeyNames().Where( name => name.StartsWith( "Toolbox.Rider." ) );
-				if ( riderKeyNames != null )
-				{
-					foreach ( var riderKeyName in riderKeyNames )
-					{
-						using var riderKey = appsSubKey.OpenSubKey( riderKeyName + @"\shell\open" );
-						using var commandKey = riderKey?.OpenSubKey( "command" );
-
-						var riderName = riderKey?.GetValue( "FriendlyAppName" ) as string;
-						var riderPath = commandKey?.GetValue( null ) as string;
-
-						if ( riderName != null && riderPath != null )
-							riderPathsDict.Add( riderName.Split( ' ' ).Skip( 1 ).Aggregate( ( s, s1 ) => s + " " + s1 ), riderPath );
-					}
-				}
-			}
-
-			// Convert version to a number so it can be ranked
-			// Prefers highest major
-			// Then prefers normal release, Early Access Program version and lastly Nightly
-			//YYYYMMPPEE
-			//2024.3.5 - 2024030500
-			//2024.3.6 - 2024030600
-			//2024.3 Nigthly - 2024030000
-			//2025.1 EAP7 - 2025010007
-
-			if ( riderPathsDict.Count > 1 )
-			{
-				var rankedRiderPathsDict = riderPathsDict.OrderByDescending( pair =>
-				{
-					var year = uint.Parse( pair.Key.Split( '.' )[0] );
-					uint minor;
-					if ( !pair.Key.Contains( "Nightly" ) && !pair.Key.Contains( "EAP" ) )
-						minor = uint.Parse( pair.Key.Split( '.' )[1] );
-					else
-						minor = uint.Parse( pair.Key.Split( '.' )[1].Split( " " )[0] );
-					var patch = pair.Key.Contains( "Nightly" ) || pair.Key.Contains( "EAP" )
-						? 00
-						: uint.Parse( pair.Key.Split( '.' )[2] );
-					var eap = pair.Key.Contains( "EAP" )
-						? uint.Parse( pair.Key.Split( '.' )[1].Split( " " )[1].Replace( "EAP", "" ) )
-						: 00;
-
-					ulong final = year * 1000000 + minor * 10000 + patch * 100 + eap;
-
-					return final;
-				} );
-
-				value = rankedRiderPathsDict.First().Value;
-			}
-			else
-				value = riderPathsDict.Count != 0 ? riderPathsDict.First().Value : null;
-		}
-
-		if ( value == null )
-		{
+	/// <summary>
+	/// Toolbox installs under %LOCALAPPDATA% and doesn't reliably put Rider on PATH, so on Windows
+	/// fall back to the registry - both the installer and Toolbox register rider64.exe there.
+	/// ponytail: first one that's on disk wins, no version ranking.
+	/// </summary>
+	private static string FindInRegistry()
+	{
+		if ( !OperatingSystem.IsWindows() )
 			return null;
-		}
 
-		// Given `"C:\Program Files\JetBrains\JetBrains Rider 2022.1.2\bin\rider64.exe" "%1"` grab the first bit
-		Regex rgx = new Regex( "\"(.*)\" \".*\"", RegexOptions.IgnoreCase );
-		var matches = rgx.Matches( value );
-		if ( matches.Count == 0 || matches[0].Groups.Count < 2 )
+		using var apps = Registry.ClassesRoot.OpenSubKey( "Applications" );
+
+		foreach ( var name in apps?.GetSubKeyNames() ?? [] )
 		{
-			return null;
+			if ( !name.Contains( "Rider", StringComparison.OrdinalIgnoreCase ) ) continue;
+
+			using var key = apps.OpenSubKey( $@"{name}\shell\open\command" );
+
+			// `"C:\JetBrains Rider 2022.1.2\bin\rider64.exe" "%1"` - grab the quoted exe
+			if ( key?.GetValue( null ) is string command && command.Split( '"' ) is [_, var path, ..] && File.Exists( path ) )
+				return path;
 		}
 
-		RiderPath = matches[0].Groups[1].Value;
-		return RiderPath;
+		return null;
 	}
 }

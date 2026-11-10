@@ -1,12 +1,45 @@
-﻿using HalfEdgeMesh;
+using HalfEdgeMesh;
 
 namespace Editor.MeshEditor;
 
 partial class VertexTool
 {
+	public enum MergeRange
+	{
+		[Description( "Merge all vertices regardless of distance." )]
+		Infinite,
+		[Description( "Merge vertices within the current grid spacing." )]
+		Grid,
+		[Description( "Merge vertices within a fixed distance." )]
+		Fixed,
+	}
+
+	public MergeRange MergeRangeMode
+	{
+		get => _mergeRangeMode;
+		set
+		{
+			_mergeRangeMode = value;
+			EditorCookie.Set( "VertexTool.MergeRange", value );
+		}
+	}
+	MergeRange _mergeRangeMode = EditorCookie.Get( "VertexTool.MergeRange", MergeRange.Infinite );
+
+	[Step( 0.1f )]
+	public float MergeDistance
+	{
+		get => _mergeDistance;
+		set
+		{
+			_mergeDistance = value;
+			EditorCookie.Set( "VertexTool.MergeDistance", value );
+		}
+	}
+	float _mergeDistance = EditorCookie.Get( "VertexTool.MergeDistance", 0.1f );
+
 	public override Widget CreateToolSidebar()
 	{
-		return new VertexSelectionWidget( GetSerializedSelection(), Tool );
+		return new VertexSelectionWidget( GetSerializedSelection(), this );
 	}
 
 	public class VertexSelectionWidget : ToolSidebarWidget
@@ -14,36 +47,16 @@ partial class VertexTool
 		private readonly MeshVertex[] _vertices;
 		private readonly List<IGrouping<MeshComponent, MeshVertex>> _vertexGroups;
 		private readonly List<MeshComponent> _components;
-		readonly MeshTool _tool;
+		readonly VertexTool _tool;
+		readonly ControlWidget _distanceControl;
+		IconButton _connectButton;
+		string _connectToolTip;
 
-		public enum MergeRange
-		{
-			[Icon( "all_inclusive" ), Description( "Merge all vertices regardless of distance." )]
-			Infinite,
-			[Icon( "grid_on" ), Description( "Merge vertices within the current grid spacing." )]
-			Grid,
-			[Icon( "straighten" ), Description( "Merge vertices within a fixed distance." )]
-			Fixed,
-		}
-
-		private static MergeRange MergeRangeMode { get; set; } = MergeRange.Infinite;
-		private static float MergeDistance { get; set; } = 0.1f;
-
-		private struct MergeProperties
-		{
-			[Group( "Merge" )]
-			public readonly MergeRange Range { get => MergeRangeMode; set => MergeRangeMode = value; }
-
-			[Group( "Merge" )]
-			public readonly float Distance { get => MergeDistance; set => MergeDistance = value; }
-		}
-
-		[InlineEditor( Label = false )]
-		private readonly MergeProperties mergeProperties = new();
-
-		public VertexSelectionWidget( SerializedObject so, MeshTool tool ) : base()
+		public VertexSelectionWidget( SerializedObject so, VertexTool tool ) : base()
 		{
 			_tool = tool;
+
+			var toolSo = tool.GetSerialized();
 
 			AddTitle( "Vertex Mode", "workspaces" );
 
@@ -51,49 +64,58 @@ partial class VertexTool
 				var group = AddGroup( "Move Mode" );
 				var row = group.AddRow();
 				row.Spacing = 8;
-				tool.CreateMoveModeButtons( row );
+				tool.Tool.CreateMoveModeButtons( row );
 			}
 
-			_vertices = so.Targets
-				.OfType<MeshVertex>()
-				.ToArray();
-
+			_vertices = [.. so.Targets.OfType<MeshVertex>()];
 			_vertexGroups = _vertices.GroupBy( x => x.Component ).ToList();
 			_components = _vertexGroups.Select( x => x.Key ).ToList();
 
+			this.AddPivotGroup( tool );
+			this.AddPivotButtons( tool, _vertices.Length > 0 );
+
 			{
-				var group = AddGroup( "Operations" );
-
+				var group = AddGroup( "Merge" );
 				{
-					var row = new Widget { Layout = Layout.Row() };
-					row.Layout.Spacing = 4;
-
-					CreateButton( "Merge", "merge", "mesh.merge", Merge, _vertices.Length > 1, row.Layout );
-
-					var mergeObject = mergeProperties.GetSerialized();
-					var range = ControlWidget.Create( mergeObject.GetProperty( nameof( MergeProperties.Range ) ) );
-					var distance = ControlWidget.Create( mergeObject.GetProperty( nameof( MergeProperties.Distance ) ) );
-					distance.HorizontalSizeMode = SizeMode.Expand;
-
-					range.FixedHeight = Theme.ControlHeight;
-					distance.FixedHeight = Theme.ControlHeight;
-
-					row.Layout.Add( range );
-					row.Layout.Add( distance );
-
-					group.Add( row );
+					var range = ControlWidget.Create( toolSo.GetProperty( nameof( MergeRangeMode ) ) );
+					group.Add( range );
 				}
 
 				{
 					var row = new Widget { Layout = Layout.Row() };
 					row.Layout.Spacing = 4;
 
-					CreateButton( "Snap To Vertex", "gps_fixed", "mesh.snap_to_vertex", SnapToVertex, _vertices.Length > 1, row.Layout );
-					CreateButton( "Weld UVs", "scatter_plot", "mesh.vertex-weld-uvs", WeldUVs, _vertices.Length > 0, row.Layout );
-					CreateButton( "Bevel", "straighten", "mesh.bevel", Bevel, _vertices.Length > 0, row.Layout );
-					CreateButton( "Connect", "link", "mesh.connect", Connect, _vertices.Length > 1, row.Layout );
-					CreateButton( "Edge Cut Tool", "polyline", "mesh.edge-cut-tool", OpenEdgeCutTool, true, row.Layout );
+					CreateButton( "Merge", "meshtools/vertex_tools/merge.png", "mesh.merge", Merge, _vertices.Length > 1, row.Layout );
 
+					var distance = new FloatControlWidget( toolSo.GetProperty( nameof( MergeDistance ) ) );
+					distance.FixedHeight = Theme.ControlHeight;
+					distance.HorizontalSizeMode = SizeMode.Expand;
+					distance.Enabled = _tool.MergeRangeMode == MergeRange.Fixed;
+					distance.Label = null;
+					distance.Icon = "straighten";
+					distance.ToolTip = "Fixed merge distance";
+					_distanceControl = distance;
+					row.Layout.Add( distance );
+
+					group.Add( row );
+				}
+			}
+
+			{
+				var group = AddGroup( "Modify" );
+
+				{
+					var row = new Widget { Layout = Layout.Row() };
+					row.Layout.Spacing = 4;
+
+					_connectButton = CreateButton( "Connect", "meshtools/vertex_tools/connect.png", "mesh.connect", Connect, true, row.Layout );
+					_connectToolTip = _connectButton.ToolTip;
+					RefreshConnectButton();
+
+					CreateButton( "Bevel", "meshtools/vertex_tools/bevel.png", "mesh.bevel", Bevel, _vertices.Length > 0, row.Layout );
+					CreateButton( "Snap To Vertex", "meshtools/vertex_tools/snap_to_vertex.png", "mesh.snap_to_vertex", SnapToVertex, _vertices.Length > 1, row.Layout );
+					CreateButton( "Weld UVs", "meshtools/vertex_tools/weld_uvs.png", "mesh.vertex-weld-uvs", WeldUVs, _vertices.Length > 0, row.Layout );
+					CreateButton( "Edge Cut Tool", "meshtools/vertex_tools/edge_cut_tool.png", "mesh.edge-cut-tool", OpenEdgeCutTool, true, row.Layout );
 					row.Layout.AddStretchCell();
 
 					group.Add( row );
@@ -101,9 +123,43 @@ partial class VertexTool
 			}
 
 			Layout.AddStretchCell();
+
+			{
+				var group = AddGroup( "Visualization" );
+				group.Add( ControlSheetRow.Create( tool.GetSerialized().GetProperty( nameof( ShowSelectionBounds ) ) ) );
+			}
+
+			AddShortcuts(
+				("Lasso Select", "Alt+Shift+Drag"),
+				("Lasso Deselect", "Alt+Ctrl+Drag"),
+				("Grow Selection", "Numpad +"),
+				("Shrink Selection", "Numpad -"),
+				("Snap to Grid", "Ctrl+B")
+			);
 		}
 
-		[Shortcut( "editor.select-all", "CTRL+A", typeof( SceneViewWidget ) )]
+		[EditorEvent.Frame]
+		private void Frame()
+		{
+			_distanceControl?.Enabled = _tool.MergeRangeMode == MergeRange.Fixed;
+		}
+
+		/// <summary>
+		/// The sidebar is only rebuilt when the tool or the selection changes, so operations that edit a
+		/// mesh without touching the selection have to re-check the connect button themselves.
+		/// </summary>
+		private void RefreshConnectButton()
+		{
+			if ( !_connectButton.IsValid() )
+				return;
+
+			var error = GetConnectError();
+
+			_connectButton.Enabled = error is null;
+			_connectButton.ToolTip = error is null ? _connectToolTip : $"{_connectToolTip}<br/> <br/>{error}";
+		}
+
+		[Shortcut( "mesh.select-all", "CTRL+A", typeof( SceneViewWidget ) )]
 		private void SelectAll()
 		{
 			using var scope = SceneEditorSession.Scope();
@@ -126,73 +182,123 @@ partial class VertexTool
 		[Shortcut( "mesh.edge-cut-tool", "C", typeof( SceneViewWidget ) )]
 		void OpenEdgeCutTool()
 		{
-			var tool = new EdgeCutTool( nameof( VertexTool ) );
-			tool.Manager = _tool.Manager;
-			_tool.CurrentTool = tool;
+			var edgeCut = new EdgeCutTool( nameof( VertexTool ) );
+			edgeCut.Manager = _tool.Tool.Manager;
+			_tool.Tool.CurrentTool = edgeCut;
 		}
 
 		[Shortcut( "mesh.connect", "V", typeof( SceneViewWidget ) )]
 		private void Connect()
 		{
-			if ( _vertices.Length < 2 )
-				return;
-
 			using var scope = SceneEditorSession.Scope();
 
-			var pairs = new Dictionary<PolygonMesh, List<(VertexHandle, VertexHandle)>>();
+			var pairs = BuildConnectPairs();
+			if ( pairs.Count == 0 )
+				return;
 
 			using ( SceneEditorSession.Active.UndoScope( "Connect Vertices" )
 				.WithComponentChanges( _components )
 				.Push() )
 			{
-				foreach ( var group in _vertexGroups )
+				var changed = new HashSet<PolygonMesh>();
+
+				foreach ( var (mesh, hVertexA, hVertexB) in pairs )
 				{
-					var mesh = group.Key.Mesh;
-					pairs[mesh] = [];
+					if ( mesh.ConnectVertices( hVertexA, hVertexB, out _ ) )
+						changed.Add( mesh );
+				}
 
-					foreach ( var hVertex in group )
+				foreach ( var mesh in changed )
+					mesh.ComputeFaceTextureCoordinatesFromParameters();
+			}
+
+			RefreshConnectButton();
+		}
+
+		/// <summary>
+		/// For every selected vertex, pair it with the next selected vertex found walking around each
+		/// face it belongs to. These are the edges a connect would try to create.
+		/// </summary>
+		private List<(PolygonMesh Mesh, VertexHandle A, VertexHandle B)> BuildConnectPairs()
+		{
+			var pairs = new List<(PolygonMesh, VertexHandle, VertexHandle)>();
+
+			foreach ( var group in _vertexGroups )
+			{
+				if ( !group.Key.IsValid() )
+					continue;
+
+				var mesh = group.Key.Mesh;
+
+				// Handles are only meaningful within their own mesh, so match against this group alone.
+				var selected = group.Select( x => x.Handle ).ToHashSet();
+
+				foreach ( var hVertex in group )
+				{
+					if ( !mesh.GetFacesConnectedToVertex( hVertex.Handle, out var connectedFaces ) )
+						continue;
+
+					foreach ( var hFace in connectedFaces )
 					{
-						mesh.GetFacesConnectedToVertex( hVertex.Handle, out var connectedFaces );
+						var hFaceVertex = mesh.FindFaceVertexConnectedToVertex( hVertex.Handle, hFace );
+						var hNextFaceVertex = mesh.GetNextVertexInFace( hFaceVertex );
 
-						foreach ( var hFace in connectedFaces )
+						while ( hNextFaceVertex != hFaceVertex )
 						{
-							var hFaceVertex = mesh.FindFaceVertexConnectedToVertex( hVertex.Handle, hFace );
-							var hNextFaceVertex = mesh.GetNextVertexInFace( hFaceVertex );
+							var hNextVertex = mesh.GetVertexConnectedToFaceVertex( hNextFaceVertex );
 
-							while ( hNextFaceVertex != hFaceVertex )
+							if ( selected.Contains( hNextVertex ) )
 							{
-								var hNextVertex = mesh.GetVertexConnectedToFaceVertex( hNextFaceVertex );
-
-								if ( _vertices.FirstOrDefault( x => x.Handle == hNextVertex ).IsValid() )
-								{
-									pairs[mesh].Add( (hVertex.Handle, hNextVertex) );
-									break;
-								}
-
-								hNextFaceVertex = mesh.GetNextVertexInFace( hNextFaceVertex );
+								pairs.Add( (mesh, hVertex.Handle, hNextVertex) );
+								break;
 							}
+
+							hNextFaceVertex = mesh.GetNextVertexInFace( hNextFaceVertex );
 						}
 					}
 				}
-
-				foreach ( var group in _vertexGroups )
-				{
-					var mesh = group.Key.Mesh;
-					var vertexPairs = pairs[mesh];
-					var numPairs = vertexPairs.Count;
-
-					if ( vertexPairs.Count == 0 )
-						continue;
-
-					foreach ( var pair in vertexPairs )
-					{
-						mesh.ConnectVertices( pair.Item1, pair.Item2, out _ );
-					}
-
-					mesh.ComputeFaceTextureCoordinatesFromParameters();
-				}
 			}
+
+			return pairs;
 		}
+
+		/// <summary>
+		/// Null if the current selection can be connected, otherwise why it can't.
+		/// </summary>
+		private string GetConnectError()
+		{
+			if ( _vertices.Length < 2 )
+				return "Select at least two vertices.";
+
+			var pairs = BuildConnectPairs();
+			if ( pairs.Count == 0 )
+				return DescribeConnectFailure( PolygonMesh.ConnectVerticesResult.NoSharedFace );
+
+			var failure = PolygonMesh.ConnectVerticesResult.Success;
+
+			foreach ( var (mesh, hVertexA, hVertexB) in pairs )
+			{
+				var result = mesh.CanConnectVertices( hVertexA, hVertexB );
+
+				// Connect is happy as long as a single pair works.
+				if ( result == PolygonMesh.ConnectVerticesResult.Success )
+					return null;
+
+				if ( failure == PolygonMesh.ConnectVerticesResult.Success )
+					failure = result;
+			}
+
+			return DescribeConnectFailure( failure );
+		}
+
+		private static string DescribeConnectFailure( PolygonMesh.ConnectVerticesResult result ) => result switch
+		{
+			PolygonMesh.ConnectVerticesResult.AlreadyConnected => "The selected vertices are already connected by an edge.",
+			PolygonMesh.ConnectVerticesResult.BothVerticesInternal => "Both vertices are inside a face. At least one of them has to be on the edge of a face.",
+			PolygonMesh.ConnectVerticesResult.NoSharedFace => "The selected vertices aren't on the same face, so there's no face to split. Connecting them would leave an edge with no face attached.",
+			PolygonMesh.ConnectVerticesResult.OutsideFace => "The new edge would fall outside the face. This happens when a face is concave.",
+			_ => "The selected vertices can't be connected.",
+		};
 
 		[Shortcut( "mesh.snap_to_vertex", "B", typeof( SceneViewWidget ) )]
 		private void SnapToVertex()
@@ -210,6 +316,8 @@ partial class VertexTool
 				foreach ( var vertex in _vertices )
 					vertex.Component.Mesh.SetVertexPosition( vertex.Handle, vertex.Transform.PointToLocal( position ) );
 			}
+
+			RefreshConnectButton();
 		}
 
 		[Shortcut( "mesh.vertex-weld-uvs", "CTRL+F", typeof( SceneViewWidget ) )]
@@ -288,10 +396,10 @@ partial class VertexTool
 					meshB.DestroyGameObject();
 				}
 
-				var mergeDistance = MergeRangeMode switch
+				var mergeDistance = _tool.MergeRangeMode switch
 				{
 					MergeRange.Grid => EditorScene.GizmoSettings.GridSpacing,
-					MergeRange.Fixed => MergeDistance,
+					MergeRange.Fixed => _tool.MergeDistance,
 					_ => -1.0f
 				};
 
@@ -434,6 +542,41 @@ partial class VertexTool
 				{
 					if ( vertex.IsValid() )
 						selection.Add( vertex );
+				}
+			}
+		}
+
+		[Shortcut( "mesh.select-loop", "L", typeof( SceneViewWidget ) )]
+		private void SelectLoop()
+		{
+			if ( _vertices.Length < 2 )
+				return;
+
+			using var scope = SceneEditorSession.Scope();
+
+			using ( SceneEditorSession.Active.UndoScope( "Select Vertex Loop" ).Push() )
+			{
+				var selection = SceneEditorSession.Active.Selection;
+				selection.Clear();
+
+				foreach ( var group in _vertexGroups )
+				{
+					var mesh = group.Key.Mesh;
+					var verts = group.Select( x => x.Handle ).ToArray();
+
+					var edges = verts.SelectMany( ( v, i ) => verts.Skip( i + 1 )
+						.Select( w => mesh.FindEdgeConnectingVertices( v, w ) ) )
+						.Where( e => e.IsValid )
+						.ToArray();
+
+					if ( edges.Length == 0 )
+						continue;
+
+					mesh.FindEdgeLoopForEdges( edges, out var edgeLoop );
+					mesh.FindVerticesConnectedToEdges( edgeLoop, out var loopVertices );
+
+					foreach ( var hVertex in loopVertices )
+						selection.Add( new MeshVertex( group.Key, hVertex ) );
 				}
 			}
 		}

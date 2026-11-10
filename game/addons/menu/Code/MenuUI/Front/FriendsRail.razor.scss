@@ -1,0 +1,457 @@
+@import "/Platform/_platform.scss";
+
+// The friends list, the bottom band of the right-hand card. Takes whatever height the avatar
+// and stats leave it, and scrolls inside that.
+FriendsRail
+{
+	flex-direction: column;
+	overflow: hidden;
+
+	.grow
+	{
+		flex-grow: 1;
+	}
+
+	> .head
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: stretch;
+		border-bottom: 1px solid $platform-hairline;
+
+		// Magnifier on the left, text in the middle, clear button pinned to the right
+		.search
+		{
+			@include platform-field( 34px );
+			flex-direction: row;
+			flex-grow: 1;
+			gap: 8px;
+			margin: 8px;
+
+			> icon
+			{
+				flex-shrink: 0;
+				font-size: 16px;
+				color: $platform-faint;
+			}
+
+			TextEntry
+			{
+				flex-grow: 1;
+				min-width: 0;
+				padding: 0;
+				border-width: 0;
+				background-color: transparent;
+				justify-content: flex-start;
+				font-size: 13px;
+				color: $platform-text;
+
+				&.has-icon
+				{
+					padding-right: 0;
+				}
+
+				.content-label, .placeholder
+				{
+					flex-grow: 1;
+					order: 1;
+				}
+
+				.placeholder
+				{
+					color: $platform-faint;
+					opacity: 1;
+				}
+
+				// Stays in the row, after the text - not wherever the icon happens to land
+				.iconpanel.clearbutton
+				{
+					position: relative;
+					right: auto;
+					order: 2;
+					flex-shrink: 0;
+					padding: 0;
+					margin-left: 4px;
+					font-size: 14px;
+					color: $platform-muted;
+					opacity: 0.6;
+
+					&:hover
+					{
+						opacity: 1;
+					}
+				}
+			}
+		}
+	}
+
+	> .rows
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		height: 0;
+		overflow-y: scroll;
+		padding: 4px 8px 16px 8px;
+
+		// Each item sits in a cell the list sizes from its item height - so every item below has a
+		// fixed height that matches HeadHeight / PartyHeight / FriendHeight in the code
+		> .cell
+		{
+			flex-direction: column;
+			// A section folding shrinks its cells shorter than their rows - cut the rows off, don't spill
+			overflow: hidden;
+		}
+	}
+
+	.group-head
+	{
+		flex-direction: row;
+		align-items: center;
+		flex-shrink: 0;
+		gap: 4px;
+		height: 36px;
+		padding: 12px 8px 6px 4px;
+		cursor: pointer;
+
+		icon
+		{
+			font-size: 16px;
+			color: $platform-faint;
+			transition: transform 0.15s ease-out;
+		}
+
+		// Folded, the chevron points at the section instead of down into it
+		&.collapsed icon
+		{
+			transform: rotate( -90deg );
+		}
+
+		// Plain capitals - not the blue section label, whose gradient a later solid colour doesn't undo
+		.group-title
+		{
+			@include platform-caps;
+			color: $platform-muted;
+		}
+
+		// How many are in the section, right after its name - a chip, its words its own as it's a bare label
+		.group-count
+		{
+			@include platform-chip;
+			justify-content: center;
+			min-width: 22px;
+			margin-left: 4px;
+			font-size: 11.5px;
+			font-weight: 600;
+			color: $platform-text;
+		}
+
+		&:hover icon
+		{
+			color: $platform-text;
+		}
+	}
+
+	.avatar
+	{
+		@include front-row-media;
+		border-radius: 50%;
+	}
+
+	// A friend's party - one card for everyone in it
+	// The game someone's in, behind their row or their party's card - strongest on the right, fading
+	// off to nothing by the time it reaches their name, like the friend card. First in the row, so
+	// everything else draws over it. White shows, black hides.
+	.game-art
+	{
+		position: absolute;
+		left: 0;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		pointer-events: none;
+		background-size: cover;
+		background-position: center;
+		opacity: 0.45;
+		mask-image: linear-gradient( 270deg, white 0%, black 85% );
+	}
+
+	// In the editor - a blue grid where a game's screenshot would go, faded the same way
+	.editor-art
+	{
+		position: absolute;
+		left: 0;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		pointer-events: none;
+		background-image: url( "/ui/blueprint.svg" );
+		background-size: cover;
+		background-position: right center;
+		opacity: 0.6;
+		mask-image: linear-gradient( 270deg, white 0%, black 85% );
+	}
+
+	.party
+	{
+		position: relative;
+		overflow: hidden;
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 10px;
+		height: 76px;
+
+		// The parties read as one block, like a run of friend rows - square, with a line under each
+		// to split them (and the last from the friends under it)
+		padding: 10px 12px;
+		border-bottom: 1px solid $platform-hairline;
+		background-color: rgba( 255, 255, 255, 0.03 );
+		transition: background-color 0.1s ease;
+
+		// Clicking anywhere on it joins - so it points, and lifts like a friend row does
+		&.joinable
+		{
+			cursor: pointer;
+
+			&:hover
+			{
+				background-color: $platform-hover-wash;
+				sound-in: "ui.button.over";
+			}
+		}
+
+		&.mine
+		{
+			background-color: rgba( $platform-primary, 0.08 );
+		}
+
+		// Whose party and what they're doing over who's in it - with join beside the lot, centred
+		.party-main
+		{
+			flex-direction: column;
+			flex-grow: 1;
+			flex-shrink: 1;
+			justify-content: center;
+			min-width: 0;
+			gap: 8px;
+		}
+
+		.party-info
+		{
+			flex-direction: column;
+			flex-shrink: 0;
+			min-width: 0;
+			gap: 1px;
+		}
+
+		// "howie's party · Sandbox · Joinable" - one line. The game gives way first when it's tight,
+		// then the name; the dots and "Joinable" never do
+		.party-title
+		{
+			flex-direction: row;
+			align-items: center;
+			gap: 5px;
+			height: 18px;
+			min-width: 0;
+
+			.sep
+			{
+				flex-shrink: 0;
+				font-size: 11.5px;
+				color: $front-tertiary;
+			}
+
+			.game
+			{
+				flex-shrink: 2;
+				min-width: 0;
+				font-size: 11.5px;
+				font-weight: 600;
+				color: $front-accent;
+				white-space: nowrap;
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
+
+			.state
+			{
+				@include front-row-meta;
+				white-space: nowrap;
+			}
+		}
+
+		// Shrinks to fit rather than sizing off a percentage - inside the list's cells that measured
+		// against nothing and left just the ellipsis. The stylesheet has no "none" for max-width, so
+		// the mixin's 100% is replaced by a length no name will reach.
+		.party-name
+		{
+			@include front-row-title;
+			flex-shrink: 1;
+			min-width: 0;
+			max-width: 2000px;
+			font-size: 12.5px;
+		}
+
+		.party-avatars
+		{
+			flex-direction: row;
+			flex-shrink: 0;
+			align-items: center;
+			gap: 4px;
+			height: 28px;
+
+			.avatar
+			{
+				width: 28px;
+				height: 28px;
+				cursor: pointer;
+
+				&:hover
+				{
+					outline: 2px solid $front-primary;
+				}
+
+				// The one you searched for
+				&.match
+				{
+					outline: 2px solid $front-accent;
+				}
+			}
+
+			// Everyone past the last face - friends that didn't fit and people you don't know
+			.more
+			{
+				flex-shrink: 0;
+				align-items: center;
+				justify-content: center;
+				min-width: 28px;
+				height: 28px;
+				padding: 0 6px;
+				border-radius: 999px;
+				background-color: rgba( 255, 255, 255, 0.07 );
+				font-size: 11px;
+				font-weight: 700;
+				color: $front-secondary;
+				text-align: center;
+				white-space: nowrap;
+			}
+		}
+	}
+
+	.friend
+	{
+		position: relative;
+		overflow: hidden;
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 10px;
+		height: 42px;
+		// Square, like the party cards - a run of rows with art behind them reads as one block
+		padding: 5px 6px;
+		cursor: pointer;
+		transition: background-color 0.1s ease;
+
+		&:hover
+		{
+			background-color: $platform-hover-wash;
+			sound-in: "ui.button.over";
+		}
+
+		.info
+		{
+			flex-direction: column;
+			flex-shrink: 1;
+			min-width: 0;
+		}
+
+		.name
+		{
+			@include front-row-title;
+		}
+
+		.status
+		{
+			font-size: 11px;
+			font-weight: 500;
+			color: $front-tertiary;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+
+		&.ingame .status { color: $front-accent; }
+		&.online .status { color: $front-link; }
+
+		&.away
+		{
+			opacity: 0.75;
+		}
+
+		&.offline
+		{
+			opacity: 0.45;
+		}
+	}
+
+	// Join - always showing: it's the thing to do with this row
+	.action.join
+	{
+		@include platform-tool( 26px, 18px );
+		@include platform-button-primary;
+
+		&:hover
+		{
+			sound-in: "ui.button.over";
+		}
+
+		&:active
+		{
+			sound-in: "ui.button.press";
+		}
+	}
+
+	// Square "+" - invite straight into your party (making one if you're not in one). Out of the way until you
+	// point at someone
+	.invite
+	{
+		@include platform-tool( 26px, 16px );
+		opacity: 0;
+		transition: opacity 0.12s ease, background-color 0.12s ease;
+
+		// Asked in, waiting on them - always showing, not just on hover, so it reads as "done, waiting"
+		&.pending
+		{
+			opacity: 1;
+			cursor: default;
+		}
+	}
+
+	.friend:hover .invite
+	{
+		opacity: 1;
+	}
+
+	// Nobody on the list at all - centred in the space the list would take
+	.no-friends
+	{
+		@include platform-empty;
+		flex-grow: 1;
+		justify-content: center;
+		padding: 24px 28px;
+		text-align: center;
+	}
+
+	.empty
+	{
+		justify-content: center;
+		padding: 24px 8px;
+
+		label
+		{
+			font-size: 12px;
+			color: $platform-faint;
+		}
+	}
+}

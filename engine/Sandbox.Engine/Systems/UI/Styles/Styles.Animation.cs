@@ -5,6 +5,13 @@ public partial class Styles
 	KeyFrames currentFrames;
 	double animationStart;
 	Styles animStyle;
+	bool animationComplete;
+
+	/// <summary>
+	/// True while an animation is set and still running. Becomes false once a finite animation has
+	/// finished, so the panel can stop re-laying-out every frame for the rest of its life.
+	/// </summary>
+	public bool IsAnimationActive => HasAnimation && !animationComplete;
 
 	/// <summary>
 	/// Stops the animation. If we have animation vars we'll start again.
@@ -14,6 +21,7 @@ public partial class Styles
 		currentFrames = default;
 		animationStart = default;
 		animStyle = default;
+		animationComplete = false;
 	}
 
 	/// <summary>
@@ -54,6 +62,7 @@ public partial class Styles
 			currentFrames = keyframes;
 			animationStart = panel.TimeNow;
 			animStyle = new Styles();
+			animationComplete = false;
 		}
 
 		if ( AnimationPlayState == "paused" )
@@ -113,11 +122,18 @@ public partial class Styles
 
 		if ( playLength >= totalDuration )
 		{
+			// Animation has finished. Hold the final frame for forwards/both, then report no further
+			// change (after laying out the final frame once) so the panel settles instead of
+			// re-running the animation every frame for the rest of its life.
 			if ( fillMode == "forwards" || fillMode == "both" )
-				delta = 1.0f;
+			{
+				keyframes.FillStyle( 1.0f, animStyle );
+				Add( animStyle );
+			}
 
-			if ( fillMode == "none" )
-				return false;
+			bool firstCompletion = !animationComplete;
+			animationComplete = true;
+			return firstCompletion;
 		}
 
 		keyframes.FillStyle( (float)delta, animStyle );

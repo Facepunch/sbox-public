@@ -35,6 +35,9 @@ public partial class EnvmapProbe
 				Gizmo.Draw.Color = TintColor.WithAlpha( 1 * alpha );
 				Gizmo.Draw.LineBBox( Bounds );
 
+				Gizmo.Draw.Color = TintColor.WithAlpha( 0.05f * alpha );
+				Gizmo.Draw.SolidBox( Bounds );
+
 				Gizmo.Draw.Color = TintColor.WithAlpha( 0.2f * alpha );
 				Gizmo.Draw.LineBBox( Bounds.Grow( Feathering ) );
 			}

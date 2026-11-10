@@ -1,0 +1,24 @@
+GameServerBackdrop
+{
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	height: 280px;
+	pointer-events: none;
+	z-index: 0;
+	background-size: cover;
+	background-position: center;
+	opacity: 0.48;
+	// Keep the artwork crisp around the heading and fade it before the server rows.
+	// Engine masks use luminance: white reveals the image, black hides it.
+	mask-image: linear-gradient( to bottom, white 0%, white 20%, black 100% );
+
+	.art-shade
+	{
+		width: 100%;
+		height: 100%;
+		// Protect the title's contrast while leaving more artwork visible on the right.
+		background-image: linear-gradient( to right, rgba( 0, 0, 0, 0.65 ) 0%, rgba( 0, 0, 0, 0.05 ) 100% );
+	}
+}

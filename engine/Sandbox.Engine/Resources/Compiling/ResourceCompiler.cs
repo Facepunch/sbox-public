@@ -1,5 +1,4 @@
 ﻿using System.Text.Json.Serialization;
-using System.Threading;
 
 namespace Sandbox.Resources;
 
@@ -28,7 +27,7 @@ public abstract partial class ResourceCompiler
 		}
 		catch ( System.Exception e )
 		{
-			Log.Error( e, "Exception when compiulnig resource" );
+			Context.Fail( $"Exception when compiling an embedded resource: {e}" );
 			return false;
 		}
 	}
@@ -38,23 +37,21 @@ public abstract partial class ResourceCompiler
 		return false;
 	}
 
-	internal bool CompileInternal()
+	// Native child compiles share the caller's filesystem and compiler state.
+	// Pump only this compile's continuations, never editor frames or other jobs.
+	internal bool CompileInternal() => AsyncPump.RunSynchronously( CompileInternalAsync );
+
+	internal async Task<bool> CompileInternalAsync()
 	{
 		try
 		{
-			var t = Task.Run( Compile );
-
-			while ( !t.IsCompleted )
-			{
-				Thread.Sleep( 1 );
-			}
-
-			return t.Result;
+			return await Compile();
 		}
 		catch ( System.Exception e )
 		{
-			Log.Error( e, $"Exception when compiling resource {Context?.AbsolutePath}" );
-			return false;
+			// Failed rather than not handled: what the compiler did so far mustn't be finished by the native compiler
+			Context.Fail( $"Exception when compiling resource: {e}" );
+			return true;
 		}
 	}
 

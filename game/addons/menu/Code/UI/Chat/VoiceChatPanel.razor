@@ -1,0 +1,45 @@
+@using Sandbox
+@using Sandbox.UI
+@namespace MenuProject.UI
+@inherits Panel
+
+<root>
+
+    @foreach (var speaker in Speakers.Take( MaxSpeakers ))
+    {
+        <VoiceChatRow Speaker="@speaker"/>
+    }
+
+    @if (Overflow > 0)
+    {
+        <div class="overflow">
+            <label class="icon">group</label>
+            <label>@Language.GetPhrase( "menu.voice.more_talking", new() { ["count"] = Overflow.ToString() } )</label>
+        </div>
+    }
+
+</root>
+
+@code
+{
+    private const int MaxSpeakers = 8;
+
+    public override void Tick()
+    {
+        TickMembers();
+    }
+
+    protected override int BuildHash()
+    {
+        var hash = new HashCode();
+
+        foreach ( var speaker in Speakers.Take( MaxSpeakers ) )
+        {
+            hash.Add( speaker.Id );
+        }
+
+        hash.Add( Overflow );
+
+        return hash.ToHashCode();
+    }
+}

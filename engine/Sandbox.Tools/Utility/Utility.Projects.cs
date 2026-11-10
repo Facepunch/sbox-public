@@ -11,6 +11,18 @@ public static partial class EditorUtility
 			// Save changes
 			addon?.Save();
 
+			if ( addon is not null && addon == Project.Current && !StartupLoadProject.IsLoading )
+			{
+				if ( addon.Config.AI?.EnableMcpCommunication != false )
+				{
+					Mcp.McpPipeServer.Start();
+				}
+				else
+				{
+					Mcp.McpPipeServer.Stop();
+				}
+			}
+
 			//
 			// If we're a transient project we don't need to dirty everything else.
 			// we just really want to call the save callback and return.
@@ -46,32 +58,15 @@ public static partial class EditorUtility
 		/// </summary>
 		public static async Task WaitForCompiles()
 		{
-			// give time for any files to finish being written
-			//await Task.Delay( 1000 );
-
-			// force finding new files, running callbacks
+			FileWatch.Tick();
+			var compileSuccess = await Project.CompileAsync();
 			FileWatch.Tick();
 
-			// wait for compiles to finish
-			await Project.CompileAsync();
+			var loader = Sandbox.GameInstanceDll.PackageLoader;
+			if ( compileSuccess && Project.CompileGroup.BuildResult.Output is { } outputs )
+				loader.QueueCompiledAssemblies( outputs );
 
-			// give time for any files to finish being written
-			// this is horrible in this context. We have to wait for 
-			// filewatch to tick again to make sure we've picked up all the written files
-			// search for FileSystem.Watch( "/.bin/*.dll" ); We need a better way to trigger
-			// this shit manually in PackageLoader to 
-			// 1. Say this project changed so reload the new package
-			// 2. Don't re-trigger after it detects filesystem changes
-			await Task.Delay( 500 );
-
-			// filesystem callbacks..
-			FileWatch.Tick();
-
-			// Tick the loader to actually load
-			Sandbox.GameInstanceDll.PackageLoader.Tick();
-
-			// give time for any files to finish being written
-			//await Task.Delay( 1000 );
+			loader.Tick();
 		}
 
 		/// <summary>

@@ -1,4 +1,5 @@
-﻿namespace Sandbox;
+﻿using Sandbox.Engine;
+namespace Sandbox;
 
 [Expose]
 public abstract partial class Collider : Component, Component.ExecuteInEditor, Component.IHasBounds
@@ -12,7 +13,7 @@ public abstract partial class Collider : Component, Component.ExecuteInEditor, C
 	[Property, HideIf( nameof( IsConcave ), true )]
 	public bool Static
 	{
-		get => _static || IsConcave;
+		get => _static || IsConcave || GameObject.IsStatic;
 		set
 		{
 			if ( IsConcave )
@@ -30,8 +31,9 @@ public abstract partial class Collider : Component, Component.ExecuteInEditor, C
 			_keyframeBody.BodyType = isKeyframed ? PhysicsBodyType.Keyframed : PhysicsBodyType.Static;
 			_keyframeBody.UseController = isKeyframed;
 
-			if ( isKeyframed ) ScenePhysicsSystem.Current?.AddKeyframe( this );
-			else ScenePhysicsSystem.Current?.RemoveKeyframe( this );
+			var system = Scene.GetSystem<ScenePhysicsSystem>();
+			if ( isKeyframed ) system?.AddKeyframe( this );
+			else system?.RemoveKeyframe( this );
 		}
 	}
 
@@ -205,6 +207,7 @@ public abstract partial class Collider : Component, Component.ExecuteInEditor, C
 		UpdatePhysicsBody();
 
 		Transform.OnTransformChangedInternal += TransformChanged;
+		Transform.OnProxyChangedInternal += QueueKeyframeUpdate;
 		ChangeBody();
 
 		base.OnEnabledInternal();
@@ -213,17 +216,43 @@ public abstract partial class Collider : Component, Component.ExecuteInEditor, C
 	internal override void OnDisabledInternal()
 	{
 		Transform.OnTransformChangedInternal -= TransformChanged;
+		Transform.OnProxyChangedInternal -= QueueKeyframeUpdate;
 
 		DisconnectBody();
 
-		// Component disabled tells triggers to check for exits.
-		base.OnDisabledInternal();
+		try
+		{
+			base.OnDisabledInternal();
+		}
+		finally
+		{
+			// Our shapes are gone without sending trigger exits, end those pairs even if a disable callback threw
+			NotifyTouchWatchers();
+		}
 
 		// Dispose collision events last to hold onto touching for as long as possible.
 		if ( !GameObject.IsDestroyed )
 		{
 			_collisionEvents?.Dispose();
 			_collisionEvents = null;
+		}
+	}
+
+	// Collision event systems with a trigger pair against us, our shapes go away without sending exits
+	HashSet<CollisionEventSystem> _touchWatchers;
+
+	internal void AddTouchWatcher( CollisionEventSystem watcher ) => (_touchWatchers ??= new()).Add( watcher );
+	internal void RemoveTouchWatcher( CollisionEventSystem watcher ) => _touchWatchers?.Remove( watcher );
+
+	void NotifyTouchWatchers()
+	{
+		if ( _touchWatchers is null || _touchWatchers.Count == 0 )
+			return;
+
+		using ( GameTransform.DisableInterpolation() )
+		{
+			foreach ( var watcher in _touchWatchers.ToArray() )
+				watcher.RemoveDeactivated();
 		}
 	}
 
@@ -318,11 +347,11 @@ public abstract partial class Collider : Component, Component.ExecuteInEditor, C
 		if ( !Active ) return;
 		if ( _rebuilding ) return;
 
+		var body = PhysicsBody;
+		using var creation = body.IsValid() ? body._body.BeginShapeCreation( this ) : default;
+
 		// destroy any old shapes
 		DestroyShapes();
-
-		// find our target body
-		var body = PhysicsBody;
 
 		// no physics body
 		if ( !body.IsValid() )
@@ -330,79 +359,91 @@ public abstract partial class Collider : Component, Component.ExecuteInEditor, C
 
 		_rebuilding = true;
 
-		if ( _keyframeBody.IsValid() )
+		try
 		{
-			var isKeyframed = !Static && !Scene.IsEditor;
-
-			_keyframeBody.BodyType = isKeyframed ? PhysicsBodyType.Keyframed : PhysicsBodyType.Static;
-			_keyframeBody.UseController = isKeyframed;
-
-			if ( Static )
+			if ( _keyframeBody.IsValid() )
 			{
-				ScenePhysicsSystem.Current?.RemoveKeyframe( this );
+				var isKeyframed = !Static && !Scene.IsEditor;
+
+				_keyframeBody.BodyType = isKeyframed ? PhysicsBodyType.Keyframed : PhysicsBodyType.Static;
+				_keyframeBody.UseController = isKeyframed;
+
+				if ( Scene.Is2D )
+				{
+					var system = Scene.GetSystem<ScenePhysics2dSystem>();
+					if ( Static ) system?.RemoveKeyframe( this );
+					else system?.AddKeyframe( this );
+				}
+				else
+				{
+					var system = Scene.GetSystem<ScenePhysicsSystem>();
+					if ( Static ) system?.RemoveKeyframe( this );
+					else system?.AddKeyframe( this );
+				}
 			}
-			else
+			else if ( !Scene.Is2D )
 			{
-				ScenePhysicsSystem.Current?.AddKeyframe( this );
+				// If we're in editor, check if the editor wants to simulate us
+				if ( Scene.IsEditor )
+				{
+					var system = ScenePhysicsSystem.Current;
+					body.BodyType = system is not null && system.HasRigidBody( Rigidbody ) ? PhysicsBodyType.Dynamic : PhysicsBodyType.Static;
+
+					// Always considered dynamic for navmesh
+					body.NavmeshBodyTypeOverride = PhysicsBodyType.Dynamic;
+				}
+				else
+				{
+					body.BodyType = Rigidbody.MotionEnabled ? PhysicsBodyType.Dynamic : PhysicsBodyType.Keyframed;
+					body.NavmeshBodyTypeOverride = null;
+				}
 			}
+
+			// update our keyframe immediately
+			TeleportKeyframeBody( GetTargetTransform().WithScale( 1.0f ) );
+
+			var go = body.GameObject;
+
+			if ( !IsProxy && !Scene.IsEditor && !_keyframeBody.IsValid() )
+			{
+				var currentWorldTx = go.WorldTransform;
+
+				// Only snap the GameObject to the physics body if there's a meaningful difference.
+				// A naive world→local round-trip loses precision at large world coordinates, which
+				// would introduce phantom transform overrides in prefab instances.
+				// Position: 1cm tolerance. Rotation: dot-product threshold (1 - 1e-6 ≈ 0.16°).
+				var bodyPosition = body.Position;
+
+				if ( Scene.Is2D )
+					bodyPosition = bodyPosition.WithZ( currentWorldTx.Position.z );
+
+				if ( !currentWorldTx.Position.AlmostEqual( bodyPosition, 0.01f ) ||
+					!currentWorldTx.Rotation.AlmostEqual( body.Rotation, 0.000001f ) )
+				{
+					currentWorldTx.Position = bodyPosition;
+					currentWorldTx.Rotation = body.Rotation;
+					go.WorldTransform = currentWorldTx;
+				}
+
+				go.Transform.ClearLocalInterpolation();
+			}
+
+			var world = Transform.TargetWorld;
+			var local = go.Transform.TargetWorld.WithScale( 1.0f ).ToLocal( world );
+
+			// create the new shapes
+			Shapes.AddRange( CreatePhysicsShapes( body, local ) );
+
+			// configure shapes
+			ConfigureShapes();
+
+			// store the transform in which we were built
+			_bodyWorld = GetTargetTransform();
 		}
-		else
+		finally
 		{
-			// If we're in editor, check if the editor wants to simulate us
-			if ( Scene.IsEditor )
-			{
-				var system = ScenePhysicsSystem.Current;
-				body.BodyType = system is not null && system.HasRigidBody( Rigidbody ) ? PhysicsBodyType.Dynamic : PhysicsBodyType.Static;
-
-				// Always considered dynamic for navmesh
-				body.NavmeshBodyTypeOverride = PhysicsBodyType.Dynamic;
-			}
-			else
-			{
-				body.BodyType = Rigidbody.MotionEnabled ? PhysicsBodyType.Dynamic : PhysicsBodyType.Keyframed;
-				body.NavmeshBodyTypeOverride = null;
-			}
+			_rebuilding = false;
 		}
-
-		// update our keyframe immediately
-		TeleportKeyframeBody( WorldTransform );
-
-		var go = body.GameObject;
-
-		if ( !IsProxy )
-		{
-			var currentWorldTx = go.WorldTransform;
-
-			// Only snap the GameObject to the physics body if there's a meaningful difference.
-			// A naive world→local round-trip loses precision at large world coordinates, which
-			// would introduce phantom transform overrides in prefab instances.
-			// Position: 1cm tolerance. Rotation: dot-product threshold (1 - 1e-6 ≈ 0.16°).
-			if ( !currentWorldTx.Position.AlmostEqual( body.Position, 0.01f ) ||
-				!currentWorldTx.Rotation.AlmostEqual( body.Rotation, 0.000001f ) )
-			{
-				currentWorldTx.Position = body.Position;
-				currentWorldTx.Rotation = body.Rotation;
-				go.WorldTransform = currentWorldTx;
-			}
-
-			go.Transform.ClearLocalInterpolation();
-		}
-
-		var world = Transform.TargetWorld;
-		var local = go.Transform.TargetWorld.WithScale( 1.0f ).ToLocal( world );
-
-		// create the new shapes
-		body.native.SetTrigger( IsTrigger );
-		Shapes.AddRange( CreatePhysicsShapes( body, local ) );
-		body.native.SetTrigger( false );
-
-		// configure shapes
-		ConfigureShapes();
-
-		// store the transform in which we were built
-		_bodyWorld = GetTargetTransform();
-
-		_rebuilding = false;
 	}
 
 	/// <summary>
@@ -512,6 +553,8 @@ public abstract partial class Collider : Component, Component.ExecuteInEditor, C
 		}
 		else
 		{
+			QueueKeyframeUpdate();
+
 			if ( !Transform.InsideChangeCallback && targetTransform == _bodyWorld.WithScale( 1.0f ) )
 			{
 				TeleportKeyframeBody( targetTransform );
@@ -523,7 +566,7 @@ public abstract partial class Collider : Component, Component.ExecuteInEditor, C
 
 	internal void OnResize<T>( in WrappedPropertySet<T> p )
 	{
-		var property = Game.TypeLibrary.GetMemberByIdent( p.MemberIdent ) as PropertyDescription;
+		var property = GlobalContext.Current.TypeLibrary.GetMemberByIdent( p.MemberIdent ) as PropertyDescription;
 		var oldValue = property.GetValue( p.Object );
 		var isTheSame = Equals( p.Value, oldValue );
 

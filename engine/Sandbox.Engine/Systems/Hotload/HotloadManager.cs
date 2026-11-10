@@ -225,10 +225,9 @@ internal class HotloadManager : IDisposable
 			{
 				HotloadResult info = null;
 
-				using ( var gr = new HeavyGarbageRegion() )
 				using ( var t = eventRecord.ScopeTimer( "UpdateReferences" ) )
 				{
-
+					Json.WarmUpCts?.Cancel();
 					info = Hotload.UpdateReferences();
 				}
 

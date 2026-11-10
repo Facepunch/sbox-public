@@ -48,25 +48,40 @@ class MountSourceNode : FolderNode
 
 		if ( Value.IsRoot && Value is MountLocation ml )
 		{
-			var mountedOption = new Option()
+			if ( ml.Source.IsInstalled )
 			{
-				Text = "Mounted",
-				Checkable = true,
-				Checked = IsMounted,
-				Toggled = async ( b ) =>
+				m.AddOption( new Option()
 				{
-					await EditorUtility.Mounting.SetMounted( ml.Source.Ident, b );
+					Text = "Mounted",
+					Checkable = true,
+					Checked = IsMounted,
+					Toggled = async ( b ) =>
+					{
+						await EditorUtility.Mounting.SetMounted( ml.Source.Ident, b );
+						Dirty();
+					}
+				} );
+
+				m.AddOption( "Reload", "refresh", async () =>
+				{
+					await EditorUtility.Mounting.Refresh( ml.Source.Ident );
 					Dirty();
-				}
-			};
-
-			m.AddOption( mountedOption );
-
-			m.AddOption( "Reload", "refresh", async () =>
+				} );
+			}
+			else if ( ml.Source.SteamAppId is long appId )
 			{
-				await EditorUtility.Mounting.Refresh( ml.Source.Ident );
-				Dirty();
-			} );
+				m.AddOption( "Open in Steam Store", "shopping_cart", () =>
+				{
+					try
+					{
+						EditorUtility.OpenFolder( $"steam://store/{appId}" );
+					}
+					catch ( System.Exception exception )
+					{
+						Log.Warning( $"Couldn't open the Steam store for app {appId}: {exception.Message}" );
+					}
+				} );
+			}
 		}
 
 		m.AddOption( "Copy Path", "content_paste", () => { EditorUtility.Clipboard.Copy( Value.Path ); } );

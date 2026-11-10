@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<!-- Shaping tests need Skia's CPU library, not engine interop or FACEPUNCH_ENGINE. -->
+	<ItemGroup>
+		<ProjectReference Include="..\..\ThirdParty\Topten.RichTextKit\Topten.RichTextKit.csproj" />
+	</ItemGroup>
+</Project>

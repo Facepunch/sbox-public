@@ -1,5 +1,8 @@
 ﻿
+using NativeEngine;
+using Sandbox.Engine;
 using Sandbox.Rendering;
+using Sandbox.UI;
 using System.Drawing;
 using System.Text.Json.Serialization;
 
@@ -10,7 +13,7 @@ namespace Sandbox;
 /// </summary>
 [Expose]
 [Title( "Camera" )]
-[Category( "Camera" )]
+[Category( "Rendering" )]
 [Icon( "videocam" )]
 [EditorHandle( "materials/gizmo/camera.png" )]
 public sealed partial class CameraComponent : Component, Component.ExecuteInEditor, Component.ISceneStage
@@ -139,22 +142,6 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	[Property]
 	public RenderTextureAsset RenderTexture;
 
-	/// <summary>
-	/// Since we are rendering to a texture, better to generate mipmaps for it.
-	/// </summary>
-	private CommandList _renderTextureMipGenCommandList
-	{
-		get
-		{
-			var cmd = new CommandList( "Generate MipMaps For RenderTexture" );
-
-			if ( RenderTexture != null && RenderTexture.Texture != null && RenderTexture.Texture.Mips > 1 )
-				cmd.GenerateMipMaps( RenderTexture.Texture );
-
-			return cmd;
-		}
-	}
-
 	private Texture _renderTarget;
 
 	/// <summary>
@@ -226,6 +213,11 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		sceneCamera = new( GameObject.Name );
 
 		sceneCamera.OnRenderStageHook = ExecuteCommandLists;
+		sceneCamera.OnAfterPostProcess = finalizePostProcessHook ??= FinalizePostProcessing;
+		sceneCamera.WantsDepthNormalsHook = WantsDepthNormals;
+		sceneCamera.HasEarlyPostProcessHook = HasEarlyPostProcess;
+		sceneCamera.ScheduleEarlyPostProcessHook = ScheduleEarlyPostProcess;
+		sceneCamera.RenderEarlyPostProcessHook = RenderEarlyPostProcess;
 	}
 
 	protected override void OnAwake()
@@ -237,8 +229,11 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	protected override void OnDestroy()
 	{
 		Scene.Cameras.Remove( this );
+		Rendering.ManagedSceneRendering.Forget( this );
 		sceneCamera?.Dispose();
 		sceneCamera = null;
+		_hudCommandList.DisposePainter();
+		_overlayCommandList.DisposePainter();
 	}
 
 	protected override void DrawGizmos()
@@ -258,21 +253,132 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		Gizmo.Draw.LineFrustum( frustum );
 	}
 
+	/// <summary>
+	/// The view this camera composed this frame - the base transform reshaped by every
+	/// <see cref="ICameraModifier"/>, before transient render effects. Query
+	/// <see cref="CameraView.FieldOfView"/> from here for zoom-aware logic like scaling look
+	/// sensitivity while scoped. Final from the camera stage of the tick (after Update, before
+	/// PreRender) - reading it during Update gives the previous frame's composition.
+	/// </summary>
+	public CameraView View { get; private set; }
+
+	bool _composed;
+	CameraView _composedBase;
+	CameraView _renderView;
+
+	/// <summary>
+	/// Compose this camera's view - the base transform reshaped by every <see cref="ICameraModifier"/>
+	/// (published on <see cref="View"/>), then transient effects baked on top for the render. The
+	/// scene composes every camera once per tick, after Update and bone merging and before PreRender,
+	/// so anything in PreRender positions against a settled camera. Call it yourself only when you're rendering
+	/// without ticking the scene and want the composition - otherwise a camera moved after composing
+	/// just renders from its raw transform.
+	/// </summary>
+	public void ComposeView()
+	{
+		ComposeView( Scene.IsEditor ? null : GatherModifiers( Scene, new() ) );
+	}
+
+	// The scene-wide modifier set, sorted - gathered once per tick and shared by every camera
+	// composing that tick (see Scene.UpdateCameraViews). Null when modifiers don't apply (editor).
+	// Equal orders keep scene order, like OrderBy.
+	internal static List<ICameraModifier> GatherModifiers( Scene scene, List<ICameraModifier> modifiers )
+	{
+		modifiers.Clear();
+
+		foreach ( var modifier in scene.Query<ICameraModifier>() )
+		{
+			var order = modifier.CameraOrder;
+			int i = modifiers.Count;
+			while ( i > 0 && modifiers[i - 1].CameraOrder > order ) i--;
+			modifiers.Insert( i, modifier );
+		}
+
+		return modifiers;
+	}
+
+	internal void ComposeView( List<ICameraModifier> modifiers )
+	{
+		var view = RawView;
+
+		// The modifier chain reshapes the view in order (scope zoom, vehicle roll), then gets the
+		// final view to place things against (view models).
+		if ( modifiers is not null )
+		{
+			foreach ( var modifier in modifiers )
+			{
+				modifier.ModifyCamera( this, ref view );
+			}
+
+			View = view;
+
+			foreach ( var modifier in modifiers )
+			{
+				modifier.PostCameraSetup( this, view );
+			}
+		}
+		else
+		{
+			View = view;
+		}
+
+		_renderView = view;
+
+		// Transient camera effects (screen shake, punches) bake into the render view only - the
+		// composed view and component transform are never touched, so they can't accumulate or move
+		// the player's aim.
+		if ( CameraEffectSystem.Get( Scene ) is { } effects )
+		{
+			effects.QueryOffsets( this, out var shakeOffset, out var shakeAngles, out var shakeFov );
+
+			_renderView.Position += _renderView.Rotation * shakeOffset;
+			_renderView.Rotation *= shakeAngles;
+			_renderView.FieldOfView = (_renderView.FieldOfView + shakeFov).Clamp( 1f, 179f );
+		}
+
+		// What the component looked like when composition finished. A camera changed after this
+		// stomps the composition (see UpdateSceneCameraTransform).
+		_composedBase = RawView;
+
+		_composed = true;
+	}
+
+	// The camera's own values, untouched by modifiers or effects.
+	CameraView RawView => new()
+	{
+		Position = WorldPosition,
+		Rotation = WorldRotation,
+		FieldOfView = FieldOfView,
+		ZNear = ZNear,
+		ZFar = ZFar
+	};
+
 	internal void UpdateSceneCameraTransform( SceneCamera camera )
 	{
-		camera.Position = WorldPosition;
-		camera.Rotation = WorldRotation;
-		camera.ZNear = ZNear;
-		camera.ZFar = ZFar;
+		// The view composes once, at the camera stage of the tick - that's the only time modifiers
+		// and effects apply. A camera that never composed, or was changed since composing (tools,
+		// paused scenes, moviemakers - place a camera, render, done), stomps the composition and
+		// renders from its raw values.
+		var raw = RawView;
+
+		if ( !_composed || raw != _composedBase )
+		{
+			_renderView = raw;
+		}
+
+		camera.Position = _renderView.Position;
+		camera.Rotation = _renderView.Rotation;
+		camera.ZNear = _renderView.ZNear;
+		camera.ZFar = _renderView.ZFar;
 		camera.Rect = new Rect( Viewport.x, Viewport.y, Viewport.z, Viewport.w );
 		camera.Size = ScreenRect.Size;
 		camera.Ortho = Orthographic;
 		camera.OrthoHeight = OrthographicHeight;
 
-		if ( FovAxis == Axis.Vertical )
-			camera.FieldOfView = Screen.CreateVerticalFieldOfView( FieldOfView );
+		if ( FovAxis == Axis.Vertical && ScreenRect.Height > 0 )
+			camera.FieldOfView = Screen.CreateVerticalFieldOfView( _renderView.FieldOfView, ScreenRect.Width / ScreenRect.Height );
 		else
-			camera.FieldOfView = FieldOfView;
+			camera.FieldOfView = _renderView.FieldOfView;
 	}
 
 	internal void UpdateSceneCameraStereo( SceneCamera camera )
@@ -284,6 +390,13 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	/// <summary>
 	/// Update a SceneCamera with the settings from this component
 	/// </summary>
+	Action<Stage, SceneCamera> executeCommandListsHook;
+	Action finalizePostProcessHook;
+	Func<bool> wantsDepthNormalsHook;
+	Func<Stage, PostProcessQueue, bool> hasEarlyPostProcessHook;
+	Action<Stage, bool> scheduleEarlyPostProcessHook;
+	Action<Stage, PostProcessQueue> renderEarlyPostProcessHook;
+
 	public void UpdateSceneCamera( SceneCamera camera, bool includeTags = true )
 	{
 		if ( Scene is null )
@@ -297,13 +410,12 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		camera.World = Scene.SceneWorld;
 		camera.ClearFlags = ClearFlags;
 		camera.Worlds.Clear();
-		camera.Worlds.Add( Scene.DebugSceneWorld );
+		camera.DebugWorlds.Clear();
+		camera.DebugWorlds.Add( Scene.DebugSceneWorld );
 
 		// Also render any active gizmos
 		if ( Gizmo.Active is not null )
-			camera.Worlds.Add( Gizmo.Active.World );
-
-		CopyPostProcessing( camera );
+			camera.DebugWorlds.Add( Gizmo.Active.World );
 
 		// A camera (such as the editor viewport) might not want to take render tags into account
 		// from an existing camera source
@@ -319,10 +431,24 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		camera.DebugMode = DebugMode;
 		camera.WireframeMode = WireframeMode;
 		camera.EnablePostProcessing = EnablePostProcessing;
+		camera.UpdateScreenSpaceReflections();
 		camera.BackgroundColor = ClearFlags.Contains( ClearFlags.Color ) ? BackgroundColor : Color.Transparent;
+
+		CopyPostProcessing( camera, applyCameraEffects: false );
+		if ( IsSceneEditorCamera )
+			Scene.Camera?.CopyPostProcessing( camera, applyCameraEffects: false );
+
+		ApplyCameraEffects( camera );
 	}
 
-	internal void CopyPostProcessing( SceneCamera camera )
+	/// <summary>
+	/// Volume position after camera modifiers, before transient shake. An explicit anchor takes precedence;
+	/// raw transform edits after composition use the same fallback as rendering without recomposing the camera.
+	/// </summary>
+	internal Vector3 PostProcessPosition => PostProcessAnchor.IsValid() ? PostProcessAnchor.WorldPosition
+		: _composed && RawView == _composedBase ? View.Position : WorldPosition;
+
+	internal void CopyPostProcessing( SceneCamera camera, bool applyCameraEffects = true )
 	{
 		if ( Scene is null )
 		{
@@ -340,36 +466,56 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		// Also don't hook into render overlays, nor volumetric fog stuff.
 		if ( ClearFlags.Contains( ClearFlags.Color ) )
 		{
-			camera.VolumetricFog.Enabled = Scene.GetAllComponents<VolumetricFogVolume>().Count() > 0;
+			camera.VolumetricFog.Enabled = Scene.Get<VolumetricFogVolume>() is not null;
 			camera.VolumetricFog.DrawDistance = 4096;
 			camera.VolumetricFog.FadeInStart = 64;
 			camera.VolumetricFog.FadeInEnd = 256;
 			camera.VolumetricFog.IndirectStrength = 1.0f;
 			camera.VolumetricFog.Anisotropy = 1;
 			camera.VolumetricFog.Scattering = 1.0f;
-			camera.VolumetricFog.BakedIndirectTexture = Scene.GetAllComponents<VolumetricFogController>().FirstOrDefault()?.BakedFogTexture;
+			camera.VolumetricFog.BakedIndirectTexture = Scene.Get<VolumetricFogController>()?.BakedFogTexture;
 		}
 
-#pragma warning disable CS0612
-		GameObject.RunEvent<ISceneCameraSetup>( x => x.SetupCamera( this, camera ) );
-#pragma warning restore CS0612
+		//
+		// Child camera executes command lists from this camera. The delegates are made once: this runs every frame, and a
+		// method group assigned here allocated a delegate each time
+		//
+		camera.OnRenderStageHook = executeCommandListsHook ??= ExecuteCommandLists;
+		camera.WantsDepthNormalsHook = wantsDepthNormalsHook ??= WantsDepthNormals;
+		camera.HasEarlyPostProcessHook = hasEarlyPostProcessHook ??= HasEarlyPostProcess;
+		camera.ScheduleEarlyPostProcessHook = scheduleEarlyPostProcessHook ??= ScheduleEarlyPostProcess;
+		camera.RenderEarlyPostProcessHook = renderEarlyPostProcessHook ??= RenderEarlyPostProcess;
 
-		//
-		// Child camera executes command lists from this camera
-		//
-		camera.OnRenderStageHook = ExecuteCommandLists;
+		// Set with the hooks: a view decides its G-buffer from the camera whose lists it runs (the editor viewport runs the
+		// main camera's). Unknown post effects and custom command lists may sample normals, so only omit them for an empty
+		// stack. Scene attributes can force the G-buffer for custom material consumers outside those stages.
+		camera.Attributes.Set( "NeedsDepthNormals", WantsDepthNormals() || camera.ScreenSpaceReflections is not null );
 
 		//
 		// Hack because I don't want this to have to be on a camera. This
 		// is hidden from users, so we'll figure out how to square it later
 		//
-		foreach ( var cubemapFog in Scene.GetAllComponents<CubemapFog>() )
+#pragma warning disable CS0618 // Retain legacy fog support for existing content.
+		foreach ( var cubemapFog in Scene.Query<CubemapFog>() )
+#pragma warning restore CS0618
 		{
 			if ( cubemapFog.Tags.HasAny( RenderExcludeTags ) )
 				continue;
 
 			cubemapFog.SetupCamera( this, camera );
 		}
+
+		if ( applyCameraEffects )
+			ApplyCameraEffects( camera );
+	}
+
+	/// <summary>
+	/// Reset component-driven fog to legacy inheritance before applying camera effects to the completed view defaults.
+	/// </summary>
+	void ApplyCameraEffects( SceneCamera camera )
+	{
+		camera.Fog = null;
+		Scene.GetSystem<PostProcessSystem>().ApplyCameraEffects( this, camera, IsSceneEditorCamera );
 	}
 
 	/// <summary>
@@ -380,8 +526,25 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		if ( Scene is null )
 			return;
 
-		camera.OnRenderUI = () => OnCameraRenderUI( camera );
+		// This runs every frame, so make the callbacks once per scene camera
+		if ( _renderUICamera != camera )
+			CreateRenderUICallbacks( camera );
+
+		camera.OnRenderUI = _renderUI;
+		camera.OnRenderUIBeforePostProcess = _renderUIBeforePostProcess;
 	}
+
+	// Separate so the closure is only allocated here, not on every UpdateSceneCameraUI
+	void CreateRenderUICallbacks( SceneCamera camera )
+	{
+		_renderUICamera = camera;
+		_renderUI = () => OnCameraRenderUI( camera, ScreenPanel.RenderTiming.AfterPostProcess );
+		_renderUIBeforePostProcess = () => OnCameraRenderUI( camera, ScreenPanel.RenderTiming.BeforePostProcess );
+	}
+
+	SceneCamera _renderUICamera;
+	Action _renderUI;
+	Action _renderUIBeforePostProcess;
 
 	[Obsolete( "Use CommandList" )]
 	public IDisposable AddHookAfterOpaque( string debugName, int order, Action<SceneCamera> renderEffect ) => null;
@@ -404,14 +567,37 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	[Obsolete( "Use CommandList" )]
 	public IDisposable AddHookAfterUI( string debugName, int order, Action<SceneCamera> renderEffect ) => null;
 
-	private void OnCameraRenderUI( SceneCamera camera )
+	/// <summary>
+	/// Anything to draw at <see cref="Stage.EarlyUI"/>? The pipeline skips that layer's passes otherwise.
+	/// </summary>
+	private bool HasEarlyUI()
+	{
+		lock ( _commandListLock )
+		{
+			if ( commandlists.TryGetValue( Stage.EarlyUI, out var list ) && list.Count > 0 )
+				return true;
+		}
+
+		foreach ( var c in Scene.renderScreenPanels )
+		{
+			if ( c.Active && c.Timing == ScreenPanel.RenderTiming.BeforePostProcess && (c.TargetCamera ?? (IsMainCamera ? this : null)) == this )
+				return true;
+		}
+
+		return false;
+	}
+
+	private void OnCameraRenderUI( SceneCamera camera, ScreenPanel.RenderTiming timing )
 	{
 		if ( Scene is null )
 			return;
 
-		foreach ( var c in Scene.GetAll<ScreenPanel>().OrderBy( x => x.ZIndex ) )
+		// Runs on the render thread, so iterate the snapshot PreRender() took rather than
+		// the live object index - walking that while the main thread edits it blows up.
+		foreach ( var c in Scene.renderScreenPanels )
 		{
 			if ( !c.Active ) continue;
+			if ( c.Timing != timing ) continue;
 			var target = c.TargetCamera ?? (IsMainCamera ? this : null);
 			if ( target != this ) continue;
 			if ( RenderExcludeTags.HasAny( c.GameObject.Tags ) ) continue;
@@ -420,34 +606,19 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		}
 	}
 
-	/// <summary>
-	/// Obsolete 02/10/2025
-	/// </summary>
-	[Obsolete]
-	public interface ISceneCameraSetup
-	{
-		void SetupCamera( CameraComponent camera, SceneCamera sceneCamera );
-	}
-
 	internal bool IsSceneEditorCamera;
 
-	internal void InitializeRendering()
+	internal void InitializeRendering( bool renderUI = true )
 	{
-		using ( Scene.Push() )
+		using ( Scene.PushScope() )
 		{
 			EnsureSceneCameraCreated();
 
-			if ( IsSceneEditorCamera )
-			{
-				UpdateSceneCamera( sceneCamera );
-				Scene.Camera?.CopyPostProcessing( sceneCamera );
-			}
-			else
-			{
-				UpdateSceneCamera( sceneCamera );
-			}
+			UpdateSceneCamera( sceneCamera );
 
 			UpdateSceneCameraUI( sceneCamera );
+			sceneCamera.RenderUI = renderUI;
+			sceneCamera.Attributes.Set( "enableEarlyUI", HasEarlyUI() );
 			UpdateSceneCameraStereo( sceneCamera );
 		}
 	}
@@ -464,9 +635,13 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		if ( Viewport.z <= 0 ) return;
 		if ( Viewport.w <= 0 ) return;
 
-		using ( Scene.Push() )
+		using ( Scene.PushScope() )
 		{
 			InitializeRendering();
+
+			// r_managed_scene: the managed scene renderer takes the whole frame
+			if ( Rendering.ManagedSceneRendering.TryRender( this, swapChain, CustomSize ?? size ) )
+				return;
 
 			if ( RenderTarget is not null && RenderTarget.native.IsValid )
 			{
@@ -567,6 +742,9 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		return new Vector2( v.x, v.y );
 	}
 
+	/// <summary>
+	/// Returns a ray created from the specified cursor position on the screen, by conversion into 3D space.
+	/// </summary>
 	public Ray ScreenPixelToRay( Vector2 pixelPosition )
 	{
 		EnsureSceneCameraCreated();
@@ -596,6 +774,31 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		return sceneCamera.ToWorld( screen );
 	}
 
+	private void FinalizePostProcessing()
+	{
+		var texture = RenderTexture?.Texture;
+		if ( texture is null || !texture.IsValid || texture.Mips <= 1 )
+			return;
+
+		var currentColor = Graphics.GetColorTarget( out var owned );
+		try
+		{
+			if ( currentColor.IsNull )
+				return;
+
+			var currentColorIndex = g_pRenderDevice.GetTextureViewIndex( currentColor, 0, RenderTextureDimension.RENDER_TEXTURE_DIMENSION_2D );
+			if ( currentColorIndex != texture.Index )
+				return;
+			Graphics.ResourceBarrierTransition( texture, ResourceState.NonPixelShaderResource, 0 );
+			Graphics.GenerateMipMaps( texture );
+		}
+		finally
+		{
+			if ( owned && !currentColor.IsNull )
+				currentColor.DestroyStrongHandle();
+		}
+	}
+
 	protected override void OnEnabled()
 	{
 		Scene?.UpdateMainCamera();
@@ -603,8 +806,6 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		AddCommandList( _hudCommandList, Rendering.Stage.AfterPostProcess, 5000 );
 		AddCommandList( _overlayCommandList, Rendering.Stage.AfterUI, 5000 );
 
-		if ( RenderTexture is not null )
-			AddCommandList( _renderTextureMipGenCommandList, Rendering.Stage.AfterPostProcess, 10000 );
 	}
 
 	protected override void OnDisabled()
@@ -613,7 +814,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 
 		RemoveCommandList( _hudCommandList );
 		RemoveCommandList( _overlayCommandList );
-		RemoveCommandList( _renderTextureMipGenCommandList );
+
 	}
 
 	/// <summary>
@@ -650,8 +851,41 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	/// </summary>
 	public bool RenderToTexture( Texture target, in ViewSetup config = default )
 	{
+		return RenderToTexture( target, null, config );
+	}
+
+	/// <summary>
+	/// Render colour and depth into caller-owned textures without copying the depth buffer.
+	/// The optional depth target must be a renderable 2D depth texture with eight stencil bits and the same dimensions
+	/// as the colour target. Its sample count determines the scene's MSAA sample count.
+	/// Depth retains the camera's projection and orientation: <see cref="ViewSetup.FlipX"/> and
+	/// <see cref="ViewSetup.FlipY"/> only affect the final colour blit. Keep both textures alive
+	/// until rendering and any subsequent sampling have completed.
+	/// </summary>
+	public bool RenderToTexture( Texture target, Texture depthTarget, in ViewSetup config )
+	{
+		return RenderToTexture( target, depthTarget, config, out _ );
+	}
+
+	/// <summary>
+	/// Submit a camera view and copy its resolved projection and viewport for deferred consumers.
+	/// </summary>
+	internal bool RenderToTexture( Texture target, Texture depthTarget, in ViewSetup config, out ViewData viewData )
+	{
+		viewData = default;
+
 		if ( target is null || target.native.IsNull )
 			return false;
+
+		if ( depthTarget is not null )
+		{
+			if ( !depthTarget.IsValid || depthTarget.IsError || !depthTarget.IsRenderTarget
+				|| !depthTarget.ImageFormat.HasCameraStencil() || depthTarget.Depth != 1 )
+				throw new ArgumentException( "Depth must be a valid 2D depth render target with eight stencil bits.", nameof( depthTarget ) );
+
+			if ( depthTarget.Size != target.Size )
+				throw new ArgumentException( "Colour and depth targets must have matching dimensions.", nameof( depthTarget ) );
+		}
 
 		// TODO: we need to get rid of this guard, it's a hack
 		if ( !Graphics.IsActive )
@@ -661,21 +895,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 			InitializeRendering();
 		}
 
-		using var setup = new CameraRenderer( $"{GameObject.Name}.RenderToTexture", sceneCamera._cameraId );
-
-		lock ( this )
-		{
-			setup.Configure( sceneCamera, config );
-
-			//
-			// Adds the views to the scene system
-			//
-			setup.Native.RenderToTexture( target.native, Graphics.SceneView );
-			setup.Native.ClearSceneWorlds();
-		}
-
-
-		return true;
+		return sceneCamera.RenderToTexture( target, depthTarget, Graphics.SceneView, config, $"{GameObject.Name}.RenderToTexture", out viewData );
 	}
 
 	/// <summary>
@@ -746,7 +966,12 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	/// <summary>
 	/// Render this camera to the target bitmap.
 	/// </summary>
-	public void RenderToBitmap( Bitmap targetBitmap )
+	public void RenderToBitmap( Bitmap targetBitmap ) => RenderToBitmap( targetBitmap, true );
+
+	/// <summary>
+	/// Render this camera to the target bitmap, with the option to include or exclude the drawn UI.
+	/// </summary>
+	public void RenderToBitmap( Bitmap targetBitmap, bool renderUI )
 	{
 		if ( targetBitmap == null || targetBitmap.Width <= 1 || targetBitmap.Height <= 1 )
 			return;
@@ -754,13 +979,60 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		if ( !this.IsValid() )
 			return;
 
-		using ( Scene.Push() )
+		using ( Scene.PushScope() )
 		{
 			Scene.PreCameraRender();
-			InitializeRendering();
-			SceneCamera.OnPreRender( targetBitmap.Size );
+			InitializeRendering( renderUI );
 
+			// Resize the UI to the target bitmap size
+			if ( renderUI )
+				ResizeUI( targetBitmap.Size );
+
+			SceneCamera.OnPreRender( targetBitmap.Size );
 			SceneCamera.RenderToBitmap( targetBitmap );
+
+			// Resize the UI back to the screen size
+			if ( renderUI )
+				ResizeUI( new Vector2( Screen.Width, Screen.Height ) );
 		}
+	}
+
+	private void ResizeUI( Vector2 size )
+	{
+		if ( Scene is null )
+			return;
+
+		bool resized = false;
+
+		foreach ( var panel in Scene.GetAll<ScreenPanel>() )
+		{
+			if ( !panel.IsValid() || !panel.Active )
+				continue;
+
+			var target = panel.TargetCamera ?? (IsMainCamera ? this : null);
+			if ( target != this )
+				continue;
+
+			if ( RenderExcludeTags.HasAny( panel.GameObject.Tags ) )
+				continue;
+
+			if ( panel.GetPanel() is not RootPanel rootPanel || !rootPanel.IsValid() )
+				continue;
+
+			var screenRect = new Rect( 0, 0, size.x, size.y );
+
+			rootPanel.PreLayout( screenRect );
+			rootPanel.CalculateLayout();
+			rootPanel.PostLayout();
+
+
+			rootPanel.BuildCommandList();
+			resized = true;
+		}
+
+		// The render consumes the combined list, not the per-root ones - without
+		// recombining, it draws the last real frame's layout at the old size.
+		if ( resized )
+			GlobalContext.Current.UISystem.CombineCommandLists();
 	}
 }

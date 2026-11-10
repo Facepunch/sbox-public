@@ -1,5 +1,4 @@
 ﻿using NativeEngine;
-using System.Runtime.InteropServices;
 
 namespace Sandbox;
 
@@ -19,17 +18,15 @@ public struct AppSystemCreateInfo
 	public AppSystemFlags Flags;
 	public string WindowTitle;
 
+	internal bool WantsGameWindow => Flags.HasFlag( AppSystemFlags.IsGameApp )
+		&& (Flags & (AppSystemFlags.IsEditor | AppSystemFlags.IsConsoleApp | AppSystemFlags.IsDedicatedServer | AppSystemFlags.IsUnitTest)) == 0;
+
 	internal MaterialSystem2AppSystemDictCreateInfo ToMaterialSystem2AppSystemDictCreateInfo()
 	{
 		var ci = new MaterialSystem2AppSystemDictCreateInfo
 		{
 			iFlags = (MaterialSystem2AppSystemDictFlags)Flags,
 		};
-
-		if ( !string.IsNullOrEmpty( WindowTitle ) )
-		{
-			ci.pWindowTitle = Marshal.StringToHGlobalAnsi( WindowTitle );
-		}
 
 		return ci;
 	}

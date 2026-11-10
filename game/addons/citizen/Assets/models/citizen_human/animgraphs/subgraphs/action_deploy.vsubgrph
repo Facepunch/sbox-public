@@ -1,0 +1,333 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:animgraph2:version{0f7898b8-5471-45c4-9867-cd9c46bcfdb5} -->
+{
+	_class = "CAnimationSubGraph"
+	m_nodeManager = 
+	{
+		_class = "CAnimNodeManager"
+		m_nodes = 
+		[
+			{
+				key = 
+				{
+					m_id = 2230000000
+				}
+				value = 
+				{
+					_class = "CGroupInputAnimNode"
+					m_sName = "Base pose and action delta"
+					m_vecPosition = [ -600.0, 0.0 ]
+					m_nNodeID = 
+					{
+						m_id = 2230000000
+					}
+					m_sNote = ""
+					m_proxyItems = 
+					[
+						{
+							m_name = "Base pose (absolute)"
+							m_outputID = 
+							{
+								m_id = 2230000002
+							}
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 4294967295
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+						{
+							m_name = "Action pose (delta)"
+							m_outputID = 
+							{
+								m_id = 2230000003
+							}
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 4294967295
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1327441636
+				}
+				value = 
+				{
+					_class = "CSingleFrameAnimNode"
+					m_sName = "Neutral additive"
+					m_vecPosition = [ -600.0, 220.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1327441636
+					}
+					m_sNote = ""
+					m_sequenceName = "bindPose_delta"
+					m_nFrameIndex = 0
+					m_tagSpans = [  ]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 939808675
+				}
+				value = 
+				{
+					_class = "CStateMachineAnimNode"
+					m_sName = "Deploy transition"
+					m_vecPosition = [ -300.0, 0.0 ]
+					m_nNodeID = 
+					{
+						m_id = 939808675
+					}
+					m_sNote = "Preserves the existing deploy trigger, 0.05-second entry and 0.1-second return. Clip and handedness selection stay with the weapon."
+					m_states = 
+					[
+						{
+							_class = "CAnimState"
+							m_transitions = 
+							[
+								{
+									_class = "CAnimStateTransition"
+									m_conditions = 
+									[
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 0
+											m_paramID = 
+											{
+												m_id = 1521804861
+											}
+											m_comparisonValue = 
+											{
+												m_nType = 1
+												m_data = true
+											}
+										},
+										{
+											_class = "CTagCondition"
+											m_comparisonOp = 0
+											m_tagID = 
+											{
+												m_id = 564997034
+											}
+											m_comparisonValue = false
+										},
+									]
+									m_blendDuration = 0.05
+									m_destState = 
+									{
+										m_id = 1228346111
+									}
+									m_bReset = true
+									m_resetCycleOption = "Beginning"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve = 
+									{
+										m_vControlPoint1 = [ 0.24, 0.0 ]
+										m_vControlPoint2 = [ 0.173333, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+							]
+							m_tags = [  ]
+							m_tagBehaviors = [  ]
+							m_name = "Nothing"
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 1327441636
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+							m_stateID = 
+							{
+								m_id = 1845015104
+							}
+							m_position = [ -16.0, -144.0 ]
+							m_bIsStartState = true
+							m_bIsEndtState = false
+							m_bIsPassthrough = false
+							m_bIsRootMotionExclusive = false
+							m_bAlwaysEvaluate = true
+						},
+						{
+							_class = "CAnimState"
+							m_transitions = 
+							[
+								{
+									_class = "CAnimStateTransition"
+									m_conditions = 
+									[
+										{
+											_class = "CFinishedCondition"
+											m_comparisonOp = 0
+											m_option = "FinishedConditionOption_OnAlmostFinished"
+											m_bIsFinished = true
+										},
+									]
+									m_blendDuration = 0.1
+									m_destState = 
+									{
+										m_id = 1845015104
+									}
+									m_bReset = false
+									m_resetCycleOption = "SameCycleAsSource"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve = 
+									{
+										m_vControlPoint1 = [ 0.5, 0.0 ]
+										m_vControlPoint2 = [ 0.5, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+							]
+							m_tags = [  ]
+							m_tagBehaviors = [  ]
+							m_name = "Deploy"
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 2230000000
+								}
+								m_outputID = 
+								{
+									m_id = 2230000003
+								}
+							}
+							m_stateID = 
+							{
+								m_id = 1228346111
+							}
+							m_position = [ 160.0, -144.0 ]
+							m_bIsStartState = false
+							m_bIsEndtState = false
+							m_bIsPassthrough = false
+							m_bIsRootMotionExclusive = false
+							m_bAlwaysEvaluate = false
+						},
+					]
+					m_bBlockWaningTags = false
+					m_bLockStateWhenWaning = false
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 988157259
+				}
+				value = 
+				{
+					_class = "CAddAnimNode"
+					m_sName = "Apply action delta"
+					m_vecPosition = [ 0.0, 0.0 ]
+					m_nNodeID = 
+					{
+						m_id = 988157259
+					}
+					m_sNote = "Retains the original action timing, foot-motion source and reset propagation."
+					m_baseInput = 
+					{
+						m_nodeID = 
+						{
+							m_id = 2230000000
+						}
+						m_outputID = 
+						{
+							m_id = 2230000002
+						}
+					}
+					m_additiveInput = 
+					{
+						m_nodeID = 
+						{
+							m_id = 939808675
+						}
+						m_outputID = 
+						{
+							m_id = 4294967295
+						}
+					}
+					m_timingBehavior = "UseChild2"
+					m_flTimingBlend = 0.5
+					m_footMotionTiming = "Child1"
+					m_bResetBase = false
+					m_bResetAdditive = true
+					m_bApplyChannelsSeparately = true
+					m_bModelSpace = false
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 2230000001
+				}
+				value = 
+				{
+					_class = "CGroupOutputAnimNode"
+					m_sName = "Composed action pose"
+					m_vecPosition = [ 300.0, 0.0 ]
+					m_nNodeID = 
+					{
+						m_id = 2230000001
+					}
+					m_sNote = ""
+					m_proxyItems = 
+					[
+						{
+							m_name = "Pose"
+							m_outputID = 
+							{
+								m_id = 2230000004
+							}
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 988157259
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+					]
+				}
+			},
+		]
+	}
+	m_localParameters = [  ]
+	m_localTags = [  ]
+}

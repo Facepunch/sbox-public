@@ -1,0 +1,9 @@
+// Vulkan validation messages a render test may log without failing. Anything else fails the preset that logged it.
+//
+// { "message": "VUID-...", "device": "Lavapipe", "reason": "why it's allowed, and the issue tracking its fix" }
+[
+	{
+		"message": "Undefined-Value-ShaderOutputNotConsumed-DynamicRendering",
+		"reason": "A fragment shader writes colour location 0 in a pass with no colour attachment (Translucency), so the write is discarded. A warning, not a fault; drop this once that pass strips or swaps the pixel shader."
+	}
+]

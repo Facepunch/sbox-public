@@ -5,7 +5,10 @@
   "Decibels": 70,
   "SelectionMode": "Random",
   "Sounds": [
-    "sounds/impacts/melee/bluntweapon/metal-1.vsnd"
+    "sounds/impacts/melee/bluntweapon/metal-1.vsnd",
+    "sounds/impacts/melee/bluntweapon/metal-2.vsnd",
+    "sounds/impacts/melee/bluntweapon/metal-3.vsnd",
+    "sounds/impacts/melee/bluntweapon/metal-4.vsnd"
   ],
   "Occlusion": true,
   "Reflections": true,

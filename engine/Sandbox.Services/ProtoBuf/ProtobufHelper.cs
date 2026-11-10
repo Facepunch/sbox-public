@@ -1,5 +1,4 @@
 ﻿global using ProtoBuf;
-using System.IO;
 
 namespace Sandbox.Protobuf;
 
@@ -17,13 +16,15 @@ public static class ProtobufHelper
 			var id = t.GetProperty( "MessageIdent", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public );
 			if ( id is null ) continue;
 
-			var messageId = (ushort?)id.GetValue( null );
+			var messageId = (MessageId?)id.GetValue( null );
 			if ( messageId is null ) continue;
 
-			if ( MessageTypes.ContainsKey( messageId.Value ) )
-				throw new System.Exception( $"Duplicate Message Ident {messageId.Value} found in {t} and {MessageTypes[messageId.Value]}" );
+			var key = (ushort)messageId.Value;
 
-			MessageTypes[messageId.Value] = t;
+			if ( MessageTypes.ContainsKey( key ) )
+				throw new System.Exception( $"Duplicate Message Ident {messageId.Value} found in {t} and {MessageTypes[key]}" );
+
+			MessageTypes[key] = t;
 		}
 	}
 
@@ -49,7 +50,8 @@ public static class ProtobufHelper
 	/// </summary>
 	public static object FromWire( Stream stream )
 	{
-		if ( stream.Length <= 4 )
+		// Messages with no fields contain only the two-byte message id.
+		if ( stream.Length < sizeof( ushort ) )
 			return default;
 
 		using var br = new BinaryReader( stream, System.Text.Encoding.UTF8, true );
@@ -67,7 +69,7 @@ public static class ProtobufHelper
 	public static void ToWire<T>( T msg, Stream stream ) where T : IMessage
 	{
 		using var bw = new BinaryWriter( stream, System.Text.Encoding.UTF8, true );
-		bw.Write( T.MessageIdent );
+		bw.Write( (ushort)T.MessageIdent );
 		ToStream( msg, stream );
 	}
 }

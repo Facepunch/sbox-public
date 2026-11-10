@@ -1,0 +1,341 @@
+﻿@using Sandbox;
+@using Sandbox.UI;
+@using MenuProject;
+@using System.Globalization
+@namespace MenuProject.UI
+@inherits Panel
+@implements IDiscoverySurface
+
+<root class=@BuildClass() @onrightclick=@OnCardRightClicked onclick=@OnCardClicked>
+    <div class="image" style="background-image: url(@(Image() ?? "/ui/sbox-logo-square.svg"))">
+        @* Static art stays underneath while the video spins up. *@
+        @if ( ShowVideo() && !string.IsNullOrEmpty( Package?.VideoThumb ) )
+        {
+            <div class="package-video" style="background-image: url(@VideoUrl())" />
+        }
+
+        @if ( Package != null && Package.Flair.IsEmpty == false)
+        {
+            <MenuProject.UI.PackageFlairBar Flair="@Package.Flair" Limit=@(2) />
+        }
+
+        @if ( ShowSubscribe && Package is not null )
+        {
+            <MenuProject.UI.WorkshopCardActions Package=@Package />
+        }
+
+        @* Overlaid on the art as a pull quote - the mark is its own label so it can be set big. *@
+        @if ( ShowSummary && !string.IsNullOrWhiteSpace( Package?.Summary ) )
+        {
+            <div class="package-summary">
+                <label class="quote-mark">“</label>
+                <label class="quote-text">@Package.Summary</label>
+            </div>
+        }
+    </div>
+
+    <column>
+        <label class="medium package-title">
+            @(Package?.Title ?? "#menu.games.invalid_package")
+        </label>
+
+        @if ( ShowSubtitle && !string.IsNullOrWhiteSpace( Package?.Summary ) )
+        {
+            <label class="package-subtitle" tooltip="@Package.Summary">@Package.Summary</label>
+        }
+
+        @if (Package == null)
+        {
+            <row>
+                <label class="eyebrow">
+                    #menu.games.we_couldn_t_find_that_package
+                </label>
+            </row>
+        }
+        else
+        {
+            <row class="package-meta">
+                <div class="package-stat">
+                    <icon class="eyebrow">thumb_up</icon>
+                    <label class="eyebrow">@VotePercentage()</label>
+                </div>
+
+                @if ( Package.Usage.UsersNow > 0 )
+                {
+                    <div class="package-stat live" tooltip="#menu.games.playing_now">
+                        <div class="live-dot" />
+                        <label class="eyebrow">@Compact( Package.Usage.UsersNow )</label>
+                    </div>
+                }
+                else
+                {
+                    <div class="package-stat">
+                        <icon class="eyebrow">group</icon>
+                        <label class="eyebrow">@Compact( Package.Usage.Total.Users )</label>
+                    </div>
+                }
+
+                <div class="grow" />
+            </row>
+        }
+    </column>
+</root>
+
+@code {
+    public enum SizeType
+    {
+        Default,
+        Small,
+        Wide,
+        Tall,
+        List
+    }
+
+    // The CDN publishes these beside each other. VideoThumb points at thumb, a 256p 200k clip.
+    // Each step up is both bigger and less compressed (low is CRF 42, medium/high are 38), so
+    // Auto picks on rendered size but never drops to a tier that's soft at any size.
+    public enum VideoQuality
+    {
+        Auto,
+        Thumb,
+        Low,
+        Medium,
+        High
+    }
+
+    /// <summary>How many package videos play at once in each front page shelf.</summary>
+    public const int VideoThumbsPerShelf = 2;
+    /// <summary>How many package videos play at once in a package grid.</summary>
+    public const int VideoThumbsPerGrid = 4;
+    /// <summary>Seconds a package video plays before handing over to the next card.</summary>
+    public const float VideoThumbsSeconds = 10f;
+    // Let the tile's video start before opening a preview, and avoid popups while browsing past.
+    const float HoverPreviewDelay = 0.6f;
+	const float VideoActivationDelay = 0.3f;
+	bool showVideo;
+	float? videoRequestedAt;
+	RealTimeSince? hoverStartedAt;
+	bool hoverReported;
+
+	bool WantsVideo() => Videos && (AlwaysPlayVideo || HasHovered || Rotation is null || Rotation.IsPlaying( this ));
+	bool ShowVideo() => showVideo;
+
+	public override void Tick()
+	{
+		base.Tick();
+
+		Discovery.Track( this, Package );
+		TickHoverPreview();
+
+		if ( !WantsVideo() )
+		{
+			videoRequestedAt = null;
+
+			if ( showVideo )
+			{
+				showVideo = false;
+				StateHasChanged();
+			}
+
+			return;
+		}
+
+		videoRequestedAt ??= RealTime.Now;
+
+		if ( !showVideo && RealTime.Now - videoRequestedAt.Value >= VideoActivationDelay )
+		{
+			showVideo = true;
+			StateHasChanged();
+		}
+	}
+
+	protected override void OnMouseMove(MousePanelEvent e)
+	{
+		base.OnMouseMove(e);
+
+		hoverStartedAt ??= 0;
+	}
+
+	protected override void OnMouseOut(MousePanelEvent e)
+	{
+		base.OnMouseOut(e);
+
+		hoverStartedAt = null;
+		hoverReported = false;
+	}
+
+	void TickHoverPreview()
+	{
+		if ( hoverStartedAt is null || Package is null ) return;
+		if ( hoverStartedAt.Value <= HoverPreviewDelay ) return;
+
+		// A hover counts whether or not a hover card opens - the tile plays its video either way
+		if ( !hoverReported )
+		{
+			hoverReported = true;
+			Discovery.Hovered( this, Package );
+		}
+
+		if ( HoverPreview && Size != SizeType.List )
+			PackageHoverCard.Show( this, Package, PlayingVideoUrl, Videos );
+	}
+
+	/// <summary>The video url this card is showing right now, or null.</summary>
+	public string PlayingVideoUrl => VideoReady() ? VideoUrl() : null;
+
+	// Same cached player the style loaded, so this is false until its first frame arrives - and
+	// stays false when the clip never does, leaving the art alone instead of a title over nothing.
+	bool VideoReady() => showVideo && !string.IsNullOrEmpty( Package?.VideoThumb ) && Texture.Load( VideoUrl() )?.IsLoaded == true;
+
+    string VideoUrl() => VideoUrl( Package, Quality == VideoQuality.Auto ? PickQuality( Box.Rect.Width ) : Quality );
+
+    /// <summary>
+    /// Resolves a package's video thumbnail to a playable clip at the requested quality.
+    /// </summary>
+    public static string VideoUrl( Package package, VideoQuality quality )
+    {
+        var url = package?.VideoThumb;
+
+        if ( quality == VideoQuality.Thumb || quality == VideoQuality.Auto || string.IsNullOrEmpty( url ) )
+            return url;
+
+        var variant = quality.ToString().ToLowerInvariant();
+
+        return url
+            .Replace( "thumb.webm", $"{variant}.webm" )
+            .Replace( "thumb.mp4", $"{variant}.mp4" );
+    }
+
+    // Width is in real screen pixels, so this already accounts for the root panel scaling
+    // itself by screen height. Zero before first layout - assume a card, not a list row.
+    public static VideoQuality PickQuality( float width )
+    {
+        if ( width <= 0 ) return VideoQuality.Medium;
+        if ( width < 160 ) return VideoQuality.Low;
+        if ( width < 900 ) return VideoQuality.Medium;
+
+        return VideoQuality.High;
+    }
+
+    [Parameter] public Package Package { get; set; }
+    [Parameter] public SizeType Size { get; set; }
+
+    /// <summary>
+    /// Where this card is shown, when its container can't say - e.g. one of several shelves in a panel.
+    /// </summary>
+    [Parameter] public DiscoveryContext DiscoveryContext { get; set; }
+
+    /// <summary>
+    /// Takes turns with the other cards sharing it, so only a few play at once.
+    /// </summary>
+    [Parameter] public CardVideoRotation Rotation { get; set; }
+
+    /// <summary>
+    /// How often this card gets a turn in its <see cref="Rotation"/>, relative to the others.
+    /// </summary>
+    [Parameter] public float VideoWeight { get; set; } = 1f;
+
+    /// <summary>
+    /// Keeps this card's video playing independently of shared shelf rotation and hover.
+    /// </summary>
+    [Parameter] public bool AlwaysPlayVideo { get; set; }
+
+    /// <summary>
+    /// Its video at all - off, it's only ever the art, hovered or not. For somewhere a clip playing
+    /// is in the way, like the pause menu over a game that's still going.
+    /// </summary>
+    [Parameter] public bool Videos { get; set; } = true;
+
+    [Parameter] public VideoQuality Quality { get; set; } = VideoQuality.Auto;
+
+    CardVideoRotation registered;
+    float registeredWeight;
+
+    protected override void OnParametersSet()
+    {
+        base.OnParametersSet();
+
+        if ( registered == Rotation && registeredWeight == VideoWeight )
+            return;
+
+        if ( registered != Rotation )
+            registered?.Unregister( this );
+
+        registered = Rotation;
+        registeredWeight = VideoWeight;
+        registered?.Register( this, VideoWeight );
+    }
+
+    public override void OnDeleted()
+    {
+        base.OnDeleted();
+
+        registered?.Unregister( this );
+        registered = null;
+    }
+
+    /// <summary>
+    /// Show the package's summary as a quote over the art. Off by default - most cards are too small for it.
+    /// </summary>
+    [Parameter] public bool ShowSummary { get; set; }
+
+    /// <summary>Show a short description beneath the title in compact horizontal cards.</summary>
+    [Parameter] public bool ShowSubtitle { get; set; }
+
+    /// <summary>Use the package's square thumbnail for compact horizontal cards.</summary>
+    [Parameter] public bool SquareThumbnail { get; set; }
+
+    /// <summary>Open a <see cref="PackageHoverCard"/> after hovering for a moment.</summary>
+    [Parameter] public bool HoverPreview { get; set; } = true;
+
+    /// <summary>
+    /// Put Steam Workshop actions on the art - subscribe, and open its page. For picking maps, where you might want to keep one.
+    /// </summary>
+    [Parameter] public bool ShowSubscribe { get; set; }
+
+    /// <summary>
+    /// Called when the card is clicked
+    /// </summary>
+    [Parameter] public Action Clicked { get; set; }
+
+    /// <summary>
+    /// Called when the card is right clicked
+    /// </summary>
+    [Parameter] public Action RightClicked { get; set; }
+
+    void OnCardClicked()
+    {
+        Discovery.Clicked( this, Package );
+        Clicked?.Invoke();
+    }
+    void OnCardRightClicked() => RightClicked?.Invoke();
+
+    string BuildClass() => $"package-card {Size.ToString().ToLower()} {(VideoReady() ? "playing" : "")}";
+
+    string VotePercentage()
+    {
+        if (Package is null || MenuHelpers.Rating( Package.VotesUp, Package.VotesDown ) is not { } rating) return "#menu.games.unrated";
+        return $"{rating}%";
+    }
+
+    /// <summary>Shortens large player counts - "1.2K" rather than "1204".</summary>
+    static string Compact( long n )
+    {
+        if ( n >= 1_000_000 ) return $"{n / 1_000_000f:0.#}M";
+        if ( n >= 1_000 ) return $"{n / 1_000f:0.#}K";
+
+        return n.ToString();
+    }
+
+    string Image() => SquareThumbnail ? Package?.Thumb : Size switch
+    {
+        SizeType.Tall => Package?.ThumbTall,
+        SizeType.Wide => Package?.ThumbWide,
+        SizeType.Small => Package?.Thumb,
+        SizeType.List => Package?.Thumb,
+        _ => Package?.ThumbWide
+    };
+
+    // ShowVideo mounts the video layer, so hover changes have to re-render.
+    protected override int BuildHash() => System.HashCode.Combine(Package?.FullIdent, Package?.Usage.UsersNow, Package?.Flair.Length, ShowVideo(), VideoReady(), HashCode.Combine( ShowSummary, ShowSubtitle, SquareThumbnail, Package?.Summary ), VideoUrl());
+}

@@ -2,71 +2,107 @@
 @inherits MenuProject.Modals.BaseModal
 @using Sandbox;
 @using Sandbox.UI;
-@using Menu;
+@using SboxMenu;
 @using System;
+@using System.Threading;
+@using MenuProject.Overlay.Overlays;
 @using Sandbox.Network
+@using Sandbox.Modals
 @using MenuProject.Modals.GameModalComponents;
 @using MenuProject.Modals.PackageModalComponents;
+@using MenuProject.MenuUI.Components.Multiplayer;
 
-<root>
+@* The page and its tabs hidden while a new game's being set up or its sessions are up, in their place -
+   from what's showing every time it's drawn, so the two can't come apart *@
+<root class="@(IsSettingUp || IsBrowsingSessions ? "setting-up" : "")">
 
-    <MegaCard Icon="@Package.ThumbWide">
+    <MegaCard @ref=Card>
         <Metrics>
-            <PackageMetrics Package="@Package"/>
+            @* Just report - the rest is on the Overview. Reports are the backend's - on the workshop, Steam's are on its page *@
+            @if ( !OnWorkshop && !PageLoading )
+            {
+                <PackageMetrics Package="@Package" />
+            }
         </Metrics>
         <Tabs>
-
-            <PortalButton StartActive Portal=@Portal>
-                <Button>
-                    <SearchlightTab Title="Overview" Icon="people" />
-                </Button>
-                <Content>
-                    <Media Package=@Package></Media>
-                    <PackageDescription Package=@Package />
-                </Content>
-            </PortalButton>
-
-            <PortalButton Portal=@Portal>
-                <Button>
-                    <SearchlightTab Title="Reviews" Icon="reviews" />
-                </Button>
-                <Content>
-                    <PackageReviews Package=@Package/>
-                </Content>
-            </PortalButton>
-
-            @if (Package.LatestNewsPost is not null)
+            @* Setting up a new game, or looking through who's playing it - a trail back to the game's page
+               in the tabs' place *@
+            @if ( IsSettingUp || IsBrowsingSessions )
             {
-                <PortalButton Portal=@Portal>
-                    <Button>
-                        <SearchlightTab Title="News" Icon="newspaper" />
-                    </Button>
-                    <Content>
-                        <PackageNews Package=@Package/>
-                    </Content>
-                </PortalButton>
+                <div class="setup-trail">
+                    <div class="back" onclick=@( () => { if ( IsBrowsingSessions ) CloseSessions(); else CloseSetup(); } )>
+                        <i>arrow_back</i>
+                        <label>@Package?.Title</label>
+                    </div>
+                    <label class="sep">/</label>
+                    <label class="here">@(IsBrowsingSessions ? "Sessions" : PartySetup ? "#menu.games.party_game" : "#menu.games.new_game_sentence")</label>
+                </div>
             }
 
+            @* A game's tabs - the Overview's the gallery and the newest update under it. Kept while
+               setting up, just not shown, so the page is as it was left on the way back *@
+            <PackageTabs @ref=GameTabs Package=@Package Portal=@Portal ShowReviews=@false ShowUpdates=@(!OnWorkshop && !PageLoading) WorkshopId=@(OnWorkshop ? WorkshopId : 0)>
+                <Overview>
+                    <PackageStore Package=@Package Workshop=@WorkshopItem OnWorkshop=@OnWorkshop Loading=@PageLoading Portal=@Portal OnChangelogClicked="@(() => GameTabs?.OpenChanges())">
+                        <Gallery>
+                            @* Its workshop item's images on the workshop. Until it's known which, the gallery's loading -
+                               neither one's shown, then swapped for the other *@
+                            @if ( PageLoading )
+                            {
+                                <Media Package=@Package Loaded=@false></Media>
+                            }
+                            else if ( OnWorkshop )
+                            {
+                                <Media Package=@Package Images=@(WorkshopItem?.Images ?? Array.Empty<string>()) YouTubeVideos=@WorkshopItem?.YouTubeVideos Loaded=@true></Media>
+                            }
+                            else
+                            {
+                                <Media Package=@Package Loaded=@HasFullPackage Failed=@FetchFailed></Media>
+                            }
+                        </Gallery>
+                    </PackageStore>
+                </Overview>
+            </PackageTabs>
         </Tabs>
-        <Left>
-            <PackageSummary Package=@Package></PackageSummary>
+        <Content>
+            <PortalTarget @ref=Portal></PortalTarget>
 
-            @if (achList is not null)
+            @if ( IsSettingUp && Setup is not null )
             {
-                <h2>Achievements</h2>
-                <PortalButton Portal=@Portal>
-                    <Button>
-                        <AchievementSummary Package="@Package"></AchievementSummary>
-                    </Button>
-                    <Content>
-                        <AchievementList Package="@Package"></AchievementList>
-                    </Content>
-                </PortalButton>
+                <GameSetupView Setup=@Setup ReadOnly=@SetupReadOnly Notice=@SetupNotice Error=@SetupError />
             }
+            else if ( IsSettingUp && SetupError is null && SetupDownload is { } download )
+            {
+                @* The game's coming down first - its settings are in it *@
+                <div class="setup-download">
+                    <i>download</i>
+                    <label class="title">@Language.GetPhrase( "menu.games.downloading_game", new() { ["title"] = download.Title } )</label>
 
-        </Left>
+                    <div class="track"><div class="fill" style="width: @(DownloadPercent( download ))%;"></div></div>
 
-        <Content><PortalTarget @ref=Portal></PortalTarget></Content>
+                    @if ( download.Total > 0 )
+                    {
+                        <div class="amount">
+                            <label>@($"{download.Fraction * 100:0}%")</label>
+                            <label>@($"{LoadingOverlay.SizeIn( download.Downloaded, download.Total )} / {LoadingOverlay.Size( download.Total )}")</label>
+                        </div>
+                    }
+                </div>
+            }
+            else if ( IsSettingUp )
+            {
+                <div class="setup-loading">
+                    <label>@(SetupError ?? "#menu.games.loading_game_settings")</label>
+                </div>
+            }
+            else if ( IsBrowsingSessions )
+            {
+                @* Its servers and lobbies - the server browser's list, just this game's *@
+                <div class="sessions">
+                    <ServerList Config=@(new ServerListConfig( Package?.FullIdent )) ShowGameHeader=@false Virtual=@false />
+                </div>
+            }
+        </Content>
 
         <Footer>
             <ActionBar Modal="@this" Package="@Package"></ActionBar>
@@ -79,13 +115,236 @@
 {
     public Package Package;
     public string PackageIdent { get; set; }
-    public bool HasFullPackage { get; set; }
+    /// <summary>
+    /// What the page says, as it's fetched (GamePageLoad)
+    /// </summary>
+    GamePageLoad load;
+
+    public bool HasFullPackage => load?.HasFullPackage ?? false;
+    public bool OnWorkshop => load?.OnWorkshop ?? Package?.InstallsFromWorkshop ?? false;
+    public bool PageLoading => load?.Loading ?? true;
+    public WorkshopItemDetails WorkshopItem => load?.WorkshopItem;
+    public ulong WorkshopId => load?.WorkshopId ?? 0;
+    public bool FetchFailed => load?.FetchFailed ?? false;
 
     public List<LobbyInformation> Lobbies = new();
 
-    AchievementCollection achList;
-
     PortalTarget Portal = default;
+    PackageTabs GameTabs = default;
+    MegaCard Card;
+
+    /// <summary>
+    /// How tall the Overview made the page, once it's settled - then the page is held there whatever's on it, the
+    /// Overview included, so it doesn't change size going between tabs or while one's loading. Measured once: it
+    /// can't be measured again on the way back to the Overview, which for a frame is still the last tab.
+    /// </summary>
+    float OverviewHeight;
+
+    /// <summary>
+    /// The page's held at <see cref="OverviewHeight"/>
+    /// </summary>
+    bool HeldHeight;
+
+    /// <summary>
+    /// The Overview's height hasn't moved since - it's settled once it's held still a moment
+    /// </summary>
+    RealTimeSince SinceHeightMoved;
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        if ( HeldHeight || !Card.IsValid() || GameTabs is null ) return;
+
+        // Only the Overview, loaded, measures it
+        if ( !GameTabs.OnOverview || IsSettingUp || IsBrowsingSessions || PageLoading )
+        {
+            SinceHeightMoved = 0;
+            return;
+        }
+
+        var height = Card.Box.Rect.Height * Card.ScaleFromScreen;
+        if ( MathF.Abs( height - OverviewHeight ) >= 1 )
+        {
+            OverviewHeight = height;
+            SinceHeightMoved = 0;
+            return;
+        }
+
+        if ( OverviewHeight <= 0 || SinceHeightMoved < 0.25f ) return;
+
+        HeldHeight = true;
+        Card.Style.Height = Length.Pixels( OverviewHeight );
+    }
+
+    /// <summary>
+    /// Looking through who's playing it, in the page's place like setting up a game - its servers and
+    /// lobbies, and a way into each.
+    /// </summary>
+    internal bool IsBrowsingSessions { get; private set; }
+
+    public void OpenSessions()
+    {
+        if ( IsSettingUp ) CloseSetup();
+
+        IsBrowsingSessions = true;
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Back to the game's page.
+    /// </summary>
+    public void CloseSessions()
+    {
+        IsBrowsingSessions = false;
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Setting up a new game of it, in the page's place - null when it's just showing the game.
+    /// </summary>
+    public GameSetup Setup { get; private set; }
+
+    internal bool IsSettingUp { get; private set; }
+    int setupRequest;
+    CancellationTokenSource setupCancel;
+
+    /// <summary>
+    /// The game coming down before it can be set up - its settings are in it. Null if it isn't downloading.
+    /// </summary>
+    WorkshopDownload? SetupDownload;
+
+    static string DownloadPercent( WorkshopDownload download ) => (Math.Clamp( download.Fraction, 0, 1 ) * 100).ToString( "0.##", System.Globalization.CultureInfo.InvariantCulture );
+
+    /// <summary>
+    /// Load the full package before creating its game setup, including its map and custom settings.
+    /// The optional callback receives the completed setup instead of launching a game.
+    /// </summary>
+    public async Task OpenSetup( Package package, Action<CreateGameResults> onComplete, string via = null, Panel source = null, CreateGameResults? initialSettings = null, bool partyActions = false, PartyDraft draft = null, string initialMap = null )
+    {
+        var request = ++setupRequest;
+        setupCancel?.Cancel();
+        setupCancel = new CancellationTokenSource();
+        var token = setupCancel.Token;
+        SetupDownload = null;
+        var ident = (package ?? Package).FullIdent;
+        var maxMembers = draft?.MaxMembers ?? (partyActions && PartyView.Exists ? PartyView.MaxMembers : 0);
+        Setup = null;
+        IsSettingUp = true;
+        // Setting one up from the sessions list leaves it - back from setting up is the game's page
+        IsBrowsingSessions = false;
+        InitializePartySetup( partyActions, draft );
+        StateHasChanged();
+
+        try
+        {
+            var full = await Package.FetchAsync( ident, false );
+
+            // The player may have closed this setup or opened another while it was loading.
+            if ( !IsValid || request != setupRequest ) return;
+            if ( full is null ) throw new InvalidOperationException( Language.GetPhrase( "menu.games.couldn_t_load_game_settings_cancel_and_try_again" ) );
+
+            // Its settings are the ones its workshop item ships with, so it's installed first - cancelling setup stops waiting on it
+            Action<WorkshopDownload> progress = x =>
+            {
+                if ( !IsValid || request != setupRequest ) return;
+                SetupDownload = x;
+                StateHasChanged();
+            };
+
+            await MenuUtility.InstallWorkshopItemAsync( full, progress, token );
+            if ( !IsValid || request != setupRequest ) return;
+            SetupDownload = null;
+
+            // Picker results omit game settings and player limits. Defaults need the full package too.
+            var settings = initialSettings ?? GameSetup.GetInitialSettings( full, maxMembers );
+            if ( initialMap is not null ) settings.Map = initialMap;
+            Setup = new GameSetup( full, onComplete, settings ) { Via = via, Source = source };
+        }
+        catch ( OperationCanceledException ) when ( token.IsCancellationRequested )
+        {
+            return;
+        }
+        catch ( Exception e )
+        {
+            if ( !IsValid || request != setupRequest ) return;
+            SetupDownload = null;
+            SetupError = e.Message;
+        }
+
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Back to the game's page.
+    /// </summary>
+    public void CloseSetup()
+    {
+        setupRequest++;
+        setupCancel?.Cancel();
+        setupCancel = null;
+        SetupDownload = null;
+        IsSettingUp = false;
+        Setup = null;
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Return to the party when configuring its game, or back to the game page otherwise.
+    /// </summary>
+    public override bool Back()
+    {
+        if ( IsBrowsingSessions )
+        {
+            CloseSessions();
+            return true;
+        }
+
+        if ( !IsSettingUp ) return false;
+
+        CancelSetup();
+        return true;
+    }
+
+    /// <summary>
+    /// Start a standalone game with the chosen setup, or return it to the original caller.
+    /// </summary>
+    public async Task StartSetup()
+    {
+        if ( Setup is not { } setup || !CanStartSetup ) return;
+
+        SetupBusy = true;
+        SetupError = null;
+        try
+        {
+            var results = setup.Finish();
+
+            if ( setup.Via is not null )
+                Discovery.Launching( setup.Package, setup.Via, setup.Source.IsValid() ? setup.Source : null );
+
+            if ( partyActions )
+            {
+                if ( PartyView.IsMocking ) return;
+                await MenuHelpers.StartConfiguredGame( setup.Package, results, PartyRoom.Current );
+            }
+            else
+            {
+                CloseModal( true );
+                setup.OnComplete?.Invoke( results );
+            }
+        }
+        catch ( Exception e )
+        {
+            LoadingScreen.IsVisible = false;
+            if ( IsValid ) SetupError = e.Message;
+            ModalSystem.Instance?.Notice( "#menu.games.couldn_t_start_game", e.Message, "error" );
+        }
+        finally
+        {
+            SetupBusy = false;
+            if ( IsValid ) StateHasChanged();
+        }
+    }
 
     async Task RefreshLobbies()
     {
@@ -98,7 +357,6 @@
     void OnLobbySelected ( LobbyInformation lobby )
     {
         MenuUtility.Connect( lobby.LobbyId );
-        OrganizationModal.LastOpened?.CloseModal( true );
     }
 
     protected override async Task OnParametersSetAsync()
@@ -106,19 +364,31 @@
         if (PackageIdent is null)
             return;
 
-        // Get whatever package info we have
-        Package.TryGetCached(PackageIdent, out Package, true);
+        Discovery.PreviewOpened( "page", PackageIdent );
 
-        // Get Full Package info
-        Package = await Package.FetchAsync(PackageIdent, false);
-        HasFullPackage = true;
+        // Starting from the package it was opened with, if it was
+        if ( load?.Ident != PackageIdent ) load = new GamePageLoad( PackageIdent, Package );
+
+        var current = load;
+        await current.Run( () =>
+        {
+            // Moved on to another game while we asked
+            if ( !this.IsValid() || current != load ) return false;
+
+            Package = current.Package;
+            StateHasChanged();
+            return true;
+        } );
 
         await RefreshLobbies();
-
-        achList = await Package.GetAchievements();
-        if (!achList.All.Any()) achList = default;
-        if (achList is not null) StateHasChanged();
     }
 
-    protected override int BuildHash() => System.HashCode.Combine(Package);
+    public override void OnDeleted()
+    {
+        base.OnDeleted();
+        setupCancel?.Cancel();
+        Discovery.PreviewClosed( "page", PackageIdent );
+    }
+
+    protected override int BuildHash() => System.HashCode.Combine(Package, HasFullPackage, FetchFailed, Setup, SetupReadOnly, SetupNotice, SetupError, HashCode.Combine( IsSettingUp, SetupDownload, IsBrowsingSessions, WorkshopItem, PageLoading, WorkshopId ));
 }

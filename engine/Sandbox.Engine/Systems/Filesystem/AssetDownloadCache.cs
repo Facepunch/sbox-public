@@ -101,6 +101,8 @@ static class AssetDownloadCache
 	}
 
 
+	static readonly System.Buffers.SearchValues<char> LegalExtensionChars = System.Buffers.SearchValues.Create( "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_" );
+
 	static string[] _neverDownloadExtensions = new[] { ".dll", ".exe", ".bat", ".cmd", ".msi", ".scr", ".com", ".cpl", ".vbs", ".ps1", ".reg" };
 
 	/// <summary>
@@ -112,8 +114,14 @@ static class AssetDownloadCache
 		if ( path.Length < 3 ) return false;
 		if ( path.Contains( ".." ) ) return false;
 
+		// Windows drops trailing spaces and dots and writes "::$DATA" streams to the file itself, so "x.dll " is x.dll
+		if ( path.Contains( ':' ) ) return false;
+
 		var ext = System.IO.Path.GetExtension( path );
 		if ( string.IsNullOrWhiteSpace( ext ) )
+			return false;
+
+		if ( ext.AsSpan( 1 ).ContainsAnyExcept( LegalExtensionChars ) )
 			return false;
 
 		if ( _neverDownloadExtensions.Contains( ext, StringComparer.OrdinalIgnoreCase ) )
@@ -123,36 +131,38 @@ static class AssetDownloadCache
 	}
 
 	/// <summary>
-	/// Given a file with a crc, create a unique cache filename for it
+	/// <see cref="ResolveCached"/>'s answer for a file core content already has, so nothing needs mounting.
 	/// </summary>
-	internal static string CreateGameCacheFilename( string path, string crc )
+	internal static readonly string CoreContent = "core";
+
+	/// <summary>
+	/// Where a cached copy of this file is: the absolute path in the download cache,
+	/// <see cref="CoreContent"/>, or null when it has to be downloaded. Only reads, safe off the main thread.
+	/// </summary>
+	internal static string ResolveCached( string path, ulong crc )
 	{
-		return $"{path.ToLowerInvariant().Md5()}.{crc}.cache";
+		if ( !IsFileDownloaded( path, crc, out var wasCoreContent ) )
+			return null;
+
+		return wasCoreContent ? CoreContent : GetAbsolutePath( path, crc );
 	}
 
 	internal static bool TryMount( RedirectFileSystem fs, string path, ulong crc )
 	{
-		var gc = "/gamecache/" + CreateGameCacheFilename( path, crc.ToString( "x" ) );
-		if ( EngineFileSystem.Root.FileExists( gc ) )
-		{
-			//Log.Info( $"GAMECACHE: [{path}]" );
-			fs.AddAbsFile( path.NormalizeFilename( true ), EngineFileSystem.Root.GetFullPath( gc ) );
-			return true;
-		}
+		var resolved = ResolveCached( path, crc );
+		if ( resolved is null ) return false;
 
-		if ( IsFileDownloaded( path, crc, out var wasCoreContent ) )
-		{
-			if ( !wasCoreContent )
-			{
-				var cachePath = GetAbsolutePath( path, crc );
-				//Log.Info( $"DOWNLOAD: [{path}]" );
-				fs.AddAbsFile( path.NormalizeFilename( true ), cachePath );
-				return true;
-			}
+		Mount( fs, path, resolved );
+		return true;
+	}
 
-			return true;
-		}
+	/// <summary>
+	/// Mount a file at what <see cref="ResolveCached"/> found for it.
+	/// </summary>
+	internal static void Mount( RedirectFileSystem fs, string path, string resolved )
+	{
+		if ( ReferenceEquals( resolved, CoreContent ) ) return;
 
-		return false;
+		fs.AddAbsFile( path.NormalizeFilename( true ), resolved );
 	}
 }

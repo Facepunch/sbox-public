@@ -118,15 +118,27 @@ public record struct CompactTerrainMaterial
 /// Stores heightmaps, control maps and materials.
 /// </summary>
 [Expose]
-[AssetType( Name = "Terrain", Extension = "terrain", Category = "World", Flags = AssetTypeFlags.NoEmbedding )]
+[AssetType( Name = "Terrain", Extension = "terrain", Category = "World" )]
 public partial class TerrainStorage : GameResource
 {
-	[JsonInclude, JsonPropertyName( "Maps" )] private TerrainMaps Maps { get; set; } = new();
+	[JsonInclude, JsonPropertyName( "Maps" )] private TerrainMapBlob Maps { get; set; } = new();
 
-	[JsonIgnore] public ushort[] HeightMap { get => Maps.HeightMap; set => Maps.HeightMap = value; }
-	[JsonIgnore] public UInt32[] ControlMap { get => Maps.SplatMap; set => Maps.SplatMap = value; }
+	[JsonIgnore, Hide]
+	public ushort[] HeightMap
+	{
+		get => Maps.HeightMap;
+		set => Maps.HeightMap = value;
+	}
 
-	public int Resolution { get; set; }
+	[JsonIgnore, Hide]
+	public UInt32[] ControlMap
+	{
+		get => Maps.SplatMap;
+		set => Maps.SplatMap = value;
+	}
+
+	[JsonInclude]
+	public int Resolution { get; private set; }
 
 	/// <summary>
 	/// Uniform world size of the width and length of the terrain.
@@ -167,6 +179,21 @@ public partial class TerrainStorage : GameResource
 				OnChanged?.Invoke();
 			}
 		} = 0.87f;
+
+		/// <summary>
+		/// Texture sampling state used for rendering the terrain.
+		/// </summary>
+		[Property, Advanced]
+		public Rendering.SamplerState Sampler
+		{
+			get => field;
+			set
+			{
+				if ( field == value ) return;
+				field = value;
+				OnChanged?.Invoke();
+			}
+		} = new() { Filter = Rendering.FilterMode.Anisotropic, MaxAnisotropy = 8 };
 	}
 
 	public TerrainMaterialSettings MaterialSettings { get; set; } = new();
@@ -176,6 +203,14 @@ public partial class TerrainStorage : GameResource
 		SetResolution( 512 );
 		TerrainSize = 20000;
 		TerrainHeight = 10000;
+	}
+
+	protected override void PostLoad()
+	{
+		if ( Maps.HeightMapLength == 0 || Maps.SplatMapLength == 0 )
+		{
+			SetResolution( Resolution > 0 ? Resolution : 512 );
+		}
 	}
 
 	public void SetResolution( int resolution )
@@ -191,72 +226,125 @@ public partial class TerrainStorage : GameResource
 	}
 
 	/// <summary>
-	/// Contains terrain maps that get compressed
+	/// Stores heightmaps and control maps. Serializes as a binary blob for efficiency,
+	/// with fallback reading of the legacy base64+deflate JSON format for existing files.
 	/// </summary>
-	private class TerrainMaps : IJsonConvert
+	private class TerrainMapBlob : BlobData
 	{
-		public ushort[] HeightMap { get; set; }
-		public UInt32[] SplatMap { get; set; }
+		public override int Version => 1;
 
-		public static object JsonRead( ref Utf8JsonReader reader, Type typeToConvert )
+		// Every terrain asset loads at startup, but only the ones a scene uses need their maps:
+		// inflated, each costs Resolution² elements. Keep the stored data until first access.
+		protected override bool LoadOnDemand => true;
+
+		ushort[] _heightMap = Array.Empty<ushort>();
+		uint[] _splatMap = Array.Empty<uint>();
+		int _storedHeightMapLength, _storedSplatMapLength;
+
+		// Deserialize assigns the fields directly - it runs inside EnsureLoaded
+		public ushort[] HeightMap
 		{
-			if ( reader.TokenType != JsonTokenType.StartObject )
-				return null;
+			get { EnsureLoaded(); return _heightMap; }
+			set { EnsureLoaded(); _heightMap = value; }
+		}
 
-			var maps = new TerrainMaps();
+		public uint[] SplatMap
+		{
+			get { EnsureLoaded(); return _splatMap; }
+			set { EnsureLoaded(); _splatMap = value; }
+		}
 
-			reader.Read();
+		/// <summary>Element counts, without loading the maps.</summary>
+		public int HeightMapLength => IsLoaded ? _heightMap?.Length ?? 0 : _storedHeightMapLength;
+		public int SplatMapLength => IsLoaded ? _splatMap?.Length ?? 0 : _storedSplatMapLength;
 
-			while ( reader.TokenType != JsonTokenType.EndObject )
+		/// <summary>
+		/// A blob holding already deflate-compressed maps, each <paramref name="length"/> elements once
+		/// inflated - stored as is and only inflated when first used.
+		/// </summary>
+		public static TerrainMapBlob FromCompressed( byte[] heightMap, byte[] splatMap, int length )
+		{
+			var stream = ByteStream.Create( heightMap.Length + splatMap.Length + 64 );
+			try
 			{
-				if ( reader.TokenType == JsonTokenType.PropertyName )
-				{
-					var name = reader.GetString();
-					reader.Read();
+				var blob = new TerrainMapBlob();
+				stream.Write( blob.Version );
+				stream.Write( 2 ); // map_count
+				WriteMap( ref stream, "heightmap", sizeof( ushort ), length, heightMap );
+				WriteMap( ref stream, "splatmap", sizeof( uint ), length, splatMap );
 
-					if ( name == "heightmap" )
-					{
-						maps.HeightMap = Decompress<ushort>( reader.GetBytesFromBase64() ).ToArray();
-						reader.Read();
-						continue;
-					}
+				if ( !blob.TryDeferLoad( stream.ToArray() ) )
+					throw new InvalidOperationException( "TerrainMapBlob always loads on demand" );
 
-					// Skip old formats for backward compatibility
-					if ( name == "holesmap" )
-					{
-						reader.Skip();
-						reader.Read();
-						continue;
-					}
-
-					if ( name == "splatmap" )
-					{
-						maps.SplatMap = Decompress<uint>( reader.GetBytesFromBase64() ).ToArray();
-						reader.Read();
-						continue;
-					}
-
-					reader.Skip();
-					continue;
-				}
-
-				reader.Read();
+				return blob;
 			}
-
-			return maps;
+			finally
+			{
+				stream.Dispose();
+			}
 		}
 
-		public static void JsonWrite( object value, Utf8JsonWriter writer )
+		// BlobData — binary serialization into the _d sidecar / scene_d file
+		public override void Serialize( ref Writer writer )
 		{
-			if ( value is not TerrainMaps maps )
-				throw new NotImplementedException();
-
-			writer.WriteStartObject();
-			writer.WriteBase64String( "heightmap", Compress( maps.HeightMap.AsSpan() ) );
-			writer.WriteBase64String( "splatmap", Compress( maps.SplatMap.AsSpan() ) );
-			writer.WriteEndObject();
+			writer.Stream.Write( 2 ); // map_count
+			WriteMap( ref writer.Stream, "heightmap", sizeof( ushort ), _heightMap.Length, Compress<ushort>( _heightMap ) );
+			WriteMap( ref writer.Stream, "splatmap", sizeof( uint ), _splatMap.Length, Compress<uint>( _splatMap ) );
 		}
 
+		static void WriteMap( ref ByteStream stream, string name, byte elementSize, int length, byte[] compressed )
+		{
+			stream.Write( name );
+			stream.Write( elementSize );
+			stream.Write( length );
+			stream.Write( compressed.Length );
+			stream.Write( compressed );
+		}
+
+		protected override void ReadSummary( ref Reader reader )
+		{
+			int mapCount = reader.Stream.Read<int>();
+
+			for ( int i = 0; i < mapCount; i++ )
+			{
+				var name = reader.Stream.Read<string>();
+				reader.Stream.Read<byte>(); // elementSize
+				int length = reader.Stream.Read<int>();
+				int compressedLength = reader.Stream.Read<int>();
+				reader.Stream.Position += compressedLength;
+
+				if ( name == "heightmap" ) _storedHeightMapLength = length;
+				else if ( name == "splatmap" ) _storedSplatMapLength = length;
+			}
+		}
+
+		public override void Deserialize( ref Reader reader )
+		{
+			int mapCount = reader.Stream.Read<int>();
+
+			for ( int i = 0; i < mapCount; i++ )
+			{
+				var name = reader.Stream.Read<string>();
+				reader.Stream.Read<byte>(); // elementSize (informational)
+				reader.Stream.Read<int>(); // elementCount (informational)
+				int compressedLength = reader.Stream.Read<int>();
+				var compressed = new byte[compressedLength];
+				reader.Stream.Read( compressed, 0, compressedLength );
+
+				switch ( name )
+				{
+					case "heightmap":
+						_heightMap = Decompress<ushort>( compressed ).ToArray();
+						break;
+					case "splatmap":
+						_splatMap = Decompress<uint>( compressed ).ToArray();
+						break;
+						// Unknown map type: skip (forward compatibility)
+				}
+			}
+		}
+
+		// Compression helpers — also used by JsonUpgrader methods in TerrainStorage.Upgrade.cs
 		internal static Span<T> Decompress<T>( byte[] compressedData ) where T : unmanaged
 		{
 			using var compressedStream = new MemoryStream( compressedData );
@@ -271,11 +359,10 @@ public partial class TerrainStorage : GameResource
 
 		internal static byte[] Compress<T>( Span<T> data ) where T : struct
 		{
-			// Deflate compress the data
 			using var memoryStream = new MemoryStream();
 			using ( var deflateStream = new DeflateStream( memoryStream, CompressionMode.Compress ) )
 			{
-				deflateStream.Write( MemoryMarshal.AsBytes<T>( data ) );
+				deflateStream.Write( MemoryMarshal.AsBytes( data ) );
 			}
 
 			return memoryStream.ToArray();

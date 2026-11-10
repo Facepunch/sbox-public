@@ -7,7 +7,7 @@ public partial class Scene : GameObject
 	/// </summary>
 	public override void RunEvent<T>( Action<T> action, FindMode find = FindMode.EnabledInSelfAndDescendants )
 	{
-		foreach ( var c in GetAll<T>() )
+		foreach ( var c in Query<T>() )
 		{
 			try
 			{
@@ -19,6 +19,26 @@ public partial class Scene : GameObject
 			}
 		}
 
+	}
+
+	/// <summary>
+	/// Run an IRenderThread event using the snapshot captured in PreRender().
+	/// Safe to call from the render thread — iterates a plain List that the main thread
+	/// does not touch until the next PreRender().
+	/// </summary>
+	internal void RunRenderThreadEvent( CameraComponent camera, Sandbox.Rendering.Stage stage )
+	{
+		foreach ( var c in renderThreadEventTargets )
+		{
+			try
+			{
+				c.OnRenderStage( camera, stage );
+			}
+			catch ( System.Exception e )
+			{
+				Log.Warning( e, e.Message );
+			}
+		}
 	}
 }
 

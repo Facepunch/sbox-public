@@ -1,0 +1,322 @@
+@namespace MenuProject.Modals.PackageModalComponents
+@inherits Panel
+@using Sandbox;
+@using Sandbox.UI;
+@using SboxMenu;
+@using System;
+@using System.Collections.Immutable;
+
+@* The Changes tab - a timeline, newest first. Each update is a card on a line down the left: its
+   name, version and when, then what's in it by kind - added, improved, fixed, removed, known
+   issues - each kind with its own colour. Kinds with nothing in them aren't shown at all.
+
+   A game can have hundreds, so only the cards near what's on screen are built - the rest keep their
+   room as an empty card of the same height (measured once it's been built, guessed from how much is
+   in it until then), so the line and the scrollbar don't move as they come and go. *@
+
+<root>
+
+    @if (!_loaded)
+    {
+        @* The shape of an update card while it loads - two of them *@
+        <div class="timeline loading">
+            @for (var i = 0; i < 2; i++)
+            {
+                <div class="update skeleton @(i == 0 ? "latest" : "")">
+                    <div class="rail">
+                        <div class="dot"></div>
+                        <div class="line"></div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-head">
+                            <div class="bone tile-bone"></div>
+                            <div class="head-words">
+                                <div class="bone title-bone"></div>
+                                <div class="bone pill-bone"></div>
+                            </div>
+                        </div>
+                        <div class="sections">
+                            <div class="bone-section">
+                                <div class="bone heading-bone"></div>
+                                <div class="bone line-bone"></div>
+                                <div class="bone line-bone short"></div>
+                                <div class="bone line-bone shorter"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else if (Count == 0)
+    {
+        <div class="state">@(!OnWorkshop ? "#menu.games.this_package_hasn_t_published_any_changelists" : _notesFailed ? "#menu.workshop.change_notes_failed" : "#menu.workshop.no_change_notes")</div>
+    }
+    else
+    {
+        <div class="timeline" @ref="Timeline">
+            @for (var i = 0; i < Count; i++)
+            {
+                @* A workshop item's change notes are just what was said, when - no title, no kinds of change *@
+                var change = OnWorkshop ? null : _changeLists[i];
+                var note = OnWorkshop ? _notes[i] : default;
+                var created = change?.Created ?? note.Time;
+                var latest = i == 0;
+                var last = i == Count - 1 && !HasOlderNotes;
+                var hasTitle = !string.IsNullOrWhiteSpace(change?.Title);
+                var dateText = created.LocalDateTime.ToString("d MMMM yyyy");
+
+                <div class="update @(latest ? "latest" : "") @(last ? "last" : "")">
+
+                    @* The line down the left, a dot for each update on it *@
+                    <div class="rail">
+                        <div class="dot"></div>
+                        <div class="line"></div>
+                    </div>
+
+                    @if (!IsBuilt(i))
+                    {
+                        @* Off screen - just its room *@
+                        <div class="card placeholder" style="height: @HeightOf(i)px;"></div>
+                    }
+                    else
+                    {
+                        <div class="card">
+                            @* A glyph, its name and how long ago (the date itself on hover - not the version number,
+                               which means nothing to a player), the newest marked as such *@
+                            <div class="card-head">
+                                <div class="tile"><i>@(latest ? "new_releases" : "history")</i></div>
+                                <div class="head-words">
+                                    <label class="update-name" tooltip="@(hasTitle ? change.Title : dateText)">@(hasTitle ? change.Title : dateText)</label>
+                                    <div class="meta-row">
+                                        <div class="ago" tooltip="@dateText"><i>schedule</i><label>@MenuHelpers.TimeAgo( created )</label></div>
+                                    </div>
+                                </div>
+                                @if (latest)
+                                {
+                                    <label class="latest-pill">#menu.games.latest_update</label>
+                                }
+                            </div>
+
+                            <div class="sections">
+                                @if (change is null)
+                                {
+                                    var lines = NoteLines( note.Text );
+                                    if ( lines.Count == 0 )
+                                    {
+                                        <label class="note-text empty">#menu.workshop.no_change_note</label>
+                                    }
+                                    else
+                                    {
+                                        <div class="note">
+                                            @foreach ( var line in lines )
+                                            {
+                                                if ( line.Kind == NoteKind.Heading )
+                                                {
+                                                    <label class="note-heading">@line.Text</label>
+                                                }
+                                                else if ( line.Kind == NoteKind.Bullet )
+                                                {
+                                                    <div class="note-entry"><div class="bullet"></div><label class="text">@line.Text</label></div>
+                                                }
+                                                else
+                                                {
+                                                    <label class="note-text">@line.Text</label>
+                                                }
+                                            }
+                                        </div>
+                                    }
+                                }
+                                else
+                                {
+                                if (change.Added.Length > 0) { <PackageChangeSection ClassName="add" Entries="@change.Added" Icon="add_circle" Title="#menu.games.added" /> }
+                                if (change.Improved.Length > 0) { <PackageChangeSection ClassName="improve" Entries="@change.Improved" Icon="auto_awesome" Title="#menu.games.improved" /> }
+                                if (change.Fixed.Length > 0) { <PackageChangeSection ClassName="fix" Entries="@change.Fixed" Icon="build" Title="#menu.games.fixed" /> }
+                                if (change.Removed.Length > 0) { <PackageChangeSection ClassName="remove" Entries="@change.Removed" Icon="remove_circle" Title="#menu.games.removed" /> }
+                                if (change.KnownIssues.Length > 0) { <PackageChangeSection ClassName="knownissue" Entries="@change.KnownIssues" Icon="warning" Title="#menu.games.known_issues" /> }
+                                }
+                            </div>
+                        </div>
+                    }
+
+                </div>
+            }
+
+            @* Steam gives them a page at a time *@
+            @if (HasOlderNotes)
+            {
+                <div class="older">
+                    <Button Icon="expand_more" Text="#menu.workshop.show_older_changes" Disabled=@_loadingNotes onclick=@(() => _ = LoadNotes( _notesPage + 1 )) />
+                </div>
+            }
+        </div>
+    }
+</root>
+
+@code
+{
+    [Parameter] public Package Package { get; set; }
+
+
+    /// <summary>
+    /// Its Steam Workshop item - the timeline's its change notes rather than the backend's changelists. 0 for the backend's.
+    /// </summary>
+    [Parameter] public ulong WorkshopId { get; set; }
+
+    bool OnWorkshop => WorkshopId != 0;
+
+    enum NoteKind { Text, Heading, Bullet }
+
+    record struct NoteLine( NoteKind Kind, string Text );
+
+    static readonly System.Text.RegularExpressions.Regex BBCode = new( @"\[/?[a-zA-Z0-9]+(=[^\]]*)?\]" );
+
+    /// <summary>
+    /// A Workshop change note in lines to lay out - its BBCode taken out, a list item or one starting with a dash as a
+    /// bullet, a heading tag or a short line ending in a colon as a heading, the rest as they are
+    /// </summary>
+    static List<NoteLine> NoteLines( string text )
+    {
+        var lines = new List<NoteLine>();
+        if ( string.IsNullOrWhiteSpace( text ) ) return lines;
+
+        foreach ( var raw in text.Split( '\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries ) )
+        {
+            var bullet = raw.StartsWith( "[*]" ) || raw.StartsWith( "- " ) || raw.StartsWith( "* " ) || raw.StartsWith( "•" );
+            var tagged = raw.StartsWith( "[h1]" ) || raw.StartsWith( "[h2]" ) || raw.StartsWith( "[h3]" );
+
+            var words = BBCode.Replace( raw, "" ).TrimStart( '-', '*', '•', ' ' ).Trim();
+            if ( words.Length == 0 ) continue;
+
+            var kind = bullet ? NoteKind.Bullet
+                : tagged || (words.EndsWith( ':' ) && words.Length <= 40) ? NoteKind.Heading
+                : NoteKind.Text;
+
+            lines.Add( new( kind, kind == NoteKind.Heading ? words.TrimEnd( ':' ) : words ) );
+        }
+
+        return lines;
+    }
+
+    int Count => OnWorkshop ? _notes.Count : _changeLists.Length;
+
+    readonly List<WorkshopChangeNote> _notes = new();
+    int _notesTotal;
+    int _notesPage;
+    bool _notesFailed;
+    bool _loadingNotes;
+
+    bool HasOlderNotes => OnWorkshop && _notes.Count < _notesTotal;
+
+    ImmutableArray<Package.ChangeList> _changeLists = ImmutableArray<Package.ChangeList>.Empty;
+    bool _loaded;
+
+    protected override int BuildHash() => System.HashCode.Combine(Package, _loaded, _changeLists.Length, Near.Hash, System.HashCode.Combine( WorkshopId, _notes.Count, _notesTotal, _notesFailed, _loadingNotes ));
+
+    //
+    // Only the cards near the screen, built - see the top
+    //
+
+    Panel Timeline;
+    readonly MenuProject.UI.NearScreen Near = new();
+
+    bool IsBuilt( int i ) => Near.IsBuilt( i );
+
+    string HeightOf( int i ) => Near.HeightOf( i, OnWorkshop ? Estimate( _notes[i] ) : Estimate( _changeLists[i] ) );
+
+    /// <summary>
+    /// Near enough a change note's card height - its head, and a line for each of its lines (the long ones wrap)
+    /// </summary>
+    static float Estimate( WorkshopChangeNote note )
+    {
+        var lines = string.IsNullOrWhiteSpace( note.Text ) ? 1 : note.Text.Split( '\n' ).Sum( x => 1 + x.Length / 90 );
+        return 70 + lines * 22;
+    }
+
+    /// <summary>
+    /// Near enough a card's height before it's been built - its head, a heading for each kind of change
+    /// in it, a line for each change.
+    /// </summary>
+    static float Estimate( Package.ChangeList change )
+    {
+        var kinds = 0;
+        var entries = 0;
+
+        foreach ( var section in new[] { change.Added, change.Improved, change.Fixed, change.Removed, change.KnownIssues } )
+        {
+            if ( section.Length == 0 ) continue;
+            kinds++;
+            entries += section.Length;
+        }
+
+        return 70 + kinds * 44 + entries * 27;
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        if ( !_loaded ) return;
+
+        // Its card, once it's a real one rather than its room
+        if ( Near.Update( this, Timeline, Count, row => row.Children.LastOrDefault( x => !x.IsDeleting ) is { } card && card.HasClass( "card" ) && !card.HasClass( "placeholder" ) ? card : null ) )
+            StateHasChanged();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loaded = false;
+        _changeLists = ImmutableArray<Package.ChangeList>.Empty;
+        _notes.Clear();
+        _notesTotal = 0;
+        _notesPage = 0;
+        _notesFailed = false;
+        Near.Reset();
+        StateHasChanged();
+
+        if (OnWorkshop)
+        {
+            await LoadNotes( 1 );
+            _loaded = true;
+            StateHasChanged();
+            return;
+        }
+
+        if (Package is null)
+            return;
+
+        _changeLists = await Package.GetChangeListsAsync();
+        _loaded = true;
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Add this page of the workshop item's change notes to the end of the timeline
+    /// </summary>
+    async Task LoadNotes( int page )
+    {
+        if ( _loadingNotes ) return;
+
+        _loadingNotes = true;
+        var id = WorkshopId;
+        var notes = await MenuUtility.FetchWorkshopChangeNotesAsync( id, page );
+        _loadingNotes = false;
+
+        // Another item's by now
+        if ( !this.IsValid() || id != WorkshopId ) return;
+
+        if ( notes is null )
+        {
+            _notesFailed = _notes.Count == 0;
+        }
+        else
+        {
+            _notes.AddRange( notes.Notes );
+            _notesTotal = notes.Total;
+            _notesPage = page;
+        }
+
+        StateHasChanged();
+    }
+}

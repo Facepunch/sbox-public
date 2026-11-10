@@ -2,7 +2,7 @@
 include "sbox/glue_mesh.h"
 include "modellib/modelbuilder.h"
 include "meshutils/simplifyparams.h"
-include "vphysx/vphysx_collisionmesh_resource.h"
+include "physics/collision_resource.h"
 include "meshutils/uvparamlscm.h"
 
 native struct SboxVertex_t is Sandbox.Vertex
@@ -12,16 +12,18 @@ native enum AlignEdgeUV_t as NativeEngine.AlignEdgeUV_t
 
 native class CBuilderMaterialGroup
 {
-	CUtlString m_name;
+	void SetName( string name );
 	void AddMaterial( IMaterial hMat );
 }
 
-native class CBuilderMaterialGroupArray
+native class CBuilderHitBox
 {
-	void DeleteThis(); [delete]
-	static CBuilderMaterialGroupArray Create( int count ); [new]
-
-	CBuilderMaterialGroup Get( int index );
+	void SetBoneName( string name );
+	void SetSurface( string name );
+	void AddTag( string tag );
+	void SetBox( Vector3 mins, Vector3 maxs );
+	void SetSphere( Vector3 center, float radius );
+	void SetCapsule( Vector3 start, Vector3 end, float radius );
 }
 
 native class CAnimationGroupBuilder
@@ -45,11 +47,20 @@ native class CPhysBodyDescArray
 
 	CPhysBodyDesc Get( int index );
 	VPhysXJoint_t GetJoint( int index );
+
+	inline void AddSurface( int surfaceIndex )
+	{
+		const CPhysSurfaceProperties *pSurface = g_pPhysicsSystem->GetSurfacePropertyController()->GetSurfaceProperty( surfaceIndex );
+		self->surfaces.AddToTail( pSurface->GetNameHash() );
+	}
 }
 
 native class CPhysBodyDesc
 {
 	float m_flMass;
+	float m_flInertiaScale;
+	float m_flLinearDamping;
+	float m_flAngularDamping;
 
 	inline void SetBoneName( string boneName )
 	{
@@ -70,9 +81,27 @@ native class CPhysBodyDesc
 	void AddSphere( Sphere sphere );
 	void AddCapsule( Capsule capsule );
 
+	inline void AddBox( Vector3 extents, Transform transform )
+	{
+		if ( RnHull_t *pHull = g_pPhysicsSystem->HullCreateBox( extents, Vector::vZero ) )
+		{
+			pHull->Transform( transform.AsTransform().ToMatrix() );
+			self->AddHull( pHull );
+		}
+	}
+
+	inline void AddHull( CastTo[Vector*] void* pPoints, int nNumPoints, Transform transform )
+	{
+		if ( RnHull_t *pHull = g_pPhysicsSystem->HullCreate( nNumPoints, pPoints ) )
+		{
+			pHull->Transform( transform.AsTransform().ToMatrix() );
+			self->AddHull( pHull );
+		}
+	}
+
 	inline void AddHull( CastTo[Vector*] void* pPoints, int nNumPoints, Transform transform, float flPrecisionDegrees, float flPrecisionInches, int nMaxFaces, int nMaxEdges, int nMaxVerts, int nAlgo )
 	{
-		RnHullSimplificationParams_t params;
+		PhysicsHullSimplificationParams_t params;
 		params.m_flPrecisionDegrees = flPrecisionDegrees;
 		params.m_flPrecisionInches = flPrecisionInches;
 		params.m_nMaxFaces = nMaxFaces;
@@ -96,10 +125,35 @@ native class CPhysBodyDesc
 	}
 }
 
+native class CModelBuilder as NativeEngine.ModelBuilder
+{
+	void DeleteThis(); [delete]
+	static NativeEngine.ModelBuilder Create(); [new]
+
+	void SetMass( float mass );
+	void SetHullBounds( Vector3 mins, Vector3 maxs );
+	void SetViewBounds( Vector3 mins, Vector3 maxs );
+	void SetEyePosition( Vector3 position );
+	void SetMaxEyeDeflection( float degrees );
+	bool SetModelKeyValues( KeyValues3 data );
+	void SetLODSwitchDistance( int lod, float distance );
+	void AddRunTimeMesh( IMesh mesh, CastTo[MeshGroupMask_t] ulong meshGroupMask, CastTo[LODGroupMask_t] int lodGroupMask );
+	void AddRunTimeBone( string boneName, string parentName, Vector3 position, Rotation rotation, BBox bounds );
+	void AddRunTimeAttachment( string name, string parentName, Vector3 position, Rotation rotation );
+	int AddMeshGroup( string name );
+	CBuilderMaterialGroup AddMaterialGroup();
+	CBuilderHitBox AddHitBox( string setName, string name );
+	void SetDefaultMeshGroupMask( CastTo[MeshGroupMask_t] ulong mask );
+	void SetPhysics_Runtime( CPhysBodyDescArray bodies );
+	void AppendSkeletonsFromChildResources( bool sortBones );
+	void AddAnimationGroupRuntime( CAnimationGroupBuilder animation );
+	void SetTraceMesh( CastTo[Vector*] void* vertices, int vertexCount, CastTo[int*] void* indices, int indexCount );
+	IModel CreateRuntimeModel( string resourceName, bool anonymous );
+}
+
 native static class MeshGlue as NativeEngine.MeshGlue
 {
 	IMesh CreateRenderMesh( IMaterial material, int nPrimType, string pName );
-	IModel CreateModel( CAnimationGroupBuilder anim, CPhysBodyDescArray pBodies, CBuilderMaterialGroupArray pMaterialGroups, float mass, StringToken surfaceProp, CastTo[float*] void* lodSwitchDistance, CastTo[HRenderMesh_InternalStrong**] void* meshes, int numMeshes, CastTo[int*] void* lodMasks, CastTo[MeshGroupMask_t*] void* meshGroupMasks, CastTo[SboxMeshGroupDesc_t*] void* meshGroups, int numMeshGroups, CastTo[Vector*] void* vertices, int numVertices, CastTo[uint32*] void* indices, int numIndices, CastTo[uint8*] void* materials, CastTo[int*] void* surfaces, int numSurfaces, CastTo[SboxSphereDesc_t*] void* spheres, int numSpheres, CastTo[SboxCapsuleDesc_t*] void* capsules, int numCapsules, CastTo[SboxBoxDesc_t*] void* boxes, int numBoxes, CastTo[SboxHullDesc_t*] void* hulls, int numHulls, CastTo[SboxMeshDesc_t*] void* meshShapes, int numMeshShapes, CastTo[SboxBoneDesc_t*] void* bones, int numBones, string boneNames, int startTraceVertex, int startTraceIndex, int numTraceVertices, int numTraceIndices, CastTo[MeshGroupMask_t] ulong _defaultMeshGroupMask );
 
 	int GetModelNumVertices( IModel model );
 	void GetModelVertices( IModel model, CastTo[SboxVertex_t*] void* vertices, uint numVertices );
@@ -107,9 +161,15 @@ native static class MeshGlue as NativeEngine.MeshGlue
 	int GetModelNumIndices( IModel model );
 	void GetModelIndices( IModel model, CastTo[uint32*] void* indices, uint numIndices );
 
+	int GetDrawCallVertexCount( IModel model, int mesh, int drawCall );
+	int GetDrawCallIndexCount( IModel model, int mesh, int drawCall );
+	int GetDrawCallStreams( IModel model, int mesh, int drawCall );
+	bool ReadDrawCall( IModel model, int mesh, int drawCall, CastTo[SboxVertex_t*] void* vertices, uint numVertices, CastTo[uint32*] void* indices, uint numIndices, out uint usedVertices );
+
 	int GetModelIndexCount( IModel model, int drawCall );
 	int GetModelIndexStart( IModel model, int drawCall );
 	int GetModelBaseVertex( IModel model, int drawCall );
+	int GetModelLodIndexCount( IModel model, int lod );
 
 	void SetMeshMaterial( IMesh renderMesh, IMaterial material );
 	void SetMeshPrimType( IMesh renderMesh, int nPrimType );
@@ -118,6 +178,8 @@ native static class MeshGlue as NativeEngine.MeshGlue
 
 	void SetMeshVertexRange( IMesh renderMesh, int startVertex, int vertexCount );
 	void SetMeshIndexRange( IMesh renderMesh, int startIndex, int indexCount );
+
+	int AddMeshDrawCall( IMesh renderMesh, IMaterial material, int nPrimType, int startIndex, int indexCount, int startVertex, int vertexCount );
 
 	void SetMeshVertexBuffer( IMesh renderMesh, VertexBufferHandle_t hVB, void* pData, int nDataSize );
 	void SetMeshIndexBuffer( IMesh renderMesh, IndexBufferHandle_t hIB, void* pData, int nDataSize );
@@ -163,4 +225,10 @@ native static class MeshGlue as NativeEngine.MeshGlue
 	CUtlBuffer SerializeMeshBuffers( IModel model, int nMesh );
 	CUtlBuffer SerializeMeshData( IModel model, int nMesh );
 	CUtlBuffer SerializeModelData( IModel model );
+	CUtlBuffer SerializePhysicsData( IModel model );
+	CUtlBuffer SerializePhysicsDataFromAggregate( CPhysicsData physData );
+
+	CPhysicsData BuildAggregateData( CPhysBodyDescArray pBodies );
+
+	void SetMeshMorphData( IMesh renderMesh, CastTo[SboxMorphDesc_t*] void* morphDescs, int numMorphs, CastTo[SboxMorphVertexDelta_t*] void* deltas, int numDeltas, string morphNames );
 }

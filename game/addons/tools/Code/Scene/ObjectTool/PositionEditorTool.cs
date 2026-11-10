@@ -2,9 +2,10 @@
 namespace Editor;
 
 /// <summary>
-/// Move selected Gameobjects.<br/> <br/> 
+/// Move selected Gameobjects.<br/> <br/>
 /// <b>Ctrl</b> - toggle snap to grid<br/>
-/// <b>Shift</b> - duplicate selection
+/// <b>Shift</b> - duplicate selection<br/>
+/// <b>Alt</b> - while dragging the center handle, align rotation to the hit surface
 /// </summary>
 [Title( "Move/Position" )]
 [Icon( "control_camera" )]
@@ -46,7 +47,8 @@ public class PositionEditorTool : EditorTool
 		var nonSceneGos = Selection.OfType<GameObject>().Where( go => go.GetType() != typeof( Sandbox.Scene ) );
 		if ( nonSceneGos.Count() == 0 ) return;
 
-		var bbox = BBox.FromPoints( nonSceneGos.Select( x => x.WorldPosition ) );
+		var positions = nonSceneGos.Select( x => x.WorldPosition ).ToArray();
+		var centroid = positions.Aggregate( Vector3.Zero, ( sum, p ) => sum + p ) / positions.Length;
 		var handleRotation = Gizmo.Settings.GlobalSpace ? Rotation.Identity : nonSceneGos.FirstOrDefault().WorldRotation;
 
 		if ( !Gizmo.Pressed.Any && Gizmo.HasMouseFocus )
@@ -55,32 +57,71 @@ public class PositionEditorTool : EditorTool
 
 			startPoints.Clear();
 			moveDelta = default;
-			handlePosition = bbox.Center;
+			handlePosition = centroid;
 			undoScope?.Dispose();
 			undoScope = null;
 		}
 
-		using ( Gizmo.Scope( "Tool", new Transform( bbox.Center ) ) )
+		using ( Gizmo.Scope( "Tool", new Transform( centroid ) ) )
 		{
 			Gizmo.Hitbox.DepthBias = 0.01f;
 
-			if ( Gizmo.Control.Position( "position", Vector3.Zero, out var delta, handleRotation ) )
-			{
-				moveDelta += delta;
+			Vector3? surfaceHit = null;
+			Vector3? surfaceNormal = null;
 
+			if ( Gizmo.Control.Position( "position", Vector3.Zero, out var delta, handleRotation, centerRaycast: () =>
+			{
+				var trace = RaycastToSurface( nonSceneGos );
+				surfaceHit = trace?.HitPosition;
+				surfaceNormal = trace?.Normal;
+				return surfaceHit;
+			} ) )
+			{
 				StartDrag( nonSceneGos );
 
-				var offset = (moveDelta + handlePosition) * handleRotation.Inverse;
-				offset = Gizmo.Snap( offset, moveDelta * handleRotation.Inverse );
-				offset *= handleRotation;
-				offset -= handlePosition;
+				moveDelta = surfaceHit.HasValue ? surfaceHit.Value - handlePosition : moveDelta + delta;
+
+				var snapped = Gizmo.Snap( handlePosition, moveDelta, handleRotation );
+				var offset = snapped - handlePosition;
+
+				var alignToSurface = Gizmo.IsAltPressed && surfaceNormal.HasValue;
+
+				var alignAsGroup = alignToSurface && nonSceneGos.Count() > 1 && Gizmo.Settings.GlobalSpace;
 
 				foreach ( var entry in startPoints )
 				{
-					OnMoveObject( entry.Key, entry.Value.Add( offset, true ) );
+					var transform = entry.Value.Add( offset, true );
+
+					if ( alignToSurface )
+					{
+						var alignRotation = Rotation.FromToRotation( Vector3.Up, surfaceNormal.Value );
+						var rotation = alignRotation * entry.Value.Rotation;
+
+						var position = alignAsGroup
+							? handlePosition + offset + alignRotation * (entry.Value.Position - handlePosition)
+							: transform.Position;
+
+						transform = new Transform( position, rotation, entry.Value.Scale );
+					}
+
+					OnMoveObject( entry.Key, transform );
 				}
 			}
 		}
+	}
+
+	private SceneTraceResult? RaycastToSurface( IEnumerable<GameObject> targets )
+	{
+		var trace = Trace;
+
+		foreach ( var go in targets )
+		{
+			trace = trace.IgnoreGameObjectHierarchy( go );
+		}
+
+		var result = trace.Run();
+
+		return result.Hit ? result : null;
 	}
 
 	private void StartDrag( IEnumerable<GameObject> selectedGos )

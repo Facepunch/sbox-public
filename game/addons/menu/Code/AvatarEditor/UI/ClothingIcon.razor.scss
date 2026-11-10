@@ -1,29 +1,24 @@
+@import "/Platform/_platform.scss";
+
 ClothingIcon
 {
+    @include platform-choice;
     overflow: hidden;
-    cursor: pointer;
-    font-size: 10px;
     justify-content: flex-start;
     align-items: flex-end;
     flex-shrink: 0;
     position: relative;
     pointer-events: all;
-    border-radius: 16px;
+    padding: 3px;
     width: 95px;
     flex-grow: 0;
-    flex-shrink: 0;
+    flex-basis: auto;
     height: 90px;
     aspect-ratio: 1;
 
     &:hover
     {
-        background-color: #0088ff55;
-        sound-in: ui.button.over;
-    }
-
-    &.active
-    {
-        background-color: #0088ff;
+        sound-in: "ui.button.over";
     }
 
     .avatar
@@ -39,12 +34,11 @@ ClothingIcon
         font-family: Material Icons;
         font-size: 18px;
         padding: 2px 8px;
-        opacity: 1;
+        opacity: 0.2;
         position: absolute;
         right: 2px;
         bottom: 2px;
         border-radius: 20px;
-        opacity: 0.2;
 
         &:hover
         {

@@ -16,6 +16,8 @@ public class TimeCursor : GraphicsItem, ISnapSource
 	private readonly GraphicsItem _timeLabel;
 	private readonly GraphicsItem _frameLabel;
 
+	public override Rect BoundingRect => base.BoundingRect.Grow( 8f );
+
 	public MovieTime Value
 	{
 		get => _value;
@@ -102,5 +104,10 @@ file sealed class TimeLabel : GraphicsItem
 		Paint.SetPen( Parent.Color.WithAlpha( alpha ) );
 
 		Paint.DrawText( LocalRect.Shrink( 8f, 0f, 0f, 0f ), text, TextFlag.LeftCenter );
+
+		if ( Parent.LabelFadeTime > 0f && alpha > 0f )
+		{
+			Update();
+		}
 	}
 }

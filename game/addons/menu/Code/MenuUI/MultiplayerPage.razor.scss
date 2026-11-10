@@ -1,48 +1,28 @@
-MultiplayerPage .button
+@import "/Platform/_platform.scss";
+
+MultiplayerPage
 {
-	font-size: 1rem;
-	background-color: #467ee506;
-	border-radius: 50%;
-	color: #c6d4ee;
-	font-size: 13px;
-	padding: 16px 16px;
+	pointer-events: all;
+	flex-grow: 1;
+	min-height: 0;
+	flex-direction: column;
+	padding: $front-chrome-gap;
+	font-family: $platform-font;
+	color: $platform-text;
 
-	Label
+	.multiplayer-body
 	{
-		text-transform: uppercase;
-		font-weight: 600;
-	}
+		flex-grow: 1;
+		min-height: 0;
+		gap: 16px;
+		// Preserve usable columns on narrow windows instead of clipping their contents.
+		overflow-x: scroll;
 
-	IconPanel
-	{
-		color: #3777ee;
-		font-size: 2rem;
-	}
-
-	&:hover, &.active
-	{
-		font-size: 1rem;
-		background-color: #467ee5;
-		padding: 16px 16px;
-		border-radius: 50%;
-
-		IconPanel
+		> DockHost
 		{
-			color: #c6d4ee;
+			flex-grow: 1;
+			// Leave room for all three columns, their borders and the two dividers.
+			min-width: 1040px;
 		}
 	}
-
-	&.is-icon
-	{
-		padding: 8px 16px;
-	}
-}
-
-MultiplayerPage .filter-heading {
-	margin-top: 16px;
-}
-
-MultiplayerPage span
-{
-	gap: 4px;
 }

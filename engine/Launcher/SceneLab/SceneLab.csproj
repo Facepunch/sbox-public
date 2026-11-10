@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!--
+		A standalone window driving Sandbox.SceneRenderer, the way PanelGallery drives the panel UI.
+		Boots the minimal engine (PanelAppSystem) and renders straight into its own swap chain -
+		nothing here goes through the native scenesystem.
+	-->
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+		<AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<GenerateDocumentationFile>False</GenerateDocumentationFile>
+		<AssemblyName>scenelab</AssemblyName>
+		<CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+		<SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+		<NoWarn>1701;1702;1591;NETSDK1138</NoWarn>
+		<LangVersion>14</LangVersion>
+		<OutputPath>..\..\..\game\bin\managed</OutputPath>
+		<OutputType>Exe</OutputType>
+		<DisableTransitiveProjectReferences>true</DisableTransitiveProjectReferences>
+		<PreserveCompilationReferences>false</PreserveCompilationReferences>
+		<PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>
+		<PreserveCompilationContext>false</PreserveCompilationContext>
+		<GenerateRuntimeConfigDevFile>false</GenerateRuntimeConfigDevFile>
+		<StartupObject>Sandbox.Program</StartupObject>
+		<ProduceReferenceAssembly>False</ProduceReferenceAssembly>
+		<DebugType>embedded</DebugType>
+		<TreatWarningsAsErrors>True</TreatWarningsAsErrors>
+		<GenerateDependencyFile>false</GenerateDependencyFile>
+		<CETCompat>false</CETCompat>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\Sandbox.AppSystem\Sandbox.AppSystem.csproj" Private="false" />
+		<ProjectReference Include="..\..\Sandbox.Engine\Sandbox.Engine.csproj" Private="false" />
+		<ProjectReference Include="..\..\Sandbox.SceneRenderer\Sandbox.SceneRenderer.csproj" Private="false" />
+		<ProjectReference Include="..\..\Sandbox.Filesystem\Sandbox.Filesystem.csproj" Private="false" />
+		<ProjectReference Include="..\..\Sandbox.Reflection\Sandbox.Reflection.csproj" Private="false" />
+		<ProjectReference Include="..\..\Sandbox.System\Sandbox.System.csproj" Private="false" />
+		<ProjectReference Include="..\..\Sandbox.Tools\Sandbox.Tools.csproj" Private="false" />
+	</ItemGroup>
+
+	<Import Project="..\Shared\LaunchShared.projitems" Label="Shared" />
+
+</Project>

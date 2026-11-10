@@ -8,6 +8,11 @@ public sealed class StyleBlock : IStyleBlock
 {
 	internal int LoadOrder = 0;
 
+	// True if any of this block's selectors target ::before / ::after, so the style build can skip the
+	// per-block pseudo-element probe for the (vast majority of) blocks that don't use them.
+	internal bool HasBefore;
+	internal bool HasAfter;
+
 	/// <summary>
 	/// A list of appropriate selectors for this block (ie ".button")
 	/// </summary>
@@ -128,13 +133,17 @@ public sealed class StyleBlock : IStyleBlock
 
 	public bool SetSelector( string selector, StyleBlock parent = null )
 	{
-		Selectors = StyleParser.Selector( selector, parent ).ToArray();
+		var selectors = StyleParser.Selector( selector, parent );
+		if ( selectors == null ) return false;
 
-		if ( Selectors == null ) return false;
+		Selectors = selectors.ToArray();
 
 		foreach ( var s in Selectors )
 		{
 			s.Finalize( this );
+
+			if ( (s.Flags & PseudoClass.Before) != 0 ) HasBefore = true;
+			if ( (s.Flags & PseudoClass.After) != 0 ) HasAfter = true;
 		}
 
 		return true;

@@ -232,7 +232,9 @@ public class WildcardPathWidget : Widget
 			if ( a is not null && a.AssetType == AssetType.Material ) return false;
 			if ( a is not null && a.AssetType == AssetType.Texture ) return false;
 			if ( a is not null && a.AssetType == AssetType.MapFile ) return false;
-			if ( a is not null && a.AssetType == AssetType.AnimationGraph ) return false;
+#pragma warning disable CS0618
+			if ( a is not null && a.AssetType == AssetType.LegacyAnimationGraph ) return false;
+#pragma warning restore CS0618
 
 			// hide any image files that aren't being used by 
 			//if ( a is not null && a.AssetType == AssetType.ImageFile )

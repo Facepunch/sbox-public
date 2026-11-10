@@ -23,4 +23,75 @@ native class CMapMesh as NativeMapDoc.CMapMesh : CMapNode
 			}
 		}
     }
+
+    //
+    // Every face in iteration order, one line each: "material \t nx ny nz \t x y z;x y z;..." with
+    // the normal and vertices in world space. A face's line number is its index for SetFacesMaterial.
+    //
+    inline string GetFaceData()
+    {
+        CHammerPolyMesh &mesh = self->GetMesh();
+
+        matrix3x4_t mLocalToWorld;
+        self->GetLocalToWorldTransformWithScales( &mLocalToWorld );
+
+        CUtlString data;
+
+        for ( CHammerPolyMesh::FaceHandle_t hFace = mesh.GetFirstFace(); hFace != mesh.InvalidFace(); hFace = mesh.GetNextFace( hFace ) )
+        {
+            const char *pMaterial = mesh.GetFaceMaterialName( hFace );
+
+            VPlane plane;
+            mesh.GetFacePlane( hFace, mLocalToWorld, &plane );
+
+            data += pMaterial ? pMaterial : "";
+            data += CFmtStr( "\t%.4f %.4f %.4f\t", plane.m_Normal.x, plane.m_Normal.y, plane.m_Normal.z ).Get();
+
+            CHammerPolyMesh::FaceVertexHandle_t hStart = mesh.GetFirstVertexInFace( hFace );
+            CHammerPolyMesh::FaceVertexHandle_t hCurrent = hStart;
+
+            do
+            {
+                Vector vPosition;
+                mesh.GetVertexPosition( hCurrent, mLocalToWorld, &vPosition );
+                data += CFmtStr( "%.3f %.3f %.3f;", vPosition.x, vPosition.y, vPosition.z ).Get();
+
+                hCurrent = mesh.GetNextVertexInFace( hCurrent );
+            }
+            while ( hCurrent != hStart && hCurrent != mesh.InvalidFaceVertex() );
+
+            data += "\n";
+        }
+
+        return data;
+    }
+
+    //
+    // Assign a material to faces by their index in GetFaceData's order.
+    //
+    inline void SetFacesMaterial( CastTo[int*] void* faceIndices, int count, string materialName )
+    {
+        CHammerPolyMesh &mesh = self->GetMesh();
+
+        CUtlVector< CHammerPolyMesh::FaceHandle_t > allFaces;
+        for ( CHammerPolyMesh::FaceHandle_t hFace = mesh.GetFirstFace(); hFace != mesh.InvalidFace(); hFace = mesh.GetNextFace( hFace ) )
+        {
+            allFaces.AddToTail( hFace );
+        }
+
+        CUtlVector< CHammerPolyMesh::FaceHandle_t > faces;
+        for ( int i = 0; i < count; i++ )
+        {
+            int nIndex = faceIndices[i];
+            if ( nIndex >= 0 && nIndex < allFaces.Count() )
+            {
+                faces.AddToTail( allFaces[nIndex] );
+            }
+        }
+
+        if ( faces.Count() > 0 )
+        {
+            self->AssignMaterialToFaces( faces, materialName );
+        }
+    }
 }

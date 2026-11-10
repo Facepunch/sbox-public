@@ -1,48 +1,24 @@
+@import "/styles/_theme.scss";
+@import "/Platform/_platform.scss";
 
+// A fact - a chip; pressable, a button; picked, blue
 .metricbutton
 {
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    width: 64px;
-    padding: 6px 2px;
-    background: linear-gradient( to 64px, #20273588, #252e3e88 );
-    border-radius: 22px;
-    color: #c6d4ee;
-    gap: 3px;
-    pointer-events: all;
-    text-shadow: 1px 1px 2px #0005;
-}
-
-.metricbutton i
-{
-    font-size: 16px;
-    opacity: 0.7;
-}
-
-.metricbutton .value
-{
-    font-size: 10px;
-    font-weight: 550;
-    font-family: poppins;
+    @include platform-chip;
+    pointer-events: none;
 }
 
 .metricbutton.interactive
 {
+    @include platform-text-button( 30px, 12.5px, 15px );
+    padding: 0 12px;
     pointer-events: all;
-    cursor: pointer;
-    background: linear-gradient( to 64px, #202735, #252e3e );
+
+    &:hover { sound-in: "ui.button.over"; }
+    &:active { sound-in: "ui.button.press"; }
 }
 
 .metricbutton.active
 {
-    background: linear-gradient( to 64px, #3273eb, #3273eb );
-    color: white;
-}
-
-
-
-.metricbutton.interactive:hover
-{
-    filter: brightness( 2 );
+    @include platform-button-selected;
 }

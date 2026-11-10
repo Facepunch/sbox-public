@@ -7,32 +7,35 @@
   <Folder Name="/Engine/" />
   <Folder Name="/Engine/Dev/">
     <Project Path="Definitions/Definitions.csproj" />
-    <Project Path="Sandbox.CodeUpgrader.Test/Sandbox.CodeUpgrader.Test.csproj" />
     <Project Path="Sandbox.CodeUpgrader/Sandbox.CodeUpgrader.csproj" />
     <Project Path="Sandbox.Generator/Sandbox.Generator.csproj" />
     <Project Path="Tools/CodeGen/CodeGen.csproj" />
-    <Project Path="Tools/CreateGameCache/CreateGameCache.csproj" />
+    <Project Path="Tools/ContentWorker/ContentWorker.csproj" />
     <Project Path="Tools/MenuBuild/MenuBuild.csproj" />
+    <Project Path="Tools/PackageBuild/PackageBuild.csproj" />
     <Project Path="Tools/ShaderCompiler/ShaderCompiler.csproj" />
   </Folder>
   <Folder Name="/Engine/Exe/">
     <Project Path="Launcher/CrashReporter/CrashReporter.csproj" Id="652c4b4b-7f21-4884-9ad5-6a9032ce4ef9" />
+    <Project Path="Launcher/PanelGallery/PanelGallery.csproj" />
     <Project Path="Launcher/Sbox/Sbox.csproj" />
     <Project Path="Launcher/SboxBench/SboxBench.csproj" />
+    <Project Path="Launcher/SboxCli/Sbox-Cli.csproj" />
     <Project Path="Launcher/SboxDev/Sbox-Dev.csproj" />
     <Project Path="Launcher/SboxProfiler/SboxProfiler.csproj" />
     <Project Path="Launcher/SboxServer/Sbox-Server.csproj" />
     <Project Path="Launcher/SboxStandalone/Sbox-Standalone.csproj" />
+    <Project Path="Launcher/SceneLab/SceneLab.csproj" />
     <Project Path="Launcher/Shared/LaunchShared.shproj" />
     <Project Path="Launcher/StandaloneTest/Sbox-Launcher.csproj" />
   </Folder>
   <Folder Name="/Engine/Tier0/">
     <Project Path="Microsoft.AspNetCore.Components/Microsoft.AspNetCore.Components.csproj" />
-    <Project Path="Sandbox.Access/Sandbox.Access.csproj" />
     <Project Path="Sandbox.Bind/Sandbox.Bind.csproj" />
     <Project Path="Sandbox.Event/Sandbox.Event.csproj" />
     <Project Path="Sandbox.Filesystem/Sandbox.Filesystem.csproj" />
     <Project Path="Sandbox.Hotload/Sandbox.Hotload.csproj" />
+    <Project Path="Sandbox.Layout/Sandbox.Layout.csproj" />
     <Project Path="Sandbox.NetCore/Sandbox.NetCore.csproj" />
     <Project Path="Sandbox.Razor/Sandbox.Razor.csproj" />
     <Project Path="Sandbox.Reflection/Sandbox.Reflection.csproj" />
@@ -42,13 +45,15 @@
     <Project Path="ThirdParty/Topten.RichTextKit/Topten.RichTextKit.csproj" />
   </Folder>
   <Folder Name="/Engine/Tier0/Compiling/">
-    <Project Path="Sandbox.Compiling.Test/Sandbox.Compiling.Test.csproj" />
     <Project Path="Sandbox.Compiling/Sandbox.Compiling.csproj" />
+    <Project Path="Sandbox.ContentBuild/Sandbox.ContentBuild.csproj" />
   </Folder>
   <Folder Name="/Engine/Tier0/Mounting/">
     <Project Path="Mounting/Sandbox.Mounting.GoldSrc/Sandbox.Mounting.GoldSrc.csproj" />
     <Project Path="Mounting/Sandbox.Mounting.NS2/Sandbox.Mounting.NS2.csproj" />
     <Project Path="Mounting/Sandbox.Mounting.Quake/Sandbox.Mounting.Quake.csproj" />
+    <Project Path="Mounting/Sandbox.Mounting.SE3/Sandbox.Mounting.SE3.csproj" />
+    <Project Path="Mounting/Sandbox.Mounting.Source1/Sandbox.Mounting.Source1.csproj" />
     <Project Path="Mounting/Sandbox.Mounting/Sandbox.Mounting.csproj" />
   </Folder>
   <Folder Name="/Engine/Tier1/">
@@ -58,6 +63,7 @@
     <Project Path="Sandbox.AppSystem/Sandbox.AppSystem.csproj" />
     <Project Path="Sandbox.GameInstance/Sandbox.GameInstance.csproj" />
     <Project Path="Sandbox.Menu/Sandbox.Menu.csproj" />
+    <Project Path="Sandbox.SceneRenderer/Sandbox.SceneRenderer.csproj" />
     <Project Path="Sandbox.Tools/Sandbox.Tools.csproj" />
   </Folder>
   <Folder Name="/Solution Items/">
@@ -65,13 +71,15 @@
   </Folder>
   <Folder Name="/Tests/">
     <Project Path="Benchmark/Benchmark.csproj" />
-    <Project Path="Sandbox.Hotload.Test/Sandbox.Hotload.Test.csproj" />
-    <Project Path="Sandbox.Test/Sandbox.Test.csproj" />
-    <Project Path="Sandbox.Test.Unit/Sandbox.Test.Unit.csproj" />
+    <Project Path="Tests/Sandbox.Test.Engine/Sandbox.Test.Engine.csproj" />
+    <Project Path="Tests/Sandbox.Test.NetSim/Sandbox.Test.NetSim.csproj" />
+    <Project Path="Tests/Sandbox.Test.Integration/Sandbox.Test.Integration.csproj" />
+    <Project Path="Tests/Sandbox.Test.Text/Sandbox.Test.Text.csproj" />
+    <Project Path="Tests/Sandbox.Test.Unit/Sandbox.Test.Unit.csproj" />
   </Folder>
-  <Folder Name="/Tests/Resources/">
-    <Project Path="Sandbox.Test.Generate/Sandbox.Test.Generate.csproj" />
-    <Project Path="Sandbox.Test.Hotload/Sandbox.Test.AfterHotload.csproj" />
-    <Project Path="Sandbox.Test.Hotload/Sandbox.Test.BeforeHotload.csproj" />
+  <Folder Name="/Tests/Fixtures/">
+    <Project Path="Tests/Fixtures/HotloadTestAssembly/Sandbox.Test.AfterHotload.csproj" />
+    <Project Path="Tests/Fixtures/HotloadTestAssembly/Sandbox.Test.BeforeHotload.csproj" />
+    <Project Path="Tests/Fixtures/Sandbox.Test.Generate/Sandbox.Test.Generate.csproj" />
   </Folder>
 </Solution>

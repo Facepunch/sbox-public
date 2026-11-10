@@ -1,5 +1,4 @@
 using NativeEngine;
-using System.Runtime.InteropServices;
 
 namespace Sandbox;
 
@@ -10,11 +9,6 @@ namespace Sandbox;
 public sealed partial class SceneModel : SceneObject
 {
 	internal CSceneAnimatableObject animNative;
-
-	DelegateFunctionPointer animGraphChangedCallback;
-
-	[UnmanagedFunctionPointer( CallingConvention.StdCall )]
-	internal delegate void AnimGraphChangedCallback( IntPtr p );
 
 	internal SceneModel() { }
 	internal SceneModel( HandleCreationData _ ) { }
@@ -41,21 +35,12 @@ public sealed partial class SceneModel : SceneObject
 				throw new System.ArgumentException( "Error creating AnimSceneObject - possible invalid model?" );
 			}
 
+			Tags.RemoveAll();
 			Transform = transform;
 
-			if ( animGraphChangedCallback == DelegateFunctionPointer.Null )
-			{
-				animGraphChangedCallback = DelegateFunctionPointer.Get<AnimGraphChangedCallback>( OnAnimGraphChanged );
-			}
-
-			// TODO
-			animNative.InitAnimGraph( animGraphChangedCallback );
+			RegisterLegacyAnimationCallback();
+			animNative.InitAnimation();
 		}
-	}
-
-	private void OnAnimGraphChanged( IntPtr p )
-	{
-		_animationGraph = AnimationGraph.FromNative( animNative.GetAnimGraph() );
 	}
 
 	internal override void OnNativeInit( CSceneObject ptr )
@@ -63,32 +48,13 @@ public sealed partial class SceneModel : SceneObject
 		base.OnNativeInit( ptr );
 
 		animNative = (NativeEngine.CSceneAnimatableObject)ptr;
+		RegisterAnimationControllerCallback();
 	}
 
 	internal override void OnNativeDestroy()
 	{
 		animNative = default;
 		base.OnNativeDestroy();
-	}
-
-	/// <summary>
-	/// Override the anim graph this scene model uses
-	/// </summary>
-	[System.Obsolete( "Can use AnimationGraph directly" )]
-	public void SetAnimGraph( string name )
-	{
-		animNative.SetAnimGraph( name );
-	}
-
-	private AnimationGraph _animationGraph;
-
-	public AnimationGraph AnimationGraph
-	{
-		get => _animationGraph;
-		set
-		{
-			animNative.SetAnimGraph( value?.native ?? default );
-		}
 	}
 
 	public float PlaybackRate
@@ -107,10 +73,13 @@ public sealed partial class SceneModel : SceneObject
 	/// </summary>
 	/// <param name="boneIndex">Bone index to set transform of.</param>
 	/// <param name="transform"></param>
+	/// <exception cref="ArgumentOutOfRangeException">Thrown when given index exceeds range of [0,BoneCount-1]</exception>
 	public void SetBoneWorldTransform( int boneIndex, Transform transform )
 	{
-		// TODO: Throw on index OOB
+		OOBChecks.ThrowIfBoneOutOfBounds( boneIndex, Model?.BoneCount ?? 0, nameof( boneIndex ) );
+
 		animNative.SetWorldSpaceRenderBoneTransform( boneIndex, transform );
+		NotifyChanged( Rendering.SceneObjectChange.Bones );
 	}
 
 	/// <summary>
@@ -123,6 +92,59 @@ public sealed partial class SceneModel : SceneObject
 		// TODO: Throw on index OOB
 		// TODO: Returns nullable to match GetAttachment()?
 		return animNative.GetWorldSpaceRenderBoneTransform( boneIndex );
+	}
+
+	/// <summary>
+	/// Fill <paramref name="dest"/> with this frame's world space bone transforms in a single interop call,
+	/// indexed by bone index. Entries past the model's bone count are left as identity. Much cheaper than
+	/// calling <see cref="GetBoneWorldTransform(int)"/> in a loop.
+	/// </summary>
+	internal unsafe void GetBoneWorldTransforms( Span<Transform> dest )
+	{
+		if ( animNative.IsNull || dest.IsEmpty )
+			return;
+
+		fixed ( Transform* p = dest )
+			animNative.GetWorldSpaceRenderBoneTransforms( dest.Length, (IntPtr)p );
+	}
+
+	/// <summary>
+	/// The index of the bone closest to a world position, or -1 without bones. Resolved natively in a
+	/// single interop call - no bone transforms are copied out.
+	/// </summary>
+	internal int GetClosestBoneIndex( Vector3 worldPoint )
+	{
+		if ( animNative.IsNull )
+			return -1;
+
+		return animNative.GetClosestBoneIndex( worldPoint );
+	}
+
+	/// <summary>
+	/// Fill <paramref name="dest"/> with the previous frame's world space bone transforms in a single interop
+	/// call - the counterpart to <see cref="GetBoneWorldTransforms"/>, for computing per-bone motion.
+	/// </summary>
+	internal unsafe void GetBoneWorldPreviousTransforms( Span<Transform> dest )
+	{
+		if ( animNative.IsNull || dest.IsEmpty )
+			return;
+
+		fixed ( Transform* p = dest )
+			animNative.GetWorldSpaceRenderBonePreviousTransforms( dest.Length, (IntPtr)p );
+	}
+
+	/// <summary>
+	/// Fill <paramref name="dest"/> with the parent-space bone transforms in a single interop call, indexed by
+	/// bone index. Entries past the model's bone count are left as identity. Much cheaper than calling
+	/// <see cref="GetParentSpaceBone(int)"/> in a loop.
+	/// </summary>
+	internal unsafe void GetParentSpaceBones( Span<Transform> dest )
+	{
+		if ( animNative.IsNull || dest.IsEmpty )
+			return;
+
+		fixed ( Transform* p = dest )
+			animNative.GetParentSpaceBones( dest.Length, (IntPtr)p );
 	}
 
 	/// <summary>
@@ -178,6 +200,7 @@ public sealed partial class SceneModel : SceneObject
 	public void SetBodyGroup( string name, int value )
 	{
 		animNative.SetBodyGroup( name, value );
+		NotifyChanged( Rendering.SceneObjectChange.Material );
 	}
 
 	/// <summary>
@@ -247,23 +270,6 @@ public sealed partial class SceneModel : SceneObject
 			_morphs ??= new SceneObjectMorphCollection( this );
 
 			return _morphs;
-		}
-	}
-
-	SceneObjectDirectPlayback _directPlayback;
-
-	/// <summary>
-	/// Access this sceneobject's direct playback. Direct playback is used to control the direct playback node in an animgraph
-	/// to play sequences directly in code
-	/// </summary>
-	public AnimGraphDirectPlayback DirectPlayback
-	{
-		get
-		{
-			// Create on first access
-			_directPlayback ??= new SceneObjectDirectPlayback( this );
-
-			return _directPlayback;
 		}
 	}
 }

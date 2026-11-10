@@ -22,7 +22,6 @@ managed static class Editor.AssetSystem
 	bool TryManagedCompile( IResourceCompilerContext context );
 	void OnSoundReload( string filename );
 	void OnSoundReloaded( string filename );
-	void OnDemandRecompile( uint index, string reason );
 
 	// Lots of parameters, a struct would be nice but pointers are weird in structs
 	void OpenPicker( QWidget pParentWidget, CUtlVectorAssetType assetTypes, IAssetPickerListener callback, int viewmode, IAsset selectedAsset, string titleAndSettingsName, bool cloudAllowed, string initialSearchText );

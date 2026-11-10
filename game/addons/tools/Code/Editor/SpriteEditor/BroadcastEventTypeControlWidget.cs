@@ -7,6 +7,6 @@ public class BroadcastEventTypeControlWidget : EnumControlWidget
 
 	public BroadcastEventTypeControlWidget( SerializedProperty property ) : base( property )
 	{
-		FixedWidth = Theme.ControlHeight + 8;
+		FixedWidth = Theme.ControlHeight + 7;
 	}
 }

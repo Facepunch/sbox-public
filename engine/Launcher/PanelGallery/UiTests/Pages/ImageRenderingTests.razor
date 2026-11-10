@@ -1,0 +1,33 @@
+@using Sandbox.PanelGallery;
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+@using Sandbox;
+@using Sandbox.UI;
+@attribute [Group( "Backgrounds" )]
+@attribute [Title( "image-rendering" )]
+@attribute [Icon( "science" )]
+<root>
+    <h2>Scaling quality</h2>
+
+    <div class="cases">
+        <UiTestCase Caption="Small vector" Setup="@Plate" Css="background-image: url( /ui/sbox_ident_default.svg ); background-size: 16px 16px; background-repeat: no-repeat; background-position: center"
+                    Note="An svg asked for small. Vector, so it should be crisp rather than a shrunken bitmap." />
+        <UiTestCase Caption="Magnified vector" Setup="@Plate" class="roomy" Css="background-image: url( /ui/sbox_ident_default.svg ); background-size: contain; background-repeat: no-repeat; transform: scale( 2 )"
+                    Note="Blown up after layout, so this one does resample - softness is expected here." />
+        <UiTestCase Caption="Minified photo" Setup="@Plate" Css="background-image: url( https://cdn.sbox.game/upload/b/9c9201ad/eff8/4b0c/81af/58c8a68667b9.png ); background-size: 24px 24px; background-repeat: no-repeat; background-position: center"
+                    Note="A photo minified hard - mip quality, and whether it sparkles when it moves." />
+        <UiTestCase Caption="Smooth" Setup="@Plate" Css="background-image: url( https://cdn.sbox.game/upload/b/9c9201ad/eff8/4b0c/81af/58c8a68667b9.png ); background-size: cover; image-rendering: auto"
+                    Note="Default smooth sampling of the same photograph." />
+        <UiTestCase Caption="pixelated" Setup="@Plate" Css="background-image: url( https://cdn.sbox.game/upload/b/9c9201ad/eff8/4b0c/81af/58c8a68667b9.png ); background-size: cover; image-rendering: pixelated"
+                    Note="Nearest-neighbour sampling preserves hard pixel edges." />
+    </div>
+
+
+</root>
+@code
+{
+    // A dark plate behind each image, so transparency and letterboxing are visible
+    const string Plate = "width: 200px; height: 200px; background-color: #23262e";
+
+
+}

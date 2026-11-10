@@ -13,7 +13,7 @@ internal partial class NetworkSystem
 {
 	internal delegate void MessageHandler( NetworkMessage msg );
 	internal delegate void TypedMessageHandler( InternalMessageType type, NetworkMessage msg );
-	internal delegate void TypdMessageHandler( object t, Connection msg, Guid guid );
+	internal delegate void TypdMessageHandler( object t, Connection msg, Guid guid, int depth );
 	internal delegate void TypedMessageHandler<T>( T message, Connection msg, Guid guid );
 	internal delegate Task TypedMessageHandlerAsync<T>( T message, Connection source, Guid guid );
 
@@ -21,6 +21,40 @@ internal partial class NetworkSystem
 	{
 		public Connection Source;
 		public ByteStream Data;
+
+		// How many times this was unwrapped out of another message. Zero off the wire.
+		public int Depth;
+	}
+
+	// BytePack's depth counter unwinds before a handler runs, so nesting needs its own limit.
+	const int MaxNestedDispatch = 128;
+
+	// Always nest through here - taking the parent depth is what keeps the recursion bounded.
+	internal void DispatchNested( ReadOnlySpan<byte> data, Connection source, int parentDepth )
+	{
+		var msg = new NetworkMessage
+		{
+			Source = source,
+			Data = ByteStream.CreateReader( data ),
+			Depth = parentDepth + 1,
+		};
+
+		try
+		{
+			HandleIncomingMessage( msg );
+		}
+		finally
+		{
+			msg.Data.Dispose();
+		}
+	}
+
+	static bool CanDispatchAtDepth( int depth, Connection source )
+	{
+		if ( depth <= MaxNestedDispatch ) return true;
+
+		Log.Warning( $"Dropping message from {source}: nested {depth} deep, limit is {MaxNestedDispatch} - possible malicious payload" );
+		return false;
 	}
 
 	readonly Dictionary<InternalMessageType, TypedMessageHandler> messageHandlers = new();
@@ -33,12 +67,19 @@ internal partial class NetworkSystem
 
 	internal void AddHandler<T>( Action<T, Connection, Guid> handler )
 	{
-		typeMessageHandlers[(typeof( T ))] = ( o, channel, g ) => handler( (T)o, channel, g );
+		typeMessageHandlers[(typeof( T ))] = ( o, channel, g, _ ) => handler( (T)o, channel, g );
+	}
+
+	// For handlers that re-dispatch their payload, which need the depth to pass on.
+	internal void AddHandler<T>( Action<T, Connection, Guid, int> handler )
+	{
+		typeMessageHandlers[(typeof( T ))] = ( o, channel, g, depth ) => handler( (T)o, channel, g, depth );
 	}
 
 	internal void AddHandler<T>( Func<T, Connection, Guid, Task> handler )
 	{
-		typeMessageHandlers[(typeof( T ))] = ( o, channel, g ) =>
+		// Async handlers yield before they could recurse, so the depth isn't theirs to pass on.
+		typeMessageHandlers[(typeof( T ))] = ( o, channel, g, depth ) =>
 		{
 			_ = ExceptionWrapAsync( async () => await handler( (T)o, channel, g ) );
 		};
@@ -80,18 +121,93 @@ internal partial class NetworkSystem
 	{
 		Assert.NotNull( sockets, "Socket list is null" ); // should be impossible
 
-		// This network system only exists in the game.
-		using var gameScope = GameSystem?.Push();
+		// This network system only exists in the game. Scene networking pushes without boxing a scope.
+		var sceneSystem = GameSystem as SceneNetworkSystem;
+		using var sceneScope = sceneSystem?.PushScope() ?? default;
+		using var gameScope = sceneSystem is null ? GameSystem?.Push() : null;
 
-		foreach ( var socket in sockets )
+		// A failed encoder can close a connection while we drain the queue, so they're flushed from a copy
+		_flushing.Clear();
+
+		foreach ( var connection in _connections )
 		{
-			socket?.GetIncomingMessages( HandleIncomingMessage );
+			if ( connection.HasPendingSends )
+				_flushing.Add( connection );
 		}
 
-		Connection?.GetIncomingMessages( HandleIncomingMessage );
+		foreach ( var connection in _flushing )
+			connection.FlushPendingSends();
+
+		_flushing.Clear();
+		Connection?.FlushPendingSends();
+
+		// A handler can pump messages again (leaving as host does), the outer loop owns the held scope
+		_incomingDepth++;
+
+		try
+		{
+			foreach ( var socket in sockets )
+			{
+				socket?.GetIncomingMessages( _handleIncomingMessage ??= HandleIncomingMessage );
+			}
+
+			Connection?.GetIncomingMessages( _handleIncomingMessage ??= HandleIncomingMessage );
+		}
+		finally
+		{
+			if ( --_incomingDepth == 0 )
+			{
+				_untrustedScope.Dispose();
+				_untrustedScope = default;
+			}
+		}
 	}
 
-	void HandleIncomingMessage( NetworkMessage msg )
+	MessageHandler _handleIncomingMessage;
+	readonly List<Connection> _flushing = new();
+	int _incomingDepth;
+	Json.ScriptDeserializationScope _untrustedScope;
+
+	/// <summary>
+	/// Don't deserialize scripts from senders we don't trust. Pushing that allocates, so while handling the incoming
+	/// messages it stays up across untrusted ones in a row, until a trusted sender's message (not one nested in
+	/// another or handled in a nested loop, those stay restricted) or the end.
+	/// </summary>
+	Json.ScriptDeserializationScope DisableUntrustedScripts( Connection source, int depth )
+	{
+		if ( _incomingDepth == 0 )
+			return source.CanSendScripts ? default : Json.DisableScriptDeserialization();
+
+		if ( !source.CanSendScripts )
+		{
+			if ( !_untrustedScope.IsActive )
+				_untrustedScope = Json.DisableScriptDeserialization();
+		}
+		else if ( depth == 0 && _incomingDepth == 1 )
+		{
+			_untrustedScope.Dispose();
+			_untrustedScope = default;
+		}
+
+		return default;
+	}
+
+	// Outer catch so one bad message can't tear down the dispatch path.
+	internal void HandleIncomingMessage( NetworkMessage msg )
+	{
+		if ( !CanDispatchAtDepth( msg.Depth, msg.Source ) ) return;
+
+		try
+		{
+			HandleIncomingMessageInternal( msg );
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( e, $"Error processing network message from {msg.Source}" );
+		}
+	}
+
+	void HandleIncomingMessageInternal( NetworkMessage msg )
 	{
 		// Conna: If this message is not from the host and we're still connecting, ignore it.
 		if ( !IsHost && !msg.Source.IsHost && Connection.Local.IsConnecting )
@@ -99,7 +215,27 @@ internal partial class NetworkSystem
 			return;
 		}
 
+		// Don't try to deserialize any scripts if we don't trust the sender!
+
+		using var scriptDisabledScope = DisableUntrustedScripts( msg.Source, msg.Depth );
+
 		var type = msg.Data.Read<InternalMessageType>();
+
+		// Leaving host: only acknowledgements matter now, relayed ones included
+		if ( _isHandingOff && type is not (InternalMessageType.Packed or InternalMessageType.Multicast) )
+			return;
+
+		if ( type == InternalMessageType.Rpc )
+		{
+			GameSystem?.OnRpcMessage( msg.Data, msg.Source );
+			return;
+		}
+
+		if ( type == InternalMessageType.Multicast )
+		{
+			OnMulticastMessage( msg.Data, msg.Source, msg.Depth );
+			return;
+		}
 
 		if ( type == InternalMessageType.HeartbeatPing )
 		{
@@ -177,6 +313,9 @@ internal partial class NetworkSystem
 				return;
 			}
 
+			if ( _isHandingOff && obj is not HostHandoffAckMsg and not HostLeavingAckMsg )
+				return;
+
 			if ( responseTo != Guid.Empty )
 			{
 				msg.Source.OnResponse( responseTo, obj );
@@ -185,15 +324,7 @@ internal partial class NetworkSystem
 
 			if ( typeMessageHandlers.TryGetValue( obj.GetType(), out var h ) )
 			{
-				try
-				{
-					h( obj, msg.Source, requestGuid );
-				}
-				catch ( Exception e )
-				{
-					Log.Warning( e );
-				}
-
+				h( obj, msg.Source, requestGuid, msg.Depth );
 				return;
 			}
 
@@ -209,15 +340,7 @@ internal partial class NetworkSystem
 
 		if ( messageHandlers.TryGetValue( type, out var handler ) )
 		{
-			try
-			{
-				handler( type, msg );
-			}
-			catch ( Exception e )
-			{
-				Log.Warning( e );
-			}
-
+			handler( type, msg );
 			return;
 		}
 
@@ -241,6 +364,14 @@ internal partial class NetworkSystem
 		// Read and apply visibility origins from the client
 		{
 			var count = data.Read<char>();
+
+			// Each origin is 3 floats (12 bytes). Reject a count the payload can't hold before allocating
+			// or reading, so a crafted packet can't over-allocate or read past the buffer end.
+			if ( count * 12 > data.ReadRemaining )
+			{
+				Log.Warning( $"Ignoring malformed ClientTick from {source}: visibility origin count {(int)count} exceeds payload ({data.ReadRemaining}b remaining, length {data.Length})." );
+				return;
+			}
 
 			if ( count == 0 )
 			{
@@ -292,7 +423,7 @@ internal partial class NetworkSystem
 			ByteStream bs = ByteStream.Create( 512 );
 			bs.Write( InternalMessageType.HeartbeatPong );
 			bs.Write( serverRealTime ); // the time they sent
-			source.SendStream( bs, NetFlags.Unreliable | NetFlags.SendImmediate );
+			source.SendStream( bs, NetFlags.Reliable | NetFlags.SendImmediate );
 			bs.Dispose();
 		}
 

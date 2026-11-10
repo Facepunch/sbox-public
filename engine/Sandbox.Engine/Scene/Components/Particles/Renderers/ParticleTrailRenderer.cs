@@ -5,7 +5,7 @@ namespace Sandbox;
 /// Renders a trail for each particle in the effect.
 /// </summary>
 [Title( "Particle Trail Renderer" )]
-[Category( "Particles" )]
+[Category( "Effects" )]
 [Icon( "category" )]
 public sealed class ParticleTrailRenderer : ParticleController, Component.ExecuteInEditor
 {
@@ -55,7 +55,7 @@ public sealed class ParticleTrailRenderer : ParticleController, Component.Execut
 
 	protected override void OnParticleCreated( Particle p )
 	{
-		if ( Application.IsHeadless )
+		if ( !Graphics.IsAvailable )
 			return;
 
 		p.AddListener( new ParticleTrail( this ), this );
@@ -92,14 +92,16 @@ public sealed class ParticleTrailRenderer : ParticleController, Component.Execut
 			}
 		}
 
-		Sandbox.Utility.Parallel.ForEach( adopted, p =>
-		{
-			p.AdvanceTime( Time.Delta );
-			p.Build();
-
-		} );
+		JobDispatcher.For( adopted.Count, this, static ( renderer, i ) => renderer.AdvanceTrail( i ) );
 
 		adopted.RemoveAll( TryDelete );
+	}
+
+	void AdvanceTrail( int i )
+	{
+		var p = adopted[i];
+		p.AdvanceTime( Time.Delta );
+		p.Build();
 	}
 
 	static bool TryDelete( SceneTrailObject obj )

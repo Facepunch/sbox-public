@@ -1,4 +1,4 @@
-<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc29:version{3cec427c-1b0e-4d48-a90a-0436f33a6041} -->
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
 {
 	rootNode = 
 	{
@@ -22,74 +22,8 @@
 						parent_bone = ""
 						import_filter = 
 						{
-							exclude_by_default = true
-							exception_list = 
-							[
-								"slickedback_hair_LOD0",
-								"slickedback_cap_LOD0",
-							]
-						}
-					},
-					{
-						_class = "RenderMeshFile"
-						name = "LOD1"
-						filename = "models/citizen_clothes/hair/hair_slickedback/models/hair_slickedback_m_human.fbx"
-						import_translation = [ 0.0, 0.0, 0.0 ]
-						import_rotation = [ 0.0, 0.0, 0.0 ]
-						import_scale = 1.0
-						align_origin_x_type = "None"
-						align_origin_y_type = "None"
-						align_origin_z_type = "None"
-						parent_bone = ""
-						import_filter = 
-						{
-							exclude_by_default = true
-							exception_list = 
-							[
-								"slickedback_hair_LOD1",
-								"slickedback_cap_LOD0",
-							]
-						}
-					},
-					{
-						_class = "RenderMeshFile"
-						name = "LOD2"
-						filename = "models/citizen_clothes/hair/hair_slickedback/models/hair_slickedback_m_human.fbx"
-						import_translation = [ 0.0, 0.0, 0.0 ]
-						import_rotation = [ 0.0, 0.0, 0.0 ]
-						import_scale = 1.0
-						align_origin_x_type = "None"
-						align_origin_y_type = "None"
-						align_origin_z_type = "None"
-						parent_bone = ""
-						import_filter = 
-						{
-							exclude_by_default = true
-							exception_list = 
-							[
-								"slickedback_cap_LOD0",
-								"slickedback_hair_LOD2",
-							]
-						}
-					},
-					{
-						_class = "RenderMeshFile"
-						name = "LOD3"
-						filename = "models/citizen_clothes/hair/hair_slickedback/models/hair_slickedback_m_human.fbx"
-						import_translation = [ 0.0, 0.0, 0.0 ]
-						import_rotation = [ 0.0, 0.0, 0.0 ]
-						import_scale = 1.0
-						align_origin_x_type = "None"
-						align_origin_y_type = "None"
-						align_origin_z_type = "None"
-						parent_bone = ""
-						import_filter = 
-						{
-							exclude_by_default = true
-							exception_list = 
-							[
-								"slickedback_hair_LOD3",
-							]
+							exclude_by_default = false
+							exception_list = [  ]
 						}
 					},
 				]
@@ -118,12 +52,16 @@
 						remaps = 
 						[
 							{
-								from = "m_longbrown.vmat"
-								to = "models/citizen_clothes/hair/legacy_hair/textures/hair_01.vmat"
+								from = "lambert2.vmat"
+								to = "models/citizen_clothes/hair/hair_slickedback/models/hair_slickedback_01_trans.vmat"
 							},
 							{
 								from = "hair_cap.vmat"
 								to = "models/citizen_clothes/hair/hair_slickedback/textures/hair_slickedback_cap.vmat"
+							},
+							{
+								from = "under_hair.vmat"
+								to = "models/citizen_clothes/hair/hair_slickedback/models/hair_slickedback_01.vmat"
 							},
 						]
 						use_global_default = false
@@ -138,33 +76,98 @@
 					{
 						_class = "LODGroup"
 						switch_threshold = 0.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
 						meshes = 
 						[
 							"LOD0",
 						]
+						material_culls = [  ]
 					},
 					{
 						_class = "LODGroup"
 						switch_threshold = 10.0
-						meshes = 
-						[
-							"LOD1",
-						]
+						auto_simplify_mode = 1
+						auto_reduction = 0.8015
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = true
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = [  ]
+						material_culls = [  ]
 					},
 					{
 						_class = "LODGroup"
 						switch_threshold = 20.0
-						meshes = 
-						[
-							"LOD2",
-						]
+						auto_simplify_mode = 1
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = false
+						auto_permissive_simplification = true
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = [  ]
+						material_culls = [  ]
 					},
 					{
 						_class = "LODGroup"
 						switch_threshold = 40.0
-						meshes = 
+						auto_simplify_mode = 1
+						auto_reduction = 0.45
+						auto_max_error = 0.0
+						auto_lock_border_vertices = false
+						auto_permissive_simplification = true
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = true
+						meshes = [  ]
+						material_culls = 
 						[
-							"LOD3",
+							{
+								material = "models/citizen_clothes/hair/hair_slickedback/textures/hair_slickedback_cap.vmat"
+								remove = true
+								replacement = ""
+							},
+						]
+					},
+					{
+						_class = "LODGroup"
+						switch_threshold = 50.0
+						auto_simplify_mode = 1
+						auto_reduction = 0.4
+						auto_max_error = 0.0
+						auto_lock_border_vertices = false
+						auto_permissive_simplification = true
+						auto_protect_uv_seams = false
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = true
+						meshes = [  ]
+						material_culls = 
+						[
+							{
+								material = "models/citizen_clothes/hair/hair_slickedback/textures/hair_slickedback_cap.vmat"
+								remove = true
+								replacement = ""
+							},
 						]
 					},
 				]

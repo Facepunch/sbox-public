@@ -5,7 +5,10 @@
   "Decibels": 70,
   "SelectionMode": "Random",
   "Sounds": [
-    "sounds/impacts/melee/bluntweapon/grass-1.vsnd"
+    "sounds/impacts/melee/bluntweapon/grass-1.vsnd",
+    "sounds/impacts/melee/bluntweapon/grass-2.vsnd",
+    "sounds/impacts/melee/bluntweapon/grass-3.vsnd",
+    "sounds/impacts/melee/bluntweapon/grass-4.vsnd"
   ],
   "Occlusion": true,
   "Reflections": true,

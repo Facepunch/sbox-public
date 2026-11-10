@@ -24,8 +24,9 @@ public sealed partial class Model : Resource
 		this.native = native;
 		this.Name = name;
 		this.procedural = procedural;
+		_animationGraph = new( LoadAnimationGraph );
 
-		RegisterWeakResourceId( Name );
+		RegisterWeakResourceId( Name, native.GetGuid() );
 	}
 
 	internal override void Destroy()
@@ -66,6 +67,11 @@ public sealed partial class Model : Resource
 		_animationNames?.Clear();
 		_animationNames = default;
 
+		_boneMaskNames?.Clear();
+		_boneMaskNames = default;
+
+		_animationGraph = new( LoadAnimationGraph );
+
 		_sequenceNames?.Clear();
 		_sequenceNames = default;
 
@@ -81,9 +87,11 @@ public sealed partial class Model : Resource
 
 		BaseModel = default;
 
+		MeshInfo = null;
+
 		IToolsDll.Current?.RunEvent( "model.reload", this );
 
-		foreach ( var scene in Scene.All )
+		foreach ( var scene in Scene.AllIncludingUnlisted )
 		{
 			using var scope = scene.Push();
 
@@ -100,7 +108,7 @@ public sealed partial class Model : Resource
 	/// <summary>
 	/// Whether this model is an error model or invalid or not.
 	/// </summary>
-	public bool IsError => native.IsNull || !native.IsStrongHandleValid() || native.IsError();
+	public override bool IsError => native.IsNull || !native.IsStrongHandleValid() || native.IsError();
 
 	/// <summary>
 	/// Name of the model, usually being its file path.
@@ -118,6 +126,32 @@ public sealed partial class Model : Resource
 	public int MeshCount => native.GetNumMeshes();
 
 	/// <summary>
+	/// The highest LOD index used by this model, or -1 if the model has no effective LODs (all meshes enabled at all levels).
+	/// </summary>
+	internal int MaxLodLevel => native.ComputeMaxLODLevelUsedByModel();
+
+	/// <summary>
+	/// Returns the LOD level for a given screen size in pixels and object scale.
+	/// Uses the same calculation as the standard rendering pipeline.
+	/// </summary>
+	internal int GetLodLevelForScreenSize( float screenWidthInPixels, float scale = 1f )
+	{
+		return native.LODLevelForScreenSize( screenWidthInPixels, scale );
+	}
+
+	/// <summary>
+	/// Returns the switch distances for each LOD level, as defined by the model.
+	/// </summary>
+	internal float[] GetLodSwitchDistances()
+	{
+		var count = native.GetLODSwitchDistanceCount();
+		var distances = new float[count];
+		for ( int i = 0; i < count; i++ )
+			distances[i] = native.GetLODSwitchDistance( i );
+		return distances;
+	}
+
+	/// <summary>
 	/// Trace against the triangles in this mesh
 	/// </summary>
 	public MeshTraceRequest Trace => new() { targetModel = this };
@@ -130,6 +164,11 @@ public sealed partial class Model : Resource
 		get => field ??= FromNative( native.GetBaseModel() );
 		set;
 	}
+
+	/// <summary>
+	/// Path of the <see cref="Animation.Skeleton"/> this model's animation is authored against, if it names one.
+	/// </summary>
+	public string SkeletonName => native.GetSkeletonName();
 }
 
 internal interface IHasModel

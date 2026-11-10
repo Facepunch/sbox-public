@@ -8,9 +8,7 @@
 
     @if ( Clothing.AllowTintSelect )
     {
-        var currentTint = Manager.GetTint(Clothing);
-
-        <ColorSwatchPicker Value:bind="@TintValue" Swatches="@GetSwatches()"></ColorSwatchPicker>
+        <ColorSwatchPicker Value:bind="@TintValue" Gradient="@Clothing.TintSelection"></ColorSwatchPicker>
     }
 
 </root>
@@ -23,21 +21,9 @@
 
     protected override int BuildHash() => System.HashCode.Combine(Clothing);
 
-    ColorSwatch[] GetSwatches()
-    {
-        int squares = 36;
-        List<ColorSwatch> swatches = new List<ColorSwatch>();
-
-        for (int i = 0; i < squares; i++)
-        {
-            var f = (float)i / squares;
-            var c = Clothing.TintSelection.Evaluate( f );
-            swatches.Add(new ColorSwatch { Value = f, Color = c });
-        }
-
-        return swatches.ToArray();
-    }
-
+    /// <summary>
+    /// The selected position on this clothing item's tint ramp.
+    /// </summary>
     public float TintValue
     {
         get => Manager.GetTint(Clothing);

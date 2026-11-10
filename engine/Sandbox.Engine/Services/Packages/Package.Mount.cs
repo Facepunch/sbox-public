@@ -7,7 +7,7 @@ public partial class Package
 	/// </summary>
 	public bool IsMounted()
 	{
-		var download = ServerPackages.Current.Get( FullIdent );
+		var download = ServerPackages.Get( FullIdent );
 
 		// fully good
 		if ( download != null && download.IsMounted )

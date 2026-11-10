@@ -1,0 +1,283 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:animgraph2:version{0f7898b8-5471-45c4-9867-cd9c46bcfdb5} -->
+{
+	_class = "CAnimationSubGraph"
+	m_nodeManager =
+	{
+		_class = "CAnimNodeManager"
+		m_nodes =
+		[
+			{
+				key =
+				{
+					m_id = 2201000021
+				}
+				value =
+				{
+					_class = "CSingleFrameAnimNode"
+					m_sName = "Idle pose"
+					m_vecPosition = [ 480.0, -160.0 ]
+					m_nNodeID =
+					{
+						m_id = 2201000021
+					}
+					m_sNote = ""
+					m_sequenceName = "IdlePose_Default"
+					m_nFrameIndex = 0
+					m_tagSpans = [  ]
+				}
+			},
+			{
+				key =
+				{
+					m_id = 2201000022
+				}
+				value =
+				{
+					_class = "CStateMachineAnimNode"
+					m_sName = "Idle / moving - timed fade"
+					m_vecPosition = [ 960.0, 0.0 ]
+					m_nNodeID =
+					{
+						m_id = 2201000022
+					}
+					m_sNote = "Use existing move_groundspeed only: full locomotion weight above 10 in/s once the 0.10-second start fade completes; a 0.15-second stop fade returns to idle. Slow walking is not persistently diluted by idle. Outgoing direction and gait remain locked while fading."
+					m_states =
+					[
+						{
+							_class = "CAnimState"
+							m_transitions =
+							[
+								{
+									_class = "CAnimStateTransition"
+									m_conditions =
+									[
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 2
+											m_paramID =
+											{
+												m_id = 1285441981
+											}
+											m_comparisonValue =
+											{
+												m_nType = 4
+												m_data = 10.0
+											}
+										},
+									]
+									m_blendDuration = 0.1
+									m_destState =
+									{
+										m_id = 2201000803
+									}
+									m_bReset = true
+									m_resetCycleOption = "SameCycleAsSource"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve =
+									{
+										m_vControlPoint1 = [ 0.5, 0.0 ]
+										m_vControlPoint2 = [ 0.5, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+							]
+							m_tags = [  ]
+							m_tagBehaviors = [  ]
+							m_name = "Idle"
+							m_inputConnection =
+							{
+								m_nodeID =
+								{
+									m_id = 2201000021
+								}
+								m_outputID =
+								{
+									m_id = 4294967295
+								}
+							}
+							m_stateID =
+							{
+								m_id = 2201000802
+							}
+							m_position = [ 0.0, 0.0 ]
+							m_bIsStartState = true
+							m_bIsEndtState = false
+							m_bIsPassthrough = false
+							m_bIsRootMotionExclusive = false
+							m_bAlwaysEvaluate = false
+						},
+						{
+							_class = "CAnimState"
+							m_transitions =
+							[
+								{
+									_class = "CAnimStateTransition"
+									m_conditions =
+									[
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 5
+											m_paramID =
+											{
+												m_id = 1285441981
+											}
+											m_comparisonValue =
+											{
+												m_nType = 4
+												m_data = 10.0
+											}
+										},
+									]
+									m_blendDuration = 0.15
+									m_destState =
+									{
+										m_id = 2201000802
+									}
+									m_bReset = true
+									m_resetCycleOption = "SameCycleAsSource"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve =
+									{
+										m_vControlPoint1 = [ 0.5, 0.0 ]
+										m_vControlPoint2 = [ 0.5, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+							]
+							m_tags = [  ]
+							m_tagBehaviors = [  ]
+							m_name = "Moving"
+							m_inputConnection =
+							{
+								m_nodeID =
+								{
+									m_id = 2210000010
+								}
+								m_outputID =
+								{
+									m_id = 2210000012
+								}
+							}
+							m_stateID =
+							{
+								m_id = 2201000803
+							}
+							m_position = [ 240.0, 0.0 ]
+							m_bIsStartState = false
+							m_bIsEndtState = false
+							m_bIsPassthrough = false
+							m_bIsRootMotionExclusive = false
+							m_bAlwaysEvaluate = false
+						},
+					]
+					m_bBlockWaningTags = true
+					m_bLockStateWhenWaning = true
+				}
+			},
+			{
+				key =
+				{
+					m_id = 2210000010
+				}
+				value =
+				{
+					_class = "CGroupInputAnimNode"
+					m_sName = "Movement pose"
+					m_vecPosition = [ 720.0, 0.0 ]
+					m_nNodeID =
+					{
+						m_id = 2210000010
+					}
+					m_sNote = ""
+					m_proxyItems =
+					[
+						{
+							m_name = "Moving"
+							m_outputID =
+							{
+								m_id = 2210000012
+							}
+							m_inputConnection =
+							{
+								m_nodeID =
+								{
+									m_id = 4294967295
+								}
+								m_outputID =
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key =
+				{
+					m_id = 2210000011
+				}
+				value =
+				{
+					_class = "CGroupOutputAnimNode"
+					m_sName = "Idle / moving pose"
+					m_vecPosition = [ 1440.0, 0.0 ]
+					m_nNodeID =
+					{
+						m_id = 2210000011
+					}
+					m_sNote = ""
+					m_proxyItems =
+					[
+						{
+							m_name = "Pose"
+							m_outputID =
+							{
+								m_id = 2210000013
+							}
+							m_inputConnection =
+							{
+								m_nodeID =
+								{
+									m_id = 2201000022
+								}
+								m_outputID =
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+					]
+				}
+			},
+		]
+	}
+	m_localParameters =
+	[
+		{
+			_class = "CFloatAnimParameter"
+			m_name = "move_groundspeed"
+			m_id =
+			{
+				m_id = 1285441981
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_fDefaultValue = 0.0
+			m_fMinValue = 0.0
+			m_fMaxValue = 1000.0
+		},
+	]
+	m_localTags = [  ]
+}

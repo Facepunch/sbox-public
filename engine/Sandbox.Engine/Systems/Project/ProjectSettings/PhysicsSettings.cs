@@ -28,5 +28,5 @@ public class PhysicsSettings : ConfigData
 	/// simluation will run slower than the game. If you allow an unlimited amount
 	/// then the frame time could snowball to infinity and never catch up.
 	/// </summary>
-	public int MaxFixedUpdates { get; set; } = 2;
+	public int MaxFixedUpdates { get; set; } = 5;
 }

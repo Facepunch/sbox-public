@@ -1,38 +1,15 @@
-﻿
 include "inputsystem/iinputsystem.h"
 
-native enum InputStandardCursor_t;
-
+// Native editor/window-procedure bridge. Input policy lives in WindowInput.
 native accessor g_pInputSystem as NativeEngine.InputSystem
 {
 	void RegisterWindowWithSDL( CastTo[OsSpecificWindowHandle_t] IntPtr hwnd );
 	void UnregisterWindowFromSDL( CastTo[OsSpecificWindowHandle_t] IntPtr hwnd );
 	void SetEditorMainWindow( CastTo[OsSpecificWindowHandle_t] IntPtr hwnd );
-	void OnEditorGameFocusChange( CastTo[OsSpecificWindowHandle_t] IntPtr hwnd, bool bIsFocused );
+	void SetGameFocus( bool focused );
+}
 
-	public void SetCursorPosition( int x, int y, CastTo[PlatWindow_t] IntPtr window );
-
-	bool HasMouseFocus();
-	bool IsAppActive();
-
-	bool IsIMEAllowed();
-	void SetIMEAllowed( bool bAllowed );
-	void SetIMETextLocation( int x, int y, int nWidth, int nHeight );
-	void DismissIME();
-
-	string CodeToString( ButtonCode code );
-	string GetKeyDisplayName( ButtonCode code );
-	ButtonCode StringToButtonCode( string pString );
-
-	ButtonCode VirtualKeyToButtonCode( int nVirtualKey );
-	int ButtonCodeToVirtualKey( ButtonCode code );
-
-	void SetRelativeMouseMode( bool bState );
-	bool GetRelativeMouseMode();
-
-	void SetCursorStandard( InputStandardCursor_t cursor );
-	void SetCursorUser( string pName );
-
-	bool LoadCursorFromFile( string pFileName, string pName, int nHotX, int nHotY );
-	void ShutdownUserCursors();
+managed static class Sandbox.Engine.WindowInput
+{
+	static void OnWindowDestroyed( IntPtr window );
 }

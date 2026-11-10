@@ -22,7 +22,10 @@ class Program
 		// Attach NVIDIA Aftermath GPU crash dump files if available
 		AttachAftermathFiles( envelope );
 
-		// Attach the most recent game log if available
+		// Attach the VK_EXT_device_fault vendor blob (AMD) if available
+		AttachDeviceFaultFile( envelope );
+
+		// Attach the crashing process's log if available
 		AttachLatestLog( envelope );
 
 		// Attach managed stack traces from minidump (ClrMD)
@@ -69,7 +72,7 @@ class Program
 		try
 		{
 			using var client = new HttpClient();
-			await client.PostAsJsonAsync( "https://services.facepunch.com/sbox/event/crash/1/", payload );
+			await client.PostAsJsonAsync( "https://public.facepunch.com/sbox/event/crash/1/", payload );
 		}
 		catch ( Exception ex )
 		{
@@ -77,7 +80,8 @@ class Program
 		}
 
 		// Open browser to crash report page (only if Sentry has the data)
-		if ( sentrySubmitted && !shutdownCrash )
+		var isBenchmark = Environment.GetEnvironmentVariable( "SBOX_MODE" ) == "BENCHMARK";
+		if ( sentrySubmitted && !shutdownCrash && !isBenchmark )
 		{
 			Process.Start( new ProcessStartInfo( $"https://sbox.game/crashes/{eventId}" ) { UseShellExecute = true } );
 		}
@@ -123,9 +127,9 @@ class Program
 				return;
 			}
 
-			// Only attach files from the most recent dump (within last 120 seconds)
+			// The game shows a message box between writing the dump and crashing, so allow for the user sitting on it
 			var latestDump = dumpFiles[0];
-			var cutoffTime = DateTime.UtcNow.AddSeconds( -120 );
+			var cutoffTime = DateTime.UtcNow.Add( -GpuDumpMaxAge );
 
 			if ( latestDump.LastWriteTimeUtc < cutoffTime )
 			{
@@ -182,6 +186,41 @@ class Program
 		}
 	}
 
+	static readonly TimeSpan GpuDumpMaxAge = TimeSpan.FromMinutes( 10 );
+
+	/// <summary>
+	/// Attaches the most recent gpu_crash_dumps/device_fault_*.bin, which only the GPU vendor can decode.
+	/// </summary>
+	static void AttachDeviceFaultFile( Envelope envelope )
+	{
+		try
+		{
+			var envelopePath = envelope.FilePath;
+			if ( string.IsNullOrEmpty( envelopePath ) )
+				return;
+
+			var gameDir = FindGameRoot( envelopePath, "gpu_crash_dumps" );
+			var dumpDir = Path.Combine( gameDir ?? string.Empty, "gpu_crash_dumps" );
+			if ( !Directory.Exists( dumpDir ) )
+				return;
+
+			var latest = Directory.GetFiles( dumpDir, "device_fault_*.bin" )
+				.Select( f => new FileInfo( f ) )
+				.OrderByDescending( f => f.LastWriteTimeUtc )
+				.FirstOrDefault();
+
+			if ( latest is null || latest.LastWriteTimeUtc < DateTime.UtcNow.Add( -GpuDumpMaxAge ) || latest.Length > 50 * 1024 * 1024 )
+				return;
+
+			envelope.AddAttachment( latest.Name, File.ReadAllBytes( latest.FullName ), "application/octet-stream" );
+			Console.WriteLine( $"Attached: {latest.Name} ({latest.Length:N0} bytes)" );
+		}
+		catch ( Exception ex )
+		{
+			Console.WriteLine( $"Error attaching device fault file: {ex.Message}" );
+		}
+	}
+
 	/// <summary>
 	/// Attaches the most recent s&box log file (sbox.log or sbox-dev.log) if it exists and is under 10MB.
 	/// </summary>
@@ -203,7 +242,13 @@ class Program
 				return;
 			}
 
-			var candidates = new[] { "sbox.log", "sbox-dev.log" }
+			// Each process logs to logs/<process name>.log, another process's log would only mislead
+			var processName = envelope.TryGetEvent()?.TryParseAsJson()?["contexts"]?["process"]?["name"]?.GetValue<string>();
+			var logNames = string.IsNullOrEmpty( processName )
+				? new[] { "sbox.log", "sbox-dev.log" }
+				: new[] { $"{processName.Split( '.' )[0]}.log" };
+
+			var candidates = logNames
 				.Select( name => new FileInfo( Path.Combine( logsDir, name ) ) )
 				.Where( fi => fi.Exists )
 				.OrderByDescending( fi => fi.LastWriteTimeUtc )

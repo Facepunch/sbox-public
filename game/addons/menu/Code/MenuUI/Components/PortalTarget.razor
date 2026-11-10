@@ -22,4 +22,10 @@
             StateHasChanged();
         }
     }
+
+    /// <summary>
+    /// The tab that put what's showing here - which one's open, where the content itself is a new
+    /// fragment each redraw and can't be compared.
+    /// </summary>
+    public PortalButton Source { get; set; }
 }

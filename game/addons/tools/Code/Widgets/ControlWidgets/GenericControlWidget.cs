@@ -175,7 +175,7 @@ public class GenericControlWidget : ControlObjectWidget
 	{
 		Layout = Layout.Column();
 
-		if ( attribute.Label )
+		if ( attribute.Label && SerializedProperty.Parent is not SerializedCollection )
 		{
 			Layout.Add( ControlSheet.CreateLabel( SerializedProperty ) );
 		}

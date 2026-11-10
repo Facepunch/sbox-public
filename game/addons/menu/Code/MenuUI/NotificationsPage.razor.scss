@@ -1,0 +1,64 @@
+@import "/styles/_theme.scss";
+@import "/Platform/_platform.scss";
+
+NotificationsPage
+{
+	position: relative;
+	background-color: transparent;
+	align-items: center;
+	justify-content: center;
+
+	// Scoped, like the other pages - stylesheets are global, so bare .step would leak.
+
+	.inbox-body
+	{
+		@include front-page-columns;
+	}
+
+	.inbox-aside
+	{
+		@include front-page-aside;
+	}
+
+	.inbox-list
+	{
+		@include front-page-list;
+
+		// A row is one line of text - run it the full width of a wide screen and it reads as
+		// mostly empty. The leftover space to the right is the point.
+		max-width: 1040px;
+	}
+
+	.section-head
+	{
+		@include platform-shelf-header;
+		flex-shrink: 0;
+		margin-top: 12px;
+		padding: 0 4px;
+	}
+
+	.inbox-empty
+	{
+		@include platform-surface;
+		@include platform-empty;
+		justify-content: center;
+		padding: 64px;
+	}
+
+	// Sits in the first section head, so it's a pill rather than another button in a row.
+	.refresh
+	{
+		@include platform-text-button( 30px, 12.5px, 15px );
+		padding: 0 12px;
+
+		// The head baselines its text; the pill is taller than a line of it.
+		align-self: center;
+		pointer-events: all;
+
+		&.busy
+		{
+			pointer-events: none;
+			opacity: 0.5;
+		}
+	}
+}

@@ -1,0 +1,40 @@
+@import "/styles/_theme.scss";
+@import "/Platform/_platform.scss";
+
+Badge
+{
+	@include platform-chip;
+	pointer-events: all;
+
+	span.number
+	{
+		background-color: rgba(black, 0.5);
+		padding: 1px 4px;
+		border-radius: $rounding-xsmall;
+		margin-left: 2px;
+	}
+
+	&.positive
+	{
+		label, icon
+		{
+			color: $platform-good;
+		}
+	}
+
+	&.negative
+	{
+		label, icon
+		{
+			color: $platform-danger;
+		}
+	}
+
+	&.promise
+	{
+		label, icon
+		{
+			color: $primary-yellow;
+		}
+	}
+}

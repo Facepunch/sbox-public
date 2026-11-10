@@ -4,9 +4,9 @@ include "tier0/perftrace.h"
 [nogc]
 native static class PerformanceTrace as NativeEngine.PerformanceTrace
 {
-	inline static void BeginEvent( void* name, string data, uint color )
+	inline static void BeginEvent( void* name, string data, uint color, string file, int line, string function )
 	{
-		PerformanceTrace::BeginEvent( (const char*)name, data, color );
+		PerformanceTrace::BeginEvent( (const char*)name, data, color, file, line, function );
 	}
 
 	static void EndEvent();

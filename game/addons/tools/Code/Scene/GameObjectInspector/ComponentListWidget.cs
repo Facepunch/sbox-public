@@ -155,8 +155,10 @@ public class ComponentListWidget : Widget
 		undoScope = null;
 	}
 
-	void ContextMenu( Component component, Menu menu, string title )
+	void ContextMenu( Component component, Editor.Menu menu, string title )
 	{
+		AddLayoutOptions( component, menu );
+
 		if ( SerializedObject.IsMultipleTargets )
 		{
 			ContextMenuMultiple( component, menu, title );
@@ -187,6 +189,18 @@ public class ComponentListWidget : Widget
 			var canMoveUp = componentList.Count > 1 && componentIndex > 0;
 			var canMoveDown = componentList.Count > 1 && componentIndex < componentList.Count - 1;
 
+			menu.AddOption( "Move to Top", "vertical_align_top", action: () =>
+			{
+				var session = SceneEditorSession.Resolve( gameObject );
+				using var scene = session.Scene.Push();
+				using ( session.UndoScope( "Change Component Order" ).WithGameObjectChanges( component.GameObject, GameObjectUndoFlags.Components ).Push() )
+				{
+					component.Components.Move( component, -componentIndex );
+				}
+
+				Rebuild();
+			} ).Enabled = canMoveUp;
+
 			menu.AddOption( "Move Up", "expand_less", action: () =>
 			{
 				var session = SceneEditorSession.Resolve( gameObject );
@@ -207,6 +221,19 @@ public class ComponentListWidget : Widget
 				{
 					component.Components.Move( component, +1 );
 				}
+
+				Rebuild();
+			} ).Enabled = canMoveDown;
+
+			menu.AddOption( "Move to Bottom", "vertical_align_bottom", action: () =>
+			{
+				var session = SceneEditorSession.Resolve( gameObject );
+				using var scene = session.Scene.Push();
+				using ( session.UndoScope( "Change Component Order" ).WithGameObjectChanges( component.GameObject, GameObjectUndoFlags.Components ).Push() )
+				{
+					component.Components.Move( component, componentList.Count - componentIndex - 1 );
+				}
+
 				Rebuild();
 			} ).Enabled = canMoveDown;
 
@@ -303,7 +330,36 @@ public class ComponentListWidget : Widget
 		}
 	}
 
-	void ContextMenuMultiple( Component component, Menu menu, string title )
+	void AddLayoutOptions( Component component, Editor.Menu menu )
+	{
+		menu.AddOption( "Collapse Others", "unfold_less", action: () =>
+		{
+			foreach ( var (entry, sheet) in current )
+			{
+				sheet.SetExpanded( entry == component );
+			}
+		} ).Enabled = current.Count > 1;
+
+		menu.AddOption( "Collapse All", "unfold_less", action: () =>
+		{
+			foreach ( var sheet in current.Values )
+			{
+				sheet.SetExpanded( false );
+			}
+		} );
+
+		menu.AddOption( "Expand All", "unfold_more", action: () =>
+		{
+			foreach ( var sheet in current.Values )
+			{
+				sheet.SetExpanded( true );
+			}
+		} );
+
+		menu.AddSeparator();
+	}
+
+	void ContextMenuMultiple( Component component, Editor.Menu menu, string title )
 	{
 		var componentList = component.GameObject.Components;
 		var index = componentList.GetAll( component.GetType(), FindMode.EverythingInSelf ).ToList().IndexOf( component );

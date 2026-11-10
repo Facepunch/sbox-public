@@ -20,7 +20,15 @@ public partial class GameObject
 	public Vector3 WorldPosition
 	{
 		get => WorldTransform.Position;
-		set => WorldTransform = WorldTransform.WithPosition( value );
+		set
+		{
+			// Same guard the old Transform.Position accessor had - a NaN position
+			// silently poisons the whole hierarchy, catch it at the source.
+			if ( value.IsNaN )
+				throw new System.ArgumentOutOfRangeException( nameof( value ), "Position is NaN" );
+
+			WorldTransform = WorldTransform.WithPosition( value );
+		}
 	}
 
 	/// <summary>

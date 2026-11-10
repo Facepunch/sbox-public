@@ -143,10 +143,26 @@ public enum ImageFormat : int
 	I16F,
 
 	RG3232,
+	R11G11B10F,
 }
 
 internal static class ImageFormatExtensions
 {
+	internal static bool IsValid( this ImageFormat format ) => format >= ImageFormat.RGBA8888 && Enum.IsDefined( format );
+
+	internal static void ThrowIfInvalid( this ImageFormat format, bool allowDefault = false )
+	{
+		if ( allowDefault && format == ImageFormat.Default ) return;
+		if ( !format.IsValid() )
+			throw new ArgumentOutOfRangeException( nameof( format ), $"Invalid image format {(int)format}" );
+	}
+
+	/// <summary>
+	/// Whether the format has the eight stencil bits required by the standard camera pipeline.
+	/// </summary>
+	internal static bool HasCameraStencil( this ImageFormat format ) => format is
+		ImageFormat.D24S8 or ImageFormat.LINEAR_D24S8 or ImageFormat.D24FS8 or ImageFormat.D32FS8;
+
 	public static bool IsDepthFormat( this ImageFormat format )
 	{
 		switch ( format )

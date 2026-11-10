@@ -227,7 +227,7 @@ public sealed class SequenceBlockItem : BlockItem<ProjectSequenceBlock>, IMovieD
 
 	void IMovieResizable.Resize( BlockEdge edge, MovieTime delta )
 	{
-		Block.TimeRange = 
+		Block.TimeRange =
 			edge == BlockEdge.Start
 				? Block.TimeRange with { Start = Block.TimeRange.Start + delta }
 				: Block.TimeRange with { End = Block.TimeRange.End + delta };

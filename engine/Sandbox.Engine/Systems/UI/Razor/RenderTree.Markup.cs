@@ -1,4 +1,5 @@
-﻿using Sandbox.Html;
+﻿using Sandbox.Engine;
+using Sandbox.Html;
 
 namespace Sandbox.UI;
 
@@ -75,7 +76,7 @@ public partial class PanelRenderTreeBuilder : Microsoft.AspNetCore.Components.Re
 	{
 		if ( node.NodeType == Sandbox.Html.NodeType.Element )
 		{
-			var panel = Game.TypeLibrary.Create<Panel>( node.Name, false ) ?? new Panel();
+			var panel = GlobalContext.Current.TypeLibrary.Create<Panel>( node.Name, false ) ?? new Panel();
 			panel.ElementName = node.Name;
 			panel.Parent = parent;
 			panel.SourceFile = sourceFile;
@@ -121,9 +122,10 @@ public partial class PanelRenderTreeBuilder : Microsoft.AspNetCore.Components.Re
 			}
 			else
 			{
-				var panel = Game.TypeLibrary.Create<Panel>( "label", false ) ?? new Panel();
+				var panel = GlobalContext.Current.TypeLibrary.Create<Panel>( "label", false ) ?? new Panel();
 				panel.Parent = parent;
 				panel.SetContent( content );
+				if ( panel is Label label ) label.IsGeneratedText = true;
 
 				return panel;
 			}

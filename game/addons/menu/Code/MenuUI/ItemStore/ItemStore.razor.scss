@@ -1,37 +1,105 @@
-﻿ItemStore
+@import "/styles/_theme.scss";
+@import "/Platform/_platform.scss";
+
+ItemStore
 {
-    position: relative;
+	position: relative;
+	background-color: transparent;
+	align-items: center;
+	justify-content: center;
 }
 
-.itemlist
+Page
 {
-    gap: 20px;
-    justify-content: center;
-    flex-wrap: wrap;
-    overflow-y: scroll;
-    flex-grow: 1;
-    flex-shrink: 1;
-    mask: linear-gradient( to top, white, black ) top top / 100% 200px;
-    padding-top: 100px;
-    padding-bottom: 200px;
+	width: 100%;
+	max-width: $screen-w-xl;
 }
 
-.store-header
+// Everything below is scoped - stylesheets are global and bare .grid/.chip would leak.
+ItemStore
 {
-    margin: 32px;
-    justify-content: flex-end;
-    flex-shrink: 0;
-    z-index: 100;
-    margin-bottom: -100px;
-    pointer-events: none;
-}
+	// Sidebar: intro, category chips, then the cart pinned to the bottom.
 
-CartButton
-{
-    pointer-events: all;
-}
+	.store-intro
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+	}
 
-.itemlist
-{
-    margin: 32px;
+	.store-filter
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		gap: 10px;
+		margin-top: 8px;
+
+		.section-label
+		{
+			@include platform-section-label;
+		}
+
+		.chips
+		{
+			@include platform-choices;
+			flex-wrap: wrap;
+		}
+
+		.chip
+		{
+			@include platform-choice;
+			flex-grow: 0;
+			flex-basis: auto;
+
+			&:hover { sound-in: "ui.button.over"; }
+		}
+	}
+
+	// Body: one scrolling column of card rows.
+
+	.store-body
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		overflow-y: scroll;
+		padding: $front-chrome-gap 24px 64px $front-chrome-gap;
+		gap: 16px;
+
+	}
+
+	.section-head
+	{
+		@include platform-shelf-header;
+		flex-shrink: 0;
+		flex-direction: row;
+		gap: 10px;
+		margin-top: 16px;
+		padding: 0 4px;
+
+		&.owned
+		{
+			margin-top: 32px;
+
+			.title { color: $platform-muted; }
+		}
+	}
+
+	.grid
+	{
+		flex-shrink: 0;
+		flex-direction: row;
+		flex-wrap: wrap;
+		gap: 12px;
+		padding: 4px;
+	}
+
+	.store-empty
+	{
+		@include platform-surface;
+		@include platform-empty;
+		flex-shrink: 0;
+		overflow: hidden;
+		justify-content: center;
+		padding: 64px;
+	}
 }

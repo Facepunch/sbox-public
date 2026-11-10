@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using Sandbox.Utility;
 
 namespace Sandbox;
 
@@ -13,7 +14,14 @@ namespace Sandbox;
 /// </summary>
 public static partial class Json
 {
-	internal static JsonSerializerOptions options => GlobalContext.Current.JsonSerializerOptions;
+	internal static JsonSerializerOptions options
+	{
+		get
+		{
+			Bootstrap.AssertTypeLibraryReady();
+			return GlobalContext.Current.JsonSerializerOptions;
+		}
+	}
 
 	static Json()
 	{
@@ -26,7 +34,7 @@ public static partial class Json
 	/// </summary>
 	internal static void Initialize()
 	{
-		var typeLibrary = Game.TypeLibrary;
+		var typeLibrary = GlobalContext.Current.TypeLibrary;
 
 		GlobalContext.Current.JsonSerializerOptions = new JsonSerializerOptions( JsonSerializerOptions.Default );
 		options.WriteIndented = true;
@@ -202,15 +210,8 @@ public static partial class Json
 		}
 	}
 
-	internal static void DeserializeToObject( object target, JsonObject root )
-	{
-		if ( target is null )
-			return;
-
-		var type = target.GetType();
-
-		// TODO: we can probably cache this
-		var propertyDict = type.GetProperties( BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic )
+	static readonly ReflectionCache<Type, Dictionary<string, PropertyInfo>> DeserializePropertyCache = new( static t =>
+		t.GetProperties( BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic )
 			.Where( x => x.CanWrite )
 			.Where( x =>
 				x.SetMethod!.IsPublic && !x.HasAttribute( typeof( JsonIgnoreAttribute ) ) ||
@@ -218,7 +219,16 @@ public static partial class Json
 				x.HasAttribute( typeof( PropertyAttribute ) ) )
 			.Select( x => (Name: x.GetCustomAttribute<JsonPropertyNameAttribute>() is { } jpna ? jpna.Name : x.Name, Property: x) )
 			.DistinctBy( x => x.Name, StringComparer.OrdinalIgnoreCase )
-			.ToDictionary( x => x.Name, x => x.Property, StringComparer.OrdinalIgnoreCase );
+			.ToDictionary( x => x.Name, x => x.Property, StringComparer.OrdinalIgnoreCase ) );
+
+	internal static void DeserializeToObject( object target, JsonObject root )
+	{
+		if ( target is null )
+			return;
+
+		var type = target.GetType();
+
+		var propertyDict = DeserializePropertyCache[type];
 
 		foreach ( var property in root )
 		{
@@ -351,6 +361,57 @@ public static partial class Json
 			{
 				value.ReplaceWith( v );
 			}
+		}
+	}
+
+	/// <summary>
+	/// When true, attempting to deserialize a Doo or ActionGraph will throw.
+	/// </summary>
+	[ThreadStatic]
+	private static bool scriptDeserializationDisabled;
+
+	/// <summary>
+	/// Throws if we're in a <see cref="DisableScriptDeserialization"/> block.
+	/// </summary>
+	internal static void AssertCanDeserializeScripts()
+	{
+		if ( scriptDeserializationDisabled )
+		{
+			throw new Exception( "Script deserialization is disabled in this context." );
+		}
+	}
+
+	/// <summary>
+	/// Disables deserializing scripts until the returned <see cref="IDisposable"/> is disposed.
+	/// This should wrap any deserialization of payloads from untrusted sources.
+	/// </summary>
+	internal static ScriptDeserializationScope DisableScriptDeserialization()
+	{
+		var agScope = ActionGraph.PushSerializationOptions( _scriptsDisabled );
+		var prev = scriptDeserializationDisabled;
+
+		scriptDeserializationDisabled = true;
+
+		return new ScriptDeserializationScope( agScope, prev );
+	}
+
+	static readonly SerializationOptions _scriptsDisabled = new( DeserializeMode: DeserializeMode.DisabledThrow );
+
+	/// <summary>
+	/// Returned by <see cref="DisableScriptDeserialization"/>. A struct, it wraps every message from an untrusted sender.
+	/// A default instance does nothing.
+	/// </summary>
+	internal readonly struct ScriptDeserializationScope( IDisposable actionGraphScope, bool previous ) : IDisposable
+	{
+		public bool IsActive => actionGraphScope is not null;
+
+		public void Dispose()
+		{
+			if ( actionGraphScope is null )
+				return;
+
+			actionGraphScope.Dispose();
+			scriptDeserializationDisabled = previous;
 		}
 	}
 }

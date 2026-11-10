@@ -33,7 +33,7 @@ public partial class EnvmapProbe
 		if ( ct.IsCancellationRequested )
 			return;
 
-		RenderCubemap( tex, CubemapRendering.GGXFilterType.Quality );
+		RenderCubemap( tex, CubemapRendering.GGXFilterType.Quality, RenderExcludeTags );
 
 		if ( ct.IsCancellationRequested )
 			return;

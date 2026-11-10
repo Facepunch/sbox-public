@@ -36,7 +36,21 @@ public partial class GameTransform
 		return true;
 	}
 
-	public TransformProxy Proxy { get; set; }
+	public TransformProxy Proxy
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			OnProxyChangedInternal?.Invoke();
+		}
+	}
+
+	/// <summary>
+	/// Called when the proxy is set or cleared. Not a transform change, but the world transform now comes from somewhere else.
+	/// </summary>
+	internal Action OnProxyChangedInternal;
 
 	/// <summary>
 	/// Returns true if we're inside the transform changed callback.
@@ -118,6 +132,13 @@ public partial class GameTransform
 		if ( _targetLocal == value )
 			return;
 
+		GameObject._net?.MarkTransformDirty( _targetLocal, value );
+
+		var before = _targetLocal;
+
+		// Headless never interpolates, but sends what it would show
+		var stepped = _hasPositionSet && (interpolate || (Application.IsHeadless && WouldInterpolate()));
+
 		if ( interpolate && _hasPositionSet )
 		{
 			UpdateInterpolatedLocal( value );
@@ -126,6 +147,8 @@ public partial class GameTransform
 		{
 			UpdateLocal( value );
 		}
+
+		GameObject?._net?.OnLocalTransformSet( before, _targetLocal, stepped );
 	}
 
 	/// <summary>
@@ -139,6 +162,8 @@ public partial class GameTransform
 		if ( _targetLocal == value )
 			return false;
 
+		GameObject._net?.MarkTransformDirty( _targetLocal, value );
+		GameObject?._net?.OnLocalTransformSet( _targetLocal, value, false );
 		_interpolatedLocal = value;
 		_targetLocal = value;
 
@@ -158,7 +183,10 @@ public partial class GameTransform
 			&& _targetLocal.Scale.Equals( value.Scale ) )
 			return;
 
+		GameObject._net?.MarkTransformDirty( _targetLocal, value );
+
 		_hasPositionSet = true;
+		GameObject?._net?.OnLocalTransformSet( _targetLocal, value, false );
 		_interpolatedLocal = value;
 		_targetLocal = value;
 		_positionBuffer?.Clear();
@@ -296,6 +324,7 @@ public partial class GameTransform
 	/// </summary>
 	[ActionGraphInclude]
 	[DefaultValue( 1f )]
+	[Uniform]
 	[Obsolete( "Use WorldScale instead of Transform.Scale" )]
 	public Vector3 Scale
 	{
@@ -339,6 +368,7 @@ public partial class GameTransform
 	[ActionGraphInclude]
 	[Property]
 	[DefaultValue( 1f )]
+	[Uniform]
 	[Obsolete( "Use LocalScale instead of Transform.LocalScale" )]
 	public Vector3 LocalScale
 	{
@@ -362,11 +392,18 @@ public partial class GameTransform
 		World = tx;
 	}
 
-	internal void FromNetwork( Transform transform, bool clearInterpolation )
+	internal void FromNetwork( Transform transform, bool clearInterpolation, double time )
 	{
 		if ( !Application.IsHeadless && GameObject.Network.Interpolation && !clearInterpolation )
 		{
-			(_networkTransformBuffer ??= new( TransformState.CreateInterpolator() )).Add( new TransformState( transform ), Time.NowDouble );
+			var buffer = _networkTransformBuffer ??= new( TransformState.CreateInterpolator() );
+			var interval = 1.0 / ProjectSettings.Networking.UpdateRate.Clamp( 1, 500 );
+
+			// After a pause, rest until one update before this one instead of jumping to it
+			if ( buffer.IsEmpty || time - buffer.Last.Time > interval * 2 + 0.1 )
+				buffer.Add( buffer.IsEmpty ? new TransformState( _interpolatedLocal ) : buffer.Last.State, time - interval );
+
+			buffer.Add( new TransformState( transform ), time );
 			Interpolate = true;
 		}
 		else

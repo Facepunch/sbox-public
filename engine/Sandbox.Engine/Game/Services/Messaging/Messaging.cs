@@ -22,6 +22,12 @@ public static class Messaging
 		public object Data { get; set; }
 	}
 
+	/// <summary>
+	/// Queued with messages so consumers can reconcile snapshots on the main thread
+	/// after the initial connection or a reconnect.
+	/// </summary>
+	internal sealed record ConnectionEstablished;
+
 	internal static async Task Initialize( string url )
 	{
 		if ( string.IsNullOrWhiteSpace( url ) )
@@ -34,6 +40,11 @@ public static class Messaging
 		options.AutoRejoinGroups = true;
 
 		client = new WebPubSubClient( cred, options );
+		client.Connected += args =>
+		{
+			incoming.Writer.TryWrite( new Message { Data = new ConnectionEstablished() } );
+			return Task.CompletedTask;
+		};
 		client.GroupMessageReceived += MessageClient_GroupMessageReceived;
 		client.ServerMessageReceived += MessageClient_ServerMessageReceived;
 		await client.StartAsync();
@@ -53,7 +64,14 @@ public static class Messaging
 	{
 		while ( incoming.Reader.TryRead( out var msg ) )
 		{
-			OnMessage?.Invoke( msg );
+			try
+			{
+				OnMessage?.Invoke( msg );
+			}
+			catch ( System.Exception e )
+			{
+				Log.Warning( e );
+			}
 		}
 	}
 

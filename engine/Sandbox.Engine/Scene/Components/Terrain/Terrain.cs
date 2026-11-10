@@ -9,14 +9,22 @@ namespace Sandbox;
 [Category( "World" )]
 public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 {
-	[ConVar( "r_terrain_displacement" )]
+	[ConVar( "r_terrain_displacement", ConVarFlags.Cheat )]
 	internal static bool UseVertexDisplacement { get; set; } = true;
+
+	/// <summary>
+	/// Scales the FOV of the frustum used to cull terrain meshlets.
+	/// </summary>
+	[ConVar( "r_terrain_meshlet_frustum_scale", ConVarFlags.Cheat )]
+	internal static float MeshletFrustumScale { get; set; } = 1.0f;
 
 	public override bool IsConcave => true;
 
 	protected override void OnEnabled()
 	{
-		Create();
+		// Enabling the collider has just built the physics shape from this storage - building
+		// the heightfield again is the slowest part of loading a scene with a big terrain
+		Create( rebuildCollider: false );
 		Transform.OnTransformChanged += OnTerrainChanged;
 		Storage?.MaterialSettings?.OnChanged += OnTerrainChanged;
 	}
@@ -36,14 +44,7 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 		Transform.OnTransformChanged -= OnTerrainChanged;
 		Storage?.MaterialSettings?.OnChanged -= OnTerrainChanged;
 
-		_so?.Delete();
-		_so = null;
-
-		HeightMap?.Dispose();
-		ControlMap?.Dispose();
-
-		HeightMap = null;
-		ControlMap = null;
+		DisposeRenderResources();
 
 		TerrainBuffer?.Dispose();
 		TerrainBuffer = null;
@@ -55,6 +56,24 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 		{
 			Scene.RenderAttributes.Set( "TerrainCount", 0 );
 		}
+	}
+
+	// Tear down the scene object and the GPU textures. Shared by DestroyInternal and Create (which rebuilds them).
+	void DisposeRenderResources()
+	{
+		BackupRenderAttributes( _so?.Attributes );
+		_so?.Delete();
+		_so = null;
+
+		HeightMap?.Dispose();
+		ControlMap?.Dispose();
+		NormalMap?.Dispose();
+
+		HeightMap = null;
+		ControlMap = null;
+		NormalMap = null;
+		_normalBakeCs = null;
+		_normalBakeDirty = false;
 	}
 
 	void OnTerrainChanged()
@@ -69,7 +88,17 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 		if ( !_so.IsValid() )
 			return;
 
+		if ( _normalBakeDirty && _normalBakeCs is not null )
+		{
+			_normalBakeDirty = false;
+			_so.PendingBake = RecordNormalBake();
+		}
+
 		_so.Attributes.Set( "VertexDisplacement", UseVertexDisplacement );
+
+		var cam = Scene.IsEditor ? Application.Editor.Camera : Scene.Camera;
+		if ( cam.IsValid() )
+			_so.UpdateClipCamera( cam.WorldPosition );
 
 		if ( Storage is null )
 			return;
@@ -94,24 +123,19 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 	/// <summary>
 	/// Call on enable or storage change
 	/// </summary>
-	public void Create()
+	public void Create() => Create( rebuildCollider: true );
+
+	void Create( bool rebuildCollider )
 	{
 		if ( !Active )
 			return;
 
-		_so?.Delete();
-		_so = null;
-
-		HeightMap?.Dispose();
-		ControlMap?.Dispose();
-
-		HeightMap = null;
-		ControlMap = null;
+		DisposeRenderResources();
 
 		if ( Storage is null )
 			return;
 
-		if ( !Application.IsHeadless )
+		if ( Graphics.IsAvailable )
 		{
 			CreateTextureMaps();
 			CreateClipmapSceneObject();
@@ -121,7 +145,8 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 		}
 
 		// Rebuild the collider
-		Rebuild();
+		if ( rebuildCollider )
+			Rebuild();
 	}
 
 	protected override void DrawGizmos()
@@ -137,20 +162,29 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 			if ( Storage != null )
 				Gizmo.Draw.LineBBox( new BBox( Vector3.Zero, new Vector3( Storage.TerrainSize, Storage.TerrainSize, Storage.TerrainHeight ) ) );
 		}
-
-		// Oh this is so bad
-		if ( RayIntersects( Gizmo.CurrentRay, Gizmo.RayDepth, out var hitPosition ) )
-		{
-			Gizmo.Hitbox.TrySetHovered( hitPosition );
-		}
 	}
 
 	/// <summary>
 	/// Given a world ray, finds out the LOCAL position it intersects with this terrain.
 	/// </summary>
-	public unsafe bool RayIntersects( Ray ray, float distance, out Vector3 position )
+	public bool RayIntersects( Ray ray, float distance, out Vector3 position )
+	{
+		return RayIntersects( ray, distance, out position, out _, out _ );
+	}
+
+	/// <summary>
+	/// Given a world ray, finds out the LOCAL position it intersects with this terrain.
+	/// </summary>
+	public bool RayIntersects( Ray ray, float distance, out Vector3 position, out Vector3 normal )
+	{
+		return RayIntersects( ray, distance, out position, out normal, out _ );
+	}
+
+	internal unsafe bool RayIntersects( Ray ray, float distance, out Vector3 position, out Vector3 normal, out float fraction )
 	{
 		position = default;
+		normal = WorldTransform.Rotation.Up;
+		fraction = 1f;
 
 		if ( Storage is null )
 			return false;
@@ -185,6 +219,8 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 		{
 			if ( g_pPhysicsSystem.CastHeightField(
 				out position,
+				out normal,
+				out fraction,
 				ray.Position,
 				ray.ProjectSafe( distance ),
 				(IntPtr)heights,
@@ -194,6 +230,7 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 				heightScale ) )
 			{
 				position = offset.PointToWorld( position );
+				normal = offset.NormalToWorld( normal );
 
 				return true;
 			}
@@ -223,5 +260,8 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 			.WithUAVBinding()
 			.WithName( "terrain_controlmap" )
 			.Finish();
+
+		UpdateHoleState( new RectInt( 0, 0, Storage.Resolution, Storage.Resolution ) );
+		RebakeNormalMap();
 	}
 }

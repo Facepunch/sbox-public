@@ -1,45 +1,26 @@
 
+@import "/Platform/_platform.scss";
+
 GameTag
 {
+    @include platform-choice;
+    flex-grow: 0;
+    flex-basis: auto;
     flex-shrink: 0;
-    padding: 2px 8px;
-    gap: 8px;
     pointer-events: all;
-    cursor: pointer;
-    font-size: 15px;
-    justify-content: center;
-    border-radius: 48px;
-    opacity: 0.1;
-
-    .tag
-    {
-        font-weight: 600;
-    }
 
     .count
     {
-        opacity: 0.2;
+        opacity: 0.6;
     }
 
     &:hover
     {
-        sound-in: ui.button.over;
-        opacity: 0.4;
-    }
-
-    &.active
-    {
-        opacity: 0.8;
-    }
-
-
-
-    &:hover:not(.active)
-    {
+        sound-in: "ui.button.over";
     }
 
     &:active
     {
-        sound-in: ui.button.press;
+        sound-in: "ui.button.press";
     }
 }

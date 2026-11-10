@@ -100,6 +100,8 @@ public sealed class ModelHitboxes : Component, Component.ExecuteInEditor
 		if ( !Active ) return;
 		if ( !anim.IsValid() ) return;
 
+		_builtScale = anim.WorldScale;
+
 		anim.ModelChanged += Rebuild;
 
 		if ( anim.Model is null ) return;
@@ -111,27 +113,32 @@ public sealed class ModelHitboxes : Component, Component.ExecuteInEditor
 
 			anim.TryGetBoneTransform( hb.Bone, out var tx );
 
-			var body = new PhysicsBody( system.PhysicsWorld );
+			var body = system.PhysicsWorld.CreateBody( new PhysicsBodySettings
+			{
+				Position = tx.Position,
+				Rotation = tx.Rotation
+			} );
 			PhysicsShape shape = null;
 
 			var hitbox = new Hitbox( Target ?? GameObject, hb.Bone, hb.Tags, body );
 
 			if ( hb.Shape is Sphere sphere )
 			{
-				shape = body.AddSphereShape( sphere.Center, sphere.Radius );
+				shape = body.AddSphereShape( sphere.Center * tx.Scale, sphere.Radius * tx.UniformScale );
 			}
 			else if ( hb.Shape is Capsule capsule )
 			{
-				shape = body.AddCapsuleShape( capsule.CenterA, capsule.CenterB, capsule.Radius );
+				shape = body.AddCapsuleShape( capsule.CenterA * tx.Scale, capsule.CenterB * tx.Scale, capsule.Radius * tx.UniformScale );
 				shape.Tags.SetFrom( GameObject.Tags );
 			}
 			else if ( hb.Shape is Cone cone )
 			{
-				shape = body.AddConeShape( cone.CenterA, cone.CenterB, cone.RadiusA, cone.RadiusB );
+				shape = body.AddConeShape( cone.CenterA * tx.Scale, cone.CenterB * tx.Scale, cone.RadiusA * tx.UniformScale, cone.RadiusB * tx.UniformScale );
 				shape.Tags.SetFrom( GameObject.Tags );
 			}
 			else if ( hb.Shape is BBox box )
 			{
+				box = new BBox( box.Mins * tx.Scale, box.Maxs * tx.Scale );
 				shape = body.AddBoxShape( box.Center, Rotation.Identity, box.Extents );
 				shape.Tags.SetFrom( GameObject.Tags );
 				hitbox.Bounds = box;
@@ -143,7 +150,6 @@ public sealed class ModelHitboxes : Component, Component.ExecuteInEditor
 				shape.Tags.SetFrom( GameObject.Tags );
 				shape.BoneIndex = hb.Bone.Index;
 
-				body.Transform = tx;
 				body.Component = this;
 
 				AddHitbox( hitbox );
@@ -158,18 +164,26 @@ public sealed class ModelHitboxes : Component, Component.ExecuteInEditor
 
 	public void UpdatePositions()
 	{
-		if ( Renderer is null ) return;
+		if ( !Renderer.IsValid() ) return;
+
+		if ( !Renderer.WorldScale.AlmostEqual( _builtScale ) )
+		{
+			Rebuild();
+			return;
+		}
 
 		foreach ( var hitbox in Hitboxes )
 		{
 			if ( Renderer.TryGetBoneTransform( hitbox.Bone, out var tx ) )
 			{
-				hitbox.Body.Transform = tx;
+				hitbox.Body.Transform = tx.WithScale( 1 );
 			}
 		}
 	}
 
 	internal readonly List<Hitbox> Hitboxes = new();
+
+	Vector3 _builtScale = Vector3.One;
 
 	public void AddHitbox( Hitbox hitbox )
 	{

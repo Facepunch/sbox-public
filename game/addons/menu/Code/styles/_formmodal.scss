@@ -1,0 +1,180 @@
+@import "/styles/_theme.scss";
+@import "/Platform/_platform.scss";
+
+// A form in a window of the menu's own look - the review and the report modals. The rail's paper and
+// outline, a header saying what it's for with a close button, the form scrolling under it, and the
+// buttons along the bottom. Markup: .window (.head (.text (.eyebrow, .title), .grow, .close), .body,
+// .footer (.note, .grow, .button.cancel, .button.post)). In the body, .section-label headings,
+// .tags round a TagSelector, and .words round a TextEntry
+@mixin front-form-modal
+{
+	font-family: $front-font;
+
+	// The window - the rail's paper and outline, in the middle over whatever opened it
+	.window
+	{
+		@include platform-surface;
+		width: 720px;
+		max-width: 92%;
+		max-height: 90%;
+		overflow: hidden;
+		pointer-events: all;
+		transition: all 0.2s ease-out;
+
+		// Comes into focus as it fades in, like a tooltip
+		&:intro
+		{
+			opacity: 0;
+			filter: blur( 10px );
+		}
+	}
+
+	.grow
+	{
+		flex-grow: 1;
+	}
+
+	.section-label
+	{
+		@include platform-section-label;
+	}
+
+	//
+	// What it's for, a way out on the end
+	//
+
+	.head
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		padding: 18px 16px 16px 24px;
+		border-bottom: $front-border-width solid $platform-hairline;
+
+		.text
+		{
+			flex-direction: column;
+			gap: 2px;
+		}
+
+		.eyebrow
+		{
+			@include platform-section-label;
+		}
+
+		.title
+		{
+			font-size: 18px;
+			font-weight: 700;
+			color: $platform-text;
+		}
+	}
+
+	.close
+	{
+		@include platform-tool( 34px );
+
+		&:hover
+		{
+			sound-in: "ui.button.over";
+		}
+	}
+
+	//
+	// The form
+	//
+
+	.body
+	{
+		flex-direction: column;
+		flex-shrink: 1;
+		min-height: 0;
+		gap: 22px;
+		padding: 22px 24px;
+		overflow-y: scroll;
+	}
+
+	// A group of tags under its heading, left to right
+	.tags
+	{
+		flex-direction: column;
+		gap: 10px;
+
+		.tag-selector
+		{
+			justify-content: flex-start;
+			gap: 6px;
+		}
+
+		.tag
+		{
+			&:hover
+			{
+				sound-in: "ui.button.over";
+			}
+		}
+	}
+
+	// The words - a proper field to write in
+	.words
+	{
+		flex-direction: column;
+		gap: 10px;
+
+		TextEntry
+		{
+			@include platform-field;
+			height: auto;
+			min-height: 120px;
+			max-height: 220px;
+			align-items: flex-start;
+			padding: 12px 14px;
+			white-space: normal;
+			pointer-events: all;
+		}
+	}
+
+	//
+	// Cancel, and post it
+	//
+
+	.footer
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 8px;
+		padding: 14px 16px 16px 24px;
+		border-top: $front-border-width solid $platform-hairline;
+
+		.note
+		{
+			font-size: 12px;
+			color: $platform-muted;
+		}
+
+		.button
+		{
+			@include platform-text-button( 38px );
+			flex-direction: row;
+			padding: 0 18px;
+			pointer-events: all;
+
+			&:hover
+			{
+				sound-in: "ui.button.over";
+			}
+		}
+
+		.button.post
+		{
+			@include platform-button-primary;
+
+			// Not until there's a rating and some words
+			&.disabled
+			{
+				pointer-events: none;
+			}
+		}
+	}
+}

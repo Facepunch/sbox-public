@@ -1,0 +1,45 @@
+@import "/Platform/_platform.scss";
+
+PackageFlairBar
+{
+	position: absolute;
+	top: 8px;
+	left: 8px;
+	right: 8px;
+	z-index: 2;
+	flex-direction: row;
+	justify-content: flex-end;
+	gap: 4px;
+	pointer-events: none;
+
+	// A tile in the flair's own colour (set inline), white glyph on it
+	.flair
+	{
+		@include platform-tile( 14px, 22px );
+		position: relative;
+		pointer-events: all;
+
+		// A box exactly the glyph's size, centred by the badge - not a full-width label nudged down a
+		// pixel. The nudge landed on half pixels once the UI's scaled, and each card rounds its own
+		// half differently, so the same icon sat a pixel off on some cards and not others. 22 less
+		// 14 leaves an even 4 each side.
+		icon
+		{
+			flex-shrink: 0;
+			width: 14px;
+			height: 14px;
+			font-family: "Material Icons";
+			font-size: 14px;
+			text-align: center;
+			color: white;
+		}
+
+		// The trophy and the heart are top-heavy - the cup and handles, the two lobes - with a thin
+		// stem or point under them, so centred by their box they read high. Down a pixel, by eye
+		&.flair-contest-winner icon,
+		&.flair-favourited icon
+		{
+			margin-top: 1px;
+		}
+	}
+}

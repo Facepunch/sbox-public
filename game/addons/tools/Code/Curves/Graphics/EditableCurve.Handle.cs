@@ -54,11 +54,8 @@ public partial class EditableCurve
 			var x = pos.x.Remap( 0, EditableCurve.Size.x, EditableCurve.ViewportRangeX.x, EditableCurve.ViewportRangeX.y, false );
 			var y = pos.y.Remap( 0, EditableCurve.Size.y, EditableCurve.ViewportRangeY.y, EditableCurve.ViewportRangeY.x, false );
 			// Now remap the viewport range to the actual range
-			if ( EditableCurve.Value.Length > 1 )
-			{
-				x = x.Remap( EditableCurve.TimeRange.x, EditableCurve.TimeRange.y, 0, 1, false );
-				y = y.Remap( EditableCurve.ValueRange.x, EditableCurve.ValueRange.y, 0, 1, false );
-			}
+			x = x.Remap( EditableCurve.TimeRange.x, EditableCurve.TimeRange.y, 0, 1, false );
+			y = y.Remap( EditableCurve.ValueRange.x, EditableCurve.ValueRange.y, 0, 1, false );
 			return new Vector2( x, y );
 		}
 
@@ -166,34 +163,58 @@ public partial class EditableCurve
 
 		protected override void OnMoved()
 		{
-			RealPosition = Position;
-			var value = PositionToValue( Position );
+			// An active drag owns its handles - it applies values and snapping for the group
+			if ( EditableCurve?.editor?.Drag.IsDragging( this ) ?? false )
+				return;
+
 			if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
 			{
-				var _xInc = EditableCurve.editor.GetBackgroundIncrementX();
-				var _yInc = EditableCurve.editor.GetBackgroundIncrementY();
-				value.x = value.x
-						.Remap( 0, 1, EditableCurve.TimeRange.x, EditableCurve.TimeRange.y, false )
-						.SnapToGrid( _xInc )
-						.Remap( EditableCurve.TimeRange.x, EditableCurve.TimeRange.y, 0, 1, false );
-				value.y = value.y
-						.Remap( 0, 1, EditableCurve.ValueRange.x, EditableCurve.ValueRange.y, false )
-						.SnapToGrid( _yInc )
-						.Remap( EditableCurve.ValueRange.x, EditableCurve.ValueRange.y, 0, 1, false );
-				Position = ValueToPosition( value );
+				Position = SnapToGridPosition( Position );
 			}
 
+			UpdateValueFromPosition();
+			EditableCurve?.OnHandleMoved();
+		}
+
+		/// <summary>
+		/// Snap a chart position to the editor's background grid
+		/// </summary>
+		internal Vector2 SnapToGridPosition( Vector2 position )
+		{
+			var xInc = EditableCurve.editor.GetBackgroundIncrementX();
+			var yInc = EditableCurve.editor.GetBackgroundIncrementY();
+			var value = PositionToValue( position );
+			value.x = value.x
+					.Remap( 0, 1, EditableCurve.TimeRange.x, EditableCurve.TimeRange.y, false )
+					.SnapToGrid( xInc )
+					.Remap( EditableCurve.TimeRange.x, EditableCurve.TimeRange.y, 0, 1, false );
+			value.y = value.y
+					.Remap( 0, 1, EditableCurve.ValueRange.x, EditableCurve.ValueRange.y, false )
+					.SnapToGrid( yInc )
+					.Remap( EditableCurve.ValueRange.x, EditableCurve.ValueRange.y, 0, 1, false );
+			return ValueToPosition( value );
+		}
+
+		/// <summary>
+		/// Update this handle's keyframe to match where it is on the chart
+		/// </summary>
+		internal void UpdateValueFromPosition()
+		{
+			RealPosition = Position;
+			var value = PositionToValue( Position );
 			Frame.Time = value.x;
 			Frame.Value = value.y;
-
-			EditableCurve?.OnHandleMoved();
 		}
 
 		protected override void OnPositionChanged()
 		{
 			base.OnPositionChanged();
 
-			Position = Position.Clamp( 0, EditableCurve.Size );
+			// Dragged handles are limited as a group, so the selection keeps its shape
+			if ( !(EditableCurve?.editor?.Drag.Moved( this ) ?? false) )
+			{
+				Position = Position.Clamp( 0, EditableCurve.Size );
+			}
 
 			In?.UpdatePositionFromValue();
 			Out?.UpdatePositionFromValue();
@@ -214,8 +235,18 @@ public partial class EditableCurve
 		{
 			base.OnMousePressed( e );
 
+			if ( e.LeftMouseButton )
+				EditableCurve?.editor?.Drag.Begin( this );
+
 			if ( e.RightMouseButton )
 				OpenContextMenu( e.ScreenPosition );
+		}
+
+		protected override void OnMouseReleased( GraphicsMouseEvent e )
+		{
+			base.OnMouseReleased( e );
+
+			EditableCurve?.editor?.Drag.End();
 		}
 
 		public virtual void OpenContextMenu( Vector2 pos )
