@@ -51,9 +51,12 @@ internal static class PresetRun
 		// Golden truth images need the same mips every run: textures load whole, rather than streaming in over real time
 		if ( GoldenTruthRun.Enabled ) backend.PreloadTextures();
 
-		// Lavapipe's 256-bit code path loses the blue of lit surfaces in single-sample targets; its 128-bit one is right
-		if ( GoldenTruthRun.Device == "Lavapipe" && Environment.GetEnvironmentVariable( "LP_NATIVE_VECTOR_WIDTH" ) != "128" )
-			Log.Warning( "Basalt Lab: on Lavapipe without LP_NATIVE_VECTOR_WIDTH=128, lit surfaces lose their blue (docs/managed/basalt-host.md)" );
+		// -msaa N: the capture's samples, 1, 2, 4 or 8
+		var samples = Args.Int( "-msaa", 1 ) is var msaa && msaa is 2 or 4 or 8 ? msaa : 1;
+
+		// Lavapipe loses the blue of lit surfaces in single-sample targets; multisampled ones are right
+		if ( GoldenTruthRun.Device == "Lavapipe" && samples == 1 )
+			Log.Warning( "Basalt Lab: on Lavapipe, single-sample targets lose the blue of lit surfaces; capture with -msaa 4 (docs/managed/basalt-host.md)" );
 
 		var captureFrame = Math.Max( 1, Args.Int( "-capture-frame", 10 ) );
 		var single = Args.String( "-capture" );
@@ -76,7 +79,7 @@ internal static class PresetRun
 
 			try
 			{
-				Capture( backend, preset, width, height, captureFrame, path );
+				Capture( backend, preset, width, height, samples, captureFrame, path );
 			}
 			catch ( Exception e )
 			{
@@ -113,16 +116,16 @@ internal static class PresetRun
 
 	/// <summary>
 	/// Render <paramref name="captureFrame"/> frames of the preset into a texture, with a fresh renderer and world, and
-	/// save the last. The lights stay where they start, so the frame is repeatable.
+	/// save the last, resolved when it's multisampled. The lights stay where they start, so the frame is repeatable.
 	/// </summary>
-	static void Capture( Source2Backend backend, LabPreset preset, int width, int height, int captureFrame, string path )
+	static void Capture( Source2Backend backend, LabPreset preset, int width, int height, int samples, int captureFrame, string path )
 	{
 		var lab = LabWorld.Build( preset, backend.Content );
 		var view = NewView( lab, width, height );
 		var renderer = new RenderSystem();
 
 		// The formats a window's frame is drawn in before it's copied to the swap chain, so a capture sees what a window shows
-		var target = ViewTarget.Create( new Vector2Int( width, height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Basalt Lab" );
+		var target = ViewTarget.Create( new Vector2Int( width, height ), samples, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Basalt Lab" );
 		backend.Phase( $"{preset.Name}: scene" );
 
 		try
