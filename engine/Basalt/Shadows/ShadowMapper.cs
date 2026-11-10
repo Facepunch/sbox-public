@@ -222,6 +222,20 @@ internal partial class ShadowMapper
 			Cache.AddOrUpdate( light.Key, entry );
 			Entries.Add( entry );
 		}
+		else if ( entry.Type != light.Type || entry.Radius != light.Radius || (light.Type == ShadowLightType.Spot && entry.ConeOuter != light.ConeOuter) )
+		{
+			// A new kind, radius or cone is a new projection, which neither the map nor its static cache hold yet
+			ReleaseTexture( entry.StaticCache, entry.CurrentResolution, entry.IsCube );
+			entry.StaticCache = null;
+			entry.RenderedFrame = 0;
+
+			if ( entry.IsCube != isCube )
+			{
+				ReleaseTexture( entry.ShadowMap, entry.CurrentResolution, entry.IsCube );
+				entry.ShadowMap = AcquireTexture( entry.CurrentResolution, isCube );
+				entry.IsCube = isCube;
+			}
+		}
 
 		entry.Type = light.Type;
 		entry.Position = light.Position;
