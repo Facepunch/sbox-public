@@ -306,6 +306,14 @@ internal sealed class MapContent : IDisposable
 			if ( file.Floats.TryGetValue( "g_flAlphaTestReference", out var reference ) ) material.AlphaReference = reference;
 			if ( file.Floats.TryGetValue( "g_flOpacityScale", out var opacity ) && material.Kind == SurfaceKind.Translucent ) material.Color.W = opacity;
 
+			// Water's colour comes from its shader, not a texture: a flat translucent blue-green instead
+			if ( file.Shader?.Contains( "water", StringComparison.OrdinalIgnoreCase ) == true )
+			{
+				material.Kind = SurfaceKind.Translucent;
+				material.Color = new V4( 0.08f, 0.14f, 0.15f, 0.85f );
+				return;
+			}
+
 			material.ColorTexture = file.Textures.TryGetValue( "g_tColor", out var color ) ? color
 				: file.Textures.TryGetValue( "g_tColor1", out var layer ) ? layer
 				: file.Textures.FirstOrDefault( x => x.Key.StartsWith( "g_tColor", StringComparison.OrdinalIgnoreCase ) ).Value;
