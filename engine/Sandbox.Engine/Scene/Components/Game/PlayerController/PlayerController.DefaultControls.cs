@@ -54,8 +54,6 @@ public sealed partial class PlayerController : Component
 			UpdateEyeTransform();
 		}
 
-		UpdateBodyVisibility();
-
 		if ( UseAnimatorControls && Renderer.IsValid() )
 		{
 			UpdateAnimation( Renderer );

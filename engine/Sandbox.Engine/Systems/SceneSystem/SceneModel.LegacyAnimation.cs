@@ -37,6 +37,26 @@ public sealed partial class SceneModel
 		set => animNative.SetAnimGraph( value?.native ?? default );
 	}
 
+	/// <summary>Prepare an independent legacy graph instance for the first-person body pose.</summary>
+	private void PrepareLegacyFirstPersonAnimation( SceneModel source, bool enabled )
+	{
+		if ( AnimationGraph != source.AnimationGraph )
+			AnimationGraph = source.AnimationGraph;
+
+		UseAnimGraph = enabled && source.UseAnimGraph && source.AnimationGraph.IsValid();
+		if ( !UseAnimGraph ) return;
+
+		for ( int i = 0; i < source.AnimationGraph.ParamCount; i++ )
+		{
+			var src = source.animNative.GetAnimParameter( i );
+			var dst = animNative.GetAnimParameter( i );
+			if ( src.IsValid && dst.IsValid )
+				dst.SetValue( src.GetValue() );
+		}
+
+		SetLegacyParameter( "b_firstperson", (NativeEngine.AnimVariant)true );
+	}
+
 	SceneObjectDirectPlayback _directPlayback;
 
 	/// <summary>

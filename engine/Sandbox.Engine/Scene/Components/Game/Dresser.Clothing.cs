@@ -237,6 +237,9 @@ public sealed partial class Dresser
 			var go = new GameObject( false, $"Clothing - {c.ResourceName}" );
 			go.Parent = body.GameObject;
 			go.Tags.Add( "clothing" );
+			// Necklaces can be weighted below the neck; hide the whole accessory in the first-person preview.
+			if ( c.Category == Sandbox.Clothing.ClothingCategory.NecklacePendant )
+				go.Tags.Add( "firstperson-hidden" );
 
 			var r = go.Components.Create<SkinnedModelRenderer>();
 			r.Model = model;
