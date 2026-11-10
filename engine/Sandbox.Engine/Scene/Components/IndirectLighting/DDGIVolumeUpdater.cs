@@ -32,8 +32,10 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 
 	Vector3Int _renderedIndex = 0;
 
-	static ComputeShader DepthCopyShader = new ComputeShader( "common/DDGI/ddgi_depth_copy_cs" );
-	static ComputeShader IntegrateShader = new ComputeShader( "common/DDGI/ddgi_integrate_cs" );
+	// Made by the constructor, on the main thread. As static initializers they were first reached from the camera's stage hook,
+	// on a thread recording a face, where Material.Create throws: the type failed to initialize, and the bake integrated nothing.
+	static ComputeShader DepthCopyShader;
+	static ComputeShader IntegrateShader;
 
 	/// <summary>
 	/// Creates the capture camera and temporary textures for one volume bake.
@@ -42,6 +44,9 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 	{
 		_volume = volume;
 		_pendingProbes = new List<Vector3Int>();
+
+		DepthCopyShader ??= new ComputeShader( "common/DDGI/ddgi_depth_copy_cs" );
+		IntegrateShader ??= new ComputeShader( "common/DDGI/ddgi_integrate_cs" );
 
 		// Initialize camera for probe captures
 		_camera = new SceneCamera
