@@ -5,22 +5,30 @@ namespace MenuProject.Platform;
 
 /// <summary>
 /// A scrolling panel faded off at its top while there's more of it up there, and at its bottom while there's more down
-/// there - all of it shown at an end it's scrolled to. Its owner calls <see cref="Apply"/> each tick; it works on any
-/// panel that scrolls, a VirtualGrid's included.
+/// there - all of it shown at an end it's scrolled to. Its owner keeps one per panel it fades, and calls
+/// <see cref="Apply"/> each tick; it works on any panel that scrolls, a VirtualGrid's included.
 /// </summary>
-public static class ScrollFade
+public sealed class ScrollFade
 {
-	/// <summary>
-	/// The mask each panel was last given - set again only when it changes, or when it's a new panel (a hotload builds
-	/// them again) with no mask yet
-	/// </summary>
-	static readonly Dictionary<Panel, string> applied = new();
+	readonly float fade;
+
+	// What it last gave - the mask's only made again when one of these changes, not every frame
+	Panel shown;
+	bool shownAbove;
+	bool shownBelow;
+	float shownEdge = -1;
+
+	/// <param name="fade">How far, in px, it fades over at an end</param>
+	public ScrollFade( float fade = 16 )
+	{
+		this.fade = fade;
+	}
 
 	/// <summary>
-	/// Fade <paramref name="list"/> over <paramref name="fade"/> px at whichever ends have more past them. Not
-	/// <paramref name="scrolls"/> - its scrolling's off - and it's all shown, whatever it holds.
+	/// Fade <paramref name="list"/> at whichever ends have more past them. Not <paramref name="scrolls"/> - its
+	/// scrolling's off - and it's all shown, whatever it holds.
 	/// </summary>
-	public static void Apply( Panel list, float fade = 16, bool scrolls = true )
+	public void Apply( Panel list, bool scrolls = true )
 	{
 		if ( !list.IsValid() ) return;
 
@@ -29,31 +37,26 @@ public static class ScrollFade
 
 		var above = scrolls && list.ScrollOffset.y > 1;
 		var below = scrolls && list.ScrollOffset.y < list.ScrollSize.y - 2;
+		var edge = MathF.Round( fade / height, 4 );
 
-		Set( list, height, fade, above, below );
+		// A new panel (a hotload builds them again) has no mask yet
+		if ( list == shown && above == shownAbove && below == shownBelow && edge == shownEdge && list.Style.MaskImage is not null ) return;
+
+		shown = list;
+		shownAbove = above;
+		shownBelow = below;
+		shownEdge = edge;
+
+		list.Style.Set( "mask-image", Mask( above, below, edge ) );
 	}
 
-	static void Set( Panel list, float height, float fade, bool above, bool below )
-	{
-		var edge = fade / height;
-
-		// An all-white mask where there's nothing past an edge, rather than "none" - the engine takes that as an empty
-		// one, hiding the lot. Stops worked out from its height, since one in pixels is measured against the mask's
-		// texture rather than the panel.
-		var mask = $"linear-gradient( to bottom, {(above ? "black" : "white")} 0%, white {Percent( above ? edge : 0 )}%, white {Percent( below ? 1 - edge : 1 )}%, {(below ? "black" : "white")} 100% )";
-
-		if ( applied.TryGetValue( list, out var last ) && last == mask && list.Style.MaskImage is not null ) return;
-
-		// The ones gone since - deleted panels don't hang on here
-		if ( applied.Count > 32 )
-		{
-			foreach ( var gone in applied.Keys.Where( x => !x.IsValid() ).ToList() )
-				applied.Remove( gone );
-		}
-
-		applied[list] = mask;
-		list.Style.Set( "mask-image", mask );
-	}
+	/// <summary>
+	/// An all-white mask where there's nothing past an edge, rather than "none" - the engine takes that as an empty one,
+	/// hiding the lot. Stops worked out from its height, since one in pixels is measured against the mask's texture
+	/// rather than the panel.
+	/// </summary>
+	static string Mask( bool above, bool below, float edge ) =>
+		$"linear-gradient( to bottom, {(above ? "black" : "white")} 0%, white {Percent( above ? edge : 0 )}%, white {Percent( below ? 1 - edge : 1 )}%, {(below ? "black" : "white")} 100% )";
 
 	static string Percent( float x ) => (Math.Clamp( x, 0, 1 ) * 100).ToString( "0.##", System.Globalization.CultureInfo.InvariantCulture );
 }

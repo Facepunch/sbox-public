@@ -4,7 +4,7 @@
 @using Sandbox.UI;
 @namespace MenuProject.Platform
 @page "/shelf/browse"
-@inherits Panel
+@inherits ShelfPage
 @implements IShelfPage
 
 @*
@@ -308,16 +308,16 @@
         if ( !searched ) Search();
     }
 
-    public override void Tick()
-    {
-        base.Tick();
+    readonly ScrollFade gridFade = new( 32 );
 
+    protected override void TickShown()
+    {
         // Searched for once the typing stops for a moment
         if ( typed is not null && sinceTyped > 0.4f )
             SetQuery( typed );
 
-        ScrollFade.Apply( Grid, 32 );
+        gridFade.Apply( Grid );
     }
 
-    protected override int BuildHash() => HashCode.Combine( Found, Found.Count, loading, Query, Sort, Mine, string.Join( ",", Tags ) );
+    protected override int ShownHash() => HashCode.Combine( Found, Found.Count, loading, Query, Sort, Mine, MenuHelpers.HashOf( Tags ) );
 }

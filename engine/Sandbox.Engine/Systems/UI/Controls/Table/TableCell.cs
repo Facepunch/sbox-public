@@ -55,11 +55,13 @@ public class TableCell : Panel
 		if ( Parent is not TableRow row || row.Table is not { } table ) return;
 
 		var columns = table.ColumnLayout;
+		// By index - it's every frame for every cell, and walking Children allocates
 		var first = 0;
-		foreach ( var cell in row.Children.OfType<TableCell>() )
+		for ( var i = 0; i < row.ChildrenCount; i++ )
 		{
-			if ( cell == this ) break;
-			first += Math.Max( 1, cell.ColSpan );
+			var child = row.GetChild( i );
+			if ( child == this ) break;
+			if ( child is TableCell cell ) first += Math.Max( 1, cell.ColSpan );
 		}
 
 		Column = first;
@@ -128,7 +130,7 @@ public class TableHeader : TableCell
 
 		AddEventListener( "onclick", () =>
 		{
-			if ( Sort is not null ) Ancestors.OfType<Table>().FirstOrDefault()?.Sort( this );
+			if ( Sort is not null ) Table.Of( this )?.Sort( this );
 		} );
 	}
 
@@ -148,7 +150,7 @@ public class TableHeader : TableCell
 	{
 		base.Tick();
 
-		var table = Ancestors.OfType<Table>().FirstOrDefault();
+		var table = Table.Of( this );
 		var sorted = Sort is not null && table?.SortColumn == Sort;
 
 		SetClass( "sortable", Sort is not null );
@@ -200,7 +202,7 @@ public class TableResizeHandle : Panel
 
 	TableHeader Header => Parent as TableHeader;
 
-	Table Table => Ancestors.OfType<Table>().FirstOrDefault();
+	Table Table => Table.Of( this );
 
 	protected override void OnMouseDown( MousePanelEvent e )
 	{

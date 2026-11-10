@@ -3,7 +3,7 @@
 @using Sandbox;
 @using Sandbox.UI;
 @namespace MenuProject.Platform
-@inherits Panel
+@inherits ShelfPage
 @implements IShelfPage
 
 @* Rows of games on the shelf - Your games (YourGamesShelf) or Discover (DiscoverShelf). *@
@@ -28,8 +28,24 @@
 
     const float WheelGrow = 90;
 
-    GameRow[] Rows => IsDiscover ? PlatformMenu.Discover
-        : FavouritesLeft ? [PlatformMenu.YourGames, PlatformMenu.Favourites] : [PlatformMenu.YourGames];
+    GameRow[] Rows => IsDiscover ? PlatformMenu.Discover : FavouritesLeft ? YoursAndFavourites : YoursOnly;
+
+    static readonly GameRow[] YoursOnly = [PlatformMenu.YourGames];
+    static readonly GameRow[] YoursAndFavourites = [PlatformMenu.YourGames, PlatformMenu.Favourites];
+
+    /// <summary>
+    /// The row <paramref name="index"/> down, or null - by index, as the shelf asks how tall it is every frame
+    /// </summary>
+    GameShelf ShelfAt( int index )
+    {
+        for ( var i = 0; i < ChildrenCount; i++ )
+        {
+            if ( GetChild( i ) is not GameShelf shelf ) continue;
+            if ( index-- == 0 ) return shelf;
+        }
+
+        return null;
+    }
 
     /// <summary>
     /// Any of your favourites that aren't in your recent games already - none, and there's no row for them rather than an
@@ -54,7 +70,7 @@
         if ( row == 0 ) return null;
         if ( IsDiscover ) return Rows.Take( row ).SelectMany( x => x.Games ?? [] ).Select( x => x.Id ).ToHashSet();
 
-        return Children.OfType<GameShelf>().FirstOrDefault()?.ShownIds.ToHashSet();
+        return ShelfAt( 0 )?.ShownIds.ToHashSet();
     }
 
     void IShelfPage.OnShelfShown()
@@ -73,24 +89,24 @@
     /// Your games with your favourites peeking out under them scroll - faded off over the favourites' art. Just their
     /// first row, they don't - all of it shown, not faded off over its names.
     /// </summary>
-    bool IShelfPage.Scrolls => IsDiscover || grown > 0 || Rows.Length > 1;
+    bool IShelfPage.Scrolls => IsDiscover || grown > 0 || ShelfAt( 1 ) is not null;
 
 
     float IShelfPage.Height( float room, float tall )
     {
-        var shelves = Children.OfType<GameShelf>().ToList();
-        if ( shelves.FirstOrDefault() is not { } first ) return 0;
+        if ( ShelfAt( 0 ) is not { } first ) return 0;
+        var second = ShelfAt( 1 );
 
         // Discover's Featured, with the top of the next row peeking out under it - it scrolls down to the rest
-        if ( IsDiscover && shelves.Count > 1 )
-            return (shelves[1].Box.Rect.Top - Box.Rect.Top) * ScaleFromScreen + shelves[1].PeekHeight;
+        if ( IsDiscover && second is not null )
+            return (second.Box.Rect.Top - Box.Rect.Top) * ScaleFromScreen + second.PeekHeight;
 
         if ( IsDiscover ) return tall;
 
         // Your games - its first row, the top of your favourites peeking out under it as Discover's next row does, so it's
         // plain there's more to scroll down to, and as much taller as it's been scrolled open
-        var opens = shelves.Count > 1
-            ? (shelves[1].Box.Rect.Top - Box.Rect.Top) * ScaleFromScreen + shelves[1].PeekHeight
+        var opens = second is not null
+            ? (second.Box.Rect.Top - Box.Rect.Top) * ScaleFromScreen + second.PeekHeight
             : first.CollapsedHeight;
 
         growRoom = Math.Max( 0, Math.Min( tall, room ) - opens );
@@ -137,5 +153,9 @@
         base.OnMouseWheel( value );
     }
 
-    protected override int BuildHash() => HashCode.Combine( IsDiscover, Rows.Length, Rows.Sum( x => x.Games?.Length ?? 0 ), Children.OfType<GameShelf>().FirstOrDefault()?.ShownIds.Count() );
+    // What the rows are made from, not the rows - they're worked out from it when it's built, not every frame. A row's
+    // games are a new array each time they change; how many of your recent games show goes by how many fit across.
+    protected override int ShownHash() => IsDiscover
+        ? MenuHelpers.HashOf( PlatformMenu.Discover, static x => x.Games )
+        : HashCode.Combine( PlatformMenu.YourGames.Games, PlatformMenu.Favourites.Games, ShelfAt( 0 )?.ColumnCount );
 }

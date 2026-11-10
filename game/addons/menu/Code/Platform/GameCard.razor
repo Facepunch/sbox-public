@@ -22,15 +22,20 @@
         <div class="top">
             @if ( Item is not null )
             {
+                @* Lit then unlit, a label each rather than one per star *@
                 <div class="stars @(Stars is null ? "unrated" : "")" tooltip="@RatingTip">
-                    @for ( var i = 0; i < 5; i++ )
+                    @if ( Stars is > 0 and var lit )
                     {
-                        <i class="@(i < (Stars ?? 0) ? "lit" : "")">@(i < (Stars ?? 0) ? "star" : "star_border")</i>
+                        <i class="lit">@(new string( StarGlyph, lit ))</i>
+                    }
+                    @if ( 5 - (Stars ?? 0) is > 0 and var unlit )
+                    {
+                        <i>@(new string( StarBorderGlyph, unlit ))</i>
                     }
                 </div>
             }
-            <div class="spacer"></div>
-            @if ( Item is not null )
+            @* Only there when it's showing - subscribed, or the card's under the pointer *@
+            @if ( Item is not null && (Subscribed || HasHovered) )
             {
                 <div class="badge @(Subscribed ? "on" : "")" tooltip="@(Subscribed ? "Click to unsubscribe" : "Click to subscribe")" onclick=@( ( PanelEvent e ) => { e.StopPropagation(); ToggleSubscribed(); } )>
                     <i class="state">@(Subscribed ? "check" : "add")</i>
@@ -81,7 +86,22 @@
 
     bool Subscribed => Item is not null && MenuUtility.IsSubscribed( Item.Id );
 
-    bool Favourited => Item is not null && PlatformMenu.Favourites.Games?.Any( x => x.Id == Item.Id ) == true;
+    // Material Icons' star and star_border
+    const char StarGlyph = '\uE838';
+    const char StarBorderGlyph = '\uE83A';
+
+    bool Favourited
+    {
+        get
+        {
+            if ( Item is null || PlatformMenu.Favourites.Games is not { } favourites ) return false;
+
+            foreach ( var game in favourites )
+                if ( game.Id == Item.Id ) return true;
+
+            return false;
+        }
+    }
 
     /// <summary>
     /// Out of five, from how it's been voted - null until there's enough votes to say, as the Workshop does
@@ -176,5 +196,5 @@
         StateHasChanged();
     }
 
-    protected override int BuildHash() => HashCode.Combine( Item, Local, Selected, Subscribed, Favourited );
+    protected override int BuildHash() => HashCode.Combine( Item, Local, Selected, Subscribed, Favourited, HasHovered );
 }

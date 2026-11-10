@@ -264,6 +264,8 @@
         else FrontPages.Of( this )?.GoBack();
     }
 
+    readonly ScrollFade gridFade = new( 32 );
+
     public override void Tick()
     {
         base.Tick();
@@ -278,7 +280,7 @@
             if ( changed ) Find();
         }
 
-        ScrollFade.Apply( Grid, 32 );
+        gridFade.Apply( Grid );
     }
 
     protected override int BuildHash() => HashCode.Combine( source, sort, search, found, found.Count, loading, Selected, MountDirectory.GetAll().Count( x => x.Mounted ) );

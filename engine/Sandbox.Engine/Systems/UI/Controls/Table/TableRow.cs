@@ -47,5 +47,5 @@ public class TableRow : Panel
 		ElementName = "tr";
 	}
 
-	internal Table Table => Ancestors.OfType<Table>().FirstOrDefault();
+	internal Table Table => Table.Of( this );
 }

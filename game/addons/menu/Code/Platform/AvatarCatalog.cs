@@ -83,7 +83,7 @@ public static class AvatarCatalog
 		clothing.SteamItemDefinitionId is { } id ? Inventory.Items.Count( x => x.DefinitionId == id ) : 0;
 
 	public static Inventory.ItemDefinition Definition( Clothing clothing ) =>
-		clothing.SteamItemDefinitionId is { } id ? Inventory.Definitions.FirstOrDefault( x => x.Id == id ) : null;
+		clothing.SteamItemDefinitionId is { } id ? Inventory.FindDefinition( id ) : null;
 
 	static Dictionary<string, Inventory.ItemDefinition> fromWorkshop;
 	static int fromWorkshopWith = -1;

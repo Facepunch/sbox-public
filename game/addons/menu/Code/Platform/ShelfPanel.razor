@@ -149,6 +149,8 @@
 
     public bool AtTop => !Body.IsValid() || Body.ScrollOffset.y <= 0.5f;
 
+    readonly ScrollFade bodyFade = new( 64 );
+
     public override void Tick()
     {
         base.Tick();
@@ -175,7 +177,7 @@
         Body.SetClass( "browsing", fills );
         Body.SetClass( "scrolls", scrolls );
 
-        ScrollFade.Apply( Body, 64, scrolls );
+        bodyFade.Apply( Body, scrolls );
 
         if ( next == height ) return;
 

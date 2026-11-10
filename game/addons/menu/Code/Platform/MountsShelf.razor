@@ -6,7 +6,7 @@
 @using Sandbox.UI.Mounts;
 @namespace MenuProject.Platform
 @page "/shelf/mounts"
-@inherits Panel
+@inherits ShelfPage
 @implements IShelfPage
 
 @*
@@ -83,17 +83,18 @@
 
     float sizedFor;
 
+    readonly ScrollFade rowsFade = new( 32 );
+
     /// <summary>
     /// As many cards across as fit at <see cref="CardMin"/>, stretched so a row fills the width edge to edge - their art
     /// kept to Steam's capsule's shape (460x215), as the cards have it
     /// </summary>
-    public override void Tick()
+    protected override void TickShown()
     {
-        base.Tick();
+        rowsFade.Apply( Rows );
 
-        ScrollFade.Apply( Rows, 32 );
-
-        if ( Descendants.OfType<MountCard>().FirstOrDefault()?.Parent is not { } cards ) return;
+        if ( !cards.IsValid() ) cards = Descendants.OfType<MountCard>().FirstOrDefault()?.Parent;
+        if ( !cards.IsValid() ) return;
 
         var width = cards.Box.Rect.Width * ScaleFromScreen;
         if ( width <= 0 ) return;
@@ -103,7 +104,7 @@
         var columns = Math.Max( 1, (int)((width + CardGap) / (CardMin + CardGap + 1)) );
         var card = MathF.Floor( (width - CardGap * (columns - 1) - columns) / columns );
 
-        if ( MathF.Abs( card - sizedFor ) < 0.5f && Descendants.OfType<MountCard>().All( x => x.Style.Width?.Value == card ) ) return;
+        if ( MathF.Abs( card - sizedFor ) < 0.5f ) return;
 
         sizedFor = card;
 
@@ -115,7 +116,21 @@
         }
     }
 
-    protected override int BuildHash()
+    /// <summary>
+    /// What the cards are in - found once, the width they're sized to
+    /// </summary>
+    Panel cards;
+
+    // Built again - its cards may be new, so they're sized again, and found again
+    protected override void OnAfterTreeRender( bool firstTime )
+    {
+        base.OnAfterTreeRender( firstTime );
+
+        cards = null;
+        sizedFor = -1;
+    }
+
+    protected override int ShownHash()
     {
         var hash = new HashCode();
 

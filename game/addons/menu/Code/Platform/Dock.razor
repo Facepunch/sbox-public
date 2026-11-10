@@ -323,6 +323,6 @@
     static void Quit() => MenuHelpers.ConfirmQuit();
 
     protected override int BuildHash() => HashCode.Combine( InstalledGames, Shelf, PlatformMenu.CanSwitch, Root?.SettingsPage is not null, HashCode.Combine( PartyView.Exists, PartyDeck.Drafting, PlayingFriends, Root?.FriendsOpen == true, FriendsUpFrom( InviteButton ), card.IsValid() && !card.IsDeleting ), PartyDeck.ShownOnPlatform,
-        string.Join( ",", ShownMembers.Select( x => $"{x.Id}{PartyView.StatusOf( x )}{PartyView.IsMemberReady( x )}" ) ), HashCode.Combine( string.Join( ",", ShownInvites.Select( x => x.Id ) ),
+        MenuHelpers.HashOf( ShownMembers, static x => (x.Id, PartyView.StatusOf( x ), PartyView.IsMemberReady( x )) ), HashCode.Combine( MenuHelpers.HashOf( ShownInvites, static x => x.Id ),
         Joining?.Icon, Joining?.ShowGame, PartyArt, PartyDeck.Activity(), MenuHelpers.RewardReady( rewards ), Root?.RewardsOpen == true, LibraryOpen ) );
 }

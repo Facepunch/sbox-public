@@ -9,7 +9,7 @@
 @using Chat = MenuProject.Multiplayer.GlobalChatService;
 @namespace MenuProject.Platform
 @page "/shelf/multiplayer"
-@inherits Panel
+@inherits ShelfPage
 @implements IShelfPage
 
 @*
@@ -450,10 +450,12 @@
         _ = PartyService.Join( id );
     }
 
-    public override void Tick()
-    {
-        base.Tick();
+    readonly ScrollFade partiesFade = new();
+    readonly ScrollFade messagesFade = new();
+    readonly ScrollFade gameRowsFade = new();
 
+    protected override void TickShown()
+    {
         // In chat while it's up - out as soon as it's put away, not when it's finished sliding down
         if ( Shown != chatOpen )
         {
@@ -462,9 +464,9 @@
             else Chat.Close();
         }
 
-        ScrollFade.Apply( PartiesBody );
-        ScrollFade.Apply( Messages );
-        ScrollFade.Apply( GameRows );
+        partiesFade.Apply( PartiesBody );
+        messagesFade.Apply( Messages );
+        gameRowsFade.Apply( GameRows );
 
         // Chat's messages stop over its message box, however many lines that's grown to
         if ( Composer.IsValid() && ChatBody is { } chat && chat.IsValid() )
@@ -536,9 +538,18 @@
         base.OnDeleted();
     }
 
-    protected override int BuildHash() => HashCode.Combine(
+    // Out of chat as soon as another page is up
+    protected override void OnHidden()
+    {
+        if ( !chatOpen ) return;
+
+        chatOpen = false;
+        Chat.Close();
+    }
+
+    protected override int ShownHash() => HashCode.Combine(
         HashCode.Combine( scoped, flat, search, hideEmpty, hideFull, hideLocked, hideOutdated, Table?.Selected?.LobbyId ),
         HashCode.Combine( loaded, refreshing, error, lobbies, MenuHelpers.FriendsPlaying.Key, filtersOpen ),
-        HashCode.Combine( partiesLoaded, string.Join( ",", parties.Select( x => $"{x.Id}{x.Members}{x.GameTitle}" ) ), PartyService.Busy, PartyService.Error, PartyRoom.Current?.Id, MenuHelpers.HasAuthority ),
+        HashCode.Combine( partiesLoaded, MenuHelpers.HashOf( parties, static x => (x.Id, x.Members, x.GameTitle) ), PartyService.Busy, PartyService.Error, PartyRoom.Current?.Id, MenuHelpers.HasAuthority ),
         HashCode.Combine( Chat.Revision, Chat.Connecting, Chat.Error, Chat.Channel?.MemberCount, ChatLines.Count, Chat.CanInviteParty ) );
 }

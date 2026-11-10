@@ -64,6 +64,9 @@ MountsShelf
 		background-color: rgba( 22, 28, 40, 0.95 );
 		box-shadow: none;
 
+		// Next to nothing shows through its fill - and each blur is a grab of the screen, one per card
+		backdrop-filter: none;
+
 		.art
 		{
 			background-color: $platform-panel;

@@ -108,6 +108,11 @@
     int Columns = 1;
 
     /// <summary>
+    /// How many cards fit across
+    /// </summary>
+    public int ColumnCount => Columns;
+
+    /// <summary>
     /// Browse the Workshop the way this row does - a See more in its header, if it has a way
     /// </summary>
     [Parameter] public Action<GameRow> OnSeeMore { get; set; }

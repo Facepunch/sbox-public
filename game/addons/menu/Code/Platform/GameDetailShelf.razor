@@ -6,7 +6,7 @@
 @using MenuProject.Modals.PackageModalComponents;
 @namespace MenuProject.Platform
 @page "/shelf/game/{Ident}"
-@inherits Panel
+@inherits ShelfPage
 @implements IShelfPage
 
 @*
@@ -474,11 +474,11 @@
         else if ( Package is not null ) PlatformRoot.Instance?.Picked( Package );
     }
 
-    public override void Tick()
-    {
-        base.Tick();
+    readonly ScrollFade bodyFade = new();
 
-        ScrollFade.Apply( Body );
+    protected override void TickShown()
+    {
+        bodyFade.Apply( Body );
     }
 
     public override void OnDeleted()
@@ -487,5 +487,5 @@
         if ( loadedIdent is not null ) Discovery.PreviewClosed( "page", loadedIdent );
     }
 
-    protected override int BuildHash() => HashCode.Combine( Package, HasFullPackage, FetchFailed, WorkshopItem, PageLoading, WorkshopId, IsCurrent, HashCode.Combine( PlatformMenu.CanSwitch, Subscribed, Page, LatestChange, Downloaded, HasAchievements ) );
+    protected override int ShownHash() => HashCode.Combine( Package, HasFullPackage, FetchFailed, WorkshopItem, PageLoading, WorkshopId, IsCurrent, HashCode.Combine( PlatformMenu.CanSwitch, Subscribed, Page, LatestChange, Downloaded, HasAchievements ) );
 }

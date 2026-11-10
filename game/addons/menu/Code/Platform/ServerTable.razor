@@ -312,11 +312,13 @@
         MenuHelpers.JoinServer( server );
     }
 
+    readonly ScrollFade bodyFade = new();
+
     public override void Tick()
     {
         base.Tick();
 
-        ScrollFade.Apply( Body );
+        bodyFade.Apply( Body );
     }
 
     /// <summary>

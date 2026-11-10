@@ -130,18 +130,25 @@ public partial class Table : Panel
 		{
 			if ( parsedColumns == Columns && parsedAlign == Align && parsedResizes == resizes ) return columns;
 
-			parsedColumns = Columns;
-			parsedAlign = Align;
-			parsedResizes = resizes;
-			LayoutVersion++;
-
-			var widths = Tokens( Columns );
-			var aligns = (Align ?? "").Split( ' ', StringSplitOptions.RemoveEmptyEntries );
-
-			given = widths.Select( ( w, i ) => Parse( w, i < aligns.Length ? aligns[i] : "left" ) ).ToArray();
-			columns = given.Select( ( x, i ) => resized.TryGetValue( i, out var w ) ? x with { Width = Length.Pixels( Math.Max( w, x.Min ) ), Grow = 0 } : x ).ToArray();
+			LayOutColumns();
 			return columns;
 		}
+	}
+
+	// Its own method, not in the getter - the lambdas capture its locals, and a capture's allocated on entering the
+	// scope, which would be every read of the cached columns, by every cell, every frame
+	void LayOutColumns()
+	{
+		parsedColumns = Columns;
+		parsedAlign = Align;
+		parsedResizes = resizes;
+		LayoutVersion++;
+
+		var widths = Tokens( Columns );
+		var aligns = (Align ?? "").Split( ' ', StringSplitOptions.RemoveEmptyEntries );
+
+		given = widths.Select( ( w, i ) => Parse( w, i < aligns.Length ? aligns[i] : "left" ) ).ToArray();
+		columns = given.Select( ( x, i ) => resized.TryGetValue( i, out var w ) ? x with { Width = Length.Pixels( Math.Max( w, x.Min ) ), Grow = 0 } : x ).ToArray();
 	}
 
 	/// <summary>
@@ -268,18 +275,38 @@ public partial class Table : Panel
 	}
 
 	/// <summary>
+	/// The table <paramref name="panel"/> is in - up through its parents, without allocating, as its cells and headings
+	/// ask every frame
+	/// </summary>
+	internal static Table Of( Panel panel )
+	{
+		for ( var parent = panel?.Parent; parent is not null; parent = parent.Parent )
+		{
+			if ( parent is Table table ) return table;
+		}
+
+		return null;
+	}
+
+	/// <summary>
 	/// The head's and foot's rows in at each side as far as the body's - past its scrollbar, whatever that takes up -
 	/// so their cells share out the same width and sit over the rows' columns
 	/// </summary>
 	void AlignEnds()
 	{
-		var row = Children.OfType<TableBody>().FirstOrDefault()?.Children.OfType<TableRow>().FirstOrDefault();
+		// By index - it's every frame, and walking Children allocates
+		var row = FirstChild<TableRow>( FirstChild<TableBody>( this ) );
 		if ( row is null || row.Box.Rect.Width <= 0 ) return;
 
-		foreach ( var end in Children.Where( x => x is TableHead or TableFoot ) )
+		for ( var i = 0; i < ChildrenCount; i++ )
 		{
-			foreach ( var tr in end.Children.OfType<TableRow>() )
+			var end = GetChild( i );
+			if ( end is not (TableHead or TableFoot) ) continue;
+
+			for ( var j = 0; j < end.ChildrenCount; j++ )
 			{
+				if ( end.GetChild( j ) is not TableRow tr ) continue;
+
 				var left = (row.Box.RectInner.Left - tr.Box.Rect.Left) * ScaleFromScreen;
 				var right = (tr.Box.Rect.Right - row.Box.RectInner.Right) * ScaleFromScreen;
 
@@ -288,6 +315,16 @@ public partial class Table : Panel
 				if ( MathF.Abs( (tr.Style.PaddingRight?.Value ?? -1) - right ) > 0.1f ) tr.Style.PaddingRight = Length.Pixels( right );
 			}
 		}
+	}
+
+	static T FirstChild<T>( Panel panel ) where T : Panel
+	{
+		for ( var i = 0; i < (panel?.ChildrenCount ?? 0); i++ )
+		{
+			if ( panel.GetChild( i ) is T child ) return child;
+		}
+
+		return null;
 	}
 
 	/// <summary>

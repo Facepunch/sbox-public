@@ -6,7 +6,7 @@
 @using MenuProject.AvatarEditor;
 @namespace MenuProject.Platform
 @page "/shelf/avatar"
-@inherits Panel
+@inherits ShelfPage
 @implements IShelfPage
 
 @*
@@ -747,10 +747,10 @@
     int worn = -1;
     bool framed;
 
-    public override void Tick()
-    {
-        base.Tick();
+    readonly ScrollFade itemsFade = new( 32 );
 
+    protected override void TickShown()
+    {
         if ( !framed && Model.IsValid() )
         {
             framed = true;
@@ -765,7 +765,7 @@
 
         TickSearch();
         TickBought();
-        ScrollFade.Apply( Items, 32 );
+        itemsFade.Apply( Items );
 
         // On down into the dock, fading off as Multiplayer's does - not under a card, which sits at its bottom
         SizeItems();
@@ -784,30 +784,42 @@
     {
         if ( !Items.IsValid() ) return;
 
-        foreach ( var grid in Items.Children.SelectMany( x => x.Children ).Where( x => x.HasClass( "grid" ) ) )
+        // By index - it's every frame, and walking Children allocates
+        for ( var s = 0; s < Items.ChildrenCount; s++ )
         {
-            var width = grid.Box.Rect.Width * ScaleFromScreen;
-            if ( width <= 0 ) continue;
+            if ( Items.GetChild( s ) is not { } section ) continue;
 
-            var wide = grid.HasClass( "wide" );
-            var least = wide ? WideMin : ItemMin;
-
-            var columns = Math.Max( 1, (int)(width / (least + ItemGap)) );
-
-            // The grid's a gap wider than the list (its stylesheet), for the gap the layout counts after the last in a
-            // row - so a row with that gap after it fills it, and the tiles reach the list's edge
-            var size = MathF.Floor( (width - ItemGap * columns) / columns );
-            var height = wide ? MathF.Floor( size * WideAspect ) : size;
-
-            foreach ( var item in grid.Children )
+            for ( var g = 0; g < section.ChildrenCount; g++ )
             {
-                if ( item.Style.Width?.Value == size && item.Style.Height?.Value == height ) continue;
-
-                item.Style.Width = Length.Pixels( size );
-                item.Style.Height = Length.Pixels( height );
+                if ( section.GetChild( g ) is { } grid && grid.HasClass( "grid" ) ) SizeGrid( grid );
             }
         }
     }
 
-    protected override int BuildHash() => HashCode.Combine( Category, Kind, Draft.Version, Draft.HasChanges, Draft.Saving, JustSaved, HashCode.Combine( Viewing, Buying, AvatarCatalog.All.Count(), Minute, Sandbox.Services.Inventory.Items.Count, Hovered ), HashCode.Combine( CartOpen, Cart.Items.Count, Cart.CheckingOut, BodyOpen, On, HashCode.Combine( Picked, Previewing, votes, WorkshopKey, WorkshopItems?.Count ?? -1, Searching, Query ) ) );
+    void SizeGrid( Panel grid )
+    {
+        var width = grid.Box.Rect.Width * ScaleFromScreen;
+        if ( width <= 0 ) return;
+
+        var wide = grid.HasClass( "wide" );
+        var least = wide ? WideMin : ItemMin;
+
+        var columns = Math.Max( 1, (int)(width / (least + ItemGap)) );
+
+        // The grid's a gap wider than the list (its stylesheet), for the gap the layout counts after the last in a
+        // row - so a row with that gap after it fills it, and the tiles reach the list's edge
+        var size = MathF.Floor( (width - ItemGap * columns) / columns );
+        var height = wide ? MathF.Floor( size * WideAspect ) : size;
+
+        for ( var i = 0; i < grid.ChildrenCount; i++ )
+        {
+            if ( grid.GetChild( i ) is not { } item ) continue;
+            if ( item.Style.Width?.Value == size && item.Style.Height?.Value == height ) continue;
+
+            item.Style.Width = Length.Pixels( size );
+            item.Style.Height = Length.Pixels( height );
+        }
+    }
+
+    protected override int ShownHash() => HashCode.Combine( Category, Kind, Draft.Version, Draft.HasChanges, Draft.Saving, JustSaved, HashCode.Combine( Viewing, Buying, Sandbox.Services.Inventory.Definitions.Count, Minute, Sandbox.Services.Inventory.Items.Count, Hovered ), HashCode.Combine( CartOpen, Cart.Items.Count, Cart.CheckingOut, BodyOpen, On, HashCode.Combine( Picked, Previewing, votes, WorkshopKey, WorkshopItems?.Count ?? -1, Searching, Query ) ) );
 }

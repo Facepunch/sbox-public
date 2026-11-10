@@ -9,6 +9,34 @@ using MenuPanel = MenuProject.UI.MenuPanel;
 public static class MenuHelpers
 {
 	/// <summary>
+	/// One hash for everything in <paramref name="items"/>, in order - for a BuildHash, instead of joining them into a
+	/// string every frame
+	/// </summary>
+	public static int HashOf<T>( IEnumerable<T> items )
+	{
+		var hash = new HashCode();
+
+		if ( items is not null )
+			foreach ( var item in items ) hash.Add( item );
+
+		return hash.ToHashCode();
+	}
+
+	/// <summary>
+	/// One hash for what <paramref name="pick"/> takes from each of <paramref name="items"/>, in order. Pass a static
+	/// lambda, so it isn't made again every frame.
+	/// </summary>
+	public static int HashOf<T, TValue>( IEnumerable<T> items, Func<T, TValue> pick )
+	{
+		var hash = new HashCode();
+
+		if ( items is not null )
+			foreach ( var item in items ) hash.Add( pick( item ) );
+
+		return hash.ToHashCode();
+	}
+
+	/// <summary>
 	/// Off to the avatar editor - its own scene, in place of the menu's. Not from inside a game.
 	/// </summary>
 	public static bool CanEditAvatar => !Game.InGame;
