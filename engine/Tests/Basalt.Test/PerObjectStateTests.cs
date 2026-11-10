@@ -121,6 +121,67 @@ public class PerObjectStateTests
 	}
 
 	[TestMethod]
+	public void SubWorldsShowOnlyInViewsThatDrawThem()
+	{
+		var view = LookingDownX();
+		var own = new TestObject( UnitBox, Transform.Zero );
+		var first = new TestObject( UnitBox, Transform.Zero ) { SubWorld = 1 };
+		var last = new TestObject( UnitBox, Transform.Zero ) { SubWorld = RenderWorld.MaxSubWorlds, Tags = [Token( "gizmo" )] };
+
+		Assert.IsTrue( view.Shows( own ) );
+		Assert.IsFalse( view.Shows( first ), "a view draws no sub-world unless it says so" );
+		Assert.IsFalse( view.Shows( last ) );
+
+		view.SubWorlds = 1;
+		Assert.IsTrue( view.Shows( first ) && view.Shows( own ) );
+		Assert.IsFalse( view.Shows( last ) );
+
+		view.SubWorlds = 1UL << (RenderWorld.MaxSubWorlds - 1);
+		Assert.IsTrue( view.Shows( last ) );
+		Assert.IsFalse( view.Shows( first ) );
+
+		// Tags still apply to a sub-world's objects
+		view.ExcludeTags = [Token( "gizmo" )];
+		Assert.IsFalse( view.Shows( last ) );
+
+		Assert.ThrowsException<System.ArgumentOutOfRangeException>( () => own.SubWorld = RenderWorld.MaxSubWorlds + 1 );
+		Assert.ThrowsException<System.ArgumentOutOfRangeException>( () => own.SubWorld = -1 );
+	}
+
+	[TestMethod]
+	public void SubWorldObjectsAreCollectedAndCastShadowsOnlyWhenDrawn()
+	{
+		var mesh = TestMesh( false );
+		var world = new RenderWorld();
+		var own = new MeshObject( mesh, new Transform( new Vector3( 20, 0, 0 ) ) );
+		var extra = new MeshObject( mesh, new Transform( new Vector3( 20, 5, 0 ) ) ) { SubWorld = 3 };
+		world.Add( own );
+		world.Add( extra );
+
+		var view = LookingDownX();
+		using var system = new RenderSystem();
+		var feature = system.GetFeature<MeshRenderFeature>();
+
+		Basalt.Shadows.ShadowMapper.ResetCache();
+		CollectAndPrepare( system, world, view );
+		CollectionAssert.AreEqual( new[] { own.Index }, system.MainPass.Visible( feature ).ToArray() );
+		Assert.IsTrue( ShadowCasters( system, feature ).Contains( own.Index ), "the sun's cascades draw the world" );
+		Assert.IsFalse( ShadowCasters( system, feature ).Contains( extra.Index ), "nor in the sun's shadow views" );
+
+		view.SubWorlds = 1UL << 2;
+		CollectAndPrepare( system, world, view );
+		CollectionAssert.AreEquivalent( new[] { own.Index, extra.Index }, system.MainPass.Visible( feature ).ToArray() );
+		Assert.IsTrue( ShadowCasters( system, feature ).Contains( extra.Index ), "a drawn sub-world casts shadows, as native's shadow views copy their view's worlds" );
+	}
+
+	static System.Collections.Generic.HashSet<int> ShadowCasters( RenderSystem system, MeshRenderFeature feature )
+	{
+		var casters = new System.Collections.Generic.HashSet<int>();
+		foreach ( var pass in system.ShadowMaps.Passes ) casters.UnionWith( pass.Visible( feature ) );
+		return casters;
+	}
+
+	[TestMethod]
 	public void ObjectsWithAttributesDrawAlone()
 	{
 		// Three objects sharing a mesh: two plain ones instance together, the one with attributes of its own doesn't

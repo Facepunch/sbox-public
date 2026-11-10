@@ -212,6 +212,11 @@ internal partial class ShadowMapper
 		internal uint[] RenderTags, ExcludeTags;
 
 		/// <summary>
+		/// The sub-worlds of the views this map is for, whose casters it holds too.
+		/// </summary>
+		internal ulong SubWorlds;
+
+		/// <summary>
 		/// The same light's map for views with other tags.
 		/// </summary>
 		internal LightEntry NextFilter;
@@ -250,7 +255,7 @@ internal partial class ShadowMapper
 		var excludeTags = View.ExcludeTags ?? [];
 		Cache.TryGetValue( light.Key, out var first );
 		var entry = first;
-		while ( entry is not null && !(SameTags( entry.RenderTags, renderTags ) && SameTags( entry.ExcludeTags, excludeTags )) )
+		while ( entry is not null && !(SameTags( entry.RenderTags, renderTags ) && SameTags( entry.ExcludeTags, excludeTags ) && entry.SubWorlds == View.SubWorlds) )
 			entry = entry.NextFilter;
 
 		if ( entry is null )
@@ -264,6 +269,7 @@ internal partial class ShadowMapper
 				DebugName = $"{light.Key}_Shadow",
 				RenderTags = renderTags.Length == 0 ? [] : (uint[])renderTags.Clone(),
 				ExcludeTags = excludeTags.Length == 0 ? [] : (uint[])excludeTags.Clone(),
+				SubWorlds = View.SubWorlds,
 			};
 
 			if ( first is null )

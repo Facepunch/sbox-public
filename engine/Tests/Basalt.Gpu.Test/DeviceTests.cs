@@ -97,7 +97,7 @@ public class DeviceTests : GpuTest
 		info.Usage |= TextureUsage.Storage;
 		var texture = Device.CreateTexture( info );
 		Assert.IsTrue( Device.StorageIndex( texture ) >= 0 );
-		Assert.IsTrue( Device.BindlessIndex( texture ) >= 0 );
+		Assert.IsTrue( Device.BindlessIndex( texture ) >= 2, "texture index 0 means none to s&box's shaders" );
 
 		var shader = Device.CreateShader( LoadShader( "pattern.cs.spv" ), "pattern" );
 		var pipeline = Device.CreateComputePipeline( new ComputePipelineInfo { Shader = shader, Entry = "MainCs" } );

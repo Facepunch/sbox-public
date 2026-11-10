@@ -38,12 +38,6 @@ public abstract class RenderObject
 	internal int TransformVersion { get; private set; }
 
 	/// <summary>
-	/// Transform slot and generation shared by all views this frame.
-	/// </summary>
-	internal int Slot;
-	internal int SlotGeneration = -1;
-
-	/// <summary>
 	/// Whether to use the spatial tree and screen-size culling. Lights opt out because their influence exceeds their bounds.
 	/// </summary>
 	internal virtual bool SizeCulled => true;
@@ -96,6 +90,23 @@ public abstract class RenderObject
 			if ( field == value ) return;
 			field = value;
 			ShadowChanged();
+		}
+	}
+
+	/// <summary>
+	/// The sub-world this object belongs to: 0 for the world's own objects, or 1 to <see cref="RenderWorld.MaxSubWorlds"/> for
+	/// another world's drawn in this one's views, which only views with its bit in <see cref="RenderView.SubWorlds"/> show. Native
+	/// draws a camera's extra worlds in its view this way, in the same layers and depth as its main world
+	/// (<c>CSceneView::AddWorldToRenderList</c>).
+	/// </summary>
+	public int SubWorld
+	{
+		get;
+		set
+		{
+			ArgumentOutOfRangeException.ThrowIfNegative( value );
+			ArgumentOutOfRangeException.ThrowIfGreaterThan( value, RenderWorld.MaxSubWorlds );
+			field = value;
 		}
 	}
 

@@ -93,17 +93,64 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 	}
 
 	/// <summary>
-	/// Stop mirroring a deleted world.
+	/// Stop mirroring a deleted world, as a camera's main world or as an extra world, and the extra worlds drawn in it.
 	/// </summary>
 	public void Forget( SceneWorld world )
 	{
-		if ( world is null || !mirrors.Remove( world, out var mirror ) ) return;
-		mirror.Dispose();
+		if ( world is null ) return;
+
+		mirrors.Remove( world, out var mirror );
+		foreach ( var (key, _) in extras )
+		{
+			if ( key.Source == world || (mirror is not null && key.Host == mirror) ) invalidExtras.Add( key );
+		}
+
+		FreeExtras();
+		mirror?.Dispose();
 	}
+
+	/// <summary>
+	/// An extra world (<see cref="SceneCamera.Worlds"/>, <see cref="SceneCamera.DebugWorlds"/>) mirrored into a main world's
+	/// mirror, as a sub-world of it.
+	/// </summary>
+	readonly record struct ExtraKey( SceneWorld Source, SceneMirror Host );
+
+	sealed class ExtraMirror
+	{
+		public SceneMirror Mirror;
+
+		/// <summary>
+		/// The last frame a view drew it.
+		/// </summary>
+		public ulong LastFrame;
+	}
+
+	readonly Dictionary<ExtraKey, ExtraMirror> extras = new();
+
+	/// <summary>
+	/// Frames an extra world stays mirrored without a view drawing it. Its objects stay in the main world meanwhile, where
+	/// views that don't draw it skip them.
+	/// </summary>
+	const ulong ExtraWorldIdleFrames = 120;
 
 	// Reused sweep buffers avoid per-frame allocations.
 	readonly List<ViewKey> invalidViews = new();
 	readonly List<SceneWorld> invalidWorlds = new();
+	readonly List<ExtraKey> invalidExtras = new();
+
+	void FreeExtras()
+	{
+		foreach ( var key in invalidExtras )
+		{
+			if ( !extras.Remove( key, out var extra ) ) continue;
+			key.Host.HostedSubWorlds &= ~SubWorldBit( extra.Mirror.SubWorld );
+			extra.Mirror.Dispose();
+		}
+
+		invalidExtras.Clear();
+	}
+
+	static ulong SubWorldBit( int subWorld ) => 1UL << (subWorld - 1);
 
 	void FreeViews()
 	{
@@ -133,6 +180,14 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		FreeViews();
 		foreach ( var world in invalidWorlds ) Forget( world );
 		invalidWorlds.Clear();
+
+		var frame = Application.FrameCount;
+		foreach ( var (key, extra) in extras )
+		{
+			if ( !key.Source.IsValid() || frame - extra.LastFrame > ExtraWorldIdleFrames ) invalidExtras.Add( key );
+		}
+
+		FreeExtras();
 	}
 
 	/// <summary>
@@ -143,6 +198,10 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		foreach ( var (_, state) in views )
 			state.Dispose();
 		views.Clear();
+
+		foreach ( var (_, extra) in extras )
+			extra.Mirror.Dispose();
+		extras.Clear();
 
 		foreach ( var (_, mirror) in mirrors )
 			mirror.Dispose();
@@ -204,12 +263,74 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 
 		var state = StateFor( camera, setup.ViewHash );
 		state.Drawer.Mirror = mirror;
+		state.View.SubWorlds = SyncExtraWorlds( mirror, camera, setup, state.Drawer.ExtraMirrors );
 		state.SyncMs = System.Diagnostics.Stopwatch.GetElapsedTime( syncStart ).TotalMilliseconds;
 		Sandbox.Rendering.ManagedSceneRendering.Report( new Sandbox.Rendering.ManagedFrameCounters { SyncMs = state.SyncMs } );
 		FillView( state.View, camera, setup, size );
 		state.View.ToneMapScalar = state.Stages.BeginFrame( camera, state.View, setup, updateExposure );
 		return (mirror, state);
 	}
+
+	/// <summary>
+	/// Sync the camera's extra worlds into its main world's mirror, and return the sub-worlds its view draws. The worlds are
+	/// <c>CameraRenderer.Configure</c>'s: <see cref="SceneCamera.Worlds"/>, then <see cref="SceneCamera.DebugWorlds"/> (gizmos,
+	/// the scene's debug world) unless the view turns debug overlays off, each once and never the main world. Native draws them
+	/// in the main world's view, in the same layers and depth, lit by what lights it.
+	/// </summary>
+	ulong SyncExtraWorlds( SceneMirror host, SceneCamera camera, in ViewSetup setup, List<SceneMirror> drawn )
+	{
+		drawn.Clear();
+		var main = camera.World;
+		ulong shown = 0;
+
+		foreach ( var world in camera.Worlds )
+		{
+			if ( world is null || world == main ) continue;
+			shown |= SyncExtraWorld( host, world, camera, drawn );
+		}
+
+		if ( setup.EnableDebugOverlays == false ) return shown;
+
+		foreach ( var world in camera.DebugWorlds )
+		{
+			if ( world is null || world == main || camera.Worlds.Contains( world ) ) continue;
+			shown |= SyncExtraWorld( host, world, camera, drawn );
+		}
+
+		return shown;
+	}
+
+	ulong SyncExtraWorld( SceneMirror host, SceneWorld world, SceneCamera camera, List<SceneMirror> drawn )
+	{
+		if ( !world.IsValid() ) return 0;
+
+		var key = new ExtraKey( world, host );
+		if ( !extras.TryGetValue( key, out var extra ) )
+		{
+			var free = ~host.HostedSubWorlds;
+			if ( free == 0 )
+			{
+				if ( !warnedSubWorlds )
+				{
+					warnedSubWorlds = true;
+					Log.Warning( $"r_managed_scene: a world is drawn with more than {RenderWorld.MaxSubWorlds} extra worlds; the rest aren't drawn" );
+				}
+
+				return 0;
+			}
+
+			var subWorld = System.Numerics.BitOperations.TrailingZeroCount( free ) + 1;
+			host.HostedSubWorlds |= SubWorldBit( subWorld );
+			extras[key] = extra = new ExtraMirror { Mirror = new SceneMirror( world, host.World, subWorld ) };
+		}
+
+		extra.LastFrame = Application.FrameCount;
+		extra.Mirror.Sync( camera );
+		drawn.Add( extra.Mirror );
+		return SubWorldBit( extra.Mirror.SubWorld );
+	}
+
+	bool warnedSubWorlds;
 
 	/// <summary>
 	/// Mirror the world's <c>MapSkybox3D</c>, origin and scale.
@@ -335,6 +456,11 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		camera.OnPreRender( renderSize );
 		var (mirror, state) = Prepare( camera, setup, renderSize );
 		state.System.Render( mirror.World, state.View, new GpuSwapChain( swapChain ), renderSize, state.Stages );
+
+		// Native's swap chain render adds DefaultGameUI to the camera's view with engine overlays (CCameraRenderer::Render,
+		// AddOverlaysToView): here it's a native view of its own, after the frame
+		if ( setup.EnableDebugOverlays ?? camera.EnableEngineOverlays )
+			CCameraRenderer.RenderDefaultGameUI( swapChain );
 	}
 
 	public void RenderToTexture( SceneCamera camera, Texture target, Vector2? size, in ViewSetup setup )
@@ -453,7 +579,7 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 	/// <summary>
 	/// The last <c>Compare</c>'s result.
 	/// </summary>
-	internal FrameComparison.Parity? LastParity { get; private set; }
+	internal FrameComparison.Parity? LastParity { get; set; }
 
 	public string Compare( CameraComponent camera, string folder ) => Compare( camera, folder, null );
 
@@ -484,10 +610,13 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 	/// The camera's main view rendered by this renderer into an 8-bit texture at the swap chain's MSAA, as native renders a
 	/// bitmap (<c>CCameraRenderer::RenderToLayer</c>) - the compare's managed frame.
 	/// </summary>
-	internal Color32[] RenderManaged( CameraComponent camera, Vector2Int size, bool updateExposure )
+	internal Color32[] RenderManaged( CameraComponent camera, Vector2Int size, bool updateExposure ) => RenderManaged( camera.SceneCamera, size, updateExposure );
+
+	/// <inheritdoc cref="RenderManaged(CameraComponent, Vector2Int, bool)"/>
+	internal Color32[] RenderManaged( SceneCamera camera, Vector2Int size, bool updateExposure )
 	{
-		camera.SceneCamera.OnPreRender( size );
-		return RenderPixels( camera.SceneCamera, camera.SceneCamera.MainView, size, updateExposure, out _, out _, out _ );
+		camera.OnPreRender( size );
+		return RenderPixels( camera, camera.MainView, size, updateExposure, out _, out _, out _ );
 	}
 
 	Color32[] RenderPixels( SceneCamera camera, in ViewSetup setup, Vector2Int size, bool updateExposure, out SceneMirror mirror, out CameraState state, out MultisampleAmount msaa )

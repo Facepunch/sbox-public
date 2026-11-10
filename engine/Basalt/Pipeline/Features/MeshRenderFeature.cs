@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace Basalt.Features;
 
@@ -150,6 +151,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		public int[] Items = new int[64];
 		public int Count;
 
+		[MethodImpl( MethodImplOptions.AggressiveInlining )]
 		public void Add( ulong key, int index )
 		{
 			if ( Count == Keys.Length )
@@ -195,7 +197,14 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	/// <summary>
 	/// The view <see cref="Classify"/> is working on while it runs.
 	/// </summary>
-	(RenderWorld World, ViewPass Pass, List<int> Visible, Vector3 Camera, float TanHalfFov, float ScreenWidth, Vector3 SortCamera, List<LightProbeVolume> Volumes, long VolumesKey) classifying;
+	(RenderWorld World, ViewPass Pass, List<int> Visible, Vector3 Camera, float TanHalfFov, float ScreenWidth, Vector3 SortCamera, List<LightProbeVolume> Volumes, long VolumesKey, int Generation) classifying;
+
+	/// <summary>
+	/// What the frame's first shadow view to see an object made of it, by world index, and the frame's
+	/// <see cref="TransformBuffer.Generation"/>. Every shadow view would make the same: the LOD comes from the main view's
+	/// camera and shadows take no probe, so later shadow views copy it. Only the translucent sort distance is each view's own.
+	/// </summary>
+	(int Generation, byte Lod, Classified Classified)[] shadowClasses = new (int, byte, Classified)[256];
 
 	struct Classified
 	{
@@ -299,12 +308,13 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 
 		if ( lods.Length < objects.Length ) Array.Resize( ref lods, Math.Max( objects.Length, lods.Length * 2 ) );
 		if ( probes.Length < lods.Length ) Array.Resize( ref probes, lods.Length );
+		if ( shadowClasses.Length < lods.Length ) Array.Resize( ref shadowClasses, lods.Length );
 		if ( classified.Length < visible.Count ) Array.Resize( ref classified, Math.Max( visible.Count, classified.Length * 2 ) );
 		var volumes = world.LightProbeVolumes;
 		var volumesKey = volumes.Count > 0 && !pass.IsShadow ? LightProbeVolume.Key( volumes ) : 0;
 
 		// Each object's LOD, probe, lists and sort keys are its own, so a big view classifies across threads
-		classifying = (world, pass, visible, camera, tanHalfFov, screenWidth, sortCamera, volumes, volumesKey);
+		classifying = (world, pass, visible, camera, tanHalfFov, screenWidth, sortCamera, volumes, volumesKey, transforms.Generation);
 		if ( Parallel && visible.Count >= MinParallelClassify && JobDispatcher.MaxDegreeOfParallelism > 1 )
 			JobDispatcher.ForBatched( visible.Count, this, static ( feature, start, end ) => feature.Classify( start, end ) );
 		else
@@ -313,6 +323,9 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 
 		// Then into the buckets in visible order, whichever thread classified what
 		var visibleSpan = CollectionsMarshal.AsSpan( visible );
+		var opaque = buckets[0];
+		MeshRuns frameBufferReads = 0;
+		MeshRuns callbacks = 0;
 		for ( int k = 0; k < visibleSpan.Length; k++ )
 		{
 			var index = visibleSpan[k];
@@ -334,10 +347,16 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 
 			if ( c.Runs == 0 ) continue;
 
-			layers.FrameBufferReads |= c.FrameBufferReads;
-			if ( c.Callbacks ) layers.Callbacks |= c.Runs;
-			AddToLists( c.Runs, index, c.OpaqueKey, c.Distance, c.OnlyTranslucent, c.RenderOrder );
+			frameBufferReads |= c.FrameBufferReads;
+			if ( c.Callbacks ) callbacks |= c.Runs;
+
+			// Most objects go in the opaque list alone
+			if ( c.Runs == MeshRuns.Opaque ) opaque.Add( c.OpaqueKey, index );
+			else AddToLists( c.Runs, index, c.OpaqueKey, c.Distance, c.OnlyTranslucent, c.RenderOrder );
 		}
+
+		layers.FrameBufferReads |= frameBufferReads;
+		layers.Callbacks |= callbacks;
 
 		for ( int bit = 0; bit < buckets.Length; bit++ )
 		{
@@ -352,28 +371,45 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	/// </summary>
 	void Classify( int start, int end )
 	{
-		var (world, pass, visible, camera, tanHalfFov, screenWidth, sortCamera, volumes, volumesKey) = classifying;
+		var (world, pass, visible, camera, tanHalfFov, screenWidth, sortCamera, volumes, volumesKey, generation) = classifying;
 		var objects = world.Objects;
 		var centers = world.BoundsCenter;
 		var extents = world.BoundsExtents;
 		var shadow = pass.IsShadow;
 
+		// The last sort key and what it came from. Neighbours mostly share them, and hashing an object's references
+		// costs more than the rest of classifying it
+		var key = new KeyInputs { Lod = -1 };
+		var made = 0;
+
 		for ( int k = start; k < end; k++ )
 		{
 			var index = visible[k];
 			ref var c = ref classified[k];
+
+			// An earlier shadow view this frame classified it
+			if ( shadow && shadowClasses[index].Generation == generation )
+			{
+				ref readonly var cached = ref shadowClasses[index];
+				c = cached.Classified;
+				lods[index] = cached.Lod;
+				if ( probes[index] is not null ) probes[index] = null;
+				if ( (c.Runs & DistanceSortedLists) != 0 ) c.Distance = TranslucentSortDistance( centers[index], extents[index], sortCamera );
+				continue;
+			}
+
 			c = default;
 
-			var renderObject = objects[index];
-			if ( renderObject is CustomObject )
+			// Anything else this feature takes is a custom object
+			if ( objects[index] is not MeshObject obj )
 			{
 				c.Custom = true;
 				continue;
 			}
 
-			var obj = (MeshObject)renderObject;
 			if ( obj.Mesh is null ) continue;
 
+			made++;
 			var lod = ChooseLod( obj, centers[index], camera, tanHalfFov, screenWidth );
 			var blend = obj.BlendForLod( lod );
 			lods[index] = (byte)lod;
@@ -385,24 +421,42 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			// Probe lighting is forward-only (CBaseSceneObjectDesc::GeneratePrimitives).
 			var probe = -1;
 			if ( obj.NeedsLightProbe && !shadow && volumes.Count > 0 ) probe = ProbeFor( obj, volumes, volumesKey, centers[index], extents[index] );
-			probes[index] = probe >= 0 ? volumes[probe].Attributes : null;
+			var probeAttributes = probe >= 0 ? volumes[probe].Attributes : null;
+			if ( probeAttributes is not null || probes[index] is not null ) probes[index] = probeAttributes;
 
 			var runs = ListsFor( obj, blend, shadow );
-			if ( runs == 0 ) continue;
+			if ( runs != 0 )
+			{
+				c.Runs = runs;
 
-			c.Runs = runs;
+				// A translucent layer copies the frame for what reads it
+				if ( obj.WantsFrameBufferCopy && !shadow ) c.FrameBufferReads = runs & FrameBufferCopyingLists;
 
-			// A translucent layer copies the frame for what reads it
-			if ( obj.WantsFrameBufferCopy && !shadow ) c.FrameBufferReads = runs & FrameBufferCopyingLists;
+				// Only the sort keys its lists use
+				if ( (runs & (BatchedLists | RenderOrderLists)) != 0 ) c.OpaqueKey = key.For( obj, lod, probeAttributes );
+				c.Distance = (runs & DistanceSortedLists) != 0 ? TranslucentSortDistance( centers[index], extents[index], sortCamera ) : 0;
+				c.OnlyTranslucent = blend == MeshBlend.Translucent;
+				c.Callbacks = obj.Callbacks is not null && !shadow;
+				c.RenderOrder = obj.RenderOrder;
+			}
 
-			// Only the sort keys its lists use
-			c.OpaqueKey = (runs & (BatchedLists | RenderOrderLists)) != 0 ? OpaqueKey( obj, lod ) : 0;
-			c.Distance = (runs & DistanceSortedLists) != 0 ? TranslucentSortDistance( centers[index], extents[index], sortCamera ) : 0;
-			c.OnlyTranslucent = blend == MeshBlend.Translucent;
-			c.Callbacks = obj.Callbacks is not null && !shadow;
-			c.RenderOrder = obj.RenderOrder;
+			if ( shadow ) shadowClasses[index] = (generation, (byte)lod, c);
 		}
+
+		if ( key.Made > 0 ) Interlocked.Add( ref keysMade, key.Made );
+		if ( made > 0 ) Interlocked.Add( ref objectsClassified, made );
 	}
+
+	int keysMade;
+	int objectsClassified;
+
+	/// <summary>
+	/// Meshes classified, batch keys hashed (<see cref="OpaqueKey"/>) and buckets sorted since the feature was made - for the
+	/// tests, which count work rather than time it.
+	/// </summary>
+	internal int ObjectsClassified => Volatile.Read( ref objectsClassified );
+	internal int KeysMade => Volatile.Read( ref keysMade );
+	internal int BucketsSorted { get; private set; }
 
 	ulong[] itemKeys = new ulong[256];
 	DrawItem[] itemScratch = new DrawItem[256];
@@ -445,8 +499,21 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		// The low 24 bits are the item's index, so sorting the keys orders the items
 		var itemSpan = CollectionsMarshal.AsSpan( items );
 		var keys = itemKeys.AsSpan( 0, count );
+		var stateRun = -1;
+		uint state = 0;
+		var hashed = (Material: (GpuMaterial)null, Bits: 0u);
 		for ( int i = 0; i < count; i++ )
-			keys[i] = ItemKey( runSpan[itemSpan[i].Run], itemSpan[i].Draw ) | (uint)i;
+		{
+			// A run's draws share its state, and neighbouring draws mostly a material: hash each again only when it changes
+			var item = itemSpan[i];
+			if ( item.Run != stateRun )
+			{
+				stateRun = item.Run;
+				state = StateBits( runSpan[item.Run] );
+			}
+
+			keys[i] = ItemKey( runSpan[item.Run], item.Draw, state, ref hashed ) | (uint)i;
+		}
 
 		if ( !IsSorted( keys ) ) keys.Sort();
 
@@ -463,7 +530,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	/// attributes, lightmap and probe (8), which a change of rebinds. Custom objects go first, where their runs always sorted.
 	/// Collisions only cost binds.
 	/// </summary>
-	static ulong ItemKey( in Run run, int drawIndex )
+	static ulong ItemKey( in Run run, int drawIndex, uint state, ref (GpuMaterial Material, uint Bits) hashed )
 	{
 		if ( run.Custom is not null ) return 0;
 
@@ -474,14 +541,23 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		var similarity = run.Override is null ? run.Mesh.SimilarityForDraw( run.Lod, drawIndex ) : 0;
 		similarity ^= similarity >> 24 ^ similarity >> 48;
 
-		var materialBits = (uint)RuntimeHelpers.GetHashCode( material );
-		materialBits = (materialBits ^ materialBits >> 16) & 0xFFFF;
+		if ( material != hashed.Material )
+		{
+			var bits = (uint)RuntimeHelpers.GetHashCode( material );
+			hashed = (material, (bits ^ bits >> 16) & 0xFFFF);
+		}
 
+		return (depthOnly ? 0 : 1UL << 62) | (run.Skinned ? 1UL << 61 : 0) | (similarity & 0x1FFF) << 48 | (ulong)hashed.Bits << 32 | (ulong)state << 24;
+	}
+
+	/// <summary>
+	/// A run's attributes, lightmap and probe, hashed to <see cref="ItemKey"/>'s 8 bits.
+	/// </summary>
+	static uint StateBits( in Run run )
+	{
 		var state = (uint)RuntimeHelpers.GetHashCode( run.Attributes ) ^ (uint)RuntimeHelpers.GetHashCode( run.Lightmap ) * 0x9E3779B1u
 			^ (uint)RuntimeHelpers.GetHashCode( run.Probe ) * 0x85EBCA77u;
-		state = (state ^ state >> 16 ^ state >> 8) & 0xFF;
-
-		return (depthOnly ? 0 : 1UL << 62) | (run.Skinned ? 1UL << 61 : 0) | (similarity & 0x1FFF) << 48 | (ulong)materialBits << 32 | (ulong)state << 24;
+		return (state ^ state >> 16 ^ state >> 8) & 0xFF;
 	}
 
 	/// <summary>
@@ -547,11 +623,11 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	/// Batch key: similarity (24 bits), material (16), object-state identity (16), LOD (8)
 	/// (<c>CBaseSceneObjectDesc::BindMaterial</c>). Collisions only cost batching efficiency.
 	/// </summary>
-	ulong OpaqueKey( MeshObject obj, int lod )
+	static ulong OpaqueKey( MeshObject obj, int lod, ShaderParameters probe )
 	{
 		var identity = (uint)RuntimeHelpers.GetHashCode( obj.Mesh ) ^ (uint)RuntimeHelpers.GetHashCode( obj.MaterialOverride ) * 0x9E3779B1u
 			^ (uint)RuntimeHelpers.GetHashCode( obj.Attributes ) * 0x85EBCA77u ^ (uint)RuntimeHelpers.GetHashCode( obj.LightmapAttributes ) * 0xC2B2AE3Du
-			^ (uint)RuntimeHelpers.GetHashCode( probes[obj.Index] ) * 0x27D4EB2Fu;
+			^ (uint)RuntimeHelpers.GetHashCode( probe ) * 0x27D4EB2Fu;
 		var similarity = obj.Mesh.SimilarityForLod( lod );
 		similarity ^= similarity >> 24 ^ similarity >> 48;
 
@@ -563,6 +639,37 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		identity = (identity ^ identity >> 16) & 0xFFFF;
 
 		return (similarity & 0xFFFFFF) << 40 | (ulong)materialBits << 24 | (ulong)identity << 8 | (ulong)(uint)lod;
+	}
+
+	/// <summary>
+	/// The inputs of the last <see cref="OpaqueKey"/> made, and the key: the next object reuses it when it has the same.
+	/// </summary>
+	struct KeyInputs
+	{
+		public RenderMesh Mesh;
+		public int Lod;
+		public GpuMaterial Override;
+		public ShaderParameters Attributes;
+		public ShaderParameters Lightmap;
+		public ShaderParameters Probe;
+		public ulong Key;
+		public int Made;
+
+		public ulong For( MeshObject obj, int lod, ShaderParameters probe )
+		{
+			if ( obj.Mesh == Mesh && lod == Lod && obj.MaterialOverride == Override && obj.Attributes == Attributes && obj.LightmapAttributes == Lightmap && probe == Probe )
+				return Key;
+
+			Mesh = obj.Mesh;
+			Lod = lod;
+			Override = obj.MaterialOverride;
+			Attributes = obj.Attributes;
+			Lightmap = obj.LightmapAttributes;
+			Probe = probe;
+			Key = OpaqueKey( obj, lod, probe );
+			Made++;
+			return Key;
+		}
 	}
 
 	/// <summary>
@@ -598,7 +705,11 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		// Skip sorting already ordered buckets, common in heavily instanced scenes.
 		var items = bucket.Items.AsSpan( 0, count );
 		var keys = bucket.Keys.AsSpan( 0, count );
-		if ( !IsSorted( keys ) ) keys.Sort( items );
+		if ( !IsSorted( keys ) )
+		{
+			keys.Sort( items );
+			BucketsSorted++;
+		}
 
 		var objects = world.Objects;
 		var matrices = world.LocalToWorld;
@@ -626,23 +737,23 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 
 		foreach ( var index in items )
 		{
-			if ( objects[index] is CustomObject custom )
+			if ( objects[index] is not MeshObject obj )
 			{
+				var custom = (CustomObject)objects[index];
 				Flush();
 				var instance = transforms.AddInstance( transforms.SlotFor( custom, matrices[index], custom.Tint ) );
 				runs.Add( new Run( null, 0, null, false, DrawFilter.All, instance, 1, Custom: custom, ReadsFrameBuffer: custom.WantsFrameBufferCopy ) );
 				continue;
 			}
 
-			var obj = (MeshObject)objects[index];
 			var objLod = lods[index];
 			// A partially blended object draws only the list's part of its draws (ListDefinition.Draws)
 			var objFilter = obj.BlendForLod( objLod ) != MeshBlend.Partial ? DrawFilter.All : draws;
 
 			var skinned = obj.IsSkinned;
-			var deformed = obj.IsDeformed;
+			var deformed = skinned && obj.IsDeformed;
 			var morphable = obj.MorphSource is not null;
-			var tint = TintFor( obj, objLod );
+			var tint = DebugViews == DebugViews.None ? obj.Tint : TintFor( obj, objLod );
 			if ( skinned ) WriteBones( obj, objLod, matrices[index], tint, transforms );
 
 			var joins = length > 0 && skinned == skinnedRun && deformed == deformedRun && morphable == morphableRun && obj.Mesh == mesh && objLod == lod && obj.MaterialOverride == material && objFilter == filter && obj.Attributes == attributes && obj.LightmapAttributes == lightmap && obj.WantsFrameBufferCopy == reads && probes[index] == probe

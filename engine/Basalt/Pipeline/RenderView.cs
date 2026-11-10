@@ -160,14 +160,22 @@ public sealed class RenderView
 	/// </summary>
 	public uint[] ExcludeTags { get; set; } = [];
 
+	/// <summary>
+	/// The sub-worlds this view shows, as bits: bit <c>n - 1</c> for <see cref="RenderObject.SubWorld"/> <c>n</c>. A world's own
+	/// objects are always shown. Shadow views show their main view's.
+	/// </summary>
+	public ulong SubWorlds { get; set; }
+
 	static readonly uint WorldTag = new StringToken( "world" ).Value;
 
 	/// <summary>
-	/// Apply include/exclude tags, treating world objects as tagged <c>world</c>
+	/// Apply the view's sub-worlds, then include/exclude tags, treating world objects as tagged <c>world</c>
 	/// (<c>CSceneSystem</c>, <c>CLightBinnerStandard</c>).
 	/// </summary>
 	internal bool Shows( RenderObject obj )
 	{
+		if ( !ShowsSubWorld( obj ) ) return false;
+
 		var render = RenderTags;
 		var exclude = ExcludeTags;
 		if ( render.Length == 0 && exclude.Length == 0 ) return true;
@@ -176,6 +184,15 @@ public sealed class RenderView
 		if ( render.Length > 0 && !(obj.IsWorld ? Contains( render, WorldTag ) : Overlaps( render, tags )) ) return false;
 		if ( exclude.Length > 0 && ((obj.IsWorld && Contains( exclude, WorldTag )) || Overlaps( exclude, tags )) ) return false;
 		return true;
+	}
+
+	/// <summary>
+	/// Whether the view shows the object's sub-world: always for the world's own objects.
+	/// </summary>
+	internal bool ShowsSubWorld( RenderObject obj )
+	{
+		var subWorld = obj.SubWorld;
+		return subWorld == 0 || (SubWorlds & (1UL << (subWorld - 1))) != 0;
 	}
 
 	static bool Contains( uint[] set, uint tag ) => Array.IndexOf( set, tag ) >= 0;

@@ -35,7 +35,7 @@ public class DebugViewTests
 		system.Render( world, view, target );
 	}
 
-	static uint Tint( RenderSystem system, RenderObject obj ) => system.Transforms[obj.Slot].TintRgb888;
+	static uint Tint( RenderSystem system, RenderObject obj ) => system.Transforms[system.Transforms.SlotOf( obj )].TintRgb888;
 
 	static uint Packed( Color color ) => TransformBuffer.MakeEntry( Matrix.Identity, color ).TintRgb888;
 

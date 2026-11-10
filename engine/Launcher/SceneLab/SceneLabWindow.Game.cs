@@ -110,6 +110,8 @@ internal sealed partial class SceneLabWindow
 	{
 		nativeAlongside?.Dispose();
 		nativeAlongside = null;
+		extraWorldsCamera?.Dispose();
+		extraWorldsCamera = null;
 		game?.Destroy();
 		game = null;
 		targetCameras = [];
@@ -257,7 +259,7 @@ internal sealed partial class SceneLabWindow
 		string result;
 		using ( game.Push() )
 		{
-			result = gameBridge.Compare( game.Camera, folder, name );
+			result = Scene.ExtraWorld is { } extraWorld ? CompareWithExtraWorld( extraWorld( game ), folder, name ) : gameBridge.Compare( game.Camera, folder, name );
 		}
 
 		lastParity = gameBridge.LastParity;
@@ -269,6 +271,40 @@ internal sealed partial class SceneLabWindow
 		}
 		if ( gameBridge.LastParity is { Matches: false } ) Environment.ExitCode = 2;
 		return result;
+	}
+
+	// The camera an ExtraWorld scene compares through
+	SceneCamera extraWorldsCamera;
+
+	/// <summary>
+	/// Compare a camera set up from the scene's, with <paramref name="extraWorld"/> among its extra worlds, through both
+	/// renderers into 8-bit frames as the bridge's compare does: native first, then managed reusing native's exposure update.
+	/// </summary>
+	string CompareWithExtraWorld( SceneWorld extraWorld, string folder, string name )
+	{
+		var size = new Vector2Int( 1280, 720 );
+		var camera = game.Camera;
+		extraWorldsCamera ??= new SceneCamera( "Scene Lab extra worlds" );
+
+		game.PreCameraRender();
+		camera.UpdateSceneCamera( extraWorldsCamera );
+		extraWorldsCamera.Worlds.Add( extraWorld );
+
+		using var bitmap = new Bitmap( size.x, size.y );
+		extraWorldsCamera.OnPreRender( bitmap.Size );
+		SceneRenderer.Native.RenderToBitmap( extraWorldsCamera, bitmap, extraWorldsCamera.MainView );
+		var native = bitmap.GetPixels32();
+		var managed = gameBridge.RenderManaged( extraWorldsCamera, size, updateExposure: false );
+
+		var parity = FrameComparison.Compare( managed, native );
+		var managedPath = System.IO.Path.Combine( folder, $"{name}.png" );
+		FrameComparison.SavePng( managed, size.x, size.y, managedPath );
+		FrameComparison.SavePng( native, size.x, size.y, System.IO.Path.ChangeExtension( managedPath, ".native.png" ) );
+		FrameComparison.SavePng( FrameComparison.Difference( managed, native ), size.x, size.y, System.IO.Path.ChangeExtension( managedPath, ".diff.png" ) );
+		gameBridge.LastParity = parity;
+
+		var stats = gameBridge.StatsFor( extraWorldsCamera, extraWorldsCamera.MainView );
+		return $"{parity} | extra worlds: {extraWorld.SceneObjects.Count} objects, debug world {game.DebugSceneWorld?.SceneObjects.Count ?? 0} | {stats?.ObjectsVisible} objects drawn in {stats?.Draws} draws, {stats?.CustomDraws} custom draws | frames in {folder}";
 	}
 
 	/// <summary>

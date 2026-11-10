@@ -303,6 +303,47 @@ public class ShadowCacheTests
 		Assert.AreEqual( 0, third.ShadowMaps.Passes.Length, "the same tags share the last cascades" );
 	}
 
+	/// <summary>
+	/// A camera's sub-worlds (another world drawn in its view, like gizmos) cast its shadows too, so a light seen by a camera
+	/// that draws one and a camera that doesn't keeps a map for each, and their cascades aren't shared.
+	/// </summary>
+	[TestMethod]
+	public void CamerasWithOtherSubWorldsKeepTheirOwnShadows() => WithoutUpdates( () =>
+	{
+		var world = new RenderWorld();
+		var gizmo = new MeshObject( null, new Transform( new Vector3( 300, 0, -20 ) ) ) { LocalBounds = UnitBox, SubWorld = 1 };
+		var statue = StaticBox( world, new Vector3( 300, 0, 20 ) );
+		statue.SubWorld = 1;
+		world.Add( gizmo );
+		world.Add( new LightObject( LightObject.LightKind.Point, new Transform( new Vector3( 300, 0, 0 ) ) ) { Radius = 50, IsStatic = true } );
+
+		var game = LookingDownX();
+		var editor = LookingDownX();
+		editor.SubWorlds = 1;
+
+		using var first = new RenderSystem();
+		using var second = new RenderSystem();
+		using var third = new RenderSystem();
+		var mesh = first.GetFeature<MeshRenderFeature>();
+
+		static int[] Drawn( RenderSystem system, MeshRenderFeature mesh ) => system.ShadowMaps.Passes.ToArray().SelectMany( p => p.Visible( mesh ) ).ToArray();
+
+		RenderHost.Current.NextFrame();
+		Prepare( first, world, game );
+		CollectionAssert.DoesNotContain( Drawn( first, mesh ), gizmo.Index );
+		CollectionAssert.DoesNotContain( Drawn( first, mesh ), statue.Index );
+
+		Prepare( second, world, editor );
+		CollectionAssert.Contains( Drawn( second, mesh ), gizmo.Index, "its own cube, or cascades" );
+		CollectionAssert.Contains( Drawn( second, mesh ), statue.Index, "and its own static cache" );
+
+		// The same sub-worlds share the light's maps and the frame's cascades
+		var again = LookingDownX();
+		again.SubWorlds = 1;
+		Prepare( third, world, again );
+		Assert.AreEqual( 0, third.ShadowMaps.Passes.Length );
+	} );
+
 	static void Prepare( RenderSystem system, RenderWorld world, RenderView view )
 	{
 		var stats = new RenderStats();

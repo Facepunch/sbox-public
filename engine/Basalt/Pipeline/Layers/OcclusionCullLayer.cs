@@ -96,8 +96,11 @@ internal sealed class OcclusionCullLayer : RenderLayer
 
 		debug?.Resolve( rc, current.Chain, frozen );
 
-		rc.BufferBarrier( culler.Stats, Compute, Write, Transfer, GpuAccess.TransferRead );
-		culler.ReadStats( rc );
+		if ( culler.StatsDue() )
+		{
+			rc.BufferBarrier( culler.Stats, Compute, Write, Transfer, GpuAccess.TransferRead );
+			culler.ReadStats( rc );
+		}
 		current = default;
 	}
 

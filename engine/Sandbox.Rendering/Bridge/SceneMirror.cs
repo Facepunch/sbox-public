@@ -14,9 +14,20 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 	readonly SceneWorld source;
 
 	/// <summary>
-	/// The mirrored world.
+	/// The mirrored world, or for an extra world the main world's it's drawn in.
 	/// </summary>
-	public RenderWorld World { get; } = new();
+	public RenderWorld World { get; }
+
+	/// <summary>
+	/// 0 for a main world's mirror. For an extra world's, the sub-world its objects have in <see cref="World"/> (another
+	/// mirror's), which only views drawing it show (<see cref="RenderView.SubWorlds"/>).
+	/// </summary>
+	public int SubWorld { get; }
+
+	/// <summary>
+	/// For a main world's mirror, the sub-worlds of <see cref="World"/> its extra worlds' mirrors hold, as bits.
+	/// </summary>
+	public ulong HostedSubWorlds { get; set; }
 
 	/// <summary>
 	/// Unsupported object counts by type, for comparison reports.
@@ -51,15 +62,82 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 	/// <summary>
 	/// Start mirroring a world: take over its change listener, and queue everything already in it.
 	/// </summary>
-	public SceneMirror( SceneWorld source )
+	public SceneMirror( SceneWorld source ) : this( source, new RenderWorld(), 0 )
+	{
+	}
+
+	/// <summary>
+	/// Start mirroring an extra world into <paramref name="host"/>, another mirror's world, as its sub-world
+	/// <paramref name="subWorld"/>: drawn in the same layers and depth by the views that show it, as native draws a camera's
+	/// extra worlds (<c>CCameraRenderer::CreateView</c>, <c>AddWorldToRenderList</c>).
+	/// </summary>
+	public SceneMirror( SceneWorld source, RenderWorld host, int subWorld )
 	{
 		this.source = source;
+		World = host;
+		SubWorld = subWorld;
 
 		lock ( source.InternalSceneObjects )
 		{
-			source.ChangeListener = this;
+			Listeners.Add( source, this );
 			foreach ( var sceneObject in source.InternalSceneObjects )
 				pending[sceneObject] = SceneObjectChange.Added;
+		}
+	}
+
+	/// <summary>
+	/// A world's change listener when more than one mirror listens: a world drawn by one camera and as another's extra world.
+	/// </summary>
+	sealed class Listeners : ISceneObjectListener
+	{
+		// Replaced, never changed, so changes from other threads can read it without a lock
+		volatile SceneMirror[] mirrors;
+
+		public void OnChanged( SceneObject sceneObject, SceneObjectChange change )
+		{
+			foreach ( var mirror in mirrors ) mirror.OnChanged( sceneObject, change );
+		}
+
+		/// <summary>
+		/// Listen to <paramref name="source"/>, with any mirror listening already.
+		/// </summary>
+		public static void Add( SceneWorld source, SceneMirror mirror )
+		{
+			switch ( source.ChangeListener )
+			{
+				case Listeners many:
+					many.mirrors = [.. many.mirrors, mirror];
+					break;
+
+				case SceneMirror one:
+					source.ChangeListener = new Listeners { mirrors = [one, mirror] };
+					break;
+
+				default:
+					source.ChangeListener = mirror;
+					break;
+			}
+		}
+
+		/// <summary>
+		/// Stop listening to <paramref name="source"/>, leaving any other mirror listening.
+		/// </summary>
+		public static void Remove( SceneWorld source, SceneMirror mirror )
+		{
+			lock ( source.InternalSceneObjects )
+			{
+				if ( source.ChangeListener == mirror )
+				{
+					source.ChangeListener = null;
+					return;
+				}
+
+				if ( source.ChangeListener is not Listeners many ) return;
+
+				var left = many.mirrors.Where( x => x != mirror ).ToArray();
+				if ( left.Length == 1 ) source.ChangeListener = left[0];
+				else many.mirrors = left;
+			}
 		}
 	}
 
@@ -81,11 +159,20 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 	readonly List<SceneObject> lingering = new();
 
 	/// <summary>
-	/// Stop listening, retaining the last mirrored state.
+	/// Stop listening. A main world's mirror keeps its last state; an extra world's takes its objects out of the world it was
+	/// drawn in.
 	/// </summary>
 	public void Dispose()
 	{
-		if ( source.ChangeListener == this ) source.ChangeListener = null;
+		Listeners.Remove( source, this );
+		if ( SubWorld == 0 ) return;
+
+		foreach ( var (_, obj) in objects )
+		{
+			if ( obj is not null ) World.Remove( obj );
+		}
+
+		objects.Clear();
 	}
 
 	/// <summary>
@@ -113,7 +200,9 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		applying.Clear();
 
 		SyncAttributes();
-		SyncLighting( camera, skyboxView );
+
+		// An extra world's objects are lit by the main world's sun, sky, probe volumes and fog, as native lights the view
+		if ( SubWorld == 0 ) SyncLighting( camera, skyboxView );
 	}
 
 	/// <summary>
@@ -254,8 +343,9 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 	/// </summary>
 	RenderObject Add( SceneObject sceneObject )
 	{
-		// Probe volumes belong to the world's lighting list, not its draw list.
-		if ( sceneObject is SceneLightProbe probe )
+		// Probe volumes belong to the world's lighting list, not its draw list. An extra world's aren't drawn: the list is the
+		// main world's, for every view of it
+		if ( sceneObject is SceneLightProbe probe && SubWorld == 0 )
 		{
 			var volume = new Basalt.LightProbeVolume();
 			lightProbes[probe] = volume;
@@ -284,7 +374,11 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 
 		objects[sceneObject] = obj;
 
-		if ( obj is not null ) World.Add( obj );
+		if ( obj is not null )
+		{
+			obj.SubWorld = SubWorld;
+			World.Add( obj );
+		}
 		else if ( sceneObject is SceneDirectionalLight sun ) suns.Add( sun );
 		else if ( sceneObject is not SceneSkyBox ) Count( sceneObject, 1 );
 

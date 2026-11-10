@@ -108,6 +108,11 @@ internal struct ShadowViewInfo
 	public uint[] RenderTags, ExcludeTags;
 
 	/// <summary>
+	/// The sub-worlds the view draws (<see cref="RenderView.SubWorlds"/>), whose casters its shadow views draw too.
+	/// </summary>
+	public ulong SubWorlds;
+
+	/// <summary>
 	/// A reflection view: no contact shadows, and its cascades fit a mirrored camera, so no other view may reuse them.
 	/// </summary>
 	public bool IsReflection;

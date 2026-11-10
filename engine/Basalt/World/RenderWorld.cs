@@ -8,6 +8,11 @@ public sealed class RenderWorld
 {
 	const int InitialCapacity = 64;
 
+	/// <summary>
+	/// How many sub-worlds a world can hold (<see cref="RenderObject.SubWorld"/>): one bit each of <see cref="RenderView.SubWorlds"/>.
+	/// </summary>
+	public const int MaxSubWorlds = 64;
+
 	RenderObject[] _objects = new RenderObject[InitialCapacity];
 	Vector3[] _boundsCenters = new Vector3[InitialCapacity];
 	Vector3[] _boundsExtents = new Vector3[InitialCapacity];
