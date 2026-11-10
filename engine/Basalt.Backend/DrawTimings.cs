@@ -12,6 +12,9 @@ public sealed class DrawTimings
 	/// <summary>Stopwatch ticks in binds and in the other draws.</summary>
 	public long BindTicks, DrawTicks;
 
+	/// <summary>Of the draws, multi-draws' draws in all (an aggregate's fragments).</summary>
+	public long IndirectDraws;
+
 	internal void Add( long ticks, bool bind, bool drawn )
 	{
 		if ( !drawn ) return;
@@ -37,5 +40,5 @@ public sealed class DrawTimings
 	public double NanosecondsPerDraw => Draws == 0 ? 0 : (BindTicks + DrawTicks) * 1e9 / System.Diagnostics.Stopwatch.Frequency / Draws;
 
 	/// <summary>Start counting again.</summary>
-	public void Reset() => Draws = Binds = BindTicks = DrawTicks = 0;
+	public void Reset() => Draws = Binds = BindTicks = DrawTicks = IndirectDraws = 0;
 }
