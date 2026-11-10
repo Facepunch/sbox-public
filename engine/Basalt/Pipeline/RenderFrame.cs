@@ -132,7 +132,7 @@ internal sealed class RenderFrame
 	/// </summary>
 	internal void SetViewConstants( GpuContext context )
 	{
-		Time = GpuContext.RenderTime;
+		Time = View.Time ?? GpuContext.RenderTime;
 		context.Attributes.Set( TimeAttribute, Time );
 		// The managed skybox is a child frame; AO and SSR belong to the main camera.
 		context.Attributes.Set( DisableScreenSpaceEffects, IsSkybox );
@@ -185,6 +185,18 @@ internal sealed class RenderFrame
 		perLayer.RandomFloats = randomFloats;
 		if ( key.ToneMapScalar >= 0 ) perLayer.ToneMapScalarLinear = key.ToneMapScalar;
 		rc.SetViewConstants( perLayer, key );
+	}
+
+	/// <summary>
+	/// The frame's constants with the view's near plane square to it (<see cref="RenderView.SquareViewToProjection"/>), for
+	/// compute that fits the view's volume, such as light clusters. <see cref="UseFrameConstants"/> puts the frame's back.
+	/// </summary>
+	internal void UseSquareConstants( GpuContext rc )
+	{
+		var square = new ViewConstants();
+		View.FillConstants( ref square, constantsKey.Viewport, constantsKey.TargetSize, Time, constantsKey.Samples, constantsKey.MinZ, constantsKey.MaxZ, square: true );
+		square.RandomFloats = randomFloats;
+		rc.SetViewConstants( square, null );
 	}
 
 	/// <summary>

@@ -85,7 +85,8 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		var view = main.View;
 		mapper.View = new ShadowViewInfo
 		{
-			ProjectionToView = view.ViewToProjection.Inverted,
+			// Cascades fit the view from its near plane, which an oblique projection leans along its clip plane
+			ProjectionToView = view.SquareViewToProjection.Inverted,
 			ViewToWorldRotation = view.WorldToViewRotation.Transpose(),
 			CameraPosition = view.Position,
 			ViewportSize = new Vector2( view.Viewport.Width, view.Viewport.Height ),

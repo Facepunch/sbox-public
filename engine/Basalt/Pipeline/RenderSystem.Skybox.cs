@@ -125,5 +125,13 @@ public sealed partial class RenderSystem
 		into.ToneMapScalar = main.ToneMapScalar;
 		into.Fog = sky.Fog ?? main.Fog;
 		into.SizeCullThreshold = 0;
+
+		// Native's template frustum takes the main view's clip-space bounds but not its projection override
+		// (UpdateFrustumFromViewSetup), and the skybox view the main view's ambient light, fog and render time
+		// (CRenderingPipelineStandard::Add3DSkyboxLayers)
+		into.ClipSpaceBounds = main.ClipSpaceBounds;
+		into.AmbientLight = main.AmbientLight;
+		into.GradientFog = main.GradientFog;
+		into.Time = main.Time;
 	}
 }

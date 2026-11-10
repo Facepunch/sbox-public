@@ -152,7 +152,7 @@ internal sealed partial class SceneLabWindow
 				target.InitializeRendering();
 				// Each renderer by name, whatever r_managed_scene says: these are the A/B
 				ISceneRenderer renderer = Renderer == RendererKind.Managed ? (gameBridge ??= new SceneBridge()) : SceneRenderer.Native;
-				renderer.RenderToTexture( target.SceneCamera, target.RenderTarget, target.RenderTarget.Size, default );
+				renderer.RenderToTexture( target.SceneCamera, target.RenderTarget, target.RenderTarget.Size, Scene.TargetSetup?.Invoke( target ) ?? default );
 			}
 
 			camera.InitializeRendering();

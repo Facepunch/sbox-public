@@ -170,18 +170,8 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 	{
 		if ( !camera.World.IsValid() ) return "a camera without a world";
 
-		// Not yet in Basalt: the reflection flag, oblique and custom projections, clip-space bounds and flipped output
-		// (planar reflections, water's refraction, VR's eyes)
+		// Not yet in Basalt: the reflection flag (planar reflections)
 		if ( setup.Reflection ) return "planar reflections";
-		if ( setup.ProjectionMatrix.HasValue || camera.CustomProjectionMatrix.HasValue ) return "custom projection matrices";
-		if ( setup.ClipSpaceBounds.HasValue ) return "clip-space bounds";
-		if ( setup.FlipX == true || setup.FlipY == true ) return "flipped output";
-
-		// Not yet in Basalt: per-view overrides of what the mirror reads from the world each sync
-		if ( setup.AmbientLightTint.HasValue || setup.AmbientLightAdd.HasValue ) return "per-view ambient light";
-		if ( setup.GradientFog.HasValue ) return "per-view gradient fog";
-		if ( setup.EnableLightModulators == false ) return "views without light modulators";
-		if ( setup.Time.HasValue ) return "a per-view render time";
 
 		return null;
 	}
@@ -275,6 +265,27 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 
 		view.RenderTags = Tokens( setup.RenderTags ?? camera.RenderTags, view.RenderTags );
 		view.ExcludeTags = Tokens( camera.ExcludeTags, setup.ExcludeTags, view.ExcludeTags );
+
+		// The projection: the view's or the camera's own, which replaces the clip-space bounds too
+		view.Projection = setup.ProjectionMatrix ?? camera.CustomProjectionMatrix;
+		view.ClipSpaceBounds = setup.ClipSpaceBounds ?? RenderView.FullClipSpace;
+
+		// The view's own ambient light, from the world's and the camera's, as CameraRenderer.Configure works it out: the world's
+		// lighting is shared by every view of it
+		var ambient = camera.AmbientLightColor;
+		if ( camera.World is { } world ) ambient += world.AmbientLightColor;
+		if ( setup.AmbientLightTint is Color tint ) ambient *= tint;
+		if ( setup.AmbientLightAdd is Color add ) ambient += add;
+		ambient.a = ambient.a.Clamp( 0.0f, 1.0f );
+		view.AmbientLight = ambient;
+
+		view.GradientFog = setup.GradientFog is { } gradientFog ? gradientFog.ToBasalt() : null;
+		view.LightModulators = setup.EnableLightModulators != false;
+		view.Time = setup.Time;
+
+		// Only a texture render's final copy is flipped (RenderPixels clears them for bitmaps)
+		view.FlipX = setup.FlipX == true;
+		view.FlipY = setup.FlipY == true;
 	}
 
 	/// <summary>
@@ -483,6 +494,9 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 	{
 		using var output = Texture.CreateRenderTarget().WithSize( size.x, size.y ).WithFormat( ImageFormat.RGBA8888 ).Create( "r_managed_scene bitmap" );
 		(mirror, state) = Prepare( camera, setup, size, updateExposure );
+
+		// Native flips a texture render's copy, never a bitmap's (CCameraRenderer::RenderToBitmap)
+		state.View.FlipX = state.View.FlipY = false;
 		msaa = ((RenderMultisampleType)CSceneSystem.GetMainSwapChainMultisampleType()).FromEngine();
 		state.System.Render( mirror.World, state.View, Source2Texture.From( output ), Source2Formats.Samples( msaa.ToEngine() ), state.Stages );
 		return output.GetPixels();

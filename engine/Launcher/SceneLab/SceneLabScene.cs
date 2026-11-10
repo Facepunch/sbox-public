@@ -35,6 +35,12 @@ internal sealed record SceneLabScene
 	public Action<Scene> Frame { get; init; }
 
 	/// <summary>
+	/// The view setup a <see cref="Game"/> scene's render target camera renders with, rather than none: for presets that
+	/// compare what a <see cref="Rendering.ViewSetup"/> does.
+	/// </summary>
+	public Func<CameraComponent, Rendering.ViewSetup> TargetSetup { get; init; }
+
+	/// <summary>
 	/// Whether a <see cref="Game"/> scene has finished loading - a map downloading, say. Captures count their frames from
 	/// when it's true.
 	/// </summary>
@@ -316,6 +322,9 @@ internal sealed record SceneLabScene
 		new() { Name = "Instanced Models", Group = "GameObject", Game = InstancedScene.Build, ChangeGame = InstancedScene.Change },
 		new() { Name = "Object Command Lists", Group = "GameObject", Game = ObjectCommandListScene.Build, ChangeGame = ObjectCommandListScene.Change, Isolated = true },
 		new() { Name = "Water Refraction", Group = "Effects", Game = WaterScene.Build, Isolated = true },
+		new() { Name = "View Projections", Group = "GameObject", Game = ViewSetupScenes.Projections, TargetSetup = ViewSetupScenes.ProjectionSetup, Isolated = true },
+		new() { Name = "View Oblique", Group = "GameObject", Game = ViewSetupScenes.Oblique, TargetSetup = ViewSetupScenes.ObliqueSetup, Isolated = true },
+		new() { Name = "View Overrides", Group = "GameObject", Game = ViewSetupScenes.Overrides, TargetSetup = ViewSetupScenes.OverrideSetup, Isolated = true },
 		new() { Name = "Terrain Ambient Occlusion", Group = "GameObject", Game = TerrainScenes.TerrainAmbientOcclusion, ChangeGame = TerrainScenes.ChangeTerrainAndClutter, Ready = TerrainScenes.ClutterReady, Isolated = true },
 		new() { Name = "Refraction", Group = "Effects", Game = GameScenes.Refraction, ChangeGame = GameScenes.ChangeRefraction },
 		new() { Name = "Viewmodel", Group = "Effects", Game = GameScenes.Viewmodel, ChangeGame = GameScenes.ChangeViewmodel },
