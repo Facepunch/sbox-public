@@ -26,17 +26,21 @@ public sealed class ContentFiles
 	}
 
 	/// <summary>
-	/// The game folder above <paramref name="start"/> (a repo checkout's <c>game/</c>), with its <c>core</c> folder; empty if none is found.
+	/// The game folder above <paramref name="start"/> (a repo checkout's <c>game/</c>): its <c>core</c> folder, then the
+	/// citizen addon's assets when they're there, as the engine mounts them into its core content; empty if none is found.
 	/// </summary>
 	public static ContentFiles FindGame( string start = null )
 	{
 		var directory = new DirectoryInfo( start ?? AppContext.BaseDirectory );
 		while ( directory is not null )
 		{
-			var core = Path.Combine( directory.FullName, "game", "core" );
-			if ( Directory.Exists( Path.Combine( core, "shaders" ) ) ) return new ContentFiles( core );
-			core = Path.Combine( directory.FullName, "core" );
-			if ( Directory.Exists( Path.Combine( core, "shaders" ) ) ) return new ContentFiles( core );
+			foreach ( var game in (string[])[Path.Combine( directory.FullName, "game" ), directory.FullName] )
+			{
+				var core = Path.Combine( game, "core" );
+				if ( !Directory.Exists( Path.Combine( core, "shaders" ) ) ) continue;
+				return new ContentFiles( core, Path.Combine( game, "addons", "citizen", "Assets" ) );
+			}
+
 			directory = directory.Parent;
 		}
 
