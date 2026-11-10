@@ -187,6 +187,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 
 				// A mixed light's static shadows are in its lightmaps, so its maps leave static casters out
 				Baked = light.Baked,
+				StaticChanges = world.StaticChanges,
 			};
 
 			lightBinner.SetShadowMapIndex( i, mapper.FindOrCreateShadowMaps( shadowLight, lightBinner.ScreenSize( i ) ) );

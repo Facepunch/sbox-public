@@ -45,6 +45,11 @@ internal struct ShadowLight
 	public bool Baked;
 
 	/// <summary>
+	/// Where the light's world has changed static casters, which its static cache must redraw for.
+	/// </summary>
+	public StaticCasterChanges StaticChanges;
+
+	/// <summary>
 	/// A light that doesn't move keeps its static casters in a cache, and only re-renders dynamic ones.
 	/// </summary>
 	public bool Static;

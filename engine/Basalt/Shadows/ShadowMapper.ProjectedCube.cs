@@ -102,6 +102,7 @@ internal partial class ShadowMapper
 			}
 
 			cacheEntry.StaticRenderedFrame = FrameCount;
+			cacheEntry.StaticRevision = light.StaticChanges?.Revision ?? 0;
 		}
 
 		bool useStaticCache = cacheEntry.StaticCache is not null;

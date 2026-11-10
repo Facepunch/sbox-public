@@ -174,6 +174,11 @@ internal partial class ShadowMapper
 		/// The frame <see cref="StaticCache"/> rendered in.
 		/// </summary>
 		public ulong StaticRenderedFrame;
+
+		/// <summary>
+		/// The world's <see cref="StaticCasterChanges.Revision"/> <see cref="StaticCache"/> is up to date with.
+		/// </summary>
+		public long StaticRevision;
 		public bool Scheduled;
 		internal GPUProjectedShadow Projected;
 		internal GPUProjectedCubeShadow Cube;
@@ -199,8 +204,8 @@ internal partial class ShadowMapper
 	static readonly List<LightEntry> Entries = new();
 
 	/// <summary>
-	/// Get or create the cache entry for a light, handling resolution changes and
-	/// dropping the static cache if the light moved.
+	/// Get or create the cache entry for a light, handling resolution changes and dropping the static cache if the light
+	/// moved or a static caster it reaches changed.
 	/// </summary>
 	static LightEntry GetOrCreateCacheEntry( in ShadowLight light, int desiredResolution, bool isCube, float flScreenSize )
 	{
@@ -250,6 +255,19 @@ internal partial class ShadowMapper
 			ReleaseTexture( entry.StaticCache, entry.CurrentResolution, entry.IsCube );
 			entry.StaticCache = null;
 			entry.RenderedFrame = 0;
+		}
+
+		// The static cache holds the static casters as they were drawn: a change within the light's reach redraws it
+		if ( entry.StaticCache is not null && light.StaticChanges is { } changes && entry.StaticRevision != changes.Revision )
+		{
+			if ( changes.Touches( entry.StaticRevision, light.Position, light.Radius ) )
+			{
+				ReleaseTexture( entry.StaticCache, entry.CurrentResolution, entry.IsCube );
+				entry.StaticCache = null;
+				entry.RenderedFrame = 0;
+			}
+
+			entry.StaticRevision = changes.Revision;
 		}
 
 		return entry;

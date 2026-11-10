@@ -90,6 +90,7 @@ internal partial class ShadowMapper
 			staticView.StaticFilter = StaticFilter.OnlyStatic;
 			Renderer.RenderShadowView( staticView );
 			cacheEntry.StaticRenderedFrame = FrameCount;
+			cacheEntry.StaticRevision = light.StaticChanges?.Revision ?? 0;
 		}
 
 		bool useStaticCache = cacheEntry.StaticCache is not null;
