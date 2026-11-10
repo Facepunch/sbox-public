@@ -188,6 +188,7 @@ internal enum VkDescriptorType
 	StorageImage = 3,
 	UniformBuffer = 6,
 	StorageBuffer = 7,
+	UniformBufferDynamic = 8,
 }
 
 internal enum VkPresentMode

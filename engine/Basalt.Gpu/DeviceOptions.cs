@@ -126,6 +126,9 @@ public sealed class DeviceCapabilities
 	/// <summary>Constant buffer offsets must be multiples of this.</summary>
 	public int UniformAlignment { get; init; }
 
+	/// <summary>How many <see cref="BindingType.UniformBufferDynamic"/> bindings a pipeline layout may have, over all its sets.</summary>
+	public int MaxDynamicUniformBuffers { get; init; }
+
 	/// <summary>Storage buffer offsets must be multiples of this.</summary>
 	public int StorageAlignment { get; init; }
 

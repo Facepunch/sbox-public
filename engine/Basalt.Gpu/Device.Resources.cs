@@ -558,6 +558,7 @@ public sealed unsafe partial class Device
 		BindingType.StorageBuffer => VkDescriptorType.StorageBuffer,
 		BindingType.SampledTexture => VkDescriptorType.SampledImage,
 		BindingType.StorageTexture => VkDescriptorType.StorageImage,
+		BindingType.UniformBufferDynamic => VkDescriptorType.UniformBufferDynamic,
 		_ => VkDescriptorType.Sampler,
 	};
 
@@ -996,6 +997,7 @@ public sealed unsafe partial class Device
 
 	void DestroyAllResources()
 	{
+		DestroyBindingSetPools();
 		foreach ( var record in Pipelines.All() ) Vk.vkDestroyPipeline( Vk.Device, record.Pipeline, null );
 		foreach ( var record in Shaders.All() ) Vk.vkDestroyShaderModule( Vk.Device, record.Module, null );
 		foreach ( var record in Layouts.All() ) Vk.vkDestroyDescriptorSetLayout( Vk.Device, record.SetLayout, null );
