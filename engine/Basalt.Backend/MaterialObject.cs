@@ -1,4 +1,5 @@
 using System.Linq;
+using System.Runtime.CompilerServices;
 using Basalt.Gpu;
 using Basalt.Source2.Shaders;
 
@@ -27,6 +28,66 @@ internal sealed class MaterialLayout
 	/// <summary>The material constants each stage reads from attributes (other than the draw's tangent format).</summary>
 	public readonly (ShaderStage Stage, ShaderVariable[] Variables)[] AttributeConstants;
 
+	/// <summary>Per set, the bindings the pass fills (constant buffers, buffers and textures named by attributes).</summary>
+	public readonly int[][] PassSlots = new int[ShaderAbi.BindlessSet][];
+
+	/// <summary>
+	/// What the pass bound for this layout in one pass state, resolved once and shared by every object of the layout.
+	/// </summary>
+	public sealed class PassState
+	{
+		public long Epoch = -1;
+		public readonly ulong[] Identity = new ulong[ShaderAbi.BindlessSet];
+		public readonly Binding[][] Bindings = new Binding[ShaderAbi.BindlessSet][];
+		public readonly uint[][] Offsets = new uint[ShaderAbi.BindlessSet][];
+		public ulong Constants;
+	}
+
+	/// <summary>Shared by every layout whose pass bindings are the same (materials of one shader and features).</summary>
+	readonly PassState pass;
+
+	/// <summary>The pass's bindings for this layout in pass state <paramref name="epoch"/>.</summary>
+	public PassState Pass( long epoch, BackendContext.PassResolver resolver )
+	{
+		if ( pass.Epoch == epoch ) return pass;
+		pass.Epoch = epoch;
+
+		for ( int set = 0; set < Sets.Length; set++ )
+		{
+			var slots = PassSlots[set];
+			if ( slots is null ) continue;
+
+			var bindings = pass.Bindings[set] ??= new Binding[slots.Length];
+			var offsets = pass.Offsets[set] ??= new uint[DynamicCount[set]];
+			var identity = 14695981039346656037UL;
+			for ( int k = 0; k < slots.Length; k++ )
+			{
+				var i = slots[k];
+				var dynamic = DynamicIndex[set][i];
+				bindings[k] = resolver.Resolve( Resources[set][i], StageOf( set ), dynamic >= 0, out var dynamicOffset );
+				if ( dynamic >= 0 ) offsets[dynamic] = dynamicOffset;
+				identity = MaterialObject.Mix( identity, bindings[k] );
+			}
+
+			pass.Identity[set] = identity;
+		}
+
+		// The values of the material constants read from attributes, which pick the object's constant buffer
+		var constants = 14695981039346656037UL;
+		foreach ( var (_, variables) in AttributeConstants )
+		{
+			foreach ( var variable in variables )
+			{
+				var values = resolver.Floats( variable.Attribute );
+				if ( values is null ) constants = (constants ^ 0xFFFF) * 1099511628211UL;
+				else foreach ( var v in values ) constants = (constants ^ BitConverter.SingleToUInt32Bits( v )) * 1099511628211UL;
+			}
+		}
+
+		pass.Constants = constants;
+		return pass;
+	}
+
 	public MaterialLayout( MaterialObjectCache cache, ShaderVariant variant )
 	{
 		Variant = variant;
@@ -54,6 +115,8 @@ internal sealed class MaterialLayout
 
 			Resources[set] = [.. resources];
 			DynamicIndex[set] = [.. dynamicIndex];
+			PassSlots[set] = [.. Enumerable.Range( 0, resources.Count ).Where( i => resources[i].Kind is ShaderResourceKind.ConstantBuffer or ShaderResourceKind.Buffer
+				|| (resources[i].Kind == ShaderResourceKind.Texture && resources[i].Variable.Source != VariableSource.Material) )];
 			Sets[set] = cache.Layout( slots );
 		}
 
@@ -71,6 +134,33 @@ internal sealed class MaterialLayout
 		}
 
 		AttributeConstants = [.. attributeConstants];
+
+		// Layouts that bind the same pass resources the same way resolve them once per pass state between them
+		var signature = new System.Text.StringBuilder();
+		for ( int set = 0; set < Sets.Length; set++ )
+		{
+			if ( PassSlots[set] is not { } slots ) continue;
+			signature.Append( set ).Append( ':' ).Append( Sets[set].Index ).Append( ';' );
+			foreach ( var i in slots )
+			{
+				var r = Resources[set][i];
+				signature.Append( r.Name ).Append( '/' ).Append( (int)r.Kind ).Append( '/' ).Append( (int)r.Dimension ).Append( '/' ).Append( r.Variable?.RenderStateId ?? 0 ).Append( '/' ).Append( DynamicIndex[set][i] ).Append( '/' ).Append( r.Binding ).Append( ';' );
+				if ( r.Kind == ShaderResourceKind.ConstantBuffer )
+				{
+					foreach ( var layout in StageOf( set ).Program.ConstantBuffers )
+					{
+						if ( layout.Name == r.Name ) signature.Append( layout.Size ).Append( ';' );
+					}
+				}
+			}
+		}
+
+		foreach ( var (_, variables) in AttributeConstants )
+		{
+			foreach ( var v in variables ) signature.Append( v.Attribute ).Append( ',' );
+		}
+
+		pass = cache.SharedPassState( signature.ToString() );
 	}
 
 	/// <summary>The stage whose material constants a set holds, as <see cref="BackendContext"/> binds them.</summary>
@@ -96,12 +186,11 @@ internal sealed class MaterialObject
 	/// <summary>Per set, the bindings that never change for this object (pass bindings left default until resolved).</summary>
 	readonly Binding[][] template = new Binding[ShaderAbi.BindlessSet][];
 
-	/// <summary>Per set, which of its bindings come from the pass (attributes), and which is the material constant buffer.</summary>
-	readonly int[][] passSlots = new int[ShaderAbi.BindlessSet][];
+	/// <summary>Per set, which binding is the material constant buffer.</summary>
 	readonly int[] materialSlot = [-1, -1, -1, -1];
 
 	/// <summary>The material constant buffer's offset (in the cache's material buffer) per value of the attribute constants.</summary>
-	readonly Dictionary<ConstantKey, int> constantVariants = new();
+	readonly Dictionary<ulong, int> constantVariants = new();
 	readonly int[] constantSize = new int[ShaderAbi.BindlessSet];
 
 	/// <summary>Persistent sets per set index, by a hash of what the pass bound in them.</summary>
@@ -111,6 +200,12 @@ internal sealed class MaterialObject
 	long epoch = -1;
 	readonly BindingSetHandle[] boundSets = new BindingSetHandle[ShaderAbi.BindlessSet];
 	readonly uint[][] offsets = new uint[ShaderAbi.BindlessSet][];
+	static readonly uint[] noOffsets = [];
+	readonly ulong[] lastIdentity = new ulong[ShaderAbi.BindlessSet];
+	readonly BindingSetHandle[] lastSets = new BindingSetHandle[ShaderAbi.BindlessSet];
+	ulong lastConstantsKey;
+	long[] lastConstants;
+	[ThreadStatic] static Binding[] scratch;
 
 	/// <summary>Sets written so far, for the benchmark and tests.</summary>
 	public int SetsWritten { get; private set; }
@@ -131,7 +226,6 @@ internal sealed class MaterialObject
 			if ( resources is null ) continue;
 
 			var bindings = new Binding[resources.Length];
-			var pass = new List<int>();
 			for ( int i = 0; i < resources.Length; i++ )
 			{
 				ref readonly var resource = ref resources[i];
@@ -145,7 +239,6 @@ internal sealed class MaterialObject
 
 					case ShaderResourceKind.ConstantBuffer:
 					case ShaderResourceKind.Buffer:
-						pass.Add( i );
 						break;
 
 					case ShaderResourceKind.Texture when resource.Variable.Source == VariableSource.Material:
@@ -153,7 +246,6 @@ internal sealed class MaterialObject
 						break;
 
 					case ShaderResourceKind.Texture:
-						pass.Add( i );
 						break;
 
 					default:
@@ -163,8 +255,7 @@ internal sealed class MaterialObject
 			}
 
 			template[set] = bindings;
-			passSlots[set] = [.. pass];
-			offsets[set] = new uint[layout.DynamicCount[set]];
+			offsets[set] = noOffsets;
 		}
 	}
 
@@ -195,11 +286,11 @@ internal sealed class MaterialObject
 		}
 	}
 
-	void Resolve( long passEpoch, BackendContext.PassResolver pass )
+	void Resolve( long passEpoch, BackendContext.PassResolver resolver )
 	{
 		epoch = passEpoch;
-		var constants = ConstantVariant( pass );
-		Span<Binding> bindings = stackalloc Binding[64];
+		var pass = Layout.Pass( passEpoch, resolver );
+		var constants = ConstantVariant( pass.Constants, resolver );
 
 		for ( int set = 0; set < template.Length; set++ )
 		{
@@ -207,41 +298,39 @@ internal sealed class MaterialObject
 			var resources = Layout.Resources[set];
 			if ( resources is null || (set == ShaderAbi.FragmentSet && DepthOnly) ) continue;
 
-			var count = resources.Length;
-			template[set].CopyTo( bindings );
-			var setOffsets = offsets[set];
-			setOffsets.AsSpan().Clear();
+			// Identity: what the pass bound, as handles, and which constant buffer variant; dynamic offsets are given at bind time
+			var identity = pass.Identity[set];
+			if ( materialSlot[set] >= 0 ) identity = (identity ^ (ulong)constants[set]) * 1099511628211UL;
+			offsets[set] = pass.Offsets[set] ?? noOffsets;
 
-			// Identity: what the pass bound, as handles; offsets of dynamic buffers are left out, they're given at bind time
-			var identity = 14695981039346656037UL;
-			foreach ( var i in passSlots[set] )
+			// The set this object bound last time, if the pass bound the same: the usual case from frame to frame
+			if ( lastIdentity[set] == identity && lastSets[set].IsValid )
 			{
-				var dynamic = Layout.DynamicIndex[set][i] >= 0;
-				bindings[i] = pass.Resolve( resources[i], Layout.StageOf( set ), dynamic, out var dynamicOffset );
-				if ( dynamic ) offsets[set][Layout.DynamicIndex[set][i]] = dynamicOffset;
-				identity = Mix( identity, bindings[i] );
-			}
-
-			// The material's constants: the variant for the attribute constants' values, which is part of the set's identity
-			if ( materialSlot[set] >= 0 )
-			{
-				bindings[materialSlot[set]].Offset = constants[set];
-				identity = Mix( identity, bindings[materialSlot[set]] );
+				boundSets[set] = lastSets[set];
+				continue;
 			}
 
 			if ( !sets.TryGetValue( (set, identity), out var handle ) )
 			{
-				handle = cache.Device.Gpu.CreateBindingSet( Layout.Sets[set], bindings[..count] );
+				var bindings = (scratch ??= new Binding[128]).AsSpan( 0, resources.Length );
+				template[set].CopyTo( bindings );
+				var slots = Layout.PassSlots[set];
+				for ( int k = 0; k < slots.Length; k++ ) bindings[slots[k]] = pass.Bindings[set][k];
+				if ( materialSlot[set] >= 0 ) bindings[materialSlot[set]].Offset = constants[set];
+
+				handle = cache.Device.Gpu.CreateBindingSet( Layout.Sets[set], bindings );
 				sets[(set, identity)] = handle;
 				SetsWritten++;
 				cache.SetsWritten++;
 			}
 
 			boundSets[set] = handle;
+			lastSets[set] = handle;
+			lastIdentity[set] = identity;
 		}
 	}
 
-	static ulong Mix( ulong hash, in Binding binding )
+	internal static ulong Mix( ulong hash, in Binding binding )
 	{
 		hash = (hash ^ (ulong)binding.Type) * 1099511628211UL;
 		hash = (hash ^ binding.Buffer.Index ^ ((ulong)binding.Buffer.Generation << 32)) * 1099511628211UL;
@@ -255,14 +344,15 @@ internal sealed class MaterialObject
 	/// The material constant buffers' offsets for the attribute constants' current values: filled and kept the first time
 	/// each value is seen.
 	/// </summary>
-	long[] ConstantVariant( BackendContext.PassResolver pass )
+	long[] ConstantVariant( ulong key, BackendContext.PassResolver pass )
 	{
-		var key = default( ConstantKey );
-		foreach ( var (_, variables) in Layout.AttributeConstants )
-		{
-			foreach ( var variable in variables ) key = key.Add( pass.Floats( variable.Attribute ) );
-		}
+		if ( lastConstants is not null && key == lastConstantsKey ) return lastConstants;
+		lastConstantsKey = key;
+		return lastConstants = FindConstantVariant( key, pass );
+	}
 
+	long[] FindConstantVariant( ulong key, BackendContext.PassResolver pass )
+	{
 		if ( !constantVariants.TryGetValue( key, out var index ) )
 		{
 			var result = new long[template.Length];
@@ -297,18 +387,6 @@ internal sealed class MaterialObject
 		foreach ( var handle in sets.Values ) cache.Device.Gpu.Destroy( handle );
 		sets.Clear();
 	}
-
-	/// <summary>A small hash of the attribute constants' values.</summary>
-	readonly record struct ConstantKey( ulong Hash, int Count )
-	{
-		public ConstantKey Add( float[] values )
-		{
-			var hash = Hash == 0 ? 14695981039346656037UL : Hash;
-			if ( values is null ) return new ConstantKey( (hash ^ 0xFFFF) * 1099511628211UL, Count + 1 );
-			foreach ( var v in values ) hash = (hash ^ BitConverter.SingleToUInt32Bits( v )) * 1099511628211UL;
-			return new ConstantKey( hash, Count + 1 );
-		}
-	}
 }
 
 /// <summary>
@@ -321,7 +399,7 @@ internal sealed class MaterialObjectCache : IDisposable
 	public readonly BackendDevice Device;
 	readonly Dictionary<string, BindingLayoutHandle> layouts = new();
 	readonly Dictionary<ShaderVariant, MaterialLayout> variantLayouts = new( ReferenceEqualityComparer.Instance );
-	readonly Dictionary<Key, MaterialObject> objects = new();
+	readonly Dictionary<Key, MaterialObject> objects = new( new KeyComparer() );
 
 	/// <summary>Material constants, written once per object and attribute value; bound with dynamic offsets.</summary>
 	public readonly BufferHandle MaterialBuffer;
@@ -336,6 +414,14 @@ internal sealed class MaterialObjectCache : IDisposable
 
 	readonly int alignment;
 	long epochs;
+	readonly Dictionary<string, MaterialLayout.PassState> passStates = new();
+
+	/// <summary>The pass state shared by layouts with this signature.</summary>
+	internal MaterialLayout.PassState SharedPassState( string signature )
+	{
+		if ( passStates.TryGetValue( signature, out var state ) ) return state;
+		return passStates[signature] = new MaterialLayout.PassState();
+	}
 
 	/// <summary>Descriptor sets written, for the benchmark and tests.</summary>
 	public int SetsWritten { get; set; }
@@ -364,7 +450,20 @@ internal sealed class MaterialObjectCache : IDisposable
 		return layouts[key] = Device.Gpu.CreateBindingLayout( [.. slots] );
 	}
 
-	internal readonly record struct Key( BackendMaterial Material, ShaderVariant Variant, VertexLayout Layout, Format Color, Format Depth, int Samples, bool DepthOnly, bool UncompressedTangentFrame );
+	internal readonly record struct Key( BackendMaterial Material, ShaderVariant Variant, VertexLayout Layout, Format Color, Format Depth, int Samples, bool DepthOnly, bool UncompressedTangentFrame )
+	{
+		/// <summary>Equal by reference for the material, variant and layout (layouts are made once each).</summary>
+		public bool Same( in Key other ) => ReferenceEquals( Material, other.Material ) && ReferenceEquals( Variant, other.Variant ) && ReferenceEquals( Layout, other.Layout )
+			&& Color == other.Color && Depth == other.Depth && Samples == other.Samples && DepthOnly == other.DepthOnly && UncompressedTangentFrame == other.UncompressedTangentFrame;
+	}
+
+	sealed class KeyComparer : IEqualityComparer<Key>
+	{
+		public bool Equals( Key a, Key b ) => a.Same( b );
+
+		public int GetHashCode( Key k ) => HashCode.Combine( RuntimeHelpers.GetHashCode( k.Material ), RuntimeHelpers.GetHashCode( k.Variant ), RuntimeHelpers.GetHashCode( k.Layout ),
+			(int)k.Color, (int)k.Depth, k.Samples, k.DepthOnly, k.UncompressedTangentFrame );
+	}
 
 	/// <summary>The object for a material drawn this way, made the first time.</summary>
 	public MaterialObject Get( in Key key )

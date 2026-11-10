@@ -54,6 +54,12 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// <summary>Drop a material's objects after its values changed; they're made again when it next draws.</summary>
 	public void InvalidateMaterial( GpuMaterial material ) => materialCache?.Invalidate( material );
 
+	/// <summary>Time every model draw's binding and recording into <see cref="DrawTimes"/>, for benchmarks.</summary>
+	public bool TimeDraws { get; set; }
+
+	/// <summary>Model draws timed with <see cref="TimeDraws"/> on.</summary>
+	public DrawTimings DrawTimes { get; } = new();
+
 	readonly BackendTexture black;
 	readonly BackendTexture sheetMetadata;
 
