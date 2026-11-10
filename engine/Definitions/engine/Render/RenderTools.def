@@ -50,6 +50,7 @@ native static class RenderTools as NativeEngine.RenderTools
 	int GetAggregateFragments( CSceneObject sceneObject, void* pOut, int nMaxFragments );
 	int GetMaterialBindSize();
 	void ResetMaterialBind( void* pBind );
+	void KeepMaterialBindForAttributes( void* pBind, CRenderAttributes drawAttributes, CRenderAttributes objectAttributes, CRenderAttributes lightmap );
 	void GetMaterialBindCounts( void* pBind, CastTo[int*] void* pFull, CastTo[int*] void* pSimilar );
 	ulong GetMaterialSimilarityKey( IMaterial material );
 	int PackSceneLight( CSceneLightObject light, void* pOut, CastTo[int*] void* pBakeLightIndex );

@@ -358,12 +358,22 @@ internal sealed class Source2Context : GpuContext
 	{
 		// Shared attributes preserve the material bind (CBaseSceneObjectDesc::DrawArray).
 		if ( mergedValid && ReferenceEquals( objectAttributes, mergedObject ) && ReferenceEquals( lightmap, mergedLightmap ) ) return;
+
+		// Changed attributes may alter combos or state, unless the bound material reads none of them: then it stays bound, as most
+		// materials' depth passes do over objects' attributes of their own
+		if ( mergedValid && materialBind != IntPtr.Zero )
+		{
+			RenderTools.KeepMaterialBindForAttributes( materialBind, drawAttributes, objectAttributes is null ? default : objectAttributes.Engine().Get(),
+				lightmap is null ? default : lightmap.Engine().Get() );
+		}
+		else
+		{
+			ResetMaterialBind();
+		}
+
 		mergedObject = objectAttributes;
 		mergedLightmap = lightmap;
 		mergedValid = true;
-
-		// Changed attributes may alter combos or state.
-		ResetMaterialBind();
 
 		if ( drawAttributesMerged )
 		{
