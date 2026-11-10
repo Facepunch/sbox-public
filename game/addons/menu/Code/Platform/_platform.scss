@@ -521,6 +521,73 @@ $platform-side-balance: 276px;
 	}
 }
 
+// A popup's list of choices (.button or .option each) - a dropdown's, a right-click menu's: the open dropdown's fill, its choices in the buttons'
+// type, lit under the pointer, the one picked the dock's light blue with dark words on it as a toggle that's on
+@mixin platform-popup-list
+{
+	padding: 4px;
+	gap: 2px;
+	border: 0px solid transparent;
+	background-color: $platform-dropdown-open;
+	box-shadow: 0 16px 40px rgba( 0, 0, 0, 0.6 );
+
+	> .button, > .option
+	{
+		flex-direction: row;
+		align-items: center;
+		justify-content: flex-start;
+		flex-shrink: 0;
+		// At least a line tall, taller when a long choice wraps
+		min-height: 30px;
+		padding: 6px 8px;
+		gap: 8px;
+		border: 0px solid transparent;
+		border-radius: $platform-radius;
+		background-color: transparent;
+		font-size: 13.5px;
+		font-weight: 600;
+		color: $platform-muted;
+		cursor: pointer;
+		@include platform-sounds;
+
+		> .icon, > iconpanel
+		{
+			width: 18px;
+			flex-shrink: 0;
+			font-size: 16px;
+			color: $platform-icon;
+		}
+
+		.button-right-column
+		{
+			min-width: 0;
+			flex-grow: 1;
+		}
+
+		.button-text
+		{
+			text-align: left;
+		}
+
+		&:hover, &:focus
+		{
+			background-color: $platform-button-hover;
+			color: $platform-text;
+		}
+
+		&.active
+		{
+			background-color: $platform-selected;
+			color: $platform-selected-text;
+
+			> .icon, > iconpanel
+			{
+				color: $platform-selected-text;
+			}
+		}
+	}
+}
+
 // A line to know, over what it's about - a soft wash of its colour, the glyph in it and the words after. The glyph's
 // blue by default; $color for a warning or a problem (words in it too)
 @mixin platform-notice( $color: $platform-icon, $words: $platform-text )

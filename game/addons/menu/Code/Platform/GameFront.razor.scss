@@ -301,7 +301,8 @@ GameFront
 			align-self: stretch;
 			width: 900px;
 			max-width: 64%;
-			max-height: none;
+			// Its own cap lifted - "none" isn't a value the engine takes
+			max-height: 100%;
 			margin-bottom: -56px;
 		}
 	}

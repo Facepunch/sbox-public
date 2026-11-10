@@ -1,11 +1,11 @@
 @import "/Platform/_platform.scss";
 
+// A right-click menu - the platform's popup list (platform-popup-list), a press anywhere off it (.background) shutting it
 menupanel
 {
     position: absolute;
     z-index: 1000;
     pointer-events: all;
-    font-size: 12px;
     flex-shrink: 0;
 
     .background
@@ -20,57 +20,23 @@ menupanel
     > .inner
     {
         @include platform-surface;
+        @include platform-popup-list;
         min-width: 200px;
-        min-height: 20px;
-        font-weight: bold;
         flex-shrink: 0;
+        border-radius: 8px;
+        backdrop-filter: none;
 
         .spacer
         {
+            flex-shrink: 0;
             height: 1px;
+            margin: 2px 6px;
             background-color: $platform-hairline;
         }
 
-        .option
+        .option .icon
         {
-            color: $platform-muted;
-            padding: 0px 8px;
-            cursor: pointer;
-            flex-shrink: 0;
-            height: 32px;
-
-            &:first-child
-            {
-                border-top-left-radius: 6px;
-                border-top-right-radius: 6px;
-            }
-
-            &:last-child
-            {
-                border-bottom-left-radius: 6px;
-                border-bottom-right-radius: 6px;
-            }
-
-            .icon
-            {
-                padding: 8px;
-                font-family: Material Icons;
-                justify-content: center;
-                align-items: center;
-                flex-shrink: 0;
-            }
-
-            .text
-            {
-                padding: 8px;
-                flex-shrink: 0;
-            }
-
-            &:hover
-            {
-                background-color: $platform-primary;
-                color: $platform-primary-text;
-            }
+            font-family: "Material Icons";
         }
     }
 }

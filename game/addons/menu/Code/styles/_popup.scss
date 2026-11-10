@@ -5,65 +5,11 @@
 .popup-panel.below-stretch.flat-top
 {
 	@include platform-surface;
+	@include platform-popup-list;
 	// Placed by the engine, over the page
 	position: absolute;
 	flex-shrink: 0;
-	padding: 4px;
-	gap: 2px;
-	border: 0px solid transparent;
 	border-radius: 0px 0px $platform-radius $platform-radius;
-	background-color: $platform-dropdown-open;
 	backdrop-filter: none;
-	box-shadow: 0 16px 40px rgba( 0, 0, 0, 0.6 );
 	overflow-y: scroll;
-
-	> .button
-	{
-		flex-direction: row;
-		align-items: center;
-		justify-content: flex-start;
-		flex-shrink: 0;
-		// At least a line tall, taller when a long choice wraps
-		min-height: 30px;
-		padding: 6px 8px;
-		gap: 8px;
-		border: 0px solid transparent;
-		border-radius: 3px;
-		background-color: transparent;
-		font-size: 13.5px;
-		font-weight: 600;
-		color: $platform-muted;
-		cursor: pointer;
-
-		> .icon
-		{
-			width: 18px;
-			flex-shrink: 0;
-			font-size: 16px;
-		}
-
-		.button-right-column
-		{
-			min-width: 0;
-			flex-grow: 1;
-		}
-
-		.button-text
-		{
-			text-align: left;
-		}
-
-		&:hover, &:focus
-		{
-			background-color: $platform-button-hover;
-			color: $platform-text;
-		}
-
-		&.active
-		{
-			background-color: $platform-primary;
-			background-image: $platform-sheen-on;
-			color: $platform-selected-text;
-		}
-	}
 }

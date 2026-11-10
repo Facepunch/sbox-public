@@ -127,22 +127,23 @@
 
                 <div class="about">
                     <label class="server-name">@picked.Name</label>
+                    <label class="where">@WhereText( picked )</label>
 
-                    <div class="chips">
-                        <div class="chip" tooltip="Players"><i>group</i><label>@($"{picked.Members} / {picked.MaxMembers}")</label></div>
-                        <div class="chip ping @MenuHelpers.PingClass( picked.Ping )" tooltip="Ping">
+                    @* What else there is to know - plain, a glyph and its words each *@
+                    <div class="facts">
+                        <div class="fact"><i>group</i><label>@($"{picked.Members} / {picked.MaxMembers}")</label></div>
+                        <div class="fact ping @MenuHelpers.PingClass( picked.Ping )">
                             <div class="ping-bars">@for ( var i = 0; i < 4; i++ ) { <div class="bar @(i < PingBars( picked ) ? "on" : "")"></div> }</div>
                             <label>@PingText( picked )</label>
                         </div>
 
                         @if ( IsDedicated( picked ) )
                         {
-                            <div class="chip"><i>dns</i><label>Dedicated server</label></div>
+                            <div class="fact"><i>dns</i><label>Dedicated</label></div>
                         }
                         else if ( HostName( picked ) is { } host )
                         {
-                            <div class="chip host @(HostIsFriend( picked ) ? "friend" : "")" tooltip="@(HostIsFriend( picked ) ? "Hosted by your friend" : "Hosted by")">
-                                <i>home</i>
+                            <div class="fact host @(HostIsFriend( picked ) ? "friend" : "")">
                                 <div class="avatar" style="background-image: url( avatar:@picked.OwnerId );"></div>
                                 <label>@host</label>
                             </div>
@@ -150,22 +151,20 @@
 
                         @if ( FriendsOn( picked ) is { Count: > 0 } friends )
                         {
-                            <div class="chip faces" tooltip="@($"Friends playing: {string.Join( ", ", friends.Select( x => x.Name ) )}")">
-                                <i>favorite</i>
-                                @foreach ( var friend in friends.Take( 6 ) )
+                            <div class="fact friend">
+                                @foreach ( var friend in friends.Take( 4 ) )
                                 {
-                                    <div class="face" style="background-image: url( avatar:@friend.Id );"></div>
+                                    <div class="avatar" style="background-image: url( avatar:@friend.Id );"></div>
                                 }
+                                <label>@FriendsText( friends.Count )</label>
                             </div>
                         }
 
                         @if ( picked.IsPasswordProtected )
                         {
-                            <div class="chip" tooltip="Needs a password"><i>lock</i><label>Locked</label></div>
+                            <div class="fact"><i>lock</i><label>Password</label></div>
                         }
                     </div>
-
-                    @* Why it can't be joined, said rather than left to a tooltip *@
                 </div>
 
                 <div class="join @(WhyNotJoin( picked ) is null ? "" : "disabled")" tooltip="@(WhyNotJoin( picked ) ?? "")" onclick=@( () => Join( picked ) )>
@@ -284,6 +283,17 @@
     static string OutdatedReason( LobbyInformation server ) => server.IsNewerVersion
         ? "It's on a newer version of s&box than yours - restart Steam to update, then you can join"
         : "It's on an older version of s&box - it can be joined once it's updated";
+
+    /// <summary>
+    /// Its map, and its game where the list's every game's
+    /// </summary>
+    string WhereText( LobbyInformation server )
+    {
+        var map = string.IsNullOrEmpty( server.Map ) ? "No map" : MenuHelpers.CachedTitle( server.Map );
+        return ShowGame ? $"{MenuHelpers.CachedTitle( server.Game )} · {map}" : map;
+    }
+
+    static string FriendsText( int count ) => count == 1 ? "1 friend" : $"{count} friends";
 
     static List<Friend> FriendsOn( LobbyInformation server ) => MenuHelpers.FriendsPlaying.ByLobby.GetValueOrDefault( server.LobbyId ) ?? [];
 
