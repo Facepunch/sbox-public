@@ -153,8 +153,8 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry
 	/// </summary>
 	public static RenderMesh Load( BackendDevice device, string path, ulong? meshGroups = null, int materialGroup = 0 )
 	{
-		if ( device.Content.Find( path ) is null ) return null;
-		return Create( device, ModelFile.Load( device.Content, path ), meshGroups, materialGroup );
+		if ( device.Content.TryRead( path ) is not { } data ) return null;
+		return Create( device, ModelFile.Read( data, device.Content.TryRead ), meshGroups, materialGroup );
 	}
 
 	/// <summary>Make the mesh Basalt draws from a model already read (see <see cref="Load"/>).</summary>

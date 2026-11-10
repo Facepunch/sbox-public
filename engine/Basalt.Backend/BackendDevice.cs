@@ -76,7 +76,7 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 		}
 
 		if ( loaded is not BackendMaterial material ) return false;
-		var file = Content.Find( path ) is { } found ? MaterialFile.Load( found ) : null;
+		var file = Content.TryRead( path ) is { } data ? MaterialFile.Read( data ) : null;
 		material.Reload( file is null ? null : Shaders.Load( file.Shader ), file, file is null ? null : Textures( file ) );
 		return true;
 	}
@@ -212,10 +212,11 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 
 	BackendTexture Load( string path )
 	{
-		var file = Content.Find( path );
-		if ( file is null ) return null;
+		// From the content's folders or packages (a map's VPK)
+		var data = Content.TryRead( path );
+		if ( data is null ) return null;
 
-		var texture = TextureFile.Load( file );
+		var texture = TextureFile.Read( data );
 		if ( texture.Format == Format.Unknown ) return null;
 
 		var desc = new TextureDesc
@@ -318,7 +319,7 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 
 	BackendMaterial Material( string path, Dictionary<string, float[]> values, string name = null )
 	{
-		var file = Content.Find( path ) is { } found ? MaterialFile.Load( found ) : null;
+		var file = Content.TryRead( path ) is { } data ? MaterialFile.Read( data ) : null;
 		if ( file is null ) return Track( new BackendMaterial( name ?? path, null, null, null, values ) );
 		return Track( new BackendMaterial( name ?? path, Shaders.Load( file.Shader ), file, Textures( file ), values ) );
 	}
