@@ -81,11 +81,13 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 		this.main = main;
 		this.featureCount = featureCount;
 		passes.Clear();
+		mapper.InFlight = true;
 
 		var view = main.View;
 		mapper.View = new ShadowViewInfo
 		{
-			ProjectionToView = view.ViewToProjection.Inverted,
+			// Cascades fit the view from its near plane, which an oblique projection leans along its clip plane
+			ProjectionToView = view.SquareViewToProjection.Inverted,
 			ViewToWorldRotation = view.WorldToViewRotation.Transpose(),
 			CameraPosition = view.Position,
 			ViewportSize = new Vector2( view.Viewport.Width, view.Viewport.Height ),
@@ -104,6 +106,11 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 	/// The frame was never submitted: forget that its shadow maps were drawn, so they're drawn again.
 	/// </summary>
 	public void Abandon() => mapper.Abandon();
+
+	/// <summary>
+	/// The frame was submitted: its shadow maps are drawn, for the views after it.
+	/// </summary>
+	public void Submitted() => mapper.InFlight = false;
 
 	/// <summary>
 	/// Start culling the selected views on the job dispatcher's workers, so the caller can prepare the main view

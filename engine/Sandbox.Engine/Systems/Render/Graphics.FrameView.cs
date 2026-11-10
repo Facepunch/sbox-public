@@ -210,7 +210,7 @@ public static partial class Graphics
 	internal static int ToolsVisMode => View.ToolsVisMode;
 
 	/// <summary>
-	/// Whether the current view is another's child. A managed frame is always a camera's own.
+	/// Whether the current view is another's child: a native child view, or a managed frame rendered inside another.
 	/// </summary>
 	internal static bool IsChildView => View.IsChildView;
 

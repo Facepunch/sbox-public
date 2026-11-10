@@ -349,6 +349,7 @@ internal partial class ShadowMapper
 
 		// A reflection's mirrored camera neither reuses another view's cascades nor shares its own
 		if ( !View.IsReflection && LastCascades.Frame == FrameCount && LastCascades.Light == light.Key && viewportArea <= LastCascades.ViewportArea
+			&& !(LastCascades.Mapper is { InFlight: true } drawing && drawing != this)
 			&& LastCascades.StaticFilter == staticFilter
 			&& SameTags( LastCascades.RenderTags, View.RenderTags ?? [] ) && SameTags( LastCascades.ExcludeTags, View.ExcludeTags ?? [] )
 			&& LastCascades.SubWorlds == View.SubWorlds

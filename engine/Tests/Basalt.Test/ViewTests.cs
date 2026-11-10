@@ -90,4 +90,92 @@ public class ViewTests
 		Assert.IsTrue( frustum.Intersects( new Vector3( 100, 105, 0 ), new Vector3( 10 ) ), "straddling the left plane" );
 		Assert.IsTrue( frustum.Intersects( new Vector3( 0.5f, 0, 0 ), Vector3.One ), "straddling the near plane" );
 	}
+
+	static void AssertClose( Matrix expected, Matrix actual, string message )
+	{
+		var e = (System.Numerics.Matrix4x4)expected;
+		var a = (System.Numerics.Matrix4x4)actual;
+		for ( int row = 0; row < 4; row++ )
+		{
+			for ( int column = 0; column < 4; column++ )
+				Assert.AreEqual( e[row, column], a[row, column], 1e-4f, $"{message}: M{row + 1}{column + 1}" );
+		}
+	}
+
+	/// <summary>
+	/// A projection in the engine's convention (<c>ViewSetup.ProjectionMatrix</c>: column vectors, forward depth) becomes the
+	/// same row-vector reverse-Z one the field of view makes.
+	/// </summary>
+	[TestMethod]
+	public void CustomProjectionInEngineConvention()
+	{
+		var plain = LookingDownX();
+		var custom = LookingDownX();
+		custom.Projection = Matrix.CreateProjection( custom.ZNear, custom.ZFar, custom.FieldOfView, 1 );
+		custom.Update();
+
+		AssertClose( plain.ViewToProjection, custom.ViewToProjection, "projection" );
+		AssertClose( plain.ViewToProjection, custom.SquareViewToProjection, "square" );
+	}
+
+	/// <summary>
+	/// Clip-space bounds draw part of the projection over the whole view, as native's off-centre projection does
+	/// (<c>ComputeProjectionMatrix</c> with clip-space bounds, which <c>Matrix.CreateProjection</c> copies).
+	/// </summary>
+	[TestMethod]
+	public void ClipSpaceBoundsAreAnOffCentreProjection()
+	{
+		var bounds = new Vector4( -0.4f, -0.6f, 0.5f, 0.3f );
+
+		var view = LookingDownX();
+		view.ClipSpaceBounds = bounds;
+		view.Update();
+
+		var offCentre = LookingDownX();
+		offCentre.Projection = Matrix.CreateProjection( offCentre.ZNear, offCentre.ZFar, offCentre.FieldOfView, 1, bounds );
+		offCentre.Update();
+
+		AssertClose( offCentre.ViewToProjection, view.ViewToProjection, "bounds" );
+
+		// The bounds' corners are the view's: right is -y, up is +z, at 45 degrees a side
+		var corner = Project( view, new Vector3( 100, -50, 30 ) );
+		Assert.AreEqual( 1, corner.x, 1e-4f );
+		Assert.AreEqual( 1, corner.y, 1e-4f );
+		Assert.IsFalse( view.Frustum.Intersects( new Vector3( 100, -80, 0 ), Vector3.One ), "past the bounds' right" );
+		Assert.IsTrue( LookingDownX().Frustum.Intersects( new Vector3( 100, -80, 0 ), Vector3.One ), "inside the whole view" );
+	}
+
+	/// <summary>
+	/// An oblique projection's near plane is its clip plane: what's on the other side is culled, and the plane is depth 1. Its
+	/// square projection, for shadow cascades and light clusters, is the plain one.
+	/// </summary>
+	[TestMethod]
+	public void ObliqueProjectionClipsAtItsPlane()
+	{
+		var view = LookingDownX();
+		var projection = Matrix.CreateProjection( view.ZNear, view.ZFar, view.FieldOfView, 1 );
+		var plane = new Plane( new Vector3( 0, 0, -10 ), Vector3.Down );
+		view.Projection = Matrix.CreateObliqueProjection( new Transform( view.Position, view.Rotation ), plane, projection );
+		view.Update();
+
+		Assert.IsTrue( view.Frustum.Intersects( new Vector3( 100, 0, -30 ), Vector3.One ), "below the plane" );
+		Assert.IsFalse( view.Frustum.Intersects( new Vector3( 100, 0, 10 ), Vector3.One ), "above the plane" );
+		Assert.AreEqual( 1, Project( view, new Vector3( 100, 20, -10 ) ).z, 1e-4f, "the plane is the near plane" );
+
+		AssertClose( LookingDownX().ViewToProjection, view.SquareViewToProjection, "square" );
+	}
+
+	/// <summary>
+	/// A parallel projection's depth is made again linear between the near and far planes.
+	/// </summary>
+	[TestMethod]
+	public void SquareDepthOfAParallelProjection()
+	{
+		var view = new RenderView { Orthographic = true, OrthoSize = new Vector2( 100, 50 ), ZNear = 0, ZFar = 1000, Viewport = new Rect( 0, 0, 100, 50 ) };
+		view.Update();
+
+		var skewed = view.ViewToProjection;
+		skewed.M13 = 0.3f;
+		AssertClose( view.ViewToProjection, RenderView.SquareDepth( skewed, view.ZNear, view.ZFar ), "square" );
+	}
 }

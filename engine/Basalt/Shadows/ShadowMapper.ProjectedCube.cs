@@ -59,8 +59,10 @@ internal partial class ShadowMapper
 
 		var cacheEntry = GetOrCreateCacheEntry( light, desiredResolution, isCube: true, flScreenSize );
 
-		// Already rendered this frame, or not this light's turn. A light filling the view never waits its turn.
-		if ( cacheEntry.RenderedFrame == FrameCount || (cacheEntry.RenderedFrame != 0 && !cacheEntry.Scheduled && cacheEntry.ScreenSize < 1f) )
+		// Already rendered this frame, or not this light's turn. A light filling the view never waits its turn. A frame in flight
+		// drew it this frame: it's drawn again for this one, submitted first
+		var inFlight = DrawnInFlight( cacheEntry );
+		if ( !inFlight && (cacheEntry.RenderedFrame == FrameCount || (cacheEntry.RenderedFrame != 0 && !cacheEntry.Scheduled && cacheEntry.ScreenSize < 1f)) )
 			return AddProjectedCubeShadow( cacheEntry );
 
 		// The entry may keep a bigger map than this view asked for
@@ -84,9 +86,9 @@ internal partial class ShadowMapper
 
 		// Static lights render their static casters once into a cache that gets copied in
 		// each frame, and only dynamic casters are re-rendered on top.
-		if ( isStaticLight && !isBakedLight && cacheEntry.StaticCache is null )
+		if ( isStaticLight && !isBakedLight && (cacheEntry.StaticCache is null || (inFlight && cacheEntry.StaticRenderedFrame == FrameCount)) )
 		{
-			cacheEntry.StaticCache = AcquireTexture( desiredResolution, isCube: true );
+			cacheEntry.StaticCache ??= AcquireTexture( desiredResolution, isCube: true );
 
 			// Render static objects to the static cache, once
 			var staticView = shadowView;
@@ -132,6 +134,7 @@ internal partial class ShadowMapper
 
 		cacheEntry.Cube = shadow;
 		cacheEntry.RenderedFrame = FrameCount;
+		cacheEntry.DrawnBy = this;
 		Drawn.Add( cacheEntry );
 		ProjectedShadowsRendered++;
 

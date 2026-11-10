@@ -171,10 +171,17 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IDisposable
 	}
 
 	/// <summary>
+	/// Whether the world has been synced at least once: a child view syncs only a mirror nothing's drawn yet.
+	/// </summary>
+	public bool HasSynced { get; private set; }
+
+	/// <summary>
 	/// Apply what changed since the last sync, for a camera about to render the world.
 	/// </summary>
 	public void Sync( SceneCamera camera, bool skyboxView = false )
 	{
+		HasSynced = true;
+
 		// A reload queues the objects drawing what it changed
 		CheckReloads();
 

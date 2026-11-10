@@ -940,14 +940,20 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 		return VRSystem.IsActive && TargetEye > StereoTargetEye.None;
 	}
 
-	internal void RenderToTexture( Texture texture, Vector2? size, in ViewSetup config ) => SceneRenderer.Current.RenderToTexture( this, texture, size, config );
+	internal void RenderToTexture( Texture texture, Vector2? size, in ViewSetup config ) => ChildRenderer.RenderToTexture( this, texture, size, config );
 
 	/// <summary>
 	/// Submit a view into colour and optional depth textures, as a child of <paramref name="parent"/> when it's valid,
 	/// and copy its resolved projection and viewport for whatever samples it.
 	/// </summary>
 	internal bool RenderToTexture( Texture target, Texture depthTarget, ISceneView parent, in ViewSetup config, string name, out ViewData viewData )
-		=> SceneRenderer.Current.RenderToTexture( this, target, depthTarget, parent, config, name, out viewData );
+		=> ChildRenderer.RenderToTexture( this, target, depthTarget, parent, config, name, out viewData );
+
+	/// <summary>
+	/// What renders a view into a texture: the renderer of the frame being drawn, which renders it as a child view of that frame
+	/// (a command list's <c>DrawView</c>, water's refraction), or this frame's renderer outside one.
+	/// </summary>
+	static ISceneRenderer ChildRenderer => Graphics.CurrentManagedView?.Renderer ?? SceneRenderer.Current;
 
 	internal void RenderToBitmap( Bitmap bitmap, in ViewSetup config = default ) => SceneRenderer.Current.RenderToBitmap( this, bitmap, config );
 
