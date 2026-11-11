@@ -673,6 +673,7 @@ internal sealed class MaterialObject
 					stage.WriteMaterialConstants( data, variable => variable.Source switch
 					{
 						VariableSource.Material or VariableSource.MaterialAndExpression => Material?.Value( variable.Name ),
+						VariableSource.ShaderVersion => [Material?.ShaderVersion ?? 0],
 						VariableSource.Attribute when variable.Attribute == "UncompressedTangentFrame" => [UncompressedTangentFrame ? 1 : 0],
 						VariableSource.Attribute => (pass.LayerEpoch != 0 ? pass.LayerFloats( variable.Attribute ) : null) ?? pass.Floats( variable.Attribute ),
 						_ => null,

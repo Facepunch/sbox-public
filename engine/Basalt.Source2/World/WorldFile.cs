@@ -101,6 +101,7 @@ public sealed class WorldNode
 				TypeFlags = o.Get( "m_nObjectTypeFlags" )?.ToString() ?? "",
 				Layer = index < layers.Length ? (int)layers[index] : 0,
 				LightProbeVolume = (int)Kv.Number( o.Get( "m_nLightProbeVolumePrecomputedHandshake" ) ),
+				OverlayRenderOrder = (int)Kv.Number( o.Get( "m_nOverlayRenderOrder" ) ),
 			} );
 		}
 
@@ -197,6 +198,9 @@ public sealed record WorldSceneObject
 	/// volume's texture names), or 0 for none.
 	/// </summary>
 	public int LightProbeVolume { get; init; }
+
+	/// <summary><c>m_nOverlayRenderOrder</c>: an overlay's place among the static overlays (<c>RenderOrder</c>), lowest first.</summary>
+	public int OverlayRenderOrder { get; init; }
 }
 
 /// <summary>

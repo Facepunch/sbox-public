@@ -102,7 +102,7 @@ internal static class MapRealRun
 		}
 
 		var lines = new List<string>();
-		var csv = new StringBuilder( "view,variant,parallel,material_objects,shadows,frames,wait_ms,render_ms,collect_ms,prepare_ms,setup_ms,record_ms,worker_record_ms,stages_ms,submit_ms,copy_ms,cpu_ms,frame_ms,frame_p95_ms,gpu_ms,draws,depth_draws,shadow_draws,translucent_draws,instances,objects_visible,triangles,model_draws,binds,fragment_draws,ns_per_bind,ns_per_repeat,sets_written_per_frame,gcs,object_changes,ns_per_object_change,failed_draws\n" );
+		var csv = new StringBuilder( "view,variant,parallel,material_objects,shadows,frames,wait_ms,render_ms,collect_ms,prepare_ms,setup_ms,record_ms,worker_record_ms,stages_ms,submit_ms,copy_ms,cpu_ms,frame_ms,frame_p95_ms,gpu_ms,draws,depth_draws,shadow_draws,translucent_draws,instances,objects_visible,triangles,model_draws,binds,fragment_draws,ns_per_bind,ns_per_repeat,sets_written_per_frame,gcs,object_changes,ns_per_object_change,failed_draws,cpu_mean_ms,frame_mean_ms,gpu_mean_ms\n" );
 		var bindingReport = "";
 
 		foreach ( var view in options.Views )
@@ -157,12 +157,15 @@ internal static class MapRealRun
 				}
 
 				double M( Func<Frame, double> f ) => Percentile( frames.Select( f ).Where( x => !double.IsNaN( x ) ), 0.5 );
+
+				// Means too, as SceneLab's benchmark reports them
+				double Mean( Func<Frame, double> f ) => frames.Select( f ).Where( x => !double.IsNaN( x ) ).DefaultIfEmpty( double.NaN ).Average();
 				var cpu = M( f => f.Render + f.Copy );
 				var line = $"{view.Name,-9} {variant.Name,-22} collect {M( f => f.Collect ),6:0.000} prepare {M( f => f.Prepare ),6:0.000} setup {M( f => f.Setup ),6:0.000} record {M( f => f.Record ),6:0.000} (workers {M( f => f.WorkerRecord ):0.000}) submit {M( f => f.Submit ),6:0.000} render {M( f => f.Render ),6:0.000} copy {M( f => f.Copy ),5:0.000} wait {M( f => f.Wait ),6:0.000} frame {Percentile( frameTimes, 0.5 ),6:0.000} gpu {M( f => f.Gpu ),6:0.000}  "
-					+ $"{stats.Draws}+{stats.DepthDraws} depth+{stats.ShadowDraws} shadow draws ({stats.TranslucentDraws} translucent, {stats.Instances} instances), {stats.ObjectsVisible} objects visible, {stats.Triangles / 1e6:0.00}M tris; {modelDraws} model draws, {binds} binds, {objectChanges} object changes, {fragmentDraws} fragment draws ({nsBind:0} ns a bind, {nsObjectChange:0} ns an object change, {nsRepeat:0} ns a repeat draw, timed), {setsPerFrame:0.0} sets written/frame, {gcs} GCs; draws that recorded nothing: {failed}";
+					+ $"{stats.Draws}+{stats.DepthDraws} depth+{stats.ShadowDraws} shadow draws ({stats.TranslucentDraws} translucent, {stats.Instances} instances), {stats.ObjectsVisible} objects visible, {stats.Triangles / 1e6:0.00}M tris; {modelDraws} model draws, {binds} binds, {objectChanges} object changes, {fragmentDraws} fragment draws ({nsBind:0} ns a bind, {nsObjectChange:0} ns an object change, {nsRepeat:0} ns a repeat draw, timed), {setsPerFrame:0.0} sets written/frame, {gcs} GCs; {(map.System.SkyboxStats is { } sky ? $"3D skybox {sky.Draws}+{sky.DepthDraws} depth draws of {sky.ObjectsVisible} visible objects of {sky.Objects} ({sky.ObjectsFrustumCulled} frustum culled, {sky.ObjectsSizeCulled} size culled, {sky.ObjectsTagCulled} tag culled, {sky.ObjectsOcclusionCulled} occlusion culled)" : "no 3D skybox drawn")}; draws that recorded nothing: {failed}";
 				Console.WriteLine( line );
 				lines.Add( line );
-				csv.AppendLine( FormattableString.Invariant( $"{view.Name},{variant.Name},{variant.Parallel},{variant.MaterialObjects},{variant.Shadows},{frames.Count},{M( f => f.Wait ):0.0000},{M( f => f.Render ):0.0000},{M( f => f.Collect ):0.0000},{M( f => f.Prepare ):0.0000},{M( f => f.Setup ):0.0000},{M( f => f.Record ):0.0000},{M( f => f.WorkerRecord ):0.0000},{M( f => f.Stages ):0.0000},{M( f => f.Submit ):0.0000},{M( f => f.Copy ):0.0000},{cpu:0.0000},{Percentile( frameTimes, 0.5 ):0.0000},{Percentile( frameTimes, 0.95 ):0.0000},{M( f => f.Gpu ):0.0000},{stats.Draws},{stats.DepthDraws},{stats.ShadowDraws},{stats.TranslucentDraws},{stats.Instances},{stats.ObjectsVisible},{stats.Triangles},{modelDraws},{binds},{fragmentDraws},{nsBind:0},{nsRepeat:0},{setsPerFrame:0.0},{gcs},{objectChanges},{nsObjectChange:0},{failedDraws}" ) );
+				csv.AppendLine( FormattableString.Invariant( $"{view.Name},{variant.Name},{variant.Parallel},{variant.MaterialObjects},{variant.Shadows},{frames.Count},{M( f => f.Wait ):0.0000},{M( f => f.Render ):0.0000},{M( f => f.Collect ):0.0000},{M( f => f.Prepare ):0.0000},{M( f => f.Setup ):0.0000},{M( f => f.Record ):0.0000},{M( f => f.WorkerRecord ):0.0000},{M( f => f.Stages ):0.0000},{M( f => f.Submit ):0.0000},{M( f => f.Copy ):0.0000},{cpu:0.0000},{Percentile( frameTimes, 0.5 ):0.0000},{Percentile( frameTimes, 0.95 ):0.0000},{M( f => f.Gpu ):0.0000},{stats.Draws},{stats.DepthDraws},{stats.ShadowDraws},{stats.TranslucentDraws},{stats.Instances},{stats.ObjectsVisible},{stats.Triangles},{modelDraws},{binds},{fragmentDraws},{nsBind:0},{nsRepeat:0},{setsPerFrame:0.0},{gcs},{objectChanges},{nsObjectChange:0},{failedDraws},{Mean( f => f.Render + f.Copy ):0.0000},{frameTimes.DefaultIfEmpty( double.NaN ).Average():0.0000},{Mean( f => f.Gpu ):0.0000}" ) );
 			}
 
 			if ( bindingReport.Length == 0 ) bindingReport = DescribeBindings( map.Backend );
@@ -179,6 +182,22 @@ internal static class MapRealRun
 				Capture.Save( gpu, texture, layout, path );
 				BackendDevice.SetLayout( map.Target.Samples > 1 ? map.Target.Resolved : map.Target.Color, ImageLayout.CopySource );
 				Console.WriteLine( $"Saved {path}" );
+
+				// -vis 10,2: the same frame in the shaders' debug views
+				foreach ( var mode in (Args.String( "-vis" ) ?? "").Split( ',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries ) )
+				{
+					if ( !int.TryParse( mode, out var vis ) ) continue;
+					map.ToolsVisMode = vis;
+					for ( int i = 0; i < 3; i++ ) RenderFrame( view );
+					gpu.WaitIdle();
+					(texture, layout) = map.Output;
+					var visPath = Path.ChangeExtension( path, null ) + $"-vis{vis}.png";
+					Capture.Save( gpu, texture, layout, visPath );
+					BackendDevice.SetLayout( map.Target.Samples > 1 ? map.Target.Resolved : map.Target.Color, ImageLayout.CopySource );
+					Console.WriteLine( $"Saved {visPath}" );
+				}
+
+				map.ToolsVisMode = 0;
 			}
 		}
 

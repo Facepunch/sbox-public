@@ -379,8 +379,8 @@ internal sealed partial class BackendContext : GpuContext
 		var rect = bound.Viewport;
 		var (width, height) = r.List.RenderSize;
 		if ( rect.Width <= 0 || rect.Height <= 0 ) rect = new Rect( 0, 0, width, height );
-		var maxZ = bound.MaxZ > bound.MinZ ? bound.MaxZ : 1;
-		r.List.SetViewport( rect.Left, rect.Top, rect.Width, rect.Height, bound.MinZ, maxZ );
+		// The depth range as given, as Source 2's contexts set it: the 2D sky draws at [0, 0], at the far plane
+		r.List.SetViewport( rect.Left, rect.Top, rect.Width, rect.Height, bound.MinZ, bound.MaxZ );
 		r.List.SetScissor( (int)rect.Left, (int)rect.Top, (int)MathF.Ceiling( rect.Width ), (int)MathF.Ceiling( rect.Height ) );
 	}
 
@@ -552,9 +552,10 @@ internal sealed partial class BackendContext : GpuContext
 
 		var r = recording;
 		var color = r.Color is null ? Format.Unknown : FormatOfTarget( r.Color, r.Srgb );
-		var depthOnly = stripPixelShader || r.Color is null;
+		var noColor = stripPixelShader || r.Color is null;
+		var depthOnly = StripsPixelShader( m, noColor, stripPixelShader );
 		var geometry = source.For( draw.Mesh, draw.DrawCall );
-		var pipeline = device.Pipeline( variant, geometry.Layout, depthOnly ? Format.Unknown : color, r.Depth is null ? Format.Unknown : BackendDevice.FormatOf( r.Depth ), (r.Color ?? r.Depth).Samples, depthOnly );
+		var pipeline = device.Pipeline( variant, geometry.Layout, noColor ? Format.Unknown : color, r.Depth is null ? Format.Unknown : BackendDevice.FormatOf( r.Depth ), (r.Color ?? r.Depth).Samples, depthOnly );
 
 		if ( r.Pipeline != pipeline )
 		{
@@ -564,12 +565,20 @@ internal sealed partial class BackendContext : GpuContext
 
 		uncompressedTangentFrame = geometry.UncompressedTangentFrame;
 		BindSets( m, variant, depthOnly );
-		if ( depthOnly ) r.List.SetDepthBias( depthBias, slopeScaledDepthBias );
+		if ( noColor ) r.List.SetDepthBias( depthBias, slopeScaledDepthBias );
 		if ( variant.State.StencilTest && r.Depth is not null && BackendDevice.FormatOf( r.Depth ).HasStencil() ) r.List.SetStencilReference( (byte)variant.State.StencilReference );
 
 		RecordDraw( r.List, geometry, instanceIds, draw, firstInstance, instances, indirect );
 		return true;
 	}
+
+	/// <summary>
+	/// Whether a draw goes without its pixel shader: when Basalt strips it, or in a pass without colour (a prepass, a shadow
+	/// map) for a material whose depth needs none. Alpha-tested and translucent materials keep it there, as native does when
+	/// Basalt doesn't strip it: their depth comes from what it clips (alpha test, alpha to coverage).
+	/// </summary>
+	static bool StripsPixelShader( BackendMaterial material, bool noColor, bool stripPixelShader )
+		=> stripPixelShader || (noColor && !material.IsAlphaTest && !material.IsTranslucent);
 
 	/// <summary>Whether the draw being bound has plain normals and tangents (<c>UncompressedTangentFrame</c>).</summary>
 	bool uncompressedTangentFrame = true;
@@ -622,7 +631,17 @@ internal sealed partial class BackendContext : GpuContext
 			}
 		}
 
+		AppendSpecialization( key, material );
 		return material.Variant( device.Shaders, mode, key.ToString(), name => LookupCombo( Token( name ) ), name => Integer( Lookup( Token( name ) ) ) );
+	}
+
+	/// <summary>The values of the material's specialization attributes that are set, for its variant key.</summary>
+	void AppendSpecialization( System.Text.StringBuilder key, BackendMaterial material )
+	{
+		foreach ( var name in material.SpecializationAttributes )
+		{
+			if ( Integer( Lookup( Token( name ) ) ) is int value && value != 0 ) key.Append( ";#" ).Append( name ).Append( '=' ).Append( value );
+		}
 	}
 
 	static int? Integer( object value ) => value switch
@@ -702,6 +721,7 @@ internal sealed partial class BackendContext : GpuContext
 		stage.WriteMaterialConstants( allocation.Data[..size], variable => variable.Source switch
 		{
 			VariableSource.Material or VariableSource.MaterialAndExpression => material.Value( variable.Name ),
+			VariableSource.ShaderVersion => [material.ShaderVersion],
 			// Per draw from its vertex layout, as native's BindModelDrawCall sets it
 			VariableSource.Attribute when variable.Attribute == "UncompressedTangentFrame" => [uncompressedTangentFrame ? 1 : 0],
 			VariableSource.Attribute => Floats( Lookup( Token( variable.Attribute ) ) ),
@@ -789,7 +809,10 @@ internal sealed partial class BackendContext : GpuContext
 		CloseScope();
 		Transition( from, ImageLayout.CopySource, always: true );
 		Transition( to, ImageLayout.CopyDestination, always: true );
-		List.CopyTexture( from.Handle, to.Handle, 0, Math.Max( slices, 1 ) );
+
+		// A multisampled source into a single-sampled copy (the frame buffer copy refraction reads) is resolved
+		if ( from.Samples > 1 && to.Samples <= 1 ) List.ResolveTexture( from.Handle, to.Handle );
+		else List.CopyTexture( from.Handle, to.Handle, 0, Math.Max( slices, 1 ) );
 	}
 
 	public override void CopyToSwapChain( in RenderOutput output, Rect viewport )

@@ -259,9 +259,10 @@ internal sealed partial class BackendContext
 		if ( variant?.Vertex?.Bytecode is null ) return false;
 
 		var color = r.Color is null ? Format.Unknown : FormatOfTarget( r.Color, r.Srgb );
-		var depthOnly = stripPixelShader || r.Color is null;
+		var noColor = stripPixelShader || r.Color is null;
+		var depthOnly = StripsPixelShader( m, noColor, stripPixelShader );
 		var geometry = source.For( draw.Mesh, draw.DrawCall );
-		var key = new MaterialObjectCache.Key( m, variant, geometry.Layout, depthOnly ? Format.Unknown : color, r.Depth is null ? Format.Unknown : BackendDevice.FormatOf( r.Depth ), (r.Color ?? r.Depth).Samples, depthOnly, geometry.UncompressedTangentFrame );
+		var key = new MaterialObjectCache.Key( m, variant, geometry.Layout, noColor ? Format.Unknown : color, r.Depth is null ? Format.Unknown : BackendDevice.FormatOf( r.Depth ), (r.Color ?? r.Depth).Samples, depthOnly, geometry.UncompressedTangentFrame );
 
 		var materialObject = lastObject is not null && key.Same( lastKey ) && !lastObject.Stale ? lastObject : cache.Get( key, immediate: false, (device, geometry.Layout, key), static ( s, layout ) => s.device.Pipeline( s.key.Variant, s.Layout, s.key.Color, s.key.Depth, s.key.Samples, s.key.DepthOnly, layout.Sets ) );
 		(lastKey, lastObject) = (key, materialObject);
@@ -270,7 +271,7 @@ internal sealed partial class BackendContext
 		materialObject.Bind( r.List, ref r.Pipeline, passEpoch, resolver );
 		r.Binder = null;
 
-		if ( depthOnly ) r.List.SetDepthBias( depthBias, slopeScaledDepthBias );
+		if ( noColor ) r.List.SetDepthBias( depthBias, slopeScaledDepthBias );
 		if ( variant.State.StencilTest && r.Depth is not null && BackendDevice.FormatOf( r.Depth ).HasStencil() ) r.List.SetStencilReference( (byte)variant.State.StencilReference );
 
 		RecordDraw( r.List, geometry, instanceIds, draw, firstInstance, instances, indirect );
@@ -337,6 +338,7 @@ internal sealed partial class BackendContext
 			}
 		}
 
+		AppendSpecialization( key, material );
 		var made = key.ToString();
 		comboKeys[material.Shader] = (passEpoch, layerCombos, made);
 		return made;

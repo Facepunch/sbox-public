@@ -94,6 +94,7 @@ internal sealed partial class MapWorld : IDisposable
 			var sky = LoadLevel( SkyWorld, content, map + "_sky", false, aggregatesAsMeshes, bakedLighting, entities );
 			LoadSkybox( reference, sky );
 		}
+
 	}
 
 	readonly Stopwatch timer;
@@ -170,6 +171,9 @@ internal sealed partial class MapWorld : IDisposable
 				var mask = o.MeshGroupMask == UnsetMask ? file.DefaultMeshGroupMask : o.MeshGroupMask;
 				var mesh = Mesh( o.Model, file, mask, skin );
 				var obj = new MeshObject( mesh, ToTransform( o.Transform ) ) { CastShadows = castShadows };
+				ApplyTypeFlags( obj, ObjectTypeFlags( o.TypeFlags ), castShadows );
+				ApplyMaterialFlags( obj, o.OverlayRenderOrder );
+				if ( o.LodOverride >= 0 ) obj.LodOverride = o.LodOverride;
 				if ( o.Tint != global::System.Numerics.Vector4.One ) obj.Tint = new Color( o.Tint.X, o.Tint.Y, o.Tint.Z, o.Tint.W );
 				target.Add( obj );
 				meshObjects.Add( obj );
@@ -211,6 +215,7 @@ internal sealed partial class MapWorld : IDisposable
 				foreach ( var aggregate in MakeAggregates( Mesh( a.Model, file, file.DefaultMeshGroupMask, 0 ), file, a ) )
 				{
 					aggregate.CastShadows = castShadows;
+					if ( Materials( aggregate.Mesh ).Any( m => m.Attribute( "overlay", false ) ) ) aggregate.LayerMatch = LayerMatch.StaticOverlay;
 					target.Add( aggregate );
 					aggregateObjects.Add( aggregate );
 					level.Aggregates.Add( aggregate );
@@ -454,6 +459,95 @@ internal sealed partial class MapWorld : IDisposable
 		}
 	}
 
+	const uint ObjectTypeDecal = 0x4, ObjectTypeBlockLight = 0x10, ObjectTypeNoShadows = 0x20;
+
+	/// <summary><c>m_nObjectTypeFlags</c> (<c>ObjectTypeFlags_t</c>) from its number or its flag names.</summary>
+	static uint ObjectTypeFlags( string flags )
+	{
+		if ( string.IsNullOrEmpty( flags ) ) return 0;
+		if ( uint.TryParse( flags, out var number ) ) return number;
+
+		uint value = 0;
+		foreach ( var name in flags.Split( ['|', ' ', ','], StringSplitOptions.RemoveEmptyEntries ) )
+		{
+			value |= name switch
+			{
+				"OBJECT_TYPE_IMAGE_LOD" => 0x1u,
+				"OBJECT_TYPE_GEOMETRY_LOD" => 0x2u,
+				"OBJECT_TYPE_DECAL" => ObjectTypeDecal,
+				"OBJECT_TYPE_MODEL" => 0x8u,
+				"OBJECT_TYPE_BLOCK_LIGHT" => ObjectTypeBlockLight,
+				"OBJECT_TYPE_NO_SHADOWS" => ObjectTypeNoShadows,
+				"OBJECT_TYPE_WORLDSPACE_TEXURE_BLEND" => 0x40u,
+				"OBJECT_TYPE_DISABLED_IN_LOW_QUALITY" => 0x80u,
+				"OBJECT_TYPE_NO_SUN_SHADOWS" => 0x100u,
+				"OBJECT_TYPE_RENDER_WITH_DYNAMIC" => 0x200u,
+				"OBJECT_TYPE_RENDER_TO_CUBEMAPS" => 0x400u,
+				_ => 0u,
+			};
+		}
+
+		return value;
+	}
+
+	/// <summary>
+	/// A scene object's flags as the world renderer makes them (<c>CWorldNode</c>'s scene objects): a light blocker is
+	/// neither opaque nor translucent, so it draws nowhere (it's for baking); a decal draws only in the decal layer and casts
+	/// no shadow; a no-shadow object casts none.
+	/// </summary>
+	static void ApplyTypeFlags( MeshObject obj, uint flags, bool castShadows )
+	{
+		if ( (flags & ObjectTypeNoShadows) != 0 ) obj.CastShadows = false;
+
+		if ( (flags & ObjectTypeBlockLight) != 0 )
+		{
+			obj.DrawsOpaque = false;
+			obj.DrawsTranslucent = false;
+			obj.CastShadows = castShadows;
+		}
+		else if ( (flags & ObjectTypeDecal) != 0 )
+		{
+			obj.DrawsOpaque = false;
+			obj.DrawsTranslucent = false;
+			obj.Decal = true;
+			obj.CastShadows = false;
+		}
+	}
+
+	/// <summary>The compiled materials a mesh draws with, at every LOD.</summary>
+	static IEnumerable<BackendMaterial> Materials( RenderMesh mesh )
+	{
+		for ( int lod = 0; lod < mesh.LodCount; lod++ )
+		{
+			foreach ( var draw in mesh.DrawsForLod( lod ).ToArray() )
+			{
+				if ( draw.Material is BackendMaterial material ) yield return material;
+			}
+		}
+	}
+
+	/// <summary>
+	/// The flags native's scene system takes from an object's materials (<c>DefaultMaterialBasedSceneObjectUpdater</c>): an
+	/// <c>overlay</c> material (static_overlay's decals) puts it in the static overlay layer, in its render order and out of
+	/// the prepass and the opaque layers; <c>NoZPrepass</c> keeps it out of the prepass; materials that all have
+	/// <c>DoNotCastShadows</c> cast none; <c>bWantsFBCopyTexture</c> asks for the frame buffer copy.
+	/// </summary>
+	static void ApplyMaterialFlags( MeshObject obj, int renderOrder )
+	{
+		var materials = Materials( obj.Mesh ).Distinct().ToArray();
+		if ( materials.Length == 0 ) return;
+
+		if ( materials.Any( m => m.Attribute( "overlay", false ) ) )
+		{
+			obj.LayerMatch = LayerMatch.StaticOverlay;
+			obj.RenderOrder = renderOrder;
+		}
+
+		if ( materials.Any( m => m.Attribute( "NoZPrepass", false ) ) ) obj.DepthPrepass = false;
+		if ( materials.All( m => m.Attribute( "DoNotCastShadows", false ) ) ) obj.CastShadows = false;
+		if ( materials.Any( m => m.Attribute( "bWantsFBCopyTexture", false ) ) ) obj.WantsFrameBufferCopy = true;
+	}
+
 	static Matrix3x4 ToMatrix3x4( NumericsMatrix m ) => new()
 	{
 		Row0 = new Vector4( m.M11, m.M21, m.M31, m.M41 ),
@@ -482,6 +576,9 @@ internal sealed partial class MapWorld : IDisposable
 
 	readonly RenderView view = new() { Name = "Map", FieldOfView = 80, ZNear = 5, ZFar = 30000, ClearColor = new Color( 0.45f, 0.55f, 0.7f ) };
 
+	/// <summary>The shaders' debug view (<c>ToolsVis.hlsl</c>'s modes: 10 albedo, 2 diffuse lighting...); 0 for none.</summary>
+	public int ToolsVisMode { get; set; }
+
 	/// <summary>Size the target: colour and depth with <paramref name="samples"/> samples, as SceneLab's window is.</summary>
 	public void SetTarget( int width, int height, int samples )
 	{
@@ -499,6 +596,7 @@ internal sealed partial class MapWorld : IDisposable
 		view.FieldOfView = camera.FieldOfView;
 		view.ZNear = camera.ZNear;
 		view.ZFar = camera.ZFar;
+		view.ToolsVisMode = ToolsVisMode;
 
 		RenderHost.Current.NextFrame();
 		System.Render( World, view, Target );

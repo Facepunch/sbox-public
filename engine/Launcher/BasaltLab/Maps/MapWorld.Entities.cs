@@ -125,7 +125,7 @@ internal sealed partial class MapWorld
 	/// <summary>
 	/// The sun, as the bridge mirrors a map's directional light: its colour and direction, and, baked, its entry for the
 	/// lightmaps' direct light indices packed as <c>PackBakedDirectionalGPULight</c> packs it (pointing from the receiver
-	/// to the sun, colour scaled by <c>bakelightindexscale</c>).
+	/// to the sun, placed 2e6 units out that way, colour scaled by <c>bakelightindexscale</c>).
 	/// </summary>
 	static bool SetSun( SceneLighting lighting, MapEntity e, bool scene )
 	{
@@ -155,10 +155,13 @@ internal sealed partial class MapWorld
 			return true;
 		}
 
+		// The translation is the light's position, which the indexed baked path lights from (towards each receiver, with
+		// no falloff): LightDesc_t::RecalculateDerivedValues puts a directional light's 2e6 units out towards the sun
 		var scaled = color * e.Float( "bakelightindexscale", 1 );
 		var forward = -rotation.Forward;
 		var up = rotation.Up;
 		var left = Vector3.Cross( up, forward ).Normal;
+		var position = forward * 2.0e6f;
 		lighting.SunBakeIndex = bakeIndex;
 		lighting.SunBaked = new global::Basalt.Features.LightBinnerFeature.GpuLight
 		{
@@ -168,9 +171,9 @@ internal sealed partial class MapWorld
 			Radius = float.MaxValue,
 			RadiusSquared = float.MaxValue,
 			SpotLightInnerOuterConeCosines = new Vector4( 0, -1, 1, 0 ),
-			Row0 = new Vector4( forward.x, left.x, up.x, 0 ),
-			Row1 = new Vector4( forward.y, left.y, up.y, 0 ),
-			Row2 = new Vector4( forward.z, left.z, up.z, 0 ),
+			Row0 = new Vector4( forward.x, left.x, up.x, position.x ),
+			Row1 = new Vector4( forward.y, left.y, up.y, position.y ),
+			Row2 = new Vector4( forward.z, left.z, up.z, position.z ),
 			Row3 = new Vector4( 0, 0, 0, 1 ),
 			ShadowMapIndex = 0xFFFFFFFF,
 		};
