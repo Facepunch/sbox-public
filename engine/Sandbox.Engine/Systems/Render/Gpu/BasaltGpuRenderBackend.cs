@@ -712,7 +712,7 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 	public override void BindRenderTarget( RenderTarget target )
 	{
 		_ = Recording;
-		context.SetTarget( TextureOf( target.ColorTarget ) );
+		context.SetTarget( TextureOf( target.ColorTarget ), target.DepthTarget is { } depth ? TextureOf( depth ) : default );
 	}
 
 	public override void Clear( Color color, bool clearColor, bool clearDepth, bool clearStencil )
@@ -836,7 +836,12 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 			throw new InvalidOperationException( $"{computeMaterial} didn't dispatch on Basalt.Gpu" );
 	}
 
-	public override void DispatchIndirect( Material computeMaterial, RenderAttributes attributes, GpuBuffer indirectBuffer, uint bufferOffset ) => throw Unsupported( "Indirect dispatches" );
+	public override void DispatchIndirect( Material computeMaterial, RenderAttributes attributes, GpuBuffer indirectBuffer, uint bufferOffset )
+	{
+		_ = Recording;
+		if ( !context.DispatchIndirect( Require( computeMaterial ), Lower( attributes ), BufferOf( indirectBuffer ), bufferOffset ) )
+			throw new InvalidOperationException( $"{computeMaterial} didn't dispatch on Basalt.Gpu" );
+	}
 
 	//
 	// Barriers: layouts are tracked, so a transition only orders memory

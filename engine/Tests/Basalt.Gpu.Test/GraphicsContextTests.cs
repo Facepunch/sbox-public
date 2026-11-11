@@ -175,6 +175,50 @@ public class GraphicsContextTests : GpuTest
 	}
 
 	/// <summary>
+	/// A D32S8 depth target's own texture, bound by attribute, samples as depth alone: cleared to a quarter, then read by
+	/// <c>downsample_spd</c>'s fused depth path (how the depth chain reads a view's depth, and depth of field reads it the
+	/// same way) into the first mip of an RG32F chain. Every texel is the cleared depth, and validation has nothing to say
+	/// about the view.
+	/// </summary>
+	[TestMethod]
+	public void DepthTargetSamplesAsDepth()
+	{
+		const int size = 64;
+		var list = Device.BeginCommandList( QueueType.Graphics, "Depth sampled" );
+		var context = new GraphicsContext( Device, drawer, list );
+		var depth = Device.CreateTexture( TextureInfo.RenderTarget( size, size, Format.D32FloatS8Uint, name: "Depth" ) );
+		var chain = context.CreateTarget( size, size, Format.RG32Float, mips: 7, name: "Depth chain" );
+
+		list.Barrier( TextureBarrier.Transition( depth, ImageLayout.Undefined, ImageLayout.CopyDestination, PipelineStage.None, MemoryAccess.None, PipelineStage.Transfer, MemoryAccess.TransferWrite ) );
+		list.ClearTexture( depth, depth: 0.25f, stencil: 7 );
+		context.Track( depth, ImageLayout.CopyDestination );
+		list.Barrier( TextureBarrier.Transition( chain, ImageLayout.Undefined, ImageLayout.General, PipelineStage.None, MemoryAccess.None, PipelineStage.ComputeShader, MemoryAccess.ShaderWrite ) );
+		context.Track( chain, ImageLayout.General );
+
+		var attributes = new ShaderAttributes();
+		attributes.SetCombo( "D_DOWNSAMPLE_METHOD", 5 );
+		attributes.SetCombo( "D_FUSED_DEPTH", 1 );
+		attributes.Set( "SourceDepth", depth );
+		attributes.Set( "Mip0Out", context.View( chain, 0 ) );
+		for ( int i = 1; i <= 6; i++ ) attributes.Set( $"Mip{i}", context.View( chain, i ) );
+		attributes.Set( "SourceSize", size, size );
+		attributes.Set( "MipCount", 6 );
+		Assert.IsTrue( context.Dispatch( library.Load( "shaders/downsample_spd.shader" ), attributes, (size + 63) / 64 * 256, (size + 63) / 64, 1 ) );
+		Assert.AreEqual( ImageLayout.ShaderRead, context.LayoutOf( depth ), "the depth is sampled" );
+
+		var readback = Device.CreateBuffer( new BufferInfo { Size = size * size * 8 + 8, Memory = MemoryLocation.Readback, Name = "Chain" } );
+		list.Barrier( TextureBarrier.Transition( chain, ImageLayout.General, ImageLayout.CopySource, PipelineStage.ComputeShader, MemoryAccess.ShaderWrite, PipelineStage.Transfer, MemoryAccess.TransferRead ) );
+		list.CopyTextureToBuffer( chain, 0, 0, readback );
+		list.Barrier( new BufferBarrier { Buffer = readback, SourceStage = PipelineStage.Transfer, SourceAccess = MemoryAccess.TransferWrite, DestinationStage = PipelineStage.Host, DestinationAccess = MemoryAccess.HostRead } );
+		Device.Wait( Device.Submit( list ) );
+
+		var texels = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>( Device.Map( readback )[..(size * size * 8)] ).ToArray();
+		Assert.IsTrue( texels.All( d => d == 0.25f ), $"mip 0 holds {texels.Distinct().Count()} values, first {texels[0]}, not the cleared depth" );
+		Device.Destroy( depth );
+		context.Release();
+	}
+
+	/// <summary>
 	/// ui_filter's attributes for drawing <paramref name="texture"/> unfiltered at (<paramref name="x"/>,
 	/// <paramref name="y"/>), as <c>Painter.CompositeLayer</c> sets them for a layer in gamma space.
 	/// </summary>
