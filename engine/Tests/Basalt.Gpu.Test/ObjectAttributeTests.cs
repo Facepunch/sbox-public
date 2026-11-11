@@ -496,7 +496,7 @@ public class ObjectAttributeTests : GpuTest
 
 	static byte Byte( float value ) => (byte)Math.Clamp( value * 63.75f, 0, 255 );
 
-	static RenderMesh BoxMesh( BackendDevice backend, GpuMaterial material )
+	internal static RenderMesh BoxMesh( BackendDevice backend, GpuMaterial material )
 	{
 		var vertices = new List<MeshVertex>();
 		var indices = new List<uint>();

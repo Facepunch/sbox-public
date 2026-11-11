@@ -337,7 +337,7 @@ internal sealed class BackendMaterial : GpuMaterial
 	/// A bool attribute of the material as native's <c>GetBoolAttributeOrDefault</c> reads it: the compiled material's,
 	/// else what its shader's forward static combos export (<c>BoolAttribute( NeedsLightProbe, ... )</c>).
 	/// </summary>
-	bool Attribute( string name, bool fallback )
+	internal bool Attribute( string name, bool fallback )
 	{
 		if ( File?.IntAttributes is { } own && own.TryGetValue( name, out var set ) ) return set != 0;
 		if ( Shader is not { } shader || (shader.Mode( "Forward" ) ?? shader.Mode( "VrForward" )) is not { } mode ) return fallback;
