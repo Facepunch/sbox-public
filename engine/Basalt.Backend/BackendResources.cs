@@ -154,6 +154,21 @@ internal sealed class BackendParameters : ShaderParameters
 
 	public override bool GetBool( StringToken name, bool fallback = false ) => Get( name ) is bool value ? value : fallback;
 
+	/// <summary>What material objects keep of these as an object's attributes (<see cref="ObjectLayer"/>), made when first set.</summary>
+	internal ObjectLayer Layer;
+
+	/// <summary>The names of the values set here and above, and the combos with their values (the nearest wins).</summary>
+	internal void Names( HashSet<uint> values, Dictionary<uint, int> combosSet )
+	{
+		lock ( this.values )
+		{
+			foreach ( var key in this.values.Keys ) values.Add( key );
+			foreach ( var (key, value) in combos ) combosSet.TryAdd( key, value );
+		}
+
+		Parent?.Names( values, combosSet );
+	}
+
 	public override void MergeTo( ShaderParameters target )
 	{
 		var into = (BackendParameters)target;
@@ -265,6 +280,7 @@ internal sealed class BackendMaterial : GpuMaterial
 		{
 			variants.Clear();
 			Load( shader, file, textures );
+			needsLightProbe = 0;
 		}
 
 		Interlocked.Increment( ref version );
@@ -289,7 +305,52 @@ internal sealed class BackendMaterial : GpuMaterial
 	public override bool IsAlphaTest => Feature( "F_ALPHA_TEST" );
 	public override bool ReadsFrameBuffer => false;
 	public override bool ShadowFastPath => Shader is not null && !IsTranslucent && !IsAlphaTest;
-	public override bool NeedsLightProbe => false;
+	public override bool NeedsLightProbe
+	{
+		get
+		{
+			// Worked out once (0 until then, 1 no, 2 yes), as the draw loop asks for every draw
+			var known = Volatile.Read( ref needsLightProbe );
+			if ( known == 0 ) Volatile.Write( ref needsLightProbe, known = Attribute( "NeedsLightProbe", true ) && Attribute( "UsesBakedLightingFromProbe", true ) ? 2 : 1 );
+			return known == 2;
+		}
+	}
+
+	int needsLightProbe;
+
+	/// <summary>
+	/// A bool attribute of the material as native's <c>GetBoolAttributeOrDefault</c> reads it: the compiled material's,
+	/// else what its shader's forward static combos export (<c>BoolAttribute( NeedsLightProbe, ... )</c>).
+	/// </summary>
+	bool Attribute( string name, bool fallback )
+	{
+		if ( File?.IntAttributes is { } own && own.TryGetValue( name, out var set ) ) return set != 0;
+		if ( Shader is not { } shader || (shader.Mode( "Forward" ) ?? shader.Mode( "VrForward" )) is not { } mode ) return fallback;
+
+		foreach ( var type in (ReadOnlySpan<ShaderProgramType>)[ShaderProgramType.Features, ShaderProgramType.Vertex, ShaderProgramType.Pixel] )
+		{
+			if ( shader[type] is not { } program ) continue;
+			var id = shader.StaticComboId( program, mode, Features );
+			if ( !program.HasCombo( id ) ) continue;
+
+			StaticCombo combo;
+			try
+			{
+				combo = program.LoadCombo( id );
+			}
+			catch ( System.IO.InvalidDataException )
+			{
+				continue;
+			}
+
+			foreach ( var attribute in combo.Attributes )
+			{
+				if ( attribute.Value is bool value && string.Equals( attribute.Name, name, StringComparison.OrdinalIgnoreCase ) ) return value;
+			}
+		}
+
+		return fallback;
+	}
 	public override ulong SimilarityKey => (ulong)(Shader?.Name.GetHashCode() ?? 0);
 
 	/// <summary>Drop its material objects and their sets. It still draws if it's used again (shared materials are).</summary>

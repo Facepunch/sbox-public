@@ -180,7 +180,8 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry
 					var alphaTest = RenderMesh.IsAlphaTest( material );
 					var fastPath = material is { ShadowFastPath: true } && !translucent && !alphaTest;
 					Vector3? tint = call.Tint == System.Numerics.Vector3.One ? null : new Vector3( call.Tint.X, call.Tint.Y, call.Tint.Z );
-					list.Add( new RenderMesh.Draw( m, d, call.StartIndex, call.IndexCount, call.VertexCount, (int)call.Primitive, material, translucent, alphaTest, fastPath, Tint: tint ) );
+					var lightmapped = (call.Flags & MeshDrawFlags.BakedLightingFromLightmap) != 0;
+					list.Add( new RenderMesh.Draw( m, d, call.StartIndex, call.IndexCount, call.VertexCount, (int)call.Primitive, material, translucent, alphaTest, fastPath, lightmapped, tint ) );
 				}
 			}
 

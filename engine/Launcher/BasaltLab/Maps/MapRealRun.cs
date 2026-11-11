@@ -16,7 +16,9 @@ namespace Sandbox.BasaltLab.Maps;
 /// <c>-map ident -real</c>: the map in a <see cref="MapWorld"/>, drawn by Basalt's <see cref="RenderSystem"/> with the
 /// map's materials through <see cref="BackendDevice"/>, timed per run of frames: Basalt's collect, prepare, setup,
 /// record and submit, the copy into the window, and GPU time from timestamps; then, on warm frames, the draws, binds,
-/// multi-draws and descriptor sets written. Prints and saves a table, and what the materials' draws bind.
+/// object changes (the same material with another object's lightmap, probe or attributes), multi-draws and descriptor
+/// sets written. Prints and saves a table, and what the materials' draws bind. <c>-nobaked</c> leaves the map's
+/// lightmaps and probes out; <c>-occlusion</c> turns on the GPU occlusion cull.
 /// </summary>
 internal static class MapRealRun
 {
@@ -50,9 +52,10 @@ internal static class MapRealRun
 		}
 
 		var load = Stopwatch.StartNew();
-		using var map = new MapWorld( gpu, folder, core, castShadows: false, aggregatesAsMeshes: Args.Has( "-aggregates-as-meshes" ) );
+		using var map = new MapWorld( gpu, folder, core, castShadows: false, aggregatesAsMeshes: Args.Has( "-aggregates-as-meshes" ), bakedLighting: !Args.Has( "-nobaked" ) );
 		map.SetTarget( options.Width, options.Height, options.Samples );
 		map.System.DepthPrepass = !Args.Has( "-noprepass" );
+		if ( Args.Has( "-occlusion" ) && RenderHost.Current is BackendRenderHost host ) host.Occlusion = true;
 		foreach ( var (name, ms) in map.Phases ) Console.WriteLine( $"  {name}: {ms:0} ms" );
 		Console.WriteLine( $"Loaded in {load.Elapsed.TotalSeconds:0.0} s; {map.Problems.Count} problems" );
 		foreach ( var problem in map.Problems.Take( 10 ) ) Console.WriteLine( $"  {problem}" );
@@ -99,7 +102,7 @@ internal static class MapRealRun
 		}
 
 		var lines = new List<string>();
-		var csv = new StringBuilder( "view,variant,parallel,material_objects,shadows,frames,wait_ms,render_ms,collect_ms,prepare_ms,setup_ms,record_ms,worker_record_ms,stages_ms,submit_ms,copy_ms,cpu_ms,frame_ms,frame_p95_ms,gpu_ms,draws,depth_draws,shadow_draws,translucent_draws,instances,objects_visible,triangles,model_draws,binds,fragment_draws,ns_per_bind,ns_per_repeat,sets_written_per_frame,gcs\n" );
+		var csv = new StringBuilder( "view,variant,parallel,material_objects,shadows,frames,wait_ms,render_ms,collect_ms,prepare_ms,setup_ms,record_ms,worker_record_ms,stages_ms,submit_ms,copy_ms,cpu_ms,frame_ms,frame_p95_ms,gpu_ms,draws,depth_draws,shadow_draws,translucent_draws,instances,objects_visible,triangles,model_draws,binds,fragment_draws,ns_per_bind,ns_per_repeat,sets_written_per_frame,gcs,object_changes,ns_per_object_change,failed_draws\n" );
 		var bindingReport = "";
 
 		foreach ( var view in options.Views )
@@ -144,16 +147,22 @@ internal static class MapRealRun
 				var t = map.Backend.DrawTimes;
 				var (modelDraws, binds, fragmentDraws) = (t.Draws / Counted, t.Binds / Counted, t.IndirectDraws / Counted);
 				var (nsBind, nsRepeat) = (t.NanosecondsPerBind, t.NanosecondsPerRepeat);
+				var (objectChanges, nsObjectChange) = (t.ObjectChanges / Counted, t.NanosecondsPerObjectChange);
 				string failed;
-				lock ( t.Failed ) failed = t.Failed.Count == 0 ? "none" : $"{t.Failed.Values.Sum() / Counted} a frame: {string.Join( ", ", t.Failed.OrderByDescending( x => x.Value ).Take( 8 ).Select( x => $"{x.Key} {x.Value / Counted}" ) )}";
+				int failedDraws;
+				lock ( t.Failed )
+				{
+					failedDraws = t.Failed.Values.Sum() / Counted;
+					failed = t.Failed.Count == 0 ? "none" : $"{failedDraws} a frame: {string.Join( ", ", t.Failed.OrderByDescending( x => x.Value ).Take( 8 ).Select( x => $"{x.Key} {x.Value / Counted}" ) )}";
+				}
 
 				double M( Func<Frame, double> f ) => Percentile( frames.Select( f ).Where( x => !double.IsNaN( x ) ), 0.5 );
 				var cpu = M( f => f.Render + f.Copy );
 				var line = $"{view.Name,-9} {variant.Name,-22} collect {M( f => f.Collect ),6:0.000} prepare {M( f => f.Prepare ),6:0.000} setup {M( f => f.Setup ),6:0.000} record {M( f => f.Record ),6:0.000} (workers {M( f => f.WorkerRecord ):0.000}) submit {M( f => f.Submit ),6:0.000} render {M( f => f.Render ),6:0.000} copy {M( f => f.Copy ),5:0.000} wait {M( f => f.Wait ),6:0.000} frame {Percentile( frameTimes, 0.5 ),6:0.000} gpu {M( f => f.Gpu ),6:0.000}  "
-					+ $"{stats.Draws}+{stats.DepthDraws} depth+{stats.ShadowDraws} shadow draws ({stats.TranslucentDraws} translucent, {stats.Instances} instances), {stats.ObjectsVisible} objects visible, {stats.Triangles / 1e6:0.00}M tris; {modelDraws} model draws, {binds} binds, {fragmentDraws} fragment draws ({nsBind:0} ns a bind, {nsRepeat:0} ns a repeat draw, timed), {setsPerFrame:0.0} sets written/frame, {gcs} GCs; draws that recorded nothing: {failed}";
+					+ $"{stats.Draws}+{stats.DepthDraws} depth+{stats.ShadowDraws} shadow draws ({stats.TranslucentDraws} translucent, {stats.Instances} instances), {stats.ObjectsVisible} objects visible, {stats.Triangles / 1e6:0.00}M tris; {modelDraws} model draws, {binds} binds, {objectChanges} object changes, {fragmentDraws} fragment draws ({nsBind:0} ns a bind, {nsObjectChange:0} ns an object change, {nsRepeat:0} ns a repeat draw, timed), {setsPerFrame:0.0} sets written/frame, {gcs} GCs; draws that recorded nothing: {failed}";
 				Console.WriteLine( line );
 				lines.Add( line );
-				csv.AppendLine( FormattableString.Invariant( $"{view.Name},{variant.Name},{variant.Parallel},{variant.MaterialObjects},{variant.Shadows},{frames.Count},{M( f => f.Wait ):0.0000},{M( f => f.Render ):0.0000},{M( f => f.Collect ):0.0000},{M( f => f.Prepare ):0.0000},{M( f => f.Setup ):0.0000},{M( f => f.Record ):0.0000},{M( f => f.WorkerRecord ):0.0000},{M( f => f.Stages ):0.0000},{M( f => f.Submit ):0.0000},{M( f => f.Copy ):0.0000},{cpu:0.0000},{Percentile( frameTimes, 0.5 ):0.0000},{Percentile( frameTimes, 0.95 ):0.0000},{M( f => f.Gpu ):0.0000},{stats.Draws},{stats.DepthDraws},{stats.ShadowDraws},{stats.TranslucentDraws},{stats.Instances},{stats.ObjectsVisible},{stats.Triangles},{modelDraws},{binds},{fragmentDraws},{nsBind:0},{nsRepeat:0},{setsPerFrame:0.0},{gcs}" ) );
+				csv.AppendLine( FormattableString.Invariant( $"{view.Name},{variant.Name},{variant.Parallel},{variant.MaterialObjects},{variant.Shadows},{frames.Count},{M( f => f.Wait ):0.0000},{M( f => f.Render ):0.0000},{M( f => f.Collect ):0.0000},{M( f => f.Prepare ):0.0000},{M( f => f.Setup ):0.0000},{M( f => f.Record ):0.0000},{M( f => f.WorkerRecord ):0.0000},{M( f => f.Stages ):0.0000},{M( f => f.Submit ):0.0000},{M( f => f.Copy ):0.0000},{cpu:0.0000},{Percentile( frameTimes, 0.5 ):0.0000},{Percentile( frameTimes, 0.95 ):0.0000},{M( f => f.Gpu ):0.0000},{stats.Draws},{stats.DepthDraws},{stats.ShadowDraws},{stats.TranslucentDraws},{stats.Instances},{stats.ObjectsVisible},{stats.Triangles},{modelDraws},{binds},{fragmentDraws},{nsBind:0},{nsRepeat:0},{setsPerFrame:0.0},{gcs},{objectChanges},{nsObjectChange:0},{failedDraws}" ) );
 			}
 
 			if ( bindingReport.Length == 0 ) bindingReport = DescribeBindings( map.Backend );
@@ -178,6 +187,8 @@ internal static class MapRealRun
 		Directory.CreateDirectory( options.Output );
 		var md = new StringBuilder();
 		md.AppendLine( $"Basalt Lab -map {options.Ident} -real, {DateTime.Now:yyyy-MM-dd HH:mm}, {gpu.Adapter.Name}, {options.Width}x{options.Height} {options.Samples}x MSAA, vsync off, {options.Frames} measured frames per run (medians, ms)" );
+		md.AppendLine();
+		md.AppendLine( $"Baked lighting: {map.LightmapTextures} lightmaps for {map.LightmappedObjects} objects and aggregates, {map.ProbeVolumes} probe volumes for {map.ProbeObjects} objects (volume boxes from their objects' bounds); occlusion culling {(RenderHost.Current.OcclusionCulling ? "on" : "off")}" );
 		if ( options.Unoptimised.Length > 0 ) md.AppendLine( $"**Debug build: {options.Unoptimised}**" );
 		md.AppendLine();
 		md.AppendLine( "```" );

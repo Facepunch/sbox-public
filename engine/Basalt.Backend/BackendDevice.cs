@@ -576,6 +576,12 @@ public class BackendRenderHost( BackendDevice device ) : RenderHost
 	/// <inheritdoc/>
 	public override bool ContactShadows => false;
 
+	/// <summary>
+	/// GPU occlusion culling (off by default): the culler's compute pass, and culled draws from its arguments and surviving
+	/// instance ids.
+	/// </summary>
+	public bool Occlusion { get; set; }
+
 	/// <inheritdoc/>
-	public override bool OcclusionCulling => false;
+	public override bool OcclusionCulling => Occlusion;
 }
