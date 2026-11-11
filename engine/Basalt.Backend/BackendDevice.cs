@@ -399,10 +399,10 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 			}, defaultBuffer: 2 );
 
 			VertexBufferLayout[] streams = [new( layout.Stride ), new( 4, VertexStepRate.Instance ), new( 0 )];
-			var info = variant.PipelineInfo( streams, attributes, color == Format.Unknown ? [] : [color], depth, samples, depthBias: depthOnly, $"{variant}{(depthOnly ? " depth" : "")}" );
+			var info = variant.PipelineInfo( streams, attributes, color == Format.Unknown ? [] : [color], depth, samples, depthBias: depthOnly || color == Format.Unknown, $"{variant}{(depthOnly ? " depth" : "")}" );
 			if ( sets is not null ) info.Sets = sets;
 
-			// Stripped pixel shaders: depth passes of opaque materials don't need them
+			// Stripped pixel shaders: depth passes of opaque materials don't need them (alpha-tested ones keep theirs)
 			if ( depthOnly && color == Format.Unknown )
 			{
 				info.FragmentShader = default;

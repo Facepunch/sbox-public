@@ -262,6 +262,71 @@ public class ObjectAttributeTests : GpuTest
 	}
 
 	/// <summary>
+	/// A blendable material compiled for shader version 1 (<c>m_shaderVersion</c>, read through <c>Source( ShaderVersion )</c>)
+	/// takes its roughness from its normal map's blue channel. Version 0's layout would read it from the metalness channel
+	/// (black in <c>simple_blend</c>), so its roughness view (<c>ToolsVisMode</c> 12) is lit only with the version filled in.
+	/// The view is a specialization constant: changing it picks another variant, and changing it back draws the lit frame again,
+	/// through material objects as by reflection.
+	/// </summary>
+	[TestMethod]
+	public void BlendableMaterialsReadTheirShaderVersion()
+	{
+		using var backend = new BackendDevice( Device );
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+		try
+		{
+			using var system = new RenderSystem { ParallelRecording = false };
+			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Shader version test" );
+			var material = (BackendMaterial)backend.LoadMaterial( "materials/dev/simple/simple_blend.vmat" );
+			if ( material.Shader is null ) Assert.Inconclusive( "blendable.shader isn't built" );
+			Assert.AreEqual( 1, material.ShaderVersion, "simple_blend is compiled for blendable's version 1" );
+
+			var world = new RenderWorld();
+			world.Lighting.SunShadowCascades = 0;
+			world.Add( new MeshObject( BoxMesh( backend, material ), Transform.Zero ) );
+
+			var view = new RenderView { Name = "Shader version test", FieldOfView = 60, ZNear = 4, ZFar = 4000, ClearColor = Color.Black, Viewport = new Rect( 0, 0, Width, Height ) };
+			view.Position = new Vector3( -200, -200, 150 );
+			view.Rotation = Rotation.LookAt( -view.Position );
+
+			byte[] Frame( bool materialObjects, int toolsVis )
+			{
+				backend.MaterialObjects = materialObjects;
+				view.ToolsVisMode = toolsVis;
+				backend.BeginFrame();
+				RenderHost.Current.NextFrame();
+				system.Render( world, view, target );
+				Device.WaitIdle();
+				var (texture, layout) = BackendDevice.Unwrap( target.Color );
+				var pixels = ReadBack( texture, layout );
+				BackendDevice.SetLayout( target.Color, ImageLayout.CopySource );
+				return pixels;
+			}
+
+			const int Roughness = 12;
+			var lit = Frame( true, 0 );
+			var roughness = Frame( true, Roughness );
+			var litAgain = Frame( true, 0 );
+			var roughnessByReflection = Frame( false, Roughness );
+
+			// The box's roughness: the brightest red (RGBA16F) over the frame, which is black around it
+			var brightest = 0f;
+			for ( int i = 0; i + 8 <= roughness.Length; i += 8 ) brightest = Math.Max( brightest, (float)BitConverter.ToHalf( roughness, i ) );
+
+			Assert.IsTrue( Different( lit, roughness ) > 0, "the roughness view draws another frame" );
+			Assert.AreEqual( 0, Different( lit, litAgain ), "turning the view off draws the lit frame again" );
+			Assert.AreEqual( 0, Different( roughness, roughnessByReflection ), "material objects draw the view binding by reflection draws" );
+			Assert.IsTrue( brightest > 0.05f, $"the box has roughness (brightest {brightest})" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
 	/// With GPU occlusion culling on, draws come from the culler's arguments and surviving instance ids (one indirect draw
 	/// each) and the frame is the one drawn without culling, through material objects as by reflection. Nothing is hidden
 	/// yet: the depth chain the cull tests against is built by compute dispatches with their own parameters, which this
@@ -431,7 +496,7 @@ public class ObjectAttributeTests : GpuTest
 
 	static byte Byte( float value ) => (byte)Math.Clamp( value * 63.75f, 0, 255 );
 
-	static RenderMesh BoxMesh( BackendDevice backend, GpuMaterial material )
+	internal static RenderMesh BoxMesh( BackendDevice backend, GpuMaterial material )
 	{
 		var vertices = new List<MeshVertex>();
 		var indices = new List<uint>();
