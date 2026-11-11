@@ -1,5 +1,6 @@
 @using Sandbox;
 @using Sandbox.UI;
+@using MenuProject.Modals;
 @namespace MenuProject.AvatarEditor
 @inherits PanelComponent
 
@@ -82,7 +83,18 @@
 
 	void BackToMainMenu()
 	{
-		returnToMainMenu = true;
+		  if ( !Manager.HasUnsavedChanges )
+		  {
+			  returnToMainMenu = true;
+			  return;
+		  }
+
+		  ModalSystem.Instance.DiscardChanges( result =>
+		  {
+			  if ( result == DiscardChangesModal.DiscardResult.Cancel ) return;
+			  if ( result == DiscardChangesModal.DiscardResult.Save ) Manager.SaveChanges();
+			  returnToMainMenu = true;
+		  } );
 	}
 
 	protected override void OnUpdate()
