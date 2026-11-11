@@ -6,6 +6,7 @@ native struct CTextureDesc is NativeEngine.CTextureDesc;
 native enum RenderDeviceAPI_t is NativeEngine.RenderDeviceAPI_t;
 native pointer SwapChainHandle_t;
 native pointer RenderBufferHandle_t is NativeEngine.RenderBufferHandle_t;
+native pointer RenderDescriptorSetHandle_t is NativeEngine.RenderDescriptorSetHandle_t;
 native pointer RenderInputLayout_t is NativeEngine.RenderInputLayout_t;
 native struct BufferDesc_t is NativeEngine.BufferDesc;
 native enum RenderBufferType_t is NativeEngine.RenderBufferType;

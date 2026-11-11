@@ -92,6 +92,20 @@ internal sealed class HeadlessContext : GpuContext
 		bound = default;
 		viewConstants = null;
 		passStateCount = 0;
+		if ( frame is null ) viewSetWritten = false;
+	}
+
+	bool viewSetWritten;
+
+	/// <summary>Recorded once a frame, with the attributes the view set is filled from as they are then.</summary>
+	public override void WriteViewSet()
+	{
+		if ( frame is not null ) throw new InvalidOperationException( "Only a frame context writes the view set" );
+		if ( viewSetWritten ) return;
+		viewSetWritten = true;
+		var snapshot = new HeadlessParameters();
+		attributes.MergeTo( snapshot );
+		Record( Command( GpuOp.WriteViewSet ) with { Parameters = snapshot } );
 	}
 
 	public override void Submit( GpuSwapChain swapChain = default )

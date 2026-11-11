@@ -198,6 +198,7 @@ public sealed unsafe partial class Device : IDisposable
 			Bindless = new BindlessTable( this, bindlessTextures, bindlessSamplers, bindlessStorage, features.storageBufferUpdateAfterBind );
 			CreatePipelineCache( options.PipelineCacheData );
 			CreateFrames();
+			CreateDefaultViewSet();
 		}
 		catch
 		{
