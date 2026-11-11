@@ -101,6 +101,21 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	}
 
 	/// <summary>
+	/// New-tier shaders (Slang surfaces and raw modules) and their materials' records, compiled when a
+	/// <see cref="SurfaceMaterial"/> of theirs first draws. See docs/managed/shader-format-replacement.md.
+	/// </summary>
+	public SurfaceShaders Surfaces
+	{
+		get
+		{
+			if ( surfaces is { } made ) return made;
+			lock ( pipelines ) return surfaces ??= new SurfaceShaders( this );
+		}
+	}
+
+	SurfaceShaders surfaces;
+
+	/// <summary>
 	/// Keep static models' geometry in GPU-driven pages as they load (<see cref="GpuDrivenTables"/>), so
 	/// <see cref="GpuDriven"/> can draw them. Set before loading models; it costs a second copy of their buffers while the
 	/// classic path still draws from its own.
@@ -836,6 +851,7 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 		Gpu.WaitIdle();
 		Poll();
 		materialCache?.Dispose();
+		surfaces?.Dispose();
 		gpuDrivenTables?.Dispose();
 		lock ( pipelines )
 		{
