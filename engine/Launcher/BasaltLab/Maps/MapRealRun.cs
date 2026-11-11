@@ -28,7 +28,7 @@ internal static class MapRealRun
 	/// A way of drawing it: recording on one thread or several, material objects or binding by reflection, whether static
 	/// geometry casts sun shadows, and whether aggregates draw GPU-driven (<c>-gpudriven</c>).
 	/// </summary>
-	sealed record Variant( string Name, bool Parallel, bool MaterialObjects, bool Shadows, bool GpuDriven = false, bool MaterialBuckets = false, bool CpuCulling = false );
+	sealed record Variant( string Name, bool Parallel, bool MaterialObjects, bool Shadows, bool GpuDriven = false, bool MaterialBuckets = false, bool CpuCulling = false, bool NoCompaction = false );
 
 	static readonly Variant[] Variants =
 	[
@@ -43,6 +43,8 @@ internal static class MapRealRun
 		new( "real-parallel-gpudriven-materials", true, true, false, true, true ),
 		new( "real-serial-gpudriven-cpucull", false, true, false, true, false, true ),
 		new( "real-parallel-gpudriven-cpucull", true, true, false, true, false, true ),
+		new( "real-serial-gpudriven-nocompact", false, true, false, true, false, false, true ),
+		new( "real-parallel-gpudriven-nocompact", true, true, false, true, false, false, true ),
 	];
 
 	struct Frame
@@ -126,6 +128,7 @@ internal static class MapRealRun
 				map.Backend.GpuDriven = variant.GpuDriven;
 				map.Backend.GpuDrivenMaterialBuckets = variant.MaterialBuckets;
 				map.Backend.GpuDrivenCulling = !variant.CpuCulling;
+				map.Backend.GpuDrivenCompaction = !variant.NoCompaction;
 				map.SetCastShadows( variant.Shadows );
 
 				var warm = Stopwatch.StartNew();
@@ -199,6 +202,7 @@ internal static class MapRealRun
 					map.Backend.GpuDriven = drivenCapture;
 					map.Backend.GpuDrivenMaterialBuckets = materialBuckets;
 					map.Backend.GpuDrivenCulling = true;
+					map.Backend.GpuDrivenCompaction = true;
 					for ( int i = 0; i < 3; i++ ) RenderFrame( view );
 					gpu.WaitIdle();
 					var (captured, capturedLayout) = map.Output;

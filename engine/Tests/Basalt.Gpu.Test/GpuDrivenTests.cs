@@ -23,8 +23,8 @@ public class GpuDrivenTests : GpuTest
 
 	/// <summary>
 	/// Aggregates of boxes in three materials (prepass, forward) draw the same pixels GPU-driven as the classic way, one
-	/// bucket for all three materials instead of a bind each; with a bucket per material; and culled on the CPU instead of
-	/// the GPU.
+	/// bucket for all three materials instead of a bind each; with a bucket per material; culled on the CPU instead of the
+	/// GPU; and culled on the GPU with and without compacting the commands.
 	/// </summary>
 	[TestMethod]
 	public void AggregatesDrawTheSamePixelsGpuDriven()
@@ -59,10 +59,11 @@ public class GpuDrivenTests : GpuTest
 			view.Position = new Vector3( -500, -300, 300 );
 			view.Rotation = Rotation.LookAt( -view.Position.WithZ( view.Position.z - 40 ) );
 
-			byte[] Frame( bool gpuDriven, out int binds, bool materialBuckets, bool gpuCulling = true )
+			byte[] Frame( bool gpuDriven, out int binds, bool materialBuckets, bool gpuCulling = true, bool compaction = true )
 			{
 				backend.GpuDriven = gpuDriven;
 				backend.GpuDrivenCulling = gpuCulling;
+				backend.GpuDrivenCompaction = compaction;
 				backend.GpuDrivenMaterialBuckets = materialBuckets;
 				backend.TimeDraws = true;
 				backend.DrawTimes.Reset();
@@ -85,6 +86,7 @@ public class GpuDrivenTests : GpuTest
 			Assert.AreEqual( drawRecords, backend.GpuDrivenTables.Records.Draws, "the second frame reuses the aggregates' draw records" );
 			var perMaterial = Frame( true, out var perMaterialBinds, true );
 			var cpuCulled = Frame( true, out _, false, gpuCulling: false );
+			var uncompacted = Frame( true, out _, false, compaction: false );
 
 			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
 			Assert.AreEqual( 0, Different( classic, perMaterial ), "a bucket per material draws the classic pixels" );
@@ -94,6 +96,7 @@ public class GpuDrivenTests : GpuTest
 			Assert.AreEqual( 0, Different( classic, driven ), "GPU-driven draws the classic pixels" );
 			CollectionAssert.AreEqual( driven, again, "the same frame twice" );
 			Assert.AreEqual( 0, Different( classic, cpuCulled ), "culled on the CPU, the classic pixels too" );
+			Assert.AreEqual( 0, Different( classic, uncompacted ), "culled on the GPU without compacting, the classic pixels too" );
 			Assert.IsNotNull( backend.GpuDrivenCullShader, "the culling shader is built, so the GPU-driven frames culled on the GPU" );
 		}
 		finally
@@ -160,6 +163,13 @@ public class GpuDrivenTests : GpuTest
 				library.GpuDrivenCache = Path.Combine( folder, "cache" );
 				library.GpuDrivenCompiler = ( _, _ ) => throw new AssertFailedException( "the cached variant compiled again" );
 				Assert.IsNotNull( library.GpuDriven( library.Load( "shaders/depth_only.shader" ) ), "from the cache" );
+
+				// Another compiler version's variants go
+				var stale = Path.Combine( folder, "cache", "depth_only.0000.ffffffff.gpudriven.shader_c" );
+				File.WriteAllText( stale, "" );
+				library.PruneGpuDrivenCache();
+				Assert.IsFalse( File.Exists( stale ), "another version's variant is pruned" );
+				Assert.AreEqual( 1, Directory.GetFiles( Path.Combine( folder, "cache" ) ).Length, "this version's variant stays" );
 			}
 		}
 		finally
@@ -168,16 +178,19 @@ public class GpuDrivenTests : GpuTest
 		}
 	}
 
-	/// <summary>Four boxes along x at <paramref name="y"/>, in world space in one mesh, and a fragment per box.</summary>
+	/// <summary>
+	/// Four boxes along x at <paramref name="y"/> and a fifth beyond the far plane, which culling drops, in world space in
+	/// one mesh, and a fragment per box.
+	/// </summary>
 	static (RenderMesh Mesh, AggregateObject.FragmentDraw[] Fragments) Boxes( BackendDevice backend, GpuMaterial material, float y )
 	{
-		const int count = 4;
+		const int count = 5;
 		var vertices = new List<MeshVertex>();
 		var indices = new List<uint>();
 		var fragments = new AggregateObject.FragmentDraw[count];
 		for ( int b = 0; b < count; b++ )
 		{
-			var centre = new Vector3( b * 120 - 180, y, 40 );
+			var centre = b < 4 ? new Vector3( b * 120 - 180, y, 40 ) : new Vector3( 0, y, -6000 );
 			var firstIndex = indices.Count;
 			Box( vertices, indices, centre, 40 );
 			fragments[b] = new AggregateObject.FragmentDraw

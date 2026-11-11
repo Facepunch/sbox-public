@@ -243,7 +243,10 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 
 		var game = Path.GetDirectoryName( core );
 		Shaders.GpuDrivenCache = Path.Combine( game, ".source2", "basaltgpudriven" );
-		Shaders.GpuDrivenCompilerVersion = $"{File.GetLastWriteTimeUtc( compiler ).Ticks}.{File.GetLastWriteTimeUtc( Path.Combine( core, "shaders", "basalt_gpu_driven.fxc" ) ).Ticks}";
+		// The variant's form and the wrapper it appends, not the build: a rebuild that changes neither compiles nothing
+		var wrapper = Convert.ToHexString( System.Security.Cryptography.SHA256.HashData( File.ReadAllBytes( Path.Combine( core, "shaders", "basalt_gpu_driven.fxc" ) ) ), 0, 8 );
+		Shaders.GpuDrivenCompilerVersion = $"{ShaderLibrary.GpuDrivenVersion}.{wrapper}";
+		System.Threading.Tasks.Task.Run( Shaders.PruneGpuDrivenCache );
 		Shaders.GpuDrivenCompiler = ( source, output ) =>
 		{
 			// Core shaders embed no source: build-shaders makes theirs, and one without stays classic
@@ -622,6 +625,13 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// record and command per visible fragment. On by default; off writes them on the CPU, to compare.
 	/// </summary>
 	public bool GpuDrivenCulling { get; set; } = true;
+
+	/// <summary>
+	/// With <see cref="GpuDrivenCulling"/>, the culling writes only the kept fragments' commands, packed at the start of
+	/// each multi-draw, which draws as many as it kept (<c>DrawIndexedIndirectCount</c>). On by default where the device
+	/// takes a draw count from a buffer; off leaves a command per fragment with no instance where culled, to compare.
+	/// </summary>
+	public bool GpuDrivenCompaction { get; set; } = true;
 
 	/// <summary>The culling compute shader, or null when it isn't built.</summary>
 	internal ShaderFile GpuDrivenCullShader
