@@ -190,6 +190,37 @@ public sealed unsafe class CommandList
 	}
 
 	//
+	// Occlusion queries
+	//
+
+	/// <summary>Reset occlusion queries before counting into them again (outside rendering).</summary>
+	public void ResetQueries( OcclusionQueries queries, int first, int count )
+	{
+		OutsideRendering();
+		FlushBarriers();
+		vk.vkCmdResetQueryPool( Handle, queries.Pool, (uint)first, (uint)count );
+	}
+
+	/// <summary>
+	/// Start counting the samples the draws after this pass into query <paramref name="index"/>, exactly where the device
+	/// can (<see cref="DeviceCapabilities.PreciseOcclusion"/>). Begin and end it in one rendering scope.
+	/// </summary>
+	public void BeginQuery( OcclusionQueries queries, int index )
+	{
+		if ( !rendering ) throw new InvalidOperationException( "Occlusion queries count inside a rendering scope" );
+
+		// VK_QUERY_CONTROL_PRECISE_BIT
+		vk.vkCmdBeginQuery( Handle, queries.Pool, (uint)index, device.Capabilities.PreciseOcclusion ? 1u : 0u );
+	}
+
+	/// <summary>Stop counting into query <paramref name="index"/>.</summary>
+	public void EndQuery( OcclusionQueries queries, int index )
+	{
+		if ( !rendering ) throw new InvalidOperationException( "Occlusion queries count inside a rendering scope" );
+		vk.vkCmdEndQuery( Handle, queries.Pool, (uint)index );
+	}
+
+	//
 	// Debug labels
 	//
 

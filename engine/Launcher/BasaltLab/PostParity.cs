@@ -28,7 +28,7 @@ internal static class PostParity
 	/// <summary>
 	/// A case: what a component would record, with its values on the command list's attributes.
 	/// </summary>
-	sealed record Case( string Name, string Covers, Action<CommandList> Record, string NotCompared = null, Action<GameObject> Components = null );
+	sealed record Case( string Name, string Covers, Action<CommandList> Record, string NotCompared = null, Action<GameObject> Components = null, bool NeedsDepth = false, Func<ViewConstants, ViewConstants> View = null );
 
 	/// <summary>Run the engine's post process components (<c>-components</c>) rather than the copies of their command lists.</summary>
 	static bool components;
@@ -169,6 +169,150 @@ internal static class PostParity
 		command.Blit( Shader( "shaders/postprocess/postprocess_bloom.shader" ) );
 	}
 
+	// What the case being run draws into: the copy of the frame and the depth bound with it (the scene's)
+	static Texture caseColor, caseDepth;
+
+	// Depth of field's focus: the lab camera's distance to the scene, and a range that leaves the front and back blurred
+	static float focalDistance = 200, focusRange = 100;
+
+	static ComputeShader dofCs;
+	static GpuBuffer<uint> dofTiles;
+	static GpuBuffer<GpuBuffer.IndirectDispatchArguments> dofArguments;
+
+	/// <summary>
+	/// As <c>DepthOfField.Render</c> at high quality, front and back: circle of confusion into half-size targets, tile
+	/// classification into an indirect dispatch's arguments, two indirect blur passes per layer, and composites that test
+	/// the view's depth. A block without a view has no <c>RenderValue</c> targets on Source 2, so the colour and depth are
+	/// set as the targets themselves.
+	/// </summary>
+	static void DepthOfField( CommandList command )
+	{
+		const int TileCapacity = 32 * 1024, downsample = 2, tileSize = 16;
+		dofCs ??= new ComputeShader( "postprocess/postprocess_standard_dof_cs" );
+		dofTiles ??= new GpuBuffer<uint>( TileCapacity * 2, GpuBuffer.UsageFlags.Structured, "DoF_Tiles" );
+		dofArguments ??= new GpuBuffer<GpuBuffer.IndirectDispatchArguments>( 2, GpuBuffer.UsageFlags.Structured | GpuBuffer.UsageFlags.IndirectDrawArguments, "DoF_DispatchArgs" );
+
+		command.SetBufferData( dofArguments, new GpuBuffer.IndirectDispatchArguments[]
+		{
+			new() { ThreadGroupCountX = 0, ThreadGroupCountY = 1, ThreadGroupCountZ = 1 },
+			new() { ThreadGroupCountX = 0, ThreadGroupCountY = 1, ThreadGroupCountZ = 1 },
+		} );
+
+		command.Attributes.Set( "Color", caseColor );
+		command.Attributes.Set( "Depth", caseDepth );
+		command.Attributes.SetCombo( "D_MSAA", 0 );
+		var back = command.GetRenderTarget( "DofBack", downsample, ImageFormat.RGBA16161616F, ImageFormat.None );
+		var front = command.GetRenderTarget( "DofFront", downsample, ImageFormat.RGBA16161616F, ImageFormat.None );
+		var vertical = command.GetRenderTarget( "DofVertical", downsample, ImageFormat.RGBA16161616F, ImageFormat.None );
+		var diagonal = command.GetRenderTarget( "DofDiagonal", downsample, ImageFormat.RGBA16161616F, ImageFormat.None );
+		command.Clear( back, Color.Transparent );
+		command.Clear( front, Color.Transparent );
+
+		var tileMax = command.GetRenderTarget( "DofTileMax", (downsample * tileSize) - 1, ImageFormat.RG1616F, ImageFormat.None );
+		var tileDilated = command.GetRenderTarget( "DofTileDilated", (downsample * tileSize) - 1, ImageFormat.RG1616F, ImageFormat.None );
+
+		command.Attributes.Set( "InvDimensions", vertical.Size, true );
+		command.Attributes.Set( "Dimensions", vertical.Size );
+		command.Attributes.Set( "BlurSize", 30.0f );
+		command.Attributes.Set( "StepScale", 1.0f );
+		command.Attributes.Set( "FocusPlane", focalDistance );
+		command.Attributes.Set( "FocusRange", focusRange );
+		command.Attributes.Set( "EnableBack", true );
+		command.Attributes.Set( "EnableFront", true );
+		command.Attributes.Set( "TileCapacity", TileCapacity );
+
+		command.ResourceBarrierTransition( back, ResourceState.UnorderedAccess );
+		command.ResourceBarrierTransition( front, ResourceState.UnorderedAccess );
+		command.ResourceBarrierTransition( tileMax, ResourceState.UnorderedAccess );
+		command.Attributes.Set( "OutColor0", back.ColorTexture );
+		command.Attributes.Set( "OutColor1", front.ColorTexture );
+		command.Attributes.Set( "OutTile", tileMax.ColorTexture );
+		command.Attributes.SetCombo( "D_PASS", 0 );
+		command.DispatchCompute( dofCs, vertical.Size );
+
+		command.ResourceBarrierTransition( tileMax, ResourceState.NonPixelShaderResource );
+		command.ResourceBarrierTransition( back, ResourceState.NonPixelShaderResource );
+		command.ResourceBarrierTransition( front, ResourceState.NonPixelShaderResource );
+
+		command.ResourceBarrierTransition( dofTiles, ResourceState.UnorderedAccess );
+		command.ResourceBarrierTransition( dofArguments, ResourceState.CopyDestination, ResourceState.UnorderedAccess );
+		command.ResourceBarrierTransition( tileDilated, ResourceState.UnorderedAccess );
+		command.Attributes.Set( "TileMaxSRV", tileMax.ColorTexture );
+		command.Attributes.Set( "OutTile", tileDilated.ColorTexture );
+		command.Attributes.Set( "TileListRW", dofTiles );
+		command.Attributes.Set( "DispatchArgsRW", dofArguments );
+		command.Attributes.SetCombo( "D_PASS", 1 );
+		command.DispatchCompute( dofCs, tileMax.Size );
+
+		command.ResourceBarrierTransition( dofTiles, ResourceState.UnorderedAccess, ResourceState.NonPixelShaderResource );
+		command.ResourceBarrierTransition( dofArguments, ResourceState.UnorderedAccess, ResourceState.IndirectArgument );
+		command.ResourceBarrierTransition( tileDilated, ResourceState.NonPixelShaderResource );
+
+		command.Attributes.SetCombo( "D_DEBUG_COC", 0 );
+		command.Attributes.Set( "TileList", dofTiles );
+		command.Attributes.Set( "TileDilatedSRV", tileDilated.ColorTexture );
+
+		var composite = Shader( "shaders/postprocess/postprocess_standard_dof.shader" );
+		for ( var type = 0; type < 2; type++ )
+		{
+			var target = type == 0 ? back : front;
+			command.Clear( vertical, Color.Transparent );
+			command.Clear( diagonal, Color.Transparent );
+			command.ResourceBarrierTransition( vertical, ResourceState.UnorderedAccess );
+			command.ResourceBarrierTransition( diagonal, ResourceState.UnorderedAccess );
+
+			command.Attributes.Set( "IsFront", type == 1 );
+			command.Attributes.Set( "ListOffset", type == 1 ? TileCapacity : 0 );
+			command.Attributes.Set( "FinalSRV", target.ColorTexture );
+			command.Attributes.Set( "OutColor0", vertical.ColorTexture );
+			command.Attributes.Set( "OutColor1", diagonal.ColorTexture );
+			command.Attributes.SetCombo( "D_PASS", 2 );
+			command.DispatchComputeIndirect( dofCs, dofArguments, (uint)type );
+
+			command.ResourceBarrierTransition( vertical, ResourceState.NonPixelShaderResource );
+			command.ResourceBarrierTransition( diagonal, ResourceState.NonPixelShaderResource );
+			command.ResourceBarrierTransition( target, ResourceState.UnorderedAccess );
+
+			command.Attributes.Set( "VerticalSRV", vertical.ColorTexture );
+			command.Attributes.Set( "DiagonalSRV", diagonal.ColorTexture );
+			command.Attributes.Set( "OutColor0", target.ColorTexture );
+			command.Attributes.SetCombo( "D_PASS", 3 );
+			command.DispatchComputeIndirect( dofCs, dofArguments, (uint)type );
+
+			command.ResourceBarrierTransition( target, ResourceState.PixelShaderResource );
+			command.Attributes.Set( "Final", target.ColorTexture );
+			command.Attributes.SetCombo( "D_DOF_TYPE", type );
+			command.Blit( composite );
+		}
+	}
+
+	/// <summary>
+	/// As <c>MotionBlur.Render</c> at its defaults: a blit of a frame grab that rebuilds each pixel's world position from the
+	/// view's depth chain and reprojects it into the previous frame, sampling along the way there.
+	/// </summary>
+	static void MotionBlur( CommandList cl )
+	{
+		var a = cl.Attributes;
+		a.Set( "standard.motionblur.scale", 0.05f );
+		a.Set( "standard.motionblur.samples", 12 );
+		a.SetCombo( "D_MOTION_BLUR", 1 );
+		Blit( cl, Material.Load( "materials/postprocess/standard_pass1.vmat" ), backbuffer: true );
+	}
+
+	/// <summary>
+	/// The view constants of a camera that has just moved 20 units along view x: the scenes' cameras are still, so the
+	/// previous frame's projection is moved instead, and how far each pixel moves depends on its depth.
+	/// </summary>
+	static ViewConstants Moved( ViewConstants constants )
+	{
+		ref var previous = ref System.Runtime.CompilerServices.Unsafe.As<Matrix, System.Numerics.Matrix4x4>( ref constants.CurrFrameViewToPrevFrameProj );
+		previous = System.Numerics.Matrix4x4.CreateTranslation( 20, 0, 0 ) * previous;
+		return constants;
+	}
+
+	// The reference's depth chain, built from Source 2's depth in its block
+	static Texture source2Chain;
+
 	/// <summary>A frame grab with a box-filtered mip chain (<c>downsample_spd</c>), read back at mip 3.</summary>
 	static void BoxMips( CommandList cl )
 	{
@@ -196,6 +340,18 @@ internal static class PostParity
 				var bloom = go.Components.Create<global::Sandbox.Bloom>();
 				bloom.Threshold = 0.5f;
 			} ),
+		new( "dof", "depth of field: the view's depth, indirect dispatches, composites tested against depth", DepthOfField, NeedsDepth: true,
+			Components: go =>
+			{
+				var dof = go.Components.Create<global::Sandbox.DepthOfField>();
+				dof.BlurSize = 30;
+				dof.FocalDistance = focalDistance;
+				dof.FocusRange = focusRange;
+				dof.FrontBlur = true;
+				dof.BackBlur = true;
+			} ),
+		new( "motionblur", "motion blur: depth through the view's depth chain, reprojected into a previous frame 20 units to the side", MotionBlur, NeedsDepth: true, View: Moved,
+			Components: go => go.Components.Create<global::Sandbox.MotionBlur>() ),
 		new( "stack", "bloom, vignette, tonemapping, sharpen, film grain, chromatic aberration, colour adjustments, in their stages' order", cl =>
 		{
 			Bloom( cl );
@@ -260,27 +416,37 @@ internal static class PostParity
 		}
 	}
 
+	/// <summary>
+	/// A scene finds its systems through the type library, which this lab doesn't make otherwise (as PanelAppSystem makes
+	/// one). Its constructor and AddIntrinsicTypes are internal to the engine's app assemblies, hence reflection.
+	/// </summary>
+	internal static void EnsureTypeLibrary()
+	{
+		if ( Game.TypeLibrary is not null ) return;
+
+		const System.Reflection.BindingFlags any = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic;
+		var library = (Sandbox.Internal.TypeLibrary)Activator.CreateInstance( typeof( Sandbox.Internal.TypeLibrary ), nonPublic: true );
+		typeof( Sandbox.Internal.TypeLibrary ).GetMethod( "AddIntrinsicTypes", any ).Invoke( library, null );
+		var add = typeof( Sandbox.Internal.TypeLibrary ).GetMethod( "AddAssembly", any, [typeof( System.Reflection.Assembly ), typeof( bool )] );
+		add.Invoke( library, [typeof( Vector3 ).Assembly, false] );
+		add.Invoke( library, [typeof( Scene ).Assembly, false] );
+		Game.TypeLibrary = library;
+	}
+
 	public static int Run( Source2Backend backend, string folder )
 	{
 		components = Args.Has( "-components" );
 		sceneOnGpu = Args.Has( "-scene-gpu" );
 		var meanTolerance = Args.Float( "-mean-tolerance", 1.0f );
-		if ( components && Game.TypeLibrary is null )
-		{
-			// A scene finds its systems through the type library, which this lab doesn't make otherwise (as PanelAppSystem makes one)
-			// (its constructor and AddIntrinsicTypes are internal to the engine's app assemblies, hence reflection)
-			const System.Reflection.BindingFlags any = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic;
-			var library = (Sandbox.Internal.TypeLibrary)Activator.CreateInstance( typeof( Sandbox.Internal.TypeLibrary ), nonPublic: true );
-			typeof( Sandbox.Internal.TypeLibrary ).GetMethod( "AddIntrinsicTypes", any ).Invoke( library, null );
-			var add = typeof( Sandbox.Internal.TypeLibrary ).GetMethod( "AddAssembly", any, [typeof( System.Reflection.Assembly ), typeof( bool )] );
-			add.Invoke( library, [typeof( Vector3 ).Assembly, false] );
-			add.Invoke( library, [typeof( Scene ).Assembly, false] );
-			Game.TypeLibrary = library;
-		}
+		if ( components ) EnsureTypeLibrary();
 
 		scene = components ? new Scene() : null;
 		var only = Args.String( "-case" );
 		var cases = Cases.Where( c => only is null || only.Split( ',' ).Contains( c.Name ) ).ToArray();
+
+		// What reads the view's depth runs over the scene drawn on each device, which has its depth
+		foreach ( var test in cases.Where( c => c.NeedsDepth && !sceneOnGpu ) ) Console.WriteLine( $"{test.Name}: not run, it reads the scene's depth (-scene-gpu)" );
+		cases = cases.Where( c => !c.NeedsDepth || sceneOnGpu ).ToArray();
 		var tolerance = Args.Int( "-tolerance", 2 );
 		folder = System.IO.Path.GetFullPath( folder );
 		System.IO.Directory.CreateDirectory( folder );
@@ -331,6 +497,16 @@ internal static class PostParity
 		// The components' scene and what scenes make for the process (particle lighting's texture)
 		gpuScene?.Dispose();
 		gpuScene = null;
+		source2Target?.Dispose();
+		source2Renderer?.Dispose();
+		source2Target = null;
+		source2Renderer = null;
+		dofTiles?.Dispose();
+		dofArguments?.Dispose();
+		source2Chain?.Dispose();
+		dofTiles = null;
+		dofArguments = null;
+		source2Chain = null;
 
 		if ( scene is not null )
 		{
@@ -343,14 +519,38 @@ internal static class PostParity
 		return failed == 0 && errors == 0 ? 0 : 1;
 	}
 
+	// Sun Shadows on Source 2, kept for its depth, which the reference binds with the frame when the scene is on Basalt.Gpu
+	static RenderSystem source2Renderer;
+	static ViewTarget source2Target;
+
+	/// <summary>
+	/// Sun Shadows rendered by Basalt on Source 2 as two RGBA16F textures of its pixels, for auto exposure: highlights pushed
+	/// past 1 as the post stack gets it, and a tenth as bright (<c>frame-dark.png</c>). Make them after the Basalt.Gpu device,
+	/// so they keep their pixels for it.
+	/// </summary>
+	internal static (Texture Bright, Texture Dark) ExposureFrames( Source2Backend backend, string folder )
+	{
+		var bright = SunShadows( backend, folder );
+		var halves = new ushort[Width * Height * 4];
+		source2Target.Resolved.Engine().GetPixels( (0, 0, Width, Height), 0, 0, halves.AsSpan(), ImageFormat.RGBA16161616F );
+		var dark = FrameTexture( halves, System.IO.Path.Combine( folder, "frame-dark.png" ), 0.1f );
+		source2Target.Dispose();
+		source2Renderer.Dispose();
+		source2Target = null;
+		source2Renderer = null;
+		return (bright, dark);
+	}
+
 	/// <summary>Sun Shadows rendered by Basalt on Source 2, as an RGBA16F texture of its pixels.</summary>
 	static Texture SunShadows( Source2Backend backend, string folder )
 	{
 		var lab = LabWorld.Build( LabPresets.Find( "Sun Shadows" ), backend.Content );
 		var view = new RenderView { Name = "Post parity", ClearColor = new Color( 0.08f, 0.09f, 0.11f ), Viewport = new Rect( 0, 0, Width, Height ) };
 		lab.Aim( view, LabWorld.DefaultPitch, LabWorld.DefaultYaw, lab.DefaultDistance );
-		using var renderer = new RenderSystem();
-		using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Post parity" );
+		focalDistance = lab.DefaultDistance;
+		focusRange = lab.DefaultDistance * 0.5f;
+		var renderer = source2Renderer = new RenderSystem();
+		var target = source2Target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Post parity" );
 
 		for ( var i = 0; i < 10; i++ )
 		{
@@ -511,7 +711,7 @@ internal static class PostParity
 		// What a camera's view gives its post processing: the scene's own constants when it's drawn on Basalt.Gpu (on both
 		// devices, so they draw with the same), else the viewport and target size with no exposure scaling
 		var onFrame = gpuScene is not null && device is BasaltGpuRenderBackend;
-		if ( gpuScene is not null ) cl.Attributes.SetData( "PerViewConstantBuffer_t", gpuScene.Constants );
+		if ( gpuScene is not null ) cl.Attributes.SetData( "PerViewConstantBuffer_t", test.View is null ? gpuScene.Constants : test.View( gpuScene.Constants ) );
 		else cl.Attributes.SetData( "PerViewConstantBuffer_t", new ViewConstants
 		{
 			ToneMapScalarLinear = 1,
@@ -529,14 +729,29 @@ internal static class PostParity
 		cl.Attributes.Set( "QuarterResEffectsBloomInputTexture", Texture.Black );
 
 		// The engine's components when asked and the case has them, else the copies of their command lists
+		caseColor = target;
+		caseDepth = onFrame ? gpuScene.Frame.Depth : gpuScene is not null ? source2Target.Depth.Engine() : null;
+
+		// The reference's view depth chain, which the Basalt.Gpu frame builds for itself
+		if ( reference && caseDepth is not null )
+		{
+			source2Chain ??= Texture.CreateRenderTarget().WithSize( Width, Height ).WithFormat( ImageFormat.RG3232F ).WithMips( System.Numerics.BitOperations.Log2( Height ) + 1 ).WithUAVBinding().Create( "Post parity depth chain" );
+			cl.Attributes.Set( "DepthChainDownsample", source2Chain );
+		}
 		var lists = components && !reference && test.Components is not null ? ComponentLists( test, device ) : null;
 		if ( lists is null ) test.Record( cl );
 
 		// On the GPU scene's frame: a block from the frame, which binds the view's constants itself, over a copy of its colour
-		// made on the GPU, with its depth
+		// made on the GPU, with its depth. Source 2 then binds its own Sun Shadows depth with the copy, as a view would (its
+		// blocks without a view take no depth target, so it's bound on the context)
 		using ( onFrame ? gpuScene.Frame.Begin() : Graphics.Scope.CreateOn( device ) )
 		{
 			Graphics.RenderTarget = RenderTarget.From( target, onFrame ? gpuScene.Frame.Depth : null );
+			if ( !onFrame && caseDepth is not null )
+			{
+				NativeEngine.RenderTools.BindColorAndDepthTarget( Graphics.Context, target.native, caseDepth.native, false );
+				Graphics.DownsampleSpd( Graphics.Context, source2Chain, Graphics.DownsampleMethod.MinMax, fuseDepth: true, depth: caseDepth );
+			}
 			Graphics.CopyTexture( onFrame ? gpuScene.Frame.Color : frame, target );
 			cl.Execute();
 			foreach ( var list in lists ?? [] ) list.Execute();

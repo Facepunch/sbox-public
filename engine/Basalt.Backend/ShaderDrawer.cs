@@ -129,7 +129,7 @@ public sealed class ShaderDrawer : IDisposable
 	readonly ShaderLibrary shaders;
 	readonly ShaderDefaults defaults;
 	readonly Dictionary<(ShaderFile Shader, string Mode, string Combos), ShaderVariant> variants = new();
-	readonly Dictionary<(ShaderVariant Variant, Format Color, int Samples, VertexStreamLayout Layout, PrimitiveTopology Topology), PipelineHandle> pipelines = new();
+	readonly Dictionary<(ShaderVariant Variant, Format Color, Format Depth, int Samples, VertexStreamLayout Layout, PrimitiveTopology Topology), PipelineHandle> pipelines = new();
 	readonly Dictionary<ShaderVariant, PipelineHandle> computePipelines = new();
 	MaterialObjectCache cache;
 	readonly bool ownsCache;
@@ -206,11 +206,18 @@ public sealed class ShaderDrawer : IDisposable
 	/// (x, y, width, height); it's also set as the viewport and scissor.
 	/// </summary>
 	public bool DrawIndexedInstanced( CommandList list, ShaderFile shader, ShaderAttributes attributes, Format color, int samples, BufferHandle indices, int indexCount, int instances, System.Numerics.Vector4 viewport, string mode = null )
+		=> DrawIndexedInstanced( list, shader, attributes, color, Format.Unknown, samples, indices, indexCount, instances, viewport, mode );
+
+	/// <summary>
+	/// As the overload without <paramref name="depth"/>, in a scope with a depth target of that format
+	/// (<see cref="Format.Unknown"/> for none), which the shader's depth state tests and writes.
+	/// </summary>
+	public bool DrawIndexedInstanced( CommandList list, ShaderFile shader, ShaderAttributes attributes, Format color, Format depth, int samples, BufferHandle indices, int indexCount, int instances, System.Numerics.Vector4 viewport, string mode = null )
 	{
 		var variant = Variant( shader, attributes, mode );
 		if ( variant?.Vertex?.Bytecode is null ) return false;
 
-		BindForDraw( list, variant, attributes, color, samples, null, PrimitiveTopology.TriangleList, viewport );
+		BindForDraw( list, variant, attributes, color, depth, samples, null, PrimitiveTopology.TriangleList, viewport );
 		list.SetVertexBuffer( 0, defaults.VertexDefaults );
 		list.SetIndexBuffer( indices, IndexFormat.UInt32 );
 		list.DrawIndexed( indexCount, instances );
@@ -220,33 +227,40 @@ public sealed class ShaderDrawer : IDisposable
 	/// <summary>
 	/// Draw <paramref name="vertexCount"/> vertices of <paramref name="layout"/> from <paramref name="vertices"/> at
 	/// <paramref name="offset"/>, as <paramref name="topology"/>, inside the list's open rendering scope. The rest is as
-	/// <see cref="DrawIndexedInstanced"/>.
+	/// <see cref="DrawIndexedInstanced(CommandList, ShaderFile, ShaderAttributes, Format, int, BufferHandle, int, int, System.Numerics.Vector4, string)"/>.
 	/// </summary>
 	public bool Draw( CommandList list, ShaderFile shader, ShaderAttributes attributes, Format color, int samples, BufferHandle vertices, long offset, VertexStreamLayout layout, int vertexCount, PrimitiveTopology topology, System.Numerics.Vector4 viewport, string mode = null )
+		=> Draw( list, shader, attributes, color, Format.Unknown, samples, vertices, offset, layout, vertexCount, topology, viewport, mode );
+
+	/// <summary>
+	/// As the overload without <paramref name="depth"/>, in a scope with a depth target of that format
+	/// (<see cref="Format.Unknown"/> for none), which the shader's depth state tests and writes.
+	/// </summary>
+	public bool Draw( CommandList list, ShaderFile shader, ShaderAttributes attributes, Format color, Format depth, int samples, BufferHandle vertices, long offset, VertexStreamLayout layout, int vertexCount, PrimitiveTopology topology, System.Numerics.Vector4 viewport, string mode = null )
 	{
 		var variant = Variant( shader, attributes, mode );
 		if ( variant?.Vertex?.Bytecode is null ) return false;
 
-		BindForDraw( list, variant, attributes, color, samples, layout, topology, viewport );
+		BindForDraw( list, variant, attributes, color, depth, samples, layout, topology, viewport );
 		list.SetVertexBuffer( 0, vertices, offset );
 		list.SetVertexBuffer( 1, defaults.VertexDefaults );
 		list.Draw( vertexCount );
 		return true;
 	}
 
-	void BindForDraw( CommandList list, ShaderVariant variant, ShaderAttributes attributes, Format color, int samples, VertexStreamLayout layout, PrimitiveTopology topology, System.Numerics.Vector4 viewport )
+	void BindForDraw( CommandList list, ShaderVariant variant, ShaderAttributes attributes, Format color, Format depth, int samples, VertexStreamLayout layout, PrimitiveTopology topology, System.Numerics.Vector4 viewport )
 	{
 		if ( Objects( variant ) )
 		{
-			var key = new MaterialObjectCache.Key( null, variant, layout, color, Format.Unknown, samples, false, false, topology );
-			var materialObject = cache.Get( key, immediate: true, (Drawer: this, Variant: variant, Color: color, Samples: samples, Layout: layout, Topology: topology),
-				static ( s, materialLayout ) => s.Drawer.Pipeline( s.Variant, s.Color, s.Samples, s.Layout, s.Topology, materialLayout.Sets ) );
+			var key = new MaterialObjectCache.Key( null, variant, layout, color, depth, samples, false, false, topology );
+			var materialObject = cache.Get( key, immediate: true, (Drawer: this, Variant: variant, Color: color, Depth: depth, Samples: samples, Layout: layout, Topology: topology),
+				static ( s, materialLayout ) => s.Drawer.Pipeline( s.Variant, s.Color, s.Depth, s.Samples, s.Layout, s.Topology, materialLayout.Sets ) );
 			SetViewport( list, viewport );
 			BindObject( list, materialObject, attributes, viewport );
 			return;
 		}
 
-		list.SetPipeline( Pipeline( variant, color, samples, layout, topology, null ) );
+		list.SetPipeline( Pipeline( variant, color, depth, samples, layout, topology, null ) );
 		SetViewport( list, viewport );
 		Bind( list, variant, attributes, viewport );
 	}
@@ -279,6 +293,32 @@ public sealed class ShaderDrawer : IDisposable
 		var variant = Variant( shader, attributes, mode );
 		if ( variant?.Compute?.Bytecode is null ) return false;
 
+		BindForDispatch( list, variant, attributes );
+		var (gx, gy, gz) = variant.Compute.Bytecode.ThreadGroupSize;
+		gx = Math.Max( gx, 1 );
+		gy = Math.Max( gy, 1 );
+		gz = Math.Max( gz, 1 );
+		list.Dispatch( (x + gx - 1) / gx, (y + gy - 1) / gy, (z + gz - 1) / gz );
+		return true;
+	}
+
+	/// <summary>
+	/// Run a compute shader over the thread groups (not threads) that <paramref name="arguments"/> holds at
+	/// <paramref name="offset"/> bytes - three 32-bit counts, written by an earlier pass - as native's indirect dispatch does.
+	/// The rest is as <see cref="Dispatch"/>.
+	/// </summary>
+	public bool DispatchIndirect( CommandList list, ShaderFile shader, ShaderAttributes attributes, BufferHandle arguments, long offset, string mode = null )
+	{
+		var variant = Variant( shader, attributes, mode );
+		if ( variant?.Compute?.Bytecode is null ) return false;
+
+		BindForDispatch( list, variant, attributes );
+		list.DispatchIndirect( arguments, offset );
+		return true;
+	}
+
+	void BindForDispatch( CommandList list, ShaderVariant variant, ShaderAttributes attributes )
+	{
 		if ( Objects( variant ) )
 		{
 			var key = new MaterialObjectCache.Key( null, variant, null, Format.Unknown, Format.Unknown, 0, false, false );
@@ -290,13 +330,6 @@ public sealed class ShaderDrawer : IDisposable
 			list.SetPipeline( ComputePipeline( variant, null ) );
 			Bind( list, variant, attributes, default );
 		}
-
-		var (gx, gy, gz) = variant.Compute.Bytecode.ThreadGroupSize;
-		gx = Math.Max( gx, 1 );
-		gy = Math.Max( gy, 1 );
-		gz = Math.Max( gz, 1 );
-		list.Dispatch( (x + gx - 1) / gx, (y + gy - 1) / gy, (z + gz - 1) / gz );
-		return true;
 	}
 
 	/// <summary>A compute pipeline for the reflection path (cached here) or for a material object's sets (the object keeps it).</summary>
@@ -324,22 +357,24 @@ public sealed class ShaderDrawer : IDisposable
 	}
 
 	/// <summary>A graphics pipeline for the reflection path (cached here) or for a material object's sets (the object keeps it).</summary>
-	PipelineHandle Pipeline( ShaderVariant variant, Format color, int samples, VertexStreamLayout layout, PrimitiveTopology topology, BindingLayoutHandle[] sets )
+	PipelineHandle Pipeline( ShaderVariant variant, Format color, Format depth, int samples, VertexStreamLayout layout, PrimitiveTopology topology, BindingLayoutHandle[] sets )
 	{
-		var key = (variant, color, samples, layout, topology);
+		var key = (variant, color, depth, samples, layout, topology);
 		if ( sets is null && pipelines.TryGetValue( key, out var pipeline ) ) return pipeline;
 
-		// Inputs the stream lacks (or every input, with no stream) read the default stream
+		// Inputs the stream lacks (or every input, with no stream) read the default stream. No colour format draws into
+		// depth alone
 		GraphicsPipelineInfo info;
+		Format[] colors = color == Format.Unknown ? [] : [color];
 		if ( layout is null )
 		{
 			var attributes = ShaderDefaults.MapVertices( variant.VertexInputs, _ => null, defaultBuffer: 0 );
-			info = variant.PipelineInfo( [new VertexBufferLayout( 0 )], attributes, [color], Format.Unknown, samples, depthBias: false, null );
+			info = variant.PipelineInfo( [new VertexBufferLayout( 0 )], attributes, colors, depth, samples, depthBias: false, null );
 		}
 		else
 		{
 			var attributes = ShaderDefaults.MapVertices( variant.VertexInputs, input => layout.Find( input ) is { } field ? new VertexAttribute( 0, 0, field.Format, field.Offset ) : null, defaultBuffer: 1 );
-			info = variant.PipelineInfo( [new VertexBufferLayout( layout.Stride ), new VertexBufferLayout( 0 )], attributes, [color], Format.Unknown, samples, depthBias: false, null );
+			info = variant.PipelineInfo( [new VertexBufferLayout( layout.Stride ), new VertexBufferLayout( 0 )], attributes, colors, depth, samples, depthBias: false, null );
 		}
 
 		info.Topology = topology;

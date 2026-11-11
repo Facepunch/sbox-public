@@ -278,6 +278,8 @@ internal sealed unsafe class VkDeviceApi
 	public readonly delegate* unmanaged< nint, ulong, ulong, ulong, uint, void > vkCmdFillBuffer;
 	public readonly delegate* unmanaged< nint, ulong, uint, uint, void > vkCmdResetQueryPool;
 	public readonly delegate* unmanaged< nint, ulong, ulong, uint, void > vkCmdWriteTimestamp2;
+	public readonly delegate* unmanaged< nint, ulong, uint, uint, void > vkCmdBeginQuery;
+	public readonly delegate* unmanaged< nint, ulong, uint, void > vkCmdEndQuery;
 
 	public VkDeviceApi( VkInstanceApi instance, nint device )
 	{
@@ -395,5 +397,7 @@ internal sealed unsafe class VkDeviceApi
 		vkCmdFillBuffer = (delegate* unmanaged< nint, ulong, ulong, ulong, uint, void >)Need( "vkCmdFillBuffer" );
 		vkCmdResetQueryPool = (delegate* unmanaged< nint, ulong, uint, uint, void >)Need( "vkCmdResetQueryPool" );
 		vkCmdWriteTimestamp2 = (delegate* unmanaged< nint, ulong, ulong, uint, void >)Need( "vkCmdWriteTimestamp2" );
+		vkCmdBeginQuery = (delegate* unmanaged< nint, ulong, uint, uint, void >)Need( "vkCmdBeginQuery" );
+		vkCmdEndQuery = (delegate* unmanaged< nint, ulong, uint, void >)Need( "vkCmdEndQuery" );
 	}
 }
