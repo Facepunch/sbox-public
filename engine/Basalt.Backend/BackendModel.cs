@@ -20,6 +20,64 @@ internal interface IBackendGeometry
 }
 
 /// <summary>
+/// One vertex buffer of a skinned model mesh, as compute skinning (<c>skinning_cs</c>) reads it: where its vertices go in
+/// the mesh's block of the vertex cache, and native's <c>VertexBufferLayout_t</c> (<c>DeriveVertexBufferLayoutFromFields</c>),
+/// with -1 for a field it doesn't have.
+/// </summary>
+internal readonly record struct SkinnedVertexBuffer( BufferHandle Buffer, int VertexCount, int CacheOffset, int Stride, int BoneIndexOffset, int BoneIndexBits,
+	int BoneWeightOffset, int NormalOffset, int TangentOffset, bool CompressedTangentFrame )
+{
+	/// <summary>Native's layout of a vertex buffer's fields for skinning.</summary>
+	public static SkinnedVertexBuffer From( BufferHandle buffer, MeshVertexBuffer source, int cacheOffset )
+	{
+		int boneIndices = -1, boneIndexBits = 8, boneWeights = -1, normal = 0, tangent = -1;
+		var compressed = false;
+		foreach ( var field in source.Fields )
+		{
+			switch ( field.Semantic.ToUpperInvariant() )
+			{
+				case "BLENDINDICES":
+					boneIndices = field.Offset;
+					if ( field.Format is ColorFormat.R16G16B16A16_SINT or ColorFormat.R16G16_SINT or ColorFormat.R16G16B16A16_UINT or ColorFormat.R16G16_UINT ) boneIndexBits = 16;
+					else if ( field.Format == ColorFormat.R10G10B10A2_UINT ) boneIndexBits = 10;
+					break;
+				case "BLENDWEIGHT" or "BLENDWEIGHTS":
+					boneWeights = field.Offset;
+					break;
+				case "NORMAL":
+					normal = field.Offset;
+					compressed = field.Format is ColorFormat.R8G8B8A8_UNORM or ColorFormat.R10G10B10A2_UNORM;
+					break;
+				case "TANGENT":
+					tangent = field.Offset;
+					break;
+			}
+		}
+
+		return new SkinnedVertexBuffer( buffer, source.Count, cacheOffset, source.Stride, boneIndices, boneIndexBits, boneWeights, normal, tangent, compressed );
+	}
+}
+
+/// <summary>
+/// A draw of skinned vertices from the vertex cache: its geometry with the cache's layout (<see cref="VertexLayout.VertexCache"/>),
+/// and where its two vertex id streams start - its first vertex among the mesh's draws, and its vertex buffer's place in the
+/// mesh's block of the cache (native's <c>BindModelDrawCallVertexIds</c>).
+/// </summary>
+internal readonly record struct VertexCacheDraw( DrawGeometry Geometry, int FirstVertexId, int FirstCacheVertex );
+
+/// <summary>
+/// Geometry with skinned meshes: their vertex buffers as compute skinning reads them, and their draws from the vertex cache.
+/// </summary>
+internal interface ISkinnedGeometry
+{
+	/// <summary>A skinned mesh's vertex buffers, in order; empty for a mesh that isn't skinned.</summary>
+	SkinnedVertexBuffer[] SkinnedBuffers( int mesh );
+
+	/// <summary>How a skinned mesh's draw reads the vertex cache, or null when the mesh isn't skinned.</summary>
+	VertexCacheDraw? VertexCacheFor( int mesh, int drawCall );
+}
+
+/// <summary>
 /// A vertex buffer's layout: its stride and its fields by the semantic shaders match them by. Equal layouts compare equal,
 /// so pipelines are made once per variant and layout.
 /// </summary>
@@ -29,13 +87,21 @@ internal sealed class VertexLayout : IEquatable<VertexLayout>
 
 	public int Stride { get; }
 	public Field[] Fields { get; }
+
+	/// <summary>
+	/// Drawn from the vertex cache: streams 2 and 3 are vertex ids (<c>TEXCOORD14</c>, <c>TEXCOORD15</c>), as native's
+	/// <c>INPUT_LAYOUT_VARIATION_STREAM1_INSTANCEID_MORPH_VERT_ID</c> layouts read them, and the default stream moves to 4.
+	/// </summary>
+	public bool VertexCache { get; }
+
 	readonly string key;
 
-	public VertexLayout( int stride, Field[] fields )
+	public VertexLayout( int stride, Field[] fields, bool vertexCache = false )
 	{
 		Stride = stride;
 		Fields = fields;
-		key = $"{stride}:{string.Join( ",", fields )}";
+		VertexCache = vertexCache;
+		key = $"{stride}:{string.Join( ",", fields )}{(vertexCache ? ":cache" : "")}";
 	}
 
 	/// <summary>The field a shader input reads, or null when the mesh has none (it reads the default stream).</summary>
@@ -61,20 +127,21 @@ internal sealed class VertexLayout : IEquatable<VertexLayout>
 /// model's materials, its switch distances and bounds.
 /// </summary>
 /// <remarks>
-/// Skinned models draw in their bind pose: their vertices are stored posed that way, and the mesh is given no skinning,
-/// so Basalt draws it as a rigid object (<see cref="DrawsBindPose"/>). Morphs aren't applied.
+/// Skinned meshes are given their skinning as native's model gives it (<c>RenderTools.GetModelMeshSkinning</c>): bones,
+/// inverse bind poses, the model bone each is and the bind pose. Basalt then poses them by bones, in the vertex shader
+/// with one weight and by compute skinning into the vertex cache with more, as it does on Source 2's device. Morphs
+/// aren't applied.
 /// </remarks>
-public sealed class BackendModel : GpuMesh, IBackendGeometry
+public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 {
 	readonly BackendDevice device;
 	readonly DrawGeometry[][] draws;
+	readonly SkinnedVertexBuffer[][] skinnedBuffers;
+	readonly VertexCacheDraw?[][] vertexCacheDraws;
 	readonly List<BufferHandle> buffers = new();
 
 	/// <summary>The model as read.</summary>
 	public ModelFile File { get; }
-
-	/// <summary>Whether it's a skinned model drawn in its bind pose, since Basalt.Gpu doesn't skin yet.</summary>
-	public bool DrawsBindPose => File.IsSkinned;
 
 	/// <inheritdoc/>
 	public override string Name => File.Name;
@@ -85,12 +152,32 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry
 		File = file;
 		var gpu = device.Gpu;
 		draws = new DrawGeometry[file.Meshes.Count][];
+		skinnedBuffers = new SkinnedVertexBuffer[file.Meshes.Count][];
+		vertexCacheDraws = new VertexCacheDraw?[file.Meshes.Count][];
+
+		// The vertex ids its vertex-cache draws read, made here rather than while a frame records
+		if ( file.IsSkinned ) _ = device.VertexIds;
 
 		for ( int m = 0; m < file.Meshes.Count; m++ )
 		{
 			var mesh = file.Meshes[m];
+			var skinned = mesh.IsSkinned;
 			var vertexBuffers = new (BufferHandle Buffer, VertexLayout Layout, bool Compressed)[mesh.VertexBuffers.Count];
-			for ( int v = 0; v < vertexBuffers.Length; v++ ) vertexBuffers[v] = Upload( gpu, mesh.VertexBuffers[v], $"{file.Name} {mesh.Name} vertices {v}" );
+			for ( int v = 0; v < vertexBuffers.Length; v++ ) vertexBuffers[v] = Upload( gpu, mesh.VertexBuffers[v], $"{file.Name} {mesh.Name} vertices {v}", storage: skinned );
+
+			// Compute skinning reads a skinned mesh's vertex buffers by byte address, and writes each into the mesh's block
+			// of the vertex cache after the ones before it (CRenderMesh's m_VBSizeOffsets)
+			skinnedBuffers[m] = [];
+			if ( skinned )
+			{
+				skinnedBuffers[m] = new SkinnedVertexBuffer[vertexBuffers.Length];
+				var cacheOffset = 0;
+				for ( int v = 0; v < vertexBuffers.Length; v++ )
+				{
+					skinnedBuffers[m][v] = SkinnedVertexBuffer.From( vertexBuffers[v].Buffer, mesh.VertexBuffers[v], cacheOffset );
+					cacheOffset += mesh.VertexBuffers[v].Count;
+				}
+			}
 
 			var indexBuffers = new (BufferHandle Buffer, IndexFormat Format)[mesh.IndexBuffers.Count];
 			for ( int i = 0; i < indexBuffers.Length; i++ )
@@ -103,6 +190,8 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry
 			}
 
 			draws[m] = new DrawGeometry[mesh.DrawCalls.Count];
+			vertexCacheDraws[m] = new VertexCacheDraw?[mesh.DrawCalls.Count];
+			var firstVertexId = 0;
 			for ( int d = 0; d < mesh.DrawCalls.Count; d++ )
 			{
 				var call = mesh.DrawCalls[d];
@@ -113,15 +202,25 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry
 				var (indexIndex, indexOffset) = call.IndexBuffer;
 				var indices = indexBuffers[indexIndex];
 				draws[m][d] = new DrawGeometry( vertices.Buffer, vertexOffset, indices.Buffer, indexOffset, indices.Format, call.BaseVertex, vertices.Layout, !vertices.Compressed );
+
+				// From the cache: vertex ids from the draw's first vertex among the mesh's draws, and from its buffer's block
+				if ( skinned )
+				{
+					var cacheLayout = device.Layout( new VertexLayout( vertices.Layout.Stride, vertices.Layout.Fields, vertexCache: true ) );
+					vertexCacheDraws[m][d] = new VertexCacheDraw( draws[m][d] with { Layout = cacheLayout }, firstVertexId, skinnedBuffers[m][vertexIndex].CacheOffset );
+				}
+
+				firstVertexId += call.VertexCount;
 			}
 		}
 	}
 
 	/// <summary>
 	/// A vertex buffer on the GPU. Normals in the older 8:8:8:8 encoding are repacked as 10:10:10:2, as native does for
-	/// shaders that decode it (every s&amp;box shader that reads <c>UncompressedTangentFrame</c>).
+	/// shaders that decode it (every s&amp;box shader that reads <c>UncompressedTangentFrame</c>). Skinned meshes' buffers
+	/// are storage buffers too, which compute skinning reads.
 	/// </summary>
-	(BufferHandle, VertexLayout, bool) Upload( Device gpu, MeshVertexBuffer source, string name )
+	(BufferHandle, VertexLayout, bool) Upload( Device gpu, MeshVertexBuffer source, string name, bool storage )
 	{
 		var data = source.Data;
 		var fields = new List<VertexLayout.Field>();
@@ -138,13 +237,54 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry
 			fields.Add( new VertexLayout.Field( semantic, field.SemanticIndex, vertexFormat, field.Offset ) );
 		}
 
-		var buffer = gpu.CreateBuffer( new BufferInfo { Size = Math.Max( data.Length, 4 ), Usage = BufferUsage.Vertex, Name = name } );
+		var buffer = gpu.CreateBuffer( new BufferInfo { Size = Math.Max( data.Length, 4 ), Usage = storage ? BufferUsage.Vertex | BufferUsage.Storage : BufferUsage.Vertex, Name = name } );
 		if ( data.Length > 0 ) gpu.WriteBuffer( buffer, data );
 		buffers.Add( buffer );
 		return (buffer, device.Layout( new VertexLayout( source.Stride, fields.ToArray() ) ), source.CompressedTangentFrame);
 	}
 
 	DrawGeometry IBackendGeometry.For( int mesh, int drawCall ) => draws[mesh][drawCall];
+
+	SkinnedVertexBuffer[] ISkinnedGeometry.SkinnedBuffers( int mesh ) => (uint)mesh < (uint)skinnedBuffers.Length ? skinnedBuffers[mesh] : [];
+
+	VertexCacheDraw? ISkinnedGeometry.VertexCacheFor( int mesh, int drawCall ) => vertexCacheDraws[mesh][drawCall];
+
+	/// <summary>
+	/// What native's model gives Basalt to skin a mesh with (<c>Source2Mesh.ReadMeshSkin</c>): its bones' inverse bind poses
+	/// and the model bones they are, its weights per vertex and its vertices across its buffers. Null when it isn't skinned,
+	/// or has no bone table, as native writes nothing for a mesh without one.
+	/// </summary>
+	static RenderMesh.MeshSkin Skin( ModelFile file, int mesh )
+	{
+		var source = file.Meshes[mesh];
+		if ( !source.IsSkinned ) return null;
+
+		int[] masters;
+		try
+		{
+			masters = file.MeshBoneToModelBone( mesh );
+		}
+		catch ( System.IO.InvalidDataException )
+		{
+			return null;
+		}
+
+		return new RenderMesh.MeshSkin
+		{
+			BlendWeightCount = source.BoneWeightCount,
+			VertexCount = source.VertexBuffers.Sum( x => x.Count ),
+			InverseBindPoses = source.Bones.Select( x => Affine( x.InverseBindPose ) ).ToArray(),
+			MasterBones = masters,
+		};
+	}
+
+	/// <summary>A row-vector affine matrix as <c>matrix3x4_t</c>: rows of the transposed rotation, translation in w.</summary>
+	static Matrix3x4 Affine( in System.Numerics.Matrix4x4 m ) => new()
+	{
+		Row0 = new Vector4( m.M11, m.M21, m.M31, m.M41 ),
+		Row1 = new Vector4( m.M12, m.M22, m.M32, m.M42 ),
+		Row2 = new Vector4( m.M13, m.M23, m.M33, m.M43 ),
+	};
 
 	/// <summary>
 	/// Load a compiled model from <paramref name="device"/>'s content and make the mesh Basalt draws: per LOD, the draws
@@ -189,7 +329,14 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry
 		}
 
 		var bounds = new BBox( new Vector3( file.Mins.X, file.Mins.Y, file.Mins.Z ), new Vector3( file.Maxs.X, file.Maxs.Y, file.Maxs.Z ) );
-		return new RenderMesh( geometry, bounds, lods, file.LodSwitchDistances.ToArray() );
+		var renderMesh = new RenderMesh( geometry, bounds, lods, file.LodSwitchDistances.ToArray() );
+
+		// Skinning, and the bind pose in the model's space, where an object with no bones of its own is posed
+		var skins = new RenderMesh.MeshSkin[file.Meshes.Count];
+		for ( int m = 0; m < skins.Length; m++ ) skins[m] = Skin( file, m );
+		var bindPose = file.Skeleton.BindPose().Select( x => Affine( x ) ).ToArray();
+		renderMesh.SetSkinning( skins, bindPose );
+		return renderMesh;
 	}
 
 	/// <summary>Free its buffers, once the GPU is done with them; otherwise they go with the device.</summary>

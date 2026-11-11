@@ -228,7 +228,7 @@ internal sealed partial class BackendContext
 
 	bool DrawWithMaterialObject( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias, float slopeScaledDepthBias, bool stripPixelShader, bool skinned, in IndirectDraws indirect = default )
 	{
-		if ( material is not BackendMaterial { Shader: { } shader } m || mesh.Geometry is not IBackendGeometry source || skinned ) return false;
+		if ( material is not BackendMaterial { Shader: { } shader } m || mesh.Geometry is not IBackendGeometry source ) return false;
 		if ( (indirect.InstanceIds ?? InstanceIds?.Resource as BackendBuffer) is not { } instanceIds ) return false;
 		if ( !EnsureScope() ) return false;
 
@@ -261,7 +261,7 @@ internal sealed partial class BackendContext
 		var color = r.Color is null ? Format.Unknown : FormatOfTarget( r.Color, r.Srgb );
 		var noColor = stripPixelShader || r.Color is null;
 		var depthOnly = StripsPixelShader( m, noColor, stripPixelShader );
-		var geometry = source.For( draw.Mesh, draw.DrawCall );
+		var geometry = GeometryFor( source, draw );
 		var key = new MaterialObjectCache.Key( m, variant, geometry.Layout, noColor ? Format.Unknown : color, r.Depth is null ? Format.Unknown : BackendDevice.FormatOf( r.Depth ), (r.Color ?? r.Depth).Samples, depthOnly, geometry.UncompressedTangentFrame );
 
 		var materialObject = lastObject is not null && key.Same( lastKey ) && !lastObject.Stale ? lastObject : cache.Get( key, immediate: false, (device, geometry.Layout, key), static ( s, layout ) => s.device.Pipeline( s.key.Variant, s.Layout, s.key.Color, s.key.Depth, s.key.Samples, s.key.DepthOnly, layout.Sets ) );

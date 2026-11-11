@@ -36,12 +36,12 @@ internal static class BasaltLabApp
 		// A map on a Basalt.Gpu device of its own: nothing of the engine starts
 		if ( Maps.MapRun.Requested ) return Maps.MapRun.Run();
 
-		// Posing skinned presets takes the animation system, which only the longer list of native modules starts
+		// Posing skinned presets and models takes the animation system, which only the longer list of native modules starts
 		var presets = PresetRun.Selected();
 		var posing = presets.Any( x => x.Preset is { Sequences.Length: > 0 } );
 
 		var backend = new Source2Backend();
-		backend.Start( sceneModules: Args.Has( "-scene-modules" ) || posing, windows: !PresetRun.Capturing );
+		backend.Start( sceneModules: Args.Has( "-scene-modules" ) || posing || Args.Has( "-model-parity" ), windows: !PresetRun.Capturing );
 
 		if ( Args.String( "-ui-parity" ) is { } parity )
 		{

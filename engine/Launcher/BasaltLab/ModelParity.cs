@@ -17,15 +17,31 @@ namespace Sandbox.BasaltLab;
 /// in 8-bit steps) or validation reported errors.
 /// <para>
 /// It also checks the reader against the engine: vertex, triangle and draw counts, LOD count and switch distances,
-/// bounds and draw materials, as <c>Model.MeshInfo</c> reports them. By default it runs a set of cases covering a dev
-/// box, a prop with several materials and LODs (near and far), body groups, and the skinned citizen in its bind pose.
+/// bounds and draw materials, as <c>Model.MeshInfo</c> reports them, and bones and their bind pose. By default it runs a
+/// set of cases covering a dev box, a prop with several materials and LODs (near and far), body groups, the skinned
+/// citizen in its bind pose, and the human posed by native's animation system from a few sequences (the same bones given
+/// to both devices), one of them dressed.
 /// </para>
 /// </summary>
 internal static class ModelParity
 {
 	const int Width = 400, Height = 400;
 
-	sealed record Case( string Name, string Path, ulong? MeshGroups = null, float Distance = 1.0f );
+	/// <summary>
+	/// A case: a model, optionally posed from one of its sequences at a normalized time, and dressed in clothing models
+	/// whose bones follow the body's by name.
+	/// </summary>
+	sealed record Case( string Name, string Path, ulong? MeshGroups = null, float Distance = 1.0f, string Sequence = null, float Time = 0, string[] Clothing = null );
+
+	const string Human = "models/citizen_human/human.vmdl";
+
+	static readonly string[] Outfit =
+	[
+		"models/citizen_clothes/trousers/Jeans/Models/jeans_m_human.vmdl",
+		"models/citizen_clothes/jacket/Hoodie/Models/hoodie_m_human.vmdl",
+		"models/citizen_clothes/shoes/Boots/Models/boots_m_human.vmdl",
+		"models/citizen_clothes/hair/braided_long_beard/Models/braided_long_beard_m_human.vmdl",
+	];
 
 	static readonly Case[] Cases =
 	[
@@ -37,8 +53,16 @@ internal static class ModelParity
 		new( "citizen", "models/citizen/citizen.vmdl" ),
 		// Body groups: Head and Feet on their empty second choices, the rest on their first
 		new( "citizen-bodygroups", "models/citizen/citizen.vmdl", MeshGroups: 2 | 4 | 16 | 64 | 512 ),
-		new( "human", "models/citizen_human/human.vmdl" ),
+		new( "human", Human ),
+		// Posed by native's animation system, the same bones given to both devices
+		new( "human-wave", Human, Sequence: "AvatarMenu_Entry_Wave_01", Time: 0.5f ),
+		new( "human-jump", Human, Sequence: "AvatarMenu_Entry_Jump", Time: 0.4f ),
+		new( "human-sit", Human, Sequence: "SitPose_Default" ),
+		new( "human-dressed", Human, Sequence: "AvatarMenu_FidgetLarge_03", Time: 0.5f, Clothing: Outfit ),
 	];
+
+	/// <summary>A posed body's world bones and bounds, and each clothing model's bones following it.</summary>
+	sealed record Pose( Transform[] Body, Transform[][] Clothing, BBox Bounds );
 
 	public static int Run( Source2Backend backend, string folder )
 	{
@@ -81,18 +105,44 @@ internal static class ModelParity
 		comparedDraws = 0;
 		var mismatches = Compare( model, file );
 
+		// Clothing: the engine's models and the reader's, checked the same way
+		var clothing = (test.Clothing ?? []).Select( path => (Path: path, Model: Model.Load( path ), File: ModelFile.Load( device.Content, path )) ).ToArray();
+		foreach ( var (path, clothes, clothesFile) in clothing )
+		{
+			if ( clothes is null || clothes.IsError ) return ($"{test.Name}: {path} didn't load on Source 2", false);
+			mismatches.AddRange( Compare( clothes, clothesFile ).Select( x => $"{System.IO.Path.GetFileNameWithoutExtension( path )}: {x}" ) );
+		}
+
+		// Posed by native's animation system: both devices get the same bones
+		var pose = test.Sequence is null ? null : Posed( model, test.Sequence, test.Time, clothing.Select( x => x.Model ).ToArray() );
+
 		// The same world and camera on both devices: the model at the origin, a sun from the side, the default ambient
-		Shot MakeWorld( RenderMesh mesh )
+		Shot MakeWorld( RenderMesh mesh, RenderMesh[] clothes )
 		{
 			var world = new RenderWorld();
 			world.Lighting.SunDirection = new Vector3( -0.4f, 0.6f, -0.7f ).Normal;
 			world.Lighting.SunColor = new Color( 1.2f, 1.1f, 1.0f );
-			world.Add( new MeshObject( mesh, Transform.Zero ) );
 
-			var size = mesh.Bounds.Size.Length;
+			var body = new MeshObject( mesh, Transform.Zero );
+			world.Add( body );
+			if ( pose is not null )
+			{
+				body.SetBones( pose.Body );
+				body.LocalBounds = pose.Bounds;
+				for ( int i = 0; i < clothes.Length; i++ )
+				{
+					var worn = new MeshObject( clothes[i], Transform.Zero );
+					worn.SetBones( pose.Clothing[i] );
+					worn.LocalBounds = pose.Bounds;
+					world.Add( worn );
+				}
+			}
+
+			var bounds = pose?.Bounds ?? mesh.Bounds;
+			var size = bounds.Size.Length;
 			var view = new RenderView { Name = "Model parity", FieldOfView = 60, ClearColor = new Color( 0.1f, 0.12f, 0.16f ), Viewport = new Rect( 0, 0, Width, Height ) };
 			view.Rotation = Rotation.From( 20, 160, 0 );
-			view.Position = mesh.Bounds.Center - view.Rotation.Forward * size * 1.1f * test.Distance;
+			view.Position = bounds.Center - view.Rotation.Forward * size * 1.1f * test.Distance;
 			view.ZNear = size * 0.05f;
 			view.ZFar = size * 10 * test.Distance;
 			return new Shot( world, view );
@@ -101,7 +151,8 @@ internal static class ModelParity
 		// Source 2: the engine's model, as BasaltLab's scenes draw it
 		// (Source2Mesh draws every mesh; body groups are applied per object, here the case's or the model's default ones)
 		var nativeMesh = WithMeshGroups( Source2Mesh.FromModel( model ), model, test.MeshGroups ?? file.DefaultMeshGroupMask );
-		var native = Render( MakeWorld( nativeMesh ), backend.ReadPixels, backend.BeginFrame, backend.EndFrame );
+		var nativeClothes = clothing.Select( x => WithMeshGroups( Source2Mesh.FromModel( x.Model ), x.Model, x.File.DefaultMeshGroupMask ) ).ToArray();
+		var native = Render( MakeWorld( nativeMesh, nativeClothes ), backend.ReadPixels, backend.BeginFrame, backend.EndFrame );
 		backend.Phase( $"{test.Name}: Source 2" );
 
 		// Basalt.Gpu: the model read by Basalt.Source2
@@ -111,7 +162,8 @@ internal static class ModelParity
 		try
 		{
 			var mesh = BackendModel.Create( device, file, test.MeshGroups );
-			basalt = Render( MakeWorld( mesh ), target => ReadBack( device, target ), device.BeginFrame );
+			var clothes = clothing.Select( x => BackendModel.Create( device, x.File ) ).ToArray();
+			basalt = Render( MakeWorld( mesh, clothes ), target => ReadBack( device, target ), device.BeginFrame );
 		}
 		finally
 		{
@@ -147,7 +199,8 @@ internal static class ModelParity
 
 		var info = model.MeshInfo;
 		var ok = mean <= tolerance && mismatches.Count == 0;
-		var line = $"{test.Name}: {test.Path}{(test.MeshGroups is { } m ? $" mesh groups {m}" : "")}: mean difference {mean:F3}, max {maxDiff}, {over} pixels over 8; "
+		var posed = test.Sequence is null ? "" : $" posed {test.Sequence} at {test.Time:F2}{(clothing.Length > 0 ? $", {clothing.Length} clothing models" : "")}";
+		var line = $"{test.Name}: {test.Path}{(test.MeshGroups is { } m ? $" mesh groups {m}" : "")}{posed}: mean difference {mean:F3}, max {maxDiff}, {over} pixels over 8; "
 			+ $"engine {info.TotalVertices} vertices, {info.TotalTriangles} triangles, {info.TotalDrawCalls} draws, {info.LodCount} LODs, bounds {model.Bounds.Mins} {model.Bounds.Maxs}"
 			+ $"; {comparedDraws} draws' vertices compared"
 			+ (mismatches.Count == 0 ? "; reader matches" : $"; reader differs: {string.Join( "; ", mismatches )}")
@@ -156,6 +209,59 @@ internal static class ModelParity
 	}
 
 	sealed record Shot( RenderWorld Scene, RenderView View );
+
+	/// <summary>
+	/// The body posed by a native <see cref="SceneModel"/> from <paramref name="sequence"/>, frozen at
+	/// <paramref name="time"/> (0 to 1), as BasaltLab's skinned presets pose it; and each clothing model's bones following
+	/// the body's by name, as bone merging does, with bones the body doesn't have kept where their bind pose puts them
+	/// under their parent.
+	/// </summary>
+	static Pose Posed( Model model, string sequence, float time, Model[] clothing )
+	{
+		var world = new SceneWorld();
+		try
+		{
+			var animator = new SceneModel( world, model, Transform.Zero ) { UseAnimGraph = false, PlaybackRate = 0 };
+			animator.CurrentSequence.Name = sequence;
+			animator.CurrentSequence.TimeNormalized = time;
+			animator.Update( 0 );
+
+			var body = new Transform[model.BoneCount];
+			animator.GetBoneWorldTransforms( body );
+			var bounds = animator.Bounds;
+			animator.Delete();
+
+			var byName = new Dictionary<string, int>( StringComparer.OrdinalIgnoreCase );
+			for ( int b = 0; b < body.Length; b++ ) byName.TryAdd( model.GetBoneName( b ), b );
+
+			var worn = new Transform[clothing.Length][];
+			for ( int c = 0; c < clothing.Length; c++ )
+			{
+				var clothes = clothing[c];
+				var bones = worn[c] = new Transform[clothes.BoneCount];
+				for ( int b = 0; b < bones.Length; b++ )
+				{
+					if ( byName.TryGetValue( clothes.GetBoneName( b ), out var match ) )
+					{
+						bones[b] = body[match];
+						continue;
+					}
+
+					var parent = clothes.GetBoneParent( b );
+					var bind = clothes.GetBoneTransform( b );
+					bones[b] = parent >= 0 && parent < b ? bones[parent].ToWorld( clothes.GetBoneTransform( parent ).ToLocal( bind ) ) : bind;
+				}
+			}
+
+			return new Pose( body, worn, bounds );
+		}
+		finally
+		{
+			// Deleted now rather than at a frame's end, so nothing it posed with is still held at shutdown
+			world.Delete();
+			SceneWorld.FlushQueuedDeletes();
+		}
+	}
 
 	/// <summary>Frames rendered before the one compared (<c>-frames</c>, default 120: native streams textures in over the first frames).</summary>
 	static int Frames => Math.Max( Args.Int( "-frames", 120 ), 1 );
@@ -210,6 +316,34 @@ internal static class ModelParity
 		Check( "LODs", Math.Max( 1, info.LodCount ), file.LodCount );
 		Check( "switch distances", string.Join( ",", info.LodSwitchDistances ?? [] ), string.Join( ",", file.LodSwitchDistances ) );
 		Check( "bounds", (model.Bounds.Mins, model.Bounds.Maxs), (new Vector3( file.Mins.X, file.Mins.Y, file.Mins.Z ), new Vector3( file.Maxs.X, file.Maxs.Y, file.Maxs.Z )) );
+
+		// Bones in the engine's order with its bind pose, since poses are given by model bone index
+		Check( "bones", model.BoneCount, file.Skeleton.Count );
+		var bindPose = file.Skeleton.BindPose();
+		var bindPoseErrors = 0;
+		for ( int b = 0; b < Math.Min( model.BoneCount, bindPose.Length ); b++ )
+		{
+			var engine = model.GetBoneTransform( b );
+			var reader = bindPose[b];
+			if ( !string.Equals( model.GetBoneName( b ), file.Skeleton.Names[b], StringComparison.OrdinalIgnoreCase ) || (engine.Position - new Vector3( reader.M41, reader.M42, reader.M43 )).Length > 1e-2f ) bindPoseErrors++;
+		}
+
+		if ( bindPoseErrors > 0 ) errors.Add( $"{bindPoseErrors} bones' names or bind positions differ" );
+
+		// Skinned meshes: weights per vertex and bones, as native's model gives them to Basalt
+		for ( int m = 0; m < Math.Min( info.Meshes.Length, file.Meshes.Count ); m++ )
+		{
+			if ( !file.Meshes[m].IsSkinned ) continue;
+			var masters = file.MeshBoneToModelBone( m );
+			for ( int i = 0; i < masters.Length; i++ )
+			{
+				if ( (uint)masters[i] >= (uint)file.Skeleton.Count || !string.Equals( file.Meshes[m].Bones[i].Name, file.Skeleton.Names[masters[i]], StringComparison.OrdinalIgnoreCase ) )
+				{
+					errors.Add( $"mesh {m} bone {i} ({file.Meshes[m].Bones[i].Name}) maps to model bone {masters[i]}" );
+					break;
+				}
+			}
+		}
 
 		for ( int m = 0; m < Math.Min( info.Meshes.Length, file.Meshes.Count ); m++ )
 		{
