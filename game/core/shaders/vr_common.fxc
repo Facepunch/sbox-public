@@ -21,7 +21,8 @@
 //
 //-----------------------------------------------------------------------------------------------------------------
 
-cbuffer PerViewConstantBufferVR_t
+// In the view's descriptor set (common.fxc), filled from the attribute of the same name
+cbuffer PerViewConstantBufferVR_t EXTERNAL_DESC_SET( b, g_viewSet, 0 )
 {
 	bool4		g_bFogTypeEnabled;
 	bool4		g_bOtherFxEnabled;

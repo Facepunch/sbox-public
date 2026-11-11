@@ -71,6 +71,12 @@ public abstract class GpuDevice
 	/// </summary>
 	internal abstract Gpu.GpuContext CreateContext( Gpu.GpuContext frame = null );
 
+	/// <summary>
+	/// Whether this device's contexts draw aggregates GPU-driven (<see cref="Gpu.GpuContext.DrawGpuDriven"/>), so a layer's
+	/// aggregates record as one run rather than spread over workers.
+	/// </summary>
+	internal virtual bool DrawsAggregatesGpuDriven => false;
+
 	/// <summary>Whether the device has an async compute queue.</summary>
 	public abstract bool SupportsAsyncCompute { get; }
 

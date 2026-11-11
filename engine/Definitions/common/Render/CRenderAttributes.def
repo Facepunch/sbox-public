@@ -52,6 +52,12 @@ native class CRenderAttributes as NativeEngine.CRenderAttributes
 		self->SetDescriptorSetValue( "g_globalLateBoundBindlessSet", g_pRenderDevice->GetGlobalLateBoundBindlessDescriptorSet() );
 	}
 
+	// The view's g_viewSet (scenesystem/viewdescriptorset.h), filled with CSceneSystem.FillViewDescriptorSet
+	inline void SetViewDescriptorSet( RenderDescriptorSetHandle_t hSet )
+	{
+		self->SetDescriptorSetValue( "g_viewSet", hSet );
+	}
+
 	void SetPtrValue( StringToken nTokenID, void* ptr );
 	void DeletePtrValue( StringToken nTokenID );
 

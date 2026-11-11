@@ -3,6 +3,7 @@ using Basalt.Source2;
 using Basalt.Source2.Materials;
 using Basalt.Source2.Shaders;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading;
 
 namespace Basalt.Backend;
@@ -10,7 +11,7 @@ namespace Basalt.Backend;
 /// <summary>
 /// Basalt's <see cref="GpuDevice"/> on <see cref="Basalt.Gpu.Device"/>: resources map one-to-one onto Basalt.Gpu's, and
 /// materials are s&amp;box's own - compiled shaders, materials and textures read by Basalt.Source2 from the game's
-/// content. What it can't do yet (skinning, the sky, engine compute shaders) draws nothing. See
+/// content. What it can't do yet (morphs, engine compute shaders with parameters) draws nothing. See
 /// docs/managed/basalt-gpu.md.
 /// </summary>
 public sealed class BackendDevice : GpuDevice, IDisposable
@@ -97,6 +98,85 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 		material.Disposing = m => materialCache?.Invalidate( m );
 		return material;
 	}
+
+	/// <summary>
+	/// New-tier shaders (Slang surfaces and raw modules) and their materials' records, compiled when a
+	/// <see cref="SurfaceMaterial"/> of theirs first draws. See docs/managed/shader-format-replacement.md.
+	/// </summary>
+	public SurfaceShaders Surfaces
+	{
+		get
+		{
+			if ( surfaces is { } made ) return made;
+			lock ( pipelines ) return surfaces ??= new SurfaceShaders( this );
+		}
+	}
+
+	SurfaceShaders surfaces;
+
+	/// <summary>
+	/// Keep static models' geometry in GPU-driven pages as they load (<see cref="GpuDrivenTables"/>), so
+	/// <see cref="GpuDriven"/> can draw them. Set before loading models; it costs a second copy of their buffers while the
+	/// classic path still draws from its own.
+	/// </summary>
+	public bool GpuDrivenGeometry
+	{
+		get => gpuDrivenTables is not null;
+		set
+		{
+			if ( value && gpuDrivenTables is null ) gpuDrivenTables = new GpuDrivenTables( Gpu );
+		}
+	}
+
+	GpuDrivenTables gpuDrivenTables;
+
+	/// <summary>The GPU-driven pages and tables, or null when <see cref="GpuDrivenGeometry"/> is off.</summary>
+	internal GpuDrivenTables GpuDrivenTables => gpuDrivenTables;
+
+	/// <summary>
+	/// Draw aggregates GPU-driven: shaders' <c>.gpudriven.shader_c</c> variants, per-draw data in tables, one multi-draw
+	/// per pipeline and pass state (docs/managed/basalt-gpu-driven.md). Needs <see cref="GpuDrivenGeometry"/> and material
+	/// objects; anything it can't draw goes the classic way.
+	/// </summary>
+	public bool GpuDriven { get; set; }
+
+	/// <summary>The GPU-driven tables' records and bytes, for reports.</summary>
+	public string GpuDrivenReport => gpuDrivenTables is not { } t ? "off" : $"{t.Records.Geometry} geometry, {t.Records.Draws} draw and {t.Records.Materials} material records ({t.Bytes.Geometry / 1024} + {t.Bytes.Draws / 1024} + {t.Bytes.Materials / 1024} KiB), {t.Bytes.Pages / (1 << 20)} MiB of pages"
+		+ (GpuDrivenLeftClassic.IsEmpty ? "" : "; aggregate batches left classic (batch draws while timed, shader, mode, why): " + string.Join( ", ", GpuDrivenLeftClassic.OrderByDescending( x => x.Value ).Select( x => $"{x.Value} {x.Key}" ) ));
+
+	/// <summary>While <see cref="TimeDraws"/>, aggregate batches the GPU-driven path left to the classic one, by shader, mode and why.</summary>
+	internal readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> GpuDrivenLeftClassic = new();
+
+	/// <summary>The vertex layout GPU-driven pipelines are made with: none, their vertex shaders pull their inputs.</summary>
+	internal VertexLayout PulledLayout => pulledLayout ??= Layout( new VertexLayout( 4, [] ) );
+
+	/// <summary>The same for pipelines whose pixel shader reads its bucket's one material (a layout of its own keeps their material objects apart).</summary>
+	internal VertexLayout PulledLayoutMaterialPerDraw => pulledLayoutPerDraw ??= Layout( new VertexLayout( 8, [] ) );
+
+	VertexLayout pulledLayout, pulledLayoutPerDraw;
+
+	/// <summary>
+	/// Split GPU-driven buckets whose pixel shader reads its material (forward, alpha-tested depth) by material, so the
+	/// pixel shader reads the record at an offset the compiler knows is uniform (specialization constant 120) rather than
+	/// one carried per pixel: more multi-draws, no binds between them, and the classic shader's registers. Off by default:
+	/// one multi-draw for every material of a pipeline costs complex 1 to 13 registers but draws Construct faster on CPU
+	/// and GPU; on is for a shader whose registers matter more than its draws.
+	/// </summary>
+	public bool GpuDrivenMaterialBuckets { get; set; }
+
+	readonly System.Collections.Concurrent.ConcurrentDictionary<uint, BackendParameters> gpuDrivenMaterialParameters = new();
+	static readonly StringToken GpuDrivenMaterialName = new( "BasaltGpuDrivenMaterial_t" );
+
+	/// <summary>
+	/// The object attributes a bucket of one material draws with: <c>BasaltGpuDrivenMaterial_t</c> holding its pixel
+	/// material record, made once per record, so buckets of other materials differ only in a dynamic offset.
+	/// </summary>
+	internal BackendParameters GpuDrivenMaterialParameters( uint pixelMaterial ) => gpuDrivenMaterialParameters.GetOrAdd( pixelMaterial, static record =>
+	{
+		var parameters = new BackendParameters();
+		parameters.SetData( GpuDrivenMaterialName, new System.Numerics.Vector4( BitConverter.UInt32BitsToSingle( record ), 0, 0, 0 ) );
+		return parameters;
+	} );
 
 	/// <summary>Time every model draw's binding and recording into <see cref="DrawTimes"/>, for benchmarks.</summary>
 	public bool TimeDraws { get; set; }
@@ -380,27 +460,36 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// A pipeline for a variant drawing vertices laid out as <paramref name="layout"/> into targets of these formats,
 	/// made once. Mesh vertices are stream 0, instance ids stream 1 (<c>TEXCOORD13</c>), and inputs the mesh lacks, or
 	/// has as integers where the shader wants floats (or the other way round), read the default stream 2, as native's
-	/// input layouts do for streams a mesh doesn't have.
+	/// input layouts do for streams a mesh doesn't have. A vertex-cache layout reads vertex ids from streams 2 and 3 and
+	/// the default stream from 4.
 	/// </summary>
-	internal PipelineHandle Pipeline( ShaderVariant variant, VertexLayout layout, Format color, Format depth, int samples, bool depthOnly, BindingLayoutHandle[] sets = null )
+	internal PipelineHandle Pipeline( ShaderVariant variant, VertexLayout layout, Format color, Format depth, int samples, bool depthOnly, BindingLayoutHandle[] sets = null, bool materialPerDraw = false )
 	{
-		var key = new PipelineKey( variant, layout, color, depth, samples, depthOnly, sets );
+		var key = new PipelineKey( variant, layout, color, depth, samples, depthOnly, sets, materialPerDraw );
 		lock ( pipelines )
 		{
 			if ( pipelines.TryGetValue( key, out var pipeline ) ) return pipeline;
 
+			// A vertex-cache draw reads its vertex ids from streams 2 and 3, as floats
+			var vertexCache = layout.VertexCache;
 			var attributes = ShaderDefaults.MapVertices( variant.VertexInputs, input =>
 			{
 				if ( input.Semantic == VertexSemantic.TexCoord && input.SemanticIndex == 13 ) return new VertexAttribute( 0, 1, VertexFormat.UInt, 0 );
+				if ( vertexCache && input.Semantic == VertexSemantic.TexCoord && input.SemanticIndex is 14 or 15 ) return new VertexAttribute( 0, input.SemanticIndex == 14 ? 2 : 3, VertexFormat.Float, 0 );
 				if ( layout.Find( input.Semantic, input.SemanticIndex ) is not { } field ) return null;
 				var integer = field.Format is VertexFormat.UByte4 or VertexFormat.UInt or VertexFormat.UInt2 or VertexFormat.UInt4;
 				if ( integer != (input.Kind != SpirvScalar.Float) ) return null;
 				return new VertexAttribute( 0, 0, field.Format, field.Offset );
-			}, defaultBuffer: 2 );
+			}, defaultBuffer: vertexCache ? 4 : 2 );
 
-			VertexBufferLayout[] streams = [new( layout.Stride ), new( 4, VertexStepRate.Instance ), new( 0 )];
+			VertexBufferLayout[] streams = vertexCache
+				? [new( layout.Stride ), new( 4, VertexStepRate.Instance ), new( 4 ), new( 4 ), new( 0 )]
+				: [new( layout.Stride ), new( 4, VertexStepRate.Instance ), new( 0 )];
 			var info = variant.PipelineInfo( streams, attributes, color == Format.Unknown ? [] : [color], depth, samples, depthBias: depthOnly || color == Format.Unknown, $"{variant}{(depthOnly ? " depth" : "")}" );
 			if ( sets is not null ) info.Sets = sets;
+
+			// A GPU-driven pixel shader reading its bucket's one material (basalt_gpu_driven.h's specialization constant)
+			if ( materialPerDraw && info.FragmentShader.IsValid ) info.FragmentConstants = [.. info.FragmentConstants ?? [], new SpecializationConstant( GpuDrivenMaterialPerDrawConstant, 1 )];
 
 			// Stripped pixel shaders: depth passes of opaque materials don't need them (alpha-tested ones keep theirs)
 			if ( depthOnly && color == Format.Unknown )
@@ -412,11 +501,59 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 
 			pipeline = Gpu.CreateGraphicsPipeline( info );
 			pipelines[key] = pipeline;
+			if ( DumpPixelShaders is { } dump && info.FragmentShader.IsValid ) DumpPixelShader( dump, variant, info.FragmentConstants, materialPerDraw );
 			return pipeline;
 		}
 	}
 
-	internal readonly record struct PipelineKey( ShaderVariant Variant, VertexLayout Layout, Format Color, Format Depth, int Samples, bool DepthOnly, BindingLayoutHandle[] Sets = null );
+	/// <summary>
+	/// <c>BASALT_DUMP_PIXEL_SHADERS=folder</c>: write every pixel shader a pipeline is made with, specialization constants
+	/// applied, as <c>shader_mode_static_dynamic_kind.spv</c> (kind: classic, gpudriven, or gpudriven-perdraw), so register
+	/// counts of the classic and GPU-driven forms of one combo can be compared offline (amdllpc).
+	/// </summary>
+	static readonly string DumpPixelShaders = Environment.GetEnvironmentVariable( "BASALT_DUMP_PIXEL_SHADERS" );
+
+	static void DumpPixelShader( string folder, ShaderVariant variant, SpecializationConstant[] constants, bool materialPerDraw )
+	{
+		var stage = variant.Pixel;
+		var kind = !stage.GpuDriven ? "classic" : materialPerDraw ? "gpudriven-perdraw" : "gpudriven";
+		var name = $"{System.IO.Path.GetFileName( variant.Shader.Name ).Split( '.' )[0]}_{variant.Mode?.Name}_s{stage.Static.Id}_d{stage.Dynamic.Id}_{kind}.spv";
+		var path = System.IO.Path.Combine( folder, name );
+		if ( System.IO.File.Exists( path ) ) return;
+
+		var spirv = (byte[])stage.Bytecode.Shared.Spirv.Clone();
+		var words = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, uint>( spirv.AsSpan() );
+		var specIds = new Dictionary<uint, uint>();
+		for ( int pass = 0; pass < 2; pass++ )
+		{
+			for ( int i = 5; i < words.Length; )
+			{
+				var count = (int)(words[i] >> 16);
+				var opcode = (int)(words[i] & 0xffff);
+				if ( count == 0 ) return;
+				if ( pass == 0 && opcode == 71 && count >= 4 && words[i + 2] == 1 ) specIds[words[i + 1]] = words[i + 3];
+				else if ( pass == 1 && opcode is 48 or 49 or 50 && specIds.TryGetValue( words[i + 2], out var id ) )
+				{
+					foreach ( var c in constants ?? [] )
+					{
+						if ( c.Id != id ) continue;
+						if ( opcode == 50 ) words[i + 3] = c.Value;
+						else words[i] = (words[i] & 0xffff0000) | (uint)(c.Value != 0 ? 48 : 49);
+					}
+				}
+
+				i += count;
+			}
+		}
+
+		System.IO.Directory.CreateDirectory( folder );
+		System.IO.File.WriteAllBytes( path, spirv );
+	}
+
+	internal readonly record struct PipelineKey( ShaderVariant Variant, VertexLayout Layout, Format Color, Format Depth, int Samples, bool DepthOnly, BindingLayoutHandle[] Sets = null, bool MaterialPerDraw = false );
+
+	/// <summary><c>BASALT_GPU_DRIVEN_MATERIAL_PER_DRAW_ID</c>: set, a GPU-driven pixel shader reads <c>g_nBasaltPixelMaterial</c>.</summary>
+	const uint GpuDrivenMaterialPerDrawConstant = 120;
 
 	/// <summary>A compute pipeline for a compute shader's variant (with <paramref name="sets"/> for its layout's), made once.</summary>
 	internal PipelineHandle ComputePipeline( ShaderVariant variant, BindingLayoutHandle[] sets = null )
@@ -440,17 +577,103 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 
 	internal override GpuContext CreateContext( GpuContext frame = null ) => new BackendContext( this, (BackendContext)frame );
 
+	internal override bool DrawsAggregatesGpuDriven => GpuDriven && MaterialObjects && GpuDrivenTables is not null;
+
 	/// <summary>Async compute isn't wired yet: contexts all record on the graphics queue.</summary>
 	public override bool SupportsAsyncCompute => false;
 
 	/// <inheritdoc/>
 	public override bool SupportsDrawIndirectCount => Gpu.Capabilities.DrawIndirectCount;
 
-	/// <inheritdoc/>
-	public override int AllocateVertexCache( int vertices ) => Interlocked.Add( ref vertexCache, vertices ) - vertices;
+	//
+	// The vertex cache: skinned vertices compute skinning writes for the frame (CachedAnimatedVertex_t, 24 bytes each), which
+	// vertex shaders read through the bindless table's vertex cache binding. One region per frame in flight, so a frame
+	// writes while the one before is still read.
+	//
+
+	/// <summary>Bytes a cached vertex takes (<c>CachedAnimatedVertex_t</c>).</summary>
+	internal const int VertexCacheStride = 24;
+
+	readonly Lock vertexCacheLock = new();
+	BufferHandle vertexCacheBuffer;
+	int vertexCacheCapacity;
+	ulong vertexCacheFrame = ulong.MaxValue;
+	bool vertexCacheGrew;
+
+	/// <summary>The vertex cache, or an invalid handle before anything was skinned.</summary>
+	internal BufferHandle VertexCacheBuffer => vertexCacheBuffer;
+
+	/// <summary>
+	/// Room for <paramref name="vertices"/> skinned vertices in this frame's region of the vertex cache; the first one's
+	/// index. A region that's too small grows the cache, after the GPU is idle, and the next frame waits for this one too,
+	/// since this frame's earlier blocks may lie in the next one's region.
+	/// </summary>
+	public override int AllocateVertexCache( int vertices )
+	{
+		lock ( vertexCacheLock )
+		{
+			if ( Gpu.FrameNumber != vertexCacheFrame )
+			{
+				if ( vertexCacheGrew ) Gpu.WaitIdle();
+				vertexCacheGrew = false;
+				vertexCacheFrame = Gpu.FrameNumber;
+				vertexCache = 0;
+			}
+
+			if ( vertexCache + vertices > vertexCacheCapacity ) GrowVertexCache( vertexCache + vertices );
+
+			var first = Gpu.FrameSlot * vertexCacheCapacity + vertexCache;
+			vertexCache += vertices;
+			return first;
+		}
+	}
+
+	void GrowVertexCache( int needed )
+	{
+		Gpu.WaitIdle();
+		var capacity = Math.Max( 1 << 16, vertexCacheCapacity );
+		while ( capacity < needed ) capacity *= 2;
+
+		var buffer = Gpu.CreateBuffer( new BufferInfo { Size = (long)capacity * VertexCacheStride * Gpu.FramesInFlight, Usage = BufferUsage.Storage, Name = "Basalt vertex cache" } );
+		Gpu.SetBindlessBuffer( ShaderAbi.BindlessVertexCache, buffer );
+		if ( vertexCacheBuffer.IsValid ) Gpu.Destroy( vertexCacheBuffer );
+		vertexCacheBuffer = buffer;
+		vertexCacheCapacity = capacity;
+		vertexCacheGrew = true;
+	}
+
+	/// <summary>Vertices <see cref="VertexIds"/> numbers (native's <c>VERTEX_ID_BUFFER_MAX_VERTICES</c>).</summary>
+	internal const int MaxVertexIds = 131072;
+
+	BufferHandle vertexIds;
+
+	/// <summary>
+	/// 0, 1, 2 ... as floats, one per vertex (native's <c>SCENESYSTEMVB_INSTANCE_VERTEX_ID</c>): bound at an offset, it gives
+	/// a vertex-cache draw's vertices their place in the cache.
+	/// </summary>
+	internal BufferHandle VertexIds
+	{
+		get
+		{
+			lock ( vertexCacheLock )
+			{
+				if ( vertexIds.IsValid ) return vertexIds;
+				var ids = new float[MaxVertexIds];
+				for ( int i = 0; i < ids.Length; i++ ) ids[i] = i;
+				var buffer = Gpu.CreateBuffer( new BufferInfo { Size = ids.Length * sizeof( float ), Usage = BufferUsage.Vertex, Name = "Basalt vertex ids" } );
+				Gpu.WriteBuffer( buffer, System.Runtime.InteropServices.MemoryMarshal.AsBytes( ids.AsSpan() ) );
+				return vertexIds = buffer;
+			}
+		}
+	}
+
+	/// <summary>The frame's composite morph atlas, which <see cref="BackendMorphs"/> queue meshes in.</summary>
+	internal MorphAtlas Morphs => morphs ??= new MorphAtlas( this );
+
+	MorphAtlas morphs;
 
 	/// <inheritdoc/>
-	public override Vector4 MorphSubrect( int handle ) => default;
+	public override Vector4 MorphSubrect( int handle ) => Morphs.Subrect( handle );
 
 	/// <inheritdoc/>
 	public override void BeginSubmitting( GpuSwapChain swapChain ) { }
@@ -541,6 +764,7 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	public void BeginFrame()
 	{
 		Gpu.BeginFrame();
+		gpuDrivenTables?.BeginFrame();
 		Poll();
 	}
 
@@ -565,6 +789,8 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 		Gpu.WaitIdle();
 		Poll();
 		materialCache?.Dispose();
+		surfaces?.Dispose();
+		gpuDrivenTables?.Dispose();
 		lock ( pipelines )
 		{
 			foreach ( var pipeline in pipelines.Values ) Gpu.Destroy( pipeline );

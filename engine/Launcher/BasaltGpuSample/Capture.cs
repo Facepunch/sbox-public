@@ -57,7 +57,8 @@ internal static class Capture
 		return data;
 	}
 
-	static byte[] Png( byte[] rgba, int width, int height )
+	/// <summary>RGBA8 pixels as a PNG file.</summary>
+	public static byte[] Png( byte[] rgba, int width, int height )
 	{
 		var raw = new MemoryStream();
 		for ( int y = 0; y < height; y++ )

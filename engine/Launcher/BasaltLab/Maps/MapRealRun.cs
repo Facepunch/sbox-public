@@ -24,8 +24,11 @@ internal static class MapRealRun
 {
 	public sealed record Options( string Ident, MapView[] Views, int Width, int Height, int Samples, int Frames, int Warmup, string Captures, string Output, string Unoptimised );
 
-	/// <summary>A way of drawing it: recording on one thread or several, material objects or binding by reflection, and whether static geometry casts sun shadows.</summary>
-	sealed record Variant( string Name, bool Parallel, bool MaterialObjects, bool Shadows );
+	/// <summary>
+	/// A way of drawing it: recording on one thread or several, material objects or binding by reflection, whether static
+	/// geometry casts sun shadows, and whether aggregates draw GPU-driven (<c>-gpudriven</c>).
+	/// </summary>
+	sealed record Variant( string Name, bool Parallel, bool MaterialObjects, bool Shadows, bool GpuDriven = false, bool MaterialBuckets = false );
 
 	static readonly Variant[] Variants =
 	[
@@ -34,6 +37,10 @@ internal static class MapRealRun
 		new( "real-reflection", false, false, false ),
 		new( "real-serial-shadows", false, true, true ),
 		new( "real-parallel-shadows", true, true, true ),
+		new( "real-serial-gpudriven", false, true, false, true ),
+		new( "real-parallel-gpudriven", true, true, false, true ),
+		new( "real-serial-gpudriven-materials", false, true, false, true, true ),
+		new( "real-parallel-gpudriven-materials", true, true, false, true, true ),
 	];
 
 	struct Frame
@@ -44,7 +51,10 @@ internal static class MapRealRun
 	public static int Run( GpuDevice gpu, Win32Window window, SwapChain swapChain, string folder, ContentFiles core, Options options )
 	{
 		var only = Args.String( "-variants" )?.Split( ',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries );
-		var variants = only is null ? Variants : Variants.Where( v => only.Contains( v.Name, StringComparer.OrdinalIgnoreCase ) ).ToArray();
+		var gpuDriven = Args.Has( "-gpudriven" ) || (only?.Any( v => v.Contains( "-gpudriven", StringComparison.OrdinalIgnoreCase ) ) ?? false);
+		// In the order -variants names them, so runs can alternate which goes first
+		var variants = only is null ? Variants.Where( v => gpuDriven || !v.GpuDriven ).ToArray()
+			: only.Select( name => Variants.FirstOrDefault( v => v.Name.Equals( name, StringComparison.OrdinalIgnoreCase ) ) ).Where( v => v is not null ).ToArray();
 		if ( variants.Length == 0 )
 		{
 			Console.Error.WriteLine( $"-variants names none of {string.Join( ", ", Variants.Select( v => v.Name ) )}" );
@@ -52,7 +62,7 @@ internal static class MapRealRun
 		}
 
 		var load = Stopwatch.StartNew();
-		using var map = new MapWorld( gpu, folder, core, castShadows: false, aggregatesAsMeshes: Args.Has( "-aggregates-as-meshes" ), bakedLighting: !Args.Has( "-nobaked" ), entities: !Args.Has( "-noentities" ) );
+		using var map = new MapWorld( gpu, folder, core, castShadows: false, aggregatesAsMeshes: Args.Has( "-aggregates-as-meshes" ), bakedLighting: !Args.Has( "-nobaked" ), entities: !Args.Has( "-noentities" ), gpuDriven: gpuDriven );
 		map.SetTarget( options.Width, options.Height, options.Samples );
 		map.System.DepthPrepass = !Args.Has( "-noprepass" );
 		if ( Args.Has( "-occlusion" ) && RenderHost.Current is BackendRenderHost host ) host.Occlusion = true;
@@ -102,7 +112,7 @@ internal static class MapRealRun
 		}
 
 		var lines = new List<string>();
-		var csv = new StringBuilder( "view,variant,parallel,material_objects,shadows,frames,wait_ms,render_ms,collect_ms,prepare_ms,setup_ms,record_ms,worker_record_ms,stages_ms,submit_ms,copy_ms,cpu_ms,frame_ms,frame_p95_ms,gpu_ms,draws,depth_draws,shadow_draws,translucent_draws,instances,objects_visible,triangles,model_draws,binds,fragment_draws,ns_per_bind,ns_per_repeat,sets_written_per_frame,gcs,object_changes,ns_per_object_change,failed_draws,cpu_mean_ms,frame_mean_ms,gpu_mean_ms,prepass_record_ms\n" );
+		var csv = new StringBuilder( "view,variant,parallel,material_objects,shadows,frames,wait_ms,render_ms,collect_ms,prepare_ms,setup_ms,record_ms,worker_record_ms,stages_ms,submit_ms,copy_ms,cpu_ms,frame_ms,frame_p95_ms,gpu_ms,draws,depth_draws,shadow_draws,translucent_draws,instances,objects_visible,triangles,model_draws,binds,fragment_draws,ns_per_bind,ns_per_repeat,sets_written_per_frame,gcs,object_changes,ns_per_object_change,failed_draws,cpu_mean_ms,frame_mean_ms,gpu_mean_ms,prepass_record_ms,gpudriven,gpudriven_batches,gpudriven_buckets,gpudriven_multidraws\n" );
 		var bindingReport = "";
 
 		foreach ( var view in options.Views )
@@ -111,6 +121,8 @@ internal static class MapRealRun
 			{
 				map.System.ParallelRecording = variant.Parallel;
 				map.Backend.MaterialObjects = variant.MaterialObjects;
+				map.Backend.GpuDriven = variant.GpuDriven;
+				map.Backend.GpuDrivenMaterialBuckets = variant.MaterialBuckets;
 				map.SetCastShadows( variant.Shadows );
 
 				var warm = Stopwatch.StartNew();
@@ -148,6 +160,7 @@ internal static class MapRealRun
 				var (modelDraws, binds, fragmentDraws) = (t.Draws / Counted, t.Binds / Counted, t.IndirectDraws / Counted);
 				var (nsBind, nsRepeat) = (t.NanosecondsPerBind, t.NanosecondsPerRepeat);
 				var (objectChanges, nsObjectChange) = (t.ObjectChanges / Counted, t.NanosecondsPerObjectChange);
+				var gpuDrivenLine = variant.GpuDriven ? $"GPU-driven: {t.GpuDrivenBatches / Counted} aggregate batches in {t.GpuDrivenBuckets / Counted} buckets, {t.GpuDrivenMultiDraws / Counted} multi-draws of {t.GpuDrivenFragments / Counted} fragments; " : "";
 				string failed;
 				int failedDraws;
 				lock ( t.Failed )
@@ -162,10 +175,10 @@ internal static class MapRealRun
 				double Mean( Func<Frame, double> f ) => frames.Select( f ).Where( x => !double.IsNaN( x ) ).DefaultIfEmpty( double.NaN ).Average();
 				var cpu = M( f => f.Render + f.Copy );
 				var line = $"{view.Name,-9} {variant.Name,-22} collect {M( f => f.Collect ),6:0.000} prepare {M( f => f.Prepare ),6:0.000} setup {M( f => f.Setup ),6:0.000} record {M( f => f.Record ),6:0.000} (workers {M( f => f.WorkerRecord ):0.000}, prepass {M( f => f.Prepass ):0.000}) submit {M( f => f.Submit ),6:0.000} render {M( f => f.Render ),6:0.000} copy {M( f => f.Copy ),5:0.000} wait {M( f => f.Wait ),6:0.000} frame {Percentile( frameTimes, 0.5 ),6:0.000} gpu {M( f => f.Gpu ),6:0.000}  "
-					+ $"{stats.Draws}+{stats.DepthDraws} depth+{stats.ShadowDraws} shadow draws ({stats.TranslucentDraws} translucent, {stats.Instances} instances), {stats.ObjectsVisible} objects visible, {stats.Triangles / 1e6:0.00}M tris; {modelDraws} model draws, {binds} binds, {objectChanges} object changes, {fragmentDraws} fragment draws ({nsBind:0} ns a bind, {nsObjectChange:0} ns an object change, {nsRepeat:0} ns a repeat draw, timed), {setsPerFrame:0.0} sets written/frame, {gcs} GCs; {(map.System.SkyboxStats is { } sky ? $"3D skybox {sky.Draws}+{sky.DepthDraws} depth draws of {sky.ObjectsVisible} visible objects of {sky.Objects} ({sky.ObjectsFrustumCulled} frustum culled, {sky.ObjectsSizeCulled} size culled, {sky.ObjectsTagCulled} tag culled, {sky.ObjectsOcclusionCulled} occlusion culled)" : "no 3D skybox drawn")}; draws that recorded nothing: {failed}";
+					+ $"{stats.Draws}+{stats.DepthDraws} depth+{stats.ShadowDraws} shadow draws ({stats.TranslucentDraws} translucent, {stats.Instances} instances), {stats.ObjectsVisible} objects visible, {stats.Triangles / 1e6:0.00}M tris; {modelDraws} model draws, {binds} binds, {objectChanges} object changes, {fragmentDraws} fragment draws ({nsBind:0} ns a bind, {nsObjectChange:0} ns an object change, {nsRepeat:0} ns a repeat draw, timed), {setsPerFrame:0.0} sets written/frame, {gcs} GCs; {gpuDrivenLine}{(map.System.SkyboxStats is { } sky ? $"3D skybox {sky.Draws}+{sky.DepthDraws} depth draws of {sky.ObjectsVisible} visible objects of {sky.Objects} ({sky.ObjectsFrustumCulled} frustum culled, {sky.ObjectsSizeCulled} size culled, {sky.ObjectsTagCulled} tag culled, {sky.ObjectsOcclusionCulled} occlusion culled)" : "no 3D skybox drawn")}; draws that recorded nothing: {failed}";
 				Console.WriteLine( line );
 				lines.Add( line );
-				csv.AppendLine( FormattableString.Invariant( $"{view.Name},{variant.Name},{variant.Parallel},{variant.MaterialObjects},{variant.Shadows},{frames.Count},{M( f => f.Wait ):0.0000},{M( f => f.Render ):0.0000},{M( f => f.Collect ):0.0000},{M( f => f.Prepare ):0.0000},{M( f => f.Setup ):0.0000},{M( f => f.Record ):0.0000},{M( f => f.WorkerRecord ):0.0000},{M( f => f.Stages ):0.0000},{M( f => f.Submit ):0.0000},{M( f => f.Copy ):0.0000},{cpu:0.0000},{Percentile( frameTimes, 0.5 ):0.0000},{Percentile( frameTimes, 0.95 ):0.0000},{M( f => f.Gpu ):0.0000},{stats.Draws},{stats.DepthDraws},{stats.ShadowDraws},{stats.TranslucentDraws},{stats.Instances},{stats.ObjectsVisible},{stats.Triangles},{modelDraws},{binds},{fragmentDraws},{nsBind:0},{nsRepeat:0},{setsPerFrame:0.0},{gcs},{objectChanges},{nsObjectChange:0},{failedDraws},{Mean( f => f.Render + f.Copy ):0.0000},{frameTimes.DefaultIfEmpty( double.NaN ).Average():0.0000},{Mean( f => f.Gpu ):0.0000},{M( f => f.Prepass ):0.0000}" ) );
+				csv.AppendLine( FormattableString.Invariant( $"{view.Name},{variant.Name},{variant.Parallel},{variant.MaterialObjects},{variant.Shadows},{frames.Count},{M( f => f.Wait ):0.0000},{M( f => f.Render ):0.0000},{M( f => f.Collect ):0.0000},{M( f => f.Prepare ):0.0000},{M( f => f.Setup ):0.0000},{M( f => f.Record ):0.0000},{M( f => f.WorkerRecord ):0.0000},{M( f => f.Stages ):0.0000},{M( f => f.Submit ):0.0000},{M( f => f.Copy ):0.0000},{cpu:0.0000},{Percentile( frameTimes, 0.5 ):0.0000},{Percentile( frameTimes, 0.95 ):0.0000},{M( f => f.Gpu ):0.0000},{stats.Draws},{stats.DepthDraws},{stats.ShadowDraws},{stats.TranslucentDraws},{stats.Instances},{stats.ObjectsVisible},{stats.Triangles},{modelDraws},{binds},{fragmentDraws},{nsBind:0},{nsRepeat:0},{setsPerFrame:0.0},{gcs},{objectChanges},{nsObjectChange:0},{failedDraws},{Mean( f => f.Render + f.Copy ):0.0000},{frameTimes.DefaultIfEmpty( double.NaN ).Average():0.0000},{Mean( f => f.Gpu ):0.0000},{M( f => f.Prepass ):0.0000},{(variant.GpuDriven ? (variant.MaterialBuckets ? "materials" : "onebucket") : "classic")},{t.GpuDrivenBatches / Counted},{t.GpuDrivenBuckets / Counted},{t.GpuDrivenMultiDraws / Counted}" ) );
 			}
 
 			if ( bindingReport.Length == 0 ) bindingReport = DescribeBindings( map.Backend );
@@ -175,13 +188,23 @@ internal static class MapRealRun
 				map.System.ParallelRecording = false;
 				map.Backend.MaterialObjects = true;
 				map.SetCastShadows( false );
-				for ( int i = 0; i < 3; i++ ) RenderFrame( view );
-				gpu.WaitIdle();
-				var (texture, layout) = map.Output;
 				var path = Path.Combine( Path.GetFullPath( options.Captures ), $"{options.Ident.Split( '.' ).Last()}-{view.Name}-real.png" );
-				Capture.Save( gpu, texture, layout, path );
-				BackendDevice.SetLayout( map.Target.Samples > 1 ? map.Target.Resolved : map.Target.Color, ImageLayout.CopySource );
-				Console.WriteLine( $"Saved {path}" );
+
+				// The GPU-driven frames between two classic ones, to compare (wind and water move between captures)
+				foreach ( var (drivenCapture, materialBuckets, suffix) in gpuDriven ? new[] { (false, false, "-classic-before"), (true, false, "-gpudriven"), (true, true, "-gpudriven-materials"), (false, false, "") } : [(false, false, "")] )
+				{
+					map.Backend.GpuDriven = drivenCapture;
+					map.Backend.GpuDrivenMaterialBuckets = materialBuckets;
+					for ( int i = 0; i < 3; i++ ) RenderFrame( view );
+					gpu.WaitIdle();
+					var (captured, capturedLayout) = map.Output;
+					var capturePath = Path.ChangeExtension( path, null ) + suffix + ".png";
+					Capture.Save( gpu, captured, capturedLayout, capturePath );
+					BackendDevice.SetLayout( map.Target.Samples > 1 ? map.Target.Resolved : map.Target.Color, ImageLayout.CopySource );
+					Console.WriteLine( $"Saved {capturePath}" );
+				}
+
+				var (texture, layout) = map.Output;
 
 				// -vis 10,2: the same frame in the shaders' debug views
 				foreach ( var mode in (Args.String( "-vis" ) ?? "").Split( ',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries ) )
@@ -208,6 +231,8 @@ internal static class MapRealRun
 		md.AppendLine( $"Basalt Lab -map {options.Ident} -real, {DateTime.Now:yyyy-MM-dd HH:mm}, {gpu.Adapter.Name}, {options.Width}x{options.Height} {options.Samples}x MSAA, vsync off, {options.Frames} measured frames per run (medians, ms)" );
 		md.AppendLine();
 		md.AppendLine( $"Baked lighting: {map.LightmapTextures} lightmaps for {map.LightmappedObjects} objects and aggregates, {map.ProbeVolumes} probe volumes for {map.ProbeObjects} objects; {map.Lights} lights ({map.BakedLights} baked); 3D skybox {(map.SkyWorld is null ? "none" : "loaded")}; occlusion culling {(RenderHost.Current.OcclusionCulling ? "on" : "off")}" );
+		md.AppendLine();
+		md.AppendLine( $"GPU-driven tables: {map.Backend.GpuDrivenReport}" );
 		md.AppendLine();
 		md.AppendLine( $"Entities used, by class: {(map.EntityClasses.Count == 0 ? "none" : string.Join( ", ", map.EntityClasses.Select( x => $"{x.Key} {x.Value}" ) ))}" );
 		if ( options.Unoptimised.Length > 0 ) md.AppendLine( $"**Debug build: {options.Unoptimised}**" );

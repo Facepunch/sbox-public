@@ -191,6 +191,15 @@ public sealed class ShaderStage
 	/// <summary>Render-state values the stage sets (pixel shaders): (<c>VfxRenderState_t</c>, variable).</summary>
 	public IReadOnlyList<(int State, ShaderVariable Variable)> RenderStates { get; }
 
+	/// <summary>
+	/// A GPU-driven variant's material textures (<c>basalt_gpu_driven.fxc</c>): each one's bindless slot goes in the material
+	/// record at this byte offset, after the constants (<see cref="ShaderLibrary.GpuDrivenTextureRegister"/>). Empty otherwise.
+	/// </summary>
+	public IReadOnlyList<(ShaderVariable Variable, int Offset)> RecordTextures { get; }
+
+	/// <summary>Whether it's from a shader's GPU-driven file (<see cref="ShaderLibrary.GpuDriven"/>).</summary>
+	public bool GpuDriven => Program.Shader.Name.EndsWith( ".gpudriven.shader_c", StringComparison.OrdinalIgnoreCase );
+
 	internal ShaderStage( ShaderLibrary library, ShaderProgramType type, ShaderProgram program, StaticCombo combo, DynamicCombo dynamic, Func<string, int?> attributes )
 	{
 		Type = type;
@@ -209,10 +218,17 @@ public sealed class ShaderStage
 		var constants = new List<SpecializationConstant>( Bytecode?.Constants ?? [] );
 		var materialConstants = new List<(ShaderVariable, int)>();
 		var renderStates = new List<(int, ShaderVariable)>();
+		var recordTextures = new List<(ShaderVariable, int)>();
 
 		foreach ( var binding in dynamic.Variables )
 		{
 			var variable = variables[binding.Variable];
+			if ( variable.Register == RegisterType.Texture && binding.Offset >= ShaderLibrary.GpuDrivenTextureRegister )
+			{
+				recordTextures.Add( (variable, (binding.Offset - ShaderLibrary.GpuDrivenTextureRegister) * 4) );
+				continue;
+			}
+
 			switch ( variable.Register )
 			{
 				case RegisterType.Bool or RegisterType.Int4 or RegisterType.Float4:
@@ -250,6 +266,7 @@ public sealed class ShaderStage
 		Constants = [.. constants];
 		MaterialConstants = materialConstants;
 		RenderStates = renderStates;
+		RecordTextures = recordTextures;
 		MaterialBuffer = dynamic.ConstantBuffer.Slot >= 0 && combo.ConstantBufferSize > 0
 			? (dynamic.ConstantBuffer.Set, ShaderAbi.ConstantBuffer( dynamic.ConstantBuffer.Slot ), combo.ConstantBufferSize)
 			: (-1, -1, 0);
@@ -372,7 +389,8 @@ public sealed class ShaderStage
 			return resource with { Kind = ShaderResourceKind.Sampler, Sampler = samplers.TryGetValue( (binding.Set, register), out var sampler ) ? sampler : DefaultSampler };
 		}
 
-		if ( binding.Type == BindingType.UniformBuffer && MaterialBuffer.Set == binding.Set && MaterialBuffer.Binding == binding.Binding )
+		// A GPU-driven variant's material constants are in its material record, not a binding (RecordTextures says it's one)
+		if ( binding.Type == BindingType.UniformBuffer && MaterialBuffer.Set == binding.Set && MaterialBuffer.Binding == binding.Binding && !GpuDriven )
 			return resource with { Kind = ShaderResourceKind.MaterialConstants };
 
 		if ( !named.TryGetValue( (binding.Set, binding.Binding), out var index ) ) return resource;

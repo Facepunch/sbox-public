@@ -294,6 +294,7 @@ internal sealed class BackendMaterial : GpuMaterial
 		lock ( variants )
 		{
 			variants.Clear();
+			gpuDrivenVariants.Clear();
 			Load( shader, file, textures );
 			needsLightProbe = 0;
 		}
@@ -309,6 +310,31 @@ internal sealed class BackendMaterial : GpuMaterial
 			if ( variants.TryGetValue( key, out var variant ) ) return variant;
 			variant = library.Variant( Shader, mode, Features, combos, attributes );
 			variants[key] = variant;
+			return variant;
+		}
+	}
+
+	readonly Dictionary<string, ShaderVariant> gpuDrivenVariants = new();
+
+	/// <summary>
+	/// The same variant from the shader's GPU-driven file (<see cref="ShaderLibrary.GpuDriven"/>), made once; null when
+	/// there's none or it lacks the combo.
+	/// </summary>
+	public ShaderVariant GpuDrivenVariant( ShaderLibrary library, string mode, string key, Func<string, int?> combos, Func<string, int?> attributes )
+	{
+		lock ( variants )
+		{
+			if ( gpuDrivenVariants.TryGetValue( key, out var variant ) ) return variant;
+			try
+			{
+				variant = library.Variant( Shader, mode, Features, combos, attributes, gpuDriven: true );
+			}
+			catch ( System.IO.InvalidDataException )
+			{
+				variant = null;
+			}
+
+			gpuDrivenVariants[key] = variant;
 			return variant;
 		}
 	}
@@ -417,13 +443,13 @@ public sealed class BackendMesh : GpuMesh, IBackendGeometry
 		new( VertexSemantic.Tangent, 0, VertexFormat.Float4, 32 ),
 	] );
 
-	BackendMesh( BufferHandle vertices, BufferHandle indices, IndexFormat format, string name )
+	BackendMesh( BufferHandle vertices, BufferHandle indices, IndexFormat format, string name, PooledGeometry? pooled )
 	{
 		Vertices = vertices;
 		Indices = indices;
 		IndexFormat = format;
 		this.name = name;
-		geometry = new DrawGeometry( vertices, 0, indices, 0, format, 0, Layout, UncompressedTangentFrame: true );
+		geometry = new DrawGeometry( vertices, 0, indices, 0, format, 0, Layout, UncompressedTangentFrame: true, pooled );
 	}
 
 	DrawGeometry IBackendGeometry.For( int mesh, int drawCall ) => geometry;
@@ -457,7 +483,16 @@ public sealed class BackendMesh : GpuMesh, IBackendGeometry
 			maxs = Vector3.Max( maxs, v.Position );
 		}
 
-		var geometry = new BackendMesh( vertexBuffer, indexBuffer, IndexFormat.UInt32, name );
+		// In the GPU-driven pages too, when the device keeps them
+		PooledGeometry? pooled = null;
+		if ( device.GpuDrivenTables is { } tables )
+		{
+			var (slot, offset) = tables.AddVertices( MemoryMarshal.AsBytes( data.AsSpan() ) );
+			var (page, pageSlot, first) = tables.AddIndices( MemoryMarshal.AsBytes( indices ), IndexFormat.UInt32 );
+			pooled = new PooledGeometry( tables.Geometry( slot, offset, device.Layout( Layout ), data.Length ), page, pageSlot, first, IndexFormat.UInt32 );
+		}
+
+		var geometry = new BackendMesh( vertexBuffer, indexBuffer, IndexFormat.UInt32, name, pooled );
 		var draw = new RenderMesh.Draw( 0, 0, 0, indices.Length, data.Length, 0, material );
 		return new RenderMesh( geometry, new BBox( mins, maxs ), [[draw]] );
 	}

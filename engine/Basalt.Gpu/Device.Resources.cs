@@ -13,6 +13,9 @@ internal struct BufferRecord
 	public BufferUsage Usage;
 	public MemoryLocation Location;
 	public string Name;
+
+	/// <summary>Its slot in the bindless raw buffer array plus one, or 0 when it isn't there.</summary>
+	public int BindlessSlot;
 }
 
 /// <summary>
@@ -99,6 +102,15 @@ public sealed unsafe partial class Device
 
 	ulong pipelineCache;
 	ulong emptySetLayout;
+
+	/// <summary>The view set's layout (<see cref="ShaderAbi.ViewSet"/>), set 5 of every pipeline layout.</summary>
+	public BindingLayoutHandle ViewSetLayout { get; private set; }
+
+	/// <summary>
+	/// The view set command lists bind when none was given (<see cref="CommandList.SetViewSet"/>): zeroed buffers, which
+	/// shaders read as no lights, no sun and no volumes.
+	/// </summary>
+	public BindingSetHandle DefaultViewSet { get; private set; }
 	readonly Dictionary<(ulong, ulong, ulong, ulong), ulong> pipelineLayouts = new();
 	readonly Dictionary<ulong, (ulong, ulong, ulong, ulong)> pipelineLayoutSets = new();
 
@@ -598,7 +610,7 @@ public sealed unsafe partial class Device
 		{
 			if ( pipelineLayouts.TryGetValue( key, out var existing ) ) return existing;
 
-			var setLayouts = stackalloc ulong[ShaderAbi.SetCount] { key.Item1, key.Item2, key.Item3, key.Item4, Bindless.SetLayout };
+			var setLayouts = stackalloc ulong[ShaderAbi.SetCount] { key.Item1, key.Item2, key.Item3, key.Item4, Bindless.SetLayout, Get( ViewSetLayout ).SetLayout };
 			var push = new VkPushConstantRange { stageFlags = Vulkan.Vk.StageAllGraphics | Vulkan.Vk.StageCompute, size = ShaderAbi.PushConstantSize };
 			var info = new VkPipelineLayoutCreateInfo
 			{
@@ -839,6 +851,16 @@ public sealed unsafe partial class Device
 		Vk.vkCreateDescriptorSetLayout( Vk.Device, &empty, null, &layout ).Check( "vkCreateDescriptorSetLayout" );
 		emptySetLayout = layout;
 
+		// Every pipeline layout has the view set, so shaders built against it bind whether or not they read it
+		Span<BindingSlot> viewSlots = stackalloc BindingSlot[ShaderAbi.ViewSetBindings.Length];
+		for ( int i = 0; i < viewSlots.Length; i++ )
+		{
+			var (binding, type, _) = ShaderAbi.ViewSetBindings[i];
+			viewSlots[i] = new BindingSlot( binding, type, ShaderStages.All );
+		}
+
+		ViewSetLayout = CreateBindingLayout( viewSlots );
+
 		fixed ( byte* initial = data )
 		{
 			var info = new VkPipelineCacheCreateInfo { sType = VkStructureType.PipelineCacheCreateInfo, initialDataSize = (nuint)(data?.Length ?? 0), pInitialData = initial };
@@ -925,6 +947,7 @@ public sealed unsafe partial class Device
 		var record = Buffers.Remove( buffer.Index, buffer.Generation );
 		Defer( () =>
 		{
+			if ( record.BindlessSlot > 0 ) Bindless.RemoveBuffer( record.BindlessSlot - 1 );
 			Vk.vkDestroyBuffer( Vk.Device, record.Buffer, null );
 			Allocator.Free( record.Memory );
 		} );

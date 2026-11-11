@@ -70,6 +70,41 @@ public class FrameLogTests
 	}
 
 	/// <summary>
+	/// The view set (<c>g_viewSet</c>) is written once a frame, once everything it's filled from is set and before the
+	/// light culling reads it: shaders built against it see the frame's lights, decals, clusters, sun, fog and shadows.
+	/// </summary>
+	[TestMethod]
+	public void ViewSetIsWrittenOnceBeforeLightCulling()
+	{
+		using var material = new HeadlessMaterial( "box", "complex" );
+		var world = Boxes( material, 3 );
+		using var target = ViewTarget.Create( new Vector2Int( 640, 480 ) );
+		using var system = new RenderSystem();
+
+		var commands = Render( system, world, target ).Commands.ToList();
+		var writes = commands.Where( c => c.Op == GpuOp.WriteViewSet ).ToList();
+		Assert.AreEqual( 1, writes.Count, "once a frame" );
+
+		var culling = Device.MaterialFromShader( "shaders/clustered_light_culling_cs.shader" );
+		var dispatch = commands.FindIndex( c => c.Op == GpuOp.Dispatch && c.Material == culling );
+		Assert.IsTrue( dispatch >= 0, "the light culling ran" );
+		Assert.IsTrue( commands.IndexOf( writes[0] ) < dispatch, "written before the culling reads it" );
+		Assert.IsTrue( commands.IndexOf( writes[0] ) < commands.FindIndex( c => c.IsDraw ), "written before anything draws" );
+
+		var filled = (HeadlessParameters)writes[0].Parameters;
+		foreach ( var name in new[] { "PerViewConstantBufferVR_t", "ViewLightingConfigV2", "DirectionalLightCB", "ClusteredLightingConstants", "FogConstants",
+			"BinnedLightBufferV2", "BinnedEnvMapBuffer", "DecalsBuffer", "DecalsExtraDataBuffer", "ProjectedShadows", "ProjectedCubeShadows",
+			"ClusterLightCounts", "ClusterEnvMapCounts", "ClusterDecalCounts", "ClusterLightIndices", "ClusterEnvMapIndices", "ClusterDecalIndices" } )
+		{
+			Assert.IsNotNull( filled.Get( name ), $"{name} is set when the view set is filled from it" );
+		}
+
+		// Every frame writes its own
+		commands = Render( system, world, target ).Commands.ToList();
+		Assert.AreEqual( 1, commands.Count( c => c.Op == GpuOp.WriteViewSet ) );
+	}
+
+	/// <summary>
 	/// With an async compute queue, the depth chain runs on it: graphics makes depth readable by compute and signals, the
 	/// compute queue waits for that, and a later graphics submission waits for the compute queue before the frame ends.
 	/// Without one, the same work stays on graphics and nothing waits on anything.

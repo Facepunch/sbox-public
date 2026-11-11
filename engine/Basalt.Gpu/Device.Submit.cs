@@ -323,6 +323,26 @@ public sealed unsafe partial class Device
 		Bindless.SetBuffer( binding, record.Buffer, (ulong)record.Size );
 	}
 
+	/// <summary>
+	/// A storage buffer's slot in the bindless raw buffer array (<c>g_bindless_VertexBuffers</c>, binding 63), added the
+	/// first time it's asked for and freed with the buffer. Ask before recording work that reads it; without
+	/// update-after-bind for storage buffers, only while no submitted work uses the table.
+	/// </summary>
+	public int BindlessIndex( BufferHandle buffer )
+	{
+		ref var record = ref Get( buffer );
+		if ( record.BindlessSlot > 0 ) return record.BindlessSlot - 1;
+		if ( (record.Usage & BufferUsage.Storage) == 0 ) throw new ArgumentException( $"{record.Name} isn't a storage buffer" );
+
+		lock ( Bindless )
+		{
+			if ( record.BindlessSlot > 0 ) return record.BindlessSlot - 1;
+			var slot = Bindless.AddBuffer( record.Buffer, 0, (ulong)record.Size );
+			record.BindlessSlot = slot + 1;
+			return slot;
+		}
+	}
+
 	void DestroyFrames()
 	{
 		if ( frames is null ) return;

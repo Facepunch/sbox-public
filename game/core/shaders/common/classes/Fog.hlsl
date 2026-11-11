@@ -30,8 +30,9 @@ float3 g_fogCubemapTint < Attribute( "CubemapFogColor" ); Default3( 1.0f, 1.0f, 
 float3 FogSunColor < Attribute( "FogSunColor" ); Default3( 0, 0, 0 ); >;
 float3 FogSunDirection < Attribute( "FogSunDirection" ); Default3( 0, 0, 0 ); >;
 
-// One immutable buffer per view, shared by every material. Layout matches Sandbox.Rendering.FogConstants.
-cbuffer FogConstants
+// One immutable buffer per view, shared by every material, in the view's descriptor set (common.fxc). Layout matches
+// Sandbox.Rendering.FogConstants.
+cbuffer FogConstants EXTERNAL_DESC_SET( b, g_viewSet, 4 )
 {
 	// Weight, maximum opacity, distance mode (0 = ramp, 1 = exponential), height contribution.
 	float4 FogControl;

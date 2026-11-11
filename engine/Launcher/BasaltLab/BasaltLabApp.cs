@@ -25,6 +25,8 @@ namespace Sandbox.BasaltLab;
 /// <item><c>-post-parity folder</c> - run post processing over Sun Shadows on Source 2 and on a Basalt.Gpu device, compare and exit (<see cref="PostParity"/>).</item>
 /// <item><c>-exposure-parity folder</c> - run auto exposure over Sun Shadows with native's tonemap system and with its port on a Basalt.Gpu device, compare and exit (<see cref="ExposureParity"/>).</item>
 /// <item><c>-model-parity folder</c> - render s&amp;box models with Basalt on Source 2's device and on a Basalt.Gpu device, compare and exit (<see cref="ModelParity"/>).</item>
+/// <item><c>-surface-parity folder</c> - draw one material as a .shader, a Slang surface and a raw Slang module on a Basalt.Gpu device, compare and exit (<see cref="SurfaceParity"/>).</item>
+/// <item><c>-crowd</c> - SceneLab's Crowd Near, animated, on a Basalt.Gpu device in a window, timed (<see cref="CrowdRun"/>).</item>
 /// <item><c>-map ident</c>, <c>-construct</c> - read a compiled map with Basalt.Source2 and time drawing it on a Basalt.Gpu device, with no Source 2 device (<see cref="Maps.MapRun"/>).</item>
 /// </list>
 /// Startup and frame times go to the log, and a summary to the console.
@@ -36,12 +38,15 @@ internal static class BasaltLabApp
 		// A map on a Basalt.Gpu device of its own: nothing of the engine starts
 		if ( Maps.MapRun.Requested ) return Maps.MapRun.Run();
 
-		// Posing skinned presets takes the animation system, which only the longer list of native modules starts
+		// The Slang material tier against today's shaders, on a Basalt.Gpu device of its own: nothing of the engine starts
+		if ( SurfaceParity.Requested ) return SurfaceParity.Run();
+
+		// Posing skinned presets and models takes the animation system, which only the longer list of native modules starts
 		var presets = PresetRun.Selected();
 		var posing = presets.Any( x => x.Preset is { Sequences.Length: > 0 } );
 
 		var backend = new Source2Backend();
-		backend.Start( sceneModules: Args.Has( "-scene-modules" ) || posing, windows: !PresetRun.Capturing );
+		backend.Start( sceneModules: Args.Has( "-scene-modules" ) || posing || Args.Has( "-model-parity" ) || CrowdRun.Requested, windows: !PresetRun.Capturing );
 
 		if ( Args.String( "-ui-parity" ) is { } parity )
 		{
@@ -58,6 +63,12 @@ internal static class BasaltLabApp
 		if ( Args.String( "-exposure-parity" ) is { } exposure )
 		{
 			var code = ExposureParity.Run( backend, exposure );
+			return backend.Exit( code );
+		}
+
+		if ( CrowdRun.Requested )
+		{
+			var code = CrowdRun.Run( backend );
 			return backend.Exit( code );
 		}
 
