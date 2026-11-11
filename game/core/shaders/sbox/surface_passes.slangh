@@ -1,0 +1,126 @@
+// The engine's passes for surfaces, generic over the material. The shader compiler writes a small instance file per
+// [Material] struct that includes this, imports the material's module and names the entry points; every pass calls the
+// same Evaluate. Vertex processing and lighting are today's (sbox/engine.slangh), so a surface shades exactly as a
+// .shader written with common/pixel.hlsl does. See docs/managed/shader-format-replacement.md.
+#ifndef SBOX_SURFACE_PASSES_SLANGH
+#define SBOX_SURFACE_PASSES_SLANGH
+
+// The includes' Material (common/material.hlsl) is ClassicMaterial here: Material is the surface's
+#define Material ClassicMaterial
+#include "sbox/engine.slangh"
+#undef Material
+
+import sbox.surface;
+
+#if ( PROGRAM == VFX_PROGRAM_VS )
+
+/// The vertex stage: the engine's, as common/vertex.hlsl's shaders do it.
+PixelInput SurfaceVertex( VertexInput i )
+{
+	PixelInput o = ProcessVertex( i );
+	return FinalizeVertex( o );
+}
+
+/// The vertex stage of a surface that moves its vertices: Displace in object space, then the same transform.
+PixelInput SurfaceVertexDisplaced<S : IVertexSurface>( VertexInput i )
+{
+	float3 normalOs;
+	float4 tangentOs;
+	VS_DecodeObjectSpaceNormalAndTangent( i, normalOs, tangentOs );
+	float3x4 objectToWorld = GetTransformMatrix( i.nInstanceTransformID );
+
+	VertexSurfaceInput v;
+	v.Position = i.vPositionOs.xyz;
+	v.Normal = normalOs;
+	v.Color = i.vSurfaceColor;
+	v.ObjectOrigin = mul( objectToWorld, float4( 0, 0, 0, 1 ) );
+	v.Wind = g_vWindDirection.xyz * g_vWindStrengthFreqMulHighStrength.x;
+	v.Time = g_flTime;
+
+	i.vPositionOs = LoadMaterial<S>().Displace( v );
+	PixelInput o = ProcessVertex( i );
+	return FinalizeVertex( o );
+}
+
+#else
+
+/// What a raster pass hands Evaluate.
+SurfaceInput MakeSurfaceInput( PixelInput i )
+{
+	SurfaceInput s;
+	s.Position = i.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz;
+	s.Normal = normalize( i.vNormalWs.xyz );
+	s.TangentU = i.vTangentUWs;
+	s.TangentV = i.vTangentVWs;
+	s.Uv = i.vTextureCoords.xy;
+	s.Color = i.vVertexColor;
+	s.ScreenPosition = i.vPositionSs;
+	s.View = g_vCameraPositionWs - s.Position;
+	s.ViewDistance = length( s.View );
+	s.View /= max( s.ViewDistance, 1e-6 );
+	s.UvDdx = 0;
+	s.UvDdy = 0;
+	s.Filtering = g_sAniso;
+	return s;
+}
+
+/// The surface's properties as the lighting's Material.
+ClassicMaterial ToClassicMaterial( PixelInput i, Material s )
+{
+	ClassicMaterial m = ClassicMaterial::Init( i );
+	m.Albedo = s.Albedo;
+	m.Metalness = s.Metalness;
+	m.Roughness = s.Roughness;
+	m.Emission = s.Emission;
+	m.Normal = s.Normal;
+	m.AmbientOcclusion = s.AmbientOcclusion;
+	m.Opacity = s.Opacity;
+	m.Transmission = s.Transmission;
+	m.TintMask = s.TintMask;
+	return m;
+}
+
+/// Forward: evaluate, clip when alpha tested, shade with the engine's standard shading model.
+float4 SurfaceForward<S : ISurface, let AlphaTest : bool>( PixelInput i )
+{
+	Material s = LoadMaterial<S>().Evaluate( MakeSurfaceInput( i ) );
+	if ( AlphaTest ) clip( s.Opacity - 0.5 );
+	return ShadingModelStandard::Shade( i, ToClassicMaterial( i, s ) );
+}
+
+/// Forward for a surface with its own per-light term, added to its emission before standard shading. Stub: Light is
+/// called for the sun only (with its shadow and modulators); point and spot lights get standard shading alone. The real
+/// hook goes in the engine's light loop (vr_lighting.fxc), so the loop stays the engine's.
+float4 SurfaceForwardLit<S : ILitSurface, let AlphaTest : bool>( PixelInput i )
+{
+	S surface = LoadMaterial<S>();
+	SurfaceInput input = MakeSurfaceInput( i );
+	Material s = surface.Evaluate( input );
+	if ( AlphaTest ) clip( s.Opacity - 0.5 );
+
+	if ( g_DirectionalLightEnabled )
+	{
+		LightSample sun;
+		sun.Direction = -normalize( g_DirectionalLightDirection.xyz );
+		sun.Color = g_DirectionalLightColor.rgb;
+		[branch]
+		if ( LightModulators::Active() )
+			sun.Color *= LightModulators::EvaluateSun( input.Position, sun.Direction );
+		sun.Attenuation = 1;
+		sun.Visibility = DirectionalLightShadow::GetVisibilityWithOffset( i.vPositionWithOffsetWs.xyz, i.vPositionSs );
+		sun.Sun = true;
+		s.Emission += surface.Light( s, input, sun );
+	}
+
+	return ShadingModelStandard::Shade( i, ToClassicMaterial( i, s ) );
+}
+
+/// Depth for alpha-tested surfaces: the same Evaluate; everything but Opacity is dead and removed.
+void SurfaceDepth<S : ISurface>( PixelInput i )
+{
+	clip( LoadMaterial<S>().Evaluate( MakeSurfaceInput( i ) ).Opacity - 0.5 );
+}
+
+#endif
+
+#endif
