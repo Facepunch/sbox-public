@@ -88,16 +88,16 @@ public partial class Texture
 
 		DirtyVersion++; // Layer caches hash this
 
-		// Other devices copy the new contents from Source 2 when they next use it
-		RenderBackend.ReleaseEverywhere( this );
-		InitialPixels = null;
-		InitialColor = null;
-
 		var memRequired = ImageLoader.GetMemRequired( width, height, depth, ImageFormat, false );
 		if ( data.Length < memRequired )
 		{
 			throw new Exception( $"{data.Length} bytes is not enough data to update texture! {memRequired} required." );
 		}
+
+		// Other devices take the same bytes into their copies, or copy the new contents from Source 2 when they next use it
+		RenderBackend.UpdateEverywhere( this, data, x, y, z, width, height, depth );
+		InitialPixels = null;
+		InitialColor = null;
 
 		fixed ( byte* dataPtr = data )
 		{

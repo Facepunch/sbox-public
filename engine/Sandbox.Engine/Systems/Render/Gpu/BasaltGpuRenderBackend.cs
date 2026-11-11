@@ -306,9 +306,7 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 			// A target made with pixels - an image whose mips Source 2 generates, or one made for compute - starts with them
 			if ( (InitialPixels( texture, info.Format ) ?? (RawPixels( texture ) is { } raw && raw.Format == info.Format ? raw.Data : null)) is { } pixels )
 			{
-				gpu.WriteTexture( handle, pixels );
-				if ( info.Mips > 1 ) FillMips( handle, info );
-				context.Track( handle, ImageLayout.ShaderRead );
+				Upload( handle, info, pixels, ImageLayout.Undefined );
 			}
 			else
 			{
@@ -319,16 +317,13 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 		else if ( FromFile( texture ) is { } file )
 		{
 			handle = file;
-			context.Track( handle, ImageLayout.ShaderRead );
 		}
 		else if ( InitialPixels( texture, GpuFormat.RGBA8Unorm ) is { } pixels )
 		{
 			// With its mips, as Source 2 generates them from the first
 			var info = TextureInfo.Texture2D( texture.Width, texture.Height, GpuFormat.RGBA8Unorm, Math.Max( texture.Mips, 1 ), $"Engine image {texture.Width}x{texture.Height}" );
 			handle = gpu.CreateTexture( info );
-			gpu.WriteTexture( handle, pixels );
-			if ( info.Mips > 1 ) FillMips( handle, info );
-			context.Track( handle, ImageLayout.ShaderRead );
+			Upload( handle, info, pixels, ImageLayout.Undefined );
 		}
 		else if ( RawPixels( texture ) is { } raw )
 		{
@@ -337,15 +332,13 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 			var info = TextureInfo.Texture2D( texture.Width, texture.Height, raw.Format, Math.Max( texture.Mips, 1 ), $"Engine image {texture.Width}x{texture.Height}" );
 			if ( texture.Desc.m_nFlags.Contains( NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_UAV ) ) info.Usage |= TextureUsage.Storage;
 			handle = gpu.CreateTexture( info );
-			gpu.WriteTexture( handle, raw.Data );
-			if ( info.Mips > 1 ) FillMips( handle, info );
-			context.Track( handle, ImageLayout.ShaderRead );
+			Upload( handle, info, raw.Data, ImageLayout.Undefined );
 		}
 		else
 		{
-			handle = gpu.CreateTexture( TextureInfo.Texture2D( texture.Width, texture.Height, GpuFormat.RGBA8Unorm, name: $"Engine image {texture.Width}x{texture.Height}" ) );
-			gpu.WriteTexture( handle, CopyFromSource2( texture ) );
-			context.Track( handle, ImageLayout.ShaderRead );
+			var info = TextureInfo.Texture2D( texture.Width, texture.Height, GpuFormat.RGBA8Unorm, name: $"Engine image {texture.Width}x{texture.Height}" );
+			handle = gpu.CreateTexture( info );
+			Upload( handle, info, CopyFromSource2( texture ), ImageLayout.Undefined );
 		}
 
 		textures.Add( texture, new Backing<TextureHandle>( handle ) );
@@ -362,7 +355,9 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 
 		try
 		{
-			return TextureFile.Load( file ).Create( gpu, path );
+			var handle = TextureFile.Load( file ).Create( gpu, path, UploadList() );
+			context.Track( handle, ImageLayout.ShaderRead );
+			return handle;
 		}
 		catch ( NotSupportedException )
 		{
@@ -429,26 +424,96 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 	}
 
 	/// <summary>
-	/// Fill mips 1 and down of a texture whose mip 0 is in <see cref="ImageLayout.ShaderRead"/> by halving each into the
-	/// next with a linear blit (a box filter), as a texture made with only its first mip gets the rest. Leaves it all in
-	/// <see cref="ImageLayout.ShaderRead"/>.
+	/// Write mip 0 of a texture (now in <paramref name="from"/>) and fill the rest from it, recorded where uploads go -
+	/// the block being recorded, or the list of uploads submitted before the next block - rather than submitted and
+	/// waited for. The texture ends in <see cref="ImageLayout.ShaderRead"/>.
 	/// </summary>
-	void FillMips( TextureHandle handle, in TextureInfo info )
+	void Upload( TextureHandle handle, in TextureInfo info, ReadOnlySpan<byte> pixels, ImageLayout from, int x = 0, int y = 0, int width = 0, int height = 0 )
 	{
-		var mips = gpu.BeginCommandList( QueueType.Graphics, "Fill mips" );
+		var target = UploadList();
+		target.Barrier( new TextureBarrier
+		{
+			Texture = handle,
+			OldLayout = from,
+			NewLayout = ImageLayout.CopyDestination,
+			SourceStage = PipelineStage.AllCommands,
+			SourceAccess = from == ImageLayout.Undefined ? MemoryAccess.None : MemoryAccess.MemoryWrite,
+			DestinationStage = PipelineStage.Transfer,
+			DestinationAccess = MemoryAccess.TransferWrite,
+		} );
+
+		target.UpdateTexture( handle, pixels, 0, 0, width > 0 ? width : info.Width, height > 0 ? height : info.Height, x, y );
+		target.Barrier( MipBarrier( handle, 0, ImageLayout.CopyDestination, ImageLayout.ShaderRead ) );
+		if ( info.Mips > 1 ) FillMips( target, handle, info, ImageLayout.CopyDestination );
+		context.Track( handle, ImageLayout.ShaderRead );
+		TextureUploads++;
+	}
+
+	/// <summary>Texture writes recorded rather than submitted and waited for, for tests.</summary>
+	public int TextureUploads { get; private set; }
+
+	/// <summary>
+	/// Where a write is recorded: the block being recorded (outside any rendering scope), or the list of uploads
+	/// submitted before the next one.
+	/// </summary>
+	GpuCommandList UploadList()
+	{
+		if ( list is not null )
+		{
+			context.MemoryBarrier();
+			return list;
+		}
+
+		if ( uploads is null )
+		{
+			FollowFrame();
+			uploads = gpu.BeginCommandList( QueueType.Graphics, "Engine uploads" );
+			written.Clear();
+		}
+
+		return uploads;
+	}
+
+	/// <summary>
+	/// Fill mips 1 and down of a texture whose mip 0 is in <see cref="ImageLayout.ShaderRead"/> (and the rest in
+	/// <paramref name="rest"/>) by halving each into the next with a linear blit (a box filter), as a texture made with
+	/// only its first mip gets the rest. Leaves it all in <see cref="ImageLayout.ShaderRead"/>.
+	/// </summary>
+	void FillMips( GpuCommandList mips, TextureHandle handle, in TextureInfo info, ImageLayout rest )
+	{
 		var filter = info.Format is GpuFormat.R32Float or GpuFormat.RG32Float or GpuFormat.RGBA32Float ? Filter.Nearest : Filter.Linear;
 		for ( int i = 1; i < info.Mips; i++ )
 		{
 			int sw = Math.Max( info.Width >> (i - 1), 1 ), sh = Math.Max( info.Height >> (i - 1), 1 );
 			int dw = Math.Max( info.Width >> i, 1 ), dh = Math.Max( info.Height >> i, 1 );
 			mips.Barrier( MipBarrier( handle, i - 1, ImageLayout.ShaderRead, ImageLayout.CopySource ) );
-			mips.Barrier( MipBarrier( handle, i, ImageLayout.Undefined, ImageLayout.CopyDestination ) );
+			mips.Barrier( MipBarrier( handle, i, rest, ImageLayout.CopyDestination ) );
 			mips.Blit( handle, (0, 0, sw, sh), handle, (0, 0, dw, dh), filter, i - 1, i );
 			mips.Barrier( MipBarrier( handle, i - 1, ImageLayout.CopySource, ImageLayout.ShaderRead ) );
 			mips.Barrier( MipBarrier( handle, i, ImageLayout.CopyDestination, ImageLayout.ShaderRead ) );
 		}
+	}
 
-		gpu.Submit( mips );
+	/// <summary>
+	/// A texture updated on Source 2's device: its copy here takes the same bytes, recorded where uploads go, rather than
+	/// being dropped and copied back from Source 2's pixels. Mips past the first are filled again from it. False when the
+	/// copy is in another format than the data, or the update is of a 3D texture.
+	/// </summary>
+	public override bool Update( Texture texture, ReadOnlySpan<byte> data, int x, int y, int z, int width, int height, int depth )
+	{
+		if ( !textures.TryGetValue( texture, out var backing ) ) return true;
+		if ( z != 0 || depth > 1 ) return false;
+
+		var info = gpu.InfoOf( backing.Handle );
+		if ( DataFormatOf( texture.ImageFormat ) != info.Format ) return false;
+
+		width = width > 0 ? width : info.Width;
+		height = height > 0 ? height : info.Height;
+		var size = width * height * info.Format.BytesPerBlock();
+		if ( data.Length < size ) return false;
+
+		Upload( backing.Handle, info, data[..size], context.LayoutOf( backing.Handle ), x, y, width, height );
+		return true;
 	}
 
 	static TextureBarrier MipBarrier( TextureHandle texture, int mip, ImageLayout from, ImageLayout to ) => new()
@@ -835,8 +900,8 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 	/// </summary>
 	public byte[] ReadBytes( Texture texture, int mip = 0 )
 	{
-		SubmitUploads();
 		var handle = TextureOf( texture );
+		SubmitUploads();
 		var info = gpu.InfoOf( handle );
 		var size = Math.Max( info.Width >> mip, 1 ) * Math.Max( info.Height >> mip, 1 ) * info.Format.BytesPerBlock();
 		var readback = gpu.CreateBuffer( new BufferInfo { Size = size, Memory = MemoryLocation.Readback, Name = "Readback" } );

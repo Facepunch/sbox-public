@@ -63,6 +63,9 @@ public sealed class GraphicsContext
 		Viewport = default;
 	}
 
+	/// <summary>The layout a texture is in at this point of the recording, as tracked.</summary>
+	public ImageLayout LayoutOf( TextureHandle texture ) => Layout( texture );
+
 	/// <summary>Say which layout a texture is in now, for textures made or used outside this context.</summary>
 	public void Track( TextureHandle texture, ImageLayout layout ) => layouts[texture] = layout;
 
