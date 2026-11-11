@@ -11,6 +11,10 @@
 #ifdef SURFACE_OPACITY_TEXTURE
 #define MATERIAL_ALPHA_TEXTURE SurfaceOpacityTexture()
 #endif
+// The light hook is the pixel stage's (PROGRAM 1 is the vertex stage: system.fxc isn't included yet)
+#if defined( SURFACE_LIGHT_HOOK ) && ( PROGRAM == 1 )
+#undef SURFACE_LIGHT_HOOK
+#endif
 #include "sbox/engine.slangh"
 #undef Material
 
@@ -94,9 +98,10 @@ SurfaceInput MakeSurfaceInput( PixelInput i )
 #else
 	s.AlphaReference = 0.5;
 #endif
-	s.UvDdx = 0;
-	s.UvDdy = 0;
-	s.Filtering = g_sAniso;
+	// Taken here, in uniform control flow, for Light, which samples inside the light loop
+	s.UvDdx = ddx( s.Uv );
+	s.UvDdy = ddy( s.Uv );
+	s.Gradients = false;
 	return s;
 }
 
@@ -130,34 +135,44 @@ float4 SurfaceShade( PixelInput i, Material s, uint opacityTexture, bool alphaTe
 	return color;
 }
 
-/// Forward, and the alpha-tested depth pass: evaluate, then shade.
-float4 SurfaceForward<S : ISurface, let AlphaTest : bool>( PixelInput i, S surface, uint opacityTexture )
-{
-	return SurfaceShade( i, surface.Evaluate( MakeSurfaceInput( i ) ), opacityTexture, AlphaTest );
-}
+#ifdef SURFACE_LIGHT_HOOK
+// A lit surface (ILitSurface): the engine's light loop (vr_lighting.fxc) calls SurfaceLightHook for every light it shades
+// the pixel with, and the shading model adds the sum to the diffuse light. The instance file defines SurfaceLight, which
+// calls the material's Light with what the pass kept here.
+static SurfaceInput s_SurfaceLitInput;
+static Material s_SurfaceLitMaterial;
+static float3 s_SurfaceLight = 0;
+static float s_SurfaceLightStrength = 1;   // a baked light's per-texel strength, set around it by the baked loop
 
-/// Forward for a surface with its own per-light term, added to its emission before standard shading. Stub: Light is
-/// called for the sun only (with its shadow and modulators); point and spot lights get standard shading alone. The real
-/// hook goes in the engine's light loop (vr_lighting.fxc), so the loop stays the engine's.
-float4 SurfaceForwardLit<S : ILitSurface, let AlphaTest : bool>( PixelInput i, S surface, uint opacityTexture )
+SurfaceInput SurfaceLitInput() { return s_SurfaceLitInput; }
+Material SurfaceLitMaterial() { return s_SurfaceLitMaterial; }
+float3 SurfaceLightTotal() { return s_SurfaceLight; }
+void SurfaceLightScale( float strength ) { s_SurfaceLightStrength = strength; }
+
+void SurfaceLightHook( float3 direction, float3 color, float attenuation, float visibility, bool sun )
+{
+	LightSample light;
+	light.Direction = direction;
+	light.Color = color;
+	light.Attenuation = attenuation * s_SurfaceLightStrength;
+	light.Visibility = visibility;
+	light.Sun = sun;
+	s_SurfaceLight += SurfaceLight( light );
+}
+#endif
+
+/// Forward, and the alpha-tested depth pass: evaluate, then shade. A lit surface's Light runs inside Shade's light loop,
+/// on the input with the gradients taken here, since lanes diverge in the loop.
+float4 SurfaceForward<S : ISurface, let AlphaTest : bool>( PixelInput i, S surface, uint opacityTexture )
 {
 	SurfaceInput input = MakeSurfaceInput( i );
 	Material s = surface.Evaluate( input );
-
-	if ( g_DirectionalLightEnabled )
-	{
-		LightSample sun;
-		sun.Direction = -normalize( g_DirectionalLightDirection.xyz );
-		sun.Color = g_DirectionalLightColor.rgb;
-		[branch]
-		if ( LightModulators::Active() )
-			sun.Color *= LightModulators::EvaluateSun( input.Position, sun.Direction );
-		sun.Attenuation = 1;
-		sun.Visibility = DirectionalLightShadow::GetVisibilityWithOffset( i.vPositionWithOffsetWs.xyz, i.vPositionSs );
-		sun.Sun = true;
-		s.Emission += surface.Light( s, input, sun );
-	}
-
+#ifdef SURFACE_LIGHT_HOOK
+	input.Gradients = true;
+	s_SurfaceLitInput = input;
+	s_SurfaceLitMaterial = s;
+	s_SurfaceLight = 0;
+#endif
 	return SurfaceShade( i, s, opacityTexture, AlphaTest );
 }
 #endif

@@ -17,6 +17,9 @@ struct SurfaceDraw_t { uint MaterialOffset; };
 
 [vk::constant_id( 2 )] public const bool kMaterialOffsetPerPixel = true;
 
+// The filtering SurfaceInput.Sample reads material textures with: common_samplers.fxc's g_sAniso
+public SamplerState g_MaterialFiltering < Filter( ANISOTROPIC ); MaxAniso( 8 ); >;
+
 /// The draw's material record offset, for the vertex stage to read records with and pass on.
 public uint DrawMaterialOffset()
 {

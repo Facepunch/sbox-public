@@ -113,6 +113,22 @@ public class SurfaceTests : GpuTest
 		var depth = rock.Pass( ShaderPasses.DepthAlphaTest ).Pixel;
 		Assert.IsTrue( depth.Globals.Members.Any( m => m.Name == "g_flAlphaTestReference" ) );
 		StringAssert.Contains( rock.Generated, "SurfaceForward<Rock, true>( i.Pixel, m, m.Color.Slot )" );
+
+		// Material textures are read with the module's sampler, its state from its annotations
+		var sampler = forward.Bindings.Single( b => b.Kind == BindingKind.Sampler && b.Variable == "g_MaterialFiltering" );
+		Assert.AreEqual( "ANISOTROPIC", sampler.Annotations?.Filter );
+		Assert.IsFalse( rock.Generated.Contains( "SURFACE_LIGHT_HOOK", StringComparison.Ordinal ) );
+	}
+
+	/// <summary>A lit surface turns on the light loop's hook and hands it the material; an unlit one leaves the loop alone.</summary>
+	[TestMethod]
+	public void LitSurfaceHooksTheLightLoop()
+	{
+		var lit = Compiler().CompileSurface( Path.Combine( Surfaces, "rock_lit.slang" ) );
+		StringAssert.Contains( lit.Generated, "#define SURFACE_LIGHT_HOOK 1" );
+		StringAssert.Contains( lit.Generated, "s_LitSurface = m;" );
+		StringAssert.Contains( lit.Generated, "s_LitSurface.Light( SurfaceLitMaterial(), SurfaceLitInput(), light )" );
+		Assert.IsNotNull( lit.Pass( ShaderPasses.Forward ).Pixel.Spirv );
 	}
 	/// <summary>The generated classes in BasaltLab are what the compiler writes now, and a raw module has the same record.</summary>
 	[TestMethod]
@@ -124,7 +140,8 @@ public class SurfaceTests : GpuTest
 
 		Assert.AreEqual( ShaderTier.Raw, raw.Tier );
 		CollectionAssert.AreEqual( rock.Material.Fields.Select( f => (f.Kind, f.Offset) ).ToArray(), raw.Material.Fields.Select( f => (f.Kind, f.Offset) ).ToArray() );
-		foreach ( var (shader, file) in new[] { (rock, "rock.g.cs"), (raw, "rock_raw.g.cs") } )
+		var lit = compiler.CompileSurface( Path.Combine( Surfaces, "rock_lit.slang" ) );
+		foreach ( var (shader, file) in new[] { (rock, "rock.g.cs"), (raw, "rock_raw.g.cs"), (lit, "rock_lit.g.cs") } )
 		{
 			var expected = MaterialClassWriter.Write( shader, "Sandbox.BasaltLab.Surfaces" ).Replace( "\r\n", "\n" );
 			var actual = File.ReadAllText( Path.Combine( Surfaces, file ) ).Replace( "\r\n", "\n" );

@@ -88,10 +88,11 @@ public struct Foliage : IVertexSurface, ILitSurface
 		return m;
 	}
 
-	// Wrap diffuse past the terminator, and back-scatter translucency through the leaf
+	// Wrap diffuse past the terminator, and back-scatter translucency through the leaf. The sun's alone, as foliage.shader
+	// has it (its cluster light loop is commented out); dropping `!light.Sun` lights it from every light
 	public float3 Light( Material m, SurfaceInput i, LightSample light )
 	{
-		if ( !Transmissive ) return 0;
+		if ( !Transmissive || !light.Sun ) return 0;
 
 		float boost = light.Sun ? 1.5 : 1.0;
 		float scatterShadow = light.Sun ? lerp( 0.2, 1.0, light.Visibility ) : light.Visibility;
