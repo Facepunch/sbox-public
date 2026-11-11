@@ -43,7 +43,7 @@
 
     @if ( SettingsPage is not null && !PlatformMenu.IsSwitching )
     {
-        <PlatformSettings Category=@SettingsPage OnClose=@CloseSettings />
+        <PlatformSettings @ref="SettingsPanel" Category=@SettingsPage OnClose=@CloseSettings />
     }
 
     <div class="catcher @(ClicksOff ? "on" : "")" onclick=@ClickedOff></div>
@@ -67,6 +67,8 @@
     public bool Paused { get; private set; }
 
     ShelfPanel Shelves;
+
+    PlatformSettings SettingsPanel;
 
     public string Shelf => Shelves.IsValid() ? Shelves.Url : null;
 
@@ -258,19 +260,25 @@
     {
         if ( !CanShow( url ) ) return;
 
-        var up = Shelf == url;
-        PutAway();
+        LeaveSettings( () =>
+        {
+            var up = Shelf == url;
+            PutAway();
 
-        if ( up ) Shelves?.Close();
-        else Shelves?.Show( url, fromDock: true );
+            if ( up ) Shelves?.Close();
+            else Shelves?.Show( url, fromDock: true );
+        } );
     }
 
     public void OpenShelf( string url )
     {
         if ( Shelf == url || !CanShow( url ) ) return;
 
-        PutAway();
-        Shelves?.Show( url, fromDock: true );
+        LeaveSettings( () =>
+        {
+            PutAway();
+            Shelves?.Show( url, fromDock: true );
+        } );
     }
 
     /// <summary>
@@ -278,8 +286,11 @@
     /// </summary>
     public void Browse( string query, Storage.SortOrder? sort = null )
     {
-        PutAway();
-        Shelves?.Show( PlatformShelf.BrowseFor( query, sort ) );
+        LeaveSettings( () =>
+        {
+            PutAway();
+            Shelves?.Show( PlatformShelf.BrowseFor( query, sort ) );
+        } );
     }
 
     /// <summary>
@@ -288,18 +299,62 @@
     public void ToggleSettings( string category = "" )
     {
         var page = SettingsPage is not null && string.IsNullOrEmpty( category ) ? null : category ?? "";
+
+        // Only putting it away asks - another category keeps what's edited
+        if ( page is null )
+        {
+            LeaveSettings( () =>
+            {
+                PutAway();
+                Shelves?.Close();
+            } );
+            return;
+        }
+
         PutAway();
         Shelves?.Close();
         SettingsPage = page;
     }
 
-    public void CloseSettings() => SettingsPage = null;
+    public void CloseSettings() => LeaveSettings( () => SettingsPage = null );
 
-    public void CloseAll()
+    /// <summary>
+    /// Everything put away - then <paramref name="then"/>, once settings has let go of anything unsaved
+    /// </summary>
+    public void CloseAll( Action then = null ) => LeaveSettings( () =>
     {
         Shelves?.Close();
         SettingsPage = null;
         Side = SidePanel.None;
+        then?.Invoke();
+    } );
+
+    /// <summary>
+    /// Settings going with edits that aren't saved asks first - then <paramref name="then"/>, once they're let go.
+    /// Straight to it when settings isn't up or has nothing unsaved.
+    /// </summary>
+    void LeaveSettings( Action then )
+    {
+        if ( SettingsPage is null || !SettingsPanel.IsValid() || !SettingsPanel.IsDirty || ModalSystem.Instance is not { } modals )
+        {
+            then();
+            return;
+        }
+
+        modals.Open( new MenuProject.Modals.QuestionModal
+        {
+            Color = Color.Parse( "#ff5d6a" ) ?? Color.Red,
+            Title = "#menu.settings.unsaved_changes",
+            Message = "#menu.settings.unsaved_changes_will_be_lost",
+            ConfirmText = "#menu.settings.discard_changes",
+            ConfirmIcon = "delete",
+            CancelText = "#menu.settings.keep_editing",
+            OnConfirm = () =>
+            {
+                SettingsPage = null;
+                then();
+            }
+        } );
     }
 
     void PutAway()
@@ -334,9 +389,12 @@
     {
         if ( string.IsNullOrEmpty( ident ) ) return;
 
-        ShownPackage = package;
-        PutAway();
-        Shelves?.Show( PlatformShelf.Game( ident, page ) );
+        LeaveSettings( () =>
+        {
+            ShownPackage = package;
+            PutAway();
+            Shelves?.Show( PlatformShelf.Game( ident, page ) );
+        } );
     }
 
     public void Picked( Package package )

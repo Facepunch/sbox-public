@@ -309,15 +309,20 @@
             return;
         }
 
-        PlatformRoot.Instance?.CloseAll();
-        PartyDeck.ShownOnPlatform = false;
-        friendsFrom = anchor;
-        modals.FriendsList( new Sandbox.Modals.FriendsListModalOptions
+        Action open = () =>
         {
-            ShowOnlineMembers = true,
-            ShowOfflineMembers = false,
-            Anchor = new() { Panel = anchor, Position = Sandbox.Modals.ModalAnchorPosition.AboveLeft, Offset = PopupOffset },
-        } );
+            PartyDeck.ShownOnPlatform = false;
+            friendsFrom = anchor;
+            modals.FriendsList( new Sandbox.Modals.FriendsListModalOptions
+            {
+                ShowOnlineMembers = true,
+                ShowOfflineMembers = false,
+                Anchor = new() { Panel = anchor, Position = Sandbox.Modals.ModalAnchorPosition.AboveLeft, Offset = PopupOffset },
+            } );
+        };
+
+        if ( PlatformRoot.Instance is { } root ) root.CloseAll( open );
+        else open();
     }
 
     static void Quit() => MenuHelpers.ConfirmQuit();

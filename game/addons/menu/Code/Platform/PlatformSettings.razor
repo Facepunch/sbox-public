@@ -26,6 +26,11 @@
 
     SettingsView View;
 
+    /// <summary>
+    /// Edited and not saved yet - lost when it goes
+    /// </summary>
+    public bool IsDirty => View?.Catalog.IsDirty ?? false;
+
     readonly ScrollFade rowsFade = new( 32 );
 
     public override void Tick()

@@ -89,15 +89,27 @@ SettingsView
 			padding: 0 6px;
 			border-radius: 9px;
 			background-color: $platform-primary;
-			font-size: 11px;
-			font-weight: 700;
-			color: $platform-primary-text;
+
+			// Its number's a label too - not the name's, which shrinks to an ellipsis
+			label
+			{
+				flex-grow: 0;
+				flex-shrink: 0;
+				overflow: visible;
+				font-size: 11px;
+				font-weight: 700;
+				color: $platform-primary-text;
+			}
 		}
 
 		&.active .count
 		{
 			background-color: white;
-			color: $platform-primary;
+
+			label
+			{
+				color: $platform-primary;
+			}
 		}
 	}
 
