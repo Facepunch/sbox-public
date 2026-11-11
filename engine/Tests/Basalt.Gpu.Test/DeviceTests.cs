@@ -164,6 +164,53 @@ public class DeviceTests : GpuTest
 	}
 
 	/// <summary>
+	/// Lists submitted later go to the GPU together, in order, in one submission: with the next list submitted normally,
+	/// or when something waits for them.
+	/// </summary>
+	[TestMethod]
+	public void ListsSubmittedLaterGoTogetherInOrder()
+	{
+		var buffer = Device.CreateBuffer( new BufferInfo { Size = 4096, Usage = BufferUsage.Storage, Name = "Ordered" } );
+		var readback = Device.CreateBuffer( new BufferInfo { Size = 4096, Memory = MemoryLocation.Readback, Name = "Readback" } );
+		var transfer = new BufferBarrier { Buffer = buffer, SourceStage = PipelineStage.Transfer, SourceAccess = MemoryAccess.TransferWrite, DestinationStage = PipelineStage.Transfer, DestinationAccess = MemoryAccess.TransferRead | MemoryAccess.TransferWrite };
+
+		uint Run( bool waitForLast )
+		{
+			var before = Device.Submissions;
+			SyncPoint last = default;
+			for ( uint i = 1; i <= 3; i++ )
+			{
+				var list = Device.BeginCommandList( QueueType.Graphics, $"Fill {i}" );
+				list.Barrier( transfer );
+				list.FillBuffer( buffer, i );
+				last = Device.SubmitLater( list );
+			}
+
+			Assert.AreEqual( before, Device.Submissions, "nothing reached the GPU yet" );
+			Assert.IsFalse( Device.IsComplete( last ) );
+
+			if ( !waitForLast )
+			{
+				var copy = Device.BeginCommandList( QueueType.Graphics, "Copy" );
+				copy.Barrier( transfer );
+				copy.CopyBuffer( buffer, 0, readback, 0, 4096 );
+				copy.Barrier( new BufferBarrier { Buffer = readback, SourceStage = PipelineStage.Transfer, SourceAccess = MemoryAccess.TransferWrite, DestinationStage = PipelineStage.Host, DestinationAccess = MemoryAccess.HostRead } );
+				Device.Wait( Device.Submit( copy ) );
+				Assert.IsTrue( Device.IsComplete( last ) );
+				Assert.AreEqual( before + 1, Device.Submissions, "the three went with the copy, in one submission" );
+				return MemoryMarshal.Cast<byte, uint>( Device.Map( readback ) )[0];
+			}
+
+			Device.Wait( last );
+			Assert.AreEqual( before + 1, Device.Submissions, "waiting sent the three in one submission" );
+			return 0;
+		}
+
+		Run( waitForLast: true );
+		Assert.AreEqual( 3u, Run( waitForLast: false ), "the last fill submitted is the one left" );
+	}
+
+	/// <summary>
 	/// Per-frame uploads larger than a page, across more frames than are in flight, all arrive.
 	/// </summary>
 	[TestMethod]

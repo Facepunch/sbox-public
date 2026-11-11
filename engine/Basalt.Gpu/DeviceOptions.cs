@@ -117,6 +117,9 @@ public sealed class DeviceCapabilities
 	/// <summary>Whether occlusion queries count every sample that passes (<see cref="OcclusionQueries"/>), not just whether any did.</summary>
 	public bool PreciseOcclusion { get; init; }
 
+	/// <summary>Whether pipeline statistics queries (<see cref="PipelineStatistics"/>) can be made.</summary>
+	public bool PipelineStatistics { get; init; }
+
 	/// <summary>Nanoseconds per timestamp tick.</summary>
 	public float TimestampPeriod { get; init; }
 
