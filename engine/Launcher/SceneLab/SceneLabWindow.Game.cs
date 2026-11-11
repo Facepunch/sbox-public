@@ -510,6 +510,7 @@ internal sealed partial class SceneLabWindow
 			stats.RecordMs += more.RecordMs;
 			stats.RecordWaitMs += more.RecordWaitMs;
 			stats.WorkerRecordMs += more.WorkerRecordMs;
+			stats.PrepassRecordMs += more.PrepassRecordMs;
 			stats.StagesMs += more.StagesMs;
 			stats.SubmitMs += more.SubmitMs;
 			stats.Draws += more.Draws;

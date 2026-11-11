@@ -106,10 +106,16 @@ public struct RenderStats
 	public double WorkerRecordMs;
 
 	/// <summary>
+	/// Time recording the depth prepass layers, summed over the threads that recorded them.
+	/// </summary>
+	public double PrepassRecordMs;
+
+	/// <summary>
 	/// Accumulate segment or skybox draw counts.
 	/// </summary>
 	internal static void AddCounts( ref RenderStats into, in RenderStats from )
 	{
+		into.PrepassRecordMs += from.PrepassRecordMs;
 		into.Draws += from.Draws;
 		into.DepthDraws += from.DepthDraws;
 		into.TranslucentDraws += from.TranslucentDraws;
