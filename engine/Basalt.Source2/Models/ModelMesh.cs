@@ -295,6 +295,7 @@ public readonly record struct VertexField( string Semantic, int SemanticIndex, C
 		ColorFormat.R8G8B8A8_SNORM => Gpu.VertexFormat.Byte4Norm,
 		ColorFormat.R8G8B8A8_UINT => Gpu.VertexFormat.UByte4,
 		ColorFormat.R10G10B10A2_UNORM => Gpu.VertexFormat.UInt1010102Norm,
+		ColorFormat.R16G16_UNORM => Gpu.VertexFormat.UShort2Norm,
 		ColorFormat.R32_UINT => Gpu.VertexFormat.UInt,
 		ColorFormat.R32G32_UINT => Gpu.VertexFormat.UInt2,
 		ColorFormat.R32G32B32A32_UINT => Gpu.VertexFormat.UInt4,

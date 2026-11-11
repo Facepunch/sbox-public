@@ -368,6 +368,8 @@ public enum VertexFormat
 	UInt4,
 	/// <summary>Three 10-bit and one 2-bit unsigned values in 32 bits, x lowest, read as 0..1.</summary>
 	UInt1010102Norm,
+	/// <summary>Two 16-bit unsigned values read as 0..1 (lightmap uvs).</summary>
+	UShort2Norm,
 }
 
 /// <summary>
