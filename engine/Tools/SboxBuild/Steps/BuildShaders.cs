@@ -38,7 +38,9 @@ internal class BuildShaders( bool forced = false, bool seed = false )
 				return ExitCode.Failure;
 			}
 
-			return RunShaderCompiler( shaderCompilerPath, gameDir );
+			var result = RunShaderCompiler( shaderCompilerPath, gameDir );
+			if ( result == ExitCode.Success ) CompileGpuDriven( shaderCompilerPath, gameDir );
+			return result;
 		}
 		catch ( Exception ex )
 		{
@@ -46,6 +48,34 @@ internal class BuildShaders( bool forced = false, bool seed = false )
 			return ExitCode.Failure;
 		}
 	} );
+
+	/// <summary>
+	/// Shaders Basalt.Gpu draws GPU-driven, whose <c>.gpudriven.shader_c</c> variant is built too
+	/// (docs/managed/basalt-gpu-driven.md). A variant that fails only warns: Basalt draws that shader the classic way.
+	/// </summary>
+	static readonly string[] GpuDrivenShaders =
+	[
+		"core/shaders/depth_only.shader",
+		"core/shaders/complex.shader",
+		"core/shaders/blendable.shader",
+		"core/shaders/foliage.shader",
+		"core/shaders/static_overlay.shader",
+		"core/shaders/generic.shader",
+		"core/shaders/simple.shader",
+	];
+
+	void CompileGpuDriven( string shaderCompilerPath, string gameDir )
+	{
+		BuildDisplay.Status( "Compile GPU-driven variants" );
+		var paths = string.Join( " ", GpuDrivenShaders.Select( s => $"\"{Path.GetFullPath( Path.Combine( gameDir, s ) )}\"" ) );
+		var arguments = $"{paths} -gpudriven{(forced ? " -f" : "")}";
+		var success = Utility.RunProcess( shaderCompilerPath, arguments, gameDir, onDataReceived: ( sender, e ) =>
+		{
+			if ( e.Data != null && !BuildDisplay.IsActive ) Log.Info( e.Data );
+		} );
+
+		if ( !success ) Log.Warning( "Some GPU-driven shader variants failed to compile; Basalt.Gpu draws those shaders the classic way." );
+	}
 
 	private ExitCode RunShaderCompiler( string shaderCompilerPath, string workingDirectory )
 	{

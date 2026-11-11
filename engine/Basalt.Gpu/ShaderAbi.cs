@@ -99,6 +99,12 @@ public static class ShaderAbi
 	/// <summary>Bindless sampled textures of every dimension, <c>g_bindless_Texture2D</c> and friends at <c>t16</c>.</summary>
 	public const int BindlessTextures = TextureBase + 16;
 
+	/// <summary>
+	/// Bindless raw buffers, <c>g_bindless_VertexBuffers</c> (<c>ByteAddressBuffer[]</c>) at <c>t17</c>: geometry pages and
+	/// GPU-driven tables (<c>basalt_gpu_driven.fxc</c>). Native's <c>RENDER_GLOBAL_BINDING_VERTEX_BUFFERS</c> in PR #6511.
+	/// </summary>
+	public const int BindlessBuffers = TextureBase + 17;
+
 	/// <summary>Bindless storage textures, <c>g_bindless_RWTexture2D</c> and friends at <c>u16</c> (compute only).</summary>
 	public const int BindlessStorageTextures = StorageBase + 16;
 
