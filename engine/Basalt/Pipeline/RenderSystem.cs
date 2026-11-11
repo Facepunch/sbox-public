@@ -511,6 +511,10 @@ public sealed partial class RenderSystem : IDisposable
 		// Over the camera's attributes, as CameraRenderer.Configure sets it
 		context.Attributes.Set( LightModulatorsDisabledName, !view.LightModulators );
 
+		// No normals G-buffer: Normals::Sample rebuilds normals from depth and Roughness::Sample answers 1, for every view,
+		// since the frame's attributes outlive the frame
+		context.Attributes.Set( NormalsTextureIndexName, -1 );
+
 		// A reflection's, over the camera's (CameraRenderer.Configure): nothing in it reads prepass normals
 		if ( view.Reflection )
 		{
@@ -566,6 +570,7 @@ public sealed partial class RenderSystem : IDisposable
 	static readonly StringToken IsReflectionName = new( "IsReflection" );
 	static readonly StringToken ReflectionShadowsName = new( "ReflectionShadows" );
 	static readonly StringToken NeedsDepthNormalsName = new( "NeedsDepthNormals" );
+	static readonly StringToken NormalsTextureIndexName = new( "NormalsTextureIndex" );
 
 	/// <summary>
 	/// Current or last rendered frame.

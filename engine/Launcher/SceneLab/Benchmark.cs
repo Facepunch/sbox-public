@@ -96,17 +96,18 @@ internal sealed class Benchmark
 	/// <summary>
 	/// The managed renderer's main thread per frame, section by section (<c>RenderStats</c>), averaged over a run.
 	/// </summary>
-	readonly record struct Breakdown( double Collect, double Prepare, double Setup, double Record, double Workers, double Stages, double Submit, double Draws, double ShadowDraws, double Wait, double Sync );
+	readonly record struct Breakdown( double Collect, double Prepare, double Setup, double Record, double Workers, double Stages, double Submit, double Draws, double ShadowDraws, double Wait, double Sync, double Prepass, double DepthDraws );
 
-	double[] sums = new double[11];
+	double[] sums = new double[13];
 
 	void Accumulate( Basalt.RenderStats s )
 	{
 		sums[0] += s.CollectMs; sums[1] += s.PrepareMs; sums[2] += s.SetupMs; sums[3] += s.RecordMs; sums[4] += s.WorkerRecordMs;
 		sums[5] += s.StagesMs; sums[6] += s.SubmitMs; sums[7] += s.Draws + s.DepthDraws; sums[8] += s.ShadowDraws; sums[9] += s.RecordWaitMs; sums[10] += s.SyncMs;
+		sums[11] += s.PrepassRecordMs; sums[12] += s.DepthDraws;
 	}
 
-	Breakdown Average( int n ) => new( sums[0] / n, sums[1] / n, sums[2] / n, sums[3] / n, sums[4] / n, sums[5] / n, sums[6] / n, sums[7] / n, sums[8] / n, sums[9] / n, sums[10] / n );
+	Breakdown Average( int n ) => new( sums[0] / n, sums[1] / n, sums[2] / n, sums[3] / n, sums[4] / n, sums[5] / n, sums[6] / n, sums[7] / n, sums[8] / n, sums[9] / n, sums[10] / n, sums[11] / n, sums[12] / n );
 
 	/// <summary>
 	/// Objects occlusion culled per frame, from delayed GPU readbacks: native counts once per material, managed once per object.
@@ -309,13 +310,13 @@ internal sealed class Benchmark
 		md.AppendLine();
 		md.AppendLine( "Managed main thread by section, ms per frame:" );
 		md.AppendLine();
-		md.AppendLine( "| Scene | Renderer | Bridge sync | Collect | Prepare | Setup | Record (wall) | Record wait | Workers (sum) | Stages | Submit | Draws | Shadow draws |" );
-		md.AppendLine( "|---|---|---|---|---|---|---|---|---|---|---|---|---|" );
+		md.AppendLine( "| Scene | Renderer | Bridge sync | Collect | Prepare | Setup | Record (wall) | Record wait | Workers (sum) | Prepass record (sum) | Stages | Submit | Draws | Depth draws | Shadow draws |" );
+		md.AppendLine( "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|" );
 		foreach ( var r in results )
 		{
 			if ( r.Run.Renderer != SceneLabWindow.RendererKind.Managed ) continue;
 			var b = r.Managed;
-			md.AppendLine( $"| {r.Run.Scene.Name} | {r.Run.Name} | {b.Sync:0.000} | {b.Collect:0.000} | {b.Prepare:0.000} | {b.Setup:0.000} | {b.Record:0.000} | {b.Wait:0.000} | {b.Workers:0.000} | {b.Stages:0.000} | {b.Submit:0.000} | {b.Draws:0} | {b.ShadowDraws:0} |" );
+			md.AppendLine( $"| {r.Run.Scene.Name} | {r.Run.Name} | {b.Sync:0.000} | {b.Collect:0.000} | {b.Prepare:0.000} | {b.Setup:0.000} | {b.Record:0.000} | {b.Wait:0.000} | {b.Workers:0.000} | {b.Prepass:0.000} | {b.Stages:0.000} | {b.Submit:0.000} | {b.Draws:0} | {b.DepthDraws:0} | {b.ShadowDraws:0} |" );
 		}
 
 		md.AppendLine();

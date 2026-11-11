@@ -182,7 +182,6 @@ internal sealed class AggregateRenderFeature : RenderFeature
 		var batches = CollectionsMarshal.AsSpan( view.State<Batches>( this ).List ).Slice( first, count );
 
 		var depth = layer.Depth;
-		var normals = depth && layer.WritesNormals && view.View.DepthNormals && !view.IsShadow;
 		var mode = layer.ShaderMode;
 		var shadow = layer.LayerType == MeshLayerType.Shadow;
 		var depthBias = shadow ? view.DepthBias : 0;
@@ -203,7 +202,7 @@ internal sealed class AggregateRenderFeature : RenderFeature
 
 			// Every fragment shares the first draw's buffers and material
 			ref readonly var draw = ref draws[0];
-			var material = MaterialFor( draw, depth && !normals, layer.ForceDepthFastPath, out var stripPixelShader );
+			var material = MaterialFor( draw, depth, layer.ForceDepthFastPath, out var stripPixelShader );
 			if ( material is null ) continue;
 
 			// Lightmaps light every draw or none of them (CAggregateSceneObjectDesc::SetBakedLightingAttributes)
