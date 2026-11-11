@@ -25,8 +25,43 @@ public static class ShaderAbi
 	/// <summary><c>g_globalLateBoundBindlessSet</c> (<c>Slot 1</c>, after three reserved sets).</summary>
 	public const int BindlessSet = 4;
 
+	/// <summary>
+	/// <c>g_viewSet</c> (<c>Slot 2</c>): a view's fog, lighting config, sun, clusters, lights, decals, shadows, volumes and
+	/// light modulators, bound once per view (<see cref="ViewSetBindings"/>, <c>scenesystem/viewdescriptorset.h</c>).
+	/// </summary>
+	public const int ViewSet = 5;
+
 	/// <summary>How many sets a pipeline layout has.</summary>
-	public const int SetCount = 5;
+	public const int SetCount = 6;
+
+	/// <summary>
+	/// The view set's bindings, as <c>g_ViewDescriptorSetEntries</c> (<c>scenesystem/viewdescriptorset.h</c>) lays them out:
+	/// each binding and the render attribute it's filled from. Constant buffers at <c>b#</c>, read-only buffers at
+	/// <c>t#</c>.
+	/// </summary>
+	public static readonly (int Binding, BindingType Type, string Attribute)[] ViewSetBindings =
+	[
+		(ConstantBuffer( 0 ), BindingType.UniformBuffer, "PerViewConstantBufferVR_t"),
+		(ConstantBuffer( 1 ), BindingType.UniformBuffer, "ViewLightingConfigV2"),
+		(ConstantBuffer( 2 ), BindingType.UniformBuffer, "DirectionalLightCB"),
+		(ConstantBuffer( 3 ), BindingType.UniformBuffer, "ClusteredLightingConstants"),
+		(ConstantBuffer( 4 ), BindingType.UniformBuffer, "FogConstants"),
+		(Texture( 0 ), BindingType.StorageBuffer, "BinnedLightBufferV2"),
+		(Texture( 1 ), BindingType.StorageBuffer, "BinnedEnvMapBuffer"),
+		(Texture( 2 ), BindingType.StorageBuffer, "DecalsBuffer"),
+		(Texture( 3 ), BindingType.StorageBuffer, "DecalsExtraDataBuffer"),
+		(Texture( 4 ), BindingType.StorageBuffer, "ProjectedShadows"),
+		(Texture( 5 ), BindingType.StorageBuffer, "ProjectedCubeShadows"),
+		(Texture( 6 ), BindingType.StorageBuffer, "ClusterLightCounts"),
+		(Texture( 7 ), BindingType.StorageBuffer, "ClusterEnvMapCounts"),
+		(Texture( 8 ), BindingType.StorageBuffer, "ClusterDecalCounts"),
+		(Texture( 9 ), BindingType.StorageBuffer, "ClusterLightIndices"),
+		(Texture( 10 ), BindingType.StorageBuffer, "ClusterEnvMapIndices"),
+		(Texture( 11 ), BindingType.StorageBuffer, "ClusterDecalIndices"),
+		(Texture( 12 ), BindingType.StorageBuffer, "DDGI_Volumes"),
+		(Texture( 13 ), BindingType.StorageBuffer, "LightModulatorRectangles"),
+		(Texture( 14 ), BindingType.StorageBuffer, "LightModulatorCandidates"),
+	];
 
 	/// <summary>Where <c>b#</c> registers start.</summary>
 	public const int ConstantBufferBase = 0;
@@ -63,6 +98,12 @@ public static class ShaderAbi
 
 	/// <summary>Bindless sampled textures of every dimension, <c>g_bindless_Texture2D</c> and friends at <c>t16</c>.</summary>
 	public const int BindlessTextures = TextureBase + 16;
+
+	/// <summary>
+	/// Bindless raw buffers, <c>g_bindless_VertexBuffers</c> (<c>ByteAddressBuffer[]</c>) at <c>t17</c>: geometry pages and
+	/// GPU-driven tables (<c>basalt_gpu_driven.fxc</c>). Native's <c>RENDER_GLOBAL_BINDING_VERTEX_BUFFERS</c> in PR #6511.
+	/// </summary>
+	public const int BindlessBuffers = TextureBase + 17;
 
 	/// <summary>Bindless storage textures, <c>g_bindless_RWTexture2D</c> and friends at <c>u16</c> (compute only).</summary>
 	public const int BindlessStorageTextures = StorageBase + 16;

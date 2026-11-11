@@ -1,6 +1,7 @@
 #ifndef DIRECTIONAL_LIGHT_SHADOW_HLSL
 #define DIRECTIONAL_LIGHT_SHADOW_HLSL
 
+#include "common.fxc"
 #include "common/Bindless.hlsl"
 #include "Shadows/ShadowFiltering.hlsl"
 
@@ -12,7 +13,8 @@
 // don't have more than this for fucks sake
 #define MAX_CASCADE_COUNT 4
 
-cbuffer DirectionalLightCB
+// The view's sun and its cascades, in its descriptor set (common.fxc)
+cbuffer DirectionalLightCB EXTERNAL_DESC_SET( b, g_viewSet, 2 )
 {
     float4 g_DirectionalLightColor; // w fogstrength
     float4 g_DirectionalLightDirection; // w blank

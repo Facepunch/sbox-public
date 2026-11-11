@@ -208,6 +208,14 @@ internal abstract class GpuContext : IDisposable
 	/// <summary>Write and bind a buffer from <see cref="CreateConstantBuffer"/>.</summary>
 	public abstract void SetConstantBuffer<T>( StringToken name, IntPtr buffer, in T value ) where T : unmanaged;
 
+	/// <summary>
+	/// Write the view's descriptor set (<c>g_viewSet</c>) from this frame context's attributes - its fog, lighting config,
+	/// sun, clusters, lights, decals, shadows, volumes and light modulators, by their attribute names - and bind it for
+	/// everything recorded after, here and on the frame's segments. Once a frame, after all of them are set and before
+	/// anything reads them; later calls in the frame do nothing. See docs/managed/static-descriptor-sets.md.
+	/// </summary>
+	public virtual void WriteViewSet() { }
+
 	/// <summary>Bind a draw's vertex and index buffers.</summary>
 	public abstract bool BindGeometry( RenderMesh mesh, in RenderMesh.Draw draw );
 
@@ -239,6 +247,26 @@ internal abstract class GpuContext : IDisposable
 
 	/// <summary>Draw the instances occlusion culling kept, from its arguments.</summary>
 	public abstract bool DrawModelCulled( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int argsIndex, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false, int textureSize = TextureSizes.All );
+
+	/// <summary>
+	/// One aggregate's visible fragments for <see cref="DrawGpuDriven"/>: its arguments are <paramref name="Count"/> of the
+	/// frame's from <paramref name="FirstArg"/>, its fragments' instances in the transform buffer start at
+	/// <paramref name="FirstInstance"/>, and <paramref name="ObjectAttributes"/> are what it would set as object attributes.
+	/// <paramref name="Owner"/> is the aggregate, whose fragments (by their arguments' first instance) don't change.
+	/// </summary>
+	internal readonly record struct GpuDrivenBatch( GpuMaterial Material, RenderMesh Mesh, RenderMesh.Draw Draw, ShaderParameters ObjectAttributes, bool StripPixelShader, int FirstArg, int Count, int FirstInstance, long Triangles, object Owner );
+
+	/// <summary>Whether <see cref="DrawGpuDriven"/> draws anything on this device.</summary>
+	internal virtual bool GpuDriven => false;
+
+	/// <summary>
+	/// Draw a layer's aggregate batches GPU-driven: per-draw data in tables and one multi-draw per pipeline, where the device
+	/// can. Sets <paramref name="drawn"/> for each batch drawn; the caller draws the rest as before. Devices without a
+	/// GPU-driven path draw none.
+	/// </summary>
+	internal virtual void DrawGpuDriven( StringToken shaderMode, ReadOnlySpan<GpuDrivenBatch> batches, ReadOnlySpan<GpuBuffer.IndirectDrawIndexedArguments> args, TransformBuffer transforms, int depthBias, float slopeScaledDepthBias, Span<bool> drawn )
+	{
+	}
 
 	/// <summary>Draw an aggregate's fragments, one indirect draw each.</summary>
 	public abstract bool DrawModelFragments( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, GpuBuffer args, int firstArg, int count, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, int textureSize = TextureSizes.All );

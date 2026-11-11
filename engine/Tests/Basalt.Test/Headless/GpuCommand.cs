@@ -36,6 +36,7 @@ internal enum GpuOp
 	Resolve,
 	ResolveScratch,
 	ReadBuffer,
+	WriteViewSet,
 }
 
 /// <summary>

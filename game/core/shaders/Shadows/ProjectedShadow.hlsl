@@ -6,6 +6,7 @@
 #ifndef SHADOWS_PROJECTEDSHADOW_HLSL
 #define SHADOWS_PROJECTEDSHADOW_HLSL
 
+#include "common.fxc"
 #include "Shadows/ShadowFiltering.hlsl"
 #include "common/Bindless.hlsl"
 
@@ -17,7 +18,8 @@ struct ProjectedShadowStruct
 	float ShadowHardness;
 };
 
-StructuredBuffer<ProjectedShadowStruct> ProjectedShadows < Attribute( "ProjectedShadows" ); >;
+// The view's spot light shadows, in its descriptor set (common.fxc)
+StructuredBuffer<ProjectedShadowStruct> ProjectedShadows EXTERNAL_DESC_SET( t, g_viewSet, 4 );
 
 struct ProjectedShadow
 {

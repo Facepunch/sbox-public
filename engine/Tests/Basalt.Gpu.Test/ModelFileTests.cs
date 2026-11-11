@@ -232,4 +232,78 @@ public class ModelFileTests
 
 		return true;
 	}
+
+	/// <summary>
+	/// The human's morph sets read (<c>MRPH</c>): positions then normals and wrinkles, every morph's rectangles with both
+	/// bundles' offsets and ranges, flex controllers and rules, and a compiled texture atlas; with no controller set no
+	/// flex desc is weighted, and setting each controller weights some.
+	/// </summary>
+	[TestMethod]
+	public void MorphSetsRead()
+	{
+		var files = Files;
+		var model = Load( "models/citizen_human/human.vmdl" );
+		var morphing = model.Meshes.Where( x => x.HasMorphs ).ToArray();
+		Assert.IsTrue( morphing.Length > 0, "the human has meshes with morphs" );
+
+		foreach ( var mesh in morphing )
+		{
+			var set = mesh.Morphs;
+			Assert.IsNotNull( set, $"{mesh.Name}'s morph set reads" );
+			Console.WriteLine( $"{mesh.Name}: {set.Width}x{set.Height}, {set.Morphs.Count} morphs, {set.FlexDescs.Count} descs, {set.Controllers.Count} controllers, {set.Rules.Count} rules, atlas {set.TextureAtlas ?? mesh.MorphTexture}" );
+			Assert.IsTrue( set.Width > 0 && set.Height > 0, "a size" );
+			CollectionAssert.AreEqual( new[] { MorphBundleType.PositionSpeed, MorphBundleType.NormalWrinkle }, set.BundleTypes.ToArray() );
+			Assert.IsTrue( set.Morphs.Count > 0 && set.Controllers.Count > 0 && set.Rules.Count > 0, "morphs, controllers and rules" );
+			var rects = set.Morphs.SelectMany( m => m.Rects ).ToArray();
+			Console.WriteLine( $"  {rects.Length} rectangles, morphs without any: {set.Morphs.Count( m => m.Rects.Length == 0 )}, bundles {string.Join( ",", rects.Select( r => r.Bundles.Length ).Distinct() )}, offsets {string.Join( ",", rects.SelectMany( r => r.Bundles ).Select( b => b.Offsets.Length ).Distinct() )}, ranges {string.Join( ",", rects.SelectMany( r => r.Bundles ).Select( b => b.Ranges.Length ).Distinct() )}" );
+			Assert.IsTrue( rects.Length > 0 && rects.All( r => r.Bundles.Length == 2 && r.Bundles.All( b => b.Offsets.Length == 4 && b.Ranges.Length == 4 ) ), "every rectangle has both bundles, scaled per channel" );
+			Assert.IsNotNull( files.Find( set.TextureAtlas ?? mesh.MorphTexture ), "the morph texture is built" );
+
+			var weights = new float[set.FlexDescs.Count];
+			var controllers = new float[set.Controllers.Count];
+			set.RunFlexRules( controllers, weights );
+			Assert.IsTrue( weights.All( x => x == 0 ), "nothing set, nothing weighted" );
+
+			var weighted = 0;
+			for ( int c = 0; c < controllers.Length; c++ )
+			{
+				Array.Clear( controllers );
+				controllers[c] = set.Controllers[c].Max;
+				set.RunFlexRules( controllers, weights );
+				if ( weights.Any( x => x > 0 ) ) weighted++;
+			}
+
+			Assert.IsTrue( weighted > controllers.Length / 2, $"{weighted} of {controllers.Length} controllers weight a morph" );
+		}
+	}
+
+	/// <summary>Flex rules evaluate as native's do: fetches, constants, arithmetic, two-way sliders, combos and earlier descs.</summary>
+	[TestMethod]
+	public void FlexRulesEvaluate()
+	{
+		static FlexOp Const( float value ) => new( FlexOpCode.Const, BitConverter.SingleToInt32Bits( value ) );
+		var set = new MorphSet
+		{
+			FlexDescs = ["a", "b", "c", "d"],
+			Controllers = [new( "x", "default", 0, 1 ), new( "y", "default", -1, 1 )],
+			Rules =
+			[
+				new( 0, [new( FlexOpCode.Fetch1, 0 ), Const( 0.5f ), new( FlexOpCode.Mul, 0 )] ),
+				new( 1, [new( FlexOpCode.TwoWay0, 1 ), new( FlexOpCode.Fetch2, 0 ), new( FlexOpCode.Add, 0 )] ),
+				new( 2, [new( FlexOpCode.Fetch1, 0 ), new( FlexOpCode.TwoWay1, 1 ), new( FlexOpCode.Combo, 2 )] ),
+				new( 3, [Const( 1 ), Const( 0 ), new( FlexOpCode.Div, 0 )] ),
+			],
+		};
+
+		var weights = new float[4];
+		set.RunFlexRules( [0.8f, -0.5f], weights );
+		Assert.AreEqual( 0.4f, weights[0], 1e-6f );
+		Assert.AreEqual( 0.5f + 0.4f, weights[1], 1e-6f );
+		Assert.AreEqual( 0.0f, weights[2], 1e-6f );
+		Assert.AreEqual( 0.0f, weights[3], 1e-6f, "division by about 0 is 0" );
+
+		set.RunFlexRules( [0.8f, 0.5f], weights );
+		Assert.AreEqual( 0.4f, weights[1], 1e-6f );
+		Assert.AreEqual( 0.4f, weights[2], 1e-6f );
+	}
 }

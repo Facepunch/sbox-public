@@ -39,6 +39,7 @@
 		<ProjectReference Include="..\..\Basalt.Sdl\Basalt.Sdl.csproj" Private="false" />
 		<ProjectReference Include="..\..\Basalt.Source2\Basalt.Source2.csproj" Private="false" />
 		<ProjectReference Include="..\..\Basalt.Backend\Basalt.Backend.csproj" Private="false" />
+		<ProjectReference Include="..\..\Sandbox.ShaderCompiler\Sandbox.ShaderCompiler.csproj" Private="false" />
 		<ProjectReference Include="..\..\Sandbox.System\Sandbox.System.csproj" Private="false" />
 		<ProjectReference Include="..\..\Sandbox.Reflection\Sandbox.Reflection.csproj" Private="false" />
 	</ItemGroup>

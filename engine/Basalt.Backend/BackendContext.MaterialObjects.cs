@@ -162,17 +162,10 @@ internal sealed partial class BackendContext
 	/// <summary>A model draw, direct or indirect, through material objects or by reflection; timed when the device times draws.</summary>
 	bool Draw( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias, float slopeScaledDepthBias, bool stripPixelShader, bool skinned, in IndirectDraws indirect )
 	{
-		if ( !device.TimeDraws )
-		{
-			return device.MaterialObjects
-				? DrawWithMaterialObject( material, shaderMode, mesh, draw, firstInstance, instances, depthBias, slopeScaledDepthBias, stripPixelShader, skinned, indirect )
-				: DrawByReflection( material, shaderMode, mesh, draw, firstInstance, instances, depthBias, slopeScaledDepthBias, stripPixelShader, skinned, indirect );
-		}
+		if ( !device.TimeDraws ) return DrawUntimed( material, shaderMode, mesh, draw, firstInstance, instances, depthBias, slopeScaledDepthBias, stripPixelShader, skinned, indirect );
 
 		var start = System.Diagnostics.Stopwatch.GetTimestamp();
-		var drawn = device.MaterialObjects
-			? DrawWithMaterialObject( material, shaderMode, mesh, draw, firstInstance, instances, depthBias, slopeScaledDepthBias, stripPixelShader, skinned, indirect )
-			: DrawByReflection( material, shaderMode, mesh, draw, firstInstance, instances, depthBias, slopeScaledDepthBias, stripPixelShader, skinned, indirect );
+		var drawn = DrawUntimed( material, shaderMode, mesh, draw, firstInstance, instances, depthBias, slopeScaledDepthBias, stripPixelShader, skinned, indirect );
 		var ticks = System.Diagnostics.Stopwatch.GetTimestamp() - start;
 
 		// A bind: a different material or mode from the draw before, as Source 2's context would rebind. Of the rest, an
@@ -184,6 +177,18 @@ internal sealed partial class BackendContext
 		if ( !drawn ) device.DrawTimes.Fail( material?.Name );
 		else if ( indirect.Count > 0 ) device.DrawTimes.AddIndirect( indirect.Count );
 		return drawn;
+	}
+
+	/// <summary>
+	/// A model draw through material objects or by reflection; new-tier (Slang) materials on their own small path
+	/// (BackendContext.Surfaces.cs).
+	/// </summary>
+	bool DrawUntimed( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias, float slopeScaledDepthBias, bool stripPixelShader, bool skinned, in IndirectDraws indirect )
+	{
+		if ( material is SurfaceMaterial surface ) return DrawSurface( surface, shaderMode, mesh, draw, firstInstance, instances, depthBias, slopeScaledDepthBias, stripPixelShader, skinned, indirect );
+		return device.MaterialObjects
+			? DrawWithMaterialObject( material, shaderMode, mesh, draw, firstInstance, instances, depthBias, slopeScaledDepthBias, stripPixelShader, skinned, indirect )
+			: DrawByReflection( material, shaderMode, mesh, draw, firstInstance, instances, depthBias, slopeScaledDepthBias, stripPixelShader, skinned, indirect );
 	}
 
 	// The last draw's lookups, which the next draw of the same material the same way reuses
@@ -228,7 +233,7 @@ internal sealed partial class BackendContext
 
 	bool DrawWithMaterialObject( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias, float slopeScaledDepthBias, bool stripPixelShader, bool skinned, in IndirectDraws indirect = default )
 	{
-		if ( material is not BackendMaterial { Shader: { } shader } m || mesh.Geometry is not IBackendGeometry source || skinned ) return false;
+		if ( material is not BackendMaterial { Shader: { } shader } m || mesh.Geometry is not IBackendGeometry source ) return false;
 		if ( (indirect.InstanceIds ?? InstanceIds?.Resource as BackendBuffer) is not { } instanceIds ) return false;
 		if ( !EnsureScope() ) return false;
 
@@ -261,7 +266,7 @@ internal sealed partial class BackendContext
 		var color = r.Color is null ? Format.Unknown : FormatOfTarget( r.Color, r.Srgb );
 		var noColor = stripPixelShader || r.Color is null;
 		var depthOnly = StripsPixelShader( m, noColor, stripPixelShader );
-		var geometry = source.For( draw.Mesh, draw.DrawCall );
+		var geometry = GeometryFor( source, draw );
 		var key = new MaterialObjectCache.Key( m, variant, geometry.Layout, noColor ? Format.Unknown : color, r.Depth is null ? Format.Unknown : BackendDevice.FormatOf( r.Depth ), (r.Color ?? r.Depth).Samples, depthOnly, geometry.UncompressedTangentFrame );
 
 		var materialObject = lastObject is not null && key.Same( lastKey ) && !lastObject.Stale ? lastObject : cache.Get( key, immediate: false, (device, geometry.Layout, key), static ( s, layout ) => s.device.Pipeline( s.key.Variant, s.Layout, s.key.Color, s.key.Depth, s.key.Samples, s.key.DepthOnly, layout.Sets ) );
@@ -288,6 +293,7 @@ internal sealed partial class BackendContext
 	/// <summary>A new pass state when the attributes changed since the last one, or a scope opened.</summary>
 	void NextPassState( MaterialObjectCache cache )
 	{
+		BindViewSet( recording.List );
 		var version = attributes.Version;
 		if ( recording.BindVersion == version ) return;
 		recording.BindVersion = version;
