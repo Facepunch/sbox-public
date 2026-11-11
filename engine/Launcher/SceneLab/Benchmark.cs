@@ -240,7 +240,10 @@ internal sealed class Benchmark
 		var result = new Result( run, window.ObjectCount, occludedSum / measured, timer.Summarise(),
 			GC.CollectionCount( 0 ) - gen0, GC.CollectionCount( 1 ) - gen1, GC.CollectionCount( 2 ) - gen2, Average( measured ), AverageNative( measured ), AverageGpu( measured ) );
 		results.Add( result );
-		Log.Info( $"Benchmark: {result.Run.Scene.Name} / {result.Run.Name}: {result.Summary}, GCs {result.Gen0}/{result.Gen1}/{result.Gen2}" );
+		// What texture streaming holds now, which a renderer's binds decide: compare renderers in processes of their own
+		// (-benchmark-renderer), since they share the pool
+		g_pRenderDevice.GetTexturePoolStats( out var poolUsed, out _, out _ );
+		Log.Info( $"Benchmark: {result.Run.Scene.Name} / {result.Run.Name}: {result.Summary}, GCs {result.Gen0}/{result.Gen1}/{result.Gen2}, texture pool {poolUsed / (1024 * 1024)} MiB" );
 
 		if ( Start( window, timer, index + 1 ) ) return false;
 
