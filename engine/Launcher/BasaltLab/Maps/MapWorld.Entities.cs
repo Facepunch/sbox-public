@@ -55,7 +55,7 @@ internal sealed partial class MapWorld
 			{
 				"light_spot" => AddLight( target, e, LightObject.LightKind.Spot ),
 				"light_omni" => AddLight( target, e, LightObject.LightKind.Point ),
-				"light_environment" or "light_directional" => SetSun( lighting, e ),
+				"light_environment" or "light_directional" => SetSun( lighting, e, target == World ),
 				"env_gradient_fog" => SetGradientFog( lighting, e ),
 				"env_cubemap_fog" => SetCubemapFog( lighting, e ),
 				"env_sky" => SetSky( target, e ),
@@ -127,7 +127,7 @@ internal sealed partial class MapWorld
 	/// lightmaps' direct light indices packed as <c>PackBakedDirectionalGPULight</c> packs it (pointing from the receiver
 	/// to the sun, colour scaled by <c>bakelightindexscale</c>).
 	/// </summary>
-	static bool SetSun( SceneLighting lighting, MapEntity e )
+	static bool SetSun( SceneLighting lighting, MapEntity e, bool scene )
 	{
 		if ( !e.Bool( "enabled", true ) ) return false;
 
@@ -135,6 +135,14 @@ internal sealed partial class MapWorld
 		var color = ColorOf( e, "color" ) * e.Float( "brightness", 1 );
 		lighting.SunColor = new Color( color.r, color.g, color.b );
 		lighting.SunDirection = rotation.Forward;
+
+		// The scene's ambient light: the directional light's sky colour times its intensity, alpha from the colour
+		// (MapInstance, then Scene's ambient sum). A skybox world is loaded into a scene world of its own, without it
+		if ( scene )
+		{
+			var sky = ColorOf( e, "SkyColor" ) * e.Float( "SkyIntensity", 1 );
+			lighting.AmbientColor = sky.WithAlpha( ColorOf( e, "SkyColor" ).a );
+		}
 
 		var direct = (int)e.Float( "directlight", 2 );
 		var bakeIndex = (int)e.Float( "bakelightindex", -1 );
