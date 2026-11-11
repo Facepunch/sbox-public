@@ -1,0 +1,269 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode = 
+	{
+		_class = "RootNode"
+		children = 
+		[
+			{
+				_class = "GameDataList"
+				children = 
+				[
+					{
+						_class = "GenericGameData"
+						game_class = "prop_data"
+						game_keys = 
+						{
+							health = 30
+							min_impact_damage_speed = 450
+							impact_damage = 30
+							flammable = false
+							explosive = false
+							bakelighting = true
+							explosive_damage = -1.0
+							explosive_radius = -1.0
+							explosive_force = -1.0
+						}
+					},
+				]
+			},
+			{
+				_class = "MaterialGroupList"
+				children = 
+				[
+					{
+						_class = "DefaultMaterialGroup"
+						remaps = 
+						[
+							{
+								from = "photoframe_low.vmat"
+								to = "models/sbox/home/picture_frame_01/materials/picture_frame_collection_01.vmat"
+							},
+							{
+								from = "photos.vmat"
+								to = "models/sbox/home/picture_frame_01/materials/picture_frame_collection_glass_01.vmat"
+							},
+						]
+						use_global_default = false
+						global_default_material = ""
+					},
+				]
+			},
+			{
+				_class = "RenderMeshList"
+				children = 
+				[
+					{
+						_class = "RenderMeshFile"
+						name = "picture_frame_03"
+						filename = "models/sbox/home/picture_frame_01/picture_frame_collection_01.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = true
+							exception_list = 
+							[
+								"photoframe_low",
+							]
+						}
+					},
+				]
+			},
+			{
+				_class = "PhysicsShapeList"
+				children = 
+				[
+					{
+						_class = "PhysicsShapeHull"
+						name = "thin_frame_stile.001_0"
+						parent_bone = ""
+						surface_prop = "wood"
+						collision_tags = "solid"
+						recenter_on_parent_bone = false
+						offset_origin = [ 0.0, 0.0, 0.0 ]
+						offset_angles = [ 0.0, 0.0, 0.0 ]
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						hull_vertices = 
+						[
+							[ -2.782502, 6.0705, 18.166079 ],
+							[ -2.782502, 6.820786, 18.166079 ],
+							[ -1.928525, 6.0705, 18.166079 ],
+							[ -1.928525, 6.820786, 18.166079 ],
+							[ 2.127861, 6.0705, -0.023959 ],
+							[ 2.127861, 6.820786, -0.023959 ],
+							[ 2.981837, 6.0705, -0.023959 ],
+							[ 2.981837, 6.820786, -0.023959 ],
+						]
+					},
+					{
+						_class = "PhysicsShapeHull"
+						name = "thin_frame_rail.001_0"
+						parent_bone = ""
+						surface_prop = "wood"
+						collision_tags = "solid"
+						recenter_on_parent_bone = false
+						offset_origin = [ 0.0, 0.0, 0.0 ]
+						offset_angles = [ 0.0, 0.0, 0.0 ]
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						hull_vertices = 
+						[
+							[ -2.782503, -6.070499, 18.166079 ],
+							[ -2.782502, 6.070499, 18.166079 ],
+							[ -2.579965, -6.070499, 17.415792 ],
+							[ -2.579963, 6.070499, 17.415792 ],
+							[ -1.928527, -6.070499, 18.166079 ],
+							[ -1.928525, 6.070499, 18.166079 ],
+							[ -1.725988, -6.070499, 17.415792 ],
+							[ -1.725987, 6.070499, 17.415792 ],
+						]
+					},
+					{
+						_class = "PhysicsHullFile"
+						name = "picture_frame_03_gibs"
+						parent_bone = ""
+						surface_prop = "default"
+						collision_tags = "solid"
+						recenter_on_parent_bone = false
+						offset_origin = [ 0.0, 0.0, 0.0 ]
+						offset_angles = [ 0.0, 0.0, 0.0 ]
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						filename = "models/sbox/home/picture_frame_03/gibs/picture_frame_03_gibs.fbx"
+						import_scale = 1.0
+						faceMergeAngle = 10.0
+						maxHullVertices = 0
+						import_mode = "SingleHull"
+						optimization_algorithm = "QEM"
+						import_filter = 
+						{
+							exclude_by_default = false
+							exception_list = [  ]
+						}
+					},
+				]
+			},
+			{
+				_class = "PhysicsBodyMarkupList"
+				children = 
+				[
+					{
+						_class = "PhysicsBodyMarkup"
+						target_body = ""
+						mass_override = 1.8254
+						inertia_scale = 1.0
+						linear_damping = 0.04
+						angular_damping = 0.15
+						use_mass_center_override = false
+						mass_center_override = [ 0.0, 0.0, 0.0 ]
+						gravity_scale = 1.0
+					},
+				]
+			},
+			{
+				_class = "BreakPieceList"
+				children = 
+				[
+					{
+						_class = "BreakPieceExternal"
+						name = "picture_frame_03_gib_00"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 0.0, 0.0 ]
+						fadetime = 120.0
+						random_spawn_chance = 1.0
+						is_essential_piece = true
+						clientonly = false
+						collision_tags = "solid"
+						model = "models/sbox/home/picture_frame_03/gibs/picture_frame_03_gib_00.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						name = "picture_frame_03_gib_01"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 0.0, 0.0 ]
+						fadetime = 120.0
+						random_spawn_chance = 1.0
+						is_essential_piece = true
+						clientonly = false
+						collision_tags = "solid"
+						model = "models/sbox/home/picture_frame_03/gibs/picture_frame_03_gib_01.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						name = "picture_frame_03_gib_02"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 0.0, 0.0 ]
+						fadetime = 120.0
+						random_spawn_chance = 1.0
+						is_essential_piece = true
+						clientonly = false
+						collision_tags = "solid"
+						model = "models/sbox/home/picture_frame_03/gibs/picture_frame_03_gib_02.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						name = "picture_frame_03_gib_03"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 0.0, 0.0 ]
+						fadetime = 120.0
+						random_spawn_chance = 1.0
+						is_essential_piece = true
+						clientonly = false
+						collision_tags = "solid"
+						model = "models/sbox/home/picture_frame_03/gibs/picture_frame_03_gib_03.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						name = "picture_frame_03_gib_04"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 0.0, 0.0 ]
+						fadetime = 120.0
+						random_spawn_chance = 1.0
+						is_essential_piece = true
+						clientonly = false
+						collision_tags = "solid"
+						model = "models/sbox/home/picture_frame_03/gibs/picture_frame_03_gib_04.vmdl"
+					},
+					{
+						_class = "BreakPieceExternal"
+						name = "picture_frame_03_gib_05"
+						placement_mode = "default"
+						placement_bone = ""
+						placement_attach = ""
+						offset = [ 0.0, 0.0, 0.0 ]
+						fadetime = 120.0
+						random_spawn_chance = 1.0
+						is_essential_piece = true
+						clientonly = false
+						collision_tags = "solid"
+						model = "models/sbox/home/picture_frame_03/gibs/picture_frame_03_gib_05.vmdl"
+					},
+				]
+			},
+		]
+		model_archetype = "physics_prop_model"
+		primary_associated_entity = "prop_physics"
+		anim_graph_name = ""
+		base_model_name = ""
+	}
+}

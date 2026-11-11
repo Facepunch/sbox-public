@@ -1,0 +1,26 @@
+{
+  "guid": "906cccea-90fa-44e0-b40e-ae4b634eabe6",
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Wallpaper A",
+      "Type": "material",
+      "Org": "local",
+      "Ident": "wallpaper_a",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "materials/sbox/wall/wallpaper_a.vmat"
+      }
+    }
+  }
+}

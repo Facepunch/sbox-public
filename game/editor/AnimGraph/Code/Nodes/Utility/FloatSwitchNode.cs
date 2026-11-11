@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 namespace Editor.AnimGraph.Nodes;
 
 /// <summary>
-/// Outputs True Value or False Value according to a boolean condition, optionally easing linearly between them.
+/// Outputs True Value or False Value according to a boolean condition, optionally easing between them using the selected curve.
 /// <br/><br/><b>Use when:</b>&#160;Turning a boolean state into a float such as a blend weight.
 /// <br/><b>Important:</b>&#160;Ease Time at or below zero switches immediately. A disconnected condition uses true.
 /// </summary>
@@ -25,6 +25,9 @@ public class FloatSwitchNode : Node
 	[Property]
 	public float EaseTime { get; set; } = 0.2f;
 
+	[Property]
+	public GraphBuilder.Easing Easing { get; set; } = GraphBuilder.Easing.Linear;
+
 	[Output( typeof( FloatLink ) )]
 	[JsonIgnore]
 	public object Result => default;
@@ -38,7 +41,7 @@ public class FloatSwitchNode : Node
 		var result = compiler.Builder.Switch( condition, TrueValue, FalseValue );
 		return EaseTime <= 0.0f
 			? result
-			: compiler.Builder.Ease( result, new GraphBuilder.EaseSettings { Time = EaseTime } );
+			: compiler.Builder.Ease( result, new GraphBuilder.EaseSettings { Time = EaseTime, Easing = Easing } );
 	}
 
 }

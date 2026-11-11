@@ -131,7 +131,7 @@ public partial class Window : DockWindow, IAssetEditor
 		_externalChangesDialog?.Destroy();
 		_session.ReplaceGraph( graph );
 		_parameterReferences = null;
-		_committedState = graph.Serialize();
+		_committedState = graph.Serialize( indented: false );
 		_properties.Target = graph;
 		_clipInfo = null;
 		_clipList?.SetGraph( graph );

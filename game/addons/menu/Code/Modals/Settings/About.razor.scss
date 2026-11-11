@@ -1,79 +1,192 @@
-.page-content {
-    font-family: Poppins;
-    overflow: hidden;
+@import "/Platform/_platform.scss";
+
+// The third-party components - a list as the settings' rows are: a band each, its name and what it is on the left, its
+// license on the right, opening for the rest
+
+.page-content
+{
+	flex-direction: column;
+	gap: 8px;
+	font-family: $platform-font;
+
+	// Their own height, all of them - the page scrolls, it doesn't squash them into each other
+	> *
+	{
+		flex-shrink: 0;
+	}
 }
 
-.statement {
-    margin-bottom: 24px;
-    padding-bottom: 8px;
-    color: #aaa;
-    flex: 0 0 auto;
+.statement
+{
+	margin-bottom: 8px;
+	font-size: 13px;
+	color: $platform-muted;
 }
 
-.component {
-    flex-direction: column;
-    margin-bottom: 16px;
-    border-radius: 8px;
-    padding: 16px;
-    background-color: #323b5233;
-    box-shadow: 1px 1px 5px rgba(black, 0.2);
-    flex: 0 0 auto;
+.list
+{
+	flex-direction: column;
+	flex-shrink: 0;
+	gap: 2px;
 }
 
-.component h3 {
-    margin-top: 0;
-    margin-bottom: 12px;
-    font-size: 2rem;
-    color: #c6d4ee;
+// The columns, named over them - as a table's head
+.columns
+{
+	flex-direction: row;
+	align-items: center;
+	gap: 16px;
+	padding: 0 14px 6px 14px;
+
+	label
+	{
+		@include platform-caps;
+		font-size: 10px;
+		color: $platform-faint;
+	}
 }
 
-.info-row {
-    flex-direction: row;
-    margin-bottom: 8px;
-    width: 100%;
+.c-name
+{
+	flex-direction: column;
+	flex-grow: 1;
+	flex-shrink: 1;
+	min-width: 0;
 }
 
-.info-label {
-    font-weight: bold;
-    margin-right: 8px;
-    min-width: 100px;
+.c-license
+{
+	flex-shrink: 0;
+	width: 190px;
 }
 
-.content {
-    flex-grow: 1;
-    color: #888;
+.c-more
+{
+	flex-shrink: 0;
+	width: 20px;
 }
 
-.project-link {
-    color: #3498db;
+.item
+{
+	flex-direction: column;
+	flex-shrink: 0;
+	border-radius: $platform-radius;
+	background-color: rgba( 255, 255, 255, 0.04 );
+	transition: background-color 0.1s ease;
 
-    &:hover {
-        color: lighten(#3498db, 15%);
-    }
+	&:hover, &.open
+	{
+		background-color: rgba( 255, 255, 255, 0.07 );
+	}
 }
 
-.license-button {
-    padding-left: 0px;
+.line
+{
+	flex-direction: row;
+	align-items: center;
+	gap: 16px;
+	min-height: 48px;
+	padding: 6px 14px;
+	cursor: pointer;
+	@include platform-sounds;
+
+	.name
+	{
+		font-size: 14px;
+		font-weight: 600;
+		color: $platform-text;
+	}
+
+	.comment
+	{
+		font-size: 12px;
+		color: $platform-muted;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	// On one line, cut short if it's a long one
+	.chip
+	{
+		@include platform-chip;
+		max-width: 100%;
+		height: 22px;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		font-size: 11.5px;
+		font-weight: 600;
+		color: $platform-text;
+	}
+
+	i.c-more
+	{
+		font-size: 20px;
+		color: $platform-muted;
+	}
+
+	&:hover i.c-more
+	{
+		color: $platform-text;
+	}
 }
 
-.license-text {
-    margin-top: 10px;
-    padding: 10px;
-    background-color: rgba(black, 0.2);
-    border-left: 4px solid #3498db;
-    width: 100%;
-    font-size: 0.9rem;
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
+// Opened - who holds it, where it lives, then its license
+.details
+{
+	flex-direction: column;
+	gap: 6px;
+	padding: 0 14px 14px 14px;
 }
 
-.license-chunk {
-    white-space: pre;
-    font-family: monospace;
-    color: #ddd;
-    margin-bottom: 4px;
-    width: 100%;
-    flex: 0 0 auto;
-    align-self: flex-start;
+.fact
+{
+	flex-direction: row;
+	gap: 16px;
+	font-size: 12.5px;
+
+	.key
+	{
+		flex-shrink: 0;
+		width: 90px;
+		color: $platform-faint;
+	}
+
+	.value
+	{
+		flex-grow: 1;
+		flex-shrink: 1;
+		min-width: 0;
+		color: $platform-text;
+	}
+
+	.link
+	{
+		color: $platform-icon;
+		cursor: pointer;
+
+		&:hover
+		{
+			color: white;
+		}
+	}
+}
+
+// Recessed, as the fields are - the text in a fixed width face at a size to read
+.license-text
+{
+	flex-direction: column;
+	margin-top: 6px;
+	padding: 12px 14px;
+	border-radius: $platform-radius;
+	background-color: rgba( 6, 12, 24, 0.6 );
+}
+
+.license-chunk
+{
+	white-space: pre-wrap;
+	font-family: monospace;
+	font-size: 11.5px;
+	color: $platform-muted;
 }

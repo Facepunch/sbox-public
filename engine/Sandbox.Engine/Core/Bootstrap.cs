@@ -301,8 +301,8 @@ internal static class Bootstrap
 				var steamCommandLine = NativeEngine.Steam.SteamApps().GetCommandLine();
 				if ( !Application.IsHeadless && !string.IsNullOrEmpty( steamCommandLine ) )
 				{
-					CommandLine.CommandLineString = steamCommandLine;
-					CommandLine.Parse();
+					// Any web page or a friend's rich presence can set this, so only take what opening or joining a game needs
+					CommandLine.AddSwitches( steamCommandLine, "rungame", "webreferrer", "connect", "connect_lobby" );
 				}
 			}
 

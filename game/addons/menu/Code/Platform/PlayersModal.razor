@@ -1,0 +1,13 @@
+@using Sandbox;
+@using Sandbox.UI;
+@using MenuProject.Modals;
+@namespace MenuProject.Platform
+@inherits BaseModal
+
+@*
+    Everyone in the game with you, in a panel in the middle of the screen - the player list (PlayerList), with a way to
+    close it.
+*@
+<root>
+    <PlayerList OnClose=@( () => CloseModal( false ) ) />
+</root>

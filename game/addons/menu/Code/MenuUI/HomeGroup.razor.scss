@@ -1,5 +1,5 @@
 @import "/styles/_theme.scss";
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 HomeGroup
 {
@@ -20,21 +20,9 @@ HomeGroup .section-nav
 
 	.see-more
 	{
-		@include front-pill;
-		padding: 3px 9px;
-		cursor: pointer;
-		font-family: $front-font;
-		font-size: 10px;
-		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
-		color: $front-secondary;
+		@include platform-text-button( 30px, 12.5px, 15px );
+		padding: 0 12px;
 		flex-grow: 0;
-
-		&:hover
-		{
-			color: $front-heading;
-		}
 	}
 }
 
@@ -46,18 +34,16 @@ HomeGroup .section-head
 
 	.title
 	{
-		font-family: $front-font;
 		font-size: 20px;
 		font-weight: 700;
-		color: $front-heading;
+		color: $platform-text;
 	}
 
 	.description
 	{
-		font-family: $front-font;
 		font-size: 14px;
 		font-weight: 500;
-		color: $front-secondary;
+		color: $platform-muted;
 	}
 }
 

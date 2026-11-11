@@ -1,5 +1,5 @@
 @import "/styles/_theme.scss";
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 // Under the game bar, the chrome's gaps round it - the game's list down the left, full height, and its
 // Overview beside it, straight on the game
@@ -16,30 +16,12 @@ PauseHome
 	// Nothing to show, and why - an unpublished game, in the middle
 	> .notice
 	{
+		@include platform-empty;
 		flex-grow: 1;
-		flex-direction: column;
-		align-items: center;
 		justify-content: center;
-		gap: 4px;
 
-		i
+		.hint
 		{
-			font-size: 36px;
-			color: $front-secondary;
-			margin-bottom: 6px;
-		}
-
-		.notice-title
-		{
-			font-size: 15px;
-			font-weight: 700;
-			color: $front-heading;
-		}
-
-		.notice-text
-		{
-			font-size: 13px;
-			color: $front-secondary;
 			text-align: center;
 		}
 	}

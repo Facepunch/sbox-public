@@ -81,6 +81,8 @@ public class GameTags : ITagSet
 		return tagList.Any( Has );
 	}
 
+	public override bool HasAny( ITagSet other ) => other is TagSet tagSet ? tagSet.AnyHasIn( this ) : base.HasAny( other );
+
 	bool AddSingle( string tag )
 	{
 		if ( string.IsNullOrWhiteSpace( tag ) ) return false;

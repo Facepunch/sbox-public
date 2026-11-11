@@ -26,10 +26,7 @@ public sealed class ManagedBuilder : IContentBuilder
 	/// </summary>
 	internal static BuildReport Build( BuildRequest request, string compilers = null, CancellationToken token = default )
 	{
-		var compiler = new ResourceCompiler( Worker, Types, request.Mounts, compilers )
-		{
-			MaxWorkers = Math.Max( 1, request.MaxJobs ),
-		};
+		var compiler = new ResourceCompiler( Worker, Types, request.Mounts, compilers );
 		try { return ContentBuilder.Build( request, compiler, token ); }
 		finally { compiler.Finished(); }
 	}
@@ -53,7 +50,7 @@ public sealed class ManagedBuilder : IContentBuilder
 		};
 
 		// Incremental checks share workers, as successive editor builds do. Each fixture owns its pool.
-		fixture.Compiler ??= new ResourceCompiler( Worker, Types, request.Mounts, null ) { MaxWorkers = Math.Max( 1, MaxJobs ) };
+		fixture.Compiler ??= new ResourceCompiler( Worker, Types, request.Mounts, null );
 		var report = ContentBuilder.Build( request, fixture.Compiler, token );
 
 		var failed = new List<string>( report.Failed );

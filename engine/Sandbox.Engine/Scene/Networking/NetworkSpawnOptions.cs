@@ -3,6 +3,7 @@ namespace Sandbox;
 /// <summary>
 /// Configurable options when spawning a networked object.
 /// </summary>
+[Expose]
 public struct NetworkSpawnOptions()
 {
 	/// <summary>

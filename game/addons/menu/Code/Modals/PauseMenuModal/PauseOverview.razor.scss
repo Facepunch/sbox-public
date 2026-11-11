@@ -1,5 +1,5 @@
 @import "/styles/_theme.scss";
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 // The Game info page, in the body (PausePage) - across the top, what's new and its achievements at a
 // glance, a card each; the game's own buttons under them (GameActions). The game itself is down the
@@ -11,7 +11,7 @@ PauseOverview
 	flex-direction: column;
 	flex-grow: 1;
 	flex-shrink: 0;
-	font-family: $front-font;
+	font-family: $platform-font;
 
 	// Blocks side by side across the top, in the middle - a quarter of the row each, as tall as the
 	// taller of them
@@ -25,27 +25,19 @@ PauseOverview
 
 		> .latest, > .achievements
 		{
-			@include front-card;
-
-			position: relative;
-			flex-grow: 0;
+			@include platform-surface;
 			flex-shrink: 0;
+			overflow: hidden;
+			flex-grow: 0;
 			width: calc(25% - 12px);
 			min-width: 0;
 			padding: 16px;
-			box-shadow: 0 16px 40px rgba( 0, 0, 0, 0.55 );
 			cursor: pointer;
 			pointer-events: all;
-			transition: border-color 0.12s ease, background-image 0.12s ease, box-shadow 0.12s ease;
 
-			// Lifting a touch under the pointer to say it opens: its outline brighter, its slab a
-			// shade lighter, its shadow deeper
 			&:hover
 			{
 				sound-in: "ui.button.over";
-				border-color: rgba( 255, 255, 255, 0.2 );
-				background-image: linear-gradient( 180deg, rgba( 40, 44, 56, 0.97 ), rgba( 30, 34, 43, 0.98 ) );
-				box-shadow: 0 18px 44px rgba( 0, 0, 0, 0.65 );
 
 				.news-title
 				{
@@ -63,14 +55,13 @@ PauseOverview
 		// longest ("Under a minute"), so it doesn't grow and shrink as the minutes tick over. Nothing to open
 		> .playtime
 		{
-			@include front-card;
-
+			@include platform-surface;
 			flex-shrink: 0;
+			overflow: hidden;
 			min-width: 180px;
 			justify-content: center;
 			gap: 14px;
 			padding: 16px 24px 16px 18px;
-			box-shadow: 0 16px 40px rgba( 0, 0, 0, 0.55 );
 
 			.stat
 			{
@@ -80,7 +71,7 @@ PauseOverview
 
 			.eyebrow
 			{
-				@include front-eyebrow;
+				@include platform-section-label;
 			}
 
 			.stat-value
@@ -88,7 +79,7 @@ PauseOverview
 				font-size: 15px;
 				font-weight: 600;
 				font-variant-numeric: tabular-nums;
-				color: $front-body;
+				color: $platform-text;
 			}
 		}
 
@@ -176,7 +167,7 @@ PauseOverview
 
 	.section-label
 	{
-		@include front-section-label;
+		@include platform-section-label;
 	}
 
 	//
@@ -203,14 +194,14 @@ PauseOverview
 
 		.eyebrow
 		{
-			@include front-eyebrow;
+			@include platform-section-label;
 		}
 
 		.count
 		{
 			font-size: 13px;
 			font-weight: 600;
-			color: $front-body;
+			color: $platform-muted;
 			transition: color 0.1s ease;
 		}
 
@@ -240,7 +231,7 @@ PauseOverview
 			align-items: center;
 			justify-content: center;
 			border-radius: 6px;
-			border: 1px solid $front-border;
+			border: 1px solid $platform-hairline;
 			background-color: rgba( 255, 255, 255, 0.04 );
 			background-size: cover;
 			background-position: center;
@@ -260,7 +251,7 @@ PauseOverview
 				{
 					font-size: 12px;
 					font-weight: 600;
-					color: $front-body;
+					color: $platform-text;
 				}
 			}
 		}
@@ -335,7 +326,7 @@ PauseOverview
 		i
 		{
 			font-size: 14px;
-			color: $front-secondary;
+			color: $platform-muted;
 			transition: color 0.1s ease;
 		}
 
@@ -346,7 +337,7 @@ PauseOverview
 			min-width: 0;
 			font-size: 13px;
 			font-weight: 600;
-			color: $front-body;
+			color: $platform-text;
 			white-space: nowrap;
 			overflow: hidden;
 			text-overflow: ellipsis;

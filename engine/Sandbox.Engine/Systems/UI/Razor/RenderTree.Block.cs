@@ -198,13 +198,7 @@ public partial class PanelRenderTreeBuilder : Microsoft.AspNetCore.Components.Re
 				return true;
 			}
 
-			if ( Children != null )
-			{
-				foreach ( var child in Children.Where( x => x.DestroyUnseen() ).ToArray() )
-				{
-					Children.Remove( child );
-				}
-			}
+			Children?.RemoveAll( static x => x.DestroyUnseen() );
 
 			return false;
 		}

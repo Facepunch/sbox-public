@@ -224,22 +224,37 @@ internal sealed class StateMachineCanvas : CanvasWidget
 
 	private StateMachineNode.Conduit HitTransition( Vector2 local )
 	{
+		StateMachineNode.Conduit closest = null;
+		var closestDistance = 10f;
 		foreach ( var conduit in _node.Conduits )
 		{
 			if ( !TransitionLine( conduit, out var start, out var end ) )
 				continue;
 
-			if ( DistanceToSegment( local, ToCanvas( start ), ToCanvas( end ) ) < 10 )
+			var a = ToCanvas( start );
+			var b = ToCanvas( end );
+			var count = conduit.Transitions.Count();
+			if ( count > 1 && TransitionBadgeRect( a, b, count ).IsInside( local ) )
 				return conduit;
+
+			var distance = DistanceToSegment( local, a, b );
+			if ( distance < closestDistance )
+			{
+				closest = conduit;
+				closestDistance = distance;
+			}
 		}
 
-		return null;
+		return closest;
 	}
 
-	private void Select( object item )
+	internal void Select( object item )
 	{
 		if ( Equals( Selected, item ) )
+		{
+			Editor.RestorePrimarySelection();
 			return;
+		}
 
 		Selected = item;
 		NotifySelection();
@@ -736,7 +751,7 @@ internal sealed class StateMachineCanvas : CanvasWidget
 				(0, _, _) => DisplayInfo.ForType( typeof( EntryStateOverrideConditionsNode ) ).Description,
 				(1, _, _) => DisplayInfo.ForType( typeof( GlobalTransitionNode ) ).Description,
 				(_, not null, _) => DisplayInfo.ForType( typeof( StateMachineNode.State ) ).Description,
-				(_, _, not null) => DisplayInfo.ForType( typeof( StateMachineNode.Conduit ) ).Description,
+				(_, _, not null) => $"{hoverConduit.From} → {hoverConduit.To}\nTransition rules: {hoverConduit.Transitions.Count()}. Select to choose a rule; double-click to open their graph.",
 				_ => null
 			};
 			Cursor = hoverState is not null || hoverConduit is not null || hoverButton >= 0 ? CursorShape.Finger : CursorShape.Arrow;
@@ -1054,6 +1069,26 @@ internal sealed class StateMachineCanvas : CanvasWidget
 		var width = (live ? 4 : hovered ? 4.5f : 3) * Zoom;
 		PaintArrowLine( a, b, color, width, blocked: !hasTransitions );
 		PaintTransitionEndpoints( a, b, color, width );
+
+		var count = conduit.Transitions.Count();
+		if ( count > 1 )
+		{
+			var scale = MathF.Max( Zoom, 1f );
+			var badge = TransitionBadgeRect( a, b, count );
+			Paint.SetBrush( Theme.WindowBackground );
+			Paint.SetPen( color, scale );
+			Paint.DrawRect( badge, 6 * scale );
+			Paint.SetDefaultFont( 8 * scale, 600 );
+			Paint.DrawText( badge, count.ToString(), TextFlag.Center );
+		}
+	}
+
+	private Rect TransitionBadgeRect( Vector2 a, Vector2 b, int count )
+	{
+		var scale = MathF.Max( Zoom, 1f );
+		var size = new Vector2( Math.Max( 24, count.ToString().Length * 7 + 12 ), 20 ) * scale;
+		var center = (a + b) * 0.5f + (b - a).Normal * 24 * scale;
+		return new Rect( center - size * 0.5f, size );
 	}
 
 	private void PaintLiveGlobalTransition()

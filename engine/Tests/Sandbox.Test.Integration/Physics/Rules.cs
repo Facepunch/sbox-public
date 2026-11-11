@@ -3,6 +3,9 @@ using Sandbox.Physics;
 
 namespace PhysicsTests;
 
+/// <summary>
+/// Verifies collision rules for individual tags and combinations of tags.
+/// </summary>
 [TestClass]
 public class RulesTest
 {
@@ -105,6 +108,9 @@ public class RulesTest
 		Assert.AreEqual( result, rules.GetCollisionRule( left, right ) );
 	}
 
+	/// <summary>
+	/// A single tag selects exactly the runtime tags with the requested collision result.
+	/// </summary>
 	[TestMethod]
 	[DataRow( "player", CollisionRules.Result.Collide, "solid", "player" )]
 	[DataRow( "solid", CollisionRules.Result.Collide, "solid", "ragdoll", "player", "enemy" )]
@@ -115,25 +121,15 @@ public class RulesTest
 		StringToken tagToken = tag;
 		var set = rules.RuntimeTags
 			.Where( x => rules.GetCollisionRule( x, tagToken ) == result )
-			.Select( x => StringToken.GetValue( x.Value ) )
 			.ToHashSet();
 
-		foreach ( var other in set )
-		{
-			Console.WriteLine( other );
-		}
-
-		foreach ( var e in expected )
-		{
-			Assert.IsTrue( set.Contains( e ), $"Tag set doesn't include expected tag \"{e}\"." );
-		}
-
-		foreach ( var included in set )
-		{
-			Assert.IsTrue( expected.Contains( included ), $"Tag set includes unexpected tag \"{included}\"." );
-		}
+		// Tokens are case-insensitive; the reverse cache may retain another spelling.
+		CollectionAssert.AreEquivalent( expected.Select( value => (StringToken)value ).ToArray(), set.ToArray() );
 	}
 
+	/// <summary>
+	/// Combined tags select runtime tags using the strongest applicable collision rule.
+	/// </summary>
 	[TestMethod]
 	[DataRow( "enemy,player", CollisionRules.Result.Collide, "solid" )]
 	[DataRow( "player,trigger", CollisionRules.Result.Collide )]
@@ -154,22 +150,9 @@ public class RulesTest
 				}
 				return r == result;
 			} )
-			.Select( x => StringToken.GetValue( x.Value ) )
 			.ToHashSet();
 
-		foreach ( var other in set )
-		{
-			Console.WriteLine( other );
-		}
-
-		foreach ( var e in expected )
-		{
-			Assert.IsTrue( set.Contains( e ), $"Tag set doesn't include expected tag \"{e}\"." );
-		}
-
-		foreach ( var included in set )
-		{
-			Assert.IsTrue( expected.Contains( included ), $"Tag set includes unexpected tag \"{included}\"." );
-		}
+		// Tokens are case-insensitive; the reverse cache may retain another spelling.
+		CollectionAssert.AreEquivalent( expected.Select( value => (StringToken)value ).ToArray(), set.ToArray() );
 	}
 }

@@ -148,15 +148,22 @@ public static partial class PerformanceStats
 
 		_lastSecond = second;
 
-		var ls = new Block();
-		ls.FrameAvg = _history.Average( x => x.FrameAvg );
-		ls.FrameMin = _history.Min( x => x.FrameAvg );
-		ls.FrameMax = _history.Max( x => x.FrameAvg );
-		ls.ByteAlloc = _history.Sum( x => x.ByteAlloc );
-		ls.Gc0 = _history.Sum( x => x.Gc0 );
-		ls.Gc1 = _history.Sum( x => x.Gc1 );
-		ls.Gc2 = _history.Sum( x => x.Gc2 );
-		ls.GcPause = _history.Sum( x => x.GcPause );
+		var ls = new Block { FrameMin = float.MaxValue, FrameMax = float.MinValue };
+		float frameSum = 0;
+
+		foreach ( var b in _history )
+		{
+			frameSum += b.FrameAvg;
+			ls.FrameMin = Math.Min( ls.FrameMin, b.FrameAvg );
+			ls.FrameMax = Math.Max( ls.FrameMax, b.FrameAvg );
+			ls.ByteAlloc += b.ByteAlloc;
+			ls.Gc0 += b.Gc0;
+			ls.Gc1 += b.Gc1;
+			ls.Gc2 += b.Gc2;
+			ls.GcPause += b.GcPause;
+		}
+
+		ls.FrameAvg = frameSum / _history.Count;
 
 		LastSecond = ls;
 

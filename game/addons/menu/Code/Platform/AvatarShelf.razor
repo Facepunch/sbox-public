@@ -1,0 +1,825 @@
+@using System;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.UI;
+@using MenuProject.MenuUI.Front;
+@using MenuProject.AvatarEditor;
+@namespace MenuProject.Platform
+@page "/shelf/avatar"
+@inherits ShelfPage
+@implements IShelfPage
+
+@*
+    Your avatar, up out of the dock - in place of the avatar editor's scene.
+
+    The rest of it's in its partial files: Body (skin, eyes and colours), Shop (what's listed, buying and the
+    cart), Workshop, Search and Camera.
+*@
+<root>
+
+    <div class="stage">
+        <CitizenPreview @ref="Model" class="model" Outfit=@Draft.Container Interactive=@true PlayIntro=@false
+                        FieldOfView=@(26f) CameraDistance=@(150f) CameraHeight=@(32f) Yaw=@(0f) Studio=@true CameraSide=@(2f) Idle=@("avatar_menu") WheelZooms=@true GetsDizzy=@false />
+    </div>
+
+    <div class="slots">
+        @foreach ( var group in Groups )
+        {
+            <label class="group">@group.Title</label>
+
+            <div class="tiles">
+                @if ( group == Groups[0] )
+                {
+                    <div class="slot body @(BodyOpen ? "on" : "")" tooltip="Face"
+                         onclick=@( () => { if ( BodyOpen ) PickCategory( null ); else OpenBody(); } )>
+                        @if ( WornSkin is { } skin )
+                        {
+                            <div class="worn" style="background-image: url( @AvatarCatalog.IconOf( skin ) );"></div>
+                        }
+                        else
+                        {
+                            <i class="glyph">face</i>
+                        }
+                        <label class="what">Face</label>
+                    </div>
+                }
+
+                @foreach ( var category in CategoriesOf( group ) )
+                {
+                    var on = WornIn( category );
+                    var covers = Covers( category );
+
+                    <div class="slot @(Category == category ? "on" : "") @(on is null ? "bare" : "") @(Replacing.Any( x => covers.Contains( x.Category ) ) ? "replaced" : "") @(Hovered is not null && covers.Contains( Hovered.Category ) ? "incoming" : "")" tooltip="@(on?.Title ?? $"{category.Title} - nothing on")"
+                         onclick=@( () => PickCategory( Category == category ? null : category ) )>
+                        @if ( on is not null )
+                        {
+                            <div class="worn" style="background-image: url( @AvatarCatalog.IconOf( on ) );"></div>
+
+                            @if ( Draft.TintColor( on ) is { } slotTint )
+                            {
+                                <div class="tint" style="background-color: @slotTint.Hex;"></div>
+                            }
+                        }
+                        else if ( IsEyes( category ) )
+                        {
+                            <div class="iris" style="background-image: @Iris( Draft.EyeColor );"></div>
+                        }
+                        else if ( category.Icon is { } icon )
+                        {
+                            <Image class="glyph" Texture=@icon />
+                        }
+                        <label class="what">@category.Title</label>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="panel" @ref="PanelBox">
+
+        <PanelHead @ref="Head" Back=@(OnTabs ? null : (Action)GoBack) Search=@SearchHint
+                   OnSearch=@(OnTabs || Slot is not null ? (Action<string>)( ( string text ) => { Query = text; } ) : null)>
+            <Heading>
+                @if ( OnTabs )
+                {
+                    @foreach ( var (tab, icon, title) in Tabs )
+                    {
+                        <div class="tool kind tab @(On == tab ? "on" : "")" onclick=@( () => ShowTab( tab ) )>
+                            <i>@icon</i><label>@title</label>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="heading">
+                        <div class="tile">
+                            @if ( Slot?.Icon is { } slotIcon )
+                            {
+                                <Image class="glyph" Texture=@slotIcon />
+                            }
+                            else
+                            {
+                                <i>@HeadingIcon</i>
+                            }
+                        </div>
+                        <label class="title">@HeadingTitle</label>
+                    </div>
+                }
+            </Heading>
+            <Tools>
+
+                @if ( OnTabs && On == Tab.Workshop )
+                {
+                    <div class="tool kind @(WorkshopSort == "newest" ? "on" : "")" tooltip="Newest" onclick=@( () => SortWorkshop( "newest" ) )><i>schedule</i></div>
+                    <div class="tool kind @(WorkshopSort == "quality" ? "on" : "")" tooltip="Top voted" onclick=@( () => SortWorkshop( "quality" ) )><i>thumb_up</i></div>
+                    <div class="divider"></div>
+                }
+
+                @if ( Slot?.SubCategories?.Length > 1 )
+                {
+                    <div class="tool kind @(Kind is null ? "on" : "")" tooltip="All" onclick=@( () => Kind = null )>
+                        <i>apps</i>
+                    </div>
+
+                    @foreach ( var kind in Slot.SubCategories )
+                    {
+                        <div class="tool kind @(Kind == kind ? "on" : "")" tooltip="@kind.Title" onclick=@( () => Kind = kind )>
+                            @if ( kind.Icon is { } icon )
+                            {
+                                <Image class="glyph" Texture=@icon />
+                            }
+                            else
+                            {
+                                <i>label</i>
+                            }
+                        </div>
+                    }
+                }
+
+                @if ( OnTabs || (Slot is not null && Cart.Items.Count > 0) )
+                {
+                    @if ( Slot is not null )
+                    {
+                        <div class="divider"></div>
+                    }
+
+                    <div class="tool kind tab cart" onclick=@ShowCart tooltip="Your cart">
+                        <i>shopping_cart</i>
+                        @if ( Cart.Items.Count > 0 )
+                        {
+                            <div class="count"><label>@Cart.Items.Count</label></div>
+                            <label>@Cart.CartValue</label>
+                        }
+                    </div>
+                }
+            </Tools>
+        </PanelHead>
+
+        <div class="body">
+
+            <div class="items @(BandUp ? "picked" : "")" @ref="Items">
+
+                @* One view at a time - the cart, the body, a tab or a slot - keyed by which, so a new one's made afresh
+                   and rises in, and nothing of the last is left behind *@
+                <div class="view" @key=@ViewKey>
+
+                    @if ( CartOpen )
+                    {
+                        <div class="cart-rows">
+                            @foreach ( var group in Cart.Items.GroupBy( x => x.Id ) )
+                            {
+                                var definition = group.First();
+
+                                <div class="cart-row">
+                                    <div class="thumb">
+                                        <div class="glow" style="background-image: @definition.RarityGlow( 0.5f );"></div>
+                                        <div class="icon" style="background-image: url( @definition.BestIconUrl );"></div>
+                                    </div>
+
+                                    <div class="about">
+                                        <label class="name">@definition.Name</label>
+                                        <label class="what">@(definition.RarityGrade is not ItemRarity.None ? $"{definition.RarityGrade} · {definition.CategoryLabel}" : definition.CategoryLabel)</label>
+                                    </div>
+
+                                    <CartStepper class="stepper" Cart=@Cart Item=@definition />
+
+                                    <label class="cost">@(group.Select( x => x.Price ).Aggregate( ( a, b ) => a + b ))</label>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else if ( BodyOpen )
+                    {
+                        <div class="section"><i>face</i><label class="title">Skin</label></div>
+
+                        @foreach ( var group in SkinGroups )
+                        {
+                            <div class="grid">
+                                @foreach ( var skin in group )
+                                {
+                                    <div class="item skin @(Draft.IsWorn( skin ) ? "worn" : "")" tooltip="@skin.Title" onclick=@( () => Draft.SetSkin( skin ) )>
+                                        <div class="icon" style="background-image: url( @AvatarCatalog.IconOf( skin ) );"></div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    }
+                    else if ( OnTabs && On == Tab.Workshop )
+                    {
+                        <div class="note">
+                            <i>how_to_vote</i>
+                            <label>Vote for the community items you'd like to see added into the game</label>
+                        </div>
+
+                        @if ( WorkshopItems is { Count: > 0 } packages )
+                        {
+                            <div class="grid">
+                                @foreach ( var package in packages )
+                                {
+                                    var added = AvatarCatalog.AddedFrom( package ) is not null;
+
+                                    <div class="item workshop @(Picked == package ? "picked" : "") @(added ? "added" : "") @VoteClass( package )" tooltip="@package.Title" onclick=@( () => PickPackage( package ) )>
+                                        <div class="icon" style="background-image: url( @package.Thumb );"></div>
+
+                                        @if ( Picked == package && Previewing )
+                                        {
+                                            <div class="loading"><Spinner /></div>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        @if ( IsEyes( Category ) )
+                        {
+                            <div class="section"><i>visibility</i><label class="title">Eye colour</label></div>
+
+                            <div class="grid">
+                                @foreach ( var shade in EyeShades )
+                                {
+                                    var on = MathF.Abs( Draft.EyeColor - shade ) < 0.5f / EyeShades.Length;
+
+                                    <div class="item eye @(on ? "worn" : "")" onclick=@( () => Draft.EyeColor = shade )>
+                                        <div class="iris" style="background-image: @Iris( shade );"></div>
+                                    </div>
+                                }
+                            </div>
+
+                            <div class="settings">
+                                <div class="setting">
+                                    <label class="name">Fine tune</label>
+                                    <ColorSwatchPicker Gradient=@Dresser.EyeColorGradient Value:bind=@Draft.EyeColor />
+                                </div>
+                            </div>
+                        }
+
+                        @if ( Category is not null && Tintable( Category ) is { Count: > 0 } slotTints )
+                        {
+                            <div class="section"><i>palette</i><label class="title">Colour</label></div>
+
+                            <div class="settings">
+                                @foreach ( var tint in slotTints )
+                                {
+                                    <div class="setting">
+                                        <label class="name">@tint.Clothing.Title</label>
+                                        <ColorSwatchPicker Gradient=@tint.Clothing.TintSelection Value:bind=@tint.Value />
+                                    </div>
+                                }
+                            </div>
+                        }
+
+                        @foreach ( var section in Sections )
+                        {
+                            <div class="section">
+                                <i>@section.Icon</i>
+                                <label class="title">@section.Title</label>
+                            </div>
+
+                            <div class="grid @(section.Wide ? "wide" : "")">
+                                @foreach ( var item in section.Items )
+                                {
+                                    @if ( section.Shop )
+                                    {
+                                        var definition = AvatarCatalog.Definition( item );
+                                        var owned = AvatarCatalog.OwnedCount( item );
+                                        var carted = definition is null ? 0 : Cart.Count( definition );
+
+                                        <div class="item @(owned > 0 ? "owned" : "locked") @(carted > 0 ? "carted" : "") @(Viewing == item ? "picked" : "") @(Replacing.Contains( item ) ? "replaced" : "")" tooltip="@TileTip( item )"
+                                             onclick=@( () => OpenItem( item ) ) onmouseover=@( () => Hover( item ) ) onmouseout=@( () => Unhover( item ) )>
+                                            <div class="icon" style="background-image: url( @AvatarCatalog.IconOf( item ) );"></div>
+
+                                            @if ( TimeLeft( definition ) is { } left )
+                                            {
+                                                <div class="limited @(definition.IsLeavingSoon ? "soon" : "")" tooltip="@definition.LeavingText"><i>schedule</i><label>@left</label></div>
+                                            }
+
+                                            @* Always priced - the catalog only has the shop's while they're for sale. *@
+                                            @if ( definition is not null )
+                                            {
+                                                @if ( carted > 0 )
+                                                {
+                                                    <div class="price carted" tooltip="@(carted > 1 ? $"{carted} in your cart" : "In your cart")"><i>shopping_cart</i><label>@definition.Price</label>@if ( carted > 1 ) { <label class="times">×@carted</label> }</div>
+                                                }
+                                                else
+                                                {
+                                                    <div class="price">@if ( owned == 0 ) { <i>lock</i> }<label>@definition.Price</label></div>
+                                                }
+                                            }
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="item @(Draft.IsWorn( item ) ? "worn" : "") @(Replacing.Contains( item ) ? "replaced" : "")" tooltip="@TileTip( item )"
+                                             onclick=@( () => Toggle( item ) ) onmouseover=@( () => Hover( item ) ) onmouseout=@( () => Unhover( item ) )>
+                                            <div class="icon" style="background-image: url( @AvatarCatalog.IconOf( item ) );"></div>
+
+                                            @if ( Draft.TintColor( item ) is { } itemTint )
+                                            {
+                                                <div class="tint" tooltip="Colour picked" style="background-color: @itemTint.Hex;"></div>
+                                            }
+                                        </div>
+                                    }
+                                }
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+
+            @if ( Blank is { } blank )
+            {
+                <div class="blank" @key=@ViewKey>
+                    <div class="glyph">
+                        @if ( !CartOpen && Category?.Icon is { } texture )
+                        {
+                            <Image class="texture" Texture=@texture />
+                        }
+                        else
+                        {
+                            <i>@blank.Icon</i>
+                        }
+                    </div>
+                    <label class="title">@blank.Title</label>
+                    <label class="hint">@blank.Hint</label>
+                    @if ( blank.Back is not null )
+                    {
+                        <div class="back" onclick=@blank.Back><i>@blank.BackIcon</i><label>@blank.BackLabel</label></div>
+                    }
+                </div>
+            }
+
+            @if ( CartOpen && Cart.Items.Count > 0 )
+            {
+                <div class="band">
+                    <div class="card total">
+                        <label class="items-count">@(Cart.Items.Count == 1 ? "1 item" : $"{Cart.Items.Count} items")</label>
+                        <div class="spacer"></div>
+                        <label class="sum">@Cart.CartValue</label>
+
+                        <div class="buy @(Cart.CheckingOut ? "disabled" : "")" onclick=@CheckOut>
+                            <i>shopping_cart_checkout</i>
+                            <label>@(Cart.CheckingOut ? "Checking out..." : "Check out")</label>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            @if ( !CartOpen && Picked is { } picked )
+            {
+                <div class="band">
+                    <div class="card workshop">
+                        <div class="thumb">
+                            <div class="icon" style="background-image: url( @picked.Thumb );"></div>
+                        </div>
+
+                        <div class="about">
+                            <label class="name">@picked.Title</label>
+
+                            <div class="chips">
+                                <div class="chip"><i>person</i><label>@(picked.Org?.Title ?? "Someone")</label></div>
+                                <div class="chip"><i>calendar_today</i><label>@picked.Created.ToString( "d MMM yyyy" )</label></div>
+                                @if ( AvatarCatalog.AddedFrom( picked ) is not null )
+                                {
+                                    <div class="chip added"><i>verified</i><label>Added to the game</label></div>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="votes">
+                            <div class="vote @(VotedUp( picked ) ? "on" : "")" onclick=@( () => Vote( picked, true ) ) tooltip="It should be in the shop">
+                                <i>thumb_up</i><label>@picked.VotesUp.KiloFormat()</label>
+                            </div>
+                            <div class="vote down @(VotedDown( picked ) ? "on" : "")" onclick=@( () => Vote( picked, false ) ) tooltip="Not for the shop">
+                                <i>thumb_down</i><label>@picked.VotesDown.KiloFormat()</label>
+                            </div>
+                            <div class="vote" onclick=@( () => Game.Overlay.ShowReviewModal( picked ) ) tooltip="Write a review">
+                                <i>rate_review</i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            @* Rises in when one's first picked; picking another fades its card across. *@
+            @if ( !CartOpen && Viewing is { } viewing )
+            {
+                var definition = AvatarCatalog.Definition( viewing );
+
+                <div class="band">
+                    <div class="card" @key=@viewing>
+                        <div class="thumb" style="@(definition is null ? "" : $"background-image: {definition.RarityGlow( 0.5f )};")">
+                            <div class="icon" style="background-image: url( @(definition?.BestIconUrl ?? AvatarCatalog.IconOf( viewing )) );"></div>
+                        </div>
+
+                        <div class="about">
+                            <label class="name">@viewing.Title</label>
+
+                            <div class="chips">
+                                <div class="chip"><i>sell</i><label>@(definition is { RarityGrade: not ItemRarity.None } ? $"{definition.RarityGrade} · {definition.CategoryLabel}" : definition?.CategoryLabel)</label></div>
+
+                                @if ( definition?.LeavingText is { } leaving )
+                                {
+                                    <div class="chip leaving @(definition.IsLeavingSoon ? "soon" : "")"><i>schedule</i><label>@leaving</label></div>
+                                }
+
+                                @if ( AvatarCatalog.OwnedCount( viewing ) is > 0 and var count )
+                                {
+                                    <div class="chip"><i>inventory_2</i><label>@(count > 1 ? $"You own {count}" : "You own it")</label></div>
+                                }
+
+                                @if ( definition is { IsOnSale: true } )
+                                {
+                                    <div class="chip sale"><i>percent</i><label>@($"{definition.DiscountPercent}% off")</label></div>
+                                }
+                            </div>
+
+                            @if ( !string.IsNullOrWhiteSpace( definition?.Description ) )
+                            {
+                                <label class="description">@definition.Description</label>
+                            }
+                        </div>
+
+                        @if ( definition is not null )
+                        {
+                            <div class="deal">
+                                <div class="buy @(Buying ? "disabled" : "")" onclick=@Buy>
+                                    <i>shopping_cart_checkout</i>
+                                    <label>@(Buying ? "Buying..." : $"Buy · {definition.Price}")</label>
+                                </div>
+
+                                @if ( Cart.Count( definition ) > 0 )
+                                {
+                                    <CartStepper class="qty" Cart=@Cart Item=@definition Labelled=@true />
+                                }
+                                else
+                                {
+                                    <div class="add" onclick=@( () => Cart.AddToCart( definition ) )>
+                                        <i>add_shopping_cart</i>
+                                        <label>Add to cart</label>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+        </div>
+
+    </div>
+
+    <div class="controls">
+        <div class="control"><Image Texture=@Input.Keyboard.GetGlyph( "mouse1" ) /><label>Turn</label></div>
+        <div class="control"><Image Texture=@Input.Keyboard.GetGlyph( "mwheelup" ) /><label>Zoom</label></div>
+        <div class="control"><Image Texture=@Input.Keyboard.GetGlyph( "mouse2" ) /><label>Pan</label></div>
+    </div>
+
+    <div class="actions">
+        <div class="button @(Draft.HasChanges ? "" : "off")" onclick=@Undo>
+            <i>undo</i>
+            <label>Undo changes</label>
+        </div>
+
+        <div class="button primary @SaveClass" onclick=@Save>
+            <i>check</i>
+            <label>Save</label>
+        </div>
+    </div>
+
+</root>
+
+@code
+{
+    /// <summary>
+    /// The outfit being made - kept while the page is put away and brought back up
+    /// </summary>
+    static AvatarDraft Draft => draft ??= new();
+    static AvatarDraft draft;
+
+    CitizenPreview Model;
+    Panel PanelBox;
+    PanelHead Head;
+    Panel Items;
+
+    record ClothingGroup( string Source, string Title );
+
+    /// <summary>
+    /// The avatar editor's own groups of categories - shared with the old menu's, read as they are
+    /// </summary>
+    static readonly ClothingGroup[] Groups =
+    [
+        new( "/scenes/avatar/face.clthgrp", "Face" ),
+        new( "/scenes/avatar/clothing.clthgrp", "Clothing" ),
+        new( "/scenes/avatar/accessories.clthgrp", "Accessories" ),
+    ];
+
+    static IEnumerable<AvatarClothingCategory.Category> CategoriesOf( ClothingGroup group ) =>
+        ResourceLibrary.Get<AvatarClothingCategory>( group.Source )?.Categories ?? [];
+
+    static HashSet<Clothing.ClothingCategory> Covers( AvatarClothingCategory.Category category ) =>
+        (category?.SubCategories ?? []).SelectMany( x => x.Categories ?? [] ).ToHashSet();
+
+    static Clothing WornIn( AvatarClothingCategory.Category category )
+    {
+        var covers = Covers( category );
+        return AvatarCatalog.All.FirstOrDefault( x => covers.Contains( x.Category ) && Draft.IsWorn( x ) );
+    }
+
+    AvatarClothingCategory.Category Category;
+    AvatarClothingCategory.SubCategory Kind;
+
+    enum Tab { Shop, Inventory, Workshop }
+
+    static readonly (Tab Tab, string Icon, string Title)[] Tabs =
+    [
+        (Tab.Shop, "storefront", "Shop"),
+        (Tab.Inventory, "inventory_2", "Inventory"),
+        (Tab.Workshop, "cloud", "Workshop"),
+    ];
+
+    Tab On;
+
+    void ShowTab( Tab tab )
+    {
+        On = tab;
+        PickCategory( null );
+
+        if ( tab == Tab.Workshop )
+        {
+            workshopQuery = "";
+            _ = LoadWorkshop();
+        }
+    }
+
+    bool OnTabs => !CartOpen && !BodyOpen && Category is null;
+
+    AvatarClothingCategory.Category Slot => CartOpen || BodyOpen ? null : Category;
+
+    string HeadingIcon => CartOpen ? "shopping_cart" : BodyOpen ? "face" : "checkroom";
+    string HeadingTitle => CartOpen ? "Cart" : BodyOpen ? "Face" : Slot?.Title;
+
+    void GoBack()
+    {
+        if ( CartOpen ) CloseCart();
+        else PickCategory( null );
+    }
+
+    void PickCategory( AvatarClothingCategory.Category category )
+    {
+        Category = category;
+        Kind = null;
+        CartOpen = false;
+        BodyOpen = false;
+        Head?.CloseSearch();
+        Query = null;
+
+        PutDown();
+        ScrollToTop();
+    }
+
+    /// <summary>
+    /// The item under the pointer - tried on (unless one's picked to look at, which keeps the preview), and what it'd
+    /// take off marked, in the grid and on your outfit's slots
+    /// </summary>
+    Clothing Hovered;
+
+    /// <summary>
+    /// What putting <see cref="Hovered"/> on would take off
+    /// </summary>
+    List<Clothing> Replacing => TakesOff( Hovered );
+
+    /// <summary>
+    /// What putting <paramref name="item"/> on would take off from your other slots - a swap in its own slot (one beard
+    /// for another) goes without saying
+    /// </summary>
+    static List<Clothing> TakesOff( Clothing item )
+    {
+        if ( item is null ) return [];
+
+        var own = Groups.SelectMany( CategoriesOf ).Select( Covers ).FirstOrDefault( x => x.Contains( item.Category ) );
+        return Draft.Replaces( item ).Where( x => own is null ? x.Category != item.Category : !own.Contains( x.Category ) ).ToList();
+    }
+
+    void Hover( Clothing item )
+    {
+        if ( Hovered == item ) return;
+
+        Hovered = item;
+        if ( Viewing is null && Picked is null && !Draft.IsWorn( item ) )
+            Draft.Preview( item );
+    }
+
+    void Unhover( Clothing item )
+    {
+        if ( Hovered != item ) return;
+
+        Hovered = null;
+        if ( Viewing is null && Picked is null )
+            Draft.Preview( null );
+    }
+
+    /// <summary>
+    /// Its name - and what it'd take off, if anything
+    /// </summary>
+    string TileTip( Clothing item )
+    {
+        var replaces = TakesOff( item );
+        return replaces.Count == 0 ? item.Title : $"{item.Title} - takes off {string.Join( ", ", replaces.Select( x => x.Title ) )}";
+    }
+
+    void PutDown()
+    {
+        Viewing = null;
+        Picked = null;
+        Hovered = null;
+        Draft.Preview( null );
+        FrameOn( Category );
+    }
+
+    void ScrollToTop()
+    {
+        if ( Items.IsValid() )
+            Items.ScrollOffset = Vector2.Zero;
+    }
+
+    bool BandUp => Viewing is not null || Picked is not null || (CartOpen && Cart.Items.Count > 0);
+
+    string ViewKey => CartOpen ? "cart" : BodyOpen ? "body" : $"{On}/{WorkshopSort}/{Category?.Title}/{Kind?.Title}";
+
+    record BlankPage( string Icon, string Title, string Hint, Action Back, string BackLabel, string BackIcon = "storefront" );
+
+    BlankPage NothingCalled => new( "search_off", $"Nothing called \"{Query.Trim()}\"", "Try another word, or fewer of them", CloseSearch, "Clear search", "close" );
+
+    BlankPage Blank
+    {
+        get
+        {
+            if ( CartOpen )
+                return Cart.Items.Count > 0 ? null : new( "shopping_cart", "Your cart is empty", "Add things from the shop to buy them all at once", CloseCart, "Back to the shop" );
+
+            if ( BodyOpen ) return null;
+
+            if ( Category is { } category )
+            {
+                if ( HasQuery && !Sections.Any() ) return NothingCalled;
+                if ( Sections.Any() || IsEyes( category ) || Tintable( category ).Count > 0 ) return null;
+
+                return new( "checkroom", $"No {category.Title?.ToLowerInvariant()} yet", "None of your own, and none in the shop right now", () => PickCategory( null ), "Back to the shop" );
+            }
+
+            if ( On == Tab.Workshop )
+            {
+                if ( HasQuery && WorkshopItems is { Count: 0 } ) return NothingCalled;
+                if ( WorkshopItems is null ) return new( "cloud_download", "Loading the Workshop", "What the community's made, to try on and vote for", null, null );
+
+                return WorkshopItems.Count > 0 ? null : new( "cloud_off", "Nothing on the Workshop", "Nothing came back - try again in a bit", null, null );
+            }
+
+            if ( HasQuery && !Sections.Any() ) return NothingCalled;
+            if ( Sections.Any() ) return null;
+
+            if ( On == Tab.Inventory )
+                return new( "inventory_2", "Nothing bought yet", "What you buy from the shop ends up here", () => ShowTab( Tab.Shop ), "Browse the shop" );
+
+            return new( "storefront", "Nothing in the shop right now", "New things come in all the time - check back soon", null, null );
+        }
+    }
+
+    bool IShelfPage.ToDock => true;
+
+    void IShelfPage.OnShelfShown()
+    {
+        if ( !Draft.HasChanges )
+            Draft.Load();
+
+        ShowTab( Tab.Shop );
+    }
+
+    public bool BackOut()
+    {
+        if ( Searching )
+        {
+            CloseSearch();
+            return true;
+        }
+
+        if ( CartOpen )
+        {
+            CloseCart();
+            return true;
+        }
+
+        if ( Viewing is not null || Picked is not null )
+        {
+            PutDown();
+            return true;
+        }
+
+        if ( Category is null && !BodyOpen ) return false;
+
+        PickCategory( null );
+        return true;
+    }
+
+    void Toggle( Clothing item ) => Draft.Toggle( item );
+
+    void Undo() => Draft.Revert();
+
+    /// <summary>
+    /// Just saved - the button flashes for it, rather than anything saying so
+    /// </summary>
+    RealTimeSince sinceSaved = 100;
+
+    bool JustSaved => sinceSaved < 0.9f;
+
+    string SaveClass => JustSaved ? "saved" : Draft.HasChanges && !Draft.Saving ? "" : "off";
+
+    void Save()
+    {
+        if ( !Draft.HasChanges || Draft.Saving ) return;
+
+        sinceSaved = 0;
+        _ = Draft.Save();
+    }
+
+    int worn = -1;
+    bool framed;
+
+    readonly ScrollFade itemsFade = new( 32 );
+
+    protected override void TickShown()
+    {
+        if ( !framed && Model.IsValid() )
+        {
+            framed = true;
+            FrameOn( Category );
+        }
+
+        if ( worn != Draft.Version && Model.IsValid() )
+        {
+            worn = Draft.Version;
+            Model.Wear( Draft.Shown, Draft.Container );
+        }
+
+        TickSearch();
+        TickBought();
+        itemsFade.Apply( Items );
+
+        // On down into the dock, fading off as Multiplayer's does - not under a card, which sits at its bottom
+        SizeItems();
+    }
+
+    const float ItemMin = 104;
+    const float WideMin = 150;
+    const float WideAspect = 0.75f;
+    const float ItemGap = 8;
+
+    /// <summary>
+    /// The grids in the view (.view) - as many items across as fit at their least, stretched so a row fills the panel
+    /// edge to edge - square, or for a wide row (Limited), wider than tall
+    /// </summary>
+    void SizeItems()
+    {
+        if ( !Items.IsValid() ) return;
+
+        // By index - it's every frame, and walking Children allocates
+        for ( var s = 0; s < Items.ChildrenCount; s++ )
+        {
+            if ( Items.GetChild( s ) is not { } section ) continue;
+
+            for ( var g = 0; g < section.ChildrenCount; g++ )
+            {
+                if ( section.GetChild( g ) is { } grid && grid.HasClass( "grid" ) ) SizeGrid( grid );
+            }
+        }
+    }
+
+    void SizeGrid( Panel grid )
+    {
+        var width = grid.Box.Rect.Width * ScaleFromScreen;
+        if ( width <= 0 ) return;
+
+        var wide = grid.HasClass( "wide" );
+        var least = wide ? WideMin : ItemMin;
+
+        var columns = Math.Max( 1, (int)(width / (least + ItemGap)) );
+
+        // The grid's a gap wider than the list (its stylesheet), for the gap the layout counts after the last in a
+        // row - so a row with that gap after it fills it, and the tiles reach the list's edge
+        var size = MathF.Floor( (width - ItemGap * columns) / columns );
+        var height = wide ? MathF.Floor( size * WideAspect ) : size;
+
+        for ( var i = 0; i < grid.ChildrenCount; i++ )
+        {
+            if ( grid.GetChild( i ) is not { } item ) continue;
+            if ( item.Style.Width?.Value == size && item.Style.Height?.Value == height ) continue;
+
+            item.Style.Width = Length.Pixels( size );
+            item.Style.Height = Length.Pixels( height );
+        }
+    }
+
+    protected override int ShownHash() => HashCode.Combine( Category, Kind, Draft.Version, Draft.HasChanges, Draft.Saving, JustSaved, HashCode.Combine( Viewing, Buying, Sandbox.Services.Inventory.Definitions.Count, Minute, Sandbox.Services.Inventory.Items.Count, Hovered ), HashCode.Combine( CartOpen, Cart.Items.Count, Cart.CheckingOut, BodyOpen, On, HashCode.Combine( Picked, Previewing, votes, WorkshopKey, WorkshopItems?.Count ?? -1, Searching, Query ) ) );
+}

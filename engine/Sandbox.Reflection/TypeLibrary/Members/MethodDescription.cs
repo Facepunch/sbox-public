@@ -124,11 +124,10 @@ public sealed partial class MethodDescription : MemberDescription
 	/// Creates a delegate bound to this method.
 	/// </summary>
 	/// <typeparam name="T">Delegate type</typeparam>
-	public T CreateDelegate<T>()
-		where T : Delegate
+	public T CreateDelegate<T>() where T : Delegate
 	{
 		ValidateDelegateSignature( typeof( T ), methodInfo );
-		return (T)Delegate.CreateDelegate( typeof( T ), methodInfo, true );
+		return methodInfo.CreateDelegate<T>();
 	}
 
 	/// <summary>
@@ -136,11 +135,10 @@ public sealed partial class MethodDescription : MemberDescription
 	/// </summary>
 	/// <typeparam name="T">Delegate type</typeparam>
 	/// <param name="target">Value for the first parameter / target object</param>
-	public T CreateDelegate<T>( object target )
-		where T : Delegate
+	public T CreateDelegate<T>( object target ) where T : Delegate
 	{
 		ValidateDelegateSignature( typeof( T ), methodInfo );
-		return (T)Delegate.CreateDelegate( typeof( T ), target, methodInfo, true );
+		return methodInfo.CreateDelegate<T>( target );
 	}
 
 	/// <summary>
@@ -150,7 +148,7 @@ public sealed partial class MethodDescription : MemberDescription
 	public Delegate CreateDelegate( Type delegateType )
 	{
 		ValidateDelegateSignature( delegateType, methodInfo );
-		return Delegate.CreateDelegate( delegateType, methodInfo, true );
+		return methodInfo.CreateDelegate( delegateType );
 	}
 
 	/// <summary>
@@ -161,7 +159,7 @@ public sealed partial class MethodDescription : MemberDescription
 	public Delegate CreateDelegate( Type delegateType, object target )
 	{
 		ValidateDelegateSignature( delegateType, methodInfo );
-		return Delegate.CreateDelegate( delegateType, target, methodInfo, true );
+		return methodInfo.CreateDelegate( delegateType, target );
 	}
 
 	// The runtime only matches T& types, so ref kinds and lifetime annotations must agree exactly.

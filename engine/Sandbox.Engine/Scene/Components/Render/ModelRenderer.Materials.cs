@@ -28,10 +28,17 @@ public partial class ModelRenderer : MaterialAccessor.ITarget
 	Dictionary<string, Material> taggedMaterialOverrides;
 
 	/// <summary>
+	/// Bumped when a tagged or per-index material override changes, so code mirroring this renderer's materials onto
+	/// another scene object (<see cref="CopyMaterialsTo"/>) knows to copy them again.
+	/// </summary>
+	internal int MaterialOverrideVersion { get; private set; }
+
+	/// <summary>
 	/// Completely stop overriding materials
 	/// </summary>
 	public void ClearMaterialOverrides()
 	{
+		MaterialOverrideVersion++;
 		taggedMaterialOverrides = null;
 		MaterialOverride = null;
 		_sceneObject?.ClearMaterialOverride();
@@ -46,6 +53,7 @@ public partial class ModelRenderer : MaterialAccessor.ITarget
 		if ( material is null && taggedMaterialOverrides is null )
 			return;
 
+		MaterialOverrideVersion++;
 		taggedMaterialOverrides ??= new Dictionary<string, Material>();
 
 		if ( material is null )
@@ -82,6 +90,32 @@ public partial class ModelRenderer : MaterialAccessor.ITarget
 	MaterialAccessor _materialAccessor;
 
 	/// <summary>
+	/// Apply the renderer's materials to an additional scene object, including clothing overrides.
+	/// </summary>
+	internal void CopyMaterialsTo( SceneObject target )
+	{
+		target.ClearMaterialOverride();
+		target.SetMaterialOverride( HasMaterialGroups ? null : MaterialOverride );
+		if ( HasMaterialGroups ) target.SetMaterialGroup( MaterialGroup );
+
+		if ( taggedMaterialOverrides is not null )
+		{
+			foreach ( var (tag, material) in taggedMaterialOverrides )
+				target.SetMaterialOverride( material, tag );
+		}
+
+		if ( _materialAccessor is not null )
+		{
+			for ( int i = 0; i < _materialAccessor.Count; i++ )
+			{
+				if ( _materialAccessor.GetOverride( i ) is { } material )
+					target.native.SetMaterialOverrideByIndex( i, material.native );
+			}
+		}
+		target.NotifyChanged( Rendering.SceneObjectChange.Material );
+	}
+
+	/// <summary>
 	/// Access to the materials 
 	/// </summary>
 	[Property, Group( "Materials", StartFolded = true )]
@@ -104,6 +138,7 @@ public partial class ModelRenderer : MaterialAccessor.ITarget
 
 	void MaterialAccessor.ITarget.SetOverride( int index, Material material )
 	{
+		MaterialOverrideVersion++;
 		if ( !_sceneObject.IsValid() ) return;
 
 		_sceneObject.native.SetMaterialOverrideByIndex( index, material?.native ?? default );
@@ -112,6 +147,7 @@ public partial class ModelRenderer : MaterialAccessor.ITarget
 
 	void MaterialAccessor.ITarget.ClearOverrides()
 	{
+		MaterialOverrideVersion++;
 		if ( !_sceneObject.IsValid() ) return;
 
 		_sceneObject.native.ClearMaterialOverrideList();

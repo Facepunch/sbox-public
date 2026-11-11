@@ -12,7 +12,18 @@ public partial class Scene : GameObject
 
 	internal List<SceneTraceResult> RunTraceAll( SceneTrace trace )
 	{
+		var results = new List<SceneTraceResult>();
+		RunTraceAll( trace, results );
+		return results;
+	}
+
+	/// <summary>
+	/// Run the trace into <paramref name="results"/>, which is cleared first, sorted by distance.
+	/// </summary>
+	internal void RunTraceAll( SceneTrace trace, List<SceneTraceResult> results )
+	{
 		SceneMetrics.RayTraceAll++;
+		results.Clear();
 
 		if ( trace.NeedsFilterCallback )
 		{
@@ -31,7 +42,7 @@ public partial class Scene : GameObject
 
 		// Sized up front. Physics hits are usually all of them, and growing from empty reallocates the backing
 		// array several times per trace.
-		var results = new List<SceneTraceResult>( physicsResults?.Count ?? 0 );
+		results.EnsureCapacity( physicsResults?.Count ?? 0 );
 
 		if ( physicsResults is not null )
 		{
@@ -67,7 +78,6 @@ public partial class Scene : GameObject
 
 		SceneTrace.ClearTraceFilter();
 		results.Sort( static ( a, b ) => a.Fraction.CompareTo( b.Fraction ) );
-		return results;
 	}
 
 	internal unsafe SceneTraceResult RunTrace( SceneTrace trace )
@@ -169,8 +179,8 @@ public partial struct SceneTrace
 	internal bool IncludeRenderMeshes;
 	internal int CullMode;
 	internal bool IncludePhysicsWorld;
-	internal ImmutableArray<GameObject> IgnoreSingleObject = ImmutableArray<GameObject>.Empty;
-	internal ImmutableArray<GameObject> IgnoreHierarchy = ImmutableArray<GameObject>.Empty;
+	internal GameObjectIgnoreList IgnoreSingleObject;
+	internal GameObjectIgnoreList IgnoreHierarchy;
 
 	internal SceneTrace( Scene scene )
 	{
@@ -617,13 +627,13 @@ public partial struct SceneTrace
 	/// Do not hit this object
 	/// </summary>
 	[ActionGraphInclude, Group( "Filters" )]
-	public readonly SceneTrace IgnoreGameObject( GameObject obj ) { var t = this; t.IgnoreSingleObject = t.IgnoreSingleObject.Add( obj ); return t; }
+	public readonly SceneTrace IgnoreGameObject( GameObject obj ) { var t = this; t.IgnoreSingleObject.Add( obj ); return t; }
 
 	/// <summary>
 	/// Do not hit this object
 	/// </summary>
 	[ActionGraphInclude, Group( "Filters" )]
-	public readonly SceneTrace IgnoreGameObjectHierarchy( GameObject obj ) { var t = this; t.IgnoreHierarchy = t.IgnoreHierarchy.Add( obj ); return t; }
+	public readonly SceneTrace IgnoreGameObjectHierarchy( GameObject obj ) { var t = this; t.IgnoreHierarchy.Add( obj ); return t; }
 
 
 	// TODO - IgnoreGameObject, IgnoreGameObjectHierarchy versions that take multiple objects
@@ -680,8 +690,8 @@ public partial struct SceneTrace
 	internal static readonly Func<PhysicsShape, bool> PhysicsFilterCallback = FilterCallbackPhysicsShape;
 	internal static readonly Func<SceneObject, bool> MeshFilterCallback = FilterCallbackSceneObject;
 
-	[ThreadStatic] static ImmutableArray<GameObject> _traceIgnoreSingle;
-	[ThreadStatic] static ImmutableArray<GameObject> _traceIgnoreHierarchy;
+	[ThreadStatic] static GameObjectIgnoreList _traceIgnoreSingle;
+	[ThreadStatic] static GameObjectIgnoreList _traceIgnoreHierarchy;
 
 	internal static void SetTraceFilter( in SceneTrace trace )
 	{
@@ -746,13 +756,53 @@ public partial struct SceneTrace
 		//
 		// Ignore anything under a hierarchy we're skipping
 		//
-		for ( int i = 0; i < _traceIgnoreHierarchy.Length; i++ )
+		return !_traceIgnoreHierarchy.ContainsAncestorOf( go );
+	}
+}
+
+/// <summary>
+/// The objects a trace ignores. Holds the first inline, since most traces ignore just one.
+/// </summary>
+internal struct GameObjectIgnoreList
+{
+	GameObject _first;
+	bool _hasFirst;
+	ImmutableArray<GameObject> _rest;
+
+	public readonly bool IsEmpty => !_hasFirst;
+
+	public void Add( GameObject obj )
+	{
+		if ( !_hasFirst )
 		{
-			if ( go.IsAncestor( _traceIgnoreHierarchy[i] ) )
-				return false;
+			_first = obj;
+			_hasFirst = true;
+			return;
 		}
 
-		return true;
+		_rest = (_rest.IsDefault ? ImmutableArray<GameObject>.Empty : _rest).Add( obj );
+	}
+
+	public readonly bool Contains( GameObject obj )
+	{
+		if ( !_hasFirst ) return false;
+		if ( _first == obj ) return true;
+		return !_rest.IsDefault && _rest.Contains( obj );
+	}
+
+	public readonly bool ContainsAncestorOf( GameObject go )
+	{
+		if ( !_hasFirst ) return false;
+		if ( go.IsAncestor( _first ) ) return true;
+		if ( _rest.IsDefault ) return false;
+
+		for ( int i = 0; i < _rest.Length; i++ )
+		{
+			if ( go.IsAncestor( _rest[i] ) )
+				return true;
+		}
+
+		return false;
 	}
 }
 

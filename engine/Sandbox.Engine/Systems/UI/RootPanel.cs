@@ -72,6 +72,11 @@ public partial class RootPanel : Panel
 	readonly UISystem system;
 
 	/// <summary>
+	/// Scratch stack for <see cref="Panel.TickInternal()"/>, empty outside of a tick.
+	/// </summary>
+	internal readonly List<Panel> TickStack = [];
+
+	/// <summary>
 	/// A root in the game's UI. This is the one addon code wants.
 	/// </summary>
 	public RootPanel() : this( GlobalContext.Current.UISystem )

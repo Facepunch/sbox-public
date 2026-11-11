@@ -6,7 +6,7 @@ namespace Sandbox.Animation;
 /// A compiled animation clip (.anim) - a compressed pose stream authored against a
 /// <see cref="Skeleton"/>.
 /// </summary>
-public sealed class Clip : Resource
+public sealed partial class Clip : Resource
 {
 	internal HAnimClip native;
 
@@ -20,24 +20,28 @@ public sealed class Clip : Resource
 	/// <summary>
 	/// Clip resource name.
 	/// </summary>
-	public string Name { get; }
+	public string Name => ResourcePath;
 
 	private Clip( HAnimClip native, string name )
 	{
 		this.native = native;
-		Name = name;
-
-		RegisterWeakResourceId( Name );
+		RegisterWeakResourceId( name, native.GetGuid() );
 	}
 
 	/// <summary>
 	/// Load an animation clip from the given file.
 	/// </summary>
-	public static Clip Load( string filename )
+	public static Clip Load( string filename ) => Load( (ResourceId)filename );
+
+	internal static Clip Load( ResourceId id )
 	{
 		ThreadSafe.AssertIsMainThread();
 
-		return FromNative( NativeGlue.Resources.GetAnimClip( filename ), filename );
+		if ( id.Guid is Guid guid && Game.Resources.TryGet<Clip>( guid, out var resource ) )
+			return resource;
+
+		var path = id.ResolvePath();
+		return FromNative( NativeGlue.Resources.GetAnimClip( path, id.Guid ?? Guid.Empty ), path );
 	}
 
 	/// <summary>
@@ -59,6 +63,7 @@ public sealed class Clip : Resource
 		{
 			// If we're using a cached one we don't need this handle, we'll leak
 			native.DestroyStrongHandle();
+			Game.Resources.RegisterWeak( clip );
 			return clip;
 		}
 
@@ -88,6 +93,7 @@ public sealed class Clip : Resource
 	internal override void OnReloaded()
 	{
 		_skeleton = default;
+		_events = default;
 		base.OnReloaded();
 	}
 
@@ -132,7 +138,7 @@ public sealed class Clip : Resource
 	/// <summary>
 	/// The skeleton this clip was authored against. Null if it failed to load.
 	/// </summary>
-	public Skeleton Skeleton => _skeleton ??= Skeleton.Load( SkeletonName );
+	public Skeleton Skeleton => _skeleton ??= Skeleton.FromNative( native.GetSkeleton(), SkeletonName );
 
 	/// <summary>
 	/// Whether the clip's skeleton has loaded. Sampling returns identity transforms until it has.

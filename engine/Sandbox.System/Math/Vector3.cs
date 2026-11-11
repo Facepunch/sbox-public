@@ -769,6 +769,12 @@ public partial struct Vector3 : System.IEquatable<Vector3>, IParsable<Vector3>, 
 		return $"{x:0.####},{y:0.####},{z:0.####}";
 	}
 
+	/// <summary>
+	/// Formats the vector using the specified numeric format and the current culture,
+	/// following <see cref="System.Numerics.Vector3.ToString(string)"/>.
+	/// </summary>
+	public readonly string ToString( string format ) => _vec.ToString( format );
+
 	/// <inheritdoc cref="Parse(string)" />
 	public static Vector3 Parse( string str, IFormatProvider provider )
 	{

@@ -20,20 +20,11 @@ public partial class SoundHandle : IValid, IDisposable
 	Transform _transform = Transform.Zero;
 
 	static SoundHandle _empty;
-	internal NativeReverbEffect _reverb;
 
 	/// <summary>Source room reverb estimate. Written by SoundSimulationSystem on the main thread.</summary>
 	internal ReverbSnapshot SourceRoom { get; set; }
 	internal int OcclusionPhase { get; set; } = -1;
 	internal int DiffractionTick;
-	internal RealTimeUntil ReverbTailUntil;
-	internal bool SamplerEnded;
-
-	internal NativeReverbEffect GetOrCreateReverb()
-	{
-		_reverb ??= new NativeReverbEffect();
-		return _reverb;
-	}
 
 	/// <summary>
 	/// RealTime that this sound was created
@@ -101,14 +92,36 @@ public partial class SoundHandle : IValid, IDisposable
 	public float SpacialBlend { get; set; } = 1.0f;
 
 	/// <summary>
-	/// How many units the sound can be heard from.
+	/// How many units the sound can be heard from. Past this it isn't considered at all.
 	/// </summary>
 	public float Distance { get; set; } = 15_000f;
 
 	/// <summary>
-	/// The falloff curve for the sound.
+	/// How the volume falls off with distance. Setting a custom <see cref="Falloff"/> curve switches this to <see cref="SoundFalloffMode.Curve"/>.
 	/// </summary>
-	public Curve Falloff { get; set; } = new Curve( new( 0, 1, 0, -1.8f ), new( 0.05f, 0.22f, 3.5f, -3.5f ), new( 0.2f, 0.04f, 0.16f, -0.16f ), new( 1, 0 ) );
+	public SoundFalloffMode FalloffMode { get; set; } = SoundFalloffMode.Physical;
+
+	/// <summary>
+	/// For <see cref="SoundFalloffMode.Physical"/>: the radius around the source at full volume, roughly the size of the source.
+	/// Beyond it the volume halves every time the distance doubles, so a bigger value also carries further.
+	/// 0 picks one from <see cref="Distance"/>, matching how sounds fell off before.
+	/// </summary>
+	public float MinDistance { get; set; }
+
+	Curve _falloff = Audio.SoundFalloff.ClassicCurve;
+
+	/// <summary>
+	/// The falloff curve for <see cref="SoundFalloffMode.Curve"/>, from the source (0) to <see cref="Distance"/> (1).
+	/// </summary>
+	public Curve Falloff
+	{
+		get => _falloff;
+		set
+		{
+			_falloff = value;
+			if ( !Audio.SoundFalloff.IsClassic( value ) ) FalloffMode = SoundFalloffMode.Curve;
+		}
+	}
 
 	/// <summary>
 	/// The fadeout curve for when the sound stops.
@@ -128,6 +141,14 @@ public partial class SoundHandle : IValid, IDisposable
 	/// Pitch of the sound.
 	/// </summary>
 	public float Pitch { get; set; } = 1.0f;
+
+	/// <summary>
+	/// How strongly the sound shifts in pitch when it and the listener move toward or away from each other (Doppler).
+	/// 1 is physical, 0 turns it off.
+	/// </summary>
+	public float DopplerScale { get; set; } = 1.0f;
+
+	VelocityTracker _motion;
 
 	/// <summary>
 	/// Whether the sound is currently playing or not.
@@ -583,12 +604,26 @@ public partial class SoundHandle : IValid, IDisposable
 			}
 		}
 
-		var reverb = isLocal ? null : GetOrCreateReverb();
+		// One pitch per voice, so the Doppler shift follows the first listener in the sound's scene. Not for streams (voice
+		// chat, video, music): they have to be read as fast as they arrive.
+		var pitch = Pitch;
+		if ( !isLocal && !IsVoice && SoundFile is not null )
+		{
+			_motion.Update( Position, RealTime.NowDouble );
+
+			// Not before the sound's speed is known: a new sound moving with the listener would start off pitch
+			foreach ( var listener in _motion.Known ? snap.Listeners : [] )
+			{
+				if ( listener.Scene != Scene ) continue;
+				pitch *= Audio.Doppler.Factor( Position, _motion.Velocity, listener.MixTransform.Position, listener.Listener.Motion.Velocity, DopplerScale );
+				break;
+			}
+		}
 
 		return new Audio.VoiceState
 		{
 			Sampler = sampler,
-			Pitch = Pitch,
+			Pitch = pitch,
 			Volume = Volume,
 			FadeVolume = fadeVolume,
 			IsFadingOut = IsFadingOut,
@@ -608,8 +643,8 @@ public partial class SoundHandle : IValid, IDisposable
 			HasLipSync = LipSync.Enabled,
 			LipSync = LipSync,
 			Handle = this,
-			Reverb = reverb,
-			ReverbRoom = ReverbEnabled && reverb is not null ? SourceRoom : default,
+			HasReverb = !isLocal,
+			ReverbRoom = ReverbEnabled && !isLocal ? SourceRoom : default,
 		};
 	}
 

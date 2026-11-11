@@ -16,6 +16,10 @@ namespace Sandbox;
 /// the caller or into later jobs. When a job throws, no more are claimed, every running job is joined, and the first
 /// exception is rethrown.
 /// </para>
+/// <para>
+/// Jobs run without a <see cref="SynchronizationContext"/> on every thread, the caller's included, and joining doesn't
+/// pump the caller's queue. A job must never wait on work queued to the main thread.
+/// </para>
 /// </summary>
 [SkipHotload]
 internal static class JobDispatcher
@@ -272,9 +276,15 @@ internal static class JobDispatcher
 			if ( handleTicket == 0 || Interlocked.CompareExchange( ref ticket, 0, handleTicket ) != handleTicket )
 				throw new InvalidOperationException( "This JobHandle has already been joined." );
 
+			// No sync context while joining, as on the workers: the main thread's would pump its queue mid-batch, and
+			// the runtime allocates a handle array for every blocking wait it forwards to it
+			var syncContext = SynchronizationContext.Current;
+
 			Exception thrown;
 			try
 			{
+				SynchronizationContext.SetSynchronizationContext( null );
+
 				// The caller's share runs in the batch's context, and Run puts the caller's own back, before any
 				// exception leaves it
 				ExecutionContext.Run( context, WorkIn, this );
@@ -292,7 +302,9 @@ internal static class JobDispatcher
 			}
 			finally
 			{
-				Release();
+				// Release takes the pool lock, so the context goes back after it
+				try { Release(); }
+				finally { SynchronizationContext.SetSynchronizationContext( syncContext ); }
 			}
 
 			if ( thrown is not null ) ExceptionDispatchInfo.Throw( thrown );

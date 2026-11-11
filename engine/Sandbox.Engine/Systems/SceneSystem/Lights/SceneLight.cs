@@ -263,11 +263,11 @@ public class SceneLight : SceneObject
 		if ( width < 1 || height < 1 )
 			return null;
 
-		// the loan is released immediately - the stable name means both same-frame calls
+		// the loan is released immediately - the stable id means both same-frame calls
 		// (CSM setup + the mask pass) resolve to the same cached RT and bindless index. Hold the
 		// loan for the frame if anything else ever starts requesting same-size temporaries by name.
 		using var rt = RenderTarget.GetTemporary( width, height, ImageFormat.A8, ImageFormat.None,
-			MultisampleAmount.MultisampleNone, 1, $"ShadowMask_{(nint)lightNative}_{cameraId}" );
+			MultisampleAmount.MultisampleNone, 1, "ShadowMask", HashCode.Combine( (nint)lightNative, cameraId ) );
 		return rt.ColorTarget;
 	}
 

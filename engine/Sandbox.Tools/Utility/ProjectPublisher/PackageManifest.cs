@@ -367,6 +367,13 @@ public partial class ProjectPublisher
 			if ( !CanPublishFile( asset ) )
 				return false;
 
+			// Uncompiled resources always ship their source, independently of IncludeSourceFiles.
+			if ( asset.AssetType.IsUncompiled )
+			{
+				await AddFile( asset.GetSourceFile( true ), asset.GetSourceFile( false ) );
+				return true;
+			}
+
 			await asset.CompileIfNeededAsync();
 
 			if ( IncludeSourceFiles )

@@ -27,6 +27,11 @@ internal static partial class Workshop
 		Updated,
 		Votes,
 		Subscriptions,
+
+		/// <summary>
+		/// The most played, all time - Steam counts the time it's been played for
+		/// </summary>
+		Playtime,
 	}
 
 	/// <summary>
@@ -48,6 +53,7 @@ internal static partial class Workshop
 		readonly HashSet<string> tags = new( StringComparer.OrdinalIgnoreCase );
 		readonly HashSet<string> excludedTags = new( StringComparer.OrdinalIgnoreCase );
 		SteamId author;
+		bool favourited;
 		SortOrder sort;
 		Source source;
 
@@ -95,6 +101,16 @@ internal static partial class Workshop
 			return this;
 		}
 
+		/// <summary>
+		/// Just what the user's favourited on the Workshop
+		/// </summary>
+		public Query WithFavourited()
+		{
+			author = Utility.Steam.SteamId;
+			favourited = true;
+			return this;
+		}
+
 		public Query WithSort( SortOrder sortOrder )
 		{
 			sort = sortOrder;
@@ -125,8 +141,18 @@ internal static partial class Workshop
 		/// </summary>
 		public async Task<QueryResult> RunAsync( CancellationToken token = default )
 		{
+			var words = search?.Split( ' ', StringSplitOptions.RemoveEmptyEntries ) ?? Array.Empty<string>();
+
 			if ( source == Source.Workshop )
-				return await QueryResult.RunAsync( ToRequest(), "*", token );
+			{
+				var result = await QueryResult.RunAsync( ToRequest(), "*", token );
+
+				// Steam doesn't search what someone published - all of it comes on the one page, searched here
+				if ( author != 0 && words.Length > 0 && result is not null )
+					return new QueryResult { Items = result.Items.Where( x => Matches( x, words ) ).ToArray(), TotalCount = result.TotalCount };
+
+				return result;
+			}
 
 			// Steam lists what's here, the Workshop says what they are - one it can't say anything about is just its
 			// id - and the rest of the query's worked out here
@@ -135,7 +161,6 @@ internal static partial class Workshop
 
 			var items = ids.Select( id => found.GetValueOrDefault( id ) ?? new Item { Id = id } );
 
-			var words = search?.Split( ' ', StringSplitOptions.RemoveEmptyEntries ) ?? Array.Empty<string>();
 			var matching = Order( items.Where( x => Matches( x, words ) ) ).ToArray();
 
 			return new QueryResult { Items = matching, TotalCount = matching.Length };
@@ -153,6 +178,7 @@ internal static partial class Workshop
 			TagsExcluded = excludedTags.ToArray(),
 			SearchText = search,
 			Author = (ulong)author,
+			UserList = favourited ? "favorited" : null,
 			RankTrendDays = 30,
 			SortOrder = (int)(sort switch
 			{
@@ -161,6 +187,7 @@ internal static partial class Workshop
 				SortOrder.Updated => Storage.SortOrder.RankedByLastUpdatedDate,
 				SortOrder.Votes => Storage.SortOrder.RankedByVotesUp,
 				SortOrder.Subscriptions => Storage.SortOrder.RankedByTotalUniqueSubscriptions,
+				SortOrder.Playtime => Storage.SortOrder.RankedByTotalPlaytime,
 				SortOrder.Popular => Storage.SortOrder.RankedByVote,
 				_ => search is null ? Storage.SortOrder.RankedByVote : Storage.SortOrder.RankedByTextSearch
 			})
@@ -174,16 +201,17 @@ internal static partial class Workshop
 			return (types.Count == 0 || types.Any( t => item.Tags.Contains( Tag( t ), StringComparer.OrdinalIgnoreCase ) ))
 				&& tags.All( t => item.Tags.Contains( t, StringComparer.OrdinalIgnoreCase ) )
 				&& !excludedTags.Any( t => item.Tags.Contains( t, StringComparer.OrdinalIgnoreCase ) )
-				&& (author == 0 || (item.Owner is { } owner && owner.Id == author))
+				&& (author == 0 || favourited || (item.Owner is { } owner && owner.Id == author))
 				&& words.All( w => item.Title?.Contains( w, StringComparison.OrdinalIgnoreCase ) ?? false );
 		}
 
 		/// <summary>
-		/// In this order - for what's on this machine. There's nothing to say what's trending, so that's the best rated.
+		/// In this order - for what's on this machine. There's nothing to say what's trending or most played, so those are
+		/// the best rated.
 		/// </summary>
 		IEnumerable<Item> Order( IEnumerable<Item> items ) => sort switch
 		{
-			SortOrder.Popular or SortOrder.Trending => items.OrderByDescending( x => x.Score ),
+			SortOrder.Popular or SortOrder.Trending or SortOrder.Playtime => items.OrderByDescending( x => x.Score ),
 			SortOrder.Votes => items.OrderByDescending( x => x.VotesUp ),
 			SortOrder.Newest => items.OrderByDescending( x => x.Created ),
 			SortOrder.Updated => items.OrderByDescending( x => x.Updated ),
@@ -286,11 +314,17 @@ internal static partial class Workshop
 	const int DetailsCacheAge = 10 * 60;
 
 	/// <summary>
+	/// How old, in seconds, Steam's answer about an item can be and still count as current when deciding whether to
+	/// update it. Asking about a game that's about to be played with this too means Steam answers that check from its cache.
+	/// </summary>
+	internal const int UpdateCheckCacheAge = 60;
+
+	/// <summary>
 	/// Ask the Workshop about an item you know the id of. Null if there isn't one, or the Workshop can't be asked.
 	/// </summary>
-	internal static async Task<Item> FetchAsync( ulong id, CancellationToken token = default )
+	internal static async Task<Item> FetchAsync( ulong id, CancellationToken token = default, int maxCacheAge = DetailsCacheAge )
 	{
-		return (await FetchAsync( [id], token )).FirstOrDefault();
+		return (await FetchAsync( [id], token, maxCacheAge )).FirstOrDefault();
 	}
 
 	/// <summary>

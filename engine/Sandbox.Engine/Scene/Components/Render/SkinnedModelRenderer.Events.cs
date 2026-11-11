@@ -1,7 +1,17 @@
-﻿namespace Sandbox;
+﻿using Sandbox.Animation;
+
+namespace Sandbox;
 
 public sealed partial class SkinnedModelRenderer
 {
+	internal void DispatchAnimationEvent( AnimationEvent data )
+	{
+		if ( !this.IsValid() || !Active )
+			return;
+
+		data.Renderer = this;
+		GameObject.RunEvent<IAnimationEvent>( data.DispatchTo, FindMode.EnabledInSelf | FindMode.InAncestors );
+	}
 
 	/// <summary>
 	/// Called when a footstep event happens

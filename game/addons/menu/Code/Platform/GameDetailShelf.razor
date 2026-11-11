@@ -1,0 +1,491 @@
+@using System;
+@using System.Linq;
+@using System.Threading.Tasks;
+@using Sandbox;
+@using Sandbox.UI;
+@using MenuProject.Modals.PackageModalComponents;
+@namespace MenuProject.Platform
+@page "/shelf/game/{Ident}"
+@inherits ShelfPage
+@implements IShelfPage
+
+@*
+    A game's page, up out of the dock in place of the game modal - a panel the shelf's full height, running down into
+    the dock, laid out as Steam's store page is: the gallery beside its capsule and facts, a strip with how it's played
+    and the way in, then what it says about itself beside you and it.
+*@
+<root>
+
+    <div class="panel" @ref="PanelBox">
+        <PanelHead Back=@Back>
+            <Heading>
+                <div class="heading">
+                    <div class="tile" style="@MenuHelpers.BackgroundImage( Thumb )">
+                        @if ( string.IsNullOrEmpty( Thumb ) )
+                        {
+                            <i>sports_esports</i>
+                        }
+                    </div>
+                    <label class="title @(Page is null ? "" : "parent")" onclick=@( () => ShowPage( null ) )>@Title</label>
+                    @if ( Page is not null )
+                    {
+                        <label class="sep">/</label>
+                        <label class="here">@(Page == "achievements" ? "Achievements" : "Changes")</label>
+                    }
+                </div>
+            </Heading>
+            <Tools>
+                @if ( !PageLoading && Package is not null )
+                {
+                    <PackageReactions Package=@Package ShowReviews=@false OnWorkshop=@OnWorkshop Workshop=@WorkshopItem OnHidden=@Back />
+                }
+
+                @if ( OnWorkshop && WorkshopId != 0 )
+                {
+                    <div class="tool" onclick=@( () => MenuUtility.OpenUrl( $"steam://url/CommunityFilePage/{WorkshopId}" ) ) tooltip="Open on the Workshop"><i>open_in_new</i></div>
+                }
+            </Tools>
+        </PanelHead>
+
+        <div class="body" @ref="Body">
+            @if ( Package is null )
+            {
+                <div class="status"><Spinner /></div>
+            }
+            else if ( Page == "achievements" )
+            {
+                <div class="page" @key=@("achievements")>
+                    <AchievementList Package=@Package />
+                </div>
+            }
+            else if ( Page == "changes" )
+            {
+                <div class="page" @key=@("changes")>
+                    <PackageChanges Package=@Package WorkshopId=@(OnWorkshop ? WorkshopId : 0) />
+                </div>
+            }
+            else
+            {
+                <div class="overview" @key=@("overview")>
+                    <div class="hero">
+                        <div class="gallery">
+                            @if ( PageLoading )
+                            {
+                                <Media Package=@Package Loaded=@false />
+                            }
+                            else if ( OnWorkshop )
+                            {
+                                <Media Package=@Package Images=@(WorkshopItem?.Images ?? Array.Empty<string>()) YouTubeVideos=@WorkshopItem?.YouTubeVideos Loaded=@true />
+                            }
+                            else
+                            {
+                                <Media Package=@Package Loaded=@HasFullPackage Failed=@FetchFailed />
+                            }
+                        </div>
+
+                        <div class="info">
+                            <div class="capsule" style="@MenuHelpers.BackgroundImage( Thumb )"></div>
+
+                            <div class="title-block">
+                                @* Each a fixed height, its label in the middle of it - the font's own line is far taller than its letters *@
+                                <div class="line name-line @NameSize">
+                                    <label class="name" tooltip="@Title">@Title</label>
+                                </div>
+                            </div>
+
+                            @if ( !string.IsNullOrWhiteSpace( Package.Summary ) )
+                            {
+                                <label class="summary">@Package.Summary</label>
+                            }
+
+                            <div class="kv">
+                                <div class="kv-row">
+                                    <label class="k">Players</label>
+                                    <label class="v">@Package.Usage.Total.Users.ToMetric()</label>
+                                </div>
+                                @if ( Released is { } released )
+                                {
+                                    <div class="kv-row gap">
+                                        <label class="k">Release date</label>
+                                        <label class="v">@released.ToLocalTime().ToString( "d MMM, yyyy" )</label>
+                                    </div>
+                                }
+                                <div class="kv-row link" onclick=@( () => ShowPage( "changes" ) )>
+                                    <label class="k">Updated</label>
+                                    <label class="v link">@MenuHelpers.TimeAgo( WorkshopItem?.Updated ?? Package.Updated )</label>
+                                </div>
+                                @if ( Creator is { Length: > 0 } creator )
+                                {
+                                    <div class="kv-row gap">
+                                        <label class="k">Creator</label>
+                                        <label class="v link creator">@creator</label>
+                                        @if ( MenuHelpers.IsVerified( WorkshopItem ) )
+                                        {
+                                            <i class="verified" tooltip="Verified by Facepunch">verified</i>
+                                        }
+                                    </div>
+                                }
+                            </div>
+
+                            <div class="grow"></div>
+
+                            @if ( Tags.Any() )
+                            {
+                                <div class="tags">
+                                    @foreach ( var tag in Tags )
+                                    {
+                                        <div class="tag"><label>@tag</label></div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="play-strip @(ModeMismatch ? "mismatch" : "")">
+                        @if ( Modes is { IsUnknown: false } modes )
+                        {
+                            var fit = modes.FitFor( MenuProject.PlayerModes.PartySize );
+
+                            <div class="mode @(ModeMismatch ? "mismatch" : "")">
+                                <div class="mode-icon"><i>@modes.Icon</i></div>
+
+                                <div class="mode-text">
+                                    <label class="mode-title">@ModeTitle( modes )</label>
+
+                                    @if ( ModeDetail is { Length: > 0 } detail )
+                                    {
+                                        <label class="mode-hint">@detail</label>
+                                    }
+                                </div>
+
+                                @if ( MenuProject.PlayerModes.PartySize > 1 && fit.Fit != MenuProject.PlayerModes.FitKind.Unknown )
+                                {
+                                    <div class="mode-fit" tooltip="@(fit.Why ?? "Your party can play this")">
+                                        <i>@(fit.Fit == MenuProject.PlayerModes.FitKind.Good ? "groups" : "group_off")</i>
+                                    </div>
+                                }
+                            </div>
+                        }
+
+                        <div class="grow"></div>
+
+                        @* Its buttons together, the one gap between them *@
+                        <div class="strip-actions">
+                            @if ( WorkshopId != 0 )
+                            {
+                                <div class="action subscribe @(Subscribed ? "on" : "")" onclick=@ToggleSubscribed tooltip="@(Subscribed ? "Unsubscribe" : "Kept installed and up to date")">
+                                    <i>@(Subscribed ? "check" : "add")</i>
+                                    <label>@(Subscribed ? "Subscribed" : "Subscribe")</label>
+                                </div>
+                            }
+
+                            @if ( !IsCurrent )
+                            {
+                                <div class="action primary" onclick=@Switch>
+                                    <i>@(Downloaded ? "check" : "download")</i>
+                                    <label>@(Downloaded ? "Select" : "Download")</label>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="action selected">
+                                    <i>check</i>
+                                    <label>Selected</label>
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    @if ( !PageLoading )
+                    {
+                        <div class="lower">
+                            <div class="main">
+                                <PackageAbout Package=@Package Workshop=@WorkshopItem />
+                            </div>
+
+                            <div class="side">
+                                <div class="block">
+                                    <label class="block-title">Your time</label>
+                                    <div class="record">
+                                        <div class="stat">
+                                            <label class="value @(Package.Interaction.Used ? "" : "none")">@(Package.Interaction.Used ? MenuHelpers.PlayTime( TimeSpan.FromSeconds( Package.Interaction.Seconds ) ) : "Never")</label>
+                                            <label class="caption">Played</label>
+                                        </div>
+                                        <div class="stat">
+                                            <label class="value @(Package.Interaction.FirstUsed is null ? "none" : "")">@(Package.Interaction.FirstUsed is { } first ? first.ToLocalTime().ToString( "d MMM yyyy" ) : "–")</label>
+                                            <label class="caption">First played</label>
+                                        </div>
+                                        <div class="stat">
+                                            <label class="value @(Package.Interaction.LastUsed is null ? "none" : "")">@(Package.Interaction.LastUsed is { } last ? MenuHelpers.TimeAgo( last ) : "–")</label>
+                                            <label class="caption">Last played</label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                @if ( HasAchievements )
+                                {
+                                    <div class="block link achievements-link" onclick=@( () => ShowPage( "achievements" ) ) tooltip="See all achievements">
+                                        <PackageAchievementSummary Package=@Package Header=@true />
+                                    </div>
+                                }
+
+                                <div class="block link" onclick=@( () => ShowPage( "changes" ) )>
+                                    <div class="block-head">
+                                        <label class="block-title">@(LatestChange is { } change ? $"Update {change.Time.ToLocalTime():d MMM yyyy}" : "Update notes")</label>
+                                        <div class="grow"></div>
+                                        @if ( LatestChange is { } dated )
+                                        {
+                                            <label class="when">@MenuHelpers.TimeAgo( dated.Time.UtcDateTime )</label>
+                                        }
+                                        <i class="chevron">chevron_right</i>
+                                    </div>
+
+                                    @foreach ( var line in ChangeLines )
+                                    {
+                                        <label class="update-line">@line</label>
+                                    }
+                                </div>
+
+                                @if ( WorkshopItem is { Size: > 0 } sized )
+                                {
+                                    <label class="meta">@MenuHelpers.FormatSize( sized.Size )</label>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+
+</root>
+
+@code
+{
+    public string Ident { get; set; }
+
+    /// <summary>
+    /// The page of it it opens on - "changes" or "achievements" - from its url's query (PlatformShelf.Game), taken when
+    /// it's shown. Its overview without one.
+    /// </summary>
+    public string Show { get; set; }
+
+    bool IShelfPage.ToDock => true;
+    bool IShelfPage.ClicksThrough => true;
+
+    void IShelfPage.OnShelfShown() => Open();
+
+    Package Package;
+
+    MenuProject.Modals.GamePageLoad load;
+
+    bool HasFullPackage => load?.HasFullPackage ?? false;
+    bool FetchFailed => load?.FetchFailed ?? false;
+    WorkshopItemDetails WorkshopItem => load?.WorkshopItem;
+    ulong WorkshopId => load?.WorkshopId ?? 0;
+
+    string loadedIdent;
+    Panel Body;
+
+    WorkshopChangeNote? LatestChange;
+
+    IEnumerable<string> ChangeLines => (LatestChange?.Text ?? "")
+        .Split( '\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries )
+        .Select( x => System.Text.RegularExpressions.Regex.Replace( x, @"\[[^\]]*\]", "" ).TrimStart( '-', '*', '•', ' ' ).Trim() )
+        .Where( x => x.Length > 0 )
+        .Take( 3 );
+
+    /// <summary>
+    /// A page of it in the body's place - "achievements" or "changes" - or null for its overview
+    /// </summary>
+    string Page;
+
+    void ShowPage( string page )
+    {
+        if ( Page == page ) return;
+
+        Page = page;
+        if ( Body.IsValid() ) Body.ScrollOffset = Vector2.Zero;
+    }
+
+    internal bool BackPage()
+    {
+        if ( Page is null ) return false;
+
+        ShowPage( null );
+        return true;
+    }
+    Panel PanelBox;
+
+    bool OnWorkshop => load?.OnWorkshop ?? false;
+    bool PageLoading => load?.Loading ?? true;
+
+    string Title => WorkshopItem?.Title ?? Package?.Title ?? "";
+
+    string Thumb => WorkshopItem?.Thumb ?? Package?.Thumb;
+
+    /// <summary>
+    /// Its name a step smaller when it's long, so more of it fits on its one line - never smaller than that, cut short
+    /// past it
+    /// </summary>
+    string NameSize => Title.Length switch
+    {
+        > 30 => "longer",
+        > 18 => "long",
+        _ => ""
+    };
+
+    string Creator => !string.IsNullOrWhiteSpace( WorkshopItem?.OwnerName ) ? WorkshopItem.OwnerName : Package?.Org?.Title;
+
+    static readonly string[] WorkshopOwnTags = ["game", "map", "Singleplayer", "Multiplayer", "Co-op", "Versus"];
+
+    IEnumerable<string> Tags => (OnWorkshop
+            ? (WorkshopItem?.Tags ?? []).Where( x => !WorkshopOwnTags.Contains( x, StringComparer.OrdinalIgnoreCase ) )
+            : Package?.Tags ?? [])
+        .Where( x => !string.IsNullOrWhiteSpace( x ) )
+        .Select( x => char.ToUpperInvariant( x[0] ) + x[1..] )
+        .Distinct( StringComparer.OrdinalIgnoreCase )
+        .Take( 5 );
+
+    DateTimeOffset? Released => (WorkshopItem?.Created ?? Package?.Created) is { } released && released != default ? released : null;
+
+    MenuProject.PlayerModes? Modes => Package is null ? null : MenuProject.PlayerModes.For( Package, OnWorkshop ? WorkshopItem : null );
+
+    static string ModeTitle( MenuProject.PlayerModes modes ) => modes is { Solo: true, Coop: true, Versus: true } ? "#menu.home.multiplayer" : modes.Label;
+
+    bool ModeMismatch => Modes is { IsUnknown: false } modes && modes.FitFor( MenuProject.PlayerModes.PartySize ).Fit == MenuProject.PlayerModes.FitKind.Poor;
+
+    /// <summary>
+    /// Nothing for a singleplayer game, which its title says all of.
+    /// </summary>
+    string ModeDetail
+    {
+        get
+        {
+            if ( Modes is not { Multiplayer: true } modes ) return null;
+
+            var max = modes.MaxPlayers > 0 ? modes.MaxPlayers : Package.Info.MaxPlayers;
+            var min = modes.RecommendedMin;
+            var best = modes.RecommendedMax;
+
+            // Made for fewer than a game holds - both, as they say different things
+            if ( best > 0 && max > best ) return $"Best with {modes.PlayersText}  ·  Up to {max} in a game";
+
+            // What it's made for is all a game holds - once. Its fewest only when that's more than one.
+            if ( min > 1 ) return modes.PlayersText;
+            if ( max > 1 ) return $"Up to {max} players";
+
+            return modes.PlayersText;
+        }
+    }
+
+    bool Subscribed => MenuUtility.IsSubscribed( WorkshopId );
+
+    bool Downloaded => !OnWorkshop || MenuUtility.IsInstalled( WorkshopId != 0 ? WorkshopId : MenuUtility.KnownWorkshopId( Package ) );
+
+    bool HasAchievements;
+
+    void ToggleSubscribed()
+    {
+        if ( Subscribed ) MenuUtility.Unsubscribe( WorkshopId );
+        else MenuUtility.Subscribe( WorkshopId );
+    }
+
+    bool IsCurrent => (WorkshopId != 0 && WorkshopId == PlatformMenu.CurrentId) || PlatformMenu.IsCurrent( Package );
+
+    void Open()
+    {
+        var show = Show is "changes" or "achievements" ? Show : null;
+        Show = null;
+
+        if ( string.IsNullOrEmpty( Ident ) ) return;
+
+        // This game's already - just to the page asked for
+        if ( Ident == loadedIdent )
+        {
+            if ( show is not null ) ShowPage( show );
+            return;
+        }
+
+        if ( loadedIdent is not null ) Discovery.PreviewClosed( "page", loadedIdent );
+
+        loadedIdent = Ident;
+        Page = show;
+        LatestChange = null;
+        HasAchievements = false;
+        Package = null;
+        load = null;
+
+        if ( Body.IsValid() ) Body.ScrollOffset = Vector2.Zero;
+
+        Discovery.PreviewOpened( "page", Ident );
+        _ = Load( Ident );
+    }
+
+    async Task Load( string ident )
+    {
+        // Its package, when it's known already - shown from while the rest is asked for
+        var start = PlatformRoot.Instance?.ShownPackage;
+        var current = load = new MenuProject.Modals.GamePageLoad( ident, start?.FullIdent == ident ? start : null );
+
+        bool Changed()
+        {
+            if ( !IsValid || current != load ) return false;
+
+            Package = current.Package;
+            StateHasChanged();
+            return true;
+        }
+
+        await current.Run( Changed );
+        if ( !Changed() || Package is null ) return;
+
+        _ = CheckAchievements( ident );
+
+        // Read after the rest, as it's slow
+        if ( current.WorkshopId == 0 ) return;
+
+        var notes = await PlatformMenu.FetchChangeNotesAsync( current.WorkshopId );
+        if ( !IsValid || current != load ) return;
+
+        LatestChange = notes?.Notes?.Count > 0 ? notes.Notes[0] : null;
+        StateHasChanged();
+    }
+
+    async Task CheckAchievements( string ident )
+    {
+        var achievements = await Package.GetAchievements();
+        if ( !IsValid || ident != loadedIdent ) return;
+
+        HasAchievements = achievements?.All.Any() ?? false;
+        StateHasChanged();
+    }
+
+    void Back()
+    {
+        if ( BackPage() ) return;
+        PlatformRoot.Instance?.Escape();
+    }
+
+    void Switch()
+    {
+        // By its Workshop item when it has one - switched to without waiting on its package
+        if ( WorkshopItem is not null ) PlatformRoot.Instance?.Picked( WorkshopItem );
+        else if ( Package is not null ) PlatformRoot.Instance?.Picked( Package );
+    }
+
+    readonly ScrollFade bodyFade = new();
+
+    protected override void TickShown()
+    {
+        bodyFade.Apply( Body );
+    }
+
+    public override void OnDeleted()
+    {
+        base.OnDeleted();
+        if ( loadedIdent is not null ) Discovery.PreviewClosed( "page", loadedIdent );
+    }
+
+    protected override int ShownHash() => HashCode.Combine( Package, HasFullPackage, FetchFailed, WorkshopItem, PageLoading, WorkshopId, IsCurrent, HashCode.Combine( PlatformMenu.CanSwitch, Subscribed, Page, LatestChange, Downloaded, HasAchievements ) );
+}

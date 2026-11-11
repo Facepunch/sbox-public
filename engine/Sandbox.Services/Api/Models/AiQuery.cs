@@ -53,7 +53,7 @@ public class AiQueryRequest
 }
 
 /// <summary>
-/// The generated text or JSON, completion state, and provider-reported token usage.
+/// The generated text or JSON, completion state, and credits spent.
 /// </summary>
 public class AiQueryResponse
 {
@@ -78,27 +78,12 @@ public class AiQueryResponse
 	public string Refusal { get; set; }
 
 	/// <summary>
-	/// Input tokens reported by the provider, or null when unavailable.
+	/// Credits charged for this request, including built-in tool rounds. Null when charging is unavailable.
 	/// </summary>
-	public int? InputTokens { get; set; }
+	public decimal? CreditsSpent { get; set; }
 
 	/// <summary>
-	/// Output tokens reported by the provider, including reasoning, or null when unavailable.
+	/// Account balance after this request. Null means unavailable; retain the last known balance.
 	/// </summary>
-	public int? OutputTokens { get; set; }
-
-	/// <summary>
-	/// Amount charged for this model response in US dollars, or null when unavailable.
-	/// </summary>
-	public decimal? CostUsd { get; set; }
-
-	/// <summary>
-	/// Input tokens read from the provider's prompt cache, or null when unavailable.
-	/// </summary>
-	public int? CachedInputTokens { get; set; }
-
-	/// <summary>
-	/// Input tokens written to the provider's prompt cache, or null when unavailable.
-	/// </summary>
-	public int? CacheWriteTokens { get; set; }
+	public ServiceApi.CreditBalance? Credits { get; set; }
 }

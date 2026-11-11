@@ -22,6 +22,7 @@ public partial class Window
 		CommitChange( _pendingUndoName, _pendingChangeScope );
 
 		Data.InvalidateSerializationCache();
+		Node.InvalidateMetadataCache();
 		InvalidatePreviewCompile();
 		_debugSampler.Clear();
 		_preview.ClearRecording();
@@ -287,7 +288,7 @@ public partial class Window
 		style.Checked = View.EnableGridAlignedWires;
 		style.Toggled += enabled => View.EnableGridAlignedWires = enabled;
 
-		view.AddOption( "Compile Preview", "refresh", CompilePreview );
+		view.AddOption( "Compile Preview", "refresh", () => CompilePreview() );
 
 		var autoCompile = view.AddOption( "Auto Compile Preview", "sync" );
 		autoCompile.Checkable = true;
@@ -325,7 +326,7 @@ public partial class Window
 		_paste.Toolbar = _toolBar.AddOption( new Option( "Paste", "common/paste.png", PasteSelection ) { ToolTip = "Paste", ShortcutName = "editor.paste" } );
 
 		_toolBar.AddSeparator();
-		_compilePreviewOption = new Option( "Compile Preview", _previewCompiling ? "schedule" : "refresh", CompilePreview )
+		_compilePreviewOption = new Option( "Compile Preview", _previewCompiling ? "schedule" : "refresh", () => CompilePreview() )
 		{
 			ToolTip = _previewCompiling ? "Compiling preview..." : "Compile Preview",
 			Enabled = !_previewCompiling,

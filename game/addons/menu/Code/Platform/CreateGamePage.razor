@@ -1,0 +1,303 @@
+@using System;
+@using System.Linq;
+@using System.Threading;
+@using Sandbox;
+@using Sandbox.UI;
+@using Sandbox.UI.Navigation;
+@using MenuProject.Modals.GameModalComponents;
+@using MenuProject.Settings;
+@using SboxMenu;
+@namespace MenuProject.Platform
+@page "/platform/create"
+@inherits Panel
+@implements INavigatorPage
+
+@*
+    Setting up a new game of the front's game, on the front rather than in the game setup modal, in a panel (the platform-panel mixin) - the same setup
+    (GameSetup) and rows (SettingsRow), a section at a time: a rail of them down the left, out on the art (the game -
+    where it starts, and its server - then each group of the game's own settings), the one picked's rows in the panel. It's
+    installed first: its settings come in it. Starts from the party's settings for it if it's the party's game.
+    Saving to a party is still the modal's.
+*@
+<root>
+
+    <div class="side">
+        <label class="heading">Configure</label>
+
+        @if ( Setup is not null )
+        {
+            <div class="rail">
+                @foreach ( var section in Sections )
+                {
+                    <div class="tab @(section == Shown ? "on" : "")" onclick=@( () => Show( section ) )>
+                        <i>@section.Icon</i>
+                        <label>@section.Title</label>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="panel">
+        <PanelHead Title="Start New Game" Icon="sports_esports" Art=@PlatformMenu.Art Back=@Back />
+
+        <div class="body">
+
+        <div class="setup">
+            @if ( Setup is not null )
+            {
+                @* A new one each section, so its rows come in *@
+                <div class="rows" @key=@(Shown?.Key ?? "")>
+                    @if ( !string.IsNullOrEmpty( Error ) )
+                    {
+                        <div class="notice error"><i>error</i><label>@Error</label></div>
+                    }
+
+                    @if ( Shown is { } section )
+                    {
+                        @if ( section.HasMap )
+                        {
+                            <div class="row map-row">
+                                <div class="line">
+                                    <label class="name">#menu.games.map</label>
+                                    <div class="control">
+                                        @if ( busy )
+                                        {
+                                            <label>@Setup.MapTitle</label>
+                                        }
+                                        else
+                                        {
+                                            <div class="map-tile" @ref="MapTile" onclick=@PickMap>
+                                                <div class="bottom">
+                                                    <i>map</i>
+                                                    <label>@Setup.MapTitle</label>
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        }
+
+                        @foreach ( var item in section.Items )
+                        {
+                            <SettingsRow @key=@item Item=@item ReadOnly=@busy />
+                        }
+                    }
+                </div>
+            }
+            else if ( Error is not null )
+            {
+                <div class="status error"><i>error</i><label>@Error</label></div>
+            }
+            else if ( download is { } coming )
+            {
+                <div class="status">
+                    <i>download</i>
+                    <label>@($"Downloading {coming.Title}")</label>
+                    <div class="track"><div class="fill" style="width: @((Math.Clamp( coming.Fraction, 0, 1 ) * 100).ToString( "0.#" ))%;"></div></div>
+                </div>
+            }
+            else
+            {
+                <div class="status"><Spinner /></div>
+            }
+        </div>
+
+        <div class="actions">
+            <div class="button start @(CanStart ? "" : "disabled")" tooltip="@(WhyNot ?? "")" onclick=@Start>
+                <i>play_arrow</i>
+                <label>@(busy ? "Starting…" : "Start game")</label>
+            </div>
+        </div>
+
+        </div>
+    </div>
+
+</root>
+
+@code
+{
+    GameSetup Setup;
+    string Error;
+
+    record Section( string Key, string Title, string Icon, SettingItem[] Items, bool HasMap = false );
+
+    Section[] sections = [];
+    GameSetup sectionsOf;
+    string shownKey;
+
+    Section[] Sections
+    {
+        get
+        {
+            if ( sectionsOf == Setup ) return sections;
+
+            sectionsOf = Setup;
+            sections = Setup is null ? [] : SectionsOf( Setup );
+            shownKey = null;
+            return sections;
+        }
+    }
+
+    Section Shown => Sections.FirstOrDefault( x => x.Key == shownKey ) ?? Sections.FirstOrDefault();
+
+    void Show( Section section ) => shownKey = section.Key;
+
+    static Section[] SectionsOf( GameSetup setup )
+    {
+        var sections = new List<Section>();
+
+        var game = setup.ItemsIn( null ).ToList();
+        if ( setup.IsMultiplayer )
+        {
+            game.Add( setup.ServerNameItem );
+            game.Add( setup.PrivacyItem );
+            game.Add( setup.PasswordItem );
+            if ( setup.HasPlayerRange ) game.Add( setup.PlayersItem );
+        }
+
+        if ( setup.NeedsMap || game.Count > 0 )
+            sections.Add( new( "game", "#menu.games.game", "sports_esports", game.ToArray(), setup.NeedsMap ) );
+
+        foreach ( var group in setup.OtherGroups )
+            sections.Add( new( $"group:{group}", group, "tune", setup.ItemsIn( group ).ToArray() ) );
+
+        return sections.ToArray();
+    }
+
+    Panel MapTile;
+
+    /// <summary>
+    /// On to the map browser (MapsPage) - back here with the one picked
+    /// </summary>
+    void PickMap()
+    {
+        if ( busy || Setup is not { } setup ) return;
+
+        FrontPages.Of( this )?.PickMap( setup.Map, map =>
+        {
+            if ( busy || !IsValid || setup != Setup ) return;
+            setup.Map = map;
+            StateHasChanged();
+        } );
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        // The map's picture comes in once it's looked up
+        if ( MapTile.IsValid() && MapTile.Style.BackgroundImage != Setup?.MapThumb )
+            MapTile.Style.BackgroundImage = Setup?.MapThumb;
+    }
+
+    WorkshopDownload? download;
+    bool busy;
+
+    int request;
+    CancellationTokenSource cancel;
+
+    string WhyNot => PlatformMenu.WhyCantStart( Setup?.Package );
+
+    bool CanStart => Setup is not null && !busy && WhyNot is null;
+
+    /// <summary>
+    /// Set up the front's game - kept as it was if it's still the same game, so going back and on again keeps what
+    /// you'd picked
+    /// </summary>
+    public void OnNavigationOpen()
+    {
+        if ( PlatformMenu.Current is not { } package ) return;
+        if ( Setup?.Package.FullIdent == package.FullIdent ) return;
+
+        _ = LoadAsync( package );
+    }
+
+    /// <summary>
+    /// Not waiting on its download any more - what's there stays, as it slides off
+    /// </summary>
+    public void OnNavigationClose()
+    {
+        request++;
+        cancel?.Cancel();
+        cancel = null;
+    }
+
+    /// <summary>
+    /// As the game setup modal loads it - its full package, then installed, then its settings
+    /// </summary>
+    async Task LoadAsync( Package package )
+    {
+        var mine = ++request;
+        cancel?.Cancel();
+        cancel = new CancellationTokenSource();
+        var token = cancel.Token;
+
+        Setup = null;
+        Error = null;
+        download = null;
+        StateHasChanged();
+
+        try
+        {
+            var full = await Package.FetchAsync( package.FullIdent, false );
+            if ( !IsValid || mine != request ) return;
+            if ( full is null ) throw new InvalidOperationException( Language.GetPhrase( "menu.games.couldn_t_load_game_settings_cancel_and_try_again" ) );
+
+            await MenuUtility.InstallWorkshopItemAsync( full, x =>
+            {
+                if ( !IsValid || mine != request ) return;
+                download = x;
+                StateHasChanged();
+            }, token );
+
+            if ( !IsValid || mine != request ) return;
+
+            var shared = PartyView.IsGameSelected( full ) ? PartyView.SelectedGameSettings : null;
+            var settings = shared ?? GameSetup.GetInitialSettings( full, PartyView.Exists ? PartyView.MaxMembers : 0 );
+
+            download = null;
+            Setup = new GameSetup( full, null, settings );
+        }
+        catch ( OperationCanceledException ) when ( token.IsCancellationRequested )
+        {
+            return;
+        }
+        catch ( Exception e )
+        {
+            if ( !IsValid || mine != request ) return;
+            download = null;
+            Error = e.Message;
+        }
+
+        StateHasChanged();
+    }
+
+    async void Start()
+    {
+        if ( !CanStart ) return;
+
+        busy = true;
+        Error = null;
+
+        try
+        {
+            await MenuHelpers.StartConfiguredGame( Setup.Package, Setup.Finish(), PartyRoom.Current );
+        }
+        catch ( Exception e )
+        {
+            LoadingScreen.IsVisible = false;
+            if ( IsValid ) Error = e.Message;
+        }
+        finally
+        {
+            busy = false;
+            if ( IsValid ) StateHasChanged();
+        }
+    }
+
+    void Back() => FrontPages.Of( this )?.GoBack();
+
+    protected override int BuildHash() => HashCode.Combine( Setup, Error, download, busy, WhyNot, shownKey, Setup?.Map, Setup?.MapTitle );
+}

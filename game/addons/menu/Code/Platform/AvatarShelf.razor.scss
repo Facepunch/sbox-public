@@ -1,0 +1,1258 @@
+@import "/Platform/_platform.scss";
+
+$slots-width: 264px;
+$panel-width: 40%;
+
+// The panel's spacing - its edges to what's in it (as its bar's, platform-panel), and between things side by side
+$inset: 8px;
+$gap: 8px;
+
+@mixin text( $size, $weight: 700, $color: $platform-text )
+{
+	font-size: $size;
+	font-weight: $weight;
+	color: $color;
+}
+
+@mixin ellipsis
+{
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+@mixin fill( $edge: 0 )
+{
+	position: absolute;
+	left: $edge;
+	top: $edge;
+	right: $edge;
+	bottom: $edge;
+}
+
+@mixin art( $edge )
+{
+	@include fill( $edge );
+	background-size: contain;
+	background-position: center;
+	background-repeat: no-repeat;
+}
+
+// An item's backdrop - flat, the dock's button fill
+@mixin slate
+{
+	background-color: $platform-button;
+	background-image: none;
+}
+
+@mixin raised
+{
+	flex-shrink: 0;
+	align-items: center;
+	border-radius: $platform-radius;
+	background-color: $platform-button;
+}
+
+@mixin rises-in
+{
+	transition: opacity 0.22s ease-out, transform 0.28s ease-out;
+
+	&:intro
+	{
+		opacity: 0;
+		transform: translateY( 12px );
+	}
+
+	// The one it's replacing - gone at once, not still laid out over it while it goes
+	&:outro
+	{
+		display: none;
+	}
+}
+
+@mixin tinted( $bg, $fg )
+{
+	background-color: $bg;
+	color: $fg;
+
+	i
+	{
+		color: $fg;
+	}
+}
+
+// Laid out by the ShelfPanel it's on, at the panel's full height - your slots down the left, you standing big in the
+// middle with saving under your feet, and what there is to wear at the right. You're not in a box: you stand on the
+// page, fading out at the bottom of it.
+AvatarShelf
+{
+	@include platform-16x9;
+	position: relative;
+	flex-shrink: 0;
+	height: 100%;
+	pointer-events: all;
+
+	// Between the slots and the panel, the shelf's full height, under saving - faded a little at its sides, so where
+	// the camera cuts you off at them isn't a hard line
+	> .stage
+	{
+		position: absolute;
+		left: $slots-width;
+		right: $panel-width;
+		top: 0;
+		bottom: 0;
+		mask-image: linear-gradient( to right, black 0%, white 2.5%, white 97.5%, black 100% );
+
+		// Faded in at the top and out at the bottom, gone a little before the shelf's bottom edge
+		> .model
+		{
+			@include fill;
+			mask-image: linear-gradient( to bottom, black 0%, white 6.5%, white 91.5%, black 98%, black 100% );
+		}
+	}
+
+	// A slot for each part of you, three to a row under its group - what's on it, and what it's for
+	> .slots
+	{
+		position: absolute;
+		left: 0;
+		top: 0;
+		bottom: 0;
+		width: $slots-width;
+		flex-direction: column;
+		overflow-y: scroll;
+		scrollbar-width: 0px;
+
+		> *
+		{
+			flex-shrink: 0;
+		}
+
+		.group
+		{
+			@include platform-group-title;
+			margin: 16px 0 8px 2px;
+
+			&:first-child
+			{
+				margin-top: 0;
+			}
+		}
+
+		.tiles
+		{
+			flex-wrap: wrap;
+			gap: 6px;
+		}
+	}
+
+	.slot .tint, .item .tint
+	{
+		position: absolute;
+		left: 4px;
+		top: 4px;
+		width: 12px;
+		height: 12px;
+		border-radius: 6px;
+		border: 2px solid rgba( 255, 255, 255, 0.85 );
+		box-shadow: 0 1px 3px rgba( 0, 0, 0, 0.5 );
+	}
+
+	.slot
+	{
+		position: relative;
+		width: 84px;
+		height: 84px;
+		flex-shrink: 0;
+		align-items: center;
+		justify-content: center;
+		border-radius: $platform-radius;
+		// Unseen - coloured when a pick would take it off or put it on (.replaced, .incoming)
+		border: 2px solid transparent;
+		background-color: $platform-button;
+		cursor: pointer;
+		@include platform-sounds;
+		transition: transform 0.12s ease-out, background-color 0.1s ease;
+
+		.worn
+		{
+			@include art( 4px );
+			bottom: 18px;
+		}
+
+		.glyph
+		{
+			width: 26px;
+			height: 26px;
+			margin-bottom: 12px;
+			opacity: 0.35;
+		}
+
+		// Body's - an icon rather than a picture, the size of the others' glyphs
+		i.glyph
+		{
+			width: auto;
+			height: auto;
+			font-size: 28px;
+			color: white;
+		}
+
+		.what
+		{
+			@include platform-caps;
+			position: absolute;
+			left: 4px;
+			right: 4px;
+			bottom: 5px;
+			text-align: center;
+			font-size: 9px;
+			letter-spacing: 0.5px;
+			color: $platform-muted;
+			@include ellipsis;
+		}
+
+		&.bare .what
+		{
+			color: $platform-faint;
+		}
+
+		&:hover
+		{
+			transform: translateY( -2px );
+			background-color: $platform-button-hover;
+
+			.glyph
+			{
+				opacity: 0.6;
+			}
+		}
+
+		&.on
+		{
+			background-color: $platform-selected;
+
+			.what
+			{
+				color: $platform-selected-text;
+			}
+
+			// Its glyph the dark navy too, as a toggle's is - the picture tinted, Body's icon coloured
+			.glyph
+			{
+				opacity: 1;
+				background-image-tint: $platform-selected-text;
+			}
+
+			i.glyph
+			{
+				color: $platform-selected-text;
+			}
+		}
+	}
+
+	// What there is for the slot picked - a panel as Multiplayer's (platform-panel): its tile and name on its bar, the
+	// kinds the tools at the other end
+	> .panel
+	{
+		@include platform-panel;
+		position: absolute;
+		right: 0;
+		top: 0;
+		bottom: 0;
+		width: $panel-width;
+
+		.tile .glyph
+		{
+			width: 19px;
+			height: 19px;
+			opacity: 0.7;
+		}
+	}
+
+	// A kind - the dock's square buttons: lit from the top, its icon brightening under the pointer, blue when it's the
+	// one picked. Its name's its tooltip.
+	.tool.kind
+	{
+		width: 34px;
+
+		.glyph
+		{
+			width: 18px;
+			height: 18px;
+			opacity: 0.6;
+		}
+
+		i
+		{
+			font-size: 18px;
+		}
+
+		&:hover .glyph
+		{
+			opacity: 1;
+		}
+
+		&.on
+		{
+			background-color: $platform-primary;
+			background-image: $platform-sheen-on;
+
+			i
+			{
+				color: $platform-selected-text;
+			}
+
+			.glyph
+			{
+				opacity: 1;
+				background-image-tint: $platform-selected-text;
+			}
+		}
+	}
+
+	.tool.kind.tab
+	{
+		width: auto;
+		padding: 0 12px 0 10px;
+
+		label
+		{
+			@include text( 14px, 600, $platform-muted );
+		}
+
+		&:hover label
+		{
+			color: white;
+		}
+
+		// Picked - dark on the blue, as a toggle's words are
+		&.on label
+		{
+			color: $platform-selected-text;
+		}
+
+		&.cart
+		{
+			gap: $gap;
+
+			.count
+			{
+				min-width: 20px;
+				height: 20px;
+				align-items: center;
+				justify-content: center;
+				padding: 0 6px;
+				border-radius: 10px;
+				background-color: $platform-primary;
+
+				label
+				{
+					@include text( 12px, 700, $platform-primary-text );
+				}
+			}
+		}
+	}
+
+	> .panel > .head > .divider
+	{
+		width: 1px;
+		height: 22px;
+		flex-shrink: 0;
+		margin: 0 2px;
+		background-color: $platform-hairline;
+	}
+
+	.items
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		min-height: 0;
+		gap: 10px;
+		overflow-y: scroll;
+		scrollbar-width: 0px;
+		padding: 0 $inset 24px $inset;
+
+		> *
+		{
+			flex-shrink: 0;
+		}
+	}
+
+	// A view - the cart, a tab or a slot - rising in, made afresh for each (keyed), so it plays every switch
+	.view
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		gap: 10px;
+		@include rises-in;
+
+		> *
+		{
+			flex-shrink: 0;
+		}
+	}
+
+	.section
+	{
+		align-items: center;
+		gap: 10px;
+		margin-top: 14px;
+
+		&:first-child
+		{
+			margin-top: 0;
+		}
+
+		> i
+		{
+			font-size: 20px;
+			color: $platform-muted;
+		}
+
+		.title
+		{
+			@include text( 16px );
+		}
+	}
+
+	// One gap wider than the list, into its padding - the layout counts a gap after the last in a row too, so that
+	// one's out here, and a row fills the list edge to edge (see SizeItems)
+	.grid
+	{
+		flex-wrap: wrap;
+		gap: $gap;
+		margin-right: -$gap;
+	}
+
+	// An item - its picture on a lighter slate than the panel, so dark pictures still read; ticked and edged blue when
+	// it's on
+	.item
+	{
+		position: relative;
+		width: 104px;
+		height: 104px;
+		border-radius: $platform-radius;
+		border: 2px solid transparent;
+		@include slate;
+		cursor: pointer;
+		@include platform-sounds;
+		transition: transform 0.12s ease-out;
+
+		// Not hovered itself - the tile stays hovered over it, rather than losing it to its picture
+		.icon
+		{
+			@include art( 6px );
+			pointer-events: none;
+		}
+
+		&:hover
+		{
+			transform: translateY( -2px );
+			border-color: rgba( 255, 255, 255, 0.25 );
+		}
+
+		&.worn
+		{
+			border-color: $platform-primary;
+		}
+
+		.limited
+		{
+			position: absolute;
+			right: 3px;
+			top: 3px;
+			height: 22px;
+			align-items: center;
+			gap: 4px;
+			padding: 0 6px 0 5px;
+			// The price's shape and shade, in its opposite corner
+			border-radius: $platform-radius;
+			background-color: rgba( 6, 9, 16, 0.85 );
+			color: #ffb43c;
+
+			i
+			{
+				font-size: 14px;
+			}
+
+			label
+			{
+				font-size: 11px;
+				font-weight: 700;
+			}
+
+			&.soon
+			{
+				background-color: #ffb43c;
+				color: #1a1206;
+			}
+		}
+
+		&.carted
+		{
+			border-color: $platform-primary;
+		}
+
+		// Yours already - still for sale, but faded back behind what you haven't got
+		&.owned
+		{
+			.icon
+			{
+				opacity: 0.35;
+			}
+
+			.price
+			{
+				opacity: 0.6;
+			}
+
+			&:hover .icon
+			{
+				opacity: 0.6;
+			}
+		}
+		// On - a blue circle in its corner, its tick in the middle of it. Drawn here, so every kind of tile has the same.
+		&.worn::after
+		{
+			content: "check";
+			position: absolute;
+			right: 6px;
+			top: 6px;
+			width: 20px;
+			height: 20px;
+			align-items: center;
+			justify-content: center;
+			text-align: center;
+			border-radius: 10px;
+			background-color: $platform-primary;
+			font-family: "Material Icons";
+			font-size: 14px;
+			color: $platform-primary-text;
+		}
+
+		// The shop's - priced, tried on under the pointer, not put on
+		&.locked
+		{
+			cursor: default;
+		}
+
+		.price
+		{
+			position: absolute;
+			left: 3px;
+			bottom: 3px;
+			height: 22px;
+			align-items: center;
+			gap: 4px;
+			padding: 0 6px 0 5px;
+			border-radius: $platform-radius;
+			background-color: rgba( 6, 9, 16, 0.85 );
+			@include text( 11px );
+
+			i
+			{
+				font-size: 12px;
+				color: $platform-muted;
+			}
+
+			&.carted
+			{
+				@include tinted( $platform-primary, white );
+
+				.times
+				{
+					margin-left: 2px;
+					opacity: 0.75;
+				}
+			}
+		}
+	}
+
+	.settings, .cart-rows
+	{
+		flex-direction: column;
+		gap: $gap;
+	}
+
+	.setting
+	{
+		flex-shrink: 0;
+		align-items: center;
+		gap: 16px;
+		padding: 6px 16px 6px 12px;
+		border-radius: $platform-radius;
+		background-color: rgba( 255, 255, 255, 0.03 );
+
+		> .name
+		{
+			width: 110px;
+			flex-shrink: 0;
+			@include text( 13px, 600 );
+			@include ellipsis;
+		}
+
+		// The avatar editor's ramp (ColorSwatchPicker) as a thin rounded strip, a white knob on it where it's set
+		ColorSwatchPicker
+		{
+			flex-grow: 1;
+			height: 28px;
+			padding: 0;
+			align-items: center;
+			border-radius: 0;
+			background-color: transparent;
+
+			.track
+			{
+				height: 8px;
+				border-radius: 4px;
+				box-shadow: inset 0 0 0 1px rgba( 255, 255, 255, 0.08 );
+			}
+
+			// On the strip's own scale - no padding round it, so the knob's middle is right where it's set
+			.thumb
+			{
+				top: 7px;
+				bottom: auto;
+				width: 14px;
+				height: 14px;
+				margin-left: -7px;
+				border-radius: 7px;
+				background-color: white;
+				box-shadow: 0 1px 4px rgba( 0, 0, 0, 0.6 );
+
+				i
+				{
+					display: none;
+				}
+			}
+
+			&:hover .thumb
+			{
+				transform: scale( 1.15 );
+			}
+		}
+	}
+
+	.item.eye .iris
+	{
+		@include fill( 14% );
+	}
+
+	.slot .iris
+	{
+		width: 30px;
+		height: 30px;
+		margin-bottom: 12px;
+		border-radius: 15px;
+	}
+
+	.item.skin .icon, .item.workshop .icon
+	{
+		left: 0;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		border-radius: 4px;
+		background-size: cover;
+	}
+
+	// What the Workshop's for - one line over it, raised and lit from the top as the cart's rows are, its icon on a
+	// tile as the bar's headings have
+	.note
+	{
+		@include platform-notice;
+
+		label
+		{
+			flex-grow: 1;
+			min-width: 0;
+			@include text( 13px, 600 );
+			@include ellipsis;
+		}
+	}
+
+	.item.workshop
+	{
+		.loading
+		{
+			@include fill;
+			z-index: 2;
+			align-items: center;
+			justify-content: center;
+			border-radius: 4px;
+			background-color: rgba( 6, 9, 16, 0.55 );
+
+			Spinner
+			{
+				width: 36px;
+				height: 36px;
+			}
+		}
+
+		&.voted-up
+		{
+			border-color: rgba( 80, 200, 120, 0.6 );
+		}
+
+		&.voted-down
+		{
+			border-color: rgba( 230, 90, 80, 0.5 );
+		}
+
+		// Voted in, and in the game now - washed green, over its picture (which fills it, so its own
+		// background never shows), its card saying so
+		&.added::after
+		{
+			content: "";
+			@include fill;
+			border-radius: 4px;
+			background-color: rgba( 70, 200, 120, 0.16 );
+			pointer-events: none;
+		}
+	}
+
+	.blank
+	{
+		@include fill;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		padding-bottom: 40px;
+		@include rises-in;
+
+		.glyph
+		{
+			width: 96px;
+			height: 96px;
+			align-items: center;
+			justify-content: center;
+			margin-bottom: 18px;
+			border-radius: 48px;
+			background-color: rgba( 255, 255, 255, 0.04 );
+			border: 1px solid rgba( 255, 255, 255, 0.06 );
+
+			i
+			{
+				font-size: 42px;
+				color: $platform-muted;
+			}
+
+			.texture
+			{
+				width: 40px;
+				height: 40px;
+				opacity: 0.6;
+			}
+		}
+
+		.title
+		{
+			@include text( 20px );
+		}
+
+		.hint
+		{
+			margin-top: 6px;
+			font-size: 13px;
+			color: $platform-muted;
+		}
+
+		.back
+		{
+			@include platform-tool( 38px, 18px );
+			margin-top: 22px;
+			padding: 0 16px 0 12px;
+			@include text( 14px, 600 );
+		}
+	}
+
+	// A thing in the cart - raised off the page and lit from the top, its picture lit as a shop tile's is: what it is,
+	// how many - one less than one takes it out - and what they come to
+	.cart-row
+	{
+		@include raised;
+		gap: 16px;
+		padding: $inset 16px $inset $inset;
+		transition: border-color 0.12s ease;
+
+		&:hover
+		{
+			border-color: rgba( 255, 255, 255, 0.12 );
+		}
+
+		.thumb
+		{
+			position: relative;
+			width: 76px;
+			height: 76px;
+			flex-shrink: 0;
+			border-radius: $platform-radius;
+			@include slate;
+
+			.glow
+			{
+				@include fill;
+			}
+
+			.icon
+			{
+				@include art( 5px );
+			}
+		}
+
+		.about
+		{
+			flex-grow: 1;
+			min-width: 0;
+			flex-direction: column;
+
+			.name
+			{
+				@include text( 16px );
+				@include ellipsis;
+			}
+
+			.what
+			{
+				@include platform-caps;
+				margin-top: 3px;
+				font-size: 10px;
+				color: $platform-faint;
+			}
+		}
+
+		// How many - one less, the count, one more (CartStepper), on a dark well
+		.stepper
+		{
+			height: 32px;
+			background-color: rgba( 6, 9, 16, 0.45 );
+			border: 1px solid rgba( 255, 255, 255, 0.05 );
+		}
+
+		.cost
+		{
+			min-width: 76px;
+			flex-shrink: 0;
+			text-align: right;
+			@include text( 17px );
+		}
+	}
+
+	// Room under the last row for a picked shop item's card
+	.items.picked
+	{
+		padding-bottom: 180px;
+	}
+
+	.item.picked
+	{
+		border-color: rgba( 255, 255, 255, 0.7 );
+	}
+
+	> .panel > .body
+	{
+		position: relative;
+	}
+
+	// A picked shop item's card, over the list's bottom - as a picked server's is on the server list (ServerTable): a
+	// flat shade brighter than the panel, with a rounded top. What it is, and buying it. Rises in when one's first
+	// picked; picking another fades its card across.
+	.band
+	{
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		z-index: 20;
+		border-top-left-radius: 8px;
+		border-top-right-radius: 8px;
+		border-bottom-left-radius: 6px;
+		border-bottom-right-radius: 6px;
+		background-color: $platform-button;
+		transition: opacity 0.25s ease-out, transform 0.3s ease-out;
+
+		&:intro
+		{
+			opacity: 0;
+			transform: translateY( 24px );
+		}
+
+		> .card
+		{
+			flex-grow: 1;
+			align-items: center;
+			gap: 16px;
+			padding: $inset;
+			transition: opacity 0.2s ease-out;
+
+			&:intro
+			{
+				opacity: 0;
+			}
+		}
+
+		// Its picture on its rarity's glow
+		.thumb
+		{
+			position: relative;
+			width: 112px;
+			height: 112px;
+			flex-shrink: 0;
+			border-radius: $platform-radius;
+			background-color: #222a3a;
+
+			.icon
+			{
+				@include art( 8px );
+			}
+		}
+
+		.about
+		{
+			flex-grow: 1;
+			min-width: 0;
+			flex-direction: column;
+			justify-content: center;
+			gap: 8px;
+
+			.name
+			{
+				@include text( 18px );
+				@include ellipsis;
+			}
+
+			.description
+			{
+				font-size: 12px;
+				color: $platform-muted;
+				@include ellipsis;
+			}
+
+			.what
+			{
+				@include platform-caps;
+				font-size: 10px;
+				color: $platform-faint;
+			}
+		}
+
+		.chips
+		{
+			flex-wrap: wrap;
+			gap: 6px;
+		}
+
+		.chip
+		{
+			height: 26px;
+			align-items: center;
+			gap: 6px;
+			padding: 0 9px;
+			border-radius: $platform-radius;
+			background-color: rgba( 255, 255, 255, 0.07 );
+			@include text( 12px, 600 );
+
+			i
+			{
+				font-size: 15px;
+				color: $platform-muted;
+			}
+
+			&.leaving
+			{
+				@include tinted( rgba( #ffb43c, 0.14 ), #ffb43c );
+
+				&.soon
+				{
+					@include tinted( #ffb43c, #1a1206 );
+				}
+			}
+
+			&.sale, &.added
+			{
+				@include tinted( rgba( $platform-good, 0.16 ), $platform-good );
+			}
+		}
+
+		// Buying it, on the right, in the middle of the card's height - the server list's Join
+		.buy
+		{
+			min-width: 170px;
+			height: 44px;
+			flex-shrink: 0;
+			align-items: center;
+			justify-content: center;
+			gap: 8px;
+			padding: 0 18px;
+			// Round-ended, as Add to cart under it is
+			border-radius: $platform-pill;
+			@include text( 15px, 700, white );
+			@include platform-button-primary;
+			cursor: pointer;
+			@include platform-sounds;
+			transition: background-color 0.12s ease;
+
+			i
+			{
+				font-size: 20px;
+			}
+
+			&.disabled
+			{
+				color: $platform-faint;
+				// The button fill a step up from the card's, which is that fill
+				background-color: $platform-button-hover;
+				cursor: default;
+				pointer-events: none;
+			}
+		}
+
+		.deal
+		{
+			flex-direction: column;
+			flex-shrink: 0;
+			gap: $gap;
+		}
+
+		// In the cart - one less, how many, one more (CartStepper), as wide as Buy
+		.qty
+		{
+			min-width: 170px;
+			height: 34px;
+			background-color: $platform-button;
+			background-image: $platform-sheen;
+		}
+
+		.votes
+		{
+			flex-shrink: 0;
+			gap: $gap;
+		}
+
+		.vote
+		{
+			@include platform-tool( 44px, 20px );
+			min-width: 56px;
+			justify-content: center;
+			gap: 6px;
+			padding: 0 12px;
+			@include text( 14px );
+
+			&.on
+			{
+				@include tinted( $platform-primary, white );
+				background-image: $platform-sheen-on;
+			}
+
+			&.down.on
+			{
+				background-color: #c4473d;
+			}
+		}
+
+		> .card.total
+		{
+			padding: $inset $inset $inset 14px;
+
+			.spacer
+			{
+				flex-grow: 1;
+			}
+
+			.items-count
+			{
+				@include text( 13px, 600, $platform-muted );
+			}
+
+			.sum
+			{
+				@include text( 20px );
+			}
+		}
+
+		.add
+		{
+			@include platform-tool( 34px, 17px );
+			min-width: 170px;
+			justify-content: center;
+			padding: 0 14px;
+			@include text( 13px, 600, white );
+			@include tinted( $platform-good * 0.65, white );
+
+			&:hover
+			{
+				background-color: $platform-good * 0.8;
+			}
+		}
+	}
+
+	// How to look them over - the mouse's glyphs and a word each, at the bottom left of where you stand, level with
+	// saving and the bottom of the panel beside it
+	> .controls
+	{
+		position: absolute;
+		left: $slots-width;
+		bottom: 0px;
+		height: 38px;
+		align-items: center;
+		gap: 16px;
+		padding-left: 24px;
+		pointer-events: none;
+		opacity: 0.6;
+
+		.control
+		{
+			align-items: center;
+			gap: 5px;
+
+			Image
+			{
+				width: 20px;
+				height: 20px;
+			}
+
+			label
+			{
+				font-family: $platform-font;
+				@include text( 12px, 600, $platform-muted );
+			}
+		}
+	}
+
+	// Saving, at the bottom right of where you stand - its buttons' bottoms level with the panel beside it
+	> .actions
+	{
+		position: absolute;
+		left: $slots-width;
+		right: $panel-width;
+		bottom: 0px;
+		height: 38px;
+		justify-content: flex-end;
+		padding-right: 20px;
+		align-items: center;
+		gap: 10px;
+	}
+
+	// Round-ended, as the dock's pills are - the glyph its blue
+	.button
+	{
+		height: 38px;
+		align-items: center;
+		gap: 8px;
+		padding: 0 18px 0 14px;
+		border-radius: $platform-pill;
+		background-color: $platform-button;
+		background-image: $platform-sheen;
+		@include text( 14px, 600 );
+		cursor: pointer;
+		@include platform-sounds;
+		transition: background-color 0.3s ease, opacity 0.3s ease;
+
+		i
+		{
+			font-size: 18px;
+			color: $platform-icon;
+		}
+
+		&:hover
+		{
+			background-color: $platform-button-hover;
+		}
+
+		&.primary
+		{
+			background-color: $platform-primary;
+			background-image: $platform-sheen-on;
+
+			label, i
+			{
+				color: $platform-primary-text;
+			}
+
+			&:hover
+			{
+				background-color: $platform-primary-hover;
+			}
+		}
+
+		&.off
+		{
+			opacity: 0.4;
+			pointer-events: none;
+		}
+
+		&.saved
+		{
+			background-color: $platform-good;
+			pointer-events: none;
+			animation-name: save-pop;
+			animation-duration: 0.4s;
+			animation-timing-function: ease-out;
+			animation-iteration-count: 1;
+
+			i
+			{
+				animation-name: save-tick;
+				animation-duration: 0.4s;
+				animation-timing-function: ease-out;
+				animation-iteration-count: 1;
+			}
+		}
+	}
+
+	// What the item under the pointer would take off if it went on (AvatarShelf.Replacing) - faded back, edged red, a
+	// red swap mark in its corner over its tick
+	.slot.replaced, .item.replaced
+	{
+		border-color: rgba( $platform-danger, 0.85 );
+
+		.worn, .icon
+		{
+			opacity: 0.4;
+		}
+
+		&::after
+		{
+			content: "swap_horiz";
+			position: absolute;
+			right: 6px;
+			top: 6px;
+			width: 20px;
+			height: 20px;
+			align-items: center;
+			justify-content: center;
+			text-align: center;
+			border-radius: 10px;
+			background-color: $platform-danger;
+			font-family: "Material Icons";
+			font-size: 14px;
+			color: white;
+		}
+	}
+
+	// The slot on your outfit it would go in
+	.slot.incoming
+	{
+		border-color: rgba( $platform-primary-hover, 0.8 );
+		border-style: dashed;
+	}
+
+	.slot.incoming.replaced
+	{
+		border-color: rgba( $platform-danger, 0.85 );
+	}
+}
+
+@keyframes save-pop
+{
+	0% { transform: scale( 1 ); }
+	35% { transform: scale( 1.08 ); }
+	100% { transform: scale( 1 ); }
+}
+
+@keyframes save-tick
+{
+	0% { transform: scale( 0.4 ); }
+	60% { transform: scale( 1.3 ); }
+	100% { transform: scale( 1 ); }
+}

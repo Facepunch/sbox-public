@@ -1,4 +1,3 @@
-using Editor.AnimGraph;
 using Sandbox.Animation;
 
 namespace Editor.Assets;
@@ -13,13 +12,6 @@ public class PreviewClip( Asset asset ) : AssetPreview( asset )
 	IReadOnlyList<Skeleton.Bone> _bones;
 
 	Transform[] _pose;
-
-	public override Widget CreateWidget( Widget parent )
-	{
-		var preview = new ClipAssetPreview( parent, Asset, null );
-		preview.SetDocument( Asset.HasSourceFile ? ClipDocument.Load( Asset.GetSourceFile( true ) ) : null, true );
-		return preview;
-	}
 
 	public override async Task InitializeAsset()
 	{

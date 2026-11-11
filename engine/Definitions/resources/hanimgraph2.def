@@ -8,17 +8,18 @@ native class CGraphBuilder as NativeEngine.AnimationGraphBuilder
 	void DeleteThis(); [delete]
 	string GetErrorString();
 	CUtlBuffer Compile( int rootNodeIndex, string model, string variation );
-	int AddAnimation( string path );
-	int AddReferencedGraph( string path );
+	int AddAnimation( string path, Guid guid );
+	int AddReferencedGraph( string path, Guid guid, string variation );
 
 	inline uint InternID( string name )
 	{
 		return self->InternID( name ).m_nHashCode;
 	}
 
-	inline void SetSkeleton( string path )
+	inline void SetSkeleton( string path, Guid guid )
 	{
-		self->Resource().m_skeleton = path;
+		self->Resource().m_skeleton = CResourceName( path, RESOURCE_TYPE_SKELETON );
+		self->Resource().m_skeleton.SetGuid( guid );
 	}
 
 	inline void AddPersistentNode( int index )

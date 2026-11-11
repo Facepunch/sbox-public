@@ -6,15 +6,14 @@ materials, shaders and graphics backend.
 
 It also holds the layers of native's rendering pipeline ([Native](Native/)): native sets each view up and
 this adds its layers, for every camera that isn't rendered here. See the
-[render pipeline doc](../../docs/managed/render-pipeline.md).
+[render pipeline doc](../../docs/reference/rendering.md).
 
 The renderer is experimental. To use it for GameObject scenes, enable `r_managed_scene 1`.
 It is disabled by default. [SceneLab](../Launcher/SceneLab/) runs the managed and native renderers
 against the same scenes for visual comparison and performance testing.
 
 This README covers the project structure and development workflow. The
-[renderer reference](../../docs/managed/scene-renderer.md) contains the implementation details,
-native equivalents, performance investigations and debugging history.
+[renderer reference](../../docs/reference/managed-renderer.md) lists what breaks it.
 
 ## What it renders
 
@@ -143,7 +142,7 @@ that already exist before the batch. Early camera effects stay at their normal s
 ## Building and testing
 
 Run these commands from the repository root. Close SceneLab before building because it locks the
-assemblies in `game/bin/managed`. See the [build guide](../../docs/architecture/build-system.md) for
+assemblies in `game/bin/managed`. See the [build guide](../../docs/reference/internals.md) for
 initial setup and native build options.
 
 ```powershell
@@ -221,7 +220,7 @@ compare serial and parallel execution.
 
 ## Development conventions
 
-Read the relevant section of the [renderer reference](../../docs/managed/scene-renderer.md) before
+Read the [renderer reference](../../docs/reference/managed-renderer.md) before
 changing a subsystem. When porting behavior, cite the native function or file in the code comment so
 the implementation can be checked against its source.
 
@@ -254,6 +253,13 @@ through `RenderContext` helpers so cached material bindings are invalidated corr
 GPU structs must match the native and shader layouts, including packing and matrix conventions.
 Check those layouts when updating native dependencies. Skinning uses the engine's shared vertex cache;
 morph and vertex-cache preparation needed by this renderer must complete before its draw submission.
+
+A model's draw call can have a base vertex: the scene compiler's merged models (`aggregate_N.vmdl`) pack many pieces into one
+vertex buffer, and each draw's indices count from its own first vertex. The native model draw calls
+(`RenderTools.DrawModelDrawCall` and the indirect forms) don't apply it, so `RenderMesh.Draw.BaseVertex` carries it and
+`MeshRenderFeature` draws such a draw call itself, through `RenderContext.DrawIndexedInstanced` with the base vertex. Leave
+it out and the draw reads the first piece's vertices: triangles join unrelated pieces and stretch across the screen
+(Newcity 2 Scene's chain-link fence, whose managed frame took 14.7 ms against 5.5 ms once fixed).
 
 ### C# style
 
@@ -303,8 +309,7 @@ For incorrect frames, start with pass constants, resource dependencies, object f
 Use debug views to isolate shading terms and inspect the depth chain for depth-dependent effects.
 Check that the assets exist and that both renderers have comparable temporal history.
 
-The [renderer reference](../../docs/managed/scene-renderer.md) records detailed investigations into
-color space, shadow behavior, skinning, material binding, bridge synchronization and parallel recording.
+The [renderer reference](../../docs/reference/managed-renderer.md) lists the rules that matter most.
 
 Remaining work includes moving more camera effects into this renderer, threading main-view collection
 and preparation, and reducing native per-draw overhead. Known gaps include morphs on meshes without a

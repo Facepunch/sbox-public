@@ -128,6 +128,13 @@
     double mbps;
     long lastBytes;
 
+    /// <summary>
+    /// Since the last poll that brought more down - past <see cref="StallTime"/> the speed's nothing, not a
+    /// fading guess that puts the time left in the hundreds of thousands of days
+    /// </summary>
+    RealTimeSince sinceProgress;
+    const float StallTime = 2f;
+
     IDisposable endedSubscription;
 
     protected override void OnAfterTreeRender( bool firstTime )
@@ -212,7 +219,10 @@
         var speed = active.Length > 0 && bytes >= lastBytes ? (bytes - lastBytes) / elapsed / 1024 / 1024 * 8 : 0;
         lastBytes = bytes;
 
-        mbps = speed <= 0 ? mbps * 0.8 : mbps <= 0 ? speed : MathX.Lerp( mbps, speed, 0.2 );
+        if ( speed > 0 ) sinceProgress = 0;
+
+        // Eases down over a blip, but stalled - Steam finishing up at 100% - it's stopped, no time left to guess
+        mbps = speed > 0 ? (mbps <= 0 ? speed : MathX.Lerp( mbps, speed, 0.2 )) : sinceProgress > StallTime ? 0 : mbps * 0.8;
         if ( active.Length == 0 ) mbps = 0;
 
         Rows = failures.Select( x => new Row( x.Download.Id.ToString(), "failed", x.Download.Title, x.Download.Error, x.Download.ErrorHelp, [x.Download.Thumb] ) ).ToList();

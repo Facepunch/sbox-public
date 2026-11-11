@@ -73,14 +73,7 @@ public sealed partial class AvatarEditManager : Component
 		}
 	}
 
-	/// <summary>
-	/// Everything there is to wear - less what's only for sale, for an account too new to be sold things
-	/// (see <see cref="MenuHelpers.ShowMicrotransactions"/>). What it owns, it still has.
-	/// </summary>
-	public IEnumerable<Clothing> GetAllClothing()
-	{
-		return MenuHelpers.ShowMicrotransactions ? allClothing : allClothing.Where( IsPurchased );
-	}
+	public IEnumerable<Clothing> GetAllClothing() => allClothing;
 
 	protected override void OnUpdate()
 	{

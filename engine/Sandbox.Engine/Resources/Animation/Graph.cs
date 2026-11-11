@@ -32,25 +32,29 @@ public sealed class Graph : Resource, IDisposable
 	/// <summary>
 	/// Animation graph resource name.
 	/// </summary>
-	public string Name { get; }
+	public string Name => ResourcePath;
 
 	private Graph( HAnimGraph2 native, string name, bool procedural )
 	{
 		this.native = native;
 		this.procedural = procedural;
-		Name = name;
-
-		RegisterWeakResourceId( Name );
+		RegisterWeakResourceId( name, procedural ? null : native.GetGuid() );
 	}
 
 	/// <summary>
 	/// Load an animation graph from the given file.
 	/// </summary>
-	public static Graph Load( string filename )
+	public static Graph Load( string filename ) => Load( (ResourceId)filename );
+
+	internal static Graph Load( ResourceId id )
 	{
 		ThreadSafe.AssertIsMainThread();
 
-		return FromNative( NativeGlue.Resources.GetAnimGraph2( filename ), filename );
+		if ( id.Guid is Guid guid && Game.Resources.TryGet<Graph>( guid, out var resource ) )
+			return resource;
+
+		var path = id.ResolvePath();
+		return FromNative( NativeGlue.Resources.GetAnimGraph2( path, id.Guid ?? Guid.Empty ), path );
 	}
 
 	/// <summary>
@@ -83,6 +87,7 @@ public sealed class Graph : Resource, IDisposable
 		if ( NativeResourceCache.TryGetValue<Graph>( instanceId, out var graph ) )
 		{
 			native.DestroyStrongHandle();
+			Game.Resources.RegisterWeak( graph );
 			return graph;
 		}
 

@@ -155,7 +155,7 @@ public sealed class Compiler
 		if ( string.IsNullOrWhiteSpace( variation.TargetSkeletonPath ) )
 			Error( $"Variation '{VariationID}' has no skeleton" );
 
-		_builder.Skeleton = variation.TargetSkeletonPath;
+		_builder.SetSkeleton( variation.TargetSkeletonReference.IsEmpty ? ResourceId.FromPath( variation.TargetSkeletonPath ) : variation.TargetSkeletonReference );
 	}
 
 	private void CollectParameters()

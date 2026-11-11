@@ -52,6 +52,12 @@ internal static class LoadProgress
 
 	public static void Complete() => Completed = true;
 
+	/// <summary>
+	/// A new loading screen's up - the last load having made it isn't this one's, whose bar would otherwise show full
+	/// until its own load begins
+	/// </summary>
+	public static void Forget() => Completed = false;
+
 	static double Of( string stage ) => Expected.TryGetValue( stage, out var s ) ? s : UnknownStage;
 
 	public static void Begin()

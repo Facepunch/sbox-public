@@ -1,4 +1,5 @@
 @import "/styles/_theme.scss";
+@import "/Platform/_platform.scss";
 @import "/styles/_button.scss";
 
 RewardUnboxUI
@@ -11,6 +12,18 @@ RewardUnboxUI
 	font-family: $font-default;
 	pointer-events: none;
 
+	.button
+	{
+		@include platform-text-button( 40px );
+		justify-content: center;
+		padding: 0 18px;
+
+		&.primary
+		{
+			@include platform-button-primary;
+		}
+	}
+
 	.topbar
 	{
 		flex-shrink: 0;
@@ -21,37 +34,6 @@ RewardUnboxUI
 		.back
 		{
 			align-self: flex-start;
-			align-items: center;
-			gap: 6px;
-			padding: 8px 18px;
-			border-radius: $rounding-large;
-			background-color: rgba( $default-50, 0.06 );
-			border: 1px solid $default-border;
-			color: $default-text;
-			transition: all 150ms $easing;
-
-			icon
-			{
-				font-size: 18px;
-				color: $default-200;
-			}
-
-			label
-			{
-				font-family: $font-heading;
-				font-weight: 600;
-			}
-
-			&:hover
-			{
-				background-color: rgba( $default-50, 0.12 );
-				border-color: rgba( $default-50, 0.2 );
-
-				icon
-				{
-					color: $default-text;
-				}
-			}
 		}
 	}
 
@@ -100,8 +82,8 @@ RewardUnboxUI
 		align-items: center;
 		padding: 20px 32px;
 		pointer-events: all;
-		background-color: rgba( $default-800, 0.85 );
-		border-top: 1px solid $default-600;
+		background-color: $platform-glass;
+		border-top: 1px solid $platform-hairline;
 		backdrop-filter: blur( 24px );
 
 		.claim-info
@@ -111,20 +93,8 @@ RewardUnboxUI
 
 			.select-banner
 			{
+				@include platform-chip;
 				align-self: flex-start;
-				background-color: $primary-yellow;
-				padding: 6px 16px;
-				border-radius: $rounding-default;
-
-				label
-				{
-					font-family: $font-heading;
-					font-weight: 700;
-					font-size: $text-small;
-					letter-spacing: 0.5px;
-					text-transform: uppercase;
-					color: $default-950;
-				}
 			}
 
 			.blurb
@@ -137,49 +107,20 @@ RewardUnboxUI
 
 		.claim
 		{
+			@include platform-text-button( 48px );
+			@include platform-button-primary;
 			width: 250px;
 			justify-content: center;
-			gap: 8px;
-			padding: 14px 24px;
-			border-radius: $rounding-large;
-			background-color: $primary-green;
-			color: $default-950;
-			font-family: $font-heading;
-			font-weight: 700;
-			transition: all 150ms $easing;
-			font-size: 2rem;
-			cursor: pointer;
+			padding: 0 24px;
 
 			label
 			{
 				flex-grow: 0;
-				text-transform: uppercase;
-				letter-spacing: 1px;
-			}
-
-			icon
-			{
-				font-size: 18px;
-			}
-
-			&:hover
-			{
-				filter: brightness( 1.5 );
-				sound-in: "ui.button.over";
-			}
-
-			&:active
-			{
-				sound-in: "ui.button.press";
 			}
 
 			&.disabled
 			{
-				background-color: $default-700;
-				color: $default-300;
-				opacity: 1;
 				pointer-events: none;
-				filter: none;
 			}
 		}
 	}
@@ -193,8 +134,8 @@ RewardUnboxUI
 		gap: 16px;
 		padding: 24px 32px;
 		pointer-events: all;
-		background-color: rgba( $default-800, 0.85 );
-		border-top: 1px solid $default-600;
+		background-color: $platform-glass;
+		border-top: 1px solid $platform-hairline;
 		backdrop-filter: blur( 24px );
 
 		.result-icon

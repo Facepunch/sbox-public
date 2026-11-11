@@ -8,6 +8,91 @@ namespace SystemTests;
 public class HashSetExTest
 {
 	/// <summary>
+	/// Reading the cached view inside a predicate must not leave it stale after removal.
+	/// </summary>
+	[TestMethod]
+	[DataRow( false )]
+	[DataRow( true )]
+	public void RemoveWhereRefreshesCacheAfterPredicateReads( bool enumerate )
+	{
+		var set = new HashSetEx<int>();
+		set.Add( 1 );
+
+		Assert.AreEqual( 1, set.RemoveWhere( _ =>
+		{
+			if ( enumerate )
+			{
+				foreach ( var item in set.EnumerateLocked() )
+				{
+					Assert.AreEqual( 1, item );
+				}
+			}
+			else
+			{
+				Assert.AreEqual( 1, set.List.Count );
+			}
+
+			return true;
+		} ) );
+
+		Assert.AreEqual( 0, set.Count );
+		Assert.AreEqual( 0, set.List.Count );
+		foreach ( var item in set.EnumerateLocked() )
+		{
+			Assert.Fail( $"Removed item {item} remained in the cache." );
+		}
+	}
+
+	/// <summary>
+	/// A throwing predicate still invalidates the cache when earlier items were removed.
+	/// </summary>
+	[TestMethod]
+	public void ThrowingRemoveWhereRefreshesCache()
+	{
+		var set = new HashSetEx<int>();
+		set.Add( 1 );
+		set.Add( 2 );
+		Assert.AreEqual( 2, set.List.Count );
+		var visited = 0;
+
+		Assert.ThrowsException<InvalidOperationException>( () => set.RemoveWhere( _ =>
+		{
+			_ = set.List.Count;
+			return ++visited == 1 ? true : throw new InvalidOperationException();
+		} ) );
+
+		Assert.AreEqual( 1, set.Count );
+		Assert.AreEqual( 1, set.List.Count );
+		Assert.IsTrue( set.Contains( set.List[0] ) );
+	}
+
+	/// <summary>
+	/// Predicate removal covers pending additions without changing an active enumeration.
+	/// </summary>
+	[TestMethod]
+	public void RemoveWhereDuringEnumeration()
+	{
+		var set = new HashSetEx<int>();
+		set.Add( 1 );
+		set.Add( 2 );
+		var seen = new List<int>();
+
+		foreach ( var item in set.EnumerateLocked() )
+		{
+			seen.Add( item );
+			if ( item == 1 )
+			{
+				set.Add( 3 );
+				Assert.AreEqual( 2, set.RemoveWhere( x => x > 1 ) );
+			}
+		}
+
+		CollectionAssert.AreEquivalent( new[] { 1, 2 }, seen );
+		Assert.AreEqual( 1, set.Count );
+		CollectionAssert.AreEqual( new[] { 1 }, new List<int>( set.List ) );
+	}
+
+	/// <summary>
 	/// Additions to a <see cref="HashSetEx{T}"/> while enumerating it must be
 	/// deferred until after the enumeration.
 	/// </summary>

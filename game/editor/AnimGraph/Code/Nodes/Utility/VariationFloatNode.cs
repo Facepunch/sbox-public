@@ -29,7 +29,7 @@ public class VariationFloatNode : VariationDataNode<VariationFloatNode.Data>
 	{
 		get
 		{
-			var info = DisplayInfo.For( this );
+			var info = TypeDisplayInfo;
 			info.Name = $"Variation Float: {((Data)SelectedVariationData).Value:0.###}";
 			return info;
 		}

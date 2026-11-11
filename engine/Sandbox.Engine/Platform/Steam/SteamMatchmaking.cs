@@ -26,7 +26,7 @@ internal class SteamMatchmaking : SteamClientClass<SteamMatchmaking>
 	/// </summary>
 	internal static async Task<Lobby?> CreateLobbyAsync( LobbyType type, int maxMembers = 100 )
 	{
-		Assert.NotNull( Internal );
+		if ( Internal is null || !Internal.IsValid ) return null;
 
 		var lobby = await Internal.CreateLobby( type, maxMembers );
 		if ( !lobby.HasValue || lobby.Value.Result != Result.OK ) return null;
@@ -39,7 +39,7 @@ internal class SteamMatchmaking : SteamClientClass<SteamMatchmaking>
 	/// </summary>
 	internal static async Task<(RoomEnter Response, Lobby? Lobby)> JoinLobbyAsync( SteamId lobbyId )
 	{
-		Assert.NotNull( Internal );
+		if ( Internal is null || !Internal.IsValid ) return (RoomEnter.Error, null);
 
 		var lobby = await Internal.JoinLobby( lobbyId );
 		if ( !lobby.HasValue ) return (RoomEnter.Error, null);

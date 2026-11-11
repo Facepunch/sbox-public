@@ -47,8 +47,9 @@ Options: --engine <game-directory>      installation containing sbox.exe / sbox-
 - Skill targets are `claude` (`~/.claude/skills`) and `agents` (`~/.agents/skills`, read by Codex
   and others). Without one, install covers the agents found on this machine (`~/.claude`,
   `~/.codex` or `~/.agents` exists) and uninstall covers all. Only copies carrying the
-  `sbox-bootstrap` frontmatter key are ever replaced or removed. The editor's startup prompt and
-  Preferences › AI Agents run the same commands.
+  `sbox-bootstrap` frontmatter key are ever replaced or removed. Installation follows symbolic
+  links and directory junctions for both the skills folder and its `sbox` subfolder.
+  The editor's startup prompt and Preferences › AI Agents run the same commands.
 - `--list` asks every `sbox*` process for its identity and prints `[{"pid":…,"kind":"editor"|"game",
   "project":"…/x.sbproj"}]`. Processes that don't answer within 300 ms are skipped.
 

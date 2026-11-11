@@ -31,6 +31,8 @@ internal sealed class FloatChannels : Widget
 		_document = document;
 		Layout = Layout.Column();
 		Layout.Spacing = 4;
+		Layout.Alignment = TextFlag.Top;
+		VerticalSizeMode = SizeMode.CanGrow;
 
 		var bar = Layout.AddRow();
 		bar.Spacing = 4;

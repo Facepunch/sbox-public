@@ -28,7 +28,9 @@ public class AsyncPumpTests
 			{
 				var context = SynchronizationContext.Current;
 				await Task.Yield();
-				var value = await Task.Run( () => 42 );
+				var worker = new TaskCompletionSource<int>();
+				new Thread( () => worker.SetResult( 42 ) ).Start();
+				var value = await worker.Task;
 				Assert.AreEqual( caller, Environment.CurrentManagedThreadId );
 				Assert.AreSame( context, SynchronizationContext.Current );
 				return value;

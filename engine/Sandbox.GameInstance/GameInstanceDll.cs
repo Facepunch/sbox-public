@@ -20,6 +20,12 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 	public static PackageLoader PackageLoader { get; set; }
 	PackageLoader.Enroller AssemblyEnroller { get; set; }
 
+	/// <summary>
+	/// A game has started loading since the environment was last reset - even one that was cancelled part way through
+	/// can have mounted and loaded things
+	/// </summary>
+	bool gameLoadStarted;
+
 	private bool _isAssemblyLoadingPaused;
 
 	// Nothing but the engine has been added to the type library since it was last built
@@ -64,6 +70,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			if ( !Application.IsStandalone )
 			{
 				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Root, "/addons/citizen/Assets/" );
+				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Root, "/addons/content/Assets/" );
 			}
 
 			// The editor's UI assets - stylesheets and the like - are visible while editing
@@ -73,6 +80,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 		PackageLoader?.Dispose();
 		PackageLoader = new PackageLoader( "GameMenu", typeof( GameInstanceDll ).Assembly );
+		GlobalContext.Current.ReplaceScriptAssembly = PackageLoader.ReplaceScriptAssembly;
 		PackageLoader.HotloadWatch( Game.GameAssembly ); // Sandbox.Game is per instance
 		PackageLoader.OnAfterHotload = OnAfterHotload;
 
@@ -132,7 +140,9 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 	/// </summary>
 	public void ResetEnvironment()
 	{
-		var hadPreviousEnvironment = gameInstance is not null || AssemblyEnroller is not null || DidMountNetworkedFiles;
+		var hadPreviousEnvironment = gameLoadStarted || gameInstance is not null || DidMountNetworkedFiles
+			|| AssemblyEnroller?.GetLoadedAssemblies().Length > 0;
+		gameLoadStarted = false;
 
 		// The menu loaded its resources moments ago during startup, so there is nothing to reset yet. Nor when no package
 		// has been mounted or unmounted since the last reset: closing a game resets and starting the next one does again.
@@ -154,6 +164,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			PackageLoader = null;
 
 			PackageLoader = new PackageLoader( "GameMenu", typeof( GameInstanceDll ).Assembly );
+			GlobalContext.Current.ReplaceScriptAssembly = PackageLoader.ReplaceScriptAssembly;
 			PackageLoader.HotloadWatch( Game.GameAssembly ); // Sandbox.Game is per instance
 			PackageLoader.OnAfterHotload = OnAfterHotload;
 		}
@@ -165,6 +176,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			EngineFileSystem.Mounted.UnMount( NetworkedLargeFiles.Files );
 			EngineFileSystem.Mounted.UnMount( NetworkedSmallFiles.Files );
 			EngineFileSystem.ProjectSettings.UnMount( NetworkedConfigFiles.Files );
+			Game.Language.FileSystem.UnMount( NetworkedLangFiles.Files );
 			DidMountNetworkedFiles = false;
 		}
 
@@ -175,6 +187,9 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		AssemblyEnroller = null;
 
 		CodeArchiveTable.Reset();
+		ScriptTable.Reset();
+		NetworkScriptsReady = false;
+		DidLoadNetworkedResources = false;
 		NetworkedSmallFiles.Reset();
 		NetworkedConfigFiles.Reset();
 		NetworkedLangFiles.Reset();
@@ -211,6 +226,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		Networking.Reset();
 		Connection.Reset();
 		GlobalContext.Current.Reset();
+		PartyRoom.Current?.ClearCallbacks();
 		NativeResourceCache.ClearCache();
 		Speech.Recognition.Reset();
 		Json.Initialize();
@@ -284,13 +300,13 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 		if ( hadPreviousEnvironment )
 		{
-			// Collect what the last game left so finalizers release its native resources. In the background: a blocking
-			// collection of the whole heap freezes every managed thread, the audio mixer included, for a third of a second.
-			GC.Collect( GC.MaxGeneration, GCCollectionMode.Forced, blocking: false );
-			GC.WaitForPendingFinalizers();
+			// Its type library's strings needn't be kept around for the next game
+			StringPool.Clear();
 
-			// Run the queue one more time, since some finalizers queue tasks
-			MainThread.RunQueues();
+			// Start collecting what the last game left, in the background: a blocking collection of the whole heap freezes
+			// every managed thread, the audio mixer included, for a third of a second. It returns at once, so the last
+			// game's finalizers run during the next load and the native releases they queue run between its frames.
+			GC.Collect( GC.MaxGeneration, GCCollectionMode.Forced, blocking: false );
 		}
 	}
 
@@ -547,6 +563,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		// Run any pending queue'd mainthread tasks here
 		// so they're in the same scene scope
 		MainThread.RunQueues();
+		GlobalContext.Current.TickScripting();
 	}
 
 	private void RunGameFrame( Scene activeScene )
@@ -605,7 +622,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 		// cancel any in-progress load right now instead of waiting for tick
 		CancelLoad();
-		Game.Close();
+		Game.CloseGame();
 
 		if ( !string.IsNullOrEmpty( message ) )
 		{
@@ -789,6 +806,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 			Api.Activity.LoadStage( "reset" );
 			ResetEnvironment();
+			gameLoadStarted = true;
 
 			NativeErrorReporter.Breadcrumb( true, "game", $"Loading game package {ident}" );
 			NativeErrorReporter.SetTag( "game", ident );
@@ -1019,26 +1037,9 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		{
 			await Project.InitializeBuiltIn( false );
 
-			var project = Project.AddFromFile( gameIdent );
+			var project = await Project.AddGameFromFile( gameIdent );
 
-			NativeEngine.FullFileSystem.AddProjectPath( gameIdent, project.GetAssetsPath().ToLowerInvariant() );
-
-			var libraries = Path.Combine( project.RootDirectory.FullName, "Libraries" );
-
-			// We should iterate all available libraries and add their projects
-			foreach ( var folder in Directory.Exists( libraries ) ? Directory.EnumerateDirectories( libraries ) : [] )
-			{
-				var configs = Directory.EnumerateFiles( folder, "*.sbproj" ).ToArray();
-				if ( configs.Length != 1 ) continue;
-				Project.AddFromFile( configs[0] );
-			}
-
-			// We need to reload the project since we may have had a bunch of libraries added
-			project.Load();
-
-			await Project.CompileAsync();
-
-			if ( !project.Active )
+			if ( project is null )
 			{
 				Log.Error( $"Unable to load {gameIdent}" );
 				return;

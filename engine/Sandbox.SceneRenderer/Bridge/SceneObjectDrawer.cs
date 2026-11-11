@@ -84,9 +84,9 @@ internal sealed class SceneObjectDrawer : IDisposable
 
 				// Object attributes override caller attributes; rigid transforms use this drawer's buffer.
 				drawAttributes.Clear();
-				attributes?.MergeTo( drawAttributes );
-				obj.Attributes?.MergeTo( drawAttributes );
-				if ( !skinned ) drawAttributes.Set( TransformBufferName, entries );
+				attributes?.MergeToUntracked( drawAttributes );
+				obj.Attributes?.MergeToUntracked( drawAttributes );
+				if ( !skinned ) drawAttributes.SetUntracked( TransformBufferName, entries );
 
 				// Preserve source opacity for override shaders (RenderTools::DrawSceneObject).
 				if ( material is not null )

@@ -1,14 +1,17 @@
+@import "/Platform/_platform.scss";
+
 AvatarRigPage
 {
 	display: contents;
 }
 
+// The backdrops - a strip of choices down the left, the one in use lit
 AvatarRigPage > .body-left
 {
+	@include platform-choices;
 	flex-direction: column;
+	align-self: flex-start;
 	position: relative;
-	align-items: flex-start;
-	gap: 8px;
 }
 
 AvatarRigPage > .body-right
@@ -32,31 +35,19 @@ AvatarRigPage > .body-right > .items
 
 .rig-button
 {
-	background-color: #0008;
-	padding: 8px;
-	padding-right: 32px;
-	border-radius: 8px;
-	cursor: pointer;
+	@include platform-choice;
+	flex-grow: 0;
+	flex-basis: auto;
+	height: 48px;
+	padding: 8px 32px 8px 8px;
+	text-shadow: none;
 	pointer-events: all;
-	transition: all 0.1s ease;
 	flex-shrink: 0;
 	gap: 16px;
-	font-size: 22px;
-	align-items: center;
 	justify-content: flex-start;
 
 	Image
 	{
 		height: 32px;
-	}
-
-	&:hover
-	{
-		background-color: #000c;
-	}
-
-	&.active
-	{
-		background-color: #08f;
 	}
 }

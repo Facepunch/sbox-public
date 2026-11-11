@@ -134,6 +134,7 @@ public class PanelAppSystem : AppSystem
 		Game.TypeLibrary = new Sandbox.Internal.TypeLibrary();
 		Game.TypeLibrary.AddIntrinsicTypes();
 		Game.TypeLibrary.AddAssembly( typeof( Vector3 ).Assembly, false );
+		Game.TypeLibrary.AddAssembly( typeof( Sandbox.Internal.TypeLibrary ).Assembly, false );
 		Game.TypeLibrary.AddAssembly( typeof( Sandbox.UI.Panel ).Assembly, false );
 		Phase( "Managed types" );
 

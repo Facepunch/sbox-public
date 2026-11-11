@@ -1,5 +1,4 @@
 ﻿using NativeEngine;
-using System.Collections.Concurrent;
 using System.Threading;
 
 namespace Sandbox;
@@ -15,7 +14,7 @@ internal static class AsyncGPUReadback
 {
 	internal delegate void TextureReadDelegate( Span<byte> readData, ImageFormat readFormat, int readMipLevel, int readWidth, int readHeight, Action doneWithData );
 
-	private static ConcurrentDictionary<int, TextureReadDelegate> _activeReadTextureCallbacks = new();
+	private static readonly Dictionary<int, TextureReadDelegate> _activeReadTextureCallbacks = new();
 	private static int _nextReadTextureCallbackId = 1;
 
 	/// <summary>
@@ -42,7 +41,7 @@ internal static class AsyncGPUReadback
 		var nativeCallbackObject = CReadTexturePixelsManagedCallback.Create();
 		nativeCallbackObject.SetManagedId( callbackId );
 
-		_activeReadTextureCallbacks.TryAdd( callbackId, callback );
+		lock ( _activeReadTextureCallbacks ) _activeReadTextureCallbacks.TryAdd( callbackId, callback );
 
 		var nativeRect = new NativeRect( srcRect.X, srcRect.Y, srcRect.Width, srcRect.Height );
 		context.ReadTexturePixels( texture, nativeCallbackObject, nativeRect, slice, mipLevel, true );
@@ -54,7 +53,10 @@ internal static class AsyncGPUReadback
 	internal static void DispatchManagedReadTextureCallback( CReadTexturePixelsManagedCallback caller, IntPtr pData, ImageFormat format, int nMipLevel, int nWidth, int nHeight, int nPitchInBytes )
 	{
 		var callerId = caller.GetManagedId();
-		if ( _activeReadTextureCallbacks.TryRemove( callerId, out var callback ) )
+		TextureReadDelegate callback;
+		lock ( _activeReadTextureCallbacks ) _activeReadTextureCallbacks.Remove( callerId, out callback );
+
+		if ( callback is not null )
 		{
 			// We move this to another thread, to unblock the render thread as soon as possible
 			Task.Run( () =>
@@ -86,10 +88,14 @@ internal static class AsyncGPUReadback
 
 	internal delegate void BufferReadDelegate( Span<byte> pData );
 
-	private static ConcurrentDictionary<int, BufferReadDelegate> _activeReadBufferCallbacks = new();
+	private static readonly Dictionary<int, (BufferReadDelegate Callback, bool Inline)> _activeReadBufferCallbacks = new();
 	private static int _nextReadBufferCallbackId = 1;
 
-	internal static void ReadBufferAsync( this IRenderContext context, GpuBuffer buffer, BufferReadDelegate callback, int offset, int bytesToRead )
+	/// <summary>
+	/// Reads buffer data from GPU memory. The callback runs on a worker thread, or with <paramref name="inline"/> on the
+	/// render thread, which is only for tiny callbacks.
+	/// </summary>
+	internal static void ReadBufferAsync( this IRenderContext context, GpuBuffer buffer, BufferReadDelegate callback, int offset, int bytesToRead, bool inline = false )
 	{
 		// Generate a unique ID for this callback
 		int callbackId = Interlocked.Increment( ref _nextReadBufferCallbackId );
@@ -98,7 +104,7 @@ internal static class AsyncGPUReadback
 		var nativeCallbackObject = CReadBufferManagedCallback.Create();
 		nativeCallbackObject.SetManagedId( callbackId );
 
-		_activeReadBufferCallbacks.TryAdd( callbackId, callback );
+		lock ( _activeReadBufferCallbacks ) _activeReadBufferCallbacks.TryAdd( callbackId, (callback, inline) );
 
 		context.ReadBuffer( buffer.native, nativeCallbackObject, offset, bytesToRead, true );
 	}
@@ -109,23 +115,52 @@ internal static class AsyncGPUReadback
 	internal static void DispatchManagedReadBufferCallback( CReadBufferManagedCallback caller, IntPtr pData, int nBytes )
 	{
 		var callerId = caller.GetManagedId();
-		if ( _activeReadBufferCallbacks.TryRemove( callerId, out var callback ) )
+		(BufferReadDelegate Callback, bool Inline) request;
+		lock ( _activeReadBufferCallbacks ) _activeReadBufferCallbacks.Remove( callerId, out request );
+
+		if ( request.Callback is null )
+			return;
+
+		if ( !request.Inline )
 		{
-			Task.Run( () =>
-			{
-				try
-				{
-					unsafe
-					{
-						var bytes = new Span<byte>( pData.ToPointer(), nBytes );
-						callback( bytes );
-					}
-				}
-				finally
-				{
-					caller.Done();
-				}
-			} );
+			QueueReadBufferCallback( caller, pData, nBytes, request.Callback );
+			return;
 		}
+
+		try
+		{
+			unsafe
+			{
+				request.Callback( new Span<byte>( pData.ToPointer(), nBytes ) );
+			}
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( e, "GPU readback callback failed" );
+		}
+		finally
+		{
+			caller.Done();
+		}
+	}
+
+	// Separate so the closure isn't allocated for inline callbacks
+	static void QueueReadBufferCallback( CReadBufferManagedCallback caller, IntPtr pData, int nBytes, BufferReadDelegate callback )
+	{
+		Task.Run( () =>
+		{
+			try
+			{
+				unsafe
+				{
+					var bytes = new Span<byte>( pData.ToPointer(), nBytes );
+					callback( bytes );
+				}
+			}
+			finally
+			{
+				caller.Done();
+			}
+		} );
 	}
 }

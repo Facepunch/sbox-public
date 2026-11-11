@@ -1,4 +1,4 @@
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 @import "/styles/_theme.scss";
 
 LoadingOverlay
@@ -106,14 +106,9 @@ LoadingOverlay
 		background-image: radial-gradient( rgba( 8, 10, 14, 0 ) 25%, rgba( 8, 10, 14, 0.6 ) 60%, rgba( 8, 10, 14, 0.92 ) 90% );
 	}
 
-	// The same slab as the menu's panels - fill, hairline, rounding, the blur over what's behind
 	.card
 	{
-		@include front-slab;
-
-		border-radius: $front-radius;
-		border: $front-border-width solid $front-border;
-		box-shadow: 0 8px 32px rgba( 0, 0, 0, 0.35 );
+		@include platform-surface;
 	}
 
 	//
@@ -295,8 +290,6 @@ LoadingOverlay
 		{
 			height: 16px;
 			gap: 2px;
-			background-color: transparent;
-			border-width: 0;
 
 			icon
 			{
@@ -377,9 +370,6 @@ LoadingOverlay
 		gap: 5px;
 		height: 28px;
 		padding: 0 10px 0 10px;
-		border-radius: 999px;
-		background-color: rgba( 255, 255, 255, 0.06 );
-		border: 1px solid rgba( 255, 255, 255, 0.08 );
 
 		icon
 		{
@@ -424,9 +414,10 @@ LoadingOverlay
 	{
 		flex-shrink: 0;
 		min-width: 0;
+		font-family: $platform-font;
 		font-size: 15px;
-		font-weight: 600;
-		color: $front-heading;
+		font-weight: 700;
+		color: $platform-text;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -442,18 +433,20 @@ LoadingOverlay
 		font-family: Inter;
 		font-weight: 700;
 		font-variant-numeric: tabular-nums;
-		color: $front-heading;
+		color: $platform-icon;
 	}
 
 	// The download bar - always there: an empty track with nothing coming down, and while a batch is,
 	// a segment for each download, side by side with a hairline between them
+	// Recessed and round-ended, filled the dock's light blue - as the platform's sliders are
 	.track
 	{
 		@include front-track;
 
 		flex-direction: row;
 		gap: 2px;
-		height: 5px;
+		height: 8px;
+		background-color: rgba( 6, 12, 24, 0.6 );
 
 		// The segments are the track now, each its own - the gaps between them show through
 		&.busy
@@ -472,7 +465,7 @@ LoadingOverlay
 			min-width: 0;
 			height: 100%;
 			border-radius: 1px;
-			background-color: $front-track;
+			background-color: rgba( 6, 12, 24, 0.6 );
 			overflow: hidden;
 
 			&:first-child
@@ -517,7 +510,7 @@ LoadingOverlay
 			height: 100%;
 			border-radius: 999px;
 			overflow: hidden;
-			background-image: linear-gradient( 90deg, $front-reward-deep, $front-reward );
+			background-color: $platform-selected;
 			transition: width 0.3s ease-out;
 
 			// A soft brightening through the whole fill, over and over - it never sits still, even
@@ -564,7 +557,6 @@ LoadingOverlay
 	{
 		position: relative;
 		overflow: hidden;
-		transition: border-color 0.4s ease-out, box-shadow 0.4s ease-out;
 
 		// Everything in the card draws over the wipe
 		> .progress-head, > .track, > .marker-row, > .progress-foot
@@ -593,9 +585,11 @@ LoadingOverlay
 
 	.progress.complete
 	{
-		// The whole card lights up green round its edge
-		border-color: rgba( $front-reward, 0.7 );
-		box-shadow: 0 0 28px rgba( $front-reward, 0.35 ), 0 8px 32px rgba( 0, 0, 0, 0.35 );
+		// Blue while it works, green once it's done - as the finish's glow and wipe are
+		.track .fill
+		{
+			background-color: $front-reward;
+		}
 
 		// The bar's segments glow, flash bright once, and stop sweeping - it's done working. As specific as
 		// a finished segment's own rule, which stops its pulse, so this flash wins over it
@@ -672,41 +666,24 @@ LoadingOverlay
 		text-overflow: ellipsis;
 	}
 
-	// A real button, not a link - the way out has to be easy to find. Goes red when you point at it,
-	// like the menu's other stop / leave buttons
+	// A real button, not a link - the way out has to be easy to find. The dock's grey till it's pointed at, then red as
+	// the dock's quit is
 	.cancel
 	{
-		@include front-pill;
-
-		// The same height as the pills beside it, so the row lines up
+		@include platform-text-button;
 		flex-shrink: 0;
 		gap: 6px;
-		height: 28px;
 		padding: 0 14px 0 10px;
-		border-color: rgba( 255, 255, 255, 0.2 );
-		background-color: rgba( 255, 255, 255, 0.08 );
-		cursor: pointer;
+		pointer-events: all;
 
-		icon
-		{
-			font-size: 15px;
-			color: $front-body;
-		}
-
-		label
-		{
-			font-size: 13px;
-			font-weight: 700;
-			color: $front-heading;
-		}
+		label, i, iconpanel, icon { color: $platform-text; }
 
 		&:hover
 		{
-			border-color: rgba( $front-danger, 0.6 );
-			background-color: rgba( $front-danger, 0.16 );
+			background-color: #bd354c;
 			sound-in: "ui.button.over";
 
-			icon, label { color: $front-danger; }
+			label, i, iconpanel, icon { color: white; }
 		}
 
 		&:active

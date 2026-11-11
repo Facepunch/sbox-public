@@ -39,6 +39,7 @@ internal static class SourceSoundEvents
 			AirAbsorption = false,
 			DistanceAttenuation = !ambient && definition.SoundLevel != 0,
 			Distance = distance,
+			FalloffMode = SoundFalloffMode.Curve,
 			Falloff = new Curve( frames )
 		};
 	}

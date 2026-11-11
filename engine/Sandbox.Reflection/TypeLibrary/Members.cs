@@ -14,10 +14,10 @@ public partial class TypeLibrary
 	/// </summary>
 	public IReadOnlyList<(MethodDescription Method, T Attribute)> GetMethodsWithAttribute<T>( bool onlyStatic = true ) where T : Attribute
 	{
-		return Cached( HashCode.Combine( "GetMethodsWithAttribute", typeof( T ), onlyStatic ),
-						() => typedata.Values.SelectMany( x => x.Members )
+		return Cached( HashCode.Combine( "GetMethodsWithAttribute", typeof( T ), onlyStatic ), (Library: this, OnlyStatic: onlyStatic),
+						static s => s.Library.typedata.Values.SelectMany( x => x.Members )
 								.OfType<MethodDescription>()
-								.Where( x => x.IsStatic || !onlyStatic )
+								.Where( x => x.IsStatic || !s.OnlyStatic )
 								.SelectMany( x => x.Attributes.OfType<T>().Select<T, (MethodDescription Method, T Attribute)>( y => new( x, y ) ) )
 								.ToImmutableList() );
 	}

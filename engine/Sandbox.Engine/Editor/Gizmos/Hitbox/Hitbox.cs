@@ -100,7 +100,8 @@ public static partial class Gizmo
 			if ( hitDistance < 2.0f )
 				return;
 
-			TrySetHovered( hitDistance );
+			// hit distance is in local units, use the world hit point like the other hitboxes
+			TrySetHovered( Transform.PointToWorld( ray.Project( hitDistance ) ) );
 
 			if ( Debug )
 			{
@@ -130,9 +131,8 @@ public static partial class Gizmo
 			if ( !bounds.Trace( ray, float.MaxValue, out float hitDistance ) )
 				return;
 
-			// todo - this distance might be scaled by the current transform
-			// so might be shorter/longer than it should be. Do we need to scale it back?
-			TrySetHovered( hitDistance );
+			// hit distance is in local units, use the world hit point like the other hitboxes
+			TrySetHovered( Transform.PointToWorld( ray.Project( hitDistance ) ) );
 
 			if ( Debug )
 			{

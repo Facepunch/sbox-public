@@ -18,11 +18,7 @@ public sealed class ResourceCompiler : Sandbox.Resources.ResourceCompiler
 		foreach ( var warning in result.Warnings )
 			Log.Warning( $"{Context.RelativePath}: {warning.Message}" );
 		foreach ( var dependency in result.Dependencies )
-		{
-			var variant = dependency.LastIndexOf( ".ag+", StringComparison.OrdinalIgnoreCase );
-			Context.AddCompileReference( variant < 0 ? dependency : dependency[..(variant + 3)] );
 			Context.AddRuntimeReference( dependency );
-		}
 		if ( separator < 0 )
 		{
 			foreach ( var childVariation in graph.Variations.All.Where( item => item.ID != Variation.DefaultVariationID ) )

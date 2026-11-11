@@ -211,8 +211,8 @@ unsafe class ResourceCompileContextImp : ResourceCompileContext, IDisposable
 
 			foreach ( var e in jsonobj )
 			{
-				// component type names aren't asset references, but can look like one (eg Sandbox.Decal)
-				if ( e.Key.Equals( "__type", StringComparison.OrdinalIgnoreCase ) )
+				// Serialized type and graph node identifiers can look like asset paths.
+				if ( ResourceJsonMetadata.IsTypeMetadata( jsonobj, e.Key ) )
 					continue;
 
 				//
@@ -345,6 +345,8 @@ unsafe class ResourceCompileContextImp : ResourceCompileContext, IDisposable
 		{
 			return _context.CompileImmediately();
 		}
+
+		internal override Task<bool> CompileAsync() => ContentCompilerHost.CompileChild( Compile );
 
 		public override void SetInputData( string data )
 		{

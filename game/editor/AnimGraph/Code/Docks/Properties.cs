@@ -377,7 +377,8 @@ public class Properties : Widget
 
 	private void AddConduitRow( Nodes.StateMachineNode.Conduit conduit )
 	{
-		var count = conduit.Transitions.Count();
+		var transitions = conduit.Transitions.ToArray();
+		var count = transitions.Length;
 		var card = new Widget( _sheetCanvas ) { Layout = Layout.Column() };
 		card.Layout.Margin = 12;
 		card.Layout.Spacing = 6;
@@ -398,10 +399,18 @@ public class Properties : Widget
 		status.Color = count > 0 ? Theme.TextControl : Theme.Red;
 
 		var description = count > 0
-			? $"Controls when {conduit.From} can transition to {conduit.To}."
+			? $"Rules for {conduit.From} → {conduit.To}. Select a rule to edit its condition and blend settings."
 			: $"No rules are defined, so {conduit.From} cannot transition to {conduit.To}.";
 		var details = card.Layout.Add( new Label.Body( description, card ) );
 		details.Color = count > 0 ? Theme.TextControl : Theme.Red;
+		details.WordWrap = true;
+
+		for ( var i = 0; i < transitions.Length; ++i )
+		{
+			card.Layout.Add( new TransitionRow( card, null,
+				new Nodes.StateMachineNode.TransitionRoute( transitions[i], conduit.To, false ),
+				i, _window.SelectTransition ) );
+		}
 
 		_sheetCanvas.Layout.Add( card );
 	}
@@ -439,7 +448,7 @@ public class Properties : Widget
 		list.Layout.Margin = new Sandbox.UI.Margin( 0, 2, 0, 0 );
 		list.Layout.Spacing = 4;
 
-		var rows = new List<TransitionPriorityRow>();
+		var rows = new List<TransitionRow>();
 
 		void RefreshRows()
 		{
@@ -451,11 +460,12 @@ public class Properties : Widget
 		for ( var i = 0; i < routes.Count; i++ )
 		{
 			var index = i;
-			var row = new TransitionPriorityRow(
+			var row = new TransitionRow(
 				list,
 				state,
 				routes[index],
 				index,
+				_window.SelectTransition,
 				( transition, newIndex ) =>
 				{
 					if ( MoveTransition( machine, state, transition, newIndex ) )
@@ -554,7 +564,7 @@ public class Properties : Widget
 
 	private sealed record TransitionPriorityDrag( Nodes.StateMachineNode.State State, Nodes.TransitionNode Transition, int Index );
 
-	private sealed class TransitionPriorityRow : Widget
+	private sealed class TransitionRow : Widget
 	{
 		private readonly Nodes.StateMachineNode.State _state;
 		private Nodes.StateMachineNode.TransitionRoute _route;
@@ -564,21 +574,22 @@ public class Properties : Widget
 		private bool _dropAbove;
 		private bool _dropBelow;
 
-		public TransitionPriorityRow(
+		public TransitionRow(
 			Widget parent,
 			Nodes.StateMachineNode.State state,
 			Nodes.StateMachineNode.TransitionRoute route,
 			int index,
-			Action<Nodes.TransitionNode, int> moved ) : base( parent )
+			Action<Nodes.TransitionNode> selected,
+			Action<Nodes.TransitionNode, int> moved = null ) : base( parent )
 		{
 			_state = state;
 			_moved = moved;
 
 			FixedHeight = 46;
-			AcceptDrops = true;
-			IsDraggable = true;
-			Cursor = CursorShape.OpenHand;
-			ToolTip = "Drag to change priority.";
+			AcceptDrops = moved is not null;
+			IsDraggable = moved is not null;
+			Cursor = IsDraggable ? CursorShape.OpenHand : CursorShape.Finger;
+			MouseClick = () => selected( _route.Transition );
 
 			Bind( route, index );
 		}
@@ -588,7 +599,7 @@ public class Properties : Widget
 			_route = route;
 			_index = index;
 			_conditionSummary = ConditionSummary( route.Transition );
-			ToolTip = $"Drag to change priority.\nCondition: {_conditionSummary}";
+			ToolTip = $"Click to edit this transition.{(IsDraggable ? " Drag to change priority." : "")}\nCondition: {_conditionSummary}";
 			Update();
 		}
 
@@ -601,7 +612,7 @@ public class Properties : Widget
 			var content = LocalRect.Shrink( 8, 0 );
 			var handle = new Rect( content.Left, content.Top, 18, content.Height );
 			Paint.SetPen( Theme.TextControl );
-			Paint.DrawIcon( handle, "drag_indicator", 15, TextFlag.Center );
+			Paint.DrawIcon( handle, IsDraggable ? "drag_indicator" : "route", 15, TextFlag.Center );
 
 			var priority = new Rect( handle.Right + 5, content.Center.y - 10, 20, 20 );
 			Paint.SetBrush( Theme.Primary.WithAlpha( 0.14f ) );

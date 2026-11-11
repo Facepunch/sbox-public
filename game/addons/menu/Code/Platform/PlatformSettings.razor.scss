@@ -1,0 +1,221 @@
+@import "/Platform/_platform.scss";
+@import "/styles/_settingsrows.scss";
+
+// SettingsView laid out the platform's way - its controls are the same as the old menu's (SettingsView's own sheet);
+// this only places things. Scoped from here down to win on specificity.
+
+// The front's pages' own top and bottom (GameFront), so its card sits where theirs do
+$settings-top: 80px;
+// Down to the dock's top (ShelfPanel's .to-dock), where it fades off
+$settings-bottom: $platform-above-dock;
+$settings-rail-top: 38vh;
+
+// The detail's width, and how much wider that is than the categories - kept clear on their left too, so the card
+// stays in the middle (no arithmetic in the stylesheets)
+$settings-detail: 340px;
+$settings-detail-over: 104px;
+
+// With no detail beside the card (Storage) - the categories' room and that extra, on its right
+$settings-no-detail: 380px;
+
+PlatformSettings
+{
+	@include platform-16x9;
+	pointer-events: none;
+	transition: transform 0.18s ease-out, opacity 0.14s ease-out;
+
+	&:intro, &:outro
+	{
+		opacity: 0;
+		transform: translateY( 60px );
+	}
+
+	&:outro
+	{
+		transition: transform 0.12s ease-in, opacity 0.1s ease-in;
+	}
+
+	SettingsView
+	{
+		position: absolute;
+		left: 0;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		justify-content: center;
+		// The card's room above and below as padding here, not margins on it
+		padding: $settings-top 0 $settings-bottom $settings-detail-over;
+		gap: 0;
+		// Its empty space lets clicks through to the blur behind, which closes it
+		pointer-events: none;
+
+		.settings-search
+		{
+			display: none;
+		}
+
+		// Just left of the card, as the front's pages have their sections (the platform-side mixin) - out on the art
+		> .rail
+		{
+			position: relative;
+			// Up by the padding over the card too (the stylesheets don't do arithmetic)
+			top: -140px;
+			align-self: flex-start;
+			width: $platform-side-width;
+			flex-shrink: 0;
+			margin-right: $platform-side-gap;
+			padding: $settings-rail-top 0 0 0;
+			gap: 0;
+			border-radius: 0;
+			border: 0px solid transparent;
+			background-color: transparent;
+			backdrop-filter: none;
+			overflow: visible;
+			pointer-events: all;
+
+			&::before
+			{
+				display: none;
+			}
+		}
+
+		.cats
+		{
+			padding: 0;
+		}
+
+		// Over the categories, where the front's pages have theirs (31.5vh)
+		> .rail > .heading
+		{
+			position: absolute;
+			left: 0;
+			top: 31.5vh;
+			font-size: 34px;
+			font-weight: 700;
+			color: $platform-text;
+		}
+
+		// The card - the front's pages' own (see GameFront's stylesheet): their bar on it, then its sections, and its
+		// buttons under them
+		> .body
+		{
+			flex-grow: 0;
+			flex-shrink: 0;
+			width: 46%;
+			min-width: 640px;
+			max-width: 900px;
+			padding: 0 24px 20px 24px;
+			// Not clipped, as the platform's panels aren't
+			overflow: visible;
+			gap: 18px;
+			backdrop-filter: none;
+			pointer-events: all;
+
+			// No detail beside it (Storage has none) - as much clear on its right as the categories take on its left,
+			// so it stays in the middle
+			&:last-child
+			{
+				margin-right: $settings-no-detail;
+			}
+		}
+
+		// What the setting being read about does - out on the art just right of the card, as the categories are left
+		// of it, so the card stays in the middle
+		> .detail
+		{
+			align-self: flex-start;
+			width: $settings-detail;
+			margin-left: $platform-side-gap;
+			backdrop-filter: none;
+			pointer-events: none;
+
+			.about
+			{
+				font-size: 13.5px;
+				line-height: 19px;
+			}
+
+			// Nothing to say (Key Binds, About) - not there, but its room kept so the card stays in the middle
+			&.empty
+			{
+				opacity: 0;
+			}
+		}
+
+		// The pages' bar (the platform-panel mixin's .head) - the way back, the category's icon and its name, 8px in from
+		// the card's edge. Not the presets' own .head.
+		> .body > PanelHead
+		{
+			height: 50px;
+			margin: 0 -16px;
+			padding: 0;
+			border-bottom: 0px solid transparent;
+		}
+
+		.scroll
+		{
+			padding: 0 12px 0 0;
+		}
+
+		SettingsActions
+		{
+			padding: 6px 12px 0 0;
+			border-top: 0px solid transparent;
+		}
+
+		//
+		// The pages that bring their own markup (Key Binds, Storage) - in from the card's edges as the rows' pages are
+		//
+
+		.scroll.custom .page-content, .scroll.custom Storage .page-content
+		{
+			// Right across to the footer's edge - something has Key Binds' list stopping short of it, the footer under it
+			// doesn't, so any cap on its width goes
+			align-self: stretch;
+			width: 100%;
+			margin: 0;
+			padding: 0 12px 0 0;
+		}
+
+		.scroll.custom .page-footer, .scroll.custom SettingsFooter
+		{
+			padding: 18px 12px 0 0;
+			border-top: 0px solid transparent;
+		}
+
+		// Pinned to the row's right edge rather than laid out after its name - something after them in the row was holding
+		// them ~64px in from it
+		.scroll.custom row
+		{
+			position: relative;
+			width: 100%;
+
+			> div
+			{
+				position: absolute;
+				top: 0;
+				right: 6px;
+				bottom: 0;
+				width: $settings-control;
+				align-items: center;
+				gap: 6px;
+			}
+
+			> .is-label
+			{
+				position: relative;
+				right: auto;
+				width: auto;
+				flex-grow: 1;
+				flex-shrink: 1;
+			}
+		}
+
+		.scroll.custom KeyBind
+		{
+			flex-grow: 1;
+			flex-basis: 0;
+			min-width: 0;
+		}
+	}
+}

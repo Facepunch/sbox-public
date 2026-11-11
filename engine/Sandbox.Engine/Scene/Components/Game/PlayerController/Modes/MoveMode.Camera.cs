@@ -9,7 +9,10 @@ partial class MoveMode
 	public virtual Transform CalculateEyeTransform()
 	{
 		var transform = new Transform();
-		transform.Position = Controller.WorldPosition + Vector3.Up * (Controller.CurrentHeight - Controller.EyeDistanceFromTop);
+		// A visible first person body crouches its head and chest up into the ducked camera, so lift the camera
+		var duckLift = Controller.IsDucking && !Controller.HideBodyInFirstPerson ? 8f : 0f;
+		var eyeDist = Controller.EyeDistanceFromTop - duckLift;
+		transform.Position = Controller.WorldPosition + Vector3.Up * (Controller.CurrentHeight - eyeDist);
 		transform.Rotation = Controller.EyeAngles.ToRotation();
 		return transform;
 	}

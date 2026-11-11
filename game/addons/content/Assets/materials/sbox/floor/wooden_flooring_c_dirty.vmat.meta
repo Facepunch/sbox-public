@@ -1,0 +1,27 @@
+{
+  "guid": "962e39f3-1591-4db4-92d9-240353f5765b",
+  "publish": {
+    "Enabled": true,
+    "ProjectConfig": {
+      "Title": "Wooden Flooring c Dirty",
+      "Type": "material",
+      "Org": "facepunch",
+      "Ident": "woodenflooringcdirty",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PublishUsedAssetsOnly": false,
+      "PackageReferences": null,
+      "EditorReferences": [],
+      "Mounts": null,
+      "IsStandaloneOnly": false,
+      "AI": {
+        "EnableMcpCommunication": true
+      },
+      "Metadata": {
+        "SingleAssetSource": "materials/sbox/floor/wooden_flooring_c_dirty.vmat",
+        "AssetLicense": "CC0"
+      }
+    }
+  }
+}

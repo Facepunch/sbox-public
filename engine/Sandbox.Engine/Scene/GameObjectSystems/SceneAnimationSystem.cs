@@ -39,6 +39,9 @@ public sealed class SceneAnimationSystem : GameObjectSystem<SceneAnimationSystem
 	// The passes use one thread fewer than there are cores.
 	private static readonly int AnimationThreads = Math.Max( 1, Environment.ProcessorCount - 1 );
 
+	// Decode cache upkeep runs in the background until the next update, which joins it before decoding again
+	private JobHandle _maintainDecodeCaches;
+
 	public SceneAnimationSystem( Scene scene ) : base( scene )
 	{
 		Listen( Stage.UpdateBones, 0, UpdateAnimation, "UpdateAnimation" );
@@ -53,6 +56,8 @@ public sealed class SceneAnimationSystem : GameObjectSystem<SceneAnimationSystem
 
 		using ( PerformanceStats.Timings.Animation.Scope() )
 		{
+			JoinDecodeCacheUpkeep();
+
 			_rootRenderers.Clear();
 			_boneMergeRoots.Clear();
 
@@ -85,8 +90,9 @@ public sealed class SceneAnimationSystem : GameObjectSystem<SceneAnimationSystem
 
 			// This is a good time to maintain decode caches
 			// Will copy local caches to the global cache and handle LRU eviction
-			// Can do this in a background task as nothing is touching these caches until next frame
-			Task.Run( g_pAnimationSystemUtils.MaintainDecodeCaches );
+			// Runs in the background, joined before this scene's next animation pass. Native locking serializes it with
+			// any other animation evaluation meanwhile.
+			_maintainDecodeCaches = JobDispatcher.Begin( 1, 0, static ( _, _ ) => g_pAnimationSystemUtils.MaintainDecodeCaches() );
 
 			// Now merge any descendants without allocating per-merge delegates
 			JobDispatcher.For( _boneMergeRoots.Count, this, static ( system, i ) => system._boneMergeRoots[i].MergeDescendants( system.ChangedTransforms ), itemsPerBatch: 1, maxDegreeOfParallelism: AnimationThreads );
@@ -103,6 +109,26 @@ public sealed class SceneAnimationSystem : GameObjectSystem<SceneAnimationSystem
 			{
 				x.DispatchEvents();
 			}
+		}
+	}
+
+	void JoinDecodeCacheUpkeep()
+	{
+		// Cleared first, a handle can only be joined once even if the upkeep threw
+		var pending = _maintainDecodeCaches;
+		_maintainDecodeCaches = default;
+		pending.Join();
+	}
+
+	public override void Dispose()
+	{
+		try
+		{
+			JoinDecodeCacheUpkeep();
+		}
+		finally
+		{
+			base.Dispose();
 		}
 	}
 

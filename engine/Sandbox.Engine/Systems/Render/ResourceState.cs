@@ -8,6 +8,7 @@
 /// to any lower level graphics APIs. (VK/D3D12/Metal)
 /// </remarks>
 [Flags]
+[Expose]
 public enum ResourceState
 {
 	Common = 0x0,

@@ -145,6 +145,7 @@ internal partial class ShadowMapper
 	{
 		readonly ShadowMapper mapper;
 		readonly CFrustum frustum = CFrustum.Create();
+		readonly ShadowMap[] cascadeTargets = new ShadowMap[4];
 
 		public NativeShadowRenderer( ShadowMapper mapper )
 		{
@@ -177,7 +178,15 @@ internal partial class ShadowMapper
 		{
 			// Temporary targets are loaned for the frame, so a second camera this frame gets its own
 			var rt = RenderTarget.GetTemporary( resolution, resolution, ImageFormat.None, ImageFormat.D32 );
-			return new ShadowMap( rt.DepthTarget );
+			if ( cascade >= cascadeTargets.Length )
+				return new ShadowMap( rt.DepthTarget );
+
+			// The pool hands back the same targets frame to frame, so keep wrapping them in the same map
+			ref var target = ref cascadeTargets[cascade];
+			if ( target is null || target.Texture != rt.DepthTarget )
+				target = new ShadowMap( rt.DepthTarget );
+
+			return target;
 		}
 
 		public uint GetShadowMaskIndex( object light )

@@ -52,13 +52,12 @@ public partial class Window
 			InvalidatePreviewCompile();
 	}
 
-	private void CompilePreview()
+	private void CompilePreview( string snapshot = null )
 	{
 		if ( _saving )
 			return;
 
 		int revision;
-		string snapshot;
 
 		lock ( _previewCompileLock )
 		{
@@ -72,7 +71,7 @@ public partial class Window
 
 		try
 		{
-			snapshot = _session.CreateCompileSnapshot();
+			snapshot ??= _session.CreateCompileSnapshot();
 		}
 		catch ( Exception e )
 		{

@@ -1,4 +1,4 @@
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 .modal.news-modal
 {
@@ -10,18 +10,15 @@
     // of it edge to edge. Rounded and clipped like the menu's other cards, the page inside them too
     .browser
     {
+        @include platform-surface;
         width: 1220px;
         flex-grow: 1;
         flex-shrink: 1;
         min-height: 0;
         margin: 48px 0;
         pointer-events: all;
-        border-radius: $front-radius;
-        border: $front-border-width solid $front-border;
         overflow: hidden;
         z-index: 100;
-        box-shadow: 0 30px 90px rgba( 0, 0, 0, 0.6 );
-        background-color: #1c202d;
         animation: fadein 1s linear;
     }
 }

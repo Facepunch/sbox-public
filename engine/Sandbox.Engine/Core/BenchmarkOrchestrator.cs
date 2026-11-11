@@ -130,7 +130,7 @@ internal static class BenchmarkOrchestrator
 		LoadingScreen.Media = null;
 		LoadingScreen.Title = "Loading Benchmark";
 
-		LaunchArguments.GameSettings = settings;
+		LaunchArguments.SetTrustedGameSettings( settings );
 		Api.Activity.GameRequested( new( "benchmark", pkg.PackageName ) );
 		_ = IGameInstanceDll.Current.LoadGamePackageAsync( pkg.PackageName, GameLoadingFlags.Host, default );
 		_currentIndex++;

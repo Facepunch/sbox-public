@@ -21,7 +21,7 @@ public partial class PackageSelectionModal
 	ResourceLoader[] mountedMaps = [];
 	bool IsMountedSource => selectedMount is not null;
 
-	static IEnumerable<ResourceLoader> GetMountMaps( string ident )
+	internal static IEnumerable<ResourceLoader> GetMountMaps( string ident )
 	{
 		if ( MountDirectory.Get( ident ) is not { IsMounted: true } mount ) return [];
 

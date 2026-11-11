@@ -828,7 +828,7 @@ public partial class Panel
 /// <summary>
 /// Represents position and size of a <see cref="Panel"/> on the screen.
 /// </summary>
-[SkipHotload]
+[Expose, SkipHotload]
 public class Box
 {
 	/// <summary>

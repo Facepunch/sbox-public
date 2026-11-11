@@ -1,0 +1,77 @@
+@import "/Platform/_platform.scss";
+
+// 12px wider than the screen's edges, padded back in - so a card lifted under the mouse on the end of a row isn't cut
+// off by the clipping below
+ShelfPanel
+{
+	position: absolute;
+	left: 52px;
+	right: 52px;
+	bottom: 96px;
+	flex-direction: column;
+	pointer-events: none;
+
+	// Right down to the dock's top (Dock's bottom and height) - Multiplayer's games fade off into it. No room kept under
+	// it for a lifted card, or the bottom of the fade's clipped off into a hard edge.
+	&.to-dock
+	{
+		bottom: $platform-above-dock;
+
+		.content
+		{
+			padding-bottom: 0;
+		}
+	}
+
+	// The dock's edge - it slides up out of here (see ShelfPanel.Slide)
+	overflow: hidden;
+
+	// Sized in code - see ShelfPanel.Tick
+	> .body
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		height: 0;
+		overflow: hidden;
+		pointer-events: none;
+
+		&.open
+		{
+			pointer-events: all;
+		}
+
+		// Only its page's own panels take the pointer (IShelfPage.ClicksThrough)
+		&.open.clicks-through
+		{
+			pointer-events: none;
+		}
+
+		// Its bar's thin enough to sit in the content's padding, clear of the cards
+		&.scrolls
+		{
+			overflow-y: scroll;
+			scrollbar-width: thin;
+			scrollbar-color: $platform-faint transparent;
+		}
+
+		&.browsing > .content
+		{
+			height: 100%;
+		}
+	}
+
+	.content
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		// Round the rows for a lifted card - GameShelf.CollapsedHeight counts the bottom
+		padding: 0 12px 12px 12px;
+	}
+
+	.game-rows
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		gap: 28px;
+	}
+}

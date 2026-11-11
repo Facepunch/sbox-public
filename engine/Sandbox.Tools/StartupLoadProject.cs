@@ -300,7 +300,7 @@ static class StartupLoadProject
 			await CompileAllShaders();
 
 			Step( "Compiling assets" );
-			EditorContentBuild.Startup( project );
+			await EditorContentBuild.Startup( project );
 
 			FileWatch.Tick();
 		}

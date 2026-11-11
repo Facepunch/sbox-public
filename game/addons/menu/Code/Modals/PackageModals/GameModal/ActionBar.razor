@@ -192,7 +192,7 @@
     protected override int BuildHash() => System.HashCode.Combine(Package, HashCode.Combine( Modal?.HasFullPackage, Modal?.PageLoading, Modal?.OnWorkshop, Modal?.WorkshopItem ), IsVrOnly, IsMultiplayerGame, LobbyCount, MenuHelpers.HasAuthority, System.HashCode.Combine( Streamer.IsActive, Streamer.ViewerCount, Modal?.Setup, System.HashCode.Combine( Modal?.Setup?.MapTitle, Modal?.Setup?.MapThumb, Modal?.Setup?.Privacy, Modal?.Setup?.MaxPlayers ) ), HashCode.Combine( Modal?.SetupReadOnly, Modal?.CanApplySetup, Modal?.StartSetupText, Modal?.IsSettingUp, Modal?.IsBrowsingSessions ));
 
     bool IsVrOnly => Package.Info.IsVrOnly;
-    bool IsMultiplayerGame => Package.Tags.Contains("multiplayer") || LobbyCount > 0 || Package.Info.MaxPlayers > 1;
+    bool IsMultiplayerGame => !MenuHelpers.IsSingleplayer( Package ) && (Package.Tags.Contains("multiplayer") || LobbyCount > 0 || Package.Info.MaxPlayers > 1);
     bool IsQuickPlayGame => Package.Info.IsQuickPlay;
     bool IsDedicatedServerOnly => Package.Info.IsDedicatedServerOnly;
     int LobbyCount => Modal?.Lobbies?.Count() ?? 0;

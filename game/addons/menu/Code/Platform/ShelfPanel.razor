@@ -1,0 +1,220 @@
+@using System;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.UI;
+@using Sandbox.UI.Navigation;
+@namespace MenuProject.Platform
+
+@inherits NavigationHost
+
+@*
+    The shelves up out of the dock - a navigator, its pages each a panel with a route under /shelf (PlatformShelf).
+    It slides up out of the dock and back down into it, clipped at the dock's edge like a shelf coming out of a slot -
+    sized in code, easing to how tall its page wants it (IShelfPage) each frame.
+*@
+<root>
+    <div class="body" @ref="Body">
+        <div class="content" @ref="Content"></div>
+    </div>
+</root>
+
+@code
+{
+    /// <summary>
+    /// Kept down while a switch is going, whatever's up
+    /// </summary>
+    [Parameter] public bool Hidden { get; set; }
+
+    /// <summary>
+    /// Up, or on its way - put away, the last page stays while it slides down
+    /// </summary>
+    public bool IsOpen { get; private set; }
+
+    /// <summary>
+    /// The page up, by its url without its query - null when it's put away
+    /// </summary>
+    public string Url => IsOpen ? CurrentUrl : null;
+
+    public static ShelfPanel Of( Panel panel ) => panel.AncestorsAndSelf.OfType<ShelfPanel>().FirstOrDefault();
+
+    Panel Body;
+    Panel Content;
+
+    IShelfPage Page => CurrentPanel as IShelfPage;
+
+    /// <summary>
+    /// Where Escape goes back to - the pages this one was opened from since it came up out of the dock. A game's page
+    /// isn't kept, so isn't gone back to.
+    /// </summary>
+    readonly List<string> trail = new();
+
+    float height;
+
+    /// <summary>
+    /// How far out of the dock it is - 0 down in it, 1 all the way up
+    /// </summary>
+    float rise;
+
+    /// <summary>
+    /// Up, and its slide's styles taken off - or down, and they're where they've been left
+    /// </summary>
+    bool settled;
+
+    bool Open => IsOpen && !Hidden;
+
+    /// <summary>
+    /// Bring <paramref name="url"/> up - from the dock, starting afresh, or from the page that's up, which Escape comes
+    /// back to
+    /// </summary>
+    public void Show( string url, bool fromDock = false )
+    {
+        if ( fromDock ) trail.Clear();
+        else if ( IsOpen && CurrentUrl is not null && !PlatformShelf.IsGame( CurrentUrl ) ) trail.Add( CurrentUrl );
+
+        Go( url );
+        (CurrentPanel as IShelfPage)?.OnShelfShown();
+    }
+
+    /// <summary>
+    /// Escape - back to the page this one was opened from. False if there isn't one.
+    /// </summary>
+    public bool Back()
+    {
+        if ( !IsOpen || trail.Count == 0 ) return false;
+
+        var url = trail[^1];
+        trail.RemoveAt( trail.Count - 1 );
+
+        Go( url );
+        return true;
+    }
+
+    public void Close()
+    {
+        IsOpen = false;
+        trail.Clear();
+    }
+
+    /// <summary>
+    /// Its pages go in its content, so they slide and clip with it - and any made before it was there, moved in
+    /// </summary>
+    protected override void OnAfterTreeRender( bool firstTime )
+    {
+        base.OnAfterTreeRender( firstTime );
+        UseContent();
+    }
+
+    void UseContent()
+    {
+        if ( !Content.IsValid() || NavigatorCanvas == Content ) return;
+
+        NavigatorCanvas = Content;
+
+        foreach ( var item in Cache )
+            item.Panel.Parent = Content;
+    }
+
+    void Go( string url )
+    {
+        UseContent();
+
+        // Another page while one's up - it comes up out of the dock again, as from nothing, rather than being swapped
+        // in place
+        var path = url.Split( '?' )[0];
+        if ( rise > 0 && path != CurrentUrl )
+        {
+            rise = 0;
+            settled = false;
+        }
+
+        IsOpen = true;
+        Navigate( url );
+        ForgetGames();
+
+        if ( Body.IsValid() )
+            Body.ScrollOffset = Vector2.Zero;
+    }
+
+    /// <summary>
+    /// The games' pages but the one that's up - there's one for every game looked at, so they're not kept
+    /// </summary>
+    void ForgetGames()
+    {
+        foreach ( var item in Cache.Where( x => PlatformShelf.IsGame( x.Url ) && x.Panel != CurrentPanel ).ToList() )
+        {
+            Cache.Remove( item );
+            item.Panel?.Delete();
+        }
+    }
+
+    public bool AtTop => !Body.IsValid() || Body.ScrollOffset.y <= 0.5f;
+
+    readonly ScrollFade bodyFade = new( 64 );
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        if ( !Body.IsValid() || !Content.IsValid() || Page is not { } page ) return;
+
+        Slide();
+
+        SetClass( "to-dock", page.ToDock );
+        Body.SetClass( "clicks-through", page.ClicksThrough );
+
+        // Up to the top of the screen, the same edge as the sides - it scrolls past that
+        var screen = FindRootPanel().Box.Rect.Height * ScaleFromScreen;
+        var room = screen - (page.ToDock ? 80 : 96) - 64;
+        var tall = Content.Box.Rect.Height * ScaleFromScreen;
+
+        var fills = page.Fills;
+        var target = fills ? room : Math.Min( page.Height( room, tall ), room );
+
+        // Opens at its first row - it slides up, it doesn't grow from nothing
+        var next = height <= 0 ? target : MathX.Approach( height.LerpTo( target, 1 - MathF.Exp( -RealTime.Delta * 24 ) ), target, 0.5f );
+
+        var scrolls = !fills && page.Scrolls && tall > target + 1;
+        Body.SetClass( "browsing", fills );
+        Body.SetClass( "scrolls", scrolls );
+
+        bodyFade.Apply( Body, scrolls );
+
+        if ( next == height ) return;
+
+        height = next;
+        Body.Style.Height = Length.Pixels( height );
+    }
+
+    void Slide()
+    {
+        var target = Open ? 1f : 0f;
+        var next = MathX.Approach( rise.LerpTo( target, 1 - MathF.Exp( -RealTime.Delta * 20 ) ), target, 0.002f );
+
+        Body.SetClass( "open", Open );
+        if ( next == rise && settled ) return;
+
+        rise = next;
+
+        // All the way up, nothing's left on it - a transform, even one that does nothing, throws off the clipping of
+        // everything in it
+        if ( rise >= 1 )
+        {
+            Body.Style.Transform = null;
+            Body.Style.Opacity = null;
+            Body.Style.FilterBlur = null;
+            settled = true;
+            return;
+        }
+
+        settled = false;
+
+        var drop = new PanelTransform();
+        drop.AddTranslate( 0, Length.Pixels( (1 - rise) * (height + 24) ) );
+
+        Body.Style.Transform = drop;
+        Body.Style.Opacity = Math.Clamp( rise * 2.5f, 0, 1 );
+        Body.Style.FilterBlur = Length.Pixels( Math.Clamp( 1 - rise * 3, 0, 1 ) * 10 );
+    }
+
+    protected override int BuildHash() => HashCode.Combine( IsOpen, Hidden );
+}

@@ -57,6 +57,15 @@ internal sealed class SceneLabAppSystem : PanelAppSystem
 		{
 			window.Dispose();
 			window = null;
+
+			// What validation logged after the last golden truth check, its frame's end and the window's teardown
+			// included: the window leaves its swap chain and itself to frame end, so run that now rather than after the
+			// check. The engine's own shutdown comes after logging stops, so it isn't covered
+			if ( GoldenTruthRun.Enabled )
+			{
+				EngineLoop.DrainFrameEndDisposables();
+				if ( !GoldenTruthRun.Finish() ) Environment.ExitCode = 2;
+			}
 		}
 
 		return running;

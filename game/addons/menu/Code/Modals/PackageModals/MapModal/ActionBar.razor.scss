@@ -1,4 +1,5 @@
 @import "/styles/_theme.scss";
+@import "/Platform/_platform.scss";
 
 ActionBar
 {
@@ -20,49 +21,23 @@ ActionBar > .right
     gap: 6px;
 }
 
-// Same pills as the game modal's action bar.
+// The game modal's action bar's buttons - grey, Play blue
 Button
 {
-    border-radius: 999px;
+    @include platform-text-button( 38px );
+    padding: 0 14px;
     flex-shrink: 0;
-    font-size: 12.5px;
-    font-weight: 700;
-    font-family: $font-heading;
-    padding: 8px 16px;
-    border: 1px solid rgba( 255, 255, 255, 0.1 );
-    background-color: rgba( 255, 255, 255, 0.05 );
-    color: #c8cedb;
-    transition: all 0.1s ease;
-    letter-spacing: 0.07em;
 
-    &:hover
-    {
-        border-color: rgba( 255, 255, 255, 0.28 );
-        background-color: rgba( 255, 255, 255, 0.11 );
-        color: $default-text;
-        sound-in: "ui.button.over";
-    }
-
+    &:hover { sound-in: "ui.button.over"; }
     &:active { sound-in: "ui.button.press"; }
 }
 
 Button.play
 {
-    background-color: $primary-blue;
-    border-color: transparent;
-    color: white;
-    padding: 8px 24px;
-
-    &:hover
-    {
-        filter: brightness( 1.15 );
-        border-color: transparent;
-        background-color: $primary-blue;
-    }
+    @include platform-button-primary;
 
     &.disabled
     {
-        opacity: 0.25;
         pointer-events: none;
     }
 }

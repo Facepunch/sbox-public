@@ -3,12 +3,18 @@
 @using Sandbox.Engine.Settings
 @using System
 @using System.Linq
+@using MenuProject.Platform
 @namespace MenuProject.Settings
 @inherits Panel
 
 <root>
 
 	<div class="rail">
+
+		@if ( !string.IsNullOrEmpty( Heading ) )
+		{
+			<label class="heading">@Heading</label>
+		}
 
 		<TextEntry @ref=SearchEntry class="settings-search" Icon="search" Placeholder="#menu.settings.search_settings" OnTextEdited=@OnSearchEdited></TextEntry>
 
@@ -32,10 +38,8 @@
 
 	<div class="body">
 
-		<div class="head">
-			<label class="title">@(Searching ? "#menu.common.search" : Current?.Title)</label>
-			<label class="blurb">@(Searching ? MatchSummary : Current?.Blurb)</label>
-		</div>
+		<PanelHead Icon=@(Searching ? "search" : Current?.Icon) Title=@(Searching ? "#menu.common.search" : Current?.Title)
+		           Back=@(OnCancel is null ? null : (Action)Back) Search="#menu.settings.search_settings" OnSearch=@(SearchInBar ? (Action<string>)OnSearchEdited : null) />
 
 		@if ( Searching )
 		{
@@ -59,6 +63,8 @@
 					</div>
 				}
 			</div>
+
+			<SettingsActions View=@this />
 		}
 		else if ( Current is { IsCustom: true } )
 		{
@@ -131,6 +137,21 @@
 	/// <summary>Which category to open on.</summary>
 	[Parameter] public string StartCategory { get; set; }
 
+	/// <summary>
+	/// A title over the categories - none if not given
+	/// </summary>
+	[Parameter] public string Heading { get; set; }
+
+	/// <summary>Where back goes - a way back in the head, with the category's icon, when it's set. What's unsaved is
+	/// the host's to ask about.</summary>
+	[Parameter] public Action OnCancel { get; set; }
+
+	/// <summary>
+	/// Searched from a button on the head, which opens a search box across it, rather than from a box over the
+	/// categories (the platform menu's)
+	/// </summary>
+	[Parameter] public bool SearchInBar { get; set; }
+
 	public SettingsCatalog Catalog { get; } = new();
 
 	public string Category { get; private set; } = "display";
@@ -165,18 +186,9 @@
 
 	TextEntry SearchEntry;
 
-	bool Searching => !string.IsNullOrWhiteSpace( Query );
+	public bool Searching => !string.IsNullOrWhiteSpace( Query );
 
 	SettingsCategory Current => Catalog.Categories.FirstOrDefault( x => x.Id == Category );
-
-	string MatchSummary
-	{
-		get
-		{
-			var count = Catalog.Search( Query ).Count();
-			return $"{count} setting{(count == 1 ? "" : "s")} matching \"{Query}\"";
-		}
-	}
 
 	protected override void OnParametersSet()
 	{
@@ -215,6 +227,8 @@
 
 		Focused = item;
 	}
+
+	void Back() => OnCancel?.Invoke();
 
 	void Select( string id )
 	{

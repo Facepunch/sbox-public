@@ -3,13 +3,17 @@ using System;
 
 namespace Sandbox
 {
+	/// <summary>
+	/// Configures and creates an array of texture slices.
+	/// </summary>
+	[Expose]
 	public struct TextureArrayBuilder
 	{
 		internal TextureBuilder config = new();
 		internal int Width { set => config._config.m_nWidth = (short)value; }
 		internal int Height { set => config._config.m_nHeight = (short)value; }
 		internal int Count { set => config._config.m_nDepth = (short)value; } // Depth is used for count in rendersystemdx11
-		internal ImageFormat Format { set => config._config.m_nImageFormat = value; }
+		internal ImageFormat Format { set => config.WithFormat( value ); }
 
 
 		internal string _name = null;

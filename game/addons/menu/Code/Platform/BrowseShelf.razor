@@ -1,0 +1,323 @@
+@using System;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.UI;
+@namespace MenuProject.Platform
+@page "/shelf/browse"
+@inherits ShelfPage
+@implements IShelfPage
+
+@*
+    Browse the Workshop's games - search, put them in an order, narrow them down by tag (how it's played, what it is),
+    and page through what's found. From the dock's search, or a Discover row's See more.
+*@
+<root>
+
+    <div class="side" @ref="Side">
+
+        <div class="search">
+            <i>search</i>
+            <TextEntry @ref="SearchEntry" Placeholder="Search the Workshop..." OnTextEdited=@Typed onsubmit=@Submit />
+            @if ( !string.IsNullOrEmpty( Query ) )
+            {
+                <i class="clear" onclick=@ClearSearch>close</i>
+            }
+        </div>
+
+        @* Under the search, scrolling without it *@
+        <div class="options">
+
+        @if ( Tags.Count > 0 || Mine || !string.IsNullOrEmpty( Query ) )
+        {
+            <div class="reset" onclick=@ClearAll><i>filter_alt_off</i><label>Clear filters</label></div>
+        }
+
+        <label class="what">Show</label>
+        <div class="option check @(Mine ? "on" : "")" onclick=@ToggleMine>
+            <i>@(Mine ? "check_box" : "check_box_outline_blank")</i>
+            <label>My games</label>
+        </div>
+
+        <label class="what">Order</label>
+        @foreach ( var order in Orders )
+        {
+            @if ( order.Sort is null && string.IsNullOrEmpty( Query ) ) continue;
+
+            <div class="option @(Sort == order.Sort ? "on" : "")" onclick=@( () => SetSort( order.Sort ) )>
+                <i>@order.Icon</i>
+                <label>@order.Title</label>
+            </div>
+        }
+
+        <label class="what">Players</label>
+        @foreach ( var tag in MenuUtility.WorkshopPlayerTags )
+        {
+            <div class="option check @(Tags.Contains( tag ) ? "on" : "")" onclick=@( () => ToggleTag( tag ) )>
+                <i>@(Tags.Contains( tag ) ? "check_box" : "check_box_outline_blank")</i>
+                <label>@tag</label>
+            </div>
+        }
+
+        <label class="what">Tags</label>
+        @foreach ( var tag in MenuUtility.WorkshopGameTags )
+        {
+            <div class="option check @(Tags.Contains( tag ) ? "on" : "")" onclick=@( () => ToggleTag( tag ) )>
+                <i>@(Tags.Contains( tag ) ? "check_box" : "check_box_outline_blank")</i>
+                <label>@tag</label>
+            </div>
+        }
+
+        </div>
+
+    </div>
+
+    <div class="results">
+
+        <div class="header">
+            <i class="icon">travel_explore</i>
+            <label class="title">Browse</label>
+            <div class="spacer"></div>
+            <div class="refresh @(loading ? "busy" : "")" onclick=@Search tooltip="Refresh"><i>refresh</i></div>
+        </div>
+
+        @if ( Found.Count == 0 && loading )
+        {
+            @* Cards' shapes, in their cells, while the first page comes *@
+            <div class="skeleton">
+                @for ( var i = 0; i < 24; i++ )
+                {
+                    <div class="cell" style="width: @(CellSize.x)px; height: @(CellSize.y)px;">
+                        <div class="card"><div class="art"></div><div class="bone stars"></div><div class="bone"></div><div class="bone by"></div></div>
+                    </div>
+                }
+            </div>
+        }
+        else if ( Found.Count == 0 )
+        {
+            <div class="empty"><i>search_off</i><label>Nothing found</label></div>
+        }
+        else
+        {
+            @* Only the cards in view are made - the next page's asked for as the end comes into view *@
+            <VirtualGrid @ref="Grid" class="grid" Items=@Found ItemSize=@CellSize OnLastCell=@( () => { _ = More(); } )>
+                <Item Context="item">
+                    @if ( item is WorkshopItemDetails game )
+                    {
+                        <GameCard Item=@game OnPicked=@Pressed />
+                    }
+                </Item>
+            </VirtualGrid>
+        }
+
+    </div>
+
+</root>
+
+@code
+{
+    /// <summary>
+    /// What it starts searching for - from its url's query (PlatformShelf.BrowseFor), taken when it's shown
+    /// </summary>
+    public string SearchFor { get; set; }
+
+    /// <summary>
+    /// The order it starts in (a Storage.SortOrder's name) - from its url's query, taken when it's shown
+    /// </summary>
+    public string SortBy { get; set; }
+
+    void Pressed( Package package )
+    {
+        if ( package is not null && package.IsRemote )
+        {
+            PlatformRoot.Instance?.ShowGame( package );
+            return;
+        }
+
+        PlatformRoot.Instance?.Picked( package );
+    }
+
+    record Order( string Title, string Icon, Storage.SortOrder? Sort );
+
+    static readonly Order[] Orders =
+    [
+        new( "Best match", "manage_search", null ),
+        new( "Popular", "local_fire_department", Storage.SortOrder.RankedByVote ),
+        new( "Trending", "trending_up", Storage.SortOrder.RankedByTrend ),
+        new( "Most played", "sports_esports", Storage.SortOrder.RankedByTotalPlaytime ),
+        new( "Top rated", "thumb_up", Storage.SortOrder.RankedByVotesUp ),
+        new( "Most subscribed", "favorite", Storage.SortOrder.RankedByTotalUniqueSubscriptions ),
+        new( "Newest", "new_releases", Storage.SortOrder.RankedByPublicationDate ),
+        new( "Recently updated", "update", Storage.SortOrder.RankedByLastUpdatedDate ),
+    ];
+
+    TextEntry SearchEntry;
+
+    string Query;
+    Storage.SortOrder? Sort;
+    readonly HashSet<string> Tags = new( StringComparer.OrdinalIgnoreCase );
+
+    /// <summary>
+    /// Just what you've published - friends only and private too
+    /// </summary>
+    bool Mine;
+
+    List<WorkshopItemDetails> Found = new();
+
+    WorkshopGameSearch pages;
+    bool loading;
+
+    VirtualGrid Grid;
+    Panel Side;
+
+    // Down to the dock's top, the sidebar fading off into it as the other shelves' panels do
+    bool IShelfPage.ToDock => true;
+
+    /// <summary>
+    /// A card's size at the least - the grid stretches as many columns as fit to fill its width, keeping this shape
+    /// </summary>
+    static readonly Vector2 CellSize = new( 244, 244 + GameCard.InfoHeight );
+
+    string typed;
+    RealTimeSince sinceTyped;
+
+    /// <summary>
+    /// Shown - it starts again, from what its url asked for. Taken off it as it's used: a url without a query leaves
+    /// what the last one set.
+    /// </summary>
+    void IShelfPage.OnShelfShown()
+    {
+        Query = string.IsNullOrWhiteSpace( SearchFor ) ? null : SearchFor;
+        Sort = Enum.TryParse<Storage.SortOrder>( SortBy, out var sort ) ? sort : string.IsNullOrEmpty( Query ) ? Storage.SortOrder.RankedByVote : (Storage.SortOrder?)null;
+        SearchFor = null;
+        SortBy = null;
+
+        Tags.Clear();
+        Mine = false;
+        typed = null;
+
+        // Ready to type in - it's opened to search
+        if ( SearchEntry.IsValid() )
+        {
+            SearchEntry.Text = Query ?? "";
+            SearchEntry.Focus();
+        }
+
+        Search();
+    }
+
+    protected override void OnAfterTreeRender( bool firstTime )
+    {
+        base.OnAfterTreeRender( firstTime );
+
+        if ( firstTime && SearchEntry.IsValid() )
+        {
+            SearchEntry.Text = Query ?? "";
+            SearchEntry.Focus();
+        }
+    }
+
+    void Search()
+    {
+        pages = MenuUtility.SearchWorkshopGames( Query, Sort, Tags.ToArray(), Mine );
+        Found = new();
+        loading = false;
+
+        if ( Grid.IsValid() ) Grid.ScrollOffset = Vector2.Zero;
+
+        _ = More();
+    }
+
+    async Task More()
+    {
+        if ( loading || pages is not { HasMore: true } search ) return;
+        loading = true;
+
+        var games = await search.NextAsync();
+
+        // Searched again in the meantime
+        if ( search != pages ) return;
+
+        var shown = Found.Select( x => x.Id ).ToHashSet();
+        Found.AddRange( games.Where( x => shown.Add( x.Id ) ) );
+        loading = false;
+
+        StateHasChanged();
+    }
+
+    void Typed( string text )
+    {
+        typed = text?.Trim() ?? "";
+        sinceTyped = 0;
+    }
+
+    void Submit()
+    {
+        if ( typed is null ) return;
+        SetQuery( typed );
+    }
+
+    void SetQuery( string text )
+    {
+        typed = null;
+
+        var query = string.IsNullOrEmpty( text ) ? null : text;
+        if ( query == Query ) return;
+
+        // A search wants the best matches first - unless an order's been picked
+        if ( Query is null && query is not null && Sort == Storage.SortOrder.RankedByVote ) Sort = null;
+        if ( query is null && Sort is null ) Sort = Storage.SortOrder.RankedByVote;
+
+        Query = query;
+        Search();
+    }
+
+    void ClearSearch()
+    {
+        if ( SearchEntry.IsValid() ) SearchEntry.Text = "";
+        SetQuery( null );
+    }
+
+    void SetSort( Storage.SortOrder? sort )
+    {
+        if ( Sort == sort ) return;
+
+        Sort = sort;
+        Search();
+    }
+
+    void ToggleTag( string tag )
+    {
+        if ( !Tags.Remove( tag ) ) Tags.Add( tag );
+        Search();
+    }
+
+    void ToggleMine()
+    {
+        Mine = !Mine;
+        Search();
+    }
+
+    void ClearAll()
+    {
+        Tags.Clear();
+        Mine = false;
+
+        // Clearing a search searches again itself
+        var searched = Query is not null;
+        ClearSearch();
+        if ( !searched ) Search();
+    }
+
+    readonly ScrollFade gridFade = new( 32 );
+
+    protected override void TickShown()
+    {
+        // Searched for once the typing stops for a moment
+        if ( typed is not null && sinceTyped > 0.4f )
+            SetQuery( typed );
+
+        gridFade.Apply( Grid );
+    }
+
+    protected override int ShownHash() => HashCode.Combine( Found, Found.Count, loading, Query, Sort, Mine, MenuHelpers.HashOf( Tags ) );
+}

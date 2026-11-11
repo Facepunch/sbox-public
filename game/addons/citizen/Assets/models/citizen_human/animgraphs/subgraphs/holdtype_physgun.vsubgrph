@@ -1994,7 +1994,7 @@
 									m_damping = 
 									{
 										_class = "CAnimInputDamping"
-										m_speedFunction = "Spring"
+										m_speedFunction = "NoDamping"
 										m_fSpeedScale = 20.0
 										m_fMinSpeed = 2.0
 										m_fMaxTension = 960.0
@@ -2300,7 +2300,7 @@
 									m_damping = 
 									{
 										_class = "CAnimInputDamping"
-										m_speedFunction = "Spring"
+										m_speedFunction = "NoDamping"
 										m_fSpeedScale = 8.0
 										m_fMinSpeed = 0.0
 										m_fMaxTension = 2160.0
@@ -2356,7 +2356,7 @@
 									m_damping = 
 									{
 										_class = "CAnimInputDamping"
-										m_speedFunction = "Spring"
+										m_speedFunction = "NoDamping"
 										m_fSpeedScale = 20.0
 										m_fMinSpeed = 2.0
 										m_fMaxTension = 960.0
@@ -2908,7 +2908,7 @@
 									m_damping = 
 									{
 										_class = "CAnimInputDamping"
-										m_speedFunction = "Spring"
+										m_speedFunction = "NoDamping"
 										m_fSpeedScale = 40.0
 										m_fMinSpeed = 0.0
 										m_fMaxTension = 960.0

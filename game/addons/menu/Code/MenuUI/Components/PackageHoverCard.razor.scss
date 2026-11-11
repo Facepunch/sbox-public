@@ -1,9 +1,9 @@
 @import "/styles/_theme.scss";
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 PackageHoverCard
 {
-	@include front-slab;
+	@include platform-surface;
 
 	position: absolute;
 	z-index: 500;
@@ -12,9 +12,6 @@ PackageHoverCard
 	overflow: hidden;
 	pointer-events: all;
 	cursor: default;
-	border-radius: $front-radius;
-	border: $front-border-width solid $front-border;
-	box-shadow: 0 18px 48px rgba( black, 0.7 );
 	transform-origin: 0 0;
 	transition: opacity 0.3s ease-out;
 
@@ -137,44 +134,16 @@ PackageHoverCard
 		// you can play with other people. Only says so: no pointer, no hover
 		.mode
 		{
-			flex-direction: row;
-			flex-shrink: 0;
-			align-items: center;
-			gap: 4px;
-			height: 20px;
-			padding: 0 8px 0 6px;
-			border-radius: 999px;
-			border: 1px solid rgba( 255, 255, 255, 0.1 );
-			background-color: rgba( 255, 255, 255, 0.05 );
-
-			icon
-			{
-				font-size: 13px;
-				color: $front-secondary;
-			}
-
-			label
-			{
-				font-family: $front-font;
-				font-size: 11.5px;
-				font-weight: 700;
-				color: $front-secondary;
-			}
+			@include platform-chip;
 
 			&.multiplayer
 			{
-				border-color: rgba( $front-accent, 0.35 );
-				background-color: rgba( $front-accent, 0.12 );
-
-				icon, label { color: $front-accent; }
+				icon, label { color: $platform-good; }
 			}
 
 			// Your party isn't what it's made for - the tooltip says why
 			&.mismatch
 			{
-				border-color: rgba( #f5a623, 0.4 );
-				background-color: rgba( #f5a623, 0.12 );
-
 				icon, label { color: #f5a623; }
 			}
 		}
@@ -255,120 +224,6 @@ PackageHoverCard
 		}
 	}
 
-	.jam
-	{
-		flex-direction: row;
-		flex-shrink: 0;
-		align-items: center;
-		gap: 10px;
-		margin: 8px 0 6px 0;
-		padding: 10px 12px;
-		border-radius: 8px;
-		background: linear-gradient( 90deg, rgba( $front-trophy, 0.22 ), rgba( $front-trophy, 0.08 ) );
-		border: 1px solid rgba( $front-trophy, 0.45 );
-
-		.trophy
-		{
-			flex-shrink: 0;
-			font-size: 22px;
-			color: $front-trophy * 1.8;
-		}
-
-		.text
-		{
-			flex-grow: 1;
-			flex-direction: column;
-			gap: 2px;
-			overflow: hidden;
-
-			.title
-			{
-				font-family: $front-font;
-				font-size: 12px;
-				font-weight: 700;
-				color: $front-heading;
-			}
-
-			.hint
-			{
-				font-family: $front-font;
-				font-size: 10.5px;
-				font-weight: 500;
-				color: $front-trophy * 1.6;
-			}
-		}
-
-		.nominate
-		{
-			flex-direction: row;
-			flex-shrink: 0;
-			align-items: center;
-			gap: 4px;
-			height: 32px;
-			padding: 0 14px 0 10px;
-			border-radius: 999px;
-			background-color: $front-trophy;
-			cursor: pointer;
-			transition: all 0.1s ease;
-
-			icon
-			{
-				font-size: 18px;
-				color: #1a1204;
-			}
-
-			label
-			{
-				font-family: $front-font;
-				font-size: 12px;
-				font-weight: 700;
-				text-transform: uppercase;
-				letter-spacing: 0.07em;
-				color: #1a1204;
-			}
-
-			&:hover
-			{
-				sound-in: "ui.button.over";
-				background-color: $front-trophy * 1.2;
-			}
-
-			&:active
-			{
-				sound-in: "ui.button.press";
-			}
-
-			&.on
-			{
-				background-color: rgba( $front-trophy, 0.15 );
-				border: 1px solid rgba( $front-trophy, 0.6 );
-
-				icon
-				{
-					color: $front-trophy * 1.6;
-				}
-
-				label
-				{
-					color: $front-trophy * 1.6;
-				}
-			}
-
-			&.locked
-			{
-				opacity: 0.45;
-				cursor: default;
-				pointer-events: none;
-			}
-
-			&.busy
-			{
-				opacity: 0.5;
-				pointer-events: none;
-			}
-		}
-	}
-
 	.footer
 	{
 		flex-direction: row;
@@ -389,65 +244,39 @@ PackageHoverCard
 		align-items: center;
 		gap: 10px;
 
+		// Votes and favourite - toggles, lit blue when they're on
 		.group
 		{
-			flex-direction: row;
-			flex-shrink: 0;
-			border-radius: 999px;
-			border: $front-border-width solid $front-hairline;
-			background-color: rgba( 255, 255, 255, 0.07 );
-			overflow: hidden;
+			@include platform-choices;
 
 			.button
 			{
+				@include platform-choice;
+				flex-grow: 0;
+				// Its own width - the choice's flex-basis of 0 would take it to nothing
+				flex-basis: 38px;
 				width: 38px;
-				border: 0;
-				border-radius: 0;
-				background-color: transparent;
+				padding: 0;
 
 				&:hover
 				{
-					background-color: rgba( 255, 255, 255, 0.12 );
+					sound-in: "ui.button.over";
 				}
 
-				&.active
+				&:active
 				{
-					background-color: rgba( $front-primary, 0.28 );
-				}
-
-				&.fav.active
-				{
-					background-color: rgba( #e93b6d, 0.25 );
+					sound-in: "ui.button.press";
 				}
 			}
 		}
 
-		.button
+		> .button
 		{
-			flex-shrink: 0;
-			width: 34px;
-			height: 34px;
-			align-items: center;
-			justify-content: center;
-			border-radius: 50%;
-			cursor: pointer;
-			background-color: rgba( 255, 255, 255, 0.07 );
-			border: $front-border-width solid $front-hairline;
-			transition: all 0.1s ease;
-
-			icon
-			{
-				width: 100%;
-				text-align: center;
-				font-size: 17px;
-				color: $front-heading;
-			}
+			@include platform-tool( 34px, 17px );
 
 			&:hover
 			{
 				sound-in: "ui.button.over";
-				background-color: rgba( 255, 255, 255, 0.14 );
-				border-color: rgba( 255, 255, 255, 0.28 );
 			}
 
 			&:active
@@ -455,80 +284,20 @@ PackageHoverCard
 				sound-in: "ui.button.press";
 			}
 
-			&.active
-			{
-				border-color: rgba( $front-primary, 0.7 );
-				background-color: rgba( $front-primary, 0.22 );
-
-				icon
-				{
-					color: $front-primary * 1.6;
-				}
-			}
-
-			&.fav.active
-			{
-				border-color: rgba( #e93b6d, 0.7 );
-				background-color: rgba( #e93b6d, 0.2 );
-
-				icon
-				{
-					color: #e93b6d;
-				}
-			}
-
 			&.primary
 			{
-				flex-direction: row;
-				width: auto;
+				@include platform-text-button( 34px, 13px, 20px );
+				@include platform-button-primary;
 				gap: 4px;
 				padding: 0 16px 0 10px;
-				border-radius: 999px;
-				border-color: transparent;
-				background-color: $front-primary;
-
-				icon
-				{
-					width: auto;
-					font-size: 20px;
-					color: #ffffff;
-				}
-
-				label
-				{
-					font-family: $front-font;
-					font-size: 12px;
-					font-weight: 700;
-					text-transform: uppercase;
-					letter-spacing: 0.07em;
-					color: #ffffff;
-				}
-
-				&:hover
-				{
-					background-color: $front-primary * 1.2;
-				}
-			}
-
-			&.busy
-			{
-				opacity: 0.5;
-				pointer-events: none;
 			}
 		}
 	}
 
-	// Subscribed to its workshop item - lit green, like the game page's pill
-	.actions .button.subscribe.active
+	// Subscribed to its workshop item - lit, as a toggle that's on
+	.actions > .button.subscribe.active
 	{
-		border-color: rgba( $primary-green, 0.6 );
-		background-color: rgba( $primary-green, 0.16 );
-		box-shadow: 0 0 10px rgba( $primary-green, 0.3 );
-
-		icon
-		{
-			color: $primary-green;
-		}
+		@include platform-button-selected;
 	}
 
 	// The shapes of what's coming, while it's worked out whose it is

@@ -1,0 +1,339 @@
+@using System;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.UI;
+@using Sandbox.Network;
+@using Sandbox.Modals;
+@namespace MenuProject.Platform
+@inherits Panel
+
+@*
+    A game's servers in a table (Sandbox.UI.Table), as Garry's Mod lists them - who's hosting, its name and anything worth
+    knowing, its map, how full and its ping, sorted by any of those headings.
+*@
+<root class="@(Selected is not null ? "picked" : "")">
+
+    <table columns="@(ShowGame ? "28px " : "")28px minmax( 172px, 1fr ) minmax( 112px, 212px ) minmax( 126px, 142px ) minmax( 62px, 86px )" align="@(ShowGame ? "left " : "")left left left left right"
+           sortcolumn=@sortBy sortdescending=@sortDescending onsort=@Sort>
+        <thead>
+            <tr>
+                @if ( ShowGame )
+                {
+                    <th></th>
+                }
+                <th></th>
+                <th sort="name">Server</th>
+                <th sort="map">Map</th>
+                <th sort="players" sortfirst="descending">Players</th>
+                <th sort="ping">Ping</th>
+            </tr>
+        </thead>
+
+        <tbody @ref="Body">
+            @if ( Loading )
+            {
+                @* A server row's shape in each column - its game, who's hosting, its name, map, how full and ping *@
+                @for ( var i = 0; i < 12; i++ )
+                {
+                    <tr class="server skeleton @(i % 2 == 1 ? "alt" : "")">
+                        @if ( ShowGame )
+                        {
+                            <td><div class="game-icon"></div></td>
+                        }
+                        <td><div class="host"></div></td>
+                        <td class="name"><div class="bone" style="width: @(SkeletonWidths[i % SkeletonWidths.Length])%;"></div></td>
+                        <td class="map"><div class="bone" style="width: @(SkeletonWidths[(i + 3) % SkeletonWidths.Length])%;"></div></td>
+                        <td class="players"><div class="bone count"></div><div class="fullness"></div></td>
+                        <td class="ping"><div class="bone ping-bone"></div></td>
+                    </tr>
+                }
+            }
+
+            @foreach ( var server in Sorted )
+            {
+                <tr class="server @(server.IsFull ? "full" : "") @(server.IsOutdated ? "outdated" : "") @(server.LobbyId == selected ? "selected" : "")" @key=@server.LobbyId onclick=@( () => selected = server.LobbyId )>
+                    @if ( ShowGame )
+                    {
+                        <td>
+                            <div class="game-icon" style="@MenuHelpers.BackgroundImage( MenuHelpers.CachedPackage( server.Game )?.Thumb )" tooltip="@MenuHelpers.CachedTitle( server.Game )">
+                                @if ( string.IsNullOrEmpty( MenuHelpers.CachedPackage( server.Game )?.Thumb ) )
+                                {
+                                    <i>sports_esports</i>
+                                }
+                            </div>
+                        </td>
+                    }
+                    <td>
+                        @if ( IsDedicated( server ) )
+                        {
+                            <div class="host dedicated" tooltip="Dedicated server"><i>dns</i></div>
+                        }
+                        else
+                        {
+                            <div class="host" style="background-image: url( avatar:@server.OwnerId );"></div>
+                        }
+                    </td>
+                    <td class="name">
+                        <label class="server-name">@server.Name</label>
+                        @if ( server.IsOutdated )
+                        {
+                            <label class="outdated-tag" tooltip="@OutdatedReason( server )">@(server.IsNewerVersion ? "Newer version" : "Outdated")</label>
+                        }
+                        @if ( server.IsPasswordProtected )
+                        {
+                            <i class="lock" tooltip="Needs a password">lock</i>
+                        }
+                        @if ( HasFriends( server ) )
+                        {
+                            <i class="friend" tooltip="Friends on it">favorite</i>
+                        }
+                    </td>
+                    <td class="map">@MenuHelpers.CachedTitle( server.Map )</td>
+                    <td class="players">
+                        <label>@($"{server.Members}/{server.MaxMembers}")</label>
+                        <div class="fullness"><div class="fill @(server.IsFull ? "full" : "")" style="width: @(Fullness( server ))%;"></div></div>
+                    </td>
+                    <td class="ping @MenuHelpers.PingClass( server.Ping )">
+                        <div class="ping-bars">@for ( var i = 0; i < 4; i++ ) { <div class="bar @(i < PingBars( server ) ? "on" : "")"></div> }</div>
+                        <label>@PingText( server, unit: false )</label>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    @* Over the whole list, in the middle of it - not a row of the table's, which scrolls *@
+    @if ( !Loading && Sorted.Count == 0 )
+    {
+        <div class="empty">
+            <i>dns</i>
+            <label>@EmptyText</label>
+        </div>
+    }
+
+    @if ( Selected is { } picked )
+    {
+        @* Comes up over the table's bottom when one's first picked - and what's in it fades across to the next *@
+        <div class="band">
+            <div class="card" @key=@picked.LobbyId>
+                @* Its map, like a package card - just to see, not to open: its page would let you start it in any game,
+                   and you pick the game first. *@
+                <div class="map" style="@MenuHelpers.BackgroundImage( CardArt( picked ) )" tooltip="@MenuHelpers.CachedTitle( picked.Map )">
+                    @if ( CardArt( picked ) is null )
+                    {
+                        <i>map</i>
+                    }
+                </div>
+
+                <div class="about">
+                    <label class="server-name">@picked.Name</label>
+                    <label class="where">@WhereText( picked )</label>
+
+                    @* What else there is to know - plain, a glyph and its words each *@
+                    <div class="facts">
+                        <div class="fact"><i>group</i><label>@($"{picked.Members} / {picked.MaxMembers}")</label></div>
+                        <div class="fact ping @MenuHelpers.PingClass( picked.Ping )">
+                            <div class="ping-bars">@for ( var i = 0; i < 4; i++ ) { <div class="bar @(i < PingBars( picked ) ? "on" : "")"></div> }</div>
+                            <label>@PingText( picked )</label>
+                        </div>
+
+                        @if ( IsDedicated( picked ) )
+                        {
+                            <div class="fact"><i>dns</i><label>Dedicated</label></div>
+                        }
+                        else if ( HostName( picked ) is { } host )
+                        {
+                            <div class="fact host @(HostIsFriend( picked ) ? "friend" : "")">
+                                <div class="avatar" style="background-image: url( avatar:@picked.OwnerId );"></div>
+                                <label>@host</label>
+                            </div>
+                        }
+
+                        @if ( FriendsOn( picked ) is { Count: > 0 } friends )
+                        {
+                            <div class="fact friend">
+                                @foreach ( var friend in friends.Take( 4 ) )
+                                {
+                                    <div class="avatar" style="background-image: url( avatar:@friend.Id );"></div>
+                                }
+                                <label>@FriendsText( friends.Count )</label>
+                            </div>
+                        }
+
+                        @if ( picked.IsPasswordProtected )
+                        {
+                            <div class="fact"><i>lock</i><label>Password</label></div>
+                        }
+                    </div>
+                </div>
+
+                <div class="join @(WhyNotJoin( picked ) is null ? "" : "disabled")" tooltip="@(WhyNotJoin( picked ) ?? "")" onclick=@( () => Join( picked ) )>
+                    <i>@(picked.IsOutdated ? "update" : picked.IsFull ? "block" : "play_arrow")</i>
+                    <label>@(picked.IsOutdated ? (picked.IsNewerVersion ? "Newer version" : "Outdated") : picked.IsFull ? "Full" : "Join")</label>
+                </div>
+            </div>
+        </div>
+    }
+
+</root>
+
+@code
+{
+    /// <summary>
+    /// How much of its column each skeleton row's name and map take - different down the rows, as what they stand in
+    /// for is
+    /// </summary>
+    static readonly int[] SkeletonWidths = [62, 48, 74, 55, 68, 40];
+
+    /// <summary>
+    /// The servers to list - already narrowed down to what's wanted; the table puts them in its order
+    /// </summary>
+    [Parameter] public IReadOnlyList<LobbyInformation> Servers { get; set; } = [];
+
+    /// <summary>
+    /// Still finding them - a spinner under its headings rather than what it says with nothing to list
+    /// </summary>
+    [Parameter] public bool Loading { get; set; }
+
+    [Parameter] public string EmptyText { get; set; } = "No servers right now";
+
+    /// <summary>
+    /// Servers of any game - each with its game's icon, first
+    /// </summary>
+    [Parameter] public bool ShowGame { get; set; }
+
+    Panel Body;
+    ulong selected;
+    string sortBy = "players";
+    bool sortDescending = true;
+
+    List<LobbyInformation> Sorted
+    {
+        get
+        {
+            var servers = Servers ?? [];
+
+            IEnumerable<LobbyInformation> sorted = sortBy switch
+            {
+                "name" => sortDescending ? servers.OrderByDescending( x => x.Name ) : servers.OrderBy( x => x.Name ),
+                "map" => sortDescending ? servers.OrderByDescending( x => MenuHelpers.CachedTitle( x.Map ) ) : servers.OrderBy( x => MenuHelpers.CachedTitle( x.Map ) ),
+                // Unknown pings are -1 - last either way
+                "ping" => sortDescending ? servers.OrderBy( x => x.Ping < 0 ).ThenByDescending( x => x.Ping ) : servers.OrderBy( x => x.Ping < 0 ).ThenBy( x => x.Ping ),
+                _ => sortDescending ? servers.OrderByDescending( x => x.Members ) : servers.OrderBy( x => x.Members ),
+            };
+
+            // The outdated ones after the rest, in the same order - they can't be joined
+            return sorted.OrderBy( x => x.IsOutdated ).ToList();
+        }
+    }
+
+    /// <summary>
+    /// The server clicked on, while it's still listed
+    /// </summary>
+    public LobbyInformation? Selected => selected == 0 ? null : (Servers ?? []).Where( x => x.LobbyId == selected ).Select( x => (LobbyInformation?)x ).FirstOrDefault();
+
+    /// <summary>
+    /// A heading pressed - the table says which and which way (Players starts busiest first, the rest A to Z)
+    /// </summary>
+    void Sort( PanelEvent e )
+    {
+        if ( e.Value is not TableSort sort ) return;
+
+        sortBy = sort.Column;
+        sortDescending = sort.Descending;
+    }
+
+    /// <summary>
+    /// A dedicated server - Steam's server list gives its own id as its owner's, there's no player hosting it
+    /// </summary>
+    static bool IsDedicated( LobbyInformation server ) => server.OwnerId != 0 && server.OwnerId == server.LobbyId;
+
+    static bool HasHost( LobbyInformation server ) => server.OwnerId != 0 && !IsDedicated( server );
+
+    static string HostName( LobbyInformation server ) => HasHost( server ) ? new Friend( server.OwnerId ).Name : null;
+
+    internal static bool HostIsFriend( LobbyInformation server ) => HasHost( server ) && new Friend( server.OwnerId ).IsFriend;
+
+    /// <summary>
+    /// Its ping - in ms unless it's under the Ping heading, which says so
+    /// </summary>
+    static string PingText( LobbyInformation server, bool unit = true ) => server.Ping < 0 ? "—" : $"{server.Ping}{(unit ? " ms" : "")}";
+
+    /// <summary>
+    /// How many of its four signal bars are lit - four under 50ms, one from 150, none when it's not known
+    /// </summary>
+    static int PingBars( LobbyInformation server ) => server.Ping < 0 ? 0 : server.Ping < 50 ? 4 : server.Ping < 100 ? 3 : server.Ping < 150 ? 2 : 1;
+
+    /// <summary>
+    /// How full, out of 100
+    /// </summary>
+    static int Fullness( LobbyInformation server ) => server.MaxMembers <= 0 ? 0 : Math.Clamp( server.Members * 100 / server.MaxMembers, 0, 100 );
+
+    static string WhyNotJoin( LobbyInformation server )
+    {
+        if ( server.IsOutdated ) return OutdatedReason( server );
+        if ( server.IsFull ) return "It's full";
+        if ( !MenuHelpers.HasAuthority ) return "Only the party leader can join a server";
+        return null;
+    }
+
+    /// <summary>
+    /// Why one on another version can't be joined - and whose version it is that needs updating
+    /// </summary>
+    static string OutdatedReason( LobbyInformation server ) => server.IsNewerVersion
+        ? "It's on a newer version of s&box than yours - restart Steam to update, then you can join"
+        : "It's on an older version of s&box - it can be joined once it's updated";
+
+    /// <summary>
+    /// Its map, and its game where the list's every game's
+    /// </summary>
+    string WhereText( LobbyInformation server )
+    {
+        var map = string.IsNullOrEmpty( server.Map ) ? "No map" : MenuHelpers.CachedTitle( server.Map );
+        return ShowGame ? $"{MenuHelpers.CachedTitle( server.Game )} · {map}" : map;
+    }
+
+    static string FriendsText( int count ) => count == 1 ? "1 friend" : $"{count} friends";
+
+    static List<Friend> FriendsOn( LobbyInformation server ) => MenuHelpers.FriendsPlaying.ByLobby.GetValueOrDefault( server.LobbyId ) ?? [];
+
+    bool HasFriends( LobbyInformation server ) => HostIsFriend( server ) || FriendsOn( server ).Count > 0;
+
+    static string CardArt( LobbyInformation server )
+    {
+        if ( MenuHelpers.CachedPackage( server.Map ) is { } map ) return !string.IsNullOrEmpty( map.ThumbWide ) ? map.ThumbWide : map.Thumb;
+        return MenuHelpers.CachedPackage( server.Game )?.Thumb is { Length: > 0 } thumb ? thumb : null;
+    }
+
+    void Join( LobbyInformation server )
+    {
+        if ( WhyNotJoin( server ) is not null ) return;
+
+        MenuHelpers.JoinServer( server );
+    }
+
+    readonly ScrollFade bodyFade = new();
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        bodyFade.Apply( Body );
+    }
+
+    /// <summary>
+    /// What's listed, by what shows of each - not the list itself, which its owner builds anew each time
+    /// </summary>
+    int ServersHash
+    {
+        get
+        {
+            var hash = 0;
+            foreach ( var x in Servers ?? [] )
+                hash = HashCode.Combine( hash, x.LobbyId, x.Members, x.MaxMembers, x.Ping, x.Name, x.Map );
+            return hash;
+        }
+    }
+
+    protected override int BuildHash() => HashCode.Combine( ServersHash, selected, sortBy, sortDescending, MenuHelpers.FriendsPlaying.Key, EmptyText, HashCode.Combine( MenuHelpers.HasAuthority, Loading, ShowGame ) );
+}

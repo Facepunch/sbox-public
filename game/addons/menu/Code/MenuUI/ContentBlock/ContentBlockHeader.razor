@@ -3,7 +3,7 @@
 @using MenuProject.UI;
 @inherits Panel
 
-<root class="content-block-header @( IsJam ? "jam" : "" )">
+<root class="content-block-header">
     <row>
         @if ( HasQuery )
         {
@@ -30,11 +30,9 @@
     // No query means the link would land on an unrelated list.
     bool HasQuery => !string.IsNullOrEmpty( Group?.QueryString );
 
-    bool IsJam => MenuHelpers.IsJamQuery( Group?.QueryString );
+    string Icon => Group.Icon;
 
-    string Icon => IsJam ? "emoji_events" : Group.Icon;
+	string url => $"/home/group?Query={Group.QueryString}&title={Group.Title}&subtitle={Group.Description}";
 
-	string url => IsJam ? "/jam" : $"/home/group?Query={Group.QueryString}&title={Group.Title}&subtitle={Group.Description}";
-
-    protected override int BuildHash() => System.HashCode.Combine( Group?.Title, Group?.Icon, HasQuery, IsJam );
+    protected override int BuildHash() => System.HashCode.Combine( Group?.Title, Group?.Icon, HasQuery );
 }

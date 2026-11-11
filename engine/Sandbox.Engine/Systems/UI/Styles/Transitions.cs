@@ -73,14 +73,20 @@ public sealed class Transitions
 		if ( !from.HasTransitions ) return;
 		if ( Entries == null ) return;
 
+		var descriptors = from.Transitions.List;
+
 		for ( int i = 0; i < Entries.Count; i++ )
 		{
-			if ( !from.Transitions.List.Any( x => x.Property == Entries[i].Property ) )
-				continue;
+			for ( int j = 0; j < descriptors.Count; j++ )
+			{
+				if ( descriptors[j].Property != Entries[i].Property )
+					continue;
 
-			var transition = Entries[i];
-			transition.Kill();
-			Entries[i] = transition;
+				var transition = Entries[i];
+				transition.Kill();
+				Entries[i] = transition;
+				break;
+			}
 		}
 	}
 

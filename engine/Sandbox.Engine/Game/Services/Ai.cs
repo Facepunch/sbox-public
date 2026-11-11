@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Net.Http;
+using System.Threading;
 
 namespace Sandbox.Services;
 
@@ -8,6 +9,19 @@ namespace Sandbox.Services;
 /// </summary>
 public static partial class Ai
 {
+	/// <summary>
+	/// Last known account balance and monthly renewal date, refreshed by login and AI responses.
+	/// Null means no balance is available yet. Reading this property does not make a network request.
+	/// </summary>
+	public static CreditBalance? Credits { get; internal set; }
+
+	/// <summary>
+	/// Refreshes the cached account balance on demand, for example after a grant or monthly renewal.
+	/// Login and AI responses normally keep Credits up to date without polling.
+	/// </summary>
+	public static async Task<CreditBalance> RefreshCredits( CancellationToken cancellationToken = default )
+		=> new( await Send( () => Backend.Ai.GetCredits( cancellationToken ) ) );
+
 	/// <summary>
 	/// A user message or final assistant reply in a chat's local history.
 	/// </summary>
@@ -38,7 +52,15 @@ public static partial class Ai
 	{
 		try
 		{
-			return await request();
+			var response = await request();
+			UpdateCredits( response switch
+			{
+				AiQueryResponse query => query.Credits,
+				AiChatToolResponse tool => tool.Credits,
+				ServiceApi.CreditBalance balance => balance,
+				_ => null
+			} );
+			return response;
 		}
 		catch ( Refit.ApiException ex )
 		{
@@ -48,12 +70,22 @@ public static partial class Ai
 				error = JsonSerializer.Deserialize<AiError?>( ex.Content ?? "null", JsonSerializerOptions.Web );
 			}
 			catch ( JsonException ) { }
-			throw new RequestException( (int)ex.StatusCode, error?.Code ?? "http_error", error?.Error ?? ex.Message, ex );
+			UpdateCredits( error?.Credits );
+			throw new RequestException( (int)ex.StatusCode, error?.Code ?? "http_error", error?.Error ?? ex.Message, ex )
+			{
+				Credits = CreditBalance.FromDto( error?.Credits ),
+				RenewsAt = error?.RenewsAt ?? error?.Credits?.RenewsAt
+			};
 		}
 		catch ( HttpRequestException ex )
 		{
-			throw new RequestException( null, "network_error", "The AI server could not be reached. Retry to resend the same submission.", ex );
+			throw new RequestException( null, "network_error", "The AI server could not be reached. Retry to continue the conversation.", ex );
 		}
+	}
+
+	static void UpdateCredits( ServiceApi.CreditBalance? balance )
+	{
+		if ( balance.HasValue ) Credits = CreditBalance.FromDto( balance );
 	}
 
 	/// <summary>
@@ -76,10 +108,20 @@ public static partial class Ai
 		/// Backend error code, or network_error when the server could not be reached.
 		/// </summary>
 		public string Code { get; }
+
+		/// <summary>
+		/// Account balance reported with this failure, or null when unavailable.
+		/// </summary>
+		public CreditBalance? Credits { get; internal init; }
+
+		/// <summary>
+		/// Next monthly allowance renewal, when supplied by the backend.
+		/// </summary>
+		public DateTimeOffset? RenewsAt { get; internal init; }
 	}
 
 	/// <summary>
-	/// An assistant response and provider-reported usage for one model call.
+	/// An assistant response and credits charged for the request.
 	/// </summary>
 	public class Response
 	{
@@ -92,12 +134,9 @@ public static partial class Ai
 			IsSuccess = response.IsSuccess;
 			FinishReason = response.FinishReason;
 			Refusal = response.Refusal;
-			CostUsd = response.CostUsd;
-			TotalCostUsd = (response as AiChatResponse)?.TotalCostUsd;
-			InputTokens = response.InputTokens;
-			OutputTokens = response.OutputTokens;
-			CachedInputTokens = response.CachedInputTokens;
-			CacheWriteTokens = response.CacheWriteTokens;
+			CreditsSpent = response.CreditsSpent;
+			TotalCreditsSpent = (response as AiChatResponse)?.TotalCreditsSpent;
+			Credits = CreditBalance.FromDto( response.Credits );
 			ToolCalls = (response as AiChatResponse)?.ToolCalls ?? [];
 		}
 
@@ -122,34 +161,19 @@ public static partial class Ai
 		public string Refusal { get; init; }
 
 		/// <summary>
-		/// Amount charged for this response in US dollars, when reported.
+		/// Credits charged for this request, or null when accounting is unavailable.
 		/// </summary>
-		public decimal? CostUsd { get; init; }
+		public decimal? CreditsSpent { get; init; }
 
 		/// <summary>
-		/// Backend-reported total cost across conversation/tool rounds, or null without a conversation or available accounting.
+		/// Total credits charged across the conversation, or null without a conversation or available accounting.
 		/// </summary>
-		public decimal? TotalCostUsd { get; init; }
+		public decimal? TotalCreditsSpent { get; init; }
 
 		/// <summary>
-		/// Input token count, when reported.
+		/// Account balance after the request, or null when unavailable.
 		/// </summary>
-		public int? InputTokens { get; init; }
-
-		/// <summary>
-		/// Output token count, including reasoning, when reported.
-		/// </summary>
-		public int? OutputTokens { get; init; }
-
-		/// <summary>
-		/// Input tokens read from the provider's cache, when reported.
-		/// </summary>
-		public int? CachedInputTokens { get; init; }
-
-		/// <summary>
-		/// Input tokens written to the provider's cache, when reported.
-		/// </summary>
-		public int? CacheWriteTokens { get; init; }
+		public CreditBalance? Credits { get; init; }
 
 		/// <summary>
 		/// Functions to execute and answer before sending another user message.

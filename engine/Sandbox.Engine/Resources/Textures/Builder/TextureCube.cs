@@ -2,13 +2,17 @@ using NativeEngine;
 
 namespace Sandbox;
 
+/// <summary>
+/// Configures and creates a cubemap texture.
+/// </summary>
+[Expose]
 public struct TextureCubeBuilder
 {
 	internal TextureBuilder builder = new();
 	internal int Width { set => builder._config.m_nWidth = (short)value; }
 	internal int Height { set => builder._config.m_nHeight = (short)value; }
 	internal int Depth { set => builder._config.m_nDepth = (short)value; }
-	internal ImageFormat Format { set => builder._config.m_nImageFormat = value; }
+	internal ImageFormat Format { set => builder.WithFormat( value ); }
 
 
 	internal string _name = null;

@@ -20,9 +20,14 @@ public static class LoadingScreen
 			_loading = value;
 			_shown = 0;
 			TextureWebStreaming.UpdateDownloadState();
+			Audio.AudioEngine.SetLoading( value );
 
 			// Each load's downloads are its own
 			_downloads.Clear();
+
+			// And so's its progress - kept while the last one's screen fades out full, gone as the next one's shown
+			if ( value )
+				LoadProgress.Forget();
 
 			if ( !value )
 			{
@@ -102,7 +107,7 @@ public static class LoadingScreen
 	/// <summary>
 	/// How far the whole game load is, 0 to 1, across all its stages - for a bar that keeps moving once the
 	/// downloads are done. 1 once it's made it into the game, so the screen can finish its bar on the way out; null
-	/// when no game is loading and the last one didn't make it.
+	/// when no game is loading and the last one didn't make it, or a new screen's up before its load has begun.
 	/// </summary>
 	public static double? LoadFraction => Api.Activity.CurrentLoad is { Ended: false } ? LoadProgress.Fraction : LoadProgress.Completed ? 1 : null;
 

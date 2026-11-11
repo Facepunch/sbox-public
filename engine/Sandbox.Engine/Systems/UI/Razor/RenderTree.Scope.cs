@@ -18,7 +18,10 @@ public partial class PanelRenderTreeBuilder : Microsoft.AspNetCore.Components.Re
 		CurrentScope.Loop = loop;
 		CurrentScope.ChildIndex = 0;
 
-		CurrentScope.Hash = HashCode.Combine( key ?? CurrentScope.Loop, CurrentScope.Sequence );
+		// Split so a null key doesn't box the loop index
+		CurrentScope.Hash = key is null
+			? HashCode.Combine( CurrentScope.Loop, CurrentScope.Sequence )
+			: HashCode.Combine( key, CurrentScope.Sequence );
 	}
 
 	void PopScope()

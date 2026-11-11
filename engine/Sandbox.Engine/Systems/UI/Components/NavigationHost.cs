@@ -53,6 +53,10 @@ public class NavigationHost : Panel
 	/// </summary>
 	public Panel NavigatorCanvas { get; set; }
 
+	/// <summary>
+	/// A cached page and its navigation state, available to derived navigation hosts.
+	/// </summary>
+	[Expose]
 	protected class HistoryItem
 	{
 		public Panel Panel;

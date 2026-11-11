@@ -43,8 +43,9 @@ sealed class ParticleGameSystem : GameObjectSystem
 			p.CollectWork( workList );
 		}
 
-		// Each work item is already a range of an effect's particles
-		JobDispatcher.For( workList.Count, this, static ( system, i ) => system.ProcessWork( system.workList[i] ), itemsPerBatch: 1 );
+		// Work items are only 16 particles each, so threads claim many at a time: claiming one at a
+		// time spends more on the shared counter than on the particles
+		JobDispatcher.For( workList.Count, this, static ( system, i ) => system.ProcessWork( system.workList[i] ) );
 
 		foreach ( var p in _effects )
 		{

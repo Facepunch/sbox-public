@@ -56,12 +56,13 @@ sealed partial class ScenePhysics2dSystem
 
 				var contact = GetContact( e.contactId );
 
-				var intersection = new PhysicsIntersection( a, b, contact );
-				a.Body?.DispatchIntersectionStart( intersection );
+				var sa = new CollisionSource( a );
+				var sb = new CollisionSource( b );
+
+				a.Body?.DispatchIntersectionStart( new Collision( sa, sb, contact ) );
 				if ( !world.IsValid() ) return;
 
-				var flipped = new PhysicsIntersection( b, a, contact );
-				b.Body?.DispatchIntersectionStart( flipped );
+				b.Body?.DispatchIntersectionStart( new Collision( sb, sa, contact ) );
 				if ( !world.IsValid() ) return;
 			}
 		}
@@ -73,9 +74,12 @@ sealed partial class ScenePhysics2dSystem
 			{
 				if ( FindTarget( e.shapeIdA ) is not { } a || FindTarget( e.shapeIdB ) is not { } b ) continue;
 
-				a.Body?.DispatchIntersectionEnd( new PhysicsIntersectionEnd( a, b ) );
+				var sa = new CollisionSource( a );
+				var sb = new CollisionSource( b );
+
+				a.Body?.DispatchIntersectionEnd( new CollisionStop( sa, sb ) );
 				if ( !world.IsValid() ) return;
-				b.Body?.DispatchIntersectionEnd( new PhysicsIntersectionEnd( b, a ) );
+				b.Body?.DispatchIntersectionEnd( new CollisionStop( sb, sa ) );
 				if ( !world.IsValid() ) return;
 			}
 		}
@@ -111,12 +115,13 @@ sealed partial class ScenePhysics2dSystem
 
 			var contact = new PhysicsContact( e.Point, e.Normal, 0f, 0f );
 
-			var intersection = new PhysicsIntersection( a, b, contact );
-			a.Body?.DispatchIntersectionUpdate( intersection );
+			var sa = new CollisionSource( a );
+			var sb = new CollisionSource( b );
+
+			a.Body?.DispatchIntersectionUpdate( new Collision( sa, sb, contact ) );
 			if ( !world.IsValid() ) return;
 
-			var flipped = new PhysicsIntersection( b, a, contact );
-			b.Body?.DispatchIntersectionUpdate( flipped );
+			b.Body?.DispatchIntersectionUpdate( new Collision( sb, sa, contact ) );
 			if ( !world.IsValid() ) return;
 		}
 	}
@@ -133,12 +138,13 @@ sealed partial class ScenePhysics2dSystem
 			{
 				if ( FindTarget( e.sensorShapeId ) is not { } sensor || FindTarget( e.visitorShapeId ) is not { } visitor ) continue;
 
-				var intersection = new PhysicsIntersection( sensor, visitor, default );
-				sensor.Body?.DispatchTriggerBegin( intersection );
+				var ss = new CollisionSource( sensor );
+				var sv = new CollisionSource( visitor );
+
+				sensor.Body?.DispatchTriggerBegin( ss, sv );
 				if ( !world.IsValid() ) return;
 
-				var flipped = new PhysicsIntersection( visitor, sensor, default );
-				visitor.Body?.DispatchTriggerBegin( flipped );
+				visitor.Body?.DispatchTriggerBegin( sv, ss );
 				if ( !world.IsValid() ) return;
 			}
 		}
@@ -150,12 +156,13 @@ sealed partial class ScenePhysics2dSystem
 			{
 				if ( FindTarget( e.sensorShapeId ) is not { } sensor || FindTarget( e.visitorShapeId ) is not { } visitor ) continue;
 
-				var intersection = new PhysicsIntersectionEnd( sensor, visitor );
-				sensor.Body?.DispatchTriggerEnd( intersection );
+				var ss = new CollisionSource( sensor );
+				var sv = new CollisionSource( visitor );
+
+				sensor.Body?.DispatchTriggerEnd( ss, sv );
 				if ( !world.IsValid() ) return;
 
-				var flipped = new PhysicsIntersectionEnd( visitor, sensor );
-				visitor.Body?.DispatchTriggerEnd( flipped );
+				visitor.Body?.DispatchTriggerEnd( sv, ss );
 				if ( !world.IsValid() ) return;
 			}
 		}

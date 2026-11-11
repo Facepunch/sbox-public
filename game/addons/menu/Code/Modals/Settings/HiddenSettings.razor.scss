@@ -1,4 +1,4 @@
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 // What you've hidden, at the end of the Game tab - the tab's own sections and rows (SettingsView dresses
 // those), with a picture on each and the whole row a way to the game or creator
@@ -44,10 +44,10 @@ HiddenSettings
 		flex-shrink: 0;
 		width: 80px;
 		height: 45px;
-		border-radius: 6px;
+		border-radius: $platform-radius;
 		background-size: cover;
 		background-position: center;
-		background-color: rgba( 255, 255, 255, 0.05 );
+		background-color: $platform-button;
 
 		&.logo
 		{
@@ -73,7 +73,7 @@ HiddenSettings
 		.meta
 		{
 			font-size: 12.5px;
-			color: $front-tertiary;
+			color: $platform-faint;
 			white-space: nowrap;
 			text-overflow: ellipsis;
 		}
@@ -83,6 +83,6 @@ HiddenSettings
 	.hidden-note .note-text
 	{
 		font-size: 13px;
-		color: $front-secondary;
+		color: $platform-muted;
 	}
 }

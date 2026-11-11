@@ -6,13 +6,15 @@ namespace Sandbox;
 [SkipHotload]
 internal static class JsonUpgrader
 {
-	private static (MethodDescription Method, JsonUpgraderAttribute Attribute)[] _methods;
+	// Copied out of the attribute, which stays publicly mutable after we validated it
+	private static (MethodDescription Method, Type Type, int Version)[] _methods;
 
 	public static void UpdateUpgraders( TypeLibrary typeLibrary )
 	{
 		_methods = typeLibrary.GetMethodsWithAttribute<JsonUpgraderAttribute>()
 			// A package's upgrader for an engine type would run for everyone loading that type, the menu included
-			.Where( x => x.Attribute.Type is not null && (x.Method.MemberInfo?.DeclaringType?.Assembly == x.Attribute.Type.Assembly || IsolatedAssemblyContext.IsPackageType( x.Attribute.Type )) )
+			.Select( x => (x.Method, x.Attribute.Type, x.Attribute.Version) )
+			.Where( x => x.Type is not null && (x.Method.MemberInfo?.DeclaringType?.Assembly == x.Type.Assembly || IsolatedAssemblyContext.IsPackageType( x.Type )) )
 			.ToArray();
 	}
 
@@ -30,9 +32,9 @@ internal static class JsonUpgrader
 			return;
 
 		foreach ( var e in _methods
-			.Where( x => x.Attribute.Type == targetType )
-			.OrderBy( x => x.Attribute.Version )
-			.Where( x => x.Attribute.Version > version ) )
+			.Where( x => x.Type == targetType )
+			.OrderBy( x => x.Version )
+			.Where( x => x.Version > version ) )
 		{
 			try
 			{
@@ -40,14 +42,14 @@ internal static class JsonUpgrader
 			}
 			catch ( Exception ex )
 			{
-				Log.Warning( ex, $"A component version upgrader ({e.Attribute.Type}, version {e.Attribute.Version}) threw an exception while trying to upgrade, so we halted the upgrade." );
+				Log.Warning( ex, $"A component version upgrader ({e.Type}, version {e.Version}) threw an exception while trying to upgrade, so we halted the upgrade." );
 				// Let's stop trying to upgrade because something is broken.
 				return;
 			}
 			finally
 			{
 				// Update our serialized version step by step.
-				json["__version"] = e.Attribute.Version;
+				json["__version"] = e.Version;
 			}
 		}
 	}

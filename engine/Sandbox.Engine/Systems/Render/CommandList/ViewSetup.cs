@@ -5,6 +5,7 @@
 /// elements of that render. This means you can use most of the camera's
 /// properties, but override some without disturbing the camera itself.
 /// </summary>
+[Expose]
 public struct ViewSetup
 {
 	/// <summary>
@@ -134,6 +135,7 @@ public struct ViewSetup
 /// <summary>
 /// Setup for defining gradient fog in a view
 /// </summary>
+[Expose]
 public struct GradientFogSetup
 {
 	/// <summary>
@@ -223,6 +225,7 @@ public struct GradientFogSetup
 /// <summary>
 /// Allows special setup for reflections, such as offsetting the reflection plane
 /// </summary>
+[Expose]
 public struct ReflectionSetup
 {
 	/// <summary>
@@ -252,6 +255,7 @@ public struct ReflectionSetup
 /// <summary>
 /// Allows special setup for refraction, such as offsetting the clip plane
 /// </summary>
+[Expose]
 public struct RefractionSetup
 {
 	/// <summary>
@@ -283,6 +287,7 @@ public struct RefractionSetup
 /// elements of that render. This means you can use most of the Renderer's
 /// properties, but override some without disturbing the Renderer itself.
 /// </summary>
+[Expose]
 public struct RendererSetup
 {
 	/// <summary>

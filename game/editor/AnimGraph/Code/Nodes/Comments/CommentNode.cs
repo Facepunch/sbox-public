@@ -32,7 +32,7 @@ public sealed class CommentNode : Node, ICommentNode
 	{
 		get
 		{
-			var info = DisplayInfo.For( this );
+			var info = TypeDisplayInfo;
 
 			info.Name = Title;
 			info.Description = Description;

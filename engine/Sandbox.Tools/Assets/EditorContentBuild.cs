@@ -14,8 +14,8 @@ namespace Editor;
 /// after files change (the asset system counts changes, the frame tick builds them), which rebuilds whatever a
 /// change affects, in order. The asset system compiles single assets itself (a load of a changed one, a tool's
 /// compile); their outputs record what they were built from, so the build takes them as they are rather than
-/// compiling them again. Compiles run in content workers, as in SboxBuild, with the tool and project code the editor
-/// has loaded.
+/// compiling them again. Compiles run in this process, as a content worker runs them in SboxBuild's builds: each on a
+/// thread of its own, the main thread doing what they need of it every frame (<see cref="ContentCompilerHost.RunJob"/>).
 /// </summary>
 internal static class EditorContentBuild
 {
@@ -46,23 +46,40 @@ internal static class EditorContentBuild
 	const float RetryDelay = 2.0f;
 
 	/// <summary>
-	/// Content workers at once. Each is a resource compiler with the editor's managed code and a GPU device (~1.3 GB).
+	/// Compiles at once while the editor is open. Startup, which waits for its build, runs as many as SboxBuild does.
 	/// </summary>
-	const int Workers = 4;
+	const int Jobs = 4;
 
 	public static bool IsBuilding => building;
 
 	/// <summary>
 	/// Builds everything before the editor opens, waiting for any other build of the same roots.
 	/// </summary>
-	public static void Startup( Project project )
+	public static async Task Startup( Project project )
 	{
 		EditorContentBuild.project = null;
-		StopBuild();
+		cancellation?.Cancel();
+		if ( incrementalBuild is not null ) await Pumping( incrementalBuild );
+		incrementalBuild = null;
+
 		// ContentBuild has no engine dependency, but its editor tasks must survive play-mode context resets.
 		Sandbox.Tasks.ExpirableSynchronizationContext.AllowPersistentTaskMethods( typeof( ContentBuilder ).Assembly );
 		EditorContentBuild.project = project;
-		Update( true ).GetAwaiter().GetResult();
+
+		await Pumping( Update( true ) );
+	}
+
+	/// <summary>
+	/// Awaits a build, doing what its compiles need of the main thread meanwhile: the frame doesn't run yet at startup.
+	/// </summary>
+	static async Task Pumping( Task build )
+	{
+		while ( !build.IsCompleted )
+		{
+			ContentCompilerHost.Pump( 5 );
+			await Task.Yield();
+		}
+		await build;
 	}
 
 	/// <summary>
@@ -76,6 +93,7 @@ internal static class EditorContentBuild
 		if ( project is null ) return;
 		if ( building )
 		{
+			ContentCompilerHost.Pump();
 			if ( incrementalBuild is { IsCompleted: false } && buildStarted > 1 )
 				progress ??= new PopupToast { Title = "Compiling assets", Icon = "build" };
 			if ( progress?.GetCancel().IsCancellationRequested == true ) cancellation?.Cancel();
@@ -138,7 +156,7 @@ internal static class EditorContentBuild
 
 				// What each job publishes is known before the next frame runs, so its file events aren't changes
 				Published = paths => IAssetSystem.RegisterBuildOutputs( string.Join( "\n", paths ) ),
-				MaxJobs = Workers,
+				MaxJobs = startup ? ResourceCompiler.DefaultMaxJobs : Jobs,
 
 				// Only startup waits for another build, with the splash screen up; the editor never freezes on one
 				LockTimeout = startup ? TimeSpan.FromMinutes( 30 ) : TimeSpan.Zero,
@@ -150,19 +168,12 @@ internal static class EditorContentBuild
 				: null,
 				JobFinished = source =>
 				{
-					if ( startup )
-					{
-						EditorSplashScreen.SetMessage( $"Compiled {source}" );
-						IToolsDll.Current?.Spin();
-					}
+					if ( startup ) EditorSplashScreen.SetMessage( $"Compiled {source}" );
 					else if ( progress is not null ) progress.Subtitle = $"Compiled {source}";
 				},
 			};
 
-			var assetCompiler = Compiler( request.Mounts );
-			var report = startup
-				? ContentBuilder.Build( request, assetCompiler, cancellation.Token )
-				: await ContentBuilder.BuildAsync( request, assetCompiler, cancellation.Token );
+			var report = await ContentBuilder.BuildAsync( request, Compiler( request.Mounts ), cancellation.Token );
 
 			Report( report, roots, startup );
 
@@ -238,42 +249,29 @@ internal static class EditorContentBuild
 			.Select( x => (x.Config.FullIdent, x.GetAssetsPath(), x.GetRootPath()) ) );
 
 	/// <summary>
-	/// The tool and project assemblies the workers load: this editor's own copy of the ones it compiled and loaded.
-	/// </summary>
-	static string Compilers => Path.Combine( Path.GetTempPath(), "sbox-compilers", $"editor-{Environment.ProcessId}" );
-
-	/// <summary>
-	/// Hotloads so far: the workers have the editor's code as it was at one of them.
+	/// Hotloads so far: a hotload cancels a build that's running (none happens during a managed compile), and the next runs
+	/// the new code.
 	/// </summary>
 	static int codeGeneration;
 
 	/// <summary>
-	/// The workers for these mounts and the code the editor has loaded now. They stay between builds; other mounts, or
-	/// a hotload, take new ones.
+	/// The compiler for these mounts and the code the editor has loaded now, which runs each job in this process.
 	/// </summary>
 	static ResourceCompiler Compiler( IReadOnlyList<(string Mod, string Path)> mounts )
 	{
 		var key = string.Join( "\n", mounts.Select( x => $"{x.Mod}|{x.Path}" ).Append( $"{codeGeneration}" ) );
 		if ( key == compilerKey ) return compiler;
 
-		// The old workers go before the assemblies they loaded
-		StopWorkers();
-		DeleteLeftovers();
-
-		Directory.CreateDirectory( Compilers );
-		foreach ( var old in Directory.GetFiles( Compilers ) ) File.Delete( old );
-		foreach ( var assembly in ToolsDll.LoadedAssemblies.Where( x => x.CompiledAssemblyBytes is not null ) )
-			File.WriteAllBytes( Path.Combine( Compilers, $"{assembly.Assembly.GetName().Name}.dll" ), assembly.CompiledAssemblyBytes );
-
 		compilerKey = key;
-		// The editor has a GPU, and its projects' image generators can copy compiled textures
-		var worker = OperatingSystem.IsWindows() ? "contentworker.exe" : "contentworker";
-		compiler = new ResourceCompiler( EngineFileSystem.Root.GetFullPath( $"bin/managed/{worker}" ), new AssetTypeTable( EngineFileSystem.Root.GetFullPath( "bin/assettypes.txt" ) ), mounts, Compilers ) { MaxWorkers = Workers, Answer = ContentCompilerHost.Answer, RenderDevice = true };
+		compiler = new ResourceCompiler( null, new AssetTypeTable( EngineFileSystem.Root.GetFullPath( "bin/assettypes.txt" ) ), mounts, null )
+		{
+			InProcess = ( mode, source, staging, report, args ) => ContentCompilerHost.RunJob( mode, source, staging, report, args ),
+		};
 		return compiler;
 	}
 
 	/// <summary>
-	/// Code changed (compilers and resource types may have come or gone): the next build runs on new workers with it.
+	/// Code changed (compilers and resource types may have come or gone): the next build runs with it.
 	/// Code alone doesn't trigger a build or retry failed assets. New asset types are registered by ToolsDll, which
 	/// counts any newly recognized sources as content changes; sources compiled from now on run the new code.
 	/// </summary>
@@ -284,48 +282,16 @@ internal static class EditorContentBuild
 		if ( incrementalBuild is { IsCompleted: false } ) cancellation?.Cancel();
 	}
 
-	/// <summary>
-	/// The folders of editors that are gone without deleting theirs (closed with their workers still letting go of it).
-	/// </summary>
-	static void DeleteLeftovers()
-	{
-		var parent = Path.GetDirectoryName( Compilers );
-		if ( !Directory.Exists( parent ) ) return;
-
-		foreach ( var folder in Directory.GetDirectories( parent, "editor-*" ) )
-		{
-			if ( !int.TryParse( Path.GetFileName( folder )["editor-".Length..], out var id ) || id <= 0 || Running( id ) ) continue;
-			try { Directory.Delete( folder, true ); } catch ( IOException ) { } catch ( UnauthorizedAccessException ) { }
-		}
-	}
-
-	static bool Running( int processId )
-	{
-		try { using var process = System.Diagnostics.Process.GetProcessById( processId ); return !process.HasExited; }
-		catch ( ArgumentException ) { return false; }
-	}
-
 	[Event( "app.exit" )]
 	static void Shutdown()
 	{
+		// A build left unfinished is finished by the next one (a publication it interrupted rolls back), but compiles
+		// running in this process finish before the engine they run in shuts down
 		project = null;
-		StopBuild();
-		StopWorkers();
-	}
-
-	static void StopBuild()
-	{
 		cancellation?.Cancel();
-		if ( incrementalBuild is not null ) Sandbox.Tasks.SyncContext.RunBlocking( incrementalBuild );
+		ContentCompilerHost.WaitForJobs();
 		incrementalBuild = null;
-	}
-
-	static void StopWorkers()
-	{
-		compiler?.Finished();
 		compiler = null;
 		compilerKey = null;
-
-		if ( Directory.Exists( Compilers ) ) Directory.Delete( Compilers, true );
 	}
 }

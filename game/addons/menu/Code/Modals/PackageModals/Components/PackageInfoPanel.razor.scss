@@ -1,5 +1,5 @@
 @import "/styles/_theme.scss";
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 // A party that isn't what the game's made for
 $mode-warning: #f5a623;
@@ -18,8 +18,8 @@ PackageInfoPanel
         flex-shrink: 0;
         width: 100%;
         aspect-ratio: 16 / 9;
-        border-radius: $front-radius;
-        border: $front-border-width solid $front-border;
+        border-radius: $platform-radius;
+        border: 0.5px solid $platform-hairline;
         background-size: cover;
         background-position: center;
 
@@ -36,7 +36,7 @@ PackageInfoPanel
         font-family: $front-font;
         font-size: 20px;
         font-weight: 700;
-        color: $front-heading;
+        color: $platform-text;
     }
 
     //
@@ -60,7 +60,7 @@ PackageInfoPanel
         .key
         {
             flex-shrink: 0;
-            @include front-section-label;
+            @include platform-section-label;
         }
 
         .value
@@ -75,7 +75,7 @@ PackageInfoPanel
             {
                 font-size: 13px;
                 font-weight: 600;
-                color: $front-heading;
+                color: $platform-text;
                 white-space: nowrap;
                 text-overflow: ellipsis;
                 overflow: hidden;
@@ -126,50 +126,21 @@ PackageInfoPanel
 
     .chip
     {
-        @include front-pill;
-        padding: 2px 9px;
-        gap: 4px;
-        // Squarer than the menu's round pills
-        border-radius: 5px;
-
-        // Nothing to click - no lift under the pointer, as the pill's hover gives a button
-        &:hover
-        {
-            border-color: $front-hairline;
-            background-color: rgba( 255, 255, 255, 0.05 );
-
-            label { color: $front-body; }
-        }
-
-        label
-        {
-            font-size: 11.5px;
-            font-weight: 500;
-            text-transform: none;
-            letter-spacing: 0;
-            color: $front-body;
-        }
+        @include platform-chip;
 
         i
         {
             font-family: "Material Icons";
-            font-size: 14px;
         }
 
         // How many it's for - green when your party's what it's made for, orange when it isn't
         &.mode.fits
         {
-            background-color: rgba( $front-accent, 0.1 );
-            border-color: rgba( $front-accent, 0.4 );
-
-            label, i { color: $front-accent; }
+            label, i { color: $platform-good; }
         }
 
         &.mode.mismatch
         {
-            background-color: rgba( $mode-warning, 0.1 );
-            border-color: rgba( $mode-warning, 0.45 );
-
             label, i { color: $mode-warning; }
         }
     }
@@ -183,7 +154,7 @@ PackageInfoPanel
         animation: info-bone 1.2s ease-in-out infinite alternate;
     }
 
-    .art.bone { border-radius: $front-radius; }
+    .art.bone { border-radius: $platform-radius; }
     .title-bone { width: 60%; height: 18px; }
     .key-bone { width: 64px; height: 10px; }
     .value-bone { width: 56px; height: 12px; }

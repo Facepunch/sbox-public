@@ -23,7 +23,7 @@ public class ExternalPoseNode : Node
 	{
 		get
 		{
-			var info = DisplayInfo.For( this );
+			var info = TypeDisplayInfo;
 			if ( !string.IsNullOrWhiteSpace( SlotName ) )
 				info.Name = $"External Pose: {SlotName}";
 			return info;

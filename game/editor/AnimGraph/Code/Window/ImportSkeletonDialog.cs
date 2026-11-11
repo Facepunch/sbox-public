@@ -211,7 +211,7 @@ internal sealed class ImportSkeletonDialog : Dialog
 				["m_sourceFilename"] = _settings.SourceFilename,
 				["m_flGlobalScale"] = _settings.Scale,
 				["m_rootBoneName"] = _settings.RootBone,
-				["m_previewModel"] = _settings.PreviewModel
+				["m_previewModel"] = ResourceReference.Write( ResourceId.FromPath( _settings.PreviewModel ) )
 			};
 			Directory.CreateDirectory( Path.GetDirectoryName( path ) );
 			if ( !Kv3Document.Write( path, document, overwrite: sameAsset ) )

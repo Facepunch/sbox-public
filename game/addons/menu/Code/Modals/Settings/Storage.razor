@@ -74,25 +74,35 @@
 				<div class="storage-section">
 					<div class="storage-section-heading">
 						<label class="storage-section-title">#menu.settings.content_by_type</label>
-						<label class="storage-secondary">#menu.settings.largest_first</label>
 					</div>
-					<div class="storage-group storage-rows">
-						@foreach ( var entry in SizeBreakdown.OrderByDescending( x => x.Value ) )
-						{
-							<div class="storage-type-row">
-								<div class="storage-type-icon file-type-@Slug( entry.Key )"><i>@TypeIcon( entry.Key )</i></div>
-								<label class="storage-type-name">@TypeTitle( entry.Key )</label>
-								<label class="storage-type-size">@FormatSize( entry.Value )</label>
-							</div>
-						}
-						@if ( Files == 0 )
-						{
-							<div class="storage-empty">
-								<label class="storage-heading">#menu.settings.no_downloaded_content</label>
-								<label class="storage-secondary">#menu.settings.content_will_appear_here_as_you_play</label>
-							</div>
-						}
-					</div>
+
+					@* A table (Sandbox.UI.Table) sorted by its headings - biggest first to start with *@
+					<table class="storage-table" columns="30px 1fr 120px" align="left left right" sortcolumn=@sortBy sortdescending=@sortDescending onsort=@Sort>
+						<thead>
+							<tr>
+								<th></th>
+								<th sort="type">Type</th>
+								<th sort="size" sortfirst="descending">Size</th>
+							</tr>
+						</thead>
+						<tbody>
+							@foreach ( var entry in SortedTypes )
+							{
+								<tr>
+									<td><div class="storage-type-icon file-type-@Slug( entry.Key )"><i>@TypeIcon( entry.Key )</i></div></td>
+									<td class="storage-type-name">@TypeTitle( entry.Key )</td>
+									<td class="storage-type-size">@FormatSize( entry.Value )</td>
+								</tr>
+							}
+							@if ( Files == 0 )
+							{
+								<div class="storage-empty">
+									<label class="storage-heading">#menu.settings.no_downloaded_content</label>
+									<label class="storage-secondary">#menu.settings.content_will_appear_here_as_you_play</label>
+								</div>
+							}
+						</tbody>
+					</table>
 					<label class="storage-footnote">#menu.settings.this_includes_downloaded_content_only_not_the_s_box</label>
 				</div>
 			}
@@ -103,6 +113,25 @@
 @code
 {
 	const int DaysAgo = 7;
+
+
+	string sortBy = "size";
+	bool sortDescending = true;
+
+	void Sort( PanelEvent e )
+	{
+		if ( e.Value is not TableSort sort ) return;
+
+		sortBy = sort.Column;
+		sortDescending = sort.Descending;
+	}
+
+	/// <summary>
+	/// The types in the table's order - biggest first to start with
+	/// </summary>
+	IEnumerable<KeyValuePair<string, long>> SortedTypes => sortBy == "type"
+		? (sortDescending ? SizeBreakdown.OrderByDescending( x => TypeTitle( x.Key ) ) : SizeBreakdown.OrderBy( x => TypeTitle( x.Key ) ))
+		: (sortDescending ? SizeBreakdown.OrderByDescending( x => x.Value ) : SizeBreakdown.OrderBy( x => x.Value ));
 
 	Dictionary<string, long> SizeBreakdown = new();
 	bool IsRefreshing = true;

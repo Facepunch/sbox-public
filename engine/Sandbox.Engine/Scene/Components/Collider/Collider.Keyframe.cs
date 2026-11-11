@@ -22,7 +22,7 @@ public abstract partial class Collider
 		if ( Scene?.Is2D == true )
 			Scene?.GetSystem<ScenePhysics2dSystem>()?.RemoveKeyframe( this );
 		else
-			ScenePhysicsSystem.Current?.RemoveKeyframe( this );
+			Scene?.GetSystem<ScenePhysicsSystem>()?.RemoveKeyframe( this );
 
 		_keyframeBody?.Remove();
 		_keyframeBody = null;
@@ -46,6 +46,9 @@ public abstract partial class Collider
 
 		_keyframeBody.Component = this;
 
+		// Something else moved or re-enabled the body, put it back on our transform
+		_keyframeBody._body.OnDirty = QueueKeyframeUpdate;
+
 		if ( _collisionEvents is not null )
 			_collisionEvents.Rebind( _keyframeBody );
 		else
@@ -56,7 +59,7 @@ public abstract partial class Collider
 			if ( Scene.Is2D )
 				Scene.GetSystem<ScenePhysics2dSystem>()?.AddKeyframe( this );
 			else
-				ScenePhysicsSystem.Current?.AddKeyframe( this );
+				Scene.GetSystem<ScenePhysicsSystem>()?.AddKeyframe( this );
 		}
 	}
 
@@ -71,15 +74,16 @@ public abstract partial class Collider
 	}
 
 	/// <summary>
-	/// Called right before physics simulation to move the keyframebody to its new transform.
+	/// Called right before physics simulation to move the keyframebody to its new transform. Returns true once the body
+	/// rests there, then it doesn't need updating until the transform changes or the body is moved.
 	/// </summary>
-	internal void UpdateKeyframeTransform()
+	internal bool UpdateKeyframeTransform()
 	{
 		if ( Scene.IsEditor || Static )
-			return;
+			return false;
 
 		if ( !_keyframeBody.IsValid() )
-			return;
+			return false;
 
 		// if timeToArrive is longer than a physics frame delta, the objects that we push
 		// will get pushed smoother, but will clip inside the collider more.
@@ -89,5 +93,30 @@ public abstract partial class Collider
 
 		var targetTransform = WorldTransform.WithScale( 1.0f );
 		_keyframeBody.Move( targetTransform, timeToArrive );
+
+		// Paused, the move did nothing yet. 2D updates every keyframe collider anyway.
+		if ( timeToArrive <= 0 || Scene.Is2D )
+			return false;
+
+		// A real move wakes the body, so still asleep means we're on target. A proxy can move us without telling us.
+		return Transform.Proxy is null && _keyframeBody.Sleeping;
 	}
+
+	/// <summary>
+	/// Our target or our body may have moved, update the body before the next physics step.
+	/// </summary>
+	internal void QueueKeyframeUpdate()
+	{
+		// Moving colliders ask every step, keep that cheap
+		if ( KeyframeQueued )
+			return;
+
+		if ( !Scene.Is2D && !Scene.IsEditor && _keyframeBody.IsValid() && !Static )
+			Scene.GetSystem<ScenePhysicsSystem>()?.AddKeyframe( this );
+	}
+
+	/// <summary>
+	/// In the physics system's keyframe update set.
+	/// </summary>
+	internal bool KeyframeQueued;
 }

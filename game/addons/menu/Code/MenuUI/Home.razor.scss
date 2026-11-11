@@ -1,5 +1,5 @@
 @import "/styles/_theme.scss";
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 Home
 {
@@ -7,59 +7,33 @@ Home
 	height: 100%;
 	flex-grow: 1;
 
-	// A transparent strip, not a bar - the scene behind it is the backdrop, the rail
 	.tabs
 	{
-		flex-shrink: 0;
+		@include platform-choices;
+		align-self: flex-start;
 		align-items: center;
-		gap: 0;
-		padding: $front-chrome-gap 24px 4px 18px;
+		margin: $front-chrome-gap 24px 4px 18px;
 
 		// Splits the sort feeds from the genre feeds.
 		separator.vertical
 		{
 			height: 16px;
 			width: 1px;
-			background-color: $front-hairline;
-			margin: 0 14px;
+			background-color: $platform-hairline;
+			margin: 0 6px;
 		}
 
 		.button
 		{
+			@include platform-choice;
+			flex-grow: 0;
+			flex-basis: auto;
 			flex-shrink: 0;
-			align-items: center;
-			padding: 6px 0;
-			margin: 0 14px;
 			pointer-events: all;
-			cursor: pointer;
-			transition: all 0.15s ease;
-
-			Label
-			{
-				font-family: $front-font;
-				font-size: 16px;
-				font-weight: 500;
-				color: $front-secondary;
-				transition: all 0.15s ease;
-			}
 
 			&:hover
 			{
 				sound-in: "ui.button.over";
-
-				Label
-				{
-					color: $front-heading;
-				}
-			}
-
-			&.active
-			{
-				Label
-				{
-					color: #ffffff;
-					font-weight: 700;
-				}
 			}
 
 			&:active
@@ -111,12 +85,13 @@ Home
 
 		.profile-card
 		{
-			@include front-card;
+			@include platform-surface;
+			flex-shrink: 0;
+			overflow: hidden;
 
 			flex-grow: 1;
 			flex-shrink: 1;
 			height: 0;
-			box-shadow: $front-rail-shadow;
 
 			// The avatar and stats keep their natural height - the friends list takes the
 			// rest, so the card reaches the bottom of the screen and scrolls inside.
@@ -127,7 +102,7 @@ Home
 
 			> ProfileStats, > FriendsRail
 			{
-				border-top: $front-border-width solid $front-hairline;
+				border-top: 1px solid $platform-hairline;
 			}
 
 			> FriendsRail

@@ -3,6 +3,8 @@ namespace Editor.AnimGraph;
 internal sealed class ClipProperties : Widget
 {
 	public Action<string> Committed { get; set; }
+	private ClipDocument _document;
+	private string _snapshot;
 
 	public ClipProperties( Widget parent ) : base( parent )
 	{
@@ -13,7 +15,13 @@ internal sealed class ClipProperties : Widget
 
 	public void SetDocument( ClipDocument document )
 	{
-		using var suspend = SuspendUpdates.For( this );
+		if ( document is not null && document == _document )
+		{
+			_snapshot = document.Snapshot();
+			return;
+		}
+
+		_document = document;
 		Layout.Clear( true );
 
 		if ( document is null )
@@ -23,15 +31,15 @@ internal sealed class ClipProperties : Widget
 		}
 
 		var serialized = EditorTypeLibrary.GetSerializedObject( document );
-		var before = document.Snapshot();
+		_snapshot = document.Snapshot();
 		var editing = false;
 		void Commit( SerializedProperty property )
 		{
 			var after = document.Snapshot();
-			if ( after == before )
+			if ( after == _snapshot )
 				return;
 
-			before = after;
+			_snapshot = after;
 			Committed?.Invoke( $"Edit {property.DisplayName}" );
 		}
 		serialized.OnPropertyStartEdit += _ => editing = true;
@@ -56,6 +64,7 @@ internal sealed class ClipProperties : Widget
 				.ThenBy( property => property.SourceLine ).ToArray() );
 		}
 		Layout.Add( sheet );
+		Layout.AddStretchCell();
 		foreach ( var control in this.GetDescendants<ControlWidget>() )
 			control.MinimumWidth = 0;
 	}

@@ -157,7 +157,7 @@ internal sealed class OcclusionCuller : IDisposable
 		runs[runCount++] = new CullRun { FirstInstance = (uint)firstInstance, FirstArg = (uint)firstArg, DrawCount = (uint)lodDraws.Length, Phases = AllPhases };
 
 		foreach ( var draw in lodDraws )
-			args[argCount++] = new GpuBuffer.IndirectDrawIndexedArguments { IndexCount = (uint)draw.IndexCount, FirstIndex = (uint)draw.StartIndex };
+			args[argCount++] = new GpuBuffer.IndirectDrawIndexedArguments { IndexCount = (uint)draw.IndexCount, FirstIndex = (uint)draw.StartIndex, BaseVertex = draw.BaseVertex };
 
 		pendingStart = InstanceCount;
 		tested += count;
@@ -234,7 +234,7 @@ internal sealed class OcclusionCuller : IDisposable
 		statsRing.Upload( context, stats );
 	}
 
-	public void ReadStats( RenderContext context ) => context.Native.ReadBufferAsync( Stats, onStatsRead, 0, 2 * sizeof( uint ) );
+	public void ReadStats( RenderContext context ) => context.Native.ReadBufferAsync( Stats, onStatsRead, 0, 2 * sizeof( uint ), inline: true );
 
 	public void Dispose()
 	{

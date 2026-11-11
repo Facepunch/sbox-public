@@ -1,4 +1,4 @@
-@import "/styles/_front.scss";
+@import "/Platform/_platform.scss";
 
 // Keep component appearance here; pages should only size and arrange their docks.
 MenuShell .dockhost
@@ -31,7 +31,7 @@ MenuShell .dockhost
 
 		&:hover::after
 		{
-			background-color: $front-primary;
+			background-color: $platform-primary;
 		}
 	}
 
@@ -42,7 +42,7 @@ MenuShell .dockhost
 
 	.dock-split.resizing > .dock-splitter::after
 	{
-		background-color: $front-primary;
+		background-color: $platform-primary;
 	}
 
 	.dock-split.vertical > .dock-splitter
@@ -67,7 +67,8 @@ MenuShell .dockhost
 
 	.dock-body
 	{
-		@include front-card;
+		@include platform-surface;
+		overflow: hidden;
 		flex-shrink: 1;
 	}
 
@@ -80,7 +81,7 @@ MenuShell .dockhost
 		border: 0;
 		border-radius: 0;
 
-		&::after
+		&::before
 		{
 			display: none;
 		}

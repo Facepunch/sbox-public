@@ -148,18 +148,18 @@ public static partial class CodeEditor
 
 		if ( AssetSystem.FindByPath( path ) is { } asset )
 		{
-			if ( !IAssetEditor.OpenInEditor( asset, out var editor ) )
+			if ( IAssetEditor.OpenInEditor( asset, out var editor ) )
 			{
+				if ( memberName is not null && editor is not null )
+				{
+					editor.SelectMember( memberName );
+				}
+
 				return;
 			}
 
-			if ( memberName is null || editor is null )
-			{
-				return;
-			}
-
-			editor.SelectMember( memberName );
-			return;
+			// Source assets such as .csx scripts use the selected code editor when no asset editor handles them.
+			path = asset.AbsolutePath;
 		}
 
 		if ( !System.IO.Path.IsPathRooted( path ) )
@@ -189,6 +189,9 @@ public static partial class CodeEditor
 			Current?.OpenFile( path, line, column );
 	}
 
+	/// <summary>
+	/// Opens the source location, including its line, column and member when available.
+	/// </summary>
 	public static void OpenFile( ISourcePathProvider location )
 	{
 		OpenFile(
@@ -236,7 +239,7 @@ public static partial class CodeEditor
 			return false;
 		}
 
-		return false;
+		return System.IO.File.Exists( path );
 	}
 
 	/// <summary>
