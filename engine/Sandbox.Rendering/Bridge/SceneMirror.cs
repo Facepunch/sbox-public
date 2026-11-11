@@ -518,6 +518,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 			if ( meshChanged || (change & SceneObjectChange.Model) != 0 )
 			{
 				mesh.MorphSource = model.Model is not { MorphCount: > 0 } ? null
+					: MirrorContent.Gpu is { } gpu ? (mesh.MorphSource is GpuSceneModelMorphs gpuMorphs && gpuMorphs.Source == model ? gpuMorphs : new GpuSceneModelMorphs( model, gpu ))
 					: mesh.MorphSource is SceneModelMorphs morphs && morphs.Source == model ? morphs : new SceneModelMorphs( model );
 			}
 
