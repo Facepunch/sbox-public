@@ -467,14 +467,23 @@ internal sealed partial class SceneLabWindow : PanelWindow
 	// The frame plan over the viewport
 	PlanOverlay planOverlay;
 
+	// The swap chain last made the main one, and its size then
+	SwapChainHandle_t mainSwapChain;
+	Vector2 mainSwapChainSize;
+
 	/// <summary>
 	/// Render the world into the swap chain, under the panels.
 	/// </summary>
 	private protected override void OnRenderBackground( SwapChainHandle_t swapChain, Vector2 size )
 	{
 		// A multisampled window is the main one, as a game's is: native's bitmap renders (the references, and the GameObject
-		// presets' compare) take the main swap chain's sample count
-		if ( SwapChainMultisample != RenderMultisampleType.RENDER_MULTISAMPLE_NONE ) CSceneSystem.SetMainSwapChain( swapChain );
+		// presets' compare) take the main swap chain's sample count. Set when the swap chain or its size changes: native
+		// asserts on every call from a tools-mode app, and only the handle and its dimensions are kept
+		if ( SwapChainMultisample != RenderMultisampleType.RENDER_MULTISAMPLE_NONE && ((IntPtr)swapChain != (IntPtr)mainSwapChain || size != mainSwapChainSize) )
+		{
+			CSceneSystem.SetMainSwapChain( swapChain );
+			(mainSwapChain, mainSwapChainSize) = (swapChain, size);
+		}
 
 		parity?.Tick( this );
 		if ( Finished || parity?.Idle == true ) return;

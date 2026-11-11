@@ -291,14 +291,14 @@ internal static class PostParity
 		// The frame the post stack starts from, made after the Basalt.Gpu device so its texture keeps its pixels for it
 		using var frame = SunShadows( backend, folder );
 		backend.Phase( "Sun Shadows on Source 2" );
-		using var gpuFrame = sceneOnGpu ? SunShadowsOnGpu( gpu, folder ) : null;
+		gpuScene = sceneOnGpu ? new GpuScene( gpu ) : null;
 		if ( sceneOnGpu ) backend.Phase( "Sun Shadows on Basalt.Gpu" );
 
 		var rows = new List<string>();
 		var failed = 0;
 		foreach ( var test in cases )
 		{
-			var (max, over, mean, error) = RunCase( backend, gpu, frame, gpuFrame ?? frame, test, System.IO.Path.Combine( folder, test.Name ), tolerance );
+			var (max, over, mean, error) = RunCase( backend, gpu, frame, test, System.IO.Path.Combine( folder, test.Name ), tolerance );
 			var ok = (sceneOnGpu ? mean <= meanTolerance : over == 0 || test.NotCompared is not null) && error is null;
 			if ( !ok ) failed++;
 
@@ -329,6 +329,9 @@ internal static class PostParity
 		System.IO.File.WriteAllLines( System.IO.Path.Combine( folder, "results.md" ), report );
 
 		// The components' scene and what scenes make for the process (particle lighting's texture)
+		gpuScene?.Dispose();
+		gpuScene = null;
+
 		if ( scene is not null )
 		{
 			scene.Destroy();
@@ -359,62 +362,80 @@ internal static class PostParity
 		backend.Flush();
 		var halves = new ushort[Width * Height * 4];
 		target.Resolved.Engine().GetPixels( (0, 0, Width, Height), 0, 0, halves.AsSpan(), ImageFormat.RGBA16161616F );
-		return FrameTexture( halves, System.IO.Path.Combine( folder, "frame.png" ) );
+		return FrameTexture( halves, System.IO.Path.Combine( folder, "frame.png" ), sceneOnGpu ? 1 : 2.5f );
 	}
 
 	/// <summary>
 	/// Sun Shadows rendered by Basalt on the Basalt.Gpu device the post stack runs on, from content Basalt.Source2 reads
-	/// (no 2D sky there yet), as an RGBA16F texture of its pixels.
+	/// (no 2D sky there yet), handed to the engine's drawing on that device as a camera frame would be
+	/// (<see cref="BasaltGpuFrame"/>): its targets and view constants, no readback.
 	/// </summary>
-	static Texture SunShadowsOnGpu( BasaltGpuRenderBackend gpu, string folder )
+	sealed class GpuScene : IDisposable
 	{
-		var device = gpu.Services;
-		var previous = RenderHost.Current;
-		RenderHost.Current = new Basalt.Backend.BackendRenderHost( device );
-		try
-		{
-			var lab = LabWorld.Build( LabPresets.Find( "Sun Shadows" ), new BackendLabContent( device ) );
-			var view = new RenderView { Name = "Post parity", ClearColor = new Color( 0.08f, 0.09f, 0.11f ), Viewport = new Rect( 0, 0, Width, Height ) };
-			lab.Aim( view, LabWorld.DefaultPitch, LabWorld.DefaultYaw, lab.DefaultDistance );
-			using var renderer = new RenderSystem { ParallelRecording = false };
-			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Post parity" );
+		readonly RenderSystem renderer;
+		readonly ViewTarget target;
+		readonly RenderHost host;
 
-			for ( var i = 0; i < 10; i++ )
+		public BasaltGpuFrame Frame { get; }
+
+		/// <summary>The view constants the scene drew with.</summary>
+		public ViewConstants Constants { get; }
+
+		public GpuScene( BasaltGpuRenderBackend gpu )
+		{
+			var device = gpu.Services;
+			host = new Basalt.Backend.BackendRenderHost( device );
+			var previous = RenderHost.Current;
+			RenderHost.Current = host;
+			try
 			{
-				device.BeginFrame();
-				RenderHost.Current.NextFrame();
-				renderer.Render( lab.World, view, target );
+
+				// Made once the host is the Basalt.Gpu device's, which it records its frames with
+				renderer = new RenderSystem { ParallelRecording = false };
+				var lab = LabWorld.Build( LabPresets.Find( "Sun Shadows" ), new BackendLabContent( device ) );
+				var view = new RenderView { Name = "Post parity", ClearColor = new Color( 0.08f, 0.09f, 0.11f ), Viewport = new Rect( 0, 0, Width, Height ) };
+				lab.Aim( view, LabWorld.DefaultPitch, LabWorld.DefaultYaw, lab.DefaultDistance );
+				target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Post parity" );
+
+				for ( var i = 0; i < 10; i++ )
+				{
+					device.BeginFrame();
+					RenderHost.Current.NextFrame();
+					renderer.Render( lab.World, view, target );
+				}
+
+				Frame = new BasaltGpuFrame( gpu );
+				Constants = renderer.Frame.Constants;
+				Frame.Adopt( target, Constants );
 			}
-
-			// Read back as model parity does: from where the frame left its target
-			var (texture, layout) = Basalt.Backend.BackendDevice.Unwrap( target.Color );
-			var buffer = device.Gpu.CreateBuffer( new Basalt.Gpu.BufferInfo { Size = Width * Height * 8, Memory = Basalt.Gpu.MemoryLocation.Readback, Name = "Post parity readback" } );
-			var list = device.Gpu.BeginCommandList( Basalt.Gpu.QueueType.Graphics, "Post parity readback" );
-			list.Barrier( Basalt.Gpu.TextureBarrier.Transition( texture, layout, Basalt.Gpu.ImageLayout.CopySource, Basalt.Gpu.PipelineStage.AllCommands, Basalt.Gpu.MemoryAccess.MemoryWrite, Basalt.Gpu.PipelineStage.Transfer, Basalt.Gpu.MemoryAccess.TransferRead ) );
-			list.CopyTextureToBuffer( texture, 0, 0, buffer );
-			list.Barrier( new Basalt.Gpu.BufferBarrier { Buffer = buffer, SourceStage = Basalt.Gpu.PipelineStage.Transfer, SourceAccess = Basalt.Gpu.MemoryAccess.TransferWrite, DestinationStage = Basalt.Gpu.PipelineStage.Host, DestinationAccess = Basalt.Gpu.MemoryAccess.HostRead } );
-			device.Gpu.Wait( device.Gpu.Submit( list ) );
-			Basalt.Backend.BackendDevice.SetLayout( target.Color, Basalt.Gpu.ImageLayout.CopySource );
-
-			var halves = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, ushort>( device.Gpu.Map( buffer ) ).ToArray();
-			device.Gpu.Destroy( buffer );
-			return FrameTexture( halves, System.IO.Path.Combine( folder, "frame-gpu.png" ) );
+			finally
+			{
+				// The lab's own frames go on through Source 2's host
+				RenderHost.Current = previous;
+			}
 		}
-		finally
+
+		public void Dispose()
 		{
-			device.Gpu.WaitIdle();
+			var previous = RenderHost.Current;
+			RenderHost.Current = host;
+			Frame.Dispose();
+			target.Dispose();
+			renderer.Dispose();
 			RenderHost.Current = previous;
 		}
 	}
 
+	static GpuScene gpuScene;
+
 	/// <summary>A frame's pixels, with its highlights pushed past 1, as an RGBA16F texture.</summary>
-	static Texture FrameTexture( ushort[] halves, string png )
+	static Texture FrameTexture( ushort[] halves, string png, float scale )
 	{
 		// Some highlights over 1, so bloom's threshold and the tonemapper have something to do
 		for ( int i = 0; i < halves.Length; i++ )
 		{
 			if ( i % 4 == 3 ) continue;
-			halves[i] = BitConverter.HalfToUInt16Bits( (Half)((float)BitConverter.UInt16BitsToHalf( halves[i] ) * 2.5f) );
+			halves[i] = BitConverter.HalfToUInt16Bits( (Half)((float)BitConverter.UInt16BitsToHalf( halves[i] ) * scale) );
 		}
 
 		Source2Backend.SavePng( Encode( halves ), Width, Height, png );
@@ -423,7 +444,7 @@ internal static class PostParity
 		return Texture.Create( Width, Height, ImageFormat.RGBA16161616F ).WithData( bytes ).Finish();
 	}
 
-	static (int Max, int Over, double Mean, string Error) RunCase( Source2Backend backend, BasaltGpuRenderBackend gpu, Texture frame, Texture gpuFrame, Case test, string folder, int tolerance )
+	static (int Max, int Over, double Mean, string Error) RunCase( Source2Backend backend, BasaltGpuRenderBackend gpu, Texture frame, Case test, string folder, int tolerance )
 	{
 		backend.BeginFrame();
 		string error = null;
@@ -442,7 +463,7 @@ internal static class PostParity
 		var basaltPixels = new ushort[Width * Height * 4];
 		try
 		{
-			var basalt = Apply( gpu, gpuFrame, test );
+			var basalt = Apply( gpu, frame, test );
 			basaltPixels = Read( basalt, gpu );
 			basalt.Dispose();
 		}
@@ -487,8 +508,11 @@ internal static class PostParity
 		var target = Texture.CreateRenderTarget().WithSize( Width, Height ).WithFormat( ImageFormat.RGBA16161616F ).WithUAVBinding().Create();
 		var cl = new CommandList( test.Name );
 
-		// What a camera's view gives its post processing: the viewport and target size, no exposure scaling
-		cl.Attributes.SetData( "PerViewConstantBuffer_t", new ViewConstants
+		// What a camera's view gives its post processing: the scene's own constants when it's drawn on Basalt.Gpu (on both
+		// devices, so they draw with the same), else the viewport and target size with no exposure scaling
+		var onFrame = gpuScene is not null && device is BasaltGpuRenderBackend;
+		if ( gpuScene is not null ) cl.Attributes.SetData( "PerViewConstantBuffer_t", gpuScene.Constants );
+		else cl.Attributes.SetData( "PerViewConstantBuffer_t", new ViewConstants
 		{
 			ToneMapScalarLinear = 1,
 			ToneMapScalarGamma = 1,
@@ -508,14 +532,17 @@ internal static class PostParity
 		var lists = components && !reference && test.Components is not null ? ComponentLists( test, device ) : null;
 		if ( lists is null ) test.Record( cl );
 
-		using ( Graphics.Scope.CreateOn( device ) )
+		// On the GPU scene's frame: a block from the frame, which binds the view's constants itself, over a copy of its colour
+		// made on the GPU, with its depth
+		using ( onFrame ? gpuScene.Frame.Begin() : Graphics.Scope.CreateOn( device ) )
 		{
-			Graphics.RenderTarget = RenderTarget.From( target );
-			Graphics.CopyTexture( frame, target );
+			Graphics.RenderTarget = RenderTarget.From( target, onFrame ? gpuScene.Frame.Depth : null );
+			Graphics.CopyTexture( onFrame ? gpuScene.Frame.Color : frame, target );
 			cl.Execute();
 			foreach ( var list in lists ?? [] ) list.Execute();
 		}
 
+		if ( onFrame ) gpuScene.Frame.End();
 		return target;
 	}
 
