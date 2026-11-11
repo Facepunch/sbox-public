@@ -53,7 +53,16 @@ internal class BuildShaders( bool forced = false, bool seed = false )
 	/// Shaders Basalt.Gpu draws GPU-driven, whose <c>.gpudriven.shader_c</c> variant is built too
 	/// (docs/managed/basalt-gpu-driven.md). A variant that fails only warns: Basalt draws that shader the classic way.
 	/// </summary>
-	static readonly string[] GpuDrivenShaders = ["core/shaders/depth_only.shader", "core/shaders/complex.shader"];
+	static readonly string[] GpuDrivenShaders =
+	[
+		"core/shaders/depth_only.shader",
+		"core/shaders/complex.shader",
+		"core/shaders/blendable.shader",
+		"core/shaders/foliage.shader",
+		"core/shaders/static_overlay.shader",
+		"core/shaders/generic.shader",
+		"core/shaders/simple.shader",
+	];
 
 	void CompileGpuDriven( string shaderCompilerPath, string gameDir )
 	{
