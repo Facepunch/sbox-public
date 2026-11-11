@@ -63,6 +63,9 @@ public sealed unsafe class CommandList
 	readonly uint[] setOffsets = new uint[4 * MaxDynamicOffsets];
 	readonly int[] setOffsetCounts = new int[4];
 
+	// The view set (ShaderAbi.ViewSet), bound beside the bindless set
+	ulong viewSet;
+
 	// Transient descriptor sets and upload memory, recycled with the frame
 	readonly List<ulong> descriptorPools = new();
 	int descriptorPool;
@@ -100,6 +103,7 @@ public sealed unsafe class CommandList
 		Array.Clear( sets );
 		Array.Clear( setLayouts );
 		Array.Clear( setOffsetCounts );
+		viewSet = 0;
 		Submitted = default;
 
 		labelled = name is not null && device.Instance.vkCmdBeginDebugUtilsLabelEXT != null;
@@ -498,7 +502,7 @@ public sealed unsafe class CommandList
 		{
 			layouts[record.BindPoint] = record.Layout;
 			layoutSets[record.BindPoint] = device.SetLayoutsOf( record.Layout );
-			dirty[record.BindPoint] = 0x1F;
+			dirty[record.BindPoint] = 0x3F;
 		}
 	}
 
@@ -552,6 +556,21 @@ public sealed unsafe class CommandList
 		setOffsetCounts[set] = dynamicOffsets.Length;
 		dirty[0] |= 1 << set;
 		dirty[1] |= 1 << set;
+	}
+
+	/// <summary>
+	/// Bind the view's set (<see cref="ShaderAbi.ViewSet"/>, laid out as <see cref="Device.ViewSetLayout"/>) for the draws
+	/// and dispatches that follow, in every pipeline. Without one, a pipeline whose shaders read it can't draw.
+	/// </summary>
+	public void SetViewSet( BindingSetHandle bindingSet )
+	{
+		ref var record = ref device.Get( bindingSet );
+		if ( record.SetLayout != device.Get( device.ViewSetLayout ).SetLayout ) throw new ArgumentException( "A view set is laid out as Device.ViewSetLayout" );
+		if ( viewSet == record.Set ) return;
+
+		viewSet = record.Set;
+		dirty[0] |= 1 << ShaderAbi.ViewSet;
+		dirty[1] |= 1 << ShaderAbi.ViewSet;
 	}
 
 	ulong AllocateSet( ulong setLayout )
@@ -610,6 +629,13 @@ public sealed unsafe class CommandList
 		{
 			var bindless = device.Bindless.Set;
 			vk.vkCmdBindDescriptorSets( Handle, bindPoint, layout, ShaderAbi.BindlessSet, 1, &bindless, 0, null );
+		}
+
+		if ( (mask & (1 << ShaderAbi.ViewSet)) != 0 )
+		{
+			// Outside a view (UI, tools), the device's placeholders: nothing to light with
+			var view = viewSet != 0 ? viewSet : device.DefaultViewSet.IsValid ? device.Get( device.DefaultViewSet ).Set : 0;
+			if ( view != 0 ) vk.vkCmdBindDescriptorSets( Handle, bindPoint, layout, ShaderAbi.ViewSet, 1, &view, 0, null );
 		}
 
 		dirty[bindPoint] = 0;

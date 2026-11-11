@@ -65,6 +65,29 @@ public sealed unsafe partial class Device
 		} );
 	}
 
+	/// <summary>
+	/// <see cref="DefaultViewSet"/> over zeroed buffers of its own, so a pipeline whose shaders read the view set can draw
+	/// on any list.
+	/// </summary>
+	void CreateDefaultViewSet()
+	{
+		const int uniformSize = 16 * 1024, storageSize = 64 * 1024;
+		var uniform = CreateBuffer( new BufferInfo { Size = uniformSize, Usage = BufferUsage.Uniform, Name = "View set placeholder constants" } );
+		var storage = CreateBuffer( new BufferInfo { Size = storageSize, Usage = BufferUsage.Storage, Name = "View set placeholder buffer" } );
+		var zeros = new byte[storageSize];
+		WriteBuffer( uniform, zeros.AsSpan( 0, uniformSize ) );
+		WriteBuffer( storage, zeros );
+
+		var bindings = new Binding[ShaderAbi.ViewSetBindings.Length];
+		for ( int i = 0; i < bindings.Length; i++ )
+		{
+			var (binding, type, _) = ShaderAbi.ViewSetBindings[i];
+			bindings[i] = type == BindingType.UniformBuffer ? Binding.Uniform( binding, uniform, 0, uniformSize ) : Binding.Storage( binding, storage );
+		}
+
+		DefaultViewSet = CreateBindingSet( ViewSetLayout, bindings );
+	}
+
 	ulong AllocatePersistentSet( ulong setLayout )
 	{
 		for ( int attempt = 0; ; attempt++ )

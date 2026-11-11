@@ -31,8 +31,9 @@ struct Decal
 	float GetRadius() { return length( 0.5f / Scale ); }
 };
 
-StructuredBuffer<Decal> DecalBuffer < Attribute( "DecalsBuffer" ); >;
-ByteAddressBuffer DecalsExtraDataBuffer < Attribute( "DecalsExtraDataBuffer" ); >;
+// The view's decals, in its descriptor set (common.fxc)
+StructuredBuffer<Decal> DecalBuffer EXTERNAL_DESC_SET( t, g_viewSet, 2 );
+ByteAddressBuffer DecalsExtraDataBuffer EXTERNAL_DESC_SET( t, g_viewSet, 3 );
 
 float4 UnpackColor(uint packedColor)
 {

@@ -148,6 +148,7 @@ internal sealed partial class BackendContext : GpuContext
 		clearColor = clearDepth = false;
 		viewConstants = null;
 		passStateCount = 0;
+		if ( frame is null ) viewSetWritten = false;
 		OverlayStencil = OverlayStencil.None;
 		SetObjectAttributes( null );
 		recording.BindVersion = -1;
@@ -251,7 +252,69 @@ internal sealed partial class BackendContext : GpuContext
 		wait = semaphore;
 	}
 
-	public override void Dispose() { }
+	public override void Dispose()
+	{
+		if ( viewSet.IsValid ) Gpu.Destroy( viewSet );
+		viewSet = default;
+	}
+
+	//
+	// The view set
+	//
+
+	// A frame context's view set (ShaderAbi.ViewSet): a new one each frame, the last destroyed once the GPU is done with it
+	BindingSetHandle viewSet;
+	bool viewSetWritten;
+	Binding[] viewBindings;
+
+	/// <summary>
+	/// Write the view set from this frame context's attributes - constant buffers copied into the frame's pass constants,
+	/// buffers by name, placeholders for what isn't set - and bind it for everything this frame records after.
+	/// </summary>
+	public override void WriteViewSet()
+	{
+		if ( frame is not null ) throw new InvalidOperationException( "Only a frame context writes the view set" );
+		if ( viewSetWritten ) return;
+		viewSetWritten = true;
+
+		var cache = device.MaterialCache;
+		viewBindings ??= new Binding[ShaderAbi.ViewSetBindings.Length];
+		for ( int i = 0; i < viewBindings.Length; i++ )
+		{
+			var (binding, type, name) = ShaderAbi.ViewSetBindings[i];
+			var value = attributes.Get( Token( name ) );
+			if ( type == BindingType.UniformBuffer )
+			{
+				if ( value is byte[] { Length: > 0 } data )
+				{
+					var size = (data.Length + 15) & ~15;
+					var offset = cache.AllocatePassConstants( size, out var target );
+					target.Clear();
+					data.CopyTo( target );
+					viewBindings[i] = Binding.Uniform( binding, cache.PassBuffer, offset, size );
+				}
+				else
+				{
+					viewBindings[i] = Binding.Uniform( binding, device.Defaults.Uniform, 0, ShaderDefaults.UniformSize );
+				}
+			}
+			else
+			{
+				viewBindings[i] = value is GpuBuffer { Resource: BackendBuffer buffer } ? Binding.Storage( binding, buffer.Handle ) : Binding.Storage( binding, device.Defaults.Storage );
+			}
+		}
+
+		if ( viewSet.IsValid ) Gpu.Destroy( viewSet );
+		viewSet = Gpu.CreateBindingSet( Gpu.ViewSetLayout, viewBindings );
+		recording?.List.SetViewSet( viewSet );
+	}
+
+	/// <summary>Bind the frame's view set on <paramref name="list"/>, once it has one.</summary>
+	void BindViewSet( CommandList list )
+	{
+		var owner = frame ?? this;
+		if ( owner.viewSet.IsValid ) list.SetViewSet( owner.viewSet );
+	}
 
 	//
 	// Targets and rendering scopes
@@ -676,6 +739,7 @@ internal sealed partial class BackendContext : GpuContext
 	void BindSets( BackendMaterial material, ShaderVariant variant, bool depthOnly )
 	{
 		var r = recording;
+		BindViewSet( r.List );
 		var defaults = device.Defaults;
 		Span<Binding> bindings = stackalloc Binding[64];
 
