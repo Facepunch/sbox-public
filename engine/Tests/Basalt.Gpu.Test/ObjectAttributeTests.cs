@@ -143,7 +143,7 @@ public class ObjectAttributeTests : GpuTest
 			var material = backend.CreateMaterial( "Boxes", new Color( 0.8f, 0.8f, 0.8f ) );
 			var box = BoxMesh( backend, material );
 			var draw = box.DrawsForLod( 0 )[0];
-			var lightmappedBox = new RenderMesh( box.Geometry, new BBox( -50, 50 ), [[draw with { Lightmapped = true }]], [] );
+			var lightmappedBox = new RenderMesh( box.Geometry, new BBox( new Vector3( -50, -50, -50 ), new Vector3( 50, 50, 50 ) ), [[draw with { Lightmapped = true }]], [] );
 			var lightmap = LightmapAttributes( backend );
 
 			RenderWorld World( bool lit )
@@ -341,7 +341,7 @@ public class ObjectAttributeTests : GpuTest
 		string[] names = ["direct_light_indices", "direct_light_strengths", "irradiance", "directional_irradiance"];
 		Color[] colours = [new( 0, 0, 0, 0 ), new( 0, 0, 0, 0 ), new( 3, 2, 1, 1 ), new( 2, 2, 2, 2 )];
 		var attributes = backend.CreateParameters();
-		var constants = new LightmapConstants { UvScale = new Vector4( 1, 1, 0, 0 ) };
+		var constants = new LightmapConstants { UvScale = new Vector4( 1, 1, 0, 0 ), Index4 = 0, Index5 = 0, Index6 = 0, Index7 = 0 };
 		Span<int> indices = stackalloc int[4];
 		for ( int i = 0; i < names.Length; i++ )
 		{
