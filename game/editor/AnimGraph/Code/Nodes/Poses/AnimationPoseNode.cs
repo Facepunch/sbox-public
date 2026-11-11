@@ -15,8 +15,15 @@ public class AnimationPoseNode : VariationDataNode<AnimationPoseNode.Data>
 	/// </summary>
 	public sealed class Data : VariationDataNode.VariationData
 	{
-		[Property, Title( "Animation" ), ResourceType( "anim" )]
-		public string AnimationName { get; set; } = "";
+		[Property, Title( "Animation" ), ResourceType( "anim" ), JsonIgnore]
+		public string AnimationName
+		{
+			get => AnimationReference.ResolvePath() ?? "";
+			set => AnimationReference = ResourceId.FromPath( value );
+		}
+
+		[Hide, JsonPropertyName( "AnimationName" )]
+		public ResourceId AnimationReference { get; set; }
 
 		/// <summary>
 		/// Overrides Fixed Time for this variation. Negative values use Fixed Time instead.
@@ -103,7 +110,7 @@ public class AnimationPoseNode : VariationDataNode<AnimationPoseNode.Data>
 
 		var time = compiler.EmitValue( this, Time );
 		return compiler.Builder.Pose(
-			data.AnimationName,
+			data.AnimationReference,
 			new GraphBuilder.PoseSettings
 			{
 				Time = time,

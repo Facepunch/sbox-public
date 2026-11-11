@@ -40,6 +40,13 @@ native accessor g_pResourceSystem as NativeEngine.g_pResourceSystem
 	}
 
 	bool ResolvePathToGuid( string path, out Guid guid );
+	inline string ResolveGuidToPath( Guid guid )
+	{
+		static thread_local CUtlString path;
+		path.Clear();
+		g_pResourceSystem->ResolveGuidToPath( guid, &path );
+		return path.Get();
+	}
 	bool NeedsGuidWrite( string path );
 }
 

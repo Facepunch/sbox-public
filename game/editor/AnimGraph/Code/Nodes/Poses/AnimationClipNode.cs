@@ -15,8 +15,15 @@ public class AnimationClipNode : VariationDataNode<AnimationClipNode.Data>
 	/// </summary>
 	public sealed class Data : VariationDataNode.VariationData
 	{
-		[Property, Title( "Animation" ), ResourceType( "anim" )]
-		public string AnimationName { get; set; } = "";
+		[Property, Title( "Animation" ), ResourceType( "anim" ), JsonIgnore]
+		public string AnimationName
+		{
+			get => AnimationReference.ResolvePath() ?? "";
+			set => AnimationReference = ResourceId.FromPath( value );
+		}
+
+		[Hide, JsonPropertyName( "AnimationName" )]
+		public ResourceId AnimationReference { get; set; }
 
 		[Property, Range( 0.01f, 5.0f )]
 		public float SpeedMultiplier { get; set; } = 1.0f;
@@ -119,7 +126,7 @@ public class AnimationClipNode : VariationDataNode<AnimationClipNode.Data>
 		var graphEvents = GraphEvents?.Where( id => !string.IsNullOrWhiteSpace( id ) ) ?? [];
 
 		return compiler.Builder.Clip(
-			data.AnimationName,
+			data.AnimationReference,
 			new GraphBuilder.ClipSettings
 			{
 				Looping = Loop,

@@ -70,7 +70,9 @@ public sealed partial class GraphBuilder
 	/// </summary>
 	/// <param name="animation">Resource path of the clip to play.</param>
 	/// <param name="settings">Playback and event options.</param>
-	public Node Clip( string animation, ClipSettings settings = null )
+	public Node Clip( string animation, ClipSettings settings = null ) => Clip( (ResourceId)animation, settings );
+
+	internal Node Clip( ResourceId animation, ClipSettings settings = null )
 	{
 		settings ??= new();
 		var slot = GetAnimationSlot( animation );
@@ -101,7 +103,7 @@ public sealed partial class GraphBuilder
 	public Node Clip( Clip animation, ClipSettings settings = null )
 	{
 		ArgumentNullException.ThrowIfNull( animation );
-		return Clip( animation.Name, settings );
+		return Clip( ResourceId.Get( animation ), settings );
 	}
 
 	/// <summary>
@@ -109,7 +111,9 @@ public sealed partial class GraphBuilder
 	/// (normalized 0-1 across the clip) instead of advancing with the graph - e.g. scrubbing
 	/// a full clip from a gameplay value. Ignores synchronization.
 	/// </summary>
-	public Node TimeControlledClip( string animation, Node time, TimeControlledClipSettings settings = null )
+	public Node TimeControlledClip( string animation, Node time, TimeControlledClipSettings settings = null ) => TimeControlledClip( (ResourceId)animation, time, settings );
+
+	internal Node TimeControlledClip( ResourceId animation, Node time, TimeControlledClipSettings settings = null )
 	{
 		settings ??= new();
 		var slot = GetAnimationSlot( animation );
@@ -137,7 +141,7 @@ public sealed partial class GraphBuilder
 	public Node TimeControlledClip( Clip animation, Node time, TimeControlledClipSettings settings = null )
 	{
 		ArgumentNullException.ThrowIfNull( animation );
-		return TimeControlledClip( animation.Name, time, settings );
+		return TimeControlledClip( ResourceId.Get( animation ), time, settings );
 	}
 
 	/// <summary>
@@ -146,7 +150,9 @@ public sealed partial class GraphBuilder
 	/// a pose-sheet animation where every frame is a distinct pose, like the
 	/// citizen's hand poses.
 	/// </summary>
-	public Node Pose( string animation, Node time )
+	public Node Pose( string animation, Node time ) => Pose( (ResourceId)animation, time );
+
+	internal Node Pose( ResourceId animation, Node time )
 	{
 		var slot = GetAnimationSlot( animation );
 		Require( time, NodeKind.Float );
@@ -165,7 +171,9 @@ public sealed partial class GraphBuilder
 	/// Sample a single pose from an animation, with full control over how the input
 	/// time maps onto the clip.
 	/// </summary>
-	public Node Pose( string animation, PoseSettings settings )
+	public Node Pose( string animation, PoseSettings settings ) => Pose( (ResourceId)animation, settings );
+
+	internal Node Pose( ResourceId animation, PoseSettings settings )
 	{
 		ArgumentNullException.ThrowIfNull( settings );
 		var slot = GetAnimationSlot( animation );
@@ -188,14 +196,14 @@ public sealed partial class GraphBuilder
 	public Node Pose( Clip animation, Node time )
 	{
 		ArgumentNullException.ThrowIfNull( animation );
-		return Pose( animation.Name, time );
+		return Pose( ResourceId.Get( animation ), time );
 	}
 
 	/// <inheritdoc cref="Pose(string, PoseSettings)"/>
 	public Node Pose( Clip animation, PoseSettings settings )
 	{
 		ArgumentNullException.ThrowIfNull( animation );
-		return Pose( animation.Name, settings );
+		return Pose( ResourceId.Get( animation ), settings );
 	}
 
 	/// <summary>

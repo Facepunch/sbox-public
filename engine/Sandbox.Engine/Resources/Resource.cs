@@ -114,9 +114,9 @@ public abstract partial class Resource : IValid, IJsonConvert, BytePack.ISeriali
 #pragma warning disable CS0618
 		if ( t == typeof( AnimationGraph ) ) return AnimationGraph.Load( id );
 #pragma warning restore CS0618
-		if ( t == typeof( Animation.Graph ) ) return Animation.Graph.Load( id.Path );
-		if ( t == typeof( Animation.Clip ) ) return Animation.Clip.Load( id.Path );
-		if ( t == typeof( Animation.Skeleton ) ) return Animation.Skeleton.Load( id.Path );
+		if ( t == typeof( Animation.Graph ) ) return Animation.Graph.Load( id );
+		if ( t == typeof( Animation.Clip ) ) return Animation.Clip.Load( id );
+		if ( t == typeof( Animation.Skeleton ) ) return Animation.Skeleton.Load( id );
 		if ( t == typeof( Shader ) ) return Shader.Load( id );
 		if ( t == typeof( PhysicsGroupDescription ) ) return PhysicsGroupDescription.Load( id );
 

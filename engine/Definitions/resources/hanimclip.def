@@ -35,6 +35,7 @@ native class CAnimClipResource as NativeEngine.HAnimClip
 	}
 
 	string GetSkeletonName();
+	HAnimSkeleton GetSkeleton();
 
 	bool IsBound();
 	Transform GetBoneParentSpaceTransformS2( float percentageThrough, int boneIdx );

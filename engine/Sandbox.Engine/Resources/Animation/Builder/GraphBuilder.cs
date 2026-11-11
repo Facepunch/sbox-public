@@ -93,20 +93,26 @@ public sealed partial class GraphBuilder
 	/// than a <see cref="Sandbox.Animation.Skeleton"/> because graphs are often built off the main thread, where
 	/// resources can't be loaded.
 	/// </summary>
-	public string Skeleton { get; set; }
+	public string Skeleton
+	{
+		get => SkeletonReference.Path;
+		set => SkeletonReference = value;
+	}
+
+	internal ResourceId SkeletonReference { get; set; }
 
 	private readonly List<ParameterInfo> parameterInfos = new();
 	private readonly List<Func<NativeEngine.AnimationGraphBuilder, NativeEngine.AnimationGraphNodeDefinition>> parameters = new();
 	private readonly List<Func<NativeEngine.AnimationGraphBuilder, NativeEngine.AnimationGraphNodeDefinition>> nodes = new();
-	private readonly List<string> animationSlots = new();
-	internal IEnumerable<string> ResourceReferences => animationSlots.Concat( referencedGraphs ).Append( Skeleton ).Distinct();
+	private readonly List<ResourceId> animationSlots = new();
+	internal IEnumerable<string> ResourceReferences => animationSlots.Concat( referencedGraphs.Select( reference => reference.Graph ) ).Append( SkeletonReference ).Select( id => id.ResolvePath() ).Distinct();
 
 	// Parameter names are shared between control and virtual parameters and matched case-insensitively
 	private readonly HashSet<string> parameterNames = new( StringComparer.OrdinalIgnoreCase );
 
 	private readonly List<string> virtualParameterNames = new();
 	private readonly List<Node> virtualParameterNodes = new();
-	private readonly List<string> referencedGraphs = new();
+	private readonly List<(ResourceId Graph, string Variation)> referencedGraphs = new();
 	private readonly List<(string Slot, Node Node)> externalGraphSlots = new();
 	private readonly List<(string Slot, Node Node)> externalPoseSlots = new();
 	private readonly HashSet<Node> persistentNodes = new();
@@ -254,13 +260,19 @@ public sealed partial class GraphBuilder
 			throw new ArgumentException( $"A parameter named '{name}' already exists (parameter names are case-insensitive).", nameof( name ) );
 	}
 
-	private int GetAnimationSlot( string animation )
+	private int GetAnimationSlot( ResourceId animation )
 	{
-		if ( string.IsNullOrWhiteSpace( animation ) )
+		if ( animation.Guid == Guid.Empty )
+			animation.Guid = null;
+
+		if ( animation.Guid is null && string.IsNullOrWhiteSpace( animation.Path ) )
 			throw new ArgumentException( "Animation name must not be null or blank.", nameof( animation ) );
 
-		var slot = animationSlots.IndexOf( animation );
-		if ( slot >= 0 ) return slot;
+		var slot = animationSlots.FindIndex( existing => animation.Guid is Guid guid
+			? existing.Guid == guid
+			: existing.Guid is null && existing.Path == animation.Path );
+		if ( slot >= 0 )
+			return slot;
 
 		animationSlots.Add( animation );
 		return animationSlots.Count - 1;
@@ -336,7 +348,7 @@ public sealed partial class GraphBuilder
 		var native = NativeEngine.AnimationGraphBuilder.Create();
 		try
 		{
-			native.SetSkeleton( Skeleton ?? "" );
+			native.SetSkeleton( SkeletonReference.ResolvePath() ?? "", SkeletonReference.Guid ?? Guid.Empty );
 			foreach ( var parameter in parameters )
 				Check( parameter( native ) );
 			foreach ( var node in nodes )
@@ -374,10 +386,10 @@ public sealed partial class GraphBuilder
 			foreach ( var slot in externalPoseSlots )
 				native.AddExternalPoseSlot( slot.Slot, slot.Node.Index );
 			foreach ( var path in animationSlots )
-				if ( native.AddAnimation( path ) < 0 )
+				if ( native.AddAnimation( path.ResolvePath() ?? "", path.Guid ?? Guid.Empty ) < 0 )
 					throw new InvalidOperationException( native.GetErrorString() );
-			foreach ( var path in referencedGraphs )
-				if ( native.AddReferencedGraph( path ) < 0 )
+			foreach ( var reference in referencedGraphs )
+				if ( native.AddReferencedGraph( reference.Graph.ResolvePath() ?? "", reference.Graph.Guid ?? Guid.Empty, reference.Variation ) < 0 )
 					throw new InvalidOperationException( native.GetErrorString() );
 			return native;
 

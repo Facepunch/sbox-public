@@ -9,7 +9,7 @@ internal static class ResourceLoader
 	// Native resource extensions (with _c suffix) not covered by AssetTypeAttribute.
 	private static readonly HashSet<string> NativeExtensions = new( StringComparer.OrdinalIgnoreCase )
 	{
-		".vmat_c", ".vmdl_c", ".vtex_c", ".shader_c", ".vanmgrph_c", ".ag_c"
+		".vmat_c", ".vmdl_c", ".vtex_c", ".shader_c", ".vanmgrph_c", ".ag_c", ".anim_c", ".skel_c"
 	};
 
 	/// Registers resource paths into PathIndex without loading them, for any file whose
