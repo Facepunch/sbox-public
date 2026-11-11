@@ -615,6 +615,9 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 
 		var file = path.Replace( '\\', '/' );
 		if ( file.EndsWith( ".vfx", StringComparison.OrdinalIgnoreCase ) ) file = file[..^4] + ".shader";
+
+		// A material may name its shader's compiled file (materials/postprocess/standard_pass1.vmat)
+		if ( file.EndsWith( ".shader_c", StringComparison.OrdinalIgnoreCase ) ) file = file[..^2];
 		if ( !file.EndsWith( ".shader", StringComparison.OrdinalIgnoreCase ) ) file += ".shader";
 		if ( !file.Contains( '/' ) ) file = "shaders/" + file;
 

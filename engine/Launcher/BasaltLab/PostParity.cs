@@ -28,7 +28,7 @@ internal static class PostParity
 	/// <summary>
 	/// A case: what a component would record, with its values on the command list's attributes.
 	/// </summary>
-	sealed record Case( string Name, string Covers, Action<CommandList> Record, string NotCompared = null, Action<GameObject> Components = null, bool NeedsDepth = false );
+	sealed record Case( string Name, string Covers, Action<CommandList> Record, string NotCompared = null, Action<GameObject> Components = null, bool NeedsDepth = false, Func<ViewConstants, ViewConstants> View = null );
 
 	/// <summary>Run the engine's post process components (<c>-components</c>) rather than the copies of their command lists.</summary>
 	static bool components;
@@ -286,6 +286,33 @@ internal static class PostParity
 		}
 	}
 
+	/// <summary>
+	/// As <c>MotionBlur.Render</c> at its defaults: a blit of a frame grab that rebuilds each pixel's world position from the
+	/// view's depth chain and reprojects it into the previous frame, sampling along the way there.
+	/// </summary>
+	static void MotionBlur( CommandList cl )
+	{
+		var a = cl.Attributes;
+		a.Set( "standard.motionblur.scale", 0.05f );
+		a.Set( "standard.motionblur.samples", 12 );
+		a.SetCombo( "D_MOTION_BLUR", 1 );
+		Blit( cl, Material.Load( "materials/postprocess/standard_pass1.vmat" ), backbuffer: true );
+	}
+
+	/// <summary>
+	/// The view constants of a camera that has just moved 20 units along view x: the scenes' cameras are still, so the
+	/// previous frame's projection is moved instead, and how far each pixel moves depends on its depth.
+	/// </summary>
+	static ViewConstants Moved( ViewConstants constants )
+	{
+		ref var previous = ref System.Runtime.CompilerServices.Unsafe.As<Matrix, System.Numerics.Matrix4x4>( ref constants.CurrFrameViewToPrevFrameProj );
+		previous = System.Numerics.Matrix4x4.CreateTranslation( 20, 0, 0 ) * previous;
+		return constants;
+	}
+
+	// The reference's depth chain, built from Source 2's depth in its block
+	static Texture source2Chain;
+
 	/// <summary>A frame grab with a box-filtered mip chain (<c>downsample_spd</c>), read back at mip 3.</summary>
 	static void BoxMips( CommandList cl )
 	{
@@ -323,6 +350,8 @@ internal static class PostParity
 				dof.FrontBlur = true;
 				dof.BackBlur = true;
 			} ),
+		new( "motionblur", "motion blur: depth through the view's depth chain, reprojected into a previous frame 20 units to the side", MotionBlur, NeedsDepth: true, View: Moved,
+			Components: go => go.Components.Create<global::Sandbox.MotionBlur>() ),
 		new( "stack", "bloom, vignette, tonemapping, sharpen, film grain, chromatic aberration, colour adjustments, in their stages' order", cl =>
 		{
 			Bloom( cl );
@@ -474,8 +503,10 @@ internal static class PostParity
 		source2Renderer = null;
 		dofTiles?.Dispose();
 		dofArguments?.Dispose();
+		source2Chain?.Dispose();
 		dofTiles = null;
 		dofArguments = null;
+		source2Chain = null;
 
 		if ( scene is not null )
 		{
@@ -680,7 +711,7 @@ internal static class PostParity
 		// What a camera's view gives its post processing: the scene's own constants when it's drawn on Basalt.Gpu (on both
 		// devices, so they draw with the same), else the viewport and target size with no exposure scaling
 		var onFrame = gpuScene is not null && device is BasaltGpuRenderBackend;
-		if ( gpuScene is not null ) cl.Attributes.SetData( "PerViewConstantBuffer_t", gpuScene.Constants );
+		if ( gpuScene is not null ) cl.Attributes.SetData( "PerViewConstantBuffer_t", test.View is null ? gpuScene.Constants : test.View( gpuScene.Constants ) );
 		else cl.Attributes.SetData( "PerViewConstantBuffer_t", new ViewConstants
 		{
 			ToneMapScalarLinear = 1,
@@ -700,6 +731,13 @@ internal static class PostParity
 		// The engine's components when asked and the case has them, else the copies of their command lists
 		caseColor = target;
 		caseDepth = onFrame ? gpuScene.Frame.Depth : gpuScene is not null ? source2Target.Depth.Engine() : null;
+
+		// The reference's view depth chain, which the Basalt.Gpu frame builds for itself
+		if ( reference && caseDepth is not null )
+		{
+			source2Chain ??= Texture.CreateRenderTarget().WithSize( Width, Height ).WithFormat( ImageFormat.RG3232F ).WithMips( System.Numerics.BitOperations.Log2( Height ) + 1 ).WithUAVBinding().Create( "Post parity depth chain" );
+			cl.Attributes.Set( "DepthChainDownsample", source2Chain );
+		}
 		var lists = components && !reference && test.Components is not null ? ComponentLists( test, device ) : null;
 		if ( lists is null ) test.Record( cl );
 
@@ -709,7 +747,11 @@ internal static class PostParity
 		using ( onFrame ? gpuScene.Frame.Begin() : Graphics.Scope.CreateOn( device ) )
 		{
 			Graphics.RenderTarget = RenderTarget.From( target, onFrame ? gpuScene.Frame.Depth : null );
-			if ( !onFrame && caseDepth is not null ) NativeEngine.RenderTools.BindColorAndDepthTarget( Graphics.Context, target.native, caseDepth.native, false );
+			if ( !onFrame && caseDepth is not null )
+			{
+				NativeEngine.RenderTools.BindColorAndDepthTarget( Graphics.Context, target.native, caseDepth.native, false );
+				Graphics.DownsampleSpd( Graphics.Context, source2Chain, Graphics.DownsampleMethod.MinMax, fuseDepth: true, depth: caseDepth );
+			}
 			Graphics.CopyTexture( onFrame ? gpuScene.Frame.Color : frame, target );
 			cl.Execute();
 			foreach ( var list in lists ?? [] ) list.Execute();
