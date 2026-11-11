@@ -206,8 +206,10 @@ public sealed class RenderMesh
 					continue;
 				}
 
-				var alphaTest = IsAlphaTest( state.Material );
-				var drawn = draw with { Material = state.Material, Translucent = state.Translucent, AlphaTest = alphaTest, ShadowFastPath = state.ShadowFastPath, Lightmapped = state.Lightmapped };
+				// A draw state without a material (one the device can't load) keeps the draw's own
+				var material = state.Material ?? draw.Material;
+				var alphaTest = IsAlphaTest( material );
+				var drawn = draw with { Material = material, Translucent = state.Translucent, AlphaTest = alphaTest, ShadowFastPath = state.ShadowFastPath, Lightmapped = state.Lightmapped };
 				changed |= drawn != draw;
 				draws.Add( drawn );
 			}

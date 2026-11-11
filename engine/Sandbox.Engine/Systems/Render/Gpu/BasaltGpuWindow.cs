@@ -137,6 +137,9 @@ internal sealed class BasaltGpuWindow : IDisposable
 				Graphics.Attributes.Set( "UIGammaOutput", true );
 				draw();
 			}, present: true );
+
+			// The frame as it's presented, for screenshots asked for during it
+			ScreenshotService.ProcessFrame( backend, target );
 		}
 		finally
 		{

@@ -82,6 +82,13 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		public bool IsOrphaned => !Camera.TryGetTarget( out var camera ) || camera.IsDisposed;
 
 		/// <summary>
+		/// On a Basalt.Gpu device (<c>-basaltgpu</c>): what the camera's frame renders into, and that frame handed to the
+		/// engine's drawing on the device for its stages (<see cref="RenderInto"/>).
+		/// </summary>
+		public ViewTarget GpuTarget;
+		public BasaltGpuFrame GpuFrame;
+
+		/// <summary>
 		/// Release owned resources; colour targets and caller depth remain the caller's.
 		/// </summary>
 		public void Dispose()
@@ -92,6 +99,10 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 			TextureTargetDepth?.Dispose();
 			TextureTargetDepth = null;
 			TextureTarget = null;
+			GpuFrame?.Dispose();
+			GpuFrame = null;
+			GpuTarget?.Dispose();
+			GpuTarget = null;
 			TextureTargetColor = null;
 			TextureTargetCallerDepth = null;
 		}
@@ -324,8 +335,10 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		state.Stages.IsChild = parent is not null;
 		state.View.ToneMapScalar = state.Stages.BeginFrame( camera, state.View, setup, updateExposure );
 
-		// A top-level view's planar reflection renders first, since it depends on nothing in the view's frame
-		if ( parent is null ) RenderPlanarReflection( camera, mirror, state, setup );
+		// A top-level view's planar reflection renders first, since it depends on nothing in the view's frame. Not yet on a
+		// Basalt.Gpu device: it renders into engine textures through Source 2's
+		if ( parent is null && MirrorContent.Gpu is null ) RenderPlanarReflection( camera, mirror, state, setup );
+		else if ( parent is null ) state.View.ViewAttributes = null;
 		return (mirror, state);
 	}
 
@@ -360,7 +373,7 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 
 		var attributes = state.ViewAttributes ??= new RenderAttributes();
 		PlanarReflections.Publish( attributes.Get(), planned, ViewDataFor( reflected, target.ColorTarget ) );
-		view.ViewAttributes = Source2Parameters.From( attributes );
+		view.ViewAttributes = MirrorContent.Parameters( attributes );
 	}
 
 	/// <summary>
@@ -545,7 +558,7 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		view.ZNear = setup.ZNear ?? camera.ZNear;
 		view.ZFar = setup.ZFar ?? camera.ZFar;
 		view.ClearColor = setup.ClearColor ?? camera.BackgroundColor;
-		view.CameraAttributes = Source2Parameters.From( camera.Attributes );
+		view.CameraAttributes = MirrorContent.Parameters( camera.Attributes );
 		view.Fog = camera.ResolveFog( setup ).ToBasalt();
 
 		// mat_toolsvis overrides camera debug mode (CameraRenderer.Configure).
