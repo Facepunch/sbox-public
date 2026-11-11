@@ -1,6 +1,7 @@
 #ifndef DDGI_HLSL
 #define DDGI_HLSL
 
+#include "common.fxc"
 #include "common/classes/Bindless.hlsl"
 
 struct DDGIVolume
@@ -56,7 +57,8 @@ struct DDGIVolume
     }
 };
 
-StructuredBuffer<DDGIVolume> DDGIVolumes < Attribute( "DDGI_Volumes" ); >;
+// The view's volumes, in its descriptor set (common.fxc)
+StructuredBuffer<DDGIVolume> DDGIVolumes EXTERNAL_DESC_SET( t, g_viewSet, 12 );
 uint DDGIVolumeCount < Attribute( "DDGI_VolumeCount" ); >;
 
 // Whether the scene has any volumes, as a specialization constant: pixel pipelines for scenes without DDGI leave its code

@@ -10,7 +10,7 @@ namespace Basalt.Backend;
 /// <summary>
 /// Basalt's <see cref="GpuDevice"/> on <see cref="Basalt.Gpu.Device"/>: resources map one-to-one onto Basalt.Gpu's, and
 /// materials are s&amp;box's own - compiled shaders, materials and textures read by Basalt.Source2 from the game's
-/// content. What it can't do yet (skinning, the sky, engine compute shaders) draws nothing. See
+/// content. What it can't do yet (morphs, engine compute shaders with parameters) draws nothing. See
 /// docs/managed/basalt-gpu.md.
 /// </summary>
 public sealed class BackendDevice : GpuDevice, IDisposable
@@ -395,7 +395,8 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// A pipeline for a variant drawing vertices laid out as <paramref name="layout"/> into targets of these formats,
 	/// made once. Mesh vertices are stream 0, instance ids stream 1 (<c>TEXCOORD13</c>), and inputs the mesh lacks, or
 	/// has as integers where the shader wants floats (or the other way round), read the default stream 2, as native's
-	/// input layouts do for streams a mesh doesn't have.
+	/// input layouts do for streams a mesh doesn't have. A vertex-cache layout reads vertex ids from streams 2 and 3 and
+	/// the default stream from 4.
 	/// </summary>
 	internal PipelineHandle Pipeline( ShaderVariant variant, VertexLayout layout, Format color, Format depth, int samples, bool depthOnly, BindingLayoutHandle[] sets = null )
 	{
@@ -404,16 +405,21 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 		{
 			if ( pipelines.TryGetValue( key, out var pipeline ) ) return pipeline;
 
+			// A vertex-cache draw reads its vertex ids from streams 2 and 3, as floats
+			var vertexCache = layout.VertexCache;
 			var attributes = ShaderDefaults.MapVertices( variant.VertexInputs, input =>
 			{
 				if ( input.Semantic == VertexSemantic.TexCoord && input.SemanticIndex == 13 ) return new VertexAttribute( 0, 1, VertexFormat.UInt, 0 );
+				if ( vertexCache && input.Semantic == VertexSemantic.TexCoord && input.SemanticIndex is 14 or 15 ) return new VertexAttribute( 0, input.SemanticIndex == 14 ? 2 : 3, VertexFormat.Float, 0 );
 				if ( layout.Find( input.Semantic, input.SemanticIndex ) is not { } field ) return null;
 				var integer = field.Format is VertexFormat.UByte4 or VertexFormat.UInt or VertexFormat.UInt2 or VertexFormat.UInt4;
 				if ( integer != (input.Kind != SpirvScalar.Float) ) return null;
 				return new VertexAttribute( 0, 0, field.Format, field.Offset );
-			}, defaultBuffer: 2 );
+			}, defaultBuffer: vertexCache ? 4 : 2 );
 
-			VertexBufferLayout[] streams = [new( layout.Stride ), new( 4, VertexStepRate.Instance ), new( 0 )];
+			VertexBufferLayout[] streams = vertexCache
+				? [new( layout.Stride ), new( 4, VertexStepRate.Instance ), new( 4 ), new( 4 ), new( 0 )]
+				: [new( layout.Stride ), new( 4, VertexStepRate.Instance ), new( 0 )];
 			var info = variant.PipelineInfo( streams, attributes, color == Format.Unknown ? [] : [color], depth, samples, depthBias: depthOnly || color == Format.Unknown, $"{variant}{(depthOnly ? " depth" : "")}" );
 			if ( sets is not null ) info.Sets = sets;
 
@@ -461,11 +467,95 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// <inheritdoc/>
 	public override bool SupportsDrawIndirectCount => Gpu.Capabilities.DrawIndirectCount;
 
-	/// <inheritdoc/>
-	public override int AllocateVertexCache( int vertices ) => Interlocked.Add( ref vertexCache, vertices ) - vertices;
+	//
+	// The vertex cache: skinned vertices compute skinning writes for the frame (CachedAnimatedVertex_t, 24 bytes each), which
+	// vertex shaders read through the bindless table's vertex cache binding. One region per frame in flight, so a frame
+	// writes while the one before is still read.
+	//
+
+	/// <summary>Bytes a cached vertex takes (<c>CachedAnimatedVertex_t</c>).</summary>
+	internal const int VertexCacheStride = 24;
+
+	readonly Lock vertexCacheLock = new();
+	BufferHandle vertexCacheBuffer;
+	int vertexCacheCapacity;
+	ulong vertexCacheFrame = ulong.MaxValue;
+	bool vertexCacheGrew;
+
+	/// <summary>The vertex cache, or an invalid handle before anything was skinned.</summary>
+	internal BufferHandle VertexCacheBuffer => vertexCacheBuffer;
+
+	/// <summary>
+	/// Room for <paramref name="vertices"/> skinned vertices in this frame's region of the vertex cache; the first one's
+	/// index. A region that's too small grows the cache, after the GPU is idle, and the next frame waits for this one too,
+	/// since this frame's earlier blocks may lie in the next one's region.
+	/// </summary>
+	public override int AllocateVertexCache( int vertices )
+	{
+		lock ( vertexCacheLock )
+		{
+			if ( Gpu.FrameNumber != vertexCacheFrame )
+			{
+				if ( vertexCacheGrew ) Gpu.WaitIdle();
+				vertexCacheGrew = false;
+				vertexCacheFrame = Gpu.FrameNumber;
+				vertexCache = 0;
+			}
+
+			if ( vertexCache + vertices > vertexCacheCapacity ) GrowVertexCache( vertexCache + vertices );
+
+			var first = Gpu.FrameSlot * vertexCacheCapacity + vertexCache;
+			vertexCache += vertices;
+			return first;
+		}
+	}
+
+	void GrowVertexCache( int needed )
+	{
+		Gpu.WaitIdle();
+		var capacity = Math.Max( 1 << 16, vertexCacheCapacity );
+		while ( capacity < needed ) capacity *= 2;
+
+		var buffer = Gpu.CreateBuffer( new BufferInfo { Size = (long)capacity * VertexCacheStride * Gpu.FramesInFlight, Usage = BufferUsage.Storage, Name = "Basalt vertex cache" } );
+		Gpu.SetBindlessBuffer( ShaderAbi.BindlessVertexCache, buffer );
+		if ( vertexCacheBuffer.IsValid ) Gpu.Destroy( vertexCacheBuffer );
+		vertexCacheBuffer = buffer;
+		vertexCacheCapacity = capacity;
+		vertexCacheGrew = true;
+	}
+
+	/// <summary>Vertices <see cref="VertexIds"/> numbers (native's <c>VERTEX_ID_BUFFER_MAX_VERTICES</c>).</summary>
+	internal const int MaxVertexIds = 131072;
+
+	BufferHandle vertexIds;
+
+	/// <summary>
+	/// 0, 1, 2 ... as floats, one per vertex (native's <c>SCENESYSTEMVB_INSTANCE_VERTEX_ID</c>): bound at an offset, it gives
+	/// a vertex-cache draw's vertices their place in the cache.
+	/// </summary>
+	internal BufferHandle VertexIds
+	{
+		get
+		{
+			lock ( vertexCacheLock )
+			{
+				if ( vertexIds.IsValid ) return vertexIds;
+				var ids = new float[MaxVertexIds];
+				for ( int i = 0; i < ids.Length; i++ ) ids[i] = i;
+				var buffer = Gpu.CreateBuffer( new BufferInfo { Size = ids.Length * sizeof( float ), Usage = BufferUsage.Vertex, Name = "Basalt vertex ids" } );
+				Gpu.WriteBuffer( buffer, System.Runtime.InteropServices.MemoryMarshal.AsBytes( ids.AsSpan() ) );
+				return vertexIds = buffer;
+			}
+		}
+	}
+
+	/// <summary>The frame's composite morph atlas, which <see cref="BackendMorphs"/> queue meshes in.</summary>
+	internal MorphAtlas Morphs => morphs ??= new MorphAtlas( this );
+
+	MorphAtlas morphs;
 
 	/// <inheritdoc/>
-	public override Vector4 MorphSubrect( int handle ) => default;
+	public override Vector4 MorphSubrect( int handle ) => Morphs.Subrect( handle );
 
 	/// <inheritdoc/>
 	public override void BeginSubmitting( GpuSwapChain swapChain ) { }

@@ -198,6 +198,11 @@ native accessor g_pSceneSystem as NativeEngine.CSceneSystem
 	// Upload the slots as they are now into a context's stream, for a renderer that submits before frame end does
 	void UploadPipelineTextureIndices( IRenderContext pRenderContext );
 
+	// Per-view static descriptor sets (g_viewSet) for a renderer that fills its own views: see docs/managed/static-descriptor-sets.md
+	RenderDescriptorSetHandle_t AcquireViewDescriptorSet();
+	void ReleaseViewDescriptorSet( RenderDescriptorSetHandle_t hSet );
+	void FillViewDescriptorSet( RenderDescriptorSetHandle_t hSet, CRenderAttributes pAttributes, CRenderAttributes pFallback );
+
 	// Ray Tracing
 	IRayTraceSceneWorld CreateRayTraceWorld( string pWorldDebugName, int nMaxRayTypes );
 	void DestroyRayTraceWorld( IRayTraceSceneWorld pRayTraceSceneWorld );

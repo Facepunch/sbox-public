@@ -1,6 +1,7 @@
 #ifndef LIGHTBINNER_HLSL
 #define LIGHTBINNER_HLSL
 
+#include "common.fxc"
 #include "common/Bindless.hlsl"
 #include "math_general.fxc"
 #include "common_samplers.fxc"
@@ -45,7 +46,8 @@ enum LightShape
 
 //-----------------------------------------------------------------------------
 
-cbuffer ViewLightingConfigV2
+// The view's light counts, baked light mapping and ambient light, in its descriptor set (common.fxc)
+cbuffer ViewLightingConfigV2 EXTERNAL_DESC_SET( b, g_viewSet, 1 )
 {
     int4 NumLights;                     // x - num dynamic lights, y - num baked lights, z - num envmaps, w - num decals
 
@@ -151,8 +153,9 @@ struct BinnedEnvMap
 
 //-----------------------------------------------------------------------------
 
-StructuredBuffer<BinnedLight>    BinnedLightBufferV2    < Attribute( "BinnedLightBufferV2" );  > ;
-StructuredBuffer<BinnedEnvMap>   BinnedEnvMapBuffer   < Attribute( "BinnedEnvMapBuffer" ); > ;
+// The view's lights and environment maps, in its descriptor set
+StructuredBuffer<BinnedLight>    BinnedLightBufferV2    EXTERNAL_DESC_SET( t, g_viewSet, 0 );
+StructuredBuffer<BinnedEnvMap>   BinnedEnvMapBuffer     EXTERNAL_DESC_SET( t, g_viewSet, 1 );
 
 BinnedLight DynamicLightConstantByIndex( int index )
 {

@@ -170,14 +170,16 @@ public sealed class ModelFile
 				var dataBlock = Block( resource, blocks, info.Get( "data_block" ), "MDAT", meshName );
 				var vbibBlock = Block( resource, blocks, info.Get( "vbib_block" ), "MBUF", meshName );
 				var morphBlock = (int)Kv.Number( info.Get( "morph_block" ), -1 );
-				meshes[i] = ModelMesh.Read( dataBlock, vbibBlock, meshName, i, groups, lods, morphBlock >= 0, info.Get( "morph_texture" ) as string );
+				var morphs = morphBlock >= 0 ? ReadMorphs( Block( resource, blocks, info.Get( "morph_block" ), "MRPH", meshName ) ) : null;
+				meshes[i] = ModelMesh.Read( dataBlock, vbibBlock, meshName, i, groups, lods, morphBlock >= 0, info.Get( "morph_texture" ) as string, morphs );
 			}
 			else if ( references[i] is string path && path.Length > 0 )
 			{
 				var bytes = external?.Invoke( path ) ?? throw new FileNotFoundException( $"{name} uses mesh {path}, which isn't there" );
 				var mesh = ResourceFile.Read( bytes );
 				var buffers = mesh.Has( "VBIB" ) ? mesh.Block( "VBIB" ) : mesh.Block( "MBUF" );
-				meshes[i] = ModelMesh.Read( mesh.Block( "DATA" ), buffers, Path.GetFileNameWithoutExtension( path ), i, groups, lods, mesh.Has( "MRPH" ), null );
+				var morphs = mesh.Has( "MRPH" ) ? ReadMorphs( mesh.Block( "MRPH" ) ) : null;
+				meshes[i] = ModelMesh.Read( mesh.Block( "DATA" ), buffers, Path.GetFileNameWithoutExtension( path ), i, groups, lods, mesh.Has( "MRPH" ), null, morphs );
 			}
 			else
 			{
@@ -219,6 +221,19 @@ public sealed class ModelFile
 			HasAnimation = control?.Get( "embedded_animation" ) is not null,
 			HasPhysics = control?.Get( "embedded_physics" ) is not null || Kv.Objects( root.Get( "m_refPhysicsData" ) ).Any(),
 		};
+	}
+
+	/// <summary>A mesh's morph set, or null when its block can't be read.</summary>
+	static MorphSet ReadMorphs( ReadOnlySpan<byte> block )
+	{
+		try
+		{
+			return MorphSet.Read( block );
+		}
+		catch ( InvalidDataException )
+		{
+			return null;
+		}
 	}
 
 	/// <summary>Read a <c>.vmdl_c</c> from disk; external meshes are looked for beside it, under the same content root.</summary>

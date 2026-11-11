@@ -548,6 +548,9 @@ public sealed partial class RenderSystem : IDisposable
 			features[i].Setup( context, world, mainPass );
 			if ( square ) frame.UseFrameConstants( context );
 		}
+
+		// The light binner writes the view's set before its culling reads it; a frame without one writes it here
+		context.WriteViewSet();
 		context.EndGpuScope( scope );
 
 		for ( int i = 0; i < features.Count; i++ )
