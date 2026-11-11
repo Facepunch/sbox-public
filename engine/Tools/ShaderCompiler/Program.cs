@@ -19,6 +19,9 @@ public static partial class Program
 		options.SingleThreaded = args.Any( x => x == "-s" );
 		options.ConsoleOutput = !args.Any( x => x == "-q" );
 
+		// Basalt's GPU-driven variant, into name.gpudriven.shader_c beside each shader
+		options.GpuDriven = args.Any( x => x == "-gpudriven" );
+
 		// Most combos to compile at once, default is one per core
 		var threadsIndex = Array.IndexOf( args, "-j" );
 		if ( threadsIndex >= 0 && threadsIndex + 1 < args.Length && int.TryParse( args[threadsIndex + 1], out var threads ) )

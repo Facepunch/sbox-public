@@ -58,7 +58,8 @@ internal sealed partial class MapWorld : IDisposable
 	/// game its world geometry and static props don't.</param>
 	/// <param name="bakedLighting">Light lightmapped draws from the map's lightmaps and the rest from its probe volumes.</param>
 	/// <param name="entities">Read the entity lump: lights, the sun, fog, the sky, probe volume boxes and the 3D skybox.</param>
-	public MapWorld( GpuDevice gpu, string folder, ContentFiles core, bool castShadows, bool aggregatesAsMeshes = false, bool bakedLighting = true, bool entities = true )
+	/// <param name="gpuDriven">Keep static geometry in GPU-driven pages too, so aggregates can draw GPU-driven (<see cref="BackendDevice.GpuDriven"/>).</param>
+	public MapWorld( GpuDevice gpu, string folder, ContentFiles core, bool castShadows, bool aggregatesAsMeshes = false, bool bakedLighting = true, bool entities = true, bool gpuDriven = false )
 	{
 		this.gpu = gpu;
 		timer = Stopwatch.StartNew();
@@ -77,7 +78,7 @@ internal sealed partial class MapWorld : IDisposable
 			content.AddPackage( package );
 		}
 
-		Backend = new BackendDevice( gpu, content );
+		Backend = new BackendDevice( gpu, content ) { GpuDrivenGeometry = gpuDriven };
 		previousHost = RenderHost.Current;
 		RenderHost.Current = new BackendRenderHost( Backend );
 		System = new RenderSystem { ParallelRecording = false };

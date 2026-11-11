@@ -100,8 +100,14 @@ public static class ShaderCompile
 		shader.Read();
 
 		bool dumping = !string.IsNullOrEmpty( compileOptions.SpirvDumpPath );
+		var output = compileOptions.GpuDriven ? GpuDrivenPath( shader.AbsolutePath ) : shader.AbsolutePath + "_c";
 
-		if ( !compileOptions.ForceRecompile && !dumping && !shader.IsOutOfDate )
+		// The GPU-driven variant has no source hash of its own to check: it's up to date when it's newer than the classic file
+		var upToDate = compileOptions.GpuDriven
+			? !shader.IsOutOfDate && System.IO.File.Exists( output ) && System.IO.File.GetLastWriteTimeUtc( output ) >= System.IO.File.GetLastWriteTimeUtc( shader.AbsolutePath + "_c" )
+			: !shader.IsOutOfDate;
+
+		if ( !compileOptions.ForceRecompile && !dumping && upToDate )
 			return new Results { Success = true, Skipped = true };
 
 		var results = await CompileShader( shader, compileOptions, token );
@@ -114,10 +120,18 @@ public static class ShaderCompile
 		if ( dumping )
 			return results;
 
-		await System.IO.File.WriteAllBytesAsync( shader.AbsolutePath + "_c", results.CompiledShader );
+		await System.IO.File.WriteAllBytesAsync( output, results.CompiledShader );
 
 		return results;
 	}
+
+	/// <summary>
+	/// Where a shader's GPU-driven variant is written: <c>shaders/complex.shader</c> to <c>shaders/complex.gpudriven.shader_c</c>.
+	/// </summary>
+	internal static string GpuDrivenPath( string shaderPath ) => System.IO.Path.ChangeExtension( shaderPath, null ) + ".gpudriven.shader_c";
+
+	/// <summary>The compile flag that makes vfx_vulkan compile the GPU-driven variant (<c>VFX_COMPILE_SHADER_FLAGS_BASALT_GPU_DRIVEN</c>).</summary>
+	const uint GpuDrivenFlag = 0x8;
 
 	/// <summary>
 	/// Recompile a shader from an already-compiled <c>.shader_c</c>, using the per-program HLSL source embedded
@@ -270,9 +284,9 @@ public static class ShaderCompile
 		}
 	}
 
-	internal static CompiledCombo CompileSingleCombo( Shader vfx, ProgramSource program, ulong staticCombo, ulong dynamicCombo, ShaderCompileContext context, bool useShaderCache )
+	internal static CompiledCombo CompileSingleCombo( Shader vfx, ProgramSource program, ulong staticCombo, ulong dynamicCombo, ShaderCompileContext context, bool useShaderCache, bool gpuDriven = false )
 	{
-		var result = native.CompileShader( context.GetNative(), staticCombo, dynamicCombo, vfx.native, NativeEngine.VfxCompileTarget_t.SM_6_0_VULKAN, program.ProgramType, useShaderCache, 0 );
+		var result = native.CompileShader( context.GetNative(), staticCombo, dynamicCombo, vfx.native, NativeEngine.VfxCompileTarget_t.SM_6_0_VULKAN, program.ProgramType, useShaderCache, gpuDriven ? GpuDrivenFlag : 0 );
 		return new CompiledCombo( result, program, staticCombo, dynamicCombo );
 	}
 

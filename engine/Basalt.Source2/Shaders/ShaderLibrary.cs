@@ -1,5 +1,6 @@
 using Basalt.Gpu;
 using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 
 namespace Basalt.Source2.Shaders;
@@ -51,19 +52,60 @@ public sealed class ShaderLibrary : IDisposable
 	}
 
 	/// <summary>
+	/// A GPU-driven variant's material textures are texture variables at this register plus their word in the material
+	/// record (<c>BASALT_GPU_DRIVEN_TEXTURE_REGISTER</c>, <c>src/vfx/vfx_vulkan/basalt_gpu_driven.h</c>).
+	/// </summary>
+	public const int GpuDrivenTextureRegister = 1024;
+
+	readonly Dictionary<ShaderFile, ShaderFile> gpuDriven = new( ReferenceEqualityComparer.Instance );
+
+	/// <summary>
+	/// A shader's GPU-driven variant (<c>ShaderCompiler -gpudriven</c>): <c>name.gpudriven.shader_c</c> beside its
+	/// <c>.shader_c</c>, loaded once; null when it wasn't compiled. Same modes, features and combos as the shader.
+	/// </summary>
+	public ShaderFile GpuDriven( ShaderFile shader )
+	{
+		if ( shader is null ) return null;
+		lock ( gpuDriven )
+		{
+			if ( gpuDriven.TryGetValue( shader, out var cached ) ) return cached;
+		}
+
+		ShaderFile variant = null;
+		const string suffix = ".shader_c";
+		if ( shader.Name.EndsWith( suffix, StringComparison.OrdinalIgnoreCase ) )
+		{
+			var path = shader.Name[..^suffix.Length] + ".gpudriven" + suffix;
+			if ( File.Exists( path ) ) variant = ShaderFile.Load( path );
+		}
+
+		lock ( gpuDriven ) gpuDriven[shader] = variant;
+		return variant;
+	}
+
+	/// <summary>
 	/// The variant of <paramref name="shader"/> that draws <paramref name="mode"/> for a material with these feature
 	/// values (by feature index; see <see cref="ShaderFile.FeatureIndex"/>), with dynamic combos from
 	/// <paramref name="dynamicCombos"/> and specialization attributes from <paramref name="attributes"/>. Null when the
-	/// shader has no such mode. Throws if the combo was never compiled.
+	/// shader has no such mode. Throws if the combo was never compiled. With <paramref name="gpuDriven"/>, from the
+	/// shader's GPU-driven file (a mode's fallback shader's too); null when there's none.
 	/// </summary>
-	public ShaderVariant Variant( ShaderFile shader, string mode, ReadOnlySpan<int> features, Func<string, int?> dynamicCombos = null, Func<string, int?> attributes = null )
+	public ShaderVariant Variant( ShaderFile shader, string mode, ReadOnlySpan<int> features, Func<string, int?> dynamicCombos = null, Func<string, int?> attributes = null, bool gpuDriven = false )
 	{
 		var drawMode = shader.Mode( mode );
 		if ( drawMode is null ) return null;
 		if ( !string.IsNullOrEmpty( drawMode.Fallback ) )
 		{
 			var fallback = Load( drawMode.Fallback.Contains( '/' ) ? drawMode.Fallback : $"shaders/{drawMode.Fallback}" );
-			return fallback is null ? null : Variant( fallback, mode, [], dynamicCombos, attributes );
+			return fallback is null ? null : Variant( fallback, mode, [], dynamicCombos, attributes, gpuDriven );
+		}
+
+		if ( gpuDriven )
+		{
+			shader = GpuDriven( shader );
+			if ( shader is null ) return null;
+			drawMode = shader.Mode( mode );
+			if ( drawMode is null ) return null;
 		}
 
 		ShaderStage Stage( ShaderProgramType type, ReadOnlySpan<int> features )
@@ -85,8 +127,9 @@ public sealed class ShaderLibrary : IDisposable
 		var compute = Stage( ShaderProgramType.Compute, features );
 
 		// Materials that resolve to the same combos and constants share one variant, so they share its layouts and
-		// pipelines, and draws of them one after another don't switch pipeline
-		if ( !ShareVariants ) return new ShaderVariant( this, shader, drawMode, vertex, pixel, compute );
+		// pipelines, and draws of them one after another don't switch pipeline. A GPU-driven variant (its combos are the
+		// GPU-driven file's) holds nothing of a material's and is always shared: its draws share a multi-draw
+		if ( !ShareVariants && !gpuDriven ) return new ShaderVariant( this, shader, drawMode, vertex, pixel, compute );
 		var key = new VariantKey( drawMode, vertex?.Dynamic, pixel?.Dynamic, compute?.Dynamic, ConstantsKey( vertex, pixel, compute ) );
 		lock ( variants )
 		{
