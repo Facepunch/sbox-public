@@ -4,7 +4,8 @@ namespace Sandbox.Network;
 
 internal partial class NetworkSystem
 {
-	readonly HashSet<StringTable> tables = new();
+	// Registration order is transmission order: package requirements must precede scripts that use them.
+	readonly List<StringTable> tables = new();
 
 	/// <summary>
 	/// String tables should all get installed at this point.
@@ -22,7 +23,10 @@ internal partial class NetworkSystem
 	/// </summary>
 	public void InstallTable( StringTable table )
 	{
-		tables.Add( table );
+		if ( !tables.Contains( table ) )
+		{
+			tables.Add( table );
+		}
 	}
 
 	void TableMessage( InternalMessageType type, NetworkMessage msg )

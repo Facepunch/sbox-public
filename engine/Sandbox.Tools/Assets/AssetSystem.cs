@@ -333,7 +333,8 @@ public static partial class AssetSystem
 	} );
 
 	/// <summary>
-	/// Create an empty <see cref="GameResource"/>.
+	/// Creates an empty asset. Uncompiled resources start with an empty source file;
+	/// compiled GameResources start with their default JSON data.
 	/// </summary>
 	/// <param name="type">Asset type extension for our new <see cref="GameResource"/> instance.</param>
 	/// <param name="absoluteFilename">Where to save the new <see cref="GameResource"/> instance. For example from <see cref="FileDialog"/>.</param>
@@ -355,7 +356,7 @@ public static partial class AssetSystem
 		if ( found is not null ) return found;
 
 		// create an empty file
-		System.IO.File.WriteAllText( absoluteFilename, "{}" );
+		System.IO.File.WriteAllText( absoluteFilename, gameResourceType.IsUncompiled ? "" : "{}" );
 
 		// convert it to an .asset
 		var asset = RegisterFile( absoluteFilename );
@@ -368,7 +369,7 @@ public static partial class AssetSystem
 		//
 		// Load and save it, to create an empty version of it
 		//
-		if ( asset.TryLoadGameResource( typeof( GameResource ), out var obj, true ) )
+		if ( !gameResourceType.IsUncompiled && asset.TryLoadGameResource( typeof( GameResource ), out var obj, true ) )
 		{
 			asset.SaveToDisk( obj );
 		}

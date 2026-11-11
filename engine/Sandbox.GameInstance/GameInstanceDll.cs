@@ -80,6 +80,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 		PackageLoader?.Dispose();
 		PackageLoader = new PackageLoader( "GameMenu", typeof( GameInstanceDll ).Assembly );
+		GlobalContext.Current.ReplaceScriptAssembly = PackageLoader.ReplaceScriptAssembly;
 		PackageLoader.HotloadWatch( Game.GameAssembly ); // Sandbox.Game is per instance
 		PackageLoader.OnAfterHotload = OnAfterHotload;
 
@@ -163,6 +164,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			PackageLoader = null;
 
 			PackageLoader = new PackageLoader( "GameMenu", typeof( GameInstanceDll ).Assembly );
+			GlobalContext.Current.ReplaceScriptAssembly = PackageLoader.ReplaceScriptAssembly;
 			PackageLoader.HotloadWatch( Game.GameAssembly ); // Sandbox.Game is per instance
 			PackageLoader.OnAfterHotload = OnAfterHotload;
 		}
@@ -174,6 +176,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			EngineFileSystem.Mounted.UnMount( NetworkedLargeFiles.Files );
 			EngineFileSystem.Mounted.UnMount( NetworkedSmallFiles.Files );
 			EngineFileSystem.ProjectSettings.UnMount( NetworkedConfigFiles.Files );
+			Game.Language.FileSystem.UnMount( NetworkedLangFiles.Files );
 			DidMountNetworkedFiles = false;
 		}
 
@@ -184,6 +187,9 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		AssemblyEnroller = null;
 
 		CodeArchiveTable.Reset();
+		ScriptTable.Reset();
+		NetworkScriptsReady = false;
+		DidLoadNetworkedResources = false;
 		NetworkedSmallFiles.Reset();
 		NetworkedConfigFiles.Reset();
 		NetworkedLangFiles.Reset();
@@ -557,6 +563,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		// Run any pending queue'd mainthread tasks here
 		// so they're in the same scene scope
 		MainThread.RunQueues();
+		GlobalContext.Current.TickScripting();
 	}
 
 	private void RunGameFrame( Scene activeScene )

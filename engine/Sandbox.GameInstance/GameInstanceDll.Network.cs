@@ -10,6 +10,14 @@ internal partial class GameInstanceDll
 {
 	readonly StringTable CodeArchiveTable = new( "CodeArchive", true );
 
+	// Keep the table across scripting resets: a restarted handshake reuses the network system's registrations.
+	readonly StringTable ScriptTable = new( "Scripts", true );
+
+	/// <summary>
+	/// Live script updates can execute once the initial assemblies, packages and script snapshot are ready.
+	/// </summary>
+	private bool NetworkScriptsReady;
+
 	internal readonly ServerPackages ServerPackages = new();
 
 	/// <summary>
@@ -44,8 +52,15 @@ internal partial class GameInstanceDll
 	/// </summary>
 	readonly ReplicatedConvars ReplicatedConvars = new( "ReplicatedConvars" );
 
+	/// <summary>
+	/// Takes ownership of replicated scripts, package requirements and convars after host migration.
+	/// </summary>
 	public void OnBecameHost()
 	{
+		Game.Scripting.InitializeNetworking( ScriptTable, isClient: false );
+		NetworkScriptsReady = false;
+		// Downloads continue in the background; joining clients wait for their readiness updates.
+		_ = ServerPackages.OnBecameHost();
 		ReplicatedConvars.OnBecameHost();
 	}
 
@@ -53,11 +68,19 @@ internal partial class GameInstanceDll
 	private bool DidMountNetworkedFiles { get; set; }
 
 	/// <summary>
+	/// Resources are deserialized after network files are mounted and script declarations are available.
+	/// </summary>
+	private bool DidLoadNetworkedResources { get; set; }
+
+	/// <summary>
 	/// What we enumerate for files to offer joining clients: the game's content plus any local
 	/// libraries. We own this so it needs disposing, the filesystems mounted into it don't.
 	/// </summary>
 	internal AggregateFileSystem NetworkedFileSystem { get; private set; }
 
+	/// <summary>
+	/// Creates scene networking and loads resources after the client's scripts are ready.
+	/// </summary>
 	public GameNetworkSystem CreateGameNetworking( NetworkSystem system )
 	{
 		var instance = new SceneNetworkSystem( TypeLibrary, system );
@@ -72,28 +95,22 @@ internal partial class GameInstanceDll
 			AddFilesToNetwork( NetworkedLangFiles, Game.Language.FileSystem, [".json"] );
 			BuildNetworkedFiles();
 		}
-		else if ( !DidMountNetworkedFiles )
+		else if ( !DidLoadNetworkedResources )
 		{
-			EngineFileSystem.ProjectSettings.Mount( NetworkedConfigFiles.Files );
-			Game.Language.FileSystem.Mount( NetworkedLangFiles.Files );
-			Game.Language.Refresh();
-
-			FileSystem.Mounted.Mount( NetworkedLargeFiles.Files );
-			FileSystem.Mounted.Mount( NetworkedSmallFiles.Files );
-
-			NetworkedSmallFiles.Refresh();
-			NetworkedConfigFiles.Refresh();
-			NetworkedLangFiles.Refresh();
+			MountNetworkedFiles();
 
 			ResourceLoader.LoadAllGameResource( FileSystem.Mounted, reloadExisting: true );
 			FontManager.Instance.LoadAll( FileSystem.Mounted );
 
-			DidMountNetworkedFiles = true;
+			DidLoadNetworkedResources = true;
 		}
 
 		return instance;
 	}
 
+	/// <summary>
+	/// Creates scene networking, yielding while client resources load after script publication.
+	/// </summary>
 	public async Task<GameNetworkSystem> CreateGameNetworkingAsync( NetworkSystem system )
 	{
 		var instance = new SceneNetworkSystem( TypeLibrary, system );
@@ -108,27 +125,41 @@ internal partial class GameInstanceDll
 			AddFilesToNetwork( NetworkedLangFiles, Game.Language.FileSystem, [".json"] );
 			BuildNetworkedFiles();
 		}
-		else if ( !DidMountNetworkedFiles )
+		else if ( !DidLoadNetworkedResources )
 		{
-			EngineFileSystem.ProjectSettings.Mount( NetworkedConfigFiles.Files );
-			Game.Language.FileSystem.Mount( NetworkedLangFiles.Files );
-			Game.Language.Refresh();
-
-			FileSystem.Mounted.Mount( NetworkedLargeFiles.Files );
-			FileSystem.Mounted.Mount( NetworkedSmallFiles.Files );
-
-			NetworkedSmallFiles.Refresh();
-			NetworkedConfigFiles.Refresh();
-			NetworkedLangFiles.Refresh();
+			MountNetworkedFiles();
 
 			LoadingScreen.Title = "Loading Resources";
 			await ResourceLoader.LoadAllGameResourceAsync( FileSystem.Mounted, reloadExisting: true );
 			FontManager.Instance.LoadAll( FileSystem.Mounted );
 
-			DidMountNetworkedFiles = true;
+			DidLoadNetworkedResources = true;
 		}
 
 		return instance;
+	}
+
+	/// <summary>
+	/// Makes downloaded assets and settings available before script startup and resource deserialization.
+	/// Initial table loading and game networking initialization share this mount.
+	/// </summary>
+	private void MountNetworkedFiles()
+	{
+		if ( DidMountNetworkedFiles )
+		{
+			return;
+		}
+
+		EngineFileSystem.ProjectSettings.Mount( NetworkedConfigFiles.Files );
+		Game.Language.FileSystem.Mount( NetworkedLangFiles.Files );
+		FileSystem.Mounted.Mount( NetworkedLargeFiles.Files );
+		FileSystem.Mounted.Mount( NetworkedSmallFiles.Files );
+		DidMountNetworkedFiles = true;
+
+		NetworkedSmallFiles.Refresh();
+		NetworkedConfigFiles.Refresh();
+		NetworkedLangFiles.Refresh();
+		Game.Language.Refresh();
 	}
 
 	void AddFilesToNetwork( SmallNetworkFiles target, BaseFileSystem fs, HashSet<string> validExtensions )
@@ -174,10 +205,37 @@ internal partial class GameInstanceDll
 	/// </summary>
 	CompileGroup compileGroup;
 
+	/// <summary>
+	/// Registers the session's replicated tables and their live update handlers.
+	/// </summary>
 	public void InstallNetworkTables( NetworkSystem system )
 	{
 		system.InstallTable( CodeArchiveTable );
 		system.InstallTable( ServerPackages.StringTable );
+		ServerPackages.StringTable.OnChangeOrAdd = entry =>
+		{
+			if ( NetworkScriptsReady && entry.Read<ServerPackages.PackageInfo>().ResourcesReady )
+			{
+				// The host sent script declarations before marking these resources ready.
+				SyncContext.RunBlocking( ServerPackages.ClientInstallPackage( entry ) );
+			}
+			else
+			{
+				_ = ServerPackages.ClientInstallPackage( entry, reloadResources: false );
+			}
+		};
+		Game.Scripting.InitializeNetworking( ScriptTable, system.IsClient );
+		system.InstallTable( ScriptTable );
+		ScriptTable.PostNetworkUpdate = () =>
+		{
+			if ( NetworkScriptsReady )
+			{
+				// As with code archives, later scene messages must wait for the declarations they use.
+				// Package downloads can still finish through the async and Steam callbacks pumped here.
+				SyncContext.RunBlocking( ServerPackages.WaitForDownloads() );
+				LoadNetworkScripts();
+			}
+		};
 		system.InstallTable( NetworkedSmallFiles.StringTable );
 		system.InstallTable( NetworkedConfigFiles.StringTable );
 		system.InstallTable( NetworkedLangFiles.StringTable );
@@ -233,6 +291,9 @@ internal partial class GameInstanceDll
 		return true;
 	}
 
+	/// <summary>
+	/// Loads assemblies and assets before executing the initial script snapshot on a joining client.
+	/// </summary>
 	public async Task<bool> LoadNetworkTables( NetworkSystem system )
 	{
 		compileGroup = new CompileGroup( "server" );
@@ -261,6 +322,30 @@ internal partial class GameInstanceDll
 
 		await ServerPackages.InstallAll();
 
+		// Prevent a blank title between the last package install and the download queue start.
+		if ( string.IsNullOrWhiteSpace( LoadingScreen.Title ) )
+			LoadingScreen.Title = "Loading..";
+
+		await NetworkedLargeFiles.RunDownloadQueue( system, default );
+
+		// Requirements can arrive during either download above. Their entry callbacks start installation;
+		// wait for both ends to finish before applying the latest script snapshot without another yield.
+		while ( ServerPackages.StringTable.Entries.Values.Any( entry =>
+			!entry.Read<ServerPackages.PackageInfo>().ResourcesReady || ServerPackages.Get( entry.Name )?.IsDownloading == true ) )
+		{
+			if ( system.IsDisconnected )
+				return false;
+
+			await Task.Delay( 20 );
+		}
+
+		if ( ServerPackages.StringTable.Entries.Values.Any( entry =>
+			!entry.Name.StartsWith( "local." ) && ServerPackages.Get( entry.Name )?.IsMounted != true ) )
+		{
+			Disconnect( "Failed to install server packages. Check log for details." );
+			return false;
+		}
+
 		// Like Garry's Mod's map check - if the server's files are different, we can't play with what it has
 		var mismatched = ServerPackages.GetMismatchedWorkshopItems();
 		if ( mismatched.Count > 0 )
@@ -269,13 +354,35 @@ internal partial class GameInstanceDll
 			return false;
 		}
 
-		// Prevent a blank title between the last package install and the download queue start.
-		if ( string.IsNullOrWhiteSpace( LoadingScreen.Title ) )
-			LoadingScreen.Title = "Loading..";
+		MountNetworkedFiles();
+		NetworkScriptsReady = LoadNetworkScripts();
+		if ( NetworkScriptsReady )
+		{
+			await ServerPackages.LoadResources();
+		}
 
-		await NetworkedLargeFiles.RunDownloadQueue( system, default );
+		return NetworkScriptsReady;
+	}
 
-		return true;
+	/// <summary>
+	/// Publishes scripts synchronously before scene messages can reference their types.
+	/// A client that cannot load the host's script set cannot safely continue deserializing its scene.
+	/// </summary>
+	private bool LoadNetworkScripts()
+	{
+		var result = Game.Scripting.LoadNetworkFiles();
+		if ( result.Success )
+		{
+			return true;
+		}
+
+		foreach ( var diagnostic in result.Diagnostics )
+		{
+			Log.Warning( $"{diagnostic.FilePath}: {diagnostic}" );
+		}
+
+		Disconnect( "Failed to load server scripts. Check log for details." );
+		return false;
 	}
 
 	static string[] _interestingExtensions = new[] { "_c", ".scss", ".ttf" };
@@ -307,6 +414,12 @@ internal partial class GameInstanceDll
 	bool ShouldNetworkFile( string filename )
 	{
 		filename = filename.NormalizeFilename();
+
+		// Scripts have their own table. Resource include patterns must not expose server-only source.
+		if ( filename.EndsWith( ".csx", StringComparison.OrdinalIgnoreCase ) )
+		{
+			return false;
+		}
 
 		if ( !AssetDownloadCache.IsLegalDownload( filename ) )
 			return false;

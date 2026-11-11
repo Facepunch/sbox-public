@@ -2,6 +2,10 @@ using NativeEngine;
 
 namespace Sandbox;
 
+/// <summary>
+/// Configures and creates a cubemap texture.
+/// </summary>
+[Expose]
 public struct TextureCubeBuilder
 {
 	internal TextureBuilder builder = new();

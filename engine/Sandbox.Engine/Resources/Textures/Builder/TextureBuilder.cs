@@ -57,7 +57,10 @@ namespace NativeEngine
 namespace Sandbox
 {
 
-	[StructLayout( LayoutKind.Sequential )]
+	/// <summary>
+	/// Shared configuration for creating runtime textures.
+	/// </summary>
+	[Expose, StructLayout( LayoutKind.Sequential )]
 	public struct TextureBuilder
 	{
 		internal TextureCreationConfig_t _config;

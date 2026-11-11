@@ -6,7 +6,10 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Sandbox.Internal;
 
-[SkipHotload]
+/// <summary>
+/// Provides discovery, construction and member access for registered types.
+/// </summary>
+[Expose, SkipHotload]
 public partial class TypeLibrary
 {
 	/// <summary>
@@ -57,7 +60,19 @@ public partial class TypeLibrary
 	{
 		log.Trace( "Dispose" );
 
+		foreach ( var description in typedata.Values )
+		{
+			description.Dispose();
+		}
+
 		Types.Clear();
+		typedata.Clear();
+		members.Clear();
+		removedTypes.Clear();
+		InvalidateCache();
+		bytePack?.Dispose();
+		bytePack = null;
+		PostAddCallbacks = null;
 	}
 
 	/// <summary>
@@ -134,6 +149,8 @@ public partial class TypeLibrary
 		// System
 		typeof(object),
 		typeof(Math), typeof(MathF),
+		typeof(Random),
+		typeof(Guid),
 		typeof(char), typeof(string),
 		typeof(bool),
 		typeof(byte), typeof(sbyte),
@@ -147,6 +164,11 @@ public partial class TypeLibrary
 		typeof(HashSet<>),
 		typeof(Array),
 		typeof(IList<>),
+		typeof(System.Collections.IEnumerable),
+		typeof(IEnumerable<>),
+		typeof(System.Collections.IEnumerator),
+		typeof(IEnumerator<>),
+		typeof(IDisposable),
 		typeof(ValueTuple<>),
 		typeof(ValueTuple<,>),
 		typeof(ValueTuple<,,>),
@@ -157,6 +179,15 @@ public partial class TypeLibrary
 		typeof(ValueTuple<,,,,,,,>),
 
 		// Sandbox
+		// Share the addon compiler's safe builder through the normal catalog and its consumer-specific filters.
+		typeof(SafeStringBuilder),
+		typeof(BaseFileSystem),
+		typeof(Logger),
+		typeof(PropertyAttribute),
+		typeof(TitleAttribute),
+		typeof(IconAttribute),
+		typeof(CategoryAttribute),
+		typeof(RangeAttribute),
 		typeof(RealTime),
 		typeof(Rect),
 		typeof(RectInt),
@@ -173,6 +204,7 @@ public partial class TypeLibrary
 		typeof(Gradient),
 		typeof(Capsule),
 		typeof(Line),
+		typeof(Ray),
 		typeof(Transform),
 		typeof(BBox),
 		typeof(Sphere),
@@ -189,6 +221,7 @@ public partial class TypeLibrary
 		typeof(TextFlag),
 
 		// UI
+		typeof(Sandbox.UI.StyleSheetAttribute),
 		typeof(Sandbox.UI.OverflowMode),
 		typeof(Sandbox.UI.Align),
 		typeof(Sandbox.UI.PositionMode),
@@ -244,8 +277,8 @@ public partial class TypeLibrary
 
 		if ( IsIntrinsicType( t ) ) return true;
 
-		// If we're a nested type, defer to the class we're declared in
-		if ( t.DeclaringType != null )
+		// Only public nested types inherit exposure. Nonpublic types need an explicit opt-in above.
+		if ( t.IsNestedPublic )
 		{
 			if ( System.Attribute.IsDefined( t, typeof( System.Runtime.CompilerServices.CompilerGeneratedAttribute ) ) )
 				return false;

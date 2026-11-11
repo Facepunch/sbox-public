@@ -9,6 +9,7 @@ namespace Sandbox;
 /// kids are using in your crazy future computers. Whatever it is I'm sure
 /// it isn't fungible and everyone has free money and no-one has to ever work.
 /// </summary>
+[Expose]
 public static partial class Graphics
 {
 	/// <summary>

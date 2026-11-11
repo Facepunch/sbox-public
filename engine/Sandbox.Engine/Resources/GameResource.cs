@@ -211,13 +211,7 @@ public abstract partial class GameResource : Resource, ISourceLineProvider
 	{
 		if ( string.IsNullOrEmpty( filename ) ) return;
 
-		ResourcePath = FixPath( filename );
-		ResourceName = System.IO.Path.GetFileNameWithoutExtension( ResourcePath );
-		// Keep this for backwards compat for now
-#pragma warning disable CS0618 // Type or member is obsolete
-		ResourceId = ResourcePath.FastHash();
-#pragma warning restore CS0618 // Type or member is obsolete
-		ResourceIdLong = ResourcePath.FastHash64();
+		SetResourceIdentity( filename );
 
 		Game.Resources.Register( this );
 	}

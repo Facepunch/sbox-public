@@ -8,9 +8,9 @@ using static Sandbox.ResourceLibrary;
 
 namespace Sandbox;
 
-public class ResourceSystem
+public partial class ResourceSystem
 {
-	// Index of Json based, GameResources PrefabFile, DecalDefintions etc.
+	// Strong references to managed file resources, including uncompiled assets.
 	private Dictionary<int, Resource> ResourceIndex { get; } = new();
 	private Dictionary<ulong, Resource> ResourceIndexLong { get; } = new();
 	private Dictionary<Guid, Resource> GuidIndex { get; } = new();
@@ -154,12 +154,22 @@ public class ResourceSystem
 			Log.Info( $"Resource moved: {resource.ResourcePath} -> {newPath} ({resource.Guid})" );
 		}
 
+		var isStrong = ResourceIndexLong.GetValueOrDefault( resource.ResourceIdLong ) == resource;
 		Unregister( resource );
 
 		if ( resource is GameResource gr )
+		{
 			gr.Register( newPath );
+		}
+		else if ( isStrong )
+		{
+			resource.SetResourceIdentity( newPath );
+			Register( resource );
+		}
 		else
+		{
 			resource.RegisterWeakResourceId( newPath );
+		}
 	}
 
 	/// <summary>
@@ -170,7 +180,8 @@ public class ResourceSystem
 		if ( newGuid == Guid.Empty || newGuid == resource.Guid )
 			return;
 
-		if ( resource is GameResource )
+		var isStrong = resource is GameResource || ResourceIndexLong.GetValueOrDefault( resource.ResourceIdLong ) == resource;
+		if ( isStrong )
 		{
 			RemoveIndexed( GuidIndex, resource.Guid, resource );
 		}
@@ -192,7 +203,7 @@ public class ResourceSystem
 			Log.Error( $"GUID collision! ({newGuid}) incoming: {resource.ResourcePath}, existing: {existing.ResourcePath}" );
 		}
 
-		if ( resource is GameResource )
+		if ( isStrong )
 		{
 			GuidIndex[newGuid] = resource;
 		}
@@ -801,12 +812,18 @@ public static class ResourceLibrary
 	/// </summary>
 	public static async Task<T> LoadAsync<T>( string path ) where T : Resource
 	{
+		// Validate source paths before cache lookup can normalize a nonexistent _c alias.
+		var type = typeof( T );
+		if ( Game.Resources.TryLoadUncompiledResource( type, path, FileSystem.Mounted, out var uncompiled ) )
+		{
+			return uncompiled as T;
+		}
+
 		// try to load cached version first
 		if ( TryGet<T>( path, out var cached ) )
 			return cached;
 
 		// Check if the type is a GameResource, and handle it accordingly
-		var type = typeof( T );
 		if ( type.IsAssignableTo( typeof( GameResource ) ) )
 		{
 			if ( Mounting.MountUtility.IsMountPath( path ) )

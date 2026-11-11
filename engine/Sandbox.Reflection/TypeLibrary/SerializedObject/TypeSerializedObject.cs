@@ -5,8 +5,6 @@
 /// </summary>
 class TypeSerializedObject : SerializedObject
 {
-	static Logger log = new Logger( "TypeSerializedObject" );
-
 	public override string TypeIcon => TypeDescription?.Icon ?? base.TypeIcon;
 	public override string TypeName => TypeDescription?.Name ?? base.TypeName;
 	public override string TypeTitle => TypeDescription?.Title ?? base.TypeTitle;
@@ -81,11 +79,11 @@ class TypeSerializedObject : SerializedObject
 		return ref _targetObject;
 	}
 
-	string fullName;
+	int _revision;
 
 	void BuildProperties()
 	{
-		fullName = TypeDescription.TargetType.AssemblyQualifiedName;
+		_revision = TypeDescription.Revision;
 
 		PropertyList ??= new();
 		PropertyList.Clear();
@@ -136,11 +134,17 @@ class TypeSerializedObject : SerializedObject
 
 	protected override void PrepareEnumerator()
 	{
-		if ( fullName != TypeDescription.TargetType.AssemblyQualifiedName )
+		if ( _revision != TypeDescription.Revision )
 		{
-			log.Trace( $"Rebuilding - detected assembly change [{fullName}] to [{TypeDescription.TargetType.AssemblyQualifiedName}]" );
 			BuildProperties();
 		}
+	}
+
+	/// <inheritdoc />
+	public override SerializedProperty GetProperty( string name )
+	{
+		PrepareEnumerator();
+		return base.GetProperty( name );
 	}
 
 	public override IEnumerable<object> Targets

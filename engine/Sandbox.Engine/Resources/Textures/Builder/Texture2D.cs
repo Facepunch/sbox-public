@@ -3,6 +3,10 @@ using System.Runtime.InteropServices;
 
 namespace Sandbox
 {
+	/// <summary>
+	/// Configures and creates a two-dimensional texture.
+	/// </summary>
+	[Expose]
 	public struct Texture2DBuilder
 	{
 		internal TextureBuilder config = new();

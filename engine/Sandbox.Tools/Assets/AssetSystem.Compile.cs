@@ -19,6 +19,9 @@ public static partial class AssetSystem
 		var filename = context.AbsolutePath;
 		var extension = System.IO.Path.GetExtension( filename ).Trim( '.' );
 
+		if ( AssetType.Find( extension )?.IsUncompiled == true )
+			return false;
+
 		// Do we have a specific compiler? These register the source extensions they
 		// handle themselves ([ResourceIdentity("wav")] etc), so check before the
 		// asset type bail below - source extensions like wav aren't asset type
@@ -46,7 +49,9 @@ public static partial class AssetSystem
 	/// </summary>
 	internal static bool IsGameResource( string extension )
 	{
-		var set = _gameResourceExtensions ??= EditorTypeLibrary.GetAttributes<AssetTypeAttribute>().Select( x => x.Extension ).ToHashSet( StringComparer.OrdinalIgnoreCase );
+		var set = _gameResourceExtensions ??= EditorTypeLibrary.GetAttributes<AssetTypeAttribute>()
+			.Where( x => !x.IsUncompiled && x.TargetType.IsAssignableTo( typeof( GameResource ) ) )
+			.Select( x => x.Extension ).ToHashSet( StringComparer.OrdinalIgnoreCase );
 		return set.Contains( extension );
 	}
 

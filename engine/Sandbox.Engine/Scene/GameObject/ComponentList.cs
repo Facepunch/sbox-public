@@ -86,6 +86,10 @@ public enum FindMode
 	EverythingInDescendants = Enabled | Disabled | InDescendants,
 }
 
+/// <summary>
+/// Provides access to a game object's components and methods to create and find them.
+/// </summary>
+[Expose]
 public class ComponentList
 {
 	readonly GameObject go;

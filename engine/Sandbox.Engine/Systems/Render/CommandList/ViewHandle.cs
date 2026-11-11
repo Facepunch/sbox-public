@@ -5,6 +5,7 @@ namespace Sandbox.Rendering;
 /// in the same command-list execution. Values are resolved anew on each playback, not while recording.
 /// Keep the target textures alive and unchanged until their consumers have drawn.
 /// </summary>
+[Expose]
 public readonly ref struct ViewHandle
 {
 	internal long Id { get; }

@@ -88,6 +88,15 @@ public abstract partial class Resource : IValid, IJsonConvert, BytePack.ISeriali
 	/// </summary>
 	internal void RegisterWeakResourceId( string resourcePath, Guid? guid = null )
 	{
+		SetResourceIdentity( resourcePath, guid );
+		Game.Resources.RegisterWeak( this );
+	}
+
+	/// <summary>
+	/// Assigns the shared path and hash identity without choosing the resource's cache lifetime.
+	/// </summary>
+	internal void SetResourceIdentity( string resourcePath, Guid? guid = null )
+	{
 		ResourcePath = FixPath( resourcePath );
 		ResourceName = System.IO.Path.GetFileNameWithoutExtension( ResourcePath );
 
@@ -98,8 +107,6 @@ public abstract partial class Resource : IValid, IJsonConvert, BytePack.ISeriali
 
 		if ( guid is Guid g && g != default )
 			Guid = g;
-
-		Game.Resources.RegisterWeak( this );
 	}
 
 	/// <summary>
@@ -148,11 +155,11 @@ public abstract partial class Resource : IValid, IJsonConvert, BytePack.ISeriali
 	/// <summary>
 	/// Called when this resource's file data has been loaded (or reloaded), while
 	/// that data is still in memory. This is our chance to read anything we want
-	/// out of the compiled file - custom blocks written by managed resource
-	/// compilers, for example. The context is only valid during this call, so copy
+	/// out of the file - source bytes for uncompiled assets, or custom blocks written by managed
+	/// resource compilers. The context is only valid during this call, so copy
 	/// out what you need. Main thread.
 	/// </summary>
-	internal virtual void OnLoaded( ResourceLoadContext context )
+	protected internal virtual void OnLoaded( ResourceLoadContext context )
 	{
 	}
 

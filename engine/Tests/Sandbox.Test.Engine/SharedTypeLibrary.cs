@@ -61,7 +61,13 @@ internal static class SharedTypeLibrary
 	static TypeLibrary Build( bool intrinsics, params (Assembly Assembly, bool IsDynamic)[] assemblies )
 	{
 		var library = new TypeLibrary();
-		if ( intrinsics ) library.AddIntrinsicTypes();
+		library.AddAssembly( typeof( BaseFileSystem ).Assembly, false );
+
+		if ( intrinsics )
+		{
+			library.AddIntrinsicTypes();
+			library.AddAssembly( typeof( TypeLibrary ).Assembly, false );
+		}
 
 		foreach ( var (assembly, isDynamic) in assemblies )
 		{

@@ -52,7 +52,8 @@ internal class AccountInformation
 	public static bool UseAnalytics { get; set; } = true;
 
 
-	static Task<LoginResult> updateTask;
+	static readonly object updateLock = new();
+	static Task updateTask;
 
 	static AccountInformation()
 	{
@@ -61,64 +62,68 @@ internal class AccountInformation
 	}
 
 	/// <summary>
-	/// Update Current
+	/// Refresh the Steam-backed login and publish account information on the engine thread.
+	/// Concurrent callers wait for the complete update, including the new session credentials.
+	/// A failed refresh retains the current account; only a failed initial login enters offline mode.
 	/// </summary>
-	public static async Task Update()
+	public static Task Update()
 	{
-		if ( updateTask != null )
+		lock ( updateLock )
 		{
-			await updateTask;
-			return;
+			if ( updateTask is { IsCompleted: false } ) return updateTask;
+			return updateTask = UpdateCore();
 		}
+	}
 
-		try
+	private static async Task UpdateCore()
+	{
+		await MainThread.Wait();
+		// Keep the existing session while login is pending so other requests can join recovery.
+		var login = await Api.GetAccountInformation();
+
+		if ( login.Id == 0 )
 		{
-			Session = null;
-			updateTask = Api.GetAccountInformation();
-
-			var login = await updateTask;
-
-			if ( login.Id == 0 )
+			if ( SteamId != 0 && !string.IsNullOrEmpty( Session ) )
 			{
-				Log.Warning( "Failed to retrieve account information - starting in offline mode.." );
-				Ai.Credits = null;
-				Api.StartOffline();
+				Log.Warning( "Failed to refresh account information - keeping the existing session." );
 				return;
 			}
 
-			NativeErrorReporter.SetTag( "session_id", login.Session );
-			NativeErrorReporter.SetTag( "launch_guid", Api.LaunchGuid );
-
-			var aiCredits = Ai.CreditBalance.FromDto( login.AiCredits );
-			Ai.Credits = SteamId == login.Id ? aiCredits ?? Ai.Credits : aiCredits;
-			SteamId = login.Id;
-			Session = login.Session;
-
-			Links = login.Links?.Select( x => (StreamService)x ).ToList() ?? new();
-			Favourites = login.Favourites?.Select( x => RemotePackage.FromDto( x ) ).ToList() ?? new();
-			Memberships = login.Memberships?.Select( x => Package.Organization.FromDto( x ) ).ToList() ?? new();
-			Score = login.Player?.Score ?? 0;
-			FirstSeen = login.FirstSeen;
-			UseAnalytics = login.UseAnalytics;
-
-			if ( !string.IsNullOrWhiteSpace( login.AvatarJson ) )
-			{
-				AvatarJson = login.AvatarJson;
-				Avatar.AvatarJson = AvatarJson;
-			}
-
-			foreach ( var favourite in Favourites )
-			{
-				Package.Cache( favourite, true );
-			}
-
-			IMenuDll.Current?.RunEvent( "menu.home.rebuild" );
-			IToolsDll.Current?.RunEvent( "account.update" );
+			Log.Warning( "Failed to retrieve account information - starting in offline mode.." );
+			Session = null;
+			Ai.Credits = null;
+			Api.StartOffline();
+			return;
 		}
-		finally
+
+		NativeErrorReporter.SetTag( "session_id", login.Session );
+		NativeErrorReporter.SetTag( "launch_guid", Api.LaunchGuid );
+
+		var aiCredits = Ai.CreditBalance.FromDto( login.AiCredits );
+		Ai.Credits = SteamId == login.Id ? aiCredits ?? Ai.Credits : aiCredits;
+		SteamId = login.Id;
+		Session = login.Session;
+
+		Links = login.Links?.Select( x => (StreamService)x ).ToList() ?? new();
+		Favourites = login.Favourites?.Select( x => RemotePackage.FromDto( x ) ).ToList() ?? new();
+		Memberships = login.Memberships?.Select( x => Package.Organization.FromDto( x ) ).ToList() ?? new();
+		Score = login.Player?.Score ?? 0;
+		FirstSeen = login.FirstSeen;
+		UseAnalytics = login.UseAnalytics;
+
+		if ( !string.IsNullOrWhiteSpace( login.AvatarJson ) )
 		{
-			updateTask = null;
+			AvatarJson = login.AvatarJson;
+			Avatar.AvatarJson = AvatarJson;
 		}
+
+		foreach ( var favourite in Favourites )
+		{
+			Package.Cache( favourite, true );
+		}
+
+		IMenuDll.Current?.RunEvent( "menu.home.rebuild" );
+		IToolsDll.Current?.RunEvent( "account.update" );
 	}
 
 	/// <summary>

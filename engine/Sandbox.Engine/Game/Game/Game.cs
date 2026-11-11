@@ -28,9 +28,12 @@ namespace Sandbox;
 /// </code>
 /// </example>
 /// <seealso cref="Application"/>
+[Expose]
 public static partial class Game
 {
-	/// <summary>Creates scripts using the current menu or game's exposed types and cached code.</summary>
+	/// <summary>
+	/// Creates scripts using the current menu or game's exposed types and cached code.
+	/// </summary>
 	public static ScriptSystem Scripting => GlobalContext.Game.Scripting;
 
 	/// <summary>

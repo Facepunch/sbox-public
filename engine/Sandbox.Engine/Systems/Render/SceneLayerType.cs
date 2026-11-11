@@ -6,6 +6,10 @@ using System.Threading.Tasks;
 
 namespace Sandbox;
 
+/// <summary>
+/// Identifies the render pass currently being drawn.
+/// </summary>
+[Expose]
 public enum SceneLayerType
 {
 	Unknown = 0,

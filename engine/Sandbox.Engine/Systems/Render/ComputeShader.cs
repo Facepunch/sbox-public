@@ -6,6 +6,7 @@ namespace Sandbox;
 /// A compute shader is a program that runs on the GPU, often with data provided to/from the CPU by means of a <see cref="GpuBuffer{T}"/> or a <see cref="Texture"/>.
 /// </summary>
 /// <seealso cref="GpuBuffer{T}"/>
+[Expose]
 public class ComputeShader
 {
 	/// <summary>

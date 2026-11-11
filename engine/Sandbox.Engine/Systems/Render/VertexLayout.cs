@@ -9,6 +9,7 @@ namespace Sandbox;
 /// <summary>
 /// Allows for the definition of custom vertex layouts
 /// </summary>
+[Expose]
 public static class VertexLayout
 {
 	static readonly ConcurrentDictionary<Type, NativeEngine.VertexLayout> entries = new();

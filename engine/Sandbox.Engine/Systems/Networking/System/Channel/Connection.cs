@@ -466,6 +466,11 @@ public abstract partial class Connection : BytePack.ISerializer
 		}
 	}
 
+	/// <summary>
+	/// Connection progress serialized by the connection-info string table.
+	/// Explicit registration is required because this is an internal nested type.
+	/// </summary>
+	[Expose]
 	internal enum ChannelState
 	{
 		Unconnected,

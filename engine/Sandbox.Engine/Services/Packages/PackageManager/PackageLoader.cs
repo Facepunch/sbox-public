@@ -701,6 +701,42 @@ internal sealed partial class PackageLoader : IDisposable
 	/// </summary>
 	internal static Func<bool> HoldHotload { get; set; }
 
+	/// <summary>
+	/// Replaces an emitted script assembly synchronously using the same roots and completion
+	/// callbacks as package hotload. Installs its catalog before notifying scenes and tools.
+	/// </summary>
+	internal void ReplaceScriptAssembly( Assembly previous, Assembly incoming, Action register )
+	{
+		if ( HotloadManager is null )
+		{
+			// Context teardown can follow disposal of its package loader.
+			if ( incoming is null ) return;
+			throw new ObjectDisposedException( nameof( PackageLoader ) );
+		}
+
+		// A source edit must not migrate queued C# replacements without rebuilding their script dependents.
+		if ( previous is not null && incoming is not null && IncomingThisHotload.Count > 0 )
+		{
+			throw new InvalidOperationException( "Cannot replace script source while a C# assembly hotload is pending." );
+		}
+
+		HotloadManager.Replace( previous, incoming );
+
+		if ( previous is null || incoming is null )
+		{
+			register?.Invoke();
+			return;
+		}
+
+		lock ( MixingThread.LockObject )
+		{
+			if ( !HotloadManager.DoSwap( register ) )
+			{
+				throw new InvalidOperationException( "Script assembly hotload failed." );
+			}
+		}
+	}
+
 	public void Tick()
 	{
 		if ( !changedPackageDlls.Any() && IncomingThisHotload.Count == 0 )
@@ -718,7 +754,14 @@ internal sealed partial class PackageLoader : IDisposable
 			// so things don't get modified while it's using them
 			lock ( MixingThread.LockObject )
 			{
-				HotloadManager.DoSwap();
+				var incoming = IncomingThisHotload.Where( assembly => !assembly.IsEditorAssembly )
+					.Select( assembly => assembly.Assembly ).ToArray();
+				using var scripts = GlobalContext.Current?.PrepareScriptHotload( incoming, HotloadManager.Replace );
+				if ( !HotloadManager.DoSwap( scripts is null ? null : scripts.Register ) && scripts is not null )
+				{
+					throw new InvalidOperationException( "Script assembly hotload failed." );
+				}
+				scripts?.Complete();
 			}
 		}
 		finally

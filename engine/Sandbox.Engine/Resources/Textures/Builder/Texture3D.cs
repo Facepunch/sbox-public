@@ -3,6 +3,10 @@ using System;
 
 namespace Sandbox
 {
+	/// <summary>
+	/// Configures and creates a three-dimensional texture.
+	/// </summary>
+	[Expose]
 	public struct Texture3DBuilder
 	{
 		internal TextureBuilder config = new();

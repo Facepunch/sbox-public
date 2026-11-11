@@ -3,6 +3,7 @@
 /// <summary>
 /// Single source for creating sounds
 /// </summary>
+[Expose]
 public static partial class Sound
 {
 	/// <summary>

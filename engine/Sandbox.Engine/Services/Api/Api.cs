@@ -82,7 +82,8 @@ internal class CachingHandler : DelegatingHandler
 		var options = new MemoryCacheOptions();
 
 		_cache = new MemoryCache( options );
-		InnerHandler = new BackendHttpHandler();
+		InnerHandler = new BackendAuthenticationHandler( new BackendHttpHandler(),
+			() => new( AccountInformation.Session, AccountInformation.SteamId ), AccountInformation.Update );
 	}
 
 	protected override async Task<HttpResponseMessage> SendAsync( HttpRequestMessage request, CancellationToken cancellationToken )
@@ -218,21 +219,6 @@ class BackendHttpHandler : DelegatingHandler
 
 	private void AddHeaders( HttpRequestMessage request )
 	{
-		//
-		// Session authorization
-		//
-		if ( AccountInformation.Session is not null )
-		{
-			request.Headers.Remove( "Authorization" );
-			request.Headers.Add( "Authorization", $"session {AccountInformation.Session}" );
-
-			request.Headers.Remove( "X-User-Id" );
-			request.Headers.Add( "X-User-Id", $"{AccountInformation.SteamId}" );
-
-			//	Log.Info( $"{AccountInformation.Session}" );
-			//	Log.Info( $"{Steamworks.SteamClient.SteamId}" );
-		}
-
 		//
 		// Just for fun and diagnostics
 		//

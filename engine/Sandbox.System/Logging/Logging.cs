@@ -171,6 +171,8 @@ internal static partial class Logging
 	internal static Func<StringBuilder> Capture;
 
 	internal static event Action<LogEvent> OnMessage;
+	// Runs on the emitting thread, before dispatch loses its AsyncLocal game context.
+	internal static event Action<LogEvent> OnEmitted;
 	internal static Action<Exception> OnException;
 
 	/// <summary>
@@ -189,6 +191,8 @@ internal static partial class Logging
 
 	internal static void Write( in LogEvent e )
 	{
+		OnEmitted?.Invoke( e );
+
 		if ( ThreadSafe.IsMainThread && callDepth < 3 )
 		{
 			try

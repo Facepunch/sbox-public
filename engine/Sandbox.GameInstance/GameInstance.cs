@@ -330,9 +330,9 @@ internal class GameInstance : IGameInstance
 
 		LoadProjectSettings();
 
-		// If the host is a developer session, we don't want to load all game resources yet. This will be
-		// done via the network tables.
-		if ( !IsDeveloperHost )
+		// Clients wait for the host's scripts before deserializing resources that may use their types.
+		// Developer sessions also receive their resources through the network tables.
+		if ( !IsDeveloperHost && !Networking.IsClient )
 		{
 			Log.Trace( $"Loading GameResources" );
 

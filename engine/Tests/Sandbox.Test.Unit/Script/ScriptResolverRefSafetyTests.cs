@@ -5,6 +5,9 @@ using Sandbox.Internal;
 
 namespace Sandbox.Tests;
 
+/// <summary>
+/// Verifies that the scripting catalog excludes members whose references can escape call temporaries.
+/// </summary>
 [TestClass]
 public class ScriptResolverRefSafetyTests
 {
@@ -29,6 +32,22 @@ public class ScriptResolverRefSafetyTests
 		public int ReadIn( in int value ) => value;
 		public ref int Echo( int[] values ) => ref values[0];
 		public Span<int> Wrap( int[] values ) => values;
+	}
+
+	/// <summary>
+	/// Supplies protected component APIs with both supported scalar parameters and excluded ref-like signatures.
+	/// </summary>
+	[Expose]
+	public class RefComponent : Component
+	{
+		protected int Read( int value ) => value;
+		protected int ReadIn( in int value ) => value;
+		protected void WriteRef( ref int value ) => value++;
+		protected ref int Echo( int[] values ) => ref values[0];
+		protected Span<int> Wrap( int[] values ) => values;
+		protected int Consume( Span<int> values ) => values.Length;
+		protected int ConsumeReadOnly( ReadOnlySpan<int> values ) => values.Length;
+		protected Span<int> Buffer => default;
 	}
 
 	static readonly Lazy<TypeLibrary> Library = new( () =>
@@ -67,5 +86,20 @@ public class ScriptResolverRefSafetyTests
 		CollectionAssert.DoesNotContain( methods, nameof( RefMembers.Echo ) );
 		CollectionAssert.DoesNotContain( methods, nameof( RefMembers.Wrap ) );
 		Assert.IsTrue( members.OfType<FieldInfo>().Any( x => x.Name == nameof( RefMembers.Plain ) ) );
+	}
+
+	/// <summary>
+	/// Derived scripts retain ordinary protected APIs while applying the same reference-safety policy as public calls.
+	/// </summary>
+	[TestMethod]
+	public void ProtectedComponentMembersUseTheSameReferenceSafetyRules()
+	{
+		var members = new List<MemberInfo>();
+		new TypeLibraryScriptResolver( Library.Value ).GetBaseMembers( typeof( RefComponent ), members );
+		var declared = members.Where( member => member.DeclaringType == typeof( RefComponent ) ).ToArray();
+
+		Assert.IsTrue( declared.OfType<ConstructorInfo>().Any() );
+		CollectionAssert.AreEquivalent( new[] { "Read", "ReadIn", "WriteRef" }, declared.OfType<MethodInfo>().Select( method => method.Name ).ToArray() );
+		Assert.IsFalse( declared.OfType<PropertyInfo>().Any() );
 	}
 }
