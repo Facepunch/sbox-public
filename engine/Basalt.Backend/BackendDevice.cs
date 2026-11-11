@@ -126,6 +126,12 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	internal (TimestampQueries Queries, int Index)? FrameStartTimestamp { get; set; }
 
+	/// <summary>
+	/// When set, every GPU scope Basalt records (its layers and setup) and every list a context submits is timed, and
+	/// counted with <see cref="PassTimer.Statistics"/>. For benchmarks.
+	/// </summary>
+	internal PassTimer PassTimer { get; set; }
+
 	readonly BackendTexture black;
 	readonly BackendTexture sheetMetadata;
 

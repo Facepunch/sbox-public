@@ -65,6 +65,13 @@ internal static class MapRealRun
 		var ticks = new ulong[2];
 		long frameNumber = 0;
 
+		// -passes: GPU time per layer and list from timestamps around each; -pass-stats: and what each assembles and shades
+		// (which closes rendering at every layer, so the times aren't the frame's)
+		using var passTimer = Args.Has( "-passes" ) || Args.Has( "-pass-stats" ) ? new PassTimer( gpu, statistics: Args.Has( "-pass-stats" ) ) : null;
+		map.Backend.PassTimer = passTimer;
+		var passes = new PassTotals();
+		var timings = new List<PassTimer.Timing>();
+
 		Frame RenderFrame( MapView view )
 		{
 			var f = default( Frame );
@@ -77,12 +84,15 @@ internal static class MapRealRun
 			// GPU time: from the start of Basalt's frame list to after its last list, three frames back
 			var slot = (int)(frameNumber % 4);
 			map.Backend.FrameStartTimestamp = (timestamps, slot * 2);
+			passTimer?.BeginFrame( frameNumber );
 
 			map.Render( view );
 			var t2 = Stopwatch.GetTimestamp();
 
 			var copy = gpu.BeginCommandList( QueueType.Graphics, "Map to window" );
+			var copyScope = passTimer?.Begin( copy, "Copy to window", PassTimer.ScopeKind.Own ) ?? -1;
 			if ( image.IsValid ) map.CopyTo( copy, image );
+			passTimer?.End( copy, copyScope );
 			copy.WriteTimestamp( timestamps, slot * 2 + 1 );
 			gpu.Submit( copy, swapChain: image.IsValid ? swapChain : null );
 			if ( image.IsValid ) swapChain.Present();
@@ -91,6 +101,7 @@ internal static class MapRealRun
 			f.Gpu = double.NaN;
 			var old = (int)((frameNumber + 1) % 4);
 			if ( frameNumber >= 4 && timestamps.TryRead( old * 2, ticks ) ) f.Gpu = (ticks[1] - ticks[0]) * period;
+			if ( passTimer is not null && frameNumber >= 3 && passTimer.TryRead( frameNumber - 3, timings ) ) passes.Add( timings );
 			frameNumber++;
 
 			var s = map.System.Stats;
@@ -104,6 +115,8 @@ internal static class MapRealRun
 		var lines = new List<string>();
 		var csv = new StringBuilder( "view,variant,parallel,material_objects,shadows,frames,wait_ms,render_ms,collect_ms,prepare_ms,setup_ms,record_ms,worker_record_ms,stages_ms,submit_ms,copy_ms,cpu_ms,frame_ms,frame_p95_ms,gpu_ms,draws,depth_draws,shadow_draws,translucent_draws,instances,objects_visible,triangles,model_draws,binds,fragment_draws,ns_per_bind,ns_per_repeat,sets_written_per_frame,gcs,object_changes,ns_per_object_change,failed_draws,cpu_mean_ms,frame_mean_ms,gpu_mean_ms\n" );
 		var bindingReport = "";
+		var passTables = new StringBuilder();
+		var passCsv = new StringBuilder( "view,variant,scope,kind,ms,per_frame,primitives,vertex_invocations,fragment_invocations,draws,pipelines,sets,rendering_scopes\n" );
 
 		foreach ( var view in options.Views )
 		{
@@ -124,6 +137,7 @@ internal static class MapRealRun
 				var frameTimes = new List<double>( options.Frames );
 				var sets = map.Backend.MaterialObjectStats.SetsWritten;
 				var gcs = GC.CollectionCount( 0 );
+				passes.Clear();
 				var last = Stopwatch.GetTimestamp();
 				for ( int i = 0; i < options.Frames && !window.Closed; i++ )
 				{
@@ -132,6 +146,14 @@ internal static class MapRealRun
 					var now = Stopwatch.GetTimestamp();
 					frameTimes.Add( Stopwatch.GetElapsedTime( last, now ).TotalMilliseconds );
 					last = now;
+				}
+
+				if ( passTimer is not null )
+				{
+					var table = passes.Describe( $"{view.Name} {variant.Name}", options.Width * options.Height, passTimer.Statistics );
+					Console.WriteLine( table );
+					passTables.AppendLine( table );
+					passes.AppendCsv( passCsv, view.Name, variant.Name );
 				}
 
 				gcs = GC.CollectionCount( 0 ) - gcs;
@@ -216,6 +238,12 @@ internal static class MapRealRun
 		foreach ( var line in lines ) md.AppendLine( line );
 		md.AppendLine( "```" );
 		md.AppendLine();
+		if ( passTimer is not null )
+		{
+			md.AppendLine( passTables.ToString() );
+			File.WriteAllText( Path.Combine( options.Output, "map-passes.csv" ), passCsv.ToString() );
+		}
+
 		md.AppendLine( bindingReport );
 		File.WriteAllText( Path.Combine( options.Output, "map-real.md" ), md.ToString() );
 		File.WriteAllText( Path.Combine( options.Output, "map-real.csv" ), csv.ToString() );
