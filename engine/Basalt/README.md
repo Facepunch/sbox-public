@@ -86,13 +86,13 @@ Large frames record work in parallel. Each recording segment has its own native 
 the thread that records it. Shadow culling is also parallelized. Camera stages and custom-object work
 that requires the main thread stay there. Small frames avoid the overhead of parallel recording.
 With `r_managed_async_compute` (enabled by default), depth-chain, contact-shadow and AO work can overlap
-shadow-map rendering. SSR automatically starts on graphics once Hi-Z is ready, alongside AO on compute.
+shadow-map rendering. Basalt draws no normals G-buffer: AO rebuilds normals from depth, and SSR is off.
 
 Declare each pass's inputs, outputs and compute capability. The pipeline itself stays a plain list:
 
 ```csharp
 // On the AO pass:
-public override FrameResources Reads( RenderFrame frame ) => FrameResources.DepthChain | FrameResources.Normals;
+public override FrameResources Reads( RenderFrame frame ) => FrameResources.DepthChain;
 public override FrameResources Writes => FrameResources.AmbientOcclusion;
 public override bool SupportsAsyncCompute => true;
 

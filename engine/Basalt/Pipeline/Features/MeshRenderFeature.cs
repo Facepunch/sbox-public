@@ -1105,9 +1105,6 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	void DrawItems( GpuContext context, ViewPass view, ReadOnlySpan<Run> runs, ReadOnlySpan<DrawItem> items, MeshLayer layer, ref RenderStats stats )
 	{
 		var depth = layer.Depth;
-
-		// The depth-normals prepass runs materials' own depth pixel shaders into the G-buffer (DepthNormalPrepassLayer)
-		var normals = depth && layer.WritesNormals && view.View.DepthNormals && !view.IsShadow;
 		var mode = layer.ShaderMode;
 		var shadow = layer.LayerType == MeshLayerType.Shadow;
 		var translucentLayer = layer.LayerType == MeshLayerType.Translucent;
@@ -1142,7 +1139,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			if ( run.Custom is { } custom )
 			{
 				if ( !layer.DrawsCustomObjectsIn( view ) ) continue;
-				if ( layer.WritesNormals && !custom.DepthPrepass ) continue;
+				if ( layer.LayerType == MeshLayerType.DepthPrepass && !custom.DepthPrepass ) continue;
 
 				// Same first-reader copy as mesh batches (CRenderBatchList::DrawCurrentPrimitives).
 				if ( run.ReadsFrameBuffer && !depth ) context.CopyFrameBuffer();
@@ -1168,7 +1165,8 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 
 			// Forward draws use lightmaps or probes (CBaseSceneObjectDesc::DrawArray, CalculateBatchFlags).
 			// Shared attributes preserve material binds between draws.
-			var material = MaterialFor( run, draw, depth && !normals, layer.ForceDepthFastPath, out var stripPixelShader );
+
+			var material = MaterialFor( run, draw, depth, layer.ForceDepthFastPath, out var stripPixelShader );
 			var probe = depth || run.Probe is null || !RenderMesh.NeedsLightProbe( material ) ? null : run.Probe;
 			context.SetObjectAttributes( run.Attributes, draw.Lightmapped ? (depth ? null : run.Lightmap) : probe );
 

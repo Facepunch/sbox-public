@@ -104,11 +104,6 @@ public sealed class RenderView
 	/// </summary>
 	public int ToolsVisMode { get; set; }
 
-	/// <summary>
-	/// Draw the depth prepass into a normals and roughness G-buffer too (native's <c>DepthNormalPrepassLayer</c>), for the
-	/// camera's AO and SSR. Native always does; here it's only for cameras whose effects read it.
-	/// </summary>
-	public bool DepthNormals { get; set; }
 
 	/// <summary>
 	/// A reflection (<c>ViewSetup.Reflection</c>), drawn as native's pipeline draws one: no contact shadows, volumetric fog or

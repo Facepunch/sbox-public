@@ -74,4 +74,44 @@ public class AsyncPostProcessTests
 			Assert.IsFalse( recorder.Snapshot( "serial" ).Segments.Any( s => s.Async ) );
 		}
 	}
+
+	sealed class ReflectingStages : IRenderStages
+	{
+		public void Render( RenderStage stage, in StageTarget target ) { }
+		public bool HasScreenSpaceReflections => true;
+	}
+
+	/// <summary>
+	/// Basalt traces no screen-space reflections for a camera that has them: they need material normals and roughness, and it
+	/// draws no G-buffer. They come back behind one switch. Its frames tell shaders there's no G-buffer either.
+	/// </summary>
+	[TestMethod]
+	public void ScreenSpaceReflectionsStayOffUntilSwitchedOn()
+	{
+		var world = new RenderWorld();
+		world.Add( new MeshObject( TestMesh( false ), new Transform( new Vector3( 30, 0, 0 ) ) ) );
+
+		using var system = new RenderSystem();
+		CollectAndPrepare( system, world, LookingDownX() );
+		system.Frame.Stages = new ReflectingStages();
+		using var recorder = new FrameRecorder();
+
+		bool Traces()
+		{
+			recorder.Plan( system.Frame, parallel: false, asyncCompute: false );
+			return recorder.Planned.Any( p => p.Layer is ScreenSpaceReflectionsLayer or ScreenSpaceReflectionsHistoryLayer );
+		}
+
+		Assert.IsFalse( Traces() );
+
+		ScreenSpaceReflectionsLayer.Enabled = true;
+		try
+		{
+			Assert.IsTrue( Traces() );
+		}
+		finally
+		{
+			ScreenSpaceReflectionsLayer.Enabled = false;
+		}
+	}
 }
