@@ -974,6 +974,19 @@ public class SettingsCatalog
 
 		Items.Add( new SettingItem
 		{
+			Id = "audio.voicespeakers",
+			Category = "audio",
+			Section = "#menu.settings.voice",
+			Title = "#menu.settings.audio.voicespeakers.title",
+			Description = "#menu.settings.audio.voicespeakers.description",
+			Options = OffOn,
+			IsVisible = IsVoiceChatOn,
+			Read = () => MenuUtility.GetConsoleVariable( "voip_show_speakers" ).ToBool(),
+			Write = value => MenuUtility.SetConsoleVariable( "voip_show_speakers", ToBool( value ) )
+		} );
+
+		Items.Add( new SettingItem
+		{
 			Id = "audio.acoustics",
 			Category = "audio",
 			Section = "#menu.settings.simulation",
@@ -1224,6 +1237,7 @@ public class SettingsCatalog
 		MenuUtility.SetConsoleVariable( "voip_threshold", -50.0f );
 		MenuUtility.SetConsoleVariable( "voip_agc", true );
 		MenuUtility.SetConsoleVariable( "voip_show_indicator", true );
+		MenuUtility.SetConsoleVariable( "voip_show_speakers", true );
 		MenuUtility.SetConsoleVariable( "snd_mute_losefocus", false );
 		MenuUtility.SetConsoleVariable( "snd_subtitles", false );
 	}

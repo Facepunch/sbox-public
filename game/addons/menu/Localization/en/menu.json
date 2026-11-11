@@ -886,6 +886,8 @@
     "menu.settings.audio.voicechat.title": "Voice Chat",
     "menu.settings.audio.voiceindicator.description": "Shows the microphone icon while you're talking. Games can't change this.",
     "menu.settings.audio.voiceindicator.title": "Microphone Indicator",
+    "menu.settings.audio.voicespeakers.description": "Shows the list of who's talking. Games can still hide it, but can't force it on.",
+    "menu.settings.audio.voicespeakers.title": "Speaker List",
     "menu.settings.audio.volume.description": "All sounds and music.",
     "menu.settings.audio.volume.title": "Master",
     "menu.settings.auto_detect": "Auto-Detect",
