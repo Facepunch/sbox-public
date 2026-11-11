@@ -80,6 +80,9 @@ internal sealed class RenderFrame
 
 	// Base constants for per-pass variants.
 	ViewConstants constants;
+
+	/// <summary>The view constants the frame drew with, for what draws over it after (post processing).</summary>
+	internal ref readonly ViewConstants Constants => ref constants;
 	ViewConstantsKey constantsKey;
 
 	/// <summary>

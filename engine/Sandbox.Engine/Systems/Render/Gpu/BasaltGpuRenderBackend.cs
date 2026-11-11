@@ -267,9 +267,10 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 		{
 			case Texture texture when textures.TryGetValue( texture, out var backing ):
 				textures.Remove( texture );
-				textureOwners.Remove( backing.Handle );
 				context.Forget( backing.Handle );
-				gpu.Destroy( backing.Handle );
+
+				// A borrowed backing (a Basalt frame's target) stays its owner's
+				if ( textureOwners.Remove( backing.Handle ) ) gpu.Destroy( backing.Handle );
 				break;
 
 			case GpuBuffer buffer when buffers.TryGetValue( buffer, out var backing ):
@@ -281,6 +282,31 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 				break;
 		}
 	}
+
+	/// <summary>
+	/// Make <paramref name="handle"/>, a texture on this device that something else owns (a Basalt frame's target, now in
+	/// <paramref name="layout"/>), the backing of <paramref name="texture"/>: drawing with the engine texture draws with it,
+	/// and it isn't destroyed with the engine texture or this backend. A backing the texture had is released first.
+	/// </summary>
+	internal void Borrow( Texture texture, TextureHandle handle, ImageLayout layout )
+	{
+		if ( textures.TryGetValue( texture, out var backing ) )
+		{
+			if ( backing.Handle == handle )
+			{
+				context.Track( handle, layout );
+				return;
+			}
+
+			Release( texture );
+		}
+
+		textures.Add( texture, new Backing<TextureHandle>( handle ) );
+		context.Track( handle, layout );
+	}
+
+	/// <summary>The layout an engine texture's backing is in, as the recording left it.</summary>
+	internal ImageLayout LayoutOf( Texture texture ) => textures.TryGetValue( texture, out var backing ) ? context.LayoutOf( backing.Handle ) : ImageLayout.Undefined;
 
 	/// <summary>How many textures were copied from Source 2's pixels, having nothing of their own to start from.</summary>
 	public int CopiedFromSource2 { get; private set; }

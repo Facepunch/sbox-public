@@ -552,7 +552,9 @@ public static partial class Graphics
 				return;
 
 			var view = _state.view;
-			if ( view is null && (value?.ColorTarget is null || value.DepthTarget is not null) )
+			// A Basalt.Gpu block takes a depth target with its colour (a Basalt frame's, which post processing reads); it
+			// draws to the colour
+			if ( view is null && (value?.ColorTarget is null || (value.DepthTarget is not null && Backend is Source2RenderBackend)) )
 				throw new InvalidOperationException( "Standalone rendering requires a color target without a depth target." );
 
 			// Going from default render target to custom render target
