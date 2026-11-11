@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using GpuDevice = Basalt.Gpu.Device;
 using GpuTextureBarrier = Basalt.Gpu.TextureBarrier;
 using NumericsMatrix = System.Numerics.Matrix4x4;
+using NumericsVector3 = System.Numerics.Vector3;
 
 namespace Sandbox.BasaltLab.Maps;
 
@@ -20,8 +21,10 @@ namespace Sandbox.BasaltLab.Maps;
 /// <see cref="BackendDevice"/> on Basalt.Gpu, with s&amp;box's own compiled shaders and the map's materials, textures and
 /// constants as their <c>.vmat_c</c> files have them. Scene objects are <see cref="MeshObject"/>s (LODs, mesh groups and
 /// skins as compiled); aggregates are <see cref="AggregateObject"/>s whose fragments draw as one multi-draw indirect.
-/// Lightmaps, light probes, cubemaps, the sky, fog and entities aren't loaded: what the shaders read of them is the
-/// backend's placeholders.
+/// Baked lighting is the map's own where its files can be read: the world's lightmaps for lightmapped draws, and each
+/// light probe volume's textures for the objects the compiler gave it (<see cref="WorldSceneObject.LightProbeVolume"/>).
+/// The volumes' boxes are in the entity lump, which isn't read, so each is the bounds of its objects. Cubemaps, the sky,
+/// fog and entities aren't loaded: what the shaders read of them is the backend's placeholders.
 /// </summary>
 internal sealed class MapWorld : IDisposable
 {
@@ -38,6 +41,10 @@ internal sealed class MapWorld : IDisposable
 	public int Aggregates { get; private set; }
 	public int Fragments { get; private set; }
 	public int Models { get; private set; }
+	public int LightmapTextures { get; private set; }
+	public int LightmappedObjects { get; private set; }
+	public int ProbeVolumes { get; private set; }
+	public int ProbeObjects { get; private set; }
 	public List<string> Problems { get; } = new();
 	public List<(string Name, double Ms)> Phases { get; } = new();
 
@@ -46,7 +53,8 @@ internal sealed class MapWorld : IDisposable
 
 	/// <param name="castShadows">Whether the map's static geometry casts sun shadows; Construct's sun is baked, so in the
 	/// game its world geometry and static props don't.</param>
-	public MapWorld( GpuDevice gpu, string folder, ContentFiles core, bool castShadows, bool aggregatesAsMeshes = false )
+	/// <param name="bakedLighting">Light lightmapped draws from the map's lightmaps and the rest from its probe volumes.</param>
+	public MapWorld( GpuDevice gpu, string folder, ContentFiles core, bool castShadows, bool aggregatesAsMeshes = false, bool bakedLighting = true )
 	{
 		this.gpu = gpu;
 		var timer = Stopwatch.StartNew();
@@ -111,6 +119,7 @@ internal sealed class MapWorld : IDisposable
 		}
 
 		const ulong UnsetMask = 0xD0D0D0D0D0D0D0D0;
+		var probed = new List<(MeshObject Object, int Volume, NumericsVector3 Mins, NumericsVector3 Maxs)>();
 		foreach ( var node in world.Nodes )
 		{
 			foreach ( var o in node.SceneObjects )
@@ -129,6 +138,11 @@ internal sealed class MapWorld : IDisposable
 				World.Add( obj );
 				meshObjects.Add( obj );
 				MeshObjects++;
+				if ( o.LightProbeVolume != 0 )
+				{
+					var (mins, maxs) = WorldBounds( file, o.Transform );
+					probed.Add( (obj, o.LightProbeVolume, mins, maxs) );
+				}
 			}
 
 			foreach ( var a in node.Aggregates )
@@ -168,6 +182,161 @@ internal sealed class MapWorld : IDisposable
 		}
 
 		Phase( $"World objects ({MeshObjects} objects, {Aggregates} aggregates, {Fragments} fragments, {Models} meshes)" );
+
+		if ( !bakedLighting ) return;
+		LoadLightmaps( world );
+		LoadProbeVolumes( Path.GetFileNameWithoutExtension( vpk ), probed );
+		Phase( $"Baked lighting ({LightmapTextures} lightmaps for {LightmappedObjects} objects and aggregates, {ProbeVolumes} probe volumes for {ProbeObjects} objects)" );
+	}
+
+	/// <summary>
+	/// The world's lightmaps, as native's <c>SetSceneObjectLightmapAttributes</c> binds them: one set of attributes for every
+	/// aggregate and every object with lightmapped draws, with the textures by their base names, their bindless indices
+	/// and the uv scale in <c>BakedLightingConstantBuffer_t</c>, and the lightmap combo.
+	/// </summary>
+	void LoadLightmaps( WorldFile world )
+	{
+		var textures = new List<(string Name, GpuTexture Texture)>();
+		foreach ( var path in world.Lightmaps )
+		{
+			var name = Path.GetFileNameWithoutExtension( path );
+			if ( name == "debug_chart_color" ) continue;
+			if ( Backend.LoadTexture( path ) is BackendTexture { Dimension: TextureDimension.Texture2DArray } texture ) textures.Add( (name, texture) );
+			else Problems.Add( $"lightmap {path} isn't readable" );
+		}
+
+		if ( textures.Count == 0 ) return;
+		LightmapTextures = textures.Count;
+
+		var scale = world.LightmapUvScale;
+		var constants = new LightmapConstants { UvScale = new Vector4( scale.X > 0 ? scale.X : 1, scale.Y > 0 ? scale.Y : 1, 0, 0 ) };
+		var attributes = Backend.CreateParameters();
+		for ( int i = 0; i < textures.Count && i < 8; i++ )
+		{
+			attributes.Set( textures[i].Name, textures[i].Texture );
+			constants.Indices[i] = textures[i].Texture.BindlessIndex;
+		}
+
+		attributes.SetData( "BakedLightingConstantBuffer_t", constants );
+		attributes.Set( "UsesBakedLightmaps", true );
+		attributes.Set( "UsesBakedLightingFromProbe", false );
+		attributes.SetCombo( "D_BAKED_LIGHTING_FROM_PROBE", 0 );
+		attributes.SetCombo( "D_BAKED_LIGHTING_FROM_LIGHTMAP", 1 );
+
+		foreach ( var aggregate in aggregateObjects )
+		{
+			aggregate.Lightmapped = true;
+			aggregate.LightmapAttributes = attributes;
+			LightmappedObjects++;
+		}
+
+		foreach ( var obj in meshObjects )
+		{
+			if ( obj.Mesh is not { HasLightmappedDraws: true } ) continue;
+			obj.LightmapAttributes = attributes;
+			LightmappedObjects++;
+		}
+	}
+
+	/// <summary>
+	/// A light probe volume per volume the compiler chose for objects, with its textures (the probe, direct light indices
+	/// and strengths) and its constants as <c>CSceneLightProbeVolumeObject::CreateConstants</c> makes them, over the bounds
+	/// of its objects, which need a probe.
+	/// </summary>
+	void LoadProbeVolumes( string map, List<(MeshObject Object, int Volume, NumericsVector3 Mins, NumericsVector3 Maxs)> probed )
+	{
+		foreach ( var group in probed.GroupBy( p => p.Volume ).OrderBy( g => g.Key ) )
+		{
+			var prefix = $"maps/{map}/lightmaps/env_light_probe_volume_{group.Key}";
+			if ( Backend.LoadTexture( prefix + ".vtex" ) is not BackendTexture { Dimension: TextureDimension.Texture3D } probe )
+			{
+				Problems.Add( $"probe volume {group.Key} isn't readable" );
+				continue;
+			}
+
+			// Each the shape the shader samples (a missing one would be a 2D stand-in): the probe's own otherwise
+			var indices = Backend.LoadTexture( prefix + "_dli.vtex" ) is BackendTexture { Dimension: TextureDimension.Texture3D } dli ? dli : probe;
+			var scalars = Backend.LoadTexture( prefix + "_dls.vtex" ) is BackendTexture { Dimension: TextureDimension.Texture3D } dls ? dls : probe;
+			var mins = group.Select( p => p.Mins ).Aggregate( NumericsVector3.Min ) - new NumericsVector3( 16 );
+			var maxs = group.Select( p => p.Maxs ).Aggregate( NumericsVector3.Max ) + new NumericsVector3( 16 );
+			var size = maxs - mins;
+			var info = gpu.InfoOf( probe.Handle );
+			var half = new NumericsVector3( 0.5f / info.Width, 0.5f / info.Height, 0.5f / info.Depth );
+			const int Layers = 6;
+
+			var constants = new ProbeConstants
+			{
+				Row0 = new Vector4( 1 / size.X, 0, 0, -mins.X / size.X ),
+				Row1 = new Vector4( 0, 1 / size.Y, 0, -mins.Y / size.Y ),
+				Row2 = new Vector4( 0, 0, 1 / size.Z, -mins.Z / size.Z ),
+				TextureMin = new Vector4( half.X, half.Y, half.Z, 0 ),
+				TextureMax = new Vector4( 1 - half.X, 1 - half.Y, 1f / Layers - half.Z, 0 ),
+				Colour = new Vector4( 1, 1, 1, 0 ),
+				Probe = probe.BindlessIndex,
+				Indices = indices.BindlessIndex,
+				Scalars = scalars.BindlessIndex,
+			};
+
+			var attributes = Backend.CreateParameters();
+			attributes.SetData( "PerBatchLightProbeVolumeConstantBuffer_t", constants );
+			attributes.Set( "UsesBakedLightmaps", false );
+			attributes.Set( "UsesBakedLightingFromProbe", true );
+			attributes.SetCombo( "D_BAKED_LIGHTING_FROM_PROBE", 1 );
+			attributes.SetCombo( "D_BAKED_LIGHTING_FROM_LIGHTMAP", 0 );
+
+			World.LightProbeVolumes.Add( new global::Basalt.LightProbeVolume
+			{
+				BoxMins = new Vector3( mins.X, mins.Y, mins.Z ),
+				BoxMaxs = new Vector3( maxs.X, maxs.Y, maxs.Z ),
+				LightGroups = [0],
+				Attributes = attributes,
+			} );
+			ProbeVolumes++;
+
+			foreach ( var (obj, _, _, _) in group )
+			{
+				obj.NeedsLightProbe = true;
+				ProbeObjects++;
+			}
+		}
+	}
+
+	/// <summary>Eight lightmap bindless indices (six used), as two int4s.</summary>
+	[System.Runtime.CompilerServices.InlineArray( 8 )]
+	struct LightmapIndices
+	{
+		int element;
+	}
+
+	/// <summary><c>BakedLightingConstantBuffer_t</c>: the uv scale and the lightmaps' bindless indices.</summary>
+	struct LightmapConstants
+	{
+		public Vector4 UvScale;
+		public LightmapIndices Indices;
+	}
+
+	/// <summary><c>PerBatchLightProbeVolumeConstantBuffer_t</c>.</summary>
+	struct ProbeConstants
+	{
+		public Vector4 Row0, Row1, Row2;
+		public Vector4 TextureMin, TextureMax, Colour;
+		public int Probe, Indices, Scalars;
+	}
+
+	/// <summary>A model's bounds placed by a row-vector object-to-world matrix, in world space.</summary>
+	static (NumericsVector3 Mins, NumericsVector3 Maxs) WorldBounds( ModelFile file, NumericsMatrix transform )
+	{
+		var mins = new NumericsVector3( float.MaxValue );
+		var maxs = new NumericsVector3( float.MinValue );
+		for ( int i = 0; i < 8; i++ )
+		{
+			var corner = new NumericsVector3( (i & 1) != 0 ? file.Maxs.X : file.Mins.X, (i & 2) != 0 ? file.Maxs.Y : file.Mins.Y, (i & 4) != 0 ? file.Maxs.Z : file.Mins.Z );
+			var world = NumericsVector3.Transform( corner, transform );
+			mins = NumericsVector3.Min( mins, world );
+			maxs = NumericsVector3.Max( maxs, world );
+		}
+
+		return (mins, maxs);
 	}
 
 	/// <summary>
