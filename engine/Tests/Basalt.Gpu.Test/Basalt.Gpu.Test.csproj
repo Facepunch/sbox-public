@@ -11,6 +11,7 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\..\Basalt.Gpu\Basalt.Gpu.csproj" />
+		<ProjectReference Include="..\..\Basalt.Sdl\Basalt.Sdl.csproj" />
 		<ProjectReference Include="..\..\Basalt.Backend\Basalt.Backend.csproj" />
 		<ProjectReference Include="..\..\Basalt.Source2\Basalt.Source2.csproj" />
 		<ProjectReference Include="..\..\Basalt\Basalt.csproj" />
@@ -21,6 +22,12 @@
 		<Compile Include="..\..\Launcher\BasaltGpuSample\SampleScene.cs" Link="Sample\SampleScene.cs" />
 		<Compile Include="..\..\Launcher\BasaltGpuSample\BasaltScene.cs" Link="Sample\BasaltScene.cs" />
 		<EmbeddedResource Include="..\..\Launcher\BasaltGpuSample\Shaders\*.spv" LogicalName="%(Filename)%(Extension)" WithCulture="false" Link="Sample\%(Filename)%(Extension)" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- The engine's SDL3, for the window tests; they're inconclusive without it -->
+		<None Include="..\..\..\game\bin\win64\SDL3.dll" Link="SDL3.dll" CopyToOutputDirectory="PreserveNewest" Visible="false" Condition="Exists('..\..\..\game\bin\win64\SDL3.dll')" />
+		<None Include="..\..\..\game\bin\linuxsteamrt64\libSDL3.so.0" Link="libSDL3.so.0" CopyToOutputDirectory="PreserveNewest" Visible="false" Condition="Exists('..\..\..\game\bin\linuxsteamrt64\libSDL3.so.0')" />
 	</ItemGroup>
 
 </Project>

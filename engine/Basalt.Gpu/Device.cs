@@ -69,6 +69,12 @@ public sealed unsafe partial class Device : IDisposable
 			}
 		}
 
+		foreach ( var name in options.InstanceExtensions ?? [] )
+		{
+			if ( !available.Contains( name ) ) throw new GpuException( $"The Vulkan instance has no {name}, which the window system needs" );
+			if ( !extensions.Contains( name ) ) extensions.Add( name );
+		}
+
 		var layers = new List<string>();
 		if ( options.Validation && InstanceLayers().Contains( "VK_LAYER_KHRONOS_validation" ) )
 		{
