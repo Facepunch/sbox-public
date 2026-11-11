@@ -622,7 +622,17 @@ internal sealed partial class BackendContext : GpuContext
 			}
 		}
 
+		AppendSpecialization( key, material );
 		return material.Variant( device.Shaders, mode, key.ToString(), name => LookupCombo( Token( name ) ), name => Integer( Lookup( Token( name ) ) ) );
+	}
+
+	/// <summary>The values of the material's specialization attributes that are set, for its variant key.</summary>
+	void AppendSpecialization( System.Text.StringBuilder key, BackendMaterial material )
+	{
+		foreach ( var name in material.SpecializationAttributes )
+		{
+			if ( Integer( Lookup( Token( name ) ) ) is int value && value != 0 ) key.Append( ";#" ).Append( name ).Append( '=' ).Append( value );
+		}
 	}
 
 	static int? Integer( object value ) => value switch
@@ -702,6 +712,7 @@ internal sealed partial class BackendContext : GpuContext
 		stage.WriteMaterialConstants( allocation.Data[..size], variable => variable.Source switch
 		{
 			VariableSource.Material or VariableSource.MaterialAndExpression => material.Value( variable.Name ),
+			VariableSource.ShaderVersion => [material.ShaderVersion],
 			// Per draw from its vertex layout, as native's BindModelDrawCall sets it
 			VariableSource.Attribute when variable.Attribute == "UncompressedTangentFrame" => [uncompressedTangentFrame ? 1 : 0],
 			VariableSource.Attribute => Floats( Lookup( Token( variable.Attribute ) ) ),

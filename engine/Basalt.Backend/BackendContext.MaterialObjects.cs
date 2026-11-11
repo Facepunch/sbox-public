@@ -337,6 +337,7 @@ internal sealed partial class BackendContext
 			}
 		}
 
+		AppendSpecialization( key, material );
 		var made = key.ToString();
 		comboKeys[material.Shader] = (passEpoch, layerCombos, made);
 		return made;

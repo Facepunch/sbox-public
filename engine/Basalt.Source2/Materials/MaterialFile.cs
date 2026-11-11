@@ -31,6 +31,12 @@ public sealed class MaterialFile
 	/// <summary>Int attributes (<c>RepresentativeTextureWidth</c>...).</summary>
 	public IReadOnlyDictionary<string, int> IntAttributes { get; init; }
 
+	/// <summary>
+	/// The shader version it was compiled for (<c>m_shaderVersion</c>), which shaders read as <c>Source( ShaderVersion )</c>:
+	/// blendable's version 1 packs normal and roughness together, 0 is the older layout.
+	/// </summary>
+	public int ShaderVersion { get; init; }
+
 	/// <summary>Read a material from its <c>.vmat_c</c> bytes.</summary>
 	public static MaterialFile Read( byte[] data )
 	{
@@ -46,6 +52,7 @@ public sealed class MaterialFile
 			Vectors = Pairs( root, "m_vectorParams", "m_value", Vector ),
 			Textures = Pairs( root, "m_textureParams", "m_pValue", v => v as string ),
 			IntAttributes = Pairs( root, "m_intAttributes", "m_nValue", v => (int)Number( v ) ),
+			ShaderVersion = (int)Number( root.Get( "m_shaderVersion" ) ),
 		};
 	}
 

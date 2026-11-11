@@ -1,6 +1,7 @@
 using Basalt.Gpu;
 using Basalt.Source2.Materials;
 using Basalt.Source2.Shaders;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
 
@@ -232,13 +233,27 @@ internal sealed class BackendMaterial : GpuMaterial
 			var index = shader?.FeatureIndex( parameter ) ?? -1;
 			if ( index >= 0 ) Features[index] = value;
 		}
+
+		SpecializationAttributes = shader is null ? [] : new[] { ShaderProgramType.Vertex, ShaderProgramType.Pixel, ShaderProgramType.Compute }
+			.SelectMany( t => shader[t]?.Variables ?? [] )
+			.Where( v => v.Register == RegisterType.Specialization && v.Source == VariableSource.Attribute && !string.IsNullOrEmpty( v.Attribute ) )
+			.Select( v => v.Attribute ).Distinct( StringComparer.Ordinal ).ToArray();
 	}
+
+	/// <summary>
+	/// The attributes the shader's specialization constants come from (<c>SpecializedConstant()</c>, such as
+	/// <c>ToolsVisMode</c>): like dynamic combos, their values pick the variant.
+	/// </summary>
+	public string[] SpecializationAttributes { get; private set; } = [];
 
 	/// <summary>The shader, or null when there's no compiled one: draws with it are skipped.</summary>
 	public ShaderFile Shader { get; private set; }
 
 	/// <summary>The compiled material, or null for a material made from a shader.</summary>
 	public MaterialFile File { get; private set; }
+
+	/// <summary>The shader version the material was compiled for (<c>Source( ShaderVersion )</c>); 0 without a file.</summary>
+	public int ShaderVersion => File?.ShaderVersion ?? 0;
 
 	/// <summary>Feature values (<c>F_*</c>), by the shader's feature index.</summary>
 	public int[] Features { get; private set; }
