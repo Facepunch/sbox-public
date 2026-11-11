@@ -98,6 +98,21 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 		return material;
 	}
 
+	/// <summary>
+	/// New-tier shaders (Slang surfaces and raw modules) and their materials' records, compiled when a
+	/// <see cref="SurfaceMaterial"/> of theirs first draws. See docs/managed/shader-format-replacement.md.
+	/// </summary>
+	public SurfaceShaders Surfaces
+	{
+		get
+		{
+			if ( surfaces is { } made ) return made;
+			lock ( pipelines ) return surfaces ??= new SurfaceShaders( this );
+		}
+	}
+
+	SurfaceShaders surfaces;
+
 	/// <summary>Time every model draw's binding and recording into <see cref="DrawTimes"/>, for benchmarks.</summary>
 	public bool TimeDraws { get; set; }
 
@@ -565,6 +580,7 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 		Gpu.WaitIdle();
 		Poll();
 		materialCache?.Dispose();
+		surfaces?.Dispose();
 		lock ( pipelines )
 		{
 			foreach ( var pipeline in pipelines.Values ) Gpu.Destroy( pipeline );
