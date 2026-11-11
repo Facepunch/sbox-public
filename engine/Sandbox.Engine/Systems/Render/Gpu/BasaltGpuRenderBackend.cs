@@ -844,6 +844,40 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 	}
 
 	//
+	// Auto exposure
+	//
+
+	/// <summary>Auto exposure on this device: native's tonemap system, ported (<see cref="AutoExposure"/>).</summary>
+	internal AutoExposure CreateExposure() => new( gpu );
+
+	/// <summary>A camera's tonemap settings (<see cref="TonemapSystem"/>) as <see cref="AutoExposure"/> takes them.</summary>
+	internal static AutoExposure.Settings Settings( in SceneTonemapParameters_t p ) => new()
+	{
+		Min = p.m_flAutoExposureMin,
+		Max = p.m_flAutoExposureMax,
+		Compensation = p.m_flExposureCompensationScalar,
+		PercentTarget = p.m_flTonemapPercentTarget,
+		PercentBrightPixels = p.m_flTonemapPercentBrightPixels,
+		MinAverageLuminance = p.m_flTonemapMinAvgLum,
+		Rate = p.m_flRate,
+		AccelerateDown = p.m_flAccelerateExposureDown,
+		SpeedUp = p.m_flExposureAdaptationSpeedUp,
+		SpeedDown = p.m_flExposureAdaptationSpeedDown,
+		EvSmoothingRange = p.m_flTonemapEVSmoothingRange,
+	};
+
+	/// <summary>
+	/// Count this frame's luminance bucket over <paramref name="viewport"/> of <paramref name="color"/> (the frame's HDR
+	/// colour, before tonemapping) in the block being recorded, as <c>RenderTools.RenderAutoExposure</c> does on Source 2.
+	/// The bound colour target sets the size counted in and isn't drawn to.
+	/// </summary>
+	internal void CountExposure( AutoExposure exposure, Texture color, Rect viewport )
+	{
+		_ = Recording;
+		exposure.Draw( context, Shader( "shaders/tonemap_query.shader" ), TextureOf( color ), (int)viewport.Left, (int)viewport.Top, (int)viewport.Width, (int)viewport.Height );
+	}
+
+	//
 	// Barriers: layouts are tracked, so a transition only orders memory
 	//
 

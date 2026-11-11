@@ -189,6 +189,52 @@ public sealed class GraphicsContext
 		return drawer.Draw( List, shader, attributes, gpu.InfoOf( Target ).Format, depth, 1, upload.Buffer, upload.Offset, layout, count, topology, Viewport );
 	}
 
+	/// <summary>
+	/// Draw vertices into depth alone - a target of the bound colour target's size, which only this draw's scope uses, its
+	/// contents never read - counting the samples that pass into occlusion query <paramref name="query"/>, which is reset
+	/// first: how native counts the pixels of a frame in a luminance range for auto exposure (<c>tonemap_query</c>, with
+	/// colour writes and depth testing off, over the colour it samples).
+	/// </summary>
+	public bool DrawCounted( ShaderFile shader, ShaderAttributes attributes, ReadOnlySpan<byte> vertices, VertexStreamLayout layout, int count, PrimitiveTopology topology, OcclusionQueries queries, int query )
+	{
+		if ( !Target.IsValid ) throw new InvalidOperationException( "No colour target is bound." );
+		EndScope();
+
+		foreach ( var (_, value) in attributes.Values )
+		{
+			if ( value is TextureHandle texture ) Transition( texture, ImageLayout.ShaderRead );
+		}
+
+		var info = gpu.InfoOf( Target );
+		if ( !countDepth.IsValid || gpu.InfoOf( countDepth ).Width != info.Width || gpu.InfoOf( countDepth ).Height != info.Height )
+		{
+			if ( countDepth.IsValid )
+			{
+				owned.Remove( countDepth );
+				layouts.Remove( countDepth );
+				gpu.Destroy( countDepth );
+			}
+
+			countDepth = gpu.CreateTexture( TextureInfo.RenderTarget( info.Width, info.Height, Format.D32Float, name: "Counted draws" ) );
+			layouts[countDepth] = ImageLayout.Undefined;
+			owned.Add( countDepth );
+		}
+
+		List.ResetQueries( queries, query, 1 );
+		Transition( countDepth, ImageLayout.DepthReadOnly );
+		List.BeginRendering( [], new DepthTarget { Texture = countDepth, Load = LoadOp.Load, Store = StoreOp.Store, ReadOnly = true } );
+		var upload = List.AllocateUpload( vertices.Length, 16 );
+		vertices.CopyTo( upload.Data );
+		List.BeginQuery( queries, query );
+		Draws++;
+		var drawn = drawer.Draw( List, shader, attributes, Format.Unknown, Format.D32Float, 1, upload.Buffer, upload.Offset, layout, count, topology, Viewport );
+		List.EndQuery( queries, query );
+		List.EndRendering();
+		return drawn;
+	}
+
+	TextureHandle countDepth;
+
 	/// <summary>Fill a whole texture with <paramref name="color"/>, bound or not.</summary>
 	public void ClearTexture( TextureHandle texture, Num.Vector4 color )
 	{

@@ -23,6 +23,7 @@ namespace Sandbox.BasaltLab;
 /// Presets with posed skinned models start them anyway.</item>
 /// <item><c>-ui-parity folder</c> - draw a card of UI through Source 2 and through a Basalt.Gpu device, compare and exit (<see cref="UiParity"/>).</item>
 /// <item><c>-post-parity folder</c> - run post processing over Sun Shadows on Source 2 and on a Basalt.Gpu device, compare and exit (<see cref="PostParity"/>).</item>
+/// <item><c>-exposure-parity folder</c> - run auto exposure over Sun Shadows with native's tonemap system and with its port on a Basalt.Gpu device, compare and exit (<see cref="ExposureParity"/>).</item>
 /// <item><c>-model-parity folder</c> - render s&amp;box models with Basalt on Source 2's device and on a Basalt.Gpu device, compare and exit (<see cref="ModelParity"/>).</item>
 /// <item><c>-map ident</c>, <c>-construct</c> - read a compiled map with Basalt.Source2 and time drawing it on a Basalt.Gpu device, with no Source 2 device (<see cref="Maps.MapRun"/>).</item>
 /// </list>
@@ -51,6 +52,12 @@ internal static class BasaltLabApp
 		if ( Args.String( "-post-parity" ) is { } post )
 		{
 			var code = PostParity.Run( backend, post );
+			return backend.Exit( code );
+		}
+
+		if ( Args.String( "-exposure-parity" ) is { } exposure )
+		{
+			var code = ExposureParity.Run( backend, exposure );
 			return backend.Exit( code );
 		}
 

@@ -114,6 +114,9 @@ public sealed class DeviceCapabilities
 	/// <summary>Whether the graphics queue can write timestamps, and nanoseconds per tick.</summary>
 	public bool Timestamps { get; init; }
 
+	/// <summary>Whether occlusion queries count every sample that passes (<see cref="OcclusionQueries"/>), not just whether any did.</summary>
+	public bool PreciseOcclusion { get; init; }
+
 	/// <summary>Nanoseconds per timestamp tick.</summary>
 	public float TimestampPeriod { get; init; }
 

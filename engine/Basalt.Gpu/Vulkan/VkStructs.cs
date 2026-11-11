@@ -290,6 +290,7 @@ internal enum VkFeature
 	FillModeNonSolid = 13,
 	SamplerAnisotropy = 19,
 	TextureCompressionBc = 22,
+	OcclusionQueryPrecise = 23,
 	FragmentStoresAndAtomics = 26,
 	ShaderImageGatherExtended = 28,
 	ShaderStorageImageExtendedFormats = 29,

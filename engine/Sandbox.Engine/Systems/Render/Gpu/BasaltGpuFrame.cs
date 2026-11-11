@@ -89,6 +89,13 @@ internal sealed class BasaltGpuFrame : IDisposable
 		}
 	}
 
+	/// <summary>
+	/// Count <paramref name="exposure"/>'s luminance bucket for this frame over its colour, in the block from
+	/// <see cref="Begin"/> before tonemapping, as a camera's stages do on Source 2. The exposure it moves to
+	/// (<see cref="AutoExposure.FrameUpdate"/>, before the scene) is the next frames' <c>ToneMapScalar</c>.
+	/// </summary>
+	public void CountExposure( AutoExposure exposure ) => backend.CountExposure( exposure, Color, new Rect( 0, 0, Color.Width, Color.Height ) );
+
 	/// <summary>Give the frame's targets back to Basalt, in the layouts the drawing left them in.</summary>
 	public void End()
 	{

@@ -362,17 +362,19 @@ public sealed class ShaderDrawer : IDisposable
 		var key = (variant, color, depth, samples, layout, topology);
 		if ( sets is null && pipelines.TryGetValue( key, out var pipeline ) ) return pipeline;
 
-		// Inputs the stream lacks (or every input, with no stream) read the default stream
+		// Inputs the stream lacks (or every input, with no stream) read the default stream. No colour format draws into
+		// depth alone
 		GraphicsPipelineInfo info;
+		Format[] colors = color == Format.Unknown ? [] : [color];
 		if ( layout is null )
 		{
 			var attributes = ShaderDefaults.MapVertices( variant.VertexInputs, _ => null, defaultBuffer: 0 );
-			info = variant.PipelineInfo( [new VertexBufferLayout( 0 )], attributes, [color], depth, samples, depthBias: false, null );
+			info = variant.PipelineInfo( [new VertexBufferLayout( 0 )], attributes, colors, depth, samples, depthBias: false, null );
 		}
 		else
 		{
 			var attributes = ShaderDefaults.MapVertices( variant.VertexInputs, input => layout.Find( input ) is { } field ? new VertexAttribute( 0, 0, field.Format, field.Offset ) : null, defaultBuffer: 1 );
-			info = variant.PipelineInfo( [new VertexBufferLayout( layout.Stride ), new VertexBufferLayout( 0 )], attributes, [color], depth, samples, depthBias: false, null );
+			info = variant.PipelineInfo( [new VertexBufferLayout( layout.Stride ), new VertexBufferLayout( 0 )], attributes, colors, depth, samples, depthBias: false, null );
 		}
 
 		info.Topology = topology;

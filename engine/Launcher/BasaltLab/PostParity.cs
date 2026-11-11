@@ -387,23 +387,29 @@ internal static class PostParity
 		}
 	}
 
+	/// <summary>
+	/// A scene finds its systems through the type library, which this lab doesn't make otherwise (as PanelAppSystem makes
+	/// one). Its constructor and AddIntrinsicTypes are internal to the engine's app assemblies, hence reflection.
+	/// </summary>
+	internal static void EnsureTypeLibrary()
+	{
+		if ( Game.TypeLibrary is not null ) return;
+
+		const System.Reflection.BindingFlags any = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic;
+		var library = (Sandbox.Internal.TypeLibrary)Activator.CreateInstance( typeof( Sandbox.Internal.TypeLibrary ), nonPublic: true );
+		typeof( Sandbox.Internal.TypeLibrary ).GetMethod( "AddIntrinsicTypes", any ).Invoke( library, null );
+		var add = typeof( Sandbox.Internal.TypeLibrary ).GetMethod( "AddAssembly", any, [typeof( System.Reflection.Assembly ), typeof( bool )] );
+		add.Invoke( library, [typeof( Vector3 ).Assembly, false] );
+		add.Invoke( library, [typeof( Scene ).Assembly, false] );
+		Game.TypeLibrary = library;
+	}
+
 	public static int Run( Source2Backend backend, string folder )
 	{
 		components = Args.Has( "-components" );
 		sceneOnGpu = Args.Has( "-scene-gpu" );
 		var meanTolerance = Args.Float( "-mean-tolerance", 1.0f );
-		if ( components && Game.TypeLibrary is null )
-		{
-			// A scene finds its systems through the type library, which this lab doesn't make otherwise (as PanelAppSystem makes one)
-			// (its constructor and AddIntrinsicTypes are internal to the engine's app assemblies, hence reflection)
-			const System.Reflection.BindingFlags any = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic;
-			var library = (Sandbox.Internal.TypeLibrary)Activator.CreateInstance( typeof( Sandbox.Internal.TypeLibrary ), nonPublic: true );
-			typeof( Sandbox.Internal.TypeLibrary ).GetMethod( "AddIntrinsicTypes", any ).Invoke( library, null );
-			var add = typeof( Sandbox.Internal.TypeLibrary ).GetMethod( "AddAssembly", any, [typeof( System.Reflection.Assembly ), typeof( bool )] );
-			add.Invoke( library, [typeof( Vector3 ).Assembly, false] );
-			add.Invoke( library, [typeof( Scene ).Assembly, false] );
-			Game.TypeLibrary = library;
-		}
+		if ( components ) EnsureTypeLibrary();
 
 		scene = components ? new Scene() : null;
 		var only = Args.String( "-case" );
@@ -485,6 +491,24 @@ internal static class PostParity
 	// Sun Shadows on Source 2, kept for its depth, which the reference binds with the frame when the scene is on Basalt.Gpu
 	static RenderSystem source2Renderer;
 	static ViewTarget source2Target;
+
+	/// <summary>
+	/// Sun Shadows rendered by Basalt on Source 2 as two RGBA16F textures of its pixels, for auto exposure: highlights pushed
+	/// past 1 as the post stack gets it, and a tenth as bright (<c>frame-dark.png</c>). Make them after the Basalt.Gpu device,
+	/// so they keep their pixels for it.
+	/// </summary>
+	internal static (Texture Bright, Texture Dark) ExposureFrames( Source2Backend backend, string folder )
+	{
+		var bright = SunShadows( backend, folder );
+		var halves = new ushort[Width * Height * 4];
+		source2Target.Resolved.Engine().GetPixels( (0, 0, Width, Height), 0, 0, halves.AsSpan(), ImageFormat.RGBA16161616F );
+		var dark = FrameTexture( halves, System.IO.Path.Combine( folder, "frame-dark.png" ), 0.1f );
+		source2Target.Dispose();
+		source2Renderer.Dispose();
+		source2Target = null;
+		source2Renderer = null;
+		return (bright, dark);
+	}
 
 	/// <summary>Sun Shadows rendered by Basalt on Source 2, as an RGBA16F texture of its pixels.</summary>
 	static Texture SunShadows( Source2Backend backend, string folder )

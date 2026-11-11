@@ -261,6 +261,9 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 			// What a renderer keeps for this camera's views. A finalizer can't touch it: the renderer sweeps collected cameras itself
 			if ( disposing && ThreadSafe.IsMainThread ) SceneRenderer.Forget( this );
 
+			// Its auto exposure's queries on a Basalt.Gpu device, if its frames were drawn there
+			if ( disposing && ThreadSafe.IsMainThread ) Tonemap?.DisposeGpuExposure();
+
 			disposedValue = true;
 		}
 	}
