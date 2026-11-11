@@ -70,6 +70,7 @@ internal static class MapRealRun
 		using var passTimer = Args.Has( "-passes" ) || Args.Has( "-pass-stats" ) ? new PassTimer( gpu, statistics: Args.Has( "-pass-stats" ) ) : null;
 		map.Backend.PassTimer = passTimer;
 		map.Backend.BatchSubmits = !Args.Has( "-no-batch" );
+		map.Backend.Shaders.ShareVariants = !Args.Has( "-no-share-variants" );
 		var passes = new PassTotals();
 		var timings = new List<PassTimer.Timing>();
 

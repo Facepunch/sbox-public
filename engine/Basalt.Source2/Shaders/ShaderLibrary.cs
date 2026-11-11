@@ -83,7 +83,47 @@ public sealed class ShaderLibrary : IDisposable
 		var vertex = Stage( ShaderProgramType.Vertex, features );
 		var pixel = Stage( ShaderProgramType.Pixel, features );
 		var compute = Stage( ShaderProgramType.Compute, features );
-		return new ShaderVariant( this, shader, drawMode, vertex, pixel, compute );
+
+		// Materials that resolve to the same combos and constants share one variant, so they share its layouts and
+		// pipelines, and draws of them one after another don't switch pipeline
+		if ( !ShareVariants ) return new ShaderVariant( this, shader, drawMode, vertex, pixel, compute );
+		var key = new VariantKey( drawMode, vertex?.Dynamic, pixel?.Dynamic, compute?.Dynamic, ConstantsKey( vertex, pixel, compute ) );
+		lock ( variants )
+		{
+			if ( variants.TryGetValue( key, out var shared ) ) return shared;
+			var variant = new ShaderVariant( this, shader, drawMode, vertex, pixel, compute );
+			variants[key] = variant;
+			return variant;
+		}
+	}
+
+	readonly record struct VariantKey( ShaderMode Mode, DynamicCombo Vertex, DynamicCombo Pixel, DynamicCombo Compute, string Constants );
+
+	readonly Dictionary<VariantKey, ShaderVariant> variants = new();
+
+	/// <summary>Whether materials that resolve to the same variant share it (on); off, each asks for its own. For comparisons.</summary>
+	public bool ShareVariants { get; set; } = true;
+
+	/// <summary>Variants made: one per distinct mode, combos and specialization constants, however many materials draw it.</summary>
+	public int VariantCount
+	{
+		get
+		{
+			lock ( variants ) return variants.Count;
+		}
+	}
+
+	static string ConstantsKey( ShaderStage vertex, ShaderStage pixel, ShaderStage compute )
+	{
+		var key = new System.Text.StringBuilder();
+		foreach ( var stage in (ReadOnlySpan<ShaderStage>)[vertex, pixel, compute] )
+		{
+			key.Append( '|' );
+			if ( stage is null ) continue;
+			foreach ( var constant in stage.Constants ) key.Append( constant.Id ).Append( '=' ).Append( constant.Value ).Append( ',' );
+		}
+
+		return key.ToString();
 	}
 
 	/// <summary>The device module for a shader's SPIR-V, made once per distinct module.</summary>
