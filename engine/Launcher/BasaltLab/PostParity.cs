@@ -34,6 +34,13 @@ internal static class PostParity
 	static bool components;
 	static Scene scene;
 
+	/// <summary>
+	/// Render the Basalt.Gpu side's frame on Basalt.Gpu (<c>-scene-gpu</c>): Sun Shadows drawn by Basalt through the
+	/// backend's own <see cref="Basalt.Backend.BackendDevice"/>, then the post stack over it, against Sun Shadows on Source 2
+	/// with the post stack there. The frames differ as the scene on two devices does, so cases pass on the mean.
+	/// </summary>
+	static bool sceneOnGpu;
+
 	static Material Shader( string path ) => Material.FromShader( path );
 
 	/// <summary>
@@ -256,6 +263,8 @@ internal static class PostParity
 	public static int Run( Source2Backend backend, string folder )
 	{
 		components = Args.Has( "-components" );
+		sceneOnGpu = Args.Has( "-scene-gpu" );
+		var meanTolerance = Args.Float( "-mean-tolerance", 1.0f );
 		if ( components && Game.TypeLibrary is null )
 		{
 			// A scene finds its systems through the type library, which this lab doesn't make otherwise (as PanelAppSystem makes one)
@@ -282,16 +291,18 @@ internal static class PostParity
 		// The frame the post stack starts from, made after the Basalt.Gpu device so its texture keeps its pixels for it
 		using var frame = SunShadows( backend, folder );
 		backend.Phase( "Sun Shadows on Source 2" );
+		using var gpuFrame = sceneOnGpu ? SunShadowsOnGpu( gpu, folder ) : null;
+		if ( sceneOnGpu ) backend.Phase( "Sun Shadows on Basalt.Gpu" );
 
 		var rows = new List<string>();
 		var failed = 0;
 		foreach ( var test in cases )
 		{
-			var (max, over, error) = RunCase( backend, gpu, frame, test, System.IO.Path.Combine( folder, test.Name ), tolerance );
-			var ok = (over == 0 || test.NotCompared is not null) && error is null;
+			var (max, over, mean, error) = RunCase( backend, gpu, frame, gpuFrame ?? frame, test, System.IO.Path.Combine( folder, test.Name ), tolerance );
+			var ok = (sceneOnGpu ? mean <= meanTolerance : over == 0 || test.NotCompared is not null) && error is null;
 			if ( !ok ) failed++;
 
-			var line = $"{test.Name}: max channel difference {max}, {over} pixels over {tolerance}" + (error is null ? "" : $"; {error}") + (test.NotCompared is null ? "" : $"; not compared: {test.NotCompared}");
+			var line = $"{test.Name}: max channel difference {max}, {over} pixels over {tolerance}, mean difference {mean:F3}" + (error is null ? "" : $"; {error}") + (test.NotCompared is null ? "" : $"; not compared: {test.NotCompared}");
 			Log.Info( $"Post parity {line}" );
 			Console.WriteLine( line );
 			rows.Add( $"| {test.Name} | {test.Covers} | {max} | {over} | {(!ok ? "FAIL" : test.NotCompared is not null ? "not compared" : "pass")} |" );
@@ -299,7 +310,7 @@ internal static class PostParity
 
 		gpu.WaitIdle();
 		var errors = gpu.Device.ValidationErrors;
-		var summary = $"Post parity{(components ? " (components)" : "")}: {cases.Length - failed} of {cases.Length} cases within {tolerance} on {gpu.Device.Adapter.Name}, Sun Shadows {Width}x{Height} ({folder}); Basalt.Gpu validation errors {errors}";
+		var summary = $"Post parity{(components ? " (components)" : "")}{(sceneOnGpu ? " (scene on Basalt.Gpu)" : "")}: {cases.Length - failed} of {cases.Length} cases within {(sceneOnGpu ? $"{meanTolerance:F2} mean difference" : $"{tolerance}")} on {gpu.Device.Adapter.Name}, Sun Shadows {Width}x{Height} ({folder}); Basalt.Gpu validation errors {errors}";
 		Log.Info( summary );
 		Console.WriteLine( summary );
 
@@ -348,7 +359,57 @@ internal static class PostParity
 		backend.Flush();
 		var halves = new ushort[Width * Height * 4];
 		target.Resolved.Engine().GetPixels( (0, 0, Width, Height), 0, 0, halves.AsSpan(), ImageFormat.RGBA16161616F );
+		return FrameTexture( halves, System.IO.Path.Combine( folder, "frame.png" ) );
+	}
 
+	/// <summary>
+	/// Sun Shadows rendered by Basalt on the Basalt.Gpu device the post stack runs on, from content Basalt.Source2 reads
+	/// (no 2D sky there yet), as an RGBA16F texture of its pixels.
+	/// </summary>
+	static Texture SunShadowsOnGpu( BasaltGpuRenderBackend gpu, string folder )
+	{
+		var device = gpu.Services;
+		var previous = RenderHost.Current;
+		RenderHost.Current = new Basalt.Backend.BackendRenderHost( device );
+		try
+		{
+			var lab = LabWorld.Build( LabPresets.Find( "Sun Shadows" ), new BackendLabContent( device ) );
+			var view = new RenderView { Name = "Post parity", ClearColor = new Color( 0.08f, 0.09f, 0.11f ), Viewport = new Rect( 0, 0, Width, Height ) };
+			lab.Aim( view, LabWorld.DefaultPitch, LabWorld.DefaultYaw, lab.DefaultDistance );
+			using var renderer = new RenderSystem { ParallelRecording = false };
+			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Post parity" );
+
+			for ( var i = 0; i < 10; i++ )
+			{
+				device.BeginFrame();
+				RenderHost.Current.NextFrame();
+				renderer.Render( lab.World, view, target );
+			}
+
+			// Read back as model parity does: from where the frame left its target
+			var (texture, layout) = Basalt.Backend.BackendDevice.Unwrap( target.Color );
+			var buffer = device.Gpu.CreateBuffer( new Basalt.Gpu.BufferInfo { Size = Width * Height * 8, Memory = Basalt.Gpu.MemoryLocation.Readback, Name = "Post parity readback" } );
+			var list = device.Gpu.BeginCommandList( Basalt.Gpu.QueueType.Graphics, "Post parity readback" );
+			list.Barrier( Basalt.Gpu.TextureBarrier.Transition( texture, layout, Basalt.Gpu.ImageLayout.CopySource, Basalt.Gpu.PipelineStage.AllCommands, Basalt.Gpu.MemoryAccess.MemoryWrite, Basalt.Gpu.PipelineStage.Transfer, Basalt.Gpu.MemoryAccess.TransferRead ) );
+			list.CopyTextureToBuffer( texture, 0, 0, buffer );
+			list.Barrier( new Basalt.Gpu.BufferBarrier { Buffer = buffer, SourceStage = Basalt.Gpu.PipelineStage.Transfer, SourceAccess = Basalt.Gpu.MemoryAccess.TransferWrite, DestinationStage = Basalt.Gpu.PipelineStage.Host, DestinationAccess = Basalt.Gpu.MemoryAccess.HostRead } );
+			device.Gpu.Wait( device.Gpu.Submit( list ) );
+			Basalt.Backend.BackendDevice.SetLayout( target.Color, Basalt.Gpu.ImageLayout.CopySource );
+
+			var halves = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, ushort>( device.Gpu.Map( buffer ) ).ToArray();
+			device.Gpu.Destroy( buffer );
+			return FrameTexture( halves, System.IO.Path.Combine( folder, "frame-gpu.png" ) );
+		}
+		finally
+		{
+			device.Gpu.WaitIdle();
+			RenderHost.Current = previous;
+		}
+	}
+
+	/// <summary>A frame's pixels, with its highlights pushed past 1, as an RGBA16F texture.</summary>
+	static Texture FrameTexture( ushort[] halves, string png )
+	{
 		// Some highlights over 1, so bloom's threshold and the tonemapper have something to do
 		for ( int i = 0; i < halves.Length; i++ )
 		{
@@ -356,13 +417,13 @@ internal static class PostParity
 			halves[i] = BitConverter.HalfToUInt16Bits( (Half)((float)BitConverter.UInt16BitsToHalf( halves[i] ) * 2.5f) );
 		}
 
-		Source2Backend.SavePng( Encode( halves ), Width, Height, System.IO.Path.Combine( folder, "frame.png" ) );
+		Source2Backend.SavePng( Encode( halves ), Width, Height, png );
 		var bytes = new byte[halves.Length * 2];
 		Buffer.BlockCopy( halves, 0, bytes, 0, bytes.Length );
 		return Texture.Create( Width, Height, ImageFormat.RGBA16161616F ).WithData( bytes ).Finish();
 	}
 
-	static (int Max, int Over, string Error) RunCase( Source2Backend backend, BasaltGpuRenderBackend gpu, Texture frame, Case test, string folder, int tolerance )
+	static (int Max, int Over, double Mean, string Error) RunCase( Source2Backend backend, BasaltGpuRenderBackend gpu, Texture frame, Texture gpuFrame, Case test, string folder, int tolerance )
 	{
 		backend.BeginFrame();
 		string error = null;
@@ -381,7 +442,7 @@ internal static class PostParity
 		var basaltPixels = new ushort[Width * Height * 4];
 		try
 		{
-			var basalt = Apply( gpu, frame, test );
+			var basalt = Apply( gpu, gpuFrame, test );
 			basaltPixels = Read( basalt, gpu );
 			basalt.Dispose();
 		}
@@ -402,11 +463,13 @@ internal static class PostParity
 		var b = Encode( basaltPixels );
 		var diff = new Color32[a.Length];
 		int max = 0, over = 0;
+		long total = 0;
 		for ( int i = 0; i < a.Length; i++ )
 		{
 			var d = Math.Max( Math.Max( Math.Abs( a[i].r - b[i].r ), Math.Abs( a[i].g - b[i].g ) ), Math.Abs( a[i].b - b[i].b ) );
 			max = Math.Max( max, d );
 			if ( d > tolerance ) over++;
+			total += Math.Abs( a[i].r - b[i].r ) + Math.Abs( a[i].g - b[i].g ) + Math.Abs( a[i].b - b[i].b );
 			var v = (byte)Math.Min( 255, d * 16 );
 			diff[i] = new Color32( v, v, v, 255 );
 		}
@@ -415,7 +478,7 @@ internal static class PostParity
 		Source2Backend.SavePng( a, Width, Height, System.IO.Path.Combine( folder, "native.png" ) );
 		Source2Backend.SavePng( b, Width, Height, System.IO.Path.Combine( folder, "basalt.png" ) );
 		Source2Backend.SavePng( diff, Width, Height, System.IO.Path.Combine( folder, "diff.png" ) );
-		return (max, over, error);
+		return (max, over, total / (3.0 * a.Length), error);
 	}
 
 	/// <summary>A copy of the frame, and the case's command list run over it in a block on <paramref name="device"/>.</summary>
