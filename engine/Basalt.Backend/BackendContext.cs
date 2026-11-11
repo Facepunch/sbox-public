@@ -540,7 +540,7 @@ internal sealed partial class BackendContext : GpuContext
 
 	bool DrawByReflection( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias, float slopeScaledDepthBias, bool stripPixelShader, bool skinned, in IndirectDraws indirect = default )
 	{
-		if ( material is not BackendMaterial { Shader: { } shader } m || mesh.Geometry is not IBackendGeometry source || skinned ) return false;
+		if ( material is not BackendMaterial { Shader: { } shader } m || mesh.Geometry is not IBackendGeometry source ) return false;
 		if ( (indirect.InstanceIds ?? InstanceIds?.Resource as BackendBuffer) is not { } instanceIds ) return false;
 
 		var mode = ModeName( shader, shaderMode );
@@ -554,7 +554,7 @@ internal sealed partial class BackendContext : GpuContext
 		var color = r.Color is null ? Format.Unknown : FormatOfTarget( r.Color, r.Srgb );
 		var noColor = stripPixelShader || r.Color is null;
 		var depthOnly = StripsPixelShader( m, noColor, stripPixelShader );
-		var geometry = source.For( draw.Mesh, draw.DrawCall );
+		var geometry = GeometryFor( source, draw );
 		var pipeline = device.Pipeline( variant, geometry.Layout, noColor ? Format.Unknown : color, r.Depth is null ? Format.Unknown : BackendDevice.FormatOf( r.Depth ), (r.Color ?? r.Depth).Samples, depthOnly );
 
 		if ( r.Pipeline != pipeline )
@@ -891,12 +891,6 @@ internal sealed partial class BackendContext : GpuContext
 	// What only Source 2 has: skipped, as the headless device skips a mesh with no geometry
 	//
 
-	public override bool DispatchSkinning( GpuMaterial skinningShader, RenderMesh mesh, int modelMesh, GpuBuffer transforms, ReadOnlySpan<int> slots, ReadOnlySpan<int> vertexCacheOffsets, int blendWeights,
-		GpuBuffer volumes = null, ReadOnlySpan<int> volumeOffsets = default, ReadOnlySpan<int> volumeCounts = default, GpuBuffer anchors = null, ReadOnlySpan<int> anchorOffsets = default, bool morph = false ) => false;
-
-	public override void GenerateMorphs() { }
-	public override void BarrierVertexCacheToWrite() { }
-	public override void BarrierVertexCacheToRead() { }
 	public override bool BindVertexCacheIds( RenderMesh mesh, in RenderMesh.Draw draw ) => false;
 	public override bool BindGeometry( RenderMesh mesh, in RenderMesh.Draw draw ) => false;
 
