@@ -184,14 +184,14 @@ internal static class PostParity
 		new( "box-mips", "frame grab with downsample_spd box mips", BoxMips ),
 		new( "tonemapping", "Hable filmic at the default exposure", Tonemapping, Components: go => go.Components.Create<global::Sandbox.Tonemapping>().Mode = global::Sandbox.Tonemapping.TonemappingMode.HableFilmic ),
 		new( "bloom", "named targets, a compute chain down and up, a composite", Bloom,
-			NotCompared: "Source 2's run, in a block with no view, samples its missing-texture checker through the chain, so it isn't a reference",
 			Components: go =>
 			{
 				var bloom = go.Components.Create<global::Sandbox.Bloom>();
 				bloom.Threshold = 0.5f;
 			} ),
-		new( "stack", "vignette, tonemapping, sharpen, film grain, chromatic aberration, colour adjustments, in their stages' order", cl =>
+		new( "stack", "bloom, vignette, tonemapping, sharpen, film grain, chromatic aberration, colour adjustments, in their stages' order", cl =>
 		{
+			Bloom( cl );
 			Vignette( cl );
 			Tonemapping( cl );
 			Sharpen( cl );
@@ -200,6 +200,7 @@ internal static class PostParity
 			ColorAdjustments( cl );
 		}, Components: go =>
 		{
+			go.Components.Create<global::Sandbox.Bloom>().Threshold = 0.5f;
 			go.Components.Create<global::Sandbox.Vignette>();
 			go.Components.Create<global::Sandbox.Tonemapping>().Mode = global::Sandbox.Tonemapping.TonemappingMode.HableFilmic;
 			go.Components.Create<global::Sandbox.Sharpen>().Scale = 2;
@@ -436,6 +437,9 @@ internal static class PostParity
 			RenderTargetSize = new Vector2( Width, Height ),
 		} );
 		cl.Attributes.Set( "BlueNoise", Texture.Load( "textures/dev/blue_noise_256.vtex" ) );
+
+		// Bloom adds what a view's bloom-only effects drew at quarter size: none here
+		cl.Attributes.Set( "QuarterResEffectsBloomInputTexture", Texture.Black );
 
 		// The engine's components when asked and the case has them, else the copies of their command lists
 		var lists = components && !reference && test.Components is not null ? ComponentLists( test, device ) : null;
