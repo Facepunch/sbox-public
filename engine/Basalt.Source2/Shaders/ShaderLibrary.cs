@@ -2,6 +2,7 @@ using Basalt.Gpu;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 
 namespace Basalt.Source2.Shaders;
 
@@ -60,8 +61,29 @@ public sealed class ShaderLibrary : IDisposable
 	readonly Dictionary<ShaderFile, ShaderFile> gpuDriven = new( ReferenceEqualityComparer.Instance );
 
 	/// <summary>
+	/// Compiles a shader's GPU-driven variant when there's none beside it (a package's shader): given the shader's
+	/// compiled file and where to write the variant, true once written. Runs on a worker thread. Null compiles nothing.
+	/// </summary>
+	public Func<string, string, bool> GpuDrivenCompiler { get; set; }
+
+	/// <summary>
+	/// The folder <see cref="GpuDrivenCompiler"/>'s variants are cached in, by shader name, the shader file's hash and
+	/// <see cref="GpuDrivenCompilerVersion"/>.
+	/// </summary>
+	public string GpuDrivenCache { get; set; }
+
+	/// <summary>What the cached variants were compiled by: a different version compiles them again.</summary>
+	public string GpuDrivenCompilerVersion { get; set; } = "";
+
+	readonly Dictionary<ShaderFile, string> gpuDrivenCachePaths = new( ReferenceEqualityComparer.Instance );
+	readonly HashSet<ShaderFile> gpuDrivenPending = new( ReferenceEqualityComparer.Instance );
+	readonly HashSet<ShaderFile> gpuDrivenCompiled = new( ReferenceEqualityComparer.Instance );
+
+	/// <summary>
 	/// A shader's GPU-driven variant (<c>ShaderCompiler -gpudriven</c>): <c>name.gpudriven.shader_c</c> beside its
-	/// <c>.shader_c</c>, loaded once; null when it wasn't compiled. Same modes, features and combos as the shader.
+	/// <c>.shader_c</c>, or one <see cref="GpuDrivenCompiler"/> made, loaded once; null when there's none. Without one
+	/// beside it, the first call starts compiling it and returns null until it's ready (<see cref="GpuDrivenPending"/>).
+	/// Same modes, features and combos as the shader.
 	/// </summary>
 	public ShaderFile GpuDriven( ShaderFile shader )
 	{
@@ -76,11 +98,97 @@ public sealed class ShaderLibrary : IDisposable
 		if ( shader.Name.EndsWith( suffix, StringComparison.OrdinalIgnoreCase ) )
 		{
 			var path = shader.Name[..^suffix.Length] + ".gpudriven" + suffix;
-			if ( File.Exists( path ) ) variant = ShaderFile.Load( path );
+			if ( File.Exists( path ) )
+			{
+				variant = ShaderFile.Load( path );
+			}
+			else
+			{
+				if ( !CompiledGpuDriven( shader, out var compiled ) ) return null;
+				if ( compiled is not null ) variant = ShaderFile.Load( compiled );
+			}
 		}
 
 		lock ( gpuDriven ) gpuDriven[shader] = variant;
 		return variant;
+	}
+
+	/// <summary>Whether <paramref name="shader"/>'s GPU-driven variant is being compiled, so a null one isn't final yet.</summary>
+	public bool GpuDrivenPending( ShaderFile shader )
+	{
+		lock ( gpuDrivenPending ) return shader is not null && gpuDrivenPending.Contains( shader );
+	}
+
+	/// <summary>
+	/// The cached compiled variant of a shader with none beside it, in <paramref name="path"/> (null when it can't be
+	/// had); false while it's compiling.
+	/// </summary>
+	bool CompiledGpuDriven( ShaderFile shader, out string path )
+	{
+		path = null;
+		if ( GpuDrivenCompiler is not { } compiler || string.IsNullOrEmpty( GpuDrivenCache ) || !File.Exists( shader.Name ) ) return true;
+
+		lock ( gpuDrivenPending )
+		{
+			// Pending until a lookup sees it finished, so nothing settles on null in between
+			if ( gpuDrivenPending.Contains( shader ) )
+			{
+				if ( !gpuDrivenCompiled.Remove( shader ) ) return false;
+				gpuDrivenPending.Remove( shader );
+			}
+			if ( !gpuDrivenCachePaths.TryGetValue( shader, out path ) )
+			{
+				// By name and contents, so a changed package shader compiles again
+				var hash = Convert.ToHexString( System.Security.Cryptography.SHA256.HashData( File.ReadAllBytes( shader.Name ) ), 0, 8 );
+				var version = Convert.ToHexString( System.Security.Cryptography.SHA256.HashData( System.Text.Encoding.UTF8.GetBytes( GpuDrivenCompilerVersion ) ), 0, 4 );
+				var name = System.Text.RegularExpressions.Regex.Replace( Path.GetFileNameWithoutExtension( shader.Name ), "[^a-zA-Z0-9_]", "_" );
+				path = Path.Combine( GpuDrivenCache, $"{name}.{hash}.{version}.gpudriven.shader_c" ).ToLowerInvariant();
+				gpuDrivenCachePaths[shader] = path;
+			}
+
+			if ( File.Exists( path ) ) return true;
+
+			// Failed with this compiler before: classic it stays
+			if ( File.Exists( path + ".failed" ) )
+			{
+				path = null;
+				return true;
+			}
+
+			gpuDrivenPending.Add( shader );
+		}
+
+		var source = shader.Name;
+		var output = path;
+		Task.Run( () =>
+		{
+			var written = false;
+			try
+			{
+				written = compiler( source, output ) && File.Exists( output );
+			}
+			catch ( Exception )
+			{
+				written = false;
+			}
+
+			if ( !written )
+			{
+				try
+				{
+					Directory.CreateDirectory( Path.GetDirectoryName( output ) );
+					File.WriteAllText( output + ".failed", GpuDrivenCompilerVersion );
+				}
+				catch ( IOException )
+				{
+				}
+			}
+
+			lock ( gpuDrivenPending ) gpuDrivenCompiled.Add( shader );
+		} );
+
+		path = null;
+		return false;
 	}
 
 	/// <summary>

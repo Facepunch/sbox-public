@@ -17,6 +17,9 @@ internal readonly struct SizeCull
 
 	public bool Enabled => _thresholdSquared > 0;
 
+	/// <summary>The camera and squared threshold, for culling on the GPU with the same test.</summary>
+	public Vector4 CameraAndThreshold => new( _cameraPosition.x, _cameraPosition.y, _cameraPosition.z, _thresholdSquared );
+
 	/// <summary>
 	/// Whether an object with these world bounds is too small to draw.
 	/// </summary>

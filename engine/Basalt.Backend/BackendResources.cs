@@ -334,7 +334,8 @@ internal sealed class BackendMaterial : GpuMaterial
 				variant = null;
 			}
 
-			gpuDrivenVariants[key] = variant;
+			// Not while its variant is compiling: the batch draws classic until then
+			if ( variant is not null || !library.GpuDrivenPending( Shader ) ) gpuDrivenVariants[key] = variant;
 			return variant;
 		}
 	}

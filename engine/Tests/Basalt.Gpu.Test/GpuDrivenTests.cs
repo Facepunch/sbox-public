@@ -1,7 +1,11 @@
 using Basalt;
 using Basalt.Backend;
 using Basalt.Gpu;
+using Basalt.Source2;
+using Basalt.Source2.Shaders;
 using Sandbox;
+using System.IO;
+using System.Threading;
 
 namespace BasaltGpuTests;
 
@@ -19,7 +23,8 @@ public class GpuDrivenTests : GpuTest
 
 	/// <summary>
 	/// Aggregates of boxes in three materials (prepass, forward) draw the same pixels GPU-driven as the classic way, one
-	/// bucket for all three materials instead of a bind each; and with a bucket per material.
+	/// bucket for all three materials instead of a bind each; with a bucket per material; and culled on the CPU instead of
+	/// the GPU.
 	/// </summary>
 	[TestMethod]
 	public void AggregatesDrawTheSamePixelsGpuDriven()
@@ -54,9 +59,10 @@ public class GpuDrivenTests : GpuTest
 			view.Position = new Vector3( -500, -300, 300 );
 			view.Rotation = Rotation.LookAt( -view.Position.WithZ( view.Position.z - 40 ) );
 
-			byte[] Frame( bool gpuDriven, out int binds, bool materialBuckets )
+			byte[] Frame( bool gpuDriven, out int binds, bool materialBuckets, bool gpuCulling = true )
 			{
 				backend.GpuDriven = gpuDriven;
+				backend.GpuDrivenCulling = gpuCulling;
 				backend.GpuDrivenMaterialBuckets = materialBuckets;
 				backend.TimeDraws = true;
 				backend.DrawTimes.Reset();
@@ -78,6 +84,7 @@ public class GpuDrivenTests : GpuTest
 			var again = Frame( true, out _, false );
 			Assert.AreEqual( drawRecords, backend.GpuDrivenTables.Records.Draws, "the second frame reuses the aggregates' draw records" );
 			var perMaterial = Frame( true, out var perMaterialBinds, true );
+			var cpuCulled = Frame( true, out _, false, gpuCulling: false );
 
 			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );
 			Assert.AreEqual( 0, Different( classic, perMaterial ), "a bucket per material draws the classic pixels" );
@@ -86,11 +93,78 @@ public class GpuDrivenTests : GpuTest
 			Assert.IsTrue( drivenBinds < classicBinds, $"fewer binds GPU-driven ({drivenBinds}) than classic ({classicBinds})" );
 			Assert.AreEqual( 0, Different( classic, driven ), "GPU-driven draws the classic pixels" );
 			CollectionAssert.AreEqual( driven, again, "the same frame twice" );
+			Assert.AreEqual( 0, Different( classic, cpuCulled ), "culled on the CPU, the classic pixels too" );
+			Assert.IsNotNull( backend.GpuDrivenCullShader, "the culling shader is built, so the GPU-driven frames culled on the GPU" );
 		}
 		finally
 		{
 			Device.WaitIdle();
 			RenderHost.Current = previousHost;
+		}
+	}
+
+	/// <summary>
+	/// A shader with no variant beside it (a package's) gets one from the library's compiler: none while it compiles,
+	/// then the compiled one, cached, so another library loads it without compiling.
+	/// </summary>
+	[TestMethod]
+	public void PackageShaderVariantCompilesAtLoad()
+	{
+		var files = ShaderFileTests.Files;
+		var compiled = files.Find( "shaders/depth_only.gpudriven.shader" );
+		if ( compiled is null ) Assert.Inconclusive( "depth_only has no GPU-driven variant: ShaderCompiler -gpudriven" );
+
+		var folder = Path.Combine( Path.GetTempPath(), $"basalt-gpudriven-{Guid.NewGuid():N}" );
+		Directory.CreateDirectory( Path.Combine( folder, "package", "shaders" ) );
+		File.Copy( files.Find( "shaders/depth_only.shader" ), Path.Combine( folder, "package", "shaders", "depth_only.shader_c" ) );
+
+		try
+		{
+			using var started = new ManualResetEventSlim();
+			using var go = new ManualResetEventSlim();
+			var compiles = 0;
+
+			using ( var library = new ShaderLibrary( Device, new ContentFiles( Path.Combine( folder, "package" ) ) ) )
+			{
+				library.GpuDrivenCache = Path.Combine( folder, "cache" );
+				library.GpuDrivenCompiler = ( source, output ) =>
+				{
+					Interlocked.Increment( ref compiles );
+					started.Set();
+					go.Wait( 10000 );
+					Directory.CreateDirectory( Path.GetDirectoryName( output ) );
+					File.Copy( compiled, output );
+					return true;
+				};
+
+				var shader = library.Load( "shaders/depth_only.shader" );
+				Assert.IsNull( library.GpuDriven( shader ), "none while it compiles" );
+				Assert.IsTrue( started.Wait( 10000 ) && library.GpuDrivenPending( shader ), "compiling" );
+				Assert.IsNull( library.GpuDriven( shader ), "still none" );
+				go.Set();
+
+				ShaderFile variant = null;
+				for ( int i = 0; i < 1000 && variant is null; i++ )
+				{
+					variant = library.GpuDriven( shader );
+					if ( variant is null ) Thread.Sleep( 10 );
+				}
+
+				Assert.IsNotNull( variant, "the compiled variant" );
+				Assert.IsFalse( library.GpuDrivenPending( shader ) );
+				Assert.AreEqual( 1, compiles, "compiled once" );
+			}
+
+			using ( var library = new ShaderLibrary( Device, new ContentFiles( Path.Combine( folder, "package" ) ) ) )
+			{
+				library.GpuDrivenCache = Path.Combine( folder, "cache" );
+				library.GpuDrivenCompiler = ( _, _ ) => throw new AssertFailedException( "the cached variant compiled again" );
+				Assert.IsNotNull( library.GpuDriven( library.Load( "shaders/depth_only.shader" ) ), "from the cache" );
+			}
+		}
+		finally
+		{
+			Directory.Delete( folder, true );
 		}
 	}
 

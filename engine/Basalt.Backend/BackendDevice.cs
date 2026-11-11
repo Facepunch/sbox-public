@@ -3,6 +3,7 @@ using Basalt.Source2;
 using Basalt.Source2.Materials;
 using Basalt.Source2.Shaders;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Threading;
 
@@ -203,6 +204,7 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 		Gpu = gpu;
 		Content = content ?? ContentFiles.FindGame();
 		Shaders = new ShaderLibrary( gpu, Content );
+		CompileGpuDrivenWithShaderCompiler();
 		Defaults = new ShaderDefaults( gpu );
 
 		// Bindless buffers shaders may read: nothing animated, no pipeline texture indices
@@ -211,6 +213,41 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 
 		black = Placeholder( "Black", cube: false );
 		sheetMetadata = Placeholder( "Sheet metadata", cube: false );
+	}
+
+	/// <summary>
+	/// Shaders without a GPU-driven variant beside them (a package's) get one compiled at load by the ShaderCompiler
+	/// beside the application, from the source embedded in their compiled file, into <c>game/.source2/basaltgpudriven</c>;
+	/// their draws stay classic until it's ready. Nothing when there's no ShaderCompiler or game folder.
+	/// </summary>
+	void CompileGpuDrivenWithShaderCompiler()
+	{
+		var compiler = Path.Combine( AppContext.BaseDirectory, "ShaderCompiler.exe" );
+		var core = Content.Roots.FirstOrDefault( x => File.Exists( Path.Combine( x, "shaders", "basalt_gpu_driven.fxc" ) ) );
+		if ( !File.Exists( compiler ) || core is null ) return;
+
+		var game = Path.GetDirectoryName( core );
+		Shaders.GpuDrivenCache = Path.Combine( game, ".source2", "basaltgpudriven" );
+		Shaders.GpuDrivenCompilerVersion = $"{File.GetLastWriteTimeUtc( compiler ).Ticks}.{File.GetLastWriteTimeUtc( Path.Combine( core, "shaders", "basalt_gpu_driven.fxc" ) ).Ticks}";
+		Shaders.GpuDrivenCompiler = ( source, output ) =>
+		{
+			// Core shaders embed no source: build-shaders makes theirs, and one without stays classic
+			if ( Path.GetFullPath( source ).StartsWith( core, StringComparison.OrdinalIgnoreCase ) ) return false;
+
+			var info = new ProcessStartInfo( compiler ) { WorkingDirectory = game, UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
+			foreach ( var argument in (string[])["--recompile", source, "-gpudriven", "-q", "--out", output] ) info.ArgumentList.Add( argument );
+
+			using var process = Process.Start( info );
+			if ( process is null ) return false;
+			process.OutputDataReceived += static ( _, _ ) => { };
+			process.ErrorDataReceived += static ( _, _ ) => { };
+			process.BeginOutputReadLine();
+			process.BeginErrorReadLine();
+			if ( process.WaitForExit( TimeSpan.FromMinutes( 10 ) ) ) return process.ExitCode == 0;
+
+			process.Kill( true );
+			return false;
+		};
 	}
 
 	BackendTexture Placeholder( string name, bool cube )
@@ -563,6 +600,31 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	internal override GpuContext CreateContext( GpuContext frame = null ) => new BackendContext( this, (BackendContext)frame );
 
 	internal override bool DrawsAggregatesGpuDriven => GpuDriven && MaterialObjects && GpuDrivenTables is not null;
+
+	/// <summary>
+	/// Cull GPU-driven aggregates' fragments on the GPU (<c>basalt_gpu_driven_cull_cs</c>), by the same frustum and size
+	/// tests the CPU makes, from records written once: the CPU writes 16 bytes per aggregate a frame instead of an instance
+	/// record and command per visible fragment. On by default; off writes them on the CPU, to compare.
+	/// </summary>
+	public bool GpuDrivenCulling { get; set; } = true;
+
+	/// <summary>The culling compute shader, or null when it isn't built.</summary>
+	internal ShaderFile GpuDrivenCullShader
+	{
+		get
+		{
+			if ( !gpuDrivenCullShaderLoaded )
+			{
+				gpuDrivenCullShader = Shaders.Load( "shaders/basalt_gpu_driven_cull_cs.shader" );
+				gpuDrivenCullShaderLoaded = true;
+			}
+
+			return gpuDrivenCullShader;
+		}
+	}
+
+	ShaderFile gpuDrivenCullShader;
+	bool gpuDrivenCullShaderLoaded;
 
 	/// <summary>Async compute isn't wired yet: contexts all record on the graphics queue.</summary>
 	public override bool SupportsAsyncCompute => false;
