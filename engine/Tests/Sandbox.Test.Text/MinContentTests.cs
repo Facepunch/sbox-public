@@ -8,20 +8,20 @@ namespace TextTests;
 public class MinContentTests
 {
 	[DataTestMethod]
-	[DataRow( "small extraordinary words", "extraordinary", false, false )]
-	[DataRow( "one\u00a0two three", "one\u00a0two", false, false )]
-	[DataRow( "extraordinary\nsmall", "extraordinary", false, false )]
-	[DataRow( "small extraordinary words", "small extraordinary words", true, false )]
-	[DataRow( "small words  ", "small words  ", true, false )]
-	[DataRow( "a \u05d0\u05d1\u05d2\u05d3\u05d4 words", "words", false, false )]
-	[DataRow( "a   bb", "bb", false, true )]
-	[DataRow( "bb   a", "bb ", false, true )]
-	[DataRow( "   ", " ", false, true )]
-	[DataRow( "bb  \na", "bb ", false, true )]
-	[DataRow( "bb  \naa", "bb ", false, true )]
-	[DataRow( "\n", "", false, false )]
-	[DataRow( "", "", false, false )]
-	public void WidthAndHeightMatchIntrinsicConstraint( string text, string longest, bool noWrap, bool preserveSpaces )
+	[DataRow( "small extraordinary words", new[] { "extraordinary" }, false, false )]
+	[DataRow( "one\u00a0two three", new[] { "one\u00a0two" }, false, false )]
+	[DataRow( "extraordinary\nsmall", new[] { "extraordinary" }, false, false )]
+	[DataRow( "small extraordinary words", new[] { "small extraordinary words" }, true, false )]
+	[DataRow( "small words  ", new[] { "small words  " }, true, false )]
+	[DataRow( "a \u05d0\u05d1\u05d2\u05d3\u05d4 words", new[] { "a", "\u05d0\u05d1\u05d2\u05d3\u05d4", "words" }, false, false )]
+	[DataRow( "a   bb", new[] { "bb" }, false, true )]
+	[DataRow( "bb   a", new[] { "bb " }, false, true )]
+	[DataRow( "   ", new[] { " " }, false, true )]
+	[DataRow( "bb  \na", new[] { "bb " }, false, true )]
+	[DataRow( "bb  \naa", new[] { "bb " }, false, true )]
+	[DataRow( "\n", new[] { "" }, false, false )]
+	[DataRow( "", new[] { "" }, false, false )]
+	public void WidthAndHeightMatchIntrinsicConstraint( string text, string[] longestCandidates, bool noWrap, bool preserveSpaces )
 	{
 		var block = new TextBlock { NoWrap = noWrap, MaxWidth = 20, MaxHeight = 10, Overflow = TextOverflow.Ellipsis };
 		var reference = new TextBlock();
@@ -29,10 +29,16 @@ public class MinContentTests
 		{
 			var style = new Style { FontFamily = "Arial", FontSize = 16 };
 			block.AddText( text, style );
-			reference.AddText( longest, style );
+			float expectedWidth = 0;
+			foreach ( string candidate in longestCandidates )
+			{
+				reference.Clear();
+				reference.AddText( candidate, style );
+				expectedWidth = MathF.Max( expectedWidth, reference.MeasuredWidth );
+			}
 			var before = (block.MeasuredWidth, block.MeasuredHeight, block.Lines.Count, block.Truncated);
 			var intrinsic = block.MeasureMinContent( preserveSpaces: preserveSpaces );
-			Assert.AreEqual( reference.MeasuredWidth, intrinsic.Width, 0.01f );
+			Assert.AreEqual( expectedWidth, intrinsic.Width, 0.01f );
 			Assert.AreEqual( before, (block.MeasuredWidth, block.MeasuredHeight, block.Lines.Count, block.Truncated) );
 
 			reference.Clear();
