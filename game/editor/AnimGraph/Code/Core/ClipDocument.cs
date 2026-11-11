@@ -36,6 +36,13 @@ public sealed class ClipDocument : IAnimationDocument
 		set => _root[TakeKey] = Math.Max( value, 0 );
 	}
 
+	[Property, Group( "Import Settings", StartFolded = true ), HideIf( nameof( UseMorphFrame ), true ), Description( "Reverse the animation after trimming the source frames." )]
+	public bool Reverse
+	{
+		get => ReadBool( ReverseKey, false );
+		set => _root[ReverseKey] = value;
+	}
+
 	[Property, Group( "Import Settings", StartFolded = true ), WideMode, Editor( "animgraph.frame-range" ), ShowIf( nameof( HasSourceFrames ), true ), HideIf( nameof( UseMorphFrame ), true ),
 		Description( "Choose the source frames to import. Drag either end to trim, or drag the middle to move the range. Frame numbers include both endpoints." )]
 	public Vector2 FrameRange
@@ -1015,7 +1022,7 @@ public sealed class ClipDocument : IAnimationDocument
 	[SkipHotload]
 	private static readonly string[] ImportKeys =
 	[
-		SourceFilenameKey, SkeletonKey, TakeKey, StartFrameKey, EndFrameKey, ImportScaleKey, ImportFrameRateKey, DurationOverrideKey, DisableInterpolationKey,
+		SourceFilenameKey, SkeletonKey, TakeKey, ReverseKey, StartFrameKey, EndFrameKey, ImportScaleKey, ImportFrameRateKey, DurationOverrideKey, DisableInterpolationKey,
 		SmoothLoopKey, SmoothLoopFramesFromStartKey, SmoothLoopFramesFromEndKey,
 		StartLoopFrameKey, LinearDeltaKey, LinearDeltaSplineKey, MorphFrameWeightsKey,
 		AlignmentReferenceKey, AlignmentReferenceTakeKey, AlignmentBoneKey, AlignmentFrameModeKey, AlignmentFrameKey,
@@ -1037,6 +1044,7 @@ public sealed class ClipDocument : IAnimationDocument
 	private const string SecondaryAnimationsKey = "m_secondaryAnimations";
 	private const string SourceFilenameKey = "m_sourceFilename";
 	private const string TakeKey = "m_nTake";
+	private const string ReverseKey = "m_bReverse";
 	private const string StartFrameKey = "m_nStartFrame";
 	private const string EndFrameKey = "m_nEndFrame";
 	private const string ImportScaleKey = "m_flImportScale";

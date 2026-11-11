@@ -203,6 +203,7 @@ internal sealed class ImportAnimationDialog : Dialog
 		var serialized = EditorTypeLibrary.GetSerializedObject( entry.Document );
 		var sheet = new ControlSheet();
 		sheet.AddRow( serialized.GetProperty( nameof( ClipDocument.Take ) ) );
+		sheet.AddRow( serialized.GetProperty( nameof( ClipDocument.Reverse ) ) );
 		sheet.AddGroup( "Trim / Duration",
 		[
 			serialized.GetProperty( nameof( ClipDocument.FrameRange ) ),
