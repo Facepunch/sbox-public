@@ -391,7 +391,8 @@ internal sealed partial class BackendContext
 		cullAttributes.Set( "BasaltCullFrame", frameBuffer );
 		cullAttributes.SetData( "BasaltGpuDrivenCull_t", cullConstants );
 		cullDrawer.Dispatch( r.List, CullShader, cullAttributes, batchCount * 64, 1, 1 );
-		r.List.Barrier( PipelineStage.AllCommands, MemoryAccess.MemoryWrite, PipelineStage.AllCommands, MemoryAccess.MemoryRead );
+		// Only the culling's writes before the draws' reads of them: the draws before it needn't drain
+		r.List.Barrier( PipelineStage.ComputeShader, MemoryAccess.ShaderWrite, PipelineStage.DrawIndirect | PipelineStage.VertexShader, MemoryAccess.IndirectRead | MemoryAccess.ShaderRead );
 		r.Pipeline = default;
 		r.Binder = null;
 		if ( !EnsureScope() ) return;
