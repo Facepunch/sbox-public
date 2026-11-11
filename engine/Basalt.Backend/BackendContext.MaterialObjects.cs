@@ -288,6 +288,7 @@ internal sealed partial class BackendContext
 	/// <summary>A new pass state when the attributes changed since the last one, or a scope opened.</summary>
 	void NextPassState( MaterialObjectCache cache )
 	{
+		BindViewSet( recording.List );
 		var version = attributes.Version;
 		if ( recording.BindVersion == version ) return;
 		recording.BindVersion = version;

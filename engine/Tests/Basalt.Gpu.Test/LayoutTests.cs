@@ -1,6 +1,7 @@
 using Basalt.Gpu;
 using Basalt.Gpu.Memory;
 using Basalt.Gpu.Vulkan;
+using System.IO;
 using System.Runtime.CompilerServices;
 
 namespace BasaltGpuTests;
@@ -49,6 +50,33 @@ public class LayoutTests
 		Assert.AreEqual( 62, ShaderAbi.BindlessTextures );
 		Assert.AreEqual( 190, ShaderAbi.BindlessStorageTextures );
 		Assert.AreEqual( 46, ShaderAbi.Texture( 0 ) );
+	}
+
+	/// <summary>
+	/// The view set's bindings are native's (<c>g_ViewDescriptorSetEntries</c> in scenesystem/viewdescriptorset.h), in
+	/// the same order, each at its register's binding and filled from the same attribute.
+	/// </summary>
+	[TestMethod]
+	public void ViewSetBindingsMatchNative()
+	{
+		var directory = new DirectoryInfo( AppContext.BaseDirectory );
+		while ( directory is not null && !File.Exists( Path.Combine( directory.FullName, "src", "public", "scenesystem", "viewdescriptorset.h" ) ) ) directory = directory.Parent;
+		Assert.IsNotNull( directory, "the checkout's src/public/scenesystem/viewdescriptorset.h" );
+
+		var header = File.ReadAllText( Path.Combine( directory.FullName, "src", "public", "scenesystem", "viewdescriptorset.h" ) );
+		var entries = System.Text.RegularExpressions.Regex.Matches( header, @"\{\s*VIEW_DESCRIPTOR_(CONSTANT_BUFFER|BUFFER),\s*(\d+),\s*""(\w+)""\s*\}" );
+
+		Assert.AreEqual( 5, ShaderAbi.ViewSet );
+		Assert.AreEqual( entries.Count, ShaderAbi.ViewSetBindings.Length );
+		for ( int i = 0; i < entries.Count; i++ )
+		{
+			var constantBuffer = entries[i].Groups[1].Value == "CONSTANT_BUFFER";
+			var register = int.Parse( entries[i].Groups[2].Value );
+			var (binding, type, attribute) = ShaderAbi.ViewSetBindings[i];
+			Assert.AreEqual( constantBuffer ? ShaderAbi.ConstantBuffer( register ) : ShaderAbi.Texture( register ), binding, attribute );
+			Assert.AreEqual( constantBuffer ? BindingType.UniformBuffer : BindingType.StorageBuffer, type, attribute );
+			Assert.AreEqual( entries[i].Groups[3].Value, attribute );
+		}
 	}
 
 	/// <summary>
