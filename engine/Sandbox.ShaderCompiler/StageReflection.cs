@@ -43,6 +43,11 @@ internal static class StageReflection
 			Bindings = bindings,
 			Globals = globals,
 			Inputs = stage == StageKind.Vertex ? Inputs( root, entry, inputs ) : [],
+			Specializations = Spirv.SpecializationIds( spirv )
+				.Select( id => (Id: id, Name: VfxIncludes.SpecializationName( id )) )
+				.Where( s => s.Name is not null )
+				.Select( s => new SpecializationSlot( s.Id, s.Name, annotations.GetValueOrDefault( s.Name ) ) )
+				.ToList(),
 		};
 	}
 

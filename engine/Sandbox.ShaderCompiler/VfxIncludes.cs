@@ -22,10 +22,54 @@ internal static partial class VfxIncludes
 	[GeneratedRegex( @"(\w+)\s*\(([^()]*(?:\([^()]*\)[^()]*)*)\)" )]
 	private static partial Regex Entry();
 
+	// "int X < Attribute( "Y" ); Default( 0 ); SpecializedConstant(); >;"
+	[GeneratedRegex( @"^(?<lead>[ \t]*)(?<type>int|uint|bool|float)[ \t]+(?<name>\w+)[ \t]*<(?<annotations>[^<>]*SpecializedConstant\(\s*\)[^<>]*)>[ \t]*;", RegexOptions.Multiline )]
+	private static partial Regex Specialized();
+
+	static readonly Dictionary<string, int> specializationIds = new( StringComparer.Ordinal );
+
+	/// <summary>First specialization constant id given to <c>SpecializedConstant()</c> globals; lower ids are the shaders' own.</summary>
+	public const int FirstSpecializationId = 64;
+
+	/// <summary>The specialization constant id of a <c>SpecializedConstant()</c> global, the same for every compile in this process.</summary>
+	public static int SpecializationId( string name )
+	{
+		lock ( specializationIds )
+		{
+			if ( !specializationIds.TryGetValue( name, out var id ) ) specializationIds[name] = id = FirstSpecializationId + specializationIds.Count;
+			return id;
+		}
+	}
+
+	/// <summary>The global a specialization constant id was given to, or null.</summary>
+	public static string SpecializationName( int id )
+	{
+		lock ( specializationIds ) return specializationIds.FirstOrDefault( p => p.Value == id ).Key;
+	}
+
 	/// <summary>Rewrite one included file's text and add its annotations to <paramref name="annotations"/>.</summary>
 	public static string Rewrite( string text, Dictionary<string, Annotations> annotations )
 	{
 		text = ExternalSet().Replace( text, m => $"#define {m.Groups[1].Value} {3 + int.Parse( m.Groups[2].Value, CultureInfo.InvariantCulture )}" );
+
+		// SpecializedConstant() globals are specialization constants, as vfx compiles them: the pipeline is made per value
+		text = Specialized().Replace( text, m =>
+		{
+			var name = m.Groups["name"].Value;
+			var type = m.Groups["type"].Value;
+			var parsed = Parse( m.Groups["annotations"].Value ) ?? new Annotations();
+			parsed.Specialized = true;
+			annotations[name] = parsed;
+			var value = parsed.Default is { Length: > 0 } d ? d[0] : 0;
+			var literal = type switch
+			{
+				"bool" => value != 0 ? "true" : "false",
+				"float" => value.ToString( "R", CultureInfo.InvariantCulture ),
+				"uint" => ((uint)Math.Max( value, 0 )).ToString( CultureInfo.InvariantCulture ),
+				_ => ((int)value).ToString( CultureInfo.InvariantCulture ),
+			};
+			return $"{m.Groups["lead"].Value}[vk::constant_id( {SpecializationId( name )} )] const {type} {name} = {literal};";
+		} );
 
 		foreach ( Match m in Annotated().Matches( text ) )
 		{

@@ -95,6 +95,16 @@ public sealed class CompiledStage
 
 	/// <summary>Vertex inputs (vertex stage), by location.</summary>
 	public IReadOnlyList<VertexInputSlot> Inputs { get; init; }
+
+	/// <summary>Specialization constants from <c>SpecializedConstant()</c> globals, set per pipeline from their attributes.</summary>
+	public IReadOnlyList<SpecializationSlot> Specializations { get; init; } = [];
+}
+
+/// <summary>A specialization constant: its id, the global it was, and the attribute and default it takes.</summary>
+public sealed record SpecializationSlot( int Id, string Name, Annotations Annotations )
+{
+	/// <summary>The attribute its value comes from.</summary>
+	public string Attribute => Annotations?.Attribute ?? Name;
 }
 
 /// <summary>What a descriptor holds.</summary>

@@ -13,7 +13,7 @@ internal static class Spirv
 {
 	const int OpName = 5, OpTypeImage = 25, OpTypeSampler = 26, OpTypeSampledImage = 27, OpTypeArray = 28, OpTypeRuntimeArray = 29;
 	const int OpTypeStruct = 30, OpTypePointer = 32, OpConstant = 43, OpVariable = 59, OpDecorate = 71;
-	const int DecorationBufferBlock = 3, DecorationBuiltIn = 11, DecorationLocation = 30, DecorationBinding = 33, DecorationDescriptorSet = 34;
+	const int DecorationSpecId = 1, DecorationBufferBlock = 3, DecorationBuiltIn = 11, DecorationLocation = 30, DecorationBinding = 33, DecorationDescriptorSet = 34;
 	const int StorageUniformConstant = 0, StorageInput = 1, StorageUniform = 2, StoragePushConstant = 9, StorageBuffer = 12;
 
 	/// <summary>A descriptor variable: name, set, binding, what it is, array count (0 unbounded), image shape.</summary>
@@ -121,6 +121,23 @@ internal static class Spirv
 		result.Sort( ( a, b ) => a.Set != b.Set ? a.Set.CompareTo( b.Set ) : a.Binding.CompareTo( b.Binding ) );
 		inputs.Sort();
 		return (result, inputs, push);
+	}
+
+	/// <summary>The specialization constant ids the module declares (<c>SpecId</c> decorations).</summary>
+	public static List<int> SpecializationIds( ReadOnlySpan<byte> spirv )
+	{
+		var words = Words( spirv );
+		var ids = new List<int>();
+		for ( int i = 5; i < words.Length; )
+		{
+			var op = (int)(words[i] & 0xFFFF);
+			var count = (int)(words[i] >> 16);
+			if ( count == 0 ) break;
+			if ( op == OpDecorate && count >= 4 && words[i + 2] == DecorationSpecId ) ids.Add( (int)words[i + 3] );
+			i += count;
+		}
+
+		return ids;
 	}
 
 	/// <summary>Move every descriptor in set <paramref name="from"/> to set <paramref name="to"/>.</summary>
