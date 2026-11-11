@@ -36,6 +36,13 @@ public sealed class SurfaceShaders : IDisposable
 	/// <summary>Called with a shader's compile errors; the material then draws nothing.</summary>
 	public Action<string> Error { get; set; } = message => Console.Error.WriteLine( message );
 
+	/// <summary>
+	/// Whether the pixel stage reads a material's record at the offset the vertex stage passes on (on, the default: what
+	/// one GPU-driven bucket per pipeline needs) or at the draw's own (off: uniform per draw, for buckets split by
+	/// material). A specialization constant: both forms are compiled into every surface.
+	/// </summary>
+	public bool MaterialOffsetPerPixel { get; set; } = true;
+
 	/// <summary>The records every surface material's fields are in.</summary>
 	internal SurfaceRecords Records { get; }
 

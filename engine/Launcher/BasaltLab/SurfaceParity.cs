@@ -88,8 +88,10 @@ internal static class SurfaceParity
 			var reference = Render( device, shader );
 			Save( reference, Path.Combine( folder, "shader.png" ) );
 
-			foreach ( var (name, material) in new (string, GpuMaterial)[] { ("surface", surface), ("raw", raw) } )
+			// The surface twice: its record offset passed on per pixel (the default) and read per draw
+			foreach ( var (name, material, perPixel) in new (string, GpuMaterial, bool)[] { ("surface", surface, true), ("surface-perdraw", surface, false), ("raw", raw, true) } )
 			{
+				device.Surfaces.MaterialOffsetPerPixel = perPixel;
 				var pixels = Render( device, material );
 				Save( pixels, Path.Combine( folder, $"{name}.png" ) );
 				var (mean, max, over, diff) = Compare( reference, pixels );
@@ -98,6 +100,8 @@ internal static class SurfaceParity
 				if ( !ok ) failed++;
 				lines.Add( $"{name} against .shader: mean difference {mean:F3}, max {max}, {over} pixels over 8{(ok ? "" : " FAIL")}" );
 			}
+
+			device.Surfaces.MaterialOffsetPerPixel = true;
 
 			// The three forward pixel shaders, for register counts (amdllpc)
 			var variant = shader.Variant( device.Shaders, "Forward", "Forward", _ => null, _ => null );

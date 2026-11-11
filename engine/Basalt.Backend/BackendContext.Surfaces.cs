@@ -15,6 +15,9 @@ internal sealed partial class BackendContext
 {
 	const string ForwardAlphaTestPass = ShaderPasses.Forward + "AlphaTest";
 
+	/// <summary><c>kMaterialOffsetPerPixel</c> in sbox/material.slang.</summary>
+	const uint MaterialOffsetPerPixelId = 2;
+
 	bool DrawSurface( SurfaceMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias, float slopeScaledDepthBias, bool stripPixelShader, bool skinned, in IndirectDraws indirect )
 	{
 		if ( mesh.Geometry is not IBackendGeometry source || skinned ) return false;
@@ -73,10 +76,12 @@ internal sealed partial class BackendContext
 	/// </summary>
 	SpecializationConstant[] SurfaceConstants( CompiledStage stage, out ulong key )
 	{
-		key = 0;
-		if ( stage.Specializations.Count == 0 ) return null;
-		var constants = new SpecializationConstant[stage.Specializations.Count];
-		for ( int i = 0; i < constants.Length; i++ )
+		// Where the pixel stage reads the material record's offset (sbox/material.slang): passed on per pixel, or the draw's
+		var perPixel = device.Surfaces.MaterialOffsetPerPixel;
+		key = perPixel ? 1u : 2u;
+		var constants = new SpecializationConstant[stage.Specializations.Count + 1];
+		constants[^1] = new SpecializationConstant( MaterialOffsetPerPixelId, perPixel ? 1u : 0u );
+		for ( int i = 0; i < stage.Specializations.Count; i++ )
 		{
 			var slot = stage.Specializations[i];
 			var value = Integer( Lookup( Token( slot.Attribute ) ) ) ?? (int)(slot.Annotations?.Default is { Length: > 0 } d ? d[0] : 0);

@@ -193,11 +193,11 @@ public sealed partial class SlangCompiler
 		text.Append( "#include \"sbox/surface_passes.slangh\"\n" );
 		text.Append( "import " ).Append( module ).Append( ";\n\n" );
 		text.Append( "#if ( PROGRAM == VFX_PROGRAM_VS )\n" );
-		text.Append( "[shader( \"vertex\" )] PixelInput MainVs( VertexInput i ) { return " ).Append( vertex ).Append( "; }\n" );
+		text.Append( "[shader( \"vertex\" )] SurfaceVertexOutput MainVs( VertexInput i ) { return SurfaceOutput( " ).Append( vertex ).Append( " ); }\n" );
 		text.Append( "#else\n" );
-		text.Append( "[shader( \"pixel\" )] float4 ForwardPs( PixelInput i ) : SV_Target0 { return " ).Append( forward ).Append( '<' ).Append( type ).Append( ", false>( i ); }\n" );
-		text.Append( "[shader( \"pixel\" )] float4 ForwardAlphaTestPs( PixelInput i ) : SV_Target0 { return " ).Append( forward ).Append( '<' ).Append( type ).Append( ", true>( i ); }\n" );
-		text.Append( "[shader( \"pixel\" )] void DepthAlphaTestPs( PixelInput i ) { SurfaceDepth<" ).Append( type ).Append( ">( i ); }\n" );
+		text.Append( "[shader( \"pixel\" )] float4 ForwardPs( SurfaceVertexOutput i ) : SV_Target0 { return " ).Append( forward ).Append( '<' ).Append( type ).Append( ", false>( i.Pixel, PixelMaterialOffset( i.MaterialOffset ) ); }\n" );
+		text.Append( "[shader( \"pixel\" )] float4 ForwardAlphaTestPs( SurfaceVertexOutput i ) : SV_Target0 { return " ).Append( forward ).Append( '<' ).Append( type ).Append( ", true>( i.Pixel, PixelMaterialOffset( i.MaterialOffset ) ); }\n" );
+		text.Append( "[shader( \"pixel\" )] void DepthAlphaTestPs( SurfaceVertexOutput i ) { SurfaceDepth<" ).Append( type ).Append( ">( i.Pixel, PixelMaterialOffset( i.MaterialOffset ) ); }\n" );
 		text.Append( "#endif\n" );
 		return text.ToString();
 	}

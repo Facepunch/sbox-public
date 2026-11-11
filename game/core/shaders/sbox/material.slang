@@ -7,13 +7,35 @@ module material;
 // shifts, where the engine's Bindless.hlsl reads them (vk::binding isn't used: the shifts override it)
 Texture2D g_MaterialTextures2D[] : register( t16, space4 );
 
-// The material records and the record this draw reads. The offset is uniform per draw: a record read at a per-pixel
-// offset costs the big pixel shaders registers (designs/shaderauthoring.md).
+// The material records, and where this draw's is. A record's offset reaches the pixel stage one of two ways, picked by
+// the pipeline (specialization constant 2): per pixel, a nointerpolation value the vertex stage passes on (the default:
+// one GPU-driven bucket per pipeline draws many materials), or per draw, read straight from the draw's constant (uniform,
+// so the record is read with scalar loads; buckets split by material).
 ByteAddressBuffer g_SurfaceMaterials;
 struct SurfaceDraw_t { uint MaterialOffset; };
 [[vk::push_constant]] ConstantBuffer<SurfaceDraw_t> g_SurfaceDraw;
 
-/// This draw's material record, as a [Material] struct.
+[vk::constant_id( 2 )] public const bool kMaterialOffsetPerPixel = true;
+
+/// The draw's material record offset, for the vertex stage to read records with and pass on.
+public uint DrawMaterialOffset()
+{
+	return g_SurfaceDraw.MaterialOffset;
+}
+
+/// The record offset the pixel stage reads: what the vertex stage passed on, or the draw's own.
+public uint PixelMaterialOffset( uint fromVertex )
+{
+	return kMaterialOffsetPerPixel ? fromVertex : g_SurfaceDraw.MaterialOffset;
+}
+
+/// A material record at <offset>, as a [Material] struct.
+public T LoadMaterial<T>( uint offset )
+{
+	return g_SurfaceMaterials.Load<T>( offset );
+}
+
+/// This draw's material record, as a [Material] struct (the per-draw form).
 public T LoadMaterial<T>()
 {
 	return g_SurfaceMaterials.Load<T>( g_SurfaceDraw.MaterialOffset );

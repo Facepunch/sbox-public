@@ -12,7 +12,23 @@
 
 import sbox.surface;
 
+/// What the vertex stage hands the pixel stage: the engine's interpolants and the draw's material record offset, flat.
+struct SurfaceVertexOutput
+{
+	PixelInput Pixel;
+	nointerpolation uint MaterialOffset : TEXCOORD15;
+};
+
 #if ( PROGRAM == VFX_PROGRAM_VS )
+
+/// The vertex stage's output with the record offset passed on.
+SurfaceVertexOutput SurfaceOutput( PixelInput pixel )
+{
+	SurfaceVertexOutput o;
+	o.Pixel = pixel;
+	o.MaterialOffset = DrawMaterialOffset();
+	return o;
+}
 
 /// The vertex stage: the engine's, as common/vertex.hlsl's shaders do it.
 PixelInput SurfaceVertex( VertexInput i )
@@ -37,7 +53,7 @@ PixelInput SurfaceVertexDisplaced<S : IVertexSurface>( VertexInput i )
 	v.Wind = g_vWindDirection.xyz * g_vWindStrengthFreqMulHighStrength.x;
 	v.Time = g_flTime;
 
-	i.vPositionOs = LoadMaterial<S>().Displace( v );
+	i.vPositionOs = LoadMaterial<S>( DrawMaterialOffset() ).Displace( v );
 	PixelInput o = ProcessVertex( i );
 	return FinalizeVertex( o );
 }
@@ -81,9 +97,9 @@ ClassicMaterial ToClassicMaterial( PixelInput i, Material s )
 }
 
 /// Forward: evaluate, clip when alpha tested, shade with the engine's standard shading model.
-float4 SurfaceForward<S : ISurface, let AlphaTest : bool>( PixelInput i )
+float4 SurfaceForward<S : ISurface, let AlphaTest : bool>( PixelInput i, uint material )
 {
-	Material s = LoadMaterial<S>().Evaluate( MakeSurfaceInput( i ) );
+	Material s = LoadMaterial<S>( material ).Evaluate( MakeSurfaceInput( i ) );
 	if ( AlphaTest ) clip( s.Opacity - 0.5 );
 	return ShadingModelStandard::Shade( i, ToClassicMaterial( i, s ) );
 }
@@ -91,9 +107,9 @@ float4 SurfaceForward<S : ISurface, let AlphaTest : bool>( PixelInput i )
 /// Forward for a surface with its own per-light term, added to its emission before standard shading. Stub: Light is
 /// called for the sun only (with its shadow and modulators); point and spot lights get standard shading alone. The real
 /// hook goes in the engine's light loop (vr_lighting.fxc), so the loop stays the engine's.
-float4 SurfaceForwardLit<S : ILitSurface, let AlphaTest : bool>( PixelInput i )
+float4 SurfaceForwardLit<S : ILitSurface, let AlphaTest : bool>( PixelInput i, uint material )
 {
-	S surface = LoadMaterial<S>();
+	S surface = LoadMaterial<S>( material );
 	SurfaceInput input = MakeSurfaceInput( i );
 	Material s = surface.Evaluate( input );
 	if ( AlphaTest ) clip( s.Opacity - 0.5 );
@@ -116,9 +132,9 @@ float4 SurfaceForwardLit<S : ILitSurface, let AlphaTest : bool>( PixelInput i )
 }
 
 /// Depth for alpha-tested surfaces: the same Evaluate; everything but Opacity is dead and removed.
-void SurfaceDepth<S : ISurface>( PixelInput i )
+void SurfaceDepth<S : ISurface>( PixelInput i, uint material )
 {
-	clip( LoadMaterial<S>().Evaluate( MakeSurfaceInput( i ) ).Opacity - 0.5 );
+	clip( LoadMaterial<S>( material ).Evaluate( MakeSurfaceInput( i ) ).Opacity - 0.5 );
 }
 
 #endif
