@@ -1,0 +1,157 @@
+using System.Buffers.Binary;
+using System.Threading;
+
+namespace Basalt.Backend;
+
+/// <summary>
+/// A material of a new-tier shader (a Slang surface or raw module, see docs/managed/shader-format-replacement.md): its
+/// record, laid out as the shader's <c>[Material]</c> struct, with textures as bindless slots. The shader compiler
+/// generates a class per material deriving from this (<c>new Rock { Color = texture, Tint = ... }</c>); its properties
+/// write the record at their fields' offsets. The device finds and compiles the shader by file name the first time the
+/// material draws, and checks the layout the class was generated for against it.
+/// </summary>
+public abstract class SurfaceMaterial : GpuMaterial
+{
+	readonly byte[] record;
+	readonly Dictionary<int, (GpuTexture Texture, bool Srgb)> textures = new();
+	int version;
+
+	/// <summary>
+	/// A material of the shader in <paramref name="shader"/> (a file name the device's surface folders hold), with a
+	/// record of <paramref name="recordSize"/> bytes laid out as <paramref name="layoutHash"/> says.
+	/// </summary>
+	protected SurfaceMaterial( string shader, int recordSize, uint layoutHash )
+	{
+		Shader = shader;
+		record = new byte[recordSize];
+		LayoutHash = layoutHash;
+	}
+
+	/// <summary>The shader's file name (<c>rock.slang</c>).</summary>
+	public string Shader { get; }
+
+	/// <summary>The layout fingerprint the class was generated for; the compiled shader's must match.</summary>
+	public uint LayoutHash { get; }
+
+	/// <summary>Clip pixels whose opacity is under a half, in colour and depth passes.</summary>
+	public bool AlphaTest
+	{
+		get => alphaTest;
+		set
+		{
+			alphaTest = value;
+			Interlocked.Increment( ref version );
+		}
+	}
+
+	bool alphaTest;
+
+	/// <summary>Its name, for diagnostics; the shader's by default.</summary>
+	public string DisplayName { get; set; }
+
+	/// <summary>Moves on whenever a field changes.</summary>
+	public int Version => Volatile.Read( ref version );
+
+	/// <summary>The record as the shader reads it: texture slots resolved now, sRGB views for sRGB fields.</summary>
+	internal void WriteRecord( Span<byte> into, Func<GpuTexture, bool, int> slot )
+	{
+		lock ( record )
+		{
+			record.CopyTo( into );
+			foreach ( var (offset, (texture, srgb)) in textures )
+				BinaryPrimitives.WriteInt32LittleEndian( into[offset..], texture is null ? 0 : slot( texture, srgb ) );
+		}
+	}
+
+	/// <summary>Bytes in the record.</summary>
+	internal int RecordSize => record.Length;
+
+	void Changed() => Interlocked.Increment( ref version );
+
+	/// <summary>A texture field.</summary>
+	protected GpuTexture GetTexture( int offset )
+	{
+		lock ( record ) return textures.TryGetValue( offset, out var t ) ? t.Texture : null;
+	}
+
+	/// <summary>Set a texture field; <paramref name="srgb"/> reads it through its sRGB view.</summary>
+	protected void SetTexture( int offset, GpuTexture texture, bool srgb )
+	{
+		lock ( record ) textures[offset] = (texture, srgb);
+		Changed();
+	}
+
+	/// <summary>A float field.</summary>
+	protected float GetFloat( int offset )
+	{
+		lock ( record ) return BinaryPrimitives.ReadSingleLittleEndian( record.AsSpan( offset ) );
+	}
+
+	/// <summary>Set a float field.</summary>
+	protected void SetFloat( int offset, float value ) => Write( offset, value );
+
+	/// <summary>A float2 field.</summary>
+	protected Vector2 GetVector2( int offset ) => new( GetFloat( offset ), GetFloat( offset + 4 ) );
+
+	/// <summary>Set a float2 field.</summary>
+	protected void SetVector2( int offset, Vector2 value ) => Write( offset, value.x, value.y );
+
+	/// <summary>A float3 field.</summary>
+	protected Vector3 GetVector3( int offset ) => new( GetFloat( offset ), GetFloat( offset + 4 ), GetFloat( offset + 8 ) );
+
+	/// <summary>Set a float3 field.</summary>
+	protected void SetVector3( int offset, Vector3 value ) => Write( offset, value.x, value.y, value.z );
+
+	/// <summary>A float4 field.</summary>
+	protected Vector4 GetVector4( int offset ) => new( GetFloat( offset ), GetFloat( offset + 4 ), GetFloat( offset + 8 ), GetFloat( offset + 12 ) );
+
+	/// <summary>Set a float4 field.</summary>
+	protected void SetVector4( int offset, Vector4 value ) => Write( offset, value.x, value.y, value.z, value.w );
+
+	/// <summary>An int, uint or bool field.</summary>
+	protected int GetInt( int offset )
+	{
+		lock ( record ) return BinaryPrimitives.ReadInt32LittleEndian( record.AsSpan( offset ) );
+	}
+
+	/// <summary>Set an int, uint or bool field.</summary>
+	protected void SetInt( int offset, int value )
+	{
+		lock ( record ) BinaryPrimitives.WriteInt32LittleEndian( record.AsSpan( offset ), value );
+		Changed();
+	}
+
+	void Write( int offset, params ReadOnlySpan<float> values )
+	{
+		lock ( record )
+		{
+			for ( int i = 0; i < values.Length; i++ ) BinaryPrimitives.WriteSingleLittleEndian( record.AsSpan( offset + i * 4 ), values[i] );
+		}
+
+		Changed();
+	}
+
+	/// <inheritdoc/>
+	public override string Name => DisplayName ?? Shader;
+
+	/// <inheritdoc/>
+	public override bool IsTranslucent => false;
+
+	/// <inheritdoc/>
+	public override bool IsAlphaTest => AlphaTest;
+
+	/// <inheritdoc/>
+	public override bool ReadsFrameBuffer => false;
+
+	/// <summary>Never: a surface draws its depth with its own pass (vertices it moves, opacity it clips).</summary>
+	public override bool ShadowFastPath => false;
+
+	/// <inheritdoc/>
+	public override bool NeedsLightProbe => false;
+
+	/// <inheritdoc/>
+	public override ulong SimilarityKey => (ulong)StringComparer.OrdinalIgnoreCase.GetHashCode( Shader );
+
+	/// <inheritdoc/>
+	public override void Dispose() { }
+}

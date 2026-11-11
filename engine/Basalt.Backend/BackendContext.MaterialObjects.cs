@@ -162,17 +162,10 @@ internal sealed partial class BackendContext
 	/// <summary>A model draw, direct or indirect, through material objects or by reflection; timed when the device times draws.</summary>
 	bool Draw( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias, float slopeScaledDepthBias, bool stripPixelShader, bool skinned, in IndirectDraws indirect )
 	{
-		if ( !device.TimeDraws )
-		{
-			return device.MaterialObjects
-				? DrawWithMaterialObject( material, shaderMode, mesh, draw, firstInstance, instances, depthBias, slopeScaledDepthBias, stripPixelShader, skinned, indirect )
-				: DrawByReflection( material, shaderMode, mesh, draw, firstInstance, instances, depthBias, slopeScaledDepthBias, stripPixelShader, skinned, indirect );
-		}
+		if ( !device.TimeDraws ) return DrawUntimed( material, shaderMode, mesh, draw, firstInstance, instances, depthBias, slopeScaledDepthBias, stripPixelShader, skinned, indirect );
 
 		var start = System.Diagnostics.Stopwatch.GetTimestamp();
-		var drawn = device.MaterialObjects
-			? DrawWithMaterialObject( material, shaderMode, mesh, draw, firstInstance, instances, depthBias, slopeScaledDepthBias, stripPixelShader, skinned, indirect )
-			: DrawByReflection( material, shaderMode, mesh, draw, firstInstance, instances, depthBias, slopeScaledDepthBias, stripPixelShader, skinned, indirect );
+		var drawn = DrawUntimed( material, shaderMode, mesh, draw, firstInstance, instances, depthBias, slopeScaledDepthBias, stripPixelShader, skinned, indirect );
 		var ticks = System.Diagnostics.Stopwatch.GetTimestamp() - start;
 
 		// A bind: a different material or mode from the draw before, as Source 2's context would rebind. Of the rest, an
@@ -184,6 +177,18 @@ internal sealed partial class BackendContext
 		if ( !drawn ) device.DrawTimes.Fail( material?.Name );
 		else if ( indirect.Count > 0 ) device.DrawTimes.AddIndirect( indirect.Count );
 		return drawn;
+	}
+
+	/// <summary>
+	/// A model draw through material objects or by reflection; new-tier (Slang) materials on their own small path
+	/// (BackendContext.Surfaces.cs).
+	/// </summary>
+	bool DrawUntimed( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias, float slopeScaledDepthBias, bool stripPixelShader, bool skinned, in IndirectDraws indirect )
+	{
+		if ( material is SurfaceMaterial surface ) return DrawSurface( surface, shaderMode, mesh, draw, firstInstance, instances, depthBias, slopeScaledDepthBias, stripPixelShader, skinned, indirect );
+		return device.MaterialObjects
+			? DrawWithMaterialObject( material, shaderMode, mesh, draw, firstInstance, instances, depthBias, slopeScaledDepthBias, stripPixelShader, skinned, indirect )
+			: DrawByReflection( material, shaderMode, mesh, draw, firstInstance, instances, depthBias, slopeScaledDepthBias, stripPixelShader, skinned, indirect );
 	}
 
 	// The last draw's lookups, which the next draw of the same material the same way reuses
