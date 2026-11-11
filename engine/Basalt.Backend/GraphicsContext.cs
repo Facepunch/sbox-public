@@ -63,6 +63,9 @@ public sealed class GraphicsContext
 		Viewport = default;
 	}
 
+	/// <summary>The layout a texture is in at this point of the recording, as tracked.</summary>
+	public ImageLayout LayoutOf( TextureHandle texture ) => Layout( texture );
+
 	/// <summary>Say which layout a texture is in now, for textures made or used outside this context.</summary>
 	public void Track( TextureHandle texture, ImageLayout layout ) => layouts[texture] = layout;
 
@@ -197,13 +200,28 @@ public sealed class GraphicsContext
 	public bool Dispatch( ShaderFile shader, ShaderAttributes attributes, int x, int y, int z )
 	{
 		EndScope();
+
+		// Textures it writes go to General, which it may also read; those it only samples to ShaderRead, as their
+		// bindings expect
+		var variant = drawer.Variant( shader, attributes );
 		foreach ( var (_, value) in attributes.Values )
 		{
-			if ( value is TextureHandle texture ) Transition( texture, ImageLayout.General );
+			if ( value is TextureHandle texture ) dispatchLayouts[texture] = ImageLayout.Undefined;
 		}
 
+		foreach ( var resource in variant?.Resources ?? [] )
+		{
+			if ( resource.Name is null || attributes.Get( resource.Name ) is not TextureHandle texture ) continue;
+			if ( resource.Kind == ShaderResourceKind.StorageTexture ) dispatchLayouts[texture] = ImageLayout.General;
+			else if ( resource.Kind == ShaderResourceKind.Texture && dispatchLayouts[texture] != ImageLayout.General ) dispatchLayouts[texture] = ImageLayout.ShaderRead;
+		}
+
+		foreach ( var (texture, layout) in dispatchLayouts ) Transition( texture, layout == ImageLayout.Undefined ? ImageLayout.General : layout );
+		dispatchLayouts.Clear();
 		return drawer.Dispatch( List, shader, attributes, x, y, z );
 	}
+
+	readonly Dictionary<TextureHandle, ImageLayout> dispatchLayouts = new();
 
 	/// <summary>Copy bytes into a buffer in order with the rest of the list, visible to everything after it.</summary>
 	public void UpdateBuffer( BufferHandle buffer, ReadOnlySpan<byte> data, long offset )
@@ -245,9 +263,10 @@ public sealed class GraphicsContext
 	/// Fill mips 1 and down of <paramref name="texture"/> from mip 0 with <c>downsample_cs.shader</c>, one dispatch per mip,
 	/// as <c>Graphics.GenerateMipMaps</c> does for its gaussian methods (<paramref name="method"/> is
 	/// <c>D_DOWNSAMPLE_METHOD</c>: 1 gaussian blur, 2 gaussian with a transparent border). Mips smaller than a texel on
-	/// either side are left as they are, as native leaves them. The texture ends readable.
+	/// either side are left as they are, as native leaves them. Mips before <paramref name="initialMip"/> are kept. The
+	/// texture ends readable.
 	/// </summary>
-	public void GenerateMips( TextureHandle texture, ShaderFile downsample, int method )
+	public void GenerateMips( TextureHandle texture, ShaderFile downsample, int method, int initialMip = 0 )
 	{
 		var info = gpu.InfoOf( texture );
 		EndScope();
@@ -255,7 +274,7 @@ public sealed class GraphicsContext
 
 		var attributes = new ShaderAttributes();
 		attributes.SetCombo( "D_DOWNSAMPLE_METHOD", method );
-		for ( int i = 0; i < info.Mips - 1; i++ )
+		for ( int i = initialMip; i < info.Mips - 1; i++ )
 		{
 			int width = info.Width >> (i + 1), height = info.Height >> (i + 1);
 			if ( width < 1 || height < 1 ) break;
@@ -301,14 +320,82 @@ public sealed class GraphicsContext
 	}
 
 	/// <summary>
+	/// Fill the mips after <paramref name="initialMip"/> with <c>downsample_spd.shader</c> (<paramref name="method"/> is
+	/// <c>D_DOWNSAMPLE_METHOD</c>: box, max, min or min and max), six mips a dispatch, down to the smaller side's last
+	/// texel, as <c>Graphics.GenerateMipMaps</c> does for those methods. The texture ends readable.
+	/// </summary>
+	public void DownsampleSpd( TextureHandle texture, ShaderFile spd, int method, int initialMip = 0 )
+	{
+		var info = gpu.InfoOf( texture );
+		EndScope();
+		Transition( texture, ImageLayout.General );
+
+		var attributes = new ShaderAttributes();
+		attributes.SetCombo( "D_DOWNSAMPLE_METHOD", method );
+		attributes.SetCombo( "D_FUSED_DEPTH", 0 );
+		var lastMip = Math.Min( info.Mips - 1, System.Numerics.BitOperations.Log2( (uint)Math.Min( info.Width, info.Height ) ) );
+		for ( int source = initialMip; source < lastMip; )
+		{
+			int width = info.Width >> source, height = info.Height >> source;
+			var mipCount = Math.Min( lastMip - source, 6 );
+
+			// The source mip is read, the rest written; mips past the count are never written, so the last one fills them
+			List.Barrier( MipBarrier( texture, source, ImageLayout.General, ImageLayout.ShaderRead ) );
+			attributes.Set( "Mip0", MipView( texture, source ) );
+			for ( int i = 1; i <= 6; i++ ) attributes.Set( $"Mip{i}", MipView( texture, source + Math.Min( i, mipCount ) ) );
+			attributes.Set( "SourceSize", width, height );
+			attributes.Set( "MipCount", mipCount );
+			if ( !drawer.Dispatch( List, spd, attributes, (width + 63) / 64 * 256, (height + 63) / 64, 1 ) ) throw new InvalidOperationException( $"{spd.Name} didn't dispatch" );
+
+			List.Barrier( MipBarrier( texture, source, ImageLayout.ShaderRead, ImageLayout.General ) );
+			source += mipCount;
+		}
+
+		MemoryBarrier();
+		Transition( texture, ImageLayout.ShaderRead );
+	}
+
+	static TextureBarrier MipBarrier( TextureHandle texture, int mip, ImageLayout from, ImageLayout to ) => new()
+	{
+		Texture = texture,
+		OldLayout = from,
+		NewLayout = to,
+		SourceStage = PipelineStage.AllCommands,
+		SourceAccess = MemoryAccess.MemoryWrite,
+		DestinationStage = PipelineStage.AllCommands,
+		DestinationAccess = MemoryAccess.MemoryRead | MemoryAccess.MemoryWrite,
+		BaseMip = mip,
+		MipCount = 1,
+		LayerCount = 1,
+	};
+
+	/// <summary>
+	/// Copy mip <paramref name="mip"/> of <paramref name="source"/> into the same mip of <paramref name="destination"/>, the
+	/// same size and format, as <c>Graphics.CopyTexture</c> does. Both are left in the copy's layouts, tracked.
+	/// </summary>
+	public void CopyTexture( TextureHandle source, TextureHandle destination, int mip = 0 )
+	{
+		EndScope();
+		Transition( source, ImageLayout.CopySource );
+		TransitionForWrite( destination, ImageLayout.CopyDestination );
+		List.CopyTexture( source, destination, mip, 1 );
+	}
+
+	/// <summary>A single mip of a texture as a view, made once, for binding one mip (sampled or as storage).</summary>
+	public TextureViewHandle View( TextureHandle texture, int mip ) => MipView( texture, mip );
+
+	/// <summary>
 	/// Copy <paramref name="texture"/>'s mip 0 into <paramref name="readback"/> (a <see cref="MemoryLocation.Readback"/>
 	/// buffer) and make it visible to the host once the list has finished.
 	/// </summary>
-	public void CopyToBuffer( TextureHandle texture, BufferHandle readback )
+	public void CopyToBuffer( TextureHandle texture, BufferHandle readback ) => CopyToBuffer( texture, readback, 0 );
+
+	/// <summary>As <see cref="CopyToBuffer(TextureHandle, BufferHandle)"/>, for one mip.</summary>
+	public void CopyToBuffer( TextureHandle texture, BufferHandle readback, int mip )
 	{
 		EndScope();
 		Transition( texture, ImageLayout.CopySource );
-		List.CopyTextureToBuffer( texture, 0, 0, readback );
+		List.CopyTextureToBuffer( texture, mip, 0, readback );
 		List.Barrier( new BufferBarrier { Buffer = readback, SourceStage = PipelineStage.Transfer, SourceAccess = MemoryAccess.TransferWrite, DestinationStage = PipelineStage.Host, DestinationAccess = MemoryAccess.HostRead } );
 	}
 

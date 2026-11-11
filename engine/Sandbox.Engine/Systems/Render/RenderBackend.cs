@@ -65,6 +65,25 @@ internal abstract class RenderBackend
 	/// <summary>Whether any device other than <see cref="Default"/> exists, which might make copies of engine resources.</summary>
 	internal static bool OthersExist => others.Count > 0;
 
+	/// <summary>
+	/// An engine texture's pixels changed on Source 2's device: take the same bytes into this device's copy, if it has one.
+	/// False when it can't, and the copy is released instead (made again from Source 2's pixels when next used).
+	/// </summary>
+	public virtual bool Update( Texture texture, ReadOnlySpan<byte> data, int x, int y, int z, int width, int height, int depth ) => false;
+
+	/// <summary>Update an engine texture's copies on every other device, releasing those that can't take the bytes.</summary>
+	internal static void UpdateEverywhere( Texture texture, ReadOnlySpan<byte> data, int x, int y, int z, int width, int height, int depth )
+	{
+		if ( others.Count == 0 ) return;
+		lock ( others )
+		{
+			foreach ( var backend in others )
+			{
+				if ( !backend.Update( texture, data, x, y, z, width, height, depth ) ) backend.Release( texture );
+			}
+		}
+	}
+
 	/// <summary>Release an engine resource's backings on every other device.</summary>
 	internal static void ReleaseEverywhere( object resource )
 	{

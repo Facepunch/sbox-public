@@ -45,7 +45,7 @@ public class PanelGalleryAppSystem : PanelAppSystem
 	}
 
 	/// <summary>
-	/// Captures the GPU with "-capture path.png" at frame 30, or the frame selected by "-capture-frame".
+	/// Captures the GPU with "-capture path.png" at frame 30, or the frame selected by "-capture-frame", then exits.
 	/// </summary>
 	protected override bool RunFrame()
 	{
@@ -57,8 +57,20 @@ public class PanelGalleryAppSystem : PanelAppSystem
 		var index = Array.FindIndex( args, x => x.Equals( "-capture", StringComparison.OrdinalIgnoreCase ) );
 		if ( index < 0 || index + 1 >= args.Length ) return running;
 
-		var surface = _windows.FirstOrDefault( x => x.IsOpen )?.Surface;
+		var window = _windows.FirstOrDefault( x => x.IsOpen );
+		var surface = window?.Surface;
 		if ( surface is null ) return running;
+
+		// With -basaltgpu the window draws on Basalt.Gpu and Source 2's device is idle: capture what that device draws
+		if ( RenderBackend.Default is not Source2RenderBackend && window.Core is { } core )
+		{
+			var pixels = core.RenderToPixels( RenderBackend.Default );
+			using var drawn = new Bitmap( (int)surface.Size.x, (int)surface.Size.y );
+			drawn.SetPixelData( System.Runtime.InteropServices.MemoryMarshal.AsBytes( pixels.AsSpan() ), premultiplied: false );
+			System.IO.File.WriteAllBytes( args[index + 1], drawn.ToPng() );
+			return false;
+		}
+
 		var world = new SceneWorld();
 		try
 		{
@@ -78,7 +90,9 @@ public class PanelGalleryAppSystem : PanelAppSystem
 		{
 			world.Delete();
 		}
-		return running;
+
+		// Captured: the run is done
+		return false;
 	}
 
 	static int IntArg( string name, int fallback )

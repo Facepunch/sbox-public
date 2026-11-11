@@ -177,4 +177,38 @@ public sealed class TextureFile
 
 		return texture;
 	}
+
+	/// <summary>
+	/// As <see cref="Create(Device, string)"/>, with every mip and slice written by <paramref name="list"/> instead of a
+	/// submission that waits: readable (<see cref="ImageLayout.ShaderRead"/>) once the list has run.
+	/// </summary>
+	public TextureHandle Create( Device gpu, string name, CommandList list )
+	{
+		if ( Format == Format.Unknown ) throw new NotSupportedException( $"{name}: VTEX format {SourceFormat} has no Basalt.Gpu form" );
+
+		var texture = gpu.CreateTexture( new TextureInfo
+		{
+			Width = Width,
+			Height = Height,
+			Depth = Depth,
+			Layers = Dimension is TextureDimension.TextureCube or TextureDimension.TextureCubeArray ? Slices / 6 : Slices,
+			Mips = Mips,
+			Samples = 1,
+			Dimension = Dimension,
+			Format = Format,
+			Usage = TextureUsage.Sampled | TextureUsage.CopyDestination | TextureUsage.CopySource,
+			Name = name,
+		} );
+
+		list.Barrier( TextureBarrier.Transition( texture, ImageLayout.Undefined, ImageLayout.CopyDestination, PipelineStage.AllCommands, MemoryAccess.None, PipelineStage.Transfer, MemoryAccess.TransferWrite ) );
+		for ( int mip = 0; mip < Mips; mip++ )
+		{
+			var size = MipData[mip].Length / Slices;
+			int width = Math.Max( Width >> mip, 1 ), height = Math.Max( Height >> mip, 1 );
+			for ( int slice = 0; slice < Slices; slice++ ) list.UpdateTexture( texture, MipData[mip].AsSpan( slice * size, size ), mip, slice, width, height );
+		}
+
+		list.Barrier( TextureBarrier.Transition( texture, ImageLayout.CopyDestination, ImageLayout.ShaderRead, PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.AllCommands, MemoryAccess.ShaderRead ) );
+		return texture;
+	}
 }

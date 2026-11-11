@@ -37,6 +37,36 @@ public class DownsampleSpdTest
 	}
 
 	/// <summary>
+	/// The same methods through the engine's Basalt.Gpu backend: downsample_spd dispatched by Basalt.Backend's
+	/// GraphicsContext, read back mip by mip.
+	/// </summary>
+	[TestMethod]
+	[DataRow( 1280, 720, Graphics.DownsampleMethod.MinMax )]
+	[DataRow( 4500, 300, Graphics.DownsampleMethod.MinMax )]
+	[DataRow( 1366, 769, Graphics.DownsampleMethod.Box )]
+	public void MatchesCpuReductionOnBasaltGpu( int width, int height, Graphics.DownsampleMethod method )
+	{
+		RequireVulkan();
+		using var basalt = BasaltGpuRenderBackend.Create( validation: true );
+
+		var random = new Random( width * height );
+		var source = new Vector2[width * height];
+		for ( int i = 0; i < source.Length; i++ ) source[i] = new Vector2( random.Float(), random.Float() );
+
+		// Made after the Basalt.Gpu device, so the texture keeps its pixels for that device's copy
+		var mips = (int)Math.Log2( Math.Min( width, height ) ) + 1;
+		using var texture = Texture.Create( width, height, ImageFormat.RG3232F ).WithMips( mips ).WithUAVBinding().WithData<Vector2>( source ).Finish();
+
+		using ( Graphics.Scope.CreateOn( basalt ) )
+		{
+			Graphics.GenerateMipMaps( texture, method );
+		}
+
+		AssertChain( texture, source, width, height, method, ( mip, actual ) => System.Runtime.InteropServices.MemoryMarshal.Cast<byte, Vector2>( basalt.ReadBytes( texture, mip ) ).CopyTo( actual ) );
+		Assert.AreEqual( 0, basalt.ValidationErrors );
+	}
+
+	/// <summary>
 	/// The Hi-Z depth chain, resolved in the first downsample_spd dispatch or by depthresolve_cs before it, min/max reduced to the last mip.
 	/// </summary>
 	[TestMethod]
@@ -130,7 +160,7 @@ public class DownsampleSpdTest
 	/// <summary>
 	/// Every mip of <paramref name="texture"/> against <paramref name="expected"/>, its first mip, reduced on the CPU.
 	/// </summary>
-	static void AssertChain( Texture texture, Vector2[] expected, int width, int height, Graphics.DownsampleMethod method )
+	static void AssertChain( Texture texture, Vector2[] expected, int width, int height, Graphics.DownsampleMethod method, Action<int, Vector2[]> read = null )
 	{
 		var mips = (int)Math.Log2( Math.Min( width, height ) ) + 1;
 		for ( int mip = 0; mip < mips; mip++ )
@@ -139,7 +169,8 @@ public class DownsampleSpdTest
 				(expected, width, height) = (Reduce( expected, width, width >> 1, height >> 1, method ), width >> 1, height >> 1);
 
 			var actual = new Vector2[width * height];
-			texture.GetPixels<Vector2>( (0, 0, width, height), 0, mip, actual, ImageFormat.RG3232F );
+			if ( read is null ) texture.GetPixels<Vector2>( (0, 0, width, height), 0, mip, actual, ImageFormat.RG3232F );
+			else read( mip, actual );
 
 			for ( int i = 0; i < expected.Length; i++ )
 			{
