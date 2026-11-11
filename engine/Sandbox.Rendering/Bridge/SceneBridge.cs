@@ -12,7 +12,7 @@ namespace Sandbox.Rendering.Bridge;
 /// <see cref="CameraStages"/> runs camera effects and UI at native hook points. What Basalt doesn't do yet goes to
 /// <see cref="SceneRenderer.Native"/> from here (<see cref="NotYetInBasalt"/>, <see cref="NotYetOnSwapChain"/>).
 /// </summary>
-internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
+internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 {
 	/// <summary>
 	/// Strongly owned world/view state requires explicit disposal of native resources.
@@ -623,6 +623,13 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 
 	public void Render( SceneCamera camera, SwapChainHandle_t swapChain, Vector2? size, in ViewSetup setup )
 	{
+		// A game window on Basalt.Gpu (-basaltgpu) has no Source 2 swap chain: the camera draws into the window's frame
+		if ( swapChain.self == default && BasaltGpuWindow.Drawing is { } window )
+		{
+			RenderInto( window, camera, size, setup );
+			return;
+		}
+
 		// A camera that only draws UI has no scene: native's UI-only path draws its panels, outside the seam
 		if ( camera.UIOnly || NotYetOnSwapChain( camera ) is not null || NotYetInBasalt( camera, setup ) is not null )
 		{
