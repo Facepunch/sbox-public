@@ -513,6 +513,7 @@ public sealed unsafe partial class Device : IDisposable
 	/// </summary>
 	public void WaitIdle()
 	{
+		Flush();
 		Vk.vkDeviceWaitIdle( Vk.Device ).Check( "vkDeviceWaitIdle" );
 	}
 

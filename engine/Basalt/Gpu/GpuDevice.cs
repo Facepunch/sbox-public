@@ -89,6 +89,9 @@ public abstract class GpuDevice
 	/// <summary>Tag the next submissions, so a profiler can pair GPU work with the frame that made it; 0 for none.</summary>
 	public abstract void SetSubmitTag( ulong tag );
 
+	/// <summary>A render system has submitted everything it recorded for a frame: send on whatever the device is holding to submit together.</summary>
+	public virtual void EndSubmitting() { }
+
 	/// <summary>The time shaders see this frame.</summary>
 	public abstract float RenderTime { get; }
 

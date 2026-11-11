@@ -189,7 +189,7 @@ internal sealed partial class BackendContext : GpuContext
 			var waitCount = 0;
 			if ( wait.Handle != IntPtr.Zero ) waits[waitCount++] = device.PointOf( wait );
 
-			var point = Gpu.Submit( recording.List, waits[..waitCount] );
+			var point = waitCount == 0 && device.BatchSubmits ? Gpu.SubmitLater( recording.List ) : Gpu.Submit( recording.List, waits[..waitCount] );
 			if ( signal.Handle != IntPtr.Zero ) device.Signalled( signal, point );
 			foreach ( var (buffer, bytes, callback) in recording.Readbacks ) device.AddReadback( point, buffer, bytes, callback );
 		}
@@ -227,7 +227,8 @@ internal sealed partial class BackendContext : GpuContext
 		if ( fixUps is not null )
 		{
 			device.PassTimer?.End( fixUps, timed );
-			Gpu.Submit( fixUps );
+			if ( device.BatchSubmits ) Gpu.SubmitLater( fixUps );
+			else Gpu.Submit( fixUps );
 		}
 
 		LayoutFixUps += fixUps is null ? 0 : 1;

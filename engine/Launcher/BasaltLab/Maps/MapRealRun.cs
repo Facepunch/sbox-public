@@ -69,6 +69,7 @@ internal static class MapRealRun
 		// (which closes rendering at every layer, so the times aren't the frame's)
 		using var passTimer = Args.Has( "-passes" ) || Args.Has( "-pass-stats" ) ? new PassTimer( gpu, statistics: Args.Has( "-pass-stats" ) ) : null;
 		map.Backend.PassTimer = passTimer;
+		map.Backend.BatchSubmits = !Args.Has( "-no-batch" );
 		var passes = new PassTotals();
 		var timings = new List<PassTimer.Timing>();
 
