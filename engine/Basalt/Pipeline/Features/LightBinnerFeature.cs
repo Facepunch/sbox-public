@@ -259,6 +259,9 @@ internal sealed partial class LightBinnerFeature : RenderFeature
 		context.BufferBarrier( decalExtraBuffer, GpuStage.Transfer, GpuAccess.TransferWrite,
 			GpuStage.FragmentShader, GpuAccess.ShaderRead );
 
+		// Everything in the view's set is set by now - the environment, the shadows and these - and the culling reads it
+		context.WriteViewSet();
+
 		// One thread per cluster - the dispatch divides by the shader's 4x4x4 group size, which grouped culling relies on (64 threads = two mask words)
 		context.Dispatch( cullingShader, ClusterCountX, ClusterCountY, ClusterCountZ );
 

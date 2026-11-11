@@ -126,6 +126,13 @@ internal sealed class Source2Context : GpuContext
 			materialBind = IntPtr.Zero;
 		}
 
+		// Reused only once rewritten, which retires the Vulkan set work in flight may still read
+		if ( (IntPtr)viewSet != IntPtr.Zero )
+		{
+			CSceneSystem.ReleaseViewDescriptorSet( viewSet );
+			viewSet = default;
+		}
+
 		if ( nativeAttributes.IsNull ) return;
 
 		drawAttributes.Clear( true, true );
@@ -521,6 +528,7 @@ internal sealed class Source2Context : GpuContext
 		bound = default;
 		viewConstants = null;
 		passStateCount = 0;
+		viewSetWritten = false;
 
 		// Material binds cannot survive across frames. Zeroed, so its bind counts start at nothing.
 		if ( materialBind == IntPtr.Zero ) materialBind = AllocMaterialBind();
@@ -739,6 +747,28 @@ internal sealed class Source2Context : GpuContext
 
 
 
+
+	/// <summary>
+	/// This frame context's view set, from the scene system's pool, rewritten each frame (<see cref="WriteViewSet"/>).
+	/// </summary>
+	RenderDescriptorSetHandle_t viewSet;
+	bool viewSetWritten;
+
+	/// <summary>
+	/// Fill the view set from this frame context's attributes (<c>CSceneSystem::FillViewDescriptorSet</c>) and bind it on
+	/// them, so the frame's segments inherit it. The attributes stay set: shaders built before the set read them.
+	/// </summary>
+	public override void WriteViewSet()
+	{
+		if ( frame is not null ) throw new InvalidOperationException( "Only a frame context writes the view set" );
+		if ( viewSetWritten ) return;
+		viewSetWritten = true;
+
+		if ( (IntPtr)viewSet == IntPtr.Zero ) viewSet = CSceneSystem.AcquireViewDescriptorSet();
+		CSceneSystem.FillViewDescriptorSet( viewSet, nativeAttributes, default );
+		nativeAttributes.SetViewDescriptorSet( viewSet );
+		ResetMaterialBind();
+	}
 
 	/// <summary>
 	/// Upload and bind an owned constant buffer on this context.
