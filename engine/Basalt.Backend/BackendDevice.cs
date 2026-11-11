@@ -104,6 +104,21 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// <summary>Model draws timed with <see cref="TimeDraws"/> on.</summary>
 	public DrawTimings DrawTimes { get; } = new();
 
+	/// <summary>The unit box the 2D sky draws (native's well-known box shape, half a unit each way), made once.</summary>
+	internal RenderMesh SkyBox => skyBox ??= MakeSkyBox();
+
+	RenderMesh skyBox;
+
+	RenderMesh MakeSkyBox()
+	{
+		var vertices = new MeshVertex[8];
+		for ( int i = 0; i < 8; i++ ) vertices[i] = new MeshVertex( new Vector3( (i & 1) != 0 ? 0.5f : -0.5f, (i & 2) != 0 ? 0.5f : -0.5f, (i & 4) != 0 ? 0.5f : -0.5f ), Vector3.Up, default );
+
+		// Two triangles a face; the sky draws with culling off, so the winding doesn't matter
+		uint[] indices = [0, 1, 3, 0, 3, 2, 4, 6, 7, 4, 7, 5, 0, 4, 5, 0, 5, 1, 2, 3, 7, 2, 7, 6, 0, 2, 6, 0, 6, 4, 1, 5, 7, 1, 7, 3];
+		return BackendMesh.Create( this, vertices, indices, null, "Sky box" );
+	}
+
 	/// <summary>
 	/// When set, the next frame context to begin a list of its own resets timestamps <c>Index</c> and <c>Index + 1</c> of
 	/// <c>Queries</c> and writes the first at the start of its list, so a frame's GPU time can be read from there to a

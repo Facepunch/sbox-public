@@ -21,10 +21,16 @@ public static class Lz4
 	/// <summary>
 	/// Decompress one block into <paramref name="output"/>; returns the bytes written.
 	/// </summary>
-	public static int Decompress( ReadOnlySpan<byte> source, Span<byte> output )
+	public static int Decompress( ReadOnlySpan<byte> source, Span<byte> output ) => Decompress( source, output, 0 );
+
+	/// <summary>
+	/// Decompress one block of a stream into <paramref name="output"/> from <paramref name="start"/>, its matches reaching
+	/// back into the blocks before it (<c>LZ4_decompress_safe_continue</c>); returns where it ended.
+	/// </summary>
+	public static int Decompress( ReadOnlySpan<byte> source, Span<byte> output, int start )
 	{
 		var input = 0;
-		var position = 0;
+		var position = start;
 		while ( input < source.Length )
 		{
 			var token = source[input++];

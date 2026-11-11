@@ -52,7 +52,7 @@ internal static class MapRealRun
 		}
 
 		var load = Stopwatch.StartNew();
-		using var map = new MapWorld( gpu, folder, core, castShadows: false, aggregatesAsMeshes: Args.Has( "-aggregates-as-meshes" ), bakedLighting: !Args.Has( "-nobaked" ) );
+		using var map = new MapWorld( gpu, folder, core, castShadows: false, aggregatesAsMeshes: Args.Has( "-aggregates-as-meshes" ), bakedLighting: !Args.Has( "-nobaked" ), entities: !Args.Has( "-noentities" ) );
 		map.SetTarget( options.Width, options.Height, options.Samples );
 		map.System.DepthPrepass = !Args.Has( "-noprepass" );
 		if ( Args.Has( "-occlusion" ) && RenderHost.Current is BackendRenderHost host ) host.Occlusion = true;
@@ -188,7 +188,9 @@ internal static class MapRealRun
 		var md = new StringBuilder();
 		md.AppendLine( $"Basalt Lab -map {options.Ident} -real, {DateTime.Now:yyyy-MM-dd HH:mm}, {gpu.Adapter.Name}, {options.Width}x{options.Height} {options.Samples}x MSAA, vsync off, {options.Frames} measured frames per run (medians, ms)" );
 		md.AppendLine();
-		md.AppendLine( $"Baked lighting: {map.LightmapTextures} lightmaps for {map.LightmappedObjects} objects and aggregates, {map.ProbeVolumes} probe volumes for {map.ProbeObjects} objects (volume boxes from their objects' bounds); occlusion culling {(RenderHost.Current.OcclusionCulling ? "on" : "off")}" );
+		md.AppendLine( $"Baked lighting: {map.LightmapTextures} lightmaps for {map.LightmappedObjects} objects and aggregates, {map.ProbeVolumes} probe volumes for {map.ProbeObjects} objects; {map.Lights} lights ({map.BakedLights} baked); 3D skybox {(map.SkyWorld is null ? "none" : "loaded")}; occlusion culling {(RenderHost.Current.OcclusionCulling ? "on" : "off")}" );
+		md.AppendLine();
+		md.AppendLine( $"Entities used, by class: {(map.EntityClasses.Count == 0 ? "none" : string.Join( ", ", map.EntityClasses.Select( x => $"{x.Key} {x.Value}" ) ))}" );
 		if ( options.Unoptimised.Length > 0 ) md.AppendLine( $"**Debug build: {options.Unoptimised}**" );
 		md.AppendLine();
 		md.AppendLine( "```" );

@@ -875,7 +875,6 @@ internal sealed partial class BackendContext : GpuContext
 	public override void BarrierVertexCacheToWrite() { }
 	public override void BarrierVertexCacheToRead() { }
 	public override bool BindVertexCacheIds( RenderMesh mesh, in RenderMesh.Draw draw ) => false;
-	public override bool DrawSky( SceneLighting lighting, StringToken shaderMode ) => false;
 	public override bool BindGeometry( RenderMesh mesh, in RenderMesh.Draw draw ) => false;
 
 	public override bool SetRenderState( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool vertexCache = false ) => false;

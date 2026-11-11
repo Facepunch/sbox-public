@@ -21,19 +21,22 @@ namespace Sandbox.BasaltLab.Maps;
 /// <see cref="BackendDevice"/> on Basalt.Gpu, with s&amp;box's own compiled shaders and the map's materials, textures and
 /// constants as their <c>.vmat_c</c> files have them. Scene objects are <see cref="MeshObject"/>s (LODs, mesh groups and
 /// skins as compiled); aggregates are <see cref="AggregateObject"/>s whose fragments draw as one multi-draw indirect.
-/// Baked lighting is the map's own where its files can be read: the world's lightmaps for lightmapped draws, and each
-/// light probe volume's textures for the objects the compiler gave it (<see cref="WorldSceneObject.LightProbeVolume"/>).
-/// The volumes' boxes are in the entity lump, which isn't read, so each is the bounds of its objects. Cubemaps, the sky,
-/// fog and entities aren't loaded: what the shaders read of them is the backend's placeholders.
+/// Baked lighting is the map's own: the world's lightmaps for lightmapped draws, and each light probe volume's textures
+/// for the objects the compiler gave it (<see cref="WorldSceneObject.LightProbeVolume"/>). The entity lump gives the
+/// lights the lightmaps index, the sun, fog, the 2D sky and the probe volumes' boxes (see <c>MapWorld.Entities.cs</c>), and
+/// the map's <c>_sky</c> package its 3D skybox, loaded the same way into a world of its own.
 /// </summary>
-internal sealed class MapWorld : IDisposable
+internal sealed partial class MapWorld : IDisposable
 {
 	readonly GpuDevice gpu;
 	readonly RenderHost previousHost;
-	readonly VpkFile package;
+	readonly List<VpkFile> packages = new();
 
 	public BackendDevice Backend { get; }
 	public RenderWorld World { get; } = new();
+
+	/// <summary>The 3D skybox's world, when the map has one.</summary>
+	public RenderWorld SkyWorld { get; private set; }
 	public RenderSystem System { get; }
 	public ViewTarget Target { get; private set; }
 
@@ -54,25 +57,25 @@ internal sealed class MapWorld : IDisposable
 	/// <param name="castShadows">Whether the map's static geometry casts sun shadows; Construct's sun is baked, so in the
 	/// game its world geometry and static props don't.</param>
 	/// <param name="bakedLighting">Light lightmapped draws from the map's lightmaps and the rest from its probe volumes.</param>
-	public MapWorld( GpuDevice gpu, string folder, ContentFiles core, bool castShadows, bool aggregatesAsMeshes = false, bool bakedLighting = true )
+	/// <param name="entities">Read the entity lump: lights, the sun, fog, the sky, probe volume boxes and the 3D skybox.</param>
+	public MapWorld( GpuDevice gpu, string folder, ContentFiles core, bool castShadows, bool aggregatesAsMeshes = false, bool bakedLighting = true, bool entities = true )
 	{
 		this.gpu = gpu;
-		var timer = Stopwatch.StartNew();
-		void Phase( string name )
-		{
-			Phases.Add( (name, timer.Elapsed.TotalMilliseconds) );
-			timer.Restart();
-		}
+		timer = Stopwatch.StartNew();
 
-		var vpk = Directory.GetFiles( Path.Combine( folder, "maps" ), "*.vpk" )
-			.Where( x => !Path.GetFileNameWithoutExtension( x ).EndsWith( "_sky", StringComparison.OrdinalIgnoreCase ) )
-			.OrderBy( x => x.Length )
-			.First();
+		var vpks = Directory.GetFiles( Path.Combine( folder, "maps" ), "*.vpk" );
+		var vpk = vpks.Where( x => !Path.GetFileNameWithoutExtension( x ).EndsWith( "_sky", StringComparison.OrdinalIgnoreCase ) ).OrderBy( x => x.Length ).First();
+		var map = Path.GetFileNameWithoutExtension( vpk );
+		var skyVpk = vpks.FirstOrDefault( x => string.Equals( Path.GetFileNameWithoutExtension( x ), map + "_sky", StringComparison.OrdinalIgnoreCase ) );
 
-		package = VpkFile.Open( vpk );
 		var content = new ContentFiles( folder );
 		foreach ( var root in core.Roots ) content.Add( root );
-		content.AddPackage( package );
+		foreach ( var path in skyVpk is null ? [vpk] : new[] { vpk, skyVpk } )
+		{
+			var package = VpkFile.Open( path );
+			packages.Add( package );
+			content.AddPackage( package );
+		}
 
 		Backend = new BackendDevice( gpu, content );
 		previousHost = RenderHost.Current;
@@ -84,8 +87,41 @@ internal sealed class MapWorld : IDisposable
 		World.Lighting.AmbientColor = new Color( 0.12f, 0.15f, 0.2f, 1 );
 		World.Lighting.SunShadowCascades = 3;
 
-		var world = WorldFile.Load( content, $"maps/{Path.GetFileNameWithoutExtension( vpk )}/world.vwrld" );
-		Phase( "World" );
+		var level = LoadLevel( World, content, map, castShadows, aggregatesAsMeshes, bakedLighting, entities );
+		if ( entities && skyVpk is not null && level.Entities.FirstOrDefault( e => e.ClassName == "skybox_reference" ) is { } reference )
+		{
+			SkyWorld = new RenderWorld();
+			var sky = LoadLevel( SkyWorld, content, map + "_sky", false, aggregatesAsMeshes, bakedLighting, entities );
+			LoadSkybox( reference, sky );
+		}
+	}
+
+	readonly Stopwatch timer;
+
+	void Phase( string name )
+	{
+		Phases.Add( (name, timer.Elapsed.TotalMilliseconds) );
+		timer.Restart();
+	}
+
+	/// <summary>One compiled world loaded into a render world, and what of it later steps need.</summary>
+	sealed class Level
+	{
+		public string Map;
+		public IReadOnlyList<MapEntity> Entities = [];
+		public readonly List<MeshObject> Meshes = new();
+		public readonly List<AggregateObject> Aggregates = new();
+	}
+
+	/// <summary>
+	/// Load <paramref name="map"/>'s world into <paramref name="target"/>: its models, scene objects and aggregates, its
+	/// entities and its baked lighting.
+	/// </summary>
+	Level LoadLevel( RenderWorld target, ContentFiles content, string map, bool castShadows, bool aggregatesAsMeshes, bool bakedLighting, bool entities )
+	{
+		var level = new Level { Map = map };
+		var world = WorldFile.Load( content, $"maps/{map}/world.vwrld" );
+		Phase( $"World {map}" );
 
 		// Models read in parallel; their buffers, materials and textures are made on this thread
 		var paths = world.Nodes.SelectMany( n => n.SceneObjects.Select( o => o.Model ).Concat( n.Aggregates.Select( a => a.Model ) ) )
@@ -135,8 +171,9 @@ internal sealed class MapWorld : IDisposable
 				var mesh = Mesh( o.Model, file, mask, skin );
 				var obj = new MeshObject( mesh, ToTransform( o.Transform ) ) { CastShadows = castShadows };
 				if ( o.Tint != global::System.Numerics.Vector4.One ) obj.Tint = new Color( o.Tint.X, o.Tint.Y, o.Tint.Z, o.Tint.W );
-				World.Add( obj );
+				target.Add( obj );
 				meshObjects.Add( obj );
+				level.Meshes.Add( obj );
 				MeshObjects++;
 				if ( o.LightProbeVolume != 0 )
 				{
@@ -162,8 +199,9 @@ internal sealed class MapWorld : IDisposable
 						if ( draw.Material is null ) continue;
 						var bounds = new BBox( new Vector3( fragment.Mins.X, fragment.Mins.Y, fragment.Mins.Z ), new Vector3( fragment.Maxs.X, fragment.Maxs.Y, fragment.Maxs.Z ) );
 						var obj = new MeshObject( new RenderMesh( whole.Geometry, bounds, [[draw]], [] ), Transform.Zero ) { CastShadows = castShadows };
-						World.Add( obj );
+						target.Add( obj );
 						meshObjects.Add( obj );
+						level.Meshes.Add( obj );
 						Fragments++;
 					}
 
@@ -173,8 +211,9 @@ internal sealed class MapWorld : IDisposable
 				foreach ( var aggregate in MakeAggregates( Mesh( a.Model, file, file.DefaultMeshGroupMask, 0 ), file, a ) )
 				{
 					aggregate.CastShadows = castShadows;
-					World.Add( aggregate );
+					target.Add( aggregate );
 					aggregateObjects.Add( aggregate );
+					level.Aggregates.Add( aggregate );
 					Aggregates++;
 					Fragments += aggregate.Fragments.Length;
 				}
@@ -183,10 +222,20 @@ internal sealed class MapWorld : IDisposable
 
 		Phase( $"World objects ({MeshObjects} objects, {Aggregates} aggregates, {Fragments} fragments, {Models} meshes)" );
 
-		if ( !bakedLighting ) return;
-		LoadLightmaps( world );
-		LoadProbeVolumes( Path.GetFileNameWithoutExtension( vpk ), probed );
+		if ( entities )
+		{
+			level.Entities = LoadEntities( content, world );
+			ApplyEntities( target, level );
+			Phase( $"Entities ({level.Entities.Count})" );
+		}
+
+		if ( !bakedLighting ) return level;
+		LoadLightmaps( world, level );
+
+		// The volumes' own boxes from the entity lump, else boxes around the objects that use them
+		if ( !entities || !LoadProbeVolumes( target, level, probed ) ) EstimateProbeVolumes( target, map, probed );
 		Phase( $"Baked lighting ({LightmapTextures} lightmaps for {LightmappedObjects} objects and aggregates, {ProbeVolumes} probe volumes for {ProbeObjects} objects)" );
+		return level;
 	}
 
 	/// <summary>
@@ -194,7 +243,7 @@ internal sealed class MapWorld : IDisposable
 	/// aggregate and every object with lightmapped draws, with the textures by their base names, their bindless indices
 	/// and the uv scale in <c>BakedLightingConstantBuffer_t</c>, and the lightmap combo.
 	/// </summary>
-	void LoadLightmaps( WorldFile world )
+	void LoadLightmaps( WorldFile world, Level level )
 	{
 		var textures = new List<(string Name, GpuTexture Texture)>();
 		foreach ( var path in world.Lightmaps )
@@ -206,7 +255,7 @@ internal sealed class MapWorld : IDisposable
 		}
 
 		if ( textures.Count == 0 ) return;
-		LightmapTextures = textures.Count;
+		LightmapTextures += textures.Count;
 
 		var scale = world.LightmapUvScale;
 		var constants = new LightmapConstants { UvScale = new Vector4( scale.X > 0 ? scale.X : 1, scale.Y > 0 ? scale.Y : 1, 0, 0 ) };
@@ -223,14 +272,14 @@ internal sealed class MapWorld : IDisposable
 		attributes.SetCombo( "D_BAKED_LIGHTING_FROM_PROBE", 0 );
 		attributes.SetCombo( "D_BAKED_LIGHTING_FROM_LIGHTMAP", 1 );
 
-		foreach ( var aggregate in aggregateObjects )
+		foreach ( var aggregate in level.Aggregates )
 		{
 			aggregate.Lightmapped = true;
 			aggregate.LightmapAttributes = attributes;
 			LightmappedObjects++;
 		}
 
-		foreach ( var obj in meshObjects )
+		foreach ( var obj in level.Meshes )
 		{
 			if ( obj.Mesh is not { HasLightmappedDraws: true } ) continue;
 			obj.LightmapAttributes = attributes;
@@ -239,11 +288,11 @@ internal sealed class MapWorld : IDisposable
 	}
 
 	/// <summary>
-	/// A light probe volume per volume the compiler chose for objects, with its textures (the probe, direct light indices
-	/// and strengths) and its constants as <c>CSceneLightProbeVolumeObject::CreateConstants</c> makes them, over the bounds
-	/// of its objects, which need a probe.
+	/// Without the entity lump: a light probe volume per volume the compiler chose for objects, with its textures (the
+	/// probe, direct light indices and strengths) and its constants as <c>CSceneLightProbeVolumeObject::CreateConstants</c>
+	/// makes them, over the bounds of its objects, which need a probe.
 	/// </summary>
-	void LoadProbeVolumes( string map, List<(MeshObject Object, int Volume, NumericsVector3 Mins, NumericsVector3 Maxs)> probed )
+	void EstimateProbeVolumes( RenderWorld target, string map, List<(MeshObject Object, int Volume, NumericsVector3 Mins, NumericsVector3 Maxs)> probed )
 	{
 		foreach ( var group in probed.GroupBy( p => p.Volume ).OrderBy( g => g.Key ) )
 		{
@@ -284,7 +333,7 @@ internal sealed class MapWorld : IDisposable
 			attributes.SetCombo( "D_BAKED_LIGHTING_FROM_PROBE", 1 );
 			attributes.SetCombo( "D_BAKED_LIGHTING_FROM_LIGHTMAP", 0 );
 
-			World.LightProbeVolumes.Add( new global::Basalt.LightProbeVolume
+			target.LightProbeVolumes.Add( new global::Basalt.LightProbeVolume
 			{
 				BoxMins = new Vector3( mins.X, mins.Y, mins.Z ),
 				BoxMaxs = new Vector3( maxs.X, maxs.Y, maxs.Z ),
@@ -478,6 +527,6 @@ internal sealed class MapWorld : IDisposable
 		System.Dispose();
 		Backend.Dispose();
 		RenderHost.Current = previousHost;
-		package.Dispose();
+		foreach ( var package in packages ) package.Dispose();
 	}
 }
