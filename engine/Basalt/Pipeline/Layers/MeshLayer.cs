@@ -71,6 +71,7 @@ internal enum MeshRuns : ushort
 	Decal = 8192,
 }
 
+
 /// <summary>
 /// Draws a view's sorted runs. Shared layers split runs into segments, each bound by <see cref="Begin"/>.
 /// Worker recording requires <see cref="RenderFeature.CanRecordOffMainThread"/>.
@@ -89,11 +90,7 @@ internal abstract class MeshLayer : RenderLayer
 	/// </summary>
 	public bool Depth { get; protected init; }
 
-	/// <summary>
-	/// A depth layer that writes normals and roughness when the view draws depth normals
-	/// (<see cref="RenderView.DepthNormals"/>): materials' own depth pixel shaders, no fast-path material, nothing stripped.
-	/// </summary>
-	public bool WritesNormals { get; protected init; }
+
 
 	/// <summary>
 	/// Force the depth-only material, including overrides (<c>CSceneSystem::ShouldOverrideDepthMaterial</c>).
@@ -116,11 +113,9 @@ internal abstract class MeshLayer : RenderLayer
 	public bool DrawsCustomObjects { get; protected init; } = true;
 
 	/// <summary>
-	/// Whether it draws custom objects in <paramref name="view"/>. The prepass only draws them for a view with depth normals:
-	/// that's for AO, which runs before the opaque pass would draw them, and a layer with custom objects records on the main
-	/// thread - terrain culls its meshlets on the CPU each pass - so views that don't need it keep the prepass on workers.
+	/// Whether it draws custom objects in <paramref name="view"/>.
 	/// </summary>
-	internal bool DrawsCustomObjectsIn( ViewPass view ) => DrawsCustomObjects && (!WritesNormals || (view.View.DepthNormals && !view.IsShadow));
+	internal bool DrawsCustomObjectsIn( ViewPass view ) => DrawsCustomObjects;
 
 	/// <summary>
 	/// A layer whose draws copy the frame buffer reads glass's refraction stencil and the depth chain, which the copy's

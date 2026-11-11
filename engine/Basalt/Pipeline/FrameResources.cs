@@ -36,8 +36,6 @@ internal enum FrameResources : ushort
 	/// <summary>The main view's depth attachment.</summary>
 	Depth = 1 << 5,
 
-	/// <summary>The depth prepass's normals and roughness.</summary>
-	Normals = 1 << 6,
 
 	/// <summary>The ambient occlusion effect's output and history.</summary>
 	AmbientOcclusion = 1 << 7,

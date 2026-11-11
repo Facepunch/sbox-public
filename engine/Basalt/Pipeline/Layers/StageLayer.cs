@@ -64,14 +64,9 @@ internal sealed class EarlyStageLayer : RenderLayer
 
 	public override bool IsNeeded( RenderFrame frame ) => RenderHost.Current.AsyncCompute && frame.Stages is not null && frame.Stages.HasEarlyPostProcess( Stage, Queue );
 
-	public override FrameResources Reads( RenderFrame frame ) => FrameResources.DepthChain | FrameResources.Normals;
+	public override FrameResources Reads( RenderFrame frame ) => FrameResources.DepthChain;
 	public override FrameResources Writes => Queue == StageQueue.AsyncCompute ? FrameResources.AmbientOcclusion : FrameResources.Reflections;
 	public override bool SupportsAsyncCompute => Queue == StageQueue.AsyncCompute;
-
-	public override void HandOff( RenderFrame frame, GpuContext rc )
-	{
-		if ( frame.NormalsGBuffer is { } gbuffer ) rc.BarrierColorToComputeRead( gbuffer );
-	}
 
 	public override void Record( RenderFrame frame, GpuContext rc, ref RenderStats stats )
 	{
