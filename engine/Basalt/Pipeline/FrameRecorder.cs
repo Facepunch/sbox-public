@@ -780,11 +780,13 @@ internal sealed partial class FrameRecorder : IDisposable
 						var to = w == last ? segment.End : item.Runs;
 
 						var mark = layerCosts is null ? default : CostMark.Of( rc, stats );
+						var started = item.Layer is DepthPrepassLayer ? Stopwatch.GetTimestamp() : 0;
 						var scope = rc.BeginGpuScope( item.Layer.Name );
 						item.Layer.Begin( frame, rc, item.View, start: from == 0 );
 						frame.System.DrawRange( rc, item.View, item.Layer, from, to - from, ref stats );
 						rc.EndPass();
 						rc.EndGpuScope( scope );
+						if ( started != 0 ) stats.PrepassRecordMs += Stopwatch.GetElapsedTime( started ).TotalMilliseconds;
 						if ( from == 0 && item.View.IsShadow ) stats.ShadowViews++;
 						layerCosts?.Add( mark.Since( item.Owner, rc, stats ) );
 					}
