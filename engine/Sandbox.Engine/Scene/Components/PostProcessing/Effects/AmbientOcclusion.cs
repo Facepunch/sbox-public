@@ -98,7 +98,8 @@ public sealed partial class AmbientOcclusion : BasePostProcess<AmbientOcclusion>
 		ViewDepthChain,
 		MainPass,
 		DenoiseSpatial,
-		BilateralUpsample
+		BilateralUpsample,
+		ReconstructNormals
 	}
 
 	//-------------------------------------------------------------------------
@@ -139,12 +140,13 @@ public sealed partial class AmbientOcclusion : BasePostProcess<AmbientOcclusion>
 	static readonly ProfilingSampler MainPassSampler = new( "AO Main Pass" );
 	static readonly ProfilingSampler DenoiseSampler = new( "AO Denoise" );
 	static readonly ProfilingSampler UpsampleSampler = new( "AO Upsample" );
+	static readonly ProfilingSampler NormalsSampler = new( "AO Normals From Depth" );
 
 	/// <summary>
-	/// Reads the normals and roughness G-buffer the depth-normals prepass writes (<c>NormalsGBuffer</c>), which the managed
-	/// scene renderer draws only for cameras with an effect that needs it.
+	/// Rebuilds its normals from depth (geometric normals, without the materials' normal maps), so it doesn't read the
+	/// depth-normals G-buffer.
 	/// </summary>
-	internal override bool NeedsDepthNormals => true;
+	internal override bool NeedsDepthNormals => false;
 
 	// GTAO is compute dispatches and barriers from the depth chain and normals into its own targets
 	internal override PostProcessQueue? EarlyQueue => PostProcessQueue.AsyncCompute;
@@ -167,7 +169,6 @@ public sealed partial class AmbientOcclusion : BasePostProcess<AmbientOcclusion>
 		commands.Attributes.SetData( "GTAOConstants", GetGTAOConstants() );
 		commands.Attributes.Set( "BlueNoise", BlueNoise );
 		commands.Attributes.Set( "ReferenceSlices", ReferenceSlices );
-		commands.Attributes.SetValue( "D_MSAA_NORMALS", RenderValue.MsaaCombo );
 		commands.Attributes.SetCombo( "D_QUALITY", reference ? 3 : (UserQuality - 1).Clamp( 0, 2 ) );
 
 		commands.Attributes.Set( "WorkingDepthMIP0", ViewDepthChainTexture.ColorTexture, 0 );
@@ -186,6 +187,17 @@ public sealed partial class AmbientOcclusion : BasePostProcess<AmbientOcclusion>
 			commands.Attributes.SetCombo( "D_PASS", GTAOPasses.ViewDepthChain );
 			commands.DispatchCompute( GtaoCs, commands.ViewportSizeScaled( 2 * scale ) );
 			commands.ResourceBarrierTransition( ViewDepthChainTexture, ResourceState.NonPixelShaderResource );
+		}
+
+		// Normals from depth, once per AO texel, for the passes after
+		{
+			using var scope = commands.ProfileScope( NormalsSampler );
+			RenderTargetHandle normals = commands.GetRenderTarget( "AONormals", ImageFormat.RGBA8888, sizeFactor: scale );
+			commands.Attributes.Set( "OutAONormals", normals.ColorTexture );
+			commands.Attributes.SetCombo( "D_PASS", GTAOPasses.ReconstructNormals );
+			commands.DispatchCompute( GtaoCs, normals.Size );
+			commands.ResourceBarrierTransition( normals, ResourceState.NonPixelShaderResource );
+			commands.Attributes.Set( "AONormals", normals.ColorTexture );
 		}
 
 		using ( commands.ProfileScope( MainPassSampler ) )

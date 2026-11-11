@@ -3,19 +3,13 @@ namespace Basalt;
 /// <summary>
 /// Depth-only pass for unfaded opaque meshes (<c>DepthOnlyPrepassLayer</c>), with conservative alpha testing.
 /// Tests the overlay stencil to preserve viewmodel depth inside walls (<c>ISceneLayer::SetOverlayStencil</c>).
-/// For a view with <see cref="RenderView.DepthNormals"/> it's native's depth-normals prepass instead
-/// (<c>DepthNormalPrepassLayer</c>): the same draws with their materials' depth pixel shaders, writing normals and
-/// roughness into a G-buffer that AO and SSR read (<c>NormalsGBuffer</c>, <c>NormalsTextureIndex</c>).
+/// Depth only for every view: Basalt draws no normals G-buffer (native's <c>DepthNormalPrepassLayer</c>); ambient occlusion
+/// rebuilds its normals from depth.
 /// </summary>
 internal class DepthPrepassLayer : MeshLayer
 {
 	static readonly StringToken DepthMode = new( "Depth" );
 	static readonly StringToken AlphaTestConservative = new( "D_ALPHA_TEST_CONSERVATIVE" );
-	static readonly StringToken NormalsTextureIndex = new( "NormalsTextureIndex" );
-	static readonly StringToken NormalsGBuffer = new( "NormalsGBuffer" );
-
-	// The world prepass makes the frame's G-buffer; the overlay prepass, which draws first, only draws into it
-	readonly bool ownsGBuffer;
 
 	/// <summary>
 	/// Earlier overlay prepass, which owns the depth clear when active. Null for the overlay pass itself.
@@ -24,7 +18,6 @@ internal class DepthPrepassLayer : MeshLayer
 
 	public DepthPrepassLayer( OverlayDepthPrepassLayer overlays ) : this( "Depth Prepass", MeshRuns.Opaque, overlays )
 	{
-		ownsGBuffer = true;
 		OcclusionPhase = OcclusionPhase.Early;
 	}
 
@@ -32,40 +25,16 @@ internal class DepthPrepassLayer : MeshLayer
 	{
 		ShaderMode = DepthMode;
 		Depth = true;
-		WritesNormals = true;
 		Runs = runs;
 		this.overlays = overlays;
 
-		// Opaque custom objects - terrain - prepass too, as native's do, for views with depth normals (DrawsCustomObjectsIn):
-		// AO runs after the prepass, before they'd draw
+		// Opaque custom objects - terrain - prepass too, as native's do: AO and contact shadows read the prepass before the
+		// opaque pass would draw them
 		LayerType = MeshLayerType.DepthPrepass;
 	}
 
-	/// <summary>
-	/// Take the frame's G-buffer and name it on the frame's attributes, before any segment records - or say there's none
-	/// (<c>NormalsTextureIndex</c> -1, which <c>Normals::Sample</c> answers from depth), since the frame's attributes outlive
-	/// the frame. Native's is the full target's size at its sample count (<c>StandardPipeline</c>).
-	/// </summary>
-	public override void BeforeSegments( RenderFrame frame, GpuContext frameContext )
-	{
-		if ( !ownsGBuffer ) return;
-
-		if ( !frame.View.DepthNormals || frame.IsSkybox )
-		{
-			frame.NormalsGBuffer = null;
-			frameContext.Attributes.Set( NormalsTextureIndex, -1 );
-			return;
-		}
-
-		var target = frame.Output.Target;
-		var gbuffer = frame.System.Transients.Get( TextureDesc.Target( target.Size.x, target.Size.y, TextureFormat.RGBA16161616F, target.Samples ) with { Storage = true }, "Normals GBuffer" );
-		frame.NormalsGBuffer = gbuffer;
-		frameContext.Attributes.Set( NormalsTextureIndex, gbuffer.BindlessIndex );
-		frameContext.Attributes.Set( NormalsGBuffer, gbuffer );
-	}
-
 	public override bool IsNeeded( RenderFrame frame ) => frame.System.DepthPrepass;
-	public override FrameResources Writes => FrameResources.Depth | FrameResources.Normals;
+	public override FrameResources Writes => FrameResources.Depth;
 	public override bool HasSideEffects => true;
 
 	/// <summary>
@@ -80,13 +49,10 @@ internal class DepthPrepassLayer : MeshLayer
 
 	public override void Begin( RenderFrame frame, GpuContext rc, ViewPass view, bool start )
 	{
-		var gbuffer = frame.NormalsGBuffer;
-		if ( gbuffer is null ) frame.BindFrame( rc, color: false );
-		else frame.BeginPass( rc, frame.Target( rc, color: false, final: false ) with { Color = gbuffer, SrgbWrite = false } );
+		frame.BindFrame( rc, color: false );
 
-		// The main frame already cleared skybox depth. Clearing depth also clears stencil, and the first prepass clears the
-		// G-buffer: nothing drawn reads as no normal
-		if ( start && !frame.IsSkybox && Clears( frame ) ) rc.Clear( gbuffer is null ? frame.Clear : Color.Transparent, clearColor: gbuffer is not null );
+		// The main frame already cleared skybox depth. Clearing depth also clears stencil
+		if ( start && !frame.IsSkybox && Clears( frame ) ) rc.Clear( frame.Clear, clearColor: false );
 
 		// Depth mode lacks forward's alpha-to-coverage smoothing.
 		rc.SetPassCombo( AlphaTestConservative, 1 );
@@ -109,9 +75,10 @@ internal sealed class OverlayDepthPrepassLayer : DepthPrepassLayer
 	protected override OverlayStencil Stencil( RenderFrame frame ) => OverlayStencil.Write;
 }
 
+
 /// <summary>
 /// The world prepass again, for anything the early occlusion cull rejected that's visible now. Only draws culled runs,
-/// into the same depth and G-buffer.
+/// into the same depth.
 /// </summary>
 internal sealed class LateDepthPrepassLayer : DepthPrepassLayer
 {

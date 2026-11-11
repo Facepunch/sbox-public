@@ -106,7 +106,6 @@ internal sealed class RenderFrame
 		Space = default;
 		Skybox = null;
 		ContactShadowMask = null;
-		NormalsGBuffer = null;
 		Recorded = default;
 
 		// The 3D skybox draws as it is
@@ -127,7 +126,6 @@ internal sealed class RenderFrame
 		Output = default;
 		Skybox = null;
 		ContactShadowMask = null;
-		NormalsGBuffer = null;
 	}
 
 	/// <summary>
@@ -243,11 +241,6 @@ internal sealed class RenderFrame
 		};
 	}
 
-	/// <summary>
-	/// The depth-normals prepass's G-buffer this frame (<see cref="RenderView.DepthNormals"/>), or null when the prepass is
-	/// depth only.
-	/// </summary>
-	internal GpuTexture NormalsGBuffer;
 
 	/// <summary>
 	/// How long the camera's stages took this frame (<see cref="RenderStats.StagesMs"/>).
