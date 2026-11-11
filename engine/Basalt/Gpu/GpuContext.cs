@@ -260,11 +260,24 @@ internal abstract class GpuContext : IDisposable
 	internal virtual bool GpuDriven => false;
 
 	/// <summary>
+	/// The view's culling for <see cref="DrawGpuDriven"/> to repeat on the GPU over every fragment of an aggregate (the
+	/// same frustum and size tests the CPU makes): the frustum's six planes, the camera and squared size threshold
+	/// (<see cref="Culling.SizeCull"/>), and whether it's a shadow view (fragments that cast no shadow drop out).
+	/// </summary>
+	internal struct GpuDrivenCull
+	{
+		public Vector4 Left, Right, Bottom, Top, Near, Far;
+		public Vector4 CameraAndThreshold;
+		public bool Shadow;
+	}
+
+	/// <summary>
 	/// Draw a layer's aggregate batches GPU-driven: per-draw data in tables and one multi-draw per pipeline, where the device
 	/// can. Sets <paramref name="drawn"/> for each batch drawn; the caller draws the rest as before. Devices without a
-	/// GPU-driven path draw none.
+	/// GPU-driven path draw none. With <paramref name="cull"/>, a device may cull every fragment of each batch's aggregate
+	/// on the GPU instead of drawing the batch's arguments.
 	/// </summary>
-	internal virtual void DrawGpuDriven( StringToken shaderMode, ReadOnlySpan<GpuDrivenBatch> batches, ReadOnlySpan<GpuBuffer.IndirectDrawIndexedArguments> args, TransformBuffer transforms, int depthBias, float slopeScaledDepthBias, Span<bool> drawn )
+	internal virtual void DrawGpuDriven( StringToken shaderMode, ReadOnlySpan<GpuDrivenBatch> batches, ReadOnlySpan<GpuBuffer.IndirectDrawIndexedArguments> args, TransformBuffer transforms, int depthBias, float slopeScaledDepthBias, Span<bool> drawn, in GpuDrivenCull? cull = null )
 	{
 	}
 

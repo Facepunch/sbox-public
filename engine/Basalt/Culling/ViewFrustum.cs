@@ -31,6 +31,9 @@ internal readonly struct ViewFrustum
 		return new( column4 + column1, column4 - column1, column4 + column2, column4 - column2, column4 - column3, column3 );
 	}
 
+	/// <summary>Left, right, bottom, top, near and far, for culling on the GPU with the same test.</summary>
+	public Vector4 Plane( int index ) => index switch { 0 => _left, 1 => _right, 2 => _bottom, 3 => _top, 4 => _near, _ => _far };
+
 	/// <summary>
 	/// Conservative world-space box test; frustum corners can produce false positives.
 	/// </summary>

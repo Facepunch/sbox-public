@@ -97,7 +97,7 @@ internal sealed class GpuDrivenTables : IDisposable
 		}
 	}
 
-	readonly Table geometry, draws, materials;
+	readonly Table geometry, draws, materials, fragments;
 	readonly Dictionary<(int Page, long Offset, VertexLayout Layout, int Count), uint> geometryRecords = new();
 	readonly Dictionary<(uint Geometry, uint Vertex, uint Pixel, uint Flags, uint FirstIndex, uint IndexCount, int BaseVertex, int IndexPage), uint> drawRecords = new();
 	readonly Dictionary<MaterialRecordKey, uint> materialRecords = new();
@@ -111,11 +111,13 @@ internal sealed class GpuDrivenTables : IDisposable
 		geometry = new Table( gpu, "Basalt GPU-driven geometry", 1 << 20 );
 		draws = new Table( gpu, "Basalt GPU-driven draws", 1 << 20 );
 		materials = new Table( gpu, "Basalt GPU-driven materials", 1 << 20 );
+		fragments = new Table( gpu, "Basalt GPU-driven fragments", 1 << 20 );
 
 		// Made now, so their slots exist before any frame reads them
 		geometry.Append( new byte[16] );
 		draws.Append( new byte[DrawStride] );
 		materials.Append( new byte[16] );
+		fragments.Append( new byte[FragmentStride] );
 	}
 
 	/// <summary>The tables' slots in the raw buffer array, as <c>BasaltGpuDriven_t</c> wants them after the instances'.</summary>
@@ -287,6 +289,31 @@ internal sealed class GpuDrivenTables : IDisposable
 		}
 	}
 
+	public const int FragmentStride = 32;
+
+	readonly ConditionalWeakTable<object, Dictionary<(uint Geometry, uint Vertex, uint Pixel), uint>> ownerFragments = new();
+
+	/// <summary>
+	/// The first of an owner's fragment records for one geometry and pair of material records, made once by
+	/// <paramref name="write"/> (which fills <paramref name="count"/> records of <see cref="FragmentStride"/> bytes): the
+	/// fragments' bounds, draw records and indices, which culling on the GPU reads every frame.
+	/// </summary>
+	public uint FragmentsOf<T>( object owner, uint geometry, uint vertexMaterial, uint pixelMaterial, int count, T state, Action<T, Span<byte>> write )
+	{
+		var byKey = ownerFragments.GetValue( owner, static _ => new() );
+		lock ( byKey )
+		{
+			if ( byKey.TryGetValue( (geometry, vertexMaterial, pixelMaterial), out var first ) ) return first;
+
+			var records = new byte[count * FragmentStride];
+			write( state, records );
+			return byKey[(geometry, vertexMaterial, pixelMaterial)] = fragments.Append( records ) / FragmentStride;
+		}
+	}
+
+	/// <summary>The fragment table's slot in the raw buffer array.</summary>
+	public int FragmentSlot => fragments.Slot;
+
 	/// <summary>A stage's material record, made once by <paramref name="write"/> (which fills the bytes it's given).</summary>
 	public uint Material<T>( in MaterialRecordKey key, int size, T state, Action<T, Span<byte>> write )
 	{
@@ -374,6 +401,7 @@ internal sealed class GpuDrivenTables : IDisposable
 		geometry.Dispose();
 		draws.Dispose();
 		materials.Dispose();
+		fragments.Dispose();
 		lock ( pagesLock )
 		{
 			foreach ( var buffer in owned ) gpu.Destroy( buffer );
