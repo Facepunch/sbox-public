@@ -14,6 +14,7 @@ namespace BasaltGpuTests;
 public class SkinningTests : GpuTest
 {
 	const string Citizen = "models/citizen/citizen.vmdl";
+	const string Human = "models/citizen_human/human.vmdl";
 	const int Width = 192, Height = 192;
 
 	/// <summary>
@@ -79,6 +80,49 @@ public class SkinningTests : GpuTest
 		}
 	}
 
+	/// <summary>
+	/// Morphs move the face: the human's head with every flex controller at its maximum, composited into the morph atlas
+	/// and skinned with <c>D_MORPH</c>, differs from it with none set, and with every controller at 0 it doesn't.
+	/// </summary>
+	[TestMethod]
+	public void MorphsMoveTheFace()
+	{
+		using var backend = new BackendDevice( Device );
+		var previousHost = RenderHost.Current;
+		RenderHost.Current = new BackendRenderHost( backend );
+
+		try
+		{
+			var mesh = backend.LoadModel( Human );
+			if ( mesh is null ) Assert.Inconclusive( $"{Human} isn't built" );
+			var model = ((BackendModel)mesh.Geometry).File;
+			var controllers = model.Meshes.Where( x => x.Morphs is not null ).SelectMany( x => x.Morphs.Controllers ).DistinctBy( x => x.Name ).ToArray();
+			Assert.IsTrue( controllers.Length > 0, "the human has flex controllers" );
+
+			// The face, close up
+			var head = new Vector3( 0, 0, mesh.Bounds.Mins.z + mesh.Bounds.Size.z * 0.93f );
+			var none = Render( mesh, Transform.Zero, null, null, head, 0.25f );
+
+			var zero = new BackendMorphs( backend );
+			foreach ( var c in controllers ) zero.Set( c.Name, 0 );
+			var unweighted = Render( mesh, Transform.Zero, null, zero, head, 0.25f );
+
+			var full = new BackendMorphs( backend );
+			foreach ( var c in controllers ) full.Set( c.Name, c.Max );
+			var morphed = Render( mesh, Transform.Zero, null, full, head, 0.25f );
+			Save( morphed, Width, Height, "skinning-morphed-face" );
+
+			var toNone = MeanDifference( morphed, none );
+			Assert.IsTrue( toNone > 1, $"morphs change the face: mean difference {toNone:F3}" );
+			Assert.IsTrue( MeanDifference( unweighted, none ) < 0.05, "nothing weighted, nothing moves" );
+		}
+		finally
+		{
+			Device.WaitIdle();
+			RenderHost.Current = previousHost;
+		}
+	}
+
 	/// <summary>A model-space bone (<c>matrix3x4_t</c> rows) as a transform.</summary>
 	static Transform ToTransform( Matrix3x4 m )
 	{
@@ -92,7 +136,7 @@ public class SkinningTests : GpuTest
 	}
 
 	/// <summary>The model drawn once from a fixed camera, as 8-bit sRGB.</summary>
-	byte[] Render( RenderMesh mesh, Transform transform, Transform[] bones )
+	byte[] Render( RenderMesh mesh, Transform transform, Transform[] bones, IMorphSource morphs = null, Vector3? focus = null, float distance = 1.4f )
 	{
 		var system = new RenderSystem { ParallelRecording = false };
 		var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Skinning" );
@@ -101,7 +145,7 @@ public class SkinningTests : GpuTest
 			var world = new RenderWorld();
 			world.Lighting.SunDirection = new Vector3( -0.4f, 0.6f, -0.7f ).Normal;
 			world.Lighting.AmbientColor = new Color( 0.2f, 0.2f, 0.2f, 1 );
-			var obj = new MeshObject( mesh, transform );
+			var obj = new MeshObject( mesh, transform ) { MorphSource = morphs };
 			if ( bones is not null )
 			{
 				obj.SetBones( bones );
@@ -113,7 +157,7 @@ public class SkinningTests : GpuTest
 			var view = new RenderView { Name = "Skinning", FieldOfView = 60, ClearColor = new Color( 0.1f, 0.2f, 0.9f ), Viewport = new Rect( 0, 0, Width, Height ) };
 			var size = mesh.Bounds.Size.Length;
 			view.Rotation = Rotation.From( 20, 160, 0 );
-			view.Position = mesh.Bounds.Center - view.Rotation.Forward * size * 1.4f;
+			view.Position = (focus ?? mesh.Bounds.Center) - view.Rotation.Forward * size * distance;
 			view.ZNear = size * 0.05f;
 			view.ZFar = size * 10;
 

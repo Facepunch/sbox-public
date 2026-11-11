@@ -534,8 +534,13 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 		}
 	}
 
+	/// <summary>The frame's composite morph atlas, which <see cref="BackendMorphs"/> queue meshes in.</summary>
+	internal MorphAtlas Morphs => morphs ??= new MorphAtlas( this );
+
+	MorphAtlas morphs;
+
 	/// <inheritdoc/>
-	public override Vector4 MorphSubrect( int handle ) => default;
+	public override Vector4 MorphSubrect( int handle ) => Morphs.Subrect( handle );
 
 	/// <inheritdoc/>
 	public override void BeginSubmitting( GpuSwapChain swapChain ) { }

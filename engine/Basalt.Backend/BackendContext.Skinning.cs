@@ -57,6 +57,11 @@ internal sealed partial class BackendContext
 				attributes.Set( "OutputVB", device.VertexCacheBuffer );
 				attributes.Set( "VertexCount", vb.VertexCount );
 				attributes.SetCombo( "D_MORPH", morph ? 1 : 0 );
+				if ( morph )
+				{
+					attributes.Set( "CompositeMorphTextureAtlas", device.Morphs.Texture.Handle );
+					attributes.Set( "MorphTextureAtlasWidth", MorphAtlas.Width );
+				}
 
 				attributes.SetCombo( "D_DEFORMATION_VOLUME", deformed ? 1 : 0 );
 				if ( deformed )
@@ -101,6 +106,31 @@ internal sealed partial class BackendContext
 		r.Pipeline = default;
 		r.Binder = null;
 		return true;
+	}
+
+	/// <summary>
+	/// Composite the morphs queued this frame into the device's morph atlas, before skinning reads them
+	/// (<c>RenderTools.GenerateMorphs</c>).
+	/// </summary>
+	public override void GenerateMorphs()
+	{
+		if ( recording is null || !device.Morphs.Pending ) return;
+		CloseScope();
+
+		skinningDrawer ??= new ShaderDrawer( device );
+		var atlas = device.Morphs.Texture;
+
+		// A list recorded beside others that hasn't used the atlas yet needs it as a target at its start
+		var local = recording.Layouts;
+		var known = default( (ImageLayout First, ImageLayout Current) );
+		var used = local is not null && local.TryGetValue( atlas, out known );
+		var layout = local is null ? atlas.Layout : used ? known.Current : ImageLayout.ColorTarget;
+		if ( !device.Morphs.Generate( List, skinningDrawer, ref layout ) ) return;
+
+		if ( local is not null ) local[atlas] = (used ? known.First : ImageLayout.ColorTarget, layout);
+		else atlas.Layout = layout;
+		recording.Pipeline = default;
+		recording.Binder = null;
 	}
 
 	/// <summary>Before skinning: vertex shaders from earlier work that read the cache finish before compute writes it.</summary>

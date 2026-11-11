@@ -28,10 +28,11 @@ internal static class ModelParity
 	const int Width = 400, Height = 400;
 
 	/// <summary>
-	/// A case: a model, optionally posed from one of its sequences at a normalized time, and dressed in clothing models
-	/// whose bones follow the body's by name.
+	/// A case: a model, optionally posed from one of its sequences at a normalized time, dressed in clothing models whose
+	/// bones follow the body's by name, and with some of its morphs (flex controllers) set. The camera looks at the height
+	/// <paramref name="Aim"/> of the way up its bounds.
 	/// </summary>
-	sealed record Case( string Name, string Path, ulong? MeshGroups = null, float Distance = 1.0f, string Sequence = null, float Time = 0, string[] Clothing = null );
+	sealed record Case( string Name, string Path, ulong? MeshGroups = null, float Distance = 1.0f, string Sequence = null, float Time = 0, string[] Clothing = null, int Morphs = 0, float Aim = 0.5f );
 
 	const string Human = "models/citizen_human/human.vmdl";
 
@@ -59,7 +60,26 @@ internal static class ModelParity
 		new( "human-jump", Human, Sequence: "AvatarMenu_Entry_Jump", Time: 0.4f ),
 		new( "human-sit", Human, Sequence: "SitPose_Default" ),
 		new( "human-dressed", Human, Sequence: "AvatarMenu_FidgetLarge_03", Time: 0.5f, Clothing: Outfit ),
+		// Morphs: a few of the face's flex controllers set, both devices compositing and skinning them
+		new( "human-face", Human, Distance: 0.22f, Morphs: 6, Aim: 0.93f ),
+		new( "human-face-posed", Human, Distance: 0.5f, Sequence: "AvatarMenu_Entry_Wave_01", Time: 0.5f, Morphs: 12, Aim: 0.8f ),
 	];
+
+	/// <summary>The controllers a morph case sets: every 7th of the model's, at weights between 0.5 and 1.</summary>
+	static (string Name, float Weight)[] MorphWeights( Model model, int count )
+	{
+		var names = model.Morphs?.Names ?? [];
+		return names.Length == 0 ? [] : Enumerable.Range( 0, count ).Select( i => (names[i * 7 % names.Length], 0.5f + 0.5f * ((i * 3) % 5) / 4.0f) ).DistinctBy( x => x.Item1 ).ToArray();
+	}
+
+	/// <summary>
+	/// A native model's morphs as Basalt on Source 2's device queues them (<c>SceneModelMorphs</c>): native evaluates the
+	/// scene model's flex controllers for each mesh.
+	/// </summary>
+	sealed class NativeMorphs( SceneModel source ) : IMorphSource
+	{
+		public int Queue( GpuMesh mesh, int modelMesh ) => source.IsValid() ? NativeEngine.RenderTools.QueueModelMeshMorph( source, mesh.Native(), modelMesh ) : -1;
+	}
 
 	/// <summary>A posed body's world bones and bounds, and each clothing model's bones following it.</summary>
 	sealed record Pose( Transform[] Body, Transform[][] Clothing, BBox Bounds );
@@ -116,14 +136,32 @@ internal static class ModelParity
 		// Posed by native's animation system: both devices get the same bones
 		var pose = test.Sequence is null ? null : Posed( model, test.Sequence, test.Time, clothing.Select( x => x.Model ).ToArray() );
 
+		// Morphs: a native scene model with the controllers set, never drawn, which native evaluates for Source 2's device;
+		// the same controllers by name for Basalt.Gpu's
+		var weights = MorphWeights( model, test.Morphs );
+		SceneWorld morphWorld = null;
+		IMorphSource nativeMorphs = null;
+		if ( weights.Length > 0 )
+		{
+			morphWorld = new SceneWorld();
+			var face = new SceneModel( morphWorld, model, Transform.Zero ) { UseAnimGraph = false, PlaybackRate = 0 };
+			// At once: the collection's own Set fades them in, and the scene model is never updated again
+			foreach ( var (name, weight) in weights ) face.Morphs.Set( name, weight, 0 );
+			face.Update( 0 );
+			nativeMorphs = new NativeMorphs( face );
+		}
+
+		var gpuMorphs = new BackendMorphs( device );
+		foreach ( var (name, weight) in weights ) gpuMorphs.Set( name, weight );
+
 		// The same world and camera on both devices: the model at the origin, a sun from the side, the default ambient
-		Shot MakeWorld( RenderMesh mesh, RenderMesh[] clothes )
+		Shot MakeWorld( RenderMesh mesh, RenderMesh[] clothes, IMorphSource morphs )
 		{
 			var world = new RenderWorld();
 			world.Lighting.SunDirection = new Vector3( -0.4f, 0.6f, -0.7f ).Normal;
 			world.Lighting.SunColor = new Color( 1.2f, 1.1f, 1.0f );
 
-			var body = new MeshObject( mesh, Transform.Zero );
+			var body = new MeshObject( mesh, Transform.Zero ) { MorphSource = weights.Length > 0 ? morphs : null };
 			world.Add( body );
 			if ( pose is not null )
 			{
@@ -142,7 +180,8 @@ internal static class ModelParity
 			var size = bounds.Size.Length;
 			var view = new RenderView { Name = "Model parity", FieldOfView = 60, ClearColor = new Color( 0.1f, 0.12f, 0.16f ), Viewport = new Rect( 0, 0, Width, Height ) };
 			view.Rotation = Rotation.From( 20, 160, 0 );
-			view.Position = bounds.Center - view.Rotation.Forward * size * 1.1f * test.Distance;
+			var aim = bounds.Center.WithZ( bounds.Mins.z + bounds.Size.z * test.Aim );
+			view.Position = aim - view.Rotation.Forward * size * 1.1f * test.Distance;
 			view.ZNear = size * 0.05f;
 			view.ZFar = size * 10 * test.Distance;
 			return new Shot( world, view );
@@ -152,8 +191,13 @@ internal static class ModelParity
 		// (Source2Mesh draws every mesh; body groups are applied per object, here the case's or the model's default ones)
 		var nativeMesh = WithMeshGroups( Source2Mesh.FromModel( model ), model, test.MeshGroups ?? file.DefaultMeshGroupMask );
 		var nativeClothes = clothing.Select( x => WithMeshGroups( Source2Mesh.FromModel( x.Model ), x.Model, x.File.DefaultMeshGroupMask ) ).ToArray();
-		var native = Render( MakeWorld( nativeMesh, nativeClothes ), backend.ReadPixels, backend.BeginFrame, backend.EndFrame );
+		var native = Render( MakeWorld( nativeMesh, nativeClothes, nativeMorphs ), backend.ReadPixels, backend.BeginFrame, backend.EndFrame );
 		backend.Phase( $"{test.Name}: Source 2" );
+		if ( morphWorld is not null )
+		{
+			morphWorld.Delete();
+			SceneWorld.FlushQueuedDeletes();
+		}
 
 		// Basalt.Gpu: the model read by Basalt.Source2
 		var previous = RenderHost.Current;
@@ -163,7 +207,7 @@ internal static class ModelParity
 		{
 			var mesh = BackendModel.Create( device, file, test.MeshGroups );
 			var clothes = clothing.Select( x => BackendModel.Create( device, x.File ) ).ToArray();
-			basalt = Render( MakeWorld( mesh, clothes ), target => ReadBack( device, target ), device.BeginFrame );
+			basalt = Render( MakeWorld( mesh, clothes, gpuMorphs ), target => ReadBack( device, target ), device.BeginFrame );
 		}
 		finally
 		{
@@ -199,7 +243,8 @@ internal static class ModelParity
 
 		var info = model.MeshInfo;
 		var ok = mean <= tolerance && mismatches.Count == 0;
-		var posed = test.Sequence is null ? "" : $" posed {test.Sequence} at {test.Time:F2}{(clothing.Length > 0 ? $", {clothing.Length} clothing models" : "")}";
+		var posed = (test.Sequence is null ? "" : $" posed {test.Sequence} at {test.Time:F2}{(clothing.Length > 0 ? $", {clothing.Length} clothing models" : "")}")
+			+ (weights.Length > 0 ? $" morphs {string.Join( ", ", weights.Select( x => $"{x.Name} {x.Weight:F2}" ) )}" : "");
 		var line = $"{test.Name}: {test.Path}{(test.MeshGroups is { } m ? $" mesh groups {m}" : "")}{posed}: mean difference {mean:F3}, max {maxDiff}, {over} pixels over 8; "
 			+ $"engine {info.TotalVertices} vertices, {info.TotalTriangles} triangles, {info.TotalDrawCalls} draws, {info.LodCount} LODs, bounds {model.Bounds.Mins} {model.Bounds.Maxs}"
 			+ $"; {comparedDraws} draws' vertices compared"

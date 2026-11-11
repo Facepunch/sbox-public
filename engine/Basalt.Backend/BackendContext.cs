@@ -891,7 +891,6 @@ internal sealed partial class BackendContext : GpuContext
 	// What only Source 2 has: skipped, as the headless device skips a mesh with no geometry
 	//
 
-	public override void GenerateMorphs() { }
 	public override bool BindVertexCacheIds( RenderMesh mesh, in RenderMesh.Draw draw ) => false;
 	public override bool BindGeometry( RenderMesh mesh, in RenderMesh.Draw draw ) => false;
 

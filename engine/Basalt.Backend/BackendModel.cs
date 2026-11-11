@@ -275,6 +275,7 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry, ISkinnedGeometry
 			VertexCount = source.VertexBuffers.Sum( x => x.Count ),
 			InverseBindPoses = source.Bones.Select( x => Affine( x.InverseBindPose ) ).ToArray(),
 			MasterBones = masters,
+			Morphs = source.Morphs is { FlexDescs.Count: > 0, Controllers.Count: > 0 },
 		};
 	}
 
