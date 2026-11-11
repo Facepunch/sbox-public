@@ -118,6 +118,21 @@ PlatformRoot
 		}
 	}
 
+	.side-area
+	{
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+
+		> .inner
+		{
+			@include platform-16x9;
+			position: relative;
+		}
+	}
+
 	.blur
 	{
 		position: absolute;

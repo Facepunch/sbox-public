@@ -86,6 +86,7 @@ $gap: 8px;
 // page, fading out at the bottom of it.
 AvatarShelf
 {
+	@include platform-16x9;
 	position: relative;
 	flex-shrink: 0;
 	height: 100%;

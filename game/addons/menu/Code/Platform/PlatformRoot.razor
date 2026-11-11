@@ -48,8 +48,12 @@
 
     <div class="catcher @(ClicksOff ? "on" : "")" onclick=@ClickedOff></div>
 
-    <FriendsPanel @ref="FriendsSide" Open=@(FriendsOpen && !PlatformMenu.IsSwitching) />
-    <RewardsPanel @ref="RewardsSide" Open=@(RewardsOpen && !PlatformMenu.IsSwitching) />
+	<div class="side-area">
+		<div class="inner">
+			<FriendsPanel @ref="FriendsSide" Open=@(FriendsOpen && !PlatformMenu.IsSwitching) />
+			<RewardsPanel @ref="RewardsSide" Open=@(RewardsOpen && !PlatformMenu.IsSwitching) />
+		</div>
+	</div>
 
     <Dock @ref="DockPanel" />
 

@@ -10,112 +10,112 @@
     and avatar, rewards, mounts, settings and quit on the right.
 *@
 <root>
+	<div class="inner">
+		<div class="left">
+			<div class="pill library @(LibraryOpen ? "open" : "")" onclick=@SwitchGame>
+				<i>sports_esports</i>
+				<label>Library</label>
+				<label class="count">@InstalledGames</label>
+			</div>
 
-    <div class="left">
-        <div class="pill library @(LibraryOpen ? "open" : "")" onclick=@SwitchGame>
-            <i>sports_esports</i>
-            <label>Library</label>
-            <label class="count">@InstalledGames</label>
-        </div>
+			@* Browse opens with its search field ready to type in. *@
+			<div class="pill search @(Shelf == PlatformShelf.Browse ? "open" : "")" onclick=@ToggleSearch>
+				<i>search</i>
+				<label>Games</label>
+			</div>
 
-        @* Browse opens with its search field ready to type in. *@
-        <div class="pill search @(Shelf == PlatformShelf.Browse ? "open" : "")" onclick=@ToggleSearch>
-            <i>search</i>
-            <label>Games</label>
-        </div>
+			<div class="pill multiplayer @(Shelf == PlatformShelf.Multiplayer ? "open" : "")" onclick=@( () => Root?.ToggleShelf( PlatformShelf.Multiplayer ) )>
+				<i>public</i>
+				<label>Multiplayer</label>
+			</div>
+		</div>
 
-        <div class="pill multiplayer @(Shelf == PlatformShelf.Multiplayer ? "open" : "")" onclick=@( () => Root?.ToggleShelf( PlatformShelf.Multiplayer ) )>
-            <i>public</i>
-            <label>Multiplayer</label>
-        </div>
-    </div>
+		<div class="middle">
+			<div class="party @(PartyDeck.ShownOnPlatform || (card.IsValid() && !card.IsDeleting) ? "open" : "") @(PartyDeck.Activity() ?? "")" @ref="PartyButton">
+				@if ( Joining is { ShowGame: true } && !string.IsNullOrWhiteSpace( PartyArt ) )
+				{
+					<div class="game-art" style="background-image: url( @PartyArt );"></div>
+				}
 
-    <div class="middle">
-        <div class="party @(PartyDeck.ShownOnPlatform || (card.IsValid() && !card.IsDeleting) ? "open" : "") @(PartyDeck.Activity() ?? "")" @ref="PartyButton">
-            @if ( Joining is { ShowGame: true } && !string.IsNullOrWhiteSpace( PartyArt ) )
-            {
-                <div class="game-art" style="background-image: url( @PartyArt );"></div>
-            }
+				@* Pressed apart from the + beside them, so a press on one is never one on the other *@
+				<div class="faces" onmousedown=@( () => cardWasUp = cardUp ) onclick=@PressParty tooltip="@(PartyView.Exists ? "Your party" : "You")">
+					@if ( Joining is { ShowGame: false } stage )
+					{
+						<div class="status-icon @(PartyDeck.Activity() ?? "")"><i>@stage.Icon</i></div>
+					}
 
-            @* Pressed apart from the + beside them, so a press on one is never one on the other *@
-            <div class="faces" onmousedown=@( () => cardWasUp = cardUp ) onclick=@PressParty tooltip="@(PartyView.Exists ? "Your party" : "You")">
-                @if ( Joining is { ShowGame: false } stage )
-                {
-                    <div class="status-icon @(PartyDeck.Activity() ?? "")"><i>@stage.Icon</i></div>
-                }
+					@if ( PartyView.Exists )
+					{
+						@foreach ( var member in ShownMembers )
+						{
+							<PartyMember Friend=@member Status=@PartyView.StatusOf( member ) Ready=@PartyView.IsMemberReady( member ) />
+						}
 
-                @if ( PartyView.Exists )
-                {
-                    @foreach ( var member in ShownMembers )
-                    {
-                        <PartyMember Friend=@member Status=@PartyView.StatusOf( member ) Ready=@PartyView.IsMemberReady( member ) />
-                    }
+						@foreach ( var invited in ShownInvites )
+						{
+							<PartyPendingSeat Friend=@invited />
+						}
 
-                    @foreach ( var invited in ShownInvites )
-                    {
-                        <PartyPendingSeat Friend=@invited />
-                    }
+						@if ( MoreSeats > 0 )
+						{
+							<div class="more"><label>@($"+{MoreSeats}")</label></div>
+						}
+					}
+					else
+					{
+						<div class="me" style="background-image: url( avatar:@Game.SteamId );"></div>
+					}
+				</div>
 
-                    @if ( MoreSeats > 0 )
-                    {
-                        <div class="more"><label>@($"+{MoreSeats}")</label></div>
-                    }
-                }
-                else
-                {
-                    <div class="me" style="background-image: url( avatar:@Game.SteamId );"></div>
-                }
-            </div>
+				<div class="add @(PartyDeck.Drafting || FriendsUpFrom( InviteButton ) ? "open" : "")" @ref="InviteButton" onclick=@AddToParty tooltip="@(PartyView.Exists ? "Invite friends" : "Start a party")">
+					<i>add</i>
+				</div>
+			</div>
 
-            <div class="add @(PartyDeck.Drafting || FriendsUpFrom( InviteButton ) ? "open" : "")" @ref="InviteButton" onclick=@AddToParty tooltip="@(PartyView.Exists ? "Invite friends" : "Start a party")">
-                <i>add</i>
-            </div>
-        </div>
+			<div class="square friends @(Root?.FriendsOpen == true ? "open" : "")" @ref="FriendsButton" onclick=@Friends tooltip="Friends">
+				<i>group</i>
+				@if ( PlayingFriends > 0 )
+				{
+					<label class="count">@PlayingFriends</label>
+				}
+			</div>
+		</div>
 
-        <div class="square friends @(Root?.FriendsOpen == true ? "open" : "")" @ref="FriendsButton" onclick=@Friends tooltip="Friends">
-            <i>group</i>
-            @if ( PlayingFriends > 0 )
-            {
-                <label class="count">@PlayingFriends</label>
-            }
-        </div>
-    </div>
+		<div class="right">
+			@* Your weekly drop, in from the right as your friends are - not in a started game: opening one loads its own
+			   scene, which would pull you out of it. A pip when there's one waiting. *@
+			@if ( PlatformRoot.CanDressUp )
+			{
+				<div class="square rewards @(Root?.RewardsOpen == true ? "open" : "")" onclick=@( () => Root?.ToggleSide( PlatformRoot.SidePanel.Rewards ) ) tooltip="Weekly rewards">
+					<i>redeem</i>
+					@if ( MenuHelpers.RewardReady( rewards ) )
+					{
+						<div class="pip"></div>
+					}
+				</div>
+			}
 
-    <div class="right">
-        @* Your weekly drop, in from the right as your friends are - not in a started game: opening one loads its own
-           scene, which would pull you out of it. A pip when there's one waiting. *@
-        @if ( PlatformRoot.CanDressUp )
-        {
-            <div class="square rewards @(Root?.RewardsOpen == true ? "open" : "")" onclick=@( () => Root?.ToggleSide( PlatformRoot.SidePanel.Rewards ) ) tooltip="Weekly rewards">
-                <i>redeem</i>
-                @if ( MenuHelpers.RewardReady( rewards ) )
-                {
-                    <div class="pip"></div>
-                }
-            </div>
-        }
+			@* Not in a started game - you dress up on a menu *@
+			@if ( PlatformRoot.CanDressUp )
+			{
+				<div class="square @(Shelf == PlatformShelf.Avatar ? "open" : "")" onclick=@( () => Root?.ToggleShelf( PlatformShelf.Avatar ) ) tooltip="Avatar">
+					<i>checkroom</i>
+				</div>
+			}
 
-        @* Not in a started game - you dress up on a menu *@
-        @if ( PlatformRoot.CanDressUp )
-        {
-            <div class="square @(Shelf == PlatformShelf.Avatar ? "open" : "")" onclick=@( () => Root?.ToggleShelf( PlatformShelf.Avatar ) ) tooltip="Avatar">
-                <i>checkroom</i>
-            </div>
-        }
+			<div class="square @(Shelf == PlatformShelf.Mounts ? "open" : "")" onclick=@( () => Root?.ToggleShelf( PlatformShelf.Mounts ) ) tooltip="Mounts">
+				<i>extension</i>
+			</div>
 
-        <div class="square @(Shelf == PlatformShelf.Mounts ? "open" : "")" onclick=@( () => Root?.ToggleShelf( PlatformShelf.Mounts ) ) tooltip="Mounts">
-            <i>extension</i>
-        </div>
+			<div class="square @(Root?.SettingsPage is not null ? "open" : "")" onclick=@( () => ModalSystem.Instance?.Settings() ) tooltip="Settings">
+				<i>settings</i>
+			</div>
 
-        <div class="square @(Root?.SettingsPage is not null ? "open" : "")" onclick=@( () => ModalSystem.Instance?.Settings() ) tooltip="Settings">
-            <i>settings</i>
-        </div>
-
-        <div class="square quit" onclick=@Quit tooltip="Quit to desktop">
-            <i>power_settings_new</i>
-        </div>
-    </div>
-
+			<div class="square quit" onclick=@Quit tooltip="Quit to desktop">
+				<i>power_settings_new</i>
+			</div>
+		</div>
+	</div>
 </root>
 
 @code

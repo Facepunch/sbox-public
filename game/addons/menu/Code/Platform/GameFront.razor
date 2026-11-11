@@ -14,7 +14,7 @@
     back to its menu.
 *@
 <root class="@(Paused ? "paused" : "") @(OffHome ? "paging" : "")">
-
+	<div class="inner">
     @if ( ShownTitle is { } title )
     {
         <div class="header">
@@ -75,7 +75,7 @@
             <FrontPages class="pages" @ref="Pages" />
         }
     }
-
+	</div>
 </root>
 
 @code

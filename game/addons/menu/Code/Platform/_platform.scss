@@ -65,6 +65,14 @@ $platform-side-width: 236px;
 $platform-side-gap: 40px;
 $platform-side-balance: 276px;
 
+$screen-w-16x9: 1920px;
+
+@mixin platform-16x9
+{
+	max-width: $screen-w-16x9;
+	width: 100%;
+	margin: 0 auto;
+}
 
 // A button's sounds, as the old menu's have them - a tick as the pointer comes onto it, a click as it's pressed
 @mixin platform-sounds

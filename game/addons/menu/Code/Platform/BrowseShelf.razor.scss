@@ -3,6 +3,7 @@
 // Laid out by the ShelfPanel it's on, the panel's full height - the sidebar and the results each scroll on their own
 BrowseShelf
 {
+	@include platform-16x9;
 	flex-direction: row;
 	flex-shrink: 0;
 	height: 100%;

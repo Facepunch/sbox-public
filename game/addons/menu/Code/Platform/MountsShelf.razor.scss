@@ -4,6 +4,7 @@
 // platform's look: GameCard's fill and corners, its blue for one that's on.
 MountsShelf
 {
+	@include platform-16x9;
 	flex-shrink: 0;
 	height: 100%;
 	gap: 12px;

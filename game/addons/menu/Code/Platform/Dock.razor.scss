@@ -71,14 +71,22 @@ Dock
 	right: 0;
 	bottom: 0;
 	height: $platform-dock-height;
-	flex-direction: row;
-	align-items: center;
-	justify-content: space-between;
-	padding: 0 64px;
 	background-color: $dock-background;
 	overflow: visible;
 	font-family: $platform-font;
 	pointer-events: all;
+
+	.inner
+	{
+		width: 100%;
+		max-width: $screen-w-16x9;
+		margin: 0 auto;
+		height: 100%;
+		flex-direction: row;
+		align-items: center;
+		justify-content: space-between;
+		padding: 0 64px;
+	}
 
 	.left, .middle, .right
 	{

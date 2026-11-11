@@ -20,11 +20,7 @@ $settings-no-detail: 380px;
 
 PlatformSettings
 {
-	position: absolute;
-	left: 0;
-	top: 0;
-	right: 0;
-	bottom: 0;
+	@include platform-16x9;
 	pointer-events: none;
 	transition: transform 0.18s ease-out, opacity 0.14s ease-out;
 
