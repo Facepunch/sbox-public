@@ -34,6 +34,16 @@ public sealed class GraphicsContext
 	/// <summary>The bound colour target; default when none is.</summary>
 	public TextureHandle Target { get; private set; }
 
+	/// <summary>
+	/// The depth target bound with it, or default. A draw whose shader tests or writes depth gets it in its scope (read-only
+	/// when it only tests); others draw without it.
+	/// </summary>
+	public TextureHandle Depth { get; private set; }
+
+	// The open scope's depth: none, read-only or written
+	enum DepthUse { None, ReadOnly, Write }
+	DepthUse scopeDepth;
+
 	/// <summary>Where draws land in the target, and what shaders read as <c>Source( Viewport )</c>: x, y, width, height.</summary>
 	public Num.Vector4 Viewport { get; set; }
 
@@ -60,6 +70,7 @@ public sealed class GraphicsContext
 		List = list;
 		rendering = false;
 		Target = default;
+		Depth = default;
 		Viewport = default;
 	}
 
@@ -99,11 +110,18 @@ public sealed class GraphicsContext
 	/// Bind <paramref name="texture"/> as the colour target, with the viewport covering it, as setting
 	/// <c>Graphics.RenderTarget</c> does.
 	/// </summary>
-	public void SetTarget( TextureHandle texture )
+	public void SetTarget( TextureHandle texture ) => SetTarget( texture, default );
+
+	/// <summary>
+	/// Bind <paramref name="texture"/> as the colour target and <paramref name="depth"/> (default for none) as its depth, with
+	/// the viewport covering the colour, as setting <c>Graphics.RenderTarget</c> to a target with both does.
+	/// </summary>
+	public void SetTarget( TextureHandle texture, TextureHandle depth )
 	{
-		if ( Target == texture ) return;
+		if ( Target == texture && Depth == depth ) return;
 		EndScope();
 		Target = texture;
+		Depth = depth;
 		var info = gpu.InfoOf( texture );
 		Viewport = new Num.Vector4( 0, 0, info.Width, info.Height );
 	}
@@ -134,9 +152,9 @@ public sealed class GraphicsContext
 	/// <summary>Draw <paramref name="instances"/> instances of <paramref name="indexCount"/> 32-bit indices into the target.</summary>
 	public bool DrawIndexedInstanced( ShaderFile shader, ShaderAttributes attributes, BufferHandle indices, int indexCount, int instances )
 	{
-		BeginScope( attributes );
+		var depth = BeginScope( shader, attributes );
 		Draws++;
-		return drawer.DrawIndexedInstanced( List, shader, attributes, gpu.InfoOf( Target ).Format, 1, indices, indexCount, instances, Viewport );
+		return drawer.DrawIndexedInstanced( List, shader, attributes, gpu.InfoOf( Target ).Format, depth, 1, indices, indexCount, instances, Viewport );
 	}
 
 	/// <summary>
@@ -164,12 +182,58 @@ public sealed class GraphicsContext
 	/// </summary>
 	public bool DrawVertices( ShaderFile shader, ShaderAttributes attributes, ReadOnlySpan<byte> vertices, VertexStreamLayout layout, int count, PrimitiveTopology topology )
 	{
-		BeginScope( attributes );
+		var depth = BeginScope( shader, attributes );
 		var upload = List.AllocateUpload( vertices.Length, 16 );
 		vertices.CopyTo( upload.Data );
 		Draws++;
-		return drawer.Draw( List, shader, attributes, gpu.InfoOf( Target ).Format, 1, upload.Buffer, upload.Offset, layout, count, topology, Viewport );
+		return drawer.Draw( List, shader, attributes, gpu.InfoOf( Target ).Format, depth, 1, upload.Buffer, upload.Offset, layout, count, topology, Viewport );
 	}
+
+	/// <summary>
+	/// Draw vertices into depth alone - a target of the bound colour target's size, which only this draw's scope uses, its
+	/// contents never read - counting the samples that pass into occlusion query <paramref name="query"/>, which is reset
+	/// first: how native counts the pixels of a frame in a luminance range for auto exposure (<c>tonemap_query</c>, with
+	/// colour writes and depth testing off, over the colour it samples).
+	/// </summary>
+	public bool DrawCounted( ShaderFile shader, ShaderAttributes attributes, ReadOnlySpan<byte> vertices, VertexStreamLayout layout, int count, PrimitiveTopology topology, OcclusionQueries queries, int query )
+	{
+		if ( !Target.IsValid ) throw new InvalidOperationException( "No colour target is bound." );
+		EndScope();
+
+		foreach ( var (_, value) in attributes.Values )
+		{
+			if ( value is TextureHandle texture ) Transition( texture, ImageLayout.ShaderRead );
+		}
+
+		var info = gpu.InfoOf( Target );
+		if ( !countDepth.IsValid || gpu.InfoOf( countDepth ).Width != info.Width || gpu.InfoOf( countDepth ).Height != info.Height )
+		{
+			if ( countDepth.IsValid )
+			{
+				owned.Remove( countDepth );
+				layouts.Remove( countDepth );
+				gpu.Destroy( countDepth );
+			}
+
+			countDepth = gpu.CreateTexture( TextureInfo.RenderTarget( info.Width, info.Height, Format.D32Float, name: "Counted draws" ) );
+			layouts[countDepth] = ImageLayout.Undefined;
+			owned.Add( countDepth );
+		}
+
+		List.ResetQueries( queries, query, 1 );
+		Transition( countDepth, ImageLayout.DepthReadOnly );
+		List.BeginRendering( [], new DepthTarget { Texture = countDepth, Load = LoadOp.Load, Store = StoreOp.Store, ReadOnly = true } );
+		var upload = List.AllocateUpload( vertices.Length, 16 );
+		vertices.CopyTo( upload.Data );
+		List.BeginQuery( queries, query );
+		Draws++;
+		var drawn = drawer.Draw( List, shader, attributes, Format.Unknown, Format.D32Float, 1, upload.Buffer, upload.Offset, layout, count, topology, Viewport );
+		List.EndQuery( queries, query );
+		List.EndRendering();
+		return drawn;
+	}
+
+	TextureHandle countDepth;
 
 	/// <summary>Fill a whole texture with <paramref name="color"/>, bound or not.</summary>
 	public void ClearTexture( TextureHandle texture, Num.Vector4 color )
@@ -199,6 +263,22 @@ public sealed class GraphicsContext
 	/// </summary>
 	public bool Dispatch( ShaderFile shader, ShaderAttributes attributes, int x, int y, int z )
 	{
+		PrepareDispatch( shader, attributes );
+		return drawer.Dispatch( List, shader, attributes, x, y, z );
+	}
+
+	/// <summary>
+	/// As <see cref="Dispatch"/>, over the thread groups <paramref name="arguments"/> holds at <paramref name="offset"/> bytes,
+	/// written by an earlier pass (a barrier after that pass makes them visible, as native needs one).
+	/// </summary>
+	public bool DispatchIndirect( ShaderFile shader, ShaderAttributes attributes, BufferHandle arguments, long offset )
+	{
+		PrepareDispatch( shader, attributes );
+		return drawer.DispatchIndirect( List, shader, attributes, arguments, offset );
+	}
+
+	void PrepareDispatch( ShaderFile shader, ShaderAttributes attributes )
+	{
 		EndScope();
 
 		// Textures it writes go to General, which it may also read; those it only samples to ShaderRead, as their
@@ -218,7 +298,6 @@ public sealed class GraphicsContext
 
 		foreach ( var (texture, layout) in dispatchLayouts ) Transition( texture, layout == ImageLayout.Undefined ? ImageLayout.General : layout );
 		dispatchLayouts.Clear();
-		return drawer.Dispatch( List, shader, attributes, x, y, z );
 	}
 
 	readonly Dictionary<TextureHandle, ImageLayout> dispatchLayouts = new();
@@ -355,6 +434,46 @@ public sealed class GraphicsContext
 		Transition( texture, ImageLayout.ShaderRead );
 	}
 
+	/// <summary>
+	/// Build a view's depth chain (<c>DepthChainDownsample</c>, which <c>Depth::Get</c> reads) from
+	/// <paramref name="depth"/> into <paramref name="chain"/>, an RG32F storage texture of the depth's size with mips:
+	/// min and max of the depth, resolved into the first mip by the first dispatch of <c>downsample_spd</c> and reduced into
+	/// the rest, as Basalt's depth chain layer builds it on Source 2. Both end readable.
+	/// </summary>
+	public void BuildDepthChain( TextureHandle depth, TextureHandle chain, ShaderFile spd )
+	{
+		var info = gpu.InfoOf( chain );
+		EndScope();
+		Transition( depth, ImageLayout.ShaderRead );
+		Transition( chain, ImageLayout.General );
+
+		var attributes = new ShaderAttributes();
+		attributes.SetCombo( "D_DOWNSAMPLE_METHOD", 5 );
+		attributes.SetCombo( "D_MSAA", 0 );
+		attributes.Set( "SourceDepth", depth );
+		var fused = true;
+		var lastMip = Math.Min( info.Mips - 1, System.Numerics.BitOperations.Log2( (uint)Math.Min( info.Width, info.Height ) ) );
+		for ( int source = 0; source < lastMip; )
+		{
+			int width = info.Width >> source, height = info.Height >> source;
+			var mipCount = Math.Min( lastMip - source, 6 );
+			attributes.SetCombo( "D_FUSED_DEPTH", fused ? 1 : 0 );
+			if ( fused ) attributes.Set( "Mip0Out", MipView( chain, source ) );
+			else List.Barrier( MipBarrier( chain, source, ImageLayout.General, ImageLayout.ShaderRead ) );
+			for ( int i = fused ? 1 : 0; i <= 6; i++ ) attributes.Set( $"Mip{i}", MipView( chain, source + Math.Min( i, mipCount ) ) );
+			attributes.Set( "SourceSize", width, height );
+			attributes.Set( "MipCount", mipCount );
+			if ( !drawer.Dispatch( List, spd, attributes, (width + 63) / 64 * 256, (height + 63) / 64, 1 ) ) throw new InvalidOperationException( $"{spd.Name} didn't dispatch" );
+
+			if ( !fused ) List.Barrier( MipBarrier( chain, source, ImageLayout.ShaderRead, ImageLayout.General ) );
+			MemoryBarrier();
+			source += mipCount;
+			fused = false;
+		}
+
+		Transition( chain, ImageLayout.ShaderRead );
+	}
+
 	static TextureBarrier MipBarrier( TextureHandle texture, int mip, ImageLayout from, ImageLayout to ) => new()
 	{
 		Texture = texture,
@@ -449,23 +568,58 @@ public sealed class GraphicsContext
 		return view;
 	}
 
-	/// <summary>Make every texture a draw samples readable, then open a scope on the target.</summary>
-	void BeginScope( ShaderAttributes attributes )
+	/// <summary>
+	/// Make every texture a draw samples readable, then open a scope on the target - with the bound depth when the shader
+	/// tests or writes depth, read-only when it only tests. Returns the depth format the draw's pipeline needs.
+	/// </summary>
+	Format BeginScope( ShaderFile shader, ShaderAttributes attributes )
 	{
 		if ( !Target.IsValid ) throw new InvalidOperationException( "No colour target is bound." );
+
+		var variant = Depth.IsValid ? drawer.Variant( shader, attributes ) : null;
+		var depth = variant?.State is { } state && (state.DepthTest || state.DepthWrite) ? (state.DepthWrite ? DepthUse.Write : DepthUse.ReadOnly) : DepthUse.None;
 
 		foreach ( var (name, value) in attributes.Values )
 		{
 			if ( value is not TextureHandle texture || Layout( texture ) == ImageLayout.ShaderRead ) continue;
-			if ( texture == Target ) throw new InvalidOperationException( $"{name} samples the target being drawn to." );
+
+			// The targets may be among the attributes (a post process's view colour and depth) without the shader reading them
+			if ( texture == Target || texture == Depth )
+			{
+				if ( !Reads( variant ?? drawer.Variant( shader, attributes ), name ) ) continue;
+				if ( texture == Target || depth != DepthUse.None ) throw new InvalidOperationException( $"{name} samples a target being drawn to." );
+			}
+
 			EndScope();
 			Transition( texture, ImageLayout.ShaderRead );
 		}
 
-		if ( rendering ) return;
+		if ( rendering && scopeDepth == depth ) return depth == DepthUse.None ? Format.Unknown : gpu.InfoOf( Depth ).Format;
+		EndScope();
+
 		Transition( Target, ImageLayout.ColorTarget );
-		List.BeginRendering( [new ColorTarget { Texture = Target, Load = LoadOp.Load, Store = StoreOp.Store }] );
+		var depthTarget = default( DepthTarget );
+		if ( depth != DepthUse.None )
+		{
+			Transition( Depth, depth == DepthUse.Write ? ImageLayout.DepthTarget : ImageLayout.DepthReadOnly );
+			depthTarget = new DepthTarget { Texture = Depth, Load = LoadOp.Load, Store = StoreOp.Store, ReadOnly = depth == DepthUse.ReadOnly };
+		}
+
+		List.BeginRendering( [new ColorTarget { Texture = Target, Load = LoadOp.Load, Store = StoreOp.Store }], depthTarget );
 		rendering = true;
+		scopeDepth = depth;
+		return depth == DepthUse.None ? Format.Unknown : gpu.InfoOf( Depth ).Format;
+	}
+
+	/// <summary>Whether a variant binds the texture set under <paramref name="name"/>.</summary>
+	static bool Reads( ShaderVariant variant, string name )
+	{
+		foreach ( var resource in variant?.Resources ?? [] )
+		{
+			if ( resource.Kind is ShaderResourceKind.Texture or ShaderResourceKind.StorageTexture && string.Equals( resource.Name, name, StringComparison.OrdinalIgnoreCase ) ) return true;
+		}
+
+		return false;
 	}
 
 	void EndScope()

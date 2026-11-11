@@ -291,7 +291,8 @@ public static partial class Graphics
 
 				var managed = backend.BeginBlock();
 				var block = new Scope { _previous = _state, standalone = true, _attributes = managed, _backend = backend };
-				_state = new RenderState { active = true, attributes = managed, backend = backend };
+				// Its targets are single-sampled (a Basalt.Gpu frame hands over its resolved colour)
+				_state = new RenderState { active = true, attributes = managed, backend = backend, msaaLevel = MultisampleAmount.MultisampleNone };
 				return block;
 			}
 

@@ -36,7 +36,7 @@ internal static partial class ManagedSceneRendering
 	public static bool AsyncCompute { get; set; } = true;
 
 	[ConVar( "r_managed_occlusion", Help = "Skip opaque meshes hidden by the depth prepass in the managed scene renderer" )]
-	public static bool Occlusion { get; set; } = true;
+	public static bool Occlusion { get; set; }
 
 	/// <summary>
 	/// Called as a camera component renders, before it does: counts down to a queued compare. True while the compare warms

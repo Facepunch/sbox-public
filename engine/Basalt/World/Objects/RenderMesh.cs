@@ -11,9 +11,11 @@ public sealed class RenderMesh
 	/// Model draw-call range and material flags (<c>ComputeSceneObjectFlagsFromDrawCalls</c>).
 	/// Fast-path depth uses <c>depth_only.vmat</c>; lightmapped draws use object lightmap attributes.
 	/// <paramref name="Tint"/> is a linear per-draw multiplier, or null for white (<c>CMaterialDrawDescriptor::m_vTintColor</c>).
+	/// <paramref name="UvDensity"/> is its textures' texels per world unit, or 0 if unknown (<c>m_flUvDensity</c>), which
+	/// texture streaming's sizes start from (<see cref="TextureSizes"/>).
 	/// </summary>
 	public readonly record struct Draw( int Mesh, int DrawCall, int StartIndex, int IndexCount, int VertexCount, int PrimitiveType, GpuMaterial Material,
-		bool Translucent = false, bool AlphaTest = false, bool ShadowFastPath = false, bool Lightmapped = false, Vector3? Tint = null );
+		bool Translucent = false, bool AlphaTest = false, bool ShadowFastPath = false, bool Lightmapped = false, Vector3? Tint = null, float UvDensity = 0 );
 
 	/// <summary>
 	/// Whether a material blends, as native reads its <c>translucent</c> attribute.

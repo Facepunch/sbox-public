@@ -250,6 +250,13 @@ public sealed partial class CommandList
 						{
 							var attrAccess = (AttributeAccess)entry.Object4;
 
+							// A block with no view on a device of its own (a Basalt.Gpu frame's) draws into its bound target
+							if ( Graphics.CurrentView is null && attrAccess.attributes.IsManaged )
+							{
+								attrAccess.attributes.Set( entry.Token, Graphics.RenderTarget?.ColorTarget );
+								return;
+							}
+
 							var handle = Graphics.GetColorTarget( out var owned );
 							attrAccess.attributes.Set( entry.Token, handle );
 							if ( owned && !handle.IsNull ) handle.DestroyStrongHandle();
@@ -263,6 +270,12 @@ public sealed partial class CommandList
 						static void Execute( ref Entry entry, CommandList commandList )
 						{
 							var attrAccess = (AttributeAccess)entry.Object4;
+
+							if ( Graphics.CurrentView is null && attrAccess.attributes.IsManaged )
+							{
+								attrAccess.attributes.Set( entry.Token, Graphics.RenderTarget?.DepthTarget );
+								return;
+							}
 
 							var handle = Graphics.GetDepthTarget( out var owned );
 							attrAccess.attributes.Set( entry.Token, handle );

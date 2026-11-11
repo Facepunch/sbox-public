@@ -385,6 +385,10 @@ internal sealed class Source2Context : GpuContext
 		{
 			lightmap.Engine().Get().MergeToPtr( drawAttributes );
 			drawAttributesMerged = true;
+
+			// Lightmaps stay at full size whatever the draws' textures ask for, as the scenesystem marks them every frame
+			// (CBaseSceneObjectDesc::SetBakedLightingAttributes)
+			RenderTools.MarkAttributeTexturesUsed( lightmap.Engine().Get(), ushort.MaxValue );
 		}
 
 		if ( objectAttributes is not null )
@@ -789,31 +793,31 @@ internal sealed class Source2Context : GpuContext
 	/// Vertex-cache draws use the separate binding path. <paramref name="skinned"/> draws pick bones by blend index, so they
 	/// keep their own input layout depth-only too.
 	/// </summary>
-	public override bool DrawModel( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false )
+	public override bool DrawModel( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false, int textureSize = TextureSizes.All )
 	{
 		return RenderTools.DrawModelDrawCall( context, drawAttributes, material.Native(), shaderMode, mesh.Geometry.Native(), draw.Mesh, draw.DrawCall,
-			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, skinned, InstanceIds.Native(), firstInstance, instances, materialBind );
+			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, skinned, InstanceIds.Native(), firstInstance, instances, textureSize, materialBind );
 	}
 
 	/// <summary>
 	/// Draw from the vertex cache in one native call (<c>RenderTools.DrawModelDrawCallVertexCache</c>), reusing similar-material
 	/// state as <see cref="DrawModel"/> does.
 	/// </summary>
-	public override bool DrawVertexCache( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false )
+	public override bool DrawVertexCache( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, int textureSize = TextureSizes.All )
 	{
 		return RenderTools.DrawModelDrawCallVertexCache( context, drawAttributes, material.Native(), shaderMode, mesh.Geometry.Native(), draw.Mesh, draw.DrawCall,
-			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, InstanceIds.Native(), firstInstance, instances, materialBind );
+			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, InstanceIds.Native(), firstInstance, instances, textureSize, materialBind );
 	}
 
 	/// <summary>
 	/// <see cref="DrawModel"/> with only the instances the occlusion cull kept for <paramref name="phase"/>
 	/// (<c>RenderTools.DrawModelDrawCallIndirect</c>).
 	/// </summary>
-	public override bool DrawModelCulled( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int argsIndex, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false )
+	public override bool DrawModelCulled( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int argsIndex, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false, int textureSize = TextureSizes.All )
 	{
 		return RenderTools.DrawModelDrawCallIndirect( context, drawAttributes, material.Native(), shaderMode, mesh.Geometry.Native(), draw.Mesh, draw.DrawCall,
 			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, skinned, Occlusion.CulledIds.Native(), Occlusion.IdOffset( phase ) + firstInstance,
-			Occlusion.Args.Native(), (Occlusion.ArgOffset( phase ) + argsIndex) * OcclusionCuller.ArgsStride, materialBind );
+			Occlusion.Args.Native(), (Occlusion.ArgOffset( phase ) + argsIndex) * OcclusionCuller.ArgsStride, textureSize, materialBind );
 	}
 
 	/// <summary>
@@ -821,25 +825,25 @@ internal sealed class Source2Context : GpuContext
 	/// material (<c>RenderTools.DrawModelDrawCallMultiIndirect</c>): an aggregate's fragments. Each draw's base instance
 	/// indexes the instance ids from <paramref name="firstInstance"/>.
 	/// </summary>
-	public override bool DrawModelFragments( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, GpuBuffer args, int firstArg, int count, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false )
+	public override bool DrawModelFragments( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, GpuBuffer args, int firstArg, int count, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, int textureSize = TextureSizes.All )
 	{
 		return RenderTools.DrawModelDrawCallMultiIndirect( context, drawAttributes, material.Native(), shaderMode, mesh.Geometry.Native(), draw.Mesh, draw.DrawCall,
 			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, InstanceIds.Native(), firstInstance,
-			args.Native(), firstArg * OcclusionCuller.ArgsStride, count, default, 0, materialBind );
+			args.Native(), firstArg * OcclusionCuller.ArgsStride, count, default, 0, textureSize, materialBind );
 	}
 
 	/// <summary>
 	/// <see cref="DrawModelFragments"/> with the fragments the occlusion cull kept for <paramref name="phase"/>: compacted, only the
 	/// survivors, counted on the GPU; otherwise every fragment, the hidden ones with no instances.
 	/// </summary>
-	public override bool DrawModelFragmentsCulled( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int cullArg, int count, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false )
+	public override bool DrawModelFragmentsCulled( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int cullArg, int count, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, int textureSize = TextureSizes.All )
 	{
 		var args = Occlusion.Args;
 		var compact = Occlusion.CompactFragments;
 		return RenderTools.DrawModelDrawCallMultiIndirect( context, drawAttributes, material.Native(), shaderMode, mesh.Geometry.Native(), draw.Mesh, draw.DrawCall,
 			depthBias, slopeScaledDepthBias, stripPixelShader, (int)OverlayStencil, InstanceIds.Native(), firstInstance,
 			args.Native(), Occlusion.FragmentArgs( phase, cullArg, count ) * OcclusionCuller.ArgsStride, count,
-			compact ? args.Native() : default, compact ? Occlusion.FragmentCountArg( phase, cullArg, count ) * OcclusionCuller.ArgsStride : 0, materialBind );
+			compact ? args.Native() : default, compact ? Occlusion.FragmentCountArg( phase, cullArg, count ) * OcclusionCuller.ArgsStride : 0, textureSize, materialBind );
 	}
 
 

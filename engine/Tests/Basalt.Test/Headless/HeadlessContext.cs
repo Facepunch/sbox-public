@@ -379,31 +379,31 @@ internal sealed class HeadlessContext : GpuContext
 	GpuCommand Draw( GpuOp op, GpuMaterial material, StringToken shaderMode, RenderMesh mesh, int count )
 		=> Command( op ) with { Material = material, Mode = shaderMode, Mesh = mesh, Count = count, Texture = bound.Color, Depth = bound.Depth };
 
-	public override bool DrawModel( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false )
+	public override bool DrawModel( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false, int textureSize = TextureSizes.All )
 	{
 		if ( material is null || mesh.Geometry is null ) return false;
-		Record( Draw( GpuOp.Draw, material, shaderMode, mesh, instances ) );
+		Record( Draw( GpuOp.Draw, material, shaderMode, mesh, instances ) with { TextureSize = textureSize } );
 		return true;
 	}
 
-	public override bool DrawModelCulled( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int argsIndex, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false )
+	public override bool DrawModelCulled( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int argsIndex, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false, int textureSize = TextureSizes.All )
 	{
 		if ( material is null || mesh.Geometry is null || Occlusion is null ) return false;
-		Record( Draw( GpuOp.DrawCulled, material, shaderMode, mesh, 1 ) with { Buffer = Occlusion.Args } );
+		Record( Draw( GpuOp.DrawCulled, material, shaderMode, mesh, 1 ) with { Buffer = Occlusion.Args, TextureSize = textureSize } );
 		return true;
 	}
 
-	public override bool DrawModelFragments( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, GpuBuffer args, int firstArg, int count, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false )
+	public override bool DrawModelFragments( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, GpuBuffer args, int firstArg, int count, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, int textureSize = TextureSizes.All )
 	{
 		if ( material is null || mesh.Geometry is null ) return false;
-		Record( Draw( GpuOp.DrawFragments, material, shaderMode, mesh, count ) with { Buffer = args } );
+		Record( Draw( GpuOp.DrawFragments, material, shaderMode, mesh, count ) with { Buffer = args, TextureSize = textureSize } );
 		return true;
 	}
 
-	public override bool DrawModelFragmentsCulled( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int cullArg, int count, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false )
+	public override bool DrawModelFragmentsCulled( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int cullArg, int count, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, int textureSize = TextureSizes.All )
 	{
 		if ( material is null || mesh.Geometry is null || Occlusion is null ) return false;
-		Record( Draw( GpuOp.DrawFragmentsCulled, material, shaderMode, mesh, count ) with { Buffer = Occlusion.Args } );
+		Record( Draw( GpuOp.DrawFragmentsCulled, material, shaderMode, mesh, count ) with { Buffer = Occlusion.Args, TextureSize = textureSize } );
 		return true;
 	}
 

@@ -52,7 +52,7 @@ internal sealed class Source2Mesh : GpuMesh
 					var translucent = RenderMesh.IsTranslucent( material );
 					var alphaTest = RenderMesh.IsAlphaTest( material );
 					var fastPath = material is { ShadowFastPath: true } && !translucent && !alphaTest;
-					draws.Add( new RenderMesh.Draw( m, d, call.StartIndex, call.Indices, call.Vertices, call.PrimitiveType, material, translucent, alphaTest, fastPath, Tint: ReadDrawTint( model, m, d ) ) );
+					draws.Add( new RenderMesh.Draw( m, d, call.StartIndex, call.Indices, call.Vertices, call.PrimitiveType, material, translucent, alphaTest, fastPath, Tint: ReadDrawTint( model, m, d ), UvDensity: call.UvDensity ) );
 				}
 			}
 

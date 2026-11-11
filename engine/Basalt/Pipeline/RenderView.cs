@@ -79,6 +79,17 @@ public sealed class RenderView
 	public Rect Viewport { get; set; }
 
 	/// <summary>
+	/// The scale on the texture sizes this view's draws ask texture streaming for (<c>r_texture_lod_scale</c>), as native's
+	/// views take it (<see cref="TextureSizes"/>).
+	/// </summary>
+	public float TextureLodScale { get; set; } = 1.0f;
+
+	/// <summary>
+	/// The scale on the texture sizes of draws without a UV density, from their screen size (<c>r_fallback_texture_lod_scale</c>).
+	/// </summary>
+	public float FallbackTextureLodScale { get; set; } = 2.0f;
+
+	/// <summary>
 	/// Gamma-space clear colour, converted to linear before clearing the viewport (<c>SceneCamera.BackgroundColor</c>).
 	/// </summary>
 	public Color ClearColor { get; set; } = Color.Black;

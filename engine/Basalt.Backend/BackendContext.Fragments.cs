@@ -26,7 +26,7 @@ internal readonly record struct IndirectDraws( BufferHandle Arguments, long Offs
 /// </summary>
 internal sealed partial class BackendContext
 {
-	public override bool DrawModelFragments( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, GpuBuffer args, int firstArg, int count, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false )
+	public override bool DrawModelFragments( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, GpuBuffer args, int firstArg, int count, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, int textureSize = TextureSizes.All )
 	{
 		if ( count <= 0 || args?.Resource is not BackendBuffer arguments ) return false;
 		var indirect = new IndirectDraws( arguments.Handle, (long)firstArg * IndirectDraws.Stride, count );
@@ -37,7 +37,7 @@ internal sealed partial class BackendContext
 	/// A draw's instances the occlusion cull kept for <paramref name="phase"/>: one indirect draw of the culler's arguments
 	/// for it, its instance ids from the culler's compacted ids for the phase.
 	/// </summary>
-	public override bool DrawModelCulled( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int argsIndex, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false )
+	public override bool DrawModelCulled( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int argsIndex, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false, int textureSize = TextureSizes.All )
 	{
 		if ( Occlusion is not { } culler || culler.Args?.Resource is not BackendBuffer arguments || culler.CulledIds?.Resource is not BackendBuffer ids ) return false;
 		var indirect = new IndirectDraws( arguments.Handle, (long)(culler.ArgOffset( phase ) + argsIndex) * IndirectDraws.Stride, 1, ids, BaseVertexInBuffer: true );
@@ -48,7 +48,7 @@ internal sealed partial class BackendContext
 	/// An aggregate's fragments the occlusion cull kept for <paramref name="phase"/>: compacted, only the survivors, with
 	/// their count from the GPU; otherwise every fragment, the hidden ones with no instances.
 	/// </summary>
-	public override bool DrawModelFragmentsCulled( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int cullArg, int count, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false )
+	public override bool DrawModelFragmentsCulled( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int cullArg, int count, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, int textureSize = TextureSizes.All )
 	{
 		if ( count <= 0 || Occlusion is not { } culler || culler.Args?.Resource is not BackendBuffer arguments ) return false;
 		var offset = (long)culler.FragmentArgs( phase, cullArg, count ) * IndirectDraws.Stride;

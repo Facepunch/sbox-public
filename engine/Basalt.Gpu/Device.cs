@@ -183,6 +183,7 @@ public sealed unsafe partial class Device : IDisposable
 				TextureCompressionBC = features.bc,
 				MaxAnisotropy = features.anisotropy ? Limits.maxSamplerAnisotropy : 1,
 				Timestamps = Limits.timestampComputeAndGraphics != 0,
+				PreciseOcclusion = features.preciseOcclusion,
 				TimestampPeriod = Limits.timestampPeriod,
 				MaxTextureSize = (int)Limits.maxImageDimension2D,
 				ColorSampleCounts = (int)Limits.framebufferColorSampleCounts,
@@ -223,6 +224,7 @@ public sealed unsafe partial class Device : IDisposable
 		public bool drawIndirectCount { get; init; }
 		public bool bc { get; init; }
 		public bool anisotropy { get; init; }
+		public bool preciseOcclusion { get; init; }
 		public bool storageBufferUpdateAfterBind { get; init; }
 	}
 
@@ -370,7 +372,7 @@ public sealed unsafe partial class Device : IDisposable
 		[
 			VkFeature.FullDrawIndexUint32, VkFeature.ImageCubeArray, VkFeature.IndependentBlend, VkFeature.SampleRateShading,
 			VkFeature.MultiDrawIndirect, VkFeature.DrawIndirectFirstInstance, VkFeature.DepthClamp, VkFeature.DepthBiasClamp,
-			VkFeature.FillModeNonSolid, VkFeature.SamplerAnisotropy, VkFeature.TextureCompressionBc, VkFeature.FragmentStoresAndAtomics,
+			VkFeature.FillModeNonSolid, VkFeature.SamplerAnisotropy, VkFeature.TextureCompressionBc, VkFeature.OcclusionQueryPrecise, VkFeature.FragmentStoresAndAtomics,
 			VkFeature.ShaderImageGatherExtended, VkFeature.ShaderStorageImageExtendedFormats, VkFeature.ShaderStorageImageReadWithoutFormat,
 			VkFeature.ShaderStorageImageWriteWithoutFormat, VkFeature.ShaderUniformBufferArrayDynamicIndexing, VkFeature.ShaderSampledImageArrayDynamicIndexing,
 			VkFeature.ShaderStorageBufferArrayDynamicIndexing, VkFeature.ShaderStorageImageArrayDynamicIndexing, VkFeature.ShaderInt64, VkFeature.ShaderInt16,
@@ -408,6 +410,7 @@ public sealed unsafe partial class Device : IDisposable
 			drawIndirectCount = e12.values[VkPhysicalDeviceVulkan12Features.DrawIndirectCount] != 0,
 			bc = features.features.values[(int)VkFeature.TextureCompressionBc] != 0,
 			anisotropy = features.features.values[(int)VkFeature.SamplerAnisotropy] != 0,
+			preciseOcclusion = features.features.values[(int)VkFeature.OcclusionQueryPrecise] != 0,
 			storageBufferUpdateAfterBind = e12.values[VkPhysicalDeviceVulkan12Features.DescriptorBindingStorageBufferUpdateAfterBind] != 0,
 		};
 
