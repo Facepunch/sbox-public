@@ -1,7 +1,7 @@
 using Basalt.Gpu;
+using Basalt.Sdl;
 using Basalt.Source2;
 using Capture = BasaltGpuSample.Capture;
-using Win32Window = BasaltGpuSample.Win32Window;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
@@ -63,12 +63,6 @@ internal static class MapRun
 
 	public static int Run()
 	{
-		if ( !OperatingSystem.IsWindows() )
-		{
-			Console.Error.WriteLine( "-map opens a Win32 window" );
-			return 2;
-		}
-
 		var ident = Args.String( "-map" ) ?? "facepunch.construct";
 		var folder = Args.String( "-map-folder" ) ?? FindPackage( ident );
 		if ( folder is null )
@@ -93,12 +87,13 @@ internal static class MapRun
 
 		var errors = 0;
 		var driverNames = !Args.Has( "-basalt-driver-names" );
-		using var window = new Win32Window( $"Basalt Lab: {ident} on Basalt.Gpu", width, height );
+		using var window = new SdlWindow( new SdlWindowOptions { Title = $"Basalt Lab: {ident} on Basalt.Gpu", Width = width, Height = height } );
 		using var gpu = GpuDevice.Create( new DeviceOptions
 		{
 			ApplicationName = driverNames ? "Sbox" : "Basalt Lab map",
 			EngineName = driverNames ? "Source2" : "Basalt",
 			Validation = Args.Has( "-validation" ),
+			InstanceExtensions = Sdl.VulkanInstanceExtensions,
 			Message = m =>
 			{
 				if ( m.Severity < MessageSeverity.Warning ) return;
@@ -107,10 +102,10 @@ internal static class MapRun
 			},
 		} );
 
-		var (clientWidth, clientHeight) = window.ClientSize;
+		var (clientWidth, clientHeight) = window.PixelSize;
 		using var swapChain = gpu.CreateSwapChain( new SwapChainInfo
 		{
-			Surface = SurfaceSource.Win32( window.Instance, window.Handle ),
+			Surface = SurfaceSource.Custom( window.CreateVulkanSurface ),
 			Width = clientWidth,
 			Height = clientHeight,
 			PresentMode = Args.Has( "-vsync" ) ? PresentMode.Fifo : PresentMode.Immediate,
@@ -163,9 +158,9 @@ internal static class MapRun
 
 				// Warm up for frames and time, then measure
 				var warm = Stopwatch.StartNew();
-				for ( int i = 0; (i < warmup || warm.Elapsed.TotalSeconds < 2) && !window.Closed; i++ )
+				for ( int i = 0; (i < warmup || warm.Elapsed.TotalSeconds < 2) && !window.CloseRequested; i++ )
 				{
-					window.Pump();
+					Pump( window );
 					renderer.Render( view, swapChain );
 				}
 
@@ -173,9 +168,9 @@ internal static class MapRun
 				var frameTimes = new List<double>( frames );
 				var gcs = GC.CollectionCount( 0 );
 				var last = Stopwatch.GetTimestamp();
-				for ( int i = 0; i < frames && !window.Closed; i++ )
+				for ( int i = 0; i < frames && !window.CloseRequested; i++ )
 				{
-					window.Pump();
+					Pump( window );
 					times.Add( renderer.Render( view, swapChain ) );
 					var now = Stopwatch.GetTimestamp();
 					frameTimes.Add( Stopwatch.GetElapsedTime( last, now ).TotalMilliseconds );
@@ -230,6 +225,15 @@ internal static class MapRun
 		File.WriteAllText( Path.Combine( output, "map.csv" ), csv.ToString() );
 		Console.WriteLine( $"Results in {output}; validation errors {gpu.ValidationErrors}" );
 		return gpu.ValidationErrors > 0 || errors > 0 ? 1 : 0;
+	}
+
+	/// <summary>Handle the window's events: closing it, or Escape, ends the run.</summary>
+	internal static void Pump( SdlWindow window )
+	{
+		while ( Sdl.PollEvent( out var e ) )
+		{
+			if ( e is { Kind: SdlEventKind.KeyDown, Key: SdlKey.Escape } ) window.RequestClose();
+		}
 	}
 
 	static double Percentile( IEnumerable<double> values, double p )
