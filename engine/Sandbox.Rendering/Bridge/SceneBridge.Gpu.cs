@@ -42,7 +42,7 @@ internal sealed partial class SceneBridge
 		gpuView.PostProcessEnabled = setup.EnablePostprocessing ?? camera.EnablePostProcessing;
 		gpuView.SetCamera( camera, viewport.Size );
 
-		var frame = camera.UIOnly || NotYetInBasalt( camera, setup ) is not null ? null : RenderScene( backend, camera, renderSize, setup );
+		var frame = camera.UIOnly || NotYetInBasalt( camera, setup ) is not null ? null : RenderScene( backend, camera, renderSize, window.Samples, setup );
 
 		// Made outside any block: materials can't be made while drawing
 		copyMaterial ??= Material.FromShader( "shaders/copytexture.shader" );
@@ -72,9 +72,10 @@ internal sealed partial class SceneBridge
 
 	/// <summary>
 	/// The camera's scene rendered by Basalt on the Basalt.Gpu device, then its stages after the scene and its post processing
-	/// over that frame. Null if it couldn't render.
+	/// over that frame. Null if it couldn't render. With <paramref name="samples"/> over one the scene is multisampled, as the
+	/// game's anti-aliasing setting asks, and the stages get its resolved colour.
 	/// </summary>
-	BasaltGpuFrame RenderScene( BasaltGpuRenderBackend backend, SceneCamera camera, Vector2 size, in ViewSetup setup )
+	BasaltGpuFrame RenderScene( BasaltGpuRenderBackend backend, SceneCamera camera, Vector2 size, int samples, in ViewSetup setup )
 	{
 		var (mirror, state) = Prepare( camera, setup, size );
 
@@ -84,10 +85,11 @@ internal sealed partial class SceneBridge
 		state.View.ToneMapScalar = exposure?.Scale ?? 1.0f;
 
 		var targetSize = new Vector2Int( (int)size.x, (int)size.y );
-		if ( state.GpuTarget is null || state.GpuTarget.Size != targetSize )
+		samples = Math.Max( samples, 1 );
+		if ( state.GpuTarget is null || state.GpuTarget.Size != targetSize || state.GpuTarget.Samples != samples )
 		{
 			state.GpuTarget?.Dispose();
-			state.GpuTarget = ViewTarget.Create( targetSize, 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Basalt.Gpu camera" );
+			state.GpuTarget = ViewTarget.Create( targetSize, samples, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Basalt.Gpu camera" );
 		}
 
 		using ( new Drawing( this, state ) )

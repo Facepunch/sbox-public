@@ -65,6 +65,12 @@ internal sealed class BasaltGpuWindow : IDisposable
 		return true;
 	}
 
+	/// <summary>
+	/// Samples per pixel the cameras drawing into this window render their scenes with (the game's anti-aliasing setting).
+	/// Their frames are resolved before post processing; the window's own target has one.
+	/// </summary>
+	public int Samples { get; set; } = 1;
+
 	/// <summary>Whether the swap chain presents with vsync.</summary>
 	public bool VSync => swapChain.PresentMode == PresentMode.Fifo;
 

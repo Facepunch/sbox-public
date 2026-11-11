@@ -83,7 +83,7 @@ internal sealed partial class GameWindow : IDisposable
 
 	void AttachSwapChain( VideoMode mode )
 	{
-		if ( RenderBackend.Default is BasaltGpuRenderBackend device ) basalt = new BasaltGpuWindow( device, window.Handle, mode.VSync );
+		if ( RenderBackend.Default is BasaltGpuRenderBackend device ) basalt = new BasaltGpuWindow( device, window.Handle, mode.VSync ) { Samples = SampleCount( mode.Multisample ) };
 		else window.CreateSwapChain( "GameWindow", mode.Multisample, mode.VSync, mainWindow: true );
 
 		GameWindowNative.Attach( window.Handle, window.SwapChain );
@@ -176,10 +176,17 @@ internal sealed partial class GameWindow : IDisposable
 		if ( !ApplyWindowMode( video.Window ) ) return;
 
 		// A Basalt.Gpu swap chain follows the window's size every frame (Render); only vsync is a mode of its own
-		if ( basalt is not null ) basalt.SetVSync( video.VSync );
+		if ( basalt is not null )
+		{
+			basalt.SetVSync( video.VSync );
+			basalt.Samples = SampleCount( video.Multisample );
+		}
 		else if ( !window.UpdateSwapChain( video.Multisample, video.VSync ) ) return;
 		if ( pendingMode == video ) pendingMode = null;
 	}
+
+	/// <summary>Samples per pixel a game window's scenes render with on Basalt.Gpu: the setting, as the device allows it.</summary>
+	static int SampleCount( RenderMultisampleType multisample ) => Graphics.RenderMultiSampleToNum( RenderDeviceManager.GetBestMultisampleType( multisample ) );
 
 	bool ApplyWindowMode( WindowMode requested )
 	{

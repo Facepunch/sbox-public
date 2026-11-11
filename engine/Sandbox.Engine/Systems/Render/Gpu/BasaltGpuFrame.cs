@@ -43,6 +43,9 @@ internal sealed class BasaltGpuFrame : IDisposable
 
 	public BasaltGpuFrame( BasaltGpuRenderBackend backend ) => this.backend = backend;
 
+	/// <summary>Whether the frame was drawn multisampled: <see cref="Color"/> is its resolved colour, <see cref="Depth"/> keeps its samples.</summary>
+	public bool Multisampled => target is { Samples: > 1 };
+
 	/// <summary>
 	/// Take a frame Basalt rendered into <paramref name="target"/> on the backend's device, with the view constants it drew
 	/// with.
@@ -86,11 +89,14 @@ internal sealed class BasaltGpuFrame : IDisposable
 	/// </summary>
 	public Graphics.Scope Begin( BasaltGpuView view )
 	{
-		if ( view is not null ) view.Target = RenderTarget.From( Color, Depth );
+		// A multisampled frame hands over its resolved colour: its depth keeps its samples, so it isn't bound with it, and
+		// what reads depth reads the chain built from it
+		var frameTarget = Multisampled ? RenderTarget.From( Color ) : RenderTarget.From( Color, Depth );
+		if ( view is not null ) view.Target = frameTarget;
 		var scope = Graphics.Scope.CreateOnView( backend, view );
 		try
 		{
-			if ( view is null ) Graphics.RenderTarget = RenderTarget.From( Color, Depth );
+			if ( view is null ) Graphics.RenderTarget = frameTarget;
 			else view.Bind();
 
 			var attributes = Graphics.Attributes;
