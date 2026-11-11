@@ -110,13 +110,13 @@ internal static class SurfaceParity
 			File.WriteAllBytes( Path.Combine( folder, "surface_depth_alphatest_ps.spv" ), device.Surfaces.Compile( "rock.slang" ).Pass( ShaderPasses.DepthAlphaTest ).Pixel.Spirv );
 			File.WriteAllBytes( Path.Combine( folder, "raw_ps.spv" ), device.Surfaces.Compile( "rock_raw.slang" ).Pass( ShaderPasses.Forward ).Pixel.Spirv );
 
-			// foliage.shader (alpha test, translucency and wind animation on; sway off, so the picture doesn't depend on
+			// foliage.shader (alpha test, translucency, grazing fade and wind animation on; sway off, so the picture doesn't depend on
 			// the time) against the same material converted by hand to a surface
 			var cutOut = (BackendMaterial)device.LoadMaterial( "materials/dev/simple/simple_rail_32.vmat" );
 			cutOut.Textures.TryGetValue( "g_tColor", out var leaf );
 			var foliageShader = (BackendMaterial)((Basalt.GpuDevice)device).CreateMaterial( "Foliage (.shader)", "shaders/foliage.shader" );
 			if ( leaf is null || foliageShader.Shader?.Name.Contains( "foliage", StringComparison.OrdinalIgnoreCase ) != true ) return Fail( "foliage.shader or simple_rail_32.vmat isn't compiled" );
-			foreach ( var feature in new[] { "F_ALPHA_TEST", "F_TRANSMISSIVE", "F_FOLIAGE_ANIMATION" } ) foliageShader.Features[foliageShader.Shader.FeatureIndex( feature )] = 1;
+			foreach ( var feature in new[] { "F_ALPHA_TEST", "F_TRANSMISSIVE", "F_FOLIAGE_ANIMATION", "F_GRAZING_FADE" } ) foliageShader.Features[foliageShader.Shader.FeatureIndex( feature )] = 1;
 			foliageShader.SetTexture( "g_tColor", leaf );
 			foliageShader.SetTexture( "g_tNormal", (BackendTexture)normal );
 			foliageShader.SetTexture( "g_tRma", (BackendTexture)rma );
@@ -124,17 +124,29 @@ internal static class SurfaceParity
 			foliageShader.Set( "g_flSwayStrength", [0] );
 			foliageShader.Set( "g_flTransmissionScale", [1] );
 
-			using var foliage = new Foliage { Color = leaf, Normal = normal, Rma = rma, TransmissiveColor = leaf, TransmissionScale = 1, SwayStrength = 0, AlphaTest = true, DisplayName = "Foliage (surface)" };
-			var foliageReference = Render( device, foliageShader, alphaTest: true );
-			Save( foliageReference, Path.Combine( folder, "foliage-shader.png" ) );
-			var foliagePixels = Render( device, foliage, alphaTest: true );
-			Save( foliagePixels, Path.Combine( folder, "foliage-surface.png" ) );
-			var (fmean, fmax, fover, fdiff) = Compare( foliageReference, foliagePixels );
-			Save( fdiff, Path.Combine( folder, "foliage-surface-diff.png" ) );
-			lines.Add( $"foliage surface against foliage.shader: mean difference {fmean:F3}, max {fmax}, {fover} pixels over 8 (reported, not gated: alpha-test edges differ by design)" );
+			using var foliage = new Foliage { Color = leaf, Normal = normal, Rma = rma, Transmissive = true, TransmissiveColor = leaf, TransmissionScale = 1, SwayStrength = 0, GrazingFade = true, AlphaTest = true, DisplayName = "Foliage (surface)" };
+			// Without multisampling the alpha test is a hard cut; with 4x it is alpha to coverage, which is what Construct draws
+			foreach ( var samples in new[] { 1, 4 } )
+			{
+				var suffix = samples > 1 ? $"-{samples}x" : "";
+				var foliageReference = Render( device, foliageShader, alphaTest: true, samples );
+				Save( foliageReference, Path.Combine( folder, $"foliage-shader{suffix}.png" ) );
+				var foliagePixels = Render( device, foliage, alphaTest: true, samples );
+				Save( foliagePixels, Path.Combine( folder, $"foliage-surface{suffix}.png" ) );
+				var (fmean, fmax, fover, fdiff) = Compare( foliageReference, foliagePixels );
+				Save( fdiff, Path.Combine( folder, $"foliage-surface{suffix}-diff.png" ) );
+				lines.Add( $"foliage surface against foliage.shader, {samples}x: mean difference {fmean:F3}, max {fmax}, {fover} pixels over 8 (reported, not gated)" );
+			}
 			File.WriteAllBytes( Path.Combine( folder, "foliage_surface_ps.spv" ), device.Surfaces.Compile( "foliage.slang" ).Pass( ShaderPasses.Forward + "AlphaTest" ).Pixel.Spirv );
 			var foliageVariant = foliageShader.Variant( device.Shaders, "Forward", "Forward;F", _ => null, _ => null );
 			if ( foliageVariant?.Pixel?.Bytecode is { } fb && (fb.Spirv ?? fb.Shared?.Spirv) is { } fs ) File.WriteAllBytes( Path.Combine( folder, "foliage_shader_ps.spv" ), fs );
+
+			// The samplers the .shader draws with here: expression render state (TextureFiltering's Filter) isn't evaluated
+			foreach ( var r in foliageVariant?.Resources ?? [] )
+			{
+				if ( r.Kind == Basalt.Source2.Shaders.ShaderResourceKind.Sampler && r.Set == ShaderAbi.FragmentSet )
+					lines.Add( $"foliage.shader sampler {r.Binding}: min {r.Sampler.MinFilter} mag {r.Sampler.MagFilter} mip {r.Sampler.MipFilter} aniso {r.Sampler.MaxAnisotropy}" );
+			}
 		}
 		finally
 		{
@@ -161,7 +173,7 @@ internal static class SurfaceParity
 	/// A ground, a sphere and a box with <paramref name="material"/>, under a sun and a point light; their draws flagged
 	/// alpha-tested when asked, as a compiled model's are, so depth passes keep the pixel shader that clips.
 	/// </summary>
-	static Color32[] Render( BackendDevice device, GpuMaterial material, bool alphaTest = false )
+	static Color32[] Render( BackendDevice device, GpuMaterial material, bool alphaTest = false, int samples = 1 )
 	{
 		RenderMesh Flag( RenderMesh mesh ) => alphaTest ? new RenderMesh( mesh.Geometry, mesh.Bounds, [[mesh.DrawsForLod( 0 )[0] with { AlphaTest = true }]] ) : mesh;
 
@@ -181,7 +193,7 @@ internal static class SurfaceParity
 		view.Rotation = Rotation.LookAt( new Vector3( 0, 0, 30 ) - view.Position );
 
 		using var system = new RenderSystem { ParallelRecording = false };
-		using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Surface parity" );
+		using var target = ViewTarget.Create( new Vector2Int( Width, Height ), samples, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Surface parity" );
 		for ( int frame = 0; frame < Frames; frame++ )
 		{
 			device.BeginFrame();

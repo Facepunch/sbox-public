@@ -14,7 +14,7 @@ public sealed class Rock : global::Basalt.Backend.SurfaceMaterial
 		RoughnessScale = 1.0f;
 	}
 
-	/// <summary><c>Color</c>: group "Color", sRGB.</summary>
+	/// <summary><c>Color</c>: group "Color", sRGB, opacity.</summary>
 	public global::Basalt.GpuTexture Color { get => GetTexture( 0 ); set => SetTexture( 0, value, srgb: true ); }
 
 	/// <summary><c>Normal</c>: group "Normal".</summary>

@@ -37,12 +37,45 @@ internal static partial class MaterialSource
 			materials.Add( new Declared( m.Groups["name"].Value, interfaces ) );
 
 			result.Append( text, at, open + 1 - at );
-			result.Append( TextureField().Replace( text.Substring( open + 1, close - open - 1 ), "${lead}MaterialTexture2D" ) );
+			result.Append( Fields( text.Substring( open + 1, close - open - 1 ) ) );
 			at = close;
 		}
 
 		result.Append( text, at, text.Length - at );
 		return result.ToString();
+	}
+
+	// A field declaration at the start of a line: optional attributes, a type, a name, an optional initializer
+	[GeneratedRegex( @"^(?<lead>[ \t]*(?:\[[^\]\r\n]*\][ \t]*)*)(?<decl>(?!public\b|private\b|internal\b|static\b|return\b|typedef\b)[A-Za-z_][\w:]*(?:[ \t]*<[^>\r\n]*>)?[ \t]+\w+[ \t]*(?:=[^;\r\n]*)?;)" )]
+	private static partial Regex Field();
+
+	/// <summary>
+	/// A [Material] struct's body with its fields rewritten: textures as bindless slots, and every field public, since the
+	/// engine's passes read the record and the generated class writes it. Only lines at the body's own depth are fields.
+	/// </summary>
+	static string Fields( string body )
+	{
+		var lines = body.Split( '\n' );
+		var depth = 0;
+		for ( int i = 0; i < lines.Length; i++ )
+		{
+			if ( depth == 0 )
+			{
+				var line = TextureField().Replace( lines[i], "${lead}MaterialTexture2D" );
+				lines[i] = Field().Replace( line, "${lead}public ${decl}" );
+			}
+
+			var code = lines[i];
+			var comment = code.IndexOf( "//", StringComparison.Ordinal );
+			if ( comment >= 0 ) code = code[..comment];
+			foreach ( var c in code )
+			{
+				if ( c == '{' ) depth++;
+				else if ( c == '}' ) depth--;
+			}
+		}
+
+		return string.Join( '\n', lines );
 	}
 
 	static int MatchingBrace( string text, int open )
@@ -98,6 +131,7 @@ internal static unsafe class MaterialReflection
 			float? min = null, max = null;
 			float[] value = null;
 			var srgb = false;
+			var opacity = false;
 			var attributes = SlangApi.VariableGetUserAttributeCount( field );
 			for ( uint a = 0; a < attributes; a++ )
 			{
@@ -120,6 +154,9 @@ internal static unsafe class MaterialReflection
 					case "Srgb":
 						srgb = true;
 						break;
+					case "Opacity":
+						opacity = true;
+						break;
 				}
 			}
 
@@ -131,7 +168,7 @@ internal static unsafe class MaterialReflection
 				else if ( kind != MaterialFieldKind.Float && SlangApi.VariableGetDefaultValueInt( field, &l ) >= 0 ) value = [l];
 			}
 
-			fields.Add( new MaterialField( fieldName, kind, components, 0, value, group, min, max, srgb ) );
+			fields.Add( new MaterialField( fieldName, kind, components, 0, value, group, min, max, srgb ) { Opacity = opacity } );
 		}
 
 		return MaterialLayout.Create( type, fields );

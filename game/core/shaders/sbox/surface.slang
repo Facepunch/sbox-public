@@ -17,6 +17,11 @@ public struct Material
 	public float Opacity = 1;
 	public float3 Transmission = 0;
 	public float TintMask = 1;
+
+	// A factor on the final coverage, after the alpha test's sharpened cutoff, for fading whole triangles (foliage's
+	// grazing-angle fade): spent as sub-pixel coverage with multisampling, else cut at a half. Not on Opacity, which the
+	// cutoff's derivatives would cancel.
+	public float Coverage = 1;
 }
 
 // Set by the pass's pipeline: off in raster passes (hardware derivatives), on in a visibility-buffer resolve, which
@@ -37,6 +42,8 @@ public struct SurfaceInput
 	public float4 ScreenPosition;    // SV_Position
 	public float3 View;              // world, towards the camera
 	public float ViewDistance;       // to the camera
+	public float3 FaceNormal;        // world, the triangle's own (flat): from derivatives in raster passes, from the triangle in a resolve
+	public float AlphaReference;     // the alpha test's cutoff (the material's), for surfaces that move it
 	public float2 UvDdx;             // zero in raster passes: hardware derivatives are used there
 	public float2 UvDdy;
 	public SamplerState Filtering;   // the material's texture filtering
