@@ -26,6 +26,9 @@ public sealed class WorldFile
 	/// <summary>The baked lighting textures (<c>m_worldLightingInfo.m_lightMaps</c>), which aren't read.</summary>
 	public IReadOnlyList<string> Lightmaps { get; init; }
 
+	/// <summary>The scale from lightmap uvs to the lightmaps (<c>m_vLightmapUvScale</c>); one where it isn't set.</summary>
+	public Vector2 LightmapUvScale { get; init; } = Vector2.One;
+
 	/// <summary>
 	/// Read a world and its nodes from <paramref name="content"/> (a map's VPK added with
 	/// <see cref="ContentFiles.AddPackage"/>, usually).
@@ -47,6 +50,7 @@ public sealed class WorldFile
 			Nodes = nodes,
 			EntityLumps = Kv.Strings( root.Get( "m_entityLumps" ) ),
 			Lightmaps = Kv.Strings( lighting?.Get( "m_lightMaps" ) ),
+			LightmapUvScale = lighting?.Get( "m_vLightmapUvScale" ) is object[] { Length: >= 2 } scale ? new Vector2( (float)Kv.Number( scale[0] ), (float)Kv.Number( scale[1] ) ) : Vector2.One,
 		};
 	}
 
@@ -96,6 +100,7 @@ public sealed class WorldNode
 				Skin = o.Get( "m_skin" ) as string ?? "",
 				TypeFlags = o.Get( "m_nObjectTypeFlags" )?.ToString() ?? "",
 				Layer = index < layers.Length ? (int)layers[index] : 0,
+				LightProbeVolume = (int)Kv.Number( o.Get( "m_nLightProbeVolumePrecomputedHandshake" ) ),
 			} );
 		}
 
@@ -186,6 +191,12 @@ public sealed record WorldSceneObject
 
 	/// <summary>Its layer (<see cref="WorldNode.LayerNames"/>).</summary>
 	public int Layer { get; init; }
+
+	/// <summary>
+	/// The light probe volume the compiler chose for it (<c>m_nLightProbeVolumePrecomputedHandshake</c>, the number in the
+	/// volume's texture names), or 0 for none.
+	/// </summary>
+	public int LightProbeVolume { get; init; }
 }
 
 /// <summary>
