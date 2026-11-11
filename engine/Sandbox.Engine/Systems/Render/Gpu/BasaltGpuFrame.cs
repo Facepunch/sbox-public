@@ -86,18 +86,12 @@ internal sealed class BasaltGpuFrame : IDisposable
 	/// </summary>
 	public Graphics.Scope Begin( BasaltGpuView view )
 	{
+		if ( view is not null ) view.Target = RenderTarget.From( Color, Depth );
 		var scope = Graphics.Scope.CreateOnView( backend, view );
 		try
 		{
-			if ( view is null )
-			{
-				Graphics.RenderTarget = RenderTarget.From( Color, Depth );
-			}
-			else
-			{
-				view.Target = RenderTarget.From( Color, Depth );
-				view.Bind();
-			}
+			if ( view is null ) Graphics.RenderTarget = RenderTarget.From( Color, Depth );
+			else view.Bind();
 
 			var attributes = Graphics.Attributes;
 			attributes.SetData( ViewConstantsName, constants.AsSpan() );

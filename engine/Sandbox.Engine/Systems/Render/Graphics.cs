@@ -304,6 +304,9 @@ public static partial class Graphics
 				{
 					_state.view = view;
 					_state.layerType = view.LayerType;
+
+					// What a frame grab or a temporary target of the default format is made with
+					if ( view.Target?.ColorTarget is { } color ) _state.colorFormat = color.ImageFormat;
 					_state.cameraTransform = new Transform( view.Frustum.GetCameraPosition(), view.Frustum.GetCameraAngles() );
 				}
 
