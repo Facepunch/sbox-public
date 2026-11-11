@@ -884,6 +884,8 @@
     "menu.settings.audio.voice_volume.title": "Incoming Voice Volume",
     "menu.settings.audio.voicechat.description": "Off means you hear nobody, nobody hears you, and the list of who's talking is hidden. Applies in every game and in parties.",
     "menu.settings.audio.voicechat.title": "Voice Chat",
+    "menu.settings.audio.voiceindicator.description": "Shows the microphone icon while you're talking. Games can't change this.",
+    "menu.settings.audio.voiceindicator.title": "Microphone Indicator",
     "menu.settings.audio.volume.description": "All sounds and music.",
     "menu.settings.audio.volume.title": "Master",
     "menu.settings.auto_detect": "Auto-Detect",

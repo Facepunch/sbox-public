@@ -961,6 +961,19 @@ public class SettingsCatalog
 
 		Items.Add( new SettingItem
 		{
+			Id = "audio.voiceindicator",
+			Category = "audio",
+			Section = "#menu.settings.voice",
+			Title = "#menu.settings.audio.voiceindicator.title",
+			Description = "#menu.settings.audio.voiceindicator.description",
+			Options = OffOn,
+			IsVisible = IsVoiceChatOn,
+			Read = () => MenuUtility.GetConsoleVariable( "voip_show_indicator" ).ToBool(),
+			Write = value => MenuUtility.SetConsoleVariable( "voip_show_indicator", ToBool( value ) )
+		} );
+
+		Items.Add( new SettingItem
+		{
 			Id = "audio.acoustics",
 			Category = "audio",
 			Section = "#menu.settings.simulation",
@@ -1210,6 +1223,7 @@ public class SettingsCatalog
 		MenuUtility.SetConsoleVariable( "voip_device", "" );
 		MenuUtility.SetConsoleVariable( "voip_threshold", -50.0f );
 		MenuUtility.SetConsoleVariable( "voip_agc", true );
+		MenuUtility.SetConsoleVariable( "voip_show_indicator", true );
 		MenuUtility.SetConsoleVariable( "snd_mute_losefocus", false );
 		MenuUtility.SetConsoleVariable( "snd_subtitles", false );
 	}

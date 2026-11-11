@@ -10,6 +10,7 @@
         get
         {
 
+            if (!Preferences.ShowVoiceIndicator) return "inactive";
             if (Application.IsMicrophoneRecording) return "active recording";
             if (Application.IsMicrophoneListening) return "active";
 
@@ -17,6 +18,6 @@
         }
     }
 
-    protected override int BuildHash() => System.HashCode.Combine( Application.IsMicrophoneListening , Application.IsMicrophoneRecording );
+    protected override int BuildHash() => System.HashCode.Combine( Application.IsMicrophoneListening , Application.IsMicrophoneRecording, Preferences.ShowVoiceIndicator );
 
 }
