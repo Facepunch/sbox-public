@@ -94,6 +94,7 @@ internal sealed partial class MapWorld : IDisposable
 			var sky = LoadLevel( SkyWorld, content, map + "_sky", false, aggregatesAsMeshes, bakedLighting, entities );
 			LoadSkybox( reference, sky );
 		}
+
 	}
 
 	readonly Stopwatch timer;
@@ -171,6 +172,7 @@ internal sealed partial class MapWorld : IDisposable
 				var mesh = Mesh( o.Model, file, mask, skin );
 				var obj = new MeshObject( mesh, ToTransform( o.Transform ) ) { CastShadows = castShadows };
 				ApplyTypeFlags( obj, ObjectTypeFlags( o.TypeFlags ), castShadows );
+				ApplyMaterialFlags( obj, o.OverlayRenderOrder );
 				if ( o.LodOverride >= 0 ) obj.LodOverride = o.LodOverride;
 				if ( o.Tint != global::System.Numerics.Vector4.One ) obj.Tint = new Color( o.Tint.X, o.Tint.Y, o.Tint.Z, o.Tint.W );
 				target.Add( obj );
@@ -213,6 +215,7 @@ internal sealed partial class MapWorld : IDisposable
 				foreach ( var aggregate in MakeAggregates( Mesh( a.Model, file, file.DefaultMeshGroupMask, 0 ), file, a ) )
 				{
 					aggregate.CastShadows = castShadows;
+					if ( Materials( aggregate.Mesh ).Any( m => m.Attribute( "overlay", false ) ) ) aggregate.LayerMatch = LayerMatch.StaticOverlay;
 					target.Add( aggregate );
 					aggregateObjects.Add( aggregate );
 					level.Aggregates.Add( aggregate );
@@ -509,6 +512,40 @@ internal sealed partial class MapWorld : IDisposable
 			obj.Decal = true;
 			obj.CastShadows = false;
 		}
+	}
+
+	/// <summary>The compiled materials a mesh draws with, at every LOD.</summary>
+	static IEnumerable<BackendMaterial> Materials( RenderMesh mesh )
+	{
+		for ( int lod = 0; lod < mesh.LodCount; lod++ )
+		{
+			foreach ( var draw in mesh.DrawsForLod( lod ).ToArray() )
+			{
+				if ( draw.Material is BackendMaterial material ) yield return material;
+			}
+		}
+	}
+
+	/// <summary>
+	/// The flags native's scene system takes from an object's materials (<c>DefaultMaterialBasedSceneObjectUpdater</c>): an
+	/// <c>overlay</c> material (static_overlay's decals) puts it in the static overlay layer, in its render order and out of
+	/// the prepass and the opaque layers; <c>NoZPrepass</c> keeps it out of the prepass; materials that all have
+	/// <c>DoNotCastShadows</c> cast none; <c>bWantsFBCopyTexture</c> asks for the frame buffer copy.
+	/// </summary>
+	static void ApplyMaterialFlags( MeshObject obj, int renderOrder )
+	{
+		var materials = Materials( obj.Mesh ).Distinct().ToArray();
+		if ( materials.Length == 0 ) return;
+
+		if ( materials.Any( m => m.Attribute( "overlay", false ) ) )
+		{
+			obj.LayerMatch = LayerMatch.StaticOverlay;
+			obj.RenderOrder = renderOrder;
+		}
+
+		if ( materials.Any( m => m.Attribute( "NoZPrepass", false ) ) ) obj.DepthPrepass = false;
+		if ( materials.All( m => m.Attribute( "DoNotCastShadows", false ) ) ) obj.CastShadows = false;
+		if ( materials.Any( m => m.Attribute( "bWantsFBCopyTexture", false ) ) ) obj.WantsFrameBufferCopy = true;
 	}
 
 	static Matrix3x4 ToMatrix3x4( NumericsMatrix m ) => new()

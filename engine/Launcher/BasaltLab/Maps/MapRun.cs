@@ -21,7 +21,7 @@ namespace Sandbox.BasaltLab.Maps;
 /// <item><c>-view name</c> - one camera (<c>skyline</c>, <c>overview</c>); all by default.</item>
 /// <item><c>-variants a,b</c> - which of the runs below; all by default.</item>
 /// <item><c>-frames N</c> (600), <c>-warmup N</c> (120 frames and 2 s) - measured and warm-up frames per run.</item>
-/// <item><c>-width</c> / <c>-height</c> (1280x760, SceneLab's window), <c>-msaa N</c> (4), <c>-vsync</c> (off by default).</item>
+/// <item><c>-width</c> / <c>-height</c> (1280x720, SceneLab's frame), <c>-msaa N</c> (4), <c>-vsync</c> (off by default).</item>
 /// <item><c>-capture folder</c> - save each view's frame (material objects, shadows) as <c>map-view.png</c>.</item>
 /// <item><c>-out folder</c> - where <c>map.md</c> and <c>map.csv</c> go (default <c>screenshots/basaltlab/map</c>).</item>
 /// <item><c>-texture-size N</c> (1024) - mips above this are left out, to load faster.</item>
@@ -51,10 +51,13 @@ internal static class MapRun
 		new( "d-merged-parallel", "d", 3, IssueMode.MaterialObjects, true, true ),
 	];
 
-	/// <summary>SceneLab's views of Construct (MapScenes.ConstructSkyline and ConstructOverview).</summary>
+	/// <summary>
+	/// SceneLab's views of Construct (MapScenes.ConstructSkyline and ConstructOverview) as SceneLab draws them: its orbit
+	/// camera keeps each preset's position but looks at (0, 0, 30) unless <c>-camera-lookat</c> moves it.
+	/// </summary>
 	static readonly MapView[] ConstructViews =
 	[
-		new( "skyline", new V3( 864, -608, 67 ), new V3( -136, -608, 67 ) ),
+		new( "skyline", new V3( 864, -608, 67 ), new V3( 0, 0, 30 ) ),
 		new( "overview", new V3( 3000, 2500, 1200 ), new V3( 0, 0, 30 ) ),
 	];
 
@@ -75,7 +78,7 @@ internal static class MapRun
 		}
 
 		var width = Args.Int( "-width", 1280 );
-		var height = Args.Int( "-height", 760 );
+		var height = Args.Int( "-height", 720 );
 		var samples = Args.Int( "-msaa", 4 );
 		var frames = Math.Max( Args.Int( "-frames", 600 ), 10 );
 		var warmup = Math.Max( Args.Int( "-warmup", 120 ), 1 );
