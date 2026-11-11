@@ -183,9 +183,11 @@ internal sealed partial class TextBlock : IDisposable
 	}
 
 	readonly List<GPUBoxInstance> Instances = new();
+	(int LayoutVersion, Vector2 Origin, GpuFontText.Options Options) instancesBuiltFor;
 
 	/// <summary>
-	/// Emit the text through Painter, drawn straight from the glyph outlines every frame.
+	/// Emit the text through Painter, drawn straight from the glyph outlines every frame. The instances are only
+	/// rebuilt when the layout, position or options change, since walking every glyph costs far more than drawing them.
 	/// </summary>
 	internal void Draw( Painter painter, BlendMode blendMode, Styles currentStyle, Rect textrect, float opacity )
 	{
@@ -195,8 +197,14 @@ internal sealed partial class TextBlock : IDisposable
 		var options = GetOptions();
 		options.Opacity = opacity;
 
-		Instances.Clear();
-		GpuFontText.Build( Block, GetBlockOrigin( currentStyle, textrect ), options, Instances );
+		(int LayoutVersion, Vector2 Origin, GpuFontText.Options Options) builtFor = (Block.LayoutVersion, GetBlockOrigin( currentStyle, textrect ), options);
+		if ( !builtFor.Equals( instancesBuiltFor ) )
+		{
+			Instances.Clear();
+			GpuFontText.Build( Block, builtFor.Origin, options, Instances );
+			instancesBuiltFor = builtFor;
+		}
+
 		painter.Glyphs( Instances, blendMode, HasGradient ? GradientInfo : default );
 	}
 
@@ -214,6 +222,7 @@ internal sealed partial class TextBlock : IDisposable
 		options.EffectsOnly = true;
 
 		Instances.Clear();
+		instancesBuiltFor = default;
 		GpuFontText.Build( Block, GetBlockOrigin( currentStyle, textrect ), options, Instances );
 		painter.Glyphs( Instances, blendMode, default );
 	}
@@ -279,6 +288,20 @@ internal sealed partial class TextBlock : IDisposable
 		textrect.Position -= TextureMargin.Position;
 
 		return textrect.Floor();
+	}
+
+	/// <summary>
+	/// Everything <see cref="Draw"/> can cover for a text rect: the block with its effects and glyph overhang.
+	/// Null when the block isn't in the layout <see cref="Relayout"/> measured, so its size isn't known.
+	/// </summary>
+	internal Rect? GetInkRect( Styles currentStyle, Rect textrect )
+	{
+		if ( Block is null || needsLayout || Block.LayoutVersion != measuredLayoutVersion ) return null;
+
+		textrect = GetAlignedRect( currentStyle, textrect );
+		textrect.Size = textureSize;
+		textrect.Position -= TextureMargin.Position;
+		return textrect;
 	}
 
 	/// <summary>
@@ -639,7 +662,13 @@ internal sealed partial class TextBlock : IDisposable
 
 		var marginEdge = TextureMargin.EdgeSize;
 		textureSize = new Vector2( width + marginEdge.x.CeilToInt(), height + marginEdge.y.CeilToInt() );
+		measuredLayoutVersion = Block.LayoutVersion;
 	}
+
+	/// <summary>
+	/// The block layout <see cref="Relayout"/> last measured
+	/// </summary>
+	int measuredLayoutVersion = -1;
 
 	/// <summary>
 	/// Render the laid out text into a texture, for background-clip: text

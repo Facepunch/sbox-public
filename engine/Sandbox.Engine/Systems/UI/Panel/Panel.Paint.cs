@@ -95,6 +95,7 @@ public partial class Panel
 
 	/// <summary>
 	/// Called by Render to draw child shadows and non-fixed children in sorted order inside the child clip.
+	/// Children that can't draw anything inside the clip, like rows scrolled out of view, are skipped whole.
 	/// Draws scrollbars afterward; RootPanel handles fixed-position panels separately.
 	/// </summary>
 	void RenderChildren( Painter painter, ref RootPanel.FrameStats stats )
@@ -107,13 +108,22 @@ public partial class Panel
 			RenderChildShadows( painter );
 			foreach ( var child in _renderChildren )
 			{
-				if ( !child.IsFixed )
-					child.Render( painter, ref stats );
+				if ( child.IsFixed ) continue;
+
+				if ( IsClippedAway( child ) )
+				{
+					stats.PanelsCulled++;
+					continue;
+				}
+
+				child.Render( painter, ref stats );
 			}
 		}
 
 		RenderScrollbars( painter, ref stats );
 	}
+
+	bool IsClippedAway( Panel child ) => _paintCache.ClipsChildren && child.PaintsOutside( _paintCache.ContentClipRect );
 
 	/// <summary>
 	/// Called by RenderChildren before child bodies so non-fixed sibling outset shadows are painted underneath them.
@@ -123,7 +133,7 @@ public partial class Panel
 		if ( _shadowChildren is null ) return;
 		foreach ( var child in _shadowChildren )
 		{
-			if ( child.IsFixed ) continue;
+			if ( child.IsFixed || IsClippedAway( child ) ) continue;
 			child.RenderShadow( painter );
 		}
 	}
