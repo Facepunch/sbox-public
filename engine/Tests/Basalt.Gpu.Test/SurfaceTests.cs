@@ -96,10 +96,13 @@ public class SurfaceTests : GpuTest
 		Assert.IsTrue( forward.Bindings.Any( b => b.Kind == BindingKind.MaterialRecords && b.Set == 1 ) );
 		Assert.IsTrue( forward.Bindings.Any( b => b.Variable == "g_MaterialTextures2D" && b.Set == 4 && b.Binding == ShaderAbi.BindlessTextures ) );
 		Assert.IsTrue( forward.Bindings.Any( b => b.Name == "PerViewConstantBuffer_t" && b.Kind == BindingKind.ConstantBuffer && b.Size > 0 ) );
-		Assert.IsTrue( forward.Bindings.All( b => b.Set is 1 or 4 ) );
+		Assert.IsTrue( forward.Bindings.All( b => b.Set is 1 or ShaderAbi.BindlessSet or ShaderAbi.ViewSet ) );
+
+		// Per-view lighting and fog come from the view set, as the core shaders read them
+		Assert.IsTrue( forward.Bindings.Any( b => b.Set == ShaderAbi.ViewSet && b.Name == "DirectionalLightCB" ) );
 		Assert.IsTrue( forward.Specializations.Any( s => s.Attribute == "ShadowFilterQuality" ) );
 		Assert.IsFalse( forward.Globals.Members.Any( m => m.Name == "UserShadowFilterQuality" ) );
-		Assert.IsTrue( rock.Pass( ShaderPasses.Forward ).Vertex.Bindings.All( b => b.Set is 0 or 4 ) );
+		Assert.IsTrue( rock.Pass( ShaderPasses.Forward ).Vertex.Bindings.All( b => b.Set is 0 or ShaderAbi.BindlessSet or ShaderAbi.ViewSet ) );
 
 		// Dead-code elimination does the depth pass's work: the record, one texture and its sampler
 		var depth = rock.Pass( ShaderPasses.DepthAlphaTest ).Pixel;
