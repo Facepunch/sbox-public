@@ -1,4 +1,4 @@
-﻿using NativeEngine;
+using NativeEngine;
 using System;
 using System.IO;
 
@@ -439,14 +439,15 @@ public abstract partial class Asset
 		if ( !attribute.TargetType.IsAssignableTo( t ) || attribute.TargetType.IsAbstract )
 			return false;
 
-		// Compiled first if it changed, as any resource is. One that fails to compile still loads as it last compiled (a
-		// failed compile publishes nothing), so its editor can open it to fix it; building it still fails.
-		if ( !EnsureCurrentForLoad() )
-			Log.Warning( $"{this} failed to compile, loading it as it last compiled" );
-
 		obj = GameResource.GetPromise( attribute.TargetType, new ResourceId() { Guid = Guid, Path = Path } );
 		if ( obj != null && !obj.IsPromise )
 			return true; // already exists and loaded
+
+		// Compiled first if it changed, as any resource is. One that fails to compile still loads as it last compiled (a
+		// failed compile publishes nothing), so its editor can open it to fix it; building it still fails.
+		// A resource that is already loaded isn't read from disk here; the file watcher and CompileAllAssets recompile those.
+		if ( !EnsureCurrentForLoad() )
+			Log.Warning( $"{this} failed to compile, loading it as it last compiled" );
 
 		// get compiled path
 		var compiledFilePath = GetCompiledFile( true );
