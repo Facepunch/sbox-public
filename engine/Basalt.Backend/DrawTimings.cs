@@ -12,6 +12,17 @@ public sealed class DrawTimings
 	/// <summary>Stopwatch ticks in binds and in the other draws.</summary>
 	public long BindTicks, DrawTicks;
 
+	/// <summary>Of the draws, multi-draws' draws in all (an aggregate's fragments).</summary>
+	public long IndirectDraws;
+
+	/// <summary>Draws that recorded nothing (no variant, no shader, or a way the backend can't draw yet), by material.</summary>
+	public Dictionary<string, int> Failed { get; } = new();
+
+	internal void Fail( string material )
+	{
+		lock ( Failed ) Failed[material ?? "(none)"] = Failed.GetValueOrDefault( material ?? "(none)" ) + 1;
+	}
+
 	internal void Add( long ticks, bool bind, bool drawn )
 	{
 		if ( !drawn ) return;
@@ -37,5 +48,9 @@ public sealed class DrawTimings
 	public double NanosecondsPerDraw => Draws == 0 ? 0 : (BindTicks + DrawTicks) * 1e9 / System.Diagnostics.Stopwatch.Frequency / Draws;
 
 	/// <summary>Start counting again.</summary>
-	public void Reset() => Draws = Binds = BindTicks = DrawTicks = 0;
+	public void Reset()
+	{
+		Draws = Binds = BindTicks = DrawTicks = IndirectDraws = 0;
+		lock ( Failed ) Failed.Clear();
+	}
 }

@@ -118,6 +118,7 @@ internal sealed partial class BackendContext
 		var bind = !ReferenceEquals( material, timedMaterial ) || shaderMode.Value != timedMode;
 		(timedMaterial, timedMode) = (material, shaderMode.Value);
 		device.DrawTimes.Add( ticks, bind, drawn );
+		if ( !drawn ) device.DrawTimes.Fail( material?.Name );
 		return drawn;
 	}
 
@@ -160,7 +161,7 @@ internal sealed partial class BackendContext
 		return Binding.Sampled( resource.Binding, texture.Handle, srgb );
 	}
 
-	bool DrawWithMaterialObject( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias, float slopeScaledDepthBias, bool stripPixelShader, bool skinned )
+	bool DrawWithMaterialObject( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias, float slopeScaledDepthBias, bool stripPixelShader, bool skinned, in IndirectDraws indirect = default )
 	{
 		if ( material is not BackendMaterial { Shader: { } shader } m || mesh.Geometry is not IBackendGeometry source || skinned ) return false;
 		if ( InstanceIds?.Resource is not BackendBuffer instanceIds ) return false;
@@ -206,11 +207,7 @@ internal sealed partial class BackendContext
 		if ( depthOnly ) r.List.SetDepthBias( depthBias, slopeScaledDepthBias );
 		if ( variant.State.StencilTest && r.Depth is not null && BackendDevice.FormatOf( r.Depth ).HasStencil() ) r.List.SetStencilReference( (byte)variant.State.StencilReference );
 
-		r.List.SetVertexBuffer( 0, geometry.Vertices, geometry.VertexOffset );
-		r.List.SetVertexBuffer( 1, instanceIds.Handle, firstInstance * 4L );
-		r.List.SetVertexBuffer( 2, device.Defaults.VertexDefaults );
-		r.List.SetIndexBuffer( geometry.Indices, geometry.IndexFormat, geometry.IndexOffset );
-		r.List.DrawIndexed( draw.IndexCount, instances, draw.StartIndex, geometry.BaseVertex );
+		RecordDraw( r.List, geometry, instanceIds, draw, firstInstance, instances, indirect );
 		return true;
 	}
 

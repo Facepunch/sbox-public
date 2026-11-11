@@ -76,7 +76,7 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 		}
 
 		if ( loaded is not BackendMaterial material ) return false;
-		var file = Content.Find( path ) is { } found ? MaterialFile.Load( found ) : null;
+		var file = Content.TryRead( path ) is { } data ? MaterialFile.Read( data ) : null;
 		material.Reload( file is null ? null : Shaders.Load( file.Shader ), file, file is null ? null : Textures( file ) );
 		return true;
 	}
@@ -103,6 +103,13 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 
 	/// <summary>Model draws timed with <see cref="TimeDraws"/> on.</summary>
 	public DrawTimings DrawTimes { get; } = new();
+
+	/// <summary>
+	/// When set, the next frame context to begin a list of its own resets timestamps <c>Index</c> and <c>Index + 1</c> of
+	/// <c>Queries</c> and writes the first at the start of its list, so a frame's GPU time can be read from there to a
+	/// timestamp the caller writes after it; cleared once used. For benchmarks.
+	/// </summary>
+	internal (TimestampQueries Queries, int Index)? FrameStartTimestamp { get; set; }
 
 	readonly BackendTexture black;
 	readonly BackendTexture sheetMetadata;
@@ -212,10 +219,11 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 
 	BackendTexture Load( string path )
 	{
-		var file = Content.Find( path );
-		if ( file is null ) return null;
+		// From the content's folders or packages (a map's VPK)
+		var data = Content.TryRead( path );
+		if ( data is null ) return null;
 
-		var texture = TextureFile.Load( file );
+		var texture = TextureFile.Read( data );
 		if ( texture.Format == Format.Unknown ) return null;
 
 		var desc = new TextureDesc
@@ -316,9 +324,22 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	public GpuMaterial LoadMaterial( string path, IReadOnlyDictionary<string, float[]> values, string name = null )
 		=> Material( path, values is null ? null : new( values, StringComparer.OrdinalIgnoreCase ), name );
 
+	/// <summary>A material file, or null when it can't be read (KV3 with binary blobs isn't yet), so it draws nothing.</summary>
+	static MaterialFile ReadMaterial( byte[] data )
+	{
+		try
+		{
+			return MaterialFile.Read( data );
+		}
+		catch ( System.IO.InvalidDataException )
+		{
+			return null;
+		}
+	}
+
 	BackendMaterial Material( string path, Dictionary<string, float[]> values, string name = null )
 	{
-		var file = Content.Find( path ) is { } found ? MaterialFile.Load( found ) : null;
+		var file = Content.TryRead( path ) is { } data ? ReadMaterial( data ) : null;
 		if ( file is null ) return Track( new BackendMaterial( name ?? path, null, null, null, values ) );
 		return Track( new BackendMaterial( name ?? path, Shaders.Load( file.Shader ), file, Textures( file ), values ) );
 	}

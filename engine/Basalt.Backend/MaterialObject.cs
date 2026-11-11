@@ -670,6 +670,12 @@ internal sealed class MaterialObjectCache : IDisposable
 		}
 	}
 
+	/// <summary>Each object's material, layout and whether it draws depth only, for reporting what draws bind.</summary>
+	internal (BackendMaterial Material, MaterialLayout Layout, bool DepthOnly)[] Describe()
+	{
+		lock ( objects ) return [.. objects.Values.Select( o => (o.Material, o.Layout, o.DepthOnly) )];
+	}
+
 	/// <summary>Bytes of material and kept pass constants in use.</summary>
 	public long ConstantBytes => materialHeap.Used;
 

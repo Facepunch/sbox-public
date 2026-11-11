@@ -33,6 +33,9 @@ internal sealed partial class BackendContext : GpuContext
 		public bool Srgb;
 		public PipelineHandle Pipeline;
 		public BackendContext Binder;
+
+		/// <summary>The context recording into the list now: its clears still pending are flushed before another records.</summary>
+		public BackendContext Active;
 		public int BindVersion = -1;
 
 		/// <summary>
@@ -120,11 +123,20 @@ internal sealed partial class BackendContext : GpuContext
 		if ( borrowed )
 		{
 			recording = ((BackendContext)shared).recording ?? throw new InvalidOperationException( "The shared context isn't recording" );
+
+			// A clear the context before left pending (a pass that drew nothing) happens before this one records
+			if ( recording.Active is { } previous && previous != this && previous.recording == recording ) previous.FlushClears();
 		}
 		else
 		{
 			var queue = AsyncCompute && Gpu.Capabilities.AsyncCompute ? QueueType.Compute : QueueType.Graphics;
 			recording = new Session { List = Gpu.BeginCommandList( queue, frame is null ? "Basalt frame" : "Basalt segment" ) };
+			if ( frame is null && device.FrameStartTimestamp is { } stamp )
+			{
+				device.FrameStartTimestamp = null;
+				recording.List.ResetTimestamps( stamp.Queries, stamp.Index, 2 );
+				recording.List.WriteTimestamp( stamp.Queries, stamp.Index, PipelineStage.TopOfPipe );
+			}
 
 			// A segment with a list of its own may record while others do: its layouts are its own until it's submitted
 			if ( frame is not null ) recording.Layouts = new();
@@ -138,6 +150,7 @@ internal sealed partial class BackendContext : GpuContext
 		passStateCount = 0;
 		OverlayStencil = OverlayStencil.None;
 		recording.BindVersion = -1;
+		recording.Active = this;
 	}
 
 	public override void Submit( GpuSwapChain swapChain = default ) => SubmitNext();
@@ -155,6 +168,7 @@ internal sealed partial class BackendContext : GpuContext
 				return;
 			}
 
+			if ( recording.Active is { } last && last != this && last.recording == recording ) last.FlushClears();
 			CloseScope();
 			if ( recording.Layouts is { Count: > 0 } ) SubmitLayoutFixUps( recording );
 			Span<SyncPoint> waits = stackalloc SyncPoint[1];
@@ -525,7 +539,7 @@ internal sealed partial class BackendContext : GpuContext
 	// of its name from this context's parameters, or a default
 	//
 
-	bool DrawByReflection( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias, float slopeScaledDepthBias, bool stripPixelShader, bool skinned )
+	bool DrawByReflection( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias, float slopeScaledDepthBias, bool stripPixelShader, bool skinned, in IndirectDraws indirect = default )
 	{
 		if ( material is not BackendMaterial { Shader: { } shader } m || mesh.Geometry is not IBackendGeometry source || skinned ) return false;
 		if ( InstanceIds?.Resource is not BackendBuffer instanceIds ) return false;
@@ -554,11 +568,7 @@ internal sealed partial class BackendContext : GpuContext
 		if ( depthOnly ) r.List.SetDepthBias( depthBias, slopeScaledDepthBias );
 		if ( variant.State.StencilTest && r.Depth is not null && BackendDevice.FormatOf( r.Depth ).HasStencil() ) r.List.SetStencilReference( (byte)variant.State.StencilReference );
 
-		r.List.SetVertexBuffer( 0, geometry.Vertices, geometry.VertexOffset );
-		r.List.SetVertexBuffer( 1, instanceIds.Handle, firstInstance * 4L );
-		r.List.SetVertexBuffer( 2, device.Defaults.VertexDefaults );
-		r.List.SetIndexBuffer( geometry.Indices, geometry.IndexFormat, geometry.IndexOffset );
-		r.List.DrawIndexed( draw.IndexCount, instances, draw.StartIndex, geometry.BaseVertex );
+		RecordDraw( r.List, geometry, instanceIds, draw, firstInstance, instances, indirect );
 		return true;
 	}
 
@@ -859,8 +869,6 @@ internal sealed partial class BackendContext : GpuContext
 	public override bool SetRenderState( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool vertexCache = false ) => false;
 
 	public override bool DrawModelCulled( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int argsIndex, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false ) => false;
-
-	public override bool DrawModelFragments( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, GpuBuffer args, int firstArg, int count, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false ) => false;
 
 	public override bool DrawModelFragmentsCulled( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int cullArg, int count, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false ) => false;
 

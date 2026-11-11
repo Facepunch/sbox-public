@@ -14,6 +14,7 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo( "Sandbox.Test.Unit" )]
 [assembly: InternalsVisibleTo( "Basalt.Test" )]
 [assembly: InternalsVisibleTo( "Basalt.Backend" )]
+[assembly: InternalsVisibleTo( "Basalt.Gpu.Test" )]
 [assembly: InternalsVisibleTo( "Sandbox.Test.Integration" )]
 [assembly: InternalsVisibleTo( "Sandbox.Engine" )]
 [assembly: InternalsVisibleTo( "Sandbox.Rendering" )]
