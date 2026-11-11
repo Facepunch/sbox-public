@@ -4,8 +4,9 @@ namespace Sandbox.SceneRenderer.Native;
 
 /// <summary>
 /// The scene's colour and depth targets for a standard view. The camera hands over its output; the scene renders into an HDR
-/// intermediate when the output isn't one (copied over before overlays and UI), into a depth target of its own when it's
-/// multisampled differently, and at a lower resolution when upscaling, into targets the upscaler then fills the output from.
+/// intermediate when the output isn't one (copied over before overlays and UI), into colour and depth targets of its own when
+/// the output is multisampled differently (copied over last), and at a lower resolution when upscaling, into targets the
+/// upscaler then fills the output from.
 /// </summary>
 internal static class ViewTargets
 {
@@ -29,16 +30,19 @@ internal static class ViewTargets
 		var depth = setup.m_hFinalDepth;
 		var resolveToFinal = false;
 
-		// An output that isn't HDR (the swap chain) gets an HDR intermediate, copied to it after post processing
+		// An output that isn't HDR (the swap chain) or is multisampled differently (a camera without anti-aliasing) gets an HDR
+		// intermediate, copied into it later
 		var outputIsFloat = RenderPipelineTools.IsFloatFormat( RenderPipelineTools.GetTargetFormat( view, setup.m_hFinalColor ) );
-		if ( hdrFormat != RenderPipelineTools.GetBackBufferFormat() && !outputIsFloat )
+		var outputIsHdr = hdrFormat == RenderPipelineTools.GetBackBufferFormat() || outputIsFloat;
+		var sampledDifferently = !upscaling && setup.m_nOutputMSAA != msaa;
+		if ( !outputIsHdr || sampledDifferently )
 		{
 			if ( !upscaling ) color = RenderPipelineTools.FindOrCreateScratchTarget( view, "intermediate_color_stereo_rt", width, height, hdrFormat, msaa, false );
 			resolveToFinal = true;
 		}
 
 		// We can't use a depth buffer sampled differently: make a matching one
-		if ( !upscaling && setup.m_nOutputMSAA != msaa )
+		if ( sampledDifferently )
 		{
 			depth = RenderPipelineTools.FindOrCreateScratchTarget( view, "intermediate_depth_stereo_rt", width, height, setup.m_nDepthFormat, msaa, false );
 		}

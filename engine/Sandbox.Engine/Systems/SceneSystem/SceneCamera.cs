@@ -567,6 +567,15 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	}
 
 	/// <summary>
+	/// Render without anti-aliasing: no MSAA, CMAA2 or temporal upscaling. The player's render resolution and FSR1 still apply.
+	/// </summary>
+	internal bool DisableAntiAliasing
+	{
+		get => Attributes.GetBool( "disableAntiAliasing" );
+		set => Attributes.Set( "disableAntiAliasing", value );
+	}
+
+	/// <summary>
 	/// Toggle all post processing effects for this camera. The default is on.
 	/// </summary>
 	public bool EnablePostProcessing { get; set; } = true;
@@ -719,7 +728,8 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 
 	void ApplyAntiAliasing()
 	{
-		if ( RenderSettings.Instance.AntiAliasMode == AntiAliasMode.Cmaa2
+		if ( !DisableAntiAliasing
+			&& RenderSettings.Instance.AntiAliasMode == AntiAliasMode.Cmaa2
 			&& Graphics.ToolsVisMode == (int)SceneCameraDebugMode.Normal )
 		{
 			_cmaa2Renderer.Value.Render();
