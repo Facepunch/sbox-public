@@ -16,9 +16,10 @@ CS
 
     //-------------------------------------------------------------------------------------------------------------------
     //
-    // Non-temporal GTAO. Four passes:
+    // Non-temporal GTAO. Five passes:
     //
     //  ViewDepthChain    view space depth and four MIPs at AO resolution (XeGTAO's prefilter)
+    //  ReconstructNormals the normal of each AO texel's full resolution pixel, from the depth around it
     //  MainPass          GTAO at AO resolution. Writes visibility; the passes after it read depth from the chain's MIP 0
     //  DenoiseSpatial    edge-aware 3x3 À-Trous, run 1-3 times with dilated steps, stopping on depth and normal
     //  BilateralUpsample to full resolution when AO runs reduced: bilinear weights times each coarse texel's distance
@@ -29,24 +30,31 @@ CS
     //
     //-------------------------------------------------------------------------------------------------------------------
 
-    DynamicCombo( D_MSAA_NORMALS, 0..1, Sys( All ) );
-
-    // Bind directly, vary type on MSAA, Normals class does not do this
-    #if D_MSAA_NORMALS
-        Texture2DMS<float4>  g_tNormalsGBuffer  < Attribute("NormalsGBuffer"); >;
-    #else
-        Texture2D<float4>    g_tNormalsGBuffer  < Attribute("NormalsGBuffer"); >;
-    #endif
-
-    float3 LoadGBufferNormal( int2 screenPos )
+    // Normals come from depth, not a G-buffer: geometric, without the materials' normal maps. A world-space normal from the
+    // depth around a full resolution pixel. On each axis it takes the neighbour nearer the pixel, so the normal doesn't bend
+    // across a silhouette onto whatever is behind it, and the one inside at the edges
+    float3 ReconstructNormal( int2 screenPos )
     {
-        #if D_MSAA_NORMALS
-            const float3 n = g_tNormalsGBuffer.Load( screenPos + g_vViewportOffset, 0 ).xyz;
-        #else
-            const float3 n = g_tNormalsGBuffer.Load( int3( screenPos + g_vViewportOffset, 0 ) ).xyz;
-        #endif
-        return 2.0f * n - 1.0f;
+        const int2 limit = int2( g_vViewportSize.xy ) - 1;
+        screenPos = clamp( screenPos, int2( 0, 0 ), limit );
+
+        const float3 c = Depth::GetWorldPosition( screenPos );
+        const float3 l = Depth::GetWorldPosition( max( screenPos - int2( 1, 0 ), 0 ) );
+        const float3 r = Depth::GetWorldPosition( min( screenPos + int2( 1, 0 ), limit ) );
+        const float3 u = Depth::GetWorldPosition( max( screenPos - int2( 0, 1 ), 0 ) );
+        const float3 d = Depth::GetWorldPosition( min( screenPos + int2( 0, 1 ), limit ) );
+
+        const bool left = screenPos.x == limit.x || ( screenPos.x > 0 && dot( c - l, c - l ) < dot( r - c, r - c ) );
+        const bool up = screenPos.y == limit.y || ( screenPos.y > 0 && dot( c - u, c - u ) < dot( d - c, d - c ) );
+        const float3 n = cross( left ? c - l : r - c, up ? c - u : d - c );
+        return -n * rsqrt( max( dot( n, n ), 1e-20 ) );
     }
+
+    // The normal of each AO texel's full resolution pixel, rebuilt once (D_PASS ReconstructNormals) and read by the main
+    // pass, the denoiser and the upsample's coarse texels: rebuilding it where it's read cost 5 depth loads a normal, 5
+    // normals a full resolution pixel in the upsample
+    Texture2D<float4>   g_tAONormals    < Attribute("AONormals"); SrgbRead( false ); >;
+    RWTexture2D<float4> g_outAONormals  < Attribute("OutAONormals"); >;
 
     //-------------------------------------------------------------------------------------------------------------------
 
@@ -101,10 +109,11 @@ CS
         ViewDepthChain,
         MainPass,
         DenoiseSpatial,
-        BilateralUpsample
+        BilateralUpsample,
+        ReconstructNormals
     };
 
-    DynamicCombo( D_PASS, 0..3, Sys( All ) );
+    DynamicCombo( D_PASS, 0..4, Sys( All ) );
     DynamicCombo( D_QUALITY, 0..3, Sys( All ) );  // 3 is r_ao_reference
 
     //-------------------------------------------------------------------------------------------------------------------
@@ -172,11 +181,18 @@ CS
         return (float)asint( x ) * ( 1.0 / 8388608.0 ) - 127.0;
     }
 
-    lpfloat3 LoadViewNormal( int2 fullResPos )
+    // A world-space normal in GTAO's view space
+    lpfloat3 ToViewNormal( float3 normal )
     {
-        lpfloat3 viewnormal = (lpfloat3)Vector3WsToVs( LoadGBufferNormal( fullResPos ) );
+        lpfloat3 viewnormal = (lpfloat3)Vector3WsToVs( normal );
         viewnormal.z = -viewnormal.z;
         return viewnormal;
+    }
+
+    // The world-space normal of AO texel p's full resolution pixel
+    float3 LoadCoarseNormal( int2 aoPos )
+    {
+        return normalize( 2.0f * g_tAONormals.Load( int3( aoPos, 0 ) ).xyz - 1.0f );
     }
 
     //-------------------------------------------------------------------------------------------------------------------
@@ -469,7 +485,7 @@ CS
     //-------------------------------------------------------------------------------------------------------------------
     //
     // Denoise: 3x3 À-Trous, the 1 2 1 kernel at steps 1, 2 and 4, stopping at edges on view depth relative to the
-    // center's and on normal similarity. A 16x16 group reads its texels' visibility, depth and G-buffer normals, and the
+    // center's and on normal similarity. A 16x16 group reads its texels' visibility, depth and normals, and the
     // border its steps reach, into groupshared memory once. A dispatch runs one step, or two (s and 2s) back to back in
     // groupshared memory, the first over the group's texels and the second step's reach.
     //
@@ -534,7 +550,7 @@ CS
             const int2 p = clamp( tileOrigin + tilePos, int2( 0, 0 ), aoMax );
             const int index = tilePos.y * DENOISE_TILE + tilePos.x;
             g_denoiseAO[0][index] = g_tAOZ.Load( int3( p, 0 ) );
-            g_denoiseNormalZ[index] = float4( LoadGBufferNormal( AoToFullRes( p ) ), g_srcWorkingDepth.Load( int3( p, 0 ) ) );
+            g_denoiseNormalZ[index] = float4( LoadCoarseNormal( p ), g_srcWorkingDepth.Load( int3( p, 0 ) ) );
         }
 
         GroupMemoryBarrierWithGroupSync();
@@ -593,7 +609,8 @@ CS
         const float4 bilinear = float4( ( 1 - f.x ) * ( 1 - f.y ), f.x * ( 1 - f.y ), ( 1 - f.x ) * f.y, f.x * f.y );
 
         const float hiZ = LoadViewDepth( fullResPixel, consts );
-        const float3 n = LoadViewNormal( fullResPixel );
+        const float3 hiN = ReconstructNormal( fullResPixel );
+        const float3 n = ToViewNormal( hiN );
 
         // A view position is ( A z, z ) with A linear in the pixel, so its distance along n is z ( A . n.xy + n.z ). The
         // taps are an AO pixel apart, which moves A by NDCToViewMul_x_PixelSize
@@ -606,12 +623,11 @@ CS
 
         // A crease has no depth step and the tolerance grows with the AO scale, so the taps' own normals keep faces
         // apart as in the denoiser (dot^24)
-        const float3 hiN = LoadGBufferNormal( fullResPixel );
         const float4 nDot = saturate( float4(
-            dot( LoadGBufferNormal( AoToFullRes( aoBase ) ), hiN ),
-            dot( LoadGBufferNormal( AoToFullRes( min( aoBase + int2( 1, 0 ), aoMax ) ) ), hiN ),
-            dot( LoadGBufferNormal( AoToFullRes( min( aoBase + int2( 0, 1 ), aoMax ) ) ), hiN ),
-            dot( LoadGBufferNormal( AoToFullRes( min( aoBase + int2( 1, 1 ), aoMax ) ) ), hiN ) ) );
+            dot( LoadCoarseNormal( aoBase ), hiN ),
+            dot( LoadCoarseNormal( min( aoBase + int2( 1, 0 ), aoMax ) ), hiN ),
+            dot( LoadCoarseNormal( min( aoBase + int2( 0, 1 ), aoMax ) ), hiN ),
+            dot( LoadCoarseNormal( min( aoBase + int2( 1, 1 ), aoMax ) ), hiN ) ) );
         const float4 n2 = nDot * nDot;
         const float4 n4 = n2 * n2;
         const float4 n8 = n4 * n4;
@@ -641,7 +657,14 @@ CS
     {
         GTAOConstants sGTAOConsts = GetConstants();
 
-        if ( D_PASS == GTAOPasses::ViewDepthChain )
+        if ( D_PASS == GTAOPasses::ReconstructNormals )
+        {
+            uint2 target;
+            g_outAONormals.GetDimensions( target.x, target.y );
+            if ( InBounds( vDispatchId, sGTAOConsts.ViewportSize, target ) )
+                g_outAONormals[vDispatchId] = float4( ReconstructNormal( AoToFullRes( int2( vDispatchId ) ) ) * 0.5f + 0.5f, 1 );
+        }
+        else if ( D_PASS == GTAOPasses::ViewDepthChain )
         {
             #if ( D_PASS == 0 )
                 PrefilterDepths( vDispatchId, vGroupThreadID, sGTAOConsts, g_outWorkingDepthMIP0, g_outWorkingDepthMIP1, g_outWorkingDepthMIP2, g_outWorkingDepthMIP3, g_outWorkingDepthMIP4 );
@@ -663,7 +686,7 @@ CS
             const float2 localNoise = g_tBlueNoise[ aoPos % 256 ].rg;
 
             const float viewspaceZ = g_srcWorkingDepth.Load( int3( aoPos, 0 ) );
-            const float3 viewspaceNormal = LoadViewNormal( fullResPos );
+            const float3 viewspaceNormal = ToViewNormal( LoadCoarseNormal( aoPos ) );
 
             // Steps find the horizon: a slice's horizon is the highest of its samples, so too few miss occluders and AO comes out
             // too light, which no denoiser can fix. Slices are what keep it still in motion: with 3 the rotation pattern swims.

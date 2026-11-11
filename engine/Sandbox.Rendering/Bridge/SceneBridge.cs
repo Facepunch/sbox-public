@@ -568,7 +568,6 @@ internal sealed partial class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		// A reflection draws a depth-only prepass, and no shadows unless r.reflections.shadows is on (CameraRenderer.Configure)
 		view.Reflection = setup.Reflection;
 		view.ReflectionShadows = setup.Reflection && CommandList.ReflectionShadows;
-		view.DepthNormals = !setup.Reflection && camera.WantsDepthNormals;
 
 		var rect = camera.Rect;
 		view.Viewport = new Rect( rect.Left * size.x, rect.Top * size.y, rect.Width * size.x, rect.Height * size.y );
