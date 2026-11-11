@@ -178,6 +178,10 @@ internal sealed class Benchmark
 	/// </summary>
 	void Add( SceneLabScene scene, Run run )
 	{
+		// -benchmark-renderer managed|native: one renderer's runs only, to tell whose a long run's growth is
+		if ( Args.String( "-benchmark-renderer" ) is { Length: > 0 } only && !run.Renderer.ToString().Equals( only, StringComparison.OrdinalIgnoreCase ) )
+			return;
+
 		if ( !scene.CompareOcclusion )
 		{
 			var culling = run.Renderer == SceneLabWindow.RendererKind.Managed ? ManagedSceneRendering.Occlusion && run.Prepass : RenderPipeline.OcclusionCulling;
