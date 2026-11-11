@@ -29,6 +29,9 @@ internal static class MapScenes
 		camera.ZFar = 30000;
 		camera.IsMainCamera = true;
 
+		// -debug-mode N: the shaders' debug view (ToolsVisMode: 10 albedo, 2 diffuse, 3 reflections, 12 roughness...)
+		if ( Args.Int( "-debug-mode", 0 ) is > 0 and var mode ) camera.DebugMode = (SceneCameraDebugMode)mode;
+
 		new GameObject( true, map ).Components.Create<MapInstance>();
 		return scene;
 	}
