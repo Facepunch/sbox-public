@@ -3,6 +3,7 @@ using Basalt.Source2;
 using Basalt.Source2.Materials;
 using Basalt.Source2.Shaders;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading;
 
 namespace Basalt.Backend;
@@ -125,7 +126,11 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	public bool GpuDriven { get; set; }
 
 	/// <summary>The GPU-driven tables' records and bytes, for reports.</summary>
-	public string GpuDrivenReport => gpuDrivenTables is not { } t ? "off" : $"{t.Records.Geometry} geometry, {t.Records.Draws} draw and {t.Records.Materials} material records ({t.Bytes.Geometry / 1024} + {t.Bytes.Draws / 1024} + {t.Bytes.Materials / 1024} KiB), {t.Bytes.Pages / (1 << 20)} MiB of pages";
+	public string GpuDrivenReport => gpuDrivenTables is not { } t ? "off" : $"{t.Records.Geometry} geometry, {t.Records.Draws} draw and {t.Records.Materials} material records ({t.Bytes.Geometry / 1024} + {t.Bytes.Draws / 1024} + {t.Bytes.Materials / 1024} KiB), {t.Bytes.Pages / (1 << 20)} MiB of pages"
+		+ (GpuDrivenLeftClassic.IsEmpty ? "" : "; aggregate batches left classic (batch draws while timed, shader, mode, why): " + string.Join( ", ", GpuDrivenLeftClassic.OrderByDescending( x => x.Value ).Select( x => $"{x.Value} {x.Key}" ) ));
+
+	/// <summary>While <see cref="TimeDraws"/>, aggregate batches the GPU-driven path left to the classic one, by shader, mode and why.</summary>
+	internal readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> GpuDrivenLeftClassic = new();
 
 	/// <summary>The vertex layout GPU-driven pipelines are made with: none, their vertex shaders pull their inputs.</summary>
 	internal VertexLayout PulledLayout => pulledLayout ??= Layout( new VertexLayout( 4, [] ) );
@@ -138,10 +143,11 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// <summary>
 	/// Split GPU-driven buckets whose pixel shader reads its material (forward, alpha-tested depth) by material, so the
 	/// pixel shader reads the record at an offset the compiler knows is uniform (specialization constant 120) rather than
-	/// one carried per pixel: more multi-draws, no binds between them, and the classic shader's registers. On by default
-	/// (the owner's decision, 2026-11-11); off draws every material of a pipeline in one multi-draw, to compare.
+	/// one carried per pixel: more multi-draws, no binds between them, and the classic shader's registers. Off by default:
+	/// one multi-draw for every material of a pipeline costs complex 1 to 13 registers but draws Construct faster on CPU
+	/// and GPU; on is for a shader whose registers matter more than its draws.
 	/// </summary>
-	public bool GpuDrivenMaterialBuckets { get; set; } = true;
+	public bool GpuDrivenMaterialBuckets { get; set; }
 
 	readonly System.Collections.Concurrent.ConcurrentDictionary<uint, BackendParameters> gpuDrivenMaterialParameters = new();
 	static readonly StringToken GpuDrivenMaterialName = new( "BasaltGpuDrivenMaterial_t" );
@@ -555,6 +561,8 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	}
 
 	internal override GpuContext CreateContext( GpuContext frame = null ) => new BackendContext( this, (BackendContext)frame );
+
+	internal override bool DrawsAggregatesGpuDriven => GpuDriven && MaterialObjects && GpuDrivenTables is not null;
 
 	/// <summary>Async compute isn't wired yet: contexts all record on the graphics queue.</summary>
 	public override bool SupportsAsyncCompute => false;

@@ -18,6 +18,9 @@ internal sealed class AggregateRenderFeature : RenderFeature
 	internal sealed class Batches
 	{
 		public readonly List<Batch> List = new();
+
+		/// <summary>Whether the device draws them GPU-driven: then a layer's batches record as one run, so one multi-draw per bucket.</summary>
+		public bool OneRun;
 	}
 
 	/// <summary>
@@ -63,8 +66,10 @@ internal sealed class AggregateRenderFeature : RenderFeature
 		// The frame's transforms, whose instance ids a GPU-driven draw reads on the CPU (the same buffer for every view)
 		this.transforms = transforms;
 
-		var batches = pass.State<Batches>( this ).List;
+		var state = pass.State<Batches>( this );
+		var batches = state.List;
 		batches.Clear();
+		state.OneRun = Occlusion is null && RenderHost.Current?.Device is { DrawsAggregatesGpuDriven: true };
 
 		// The frame's views all write into one args buffer
 		if ( argGeneration != transforms.Generation )
@@ -176,14 +181,27 @@ internal sealed class AggregateRenderFeature : RenderFeature
 	/// <summary>
 	/// A batch for each aggregate, in every layer that draws the opaque runs.
 	/// </summary>
-	internal override int RunCount( ViewPass view, MeshLayer layer ) => (layer.Runs & MeshRuns.Opaque) != 0 ? view.State<Batches>( this ).List.Count : 0;
+	internal override int RunCount( ViewPass view, MeshLayer layer )
+	{
+		if ( (layer.Runs & MeshRuns.Opaque) == 0 ) return 0;
+		var state = view.State<Batches>( this );
+		return state.OneRun ? Math.Min( state.List.Count, 1 ) : state.List.Count;
+	}
+
+	/// <summary>One run for every batch when they draw GPU-driven, as heavy as the batches it holds.</summary>
+	internal override void RunWeights( ViewPass view, MeshLayer layer, Span<int> weights )
+	{
+		var state = view.State<Batches>( this );
+		weights.Fill( state.OneRun ? Math.Max( state.List.Count, 1 ) : 1 );
+	}
 
 	/// <summary>
 	/// Draw each batch as one multi-draw: its own args, or the occlusion cull's for the layer's phase.
 	/// </summary>
 	internal override void Draw( GpuContext context, ViewPass view, MeshLayer layer, int first, int count, ref RenderStats stats )
 	{
-		var batches = CollectionsMarshal.AsSpan( view.State<Batches>( this ).List ).Slice( first, count );
+		var state = view.State<Batches>( this );
+		var batches = state.OneRun ? CollectionsMarshal.AsSpan( state.List ) : CollectionsMarshal.AsSpan( state.List ).Slice( first, count );
 
 		var depth = layer.Depth;
 		var mode = layer.ShaderMode;

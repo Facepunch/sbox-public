@@ -37,10 +37,10 @@ internal static class MapRealRun
 		new( "real-reflection", false, false, false ),
 		new( "real-serial-shadows", false, true, true ),
 		new( "real-parallel-shadows", true, true, true ),
-		new( "real-serial-gpudriven", false, true, false, true, true ),
-		new( "real-parallel-gpudriven", true, true, false, true, true ),
-		new( "real-serial-gpudriven-onebucket", false, true, false, true, false ),
-		new( "real-parallel-gpudriven-onebucket", true, true, false, true, false ),
+		new( "real-serial-gpudriven", false, true, false, true ),
+		new( "real-parallel-gpudriven", true, true, false, true ),
+		new( "real-serial-gpudriven-materials", false, true, false, true, true ),
+		new( "real-parallel-gpudriven-materials", true, true, false, true, true ),
 	];
 
 	struct Frame
@@ -191,7 +191,7 @@ internal static class MapRealRun
 				var path = Path.Combine( Path.GetFullPath( options.Captures ), $"{options.Ident.Split( '.' ).Last()}-{view.Name}-real.png" );
 
 				// The GPU-driven frames between two classic ones, to compare (wind and water move between captures)
-				foreach ( var (drivenCapture, materialBuckets, suffix) in gpuDriven ? new[] { (false, false, "-classic-before"), (true, true, "-gpudriven"), (true, false, "-gpudriven-onebucket"), (false, false, "") } : [(false, false, "")] )
+				foreach ( var (drivenCapture, materialBuckets, suffix) in gpuDriven ? new[] { (false, false, "-classic-before"), (true, false, "-gpudriven"), (true, true, "-gpudriven-materials"), (false, false, "") } : [(false, false, "")] )
 				{
 					map.Backend.GpuDriven = drivenCapture;
 					map.Backend.GpuDrivenMaterialBuckets = materialBuckets;

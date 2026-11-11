@@ -41,7 +41,14 @@ internal sealed partial class BackendContext
 	readonly List<GpuDrivenBucket> gpuDrivenBuckets = new();
 	int gpuDrivenBucketCount;
 
-	internal override bool GpuDriven => device.GpuDriven && device.MaterialObjects && device.GpuDrivenTables is not null;
+	internal override bool GpuDriven => device.DrawsAggregatesGpuDriven;
+
+	/// <summary>Count a batch left to the classic path, for the report (<see cref="BackendDevice.GpuDrivenLeftClassic"/>).</summary>
+	void LeftClassic( ShaderFile shader, object mode, string why )
+	{
+		if ( !device.TimeDraws ) return;
+		device.GpuDrivenLeftClassic.AddOrUpdate( $"{shader.Name} {mode} ({why})", 1, static ( _, n ) => n + 1 );
+	}
 
 	internal override void DrawGpuDriven( StringToken shaderMode, ReadOnlySpan<GpuDrivenBatch> batches, ReadOnlySpan<GpuBuffer.IndirectDrawIndexedArguments> args, TransformBuffer transforms, int depthBias, float slopeScaledDepthBias, Span<bool> drawn )
 	{
@@ -63,7 +70,11 @@ internal sealed partial class BackendContext
 		{
 			ref readonly var batch = ref batches[i];
 			if ( batch.Material is not BackendMaterial { Shader: { } shader } m || batch.Mesh?.Geometry is not IBackendGeometry source ) continue;
-			if ( source.For( batch.Draw.Mesh, batch.Draw.DrawCall ).Pooled is null ) continue;
+			if ( source.For( batch.Draw.Mesh, batch.Draw.DrawCall ).Pooled is null )
+			{
+				LeftClassic( shader, shaderMode, "geometry not pooled" );
+				continue;
+			}
 
 			SetObjectAttributes( null, batch.ObjectAttributes );
 			NextPassState( cache );
@@ -73,11 +84,19 @@ internal sealed partial class BackendContext
 			comboLookup ??= name => LookupCombo( Token( name ) );
 			specializationLookup ??= name => Integer( Lookup( Token( name ) ) );
 			var variant = m.GpuDrivenVariant( device.Shaders, mode, ComboKey( m, mode ), comboLookup, specializationLookup );
-			if ( variant?.Vertex?.Bytecode is null ) continue;
+			if ( variant?.Vertex?.Bytecode is null )
+			{
+				LeftClassic( shader, mode, "no variant" );
+				continue;
+			}
 
 			var noColor = batch.StripPixelShader || r.Color is null;
 			var depthOnly = StripsPixelShader( m, noColor, batch.StripPixelShader );
-			if ( !depthOnly && variant.Pixel?.Bytecode is null ) continue;
+			if ( !depthOnly && variant.Pixel?.Bytecode is null )
+			{
+				LeftClassic( shader, mode, "no pixel variant" );
+				continue;
+			}
 
 			// One material per bucket where pixels read it, when asked: its record's offset is then the bucket's, uniform
 			var pixelMaterial = 0u;
