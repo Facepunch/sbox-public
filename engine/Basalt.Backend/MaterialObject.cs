@@ -27,6 +27,29 @@ internal abstract class PassBindings
 
 	/// <summary>An attribute as floats, for the material constants read from attributes; null when it isn't set.</summary>
 	public abstract float[] Floats( string attribute );
+
+	/// <summary>
+	/// Which object attributes the next bind reads over the pass's: 0 for none, else a number this context hasn't used
+	/// for anything else, new whenever the object's attributes (or their values) change.
+	/// </summary>
+	public long LayerEpoch;
+
+	/// <summary>The pass state with the object's attributes over it, per layout signature, for this context.</summary>
+	public MaterialLayout.PassState[] LayerStates = [];
+
+	/// <summary>
+	/// The binding the object's attributes make for <paramref name="resource"/>, if they set it; false leaves the pass's.
+	/// A dynamic constant buffer's offset goes in <paramref name="dynamicOffset"/>.
+	/// </summary>
+	public virtual bool ResolveLayer( in ShaderResource resource, ShaderStage stage, bool dynamic, out Binding binding, out uint dynamicOffset )
+	{
+		binding = default;
+		dynamicOffset = 0;
+		return false;
+	}
+
+	/// <summary>An attribute the object's attributes set, as floats; null when they don't set it.</summary>
+	public virtual float[] LayerFloats( string attribute ) => null;
 }
 
 /// <summary>
@@ -74,10 +97,131 @@ internal sealed class MaterialLayout
 		public readonly Binding[][] Bindings = new Binding[ShaderAbi.BindlessSet][];
 		public readonly uint[][] Offsets = new uint[ShaderAbi.BindlessSet][];
 		public ulong Constants;
+
+		/// <summary>With an object's attributes over the pass: which (<see cref="PassBindings.LayerEpoch"/>), and its own
+		/// copies of the sets they change.</summary>
+		public long Layer;
+		internal Binding[][] OwnBindings;
+		internal uint[][] OwnOffsets;
 	}
 
 	/// <summary>Layouts whose pass bindings are the same (materials of one shader and features) share this.</summary>
 	readonly int signature;
+
+	readonly MaterialObjectCache cache;
+
+	/// <summary>Per set, the name (token value) of each pass slot's attribute, to match what objects set.</summary>
+	readonly uint[][] passNames = new uint[ShaderAbi.BindlessSet][];
+
+	/// <summary>
+	/// The pass slots (set, index into <see cref="PassSlots"/>) and attribute constants objects' attributes can set, as
+	/// of <see cref="MaterialObjectCache.LayerNames"/> <c>Version</c>.
+	/// </summary>
+	sealed record LayerSlots( int Version, (int Set, int Slot)[] Slots, string[] Constants )
+	{
+		public bool Empty => Slots.Length == 0 && Constants.Length == 0;
+	}
+
+	LayerSlots layerSlots;
+
+	LayerSlots SlotsForLayers()
+	{
+		var version = cache.LayerNames;
+		if ( layerSlots is { } found && found.Version == version ) return found;
+
+		var slots = new List<(int, int)>();
+		for ( int set = 0; set < Sets.Length; set++ )
+		{
+			if ( passNames[set] is not { } names ) continue;
+			for ( int k = 0; k < names.Length; k++ )
+			{
+				if ( cache.IsLayerName( names[k] ) ) slots.Add( (set, k) );
+			}
+		}
+
+		var constants = new List<string>();
+		foreach ( var (_, variables) in AttributeConstants )
+		{
+			foreach ( var v in variables )
+			{
+				if ( cache.IsLayerName( BackendContext.Token( v.Attribute ).Value ) && !constants.Contains( v.Attribute ) ) constants.Add( v.Attribute );
+			}
+		}
+
+		return layerSlots = new LayerSlots( version, [.. slots], [.. constants] );
+	}
+
+	/// <summary>
+	/// The bindings for a draw in pass state <paramref name="epoch"/> with the object attributes of
+	/// <paramref name="resolver"/>'s <see cref="PassBindings.LayerEpoch"/> over it: the pass state itself when the object
+	/// sets nothing this layout reads, else a copy with what it sets. An object's constant buffers are dynamic like the
+	/// pass's, so they change the offsets rather than the identity, and the same sets are bound.
+	/// </summary>
+	public PassState For( long epoch, PassBindings resolver )
+	{
+		var pass = Pass( epoch, resolver );
+		var layer = resolver.LayerEpoch;
+		if ( layer == 0 || Immediate ) return pass;
+
+		var slots = SlotsForLayers();
+		if ( slots.Empty ) return pass;
+
+		var states = resolver.LayerStates;
+		if ( signature >= states.Length ) resolver.LayerStates = states = [.. states, .. new PassState[Math.Max( signature + 1 - states.Length, 16 )]];
+		var state = states[signature] ??= new PassState { OwnBindings = new Binding[ShaderAbi.BindlessSet][], OwnOffsets = new uint[ShaderAbi.BindlessSet][] };
+		if ( state.Epoch == epoch && state.Layer == layer ) return state;
+		state.Epoch = epoch;
+		state.Layer = layer;
+
+		for ( int set = 0; set < Sets.Length; set++ )
+		{
+			state.Identity[set] = pass.Identity[set];
+			state.Bindings[set] = pass.Bindings[set];
+			state.Offsets[set] = pass.Offsets[set];
+		}
+
+		var changed = 0;
+		foreach ( var (set, k) in slots.Slots )
+		{
+			var i = PassSlots[set][k];
+			var dynamic = DynamicIndex[set][i];
+			if ( !resolver.ResolveLayer( Resources[set][i], StageOf( set ), dynamic >= 0, out var binding, out var dynamicOffset ) ) continue;
+
+			if ( (changed & (1 << set)) == 0 )
+			{
+				changed |= 1 << set;
+				var own = state.OwnBindings[set] ??= new Binding[pass.Bindings[set].Length];
+				var ownOffsets = state.OwnOffsets[set] ??= new uint[pass.Offsets[set].Length];
+				pass.Bindings[set].CopyTo( own, 0 );
+				pass.Offsets[set].CopyTo( ownOffsets, 0 );
+				state.Bindings[set] = own;
+				state.Offsets[set] = ownOffsets;
+			}
+
+			state.Bindings[set][k] = binding;
+			if ( dynamic >= 0 ) state.Offsets[set][dynamic] = dynamicOffset;
+		}
+
+		for ( int set = 0; set < Sets.Length; set++ )
+		{
+			if ( (changed & (1 << set)) == 0 ) continue;
+			var identity = 14695981039346656037UL;
+			foreach ( ref readonly var binding in state.Bindings[set].AsSpan() ) identity = MaterialObject.Mix( identity, binding );
+			state.Identity[set] = identity;
+		}
+
+		// The attribute constants objects set, over the pass's values: picks the object's constant buffer
+		var constants = pass.Constants;
+		foreach ( var attribute in slots.Constants )
+		{
+			if ( resolver.LayerFloats( attribute ) is not { } values ) continue;
+			constants = (constants ^ (ulong)attribute.GetHashCode()) * 1099511628211UL;
+			foreach ( var v in values ) constants = (constants ^ BitConverter.SingleToUInt32Bits( v )) * 1099511628211UL;
+		}
+
+		state.Constants = constants;
+		return state;
+	}
 
 	/// <summary>The pass's bindings for this layout in pass state <paramref name="epoch"/> of <paramref name="resolver"/>'s context.</summary>
 	public PassState Pass( long epoch, PassBindings resolver )
@@ -126,6 +270,7 @@ internal sealed class MaterialLayout
 
 	public MaterialLayout( MaterialObjectCache cache, ShaderVariant variant, bool immediate )
 	{
+		this.cache = cache;
 		Variant = variant;
 		Immediate = immediate;
 
@@ -166,6 +311,7 @@ internal sealed class MaterialLayout
 			Resources[set] = [.. resources];
 			DynamicIndex[set] = [.. dynamicIndex];
 			PassSlots[set] = [.. Enumerable.Range( 0, resources.Count ).Where( i => IsPassBinding( resources[i], immediate ) )];
+			passNames[set] = [.. PassSlots[set].Select( i => resources[i].Name is { } name ? BackendContext.Token( name ).Value : 0u )];
 			Sets[set] = cache.Layout( slots );
 			if ( immediate && StageOf( set ) is { } stage ) immediateBytes += stage.MaterialBuffer.Size + 256;
 		}
@@ -290,6 +436,7 @@ internal sealed class MaterialObject
 	sealed class Resolved
 	{
 		public long Epoch = -1;
+		public long Layer;
 		public readonly SetEntry[] Bound = new SetEntry[ShaderAbi.BindlessSet];
 		public readonly uint[][] Offsets = [noOffsets, noOffsets, noOffsets, noOffsets];
 
@@ -403,7 +550,7 @@ internal sealed class MaterialObject
 		}
 
 		var state = ContextState( pass.Slot );
-		if ( passEpoch != state.Epoch || AnyDead( state ) ) Resolve( state, passEpoch, pass );
+		if ( passEpoch != state.Epoch || pass.LayerEpoch != state.Layer || AnyDead( state ) ) Resolve( state, passEpoch, pass );
 
 		for ( int set = 0; set < state.Bound.Length; set++ )
 		{
@@ -425,8 +572,9 @@ internal sealed class MaterialObject
 	void Resolve( Resolved state, long passEpoch, PassBindings resolver )
 	{
 		state.Epoch = passEpoch;
+		state.Layer = resolver.LayerEpoch;
 		var frame = cache.Frame;
-		var pass = Layout.Pass( passEpoch, resolver );
+		var pass = Layout.For( passEpoch, resolver );
 		var constants = hasMaterialConstants ? ConstantVariantFor( state, pass.Constants, resolver, frame ) : null;
 
 		for ( int set = 0; set < template.Length; set++ )
@@ -526,7 +674,7 @@ internal sealed class MaterialObject
 					{
 						VariableSource.Material or VariableSource.MaterialAndExpression => Material?.Value( variable.Name ),
 						VariableSource.Attribute when variable.Attribute == "UncompressedTangentFrame" => [UncompressedTangentFrame ? 1 : 0],
-						VariableSource.Attribute => pass.Floats( variable.Attribute ),
+						VariableSource.Attribute => (pass.LayerEpoch != 0 ? pass.LayerFloats( variable.Attribute ) : null) ?? pass.Floats( variable.Attribute ),
 						_ => null,
 					}, Material is null ? default : Material.Features );
 				}
@@ -642,6 +790,31 @@ internal sealed class MaterialObjectCache : IDisposable
 
 	/// <summary>A new recording context's slot in every object.</summary>
 	public int NewSlot() => Interlocked.Increment( ref slotCount ) - 1;
+
+	readonly HashSet<uint> layerNames = new();
+	int layerNamesVersion;
+
+	/// <summary>
+	/// Moves on whenever an object's attributes set a name none had before: layouts then look again for the pass
+	/// bindings and attribute constants objects can change.
+	/// </summary>
+	public int LayerNames => Volatile.Read( ref layerNamesVersion );
+
+	/// <summary>Whether an object's attributes have set this name (a <see cref="StringToken"/>'s value).</summary>
+	public bool IsLayerName( uint name )
+	{
+		lock ( layerNames ) return layerNames.Contains( name );
+	}
+
+	internal void AddLayerNames( HashSet<uint> names )
+	{
+		lock ( layerNames )
+		{
+			var added = false;
+			foreach ( var name in names ) added |= layerNames.Add( name );
+			if ( added ) Interlocked.Increment( ref layerNamesVersion );
+		}
+	}
 
 	/// <summary>Descriptor sets written, for the benchmark and tests.</summary>
 	public int SetsWritten => setsWritten;

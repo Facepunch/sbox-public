@@ -149,6 +149,7 @@ internal sealed partial class BackendContext : GpuContext
 		viewConstants = null;
 		passStateCount = 0;
 		OverlayStencil = OverlayStencil.None;
+		SetObjectAttributes( null );
 		recording.BindVersion = -1;
 		recording.Active = this;
 	}
@@ -519,8 +520,6 @@ internal sealed partial class BackendContext : GpuContext
 
 	public override void SetConstantBuffer<T>( StringToken name, IntPtr buffer, in T value ) => attributes.SetData( name, value );
 
-	public override void SetObjectAttributes( ShaderParameters objectAttributes, ShaderParameters lightmap = null ) { }
-
 	public override GpuScope BeginGpuScope( string name )
 	{
 		if ( recording is null ) return default;
@@ -542,7 +541,7 @@ internal sealed partial class BackendContext : GpuContext
 	bool DrawByReflection( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias, float slopeScaledDepthBias, bool stripPixelShader, bool skinned, in IndirectDraws indirect = default )
 	{
 		if ( material is not BackendMaterial { Shader: { } shader } m || mesh.Geometry is not IBackendGeometry source || skinned ) return false;
-		if ( InstanceIds?.Resource is not BackendBuffer instanceIds ) return false;
+		if ( (indirect.InstanceIds ?? InstanceIds?.Resource as BackendBuffer) is not { } instanceIds ) return false;
 
 		var mode = ModeName( shader, shaderMode );
 		if ( mode is null ) return false;
@@ -581,7 +580,12 @@ internal sealed partial class BackendContext : GpuContext
 		return srgb && format.HasSrgb() ? format.Srgb() : format;
 	}
 
-	/// <summary>The name of the shader's mode a token names, or null if it has no such mode.</summary>
+	static readonly StringToken ForwardMode = new( "Forward" );
+
+	/// <summary>
+	/// The name of the shader's mode a token names, or null if it has no such mode. A shader without <c>Forward</c> draws it
+	/// with <c>VrForward</c>, as the material system's mode fallback does (blendable.shader has only that).
+	/// </summary>
 	static string ModeName( ShaderFile shader, StringToken mode )
 	{
 		foreach ( var candidate in shader.Modes )
@@ -589,12 +593,20 @@ internal sealed partial class BackendContext : GpuContext
 			if ( Token( candidate.Name ).Value == mode.Value ) return candidate.Name;
 		}
 
+		if ( mode.Value == ForwardMode.Value )
+		{
+			foreach ( var candidate in shader.Modes )
+			{
+				if ( string.Equals( candidate.Name, "VrForward", StringComparison.OrdinalIgnoreCase ) ) return candidate.Name;
+			}
+		}
+
 		return null;
 	}
 
 	static readonly System.Collections.Concurrent.ConcurrentDictionary<string, StringToken> tokens = new();
 
-	static StringToken Token( string name ) => tokens.GetOrAdd( name, n => new StringToken( n ) );
+	internal static StringToken Token( string name ) => tokens.GetOrAdd( name, n => new StringToken( n ) );
 
 	/// <summary>
 	/// The material's variant for a mode with this context's dynamic combo values (<c>D_*</c>, set as combos).
@@ -606,11 +618,11 @@ internal sealed partial class BackendContext : GpuContext
 		{
 			foreach ( var combo in material.Shader[type]?.DynamicCombos ?? [] )
 			{
-				if ( attributes.GetCombo( Token( combo.Name ) ) is int value && value != 0 ) key.Append( ';' ).Append( combo.Name ).Append( '=' ).Append( value );
+				if ( LookupCombo( Token( combo.Name ) ) is int value && value != 0 ) key.Append( ';' ).Append( combo.Name ).Append( '=' ).Append( value );
 			}
 		}
 
-		return material.Variant( device.Shaders, mode, key.ToString(), name => attributes.GetCombo( Token( name ) ), name => Integer( attributes.Get( Token( name ) ) ) );
+		return material.Variant( device.Shaders, mode, key.ToString(), name => LookupCombo( Token( name ) ), name => Integer( Lookup( Token( name ) ) ) );
 	}
 
 	static int? Integer( object value ) => value switch
@@ -664,7 +676,7 @@ internal sealed partial class BackendContext : GpuContext
 				{
 					ShaderResourceKind.MaterialConstants => MaterialConstants( material, stage, resource.Binding ),
 					ShaderResourceKind.ConstantBuffer => ConstantBuffer( stage, resource ),
-					ShaderResourceKind.Buffer => attributes.Get( Token( resource.Name ) ) is GpuBuffer { Resource: BackendBuffer buffer }
+					ShaderResourceKind.Buffer => Lookup( Token( resource.Name ) ) is GpuBuffer { Resource: BackendBuffer buffer }
 						? Binding.Storage( resource.Binding, buffer.Handle )
 						: defaults.For( resource ),
 					ShaderResourceKind.Texture => Texture( material, resource ),
@@ -692,7 +704,7 @@ internal sealed partial class BackendContext : GpuContext
 			VariableSource.Material or VariableSource.MaterialAndExpression => material.Value( variable.Name ),
 			// Per draw from its vertex layout, as native's BindModelDrawCall sets it
 			VariableSource.Attribute when variable.Attribute == "UncompressedTangentFrame" => [uncompressedTangentFrame ? 1 : 0],
-			VariableSource.Attribute => Floats( attributes.Get( Token( variable.Attribute ) ) ),
+			VariableSource.Attribute => Floats( Lookup( Token( variable.Attribute ) ) ),
 			_ => null,
 		}, material.Features );
 		return Binding.Uniform( binding, allocation.Buffer, allocation.Offset, size );
@@ -704,7 +716,7 @@ internal sealed partial class BackendContext : GpuContext
 	/// </summary>
 	Binding ConstantBuffer( ShaderStage stage, in ShaderResource resource )
 	{
-		var data = attributes.Get( Token( resource.Name ) ) as byte[];
+		var data = Lookup( Token( resource.Name ) ) as byte[];
 		var size = data?.Length ?? 0;
 		foreach ( var layout in stage.Program.ConstantBuffers )
 		{
@@ -728,7 +740,7 @@ internal sealed partial class BackendContext : GpuContext
 	{
 		BackendTexture texture = null;
 		if ( resource.Variable.Source == VariableSource.Material ) material.Textures.TryGetValue( resource.Variable.Name, out texture );
-		else texture = attributes.Get( Token( resource.Name ) ) as BackendTexture;
+		else texture = Lookup( Token( resource.Name ) ) as BackendTexture;
 
 		var expected = resource.Dimension switch
 		{
@@ -867,10 +879,6 @@ internal sealed partial class BackendContext : GpuContext
 	public override bool BindGeometry( RenderMesh mesh, in RenderMesh.Draw draw ) => false;
 
 	public override bool SetRenderState( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool vertexCache = false ) => false;
-
-	public override bool DrawModelCulled( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int argsIndex, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false ) => false;
-
-	public override bool DrawModelFragmentsCulled( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int cullArg, int count, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false ) => false;
 
 	public override void BindInstances( int stream, int firstInstance ) { }
 
