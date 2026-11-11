@@ -10,7 +10,7 @@ using System.Text.Json.Nodes;
 namespace ResourceTests;
 
 [TestClass]
-public class AnimationGraphEditorGuidTests
+public partial class AnimationGraphEditorTests
 {
 	static PackageLoader _loader;
 	static PackageLoader.Enroller _enroller;
@@ -24,7 +24,7 @@ public class AnimationGraphEditorGuidTests
 	{
 		_previousEditorTypes = GlobalToolsNamespace.EditorTypeLibrary;
 		ToolsDll.CreateEditorTypeLibrary();
-		_loader = new PackageLoader( "ag2_guid_editor_tests", typeof( AnimationGraphEditorGuidTests ).Assembly ) { ToolsMode = true };
+		_loader = new PackageLoader( "ag2_guid_editor_tests", typeof( AnimationGraphEditorTests ).Assembly ) { ToolsMode = true };
 		_enroller = _loader.CreateEnroller( "ag2_guid_editor_tests" );
 		Project.Clear();
 		Project.AddFromFile( "addons/tools/.sbproj" );
@@ -60,7 +60,15 @@ public class AnimationGraphEditorGuidTests
 	}
 
 	[TestCleanup]
-	public void CleanupFiles() => Directory.Delete( Path.Combine( _assetsPath, _folder ), recursive: true );
+	public void CleanupFiles()
+	{
+		foreach ( var resource in _importResources.Distinct() )
+		{
+			Game.Resources.Unregister( resource );
+			resource.Destroy();
+		}
+		Directory.Delete( Path.Combine( _assetsPath, _folder ), recursive: true );
+	}
 
 	Type EditorType( string name ) => _assembly.GetType( $"Editor.AnimGraph.{name}", throwOnError: true );
 

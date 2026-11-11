@@ -17,7 +17,7 @@ public class ClipList : Widget, AssetSystem.IEventListener
 	private readonly bool _editing;
 	private readonly Dictionary<string, ClipMetadata> _metadata = new( StringComparer.OrdinalIgnoreCase );
 	private string _lastSkeleton;
-	private string _pendingSelection;
+	private HashSet<string> _pendingSelection;
 	private bool _sortAscending = true;
 	private HashSet<string> _referenced = new( StringComparer.OrdinalIgnoreCase );
 
@@ -129,7 +129,7 @@ public class ClipList : Widget, AssetSystem.IEventListener
 		_lastSkeleton = _graph?.TargetSkeleton;
 		_import.Enabled = !string.IsNullOrWhiteSpace( _lastSkeleton )
 			&& Skeleton.Load( _lastSkeleton ) is { IsValid: true, IsError: false, BoneCount: > 0 };
-		_import.ToolTip = _import.Enabled ? "Import an animation for this skeleton" : "Choose a valid target skeleton before importing animations";
+		_import.ToolTip = _import.Enabled ? "Import animations for this skeleton" : "Choose a valid target skeleton before importing animations";
 
 		_referenced = GetReferencedAnimations();
 
@@ -155,18 +155,24 @@ public class ClipList : Widget, AssetSystem.IEventListener
 			: _used.IsActive ? "No clips are used by this graph."
 			: "No animation clips use this skeleton. Use Import Animation to add one.";
 
-		if ( _pendingSelection is { } selection && sorted.Contains( selection, StringComparer.OrdinalIgnoreCase ) )
+		if ( _pendingSelection is { } pending )
 		{
+			var available = sorted.Where( pending.Contains ).ToArray();
+			if ( available.Length == 0 )
+				return;
+
 			_pendingSelection = null;
-			_listView.SelectItem( selection );
-			_listView.ScrollTo( selection );
+			foreach ( var selection in available )
+				_listView.SelectItem( selection, add: true, skipEvents: true );
+			_listView.ScrollTo( available[0] );
+			OnItemClicked( available[0] );
 		}
 	}
 
 	private void ImportAnimation()
 	{
 		var dialog = new ImportAnimationDialog( Project.Current.GetAssetsPath(), _graph.TargetSkeleton, this );
-		dialog.Imported = asset =>
+		dialog.Imported = assets =>
 		{
 			if ( !this.IsValid() )
 				return;
@@ -174,7 +180,8 @@ public class ClipList : Widget, AssetSystem.IEventListener
 			_filter.Text = "";
 			_typeFilter.CurrentIndex = (int)ClipFilter.All;
 			_used.IsActive = false;
-			_pendingSelection = asset.Path;
+			_listView.UnselectAll( skipEvents: true );
+			_pendingSelection = assets.Select( asset => asset.Path ).ToHashSet( StringComparer.OrdinalIgnoreCase );
 			Rebuild();
 		};
 		dialog.Show();
