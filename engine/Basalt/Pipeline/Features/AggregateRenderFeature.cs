@@ -13,7 +13,7 @@ internal sealed class AggregateRenderFeature : RenderFeature
 	/// <summary>
 	/// An aggregate's fragments visible in a view: their args in the frame's args buffer, and their occlusion cull run's, or -1.
 	/// </summary>
-	internal readonly record struct Batch( AggregateObject Aggregate, int FirstArg, int Count, int CullArg, long Triangles, ulong Key );
+	internal readonly record struct Batch( AggregateObject Aggregate, int FirstArg, int Count, int CullArg, long Triangles, ulong Key, int TextureSize );
 
 	internal sealed class Batches
 	{
@@ -76,6 +76,10 @@ internal sealed class AggregateRenderFeature : RenderFeature
 		var frustum = pass.View.Frustum;
 		var size = new SizeCull( pass.Root );
 		var shadow = pass.IsShadow;
+		var textureSizes = new TextureSizes( pass.View, pass.Root );
+		var viewCamera = pass.View.Position;
+		var objectCenters = world.BoundsCenter;
+		var objectExtents = world.BoundsExtents;
 		var occlusion = !shadow && Occlusion is { CullsFragments: true } culler ? culler : null;
 
 		foreach ( var index in CollectionsMarshal.AsSpan( visible ) )
@@ -90,6 +94,10 @@ internal sealed class AggregateRenderFeature : RenderFeature
 
 			var first = argCount;
 			long indices = 0;
+
+			// One texture size for all of it, the largest any fragment left needs
+			var objectFallback = textureSizes.ForObject( objectCenters[index], objectExtents[index] ).Fallback;
+			var textureSize = 0.0f;
 			for ( int i = 0; i < fragments.Length; i++ )
 			{
 				if ( shadow && (fragments[i].Flags & FragmentFlags.DoNotCastShadows) != 0 ) continue;
@@ -98,6 +106,7 @@ internal sealed class AggregateRenderFeature : RenderFeature
 
 				args[argCount++] = fragments[i].Args;
 				indices += fragments[i].Args.IndexCount;
+				textureSize = MathF.Max( textureSize, textureSizes.ForFragment( fragments[i].UvDensity, centers[i], extents[i], viewCamera, objectFallback ) );
 			}
 
 			var count = argCount - first;
@@ -105,7 +114,7 @@ internal sealed class AggregateRenderFeature : RenderFeature
 
 			WriteTransforms( aggregate, transforms );
 			var cull = occlusion is not null && aggregate.OcclusionCulling ? occlusion.CommitFragments( args.AsSpan( first, count ), centers, extents ) : -1;
-			batches.Add( new Batch( aggregate, first, count, cull, indices / 3, SortKey( aggregate ) ) );
+			batches.Add( new Batch( aggregate, first, count, cull, indices / 3, SortKey( aggregate ), TextureSizes.Clamp( textureSize ) ) );
 		}
 
 		// Similar materials one after another, so each bind reuses what the last set (CBaseSceneObjectDesc::BindMaterial)
@@ -201,8 +210,8 @@ internal sealed class AggregateRenderFeature : RenderFeature
 			context.SetObjectAttributes( null, !depth && aggregate.Lightmapped ? aggregate.LightmapAttributes : null );
 
 			var drawn = batch.CullArg >= 0 && phase != OcclusionPhase.None
-				? context.DrawModelFragmentsCulled( material, mode, mesh, draw, phase, aggregate.FirstInstance, batch.CullArg, batch.Count, depthBias, slopeBias, stripPixelShader )
-				: context.DrawModelFragments( material, mode, mesh, draw, aggregate.FirstInstance, argsRing.Current, batch.FirstArg, batch.Count, depthBias, slopeBias, stripPixelShader );
+				? context.DrawModelFragmentsCulled( material, mode, mesh, draw, phase, aggregate.FirstInstance, batch.CullArg, batch.Count, depthBias, slopeBias, stripPixelShader, batch.TextureSize )
+				: context.DrawModelFragments( material, mode, mesh, draw, aggregate.FirstInstance, argsRing.Current, batch.FirstArg, batch.Count, depthBias, slopeBias, stripPixelShader, batch.TextureSize );
 			if ( !drawn ) continue;
 
 			stats.DrawnTriangles += batch.Triangles;

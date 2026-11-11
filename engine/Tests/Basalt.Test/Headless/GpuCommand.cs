@@ -56,6 +56,9 @@ internal sealed record GpuCommand( GpuOp Op, string Scope )
 	/// <summary>Instances or draws drawn, or slices copied.</summary>
 	public int Count { get; init; }
 
+	/// <summary>The texture size a draw asked streaming for (<see cref="TextureSizes"/>).</summary>
+	public int TextureSize { get; init; } = TextureSizes.All;
+
 	/// <summary>Threads dispatched.</summary>
 	public (int X, int Y, int Z) Threads { get; init; }
 

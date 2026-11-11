@@ -43,9 +43,11 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	/// <summary>
 	/// Compatible instances sharing mesh, LOD and draw state: a <see cref="Bin"/>'s objects a view drew, as a range of its
 	/// instance ids. Skinned IDs are grouped per model mesh; custom objects occupy individual runs. Lighting and frame-copy
-	/// inputs apply in forward passes.
+	/// inputs apply in forward passes. <see cref="TextureScale"/> and <see cref="TextureFallback"/> are the largest of its
+	/// objects' texture sizes (<see cref="TextureSizes.ForObject"/>), which its draws ask texture streaming for: all mips by
+	/// default.
 	/// </summary>
-	internal readonly record struct Run( Bin Bin, int FirstInstance, int Count, int CullDraw = -1 )
+	internal readonly record struct Run( Bin Bin, int FirstInstance, int Count, int CullDraw = -1, float TextureScale = -1, float TextureFallback = ushort.MaxValue )
 	{
 		public RenderMesh Mesh => Bin.Mesh;
 		public int Lod => Bin.Lod;
@@ -215,7 +217,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	/// <summary>
 	/// The view <see cref="Classify"/> is working on while it runs.
 	/// </summary>
-	(RenderWorld World, ViewPass Pass, List<int> Visible, Vector3 Camera, float TanHalfFov, float ScreenWidth, Vector3 SortCamera, List<LightProbeVolume> Volumes, long VolumesKey, int Generation) classifying;
+	(RenderWorld World, ViewPass Pass, List<int> Visible, Vector3 Camera, float TanHalfFov, float ScreenWidth, Vector3 SortCamera, List<LightProbeVolume> Volumes, long VolumesKey, int Generation, TextureSizes Textures) classifying;
 
 	/// <summary>
 	/// The frame (<see cref="TransformBuffer.Generation"/>) each object's LOD in <see cref="lods"/> was chosen in, by world index:
@@ -299,6 +301,12 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		/// A mesh with <see cref="DrawCallbacks"/>, in a view that runs them.
 		/// </summary>
 		public bool Callbacks;
+
+		/// <summary>
+		/// Its texture sizes in this view (<see cref="TextureSizes.ForObject"/>), each view's own as the sort distance is.
+		/// </summary>
+		public float TextureScale;
+		public float TextureFallback;
 	}
 
 	/// <summary>
@@ -394,6 +402,9 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		// Translucency sorts from the camera drawing it - a shadow view's own
 		var sortCamera = pass.View.Position;
 
+		// What texture sizes the view's draws ask streaming for
+		var textureSizes = new TextureSizes( pass.View, root );
+
 		foreach ( var bucket in buckets )
 			bucket.Count = 0;
 
@@ -407,7 +418,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		var volumesKey = volumes.Count > 0 && !pass.IsShadow ? LightProbeVolume.Key( volumes ) : 0;
 
 		// Each object's LOD, probe, lists and sort keys are its own, so a big view classifies across threads
-		classifying = (world, pass, visible, camera, tanHalfFov, screenWidth, sortCamera, volumes, volumesKey, transforms.Generation);
+		classifying = (world, pass, visible, camera, tanHalfFov, screenWidth, sortCamera, volumes, volumesKey, transforms.Generation, textureSizes);
 		if ( Parallel && visible.Count >= MinParallelClassify && JobDispatcher.MaxDegreeOfParallelism > 1 )
 			JobDispatcher.ForBatched( visible.Count, this, static ( feature, start, end ) => feature.Classify( start, end ) );
 		else
@@ -480,7 +491,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	/// </summary>
 	void Classify( int start, int end )
 	{
-		var (world, pass, visible, camera, tanHalfFov, screenWidth, sortCamera, volumes, volumesKey, generation) = classifying;
+		var (world, pass, visible, camera, tanHalfFov, screenWidth, sortCamera, volumes, volumesKey, generation, textureSizes) = classifying;
 		var objects = world.Objects;
 		var versions = world.DrawVersions;
 		var centers = world.BoundsCenter;
@@ -546,6 +557,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 
 			c = keep.Class;
 			if ( (c.Runs & DistanceSortedLists) != 0 ) c.Distance = TranslucentSortDistance( centers[index], extents[index], sortCamera );
+			(c.TextureScale, c.TextureFallback) = textureSizes.ForObject( centers[index], extents[index] );
 		}
 
 		if ( made > 0 ) Interlocked.Add( ref objectsClassified, made );
@@ -844,6 +856,8 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		Bin bin = null;
 		var start = 0;
 		var length = 0;
+		var textureScale = -1.0f;
+		var textureFallback = 0.0f;
 		skinMembers.Clear();
 		tintedSlots.Clear();
 
@@ -886,6 +900,9 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 				if ( length == 0 ) start = instance;
 			}
 
+			// The run asks for what its largest object needs, as a native batch asks for its largest primitive's
+			textureScale = MathF.Max( textureScale, classified[k].TextureScale );
+			textureFallback = MathF.Max( textureFallback, classified[k].TextureFallback );
 			length++;
 		}
 
@@ -900,7 +917,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			if ( bin.Skinned )
 			{
 				start = WriteSkinnedInstances( mesh, lod, transforms );
-				runs.Add( new Run( bin, start, length ) );
+				runs.Add( new Run( bin, start, length, -1, textureScale, textureFallback ) );
 				skinMembers.Clear();
 			}
 			else if ( bin.Tinted )
@@ -915,16 +932,18 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 						transforms.AddInstance( slot + offset + d );
 				}
 
-				runs.Add( new Run( bin, start, length ) );
+				runs.Add( new Run( bin, start, length, -1, textureScale, textureFallback ) );
 				tintedSlots.Clear();
 			}
 			else
 			{
 				var cull = occlusion?.CommitRun( start, length, mesh.DrawsForLod( lod ) ) ?? -1;
-				runs.Add( new Run( bin, start, length, cull ) );
+				runs.Add( new Run( bin, start, length, cull, textureScale, textureFallback ) );
 			}
 
 			length = 0;
+			textureScale = -1.0f;
+			textureFallback = 0.0f;
 		}
 	}
 
@@ -1173,15 +1192,18 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 				context.SetCombo( CsVertexAnimation, vertexAnimation );
 			}
 
+			// What its textures need, which the bind tells texture streaming (CMeshDrawPrimitive_t::m_nRequiredTextureSize)
+			var textureSize = TextureSizes.ForDraw( draw.UvDensity, run.TextureScale, run.TextureFallback );
+
 			if ( vertexCache )
 			{
-				if ( !context.DrawVertexCache( material, mode, mesh, draw, first, run.Count, depthBias, slopeBias, stripPixelShader ) ) continue;
+				if ( !context.DrawVertexCache( material, mode, mesh, draw, first, run.Count, depthBias, slopeBias, stripPixelShader, textureSize ) ) continue;
 			}
 			else
 			{
 				var drawn = run.CullDraw >= 0 && phase != OcclusionPhase.None
-					? context.DrawModelCulled( material, mode, mesh, draw, phase, first, run.CullDraw + drawIndex, depthBias, slopeBias, stripPixelShader, run.Skinned )
-					: context.DrawModel( material, mode, mesh, draw, first, run.Count, depthBias, slopeBias, stripPixelShader, run.Skinned );
+					? context.DrawModelCulled( material, mode, mesh, draw, phase, first, run.CullDraw + drawIndex, depthBias, slopeBias, stripPixelShader, run.Skinned, textureSize )
+					: context.DrawModel( material, mode, mesh, draw, first, run.Count, depthBias, slopeBias, stripPixelShader, run.Skinned, textureSize );
 				if ( !drawn ) continue;
 			}
 
