@@ -13,7 +13,8 @@ namespace Sandbox.BasaltLab;
 /// <c>Bloom</c>'s compute chain), into a copy of the frame. Each case writes <c>native.png</c>, <c>basalt.png</c> and
 /// <c>diff.png</c> (differences x16, after encoding to 8-bit sRGB) to a folder of its own, and the folder gets
 /// <c>results.md</c>. Exits 1 when a case differs by more than <c>-tolerance</c> (default 2), threw, or validation
-/// reported errors.
+/// reported errors. With <c>-components</c> the Basalt.Gpu side runs the engine's own post process components (built
+/// with Basalt.Gpu as the device recorded for, so their attributes are managed) against the same Source 2 reference.
 /// <para>
 /// Stage 3 of moving the engine's rendering onto Basalt.Gpu (docs/managed/basalt-gpu-path.md). Auto exposure isn't here:
 /// it's native's (<c>RenderTools.RenderAutoExposure</c>) and has no Basalt.Gpu form yet, so tonemapping runs with its
@@ -27,7 +28,18 @@ internal static class PostParity
 	/// <summary>
 	/// A case: what a component would record, with its values on the command list's attributes.
 	/// </summary>
-	sealed record Case( string Name, string Covers, Action<CommandList> Record, string NotCompared = null );
+	sealed record Case( string Name, string Covers, Action<CommandList> Record, string NotCompared = null, Action<GameObject> Components = null );
+
+	/// <summary>Run the engine's post process components (<c>-components</c>) rather than the copies of their command lists.</summary>
+	static bool components;
+	static Scene scene;
+
+	/// <summary>
+	/// Render the Basalt.Gpu side's frame on Basalt.Gpu (<c>-scene-gpu</c>): Sun Shadows drawn by Basalt through the
+	/// backend's own <see cref="Basalt.Backend.BackendDevice"/>, then the post stack over it, against Sun Shadows on Source 2
+	/// with the post stack there. The frames differ as the scene on two devices does, so cases pass on the mean.
+	/// </summary>
+	static bool sceneOnGpu;
 
 	static Material Shader( string path ) => Material.FromShader( path );
 
@@ -169,30 +181,104 @@ internal static class PostParity
 	static readonly Case[] Cases =
 	[
 		new( "copy", "the frame copied into the target, nothing else", _ => { } ),
-		new( "vignette", "a blit over the frame (BlitMode.Simple)", Vignette ),
-		new( "color", "a blit of a frame grab (BlitMode.WithBackbuffer)", ColorAdjustments ),
-		new( "filmgrain", "frame grab, noise", FilmGrain ),
-		new( "chromatic", "frame grab, offset reads", ChromaticAberration ),
-		new( "sharpen", "frame grab, neighbour reads", Sharpen ),
-		new( "pixelate", "frame grab with gaussian mips", Pixelate ),
-		new( "blur", "frame grab with gaussian mips, read between mips", Blur ),
+		new( "vignette", "a blit over the frame (BlitMode.Simple)", Vignette, Components: go => go.Components.Create<global::Sandbox.Vignette>() ),
+		new( "color", "a blit of a frame grab (BlitMode.WithBackbuffer)", ColorAdjustments, Components: ColorComponent ),
+		new( "filmgrain", "frame grab, noise", FilmGrain, Components: go => go.Components.Create<global::Sandbox.FilmGrain>() ),
+		new( "chromatic", "frame grab, offset reads", ChromaticAberration, Components: go => go.Components.Create<global::Sandbox.ChromaticAberration>() ),
+		new( "sharpen", "frame grab, neighbour reads", Sharpen, Components: go => go.Components.Create<global::Sandbox.Sharpen>().Scale = 2 ),
+		new( "pixelate", "frame grab with gaussian mips", Pixelate, Components: go => go.Components.Create<global::Sandbox.Pixelate>().Scale = 0.25f ),
+		new( "blur", "frame grab with gaussian mips, read between mips", Blur, Components: go => go.Components.Create<global::Sandbox.Blur>().Size = 1 ),
 		new( "box-mips", "frame grab with downsample_spd box mips", BoxMips ),
-		new( "tonemapping", "Hable filmic at the default exposure", Tonemapping ),
+		new( "tonemapping", "Hable filmic at the default exposure", Tonemapping, Components: go => go.Components.Create<global::Sandbox.Tonemapping>().Mode = global::Sandbox.Tonemapping.TonemappingMode.HableFilmic ),
 		new( "bloom", "named targets, a compute chain down and up, a composite", Bloom,
-			NotCompared: "Source 2's run, in a block with no view, samples its missing-texture checker through the chain, so it isn't a reference" ),
-		new( "stack", "tonemapping, sharpen, chromatic aberration, colour adjustments, film grain, vignette in turn", cl =>
+			Components: go =>
+			{
+				var bloom = go.Components.Create<global::Sandbox.Bloom>();
+				bloom.Threshold = 0.5f;
+			} ),
+		new( "stack", "bloom, vignette, tonemapping, sharpen, film grain, chromatic aberration, colour adjustments, in their stages' order", cl =>
 		{
+			Bloom( cl );
+			Vignette( cl );
 			Tonemapping( cl );
 			Sharpen( cl );
+			FilmGrain( cl );
 			ChromaticAberration( cl );
 			ColorAdjustments( cl );
-			FilmGrain( cl );
-			Vignette( cl );
+		}, Components: go =>
+		{
+			go.Components.Create<global::Sandbox.Bloom>().Threshold = 0.5f;
+			go.Components.Create<global::Sandbox.Vignette>();
+			go.Components.Create<global::Sandbox.Tonemapping>().Mode = global::Sandbox.Tonemapping.TonemappingMode.HableFilmic;
+			go.Components.Create<global::Sandbox.Sharpen>().Scale = 2;
+			go.Components.Create<global::Sandbox.FilmGrain>();
+			go.Components.Create<global::Sandbox.ChromaticAberration>();
+			ColorComponent( go );
 		} ),
 	];
 
+	static void ColorComponent( GameObject go )
+	{
+		var color = go.Components.Create<global::Sandbox.ColorAdjustments>();
+		color.Saturation = 0.6f;
+		color.HueRotate = 30;
+		color.Brightness = 1.1f;
+		color.Contrast = 1.2f;
+	}
+
+	/// <summary>
+	/// The command lists a case's components record for a camera, in the order a camera runs them: by stage, then by
+	/// order within it. Made with <paramref name="device"/> as the device being recorded for, so their attributes are
+	/// the kind its blocks draw with.
+	/// </summary>
+	static List<CommandList> ComponentLists( Case test, RenderBackend device )
+	{
+		var previous = Graphics.SetRecordingBackend( device == RenderBackend.Default ? null : device );
+		try
+		{
+			using var _ = scene.Push();
+			var go = new GameObject( true, $"Post parity {test.Name}" );
+			var camera = go.Components.Create<CameraComponent>();
+			test.Components( go );
+
+			foreach ( var effect in go.Components.GetAll<BasePostProcess>() )
+				effect.Build( new PostProcessContext { Camera = camera, Components = [new WeightedEffect { Effect = effect, Weight = 1 }] } );
+
+			var lists = new List<CommandList>();
+			foreach ( var (_, layers) in camera.PostProcess.Layers.OrderBy( x => x.Key ) )
+			{
+				layers.Sort();
+				lists.AddRange( layers.Select( x => x.CommandList ) );
+			}
+
+			go.Destroy();
+			return lists;
+		}
+		finally
+		{
+			Graphics.SetRecordingBackend( previous );
+		}
+	}
+
 	public static int Run( Source2Backend backend, string folder )
 	{
+		components = Args.Has( "-components" );
+		sceneOnGpu = Args.Has( "-scene-gpu" );
+		var meanTolerance = Args.Float( "-mean-tolerance", 1.0f );
+		if ( components && Game.TypeLibrary is null )
+		{
+			// A scene finds its systems through the type library, which this lab doesn't make otherwise (as PanelAppSystem makes one)
+			// (its constructor and AddIntrinsicTypes are internal to the engine's app assemblies, hence reflection)
+			const System.Reflection.BindingFlags any = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic;
+			var library = (Sandbox.Internal.TypeLibrary)Activator.CreateInstance( typeof( Sandbox.Internal.TypeLibrary ), nonPublic: true );
+			typeof( Sandbox.Internal.TypeLibrary ).GetMethod( "AddIntrinsicTypes", any ).Invoke( library, null );
+			var add = typeof( Sandbox.Internal.TypeLibrary ).GetMethod( "AddAssembly", any, [typeof( System.Reflection.Assembly ), typeof( bool )] );
+			add.Invoke( library, [typeof( Vector3 ).Assembly, false] );
+			add.Invoke( library, [typeof( Scene ).Assembly, false] );
+			Game.TypeLibrary = library;
+		}
+
+		scene = components ? new Scene() : null;
 		var only = Args.String( "-case" );
 		var cases = Cases.Where( c => only is null || only.Split( ',' ).Contains( c.Name ) ).ToArray();
 		var tolerance = Args.Int( "-tolerance", 2 );
@@ -205,16 +291,18 @@ internal static class PostParity
 		// The frame the post stack starts from, made after the Basalt.Gpu device so its texture keeps its pixels for it
 		using var frame = SunShadows( backend, folder );
 		backend.Phase( "Sun Shadows on Source 2" );
+		using var gpuFrame = sceneOnGpu ? SunShadowsOnGpu( gpu, folder ) : null;
+		if ( sceneOnGpu ) backend.Phase( "Sun Shadows on Basalt.Gpu" );
 
 		var rows = new List<string>();
 		var failed = 0;
 		foreach ( var test in cases )
 		{
-			var (max, over, error) = RunCase( backend, gpu, frame, test, System.IO.Path.Combine( folder, test.Name ), tolerance );
-			var ok = (over == 0 || test.NotCompared is not null) && error is null;
+			var (max, over, mean, error) = RunCase( backend, gpu, frame, gpuFrame ?? frame, test, System.IO.Path.Combine( folder, test.Name ), tolerance );
+			var ok = (sceneOnGpu ? mean <= meanTolerance : over == 0 || test.NotCompared is not null) && error is null;
 			if ( !ok ) failed++;
 
-			var line = $"{test.Name}: max channel difference {max}, {over} pixels over {tolerance}" + (error is null ? "" : $"; {error}") + (test.NotCompared is null ? "" : $"; not compared: {test.NotCompared}");
+			var line = $"{test.Name}: max channel difference {max}, {over} pixels over {tolerance}, mean difference {mean:F3}" + (error is null ? "" : $"; {error}") + (test.NotCompared is null ? "" : $"; not compared: {test.NotCompared}");
 			Log.Info( $"Post parity {line}" );
 			Console.WriteLine( line );
 			rows.Add( $"| {test.Name} | {test.Covers} | {max} | {over} | {(!ok ? "FAIL" : test.NotCompared is not null ? "not compared" : "pass")} |" );
@@ -222,7 +310,7 @@ internal static class PostParity
 
 		gpu.WaitIdle();
 		var errors = gpu.Device.ValidationErrors;
-		var summary = $"Post parity: {cases.Length - failed} of {cases.Length} cases within {tolerance} on {gpu.Device.Adapter.Name}, Sun Shadows {Width}x{Height} ({folder}); Basalt.Gpu validation errors {errors}";
+		var summary = $"Post parity{(components ? " (components)" : "")}{(sceneOnGpu ? " (scene on Basalt.Gpu)" : "")}: {cases.Length - failed} of {cases.Length} cases within {(sceneOnGpu ? $"{meanTolerance:F2} mean difference" : $"{tolerance}")} on {gpu.Device.Adapter.Name}, Sun Shadows {Width}x{Height} ({folder}); Basalt.Gpu validation errors {errors}";
 		Log.Info( summary );
 		Console.WriteLine( summary );
 
@@ -239,6 +327,16 @@ internal static class PostParity
 		};
 		report.AddRange( rows );
 		System.IO.File.WriteAllLines( System.IO.Path.Combine( folder, "results.md" ), report );
+
+		// The components' scene and what scenes make for the process (particle lighting's texture)
+		if ( scene is not null )
+		{
+			scene.Destroy();
+			scene = null;
+
+			// Made once for every scene, and kept for the process; this one ends here
+			ParticleLightingSystem.Unlit.Dispose();
+		}
 		return failed == 0 && errors == 0 ? 0 : 1;
 	}
 
@@ -261,7 +359,57 @@ internal static class PostParity
 		backend.Flush();
 		var halves = new ushort[Width * Height * 4];
 		target.Resolved.Engine().GetPixels( (0, 0, Width, Height), 0, 0, halves.AsSpan(), ImageFormat.RGBA16161616F );
+		return FrameTexture( halves, System.IO.Path.Combine( folder, "frame.png" ) );
+	}
 
+	/// <summary>
+	/// Sun Shadows rendered by Basalt on the Basalt.Gpu device the post stack runs on, from content Basalt.Source2 reads
+	/// (no 2D sky there yet), as an RGBA16F texture of its pixels.
+	/// </summary>
+	static Texture SunShadowsOnGpu( BasaltGpuRenderBackend gpu, string folder )
+	{
+		var device = gpu.Services;
+		var previous = RenderHost.Current;
+		RenderHost.Current = new Basalt.Backend.BackendRenderHost( device );
+		try
+		{
+			var lab = LabWorld.Build( LabPresets.Find( "Sun Shadows" ), new BackendLabContent( device ) );
+			var view = new RenderView { Name = "Post parity", ClearColor = new Color( 0.08f, 0.09f, 0.11f ), Viewport = new Rect( 0, 0, Width, Height ) };
+			lab.Aim( view, LabWorld.DefaultPitch, LabWorld.DefaultYaw, lab.DefaultDistance );
+			using var renderer = new RenderSystem { ParallelRecording = false };
+			using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 1, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Post parity" );
+
+			for ( var i = 0; i < 10; i++ )
+			{
+				device.BeginFrame();
+				RenderHost.Current.NextFrame();
+				renderer.Render( lab.World, view, target );
+			}
+
+			// Read back as model parity does: from where the frame left its target
+			var (texture, layout) = Basalt.Backend.BackendDevice.Unwrap( target.Color );
+			var buffer = device.Gpu.CreateBuffer( new Basalt.Gpu.BufferInfo { Size = Width * Height * 8, Memory = Basalt.Gpu.MemoryLocation.Readback, Name = "Post parity readback" } );
+			var list = device.Gpu.BeginCommandList( Basalt.Gpu.QueueType.Graphics, "Post parity readback" );
+			list.Barrier( Basalt.Gpu.TextureBarrier.Transition( texture, layout, Basalt.Gpu.ImageLayout.CopySource, Basalt.Gpu.PipelineStage.AllCommands, Basalt.Gpu.MemoryAccess.MemoryWrite, Basalt.Gpu.PipelineStage.Transfer, Basalt.Gpu.MemoryAccess.TransferRead ) );
+			list.CopyTextureToBuffer( texture, 0, 0, buffer );
+			list.Barrier( new Basalt.Gpu.BufferBarrier { Buffer = buffer, SourceStage = Basalt.Gpu.PipelineStage.Transfer, SourceAccess = Basalt.Gpu.MemoryAccess.TransferWrite, DestinationStage = Basalt.Gpu.PipelineStage.Host, DestinationAccess = Basalt.Gpu.MemoryAccess.HostRead } );
+			device.Gpu.Wait( device.Gpu.Submit( list ) );
+			Basalt.Backend.BackendDevice.SetLayout( target.Color, Basalt.Gpu.ImageLayout.CopySource );
+
+			var halves = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, ushort>( device.Gpu.Map( buffer ) ).ToArray();
+			device.Gpu.Destroy( buffer );
+			return FrameTexture( halves, System.IO.Path.Combine( folder, "frame-gpu.png" ) );
+		}
+		finally
+		{
+			device.Gpu.WaitIdle();
+			RenderHost.Current = previous;
+		}
+	}
+
+	/// <summary>A frame's pixels, with its highlights pushed past 1, as an RGBA16F texture.</summary>
+	static Texture FrameTexture( ushort[] halves, string png )
+	{
 		// Some highlights over 1, so bloom's threshold and the tonemapper have something to do
 		for ( int i = 0; i < halves.Length; i++ )
 		{
@@ -269,19 +417,22 @@ internal static class PostParity
 			halves[i] = BitConverter.HalfToUInt16Bits( (Half)((float)BitConverter.UInt16BitsToHalf( halves[i] ) * 2.5f) );
 		}
 
-		Source2Backend.SavePng( Encode( halves ), Width, Height, System.IO.Path.Combine( folder, "frame.png" ) );
+		Source2Backend.SavePng( Encode( halves ), Width, Height, png );
 		var bytes = new byte[halves.Length * 2];
 		Buffer.BlockCopy( halves, 0, bytes, 0, bytes.Length );
 		return Texture.Create( Width, Height, ImageFormat.RGBA16161616F ).WithData( bytes ).Finish();
 	}
 
-	static (int Max, int Over, string Error) RunCase( Source2Backend backend, BasaltGpuRenderBackend gpu, Texture frame, Case test, string folder, int tolerance )
+	static (int Max, int Over, double Mean, string Error) RunCase( Source2Backend backend, BasaltGpuRenderBackend gpu, Texture frame, Texture gpuFrame, Case test, string folder, int tolerance )
 	{
 		backend.BeginFrame();
 		string error = null;
 
 		// Source 2
-		var native = Apply( RenderBackend.Default, frame, test );
+		// The reference is always the copies of the command lists on Source 2: the components' own attributes are drawn
+		// with as they are, and Source 2 doesn't layer a block's over them outside a view, so in this block they'd miss the
+		// frame grab and view constants there
+		var native = Apply( RenderBackend.Default, frame, test, reference: true );
 		g_pRenderDevice.Flush();
 		var nativePixels = Read( native, null );
 		native.Dispose();
@@ -291,7 +442,7 @@ internal static class PostParity
 		var basaltPixels = new ushort[Width * Height * 4];
 		try
 		{
-			var basalt = Apply( gpu, frame, test );
+			var basalt = Apply( gpu, gpuFrame, test );
 			basaltPixels = Read( basalt, gpu );
 			basalt.Dispose();
 		}
@@ -312,11 +463,13 @@ internal static class PostParity
 		var b = Encode( basaltPixels );
 		var diff = new Color32[a.Length];
 		int max = 0, over = 0;
+		long total = 0;
 		for ( int i = 0; i < a.Length; i++ )
 		{
 			var d = Math.Max( Math.Max( Math.Abs( a[i].r - b[i].r ), Math.Abs( a[i].g - b[i].g ) ), Math.Abs( a[i].b - b[i].b ) );
 			max = Math.Max( max, d );
 			if ( d > tolerance ) over++;
+			total += Math.Abs( a[i].r - b[i].r ) + Math.Abs( a[i].g - b[i].g ) + Math.Abs( a[i].b - b[i].b );
 			var v = (byte)Math.Min( 255, d * 16 );
 			diff[i] = new Color32( v, v, v, 255 );
 		}
@@ -325,11 +478,11 @@ internal static class PostParity
 		Source2Backend.SavePng( a, Width, Height, System.IO.Path.Combine( folder, "native.png" ) );
 		Source2Backend.SavePng( b, Width, Height, System.IO.Path.Combine( folder, "basalt.png" ) );
 		Source2Backend.SavePng( diff, Width, Height, System.IO.Path.Combine( folder, "diff.png" ) );
-		return (max, over, error);
+		return (max, over, total / (3.0 * a.Length), error);
 	}
 
 	/// <summary>A copy of the frame, and the case's command list run over it in a block on <paramref name="device"/>.</summary>
-	static Texture Apply( RenderBackend device, Texture frame, Case test )
+	static Texture Apply( RenderBackend device, Texture frame, Case test, bool reference = false )
 	{
 		var target = Texture.CreateRenderTarget().WithSize( Width, Height ).WithFormat( ImageFormat.RGBA16161616F ).WithUAVBinding().Create();
 		var cl = new CommandList( test.Name );
@@ -346,13 +499,21 @@ internal static class PostParity
 			InvViewportSize = new Vector2( 1.0f / Width, 1.0f / Height ),
 			RenderTargetSize = new Vector2( Width, Height ),
 		} );
-		test.Record( cl );
+		cl.Attributes.Set( "BlueNoise", Texture.Load( "textures/dev/blue_noise_256.vtex" ) );
+
+		// Bloom adds what a view's bloom-only effects drew at quarter size: none here
+		cl.Attributes.Set( "QuarterResEffectsBloomInputTexture", Texture.Black );
+
+		// The engine's components when asked and the case has them, else the copies of their command lists
+		var lists = components && !reference && test.Components is not null ? ComponentLists( test, device ) : null;
+		if ( lists is null ) test.Record( cl );
 
 		using ( Graphics.Scope.CreateOn( device ) )
 		{
 			Graphics.RenderTarget = RenderTarget.From( target );
 			Graphics.CopyTexture( frame, target );
 			cl.Execute();
+			foreach ( var list in lists ?? [] ) list.Execute();
 		}
 
 		return target;

@@ -24,6 +24,13 @@ public partial class RenderAttributes
 	/// An attribute set with no native side: what a render block on a backend other than Source 2's holds.
 	/// </summary>
 	internal static RenderAttributes CreateManaged() => new( new ManagedRenderAttributes() );
+
+	/// <summary>
+	/// An attribute set for the device being recorded for (<see cref="Graphics.SetRecordingBackend"/>, else the
+	/// process's): native on Source 2's, as <c>new RenderAttributes()</c> makes, managed on another, so a recording for
+	/// that device (a post process's command list under <c>-basaltgpu</c>) can draw with it.
+	/// </summary>
+	internal static RenderAttributes ForRecording() => Graphics.Backend is Source2RenderBackend ? new RenderAttributes() : CreateManaged();
 }
 
 /// <summary>
