@@ -67,6 +67,7 @@ internal sealed partial class BackendContext
 		list.SetVertexBuffer( 0, geometry.Vertices, geometry.VertexOffset + (indirect.BaseVertexInBuffer ? (long)geometry.BaseVertex * geometry.Layout.Stride : 0) );
 		list.SetVertexBuffer( 1, instanceIds.Handle, firstInstance * 4L );
 		list.SetVertexBuffer( 2, device.Defaults.VertexDefaults );
+		BindVertexIds( list );
 		list.SetIndexBuffer( geometry.Indices, geometry.IndexFormat, geometry.IndexOffset );
 
 		if ( indirect.Count == 0 ) list.DrawIndexed( draw.IndexCount, instances, draw.StartIndex, geometry.BaseVertex );

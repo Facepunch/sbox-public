@@ -50,8 +50,11 @@ public sealed class ModelMesh
 	/// <summary>Bone weights per vertex its skinning uses (<c>m_nBoneWeightCount</c>).</summary>
 	public int BoneWeightCount { get; init; }
 
-	/// <summary>Whether it has morph targets (an <c>MRPH</c> block). They aren't read.</summary>
+	/// <summary>Whether it has morph targets (an <c>MRPH</c> block).</summary>
 	public bool HasMorphs { get; init; }
+
+	/// <summary>Its morph targets and flex rules, or null when it has none (or they couldn't be read).</summary>
+	public MorphSet Morphs { get; init; }
 
 	/// <summary>The compiled morph texture its morphs are baked into, or null.</summary>
 	public string MorphTexture { get; init; }
@@ -89,7 +92,7 @@ public sealed class ModelMesh
 	/// <summary>
 	/// Read a mesh from its KV3 (<c>CRenderMesh</c>) and buffer blocks.
 	/// </summary>
-	internal static ModelMesh Read( ReadOnlySpan<byte> kv3, ReadOnlySpan<byte> buffers, string name, int index, ulong meshGroups, byte lods, bool morphs, string morphTexture )
+	internal static ModelMesh Read( ReadOnlySpan<byte> kv3, ReadOnlySpan<byte> buffers, string name, int index, ulong meshGroups, byte lods, bool morphs, string morphTexture, MorphSet morphSet = null )
 	{
 		if ( Kv3.Read( kv3 ) is not Dictionary<string, object> root ) throw new InvalidDataException( $"Mesh {name} isn't a KV3 object" );
 		var (vertexBuffers, indexBuffers) = ReadBuffers( buffers, name );
@@ -132,6 +135,7 @@ public sealed class ModelMesh
 			BoneWeightCount = weights,
 			HasMorphs = morphs,
 			MorphTexture = string.IsNullOrEmpty( morphTexture ) ? null : morphTexture,
+			Morphs = morphSet,
 		};
 	}
 
