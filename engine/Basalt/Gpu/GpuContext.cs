@@ -244,8 +244,9 @@ internal abstract class GpuContext : IDisposable
 	/// One aggregate's visible fragments for <see cref="DrawGpuDriven"/>: its arguments are <paramref name="Count"/> of the
 	/// frame's from <paramref name="FirstArg"/>, its fragments' instances in the transform buffer start at
 	/// <paramref name="FirstInstance"/>, and <paramref name="ObjectAttributes"/> are what it would set as object attributes.
+	/// <paramref name="Owner"/> is the aggregate, whose fragments (by their arguments' first instance) don't change.
 	/// </summary>
-	internal readonly record struct GpuDrivenBatch( GpuMaterial Material, RenderMesh Mesh, RenderMesh.Draw Draw, ShaderParameters ObjectAttributes, bool StripPixelShader, int FirstArg, int Count, int FirstInstance, long Triangles );
+	internal readonly record struct GpuDrivenBatch( GpuMaterial Material, RenderMesh Mesh, RenderMesh.Draw Draw, ShaderParameters ObjectAttributes, bool StripPixelShader, int FirstArg, int Count, int FirstInstance, long Triangles, object Owner );
 
 	/// <summary>Whether <see cref="DrawGpuDriven"/> draws anything on this device.</summary>
 	internal virtual bool GpuDriven => false;

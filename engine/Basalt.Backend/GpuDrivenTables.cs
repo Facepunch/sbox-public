@@ -2,6 +2,7 @@ using Basalt.Gpu;
 using Basalt.Source2.Shaders;
 using System.Buffers.Binary;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace Basalt.Backend;
@@ -258,6 +259,31 @@ internal sealed class GpuDrivenTables : IDisposable
 			Span<uint> record = [geometryRecord, vertexMaterial, pixelMaterial, flags, firstIndex, indexCount, (uint)baseVertex, (uint)indexPage];
 			var offset = draws.Append( MemoryMarshal.AsBytes( record ) );
 			return drawRecords[key] = offset / DrawStride;
+		}
+	}
+
+	/// <summary>A fragment's draw record, remembered with the arguments it was made for.</summary>
+	public record struct OwnerDraw( uint FirstIndex, uint IndexCount, int BaseVertex, uint Draw );
+
+	/// <summary>An owner's draw records for one geometry and pair of material records, by fragment instance.</summary>
+	public sealed class OwnerDraws
+	{
+		public OwnerDraw[] Draws = [];
+	}
+
+	readonly ConditionalWeakTable<object, Dictionary<(uint Geometry, uint Vertex, uint Pixel), OwnerDraws>> ownerDraws = new();
+
+	/// <summary>
+	/// Where an owner (an aggregate, whose fragments don't change) remembers its fragments' draw records, so a frame finds
+	/// them by index rather than by record key. Lock it while reading or writing.
+	/// </summary>
+	public OwnerDraws DrawsOf( object owner, uint geometry, uint vertexMaterial, uint pixelMaterial )
+	{
+		var byKey = ownerDraws.GetValue( owner, static _ => new() );
+		lock ( byKey )
+		{
+			if ( !byKey.TryGetValue( (geometry, vertexMaterial, pixelMaterial), out var draws ) ) byKey[(geometry, vertexMaterial, pixelMaterial)] = draws = new();
+			return draws;
 		}
 	}
 

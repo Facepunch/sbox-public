@@ -25,7 +25,13 @@ cbuffer BasaltGpuDriven_t
 	uint g_nBasaltDraws;		// draw records, 32 bytes: geometry, vertex material, pixel material, flags, first index, index count, base vertex, index page
 	uint g_nBasaltGeometry;		// geometry records: 32-byte semantic mask, then 16 bytes per present semantic
 	uint g_nBasaltMaterials;	// material records: $Globals as compiled, then a bindless slot per material texture
-	uint g_nBasaltPixelMaterial;	// with one material per multi-draw (specialization constant 120): its pixel record's offset
+};
+
+// With one material per multi-draw (specialization constant 120): its pixel record's offset. Set per bucket as an
+// object attribute, so changing it moves a dynamic offset and nothing else
+cbuffer BasaltGpuDrivenMaterial_t
+{
+	uint g_nBasaltPixelMaterial;
 };
 
 // The instance's transform slot and draw

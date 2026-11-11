@@ -20,7 +20,7 @@ internal sealed partial class BackendContext
 	[StructLayout( LayoutKind.Sequential )]
 	struct GpuDrivenConstants
 	{
-		public uint Instances, Draws, Geometry, Materials, PixelMaterial;
+		public uint Instances, Draws, Geometry, Materials;
 	}
 
 	/// <summary>A bucket: what one multi-draw shares, and the batches in it.</summary>
@@ -107,19 +107,15 @@ internal sealed partial class BackendContext
 		var commands = MemoryMarshal.Cast<byte, GpuBuffer.IndirectDrawIndexedArguments>( data.Slice( commandBase, totalCommands * GpuDrivenTables.CommandStride ) );
 
 		var slots = tables.Slots;
-		var constants = new GpuDrivenConstants { Instances = (uint)frameSlot, Draws = (uint)slots.Draws, Geometry = (uint)slots.Geometry, Materials = (uint)slots.Materials, PixelMaterial = uint.MaxValue };
+		SetConstants( GpuDrivenConstantsName, new GpuDrivenConstants { Instances = (uint)frameSlot, Draws = (uint)slots.Draws, Geometry = (uint)slots.Geometry, Materials = (uint)slots.Materials } );
 
 		var written = 0;
 		for ( int b = 0; b < gpuDrivenBucketCount; b++ )
 		{
 			var bucket = gpuDrivenBuckets[b];
-			if ( b == 0 || bucket.PixelMaterial != constants.PixelMaterial )
-			{
-				constants.PixelMaterial = bucket.PixelMaterial;
-				SetConstants( GpuDrivenConstantsName, constants );
-			}
 
-			SetObjectAttributes( null, bucket.Attributes );
+			// A bucket's one material, where it has one, is an object attribute: another bucket's moves a dynamic offset
+			SetObjectAttributes( bucket.PixelMaterial != 0 ? device.GpuDrivenMaterialParameters( bucket.PixelMaterial ) : null, bucket.Attributes );
 			NextPassState( cache );
 			resolver.Begin( passEpoch );
 
@@ -150,12 +146,30 @@ internal sealed partial class BackendContext
 					runStart = written;
 				}
 
+				// An owner's fragments keep their draw records by instance; anything else looks them up by key
+				var owned = batch.Owner is null ? null : tables.DrawsOf( batch.Owner, pooled.GeometryRecord, vertexMaterial, pixelMaterial );
+				if ( owned is not null ) System.Threading.Monitor.Enter( owned );
+
 				var fragments = args.Slice( batch.FirstArg, batch.Count );
 				for ( int f = 0; f < fragments.Length; f++ )
 				{
 					var arg = fragments[f];
 					var firstIndex = pooled.FirstIndex + arg.FirstIndex;
-					var draw = tables.Draw( pooled.GeometryRecord, vertexMaterial, pixelMaterial, flags, firstIndex, arg.IndexCount, arg.BaseVertex, pooled.IndexPageSlot );
+					uint draw;
+					if ( owned is null )
+					{
+						draw = tables.Draw( pooled.GeometryRecord, vertexMaterial, pixelMaterial, flags, firstIndex, arg.IndexCount, arg.BaseVertex, pooled.IndexPageSlot );
+					}
+					else
+					{
+						var slot = (int)arg.FirstInstance;
+						if ( slot >= owned.Draws.Length ) Array.Resize( ref owned.Draws, Math.Max( slot + 1, owned.Draws.Length * 2 ) );
+
+						ref var entry = ref owned.Draws[slot];
+						if ( entry.IndexCount != arg.IndexCount || entry.FirstIndex != firstIndex || entry.BaseVertex != arg.BaseVertex )
+							entry = new GpuDrivenTables.OwnerDraw( firstIndex, arg.IndexCount, arg.BaseVertex, tables.Draw( pooled.GeometryRecord, vertexMaterial, pixelMaterial, flags, firstIndex, arg.IndexCount, arg.BaseVertex, pooled.IndexPageSlot ) );
+						draw = entry.Draw;
+					}
 
 					instances[written * 2] = (uint)transforms.InstanceSlot( batch.FirstInstance + (int)arg.FirstInstance );
 					instances[written * 2 + 1] = draw;
@@ -170,6 +184,7 @@ internal sealed partial class BackendContext
 					written++;
 				}
 
+				if ( owned is not null ) System.Threading.Monitor.Exit( owned );
 				drawn[index] = true;
 			}
 
@@ -261,23 +276,33 @@ internal sealed partial class BackendContext
 	{
 		if ( stage is null ) return 0;
 
-		// What the attribute-sourced constants read now, as part of the key
-		var hash = new HashCode();
-		foreach ( var (variable, _) in stage.MaterialConstants )
-		{
-			if ( variable.Source != VariableSource.Attribute || variable.Attribute == "UncompressedTangentFrame" ) continue;
-			if ( Floats( Lookup( Token( variable.Attribute ) ) ) is { } values )
-			{
-				foreach ( var v in values ) hash.Add( v );
-			}
-			else hash.Add( -1 );
-		}
-
-		var key = new GpuDrivenTables.MaterialRecordKey( material, material.Version, stage, uncompressedTangentFrame, hash.ToHashCode() );
+		var key = new GpuDrivenTables.MaterialRecordKey( material, material.Version, stage, uncompressedTangentFrame, AttributeHash( stage ) );
 		var size = Math.Max( stage.MaterialBuffer.Size, 4 );
 		foreach ( var (_, offset) in stage.RecordTextures ) size = Math.Max( size, offset + 4 );
 
 		return tables.Material( key, size, (Context: this, Material: material, Stage: stage, Uncompressed: uncompressedTangentFrame), static ( s, record ) => s.Context.WriteMaterialRecord( s.Material, s.Stage, s.Uncompressed, record ) );
+	}
+
+	readonly Dictionary<ShaderStage, (long PassEpoch, long LayerEpoch, int Hash)> attributeHashes = new( ReferenceEqualityComparer.Instance );
+
+	/// <summary>
+	/// What a stage's attribute-sourced constants read now, as part of a material record's key: the same for every
+	/// material, so it's worked out once per stage, pass state and object attributes.
+	/// </summary>
+	int AttributeHash( ShaderStage stage )
+	{
+		if ( attributeHashes.TryGetValue( stage, out var known ) && known.PassEpoch == passEpoch && known.LayerEpoch == layerEpoch ) return known.Hash;
+
+		var hash = new HashCode();
+		foreach ( var (variable, _) in stage.MaterialConstants )
+		{
+			if ( variable.Source != VariableSource.Attribute || variable.Attribute == "UncompressedTangentFrame" ) continue;
+			hash.Add( Lookup( Token( variable.Attribute ) ) );
+		}
+
+		var made = hash.ToHashCode();
+		attributeHashes[stage] = (passEpoch, layerEpoch, made);
+		return made;
 	}
 
 	void WriteMaterialRecord( BackendMaterial material, ShaderStage stage, bool uncompressedTangentFrame, Span<byte> record )

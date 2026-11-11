@@ -74,7 +74,9 @@ public class GpuDrivenTests : GpuTest
 
 			var classic = Frame( false, out var classicBinds, false );
 			var driven = Frame( true, out var drivenBinds, false );
+			var drawRecords = backend.GpuDrivenTables.Records.Draws;
 			var again = Frame( true, out _, false );
+			Assert.AreEqual( drawRecords, backend.GpuDrivenTables.Records.Draws, "the second frame reuses the aggregates' draw records" );
 			var perMaterial = Frame( true, out var perMaterialBinds, true );
 
 			Assert.AreEqual( 0, Device.ValidationErrors, "no validation errors" );

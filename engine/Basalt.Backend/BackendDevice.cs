@@ -143,6 +143,20 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	public bool GpuDrivenMaterialBuckets { get; set; } = true;
 
+	readonly System.Collections.Concurrent.ConcurrentDictionary<uint, BackendParameters> gpuDrivenMaterialParameters = new();
+	static readonly StringToken GpuDrivenMaterialName = new( "BasaltGpuDrivenMaterial_t" );
+
+	/// <summary>
+	/// The object attributes a bucket of one material draws with: <c>BasaltGpuDrivenMaterial_t</c> holding its pixel
+	/// material record, made once per record, so buckets of other materials differ only in a dynamic offset.
+	/// </summary>
+	internal BackendParameters GpuDrivenMaterialParameters( uint pixelMaterial ) => gpuDrivenMaterialParameters.GetOrAdd( pixelMaterial, static record =>
+	{
+		var parameters = new BackendParameters();
+		parameters.SetData( GpuDrivenMaterialName, new System.Numerics.Vector4( BitConverter.UInt32BitsToSingle( record ), 0, 0, 0 ) );
+		return parameters;
+	} );
+
 	/// <summary>Time every model draw's binding and recording into <see cref="DrawTimes"/>, for benchmarks.</summary>
 	public bool TimeDraws { get; set; }
 
