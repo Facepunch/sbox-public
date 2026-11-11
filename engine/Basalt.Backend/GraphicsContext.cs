@@ -434,6 +434,46 @@ public sealed class GraphicsContext
 		Transition( texture, ImageLayout.ShaderRead );
 	}
 
+	/// <summary>
+	/// Build a view's depth chain (<c>DepthChainDownsample</c>, which <c>Depth::Get</c> reads) from
+	/// <paramref name="depth"/> into <paramref name="chain"/>, an RG32F storage texture of the depth's size with mips:
+	/// min and max of the depth, resolved into the first mip by the first dispatch of <c>downsample_spd</c> and reduced into
+	/// the rest, as Basalt's depth chain layer builds it on Source 2. Both end readable.
+	/// </summary>
+	public void BuildDepthChain( TextureHandle depth, TextureHandle chain, ShaderFile spd )
+	{
+		var info = gpu.InfoOf( chain );
+		EndScope();
+		Transition( depth, ImageLayout.ShaderRead );
+		Transition( chain, ImageLayout.General );
+
+		var attributes = new ShaderAttributes();
+		attributes.SetCombo( "D_DOWNSAMPLE_METHOD", 5 );
+		attributes.SetCombo( "D_MSAA", 0 );
+		attributes.Set( "SourceDepth", depth );
+		var fused = true;
+		var lastMip = Math.Min( info.Mips - 1, System.Numerics.BitOperations.Log2( (uint)Math.Min( info.Width, info.Height ) ) );
+		for ( int source = 0; source < lastMip; )
+		{
+			int width = info.Width >> source, height = info.Height >> source;
+			var mipCount = Math.Min( lastMip - source, 6 );
+			attributes.SetCombo( "D_FUSED_DEPTH", fused ? 1 : 0 );
+			if ( fused ) attributes.Set( "Mip0Out", MipView( chain, source ) );
+			else List.Barrier( MipBarrier( chain, source, ImageLayout.General, ImageLayout.ShaderRead ) );
+			for ( int i = fused ? 1 : 0; i <= 6; i++ ) attributes.Set( $"Mip{i}", MipView( chain, source + Math.Min( i, mipCount ) ) );
+			attributes.Set( "SourceSize", width, height );
+			attributes.Set( "MipCount", mipCount );
+			if ( !drawer.Dispatch( List, spd, attributes, (width + 63) / 64 * 256, (height + 63) / 64, 1 ) ) throw new InvalidOperationException( $"{spd.Name} didn't dispatch" );
+
+			if ( !fused ) List.Barrier( MipBarrier( chain, source, ImageLayout.ShaderRead, ImageLayout.General ) );
+			MemoryBarrier();
+			source += mipCount;
+			fused = false;
+		}
+
+		Transition( chain, ImageLayout.ShaderRead );
+	}
+
 	static TextureBarrier MipBarrier( TextureHandle texture, int mip, ImageLayout from, ImageLayout to ) => new()
 	{
 		Texture = texture,

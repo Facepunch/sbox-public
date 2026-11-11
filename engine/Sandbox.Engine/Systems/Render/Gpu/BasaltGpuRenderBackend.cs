@@ -843,6 +843,16 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 			throw new InvalidOperationException( $"{computeMaterial} didn't dispatch on Basalt.Gpu" );
 	}
 
+	/// <summary>
+	/// Build a view's depth chain from <paramref name="depth"/> into <paramref name="chain"/> (RG32F with mips, made for
+	/// compute) in the block being recorded, as Basalt's depth chain layer builds one on Source 2.
+	/// </summary>
+	internal void BuildDepthChain( Texture depth, Texture chain )
+	{
+		_ = Recording;
+		context.BuildDepthChain( TextureOf( depth ), TextureOf( chain ), Shader( "shaders/downsample_spd.shader" ) );
+	}
+
 	//
 	// Auto exposure
 	//

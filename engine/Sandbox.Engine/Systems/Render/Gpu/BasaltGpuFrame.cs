@@ -9,7 +9,7 @@ namespace Sandbox;
 /// and depth targets as engine <see cref="Texture"/>s whose backings are the frame's own, and what a camera's view gives
 /// the drawing after the scene - the frame's view constants, the blue noise texture and bloom's quarter-size input.
 /// What a camera frame on Basalt.Gpu is after the scene: post processing and the camera's later stages draw in a block
-/// from <see cref="Begin"/>, then the frame is presented.
+/// from <see cref="Begin"/>, which also builds the view's depth chain from the frame's depth, then the frame is presented.
 /// </summary>
 /// <remarks>
 /// The textures keep their engine-side identity from frame to frame; <see cref="Adopt"/> points them at the targets the
@@ -19,6 +19,8 @@ namespace Sandbox;
 internal sealed class BasaltGpuFrame : IDisposable
 {
 	static readonly StringToken ViewConstantsName = new( "PerViewConstantBuffer_t" );
+	static readonly StringToken DepthChainName = new( "DepthChainDownsample" );
+	static readonly StringToken DepthChainPrevFrameName = new( "DepthChainDownsamplePrevFrame" );
 
 	readonly BasaltGpuRenderBackend backend;
 	ViewTarget target;
@@ -29,6 +31,12 @@ internal sealed class BasaltGpuFrame : IDisposable
 
 	/// <summary>The frame's depth target.</summary>
 	public Texture Depth { get; private set; }
+
+	/// <summary>
+	/// The view's depth chain (<c>DepthChainDownsample</c>, which <c>Depth::Get</c> reads): the min and max of the frame's
+	/// depth, mipped, built by <see cref="Begin"/>. Null for a frame with no depth.
+	/// </summary>
+	public Texture DepthChain { get; private set; }
 
 	/// <summary>The view constants the frame drew with, as <c>PerViewConstantBuffer_t</c>'s bytes.</summary>
 	public byte[] Constants => constants;
@@ -67,8 +75,8 @@ internal sealed class BasaltGpuFrame : IDisposable
 	}
 
 	/// <summary>
-	/// A render block on the frame: its targets bound, and what the camera's view gives its drawing set on the block.
-	/// Dispose it to submit; then call <see cref="End"/>.
+	/// A render block on the frame: its targets bound, its depth chain built, and what the camera's view gives its drawing
+	/// set on the block. Dispose it to submit; then call <see cref="End"/>.
 	/// </summary>
 	public Graphics.Scope Begin()
 	{
@@ -78,6 +86,15 @@ internal sealed class BasaltGpuFrame : IDisposable
 			Graphics.RenderTarget = RenderTarget.From( Color, Depth );
 			var attributes = Graphics.Attributes;
 			attributes.SetData( ViewConstantsName, constants.AsSpan() );
+
+			// What reads the view's depth through Depth::Get; the previous frame's aliases it, as Basalt's does
+			if ( Depth is not null )
+			{
+				backend.BuildDepthChain( Depth, DepthChain = Chain( DepthChain, Depth.Width, Depth.Height ) );
+				attributes.Set( DepthChainName, DepthChain );
+				attributes.Set( DepthChainPrevFrameName, DepthChain );
+			}
+
 			attributes.Set( "BlueNoise", Texture.Load( "textures/dev/blue_noise_256.vtex" ) );
 			attributes.Set( "QuarterResEffectsBloomInputTexture", Texture.Black );
 			return scope;
@@ -96,6 +113,15 @@ internal sealed class BasaltGpuFrame : IDisposable
 	/// </summary>
 	public void CountExposure( AutoExposure exposure ) => backend.CountExposure( exposure, Color, new Rect( 0, 0, Color.Width, Color.Height ) );
 
+	/// <summary>An RG32F depth chain of this size with every mip down to the smaller side's last texel.</summary>
+	static Texture Chain( Texture existing, int width, int height )
+	{
+		if ( existing is not null && existing.Width == width && existing.Height == height ) return existing;
+		existing?.Dispose();
+		var mips = System.Numerics.BitOperations.Log2( (uint)Math.Min( width, height ) ) + 1;
+		return Texture.CreateRenderTarget().WithSize( width, height ).WithFormat( ImageFormat.RG3232F ).WithMips( mips ).WithUAVBinding().Create( "Basalt.Gpu frame depth chain" );
+	}
+
 	/// <summary>Give the frame's targets back to Basalt, in the layouts the drawing left them in.</summary>
 	public void End()
 	{
@@ -108,6 +134,7 @@ internal sealed class BasaltGpuFrame : IDisposable
 	{
 		Color?.Dispose();
 		Depth?.Dispose();
-		Color = Depth = null;
+		DepthChain?.Dispose();
+		Color = Depth = DepthChain = null;
 	}
 }
