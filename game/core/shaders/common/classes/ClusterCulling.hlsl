@@ -3,20 +3,26 @@
 
 #include "common.fxc"
 
+// The view's cluster lists. The culling shader writes them, so binds them itself; everything else reads them from the
+// view's descriptor set (common.fxc).
 #ifdef CLUSTERED_LIGHT_CULLING_CS
-    #define ClusteredBuffer RWStructuredBuffer
+RWStructuredBuffer<uint> ClusterLightCounts   < Attribute( "ClusterLightCounts" ); >;
+RWStructuredBuffer<uint> ClusterEnvMapCounts  < Attribute( "ClusterEnvMapCounts" ); >;
+RWStructuredBuffer<uint> ClusterDecalCounts   < Attribute( "ClusterDecalCounts" ); >;
+RWStructuredBuffer<uint> ClusterLightIndices  < Attribute( "ClusterLightIndices" ); >;
+RWStructuredBuffer<uint> ClusterEnvMapIndices < Attribute( "ClusterEnvMapIndices" ); >;
+RWStructuredBuffer<uint> ClusterDecalIndices  < Attribute( "ClusterDecalIndices" ); >;
 #else
-    #define ClusteredBuffer StructuredBuffer
+StructuredBuffer<uint> ClusterLightCounts     EXTERNAL_DESC_SET( t, g_viewSet, 6 );
+StructuredBuffer<uint> ClusterEnvMapCounts    EXTERNAL_DESC_SET( t, g_viewSet, 7 );
+StructuredBuffer<uint> ClusterDecalCounts     EXTERNAL_DESC_SET( t, g_viewSet, 8 );
+StructuredBuffer<uint> ClusterLightIndices    EXTERNAL_DESC_SET( t, g_viewSet, 9 );
+StructuredBuffer<uint> ClusterEnvMapIndices   EXTERNAL_DESC_SET( t, g_viewSet, 10 );
+StructuredBuffer<uint> ClusterDecalIndices    EXTERNAL_DESC_SET( t, g_viewSet, 11 );
 #endif
 
-ClusteredBuffer<uint> ClusterLightCounts   < Attribute( "ClusterLightCounts" ); >;
-ClusteredBuffer<uint> ClusterEnvMapCounts  < Attribute( "ClusterEnvMapCounts" ); >;
-ClusteredBuffer<uint> ClusterDecalCounts   < Attribute( "ClusterDecalCounts" ); >;
-ClusteredBuffer<uint> ClusterLightIndices  < Attribute( "ClusterLightIndices" ); >;
-ClusteredBuffer<uint> ClusterEnvMapIndices < Attribute( "ClusterEnvMapIndices" ); >;
-ClusteredBuffer<uint> ClusterDecalIndices  < Attribute( "ClusterDecalIndices" ); >;
-
-cbuffer ClusteredLightingConstants
+// The view's cluster grid, in its descriptor set
+cbuffer ClusteredLightingConstants EXTERNAL_DESC_SET( b, g_viewSet, 3 )
 {
     float4 ClusterCounts;        // xyz = tile counts, w = total
     float4 ClusterInvCounts;     // xyz = 1/counts, w = unused

@@ -7,6 +7,7 @@
 #ifndef SHADOWS_PROJECTEDCUBESHADOW_HLSL
 #define SHADOWS_PROJECTEDCUBESHADOW_HLSL
 
+#include "common.fxc"
 #include "Shadows/ShadowFiltering.hlsl"
 
 struct ProjectedShadowCubeStruct
@@ -18,8 +19,8 @@ struct ProjectedShadowCubeStruct
 	float ShadowHardness;
 };
 
-// Per view
-StructuredBuffer<ProjectedShadowCubeStruct> ProjectedCubeShadows < Attribute( "ProjectedCubeShadows" ); > ;
+// The view's point light shadows, in its descriptor set (common.fxc)
+StructuredBuffer<ProjectedShadowCubeStruct> ProjectedCubeShadows EXTERNAL_DESC_SET( t, g_viewSet, 5 );
 
 //------------------------------------------------------------------------------
 // GetCubemapFace
