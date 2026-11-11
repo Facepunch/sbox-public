@@ -126,6 +126,11 @@ struct ShadingModelStandard
         // Do our magic alpha to coverage adjustment
         AdjustAlphaToCoverage( m );
 
+        // Depth mode writes only normals and roughness, or nothing but alpha to coverage. Before lighting: its cluster walks
+        // are wave ops, which the compiler keeps even when their result is dead
+        if( DepthNormals::WantsDepthNormals() )
+            return DepthNormals::Output( m.Normal, m.Roughness, m.Opacity );
+
         LightingTerms_t lightingTerms = InitLightingTerms();
         CombinerInput combinerInput = MaterialToCombinerInput( m );
 
@@ -152,9 +157,6 @@ struct ShadingModelStandard
             color = float4( vDiffuse + vSpecular, m.Opacity );
         }
 
-        //
-        if( DepthNormals::WantsDepthNormals() )
-            return DepthNormals::Output( m.Normal, m.Roughness, color.a );
 
         if ( g_bWireframeMode )
             return g_vWireframeColor;

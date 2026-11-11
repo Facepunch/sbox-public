@@ -299,6 +299,14 @@ PS_OUTPUT PS_FinalCombinerDoLighting( FinalCombinerInput_t f, inout LightingTerm
 {
 	PS_OUTPUT o;
 
+	// Depth mode writes only the G-buffer (PS_FinalCombinerDoPostProcessing), or nothing but alpha to coverage. Lighting's
+	// cluster walks are wave ops, which the compiler keeps even when their result is dead
+	if( DepthNormals::WantsDepthNormals() )
+	{
+		o.vColor = 0;
+		return o;
+	}
+
 	#if ( !S_UNLIT )
 	{
 		#if ( S_ANISOTROPIC_GLOSS )
@@ -385,6 +393,12 @@ PS_OUTPUT PS_FinalCombinerDoPostProcessing( FinalCombinerInput_t f, LightingTerm
 	float3 vPositionWs = f.vPositionWs;
 	float4 vPositionSs = f.vPositionSs;
 
+	if( DepthNormals::WantsDepthNormals() )
+	{
+		o.vColor = DepthNormals::Output( f.vNormalWs.xyz, f.vRoughness.x, f.flOpacity );
+		return o;
+	}
+
 	if ( g_bFogEnabled )
 	{
 		#if ( S_ADDITIVE_BLEND )
@@ -396,12 +410,6 @@ PS_OUTPUT PS_FinalCombinerDoPostProcessing( FinalCombinerInput_t f, LightingTerm
 			o.vColor.rgb = Fog::Apply( vPositionWs.xyz, vPositionSs.xy, o.vColor.rgb );
 		}
 		#endif
-	}
-
-	if( DepthNormals::WantsDepthNormals() )
-	{
-		o.vColor = DepthNormals::Output( f.vNormalWs.xyz, f.vRoughness.x, f.flOpacity );
-		return o;
 	}
 
 	[branch]
