@@ -219,7 +219,7 @@ internal abstract class GpuContext : IDisposable
 	/// layout, the instance ids, then the cache's vertex ids. A backend can do it in one call that reuses similar-material
 	/// state, as <see cref="DrawModel"/> does.
 	/// </summary>
-	public virtual bool DrawVertexCache( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false )
+	public virtual bool DrawVertexCache( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, int textureSize = TextureSizes.All )
 	{
 		if ( !BindGeometry( mesh, draw ) ) return false;
 		if ( !SetRenderState( material, shaderMode, mesh, draw, depthBias, slopeScaledDepthBias, stripPixelShader, vertexCache: true ) ) return false;
@@ -231,17 +231,20 @@ internal abstract class GpuContext : IDisposable
 		return true;
 	}
 
-	/// <summary>Bind and draw instances in one call, reusing similar-material state.</summary>
-	public abstract bool DrawModel( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false );
+	/// <summary>
+	/// Bind and draw instances in one call, reusing similar-material state. <paramref name="textureSize"/> is the size in texels
+	/// the draw's textures appear at, which texture streaming takes as the mips they need (<see cref="TextureSizes"/>).
+	/// </summary>
+	public abstract bool DrawModel( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, int instances, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false, int textureSize = TextureSizes.All );
 
 	/// <summary>Draw the instances occlusion culling kept, from its arguments.</summary>
-	public abstract bool DrawModelCulled( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int argsIndex, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false );
+	public abstract bool DrawModelCulled( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int argsIndex, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, bool skinned = false, int textureSize = TextureSizes.All );
 
 	/// <summary>Draw an aggregate's fragments, one indirect draw each.</summary>
-	public abstract bool DrawModelFragments( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, GpuBuffer args, int firstArg, int count, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false );
+	public abstract bool DrawModelFragments( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, int firstInstance, GpuBuffer args, int firstArg, int count, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, int textureSize = TextureSizes.All );
 
 	/// <summary>Draw the aggregate fragments occlusion culling kept.</summary>
-	public abstract bool DrawModelFragmentsCulled( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int cullArg, int count, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false );
+	public abstract bool DrawModelFragmentsCulled( GpuMaterial material, StringToken shaderMode, RenderMesh mesh, in RenderMesh.Draw draw, OcclusionPhase phase, int firstInstance, int cullArg, int count, int depthBias = 0, float slopeScaledDepthBias = 0, bool stripPixelShader = false, int textureSize = TextureSizes.All );
 
 	/// <summary>Copy data into a buffer, ordered before later draws.</summary>
 	public void UploadBuffer<T>( GpuBuffer buffer, ReadOnlySpan<T> data ) where T : unmanaged => UploadBuffer( buffer, data, 0 );

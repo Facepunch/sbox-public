@@ -11,7 +11,7 @@ internal sealed class AggregateObject : RenderObject
 {
 	/// <summary>
 	/// One fragment as native draws it (<c>RenderTools::AggregateFragmentDraw_t</c>): its world transform and bounds, its draw's
-	/// tint, and its draw's range with the fragment's index as its base instance.
+	/// tint and UV density, and its draw's range with the fragment's index as its base instance.
 	/// </summary>
 	[StructLayout( LayoutKind.Sequential )]
 	internal struct FragmentDraw
@@ -20,7 +20,7 @@ internal sealed class AggregateObject : RenderObject
 		public Vector3 BoundsMin;
 		public FragmentFlags Flags;
 		public Vector3 BoundsMax;
-		uint unused;
+		public float UvDensity;
 		public Vector3 DrawTint;
 		uint unused2;
 		public GpuBuffer.IndirectDrawIndexedArguments Args;

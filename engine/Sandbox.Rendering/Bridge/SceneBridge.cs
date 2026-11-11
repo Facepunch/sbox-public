@@ -560,6 +560,10 @@ internal sealed class SceneBridge : ISceneRenderer, IManagedSceneCompare
 		var rect = camera.Rect;
 		view.Viewport = new Rect( rect.Left * size.x, rect.Top * size.y, rect.Width * size.x, rect.Height * size.y );
 
+		// The scales on the texture sizes draws ask streaming for, which the scenesystem reads from its convars each view
+		view.TextureLodScale = RenderTools.GetTextureLodScale( false );
+		view.FallbackTextureLodScale = RenderTools.GetTextureLodScale( true );
+
 		view.Orthographic = camera.Ortho;
 		var aspect = view.Viewport.Height > 0 ? view.Viewport.Width / view.Viewport.Height : 1;
 		view.OrthoSize = new Vector2( camera.OrthoHeight * aspect, camera.OrthoHeight );
