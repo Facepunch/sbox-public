@@ -287,11 +287,11 @@ internal static class ModelParity
 	}
 
 	/// <summary>A Basalt.Gpu target's colour as 8-bit sRGB, encoded as <see cref="Source2Backend.ReadPixels"/> encodes.</summary>
-	static Color32[] ReadBack( BackendDevice device, ViewTarget target )
+	internal static Color32[] ReadBack( BackendDevice device, ViewTarget target, int width = Width, int height = Height )
 	{
 		var gpu = device.Gpu;
 		var (texture, layout) = BackendDevice.Unwrap( target.Color );
-		var bytes = Width * Height * 8;
+		var bytes = width * height * 8;
 		var buffer = gpu.CreateBuffer( new BufferInfo { Size = bytes, Memory = MemoryLocation.Readback, Name = "Model parity readback" } );
 		var list = gpu.BeginCommandList( QueueType.Graphics, "Model parity readback" );
 		list.Barrier( Basalt.Gpu.TextureBarrier.Transition( texture, layout, ImageLayout.CopySource, PipelineStage.AllCommands, MemoryAccess.MemoryWrite, PipelineStage.Transfer, MemoryAccess.TransferRead ) );
@@ -301,7 +301,7 @@ internal static class ModelParity
 		BackendDevice.SetLayout( target.Color, ImageLayout.CopySource );
 
 		var halves = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, ushort>( gpu.Map( buffer ) );
-		var pixels = new Color32[Width * Height];
+		var pixels = new Color32[width * height];
 		for ( int i = 0; i < pixels.Length; i++ )
 			pixels[i] = new Color32( Encode( halves[i * 4] ), Encode( halves[i * 4 + 1] ), Encode( halves[i * 4 + 2] ), 255 );
 
