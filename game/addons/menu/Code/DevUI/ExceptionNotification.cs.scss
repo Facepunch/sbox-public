@@ -3,8 +3,8 @@
 $error-amber: #ffb43c;
 
 // The platform menu's glass in the top right, out of the way - an amber icon, then where the error came from over what
-// it said on one line. Each time it happens again it's washed amber and blurred, coming back into focus in 0.15s. Gone
-// after a while. Never in the way of a click.
+// it said on one line. Each time it happens again it's washed amber, fading back over half a second - never blurred, so
+// one that happens every frame can still be read. Gone after a while. Never in the way of a click.
 ExceptionNotification
 {
 	position: absolute;
@@ -21,8 +21,8 @@ ExceptionNotification
 	box-shadow: 0 8px 24px rgba( 0, 0, 0, 0.35 );
 	font-family: $platform-font;
 	pointer-events: none;
-	// A new one's wash and blur - straight in, its focus back in 0.15s and the wash off over half a second
-	transition: background-color 0.5s ease-out, filter 0.15s ease-out, opacity 0.2s ease-out, transform 0.2s ease-out;
+	// A new one's wash - straight in, and off over half a second
+	transition: background-color 0.5s ease-out, opacity 0.2s ease-out, transform 0.2s ease-out;
 
 	iconpanel
 	{
@@ -64,7 +64,6 @@ ExceptionNotification
 	&.fresh
 	{
 		background-color: rgba( 92, 64, 18, 0.92 );
-		filter: blur( 2px );
 		transition: none;
 	}
 
