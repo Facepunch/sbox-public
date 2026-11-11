@@ -98,6 +98,51 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 		return material;
 	}
 
+	/// <summary>
+	/// Keep static models' geometry in GPU-driven pages as they load (<see cref="GpuDrivenTables"/>), so
+	/// <see cref="GpuDriven"/> can draw them. Set before loading models; it costs a second copy of their buffers while the
+	/// classic path still draws from its own.
+	/// </summary>
+	public bool GpuDrivenGeometry
+	{
+		get => gpuDrivenTables is not null;
+		set
+		{
+			if ( value && gpuDrivenTables is null ) gpuDrivenTables = new GpuDrivenTables( Gpu );
+		}
+	}
+
+	GpuDrivenTables gpuDrivenTables;
+
+	/// <summary>The GPU-driven pages and tables, or null when <see cref="GpuDrivenGeometry"/> is off.</summary>
+	internal GpuDrivenTables GpuDrivenTables => gpuDrivenTables;
+
+	/// <summary>
+	/// Draw aggregates GPU-driven: shaders' <c>.gpudriven.shader_c</c> variants, per-draw data in tables, one multi-draw
+	/// per pipeline and pass state (docs/managed/basalt-gpu-driven.md). Needs <see cref="GpuDrivenGeometry"/> and material
+	/// objects; anything it can't draw goes the classic way.
+	/// </summary>
+	public bool GpuDriven { get; set; }
+
+	/// <summary>The GPU-driven tables' records and bytes, for reports.</summary>
+	public string GpuDrivenReport => gpuDrivenTables is not { } t ? "off" : $"{t.Records.Geometry} geometry, {t.Records.Draws} draw and {t.Records.Materials} material records ({t.Bytes.Geometry / 1024} + {t.Bytes.Draws / 1024} + {t.Bytes.Materials / 1024} KiB), {t.Bytes.Pages / (1 << 20)} MiB of pages";
+
+	/// <summary>The vertex layout GPU-driven pipelines are made with: none, their vertex shaders pull their inputs.</summary>
+	internal VertexLayout PulledLayout => pulledLayout ??= Layout( new VertexLayout( 4, [] ) );
+
+	/// <summary>The same for pipelines whose pixel shader reads its bucket's one material (a layout of its own keeps their material objects apart).</summary>
+	internal VertexLayout PulledLayoutMaterialPerDraw => pulledLayoutPerDraw ??= Layout( new VertexLayout( 8, [] ) );
+
+	VertexLayout pulledLayout, pulledLayoutPerDraw;
+
+	/// <summary>
+	/// Split GPU-driven buckets whose pixel shader reads its material (forward, alpha-tested depth) by material, so the
+	/// pixel shader reads the record at an offset the compiler knows is uniform (specialization constant 120) rather than
+	/// one carried per pixel: more multi-draws, no binds between them, and the classic shader's registers. On by default
+	/// (the owner's decision, 2026-11-11); off draws every material of a pipeline in one multi-draw, to compare.
+	/// </summary>
+	public bool GpuDrivenMaterialBuckets { get; set; } = true;
+
 	/// <summary>Time every model draw's binding and recording into <see cref="DrawTimes"/>, for benchmarks.</summary>
 	public bool TimeDraws { get; set; }
 
@@ -382,9 +427,9 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// has as integers where the shader wants floats (or the other way round), read the default stream 2, as native's
 	/// input layouts do for streams a mesh doesn't have.
 	/// </summary>
-	internal PipelineHandle Pipeline( ShaderVariant variant, VertexLayout layout, Format color, Format depth, int samples, bool depthOnly, BindingLayoutHandle[] sets = null )
+	internal PipelineHandle Pipeline( ShaderVariant variant, VertexLayout layout, Format color, Format depth, int samples, bool depthOnly, BindingLayoutHandle[] sets = null, bool materialPerDraw = false )
 	{
-		var key = new PipelineKey( variant, layout, color, depth, samples, depthOnly, sets );
+		var key = new PipelineKey( variant, layout, color, depth, samples, depthOnly, sets, materialPerDraw );
 		lock ( pipelines )
 		{
 			if ( pipelines.TryGetValue( key, out var pipeline ) ) return pipeline;
@@ -402,6 +447,9 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 			var info = variant.PipelineInfo( streams, attributes, color == Format.Unknown ? [] : [color], depth, samples, depthBias: depthOnly || color == Format.Unknown, $"{variant}{(depthOnly ? " depth" : "")}" );
 			if ( sets is not null ) info.Sets = sets;
 
+			// A GPU-driven pixel shader reading its bucket's one material (basalt_gpu_driven.h's specialization constant)
+			if ( materialPerDraw && info.FragmentShader.IsValid ) info.FragmentConstants = [.. info.FragmentConstants ?? [], new SpecializationConstant( GpuDrivenMaterialPerDrawConstant, 1 )];
+
 			// Stripped pixel shaders: depth passes of opaque materials don't need them (alpha-tested ones keep theirs)
 			if ( depthOnly && color == Format.Unknown )
 			{
@@ -412,11 +460,59 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 
 			pipeline = Gpu.CreateGraphicsPipeline( info );
 			pipelines[key] = pipeline;
+			if ( DumpPixelShaders is { } dump && info.FragmentShader.IsValid ) DumpPixelShader( dump, variant, info.FragmentConstants, materialPerDraw );
 			return pipeline;
 		}
 	}
 
-	internal readonly record struct PipelineKey( ShaderVariant Variant, VertexLayout Layout, Format Color, Format Depth, int Samples, bool DepthOnly, BindingLayoutHandle[] Sets = null );
+	/// <summary>
+	/// <c>BASALT_DUMP_PIXEL_SHADERS=folder</c>: write every pixel shader a pipeline is made with, specialization constants
+	/// applied, as <c>shader_mode_static_dynamic_kind.spv</c> (kind: classic, gpudriven, or gpudriven-perdraw), so register
+	/// counts of the classic and GPU-driven forms of one combo can be compared offline (amdllpc).
+	/// </summary>
+	static readonly string DumpPixelShaders = Environment.GetEnvironmentVariable( "BASALT_DUMP_PIXEL_SHADERS" );
+
+	static void DumpPixelShader( string folder, ShaderVariant variant, SpecializationConstant[] constants, bool materialPerDraw )
+	{
+		var stage = variant.Pixel;
+		var kind = !stage.GpuDriven ? "classic" : materialPerDraw ? "gpudriven-perdraw" : "gpudriven";
+		var name = $"{System.IO.Path.GetFileName( variant.Shader.Name ).Split( '.' )[0]}_{variant.Mode?.Name}_s{stage.Static.Id}_d{stage.Dynamic.Id}_{kind}.spv";
+		var path = System.IO.Path.Combine( folder, name );
+		if ( System.IO.File.Exists( path ) ) return;
+
+		var spirv = (byte[])stage.Bytecode.Shared.Spirv.Clone();
+		var words = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, uint>( spirv.AsSpan() );
+		var specIds = new Dictionary<uint, uint>();
+		for ( int pass = 0; pass < 2; pass++ )
+		{
+			for ( int i = 5; i < words.Length; )
+			{
+				var count = (int)(words[i] >> 16);
+				var opcode = (int)(words[i] & 0xffff);
+				if ( count == 0 ) return;
+				if ( pass == 0 && opcode == 71 && count >= 4 && words[i + 2] == 1 ) specIds[words[i + 1]] = words[i + 3];
+				else if ( pass == 1 && opcode is 48 or 49 or 50 && specIds.TryGetValue( words[i + 2], out var id ) )
+				{
+					foreach ( var c in constants ?? [] )
+					{
+						if ( c.Id != id ) continue;
+						if ( opcode == 50 ) words[i + 3] = c.Value;
+						else words[i] = (words[i] & 0xffff0000) | (uint)(c.Value != 0 ? 48 : 49);
+					}
+				}
+
+				i += count;
+			}
+		}
+
+		System.IO.Directory.CreateDirectory( folder );
+		System.IO.File.WriteAllBytes( path, spirv );
+	}
+
+	internal readonly record struct PipelineKey( ShaderVariant Variant, VertexLayout Layout, Format Color, Format Depth, int Samples, bool DepthOnly, BindingLayoutHandle[] Sets = null, bool MaterialPerDraw = false );
+
+	/// <summary><c>BASALT_GPU_DRIVEN_MATERIAL_PER_DRAW_ID</c>: set, a GPU-driven pixel shader reads <c>g_nBasaltPixelMaterial</c>.</summary>
+	const uint GpuDrivenMaterialPerDrawConstant = 120;
 
 	/// <summary>A compute pipeline for a compute shader's variant (with <paramref name="sets"/> for its layout's), made once.</summary>
 	internal PipelineHandle ComputePipeline( ShaderVariant variant, BindingLayoutHandle[] sets = null )
@@ -541,6 +637,7 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	public void BeginFrame()
 	{
 		Gpu.BeginFrame();
+		gpuDrivenTables?.BeginFrame();
 		Poll();
 	}
 
@@ -565,6 +662,7 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 		Gpu.WaitIdle();
 		Poll();
 		materialCache?.Dispose();
+		gpuDrivenTables?.Dispose();
 		lock ( pipelines )
 		{
 			foreach ( var pipeline in pipelines.Values ) Gpu.Destroy( pipeline );

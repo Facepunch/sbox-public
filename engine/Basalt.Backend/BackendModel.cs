@@ -6,9 +6,10 @@ using System.Linq;
 namespace Basalt.Backend;
 
 /// <summary>
-/// What a draw binds: its vertex and index buffers, where in them, and how its vertices are laid out.
+/// What a draw binds: its vertex and index buffers, where in them, and how its vertices are laid out; and where the
+/// same geometry is in <see cref="GpuDrivenTables"/>' pages, when it's there.
 /// </summary>
-internal readonly record struct DrawGeometry( BufferHandle Vertices, long VertexOffset, BufferHandle Indices, long IndexOffset, IndexFormat IndexFormat, int BaseVertex, VertexLayout Layout, bool UncompressedTangentFrame );
+internal readonly record struct DrawGeometry( BufferHandle Vertices, long VertexOffset, BufferHandle Indices, long IndexOffset, IndexFormat IndexFormat, int BaseVertex, VertexLayout Layout, bool UncompressedTangentFrame, PooledGeometry? Pooled = null );
 
 /// <summary>
 /// Geometry a <see cref="BackendContext"/> can draw: buffers per model mesh and draw call.
@@ -86,20 +87,26 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry
 		var gpu = device.Gpu;
 		draws = new DrawGeometry[file.Meshes.Count][];
 
+		// Static meshes also go in the GPU-driven pages, when the device keeps them (skinned ones draw the classic way)
+		var tables = file.IsSkinned ? null : device.GpuDrivenTables;
+
 		for ( int m = 0; m < file.Meshes.Count; m++ )
 		{
 			var mesh = file.Meshes[m];
-			var vertexBuffers = new (BufferHandle Buffer, VertexLayout Layout, bool Compressed)[mesh.VertexBuffers.Count];
-			for ( int v = 0; v < vertexBuffers.Length; v++ ) vertexBuffers[v] = Upload( gpu, mesh.VertexBuffers[v], $"{file.Name} {mesh.Name} vertices {v}" );
+			var vertexBuffers = new (BufferHandle Buffer, VertexLayout Layout, bool Compressed, int PageSlot, long PageOffset)[mesh.VertexBuffers.Count];
+			for ( int v = 0; v < vertexBuffers.Length; v++ ) vertexBuffers[v] = Upload( gpu, mesh.VertexBuffers[v], $"{file.Name} {mesh.Name} vertices {v}", tables );
 
-			var indexBuffers = new (BufferHandle Buffer, IndexFormat Format)[mesh.IndexBuffers.Count];
+			var indexBuffers = new (BufferHandle Buffer, IndexFormat Format, BufferHandle Page, int PageSlot, uint PageFirst)[mesh.IndexBuffers.Count];
 			for ( int i = 0; i < indexBuffers.Length; i++ )
 			{
 				var source = mesh.IndexBuffers[i];
+				var format = source.Size == 4 ? IndexFormat.UInt32 : IndexFormat.UInt16;
 				var buffer = gpu.CreateBuffer( new BufferInfo { Size = Math.Max( source.Data.Length, 4 ), Usage = BufferUsage.Index, Name = $"{file.Name} {mesh.Name} indices {i}" } );
 				if ( source.Data.Length > 0 ) gpu.WriteBuffer( buffer, source.Data );
 				buffers.Add( buffer );
-				indexBuffers[i] = (buffer, source.Size == 4 ? IndexFormat.UInt32 : IndexFormat.UInt16);
+
+				var (page, slot, first) = tables is null ? default : tables.AddIndices( source.Data, format );
+				indexBuffers[i] = (buffer, format, page, slot, first);
 			}
 
 			draws[m] = new DrawGeometry[mesh.DrawCalls.Count];
@@ -112,16 +119,27 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry
 				var vertices = vertexBuffers[vertexIndex];
 				var (indexIndex, indexOffset) = call.IndexBuffer;
 				var indices = indexBuffers[indexIndex];
-				draws[m][d] = new DrawGeometry( vertices.Buffer, vertexOffset, indices.Buffer, indexOffset, indices.Format, call.BaseVertex, vertices.Layout, !vertices.Compressed );
+
+				PooledGeometry? pooled = null;
+				if ( tables is not null && indices.Page.IsValid && vertices.PageSlot >= 0 )
+				{
+					var vertexCount = (int)((mesh.VertexBuffers[vertexIndex].Data.Length - vertexOffset) / Math.Max( vertices.Layout.Stride, 1 ));
+					var record = tables.Geometry( vertices.PageSlot, vertices.PageOffset + vertexOffset, vertices.Layout, vertexCount );
+					var indexSize = indices.Format == IndexFormat.UInt32 ? 4 : 2;
+					pooled = new PooledGeometry( record, indices.Page, indices.PageSlot, indices.PageFirst + (uint)(indexOffset / indexSize), indices.Format );
+				}
+
+				draws[m][d] = new DrawGeometry( vertices.Buffer, vertexOffset, indices.Buffer, indexOffset, indices.Format, call.BaseVertex, vertices.Layout, !vertices.Compressed, pooled );
 			}
 		}
 	}
 
 	/// <summary>
-	/// A vertex buffer on the GPU. Normals in the older 8:8:8:8 encoding are repacked as 10:10:10:2, as native does for
-	/// shaders that decode it (every s&amp;box shader that reads <c>UncompressedTangentFrame</c>).
+	/// A vertex buffer on the GPU, and in a GPU-driven page when <paramref name="tables"/> is given. Normals in the older
+	/// 8:8:8:8 encoding are repacked as 10:10:10:2, as native does for shaders that decode it (every s&amp;box shader that
+	/// reads <c>UncompressedTangentFrame</c>).
 	/// </summary>
-	(BufferHandle, VertexLayout, bool) Upload( Device gpu, MeshVertexBuffer source, string name )
+	(BufferHandle, VertexLayout, bool, int, long) Upload( Device gpu, MeshVertexBuffer source, string name, GpuDrivenTables tables )
 	{
 		var data = source.Data;
 		var fields = new List<VertexLayout.Field>();
@@ -141,7 +159,9 @@ public sealed class BackendModel : GpuMesh, IBackendGeometry
 		var buffer = gpu.CreateBuffer( new BufferInfo { Size = Math.Max( data.Length, 4 ), Usage = BufferUsage.Vertex, Name = name } );
 		if ( data.Length > 0 ) gpu.WriteBuffer( buffer, data );
 		buffers.Add( buffer );
-		return (buffer, device.Layout( new VertexLayout( source.Stride, fields.ToArray() ) ), source.CompressedTangentFrame);
+
+		var (slot, offset) = tables is null ? (-1, 0L) : tables.AddVertices( data );
+		return (buffer, device.Layout( new VertexLayout( source.Stride, fields.ToArray() ) ), source.CompressedTangentFrame, slot, offset);
 	}
 
 	DrawGeometry IBackendGeometry.For( int mesh, int drawCall ) => draws[mesh][drawCall];

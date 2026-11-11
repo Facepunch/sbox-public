@@ -29,6 +29,7 @@ internal sealed class AggregateRenderFeature : RenderFeature
 	readonly UploadRing<GpuBuffer.IndirectDrawIndexedArguments> argsRing = new( "Basalt AggregateArgs", GpuBuffer.UsageFlags.Structured | GpuBuffer.UsageFlags.IndirectDrawArguments );
 
 	GpuMaterial depthOnlyMaterial;
+	TransformBuffer transforms;
 
 	static readonly Comparison<Batch> ByKey = ( a, b ) => a.Key.CompareTo( b.Key );
 
@@ -59,6 +60,9 @@ internal sealed class AggregateRenderFeature : RenderFeature
 	/// </summary>
 	internal override void Prepare( RenderWorld world, ViewPass pass, TransformBuffer transforms )
 	{
+		// The frame's transforms, whose instance ids a GPU-driven draw reads on the CPU (the same buffer for every view)
+		this.transforms = transforms;
+
 		var batches = pass.State<Batches>( this ).List;
 		batches.Clear();
 
@@ -191,8 +195,25 @@ internal sealed class AggregateRenderFeature : RenderFeature
 		var phase = context.Occlusion is { } occlusion && (layer.OcclusionPhase != OcclusionPhase.Early || occlusion.CullsEarly) ? layer.OcclusionPhase : OcclusionPhase.None;
 		var culledOnly = layer.OcclusionPhase == OcclusionPhase.Late;
 
-		foreach ( ref readonly var batch in batches )
+		// The device's GPU-driven path first, for what it can take: batches drawn from its own args, not the culler's
+		var gpuDriven = context.GpuDriven && phase == OcclusionPhase.None && !culledOnly && transforms is not null ? System.Buffers.ArrayPool<bool>.Shared.Rent( batches.Length ) : null;
+		if ( gpuDriven is not null )
 		{
+			var drawn = gpuDriven.AsSpan( 0, batches.Length );
+			drawn.Clear();
+			DrawGpuDriven( context, batches, mode, depth, layer.ForceDepthFastPath, depthBias, slopeBias, drawn );
+
+			for ( int i = 0; i < batches.Length; i++ )
+			{
+				if ( !drawn[i] ) continue;
+				CountDrawn( batches[i], shadow, depth, ref stats );
+			}
+		}
+
+		for ( int b = 0; b < batches.Length; b++ )
+		{
+			ref readonly var batch = ref batches[b];
+			if ( gpuDriven is not null && gpuDriven[b] ) continue;
 			if ( culledOnly && batch.CullArg < 0 ) continue;
 
 			var aggregate = batch.Aggregate;
@@ -213,25 +234,59 @@ internal sealed class AggregateRenderFeature : RenderFeature
 				: context.DrawModelFragments( material, mode, mesh, draw, aggregate.FirstInstance, argsRing.Current, batch.FirstArg, batch.Count, depthBias, slopeBias, stripPixelShader, batch.TextureSize );
 			if ( !drawn ) continue;
 
-			stats.DrawnTriangles += batch.Triangles;
-			if ( shadow )
-			{
-				stats.ShadowDraws++;
-				continue;
-			}
-
-			if ( depth )
-			{
-				stats.DepthDraws++;
-				continue;
-			}
-
-			stats.Draws++;
-			stats.Instances += batch.Count;
-			stats.Triangles += batch.Triangles;
+			CountDrawn( batch, shadow, depth, ref stats );
 		}
 
+		if ( gpuDriven is not null ) System.Buffers.ArrayPool<bool>.Shared.Return( gpuDriven );
 		context.SetObjectAttributes( null );
+	}
+
+	static void CountDrawn( in Batch batch, bool shadow, bool depth, ref RenderStats stats )
+	{
+		stats.DrawnTriangles += batch.Triangles;
+		if ( shadow )
+		{
+			stats.ShadowDraws++;
+			return;
+		}
+
+		if ( depth )
+		{
+			stats.DepthDraws++;
+			return;
+		}
+
+		stats.Draws++;
+		stats.Instances += batch.Count;
+		stats.Triangles += batch.Triangles;
+	}
+
+	/// <summary>
+	/// Hand the device every batch at once for its GPU-driven path (<see cref="GpuContext.DrawGpuDriven"/>), with the
+	/// material each would bind here.
+	/// </summary>
+	void DrawGpuDriven( GpuContext context, ReadOnlySpan<Batch> batches, StringToken mode, bool depth, bool forceDepthOnly, int depthBias, float slopeBias, Span<bool> drawn )
+	{
+		var list = System.Buffers.ArrayPool<GpuContext.GpuDrivenBatch>.Shared.Rent( batches.Length );
+		var count = 0;
+		for ( int i = 0; i < batches.Length; i++ )
+		{
+			ref readonly var batch = ref batches[i];
+			var draws = batch.Aggregate.Mesh.DrawsForLod( 0 );
+			var strip = false;
+			var material = draws.Length > 0 ? MaterialFor( draws[0], depth, forceDepthOnly, out strip ) : null;
+			if ( material is null )
+			{
+				list[count++] = default;
+				continue;
+			}
+
+			var attributes = !depth && batch.Aggregate.Lightmapped ? batch.Aggregate.LightmapAttributes : null;
+			list[count++] = new GpuContext.GpuDrivenBatch( material, batch.Aggregate.Mesh, draws[0], attributes, strip, batch.FirstArg, batch.Count, batch.Aggregate.FirstInstance, batch.Triangles );
+		}
+
+		context.DrawGpuDriven( mode, list.AsSpan( 0, count ), args.AsSpan( 0, argCount ), transforms, depthBias, slopeBias, drawn );
+		System.Buffers.ArrayPool<GpuContext.GpuDrivenBatch>.Shared.Return( list, clearArray: true );
 	}
 
 	/// <summary>
