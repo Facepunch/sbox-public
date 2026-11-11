@@ -312,6 +312,12 @@ public class ProjectConfig
 
 		compilerSettings.Clean();
 
+		if ( IsStandaloneOnly )
+		{
+			compilerSettings.Unsafe = true;
+			compilerSettings.Whitelist = false;
+		}
+
 		return compilerSettings;
 	}
 
