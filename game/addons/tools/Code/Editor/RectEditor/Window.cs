@@ -229,7 +229,7 @@ public partial class Window : DockWindow, IAssetEditor
 		Update();
 	}
 
-	[Shortcut( "grid.increase-grid-size", "CTRL+]" )]
+	[Shortcut( "grid.increase-grid-size", "]" )]
 	internal void BiggerGrid()
 	{
 		if ( Settings.IsFastTextureTool )
@@ -245,7 +245,7 @@ public partial class Window : DockWindow, IAssetEditor
 		Update();
 	}
 
-	[Shortcut( "grid.decrease-grid-size", "CTRL+[" )]
+	[Shortcut( "grid.decrease-grid-size", "[" )]
 	internal void SmallerGrid()
 	{
 		if ( Settings.IsFastTextureTool )

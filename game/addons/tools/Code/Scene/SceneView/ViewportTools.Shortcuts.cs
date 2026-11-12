@@ -16,7 +16,7 @@ partial class ViewportTools
 		UpdateChildren();
 	}
 
-	[Shortcut( "grid.decrease-grid-size", "CTRL+[", typeof( SceneViewportWidget ) )]
+	[Shortcut( "grid.decrease-grid-size", "[", typeof( SceneViewportWidget ) )]
 	void DecreaseGridSize()
 	{
 		var value = EditorScene.GizmoSettings.GridSpacing;
@@ -27,7 +27,7 @@ partial class ViewportTools
 		UpdateChildren();
 	}
 
-	[Shortcut( "grid.increase-grid-size", "CTRL+]", typeof( SceneViewportWidget ) )]
+	[Shortcut( "grid.increase-grid-size", "]", typeof( SceneViewportWidget ) )]
 	void IncreaseGridSize()
 	{
 		var value = EditorScene.GizmoSettings.GridSpacing;
