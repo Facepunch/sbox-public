@@ -17,7 +17,7 @@ public class ConstBoneTargetNode : Node
 	[JsonIgnore]
 	public object Target => default;
 
-	public override DisplayInfo DisplayInfo
+	protected override DisplayInfo DefaultDisplayInfo
 	{
 		get
 		{

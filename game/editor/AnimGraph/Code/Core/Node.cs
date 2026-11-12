@@ -29,8 +29,22 @@ public abstract class Node : INode, INodeHighlight
 
 	public event Action Changed;
 
+	[Hide, Browsable( false )]
+	public virtual string Title { get; set; } = "";
+
 	[JsonIgnore, Hide, Browsable( false )]
-	public virtual DisplayInfo DisplayInfo => _displayInfo;
+	public virtual DisplayInfo DisplayInfo
+	{
+		get
+		{
+			var info = DefaultDisplayInfo;
+			if ( !string.IsNullOrWhiteSpace( Title ) )
+				info.Name = Title;
+			return info;
+		}
+	}
+
+	protected virtual DisplayInfo DefaultDisplayInfo => _displayInfo;
 
 	private DisplayInfo _displayInfo;
 

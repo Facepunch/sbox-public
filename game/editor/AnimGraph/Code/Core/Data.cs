@@ -582,6 +582,9 @@ public class Data : IGraph
 				foreach ( var property in info.Properties.Where( property =>
 					property.AttributeProvider is PropertyInfo member && member.GetCustomAttribute<JsonIgnoreAttribute>() is not null ).ToArray() )
 					info.Properties.Remove( property );
+
+				if ( info.Properties.FirstOrDefault( property => property.Name == nameof( Node.Title ) ) is { } title )
+					title.ShouldSerialize = (_, value) => value is string text && !string.IsNullOrWhiteSpace( text );
 			}
 
 			if ( info.Type != typeof( Node ) )

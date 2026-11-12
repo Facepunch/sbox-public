@@ -90,7 +90,7 @@ public class TransitionNode : Node
 
 	public override Color PrimaryColor => Theme.Pink;
 
-	public override DisplayInfo DisplayInfo
+	protected override DisplayInfo DefaultDisplayInfo
 	{
 		get
 		{
