@@ -185,15 +185,25 @@ internal sealed class AggregateRenderFeature : RenderFeature
 	{
 		if ( (layer.Runs & MeshRuns.Opaque) == 0 ) return 0;
 		var state = view.State<Batches>( this );
-		return state.OneRun ? Math.Min( state.List.Count, 1 ) : state.List.Count;
+		return state.OneRun ? Math.Min( state.List.Count + MeshDraws( view ).Count, 1 ) : state.List.Count;
 	}
 
 	/// <summary>One run for every batch when they draw GPU-driven, as heavy as the batches it holds.</summary>
 	internal override void RunWeights( ViewPass view, MeshLayer layer, Span<int> weights )
 	{
 		var state = view.State<Batches>( this );
-		weights.Fill( state.OneRun ? Math.Max( state.List.Count, 1 ) : 1 );
+		weights.Fill( state.OneRun ? Math.Max( state.List.Count + MeshDraws( view ).Count, 1 ) : 1 );
 	}
+
+	/// <summary>
+	/// The mesh feature, whose static opaque draws a view hands this one when the device draws GPU-driven
+	/// (<see cref="MeshRenderFeature.GpuDrivenItems"/>), so they go in the same buckets as the aggregates.
+	/// </summary>
+	internal MeshRenderFeature Meshes { get; set; }
+
+	static readonly List<MeshRenderFeature.DrawItem> NoDraws = new();
+
+	List<MeshRenderFeature.DrawItem> MeshDraws( ViewPass view ) => Meshes?.GpuDrivenItems( view ) ?? NoDraws;
 
 	/// <summary>
 	/// Draw each batch as one multi-draw: its own args, or the occlusion cull's for the layer's phase.
@@ -213,19 +223,38 @@ internal sealed class AggregateRenderFeature : RenderFeature
 		var phase = context.Occlusion is { } occlusion && (layer.OcclusionPhase != OcclusionPhase.Early || occlusion.CullsEarly) ? layer.OcclusionPhase : OcclusionPhase.None;
 		var culledOnly = layer.OcclusionPhase == OcclusionPhase.Late;
 
+		// The view's static mesh draws the mesh feature handed over, which go with the batches (one run, so this is the only
+		// call that has them)
+		var meshDraws = state.OneRun ? CollectionsMarshal.AsSpan( MeshDraws( view ) ) : default;
+
 		// The device's GPU-driven path first, for what it can take: batches drawn from its own args, not the culler's
-		var gpuDriven = context.GpuDriven && phase == OcclusionPhase.None && !culledOnly && transforms is not null ? System.Buffers.ArrayPool<bool>.Shared.Rent( batches.Length ) : null;
+		var gpuDriven = context.GpuDriven && phase == OcclusionPhase.None && !culledOnly && transforms is not null ? System.Buffers.ArrayPool<bool>.Shared.Rent( batches.Length + meshDraws.Length ) : null;
 		if ( gpuDriven is not null )
 		{
-			var drawn = gpuDriven.AsSpan( 0, batches.Length );
+			var drawn = gpuDriven.AsSpan( 0, batches.Length + meshDraws.Length );
 			drawn.Clear();
-			DrawGpuDriven( context, view, batches, mode, depth, layer.ForceDepthFastPath, depthBias, slopeBias, drawn );
+			DrawGpuDriven( context, view, batches, meshDraws, mode, depth, layer.ForceDepthFastPath, depthBias, slopeBias, drawn );
 
 			for ( int i = 0; i < batches.Length; i++ )
 			{
 				if ( !drawn[i] ) continue;
 				CountDrawn( batches[i], shadow, depth, ref stats );
 			}
+		}
+
+		// The mesh draws it didn't take, the mesh feature's way
+		if ( !meshDraws.IsEmpty )
+		{
+			var left = System.Buffers.ArrayPool<MeshRenderFeature.DrawItem>.Shared.Rent( meshDraws.Length );
+			var leftCount = 0;
+			for ( int i = 0; i < meshDraws.Length; i++ )
+			{
+				if ( gpuDriven is not null && gpuDriven[batches.Length + i] ) CountMeshDrawn( view, meshDraws[i], shadow, depth, layer.LayerType == MeshLayerType.Translucent, ref stats );
+				else left[leftCount++] = meshDraws[i];
+			}
+
+			Meshes.DrawGpuDrivenLeft( context, view, left.AsSpan( 0, leftCount ), layer, ref stats );
+			System.Buffers.ArrayPool<MeshRenderFeature.DrawItem>.Shared.Return( left );
 		}
 
 		for ( int b = 0; b < batches.Length; b++ )
@@ -259,6 +288,29 @@ internal sealed class AggregateRenderFeature : RenderFeature
 		context.SetObjectAttributes( null );
 	}
 
+	/// <summary>Count a mesh draw the GPU-driven path took, as the mesh feature counts its draws.</summary>
+	void CountMeshDrawn( ViewPass view, MeshRenderFeature.DrawItem item, bool shadow, bool depth, bool translucentLayer, ref RenderStats stats )
+	{
+		var (triangles, instances) = Meshes.GpuDrivenCounts( view, item );
+		stats.DrawnTriangles += triangles;
+		if ( shadow )
+		{
+			stats.ShadowDraws++;
+			return;
+		}
+
+		if ( depth )
+		{
+			stats.DepthDraws++;
+			return;
+		}
+
+		if ( translucentLayer ) stats.TranslucentDraws++;
+		stats.Draws++;
+		stats.Instances += instances;
+		stats.Triangles += triangles;
+	}
+
 	static void CountDrawn( in Batch batch, bool shadow, bool depth, ref RenderStats stats )
 	{
 		stats.DrawnTriangles += batch.Triangles;
@@ -283,9 +335,9 @@ internal sealed class AggregateRenderFeature : RenderFeature
 	/// Hand the device every batch at once for its GPU-driven path (<see cref="GpuContext.DrawGpuDriven"/>), with the
 	/// material each would bind here.
 	/// </summary>
-	void DrawGpuDriven( GpuContext context, ViewPass view, ReadOnlySpan<Batch> batches, StringToken mode, bool depth, bool forceDepthOnly, int depthBias, float slopeBias, Span<bool> drawn )
+	void DrawGpuDriven( GpuContext context, ViewPass view, ReadOnlySpan<Batch> batches, ReadOnlySpan<MeshRenderFeature.DrawItem> meshDraws, StringToken mode, bool depth, bool forceDepthOnly, int depthBias, float slopeBias, Span<bool> drawn )
 	{
-		var list = System.Buffers.ArrayPool<GpuContext.GpuDrivenBatch>.Shared.Rent( batches.Length );
+		var list = System.Buffers.ArrayPool<GpuContext.GpuDrivenBatch>.Shared.Rent( batches.Length + meshDraws.Length );
 		var count = 0;
 		for ( int i = 0; i < batches.Length; i++ )
 		{
@@ -303,6 +355,9 @@ internal sealed class AggregateRenderFeature : RenderFeature
 			list[count++] = new GpuContext.GpuDrivenBatch( material, batch.Aggregate.Mesh, draws[0], attributes, strip, batch.FirstArg, batch.Count, batch.Aggregate.FirstInstance, batch.Triangles, batch.Aggregate );
 		}
 
+		// Then the mesh draws, each its instances
+		foreach ( var item in meshDraws ) list[count++] = Meshes.GpuDrivenBatch( view, item, depth, forceDepthOnly ) ?? default;
+
 		// The tests Prepare made per fragment, for the device to make on the GPU over every fragment instead
 		var frustum = view.View.Frustum;
 		var cull = new GpuContext.GpuDrivenCull
@@ -315,6 +370,9 @@ internal sealed class AggregateRenderFeature : RenderFeature
 			Far = frustum.Plane( 5 ),
 			CameraAndThreshold = new SizeCull( view.Root ).CameraAndThreshold,
 			Shadow = view.IsShadow,
+			View = view,
+			Ids = depth && !view.IsShadow,
+			Visibility = !depth && !view.IsShadow,
 		};
 
 		context.DrawGpuDriven( mode, list.AsSpan( 0, count ), args.AsSpan( 0, argCount ), transforms, depthBias, slopeBias, drawn, cull );

@@ -41,6 +41,11 @@ public sealed unsafe class CommandList
 	internal readonly nint Handle;
 	internal SyncPoint Submitted;
 
+	/// <summary>What it has recorded since it began, for profiling: draw calls (an indirect call counts once), pipeline and descriptor set binds, and rendering scopes.</summary>
+	public (int Draws, int Pipelines, int Sets, int Scopes) Counts => (draws, pipelines, setBinds, scopes);
+
+	int draws, pipelines, setBinds, scopes;
+
 	bool recording;
 	bool rendering;
 	bool labelled;
@@ -105,6 +110,7 @@ public sealed unsafe class CommandList
 		Array.Clear( setOffsetCounts );
 		viewSet = 0;
 		Submitted = default;
+		draws = pipelines = setBinds = scopes = 0;
 
 		labelled = name is not null && device.Instance.vkCmdBeginDebugUtilsLabelEXT != null;
 		if ( labelled ) BeginLabel( name );
@@ -221,6 +227,36 @@ public sealed unsafe class CommandList
 	public void EndQuery( OcclusionQueries queries, int index )
 	{
 		if ( !rendering ) throw new InvalidOperationException( "Occlusion queries count inside a rendering scope" );
+		vk.vkCmdEndQuery( Handle, queries.Pool, (uint)index );
+	}
+
+	//
+	// Pipeline statistics queries
+	//
+
+	/// <summary>Reset pipeline statistics queries before counting into them again (outside rendering).</summary>
+	public void ResetQueries( PipelineStatistics queries, int first, int count )
+	{
+		OutsideRendering();
+		FlushBarriers();
+		vk.vkCmdResetQueryPool( Handle, queries.Pool, (uint)first, (uint)count );
+	}
+
+	/// <summary>
+	/// Start counting what the work after this does into query <paramref name="index"/>. End it where it began: both
+	/// outside rendering, or both in one rendering scope.
+	/// </summary>
+	public void BeginQuery( PipelineStatistics queries, int index )
+	{
+		Recording();
+		FlushBarriers();
+		vk.vkCmdBeginQuery( Handle, queries.Pool, (uint)index, 0 );
+	}
+
+	/// <summary>Stop counting into query <paramref name="index"/>.</summary>
+	public void EndQuery( PipelineStatistics queries, int index )
+	{
+		Recording();
 		vk.vkCmdEndQuery( Handle, queries.Pool, (uint)index );
 	}
 
@@ -438,6 +474,7 @@ public sealed unsafe class CommandList
 		};
 
 		vk.vkCmdBeginRendering( Handle, &info );
+		scopes++;
 		rendering = true;
 		RenderSize = (int.CreateTruncating( width ), int.CreateTruncating( height ));
 
@@ -496,6 +533,7 @@ public sealed unsafe class CommandList
 		FlushBarriers();
 
 		vk.vkCmdBindPipeline( Handle, record.BindPoint, record.Pipeline );
+		pipelines++;
 		lastLayout = record.Layout;
 
 		if ( layouts[record.BindPoint] != record.Layout )
@@ -623,6 +661,7 @@ public sealed unsafe class CommandList
 			var descriptorSet = sets[set];
 			fixed ( uint* offsets = &setOffsets[set * MaxDynamicOffsets] )
 				vk.vkCmdBindDescriptorSets( Handle, bindPoint, layout, (uint)set, 1, &descriptorSet, (uint)setOffsetCounts[set], offsets );
+			setBinds++;
 		}
 
 		if ( (mask & (1 << ShaderAbi.BindlessSet)) != 0 )
@@ -661,6 +700,7 @@ public sealed unsafe class CommandList
 		Recording();
 		if ( !rendering ) throw new InvalidOperationException( "Draws happen while rendering: call BeginRendering first" );
 		FlushBindings( Vulkan.Vk.BindPointGraphics );
+		draws++;
 	}
 
 	/// <summary>Draw vertices.</summary>

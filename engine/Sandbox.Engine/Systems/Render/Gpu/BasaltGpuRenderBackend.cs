@@ -50,6 +50,9 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 	readonly ShaderAttributes lowered = new();
 
 	GpuCommandList list;
+	GpuCommandList lendNext;
+	bool lent;
+	readonly BufferHandle pipelineTextures;
 
 	// SetRenderState's material, for the draw after it
 	ShaderFile pendingShader;
@@ -107,6 +110,12 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 		services = new BackendDevice( gpu, files );
 		drawer = new ShaderDrawer( services );
 		context = new GraphicsContext( gpu, drawer, null );
+
+		// The frame's pipeline textures (ambient occlusion's and reflections' results) by bindless index, 0 for none: what
+		// Source 2's scene system keeps per frame (PipelineTextureSlot)
+		pipelineTextures = gpu.CreateBuffer( new BufferInfo { Size = 16, Usage = BufferUsage.Storage, Name = "Pipeline textures" } );
+		gpu.WriteBuffer<uint>( pipelineTextures, [0, 0, 0, 0] );
+		gpu.SetBindlessBuffer( ShaderAbi.BindlessPipelineTextures, pipelineTextures );
 		uploadKey = new IntPtr( -1 - System.Threading.Interlocked.Increment( ref nextKey ) );
 		Register( this );
 	}
@@ -150,7 +159,9 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 
 		FollowFrame();
 		SubmitUploads();
-		list = gpu.BeginCommandList( QueueType.Graphics, "Graphics block" );
+		lent = lendNext is not null;
+		list = lendNext ?? gpu.BeginCommandList( QueueType.Graphics, "Graphics block" );
+		lendNext = null;
 		presentTo = null;
 		context.Begin( list );
 		pendingShader = null;
@@ -161,16 +172,44 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 	// The block's attributes, which a draw's own are layered over, as Source 2's contexts layer them
 	RenderAttributes blockAttributes;
 
+	/// <summary>
+	/// Record the next block into <paramref name="list"/>, which another recorder on the device is part way through (Basalt's
+	/// frame, at a camera's stage), and leave it to that recorder to submit: the block's drawing lands at that point of it.
+	/// </summary>
+	internal void LendNextBlock( GpuCommandList list ) => lendNext = list;
+
+
+	/// <summary>
+	/// Name <paramref name="texture"/> as the frame's pipeline texture in <paramref name="slot"/> (<c>PipelineTextureSlot</c>)
+	/// for what draws after, in this block's list, as Source 2's scene system does for ambient occlusion's result.
+	/// </summary>
+	internal void SetPipelineTexture( int slot, Texture texture )
+	{
+		_ = Recording;
+		Span<uint> index = [(uint)TextureIndex( texture )];
+		context.MemoryBarrier();
+		context.UpdateBuffer( pipelineTextures, MemoryMarshal.AsBytes( index ), slot * 4 );
+	}
+
+	/// <summary>Name no pipeline textures for what draws after, in this block's list: what a frame starts with.</summary>
+	internal void ClearPipelineTextures()
+	{
+		_ = Recording;
+		context.MemoryBarrier();
+		context.UpdateBuffer( pipelineTextures, new byte[16], 0 );
+	}
+
 	public override void EndBlock()
 	{
 		try
 		{
 			context.FinishReadable();
-			gpu.Submit( list, default, presentTo );
+			if ( !lent ) gpu.Submit( list, default, presentTo );
 		}
 		finally
 		{
 			list = null;
+			lent = false;
 			presentTo = null;
 			pendingAttributes = null;
 			blockAttributes = null;
@@ -437,7 +476,7 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 		ImageFormat.RGBA32323232F => GpuFormat.RGBA32Float,
 		ImageFormat.RGBA16161616F => GpuFormat.RGBA16Float,
 		ImageFormat.RG1616F => GpuFormat.RG16Float,
-		ImageFormat.I16F => GpuFormat.R16Float,
+		ImageFormat.I16F or ImageFormat.R16F => GpuFormat.R16Float,
 		ImageFormat.R11G11B10F => GpuFormat.RG11B10Float,
 		ImageFormat.RGBA1010102 => GpuFormat.RGB10A2Unorm,
 		_ => GpuFormat.Unknown,
@@ -573,7 +612,8 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 		gpu.Submit( clear );
 	}
 
-	static GpuFormat FormatOf( ImageFormat format ) => format is not (ImageFormat.A8 or ImageFormat.I8) && DataFormatOf( format ) is var mapped && mapped != GpuFormat.Unknown
+	// An A8 target is one channel written and read as red (ambient occlusion's result), as its R8 image holds it
+	static GpuFormat FormatOf( ImageFormat format ) => format is not ImageFormat.I8 && DataFormatOf( format ) is var mapped && mapped != GpuFormat.Unknown
 		? mapped
 		: throw new NotSupportedException( $"Render target format {format} on Basalt.Gpu" );
 
@@ -712,10 +752,16 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 
 	public override void SetViewport( Rect rect ) => context.Viewport = new Num.Vector4( rect.Left, rect.Top, rect.Width, rect.Height );
 
-	public override void BindRenderTarget( RenderTarget target )
+	public override void BindRenderTarget( RenderTarget target ) => BindRenderTarget( target, false );
+
+	/// <summary>
+	/// Bind <paramref name="target"/>, its colour written through its sRGB view when <paramref name="srgbWrite"/> (and its
+	/// format has one), as Source 2 writes an 8-bit texture a camera renders into.
+	/// </summary>
+	internal void BindRenderTarget( RenderTarget target, bool srgbWrite )
 	{
 		_ = Recording;
-		context.SetTarget( TextureOf( target.ColorTarget ), target.DepthTarget is { } depth ? TextureOf( depth ) : default );
+		context.SetTarget( TextureOf( target.ColorTarget ), target.DepthTarget is { } depth ? TextureOf( depth ) : default, srgbWrite );
 	}
 
 	public override void Clear( Color color, bool clearColor, bool clearDepth, bool clearStencil )
@@ -1049,6 +1095,7 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 			gpu.Destroy( handle );
 		}
 		foreach ( var handle in ownedBuffers ) gpu.Destroy( handle );
+		gpu.Destroy( pipelineTextures );
 		foreach ( var (sampler, _) in samplers.Values ) gpu.Destroy( sampler );
 		textureOwners.Clear();
 		ownedBuffers.Clear();

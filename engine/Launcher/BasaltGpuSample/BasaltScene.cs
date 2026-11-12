@@ -27,6 +27,13 @@ internal sealed class BasaltScene : IDisposable
 	/// <summary>The device it renders through.</summary>
 	public BackendDevice Backend => backend;
 
+	/// <summary>Whether it draws GPU-driven (<see cref="BackendDevice.GpuDriven"/>, on by default).</summary>
+	public bool GpuDriven
+	{
+		get => backend.GpuDriven;
+		set => backend.GpuDriven = value;
+	}
+
 	/// <summary>The world's sun, ambient and sky.</summary>
 	public SceneLighting Lighting => world.Lighting;
 

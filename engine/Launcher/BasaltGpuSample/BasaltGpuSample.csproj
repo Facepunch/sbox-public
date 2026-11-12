@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
 	<!--
-		Basalt.Gpu's sample: a Win32 window rendering a clear, a triangle, textured meshes with depth and a compute
+		Basalt.Gpu's sample: a Basalt.Sdl window rendering a clear, a triangle, textured meshes with depth and a compute
 		dispatch, and Basalt's renderer on top. Needs nothing of the engine. See docs/managed/basalt-gpu.md.
 	-->
 
@@ -21,6 +21,7 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\..\Basalt.Gpu\Basalt.Gpu.csproj" />
+		<ProjectReference Include="..\..\Basalt.Sdl\Basalt.Sdl.csproj" />
 		<ProjectReference Include="..\..\Basalt.Backend\Basalt.Backend.csproj" />
 		<ProjectReference Include="..\..\Basalt\Basalt.csproj" />
 		<ProjectReference Include="..\..\Sandbox.System\Sandbox.System.csproj" />

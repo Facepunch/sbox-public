@@ -226,6 +226,35 @@ public class ShaderDrawTests : GpuTest
 		Assert.AreEqual( 0.5f, BitConverter.ToSingle( depthPixels, (Size / 2 * Size + Size / 2) * 4 ), 1e-4f );
 	}
 
+	/// <summary>
+	/// Asking twice for the same mode, features, combos and specialization values gives one variant, so materials that
+	/// resolve to it share its layouts and pipelines; other features, combos or values give another.
+	/// </summary>
+	[TestMethod]
+	public void EqualVariantsAreShared()
+	{
+		using var library = new ShaderLibrary( Device, ShaderFileTests.Files );
+		var shader = library.Load( "shaders/complex.shader" );
+		var features = new int[shader.Features.StaticCombos.Length];
+
+		var first = library.Variant( shader, "Forward", features );
+		var second = library.Variant( shader, "Forward", (int[])features.Clone() );
+		Assert.AreSame( first, second, "the same features give the same variant" );
+		Assert.AreNotSame( first, library.Variant( shader, "Depth", features ), "another mode is another variant" );
+		Assert.AreNotSame( first, library.Variant( shader, "Forward", features, attributes: name => name == "ToolsVisMode" ? 10 : null ), "other specialization values are another variant" );
+
+		var alphaTest = shader.FeatureIndex( "F_ALPHA_TEST" );
+		if ( alphaTest >= 0 )
+		{
+			var tested = (int[])features.Clone();
+			tested[alphaTest] = 1;
+			Assert.AreNotSame( first, library.Variant( shader, "Forward", tested ), "other features are another variant" );
+		}
+
+		library.ShareVariants = false;
+		Assert.AreNotSame( first, library.Variant( shader, "Forward", features ), "unshared, each request makes its own" );
+	}
+
 	static Vector4 Half4( byte[] pixels, int x, int y )
 	{
 		var i = (y * Size + x) * 8;

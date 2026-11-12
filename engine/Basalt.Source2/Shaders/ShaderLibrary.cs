@@ -33,8 +33,8 @@ public sealed class ShaderLibrary : IDisposable
 	}
 
 	/// <summary>
-	/// A shader by path (<c>shaders/complex.shader</c>, with or without <c>_c</c>), loaded once; null if there's no
-	/// compiled file for it.
+	/// A shader by path (<c>shaders/complex.shader</c>, with or without <c>_c</c>) or by bare name (<c>downsample_spd</c>),
+	/// loaded once; null if there's no compiled file for it.
 	/// </summary>
 	public ShaderFile Load( string path )
 	{
@@ -45,7 +45,9 @@ public sealed class ShaderLibrary : IDisposable
 			if ( files.TryGetValue( key, out var cached ) ) return cached;
 		}
 
+		// A bare name (downsample_spd), as the engine's Material.FromShader takes one, is a shader under shaders/
 		var full = Files.Find( key );
+		if ( full is null && !key.Contains( '/' ) && !key.EndsWith( ".shader", StringComparison.OrdinalIgnoreCase ) ) full = Files.Find( $"shaders/{key}.shader" );
 		if ( full is null ) return null;
 		var shader = LoadOrUpgrade( full );
 		lock ( files ) files[key] = shader;
@@ -124,6 +126,12 @@ public sealed class ShaderLibrary : IDisposable
 	/// </summary>
 	public const int GpuDrivenTextureRegister = 1024;
 
+	/// <summary>
+	/// The GPU-driven variant's form: what vfx_vulkan's rewrite (<c>src/vfx/vfx_vulkan/basalt_gpu_driven.cpp</c>) makes
+	/// of a shader. Raise it with any change there, so variants compiled at load and cached are compiled again.
+	/// </summary>
+	public const int GpuDrivenVersion = 3;
+
 	readonly Dictionary<ShaderFile, ShaderFile> gpuDriven = new( ReferenceEqualityComparer.Instance );
 
 	/// <summary>
@@ -140,6 +148,31 @@ public sealed class ShaderLibrary : IDisposable
 
 	/// <summary>What the cached variants were compiled by: a different version compiles them again.</summary>
 	public string GpuDrivenCompilerVersion { get; set; } = "";
+
+	string GpuDrivenVersionTag => Convert.ToHexString( System.Security.Cryptography.SHA256.HashData( System.Text.Encoding.UTF8.GetBytes( GpuDrivenCompilerVersion ) ), 0, 4 ).ToLowerInvariant();
+
+	/// <summary>Delete <see cref="GpuDrivenCache"/>'s variants (and failure markers) from other compiler versions.</summary>
+	public void PruneGpuDrivenCache()
+	{
+		if ( string.IsNullOrEmpty( GpuDrivenCache ) || !Directory.Exists( GpuDrivenCache ) ) return;
+
+		var current = $".{GpuDrivenVersionTag}.gpudriven.shader_c";
+		foreach ( var file in Directory.EnumerateFiles( GpuDrivenCache, "*.gpudriven.shader_c*" ) )
+		{
+			if ( file.Contains( current, StringComparison.OrdinalIgnoreCase ) ) continue;
+			try
+			{
+				File.Delete( file );
+			}
+			catch ( IOException )
+			{
+				// Another process has it open: next time
+			}
+			catch ( UnauthorizedAccessException )
+			{
+			}
+		}
+	}
 
 	readonly Dictionary<ShaderFile, string> gpuDrivenCachePaths = new( ReferenceEqualityComparer.Instance );
 	readonly HashSet<ShaderFile> gpuDrivenPending = new( ReferenceEqualityComparer.Instance );
@@ -206,7 +239,7 @@ public sealed class ShaderLibrary : IDisposable
 			{
 				// By name and contents, so a changed package shader compiles again
 				var hash = Convert.ToHexString( System.Security.Cryptography.SHA256.HashData( File.ReadAllBytes( shader.Name ) ), 0, 8 );
-				var version = Convert.ToHexString( System.Security.Cryptography.SHA256.HashData( System.Text.Encoding.UTF8.GetBytes( GpuDrivenCompilerVersion ) ), 0, 4 );
+				var version = GpuDrivenVersionTag;
 				var name = System.Text.RegularExpressions.Regex.Replace( Path.GetFileNameWithoutExtension( shader.Name ), "[^a-zA-Z0-9_]", "_" );
 				path = Path.Combine( GpuDrivenCache, $"{name}.{hash}.{version}.gpudriven.shader_c" ).ToLowerInvariant();
 				gpuDrivenCachePaths[shader] = path;
@@ -299,21 +332,49 @@ public sealed class ShaderLibrary : IDisposable
 		var vertex = Stage( ShaderProgramType.Vertex, features );
 		var pixel = Stage( ShaderProgramType.Pixel, features );
 		var compute = Stage( ShaderProgramType.Compute, features );
-		if ( !gpuDriven ) return new ShaderVariant( this, shader, drawMode, vertex, pixel, compute );
 
-		// A GPU-driven variant holds nothing of a material's, so materials with the same combos share one: their draws
-		// can then share a pipeline and a multi-draw
-		var key = $"{shader.Name}|{drawMode.Name}|{Describe( vertex )}|{Describe( pixel )}";
-		lock ( gpuDrivenVariants )
+		// Materials that resolve to the same combos and constants share one variant, so they share its layouts and
+		// pipelines, and draws of them one after another don't switch pipeline. A GPU-driven variant (its combos are the
+		// GPU-driven file's) holds nothing of a material's and is always shared: its draws share a multi-draw
+		if ( !ShareVariants && !gpuDriven ) return new ShaderVariant( this, shader, drawMode, vertex, pixel, compute );
+		var key = new VariantKey( drawMode, vertex?.Dynamic, pixel?.Dynamic, compute?.Dynamic, ConstantsKey( vertex, pixel, compute ) );
+		lock ( variants )
 		{
-			if ( gpuDrivenVariants.TryGetValue( key, out var shared ) ) return shared;
-			return gpuDrivenVariants[key] = new ShaderVariant( this, shader, drawMode, vertex, pixel, compute );
+			if ( variants.TryGetValue( key, out var shared ) ) return shared;
+			var variant = new ShaderVariant( this, shader, drawMode, vertex, pixel, compute );
+			variants[key] = variant;
+			return variant;
 		}
-
-		static string Describe( ShaderStage stage ) => stage is null ? "-" : $"{stage.Static.Id}:{stage.Dynamic.Id}:{string.Join( ',', stage.Constants.Select( c => $"{c.Id}={c.Value}" ) )}";
 	}
 
-	readonly Dictionary<string, ShaderVariant> gpuDrivenVariants = new();
+	readonly record struct VariantKey( ShaderMode Mode, DynamicCombo Vertex, DynamicCombo Pixel, DynamicCombo Compute, string Constants );
+
+	readonly Dictionary<VariantKey, ShaderVariant> variants = new();
+
+	/// <summary>Whether materials that resolve to the same variant share it (on); off, each asks for its own. For comparisons.</summary>
+	public bool ShareVariants { get; set; } = true;
+
+	/// <summary>Variants made: one per distinct mode, combos and specialization constants, however many materials draw it.</summary>
+	public int VariantCount
+	{
+		get
+		{
+			lock ( variants ) return variants.Count;
+		}
+	}
+
+	static string ConstantsKey( ShaderStage vertex, ShaderStage pixel, ShaderStage compute )
+	{
+		var key = new System.Text.StringBuilder();
+		foreach ( var stage in (ReadOnlySpan<ShaderStage>)[vertex, pixel, compute] )
+		{
+			key.Append( '|' );
+			if ( stage is null ) continue;
+			foreach ( var constant in stage.Constants ) key.Append( constant.Id ).Append( '=' ).Append( constant.Value ).Append( ',' );
+		}
+
+		return key.ToString();
+	}
 
 	/// <summary>The device module for a shader's SPIR-V, made once per distinct module.</summary>
 	internal ShaderHandle Module( ShaderBytecode bytecode, string name )

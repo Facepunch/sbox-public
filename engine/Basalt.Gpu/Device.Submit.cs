@@ -20,6 +20,12 @@ internal sealed unsafe class DeviceQueue : IDisposable
 	ulong submitted;
 	ulong completed;
 
+	/// <summary>Lists submitted to go with the next submission (<see cref="Device.SubmitLater"/>). Use with <see cref="SubmitLock"/> held.</summary>
+	public readonly List<nint> Pending = new();
+
+	/// <summary>The last value a submission made to the GPU signals; <see cref="Submitted"/> is past it while lists are pending.</summary>
+	public ulong Flushed;
+
 	/// <summary>The value the last submission signals.</summary>
 	public ulong Submitted => Volatile.Read( ref submitted );
 
@@ -111,6 +117,7 @@ public sealed unsafe partial class Device
 	/// </summary>
 	public void BeginFrame()
 	{
+		Flush();
 		frame.Graphics = graphicsQueue.Submitted;
 		frame.Compute = computeQueue.Submitted;
 
@@ -171,6 +178,9 @@ public sealed unsafe partial class Device
 
 			// Barriers already order work on one queue
 			if ( from == queue || from.Completed >= wait.Value ) continue;
+
+			// What it waits for has to reach the GPU first
+			if ( wait.Value > Volatile.Read( ref from.Flushed ) ) Flush( from );
 			waitInfos[waitCount++] = new VkSemaphoreSubmitInfo { sType = VkStructureType.SemaphoreSubmitInfo, semaphore = from.Timeline, value = wait.Value, stageMask = Vulkan.Vk.Stage2AllCommands };
 		}
 
@@ -184,31 +194,108 @@ public sealed unsafe partial class Device
 			signals[signalCount++] = new VkSemaphoreSubmitInfo { sType = VkStructureType.SemaphoreSubmitInfo, semaphore = swapChain.PresentSemaphore, stageMask = Vulkan.Vk.Stage2AllCommands };
 		}
 
-		var commandBuffer = new VkCommandBufferSubmitInfo { sType = VkStructureType.CommandBufferSubmitInfo, commandBuffer = list.Handle };
-
 		lock ( queue.SubmitLock )
 		{
+			// Lists waiting to go with this one go first, in one submission, unless this one waits: its waits are its own
+			if ( waitCount > 0 || swapChain is not null ) FlushLocked( queue );
+
 			var value = queue.Next();
 			signals[0] = new VkSemaphoreSubmitInfo { sType = VkStructureType.SemaphoreSubmitInfo, semaphore = queue.Timeline, value = value, stageMask = Vulkan.Vk.Stage2AllCommands };
+
+			var count = queue.Pending.Count + 1;
+			var commandBuffers = stackalloc VkCommandBufferSubmitInfo[count];
+			for ( int i = 0; i < queue.Pending.Count; i++ ) commandBuffers[i] = new VkCommandBufferSubmitInfo { sType = VkStructureType.CommandBufferSubmitInfo, commandBuffer = queue.Pending[i] };
+			commandBuffers[count - 1] = new VkCommandBufferSubmitInfo { sType = VkStructureType.CommandBufferSubmitInfo, commandBuffer = list.Handle };
 
 			var submit = new VkSubmitInfo2
 			{
 				sType = VkStructureType.SubmitInfo2,
 				waitSemaphoreInfoCount = waitCount,
 				pWaitSemaphoreInfos = waitInfos,
-				commandBufferInfoCount = 1,
-				pCommandBufferInfos = &commandBuffer,
+				commandBufferInfoCount = (uint)count,
+				pCommandBufferInfos = commandBuffers,
 				signalSemaphoreInfoCount = signalCount,
 				pSignalSemaphoreInfos = signals,
 			};
 
 			Vk.vkQueueSubmit2( queue.Handle, 1, &submit, 0 ).Check( "vkQueueSubmit2" );
+			Interlocked.Increment( ref submissions );
+			queue.Pending.Clear();
+			Volatile.Write( ref queue.Flushed, value );
 			return list.Submitted = new SyncPoint( list.Queue, value );
 		}
 	}
 
+	/// <summary>
+	/// Submit a recorded command list to go to the GPU with the next submission to its queue, in the same
+	/// <c>vkQueueSubmit</c>: one submission of many lists runs without the drain and cache flush between submissions. It's
+	/// ordered after everything submitted before it like any other. It reaches the GPU with the next <see cref="Submit"/>
+	/// or <see cref="Flush()"/>, or when anything waits for it (<see cref="Wait"/>, <see cref="WaitIdle"/>,
+	/// <see cref="BeginFrame"/>, a submission on another queue). Returns the point reached when it's done.
+	/// </summary>
+	public SyncPoint SubmitLater( CommandList list )
+	{
+		list.End();
+
+		var queue = QueueFor( list.Queue );
+		lock ( queue.SubmitLock )
+		{
+			var value = queue.Next();
+			queue.Pending.Add( list.Handle );
+			return list.Submitted = new SyncPoint( list.Queue, value );
+		}
+	}
+
+	/// <summary>Submit every list <see cref="SubmitLater"/> is holding, on every queue.</summary>
+	public void Flush()
+	{
+		Flush( graphicsQueue );
+		if ( computeQueue != graphicsQueue ) Flush( computeQueue );
+	}
+
+	void Flush( DeviceQueue queue )
+	{
+		lock ( queue.SubmitLock ) FlushLocked( queue );
+	}
+
+	void FlushLocked( DeviceQueue queue )
+	{
+		if ( queue.Pending.Count == 0 ) return;
+
+		// The lists took values up to the queue's last; signalling it reaches all of them
+		var value = queue.Submitted;
+		var signal = new VkSemaphoreSubmitInfo { sType = VkStructureType.SemaphoreSubmitInfo, semaphore = queue.Timeline, value = value, stageMask = Vulkan.Vk.Stage2AllCommands };
+		var count = queue.Pending.Count;
+		var commandBuffers = stackalloc VkCommandBufferSubmitInfo[count];
+		for ( int i = 0; i < count; i++ ) commandBuffers[i] = new VkCommandBufferSubmitInfo { sType = VkStructureType.CommandBufferSubmitInfo, commandBuffer = queue.Pending[i] };
+
+		var submit = new VkSubmitInfo2
+		{
+			sType = VkStructureType.SubmitInfo2,
+			commandBufferInfoCount = (uint)count,
+			pCommandBufferInfos = commandBuffers,
+			signalSemaphoreInfoCount = 1,
+			pSignalSemaphoreInfos = &signal,
+		};
+
+		Vk.vkQueueSubmit2( queue.Handle, 1, &submit, 0 ).Check( "vkQueueSubmit2" );
+		Interlocked.Increment( ref submissions );
+		queue.Pending.Clear();
+		Volatile.Write( ref queue.Flushed, value );
+	}
+
+	/// <summary>Submissions made to the GPU (<c>vkQueueSubmit2</c> calls) so far, on every queue. For profiling and tests.</summary>
+	public long Submissions => Interlocked.Read( ref submissions );
+
+	long submissions;
+
 	/// <summary>Wait on the CPU until the GPU reaches <paramref name="point"/>.</summary>
-	public void Wait( SyncPoint point ) => QueueFor( point.Queue ).Wait( point.Value );
+	public void Wait( SyncPoint point )
+	{
+		var queue = QueueFor( point.Queue );
+		if ( point.Value > Volatile.Read( ref queue.Flushed ) ) Flush( queue );
+		queue.Wait( point.Value );
+	}
 
 	/// <summary>Whether the GPU has reached <paramref name="point"/>.</summary>
 	public bool IsComplete( SyncPoint point ) => QueueFor( point.Queue ).Completed >= point.Value;

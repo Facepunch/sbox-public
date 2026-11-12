@@ -111,7 +111,7 @@ internal sealed partial class SceneMirror
 		RenderMesh mesh;
 		try
 		{
-			mesh = Source2Mesh.FromModel( model );
+			mesh = MirrorContent.Mesh( model ) ?? throw new InvalidOperationException( "No compiled model" );
 		}
 		catch ( InvalidOperationException )
 		{

@@ -27,7 +27,7 @@ public class ObjectAttributeTests : GpuTest
 	[TestMethod]
 	public void ObjectAttributesChangeOnlyTheirObject()
 	{
-		using var backend = new BackendDevice( Device );
+		using var backend = new BackendDevice( Device ) { GpuDriven = false };
 		var previousHost = RenderHost.Current;
 		RenderHost.Current = new BackendRenderHost( backend );
 		try

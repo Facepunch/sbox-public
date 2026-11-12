@@ -253,8 +253,10 @@ internal abstract class GpuContext : IDisposable
 	/// frame's from <paramref name="FirstArg"/>, its fragments' instances in the transform buffer start at
 	/// <paramref name="FirstInstance"/>, and <paramref name="ObjectAttributes"/> are what it would set as object attributes.
 	/// <paramref name="Owner"/> is the aggregate, whose fragments (by their arguments' first instance) don't change.
+	/// With <paramref name="Instances"/>, it's a mesh draw's <paramref name="Count"/> instances from
+	/// <paramref name="FirstInstance"/> instead, each the whole draw, which the caller has already culled: no arguments, no owner.
 	/// </summary>
-	internal readonly record struct GpuDrivenBatch( GpuMaterial Material, RenderMesh Mesh, RenderMesh.Draw Draw, ShaderParameters ObjectAttributes, bool StripPixelShader, int FirstArg, int Count, int FirstInstance, long Triangles, object Owner );
+	internal readonly record struct GpuDrivenBatch( GpuMaterial Material, RenderMesh Mesh, RenderMesh.Draw Draw, ShaderParameters ObjectAttributes, bool StripPixelShader, int FirstArg, int Count, int FirstInstance, long Triangles, object Owner, bool Instances = false );
 
 	/// <summary>Whether <see cref="DrawGpuDriven"/> draws anything on this device.</summary>
 	internal virtual bool GpuDriven => false;
@@ -269,6 +271,13 @@ internal abstract class GpuContext : IDisposable
 		public Vector4 Left, Right, Bottom, Top, Near, Far;
 		public Vector4 CameraAndThreshold;
 		public bool Shadow;
+
+		/// <summary>
+		/// The view, which the visibility-driven forward pass keeps its ids and lists for; and whether this is its depth
+		/// prepass (it may write ids) or a pass that may draw only what owns a sample of them.
+		/// </summary>
+		public object View;
+		public bool Ids, Visibility;
 	}
 
 	/// <summary>

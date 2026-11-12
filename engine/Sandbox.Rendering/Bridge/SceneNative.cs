@@ -23,7 +23,7 @@ internal static class SceneNative
 			var material = RenderTools.GetSceneObjectDraw( sceneObject, i, (IntPtr)(&mesh), (IntPtr)(&drawCall), (IntPtr)(&flags) );
 			if ( mesh < 0 ) return;
 
-			into.Add( new RenderMesh.DrawState( mesh, drawCall, Source2Material.From( Material.FromNative( material ) ), (flags & Visible) != 0, (flags & AlphaBlended) != 0, (flags & ShadowFastPath) != 0, (flags & Lightmap) != 0 ) );
+			into.Add( new RenderMesh.DrawState( mesh, drawCall, MirrorContent.Material( Material.FromNative( material ) ), (flags & Visible) != 0, (flags & AlphaBlended) != 0, (flags & ShadowFastPath) != 0, (flags & Lightmap) != 0 ) );
 		}
 	}
 

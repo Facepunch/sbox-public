@@ -134,7 +134,7 @@ internal sealed class BackendParameters : ShaderParameters
 	public override void Set( StringToken name, Vector4 value ) => Store( name, value );
 	public override void Set( StringToken name, Vector2Int value ) => Store( name, value );
 	public override void Set( StringToken name, Matrix value ) => Store( name, value );
-	public override void Set( StringToken name, GpuTexture value, int mip = -1 ) => Store( name, value );
+	public override void Set( StringToken name, GpuTexture value, int mip = -1 ) => Store( name, mip >= 0 && value is not null ? new TextureMip( value, mip ) : value );
 	public override void Set( StringToken name, GpuBuffer value ) => Store( name, value );
 
 	public override void SetData<T>( StringToken name, in T value )
@@ -154,6 +154,50 @@ internal sealed class BackendParameters : ShaderParameters
 	}
 
 	public override bool GetBool( StringToken name, bool fallback = false ) => Get( name ) is bool value ? value : fallback;
+
+	static readonly uint ProbeVolumeName = new StringToken( "PerBatchLightProbeVolumeConstantBuffer_t" ).Value;
+	int lightingFreeVersion = -1;
+	long lightingFreeKey;
+
+	/// <summary>
+	/// The same for parameters that hold the same values but for their light probe volume constants, which GPU-driven variants
+	/// read from a record per draw: draws whose attributes differ only in those share a
+	/// bucket. A hash of the rest, its count in the top half.
+	/// </summary>
+	internal long LightingFreeKey
+	{
+		get
+		{
+			var current = Version;
+			lock ( values )
+			{
+				if ( lightingFreeVersion == current ) return lightingFreeKey;
+
+				var hash = new HashCode();
+				var count = 0;
+				foreach ( var key in values.Keys.Order() )
+				{
+					if ( key == ProbeVolumeName ) continue;
+					hash.Add( key );
+					if ( values[key] is byte[] bytes ) hash.AddBytes( bytes );
+					else hash.Add( values[key] );
+					count++;
+				}
+
+				foreach ( var key in combos.Keys.Order() )
+				{
+					hash.Add( key ^ 0x9E3779B9u );
+					hash.Add( combos[key] );
+					count++;
+				}
+
+				if ( Parent is { } parent ) hash.Add( parent.LightingFreeKey );
+				lightingFreeKey = (long)count << 32 | (uint)hash.ToHashCode();
+				lightingFreeVersion = current;
+				return lightingFreeKey;
+			}
+		}
+	}
 
 	/// <summary>What material objects keep of these as an object's attributes (<see cref="ObjectLayer"/>), made when first set.</summary>
 	internal ObjectLayer Layer;
@@ -490,7 +534,18 @@ public sealed class BackendMesh : GpuMesh, IBackendGeometry
 		{
 			var (slot, offset) = tables.AddVertices( MemoryMarshal.AsBytes( data.AsSpan() ) );
 			var (page, pageSlot, first) = tables.AddIndices( MemoryMarshal.AsBytes( indices ), IndexFormat.UInt32 );
-			pooled = new PooledGeometry( tables.Geometry( slot, offset, device.Layout( Layout ), data.Length ), page, pageSlot, first, IndexFormat.UInt32 );
+			// And its positions alone, for depth-only draws
+			var positions = new float[data.Length * 3];
+			for ( int i = 0; i < data.Length; i++ )
+			{
+				positions[i * 3] = data[i].Position.x;
+				positions[i * 3 + 1] = data[i].Position.y;
+				positions[i * 3 + 2] = data[i].Position.z;
+			}
+
+			var (_, positionOffset, positionSlot) = tables.AddVertexStream( MemoryMarshal.AsBytes( positions.AsSpan() ) );
+			var positionsRecord = tables.Geometry( positionSlot, positionOffset, device.Layout( BackendModel.PositionLayout ), data.Length );
+			pooled = new PooledGeometry( tables.Geometry( slot, offset, device.Layout( Layout ), data.Length ), page, pageSlot, first, IndexFormat.UInt32, positionsRecord, data.Length );
 		}
 
 		var geometry = new BackendMesh( vertexBuffer, indexBuffer, IndexFormat.UInt32, name, pooled );

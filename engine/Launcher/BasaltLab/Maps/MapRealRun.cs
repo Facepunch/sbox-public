@@ -1,6 +1,7 @@
 using Basalt;
 using Basalt.Backend;
 using Basalt.Gpu;
+using Basalt.Sdl;
 using Basalt.Source2;
 using Basalt.Source2.Shaders;
 using System.Diagnostics;
@@ -8,7 +9,6 @@ using System.IO;
 using System.Text;
 using Capture = BasaltGpuSample.Capture;
 using GpuDevice = Basalt.Gpu.Device;
-using Win32Window = BasaltGpuSample.Win32Window;
 
 namespace Sandbox.BasaltLab.Maps;
 
@@ -28,7 +28,7 @@ internal static class MapRealRun
 	/// A way of drawing it: recording on one thread or several, material objects or binding by reflection, whether static
 	/// geometry casts sun shadows, and whether aggregates draw GPU-driven (<c>-gpudriven</c>).
 	/// </summary>
-	sealed record Variant( string Name, bool Parallel, bool MaterialObjects, bool Shadows, bool GpuDriven = false, bool MaterialBuckets = false, bool CpuCulling = false );
+	sealed record Variant( string Name, bool Parallel, bool MaterialObjects, bool Shadows, bool GpuDriven = false, bool MaterialBuckets = false, bool CpuCulling = false, bool NoCompaction = false, bool FullVertices = false, bool Visibility = false );
 
 	static readonly Variant[] Variants =
 	[
@@ -43,6 +43,16 @@ internal static class MapRealRun
 		new( "real-parallel-gpudriven-materials", true, true, false, true, true ),
 		new( "real-serial-gpudriven-cpucull", false, true, false, true, false, true ),
 		new( "real-parallel-gpudriven-cpucull", true, true, false, true, false, true ),
+		new( "real-serial-gpudriven-nocompact", false, true, false, true, false, false, true ),
+		new( "real-parallel-gpudriven-nocompact", true, true, false, true, false, false, true ),
+		new( "real-serial-gpudriven-fullvertices", false, true, false, true, FullVertices: true ),
+		new( "real-serial-gpudriven-visibility", false, true, false, true, Visibility: true ),
+		new( "real-parallel-gpudriven-visibility", true, true, false, true, Visibility: true ),
+		new( "real-serial-gpudriven-shadows", false, true, true, true, Visibility: true ),
+		new( "real-parallel-gpudriven-shadows", true, true, true, true, Visibility: true ),
+		new( "real-parallel-gpudriven-fullvertices", true, true, false, true, FullVertices: true ),
+		new( "real-serial-fullvertices", false, true, false, FullVertices: true ),
+		new( "real-parallel-fullvertices", true, true, false, FullVertices: true ),
 	];
 
 	struct Frame
@@ -50,7 +60,7 @@ internal static class MapRealRun
 		public double Wait, Render, Copy, Collect, Prepare, Setup, Record, WorkerRecord, Prepass, Stages, Submit, Gpu;
 	}
 
-	public static int Run( GpuDevice gpu, Win32Window window, SwapChain swapChain, string folder, ContentFiles core, Options options )
+	public static int Run( GpuDevice gpu, SdlWindow window, SwapChain swapChain, string folder, ContentFiles core, Options options )
 	{
 		var only = Args.String( "-variants" )?.Split( ',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries );
 		var gpuDriven = Args.Has( "-gpudriven" ) || (only?.Any( v => v.Contains( "-gpudriven", StringComparison.OrdinalIgnoreCase ) ) ?? false);
@@ -67,6 +77,13 @@ internal static class MapRealRun
 		using var map = new MapWorld( gpu, folder, core, castShadows: false, aggregatesAsMeshes: Args.Has( "-aggregates-as-meshes" ), bakedLighting: !Args.Has( "-nobaked" ), entities: !Args.Has( "-noentities" ), gpuDriven: gpuDriven );
 		map.SetTarget( options.Width, options.Height, options.Samples );
 		map.System.DepthPrepass = !Args.Has( "-noprepass" );
+
+		// -capture-visibility <dir>: the visibility pass's figure instead of timing (debug: needs -msaa 1)
+		var figureFolder = Args.String( "-capture-visibility" );
+		using var figure = figureFolder is not null && options.Samples == 1 ? new VisibilityFigure( gpu, options.Width, options.Height ) : null;
+		if ( figureFolder is not null && figure is null ) Console.Error.WriteLine( "-capture-visibility needs -msaa 1: the ids are read back as they are" );
+		map.Backend.Figure = figure;
+
 		if ( Args.Has( "-occlusion" ) && RenderHost.Current is BackendRenderHost host ) host.Occlusion = true;
 		foreach ( var (name, ms) in map.Phases ) Console.WriteLine( $"  {name}: {ms:0} ms" );
 		Console.WriteLine( $"Loaded in {load.Elapsed.TotalSeconds:0.0} s; {map.Problems.Count} problems" );
@@ -76,6 +93,18 @@ internal static class MapRealRun
 		var period = gpu.Capabilities.TimestampPeriod / 1e6;
 		var ticks = new ulong[2];
 		long frameNumber = 0;
+
+		// -passes: GPU time per layer and list from timestamps around each; -pass-stats: and what each assembles and shades
+		// (which closes rendering at every layer, so the times aren't the frame's)
+		using var passTimer = Args.Has( "-passes" ) || Args.Has( "-pass-stats" ) ? new PassTimer( gpu, statistics: Args.Has( "-pass-stats" ) ) : null;
+		map.Backend.PassTimer = passTimer;
+		map.Backend.BatchSubmits = !Args.Has( "-no-batch" );
+		map.Backend.Shaders.ShareVariants = !Args.Has( "-no-share-variants" );
+		var passes = new PassTotals();
+		var timings = new List<PassTimer.Timing>();
+
+		// -orbit: the timed frames circle the view once around the point it looks at, so the camera moves every frame
+		var orbit = Args.Has( "-orbit" );
 
 		Frame RenderFrame( MapView view )
 		{
@@ -89,12 +118,15 @@ internal static class MapRealRun
 			// GPU time: from the start of Basalt's frame list to after its last list, three frames back
 			var slot = (int)(frameNumber % 4);
 			map.Backend.FrameStartTimestamp = (timestamps, slot * 2);
+			passTimer?.BeginFrame( frameNumber );
 
 			map.Render( view );
 			var t2 = Stopwatch.GetTimestamp();
 
 			var copy = gpu.BeginCommandList( QueueType.Graphics, "Map to window" );
+			var copyScope = passTimer?.Begin( copy, "Copy to window", PassTimer.ScopeKind.Own ) ?? -1;
 			if ( image.IsValid ) map.CopyTo( copy, image );
+			passTimer?.End( copy, copyScope );
 			copy.WriteTimestamp( timestamps, slot * 2 + 1 );
 			gpu.Submit( copy, swapChain: image.IsValid ? swapChain : null );
 			if ( image.IsValid ) swapChain.Present();
@@ -103,6 +135,7 @@ internal static class MapRealRun
 			f.Gpu = double.NaN;
 			var old = (int)((frameNumber + 1) % 4);
 			if ( frameNumber >= 4 && timestamps.TryRead( old * 2, ticks ) ) f.Gpu = (ticks[1] - ticks[0]) * period;
+			if ( passTimer is not null && frameNumber >= 3 && passTimer.TryRead( frameNumber - 3, timings ) ) passes.Add( timings );
 			frameNumber++;
 
 			var s = map.System.Stats;
@@ -113,9 +146,17 @@ internal static class MapRealRun
 			return f;
 		}
 
+		if ( figure is not null )
+		{
+			VisibilityFigureCapture.Save( gpu, map, figure, options.Views[0], view => RenderFrame( view ), figureFolder );
+			return 0;
+		}
+
 		var lines = new List<string>();
 		var csv = new StringBuilder( "view,variant,parallel,material_objects,shadows,frames,wait_ms,render_ms,collect_ms,prepare_ms,setup_ms,record_ms,worker_record_ms,stages_ms,submit_ms,copy_ms,cpu_ms,frame_ms,frame_p95_ms,gpu_ms,draws,depth_draws,shadow_draws,translucent_draws,instances,objects_visible,triangles,model_draws,binds,fragment_draws,ns_per_bind,ns_per_repeat,sets_written_per_frame,gcs,object_changes,ns_per_object_change,failed_draws,cpu_mean_ms,frame_mean_ms,gpu_mean_ms,prepass_record_ms,gpudriven,gpudriven_batches,gpudriven_buckets,gpudriven_multidraws\n" );
 		var bindingReport = "";
+		var passTables = new StringBuilder();
+		var passCsv = new StringBuilder( "view,variant,scope,kind,ms,per_frame,primitives,vertex_invocations,fragment_invocations,draws,pipelines,sets,rendering_scopes\n" );
 
 		foreach ( var view in options.Views )
 		{
@@ -126,12 +167,15 @@ internal static class MapRealRun
 				map.Backend.GpuDriven = variant.GpuDriven;
 				map.Backend.GpuDrivenMaterialBuckets = variant.MaterialBuckets;
 				map.Backend.GpuDrivenCulling = !variant.CpuCulling;
+				map.Backend.GpuDrivenCompaction = !variant.NoCompaction;
+				map.Backend.PositionStreams = !variant.FullVertices;
+				map.Backend.GpuDrivenVisibility = variant.Visibility;
 				map.SetCastShadows( variant.Shadows );
 
 				var warm = Stopwatch.StartNew();
-				for ( int i = 0; (i < options.Warmup || warm.Elapsed.TotalSeconds < 2) && !window.Closed; i++ )
+				for ( int i = 0; (i < options.Warmup || warm.Elapsed.TotalSeconds < 2) && !window.CloseRequested; i++ )
 				{
-					window.Pump();
+					MapRun.Pump( window );
 					RenderFrame( view );
 				}
 
@@ -139,14 +183,23 @@ internal static class MapRealRun
 				var frameTimes = new List<double>( options.Frames );
 				var sets = map.Backend.MaterialObjectStats.SetsWritten;
 				var gcs = GC.CollectionCount( 0 );
+				passes.Clear();
 				var last = Stopwatch.GetTimestamp();
-				for ( int i = 0; i < options.Frames && !window.Closed; i++ )
+				for ( int i = 0; i < options.Frames && !window.CloseRequested; i++ )
 				{
-					window.Pump();
-					frames.Add( RenderFrame( view ) );
+					MapRun.Pump( window );
+					frames.Add( RenderFrame( orbit ? Orbit( view, i / (float)options.Frames ) : view ) );
 					var now = Stopwatch.GetTimestamp();
 					frameTimes.Add( Stopwatch.GetElapsedTime( last, now ).TotalMilliseconds );
 					last = now;
+				}
+
+				if ( passTimer is not null )
+				{
+					var table = passes.Describe( $"{view.Name} {variant.Name}", options.Width * options.Height, passTimer.Statistics );
+					Console.WriteLine( table );
+					passTables.AppendLine( table );
+					passes.AppendCsv( passCsv, view.Name, variant.Name );
 				}
 
 				gcs = GC.CollectionCount( 0 ) - gcs;
@@ -190,15 +243,19 @@ internal static class MapRealRun
 			{
 				map.System.ParallelRecording = false;
 				map.Backend.MaterialObjects = true;
-				map.SetCastShadows( false );
+				// -capture-shadows: with static geometry casting sun shadows, so GPU-driven shadow views are compared too
+				map.SetCastShadows( Args.Has( "-capture-shadows" ) );
 				var path = Path.Combine( Path.GetFullPath( options.Captures ), $"{options.Ident.Split( '.' ).Last()}-{view.Name}-real.png" );
 
 				// The GPU-driven frames between two classic ones, to compare (wind and water move between captures)
-				foreach ( var (drivenCapture, materialBuckets, suffix) in gpuDriven ? new[] { (false, false, "-classic-before"), (true, false, "-gpudriven"), (true, true, "-gpudriven-materials"), (false, false, "") } : [(false, false, "")] )
+				foreach ( var (drivenCapture, materialBuckets, visibility, suffix) in gpuDriven ? new[] { (false, false, false, "-classic-before"), (true, false, false, "-gpudriven"), (true, true, false, "-gpudriven-materials"), (true, false, true, "-gpudriven-visibility"), (false, false, false, "") } : [(false, false, false, "")] )
 				{
 					map.Backend.GpuDriven = drivenCapture;
 					map.Backend.GpuDrivenMaterialBuckets = materialBuckets;
 					map.Backend.GpuDrivenCulling = true;
+					map.Backend.GpuDrivenCompaction = true;
+					map.Backend.PositionStreams = true;
+					map.Backend.GpuDrivenVisibility = visibility;
 					for ( int i = 0; i < 3; i++ ) RenderFrame( view );
 					gpu.WaitIdle();
 					var (captured, capturedLayout) = map.Output;
@@ -245,6 +302,12 @@ internal static class MapRealRun
 		foreach ( var line in lines ) md.AppendLine( line );
 		md.AppendLine( "```" );
 		md.AppendLine();
+		if ( passTimer is not null )
+		{
+			md.AppendLine( passTables.ToString() );
+			File.WriteAllText( Path.Combine( options.Output, "map-passes.csv" ), passCsv.ToString() );
+		}
+
 		md.AppendLine( bindingReport );
 		File.WriteAllText( Path.Combine( options.Output, "map-real.md" ), md.ToString() );
 		File.WriteAllText( Path.Combine( options.Output, "map-real.csv" ), csv.ToString() );
@@ -301,6 +364,15 @@ internal static class MapRealRun
 	}
 
 	static double Ms( long from, long to ) => Stopwatch.GetElapsedTime( from, to ).TotalMilliseconds;
+
+	/// <summary>The view turned <paramref name="turns"/> of a full circle around the point it looks at, at the same height.</summary>
+	static MapView Orbit( MapView view, float turns )
+	{
+		var (sin, cos) = MathF.SinCos( turns * MathF.Tau );
+		var offset = view.Position - view.LookAt;
+		var turned = new System.Numerics.Vector3( offset.X * cos - offset.Y * sin, offset.X * sin + offset.Y * cos, offset.Z );
+		return view with { Position = view.LookAt + turned };
+	}
 
 	static double Percentile( IEnumerable<double> values, double p )
 	{

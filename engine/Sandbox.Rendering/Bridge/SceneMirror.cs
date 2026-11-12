@@ -340,7 +340,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		if ( volume.Attributes is not null ) return;
 
 		SceneNative.ReadLightProbeVolume( probe, volume );
-		volume.Attributes = Source2Parameters.From( SceneNative.CreateLightProbeAttributes( probe ) );
+		volume.Attributes = MirrorContent.Parameters( SceneNative.CreateLightProbeAttributes( probe ) );
 	}
 
 	/// <summary>
@@ -350,6 +350,15 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 	{
 		// Probe volumes belong to the world's lighting list, not its draw list. An extra world's aren't drawn: the list is the
 		// main world's, for every view of it
+		// On a Basalt.Gpu device: what draws through native (custom and dynamic objects, aggregates) or reads attributes
+		// only native makes (probe volumes' baked lighting), and decals, aren't mirrored yet (docs/managed/basalt-gpu-path.md)
+		if ( MirrorContent.Gpu is not null && sceneObject is SceneLightProbe or SceneCustomObject or SceneDynamicObject or SceneAggregateObject or DecalSceneObject )
+		{
+			objects[sceneObject] = null;
+			Count( sceneObject, 1 );
+			return null;
+		}
+
 		if ( sceneObject is SceneLightProbe probe && SubWorld == 0 )
 		{
 			var volume = new Basalt.LightProbeVolume();
@@ -373,6 +382,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 			SceneAggregateObject => AggregateFor( sceneObject ),
 
 			// A map's world geometry is native aggregates, which have no managed type of their own
+			_ when sceneObject.GetType() == typeof( SceneObject ) && MirrorContent.Gpu is not null => SceneNative.AggregateModel( sceneObject, out _ ) is null ? new MeshObject( null, sceneObject.Transform ) : null,
 			_ when sceneObject.GetType() == typeof( SceneObject ) => AggregateFor( sceneObject ) ?? (RenderObject)new MeshObject( null, sceneObject.Transform ),
 			_ => null,
 		};
@@ -443,7 +453,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 
 				// Shared world lightmap attributes.
 				ReleaseLightmap( mesh.LightmapAttributes.Engine() );
-				mesh.LightmapAttributes = drawn is { HasLightmappedDraws: true } ? Source2Parameters.From( AcquireLightmap( sceneObject ) ) : null;
+				mesh.LightmapAttributes = drawn is { HasLightmappedDraws: true } ? MirrorContent.Parameters( AcquireLightmap( sceneObject ) ) : null;
 			}
 		}
 
@@ -508,6 +518,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 			if ( meshChanged || (change & SceneObjectChange.Model) != 0 )
 			{
 				mesh.MorphSource = model.Model is not { MorphCount: > 0 } ? null
+					: MirrorContent.Gpu is { } gpu ? (mesh.MorphSource is GpuSceneModelMorphs gpuMorphs && gpuMorphs.Source == model ? gpuMorphs : new GpuSceneModelMorphs( model, gpu ))
 					: mesh.MorphSource is SceneModelMorphs morphs && morphs.Source == model ? morphs : new SceneModelMorphs( model );
 			}
 
@@ -558,7 +569,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		if ( (change & SceneObjectChange.Added) != 0 && aggregate.Lightmapped )
 		{
 			ReleaseLightmap( aggregate.LightmapAttributes.Engine() );
-			aggregate.LightmapAttributes = Source2Parameters.From( AcquireLightmap( sceneObject ) );
+			aggregate.LightmapAttributes = MirrorContent.Parameters( AcquireLightmap( sceneObject ) );
 		}
 	}
 
@@ -713,11 +724,11 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 
 		if ( (change & SceneObjectChange.Settings) != 0 )
 		{
-			decal.Color = Source2Texture.From( source.ColorTexture );
-			decal.Normal = Source2Texture.From( source.NormalTexture );
-			decal.RoughnessMetalnessOcclusion = Source2Texture.From( source.RMOTexture );
-			decal.Height = Source2Texture.From( source.HeightTexture );
-			decal.Emission = Source2Texture.From( source.EmissionTexture );
+			decal.Color = MirrorContent.Texture( source.ColorTexture );
+			decal.Normal = MirrorContent.Texture( source.NormalTexture );
+			decal.RoughnessMetalnessOcclusion = MirrorContent.Texture( source.RMOTexture );
+			decal.Height = MirrorContent.Texture( source.HeightTexture );
+			decal.Emission = MirrorContent.Texture( source.EmissionTexture );
 			decal.Tint = source.Color;
 			decal.SortOrder = source.SortOrder;
 			decal.ExclusionBitMask = source.ExclusionBitMask;
@@ -740,7 +751,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 
 		if ( (change & SceneObjectChange.Settings) != 0 )
 		{
-			envMap.Cubemap = Source2Texture.From( cubemap.Texture );
+			envMap.Cubemap = MirrorContent.Texture( cubemap.Texture );
 			envMap.ProjectionBounds = cubemap.ProjectionBounds;
 			envMap.Tint = cubemap.TintColor;
 			envMap.Feathering = cubemap.Feathering;
@@ -765,7 +776,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 			return;
 		}
 
-		mesh.Attributes = Source2Parameters.From( SharedAttributes( mesh, attributes, native ) );
+		mesh.Attributes = MirrorContent.Parameters( SharedAttributes( mesh, attributes, native ) );
 	}
 
 	// The attribute set each object draws with, someone's own whose values are the same as its own, and the sets lately shared
@@ -874,7 +885,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		// Sky selection is per view: cameras can exclude different skies without changing the world.
 		// Native's child skybox view does not inherit the parent camera's object-tag filters.
 		var sky = skyboxView ? source.GetSky() : source.GetSky( camera.RenderTags, camera.ExcludeTags );
-		lighting.SkyMaterial = Source2Material.From( sky?.Material );
+		lighting.SkyMaterial = MirrorContent.Gpu is null ? Source2Material.From( sky?.Material ) : null;
 		if ( sky is not null )
 		{
 			lighting.SkyTint = sky.SkyTint;
@@ -893,7 +904,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		var from = camera.CubemapFog;
 		var to = lighting.CubemapFog;
 		to.Enabled = from.Enabled;
-		to.Texture = Source2Texture.From( from.Texture );
+		to.Texture = MirrorContent.Texture( from.Texture );
 		to.StartDistance = from.StartDistance;
 		to.EndDistance = from.EndDistance;
 		to.FalloffExponent = from.FalloffExponent;
@@ -914,7 +925,7 @@ internal sealed partial class SceneMirror : ISceneObjectListener, IAttributeSour
 		fogTo.FadeInStart = fogFrom.FadeInStart;
 		fogTo.FadeInEnd = fogFrom.FadeInEnd;
 		fogTo.IndirectStrength = fogFrom.IndirectStrength;
-		fogTo.BakedIndirectTexture = Source2Texture.From( fogFrom.BakedIndirectTexture );
+		fogTo.BakedIndirectTexture = MirrorContent.Texture( fogFrom.BakedIndirectTexture );
 
 		SyncFogVolumes();
 	}

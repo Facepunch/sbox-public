@@ -90,6 +90,18 @@ native class CSceneAnimatableObject as NativeEngine.CSceneAnimatableObject : CSc
 	void SBox_ClearFlexOverride( StringToken name, float flFadeTime );
 	void SBox_ClearFlexOverride( int flexId, float flFadeTime );
 
+	// The flex controllers' weights as the object morphs with them (animation, then overrides), one float each by the
+	// model's flex controller index, into pOut up to nMax; returns how many it has
+	[nogc]
+	inline int GetFlexControllerWeights( void* pOut, int nMax )
+	{
+		const int nCount = self->m_flexControllerWeights.Count();
+		const int nCopy = MIN( nMax, nCount );
+		if ( pOut && nCopy > 0 )
+			V_memcpy( pOut, self->m_flexControllerWeights.Base(), nCopy * sizeof( float ) );
+		return nCount;
+	}
+
 	void DirectPlayback_PlaySequence( string pSequenceName );
 	void DirectPlayback_PlaySequence( string pSequenceName, Vector3 vTargetPos, float flFacingHeading, float flInterpTime );
 	void DirectPlayback_CancelSequence();

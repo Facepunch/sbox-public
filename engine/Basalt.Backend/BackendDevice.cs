@@ -5,6 +5,7 @@ using Basalt.Source2.Shaders;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
 
 namespace Basalt.Backend;
@@ -46,6 +47,16 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// docs/managed/basalt-materials.md.
 	/// </summary>
 	public bool MaterialObjects { get; set; } = true;
+
+	/// <summary>
+	/// Depth-only draws whose vertex shader reads nothing but positions fetch them from a positions-only copy of the mesh's
+	/// vertices (12 bytes a vertex) rather than the full vertices: on Construct the prepass reads 72 MB instead of 158 MB and
+	/// is 0.15 ms faster. Models loaded while it's on get the copy (<see cref="PositionStreamBytes"/>).
+	/// </summary>
+	public bool PositionStreams { get; set; } = true;
+
+	/// <summary>Bytes of positions-only vertex copies made (<see cref="PositionStreams"/>).</summary>
+	public long PositionStreamBytes;
 
 	/// <summary>The material objects drawn so far: the one material binding service of this device.</summary>
 	internal MaterialObjectCache MaterialCache
@@ -117,8 +128,8 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 
 	/// <summary>
 	/// Keep static models' geometry in GPU-driven pages as they load (<see cref="GpuDrivenTables"/>), so
-	/// <see cref="GpuDriven"/> can draw them. Set before loading models; it costs a second copy of their buffers while the
-	/// classic path still draws from its own.
+	/// <see cref="GpuDriven"/> can draw them; the classic path draws from the same pages. Set before loading models; on
+	/// from the start with <see cref="GpuDrivenByDefault"/>.
 	/// </summary>
 	public bool GpuDrivenGeometry
 	{
@@ -137,7 +148,7 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// <summary>
 	/// Draw aggregates GPU-driven: shaders' <c>.gpudriven.shader_c</c> variants, per-draw data in tables, one multi-draw
 	/// per pipeline and pass state (docs/managed/basalt-gpu-driven.md). Needs <see cref="GpuDrivenGeometry"/> and material
-	/// objects; anything it can't draw goes the classic way.
+	/// objects; anything it can't draw goes the classic way. On by default (<see cref="GpuDrivenByDefault"/>).
 	/// </summary>
 	public bool GpuDriven { get; set; }
 
@@ -207,6 +218,22 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	internal (TimestampQueries Queries, int Index)? FrameStartTimestamp { get; set; }
 
+	/// <summary>
+	/// When set, every GPU scope Basalt records (its layers and setup) and every list a context submits is timed, and
+	/// counted with <see cref="PassTimer.Statistics"/>. For benchmarks.
+	/// </summary>
+	internal PassTimer PassTimer { get; set; }
+
+	/// <summary>
+	/// Submit a frame's lists together, in one submission (<see cref="Device.SubmitLater"/>), rather than one submission
+	/// each: on an RX 7900 XTX each submission drains the GPU, which cost Construct's frame recorded on workers (40
+	/// lists) 0.66 ms of GPU time. Sent on when the render system has submitted the frame (<see cref="EndSubmitting"/>).
+	/// </summary>
+	internal bool BatchSubmits { get; set; } = true;
+
+	/// <summary>Send the frame's lists held for one submission (<see cref="BatchSubmits"/>) to the GPU.</summary>
+	public override void EndSubmitting() => Gpu.Flush();
+
 	readonly BackendTexture black;
 	readonly BackendTexture sheetMetadata;
 
@@ -228,7 +255,22 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 
 		black = Placeholder( "Black", cube: false );
 		sheetMetadata = Placeholder( "Sheet metadata", cube: false );
+
+		// GPU-driven by default: the pages before any model loads, which the classic path draws from too
+		if ( GpuDrivenByDefault )
+		{
+			GpuDrivenGeometry = true;
+			GpuDriven = true;
+		}
 	}
+
+	/// <summary>
+	/// Whether a new device draws GPU-driven (<see cref="GpuDriven"/> and <see cref="GpuDrivenGeometry"/>): on unless the
+	/// process was started with <c>-no-gpudriven</c>, for comparisons.
+	/// </summary>
+	public static bool GpuDrivenByDefault { get; set; } = !HasSwitch( "-no-gpudriven" );
+
+	static bool HasSwitch( string name ) => Environment.GetCommandLineArgs().Any( x => x.Equals( name, StringComparison.OrdinalIgnoreCase ) );
 
 	/// <summary>
 	/// Shaders without a GPU-driven variant beside them (a package's) get one compiled at load by the ShaderCompiler
@@ -244,7 +286,10 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 
 		var game = Path.GetDirectoryName( core );
 		Shaders.GpuDrivenCache = Path.Combine( game, ".source2", "basaltgpudriven" );
-		Shaders.GpuDrivenCompilerVersion = $"{File.GetLastWriteTimeUtc( compiler ).Ticks}.{File.GetLastWriteTimeUtc( Path.Combine( core, "shaders", "basalt_gpu_driven.fxc" ) ).Ticks}";
+		// The variant's form and the wrapper it appends, not the build: a rebuild that changes neither compiles nothing
+		var wrapper = Convert.ToHexString( System.Security.Cryptography.SHA256.HashData( File.ReadAllBytes( Path.Combine( core, "shaders", "basalt_gpu_driven.fxc" ) ) ), 0, 8 );
+		Shaders.GpuDrivenCompilerVersion = $"{ShaderLibrary.GpuDrivenVersion}.{wrapper}";
+		System.Threading.Tasks.Task.Run( Shaders.PruneGpuDrivenCache );
 		Shaders.GpuDrivenCompiler = ( source, output ) =>
 		{
 			// Core shaders embed no source: build-shaders makes theirs, and one without stays classic
@@ -316,7 +361,8 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 		var format = Map( desc.Format );
 		var samples = Math.Max( desc.Samples, 1 );
 		var usage = TextureUsage.CopySource | TextureUsage.CopyDestination;
-		if ( samples == 1 ) usage |= TextureUsage.Sampled;
+		// Multisampled targets aren't sampled, except depth: a frame's depth chain reads it (D_MSAA), as Source 2's targets allow
+		if ( samples == 1 || format.IsDepth() ) usage |= TextureUsage.Sampled;
 		if ( desc.RenderTarget ) usage |= format.IsDepth() ? TextureUsage.DepthTarget : TextureUsage.ColorTarget;
 		if ( desc.Storage ) usage |= TextureUsage.Storage;
 
@@ -493,6 +539,15 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	public RenderMesh LoadModel( string path, ulong? meshGroups = null, int materialGroup = 0 ) => BackendModel.Load( this, path, meshGroups, materialGroup );
 
+	/// <summary>The vertex layouts pipelines have been made for, for tests.</summary>
+	internal VertexLayout[] PipelineLayouts
+	{
+		get
+		{
+			lock ( pipelines ) return [.. pipelines.Keys.Select( k => k.Layout ).Distinct()];
+		}
+	}
+
 	/// <summary>One instance of each distinct vertex layout, which pipelines are keyed by.</summary>
 	internal VertexLayout Layout( VertexLayout layout )
 	{
@@ -504,6 +559,9 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 		}
 	}
 
+	/// <summary>The colour an ids pipeline is keyed by (<see cref="Pipeline"/>'s ids), which no other pipeline draws into.</summary>
+	internal const Format IdsColorKey = Format.R32Uint;
+
 	/// <summary>
 	/// A pipeline for a variant drawing vertices laid out as <paramref name="layout"/> into targets of these formats,
 	/// made once. Mesh vertices are stream 0, instance ids stream 1 (<c>TEXCOORD13</c>), and inputs the mesh lacks, or
@@ -511,9 +569,9 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// input layouts do for streams a mesh doesn't have. A vertex-cache layout reads vertex ids from streams 2 and 3 and
 	/// the default stream from 4.
 	/// </summary>
-	internal PipelineHandle Pipeline( ShaderVariant variant, VertexLayout layout, Format color, Format depth, int samples, bool depthOnly, BindingLayoutHandle[] sets = null, bool materialPerDraw = false )
+	internal PipelineHandle Pipeline( ShaderVariant variant, VertexLayout layout, Format color, Format depth, int samples, bool depthOnly, BindingLayoutHandle[] sets = null, bool materialPerDraw = false, bool ids = false, ShaderVariant stateFrom = null )
 	{
-		var key = new PipelineKey( variant, layout, color, depth, samples, depthOnly, sets, materialPerDraw );
+		var key = new PipelineKey( variant, layout, ids ? IdsColorKey : color, depth, samples, depthOnly, sets, materialPerDraw, stateFrom );
 		lock ( pipelines )
 		{
 			if ( pipelines.TryGetValue( key, out var pipeline ) ) return pipeline;
@@ -533,8 +591,27 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 			VertexBufferLayout[] streams = vertexCache
 				? [new( layout.Stride ), new( 4, VertexStepRate.Instance ), new( 4 ), new( 4 ), new( 0 )]
 				: [new( layout.Stride ), new( 4, VertexStepRate.Instance ), new( 0 )];
-			var info = variant.PipelineInfo( streams, attributes, color == Format.Unknown ? [] : [color], depth, samples, depthBias: depthOnly || color == Format.Unknown, $"{variant}{(depthOnly ? " depth" : "")}" );
+			// The visibility-driven forward pass's id prepass: target 0 takes the authored output (its alpha drives alpha to
+			// coverage) and goes nowhere, target 1 the ids (a GPU-driven pixel shader's id output)
+			Format[] colors = ids ? [Format.R8Unorm, Format.R32Uint] : color == Format.Unknown ? [] : [color];
+			var info = variant.PipelineInfo( streams, attributes, colors, depth, samples, depthBias: depthOnly || color == Format.Unknown || ids, $"{variant}{(depthOnly ? " depth" : ids ? " ids" : "")}" );
+			if ( ids ) info.Blend = [BlendState.Opaque, BlendState.Opaque];
 			if ( sets is not null ) info.Sets = sets;
+
+			// basalt_gpu_driven_ids drawing another variant's depth: that variant's culling, depth and stencil
+			if ( stateFrom?.State is { } state )
+			{
+				info.CullMode = state.Cull;
+				info.DepthClamp = !state.DepthClip;
+				info.DepthTest = depth != Format.Unknown && state.DepthTest;
+				info.DepthWrite = depth != Format.Unknown && state.DepthWrite;
+				info.DepthCompare = state.DepthCompare;
+				info.StencilTest = depth.HasStencil() && state.StencilTest;
+				info.StencilFront = state.StencilFront;
+				info.StencilBack = state.StencilBack;
+				info.StencilReadMask = state.StencilReadMask;
+				info.StencilWriteMask = state.StencilWriteMask;
+			}
 
 			// A GPU-driven pixel shader reading its bucket's one material (basalt_gpu_driven.h's specialization constant)
 			if ( materialPerDraw && info.FragmentShader.IsValid ) info.FragmentConstants = [.. info.FragmentConstants ?? [], new SpecializationConstant( GpuDrivenMaterialPerDrawConstant, 1 )];
@@ -598,7 +675,7 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 		System.IO.File.WriteAllBytes( path, spirv );
 	}
 
-	internal readonly record struct PipelineKey( ShaderVariant Variant, VertexLayout Layout, Format Color, Format Depth, int Samples, bool DepthOnly, BindingLayoutHandle[] Sets = null, bool MaterialPerDraw = false );
+	internal readonly record struct PipelineKey( ShaderVariant Variant, VertexLayout Layout, Format Color, Format Depth, int Samples, bool DepthOnly, BindingLayoutHandle[] Sets = null, bool MaterialPerDraw = false, ShaderVariant StateFrom = null );
 
 	/// <summary><c>BASALT_GPU_DRIVEN_MATERIAL_PER_DRAW_ID</c>: set, a GPU-driven pixel shader reads <c>g_nBasaltPixelMaterial</c>.</summary>
 	const uint GpuDrivenMaterialPerDrawConstant = 120;
@@ -627,12 +704,28 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 
 	internal override bool DrawsAggregatesGpuDriven => GpuDriven && MaterialObjects && GpuDrivenTables is not null;
 
+	internal override bool DrawsMeshesGpuDriven => GpuDrivenMeshes && DrawsAggregatesGpuDriven;
+
+	/// <summary>
+	/// Static meshes' opaque draws join the aggregates' GPU-driven call (docs/managed/basalt-gpu-driven.md). Off by default:
+	/// on Construct it saves GPU time but costs CPU time, mostly on worker threads, where the one GPU-driven run now records
+	/// what workers drew between them; <c>-gpudriven-meshes</c> turns it on.
+	/// </summary>
+	public bool GpuDrivenMeshes { get; set; } = HasSwitch( "-gpudriven-meshes" );
+
 	/// <summary>
 	/// Cull GPU-driven aggregates' fragments on the GPU (<c>basalt_gpu_driven_cull_cs</c>), by the same frustum and size
 	/// tests the CPU makes, from records written once: the CPU writes 16 bytes per aggregate a frame instead of an instance
 	/// record and command per visible fragment. On by default; off writes them on the CPU, to compare.
 	/// </summary>
 	public bool GpuDrivenCulling { get; set; } = true;
+
+	/// <summary>
+	/// With <see cref="GpuDrivenCulling"/>, the culling writes only the kept fragments' commands, packed at the start of
+	/// each multi-draw, which draws as many as it kept (<c>DrawIndexedIndirectCount</c>). On by default where the device
+	/// takes a draw count from a buffer; off leaves a command per fragment with no instance where culled, to compare.
+	/// </summary>
+	public bool GpuDrivenCompaction { get; set; } = true;
 
 	/// <summary>The culling compute shader, or null when it isn't built.</summary>
 	internal ShaderFile GpuDrivenCullShader
@@ -651,6 +744,159 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 
 	ShaderFile gpuDrivenCullShader;
 	bool gpuDrivenCullShaderLoaded;
+
+	/// <summary>
+	/// The visibility-driven forward pass (docs/managed/basalt-gpu-driven.md): with <see cref="GpuDrivenCulling"/> and
+	/// compaction, a view's GPU-driven depth prepass also writes ids, a pass marks the triangles that own a sample, and its
+	/// forward pass draws only those. On by default (it only acts where <see cref="GpuDriven"/> does); off with
+	/// <c>-no-gpudriven-visibility</c>, for comparisons.
+	/// </summary>
+	public bool GpuDrivenVisibility { get; set; } = !HasSwitch( "-no-gpudriven-visibility" );
+
+	/// <summary>The frame's stamp for <see cref="GpuDrivenVisibility"/>: fragments the prepass drew ids for this frame carry it.</summary>
+	internal uint GpuDrivenFrame { get; private set; } = 1;
+
+	/// <summary>The id prepass material for depth buckets without a pixel shader, the mark and compaction shaders, or null when they aren't built.</summary>
+	internal (BackendMaterial Ids, ShaderFile Mark, ShaderFile Compact) GpuDrivenVisibilityShaders
+	{
+		get
+		{
+			lock ( visibilityViews )
+			{
+				if ( !visibilityShadersLoaded )
+				{
+					visibilityShadersLoaded = true;
+					if ( Shaders.Load( "shaders/basalt_gpu_driven_ids.shader" ) is not null ) visibilityIds = MaterialFromShader( "shaders/basalt_gpu_driven_ids.shader" ) as BackendMaterial;
+					visibilityMark = Shaders.Load( "shaders/basalt_gpu_driven_mark_cs.shader" );
+					visibilityCompact = Shaders.Load( "shaders/basalt_gpu_driven_compact_cs.shader" );
+				}
+
+				return (visibilityIds, visibilityMark, visibilityCompact);
+			}
+		}
+	}
+
+	BackendMaterial visibilityIds;
+	ShaderFile visibilityMark, visibilityCompact;
+	bool visibilityShadersLoaded;
+
+	/// <summary>
+	/// Debug only (<c>basaltlab -capture-visibility</c>): GPU-driven forward passes also replay their multi-draws into this
+	/// figure's targets. Set it before the first frame, so the view's ids and mask can be copied out too.
+	/// </summary>
+	public VisibilityFigure Figure { get; set; }
+
+	/// <summary>
+	/// The figure's ids target and mask (the last GPU-driven forward pass's view's, for <see cref="Figure"/>), the bits
+	/// aggregates use from 0 and those the frame's mesh draws use from <see cref="FigureFrameBitBase"/>.
+	/// </summary>
+	public (TextureHandle Ids, BufferHandle Mask, long AggregateBits, long MeshBits) FigureVisibility { get; internal set; }
+
+	/// <summary>Where the frame's mesh draws' vertex bits start in the mask.</summary>
+	public const long FigureFrameBitBase = GpuDrivenTables.FrameVisibilityBitBase;
+
+	internal BackendMaterial FigureMaterial => figureMaterial ??= Shaders.Load( "shaders/basalt_gpu_driven_figure.shader" ) is not null ? MaterialFromShader( "shaders/basalt_gpu_driven_figure.shader" ) as BackendMaterial : null;
+	BackendMaterial figureMaterial;
+
+	readonly Dictionary<(ShaderVariant StateFrom, int Mode, Format Depth), PipelineHandle> figurePipelines = new();
+
+	/// <summary>
+	/// The figure's pipeline for <paramref name="mode"/> (0 count, 1 flat triangles, 2 dark edges, 3 faint edges), culling
+	/// as <paramref name="stateFrom"/> does: counts and faint edges add up with no depth test, flat triangles and dark edges
+	/// test the view's depth without writing it.
+	/// </summary>
+	internal PipelineHandle FigurePipeline( ShaderVariant variant, ShaderVariant stateFrom, int mode, Format depth, BindingLayoutHandle[] sets )
+	{
+		lock ( figurePipelines )
+		{
+			if ( figurePipelines.TryGetValue( (stateFrom, mode, depth), out var made ) ) return made;
+
+			Format[] colors = [mode == 0 ? Format.R16Float : Format.RGBA8Unorm];
+			var info = variant.PipelineInfo( [], [], colors, depth, 1, depthBias: false, $"{variant} figure {mode}" );
+			info.Sets = sets;
+			info.CullMode = stateFrom.State.Cull;
+			info.Wireframe = mode >= 2;
+			info.DepthTest = mode is 1 or 2;
+			info.DepthWrite = false;
+			info.DepthCompare = CompareFunction.GreaterEqual;
+			info.StencilTest = false;
+			info.Blend = [mode is 0 or 3 ? BlendState.Additive : BlendState.Opaque];
+			return figurePipelines[(stateFrom, mode, depth)] = Gpu.CreateGraphicsPipeline( info );
+		}
+	}
+
+	/// <summary>A view's visibility resources: its ids target, triangle mask, fragment stamps and compacted indices.</summary>
+	internal sealed class VisibilityView
+	{
+		public TextureHandle Ids, Scratch;
+		public int Width, Height, Samples;
+		public BufferHandle Mask, Stamps;
+		public readonly BufferHandle[] Compacted = new BufferHandle[3];
+		public bool StampsCleared;
+	}
+
+	/// <summary>Indices each compacted index buffer holds; a fragment that doesn't fit draws whole.</summary>
+	internal const int VisibilityCompactedIndices = 4 << 20;
+
+	readonly ConditionalWeakTable<object, VisibilityView> visibilityViews = new();
+	readonly List<BufferHandle> visibilityBuffers = new();
+	readonly List<TextureHandle> visibilityTextures = new();
+
+	/// <summary>A view's visibility resources, made the first time and remade when its depth target changes size.</summary>
+	internal VisibilityView VisibilityFor( object view, TextureInfo depth )
+	{
+		lock ( visibilityViews )
+		{
+			var state = visibilityViews.GetValue( view, static _ => new VisibilityView() );
+			if ( !state.Mask.IsValid )
+			{
+				// Copied out only for the debug figure
+				var figure = Figure is not null;
+				state.Mask = Gpu.CreateBuffer( new BufferInfo { Size = GpuDrivenTables.MaxVisibilityBits / 8, Usage = BufferUsage.Storage | BufferUsage.CopyDestination | (figure ? BufferUsage.CopySource : 0), Name = "Basalt visibility mask" } );
+				state.Stamps = Gpu.CreateBuffer( new BufferInfo { Size = GpuDrivenTables.MaxVisibilityFragments * 4L, Usage = BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Basalt visibility stamps" } );
+				for ( int i = 0; i < state.Compacted.Length; i++ )
+				{
+					state.Compacted[i] = Gpu.CreateBuffer( new BufferInfo { Size = VisibilityCompactedIndices * 4L, Usage = BufferUsage.Index | BufferUsage.Storage, Name = "Basalt visibility triangles" } );
+					visibilityBuffers.Add( state.Compacted[i] );
+				}
+
+				visibilityBuffers.Add( state.Mask );
+				visibilityBuffers.Add( state.Stamps );
+			}
+
+			if ( depth.Width != 0 && (state.Width != depth.Width || state.Height != depth.Height || state.Samples != depth.Samples) )
+			{
+				foreach ( var old in (TextureHandle[])[state.Ids, state.Scratch] )
+				{
+					if ( !old.IsValid ) continue;
+					visibilityTextures.Remove( old );
+					Gpu.Destroy( old );
+				}
+
+				// Target 0 of the id prepass: the authored output, which only its alpha (to coverage) is wanted from
+				state.Scratch = Gpu.CreateTexture( new TextureInfo { Width = depth.Width, Height = depth.Height, Depth = 1, Layers = 1, Mips = 1, Samples = depth.Samples, Dimension = TextureDimension.Texture2D, Format = Format.R8Unorm, Usage = TextureUsage.ColorTarget, Name = "Basalt visibility scratch" } );
+				visibilityTextures.Add( state.Scratch );
+
+				state.Ids = Gpu.CreateTexture( new TextureInfo
+				{
+					Width = depth.Width,
+					Height = depth.Height,
+					Depth = 1,
+					Layers = 1,
+					Mips = 1,
+					Samples = depth.Samples,
+					Dimension = TextureDimension.Texture2D,
+					Format = Format.R32Uint,
+					Usage = TextureUsage.ColorTarget | TextureUsage.Sampled | (Figure is not null ? TextureUsage.CopySource : 0),
+					Name = "Basalt visibility ids",
+				} );
+				visibilityTextures.Add( state.Ids );
+				(state.Width, state.Height, state.Samples) = (depth.Width, depth.Height, depth.Samples);
+			}
+
+			return state;
+		}
+	}
 
 	/// <summary>Async compute isn't wired yet: contexts all record on the graphics queue.</summary>
 	public override bool SupportsAsyncCompute => false;
@@ -838,6 +1084,7 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	{
 		Gpu.BeginFrame();
 		gpuDrivenTables?.BeginFrame();
+		GpuDrivenFrame++;
 		Poll();
 	}
 
@@ -864,6 +1111,14 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 		materialCache?.Dispose();
 		surfaces?.Dispose();
 		gpuDrivenTables?.Dispose();
+		lock ( visibilityViews )
+		{
+			foreach ( var buffer in visibilityBuffers ) Gpu.Destroy( buffer );
+			foreach ( var texture in visibilityTextures ) Gpu.Destroy( texture );
+			visibilityBuffers.Clear();
+			visibilityTextures.Clear();
+		}
+
 		lock ( pipelines )
 		{
 			foreach ( var pipeline in pipelines.Values ) Gpu.Destroy( pipeline );

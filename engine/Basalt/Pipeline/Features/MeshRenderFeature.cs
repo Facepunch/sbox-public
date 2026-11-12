@@ -150,12 +150,19 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		/// </summary>
 		public MeshRuns Callbacks;
 
+		/// <summary>
+		/// The opaque list's draws the device draws GPU-driven, taken out of <see cref="ItemsByBit"/>: the aggregates' feature
+		/// draws them with its batches, so they share buckets (<see cref="TakeGpuDriven"/>).
+		/// </summary>
+		public readonly List<DrawItem> GpuDriven = new();
+
 		public void Clear()
 		{
 			foreach ( var list in ByBit )
 				list.Clear();
 			foreach ( var list in ItemsByBit )
 				list.Clear();
+			GpuDriven.Clear();
 			Custom = 0;
 			Callbacks = 0;
 			FrameBufferReads = 0;
@@ -482,7 +489,72 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			Emit( buckets[bit], Lists[bit].Draws, layers.ByBit[bit], world, visibleSpan, transforms, bit == 0 && !pass.IsShadow ? Occlusion : null );
 			BuildItems( layers.ByBit[bit], layers.ItemsByBit[bit], Lists[bit].Sort == ListSort.Batched );
 		}
+
+		// Static opaque draws go with the aggregates when the device draws them GPU-driven, as one run (so not while
+		// occlusion culls, which the aggregates' feature then draws batch by batch)
+		if ( Occlusion is null && RenderHost.Current?.Device is { DrawsMeshesGpuDriven: true } ) TakeGpuDriven( layers );
 	}
+
+	/// <summary>
+	/// Move the opaque list's draws the GPU-driven path can take into <see cref="RunLists.GpuDriven"/>: static meshes'
+	/// instances with nothing per object but their lighting (no attributes, callbacks, skinning, frame copy or culled
+	/// arguments), which the aggregates' feature hands the device with its own batches.
+	/// </summary>
+	static void TakeGpuDriven( RunLists layers )
+	{
+		var runs = CollectionsMarshal.AsSpan( layers.Opaque );
+		var items = layers.ItemsByBit[0];
+		var kept = 0;
+		for ( int i = 0; i < items.Count; i++ )
+		{
+			var item = items[i];
+			ref readonly var run = ref runs[item.Run];
+			if ( run.Custom is null && run.Callbacks is null && !run.Skinned && !run.Deformed && !run.Morphable && !run.ReadsFrameBuffer && run.CullDraw < 0 && run.Attributes is null )
+			{
+				layers.GpuDriven.Add( item );
+				continue;
+			}
+
+			items[kept++] = item;
+		}
+
+		CollectionsMarshal.SetCount( items, kept );
+	}
+
+	/// <summary>
+	/// For the aggregates' feature: a GPU-driven draw of <see cref="RunLists.GpuDriven"/> as its batch would be, with the
+	/// material, lighting and first instance <see cref="DrawItems"/> would use; null when it has no material.
+	/// </summary>
+	internal GpuContext.GpuDrivenBatch? GpuDrivenBatch( ViewPass view, DrawItem item, bool depth, bool forceDepthOnly )
+	{
+		var lists = view.State<RunLists>( this );
+		ref readonly var run = ref CollectionsMarshal.AsSpan( lists.Opaque )[item.Run];
+		ref readonly var draw = ref run.Mesh.DrawsForLod( run.Lod )[item.Draw];
+		var material = MaterialFor( run, draw, depth, forceDepthOnly, out var strip );
+		if ( material is null ) return null;
+
+		var probe = depth || run.Probe is null || !RenderMesh.NeedsLightProbe( material ) ? null : run.Probe;
+		var lighting = draw.Lightmapped ? (depth ? null : run.Lightmap) : probe;
+		var first = run.FirstInstance + (run.Tinted ? item.Draw * run.Count : 0);
+		return new GpuContext.GpuDrivenBatch( material, run.Mesh, draw, lighting, strip, -1, run.Count, first, (long)(draw.IndexCount / 3) * run.Count, null, Instances: true );
+	}
+
+	/// <summary>The view's GPU-driven draws the device left, drawn here as <see cref="DrawItems"/> draws any.</summary>
+	internal void DrawGpuDrivenLeft( GpuContext context, ViewPass view, ReadOnlySpan<DrawItem> items, MeshLayer layer, ref RenderStats stats )
+	{
+		if ( items.IsEmpty ) return;
+		DrawItems( context, view, CollectionsMarshal.AsSpan( view.State<RunLists>( this ).Opaque ), items, layer, ref stats );
+	}
+
+	/// <summary>A GPU-driven draw's triangles (over its instances) and instances, for the stats.</summary>
+	internal (long Triangles, int Instances) GpuDrivenCounts( ViewPass view, DrawItem item )
+	{
+		ref readonly var run = ref CollectionsMarshal.AsSpan( view.State<RunLists>( this ).Opaque )[item.Run];
+		return ((long)(run.Mesh.DrawsForLod( run.Lod )[item.Draw].IndexCount / 3) * run.Count, run.Count);
+	}
+
+	/// <summary>The view's draws <see cref="TakeGpuDriven"/> took.</summary>
+	internal List<DrawItem> GpuDrivenItems( ViewPass view ) => view.State<RunLists>( this ).GpuDriven;
 
 	/// <summary>
 	/// Classify visible objects [<paramref name="start"/>, <paramref name="end"/>) of the view in <see cref="classifying"/>:
