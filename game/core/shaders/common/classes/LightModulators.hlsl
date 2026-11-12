@@ -42,6 +42,10 @@ uint LightModulatorRectangleCount < Attribute( "LightModulatorRectangleCount" );
 uint LightModulatorCandidateCount < Attribute( "LightModulatorCandidateCount" ); Default( 0 ); >;
 bool LightModulatorsDisabled < Attribute( "LightModulatorsDisabled" ); Default( 0 ); >;
 
+// Whether the scene has any rectangles (LightModulatorSystem). A specialization constant, so lit shaders leave the
+// modulator code out of scenes without them: it costs registers and instruction cache even when it never runs
+int LightModulatorsEnabled < Attribute( "LightModulators_Enabled" ); Default( 0 ); SpecializedConstant(); >;
+
 // Scene-wide light transmission queries shared by surfaces and volumetric fog.
 struct LightModulators
 {
@@ -179,7 +183,7 @@ struct LightModulators
     // True when this view has any rectangles to evaluate. Uniform: test it once, outside light loops.
     static bool Active()
     {
-        return !LightModulatorsDisabled && LightModulatorRectangleCount > 0;
+        return LightModulatorsEnabled != 0 && !LightModulatorsDisabled && LightModulatorRectangleCount > 0;
     }
 
     // Evaluate only the candidates belonging to this local light.
