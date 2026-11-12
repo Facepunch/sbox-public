@@ -185,14 +185,31 @@ internal sealed class AggregateRenderFeature : RenderFeature
 	{
 		if ( (layer.Runs & MeshRuns.Opaque) == 0 ) return 0;
 		var state = view.State<Batches>( this );
-		return state.OneRun ? Math.Min( state.List.Count + MeshDraws( view ).Count, 1 ) : state.List.Count;
+		return state.OneRun ? Chunks( state.List.Count + MeshDraws( view ).Count ) : state.List.Count;
 	}
 
-	/// <summary>One run for every batch when they draw GPU-driven, as heavy as the batches it holds.</summary>
+	/// <summary>
+	/// GPU-driven runs a layer's batches and mesh draws split into, which workers could record side by side, each one call
+	/// with buckets of its own. One for now: split into runs of 256 on Construct, the calls cost more CPU than they saved
+	/// and each reserved its compacted indices up front, which ran out (docs/managed/basalt-gpu-driven.md).
+	/// </summary>
+	static int Chunks( int items ) => Math.Min( items, 1 );
+
+	/// <summary>Run <paramref name="chunk"/> of <paramref name="chunks"/>' first item, of <paramref name="items"/>: they split them evenly.</summary>
+	static int ChunkStart( int chunk, int chunks, int items ) => (int)((long)chunk * items / chunks);
+
+	/// <summary>Each GPU-driven run as heavy as the batches and draws it holds.</summary>
 	internal override void RunWeights( ViewPass view, MeshLayer layer, Span<int> weights )
 	{
 		var state = view.State<Batches>( this );
-		weights.Fill( state.OneRun ? Math.Max( state.List.Count + MeshDraws( view ).Count, 1 ) : 1 );
+		if ( !state.OneRun )
+		{
+			weights.Fill( 1 );
+			return;
+		}
+
+		var items = state.List.Count + MeshDraws( view ).Count;
+		for ( int c = 0; c < weights.Length; c++ ) weights[c] = Math.Max( ChunkStart( c + 1, weights.Length, items ) - ChunkStart( c, weights.Length, items ), 1 );
 	}
 
 	/// <summary>
@@ -211,7 +228,20 @@ internal sealed class AggregateRenderFeature : RenderFeature
 	internal override void Draw( GpuContext context, ViewPass view, MeshLayer layer, int first, int count, ref RenderStats stats )
 	{
 		var state = view.State<Batches>( this );
-		var batches = state.OneRun ? CollectionsMarshal.AsSpan( state.List ) : CollectionsMarshal.AsSpan( state.List ).Slice( first, count );
+		var batches = state.OneRun ? default : CollectionsMarshal.AsSpan( state.List ).Slice( first, count );
+
+		// GPU-driven, runs [first, first + count) of the layer's batches then mesh draws, split evenly
+		ReadOnlySpan<MeshRenderFeature.DrawItem> meshDraws = default;
+		if ( state.OneRun )
+		{
+			var all = CollectionsMarshal.AsSpan( MeshDraws( view ) );
+			var items = state.List.Count + all.Length;
+			var chunks = Chunks( items );
+			var (from, to) = (ChunkStart( first, chunks, items ), ChunkStart( first + count, chunks, items ));
+			var aggregates = state.List.Count;
+			batches = CollectionsMarshal.AsSpan( state.List )[Math.Min( from, aggregates )..Math.Min( to, aggregates )];
+			meshDraws = all[(Math.Max( from, aggregates ) - aggregates)..(Math.Max( to, aggregates ) - aggregates)];
+		}
 
 		var depth = layer.Depth;
 		var mode = layer.ShaderMode;
@@ -223,9 +253,6 @@ internal sealed class AggregateRenderFeature : RenderFeature
 		var phase = context.Occlusion is { } occlusion && (layer.OcclusionPhase != OcclusionPhase.Early || occlusion.CullsEarly) ? layer.OcclusionPhase : OcclusionPhase.None;
 		var culledOnly = layer.OcclusionPhase == OcclusionPhase.Late;
 
-		// The view's static mesh draws the mesh feature handed over, which go with the batches (one run, so this is the only
-		// call that has them)
-		var meshDraws = state.OneRun ? CollectionsMarshal.AsSpan( MeshDraws( view ) ) : default;
 
 		// The device's GPU-driven path first, for what it can take: batches drawn from its own args, not the culler's
 		var gpuDriven = context.GpuDriven && phase == OcclusionPhase.None && !culledOnly && transforms is not null ? System.Buffers.ArrayPool<bool>.Shared.Rent( batches.Length + meshDraws.Length ) : null;

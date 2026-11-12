@@ -262,6 +262,14 @@ internal abstract class GpuContext : IDisposable
 	internal virtual bool GpuDriven => false;
 
 	/// <summary>
+	/// Before a frame's segments record: get <paramref name="view"/>'s state for <see cref="DrawGpuDriven"/>'s
+	/// visibility-driven pass ready (cleared once, here, for every call that then writes into it).
+	/// </summary>
+	internal virtual void BeginGpuDrivenView( object view )
+	{
+	}
+
+	/// <summary>
 	/// The view's culling for <see cref="DrawGpuDriven"/> to repeat on the GPU over every fragment of an aggregate (the
 	/// same frustum and size tests the CPU makes): the frustum's six planes, the camera and squared size threshold
 	/// (<see cref="Culling.SizeCull"/>), and whether it's a shadow view (fragments that cast no shadow drop out).

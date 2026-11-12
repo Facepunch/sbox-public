@@ -64,6 +64,7 @@ internal sealed partial class BackendContext
 
 	/// <summary>Each batch's lighting record (<see cref="GpuDrivenTables.Lighting"/>), by its index in the call.</summary>
 	uint[] batchLighting = [];
+	static readonly StringToken BakedLightingToken = new( "BakedLightingConstantBuffer_t" );
 	static readonly StringToken ProbeVolumeToken = new( "PerBatchLightProbeVolumeConstantBuffer_t" );
 	int gpuDrivenBucketCount;
 
@@ -121,7 +122,7 @@ internal sealed partial class BackendContext
 			if ( !lastAttributesSet || !ReferenceEquals( batch.ObjectAttributes, lastAttributes ) )
 			{
 				(lastAttributes, lastAttributesSet) = (batch.ObjectAttributes, true);
-				lastLighting = tables.Lighting( Lookup( ProbeVolumeToken ) as byte[] );
+				lastLighting = tables.Lighting( Lookup( BakedLightingToken ) as byte[], Lookup( ProbeVolumeToken ) as byte[] );
 				lastKey = AttributesKey( batch.ObjectAttributes );
 			}
 
@@ -351,8 +352,10 @@ internal sealed partial class BackendContext
 		var compact = device.GpuDrivenCompaction && device.SupportsDrawIndirectCount;
 		var shaders = compact && device.GpuDrivenVisibility && cull.View is not null && (cull.Ids || cull.Visibility) ? device.GpuDrivenVisibilityShaders : default;
 		var visibility = shaders.Mark is not null && shaders.Compact is not null && r.Depth is not null ? device.VisibilityFor( cull.View, Gpu.InfoOf( r.Depth.Handle ) ) : null;
-		var ids = visibility is not null && cull.Ids && r.Color is null;
-		var lists = visibility is not null && cull.Visibility && visibility.StampsCleared;
+		// Only once its state was cleared this frame, before any call that writes into it; the first frame draws plainly
+		var ready = visibility is not null && visibility.ClearedFrame == device.GpuDrivenFrame;
+		var ids = ready && cull.Ids && r.Color is null;
+		var lists = ready && cull.Visibility;
 
 		// One region: the view, the batches, the multi-draws (first slot and visible count, when compacting; a run of
 		// compacted triangles per bucket after its own), the compacted indices' cursor, the listed fragments, mesh draws'
@@ -398,6 +401,7 @@ internal sealed partial class BackendContext
 
 		// Each batch's record and its fragments' slots, bucket by bucket and page by page, and the multi-draws they make
 		cullRuns.Clear();
+		long listedIndices = 0;
 		var written = 0;
 		var compactWritten = totalFragments;
 		var record = 0;
@@ -482,6 +486,7 @@ internal sealed partial class BackendContext
 				}
 
 				batchRecords[at + 1] = (uint)fragmentCount;
+				if ( bucketLists ) listedIndices += batch.Instances ? (long)batch.Count * batch.Draw.IndexCount : IndicesOf( (AggregateObject)batch.Owner );
 				batchRecords[at + 3] = compact ? (uint)cullRuns.Count : (uint)written;
 				batchRecords[at + 4] = vertexBase != GpuDrivenTables.NoVisibility ? visibilityFirst : GpuDrivenTables.NoVisibility;
 				batchRecords[at + 5] = 0;
@@ -514,19 +519,19 @@ internal sealed partial class BackendContext
 			runs[i * 2 + 1] = 0;
 		}
 
-		// Outside the rendering scope: the prepass clears the view's triangle mask (and, the first time, its stamps)
+		// This call's range of the frame's compacted indices: as many as its listed fragments could need, so calls recorded on
+		// other workers write beside it; a fragment that doesn't fit draws whole
+		var compactedEnd = 0u;
+		if ( lists )
+		{
+			var start = visibility.ReserveCompacted( device.GpuDrivenFrame, listedIndices );
+			MemoryMarshal.Cast<byte, uint>( data.Slice( cursorOffset, 16 ) )[0] = start;
+			compactedEnd = (uint)Math.Min( start + listedIndices, BackendDevice.VisibilityCompactedIndices );
+		}
+
+		// The view's mask and stamps were cleared before the frame's segments (BeginGpuDrivenView)
 		var slots = tables.Slots;
 		CloseScope( flushClears: false );
-		if ( ids )
-		{
-			r.List.Barrier( PipelineStage.AllCommands, MemoryAccess.MemoryRead | MemoryAccess.MemoryWrite, PipelineStage.Transfer, MemoryAccess.TransferWrite );
-			r.List.FillBuffer( visibility.Mask, 0, 0, Math.Max( (tables.VisibilityBits / 8 + 3) & ~3L, 4 ) );
-			// And this frame's mesh draws' bits, above them
-			if ( tables.FrameVisibilityBits > 0 ) r.List.FillBuffer( visibility.Mask, 0, GpuDrivenTables.FrameVisibilityBitBase / 8, Math.Min( (tables.FrameVisibilityBits / 8 + 4) & ~3L, (GpuDrivenTables.MaxVisibilityBits - GpuDrivenTables.FrameVisibilityBitBase) / 8 ) );
-			if ( !visibility.StampsCleared ) r.List.FillBuffer( visibility.Stamps, 0 );
-			visibility.StampsCleared = true;
-			r.List.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.ComputeShader, MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite );
-		}
 
 		// Cull and write the commands, then draw them
 		cullDrawer ??= new ShaderDrawer( device );
@@ -545,7 +550,7 @@ internal sealed partial class BackendContext
 		constants[8] = device.GpuDrivenFrame;
 		constants[9] = 0;
 		constants[10] = (uint)(frameOffset + cursorOffset);
-		constants[11] = BackendDevice.VisibilityCompactedIndices;
+		constants[11] = compactedEnd;
 		constants[12] = (uint)(frameOffset + fragmentOffset) - firstInstance * 4;
 		constants[13] = lists ? (uint)(frameOffset + listedOffset) : 0;
 		cullAttributes.Clear();
@@ -613,6 +618,40 @@ internal sealed partial class BackendContext
 
 		SetObjectAttributes( null );
 		r.Binder = null;
+	}
+
+	static readonly ConditionalWeakTable<AggregateObject, StrongBox<long>> aggregateIndices = new();
+
+	/// <summary>Every index an aggregate's fragments draw: the most its compacted triangles could take.</summary>
+	static long IndicesOf( AggregateObject aggregate ) => aggregateIndices.GetValue( aggregate, static a =>
+	{
+		long indices = 0;
+		foreach ( var fragment in a.Fragments ) indices += fragment.Args.IndexCount;
+		return new StrongBox<long>( indices );
+	} ).Value;
+
+	/// <summary>
+	/// Before the frame's segments: clear <paramref name="view"/>'s triangle mask (the bits aggregates keep, and those the
+	/// last frame's mesh draws took; stale bits beyond only draw a triangle more) and, the first time, its stamps, so every
+	/// GPU-driven call of its passes, whichever worker records it, marks into the same cleared mask.
+	/// </summary>
+	internal override void BeginGpuDrivenView( object view )
+	{
+		if ( !GpuDriven || !device.GpuDrivenVisibility || recording is null || device.ExistingVisibility( view ) is not { } visibility ) return;
+		var frame = device.GpuDrivenFrame;
+		if ( visibility.ClearedFrame == frame ) return;
+		visibility.ClearedFrame = frame;
+
+		var tables = device.GpuDrivenTables;
+		var r = recording;
+		CloseScope( flushClears: false );
+		r.List.Barrier( PipelineStage.AllCommands, MemoryAccess.MemoryRead | MemoryAccess.MemoryWrite, PipelineStage.Transfer, MemoryAccess.TransferWrite );
+		r.List.FillBuffer( visibility.Mask, 0, 0, Math.Max( (tables.VisibilityBits / 8 + 3) & ~3L, 4 ) );
+		var meshBits = Math.Max( tables.LastFrameVisibilityBits, 1L << 16 );
+		r.List.FillBuffer( visibility.Mask, 0, GpuDrivenTables.FrameVisibilityBitBase / 8, Math.Min( (meshBits / 8 + 4) & ~3L, (GpuDrivenTables.MaxVisibilityBits - GpuDrivenTables.FrameVisibilityBitBase) / 8 ) );
+		if ( !visibility.StampsCleared ) r.List.FillBuffer( visibility.Stamps, 0 );
+		visibility.StampsCleared = true;
+		r.List.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.ComputeShader, MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite );
 	}
 
 	static readonly StringToken FigureConstantsName = new( "BasaltGpuDrivenFigure_t" );

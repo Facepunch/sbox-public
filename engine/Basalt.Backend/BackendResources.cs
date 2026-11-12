@@ -155,12 +155,13 @@ internal sealed class BackendParameters : ShaderParameters
 
 	public override bool GetBool( StringToken name, bool fallback = false ) => Get( name ) is bool value ? value : fallback;
 
+	static readonly uint BakedLightingName = new StringToken( "BakedLightingConstantBuffer_t" ).Value;
 	static readonly uint ProbeVolumeName = new StringToken( "PerBatchLightProbeVolumeConstantBuffer_t" ).Value;
 	int lightingFreeVersion = -1;
 	long lightingFreeKey;
 
 	/// <summary>
-	/// The same for parameters that hold the same values but for their light probe volume constants, which GPU-driven variants
+	/// The same for parameters that hold the same values but for their lightmap and light probe volume constants, which GPU-driven variants
 	/// read from a record per draw: draws whose attributes differ only in those share a
 	/// bucket. A hash of the rest, its count in the top half.
 	/// </summary>
@@ -177,7 +178,7 @@ internal sealed class BackendParameters : ShaderParameters
 				var count = 0;
 				foreach ( var key in values.Keys.Order() )
 				{
-					if ( key == ProbeVolumeName ) continue;
+					if ( key == BakedLightingName || key == ProbeVolumeName ) continue;
 					hash.Add( key );
 					if ( values[key] is byte[] bytes ) hash.AddBytes( bytes );
 					else hash.Add( values[key] );

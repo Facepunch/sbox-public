@@ -128,7 +128,7 @@ internal sealed class GpuDrivenTables : IDisposable
 
 	/// <summary>
 	/// A lighting record: <c>BakedLightingConstantBuffer_t</c> (48 bytes), then <c>PerBatchLightProbeVolumeConstantBuffer_t</c>
-	/// (112), as the object attributes hold them, which GPU-driven variants read per draw instead of binding.
+	/// (112), as the attributes a draw reads hold them, which GPU-driven variants read per draw instead of binding.
 	/// </summary>
 	public const int LightingStride = 160;
 
@@ -146,28 +146,22 @@ internal sealed class GpuDrivenTables : IDisposable
 		}
 	}
 
-	readonly ConditionalWeakTable<byte[], StrongBox<uint>> lightingBySource = new();
-
 	/// <summary>
-	/// The lighting record holding this light probe volume's constant buffer bytes as a draw reads them, in 16-byte units (a
-	/// draw record's flags hold it from bit 8): found by the bytes' array first, made once per distinct contents; 0, all
-	/// zeros, for none.
+	/// The lighting record holding these constant buffers' bytes as a draw reads them (a missing one zero), in 16-byte units
+	/// (a draw record's flags hold it from bit 8): made once per distinct contents; 0, all zeros, for none. Callers look it
+	/// up once per run of draws with the same attributes.
 	/// </summary>
-	public uint Lighting( byte[] probe )
+	public uint Lighting( byte[] baked, byte[] probe )
 	{
-		if ( probe is null ) return 0;
-		if ( lightingBySource.TryGetValue( probe, out var known ) ) return known.Value;
-
+		if ( baked is null && probe is null ) return 0;
 		var record = new byte[LightingStride];
-		probe.AsSpan( 0, Math.Min( probe.Length, 112 ) ).CopyTo( record.AsSpan( 48 ) );
-		uint index;
+		baked?.AsSpan( 0, Math.Min( baked.Length, 48 ) ).CopyTo( record );
+		probe?.AsSpan( 0, Math.Min( probe.Length, 112 ) ).CopyTo( record.AsSpan( 48 ) );
 		lock ( lightingRecords )
 		{
-			if ( !lightingRecords.TryGetValue( record, out index ) ) lightingRecords[record] = index = lighting.Append( record ) / 16;
+			if ( !lightingRecords.TryGetValue( record, out var index ) ) lightingRecords[record] = index = lighting.Append( record ) / 16;
+			return index;
 		}
-
-		lightingBySource.AddOrUpdate( probe, new StrongBox<uint>( index ) );
-		return index;
 	}
 	/// <summary>Bytes of the tables, for reports.</summary>
 	public (long Geometry, long Draws, long Materials, long Pages) Bytes
@@ -463,6 +457,9 @@ internal sealed class GpuDrivenTables : IDisposable
 		}
 	}
 
+	/// <summary>The vertex bits the last frame's mesh draws used: what a view's mask clears of them before this frame's.</summary>
+	public long LastFrameVisibilityBits { get; private set; }
+
 	/// <summary>The vertex bits this frame's mesh draws use, from <see cref="FrameVisibilityBitBase"/>.</summary>
 	public long FrameVisibilityBits
 	{
@@ -525,6 +522,7 @@ internal sealed class GpuDrivenTables : IDisposable
 		{
 			frameVisibility.Clear();
 			frameVisibilityFragments = 0;
+			LastFrameVisibilityBits = frameVisibilityBits;
 			frameVisibilityBits = 0;
 		}
 	}

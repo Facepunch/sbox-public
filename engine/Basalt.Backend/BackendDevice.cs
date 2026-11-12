@@ -285,9 +285,12 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 
 		var game = Path.GetDirectoryName( core );
 		Shaders.GpuDrivenCache = Path.Combine( game, ".source2", "basaltgpudriven" );
-		// The variant's form and the wrapper it appends, not the build: a rebuild that changes neither compiles nothing
+		// The variant's form, the wrapper it appends and the vfx_vulkan that rewrites it: a stale variant from an older
+		// rewriter, whose record offsets may not be the ones the backend writes, can read a bindless index out of range
 		var wrapper = Convert.ToHexString( System.Security.Cryptography.SHA256.HashData( File.ReadAllBytes( Path.Combine( core, "shaders", "basalt_gpu_driven.fxc" ) ) ), 0, 8 );
-		Shaders.GpuDrivenCompilerVersion = $"{ShaderLibrary.GpuDrivenVersion}.{wrapper}";
+		var vfx = new FileInfo( Path.Combine( AppContext.BaseDirectory, "..", "win64", "vfx_vulkan.dll" ) );
+		var rewriter = vfx.Exists ? $".{vfx.Length:x}.{vfx.LastWriteTimeUtc.Ticks:x}" : "";
+		Shaders.GpuDrivenCompilerVersion = $"{ShaderLibrary.GpuDrivenVersion}.{wrapper}{rewriter}";
 		System.Threading.Tasks.Task.Run( Shaders.PruneGpuDrivenCache );
 		Shaders.GpuDrivenCompiler = ( source, output ) =>
 		{
@@ -822,6 +825,33 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 		public BufferHandle Mask, Stamps;
 		public readonly BufferHandle[] Compacted = new BufferHandle[3];
 		public bool StampsCleared;
+
+		/// <summary>The frame (<see cref="GpuDrivenFrame"/>) its mask was last cleared in, before any call drew ids into it.</summary>
+		public uint ClearedFrame;
+
+		uint compactedFrame;
+		long compactedUsed;
+
+		/// <summary>
+		/// Where a call's <paramref name="indices"/> of compacted triangles start in this frame's compacted buffer: calls take
+		/// ranges one after another, so ones recorded on different workers don't write over each other.
+		/// </summary>
+		public uint ReserveCompacted( uint frame, long indices )
+		{
+			lock ( Compacted )
+			{
+				if ( compactedFrame != frame ) (compactedFrame, compactedUsed) = (frame, 0);
+				var start = Math.Min( compactedUsed, VisibilityCompactedIndices );
+				compactedUsed += indices;
+				return (uint)start;
+			}
+		}
+	}
+
+	/// <summary>A view's visibility resources if it has any yet.</summary>
+	internal VisibilityView ExistingVisibility( object view )
+	{
+		lock ( visibilityViews ) return visibilityViews.TryGetValue( view, out var state ) && state.Mask.IsValid ? state : null;
 	}
 
 	/// <summary>Indices each compacted index buffer holds; a fragment that doesn't fit draws whole.</summary>
