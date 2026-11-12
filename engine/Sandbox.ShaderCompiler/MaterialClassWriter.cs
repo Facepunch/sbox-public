@@ -40,6 +40,7 @@ public static class MaterialClassWriter
 			if ( field.Group is not null ) notes.Add( $"group \"{field.Group}\"" );
 			if ( field.Min is not null || field.Max is not null ) notes.Add( $"range {(field.Min ?? 0).ToString( CultureInfo.InvariantCulture )} to {(field.Max ?? 0).ToString( CultureInfo.InvariantCulture )}" );
 			if ( field.Srgb ) notes.Add( "sRGB" );
+			if ( field.Opacity ) notes.Add( "opacity" );
 			s.Append( "\t/// <summary><c>" ).Append( field.Name ).Append( "</c>" ).Append( notes.Count > 0 ? ": " + string.Join( ", ", notes ) : "" ).Append( ".</summary>\n" );
 			var (type, get, set) = Accessors( field );
 			s.Append( "\tpublic " ).Append( type ).Append( ' ' ).Append( field.Name ).Append( " { get => " ).Append( get ).Append( "; set => " ).Append( set ).Append( "; }\n" );

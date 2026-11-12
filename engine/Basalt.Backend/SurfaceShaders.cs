@@ -182,7 +182,8 @@ internal sealed class SurfaceProgram : IDisposable
 
 	/// <summary>
 	/// A pipeline for a pass drawing vertices laid out as <paramref name="layout"/> into these formats: the default render
-	/// state of today's shaders (back faces culled, depth tested and written greater-or-equal, reverse Z, no blending).
+	/// state of today's shaders (back faces culled, depth tested and written greater-or-equal, reverse Z, no blending,
+	/// alpha to coverage for alpha-tested passes).
 	/// Mesh vertices are stream 0, instance ids stream 1, the default stream 2, as for classic draws. Specialization
 	/// constants (<c>SpecializedConstant()</c> globals) are per pipeline, <paramref name="constantsKey"/> their values.
 	/// </summary>
@@ -224,6 +225,10 @@ internal sealed class SurfaceProgram : IDisposable
 				DepthWrite = depth != Format.Unknown,
 				DepthCompare = CompareFunction.GreaterEqual,
 				Blend = [BlendState.Opaque],
+
+				// Alpha-tested passes write today's alpha-to-coverage alpha (S_ALPHA_TEST), with multisampling only, as the
+				// .shaders' AlphaToCoverageEnable render state does
+				AlphaToCoverage = samples > 1 && pass.Pass.Name is ShaderPasses.DepthAlphaTest or ShaderPasses.Forward + "AlphaTest",
 				ColorFormats = depthOnly ? [] : [color],
 				DepthFormat = depth,
 				Samples = samples,

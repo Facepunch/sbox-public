@@ -469,7 +469,8 @@ internal static class ModelParity
 	internal static Color32[] ReadBack( BackendDevice device, ViewTarget target, int width = Width, int height = Height )
 	{
 		var gpu = device.Gpu;
-		var (texture, layout) = BackendDevice.Unwrap( target.Color );
+		var colour = target.Samples > 1 ? target.Resolved : target.Color;
+		var (texture, layout) = BackendDevice.Unwrap( colour );
 		var bytes = width * height * 8;
 		var buffer = gpu.CreateBuffer( new BufferInfo { Size = bytes, Memory = MemoryLocation.Readback, Name = "Model parity readback" } );
 		var list = gpu.BeginCommandList( QueueType.Graphics, "Model parity readback" );
@@ -477,7 +478,7 @@ internal static class ModelParity
 		list.CopyTextureToBuffer( texture, 0, 0, buffer );
 		list.Barrier( new BufferBarrier { Buffer = buffer, SourceStage = PipelineStage.Transfer, SourceAccess = MemoryAccess.TransferWrite, DestinationStage = PipelineStage.Host, DestinationAccess = MemoryAccess.HostRead } );
 		gpu.Wait( gpu.Submit( list ) );
-		BackendDevice.SetLayout( target.Color, ImageLayout.CopySource );
+		BackendDevice.SetLayout( colour, ImageLayout.CopySource );
 
 		var halves = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, ushort>( gpu.Map( buffer ) );
 		var pixels = new Color32[width * height];

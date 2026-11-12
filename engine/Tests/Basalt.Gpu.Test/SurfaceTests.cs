@@ -69,8 +69,9 @@ public class SurfaceTests : GpuTest
 		Assert.AreEqual( 1, materials.Count );
 		Assert.AreEqual( "Leaf", materials[0].Name );
 		CollectionAssert.AreEqual( new[] { "ISurface" }, materials[0].Interfaces );
-		StringAssert.Contains( text, "[Group( \"Color\" ), Srgb] MaterialTexture2D Color;" );
-		StringAssert.Contains( text, "\tMaterialTexture2D Mask;" );
+		StringAssert.Contains( text, "[Group( \"Color\" ), Srgb] public MaterialTexture2D Color;" );
+		StringAssert.Contains( text, "\tpublic MaterialTexture2D Mask;" );
+		StringAssert.Contains( text, "\tpublic float3 Tint;" );
 		StringAssert.Contains( text, "Texture2D Outside;" );
 		StringAssert.Contains( text, "{ Texture2D t; return {}; }" );
 		Assert.AreEqual( source.Count( c => c == '\n' ), text.Count( c => c == '\n' ) );
@@ -104,12 +105,31 @@ public class SurfaceTests : GpuTest
 		Assert.IsFalse( forward.Globals.Members.Any( m => m.Name == "UserShadowFilterQuality" ) );
 		Assert.IsTrue( rock.Pass( ShaderPasses.Forward ).Vertex.Bindings.All( b => b.Set is 0 or ShaderAbi.BindlessSet or ShaderAbi.ViewSet ) );
 
-		// Dead-code elimination does the depth pass's work: the record, one texture and its sampler
+		// Alpha-tested passes compile with today's alpha test (S_ALPHA_TEST: its cutoff and edge strength are globals), the
+		// depth one in Depth mode as well (S_MODE_DEPTH), where Shade returns the coverage before lighting
+		var alphaTested = rock.Pass( ShaderPasses.Forward + "AlphaTest" ).Pixel;
+		Assert.IsTrue( alphaTested.Globals.Members.Any( m => m.Name == "g_flAlphaTestReference" ) );
+		Assert.IsFalse( forward.Globals.Members.Any( m => m.Name == "g_flAlphaTestReference" ) );
 		var depth = rock.Pass( ShaderPasses.DepthAlphaTest ).Pixel;
-		Assert.IsFalse( depth.Bindings.Any( b => b.Kind == BindingKind.ConstantBuffer ) );
-		Assert.IsTrue( depth.Spirv.Length * 20 < forward.Spirv.Length, $"depth {depth.Spirv.Length} bytes, forward {forward.Spirv.Length}" );
+		Assert.IsTrue( depth.Globals.Members.Any( m => m.Name == "g_flAlphaTestReference" ) );
+		StringAssert.Contains( rock.Generated, "SurfaceForward<Rock, true>( i.Pixel, m, m.Color.Slot )" );
+
+		// Material textures are read with the module's sampler, its state from its annotations
+		var sampler = forward.Bindings.Single( b => b.Kind == BindingKind.Sampler && b.Variable == "g_MaterialFiltering" );
+		Assert.AreEqual( "ANISOTROPIC", sampler.Annotations?.Filter );
+		Assert.IsFalse( rock.Generated.Contains( "SURFACE_LIGHT_HOOK", StringComparison.Ordinal ) );
 	}
 
+	/// <summary>A lit surface turns on the light loop's hook and hands it the material; an unlit one leaves the loop alone.</summary>
+	[TestMethod]
+	public void LitSurfaceHooksTheLightLoop()
+	{
+		var lit = Compiler().CompileSurface( Path.Combine( Surfaces, "rock_lit.slang" ) );
+		StringAssert.Contains( lit.Generated, "#define SURFACE_LIGHT_HOOK 1" );
+		StringAssert.Contains( lit.Generated, "s_LitSurface = m;" );
+		StringAssert.Contains( lit.Generated, "s_LitSurface.Light( SurfaceLitMaterial(), SurfaceLitInput(), light )" );
+		Assert.IsNotNull( lit.Pass( ShaderPasses.Forward ).Pixel.Spirv );
+	}
 	/// <summary>The generated classes in BasaltLab are what the compiler writes now, and a raw module has the same record.</summary>
 	[TestMethod]
 	public void GeneratedClassesAreCurrent()
@@ -120,7 +140,8 @@ public class SurfaceTests : GpuTest
 
 		Assert.AreEqual( ShaderTier.Raw, raw.Tier );
 		CollectionAssert.AreEqual( rock.Material.Fields.Select( f => (f.Kind, f.Offset) ).ToArray(), raw.Material.Fields.Select( f => (f.Kind, f.Offset) ).ToArray() );
-		foreach ( var (shader, file) in new[] { (rock, "rock.g.cs"), (raw, "rock_raw.g.cs") } )
+		var lit = compiler.CompileSurface( Path.Combine( Surfaces, "rock_lit.slang" ) );
+		foreach ( var (shader, file) in new[] { (rock, "rock.g.cs"), (raw, "rock_raw.g.cs"), (lit, "rock_lit.g.cs") } )
 		{
 			var expected = MaterialClassWriter.Write( shader, "Sandbox.BasaltLab.Surfaces" ).Replace( "\r\n", "\n" );
 			var actual = File.ReadAllText( Path.Combine( Surfaces, file ) ).Replace( "\r\n", "\n" );

@@ -17,15 +17,20 @@ public struct Material
 	public float Opacity = 1;
 	public float3 Transmission = 0;
 	public float TintMask = 1;
+
+	// A factor on the final coverage, after the alpha test's sharpened cutoff, for fading whole triangles (foliage's
+	// grazing-angle fade): spent as sub-pixel coverage with multisampling, else cut at a half. Not on Opacity, which the
+	// cutoff's derivatives would cancel.
+	public float Coverage = 1;
 }
 
 // Set by the pass's pipeline: off in raster passes (hardware derivatives), on in a visibility-buffer resolve, which
 // supplies the uv gradients
 [vk::constant_id( 1 )] public const bool kSampleWithGradients = false;
 
-/// What the engine hands Evaluate. Built by the pass: from interpolants in raster passes, from the triangle and
+/// What the engine hands Evaluate and Light. Built by the pass: from interpolants in raster passes, from the triangle and
 /// barycentrics in a visibility-buffer resolve. Surfaces read textures through Sample(), never ddx/ddy, so the resolve
-/// can supply gradients.
+/// can supply gradients, and so can the light loop, where lanes diverge and hardware derivatives are undefined.
 public struct SurfaceInput
 {
 	public float3 Position;          // world
@@ -37,14 +42,16 @@ public struct SurfaceInput
 	public float4 ScreenPosition;    // SV_Position
 	public float3 View;              // world, towards the camera
 	public float ViewDistance;       // to the camera
-	public float2 UvDdx;             // zero in raster passes: hardware derivatives are used there
+	public float3 FaceNormal;        // world, the triangle's own (flat): from derivatives in raster passes, from the triangle in a resolve
+	public float AlphaReference;     // the alpha test's cutoff (the material's), for surfaces that move it
+	public float2 UvDdx;             // the uv's screen gradients, used when Gradients is set
 	public float2 UvDdy;
-	public SamplerState Filtering;   // the material's texture filtering
+	public bool Gradients;           // sample with UvDdx/UvDdy: in Light, which runs inside the light loop
 
 	public float4 Sample( MaterialTexture2D texture, float2 uv )
 	{
-		if ( kSampleWithGradients ) return texture.SampleGrad( Filtering, uv, UvDdx, UvDdy );
-		return texture.Sample( Filtering, uv );
+		if ( kSampleWithGradients || Gradients ) return texture.SampleGrad( g_MaterialFiltering, uv, UvDdx, UvDdy );
+		return texture.Sample( g_MaterialFiltering, uv );
 	}
 
 	/// A tangent-space normal to world space.
@@ -97,8 +104,9 @@ public struct LightSample
 	public bool Sun;                 // the directional light
 }
 
-/// Optional: light a surface's own way. The engine's light loop calls Light per light and adds what it returns to the
-/// surface's emission before standard shading; the loop stays the engine's.
+/// Optional: light a surface's own way. The engine's light loop calls Light for every light it shades the pixel with (the
+/// sun, clustered lights, baked indexed lights), shadowed ones included, after its standard terms; what it returns is added
+/// to the diffuse light as emission. The loop stays the engine's. Sample() in Light uses the pixel's gradients.
 public interface ILitSurface : ISurface
 {
 	float3 Light( Material m, SurfaceInput i, LightSample light );
