@@ -66,13 +66,13 @@ partial class InsetTool
 			_tool.UpdateInset( InsetAmount, InsetSteps );
 		}
 
-		[Shortcut( "mesh.inset-apply", "enter", ShortcutType.Application )]
+		[Shortcut( "mesh.inset-apply", "enter", typeof( SceneViewWidget ) )]
 		void Apply()
 		{
 			_tool.Apply();
 		}
 
-		[Shortcut( "mesh.inset-cancel", "ESC", ShortcutType.Application )]
+		[Shortcut( "mesh.inset-cancel", "ESC", typeof( SceneViewWidget ) )]
 		void Cancel()
 		{
 			_tool.Cancel();

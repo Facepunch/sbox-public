@@ -9,14 +9,14 @@ partial class ViewportTools
 		UpdateChildren();
 	}
 
-	[Shortcut( "grid.toggle-grid-snap", "G", typeof( SceneViewportWidget ) )]
+	[Shortcut( "grid.toggle-grid-snap", "CTRL+SHIFT+Q", typeof( SceneViewportWidget ) )]
 	void ToggleGridSnap()
 	{
 		EditorScene.GizmoSettings.SnapToGrid = !EditorScene.GizmoSettings.SnapToGrid;
 		UpdateChildren();
 	}
 
-	[Shortcut( "grid.decrease-grid-size", "[", typeof( SceneViewportWidget ) )]
+	[Shortcut( "grid.decrease-grid-size", "CTRL+[", typeof( SceneViewportWidget ) )]
 	void DecreaseGridSize()
 	{
 		var value = EditorScene.GizmoSettings.GridSpacing;
@@ -27,7 +27,7 @@ partial class ViewportTools
 		UpdateChildren();
 	}
 
-	[Shortcut( "grid.increase-grid-size", "]", typeof( SceneViewportWidget ) )]
+	[Shortcut( "grid.increase-grid-size", "CTRL+]", typeof( SceneViewportWidget ) )]
 	void IncreaseGridSize()
 	{
 		var value = EditorScene.GizmoSettings.GridSpacing;
@@ -38,7 +38,7 @@ partial class ViewportTools
 		UpdateChildren();
 	}
 
-	[Shortcut( "scene.toggle-global-space", "T", typeof( SceneViewportWidget ) )]
+	[Shortcut( "scene.toggle-global-space", "CTRL+T", typeof( SceneViewportWidget ) )]
 	void ToggleGlobalSpace()
 	{
 		EditorScene.GizmoSettings.GlobalSpace = !EditorScene.GizmoSettings.GlobalSpace;

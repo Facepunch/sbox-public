@@ -36,7 +36,7 @@ class MoveModeToolBar : Widget
 	[Shortcut( "tools.pivot-tool", "t", typeof( SceneViewWidget ) )]
 	public void ActivatePivotMode() => SetMode( "mesh.pivot.mode" );
 
-	[Shortcut( "tools.resize-tool", "y", typeof( SceneViewWidget ) )]
+	[Shortcut( "tools.resize-tool", "SHIFT+Y", typeof( SceneViewWidget ) )]
 	public void ActivateResizeMode() => SetMode( "mesh.resize.mode" );
 }
 
