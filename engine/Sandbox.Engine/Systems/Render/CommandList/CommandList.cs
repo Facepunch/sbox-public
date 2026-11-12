@@ -1053,9 +1053,15 @@ public sealed unsafe partial class CommandList
 				return;
 			}
 
-			// The table is Source 2's scene system's, and the index would be another device's
+			// Source 2's table is its scene system's; Basalt.Gpu's is its backend's, written in the block's list
+			if ( Graphics.Backend is BasaltGpuRenderBackend gpu )
+			{
+				gpu.SetPipelineTexture( (int)entry.Data1.x, target.ColorTarget );
+				return;
+			}
+
 			if ( Graphics.Backend is not Source2RenderBackend )
-				throw new NotSupportedException( "Pipeline textures (ambient occlusion's and reflections' results) aren't on Basalt.Gpu yet (docs/managed/basalt-gpu-path.md)" );
+				throw new NotSupportedException( "Pipeline textures (ambient occlusion's and reflections' results) need Source 2's device or Basalt.Gpu" );
 
 			NativeEngine.CSceneSystem.SetPipelineTextureIndex( (int)entry.Data1.x, target.ColorTarget.Index );
 		}

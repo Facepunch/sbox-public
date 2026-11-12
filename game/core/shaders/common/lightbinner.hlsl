@@ -46,21 +46,13 @@ enum LightShape
 
 //-----------------------------------------------------------------------------
 
-// The view's light counts, baked light mapping and ambient light, in its descriptor set (common.fxc)
-cbuffer ViewLightingConfigV2 EXTERNAL_DESC_SET( b, g_viewSet, 1 )
-{
-    int4 NumLights;                     // x - num dynamic lights, y - num baked lights, z - num envmaps, w - num decals
+// The view's light counts, baked light mapping and ambient light: ViewLightingConfigV2's block of its environment
+#include "common/ViewEnvironment.hlsl"
 
-    int4 BakedLightIndexMapping[256];   // Remaps baked light index to the light pool list for fast
-                                        // query on the shader, we have a hard limit of 256 baked lights
-
-    float4 AmbientLightColor;           // w = lerp between IBL and flat ambient light
-
-    #define NumDynamicLights        NumLights.x
-    #define NumBakedIndexedLights   NumLights.y
-    #define NumEnvironmentMaps      NumLights.z
-    #define NumDecals               NumLights.w
-};
+#define NumDynamicLights        NumLights.x
+#define NumBakedIndexedLights   NumLights.y
+#define NumEnvironmentMaps      NumLights.z
+#define NumDecals               NumLights.w
 
 //
 // matt: I could spend all day refactoring this struct/file

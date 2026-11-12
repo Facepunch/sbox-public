@@ -13,6 +13,9 @@ internal struct BufferRecord
 	public BufferUsage Usage;
 	public MemoryLocation Location;
 	public string Name;
+
+	/// <summary>Its slot in the bindless raw buffer array plus one, or 0 when it isn't there.</summary>
+	public int BindlessSlot;
 }
 
 /// <summary>
@@ -944,6 +947,7 @@ public sealed unsafe partial class Device
 		var record = Buffers.Remove( buffer.Index, buffer.Generation );
 		Defer( () =>
 		{
+			if ( record.BindlessSlot > 0 ) Bindless.RemoveBuffer( record.BindlessSlot - 1 );
 			Vk.vkDestroyBuffer( Vk.Device, record.Buffer, null );
 			Allocator.Free( record.Memory );
 		} );

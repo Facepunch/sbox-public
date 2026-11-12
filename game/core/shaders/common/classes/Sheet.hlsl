@@ -9,7 +9,10 @@
 //		  If I broke shaders that DO define this then I fucked it sorry - remove the definition in their file
 //		   whtever you do, don't start a fucking #IF SHEET_TEXTUERRE_DEFINED thing 
 //
-Texture2D g_SheetTexture < Attribute( "SheetTexture" ); SrgbRead( false ); >;
+// Through the bindless set, by the view environment's index (linear)
+#include "common/ViewEnvironment.hlsl"
+#include "common/classes/Bindless.hlsl"
+#define g_SheetTexture g_bindless_Texture2D[ g_vViewLookupIndices.x ]
 
 //
 // Public Sheet Api.

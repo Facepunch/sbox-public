@@ -23,9 +23,12 @@ internal sealed partial class GameWindow : IDisposable
 	bool renderingInitialized;
 	VideoMode startupVideoMode;
 
+	// With -basaltgpu: the window's swap chain on Basalt.Gpu, in place of Source 2's (docs/managed/basalt-gpu-path.md, stage 5)
+	BasaltGpuWindow basalt;
+
 	internal IntPtr Handle => window.Handle;
 
-	internal GameSurface Surface => new( window.Handle, window.SwapChain );
+	internal GameSurface Surface => new( window.Handle, window.SwapChain, basalt?.VSync );
 
 	internal string Title
 	{
@@ -80,7 +83,8 @@ internal sealed partial class GameWindow : IDisposable
 
 	void AttachSwapChain( VideoMode mode )
 	{
-		window.CreateSwapChain( "GameWindow", mode.Multisample, mode.VSync, mainWindow: true );
+		if ( RenderBackend.Default is BasaltGpuRenderBackend device ) basalt = new BasaltGpuWindow( device, window.Handle, mode.VSync ) { Samples = SampleCount( mode.Multisample ) };
+		else window.CreateSwapChain( "GameWindow", mode.Multisample, mode.VSync, mainWindow: true );
 
 		GameWindowNative.Attach( window.Handle, window.SwapChain );
 		attached = true;
@@ -170,9 +174,19 @@ internal sealed partial class GameWindow : IDisposable
 		window.Flush();
 
 		if ( !ApplyWindowMode( video.Window ) ) return;
-		if ( !window.UpdateSwapChain( video.Multisample, video.VSync ) ) return;
+
+		// A Basalt.Gpu swap chain follows the window's size every frame (Render); only vsync is a mode of its own
+		if ( basalt is not null )
+		{
+			basalt.SetVSync( video.VSync );
+			basalt.Samples = SampleCount( video.Multisample );
+		}
+		else if ( !window.UpdateSwapChain( video.Multisample, video.VSync ) ) return;
 		if ( pendingMode == video ) pendingMode = null;
 	}
+
+	/// <summary>Samples per pixel a game window's scenes render with on Basalt.Gpu: the setting, as the device allows it.</summary>
+	static int SampleCount( RenderMultisampleType multisample ) => Graphics.RenderMultiSampleToNum( RenderDeviceManager.GetBestMultisampleType( multisample ) );
 
 	bool ApplyWindowMode( WindowMode requested )
 	{
@@ -229,6 +243,10 @@ internal sealed partial class GameWindow : IDisposable
 			GameWindowNative.Detach( window.Handle );
 			attached = false;
 		}
+
+		// Its surface goes before the window
+		basalt?.Dispose();
+		basalt = null;
 		window.Dispose();
 	}
 }

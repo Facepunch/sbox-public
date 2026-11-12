@@ -19,6 +19,9 @@ public static partial class Program
 		options.SingleThreaded = args.Any( x => x == "-s" );
 		options.ConsoleOutput = !args.Any( x => x == "-q" );
 
+		// Basalt's GPU-driven variant, into name.gpudriven.shader_c beside each shader
+		options.GpuDriven = args.Any( x => x == "-gpudriven" );
+
 		// Most combos to compile at once, default is one per core
 		var threadsIndex = Array.IndexOf( args, "-j" );
 		if ( threadsIndex >= 0 && threadsIndex + 1 < args.Length && int.TryParse( args[threadsIndex + 1], out var threads ) )
@@ -171,14 +174,18 @@ public static partial class Program
 	/// </summary>
 	static int Recompile( string[] args, ShaderCompileOptions options )
 	{
+		// --out <path>: write the one file's result there instead of over it (a package shader's GPU-driven variant)
+		var outIndex = Array.IndexOf( args, "--out" );
+		var output = outIndex >= 0 && outIndex + 1 < args.Length ? System.IO.Path.GetFullPath( args[outIndex + 1] ) : null;
+
 		var files = args
-			.Where( a => !a.StartsWith( "-" ) )
+			.Where( ( a, i ) => !a.StartsWith( "-" ) && (outIndex < 0 || i != outIndex + 1) )
 			.Distinct( StringComparer.OrdinalIgnoreCase )
 			.ToList();
 
-		if ( files.Count == 0 )
+		if ( files.Count == 0 || (output is not null && files.Count != 1) )
 		{
-			Console.Error.WriteLine( "Usage: ShaderCompiler --recompile <file.shader_c> [more.shader_c ...]" );
+			Console.Error.WriteLine( "Usage: ShaderCompiler --recompile <file.shader_c> [more.shader_c ...], or one file with --out <path>" );
 			return 1;
 		}
 
@@ -208,12 +215,13 @@ public static partial class Program
 						continue;
 					}
 
-					System.IO.File.WriteAllBytes( absolute, result.CompiledShader );
+					if ( output is not null ) System.IO.Directory.CreateDirectory( System.IO.Path.GetDirectoryName( output ) );
+					System.IO.File.WriteAllBytes( output ?? absolute, result.CompiledShader );
 
 					if ( options.ConsoleOutput )
 					{
 						Console.ForegroundColor = ConsoleColor.Cyan;
-						Console.WriteLine( $"Recompiled {absolute} ({result.CompiledShader.Length:n0} bytes)" );
+						Console.WriteLine( $"Recompiled {absolute}{(output is null ? "" : $" into {output}")} ({result.CompiledShader.Length:n0} bytes)" );
 						Console.ForegroundColor = ConsoleColor.White;
 					}
 				}

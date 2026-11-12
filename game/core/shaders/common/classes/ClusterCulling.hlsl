@@ -3,33 +3,19 @@
 
 #include "common.fxc"
 
-// The view's cluster lists. The culling shader writes them, so binds them itself; everything else reads them from the
-// view's descriptor set (common.fxc).
+// The view's cluster lists, one buffer of counts and one of indices, a section per item type (lights, envmaps, decals)
+// over every cluster: as few descriptors as the view set can hold. The culling shader writes them, so binds them
+// itself; everything else reads them from the view's descriptor set (common.fxc).
 #ifdef CLUSTERED_LIGHT_CULLING_CS
-RWStructuredBuffer<uint> ClusterLightCounts   < Attribute( "ClusterLightCounts" ); >;
-RWStructuredBuffer<uint> ClusterEnvMapCounts  < Attribute( "ClusterEnvMapCounts" ); >;
-RWStructuredBuffer<uint> ClusterDecalCounts   < Attribute( "ClusterDecalCounts" ); >;
-RWStructuredBuffer<uint> ClusterLightIndices  < Attribute( "ClusterLightIndices" ); >;
-RWStructuredBuffer<uint> ClusterEnvMapIndices < Attribute( "ClusterEnvMapIndices" ); >;
-RWStructuredBuffer<uint> ClusterDecalIndices  < Attribute( "ClusterDecalIndices" ); >;
+RWStructuredBuffer<uint> ClusterItemCounts  < Attribute( "ClusterItemCounts" ); >;
+RWStructuredBuffer<uint> ClusterItemIndices < Attribute( "ClusterItemIndices" ); >;
 #else
-StructuredBuffer<uint> ClusterLightCounts     EXTERNAL_DESC_SET( t, g_viewSet, 6 );
-StructuredBuffer<uint> ClusterEnvMapCounts    EXTERNAL_DESC_SET( t, g_viewSet, 7 );
-StructuredBuffer<uint> ClusterDecalCounts     EXTERNAL_DESC_SET( t, g_viewSet, 8 );
-StructuredBuffer<uint> ClusterLightIndices    EXTERNAL_DESC_SET( t, g_viewSet, 9 );
-StructuredBuffer<uint> ClusterEnvMapIndices   EXTERNAL_DESC_SET( t, g_viewSet, 10 );
-StructuredBuffer<uint> ClusterDecalIndices    EXTERNAL_DESC_SET( t, g_viewSet, 11 );
+StructuredBuffer<uint> ClusterItemCounts      EXTERNAL_DESC_SET( t, g_viewSet, 6 );
+StructuredBuffer<uint> ClusterItemIndices     EXTERNAL_DESC_SET( t, g_viewSet, 7 );
 #endif
 
-// The view's cluster grid, in its descriptor set
-cbuffer ClusteredLightingConstants EXTERNAL_DESC_SET( b, g_viewSet, 3 )
-{
-    float4 ClusterCounts;        // xyz = tile counts, w = total
-    float4 ClusterInvCounts;     // xyz = 1/counts, w = unused
-    float4 ClusterZParams;       // x = log scale, y = log bias, z = near, w = far
-    float4 ClusterScreenParams;  // xy = size, zw = 1/size
-    float4 ClusterCapacitiesVec; // xyz = capacity per type
-};
+// The view's cluster grid: ClusteredLightingConstants' block of its environment
+#include "common/ViewEnvironment.hlsl"
 
 enum ClusterItemType
 {
@@ -63,6 +49,20 @@ struct Cluster
     static float SliceToDepth( float slice ) { return exp( ( slice - ClusterZParams.y ) / ClusterZParams.x ); }
     static float DepthToSlice( float depth ) { return ClusterZParams.x * log( depth ) + ClusterZParams.y; }
     static uint Capacity( ClusterItemType type ) { return uint( ClusterCapacitiesVec[uint( type )] ); }
+
+    // Where a cluster's count of a type is in ClusterItemCounts: the type's section, then the cluster
+    static uint CountSlot( ClusterItemType type, uint flatIndex ) { return uint( type ) * uint( ClusterCounts.w ) + flatIndex; }
+
+    // Where a cluster's items of a type start in ClusterItemIndices: the sections before the type's, then the
+    // cluster's capacity-sized run
+    static uint IndexBase( ClusterItemType type, uint flatIndex )
+    {
+        uint total = uint( ClusterCounts.w );
+        uint section = 0;
+        if ( type != ClusterItemType_Light ) section += total * Capacity( ClusterItemType_Light );
+        if ( type == ClusterItemType_Decal ) section += total * Capacity( ClusterItemType_EnvMap );
+        return section + flatIndex * Capacity( type );
+    }
 
     static uint Flatten( uint3 coord )
     {
@@ -110,28 +110,14 @@ struct Cluster
     static ClusterRange Query( ClusterItemType type, uint flatIndex )
     {
         // Build range
-        uint capacity = Capacity( type );
-        uint count = 0;
-        uint features = 0;
-        switch ( type )
-        {
-            case ClusterItemType_Light:
-            {
-                uint packed = ClusterLightCounts[flatIndex];
-                count = packed & ClusterCountMask;
-                features = packed >> ClusterFeatureShift;
-                break;
-            }
-            case ClusterItemType_EnvMap: count = ClusterEnvMapCounts[flatIndex]; break;
-            case ClusterItemType_Decal:  count = ClusterDecalCounts[flatIndex];  break;
-            default: break;
-        }
+        // A light count carries its cluster's features above the count; the others' high bits are zero
+        uint packed = ClusterItemCounts[CountSlot( type, flatIndex )];
 
         ClusterRange range;
         range.Type = type;
-        range.Count = min( count, capacity );
-        range.BaseOffset = flatIndex * capacity;
-        range.Features = features;
+        range.Count = min( packed & ClusterCountMask, Capacity( type ) );
+        range.BaseOffset = IndexBase( type, flatIndex );
+        range.Features = packed >> ClusterFeatureShift;
         range.Taken = 0;
         range.Pending = LoadPending( range );
         range.Item = 0xFFFFFFFF;
@@ -148,14 +134,7 @@ struct Cluster
 
     static uint LoadItem( ClusterRange range, uint index )
     {
-        uint offset = range.BaseOffset + index;
-        switch ( range.Type )
-        {
-            case ClusterItemType_Light:  return ClusterLightIndices[offset];
-            case ClusterItemType_EnvMap: return ClusterEnvMapIndices[offset];
-            case ClusterItemType_Decal:  return ClusterDecalIndices[offset];
-            default: return 0;
-        }
+        return ClusterItemIndices[range.BaseOffset + index];
     }
 
     // This lane's next item, ~0 once it has taken them all. Branch, not ?:, so a full cluster never loads past its end

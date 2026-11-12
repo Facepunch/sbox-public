@@ -25,6 +25,20 @@ public sealed class DrawTimings
 	/// </summary>
 	public long ObjectChanges, ObjectChangeTicks;
 
+	/// <summary>
+	/// GPU-driven drawing (<see cref="BackendDevice.GpuDriven"/>): aggregate batches it drew, the buckets they went in (one
+	/// pipeline and set bind each), the multi-draws recorded and the fragments in them.
+	/// </summary>
+	public long GpuDrivenBatches, GpuDrivenBuckets, GpuDrivenMultiDraws, GpuDrivenFragments;
+
+	internal void AddGpuDriven( int batches, int buckets, int multiDraws, int fragments )
+	{
+		Interlocked.Add( ref GpuDrivenBatches, batches );
+		Interlocked.Add( ref GpuDrivenBuckets, buckets );
+		Interlocked.Add( ref GpuDrivenMultiDraws, multiDraws );
+		Interlocked.Add( ref GpuDrivenFragments, fragments );
+	}
+
 	/// <summary>Draws that recorded nothing (no variant, no shader, or a way the backend can't draw yet), by material.</summary>
 	public Dictionary<string, int> Failed { get; } = new();
 
@@ -71,6 +85,7 @@ public sealed class DrawTimings
 	public void Reset()
 	{
 		Draws = Binds = BindTicks = DrawTicks = IndirectDraws = ObjectChanges = ObjectChangeTicks = 0;
+		GpuDrivenBatches = GpuDrivenBuckets = GpuDrivenMultiDraws = GpuDrivenFragments = 0;
 		lock ( Failed ) Failed.Clear();
 	}
 }

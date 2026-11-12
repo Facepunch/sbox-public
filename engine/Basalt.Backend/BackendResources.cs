@@ -134,7 +134,7 @@ internal sealed class BackendParameters : ShaderParameters
 	public override void Set( StringToken name, Vector4 value ) => Store( name, value );
 	public override void Set( StringToken name, Vector2Int value ) => Store( name, value );
 	public override void Set( StringToken name, Matrix value ) => Store( name, value );
-	public override void Set( StringToken name, GpuTexture value, int mip = -1 ) => Store( name, value );
+	public override void Set( StringToken name, GpuTexture value, int mip = -1 ) => Store( name, mip >= 0 && value is not null ? new TextureMip( value, mip ) : value );
 	public override void Set( StringToken name, GpuBuffer value ) => Store( name, value );
 
 	public override void SetData<T>( StringToken name, in T value )
@@ -154,6 +154,50 @@ internal sealed class BackendParameters : ShaderParameters
 	}
 
 	public override bool GetBool( StringToken name, bool fallback = false ) => Get( name ) is bool value ? value : fallback;
+
+	static readonly uint ProbeVolumeName = new StringToken( "PerBatchLightProbeVolumeConstantBuffer_t" ).Value;
+	int lightingFreeVersion = -1;
+	long lightingFreeKey;
+
+	/// <summary>
+	/// The same for parameters that hold the same values but for their light probe volume constants, which GPU-driven variants
+	/// read from a record per draw: draws whose attributes differ only in those share a
+	/// bucket. A hash of the rest, its count in the top half.
+	/// </summary>
+	internal long LightingFreeKey
+	{
+		get
+		{
+			var current = Version;
+			lock ( values )
+			{
+				if ( lightingFreeVersion == current ) return lightingFreeKey;
+
+				var hash = new HashCode();
+				var count = 0;
+				foreach ( var key in values.Keys.Order() )
+				{
+					if ( key == ProbeVolumeName ) continue;
+					hash.Add( key );
+					if ( values[key] is byte[] bytes ) hash.AddBytes( bytes );
+					else hash.Add( values[key] );
+					count++;
+				}
+
+				foreach ( var key in combos.Keys.Order() )
+				{
+					hash.Add( key ^ 0x9E3779B9u );
+					hash.Add( combos[key] );
+					count++;
+				}
+
+				if ( Parent is { } parent ) hash.Add( parent.LightingFreeKey );
+				lightingFreeKey = (long)count << 32 | (uint)hash.ToHashCode();
+				lightingFreeVersion = current;
+				return lightingFreeKey;
+			}
+		}
+	}
 
 	/// <summary>What material objects keep of these as an object's attributes (<see cref="ObjectLayer"/>), made when first set.</summary>
 	internal ObjectLayer Layer;
@@ -294,6 +338,7 @@ internal sealed class BackendMaterial : GpuMaterial
 		lock ( variants )
 		{
 			variants.Clear();
+			gpuDrivenVariants.Clear();
 			Load( shader, file, textures );
 			needsLightProbe = 0;
 		}
@@ -309,6 +354,32 @@ internal sealed class BackendMaterial : GpuMaterial
 			if ( variants.TryGetValue( key, out var variant ) ) return variant;
 			variant = library.Variant( Shader, mode, Features, combos, attributes );
 			variants[key] = variant;
+			return variant;
+		}
+	}
+
+	readonly Dictionary<string, ShaderVariant> gpuDrivenVariants = new();
+
+	/// <summary>
+	/// The same variant from the shader's GPU-driven file (<see cref="ShaderLibrary.GpuDriven"/>), made once; null when
+	/// there's none or it lacks the combo.
+	/// </summary>
+	public ShaderVariant GpuDrivenVariant( ShaderLibrary library, string mode, string key, Func<string, int?> combos, Func<string, int?> attributes )
+	{
+		lock ( variants )
+		{
+			if ( gpuDrivenVariants.TryGetValue( key, out var variant ) ) return variant;
+			try
+			{
+				variant = library.Variant( Shader, mode, Features, combos, attributes, gpuDriven: true );
+			}
+			catch ( System.IO.InvalidDataException )
+			{
+				variant = null;
+			}
+
+			// Not while its variant is compiling: the batch draws classic until then
+			if ( variant is not null || !library.GpuDrivenPending( Shader ) ) gpuDrivenVariants[key] = variant;
 			return variant;
 		}
 	}
@@ -417,13 +488,13 @@ public sealed class BackendMesh : GpuMesh, IBackendGeometry
 		new( VertexSemantic.Tangent, 0, VertexFormat.Float4, 32 ),
 	] );
 
-	BackendMesh( BufferHandle vertices, BufferHandle indices, IndexFormat format, string name )
+	BackendMesh( BufferHandle vertices, BufferHandle indices, IndexFormat format, string name, PooledGeometry? pooled )
 	{
 		Vertices = vertices;
 		Indices = indices;
 		IndexFormat = format;
 		this.name = name;
-		geometry = new DrawGeometry( vertices, 0, indices, 0, format, 0, Layout, UncompressedTangentFrame: true );
+		geometry = new DrawGeometry( vertices, 0, indices, 0, format, 0, Layout, UncompressedTangentFrame: true, pooled );
 	}
 
 	DrawGeometry IBackendGeometry.For( int mesh, int drawCall ) => geometry;
@@ -457,7 +528,27 @@ public sealed class BackendMesh : GpuMesh, IBackendGeometry
 			maxs = Vector3.Max( maxs, v.Position );
 		}
 
-		var geometry = new BackendMesh( vertexBuffer, indexBuffer, IndexFormat.UInt32, name );
+		// In the GPU-driven pages too, when the device keeps them
+		PooledGeometry? pooled = null;
+		if ( device.GpuDrivenTables is { } tables )
+		{
+			var (slot, offset) = tables.AddVertices( MemoryMarshal.AsBytes( data.AsSpan() ) );
+			var (page, pageSlot, first) = tables.AddIndices( MemoryMarshal.AsBytes( indices ), IndexFormat.UInt32 );
+			// And its positions alone, for depth-only draws
+			var positions = new float[data.Length * 3];
+			for ( int i = 0; i < data.Length; i++ )
+			{
+				positions[i * 3] = data[i].Position.x;
+				positions[i * 3 + 1] = data[i].Position.y;
+				positions[i * 3 + 2] = data[i].Position.z;
+			}
+
+			var (_, positionOffset, positionSlot) = tables.AddVertexStream( MemoryMarshal.AsBytes( positions.AsSpan() ) );
+			var positionsRecord = tables.Geometry( positionSlot, positionOffset, device.Layout( BackendModel.PositionLayout ), data.Length );
+			pooled = new PooledGeometry( tables.Geometry( slot, offset, device.Layout( Layout ), data.Length ), page, pageSlot, first, IndexFormat.UInt32, positionsRecord, data.Length );
+		}
+
+		var geometry = new BackendMesh( vertexBuffer, indexBuffer, IndexFormat.UInt32, name, pooled );
 		var draw = new RenderMesh.Draw( 0, 0, 0, indices.Length, data.Length, 0, material );
 		return new RenderMesh( geometry, new BBox( mins, maxs ), [[draw]] );
 	}

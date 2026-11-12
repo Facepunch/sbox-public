@@ -24,7 +24,8 @@ public class AggregateTests : GpuTest
 	[TestMethod]
 	public void FragmentsDrawWhatTheWholeMeshDraws()
 	{
-		using var backend = new BackendDevice( Device );
+		// The classic fragment path: GpuDrivenTests compares the GPU-driven one with it
+		using var backend = new BackendDevice( Device ) { GpuDriven = false };
 		var previousHost = RenderHost.Current;
 		RenderHost.Current = new BackendRenderHost( backend );
 		try

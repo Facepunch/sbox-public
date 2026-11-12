@@ -100,7 +100,7 @@ public class SurfaceTests : GpuTest
 		Assert.IsTrue( forward.Bindings.All( b => b.Set is 1 or ShaderAbi.BindlessSet or ShaderAbi.ViewSet ) );
 
 		// Per-view lighting and fog come from the view set, as the core shaders read them
-		Assert.IsTrue( forward.Bindings.Any( b => b.Set == ShaderAbi.ViewSet && b.Name == "DirectionalLightCB" ) );
+		Assert.IsTrue( forward.Bindings.Any( b => b.Set == ShaderAbi.ViewSet && b.Name == ShaderAbi.ViewEnvironment ) );
 		Assert.IsTrue( forward.Specializations.Any( s => s.Attribute == "ShadowFilterQuality" ) );
 		Assert.IsFalse( forward.Globals.Members.Any( m => m.Name == "UserShadowFilterQuality" ) );
 		Assert.IsTrue( rock.Pass( ShaderPasses.Forward ).Vertex.Bindings.All( b => b.Set is 0 or ShaderAbi.BindlessSet or ShaderAbi.ViewSet ) );

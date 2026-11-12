@@ -20,6 +20,10 @@ internal sealed unsafe class BindlessTable : IDisposable
 	readonly SlotAllocator textures;
 	readonly SlotAllocator samplers;
 	readonly SlotAllocator storage;
+	readonly SlotAllocator buffers;
+
+	/// <summary>How many raw buffers binding 63 holds.</summary>
+	public const int BufferCount = 1024;
 
 	public ulong SetLayout { get; }
 	public ulong Set { get; }
@@ -57,26 +61,28 @@ internal sealed unsafe class BindlessTable : IDisposable
 		textures = new SlotAllocator( textureCount, 2, "texture", first: 2 );
 		samplers = new SlotAllocator( samplerCount, 1, "sampler" );
 		storage = new SlotAllocator( storageCount, 1, "storage texture" );
+		buffers = new SlotAllocator( BufferCount, 1, "raw buffer" );
 
 		var all = Vulkan.Vk.StageAllGraphics | Vulkan.Vk.StageCompute;
-		var bindings = stackalloc VkDescriptorSetLayoutBinding[5];
+		var bindings = stackalloc VkDescriptorSetLayoutBinding[6];
 		bindings[0] = new VkDescriptorSetLayoutBinding { binding = ShaderAbi.BindlessSamplers, descriptorType = VkDescriptorType.Sampler, descriptorCount = (uint)samplerCount, stageFlags = all };
 		bindings[1] = new VkDescriptorSetLayoutBinding { binding = ShaderAbi.BindlessVertexCache, descriptorType = VkDescriptorType.StorageBuffer, descriptorCount = 1, stageFlags = Vulkan.Vk.StageVertex | Vulkan.Vk.StageCompute };
 		bindings[2] = new VkDescriptorSetLayoutBinding { binding = ShaderAbi.BindlessPipelineTextures, descriptorType = VkDescriptorType.StorageBuffer, descriptorCount = 1, stageFlags = all };
 		bindings[3] = new VkDescriptorSetLayoutBinding { binding = ShaderAbi.BindlessTextures, descriptorType = VkDescriptorType.SampledImage, descriptorCount = (uint)textureCount, stageFlags = all };
 		bindings[4] = new VkDescriptorSetLayoutBinding { binding = ShaderAbi.BindlessStorageTextures, descriptorType = VkDescriptorType.StorageImage, descriptorCount = (uint)storageCount, stageFlags = Vulkan.Vk.StageCompute };
+		bindings[5] = new VkDescriptorSetLayoutBinding { binding = ShaderAbi.BindlessBuffers, descriptorType = VkDescriptorType.StorageBuffer, descriptorCount = BufferCount, stageFlags = all };
 
 		var updatable = Vulkan.Vk.BindingPartiallyBound | Vulkan.Vk.BindingUpdateAfterBind | Vulkan.Vk.BindingUpdateUnusedWhilePending;
 		var bufferFlags = storageBufferUpdateAfterBind ? updatable : Vulkan.Vk.BindingPartiallyBound;
-		var flags = stackalloc uint[5] { updatable, bufferFlags, bufferFlags, updatable, updatable };
-		var flagsInfo = new VkDescriptorSetLayoutBindingFlagsCreateInfo { sType = VkStructureType.DescriptorSetLayoutBindingFlagsCreateInfo, bindingCount = 5, pBindingFlags = flags };
+		var flags = stackalloc uint[6] { updatable, bufferFlags, bufferFlags, updatable, updatable, bufferFlags };
+		var flagsInfo = new VkDescriptorSetLayoutBindingFlagsCreateInfo { sType = VkStructureType.DescriptorSetLayoutBindingFlagsCreateInfo, bindingCount = 6, pBindingFlags = flags };
 
 		var layoutInfo = new VkDescriptorSetLayoutCreateInfo
 		{
 			sType = VkStructureType.DescriptorSetLayoutCreateInfo,
 			pNext = &flagsInfo,
 			flags = Vulkan.Vk.SetLayoutUpdateAfterBindPool,
-			bindingCount = 5,
+			bindingCount = 6,
 			pBindings = bindings,
 		};
 
@@ -86,7 +92,7 @@ internal sealed unsafe class BindlessTable : IDisposable
 
 		var sizes = stackalloc VkDescriptorPoolSize[4];
 		sizes[0] = new VkDescriptorPoolSize { type = VkDescriptorType.Sampler, descriptorCount = (uint)samplerCount };
-		sizes[1] = new VkDescriptorPoolSize { type = VkDescriptorType.StorageBuffer, descriptorCount = 2 };
+		sizes[1] = new VkDescriptorPoolSize { type = VkDescriptorType.StorageBuffer, descriptorCount = 2 + BufferCount };
 		sizes[2] = new VkDescriptorPoolSize { type = VkDescriptorType.SampledImage, descriptorCount = (uint)textureCount };
 		sizes[3] = new VkDescriptorPoolSize { type = VkDescriptorType.StorageImage, descriptorCount = (uint)storageCount };
 
@@ -161,6 +167,20 @@ internal sealed unsafe class BindlessTable : IDisposable
 	}
 
 	public void RemoveSampler( int slot ) => samplers.Release( slot );
+
+	/// <summary>
+	/// Add a range of a storage buffer to the raw buffer array (binding 63) and return its slot. Without
+	/// update-after-bind for storage buffers, only while no submitted work uses the table.
+	/// </summary>
+	public int AddBuffer( ulong buffer, ulong offset, ulong size )
+	{
+		var slot = buffers.Allocate();
+		var info = new VkDescriptorBufferInfo { buffer = buffer, offset = offset, range = size == 0 ? Vulkan.Vk.WholeSize : size };
+		Write( ShaderAbi.BindlessBuffers, (uint)slot, VkDescriptorType.StorageBuffer, null, &info );
+		return slot;
+	}
+
+	public void RemoveBuffer( int slot ) => buffers.Release( slot );
 
 	/// <summary>
 	/// Point binding 49 (vertex cache) or 60 (pipeline texture indices) at a buffer. Only between frames: these aren't

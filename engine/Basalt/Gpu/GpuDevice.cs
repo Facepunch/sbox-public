@@ -71,6 +71,15 @@ public abstract class GpuDevice
 	/// </summary>
 	internal abstract Gpu.GpuContext CreateContext( Gpu.GpuContext frame = null );
 
+	/// <summary>
+	/// Whether this device's contexts draw aggregates GPU-driven (<see cref="Gpu.GpuContext.DrawGpuDriven"/>), so a layer's
+	/// aggregates record as one run rather than spread over workers.
+	/// </summary>
+	internal virtual bool DrawsAggregatesGpuDriven => false;
+
+	/// <summary>Whether static meshes' opaque draws join the aggregates' GPU-driven call (<see cref="DrawsAggregatesGpuDriven"/> too).</summary>
+	internal virtual bool DrawsMeshesGpuDriven => false;
+
 	/// <summary>Whether the device has an async compute queue.</summary>
 	public abstract bool SupportsAsyncCompute { get; }
 
@@ -88,6 +97,9 @@ public abstract class GpuDevice
 
 	/// <summary>Tag the next submissions, so a profiler can pair GPU work with the frame that made it; 0 for none.</summary>
 	public abstract void SetSubmitTag( ulong tag );
+
+	/// <summary>A render system has submitted everything it recorded for a frame: send on whatever the device is holding to submit together.</summary>
+	public virtual void EndSubmitting() { }
 
 	/// <summary>The time shaders see this frame.</summary>
 	public abstract float RenderTime { get; }

@@ -19,7 +19,7 @@ public class MaterialObjectTests : GpuTest
 	public void DrawTheSamePixelsAsBindingByReflection()
 	{
 		const int width = 640, height = 400;
-		using var scene = new BasaltScene( Device );
+		using var scene = new BasaltScene( Device ) { GpuDriven = false };
 
 		byte[] Frame( bool materialObjects )
 		{
@@ -55,7 +55,7 @@ public class MaterialObjectTests : GpuTest
 	public void InvalidatedMaterialsAreMadeAgain()
 	{
 		const int width = 320, height = 200;
-		using var scene = new BasaltScene( Device );
+		using var scene = new BasaltScene( Device ) { GpuDriven = false };
 		scene.Backend.MaterialObjects = true;
 
 		Device.BeginFrame();
@@ -116,7 +116,7 @@ public class MaterialObjectTests : GpuTest
 	public void ParallelRecordingDrawsTheSamePixels()
 	{
 		const int width = 640, height = 400;
-		using var scene = new BasaltScene( Device );
+		using var scene = new BasaltScene( Device ) { GpuDriven = false };
 		scene.Backend.MaterialObjects = true;
 
 		(byte[] Pixels, double WorkerMs) Frame( bool parallel )
@@ -138,6 +138,39 @@ public class MaterialObjectTests : GpuTest
 		CollectionAssert.AreEqual( serial.Pixels, serialAgain.Pixels, "serial recording draws the same frame twice" );
 		Assert.AreEqual( 0, Different( serial.Pixels, parallel.Pixels ), "parallel recording draws what serial recording does" );
 		CollectionAssert.AreEqual( parallel.Pixels, again.Pixels, "parallel recording draws the same frame twice" );
+	}
+
+	/// <summary>
+	/// A frame recorded on several threads, a list per segment, reaches the GPU as one submission once the render system
+	/// has submitted it, and draws what a submission per list does.
+	/// </summary>
+	[TestMethod]
+	public void ParallelRecordingSubmitsTheFrameOnce()
+	{
+		const int width = 640, height = 400;
+		using var scene = new BasaltScene( Device );
+		scene.Backend.MaterialObjects = true;
+		scene.System.ParallelRecording = true;
+
+		(byte[] Pixels, long Submissions) Frame( bool batch )
+		{
+			scene.Backend.BatchSubmits = batch;
+			Device.BeginFrame();
+			var before = Device.Submissions;
+			var (texture, layout, color) = scene.Render( width, height, 1.0f );
+			var submissions = Device.Submissions - before;
+			Device.WaitIdle();
+			return (Read( texture, layout, color ), submissions);
+		}
+
+		var separate = Frame( false );
+		var batched = Frame( true );
+		var again = Frame( true );
+
+		Assert.IsTrue( separate.Submissions > 2, $"recording on workers made {separate.Submissions} lists" );
+		Assert.AreEqual( 1, again.Submissions, "a warm frame went in one submission" );
+		Assert.AreEqual( 0, Different( separate.Pixels, batched.Pixels ), "one submission draws what a submission per list does" );
+		CollectionAssert.AreEqual( batched.Pixels, again.Pixels );
 	}
 
 	/// <summary>Read a frame back, and tell the backend where that left its target.</summary>

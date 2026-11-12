@@ -94,7 +94,7 @@ public class FrameLogTests
 		var filled = (HeadlessParameters)writes[0].Parameters;
 		foreach ( var name in new[] { "PerViewConstantBufferVR_t", "ViewLightingConfigV2", "DirectionalLightCB", "ClusteredLightingConstants", "FogConstants",
 			"BinnedLightBufferV2", "BinnedEnvMapBuffer", "DecalsBuffer", "DecalsExtraDataBuffer", "ProjectedShadows", "ProjectedCubeShadows",
-			"ClusterLightCounts", "ClusterEnvMapCounts", "ClusterDecalCounts", "ClusterLightIndices", "ClusterEnvMapIndices", "ClusterDecalIndices" } )
+			"ClusterItemCounts", "ClusterItemIndices" } )
 		{
 			Assert.IsNotNull( filled.Get( name ), $"{name} is set when the view set is filled from it" );
 		}

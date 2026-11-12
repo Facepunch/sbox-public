@@ -7,15 +7,23 @@ namespace Sandbox.Rendering;
 /// </summary>
 internal sealed class SboxRenderHost : RenderHost
 {
-	public override GpuDevice Device => Source2Device.Instance;
+	/// <summary>
+	/// The process's Basalt.Gpu device under <c>-basaltgpu</c>, where Source 2's draws nothing: its renderer services, which
+	/// the engine's drawing on that device shares.
+	/// </summary>
+	static GpuDevice BasaltGpu => RenderBackend.Default is BasaltGpuRenderBackend backend ? backend.Services : null;
 
-	public override bool AsyncCompute => ManagedSceneRendering.AsyncCompute;
+	public override GpuDevice Device => BasaltGpu ?? Source2Device.Instance;
+
+	// What a Basalt.Gpu device doesn't do yet: async compute, contact shadows (Basalt.Backend's BackendRenderHost), occlusion
+	// culling's debug output and native's GPU profiler
+	public override bool AsyncCompute => BasaltGpu is null && ManagedSceneRendering.AsyncCompute;
 
 	public override ulong FrameCount => Application.FrameCount;
 
 	public override Basalt.Shadows.ShadowSettings Shadows { get; } = new SboxShadowSettings();
 
-	public override bool ContactShadows => Sandbox.Rendering.ContactShadows.Enabled;
+	public override bool ContactShadows => BasaltGpu is null && Sandbox.Rendering.ContactShadows.Enabled;
 
 	public override bool OcclusionCulling => ManagedSceneRendering.Occlusion;
 
@@ -23,7 +31,7 @@ internal sealed class SboxRenderHost : RenderHost
 
 	public override Basalt.OcclusionDebugView OcclusionDebugView => (Basalt.OcclusionDebugView)OcclusionDebug.View;
 
-	internal override OcclusionDebugOutput CreateOcclusionDebug() => new Source2OcclusionDebug();
+	internal override OcclusionDebugOutput CreateOcclusionDebug() => BasaltGpu is null ? new Source2OcclusionDebug() : null;
 
 	public override Basalt.OcclusionEarlyCull OcclusionEarlyCull => (Basalt.OcclusionEarlyCull)OcclusionDebug.EarlyCull;
 
@@ -31,7 +39,7 @@ internal sealed class SboxRenderHost : RenderHost
 
 	public override int OcclusionFreezes => OcclusionDebug.Freezes;
 
-	public override bool GpuTimings => Sandbox.Diagnostics.GpuProfilerStats.Enabled;
+	public override bool GpuTimings => BasaltGpu is null && Sandbox.Diagnostics.GpuProfilerStats.Enabled;
 
 	public override unsafe bool ProfilesZones => PerformanceTrace.__N.PerformanceTrace_BeginEvent != null;
 

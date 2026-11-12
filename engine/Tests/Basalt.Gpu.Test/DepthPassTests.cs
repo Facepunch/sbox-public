@@ -75,4 +75,63 @@ public class DepthPassTests : GpuTest
 			RenderHost.Current = previousHost;
 		}
 	}
+
+	/// <summary>
+	/// A compiled model's depth-only prepass draws read a positions-only copy of its vertices (a 12-byte layout), and the
+	/// frame is the same, bit for bit, as when they read the full vertices: forward tests depth-equal against what they wrote.
+	/// </summary>
+	[TestMethod]
+	public void DepthOnlyDrawsReadPositionsOnly()
+	{
+		byte[] Frame( bool positions, out bool positionLayout, out long copied )
+		{
+			using var backend = new BackendDevice( Device ) { PositionStreams = positions, GpuDriven = false };
+			var previousHost = RenderHost.Current;
+			RenderHost.Current = new BackendRenderHost( backend );
+			try
+			{
+				var mesh = backend.LoadModel( "models/citizen_props/trashcan01.vmdl" );
+				if ( mesh is null ) Assert.Inconclusive( "models/citizen_props/trashcan01.vmdl isn't built" );
+
+				using var system = new RenderSystem { ParallelRecording = false, DepthPrepass = true };
+				using var target = ViewTarget.Create( new Vector2Int( Width, Height ), 4, TextureFormat.RGBA16161616F, TextureFormat.D32FS8, "Positions-only depth test" );
+				var world = new RenderWorld();
+				world.Lighting.SunShadowCascades = 0;
+				world.Add( new MeshObject( mesh, Transform.Zero ) );
+
+				var view = new RenderView { Name = "Positions-only depth test", FieldOfView = 60, ClearColor = Color.Black, Viewport = new Rect( 0, 0, Width, Height ) };
+				var size = mesh.Bounds.Size.Length;
+				view.Rotation = Rotation.From( 20, 160, 0 );
+				view.Position = mesh.Bounds.Center - view.Rotation.Forward * size * 1.2f;
+				view.ZNear = size * 0.05f;
+				view.ZFar = size * 10;
+
+				backend.BeginFrame();
+				RenderHost.Current.NextFrame();
+				system.Render( world, view, target );
+				Device.WaitIdle();
+				var (texture, layout) = BackendDevice.Unwrap( target.Resolved );
+				var pixels = ReadBack( texture, layout );
+
+				positionLayout = backend.PipelineLayouts.Any( l => l is { Stride: 12, Fields: [{ Semantic: Basalt.Source2.Shaders.VertexSemantic.Position }] } );
+				copied = backend.PositionStreamBytes;
+				return pixels;
+			}
+			finally
+			{
+				Device.WaitIdle();
+				RenderHost.Current = previousHost;
+			}
+		}
+
+		var full = Frame( false, out var fullUsedPositions, out var fullCopied );
+		var positionsOnly = Frame( true, out var usedPositions, out var copied );
+
+		Assert.IsFalse( fullUsedPositions, "with the copies off, nothing draws from them" );
+		Assert.AreEqual( 0, fullCopied );
+		Assert.IsTrue( copied > 0, "the model's vertices were copied as positions" );
+		Assert.IsTrue( usedPositions, "the prepass drew from the positions-only copy" );
+		Assert.IsTrue( full.AsSpan().SequenceEqual( positionsOnly ), "the frames are identical" );
+		Assert.IsTrue( full.Any( b => b != 0 ), "the model drew" );
+	}
 }

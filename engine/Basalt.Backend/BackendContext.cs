@@ -44,6 +44,12 @@ internal sealed partial class BackendContext : GpuContext
 		/// </summary>
 		public Dictionary<BackendTexture, (ImageLayout First, ImageLayout Current)> Layouts;
 		public readonly List<(BufferHandle Buffer, int Bytes, GpuReadback Callback)> Readbacks = new();
+
+		/// <summary>The list's own scope in <see cref="BackendDevice.PassTimer"/>, -1 if it's not timed.</summary>
+		public int TimerScope = -1;
+
+		/// <summary>The timed scope counting statistics in this list, -1 if none: they don't nest.</summary>
+		public int Counting = -1;
 	}
 
 	static readonly StringToken ViewConstantsName = new( "PerViewConstantBuffer_t" );
@@ -138,6 +144,12 @@ internal sealed partial class BackendContext : GpuContext
 				recording.List.WriteTimestamp( stamp.Queries, stamp.Index, PipelineStage.TopOfPipe );
 			}
 
+			if ( device.PassTimer is { } timer )
+			{
+				if ( frame is null ) timer.ResetIn( recording.List );
+				recording.TimerScope = timer.Begin( recording.List, recording.List.Name, PassTimer.ScopeKind.List );
+			}
+
 			// A segment with a list of its own may record while others do: its layouts are its own until it's submitted
 			if ( frame is not null ) recording.Layouts = new();
 		}
@@ -172,12 +184,13 @@ internal sealed partial class BackendContext : GpuContext
 
 			if ( recording.Active is { } last && last != this && last.recording == recording ) last.FlushClears();
 			CloseScope();
+			device.PassTimer?.End( recording.List, recording.TimerScope );
 			if ( recording.Layouts is { Count: > 0 } ) SubmitLayoutFixUps( recording );
 			Span<SyncPoint> waits = stackalloc SyncPoint[1];
 			var waitCount = 0;
 			if ( wait.Handle != IntPtr.Zero ) waits[waitCount++] = device.PointOf( wait );
 
-			var point = Gpu.Submit( recording.List, waits[..waitCount] );
+			var point = waitCount == 0 && device.BatchSubmits ? Gpu.SubmitLater( recording.List ) : Gpu.Submit( recording.List, waits[..waitCount] );
 			if ( signal.Handle != IntPtr.Zero ) device.Signalled( signal, point );
 			foreach ( var (buffer, bytes, callback) in recording.Readbacks ) device.AddReadback( point, buffer, bytes, callback );
 		}
@@ -194,11 +207,17 @@ internal sealed partial class BackendContext : GpuContext
 	void SubmitLayoutFixUps( Session session )
 	{
 		CommandList fixUps = null;
+		var timed = -1;
 		foreach ( var (texture, (first, current)) in session.Layouts )
 		{
 			if ( texture.Layout != first )
 			{
-				fixUps ??= Gpu.BeginCommandList( session.List.Queue, "Basalt layouts" );
+				if ( fixUps is null )
+				{
+					fixUps = Gpu.BeginCommandList( session.List.Queue, "Basalt layouts" );
+					timed = device.PassTimer?.Begin( fixUps, fixUps.Name, PassTimer.ScopeKind.List ) ?? -1;
+				}
+
 				fixUps.Barrier( Basalt.Gpu.TextureBarrier.Transition( texture.Handle, texture.Layout, first,
 					PipelineStage.AllCommands, MemoryAccess.MemoryWrite, PipelineStage.AllCommands, MemoryAccess.MemoryRead | MemoryAccess.MemoryWrite ) );
 			}
@@ -206,7 +225,13 @@ internal sealed partial class BackendContext : GpuContext
 			texture.Layout = current;
 		}
 
-		if ( fixUps is not null ) Gpu.Submit( fixUps );
+		if ( fixUps is not null )
+		{
+			device.PassTimer?.End( fixUps, timed );
+			if ( device.BatchSubmits ) Gpu.SubmitLater( fixUps );
+			else Gpu.Submit( fixUps );
+		}
+
 		LayoutFixUps += fixUps is null ? 0 : 1;
 	}
 
@@ -221,6 +246,49 @@ internal sealed partial class BackendContext : GpuContext
 	{
 		if ( recording?.Layouts is { } local && local.TryGetValue( texture, out var known ) ) return known.Current;
 		return texture.Layout;
+	}
+
+	/// <summary>
+	/// Hand the list this context records into to another recorder on the device (the engine's drawing, in a camera's
+	/// stage) to record into next, in order: what's open is closed and pending clears are done. Textures are where
+	/// <see cref="LendLayout"/> says; tell this context where the other left them with <see cref="SetLayout"/>, then
+	/// <see cref="Reclaim"/> it.
+	/// </summary>
+	internal CommandList Lend()
+	{
+		CloseScope();
+		return List;
+	}
+
+	/// <summary>
+	/// The layout <paramref name="texture"/> is in for another recorder in the lent list (<see cref="Lend"/>): as
+	/// <see cref="LayoutOf"/>, except in a list recorded beside others that hasn't used it yet, where the lists before it may
+	/// still move it: there it's <paramref name="start"/>, which the list then needs at its start, as a draw that samples
+	/// one does (<see cref="SampledLayoutOf"/>).
+	/// </summary>
+	internal ImageLayout LendLayout( BackendTexture texture, ImageLayout start )
+	{
+		if ( recording?.Layouts is not { } local ) return texture.Layout;
+		if ( local.TryGetValue( texture, out var known ) ) return known.Current;
+		local[texture] = (start, start);
+		return start;
+	}
+
+	/// <summary>Where another recorder left <paramref name="texture"/> in the list it was lent (<see cref="Lend"/>).</summary>
+	internal void SetLayout( BackendTexture texture, ImageLayout layout )
+	{
+		if ( recording?.Layouts is { } local ) local[texture] = (local.TryGetValue( texture, out var known ) ? known.First : texture.Layout, layout);
+		else texture.Layout = layout;
+	}
+
+	/// <summary>Carry on recording after a lend: the list's pipeline and sets are another's now, so they're bound again.</summary>
+	internal void Reclaim()
+	{
+		if ( recording is not { } r ) return;
+		r.Pipeline = default;
+		r.Binder = null;
+		r.BindVersion = -1;
+		boundValid = false;
 	}
 
 	/// <summary>
@@ -268,8 +336,8 @@ internal sealed partial class BackendContext : GpuContext
 	Binding[] viewBindings;
 
 	/// <summary>
-	/// Write the view set from this frame context's attributes - constant buffers copied into the frame's pass constants,
-	/// buffers by name, placeholders for what isn't set - and bind it for everything this frame records after.
+	/// Write the view set from this frame context's attributes - the environment's blocks copied into the frame's pass
+	/// constants, buffers by name, placeholders for what isn't set - and bind it for everything this frame records after.
 	/// </summary>
 	public override void WriteViewSet()
 	{
@@ -282,6 +350,30 @@ internal sealed partial class BackendContext : GpuContext
 		for ( int i = 0; i < viewBindings.Length; i++ )
 		{
 			var (binding, type, name) = ShaderAbi.ViewSetBindings[i];
+			if ( name == ShaderAbi.ViewEnvironment )
+			{
+				// The environment's blocks, each from the constant buffer set by its name, back to back
+				var offset = cache.AllocatePassConstants( ShaderAbi.ViewEnvironmentSize, out var target );
+				target.Clear();
+				foreach ( var (block, blockOffset, blockSize) in ShaderAbi.ViewEnvironmentBlocks )
+				{
+					if ( attributes.Get( Token( block ) ) is byte[] data )
+						data.AsSpan( 0, Math.Min( data.Length, blockSize ) ).CopyTo( target[blockOffset..] );
+				}
+
+				// Then the lookup textures' bindless indices, read through the bindless set
+				var lookups = MemoryMarshal.Cast<byte, uint>( target[ShaderAbi.ViewEnvironmentLookupsOffset..] );
+				for ( int l = 0; l < ShaderAbi.ViewEnvironmentLookups.Length; l++ )
+				{
+					lookups[l] = attributes.Get( Token( ShaderAbi.ViewEnvironmentLookups[l] ) ) is BackendTexture texture
+						? (uint)texture.BindlessIndex
+						: (uint)Math.Max( Gpu.BindlessIndex( device.Defaults.Texture( SpirvImageDimension.Texture2D ) ), 0 );
+				}
+
+				viewBindings[i] = Binding.Uniform( binding, cache.PassBuffer, offset, ShaderAbi.ViewEnvironmentSize );
+				continue;
+			}
+
 			var value = attributes.Get( Token( name ) );
 			if ( type == BindingType.UniformBuffer )
 			{
@@ -587,12 +679,31 @@ internal sealed partial class BackendContext : GpuContext
 	{
 		if ( recording is null ) return default;
 		List.BeginLabel( name );
-		return new GpuScope( 1, false );
+		if ( device.PassTimer is not { } timer ) return new GpuScope( 1, false );
+
+		// Statistics queries begin and end outside rendering here, so the scope can't straddle one; an outer scope counts for the ones inside
+		var count = timer.Statistics && recording.Counting < 0;
+		if ( count ) CloseScope();
+		var timed = timer.Begin( List, name, PassTimer.ScopeKind.Pass, count );
+		if ( count && timer.Counts( timed ) ) recording.Counting = timed;
+		return new GpuScope( timed + 2, false );
 	}
 
 	public override void EndGpuScope( GpuScope scope )
 	{
 		if ( recording is null || scope.Marker == IntPtr.Zero ) return;
+		if ( scope.Marker > 1 && device.PassTimer is { } timer )
+		{
+			var timed = (int)scope.Marker - 2;
+			if ( recording.Counting == timed )
+			{
+				CloseScope();
+				recording.Counting = -1;
+			}
+
+			timer.End( List, timed );
+		}
+
 		List.EndLabel();
 	}
 
@@ -617,7 +728,7 @@ internal sealed partial class BackendContext : GpuContext
 		var color = r.Color is null ? Format.Unknown : FormatOfTarget( r.Color, r.Srgb );
 		var noColor = stripPixelShader || r.Color is null;
 		var depthOnly = StripsPixelShader( m, noColor, stripPixelShader );
-		var geometry = GeometryFor( source, draw );
+		var geometry = DepthGeometry( GeometryFor( source, draw ), variant, depthOnly );
 		var pipeline = device.Pipeline( variant, geometry.Layout, noColor ? Format.Unknown : color, r.Depth is null ? Format.Unknown : BackendDevice.FormatOf( r.Depth ), (r.Color ?? r.Depth).Samples, depthOnly );
 
 		if ( r.Pipeline != pipeline )
@@ -642,6 +753,28 @@ internal sealed partial class BackendContext : GpuContext
 	/// </summary>
 	static bool StripsPixelShader( BackendMaterial material, bool noColor, bool stripPixelShader )
 		=> stripPixelShader || (noColor && !material.IsAlphaTest && !material.IsTranslucent);
+
+	/// <summary>
+	/// A depth-only draw fetches its vertices from the positions-only copy, when the model has one, if that changes nothing
+	/// the vertex shader reads: every input but the position is one the mesh's own vertices don't have either (the instance
+	/// and vertex id streams, or the default stream).
+	/// </summary>
+	DrawGeometry DepthGeometry( in DrawGeometry geometry, ShaderVariant variant, bool depthOnly )
+	{
+		if ( !depthOnly || !device.PositionStreams || !geometry.Positions.IsValid || !ReadsOnlyPositions( variant, geometry.Layout ) ) return geometry;
+		return geometry.PositionsOnly;
+	}
+
+	/// <summary>Whether a vertex shader reads nothing of these vertices but their positions.</summary>
+	static bool ReadsOnlyPositions( ShaderVariant variant, VertexLayout layout )
+	{
+		foreach ( var input in variant.VertexInputs )
+		{
+			if ( input.Semantic != VertexSemantic.Position && layout.Find( input.Semantic, input.SemanticIndex ) is not null ) return false;
+		}
+
+		return true;
+	}
 
 	/// <summary>Whether the draw being bound has plain normals and tangents (<c>UncompressedTangentFrame</c>).</summary>
 	bool uncompressedTangentFrame = true;
@@ -990,8 +1123,6 @@ internal sealed partial class BackendContext : GpuContext
 		var (gx, gy, gz) = variant.Compute.Bytecode.ThreadGroupSize;
 		r.List.Dispatch( (x + Math.Max( gx, 1 ) - 1) / Math.Max( gx, 1 ), (y + Math.Max( gy, 1 ) - 1) / Math.Max( gy, 1 ), (z + Math.Max( gz, 1 ) - 1) / Math.Max( gz, 1 ) );
 	}
-
-	public override void Dispatch( GpuMaterial computeShader, ShaderParameters parameters, int x, int y, int z ) { }
 
 	public override void DrawFullscreen( GpuMaterial material, ShaderParameters parameters, StringToken shaderMode ) { }
 
