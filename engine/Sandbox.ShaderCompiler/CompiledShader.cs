@@ -24,6 +24,9 @@ public sealed class CompiledShader
 	/// <summary>The instance file the compiler wrote for a surface (null for a raw module), for diagnostics.</summary>
 	public string Generated { get; init; }
 
+	/// <summary>Why a surface has no GPU-driven passes (its GPU-driven compile's errors); null when it has them.</summary>
+	public string GpuDrivenError { get; init; }
+
 	/// <summary>Compile time, all passes.</summary>
 	public double Milliseconds { get; init; }
 
@@ -57,6 +60,12 @@ public static class ShaderPasses
 	/// passes on the mesh's lightmap uv.
 	/// </summary>
 	public const string Lightmapped = "Lightmapped";
+
+	/// <summary>
+	/// A surface's passes with this suffix (<c>ForwardGpuDriven</c>, <c>ForwardGpuDrivenLightmapped</c>) draw GPU-driven:
+	/// vertices pulled, the material record and lighting from the GPU-driven tables (docs/managed/basalt-gpu-driven.md).
+	/// </summary>
+	public const string GpuDriven = "GpuDriven";
 }
 
 /// <summary>One pass: a vertex shader and, unless it draws depth alone, a pixel shader.</summary>
@@ -186,4 +195,8 @@ public enum ScalarKind
 }
 
 /// <summary>A vertex input: its location, the HLSL semantic it reads (<c>TEXCOORD</c>, 13) and its type.</summary>
-public sealed record VertexInputSlot( int Location, string Semantic, int SemanticIndex, ScalarKind Kind, int Components );
+public sealed record VertexInputSlot( int Location, string Semantic, int SemanticIndex, ScalarKind Kind, int Components )
+{
+	/// <summary>The entry point's parameter field it fills (<c>i.vPositionOs</c>), for code that builds the input itself.</summary>
+	public string Field { get; init; }
+}

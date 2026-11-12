@@ -157,6 +157,31 @@ public class SurfaceTests : GpuTest
 		}
 	}
 
+	/// <summary>
+	/// Every pass also comes GPU-driven: its vertex stage pulls its vertices (no vertex inputs), and neither stage reads
+	/// the classic records' buffer.
+	/// </summary>
+	[TestMethod]
+	public void SurfacesHaveGpuDrivenPasses()
+	{
+		foreach ( var path in new[] { Path.Combine( Surfaces, "rock.slang" ), Path.Combine( Surfaces, "foliage.slang" ), Path.Combine( Core, "shaders", "blendable.slang" ) } )
+		{
+			var surface = Compiler().CompileSurface( path );
+			Assert.IsNull( surface.GpuDrivenError, surface.GpuDrivenError );
+			foreach ( var name in new[] { ShaderPasses.Forward, ShaderPasses.Forward + "AlphaTest", ShaderPasses.Depth, ShaderPasses.DepthAlphaTest } )
+			{
+				foreach ( var suffix in new[] { ShaderPasses.GpuDriven, ShaderPasses.GpuDriven + ShaderPasses.Lightmapped } )
+				{
+					var pass = surface.Pass( name + suffix );
+					Assert.IsNotNull( pass, $"{Path.GetFileName( path )} {name}{suffix}" );
+					Assert.AreEqual( 0, pass.Vertex.Inputs.Count, $"{name}{suffix} reads vertex inputs" );
+					foreach ( var stage in new[] { pass.Vertex, pass.Pixel } )
+						Assert.IsFalse( stage is not null && stage.Bindings.Any( b => b.Kind == BindingKind.MaterialRecords ), $"{name}{suffix} reads the classic records" );
+				}
+			}
+		}
+	}
+
 	/// <summary>A lit surface turns on the light loop's hook and hands it the material; an unlit one leaves the loop alone.</summary>
 	[TestMethod]
 	public void LitSurfaceHooksTheLightLoop()
@@ -184,6 +209,24 @@ public class SurfaceTests : GpuTest
 			var actual = File.ReadAllText( Path.Combine( Surfaces, file ) ).Replace( "\r\n", "\n" );
 			Assert.AreEqual( expected, actual, $"{file} is stale: run basaltlab -surface-parity <folder> -surface-classes" );
 		}
+	}
+
+	/// <summary>
+	/// Material.CommonInputs.hlsl's TextureFiltering takes its filter from an expression on F_TEXTURE_FILTERING: a classic
+	/// draw samples anisotropically, that feature's default, not point as the expression's unevaluated literal says.
+	/// </summary>
+	[TestMethod]
+	public void ExpressionFilteredSamplersAreAnisotropic()
+	{
+		using var backend = new BackendDevice( Device );
+		var foliage = (BackendMaterial)((GpuDevice)backend).CreateMaterial( "Foliage (.shader)", "shaders/foliage.shader" );
+		if ( foliage.Shader is null ) Assert.Inconclusive( "foliage.shader isn't compiled" );
+		var variant = foliage.Variant( backend.Shaders, "Forward", "Forward", _ => null, _ => null );
+		var samplers = variant.Resources.Where( r => r.Kind == Basalt.Source2.Shaders.ShaderResourceKind.Sampler && r.Set == ShaderAbi.FragmentSet ).Select( r => r.Sampler ).ToList();
+
+		// TextureFiltering: MaxAniso( 8 ) beside the expression; it read as point filtering with anisotropy 8
+		Assert.IsTrue( samplers.Any( s => s.MaxAnisotropy == 8 && s.MinFilter == Filter.Linear && s.MipFilter == Filter.Linear ), "TextureFiltering isn't anisotropic" );
+		Assert.IsFalse( samplers.Any( s => s.MaxAnisotropy > 1 && s.MinFilter == Filter.Nearest ), "a point sampler with anisotropy" );
 	}
 
 	/// <summary>

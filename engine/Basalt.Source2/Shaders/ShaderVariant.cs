@@ -324,12 +324,20 @@ public sealed class ShaderStage
 
 	static SamplerInfo DefaultSampler => SamplerInfo.Linear( AddressMode.Wrap );
 
+	/// <summary><c>RsFilter_t</c> ANISOTROPIC.</summary>
+	const int AnisotropicFilter = 0x55;
+
 	/// <summary>
 	/// Set one sampler-state field (<c>VfxSamplerState_t</c>) from a literal; D3D11-style values.
 	/// </summary>
 	static SamplerInfo ApplySampler( SamplerInfo sampler, ShaderVariable variable )
 	{
 		var value = variable.IntDefault[0];
+
+		// A filter given by an expression (Material.CommonInputs.hlsl's TextureFiltering picks it by F_TEXTURE_FILTERING)
+		// isn't evaluated: anisotropic, that feature's default, rather than the literal 0 (point) it leaves
+		if ( variable.RenderStateId == 0 && variable.Source is VariableSource.Expression or VariableSource.MaterialAndExpression ) value = AnisotropicFilter;
+
 		switch ( variable.RenderStateId )
 		{
 			case 0:

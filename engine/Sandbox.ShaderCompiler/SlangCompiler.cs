@@ -100,10 +100,31 @@ public sealed partial class SlangCompiler
 
 			// Each pass twice: as compiled, and with the vertex stage that passes on the mesh's lightmap uv
 			var passes = new Dictionary<string, CompiledPass>();
+			string gpuDrivenError = null;
 			foreach ( var (v, suffix) in new[] { (vertex, ""), (vertexLightmapped, ShaderPasses.Lightmapped) } )
 			{
 				foreach ( var (name, pixel) in new[] { (ShaderPasses.Forward, forward), (ShaderPasses.Forward + "AlphaTest", forwardAlphaTest), (ShaderPasses.Depth, null), (ShaderPasses.DepthAlphaTest, depthAlphaTest) } )
 					passes[name + suffix] = new() { Name = name + suffix, Vertex = v, Pixel = pixel };
+			}
+
+			// The same passes GPU-driven, each with a vertex entry generated from what the classic one reads; a surface
+			// whose GPU-driven compile fails draws the classic way
+			try
+			{
+				var gpuVertex = CompileEntry( instancePath, instance + GpuDrivenVertex( material.Name, displaces, interpolated, vertex.Inputs ), "MainVsGpuDriven", StageKind.Vertex, directory, GpuDriven );
+				var gpuVertexLightmapped = CompileEntry( instancePath, instance + GpuDrivenVertex( material.Name, displaces, interpolated, vertexLightmapped.Inputs ), "MainVsGpuDriven", StageKind.Vertex, directory, With( GpuDriven, Lightmapped ) );
+				var gpuForward = CompileEntry( instancePath, instance, "ForwardPsGpuDriven", StageKind.Pixel, directory, GpuDriven );
+				var gpuForwardAlphaTest = CompileEntry( instancePath, instance, "ForwardAlphaTestPsGpuDriven", StageKind.Pixel, directory, With( GpuDriven, AlphaTested ) );
+				var gpuDepthAlphaTest = CompileEntry( instancePath, instance, "DepthAlphaTestPsGpuDriven", StageKind.Pixel, directory, With( GpuDriven, AlphaTestedDepth ) );
+				foreach ( var (v, suffix) in new[] { (gpuVertex, ShaderPasses.GpuDriven), (gpuVertexLightmapped, ShaderPasses.GpuDriven + ShaderPasses.Lightmapped) } )
+				{
+					foreach ( var (name, pixel) in new[] { (ShaderPasses.Forward, gpuForward), (ShaderPasses.Forward + "AlphaTest", gpuForwardAlphaTest), (ShaderPasses.Depth, null), (ShaderPasses.DepthAlphaTest, gpuDepthAlphaTest) } )
+						passes[name + suffix] = new() { Name = name + suffix, Vertex = v, Pixel = pixel };
+				}
+			}
+			catch ( ShaderCompileException e )
+			{
+				gpuDrivenError = e.Errors;
 			}
 
 			return new CompiledShader
@@ -113,6 +134,7 @@ public sealed partial class SlangCompiler
 				Path = path,
 				Material = layout,
 				Passes = passes,
+				GpuDrivenError = gpuDrivenError,
 				Generated = instance,
 				Milliseconds = clock.Elapsed.TotalMilliseconds,
 			};
@@ -188,6 +210,16 @@ public sealed partial class SlangCompiler
 	/// </summary>
 	static readonly Dictionary<string, string> Lightmapped = new() { ["D_BAKED_LIGHTING_FROM_LIGHTMAP"] = "1" };
 
+	/// <summary>GPU-driven passes (<c>sbox/surface_passes.slangh</c>, docs/managed/basalt-gpu-driven.md).</summary>
+	static readonly Dictionary<string, string> GpuDriven = new() { ["SURFACE_GPU_DRIVEN"] = "1" };
+
+	static Dictionary<string, string> With( Dictionary<string, string> a, Dictionary<string, string> b )
+	{
+		var both = new Dictionary<string, string>( a );
+		foreach ( var (name, value) in b ) both[name] = value;
+		return both;
+	}
+
 	/// <summary>The alpha-tested depth pass also in Depth mode: Shade returns the coverage before lighting.</summary>
 	static readonly Dictionary<string, string> AlphaTestedDepth = new() { ["S_ALPHA_TEST"] = "1", ["S_MODE_DEPTH"] = "1" };
 
@@ -222,8 +254,15 @@ public sealed partial class SlangCompiler
 		var surface = interpolated ? $"SurfaceWithVaryings<{type}>" : type;
 		var wrap = interpolated ? $" SurfaceWithVaryings<{type}> s; s.Surface = m; s.Values = i.Varyings;" : "";
 		var argument = interpolated ? "s" : "m";
+		string Shade( bool alphaTest ) => $"{type} m = SurfaceRecord<{type}>( PixelMaterialOffset( i.MaterialOffset ) );{keep}{wrap} return SurfaceForward<{surface}, {(alphaTest ? "true" : "false")}>( i.Pixel, {argument}, {opacity} );";
 		string Pixel( string entry, bool alphaTest ) =>
-			$"[shader( \"pixel\" )] float4 {entry}( {output} i ) : SV_Target0 {{ {type} m = LoadMaterial<{type}>( PixelMaterialOffset( i.MaterialOffset ) );{keep}{wrap} return SurfaceForward<{surface}, {(alphaTest ? "true" : "false")}>( i.Pixel, {argument}, {opacity} ); }}\n";
+			$"[shader( \"pixel\" )] float4 {entry}( {output} i ) : SV_Target0 {{ {Shade( alphaTest )} }}\n";
+
+		// GPU-driven: the draw's lighting record first; the alpha-tested depth pass also writes the visibility id (the vertex
+		// bit + 1) at target 1, which the visibility pass's prepass reads and other passes have no target for
+		string GpuDrivenPixel( string entry, bool alphaTest, bool ids ) => ids
+			? $"float4 Shaded{entry}( {output} i ) {{ {Shade( alphaTest )} }}\n[shader( \"pixel\" )] SurfaceIdsOutput {entry}( SurfaceGpuDrivenVertexOutput v ) {{ SurfaceFetchLighting( v.Draw ); SurfaceIdsOutput o; o.Color = Shaded{entry}( v.o ); o.Id = v.VertexBit + 1; return o; }}\n"
+			: $"[shader( \"pixel\" )] float4 {entry}( SurfaceGpuDrivenVertexOutput v ) : SV_Target0 {{ SurfaceFetchLighting( v.Draw ); {output} i = v.o; {Shade( alphaTest )} }}\n";
 
 		var text = new StringBuilder();
 		text.Append( "// Generated by Sandbox.ShaderCompiler for the [Material] struct " ).Append( type ).Append( " in " ).Append( module ).Append( ".slang.\n" );
@@ -231,6 +270,11 @@ public sealed partial class SlangCompiler
 		if ( lit ) text.Append( "#define SURFACE_LIGHT_HOOK 1\n" );
 		text.Append( "#include \"sbox/surface_passes.slangh\"\n" );
 		text.Append( "import " ).Append( module ).Append( ";\n\n" );
+		text.Append( "#ifdef SURFACE_GPU_DRIVEN\n" );
+		text.Append( "// What a GPU-driven vertex stage hands the pixel stage: the draw and the vertex's visibility bit, flat, first\n" );
+		text.Append( "struct SurfaceGpuDrivenVertexOutput { nointerpolation uint Draw : BASALT_DRAW; nointerpolation uint VertexBit : BASALT_VERTEX; " ).Append( output ).Append( " o; };\n" );
+		text.Append( "struct SurfaceIdsOutput { float4 Color : SV_Target0; uint Id : SV_Target1; };\n" );
+		text.Append( "#endif\n\n" );
 		text.Append( "#if ( PROGRAM == VFX_PROGRAM_VS )\n" );
 		if ( interpolated )
 			text.Append( $"[shader( \"vertex\" )] {output} MainVs( VertexInput i, {type}.Varyings varyings ) {{ return SurfaceOutputWith<{type}>( {vertex}, varyings ); }}\n" );
@@ -248,7 +292,59 @@ public sealed partial class SlangCompiler
 		text.Append( Pixel( "ForwardAlphaTestPs", true ) );
 		text.Append( "// Compiled in Depth mode: Shade returns the alpha-tested coverage before lighting\n" );
 		text.Append( Pixel( "DepthAlphaTestPs", true ) );
+		text.Append( "#ifdef SURFACE_GPU_DRIVEN\n" );
+		text.Append( GpuDrivenPixel( "ForwardPsGpuDriven", false, false ) );
+		text.Append( GpuDrivenPixel( "ForwardAlphaTestPsGpuDriven", true, false ) );
+		text.Append( GpuDrivenPixel( "DepthAlphaTestPsGpuDriven", true, true ) );
 		text.Append( "#endif\n" );
+		text.Append( "#endif\n" );
+		return text.ToString();
+	}
+
+	/// <summary>Usages in the order GPU-driven geometry records number semantics (<c>usage * 16 + index</c>).</summary>
+	static readonly string[] Usages = ["POSITION", "BLENDWEIGHT", "BLENDINDICES", "NORMAL", "PSIZE", "TEXCOORD", "TANGENT", "BINORMAL", "POSITIONT", "COLOR"];
+
+	/// <summary>
+	/// A surface's GPU-driven vertex entry (<c>MainVsGpuDriven</c>), generated from what its vertex stage reads
+	/// (<paramref name="inputs"/>, from reflection): each input pulled from the draw's geometry by its semantic, the
+	/// transform slot from the instance record, the tangent frame's encoding from the draw's flags, then the same stage.
+	/// Appended to the instance file for a GPU-driven compile (<c>SURFACE_GPU_DRIVEN</c>).
+	/// </summary>
+	internal static string GpuDrivenVertex( string type, bool displaces, bool interpolated, IReadOnlyList<VertexInputSlot> inputs )
+	{
+		var vertex = displaces ? $"SurfaceVertexDisplaced<{type}>( i )" : "SurfaceVertex( i )";
+		var text = new StringBuilder();
+		text.Append( "\n#if ( PROGRAM == VFX_PROGRAM_VS )\n" );
+		text.Append( "[shader( \"vertex\" )] SurfaceGpuDrivenVertexOutput MainVsGpuDriven( uint vertex : SV_VulkanVertexID, uint instance : SV_VulkanInstanceID )\n{\n" );
+		text.Append( "\tuint2 record = BasaltGpuDrivenInstance( instance );\n" );
+		text.Append( "\tuint4 draw = BasaltGpuDrivenDraw( record.y );\n" );
+		text.Append( "\ts_SurfaceDrawRecord = draw.y;\n" );
+		text.Append( "\tg_bUncompressedTangentFrame = ( draw.w & 1 ) != 0;\n" );
+		text.Append( "\tVertexInput i = {};\n" );
+		if ( interpolated ) text.Append( $"\t{type}.Varyings varyings = {{}};\n" );
+		foreach ( var input in inputs )
+		{
+			if ( input.Field is null ) throw new InvalidOperationException( $"vertex input {input.Semantic}{input.SemanticIndex} has no field" );
+			if ( input.Semantic == "TEXCOORD" && input.SemanticIndex == 13 )
+			{
+				text.Append( $"\t{input.Field} = record.x;\n" );
+				continue;
+			}
+
+			var usage = Array.IndexOf( Usages, input.Semantic );
+			if ( usage < 0 || input.SemanticIndex >= 16 ) throw new InvalidOperationException( $"vertex input {input.Field} : {input.Semantic}{input.SemanticIndex} has no stream semantic" );
+			var isFloat = input.Kind == ScalarKind.Float;
+			var convert = isFloat ? "asfloat" : input.Kind == ScalarKind.Int ? "asint" : "";
+			var swizzle = "xyzw"[..input.Components];
+			text.Append( $"\t{input.Field} = {convert}( BasaltGpuDrivenFetch( draw.x, {usage * 16 + input.SemanticIndex}, vertex, {(isFloat ? "true" : "false")} ) ).{swizzle};\n" );
+		}
+
+		text.Append( "\tSurfaceGpuDrivenVertexOutput o;\n" );
+		text.Append( interpolated ? $"\to.o = SurfaceOutputWith<{type}>( {vertex}, varyings );\n" : $"\to.o = SurfaceOutput( {vertex} );\n" );
+		text.Append( "\to.o.MaterialOffset = draw.z;\n" );
+		text.Append( "\to.Draw = record.y;\n" );
+		text.Append( "\to.VertexBit = BasaltGpuDrivenVertexBit( instance, vertex );\n" );
+		text.Append( "\treturn o;\n}\n#endif\n" );
 		return text.ToString();
 	}
 }

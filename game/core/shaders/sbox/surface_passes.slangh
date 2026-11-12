@@ -20,6 +20,19 @@
 
 import sbox.surface;
 
+#ifdef SURFACE_GPU_DRIVEN
+// GPU-driven passes (docs/managed/basalt-gpu-driven.md): the draw comes from the instance and draw records, the material
+// record from the materials table, at the draw record's offsets
+#include "basalt_gpu_driven.fxc"
+
+static uint s_SurfaceDrawRecord = 0;   // the draw's material record, set by the GPU-driven vertex entry
+uint SurfaceDrawRecord() { return s_SurfaceDrawRecord; }
+T SurfaceRecord<T>( uint offset ) { return g_bindless_VertexBuffers[g_nBasaltMaterials].Load<T>( offset ); }
+#else
+uint SurfaceDrawRecord() { return DrawMaterialOffset(); }
+T SurfaceRecord<T>( uint offset ) { return LoadMaterial<T>( offset ); }
+#endif
+
 /// What the vertex stage hands the pixel stage: the engine's interpolants and the draw's material record offset, flat.
 struct SurfaceVertexOutput
 {
@@ -51,8 +64,8 @@ SurfaceVertexOutputWith<S.Varyings> SurfaceOutputWith<S : IInterpolatedSurface>(
 {
 	SurfaceVertexOutputWith<S.Varyings> o;
 	o.Pixel = pixel;
-	o.MaterialOffset = DrawMaterialOffset();
-	o.Varyings = LoadMaterial<S>( DrawMaterialOffset() ).Vertex( varyings );
+	o.MaterialOffset = SurfaceDrawRecord();
+	o.Varyings = SurfaceRecord<S>( SurfaceDrawRecord() ).Vertex( varyings );
 	return o;
 }
 
@@ -61,7 +74,7 @@ SurfaceVertexOutput SurfaceOutput( PixelInput pixel )
 {
 	SurfaceVertexOutput o;
 	o.Pixel = pixel;
-	o.MaterialOffset = DrawMaterialOffset();
+	o.MaterialOffset = SurfaceDrawRecord();
 	return o;
 }
 
@@ -88,12 +101,28 @@ PixelInput SurfaceVertexDisplaced<S : IVertexSurface>( VertexInput i )
 	v.Wind = g_vWindDirection.xyz * g_vWindStrengthFreqMulHighStrength.x;
 	v.Time = g_flTime;
 
-	i.vPositionOs = LoadMaterial<S>( DrawMaterialOffset() ).Displace( v );
+	i.vPositionOs = SurfaceRecord<S>( SurfaceDrawRecord() ).Displace( v );
 	PixelInput o = ProcessVertex( i );
 	return FinalizeVertex( o );
 }
 
 #else
+
+#ifdef SURFACE_GPU_DRIVEN
+/// The draw's light probe volume constants (statics under SURFACE_GPU_DRIVEN, light_probe_volume.fxc) from its lighting
+/// record: 48 bytes, then PerBatchLightProbeVolumeConstantBuffer_t as packed; a draw's record is its flags' top 24 bits,
+/// in 16 bytes.
+void SurfaceFetchLighting( uint draw )
+{
+	uint offset = ( BasaltGpuDrivenDraw( draw ).w >> 8 ) * 16 + 48;
+	ByteAddressBuffer lighting = g_bindless_VertexBuffers[g_nBasaltLighting];
+	MatLightProbeVolumeWorldToLocal = transpose( float3x4( asfloat( lighting.Load4( offset ) ), asfloat( lighting.Load4( offset + 16 ) ), asfloat( lighting.Load4( offset + 32 ) ) ) );
+	LightProbeVolumeLayer0TextureMin = asfloat( lighting.Load4( offset + 48 ) );
+	LightProbeVolumeLayer0TextureMax = asfloat( lighting.Load4( offset + 64 ) );
+	LightProbeVolumeColor = asfloat( lighting.Load4( offset + 80 ) );
+	LightProbeVolumeTextureIndices = asint( lighting.Load4( offset + 96 ) );
+}
+#endif
 
 /// The bindless slot of the texture Opacity comes from, for alpha to coverage's mip compensation (Shade reads it through
 /// MATERIAL_ALPHA_TEXTURE, as Material.CommonInputs.hlsl's shaders use g_tColor). Set by the pass before shading.
@@ -115,9 +144,9 @@ SurfaceInput MakeSurfaceInput( PixelInput i )
 	s.Uv = i.vTextureCoords.xy;
 	s.Color = i.vVertexColor;
 	s.ScreenPosition = i.vPositionSs;
-	s.View = g_vCameraPositionWs - s.Position;
-	s.ViewDistance = length( s.View );
-	s.View /= max( s.ViewDistance, 1e-6 );
+	s.View = normalize( g_vCameraPositionWs - s.Position );
+	// From the lighting origin (the main view's camera, also in its shadow views), so distance fades agree across passes
+	s.ViewDistance = length( i.vPositionWithOffsetWs.xyz );
 	// The triangle's normal from screen-space derivatives of the position: a resolve gets it from the triangle instead
 	s.FaceNormal = normalize( cross( ddx( i.vPositionWithOffsetWs.xyz ), ddy( i.vPositionWithOffsetWs.xyz ) ) );
 #if ( S_ALPHA_TEST )

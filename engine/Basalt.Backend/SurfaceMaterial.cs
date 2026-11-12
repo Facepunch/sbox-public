@@ -46,6 +46,9 @@ public abstract class SurfaceMaterial : GpuMaterial
 
 	bool alphaTest;
 
+	/// <summary>Its compiled program, once a device found it (<see cref="SurfaceShaders"/>).</summary>
+	internal SurfaceProgram Program { get; set; }
+
 	/// <summary>Its name, for diagnostics; the shader's by default.</summary>
 	public string DisplayName { get; set; }
 
