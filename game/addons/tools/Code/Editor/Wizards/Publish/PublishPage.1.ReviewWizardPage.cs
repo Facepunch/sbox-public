@@ -52,6 +52,11 @@ partial class PublishWizard
 
 		public bool CanUploadSourceFiles { get; set; } = true;
 
+		/// <summary>
+		/// Compiles the code - again when this page is left, if the org or ident changed on it
+		/// </summary>
+		public PublishWizard Wizard { get; set; }
+
 		public override string PageTitle => "Publishing";
 		public override string PageSubtitle => $"Check everything below, then publish your {TypeName}.";
 
@@ -371,6 +376,14 @@ partial class PublishWizard
 				await Workshop.SaveTags();
 			else if ( Players is not null )
 				await EditorUtility.Projects.Updated( Project );
+
+			// Another org or ident is another package - the code has to be compiled for it, with nothing changing meanwhile
+			Enabled = false;
+			var compiled = await Wizard.CompileForIdentAsync();
+			Enabled = true;
+
+			if ( !compiled )
+				return false;
 
 			if ( AvailableLicenses is null )
 				return true;
