@@ -45,6 +45,9 @@ internal sealed class DepthChainLayer : RenderLayer
 		var viewport = frame.View.Viewport;
 		var target = frame.Output.Target;
 		SharedPasses.BuildDepthChain( rc, target.Depth, chain, target.Samples > 1, (int)viewport.Width, (int)viewport.Height );
+
+		// Readable by the draws and passes after it: a device that tracks layouts by hand binds only what's readable
+		if ( !rc.AsyncCompute ) rc.BarrierComputeToPixelShaderRead( chain );
 		chain = null;
 	}
 }
