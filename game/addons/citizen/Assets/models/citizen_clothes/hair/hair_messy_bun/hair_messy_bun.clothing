@@ -56,7 +56,7 @@
   "TintDefault": 0.41,
   "SteamItemDefinitionId": null,
   "Icon": {
-    "Path": "models/citizen_clothes/hair/hair_messy_bun/hair_messy_bun.clothing.png",
+    "Path": "models/citizen_clothes/hair/hair_messy_bun/hair_messy_bun.clothing.vtex",
     "Mode": "Head",
     "UsePositionOffset": false,
     "PositionOffset": "12.5999699,0,-1.10000002"

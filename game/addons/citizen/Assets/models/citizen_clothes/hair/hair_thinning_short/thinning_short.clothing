@@ -56,7 +56,7 @@
   "TintDefault": 0.4,
   "SteamItemDefinitionId": null,
   "Icon": {
-    "Path": "models/citizen_clothes/hair/hair_thinning_short/thinning_short.clothing.png",
+    "Path": "models/citizen_clothes/hair/hair_thinning_short/thinning_short.clothing.vtex",
     "Mode": "Head",
     "UsePositionOffset": true,
     "PositionOffset": "5.68998384,-0.220000058,0.380000412"

@@ -35,7 +35,10 @@ public static class AvatarCatalog
 
 		foreach ( var clothing in ResourceLibrary.GetAll<Clothing>() )
 		{
-			if ( !clothing.ResourcePath.StartsWith( "models/citizen_clothes/" ) ) continue;
+			// Built-in player models live alongside their model assets in Default Content.
+			if ( !clothing.ResourcePath.StartsWith( "models/citizen_clothes/" )
+				&& !(clothing.ReplacesBody && clothing.ResourcePath.StartsWith( "models/player/" )) )
+				continue;
 
 			all.Add( clothing );
 		}

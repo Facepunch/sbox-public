@@ -77,19 +77,19 @@
     }
 
     /// <summary>
-    /// Skins split into one unlabelled block per body (by their human skin tags), male bodies first.
+    /// Skins split into one unlabelled block per body (by their player model tags), male bodies first.
     /// </summary>
     IEnumerable<IGrouping<int, Clothing>> SkinGroups()
     {
         return Manager.GetAllClothing()
-            .Where( x => x.HasHumanSkin )
+            .Where( x => x.ReplacesBody )
             .GroupBy( SkinGroupOrder )
             .OrderBy( g => g.Key );
     }
 
     static int SkinGroupOrder( Clothing skin )
     {
-        var tags = skin.HumanSkinTags;
+        var tags = skin.BodyTags;
         if ( tags is null ) return 2;
         if ( tags.Has( "male" ) ) return 0;
         if ( tags.Has( "female" ) ) return 1;

@@ -1,0 +1,9 @@
+{
+  "$compiler": "texture",
+  "$source": "imagefile",
+  "data": {
+    "FilePath": "models/citizen_clothes/seasonal/2025/wizard_outfit/wizard_beard/wizard_beard.clothing.png",
+    "Lossless": true
+  },
+  "compiled": null
+}

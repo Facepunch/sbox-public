@@ -50,23 +50,21 @@ class ClothingIconPreviewWidget : Widget
 				return;
 			}
 
-			var iconInfo = resource.Icon;
-			iconInfo.Path = resource.ResourcePath + ".png";
-			resource.Icon = iconInfo;
-
 			using var bitmap = ClothingIconRenderer.Render( clothingSetup );
+
+			var pngPath = asset.GetSourceFile( true ) + ".png";
+			System.IO.Directory.CreateDirectory( System.IO.Path.GetDirectoryName( pngPath ) );
+			System.IO.File.WriteAllBytes( pngPath, bitmap.ToPng() );
+
+			var textureAsset = ClothingIconRenderer.CompileTexture( AssetSystem.RegisterFile( pngPath ) );
+			var iconInfo = resource.Icon;
+			iconInfo.Path = textureAsset.RelativePath;
+			resource.Icon = iconInfo;
 
 			if ( asset.SaveToDisk( resource ) )
 			{
 				asset.Compile( false );
 			}
-
-			var root = asset.AbsolutePath[0..^(asset.RelativePath.Length)];
-			var pngPath = root + iconInfo.Path;
-			System.IO.Directory.CreateDirectory( System.IO.Path.GetDirectoryName( pngPath ) );
-
-			var outputData = bitmap.ToPng();
-			System.IO.File.WriteAllBytes( pngPath, outputData );
 		}
 		finally
 		{

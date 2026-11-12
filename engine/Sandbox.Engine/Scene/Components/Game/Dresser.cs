@@ -3,7 +3,7 @@ using System.Threading;
 namespace Sandbox;
 
 /// <summary>
-/// Allows easily dressing a citizen or human in clothing
+/// Applies a player model, clothing and avatar appearance to a body.
 /// </summary>
 [Alias( "Sandbox.ApplyLocalClothing" )]
 [Expose]
@@ -45,7 +45,7 @@ public sealed partial class Dresser : Component, Component.ExecuteInEditor
 	public bool RemoveUnownedItems { get; set; } = true;
 
 	/// <summary>
-	/// Who are we dressing? This should be the renderer of the body of a Citizen or Human
+	/// The renderer used for the player's body.
 	/// </summary>
 	[Property]
 	public SkinnedModelRenderer BodyTarget
@@ -61,7 +61,7 @@ public sealed partial class Dresser : Component, Component.ExecuteInEditor
 			field = value;
 
 			if ( field.IsValid() )
-				field.ModelChanged += UpdateAppearance;
+				field.ModelChanged += OnBodyModelChanged;
 
 			UpdateAppearance();
 		}
@@ -120,10 +120,14 @@ public sealed partial class Dresser : Component, Component.ExecuteInEditor
 	private void DetachBody()
 	{
 		if ( BodyTarget is not null )
-			BodyTarget.ModelChanged -= UpdateAppearance;
+			BodyTarget.ModelChanged -= OnBodyModelChanged;
 
-		ReleaseDeforms();
 		_clothingRenderers.Clear();
+		_originalBody = null;
+		_appliedBodyModel = null;
+		_activeBody = null;
+		_hasSkinAttributes = false;
+		_hasEyeAttributes = false;
 	}
 
 	/// <summary>
@@ -422,13 +426,6 @@ public sealed partial class Dresser : Component, Component.ExecuteInEditor
 			ManualAge = appearance.Age;
 			ManualTint = appearance.Tint;
 			EyeColor = appearance.EyeColor;
-			EyeAlign = appearance.EyeAlign;
-			NeckSize = appearance.NeckSize;
-			WaistSize = appearance.WaistSize;
-			ChestSize = appearance.ChestSize;
-			HeadShape = appearance.HeadShape;
-			NoseSize = appearance.NoseSize;
-			ChinSize = appearance.ChinSize;
 
 			SetClothingTints( appearance.Clothing );
 		}
@@ -455,12 +452,25 @@ public sealed partial class Dresser : Component, Component.ExecuteInEditor
 		entry.ItemDefinitionId != 0 ? (null, entry.ItemDefinitionId) : (entry.Clothing, 0);
 
 	/// <summary>
-	/// Applies current height, skin, eye and deformation values to the existing body and clothing.
+	/// Applies current height, skin and eye values to the existing body and clothing.
 	/// </summary>
 	public void UpdateAppearance()
 	{
 		if ( _settingAppearance || !BodyTarget.IsValid() || BodyTarget.Scene.IsPrefabCacheSceneRoot )
 			return;
+
+		foreach ( var (entry, renderer) in _clothingRenderers )
+		{
+			var clothing = entry.Clothing;
+			if ( renderer.IsValid() && clothing.AllowTintSelect && _clothingTints.TryGetValue( GetTintKey( entry ), out var tint ) )
+				renderer.Tint = clothing.TintSelection.Evaluate( tint?.Clamp( 0, 1 ) ?? clothing.TintDefault );
+		}
+
+		if ( !SupportsHumanAppearance )
+		{
+			ClearAppearanceAttributes();
+			return;
+		}
 
 #pragma warning disable CS0618
 		var height = ApplyHeightScale ? ManualHeight.Remap( 0, 1, 0.8f, 1.2f, true ) : 1;
@@ -471,6 +481,7 @@ public sealed partial class Dresser : Component, Component.ExecuteInEditor
 #pragma warning restore CS0618
 		BodyTarget.Attributes.Set( "skin_age", ManualAge );
 		BodyTarget.Attributes.Set( "skin_tint", ManualTint );
+		_hasSkinAttributes = true;
 
 		foreach ( var renderer in BodyTarget.GetComponentsInChildren<SkinnedModelRenderer>( true ) )
 		{
@@ -478,14 +489,6 @@ public sealed partial class Dresser : Component, Component.ExecuteInEditor
 			renderer.Attributes.Set( "skin_tint", ManualTint );
 		}
 
-		foreach ( var (entry, renderer) in _clothingRenderers )
-		{
-			var clothing = entry.Clothing;
-			if ( renderer.IsValid() && clothing.AllowTintSelect && _clothingTints.TryGetValue( GetTintKey( entry ), out var tint ) )
-				renderer.Tint = clothing.TintSelection.Evaluate( tint?.Clamp( 0, 1 ) ?? clothing.TintDefault );
-		}
-
-		UpdateDeforms();
 		UpdateEyeAttributes();
 	}
 }

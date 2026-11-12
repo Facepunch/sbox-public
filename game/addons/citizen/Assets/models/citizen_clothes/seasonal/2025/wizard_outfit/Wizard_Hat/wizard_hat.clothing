@@ -36,7 +36,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": 532424,
   "Icon": {
-    "Path": "models/citizen_clothes/seasonal/2025/wizard_outfit/wizard_hat/wizard_hat.clothing.png",
+    "Path": "models/citizen_clothes/seasonal/2025/wizard_outfit/wizard_hat/wizard_hat.clothing.vtex",
     "Mode": "Head",
     "UsePositionOffset": false,
     "PositionOffset": "0,0,0"

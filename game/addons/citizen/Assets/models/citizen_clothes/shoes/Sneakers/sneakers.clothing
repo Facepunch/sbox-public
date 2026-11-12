@@ -36,7 +36,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": null,
   "Icon": {
-    "Path": "models/citizen_clothes/shoes/sneakers/sneakers.clothing.png",
+    "Path": "models/citizen_clothes/shoes/sneakers/sneakers.clothing.vtex",
     "Mode": "Foot",
     "UsePositionOffset": false,
     "PositionOffset": "0,0,0"

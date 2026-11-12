@@ -36,7 +36,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": 367011,
   "Icon": {
-    "Path": "models/citizen_clothes/shoes/boot_heels/boot_heels_leopard.clothing.png",
+    "Path": "models/citizen_clothes/shoes/boot_heels/boot_heels_leopard.clothing.vtex",
     "Mode": "Foot",
     "UsePositionOffset": false,
     "PositionOffset": "13.4999905,1.09999895,1.79999995"

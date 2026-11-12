@@ -105,7 +105,7 @@ public sealed class AvatarDraft
 	/// </summary>
 	public void SetSkin( Clothing skin )
 	{
-		if ( !skin.HasHumanSkin || Container.Has( skin ) || !AvatarCatalog.IsOwned( skin ) ) return;
+		if ( !skin.ReplacesBody || Container.Has( skin ) || !AvatarCatalog.IsOwned( skin ) ) return;
 
 		Container.Toggle( skin );
 		preview = null;

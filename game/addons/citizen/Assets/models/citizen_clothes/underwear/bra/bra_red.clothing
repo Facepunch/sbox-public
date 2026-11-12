@@ -36,7 +36,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": 9258,
   "Icon": {
-    "Path": "models/citizen_clothes/underwear/bra/bra_red.clothing.png",
+    "Path": "models/citizen_clothes/underwear/bra/bra_red.clothing.vtex",
     "Mode": "Chest",
     "UsePositionOffset": false,
     "PositionOffset": "216.800095,0,4.30000114"

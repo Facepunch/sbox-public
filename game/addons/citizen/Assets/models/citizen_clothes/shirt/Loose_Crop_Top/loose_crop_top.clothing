@@ -36,7 +36,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": null,
   "Icon": {
-    "Path": "models/citizen_clothes/shirt/loose_crop_top/loose_crop_top.clothing.png",
+    "Path": "models/citizen_clothes/shirt/loose_crop_top/loose_crop_top.clothing.vtex",
     "Mode": "Chest",
     "UsePositionOffset": false,
     "PositionOffset": "137.300003,0,0"

@@ -1,13 +1,14 @@
 {
   "HasHumanSkin": true,
   "HumanSkinModel": "models/citizen_human/citizen_human_male.vmdl",
-  "HumanSkinMaterial": "models/citizen_human/bodies/male/body_male_light_03.vmat",
-  "HumanEyesMaterial": null,
   "HumanSkinBodyGroups": 32656,
-  "HumanSkinMaterialGroup": "skin_light",
+  "HumanSkinMaterialGroup": "body_05",
   "HumanSkinTags": "male",
+  "HumanSkinMaterial": null,
+  "HumanEyesMaterial": null,
   "Title": "Human Skin 3",
   "Subtitle": "01",
+  "Type": "PlayerModel",
   "Category": "Skin",
   "ConditionalModels": {},
   "Tags": null,
@@ -36,10 +37,10 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": null,
   "Icon": {
-    "Path": "models/citizen_clothes/body/human07.clothing.png",
+    "Path": "models/citizen_clothes/body/human07.clothing.vtex",
     "Mode": "HumanSkin",
-    "UsePositionOffset": true,
-    "PositionOffset": "203.46019,0,-0.0999999866"
+    "UsePositionOffset": false,
+    "PositionOffset": "0,0,0"
   },
   "__references": [],
   "__version": 0

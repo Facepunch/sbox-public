@@ -120,7 +120,7 @@ public class BodyGroupsControlWidget : ControlWidget
 			return;
 		}
 
-		var v = SerializedProperty.GetValue<ulong>();
+		var v = SerializedProperty.GetValue<ulong?>() ?? Model?.Parts.DefaultMask ?? 0;
 
 		var grid = Layout as GridLayout;
 		grid.HorizontalSpacing = 8;
@@ -158,7 +158,7 @@ public class BodyGroupsControlWidget : ControlWidget
 	{
 		PropertyStartEdit();
 
-		var v = SerializedProperty.GetValue<ulong>();
+		var v = SerializedProperty.GetValue<ulong?>() ?? Model?.Parts.DefaultMask ?? 0;
 
 		v = v & ~part.Mask;
 		v = v | c.Mask;

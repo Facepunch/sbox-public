@@ -36,7 +36,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": null,
   "Icon": {
-    "Path": "models/citizen_clothes/watch/modern_watch/modern_watch.clothing.png",
+    "Path": "models/citizen_clothes/watch/modern_watch/modern_watch.clothing.vtex",
     "Mode": "Wrist",
     "UsePositionOffset": false,
     "PositionOffset": "0,-0.100000001,0.200000003"

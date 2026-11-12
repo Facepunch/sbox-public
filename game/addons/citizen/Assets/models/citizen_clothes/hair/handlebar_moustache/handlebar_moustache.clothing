@@ -56,7 +56,7 @@
   "TintDefault": 0.4,
   "SteamItemDefinitionId": null,
   "Icon": {
-    "Path": "models/citizen_clothes/hair/handlebar_moustache/handlebar_moustache.clothing.png",
+    "Path": "models/citizen_clothes/hair/handlebar_moustache/handlebar_moustache.clothing.vtex",
     "Mode": "Eyes",
     "UsePositionOffset": false,
     "PositionOffset": "0,0,0"

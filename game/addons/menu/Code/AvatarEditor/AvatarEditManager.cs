@@ -46,7 +46,10 @@ public sealed partial class AvatarEditManager : Component
 	{
 		foreach ( var c in ResourceLibrary.GetAll<Clothing>() )
 		{
-			if ( !c.ResourcePath.StartsWith( "models/citizen_clothes/" ) ) continue;
+			// Built-in player models live alongside their model assets in Default Content.
+			if ( !c.ResourcePath.StartsWith( "models/citizen_clothes/" )
+				&& !(c.ReplacesBody && c.ResourcePath.StartsWith( "models/player/" )) )
+				continue;
 
 			allClothing.Add( c );
 		}

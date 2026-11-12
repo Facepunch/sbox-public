@@ -36,7 +36,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": null,
   "Icon": {
-    "Path": "models/citizen_clothes/necklace/vintage_necklace/vintage_necklace.clothing.png",
+    "Path": "models/citizen_clothes/necklace/vintage_necklace/vintage_necklace.clothing.vtex",
     "Mode": "Head",
     "UsePositionOffset": false,
     "PositionOffset": "74.1999435,0.699999928,-8"

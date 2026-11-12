@@ -1,0 +1,9 @@
+{
+  "$compiler": "texture",
+  "$source": "imagefile",
+  "data": {
+    "FilePath": "models/citizen_clothes/hair/handlebar_moustache/handlebar_moustache.clothing.png",
+    "Lossless": true
+  },
+  "compiled": null
+}

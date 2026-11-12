@@ -56,7 +56,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": null,
   "Icon": {
-    "Path": "models/citizen_clothes/hair/hair_balding/hair_baldingbrown.clothing.png",
+    "Path": "models/citizen_clothes/hair/hair_balding/hair_baldingbrown.clothing.vtex",
     "Mode": "Head",
     "UsePositionOffset": true,
     "PositionOffset": "2.54998398,-0.0100000575,0.35000056"

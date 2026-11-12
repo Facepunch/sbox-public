@@ -30,7 +30,7 @@
             <div class="tiles">
                 @if ( group == Groups[0] )
                 {
-                    <div class="slot body @(BodyOpen ? "on" : "")" tooltip="Face"
+                    <div class="slot body @(BodyOpen ? "on" : "")" tooltip="Model"
                          onclick=@( () => { if ( BodyOpen ) PickCategory( null ); else OpenBody(); } )>
                         @if ( WornSkin is { } skin )
                         {
@@ -40,7 +40,7 @@
                         {
                             <i class="glyph">face</i>
                         }
-                        <label class="what">Face</label>
+                        <label class="what">Model</label>
                     </div>
                 }
 
@@ -190,19 +190,16 @@
                     }
                     else if ( BodyOpen )
                     {
-                        <div class="section"><i>face</i><label class="title">Skin</label></div>
+                        <div class="section"><i>face</i><label class="title">Player Model</label></div>
 
-                        @foreach ( var group in SkinGroups )
-                        {
-                            <div class="grid">
-                                @foreach ( var skin in group )
-                                {
-                                    <div class="item skin @(Draft.IsWorn( skin ) ? "worn" : "")" tooltip="@skin.Title" onclick=@( () => Draft.SetSkin( skin ) )>
-                                        <div class="icon" style="background-image: url( @AvatarCatalog.IconOf( skin ) );"></div>
-                                    </div>
-                                }
-                            </div>
-                        }
+                        <div class="grid">
+                            @foreach ( var model in PlayerModels )
+                            {
+                                <div class="item skin @(Draft.IsWorn( model ) ? "worn" : "")" tooltip="@model.Title" onclick=@( () => Draft.SetSkin( model ) )>
+                                    <div class="icon" style="background-image: url( @AvatarCatalog.IconOf( model ) );"></div>
+                                </div>
+                            }
+                        </div>
                     }
                     else if ( OnTabs && On == Tab.Workshop )
                     {
@@ -558,7 +555,7 @@
     AvatarClothingCategory.Category Slot => CartOpen || BodyOpen ? null : Category;
 
     string HeadingIcon => CartOpen ? "shopping_cart" : BodyOpen ? "face" : "checkroom";
-    string HeadingTitle => CartOpen ? "Cart" : BodyOpen ? "Face" : Slot?.Title;
+    string HeadingTitle => CartOpen ? "Cart" : BodyOpen ? "Model" : Slot?.Title;
 
     void GoBack()
     {

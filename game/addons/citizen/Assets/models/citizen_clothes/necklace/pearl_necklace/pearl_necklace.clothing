@@ -36,7 +36,7 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": null,
   "Icon": {
-    "Path": "models/citizen_clothes/necklace/pearl_necklace/pearl_necklace.clothing.png",
+    "Path": "models/citizen_clothes/necklace/pearl_necklace/pearl_necklace.clothing.vtex",
     "Mode": "Head",
     "UsePositionOffset": false,
     "PositionOffset": "68.8000336,0.600000024,-7.49999523"
