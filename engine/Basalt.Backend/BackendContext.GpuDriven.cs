@@ -96,6 +96,10 @@ internal sealed partial class BackendContext
 
 		// Culled on the GPU when every batch is a whole aggregate whose fragments' transforms are in order
 		var gpuCull = device.GpuDrivenCulling && cull.HasValue && CullShader is not null;
+		ShaderParameters lastAttributes = null;
+		var lastAttributesSet = false;
+		var lastLighting = 0u;
+		var lastKey = 0L;
 		for ( int i = 0; i < batches.Length; i++ )
 		{
 			ref readonly var batch = ref batches[i];
@@ -113,7 +117,15 @@ internal sealed partial class BackendContext
 
 			// Its lighting constants as the draw would read them (the object's, else the pass's), as a lighting record
 			if ( batchLighting.Length < batches.Length ) Array.Resize( ref batchLighting, Math.Max( batches.Length, batchLighting.Length * 2 ) );
-			batchLighting[i] = tables.Lighting( Lookup( ProbeVolumeToken ) as byte[] );
+			// Consecutive batches mostly share their attributes (the world's lightmap, a probe volume): looked up once for them
+			if ( !lastAttributesSet || !ReferenceEquals( batch.ObjectAttributes, lastAttributes ) )
+			{
+				(lastAttributes, lastAttributesSet) = (batch.ObjectAttributes, true);
+				lastLighting = tables.Lighting( Lookup( ProbeVolumeToken ) as byte[] );
+				lastKey = AttributesKey( batch.ObjectAttributes );
+			}
+
+			batchLighting[i] = lastLighting;
 
 			comboLookup ??= name => LookupCombo( Token( name ) );
 			specializationLookup ??= name => Integer( Lookup( Token( name ) ) );
@@ -140,7 +152,7 @@ internal sealed partial class BackendContext
 				pixelMaterial = MaterialRecord( tables, m, variant.Pixel, uncompressed );
 			}
 
-			var bucket = FindBucket( variant, batch.ObjectAttributes, depthOnly, noColor, pixelMaterial, m, mode );
+			var bucket = FindBucket( variant, batch.ObjectAttributes, lastKey, depthOnly, noColor, pixelMaterial, m, mode );
 			bucket.Batches.Add( (source.For( batch.Draw.Mesh, batch.Draw.DrawCall ).Pooled.Value.IndexPageSlot, i) );
 			bucket.Commands += batch.Count;
 			totalCommands += batch.Count;
@@ -817,10 +829,12 @@ internal sealed partial class BackendContext
 	/// <summary>Multi-draws recorded by the current <see cref="DrawGpuDriven"/>, for the timings.</summary>
 	int gpuDrivenRuns;
 
-	GpuDrivenBucket FindBucket( ShaderVariant variant, ShaderParameters attributes, bool depthOnly, bool noColor, uint pixelMaterial, BackendMaterial material, string mode )
+	/// <summary>A bucket's key for attributes: the same for attributes that differ only in what each draw's lighting record holds.</summary>
+	static long AttributesKey( ShaderParameters attributes ) => attributes switch { null => 0L, BackendParameters parameters => parameters.LightingFreeKey, _ => (uint)RuntimeHelpers.GetHashCode( attributes ) | 1L << 62 };
+
+	GpuDrivenBucket FindBucket( ShaderVariant variant, ShaderParameters attributes, long key, bool depthOnly, bool noColor, uint pixelMaterial, BackendMaterial material, string mode )
 	{
 		// Attributes that differ only in their lighting share a bucket: the variants read it from each draw's lighting record
-		var key = attributes switch { null => 0L, BackendParameters parameters => parameters.LightingFreeKey, _ => (uint)RuntimeHelpers.GetHashCode( attributes ) | 1L << 62 };
 		for ( int i = 0; i < gpuDrivenBucketCount; i++ )
 		{
 			var bucket = gpuDrivenBuckets[i];
