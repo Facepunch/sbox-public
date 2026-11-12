@@ -207,6 +207,22 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 	/// </summary>
 	internal (TimestampQueries Queries, int Index)? FrameStartTimestamp { get; set; }
 
+	/// <summary>
+	/// When set, every GPU scope Basalt records (its layers and setup) and every list a context submits is timed, and
+	/// counted with <see cref="PassTimer.Statistics"/>. For benchmarks.
+	/// </summary>
+	internal PassTimer PassTimer { get; set; }
+
+	/// <summary>
+	/// Submit a frame's lists together, in one submission (<see cref="Device.SubmitLater"/>), rather than one submission
+	/// each: on an RX 7900 XTX each submission drains the GPU, which cost Construct's frame recorded on workers (40
+	/// lists) 0.66 ms of GPU time. Sent on when the render system has submitted the frame (<see cref="EndSubmitting"/>).
+	/// </summary>
+	internal bool BatchSubmits { get; set; } = true;
+
+	/// <summary>Send the frame's lists held for one submission (<see cref="BatchSubmits"/>) to the GPU.</summary>
+	public override void EndSubmitting() => Gpu.Flush();
+
 	readonly BackendTexture black;
 	readonly BackendTexture sheetMetadata;
 

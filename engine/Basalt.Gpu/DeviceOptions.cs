@@ -34,6 +34,13 @@ public sealed class DeviceOptions
 	/// <summary>Whether swap chains will be made: enables the surface extensions. Offscreen devices can leave it off.</summary>
 	public bool Presentation { get; init; } = true;
 
+	/// <summary>
+	/// More instance extensions to enable: the ones a window system asks for to make its own surfaces
+	/// (<see cref="SurfaceSource.Custom"/>, such as SDL's <c>SDL_Vulkan_GetInstanceExtensions</c>). Creating the device
+	/// fails if one isn't available.
+	/// </summary>
+	public IReadOnlyList<string> InstanceExtensions { get; init; }
+
 	/// <summary>Pipeline cache data saved from <see cref="Device.GetPipelineCacheData"/>, or null.</summary>
 	public byte[] PipelineCacheData { get; init; }
 
@@ -116,6 +123,9 @@ public sealed class DeviceCapabilities
 
 	/// <summary>Whether occlusion queries count every sample that passes (<see cref="OcclusionQueries"/>), not just whether any did.</summary>
 	public bool PreciseOcclusion { get; init; }
+
+	/// <summary>Whether pipeline statistics queries (<see cref="PipelineStatistics"/>) can be made.</summary>
+	public bool PipelineStatistics { get; init; }
 
 	/// <summary>Nanoseconds per timestamp tick.</summary>
 	public float TimestampPeriod { get; init; }
