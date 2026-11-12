@@ -855,23 +855,11 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 		/// <summary>The frame (<see cref="GpuDrivenFrame"/>) its mask was last cleared in, before any call drew ids into it.</summary>
 		public uint ClearedFrame;
 
-		uint compactedFrame;
-		long compactedUsed;
-
 		/// <summary>
-		/// Where a call's <paramref name="indices"/> of compacted triangles start in this frame's compacted buffer: calls take
-		/// ranges one after another, so ones recorded on different workers don't write over each other.
+		/// Indices at the start of each compacted buffer that hold its cursor instead: every call compacting into the view
+		/// this frame takes its triangles' range from it on the GPU, so calls recorded on different workers reserve nothing.
 		/// </summary>
-		public uint ReserveCompacted( uint frame, long indices )
-		{
-			lock ( Compacted )
-			{
-				if ( compactedFrame != frame ) (compactedFrame, compactedUsed) = (frame, 0);
-				var start = Math.Min( compactedUsed, VisibilityCompactedIndices );
-				compactedUsed += indices;
-				return (uint)start;
-			}
-		}
+		public const uint CompactedCursorIndices = 4;
 	}
 
 	/// <summary>A view's visibility resources if it has any yet.</summary>
@@ -901,7 +889,7 @@ public sealed class BackendDevice : GpuDevice, IDisposable
 				state.Stamps = Gpu.CreateBuffer( new BufferInfo { Size = GpuDrivenTables.MaxVisibilityFragments * 4L, Usage = BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Basalt visibility stamps" } );
 				for ( int i = 0; i < state.Compacted.Length; i++ )
 				{
-					state.Compacted[i] = Gpu.CreateBuffer( new BufferInfo { Size = VisibilityCompactedIndices * 4L, Usage = BufferUsage.Index | BufferUsage.Storage, Name = "Basalt visibility triangles" } );
+					state.Compacted[i] = Gpu.CreateBuffer( new BufferInfo { Size = VisibilityCompactedIndices * 4L, Usage = BufferUsage.Index | BufferUsage.Storage | BufferUsage.CopyDestination, Name = "Basalt visibility triangles" } );
 					visibilityBuffers.Add( state.Compacted[i] );
 				}
 

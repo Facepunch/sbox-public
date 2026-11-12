@@ -189,11 +189,22 @@ internal sealed class AggregateRenderFeature : RenderFeature
 	}
 
 	/// <summary>
-	/// GPU-driven runs a layer's batches and mesh draws split into, which workers could record side by side, each one call
-	/// with buckets of its own. One for now: split into runs of 256 on Construct, the calls cost more CPU than they saved
-	/// and each reserved its compacted indices up front, which ran out (docs/managed/basalt-gpu-driven.md).
+	/// GPU-driven runs a layer's batches and mesh draws split into, which workers record side by side, each one call with
+	/// buckets of its own: one per <see cref="ItemsPerChunk"/> items, at most <see cref="MaxChunks"/>.
 	/// </summary>
-	static int Chunks( int items ) => Math.Min( items, 1 );
+	static int Chunks( int items ) => Math.Clamp( items / ItemsPerChunk, 1, MaxChunks );
+
+	const int ItemsPerChunk = 256;
+
+	/// <summary>At most this many GPU-driven runs a layer: 1, or what <c>-gpudriven-chunks N</c> asks for, for measuring.</summary>
+	static readonly int MaxChunks = ChunksSwitch();
+
+	static int ChunksSwitch()
+	{
+		var args = Environment.GetCommandLineArgs();
+		var at = Array.FindIndex( args, a => a.Equals( "-gpudriven-chunks", StringComparison.OrdinalIgnoreCase ) );
+		return at >= 0 && at + 1 < args.Length && int.TryParse( args[at + 1], out var chunks ) ? Math.Clamp( chunks, 1, 8 ) : 1;
+	}
 
 	/// <summary>Run <paramref name="chunk"/> of <paramref name="chunks"/>' first item, of <paramref name="items"/>: they split them evenly.</summary>
 	static int ChunkStart( int chunk, int chunks, int items ) => (int)((long)chunk * items / chunks);

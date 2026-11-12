@@ -409,13 +409,12 @@ internal sealed partial class BackendContext
 		var lists = ready && cull.Visibility;
 
 		// One region: the view, the batches, the multi-draws (first slot and visible count, when compacting; a run of
-		// compacted triangles per bucket after its own), the compacted indices' cursor, the listed fragments, mesh draws'
+		// compacted triangles per bucket after its own), the listed fragments, mesh draws'
 		// instances' transform slots, then a slot per fragment (twice, with lists) for its instance record (8 bytes), its
 		// fragment (4, for ids) and command (20)
 		var slotCount = totalFragments * (lists ? 2 : 1);
 		var runsOffset = CullViewBytes + batchCount * CullBatchBytes;
-		var cursorOffset = runsOffset + (compact ? (batchCount + gpuDrivenBucketCount) * 8 : 0);
-		var listedOffset = cursorOffset + 16;
+		var listedOffset = (runsOffset + (compact ? (batchCount + gpuDrivenBucketCount) * 8 : 0) + 15) & ~15;
 		var transformSlotsOffset = listedOffset + (lists ? 16 + totalFragments * 32 : 0);
 		var instanceOffset = transformSlotsOffset + ((instanceFragments * 4 + 15) & ~15);
 		var fragmentOffset = instanceOffset + slotCount * GpuDrivenTables.InstanceStride;
@@ -437,7 +436,6 @@ internal sealed partial class BackendContext
 		}
 
 		MemoryMarshal.Cast<byte, uint>( data[..CullViewBytes] )[28] = cull.Shadow ? 1u : 0u;
-		MemoryMarshal.Cast<byte, uint>( data.Slice( cursorOffset, 16 ) ).Clear();
 		if ( lists )
 		{
 			// The compaction's dispatch: a group per listed fragment, counted up by the culling
@@ -452,7 +450,6 @@ internal sealed partial class BackendContext
 
 		// Each batch's record and its fragments' slots, bucket by bucket and page by page, and the multi-draws they make
 		cullRuns.Clear();
-		long listedIndices = 0;
 		var written = 0;
 		var compactWritten = totalFragments;
 		var record = 0;
@@ -536,7 +533,6 @@ internal sealed partial class BackendContext
 				}
 
 				batchRecords[at + 1] = (uint)fragmentCount;
-				if ( bucketLists ) listedIndices += batch.Instances ? (long)batch.Count * batch.Draw.IndexCount : IndicesOf( (AggregateObject)batch.Owner );
 				batchRecords[at + 3] = compact ? (uint)cullRuns.Count : (uint)written;
 				batchRecords[at + 4] = vertexBase != GpuDrivenTables.NoVisibility ? visibilityFirst : GpuDrivenTables.NoVisibility;
 				batchRecords[at + 5] = 0;
@@ -569,16 +565,6 @@ internal sealed partial class BackendContext
 			runs[i * 2 + 1] = 0;
 		}
 
-		// This call's range of the frame's compacted indices: as many as its listed fragments could need, so calls recorded on
-		// other workers write beside it; a fragment that doesn't fit draws whole
-		var compactedEnd = 0u;
-		if ( lists )
-		{
-			var start = visibility.ReserveCompacted( device.GpuDrivenFrame, listedIndices );
-			MemoryMarshal.Cast<byte, uint>( data.Slice( cursorOffset, 16 ) )[0] = start;
-			compactedEnd = (uint)Math.Min( start + listedIndices, BackendDevice.VisibilityCompactedIndices );
-		}
-
 		// The view's mask and stamps were cleared before the frame's segments (BeginGpuDrivenView)
 		var slots = tables.Slots;
 		CloseScope( flushClears: false );
@@ -599,8 +585,8 @@ internal sealed partial class BackendContext
 		constants[7] = compact ? (uint)(frameOffset + runsOffset) : 0;
 		constants[8] = device.GpuDrivenFrame;
 		constants[9] = 0;
-		constants[10] = (uint)(frameOffset + cursorOffset);
-		constants[11] = compactedEnd;
+		constants[10] = 0;
+		constants[11] = BackendDevice.VisibilityCompactedIndices;
 		constants[12] = (uint)(frameOffset + fragmentOffset) - firstInstance * 4;
 		constants[13] = lists ? (uint)(frameOffset + listedOffset) : 0;
 		cullAttributes.Clear();
@@ -664,21 +650,11 @@ internal sealed partial class BackendContext
 
 		// Debug only: the forward pass's multi-draws again, into the figure's targets
 		if ( device.Figure is { } figure && r.Color is not null && !cull.Shadow && compact && device.FigureMaterial is { } figureMaterial )
-			DrawFigure( figure, figureMaterial, visibility, frameBuffer, frameOffset, commandOffset, runsOffset, lists ? listedOffset : -1, lists ? cursorOffset : -1, depth, resolver );
+			DrawFigure( figure, figureMaterial, visibility, frameBuffer, frameOffset, commandOffset, runsOffset, lists ? listedOffset : -1, depth, resolver );
 
 		SetObjectAttributes( null );
 		r.Binder = null;
 	}
-
-	static readonly ConditionalWeakTable<AggregateObject, StrongBox<long>> aggregateIndices = new();
-
-	/// <summary>Every index an aggregate's fragments draw: the most its compacted triangles could take.</summary>
-	static long IndicesOf( AggregateObject aggregate ) => aggregateIndices.GetValue( aggregate, static a =>
-	{
-		long indices = 0;
-		foreach ( var fragment in a.Fragments ) indices += fragment.Args.IndexCount;
-		return new StrongBox<long>( indices );
-	} ).Value;
 
 	/// <summary>
 	/// Before the frame's segments: clear <paramref name="view"/>'s triangle mask (the bits aggregates keep, and those the
@@ -701,6 +677,9 @@ internal sealed partial class BackendContext
 		r.List.FillBuffer( visibility.Mask, 0, GpuDrivenTables.FrameVisibilityBitBase / 8, Math.Min( (meshBits / 8 + 4) & ~3L, (GpuDrivenTables.MaxVisibilityBits - GpuDrivenTables.FrameVisibilityBitBase) / 8 ) );
 		if ( !visibility.StampsCleared ) r.List.FillBuffer( visibility.Stamps, 0 );
 		visibility.StampsCleared = true;
+
+		// This frame's compacted buffer's cursor, past itself: the forward pass's calls take their triangles' ranges from it
+		r.List.FillBuffer( visibility.Compacted[frame % visibility.Compacted.Length], BackendDevice.VisibilityView.CompactedCursorIndices, 0, 4 );
 		r.List.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.ComputeShader, MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite );
 	}
 
@@ -714,7 +693,7 @@ internal sealed partial class BackendContext
 	/// colour target, flat over the view's depth with dark edges or as faint edges with no depth test. Only for a view of the
 	/// figure's size and one sample.
 	/// </summary>
-	void DrawFigure( VisibilityFigure figure, BackendMaterial figureMaterial, BackendDevice.VisibilityView visibility, BufferHandle frameBuffer, long frameOffset, int commandOffset, int runsOffset, int listedOffset, int cursorOffset, Format depth, PassResolver resolver )
+	void DrawFigure( VisibilityFigure figure, BackendMaterial figureMaterial, BackendDevice.VisibilityView visibility, BufferHandle frameBuffer, long frameOffset, int commandOffset, int runsOffset, int listedOffset, Format depth, PassResolver resolver )
 	{
 		var r = recording;
 		var cache = device.MaterialCache;
@@ -726,7 +705,7 @@ internal sealed partial class BackendContext
 		// Where its commands and counts are, for the figure's counts once the frame is done
 		var runs = new List<(int First, long CountOffset, int Max)>();
 		for ( int i = 0; i < cullRuns.Count; i++ ) runs.Add( (cullRuns[i].First, frameOffset + runsOffset + i * 8 + 4, cullRuns[i].Count) );
-		figure.Passes.Add( (frameBuffer, frameOffset + commandOffset, runs, listedOffset >= 0 ? frameOffset + listedOffset : -1, cursorOffset >= 0 ? frameOffset + cursorOffset : -1) );
+		figure.Passes.Add( (frameBuffer, frameOffset + commandOffset, runs, listedOffset >= 0 ? frameOffset + listedOffset : -1, -1) );
 		// The ids of the view with the most fragments (the main view's, not the 3D skybox's)
 		var fragments = 0;
 		foreach ( var run in cullRuns ) fragments += run.Count;
