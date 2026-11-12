@@ -306,13 +306,15 @@ public sealed unsafe partial class Device
 	/// <summary>
 	/// The last lists submitted, oldest first, each with its queue, its timeline value and whether the GPU had finished it
 	/// when last asked: what was in flight when the device was lost (a list held for one submission is "held"; one
-	/// submitted directly says how many held lists went with it), after the driver's fault report. For after the device
+	/// submitted directly says how many held lists went with it), after the driver's fault report and the process's memory
+	/// use (<see cref="DescribeMemory"/>). For after the device
 	/// is lost: the fault report is only valid then.
 	/// </summary>
 	public string DescribeRecentSubmissions()
 	{
 		var text = new System.Text.StringBuilder();
 		DescribeFault( text );
+		text.Append( $"memory: {DescribeMemory()}; " );
 		foreach ( var queue in (DeviceQueue[])[graphicsQueue, computeQueue] )
 		{
 			string completed;

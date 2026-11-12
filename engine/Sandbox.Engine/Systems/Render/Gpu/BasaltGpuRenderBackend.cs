@@ -287,6 +287,9 @@ internal sealed class BasaltGpuRenderBackend : RenderBackend, IDisposable
 
 		var sky = System.IO.Path.Combine( System.IO.Path.GetDirectoryName( vpk ), System.IO.Path.GetFileNameWithoutExtension( vpk ) + "_sky.vpk" );
 		if ( System.IO.File.Exists( sky ) && mapPackages.Add( sky ) ) AddPackage( sky );
+
+		// The process's video memory as the map's world is made (both devices: Source 2 still loads the map's lightmaps)
+		Log.Info( $"Basalt.Gpu memory at {System.IO.Path.GetFileName( vpk )}: {gpu.DescribeMemory()}" );
 	}
 
 	void AddPackage( string vpk )

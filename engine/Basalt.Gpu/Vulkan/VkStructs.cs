@@ -471,6 +471,23 @@ internal unsafe struct VkPhysicalDeviceMemoryProperties
 }
 
 [StructLayout( LayoutKind.Sequential )]
+internal unsafe struct VkPhysicalDeviceMemoryProperties2
+{
+	public VkStructureType sType;
+	public void* pNext;
+	public VkPhysicalDeviceMemoryProperties memoryProperties;
+}
+
+[StructLayout( LayoutKind.Sequential )]
+internal unsafe struct VkPhysicalDeviceMemoryBudgetPropertiesEXT
+{
+	public VkStructureType sType;
+	public void* pNext;
+	public fixed ulong heapBudget[16];
+	public fixed ulong heapUsage[16];
+}
+
+[StructLayout( LayoutKind.Sequential )]
 internal struct VkFormatProperties
 {
 	public uint linearTilingFeatures;
