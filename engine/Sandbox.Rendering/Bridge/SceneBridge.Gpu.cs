@@ -61,6 +61,7 @@ internal sealed partial class SceneBridge
 		gpuView.Viewport = viewport;
 		using var _ = OutputTiming.Scope();
 		window.Draw( gpuView, () => DrawOutput( camera, frame, ui, encode: true, false, false ) );
+		frame?.Release();
 	}
 
 	/// <summary>
@@ -91,10 +92,14 @@ internal sealed partial class SceneBridge
 		gpuView.Viewport = viewport;
 		gpuView.SrgbWrite = !Source2Formats.From( target.ImageFormat ).IsFloat();
 		using var _ = OutputTiming.Scope();
-		using var scope = Graphics.Scope.CreateOnView( backend, gpuView );
-		gpuView.Bind();
-		DrawOutput( camera, frame, ui, encode: false, flipX, flipY );
+		using ( Graphics.Scope.CreateOnView( backend, gpuView ) )
+		{
+			gpuView.Bind();
+			DrawOutput( camera, frame, ui, encode: false, flipX, flipY );
+		}
+
 		gpuView.SrgbWrite = false;
+		frame.Release();
 	}
 
 	/// <summary>

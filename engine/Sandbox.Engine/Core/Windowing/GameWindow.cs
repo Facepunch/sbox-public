@@ -26,6 +26,9 @@ internal sealed partial class GameWindow : IDisposable
 	// With -basaltgpu: the window's swap chain on Basalt.Gpu, in place of Source 2's (docs/managed/basalt-gpu-path.md, stage 5)
 	BasaltGpuWindow basalt;
 
+	/// <summary>On Basalt.Gpu, the GPU time of a recent frame and which (<see cref="BasaltGpuWindow.GpuFrameMs"/>).</summary>
+	internal (double Ms, ulong Frame)? BasaltGpuFrameMs => basalt?.GpuFrameMs is { } ms ? (ms, basalt.GpuFrameNumber) : null;
+
 	internal IntPtr Handle => window.Handle;
 
 	internal GameSurface Surface => new( window.Handle, window.SwapChain, basalt?.VSync );

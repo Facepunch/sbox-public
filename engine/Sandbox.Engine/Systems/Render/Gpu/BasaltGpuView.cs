@@ -91,9 +91,20 @@ internal sealed class BasaltGpuView : Graphics.IFrameView, IDisposable
 	void Graphics.IFrameView.BindTarget( IRenderContext context, RenderTarget target )
 	{
 		if ( target.ColorTarget is null && Target?.ColorTarget is null ) return;
-		var bound = target.ColorTarget is null ? RenderTarget.From( Target.ColorTarget, target.DepthTarget ) : target;
-		if ( backend is BasaltGpuRenderBackend gpu ) gpu.BindRenderTarget( bound, SrgbWrite && bound.ColorTarget == Target.ColorTarget );
-		else backend.BindRenderTarget( bound );
+		if ( target.ColorTarget is not null )
+		{
+			BindTarget( target );
+			return;
+		}
+
+		using var withColor = RenderTarget.From( Target.ColorTarget, target.DepthTarget );
+		BindTarget( withColor );
+	}
+
+	void BindTarget( RenderTarget target )
+	{
+		if ( backend is BasaltGpuRenderBackend gpu ) gpu.BindRenderTarget( target, SrgbWrite && target.ColorTarget == Target?.ColorTarget );
+		else backend.BindRenderTarget( target );
 	}
 
 	void Graphics.IFrameView.RestoreTargets( IRenderContext context, float minZ, float maxZ )
