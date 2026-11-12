@@ -25,15 +25,23 @@ internal sealed class BasaltGpuWindow : IDisposable
 	{
 		this.backend = backend;
 
-		var properties = Sdl.GetWindowProperties( window );
-		var hwnd = Sdl.GetPointerProperty( properties, "SDL.window.win32.hwnd", IntPtr.Zero );
-		var instance = Sdl.GetPointerProperty( properties, "SDL.window.win32.instance", IntPtr.Zero );
-		if ( hwnd == IntPtr.Zero ) throw new PlatformNotSupportedException( "Basalt.Gpu windows need a Win32 window for now" );
-
-		Sdl.GetWindowSizeInPixels( window, out var width, out var height );
-		swapChain = backend.CreateSwapChain( SurfaceSource.Win32( instance, hwnd ), Math.Max( width, 1 ), Math.Max( height, 1 ), vsync );
+		// The engine's SDL window, wrapped by Basalt.Sdl (the same SDL3); the engine keeps owning it. Its surface is made from
+		// the window system's handles: the splash's window isn't made for Vulkan, which SDL's own surface call requires
+		sdl = Basalt.Sdl.SdlWindow.Wrap( window );
+		var (width, height) = sdl.PixelSize;
+		swapChain = backend.CreateSwapChain( SurfaceOf( sdl.NativeWindow ), Math.Max( width, 1 ), Math.Max( height, 1 ), vsync );
 		Size = new Vector2( width, height );
 	}
+
+	readonly Basalt.Sdl.SdlWindow sdl;
+
+	static SurfaceSource SurfaceOf( Basalt.Sdl.SdlNativeWindow native ) => native.Kind switch
+	{
+		Basalt.Sdl.SdlNativeWindow.Kinds.Win32 => SurfaceSource.Win32( native.Display, native.Window ),
+		Basalt.Sdl.SdlNativeWindow.Kinds.X11 => SurfaceSource.Xlib( native.Display, native.Window ),
+		Basalt.Sdl.SdlNativeWindow.Kinds.Wayland => SurfaceSource.Wayland( native.Display, native.Window ),
+		_ => throw new PlatformNotSupportedException( $"Basalt.Gpu windows can't present on {native.Kind} windows" ),
+	};
 
 	/// <summary>
 	/// Match the window's size in pixels. False while it's zero-sized, with nothing to draw.
@@ -198,6 +206,7 @@ internal sealed class BasaltGpuWindow : IDisposable
 	{
 		backend.Forget( swapChain );
 		swapChain.Dispose();
+		sdl.Dispose();
 		ReleaseTarget();
 		overlay?.Dispose();
 		overlay = null;
