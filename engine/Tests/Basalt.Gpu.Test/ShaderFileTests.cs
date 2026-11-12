@@ -70,8 +70,13 @@ public class ShaderFileTests
 		// The layouts Basalt's mirrors must match
 		var pixel = shader[ShaderProgramType.Pixel];
 		Assert.AreEqual( 1088, pixel.ConstantBuffers.Single( c => c.Name == "PerViewConstantBuffer_t" ).Size );
-		Assert.AreEqual( 416, pixel.ConstantBuffers.Single( c => c.Name == "DirectionalLightCB" ).Size );
-		Assert.AreEqual( 4128, pixel.ConstantBuffers.Single( c => c.Name == "ViewLightingConfigV2" ).Size );
+
+		// The view's environment: each block where ShaderAbi.ViewEnvironmentBlocks puts it, as the renderers fill it
+		var environment = pixel.ConstantBuffers.Single( c => c.Name == ShaderAbi.ViewEnvironment );
+		Assert.AreEqual( ShaderAbi.ViewEnvironmentSize, environment.Size );
+		var firstMembers = new[] { "g_bFogTypeEnabled", "NumLights", "g_DirectionalLightColor", "ClusterCounts", "FogControl" };
+		for ( int i = 0; i < firstMembers.Length; i++ )
+			Assert.AreEqual( ShaderAbi.ViewEnvironmentBlocks[i].Offset, environment.Members.Single( m => m.Name == firstMembers[i] ).Offset, firstMembers[i] );
 
 		var timer = Stopwatch.StartNew();
 		var modules = 0;

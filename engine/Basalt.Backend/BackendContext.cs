@@ -268,8 +268,8 @@ internal sealed partial class BackendContext : GpuContext
 	Binding[] viewBindings;
 
 	/// <summary>
-	/// Write the view set from this frame context's attributes - constant buffers copied into the frame's pass constants,
-	/// buffers by name, placeholders for what isn't set - and bind it for everything this frame records after.
+	/// Write the view set from this frame context's attributes - the environment's blocks copied into the frame's pass
+	/// constants, buffers by name, placeholders for what isn't set - and bind it for everything this frame records after.
 	/// </summary>
 	public override void WriteViewSet()
 	{
@@ -282,6 +282,21 @@ internal sealed partial class BackendContext : GpuContext
 		for ( int i = 0; i < viewBindings.Length; i++ )
 		{
 			var (binding, type, name) = ShaderAbi.ViewSetBindings[i];
+			if ( name == ShaderAbi.ViewEnvironment )
+			{
+				// The environment's blocks, each from the constant buffer set by its name, back to back
+				var offset = cache.AllocatePassConstants( ShaderAbi.ViewEnvironmentSize, out var target );
+				target.Clear();
+				foreach ( var (block, blockOffset, blockSize) in ShaderAbi.ViewEnvironmentBlocks )
+				{
+					if ( attributes.Get( Token( block ) ) is byte[] data )
+						data.AsSpan( 0, Math.Min( data.Length, blockSize ) ).CopyTo( target[blockOffset..] );
+				}
+
+				viewBindings[i] = Binding.Uniform( binding, cache.PassBuffer, offset, ShaderAbi.ViewEnvironmentSize );
+				continue;
+			}
+
 			var value = attributes.Get( Token( name ) );
 			if ( type == BindingType.UniformBuffer )
 			{

@@ -14,15 +14,8 @@ StructuredBuffer<uint> ClusterItemCounts      EXTERNAL_DESC_SET( t, g_viewSet, 6
 StructuredBuffer<uint> ClusterItemIndices     EXTERNAL_DESC_SET( t, g_viewSet, 7 );
 #endif
 
-// The view's cluster grid, in its descriptor set
-cbuffer ClusteredLightingConstants EXTERNAL_DESC_SET( b, g_viewSet, 3 )
-{
-    float4 ClusterCounts;        // xyz = tile counts, w = total
-    float4 ClusterInvCounts;     // xyz = 1/counts, w = unused
-    float4 ClusterZParams;       // x = log scale, y = log bias, z = near, w = far
-    float4 ClusterScreenParams;  // xy = size, zw = 1/size
-    float4 ClusterCapacitiesVec; // xyz = capacity per type
-};
+// The view's cluster grid: ClusteredLightingConstants' block of its environment
+#include "common/ViewEnvironment.hlsl"
 
 enum ClusterItemType
 {

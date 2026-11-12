@@ -23,7 +23,7 @@ public sealed class ShaderFile
 	public const int MaxVcsVersion = 68;
 
 	/// <summary>The shader ABI epoch these bindings follow (<c>VFX_ABI_CURRENT_VERSION</c>).</summary>
-	public const int AbiVersion = 3;
+	public const int AbiVersion = 4;
 
 	/// <summary>Oldest resource version the engine loads (<c>VFX_SHADER_RESOURCE_VERSION</c>).</summary>
 	public const int ResourceVersion = 4;

@@ -202,6 +202,7 @@ native accessor g_pSceneSystem as NativeEngine.CSceneSystem
 	RenderDescriptorSetHandle_t AcquireViewDescriptorSet();
 	void ReleaseViewDescriptorSet( RenderDescriptorSetHandle_t hSet );
 	void FillViewDescriptorSet( RenderDescriptorSetHandle_t hSet, CRenderAttributes pAttributes, CRenderAttributes pFallback );
+	void SetViewEnvironment( IRenderContext pRenderContext, CRenderAttributes pAttributes );
 
 	// Ray Tracing
 	IRayTraceSceneWorld CreateRayTraceWorld( string pWorldDebugName, int nMaxRayTypes );

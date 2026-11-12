@@ -26,8 +26,8 @@ public static class ShaderAbi
 	public const int BindlessSet = 4;
 
 	/// <summary>
-	/// <c>g_viewSet</c> (<c>Slot 2</c>): a view's fog, lighting config, sun, clusters, lights, decals, shadows, volumes and
-	/// light modulators, bound once per view (<see cref="ViewSetBindings"/>, <c>scenesystem/viewdescriptorset.h</c>).
+	/// <c>g_viewSet</c> (<c>Slot 2</c>): a view's environment (fog, lighting config, sun, cluster grid), lights, decals,
+	/// shadows, cluster lists, volumes and light modulators, bound once per view (<see cref="ViewSetBindings"/>, <c>scenesystem/viewdescriptorset.h</c>).
 	/// </summary>
 	public const int ViewSet = 5;
 
@@ -41,11 +41,7 @@ public static class ShaderAbi
 	/// </summary>
 	public static readonly (int Binding, BindingType Type, string Attribute)[] ViewSetBindings =
 	[
-		(ConstantBuffer( 0 ), BindingType.UniformBuffer, "PerViewConstantBufferVR_t"),
-		(ConstantBuffer( 1 ), BindingType.UniformBuffer, "ViewLightingConfigV2"),
-		(ConstantBuffer( 2 ), BindingType.UniformBuffer, "DirectionalLightCB"),
-		(ConstantBuffer( 3 ), BindingType.UniformBuffer, "ClusteredLightingConstants"),
-		(ConstantBuffer( 4 ), BindingType.UniformBuffer, "FogConstants"),
+		(ConstantBuffer( 0 ), BindingType.UniformBuffer, ViewEnvironment),
 		(Texture( 0 ), BindingType.StorageBuffer, "BinnedLightBufferV2"),
 		(Texture( 1 ), BindingType.StorageBuffer, "BinnedEnvMapBuffer"),
 		(Texture( 2 ), BindingType.StorageBuffer, "DecalsBuffer"),
@@ -57,6 +53,28 @@ public static class ShaderAbi
 		(Texture( 8 ), BindingType.StorageBuffer, "DDGI_Volumes"),
 		(Texture( 9 ), BindingType.StorageBuffer, "LightModulatorRectangles"),
 		(Texture( 10 ), BindingType.StorageBuffer, "LightModulatorCandidates"),
+	];
+
+	/// <summary>
+	/// The view set's one cbuffer (<c>common/ViewEnvironment.hlsl</c>): the blocks set as constant buffers by
+	/// <see cref="ViewEnvironmentBlocks"/>' names, back to back. A block nothing set reads as zeros.
+	/// </summary>
+	public const string ViewEnvironment = "ViewEnvironment";
+
+	/// <summary>Bytes of <see cref="ViewEnvironment"/>.</summary>
+	public const int ViewEnvironmentSize = 5520;
+
+	/// <summary>
+	/// <see cref="ViewEnvironment"/>'s blocks, as <c>g_ViewEnvironmentBlocks</c> (<c>scenesystem/viewdescriptorset.h</c>):
+	/// the attribute each is set as, where it starts and its size.
+	/// </summary>
+	public static readonly (string Attribute, int Offset, int Size)[] ViewEnvironmentBlocks =
+	[
+		("PerViewConstantBufferVR_t", 0, 592),
+		("ViewLightingConfigV2", 592, 4128),
+		("DirectionalLightCB", 4720, 416),
+		("ClusteredLightingConstants", 5136, 80),
+		("FogConstants", 5216, 304),
 	];
 
 	/// <summary>Where <c>b#</c> registers start.</summary>
