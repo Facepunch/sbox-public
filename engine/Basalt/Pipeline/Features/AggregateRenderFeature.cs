@@ -315,6 +315,9 @@ internal sealed class AggregateRenderFeature : RenderFeature
 			Far = frustum.Plane( 5 ),
 			CameraAndThreshold = new SizeCull( view.Root ).CameraAndThreshold,
 			Shadow = view.IsShadow,
+			View = view,
+			Ids = depth && !view.IsShadow,
+			Visibility = !depth && !view.IsShadow,
 		};
 
 		context.DrawGpuDriven( mode, list.AsSpan( 0, count ), args.AsSpan( 0, argCount ), transforms, depthBias, slopeBias, drawn, cull );

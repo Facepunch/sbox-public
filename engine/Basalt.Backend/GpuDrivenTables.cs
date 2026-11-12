@@ -9,9 +9,10 @@ namespace Basalt.Backend;
 
 /// <summary>
 /// Where a draw's geometry is for GPU-driven drawing: its geometry record (byte offset in the geometry table), the index
-/// page its indices are in, the page's slot in the raw buffer array, and its first index there.
+/// page its indices are in, the page's slot in the raw buffer array, and its first index there; and the geometry record of
+/// its positions-only copy (0 when there's none), which depth-only draws read; and the vertices its records hold.
 /// </summary>
-internal readonly record struct PooledGeometry( uint GeometryRecord, BufferHandle IndexPage, int IndexPageSlot, uint FirstIndex, IndexFormat IndexFormat );
+internal readonly record struct PooledGeometry( uint GeometryRecord, BufferHandle IndexPage, int IndexPageSlot, uint FirstIndex, IndexFormat IndexFormat, uint PositionsRecord = 0, int VertexCount = 0 );
 
 /// <summary>
 /// The buffers GPU-driven drawing reads (<c>basalt_gpu_driven.fxc</c>, docs/managed/basalt-gpu-driven.md): meshes'
@@ -141,11 +142,27 @@ internal sealed class GpuDrivenTables : IDisposable
 	{
 		lock ( pagesLock )
 		{
-			var page = Place( ref vertexPage, data.Length, VertexPageSize, BufferUsage.Storage, "Basalt vertex page" );
+			var page = Place( ref vertexPage, data.Length, VertexPageSize, BufferUsage.Storage | BufferUsage.Vertex, "Basalt vertex page" );
 			var offset = page.Used;
 			if ( data.Length > 0 ) gpu.WriteBuffer( page.Buffer, data, offset );
 			page.Used = (offset + data.Length + 15) & ~15;
 			return (page.Slot, offset);
+		}
+	}
+
+	/// <summary>
+	/// Vertices in a page that's also bindable as a vertex buffer (the positions-only copies, which the classic path binds
+	/// and GPU-driven draws pull): the page, where they start in it, and its slot.
+	/// </summary>
+	public (BufferHandle Buffer, long Offset, int Slot) AddVertexStream( ReadOnlySpan<byte> data )
+	{
+		lock ( pagesLock )
+		{
+			var page = Place( ref vertexPage, data.Length, VertexPageSize, BufferUsage.Storage | BufferUsage.Vertex, "Basalt vertex page" );
+			var offset = page.Used;
+			if ( data.Length > 0 ) gpu.WriteBuffer( page.Buffer, data, offset );
+			page.Used = (offset + data.Length + 15) & ~15;
+			return (page.Buffer, offset, page.Slot);
 		}
 	}
 
@@ -311,6 +328,61 @@ internal sealed class GpuDrivenTables : IDisposable
 		}
 	}
 
+	/// <summary>No visibility fragment, or no vertex bits for an aggregate.</summary>
+	public const uint NoVisibility = uint.MaxValue;
+
+	/// <summary>Visibility fragments there can be: a stamp each.</summary>
+	public const int MaxVisibilityFragments = 1 << 20;
+
+	/// <summary>Vertex bits the mask holds, a bit for every vertex of every aggregate drawn.</summary>
+	public const long MaxVisibilityBits = 1L << 26;
+
+	readonly ConditionalWeakTable<object, StrongBox<(uint First, uint VertexBase)>> visibilityOwners = new();
+	long visibilityBits;
+	int visibilityFragments;
+
+	/// <summary>
+	/// An aggregate's visibility: the index of its first fragment's stamp (so the prepass's and forward's different
+	/// buckets name the same fragments) and the first of its vertices' bits in the mask, which the ids name. Made once;
+	/// <see cref="NoVisibility"/> when there's no room.
+	/// </summary>
+	public (uint First, uint VertexBase) Visibility( object owner, int fragments, int vertices )
+	{
+		if ( visibilityOwners.TryGetValue( owner, out var known ) ) return known.Value;
+
+		lock ( visibilityOwners )
+		{
+			if ( visibilityOwners.TryGetValue( owner, out known ) ) return known.Value;
+
+			var first = NoVisibility;
+			if ( visibilityFragments + fragments <= MaxVisibilityFragments )
+			{
+				first = (uint)visibilityFragments;
+				visibilityFragments += fragments;
+			}
+
+			var vertexBase = NoVisibility;
+			var bits = (vertices + 31L) & ~31L;
+			if ( vertices > 0 && visibilityBits + bits <= MaxVisibilityBits )
+			{
+				vertexBase = (uint)visibilityBits;
+				visibilityBits += bits;
+			}
+
+			var made = (first, vertexBase);
+			visibilityOwners.Add( owner, new StrongBox<(uint, uint)>( made ) );
+			return made;
+		}
+	}
+
+	/// <summary>The vertex bits in use.</summary>
+	public long VisibilityBits
+	{
+		get
+		{
+			lock ( visibilityOwners ) return visibilityBits;
+		}
+	}
 	/// <summary>The fragment table's slot in the raw buffer array.</summary>
 	public int FragmentSlot => fragments.Slot;
 

@@ -490,7 +490,18 @@ public sealed class BackendMesh : GpuMesh, IBackendGeometry
 		{
 			var (slot, offset) = tables.AddVertices( MemoryMarshal.AsBytes( data.AsSpan() ) );
 			var (page, pageSlot, first) = tables.AddIndices( MemoryMarshal.AsBytes( indices ), IndexFormat.UInt32 );
-			pooled = new PooledGeometry( tables.Geometry( slot, offset, device.Layout( Layout ), data.Length ), page, pageSlot, first, IndexFormat.UInt32 );
+			// And its positions alone, for depth-only draws
+			var positions = new float[data.Length * 3];
+			for ( int i = 0; i < data.Length; i++ )
+			{
+				positions[i * 3] = data[i].Position.x;
+				positions[i * 3 + 1] = data[i].Position.y;
+				positions[i * 3 + 2] = data[i].Position.z;
+			}
+
+			var (_, positionOffset, positionSlot) = tables.AddVertexStream( MemoryMarshal.AsBytes( positions.AsSpan() ) );
+			var positionsRecord = tables.Geometry( positionSlot, positionOffset, device.Layout( BackendModel.PositionLayout ), data.Length );
+			pooled = new PooledGeometry( tables.Geometry( slot, offset, device.Layout( Layout ), data.Length ), page, pageSlot, first, IndexFormat.UInt32, positionsRecord, data.Length );
 		}
 
 		var geometry = new BackendMesh( vertexBuffer, indexBuffer, IndexFormat.UInt32, name, pooled );

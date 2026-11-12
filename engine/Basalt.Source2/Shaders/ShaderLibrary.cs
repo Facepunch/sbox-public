@@ -60,6 +60,12 @@ public sealed class ShaderLibrary : IDisposable
 	/// </summary>
 	public const int GpuDrivenTextureRegister = 1024;
 
+	/// <summary>
+	/// The GPU-driven variant's form: what vfx_vulkan's rewrite (<c>src/vfx/vfx_vulkan/basalt_gpu_driven.cpp</c>) makes
+	/// of a shader. Raise it with any change there, so variants compiled at load and cached are compiled again.
+	/// </summary>
+	public const int GpuDrivenVersion = 2;
+
 	readonly Dictionary<ShaderFile, ShaderFile> gpuDriven = new( ReferenceEqualityComparer.Instance );
 
 	/// <summary>
@@ -76,6 +82,31 @@ public sealed class ShaderLibrary : IDisposable
 
 	/// <summary>What the cached variants were compiled by: a different version compiles them again.</summary>
 	public string GpuDrivenCompilerVersion { get; set; } = "";
+
+	string GpuDrivenVersionTag => Convert.ToHexString( System.Security.Cryptography.SHA256.HashData( System.Text.Encoding.UTF8.GetBytes( GpuDrivenCompilerVersion ) ), 0, 4 ).ToLowerInvariant();
+
+	/// <summary>Delete <see cref="GpuDrivenCache"/>'s variants (and failure markers) from other compiler versions.</summary>
+	public void PruneGpuDrivenCache()
+	{
+		if ( string.IsNullOrEmpty( GpuDrivenCache ) || !Directory.Exists( GpuDrivenCache ) ) return;
+
+		var current = $".{GpuDrivenVersionTag}.gpudriven.shader_c";
+		foreach ( var file in Directory.EnumerateFiles( GpuDrivenCache, "*.gpudriven.shader_c*" ) )
+		{
+			if ( file.Contains( current, StringComparison.OrdinalIgnoreCase ) ) continue;
+			try
+			{
+				File.Delete( file );
+			}
+			catch ( IOException )
+			{
+				// Another process has it open: next time
+			}
+			catch ( UnauthorizedAccessException )
+			{
+			}
+		}
+	}
 
 	readonly Dictionary<ShaderFile, string> gpuDrivenCachePaths = new( ReferenceEqualityComparer.Instance );
 	readonly HashSet<ShaderFile> gpuDrivenPending = new( ReferenceEqualityComparer.Instance );
@@ -142,7 +173,7 @@ public sealed class ShaderLibrary : IDisposable
 			{
 				// By name and contents, so a changed package shader compiles again
 				var hash = Convert.ToHexString( System.Security.Cryptography.SHA256.HashData( File.ReadAllBytes( shader.Name ) ), 0, 8 );
-				var version = Convert.ToHexString( System.Security.Cryptography.SHA256.HashData( System.Text.Encoding.UTF8.GetBytes( GpuDrivenCompilerVersion ) ), 0, 4 );
+				var version = GpuDrivenVersionTag;
 				var name = System.Text.RegularExpressions.Regex.Replace( Path.GetFileNameWithoutExtension( shader.Name ), "[^a-zA-Z0-9_]", "_" );
 				path = Path.Combine( GpuDrivenCache, $"{name}.{hash}.{version}.gpudriven.shader_c" ).ToLowerInvariant();
 				gpuDrivenCachePaths[shader] = path;

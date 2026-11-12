@@ -704,7 +704,7 @@ internal sealed partial class BackendContext : GpuContext
 		var color = r.Color is null ? Format.Unknown : FormatOfTarget( r.Color, r.Srgb );
 		var noColor = stripPixelShader || r.Color is null;
 		var depthOnly = StripsPixelShader( m, noColor, stripPixelShader );
-		var geometry = GeometryFor( source, draw );
+		var geometry = DepthGeometry( GeometryFor( source, draw ), variant, depthOnly );
 		var pipeline = device.Pipeline( variant, geometry.Layout, noColor ? Format.Unknown : color, r.Depth is null ? Format.Unknown : BackendDevice.FormatOf( r.Depth ), (r.Color ?? r.Depth).Samples, depthOnly );
 
 		if ( r.Pipeline != pipeline )
@@ -729,6 +729,28 @@ internal sealed partial class BackendContext : GpuContext
 	/// </summary>
 	static bool StripsPixelShader( BackendMaterial material, bool noColor, bool stripPixelShader )
 		=> stripPixelShader || (noColor && !material.IsAlphaTest && !material.IsTranslucent);
+
+	/// <summary>
+	/// A depth-only draw fetches its vertices from the positions-only copy, when the model has one, if that changes nothing
+	/// the vertex shader reads: every input but the position is one the mesh's own vertices don't have either (the instance
+	/// and vertex id streams, or the default stream).
+	/// </summary>
+	DrawGeometry DepthGeometry( in DrawGeometry geometry, ShaderVariant variant, bool depthOnly )
+	{
+		if ( !depthOnly || !device.PositionStreams || !geometry.Positions.IsValid || !ReadsOnlyPositions( variant, geometry.Layout ) ) return geometry;
+		return geometry.PositionsOnly;
+	}
+
+	/// <summary>Whether a vertex shader reads nothing of these vertices but their positions.</summary>
+	static bool ReadsOnlyPositions( ShaderVariant variant, VertexLayout layout )
+	{
+		foreach ( var input in variant.VertexInputs )
+		{
+			if ( input.Semantic != VertexSemantic.Position && layout.Find( input.Semantic, input.SemanticIndex ) is not null ) return false;
+		}
+
+		return true;
+	}
 
 	/// <summary>Whether the draw being bound has plain normals and tangents (<c>UncompressedTangentFrame</c>).</summary>
 	bool uncompressedTangentFrame = true;

@@ -1,6 +1,7 @@
 using Basalt.Gpu;
 using Basalt.Source2.Shaders;
 using System.Buffers.Binary;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace Basalt.Backend;
@@ -21,6 +22,10 @@ internal sealed partial class BackendContext
 	struct GpuDrivenConstants
 	{
 		public uint Instances, Draws, Geometry, Materials;
+
+		/// <summary>Where each instance's first vertex bit is, a word per instance (wraps); the instance records where there are no ids.</summary>
+		public uint VertexBases;
+		public uint Pad0, Pad1, Pad2;
 	}
 
 	/// <summary>A bucket: what one multi-draw shares, and the batches in it.</summary>
@@ -31,6 +36,9 @@ internal sealed partial class BackendContext
 		public ShaderParameters Attributes;
 		public bool DepthOnly, NoColor;
 
+		/// <summary>The classic variant of its first material, when it's depth-only: what decides whether positions alone will do.</summary>
+		public ShaderVariant Classic;
+
 		/// <summary>With <see cref="BackendDevice.GpuDrivenMaterialBuckets"/>, the one pixel material record its draws share; else 0.</summary>
 		public uint PixelMaterial;
 		/// <summary>Its batches, with the index page each draws from: sorted by page, a bucket is one multi-draw per page.</summary>
@@ -39,6 +47,12 @@ internal sealed partial class BackendContext
 
 		/// <summary>Every fragment of its batches' aggregates: its commands when they're culled on the GPU.</summary>
 		public int Fragments;
+
+		/// <summary>The visibility-driven prepass draws it with ids (<see cref="BackendContext.DrawIds"/>).</summary>
+		public bool Ids;
+
+		/// <summary>With <see cref="Ids"/>: its variant has no pixel shader, so <c>basalt_gpu_driven_ids</c> draws it.</summary>
+		public bool IdsShader;
 	}
 
 	readonly List<GpuDrivenBucket> gpuDrivenBuckets = new();
@@ -113,7 +127,7 @@ internal sealed partial class BackendContext
 				pixelMaterial = MaterialRecord( tables, m, variant.Pixel, uncompressed );
 			}
 
-			var bucket = FindBucket( variant, batch.ObjectAttributes, depthOnly, noColor, pixelMaterial, m );
+			var bucket = FindBucket( variant, batch.ObjectAttributes, depthOnly, noColor, pixelMaterial, m, mode );
 			bucket.Batches.Add( (source.For( batch.Draw.Mesh, batch.Draw.DrawCall ).Pooled.Value.IndexPageSlot, i) );
 			bucket.Commands += batch.Count;
 			totalCommands += batch.Count;
@@ -145,7 +159,7 @@ internal sealed partial class BackendContext
 		var commands = MemoryMarshal.Cast<byte, GpuBuffer.IndirectDrawIndexedArguments>( data.Slice( commandBase, totalCommands * GpuDrivenTables.CommandStride ) );
 
 		var slots = tables.Slots;
-		SetConstants( GpuDrivenConstantsName, new GpuDrivenConstants { Instances = (uint)frameSlot, Draws = (uint)slots.Draws, Geometry = (uint)slots.Geometry, Materials = (uint)slots.Materials } );
+		SetConstants( GpuDrivenConstantsName, new GpuDrivenConstants { Instances = (uint)frameSlot, Draws = (uint)slots.Draws, Geometry = (uint)slots.Geometry, Materials = (uint)slots.Materials, VertexBases = (uint)frameOffset - firstInstance * 4 } );
 
 		var written = 0;
 		for ( int b = 0; b < gpuDrivenBucketCount; b++ )
@@ -171,6 +185,9 @@ internal sealed partial class BackendContext
 				var material = (BackendMaterial)batch.Material;
 				var geometry = ((IBackendGeometry)batch.Mesh.Geometry).For( batch.Draw.Mesh, batch.Draw.DrawCall );
 				var pooled = geometry.Pooled.Value;
+
+				// Depth only, from the positions-only copy when the vertex shader reads nothing else these vertices have
+				if ( bucket.Classic is not null && device.PositionStreams && pooled.PositionsRecord != 0 && ReadsOnlyPositions( bucket.Classic, geometry.Layout ) ) pooled = pooled with { GeometryRecord = pooled.PositionsRecord };
 
 				var vertexMaterial = MaterialRecord( tables, material, bucket.Variant.Vertex, geometry.UncompressedTangentFrame );
 				var pixelMaterial = bucket.DepthOnly ? 0 : MaterialRecord( tables, material, bucket.Variant.Pixel, geometry.UncompressedTangentFrame );
@@ -268,13 +285,15 @@ internal sealed partial class BackendContext
 	readonly List<(int Bucket, BufferHandle Page, IndexFormat Format, int First, int Count)> cullRuns = new();
 
 	const int CullViewBytes = 128;
-	const int CullBatchBytes = 16;
+	const int CullBatchBytes = 32;
 
 	/// <summary>
 	/// Draw the buckets with every fragment of each batch's aggregate culled on the GPU (<c>basalt_gpu_driven_cull_cs</c>):
-	/// the CPU writes the view and a 16-byte record per batch, and a dispatch writes every fragment's instance record and
+	/// the CPU writes the view and a 32-byte record per batch, and a dispatch writes every fragment's instance record and
 	/// command, with no instance where the frustum or size test fails. The fragments' bounds and draw records are written
-	/// once per aggregate (<see cref="GpuDrivenTables.FragmentsOf"/>).
+	/// once per aggregate (<see cref="GpuDrivenTables.FragmentsOf"/>). With <see cref="BackendDevice.GpuDrivenVisibility"/>,
+	/// a view's depth prepass also draws ids and marks the triangles that own a sample, and its forward pass draws only
+	/// those (<see cref="DrawIds"/>).
 	/// </summary>
 	void DrawGpuCulled( ReadOnlySpan<GpuDrivenBatch> batches, TransformBuffer transforms, in GpuDrivenCull cull, int totalFragments, Format color, Format depth, int samples, int depthBias, float slopeScaledDepthBias, PassResolver resolver, Span<bool> drawn )
 	{
@@ -285,14 +304,28 @@ internal sealed partial class BackendContext
 		var batchCount = 0;
 		for ( int b = 0; b < gpuDrivenBucketCount; b++ ) batchCount += gpuDrivenBuckets[b].Batches.Count;
 
-		// One region: the view, the batches, then every fragment's instance record (8 bytes) and command (20 bytes)
-		var inputBytes = CullViewBytes + batchCount * CullBatchBytes;
-		var instanceOffset = inputBytes;
-		var commandOffset = (instanceOffset + totalFragments * GpuDrivenTables.InstanceStride + 15) & ~15;
-		var frameBytes = commandOffset + totalFragments * GpuDrivenTables.CommandStride;
+		// The visibility-driven forward pass: the view's ids and lists, compacting only
+		var compact = device.GpuDrivenCompaction && device.SupportsDrawIndirectCount;
+		var shaders = compact && device.GpuDrivenVisibility && cull.View is not null && (cull.Ids || cull.Visibility) ? device.GpuDrivenVisibilityShaders : default;
+		var visibility = shaders.Mark is not null && shaders.Compact is not null && r.Depth is not null ? device.VisibilityFor( cull.View, Gpu.InfoOf( r.Depth.Handle ) ) : null;
+		var ids = visibility is not null && cull.Ids && r.Color is null;
+		var lists = visibility is not null && cull.Visibility && visibility.StampsCleared;
+
+		// One region: the view, the batches, the multi-draws (first slot and visible count, when compacting; a run of
+		// compacted triangles per bucket after its own), the compacted indices' cursor, then a slot per fragment (twice,
+		// with lists) for its instance record (8 bytes), its fragment (4, for ids) and command (20)
+		var slotCount = totalFragments * (lists ? 2 : 1);
+		var runsOffset = CullViewBytes + batchCount * CullBatchBytes;
+		var cursorOffset = runsOffset + (compact ? (batchCount + gpuDrivenBucketCount) * 8 : 0);
+		var listedOffset = cursorOffset + 16;
+		var instanceOffset = listedOffset + (lists ? 16 + totalFragments * 32 : 0);
+		var fragmentOffset = instanceOffset + slotCount * GpuDrivenTables.InstanceStride;
+		var commandOffset = (fragmentOffset + (ids ? slotCount * 4 : 0) + 15) & ~15;
+		var frameBytes = commandOffset + slotCount * GpuDrivenTables.CommandStride;
 		var (frameBuffer, frameSlot, frameOffset) = tables.Allocate( frameBytes );
 		var data = Gpu.Map( frameBuffer ).Slice( (int)frameOffset, frameBytes );
 		var firstInstance = (uint)((frameOffset + instanceOffset) / GpuDrivenTables.InstanceStride);
+		var compacted = lists ? visibility.Compacted[device.GpuDrivenFrame % visibility.Compacted.Length] : default;
 
 		var view = MemoryMarshal.Cast<byte, float>( data[..CullViewBytes] );
 		Span<Vector4> planes = [cull.Left, cull.Right, cull.Bottom, cull.Top, cull.Near, cull.Far, cull.CameraAndThreshold];
@@ -305,17 +338,35 @@ internal sealed partial class BackendContext
 		}
 
 		MemoryMarshal.Cast<byte, uint>( data[..CullViewBytes] )[28] = cull.Shadow ? 1u : 0u;
+		MemoryMarshal.Cast<byte, uint>( data.Slice( cursorOffset, 16 ) ).Clear();
+		if ( lists )
+		{
+			// The compaction's dispatch: a group per listed fragment, counted up by the culling
+			var arguments = MemoryMarshal.Cast<byte, uint>( data.Slice( listedOffset, 16 ) );
+			arguments[0] = 0;
+			arguments[1] = 1;
+			arguments[2] = 1;
+		}
 		var batchRecords = MemoryMarshal.Cast<byte, uint>( data.Slice( CullViewBytes, batchCount * CullBatchBytes ) );
 
 		// Each batch's record and its fragments' slots, bucket by bucket and page by page, and the multi-draws they make
 		cullRuns.Clear();
 		var written = 0;
+		var compactWritten = totalFragments;
 		var record = 0;
 		for ( int b = 0; b < gpuDrivenBucketCount; b++ )
 		{
 			var bucket = gpuDrivenBuckets[b];
 			SetObjectAttributes( null, bucket.Attributes );
 			NextPassState( cache );
+
+			// The prepass draws ids with each bucket's own variant, whose pixel shader writes them where it covers; a depth
+			// bucket without one (opaque depth_only) with basalt_gpu_driven_ids, when its vertices need only their positions
+			var ownPixel = bucket.Variant.Pixel?.Bytecode is not null && bucket.Variant.Pixel.GpuDriven;
+			if ( ids && !ownPixel && shaders.Ids is not null ) idsShaderVariant ??= Variant( shaders.Ids, "Default" );
+			bucket.IdsShader = ids && !ownPixel && bucket.Classic is not null && shaders.Ids is not null && idsShaderVariant is not null;
+			bucket.Ids = ids && (ownPixel || bucket.IdsShader);
+			var bucketLists = lists && !bucket.DepthOnly;
 
 			var currentPage = default( BufferHandle );
 			var currentFormat = IndexFormat.UInt16;
@@ -324,15 +375,26 @@ internal sealed partial class BackendContext
 			bucket.Batches.Sort( static ( a, b ) => a.Page != b.Page ? a.Page.CompareTo( b.Page ) : a.Batch.CompareTo( b.Batch ) );
 			foreach ( var (_, index) in bucket.Batches )
 			{
+				if ( !bucket.IdsShader ) break;
+				ref readonly var batch = ref batches[index];
+				var geometry = ((IBackendGeometry)batch.Mesh.Geometry).For( batch.Draw.Mesh, batch.Draw.DrawCall );
+				if ( !ReadsOnlyPositions( bucket.Classic, geometry.Layout ) ) bucket.Ids = bucket.IdsShader = false;
+			}
+
+			foreach ( var (_, index) in bucket.Batches )
+			{
 				ref readonly var batch = ref batches[index];
 				var aggregate = (AggregateObject)batch.Owner;
 				var material = (BackendMaterial)batch.Material;
 				var geometry = ((IBackendGeometry)batch.Mesh.Geometry).For( batch.Draw.Mesh, batch.Draw.DrawCall );
 				var pooled = geometry.Pooled.Value;
 
+				// Depth only, from the positions-only copy when the vertex shader reads nothing else these vertices have
+				if ( bucket.Classic is not null && (device.PositionStreams || bucket.IdsShader) && pooled.PositionsRecord != 0 && ReadsOnlyPositions( bucket.Classic, geometry.Layout ) ) pooled = pooled with { GeometryRecord = pooled.PositionsRecord };
+
 				var vertexMaterial = MaterialRecord( tables, material, bucket.Variant.Vertex, geometry.UncompressedTangentFrame );
 				var pixelMaterial = bucket.DepthOnly ? 0 : MaterialRecord( tables, material, bucket.Variant.Pixel, geometry.UncompressedTangentFrame );
-				var flags = geometry.UncompressedTangentFrame ? 1u : 0u;
+				var flags = (geometry.UncompressedTangentFrame ? 1u : 0u) | (pooled.IndexFormat == IndexFormat.UInt32 ? 2u : 0u);
 
 				if ( pooled.IndexPage != currentPage )
 				{
@@ -347,27 +409,61 @@ internal sealed partial class BackendContext
 					(Tables: tables, Aggregate: aggregate, Pooled: pooled, Vertex: vertexMaterial, Pixel: pixelMaterial, Flags: flags),
 					static ( s, bytes ) => WriteFragments( s.Tables, s.Aggregate, s.Pooled, s.Vertex, s.Pixel, s.Flags, bytes ) );
 
-				batchRecords[record * 4] = first;
-				batchRecords[record * 4 + 1] = (uint)fragments.Length;
-				batchRecords[record * 4 + 2] = (uint)transforms.InstanceSlot( batch.FirstInstance );
-				batchRecords[record * 4 + 3] = (uint)written;
+				var at = record * (CullBatchBytes / 4);
+				batchRecords[at] = first;
+				batchRecords[at + 1] = (uint)fragments.Length;
+				batchRecords[at + 2] = (uint)transforms.InstanceSlot( batch.FirstInstance );
+				batchRecords[at + 3] = compact ? (uint)cullRuns.Count : (uint)written;
+				var (visibilityFirst, vertexBase) = visibility is not null ? tables.Visibility( aggregate, fragments.Length, pooled.VertexCount ) : (GpuDrivenTables.NoVisibility, GpuDrivenTables.NoVisibility);
+				batchRecords[at + 4] = vertexBase != GpuDrivenTables.NoVisibility ? visibilityFirst : GpuDrivenTables.NoVisibility;
+				batchRecords[at + 5] = 0;
+				batchRecords[at + 6] = (bucket.Ids ? 1u : 0u) | (bucketLists ? 2u : 0u);
+				batchRecords[at + 7] = vertexBase;
 				record++;
 				written += fragments.Length;
 				drawn[index] = true;
 			}
 
 			if ( written > runStart ) cullRuns.Add( (b, currentPage, currentFormat, runStart, written - runStart) );
+
+			// Forward's compacted triangles: one more multi-draw for the bucket, from the compacted index buffer
+			if ( bucketLists )
+			{
+				var compactRun = cullRuns.Count;
+				cullRuns.Add( (b, compacted, IndexFormat.UInt32, compactWritten, bucket.Fragments) );
+				compactWritten += bucket.Fragments;
+				for ( int i = record - bucket.Batches.Count; i < record; i++ ) batchRecords[i * (CullBatchBytes / 4) + 5] = (uint)compactRun;
+			}
 		}
 
 		SetObjectAttributes( null );
 
-		// Cull and write the commands, outside the rendering scope, then draw them
+		// Each multi-draw's first slot, and its count from 0, which the culling counts up
+		var runs = MemoryMarshal.Cast<byte, uint>( data.Slice( runsOffset, compact ? cullRuns.Count * 8 : 0 ) );
+		for ( int i = 0; i < runs.Length / 2; i++ )
+		{
+			runs[i * 2] = (uint)cullRuns[i].First;
+			runs[i * 2 + 1] = 0;
+		}
+
+		// Outside the rendering scope: the prepass clears the view's triangle mask (and, the first time, its stamps)
 		var slots = tables.Slots;
 		CloseScope( flushClears: false );
+		if ( ids )
+		{
+			r.List.Barrier( PipelineStage.AllCommands, MemoryAccess.MemoryRead | MemoryAccess.MemoryWrite, PipelineStage.Transfer, MemoryAccess.TransferWrite );
+			r.List.FillBuffer( visibility.Mask, 0, 0, Math.Max( (tables.VisibilityBits / 8 + 3) & ~3L, 4 ) );
+			if ( !visibility.StampsCleared ) r.List.FillBuffer( visibility.Stamps, 0 );
+			visibility.StampsCleared = true;
+			r.List.Barrier( PipelineStage.Transfer, MemoryAccess.TransferWrite, PipelineStage.ComputeShader, MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite );
+		}
+
+		// Cull and write the commands, then draw them
 		cullDrawer ??= new ShaderDrawer( device );
 		cullAttributes ??= new ShaderAttributes();
-		cullConstants ??= new byte[32];
+		cullConstants ??= new byte[64];
 		var constants = MemoryMarshal.Cast<byte, uint>( cullConstants.AsSpan() );
+		constants.Clear();
 		constants[0] = (uint)frameOffset;
 		constants[1] = (uint)batchCount;
 		constants[2] = (uint)(frameOffset + instanceOffset);
@@ -375,22 +471,60 @@ internal sealed partial class BackendContext
 		constants[4] = firstInstance;
 		constants[5] = (uint)tables.FragmentSlot;
 		constants[6] = (uint)slots.Draws;
+		constants[7] = compact ? (uint)(frameOffset + runsOffset) : 0;
+		constants[8] = device.GpuDrivenFrame;
+		constants[9] = 0;
+		constants[10] = (uint)(frameOffset + cursorOffset);
+		constants[11] = BackendDevice.VisibilityCompactedIndices;
+		constants[12] = (uint)(frameOffset + fragmentOffset) - firstInstance * 4;
+		constants[13] = lists ? (uint)(frameOffset + listedOffset) : 0;
 		cullAttributes.Clear();
 		cullAttributes.Set( "BasaltCullFrame", frameBuffer );
+		if ( visibility is not null )
+		{
+			cullAttributes.Set( "BasaltCullStamps", visibility.Stamps );
+			cullAttributes.Set( "BasaltCullMask", visibility.Mask );
+			cullAttributes.Set( "BasaltCullCompacted", lists ? compacted : visibility.Compacted[0] );
+		}
+
 		cullAttributes.SetData( "BasaltGpuDrivenCull_t", cullConstants );
+
+		// Another pass of the view this frame may still be drawing from the compacted indices this one writes over
+		if ( lists ) r.List.Barrier( PipelineStage.VertexInput, MemoryAccess.IndexRead, PipelineStage.ComputeShader, MemoryAccess.ShaderWrite );
+		var timer = device.PassTimer;
+		var cullScope = timer?.Begin( r.List, ids ? "GPU-driven cull (ids)" : lists ? "GPU-driven cull (lists)" : "GPU-driven cull", PassTimer.ScopeKind.Own, count: false ) ?? -1;
 		cullDrawer.Dispatch( r.List, CullShader, cullAttributes, batchCount * 64, 1, 1 );
-		r.List.Barrier( PipelineStage.AllCommands, MemoryAccess.MemoryWrite, PipelineStage.AllCommands, MemoryAccess.MemoryRead );
+		timer?.End( r.List, cullScope );
+
+		// Forward's listed fragments: a group each, which counts its triangles that own a sample and draws them or the whole
+		if ( lists )
+		{
+			r.List.Barrier( PipelineStage.ComputeShader, MemoryAccess.ShaderWrite, PipelineStage.DrawIndirect | PipelineStage.ComputeShader, MemoryAccess.IndirectRead | MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite );
+			var compactScope = timer?.Begin( r.List, "GPU-driven compact", PassTimer.ScopeKind.Own, count: false ) ?? -1;
+			cullDrawer.DispatchIndirect( r.List, shaders.Compact, cullAttributes, frameBuffer, frameOffset + listedOffset );
+			timer?.End( r.List, compactScope );
+		}
+
+		// Only the culling's writes before the draws' reads of them: the draws before it needn't drain
+		r.List.Barrier( PipelineStage.ComputeShader, MemoryAccess.ShaderWrite, PipelineStage.DrawIndirect | PipelineStage.VertexInput | PipelineStage.VertexShader, MemoryAccess.IndirectRead | MemoryAccess.IndexRead | MemoryAccess.ShaderRead );
 		r.Pipeline = default;
 		r.Binder = null;
-		if ( !EnsureScope() ) return;
 
-		SetConstants( GpuDrivenConstantsName, new GpuDrivenConstants { Instances = (uint)frameSlot, Draws = (uint)slots.Draws, Geometry = (uint)slots.Geometry, Materials = (uint)slots.Materials } );
+		var vertexBases = ids ? (uint)(frameOffset + fragmentOffset) - firstInstance * 4 : (uint)(frameOffset + instanceOffset) - firstInstance * 4;
+		SetConstants( GpuDrivenConstantsName, new GpuDrivenConstants { Instances = (uint)frameSlot, Draws = (uint)slots.Draws, Geometry = (uint)slots.Geometry, Materials = (uint)slots.Materials, VertexBases = vertexBases } );
+
+		// The prepass's id buckets first, into the ids and depth, then the triangles they show are marked
+		if ( ids ) DrawIds( visibility, shaders, frameBuffer, frameOffset, commandOffset, runsOffset, depth, samples, depthBias, slopeScaledDepthBias, resolver );
+
+		if ( !EnsureScope() ) return;
 
 		var bound = false;
 		var lastBucket = -1;
-		foreach ( var run in cullRuns )
+		for ( int i = 0; i < cullRuns.Count; i++ )
 		{
+			var run = cullRuns[i];
 			var bucket = gpuDrivenBuckets[run.Bucket];
+			if ( bucket.Ids ) continue;
 			if ( run.Bucket != lastBucket )
 			{
 				lastBucket = run.Bucket;
@@ -400,13 +534,112 @@ internal sealed partial class BackendContext
 				bound = false;
 			}
 
-			DrawRun( ref bound, bucket, color, depth, samples, depthBias, slopeScaledDepthBias, resolver, run.Page, run.Format, frameBuffer, frameOffset + commandOffset + run.First * GpuDrivenTables.CommandStride, run.Count );
+			DrawRun( ref bound, bucket, color, depth, samples, depthBias, slopeScaledDepthBias, resolver, run.Page, run.Format, frameBuffer, frameOffset + commandOffset + run.First * GpuDrivenTables.CommandStride, run.Count, compact ? frameOffset + runsOffset + i * 8 + 4 : -1 );
 		}
 
 		SetObjectAttributes( null );
 		r.Binder = null;
 	}
 
+	byte[] markConstants;
+	ShaderVariant idsShaderVariant;
+
+	/// <summary>The material object key's layout for <c>basalt_gpu_driven_ids</c> drawing a variant's depth: one object per variant.</summary>
+	sealed record IdsLayout( VertexLayout Layout, ShaderVariant StateFrom );
+	static readonly ConditionalWeakTable<ShaderVariant, IdsLayout> IdsLayouts = new();
+
+	/// <summary>
+	/// The prepass's buckets with ids, in a rendering scope of their own: each with its own variant, whose pixel shader
+	/// writes the id (the bit of its triangle's first vertex + 1) at target 1 to exactly the samples it covers, its discards
+	/// and alpha to coverage included; target 0 takes the authored output, which only alpha to coverage reads. Then
+	/// <c>basalt_gpu_driven_mark_cs</c> sets the bit of every id in the view's mask, for its forward pass.
+	/// </summary>
+	void DrawIds( BackendDevice.VisibilityView visibility, (BackendMaterial Ids, ShaderFile Mark, ShaderFile Compact) shaders, BufferHandle frameBuffer, long frameOffset, int commandOffset, int runsOffset, Format depth, int samples, int depthBias, float slopeScaledDepthBias, PassResolver resolver )
+	{
+		var r = recording;
+		var cache = device.MaterialCache;
+		var depthTexture = r.Depth;
+
+		var timer = device.PassTimer;
+		var idsScope = timer?.Begin( r.List, "GPU-driven ids", PassTimer.ScopeKind.Own ) ?? -1;
+		r.List.Barrier( Basalt.Gpu.TextureBarrier.Transition( visibility.Ids, ImageLayout.Undefined, ImageLayout.ColorTarget, PipelineStage.AllCommands, MemoryAccess.None, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite ) );
+		r.List.Barrier( Basalt.Gpu.TextureBarrier.Transition( visibility.Scratch, ImageLayout.Undefined, ImageLayout.ColorTarget, PipelineStage.AllCommands, MemoryAccess.None, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite ) );
+		r.List.BeginRendering(
+			[new ColorTarget { Texture = visibility.Scratch, Load = LoadOp.DontCare, Store = StoreOp.DontCare }, new ColorTarget { Texture = visibility.Ids, Load = LoadOp.Clear, Store = StoreOp.Store, ClearColor = default }],
+			new DepthTarget { Texture = depthTexture.Handle, Layer = bound.DepthSlice, Load = LoadOp.Load, Store = StoreOp.Store } );
+		var rect = bound.Viewport;
+		var (width, height) = r.List.RenderSize;
+		if ( rect.Width <= 0 || rect.Height <= 0 ) rect = new Rect( 0, 0, width, height );
+		r.List.SetViewport( rect.Left, rect.Top, rect.Width, rect.Height, bound.MinZ, bound.MaxZ );
+		r.List.SetScissor( (int)rect.Left, (int)rect.Top, (int)MathF.Ceiling( rect.Width ), (int)MathF.Ceiling( rect.Height ) );
+		r.Pipeline = default;
+
+		var lastBucket = -1;
+		for ( int i = 0; i < cullRuns.Count; i++ )
+		{
+			var run = cullRuns[i];
+			var bucket = gpuDrivenBuckets[run.Bucket];
+			if ( !bucket.Ids ) continue;
+
+			if ( run.Bucket != lastBucket )
+			{
+				lastBucket = run.Bucket;
+				SetObjectAttributes( bucket.PixelMaterial != 0 ? device.GpuDrivenMaterialParameters( bucket.PixelMaterial ) : null, bucket.Attributes );
+				NextPassState( cache );
+				resolver.Begin( passEpoch );
+				MaterialObject materialObject;
+				if ( bucket.IdsShader )
+				{
+					// basalt_gpu_driven_ids with the bucket's culling, depth and stencil: keyed by a layout object per bucket variant
+					var stateFrom = bucket.Variant;
+					var idsLayout = IdsLayouts.GetValue( stateFrom, v => new IdsLayout( device.PulledLayout, v ) );
+					var key = new MaterialObjectCache.Key( shaders.Ids, idsShaderVariant, idsLayout, BackendDevice.IdsColorKey, depth, samples, false, true );
+					materialObject = cache.Get( key, immediate: false, (device, key, stateFrom), static ( s, l ) => s.device.Pipeline( s.key.Variant, s.device.PulledLayout, BackendDevice.IdsColorKey, s.key.Depth, s.key.Samples, false, l.Sets, ids: true, stateFrom: s.stateFrom ) );
+				}
+				else
+				{
+					var perDraw = bucket.PixelMaterial != 0;
+					var layout = perDraw ? device.PulledLayoutMaterialPerDraw : device.PulledLayout;
+					var key = new MaterialObjectCache.Key( bucket.Material, bucket.Variant, layout, BackendDevice.IdsColorKey, depth, samples, false, true );
+					materialObject = cache.Get( key, immediate: false, (device, layout, key, perDraw), static ( s, l ) => s.device.Pipeline( s.key.Variant, s.layout, BackendDevice.IdsColorKey, s.key.Depth, s.key.Samples, false, l.Sets, s.perDraw, ids: true ) );
+				}
+
+				resolver.LayerEpoch = layerEpoch;
+				materialObject.Bind( r.List, ref r.Pipeline, passEpoch, resolver );
+				if ( bucket.NoColor ) r.List.SetDepthBias( depthBias, slopeScaledDepthBias );
+				if ( bucket.Variant.State.StencilTest && depthTexture is not null && BackendDevice.FormatOf( depthTexture ).HasStencil() ) r.List.SetStencilReference( (byte)bucket.Variant.State.StencilReference );
+			}
+
+			r.List.SetIndexBuffer( run.Page, run.Format, 0 );
+			r.List.DrawIndexedIndirectCount( frameBuffer, frameOffset + commandOffset + run.First * GpuDrivenTables.CommandStride, frameBuffer, frameOffset + runsOffset + i * 8 + 4, run.Count, GpuDrivenTables.CommandStride );
+			gpuDrivenRuns++;
+		}
+
+		r.List.EndRendering();
+		timer?.End( r.List, idsScope );
+		r.Pipeline = default;
+		r.Binder = null;
+		SetObjectAttributes( null );
+		// Mark: every distinct id of each pixel's samples sets its triangle's bit
+		r.List.Barrier( Basalt.Gpu.TextureBarrier.Transition( visibility.Ids, ImageLayout.ColorTarget, ImageLayout.ShaderRead, PipelineStage.ColorTargetOutput, MemoryAccess.ColorTargetWrite, PipelineStage.ComputeShader, MemoryAccess.ShaderRead ) );
+		var markConstants = this.markConstants ??= new byte[32];
+		var words = MemoryMarshal.Cast<byte, uint>( markConstants.AsSpan() );
+		words[0] = (uint)visibility.Width;
+		words[1] = (uint)visibility.Height;
+		words[2] = (uint)visibility.Samples;
+		words[3] = (uint)Math.Min( device.GpuDrivenTables.VisibilityBits, uint.MaxValue );
+		cullAttributes.Clear();
+		cullAttributes.Set( "BasaltIds", visibility.Ids );
+		cullAttributes.Set( "BasaltCullMask", visibility.Mask );
+		cullAttributes.SetCombo( "D_MSAA", visibility.Samples > 1 ? 1 : 0 );
+		cullAttributes.SetData( "BasaltGpuDrivenMark_t", markConstants );
+		var markScope = timer?.Begin( r.List, "GPU-driven mark", PassTimer.ScopeKind.Own, count: false ) ?? -1;
+		cullDrawer.Dispatch( r.List, shaders.Mark, cullAttributes, visibility.Width, visibility.Height, 1 );
+		timer?.End( r.List, markScope );
+
+		// The mask and stamps for the forward pass's culling, in a later list
+		r.List.Barrier( PipelineStage.ComputeShader, MemoryAccess.ShaderWrite, PipelineStage.ComputeShader, MemoryAccess.ShaderRead | MemoryAccess.ShaderWrite );
+	}
 	/// <summary>
 	/// An aggregate's fragment records: centre and draw record, extents and fragment index (bit 31 set when it casts no
 	/// shadow), making each fragment's draw record.
@@ -436,7 +669,7 @@ internal sealed partial class BackendContext
 	/// <summary>Multi-draws recorded by the current <see cref="DrawGpuDriven"/>, for the timings.</summary>
 	int gpuDrivenRuns;
 
-	GpuDrivenBucket FindBucket( ShaderVariant variant, ShaderParameters attributes, bool depthOnly, bool noColor, uint pixelMaterial, BackendMaterial material )
+	GpuDrivenBucket FindBucket( ShaderVariant variant, ShaderParameters attributes, bool depthOnly, bool noColor, uint pixelMaterial, BackendMaterial material, string mode )
 	{
 		for ( int i = 0; i < gpuDrivenBucketCount; i++ )
 		{
@@ -449,21 +682,24 @@ internal sealed partial class BackendContext
 		made.Variant = variant;
 		made.Attributes = attributes;
 		made.DepthOnly = depthOnly;
+		made.Classic = depthOnly ? Variant( material, mode ) : null;
 		made.NoColor = noColor;
 		made.PixelMaterial = pixelMaterial;
 		made.Material = material;
 		made.Batches.Clear();
 		made.Commands = 0;
+		made.Ids = false;
 		made.Fragments = 0;
 		return made;
 	}
 
 	/// <summary>
 	/// One multi-draw: the bucket's pipeline and sets (bound once, through any of its materials' material object: a
-	/// GPU-driven variant binds no material resources), the page's indices, and its run of commands.
+	/// GPU-driven variant binds no material resources), the page's indices, and its run of commands: all of them, or as
+	/// many as the count at <paramref name="countOffset"/> in the same buffer when it's 0 or more.
 	/// </summary>
 	void DrawRun( ref bool bound, GpuDrivenBucket bucket, Format color, Format depth, int samples, int depthBias, float slopeScaledDepthBias, PassResolver resolver,
-		BufferHandle page, IndexFormat format, BufferHandle commands, long offset, int count )
+		BufferHandle page, IndexFormat format, BufferHandle commands, long offset, int count, long countOffset = -1 )
 	{
 		var r = recording;
 		if ( !bound )
@@ -481,7 +717,8 @@ internal sealed partial class BackendContext
 		}
 
 		r.List.SetIndexBuffer( page, format, 0 );
-		r.List.DrawIndexedIndirect( commands, offset, count, GpuDrivenTables.CommandStride );
+		if ( countOffset >= 0 ) r.List.DrawIndexedIndirectCount( commands, offset, commands, countOffset, count, GpuDrivenTables.CommandStride );
+		else r.List.DrawIndexedIndirect( commands, offset, count, GpuDrivenTables.CommandStride );
 		gpuDrivenRuns++;
 	}
 
