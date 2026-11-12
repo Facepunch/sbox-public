@@ -33,8 +33,8 @@ public sealed class ShaderLibrary : IDisposable
 	}
 
 	/// <summary>
-	/// A shader by path (<c>shaders/complex.shader</c>, with or without <c>_c</c>), loaded once; null if there's no
-	/// compiled file for it.
+	/// A shader by path (<c>shaders/complex.shader</c>, with or without <c>_c</c>) or by bare name (<c>downsample_spd</c>),
+	/// loaded once; null if there's no compiled file for it.
 	/// </summary>
 	public ShaderFile Load( string path )
 	{
@@ -45,7 +45,9 @@ public sealed class ShaderLibrary : IDisposable
 			if ( files.TryGetValue( key, out var cached ) ) return cached;
 		}
 
+		// A bare name (downsample_spd), as the engine's Material.FromShader takes one, is a shader under shaders/
 		var full = Files.Find( key );
+		if ( full is null && !key.Contains( '/' ) && !key.EndsWith( ".shader", StringComparison.OrdinalIgnoreCase ) ) full = Files.Find( $"shaders/{key}.shader" );
 		if ( full is null ) return null;
 		var shader = ShaderFile.Load( full );
 		lock ( files ) files[key] = shader;

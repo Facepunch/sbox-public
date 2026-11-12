@@ -52,8 +52,10 @@ internal sealed class BasaltGpuView : Graphics.IFrameView, IDisposable
 		Graphics.Viewport = Viewport;
 	}
 
+	// A stage with no colour target (after the depth prepass) binds none: what it draws are dispatches
 	void BindOwn()
 	{
+		if ( Target?.ColorTarget is null ) return;
 		if ( backend is BasaltGpuRenderBackend gpu ) gpu.BindRenderTarget( Target, SrgbWrite );
 		else backend.BindRenderTarget( Target );
 	}
@@ -88,6 +90,7 @@ internal sealed class BasaltGpuView : Graphics.IFrameView, IDisposable
 	// A target of only depth draws into the frame's colour, as native's layer binding assumes
 	void Graphics.IFrameView.BindTarget( IRenderContext context, RenderTarget target )
 	{
+		if ( target.ColorTarget is null && Target?.ColorTarget is null ) return;
 		var bound = target.ColorTarget is null ? RenderTarget.From( Target.ColorTarget, target.DepthTarget ) : target;
 		if ( backend is BasaltGpuRenderBackend gpu ) gpu.BindRenderTarget( bound, SrgbWrite && bound.ColorTarget == Target.ColorTarget );
 		else backend.BindRenderTarget( bound );

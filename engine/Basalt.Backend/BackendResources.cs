@@ -134,7 +134,7 @@ internal sealed class BackendParameters : ShaderParameters
 	public override void Set( StringToken name, Vector4 value ) => Store( name, value );
 	public override void Set( StringToken name, Vector2Int value ) => Store( name, value );
 	public override void Set( StringToken name, Matrix value ) => Store( name, value );
-	public override void Set( StringToken name, GpuTexture value, int mip = -1 ) => Store( name, value );
+	public override void Set( StringToken name, GpuTexture value, int mip = -1 ) => Store( name, mip >= 0 && value is not null ? new TextureMip( value, mip ) : value );
 	public override void Set( StringToken name, GpuBuffer value ) => Store( name, value );
 
 	public override void SetData<T>( StringToken name, in T value )
