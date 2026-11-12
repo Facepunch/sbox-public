@@ -142,6 +142,9 @@ public sealed class GraphicsContext
 	/// <summary>The colour target's format as drawing sees it: its sRGB twin while <see cref="SrgbWrite"/>.</summary>
 	Format TargetFormat => SrgbWrite ? gpu.InfoOf( Target ).Format.Srgb() : gpu.InfoOf( Target ).Format;
 
+	/// <summary>The colour target's samples: a multisampled frame's when drawing inside one (a camera's stage).</summary>
+	int TargetSamples => gpu.InfoOf( Target ).Samples;
+
 	/// <summary>Fill the whole target with <paramref name="color"/>.</summary>
 	public void Clear( Num.Vector4 color )
 	{
@@ -170,7 +173,7 @@ public sealed class GraphicsContext
 	{
 		var depth = BeginScope( shader, attributes );
 		Draws++;
-		return drawer.DrawIndexedInstanced( List, shader, attributes, TargetFormat, depth, 1, indices, indexCount, instances, Viewport );
+		return drawer.DrawIndexedInstanced( List, shader, attributes, TargetFormat, depth, TargetSamples, indices, indexCount, instances, Viewport );
 	}
 
 	/// <summary>
@@ -202,7 +205,7 @@ public sealed class GraphicsContext
 		var upload = List.AllocateUpload( vertices.Length, 16 );
 		vertices.CopyTo( upload.Data );
 		Draws++;
-		return drawer.Draw( List, shader, attributes, TargetFormat, depth, 1, upload.Buffer, upload.Offset, layout, count, topology, Viewport );
+		return drawer.Draw( List, shader, attributes, TargetFormat, depth, TargetSamples, upload.Buffer, upload.Offset, layout, count, topology, Viewport );
 	}
 
 	/// <summary>
