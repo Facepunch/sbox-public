@@ -62,7 +62,16 @@ public static class ShaderAbi
 	public const string ViewEnvironment = "ViewEnvironment";
 
 	/// <summary>Bytes of <see cref="ViewEnvironment"/>.</summary>
-	public const int ViewEnvironmentSize = 5520;
+	public const int ViewEnvironmentSize = 5536;
+
+	/// <summary>
+	/// Where in <see cref="ViewEnvironment"/>, after its blocks, the bindless indices (2D, linear) of the view's lookup
+	/// textures are, one uint each, in the order of <see cref="ViewEnvironmentLookups"/>.
+	/// </summary>
+	public const int ViewEnvironmentLookupsOffset = 5520;
+
+	/// <summary>The lookup textures <see cref="ViewEnvironment"/> holds the indices of, by attribute name.</summary>
+	public static readonly string[] ViewEnvironmentLookups = ["SheetTexture", "BlueNoise"];
 
 	/// <summary>
 	/// <see cref="ViewEnvironment"/>'s blocks, as <c>g_ViewEnvironmentBlocks</c> (<c>scenesystem/viewdescriptorset.h</c>):

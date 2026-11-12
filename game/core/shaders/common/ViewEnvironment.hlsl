@@ -19,6 +19,8 @@
 //   ClusteredLightingConstants  the cluster grid                    5136, 80 bytes
 //   FogConstants                camera fog                          5216, 304 bytes
 //
+// then the bindless indices of the view's lookup textures (SheetTexture, BlueNoise), at 5520.
+//
 cbuffer ViewEnvironment EXTERNAL_DESC_SET( b, g_viewSet, 0 )
 {
 	//
@@ -135,6 +137,11 @@ cbuffer ViewEnvironment EXTERNAL_DESC_SET( b, g_viewSet, 0 )
 	float FogDistanceMetric;
 	float4x4 FogSkyTransform;
 	float4x4 FogHeightSkyTransform;
+
+	//
+	// The lookup textures' bindless indices (2D, linear): x SheetTexture, y BlueNoise
+	//
+	uint4 g_vViewLookupIndices;
 };
 
 #endif

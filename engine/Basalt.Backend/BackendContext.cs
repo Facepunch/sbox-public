@@ -293,6 +293,15 @@ internal sealed partial class BackendContext : GpuContext
 						data.AsSpan( 0, Math.Min( data.Length, blockSize ) ).CopyTo( target[blockOffset..] );
 				}
 
+				// Then the lookup textures' bindless indices, read through the bindless set
+				var lookups = MemoryMarshal.Cast<byte, uint>( target[ShaderAbi.ViewEnvironmentLookupsOffset..] );
+				for ( int l = 0; l < ShaderAbi.ViewEnvironmentLookups.Length; l++ )
+				{
+					lookups[l] = attributes.Get( Token( ShaderAbi.ViewEnvironmentLookups[l] ) ) is BackendTexture texture
+						? (uint)texture.BindlessIndex
+						: (uint)Math.Max( Gpu.BindlessIndex( device.Defaults.Texture( SpirvImageDimension.Texture2D ) ), 0 );
+				}
+
 				viewBindings[i] = Binding.Uniform( binding, cache.PassBuffer, offset, ShaderAbi.ViewEnvironmentSize );
 				continue;
 			}
