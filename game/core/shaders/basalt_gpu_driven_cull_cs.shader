@@ -116,10 +116,14 @@ CS
 		bool bShadow = g_Frame.Load( g_nCullInput + 112 ) != 0;
 
 		// Batch record: first fragment record, fragments, the first fragment's transform slot, its first command slot (or,
-		// compacting, its multi-draw); then its first visibility fragment, its multi-draw of compacted triangles and its
-		// flags (1: the prepass draws its ids, 2: forward draws its triangles that own a sample)
+		// compacting, its multi-draw); then its first visibility fragment, its multi-draw of compacted triangles, its flags
+		// (1: the prepass draws its ids, 2: forward draws its triangles that own a sample, 4: a mesh draw's instances) and
+		// its first vertex bit. A mesh draw's instances have its draw record first, and the g_Frame byte offset of their
+		// transform slots third; the CPU culled them; each has its own vertex bits, the flags' top 24 bits apart
 		uint4 vBatch = g_Frame.Load4( g_nCullInput + 128 + nBatch * 32 );
 		uint4 vVisibility = g_Frame.Load4( g_nCullInput + 128 + nBatch * 32 + 16 );
+		bool bInstances = ( vVisibility.z & 4 ) != 0;
+		uint nStride = vVisibility.z >> 8;
 
 		ByteAddressBuffer fragments = g_bindless_VertexBuffers[ g_nCullFragments ];
 		ByteAddressBuffer draws = g_bindless_VertexBuffers[ g_nCullDraws ];
@@ -130,47 +134,60 @@ CS
 			uint i = nBase + nThread;
 			if ( i < vBatch.y )
 			{
-				// Fragment record: centre and draw record, extents and fragment index (bit 31: casts no shadow)
-				uint4 a = fragments.Load4( ( vBatch.x + i ) * 32 );
-				uint4 b = fragments.Load4( ( vBatch.x + i ) * 32 + 16 );
-				float3 vCenter = asfloat( a.xyz );
-				float3 vExtents = asfloat( b.xyz );
+				bool bVisible = true;
+				uint nTransform;
+				uint nDrawRecord;
+				if ( bInstances )
+				{
+					nTransform = g_Frame.Load( vBatch.z + i * 4 );
+					nDrawRecord = vBatch.x;
+				}
+				else
+				{
+					// Fragment record: centre and draw record, extents and fragment index (bit 31: casts no shadow)
+					uint4 a = fragments.Load4( ( vBatch.x + i ) * 32 );
+					uint4 b = fragments.Load4( ( vBatch.x + i ) * 32 + 16 );
+					float3 vCenter = asfloat( a.xyz );
+					float3 vExtents = asfloat( b.xyz );
 
-				bool bVisible = !( bShadow && ( b.w & 0x80000000u ) != 0 );
-				[unroll]
-				for ( uint p = 0; p < 6; p++ )
-					bVisible = bVisible && Inside( vPlanes[p], vCenter, vExtents );
+					bVisible = !( bShadow && ( b.w & 0x80000000u ) != 0 );
+					[unroll]
+					for ( uint p = 0; p < 6; p++ )
+						bVisible = bVisible && Inside( vPlanes[p], vCenter, vExtents );
 
-				// Basalt's size cull: too small for the threshold unless the camera is inside the bounding sphere
-				float flRadiusSquared = dot( vExtents, vExtents );
-				float3 vToCamera = vCenter - vCamera.xyz;
-				float flDistanceSquared = dot( vToCamera, vToCamera );
-				if ( vCamera.w > 0 && flDistanceSquared > flRadiusSquared && flRadiusSquared < vCamera.w * flDistanceSquared )
-					bVisible = false;
+					// Basalt's size cull: too small for the threshold unless the camera is inside the bounding sphere
+					float flRadiusSquared = dot( vExtents, vExtents );
+					float3 vToCamera = vCenter - vCamera.xyz;
+					float flDistanceSquared = dot( vToCamera, vToCamera );
+					if ( vCamera.w > 0 && flDistanceSquared > flRadiusSquared && flRadiusSquared < vCamera.w * flDistanceSquared )
+						bVisible = false;
 
-				uint nTransform = vBatch.z + ( b.w & 0x7fffffffu );
+					nTransform = vBatch.z + ( b.w & 0x7fffffffu );
+					nDrawRecord = a.w;
+				}
 
 				// Draw record's second half: first index, index count, base vertex, index page
-				uint4 vDraw = draws.Load4( a.w * 32 + 16 );
+				uint4 vDraw = draws.Load4( nDrawRecord * 32 + 16 );
 				uint nFragment = vVisibility.x != None ? vVisibility.x + i : None;
+				uint nVertexBase = vVisibility.w != None ? vVisibility.w + i * nStride : None;
 
 				if ( g_nCullRuns == 0 )
 				{
 					// Without compacting every fragment keeps its slot, with no instance where it's culled
-					WriteDraw( vBatch.w + i, nTransform, a.w, vDraw.y, bVisible ? 1u : 0u, vDraw.x, vDraw.z );
+					WriteDraw( vBatch.w + i, nTransform, nDrawRecord, vDraw.y, bVisible ? 1u : 0u, vDraw.x, vDraw.z );
 				}
 				else if ( bVisible )
 				{
 					// Forward over a fragment the prepass drew ids for this frame: listed for the compaction pass
 					bool bListed = false;
-					if ( ( vVisibility.z & 2 ) != 0 && nFragment != None && vVisibility.w != None && g_Stamps.Load( nFragment * 4 ) == g_nCullFrame )
+					if ( ( vVisibility.z & 2 ) != 0 && nFragment != None && nVertexBase != None && g_Stamps.Load( nFragment * 4 ) == g_nCullFrame )
 					{
 						uint nAt;
 						g_Frame.InterlockedAdd( g_nCullListed, 1, nAt );
 						uint nEntry = g_nCullListed + 16 + nAt * 32;
 						g_Frame.Store( nEntry, nTransform );
-						g_Frame.Store( nEntry + 4, a.w );
-						g_Frame.Store( nEntry + 8, vVisibility.w + vDraw.z );
+						g_Frame.Store( nEntry + 4, nDrawRecord );
+						g_Frame.Store( nEntry + 8, nVertexBase + vDraw.z );
 						g_Frame.Store( nEntry + 12, vBatch.w );
 						g_Frame.Store( nEntry + 16, vVisibility.y );
 						bListed = true;
@@ -179,12 +196,12 @@ CS
 					if ( !bListed )
 					{
 						uint nSlot = TakeSlot( vBatch.w );
-						WriteDraw( nSlot, nTransform, a.w, vDraw.y, 1, vDraw.x, vDraw.z );
+						WriteDraw( nSlot, nTransform, nDrawRecord, vDraw.y, 1, vDraw.x, vDraw.z );
 
 						// The prepass's ids: this instance's fragment, and its stamp for forward this frame
 						if ( ( vVisibility.z & 1 ) != 0 && nFragment != None )
 						{
-							g_Frame.Store( g_nCullFragmentWords + ( g_nCullFirstInstance + nSlot ) * 4, vVisibility.w );
+							g_Frame.Store( g_nCullFragmentWords + ( g_nCullFirstInstance + nSlot ) * 4, nVertexBase );
 							g_Stamps.Store( nFragment * 4, g_nCullFrame );
 						}
 					}

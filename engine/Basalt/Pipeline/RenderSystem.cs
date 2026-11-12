@@ -129,6 +129,9 @@ public sealed partial class RenderSystem : IDisposable
 		AddFeature( lightBinner );
 		AddFeature( meshes );
 		AddFeature( aggregates );
+
+		// Static mesh draws join the aggregates' GPU-driven call, after the mesh feature prepares each view
+		aggregates.Meshes = meshes;
 	}
 
 	/// <summary>

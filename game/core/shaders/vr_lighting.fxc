@@ -12,7 +12,9 @@
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-Texture2D g_tBlueNoise : register(t0) < Attribute("BlueNoise"); > ;
+// Through the bindless set, by the view environment's index
+#include "common/classes/Bindless.hlsl"
+#define g_tBlueNoise g_bindless_Texture2D[ g_vViewLookupIndices.y ]
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 

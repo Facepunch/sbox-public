@@ -49,9 +49,75 @@ public sealed class ShaderLibrary : IDisposable
 		var full = Files.Find( key );
 		if ( full is null && !key.Contains( '/' ) && !key.EndsWith( ".shader", StringComparison.OrdinalIgnoreCase ) ) full = Files.Find( $"shaders/{key}.shader" );
 		if ( full is null ) return null;
-		var shader = ShaderFile.Load( full );
+		var shader = LoadOrUpgrade( full );
 		lock ( files ) files[key] = shader;
 		return shader;
+	}
+
+	/// <summary>
+	/// Recompiles a shader an older engine compiled (<see cref="ShaderOutdatedException"/>, a package's) from the source
+	/// embedded in it: given its compiled file and where to write the new one, true once written. Null recompiles
+	/// nothing, and such a shader doesn't load: its materials draw nothing rather than read bindings that moved.
+	/// </summary>
+	public Func<string, string, bool> Upgrader { get; set; }
+
+	/// <summary>The folder <see cref="Upgrader"/>'s shaders are cached in, by name, the old file's hash and <see cref="UpgraderVersion"/>.</summary>
+	public string UpgradeCache { get; set; }
+
+	/// <summary>What the cached shaders were recompiled by: a different version recompiles them.</summary>
+	public string UpgraderVersion { get; set; } = "";
+
+	ShaderFile LoadOrUpgrade( string path )
+	{
+		try
+		{
+			return ShaderFile.Load( path );
+		}
+		catch ( ShaderOutdatedException )
+		{
+			if ( Upgrader is null || string.IsNullOrEmpty( UpgradeCache ) ) return null;
+		}
+
+		// By name and contents, so a changed package shader recompiles
+		var hash = Convert.ToHexString( System.Security.Cryptography.SHA256.HashData( File.ReadAllBytes( path ) ), 0, 8 );
+		var version = Convert.ToHexString( System.Security.Cryptography.SHA256.HashData( System.Text.Encoding.UTF8.GetBytes( UpgraderVersion ) ), 0, 4 );
+		var name = System.Text.RegularExpressions.Regex.Replace( Path.GetFileNameWithoutExtension( path ), "[^a-zA-Z0-9_]", "_" );
+		var upgraded = Path.Combine( UpgradeCache, $"{name}.{hash}.{version}.shader_c" ).ToLowerInvariant();
+
+		// Failed with this compiler before: it stays unloaded
+		if ( !File.Exists( upgraded ) && !File.Exists( upgraded + ".failed" ) )
+		{
+			bool written;
+			try
+			{
+				written = Upgrader( path, upgraded ) && File.Exists( upgraded );
+			}
+			catch ( Exception )
+			{
+				written = false;
+			}
+
+			if ( !written )
+			{
+				try
+				{
+					Directory.CreateDirectory( UpgradeCache );
+					File.WriteAllText( upgraded + ".failed", UpgraderVersion );
+				}
+				catch ( IOException )
+				{
+				}
+			}
+		}
+
+		try
+		{
+			return File.Exists( upgraded ) ? ShaderFile.Load( upgraded ) : null;
+		}
+		catch ( InvalidDataException )
+		{
+			return null;
+		}
 	}
 
 	/// <summary>
@@ -64,7 +130,7 @@ public sealed class ShaderLibrary : IDisposable
 	/// The GPU-driven variant's form: what vfx_vulkan's rewrite (<c>src/vfx/vfx_vulkan/basalt_gpu_driven.cpp</c>) makes
 	/// of a shader. Raise it with any change there, so variants compiled at load and cached are compiled again.
 	/// </summary>
-	public const int GpuDrivenVersion = 2;
+	public const int GpuDrivenVersion = 3;
 
 	readonly Dictionary<ShaderFile, ShaderFile> gpuDriven = new( ReferenceEqualityComparer.Instance );
 
