@@ -1,6 +1,7 @@
 using Basalt;
 using Basalt.Backend;
 using Basalt.Gpu;
+using Basalt.Sdl;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
@@ -8,7 +9,6 @@ using System.Threading;
 using Capture = BasaltGpuSample.Capture;
 using GpuDevice = Basalt.Gpu.Device;
 using GpuTextureBarrier = Basalt.Gpu.TextureBarrier;
-using Win32Window = BasaltGpuSample.Win32Window;
 
 namespace Sandbox.BasaltLab;
 
@@ -96,12 +96,6 @@ internal static class CrowdRun
 
 	public static int Run( Source2Backend backend )
 	{
-		if ( !OperatingSystem.IsWindows() )
-		{
-			Console.Error.WriteLine( "-crowd opens a Win32 window" );
-			return 2;
-		}
-
 		var width = Args.Int( "-width", 1280 );
 		var height = Args.Int( "-height", 720 );
 		var samples = Args.Int( "-msaa", 4 );
@@ -114,12 +108,13 @@ internal static class CrowdRun
 		var variants = only is null ? all : all.Where( v => only.Contains( v.Name, StringComparer.OrdinalIgnoreCase ) ).ToArray();
 
 		var errors = 0;
-		using var window = new Win32Window( "Basalt Lab: Crowd Near on Basalt.Gpu", width, height );
+		using var window = new SdlWindow( new SdlWindowOptions { Title = "Basalt Lab: Crowd Near on Basalt.Gpu", Width = width, Height = height } );
 		using var gpu = GpuDevice.Create( new DeviceOptions
 		{
 			ApplicationName = "Sbox",
 			EngineName = "Source2",
 			Validation = Args.Has( "-validation" ),
+			InstanceExtensions = Sdl.VulkanInstanceExtensions,
 			Message = m =>
 			{
 				if ( m.Severity < MessageSeverity.Warning ) return;
@@ -128,10 +123,10 @@ internal static class CrowdRun
 			},
 		} );
 
-		var (clientWidth, clientHeight) = window.ClientSize;
+		var (clientWidth, clientHeight) = window.PixelSize;
 		using var swapChain = gpu.CreateSwapChain( new SwapChainInfo
 		{
-			Surface = SurfaceSource.Win32( window.Instance, window.Handle ),
+			Surface = SurfaceSource.Custom( window.CreateVulkanSurface ),
 			Width = clientWidth,
 			Height = clientHeight,
 			PresentMode = Args.Has( "-vsync" ) ? PresentMode.Fifo : PresentMode.Immediate,
@@ -202,9 +197,9 @@ internal static class CrowdRun
 				system.ParallelRecording = variant.Parallel;
 				step = 0;
 				var warm = Stopwatch.StartNew();
-				for ( int i = 0; (i < warmup || warm.Elapsed.TotalSeconds < 2) && !window.Closed; i++ )
+				for ( int i = 0; (i < warmup || warm.Elapsed.TotalSeconds < 2) && !window.CloseRequested; i++ )
 				{
-					window.Pump();
+					Maps.MapRun.Pump( window );
 					RenderFrame();
 				}
 
@@ -213,9 +208,9 @@ internal static class CrowdRun
 				var measured = new List<Frame>( frames );
 				var frameTimes = new List<double>( frames );
 				var last = Stopwatch.GetTimestamp();
-				for ( int i = 0; i < frames && !window.Closed; i++ )
+				for ( int i = 0; i < frames && !window.CloseRequested; i++ )
 				{
-					window.Pump();
+					Maps.MapRun.Pump( window );
 					measured.Add( RenderFrame() );
 					var now = Stopwatch.GetTimestamp();
 					frameTimes.Add( Stopwatch.GetElapsedTime( last, now ).TotalMilliseconds );

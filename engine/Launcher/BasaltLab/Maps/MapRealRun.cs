@@ -1,6 +1,7 @@
 using Basalt;
 using Basalt.Backend;
 using Basalt.Gpu;
+using Basalt.Sdl;
 using Basalt.Source2;
 using Basalt.Source2.Shaders;
 using System.Diagnostics;
@@ -8,7 +9,6 @@ using System.IO;
 using System.Text;
 using Capture = BasaltGpuSample.Capture;
 using GpuDevice = Basalt.Gpu.Device;
-using Win32Window = BasaltGpuSample.Win32Window;
 
 namespace Sandbox.BasaltLab.Maps;
 
@@ -50,7 +50,7 @@ internal static class MapRealRun
 		public double Wait, Render, Copy, Collect, Prepare, Setup, Record, WorkerRecord, Prepass, Stages, Submit, Gpu;
 	}
 
-	public static int Run( GpuDevice gpu, Win32Window window, SwapChain swapChain, string folder, ContentFiles core, Options options )
+	public static int Run( GpuDevice gpu, SdlWindow window, SwapChain swapChain, string folder, ContentFiles core, Options options )
 	{
 		var only = Args.String( "-variants" )?.Split( ',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries );
 		var gpuDriven = Args.Has( "-gpudriven" ) || (only?.Any( v => v.Contains( "-gpudriven", StringComparison.OrdinalIgnoreCase ) ) ?? false);
@@ -144,9 +144,9 @@ internal static class MapRealRun
 				map.SetCastShadows( variant.Shadows );
 
 				var warm = Stopwatch.StartNew();
-				for ( int i = 0; (i < options.Warmup || warm.Elapsed.TotalSeconds < 2) && !window.Closed; i++ )
+				for ( int i = 0; (i < options.Warmup || warm.Elapsed.TotalSeconds < 2) && !window.CloseRequested; i++ )
 				{
-					window.Pump();
+					MapRun.Pump( window );
 					RenderFrame( view );
 				}
 
@@ -156,9 +156,9 @@ internal static class MapRealRun
 				var gcs = GC.CollectionCount( 0 );
 				passes.Clear();
 				var last = Stopwatch.GetTimestamp();
-				for ( int i = 0; i < options.Frames && !window.Closed; i++ )
+				for ( int i = 0; i < options.Frames && !window.CloseRequested; i++ )
 				{
-					window.Pump();
+					MapRun.Pump( window );
 					frames.Add( RenderFrame( view ) );
 					var now = Stopwatch.GetTimestamp();
 					frameTimes.Add( Stopwatch.GetElapsedTime( last, now ).TotalMilliseconds );
