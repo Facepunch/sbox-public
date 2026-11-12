@@ -482,7 +482,11 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 		PlayBreakSound();
 
 		var wasImpact = damage?.Tags.Contains( "impact" ) ?? false;
-		NetworkCreateGibs( wasImpact );
+
+		if ( GameObject.HasFlagOrParent( GameObjectFlags.NotNetworked ) )
+			CreateGibs( wasImpact );
+		else
+			NetworkCreateGibs( wasImpact );
 
 		CreateExplosion();
 	}
@@ -653,6 +657,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 				if ( breakModel.IsClientOnly )
 				{
 					gib.Tags.Add( "debris", "clientside" ); // no physics interactions
+					gib.Flags |= GameObjectFlags.NotNetworked; // every peer makes its own, keep them out of snapshots
 				}
 				else if ( Networking.IsHost )
 				{
