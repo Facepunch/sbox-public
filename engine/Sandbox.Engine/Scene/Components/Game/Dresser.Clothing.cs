@@ -1,5 +1,6 @@
 using Sandbox.Engine;
 using System.Threading;
+using ClothingCategory = Sandbox.Clothing.ClothingCategory;
 using static Sandbox.ClothingContainer;
 
 namespace Sandbox;
@@ -245,8 +246,9 @@ public sealed partial class Dresser
 			var go = new GameObject( false, $"Clothing - {c.ResourceName}" );
 			go.Parent = body.GameObject;
 			go.Tags.Add( "clothing" );
-			// Necklaces can be weighted below the neck; hide the whole accessory in the first-person preview.
-			if ( c.Category == Sandbox.Clothing.ClothingCategory.NecklacePendant )
+			// Accessories can use their own bones or be weighted below the neck, so collapsing the
+			// body's upper bones isn't enough. Hide the whole accessory in the first-person preview.
+			if ( IsFirstPersonHiddenClothing( c.Category ) )
 				go.Tags.Add( "firstperson-hidden" );
 
 			var r = go.Components.Create<SkinnedModelRenderer>();
@@ -286,6 +288,21 @@ public sealed partial class Dresser
 
 		UpdateAppearance();
 	}
+
+	static bool IsFirstPersonHiddenClothing( ClothingCategory category ) => category is
+		ClothingCategory.Hat or ClothingCategory.HatBeanie or ClothingCategory.HatFormal or
+		ClothingCategory.HatCostume or ClothingCategory.HatUniform or ClothingCategory.HatSpecial or
+		ClothingCategory.Headwear or ClothingCategory.HeadTech or ClothingCategory.HeadBand or
+		ClothingCategory.HeadJewel or ClothingCategory.HeadSpecial or
+		ClothingCategory.Hair or ClothingCategory.HairShort or ClothingCategory.HairMedium or
+		ClothingCategory.HairLong or ClothingCategory.HairUpdo or ClothingCategory.HairSpecial or
+		ClothingCategory.Facial or ClothingCategory.FacialHairMustache or ClothingCategory.FacialHairBeard or
+		ClothingCategory.FacialHairStubble or ClothingCategory.FacialHairSideburns or ClothingCategory.FacialHairGoatee or
+		ClothingCategory.Eyewear or ClothingCategory.GlassesEye or ClothingCategory.GlassesSun or ClothingCategory.GlassesSpecial or
+		ClothingCategory.Eyes or ClothingCategory.Eyebrows or ClothingCategory.Eyelashes or
+		ClothingCategory.NecklaceChain or ClothingCategory.NecklacePendant or ClothingCategory.NecklaceSpecial or
+		ClothingCategory.EarringStud or ClothingCategory.EarringDangle or ClothingCategory.EarringSpecial or
+		ClothingCategory.Piercing or ClothingCategory.PierceNose or ClothingCategory.PierceEyebrow or ClothingCategory.PierceSpecial;
 
 	/// <summary>
 	/// Cancels any existing Dresser request and resets clothing without initializing appearance.
